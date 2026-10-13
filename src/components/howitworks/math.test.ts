@@ -14,12 +14,12 @@ describe("gain", () => {
 });
 
 describe("worked rating update", () => {
-  it("matches the page's example: expected 145, scored 165, 3rd match", () => {
-    const u = ratingUpdate(145, 165, 3);
+  it("matches the page's example: expected 145, scored 165, a 3rd match (2 played before)", () => {
+    const u = ratingUpdate(145, 165, 2);
     expect(u.miss).toBe(20);
     expect(u.share).toBe(10);
-    expect(u.gain).toBeCloseTo(0.5, 2);
-    expect(u.move).toBeCloseTo(5.0, 1);
+    expect(u.gain).toBeCloseTo(0.65 / 1.2, 3);
+    expect(u.move).toBeCloseTo(5.4, 1);
   });
 });
 

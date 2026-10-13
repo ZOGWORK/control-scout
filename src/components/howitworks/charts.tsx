@@ -58,7 +58,9 @@ export function Bells({ muR, muB, sR, sB, L, R, T, B, xmin = 0, xmax = 320, step
   const ticks: number[] = [];
   for (let v = xmin; v <= xmax; v += step) ticks.push(v);
   const curve = (m: number, s: number, c: "red" | "blue") => {
-    const lo = Math.max(xmin, m - Z80 * s), hi = Math.min(xmax, m + Z80 * s);
+    // The tooltip reports the full 80% range; only the shaded drawing is clipped to the axis.
+    const fullLo = m - Z80 * s, fullHi = m + Z80 * s;
+    const lo = Math.max(xmin, fullLo), hi = Math.min(xmax, fullHi);
     let area = `M${x(lo).toFixed(1)},${B}`;
     for (let v = lo; v <= hi; v += 1) area += `L${x(v).toFixed(1)},${y(pdf(v, m, s)).toFixed(1)}`;
     area += `L${x(hi).toFixed(1)},${y(pdf(hi, m, s)).toFixed(1)}L${x(hi).toFixed(1)},${B}Z`;
@@ -68,7 +70,7 @@ export function Bells({ muR, muB, sR, sB, L, R, T, B, xmin = 0, xmax = 320, step
     const col = c === "red" ? "var(--hiw-red)" : "var(--hiw-blue)";
     return (
       <g key={c}>
-        <path d={area} fill={col} opacity={0.16} {...tip(`${name} 80% range: ${Math.round(lo)}–${Math.round(hi)} pts`)} />
+        <path d={area} fill={col} opacity={0.16} {...tip(`${name} 80% range: ${Math.max(0, Math.round(fullLo))}–${Math.round(fullHi)} pts`)} />
         <path d={d} fill="none" stroke={col} strokeWidth={3} pointerEvents="none" />
         <line x1={x(m)} x2={x(m)} y1={y(pdf(m, m, s))} y2={B} stroke={col} strokeDasharray="4 4" />
         <text x={x(m)} y={y(pdf(m, m, s)) - 8} textAnchor="middle" className={`t-big ${c === "red" ? "t-red" : "t-blue"}`}>{Math.round(m)}</text>

@@ -1,6 +1,7 @@
 // Hero: the headline (word-by-word reveal) and the cycling example match card.
 import { useCallback, useEffect, useRef, useState } from "react";
 import { motion } from "motion/react";
+import { Pause, Play } from "lucide-react";
 import { ENGINE_VERSION } from "@control-scout/predict-engine";
 import { cn } from "../cn";
 import { CERTAINTY, MODEL, heroFoot, range80, sigma, winProb } from "./math";
@@ -87,11 +88,12 @@ function MatchCard() {
 
   // Cycle examples every 5.2 s (never under reduced motion); a tap restarts the timer.
   const [cycle, setCycle] = useState(0);
+  const [paused, setPaused] = useState(false);
   useEffect(() => {
-    if (reduced) return;
+    if (reduced || paused) return;
     const t = setInterval(() => setIdx((i) => (i + 1) % EXAMPLES.length), 5200);
     return () => clearInterval(t);
-  }, [reduced, cycle]);
+  }, [reduced, paused, cycle]);
   const pick = useCallback((i: number) => { setIdx(i); setCycle((c) => c + 1); }, []);
 
   const redPct = Math.round(shown * 100);
@@ -118,7 +120,7 @@ function MatchCard() {
         <span className="bg-blue-alliance transition-[flex-grow] duration-700 ease-[cubic-bezier(.34,1.56,.64,1)] motion-reduce:transition-none" style={{ flex: `${((1 - p) * 100).toFixed(1)} 1 0` }} />
       </div>
       <p aria-live="polite" className="min-h-[3.6em] border-t border-border px-4 py-2.5 text-sm italic text-muted-foreground">{heroFoot(p)}</p>
-      <div role="group" aria-label="Example matches" className="flex gap-1.5 px-4 pb-3">
+      <div role="group" aria-label="Example matches" className="flex items-center gap-1.5 px-4 pb-3">
         {EXAMPLES.map((x, i) => (
           <button
             key={x.label} type="button" aria-label={x.label} aria-pressed={i === idx} onClick={() => pick(i)}
@@ -127,6 +129,12 @@ function MatchCard() {
             <span className={cn("block h-2 rounded-full transition-all duration-500", i === idx ? "w-6 bg-accent" : "w-2 bg-border group-hover:bg-muted-foreground")} />
           </button>
         ))}
+        {!reduced && (
+          <button type="button" onClick={() => setPaused((v) => !v)} aria-pressed={paused} aria-label={paused ? "Resume cycling examples" : "Pause cycling examples"}
+            className="ml-auto inline-flex h-7 items-center gap-1 rounded-md border border-border px-2 font-mono text-[11px] text-muted-foreground hover:text-foreground">
+            {paused ? <Play className="size-3" /> : <Pause className="size-3" />}{paused ? "Play" : "Pause"}
+          </button>
+        )}
       </div>
     </div>
   );

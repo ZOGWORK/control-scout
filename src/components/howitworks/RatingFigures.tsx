@@ -35,12 +35,12 @@ export function RatingChips() {
 // ---------- worked update ----------
 
 export function WorkedUpdate() {
-  const u = ratingUpdate(145, 165, 3);
+  const u = ratingUpdate(145, 165, 2); // the engine counts matches already played: a 3rd match has 2 before it
   return (
     <div role="group" aria-label="Worked example of a rating update" className="custom-scrollbar overflow-x-auto whitespace-nowrap rounded-xl border border-border bg-card px-4 py-3 font-mono text-[13px] leading-[1.95] text-foreground/90">
       Red expected 145, scored 165 → miss = <b>+{u.miss}</b><br />
       each robot's share = {u.miss} ÷ 2 = <b>+{u.share}</b><br />
-      robot on its 3rd match: gain = {RATING.k0} ÷ (1 + 3/{RATING.n0}) = <b>{u.gain.toFixed(2)}</b><br />
+      robot on its 3rd match (2 played before): gain = {RATING.k0} ÷ (1 + 2/{RATING.n0}) = <b>{u.gain.toFixed(2)}</b><br />
       rating moves by {u.gain.toFixed(2)} × {u.share} = <span className="rounded bg-accent px-1 text-accent-ink">+{u.move.toFixed(1)} points</span>
     </div>
   );
