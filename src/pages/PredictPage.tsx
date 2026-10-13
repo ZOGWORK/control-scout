@@ -21,6 +21,7 @@ import { SeasonToggle } from "../components/SeasonToggle";
 import { AdvancementView } from "../components/Advancement";
 import { cn } from "../components/cn";
 import { dateRange, num, oddsPct, seasonLabel } from "../lib/format";
+import { copyLink } from "../lib/clipboard";
 
 type Mode = "match" | "advancement" | "upcoming";
 
@@ -149,7 +150,7 @@ function MatchResult({ x, offlineAsOf }: { x: MatchExplanationView; offlineAsOf?
     update("predictionHistory", (h) => [{ id: `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`, season: x.season, red: x.red, blue: x.blue, winProbRed: x.winProbRed, predictedRed: x.predictedRed, predictedBlue: x.predictedBlue, tier: x.confidence.tier, savedAt: Date.now() }, ...h].slice(0, 200));
     toast.success("Saved to your predictions");
   };
-  const share = () => { navigator.clipboard?.writeText(location.href).then(() => toast.success("Link copied"), () => toast.error("Couldn't copy the link")); };
+  const share = () => copyLink();
   return (
     <div className="space-y-4">
       <div className="relative overflow-hidden rounded-2xl border border-border bg-card p-6">

@@ -21,11 +21,11 @@ import { ToggleGroup, ToggleGroupItem, Collapsible, CollapsibleContent, Collapsi
 import { ChartContainer, ChartTooltip, ChartTooltipContent } from "../components/ui/chart";
 import { Tooltip, TooltipContent, TooltipTrigger } from "../components/ui/overlay";
 import { MatchList } from "../components/predict";
-import { toast } from "../components/ui/sonner";
 import { SeasonToggle } from "../components/SeasonToggle";
 import { cn } from "../components/cn";
 import { awardLabel, dateRange, int, num, place, seasonLabel, topPct } from "../lib/format";
 import { eventTypeLabel } from "../lib/labels";
+import { copyLink } from "../lib/clipboard";
 
 export default function TeamPage() {
   const { number } = useParams();
@@ -82,7 +82,7 @@ function Hero({ p, onSeason }: { p: TeamProfile; onSeason: (s: number) => void }
   const next = p.events.find((e) => (e.end ?? e.start ?? "") >= today) ?? null;
   const last = [...p.events].reverse().find((e) => (e.end ?? e.start ?? "") < today) ?? null;
   const top = topPct(s?.opr.np.rank, s?.opr.np.of);
-  const share = () => navigator.clipboard?.writeText(location.href).then(() => toast.success("Link copied"), () => toast.error("Couldn't copy the link"));
+  const share = () => copyLink();
   return (
     <Reveal className="mb-8 overflow-hidden rounded-2xl border border-border bg-card">
       <div className="grid lg:grid-cols-[minmax(0,1fr)_minmax(0,1.05fr)]">
