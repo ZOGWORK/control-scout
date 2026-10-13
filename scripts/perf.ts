@@ -178,7 +178,7 @@ try {
   const first = await loadPage(await firstCtx.newPage(), "/", true);
   await firstCtx.close();
   const pages: Record<string, { jsBytes: number; charts: boolean }> = {};
-  for (const p of ["/", "/teams/18360", "/events/2025/AUBRQ2", "/predict/accuracy"]) {
+  for (const p of ["/", "/teams/18360", "/events/2025/AUBRQ2", "/methodology"]) {
     const fresh = await (await browser.newContext()).newPage();
     await fresh.addInitScript(SHIM);
     const r = await loadPage(fresh, p, false);
