@@ -58,6 +58,7 @@ in [AUDIT-REPORT.md](AUDIT-REPORT.md).
 | R6 | `prefer` dropped valid event codes containing `-`/`_` or longer than 20 characters. | Same rule as event routes: `[A-Z0-9_-]{2,24}`. | Lint/tests. ✅ |
 | R7 | `npm run audit` exited 0 even with findings. | Exit code 1 when there are findings. | ✅ |
 | R8 | The state checks passed any page with 40 characters of static text. | Every route declares `noApi` if it works without the server. Data pages must show a loading indicator when slow and an error message when down. `/packs` is slowed and refused too. | Found D1. ✅ |
+| R9 | (Round 2, 5/5 with one thread) The upgrade check counted caches before build B finished installing, so a failed upgrade could pass. Root cause, found while fixing: Playwright's `waitForFunction` with an **async** predicate gets a Promise back, which is always truthy, so it never waited at all. | The check follows B's worker through its real `statechange` events: it must reach `activated` (`redundant` = failed install). Then every file B's `sw.js` lists must be in B's cache. | Flow: "installing → installed → activating → activated, all 46 files" in B's cache. ✅ |
 
 Not defects (checked and recorded):
 
