@@ -25,6 +25,8 @@ both run the shared engine in `packages/predict-engine`.
 
 Before calling a milestone done, run [docs/self-audit.md](docs/self-audit.md) using `npm run audit`, which sweeps every route at desktop and mobile size: console, overflow, labels, and loading/API-down states. Then run `npm run audit:flows`, which clicks through every feature, including the offline venue check on the production build (`npm run build` first). Log findings in `AUDIT.md`. Both tools reuse servers already running on 5199/3199, so stop stale ones after editing server code.
 
+**Performance budgets.** `npm run audit:perf` builds the app and runs `scripts/perf.ts --budgets`. It fails if the home page takes over 3 s to become interactive (warm, throttled 4G), if home data exceeds 100 KB or the home page downloads the charts chunk, if a hot API route's warm p95 exceeds 300 ms, or if cold start takes over 20 s. CI (`.github/workflows/ci.yml`) runs the same check on every pull request, so a change that blows a budget fails its PR. `npm run perf -- --base <url>` measures a deployed site the same way (no cold start).
+
 ## Product rules (non-negotiable)
 
 8. **No mock data anywhere a user can see.** Real data end to end, or the page says what's missing and why (e.g. "no schedule published yet").
