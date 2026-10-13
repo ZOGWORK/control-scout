@@ -131,6 +131,18 @@ export function saveScoutEntry(e: Omit<ScoutEntry, "updatedAt"> & { updatedAt?: 
 
 export function deleteScoutEntry(e: ScoutEntry) { saveScoutEntry({ ...e, deleted: true, data: {}, notes: "" }); }
 
+/** Everything scouting-related on this device, including what hasn't synced yet. */
+export function exportLocalScouting(): { entries: ScoutEntry[]; dirty: string[] } {
+  return { entries: localScoutEntries(), dirty: [...dirty()] };
+}
+
+/** Put back a previously exported set (an account's stashed copy). */
+export function importLocalScouting(data: { entries: ScoutEntry[]; dirty: string[] }) {
+  for (const e of data.entries ?? []) { try { localStorage.setItem(KEY(e.uuid), JSON.stringify(e)); } catch { /* storage full */ } }
+  const d = dirty(); for (const u of data.dirty ?? []) d.add(u); setDirty(d);
+  window.dispatchEvent(new Event(EVT));
+}
+
 export function clearLocalScouting() {
   for (const e of localScoutEntries()) localStorage.removeItem(KEY(e.uuid));
   localStorage.removeItem(DIRTY);

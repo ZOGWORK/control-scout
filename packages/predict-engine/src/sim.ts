@@ -246,7 +246,11 @@ export function simulateEvent(input: SimInput): Map<number, TeamOutcome> {
     // 4. Playoffs → place per alliance number (1-based).
     const place = new Map<number, number>();
     const A = alliances.length;
-    const strengthOf = (k: number) => alliances[k - 1];
+    // Only two robots of an alliance play a match. A three-team alliance (a
+    // second pick) fields its two strongest robots of this run; all members
+    // still share the alliance's place for advancement.
+    const lineups = alliances.map((al) => (al.length <= 2 ? al : [...al].sort((x, y) => (str.get(y)?.np ?? 0) - (str.get(x)?.np ?? 0)).slice(0, 2)));
+    const strengthOf = (k: number) => lineups[k - 1];
     const playMatch = (a: number, b: number) => {
       const sa = playScore(strengthOf(a), strengthOf(b)), sb = playScore(strengthOf(b), strengthOf(a));
       return sa.total === sb.total ? (r() < 0.5 ? a : b) : sa.total > sb.total ? a : b;
