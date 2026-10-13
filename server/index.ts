@@ -9,6 +9,7 @@ import { packsDir, packsPresent } from "./packs/routes.js";
 import express from "express";
 import { ENGINE_VERSION } from "@control-scout/predict-engine";
 import { createApp } from "./app.js";
+import { RELEASE } from "./release.js";
 import { syncAll } from "./sync.js";
 import { runStats } from "./stats/job.js";
 import { forecasterFor } from "./predict/engine.js";
@@ -23,7 +24,7 @@ const log = (m: string) => console.log(`[${new Date().toISOString()}] ${m}`);
 // then the app's pages load and its API answers 503 "starting up".
 let ready = false;
 const server = express();
-server.get("/api/health", (_req, res) => res.json({ ok: true, engine: ENGINE_VERSION, ready }));
+server.get("/api/health", (_req, res) => res.json({ ok: true, engine: ENGINE_VERSION, release: RELEASE, ready }));
 server.use("/api", (_req, res, next) => {
   if (ready) return next();
   res.setHeader("Retry-After", "15");
