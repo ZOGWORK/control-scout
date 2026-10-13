@@ -13,7 +13,7 @@
 //   · cold start (local only): server launch → first paint of the home page
 import { chromium, type Page } from "playwright";
 import { spawn, spawnSync } from "node:child_process";
-import { mkdtempSync, writeFileSync } from "node:fs";
+import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { connect } from "node:net";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -66,9 +66,11 @@ async function loadPage(page: Page, path: string, throttle: boolean) {
   const failed = api.filter((r) => (r.status ?? 0) >= 400);
   if (failed.length) throw new Error(`${path}: API failed: ${failed.map((r) => `${new URL(r.url).pathname} → ${r.status}`).join(", ")}`);
   const js = all.filter((r) => /\.js(\?|$)/.test(r.url));
-  // Waterfall depth: how many API "rounds" — a call that starts after another finished is a new round.
-  let depth = 0, lastEnd = -Infinity;
-  for (const r of [...api].sort((a, b) => a.start - b.start)) { if (r.start >= lastEnd) { depth++; lastEnd = r.end!; } else lastEnd = Math.max(lastEnd, r.end!); }
+  // Waterfall depth: the longest chain of API calls where each starts only after the previous one finished.
+  const sorted = [...api].sort((a, b) => a.start - b.start);
+  const chain: number[] = [];
+  sorted.forEach((r, i) => { chain[i] = 1 + Math.max(0, ...sorted.slice(0, i).map((q, j) => (q.end! <= r.start ? chain[j] : 0))); });
+  const depth = Math.max(0, ...chain);
   return {
     ms,
     requests: all.length,
@@ -112,16 +114,28 @@ async function startServer(port: number): Promise<Server> {
   if (busy) throw new Error(`port ${port} is already in use (a leftover server?); stop it first`);
   const dir = mkdtempSync(join(tmpdir(), "cs-perf-"));
   // detached: its own process group, so stopServer can end npx → tsx → node together.
-  return spawn("npx", ["tsx", "server/index.ts"], { env: { ...process.env, NODE_ENV: "production", PORT: String(port), CS_NO_SCHEDULER: "1", CS_SKIP_DOTENV: "1", DATABASE_URL: `file:${dir}/scout.db`.replace(/\\/g, "/"), DATA_DIR: dir, CS_PACKS: "off" }, shell: true, stdio: "ignore", detached: process.platform !== "win32" });
+  const proc = spawn("npx", ["tsx", "server/index.ts"], { env: { ...process.env, NODE_ENV: "production", PORT: String(port), CS_NO_SCHEDULER: "1", CS_SKIP_DOTENV: "1", DATABASE_URL: `file:${dir}/scout.db`.replace(/\\/g, "/"), DATA_DIR: dir, CS_PACKS: "off" }, shell: true, stdio: "ignore", detached: process.platform !== "win32" });
+  dirs.set(proc, dir);
+  return proc;
 }
 
-/** Stop the whole server tree and wait until it has exited. */
+/** Each server's temporary data directory, removed once the server has stopped. */
+const dirs = new WeakMap<Server, string>();
+
+/** Stop the whole server tree, wait until it has exited, then delete its data directory. */
 async function stopServer(s: Server) {
-  if (!s.pid || s.exitCode != null) return;
-  const exited = new Promise((r) => s.once("exit", r));
-  if (process.platform === "win32") spawnSync("taskkill", ["/pid", String(s.pid), "/T", "/F"], { stdio: "ignore" });
-  else try { process.kill(-s.pid, "SIGKILL"); } catch { /* already gone */ }
-  await Promise.race([exited, new Promise((r) => setTimeout(r, 10_000))]);
+  if (s.pid && s.exitCode == null) {
+    const exited = new Promise((r) => s.once("exit", r));
+    if (process.platform === "win32") spawnSync("taskkill", ["/pid", String(s.pid), "/T", "/F"], { stdio: "ignore" });
+    else try { process.kill(-s.pid, "SIGKILL"); } catch { /* already gone */ }
+    await Promise.race([exited, new Promise((r) => setTimeout(r, 10_000))]);
+  }
+  const dir = dirs.get(s);
+  if (dir) {
+    // Windows can hold the database file for a moment after the process ends.
+    for (let i = 0; i < 10; i++) { try { rmSync(dir, { recursive: true, force: true }); break; } catch { await new Promise((r) => setTimeout(r, 500)); } }
+    dirs.delete(s);
+  }
 }
 
 async function coldStart(): Promise<number | null> {
