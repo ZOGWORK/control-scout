@@ -46,6 +46,7 @@ const pkBook = new pkg.RatingBook(pkg.FITTED_MODEL.rating);
 let matches = 0, predictions = 0;
 for (const season of SEASONS) {
   const evA = load(season, cpScout.parseScoutEventRecord);
+  if (!evA.length) { console.error(`No cached events for ${season} under ${CP}/.cache/predict/scout — nothing to compare.`); process.exit(1); }
   const evB = load(season, pkg.parseScoutEventRecord);
   // Map → JSON loses entries; compare ranks separately.
   if (!same(evA.map((e) => ({ ...e, ranks: [...e.ranks] })), evB.map((e) => ({ ...e, ranks: [...e.ranks] })))) fail(`${season}: parsed events differ`);
@@ -79,5 +80,6 @@ for (const season of SEASONS) {
 }
 
 console.log(`\nReplayed ${matches} matches, compared ${predictions} pre-match predictions.`);
+if (!matches || !predictions) { console.error("Replayed no matches — NOT a valid equivalence check."); process.exit(1); }
 if (failures) { console.error(`${failures} mismatch(es) — NOT equivalent.`); process.exit(1); }
 console.log("EQUIVALENT: package output is bit-identical to Control Point's engine.");

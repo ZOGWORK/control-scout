@@ -367,8 +367,8 @@ function AwardsAllTime({ p }: { p: TeamProfile }) {
 }
 
 function ScoutNotes({ team, season }: { team: number; season: number }) {
-  const { user } = usePersonal();
-  const { entries } = useScouting({ season, team }, !!user);
+  const { syncReady } = usePersonal();
+  const { entries } = useScouting({ season, team }, syncReady);
   return (
     <Section title="My scouting notes" description="Only you see these. They're saved on this device and sync to your account when you're signed in."
       action={<Button variant="secondary" size="sm" asChild><Link to={`/scout?team=${team}&season=${season}`}><ClipboardList /> Scout this team</Link></Button>}>

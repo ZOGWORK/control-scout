@@ -4,7 +4,7 @@
 // must be JSON (a cross-site form can't send application/json without a
 // preflight we never allow).
 import express, { type NextFunction, type Request, type Response, type Router } from "express";
-import { all, get, run, writeBatch } from "../db.js";
+import { all, db, get, run, writeBatch } from "../db.js";
 import { env } from "../env.js";
 import { cleanValue, mergeValue, PERSONAL_KEYS, type PersonalKey, type Stamped } from "../../src/shared/personal.js";
 import { currentUser, deleteUser, endSession, readCookie, startSession, token, userForIdentity, type User } from "./session.js";
@@ -109,8 +109,18 @@ async function readState(userId: number): Promise<Partial<Record<PersonalKey, St
   return Object.fromEntries(rows.filter((r) => PERSONAL_KEYS.includes(r.key)).map((r) => [r.key, { value: JSON.parse(r.value), updatedAt: Number(r.updated_at) }]));
 }
 
-async function writeState(userId: number, key: PersonalKey, s: Stamped<unknown>) {
-  await run("INSERT INTO user_state (user_id, key, value, updated_at) VALUES (?, ?, ?, ?) ON CONFLICT(user_id, key) DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at", [userId, key, JSON.stringify(s.value), s.updatedAt]);
+/**
+ * Write a key only if it's at least as new as what's stored — one statement,
+ * so two overlapping requests can't let the older one land last.
+ */
+const WRITE_IF_NEWER = `INSERT INTO user_state (user_id, key, value, updated_at) VALUES (?, ?, ?, ?)
+  ON CONFLICT(user_id, key) DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at
+  WHERE excluded.updated_at >= user_state.updated_at`;
+
+async function writeStateIfNewer(userId: number, key: PersonalKey, s: Stamped<unknown>): Promise<Stamped<unknown>> {
+  await run(WRITE_IF_NEWER, [userId, key, JSON.stringify(s.value), s.updatedAt]);
+  const row = await get<any>("SELECT value, updated_at FROM user_state WHERE user_id = ? AND key = ?", [userId, key]);
+  return { value: JSON.parse(row.value), updatedAt: Number(row.updated_at) };
 }
 
 export interface ScoutEntryInput { uuid: string; season: number; team: number; eventCode: string | null; matchLabel: string | null; kind: "match" | "pit"; data: Record<string, unknown>; notes: string; updatedAt: number; deleted?: boolean }
@@ -168,22 +178,31 @@ export function meRouter(): Router {
     const updatedAt = Number(req.body?.updatedAt);
     if (value === null && key !== "myTeam") { res.status(400).json({ error: "Invalid value" }); return; }
     if (!Number.isFinite(updatedAt)) { res.status(400).json({ error: "updatedAt required" }); return; }
-    const cur = (await readState(uid(req)))[key];
-    if (!cur || updatedAt >= cur.updatedAt) { await writeState(uid(req), key, { value, updatedAt }); return { stored: { value, updatedAt } }; }
-    return { stored: cur };
+    return { stored: await writeStateIfNewer(uid(req), key, { value, updatedAt }) };
   }));
 
   /** First sign-in on a device: merge its local data into the account. */
   r.post("/migrate", h(async (req) => {
     const local = (req.body?.state ?? {}) as Record<string, Stamped<unknown>>;
-    const account = await readState(uid(req));
     const merged: Record<string, Stamped<unknown>> = {};
-    for (const key of PERSONAL_KEYS) {
-      const l = local[key];
-      const lv = l ? cleanValue(key, l.value) : null;
-      const m = mergeValue(key, (account[key] as any) ?? null, lv !== null && Number.isFinite(Number(l?.updatedAt)) ? { value: lv as any, updatedAt: Number(l!.updatedAt) } : null);
-      if (m) { merged[key] = m; await writeState(uid(req), key, m); }
-    }
+    // Read, merge and write in one transaction: a concurrent PUT can't slip
+    // between the read and the write and be overwritten by an older snapshot.
+    const tx = await db().transaction("write");
+    try {
+      const rows = (await tx.execute({ sql: "SELECT key, value, updated_at FROM user_state WHERE user_id = ?", args: [uid(req)] })).rows as any[];
+      const account = Object.fromEntries(rows.map((r) => [r.key, { value: JSON.parse(r.value), updatedAt: Number(r.updated_at) }]));
+      for (const key of PERSONAL_KEYS) {
+        const l = local[key];
+        const lv = l ? cleanValue(key, l.value) : null;
+        const m = mergeValue(key, (account[key] as any) ?? null, lv !== null && Number.isFinite(Number(l?.updatedAt)) ? { value: lv as any, updatedAt: Number(l!.updatedAt) } : null);
+        if (!m) continue;
+        // Merged lists get a fresh stamp so they win over both inputs.
+        const stamped = { ...m, updatedAt: Math.max(m.updatedAt, (account[key] as any)?.updatedAt ?? 0) };
+        await tx.execute({ sql: WRITE_IF_NEWER, args: [uid(req), key, JSON.stringify(stamped.value), stamped.updatedAt] });
+        merged[key] = stamped;
+      }
+      await tx.commit();
+    } catch (e) { await tx.rollback().catch(() => {}); throw e; } finally { tx.close(); }
     const entries = Array.isArray(req.body?.scout) ? req.body.scout.slice(0, 5000).map(cleanScoutEntry).filter(Boolean) as ScoutEntryInput[] : [];
     if (entries.length) await upsertScout(uid(req), entries);
     return { state: merged, scoutMerged: entries.length };

@@ -23,8 +23,8 @@ export default function ScoutPage() {
   const current = useCurrentSeason();
   const season = Number(sp.get("season")) || current;
   const teamFilter = Number(sp.get("team")) || undefined;
-  const { user } = usePersonal();
-  const { entries, status, pendingCount, syncNow } = useScouting({ season, team: teamFilter }, !!user);
+  const { user, syncReady } = usePersonal();
+  const { entries, status, pendingCount, syncNow } = useScouting({ season, team: teamFilter }, syncReady);
   const editing = sp.get("entry");
   const editEntry = entries.find((e) => e.uuid === editing) ?? null;
   const [formOpen, setFormOpen] = useState(!!teamFilter || !!editing);

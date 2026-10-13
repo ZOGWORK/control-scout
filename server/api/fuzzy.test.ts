@@ -36,8 +36,10 @@ describe("fuzzyScore", () => {
     expect(wordScore("garden", "warren")).toBe(0);
     expect(wordScore("qualifer", "qualifier")).toBeGreaterThan(0);
   });
-  it("ignores case, accents and punctuation", () => {
+  it("ignores case, accents and punctuation, but keeps every script", () => {
     expect(normalize("Équipe-Robo!")).toBe("equipe robo");
+    expect(normalize("机器人 Team")).toBe("机器人 team");
+    expect(fuzzyScore("机器人", "3333 机器人队")).toBeGreaterThan(0.9);
     expect(fuzzyScore("equipe robo", "Équipe Robo")).toBe(1);
   });
 });

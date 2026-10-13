@@ -2,7 +2,8 @@
 import { beforeAll, describe, it, expect } from "vitest";
 import { openDb, migrate, setDb, run } from "../db";
 import { rebuildSearch } from "../stats/job";
-import { search } from "./search";
+import { ensureSearchIndex, search } from "./search";
+import { all as dbAll } from "../db";
 
 beforeAll(async () => {
   const c = openDb(":memory:");
@@ -11,6 +12,7 @@ beforeAll(async () => {
   const teams: [number, string, string | null, string][] = [
     [16321, "X Drive", null, "Seattle"], [10820, "Cyber Dragons", "Lincoln High", "Austin"], [18360, "Pymble Pyrophosphate", null, "Sydney"],
     [1622, "Team Spyder", null, "San Diego"], [16000, "Gear Maniacs", null, "Boston"], [4215, "Hypnotic Robotics", null, "Ames"],
+    [2222, "Robo-Raptors", null, "Leeds"], [3333, "机器人队", null, "Shenzhen"],
   ];
   for (const [n, name, school, city] of teams) {
     await run("INSERT INTO teams (number, name, school, city) VALUES (?, ?, ?, ?)", [n, name, school, city]);
@@ -41,6 +43,24 @@ describe("search", () => {
   it("finds events by misspelled name, and matches by code", async () => {
     expect((await titles("sydney south qualifer"))[0]).toBe("Sydney South Qualifier");
     expect((await titles("AUSYQ1 Q12"))[0]).toBe("Q12 · Sydney South Qualifier");
+  });
+  it("finds short swapped typos that share no trigram (dirve → Drive)", async () => {
+    expect((await titles("dirve"))[0]).toBe("16321 X Drive");
+  });
+  it("matches across punctuation in stored names (Robo-Raptors)", async () => {
+    expect((await titles("robo raptrs"))[0]).toBe("2222 Robo-Raptors");
+  });
+  it("keeps non-Latin names searchable", async () => {
+    expect((await titles("机器人"))[0]).toBe("3333 机器人队");
+  });
+  it("still finds events by year", async () => {
+    expect(await titles("2025")).toContain("Sydney South Qualifier");
+  });
+  it("fills an empty typo index on an upgraded database", async () => {
+    await run("DELETE FROM search_fuzzy");
+    await ensureSearchIndex(rebuildSearch);
+    expect(Number((await dbAll<{ n: number }>("SELECT COUNT(*) n FROM search_fuzzy"))[0].n)).toBeGreaterThan(0);
+    expect((await titles("X Drvie"))[0]).toBe("16321 X Drive");
   });
   it("doesn't return far-off guesses", async () => {
     expect(await titles("garden state")).toEqual([]);

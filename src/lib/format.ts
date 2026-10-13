@@ -2,11 +2,15 @@
 
 export const pct = (p: number | null | undefined, digits = 0) => (p == null || !Number.isFinite(p) ? "—" : `${(p * 100).toFixed(digits)}%`);
 
-/** Probabilities never show as a flat 0% / 100% — those would be claims of certainty. */
-export function oddsPct(p: number | null | undefined): string {
+/**
+ * Probabilities never show as a flat 0% / 100% — a simulation that never (or
+ * always) saw an outcome hasn't proven it impossible (or certain). Pass
+ * `decided` only when the outcome has actually happened.
+ */
+export function oddsPct(p: number | null | undefined, decided = false): string {
   if (p == null || !Number.isFinite(p)) return "—";
-  if (p > 0 && p < 0.005) return "<1%";
-  if (p < 1 && p > 0.995) return ">99%";
+  if (!decided && p < 0.005) return "<1%";
+  if (!decided && p > 0.995) return ">99%";
   return `${Math.round(p * 100)}%`;
 }
 

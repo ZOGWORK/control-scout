@@ -1,5 +1,14 @@
 # Changelog
 
+## 1.1.0 — 2026-10-13
+
+- **Playoff lineups:** a selected alliance with three teams (a second pick)
+  now fields its two strongest robots in each simulated playoff match,
+  instead of scoring all three. Only two robots play; counting three made
+  such alliances near-certain winners (an even final came out 92/8). All
+  members still share the alliance's place for advancement. Changes odds
+  only for events whose alliances are already selected with three teams.
+
 ## 1.0.0 — 2026-10-12
 
 - Extracted from Control Point (`server/predict/*`), bit-identical: replaying

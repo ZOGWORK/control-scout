@@ -5,9 +5,9 @@
 //
 // Pure functions — no database — so they're unit-tested on their own.
 
-/** Lowercase, strip accents and punctuation, collapse spaces. */
+/** Lowercase, strip accents and punctuation, collapse spaces — keeping letters of every script (机器人, Ελλάδα…). */
 export function normalize(s: string): string {
-  return s.normalize("NFKD").replace(/[̀-ͯ]/g, "").toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
+  return s.normalize("NFKD").replace(/\p{M}+/gu, "").toLowerCase().replace(/[^\p{L}\p{N}]+/gu, " ").trim();
 }
 
 export const words = (s: string) => normalize(s).split(" ").filter(Boolean);
@@ -70,7 +70,11 @@ export function wordScore(q: string, w: string): number {
  * bonus when words appear in the same order.
  */
 export function fuzzyScore(query: string, name: string): number {
-  const qs = words(query), ws = words(name);
+  return scoreWords(words(query), words(name));
+}
+
+/** fuzzyScore on pre-split words (for scanning many names). */
+export function scoreWords(qs: string[], ws: string[]): number {
   if (!qs.length || !ws.length) return 0;
   let total = 0, lastIdx = -1, inOrder = 0;
   for (const q of qs) {

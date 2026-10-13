@@ -89,8 +89,13 @@ export class ScoutForecaster extends Forecaster {
   }
 
   protected awardSlots(season: number, type: string | null): { type: string; placement: number }[] {
+    return this.awardSlotsBefore(season, type, Infinity);
+  }
+
+  /** Typical award line-up from events that started before `beforeMs` (pre-event forecasts). */
+  awardSlotsBefore(season: number, type: string | null, beforeMs: number): { type: string; placement: number }[] {
     for (const s of [season, season - 1]) {
-      const evs = (this.events.get(s) ?? []).filter((e) => normType(e.type) === normType(type) && e.awards.length);
+      const evs = (this.events.get(s) ?? []).filter((e) => normType(e.type) === normType(type) && e.awards.length && e.startTime < beforeMs);
       if (evs.length < 5) continue;
       const count = new Map<string, number>();
       for (const e of evs) for (const k of new Set(e.awards.filter((a) => MODELLED_AWARDS.has(a.type)).map((a) => `${a.type}:${a.placement}`))) count.set(k, (count.get(k) ?? 0) + 1);
@@ -128,14 +133,18 @@ export class ScoutForecaster extends Forecaster {
       protected hasRatings() { return true; }
       storedPlayedKeys() { return new Set<string>(); }
       protected advancementRecords(season: number) {
-        // This event's own list: its slot count and who had already qualified
-        // elsewhere were known beforehand; who advanced *from here* was not.
-        return parent.advancementRecords(season).map((a) => a.code !== ev.code || !a.advancement ? a : {
-          ...a, advancement: { ...a.advancement, rows: a.advancement.rows.filter((r) => r.status === "ALREADY_ADVANCING" || r.status === "INELIGIBLE") },
-        });
+        // Peers: only lists from events that had finished before this one
+        // started (they drive the slot estimate and destination). This event's
+        // own list: its slot count and who had already qualified elsewhere were
+        // known beforehand; who advanced *from here* was not.
+        return parent.advancementRecords(season)
+          .filter((a) => a.code === ev.code || Date.parse(`${a.end}T23:59:59Z`) < startMs)
+          .map((a) => a.code !== ev.code || !a.advancement ? a : {
+            ...a, advancement: { ...a.advancement, rows: a.advancement.rows.filter((r) => r.status === "ALREADY_ADVANCING" || r.status === "INELIGIBLE") },
+          });
       }
       protected regionOf(code: string) { return parent.regionOf(code); }
-      protected awardSlots(season: number, type: string | null) { return parent.awardSlots(season, type); }
+      protected awardSlots(season: number, type: string | null) { return parent.awardSlotsBefore(season, type, startMs); }
     }
     return new Before().forecast(stripped, myTeam, runs);
   }

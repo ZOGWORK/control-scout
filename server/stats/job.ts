@@ -6,8 +6,10 @@ import type { InStatement } from "@libsql/client";
 import { RatingBook, FITTED_MODEL, explainMatch, ENGINE_VERSION, type EventRecord } from "@control-scout/predict-engine";
 import { all, get, kvGet, kvSet, run, writeBatch } from "../db.js";
 import { CURRENT_SEASON, SEASON_NUMBERS } from "../data/seasons.js";
-import { loadSeason, toEventRecord, matchTimeMs, type DbEvent } from "./load.js";
+import { loadSeason, toEventRecord, type DbEvent } from "./load.js";
+import { localToUtcMs } from "../data/time.js";
 import { oprRows, solveOpr } from "./opr.js";
+import { normalize } from "../api/fuzzy.js";
 import { forecasterFor, resetForecasters } from "../predict/engine.js";
 
 type Log = (m: string) => void;
@@ -156,7 +158,7 @@ export async function backtest(seasons: number[], log: Log = () => {}): Promise<
 export async function logLivePredictions(log: Log = () => {}): Promise<number> {
   const season = CURRENT_SEASON;
   const rows = await all<any>(
-    `SELECT m.code, m.level, m.series, m.number, m.time FROM matches m
+    `SELECT m.code, m.level, m.series, m.number, m.time, e.timezone FROM matches m JOIN events e ON e.season = m.season AND e.code = m.code
      WHERE m.season = ? AND m.played = 0
        AND NOT EXISTS (SELECT 1 FROM predictions p WHERE p.kind = 'live' AND p.season = m.season AND p.code = m.code AND p.level = m.level AND p.series = m.series AND p.number = m.number)`,
     [season],
@@ -176,9 +178,10 @@ export async function logLivePredictions(log: Log = () => {}): Promise<number> {
     const l = lu.get(`${m.code}|${m.level}:${m.series}:${m.number}`);
     // Only 2-robot alliances: with 3 listed (playoffs) we don't know who sits out.
     if (!l || l.red.length !== 2 || l.blue.length !== 2) continue;
-    // Only before the match: a match whose start time has passed may already be decided.
-    const t = matchTimeMs(m.time);
-    if (Number.isFinite(t) && t < Date.now() - 5 * 60_000 && Date.now() - t < 7 * 864e5) continue;
+    // Strictly before the match: a real (time-zone aware) scheduled start at
+    // least a minute away. No time or zone = can't prove it's pre-match = skip.
+    const start = localToUtcMs(m.time, m.timezone);
+    if (start == null || start <= Date.now() + 60_000) continue;
     const x = f.explain(season, l.red, l.blue);
     if (!x) continue;
     stmts.push({
@@ -195,6 +198,19 @@ export async function logLivePredictions(log: Log = () => {}): Promise<number> {
 
 /** Live ledger, step 2: attach results to logged predictions once played. */
 export async function scoreLivePredictions(log: Log = () => {}): Promise<number> {
+  // A call logged at or after the match's actual start isn't a pre-match call
+  // (delays, a sync that ran mid-match): move it out of the live record.
+  const due = await all<any>(
+    `SELECT p.id, p.predicted_at, m.time, e.timezone FROM predictions p
+     JOIN matches m ON m.season = p.season AND m.code = p.code AND m.level = p.level AND m.series = p.series AND m.number = p.number
+     JOIN events e ON e.season = p.season AND e.code = p.code
+     WHERE p.kind = 'live' AND p.outcome IS NULL AND m.played = 1`,
+  );
+  const late = due.filter((r) => { const start = localToUtcMs(r.time, r.timezone); return start == null || Date.parse(r.predicted_at) >= start; });
+  if (late.length) {
+    await writeBatch(late.map((r) => ({ sql: "UPDATE predictions SET kind = 'late' WHERE id = ?", args: [r.id] })));
+    log(`live ledger: ${late.length} call(s) logged after the match started — excluded from the live record`);
+  }
   const n = await run(
     `UPDATE predictions SET
        red_score = (SELECT red_total FROM matches m WHERE m.season = predictions.season AND m.code = predictions.code AND m.level = predictions.level AND m.series = predictions.series AND m.number = predictions.number),
@@ -223,15 +239,17 @@ export async function rebuildSearch(log: Log = () => {}): Promise<void> {
     const weight = t.last === CURRENT_SEASON ? 2 : 1;
     stmts.push({ sql: "INSERT INTO search (kind, ref, season, weight, title, subtitle, terms) VALUES ('team', ?, ?, ?, ?, ?, ?)", args: [String(t.number), t.last ?? null, weight, title, subtitle, `${t.number} ${t.name ?? ""} ${t.school ?? ""} ${place}`] });
     // Typo-tolerant index: the name people type (team name + school).
-    if (t.name || t.school) stmts.push({ sql: "INSERT INTO search_fuzzy (kind, ref, season, weight, title, subtitle, name) VALUES ('team', ?, ?, ?, ?, ?, ?)", args: [String(t.number), t.last ?? null, weight, title, subtitle, `${t.name ?? ""} ${t.school ?? ""}`.trim()] });
+    // Stored normalised, exactly like the query's chunks ("X-Drive" → "x drive").
+    if (t.name || t.school) stmts.push({ sql: "INSERT INTO search_fuzzy (kind, ref, season, weight, title, subtitle, name) VALUES ('team', ?, ?, ?, ?, ?, ?)", args: [String(t.number), t.last ?? null, weight, title, subtitle, normalize(`${t.name ?? ""} ${t.school ?? ""}`)] });
   }
   for (const e of events) {
     const place = [e.city, e.state, e.country].filter(Boolean).join(", ");
     const subtitle = [e.code, e.start, place].filter(Boolean).join(" · "), weight = e.season === CURRENT_SEASON ? 2 : 1;
     stmts.push({ sql: "INSERT INTO search (kind, ref, season, weight, title, subtitle, terms) VALUES ('event', ?, ?, ?, ?, ?, ?)", args: [`${e.season}:${e.code}`, e.season, weight, e.name, subtitle, `${e.code} ${e.name} ${place}`] });
-    stmts.push({ sql: "INSERT INTO search_fuzzy (kind, ref, season, weight, title, subtitle, name) VALUES ('event', ?, ?, ?, ?, ?, ?)", args: [`${e.season}:${e.code}`, e.season, weight, e.name, subtitle, `${e.name} ${e.city ?? ""}`.trim()] });
+    stmts.push({ sql: "INSERT INTO search_fuzzy (kind, ref, season, weight, title, subtitle, name) VALUES ('event', ?, ?, ?, ?, ?, ?)", args: [`${e.season}:${e.code}`, e.season, weight, e.name, subtitle, normalize(`${e.name} ${e.city ?? ""}`)] });
   }
   await writeBatch(stmts, 5000);
+  await kvSet("search:version", new Date().toISOString());
   log(`search: ${teams.length} teams, ${events.length} events (word + trigram indexes)`);
 }
 

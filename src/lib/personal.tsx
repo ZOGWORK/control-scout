@@ -5,7 +5,7 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { apiFetch } from "./api";
 import { cleanValue, EMPTY_STATE, PERSONAL_KEYS, type PersonalKey, type PersonalState, type Stamped } from "../shared/personal";
-import { localScoutEntries } from "./scouting";
+import { clearLocalScouting, localScoutEntries } from "./scouting";
 
 export interface AccountUser { id: number; email: string | null; displayName: string | null; createdAt: string }
 export type SyncStatus = "local" | "synced" | "syncing" | "offline" | "error";
@@ -16,6 +16,8 @@ interface PersonalApi {
   /** Null until /api/auth/me has answered. */
   providers: { email: boolean; google: boolean } | null;
   sync: SyncStatus;
+  /** Signed in AND this device's data confirmed as the account's: safe to sync scouting. */
+  syncReady: boolean;
   set<K extends PersonalKey>(key: K, value: PersonalState[K]): void;
   update<K extends PersonalKey>(key: K, fn: (prev: PersonalState[K]) => PersonalState[K]): void;
   signedIn(user: AccountUser): Promise<void>;
@@ -26,8 +28,14 @@ interface PersonalApi {
 
 const Ctx = createContext<PersonalApi | null>(null);
 const LS = (k: PersonalKey) => `cs-personal:${k}`;
-const PENDING = "cs-personal-pending";
-const MIGRATED = (id: number) => `cs-migrated:${id}`;
+/** Key → the edit version (updatedAt) still waiting to reach the server. */
+const PENDING = "cs-personal-pending-v2";
+/**
+ * Who this device's personal data belongs to: "" = anonymous (never synced),
+ * otherwise the account id it was last synced with. Only anonymous data is
+ * ever merged into an account; another account's data is never absorbed.
+ */
+const OWNER = "cs-personal-owner";
 
 function readLocal(): Record<PersonalKey, Stamped<any> | null> {
   const out = {} as Record<PersonalKey, Stamped<any> | null>;
@@ -42,8 +50,13 @@ function readLocal(): Record<PersonalKey, Stamped<any> | null> {
   return out;
 }
 function writeLocal(k: PersonalKey, s: Stamped<unknown>) { try { localStorage.setItem(LS(k), JSON.stringify(s)); } catch { /* storage full or blocked */ } }
-function pending(): Set<PersonalKey> { try { return new Set(JSON.parse(localStorage.getItem(PENDING) ?? "[]")); } catch { return new Set(); } }
-function setPending(p: Set<PersonalKey>) { try { localStorage.setItem(PENDING, JSON.stringify([...p])); } catch { /* ignore */ } }
+function pending(): Partial<Record<PersonalKey, number>> { try { return JSON.parse(localStorage.getItem(PENDING) ?? "{}"); } catch { return {}; } }
+function setPendingMap(p: Partial<Record<PersonalKey, number>>) { try { localStorage.setItem(PENDING, JSON.stringify(p)); } catch { /* ignore */ } }
+function markPending(k: PersonalKey, version: number) { const p = pending(); p[k] = Math.max(p[k] ?? 0, version); setPendingMap(p); }
+/** Clear a key's marker only if nothing newer than `version` is waiting. */
+function ackPending(k: PersonalKey, version: number) { const p = pending(); if ((p[k] ?? 0) <= version) { delete p[k]; setPendingMap(p); } }
+const getOwner = () => { try { return localStorage.getItem(OWNER) ?? ""; } catch { return ""; } };
+const setOwner = (v: string) => { try { localStorage.setItem(OWNER, v); } catch { /* ignore */ } };
 
 const toState = (s: Record<PersonalKey, Stamped<any> | null>): PersonalState =>
   Object.fromEntries(PERSONAL_KEYS.map((k) => [k, s[k]?.value ?? EMPTY_STATE[k]])) as unknown as PersonalState;
@@ -54,7 +67,10 @@ export function PersonalProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<AccountUser | null>(null);
   const [providers, setProviders] = useState<PersonalApi["providers"]>(null);
   const [sync, setSync] = useState<SyncStatus>("local");
+  /** True once this device's data is confirmed to belong to the signed-in account. */
+  const [syncReady, setSyncReady] = useState(false);
   const userRef = useRef<AccountUser | null>(null);
+  const readyRef = useRef(false);
   userRef.current = user;
 
   const apply = useCallback((k: PersonalKey, s: Stamped<any>) => {
@@ -63,66 +79,89 @@ export function PersonalProvider({ children }: { children: ReactNode }) {
     setState((prev) => ({ ...prev, [k]: s.value ?? EMPTY_STATE[k] }));
   }, []);
 
-  const push = useCallback(async (keys: Iterable<PersonalKey>) => {
-    if (!userRef.current) return;
-    const p = pending();
-    for (const k of keys) p.add(k);
-    setPending(p);
-    setSync("syncing");
-    try {
-      for (const k of [...p]) {
-        const s = stamped.current[k];
-        if (!s) { p.delete(k); continue; }
-        const r = await apiFetch<{ stored: Stamped<any> }>(`/api/me/state/${k}`, { method: "PUT", json: s });
-        // The server keeps the newer write: adopt it if another device won.
-        if (r.stored.updatedAt > s.updatedAt) apply(k, r.stored);
-        p.delete(k);
-        setPending(p);
+  // One upload loop at a time; edits made meanwhile stay pending and go next.
+  const pushing = useRef<Promise<void> | null>(null);
+  const push = useCallback(async (): Promise<void> => {
+    if (!userRef.current || !readyRef.current) return;
+    if (pushing.current) { await pushing.current; if (!Object.keys(pending()).length) return; }
+    const run = (async () => {
+      setSync("syncing");
+      try {
+        for (;;) {
+          const keys = Object.keys(pending()) as PersonalKey[];
+          if (!keys.length) break;
+          for (const k of keys) {
+            const s = stamped.current[k];
+            if (!s) { ackPending(k, Infinity); continue; }
+            const r = await apiFetch<{ stored: Stamped<any> }>(`/api/me/state/${k}`, { method: "PUT", json: s });
+            // Another device wrote something newer: adopt it (unless we edited again since).
+            if (r.stored.updatedAt > s.updatedAt && (stamped.current[k]?.updatedAt ?? 0) <= s.updatedAt) apply(k, r.stored);
+            ackPending(k, s.updatedAt);
+          }
+        }
+        setSync("synced");
+      } catch (e: any) {
+        setSync(e?.offline ? "offline" : "error");
       }
-      setSync("synced");
-    } catch (e: any) {
-      setSync(e?.offline ? "offline" : "error");
-    }
+    })();
+    pushing.current = run;
+    try { await run; } finally { if (pushing.current === run) pushing.current = null; }
   }, [apply]);
 
-  /** Pull the account's state; newer side wins per key; push what's newer locally. */
+  /** Pull the account's state; the newer side wins per key; newer local edits are pushed. */
   const pull = useCallback(async () => {
     const r = await apiFetch<{ state: Partial<Record<PersonalKey, Stamped<any>>> }>("/api/me/state");
-    const newerLocal: PersonalKey[] = [];
     for (const k of PERSONAL_KEYS) {
       const remote = r.state[k], local = stamped.current[k];
       if (remote && (!local || remote.updatedAt > local.updatedAt)) apply(k, remote);
-      else if (local && (!remote || local.updatedAt > remote.updatedAt)) newerLocal.push(k);
+      else if (local && (!remote || local.updatedAt > remote.updatedAt)) markPending(k, local.updatedAt);
     }
-    if (newerLocal.length) await push(newerLocal);
-    else setSync("synced");
-  }, [apply, push]);
+  }, [apply]);
 
-  /** First sign-in on this device: merge local data into the account. */
-  const migrate = useCallback(async (u: AccountUser) => {
-    const local = Object.fromEntries(PERSONAL_KEYS.filter((k) => stamped.current[k]).map((k) => [k, stamped.current[k]]));
-    const r = await apiFetch<{ state: Record<PersonalKey, Stamped<any>> }>("/api/me/migrate", { method: "POST", json: { state: local, scout: localScoutEntries() } });
-    for (const [k, s] of Object.entries(r.state)) apply(k as PersonalKey, s);
-    try { localStorage.setItem(MIGRATED(u.id), new Date().toISOString()); } catch { /* ignore */ }
-    setPending(new Set());
-    setSync("synced");
+  /** First sign-in with anonymous data on this device: merge it into the account. */
+  const migrate = useCallback(async () => {
+    const snapshot = Object.fromEntries(PERSONAL_KEYS.filter((k) => stamped.current[k]).map((k) => [k, stamped.current[k]])) as Record<PersonalKey, Stamped<any>>;
+    const r = await apiFetch<{ state: Record<PersonalKey, Stamped<any>> }>("/api/me/migrate", { method: "POST", json: { state: snapshot, scout: localScoutEntries() } });
+    for (const [k, s] of Object.entries(r.state) as [PersonalKey, Stamped<any>][]) {
+      const now = stamped.current[k];
+      // Edited while the merge was in flight: keep the newer local edit and send it next.
+      if (now && now.updatedAt > (snapshot[k]?.updatedAt ?? 0)) { markPending(k, now.updatedAt); continue; }
+      apply(k, s);
+      ackPending(k, s.updatedAt);
+    }
   }, [apply]);
 
   const connect = useCallback(async (u: AccountUser) => {
     setUser(u);
     userRef.current = u;
+    readyRef.current = false;
+    setSyncReady(false);
     setSync("syncing");
     try {
-      if (!localStorage.getItem(MIGRATED(u.id))) await migrate(u);
-      else await pull();
+      const owner = getOwner();
+      if (owner === "") await migrate();
+      else if (owner !== String(u.id)) {
+        // This device holds another account's data (it's safe on the server).
+        // Set it aside rather than absorbing it into this account.
+        for (const k of PERSONAL_KEYS) { try { localStorage.removeItem(LS(k)); } catch { /* ignore */ } stamped.current[k] = null; }
+        setPendingMap({});
+        clearLocalScouting();
+        setState(EMPTY_STATE);
+        await pull();
+      } else await pull();
+      setOwner(String(u.id));
+      readyRef.current = true;
+      setSyncReady(true);
+      await push();
+      if (!Object.keys(pending()).length) setSync("synced");
     } catch (e: any) { setSync(e?.offline ? "offline" : "error"); }
-  }, [migrate, pull]);
+  }, [migrate, pull, push]);
 
   useEffect(() => {
     apiFetch<{ user: AccountUser | null; providers: { email: boolean; google: boolean } }>("/api/auth/me")
       .then((r) => { setProviders(r.providers); if (r.user) connect(r.user); })
       .catch(() => setProviders({ email: false, google: false }));
-    const retry = () => { if (userRef.current && pending().size) push([]); };
+    const retry = () => { if (userRef.current && Object.keys(pending()).length) push(); };
     window.addEventListener("online", retry);
     const t = setInterval(retry, 30_000);
     // Another tab changed something: reload it.
@@ -135,8 +174,10 @@ export function PersonalProvider({ children }: { children: ReactNode }) {
   }, [connect, push]);
 
   const set = useCallback(<K extends PersonalKey>(key: K, value: PersonalState[K]) => {
-    apply(key, { value, updatedAt: Date.now() });
-    if (userRef.current) push([key]);
+    const s = { value, updatedAt: Date.now() };
+    apply(key, s);
+    // Signed out, edits stay local; they're compared with the account on the next sign-in.
+    if (userRef.current) { markPending(key, s.updatedAt); push(); }
   }, [apply, push]);
 
   const update = useCallback(<K extends PersonalKey>(key: K, fn: (prev: PersonalState[K]) => PersonalState[K]) => {
@@ -145,18 +186,23 @@ export function PersonalProvider({ children }: { children: ReactNode }) {
 
   const signOut = useCallback(async () => {
     await apiFetch("/api/auth/logout", { method: "POST", json: {} }).catch(() => {});
+    // The device keeps its copy, still marked as this account's (never treated as anonymous).
     setUser(null);
     userRef.current = null;
+    readyRef.current = false;
+    setSyncReady(false);
     setSync("local");
   }, []);
 
   const clearLocal = useCallback(() => {
     for (const k of PERSONAL_KEYS) { try { localStorage.removeItem(LS(k)); } catch { /* ignore */ } stamped.current[k] = null; }
-    setPending(new Set());
+    setPendingMap({});
+    // A wiped device starts anonymous again — unless an account is signed in right now.
+    setOwner(userRef.current ? String(userRef.current.id) : "");
     setState(EMPTY_STATE);
   }, []);
 
-  const api = useMemo<PersonalApi>(() => ({ state, user, providers, sync, set, update, signedIn: connect, signOut, clearLocal }), [state, user, providers, sync, set, update, connect, signOut, clearLocal]);
+  const api = useMemo<PersonalApi>(() => ({ state, user, providers, sync, syncReady, set, update, signedIn: connect, signOut, clearLocal }), [state, user, providers, sync, syncReady, set, update, connect, signOut, clearLocal]);
   return <Ctx.Provider value={api}>{children}</Ctx.Provider>;
 }
 
