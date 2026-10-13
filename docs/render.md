@@ -18,7 +18,9 @@ Render's free disk is wiped on every restart and the service sleeps after
 Plain settings (set when the service was created): `NODE_ENV=production`,
 `APP_URL=https://control-scout.onrender.com`,
 `EMAIL_FROM=Control Scout <verify@tryctrlpoint.org>`, `CS_PACKS=off`
-(no offline packs on a throwaway disk; /download says none are built), and
+(no pack *building* on a throwaway disk: the server installs the packs
+shipped in `data/packs` instead, i.e. the lite pack for offline predictions
+plus the current season's full pack), and
 `NPM_CONFIG_INCLUDE=dev` (with `NODE_ENV=production` set, `npm ci` would
 otherwise skip Vite and the other build tools).
 

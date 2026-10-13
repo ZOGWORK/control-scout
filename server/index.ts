@@ -5,7 +5,7 @@ import "./env.js";
 import { env, hasFirst } from "./env.js";
 import { migrate, all, kvGet, kvSet } from "./db.js";
 import { buildPacks } from "./packs/build.js";
-import { packsPresent } from "./packs/routes.js";
+import { packsDir, packsPresent } from "./packs/routes.js";
 import express from "express";
 import { ENGINE_VERSION } from "@control-scout/predict-engine";
 import { createApp } from "./app.js";
@@ -13,7 +13,7 @@ import { syncAll } from "./sync.js";
 import { runStats } from "./stats/job.js";
 import { forecasterFor } from "./predict/engine.js";
 import { CURRENT_SEASON } from "./data/seasons.js";
-import { restoreSnapshotIfEmpty } from "./data/snapshot.js";
+import { installShippedPacks, restoreSnapshotIfEmpty } from "./data/snapshot.js";
 
 const log = (m: string) => console.log(`[${new Date().toISOString()}] ${m}`);
 
@@ -33,6 +33,7 @@ const app = createApp();
 server.use(app);
 server.listen(env.port, () => log(`Control Scout listening on :${env.port}${env.production ? "" : " (dev)"}`));
 log(`data: ${await restoreSnapshotIfEmpty().catch((e) => `snapshot restore failed: ${(e as Error).message}`)}`);
+log(`packs: ${(() => { try { return installShippedPacks(packsDir()); } catch (e) { return `shipped packs failed: ${(e as Error).message}`; } })()}`);
 await migrate();
 ready = true;
 log("ready");

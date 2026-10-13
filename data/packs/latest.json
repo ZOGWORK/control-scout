@@ -1,0 +1,34 @@
+{
+  "format": 1,
+  "version": "2026-10-13.1",
+  "builtAt": "2026-10-13T02:25:46.748Z",
+  "engineVersion": "1.0.0",
+  "dataAsOf": "2026-10-13T02:20:37.969Z",
+  "lite": {
+    "name": "scout-pack-2026-10-13-1-lite.json.gz",
+    "url": "/packs/scout-pack-2026-10-13-1-lite.json.gz",
+    "bytes": 1647674,
+    "sha256": "03f55f1dcb60cfad225a25e1045046fa28ce4ccf25a08b0a7834422438ac893c",
+    "seasons": [
+      2023,
+      2024,
+      2025,
+      2026
+    ],
+    "kind": "lite",
+    "contents": "Every team's prediction rating for 4 seasons plus team names — enough to predict any match on this device with no connection."
+  },
+  "full": [
+    {
+      "name": "scout-pack-2026-10-13-1-2026.db",
+      "url": "/packs/scout-pack-2026-10-13-1-2026.db",
+      "bytes": 2416640,
+      "sha256": "6035c812682177a47035a2833da2cc17b5650d02bcc7c3ac898f443cac8e6835",
+      "seasons": [
+        2026
+      ],
+      "kind": "full",
+      "contents": "Every 2026–27 BIOBUZZ event, team, match (scores, breakdowns, penalties, lineups), ranking, alliance, award and computed stat — a plain SQLite file."
+    }
+  ]
+}
