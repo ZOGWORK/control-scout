@@ -65,6 +65,8 @@ export function installShippedPacks(packsDir: string): string {
   if (existsSync(join(packsDir, "latest.json"))) return "packs present: shipped packs not used";
   const m = JSON.parse(readFileSync(manifest, "utf8")) as { lite: { name: string } | null; full: { name: string }[] };
   const files = [m.lite, ...m.full].filter((f): f is { name: string } => !!f).map((f) => f.name);
+  const missing = files.filter((f) => !existsSync(join(SHIPPED_PACKS, f)));
+  if (missing.length) return `shipped packs incomplete (missing ${missing.join(", ")}): not installed`;
   mkdirSync(packsDir, { recursive: true });
   for (const f of files) copyFileSync(join(SHIPPED_PACKS, f), join(packsDir, f));
   copyFileSync(manifest, join(packsDir, "latest.json")); // last: the manifest only appears once its files are there
