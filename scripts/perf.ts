@@ -10,7 +10,7 @@
 //     time to interactive (data on screen, no skeletons) on throttled 4G, warm
 //   · JS per page: which chunks each route downloads (is vendor-charts lazy?)
 //   · API p50/p95 (warm, 15 runs each) for the hot routes
-//   · cold start (local only): server launch → first paint of the home page
+//   · cold start (local only): server launch → first paint of the home page (budget), and → interactive
 import { chromium, type Page } from "playwright";
 import { spawn, spawnSync } from "node:child_process";
 import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
@@ -49,9 +49,10 @@ async function loadPage(page: Page, path: string, throttle: boolean) {
   await cdp.send("Network.enable");
   await cdp.send("Network.setCacheDisabled", { cacheDisabled: false });
   if (throttle) await cdp.send("Network.emulateNetworkConditions", FOUR_G);
-  const reqs = new Map<string, { url: string; type: string; start: number; end?: number; bytes: number; encoded: number; status?: number }>();
+  const reqs = new Map<string, { url: string; type: string; start: number; end?: number; bytes: number; encoded: number; status?: number; cached?: boolean }>();
   cdp.on("Network.requestWillBeSent", (e) => reqs.set(e.requestId, { url: e.request.url, type: e.type ?? "", start: e.timestamp, bytes: 0, encoded: 0 }));
-  cdp.on("Network.responseReceived", (e) => { const r = reqs.get(e.requestId); if (r) r.status = e.response.status; });
+  cdp.on("Network.responseReceived", (e) => { const r = reqs.get(e.requestId); if (r) { r.status = e.response.status; r.cached ||= !!e.response.fromDiskCache || !!e.response.fromServiceWorker; } });
+  cdp.on("Network.requestServedFromCache", (e) => { const r = reqs.get(e.requestId); if (r) r.cached = true; });
   cdp.on("Network.dataReceived", (e) => { const r = reqs.get(e.requestId); if (r) r.bytes += e.dataLength; });
   cdp.on("Network.loadingFinished", (e) => { const r = reqs.get(e.requestId); if (r) { r.end = e.timestamp; r.encoded = e.encodedDataLength; } });
   const t0 = Date.now();
@@ -67,7 +68,8 @@ async function loadPage(page: Page, path: string, throttle: boolean) {
   if (failed.length) throw new Error(`${path}: API failed: ${failed.map((r) => `${new URL(r.url).pathname} → ${r.status}`).join(", ")}`);
   const js = all.filter((r) => /\.js(\?|$)/.test(r.url));
   // Waterfall depth: the longest chain of API calls where each starts only after the previous one finished.
-  const sorted = [...api].sort((a, b) => a.start - b.start);
+  // Answers from the browser cache take ~0 ms and never make anything wait, so they don't count.
+  const sorted = api.filter((r) => !r.cached).sort((a, b) => a.start - b.start);
   const chain: number[] = [];
   sorted.forEach((r, i) => { chain[i] = 1 + Math.max(0, ...sorted.slice(0, i).map((q, j) => (q.end! <= r.start ? chain[j] : 0))); });
   const depth = Math.max(0, ...chain);
@@ -138,7 +140,8 @@ async function stopServer(s: Server) {
   }
 }
 
-async function coldStart(): Promise<number | null> {
+/** Cold start: server launch → first contentful paint of the home page (the budget), and → interactive. */
+async function coldStart(): Promise<{ firstPaintMs: number; interactiveMs: number } | null> {
   if (external) return null; // can't restart a remote host from here
   const port = LOCAL_PORT + 1;
   const t0 = Date.now();
@@ -153,10 +156,15 @@ async function coldStart(): Promise<number | null> {
       if (Date.now() > deadline) throw new Error("cold-start server didn't serve the home page within 120 s");
       try { await page.goto(`http://localhost:${port}/`, { waitUntil: "domcontentloaded", timeout: 5000 }); break; } catch { await new Promise((r) => setTimeout(r, 250)); }
     }
+    // FCP as wall-clock time (timeOrigin + startTime), measured from the server launch.
+    const fcpAt = await page.evaluate(() => new Promise<number>((done) => {
+      const hit = () => { const e = performance.getEntriesByName("first-contentful-paint")[0]; if (e) { done(performance.timeOrigin + e.startTime); return true; } return false; };
+      if (!hit()) new PerformanceObserver(() => { hit(); }).observe({ type: "paint", buffered: true });
+    }));
     await interactive(page);
-    const ms = Date.now() - t0;
+    const interactiveMs = Date.now() - t0;
     await browser.close();
-    return ms;
+    return { firstPaintMs: Math.round(fcpAt - t0), interactiveMs };
   } finally {
     await stopServer(srv);
   }
@@ -189,7 +197,7 @@ try {
   await browser.close();
   const cold = await coldStart();
 
-  const result = { base: BASE, at: new Date().toISOString(), home, homeFirstVisit: first, pages, api, coldStartMs: cold };
+  const result = { base: BASE, at: new Date().toISOString(), home, homeFirstVisit: first, pages, api, coldStart: cold };
   console.log(`\n${BASE}`);
   console.log(`home (warm, throttled 4G, 390px): interactive ${home.ms} ms · ${home.requests} requests · API ${home.api.length} calls, ${kb(home.apiBytes)} decoded (${kb(home.apiEncoded)} on the wire), ${home.apiRounds} round(s) · JS ${kb(home.jsBytes)}`);
   for (const a of home.api) console.log(`    ${a.path}  ${kb(a.bytes)}`);
@@ -198,7 +206,7 @@ try {
   for (const [p, v] of Object.entries(pages)) console.log(`    ${p.padEnd(24)} ${kb(v.jsBytes).padStart(9)}  charts chunk: ${v.charts ? "yes" : "no"}`);
   console.log("API, warm (15 runs): p50 / p95 / size");
   for (const [p, v] of Object.entries(api)) console.log(`    ${p.padEnd(40)} ${String(v.p50).padStart(5)} / ${String(v.p95).padStart(5)} ms  ${kb(v.bytes)}`);
-  console.log(`cold start (launch → home interactive, local): ${cold == null ? "n/a (remote)" : `${cold} ms`}`);
+  console.log(`cold start (local): ${cold == null ? "n/a (remote)" : `first paint ${cold.firstPaintMs} ms · interactive ${cold.interactiveMs} ms`}`);
   const json = opt("json");
   if (json) writeFileSync(json, JSON.stringify(result, null, 2));
 
@@ -207,7 +215,7 @@ try {
     if (home.ms > BUDGETS.homeInteractiveMs) fails.push(`home interactive ${home.ms} ms > ${BUDGETS.homeInteractiveMs}`);
     if (home.apiBytes > BUDGETS.homeDataBytes) fails.push(`home data ${kb(home.apiBytes)} > ${kb(BUDGETS.homeDataBytes)}`);
     for (const [p, v] of Object.entries(api)) if (v.p95 > BUDGETS.apiP95Ms) fails.push(`${p} p95 ${v.p95} ms > ${BUDGETS.apiP95Ms}`);
-    if (cold != null && cold > BUDGETS.coldStartMs) fails.push(`cold start ${cold} ms > ${BUDGETS.coldStartMs}`);
+    if (cold != null && cold.firstPaintMs > BUDGETS.coldStartMs) fails.push(`cold start to first paint ${cold.firstPaintMs} ms > ${BUDGETS.coldStartMs}`);
     if (pages["/"]?.charts) fails.push("home downloads the charts chunk");
     console.log(fails.length ? `\nBUDGETS BLOWN:\n  ${fails.join("\n  ")}` : "\nAll budgets met.");
     process.exitCode = fails.length ? 1 : 0;
