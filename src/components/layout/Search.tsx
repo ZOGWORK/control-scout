@@ -6,6 +6,7 @@ import { CommandDialog, CommandEmpty, CommandGroup, CommandInput, CommandItem, C
 import { apiFetch } from "../../lib/api";
 import type { SearchHit } from "../../shared/api";
 import { usePersonal } from "../../lib/personal";
+import { useMeta } from "../../lib/meta";
 
 const Ctx = createContext<{ open: () => void }>({ open: () => {} });
 export const useSearch = () => useContext(Ctx);
@@ -44,6 +45,7 @@ function SearchDialog({ open, onOpenChange }: { open: boolean; onOpenChange: (o:
   const seq = useRef(0);
   const nav = useNavigate();
   const { state } = usePersonal();
+  const meta = useMeta();
   // My team, tracked and shortlisted teams/events rank first among equal matches.
   const prefer = [
     ...new Set([
@@ -81,7 +83,7 @@ function SearchDialog({ open, onOpenChange }: { open: boolean; onOpenChange: (o:
       <CommandList>
         {busy && <div className="flex items-center gap-2 px-4 py-3 text-sm text-text-muted"><Loader2 className="size-4 animate-spin" /> Searching…</div>}
         {error && <div className="px-4 py-3 text-sm text-destructive">{error}</div>}
-        {!busy && q.trim() && !hits.length && !error && <CommandEmpty>No team, event or match matches “{q.trim()}”.</CommandEmpty>}
+        {!busy && q.trim() && !hits.length && !error && <CommandEmpty>{meta && !meta.dataLoaded ? "This server has no FTC data loaded yet, so there's nothing to search." : <>No team, event or match matches “{q.trim()}”.</>}</CommandEmpty>}
         {!q.trim() && (
           <CommandGroup heading="Go to">
             {quick.map((x) => <CommandItem key={x.href} value={x.href} onSelect={() => go(x.href)}><Hash className="size-4 text-text-muted" />{x.label}</CommandItem>)}

@@ -106,10 +106,13 @@ export function createApp() {
     const rows = await all<any>("SELECT season, frozen, last_sync FROM seasons");
     const sync = await kvGet<{ at: string }>("sync:last");
     const stats = await kvGet<{ at: string }>("stats:last");
+    // A fresh server (no database connected yet) has no teams: the app says so
+    // instead of letting every search and page look broken.
+    const loaded = await all<{ one: number }>("SELECT 1 one FROM teams LIMIT 1");
     return {
       seasons: SEASONS.map((s) => { const r = rows.find((x) => Number(x.season) === s.season); return { ...s, frozen: !!r?.frozen, lastSync: r?.last_sync ?? null }; }).reverse(),
       currentSeason: CURRENT_SEASON, engineVersion: ENGINE_VERSION, dataAsOf: sync?.at ?? null, statsAt: stats?.at ?? null,
-      auth: authProviders(), firstConfigured: hasFirst(),
+      auth: authProviders(), firstConfigured: hasFirst(), dataLoaded: loaded.length > 0,
     };
   }));
 
