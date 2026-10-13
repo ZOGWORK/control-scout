@@ -6,7 +6,7 @@ import { ArrowRight, BadgeCheck, CalendarDays, Download, MapPin, Radio, Scale, S
 import { useApi, qs } from "../lib/api";
 import { useCurrentSeason, useMeta, useTitle } from "../lib/meta";
 import { usePersonal } from "../lib/personal";
-import type { EventSummary, MatchView, TrackRecord } from "../shared/api";
+import type { EventSummary, EventListItem, MatchView, TrackRecord } from "../shared/api";
 import { useSearch } from "../components/layout/Search";
 import { Section } from "../components/page";
 import { Async } from "../components/states";
@@ -126,7 +126,7 @@ function ThisWeek() {
   const season = useCurrentSeason();
   const now = new Date();
   const from = iso(new Date(now.getTime() - 2 * 864e5)), to = iso(new Date(now.getTime() + 7 * 864e5));
-  const state = useApi<{ events: EventSummary[] }>(`/api/events${qs({ season, from, to })}`);
+  const state = useApi<{ events: EventListItem[] }>(`/api/events${qs({ season, from, to })}`);
   return (
     <Section title="This week" description={`${seasonLabel(season)} events running now or in the next 7 days`} action={<Button variant="ghost" size="sm" asChild><Link to="/events">All events <ArrowRight /></Link></Button>} className="mb-0">
       <Async state={state} loading={<div className="grid gap-3 sm:grid-cols-2">{[0, 1, 2, 3].map((i) => <div key={i} className="skeleton h-28 rounded-xl" />)}</div>}
@@ -146,7 +146,7 @@ function ThisWeek() {
   );
 }
 
-export function EventCard({ e }: { e: EventSummary }) {
+export function EventCard({ e }: { e: EventListItem }) {
   return (
     <Link to={`/events/${e.season}/${e.code}`} className="lift group flex h-full flex-col rounded-xl border border-border bg-card p-4">
       <div className="flex items-center gap-2">
@@ -164,7 +164,7 @@ export function EventCard({ e }: { e: EventSummary }) {
 function TrackRecordCard() {
   const state = useApi<TrackRecord>("/api/predict/accuracy");
   return (
-    <Section title="Track record" description="Every call, scored after the match." action={<Button variant="ghost" size="sm" asChild><Link to="/predict/accuracy">Full record <ArrowRight /></Link></Button>} className="mb-0">
+    <Section title="Track record" description="Every call, scored after the match." action={<Button variant="ghost" size="sm" asChild><Link to="/methodology#accuracy">Full record <ArrowRight /></Link></Button>} className="mb-0">
       <Async state={state} loading={<div className="skeleton h-64 rounded-xl" />}>
         {(t) => {
           const h = t.headline;
@@ -172,7 +172,7 @@ function TrackRecordCard() {
           const block = t.seasons.find((s) => s.season === h.season)?.[h.kind];
           const bins = block?.reliability.filter((b) => b.n > 0) ?? [];
           return (
-            <Link to="/predict/accuracy" className="lift block rounded-2xl border border-border bg-card p-5">
+            <Link to="/methodology#accuracy" className="lift block rounded-2xl border border-border bg-card p-5">
               <p className="font-display text-6xl font-semibold tabular-nums text-accent">{pct(h.accuracy)}</p>
               <p className="mt-1 text-sm text-muted-foreground">of {h.n.toLocaleString()} matches called correctly</p>
               <Badge variant={h.kind === "live" ? "success" : "secondary"} className="mt-2">{h.kind === "live" ? "Live — called before each match" : `Backtest · ${seasonLabel(h.season)}`}</Badge>
@@ -200,7 +200,7 @@ function MoreTools() {
   const items = [
     { to: "/compare", icon: Scale, title: "Compare", body: "Head-to-head: OPR, ratings, records, every meeting." },
     { to: "/download", icon: Download, title: "Offline packs", body: "No signal at the venue? Predictions run on your device." },
-    { to: "/predict/accuracy", icon: BadgeCheck, title: "How sure are we?", body: "Calibration by confidence tier, week by week." },
+    { to: "/methodology#accuracy", icon: BadgeCheck, title: "How sure are we?", body: "Calibration by confidence tier, week by week." },
   ];
   return (
     <div className="grid gap-3 sm:grid-cols-3">

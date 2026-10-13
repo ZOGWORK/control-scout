@@ -6,7 +6,7 @@ import { Ambient } from "./Ambient";
 import { Link, NavLink, useLocation } from "react-router-dom";
 import { motion, MotionConfig } from "motion/react";
 import {
-  BadgeCheck, BookOpen, Bookmark, CalendarDays, ClipboardList, DatabaseZap, Download, House, Menu, PanelLeftClose, PanelLeftOpen, Scale, Search, Settings, Sparkles, Star,
+  BookOpen, Bookmark, CalendarDays, ClipboardList, DatabaseZap, Download, House, Menu, PanelLeftClose, PanelLeftOpen, Scale, Search, Settings, Sparkles, Star,
 } from "lucide-react";
 import { cn } from "../cn";
 import { useMeta } from "../../lib/meta";
@@ -21,7 +21,6 @@ const SECTIONS: { title: string | null; items: NavItem[] }[] = [
   { title: null, items: [{ to: "/", label: "Home", icon: House, end: true }, { to: "/events", label: "Events", icon: CalendarDays }] },
   { title: "Predict", items: [
     { to: "/predict", label: "Prediction lab", icon: Sparkles, end: true },
-    { to: "/predict/accuracy", label: "Track record", icon: BadgeCheck },
     { to: "/compare", label: "Compare", icon: Scale },
   ] },
   { title: "Yours", items: [
@@ -111,7 +110,7 @@ function MobileTabs({ onMore }: { onMore: () => void }) {
 }
 
 const TITLES: [RegExp, string][] = [
-  [/^\/teams\//, "Team"], [/^\/events\/\d/, "Event"], [/^\/events/, "Events"], [/^\/predict\/accuracy/, "Track record"], [/^\/predict\/how-it-works/, "How it works"], [/^\/predict/,"Prediction lab"],
+  [/^\/teams\//, "Team"], [/^\/events\/\d/, "Event"], [/^\/events/, "Events"], [/^\/predict\/how-it-works/, "How it works"], [/^\/predict/,"Prediction lab"],
   [/^\/compare/, "Compare"], [/^\/my-team/, "My team"], [/^\/shortlist/, "Shortlist"], [/^\/scout/, "Scout"], [/^\/download/, "Download"],
   [/^\/settings/, "Settings"], [/^\/methodology/, "How it works"],
 ];
