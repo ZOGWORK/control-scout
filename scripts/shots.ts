@@ -20,7 +20,7 @@ const flag = (f: string) => args.includes(`--${f}`);
 const opt = (f: string) => { const i = args.indexOf(`--${f}`); return i >= 0 ? args[i + 1] : undefined; };
 // Routes: "/teams/1" or "teams/1". Git Bash rewrites a leading "/" into its
 // install path (C:/Program Files/Git/...) — undo that.
-const VALUE_FLAGS = new Set(["--out", "--base"]);
+const VALUE_FLAGS = new Set(["--out", "--base", "--search"]);
 const routes = args.filter((a, i) => !a.startsWith("--") && !VALUE_FLAGS.has(args[i - 1] ?? ""))
   .map((a) => a.replace(/\\/g, "/").replace(/^[A-Za-z]:\/.*?\/Git(?=\/|$)/, ""))
   .map((a) => (a.startsWith("/") ? a : `/${a}`));
@@ -61,11 +61,20 @@ async function capture(browser: Browser, route: string, vp: keyof typeof SIZES, 
   await page.waitForFunction(() => !document.querySelector(".skeleton, [aria-busy=true]"), null, { timeout: 45_000 }).catch(() => console.warn(`  ! ${route}: still loading after 45 s`));
   await page.evaluate(() => document.fonts.ready);
   await page.waitForTimeout(1200);
+  // --search "text": open the ⌘K palette, type, and wait for results.
+  const q = opt("search");
+  if (q) {
+    await page.keyboard.press("Control+k");
+    await page.getByRole("dialog").waitFor();
+    await page.keyboard.type(q, { delay: 60 });
+    await page.waitForFunction(() => !document.body.innerText.includes("Searching…"), null, { timeout: 15_000 });
+    await page.waitForTimeout(600);
+  }
   // The shell scrolls inside <main> (h-dvh); unroll it so a full-page shot shows everything.
-  if (!flag("viewport")) await page.addStyleTag({ content: ".h-dvh{height:auto!important;overflow:visible!important} main{overflow:visible!important} .h-dvh{position:relative!important} nav.fixed{position:absolute!important;left:0;right:0;bottom:0}" });
-  const name = `${vp}${light ? "-light" : ""}-${route.replace(/^\//, "").replace(/[^\w-]+/g, "_") || "home"}.png`;
+  if (!flag("viewport") && !q) await page.addStyleTag({ content: ".h-dvh{height:auto!important;overflow:visible!important} main{overflow:visible!important} .h-dvh{position:relative!important} nav.fixed{position:absolute!important;left:0;right:0;bottom:0}" });
+  const name = `${vp}${light ? "-light" : ""}${q ? `-search-${q.replace(/[^\w]+/g, "_")}` : ""}-${route.replace(/^\//, "").replace(/[^\w-]+/g, "_") || "home"}.png`;
   const file = join(out, name);
-  await page.screenshot({ path: file, fullPage: !flag("viewport") });
+  await page.screenshot({ path: file, fullPage: !flag("viewport") && !q });
   if (errors.length) console.warn(`  ! ${route}: page errors: ${errors.join(" | ")}`);
   await ctx.close();
   return file;

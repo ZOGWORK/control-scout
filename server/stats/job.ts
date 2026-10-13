@@ -216,17 +216,23 @@ export async function scoreLivePredictions(log: Log = () => {}): Promise<number>
 export async function rebuildSearch(log: Log = () => {}): Promise<void> {
   const teams = await all<any>(`SELECT t.number, t.name, t.school, t.city, t.state, t.country, MAX(s.season) last FROM teams t LEFT JOIN team_seasons s ON s.team = t.number GROUP BY t.number`);
   const events = await all<any>("SELECT season, code, name, city, state, country, start, type FROM events");
-  const stmts: InStatement[] = [{ sql: "DELETE FROM search", args: [] }];
+  const stmts: InStatement[] = [{ sql: "DELETE FROM search", args: [] }, { sql: "DELETE FROM search_fuzzy", args: [] }];
   for (const t of teams) {
     const place = [t.city, t.state, t.country].filter(Boolean).join(", ");
-    stmts.push({ sql: "INSERT INTO search (kind, ref, season, weight, title, subtitle, terms) VALUES ('team', ?, ?, ?, ?, ?, ?)", args: [String(t.number), t.last ?? null, t.last === CURRENT_SEASON ? 2 : 1, `${t.number} ${t.name ?? ""}`.trim(), [t.school, place].filter(Boolean).join(" · "), `${t.number} ${t.name ?? ""} ${t.school ?? ""} ${place}`] });
+    const title = `${t.number} ${t.name ?? ""}`.trim(), subtitle = [t.school, place].filter(Boolean).join(" · ");
+    const weight = t.last === CURRENT_SEASON ? 2 : 1;
+    stmts.push({ sql: "INSERT INTO search (kind, ref, season, weight, title, subtitle, terms) VALUES ('team', ?, ?, ?, ?, ?, ?)", args: [String(t.number), t.last ?? null, weight, title, subtitle, `${t.number} ${t.name ?? ""} ${t.school ?? ""} ${place}`] });
+    // Typo-tolerant index: the name people type (team name + school).
+    if (t.name || t.school) stmts.push({ sql: "INSERT INTO search_fuzzy (kind, ref, season, weight, title, subtitle, name) VALUES ('team', ?, ?, ?, ?, ?, ?)", args: [String(t.number), t.last ?? null, weight, title, subtitle, `${t.name ?? ""} ${t.school ?? ""}`.trim()] });
   }
   for (const e of events) {
     const place = [e.city, e.state, e.country].filter(Boolean).join(", ");
-    stmts.push({ sql: "INSERT INTO search (kind, ref, season, weight, title, subtitle, terms) VALUES ('event', ?, ?, ?, ?, ?, ?)", args: [`${e.season}:${e.code}`, e.season, e.season === CURRENT_SEASON ? 2 : 1, e.name, [e.code, e.start, place].filter(Boolean).join(" · "), `${e.code} ${e.name} ${place}`] });
+    const subtitle = [e.code, e.start, place].filter(Boolean).join(" · "), weight = e.season === CURRENT_SEASON ? 2 : 1;
+    stmts.push({ sql: "INSERT INTO search (kind, ref, season, weight, title, subtitle, terms) VALUES ('event', ?, ?, ?, ?, ?, ?)", args: [`${e.season}:${e.code}`, e.season, weight, e.name, subtitle, `${e.code} ${e.name} ${place}`] });
+    stmts.push({ sql: "INSERT INTO search_fuzzy (kind, ref, season, weight, title, subtitle, name) VALUES ('event', ?, ?, ?, ?, ?, ?)", args: [`${e.season}:${e.code}`, e.season, weight, e.name, subtitle, `${e.name} ${e.city ?? ""}`.trim()] });
   }
   await writeBatch(stmts, 5000);
-  log(`search: ${teams.length} teams, ${events.length} events`);
+  log(`search: ${teams.length} teams, ${events.length} events (word + trigram indexes)`);
 }
 
 // ---------------------------------------------------------------------------
