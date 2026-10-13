@@ -273,7 +273,7 @@ const isRemote = (url: string) => /^(libsql|https?|wss?):\/\//.test(url);
  * client if the replica can't sync, so a failure is never worse than before.
  * DATABASE_REPLICA=off keeps the plain remote client.
  */
-export async function openReplicaIfRemote(log: (m: string) => void, syncSeconds = 300, file = "replica.db"): Promise<"replica" | "remote" | "local"> {
+export async function openReplicaIfRemote(log: (m: string) => void, syncSeconds = 300): Promise<"replica" | "remote" | "local"> {
   const url = env.databaseUrl;
   if (!isRemote(url)) return "local";
   if (process.env.DATABASE_REPLICA === "off" || client) return "remote";
@@ -281,7 +281,7 @@ export async function openReplicaIfRemote(log: (m: string) => void, syncSeconds 
   let replica: Client | null = null;
   try {
     // Inside the try: a read-only or missing data directory must fall back too.
-    const path = resolve(env.dataDir, file); // one file per process: never shared
+    const path = resolve(env.dataDir, "replica.db");
     mkdirSync(dirname(path), { recursive: true });
     replica = createClient({ url: `file:${path}`, syncUrl: url, authToken: env.databaseToken ?? undefined, syncInterval: syncSeconds });
     const r = await replica.sync();
@@ -293,12 +293,6 @@ export async function openReplicaIfRemote(log: (m: string) => void, syncSeconds 
     log(`database: replica unavailable (${(e as Error).message}); using the remote database directly`);
     return "remote";
   }
-}
-
-/** Pull the latest from the primary now (e.g. after another process wrote to it).
- *  No-op unless this process runs an embedded replica. */
-export async function syncReplica(): Promise<void> {
-  if (replicaClient) await replicaClient.sync();
 }
 
 export function openDb(url: string, authToken?: string | null): Client {
