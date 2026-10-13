@@ -36,7 +36,7 @@ export default function MethodologyPage() {
         {bt && <p>On 2025–26, predicting every match from only the matches before it, the favourite won <strong>{pct(bt.accuracy, 1)}</strong> of {bt.n.toLocaleString()} matches (Brier score {bt.brier.toFixed(3)}; a coin flip scores {bt.baselineBrier.toFixed(3)}). <Link to="/predict/accuracy" className="underline">Full track record</Link></p>}
 
         <H id="factors">The top 3 factors</H>
-        <p>The predicted margin splits <strong>exactly</strong> into four parts: the auto gap, the TeleOp gap, the endgame gap, and the difference in penalties each side gives away. The three largest parts are the factors. Because they add up to the predicted margin, they always explain the actual number shown, never a separate story.</p>
+        <p>The predicted margin splits <strong>exactly</strong> into four parts: the auto gap, the TeleOp gap, the endgame gap, and the difference in penalties each side gives away. The factors are the <strong>three largest</strong> of those four parts, so they explain most of the margin; the fourth (smallest) part makes up the rest. Each one is a piece of the actual prediction shown, never a separate story.</p>
 
         <H id="confidence">Confidence tiers</H>
         <p>Every prediction carries a tier. These thresholds are a <strong>stated rule, not a fitted value</strong>:</p>

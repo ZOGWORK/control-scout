@@ -205,7 +205,7 @@ function Notifications() {
     </div>
   );
   return (
-    <Card id="notifications" icon={Bell} title="Notifications" description="Alerts arrive while Control Scout is open in a browser tab (no background push yet).">
+    <Card id="notifications" icon={Bell} title="Notifications" description="Alerts arrive while Control Scout is open in a browser tab (checked every 5 minutes; no background push yet). With browser permission they pop up even when the tab is in the background; otherwise they appear inside the app.">
       <div className="mb-3 flex flex-wrap items-center gap-3 text-sm">
         Browser permission: <Badge variant={perm === "granted" ? "success" : "secondary"}>{perm}</Badge>
         {perm === "default" && <Button size="sm" variant="secondary" onClick={ask}>Allow notifications</Button>}

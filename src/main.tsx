@@ -10,6 +10,7 @@ import { SearchProvider } from "./components/layout/Search";
 import { Toaster } from "./components/ui/sonner";
 import { LoadingBlock } from "./components/states";
 import { MetaProvider } from "./lib/meta";
+import { AlertsRunner } from "./lib/alerts";
 
 const Home = lazy(() => import("./pages/Home"));
 const TeamPage = lazy(() => import("./pages/TeamPage"));
@@ -54,6 +55,7 @@ createRoot(document.getElementById("root")!).render(
               </Suspense>
             </Shell>
             <Toaster />
+            <AlertsRunner />
           </SearchProvider>
         </MetaProvider>
       </PersonalProvider>

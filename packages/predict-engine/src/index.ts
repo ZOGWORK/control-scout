@@ -18,4 +18,4 @@ export * from "./explain.js";
 export { FITTED_MODEL } from "./model.js";
 
 /** Package version (kept in step with package.json by a test). */
-export const ENGINE_VERSION = "1.0.0";
+export const ENGINE_VERSION = "1.1.0";

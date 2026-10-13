@@ -137,21 +137,24 @@ const stationNo = (station: unknown) => num(Number(String(station ?? "").replace
 
 /**
  * Assemble a full bundle for one event. `meta` is the event-list row.
- * Endpoints that FIRST hasn't published yet (404) simply contribute nothing.
+ * FIRST answers "not published yet" with 200 + empty lists (and 404 for an
+ * unknown event), so any other failure is real: it propagates, the caller
+ * falls back to FTC Scout, and if that fails too the stored event is left
+ * untouched — a partial bundle never replaces good data.
  */
 export async function firstEventBundle(meta: EventRow): Promise<EventBundle> {
   const { season, code } = meta;
   const c = encodeURIComponent(code);
   const [schedQ, schedP, results, scoresQ, scoresP, rankings, alliances, awards, advancement] = await Promise.all([
-    firstGet<any>(`/${season}/schedule/${c}?tournamentLevel=qual`).catch(soft),
-    firstGet<any>(`/${season}/schedule/${c}?tournamentLevel=playoff`).catch(soft),
-    firstGet<any>(`/${season}/matches/${c}`).catch(soft),
-    firstGet<any>(`/${season}/scores/${c}/qual`).catch(soft),
-    firstGet<any>(`/${season}/scores/${c}/playoff`).catch(soft),
-    firstGet<any>(`/${season}/rankings/${c}`).catch(soft),
-    firstGet<any>(`/${season}/alliances/${c}`).catch(soft),
-    firstGet<any>(`/${season}/awards/${c}`).catch(soft),
-    firstGet<any>(`/${season}/advancement/${c}`).catch(soft),
+    firstGet<any>(`/${season}/schedule/${c}?tournamentLevel=qual`),
+    firstGet<any>(`/${season}/schedule/${c}?tournamentLevel=playoff`),
+    firstGet<any>(`/${season}/matches/${c}`),
+    firstGet<any>(`/${season}/scores/${c}/qual`),
+    firstGet<any>(`/${season}/scores/${c}/playoff`),
+    firstGet<any>(`/${season}/rankings/${c}`),
+    firstGet<any>(`/${season}/alliances/${c}`),
+    firstGet<any>(`/${season}/awards/${c}`),
+    firstGet<any>(`/${season}/advancement/${c}`),
   ]);
 
   // Score breakdowns by match key.
@@ -254,10 +257,4 @@ export async function firstEventBundle(meta: EventRow): Promise<EventBundle> {
   }
 
   return { event: meta, teams: [], detail: { entries, matches, alliances: allianceRows, awards: awardRows, advancement: adv } };
-}
-
-/** Errors other than "not found" on optional endpoints become "nothing yet". */
-function soft(e: unknown): null {
-  if (e instanceof FirstError && (e.status === 400 || e.status === 500)) return null; // FIRST's "no data for this event yet"
-  throw e;
 }

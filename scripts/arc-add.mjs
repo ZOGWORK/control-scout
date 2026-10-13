@@ -2,7 +2,7 @@
 // `shadcn add <url>` would: the source is copied into the repo (we own it and
 // theme it), registry dependencies included. Usage: node scripts/arc-add.mjs otp-input animated-counter …
 import { mkdirSync, writeFileSync, existsSync } from "node:fs";
-import { dirname, join } from "node:path";
+import { dirname, join, resolve, sep } from "node:path";
 
 const OUT = join(process.cwd(), "src", "components", "arc");
 const seen = new Set();
@@ -18,7 +18,9 @@ async function add(nameOrUrl) {
   for (const d of item.registryDependencies ?? []) await add(d);
   for (const f of item.files ?? []) {
     const rel = f.path.replace(/^registry\//, "").replace(/^components\//, "");
-    const dest = join(OUT, rel);
+    const dest = resolve(OUT, rel);
+    // A registry file must land inside src/components/arc — never "../../package.json".
+    if (!dest.startsWith(resolve(OUT) + sep)) throw new Error(`${item.name}: refusing to write outside ${OUT}: ${f.path}`);
     mkdirSync(dirname(dest), { recursive: true });
     writeFileSync(dest, f.content.replace(/\r\n/g, "\n"));
     console.log(`  ${item.name}: ${rel}`);
