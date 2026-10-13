@@ -9,8 +9,8 @@ Render's free disk is wiped on every restart and the service sleeps after
 
 | Setting | Value |
 |---|---|
-| Name / URL | `control-scout` → https://control-scout.onrender.com |
-| Runtime / plan / region | Node · free · Ohio (Turso: AWS us-east-2, same area) |
+| Name / URL | `control-scout` (`srv-db6r3c0u01pc73b8ptgg`) → https://control-scout.onrender.com |
+| Runtime / plan / region | Node · free · Virginia (next to the Turso US group `ftc-control-point-iad`) |
 | Build | `npm ci && npm run build` |
 | Start | `npx tsx server/index.ts` |
 | Branch | `main` (auto-deploys on merge) |
@@ -28,8 +28,9 @@ Plain settings (set when the service was created): `NODE_ENV=production`,
 
 1. Locally: `npm run db:export` → `.data/scout-export.db` (a consistent copy in
    WAL mode, ~165 MB, all synced seasons and the prediction ledger).
-2. Turso dashboard → Create database → name `control-scout`, location
-   AWS us-east-2 → **Upload** `.data/scout-export.db`
+2. Turso dashboard → Create database → name `control-scout`, group
+   `ftc-control-point-iad` (US East, next to the Render service; a separate
+   database from Control Point's) → **Upload** `.data/scout-export.db`
    (or with the CLI in WSL/macOS: `turso db import .data/scout-export.db`).
 3. Copy its URL and create a token (Turso → database → Create token) into the
    Render secrets above. Saving them redeploys the service.
