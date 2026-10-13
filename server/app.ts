@@ -142,8 +142,11 @@ export function createApp() {
     const want = new Set(teams);
     const now = Date.now();
     const out = [];
-    for (const { code: c } of codes.slice(0, 50)) {
-      for (const m of await matchViews({ season: s, code: c }, { predictUnplayed: true })) {
+    // Every active event is read (bounded by the 200-team cap: a team is at one
+    // or two events in a ±1-day window), in parallel batches of 8.
+    for (let i = 0; i < codes.length; i += 8) {
+      const batch = await Promise.all(codes.slice(i, i + 8).map(({ code: c }) => matchViews({ season: s, code: c }, { predictUnplayed: true })));
+      for (const m of batch.flat()) {
         if (![...m.red.teams, ...m.blue.teams].some((t) => want.has(t.number))) continue;
         const at = m.startsAt ? Date.parse(m.startsAt) : NaN;
         if (!Number.isFinite(at)) continue;
