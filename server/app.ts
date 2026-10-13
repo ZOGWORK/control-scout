@@ -100,10 +100,16 @@ export function createApp() {
   const api = express.Router();
   // Public FTC data (GET, not account or auth): cacheable for a minute, then
   // served stale while it revalidates (the ETag makes that a cheap 304).
-  // Anything personal stays no-store.
+  // Anything personal stays no-store (case-insensitive, like Express routing),
+  // and so does every error response, so a retry never replays a cached 503.
   api.use((req, res, next) => {
-    const personal = /^\/(me|auth)(\/|$)/.test(req.path) || req.path === "/health";
+    const personal = /^\/(me|auth|health)(\/|$)/i.test(req.path);
     res.setHeader("Cache-Control", req.method === "GET" && !personal ? "public, max-age=60, stale-while-revalidate=300" : "no-store");
+    const writeHead = res.writeHead;
+    res.writeHead = function (this: typeof res, ...a: Parameters<typeof writeHead>) {
+      if (this.statusCode >= 400 || (typeof a[0] === "number" && a[0] >= 400)) this.setHeader("Cache-Control", "no-store");
+      return writeHead.apply(this, a);
+    } as typeof writeHead;
     next();
   });
 

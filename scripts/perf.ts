@@ -48,8 +48,9 @@ async function loadPage(page: Page, path: string, throttle: boolean) {
   await cdp.send("Network.enable");
   await cdp.send("Network.setCacheDisabled", { cacheDisabled: false });
   if (throttle) await cdp.send("Network.emulateNetworkConditions", FOUR_G);
-  const reqs = new Map<string, { url: string; type: string; start: number; end?: number; bytes: number; encoded: number }>();
+  const reqs = new Map<string, { url: string; type: string; start: number; end?: number; bytes: number; encoded: number; status?: number }>();
   cdp.on("Network.requestWillBeSent", (e) => reqs.set(e.requestId, { url: e.request.url, type: e.type ?? "", start: e.timestamp, bytes: 0, encoded: 0 }));
+  cdp.on("Network.responseReceived", (e) => { const r = reqs.get(e.requestId); if (r) r.status = e.response.status; });
   cdp.on("Network.dataReceived", (e) => { const r = reqs.get(e.requestId); if (r) r.bytes += e.dataLength; });
   cdp.on("Network.loadingFinished", (e) => { const r = reqs.get(e.requestId); if (r) { r.end = e.timestamp; r.encoded = e.encodedDataLength; } });
   const t0 = Date.now();
@@ -60,6 +61,9 @@ async function loadPage(page: Page, path: string, throttle: boolean) {
   await cdp.detach().catch(() => {});
   const all = [...reqs.values()].filter((r) => r.end);
   const api = all.filter((r) => new URL(r.url).pathname.startsWith("/api/"));
+  // A page whose data failed is not "interactive": never let a broken API pass as fast.
+  const failed = api.filter((r) => (r.status ?? 0) >= 400);
+  if (failed.length) throw new Error(`${path}: API failed: ${failed.map((r) => `${new URL(r.url).pathname} → ${r.status}`).join(", ")}`);
   const js = all.filter((r) => /\.js(\?|$)/.test(r.url));
   // Waterfall depth: how many API "rounds" — a call that starts after another finished is a new round.
   let depth = 0, lastEnd = -Infinity;
@@ -85,6 +89,7 @@ async function apiTimings(paths: string[], runs = 15) {
       const t0 = performance.now();
       const r = await fetch(BASE + p);
       const b = await r.arrayBuffer();
+      if (!r.ok) throw new Error(`${p} → HTTP ${r.status}; fix the route (or sync the data) before measuring it`);
       ts.push(performance.now() - t0); bytes = b.byteLength;
     }
     out[p] = { p50: Math.round(pct(ts, 50)), p95: Math.round(pct(ts, 95)), bytes };
@@ -92,31 +97,52 @@ async function apiTimings(paths: string[], runs = 15) {
   return out;
 }
 
+type Server = ReturnType<typeof spawn>;
+
+/** A fresh production server on `port` with an empty data dir (it restores the shipped snapshot). Refuses a port that's already serving. */
+async function startServer(port: number): Promise<Server> {
+  if (await fetch(`http://localhost:${port}/api/health`).then(() => true, () => false)) throw new Error(`port ${port} is already serving (a leftover server?); stop it first`);
+  const dir = mkdtempSync(join(tmpdir(), "cs-perf-"));
+  // detached: its own process group, so stopServer can end npx → tsx → node together.
+  return spawn("npx", ["tsx", "server/index.ts"], { env: { ...process.env, NODE_ENV: "production", PORT: String(port), CS_NO_SCHEDULER: "1", CS_SKIP_DOTENV: "1", DATABASE_URL: `file:${dir}/scout.db`.replace(/\\/g, "/"), DATA_DIR: dir, CS_PACKS: "off" }, shell: true, stdio: "ignore", detached: process.platform !== "win32" });
+}
+
+/** Stop the whole server tree and wait until it has exited. */
+async function stopServer(s: Server) {
+  if (!s.pid || s.exitCode != null) return;
+  const exited = new Promise((r) => s.once("exit", r));
+  if (process.platform === "win32") spawnSync("taskkill", ["/pid", String(s.pid), "/T", "/F"], { stdio: "ignore" });
+  else try { process.kill(-s.pid, "SIGKILL"); } catch { /* already gone */ }
+  await Promise.race([exited, new Promise((r) => setTimeout(r, 10_000))]);
+}
+
 async function coldStart(): Promise<number | null> {
   if (external) return null; // can't restart a remote host from here
-  const dir = mkdtempSync(join(tmpdir(), "cs-perf-cold-"));
+  const port = LOCAL_PORT + 1;
   const t0 = Date.now();
-  const srv = spawn("npx", ["tsx", "server/index.ts"], { env: { ...process.env, NODE_ENV: "production", PORT: String(LOCAL_PORT + 1), CS_NO_SCHEDULER: "1", CS_SKIP_DOTENV: "1", DATABASE_URL: `file:${dir}/scout.db`.replace(/\\/g, "/"), DATA_DIR: dir, CS_PACKS: "off" }, shell: true, stdio: "ignore" });
+  const srv = await startServer(port);
   try {
     const browser = await chromium.launch();
     const page = await browser.newPage();
     await page.addInitScript(SHIM);
-    for (;;) { try { await page.goto(`http://localhost:${LOCAL_PORT + 1}/`, { waitUntil: "domcontentloaded", timeout: 5000 }); break; } catch { await new Promise((r) => setTimeout(r, 250)); } }
+    const deadline = t0 + 120_000;
+    for (;;) {
+      if (srv.exitCode != null) throw new Error(`cold-start server exited with code ${srv.exitCode} before serving`);
+      if (Date.now() > deadline) throw new Error("cold-start server didn't serve the home page within 120 s");
+      try { await page.goto(`http://localhost:${port}/`, { waitUntil: "domcontentloaded", timeout: 5000 }); break; } catch { await new Promise((r) => setTimeout(r, 250)); }
+    }
     await interactive(page);
     const ms = Date.now() - t0;
     await browser.close();
     return ms;
   } finally {
-    if (process.platform === "win32" && srv.pid) spawnSync("taskkill", ["/pid", String(srv.pid), "/T", "/F"], { stdio: "ignore" }); else srv.kill();
+    await stopServer(srv);
   }
 }
 
-let srv: ReturnType<typeof spawn> | null = null;
+let srv: Server | null = null;
 try {
-  if (!external) {
-    const dir = mkdtempSync(join(tmpdir(), "cs-perf-"));
-    srv = spawn("npx", ["tsx", "server/index.ts"], { env: { ...process.env, NODE_ENV: "production", PORT: String(LOCAL_PORT), CS_NO_SCHEDULER: "1", CS_SKIP_DOTENV: "1", DATABASE_URL: `file:${dir}/scout.db`.replace(/\\/g, "/"), DATA_DIR: dir, CS_PACKS: "off" }, shell: true, stdio: "ignore" });
-  }
+  if (!external) srv = await startServer(LOCAL_PORT);
   if (!(await waitUp(`${BASE}/api/health`, 300))) throw new Error(`${BASE} didn't become ready`);
   const browser = await chromium.launch();
   const ctx = await browser.newContext({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true });
@@ -165,5 +191,5 @@ try {
     process.exitCode = fails.length ? 1 : 0;
   }
 } finally {
-  if (srv?.pid) { if (process.platform === "win32") spawnSync("taskkill", ["/pid", String(srv.pid), "/T", "/F"], { stdio: "ignore" }); else srv.kill(); }
+  if (srv) await stopServer(srv);
 }
