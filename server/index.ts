@@ -6,6 +6,8 @@ import { env, hasFirst } from "./env.js";
 import { migrate, all, kvGet, kvSet } from "./db.js";
 import { buildPacks } from "./packs/build.js";
 import { packsPresent } from "./packs/routes.js";
+import express from "express";
+import { ENGINE_VERSION } from "@control-scout/predict-engine";
 import { createApp } from "./app.js";
 import { syncAll } from "./sync.js";
 import { runStats } from "./stats/job.js";
@@ -15,12 +17,25 @@ import { restoreSnapshotIfEmpty } from "./data/snapshot.js";
 
 const log = (m: string) => console.log(`[${new Date().toISOString()}] ${m}`);
 
-// A fresh server with an empty local database starts from the shipped public
-// snapshot (before anything opens the database file).
+// Open the port first (hosts like Render restart a service that doesn't bind
+// quickly), then prepare the data: restore the shipped snapshot into an empty
+// local database (before anything opens that file) and run migrations. Until
+// then the app's pages load and its API answers 503 "starting up".
+let ready = false;
+const server = express();
+server.get("/api/health", (_req, res) => res.json({ ok: true, engine: ENGINE_VERSION, ready }));
+server.use("/api", (_req, res, next) => {
+  if (ready) return next();
+  res.setHeader("Retry-After", "15");
+  res.status(503).json({ error: "Control Scout is starting up. Try again in a few seconds." });
+});
+const app = createApp();
+server.use(app);
+server.listen(env.port, () => log(`Control Scout listening on :${env.port}${env.production ? "" : " (dev)"}`));
 log(`data: ${await restoreSnapshotIfEmpty().catch((e) => `snapshot restore failed: ${(e as Error).message}`)}`);
 await migrate();
-const app = createApp();
-app.listen(env.port, () => log(`Control Scout API on :${env.port}${env.production ? "" : " (dev)"}`));
+ready = true;
+log("ready");
 
 // Warm the current season's ratings so the first prediction is fast.
 forecasterFor(CURRENT_SEASON).then(() => log("ratings ready")).catch((e) => log(`ratings not ready: ${(e as Error).message}`));
