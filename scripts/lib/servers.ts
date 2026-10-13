@@ -7,13 +7,19 @@ export const WEB_PORT = 5199, API_PORT = 3199;
 /** True only when Control Scout's own API answers (not some other app on the
  *  port) AND has its data ready. The server opens its port before its data is
  *  ready (health says ready:false meanwhile); older servers omit the field. */
-export async function up(url: string) {
-  try { const r = await fetch(url, { signal: AbortSignal.timeout(5000) }); const j = await r.json(); return r.ok && j?.ok === true && typeof j.engine === "string" && j.ready !== false; } catch { return false; }
+export async function up(url: string, timeoutMs = 5000) {
+  try { const r = await fetch(url, { signal: AbortSignal.timeout(Math.max(1, timeoutMs)) }); const j = await r.json(); return r.ok && j?.ok === true && typeof j.engine === "string" && j.ready !== false; } catch { return false; }
 }
 
-/** Poll until `up`, for up to `seconds` (a cold start on a small host takes minutes). */
+/** Poll until `up`, for at most `seconds` of wall-clock time (a cold start on a
+ *  small host takes minutes). Each check is capped to the time that's left. */
 export async function waitUp(url: string, seconds: number) {
-  for (let i = 0; i < seconds; i += 2) { if (await up(url)) return true; await new Promise((r) => setTimeout(r, 2000)); }
+  const deadline = Date.now() + seconds * 1000;
+  while (Date.now() < deadline) {
+    if (await up(url, Math.min(5000, deadline - Date.now()))) return true;
+    const left = deadline - Date.now();
+    if (left > 0) await new Promise((r) => setTimeout(r, Math.min(2000, left)));
+  }
   return false;
 }
 
