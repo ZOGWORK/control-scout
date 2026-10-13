@@ -98,7 +98,20 @@ export function createApp() {
   });
 
   const api = express.Router();
-  api.use((_req, res, next) => { res.setHeader("Cache-Control", "no-store"); next(); });
+  // Public FTC data (GET, not account or auth): cacheable for a minute, then
+  // served stale while it revalidates (the ETag makes that a cheap 304).
+  // Anything personal stays no-store (case-insensitive, like Express routing),
+  // and so does every error response, so a retry never replays a cached 503.
+  api.use((req, res, next) => {
+    const personal = /^\/(me|auth|health)(\/|$)/i.test(req.path);
+    res.setHeader("Cache-Control", req.method === "GET" && !personal ? "public, max-age=60, stale-while-revalidate=300" : "no-store");
+    const writeHead = res.writeHead;
+    res.writeHead = function (this: typeof res, ...a: Parameters<typeof writeHead>) {
+      if (this.statusCode >= 400 || (typeof a[0] === "number" && a[0] >= 400)) this.setHeader("Cache-Control", "no-store");
+      return writeHead.apply(this, a);
+    } as typeof writeHead;
+    next();
+  });
 
   api.get("/health", h(async () => ({ ok: true, engine: ENGINE_VERSION })));
 
@@ -165,11 +178,13 @@ export function createApp() {
   }));
 
   api.get("/events", h(async (req) => ({
-    events: await listEvents({
+    // The list view's fields only (detail pages use /events/:season/:code):
+    // venue, division, region and remote aren't shown in lists.
+    events: (await listEvents({
       season: season(req.query.season), from: req.query.from ? String(req.query.from) : undefined, to: req.query.to ? String(req.query.to) : undefined,
       q: req.query.q ? String(req.query.q).slice(0, 60) : undefined, type: req.query.type ? String(req.query.type) : undefined,
       region: req.query.region ? String(req.query.region) : undefined, hideNoMatch: req.query.all !== "1", limit: Math.min(3000, Number(req.query.limit) || 3000),
-    }),
+    })).map(({ venue: _v, divisionCode: _d, region: _r, remote: _m, ...e }) => e),
   })));
 
   api.get("/events/:season/:code", h(async (req) => {

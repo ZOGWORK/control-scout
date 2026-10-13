@@ -140,6 +140,9 @@ export interface EventSummary {
   status: "upcoming" | "live" | "finished";
 }
 
+/** A row of /api/events (the list): the detail-only fields are left out. */
+export type EventListItem = Omit<EventSummary, "venue" | "divisionCode" | "region" | "remote">;
+
 export interface FieldRow {
   team: number;
   name: string | null;

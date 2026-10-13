@@ -9,7 +9,7 @@ import { usePersonal } from "./personal";
 import { useCurrentSeason } from "./meta";
 import { toast } from "../components/ui/sonner";
 import { oddsPct } from "./format";
-import type { EventSummary, MatchView } from "../shared/api";
+import type { EventSummary, EventListItem, MatchView } from "../shared/api";
 
 const SENT = "cs-alerts-sent";
 const POLL_MS = 5 * 60_000;
@@ -70,7 +70,7 @@ export function AlertsRunner() {
       }
       if (n.eventStart && s.tracked.events.length && !stopped) {
         const today = new Date().toISOString().slice(0, 10);
-        const r = await apiFetch<{ events: EventSummary[] }>(`/api/events?season=${season}&from=${today}&to=${today}`).catch(() => null);
+        const r = await apiFetch<{ events: EventListItem[] }>(`/api/events?season=${season}&from=${today}&to=${today}`).catch(() => null);
         for (const e of r?.events ?? []) {
           if (s.tracked.events.includes(`${e.season}:${e.code}`) && e.start === today) notify(`start:${e.season}:${e.code}`, `${e.name} starts today`, `${e.teams} teams · live odds on the event page`, `/events/${e.season}/${e.code}`);
         }
