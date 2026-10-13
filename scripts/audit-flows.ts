@@ -7,7 +7,7 @@
 // error during a flow fails it. Exit code 1 if anything failed.
 import { chromium, type Browser, type BrowserContext, type Page } from "playwright";
 import { createHash } from "node:crypto";
-import { spawn } from "node:child_process";
+import { spawn, spawnSync } from "node:child_process";
 import { readFileSync, writeFileSync, mkdtempSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -211,7 +211,40 @@ const flows: Flow[] = [
         return "offline reload opens the app; an unvisited page loads from the precache; a match prediction runs from the lite pack, labelled offline, with a tier";
       } finally {
         await ctx.setOffline(false);
-        if (process.platform === "win32" && server.pid) spawn("taskkill", ["/pid", String(server.pid), "/T", "/F"], { stdio: "ignore" }); else server.kill();
+        if (process.platform === "win32" && server.pid) spawnSync("taskkill", ["/pid", String(server.pid), "/T", "/F"], { stdio: "ignore" }); else server.kill();
+      }
+    },
+  },
+  {
+    name: "Service worker upgrade: a new build reaches existing visitors, old caches kept",
+    async run(page, ctx) {
+      const PROD = "http://localhost:3299";
+      const server = spawn("npx", ["tsx", "server/index.ts"], { env: { ...process.env, NODE_ENV: "production", PORT: "3299", CS_NO_SCHEDULER: "1" }, shell: true, stdio: "ignore" });
+      const shells = () => page.evaluate(async () => (await caches.keys()).filter((k) => k.startsWith("cs-shell-")).sort());
+      try {
+        for (let i = 0; i < 60 && !(await fetch(`${PROD}/api/health`).then((r) => r.ok, () => false)); i++) await new Promise((r) => setTimeout(r, 1000));
+        await page.goto(`${PROD}/`, { waitUntil: "networkidle" });
+        await page.evaluate(async () => { await navigator.serviceWorker.ready; });
+        const before = await shells();
+        assert(before.length >= 1, "build A's cache missing");
+        // Build B (a new release: the worker's embedded version changes).
+        const b = spawnSync("npm", ["run", "build"], { shell: true, stdio: "ignore" });
+        assert(b.status === 0, "second build failed");
+        await page.evaluate(async () => { const r = await navigator.serviceWorker.getRegistration(); await r?.update(); });
+        await page.waitForFunction(async () => (await caches.keys()).filter((k) => k.startsWith("cs-shell-")).length >= 2, null, { timeout: 60_000, polling: 1000 });
+        const after = await shells();
+        const newest = after[after.length - 1];
+        assert(!before.includes(newest), `no new cache after the rebuild: ${after.join(", ")}`);
+        assert(after.includes(before[before.length - 1]), "the previous release's cache was deleted while its tab was open");
+        // The upgraded app still opens offline.
+        await ctx.setOffline(true);
+        await page.reload({ waitUntil: "domcontentloaded" });
+        await page.getByText("Control Scout").first().waitFor({ timeout: 15_000 });
+        await ctx.setOffline(false);
+        return `build A → build B: new worker installed (${newest}), previous cache kept for open tabs, app opens offline after the upgrade`;
+      } finally {
+        await ctx.setOffline(false);
+        if (process.platform === "win32" && server.pid) spawnSync("taskkill", ["/pid", String(server.pid), "/T", "/F"], { stdio: "ignore" }); else server.kill();
       }
     },
   },
@@ -248,7 +281,8 @@ try {
     page.on("console", (m) => { if ((m.type() === "error" || m.type() === "warning") && !m.text().startsWith("You have Reduced Motion")) noise.push(`${m.type()}: ${m.text().slice(0, 200)}`); });
     page.on("pageerror", (e) => noise.push(`pageerror: ${e.message.slice(0, 200)}`));
     // blob: = a local video preview the browser stops loading when its tab hides; not a network request.
-    page.on("requestfailed", (r) => { if (!/\.hot-update|__vite|ws:|^blob:/.test(r.url())) noise.push(`request failed: ${r.method()} ${r.url()} (${r.failure()?.errorText})`); });
+    // ERR_ABORTED = the flow navigated on before a request finished (not a failure).
+    page.on("requestfailed", (r) => { if (!/\.hot-update|__vite|ws:|^blob:/.test(r.url()) && r.failure()?.errorText !== "net::ERR_ABORTED") noise.push(`request failed: ${r.method()} ${r.url()} (${r.failure()?.errorText})`); });
     try {
       const detail = await f.run(page, ctx);
       if (noise.length) throw new Error(`console: ${noise.join(" | ")}`);

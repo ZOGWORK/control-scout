@@ -35,11 +35,19 @@ async function getv<T>(key: string): Promise<T | undefined> { const db = await i
 export interface PackMeta { version: string; bytes: number; savedAt: number; builtAt: string; engineVersion: string }
 export function packStatus(): PackMeta | null { try { return JSON.parse(localStorage.getItem(META) ?? "null"); } catch { return null; } }
 
+/** Why the pack list couldn't be read: none published yet, or the server
+ *  couldn't be reached (offline, or down) — they need different messages. */
+export class ManifestError extends Error {
+  constructor(readonly reason: "none" | "unreachable" | "failed", message: string) { super(message); }
+}
+
 export async function fetchManifest(): Promise<PackManifest> {
-  if (navigator.onLine === false) throw new Error("You're offline — the pack list will load when you're back online.");
-  const r = await fetch("/packs/latest.json", { cache: "no-cache" });
-  if (r.status === 404) throw new Error("No packs have been published on this server yet.");
-  if (!r.ok) throw new Error(`Couldn't read the pack manifest (${r.status}).`);
+  if (navigator.onLine === false) throw new ManifestError("unreachable", "You're offline — the pack list loads when you're back online.");
+  let r: Response;
+  try { r = await fetch("/packs/latest.json", { cache: "no-cache" }); }
+  catch { throw new ManifestError("unreachable", "Can't reach the server right now — try again in a moment."); }
+  if (r.status === 404) throw new ManifestError("none", "No packs have been published on this server yet.");
+  if (!r.ok) throw new ManifestError("failed", `Couldn't read the pack list (${r.status}).`);
   return r.json();
 }
 

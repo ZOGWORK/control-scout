@@ -99,6 +99,7 @@ export async function search(q: string, limit = 12, prefer: ReadonlySet<string> 
     const qb = bigrams(qs.join(" "));
     const scanned = (await fuzzyRows()).filter((r) => { for (const b of qb) if (r.bigrams.has(b)) return true; return false; })
       .map((r) => ({ r, s: scoreWords(qs, r.words) })).filter((x) => x.s >= 0.6)
+      .map((x) => (prefer.has(`${x.r.kind}:${x.r.ref}`) ? { ...x, s: x.s + 0.1 } : x)) // same preference as the indexed path
       .sort((a, b) => b.s - a.s || b.r.weight - a.r.weight || (b.r.season ?? 0) - (a.r.season ?? 0));
     for (const { r } of scanned) { if (out.length >= limit) break; push({ kind: r.kind, ref: r.ref, title: r.title, subtitle: r.subtitle, season: r.season }); }
   }

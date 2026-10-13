@@ -1,6 +1,6 @@
 // Real API + Vite servers for browser tooling (shots, audit), on dedicated
 // ports so they never hit another app's dev server (e.g. Control Point on 5173).
-import { spawn, type ChildProcess } from "node:child_process";
+import { spawn, spawnSync, type ChildProcess } from "node:child_process";
 
 export const WEB_PORT = 5199, API_PORT = 3199;
 
@@ -23,10 +23,13 @@ export async function ensureServers(base: string, external = false) {
   throw new Error("Servers didn't come up in 90 s");
 }
 
-/** Stop anything ensureServers started. shell:true spawns a tree; on Windows kill the whole tree. */
+/** Stop anything ensureServers started. shell:true spawns a tree; on Windows kill
+ *  the whole tree — synchronously, so a caller that exits right after (audit:flows
+ *  calls process.exit) can't leave servers running on the tool ports. */
 export function stopServers() {
   for (const c of children) {
-    if (process.platform === "win32" && c.pid) spawn("taskkill", ["/pid", String(c.pid), "/T", "/F"], { stdio: "ignore" });
+    if (process.platform === "win32" && c.pid) spawnSync("taskkill", ["/pid", String(c.pid), "/T", "/F"], { stdio: "ignore" });
     else c.kill();
   }
+  children.length = 0;
 }

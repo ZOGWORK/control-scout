@@ -3,27 +3,34 @@ import react from "@vitejs/plugin-react";
 import tailwindcss from "@tailwindcss/vite";
 import { fileURLToPath } from "node:url";
 import { createHash } from "node:crypto";
-import { readdirSync } from "node:fs";
+import { readdirSync, readFileSync } from "node:fs";
 import type { Plugin } from "vite";
 
-/** Lists every built file (+ fonts, icons, the shell) for the service worker to
- *  precache, with a version that changes whenever any of them does. */
-function swPrecache(): Plugin {
+/** Emits /sw.js from src/sw.template.js with this build's version and the
+ *  list of every built file (+ fonts, the shell) to precache. The version is
+ *  the build time plus a content hash, so each release changes the worker's
+ *  bytes (browsers only reinstall a worker whose bytes changed) and cache names
+ *  sort by age. */
+function serviceWorker(): Plugin {
   return {
-    name: "cs-sw-precache",
+    name: "cs-sw",
     apply: "build",
     generateBundle(_options, bundle) {
       const pub = (dir: string) => readdirSync(fileURLToPath(new URL(`./public/${dir}`, import.meta.url))).map((f) => `/${dir}/${f}`);
       const built = Object.keys(bundle).filter((f) => !f.endsWith(".map")).map((f) => `/${f}`);
-      const files = [...new Set(["/", "/index.html", ...built, ...pub("fonts"), "/manifest.webmanifest"])].filter((f) => f !== "/sw-precache.json");
-      const version = createHash("sha256").update(files.join("\n")).digest("hex").slice(0, 12);
-      this.emitFile({ type: "asset", fileName: "sw-precache.json", source: JSON.stringify({ version, files }) });
+      const files = [...new Set(["/", "/index.html", ...built, ...pub("fonts"), "/manifest.webmanifest"])];
+      const hash = createHash("sha256");
+      for (const f of Object.values(bundle)) hash.update(f.fileName).update(f.type === "chunk" ? f.code : typeof f.source === "string" ? f.source : Buffer.from(f.source));
+      const stamp = new Date().toISOString().replace(/\D/g, "").slice(0, 14);
+      const version = `${stamp}-${hash.digest("hex").slice(0, 10)}`;
+      const template = readFileSync(fileURLToPath(new URL("./src/sw.template.js", import.meta.url)), "utf8");
+      this.emitFile({ type: "asset", fileName: "sw.js", source: template.replace("__VERSION__", version).replace("__FILES__", JSON.stringify(files)) });
     },
   };
 }
 
 export default defineConfig({
-  plugins: [react(), tailwindcss(), swPrecache()],
+  plugins: [react(), tailwindcss(), serviceWorker()],
   resolve: { alias: { "@": fileURLToPath(new URL("./src", import.meta.url)) } },
   server: {
     port: 5173,
