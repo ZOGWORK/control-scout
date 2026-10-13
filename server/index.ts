@@ -25,6 +25,7 @@ server.get("/api/health", (_req, res) => res.json({ ok: true, engine: ENGINE_VER
 server.use("/api", (_req, res, next) => {
   if (ready) return next();
   res.setHeader("Retry-After", "15");
+  res.setHeader("Cache-Control", "no-store"); // never cache "starting up"
   res.status(503).json({ error: "Control Scout is starting up. Try again in a few seconds." });
 });
 const app = createApp();

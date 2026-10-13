@@ -1,8 +1,9 @@
 # Performance: before and after (2026-10-13)
 
-Tasks 2–5 of Sushil's list. Every number below comes from `npm run perf`
-(`scripts/perf.ts`), measured the same way both times. The only exception is
-the per-query timings, which come from `npm run query-profile`.
+Tasks 2–5 of Sushil's list. Home page and API numbers come from `npm run perf`
+(`scripts/perf.ts`; `--base <url>` for a deployed site), measured the same
+way both times. Per-query timings come from `npm run query-profile`. Cold
+starts are measured as described under that table.
 
 - "Local" is the production build on a dev machine.
 - "VM" is https://controlscout.org (Oracle VM: 4 cores, 24 GB).
@@ -60,6 +61,16 @@ Render's time is its 0.15 CPU: the same handlers take 4–70 ms on real cores.
 | **VM**, `systemctl restart` (data already on disk) | — | **8.7 s** to home HTML and API ready |
 | **Render free**, first request after it had gone idle or redeployed | — | **25.5 s** for the first response |
 
+How each was measured:
+- Local and CI: `npm run perf` launches a fresh server with an empty data
+  directory. It records first contentful paint (`performance.timeOrigin` +
+  the paint entry) and the moment data is on screen, both counted from launch.
+- VM: on the VM, `systemctl restart control-scout`, then poll
+  `http://127.0.0.1:3100/` and `/api/health` every 0.1 s until the home HTML
+  returns 200 and `ready` is true.
+- Render: `curl -w %{time_total}` on `/api/health`; the first request
+  after the service had been idle or redeployed.
+
 **Plainly: Render free can't get cold starts under ~20 s.**
 - Its disk is thrown away on every deploy and restart, so each boot restores
   the 33 MB snapshot on 0.15 CPU.
@@ -94,4 +105,5 @@ the same check locally.
   The VM uses it; Render keeps the in-process cycle, because a second process
   won't fit in 512 MB (that's what the reverted worker in #13 ran into).
 - **Cache headers (#18).** Public data is cached for 60 s and revalidated with
-  ETags. Personal routes (any casing) and every error response are `no-store`.
+  ETags. Personal routes (any casing), every error response from the API and
+  the "starting up" 503 are `no-store`.
