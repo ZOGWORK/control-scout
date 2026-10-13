@@ -253,10 +253,40 @@ CREATE VIRTUAL TABLE search_fuzzy USING fts5(
 
 export type Db = Client;
 let client: Client | null = null;
+let replicaClient: Client | null = null;
 
 export function db(): Client {
   if (!client) client = openDb(env.databaseUrl, env.databaseToken);
   return client;
+}
+
+const isRemote = (url: string) => /^(libsql|https?|wss?):\/\//.test(url);
+
+/**
+ * Remote database (Turso) → an embedded replica: a local file that syncs from
+ * Turso. The app makes many small queries per page; over the network each one
+ * is a round trip (event pages took 80–110 s on Turso directly), locally they
+ * take microseconds. Writes go to Turso and show up locally after they commit.
+ *
+ * Call once at startup, before db() is first used. Downloads everything on the
+ * first sync, then re-syncs every `syncSeconds`. Falls back to the plain remote
+ * client if the replica can't sync, so a failure is never worse than before.
+ * DATABASE_REPLICA=off keeps the plain remote client.
+ */
+export async function openReplicaIfRemote(log: (m: string) => void, syncSeconds = 300): Promise<void> {
+  const url = env.databaseUrl;
+  if (!isRemote(url) || process.env.DATABASE_REPLICA === "off" || client) return;
+  const path = resolve(env.dataDir, "replica.db");
+  mkdirSync(dirname(path), { recursive: true });
+  const t0 = Date.now();
+  try {
+    const replica = createClient({ url: `file:${path}`, syncUrl: url, authToken: env.databaseToken ?? undefined, syncInterval: syncSeconds });
+    const r = await replica.sync();
+    client = replicaClient = replica;
+    log(`database: embedded replica of ${url.replace(/^\w+:\/\//, "")} synced in ${((Date.now() - t0) / 1000).toFixed(1)} s (frames ${r?.frames_synced ?? "?"}), re-syncs every ${syncSeconds} s`);
+  } catch (e) {
+    log(`database: replica sync failed (${(e as Error).message}); using the remote database directly`);
+  }
 }
 
 export function openDb(url: string, authToken?: string | null): Client {
@@ -271,7 +301,7 @@ export function openDb(url: string, authToken?: string | null): Client {
 export function setDb(c: Client): void { client = c; }
 
 export async function migrate(c: Client = db()): Promise<number[]> {
-  if (!c.protocol || c.protocol === "file") {
+  if ((!c.protocol || c.protocol === "file") && c !== replicaClient) { // a replica manages its own journal
     await c.execute("PRAGMA journal_mode = WAL");
     await c.execute("PRAGMA busy_timeout = 5000");
   }
