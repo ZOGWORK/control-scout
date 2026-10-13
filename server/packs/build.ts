@@ -11,7 +11,7 @@
 // Versions are dated (YYYY-MM-DD.N); the last few are kept so a device that
 // started a download mid-release still finishes it.
 import { createHash } from "node:crypto";
-import { copyFileSync, existsSync, mkdirSync, readdirSync, readFileSync, renameSync, rmSync, writeFileSync } from "node:fs";
+import { closeSync, copyFileSync, existsSync, mkdirSync, openSync, readdirSync, readFileSync, renameSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { gzipSync } from "node:zlib";
 import { createClient } from "@libsql/client";
@@ -112,9 +112,31 @@ export async function buildFull(season: number, version: string, dir: string, lo
     contents: `Every ${seasonInfo(season).label} ${seasonInfo(season).game} event, team, match (scores, breakdowns, penalties, lineups), ranking, alliance, award and computed stat — a plain SQLite file.` };
 }
 
-export async function buildPacks(log: (m: string) => void = () => {}): Promise<Manifest> {
-  const dir = packsDir();
+/** Lock shared by every build path (the scheduler and `npm run packs`), so two
+ *  builds never pick the same version and overwrite each other's files. A lock
+ *  older than LOCK_STALE_MS is left over from a crashed build and is taken over. */
+const LOCK_STALE_MS = 2 * 3600_000;
+export async function withPackLock<T>(dir: string, fn: () => Promise<T>): Promise<T> {
   mkdirSync(dir, { recursive: true });
+  const lock = join(dir, ".build.lock");
+  try {
+    if (Date.now() - statSync(lock).mtimeMs > LOCK_STALE_MS) rmSync(lock, { force: true });
+  } catch { /* no lock */ }
+  let fd: number;
+  try { fd = openSync(lock, "wx"); } catch (e) {
+    if ((e as NodeJS.ErrnoException).code === "EEXIST") throw new Error("Another pack build is running; skipped.");
+    throw e;
+  }
+  closeSync(fd);
+  try { return await fn(); } finally { rmSync(lock, { force: true }); }
+}
+
+export async function buildPacks(log: (m: string) => void = () => {}): Promise<Manifest> {
+  return withPackLock(packsDir(), () => buildPacksUnlocked(log));
+}
+
+async function buildPacksUnlocked(log: (m: string) => void): Promise<Manifest> {
+  const dir = packsDir();
   const version = await nextVersion(dir);
   const lite = await buildLite(version, dir, log);
   const full: BuiltFile[] = [];

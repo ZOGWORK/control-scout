@@ -35,8 +35,10 @@ async function cycle(reason: string) {
     // packs:last without the pack files, so also require a readable manifest.
     const lastPacks = await kvGet<string>("packs:last");
     if (!lastPacks || Date.now() - Date.parse(lastPacks) > 23 * 3600_000 || !packsPresent()) {
-      await buildPacks((m) => log(`  ${m}`));
-      await kvSet("packs:last", new Date().toISOString());
+      try {
+        await buildPacks((m) => log(`  ${m}`));
+        await kvSet("packs:last", new Date().toISOString());
+      } catch (e) { log(`  packs: ${(e as Error).message}`); } // e.g. a manual build holds the lock
     }
   } catch (e) {
     log(`sync failed: ${(e as Error).message}`);
