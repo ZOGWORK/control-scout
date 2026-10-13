@@ -15,7 +15,7 @@ import "../server/env.js";
 import { env } from "../server/env.js";
 import { all } from "../server/db.js";
 
-const PRIVATE = ["users", "sessions", "identities", "email_codes", "user_state", "scout_entries"];
+import { PRIVATE_TABLES as PRIVATE } from "../server/data/snapshot.js";
 const tmp = join(env.dataDir, "snapshot-build.db");
 const out = join(process.cwd(), "data", "snapshot.db.br");
 

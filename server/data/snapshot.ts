@@ -17,12 +17,26 @@ export function localDbPath(url = env.databaseUrl): string | null {
   return url.slice("file:".length);
 }
 
-async function hasTeams(path: string): Promise<boolean> {
-  if (!existsSync(path) || statSync(path).size === 0) return false;
+/** Tables holding people's own data, never in the snapshot. */
+export const PRIVATE_TABLES = ["users", "sessions", "identities", "email_codes", "user_state", "scout_entries"];
+
+/** True only when replacing the file can't lose anything: it's missing or zero
+ *  bytes, has no tables at all, or has no teams AND no rows in any private
+ *  table. Any error reading it means "keep it", never "replace it". */
+export async function safeToReplace(path: string): Promise<boolean> {
+  if (!existsSync(path) || statSync(path).size === 0) return true;
   const c = createClient({ url: `file:${path}` });
-  try { return Number((await c.execute("SELECT COUNT(*) n FROM teams")).rows[0].n) > 0; }
-  catch { return false; } // no schema yet
-  finally { c.close(); }
+  try {
+    const tables = new Set((await c.execute("SELECT name FROM sqlite_master WHERE type = 'table'")).rows.map((r) => String(r.name)));
+    if (!tables.size) return true;
+    for (const t of ["teams", ...PRIVATE_TABLES]) {
+      if (!tables.has(t)) continue;
+      if (Number((await c.execute(`SELECT COUNT(*) n FROM ${t}`)).rows[0].n) > 0) return false;
+    }
+    return true;
+  } catch {
+    return false;
+  } finally { c.close(); }
 }
 
 /** Returns what happened, for the startup log. Call before the database is first opened. */
@@ -30,7 +44,7 @@ export async function restoreSnapshotIfEmpty(): Promise<string> {
   const path = localDbPath();
   if (!path) return "remote database: snapshot not used";
   if (!existsSync(SNAPSHOT)) return "no snapshot shipped";
-  if (await hasTeams(path)) return "database has data: snapshot not used";
+  if (!(await safeToReplace(path))) return "database already holds data: snapshot not used";
   mkdirSync(dirname(path), { recursive: true });
   const tmp = `${path}.restoring`;
   await pipeline(createReadStream(SNAPSHOT), createBrotliDecompress(), createWriteStream(tmp));
