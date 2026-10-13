@@ -1,4 +1,5 @@
-// Section 05: how good is it? Two clearly separated sources:
+// Section 05: how good is it? This is also the track record (/predict/accuracy
+// redirects here). Two clearly separated sources:
 //  - Control Scout's own ledger (GET /api/predict/accuracy): live and backtest
 //    blocks per season, never blended; shown with loading / empty / error states.
 //  - The prediction engine's published held-out test (tuned on 2024–25, tested
@@ -14,6 +15,7 @@ import type { AccuracyBlock, TrackRecord } from "../../shared/api";
 import { pct } from "../../lib/format";
 import { cn } from "../cn";
 import { Badge } from "../ui/basic";
+import { MatchList } from "../predict";
 import { ErrorState, Skeleton } from "../states";
 import { EmptyState } from "../page";
 import { HBars } from "./charts";
@@ -92,18 +94,22 @@ export function AccuracySection() {
             <div className="min-w-0">
               <p className="hiw-gold text-[11px] font-bold uppercase tracking-[0.14em]">Control Scout's ledger</p>
               <p className="mt-0.5 font-display text-base font-semibold text-foreground sm:text-lg">Every match prediction this site made, scored{desc && <span className="ml-1.5 font-mono text-xs font-normal text-muted-foreground">· {desc}</span>}</p>
+              {sel && block && <Badge variant={sel.kind === "live" ? "success" : "secondary"} className="mt-2 w-fit">{sel.kind === "live" ? <><Radio /> Live record · called before each match</> : <><History /> Backtest · replayed with only earlier matches</>}</Badge>}
             </div>
             {selectors}
           </div>
           {apiState((b) => (
             <div className="grid grid-cols-2 gap-px overflow-hidden rounded-xl border border-border bg-border lg:grid-cols-4" role="list">
-              <StatCell value={<CountUp value={b.accuracy * 100} decimals={1} suffix="%" />} label={`of decided matches called right (${sel?.kind === "live" ? "called before each match" : "replayed with only earlier matches"})`} />
-              <StatCell value={<CountUp value={b.brier} decimals={3} />} label={`Brier score (lower is better; a coin flip scores ${b.baselineBrier.toFixed(3)})`} />
-              <StatCell value={<CountUp value={(1 - b.brier / b.baselineBrier) * 100} decimals={0} suffix="%" />} label="skill: Brier improvement over always saying 50%" />
+              <StatCell tone="gold" value={<CountUp value={b.accuracy * 100} decimals={1} suffix="%" />} label={`of decided matches called right (${sel?.kind === "live" ? "called before each match" : "replayed with only earlier matches"})`} />
+              <StatCell tone="blue" value={<CountUp value={b.brier} decimals={3} />} label={`Brier score (lower is better; a coin flip scores ${b.baselineBrier.toFixed(3)})`} />
+              <StatCell tone={b.brier < b.baselineBrier ? "good" : "bad"} value={<CountUp value={(1 - b.brier / b.baselineBrier) * 100} decimals={0} suffix="%" />} label="skill: Brier improvement over always saying 50%" />
               <StatCell value={<CountUp value={b.n} />} label={`matches scored · ${b.upsets.toLocaleString("en-US")} upsets`} />
+              <p role="listitem" className="col-span-full bg-card px-4 py-2.5 font-mono text-xs text-muted-foreground">
+                Log loss {b.logLoss.toFixed(3)} (lower is better; a coin flip scores 0.693) · qualifiers {b.byLevel.qual.n ? `${pct(b.byLevel.qual.accuracy, 1)} right (${b.byLevel.qual.n.toLocaleString("en-US")})` : "none scored"} · playoffs {b.byLevel.playoff.n ? `${pct(b.byLevel.playoff.accuracy, 1)} right (${b.byLevel.playoff.n.toLocaleString("en-US")})` : "none scored"}
+              </p>
             </div>
-          ), <div className="grid grid-cols-2 gap-3 lg:grid-cols-4" role="status" aria-label="Loading the track record">{[0, 1, 2, 3].map((i) => <Skeleton key={i} className="h-24 rounded-xl" />)}</div>)}
-          <p className="mt-3 text-sm text-muted-foreground">Live and backtest numbers are reported separately and never blended. The headline switches to live once a season has {t?.liveThreshold ?? 300} scored pre-match calls. <Link to="/predict/accuracy" className="font-medium text-foreground underline decoration-accent underline-offset-2">Full track record</Link></p>
+          ),<div className="grid grid-cols-2 gap-3 lg:grid-cols-4" role="status" aria-label="Loading the track record">{[0, 1, 2, 3].map((i) => <Skeleton key={i} className="h-24 rounded-xl" />)}</div>)}
+          <p className="mt-3 text-sm text-muted-foreground">Live and backtest numbers are reported separately and never blended. The headline switches to live once a season has {t?.liveThreshold ?? 300} scored pre-match calls.</p>
         </div>
       </Reveal>
 
@@ -111,9 +117,9 @@ export function AccuracySection() {
       <Reveal className="mx-auto my-8 max-w-5xl">
         <div className="mb-2.5"><EngineTag /></div>
         <div className="grid grid-cols-2 gap-px overflow-hidden rounded-xl border border-border bg-border lg:grid-cols-4" role="list" aria-label={`Headline numbers from ${ENGINE_TEST}`}>
-          <StatCell value={<CountUp value={ENG.matches.liveAccuracy * 100} decimals={1} suffix="%" />} label="of matches called right with live ratings" />
-          <StatCell value={<CountUp value={ENG.matches.scoreRange80Coverage * 100} decimals={0} suffix="%" />} label="of real scores inside the 80% range (honest ranges)" />
-          <StatCell value={<CountUp value={ENG.advancement.selected.brier} decimals={3} />} label="advancement Brier after alliance selection (lower is better)" />
+          <StatCell tone="gold" value={<CountUp value={ENG.matches.liveAccuracy * 100} decimals={1} suffix="%" />} label="of matches called right with live ratings" />
+          <StatCell tone="good" value={<CountUp value={ENG.matches.scoreRange80Coverage * 100} decimals={0} suffix="%" />} label="of real scores inside the 80% range (honest ranges)" />
+          <StatCell tone="blue" value={<CountUp value={ENG.advancement.selected.brier} decimals={3} />} label="advancement Brier after alliance selection (lower is better)" />
           <StatCell value={<CountUp value={ENG.matches.count} />} label={`test matches · ${ENG.advancement.events} advancing events`} />
         </div>
       </Reveal>
@@ -141,6 +147,7 @@ export function AccuracySection() {
 
       <ExpChart />
       <Calibration block={block} desc={desc} loading={!t && !state.error} error={!!state.error} />
+      {block && <WeekChart block={block} desc={desc} />}
       <StageChart />
 
       <Prose id="confidence" className="mt-12">
@@ -156,14 +163,29 @@ export function AccuracySection() {
       <Reveal className="mx-auto mt-4 max-w-2xl">
         {apiState((b) => <Tiers block={b} />, <Skeleton className="h-32 rounded-xl" />)}
       </Reveal>
+
+      {t && t.recentCalls.length > 0 && (
+        <>
+          <Prose id="recent" className="mt-12">
+            <h3>Latest live calls</h3>
+            <p>The most recent matches Control Scout predicted before they were played, with how each one turned out. Engine v{t.engineVersion}.</p>
+          </Prose>
+          <Reveal className="mx-auto mt-4 max-w-3xl">
+            <MatchList matches={t.recentCalls} />
+          </Reveal>
+        </>
+      )}
     </section>
   );
 }
 
-function StatCell({ value, label }: { value: ReactNode; label: string }) {
+type Tone = "gold" | "good" | "bad" | "blue";
+const TONE: Record<Tone, string> = { gold: "text-accent", good: "text-success", bad: "text-destructive", blue: "text-blue-alliance" };
+
+function StatCell({ value, label, tone }: { value: ReactNode; label: string; tone?: Tone }) {
   return (
     <div role="listitem" className="grid min-w-0 content-start gap-1 bg-card p-4">
-      <b className="font-display text-3xl font-bold leading-none tabular-nums text-foreground sm:text-4xl">{value}</b>
+      <b className={cn("font-display text-3xl font-bold leading-none tabular-nums sm:text-4xl", tone ? TONE[tone] : "text-foreground")}>{value}</b>
       <span className="text-[13px] leading-snug text-muted-foreground">{label}</span>
     </div>
   );
@@ -272,6 +294,40 @@ function Calibration({ block, desc, loading, error }: { block: AccuracyBlock | n
       </ScrollX>
       <Legend items={[["var(--color-accent)", `Match win odds · Control Scout ledger (${matchNote})`], ["var(--hiw-blue)", "Advancement odds before the event · engine test"], ["var(--hiw-line)", "Perfect calibration"]]} />
       {error && <p className={cn("mt-2 text-sm text-muted-foreground")}>The match dots need this site's track record, which couldn't be loaded. The advancement diamonds come with the engine and still show.</p>}
+    </Figure>
+  );
+}
+
+/** Accuracy per week for the selected ledger block (weeks with at least 20 scored matches). */
+function WeekChart({ block, desc }: { block: AccuracyBlock; desc: string }) {
+  const tip = useTip();
+  const weeks = block.weekly.filter((w) => w.n >= 20);
+  if (weeks.length < 2) return null;
+  // Axis from 50% (chance), extended down in 10-point steps if a week did worse, so poor weeks are never flattened.
+  const lo = Math.min(50, Math.floor(Math.min(...weeks.map((w) => w.accuracy * 100)) / 10) * 10), hi = 100;
+  const L = 50, R = 620, T = 14, B = 206;
+  const x = (i: number) => L + (i / (weeks.length - 1)) * (R - L);
+  const y = (a: number) => B - ((a * 100 - lo) / (hi - lo)) * (B - T);
+  const ticks = Array.from({ length: (hi - lo) / 10 + 1 }, (_, i) => lo + i * 10);
+  const path = weeks.map((w, i) => `${i ? "L" : "M"}${x(i).toFixed(1)},${y(w.accuracy).toFixed(1)}`).join(" ");
+  const every = Math.max(1, Math.ceil(weeks.length / 8));
+  return (
+    <Figure id="weekly" narrow label="Figure 10b" title="Week by week"
+      caption={<>Control Scout's ledger ({desc}), weeks with at least 20 scored matches. Early-season weeks are harder: ratings still lean on last season. Hover, tap or focus a point for its numbers.</>}>
+      <ScrollX label="Accuracy by week chart">
+        <Chart viewBox="0 0 640 240" interactive label={`Line chart of the share of matches called right each week, from ${pct(weeks[0].accuracy)} in the first week to ${pct(weeks[weeks.length - 1].accuracy)} in the last.`}>
+          {ticks.map((v) => <g key={v}><line x1={L} x2={R} y1={y(v / 100)} y2={y(v / 100)} className="grid" /><text x={L - 8} y={y(v / 100) + 4} textAnchor="end">{v}%</text></g>)}
+          <path d={path} fill="none" stroke="var(--color-accent)" strokeWidth={2.5} strokeLinejoin="round" className="fade" />
+          {weeks.map((w, i) => (
+            <g key={w.week}>
+              <circle cx={x(i)} cy={y(w.accuracy)} r={4.5} fill="var(--color-accent)" stroke="var(--color-card)" strokeWidth={1.5} className="pop" style={{ ["--i" as string]: i }}
+                {...tip(`Week of ${w.week}: ${pct(w.accuracy, 1)} called right (${w.n.toLocaleString("en-US")} matches)`)} />
+              {i % every === 0 && <text x={x(i)} y={B + 18} textAnchor="middle">{w.week.slice(5)}</text>}
+            </g>
+          ))}
+          <text x={(L + R) / 2} y={B + 32} textAnchor="middle">week starting (month-day){lo === 50 ? " · axis starts at 50%" : ""}</text>
+        </Chart>
+      </ScrollX>
     </Figure>
   );
 }

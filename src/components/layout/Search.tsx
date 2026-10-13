@@ -74,7 +74,7 @@ function SearchDialog({ open, onOpenChange }: { open: boolean; onOpenChange: (o:
   const quick = [
     ...(state.myTeam ? [{ label: `My team · ${state.myTeam}`, href: `/teams/${state.myTeam}` }] : []),
     { label: "Prediction lab", href: "/predict" },
-    { label: "Track record", href: "/predict/accuracy" },
+    { label: "Track record", href: "/methodology#accuracy" },
     { label: "Events this week", href: "/events" },
   ];
   return (
