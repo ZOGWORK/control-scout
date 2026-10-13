@@ -11,7 +11,7 @@
 // --attach arguments for `gh pr create`.
 import { chromium, type Browser } from "playwright";
 import { spawn, type ChildProcess } from "node:child_process";
-import { mkdirSync } from "node:fs";
+import { mkdirSync, renameSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 
@@ -20,7 +20,7 @@ const flag = (f: string) => args.includes(`--${f}`);
 const opt = (f: string) => { const i = args.indexOf(`--${f}`); return i >= 0 ? args[i + 1] : undefined; };
 // Routes: "/teams/1" or "teams/1". Git Bash rewrites a leading "/" into its
 // install path (C:/Program Files/Git/...) — undo that.
-const VALUE_FLAGS = new Set(["--out", "--base", "--search"]);
+const VALUE_FLAGS = new Set(["--out", "--base", "--search", "--video"]);
 const routes = args.filter((a, i) => !a.startsWith("--") && !VALUE_FLAGS.has(args[i - 1] ?? ""))
   .map((a) => a.replace(/\\/g, "/").replace(/^[A-Za-z]:\/.*?\/Git(?=\/|$)/, ""))
   .map((a) => (a.startsWith("/") ? a : `/${a}`));
@@ -51,7 +51,14 @@ async function ensureServers() {
 }
 
 async function capture(browser: Browser, route: string, vp: keyof typeof SIZES, light: boolean): Promise<string> {
-  const ctx = await browser.newContext({ viewport: SIZES[vp], deviceScaleFactor: 2, colorScheme: light ? "light" : "dark", isMobile: vp === "mobile", hasTouch: vp === "mobile", reducedMotion: "reduce" });
+  // Still by default (stable shots); --motion / --pointer / --video show animation as users see it.
+  const videoSecs = Number(opt("video") ?? 0);
+  const motion = flag("motion") || flag("pointer") || videoSecs > 0;
+  const ctx = await browser.newContext({
+    viewport: SIZES[vp], deviceScaleFactor: videoSecs ? 1 : 2, colorScheme: light ? "light" : "dark", isMobile: vp === "mobile", hasTouch: vp === "mobile",
+    reducedMotion: motion ? "no-preference" : "reduce",
+    ...(videoSecs ? { recordVideo: { dir: out, size: SIZES[vp] } } : {}),
+  });
   if (light) await ctx.addInitScript(() => localStorage.setItem("cs-personal:settings", JSON.stringify({ value: { theme: "light", density: "comfortable", notify: {} }, updatedAt: 1 })));
   const page = await ctx.newPage();
   const errors: string[] = [];
@@ -70,11 +77,30 @@ async function capture(browser: Browser, route: string, vp: keyof typeof SIZES, 
     await page.waitForFunction(() => !document.body.innerText.includes("Searching…"), null, { timeout: 15_000 });
     await page.waitForTimeout(600);
   }
+  // --pointer: rest the mouse mid-page (hover effects, the ambient light).
+  if (flag("pointer") && vp === "desktop") { await page.mouse.move(SIZES[vp].width * 0.6, SIZES[vp].height * 0.35, { steps: 12 }); await page.waitForTimeout(500); }
+  // --video N: record N seconds while the pointer glides across the page.
+  if (videoSecs) {
+    const { width, height } = SIZES[vp];
+    const t0 = Date.now();
+    let i = 0;
+    while (Date.now() - t0 < videoSecs * 1000) {
+      const a = (i++ / 60) * Math.PI * 2;
+      await page.mouse.move(width * (0.5 + 0.3 * Math.cos(a)), height * (0.45 + 0.25 * Math.sin(a * 2)), { steps: 4 });
+      await page.waitForTimeout(40);
+    }
+    const video = page.video();
+    await ctx.close();
+    const tmp = await video!.path();
+    const file = join(out, `${vp}${light ? "-light" : ""}-video-${route.replace(/^\//, "").replace(/[^\w-]+/g, "_") || "home"}.webm`);
+    renameSync(tmp, file);
+    return file;
+  }
   // The shell scrolls inside <main> (h-dvh); unroll it so a full-page shot shows everything.
-  if (!flag("viewport") && !q) await page.addStyleTag({ content: ".h-dvh{height:auto!important;overflow:visible!important} main{overflow:visible!important} .h-dvh{position:relative!important} nav.fixed{position:absolute!important;left:0;right:0;bottom:0}" });
-  const name = `${vp}${light ? "-light" : ""}${q ? `-search-${q.replace(/[^\w]+/g, "_")}` : ""}-${route.replace(/^\//, "").replace(/[^\w-]+/g, "_") || "home"}.png`;
+  if (!flag("viewport") && !q && !flag("pointer")) await page.addStyleTag({ content: ".h-dvh{height:auto!important;overflow:visible!important} main{overflow:visible!important} .h-dvh{position:relative!important} nav.fixed{position:absolute!important;left:0;right:0;bottom:0}" });
+  const name = `${vp}${light ? "-light" : ""}${flag("pointer") ? "-pointer" : ""}${q ? `-search-${q.replace(/[^\w]+/g, "_")}` : ""}-${route.replace(/^\//, "").replace(/[^\w-]+/g, "_") || "home"}.png`;
   const file = join(out, name);
-  await page.screenshot({ path: file, fullPage: !flag("viewport") && !q });
+  await page.screenshot({ path: file, fullPage: !flag("viewport") && !q && !flag("pointer") });
   if (errors.length) console.warn(`  ! ${route}: page errors: ${errors.join(" | ")}`);
   await ctx.close();
   return file;
@@ -92,7 +118,7 @@ try {
     files.push(f);
   }
   await browser.close();
-  console.log(`\n${files.length} screenshot(s) in ${out}\nAttach with:\n  ${files.map((f) => `--attach '${f.replace(/\\/g, "/")}#${f.split(/[\\/]/).pop()!.replace(/\.png$/, "").replace(/[-_]/g, " ")}'`).join(" \\\n  ")}`);
+  console.log(`\n${files.length} file(s) in ${out}\nAttach with:\n  ${files.map((f) => `--attach '${f.replace(/\\/g, "/")}#${f.split(/[\\/]/).pop()!.replace(/\.(png|webm)$/, "").replace(/[-_]/g, " ")}'`).join(" \\\n  ")}`);
 } finally {
   // shell:true spawns a process tree; on Windows kill the whole tree.
   for (const c of children) {

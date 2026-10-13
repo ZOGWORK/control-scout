@@ -181,3 +181,22 @@ morning review. Format: **what I chose** — why — the alternative.
   Share button (copies the link).
 - Search placeholder now says "typos are fine" — the capability is only
   useful if people know to lean on it.
+
+## Ambient background (PR #4) — Sushil's request
+
+- **Always on, no toggle needed**: Control Point's line grid, alive — lines
+  drift one cell every 48 s, soft volt glows breathe at the top corners
+  (9 s), and a light follows the pointer. Tuned "noticeable at rest, never
+  competing": line alpha 0.075 (dark) / 0.07 (light), fading out toward the
+  bottom of the screen via a mask, glow 0.16 dark / 0.22 light in volt
+  (a grey glow looked like a smudge in light mode).
+- **Cheap**: three layers behind the content, animated only with
+  transform/opacity (composited — no repaint per frame); the pointer light
+  moves with one rAF-throttled transform. Phones get no hover light.
+- **Respectful**: `prefers-reduced-motion` → a still grid (no drift, no
+  breathing, no pointer light). Settings → Appearance → "Animated
+  background" switch (on by default) does the same for anyone who wants it.
+- The grid moved off `.m-canvas` (which keeps only the top accent glow) onto
+  a fixed layer under the scrolling `<main>`.
+- `npm run shots` gained `--pointer`, `--motion` and `--video <s>` so motion
+  changes can be shown in PRs (video = .webm with a scripted pointer).

@@ -18,7 +18,7 @@ both run the shared engine in `packages/predict-engine`.
    ```bash
    npm run shots -- --both /teams/18360 "/events/2025/AUSYQ1?tab=odds"
    ```
-   Flags: `--mobile` (390×844), `--both` (desktop 1440×900 + mobile), `--light`, `--viewport` (no full page), `--search "<text>"` (open the ⌘K palette and type), `--out <dir>`. It prints ready-made `--attach` arguments. Attach with the GitHub CLI (2.101 or newer; `gh --version`): `gh pr create --attach 'file.png#alt text'` or, after opening, `gh pr comment <n> --attach …`. Never commit screenshots.
+   Flags: `--mobile` (390×844), `--both` (desktop 1440×900 + mobile), `--light`, `--viewport` (no full page), `--search "<text>"` (open the ⌘K palette and type), `--pointer` (mouse resting mid-page: hover states, ambient light), `--motion` (animations on), `--video <seconds>` (a .webm with the pointer moving — for motion changes), `--out <dir>`. It prints ready-made `--attach` arguments. Attach with the GitHub CLI (2.101 or newer; `gh --version`): `gh pr create --attach 'file.png#alt text'` or, after opening, `gh pr comment <n> --attach …`. Never commit screenshots.
 7. **Verify after deploying.** Once a deploy finishes, check the change on the live site and post a verification comment on the PR with a screenshot. Say plainly what couldn't be checked and why.
 
 ## Product rules (non-negotiable)
