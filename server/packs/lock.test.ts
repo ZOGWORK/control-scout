@@ -1,8 +1,8 @@
-import { existsSync, mkdtempSync, utimesSync, writeFileSync } from "node:fs";
+import { existsSync, mkdtempSync, readFileSync, utimesSync, writeFileSync } from "node:fs";
 import { hostname, tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
-import { withPackLock } from "./build.js";
+import { recover, withPackLock } from "./build.js";
 
 describe("withPackLock", () => {
   it("refuses a second build while one holds the lock, then releases it", async () => {
@@ -41,6 +41,24 @@ describe("withPackLock", () => {
     const dir = mkdtempSync(join(tmpdir(), "cs-lock-"));
     writeFileSync(join(dir, ".build.lock"), JSON.stringify({ host: hostname(), pid: process.pid }));
     await expect(withPackLock(dir, async () => "ok")).resolves.toBe("ok");
+  });
+
+  it("a late recovery never removes a lock another builder just took", async () => {
+    const dir = mkdtempSync(join(tmpdir(), "cs-lock-"));
+    const lock = join(dir, ".build.lock");
+    const dead = JSON.stringify({ host: hostname(), pid: 2 ** 22 + 777 });
+    writeFileSync(lock, dead);
+    let release!: () => void;
+    // Builder A recovers the dead lock and builds…
+    const a = withPackLock(dir, () => new Promise<void>((r) => { release = r; }));
+    await new Promise((r) => setTimeout(r, 10));
+    const aLock = readFileSync(lock, "utf8");
+    // …while builder B, which judged the same dead lock stale earlier, recovers late.
+    recover(lock, dead);
+    expect(readFileSync(lock, "utf8")).toBe(aLock); // A's lock is back in place
+    await expect(withPackLock(dir, async () => "b")).rejects.toThrow(/Another pack build/);
+    release();
+    await a;
   });
 
   it("releases the lock when the build fails", async () => {

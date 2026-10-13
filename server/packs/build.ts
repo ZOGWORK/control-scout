@@ -10,8 +10,8 @@
 //
 // Versions are dated (YYYY-MM-DD.N); the last few are kept so a device that
 // started a download mid-release still finishes it.
-import { createHash } from "node:crypto";
-import { closeSync, copyFileSync, existsSync, mkdirSync, openSync, readdirSync, readFileSync, renameSync, rmSync, statSync, writeFileSync, writeSync } from "node:fs";
+import { createHash, randomUUID } from "node:crypto";
+import { closeSync, copyFileSync, existsSync, mkdirSync, linkSync, openSync, readdirSync, readFileSync, renameSync, rmSync, statSync, writeFileSync, writeSync } from "node:fs";
 import { hostname } from "node:os";
 import { join } from "node:path";
 import { gzipSync } from "node:zlib";
@@ -120,29 +120,44 @@ export async function buildFull(season: number, version: string, dir: string, lo
 const LOCK_STALE_MS = 2 * 3600_000;
 const alive = (pid: number) => { try { process.kill(pid, 0); return true; } catch (e) { return (e as NodeJS.ErrnoException).code === "EPERM"; } };
 let holding = false; // this process is building right now
-function lockIsStale(lock: string): boolean {
+/** The lock's content if it is stale (its owner is gone), else null. */
+function staleLock(lock: string): string | null {
   try {
     const age = Date.now() - statSync(lock).mtimeMs;
-    if (age > LOCK_STALE_MS) return true;
     const text = readFileSync(lock, "utf8");
-    if (!text) return age > 10_000; // just created; its owner is still writing
+    if (age > LOCK_STALE_MS) return text;
+    if (!text) return age > 10_000 ? text : null; // just created; its owner is still writing
     const owner = JSON.parse(text) as { host?: string; pid?: number };
-    if (owner.host !== hostname() || typeof owner.pid !== "number") return false;
+    if (owner.host !== hostname() || typeof owner.pid !== "number") return null;
     // Our own pid but not building: a previous run (e.g. a restarted container reusing the pid).
-    if (owner.pid === process.pid) return !holding;
-    return !alive(owner.pid);
-  } catch { return true; }
+    if (owner.pid === process.pid) return holding ? null : text;
+    return alive(owner.pid) ? null : text;
+  } catch (e) { return (e as NodeJS.ErrnoException).code === "ENOENT" ? null : ""; }
 }
+
+/** Recover a stale lock without ever removing a lock someone else just took:
+ *  move it aside atomically, and if what we moved isn't the stale lock we
+ *  judged (another process recovered it first and re-locked), put it back. */
+export function recover(lock: string, staleText: string) {
+  const aside = `${lock}.${process.pid}.${randomUUID()}`;
+  try { renameSync(lock, aside); } catch { return; } // gone already
+  if (readFileSync(aside, "utf8") === staleText) { rmSync(aside, { force: true }); return; }
+  try { linkSync(aside, lock); } catch { /* a third builder took it; theirs stands */ }
+  rmSync(aside, { force: true });
+}
+
 export async function withPackLock<T>(dir: string, fn: () => Promise<T>): Promise<T> {
   mkdirSync(dir, { recursive: true });
   const lock = join(dir, ".build.lock");
-  if (existsSync(lock) && lockIsStale(lock)) rmSync(lock, { force: true });
+  const stale = existsSync(lock) ? staleLock(lock) : null;
+  if (stale !== null) recover(lock, stale);
   let fd: number;
   try { fd = openSync(lock, "wx"); } catch (e) {
     if ((e as NodeJS.ErrnoException).code === "EEXIST") throw new Error("Another pack build is running; skipped.");
     throw e;
   }
-  try { writeSync(fd, JSON.stringify({ host: hostname(), pid: process.pid, at: new Date().toISOString() })); } finally { closeSync(fd); }
+  // A nonce makes every lock's content unique, so recovery can tell them apart.
+  try { writeSync(fd, JSON.stringify({ host: hostname(), pid: process.pid, at: new Date().toISOString(), nonce: randomUUID() })); } finally { closeSync(fd); }
   holding = true;
   try { return await fn(); } finally { holding = false; rmSync(lock, { force: true }); }
 }

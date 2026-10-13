@@ -6,7 +6,8 @@
 //
 // The target's schema comes from our own migrations (not copied), and only
 // public data moves: accounts, sessions, email codes, personal state and
-// scouting entries stay on this machine. Safe to re-run (INSERT OR REPLACE).
+// scouting entries stay on this machine. Safe to re-run: data rows are
+// replaced, while predictions already logged on the target are kept.
 import { existsSync } from "node:fs";
 import { join } from "node:path";
 import { createClient } from "@libsql/client";
@@ -36,9 +37,14 @@ const to = db();
 await migrate(to);
 const t0 = Date.now();
 for (const table of PUBLIC_TABLES) {
-  const cols = (await source.execute(`PRAGMA table_info(${table})`)).rows.map((r) => String(r.name));
+  let cols = (await source.execute(`PRAGMA table_info(${table})`)).rows.map((r) => String(r.name));
   if (!cols.length) { console.log(`  ${table}: not in source, skipped`); continue; }
-  const sql = `INSERT OR REPLACE INTO ${table} (${cols.join(", ")}) VALUES (${cols.map(() => "?").join(", ")})`;
+  // The prediction ledger is first-write-wins and its ids are local: copy rows
+  // without ids and keep any call the target already logged for the same match
+  // (UNIQUE kind+match). Everything else is plain data: newest copy wins.
+  const ledger = table === "predictions";
+  if (ledger) cols = cols.filter((c) => c !== "id");
+  const sql = `INSERT OR ${ledger ? "IGNORE" : "REPLACE"} INTO ${table} (${cols.join(", ")}) VALUES (${cols.map(() => "?").join(", ")})`;
   let copied = 0;
   for (let last = -1; ;) {
     const rows = (await source.execute({ sql: `SELECT rowid AS _rid, ${cols.join(", ")} FROM ${table} WHERE rowid > ? ORDER BY rowid LIMIT ${BATCH}`, args: [last] })).rows;
