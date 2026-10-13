@@ -230,10 +230,38 @@ const flows: Flow[] = [
         // Build B (a new release: the worker's embedded version changes).
         const b = spawnSync("npm", ["run", "build"], { shell: true, stdio: "ignore" });
         assert(b.status === 0, "second build failed");
-        await page.evaluate(async () => { const r = await navigator.serviceWorker.getRegistration(); await r?.update(); });
-        await page.waitForFunction(async () => (await caches.keys()).filter((k) => k.startsWith("cs-shell-")).length >= 2, null, { timeout: 60_000, polling: 1000 });
+        // Build B's version, as served in its sw.js.
+        const swB = await (await fetch(`${PROD}/sw.js`, { cache: "no-store" })).text();
+        const versionB = /const VERSION = "([^"]+)"/.exec(swB)?.[1];
+        const filesB = JSON.parse(/const FILES = (\[[^\n]*\]);/.exec(swB)?.[1] ?? "[]") as string[];
+        assert(versionB && filesB.length, "couldn't read build B's version/files from sw.js");
+        // Follow build B's worker through its real state changes. (Not
+        // page.waitForFunction with an async predicate: it gets a Promise back,
+        // which is always truthy, so it "passes" without waiting at all.)
+        const states = await page.evaluate(async () => {
+          const r = await navigator.serviceWorker.getRegistration();
+          await r?.update();
+          const w = r?.installing ?? r?.waiting;
+          if (!w) return ["none"];
+          const seen = [w.state as string];
+          await new Promise<void>((res) => {
+            const t = setTimeout(res, 90_000);
+            w.addEventListener("statechange", () => { seen.push(w.state); if (w.state === "activated" || w.state === "redundant") { clearTimeout(t); res(); } });
+          });
+          return seen;
+        });
+        assert(states.at(-1) === "activated", `build B's worker didn't activate: ${states.join(" → ")} (redundant = its install failed)`);
+        // Every file build B lists is really in B's cache.
+        const missing = await page.evaluate(async ({ v, files }) => {
+          if (!(await caches.keys()).includes(`cs-shell-${v}`)) return ["(no cache)"];
+          const cache = await caches.open(`cs-shell-${v}`);
+          const out: string[] = [];
+          for (const f of files) if (!(await cache.match(f, { ignoreSearch: true }))) out.push(f);
+          return out;
+        }, { v: versionB, files: filesB });
+        assert(!missing.length, `build B's cache is missing ${missing.length} file(s): ${missing.slice(0, 3).join(", ")}`);
         const after = await shells();
-        const newest = after[after.length - 1];
+        const newest = `cs-shell-${versionB}`;
         assert(!before.includes(newest), `no new cache after the rebuild: ${after.join(", ")}`);
         assert(after.includes(before[before.length - 1]), "the previous release's cache was deleted while its tab was open");
         // The upgraded app still opens offline.
@@ -241,7 +269,7 @@ const flows: Flow[] = [
         await page.reload({ waitUntil: "domcontentloaded" });
         await page.getByText("Control Scout").first().waitFor({ timeout: 15_000 });
         await ctx.setOffline(false);
-        return `build A → build B: new worker installed (${newest}), previous cache kept for open tabs, app opens offline after the upgrade`;
+        return `build A → build B: B's worker ${states.join(" → ")}, all ${filesB.length} files in ${newest}; previous cache kept for open tabs; opens offline after the upgrade`;
       } finally {
         await ctx.setOffline(false);
         if (process.platform === "win32" && server.pid) spawnSync("taskkill", ["/pid", String(server.pid), "/T", "/F"], { stdio: "ignore" }); else server.kill();

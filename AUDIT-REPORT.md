@@ -1,8 +1,8 @@
 # Self-audit report
 
 **Result: all green in one clean run** (2026-10-13). [AUDIT.md](AUDIT.md) logs
-27 findings: 19 from the audit itself and 8 from code review of the audit PR.
-25 are defects, fixed and re-checked. One (A2) was investigated and is not a
+28 findings: 19 from the audit itself and 9 from code review of the audit PR.
+26 are defects, fixed and re-checked. One (A2) was investigated and is not a
 defect. One (T1) was a tooling issue, fixed at its root cause. Runbook: [docs/self-audit.md](docs/self-audit.md).
 
 ## The clean run
