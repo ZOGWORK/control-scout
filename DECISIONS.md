@@ -155,3 +155,29 @@ morning review. Format: **what I chose** — why — the alternative.
   exact number on top. Sub-millisecond.
 - UI: no new chrome — the same ⌘K box simply finds more. Results appear
   as you type (140 ms debounce); typical queries answer in 10–30 ms.
+
+## UI pass (PR #3) — applying the UI brief
+
+- **Team page's one job: "is this team good?" in 5 seconds.** The hero was
+  ~60% decorative void. It's now two columns: who (name, place, season,
+  actions) and *At a glance* (Top N% worldwide by OPR, OPR, rating ± sd,
+  record, last event + rank, next event → odds). The answer is the biggest
+  thing on the screen.
+- **Moat surfaced where the user already is.** Every prediction (lab result
+  card, every match row's tooltip) now says how calls at that probability
+  have actually turned out — "When we say about 63%, the favourite wins 65%
+  of the time — 4,433 matches" — linking to the track record. Team pages
+  carry "Predict a match with <team>" (pre-fills the lab) and "Odds to
+  advance" for the next event.
+- **Hierarchy = usage on Home.** Search, then two large core-loop tiles
+  (Who wins? → lab; Events), then This week and the Track record side by
+  side on wide screens (no scroll needed to see the moat), then the quieter
+  tools. With a team set, Home shows *its next match with odds* — the
+  event-day "who wins our next match?" in one tap.
+- **Nothing clickable feels dead.** One `.lift` hover (rise + volt edge
+  glow, off under reduced motion) on every clickable card.
+- **Screenshot test.** The lab's result card carries a brand footer
+  (logo · FTC Control Scout · season · engine version); team pages get a
+  Share button (copies the link).
+- Search placeholder now says "typos are fine" — the capability is only
+  useful if people know to lean on it.

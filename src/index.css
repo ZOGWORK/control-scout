@@ -154,3 +154,10 @@ html.compact .density-card { padding: 0.875rem; }
   border-radius: 0.5rem;
 }
 @media (prefers-reduced-motion: reduce) { .skeleton { animation: none; } }
+
+/* Interactive surfaces acknowledge the pointer: lift + volt edge glow
+   (motion off under reduced motion). Used on every clickable card. */
+.lift { transition: transform 160ms cubic-bezier(0.2, 0.8, 0.2, 1), border-color 160ms, box-shadow 200ms; }
+.lift:hover { transform: translateY(-2px); border-color: color-mix(in srgb, var(--color-accent) 55%, transparent); box-shadow: 0 10px 30px -14px color-mix(in srgb, var(--color-accent) 45%, transparent); }
+.lift:active { transform: translateY(0); }
+@media (prefers-reduced-motion: reduce) { .lift:hover { transform: none; } }
