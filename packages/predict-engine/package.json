@@ -1,0 +1,20 @@
+{
+  "name": "@control-scout/predict-engine",
+  "version": "1.0.0",
+  "description": "FTC match + event prediction engine shared by Control Scout and Control Point. Pure TypeScript, no network, runs in Node and the browser.",
+  "license": "GPL-3.0-only",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": { "types": "./dist/index.d.ts", "default": "./dist/index.js" },
+    "./model.json": "./dist/model.json",
+    "./*": { "types": "./dist/*.d.ts", "default": "./dist/*.js" }
+  },
+  "files": ["dist", "README.md", "CHANGELOG.md"],
+  "sideEffects": false,
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json && node scripts/copy-model.mjs",
+    "test": "vitest run"
+  }
+}
