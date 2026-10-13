@@ -62,6 +62,17 @@ describe("search", () => {
     expect(Number((await dbAll<{ n: number }>("SELECT COUNT(*) n FROM search_fuzzy"))[0].n)).toBeGreaterThan(0);
     expect((await titles("X Drvie"))[0]).toBe("16321 X Drive");
   });
+  it("recovers after a failed index read instead of caching the failure", async () => {
+    const c = (await import("../db")).db();
+    const real = c.execute.bind(c);
+    let fail = true;
+    (c as any).execute = (q: any) => (fail && String(q?.sql ?? q).includes("FROM search_fuzzy") && !String(q?.sql ?? q).includes("MATCH") ? Promise.reject(new Error("db down")) : real(q));
+    await run("UPDATE kv SET value = '\"v-fail\"' WHERE key = 'search:version'");
+    await expect(search("dirve", 5)).rejects.toThrow("db down");
+    fail = false;
+    expect((await titles("dirve"))[0]).toBe("16321 X Drive");
+    (c as any).execute = real;
+  });
   it("doesn't return far-off guesses", async () => {
     expect(await titles("garden state")).toEqual([]);
     expect(await titles("zzzzzz")).toEqual([]);
