@@ -60,8 +60,7 @@ export function FactorList({ factors, className }: { factors: Factor[]; classNam
  * favourite wins 65% of the time". Links to the full record.
  */
 export function CalibrationLine({ pRed, className, compact }: { pRed: number; className?: string; compact?: boolean }) {
-  const fav = Math.max(pRed, 1 - pRed);
-  const c = useCalibration(fav);
+  const c = useCalibration(pRed);
   if (!c) return null;
   const said = Math.round(c.said * 100), won = Math.round(c.won * 100);
   return (
@@ -161,7 +160,7 @@ export function MatchList({ matches, highlight, empty, eventNames }: { matches: 
 }
 
 function CalibrationTip({ pRed }: { pRed: number }) {
-  const c = useCalibration(Math.max(pRed, 1 - pRed));
+  const c = useCalibration(pRed);
   if (!c) return null;
   return <span className="mt-1 block opacity-80">Track record: favourites near {Math.round(c.said * 100)}% won {Math.round(c.won * 100)}% of {c.n.toLocaleString()} matches.</span>;
 }

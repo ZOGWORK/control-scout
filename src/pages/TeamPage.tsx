@@ -70,6 +70,9 @@ function Profile({ p, onSeason }: { p: TeamProfile; onSeason: (s: number) => voi
 // Hero
 // ---------------------------------------------------------------------------
 
+/** Event types with advancement (and so advancement odds). */
+const ADVANCING = new Set(["LeagueTournament", "Qualifier", "Championship", "SuperQualifier", "Premier", "FIRSTChampionship"]);
+
 function Hero({ p, onSeason }: { p: TeamProfile; onSeason: (s: number) => void }) {
   const t = p.team;
   const flags = useTeamFlags(t.number);
@@ -135,25 +138,25 @@ function Hero({ p, onSeason }: { p: TeamProfile; onSeason: (s: number) => void }
                 <div><dt className="text-xs text-muted-foreground">Rating</dt><dd className="font-display text-2xl font-semibold tabular-nums">{s.rating ? num(s.rating.np) : "—"}{s.rating && <span className="text-sm font-normal text-muted-foreground"> ±{num(s.rating.sd, 0)}</span>}</dd></div>
                 <div><dt className="text-xs text-muted-foreground">Record</dt><dd className="font-display text-2xl font-semibold tabular-nums">{s.record.wins}-{s.record.losses}-{s.record.ties}</dd></div>
               </dl>
-              <div className="mt-5 space-y-2 text-sm">
-                {last && (
-                  <Link to={`/events/${last.season}/${last.code}?team=${t.number}`} className="lift flex items-center justify-between gap-3 rounded-xl border border-border bg-card px-3 py-2">
-                    <span className="min-w-0 truncate"><span className="text-muted-foreground">Last · </span>{last.name}</span>
-                    <span className="shrink-0 tabular-nums text-muted-foreground">{last.rank ? `ranked #${last.rank}` : ""}{last.awards.length ? ` · ${last.awards.length} award${last.awards.length > 1 ? "s" : ""}` : ""}</span>
-                  </Link>
-                )}
-                {next && (
-                  <Link to={`/events/${next.season}/${next.code}?tab=odds&team=${t.number}`} className="lift flex items-center justify-between gap-3 rounded-xl border border-accent/30 bg-accent/[0.05] px-3 py-2">
-                    <span className="min-w-0 truncate"><span className="text-muted-foreground">Next · </span>{next.name}</span>
-                    <span className="shrink-0 font-medium text-accent">Odds to advance →</span>
-                  </Link>
-                )}
-              </div>
             </>
           )}
+          <div className="mt-5 space-y-2 text-sm">
+            {last && (
+              <Link to={`/events/${last.season}/${last.code}?team=${t.number}`} className="lift flex items-center justify-between gap-3 rounded-xl border border-border bg-card px-3 py-2">
+                <span className="min-w-0 truncate"><span className="text-muted-foreground">Last · </span>{last.name}</span>
+                <span className="shrink-0 tabular-nums text-muted-foreground">{last.rank ? `ranked #${last.rank}` : ""}{last.awards.length ? ` · ${last.awards.length} award${last.awards.length > 1 ? "s" : ""}` : ""}</span>
+              </Link>
+            )}
+            {next && (
+              <Link to={ADVANCING.has(next.type ?? "") ? `/events/${next.season}/${next.code}?tab=odds&team=${t.number}` : `/events/${next.season}/${next.code}?team=${t.number}`} className="lift flex items-center justify-between gap-3 rounded-xl border border-accent/30 bg-accent/[0.05] px-3 py-2">
+                <span className="min-w-0 truncate"><span className="text-muted-foreground">Next · </span>{next.name}</span>
+                <span className="shrink-0 font-medium text-accent">{ADVANCING.has(next.type ?? "") ? "Odds to advance →" : "Schedule →"}</span>
+              </Link>
+            )}
+          </div>
           <div className="mt-5 flex flex-wrap gap-2">
             <Button size="sm" asChild><Link to={`/predict?mode=match&season=${p.season}&red=${t.number},`}><Sparkles /> Predict a match with {t.number}</Link></Button>
-            {!next && <Button size="sm" variant="secondary" asChild><Link to={`/predict?mode=advancement&season=${p.season}&team=${t.number}`}><Trophy /> Advancement odds</Link></Button>}
+            {!(next && ADVANCING.has(next.type ?? "")) && <Button size="sm" variant="secondary" asChild><Link to={`/predict?mode=advancement&season=${p.season}&team=${t.number}`}><Trophy /> Advancement odds</Link></Button>}
           </div>
         </div>
       </div>

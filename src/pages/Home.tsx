@@ -66,7 +66,7 @@ function Hero() {
 /** Event-day: your team's next match and its odds, one tap from home. */
 function MyTeamNext({ team }: { team: number }) {
   const season = useCurrentSeason();
-  const { data } = useApi<{ matches: MatchView[] }>(`/api/teams/${team}/matches${qs({ season })}`);
+  const { data, error } = useApi<{ matches: MatchView[] }>(`/api/teams/${team}/matches${qs({ season })}`);
   const next = data?.matches.find((m) => !m.played);
   const side = next ? (next.red.teams.some((t) => t.number === team) ? "red" : "blue") : null;
   const pWin = next?.prediction ? (side === "red" ? next.prediction.pRed : 1 - next.prediction.pRed) : null;
@@ -79,6 +79,8 @@ function MyTeamNext({ team }: { team: number }) {
           <span className="text-muted-foreground">Next: {next.label} · {next.code} · {matchTime(next.time)}</span>
           {pWin != null && <><WinBar pRed={next.prediction!.pRed} size="sm" className="w-24" /><span className="font-semibold">{oddsPct(pWin)} to win</span></>}
         </>
+      ) : !data ? (
+        <span className="text-muted-foreground">{error ? "Couldn't load the schedule — open your dashboard" : "Checking the schedule…"}</span>
       ) : <span className="text-muted-foreground">No scheduled match yet — your dashboard has the next event's odds.</span>}
       <ArrowRight className="ml-auto size-4 text-accent" />
     </Link>
