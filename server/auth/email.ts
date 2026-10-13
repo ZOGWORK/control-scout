@@ -73,15 +73,23 @@ export type VerifyResult = { ok: true; email: string } | { ok: false; reason: "i
 export async function verifyEmailCode(rawEmail: string, rawCode: string): Promise<VerifyResult> {
   const email = normalizeEmail(rawEmail);
   const code = String(rawCode ?? "").replace(/\D/g, "");
-  const row = await get<any>("SELECT * FROM email_codes WHERE email = ?", [email]);
-  if (!row || code.length !== 6) return { ok: false, reason: "invalid" };
-  if (Date.parse(row.expires_at) < Date.now()) return { ok: false, reason: "expired" };
-  if (row.attempts >= MAX_ATTEMPTS) return { ok: false, reason: "attempts" };
-  if (row.code_hash !== codeHash(email, code)) {
-    await run("UPDATE email_codes SET attempts = attempts + 1 WHERE email = ?", [email]);
-    return { ok: false, reason: row.attempts + 1 >= MAX_ATTEMPTS ? "attempts" : "invalid" };
+  if (code.length !== 6) return { ok: false, reason: "invalid" };
+  const now = new Date().toISOString();
+  // Reserve one attempt atomically: concurrent guesses can't all slip past the limit.
+  const reserved = await get<any>(
+    "UPDATE email_codes SET attempts = attempts + 1 WHERE email = ? AND attempts < ? AND expires_at > ? AND code_hash != '' RETURNING code_hash, attempts",
+    [email, MAX_ATTEMPTS, now],
+  );
+  if (!reserved) {
+    const row = await get<any>("SELECT expires_at, attempts, code_hash FROM email_codes WHERE email = ?", [email]);
+    if (!row || !row.code_hash) return { ok: false, reason: "invalid" };
+    return { ok: false, reason: Date.parse(row.expires_at) <= Date.now() ? "expired" : "attempts" };
   }
-  // Single use: keep the row (for the hourly send limit) but make the code unusable.
-  await run("UPDATE email_codes SET code_hash = '', attempts = ? WHERE email = ?", [MAX_ATTEMPTS, email]);
+  const hash = codeHash(email, code);
+  if (reserved.code_hash !== hash) return { ok: false, reason: Number(reserved.attempts) >= MAX_ATTEMPTS ? "attempts" : "invalid" };
+  // Consume exactly this code, once: only the request that clears it may sign in
+  // (a newer code issued meanwhile has a different hash and stays valid).
+  const consumed = await run("UPDATE email_codes SET code_hash = '' WHERE email = ? AND code_hash = ?", [email, hash]);
+  if (consumed !== 1) return { ok: false, reason: "invalid" };
   return { ok: true, email };
 }

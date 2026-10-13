@@ -2,7 +2,9 @@
 // and the real upcoming matches. Every output carries its confidence tier.
 import { useEffect, useMemo, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
-import { ArrowLeftRight, BookmarkPlus, CalendarDays, Link2, Sparkles, Swords, Trophy } from "lucide-react";
+import { ArrowLeftRight, BookmarkPlus, CalendarDays, Link2, Sparkles, Swords, Trophy, WifiOff } from "lucide-react";
+import { ENGINE_VERSION } from "@control-scout/predict-engine";
+import { offlineExplain } from "../lib/packs";
 import { useApi, qs } from "../lib/api";
 import { useCurrentSeason, useTitle } from "../lib/meta";
 import { usePersonal } from "../lib/personal";
@@ -58,7 +60,17 @@ function MatchLab() {
   const ready = red.every((x) => x) && blue.every((x) => x);
   const query = ready ? `/api/predict/match${qs({ season, red: red.join(","), blue: blue.join(",") })}` : null;
   const [submitted, setSubmitted] = useState<string | null>(ready ? query : null);
+  // Saved links and back/forward change the URL on this same page: follow it.
+  const urlRed = sp.get("red") ?? "", urlBlue = sp.get("blue") ?? "";
+  useEffect(() => {
+    const r = urlRed.split(",").filter(Boolean), b = urlBlue.split(",").filter(Boolean);
+    const nr = [r[0] ?? "", r[1] ?? ""], nb = [b[0] ?? "", b[1] ?? ""];
+    setRed(nr);
+    setBlue(nb);
+    setSubmitted(nr.every(Boolean) && nb.every(Boolean) ? `/api/predict/match${qs({ season, red: nr.join(","), blue: nb.join(",") })}` : null);
+  }, [urlRed, urlBlue, season]);
   const state = useApi<MatchExplanationView>(submitted);
+  const offline = useOfflineFallback(state.error?.offline ? { season, red: red.map(Number), blue: blue.map(Number) } : null);
   const run = () => {
     if (!ready) return;
     setSubmitted(query);
@@ -85,14 +97,41 @@ function MatchLab() {
           <div className="md:col-span-3"><Button type="submit" size="lg" disabled={!ready} className="w-full sm:w-auto"><Sparkles /> Predict this match</Button></div>
         </form>
       </div>
-      {submitted && (state.error ? <ErrorState error={state.error} onRetry={state.reload} /> : !state.data ? <div className="skeleton h-72 rounded-2xl" /> : <MatchResult x={state.data} />)}
+      {submitted && (state.error
+        ? (offline.data ? <MatchResult x={offline.data} offlineAsOf={offline.asOf} /> : offline.loading ? <div className="skeleton h-72 rounded-2xl" /> : <ErrorState error={state.error} onRetry={state.reload} />)
+        : !state.data ? <div className="skeleton h-72 rounded-2xl" /> : <MatchResult x={state.data} />)}
       {!submitted && <EmptyState icon={Swords} title="Pick four teams" description="Any teams, any season — a real matchup or a what-if. You'll get win odds, predicted scores with ranges, the three biggest reasons, and how confident the call is." />}
       <SavedPredictions />
     </div>
   );
 }
 
-function MatchResult({ x }: { x: MatchExplanationView }) {
+/** No connection: predict from the lite pack saved on this device (same engine). */
+function useOfflineFallback(q: { season: number; red: number[]; blue: number[] } | null) {
+  const [out, setOut] = useState<{ data: MatchExplanationView | null; asOf: string | null; loading: boolean }>({ data: null, asOf: null, loading: false });
+  const key = q ? `${q.season}|${q.red}|${q.blue}` : "";
+  useEffect(() => {
+    if (!q) { setOut({ data: null, asOf: null, loading: false }); return; }
+    let live = true;
+    setOut((o) => ({ ...o, loading: true }));
+    offlineExplain(q.season, q.red, q.blue).then((x) => {
+      if (!live) return;
+      if (!x) { setOut({ data: null, asOf: null, loading: false }); return; }
+      setOut({
+        loading: false, asOf: x.asOf,
+        data: {
+          season: q.season, red: q.red, blue: q.blue, winProbRed: x.winProbA, winProbBlue: x.winProbB, predictedRed: x.predictedScoreA, predictedBlue: x.predictedScoreB,
+          rangeRed: x.scoreRangeA, rangeBlue: x.scoreRangeB, factors: x.factors, confidence: x.confidence,
+          teamsRed: x.teamsA.map((t) => ({ ...t, name: null })), teamsBlue: x.teamsB.map((t) => ({ ...t, name: null })), engineVersion: ENGINE_VERSION,
+        },
+      });
+    }, () => live && setOut({ data: null, asOf: null, loading: false }));
+    return () => { live = false; };
+  }, [key]);
+  return out;
+}
+
+function MatchResult({ x, offlineAsOf }: { x: MatchExplanationView; offlineAsOf?: string | null }) {
   const { update } = usePersonal();
   const fav = x.winProbRed >= 0.5 ? "Red" : "Blue";
   const save = () => {
@@ -103,6 +142,7 @@ function MatchResult({ x }: { x: MatchExplanationView }) {
   return (
     <div className="space-y-4">
       <div className="relative overflow-hidden rounded-2xl border border-border bg-card p-6">
+        {offlineAsOf && <p className="mb-3 flex items-center gap-2 rounded-lg border border-info/30 bg-info/[0.06] px-3 py-2 text-xs"><WifiOff className="size-3.5 text-info" />Offline — predicted on this device from your lite pack (ratings as of {new Date(offlineAsOf).toLocaleDateString()}).</p>}
         <div className="flex flex-wrap items-center justify-between gap-3">
           <ConfidenceBadge tier={x.confidence.tier} reason={x.confidence.reason} />
           <div className="flex gap-2">

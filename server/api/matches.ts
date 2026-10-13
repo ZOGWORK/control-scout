@@ -8,6 +8,7 @@
 import { all } from "../db.js";
 import type { MatchPredictionView, MatchView } from "../../src/shared/api.js";
 import { forecasterFor } from "../predict/engine.js";
+import { localToUtcMs } from "../data/time.js";
 
 const score = (r: any, p: "red" | "blue") => r[`${p}_np`] == null ? null : {
   total: Number(r[`${p}_total`]), np: Number(r[`${p}_np`]), auto: Number(r[`${p}_auto`] ?? 0),
@@ -22,7 +23,7 @@ export async function matchViews(f: MatchFilter, opts: { predictUnplayed?: boole
   const args: (string | number)[] = [f.season];
   if (f.code) { where.push("m.code = ?"); args.push(f.code); }
   if (f.team) { where.push("EXISTS (SELECT 1 FROM match_teams x WHERE x.season = m.season AND x.code = m.code AND x.level = m.level AND x.series = m.series AND x.number = m.number AND x.team = ?)"); args.push(f.team); }
-  const rows = await all<any>(`SELECT m.* FROM matches m WHERE ${where.join(" AND ")} ORDER BY m.time, m.code, m.level DESC, m.series, m.number`, args);
+  const rows = await all<any>(`SELECT m.*, e.timezone FROM matches m JOIN events e ON e.season = m.season AND e.code = m.code WHERE ${where.join(" AND ")} ORDER BY m.time, m.code, m.level DESC, m.series, m.number`, args);
   if (!rows.length) return [];
   const codes = [...new Set(rows.map((r) => r.code as string))];
   const ph = codes.map(() => "?").join(",");
@@ -64,7 +65,8 @@ export async function matchViews(f: MatchFilter, opts: { predictUnplayed?: boole
       }
     }
     out.push({
-      season: f.season, code: r.code, key, level: r.level, series: Number(r.series), number: Number(r.number), label: r.label, time: r.time, played: !!r.played,
+      season: f.season, code: r.code, key, level: r.level, series: Number(r.series), number: Number(r.number), label: r.label, time: r.time,
+      startsAt: ((ms) => (ms == null ? null : new Date(ms).toISOString()))(localToUtcMs(r.time, r.timezone)), played: !!r.played,
       red: { teams: l.red, score: r.played ? score(r, "red") : null },
       blue: { teams: l.blue, score: r.played ? score(r, "blue") : null },
       video: r.video ?? null,

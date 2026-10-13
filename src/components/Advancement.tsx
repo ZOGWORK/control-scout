@@ -18,7 +18,7 @@ import { ConfidenceBadge } from "./predict";
 import { ago, oddsPct } from "../lib/format";
 
 const ease = [0.2, 0.8, 0.2, 1] as const;
-const pct = oddsPct;
+const pct = (p: number | null | undefined, decided = false) => oddsPct(p, decided);
 const rankRange = (a: number, b: number) => (Math.round(a) === Math.round(b) ? `#${Math.round(a)}` : `#${Math.round(a)}–${Math.round(b)}`);
 
 function GrowBar({ value, className, delay = 0 }: { value: number; className?: string; delay?: number }) {
@@ -34,6 +34,12 @@ const STAGES = [
 
 /** How sure an advancement forecast is (a stated rule, shown on the page). */
 export function forecastTier(fc: ForecastView, team: number | null): { tier: ConfidenceTier; reason: string } {
+  const base = forecastTierBase(fc, team);
+  if (!fc.bonusModelled && fc.stage !== "selected" && base.tier === "confident") return { tier: "moderate", reason: `${base.reason} Bonus ranking points aren't modelled for this season yet.` };
+  return base;
+}
+
+function forecastTierBase(fc: ForecastView, team: number | null): { tier: ConfidenceTier; reason: string } {
   const t = team ? fc.teams.find((x) => x.team === team) : null;
   const n = t?.strength.matches ?? Math.min(...fc.teams.map((x) => x.strength.matches));
   if (fc.stage === "selected") return { tier: "confident", reason: "Alliances are set; only the playoffs (and awards) are left to simulate." };
@@ -75,7 +81,11 @@ export function AdvancementView({ season, code, team, nameOf, onPickTeam }: { se
           <TabsTrigger value="field">Field</TabsTrigger>
         </TabsList>
         <TabsContent value="outlook" className="mt-5"><Outlook fc={fc} team={team} /></TabsContent>
-        <TabsContent value="alliance" className="mt-5"><AlliancePanel season={season} code={code} fc={fc} team={team} nameOf={nameOf} /></TabsContent>
+        <TabsContent value="alliance" className="mt-5">
+          {mode === "pre-event"
+            ? <EmptyState icon={Users} title="Partner scenarios use the current forecast" description="Switch to “Now” to compare partners — there's no hindsight-free version of this yet, so it isn't shown next to the pre-event odds." />
+            : <AlliancePanel season={season} code={code} fc={fc} team={team} nameOf={nameOf} />}
+        </TabsContent>
         <TabsContent value="field" className="mt-5"><Field fc={fc} team={team} nameOf={nameOf} onPick={onPickTeam} /></TabsContent>
       </Tabs>
     </div>
@@ -124,6 +134,8 @@ function Outlook({ fc, team }: { fc: ForecastView; team: number | null }) {
   ];
   const sum = parts.reduce((s, x) => s + x.v, 0) || 1;
   const n = fc.teams.length;
+  // Playoffs are over once a played final exists and the event has finished.
+  const playoffsOver = fc.stage === "selected" && fc.matches.some((m) => m.level === "playoff" && m.played) && !fc.matches.some((m) => m.level === "playoff" && !m.played);
   return (
     <div className="space-y-6">
       <div className="grid gap-6 lg:grid-cols-[minmax(0,1.1fr)_minmax(0,1fr)]">
@@ -141,10 +153,10 @@ function Outlook({ fc, team }: { fc: ForecastView; team: number | null }) {
           )}
         </section>
         <Stagger className="grid grid-cols-2 gap-x-6 gap-y-5 rounded-2xl border border-border p-6">
-          <StaggerItem><Stat icon={Crown} label="Captain" value={pct(me.pCaptain)} hint="top seed picks" /></StaggerItem>
-          <StaggerItem><Stat icon={Users} label="Picked" value={pct(me.pPicked)} hint="chosen as partner" /></StaggerItem>
-          <StaggerItem><Stat icon={Trophy} label="Win event" value={pct(me.pWin)} /></StaggerItem>
-          <StaggerItem><Stat icon={Gauge} label="Finalist" value={pct(me.pFinalist)} /></StaggerItem>
+          <StaggerItem><Stat icon={Crown} label="Captain" value={pct(me.pCaptain, fc.stage === "selected")} hint={fc.stage === "selected" ? "alliances are set" : "top seed picks"} /></StaggerItem>
+          <StaggerItem><Stat icon={Users} label="Picked" value={pct(me.pPicked, fc.stage === "selected")} hint={fc.stage === "selected" ? "alliances are set" : "chosen as partner"} /></StaggerItem>
+          <StaggerItem><Stat icon={Trophy} label="Win event" value={pct(me.pWin, playoffsOver)} /></StaggerItem>
+          <StaggerItem><Stat icon={Gauge} label="Finalist" value={pct(me.pFinalist, playoffsOver)} /></StaggerItem>
         </Stagger>
       </div>
       <section aria-labelledby="rank-h">

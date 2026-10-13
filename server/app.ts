@@ -4,10 +4,10 @@ import express, { type NextFunction, type Request, type Response } from "express
 import compression from "compression";
 import { existsSync } from "node:fs";
 import { join } from "node:path";
-import { ENGINE_VERSION } from "@control-scout/predict-engine";
+import { ENGINE_VERSION, FITTED_MODEL } from "@control-scout/predict-engine";
 import { all, kvGet } from "./db.js";
 import { hasFirst } from "./env.js";
-import { CURRENT_SEASON, SEASONS, SEASON_NUMBERS } from "./data/seasons.js";
+import { CURRENT_SEASON, SEASONS, SEASON_NUMBERS, seasonInfo } from "./data/seasons.js";
 import { search } from "./api/search.js";
 import { teamProfile, compareTeams, teamSummaries } from "./api/teams.js";
 import { eventDetail, listEvents, toEventInput } from "./api/events.js";
@@ -183,8 +183,12 @@ export function createApp() {
       const fc = mode === "pre-event" ? f.preEventForecast(ev, team, 2000) : f.forecast(ev, team, 2000);
       if (!fc) throw new HttpError(503, "Ratings for this season aren't ready yet.");
       const finished = d.event.status === "finished";
+      // 2025+ games award bonus ranking points; without a fitted model for this
+      // season the simulator can't include them — say so instead of hiding it.
+      const bonusModelled = s < 2025 || !!FITTED_MODEL.bonus[String(s)];
+      const assumptions = bonusModelled ? fc.assumptions : [...fc.assumptions, `Bonus ranking points for ${seasonInfo(s).game} aren't modelled yet (no fitted model for this season), so simulated ranks count win/tie points only — real ranks and the odds that depend on them may differ.`];
       return {
-        ...fc, eventName: d.event.name, eventStart: d.event.start, eventEnd: d.event.end, myTeam: team, engineVersion: ENGINE_VERSION, mode,
+        ...fc, assumptions, bonusModelled, eventName: d.event.name, eventStart: d.event.start, eventEnd: d.event.end, myTeam: team, engineVersion: ENGINE_VERSION, mode,
         hindsightNote: mode === "current" && finished ? "This event is over: these odds use ratings that already include its results. Switch to “Before the event” for the forecast made without hindsight." : null,
       };
     });
