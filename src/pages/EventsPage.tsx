@@ -4,7 +4,7 @@ import { useSearchParams } from "react-router-dom";
 import { CalendarDays, Search } from "lucide-react";
 import { useApi, qs } from "../lib/api";
 import { useCurrentSeason, useTitle } from "../lib/meta";
-import type { EventSummary } from "../shared/api";
+import type { EventSummary, EventListItem } from "../shared/api";
 import { PageHeader, Section, EmptyState } from "../components/page";
 import { Async } from "../components/states";
 import { Input } from "../components/ui/basic";
@@ -26,7 +26,7 @@ export default function EventsPage() {
   const [q, setQ] = useState("");
   const [type, setType] = useState("all");
   useTitle(`Events ${seasonLabel(season)}`);
-  const state = useApi<{ events: EventSummary[] }>(`/api/events${qs({ season })}`);
+  const state = useApi<{ events: EventListItem[] }>(`/api/events${qs({ season })}`);
   return (
     <div>
       <PageHeader title="Events" description="Every FTC event this season — results, rankings, brackets and advancement odds." >
@@ -58,11 +58,11 @@ export default function EventsPage() {
   );
 }
 
-function Weeks({ events, q, type }: { events: EventSummary[]; q: string; type: string }) {
+function Weeks({ events, q, type }: { events: EventListItem[]; q: string; type: string }) {
   const groups = useMemo(() => {
     const needle = q.trim().toLowerCase();
     const list = events.filter((e) => (type === "all" || e.type === type) && (!needle || `${e.name} ${e.code} ${e.city ?? ""} ${e.state ?? ""} ${e.country ?? ""}`.toLowerCase().includes(needle)));
-    const m = new Map<string, EventSummary[]>();
+    const m = new Map<string, EventListItem[]>();
     for (const e of list) { const w = e.start ? weekOf(e.start) : "TBA"; m.set(w, [...(m.get(w) ?? []), e]); }
     return [...m.entries()].sort(([a], [b]) => a.localeCompare(b));
   }, [events, q, type]);
