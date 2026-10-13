@@ -94,14 +94,15 @@ export function AccuracySection() {
             <div className="min-w-0">
               <p className="hiw-gold text-[11px] font-bold uppercase tracking-[0.14em]">Control Scout's ledger</p>
               <p className="mt-0.5 font-display text-base font-semibold text-foreground sm:text-lg">Every match prediction this site made, scored{desc && <span className="ml-1.5 font-mono text-xs font-normal text-muted-foreground">· {desc}</span>}</p>
+              {sel && block && <Badge variant={sel.kind === "live" ? "success" : "secondary"} className="mt-2 w-fit">{sel.kind === "live" ? <><Radio /> Live record · called before each match</> : <><History /> Backtest · replayed with only earlier matches</>}</Badge>}
             </div>
             {selectors}
           </div>
           {apiState((b) => (
             <div className="grid grid-cols-2 gap-px overflow-hidden rounded-xl border border-border bg-border lg:grid-cols-4" role="list">
-              <StatCell value={<CountUp value={b.accuracy * 100} decimals={1} suffix="%" />} label={`of decided matches called right (${sel?.kind === "live" ? "called before each match" : "replayed with only earlier matches"})`} />
-              <StatCell value={<CountUp value={b.brier} decimals={3} />} label={`Brier score (lower is better; a coin flip scores ${b.baselineBrier.toFixed(3)})`} />
-              <StatCell value={<CountUp value={(1 - b.brier / b.baselineBrier) * 100} decimals={0} suffix="%" />} label="skill: Brier improvement over always saying 50%" />
+              <StatCell tone="gold" value={<CountUp value={b.accuracy * 100} decimals={1} suffix="%" />} label={`of decided matches called right (${sel?.kind === "live" ? "called before each match" : "replayed with only earlier matches"})`} />
+              <StatCell tone="blue" value={<CountUp value={b.brier} decimals={3} />} label={`Brier score (lower is better; a coin flip scores ${b.baselineBrier.toFixed(3)})`} />
+              <StatCell tone={b.brier < b.baselineBrier ? "good" : "bad"} value={<CountUp value={(1 - b.brier / b.baselineBrier) * 100} decimals={0} suffix="%" />} label="skill: Brier improvement over always saying 50%" />
               <StatCell value={<CountUp value={b.n} />} label={`matches scored · ${b.upsets.toLocaleString("en-US")} upsets`} />
               <p role="listitem" className="col-span-full bg-card px-4 py-2.5 font-mono text-xs text-muted-foreground">
                 Log loss {b.logLoss.toFixed(3)} (lower is better; a coin flip scores 0.693) · qualifiers {pct(b.byLevel.qual.accuracy, 1)} right ({b.byLevel.qual.n.toLocaleString("en-US")}) · playoffs {b.byLevel.playoff.n ? `${pct(b.byLevel.playoff.accuracy, 1)} right (${b.byLevel.playoff.n.toLocaleString("en-US")})` : "none scored"}
@@ -116,9 +117,9 @@ export function AccuracySection() {
       <Reveal className="mx-auto my-8 max-w-5xl">
         <div className="mb-2.5"><EngineTag /></div>
         <div className="grid grid-cols-2 gap-px overflow-hidden rounded-xl border border-border bg-border lg:grid-cols-4" role="list" aria-label={`Headline numbers from ${ENGINE_TEST}`}>
-          <StatCell value={<CountUp value={ENG.matches.liveAccuracy * 100} decimals={1} suffix="%" />} label="of matches called right with live ratings" />
-          <StatCell value={<CountUp value={ENG.matches.scoreRange80Coverage * 100} decimals={0} suffix="%" />} label="of real scores inside the 80% range (honest ranges)" />
-          <StatCell value={<CountUp value={ENG.advancement.selected.brier} decimals={3} />} label="advancement Brier after alliance selection (lower is better)" />
+          <StatCell tone="gold" value={<CountUp value={ENG.matches.liveAccuracy * 100} decimals={1} suffix="%" />} label="of matches called right with live ratings" />
+          <StatCell tone="good" value={<CountUp value={ENG.matches.scoreRange80Coverage * 100} decimals={0} suffix="%" />} label="of real scores inside the 80% range (honest ranges)" />
+          <StatCell tone="blue" value={<CountUp value={ENG.advancement.selected.brier} decimals={3} />} label="advancement Brier after alliance selection (lower is better)" />
           <StatCell value={<CountUp value={ENG.matches.count} />} label={`test matches · ${ENG.advancement.events} advancing events`} />
         </div>
       </Reveal>
@@ -178,10 +179,13 @@ export function AccuracySection() {
   );
 }
 
-function StatCell({ value, label }: { value: ReactNode; label: string }) {
+type Tone = "gold" | "good" | "bad" | "blue";
+const TONE: Record<Tone, string> = { gold: "text-accent", good: "text-success", bad: "text-destructive", blue: "text-blue-alliance" };
+
+function StatCell({ value, label, tone }: { value: ReactNode; label: string; tone?: Tone }) {
   return (
     <div role="listitem" className="grid min-w-0 content-start gap-1 bg-card p-4">
-      <b className="font-display text-3xl font-bold leading-none tabular-nums text-foreground sm:text-4xl">{value}</b>
+      <b className={cn("font-display text-3xl font-bold leading-none tabular-nums sm:text-4xl", tone ? TONE[tone] : "text-foreground")}>{value}</b>
       <span className="text-[13px] leading-snug text-muted-foreground">{label}</span>
     </div>
   );
