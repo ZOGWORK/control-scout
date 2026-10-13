@@ -67,11 +67,17 @@ function Hero() {
 function MyTeamNext({ team }: { team: number }) {
   const season = useCurrentSeason();
   const { data, error } = useApi<{ matches: MatchView[] }>(`/api/teams/${team}/matches${qs({ season })}`);
-  // Unplayed and not stale: a match scheduled more than 12 h ago belongs to a
+  // Unplayed and not stale: a match scheduled well in the past belongs to a
   // finished event (a left-over slot), while same-day delays still count.
+  // Without a known time zone, the event-local time read as UTC is within
+  // ±14 h of the real instant, so it still orders the schedule; the stale
+  // cutoff gets that much extra slack.
+  const now = Date.now();
+  const at = (m: MatchView) => m.startsAt ? Date.parse(m.startsAt) : m.time ? Date.parse(`${m.time.replace(/Z$/, "")}Z`) : NaN;
+  const slack = (m: MatchView) => (m.startsAt ? 12 : 26) * 3600_000;
   const next = data?.matches
-    .filter((m) => !m.played && (!m.startsAt || Date.parse(m.startsAt) > Date.now() - 12 * 3600_000))
-    .sort((a, b) => (a.startsAt ? Date.parse(a.startsAt) : Infinity) - (b.startsAt ? Date.parse(b.startsAt) : Infinity))[0];
+    .filter((m) => !m.played && (!Number.isFinite(at(m)) || at(m) > now - slack(m)))
+    .sort((a, b) => (Number.isFinite(at(a)) ? at(a) : Infinity) - (Number.isFinite(at(b)) ? at(b) : Infinity))[0];
   const side = next ? (next.red.teams.some((t) => t.number === team) ? "red" : "blue") : null;
   const pWin = next?.prediction ? (side === "red" ? next.prediction.pRed : 1 - next.prediction.pRed) : null;
   return (
