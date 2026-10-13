@@ -8,6 +8,8 @@ export default defineConfig({
   resolve: { alias: { "@": fileURLToPath(new URL("./src", import.meta.url)) } },
   server: {
     port: 5173,
+    // .data holds the database and packs (large, locked while written) — never watch it.
+    watch: { ignored: ["**/.data/**", "**/dist/**"] },
     proxy: {
       "/api": `http://localhost:${process.env.PORT || 3000}`,
       "/packs": `http://localhost:${process.env.PORT || 3000}`,
