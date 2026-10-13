@@ -6,8 +6,8 @@ export class ApiError extends Error {
   constructor(readonly status: number, message: string, readonly offline = false) { super(message); }
 }
 
-export async function apiFetch<T>(path: string, init?: RequestInit & { json?: unknown }): Promise<T> {
-  const { json, ...rest } = init ?? {};
+export async function apiFetch<T>(path: string, init?: RequestInit & { json?: unknown; _tries?: number }): Promise<T> {
+  const { json, _tries = 0, ...rest } = init ?? {};
   // Known offline: answer at once (same error the failed fetch would give)
   // instead of firing a request that can only fail at the venue.
   if (typeof navigator !== "undefined" && navigator.onLine === false) throw new ApiError(0, "You're offline.", true);
@@ -21,6 +21,12 @@ export async function apiFetch<T>(path: string, init?: RequestInit & { json?: un
     });
   } catch {
     throw new ApiError(0, navigator.onLine === false ? "You're offline." : "Can't reach the server right now.", true);
+  }
+  // Server still starting (it opens its port before its data is ready): wait
+  // as asked and try again, so a cold start reads as a slow load, not an error.
+  if (res.status === 503 && res.headers.has("Retry-After") && _tries < 8) {
+    await new Promise((r) => setTimeout(r, Math.min(15, Number(res.headers.get("Retry-After")) || 5) * 1000));
+    return apiFetch<T>(path, { ...(init ?? {}), _tries: _tries + 1 });
   }
   const text = await res.text();
   let body: any = null;

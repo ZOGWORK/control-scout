@@ -48,9 +48,11 @@ emptied from the snapshot.
 
 ## Database (Turso), for data that persists and refreshes itself
 
-1. Turso dashboard → Create Database → name `control-scout`, group
+1. **Done (2026-10-13):** database `control-scout` in group
    `ftc-control-point-iad` (US East, next to the Render service; separate from
-   Control Point's databases). Copy its URL and create a token.
+   Control Point's databases), URL
+   `libsql://control-scout-sushilm20.aws-us-east-1.turso.io`.
+   Turso → control-scout → **Create Token** (read & write).
 2. From this repo (one command, the token stays on your machine):
 
    ```bash
