@@ -5,7 +5,7 @@ import { useMemo, useState } from "react";
 import { Link, useParams, useSearchParams } from "react-router-dom";
 import { CartesianGrid, Line, LineChart, XAxis, YAxis } from "recharts";
 import {
-  Award, Bookmark, BookmarkCheck, CalendarDays, ChevronDown, ClipboardList, ExternalLink, Eye, EyeOff, Flag, Gauge, GraduationCap, MapPin, Scale, Star, Target, TrendingDown, TrendingUp, Trophy, Zap,
+  Award, Bookmark, BookmarkCheck, CalendarDays, ChevronDown, ClipboardList, ExternalLink, Eye, EyeOff, Flag, Gauge, GraduationCap, Link2, MapPin, Scale, Sparkles, Star, Target, TrendingDown, TrendingUp, Trophy, Zap,
 } from "lucide-react";
 import { useApi, qs } from "../lib/api";
 import { useTitle } from "../lib/meta";
@@ -21,6 +21,7 @@ import { ToggleGroup, ToggleGroupItem, Collapsible, CollapsibleContent, Collapsi
 import { ChartContainer, ChartTooltip, ChartTooltipContent } from "../components/ui/chart";
 import { Tooltip, TooltipContent, TooltipTrigger } from "../components/ui/overlay";
 import { MatchList } from "../components/predict";
+import { toast } from "../components/ui/sonner";
 import { SeasonToggle } from "../components/SeasonToggle";
 import { cn } from "../components/cn";
 import { awardLabel, dateRange, int, num, place, seasonLabel, topPct } from "../lib/format";
@@ -73,48 +74,89 @@ function Hero({ p, onSeason }: { p: TeamProfile; onSeason: (s: number) => void }
   const t = p.team;
   const flags = useTeamFlags(t.number);
   const loc = place(t.city, t.state, t.country);
+  const s = p.stats;
+  const today = new Date().toISOString().slice(0, 10);
+  const next = p.events.find((e) => (e.end ?? e.start ?? "") >= today) ?? null;
+  const last = [...p.events].reverse().find((e) => (e.end ?? e.start ?? "") < today) ?? null;
+  const top = topPct(s?.opr.np.rank, s?.opr.np.of);
+  const share = () => navigator.clipboard?.writeText(location.href).then(() => toast.success("Link copied"), () => toast.error("Couldn't copy the link"));
   return (
-    <Reveal className="relative mb-8 overflow-hidden rounded-2xl border border-border bg-card p-6 sm:p-8">
-      <div aria-hidden className="pointer-events-none absolute -right-20 -top-24 size-72 rounded-full bg-accent opacity-20 blur-3xl" />
-      <div className="relative min-w-0">
-        <p className="text-xs font-medium uppercase tracking-[0.08em] text-muted-foreground">FTC team · {seasonLabel(p.season)}</p>
-        <h1 className="mt-1 font-display text-5xl font-semibold leading-none tracking-tight text-foreground sm:text-6xl">{t.number}</h1>
-        <p className="mt-2 break-words text-xl text-foreground/90">{t.name ?? "Name not on file"}</p>
-        <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1.5 text-sm text-muted-foreground">
-          {t.school && <span className="flex min-w-0 items-center gap-1.5"><GraduationCap className="size-4 shrink-0" /><span className="truncate sm:max-w-[22rem]">{t.school}</span></span>}
-          {loc && <span className="flex items-center gap-1.5"><MapPin className="size-4" />{loc}</span>}
-          {t.rookieYear && <span>Rookie year {t.rookieYear}</span>}
-          {t.website && <a href={t.website.startsWith("http") ? t.website : `https://${t.website}`} target="_blank" rel="noreferrer noopener" className="inline-flex items-center gap-1 hover:text-foreground">Website <ExternalLink className="size-3" /></a>}
+    <Reveal className="mb-8 overflow-hidden rounded-2xl border border-border bg-card">
+      <div className="grid lg:grid-cols-[minmax(0,1fr)_minmax(0,1.05fr)]">
+        {/* Who this is */}
+        <div className="relative min-w-0 p-6 sm:p-8">
+          <div aria-hidden className="pointer-events-none absolute -left-24 -top-24 size-64 rounded-full bg-accent opacity-[0.12] blur-3xl" />
+          <p className="relative text-xs font-medium uppercase tracking-[0.08em] text-muted-foreground">FTC team · {seasonLabel(p.season)}</p>
+          <h1 className="relative mt-1 font-display text-5xl font-semibold leading-none tracking-tight sm:text-6xl">{t.number}</h1>
+          <p className="relative mt-2 break-words text-xl text-foreground/90">{t.name ?? "Name not on file"}</p>
+          <div className="relative mt-3 flex flex-wrap items-center gap-x-4 gap-y-1.5 text-sm text-muted-foreground">
+            {t.school && <span className="flex min-w-0 items-center gap-1.5"><GraduationCap className="size-4 shrink-0" /><span className="truncate sm:max-w-[22rem]">{t.school}</span></span>}
+            {loc && <span className="flex items-center gap-1.5"><MapPin className="size-4" />{loc}</span>}
+            {t.rookieYear && <span>Rookie year {t.rookieYear}</span>}
+            {t.website && <a href={t.website.startsWith("http") ? t.website : `https://${t.website}`} target="_blank" rel="noreferrer noopener" className="inline-flex items-center gap-1 hover:text-foreground">Website <ExternalLink className="size-3" /></a>}
+          </div>
+          {t.sponsors.length > 0 && (
+            <Collapsible className="relative mt-3">
+              <CollapsibleTrigger className="group inline-flex min-h-8 max-w-full items-center gap-1.5 rounded text-left text-sm text-muted-foreground hover:text-foreground max-sm:min-h-11">
+                <span className="font-medium text-foreground">Sponsors ({t.sponsors.length})</span>
+                <span className="truncate group-data-[state=open]:hidden">{t.sponsors.slice(0, 2).join(" · ")}{t.sponsors.length > 2 ? " …" : ""}</span>
+                <ChevronDown className="size-4 shrink-0 transition-transform group-data-[state=open]:rotate-180" />
+              </CollapsibleTrigger>
+              <CollapsibleContent className="mt-1 text-sm text-muted-foreground">{t.sponsors.join(" · ")}</CollapsibleContent>
+            </Collapsible>
+          )}
+          <div className="relative mt-5"><SeasonToggle seasons={p.seasons} value={p.season} onChange={onSeason} /></div>
+          <div className="relative mt-4 flex flex-wrap gap-2">
+            <Button variant={flags.isMine ? "secondary" : "outline"} size="sm" aria-pressed={flags.isMine} onClick={() => flags.setMine(!flags.isMine)} className="max-sm:h-11">
+              <Star className={cn(flags.isMine && "fill-accent text-accent")} /> {flags.isMine ? "My team" : "Mark as my team"}
+            </Button>
+            <Button variant={flags.tracked ? "secondary" : "outline"} size="sm" aria-pressed={flags.tracked} onClick={flags.toggleTracked} className="max-sm:h-11">
+              {flags.tracked ? <EyeOff /> : <Eye />} {flags.tracked ? "Tracking" : "Track"}
+            </Button>
+            <Button variant={flags.bookmarked ? "secondary" : "outline"} size="sm" aria-pressed={flags.bookmarked} onClick={flags.toggleBookmark} className="max-sm:h-11">
+              {flags.bookmarked ? <BookmarkCheck /> : <Bookmark />} {flags.bookmarked ? "Shortlisted" : "Shortlist"}
+            </Button>
+            <Button variant="outline" size="sm" asChild className="max-sm:h-11"><Link to={`/compare?teams=${t.number}`}><Scale /> Compare</Link></Button>
+            <Button variant="outline" size="sm" onClick={share} className="max-sm:h-11"><Link2 /> Share</Button>
+          </div>
+          <a href="https://tryctrlpoint.org" target="_blank" rel="noreferrer noopener" className="relative mt-4 inline-flex items-center gap-1.5 text-xs text-muted-foreground hover:text-accent">
+            Manage this team in Control Point <ExternalLink className="size-3" />
+          </a>
         </div>
-        {t.sponsors.length > 0 && (
-          <Collapsible className="mt-3">
-            <CollapsibleTrigger className="group inline-flex min-h-8 max-w-full items-center gap-1.5 rounded text-left text-sm text-muted-foreground hover:text-foreground max-sm:min-h-11">
-              <span className="font-medium text-foreground">Sponsors ({t.sponsors.length})</span>
-              <span className="truncate group-data-[state=open]:hidden">{t.sponsors.slice(0, 2).join(" · ")}{t.sponsors.length > 2 ? " …" : ""}</span>
-              <ChevronDown className="size-4 shrink-0 transition-transform group-data-[state=open]:rotate-180" />
-            </CollapsibleTrigger>
-            <CollapsibleContent className="mt-1 text-sm text-muted-foreground">{t.sponsors.join(" · ")}</CollapsibleContent>
-          </Collapsible>
-        )}
-      </div>
-      <div className="relative mt-6 flex flex-wrap items-center gap-3">
-        <SeasonToggle seasons={p.seasons} value={p.season} onChange={onSeason} />
-        <div className="flex flex-wrap gap-2 sm:ml-auto">
-          <Button variant={flags.isMine ? "secondary" : "outline"} size="sm" aria-pressed={flags.isMine} onClick={() => flags.setMine(!flags.isMine)} className="max-sm:h-11">
-            <Star className={cn(flags.isMine && "fill-accent text-accent")} /> {flags.isMine ? "My team" : "Mark as my team"}
-          </Button>
-          <Button variant={flags.tracked ? "secondary" : "outline"} size="sm" aria-pressed={flags.tracked} onClick={flags.toggleTracked} className="max-sm:h-11">
-            {flags.tracked ? <EyeOff /> : <Eye />} {flags.tracked ? "Tracking" : "Track"}
-          </Button>
-          <Button variant={flags.bookmarked ? "secondary" : "outline"} size="sm" aria-pressed={flags.bookmarked} onClick={flags.toggleBookmark} className="max-sm:h-11">
-            {flags.bookmarked ? <BookmarkCheck /> : <Bookmark />} {flags.bookmarked ? "Shortlisted" : "Shortlist"}
-          </Button>
-          <Button variant="outline" size="sm" asChild className="max-sm:h-11"><Link to={`/compare?teams=${t.number}`}><Scale /> Compare</Link></Button>
+        {/* At a glance: the five-second answer to "is this team good?" */}
+        <div className="border-t border-border bg-secondary/60 p-6 sm:p-8 lg:border-l lg:border-t-0">
+          <p className="text-xs font-medium uppercase tracking-[0.08em] text-muted-foreground">At a glance · {seasonLabel(p.season)}</p>
+          {!s ? <p className="mt-4 text-sm text-muted-foreground">No results this season yet{p.seasons.length > 1 ? " — pick another season." : "."}</p> : (
+            <>
+              <p className="mt-3 font-display text-5xl font-semibold tabular-nums text-accent">{top ? top.replace("top ", "Top ") : "Unranked"}</p>
+              <p className="text-sm text-muted-foreground">worldwide by OPR{s.opr.np.rank ? ` · #${s.opr.np.rank.toLocaleString()} of ${s.opr.np.of?.toLocaleString()}` : ""}</p>
+              <dl className="mt-5 grid grid-cols-3 gap-3">
+                <div><dt className="text-xs text-muted-foreground">OPR</dt><dd className="font-display text-2xl font-semibold tabular-nums">{num(s.opr.np.value)}</dd></div>
+                <div><dt className="text-xs text-muted-foreground">Rating</dt><dd className="font-display text-2xl font-semibold tabular-nums">{s.rating ? num(s.rating.np) : "—"}{s.rating && <span className="text-sm font-normal text-muted-foreground"> ±{num(s.rating.sd, 0)}</span>}</dd></div>
+                <div><dt className="text-xs text-muted-foreground">Record</dt><dd className="font-display text-2xl font-semibold tabular-nums">{s.record.wins}-{s.record.losses}-{s.record.ties}</dd></div>
+              </dl>
+              <div className="mt-5 space-y-2 text-sm">
+                {last && (
+                  <Link to={`/events/${last.season}/${last.code}?team=${t.number}`} className="lift flex items-center justify-between gap-3 rounded-xl border border-border bg-card px-3 py-2">
+                    <span className="min-w-0 truncate"><span className="text-muted-foreground">Last · </span>{last.name}</span>
+                    <span className="shrink-0 tabular-nums text-muted-foreground">{last.rank ? `ranked #${last.rank}` : ""}{last.awards.length ? ` · ${last.awards.length} award${last.awards.length > 1 ? "s" : ""}` : ""}</span>
+                  </Link>
+                )}
+                {next && (
+                  <Link to={`/events/${next.season}/${next.code}?tab=odds&team=${t.number}`} className="lift flex items-center justify-between gap-3 rounded-xl border border-accent/30 bg-accent/[0.05] px-3 py-2">
+                    <span className="min-w-0 truncate"><span className="text-muted-foreground">Next · </span>{next.name}</span>
+                    <span className="shrink-0 font-medium text-accent">Odds to advance →</span>
+                  </Link>
+                )}
+              </div>
+            </>
+          )}
+          <div className="mt-5 flex flex-wrap gap-2">
+            <Button size="sm" asChild><Link to={`/predict?mode=match&season=${p.season}&red=${t.number},`}><Sparkles /> Predict a match with {t.number}</Link></Button>
+            {!next && <Button size="sm" variant="secondary" asChild><Link to={`/predict?mode=advancement&season=${p.season}&team=${t.number}`}><Trophy /> Advancement odds</Link></Button>}
+          </div>
         </div>
       </div>
-      <a href="https://tryctrlpoint.org" target="_blank" rel="noreferrer noopener" className="relative mt-4 inline-flex items-center gap-1.5 text-xs text-muted-foreground hover:text-accent">
-        Manage this team in Control Point <ExternalLink className="size-3" />
-      </a>
     </Reveal>
   );
 }
@@ -259,7 +301,7 @@ function EventHistory({ events, team }: { events: TeamEventRow[]; team: number }
   return (
     <div className="space-y-2">
       {[...events].reverse().map((e) => (
-        <Link key={e.code} to={`/events/${e.season}/${e.code}?team=${team}`} className="flex flex-wrap items-center gap-3 rounded-xl border border-border bg-card p-3 transition-colors hover:border-accent/40 sm:flex-nowrap">
+        <Link key={e.code} to={`/events/${e.season}/${e.code}?team=${team}`} className="lift flex flex-wrap items-center gap-3 rounded-xl border border-border bg-card p-3 sm:flex-nowrap">
           <RankMedal rank={e.rank} />
           <div className="min-w-0 flex-1">
             <p className="truncate font-medium">{e.name}</p>
@@ -312,7 +354,7 @@ function AwardsAllTime({ p }: { p: TeamProfile }) {
         {p.awardsAllTime.map((a, i) => (
           <Tooltip key={i}>
             <TooltipTrigger asChild>
-              <Link to={`/events/${a.season}/${a.code}`} className="inline-flex items-center gap-1.5 rounded-lg border border-border bg-card px-2.5 py-1.5 text-xs hover:border-accent/40">
+              <Link to={`/events/${a.season}/${a.code}`} className="lift inline-flex items-center gap-1.5 rounded-lg border border-border bg-card px-2.5 py-1.5 text-xs">
                 <Award className="size-3.5 text-accent" />{awardLabel(a.type, a.placement)}<span className="text-muted-foreground">· {seasonLabel(a.season)}</span>
               </Link>
             </TooltipTrigger>
@@ -333,7 +375,7 @@ function ScoutNotes({ team, season }: { team: number; season: number }) {
       {!entries.length ? <p className="rounded-xl border border-dashed border-border px-4 py-6 text-center text-sm text-muted-foreground">No notes for {team} in {seasonLabel(season)} yet.</p> : (
         <div className="grid gap-2 sm:grid-cols-2">
           {entries.slice(0, 6).map((e) => (
-            <Link key={e.uuid} to={`/scout?team=${team}&season=${season}&entry=${e.uuid}`} className="rounded-xl border border-border bg-card p-3 text-sm hover:border-accent/40">
+            <Link key={e.uuid} to={`/scout?team=${team}&season=${season}&entry=${e.uuid}`} className="lift rounded-xl border border-border bg-card p-3 text-sm">
               <p className="font-medium">{e.kind === "pit" ? "Pit scouting" : `Match ${e.matchLabel ?? ""}`} {e.eventCode && <span className="text-muted-foreground">· {e.eventCode}</span>}</p>
               <p className="mt-1 line-clamp-2 text-muted-foreground">{e.notes || `${Object.keys(e.data).length} fields recorded`}</p>
               <p className="mt-1 text-[11px] text-muted-foreground">{int(Object.keys(e.data).length)} fields · {new Date(e.updatedAt).toLocaleDateString()}</p>
