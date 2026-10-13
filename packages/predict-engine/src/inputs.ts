@@ -53,6 +53,8 @@ export interface EventInput {
   type: string | null;
   /** YYYY-MM-DD */
   start: string | null;
+  /** YYYY-MM-DD, the event's last day (apps use it to tell open events from finished ones). */
+  end?: string | null;
   field: FieldEntryInput[];
   matches: MatchInput[];
   alliances: AllianceSelectionInput[];
