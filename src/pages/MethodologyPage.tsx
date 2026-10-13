@@ -94,6 +94,7 @@ export default function MethodologyPage() {
 
         {/* ================= 03 MATCHES ================= */}
         <section id="matches" className="scroll-mt-20 pt-20">
+          <span id="match" aria-hidden className="block scroll-mt-20" />{/* old links: /methodology#match */}
           <SectionHead num="03" eyebrow="Step two" title="From two alliances to one probability" />
           <Prose>
             <p>To predict a match, the engine adds up each alliance's robots, then adds the penalty points the <em>other</em> alliance tends to give away. That's the expected score.</p>
