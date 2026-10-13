@@ -14,6 +14,7 @@
 import { chromium, type Page } from "playwright";
 import { spawn, spawnSync } from "node:child_process";
 import { mkdtempSync, writeFileSync } from "node:fs";
+import { connect } from "node:net";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { waitUp } from "./lib/servers.js";
@@ -101,7 +102,14 @@ type Server = ReturnType<typeof spawn>;
 
 /** A fresh production server on `port` with an empty data dir (it restores the shipped snapshot). Refuses a port that's already serving. */
 async function startServer(port: number): Promise<Server> {
-  if (await fetch(`http://localhost:${port}/api/health`).then(() => true, () => false)) throw new Error(`port ${port} is already serving (a leftover server?); stop it first`);
+  // Anything accepting connections (answering or not) means the port is taken; refused means free. Bounded at 2 s.
+  const busy = await new Promise<boolean>((done) => {
+    const s = connect(port, "localhost");
+    s.setTimeout(2000, () => { s.destroy(); done(true); });
+    s.once("connect", () => { s.destroy(); done(true); });
+    s.once("error", () => done(false));
+  });
+  if (busy) throw new Error(`port ${port} is already in use (a leftover server?); stop it first`);
   const dir = mkdtempSync(join(tmpdir(), "cs-perf-"));
   // detached: its own process group, so stopServer can end npx → tsx → node together.
   return spawn("npx", ["tsx", "server/index.ts"], { env: { ...process.env, NODE_ENV: "production", PORT: String(port), CS_NO_SCHEDULER: "1", CS_SKIP_DOTENV: "1", DATABASE_URL: `file:${dir}/scout.db`.replace(/\\/g, "/"), DATA_DIR: dir, CS_PACKS: "off" }, shell: true, stdio: "ignore", detached: process.platform !== "win32" });
