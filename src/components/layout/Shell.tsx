@@ -1,7 +1,8 @@
 // App shell — Control Point's modern layout: a collapsible left sidebar with
 // an animated active pill, a slim top bar with the search pill, and a bottom
 // tab bar on phones.
-import { useState, type ComponentType, type ReactNode } from "react";
+import { useRef, useState, type ComponentType, type ReactNode } from "react";
+import { Ambient } from "./Ambient";
 import { Link, NavLink, useLocation } from "react-router-dom";
 import { motion, MotionConfig } from "motion/react";
 import {
@@ -117,6 +118,7 @@ const TITLES: [RegExp, string][] = [
 export function Shell({ children }: { children: ReactNode }) {
   const [collapsed, setCollapsed] = useState(() => { try { return localStorage.getItem("cs-sidebar") === "1"; } catch { return false; } });
   const [more, setMore] = useState(false);
+  const mainRef = useRef<HTMLElement>(null);
   const { open } = useSearch();
   const loc = useLocation();
   const title = TITLES.find(([re]) => re.test(loc.pathname))?.[1] ?? "Home";
@@ -134,11 +136,14 @@ export function Shell({ children }: { children: ReactNode }) {
               <div className="flex-1" />
               <button onClick={open} className="flex h-8 items-center gap-2 rounded-lg border border-line px-2.5 text-xs text-text-muted hover:text-text-base md:hidden" aria-label="Search"><Search className="size-3.5" /> Search</button>
             </header>
-            <main id="main" className="m-canvas custom-scrollbar flex-1 overflow-y-auto">
-              <motion.div key={loc.pathname} initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.18, ease: "easeOut" }} className="mx-auto w-full max-w-[1200px] px-4 pt-8 pb-28 sm:px-6 md:pb-12 lg:px-8">
-                {children}
-              </motion.div>
-            </main>
+            <div className="relative min-h-0 flex-1">
+              <Ambient target={mainRef} />
+              <main id="main" ref={mainRef} className="m-canvas custom-scrollbar absolute inset-0 z-10 overflow-y-auto">
+                <motion.div key={loc.pathname} initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.18, ease: "easeOut" }} className="mx-auto w-full max-w-[1200px] px-4 pt-8 pb-28 sm:px-6 md:pb-12 lg:px-8">
+                  {children}
+                </motion.div>
+              </main>
+            </div>
           </div>
           <MobileTabs onMore={() => setMore(true)} />
           <Sheet open={more} onOpenChange={setMore}>

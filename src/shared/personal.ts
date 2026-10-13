@@ -11,6 +11,8 @@ export interface SavedPrediction { id: string; season: number; red: number[]; bl
 export interface Settings {
   theme: "dark" | "light" | "system";
   density: "comfortable" | "compact";
+  /** Animated background (on by default; reduced motion always stills it). */
+  ambient: boolean;
   notify: { myTeamMatches: boolean; trackedTeams: boolean; upsets: boolean; eventStart: boolean };
 }
 
@@ -30,6 +32,7 @@ export const PERSONAL_KEYS: PersonalKey[] = ["myTeam", "tracked", "bookmarks", "
 export const DEFAULT_SETTINGS: Settings = {
   theme: "dark",
   density: "comfortable",
+  ambient: true,
   notify: { myTeamMatches: true, trackedTeams: false, upsets: false, eventStart: true },
 };
 
@@ -64,6 +67,7 @@ export function cleanValue<K extends PersonalKey>(key: K, v: unknown): PersonalS
       return {
         theme: ["dark", "light", "system"].includes(o.theme as string) ? o.theme : DEFAULT_SETTINGS.theme,
         density: o.density === "compact" ? "compact" : "comfortable",
+        ambient: o.ambient !== false,
         notify: { ...DEFAULT_SETTINGS.notify, ...Object.fromEntries(Object.entries(o.notify ?? {}).filter(([, b]) => typeof b === "boolean")) },
       } as PersonalState[K];
     }

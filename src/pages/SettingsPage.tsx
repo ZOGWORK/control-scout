@@ -143,6 +143,10 @@ function Appearance() {
             <ToggleGroupItem value="dark"><Moon className="size-3.5" /> Dark</ToggleGroupItem><ToggleGroupItem value="light"><Sun className="size-3.5" /> Light</ToggleGroupItem><ToggleGroupItem value="system"><Monitor className="size-3.5" /> System</ToggleGroupItem>
           </ToggleGroup>
         </div>
+        <div className="flex items-center gap-3">
+          <Switch id="ambient" checked={s.ambient !== false} onCheckedChange={(v) => update("settings", (x) => ({ ...x, ambient: v }))} />
+          <div><Label htmlFor="ambient">Animated background</Label><p className="text-xs text-muted-foreground">Slowly drifting grid and a light that follows your pointer. Always still if your device asks for reduced motion.</p></div>
+        </div>
         <div className="space-y-1.5"><p className="text-sm">Density</p>
           <ToggleGroup type="single" value={s.density} onValueChange={(v) => { if (v) update("settings", (x) => ({ ...x, density: v as typeof s.density })); }} aria-label="Density">
             <ToggleGroupItem value="comfortable">Comfortable</ToggleGroupItem><ToggleGroupItem value="compact">Compact</ToggleGroupItem>
