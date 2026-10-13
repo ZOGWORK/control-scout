@@ -251,7 +251,8 @@ morning review. Format: **what I chose** — why — the alternative.
   (`docs/perf-report.md`). The VM restarts to ready in 8.7 s, and every hot
   route has a p95 at or under 70 ms.
 - **Render stays as the rollback host (Sushil's call)** and gets every update.
-  It rebuilds from main on its own, and the deploy workflow checks that its
-  `/api/health` reports the same commit. Render keeps the in-process data
-  cycle and no offline packs; the VM runs the cycle in a child process
+  It rebuilds from main on its own. The deploy workflow (#23) checks that its
+  `/api/health` reports that commit (or a newer one), and `/api/health` reports
+  the running commit on both hosts (also #23). Render keeps the in-process data
+  cycle and doesn't build packs (it serves the shipped ones); the VM runs the cycle in a child process
   (`DATA_CYCLE=child`), which needs more memory than Render has.
