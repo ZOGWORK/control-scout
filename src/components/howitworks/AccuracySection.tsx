@@ -1,4 +1,5 @@
-// Section 05: how good is it? Two clearly separated sources:
+// Section 05: how good is it? This is also the track record (/predict/accuracy
+// redirects here). Two clearly separated sources:
 //  - Control Scout's own ledger (GET /api/predict/accuracy): live and backtest
 //    blocks per season, never blended; shown with loading / empty / error states.
 //  - The prediction engine's published held-out test (tuned on 2024–25, tested
@@ -14,6 +15,7 @@ import type { AccuracyBlock, TrackRecord } from "../../shared/api";
 import { pct } from "../../lib/format";
 import { cn } from "../cn";
 import { Badge } from "../ui/basic";
+import { MatchList } from "../predict";
 import { ErrorState, Skeleton } from "../states";
 import { EmptyState } from "../page";
 import { HBars } from "./charts";
@@ -103,7 +105,7 @@ export function AccuracySection() {
               <StatCell value={<CountUp value={b.n} />} label={`matches scored · ${b.upsets.toLocaleString("en-US")} upsets`} />
             </div>
           ), <div className="grid grid-cols-2 gap-3 lg:grid-cols-4" role="status" aria-label="Loading the track record">{[0, 1, 2, 3].map((i) => <Skeleton key={i} className="h-24 rounded-xl" />)}</div>)}
-          <p className="mt-3 text-sm text-muted-foreground">Live and backtest numbers are reported separately and never blended. The headline switches to live once a season has {t?.liveThreshold ?? 300} scored pre-match calls. <Link to="/predict/accuracy" className="font-medium text-foreground underline decoration-accent underline-offset-2">Full track record</Link></p>
+          <p className="mt-3 text-sm text-muted-foreground">Live and backtest numbers are reported separately and never blended. The headline switches to live once a season has {t?.liveThreshold ?? 300} scored pre-match calls.</p>
         </div>
       </Reveal>
 
@@ -141,6 +143,7 @@ export function AccuracySection() {
 
       <ExpChart />
       <Calibration block={block} desc={desc} loading={!t && !state.error} error={!!state.error} />
+      {block && <WeekChart block={block} desc={desc} />}
       <StageChart />
 
       <Prose id="confidence" className="mt-12">
@@ -156,6 +159,18 @@ export function AccuracySection() {
       <Reveal className="mx-auto mt-4 max-w-2xl">
         {apiState((b) => <Tiers block={b} />, <Skeleton className="h-32 rounded-xl" />)}
       </Reveal>
+
+      {t && t.recentCalls.length > 0 && (
+        <>
+          <Prose id="recent" className="mt-12">
+            <h3>Latest live calls</h3>
+            <p>The most recent matches Control Scout predicted before they were played, with how each one turned out. Engine v{t.engineVersion}.</p>
+          </Prose>
+          <Reveal className="mx-auto mt-4 max-w-3xl">
+            <MatchList matches={t.recentCalls} />
+          </Reveal>
+        </>
+      )}
     </section>
   );
 }
@@ -272,6 +287,37 @@ function Calibration({ block, desc, loading, error }: { block: AccuracyBlock | n
       </ScrollX>
       <Legend items={[["var(--color-accent)", `Match win odds · Control Scout ledger (${matchNote})`], ["var(--hiw-blue)", "Advancement odds before the event · engine test"], ["var(--hiw-line)", "Perfect calibration"]]} />
       {error && <p className={cn("mt-2 text-sm text-muted-foreground")}>The match dots need this site's track record, which couldn't be loaded. The advancement diamonds come with the engine and still show.</p>}
+    </Figure>
+  );
+}
+
+/** Accuracy per week for the selected ledger block (weeks with at least 20 scored matches). */
+function WeekChart({ block, desc }: { block: AccuracyBlock; desc: string }) {
+  const tip = useTip();
+  const weeks = block.weekly.filter((w) => w.n >= 20);
+  if (weeks.length < 2) return null;
+  const L = 50, R = 620, T = 14, B = 206, lo = 50, hi = 100;
+  const x = (i: number) => L + (i / (weeks.length - 1)) * (R - L);
+  const y = (a: number) => B - ((Math.min(hi, Math.max(lo, a * 100)) - lo) / (hi - lo)) * (B - T);
+  const path = weeks.map((w, i) => `${i ? "L" : "M"}${x(i).toFixed(1)},${y(w.accuracy).toFixed(1)}`).join(" ");
+  const every = Math.max(1, Math.ceil(weeks.length / 8));
+  return (
+    <Figure id="weekly" narrow label="Figure 10b" title="Week by week"
+      caption={<>Control Scout's ledger ({desc}), weeks with at least 20 scored matches. Early-season weeks are harder: ratings still lean on last season. Hover, tap or focus a point for its numbers.</>}>
+      <ScrollX label="Accuracy by week chart">
+        <Chart viewBox="0 0 640 240" interactive label={`Line chart of the share of matches called right each week, from ${pct(weeks[0].accuracy)} in the first week to ${pct(weeks[weeks.length - 1].accuracy)} in the last.`}>
+          {[50, 60, 70, 80, 90, 100].map((v) => <g key={v}><line x1={L} x2={R} y1={y(v / 100)} y2={y(v / 100)} className="grid" /><text x={L - 8} y={y(v / 100) + 4} textAnchor="end">{v}%</text></g>)}
+          <path d={path} fill="none" stroke="var(--color-accent)" strokeWidth={2.5} strokeLinejoin="round" className="fade" />
+          {weeks.map((w, i) => (
+            <g key={w.week}>
+              <circle cx={x(i)} cy={y(w.accuracy)} r={4.5} fill="var(--color-accent)" stroke="var(--color-card)" strokeWidth={1.5} className="pop" style={{ ["--i" as string]: i }}
+                {...tip(`Week of ${w.week}: ${pct(w.accuracy, 1)} called right (${w.n.toLocaleString("en-US")} matches)`)} />
+              {i % every === 0 && <text x={x(i)} y={B + 18} textAnchor="middle">{w.week.slice(5)}</text>}
+            </g>
+          ))}
+          <text x={(L + R) / 2} y={B + 32} textAnchor="middle">week starting (month-day) · axis starts at 50%</text>
+        </Chart>
+      </ScrollX>
     </Figure>
   );
 }

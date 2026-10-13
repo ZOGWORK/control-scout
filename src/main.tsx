@@ -1,6 +1,6 @@
 import { StrictMode, Suspense, lazy } from "react";
 import { createRoot } from "react-dom/client";
-import { BrowserRouter, Route, Routes } from "react-router-dom";
+import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
 import { MotionConfig } from "motion/react";
 import "./index.css";
 import "./components/arc/arc-theme.css";
@@ -18,7 +18,6 @@ const TeamPage = lazy(() => import("./pages/TeamPage"));
 const EventsPage = lazy(() => import("./pages/EventsPage"));
 const EventPage = lazy(() => import("./pages/EventPage"));
 const PredictPage = lazy(() => import("./pages/PredictPage"));
-const AccuracyPage = lazy(() => import("./pages/AccuracyPage"));
 const ComparePage = lazy(() => import("./pages/ComparePage"));
 const MyTeamPage = lazy(() => import("./pages/MyTeamPage"));
 const ShortlistPage = lazy(() => import("./pages/ShortlistPage"));
@@ -51,7 +50,7 @@ createRoot(document.getElementById("root")!).render(
                   <Route path="/events" element={<EventsPage />} />
                   <Route path="/events/:season/:code" element={<EventPage />} />
                   <Route path="/predict" element={<PredictPage />} />
-                  <Route path="/predict/accuracy" element={<AccuracyPage />} />
+                  <Route path="/predict/accuracy" element={<Navigate to={{ pathname: "/methodology", hash: "#accuracy" }} replace />} />
                   <Route path="/compare" element={<ComparePage />} />
                   <Route path="/my-team" element={<MyTeamPage />} />
                   <Route path="/shortlist" element={<ShortlistPage />} />

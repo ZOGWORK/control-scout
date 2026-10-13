@@ -76,7 +76,7 @@ export function CalibrationLine({ pRed, className, compact }: { pRed: number; cl
   if (!c) return null;
   const said = Math.round(c.said * 100), won = Math.round(c.won * 100);
   return (
-    <Link to="/predict/accuracy" title="A tie counts as half a win" className={cn("group inline-flex items-center gap-1.5 text-xs text-text-muted hover:text-text-base", className)}>
+    <Link to="/methodology#accuracy" title="A tie counts as half a win" className={cn("group inline-flex items-center gap-1.5 text-xs text-text-muted hover:text-text-base", className)}>
       <span className="size-1.5 shrink-0 rounded-full bg-success" aria-hidden />
       {compact
         ? <>Calls near {said}% came true {won}% of the time</>
