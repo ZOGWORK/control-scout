@@ -22,7 +22,7 @@ export async function matchViews(f: MatchFilter, opts: { predictUnplayed?: boole
   const where: string[] = ["m.season = ?"];
   const args: (string | number)[] = [f.season];
   if (f.code) { where.push("m.code = ?"); args.push(f.code); }
-  if (f.team) { where.push("EXISTS (SELECT 1 FROM match_teams x WHERE x.season = m.season AND x.code = m.code AND x.level = m.level AND x.series = m.series AND x.number = m.number AND x.team = ?)"); args.push(f.team); }
+  if (f.team) { where.push("(m.code, m.level, m.series, m.number) IN (SELECT code, level, series, number FROM match_teams WHERE team = ? AND season = ?)"); args.push(f.team, f.season); }
   const rows = await all<any>(`SELECT m.*, e.timezone FROM matches m JOIN events e ON e.season = m.season AND e.code = m.code WHERE ${where.join(" AND ")} ORDER BY m.time, m.code, m.level DESC, m.series, m.number`, args);
   if (!rows.length) return [];
   const codes = [...new Set(rows.map((r) => r.code as string))];
