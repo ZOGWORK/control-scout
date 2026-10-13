@@ -11,7 +11,7 @@ import { spawn, spawnSync } from "node:child_process";
 import { readFileSync, writeFileSync, mkdtempSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { WEB_PORT, ensureServers, stopServers } from "./lib/servers.js";
+import { WEB_PORT, ensureServers, stopServers, waitUp } from "./lib/servers.js";
 
 const BASE = `http://localhost:${WEB_PORT}`;
 const SHIM = "globalThis.__name = (f) => f;"; // tsx's __name helper, absent in the browser
@@ -189,7 +189,7 @@ const flows: Flow[] = [
       const PROD = "http://localhost:3299";
       const server = spawn("npx", ["tsx", "server/index.ts"], { env: { ...process.env, NODE_ENV: "production", PORT: "3299", CS_NO_SCHEDULER: "1" }, shell: true, stdio: "ignore" });
       try {
-        for (let i = 0; i < 60 && !(await fetch(`${PROD}/api/health`).then((r) => r.ok, () => false)); i++) await new Promise((r) => setTimeout(r, 1000));
+        assert(await waitUp(`${PROD}/api/health`, 120), "production server didn't become ready");
         await page.goto(`${PROD}/download`, { waitUntil: "networkidle" });
         await page.evaluate(async () => { await navigator.serviceWorker.ready; });
         await page.getByRole("button", { name: /Save to this device/ }).click();
@@ -222,7 +222,7 @@ const flows: Flow[] = [
       const server = spawn("npx", ["tsx", "server/index.ts"], { env: { ...process.env, NODE_ENV: "production", PORT: "3299", CS_NO_SCHEDULER: "1" }, shell: true, stdio: "ignore" });
       const shells = () => page.evaluate(async () => (await caches.keys()).filter((k) => k.startsWith("cs-shell-")).sort());
       try {
-        for (let i = 0; i < 60 && !(await fetch(`${PROD}/api/health`).then((r) => r.ok, () => false)); i++) await new Promise((r) => setTimeout(r, 1000));
+        assert(await waitUp(`${PROD}/api/health`, 120), "production server didn't become ready");
         await page.goto(`${PROD}/`, { waitUntil: "networkidle" });
         await page.evaluate(async () => { await navigator.serviceWorker.ready; });
         const before = await shells();
