@@ -24,6 +24,13 @@ const VALUE_FLAGS = new Set(["--out", "--base", "--search", "--video"]);
 const routes = args.filter((a, i) => !a.startsWith("--") && !VALUE_FLAGS.has(args[i - 1] ?? ""))
   .map((a) => a.replace(/\\/g, "/").replace(/^[A-Za-z]:\/.*?\/Git(?=\/|$)/, ""))
   .map((a) => (a.startsWith("/") ? a : `/${a}`));
+// --video N: a finite, positive number of seconds (at most 120), checked before any server starts.
+const VIDEO_SECS = (() => {
+  if (!args.includes("--video")) return 0;
+  const n = Number(opt("video"));
+  if (!Number.isFinite(n) || n <= 0 || n > 120) { console.error(`--video needs a duration in seconds between 0 and 120 (got "${opt("video") ?? ""}")`); process.exit(1); }
+  return n;
+})();
 // Dedicated ports so a capture never hits another app's dev server.
 const WEB_PORT = 5199, API_PORT = 3199;
 const BASE = opt("base") ?? `http://localhost:${WEB_PORT}`;
@@ -52,7 +59,7 @@ async function ensureServers() {
 
 async function capture(browser: Browser, route: string, vp: keyof typeof SIZES, light: boolean): Promise<string> {
   // Still by default (stable shots); --motion / --pointer / --video show animation as users see it.
-  const videoSecs = Number(opt("video") ?? 0);
+  const videoSecs = VIDEO_SECS;
   const motion = flag("motion") || flag("pointer") || videoSecs > 0;
   const ctx = await browser.newContext({
     viewport: SIZES[vp], deviceScaleFactor: videoSecs ? 1 : 2, colorScheme: light ? "light" : "dark", isMobile: vp === "mobile", hasTouch: vp === "mobile",
@@ -92,7 +99,7 @@ async function capture(browser: Browser, route: string, vp: keyof typeof SIZES, 
     const video = page.video();
     await ctx.close();
     const tmp = await video!.path();
-    const file = join(out, `${vp}${light ? "-light" : ""}-video-${route.replace(/^\//, "").replace(/[^\w-]+/g, "_") || "home"}.webm`);
+    const file = join(out, `${vp}${light ? "-light" : ""}${q ? `-search-${q.replace(/[^\w]+/g, "_")}` : ""}-video-${route.replace(/^\//, "").replace(/[^\w-]+/g, "_") || "home"}.webm`);
     renameSync(tmp, file);
     if (errors.length) console.warn(`  ! ${route}: page errors: ${errors.join(" | ")}`);
     return file;
