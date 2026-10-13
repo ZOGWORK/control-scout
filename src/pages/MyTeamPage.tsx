@@ -7,7 +7,7 @@ import { CalendarDays, Eye, History, Star, Swords, Trophy, X } from "lucide-reac
 import { useApi, qs } from "../lib/api";
 import { useCurrentSeason, useTitle } from "../lib/meta";
 import { usePersonal } from "../lib/personal";
-import type { EventSummary, MatchView, TeamProfile, TeamSummary } from "../shared/api";
+import type { EventSummary, EventListItem, MatchView, TeamProfile, TeamSummary } from "../shared/api";
 import { PageHeader, Section, EmptyState, Stat } from "../components/page";
 import { Async } from "../components/states";
 import { Button } from "../components/ui/button";
@@ -111,7 +111,7 @@ function TrackedFeed({ season }: { season: number }) {
   const teams = state.tracked.teams;
   const events = state.tracked.events.filter((e) => e.startsWith(`${season}:`));
   const summary = useApi<{ teams: TeamSummary[] }>(teams.length ? `/api/teams-summary${qs({ teams: teams.slice(0, 100).join(","), season })}` : null);
-  const evList = useApi<{ events: EventSummary[] }>(events.length ? `/api/events${qs({ season })}` : null);
+  const evList = useApi<{ events: EventListItem[] }>(events.length ? `/api/events${qs({ season })}` : null);
   return (
     <>
       <Section title="Tracked teams" description="Teams you follow — track any team from its page.">

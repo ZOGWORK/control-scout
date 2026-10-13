@@ -8,7 +8,7 @@ import { offlineExplain } from "../lib/packs";
 import { useApi, qs } from "../lib/api";
 import { useCurrentSeason, useTitle } from "../lib/meta";
 import { usePersonal } from "../lib/personal";
-import type { EventSummary, MatchExplanationView, MatchView } from "../shared/api";
+import type { EventSummary, EventListItem, MatchExplanationView, MatchView } from "../shared/api";
 import { PageHeader, Section, EmptyState } from "../components/page";
 import { Async, ErrorState } from "../components/states";
 import { Button } from "../components/ui/button";
@@ -244,7 +244,7 @@ function AdvancementLab() {
   const set = (k: string, v: string | null) => setSp((x) => { x.set("mode", "advancement"); if (v) x.set(k, v); else x.delete(k); return x; }, { replace: true });
   const teamEvents = useApi<{ events: { code: string; name: string; start: string | null; type: string | null }[] }>(teamText.length >= 1 ? `/api/teams/${teamText}${qs({ season })}` : null);
   const [q, setQ] = useState("");
-  const events = useApi<{ events: EventSummary[] }>(`/api/events${qs({ season })}`);
+  const events = useApi<{ events: EventListItem[] }>(`/api/events${qs({ season })}`);
   const advancing = new Set(["LeagueTournament", "Qualifier", "Championship", "SuperQualifier", "Premier", "FIRSTChampionship"]);
   const choices = useMemo(() => {
     const all = (events.data?.events ?? []).filter((e) => advancing.has(e.type ?? ""));

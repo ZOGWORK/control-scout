@@ -6,7 +6,7 @@ import { ArrowRight, BadgeCheck, CalendarDays, Download, MapPin, Radio, Scale, S
 import { useApi, qs } from "../lib/api";
 import { useCurrentSeason, useMeta, useTitle } from "../lib/meta";
 import { usePersonal } from "../lib/personal";
-import type { EventSummary, MatchView, TrackRecord } from "../shared/api";
+import type { EventSummary, EventListItem, MatchView, TrackRecord } from "../shared/api";
 import { useSearch } from "../components/layout/Search";
 import { Section } from "../components/page";
 import { Async } from "../components/states";
@@ -126,7 +126,7 @@ function ThisWeek() {
   const season = useCurrentSeason();
   const now = new Date();
   const from = iso(new Date(now.getTime() - 2 * 864e5)), to = iso(new Date(now.getTime() + 7 * 864e5));
-  const state = useApi<{ events: EventSummary[] }>(`/api/events${qs({ season, from, to })}`);
+  const state = useApi<{ events: EventListItem[] }>(`/api/events${qs({ season, from, to })}`);
   return (
     <Section title="This week" description={`${seasonLabel(season)} events running now or in the next 7 days`} action={<Button variant="ghost" size="sm" asChild><Link to="/events">All events <ArrowRight /></Link></Button>} className="mb-0">
       <Async state={state} loading={<div className="grid gap-3 sm:grid-cols-2">{[0, 1, 2, 3].map((i) => <div key={i} className="skeleton h-28 rounded-xl" />)}</div>}
@@ -146,7 +146,7 @@ function ThisWeek() {
   );
 }
 
-export function EventCard({ e }: { e: EventSummary }) {
+export function EventCard({ e }: { e: EventListItem }) {
   return (
     <Link to={`/events/${e.season}/${e.code}`} className="lift group flex h-full flex-col rounded-xl border border-border bg-card p-4">
       <div className="flex items-center gap-2">
