@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="Control Scout">
+  <!-- Original mark: a rounded volt hexagon (the family shape) holding a scout's reticle. -->
+  <path d="M28.5 3.9a7 7 0 0 1 7 0l19.6 11.3a7 7 0 0 1 3.5 6.1v22.6a7 7 0 0 1-3.5 6.1L35.5 61.3a7 7 0 0 1-7 0L8.9 50a7 7 0 0 1-3.5-6.1V21.3a7 7 0 0 1 3.5-6.1z" fill="#FFC700"/>
+  <circle cx="32" cy="32.6" r="13.2" fill="none" stroke="#141414" stroke-width="4.2"/>
+  <path d="M32 12.5v8.2M32 44.5v8.2M11.9 32.6h8.2M43.9 32.6h8.2" stroke="#141414" stroke-width="4.2" stroke-linecap="round"/>
+  <circle cx="32" cy="32.6" r="3.6" fill="#141414"/>
+</svg>

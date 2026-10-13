@@ -5,6 +5,8 @@
 // Field names verified against live FIRST Events API responses (2026-10-12)
 // and cross-checked with FTC Scout's normalised fields for the same matches.
 
+export { eventTypeLabel } from "../../src/shared/labels.js";
+
 export interface SeasonInfo {
   season: number;
   /** Game name (FIRST's season `gameName`). */
@@ -108,17 +110,6 @@ export function normalizeEventType(typeName: string | null | undefined): string 
     "Innovation Challenge": "InnovationChallenge",
   };
   return map[typeName] ?? typeName.replace(/[^A-Za-z]/g, "");
-}
-
-/** Human label for a compact event type. */
-export function eventTypeLabel(type: string | null | undefined): string {
-  const map: Record<string, string> = {
-    LeagueMeet: "League Meet", LeagueTournament: "League Tournament", Qualifier: "Qualifier", SuperQualifier: "Super Qualifier",
-    Championship: "Championship", FIRSTChampionship: "FIRST Championship", Premier: "Premier Event", OffSeason: "Off-season",
-    Kickoff: "Kickoff", Workshop: "Workshop", DemoExhibition: "Demo / Exhibition", Scrimmage: "Scrimmage",
-    VolunteerSignup: "Volunteer Signup", PracticeDay: "Practice Day", InnovationChallenge: "Innovation Challenge",
-  };
-  return (type && map[type]) ?? type ?? "Event";
 }
 
 /** FIRST award names → engine award types. Placement comes from `series`. */

@@ -9,7 +9,7 @@ import { all, kvGet } from "./db.js";
 import { hasFirst } from "./env.js";
 import { CURRENT_SEASON, SEASONS, SEASON_NUMBERS } from "./data/seasons.js";
 import { search } from "./api/search.js";
-import { teamProfile, compareTeams } from "./api/teams.js";
+import { teamProfile, compareTeams, teamSummaries } from "./api/teams.js";
 import { eventDetail, listEvents, toEventInput } from "./api/events.js";
 import { matchViews } from "./api/matches.js";
 import { trackRecord } from "./api/accuracy.js";
@@ -140,6 +140,9 @@ export function createApp() {
   }));
 
   api.get("/compare", h(async (req) => compareTeams(teamList(req.query.teams, "teams", 4), season(req.query.season))));
+
+  /** Many teams at once (shortlist, tracked teams): name, place, season stats, latest event. */
+  api.get("/teams-summary", h(async (req) => ({ season: season(req.query.season), teams: await teamSummaries(teamList(req.query.teams, "teams", 100), season(req.query.season)) })));
 
   // --- Predictions ---------------------------------------------------------
 

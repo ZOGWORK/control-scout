@@ -234,3 +234,11 @@ export interface CompareView {
 }
 
 export interface ApiError { error: string; detail?: string }
+
+export interface TeamSummary {
+  team: number; name: string | null; place: string;
+  opr: number | null; oprRank: number | null; of: number | null;
+  rating: number | null; ratingSd: number | null; record: string | null;
+  lastEvent: { code: string; name: string; start: string | null; end: string | null; rank: number | null; record: string | null } | null;
+  nextEvent: { code: string; name: string; start: string | null; end: string | null; rank: number | null; record: string | null } | null;
+}

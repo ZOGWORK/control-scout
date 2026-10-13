@@ -1,0 +1,31 @@
+<!doctype html>
+<html lang="en" data-ui="modern">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <title>FTC Control Scout — free FTC scouting & predictions</title>
+    <meta name="description" content="Search any FTC team, event or match. OPR breakdowns, event-by-event trends, match predictions with a public track record, advancement odds for any team at any event — free, no login." />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <link rel="manifest" href="/manifest.webmanifest" />
+    <meta name="theme-color" content="#0a0a0b" />
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="FTC Control Scout" />
+    <meta property="og:title" content="FTC Control Scout" />
+    <meta property="og:description" content="Free FTC scouting and predictions for every team — with a public track record of how often the predictions come true." />
+    <link rel="preload" href="/fonts/Inter-400.woff2" as="font" type="font/woff2" crossorigin />
+    <link rel="preload" href="/fonts/SpaceGrotesk-700.woff2" as="font" type="font/woff2" crossorigin />
+  </head>
+  <body>
+    <div id="root"></div>
+    <script>
+      // Apply the saved theme before React mounts (no flash). Dark graphite is the default.
+      try {
+        var s = JSON.parse(localStorage.getItem('cs-personal:settings') || 'null');
+        var t = s && s.value && s.value.theme;
+        if (t === 'light' || (t === 'system' && window.matchMedia && window.matchMedia('(prefers-color-scheme: light)').matches)) document.documentElement.classList.add('light');
+        if (s && s.value && s.value.density === 'compact') document.documentElement.classList.add('compact');
+      } catch (e) {}
+    </script>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>

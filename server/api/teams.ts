@@ -1,7 +1,7 @@
 // Team profile + compare.
 import { all, get } from "../db.js";
 import { CURRENT_SEASON } from "../data/seasons.js";
-import type { CompareView, TeamEventRow, TeamInfo, TeamProfile, TeamSeasonStats } from "../../src/shared/api.js";
+import type { CompareView, TeamEventRow, TeamInfo, TeamProfile, TeamSeasonStats, TeamSummary } from "../../src/shared/api.js";
 import { matchViews } from "./matches.js";
 
 export async function teamInfo(number: number): Promise<TeamInfo | null> {
@@ -109,4 +109,32 @@ export async function compareTeams(numbers: number[], season: number): Promise<C
     }
   }
   return { season, teams, meetings };
+}
+
+/** Compact summaries for many teams (shortlist, tracked-teams feed). */
+export async function teamSummaries(numbers: number[], season: number): Promise<TeamSummary[]> {
+  if (!numbers.length) return [];
+  const ph = numbers.map(() => "?").join(",");
+  const [infos, stats, lastEv] = await Promise.all([
+    all<any>(`SELECT number, name, city, state, country FROM teams WHERE number IN (${ph})`, numbers),
+    all<any>(`SELECT * FROM team_season_stats WHERE season = ? AND team IN (${ph})`, [season, ...numbers]),
+    all<any>(
+      `SELECT et.team, e.code, e.name, e.start, e.end, et.rank, et.wins, et.losses, et.ties FROM event_teams et JOIN events e ON e.season = et.season AND e.code = et.code
+       WHERE et.season = ? AND et.team IN (${ph}) ORDER BY e.start DESC`, [season, ...numbers]),
+  ]);
+  const today = new Date().toISOString().slice(0, 10);
+  return numbers.map((n) => {
+    const i = infos.find((x) => Number(x.number) === n);
+    const s = stats.find((x) => Number(x.team) === n);
+    const evs = lastEv.filter((x) => Number(x.team) === n);
+    const last = evs.find((e) => (e.start ?? "") <= today) ?? null;
+    const next = [...evs].reverse().find((e) => (e.start ?? "") > today) ?? null;
+    const ev = (e: any) => e && { code: e.code, name: e.name, start: e.start, end: e.end, rank: e.rank, record: e.wins == null ? null : `${e.wins}-${e.losses}-${e.ties}` };
+    return {
+      team: n, name: i?.name ?? null, place: [i?.city, i?.state, i?.country].filter(Boolean).join(", "),
+      opr: s?.opr_np ?? null, oprRank: s?.rank_np ?? null, of: s?.ranked_teams ?? null,
+      rating: s?.rating_np ?? null, ratingSd: s?.rating_sd ?? null, record: s ? `${s.wins}-${s.losses}-${s.ties}` : null,
+      lastEvent: ev(last), nextEvent: ev(next),
+    };
+  });
 }

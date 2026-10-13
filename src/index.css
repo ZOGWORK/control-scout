@@ -1,0 +1,156 @@
+/* FTC Control Scout — design tokens.
+   Ported 1:1 from Control Point's modern UI (src/index.css + src/modern/modern.css)
+   so the two apps feel like family: dark graphite + volt, Inter / Space Grotesk. */
+
+@font-face { font-family: "Inter"; font-weight: 400; font-style: normal; font-display: swap; src: url("/fonts/Inter-400.woff2") format("woff2"); }
+@font-face { font-family: "Inter"; font-weight: 500; font-style: normal; font-display: swap; src: url("/fonts/Inter-500.woff2") format("woff2"); }
+@font-face { font-family: "Inter"; font-weight: 600; font-style: normal; font-display: swap; src: url("/fonts/Inter-600.woff2") format("woff2"); }
+@font-face { font-family: "Inter"; font-weight: 700; font-style: normal; font-display: swap; src: url("/fonts/Inter-700.woff2") format("woff2"); }
+@font-face { font-family: "Inter"; font-weight: 800; font-style: normal; font-display: swap; src: url("/fonts/Inter-800.woff2") format("woff2"); }
+@font-face { font-family: "Space Grotesk"; font-weight: 500; font-style: normal; font-display: swap; src: url("/fonts/SpaceGrotesk-500.woff2") format("woff2"); }
+@font-face { font-family: "Space Grotesk"; font-weight: 600; font-style: normal; font-display: swap; src: url("/fonts/SpaceGrotesk-600.woff2") format("woff2"); }
+@font-face { font-family: "Space Grotesk"; font-weight: 700; font-style: normal; font-display: swap; src: url("/fonts/SpaceGrotesk-700.woff2") format("woff2"); }
+@font-face { font-family: "JetBrains Mono"; font-weight: 400; font-style: normal; font-display: swap; src: url("/fonts/JetBrainsMono-400.woff2") format("woff2"); }
+
+@import "tailwindcss";
+@import "tw-animate-css";
+
+@custom-variant dark (&:where(html:not(.light), html:not(.light) *));
+
+@theme {
+  --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
+  --font-display: "Space Grotesk", sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, monospace;
+
+  /* Volt & Carbon (Control Point modern, dark) */
+  --color-primary: var(--sh-background);
+  --color-secondary: #0e0e10;
+  --color-elevated: var(--sh-popover);
+  --color-accent: #ffc700;
+  --color-accent-hover: #ffd633;
+  --color-accent-ink: #231a00;
+  --color-accent-soft: #ffc7001f;
+  --color-line: var(--sh-border);
+  --color-info: #38bdf8;
+  --color-success: #34d399;
+  --color-warning: #fb923c;
+  --color-danger: #f43f5e;
+  --color-text-base: var(--sh-foreground);
+  --color-text-muted: var(--sh-muted-foreground);
+  /* Alliance colours (match cards, bars) */
+  --color-red-alliance: #f43f5e;
+  --color-blue-alliance: #38bdf8;
+
+  /* shadcn semantic names */
+  --color-background: var(--sh-background);
+  --color-foreground: var(--sh-foreground);
+  --color-card: var(--sh-card);
+  --color-card-foreground: var(--sh-card-foreground);
+  --color-popover: var(--sh-popover);
+  --color-popover-foreground: var(--sh-popover-foreground);
+  --color-muted: var(--sh-muted);
+  --color-muted-foreground: var(--sh-muted-foreground);
+  --color-border: var(--sh-border);
+  --color-input: var(--sh-input);
+  --color-ring: var(--color-accent);
+  --color-destructive: var(--sh-destructive);
+  --color-chart-1: var(--color-accent);
+  --color-chart-2: var(--sh-chart-2);
+  --color-chart-3: var(--sh-chart-3);
+  --color-chart-4: var(--sh-chart-4);
+  --color-chart-5: var(--sh-chart-5);
+}
+
+:root {
+  --sh-background: #0a0a0b;
+  --sh-foreground: #f4f4f5;
+  --sh-card: #111113;
+  --sh-card-foreground: #f4f4f5;
+  --sh-popover: #141416;
+  --sh-popover-foreground: #f4f4f5;
+  --sh-muted: #18181b;
+  --sh-muted-foreground: #a1a1aa;
+  --sh-border: #ffffff14;
+  --sh-input: #ffffff1c;
+  --sh-destructive: #f43f5e;
+  --sh-chart-2: #38bdf8;
+  --sh-chart-3: #34d399;
+  --sh-chart-4: #a78bfa;
+  --sh-chart-5: #fb923c;
+  --grid-rgb: 255 199 0;
+  --cp-grid-alpha: 0.07;
+  color-scheme: dark;
+}
+
+html.light {
+  --sh-background: #ffffff;
+  --sh-foreground: #09090b;
+  --sh-card: #ffffff;
+  --sh-card-foreground: #09090b;
+  --sh-popover: #ffffff;
+  --sh-popover-foreground: #09090b;
+  --sh-muted: #f4f4f5;
+  --sh-muted-foreground: #52525b;
+  --sh-border: #e4e4e7;
+  --sh-input: #e4e4e7;
+  --sh-destructive: #e11d48;
+  --sh-chart-2: #0284c7;
+  --sh-chart-3: #059669;
+  --sh-chart-4: #7c3aed;
+  --sh-chart-5: #ea580c;
+  --color-secondary: #fafafa;
+  --color-accent: #eab308;
+  --color-accent-hover: #ca8a04;
+  --color-accent-soft: #eab3081f;
+  --color-info: #0284c7;
+  --color-success: #059669;
+  --color-warning: #ea580c;
+  --color-danger: #e11d48;
+  --color-red-alliance: #e11d48;
+  --color-blue-alliance: #0284c7;
+  --grid-rgb: 9 9 11;
+  --cp-grid-alpha: 0.05;
+  color-scheme: light;
+}
+
+@layer base {
+  html { -webkit-text-size-adjust: 100%; }
+  body {
+    @apply bg-primary font-sans antialiased;
+    color: var(--color-text-base);
+    font-feature-settings: "cv11", "ss01";
+    -webkit-font-smoothing: antialiased;
+  }
+  h1, h2, h3, h4 { @apply font-display font-bold tracking-tight; }
+  ::selection { background: var(--color-accent); color: var(--color-accent-ink); }
+  :focus-visible { outline: 2px solid color-mix(in srgb, var(--color-accent) 70%, transparent); outline-offset: 2px; }
+  .tabular { font-variant-numeric: tabular-nums; }
+}
+
+/* Page canvas: a faint volt glow at the top over a dotted grid (Control Point .m-canvas). */
+.m-canvas {
+  background-image:
+    radial-gradient(1200px 320px at 50% -120px, color-mix(in srgb, var(--color-accent) 7%, transparent), transparent 70%),
+    radial-gradient(circle at 1px 1px, rgb(var(--grid-rgb) / var(--cp-grid-alpha)) 1px, transparent 0);
+  background-size: 100% 100%, 32px 32px;
+  background-attachment: fixed;
+}
+
+/* Thin scrollbars */
+.custom-scrollbar::-webkit-scrollbar { width: 6px; height: 6px; }
+.custom-scrollbar::-webkit-scrollbar-thumb { background: #2e2e35; border-radius: 999px; }
+.custom-scrollbar::-webkit-scrollbar-thumb:hover { background: #3f3f47; }
+html.light .custom-scrollbar::-webkit-scrollbar-thumb { background: #d4d4d8; }
+
+/* Compact density: tighter tables and cards. */
+html.compact .density-row { padding-top: 0.375rem; padding-bottom: 0.375rem; }
+html.compact .density-card { padding: 0.875rem; }
+
+@keyframes cs-shimmer { 0% { background-position: -400px 0; } 100% { background-position: 400px 0; } }
+.skeleton {
+  background: linear-gradient(90deg, var(--color-muted) 0px, color-mix(in srgb, var(--color-muted) 60%, var(--color-text-muted) 12%) 80px, var(--color-muted) 160px);
+  background-size: 800px 100%;
+  animation: cs-shimmer 1.4s linear infinite;
+  border-radius: 0.5rem;
+}
+@media (prefers-reduced-motion: reduce) { .skeleton { animation: none; } }

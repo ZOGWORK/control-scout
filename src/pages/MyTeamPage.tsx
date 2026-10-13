@@ -1,0 +1,134 @@
+// My Team dashboard: your team's next matches (with odds), recent results,
+// next event outlook, and activity from the teams and events you track.
+// Works with no account (saved on this device); signed in, it syncs.
+import { useState } from "react";
+import { Link } from "react-router-dom";
+import { CalendarDays, Eye, Star, Trophy, X } from "lucide-react";
+import { useApi, qs } from "../lib/api";
+import { useCurrentSeason, useTitle } from "../lib/meta";
+import { usePersonal } from "../lib/personal";
+import type { EventSummary, MatchView, TeamProfile, TeamSummary } from "../shared/api";
+import { PageHeader, Section, EmptyState, Stat } from "../components/page";
+import { Async } from "../components/states";
+import { Button } from "../components/ui/button";
+import { Badge } from "../components/ui/basic";
+import { MatchList } from "../components/predict";
+import { TeamInput } from "../components/TeamInput";
+import { EventCard } from "./Home";
+import { dateRange, num, topPct } from "../lib/format";
+
+export default function MyTeamPage() {
+  useTitle("My team");
+  const { state, set, user } = usePersonal();
+  const [draft, setDraft] = useState("");
+  if (!state.myTeam) {
+    return (
+      <div>
+        <PageHeader title="My team" description="Pick your team to get a personal dashboard: your next matches with predictions, recent results, your next event's odds, and news from teams you track." />
+        <div className="max-w-md rounded-2xl border border-border bg-card p-6">
+          <form onSubmit={(e) => { e.preventDefault(); if (draft) set("myTeam", Number(draft)); }} className="flex items-start gap-2">
+            <div className="flex-1"><TeamInput label="Your team number" value={draft} onChange={setDraft} autoFocus /></div>
+            <Button type="submit" className="h-11" disabled={!draft}><Star /> Set</Button>
+          </form>
+          <p className="mt-2 text-xs text-muted-foreground">{user ? "Saved to your account." : <>Saved on this device. <Link to="/settings#account" className="underline">Sign in</Link> to sync it across devices.</>}</p>
+        </div>
+      </div>
+    );
+  }
+  return <Dashboard team={state.myTeam} />;
+}
+
+function Dashboard({ team }: { team: number }) {
+  const season = useCurrentSeason();
+  const { set } = usePersonal();
+  const profile = useApi<TeamProfile>(`/api/teams/${team}${qs({ season })}`);
+  const matches = useApi<{ matches: MatchView[] }>(`/api/teams/${team}/matches${qs({ season })}`);
+  return (
+    <div>
+      <PageHeader eyebrow="My team" title={<Link to={`/teams/${team}`} className="hover:underline">{team} {profile.data?.team.name ?? ""}</Link>}
+        actions={<Button variant="ghost" size="sm" onClick={() => set("myTeam", null)}><X /> Change team</Button>} />
+      <Async state={profile}>
+        {(p) => {
+          const s = p.stats;
+          const today = new Date().toISOString().slice(0, 10);
+          const next = p.events.find((e) => (e.end ?? e.start ?? "") >= today);
+          return (
+            <>
+              <div className="mb-8 grid grid-cols-2 gap-6 rounded-2xl border border-border bg-card p-6 lg:grid-cols-4">
+                <Stat label="OPR" value={num(s?.opr.np.value)} hint={topPct(s?.opr.np.rank, s?.opr.np.of) ?? "not ranked yet"} />
+                <Stat label="Prediction rating" value={s?.rating ? num(s.rating.np) : "—"} hint={s?.rating ? `± ${num(s.rating.sd)} · ${s.rating.matches} matches` : "no matches this season yet"} />
+                <Stat label="Record" value={s ? `${s.record.wins}-${s.record.losses}-${s.record.ties}` : "—"} hint={s ? `${s.record.events} events` : undefined} />
+                <Stat label="Next event" value={next ? dateRange(next.start, next.end).split(",")[0] : "—"} hint={next?.name ?? "none scheduled in our data"} />
+              </div>
+              {next && (
+                <Section title={`Next event: ${next.name}`} description={dateRange(next.start, next.end)} action={<Button variant="secondary" size="sm" asChild><Link to={`/events/${next.season}/${next.code}?tab=odds&team=${team}`}><Trophy /> Advancement odds</Link></Button>}>
+                  <p className="text-sm text-muted-foreground">Open the odds tab for {team}'s chance to advance, captain and pick odds, likely rank and who'd make the best partner.</p>
+                </Section>
+              )}
+            </>
+          );
+        }}
+      </Async>
+      <Async state={matches} loading={<div className="skeleton h-40 rounded-xl" />}>
+        {(d) => {
+          const upcoming = d.matches.filter((m) => !m.played);
+          const recent = d.matches.filter((m) => m.played).slice(-6).reverse();
+          return (
+            <>
+              <Section title="Upcoming matches" description="With win odds from today's ratings (or the call already logged).">
+                <MatchList matches={upcoming} highlight={team} empty="No scheduled matches yet — schedules usually appear the morning of an event." />
+              </Section>
+              <Section title="Recent results" description="Was each one called before it was played?">
+                <MatchList matches={recent} highlight={team} empty="No matches played this season yet." />
+              </Section>
+            </>
+          );
+        }}
+      </Async>
+      <TrackedFeed season={season} />
+    </div>
+  );
+}
+
+function TrackedFeed({ season }: { season: number }) {
+  const { state, update } = usePersonal();
+  const teams = state.tracked.teams;
+  const events = state.tracked.events.filter((e) => e.startsWith(`${season}:`));
+  const summary = useApi<{ teams: TeamSummary[] }>(teams.length ? `/api/teams-summary${qs({ teams: teams.slice(0, 100).join(","), season })}` : null);
+  const evList = useApi<{ events: EventSummary[] }>(events.length ? `/api/events${qs({ season })}` : null);
+  return (
+    <>
+      <Section title="Tracked teams" description="Teams you follow — track any team from its page.">
+        {!teams.length ? <EmptyState icon={Eye} title="Not tracking any teams" description="Open a team and press Track. Tracked teams show up here and get priority in search." /> : (
+          <Async state={summary} loading={<div className="skeleton h-32 rounded-xl" />}>
+            {(d) => (
+              <ul className="grid gap-2 sm:grid-cols-2">
+                {d.teams.map((t) => (
+                  <li key={t.team} className="flex items-start gap-3 rounded-xl border border-border bg-card p-3">
+                    <Link to={`/teams/${t.team}?season=${season}`} className="min-w-0 flex-1">
+                      <p className="truncate font-medium"><span className="font-mono">{t.team}</span> <span className="text-muted-foreground">{t.name}</span></p>
+                      <p className="mt-0.5 text-xs text-muted-foreground">OPR {num(t.opr)}{t.oprRank ? ` (#${t.oprRank})` : ""} · rating {num(t.rating)} · {t.record ?? "no record"}</p>
+                      {t.lastEvent && <p className="mt-1 truncate text-xs">Last: {t.lastEvent.name}{t.lastEvent.rank ? ` — ranked #${t.lastEvent.rank}` : ""}</p>}
+                      {t.nextEvent && <p className="truncate text-xs text-accent">Next: {t.nextEvent.name} · {dateRange(t.nextEvent.start, t.nextEvent.end)}</p>}
+                    </Link>
+                    <Button variant="ghost" size="icon-sm" aria-label={`Stop tracking ${t.team}`} onClick={() => update("tracked", (x) => ({ ...x, teams: x.teams.filter((n) => n !== t.team) }))}><X /></Button>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </Async>
+        )}
+      </Section>
+      <Section title="Tracked events" description="Events you follow this season.">
+        {!events.length ? <EmptyState icon={CalendarDays} title="Not tracking any events" description="Open an event and press Track event." /> : (
+          <Async state={evList} loading={<div className="skeleton h-28 rounded-xl" />}>
+            {(d) => {
+              const evs = d.events.filter((e) => events.includes(`${e.season}:${e.code}`));
+              return <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">{evs.map((e) => <EventCard key={e.code} e={e} />)}{!evs.length && <Badge variant="outline">Tracked events aren't in this season's list</Badge>}</div>;
+            }}
+          </Async>
+        )}
+      </Section>
+    </>
+  );
+}
