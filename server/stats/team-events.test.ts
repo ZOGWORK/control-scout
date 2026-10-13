@@ -35,6 +35,9 @@ beforeAll(async () => {
   await migrate(c);
   await event("MEET1", "2025-11-01", 0, TEAMS, [101, 102, 103, 104, 105]); // 106 on the roster, didn't play
   await event("HYB", "2025-11-15", 1, TEAMS, TEAMS); // hybrid, ordinary 2v2 matches
+  // NOSHOW: 106 was scheduled into a match but never took the field.
+  await event("NOSHOW", "2025-11-22", 0, TEAMS, [101, 102, 103, 104, 105]);
+  await run("INSERT INTO match_teams (season, code, level, series, number, team, alliance, on_field) VALUES (?, 'NOSHOW', 'qual', 0, 1, 106, 'red', 0)", [S]);
   await computeSeasonStats(S, await loadSeason(S));
 });
 
@@ -45,8 +48,8 @@ describe("per-event team stats", () => {
     expect(rows.every((r) => r.opr_np != null)).toBe(true);
   });
   it("lists only events the team played once results exist", async () => {
-    expect((await teamEvents(S, 106)).map((e) => e.code)).toEqual(["HYB"]);
-    expect((await teamEvents(S, 101)).map((e) => e.code)).toEqual(["MEET1", "HYB"]);
+    expect((await teamEvents(S, 106)).map((e) => e.code)).toEqual(["HYB"]); // roster-only MEET1 and no-show NOSHOW hidden
+    expect((await teamEvents(S, 101)).map((e) => e.code)).toEqual(["MEET1", "HYB", "NOSHOW"]);
   });
   it("keeps upcoming events the team is registered for", async () => {
     await run("INSERT INTO events (season, code, name, type, start, end, source) VALUES (?, 'NEXT', 'NEXT', 'Qualifier', '2026-12-01', '2026-12-01', 'test')", [S]);
