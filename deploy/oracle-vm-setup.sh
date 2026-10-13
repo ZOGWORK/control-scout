@@ -15,8 +15,9 @@
 #     shared/data/                      SQLite + packs — the ONLY path the app can write
 #
 #   RELEASE         release directory name under releases/ (required)
-#   DOMAIN          nginx server_name (needs a DNS A record → this VM first)
-#   CERTBOT_EMAIL   first certificate only; later runs re-apply the existing one
+#   DOMAIN          primary domain: APP_URL, certificate name (needs a DNS A record → this VM)
+#   EXTRA_DOMAINS   space-separated aliases served by the same site and certificate
+#   CERTBOT_EMAIL   only if this VM has no Let's Encrypt account yet
 #   APP_PORT        internal port for a fresh install (default 3100; Control
 #                   Point uses 3000). Afterwards the PORT saved in shared/.env wins.
 set -euo pipefail
@@ -27,6 +28,8 @@ RELEASE="${RELEASE:?set RELEASE=<release dir under $APP_DIR/releases>}"
 REL_DIR="$APP_DIR/releases/$RELEASE"
 SHARED="$APP_DIR/shared"
 DOMAIN="${DOMAIN:-scout.tryctrlpoint.org}"
+EXTRA_DOMAINS="${EXTRA_DOMAINS:-}"
+ALL_DOMAINS="$DOMAIN $EXTRA_DOMAINS"
 CERTBOT_EMAIL="${CERTBOT_EMAIL:-}"
 SITE_CONF="/etc/nginx/sites-available/control-scout"
 UNIT="/etc/systemd/system/control-scout.service"
@@ -118,7 +121,7 @@ done
 cat > "$SITE_CONF" <<EOF
 server {
   listen 80;
-  server_name $DOMAIN;
+  server_name $ALL_DOMAINS;
   client_max_body_size 4m;
   location /.well-known/acme-challenge/ { root /var/www/certbot; }
   location / {
@@ -132,16 +135,17 @@ EOF
 ln -sf "$SITE_CONF" /etc/nginx/sites-enabled/control-scout
 nginx -t
 
-# HTTPS: re-apply an existing certificate on every update (no email needed);
-# request one only on the first run with CERTBOT_EMAIL.
-if [ -d "/etc/letsencrypt/live/$DOMAIN" ]; then
-  certbot install --nginx --cert-name "$DOMAIN" -d "$DOMAIN" --redirect --non-interactive
-elif [ -n "$CERTBOT_EMAIL" ]; then
-  command -v certbot >/dev/null || apt-get install -y certbot python3-certbot-nginx
-  certbot --nginx -d "$DOMAIN" -m "$CERTBOT_EMAIL" --agree-tos --non-interactive --redirect
-else
+# HTTPS: one certificate (named after DOMAIN) for every domain. Kept while
+# valid, expanded when a domain is added, re-applied to nginx on every update.
+# Uses the VM's existing Let's Encrypt account (Control Point made one);
+# CERTBOT_EMAIL is only needed on a VM without one.
+command -v certbot >/dev/null || apt-get install -y certbot python3-certbot-nginx
+D_ARGS=""; for d in $ALL_DOMAINS; do D_ARGS="$D_ARGS -d $d"; done
+ACCOUNT=$([ -n "$CERTBOT_EMAIL" ] && echo "-m $CERTBOT_EMAIL" || echo "")
+# shellcheck disable=SC2086
+if ! certbot --nginx --cert-name "$DOMAIN" $D_ARGS $ACCOUNT --agree-tos --non-interactive --redirect --keep-until-expiring --expand; then
   systemctl reload nginx
-  echo ">>> HTTP only: re-run with CERTBOT_EMAIL=… once DNS points here."
+  echo ">>> HTTPS failed (see above; DNS for every domain must point here). Serving HTTP only."
 fi
 
 sleep 8
