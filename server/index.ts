@@ -33,8 +33,9 @@ async function cycle(reason: string) {
     // Offline packs: rebuilt at most daily (they're versioned; devices see "new data available").
     // The timestamp alone isn't enough: an imported database carries
     // packs:last without the pack files, so also require a readable manifest.
+    // CS_PACKS=off: hosts with a throwaway disk (Render free) skip packs; /download says none are built.
     const lastPacks = await kvGet<string>("packs:last");
-    if (!lastPacks || Date.now() - Date.parse(lastPacks) > 23 * 3600_000 || !packsPresent()) {
+    if (process.env.CS_PACKS !== "off" && (!lastPacks || Date.now() - Date.parse(lastPacks) > 23 * 3600_000 || !packsPresent())) {
       try {
         await buildPacks((m) => log(`  ${m}`));
         await kvSet("packs:last", new Date().toISOString());
