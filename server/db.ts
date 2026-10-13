@@ -253,10 +253,46 @@ CREATE VIRTUAL TABLE search_fuzzy USING fts5(
 
 export type Db = Client;
 let client: Client | null = null;
+let replicaClient: Client | null = null;
 
 export function db(): Client {
   if (!client) client = openDb(env.databaseUrl, env.databaseToken);
   return client;
+}
+
+const isRemote = (url: string) => /^(libsql|https?|wss?):\/\//.test(url);
+
+/**
+ * Remote database (Turso) → an embedded replica: a local file that syncs from
+ * Turso. The app makes many small queries per page; over the network each one
+ * is a round trip (event pages took 80–110 s on Turso directly), locally they
+ * take microseconds. Writes go to Turso and show up locally after they commit.
+ *
+ * Call once at startup, before db() is first used. Downloads everything on the
+ * first sync, then re-syncs every `syncSeconds`. Falls back to the plain remote
+ * client if the replica can't sync, so a failure is never worse than before.
+ * DATABASE_REPLICA=off keeps the plain remote client.
+ */
+export async function openReplicaIfRemote(log: (m: string) => void, syncSeconds = 300): Promise<"replica" | "remote" | "local"> {
+  const url = env.databaseUrl;
+  if (!isRemote(url)) return "local";
+  if (process.env.DATABASE_REPLICA === "off" || client) return "remote";
+  const t0 = Date.now();
+  let replica: Client | null = null;
+  try {
+    // Inside the try: a read-only or missing data directory must fall back too.
+    const path = resolve(env.dataDir, "replica.db");
+    mkdirSync(dirname(path), { recursive: true });
+    replica = createClient({ url: `file:${path}`, syncUrl: url, authToken: env.databaseToken ?? undefined, syncInterval: syncSeconds });
+    const r = await replica.sync();
+    client = replicaClient = replica;
+    log(`database: embedded replica of ${url.replace(/^\w+:\/\//, "")} synced in ${((Date.now() - t0) / 1000).toFixed(1)} s (frames ${r?.frames_synced ?? "?"}), re-syncs every ${syncSeconds} s`);
+    return "replica";
+  } catch (e) {
+    try { replica?.close(); } catch { /* already unusable */ }
+    log(`database: replica unavailable (${(e as Error).message}); using the remote database directly`);
+    return "remote";
+  }
 }
 
 export function openDb(url: string, authToken?: string | null): Client {
@@ -271,7 +307,7 @@ export function openDb(url: string, authToken?: string | null): Client {
 export function setDb(c: Client): void { client = c; }
 
 export async function migrate(c: Client = db()): Promise<number[]> {
-  if (!c.protocol || c.protocol === "file") {
+  if ((!c.protocol || c.protocol === "file") && c !== replicaClient) { // a replica manages its own journal
     await c.execute("PRAGMA journal_mode = WAL");
     await c.execute("PRAGMA busy_timeout = 5000");
   }
