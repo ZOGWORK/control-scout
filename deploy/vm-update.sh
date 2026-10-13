@@ -52,7 +52,13 @@ fi
 git -C "$MIRROR" fetch --quiet "$URL" '+refs/heads/main:refs/heads/main'
 git -C "$MIRROR" merge-base --is-ancestor "$SHA" refs/heads/main || { echo "$SHA is not on main; refusing"; exit 1; }
 
-if [ "$(cat "$APP_DIR/current/RELEASE" 2>/dev/null)" = "$SHA" ]; then echo "$SHA is already live"; exit 0; fi
+# Skip only when this commit is installed AND the running server says it's ready
+# on it; a release that switched but never came up gets installed again.
+PORT="$(sed -n 's/^PORT=//p' "$APP_DIR/shared/.env" | tail -n1)"
+HEALTH="$(curl -fsS --max-time 5 "http://127.0.0.1:${PORT:-3100}/api/health" 2>/dev/null || true)"
+if [ "$(cat "$APP_DIR/current/RELEASE" 2>/dev/null)" = "$SHA" ] && echo "$HEALTH" | grep -q "\"release\":\"$SHA\"" && echo "$HEALTH" | grep -q '"ready":true'; then
+  echo "$SHA is already live and ready"; exit 0
+fi
 
 RELEASE="$(date -u +%Y%m%d%H%M%S)-${SHA:0:7}"
 REL_DIR="$APP_DIR/releases/$RELEASE"
