@@ -115,6 +115,8 @@ async function fuzzyRows(): Promise<FuzzyRow[]> {
     bigrams: bigrams(normalize(`${r.title} ${r.name}`)),
   })));
   rowsCache = { version, rows };
+  // A failed read (e.g. a brief database outage) must not stick: the next search retries.
+  rows.catch(() => { if (rowsCache?.rows === rows) rowsCache = null; });
   return rows;
 }
 
