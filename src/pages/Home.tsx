@@ -175,7 +175,7 @@ function TrackRecordCard() {
             <Link to="/methodology#accuracy" className="lift block rounded-2xl border border-border bg-card p-5">
               <p className="font-display text-6xl font-semibold tabular-nums text-accent">{pct(h.accuracy)}</p>
               <p className="mt-1 text-sm text-muted-foreground">of {h.n.toLocaleString()} matches called correctly</p>
-              <Badge variant={h.kind === "live" ? "success" : "secondary"} className="mt-2">{h.kind === "live" ? "Live — called before each match" : `Backtest · ${seasonLabel(h.season)}`}</Badge>
+              <Badge variant={h.kind === "live" ? "success" : "secondary"} className="mt-2">{h.kind === "live" ? "Live — called before each match" : `Predicted · ${seasonLabel(h.season)} (replayed)`}</Badge>
               {bins.length > 0 && (
                 <>
                   <div className="mt-5 flex h-20 items-end gap-1" role="img" aria-label="Calibration: how often teams at each predicted chance actually won">

@@ -139,7 +139,7 @@ function EventGlance({ d, onTab }: { d: EventDetail; onTab: (t: string) => void 
           {record.map((x, i) => (
             <span key={x.kind} className="block">
               <span className={cn("font-display font-semibold tabular-nums", i === 0 ? "text-3xl text-accent" : "text-lg")}>{Math.round((x.right / x.n) * 100)}%</span>
-              <span className="ml-2 text-sm text-muted-foreground">of {x.n} {x.kind === "live" ? "calls made before the match" : "matches, backtest (replayed from earlier data)"}</span>
+              <span className="ml-2 text-sm text-muted-foreground">of {x.n} {x.kind === "live" ? "calls made before the match" : "matches predicted from earlier data (replayed)"}</span>
             </span>
           ))}
         </button>
@@ -179,10 +179,10 @@ function Matches({ d, team }: { d: EventDetail; team: number | null }) {
           <ToggleGroupItem value="all">All</ToggleGroupItem><ToggleGroupItem value="qual">Quals</ToggleGroupItem><ToggleGroupItem value="playoff">Playoffs</ToggleGroupItem>
         </ToggleGroup>
         {team && <Button size="sm" variant={onlyTeam ? "secondary" : "outline"} onClick={() => setOnlyTeam(!onlyTeam)}>{onlyTeam ? `Only ${team}` : `Highlight ${team}`}</Button>}
-        {record.length > 0 && <span className="ml-auto text-xs text-muted-foreground">{record.map((x) => `${x.kind === "live" ? "Live calls" : "Backtest"} ${x.right}/${x.n} right (${Math.round((x.right / x.n) * 100)}%)`).join(" · ")}</span>}
+        {record.length > 0 && <span className="ml-auto text-xs text-muted-foreground">{record.map((x) => `${x.kind === "live" ? "Live calls" : "Predicted"} ${x.right}/${x.n} right (${Math.round((x.right / x.n) * 100)}%)`).join(" · ")}</span>}
       </div>
       {!d.matches.length ? <EmptyState icon={Swords} title="No schedule yet" description="The match schedule appears here once FIRST publishes it (usually the morning of the event)." /> : <MatchList matches={list} highlight={team ?? undefined} empty="No matches in this view." />}
-      <p className="text-xs text-muted-foreground">Played matches show the prediction logged before they were played (or, for past seasons, the backtest replay). Upcoming matches show odds from today's ratings.</p>
+      <p className="text-xs text-muted-foreground">Played matches show the prediction logged before they were played (or, for past seasons, the prediction replayed from the matches before it). Upcoming matches show odds from today's ratings.</p>
     </div>
   );
 }
