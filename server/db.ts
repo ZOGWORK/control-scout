@@ -249,6 +249,17 @@ CREATE VIRTUAL TABLE search_fuzzy USING fts5(
 );
 `,
   },
+  {
+    version: 5,
+    name: "indexes for event and team match lookups",
+    sql: `
+-- The unique key starts with kind, so lookups by (season, code) scanned the table.
+CREATE INDEX predictions_event ON predictions (season, code);
+-- Team match lists start from the team's lineup rows instead of every match in the season.
+CREATE INDEX match_teams_team_match ON match_teams (team, season, code, level, series, number);
+DROP INDEX IF EXISTS match_teams_team;
+`,
+  },
 ];
 
 export type Db = Client;
