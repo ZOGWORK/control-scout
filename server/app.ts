@@ -4,10 +4,10 @@ import express, { type NextFunction, type Request, type Response } from "express
 import compression from "compression";
 import { existsSync } from "node:fs";
 import { join } from "node:path";
-import { ENGINE_VERSION } from "@control-scout/predict-engine";
+import { ENGINE_VERSION, FITTED_MODEL } from "@control-scout/predict-engine";
 import { all, kvGet } from "./db.js";
 import { hasFirst } from "./env.js";
-import { CURRENT_SEASON, SEASONS, SEASON_NUMBERS } from "./data/seasons.js";
+import { CURRENT_SEASON, SEASONS, SEASON_NUMBERS, seasonInfo } from "./data/seasons.js";
 import { search } from "./api/search.js";
 import { teamProfile, compareTeams, teamSummaries } from "./api/teams.js";
 import { eventDetail, listEvents, toEventInput } from "./api/events.js";
@@ -125,6 +125,37 @@ export function createApp() {
     return { team, season: season(req.query.season), matches: await matchViews({ season: season(req.query.season), team }, { predictUnplayed: true }) };
   }));
 
+  /**
+   * Alerts feed: every match of the given teams (up to 200) that's unplayed
+   * and within the next day, or played in the last 6 hours — one request,
+   * so in-tab alerts cover every tracked team.
+   */
+  api.get("/alerts-feed", h(async (req) => {
+    const s = season(req.query.season);
+    const teams = teamList(req.query.teams, "teams", 200);
+    const ph = teams.map(() => "?").join(",");
+    const codes = await all<{ code: string }>(
+      `SELECT DISTINCT mt.code FROM match_teams mt JOIN events e ON e.season = mt.season AND e.code = mt.code
+       WHERE mt.season = ? AND mt.team IN (${ph}) AND e.start <= ? AND COALESCE(e.end, e.start) >= ?`,
+      [s, ...teams, new Date(Date.now() + 864e5).toISOString().slice(0, 10), new Date(Date.now() - 864e5).toISOString().slice(0, 10)],
+    );
+    const want = new Set(teams);
+    const now = Date.now();
+    const out = [];
+    // Every active event is read (bounded by the 200-team cap: a team is at one
+    // or two events in a ±1-day window), in parallel batches of 8.
+    for (let i = 0; i < codes.length; i += 8) {
+      const batch = await Promise.all(codes.slice(i, i + 8).map(({ code: c }) => matchViews({ season: s, code: c }, { predictUnplayed: true })));
+      for (const m of batch.flat()) {
+        if (![...m.red.teams, ...m.blue.teams].some((t) => want.has(t.number))) continue;
+        const at = m.startsAt ? Date.parse(m.startsAt) : NaN;
+        if (!Number.isFinite(at)) continue;
+        if ((!m.played && at > now && at - now < 864e5) || (m.played && now - at < 6 * 3600_000)) out.push(m);
+      }
+    }
+    return { season: s, matches: out };
+  }));
+
   api.get("/events", h(async (req) => ({
     events: await listEvents({
       season: season(req.query.season), from: req.query.from ? String(req.query.from) : undefined, to: req.query.to ? String(req.query.to) : undefined,
@@ -183,8 +214,12 @@ export function createApp() {
       const fc = mode === "pre-event" ? f.preEventForecast(ev, team, 2000) : f.forecast(ev, team, 2000);
       if (!fc) throw new HttpError(503, "Ratings for this season aren't ready yet.");
       const finished = d.event.status === "finished";
+      // 2025+ games award bonus ranking points; without a fitted model for this
+      // season the simulator can't include them — say so instead of hiding it.
+      const bonusModelled = s < 2025 || !!FITTED_MODEL.bonus[String(s)];
+      const assumptions = bonusModelled ? fc.assumptions : [...fc.assumptions, `Bonus ranking points for ${seasonInfo(s).game} aren't modelled yet (no fitted model for this season), so simulated ranks count win/tie points only — real ranks and the odds that depend on them may differ.`];
       return {
-        ...fc, eventName: d.event.name, eventStart: d.event.start, eventEnd: d.event.end, myTeam: team, engineVersion: ENGINE_VERSION, mode,
+        ...fc, assumptions, bonusModelled, eventName: d.event.name, eventStart: d.event.start, eventEnd: d.event.end, myTeam: team, engineVersion: ENGINE_VERSION, mode,
         hindsightNote: mode === "current" && finished ? "This event is over: these odds use ratings that already include its results. Switch to “Before the event” for the forecast made without hindsight." : null,
       };
     });
