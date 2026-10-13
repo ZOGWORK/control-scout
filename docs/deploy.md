@@ -44,7 +44,7 @@ matches, already computed). `db:export` makes a consistent single-file copy
 ```bash
 npm run db:export
 scp -i ~/.ssh/oracle-controlpoint .data/scout-export.db ubuntu@132.145.202.89:/tmp/scout.db
-ssh -i ~/.ssh/oracle-controlpoint ubuntu@132.145.202.89 'sudo systemctl stop control-scout 2>/dev/null; cd /opt/control-scout/shared/data && sudo rm -f scout.db-wal scout.db-shm && sudo install -o controlscout -g controlscout -m 600 /tmp/scout.db scout.db && rm /tmp/scout.db'
+ssh -i ~/.ssh/oracle-controlpoint ubuntu@132.145.202.89 'D=/opt/control-scout/shared/data; sudo systemctl stop control-scout 2>/dev/null; sudo rm -f $D/scout.db-wal $D/scout.db-shm && sudo install -o controlscout -g controlscout -m 600 /tmp/scout.db $D/scout.db && rm /tmp/scout.db'
 ```
 
 (The service is stopped first and the old WAL files removed, so the new

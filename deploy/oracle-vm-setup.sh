@@ -77,6 +77,7 @@ ln -sfn "$SHARED/data" "$REL_DIR/.data"
 chown -R "$APP_USER:$APP_USER" "$REL_DIR"
 sudo -u "$APP_USER" HOME="$SHARED/data" bash -c "cd '$REL_DIR' && npm ci --no-audit --no-fund --loglevel=error && npm run build"
 chown -R root:root "$REL_DIR"
+chmod 755 "$REL_DIR"   # readable (not writable) by the app user
 chown -h root:root "$REL_DIR/.env" "$REL_DIR/.data"
 
 cat > "$UNIT" <<EOF

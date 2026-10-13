@@ -23,6 +23,7 @@ set -e
 install -d -o root -g root -m 755 $APP_DIR $APP_DIR/releases
 mv '$TMP' $APP_DIR/releases/$RELEASE
 chown -R root:root $APP_DIR/releases/$RELEASE
+chmod 755 $APP_DIR/releases/$RELEASE   # mktemp made it 700; the app user must read it
 RELEASE='$RELEASE' DOMAIN='${DOMAIN:-scout.tryctrlpoint.org}' CERTBOT_EMAIL='${CERTBOT_EMAIL:-}' APP_PORT='${APP_PORT:-}' \
   bash $APP_DIR/releases/$RELEASE/deploy/oracle-vm-setup.sh
 REMOTE
