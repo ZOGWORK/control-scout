@@ -59,21 +59,32 @@ function MatchLab() {
   const [blue, setBlue] = useState<string[]>(() => { const x = init("blue"); return [x[0] ?? "", x[1] ?? ""]; });
   const ready = red.every((x) => x) && blue.every((x) => x);
   const query = ready ? `/api/predict/match${qs({ season, red: red.join(","), blue: blue.join(",") })}` : null;
-  const [submitted, setSubmitted] = useState<string | null>(ready ? query : null);
-  // Saved links and back/forward change the URL on this same page: follow it.
+  // The matchup last asked for (from the URL or the Predict button). Typing in
+  // the inputs edits a draft; the season switch never touches the draft.
+  type Matchup = { red: number[]; blue: number[] };
+  const parse = (r: string, b: string): Matchup | null => {
+    const red = r.split(",").filter(Boolean).map(Number), blue = b.split(",").filter(Boolean).map(Number);
+    const all = [...red, ...blue];
+    return red.length === 2 && blue.length === 2 && all.every((t) => Number.isInteger(t) && t > 0) && new Set(all).size === 4 ? { red, blue } : null;
+  };
   const urlRed = sp.get("red") ?? "", urlBlue = sp.get("blue") ?? "";
+  const [submittedTeams, setSubmittedTeams] = useState<Matchup | null>(() => parse(urlRed, urlBlue));
+  // Saved links and back/forward change the URL on this same page: follow it.
   useEffect(() => {
     const r = urlRed.split(",").filter(Boolean), b = urlBlue.split(",").filter(Boolean);
-    const nr = [r[0] ?? "", r[1] ?? ""], nb = [b[0] ?? "", b[1] ?? ""];
-    setRed(nr);
-    setBlue(nb);
-    setSubmitted(nr.every(Boolean) && nb.every(Boolean) ? `/api/predict/match${qs({ season, red: nr.join(","), blue: nb.join(",") })}` : null);
-  }, [urlRed, urlBlue, season]);
+    setRed([r[0] ?? "", r[1] ?? ""]);
+    setBlue([b[0] ?? "", b[1] ?? ""]);
+    setSubmittedTeams(parse(urlRed, urlBlue));
+  }, [urlRed, urlBlue]);
+  const submitted = submittedTeams ? `/api/predict/match${qs({ season, red: submittedTeams.red.join(","), blue: submittedTeams.blue.join(",") })}` : null;
   const state = useApi<MatchExplanationView>(submitted);
-  const offline = useOfflineFallback(state.error?.offline ? { season, red: red.map(Number), blue: blue.map(Number) } : null);
+  // Offline: the submitted (validated) matchup — never the half-typed draft.
+  const offline = useOfflineFallback(state.error?.offline && submittedTeams ? { season, ...submittedTeams } : null);
   const run = () => {
     if (!ready) return;
-    setSubmitted(query);
+    const m = parse(red.join(","), blue.join(","));
+    if (!m) { toast.error("Pick four different teams"); return; }
+    setSubmittedTeams(m);
     setSp((x) => { x.set("mode", "match"); x.set("season", String(season)); x.set("red", red.join(",")); x.set("blue", blue.join(",")); return x; }, { replace: true });
   };
   const swap = () => { setRed(blue); setBlue(red); };

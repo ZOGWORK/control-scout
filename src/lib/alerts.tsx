@@ -41,28 +41,29 @@ export function AlertsRunner() {
     const tick = async () => {
       const s = ref.current;
       const n = s.settings.notify;
-      const teams = [...new Set([...(n.myTeamMatches && s.myTeam ? [s.myTeam] : []), ...(n.trackedTeams || n.upsets ? s.tracked.teams.slice(0, 10) : [])])];
-      for (const team of teams) {
-        if (stopped) return;
-        const r = await apiFetch<{ matches: MatchView[] }>(`/api/teams/${team}/matches?season=${season}`).catch(() => null);
-        if (!r) continue;
+      const tracked = n.trackedTeams || n.upsets ? s.tracked.teams : [];
+      const teams = [...new Set([...(n.myTeamMatches && s.myTeam ? [s.myTeam] : []), ...tracked])].slice(0, 200);
+      if (teams.length && !stopped) {
+        // One request for every tracked team (the server picks the matches that matter now).
+        const r = await apiFetch<{ matches: MatchView[] }>(`/api/alerts-feed?season=${season}&teams=${teams.join(",")}`).catch(() => null);
         const now = Date.now();
-        const mine = team === s.myTeam;
-        for (const m of r.matches) {
-          const side = sideOf(m, team);
-          if (!side) continue;
-          const url = `/events/${m.season}/${m.code}?team=${team}`;
-          const start = m.startsAt ? Date.parse(m.startsAt) : NaN;
-          if (!m.played && (mine ? n.myTeamMatches : n.trackedTeams) && start > now && start - now <= LEAD_MS) {
-            const p = m.prediction ? (side === "red" ? m.prediction.pRed : 1 - m.prediction.pRed) : null;
-            notify(`soon:${m.code}:${m.key}:${team}`, `${team} plays ${m.label} in ${Math.max(1, Math.round((start - now) / 60_000))} min`, `${m.code}${p != null ? ` · ${oddsPct(p)} to win (${m.prediction!.tier})` : ""}`, url);
-          }
-          if (m.played && n.upsets && m.prediction && m.red.score && m.blue.score && m.red.score.total !== m.blue.score.total && m.startsAt && now - Date.parse(m.startsAt) < 6 * 3600_000) {
-            const redWon = m.red.score.total > m.blue.score.total;
-            const upset = (m.prediction.pRed > 0.5) !== redWon;
-            if (upset) {
-              const won = (side === "red") === redWon;
-              notify(`upset:${m.code}:${m.key}`, `Upset: ${team} ${won ? "won" : "lost"} ${m.label}`, `${m.red.score.total}–${m.blue.score.total} · they were ${oddsPct(side === "red" ? m.prediction.pRed : 1 - m.prediction.pRed)} before the match`, url);
+        for (const m of r?.matches ?? []) {
+          for (const team of teams) {
+            const side = sideOf(m, team);
+            if (!side) continue;
+            const mine = team === s.myTeam;
+            const url = `/events/${m.season}/${m.code}?team=${team}`;
+            const start = m.startsAt ? Date.parse(m.startsAt) : NaN;
+            if (!m.played && (mine ? n.myTeamMatches : n.trackedTeams) && start > now && start - now <= LEAD_MS) {
+              const p = m.prediction ? (side === "red" ? m.prediction.pRed : 1 - m.prediction.pRed) : null;
+              notify(`soon:${m.code}:${m.key}:${team}`, `${team} plays ${m.label} in ${Math.max(1, Math.round((start - now) / 60_000))} min`, `${m.code}${p != null ? ` · ${oddsPct(p)} to win (${m.prediction!.tier})` : ""}`, url);
+            }
+            if (m.played && n.upsets && m.prediction && m.red.score && m.blue.score && m.red.score.total !== m.blue.score.total) {
+              const redWon = m.red.score.total > m.blue.score.total;
+              if ((m.prediction.pRed > 0.5) !== redWon) {
+                const won = (side === "red") === redWon;
+                notify(`upset:${m.code}:${m.key}`, `Upset: ${team} ${won ? "won" : "lost"} ${m.label}`, `${m.red.score.total}–${m.blue.score.total} · they were ${oddsPct(side === "red" ? m.prediction.pRed : 1 - m.prediction.pRed)} before the match`, url);
+              }
             }
           }
         }

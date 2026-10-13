@@ -5,7 +5,7 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { apiFetch } from "./api";
 import { cleanValue, EMPTY_STATE, PERSONAL_KEYS, type PersonalKey, type PersonalState, type Stamped } from "../shared/personal";
-import { clearLocalScouting, localScoutEntries } from "./scouting";
+import { clearLocalScouting, exportLocalScouting, importLocalScouting, localScoutEntries } from "./scouting";
 
 export interface AccountUser { id: number; email: string | null; displayName: string | null; createdAt: string }
 export type SyncStatus = "local" | "synced" | "syncing" | "offline" | "error";
@@ -55,6 +55,22 @@ function setPendingMap(p: Partial<Record<PersonalKey, number>>) { try { localSto
 function markPending(k: PersonalKey, version: number) { const p = pending(); p[k] = Math.max(p[k] ?? 0, version); setPendingMap(p); }
 /** Clear a key's marker only if nothing newer than `version` is waiting. */
 function ackPending(k: PersonalKey, version: number) { const p = pending(); if ((p[k] ?? 0) <= version) { delete p[k]; setPendingMap(p); } }
+/**
+ * Each account's copy on this device is kept under its own key when another
+ * account signs in — including edits that haven't reached the server yet —
+ * and restored (then synced) the next time that account signs in here.
+ */
+const STASH = (owner: string) => `cs-stash:${owner}`;
+interface Stash { personal: Partial<Record<PersonalKey, Stamped<unknown>>>; pending: Partial<Record<PersonalKey, number>>; scouting: ReturnType<typeof exportLocalScouting> }
+function stashOwner(owner: string, live: Record<PersonalKey, Stamped<any> | null>) {
+  const s: Stash = { personal: Object.fromEntries(PERSONAL_KEYS.filter((k) => live[k]).map((k) => [k, live[k]!])), pending: pending(), scouting: exportLocalScouting() };
+  try { localStorage.setItem(STASH(owner), JSON.stringify(s)); }
+  catch { throw new Error("This device is out of storage, so it can't keep the other account's unsynced data aside. Free some space and sign in again."); }
+}
+function takeStash(owner: string): Stash | null {
+  try { const raw = localStorage.getItem(STASH(owner)); if (!raw) return null; localStorage.removeItem(STASH(owner)); return JSON.parse(raw); } catch { return null; }
+}
+
 const getOwner = () => { try { return localStorage.getItem(OWNER) ?? ""; } catch { return ""; } };
 const setOwner = (v: string) => { try { localStorage.setItem(OWNER, v); } catch { /* ignore */ } };
 
@@ -131,7 +147,10 @@ export function PersonalProvider({ children }: { children: ReactNode }) {
     }
   }, [apply]);
 
+  const connecting = useRef(false);
   const connect = useCallback(async (u: AccountUser) => {
+    if (connecting.current) return;
+    connecting.current = true;
     setUser(u);
     userRef.current = u;
     readyRef.current = false;
@@ -141,12 +160,22 @@ export function PersonalProvider({ children }: { children: ReactNode }) {
       const owner = getOwner();
       if (owner === "") await migrate();
       else if (owner !== String(u.id)) {
-        // This device holds another account's data (it's safe on the server).
-        // Set it aside rather than absorbing it into this account.
+        // This device holds another account's copy: keep it aside (unsent edits
+        // included) rather than absorbing it into this account or deleting it.
+        stashOwner(owner, stamped.current);
         for (const k of PERSONAL_KEYS) { try { localStorage.removeItem(LS(k)); } catch { /* ignore */ } stamped.current[k] = null; }
         setPendingMap({});
         clearLocalScouting();
         setState(EMPTY_STATE);
+        setOwner(String(u.id));
+        // This account's own copy from an earlier visit, if any: back in place,
+        // its unsent edits still pending.
+        const mine = takeStash(String(u.id));
+        if (mine) {
+          for (const [k, s] of Object.entries(mine.personal) as [PersonalKey, Stamped<any>][]) apply(k, s);
+          setPendingMap(mine.pending ?? {});
+          importLocalScouting(mine.scouting ?? { entries: [], dirty: [] });
+        }
         await pull();
       } else await pull();
       setOwner(String(u.id));
@@ -155,13 +184,19 @@ export function PersonalProvider({ children }: { children: ReactNode }) {
       await push();
       if (!Object.keys(pending()).length) setSync("synced");
     } catch (e: any) { setSync(e?.offline ? "offline" : "error"); }
-  }, [migrate, pull, push]);
+    finally { connecting.current = false; }
+  }, [apply, migrate, pull, push]);
 
   useEffect(() => {
     apiFetch<{ user: AccountUser | null; providers: { email: boolean; google: boolean } }>("/api/auth/me")
       .then((r) => { setProviders(r.providers); if (r.user) connect(r.user); })
       .catch(() => setProviders({ email: false, google: false }));
-    const retry = () => { if (userRef.current && Object.keys(pending()).length) push(); };
+    const retry = () => {
+      const u = userRef.current;
+      if (!u) return;
+      if (!readyRef.current) connect(u); // the sign-in sync didn't finish (e.g. offline): redo it
+      else if (Object.keys(pending()).length) push();
+    };
     window.addEventListener("online", retry);
     const t = setInterval(retry, 30_000);
     // Another tab changed something: reload it.
