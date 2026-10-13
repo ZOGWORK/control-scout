@@ -32,7 +32,7 @@ export default function PredictPage() {
   const setMode = (m: string) => setSp((x) => { x.set("mode", m); return x; }, { replace: true });
   return (
     <div>
-      <PageHeader title="Prediction lab" description={<>Win odds for any alliance against any other, and advancement odds for any team at any event. Every number comes with its confidence — and the <Link to="/predict/accuracy" className="underline">track record</Link> shows how often they've been right.</>} />
+      <PageHeader title="Prediction lab" description={<>Win odds for any alliance against any other, and advancement odds for any team at any event. Every number comes with its confidence — and the <Link to="/methodology#accuracy" className="underline">track record</Link> shows how often they've been right.</>} />
       <Tabs value={mode} onValueChange={setMode}>
         <TabsList>
           <TabsTrigger value="match"><Swords className="size-4" /> Match</TabsTrigger>
