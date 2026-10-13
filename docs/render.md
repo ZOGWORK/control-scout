@@ -28,14 +28,21 @@ otherwise skip Vite and the other build tools).
 
 ## Database (Turso)
 
-1. Locally: `npm run db:export` → `.data/scout-export.db` (a consistent copy in
-   WAL mode, ~165 MB, all synced seasons and the prediction ledger).
-2. Turso dashboard → Create database → name `control-scout`, group
-   `ftc-control-point-iad` (US East, next to the Render service; a separate
-   database from Control Point's) → **Upload** `.data/scout-export.db`
-   (or with the CLI in WSL/macOS: `turso db import .data/scout-export.db`).
-3. Copy its URL and create a token (Turso → database → Create token) into the
-   Render secrets above. Saving them redeploys the service.
+1. Turso dashboard → Create Database → name `control-scout`, group
+   `ftc-control-point-iad` (US East, next to the Render service; separate from
+   Control Point's databases). Copy its URL and create a token.
+2. From this repo (one command, the token stays on your machine):
+
+   ```bash
+   npm run db:export
+   PUSH_DATABASE_URL=libsql://control-scout-….turso.io PUSH_DATABASE_AUTH_TOKEN=… npm run db:push
+   ```
+
+   `db:push` creates the schema from our migrations, copies the public data
+   (~1M rows: teams, events, matches, stats, the prediction ledger) and
+   rebuilds search. Local accounts, sessions and scouting stay here. Re-runnable.
+3. Put the same URL and token into the Render secrets above
+   (`DATABASE_URL`, `DATABASE_AUTH_TOKEN`). Saving redeploys the service.
 
 Migrations run on start, so the schema stays current; the scheduler syncs the
 current season and updates the ledger whenever the service is awake.
