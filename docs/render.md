@@ -49,6 +49,13 @@ current season and updates the ledger whenever the service is awake.
 
 ## Moving to the Oracle VM later
 
-`turso db shell control-scout .dump > scout.sql` (or keep using the local
-export) and follow [deploy.md](deploy.md); the app only needs `DATABASE_URL`
-pointing back at a local file.
+Bring Turso's current data back into a local file, then follow
+[deploy.md](deploy.md) step 4 as written (it uploads `.data/scout-export.db`):
+
+```bash
+turso db shell control-scout .dump > scout.sql
+rm -f .data/scout-export.db && sqlite3 .data/scout-export.db < scout.sql
+```
+
+On the VM the app reads the local file (`DATABASE_URL` in `shared/.env`), so
+no Turso settings carry over.

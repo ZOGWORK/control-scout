@@ -11,7 +11,8 @@
 // Versions are dated (YYYY-MM-DD.N); the last few are kept so a device that
 // started a download mid-release still finishes it.
 import { createHash } from "node:crypto";
-import { closeSync, copyFileSync, existsSync, mkdirSync, openSync, readdirSync, readFileSync, renameSync, rmSync, statSync, writeFileSync } from "node:fs";
+import { closeSync, copyFileSync, existsSync, mkdirSync, openSync, readdirSync, readFileSync, renameSync, rmSync, statSync, writeFileSync, writeSync } from "node:fs";
+import { hostname } from "node:os";
 import { join } from "node:path";
 import { gzipSync } from "node:zlib";
 import { createClient } from "@libsql/client";
@@ -113,22 +114,37 @@ export async function buildFull(season: number, version: string, dir: string, lo
 }
 
 /** Lock shared by every build path (the scheduler and `npm run packs`), so two
- *  builds never pick the same version and overwrite each other's files. A lock
- *  older than LOCK_STALE_MS is left over from a crashed build and is taken over. */
+ *  builds never pick the same version and overwrite each other's files. The
+ *  lock records its owner (host + pid): a lock whose process is gone (a restart
+ *  mid-build) is taken over at once; any lock older than LOCK_STALE_MS is too. */
 const LOCK_STALE_MS = 2 * 3600_000;
+const alive = (pid: number) => { try { process.kill(pid, 0); return true; } catch (e) { return (e as NodeJS.ErrnoException).code === "EPERM"; } };
+let holding = false; // this process is building right now
+function lockIsStale(lock: string): boolean {
+  try {
+    const age = Date.now() - statSync(lock).mtimeMs;
+    if (age > LOCK_STALE_MS) return true;
+    const text = readFileSync(lock, "utf8");
+    if (!text) return age > 10_000; // just created; its owner is still writing
+    const owner = JSON.parse(text) as { host?: string; pid?: number };
+    if (owner.host !== hostname() || typeof owner.pid !== "number") return false;
+    // Our own pid but not building: a previous run (e.g. a restarted container reusing the pid).
+    if (owner.pid === process.pid) return !holding;
+    return !alive(owner.pid);
+  } catch { return true; }
+}
 export async function withPackLock<T>(dir: string, fn: () => Promise<T>): Promise<T> {
   mkdirSync(dir, { recursive: true });
   const lock = join(dir, ".build.lock");
-  try {
-    if (Date.now() - statSync(lock).mtimeMs > LOCK_STALE_MS) rmSync(lock, { force: true });
-  } catch { /* no lock */ }
+  if (existsSync(lock) && lockIsStale(lock)) rmSync(lock, { force: true });
   let fd: number;
   try { fd = openSync(lock, "wx"); } catch (e) {
     if ((e as NodeJS.ErrnoException).code === "EEXIST") throw new Error("Another pack build is running; skipped.");
     throw e;
   }
-  closeSync(fd);
-  try { return await fn(); } finally { rmSync(lock, { force: true }); }
+  try { writeSync(fd, JSON.stringify({ host: hostname(), pid: process.pid, at: new Date().toISOString() })); } finally { closeSync(fd); }
+  holding = true;
+  try { return await fn(); } finally { holding = false; rmSync(lock, { force: true }); }
 }
 
 export async function buildPacks(log: (m: string) => void = () => {}): Promise<Manifest> {

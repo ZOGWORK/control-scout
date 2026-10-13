@@ -1,5 +1,5 @@
 import { existsSync, mkdtempSync, utimesSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { hostname, tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { withPackLock } from "./build.js";
@@ -22,6 +22,24 @@ describe("withPackLock", () => {
     writeFileSync(lock, "");
     const old = (Date.now() - 3 * 3600_000) / 1000;
     utimesSync(lock, old, old);
+    await expect(withPackLock(dir, async () => "ok")).resolves.toBe("ok");
+  });
+
+  it("takes over a fresh lock whose process is gone (restart mid-build)", async () => {
+    const dir = mkdtempSync(join(tmpdir(), "cs-lock-"));
+    writeFileSync(join(dir, ".build.lock"), JSON.stringify({ host: hostname(), pid: 2 ** 22 + 12345 }));
+    await expect(withPackLock(dir, async () => "ok")).resolves.toBe("ok");
+  });
+
+  it("keeps a fresh lock held by another live process", async () => {
+    const dir = mkdtempSync(join(tmpdir(), "cs-lock-"));
+    writeFileSync(join(dir, ".build.lock"), JSON.stringify({ host: hostname(), pid: process.ppid }));
+    await expect(withPackLock(dir, async () => "x")).rejects.toThrow(/Another pack build/);
+  });
+
+  it("takes over a lock with this process's own pid when it isn't building (reused pid)", async () => {
+    const dir = mkdtempSync(join(tmpdir(), "cs-lock-"));
+    writeFileSync(join(dir, ".build.lock"), JSON.stringify({ host: hostname(), pid: process.pid }));
     await expect(withPackLock(dir, async () => "ok")).resolves.toBe("ok");
   });
 
