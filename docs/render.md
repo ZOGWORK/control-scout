@@ -26,7 +26,27 @@ otherwise skip Vite and the other build tools).
 `DATABASE_URL` (`libsql://…turso.io`), `DATABASE_AUTH_TOKEN`,
 `FTC_EVENTS_USERNAME`, `FTC_EVENTS_TOKEN`, `RESEND_API_KEY`.
 
-## Database (Turso)
+## Data out of the box: the shipped snapshot
+
+The repo ships `data/snapshot.db.br`: the public FTC data (teams, events,
+matches, stats, prediction ledger, search index; ~33 MB compressed). When the
+server boots with an **empty local** database, which on Render's free plan is
+every boot since the disk is wiped, it streams the snapshot into place first.
+So the site works with no database service and no secrets. It never
+overwrites real data, and it's skipped entirely once `DATABASE_URL` points
+at Turso.
+
+Refresh it now and then (data is as fresh as the last snapshot until FIRST
+credentials let the server sync on its own):
+
+```bash
+npm run sync -- --season 2026 && npm run stats && npm run snapshot
+```
+
+Accounts, sessions, email codes, personal state and scouting are always
+emptied from the snapshot.
+
+## Database (Turso), for data that persists and refreshes itself
 
 1. Turso dashboard → Create Database → name `control-scout`, group
    `ftc-control-point-iad` (US East, next to the Render service; separate from

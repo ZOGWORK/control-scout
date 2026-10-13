@@ -13,6 +13,8 @@ export interface Meta {
   statsAt: string | null;
   auth: { email: boolean; google: boolean };
   firstConfigured: boolean;
+  /** False on a server whose database has no FTC data yet. */
+  dataLoaded: boolean;
 }
 
 export interface SearchHit {

@@ -26,6 +26,7 @@
     "packs": "tsx scripts/build-packs.ts",
     "db:export": "tsx scripts/db-export.ts",
     "db:push": "tsx scripts/db-push.ts",
+    "snapshot": "tsx scripts/snapshot.ts",
     "equivalence": "tsx scripts/engine-equivalence.ts",
     "shots": "tsx scripts/shots.ts",
     "audit": "tsx scripts/audit.ts",
