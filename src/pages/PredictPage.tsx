@@ -15,12 +15,13 @@ import { Button } from "../components/ui/button";
 import { Badge, Input } from "../components/ui/basic";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "../components/ui/tabs";
 import { toast } from "../components/ui/sonner";
-import { ConfidenceBadge, FactorList, MatchList, WinBar } from "../components/predict";
+import { CalibrationLine, ConfidenceBadge, FactorList, MatchList, WinBar } from "../components/predict";
 import { TeamInput } from "../components/TeamInput";
 import { SeasonToggle } from "../components/SeasonToggle";
 import { AdvancementView } from "../components/Advancement";
 import { cn } from "../components/cn";
 import { dateRange, num, oddsPct, seasonLabel } from "../lib/format";
+import { copyLink } from "../lib/clipboard";
 
 type Mode = "match" | "advancement" | "upcoming";
 
@@ -149,7 +150,7 @@ function MatchResult({ x, offlineAsOf }: { x: MatchExplanationView; offlineAsOf?
     update("predictionHistory", (h) => [{ id: `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`, season: x.season, red: x.red, blue: x.blue, winProbRed: x.winProbRed, predictedRed: x.predictedRed, predictedBlue: x.predictedBlue, tier: x.confidence.tier, savedAt: Date.now() }, ...h].slice(0, 200));
     toast.success("Saved to your predictions");
   };
-  const share = () => { navigator.clipboard?.writeText(location.href).then(() => toast.success("Link copied"), () => toast.error("Couldn't copy the link")); };
+  const share = () => copyLink();
   return (
     <div className="space-y-4">
       <div className="relative overflow-hidden rounded-2xl border border-border bg-card p-6">
@@ -171,7 +172,13 @@ function MatchResult({ x, offlineAsOf }: { x: MatchExplanationView; offlineAsOf?
           <div><p className="text-muted-foreground">Predicted score</p><p className="font-display text-2xl font-semibold tabular-nums">{x.predictedRed}</p><p className="text-xs text-muted-foreground">80% of the time between {x.rangeRed[0]} and {x.rangeRed[1]}</p></div>
           <div className="text-right"><p className="text-muted-foreground">Predicted score</p><p className="font-display text-2xl font-semibold tabular-nums">{x.predictedBlue}</p><p className="text-xs text-muted-foreground">80% of the time between {x.rangeBlue[0]} and {x.rangeBlue[1]}</p></div>
         </div>
-        <p className="mt-4 text-xs text-muted-foreground">{fav} is favoured — not certain. This is a probability from current ratings, including penalties each side tends to give away. Engine v{x.engineVersion}.</p>
+        <p className="mt-4 text-xs text-muted-foreground">{fav} is favoured — not certain. This is a probability from current ratings, including penalties each side tends to give away.</p>
+        <CalibrationLine pRed={x.winProbRed} className="mt-2" />
+        {/* Made to be screenshotted: the card says where it came from. */}
+        <div className="mt-5 flex items-center justify-between border-t border-border pt-3 text-[11px] text-muted-foreground">
+          <span className="flex items-center gap-1.5"><img src="/logo.svg" alt="" className="size-4" /> FTC Control Scout · prediction lab</span>
+          <span>{seasonLabel(x.season)} · engine v{x.engineVersion}</span>
+        </div>
       </div>
       <div className="grid gap-4 md:grid-cols-2">
         <div className="rounded-2xl border border-border bg-card p-5">
@@ -209,7 +216,7 @@ function SavedPredictions() {
       <ul className="grid gap-2 sm:grid-cols-2">
         {h.slice(0, 12).map((p) => (
           <li key={p.id}>
-            <Link to={`/predict?mode=match&season=${p.season}&red=${p.red.join(",")}&blue=${p.blue.join(",")}`} className="block rounded-xl border border-border bg-card p-3 text-sm hover:border-accent/40">
+            <Link to={`/predict?mode=match&season=${p.season}&red=${p.red.join(",")}&blue=${p.blue.join(",")}`} className="lift block rounded-xl border border-border bg-card p-3 text-sm">
               <div className="flex items-center justify-between gap-2"><span><span className="text-red-alliance">{p.red.join("+")}</span> vs <span className="text-blue-alliance">{p.blue.join("+")}</span></span><span className="text-xs text-muted-foreground">{seasonLabel(p.season)}</span></div>
               <WinBar pRed={p.winProbRed} size="sm" className="mt-2" />
               <p className="mt-1 text-xs text-muted-foreground">Red {oddsPct(p.winProbRed)} · {p.predictedRed}–{p.predictedBlue} · {p.tier} · saved {new Date(p.savedAt).toLocaleDateString()}</p>

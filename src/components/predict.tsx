@@ -7,6 +7,7 @@ import { cn } from "./cn";
 import { Tooltip, TooltipContent, TooltipTrigger } from "./ui/overlay";
 import { matchTime, oddsPct } from "../lib/format";
 import { VideoButton } from "./VideoDialog";
+import { useCalibration } from "../lib/calibration";
 
 const TIER: Record<ConfidenceTier, { label: string; cls: string; icon: typeof Gauge; blurb: string }> = {
   provisional: { label: "Provisional", cls: "border-warning/40 bg-warning/10 text-warning", icon: CircleDashed, blurb: "Mostly prior-season data — treat as a rough guess." },
@@ -51,6 +52,25 @@ export function FactorList({ factors, className }: { factors: Factor[]; classNam
         </li>
       ))}
     </ol>
+  );
+}
+
+/**
+ * The track record, right where the prediction is: "when we say 63%, the
+ * favourite wins 65% of the time". Links to the full record.
+ */
+export function CalibrationLine({ pRed, className, compact }: { pRed: number; className?: string; compact?: boolean }) {
+  const c = useCalibration(pRed);
+  if (!c) return null;
+  const said = Math.round(c.said * 100), won = Math.round(c.won * 100);
+  return (
+    <Link to="/predict/accuracy" title="A tie counts as half a win" className={cn("group inline-flex items-center gap-1.5 text-xs text-text-muted hover:text-text-base", className)}>
+      <span className="size-1.5 shrink-0 rounded-full bg-success" aria-hidden />
+      {compact
+        ? <>Calls near {said}% came true {won}% of the time</>
+        : <>When we say about {said}%, the favourite wins {won}% of the time (ties count half) — {c.n.toLocaleString()} {c.kind === "live" ? "live calls" : `matches, ${c.seasonLabel} backtest`}.</>}
+      <span className="underline decoration-dotted underline-offset-2 group-hover:decoration-solid">Track record</span>
+    </Link>
   );
 }
 
@@ -111,6 +131,7 @@ export function MatchRow({ m, highlight, showEvent }: { m: MatchView; highlight?
             <TooltipContent className="max-w-72">
               {KIND_LABEL[p.kind]} · predicted {p.redMean}–{p.blueMean} · {p.tier} confidence
               {p.factors?.length ? <span className="mt-1 block opacity-80">{p.factors[0].label}</span> : null}
+              <CalibrationTip pRed={p.pRed} />
             </TooltipContent>
           </Tooltip>
         ) : <span className="text-xs text-text-muted" title="The engine predicts full 2-against-2 matches only">{
@@ -136,4 +157,12 @@ export function MatchList({ matches, highlight, empty, eventNames }: { matches: 
       {matches.map((m) => <MatchRow key={`${m.code}:${m.key}`} m={m} highlight={highlight} showEvent={eventNames?.[m.code]} />)}
     </div>
   );
+}
+
+function CalibrationTip({ pRed }: { pRed: number }) {
+  const c = useCalibration(pRed);
+  if (!c) return null;
+  // Always name the history it came from: a backtest must never read as live calls.
+  const source = c.kind === "live" ? `${c.seasonLabel} live calls` : `${c.seasonLabel} backtest`;
+  return <span className="mt-1 block opacity-80">Track record ({source}): favourites near {Math.round(c.said * 100)}% won {Math.round(c.won * 100)}% of {c.n.toLocaleString()} matches, ties counting half.</span>;
 }
