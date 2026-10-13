@@ -15,7 +15,7 @@ import { kvGet, kvSet } from "../db.js";
 import { buildPacks } from "../packs/build.js";
 import { packsPresent } from "../packs/routes.js";
 import { syncAll } from "../sync.js";
-import { runStats } from "../stats/job.js";
+import { runStats, statsRulesStale } from "../stats/job.js";
 import { CURRENT_SEASON } from "./seasons.js";
 
 type Log = (m: string) => void;
@@ -23,7 +23,10 @@ type Log = (m: string) => void;
 export async function runCycle(log: Log) {
   if (hasFirst()) await syncAll({ seasons: [CURRENT_SEASON], log: (m) => log(`  ${m}`) });
   else log("  FIRST credentials missing — sync skipped (FTC Scout fallback runs per event only)");
-  await runStats({ seasons: [CURRENT_SEASON], log: (m) => log(`  ${m}`) });
+  // Every season once after the stats rules change; otherwise just the current one.
+  const all = await statsRulesStale();
+  if (all) log("  stats rules changed: recomputing every season");
+  await runStats({ seasons: all ? undefined : [CURRENT_SEASON], log: (m) => log(`  ${m}`) });
   // Offline packs: rebuilt at most daily (they're versioned; devices see "new data available").
   // The timestamp alone isn't enough: an imported database carries
   // packs:last without the pack files, so also require a readable manifest.
