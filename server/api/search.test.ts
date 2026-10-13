@@ -35,6 +35,15 @@ describe("search", () => {
     expect((await titles("pymb"))[0]).toBe("18360 Pymble Pyrophosphate");
     expect((await titles("x dri"))[0]).toBe("16321 X Drive");
   });
+  it("ranks your own teams first after an exact number match", async () => {
+    const pref = new Set(["team:16321"]);
+    expect((await search("16", 5, pref)).map((h) => h.title)).toEqual(["16321 X Drive", "1622 Team Spyder", "16000 Gear Maniacs"]);
+    // An exact match still wins over a preferred one.
+    expect((await search("1622", 5, pref))[0].title).toBe("1622 Team Spyder");
+    // Text: near-tied matches tip toward your team.
+    expect((await search("dragons", 5, new Set(["team:10820"])))[0].title).toBe("10820 Cyber Dragons");
+  });
+
   it("prefix-matches team numbers, exact number first", async () => {
     expect(await titles("16")).toEqual(["1622 Team Spyder", "16000 Gear Maniacs", "16321 X Drive"]);
     expect((await titles("4215"))[0]).toBe("4215 Hypnotic Robotics");

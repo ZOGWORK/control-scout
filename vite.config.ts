@@ -2,9 +2,28 @@ import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
 import tailwindcss from "@tailwindcss/vite";
 import { fileURLToPath } from "node:url";
+import { createHash } from "node:crypto";
+import { readdirSync } from "node:fs";
+import type { Plugin } from "vite";
+
+/** Lists every built file (+ fonts, icons, the shell) for the service worker to
+ *  precache, with a version that changes whenever any of them does. */
+function swPrecache(): Plugin {
+  return {
+    name: "cs-sw-precache",
+    apply: "build",
+    generateBundle(_options, bundle) {
+      const pub = (dir: string) => readdirSync(fileURLToPath(new URL(`./public/${dir}`, import.meta.url))).map((f) => `/${dir}/${f}`);
+      const built = Object.keys(bundle).filter((f) => !f.endsWith(".map")).map((f) => `/${f}`);
+      const files = [...new Set(["/", "/index.html", ...built, ...pub("fonts"), "/manifest.webmanifest"])].filter((f) => f !== "/sw-precache.json");
+      const version = createHash("sha256").update(files.join("\n")).digest("hex").slice(0, 12);
+      this.emitFile({ type: "asset", fileName: "sw-precache.json", source: JSON.stringify({ version, files }) });
+    },
+  };
+}
 
 export default defineConfig({
-  plugins: [react(), tailwindcss()],
+  plugins: [react(), tailwindcss(), swPrecache()],
   resolve: { alias: { "@": fileURLToPath(new URL("./src", import.meta.url)) } },
   server: {
     port: 5173,

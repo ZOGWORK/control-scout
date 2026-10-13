@@ -30,6 +30,18 @@ export function ConfidenceBadge({ tier, reason, className }: { tier: ConfidenceT
   );
 }
 
+/** Compact, always-visible tier for dense lists (match rows, the Home card):
+ *  the rule is a confidence tier on every prediction surface, never hover-only. */
+export function TierMark({ tier, className }: { tier: ConfidenceTier; className?: string }) {
+  const t = TIER[tier];
+  const color = t.cls.split(" ").find((c) => c.startsWith("text-"));
+  return (
+    <span className={cn("inline-flex items-center gap-0.5 whitespace-nowrap [&_svg]:size-3", color, className)} title={`${t.label} confidence: ${t.blurb}`}>
+      <t.icon aria-hidden />{t.label.toLowerCase()}<span className="sr-only"> confidence</span>
+    </span>
+  );
+}
+
 /** Red vs blue win probability bar. */
 export function WinBar({ pRed, className, size = "md" }: { pRed: number; className?: string; size?: "sm" | "md" }) {
   const r = Math.max(0.02, Math.min(0.98, pRed));
@@ -140,6 +152,7 @@ export function MatchRow({ m, highlight, showEvent }: { m: MatchView; highlight?
         <div className="flex items-center justify-end gap-1.5 text-[11px] text-text-muted">
           {called === true && <span className="inline-flex items-center gap-0.5 text-success"><Check className="size-3" /> Called</span>}
           {called === false && <span className="inline-flex items-center gap-0.5 text-warning"><X className="size-3" /> Upset</span>}
+          {p && <TierMark tier={p.tier} />}
           {p?.kind === "backtest" && <span title={KIND_LABEL.backtest}>backtest</span>}
           {p?.kind === "live" && m.played && <span title={KIND_LABEL.live}>pre-match</span>}
           {m.video && <a href={m.video} target="_blank" rel="noreferrer noopener" className="inline-flex items-center hover:text-text-base" aria-label="Official match video"><PlayCircle className="size-3.5" /></a>}

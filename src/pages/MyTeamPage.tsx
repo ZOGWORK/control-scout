@@ -3,7 +3,7 @@
 // Works with no account (saved on this device); signed in, it syncs.
 import { useState } from "react";
 import { Link } from "react-router-dom";
-import { CalendarDays, Eye, Star, Trophy, X } from "lucide-react";
+import { CalendarDays, Eye, History, Star, Swords, Trophy, X } from "lucide-react";
 import { useApi, qs } from "../lib/api";
 import { useCurrentSeason, useTitle } from "../lib/meta";
 import { usePersonal } from "../lib/personal";
@@ -25,12 +25,28 @@ export default function MyTeamPage() {
     return (
       <div>
         <PageHeader title="My team" description="Pick your team to get a personal dashboard: your next matches with predictions, recent results, your next event's odds, and news from teams you track." />
-        <div className="max-w-md rounded-2xl border border-border bg-card p-6">
+        <div className="grid items-start gap-6 lg:grid-cols-[minmax(0,28rem)_minmax(0,1fr)]">
+        <div className="rounded-2xl border border-border bg-card p-6">
           <form onSubmit={(e) => { e.preventDefault(); if (draft) set("myTeam", Number(draft)); }} className="flex items-start gap-2">
             <div className="flex-1"><TeamInput label="Your team number" value={draft} onChange={setDraft} autoFocus /></div>
             <Button type="submit" className="h-11" disabled={!draft}><Star /> Set</Button>
           </form>
           <p className="mt-2 text-xs text-muted-foreground">{user ? "Saved to your account." : <>Saved on this device. <Link to="/settings#account" className="underline">Sign in</Link> to sync it across devices.</>}</p>
+        </div>
+        {/* What the dashboard will hold, so the first visit isn't an empty page. */}
+        <ul className="grid gap-3 sm:grid-cols-2" aria-label="What your dashboard shows">
+          {[
+            { icon: Swords, title: "Your next matches", body: "Win odds and the three reasons why, before every match you play." },
+            { icon: Trophy, title: "Your next event's odds", body: "Chance to advance, to captain, to win, from 2,000 simulated events." },
+            { icon: History, title: "Recent results", body: "Every match this season with the call we made before it, right or wrong." },
+            { icon: Eye, title: "Teams you track", body: "Rivals and partners: their latest events and OPR, in one feed." },
+          ].map((x) => (
+            <li key={x.title} className="flex gap-3 rounded-xl border border-border/70 bg-card/60 p-4">
+              <x.icon className="mt-0.5 size-5 shrink-0 text-accent" aria-hidden />
+              <div><p className="text-sm font-semibold">{x.title}</p><p className="mt-0.5 text-sm text-muted-foreground">{x.body}</p></div>
+            </li>
+          ))}
+        </ul>
         </div>
       </div>
     );

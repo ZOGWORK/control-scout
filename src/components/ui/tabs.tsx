@@ -20,8 +20,19 @@ export function TabsList({ className, ...props }: React.ComponentProps<typeof Ta
 }
 
 export function TabsTrigger({ className, ...props }: React.ComponentProps<typeof TabsPrimitive.Trigger>) {
+  // When the list scrolls sideways (phones), keep the selected tab in view —
+  // e.g. an upcoming event that opens on its last tab.
+  const ref = React.useRef<HTMLButtonElement>(null);
+  React.useEffect(() => {
+    const el = ref.current, list = el?.parentElement;
+    if (!el || !list || el.dataset.state !== 'active' || list.scrollWidth <= list.clientWidth) return;
+    if (el.offsetLeft < list.scrollLeft || el.offsetLeft + el.offsetWidth > list.scrollLeft + list.clientWidth) {
+      list.scrollLeft = el.offsetLeft - (list.clientWidth - el.offsetWidth) / 2;
+    }
+  });
   return (
     <TabsPrimitive.Trigger
+      ref={ref}
       data-slot="tabs-trigger"
       className={cn(
         'inline-flex flex-1 sm:flex-none items-center justify-center gap-1.5 whitespace-nowrap rounded-xl px-3 sm:px-4 py-2 text-sm font-bold',
