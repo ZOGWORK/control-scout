@@ -6,7 +6,15 @@ import type { Meta } from "../shared/api";
 const Ctx = createContext<Meta | null>(null);
 
 export function MetaProvider({ children }: { children: ReactNode }) {
-  const { data } = useApi<Meta>("/api/meta");
+  const { data, reload } = useApi<Meta>("/api/meta");
+  // A server with no data yet (first sync or a snapshot still loading): check
+  // again every 30 s so the "no data" notice and search message clear by themselves.
+  const empty = data ? !data.dataLoaded : false;
+  useEffect(() => {
+    if (!empty) return;
+    const t = setInterval(reload, 30_000);
+    return () => clearInterval(t);
+  }, [empty, reload]);
   return <Ctx.Provider value={data ?? null}>{children}</Ctx.Provider>;
 }
 

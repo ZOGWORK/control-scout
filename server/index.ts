@@ -11,9 +11,13 @@ import { syncAll } from "./sync.js";
 import { runStats } from "./stats/job.js";
 import { forecasterFor } from "./predict/engine.js";
 import { CURRENT_SEASON } from "./data/seasons.js";
+import { restoreSnapshotIfEmpty } from "./data/snapshot.js";
 
 const log = (m: string) => console.log(`[${new Date().toISOString()}] ${m}`);
 
+// A fresh server with an empty local database starts from the shipped public
+// snapshot (before anything opens the database file).
+log(`data: ${await restoreSnapshotIfEmpty().catch((e) => `snapshot restore failed: ${(e as Error).message}`)}`);
 await migrate();
 const app = createApp();
 app.listen(env.port, () => log(`Control Scout API on :${env.port}${env.production ? "" : " (dev)"}`));

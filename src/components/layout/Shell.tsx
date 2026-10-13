@@ -6,9 +6,10 @@ import { Ambient } from "./Ambient";
 import { Link, NavLink, useLocation } from "react-router-dom";
 import { motion, MotionConfig } from "motion/react";
 import {
-  BadgeCheck, BookOpen, Bookmark, CalendarDays, ClipboardList, Download, House, Menu, PanelLeftClose, PanelLeftOpen, Scale, Search, Settings, Sparkles, Star,
+  BadgeCheck, BookOpen, Bookmark, CalendarDays, ClipboardList, DatabaseZap, Download, House, Menu, PanelLeftClose, PanelLeftOpen, Scale, Search, Settings, Sparkles, Star,
 } from "lucide-react";
 import { cn } from "../cn";
+import { useMeta } from "../../lib/meta";
 import { Sheet, SheetContent, SheetTitle } from "../ui/overlay";
 import { TooltipProvider } from "../ui/overlay";
 import { useSearch } from "./Search";
@@ -115,6 +116,19 @@ const TITLES: [RegExp, string][] = [
   [/^\/settings/, "Settings"], [/^\/methodology/, "How it works"],
 ];
 
+/** Shown everywhere when the server has no FTC data yet (a new deploy whose
+ *  database isn't connected): says why pages and search are empty. */
+function NoDataNotice() {
+  const meta = useMeta();
+  if (!meta || meta.dataLoaded) return null;
+  return (
+    <div role="status" className="mb-6 flex items-start gap-3 rounded-xl border border-warning/40 bg-warning/10 px-4 py-3 text-sm">
+      <DatabaseZap className="mt-0.5 size-4 shrink-0 text-warning" aria-hidden />
+      <p><span className="font-semibold">No FTC team data has been loaded on this server yet.</span> <span className="text-text-muted">Search, teams, events and predictions stay empty until it is. This page checks again every 30 seconds.</span></p>
+    </div>
+  );
+}
+
 export function Shell({ children }: { children: ReactNode }) {
   const [collapsed, setCollapsed] = useState(() => { try { return localStorage.getItem("cs-sidebar") === "1"; } catch { return false; } });
   const [more, setMore] = useState(false);
@@ -140,6 +154,7 @@ export function Shell({ children }: { children: ReactNode }) {
               <Ambient target={mainRef} />
               <main id="main" ref={mainRef} className="m-canvas custom-scrollbar absolute inset-0 z-10 overflow-y-auto">
                 <motion.div key={loc.pathname} initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.18, ease: "easeOut" }} className="mx-auto w-full max-w-[1200px] px-4 pt-8 pb-28 sm:px-6 md:pb-12 lg:px-8">
+                  <NoDataNotice />
                   {children}
                 </motion.div>
               </main>
