@@ -1,8 +1,8 @@
 // The background data cycle: sync the current season, recompute stats and the
 // prediction ledger, and rebuild the offline packs at most daily.
 //
-// It runs either in the server process (default) or, with DATA_CYCLE=child, in
-// a separate Node process (scripts/data-cycle.ts). Stats and especially the
+// It runs either in the server process (default) or, with DATA_CYCLE=child and
+// a local database file, in a separate Node process (scripts/data-cycle.ts). Stats and especially the
 // pack build are long synchronous stretches that would otherwise stall every
 // request; a child keeps the server answering. The child writes to the same
 // SQLite file (WAL), and the server picks the new data up through the data

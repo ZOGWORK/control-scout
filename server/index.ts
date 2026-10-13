@@ -3,7 +3,7 @@
 // and the prediction ledger after every sync.
 import "./env.js";
 import { env } from "./env.js";
-import { migrate, all, openReplicaIfRemote } from "./db.js";
+import { migrate, all, isRemote, openReplicaIfRemote } from "./db.js";
 import { packsDir } from "./packs/routes.js";
 import { runCycle, runCycleInChild } from "./data/cycle.js";
 import express from "express";
@@ -45,7 +45,8 @@ async function cycle(reason: string) {
   if (running || process.env.CS_NO_SCHEDULER) return;
   running = true;
   try {
-    const child = process.env.DATA_CYCLE === "child";
+    // A child needs the local file; with a remote database (or its embedded replica) the cycle stays here.
+    const child = process.env.DATA_CYCLE === "child" && !isRemote(env.databaseUrl);
     log(`sync (${reason}${child ? ", in a child process" : ""})`);
     if (child) await runCycleInChild(); else await runCycle(log);
   } catch (e) {
