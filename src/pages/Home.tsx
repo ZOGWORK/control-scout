@@ -168,7 +168,7 @@ function TrackRecordCard() {
               <Badge variant={h.kind === "live" ? "success" : "secondary"} className="mt-2">{h.kind === "live" ? "Live — called before each match" : `Backtest · ${seasonLabel(h.season)}`}</Badge>
               {bins.length > 0 && (
                 <>
-                  <div className="mt-5 flex h-20 items-end gap-1" role="img" aria-label="Calibration: how often favourites at each predicted chance actually won">
+                  <div className="mt-5 flex h-20 items-end gap-1" role="img" aria-label="Calibration: how often teams at each predicted chance actually won">
                     {bins.map((b) => (
                       <div key={b.lo} className="flex flex-1 flex-col items-center justify-end" title={`Said ${pct(b.predicted)} → won ${pct(b.actual)} (${b.n.toLocaleString()} matches)`}>
                         <div className="w-full rounded-t bg-accent/80" style={{ height: `${Math.max(4, b.actual * 80)}px` }} />
