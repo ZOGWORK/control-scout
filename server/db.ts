@@ -273,19 +273,25 @@ const isRemote = (url: string) => /^(libsql|https?|wss?):\/\//.test(url);
  * client if the replica can't sync, so a failure is never worse than before.
  * DATABASE_REPLICA=off keeps the plain remote client.
  */
-export async function openReplicaIfRemote(log: (m: string) => void, syncSeconds = 300): Promise<void> {
+export async function openReplicaIfRemote(log: (m: string) => void, syncSeconds = 300): Promise<"replica" | "remote" | "local"> {
   const url = env.databaseUrl;
-  if (!isRemote(url) || process.env.DATABASE_REPLICA === "off" || client) return;
-  const path = resolve(env.dataDir, "replica.db");
-  mkdirSync(dirname(path), { recursive: true });
+  if (!isRemote(url)) return "local";
+  if (process.env.DATABASE_REPLICA === "off" || client) return "remote";
   const t0 = Date.now();
+  let replica: Client | null = null;
   try {
-    const replica = createClient({ url: `file:${path}`, syncUrl: url, authToken: env.databaseToken ?? undefined, syncInterval: syncSeconds });
+    // Inside the try: a read-only or missing data directory must fall back too.
+    const path = resolve(env.dataDir, "replica.db");
+    mkdirSync(dirname(path), { recursive: true });
+    replica = createClient({ url: `file:${path}`, syncUrl: url, authToken: env.databaseToken ?? undefined, syncInterval: syncSeconds });
     const r = await replica.sync();
     client = replicaClient = replica;
     log(`database: embedded replica of ${url.replace(/^\w+:\/\//, "")} synced in ${((Date.now() - t0) / 1000).toFixed(1)} s (frames ${r?.frames_synced ?? "?"}), re-syncs every ${syncSeconds} s`);
+    return "replica";
   } catch (e) {
-    log(`database: replica sync failed (${(e as Error).message}); using the remote database directly`);
+    try { replica?.close(); } catch { /* already unusable */ }
+    log(`database: replica unavailable (${(e as Error).message}); using the remote database directly`);
+    return "remote";
   }
 }
 
