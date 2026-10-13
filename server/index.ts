@@ -3,7 +3,7 @@
 // and the prediction ledger after every sync.
 import "./env.js";
 import { env } from "./env.js";
-import { migrate, all, openReplicaIfRemote } from "./db.js";
+import { migrate, all, openReplicaIfRemote, syncReplica } from "./db.js";
 import { packsDir } from "./packs/routes.js";
 import express from "express";
 import { ENGINE_VERSION } from "@control-scout/predict-engine";
@@ -51,7 +51,11 @@ function cycle(reason: string) {
   worker.on("message", (m: { log?: string; done?: boolean; error?: string }) => {
     if (m.log) log(m.log);
     if (m.error) log(`sync failed: ${m.error}`);
-    if (m.done) { resetForecasters(); log("cycle done"); }
+    if (m.done) {
+      // On Turso, the worker wrote through its own replica: pull those writes
+      // into this process's copy first, then drop the cached ratings.
+      syncReplica().catch((e) => log(`replica refresh failed: ${(e as Error).message}`)).finally(() => { resetForecasters(); log("cycle done"); });
+    }
   });
   worker.on("error", (e) => log(`sync failed: ${e.message}`));
   worker.on("exit", () => { running = false; });

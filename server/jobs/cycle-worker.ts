@@ -8,7 +8,7 @@
 import { parentPort, workerData } from "node:worker_threads";
 import "../env.js";
 import { hasFirst } from "../env.js";
-import { kvGet, kvSet } from "../db.js";
+import { kvGet, kvSet, openReplicaIfRemote } from "../db.js";
 import { syncAll } from "../sync.js";
 import { runStats } from "../stats/job.js";
 import { buildPacks } from "../packs/build.js";
@@ -18,6 +18,9 @@ import { CURRENT_SEASON } from "../data/seasons.js";
 const log = (m: string) => parentPort?.postMessage({ log: m });
 
 try {
+  // On Turso: this thread's own embedded replica (a separate file from the
+  // server's), so the stats job reads locally instead of over the network.
+  await openReplicaIfRemote((m) => log(`  ${m}`), 300, "replica-worker.db");
   log(`sync (${(workerData as { reason?: string } | null)?.reason ?? "scheduled"})`);
   if (hasFirst()) await syncAll({ seasons: [CURRENT_SEASON], log: (m) => log(`  ${m}`) });
   else log("  FIRST credentials missing — sync skipped (FTC Scout fallback runs per event only)");
