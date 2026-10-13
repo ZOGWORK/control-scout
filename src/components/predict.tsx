@@ -64,11 +64,11 @@ export function CalibrationLine({ pRed, className, compact }: { pRed: number; cl
   if (!c) return null;
   const said = Math.round(c.said * 100), won = Math.round(c.won * 100);
   return (
-    <Link to="/predict/accuracy" className={cn("group inline-flex items-center gap-1.5 text-xs text-text-muted hover:text-text-base", className)}>
+    <Link to="/predict/accuracy" title="A tie counts as half a win" className={cn("group inline-flex items-center gap-1.5 text-xs text-text-muted hover:text-text-base", className)}>
       <span className="size-1.5 shrink-0 rounded-full bg-success" aria-hidden />
       {compact
         ? <>Calls near {said}% came true {won}% of the time</>
-        : <>When we say about {said}%, the favourite wins {won}% of the time — {c.n.toLocaleString()} {c.kind === "live" ? "live calls" : `matches, ${c.seasonLabel} backtest`}.</>}
+        : <>When we say about {said}%, the favourite wins {won}% of the time (ties count half) — {c.n.toLocaleString()} {c.kind === "live" ? "live calls" : `matches, ${c.seasonLabel} backtest`}.</>}
       <span className="underline decoration-dotted underline-offset-2 group-hover:decoration-solid">Track record</span>
     </Link>
   );
@@ -162,5 +162,7 @@ export function MatchList({ matches, highlight, empty, eventNames }: { matches: 
 function CalibrationTip({ pRed }: { pRed: number }) {
   const c = useCalibration(pRed);
   if (!c) return null;
-  return <span className="mt-1 block opacity-80">Track record: favourites near {Math.round(c.said * 100)}% won {Math.round(c.won * 100)}% of {c.n.toLocaleString()} matches.</span>;
+  // Always name the history it came from: a backtest must never read as live calls.
+  const source = c.kind === "live" ? `${c.seasonLabel} live calls` : `${c.seasonLabel} backtest`;
+  return <span className="mt-1 block opacity-80">Track record ({source}): favourites near {Math.round(c.said * 100)}% won {Math.round(c.won * 100)}% of {c.n.toLocaleString()} matches, ties counting half.</span>;
 }

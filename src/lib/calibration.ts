@@ -9,7 +9,8 @@ import type { AccuracyBlock, TrackRecord } from "../shared/api";
 
 export interface CalibrationNote { said: number; won: number; n: number; kind: "live" | "backtest"; seasonLabel: string }
 
-/** Favourite-side bin for a favourite probability (≥ 0.5) from red-side bins. */
+/** Favourite-side bin for a favourite probability (≥ 0.5) from red-side bins.
+ *  `won` is the ledger's score: a win is 1, a tie 0.5 — callers say "ties count half". */
 export function favouriteBin(b: AccuracyBlock, pFavourite: number): { said: number; won: number; n: number } | null {
   const i = Math.min(9, Math.floor(pFavourite * 10)); // 5..9 for a favourite
   const red = b.reliability[i], blue = b.reliability[9 - i];
