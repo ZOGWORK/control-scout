@@ -31,7 +31,8 @@
     "equivalence": "tsx scripts/engine-equivalence.ts",
     "shots": "tsx scripts/shots.ts",
     "audit": "tsx scripts/audit.ts",
-    "audit:flows": "tsx scripts/audit-flows.ts"
+    "audit:flows": "tsx scripts/audit-flows.ts",
+    "query-profile": "tsx scripts/query-profile.ts"
   },
   "dependencies": {
     "@control-scout/predict-engine": "*",
