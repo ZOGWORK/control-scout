@@ -8,7 +8,7 @@
 // season (browsing 2023) gets its own window ending at that season.
 import {
   Forecaster, FITTED_MODEL, RatingBook, indexAwards, MODELLED_AWARDS, normType, explainMatch,
-  type AdvancementRecord, type AwardRecord, type EventRecord, type PredictModel,
+  type AdvancementRecord, type AwardRecord, type EventInput, type EventRecord, type Forecast, type PredictModel,
 } from "@control-scout/predict-engine";
 import { all, kvGet } from "../db.js";
 import { CURRENT_SEASON } from "../data/seasons.js";
@@ -97,6 +97,47 @@ export class ScoutForecaster extends Forecaster {
       return [...count.entries()].filter(([, c]) => c >= evs.length / 2).map(([k]) => { const [t, p] = k.split(":"); return { type: t, placement: Number(p) }; });
     }
     return [{ type: "Inspire", placement: 1 }, { type: "Inspire", placement: 2 }];
+  }
+
+  /**
+   * The forecast as it would have been made the day before the event: ratings
+   * replayed only from matches before the event's start, and the event's own
+   * schedule with every result, rank and alliance stripped (stage "pre").
+   * Walk-forward, like the backtest ledger — no hindsight.
+   */
+  preEventForecast(ev: EventInput, myTeam: number | null, runs = 2000): Forecast | null {
+    if (!ev.start) return null;
+    const startMs = Date.parse(`${ev.start}T00:00:00Z`);
+    const prevSeason = this.books.get(ev.season - 1);
+    const book = prevSeason ? prevSeason.clone() : new RatingBook(FITTED_MODEL.rating);
+    book.startSeason(ev.season);
+    for (const m of this.seasonEvents(ev.season).flatMap((e) => e.matches).filter((m) => m.time < startMs).sort((x, y) => x.time - y.time)) book.update(m);
+    book.setTime(startMs);
+    const stripped: EventInput = {
+      ...ev,
+      field: ev.field.map((f) => ({ teamNumber: f.teamNumber, rank: null })),
+      alliances: [],
+      matches: ev.matches.filter((m) => m.level === "qual").map((m) => ({ ...m, played: false, red: { ...m.red, score: null }, blue: { ...m.blue, score: null } })),
+    };
+    const parent = this;
+    // A one-off view of the same data, frozen at the event's start.
+    class Before extends Forecaster {
+      protected readonly model = FITTED_MODEL;
+      protected readonly awardHistory = parent.awardHistory;
+      protected book(season: number) { return season === ev.season ? book : null; }
+      protected hasRatings() { return true; }
+      storedPlayedKeys() { return new Set<string>(); }
+      protected advancementRecords(season: number) {
+        // This event's own list: its slot count and who had already qualified
+        // elsewhere were known beforehand; who advanced *from here* was not.
+        return parent.advancementRecords(season).map((a) => a.code !== ev.code || !a.advancement ? a : {
+          ...a, advancement: { ...a.advancement, rows: a.advancement.rows.filter((r) => r.status === "ALREADY_ADVANCING" || r.status === "INELIGIBLE") },
+        });
+      }
+      protected regionOf(code: string) { return parent.regionOf(code); }
+      protected awardSlots(season: number, type: string | null) { return parent.awardSlots(season, type); }
+    }
+    return new Before().forecast(stripped, myTeam, runs);
   }
 
   /** Match explanation (win %, scores, factors, confidence) from current ratings. */

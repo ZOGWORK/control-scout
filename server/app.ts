@@ -28,7 +28,8 @@ const h = (fn: (req: Request, res: Response) => Promise<unknown>) => (req: Reque
 
 const int = (x: unknown, name: string, { min = 0, max = 1e7 } = {}) => {
   const n = Number(x);
-  if (!Number.isInteger(n) || n < min || n > max) throw bad(`${name} must be a whole number`);
+  if (!Number.isInteger(n)) throw bad(`${name} must be a whole number`);
+  if (n < min || n > max) throw bad(`${name} must be between ${min} and ${max}`);
   return n;
 };
 const season = (x: unknown) => {
@@ -169,16 +170,20 @@ export function createApp() {
     return { season: s, matches: out.sort((a, b) => (a.time ?? "").localeCompare(b.time ?? "")).slice(0, 200) };
   }));
 
-  const forecastFor = async (s: number, c: string, team: number | null): Promise<ForecastView> => {
-    const v = await forecastMemo(`${s}|${c}|${team ?? ""}`, async () => {
+  const forecastFor = async (s: number, c: string, team: number | null, mode: ForecastView["mode"]): Promise<ForecastView> => {
+    const v = await forecastMemo(`${s}|${c}|${team ?? ""}|${mode}`, async () => {
       const d = await eventDetail(s, c);
       if (!d) throw new HttpError(404, `No event ${c} in ${s}`);
       if (d.forecastUnsupported) throw new HttpError(422, d.forecastUnsupported);
       const f = await forecasterFor(s);
       const ev = toEventInput(d.event, d.field, d.matches, d.alliances);
-      const fc = f.forecast(ev, team, 2000);
+      const fc = mode === "pre-event" ? f.preEventForecast(ev, team, 2000) : f.forecast(ev, team, 2000);
       if (!fc) throw new HttpError(503, "Ratings for this season aren't ready yet.");
-      return { ...fc, eventName: d.event.name, eventStart: d.event.start, eventEnd: d.event.end, myTeam: team, engineVersion: ENGINE_VERSION };
+      const finished = d.event.status === "finished";
+      return {
+        ...fc, eventName: d.event.name, eventStart: d.event.start, eventEnd: d.event.end, myTeam: team, engineVersion: ENGINE_VERSION, mode,
+        hindsightNote: mode === "current" && finished ? "This event is over: these odds use ratings that already include its results. Switch to “Before the event” for the forecast made without hindsight." : null,
+      };
     });
     return v!;
   };
@@ -186,7 +191,7 @@ export function createApp() {
   api.get("/predict/event", limiter(30), h(async (req) => {
     const s = season(req.query.season), c = code(req.query.code);
     const team = req.query.team ? int(req.query.team, "team", { min: 1, max: 999999 }) : null;
-    return forecastFor(s, c, team);
+    return forecastFor(s, c, team, req.query.mode === "pre-event" ? "pre-event" : "current");
   }));
 
   api.get("/predict/partners", limiter(10), h(async (req) => {

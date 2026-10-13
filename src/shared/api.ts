@@ -186,6 +186,10 @@ export interface ForecastView extends Forecast {
   eventEnd: string | null;
   myTeam: number | null;
   engineVersion: string;
+  /** current = today's ratings + results so far; pre-event = as it would have been made the day before (no hindsight). */
+  mode: "current" | "pre-event";
+  /** Set when a current-mode forecast of a finished event uses ratings that already include its results. */
+  hindsightNote: string | null;
 }
 
 export interface ReliabilityBin { lo: number; hi: number; n: number; predicted: number; actual: number }
