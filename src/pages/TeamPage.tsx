@@ -48,7 +48,7 @@ function Profile({ p, onSeason }: { p: TeamProfile; onSeason: (s: number) => voi
     <div className="min-w-0">
       <Hero p={p} onSeason={onSeason} />
       {!hasResults ? (
-        <EmptyState icon={CalendarDays} title={`No ${seasonLabel(p.season)} results for ${p.team.number} yet`}
+        <EmptyState className="mb-8" icon={CalendarDays} title={`No ${seasonLabel(p.season)} results for ${p.team.number} yet`}
           description={p.seasons.length > 1 ? "Pick another season above to see past results." : "This team hasn't played an event we have data for."} />
       ) : (
         <>
@@ -129,7 +129,16 @@ function Hero({ p, onSeason }: { p: TeamProfile; onSeason: (s: number) => void }
         {/* At a glance: the five-second answer to "is this team good?" */}
         <div className="border-t border-border bg-secondary/60 p-6 sm:p-8 lg:border-l lg:border-t-0">
           <p className="text-xs font-medium uppercase tracking-[0.08em] text-muted-foreground">At a glance · {seasonLabel(p.season)}</p>
-          {!s ? <p className="mt-4 text-sm text-muted-foreground">No results this season yet{p.seasons.length > 1 ? " — pick another season." : "."}</p> : (
+          {!s ? (
+            <div className="mt-4 space-y-3 text-sm">
+              <p className="text-muted-foreground">No results this season yet.</p>
+              {p.seasons.filter((x) => x < p.season).slice(0, 1).map((prev) => (
+                <button key={prev} onClick={() => onSeason(prev)} className="lift flex w-full items-center justify-between gap-3 rounded-xl border border-border bg-card px-3 py-2 text-left">
+                  <span>See how {t.number} did in {seasonLabel(prev)}</span><span className="text-accent">→</span>
+                </button>
+              ))}
+            </div>
+          ) : (
             <>
               <p className="mt-3 font-display text-5xl font-semibold tabular-nums text-accent">{top ? top.replace("top ", "Top ") : "Unranked"}</p>
               <p className="text-sm text-muted-foreground">worldwide by OPR{s.opr.np.rank ? ` · #${s.opr.np.rank.toLocaleString()} of ${s.opr.np.of?.toLocaleString()}` : ""}</p>
