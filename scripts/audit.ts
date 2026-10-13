@@ -43,7 +43,7 @@ const ROUTES: { path: string; note: string; expect404?: RegExp; noApi?: boolean 
   { path: "/predict?red=18360,24089&blue=14380,23636&season=2025", note: "a prediction" },
   { path: "/predict?mode=advancement", note: "advancement simulator" },
   { path: "/predict?mode=upcoming", note: "upcoming matches" },
-  { path: "/predict/accuracy", note: "track record" },
+  { path: "/methodology#accuracy", note: "track record (How it works · accuracy)" },
   { path: "/compare", note: "compare (empty)" , noApi: true },
   { path: "/compare?teams=18360,24089", note: "compare two teams" },
   { path: "/my-team", note: "my team (fresh visitor)" , noApi: true },

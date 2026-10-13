@@ -16,7 +16,7 @@ Go through each route and actually use it. Not "it renders" — click everything
 - **`/teams/:number`** — OPR breakdown cards, trends chart with metric switcher, season switcher, event history, awards, recent matches. Bookmark / mark-as-my-team / track / compare buttons do what they say. "Manage this team in Control Point" link present.
 - **`/events/:id`** — schedule, live/upcoming results, rankings, playoff bracket.
 - **`/predict`** — alliance builder (any teams, both sides), real upcoming matches list. Every prediction shows win %, predicted score, top 3 factors, confidence tier. Advancement simulator works for ANY team + ANY event (chance to advance, captain/picked/win/finalist %, likely quals rank).
-- **`/predict/accuracy`** — track record renders with real logged predictions, reliability stats, Brier score.
+- **`/methodology#accuracy`** (old `/predict/accuracy` redirects here) — track record renders with real logged predictions, reliability stats, Brier score.
 - **`/compare`** — head-to-head for arbitrary teams.
 - **`/shortlist`,&#32;`/my-team`** — signed-in: syncs. Signed-out: local-only fallback works, and migrates on sign-in.
 - **`/download`** — packs listed with version, size, sha256, season coverage; `/packs/latest.json` valid.

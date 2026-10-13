@@ -32,6 +32,7 @@
     "shots": "tsx scripts/shots.ts",
     "audit": "tsx scripts/audit.ts",
     "audit:flows": "tsx scripts/audit-flows.ts",
+    "perf": "tsx scripts/perf.ts",
     "query-profile": "tsx scripts/query-profile.ts"
   },
   "dependencies": {
