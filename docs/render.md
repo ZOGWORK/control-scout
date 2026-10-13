@@ -18,7 +18,9 @@ Render's free disk is wiped on every restart and the service sleeps after
 Plain settings (set when the service was created): `NODE_ENV=production`,
 `APP_URL=https://control-scout.onrender.com`,
 `EMAIL_FROM=Control Scout <verify@tryctrlpoint.org>`, `CS_PACKS=off`
-(no offline packs on a throwaway disk; /download says none are built).
+(no offline packs on a throwaway disk; /download says none are built), and
+`NPM_CONFIG_INCLUDE=dev` (with `NODE_ENV=production` set, `npm ci` would
+otherwise skip Vite and the other build tools).
 
 **Secrets — paste these yourself** in Render → control-scout → Environment:
 `DATABASE_URL` (`libsql://…turso.io`), `DATABASE_AUTH_TOKEN`,
