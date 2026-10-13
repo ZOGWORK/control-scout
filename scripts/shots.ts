@@ -94,10 +94,13 @@ async function capture(browser: Browser, route: string, vp: keyof typeof SIZES, 
     const tmp = await video!.path();
     const file = join(out, `${vp}${light ? "-light" : ""}-video-${route.replace(/^\//, "").replace(/[^\w-]+/g, "_") || "home"}.webm`);
     renameSync(tmp, file);
+    if (errors.length) console.warn(`  ! ${route}: page errors: ${errors.join(" | ")}`);
     return file;
   }
-  // The shell scrolls inside <main> (h-dvh); unroll it so a full-page shot shows everything.
-  if (!flag("viewport") && !q && !flag("pointer")) await page.addStyleTag({ content: ".h-dvh{height:auto!important;overflow:visible!important} main{overflow:visible!important} .h-dvh{position:relative!important} nav.fixed{position:absolute!important;left:0;right:0;bottom:0}" });
+  // The shell scrolls inside <main> (h-dvh, absolutely positioned over the
+  // ambient layer); unroll it and put <main> back in normal flow so the page
+  // content gives the shell its height and a full-page shot shows everything.
+  if (!flag("viewport") && !q && !flag("pointer")) await page.addStyleTag({ content: ".h-dvh{height:auto!important;overflow:visible!important} main#main{overflow:visible!important;position:relative!important;inset:auto!important} .h-dvh{position:relative!important} nav.fixed{position:absolute!important;left:0;right:0;bottom:0}" });
   const name = `${vp}${light ? "-light" : ""}${flag("pointer") ? "-pointer" : ""}${q ? `-search-${q.replace(/[^\w]+/g, "_")}` : ""}-${route.replace(/^\//, "").replace(/[^\w-]+/g, "_") || "home"}.png`;
   const file = join(out, name);
   await page.screenshot({ path: file, fullPage: !flag("viewport") && !q && !flag("pointer") });

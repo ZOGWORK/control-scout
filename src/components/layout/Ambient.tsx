@@ -23,9 +23,36 @@ export function Ambient({ target }: { target: RefObject<HTMLElement | null> }) {
       if (!frame) frame = requestAnimationFrame(paint);
     };
     const leave = () => { delete g.dataset.on; };
-    el.addEventListener("pointermove", move, { passive: true });
-    el.addEventListener("pointerleave", leave);
-    return () => { el.removeEventListener("pointermove", move); el.removeEventListener("pointerleave", leave); if (frame) cancelAnimationFrame(frame); };
+    // Listen only while the glow can show: not under reduced motion, not with
+    // "Animated background" off. Re-checked whenever either preference changes.
+    const reduced = matchMedia("(prefers-reduced-motion: reduce)");
+    const root = document.documentElement;
+    let listening = false;
+    const sync = () => {
+      const on = !reduced.matches && !root.classList.contains("ambient-off");
+      if (on === listening) return;
+      listening = on;
+      if (on) {
+        el.addEventListener("pointermove", move, { passive: true });
+        el.addEventListener("pointerleave", leave);
+      } else {
+        el.removeEventListener("pointermove", move);
+        el.removeEventListener("pointerleave", leave);
+        leave();
+        if (frame) { cancelAnimationFrame(frame); frame = 0; }
+      }
+    };
+    sync();
+    reduced.addEventListener("change", sync);
+    const watch = new MutationObserver(sync);
+    watch.observe(root, { attributes: true, attributeFilter: ["class"] });
+    return () => {
+      reduced.removeEventListener("change", sync);
+      watch.disconnect();
+      el.removeEventListener("pointermove", move);
+      el.removeEventListener("pointerleave", leave);
+      if (frame) cancelAnimationFrame(frame);
+    };
   }, [target]);
   return (
     <div className="ambient" aria-hidden>
