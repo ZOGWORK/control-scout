@@ -1,6 +1,7 @@
 # Deploying Control Scout (Oracle VM, next to Control Point)
 
-Nothing was deployed overnight. This is the 15-minute morning runbook.
+Production is **https://controlscout.org** (also `www.controlscout.org`, and
+`scout.tryctrlpoint.org` as a backup alias), all on one certificate.
 
 Control Scout runs as its **own** service on the same VM as Control Point:
 user `controlscout`, port **3100**, systemd unit `control-scout`, nginx site
@@ -15,15 +16,16 @@ user `controlscout`, port **3100**, systemd unit `control-scout`, nginx site
   shared/data/                   SQLite + packs: the only path the app can write
 ```
 
-## 1. DNS (Porkbun) — 1 minute
+## 1. DNS
 
-Add an **A record**: host `scout`, value `132.145.202.89` (the VM). Wait until
-`nslookup scout.tryctrlpoint.org` returns that IP.
+A records → `132.145.202.89` (the VM) for `controlscout.org`,
+`www.controlscout.org` and `scout.tryctrlpoint.org`. Check each with
+`nslookup <name>` before requesting the certificate.
 
 ## 2. First run — creates the secrets file, starts nothing
 
 ```bash
-VM=ubuntu@132.145.202.89 KEY=~/.ssh/oracle-controlpoint bash deploy/deploy.sh
+VM=ubuntu@132.145.202.89 KEY=~/.ssh/oracle-controlpoint DOMAIN=controlscout.org bash deploy/deploy.sh
 ```
 
 ## 3. Secrets — on the VM
@@ -57,16 +59,17 @@ database is never paired with a running server's journal.)
 ## 5. Build, start, HTTPS
 
 ```bash
-VM=ubuntu@132.145.202.89 KEY=~/.ssh/oracle-controlpoint CERTBOT_EMAIL=you@example.com bash deploy/deploy.sh
+VM=ubuntu@132.145.202.89 KEY=~/.ssh/oracle-controlpoint DOMAIN=controlscout.org   EXTRA_DOMAINS="www.controlscout.org scout.tryctrlpoint.org" bash deploy/deploy.sh
 ```
 
 It builds the release, switches `current` to it, starts the service, gets
-the certificate, and ends by printing `/api/health`. Then open
-https://scout.tryctrlpoint.org.
+(or keeps, or expands) the certificate for every domain using the VM's
+existing Let's Encrypt account, and ends by printing `/api/health`. Then open
+https://controlscout.org.
 
 ## After that
 
-- **Updates:** re-run step 5 without `CERTBOT_EMAIL`. The new release builds
+- **Updates:** re-run step 5. The new release builds
   beside the live one (the site keeps serving), `current` switches only if
   the build succeeds, and the existing certificate is re-applied.
 - **Custom port:** set `PORT` in `shared/.env`; every deploy reads it from there.
