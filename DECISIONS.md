@@ -141,3 +141,17 @@ morning review. Format: **what I chose** — why — the alternative.
 - **Typo-tolerant search** (Sushil's addition): next PR after the MVP —
   trigram/edit-distance fuzzy team names, number-prefix matching,
   search-as-you-type.
+
+## Search (PR #2)
+
+- **Typo tolerance uses SQLite's FTS5 trigram tokenizer for candidates, and
+  edit distance (Damerau–Levenshtein) to rank them.** Trigrams reach "X Drive"
+  from "X Drvie"; the edit distance decides what counts as close. Edits
+  allowed per word: 0 up to 3 letters, 1 up to 7, 2 from 8 (two edits on a
+  6-letter word turned "garden" into "warren" — a false hit we saw and pinned
+  in a test). Every query word must match something.
+- **Team numbers prefix-match as you type** via integer ranges on the
+  primary key (16 → 16, 160–169, 1600–1699 …), current-season teams first,
+  exact number on top. Sub-millisecond.
+- UI: no new chrome — the same ⌘K box simply finds more. Results appear
+  as you type (140 ms debounce); typical queries answer in 10–30 ms.
