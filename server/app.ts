@@ -115,7 +115,7 @@ export function createApp() {
 
   api.get("/search", h(async (req) => {
     await ensureSearchIndex(rebuildSearch);
-    const prefer = new Set(String(req.query.prefer ?? "").split(",").filter((k) => /^(team:\d{1,6}|event:\d{4}:[A-Z0-9]{1,20})$/i.test(k)).slice(0, 100));
+    const prefer = new Set(String(req.query.prefer ?? "").split(",").filter((k) => /^(team:\d{1,6}|event:\d{4}:[A-Z0-9_-]{2,24})$/i.test(k)).slice(0, 100));
     return { q: String(req.query.q ?? ""), hits: await search(String(req.query.q ?? "").slice(0, 80), Math.min(25, Number(req.query.limit) || 12), prefer) };
   }));
 
@@ -276,7 +276,7 @@ export function createApp() {
   if (existsSync(join(dist, "index.html"))) {
     app.use("/assets", express.static(join(dist, "assets"), { immutable: true, maxAge: "1y" }));
     // The service worker and its file list must never be served stale.
-    for (const f of ["sw.js", "sw-precache.json"]) app.get(`/${f}`, (_req, res) => { res.setHeader("Cache-Control", "no-cache"); res.sendFile(join(dist, f)); });
+    for (const f of ["sw.js"]) app.get(`/${f}`, (_req, res) => { res.setHeader("Cache-Control", "no-cache"); res.sendFile(join(dist, f)); });
     app.use(express.static(dist, { index: false, maxAge: "1h" }));
     app.get(/^(?!\/api\/|\/packs\/).*/, (_req, res) => { res.setHeader("Cache-Control", "no-cache"); res.sendFile(join(dist, "index.html")); });
   }

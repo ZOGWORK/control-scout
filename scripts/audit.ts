@@ -24,12 +24,14 @@ const BASE = opt("base") ?? `http://localhost:${WEB_PORT}`;
 const out = resolve(opt("out") ?? join(tmpdir(), "control-scout-audit", new Date().toISOString().replace(/[:.]/g, "-")));
 if (out.startsWith(resolve(process.cwd()))) { console.error("Refusing to write inside the repository — use --out outside it."); process.exit(1); }
 
-/** Every route, with real data. `expect404`: API 404s that are the point of the page. */
-const ROUTES: { path: string; note: string; expect404?: RegExp }[] = [
+/** Every route, with real data. `expect404`: API 404s that are the point of the
+ *  page. `noApi`: the page works without the API (content, local data, a form),
+ *  so it's exempt from the loading/error-state checks, but must still render. */
+const ROUTES: { path: string; note: string; expect404?: RegExp; noApi?: boolean }[] = [
   { path: "/", note: "home" },
   { path: "/teams/18360", note: "team with a full season" },
   { path: "/teams/1", note: "team with no current-season matches (empty)" },
-  { path: "/teams/99999999", note: "impossible team number (no request)" },
+  { path: "/teams/99999999", note: "impossible team number (no request)" , noApi: true },
   { path: "/teams/999997", note: "valid number, no such team", expect404: /\/api\/teams\/999997/ },
   { path: "/events", note: "events list" },
   { path: "/events/2025/AUBRQ2", note: "finished event" },
@@ -37,20 +39,20 @@ const ROUTES: { path: string; note: string; expect404?: RegExp }[] = [
   { path: "/events/2025/AUBRQ2?tab=playoffs", note: "event bracket" },
   { path: "/events/2025/AUBRQ2?tab=odds", note: "advancement odds" },
   { path: "/events/2026/USALATQ", note: "upcoming event, no data yet (empty)" },
-  { path: "/predict", note: "prediction lab (empty builder)" },
+  { path: "/predict", note: "prediction lab (empty builder)" , noApi: true },
   { path: "/predict?red=18360,24089&blue=14380,23636&season=2025", note: "a prediction" },
   { path: "/predict?mode=advancement", note: "advancement simulator" },
   { path: "/predict?mode=upcoming", note: "upcoming matches" },
   { path: "/predict/accuracy", note: "track record" },
-  { path: "/compare", note: "compare (empty)" },
+  { path: "/compare", note: "compare (empty)" , noApi: true },
   { path: "/compare?teams=18360,24089", note: "compare two teams" },
-  { path: "/my-team", note: "my team (fresh visitor)" },
-  { path: "/shortlist", note: "shortlist (fresh visitor, empty)" },
-  { path: "/scout", note: "scouting" },
+  { path: "/my-team", note: "my team (fresh visitor)" , noApi: true },
+  { path: "/shortlist", note: "shortlist (fresh visitor, empty)" , noApi: true },
+  { path: "/scout", note: "scouting" , noApi: true },
   { path: "/download", note: "offline packs" },
-  { path: "/settings", note: "settings" },
-  { path: "/methodology", note: "how it works" },
-  { path: "/no-such-page", note: "404" },
+  { path: "/settings", note: "settings" , noApi: true },
+  { path: "/methodology", note: "how it works" , noApi: true },
+  { path: "/no-such-page", note: "404" , noApi: true },
 ];
 // Git Bash rewrites a leading "/" into its install path (C:/Program Files/Git/...); undo that.
 const only = opt("only")?.replace(/\\/g, "/").replace(/^[A-Za-z]:\/.*?\/Git(?=\/|$)/, "");
@@ -129,14 +131,17 @@ async function loading(browser: Browser, r: (typeof ROUTES)[number]) {
   const ctx = await browser.newContext({ viewport: SIZES.desktop, reducedMotion: "reduce" });
   await ctx.addInitScript(SHIM);
   const page = await ctx.newPage();
-  await page.route("**/api/**", async (route) => { await new Promise((res) => setTimeout(res, 4000)); await route.continue().catch(() => {}); });
+  // The server's data comes from /api and /packs (offline packs): slow both.
+  for (const pattern of ["**/api/**", "**/packs/**"]) await page.route(pattern, async (route) => { await new Promise((res) => setTimeout(res, 4000)); await route.continue().catch(() => {}); });
   await page.goto(BASE + r.path, { waitUntil: "domcontentloaded" });
   await page.waitForTimeout(1500);
   const s = await page.evaluate(() => ({
     busy: !!document.querySelector(".skeleton, [aria-busy=true], .animate-spin, .animate-pulse"),
     text: (document.querySelector("main")?.textContent ?? "").trim().length,
   }));
-  if (!s.busy && s.text < 40) add({ route: r.path, viewport: "desktop", mode: "loading", kind: "no-loading-state", detail: `nothing shown while loading (text ${s.text})` });
+  // A data page must say it's loading; static text alone doesn't count.
+  if (!r.noApi && !s.busy) add({ route: r.path, viewport: "desktop", mode: "loading", kind: "no-loading-state", detail: `no skeleton/spinner 1.5 s into a slow load (text ${s.text})` });
+  if (r.noApi && s.text < 40) add({ route: r.path, viewport: "desktop", mode: "loading", kind: "blank", detail: `nothing shown (text ${s.text})` });
   await page.screenshot({ path: join(out, `loading-${name(r.path)}.png`) });
   await ctx.close();
 }
@@ -148,7 +153,7 @@ async function apiDown(browser: Browser, r: (typeof ROUTES)[number]) {
   const page = await ctx.newPage();
   const errors: string[] = [];
   page.on("pageerror", (e) => errors.push(e.message));
-  await page.route("**/api/**", (route) => route.abort("connectionrefused"));
+  for (const pattern of ["**/api/**", "**/packs/**"]) await page.route(pattern, (route) => route.abort("connectionrefused"));
   await page.goto(BASE + r.path, { waitUntil: "domcontentloaded" });
   await page.waitForTimeout(20_000);
   const s = await page.evaluate(() => ({
@@ -158,7 +163,8 @@ async function apiDown(browser: Browser, r: (typeof ROUTES)[number]) {
   }));
   const f = (kind: string, detail: string) => add({ route: r.path, viewport: "desktop", mode: "api-down", kind, detail });
   if (s.text < 40) f("blank", "main is empty with the API down");
-  else if (s.spinning && !s.said) f("spins-forever", "still loading after 20 s with the API down");
+  // A data page must say the data couldn't load; never just static text or a spinner.
+  else if (!r.noApi && !s.said) f(s.spinning ? "spins-forever" : "no-error-state", s.spinning ? "still loading after 20 s with the API down" : "no error message with the API down");
   for (const e of errors) f("page-error", e.slice(0, 300));
   await page.screenshot({ path: join(out, `apidown-${name(r.path)}.png`) });
   await ctx.close();
@@ -183,3 +189,5 @@ try {
 } finally {
   stopServers();
 }
+// A sweep with findings fails, so chained checks stop (like audit:flows).
+if (findings.length) process.exitCode = 1;

@@ -3,9 +3,9 @@
 // event, match and team of a season.
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
-import { CheckCircle2, Database, Download, HardDriveDownload, Loader2, Trash2, WifiOff } from "lucide-react";
+import { CheckCircle2, Database, Download, HardDriveDownload, Loader2, RefreshCw, Trash2, WifiOff } from "lucide-react";
 import { useTitle } from "../lib/meta";
-import { downloadLite, fetchManifest, packStatus, removeLite, type PackFile, type PackManifest, type PackMeta } from "../lib/packs";
+import { ManifestError, downloadLite, fetchManifest, packStatus, removeLite, type PackFile, type PackManifest, type PackMeta } from "../lib/packs";
 import { fmtBytes } from "../lib/recordings";
 import { PageHeader, Section, EmptyState } from "../components/page";
 import { Button } from "../components/ui/button";
@@ -17,10 +17,14 @@ import { ago, seasonLabel } from "../lib/format";
 export default function DownloadPage() {
   useTitle("Download");
   const [m, setM] = useState<PackManifest | null>(null);
-  const [err, setErr] = useState<string | null>(null);
+  const [err, setErr] = useState<ManifestError | null>(null);
+  const [attempt, setAttempt] = useState(0);
   const [local, setLocal] = useState<PackMeta | null>(packStatus());
   const [progress, setProgress] = useState<number | null>(null);
-  useEffect(() => { fetchManifest().then(setM, (e) => setErr(e.message)); }, []);
+  useEffect(() => {
+    setErr(null);
+    fetchManifest().then(setM, (e) => setErr(e instanceof ManifestError ? e : new ManifestError("failed", e.message)));
+  }, [attempt]);
   const getLite = async (f: PackFile) => {
     if (!m) return;
     setProgress(0);
@@ -32,7 +36,17 @@ export default function DownloadPage() {
   return (
     <div>
       <PageHeader title="Download" description="Take Control Scout to a venue with no signal. Packs are versioned; the app tells you when a newer one is out." />
-      {err ? <EmptyState icon={HardDriveDownload} title="No packs yet" description={err} /> : !m ? <div className="skeleton h-48 rounded-2xl" /> : (
+      {err ? (
+        <EmptyState
+          icon={err.reason === "none" ? HardDriveDownload : WifiOff}
+          title={err.reason === "none" ? "No packs yet" : "Couldn't check for packs"}
+          description={<>
+            {err.message}
+            {local && <span className="mt-2 block">Already on this device: lite pack {local.version}, saved {ago(new Date(local.savedAt).toISOString())}. Offline predictions use it.</span>}
+          </>}
+          action={err.reason !== "none" ? <Button variant="secondary" onClick={() => setAttempt((a) => a + 1)}><RefreshCw /> Try again</Button> : undefined}
+        />
+      ) : !m ? <div className="skeleton h-48 rounded-2xl" /> : (
         <>
           {outdated && <p className="mb-4 rounded-xl border border-accent/40 bg-accent/[0.06] px-4 py-3 text-sm">New data available: version {m.version} (you have {local!.version}).</p>}
           <div className="grid gap-4 lg:grid-cols-2">

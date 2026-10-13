@@ -108,14 +108,23 @@ function TeamPicker({ field, value, onChange }: { field: FieldRow[]; value: numb
   );
 }
 
+/** How the predictions did here, live calls and backtest replays kept apart
+ *  (decided matches only; live first when there are any). */
+function callRecord(matches: MatchView[]): { kind: "live" | "backtest"; n: number; right: number }[] {
+  const decided = matches.filter((m) => m.played && m.prediction && m.red.score && m.blue.score && m.red.score.total !== m.blue.score.total);
+  return (["live", "backtest"] as const).map((kind) => {
+    const xs = decided.filter((m) => m.prediction!.kind === kind);
+    return { kind, n: xs.length, right: xs.filter((m) => (m.prediction!.pRed > 0.5) === (m.red.score!.total > m.blue.score!.total)).length };
+  }).filter((x) => x.n > 0);
+}
+
 /** The right side of the hero: what a visitor came to learn, at a glance — real data only. */
 function EventGlance({ d, onTab }: { d: EventDetail; onTab: (t: string) => void }) {
   const e = d.event;
   const winners = d.awards.filter((a) => a.type === "Winner").map((a) => a.team);
   const seed1 = d.field.find((f) => f.rank === 1) ?? null;
   const topOpr = [...d.field].filter((f) => f.opr.np != null).sort((a, b) => b.opr.np! - a.opr.np!)[0] ?? null;
-  const called = d.matches.filter((m) => m.played && m.prediction && m.red.score && m.blue.score && m.red.score.total !== m.blue.score.total);
-  const right = called.filter((m) => (m.prediction!.pRed > 0.5) === (m.red.score!.total > m.blue.score!.total)).length;
+  const record = callRecord(d.matches);
   const rows: { label: string; value: ReactNode; to?: string; tab?: string }[] = [];
   if (winners.length) rows.push({ label: "Won by", value: <span className="font-mono">{winners.join(" · ")}</span>, tab: "playoffs" });
   if (seed1) rows.push({ label: "#1 seed", value: <><span className="font-mono">{seed1.team}</span> <span className="text-muted-foreground">{seed1.name}</span></>, to: `/teams/${seed1.team}?season=${e.season}`, tab: "rankings" });
@@ -124,10 +133,15 @@ function EventGlance({ d, onTab }: { d: EventDetail; onTab: (t: string) => void 
   return (
     <div className="min-w-0 rounded-xl border border-border/70 bg-background/40 p-4 backdrop-blur-sm">
       <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">At a glance</p>
-      {called.length > 0 ? (
-        <button type="button" onClick={() => onTab("matches")} className="mt-2 block w-full text-left">
-          <span className="font-display text-3xl font-semibold tabular-nums text-accent">{Math.round((right / called.length) * 100)}%</span>
-          <span className="ml-2 text-sm text-muted-foreground">of {called.length} decided matches called right here</span>
+      {record.length > 0 ? (
+        // Live calls and backtest replays are never blended: one line each, named.
+        <button type="button" onClick={() => onTab("matches")} className="mt-2 block w-full space-y-1 text-left">
+          {record.map((x, i) => (
+            <span key={x.kind} className="block">
+              <span className={cn("font-display font-semibold tabular-nums", i === 0 ? "text-3xl text-accent" : "text-lg")}>{Math.round((x.right / x.n) * 100)}%</span>
+              <span className="ml-2 text-sm text-muted-foreground">of {x.n} {x.kind === "live" ? "calls made before the match" : "matches, backtest (replayed from earlier data)"}</span>
+            </span>
+          ))}
         </button>
       ) : (
         <p className="mt-2 text-sm text-muted-foreground">
@@ -157,8 +171,7 @@ function Matches({ d, team }: { d: EventDetail; team: number | null }) {
   const [level, setLevel] = useState<"all" | "qual" | "playoff">("all");
   const [onlyTeam, setOnlyTeam] = useState(!!team);
   const list = d.matches.filter((m: MatchView) => (level === "all" || m.level === level) && (!onlyTeam || !team || [...m.red.teams, ...m.blue.teams].some((t) => t.number === team)));
-  const called = d.matches.filter((m) => m.played && m.prediction && m.red.score && m.blue.score && m.red.score.total !== m.blue.score.total);
-  const right = called.filter((m) => (m.prediction!.pRed > 0.5) === (m.red.score!.total > m.blue.score!.total)).length;
+  const record = callRecord(d.matches);
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-center gap-3">
@@ -166,7 +179,7 @@ function Matches({ d, team }: { d: EventDetail; team: number | null }) {
           <ToggleGroupItem value="all">All</ToggleGroupItem><ToggleGroupItem value="qual">Quals</ToggleGroupItem><ToggleGroupItem value="playoff">Playoffs</ToggleGroupItem>
         </ToggleGroup>
         {team && <Button size="sm" variant={onlyTeam ? "secondary" : "outline"} onClick={() => setOnlyTeam(!onlyTeam)}>{onlyTeam ? `Only ${team}` : `Highlight ${team}`}</Button>}
-        {called.length > 0 && <span className="ml-auto text-xs text-muted-foreground">Predictions called {right}/{called.length} decided matches here ({Math.round((right / called.length) * 100)}%)</span>}
+        {record.length > 0 && <span className="ml-auto text-xs text-muted-foreground">{record.map((x) => `${x.kind === "live" ? "Live calls" : "Backtest"} ${x.right}/${x.n} right (${Math.round((x.right / x.n) * 100)}%)`).join(" · ")}</span>}
       </div>
       {!d.matches.length ? <EmptyState icon={Swords} title="No schedule yet" description="The match schedule appears here once FIRST publishes it (usually the morning of the event)." /> : <MatchList matches={list} highlight={team ?? undefined} empty="No matches in this view." />}
       <p className="text-xs text-muted-foreground">Played matches show the prediction logged before they were played (or, for past seasons, the backtest replay). Upcoming matches show odds from today's ratings.</p>

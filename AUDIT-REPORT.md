@@ -1,8 +1,9 @@
 # Self-audit report
 
 **Result: all green in one clean run** (2026-10-13). [AUDIT.md](AUDIT.md) logs
-18 findings: 16 defects fixed and re-checked, 1 investigated and found not to
-be a defect (A2), and 1 tooling issue (T1). Runbook: [docs/self-audit.md](docs/self-audit.md).
+27 findings: 19 from the audit itself and 8 from code review of the audit PR.
+25 are defects, fixed and re-checked. One (A2) was investigated and is not a
+defect. One (T1) was a tooling issue, fixed at its root cause. Runbook: [docs/self-audit.md](docs/self-audit.md).
 
 ## The clean run
 
@@ -12,9 +13,9 @@ One pass on the final code, with nothing changed between steps:
 |---|---|
 | `npm run lint` (tsc) | clean |
 | `npm test` | 81/81 (was 66 before the audit: + accounts end to end, + search preference ranking, + pack lock cases) |
-| `npm run build` | ok; 46 files precached by the service worker |
-| `npm run audit`: 25 routes × desktop 1440×900 + mobile 390×844, plus forced loading and API-down states | **0 findings**. No console errors or warnings, no failed requests, no horizontal scroll, no unnamed controls, nothing blank, no mock text, a loading state everywhere, and an error state with a way forward everywhere when the API is down. |
-| `npm run audit:flows`: 9 click-throughs | **9/9** |
+| `npm run build` | ok; the build emits a versioned `sw.js` that precaches 46 files |
+| `npm run audit`: 25 routes × desktop 1440×900 + mobile 390×844, plus forced loading and API-down states (`/api` and `/packs` slowed and refused; every data page must show a loading indicator and an error message) | **0 findings**. No console errors or warnings, no failed requests, no horizontal scroll, no unnamed controls, nothing blank, no mock text, a loading state everywhere, and an error state with a way forward everywhere when the API is down. |
+| `npm run audit:flows`: 10 click-throughs | **10/10**, and no servers left on the tool ports afterwards |
 | Clean clone following only the README | install, lint, tests, build, sync, stats, boot, search: ok |
 
 ## What was checked, by runbook section
@@ -72,6 +73,8 @@ forward; nothing is blank and nothing spins forever (A3, A4).
 - **API-down drill:** passes, as described in §2.
 - **Offline (O1, O2):** the production app now opens with no signal (service
   worker) and still predicts from the lite pack.
+- **Upgrades (R1, R2):** a new build reaches existing visitors, and tabs still
+  on the old build keep their cached files.
 - **Performance (production build):** data on screen in 150–330 ms per page.
   The very first request after a server boot is ~3 s while ratings warm. The
   Monte Carlo runs on the server, never on the UI thread.
