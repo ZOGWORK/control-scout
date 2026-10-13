@@ -4,9 +4,17 @@ import { spawn, spawnSync, type ChildProcess } from "node:child_process";
 
 export const WEB_PORT = 5199, API_PORT = 3199;
 
-/** True only when Control Scout's own API answers (not some other app on the port). */
+/** True only when Control Scout's own API answers (not some other app on the
+ *  port) AND has its data ready. The server opens its port before its data is
+ *  ready (health says ready:false meanwhile); older servers omit the field. */
 export async function up(url: string) {
-  try { const r = await fetch(url, { signal: AbortSignal.timeout(2000) }); const j = await r.json(); return r.ok && j?.ok === true && typeof j.engine === "string"; } catch { return false; }
+  try { const r = await fetch(url, { signal: AbortSignal.timeout(5000) }); const j = await r.json(); return r.ok && j?.ok === true && typeof j.engine === "string" && j.ready !== false; } catch { return false; }
+}
+
+/** Poll until `up`, for up to `seconds` (a cold start on a small host takes minutes). */
+export async function waitUp(url: string, seconds: number) {
+  for (let i = 0; i < seconds; i += 2) { if (await up(url)) return true; await new Promise((r) => setTimeout(r, 2000)); }
+  return false;
 }
 
 const children: ChildProcess[] = [];
@@ -14,13 +22,16 @@ const children: ChildProcess[] = [];
 /** Start API + Vite unless `base` already answers. `external`: never start, only check. */
 export async function ensureServers(base: string, external = false) {
   if (await up(`${base}/api/health`)) return;
-  if (external) throw new Error(`${base} isn't reachable`);
+  if (external) {
+    if (await waitUp(`${base}/api/health`, 300)) return; // e.g. a sleeping/cold-starting host
+    throw new Error(`${base} didn't become ready in 5 minutes`);
+  }
   console.log("Starting API + Vite…");
   const env = { ...process.env, CS_NO_SCHEDULER: "1", PORT: String(API_PORT) };
   children.push(spawn("npx", ["tsx", "server/index.ts"], { env, shell: true, stdio: "ignore" }));
   children.push(spawn("npx", ["vite", "--port", String(WEB_PORT), "--strictPort"], { env, shell: true, stdio: "ignore" }));
-  for (let i = 0; i < 90; i++) { if (await up(`${base}/api/health`)) return; await new Promise((r) => setTimeout(r, 1000)); }
-  throw new Error("Servers didn't come up in 90 s");
+  if (await waitUp(`${base}/api/health`, 120)) return;
+  throw new Error("Servers didn't become ready in 120 s");
 }
 
 /** Stop anything ensureServers started. shell:true spawns a tree; on Windows kill
