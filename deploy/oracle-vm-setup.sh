@@ -37,6 +37,11 @@ UNIT="/etc/systemd/system/control-scout.service"
 [ "$(id -u)" = 0 ] || { echo "Run with sudo"; exit 1; }
 [ -f "$REL_DIR/package.json" ] || { echo "No release at $REL_DIR — run deploy/deploy.sh from your machine"; exit 1; }
 
+# One install at a time, whether it came from deploy/deploy.sh or the auto-deploy
+# updater: both end up here before touching current, the unit or nginx.
+exec 8> /run/control-scout-install.lock
+flock 8
+
 # Node 22+ (Control Point already installed a Node; only install if missing/old).
 if ! command -v node >/dev/null || [ "$(node -p 'process.versions.node.split(".")[0]')" -lt 22 ]; then
   curl -fsSL https://deb.nodesource.com/setup_22.x | bash -
@@ -114,11 +119,20 @@ ln -sfn "releases/$RELEASE" "$APP_DIR/current.new"
 mv -Tf "$APP_DIR/current.new" "$APP_DIR/current"
 systemctl restart control-scout
 
+# Auto-deploy (deploy/vm-update.sh): published only now that this release built
+# and went live, so a failed build never changes the saved domains or the updater.
+printf 'DOMAIN=%q\nEXTRA_DOMAINS=%q\n' "$DOMAIN" "$EXTRA_DOMAINS" > "$SHARED/deploy.conf"
+chmod 644 "$SHARED/deploy.conf"
+install -d -o root -g root -m 755 "$APP_DIR/bin"
+install -o root -g root -m 755 "$REL_DIR/deploy/vm-update.sh" "$APP_DIR/bin/update"
+
 # Keep the three newest releases for rollback.
 ls -1dt "$APP_DIR"/releases/*/ | tail -n +4 | while read -r old; do
   [ "$(readlink -f "$old")" = "$(readlink -f "$APP_DIR/current")" ] || rm -rf -- "$old"
 done
 
+# Keep the working site so a certificate failure can put it back.
+[ -f "$SITE_CONF" ] && cp -p "$SITE_CONF" "$SITE_CONF.last-good"
 cat > "$SITE_CONF" <<EOF
 server {
   listen 80;
@@ -144,9 +158,17 @@ command -v certbot >/dev/null || apt-get install -y certbot python3-certbot-ngin
 D_ARGS=""; for d in $ALL_DOMAINS; do D_ARGS="$D_ARGS -d $d"; done
 ACCOUNT=$([ -n "$CERTBOT_EMAIL" ] && echo "-m $CERTBOT_EMAIL" || echo "")
 # shellcheck disable=SC2086
-if ! certbot --nginx --cert-name "$DOMAIN" $D_ARGS $ACCOUNT --agree-tos --non-interactive --redirect --keep-until-expiring --expand; then
-  systemctl reload nginx
-  echo ">>> HTTPS failed (see above; DNS for every domain must point here). Serving HTTP only."
+if certbot --nginx --cert-name "$DOMAIN" $D_ARGS $ACCOUNT --agree-tos --non-interactive --redirect --keep-until-expiring --expand; then
+  rm -f "$SITE_CONF.last-good"
+elif [ -f "$SITE_CONF.last-good" ]; then
+  # An update never drops HTTPS: restore the previous (working) site and fail.
+  mv -f "$SITE_CONF.last-good" "$SITE_CONF"
+  nginx -t && systemctl reload nginx
+  echo ">>> HTTPS failed (see above; DNS for every domain must point here). Restored the previous nginx site; deploy FAILED."
+  exit 1
+else
+  systemctl reload nginx   # first install: HTTP until the certificate can be issued
+  echo ">>> HTTPS failed on first install (see above; DNS for every domain must point here). Serving HTTP only."
 fi
 
 sleep 8
