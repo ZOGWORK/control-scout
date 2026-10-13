@@ -240,3 +240,19 @@ morning review. Format: **what I chose** — why — the alternative.
 - **Memory budget:** on a 512 MB host, don't add a second isolate (worker) next to the rating book. Measure peak RSS for the full boot plus data cycle before merging anything that changes background work, and leave at least 25% headroom.
 - **Verify a deploy by Render's own events,** not just `/api/health`: check for `server_failed` (OOM kills) for 10 minutes after a deploy that changes boot or background work.
 - **The free plan is the wrong host for this app.** 0.15 CPU and 512 MB can't run the data cycle without freezing pages. The Oracle VM next to Control Point is the target (tasks 7–9).
+
+## Hosting: Oracle VM primary, Render as rollback (2026-10-13)
+
+- **Production moved to the Oracle VM:** https://controlscout.org, plus
+  `www.controlscout.org` and `scout.tryctrlpoint.org`, on one certificate.
+  It's the same VM as Control Point but its own user, port (3100), service and
+  nginx site. Why: Render free (0.15 CPU, 512 MB, ephemeral disk, sleeps when
+  idle) can't cold-start under ~20 s or keep the full events list under 300 ms
+  (`docs/perf-report.md`). The VM restarts to ready in 8.7 s, and every hot
+  route has a p95 at or under 70 ms.
+- **Render stays as the rollback host (Sushil's call)** and gets every update.
+  It rebuilds from main on its own. The deploy workflow (#23) checks that its
+  `/api/health` reports that commit (or a newer one), and `/api/health` reports
+  the running commit on both hosts (also #23). Render keeps the in-process data
+  cycle and doesn't build packs (it serves the shipped ones); the VM runs the cycle in a child process
+  (`DATA_CYCLE=child`), which needs more memory than Render has.
