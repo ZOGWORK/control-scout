@@ -76,6 +76,10 @@ export function authRouter(): Router {
   const googleRedirect = () => `${env.appUrl.replace(/\/$/, "")}/api/auth/google/callback`;
   r.get("/google/start", (req, res) => {
     if (!authProviders().google) { res.status(503).json({ error: "Google sign-in isn't set up on this server." }); return; }
+    // Start on the APP_URL host (the site also answers on aliases such as www):
+    // Google returns there, and the state cookie below is host-only.
+    const home = new URL(env.appUrl);
+    if (req.hostname !== home.hostname) { res.redirect(302, `${home.origin}${req.originalUrl}`); return; }
     const state = token(16);
     res.cookie("cs_oauth_state", state, { httpOnly: true, sameSite: "lax", secure: env.production, path: "/api/auth/google", maxAge: 10 * 60_000 });
     const p = new URLSearchParams({ client_id: env.googleClientId!, redirect_uri: googleRedirect(), response_type: "code", scope: "openid email profile", state, prompt: "select_account" });
