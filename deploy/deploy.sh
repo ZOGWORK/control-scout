@@ -18,7 +18,7 @@ SSH="ssh -i $KEY -o BatchMode=yes $VM"
 RELEASE="$(date -u +%Y%m%d%H%M%S)-$(git rev-parse --short HEAD)"
 echo "Shipping release $RELEASE to $VM"
 TMP=$($SSH 'mktemp -d /tmp/cs-new.XXXXXXXX')
-git archive HEAD | $SSH "tar -x -C '$TMP'"
+git archive HEAD | $SSH "tar -x -C '$TMP' && echo $(git rev-parse HEAD) > '$TMP/RELEASE'"
 $SSH "sudo bash -s" <<REMOTE
 set -e
 install -d -o root -g root -m 755 $APP_DIR $APP_DIR/releases

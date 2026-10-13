@@ -5,6 +5,7 @@ import compression from "compression";
 import { existsSync } from "node:fs";
 import { join } from "node:path";
 import { ENGINE_VERSION, FITTED_MODEL } from "@control-scout/predict-engine";
+import { RELEASE } from "./release.js";
 import { all, get, kvGet } from "./db.js";
 import { hasFirst } from "./env.js";
 import { CURRENT_SEASON, SEASONS, SEASON_NUMBERS, seasonInfo } from "./data/seasons.js";
@@ -100,7 +101,7 @@ export function createApp() {
   const api = express.Router();
   api.use((_req, res, next) => { res.setHeader("Cache-Control", "no-store"); next(); });
 
-  api.get("/health", h(async () => ({ ok: true, engine: ENGINE_VERSION })));
+  api.get("/health", h(async () => ({ ok: true, engine: ENGINE_VERSION, release: RELEASE })));
 
   api.get("/meta", h(async (): Promise<Meta> => {
     const rows = await all<any>("SELECT season, frozen, last_sync FROM seasons");

@@ -1,0 +1,96 @@
+name: Deploy to Oracle VM
+
+# Every push to main asks the Oracle VM to deploy that commit, the same way
+# Control Point's commands reach the VM: append a command to the private queue
+# sushilm20/control-point-commands (commands/pending.json). The VM's poller
+# (/opt/bruno-commands, every 30 s) runs it: /opt/control-scout/bin/update
+# fetches the commit with the VM's own read-only deploy key, builds it beside
+# the live release, switches over and restarts. This job then waits until
+# https://controlscout.org/api/health reports the new commit, and fails if it
+# doesn't within 20 minutes.
+#
+# Secret (repo Settings → Secrets and variables → Actions):
+#   COMMANDS_REPO_TOKEN  fine-grained token, repository access: only
+#                        sushilm20/control-point-commands, permission: Contents read & write.
+# Without it the job skips with a warning (nothing is deployed).
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+# One deploy at a time; a newer push waits for the running one.
+concurrency:
+  group: deploy-oracle
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+env:
+  SITE: https://controlscout.org
+  QUEUE_REPO: sushilm20/control-point-commands
+
+jobs:
+  deploy:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - name: Check for the queue token
+        id: gate
+        env:
+          TOKEN: ${{ secrets.COMMANDS_REPO_TOKEN }}
+        run: |
+          if [ -z "$TOKEN" ]; then
+            echo "::warning::COMMANDS_REPO_TOKEN secret is not set, skipping deploy."
+            echo "ok=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "ok=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Queue the deploy command
+        if: steps.gate.outputs.ok == 'true'
+        env:
+          TOKEN: ${{ secrets.COMMANDS_REPO_TOKEN }}
+          SHA: ${{ github.sha }}
+          RUN: ${{ github.run_id }}-${{ github.run_attempt }}
+        run: |
+          set -euo pipefail
+          git clone --quiet --depth 1 "https://x-access-token:${TOKEN}@github.com/${QUEUE_REPO}.git" queue
+          cd queue
+          git config user.name "control-scout deploy"
+          git config user.email "actions@users.noreply.github.com"
+          ID="cs-deploy-${SHA:0:7}-${RUN}"
+          # The poller rewrites pending.json too; on a race, start again from its latest version.
+          for attempt in 1 2 3 4 5; do
+            git fetch --quiet --depth 1 origin HEAD && git reset --quiet --hard FETCH_HEAD
+            mkdir -p commands
+            [ -f commands/pending.json ] || echo '{"commands":[]}' > commands/pending.json
+            jq --arg id "$ID" --arg cmd "sudo /opt/control-scout/bin/update $SHA" \
+              '.commands += [{id: $id, cmd: $cmd, timeout: 60}]' commands/pending.json > pending.tmp
+            mv pending.tmp commands/pending.json
+            git add commands/pending.json
+            git commit --quiet -m "control-scout: deploy ${SHA:0:7}"
+            if git push --quiet origin HEAD; then echo "Queued $ID"; exit 0; fi
+            sleep $((attempt * 3))
+          done
+          echo "::error::Couldn't push to the command queue"; exit 1
+
+      - name: Wait for the new release to be live
+        if: steps.gate.outputs.ok == 'true'
+        env:
+          SHA: ${{ github.sha }}
+        run: |
+          set -uo pipefail
+          deadline=$(( $(date +%s) + 20 * 60 ))
+          while [ "$(date +%s)" -lt "$deadline" ]; do
+            body=$(curl -fsS --max-time 10 "$SITE/api/health" || true)
+            if [ "$(echo "$body" | jq -r '.release // empty' 2>/dev/null)" = "$SHA" ] && [ "$(echo "$body" | jq -r '.ready' 2>/dev/null)" = "true" ]; then
+              echo "Live: $body"
+              exit 0
+            fi
+            sleep 15
+          done
+          echo "::error::$SITE didn't report release $SHA within 20 minutes (last: ${body:-no answer}). On the VM: sudo tail -n 100 /var/log/control-scout-deploy.log"
+          exit 1

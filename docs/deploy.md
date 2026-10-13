@@ -80,3 +80,38 @@ https://controlscout.org.
   `sudo ln -sfn releases/<older> /opt/control-scout/current && sudo systemctl restart control-scout`.
 - **Docker** (for the Mac mini cluster later): `docker build -t control-scout .`
   then `docker run -p 3000:3000 -v scout-data:/app/.data --env-file .env control-scout`.
+
+## Auto-deploy (every push to main)
+
+`.github/workflows/deploy.yml` deploys each push to main. It uses the same
+command queue as Control Point's VM jobs.
+
+1. The workflow appends `sudo /opt/control-scout/bin/update <sha>` to
+   `commands/pending.json` in the private `sushilm20/control-point-commands`.
+2. The VM's poller (`/opt/bruno-commands`, every 30 s) runs it.
+3. `bin/update` (`deploy/vm-update.sh`, installed by every deploy) fetches main,
+   refuses any commit that isn't on it, and installs the commit like step 5 above.
+   The new release builds beside the live one and switches only if the build
+   succeeds. The log is `/var/log/control-scout-deploy.log`.
+4. The workflow waits until `https://controlscout.org/api/health` reports
+   `"release": "<sha>"` and fails after 20 minutes if it doesn't.
+
+One-time setup (needs Sushil, since both steps are credentials):
+
+- **Queue token (GitHub Actions secret):** create a fine-grained token with
+  repository access **only** `sushilm20/control-point-commands` and permission
+  **Contents: read and write**. Save it as the `COMMANDS_REPO_TOKEN` Actions
+  secret on `Control-Point-FTC/control-scout`. Until it exists, the workflow
+  skips with a warning.
+- **VM read access to this private repo:** pick one.
+  - (a) Allow deploy keys for the Control-Point-FTC org (org settings →
+    Member privileges → Deploy keys), then
+    `gh repo deploy-key add <(ssh -i ~/.ssh/oracle-controlpoint ubuntu@132.145.202.89 sudo cat /opt/control-scout/deploy_key.pub) -R Control-Point-FTC/control-scout -t "Oracle VM auto-deploy (read-only)"`.
+    The key pair is already on the VM, and the private half never leaves it.
+  - (b) Create a fine-grained token with repository access **only**
+    `Control-Point-FTC/control-scout` and **Contents: read-only**, and store it on
+    the VM:
+    `ssh -t -i ~/.ssh/oracle-controlpoint ubuntu@132.145.202.89 'sudo install -m 600 /dev/null /opt/control-scout/github_token && sudo nano /opt/control-scout/github_token'`.
+    It's used through `GIT_ASKPASS` and never written into a URL or git config.
+
+Manual deploys with `deploy/deploy.sh` keep working the same way.

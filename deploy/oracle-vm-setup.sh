@@ -51,6 +51,15 @@ id "$APP_USER" >/dev/null 2>&1 || useradd --system --home "$SHARED/data" --shell
 install -d -o root -g root -m 755 "$APP_DIR" "$APP_DIR/releases" "$SHARED"
 install -d -o "$APP_USER" -g "$APP_USER" -m 700 "$SHARED/data"
 
+# Auto-deploy (deploy/vm-update.sh): remember the domains for unattended
+# installs, and install the updater the command queue runs.
+printf 'DOMAIN=%q
+EXTRA_DOMAINS=%q
+' "$DOMAIN" "$EXTRA_DOMAINS" > "$SHARED/deploy.conf"
+chmod 644 "$SHARED/deploy.conf"
+install -d -o root -g root -m 755 "$APP_DIR/bin"
+install -o root -g root -m 755 "$REL_DIR/deploy/vm-update.sh" "$APP_DIR/bin/update"
+
 # shared/.env: created once with placeholders; never overwritten (secrets live only here).
 if [ ! -f "$SHARED/.env" ]; then
   cat > "$SHARED/.env" <<EOF
