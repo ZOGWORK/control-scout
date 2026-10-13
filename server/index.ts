@@ -3,7 +3,7 @@
 // and the prediction ledger after every sync.
 import "./env.js";
 import { env, hasFirst } from "./env.js";
-import { migrate, all, kvGet, kvSet } from "./db.js";
+import { migrate, all, kvGet, kvSet, openReplicaIfRemote } from "./db.js";
 import { buildPacks } from "./packs/build.js";
 import { packsDir, packsPresent } from "./packs/routes.js";
 import express from "express";
@@ -34,6 +34,7 @@ server.use(app);
 server.listen(env.port, () => log(`Control Scout listening on :${env.port}${env.production ? "" : " (dev)"}`));
 log(`data: ${await restoreSnapshotIfEmpty().catch((e) => `snapshot restore failed: ${(e as Error).message}`)}`);
 log(`packs: ${(() => { try { return installShippedPacks(packsDir()); } catch (e) { return `shipped packs failed: ${(e as Error).message}`; } })()}`);
+await openReplicaIfRemote(log);
 await migrate();
 ready = true;
 log("ready");
