@@ -125,6 +125,34 @@ export function createApp() {
     return { team, season: season(req.query.season), matches: await matchViews({ season: season(req.query.season), team }, { predictUnplayed: true }) };
   }));
 
+  /**
+   * Alerts feed: every match of the given teams (up to 200) that's unplayed
+   * and within the next day, or played in the last 6 hours — one request,
+   * so in-tab alerts cover every tracked team.
+   */
+  api.get("/alerts-feed", h(async (req) => {
+    const s = season(req.query.season);
+    const teams = teamList(req.query.teams, "teams", 200);
+    const ph = teams.map(() => "?").join(",");
+    const codes = await all<{ code: string }>(
+      `SELECT DISTINCT mt.code FROM match_teams mt JOIN events e ON e.season = mt.season AND e.code = mt.code
+       WHERE mt.season = ? AND mt.team IN (${ph}) AND e.start <= ? AND COALESCE(e.end, e.start) >= ?`,
+      [s, ...teams, new Date(Date.now() + 864e5).toISOString().slice(0, 10), new Date(Date.now() - 864e5).toISOString().slice(0, 10)],
+    );
+    const want = new Set(teams);
+    const now = Date.now();
+    const out = [];
+    for (const { code: c } of codes.slice(0, 50)) {
+      for (const m of await matchViews({ season: s, code: c }, { predictUnplayed: true })) {
+        if (![...m.red.teams, ...m.blue.teams].some((t) => want.has(t.number))) continue;
+        const at = m.startsAt ? Date.parse(m.startsAt) : NaN;
+        if (!Number.isFinite(at)) continue;
+        if ((!m.played && at > now && at - now < 864e5) || (m.played && now - at < 6 * 3600_000)) out.push(m);
+      }
+    }
+    return { season: s, matches: out };
+  }));
+
   api.get("/events", h(async (req) => ({
     events: await listEvents({
       season: season(req.query.season), from: req.query.from ? String(req.query.from) : undefined, to: req.query.to ? String(req.query.to) : undefined,
