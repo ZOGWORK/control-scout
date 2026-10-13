@@ -170,10 +170,39 @@ async function apiDown(browser: Browser, r: (typeof ROUTES)[number]) {
   await ctx.close();
 }
 
+/** The search bar, used like a visitor would (found missing on the live site):
+ *  open it, type, and expect the right team as a result, at both sizes. */
+const SEARCHES: [query: string, expect: RegExp][] = [["4215", /4215 Hypnotic Robotics/], ["X Drvie", /16321 X Drive/], ["18360", /18360 Pymble/]];
+async function searchBar(browser: Browser, vp: Viewport) {
+  const ctx = await browser.newContext({ viewport: SIZES[vp], isMobile: vp === "mobile", hasTouch: vp === "mobile", reducedMotion: "reduce" });
+  await ctx.addInitScript(SHIM);
+  const page = await ctx.newPage();
+  await page.goto(BASE + "/", { waitUntil: "networkidle", timeout: 90_000 });
+  for (const [q, want] of SEARCHES) {
+    // The visible search control: the home hero button / header pill.
+    await page.getByRole("button", { name: /search|Team number|Teams, events/i }).first().click();
+    const input = page.getByRole("dialog").getByRole("combobox").or(page.getByRole("dialog").locator("input")).first();
+    await input.fill("");
+    await input.type(q, { delay: 40 });
+    const ok = await page.getByRole("option", { name: want }).first().waitFor({ timeout: 20_000 }).then(() => true, () => false);
+    if (!ok) {
+      const shown = (await page.getByRole("dialog").innerText().catch(() => "")).replace(/\s+/g, " ").slice(0, 160);
+      add({ route: "/ (search bar)", viewport: vp, mode: "normal", kind: "search-broken", detail: `"${q}" didn't find ${want.source}; dialog showed: ${shown}` });
+    }
+    await page.keyboard.press("Escape");
+  }
+  await ctx.close();
+}
+
 try {
   mkdirSync(out, { recursive: true });
   await ensureServers(BASE, !!opt("base"));
   const browser = await chromium.launch();
+  if (!only) {
+    for (const vp of ["desktop", "mobile"] as const) await searchBar(browser, vp);
+    const n = findings.filter((x) => x.kind === "search-broken").length;
+    console.log(`${n ? "✗" : "✓"} search bar: ${SEARCHES.map(([q]) => `"${q}"`).join(", ")} at desktop + mobile${n ? `  ${n} finding(s)` : ""}`);
+  }
   for (const r of routes) {
     for (const vp of ["desktop", "mobile"] as const) await normal(browser, r, vp);
     if (!args.includes("--no-states")) { await loading(browser, r); await apiDown(browser, r); }
