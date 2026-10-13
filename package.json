@@ -33,7 +33,8 @@
     "audit": "tsx scripts/audit.ts",
     "audit:flows": "tsx scripts/audit-flows.ts",
     "perf": "tsx scripts/perf.ts",
-    "query-profile": "tsx scripts/query-profile.ts"
+    "query-profile": "tsx scripts/query-profile.ts",
+    "audit:perf": "npm run build && tsx scripts/perf.ts --budgets"
   },
   "dependencies": {
     "@control-scout/predict-engine": "*",
