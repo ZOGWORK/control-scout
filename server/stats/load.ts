@@ -41,7 +41,19 @@ const score = (r: any, p: "red" | "blue") => r[`${p}_np`] == null ? null : {
 };
 
 /** Every event of a season with its matches, lineups, ranks and awards. */
+/** Events per query when loading a whole season. Loading everything at once
+ *  peaked at ~420 MB for 2025–26 (the raw rows dwarf the records kept), which
+ *  crashed a 512 MB host; batches keep the peak to one batch of raw rows. */
+const LOAD_BATCH = 120;
+
 export async function loadSeason(season: number, codes?: string[]): Promise<DbEvent[]> {
+  if (!codes) {
+    const all_ = (await all<{ code: string }>("SELECT code FROM events WHERE season = ? ORDER BY code", [season])).map((r) => r.code);
+    const out: DbEvent[] = [];
+    for (let i = 0; i < all_.length; i += LOAD_BATCH) out.push(...(await loadSeason(season, all_.slice(i, i + LOAD_BATCH))));
+    return out;
+  }
+  if (!codes.length) return [];
   const where = codes?.length ? ` AND code IN (${codes.map(() => "?").join(",")})` : "";
   const args = [season, ...(codes ?? [])];
   const [evs, ms, mts, ets, aws] = await Promise.all([
