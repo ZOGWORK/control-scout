@@ -124,7 +124,7 @@ function NoDataNotice() {
   return (
     <div role="status" className="mb-6 flex items-start gap-3 rounded-xl border border-warning/40 bg-warning/10 px-4 py-3 text-sm">
       <DatabaseZap className="mt-0.5 size-4 shrink-0 text-warning" aria-hidden />
-      <p><span className="font-semibold">No FTC data on this server yet.</span> <span className="text-text-muted">Its database hasn't been connected, so search, teams, events and predictions are empty for now. Nothing is broken; data appears as soon as it's loaded.</span></p>
+      <p><span className="font-semibold">No FTC team data has been loaded on this server yet.</span> <span className="text-text-muted">Search, teams, events and predictions stay empty until it is. This page checks again every 30 seconds.</span></p>
     </div>
   );
 }
