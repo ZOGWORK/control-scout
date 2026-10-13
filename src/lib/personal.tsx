@@ -125,8 +125,9 @@ export function PersonalProvider({ children }: { children: ReactNode }) {
   }, [apply]);
 
   /** Pull the account's state; the newer side wins per key; newer local edits are pushed. */
-  const pull = useCallback(async () => {
+  const pull = useCallback(async (alive: () => boolean = () => true) => {
     const r = await apiFetch<{ state: Partial<Record<PersonalKey, Stamped<any>>> }>("/api/me/state");
+    if (!alive()) return;
     for (const k of PERSONAL_KEYS) {
       const remote = r.state[k], local = stamped.current[k];
       if (remote && (!local || remote.updatedAt > local.updatedAt)) apply(k, remote);
@@ -135,9 +136,10 @@ export function PersonalProvider({ children }: { children: ReactNode }) {
   }, [apply]);
 
   /** First sign-in with anonymous data on this device: merge it into the account. */
-  const migrate = useCallback(async () => {
+  const migrate = useCallback(async (alive: () => boolean = () => true) => {
     const snapshot = Object.fromEntries(PERSONAL_KEYS.filter((k) => stamped.current[k]).map((k) => [k, stamped.current[k]])) as Record<PersonalKey, Stamped<any>>;
     const r = await apiFetch<{ state: Record<PersonalKey, Stamped<any>> }>("/api/me/migrate", { method: "POST", json: { state: snapshot, scout: localScoutEntries() } });
+    if (!alive()) return;
     for (const [k, s] of Object.entries(r.state) as [PersonalKey, Stamped<any>][]) {
       const now = stamped.current[k];
       // Edited while the merge was in flight: keep the newer local edit and send it next.
@@ -147,10 +149,16 @@ export function PersonalProvider({ children }: { children: ReactNode }) {
     }
   }, [apply]);
 
-  const connecting = useRef(false);
+  // Each connection belongs to one account and one generation. A different
+  // account signing in, or a sign-out, bumps the generation so stale work
+  // stops at its next await instead of blocking or overwriting the new state.
+  const generation = useRef(0);
+  const connectingFor = useRef<string | null>(null);
   const connect = useCallback(async (u: AccountUser) => {
-    if (connecting.current) return;
-    connecting.current = true;
+    if (connectingFor.current === String(u.id)) return; // already connecting this account
+    const mine = ++generation.current;
+    const alive = () => generation.current === mine;
+    connectingFor.current = String(u.id);
     setUser(u);
     userRef.current = u;
     readyRef.current = false;
@@ -158,7 +166,7 @@ export function PersonalProvider({ children }: { children: ReactNode }) {
     setSync("syncing");
     try {
       const owner = getOwner();
-      if (owner === "") await migrate();
+      if (owner === "") { await migrate(alive); if (!alive()) return; }
       else if (owner !== String(u.id)) {
         // This device holds another account's copy: keep it aside (unsent edits
         // included) rather than absorbing it into this account or deleting it.
@@ -176,15 +184,16 @@ export function PersonalProvider({ children }: { children: ReactNode }) {
           setPendingMap(mine.pending ?? {});
           importLocalScouting(mine.scouting ?? { entries: [], dirty: [] });
         }
-        await pull();
-      } else await pull();
+        await pull(alive);
+      } else await pull(alive);
+      if (!alive()) return;
       setOwner(String(u.id));
       readyRef.current = true;
       setSyncReady(true);
       await push();
-      if (!Object.keys(pending()).length) setSync("synced");
-    } catch (e: any) { setSync(e?.offline ? "offline" : "error"); }
-    finally { connecting.current = false; }
+      if (alive() && !Object.keys(pending()).length) setSync("synced");
+    } catch (e: any) { if (alive()) setSync(e?.offline ? "offline" : "error"); }
+    finally { if (alive()) connectingFor.current = null; }
   }, [apply, migrate, pull, push]);
 
   useEffect(() => {
@@ -222,6 +231,8 @@ export function PersonalProvider({ children }: { children: ReactNode }) {
   const signOut = useCallback(async () => {
     await apiFetch("/api/auth/logout", { method: "POST", json: {} }).catch(() => {});
     // The device keeps its copy, still marked as this account's (never treated as anonymous).
+    generation.current++; // any connection still in flight is now stale
+    connectingFor.current = null;
     setUser(null);
     userRef.current = null;
     readyRef.current = false;
