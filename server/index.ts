@@ -2,16 +2,14 @@
 // background schedule — sync daily, hourly while events are running; stats
 // and the prediction ledger after every sync.
 import "./env.js";
-import { env, hasFirst } from "./env.js";
-import { migrate, all, kvGet, kvSet, openReplicaIfRemote } from "./db.js";
-import { buildPacks } from "./packs/build.js";
-import { packsDir, packsPresent } from "./packs/routes.js";
+import { env } from "./env.js";
+import { migrate, all, isRemote, openReplicaIfRemote } from "./db.js";
+import { packsDir } from "./packs/routes.js";
+import { runCycle, runCycleInChild } from "./data/cycle.js";
 import express from "express";
 import { ENGINE_VERSION } from "@control-scout/predict-engine";
 import { createApp } from "./app.js";
 import { RELEASE } from "./release.js";
-import { syncAll } from "./sync.js";
-import { runStats } from "./stats/job.js";
 import { forecasterFor } from "./predict/engine.js";
 import { CURRENT_SEASON } from "./data/seasons.js";
 import { installShippedPacks, restoreSnapshotIfEmpty } from "./data/snapshot.js";
@@ -48,21 +46,10 @@ async function cycle(reason: string) {
   if (running || process.env.CS_NO_SCHEDULER) return;
   running = true;
   try {
-    log(`sync (${reason})`);
-    if (hasFirst()) await syncAll({ seasons: [CURRENT_SEASON], log: (m) => log(`  ${m}`) });
-    else log("  FIRST credentials missing — sync skipped (FTC Scout fallback runs per event only)");
-    await runStats({ seasons: [CURRENT_SEASON], log: (m) => log(`  ${m}`) });
-    // Offline packs: rebuilt at most daily (they're versioned; devices see "new data available").
-    // The timestamp alone isn't enough: an imported database carries
-    // packs:last without the pack files, so also require a readable manifest.
-    // CS_PACKS=off: hosts with a throwaway disk (Render free) skip packs; /download says none are built.
-    const lastPacks = await kvGet<string>("packs:last");
-    if (process.env.CS_PACKS !== "off" && (!lastPacks || Date.now() - Date.parse(lastPacks) > 23 * 3600_000 || !packsPresent())) {
-      try {
-        await buildPacks((m) => log(`  ${m}`));
-        await kvSet("packs:last", new Date().toISOString());
-      } catch (e) { log(`  packs: ${(e as Error).message}`); } // e.g. a manual build holds the lock
-    }
+    // A child needs the local file; with a remote database (or its embedded replica) the cycle stays here.
+    const child = process.env.DATA_CYCLE === "child" && !isRemote(env.databaseUrl);
+    log(`sync (${reason}${child ? ", in a child process" : ""})`);
+    if (child) await runCycleInChild(); else await runCycle(log);
   } catch (e) {
     log(`sync failed: ${(e as Error).message}`);
   } finally { running = false; }
