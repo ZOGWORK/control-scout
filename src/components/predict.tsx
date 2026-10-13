@@ -80,7 +80,7 @@ export function CalibrationLine({ pRed, className, compact }: { pRed: number; cl
       <span className="size-1.5 shrink-0 rounded-full bg-success" aria-hidden />
       {compact
         ? <>Calls near {said}% came true {won}% of the time</>
-        : <>When we say about {said}%, the favourite wins {won}% of the time (ties count half) — {c.n.toLocaleString()} {c.kind === "live" ? "live calls" : `matches, ${c.seasonLabel} backtest`}.</>}
+        : <>When we say about {said}%, the favourite wins {won}% of the time (ties count half) — {c.n.toLocaleString()} {c.kind === "live" ? "live calls" : `${c.seasonLabel} matches predicted from earlier data`}.</>}
       <span className="underline decoration-dotted underline-offset-2 group-hover:decoration-solid">Track record</span>
     </Link>
   );
@@ -88,7 +88,7 @@ export function CalibrationLine({ pRed, className, compact }: { pRed: number; cl
 
 const KIND_LABEL: Record<MatchPredictionView["kind"], string> = {
   live: "Called before the match",
-  backtest: "Backtest (replayed with only earlier data)",
+  backtest: "Predicted using only the matches before it (replayed afterward; not a live call)",
   now: "Prediction from today's ratings",
 };
 
@@ -153,7 +153,7 @@ export function MatchRow({ m, highlight, showEvent }: { m: MatchView; highlight?
           {called === true && <span className="inline-flex items-center gap-0.5 text-success"><Check className="size-3" /> Called</span>}
           {called === false && <span className="inline-flex items-center gap-0.5 text-warning"><X className="size-3" /> Upset</span>}
           {p && <TierMark tier={p.tier} />}
-          {p?.kind === "backtest" && <span title={KIND_LABEL.backtest}>backtest</span>}
+          {p?.kind === "backtest" && <span title={KIND_LABEL.backtest}>predicted</span>}
           {p?.kind === "live" && m.played && <span title={KIND_LABEL.live}>pre-match</span>}
           {m.video && <a href={m.video} target="_blank" rel="noreferrer noopener" className="inline-flex items-center hover:text-text-base" aria-label="Official match video"><PlayCircle className="size-3.5" /></a>}
           <VideoButton matchRef={`${m.season}:${m.code}:${m.level}:${m.series}:${m.number}`} label={`${m.code} ${m.label}`} />
@@ -176,6 +176,6 @@ function CalibrationTip({ pRed }: { pRed: number }) {
   const c = useCalibration(pRed);
   if (!c) return null;
   // Always name the history it came from: a backtest must never read as live calls.
-  const source = c.kind === "live" ? `${c.seasonLabel} live calls` : `${c.seasonLabel} backtest`;
+  const source = c.kind === "live" ? `${c.seasonLabel} live calls` : `${c.seasonLabel} predictions (replayed)`;
   return <span className="mt-1 block opacity-80">Track record ({source}): favourites near {Math.round(c.said * 100)}% won {Math.round(c.won * 100)}% of {c.n.toLocaleString()} matches, ties counting half.</span>;
 }
