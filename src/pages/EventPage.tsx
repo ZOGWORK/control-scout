@@ -1,6 +1,6 @@
 // Event page: schedule + results (with predictions), rankings, playoff
 // bracket, awards + advancement, and advancement odds for any team there.
-import { useMemo, useState } from "react";
+import { useMemo, useState, type ReactNode } from "react";
 import { Link, useParams, useSearchParams } from "react-router-dom";
 import { Award, CalendarDays, ExternalLink, MapPin, Radio, Swords, Trophy } from "lucide-react";
 import { BRACKETS, type Slot } from "@control-scout/predict-engine";
@@ -44,7 +44,8 @@ function Event({ d }: { d: EventDetail }) {
     <div>
       <Reveal className="relative mb-6 overflow-hidden rounded-2xl border border-border bg-card p-6 sm:p-8">
         <div aria-hidden className="pointer-events-none absolute -right-20 -top-24 size-72 rounded-full bg-accent opacity-15 blur-3xl" />
-        <div className="relative">
+        <div className="relative grid gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(0,22rem)] lg:gap-10">
+        <div className="min-w-0">
           <div className="flex flex-wrap items-center gap-2">
             {e.status === "live" ? <Badge variant="destructive"><Radio /> Live</Badge> : e.status === "upcoming" ? <Badge variant="secondary">Upcoming</Badge> : <Badge variant="outline">Finished</Badge>}
             <Badge variant="outline">{e.typeLabel}</Badge>
@@ -65,6 +66,8 @@ function Event({ d }: { d: EventDetail }) {
             <Button variant="outline" size="sm" asChild><Link to={`/predict?mode=advancement&season=${e.season}&code=${e.code}${teamParam ? `&team=${teamParam}` : ""}`}>Open in prediction lab</Link></Button>
           </div>
           <p className="mt-3 text-[11px] text-muted-foreground">Source: {e.source === "first" ? "FIRST Events API" : "FTC Scout"}</p>
+        </div>
+        <EventGlance d={d} onTab={setTab} />
         </div>
       </Reveal>
 
@@ -105,12 +108,70 @@ function TeamPicker({ field, value, onChange }: { field: FieldRow[]; value: numb
   );
 }
 
+/** How the predictions did here, live calls and backtest replays kept apart
+ *  (decided matches only; live first when there are any). */
+function callRecord(matches: MatchView[]): { kind: "live" | "backtest"; n: number; right: number }[] {
+  const decided = matches.filter((m) => m.played && m.prediction && m.red.score && m.blue.score && m.red.score.total !== m.blue.score.total);
+  return (["live", "backtest"] as const).map((kind) => {
+    const xs = decided.filter((m) => m.prediction!.kind === kind);
+    return { kind, n: xs.length, right: xs.filter((m) => (m.prediction!.pRed > 0.5) === (m.red.score!.total > m.blue.score!.total)).length };
+  }).filter((x) => x.n > 0);
+}
+
+/** The right side of the hero: what a visitor came to learn, at a glance — real data only. */
+function EventGlance({ d, onTab }: { d: EventDetail; onTab: (t: string) => void }) {
+  const e = d.event;
+  const winners = d.awards.filter((a) => a.type === "Winner").map((a) => a.team);
+  const seed1 = d.field.find((f) => f.rank === 1) ?? null;
+  const topOpr = [...d.field].filter((f) => f.opr.np != null).sort((a, b) => b.opr.np! - a.opr.np!)[0] ?? null;
+  const record = callRecord(d.matches);
+  const rows: { label: string; value: ReactNode; to?: string; tab?: string }[] = [];
+  if (winners.length) rows.push({ label: "Won by", value: <span className="font-mono">{winners.join(" · ")}</span>, tab: "playoffs" });
+  if (seed1) rows.push({ label: "#1 seed", value: <><span className="font-mono">{seed1.team}</span> <span className="text-muted-foreground">{seed1.name}</span></>, to: `/teams/${seed1.team}?season=${e.season}`, tab: "rankings" });
+  if (topOpr) rows.push({ label: "Top OPR", value: <><span className="font-mono">{topOpr.team}</span> <span className="text-muted-foreground">{topOpr.opr.np!.toFixed(1)}</span></>, to: `/teams/${topOpr.team}?season=${e.season}` });
+  if (d.advancement?.slots) rows.push({ label: "Advancing", value: <>{d.advancement.slots} slots{d.advancement.advancesTo ? <span className="text-muted-foreground"> → {d.advancement.advancesTo}</span> : null}</>, tab: "odds" });
+  return (
+    <div className="min-w-0 rounded-xl border border-border/70 bg-background/40 p-4 backdrop-blur-sm">
+      <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">At a glance</p>
+      {record.length > 0 ? (
+        // Live calls and backtest replays are never blended: one line each, named.
+        <button type="button" onClick={() => onTab("matches")} className="mt-2 block w-full space-y-1 text-left">
+          {record.map((x, i) => (
+            <span key={x.kind} className="block">
+              <span className={cn("font-display font-semibold tabular-nums", i === 0 ? "text-3xl text-accent" : "text-lg")}>{Math.round((x.right / x.n) * 100)}%</span>
+              <span className="ml-2 text-sm text-muted-foreground">of {x.n} {x.kind === "live" ? "calls made before the match" : "matches, backtest (replayed from earlier data)"}</span>
+            </span>
+          ))}
+        </button>
+      ) : (
+        <p className="mt-2 text-sm text-muted-foreground">
+          {e.status === "upcoming" ? "Every match here gets a prediction before it's played, scored afterwards on the public track record." : "No decided matches with predictions here yet."}
+        </p>
+      )}
+      {rows.length > 0 && (
+        <dl className="mt-3 divide-y divide-border/60 text-sm">
+          {rows.map((r) => (
+            <div key={r.label} className="flex items-center justify-between gap-3 py-2">
+              <dt className="shrink-0 text-muted-foreground">{r.label}</dt>
+              <dd className="min-w-0 truncate text-right">
+                {r.to ? <Link to={r.to} className="hover:text-accent">{r.value}</Link> : r.tab ? <button type="button" onClick={() => onTab(r.tab!)} className="hover:text-accent">{r.value}</button> : r.value}
+              </dd>
+            </div>
+          ))}
+        </dl>
+      )}
+      {e.status !== "finished" && !d.forecastUnsupported && (
+        <Button size="sm" className="mt-3 w-full" onClick={() => onTab("odds")}><Trophy /> Who advances? See the odds</Button>
+      )}
+    </div>
+  );
+}
+
 function Matches({ d, team }: { d: EventDetail; team: number | null }) {
   const [level, setLevel] = useState<"all" | "qual" | "playoff">("all");
   const [onlyTeam, setOnlyTeam] = useState(!!team);
   const list = d.matches.filter((m: MatchView) => (level === "all" || m.level === level) && (!onlyTeam || !team || [...m.red.teams, ...m.blue.teams].some((t) => t.number === team)));
-  const called = d.matches.filter((m) => m.played && m.prediction && m.red.score && m.blue.score && m.red.score.total !== m.blue.score.total);
-  const right = called.filter((m) => (m.prediction!.pRed > 0.5) === (m.red.score!.total > m.blue.score!.total)).length;
+  const record = callRecord(d.matches);
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-center gap-3">
@@ -118,7 +179,7 @@ function Matches({ d, team }: { d: EventDetail; team: number | null }) {
           <ToggleGroupItem value="all">All</ToggleGroupItem><ToggleGroupItem value="qual">Quals</ToggleGroupItem><ToggleGroupItem value="playoff">Playoffs</ToggleGroupItem>
         </ToggleGroup>
         {team && <Button size="sm" variant={onlyTeam ? "secondary" : "outline"} onClick={() => setOnlyTeam(!onlyTeam)}>{onlyTeam ? `Only ${team}` : `Highlight ${team}`}</Button>}
-        {called.length > 0 && <span className="ml-auto text-xs text-muted-foreground">Predictions called {right}/{called.length} decided matches here ({Math.round((right / called.length) * 100)}%)</span>}
+        {record.length > 0 && <span className="ml-auto text-xs text-muted-foreground">{record.map((x) => `${x.kind === "live" ? "Live calls" : "Backtest"} ${x.right}/${x.n} right (${Math.round((x.right / x.n) * 100)}%)`).join(" · ")}</span>}
       </div>
       {!d.matches.length ? <EmptyState icon={Swords} title="No schedule yet" description="The match schedule appears here once FIRST publishes it (usually the morning of the event)." /> : <MatchList matches={list} highlight={team ?? undefined} empty="No matches in this view." />}
       <p className="text-xs text-muted-foreground">Played matches show the prediction logged before they were played (or, for past seasons, the backtest replay). Upcoming matches show odds from today's ratings.</p>

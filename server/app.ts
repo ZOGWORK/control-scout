@@ -5,7 +5,7 @@ import compression from "compression";
 import { existsSync } from "node:fs";
 import { join } from "node:path";
 import { ENGINE_VERSION, FITTED_MODEL } from "@control-scout/predict-engine";
-import { all, kvGet } from "./db.js";
+import { all, get, kvGet } from "./db.js";
 import { hasFirst } from "./env.js";
 import { CURRENT_SEASON, SEASONS, SEASON_NUMBERS, seasonInfo } from "./data/seasons.js";
 import { ensureSearchIndex, search } from "./api/search.js";
@@ -115,7 +115,8 @@ export function createApp() {
 
   api.get("/search", h(async (req) => {
     await ensureSearchIndex(rebuildSearch);
-    return { q: String(req.query.q ?? ""), hits: await search(String(req.query.q ?? "").slice(0, 80), Math.min(25, Number(req.query.limit) || 12)) };
+    const prefer = new Set(String(req.query.prefer ?? "").split(",").filter((k) => /^(team:\d{1,6}|event:\d{4}:[A-Z0-9_-]{2,24})$/i.test(k)).slice(0, 100));
+    return { q: String(req.query.q ?? ""), hits: await search(String(req.query.q ?? "").slice(0, 80), Math.min(25, Number(req.query.limit) || 12), prefer) };
   }));
 
   api.get("/teams/:number", h(async (req) => {
@@ -174,7 +175,18 @@ export function createApp() {
     return d;
   }));
 
-  api.get("/compare", h(async (req) => compareTeams(teamList(req.query.teams, "teams", 4), season(req.query.season))));
+  api.get("/compare", h(async (req) => {
+    const numbers = teamList(req.query.teams, "teams", 4);
+    // No season asked for: the latest season where any of them has results
+    // (like the team page), not an empty current season.
+    let s = season(req.query.season);
+    if (!req.query.season && numbers.length) {
+      const ph = numbers.map(() => "?").join(",");
+      const r = await get<{ season: number | null }>(`SELECT MAX(season) season FROM team_season_stats WHERE team IN (${ph}) AND matches > 0`, numbers);
+      if (r?.season) s = r.season;
+    }
+    return compareTeams(numbers, s);
+  }));
 
   /** Many teams at once (shortlist, tracked teams): name, place, season stats, latest event. */
   api.get("/teams-summary", h(async (req) => ({ season: season(req.query.season), teams: await teamSummaries(teamList(req.query.teams, "teams", 100), season(req.query.season)) })));
@@ -263,6 +275,8 @@ export function createApp() {
   const dist = join(process.cwd(), "dist");
   if (existsSync(join(dist, "index.html"))) {
     app.use("/assets", express.static(join(dist, "assets"), { immutable: true, maxAge: "1y" }));
+    // The service worker and its file list must never be served stale.
+    for (const f of ["sw.js"]) app.get(`/${f}`, (_req, res) => { res.setHeader("Cache-Control", "no-cache"); res.sendFile(join(dist, f)); });
     app.use(express.static(dist, { index: false, maxAge: "1h" }));
     app.get(/^(?!\/api\/|\/packs\/).*/, (_req, res) => { res.setHeader("Cache-Control", "no-cache"); res.sendFile(join(dist, "index.html")); });
   }

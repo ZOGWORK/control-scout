@@ -21,6 +21,10 @@ both run the shared engine in `packages/predict-engine`.
    Flags: `--mobile` (390×844), `--both` (desktop 1440×900 + mobile), `--light`, `--viewport` (no full page), `--search "<text>"` (open the ⌘K palette and type), `--pointer` (mouse resting mid-page: hover states, ambient light), `--motion` (animations on), `--video <seconds>` (a .webm with the pointer moving — for motion changes), `--out <dir>`. It prints ready-made `--attach` arguments. Attach with the GitHub CLI (2.101 or newer; `gh --version`): `gh pr create --attach 'file.png#alt text'` or, after opening, `gh pr comment <n> --attach …`. `gh` cannot set alt text on a video attachment, so describe what a `.webm` shows in the PR text next to it. Never commit screenshots.
 7. **Verify after deploying.** Once a deploy finishes, check the change on the live site and post a verification comment on the PR with a screenshot. Say plainly what couldn't be checked and why.
 
+### Self-audit
+
+Before calling a milestone done, run [docs/self-audit.md](docs/self-audit.md) using `npm run audit`, which sweeps every route at desktop and mobile size: console, overflow, labels, and loading/API-down states. Then run `npm run audit:flows`, which clicks through every feature, including the offline venue check on the production build (`npm run build` first). Log findings in `AUDIT.md`. Both tools reuse servers already running on 5199/3199, so stop stale ones after editing server code.
+
 ## Product rules (non-negotiable)
 
 8. **No mock data anywhere a user can see.** Real data end to end, or the page says what's missing and why (e.g. "no schedule published yet").

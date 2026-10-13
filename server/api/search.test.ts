@@ -13,6 +13,7 @@ beforeAll(async () => {
     [16321, "X Drive", null, "Seattle"], [10820, "Cyber Dragons", "Lincoln High", "Austin"], [18360, "Pymble Pyrophosphate", null, "Sydney"],
     [1622, "Team Spyder", null, "San Diego"], [16000, "Gear Maniacs", null, "Boston"], [4215, "Hypnotic Robotics", null, "Ames"],
     [2222, "Robo-Raptors", null, "Leeds"], [3333, "机器人队", null, "Shenzhen"],
+    [5555, "Drive Team", null, "Austin"],
   ];
   for (const [n, name, school, city] of teams) {
     await run("INSERT INTO teams (number, name, school, city) VALUES (?, ?, ?, ?)", [n, name, school, city]);
@@ -35,6 +36,20 @@ describe("search", () => {
     expect((await titles("pymb"))[0]).toBe("18360 Pymble Pyrophosphate");
     expect((await titles("x dri"))[0]).toBe("16321 X Drive");
   });
+  it("ranks your own teams first after an exact number match", async () => {
+    const pref = new Set(["team:16321"]);
+    expect((await search("16", 5, pref)).map((h) => h.title)).toEqual(["16321 X Drive", "1622 Team Spyder", "16000 Gear Maniacs"]);
+    // An exact match still wins over a preferred one.
+    expect((await search("1622", 5, pref))[0].title).toBe("1622 Team Spyder");
+    // Typo fallback (no shared trigram): equally good matches tip toward your team too.
+    const both = (await search("dirve", 5)).map((h) => h.ref);
+    expect(both).toEqual(expect.arrayContaining(["16321", "5555"]));
+    expect((await search("dirve", 5, new Set(["team:5555"])))[0].ref).toBe("5555");
+    expect((await search("dirve", 5, new Set(["team:16321"])))[0].ref).toBe("16321");
+    // Text: near-tied matches tip toward your team.
+    expect((await search("dragons", 5, new Set(["team:10820"])))[0].title).toBe("10820 Cyber Dragons");
+  });
+
   it("prefix-matches team numbers, exact number first", async () => {
     expect(await titles("16")).toEqual(["1622 Team Spyder", "16000 Gear Maniacs", "16321 X Drive"]);
     expect((await titles("4215"))[0]).toBe("4215 Hypnotic Robotics");
@@ -45,7 +60,7 @@ describe("search", () => {
     expect((await titles("AUSYQ1 Q12"))[0]).toBe("Q12 · Sydney South Qualifier");
   });
   it("finds short swapped typos that share no trigram (dirve → Drive)", async () => {
-    expect((await titles("dirve"))[0]).toBe("16321 X Drive");
+    expect(await titles("dirve")).toContain("16321 X Drive"); // ties with "Drive Team" (preference test)
   });
   it("matches across punctuation in stored names (Robo-Raptors)", async () => {
     expect((await titles("robo raptrs"))[0]).toBe("2222 Robo-Raptors");
@@ -70,7 +85,7 @@ describe("search", () => {
     await run("UPDATE kv SET value = '\"v-fail\"' WHERE key = 'search:version'");
     await expect(search("dirve", 5)).rejects.toThrow("db down");
     fail = false;
-    expect((await titles("dirve"))[0]).toBe("16321 X Drive");
+    expect(await titles("dirve")).toContain("16321 X Drive"); // ties with "Drive Team" (preference test)
     (c as any).execute = real;
   });
   it("doesn't return far-off guesses", async () => {

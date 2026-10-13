@@ -11,10 +11,15 @@ export function SeasonToggle({ seasons, value, onChange }: { seasons?: number[];
   if (!list.includes(value)) list.unshift(value);
   const game = (s: number) => meta?.seasons.find((x) => x.season === s)?.game ?? "";
   return (
-    <ToggleGroup type="single" aria-label="Season" value={String(value)} onValueChange={(v) => { if (v) onChange(Number(v)); }}>
+    <ToggleGroup type="single" aria-label="Season" className="max-w-full overflow-x-auto" value={String(value)} onValueChange={(v) => { if (v) onChange(Number(v)); }}>
       {list.map((s) => (
+        // The tooltip sits on the season button itself, so keyboard focus shows
+        // the game name too. Selection is styled from aria-checked (see
+        // ui/controls), which the tooltip's data-state can't overwrite.
         <Tooltip key={s}>
-          <TooltipTrigger asChild><ToggleGroupItem value={String(s)} aria-label={`${seasonLabel(s)} ${game(s)}`}>{seasonLabel(s)}</ToggleGroupItem></TooltipTrigger>
+          <TooltipTrigger asChild>
+            <ToggleGroupItem value={String(s)} className="shrink-0 max-sm:px-2.5" aria-label={`${seasonLabel(s)} ${game(s)}`}>{seasonLabel(s)}</ToggleGroupItem>
+          </TooltipTrigger>
           <TooltipContent>{game(s)}</TooltipContent>
         </Tooltip>
       ))}

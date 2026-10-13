@@ -1,6 +1,7 @@
 import { StrictMode, Suspense, lazy } from "react";
 import { createRoot } from "react-dom/client";
 import { BrowserRouter, Route, Routes } from "react-router-dom";
+import { MotionConfig } from "motion/react";
 import "./index.css";
 import "./components/arc/arc-theme.css";
 import { PersonalProvider } from "./lib/personal";
@@ -27,8 +28,16 @@ const SettingsPage = lazy(() => import("./pages/SettingsPage"));
 const MethodologyPage = lazy(() => import("./pages/MethodologyPage"));
 const NotFound = lazy(() => import("./pages/NotFound"));
 
+// Offline: the service worker precaches the app so it opens with no signal.
+// Production builds only (dev serves unbundled modules).
+if (import.meta.env.PROD && "serviceWorker" in navigator) {
+  window.addEventListener("load", () => { navigator.serviceWorker.register("/sw.js").catch(() => { /* offline support is a bonus */ }); });
+}
+
 createRoot(document.getElementById("root")!).render(
   <StrictMode>
+    {/* Honour the visitor's reduced-motion setting everywhere (transforms off, fades kept). */}
+    <MotionConfig reducedMotion="user">
     <BrowserRouter>
       <PersonalProvider>
         <MetaProvider>
@@ -60,5 +69,6 @@ createRoot(document.getElementById("root")!).render(
         </MetaProvider>
       </PersonalProvider>
     </BrowserRouter>
+    </MotionConfig>
   </StrictMode>,
 );

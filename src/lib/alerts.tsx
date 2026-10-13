@@ -62,7 +62,7 @@ export function AlertsRunner() {
               const redWon = m.red.score.total > m.blue.score.total;
               if ((m.prediction.pRed > 0.5) !== redWon) {
                 const won = (side === "red") === redWon;
-                notify(`upset:${m.code}:${m.key}`, `Upset: ${team} ${won ? "won" : "lost"} ${m.label}`, `${m.red.score.total}–${m.blue.score.total} · they were ${oddsPct(side === "red" ? m.prediction.pRed : 1 - m.prediction.pRed)} before the match`, url);
+                notify(`upset:${m.code}:${m.key}`, `Upset: ${team} ${won ? "won" : "lost"} ${m.label}`, `${m.red.score.total}–${m.blue.score.total} · they were ${oddsPct(side === "red" ? m.prediction.pRed : 1 - m.prediction.pRed)} before the match (${m.prediction.tier})`, url);
               }
             }
           }

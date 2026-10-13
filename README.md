@@ -28,10 +28,32 @@ cp .env.example .env        # add FIRST Events API credentials (optional but rec
 npm run seed:scout          # optional: import a local FTC Scout cache for instant history
 npm run sync                # pull events/teams/matches from FIRST (resumable)
 npm run stats               # compute OPR + ratings + calibration ledger
+npm run packs               # optional: build the offline packs served at /packs
 npm run dev                 # API on :3000, web on :5173
 ```
 
 `npm test` runs every test; `npm run lint` type-checks.
+
+`npm run sync` needs FIRST credentials (it lists events from FIRST, and falls
+back to FTC Scout per event when FIRST has no data for one). Without them, the
+app still starts but shows empty states until data arrives via `seed:scout` or
+a copied database. Without a Resend key, sign-in is hidden and everything
+personal stays on the device.
+
+### Tools
+
+| Command | What it does |
+|---|---|
+| `npm run shots -- /teams/18360 --both` | Screenshots for PRs (real servers, 2x, waits for data). See [AGENTS.md](AGENTS.md). |
+| `npm run audit` | The self-audit sweep: every route at desktop + mobile, console, overflow, labels, loading and API-down states ([docs/self-audit.md](docs/self-audit.md)). |
+| `npm run db:export` | A consistent single-file copy of the database (for moving it to a server). |
+| `npm run db:push` | Copy the public data into a Turso database ([docs/render.md](docs/render.md)). |
+
+## Hosting
+
+* **Now:** Render (free) + Turso: [docs/render.md](docs/render.md).
+* **Later (custom domain):** the Oracle VM next to Control Point:
+  [docs/deploy.md](docs/deploy.md). A `Dockerfile` runs anywhere else.
 
 ## How data flows
 

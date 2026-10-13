@@ -200,3 +200,11 @@ morning review. Format: **what I chose** — why — the alternative.
   a fixed layer under the scrolling `<main>`.
 - `npm run shots` gained `--pointer`, `--motion` and `--video <s>` so motion
   changes can be shown in PRs (video = .webm with a scripted pointer).
+
+## Self-audit (2026-10-13)
+
+- **Service worker, hand-written, production only.** The "venue with no signal" promise needs the app itself to open offline, not just the lite pack. A 50-line worker plus a build step that lists every built file beats a PWA plugin dependency. Pages are network-first (fresh data when there's signal), and hashed assets and fonts are cache-first. `/api` and `/packs` are never cached by the worker: live data stays live, and offline predictions come from the lite pack in IndexedDB.
+- **Tier always visible, never hover-only.** Dense lists get `TierMark` (icon + word) rather than the full badge. The rule "tier on every prediction surface" wins over row density.
+- **Your teams rank first in search, after exact numbers.** My team, tracked and shortlisted teams/events are sent as `prefer`. They come right after an exact number match and get a small text-score bonus (+0.1), so they win near-ties but never beat a clearly better match.
+- **Compare defaults to the latest season with results**, like the team page, because an empty current season made the page look broken.
+- **Impossible team numbers never hit the API**, and 400/404 errors never offer "Try again".
