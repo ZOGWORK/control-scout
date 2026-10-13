@@ -44,12 +44,23 @@ for (const table of PUBLIC_TABLES) {
   // (UNIQUE kind+match). Everything else is plain data: newest copy wins.
   const ledger = table === "predictions";
   if (ledger) cols = cols.filter((c) => c !== "id");
-  const sql = `INSERT OR ${ledger ? "IGNORE" : "REPLACE"} INTO ${table} (${cols.join(", ")}) VALUES (${cols.map(() => "?").join(", ")})`;
+  const values = cols.map(() => "?").join(", ");
+  // A live call can later be reclassified late, so live/late are one call per
+  // match: if the target has either, it keeps its own and the copy is skipped.
+  const sql = ledger
+    ? `INSERT OR IGNORE INTO predictions (${cols.join(", ")}) SELECT ${values} WHERE NOT EXISTS (SELECT 1 FROM predictions WHERE season = ? AND code = ? AND level = ? AND series = ? AND number = ? AND kind IN (?, ?))`
+    : `INSERT OR REPLACE INTO ${table} (${cols.join(", ")}) VALUES (${values})`;
+  const argsFor = (r: Record<string, unknown>) => {
+    const base = cols.map((c) => (r[c] ?? null) as never);
+    if (!ledger) return base;
+    const family = r.kind === "live" || r.kind === "late" ? ["live", "late"] : [r.kind, r.kind];
+    return [...base, r.season, r.code, r.level, r.series, r.number, ...family] as never[];
+  };
   let copied = 0;
   for (let last = -1; ;) {
     const rows = (await source.execute({ sql: `SELECT rowid AS _rid, ${cols.join(", ")} FROM ${table} WHERE rowid > ? ORDER BY rowid LIMIT ${BATCH}`, args: [last] })).rows;
     if (!rows.length) break;
-    await to.batch(rows.map((r) => ({ sql, args: cols.map((c) => r[c] ?? null) })), "write");
+    await to.batch(rows.map((r) => ({ sql, args: argsFor(r) })), "write");
     last = Number(rows[rows.length - 1]._rid);
     copied += rows.length;
   }
