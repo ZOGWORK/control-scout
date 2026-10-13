@@ -10,10 +10,10 @@
 // writing PNGs OUTSIDE the repository (default: OS temp dir). Prints the
 // --attach arguments for `gh pr create`.
 import { chromium, type Browser } from "playwright";
-import { spawn, type ChildProcess } from "node:child_process";
 import { mkdirSync, renameSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
+import { WEB_PORT, ensureServers, stopServers } from "./lib/servers.js";
 
 const args = process.argv.slice(2);
 const flag = (f: string) => args.includes(`--${f}`);
@@ -32,7 +32,6 @@ const VIDEO_SECS = (() => {
   return n;
 })();
 // Dedicated ports so a capture never hits another app's dev server.
-const WEB_PORT = 5199, API_PORT = 3199;
 const BASE = opt("base") ?? `http://localhost:${WEB_PORT}`;
 const out = resolve(opt("out") ?? join(tmpdir(), "control-scout-shots", new Date().toISOString().replace(/[:.]/g, "-")));
 if (out.startsWith(resolve(process.cwd()))) { console.error("Refusing to write screenshots inside the repository — use --out outside it."); process.exit(1); }
@@ -40,22 +39,6 @@ if (out.startsWith(resolve(process.cwd()))) { console.error("Refusing to write s
 const viewports: ("desktop" | "mobile")[] = flag("both") ? ["desktop", "mobile"] : flag("mobile") ? ["mobile"] : ["desktop"];
 const SIZES = { desktop: { width: 1440, height: 900 }, mobile: { width: 390, height: 844 } } as const;
 
-/** True only when Control Scout's own API answers (not some other app on the port). */
-async function up(url: string) {
-  try { const r = await fetch(url, { signal: AbortSignal.timeout(2000) }); const j = await r.json(); return r.ok && j?.ok === true && typeof j.engine === "string"; } catch { return false; }
-}
-
-const children: ChildProcess[] = [];
-async function ensureServers() {
-  if (await up(`${BASE}/api/health`)) return;
-  if (opt("base")) throw new Error(`${BASE} isn't reachable`);
-  console.log("Starting API + Vite for the capture…");
-  const env = { ...process.env, CS_NO_SCHEDULER: "1", PORT: String(API_PORT) };
-  children.push(spawn("npx", ["tsx", "server/index.ts"], { env, shell: true, stdio: "ignore" }));
-  children.push(spawn("npx", ["vite", "--port", String(WEB_PORT), "--strictPort"], { env, shell: true, stdio: "ignore" }));
-  for (let i = 0; i < 90; i++) { if (await up(`${BASE}/api/health`)) return; await new Promise((r) => setTimeout(r, 1000)); }
-  throw new Error("Servers didn't come up in 90 s");
-}
 
 async function capture(browser: Browser, route: string, vp: keyof typeof SIZES, light: boolean): Promise<string> {
   // Still by default (stable shots); --motion / --pointer / --video show animation as users see it.
@@ -119,7 +102,7 @@ async function capture(browser: Browser, route: string, vp: keyof typeof SIZES, 
 try {
   if (!routes.length) { console.error("Give at least one route, e.g. npm run shots -- /teams/18360"); process.exit(1); }
   mkdirSync(out, { recursive: true });
-  await ensureServers();
+  await ensureServers(BASE, !!opt("base"));
   const browser = await chromium.launch();
   const files: string[] = [];
   for (const r of routes) for (const vp of viewports) {
@@ -130,9 +113,5 @@ try {
   await browser.close();
   console.log(`\n${files.length} file(s) in ${out}\nAttach with:\n  ${files.map((f) => `--attach '${f.replace(/\\/g, "/")}#${f.split(/[\\/]/).pop()!.replace(/\.(png|webm)$/, "").replace(/[-_]/g, " ")}'`).join(" \\\n  ")}`);
 } finally {
-  // shell:true spawns a process tree; on Windows kill the whole tree.
-  for (const c of children) {
-    if (process.platform === "win32" && c.pid) spawn("taskkill", ["/pid", String(c.pid), "/T", "/F"], { stdio: "ignore" });
-    else c.kill();
-  }
+  stopServers();
 }

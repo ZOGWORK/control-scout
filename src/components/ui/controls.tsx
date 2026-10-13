@@ -199,9 +199,12 @@ const toggleItem = cva(
   {
     variants: {
       variant: {
-        segment: 'rounded-md px-3 data-[state=on]:bg-background data-[state=on]:text-foreground data-[state=on]:shadow-sm',
-        chips: 'h-8 shrink-0 rounded-full border border-border px-3 max-sm:h-11 data-[state=on]:border-accent/50 data-[state=on]:bg-accent/10 data-[state=on]:text-foreground',
-        cards: 'h-auto min-h-12 shrink-0 flex-col items-start gap-0.5 rounded-xl border border-border bg-background px-3 py-2 text-left data-[state=on]:border-accent/60 data-[state=on]:bg-accent/10 data-[state=on]:text-foreground',
+        // Selected = aria-checked (single) / aria-pressed (multiple), which Radix
+        // sets and nothing else touches. data-state can be replaced when a
+        // Tooltip wraps the item (its data-state is "closed"/"delayed-open").
+        segment: 'rounded-md px-3 aria-checked:bg-background aria-checked:text-foreground aria-checked:shadow-sm aria-pressed:bg-background aria-pressed:text-foreground aria-pressed:shadow-sm',
+        chips: 'h-8 shrink-0 rounded-full border border-border px-3 max-sm:h-11 aria-checked:border-accent/50 aria-checked:bg-accent/10 aria-checked:text-foreground aria-pressed:border-accent/50 aria-pressed:bg-accent/10 aria-pressed:text-foreground',
+        cards: 'h-auto min-h-12 shrink-0 flex-col items-start gap-0.5 rounded-xl border border-border bg-background px-3 py-2 text-left aria-checked:border-accent/60 aria-checked:bg-accent/10 aria-checked:text-foreground aria-pressed:border-accent/60 aria-pressed:bg-accent/10 aria-pressed:text-foreground',
       },
       size: { default: '', sm: '', lg: '' },
     },

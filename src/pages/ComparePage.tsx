@@ -22,12 +22,14 @@ export default function ComparePage() {
   useTitle("Compare");
   const [sp, setSp] = useSearchParams();
   const current = useCurrentSeason();
-  const season = Number(sp.get("season")) || current;
+  const asked = Number(sp.get("season")) || null;
   const teams = (sp.get("teams") ?? "").split(",").filter((x) => /^\d+$/.test(x)).slice(0, 4);
   const [draft, setDraft] = useState("");
   const setTeams = (t: string[]) => setSp((x) => { x.set("teams", t.join(",")); return x; }, { replace: true });
   const add = () => { if (draft && !teams.includes(draft) && teams.length < 4) { setTeams([...teams, draft]); setDraft(""); } };
-  const state = useApi<CompareView>(teams.length ? `/api/compare${qs({ teams: teams.join(","), season })}` : null);
+  // Without ?season the server picks the latest season these teams have results in.
+  const state = useApi<CompareView>(teams.length ? `/api/compare${qs({ teams: teams.join(","), season: asked ?? undefined })}` : null);
+  const season = asked ?? state.data?.season ?? current;
   return (
     <div>
       <PageHeader title="Compare" description="Up to four teams side by side.">

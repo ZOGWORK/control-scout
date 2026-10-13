@@ -1,7 +1,8 @@
 // Shortlist: bookmarked teams in one sortable table (for alliance selection
 // prep), exportable to CSV.
 import { Link } from "react-router-dom";
-import { Bookmark, Scale, X } from "lucide-react";
+import { Bookmark, CalendarDays, Scale, Search, X } from "lucide-react";
+import { useSearch } from "../components/layout/Search";
 import { useApi, qs } from "../lib/api";
 import { useCurrentSeason, useTitle } from "../lib/meta";
 import { usePersonal } from "../lib/personal";
@@ -16,6 +17,7 @@ import { useState } from "react";
 
 export default function ShortlistPage() {
   useTitle("Shortlist");
+  const search = useSearch();
   const { state, update, user } = usePersonal();
   const current = useCurrentSeason();
   const [season, setSeason] = useState(current);
@@ -38,7 +40,7 @@ export default function ShortlistPage() {
         actions={list.length >= 2 ? <Button variant="secondary" asChild><Link to={`/compare?teams=${list.slice(0, 4).join(",")}`}><Scale /> Compare first {Math.min(4, list.length)}</Link></Button> : undefined}>
         <SeasonToggle value={season} onChange={setSeason} />
       </PageHeader>
-      {!list.length ? <EmptyState icon={Bookmark} title="Your shortlist is empty" description="Press Shortlist on any team page to add it here." /> : (
+      {!list.length ? <EmptyState icon={Bookmark} title="Your shortlist is empty" description="Press Shortlist on any team page to add it here. Building a pick list? An event's Rankings tab is the place to start." action={<div className="flex flex-wrap justify-center gap-2"><Button variant="secondary" onClick={search.open}><Search /> Find a team</Button><Button variant="outline" asChild><Link to="/events"><CalendarDays /> Browse events</Link></Button></div>} /> : (
         <Async state={data}>{(d) => <SortTable rows={d.teams} cols={cols} rowKey={(r) => r.team} initial={{ key: "opr", dir: "desc" }} csvName={`shortlist-${season}`} />}</Async>
       )}
     </div>

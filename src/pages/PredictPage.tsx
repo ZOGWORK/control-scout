@@ -257,11 +257,11 @@ function AdvancementLab() {
     <div className="space-y-6">
       <div className="rounded-2xl border border-border bg-card p-5 sm:p-6">
         <div className="mb-4 flex flex-wrap items-center gap-3"><SeasonToggle value={season} onChange={(s) => { set("season", String(s)); set("code", null); }} /></div>
-        <div className="grid gap-4 md:grid-cols-[12rem_1fr]">
-          <div>
+        <div className="grid gap-4 md:grid-cols-[12rem_minmax(0,1fr)]">
+          <div className="min-w-0">
             <TeamInput label="Team" value={teamText} onChange={(v) => { setTeamText(v); set("team", v || null); }} />
           </div>
-          <div>
+          <div className="min-w-0">
             <Input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Find an event (the team's events are listed first)" className="h-11" aria-label="Find an event" />
             <div className="custom-scrollbar mt-2 max-h-56 space-y-1 overflow-y-auto">
               {events.error ? <p className="text-sm text-destructive">{events.error.message}</p> : !events.data ? <div className="skeleton h-24 rounded-lg" /> : !choices.length ? <p className="py-4 text-sm text-muted-foreground">No advancing events {q ? "match" : `in ${seasonLabel(season)} yet`}.</p> : choices.slice(0, 60).map((e) => (

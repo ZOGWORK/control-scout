@@ -8,6 +8,9 @@ export class ApiError extends Error {
 
 export async function apiFetch<T>(path: string, init?: RequestInit & { json?: unknown }): Promise<T> {
   const { json, ...rest } = init ?? {};
+  // Known offline: answer at once (same error the failed fetch would give)
+  // instead of firing a request that can only fail at the venue.
+  if (typeof navigator !== "undefined" && navigator.onLine === false) throw new ApiError(0, "You're offline.", true);
   let res: Response;
   try {
     res = await fetch(path, {

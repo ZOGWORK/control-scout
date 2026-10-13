@@ -44,6 +44,15 @@ function SearchDialog({ open, onOpenChange }: { open: boolean; onOpenChange: (o:
   const seq = useRef(0);
   const nav = useNavigate();
   const { state } = usePersonal();
+  // My team, tracked and shortlisted teams/events rank first among equal matches.
+  const prefer = [
+    ...new Set([
+      ...(state.myTeam ? [`team:${state.myTeam}`] : []),
+      ...state.tracked.teams.map((t) => `team:${t}`),
+      ...state.bookmarks.map((t) => `team:${t}`),
+      ...state.tracked.events.map((e) => `event:${e}`),
+    ]),
+  ].slice(0, 100).join(",");
   useEffect(() => {
     if (!open) return;
     const query = q.trim();
@@ -51,13 +60,13 @@ function SearchDialog({ open, onOpenChange }: { open: boolean; onOpenChange: (o:
     const id = ++seq.current;
     setBusy(true);
     const t = setTimeout(() => {
-      apiFetch<{ hits: SearchHit[] }>(`/api/search?q=${encodeURIComponent(query)}&limit=15`)
+      apiFetch<{ hits: SearchHit[] }>(`/api/search?q=${encodeURIComponent(query)}&limit=15${prefer ? `&prefer=${encodeURIComponent(prefer)}` : ""}`)
         .then((r) => { if (id === seq.current) { setHits(r.hits); setError(null); } })
         .catch((e) => { if (id === seq.current) setError(e.message); })
         .finally(() => { if (id === seq.current) setBusy(false); });
     }, 140);
     return () => clearTimeout(t);
-  }, [q, open]);
+  }, [q, open, prefer]);
   const go = (href: string) => { onOpenChange(false); setQ(""); nav(href); };
   const groups: [SearchHit["kind"], string, typeof Users][] = [["match", "Matches", Swords], ["team", "Teams", Users], ["event", "Events", CalendarDays]];
   const quick = [
