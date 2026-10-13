@@ -103,8 +103,11 @@ export function AccuracySection() {
               <StatCell value={<CountUp value={b.brier} decimals={3} />} label={`Brier score (lower is better; a coin flip scores ${b.baselineBrier.toFixed(3)})`} />
               <StatCell value={<CountUp value={(1 - b.brier / b.baselineBrier) * 100} decimals={0} suffix="%" />} label="skill: Brier improvement over always saying 50%" />
               <StatCell value={<CountUp value={b.n} />} label={`matches scored · ${b.upsets.toLocaleString("en-US")} upsets`} />
+              <p role="listitem" className="col-span-full bg-card px-4 py-2.5 font-mono text-xs text-muted-foreground">
+                Log loss {b.logLoss.toFixed(3)} (lower is better; a coin flip scores 0.693) · qualifiers {pct(b.byLevel.qual.accuracy, 1)} right ({b.byLevel.qual.n.toLocaleString("en-US")}) · playoffs {b.byLevel.playoff.n ? `${pct(b.byLevel.playoff.accuracy, 1)} right (${b.byLevel.playoff.n.toLocaleString("en-US")})` : "none scored"}
+              </p>
             </div>
-          ), <div className="grid grid-cols-2 gap-3 lg:grid-cols-4" role="status" aria-label="Loading the track record">{[0, 1, 2, 3].map((i) => <Skeleton key={i} className="h-24 rounded-xl" />)}</div>)}
+          ),<div className="grid grid-cols-2 gap-3 lg:grid-cols-4" role="status" aria-label="Loading the track record">{[0, 1, 2, 3].map((i) => <Skeleton key={i} className="h-24 rounded-xl" />)}</div>)}
           <p className="mt-3 text-sm text-muted-foreground">Live and backtest numbers are reported separately and never blended. The headline switches to live once a season has {t?.liveThreshold ?? 300} scored pre-match calls.</p>
         </div>
       </Reveal>
@@ -296,9 +299,12 @@ function WeekChart({ block, desc }: { block: AccuracyBlock; desc: string }) {
   const tip = useTip();
   const weeks = block.weekly.filter((w) => w.n >= 20);
   if (weeks.length < 2) return null;
-  const L = 50, R = 620, T = 14, B = 206, lo = 50, hi = 100;
+  // Axis from 50% (chance), extended down in 10-point steps if a week did worse, so poor weeks are never flattened.
+  const lo = Math.min(50, Math.floor(Math.min(...weeks.map((w) => w.accuracy * 100)) / 10) * 10), hi = 100;
+  const L = 50, R = 620, T = 14, B = 206;
   const x = (i: number) => L + (i / (weeks.length - 1)) * (R - L);
-  const y = (a: number) => B - ((Math.min(hi, Math.max(lo, a * 100)) - lo) / (hi - lo)) * (B - T);
+  const y = (a: number) => B - ((a * 100 - lo) / (hi - lo)) * (B - T);
+  const ticks = Array.from({ length: (hi - lo) / 10 + 1 }, (_, i) => lo + i * 10);
   const path = weeks.map((w, i) => `${i ? "L" : "M"}${x(i).toFixed(1)},${y(w.accuracy).toFixed(1)}`).join(" ");
   const every = Math.max(1, Math.ceil(weeks.length / 8));
   return (
@@ -306,7 +312,7 @@ function WeekChart({ block, desc }: { block: AccuracyBlock; desc: string }) {
       caption={<>Control Scout's ledger ({desc}), weeks with at least 20 scored matches. Early-season weeks are harder: ratings still lean on last season. Hover, tap or focus a point for its numbers.</>}>
       <ScrollX label="Accuracy by week chart">
         <Chart viewBox="0 0 640 240" interactive label={`Line chart of the share of matches called right each week, from ${pct(weeks[0].accuracy)} in the first week to ${pct(weeks[weeks.length - 1].accuracy)} in the last.`}>
-          {[50, 60, 70, 80, 90, 100].map((v) => <g key={v}><line x1={L} x2={R} y1={y(v / 100)} y2={y(v / 100)} className="grid" /><text x={L - 8} y={y(v / 100) + 4} textAnchor="end">{v}%</text></g>)}
+          {ticks.map((v) => <g key={v}><line x1={L} x2={R} y1={y(v / 100)} y2={y(v / 100)} className="grid" /><text x={L - 8} y={y(v / 100) + 4} textAnchor="end">{v}%</text></g>)}
           <path d={path} fill="none" stroke="var(--color-accent)" strokeWidth={2.5} strokeLinejoin="round" className="fade" />
           {weeks.map((w, i) => (
             <g key={w.week}>
@@ -315,7 +321,7 @@ function WeekChart({ block, desc }: { block: AccuracyBlock; desc: string }) {
               {i % every === 0 && <text x={x(i)} y={B + 18} textAnchor="middle">{w.week.slice(5)}</text>}
             </g>
           ))}
-          <text x={(L + R) / 2} y={B + 32} textAnchor="middle">week starting (month-day) · axis starts at 50%</text>
+          <text x={(L + R) / 2} y={B + 32} textAnchor="middle">week starting (month-day){lo === 50 ? " · axis starts at 50%" : ""}</text>
         </Chart>
       </ScrollX>
     </Figure>
