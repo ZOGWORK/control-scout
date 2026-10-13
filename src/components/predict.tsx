@@ -88,7 +88,7 @@ export function CalibrationLine({ pRed, className, compact }: { pRed: number; cl
 
 const KIND_LABEL: Record<MatchPredictionView["kind"], string> = {
   live: "Called before the match",
-  backtest: "Predicted using only the matches before it (replayed after the season; not a live call)",
+  backtest: "Predicted using only the matches before it (replayed afterward; not a live call)",
   now: "Prediction from today's ratings",
 };
 
