@@ -105,7 +105,7 @@ export function AccuracySection() {
               <StatCell tone={b.brier < b.baselineBrier ? "good" : "bad"} value={<CountUp value={(1 - b.brier / b.baselineBrier) * 100} decimals={0} suffix="%" />} label="skill: Brier improvement over always saying 50%" />
               <StatCell value={<CountUp value={b.n} />} label={`matches scored · ${b.upsets.toLocaleString("en-US")} upsets`} />
               <p role="listitem" className="col-span-full bg-card px-4 py-2.5 font-mono text-xs text-muted-foreground">
-                Log loss {b.logLoss.toFixed(3)} (lower is better; a coin flip scores 0.693) · qualifiers {pct(b.byLevel.qual.accuracy, 1)} right ({b.byLevel.qual.n.toLocaleString("en-US")}) · playoffs {b.byLevel.playoff.n ? `${pct(b.byLevel.playoff.accuracy, 1)} right (${b.byLevel.playoff.n.toLocaleString("en-US")})` : "none scored"}
+                Log loss {b.logLoss.toFixed(3)} (lower is better; a coin flip scores 0.693) · qualifiers {b.byLevel.qual.n ? `${pct(b.byLevel.qual.accuracy, 1)} right (${b.byLevel.qual.n.toLocaleString("en-US")})` : "none scored"} · playoffs {b.byLevel.playoff.n ? `${pct(b.byLevel.playoff.accuracy, 1)} right (${b.byLevel.playoff.n.toLocaleString("en-US")})` : "none scored"}
               </p>
             </div>
           ),<div className="grid grid-cols-2 gap-3 lg:grid-cols-4" role="status" aria-label="Loading the track record">{[0, 1, 2, 3].map((i) => <Skeleton key={i} className="h-24 rounded-xl" />)}</div>)}
