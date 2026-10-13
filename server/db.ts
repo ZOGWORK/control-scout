@@ -271,7 +271,7 @@ export function db(): Client {
   return client;
 }
 
-const isRemote = (url: string) => /^(libsql|https?|wss?):\/\//.test(url);
+export const isRemote = (url: string) => /^(libsql|https?|wss?):\/\//.test(url);
 
 /**
  * Remote database (Turso) → an embedded replica: a local file that syncs from
@@ -317,12 +317,17 @@ export function openDb(url: string, authToken?: string | null): Client {
 /** Use a specific client (tests). */
 export function setDb(c: Client): void { client = c; }
 
-export async function migrate(c: Client = db()): Promise<number[]> {
+/** Per-connection settings: WAL and a 5 s busy wait on local files, foreign keys everywhere. */
+export async function configure(c: Client = db()): Promise<void> {
   if ((!c.protocol || c.protocol === "file") && c !== replicaClient) { // a replica manages its own journal
     await c.execute("PRAGMA journal_mode = WAL");
     await c.execute("PRAGMA busy_timeout = 5000");
   }
   await c.execute("PRAGMA foreign_keys = ON");
+}
+
+export async function migrate(c: Client = db()): Promise<number[]> {
+  await configure(c);
   await c.execute("CREATE TABLE IF NOT EXISTS schema_version (version INTEGER PRIMARY KEY, name TEXT, applied_at TEXT NOT NULL)");
   const done = new Set((await c.execute("SELECT version FROM schema_version")).rows.map((r) => Number(r.version)));
   const applied: number[] = [];
