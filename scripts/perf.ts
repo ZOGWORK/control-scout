@@ -11,7 +11,7 @@
 //   · JS per page: which chunks each route downloads (is vendor-charts lazy?)
 //   · API p50/p95 (warm, 15 runs each) for the hot routes
 //   · cold start (local only): server launch → first paint of the home page (budget), and → interactive
-import { chromium, type Page } from "playwright";
+import { chromium, type Browser, type Page } from "playwright";
 import { spawn, spawnSync } from "node:child_process";
 import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { connect } from "node:net";
@@ -146,8 +146,9 @@ async function coldStart(): Promise<{ firstPaintMs: number; interactiveMs: numbe
   const port = LOCAL_PORT + 1;
   const t0 = Date.now();
   const srv = await startServer(port);
+  let browser: Browser | null = null;
   try {
-    const browser = await chromium.launch();
+    browser = await chromium.launch();
     const page = await browser.newPage();
     await page.addInitScript(SHIM);
     const deadline = t0 + 120_000;
@@ -157,24 +158,27 @@ async function coldStart(): Promise<{ firstPaintMs: number; interactiveMs: numbe
       try { await page.goto(`http://localhost:${port}/`, { waitUntil: "domcontentloaded", timeout: 5000 }); break; } catch { await new Promise((r) => setTimeout(r, 250)); }
     }
     // FCP as wall-clock time (timeOrigin + startTime), measured from the server launch.
-    const fcpAt = await page.evaluate(() => new Promise<number>((done) => {
+    // Bounded: a page that never paints fails the run instead of hanging it.
+    const fcpAt = await page.evaluate(() => new Promise<number>((done, fail) => {
       const hit = () => { const e = performance.getEntriesByName("first-contentful-paint")[0]; if (e) { done(performance.timeOrigin + e.startTime); return true; } return false; };
       if (!hit()) new PerformanceObserver(() => { hit(); }).observe({ type: "paint", buffered: true });
+      setTimeout(() => fail(new Error("the home page didn't paint within 60 s of loading")), 60_000);
     }));
     await interactive(page);
     const interactiveMs = Date.now() - t0;
-    await browser.close();
     return { firstPaintMs: Math.round(fcpAt - t0), interactiveMs };
   } finally {
+    await browser?.close().catch(() => {});
     await stopServer(srv);
   }
 }
 
 let srv: Server | null = null;
+let browser: Browser | null = null;
 try {
   if (!external) srv = await startServer(LOCAL_PORT);
   if (!(await waitUp(`${BASE}/api/health`, 300))) throw new Error(`${BASE} didn't become ready`);
-  const browser = await chromium.launch();
+  browser = await chromium.launch();
   const ctx = await browser.newContext({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true });
   await ctx.addInitScript(SHIM);
   const page = await ctx.newPage();
@@ -221,5 +225,6 @@ try {
     process.exitCode = fails.length ? 1 : 0;
   }
 } finally {
+  await browser?.close().catch(() => {});
   if (srv) await stopServer(srv);
 }
