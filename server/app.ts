@@ -8,7 +8,8 @@ import { ENGINE_VERSION, FITTED_MODEL } from "@control-scout/predict-engine";
 import { all, kvGet } from "./db.js";
 import { hasFirst } from "./env.js";
 import { CURRENT_SEASON, SEASONS, SEASON_NUMBERS, seasonInfo } from "./data/seasons.js";
-import { search } from "./api/search.js";
+import { ensureSearchIndex, search } from "./api/search.js";
+import { rebuildSearch } from "./stats/job.js";
 import { teamProfile, compareTeams, teamSummaries } from "./api/teams.js";
 import { eventDetail, listEvents, toEventInput } from "./api/events.js";
 import { matchViews } from "./api/matches.js";
@@ -112,7 +113,10 @@ export function createApp() {
     };
   }));
 
-  api.get("/search", h(async (req) => ({ q: String(req.query.q ?? ""), hits: await search(String(req.query.q ?? "").slice(0, 80), Math.min(25, Number(req.query.limit) || 12)) })));
+  api.get("/search", h(async (req) => {
+    await ensureSearchIndex(rebuildSearch);
+    return { q: String(req.query.q ?? ""), hits: await search(String(req.query.q ?? "").slice(0, 80), Math.min(25, Number(req.query.limit) || 12)) };
+  }));
 
   api.get("/teams/:number", h(async (req) => {
     const p = await teamProfile(int(req.params.number, "team", { min: 1, max: 999999 }), req.query.season ? season(req.query.season) : undefined);

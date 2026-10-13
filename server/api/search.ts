@@ -6,7 +6,8 @@
 import { all, get } from "../db.js";
 import { CURRENT_SEASON } from "../data/seasons.js";
 import type { SearchHit } from "../../src/shared/api.js";
-import { fuzzyScore, trigramQuery } from "./fuzzy.js";
+import { fuzzyScore, normalize, scoreWords, trigramQuery, words } from "./fuzzy.js";
+import { kvGet } from "../db.js";
 
 /** Turn free text into a safe FTS5 query: every word as a quoted prefix term. */
 export function ftsQuery(q: string): string | null {
@@ -58,13 +59,14 @@ export async function search(q: string, limit = 12): Promise<SearchHit[]> {
        FROM teams t LEFT JOIN team_seasons cs ON cs.team = t.number AND cs.season = ?
        WHERE ${ranges.map(() => "t.number BETWEEN ? AND ?").join(" OR ")}
        ORDER BY t.number = ? DESC, cs.season IS NOT NULL DESC, t.number LIMIT ?`,
-      [CURRENT_SEASON, ...ranges.flat(), p, limit],
+      [CURRENT_SEASON, ...ranges.flat(), p, query.length >= 4 ? Math.ceil(limit / 2) : limit],
     );
     for (const t of rows) push({ kind: "team", ref: String(t.number), title: `${t.number} ${t.name ?? ""}`.trim(), subtitle: [t.city, t.state, t.country].filter(Boolean).join(", "), season: t.last == null ? null : Number(t.last) });
-    if (out.length) return out.slice(0, limit);
+    if (out.length >= limit) return out.slice(0, limit);
   }
-  // Digits that can't be a team number (leading 0, too long): nothing else to find.
-  if (/^\d+$/.test(query)) return out;
+  // Other numbers: only 4+ digits (a year, digits of an event code) go on to the
+  // word index; shorter ones would match every date ("16" → the 16th).
+  if (/^\d+$/.test(query) && query.length < 4) return out;
 
   // 3. Text: word-prefix matches (exact words) + trigram candidates (typos),
   //    re-ranked together by how closely each query word matches.
@@ -83,5 +85,48 @@ export async function search(q: string, limit = 12): Promise<SearchHit[]> {
     .filter((x) => x.s >= 0.6)
     .sort((a, b) => b.s - a.s || b.c.weight - a.c.weight || (b.c.season ?? 0) - (a.c.season ?? 0) || a.c.title.localeCompare(b.c.title));
   for (const { c } of ranked) push({ kind: c.kind, ref: c.ref, title: c.title, subtitle: c.subtitle, season: c.season });
+  // Short typos can share no trigram with the right word ("dirve" vs "drive"):
+  // when the index didn't find enough, scan the names in memory (bounded edit
+  // distance, ~28k names, a few ms).
+  if (!out.length && /\p{L}/u.test(query)) {
+    const qs = words(query);
+    // Cheap prefilter: a typo of a word still shares a 2-letter chunk with it.
+    const qb = bigrams(qs.join(" "));
+    const scanned = (await fuzzyRows()).filter((r) => { for (const b of qb) if (r.bigrams.has(b)) return true; return false; })
+      .map((r) => ({ r, s: scoreWords(qs, r.words) })).filter((x) => x.s >= 0.6)
+      .sort((a, b) => b.s - a.s || b.r.weight - a.r.weight || (b.r.season ?? 0) - (a.r.season ?? 0));
+    for (const { r } of scanned) { if (out.length >= limit) break; push({ kind: r.kind, ref: r.ref, title: r.title, subtitle: r.subtitle, season: r.season }); }
+  }
   return out.slice(0, limit);
+}
+
+interface FuzzyRow { kind: "team" | "event"; ref: string; season: number | null; weight: number; title: string; subtitle: string; words: string[]; bigrams: Set<string> }
+
+const bigrams = (s: string) => { const out = new Set<string>(); for (const w of s.split(" ")) for (let i = 0; i + 2 <= w.length; i++) out.add(w.slice(i, i + 2)); return out; };
+let rowsCache: { version: string; rows: Promise<FuzzyRow[]> } | null = null;
+
+/** The typo index in memory (reloaded when the search index is rebuilt). */
+async function fuzzyRows(): Promise<FuzzyRow[]> {
+  const version = (await kvGet<string>("search:version")) ?? "0";
+  if (rowsCache?.version === version) return rowsCache.rows;
+  const rows = all<any>("SELECT kind, ref, season, weight, title, subtitle, name FROM search_fuzzy").then((rs) => rs.map((r) => ({
+    kind: r.kind, ref: r.ref, season: r.season == null ? null : Number(r.season), weight: Number(r.weight) || 1, title: r.title, subtitle: r.subtitle,
+    words: words(`${r.title} ${r.name}`),
+    bigrams: bigrams(normalize(`${r.title} ${r.name}`)),
+  })));
+  rowsCache = { version, rows };
+  return rows;
+}
+
+/**
+ * A database upgraded to migration 4 has an empty typo index until the next
+ * stats run: fill it now (once) so typo search works straight away.
+ */
+let ensured: Promise<void> | null = null;
+export function ensureSearchIndex(rebuild: () => Promise<void>): Promise<void> {
+  ensured ??= (async () => {
+    const [fz, ws] = await Promise.all([get<{ n: number }>("SELECT COUNT(*) n FROM search_fuzzy"), get<{ n: number }>("SELECT COUNT(*) n FROM search")]);
+    if (!Number(fz?.n) && Number(ws?.n)) await rebuild();
+  })().catch((e) => { ensured = null; throw e; });
+  return ensured;
 }
