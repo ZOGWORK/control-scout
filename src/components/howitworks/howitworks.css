@@ -1,0 +1,81 @@
+/* "How it works" page: chart text, entrance animations and the few effects
+   Tailwind can't express. Colours are the app's tokens (src/index.css), so
+   light and dark both follow the theme toggle. */
+
+.hiw {
+  /* Gold that reads as text: volt on dark, a deeper amber on white. */
+  --hiw-gold: var(--color-accent);
+  --hiw-red: var(--color-red-alliance);
+  --hiw-blue: var(--color-blue-alliance);
+  --hiw-good: var(--color-success);
+  --hiw-ink: var(--color-foreground);
+  --hiw-muted: var(--color-muted-foreground);
+  --hiw-line: var(--color-border);
+  --hiw-panel: var(--color-card);
+  --hiw-sunk: color-mix(in srgb, var(--color-muted) 70%, transparent);
+  --hiw-spring: cubic-bezier(.34, 1.56, .64, 1);
+  --hiw-ease: cubic-bezier(.2, .8, .2, 1);
+}
+html.light .hiw { --hiw-gold: #a16207; --hiw-line: #d4d4d8; }
+
+.hiw-gold { color: var(--hiw-gold); }
+
+/* SVG charts */
+.hiw svg.hiw-chart { display: block; width: 100%; height: auto; overflow: visible; }
+.hiw svg text { font-family: var(--font-mono); fill: var(--hiw-muted); font-size: 11px; }
+.hiw svg .t-ink { fill: var(--hiw-ink); }
+.hiw svg .t-red { fill: var(--hiw-red); }
+.hiw svg .t-blue { fill: var(--hiw-blue); }
+.hiw svg .t-gold { fill: var(--hiw-gold); }
+.hiw svg .t-big { font-family: var(--font-display); font-weight: 700; font-size: 15px; }
+.hiw svg .t-disp { font-family: var(--font-display); font-weight: 700; font-size: 14px; }
+.hiw svg .grid { stroke: var(--hiw-line); stroke-width: 1; }
+.hiw svg .axis { stroke: var(--hiw-muted); stroke-width: 1; }
+.hiw svg [data-tip] { cursor: pointer; outline: none; }
+.hiw svg [data-tip]:hover, .hiw svg [data-tip]:focus-visible { filter: brightness(1.15); }
+.hiw svg [data-tip]:focus-visible { stroke: var(--hiw-ink); stroke-width: 2; }
+
+/* Pointer glow on figure panels */
+.hiw-panel { position: relative; isolation: isolate; }
+.hiw-panel::before { content: ""; position: absolute; inset: 0; z-index: -1; pointer-events: none; border-radius: inherit; opacity: 0; transition: opacity .4s var(--hiw-ease);
+  background: radial-gradient(420px circle at var(--mx, 50%) var(--my, 50%), color-mix(in srgb, var(--color-accent) 10%, transparent), transparent 60%); }
+.hiw-panel:hover::before { opacity: 1; }
+
+/* Chart entrance: only when motion is allowed (.hiw-anim) and once a figure is in view ([data-seen]). */
+.hiw .bar-h, .hiw .bar-v, .hiw .pop { transform-box: fill-box; }
+.hiw-anim .bar-h { transform-origin: left center; transform: scaleX(0); transition: transform .9s var(--hiw-spring); transition-delay: calc(var(--i, 0) * 90ms); }
+.hiw-anim .bar-v { transform-origin: center bottom; transform: scaleY(0); transition: transform .9s var(--hiw-spring); transition-delay: calc(var(--i, 0) * 70ms); }
+.hiw-anim .pop { transform-origin: center; transform: scale(0); transition: transform .6s var(--hiw-spring); transition-delay: calc(var(--i, 0) * 45ms); }
+.hiw-anim .draw { stroke-dasharray: 1; stroke-dashoffset: 1; transition: stroke-dashoffset 1.6s var(--hiw-ease); }
+.hiw-anim .fade-late { opacity: 0; transition: opacity .6s var(--hiw-ease) .5s; }
+.hiw-anim [data-seen] .bar-h, .hiw-anim [data-seen] .bar-v, .hiw-anim [data-seen] .pop { transform: none; }
+.hiw-anim [data-seen] .draw { stroke-dashoffset: 0; }
+.hiw-anim [data-seen] .fade-late { opacity: 1; }
+
+/* Moving markers (carry-over, calibration toggles) */
+.hiw .glide { transition: transform .6s var(--hiw-spring); }
+.hiw .fade { transition: opacity .35s var(--hiw-ease); }
+
+/* Live dot on the example card */
+.hiw-live::before { content: ""; display: inline-block; width: 7px; height: 7px; border-radius: 50%; background: var(--hiw-good); margin-right: .4rem; vertical-align: 1px; animation: hiw-pulse 2s infinite; }
+@keyframes hiw-pulse { 0% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--hiw-good) 50%, transparent); } 70% { box-shadow: 0 0 0 8px transparent; } 100% { box-shadow: 0 0 0 0 transparent; } }
+
+/* Expanding detail (pipeline, verdicts) */
+.hiw-expand { display: grid; grid-template-rows: 0fr; transition: grid-template-rows .55s var(--hiw-spring); }
+.hiw-expand[data-open] { grid-template-rows: 1fr; }
+.hiw-expand > div { overflow: hidden; min-height: 0; }
+
+/* Range inputs in the app's accent */
+.hiw input[type="range"] { width: 100%; accent-color: var(--color-accent); height: 1.5rem; cursor: pointer; }
+
+/* Pipeline arrows between stages (desktop) */
+@media (min-width: 768px) {
+  .hiw-stage:not(:last-child)::after { content: "→"; position: absolute; right: -.78rem; top: 1rem; font-family: var(--font-display); font-weight: 800; color: var(--hiw-gold); font-size: 1.05rem; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .hiw *, .hiw *::before, .hiw *::after { transition-duration: 0s !important; animation: none !important; }
+  .hiw .bar-h, .hiw .bar-v, .hiw .pop { transform: none !important; }
+  .hiw .draw { stroke-dashoffset: 0 !important; }
+  .hiw .fade-late { opacity: 1 !important; }
+}

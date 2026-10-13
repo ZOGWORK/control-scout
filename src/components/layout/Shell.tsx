@@ -111,7 +111,7 @@ function MobileTabs({ onMore }: { onMore: () => void }) {
 }
 
 const TITLES: [RegExp, string][] = [
-  [/^\/teams\//, "Team"], [/^\/events\/\d/, "Event"], [/^\/events/, "Events"], [/^\/predict\/accuracy/, "Track record"], [/^\/predict/, "Prediction lab"],
+  [/^\/teams\//, "Team"], [/^\/events\/\d/, "Event"], [/^\/events/, "Events"], [/^\/predict\/accuracy/, "Track record"], [/^\/predict\/how-it-works/, "How it works"], [/^\/predict/,"Prediction lab"],
   [/^\/compare/, "Compare"], [/^\/my-team/, "My team"], [/^\/shortlist/, "Shortlist"], [/^\/scout/, "Scout"], [/^\/download/, "Download"],
   [/^\/settings/, "Settings"], [/^\/methodology/, "How it works"],
 ];

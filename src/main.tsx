@@ -59,6 +59,7 @@ createRoot(document.getElementById("root")!).render(
                   <Route path="/download" element={<DownloadPage />} />
                   <Route path="/settings" element={<SettingsPage />} />
                   <Route path="/methodology" element={<MethodologyPage />} />
+                  <Route path="/predict/how-it-works" element={<MethodologyPage />} />
                   <Route path="*" element={<NotFound />} />
                 </Routes>
               </Suspense>
