@@ -12,8 +12,10 @@ import { Toaster } from "./components/ui/sonner";
 import { LoadingBlock } from "./components/states";
 import { MetaProvider } from "./lib/meta";
 import { AlertsRunner } from "./lib/alerts";
+// The landing page is part of the main bundle, not lazy: its API calls then start in
+// the same render as the app's own (/api/meta, /api/auth/me), with no second round.
+import Home from "./pages/Home";
 
-const Home = lazy(() => import("./pages/Home"));
 const TeamPage = lazy(() => import("./pages/TeamPage"));
 const EventsPage = lazy(() => import("./pages/EventsPage"));
 const EventPage = lazy(() => import("./pages/EventPage"));
