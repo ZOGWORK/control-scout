@@ -2,7 +2,7 @@
 // built by `npm run snapshot`) into the local database file. Streams, so it
 // stays light on a small instance. Skipped when the database is remote (Turso)
 // or already has data — real data always wins over the snapshot.
-import { createReadStream, createWriteStream, existsSync, mkdirSync, renameSync, rmSync, statSync } from "node:fs";
+import { copyFileSync, createReadStream, createWriteStream, existsSync, mkdirSync, readFileSync, renameSync, rmSync, statSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { pipeline } from "node:stream/promises";
 import { createBrotliDecompress } from "node:zlib";
@@ -51,4 +51,22 @@ export async function restoreSnapshotIfEmpty(): Promise<string> {
   for (const f of [path, `${path}-wal`, `${path}-shm`]) rmSync(f, { force: true });
   renameSync(tmp, path);
   return `restored the shipped snapshot (${(statSync(path).size / 1e6).toFixed(0)} MB)`;
+}
+
+/** Offline packs shipped with the app (data/packs: the lite pack plus the
+ *  current season's full pack, with their own manifest), for hosts that don't
+ *  build packs (CS_PACKS=off, e.g. Render's free plan with a throwaway disk).
+ *  Copied into the packs directory only when it has no manifest of its own. */
+export const SHIPPED_PACKS = join(process.cwd(), "data", "packs");
+
+export function installShippedPacks(packsDir: string): string {
+  const manifest = join(SHIPPED_PACKS, "latest.json");
+  if (!existsSync(manifest)) return "no packs shipped";
+  if (existsSync(join(packsDir, "latest.json"))) return "packs present: shipped packs not used";
+  const m = JSON.parse(readFileSync(manifest, "utf8")) as { lite: { name: string } | null; full: { name: string }[] };
+  const files = [m.lite, ...m.full].filter((f): f is { name: string } => !!f).map((f) => f.name);
+  mkdirSync(packsDir, { recursive: true });
+  for (const f of files) copyFileSync(join(SHIPPED_PACKS, f), join(packsDir, f));
+  copyFileSync(manifest, join(packsDir, "latest.json")); // last: the manifest only appears once its files are there
+  return `installed shipped packs (${files.length} files)`;
 }
