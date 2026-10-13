@@ -33,7 +33,10 @@ export async function computeSeasonStats(season: number, events: DbEvent[], log:
   const best = new Map<number, { np: number; auto: number; teleop: number; endgame: number; pen: number }>();
   const seasonAcc = new Map<number, Acc & { events: Set<string> }>();
   for (const e of events) {
-    if (e.remote || e.hybrid) continue;
+    // Remote-only events have no alliances to separate. Hybrid events are mostly
+    // ordinary 2v2 matches (oprRows takes alliances of any size), so they count:
+    // skipping them left ~70 events a season, championships included, with no stats.
+    if (e.remote) continue;
     const rows = oprRows(e.matches);
     const res = rows.length ? solveOpr(rows) : null;
     const perTeam = new Map<number, Acc>();
@@ -259,6 +262,18 @@ export async function rebuildSearch(log: Log = () => {}): Promise<void> {
 
 export interface StatsOptions { seasons?: number[]; backtest?: boolean; log?: Log }
 
+/**
+ * Bump when the rules for per-event stats change, so every host recomputes all
+ * seasons once (the scheduled cycle otherwise refreshes only the current one).
+ * 2: hybrid events counted (they were skipped, leaving events without stats).
+ */
+export const STATS_RULES = 2;
+
+/** True when past seasons were computed under older rules. */
+export async function statsRulesStale(): Promise<boolean> {
+  return (await kvGet<number>("stats:rules")) !== STATS_RULES;
+}
+
 export async function runStats(o: StatsOptions = {}): Promise<void> {
   const log = o.log ?? (() => {});
   // New data → new version: cached forecasters rebuild on next use.
@@ -276,6 +291,7 @@ export async function runStats(o: StatsOptions = {}): Promise<void> {
   await logLivePredictions(log);
   await rebuildSearch(log);
   await kvSet("stats:last", { at: new Date().toISOString(), seasons, engine: ENGINE_VERSION });
+  if (seasons.length === SEASON_NUMBERS.length) await kvSet("stats:rules", STATS_RULES);
   const prev = await kvGet<string>("data:version");
   log(`stats done (data version ${prev})`);
 }

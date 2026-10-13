@@ -296,7 +296,7 @@ function TrendChart({ events, season }: { events: TeamEventRow[]; season: number
             </LineChart>
           </ChartContainer>
         )}
-        {vals.some((v) => v == null) && <p className="mt-2 text-xs text-muted-foreground">Gaps: that event didn't have enough qualification matches to measure this stat.</p>}
+        {vals.some((v) => v == null) && <p className="mt-2 text-xs text-muted-foreground">Gaps: no measurement for this stat at that event (too few qualification matches recorded).</p>}
       </div>
     </Section>
   );
