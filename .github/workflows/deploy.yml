@@ -21,10 +21,6 @@ on:
   workflow_dispatch:
 
 # One deploy at a time; a newer push waits for the running one.
-concurrency:
-  group: deploy-oracle
-  cancel-in-progress: false
-
 permissions:
   contents: read
 
@@ -37,6 +33,10 @@ jobs:
     if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     timeout-minutes: 25
+    # One VM deploy at a time; a newer push waits for the running one.
+    concurrency:
+      group: deploy-oracle
+      cancel-in-progress: false
     steps:
       - name: Check for the queue token
         id: gate
@@ -82,18 +82,22 @@ jobs:
         if: steps.gate.outputs.ok == 'true'
         env:
           SHA: ${{ github.sha }}
+          GH_TOKEN: ${{ github.token }}
         run: |
           set -uo pipefail
+          # Live means: ready, running this commit or a newer one that contains it.
+          contains() { [ "$1" = "$SHA" ] || [[ "$(gh api "repos/$GITHUB_REPOSITORY/compare/$SHA...$1" --jq .status 2>/dev/null)" =~ ^(ahead|identical)$ ]]; }
           deadline=$(( $(date +%s) + 20 * 60 ))
           while [ "$(date +%s)" -lt "$deadline" ]; do
             body=$(curl -fsS --max-time 10 "$SITE/api/health" || true)
-            if [ "$(echo "$body" | jq -r '.release // empty' 2>/dev/null)" = "$SHA" ] && [ "$(echo "$body" | jq -r '.ready' 2>/dev/null)" = "true" ]; then
+            rel=$(echo "$body" | jq -r '.release // empty' 2>/dev/null)
+            if [ -n "$rel" ] && [ "$(echo "$body" | jq -r '.ready' 2>/dev/null)" = "true" ] && contains "$rel"; then
               echo "Live: $body"
               exit 0
             fi
             sleep 15
           done
-          echo "::error::$SITE didn't report release $SHA within 20 minutes (last: ${body:-no answer}). On the VM: sudo tail -n 100 /var/log/control-scout-deploy.log"
+          echo "::error::$SITE didn't report release $SHA (or newer) within 20 minutes (last: ${body:-no answer}). On the VM: sudo tail -n 100 /var/log/control-scout-deploy.log"
           exit 1
 
   # Render (https://control-scout.onrender.com) is kept as the rollback host and
@@ -104,22 +108,30 @@ jobs:
     if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     timeout-minutes: 30
+    # Its own queue (never delays a VM deploy); a newer push replaces an older check.
+    concurrency:
+      group: render-check
+      cancel-in-progress: true
     env:
       RENDER_SITE: https://control-scout.onrender.com
     steps:
       - name: Wait for Render to run the new release
         env:
           SHA: ${{ github.sha }}
+          GH_TOKEN: ${{ github.token }}
         run: |
           set -uo pipefail
+          # Render deploys main by itself: a newer commit that contains this one also counts.
+          contains() { [ "$1" = "$SHA" ] || [[ "$(gh api "repos/$GITHUB_REPOSITORY/compare/$SHA...$1" --jq .status 2>/dev/null)" =~ ^(ahead|identical)$ ]]; }
           deadline=$(( $(date +%s) + 25 * 60 ))   # free-plan builds are slow
           while [ "$(date +%s)" -lt "$deadline" ]; do
             body=$(curl -fsS --max-time 60 "$RENDER_SITE/api/health" || true)
-            if [ "$(echo "$body" | jq -r '.release // empty' 2>/dev/null)" = "$SHA" ] && [ "$(echo "$body" | jq -r '.ready' 2>/dev/null)" = "true" ]; then
+            rel=$(echo "$body" | jq -r '.release // empty' 2>/dev/null)
+            if [ -n "$rel" ] && [ "$(echo "$body" | jq -r '.ready' 2>/dev/null)" = "true" ] && contains "$rel"; then
               echo "Render live: $body"
               exit 0
             fi
             sleep 30
           done
-          echo "::error::$RENDER_SITE didn't report release $SHA within 25 minutes (last: ${body:-no answer}). Check the service's deploys in the Render dashboard (auto-deploy must be on for main)."
+          echo "::error::$RENDER_SITE didn't report release $SHA (or newer) within 25 minutes (last: ${body:-no answer}). Check the service's deploys in the Render dashboard (auto-deploy must be on for main)."
           exit 1
