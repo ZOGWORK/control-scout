@@ -62,7 +62,7 @@ async function capture(browser: Browser, route: string, vp: keyof typeof SIZES, 
   await page.evaluate(() => document.fonts.ready);
   await page.waitForTimeout(1200);
   // The shell scrolls inside <main> (h-dvh); unroll it so a full-page shot shows everything.
-  if (!flag("viewport")) await page.addStyleTag({ content: ".h-dvh{height:auto!important;overflow:visible!important} main{overflow:visible!important} nav.fixed{position:static!important}" });
+  if (!flag("viewport")) await page.addStyleTag({ content: ".h-dvh{height:auto!important;overflow:visible!important} main{overflow:visible!important} .h-dvh{position:relative!important} nav.fixed{position:absolute!important;left:0;right:0;bottom:0}" });
   const name = `${vp}${light ? "-light" : ""}-${route.replace(/^\//, "").replace(/[^\w-]+/g, "_") || "home"}.png`;
   const file = join(out, name);
   await page.screenshot({ path: file, fullPage: !flag("viewport") });

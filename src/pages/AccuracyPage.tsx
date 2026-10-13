@@ -104,7 +104,7 @@ function Block({ b, label }: { b: AccuracyBlock; label: string }) {
               <BarChart data={tiers} margin={{ top: 10, right: 10, bottom: 0, left: 0 }}>
                 <CartesianGrid vertical={false} strokeDasharray="3 3" />
                 <XAxis dataKey="tier" tickLine={false} axisLine={false} />
-                <YAxis domain={[50, 100]} tickLine={false} axisLine={false} width={36} unit="%" />
+                <YAxis domain={[50, 100]} tickLine={false} axisLine={false} width={48} unit="%" />
                 <ChartTooltip cursor={false} content={<ChartTooltipContent />} />
                 <Bar dataKey="accuracy" fill="var(--color-accuracy)" radius={[6, 6, 0, 0]} />
               </BarChart>
@@ -116,7 +116,7 @@ function Block({ b, label }: { b: AccuracyBlock; label: string }) {
               <LineChart data={b.weekly.filter((w) => w.n >= 20).map((w) => ({ week: w.week.slice(5), accuracy: Math.round(w.accuracy * 1000) / 10, n: w.n }))} margin={{ top: 10, right: 10, bottom: 0, left: 0 }}>
                 <CartesianGrid vertical={false} strokeDasharray="3 3" />
                 <XAxis dataKey="week" tickLine={false} axisLine={false} minTickGap={24} />
-                <YAxis domain={[50, 100]} tickLine={false} axisLine={false} width={36} unit="%" />
+                <YAxis domain={[50, 100]} tickLine={false} axisLine={false} width={48} unit="%" />
                 <ChartTooltip cursor={false} content={<ChartTooltipContent />} />
                 <Line dataKey="accuracy" stroke="var(--color-accuracy)" strokeWidth={2} dot={false} />
               </LineChart>
