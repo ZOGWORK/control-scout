@@ -52,7 +52,13 @@ export class ScoutForecaster extends Forecaster {
       advancement.set(s, await loadAdvancement(s));
       for (const e of evs) for (const a of e.awards) records.push({ season: s, team: a.team, time: e.startTime, type: a.type, placement: a.placement });
       book.startSeason(s);
-      for (const m of evs.flatMap((e) => e.matches).sort((x, y) => x.time - y.time)) book.update(m);
+      // Pause every 2,000 matches: on a small host a season's replay is long
+      // enough that, run in one go, no request could be answered meanwhile.
+      let n = 0;
+      for (const m of evs.flatMap((e) => e.matches).sort((x, y) => x.time - y.time)) {
+        book.update(m);
+        if (++n % 2000 === 0) await yieldLoop();
+      }
       books.set(s, book.clone());
       await yieldLoop();
     }
