@@ -41,7 +41,12 @@ import { copyFileSync as copy, readFileSync, readdirSync, writeFileSync } from "
 import { CURRENT_SEASON } from "../server/data/seasons.js";
 const src = join(env.dataDir, "packs");
 const dest = join(process.cwd(), "data", "packs");
-if (existsSync(join(src, "latest.json"))) {
+import { resolve } from "node:path";
+if (resolve(src) === resolve(dest)) {
+  // DATA_DIR=data: the packs already live where they're shipped from; never
+  // clear the directory we'd be copying from.
+  console.log(`Packs already in ${dest} (DATA_DIR is data/): left as they are.`);
+} else if (existsSync(join(src, "latest.json"))) {
   const m = JSON.parse(readFileSync(join(src, "latest.json"), "utf8"));
   const full = (m.full ?? []).filter((f: { seasons: number[] }) => f.seasons.includes(CURRENT_SEASON));
   mkdirSync(dest, { recursive: true });
