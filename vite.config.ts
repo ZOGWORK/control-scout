@@ -49,7 +49,10 @@ export default defineConfig({
         manualChunks(id) {
           if (!id.includes("node_modules")) return undefined;
           if (/react-dom|react-router|scheduler|\/react\//.test(id)) return "vendor-react";
-          if (/recharts|d3-|victory/.test(id)) return "vendor-charts";
+          // No manual chunk for recharts/d3: a named chunk also captured small
+          // libraries the main app shares with it, which made every page
+          // (home included) preload ~417 KB of charts. Left to Vite, charts
+          // load only with the pages that draw them.
           if (/radix-ui|@radix-ui|cmdk|sonner/.test(id)) return "vendor-ui";
           if (/motion|framer/.test(id)) return "vendor-motion";
           if (/lucide/.test(id)) return "vendor-icons";
