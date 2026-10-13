@@ -238,6 +238,17 @@ CREATE TABLE scout_entries (
 CREATE INDEX scout_user ON scout_entries (user_id, season);
 `,
   },
+  {
+    version: 4,
+    name: "typo-tolerant search (trigram index)",
+    sql: `
+CREATE VIRTUAL TABLE search_fuzzy USING fts5(
+  kind UNINDEXED, ref UNINDEXED, season UNINDEXED, weight UNINDEXED, title UNINDEXED, subtitle UNINDEXED,
+  name,
+  tokenize = 'trigram'
+);
+`,
+  },
 ];
 
 export type Db = Client;
