@@ -115,3 +115,17 @@ One-time setup (needs Sushil, since both steps are credentials):
     It's used through `GIT_ASKPASS` and never written into a URL or git config.
 
 Manual deploys with `deploy/deploy.sh` keep working the same way.
+
+## Render: the rollback host
+
+https://control-scout.onrender.com stays up as the rollback target (Sushil,
+2026-10-13), and every update applies to it too. Render rebuilds from main on
+its own, and the `render` job in `deploy.yml` waits until its `/api/health`
+reports the same commit (from `RENDER_GIT_COMMIT`). If that job fails, check
+the service's deploys in the Render dashboard; auto-deploy must stay on for
+main.
+
+To fail over, point DNS for `controlscout.org` and `www` at Render (add them
+as custom domains there first), or send people to the onrender.com URL. Render
+free sleeps after 15 minutes idle and takes ~25 s or more to wake (see
+`docs/perf-report.md`), so it's a fallback, not a twin.
