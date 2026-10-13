@@ -210,3 +210,33 @@ morning review. Format: **what I chose** — why — the alternative.
 - **Impossible team numbers never hit the API**, and 400/404 errors never offer "Try again".
 
 - **Ship a public data snapshot with the app (2026-10-13).** The live site had no data because Turso and its secrets weren't connected, so every page and search was empty. FTC data is public, so `data/snapshot.db.br` (~33 MB, brotli) ships in the repo. A server booting with an empty local database restores it first. It's skipped once a remote database is configured, and private tables are always emptied when the snapshot is built. Trade-off: a 33 MB binary in git per refresh. Refresh rarely, and once Turso is connected the snapshot is only a fallback.
+
+## Incidents, 2026-10-13 (Render free plan)
+
+### 1. 12:10–12:25 pm EDT (16:10–16:25 UTC): site unreachable
+
+**What users saw.** Connection timeouts on every URL, the home page included. No HTTP response at all.
+
+**Root cause.** The event loop was blocked waiting on the network, not crashed:
+1. At 15:30 UTC the service was pointed at Turso (`DATABASE_URL=libsql://…`). From 16:05 UTC (#12) it ran as a Turso **embedded replica**: reads are local, but **every write goes to the remote primary, and the libsql driver waits for each one synchronously on the main thread.**
+2. FIRST credentials had just been added, so the startup data cycle did real work. It synced 10 events, then ran the stats job (OPR, ratings, prediction ledger, search rebuild), which writes thousands of rows.
+3. Each of those writes was a blocking network round trip. While they ran, the server couldn't answer anything.
+
+**Evidence.**
+- Logs show `sync (startup)` at 16:08:12, `2026: 1338 events listed` at 16:10:59 and `stats for 145 teams` at 16:14:08, then nothing (no `search:` or `stats done`).
+- Render reported "No open HTTP ports detected" from 16:08 to 16:16.
+- CPU sat around 0.01 of 0.15 throughout (waiting on I/O, not computing), with memory stable at about 250 MB. No OOM and no failed deploy.
+
+**Resolution.** At 16:25 UTC `DATABASE_URL` was removed (back to the local data file, where writes are instant). The new instance was ready at 16:27:04.
+
+### 2. 12:55–1:03 pm EDT (16:55–17:03 UTC): restart loop
+
+**Root cause.** #13 moved the data cycle into a worker thread so pages would keep answering. A worker is a **second V8 heap**. It ran alongside the server's rating book (~116 MB) and the 164 MB SQLite file inside a **512 MiB** container. Render killed it for memory (`server_failed`, `oomKilled: 512Mi`) at 16:55:37, 16:59:17 and 17:03:37. Each instance booted, started the cycle, got killed, and restarted.
+
+**Resolution.** Reverted in #15 (merged immediately) and live at 17:04. No OOM since.
+
+### Rules so this doesn't happen again
+- **No synchronous remote writes on the request thread.** A remote database (Turso, even as a replica) is only for small, rare writes such as accounts. Bulk FTC data is written to a local file.
+- **Memory budget:** on a 512 MB host, don't add a second isolate (worker) next to the rating book. Measure peak RSS for the full boot plus data cycle before merging anything that changes background work, and leave at least 25% headroom.
+- **Verify a deploy by Render's own events,** not just `/api/health`: check for `server_failed` (OOM kills) for 10 minutes after a deploy that changes boot or background work.
+- **The free plan is the wrong host for this app.** 0.15 CPU and 512 MB can't run the data cycle without freezing pages. The Oracle VM next to Control Point is the target (tasks 7–9).
