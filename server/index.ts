@@ -5,6 +5,7 @@ import "./env.js";
 import { env, hasFirst } from "./env.js";
 import { migrate, all, kvGet, kvSet } from "./db.js";
 import { buildPacks } from "./packs/build.js";
+import { packsPresent } from "./packs/routes.js";
 import { createApp } from "./app.js";
 import { syncAll } from "./sync.js";
 import { runStats } from "./stats/job.js";
@@ -30,8 +31,10 @@ async function cycle(reason: string) {
     else log("  FIRST credentials missing — sync skipped (FTC Scout fallback runs per event only)");
     await runStats({ seasons: [CURRENT_SEASON], log: (m) => log(`  ${m}`) });
     // Offline packs: rebuilt at most daily (they're versioned; devices see "new data available").
+    // The timestamp alone isn't enough: an imported database carries
+    // packs:last without the pack files, so also require a readable manifest.
     const lastPacks = await kvGet<string>("packs:last");
-    if (!lastPacks || Date.now() - Date.parse(lastPacks) > 23 * 3600_000) {
+    if (!lastPacks || Date.now() - Date.parse(lastPacks) > 23 * 3600_000 || !packsPresent()) {
       await buildPacks((m) => log(`  ${m}`));
       await kvSet("packs:last", new Date().toISOString());
     }
