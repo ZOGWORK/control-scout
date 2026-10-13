@@ -27,7 +27,9 @@
     "db:export": "tsx scripts/db-export.ts",
     "db:push": "tsx scripts/db-push.ts",
     "equivalence": "tsx scripts/engine-equivalence.ts",
-    "shots": "tsx scripts/shots.ts"
+    "shots": "tsx scripts/shots.ts",
+    "audit": "tsx scripts/audit.ts",
+    "audit:flows": "tsx scripts/audit-flows.ts"
   },
   "dependencies": {
     "@control-scout/predict-engine": "*",

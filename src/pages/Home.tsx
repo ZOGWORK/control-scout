@@ -13,7 +13,7 @@ import { Async } from "../components/states";
 import { Reveal, Stagger, StaggerItem } from "../components/motion";
 import { Badge } from "../components/ui/basic";
 import { Button } from "../components/ui/button";
-import { WinBar } from "../components/predict";
+import { TierMark, WinBar } from "../components/predict";
 import { cn } from "../components/cn";
 import { dateRange, matchTime, oddsPct, pct, place, seasonLabel, ago } from "../lib/format";
 import { BrandMark } from "../components/layout/Shell";
@@ -55,7 +55,7 @@ function Hero() {
       <p className="mx-auto mt-3 max-w-xl text-muted-foreground">Every FTC team, event and match — with predictions that keep a public score of how often they come true. Free, no login.</p>
       <button onClick={open} className="lift mx-auto mt-7 flex h-14 w-full max-w-2xl items-center gap-3 rounded-2xl border border-line bg-card px-5 text-left text-muted-foreground shadow-[0_8px_40px_-12px_color-mix(in_srgb,var(--color-accent)_25%,transparent)]">
         <Search className="size-5 text-accent" />
-        <span className="flex-1 truncate">Team number or name (typos are fine), an event, or “USNJQ1 Q12”…</span>
+        <span className="flex-1 truncate"><span className="sm:hidden">Teams, events, matches…</span><span className="hidden sm:inline">Team number or name (typos are fine), an event, or “USNJQ1 Q12”…</span></span>
         <kbd className="hidden rounded-md border border-line px-1.5 py-0.5 font-mono text-xs sm:inline">⌘K</kbd>
       </button>
       {meta && <p className="mt-3 text-xs text-muted-foreground">{meta.seasons.length} seasons · data updated {ago(meta.dataAsOf)} · engine v{meta.engineVersion}</p>}
@@ -87,7 +87,7 @@ function MyTeamNext({ team }: { team: number }) {
       {next ? (
         <>
           <span className="text-muted-foreground">Next: {next.label} · {next.code} · {matchTime(next.time)}</span>
-          {pWin != null && <><WinBar pRed={next.prediction!.pRed} size="sm" className="w-24" /><span className="font-semibold">{oddsPct(pWin)} to win</span></>}
+          {pWin != null && <><WinBar pRed={next.prediction!.pRed} size="sm" className="w-24" /><span className="font-semibold">{oddsPct(pWin)} to win</span><TierMark tier={next.prediction!.tier} className="text-xs" /></>}
         </>
       ) : !data ? (
         <span className="text-muted-foreground">{error ? "Couldn't load the schedule — open your dashboard" : "Checking the schedule…"}</span>

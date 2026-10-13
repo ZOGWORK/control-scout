@@ -1,7 +1,8 @@
 // Loading / error / empty states — every page uses these, so no page ever
 // shows a blank screen or a raw error.
 import type { ReactNode } from "react";
-import { AlertTriangle, RefreshCw, WifiOff } from "lucide-react";
+import { AlertTriangle, RefreshCw, Search, SearchX, WifiOff } from "lucide-react";
+import { useSearch } from "./layout/Search";
 import { Button } from "./ui/button";
 import { EmptyState } from "./page";
 import type { ApiError, ApiState } from "../lib/api";
@@ -24,13 +25,19 @@ export function LoadingBlock({ rows = 4, label = "Loading" }: { rows?: number; l
 
 export function ErrorState({ error, onRetry, className }: { error: ApiError | Error; onRetry?: () => void; className?: string }) {
   const offline = (error as ApiError).offline;
+  const status = (error as ApiError).status;
+  const search = useSearch();
+  const missing = status === 404 || status === 400;
   return (
     <EmptyState
       className={className}
-      icon={offline ? WifiOff : AlertTriangle}
-      title={offline ? "You're offline" : (error as ApiError).status === 404 ? "Not found" : "Couldn't load this"}
+      icon={offline ? WifiOff : missing ? SearchX : AlertTriangle}
+      title={offline ? "You're offline" : status === 404 ? "Not found" : status === 400 ? "That isn't valid" : "Couldn't load this"}
       description={offline ? "This page needs a connection. Predictions still work offline from a downloaded lite pack (see Download)." : error.message}
-      action={onRetry && (error as ApiError).status !== 404 ? <Button variant="secondary" onClick={onRetry}><RefreshCw /> Try again</Button> : undefined}
+      // A bad or missing address won't fix itself: no "Try again" for 400/404.
+      // A missing or bad address can't be retried: offer the way forward instead.
+      action={missing ? <Button variant="secondary" onClick={search.open}><Search /> Search teams and events</Button>
+        : onRetry ? <Button variant="secondary" onClick={onRetry}><RefreshCw /> Try again</Button> : undefined}
     />
   );
 }

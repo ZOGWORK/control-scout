@@ -36,6 +36,7 @@ export interface PackMeta { version: string; bytes: number; savedAt: number; bui
 export function packStatus(): PackMeta | null { try { return JSON.parse(localStorage.getItem(META) ?? "null"); } catch { return null; } }
 
 export async function fetchManifest(): Promise<PackManifest> {
+  if (navigator.onLine === false) throw new Error("You're offline — the pack list will load when you're back online.");
   const r = await fetch("/packs/latest.json", { cache: "no-cache" });
   if (r.status === 404) throw new Error("No packs have been published on this server yet.");
   if (!r.ok) throw new Error(`Couldn't read the pack manifest (${r.status}).`);

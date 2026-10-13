@@ -44,7 +44,7 @@ export default function ScoutPage() {
           onDone={() => { setFormOpen(false); setSp((x) => { x.delete("entry"); return x; }); }} />
       )}
       <Section title={`Entries (${entries.length})`} description={teamFilter ? `For team ${teamFilter}` : "Newest first"}>
-        {!entries.length ? <EmptyState icon={ClipboardList} title="No scouting entries yet" description="Start one above, or from any team page." /> : (
+        {!entries.length ? <EmptyState icon={ClipboardList} title="No scouting entries yet" description="Start one above, or from any team page. Entries save on this device first, so scouting works with no signal." /> : (
           <ul className="grid gap-2 md:grid-cols-2">
             {entries.map((e) => <EntryCard key={e.uuid} e={e} onEdit={() => setSp((x) => { x.set("entry", e.uuid); return x; })} />)}
           </ul>

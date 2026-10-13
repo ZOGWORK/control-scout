@@ -36,7 +36,9 @@ async function matchHit(q: string): Promise<SearchHit | null> {
   return { kind: "match", ref: `${season}:${code}:${row.level}:${row.series}:${row.number}`, title: `${row.label} · ${ev?.name ?? code}`, subtitle: `${code} · ${season}`, season };
 }
 
-export async function search(q: string, limit = 12): Promise<SearchHit[]> {
+/** `prefer`: the visitor's own teams/events ("team:16321", "event:2025:AUBRQ2") —
+ *  my team, tracked and shortlisted — rank above other matches of the same strength. */
+export async function search(q: string, limit = 12, prefer: ReadonlySet<string> = new Set()): Promise<SearchHit[]> {
   const query = q.trim();
   if (!query) return [];
   const out: SearchHit[] = [];
@@ -52,14 +54,15 @@ export async function search(q: string, limit = 12): Promise<SearchHit[]> {
   if (/^[1-9]\d{0,5}$/.test(query)) {
     // Prefix "16" = numbers 16, 160–169, 1600–1699, … — integer ranges the primary key can serve.
     const p = Number(query);
+    const preferred = [...prefer].map((k) => /^team:(\d+)$/.exec(k)?.[1]).filter(Boolean).map(Number);
     const ranges: [number, number][] = [];
     for (let m = 1; p * m < 1_000_000; m *= 10) ranges.push([p * m, (p + 1) * m - 1]);
     const rows = await all<any>(
       `SELECT t.number, t.name, t.city, t.state, t.country, cs.season last
        FROM teams t LEFT JOIN team_seasons cs ON cs.team = t.number AND cs.season = ?
        WHERE ${ranges.map(() => "t.number BETWEEN ? AND ?").join(" OR ")}
-       ORDER BY t.number = ? DESC, cs.season IS NOT NULL DESC, t.number LIMIT ?`,
-      [CURRENT_SEASON, ...ranges.flat(), p, query.length >= 4 ? Math.ceil(limit / 2) : limit],
+       ORDER BY t.number = ? DESC, t.number IN (${preferred.map(() => "?").join(",") || "NULL"}) DESC, cs.season IS NOT NULL DESC, t.number LIMIT ?`,
+      [CURRENT_SEASON, ...ranges.flat(), p, ...preferred, query.length >= 4 ? Math.ceil(limit / 2) : limit],
     );
     for (const t of rows) push({ kind: "team", ref: String(t.number), title: `${t.number} ${t.name ?? ""}`.trim(), subtitle: [t.city, t.state, t.country].filter(Boolean).join(", "), season: t.last == null ? null : Number(t.last) });
     if (out.length >= limit) return out.slice(0, limit);
@@ -83,6 +86,8 @@ export async function search(q: string, limit = 12): Promise<SearchHit[]> {
   const ranked = [...cands.values()]
     .map((c) => ({ c, s: Math.max(fuzzyScore(query, c.title), fuzzyScore(query, c.name), fuzzyScore(query, `${c.title} ${c.subtitle}`) * 0.95) }))
     .filter((x) => x.s >= 0.6)
+    // Your own teams/events win ties and near-ties, never beat a much better match.
+    .map((x) => (prefer.has(`${x.c.kind}:${x.c.ref}`) ? { ...x, s: x.s + 0.1 } : x))
     .sort((a, b) => b.s - a.s || b.c.weight - a.c.weight || (b.c.season ?? 0) - (a.c.season ?? 0) || a.c.title.localeCompare(b.c.title));
   for (const { c } of ranked) push({ kind: c.kind, ref: c.ref, title: c.title, subtitle: c.subtitle, season: c.season });
   // Short typos can share no trigram with the right word ("dirve" vs "drive"):

@@ -5,7 +5,7 @@ import { useMemo, useState } from "react";
 import { Link, useParams, useSearchParams } from "react-router-dom";
 import { CartesianGrid, Line, LineChart, XAxis, YAxis } from "recharts";
 import {
-  Award, Bookmark, BookmarkCheck, CalendarDays, ChevronDown, ClipboardList, ExternalLink, Eye, EyeOff, Flag, Gauge, GraduationCap, Link2, MapPin, Scale, Sparkles, Star, Target, TrendingDown, TrendingUp, Trophy, Zap,
+  Award, Bookmark, BookmarkCheck, CalendarDays, ChevronDown, ClipboardList, ExternalLink, Eye, EyeOff, Flag, Gauge, GraduationCap, Link2, MapPin, Scale, Search, SearchX, Sparkles, Star, Target, TrendingDown, TrendingUp, Trophy, Zap,
 } from "lucide-react";
 import { useApi, qs } from "../lib/api";
 import { useTitle } from "../lib/meta";
@@ -26,15 +26,19 @@ import { cn } from "../components/cn";
 import { awardLabel, dateRange, int, num, place, seasonLabel, topPct } from "../lib/format";
 import { eventTypeLabel } from "../lib/labels";
 import { copyLink } from "../lib/clipboard";
+import { useSearch } from "../components/layout/Search";
 
 export default function TeamPage() {
   const { number } = useParams();
   const [sp, setSp] = useSearchParams();
   const team = Number(number);
   const season = sp.get("season");
-  const state = useApi<TeamProfile>(Number.isInteger(team) && team > 0 ? `/api/teams/${team}${qs({ season })}` : null);
+  const search = useSearch();
+  // FTC team numbers are 1–999999; anything else can't exist, so don't ask the API.
+  const valid = Number.isInteger(team) && team >= 1 && team <= 999_999;
+  const state = useApi<TeamProfile>(valid ? `/api/teams/${team}${qs({ season })}` : null);
   useTitle(state.data ? `${state.data.team.number} ${state.data.team.name ?? ""}` : `Team ${number}`);
-  if (!Number.isInteger(team) || team <= 0) return <EmptyState title="That's not a team number" description="FTC team numbers are whole numbers, like 4215." />;
+  if (!valid) return <EmptyState icon={SearchX} title={`There's no team ${number}`} description="FTC team numbers are whole numbers from 1 to 999999, like 4215." action={<Button variant="secondary" onClick={search.open}><Search /> Search teams</Button>} />;
   return (
     <Async state={state}>
       {(p) => <Profile p={p} onSeason={(s) => setSp((x) => { x.set("season", String(s)); return x; }, { replace: true })} />}
