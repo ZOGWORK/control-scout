@@ -1,11 +1,21 @@
 // /packs/* — versioned offline data packs (built by scripts/build-packs.ts).
 // latest.json is the manifest the app polls; pack files are immutable.
 import express, { type Router } from "express";
-import { existsSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { env } from "../env.js";
+import type { Manifest } from "./build.js";
 
 export const packsDir = () => join(env.dataDir, "packs");
+
+/** True when the manifest parses and every file it lists is on disk. */
+export function packsPresent(): boolean {
+  try {
+    const m = JSON.parse(readFileSync(join(packsDir(), "latest.json"), "utf8")) as Manifest;
+    const files = [m.lite, ...(m.full ?? [])].filter((f): f is NonNullable<typeof f> => !!f);
+    return files.length > 0 && files.every((f) => existsSync(join(packsDir(), f.name)));
+  } catch { return false; }
+}
 
 export function packsRouter(): Router {
   const r = express.Router();
