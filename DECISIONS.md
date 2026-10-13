@@ -208,3 +208,5 @@ morning review. Format: **what I chose** — why — the alternative.
 - **Your teams rank first in search, after exact numbers.** My team, tracked and shortlisted teams/events are sent as `prefer`. They come right after an exact number match and get a small text-score bonus (+0.1), so they win near-ties but never beat a clearly better match.
 - **Compare defaults to the latest season with results**, like the team page, because an empty current season made the page look broken.
 - **Impossible team numbers never hit the API**, and 400/404 errors never offer "Try again".
+
+- **Ship a public data snapshot with the app (2026-10-13).** The live site had no data because Turso and its secrets weren't connected, so every page and search was empty. FTC data is public, so `data/snapshot.db.br` (~33 MB, brotli) ships in the repo. A server booting with an empty local database restores it first. It's skipped once a remote database is configured, and private tables are always emptied when the snapshot is built. Trade-off: a 33 MB binary in git per refresh. Refresh rarely, and once Turso is connected the snapshot is only a fallback.
