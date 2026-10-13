@@ -42,7 +42,15 @@ export async function teamEvents(season: number, team: number): Promise<TeamEven
             s.opr_np, s.opr_auto, s.opr_teleop, s.opr_endgame, s.opr_pen, s.avg_score, s.avg_np, s.avg_pen
      FROM event_teams et JOIN events e ON e.season = et.season AND e.code = et.code
      LEFT JOIN team_event_stats s ON s.season = et.season AND s.code = et.code AND s.team = et.team
-     WHERE et.season = ? AND et.team = ? ORDER BY e.start, e.code`,
+     WHERE et.season = ? AND et.team = ?
+       -- League rosters list every league team at every meet: once an event has
+       -- results, keep it only if this team was on the field in a played match
+       -- (scheduled no-shows don't count).
+       AND (NOT EXISTS (SELECT 1 FROM matches m WHERE m.season = et.season AND m.code = et.code AND m.played = 1)
+            OR EXISTS (SELECT 1 FROM match_teams x JOIN matches m
+                         ON m.season = x.season AND m.code = x.code AND m.level = x.level AND m.series = x.series AND m.number = x.number
+                       WHERE x.season = et.season AND x.code = et.code AND x.team = et.team AND x.on_field = 1 AND m.played = 1))
+     ORDER BY e.start, e.code`,
     [season, team],
   );
   const [awards, alliances] = await Promise.all([
