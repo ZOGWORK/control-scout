@@ -15,6 +15,7 @@
 // still lazy-load its own chunks, online or offline.
 const VERSION = "__VERSION__";
 const FILES = __FILES__;
+const BRAND = new Set(["/logo.png", "/wordmark.png", "/favicon.ico"]);
 const PREFIX = "cs-shell-";
 const CACHE = `${PREFIX}${VERSION}`;
 const KEEP = 2;
@@ -54,6 +55,11 @@ self.addEventListener("fetch", (event) => {
   if (req.mode === "navigate") {
     // Pages: fresh when online, the cached shell when not (the app routes client-side).
     event.respondWith(fetch(req).catch(async () => (await fromCache("/index.html")) ?? (await fromCache("/")) ?? Response.error()));
+    return;
+  }
+  if (BRAND.has(url.pathname)) {
+    // Brand images keep their names across releases: fresh when online, the precached copy when not.
+    event.respondWith(fetch(req).catch(async () => (await fromCache(url.pathname)) ?? Response.error()));
     return;
   }
   if (url.pathname.startsWith("/assets/") || url.pathname.startsWith("/fonts/")) {
