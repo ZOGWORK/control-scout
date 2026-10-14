@@ -9,8 +9,12 @@ import { clearLocalScouting, exportLocalScouting, importLocalScouting, localScou
 
 export interface AccountUser { id: number; email: string | null; displayName: string | null; createdAt: string; /** Tied to the shared account Control Point keeps (docs/shared-accounts.md). */ controlPointLinked?: boolean;
   /** The signed-in owner's Control Point side: whether they're a member there, and their teams. */
-  controlPoint?: { member: boolean; teams: { teamNumber: number | null; name: string }[]; url: string } | null }
-export interface AuthProviders { email: boolean; google: boolean; controlPoint?: boolean }
+  controlPoint?: { member: boolean; teams: { teamNumber: number | null; name: string }[]; shortlist?: number[]; url: string } | null }
+/** Fired on window for every explicit sign-in (detail: the AccountUser). */
+export const SIGNED_IN = "cs-signed-in";
+export function announceSignIn(u: AccountUser) { window.dispatchEvent(new CustomEvent<AccountUser>(SIGNED_IN, { detail: u })); }
+
+export interface AuthProviders { email: boolean; google: boolean; controlPoint?: boolean; /** Google / Discord / GitHub, run by Control Point for us. */ via?: ("google" | "discord" | "github")[] }
 export type SyncStatus = "local" | "synced" | "syncing" | "offline" | "error";
 
 interface PersonalApi {
@@ -251,7 +255,10 @@ export function PersonalProvider({ children }: { children: ReactNode }) {
     setState(EMPTY_STATE);
   }, []);
 
-  const api = useMemo<PersonalApi>(() => ({ state, user, providers, sync, syncReady, set, update, signedIn: connect, signOut, clearLocal }), [state, user, providers, sync, syncReady, set, update, connect, signOut, clearLocal]);
+  // An explicit sign-in (email code, from any form): announced, so the account menu can play the
+  // merge for an existing Control Point account. Page loads that restore a session don't announce.
+  const signedIn = useCallback((u: AccountUser) => { announceSignIn(u); return connect(u); }, [connect]);
+  const api = useMemo<PersonalApi>(() => ({ state, user, providers, sync, syncReady, set, update, signedIn, signOut, clearLocal }), [state, user, providers, sync, syncReady, set, update, signedIn, signOut, clearLocal]);
   return <Ctx.Provider value={api}>{children}</Ctx.Provider>;
 }
 
