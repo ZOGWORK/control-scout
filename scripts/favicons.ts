@@ -1,10 +1,12 @@
-// Raster favicons from the brand mark (public/favicon.svg), for the places
-// SVG isn't used: Google Search's favicon (BMP/GIF/ICO/PNG/JPEG…, multiple of
-// 48 px), older browsers, and iOS home screens.
+// Favicons from the brand icon (brand/favicon-master.png, Sushil's 1254×1254
+// artwork: the yellow mark on the dark square), for every place an icon shows:
+// Google Search (ICO/PNG, a multiple of 48 px), browsers and iOS home screens.
 //   public/favicon.ico          16, 32 and 48 px (PNG images inside an ICO)
 //   public/favicon-48.png       48×48
-//   public/apple-touch-icon.png 180×180 on the site's dark background (iOS fills transparency with black)
-// Re-run after a logo change:
+//   public/apple-touch-icon.png 180×180
+//   public/icon-192.png, icon-512.png  the installed app's icons (manifest.webmanifest)
+// No SVG favicon: the artwork is a bitmap, and an SVG link would win over these in modern browsers.
+// Re-run after replacing the master:
 //   npx playwright install chromium   (once per machine; on Linux: --with-deps)
 //   npx tsx scripts/favicons.ts
 import { chromium, type Page } from "playwright";
@@ -12,14 +14,34 @@ import { readFileSync, statSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 
 const pub = join(process.cwd(), "public");
-const svg = readFileSync(join(pub, "favicon.svg"), "utf8");
+const master = `data:image/png;base64,${readFileSync(join(process.cwd(), "brand", "favicon-master.png")).toString("base64")}`;
 
-async function render(page: Page, size: number, opts: { background?: string; pad?: number } = {}): Promise<Buffer> {
-  const pad = Math.round(size * (opts.pad ?? 0));
-  const inner = size - 2 * pad;
-  await page.setViewportSize({ width: size, height: size });
-  await page.setContent(`<html><body style="margin:0;width:${size}px;height:${size}px;background:${opts.background ?? "transparent"};display:flex;align-items:center;justify-content:center">${svg.replace("<svg ", `<svg width="${inner}" height="${inner}" `)}</body></html>`);
-  return page.screenshot({ omitBackground: !opts.background, clip: { x: 0, y: 0, width: size, height: size } });
+/** The master at `size` px: halved step by step (sharp small sizes), then drawn at the target. */
+async function render(page: Page, size: number): Promise<Buffer> {
+  const dataUrl = await page.evaluate(async ({ src, size }) => {
+    const img = new Image();
+    img.src = src;
+    await img.decode();
+    let canvas = document.createElement("canvas");
+    canvas.width = img.naturalWidth; canvas.height = img.naturalHeight;
+    let ctx = canvas.getContext("2d")!;
+    ctx.drawImage(img, 0, 0);
+    while (canvas.width / 2 >= size) {
+      const next = document.createElement("canvas");
+      next.width = Math.round(canvas.width / 2); next.height = Math.round(canvas.height / 2);
+      const c = next.getContext("2d")!;
+      c.imageSmoothingQuality = "high";
+      c.drawImage(canvas, 0, 0, next.width, next.height);
+      canvas = next; ctx = c;
+    }
+    const out = document.createElement("canvas");
+    out.width = size; out.height = size;
+    const o = out.getContext("2d")!;
+    o.imageSmoothingQuality = "high";
+    o.drawImage(canvas, 0, 0, size, size);
+    return out.toDataURL("image/png");
+  }, { src: master, size });
+  return Buffer.from(dataUrl.split(",")[1], "base64");
 }
 
 /** An ICO file holding PNG images (supported by every browser and by Google). */
@@ -34,8 +56,6 @@ function ico(images: { size: number; png: Buffer }[]): Buffer {
     const e = Buffer.alloc(16);
     e.writeUInt8(size >= 256 ? 0 : size, 0); // width (0 = 256)
     e.writeUInt8(size >= 256 ? 0 : size, 1); // height
-    e.writeUInt8(0, 2); // palette colours
-    e.writeUInt8(0, 3); // reserved
     e.writeUInt16LE(1, 4); // colour planes
     e.writeUInt16LE(32, 6); // bits per pixel
     e.writeUInt32LE(png.length, 8);
@@ -47,12 +67,14 @@ function ico(images: { size: number; png: Buffer }[]): Buffer {
 }
 
 const b = await chromium.launch();
-const page = await (await b.newContext({ deviceScaleFactor: 1 })).newPage();
-const sizes = [16, 32, 48];
+const page = await (await b.newContext()).newPage();
+await page.setContent("<html><body></body></html>");
 const pngs = [];
-for (const size of sizes) pngs.push({ size, png: await render(page, size) });
+for (const size of [16, 32, 48]) pngs.push({ size, png: await render(page, size) });
 writeFileSync(join(pub, "favicon.ico"), ico(pngs));
 writeFileSync(join(pub, "favicon-48.png"), pngs[2].png);
-writeFileSync(join(pub, "apple-touch-icon.png"), await render(page, 180, { background: "#0a0a0b", pad: 0.12 }));
+writeFileSync(join(pub, "apple-touch-icon.png"), await render(page, 180));
+writeFileSync(join(pub, "icon-192.png"), await render(page, 192));
+writeFileSync(join(pub, "icon-512.png"), await render(page, 512));
 await b.close();
-for (const f of ["favicon.ico", "favicon-48.png", "apple-touch-icon.png"]) console.log(`${f}: ${statSync(join(pub, f)).size} bytes`);
+for (const f of ["favicon.ico", "favicon-48.png", "apple-touch-icon.png", "icon-192.png", "icon-512.png"]) console.log(`${f}: ${statSync(join(pub, f)).size} bytes`);
