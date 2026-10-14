@@ -1,7 +1,7 @@
 // My Team dashboard: your team's next matches (with odds), recent results,
 // next event outlook, and activity from the teams and events you track.
 // Works with no account (saved on this device); signed in, it syncs.
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { CalendarDays, Eye, History, Star, Swords, Trophy, X } from "lucide-react";
 import { useApi, qs } from "../lib/api";
@@ -64,14 +64,19 @@ function Dashboard({ team }: { team: number }) {
   const when = isCurrent ? "this season" : "that season";
   const setSeason = (s: number) => setSp((x) => { const n = new URLSearchParams(x); if (s === current) n.delete("season"); else n.set("season", String(s)); return n; }, { replace: true });
   const { set } = usePersonal();
+  const [knownSeasons, setKnownSeasons] = useState<number[] | null>(null);
   const profile = useApi<TeamProfile>(`/api/teams/${team}${qs({ season })}`);
   const matches = useApi<{ matches: MatchView[] }>(`/api/teams/${team}/matches${qs({ season })}`);
+  const loaded = profile.data?.seasons;
+  useEffect(() => { if (loaded?.length) setKnownSeasons(loaded); }, [loaded]);
+  useEffect(() => { setKnownSeasons(null); }, [team]);
   return (
     <div>
       <PageHeader eyebrow="My team" title={<Link to={`/teams/${team}`} className="hover:underline">{team} {profile.data?.team.name ?? ""}</Link>}
         actions={<Button variant="ghost" size="sm" onClick={() => set("myTeam", null)}><X /> Change team</Button>} />
       <div className="-mt-2 mb-6 flex flex-wrap items-center gap-3">
-        <SeasonToggle seasons={profile.data?.seasons} value={season} onChange={setSeason} />
+        {/* The team's own seasons only: kept from the last load while a new season is fetched. */}
+        {knownSeasons ? <SeasonToggle seasons={knownSeasons} value={season} onChange={setSeason} /> : <div className="skeleton h-9 w-72 rounded-lg" />}
         <Link to={`/teams/${team}?season=${season}`} className="text-xs text-muted-foreground underline-offset-2 hover:text-foreground hover:underline">Full {team} page for this season</Link>
       </div>
       <Async state={profile}>
@@ -103,7 +108,8 @@ function Dashboard({ team }: { team: number }) {
           const upcoming = d.matches.filter((m) => !m.played);
           const played = d.matches.filter((m) => m.played).reverse();
           // This season: the latest few. Earlier seasons: every match, newest first.
-          const recent = isCurrent ? played.slice(0, 6) : played;
+          // Earlier seasons: everything returned (a match with no posted result still belongs to that season).
+          const recent = isCurrent ? played.slice(0, 6) : [...d.matches].reverse();
           return (
             <>
               {isCurrent && (
@@ -111,7 +117,7 @@ function Dashboard({ team }: { team: number }) {
                   <MatchList matches={upcoming} highlight={team} empty="No scheduled matches yet — schedules usually appear the morning of an event." />
                 </Section>
               )}
-              <Section title={isCurrent ? "Recent results" : `Every match (${played.length})`} description="Was each one called before it was played?">
+              <Section title={isCurrent ? "Recent results" : `Every match (${d.matches.length})`} description="Was each one called before it was played?">
                 <MatchList matches={recent} highlight={team} empty={`No matches played ${when}.`} />
               </Section>
             </>
