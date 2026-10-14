@@ -23,6 +23,7 @@ import { TeamInput } from "../components/TeamInput";
 import { SeasonToggle } from "../components/SeasonToggle";
 import { AdvancementView } from "../components/Advancement";
 import { SearchBox } from "../components/search/SearchBox";
+import { SEARCH_HINT, usePageSearch } from "../components/layout/Search";
 import { cn } from "../components/cn";
 import { dateRange, num, oddsPct, place, seasonLabel } from "../lib/format";
 import { copyLink } from "../lib/clipboard";
@@ -61,6 +62,8 @@ export default function PredictPage() {
 
 function Picker({ onPick }: { onPick: (v: string) => void }) {
   const { state } = usePersonal();
+  // This picker is the page's search box: the top-bar field steps aside, and ⌘K focuses this.
+  const searchRef = usePageSearch();
   const quick = [...new Set([...(state.myTeam ? [state.myTeam] : []), ...state.tracked.teams, ...state.bookmarks])].slice(0, 6);
   const chip = (t: number, small?: boolean) => (
     <button key={t} type="button" onPointerDown={(e) => e.preventDefault()} onClick={() => onPick(`team:${t}`)}
@@ -71,7 +74,7 @@ function Picker({ onPick }: { onPick: (v: string) => void }) {
   return (
     <div className="max-w-2xl space-y-3">
       <SearchBox
-        size="lg" kinds={["team", "event"]} label="Pick a team or event"
+        size="lg" kinds={["team", "event"]} label="Pick a team or event" inputRef={searchRef} hint={SEARCH_HINT}
         placeholder="Pick a team or an event: number, name, or a rough guess"
         onPick={(h) => onPick(h.kind === "team" ? `team:${h.ref}` : `event:${h.ref}`)}
         emptyHint={quick.length ? (

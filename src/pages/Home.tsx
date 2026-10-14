@@ -7,7 +7,8 @@ import { useApi, qs } from "../lib/api";
 import { useCurrentSeason, useMeta, useTitle } from "../lib/meta";
 import { usePersonal } from "../lib/personal";
 import type { EventSummary, EventListItem, MatchView, TrackRecord } from "../shared/api";
-import { useSearch } from "../components/layout/Search";
+import { SEARCH_HINT, hitHref, usePageSearch } from "../components/layout/Search";
+import { SearchBox } from "../components/search/SearchBox";
 import { Section } from "../components/page";
 import { Async } from "../components/states";
 import { Reveal, Stagger, StaggerItem } from "../components/motion";
@@ -46,18 +47,22 @@ export default function Home() {
 }
 
 function Hero() {
-  const { open } = useSearch();
+  // Home's search IS the page's search: the top-bar field steps aside here.
+  const searchRef = usePageSearch();
+  const nav = useNavigate();
   const meta = useMeta();
   return (
     <Reveal className="pt-2 text-center sm:pt-8">
       <BrandMark className="mx-auto size-12" />
       <h1 className="mt-4 font-display text-4xl font-bold tracking-tight sm:text-5xl">FTC Control Scout</h1>
       <p className="mx-auto mt-3 max-w-xl text-muted-foreground">Every FTC team, event and match — with predictions that keep a public score of how often they come true. Free, no login.</p>
-      <button onClick={open} className="lift mx-auto mt-7 flex h-14 w-full max-w-2xl items-center gap-3 rounded-2xl border border-line bg-card px-5 text-left text-muted-foreground shadow-[0_8px_40px_-12px_color-mix(in_srgb,var(--color-accent)_25%,transparent)]">
-        <Search className="size-5 text-accent" />
-        <span className="flex-1 truncate"><span className="sm:hidden">Teams, events, matches…</span><span className="hidden sm:inline">Team number or name (typos are fine), an event, or “USNJQ1 Q12”…</span></span>
-        <kbd className="hidden rounded-md border border-line px-1.5 py-0.5 font-mono text-xs sm:inline">⌘K</kbd>
-      </button>
+      <SearchBox
+        size="lg" inputRef={searchRef} hint={SEARCH_HINT}
+        label="Search teams, events and matches"
+        placeholder="Team number or name (typos are fine), an event, or “USNJQ1 Q12”…"
+        onPick={(h) => nav(hitHref(h))}
+        className="mx-auto mt-7 w-full max-w-2xl text-left [&>div:first-child]:rounded-2xl [&>div:first-child]:shadow-[0_8px_40px_-12px_color-mix(in_srgb,var(--color-accent)_25%,transparent)]"
+      />
       {meta && <p className="mt-3 text-xs text-muted-foreground">{meta.seasons.length} seasons · data updated {ago(meta.dataAsOf)} · engine v{meta.engineVersion}</p>}
     </Reveal>
   );
