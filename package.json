@@ -28,6 +28,7 @@
     "db:push": "tsx scripts/db-push.ts",
     "snapshot": "tsx scripts/snapshot.ts",
     "replica:check": "tsx scripts/replica-check.ts",
+    "live:check": "tsx scripts/live-check.ts",
     "equivalence": "tsx scripts/engine-equivalence.ts",
     "shots": "tsx scripts/shots.ts",
     "audit": "tsx scripts/audit.ts",
