@@ -31,13 +31,14 @@ export function MatchDetails({ m, eventName }: { m: MatchView; eventName?: strin
       <Async state={state} loading={<div className="skeleton h-40 rounded-xl" />}>
         {(d) => <Body d={d} eventName={eventName} />}
       </Async>
+      {/* Outside the server-loaded part: recording and saved videos work with no connection. */}
+      <MatchVideoSection m={m} />
     </div>
   );
 }
 
 function Body({ d, eventName }: { d: MatchDetail; eventName?: string }) {
   const m = d.match;
-  const [videoOpen, setVideoOpen] = useState(false);
   const played = m.played && !!m.red.score && !!m.blue.score;
   const href = (key: string) => `/events/${m.season}/${encodeURIComponent(m.code)}?tab=matches&match=${encodeURIComponent(key)}`;
   return (
@@ -59,12 +60,18 @@ function Body({ d, eventName }: { d: MatchDetail; eventName?: string }) {
         {played ? <Breakdown d={d} /> : <p className="rounded-xl border border-dashed border-border p-4 text-sm text-text-muted">Not played yet — the score breakdown appears once the result is posted.</p>}
         <Prediction d={d} />
       </div>
-      {/* Mounted only while open: closing it unmounts the recorder, which stops (and saves) any recording and releases the camera. */}
-      <details className="group rounded-xl border border-border bg-card" onToggle={(e) => setVideoOpen((e.currentTarget as HTMLDetailsElement).open)}>
-        <summary className="cursor-pointer select-none px-4 py-3 text-sm font-medium">Video for {m.label}</summary>
-        {videoOpen && <div className="border-t border-border p-4"><VideoPanel matchRef={matchRef(m)} label={`${m.code} ${m.label}`} /></div>}
-      </details>
     </div>
+  );
+}
+
+function MatchVideoSection({ m }: { m: MatchView }) {
+  const [open, setOpen] = useState(false);
+  return (
+    // Mounted only while open: closing it unmounts the recorder, which stops (and saves) any recording and releases the camera.
+    <details className="group mt-4 rounded-xl border border-border bg-card" onToggle={(e) => setOpen((e.currentTarget as HTMLDetailsElement).open)}>
+      <summary className="cursor-pointer select-none px-4 py-3 text-sm font-medium">Video for {m.label}</summary>
+      {open && <div className="border-t border-border p-4"><VideoPanel matchRef={matchRef(m)} label={`${m.code} ${m.label}`} /></div>}
+    </details>
   );
 }
 
