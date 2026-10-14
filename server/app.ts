@@ -16,6 +16,7 @@ import { eventDetail, listEvents, toEventInput } from "./api/events.js";
 import { matchDetail, matchViews } from "./api/matches.js";
 import { trackRecord } from "./api/accuracy.js";
 import { currentWeather } from "./weather.js";
+import { canonicalRedirects, renderIndex } from "./seo.js";
 import { forecasterFor, dataVersion } from "./predict/engine.js";
 import { authRouter, meRouter, authProviders } from "./auth/routes.js";
 import { packsRouter } from "./packs/routes.js";
@@ -91,6 +92,8 @@ export function createApp() {
   const app = express();
   app.disable("x-powered-by");
   app.set("trust proxy", 1);
+  // One host, one URL per page: www/alias hosts, trailing slashes and /team/… aliases 301 (server/seo.ts).
+  app.use(canonicalRedirects);
   app.use(compression());
   app.use(express.json({ limit: "2mb" }));
   app.use((_req, res, next) => {
@@ -314,7 +317,11 @@ export function createApp() {
     // The service worker and its file list must never be served stale.
     for (const f of ["sw.js"]) app.get(`/${f}`, (_req, res) => { res.setHeader("Cache-Control", "no-cache"); res.sendFile(join(dist, f)); });
     app.use(express.static(dist, { index: false, maxAge: "1h" }));
-    app.get(/^(?!\/api\/|\/packs\/).*/, (_req, res) => { res.setHeader("Cache-Control", "no-cache"); res.sendFile(join(dist, "index.html")); });
+    // The app's HTML, with the page's canonical link in the first response (crawlers don't run JS).
+    app.get(/^(?!\/api\/|\/packs\/).*/, (req, res) => {
+      res.setHeader("Cache-Control", "no-cache");
+      res.type("html").send(renderIndex(join(dist, "index.html"), req.path));
+    });
   }
 
   app.use((err: unknown, _req: Request, res: Response, _next: NextFunction) => {
