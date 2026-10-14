@@ -116,7 +116,9 @@ const flows: Flow[] = [
       for (const [section, group] of Object.entries(body)) {
         await nav.getByRole("button", { name: section, exact: true }).click();
         await page.getByRole("heading", { name: section, level: 1 }).waitFor({ timeout: 5000 });
-        await page.getByRole("heading", { name: group, level: 2, exact: true }).waitFor({ timeout: 5000 });
+        // Profile on a server without sign-in says so instead of showing the Sign in group.
+        const own = page.getByRole("heading", { name: group, level: 2, exact: true });
+        await (section === "Profile" ? own.or(page.getByText("Sign-in isn't set up on this server")) : own).first().waitFor({ timeout: 5000 });
       }
       return `light theme, compact density and background-off apply instantly; sections: ${sections.join(", ")}`;
     },
