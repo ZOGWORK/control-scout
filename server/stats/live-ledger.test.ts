@@ -7,7 +7,7 @@ import { all, migrate, openDb, run, setDb } from "../db";
 import { CURRENT_SEASON, SEASON_NUMBERS } from "../data/seasons";
 import { localToUtcMs } from "../data/time";
 import { resetForecasters } from "../predict/engine";
-import { backtest, liveLoggable, logLivePredictions, scoreLivePredictions, unloggedLiveMatches } from "./job";
+import { backtest, liveLoggable, runStats, logLivePredictions, scoreLivePredictions, unloggedLiveMatches } from "./job";
 
 const S = CURRENT_SEASON;
 const TEAMS = [201, 202, 203, 204, 205, 206];
@@ -180,5 +180,18 @@ describe("replayed calls for the current season", () => {
     await backtest(SEASON_NUMBERS, () => {}, { write: [S] });
     const without = await all<any>("SELECT p_red FROM predictions WHERE kind = 'backtest' AND code = 'PRIOR' ORDER BY match_time");
     expect(without).toEqual(again);
+  });
+
+  it("runStats refreshes the current season's replayed calls on every run, leaving earlier seasons alone", async () => {
+    await backtest(SEASON_NUMBERS); // the ledger already exists
+    const earlier = Math.min(...SEASON_NUMBERS);
+    await run(`INSERT INTO predictions (kind, season, code, level, series, number, red, blue, p_red, red_mean, blue_mean, tier, engine_version, predicted_at, match_time)
+               VALUES ('backtest', ?, 'OLD', 'qual', 0, 1, '[1,2]', '[3,4]', 0.5, 50, 50, 'moderate', 'x', '2020-01-01', '2020-01-01')`, [earlier]);
+    // A match played since the ledger was built.
+    await event("NEW", "2026-11-01", CHICAGO);
+    await match("NEW", "qual", 1, "2026-11-01T10:00:00", [201, 202], [203, 204], [90, 60]);
+    await runStats({ seasons: [S] });
+    expect(await all("SELECT 1 FROM predictions WHERE kind = 'backtest' AND code = 'NEW'")).toHaveLength(1);
+    expect(await all("SELECT 1 FROM predictions WHERE kind = 'backtest' AND code = 'OLD' AND season = ?", [earlier])).toHaveLength(1);
   });
 });
