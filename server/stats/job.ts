@@ -130,30 +130,39 @@ const outcome = (red: number, blue: number) => (red > blue ? 1 : red < blue ? 0 
  * and the result. Exactly the protocol of the engine's own back-test (the
  * "live" accuracy in FITTED_MODEL), run over every season we hold.
  */
-export async function backtest(seasons: number[], log: Log = () => {}): Promise<void> {
+export async function backtest(seasons: number[], log: Log = () => {}, opts: { write?: number[] } = {}): Promise<void> {
   const book = new RatingBook(FITTED_MODEL.rating);
   const ordered = [...seasons].sort((a, b) => a - b);
+  // Seasons whose ledger is rewritten; the others are replayed only to build the ratings.
+  const write = new Set(opts.write ?? ordered);
   for (const s of ordered) {
-    const recs = (await loadSeason(s)).map(toEventRecord).filter((x): x is EventRecord => !!x);
+    const events = await loadSeason(s);
+    // Scrimmages are predicted too, but never rated: the book doesn't learn from them.
+    const unrated = new Set(events.filter((e) => !toEventRecord(e)).map((e) => e.code));
+    const recs = events.map((e) => toEventRecord(e, { anyType: true })).filter((x): x is EventRecord => !!x);
     book.startSeason(s);
     const matches = recs.flatMap((e) => e.matches).sort((x, y) => x.time - y.time);
     const stmts: InStatement[] = [{ sql: "DELETE FROM predictions WHERE kind = 'backtest' AND season = ?", args: [s] }];
     const at = new Date().toISOString();
+    // Before this season's first rated match there's no scoring baseline: odds stand, predicted scores don't.
+    let rated = 0;
     for (const m of matches) {
-      if (m.red.teams.length === 2 && m.blue.teams.length === 2) {
+      if (write.has(s) && m.red.teams.length === 2 && m.blue.teams.length === 2) {
         book.setTime(m.time);
         const x = explainMatch(book, m.red.teams, m.blue.teams, { noise: FITTED_MODEL.noise, calibration: FITTED_MODEL.calibration });
         stmts.push({
-          sql: `INSERT INTO predictions (kind, season, code, level, series, number, red, blue, p_red, red_mean, blue_mean, tier, factors, engine_version, predicted_at, match_time, red_score, blue_score, outcome, scored_at)
-                VALUES ('backtest', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, ?, ?, ?, ?, ?, ?, ?)`,
+          sql: `INSERT INTO predictions (kind, season, code, level, series, number, red, blue, p_red, red_mean, blue_mean, tier, factors, engine_version, predicted_at, match_time, red_score, blue_score, outcome, scored_at, no_score_basis)
+                VALUES ('backtest', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, ?, ?, ?, ?, ?, ?, ?, ?)`,
           args: [s, m.eventCode, m.level, m.series, m.number, JSON.stringify(m.red.teams), JSON.stringify(m.blue.teams), x.winProbA, x.predictedScoreA, x.predictedScoreB,
-            x.confidence.tier, ENGINE_VERSION, at, new Date(m.time).toISOString(), m.red.total, m.blue.total, outcome(m.red.total, m.blue.total), at],
+            x.confidence.tier, ENGINE_VERSION, at, new Date(m.time).toISOString(), m.red.total, m.blue.total, outcome(m.red.total, m.blue.total), at, rated ? 0 : 1],
         });
       }
-      book.update(m);
+      if (!unrated.has(m.eventCode)) { book.update(m); rated++; }
     }
-    await writeBatch(stmts, 5000);
-    log(`${s}: backtest ledger ${stmts.length - 1} matches`);
+    if (write.has(s)) {
+      await writeBatch(stmts, 5000);
+      log(`${s}: backtest ledger ${stmts.length - 1} matches`);
+    }
   }
 }
 
@@ -327,7 +336,9 @@ export async function runStats(o: StatsOptions = {}): Promise<void> {
     await computeSeasonStats(s, events, log);
   }
   const doBacktest = o.backtest ?? !(await get("SELECT 1 FROM predictions WHERE kind = 'backtest' LIMIT 1"));
+  // Every season once; after that the current season on every run, so matches played since get their replayed call.
   if (doBacktest) await backtest(SEASON_NUMBERS, log);
+  else if (seasons.includes(CURRENT_SEASON)) await backtest(SEASON_NUMBERS, log, { write: [CURRENT_SEASON] });
   await scoreLivePredictions(log);
   await logLivePredictions(log);
   await rebuildSearch(log);
