@@ -94,12 +94,13 @@ async function teamMeta(n: number): Promise<PageMeta> {
   };
   const addr = address(t?.city, t?.state, t?.country);
   if (addr) team.location = { "@type": "Place", address: addr };
-  return { title, description: fitDescription(d), type: "profile", jsonLd: [team] };
+  // One URL for the page (/teams/004215 → /teams/4215 everywhere); structured data only for a team we know.
+  return { title, description: fitDescription(d), type: "profile", path: `/teams/${n}`, ...(t ? { jsonLd: [team] } : {}) };
 }
 
 async function eventMeta(season: number, code: string): Promise<PageMeta | null> {
-  const e = await get<{ name: string; type: string | null; venue: string | null; city: string | null; state: string | null; country: string | null; start: string | null; end: string | null }>(
-    "SELECT name, type, venue, city, state, country, start, end FROM events WHERE season = ? AND code = ?", [season, code]);
+  const e = await get<{ name: string; type: string | null; venue: string | null; city: string | null; state: string | null; country: string | null; start: string | null; end: string | null; remote: number; hybrid: number }>(
+    "SELECT name, type, venue, city, state, country, start, end, remote, hybrid FROM events WHERE season = ? AND code = ?", [season, code]);
   if (!e) return null;
   const teams = (await get<{ n: number }>("SELECT COUNT(*) AS n FROM event_teams WHERE season = ? AND code = ?", [season, code]))?.n ?? 0;
   const when = dateLong(e.start) + (e.end && e.end !== e.start ? `–${dateLong(e.end)}` : "");
@@ -120,7 +121,7 @@ async function eventMeta(season: number, code: string): Promise<PageMeta | null>
   if (e.end || e.start) ev.endDate = e.end ?? e.start;
   const addr = address(e.city, e.state, e.country);
   if (e.venue || addr) ev.location = { "@type": "Place", ...(e.venue ? { name: e.venue } : {}), ...(addr ? { address: addr } : {}) };
-  ev.eventAttendanceMode = "https://schema.org/OfflineEventAttendanceMode";
+  ev.eventAttendanceMode = `https://schema.org/${e.remote ? "Online" : e.hybrid ? "Mixed" : "Offline"}EventAttendanceMode`;
   ev.eventStatus = "https://schema.org/EventScheduled";
   return { title: `${e.name} (${seasonInfo(season).label})`, description, type: "website", path: `/events/${season}/${code}`, jsonLd: [ev] };
 }
