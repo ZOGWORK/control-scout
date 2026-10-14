@@ -39,7 +39,7 @@ function Event({ d }: { d: EventDetail }) {
   const nameOf = (t: number) => names.get(t) ?? "";
   const tab = sp.get("tab") ?? (sp.get("match") ? "matches" : e.status === "upcoming" && !d.matches.length ? "odds" : "matches");
   const setTab = (t: string) => setSp((x) => { x.set("tab", t); return x; }, { replace: true });
-  const setTeam = (t: number) => setSp((x) => { x.set("team", String(t)); return x; }, { replace: true });
+  const setTeam = (t: number | null) => setSp((x) => { if (t) x.set("team", String(t)); else x.delete("team"); return x; }, { replace: true });
   return (
     <div>
       <Reveal className="relative mb-6 overflow-hidden rounded-2xl border border-border bg-card p-6 sm:p-8">
@@ -124,14 +124,15 @@ function MatchOdds({ d, team, onTab }: { d: EventDetail; team: number | null; on
       ? <>This event has ended. {unplayed.length} scheduled {unplayed.length === 1 ? "match has" : "matches have"} no result yet, so {unplayed.length === 1 ? "it isn't" : "they aren't"} listed here as upcoming. {played.length > 0 && seeHow}</>
       : <>All of {who} matches have been played. {seeHow}.</>)
     : predicted.length ? (predicted.some((m) => m.prediction?.noScoreBasis)
-      ? `Win odds for ${scope} still to play. Predicted scores appear once this season has rated matches (scrimmages aren't rated), so until then the odds lean on last season.`
+      ? `Win odds for ${scope} still to play. Where a call was made before this season had any rated matches (scrimmages aren't rated), it has no predicted score: the ratings then were last season's.`
       : `Win odds and predicted scores for ${scope} still to play, from current ratings.`)
       : played.length && !unplayed.length ? <>All of {who} matches have been played. {seeHow}.</>
         : unplayed.length
           ? (unplayed.some(fullLineup)
             ? "Predictions aren't available right now (the ratings are still loading). Try again in a minute."
             : "The scheduled matches don't have full 2-against-2 lineups yet, so there's nothing to predict until they do.")
-          : "No schedule published yet. Every match gets win odds and a predicted score as soon as it is (usually the morning of the event).";
+          : team && d.matches.length ? `${team} has no scheduled matches at this event.`
+            : "No schedule published yet. Every match gets win odds and a predicted score as soon as it is (usually the morning of the event).";
   return (
     <section aria-label="Match predictions">
       <h2 className="mb-1 font-display text-lg font-semibold text-foreground">Match predictions</h2>
@@ -141,7 +142,7 @@ function MatchOdds({ d, team, onTab }: { d: EventDetail; team: number | null; on
   );
 }
 
-function TeamPicker({ field, value, onChange }: { field: FieldRow[]; value: number | null; onChange: (t: number) => void }) {
+function TeamPicker({ field, value, onChange }: { field: FieldRow[]; value: number | null; onChange: (t: number | null) => void }) {
   const [q, setQ] = useState("");
   const options = field.filter((f) => !q || String(f.team).includes(q) || (f.name ?? "").toLowerCase().includes(q.toLowerCase())).slice(0, 8);
   return (
@@ -149,6 +150,7 @@ function TeamPicker({ field, value, onChange }: { field: FieldRow[]; value: numb
       <span className="text-sm text-muted-foreground">Odds for team</span>
       <Input value={q} onChange={(e) => setQ(e.target.value)} placeholder={value ? String(value) : "type a number or name"} className="h-9 w-48" aria-label="Pick a team at this event" />
       {q && options.map((f) => <Button key={f.team} size="sm" variant="secondary" onClick={() => { onChange(f.team); setQ(""); }}>{f.team} {f.name && <span className="max-w-32 truncate text-muted-foreground">{f.name}</span>}</Button>)}
+      {value != null && !q && <Button size="sm" variant="ghost" onClick={() => onChange(null)}>All teams</Button>}
     </div>
   );
 }
