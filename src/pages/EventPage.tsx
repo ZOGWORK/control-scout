@@ -1,6 +1,6 @@
 // Event page: schedule + results (with predictions), rankings, playoff
 // bracket, awards + advancement, and advancement odds for any team there.
-import { useMemo, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { Link, useParams, useSearchParams } from "react-router-dom";
 import { Award, CalendarDays, ExternalLink, MapPin, Radio, Swords, Trophy } from "lucide-react";
 import { BRACKETS, type Slot } from "@control-scout/predict-engine";
@@ -218,6 +218,16 @@ function Matches({ d, team }: { d: EventDetail; team: number | null }) {
   const [level, setLevel] = useState<"all" | "qual" | "playoff">("all");
   const [onlyTeam, setOnlyTeam] = useState(!!team);
   const [sp] = useSearchParams();
+  // A linked match (?match=, from search or prev/next) must be visible: drop any filter that hides it.
+  const want = sp.get("match");
+  useEffect(() => {
+    const m = want ? d.matches.find((x) => x.key === want) : undefined;
+    if (!m) return;
+    if (level !== "all" && m.level !== level) setLevel("all");
+    if (onlyTeam && team && ![...m.red.teams, ...m.blue.teams].some((t) => t.number === team)) setOnlyTeam(false);
+    // Only when the requested match changes.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [want, d.matches.length]);
   const list = d.matches.filter((m: MatchView) => (level === "all" || m.level === level) && (!onlyTeam || !team || [...m.red.teams, ...m.blue.teams].some((t) => t.number === team)));
   const record = callRecord(d.matches);
   return (
@@ -229,7 +239,7 @@ function Matches({ d, team }: { d: EventDetail; team: number | null }) {
         {team && <Button size="sm" variant={onlyTeam ? "secondary" : "outline"} onClick={() => setOnlyTeam(!onlyTeam)}>{onlyTeam ? `Only ${team}` : `Highlight ${team}`}</Button>}
         {record.length > 0 && <span className="ml-auto text-xs text-muted-foreground">{record.map((x) => `${x.kind === "live" ? "Live calls" : "Predicted"} ${x.right}/${x.n} right (${Math.round((x.right / x.n) * 100)}%)`).join(" · ")}</span>}
       </div>
-      {!d.matches.length ? <EmptyState icon={Swords} title="No schedule yet" description="The match schedule appears here once FIRST publishes it (usually the morning of the event)." /> : <MatchList matches={list} highlight={team ?? undefined} empty="No matches in this view." initialOpen={sp.get("match")} />}
+      {!d.matches.length ? <EmptyState icon={Swords} title="No schedule yet" description="The match schedule appears here once FIRST publishes it (usually the morning of the event)." /> : <MatchList matches={list} highlight={team ?? undefined} empty="No matches in this view." initialOpen={want} />}
       <p className="text-xs text-muted-foreground">Played matches show the prediction logged before they were played (or, for past seasons, the prediction replayed from the matches before it). Upcoming matches show odds from today's ratings.</p>
     </div>
   );
