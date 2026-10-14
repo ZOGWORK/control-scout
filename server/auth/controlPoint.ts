@@ -87,6 +87,7 @@ export async function linkToSharedAccount(user: User, how: "scout-email-code" | 
     // The same shared account may already be linked to another Scout user (an
     // older duplicate): keep the existing link; userForIdentity merges by email.
     await run("INSERT OR IGNORE INTO identities (provider, subject, user_id) VALUES (?, ?, ?)", [CP_PROVIDER, String(account.id), user.id]);
+    rememberInfo(account);
     return account;
   } catch (e) {
     logFailure("resolve", e);
@@ -104,4 +105,26 @@ export async function provenEmailFor(user: User): Promise<string | null> {
   if (!user.email) return null;
   const r = await get<{ subject: string }>("SELECT subject FROM identities WHERE user_id = ? AND provider = 'email' AND subject = ? COLLATE NOCASE", [user.id, user.email]);
   return r ? user.email : null;
+}
+
+/** What a signed-in user sees about their Control Point side: membership and teams. */
+export interface ControlPointInfo { member: boolean; teams: { teamNumber: number | null; name: string }[]; url: string }
+
+const infoCache = new Map<number, { at: number; info: SharedAccount["controlPoint"] }>();
+const INFO_TTL = 10 * 60_000;
+export const toInfo = (cp: SharedAccount["controlPoint"]): ControlPointInfo => ({ member: !!cp.member, teams: (cp.teams ?? []).slice(0, 10), url: env.controlPointPublicUrl!.replace(/\/$/, "") });
+
+/** Remember an account's Control Point side (from resolve or redeem), so /me needn't ask again. */
+export function rememberInfo(account: SharedAccount): void { infoCache.set(account.id, { at: Date.now(), info: account.controlPoint }); }
+
+/** Membership for a linked account, cached for 10 minutes; null when Control Point can't be reached. */
+export async function controlPointInfo(accountId: number): Promise<ControlPointInfo | null> {
+  const hit = infoCache.get(accountId);
+  if (hit && Date.now() - hit.at < INFO_TTL) return toInfo(hit.info);
+  try {
+    const a = await getAccount(accountId);
+    if (!a) return null;
+    rememberInfo(a);
+    return toInfo(a.controlPoint);
+  } catch (e) { logFailure("account", e); return null; }
 }
