@@ -1,14 +1,17 @@
-// Prediction lab: what-if alliances, advancement for any team at any event,
-// and the real upcoming matches. Every output carries its confidence tier.
+// Predict: predictions run on their own, so this page starts from what people
+// care about — a team or an event. Pick one and its predictions show inline;
+// this week's events are listed underneath. The manual what-if lab (any four
+// teams, advancement for any team at any event) sits at the bottom.
+// Every output carries its confidence tier.
 import { useEffect, useMemo, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
-import { ArrowLeftRight, BookmarkPlus, CalendarDays, Link2, Sparkles, Swords, Trophy, WifiOff } from "lucide-react";
+import { ArrowLeftRight, ArrowRight, BookmarkPlus, CalendarDays, ChevronDown, FlaskConical, Link2, MapPin, Sparkles, Star, Swords, Trophy, Users, WifiOff, X } from "lucide-react";
 import { ENGINE_VERSION } from "@control-scout/predict-engine";
 import { offlineExplain } from "../lib/packs";
 import { useApi, qs } from "../lib/api";
 import { useCurrentSeason, useTitle } from "../lib/meta";
 import { usePersonal } from "../lib/personal";
-import type { EventSummary, EventListItem, MatchExplanationView, MatchView } from "../shared/api";
+import type { EventDetail, EventSummary, EventListItem, MatchExplanationView, MatchView, TeamProfile } from "../shared/api";
 import { PageHeader, Section, EmptyState } from "../components/page";
 import { Async, ErrorState } from "../components/states";
 import { Button } from "../components/ui/button";
@@ -19,31 +22,223 @@ import { CalibrationLine, ConfidenceBadge, FactorList, MatchList, WinBar } from 
 import { TeamInput } from "../components/TeamInput";
 import { SeasonToggle } from "../components/SeasonToggle";
 import { AdvancementView } from "../components/Advancement";
+import { SearchBox } from "../components/search/SearchBox";
 import { cn } from "../components/cn";
-import { dateRange, num, oddsPct, seasonLabel } from "../lib/format";
+import { dateRange, num, oddsPct, place, seasonLabel } from "../lib/format";
 import { copyLink } from "../lib/clipboard";
 
-type Mode = "match" | "advancement" | "upcoming";
+type LabMode = "match" | "advancement";
+const ADVANCING = new Set(["LeagueTournament", "Qualifier", "Championship", "SuperQualifier", "Premier", "FIRSTChampionship"]);
+const iso = (d: Date) => d.toISOString().slice(0, 10);
+
+/** ?for=team:4215 or ?for=event:2026:USNJQ1 — what's picked. The lab keeps its own params (mode, red, blue, code, team). */
+type Pick = { kind: "team"; team: number } | { kind: "event"; season: number; code: string } | null;
+function parsePick(v: string | null): Pick {
+  const [k, a, b] = (v ?? "").split(":");
+  if (k === "team" && /^\d+$/.test(a ?? "")) return { kind: "team", team: Number(a) };
+  if (k === "event" && /^\d{4}$/.test(a ?? "") && b) return { kind: "event", season: Number(a), code: b };
+  return null;
+}
 
 export default function PredictPage() {
-  useTitle("Prediction lab");
+  useTitle("Predict");
   const [sp, setSp] = useSearchParams();
-  const mode = (sp.get("mode") as Mode) || "match";
+  const pick = parsePick(sp.get("for"));
+  const setPick = (v: string | null) => setSp((x) => { if (v) x.set("for", v); else x.delete("for"); return x; });
+  return (
+    <div className="space-y-10">
+      <div>
+        <PageHeader title="Predict" description={<>Every scheduled match gets win odds and predicted scores automatically, and every advancing event gets advancement odds. Pick a team or an event to see them. Each number carries its confidence, and the <Link to="/methodology#accuracy" className="underline">track record</Link> shows how often they've been right.</>} />
+        <Picker onPick={setPick} />
+      </div>
+      {pick?.kind === "team" && <TeamPredictions team={pick.team} onClear={() => setPick(null)} />}
+      {pick?.kind === "event" && <EventPredictions season={pick.season} code={pick.code} onClear={() => setPick(null)} />}
+      <ThisWeek onPick={setPick} picked={pick?.kind === "event" ? pick.code : null} />
+      <Lab />
+    </div>
+  );
+}
+
+function Picker({ onPick }: { onPick: (v: string) => void }) {
+  const { state } = usePersonal();
+  const quick = [...new Set([...(state.myTeam ? [state.myTeam] : []), ...state.tracked.teams, ...state.bookmarks])].slice(0, 6);
+  const chip = (t: number, small?: boolean) => (
+    <button key={t} type="button" onPointerDown={(e) => e.preventDefault()} onClick={() => onPick(`team:${t}`)}
+      className={cn("inline-flex items-center gap-1 rounded-full border border-border font-mono text-foreground hover:border-accent/60 hover:text-accent", small ? "px-2.5 py-0.5 text-xs" : "px-3 py-1 text-sm")}>
+      {t === state.myTeam && <Star className={cn("fill-accent text-accent", small ? "size-3" : "size-3.5")} />}{t}
+    </button>
+  );
+  return (
+    <div className="max-w-2xl space-y-3">
+      <SearchBox
+        size="lg" kinds={["team", "event"]} label="Pick a team or event"
+        placeholder="Pick a team or an event: number, name, or a rough guess"
+        onPick={(h) => onPick(h.kind === "team" ? `team:${h.ref}` : `event:${h.ref}`)}
+        emptyHint={quick.length ? (
+          <div className="p-2">
+            <p className="px-1 pb-1.5 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Your teams</p>
+            <div className="flex flex-wrap gap-1.5">{quick.map((t) => chip(t))}</div>
+          </div>
+        ) : undefined}
+      />
+      {quick.length > 0 && <div className="flex flex-wrap items-center gap-1.5 text-sm text-muted-foreground"><span>Quick:</span>{quick.map((t) => chip(t, true))}</div>}
+    </div>
+  );
+}
+
+function PickedHeader({ icon: Icon, title, sub, to, onClear }: { icon: typeof Users; title: string; sub?: string; to: string; onClear: () => void }) {
+  return (
+    <div className="mb-4 flex flex-wrap items-center gap-3">
+      <span className="grid size-10 shrink-0 place-items-center rounded-xl bg-accent/[0.12] text-accent"><Icon className="size-5" /></span>
+      <div className="min-w-0 flex-1">
+        <h2 className="truncate font-display text-xl font-semibold text-foreground">{title}</h2>
+        {sub && <p className="truncate text-sm text-muted-foreground">{sub}</p>}
+      </div>
+      <Button variant="secondary" size="sm" asChild><Link to={to}>Open page <ArrowRight /></Link></Button>
+      <Button variant="ghost" size="icon" onClick={onClear} aria-label="Clear selection"><X /></Button>
+    </div>
+  );
+}
+
+function TeamPredictions({ team, onClear }: { team: number; onClear: () => void }) {
+  const season = useCurrentSeason();
+  const profile = useApi<TeamProfile>(`/api/teams/${team}${qs({ season })}`);
+  const matches = useApi<{ matches: MatchView[] }>(`/api/teams/${team}/matches${qs({ season })}`);
+  const upcoming = (matches.data?.matches ?? []).filter((m) => !m.played);
+  const t = profile.data?.team;
+  const now = iso(new Date());
+  const next = (profile.data?.events ?? []).find((e) => (e.end ?? e.start ?? "") >= now);
+  return (
+    <section aria-label={`Predictions for team ${team}`} className="rounded-2xl border border-border bg-card/60 p-4 sm:p-6">
+      <PickedHeader icon={Users} title={t ? `${t.number} ${t.name ?? ""}`.trim() : `Team ${team}`} sub={t ? place(t.city, t.state, t.country) : undefined} to={`/teams/${team}`} onClear={onClear} />
+      {profile.error?.status === 404 ? <EmptyState icon={Users} title={`No team ${team}`} description="No FTC team with that number in the seasons we hold." /> : (
+        <div className="space-y-8">
+          <div>
+            <h3 className="mb-2 text-sm font-semibold text-foreground">Next matches</h3>
+            <Async state={matches}>{() => (
+              <MatchList matches={upcoming.slice(0, 12)} highlight={team} empty={next ? `No schedule yet for ${next.name}. Win odds appear as soon as the event publishes its matches (usually that morning).` : `No scheduled matches for ${team} in ${seasonLabel(season)} yet.`} />
+            )}</Async>
+            {upcoming.length > 12 && <p className="mt-2 text-xs text-muted-foreground">Showing 12 of {upcoming.length}. All of them are on the <Link to={`/teams/${team}`} className="underline">team page</Link>.</p>}
+          </div>
+          {next && (
+            <div>
+              <h3 className="mb-2 flex flex-wrap items-baseline gap-x-2 text-sm font-semibold text-foreground">
+                <span>Next event: <Link to={`/events/${next.season}/${next.code}`} className="hover:underline">{next.name}</Link></span>
+                <span className="text-xs font-normal text-muted-foreground">{dateRange(next.start, next.end)}</span>
+              </h3>
+              {ADVANCING.has(next.type ?? "")
+                ? <AdvancementView season={next.season} code={next.code} team={team} nameOf={() => ""} />
+                : <p className="text-sm text-muted-foreground">This event doesn't advance teams, so there are no advancement odds. Its matches get win odds once it publishes a schedule.</p>}
+            </div>
+          )}
+        </div>
+      )}
+    </section>
+  );
+}
+
+function EventPredictions({ season, code, onClear }: { season: number; code: string; onClear: () => void }) {
+  const state = useApi<EventDetail>(`/api/events/${season}/${code}`);
+  const e = state.data?.event;
+  // Unplayed matches of an event that has already ended never got results: say so, don't call them upcoming.
+  const over = !!e && (e.end ?? e.start ?? "") < iso(new Date());
+  const unplayed = (state.data?.matches ?? []).filter((m) => !m.played);
+  const upcoming = over ? [] : unplayed;
+  const played = (state.data?.matches ?? []).filter((m) => m.played);
+  return (
+    <section aria-label={`Predictions for ${e?.name ?? code}`} className="rounded-2xl border border-border bg-card/60 p-4 sm:p-6">
+      <PickedHeader icon={CalendarDays} title={e?.name ?? code} sub={e ? `${dateRange(e.start, e.end)} · ${place(e.city, e.state, e.country)}` : undefined} to={`/events/${season}/${code}`} onClear={onClear} />
+      <Async state={state}>{(d) => (
+        <div className="space-y-8">
+          <div>
+            <h3 className="mb-2 text-sm font-semibold text-foreground">{upcoming.length ? `Upcoming matches (${upcoming.length})` : over ? "This event is over" : played.length ? "All matches have been played" : "Matches"}</h3>
+            {over && unplayed.length > 0 && <p className="mb-3 text-sm text-muted-foreground">{unplayed.length} scheduled {unplayed.length === 1 ? "match has" : "matches have"} no result from FIRST, so {unplayed.length === 1 ? "it isn't" : "they aren't"} shown as upcoming.</p>}
+            {upcoming.length ? <MatchList matches={upcoming.slice(0, 16)} />
+              : played.length ? <p className="text-sm text-muted-foreground">See how the predictions did on the <Link to={`/events/${season}/${code}`} className="underline">event page</Link>.</p>
+                : <MatchList matches={[]} empty="No schedule published yet. Win odds for every match appear as soon as it is (usually the morning of the event)." />}
+            {upcoming.length > 16 && <p className="mt-2 text-xs text-muted-foreground">Showing 16 of {upcoming.length}. The rest are on the <Link to={`/events/${season}/${code}?tab=matches`} className="underline">event page</Link>.</p>}
+          </div>
+          {!d.forecastUnsupported && d.event.status !== "finished" && (
+            <div>
+              <h3 className="mb-2 text-sm font-semibold text-foreground">Advancement odds</h3>
+              <AdvancementView season={season} code={code} team={null} nameOf={() => ""} />
+            </div>
+          )}
+        </div>
+      )}</Async>
+    </section>
+  );
+}
+
+function ThisWeek({ onPick, picked }: { onPick: (v: string) => void; picked: string | null }) {
+  const [all, setAll] = useState(false);
+  const season = useCurrentSeason();
+  const now = new Date();
+  const from = iso(new Date(now.getTime() - 2 * 864e5)), to = iso(new Date(now.getTime() + 7 * 864e5));
+  const events = useApi<{ events: EventListItem[] }>(`/api/events${qs({ season, from, to })}`);
+  const upcoming = useApi<{ matches: MatchView[] }>(`/api/predict/upcoming${qs({ season })}`);
+  const counts = useMemo(() => {
+    const c = new Map<string, number>();
+    for (const m of upcoming.data?.matches ?? []) c.set(m.code, (c.get(m.code) ?? 0) + 1);
+    return c;
+  }, [upcoming.data]);
+  return (
+    <Section title="This week" description="Events from two days ago to a week out. Pick one to see its predictions.">
+      <Async state={events} empty={(d) => !d.events.length && <EmptyState icon={CalendarDays} title="No events this week" description="Nothing is scheduled in the next seven days. Pick any team or event above to see its predictions." />}>
+        {(d) => (
+          <div className="grid gap-2 sm:grid-cols-2">
+            {[...d.events].sort((a, b) => (counts.get(b.code) ?? 0) - (counts.get(a.code) ?? 0) || (a.start ?? "").localeCompare(b.start ?? "")).slice(0, all ? undefined : 12).map((e) => {
+              const n = counts.get(e.code) ?? 0;
+              return (
+                <button key={e.code} type="button" onClick={() => onPick(`event:${e.season}:${e.code}`)} aria-pressed={picked === e.code}
+                  className={cn("lift flex min-w-0 items-start gap-3 rounded-xl border bg-card p-3 text-left", picked === e.code ? "border-accent/60" : "border-border")}>
+                  <span className="min-w-0 flex-1">
+                    <span className="block truncate font-medium text-foreground">{e.name}</span>
+                    <span className="mt-0.5 flex items-center gap-1 truncate text-xs text-muted-foreground"><MapPin className="size-3 shrink-0" />{dateRange(e.start, e.end)} · {place(e.city, e.state)}</span>
+                  </span>
+                  <span className="shrink-0">{n > 0 ? <Badge variant="success">{n} predicted</Badge> : <Badge variant="secondary">{e.type ?? "Event"}</Badge>}</span>
+                </button>
+              );
+            })}
+            {d.events.length > 12 && <Button variant="ghost" size="sm" className="sm:col-span-2 justify-self-start" onClick={() => setAll((x) => !x)}>{all ? "Show fewer" : `Show all ${d.events.length} events`}</Button>}
+          </div>
+        )}
+      </Async>
+    </Section>
+  );
+}
+
+/** The manual lab: what-if alliances and advancement for any team at any event. Opens by itself for lab links (?mode=…). */
+function Lab() {
+  const [sp, setSp] = useSearchParams();
+  const linked = sp.get("mode");
+  const mode: LabMode = linked === "advancement" ? "advancement" : "match";
+  const [open, setOpen] = useState(linked === "match" || linked === "advancement");
+  useEffect(() => { if (linked === "match" || linked === "advancement") setOpen(true); }, [linked]);
   const setMode = (m: string) => setSp((x) => { x.set("mode", m); return x; }, { replace: true });
   return (
-    <div>
-      <PageHeader title="Prediction lab" description={<>Win odds for any alliance against any other, and advancement odds for any team at any event. Every number comes with its confidence — and the <Link to="/methodology#accuracy" className="underline">track record</Link> shows how often they've been right.</>} />
-      <Tabs value={mode} onValueChange={setMode}>
-        <TabsList>
-          <TabsTrigger value="match"><Swords className="size-4" /> Match</TabsTrigger>
-          <TabsTrigger value="advancement"><Trophy className="size-4" /> Advancement</TabsTrigger>
-          <TabsTrigger value="upcoming"><CalendarDays className="size-4" /> Upcoming</TabsTrigger>
-        </TabsList>
-        <TabsContent value="match" className="mt-6"><MatchLab /></TabsContent>
-        <TabsContent value="advancement" className="mt-6"><AdvancementLab /></TabsContent>
-        <TabsContent value="upcoming" className="mt-6"><Upcoming /></TabsContent>
-      </Tabs>
-    </div>
+    <section aria-label="What-if lab" className="rounded-2xl border border-border">
+      <button type="button" onClick={() => setOpen((o) => !o)} aria-expanded={open} className="flex w-full items-center gap-3 px-4 py-4 text-left sm:px-6">
+        <FlaskConical className="size-5 shrink-0 text-accent" />
+        <span className="min-w-0 flex-1">
+          <span className="block font-display text-lg font-semibold text-foreground">Try a what-if</span>
+          <span className="block text-sm text-muted-foreground">Any four teams against each other, or advancement odds for any team at any event.</span>
+        </span>
+        <ChevronDown className={cn("size-5 shrink-0 text-muted-foreground transition-transform", open && "rotate-180")} />
+      </button>
+      {open && (
+        <div className="border-t border-border px-4 pb-6 pt-4 sm:px-6">
+          <Tabs value={mode} onValueChange={setMode}>
+            <TabsList>
+              <TabsTrigger value="match"><Swords className="size-4" /> Match</TabsTrigger>
+              <TabsTrigger value="advancement"><Trophy className="size-4" /> Advancement</TabsTrigger>
+            </TabsList>
+            <TabsContent value="match" className="mt-6"><MatchLab /></TabsContent>
+            <TabsContent value="advancement" className="mt-6"><AdvancementLab /></TabsContent>
+          </Tabs>
+        </div>
+      )}
+    </section>
   );
 }
 
@@ -278,27 +473,5 @@ function AdvancementLab() {
       {code ? <AdvancementView season={season} code={code} team={team} nameOf={() => ""} onPickTeam={(t) => { setTeamText(String(t)); set("team", String(t)); }} />
         : <EmptyState icon={Trophy} title="Pick an event" description="Any qualifier, league tournament or championship. Add a team to see its chance to advance, captain and pick odds, likely rank, and expected advancement points." />}
     </div>
-  );
-}
-
-// ---------------------------------------------------------------------------
-// Upcoming real matches
-// ---------------------------------------------------------------------------
-
-function Upcoming() {
-  const season = useCurrentSeason();
-  const state = useApi<{ matches: MatchView[] }>(`/api/predict/upcoming${qs({ season })}`);
-  return (
-    <Async state={state} empty={(d) => !d.matches.length && <EmptyState icon={CalendarDays} title="No scheduled matches in the next week" description="Predictions for real matches appear as soon as an event publishes its schedule (usually the morning of the event). Meanwhile, try a what-if in the Match tab." />}>
-      {(d) => {
-        const byEvent = new Map<string, MatchView[]>();
-        for (const m of d.matches) byEvent.set(m.code, [...(byEvent.get(m.code) ?? []), m]);
-        return <div>{[...byEvent.entries()].map(([c, ms]) => (
-          <Section key={c} title={<Link to={`/events/${season}/${c}`} className="hover:underline">{c}</Link>} description={`${ms.length} upcoming`}>
-            <MatchList matches={ms} />
-          </Section>
-        ))}</div>;
-      }}
-    </Async>
   );
 }

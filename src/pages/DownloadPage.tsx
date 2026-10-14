@@ -89,7 +89,7 @@ export default function DownloadPage() {
           <Section title="How offline mode works" className="mt-8">
             <ol className="grid gap-3 text-sm text-muted-foreground sm:grid-cols-3">
               <li className="rounded-xl border border-border bg-card p-4"><WifiOff className="mb-2 size-5 text-accent" /><span className="text-foreground">Save the lite pack</span> while you have a connection. It's checked against its published SHA-256 and stored in this browser.</li>
-              <li className="rounded-xl border border-border bg-card p-4"><HardDriveDownload className="mb-2 size-5 text-accent" /><span className="text-foreground">At the venue</span>, the <Link to="/predict" className="underline">prediction lab</Link> falls back to the pack when the server can't be reached — same engine, same numbers as of the pack's date.</li>
+              <li className="rounded-xl border border-border bg-card p-4"><HardDriveDownload className="mb-2 size-5 text-accent" /><span className="text-foreground">At the venue</span>, the <Link to="/predict?mode=match" className="underline">what-if lab</Link> falls back to the pack when the server can't be reached — same engine, same numbers as of the pack's date.</li>
               <li className="rounded-xl border border-border bg-card p-4"><CheckCircle2 className="mb-2 size-5 text-accent" /><span className="text-foreground">Updates</span>: this page compares your copy with the latest manifest and offers the new version. Scouting notes keep working offline too and sync when you're back online.</li>
             </ol>
           </Section>
