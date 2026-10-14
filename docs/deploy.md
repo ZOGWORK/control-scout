@@ -143,8 +143,12 @@ Manual deploys with `deploy/deploy.sh` keep working the same way.
 
 ## Rollback
 
-Render was retired on 2026-10-14 (Sushil): the Oracle VM is the only host. To
-roll back, switch `current` to one of the three releases the VM keeps, then
+The Oracle VM is the production host. Render (https://control-scout.onrender.com)
+is kept to the side as a backup (Sushil, 2026-10-14): it rebuilds from main on its
+own, the deploy workflow's `render` job checks it reports the same commit, and it
+serves its pages with `X-Robots-Tag: noindex` and canonical links to
+controlscout.org, so search engines never index it as a second copy. To roll back
+production, switch `current` to one of the three releases the VM keeps, then
 restart:
 
 ```bash

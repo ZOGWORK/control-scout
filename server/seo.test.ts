@@ -56,6 +56,17 @@ describe("canonical redirects", () => {
       expect(loc.startsWith("https://controlscout.org/attacker.example")).toBe(true);
     }
   });
+  it("a backup host whose APP_URL is its own address: served, canonical to the apex, noindex", async () => {
+    process.env.APP_URL = "https://control-scout.onrender.com";
+    try {
+      const r = await get("/teams/4215", "control-scout.onrender.com");
+      expect(r.status).toBe(200);
+      expect(r.headers.get("x-robots-tag")).toBe("noindex");
+      expect(canonicalUrl("/teams/4215")).toBe("https://controlscout.org/teams/4215");
+      expect((await get("/teams/4215", "127.0.0.1")).headers.get("x-robots-tag")).toBeNull();
+    } finally { process.env.APP_URL = "https://controlscout.org"; }
+    expect((await get("/teams/4215", "controlscout.org")).headers.get("x-robots-tag")).toBeNull();
+  });
   it("leaves the apex, the root, loopback and /api alone", async () => {
     expect((await get("/teams/4215", "controlscout.org")).status).toBe(200);
     expect((await get("/", "controlscout.org")).status).toBe(200);

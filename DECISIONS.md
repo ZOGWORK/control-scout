@@ -274,3 +274,13 @@ from sleep, and in-process data cycles on 0.15 CPU. Rollback is now a release
 switch on the VM (three are kept; docs/deploy.md). The deploy workflow no
 longer checks Render, and docs/render.md is gone. The Render service itself is
 shut down in Render's dashboard.
+
+## Render back as a side backup (2026-10-14, Sushil)
+
+"Keep it to the side, latest deploy to Render automatically." Render is not shut
+down after all: it keeps auto-deploying main, the deploy workflow's `render` job
+checks it reports the same commit again (`RENDER_GIT_COMMIT` in `/api/health`),
+and it stays out of search: canonical, OG and sitemap URLs use `CANONICAL_URL`
+(controlscout.org in production, whatever the host's own `APP_URL`), and any
+other host that serves the app gets `X-Robots-Tag: noindex`. Production and
+rollback stay on the VM.
