@@ -25,6 +25,7 @@ export function ClockWeather() {
 
   useEffect(() => {
     if (!team) return;
+    setNow(new Date()); // a team just set after a long while: show the time now, not when the page opened
     // Tick on the minute boundary, then every minute.
     let timer: number;
     const tick = () => { setNow(new Date()); timer = window.setTimeout(tick, 60_000 - (Date.now() % 60_000) + 50); };
