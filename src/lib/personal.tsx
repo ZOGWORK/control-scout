@@ -9,8 +9,8 @@ import { clearLocalScouting, exportLocalScouting, importLocalScouting, localScou
 
 export interface AccountUser { id: number; email: string | null; displayName: string | null; createdAt: string; /** Tied to the shared account Control Point keeps (docs/shared-accounts.md). */ controlPointLinked?: boolean;
   /** The signed-in owner's Control Point side: whether they're a member there, and their teams. */
-  controlPoint?: { member: boolean; teams: { teamNumber: number | null; name: string }[]; url: string } | null }
-export interface AuthProviders { email: boolean; google: boolean; controlPoint?: boolean }
+  controlPoint?: { member: boolean; teams: { teamNumber: number | null; name: string }[]; shortlist?: number[]; url: string } | null }
+export interface AuthProviders { email: boolean; google: boolean; controlPoint?: boolean; /** Google / Discord / GitHub, run by Control Point for us. */ via?: ("google" | "discord" | "github")[] }
 export type SyncStatus = "local" | "synced" | "syncing" | "offline" | "error";
 
 interface PersonalApi {

@@ -9,7 +9,7 @@ import { env } from "../env.js";
 import { cleanValue, mergeValue, PERSONAL_KEYS, type PersonalKey, type Stamped } from "../../src/shared/personal.js";
 import { currentUser, deleteUser, endSession, readCookie, startSession, token, userForIdentity, type User } from "./session.js";
 import { emailEnabled, startEmailSignIn, verifyEmailCode } from "./email.js";
-import { CP_PROVIDER, controlPointEnabled, controlPointInfo, linkedAccountId, linkToSharedAccount, logFailure, provenEmailFor, redeemHandoff } from "./controlPoint.js";
+import { CP_PROVIDER, controlPointEnabled, controlPointInfo, controlPointVia, isCpVia, rememberInfo, linkedAccountId, linkToSharedAccount, logFailure, provenEmailFor, redeemHandoff } from "./controlPoint.js";
 
 export const authProviders = () => ({ email: emailEnabled(), google: !!(env.googleClientId && env.googleClientSecret), controlPoint: controlPointEnabled() });
 
@@ -35,6 +35,13 @@ function ipLimit(max: number, windowMs: number) {
   };
 }
 
+/** A same-site path to return to after signing in elsewhere: "/x?y", never "//host" or "/\host". */
+export function safeBack(v: unknown): string | null {
+  if (typeof v !== "string" || v.length > 300 || !/^\/(?![/\\])/.test(v) || /[\r\n\\]/.test(v)) return null;
+  const clean = v.replace(/[?&]signin=[^&]*/g, "").replace(/\?&/, "?").replace(/[?&]$/, "");
+  return clean || "/";
+}
+
 const publicUser = (u: User) => ({ id: u.id, email: u.email, displayName: u.displayName, createdAt: u.createdAt });
 
 export function authRouter(): Router {
@@ -43,7 +50,9 @@ export function authRouter(): Router {
 
   r.get("/me", h(async (req) => {
     const u = await currentUser(req);
-    if (!u) return { user: null, providers: authProviders() };
+    // Sign-in buttons Control Point runs for us (Google / Discord / GitHub), when it's linked.
+    const via = await controlPointVia();
+    if (!u) return { user: null, providers: { ...authProviders(), via } };
     let linked = controlPointEnabled() ? await linkedAccountId(u.id) : null;
     // Signed in before linking worked (or Control Point was briefly down): link now.
     if (controlPointEnabled() && linked == null) {
@@ -52,7 +61,7 @@ export function authRouter(): Router {
     }
     // Membership is only ever shown to the signed-in owner of the address (never before it's proven).
     const controlPoint = linked != null ? await controlPointInfo(linked) : null;
-    return { user: { ...publicUser(u), controlPointLinked: linked != null, controlPoint }, providers: authProviders() };
+    return { user: { ...publicUser(u), controlPointLinked: linked != null, controlPoint }, providers: { ...authProviders(), via } };
   }));
 
   r.post("/email/start", ipLimit(20, 15 * 60_000), h(async (req, res) => {
@@ -121,8 +130,14 @@ export function authRouter(): Router {
     const home = new URL(env.appUrl);
     if (req.hostname !== home.hostname) { res.redirect(302, `${home.origin}${req.originalUrl}`); return; }
     const state = token(24); // base64url: 32 characters of [A-Za-z0-9_-]
-    res.cookie("cs_cp_state", state, { httpOnly: true, sameSite: "lax", secure: env.production, path: "/api/auth/control-point", maxAge: 10 * 60_000 });
-    res.redirect(`${env.controlPointPublicUrl!.replace(/\/$/, "")}/api/auth/scout/start?${new URLSearchParams({ state })}`);
+    const opts = { httpOnly: true, sameSite: "lax" as const, secure: env.production, path: "/api/auth/control-point", maxAge: 10 * 60_000 };
+    res.cookie("cs_cp_state", state, opts);
+    // Where to come back to: a path on this site only (never another origin).
+    const back = safeBack(req.query.back);
+    if (back) res.cookie("cs_cp_back", back, opts); else res.clearCookie("cs_cp_back", { path: opts.path });
+    // ?via=google|discord|github: Control Point sends a signed-out visitor straight to that provider.
+    const params = new URLSearchParams({ state, ...(isCpVia(req.query.via) ? { via: req.query.via } : {}) });
+    res.redirect(`${env.controlPointPublicUrl!.replace(/\/$/, "")}/api/auth/scout/start?${params}`);
   });
   r.get("/control-point/callback", h(async (req, res) => {
     const state = readCookie(req, "cs_cp_state");
@@ -132,8 +147,11 @@ export function authRouter(): Router {
     const account = await redeemHandoff(code, state).catch((e) => { logFailure("redeem", e); return null; });
     if (!account) { res.redirect("/settings?signin=failed"); return; }
     const user = await userForIdentity(CP_PROVIDER, String(account.id), account.email.toLowerCase(), account.displayName);
+    rememberInfo(account); // /me shows the Control Point side (and its shortlist) straight away
     await startSession(res, user, req.get("user-agent"));
-    res.redirect("/my-team?signin=ok");
+    const back = safeBack(readCookie(req, "cs_cp_back"));
+    res.clearCookie("cs_cp_back", { path: "/api/auth/control-point" });
+    res.redirect(`${back ?? "/my-team"}${back?.includes("?") ? "&" : "?"}signin=ok`);
   }));
   return r;
 }
