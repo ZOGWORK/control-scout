@@ -120,6 +120,7 @@ describe("page head in the first HTML", () => {
     const [team] = ld(await renderIndex(file, "/teams/4215"));
     expect(team).toMatchObject({ "@type": "SportsTeam", name: "Hypnotic Robotics", url: "https://controlscout.org/teams/4215", location: { address: { addressLocality: "Oradell", addressRegion: "NJ" } } });
     const [ev] = ld(await renderIndex(file, "/events/2025/USNJNOM3"));
+    expect(ev.image).toEqual(["https://controlscout.org/og-image.png"]);
     expect(ev).toMatchObject({ "@type": "SportsEvent", name: "P1-4 PM Northern League Meet", startDate: "2025-11-08", url: "https://controlscout.org/events/2025/USNJNOM3", location: { name: "Don Bosco Prep" } });
     // A name containing </script> can't break out of the tag.
     await run("UPDATE teams SET name = 'Evil</script><script>alert(1)</script>' WHERE number = 4215");
