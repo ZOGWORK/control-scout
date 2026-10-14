@@ -104,9 +104,11 @@ export function matchTimeMs(t: string | null | undefined): number {
   return Date.parse(/(Z|[+-]\d\d:?\d\d)$/.test(t) ? t : `${t}Z`);
 }
 
-/** DbEvent → the engine's EventRecord (null for events the engine ignores). */
-export function toEventRecord(ev: DbEvent): EventRecord | null {
-  if (ev.remote || ev.hybrid || (ev.type && EXCLUDED_TYPES.has(ev.type)) || !ev.start) return null;
+/** DbEvent → the engine's EventRecord (null for events the engine ignores).
+ *  `anyType`: also excluded event types (scrimmages), for predicting their
+ *  matches; the ratings still never learn from them. */
+export function toEventRecord(ev: DbEvent, opts: { anyType?: boolean } = {}): EventRecord | null {
+  if (ev.remote || ev.hybrid || (!opts.anyType && ev.type && EXCLUDED_TYPES.has(ev.type)) || !ev.start) return null;
   const startTime = day(ev.start);
   const matches: MatchRecord[] = [];
   for (const m of ev.matches) {

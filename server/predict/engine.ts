@@ -47,7 +47,7 @@ export class ScoutForecaster extends Forecaster {
       const dbEvents = await loadSeason(s);
       if (!dbEvents.length) continue;
       for (const e of dbEvents) if (e.region) { this.regionByCode.set(e.code, e.region); this.regions.add(e.region); }
-      const evs = dbEvents.map(toEventRecord).filter((x): x is EventRecord => !!x).sort((a, b) => a.startTime - b.startTime || a.code.localeCompare(b.code));
+      const evs = dbEvents.map((e) => toEventRecord(e)).filter((x): x is EventRecord => !!x).sort((a, b) => a.startTime - b.startTime || a.code.localeCompare(b.code));
       events.set(s, evs);
       advancement.set(s, await loadAdvancement(s));
       for (const e of evs) for (const a of e.awards) records.push({ season: s, team: a.team, time: e.startTime, type: a.type, placement: a.placement });
