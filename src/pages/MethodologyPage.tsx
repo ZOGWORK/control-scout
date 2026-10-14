@@ -189,7 +189,7 @@ export default function MethodologyPage() {
         <footer className="mx-auto mt-20 flex max-w-2xl flex-wrap items-center justify-between gap-4 border-t-2 border-foreground pt-5 text-sm text-muted-foreground">
           <span className="min-w-0 flex-1 basis-64">Control Scout · predictions by the shared engine v{ENGINE_VERSION} · settings fitted on {MODEL.fittedOn}.</span>
           <div className="flex flex-wrap gap-2">
-            <Button asChild size="sm"><Link to="/predict"><FlaskConical /> Prediction lab <ArrowRight /></Link></Button>
+            <Button asChild size="sm"><Link to="/predict"><FlaskConical /> Predict <ArrowRight /></Link></Button>
           </div>
         </footer>
       </div>
