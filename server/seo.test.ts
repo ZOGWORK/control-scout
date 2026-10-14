@@ -88,6 +88,26 @@ describe("page head in the first HTML", () => {
     expect(await renderIndex(file, "/my-team")).toContain('<meta name="robots" content="noindex" />');
   });
 
+  it("JSON-LD: WebSite + Organization on home, SportsTeam and SportsEvent on their pages, URLs = canonical, script-safe", async () => {
+    const dir = mkdtempSync(join(tmpdir(), "cs-seo-ld-"));
+    const file = join(dir, "index.html");
+    writeFileSync(file, "<html><head></head><body></body></html>");
+    const ld = (html: string) => [...html.matchAll(/<script type="application\/ld\+json">([\s\S]*?)<\/script>/g)].map((m) => JSON.parse(m[1]));
+    const home = ld(await renderIndex(file, "/"));
+    expect(home.map((x) => x["@type"]).sort()).toEqual(["Organization", "WebSite"]);
+    expect(home.find((x) => x["@type"] === "Organization").logo).toBe("https://controlscout.org/logo-512.png");
+    const [team] = ld(await renderIndex(file, "/teams/4215"));
+    expect(team).toMatchObject({ "@type": "SportsTeam", name: "Hypnotic Robotics", url: "https://controlscout.org/teams/4215", location: { address: { addressLocality: "Oradell", addressRegion: "NJ" } } });
+    const [ev] = ld(await renderIndex(file, "/events/2025/USNJNOM3"));
+    expect(ev).toMatchObject({ "@type": "SportsEvent", name: "P1-4 PM Northern League Meet", startDate: "2025-11-08", url: "https://controlscout.org/events/2025/USNJNOM3", location: { name: "Don Bosco Prep" } });
+    // A name containing </script> can't break out of the tag.
+    await run("UPDATE teams SET name = 'Evil</script><script>alert(1)</script>' WHERE number = 4215");
+    const evil = await renderIndex(file, "/teams/4215");
+    expect(evil).not.toContain("</script><script>alert(1)");
+    expect(ld(evil)[0].name).toBe("Evil</script><script>alert(1)</script>");
+    expect(ld(await renderIndex(file, "/predict"))).toHaveLength(0);
+  });
+
   it("fits descriptions to 120–160 characters", () => {
     expect(fitDescription("Short.").length).toBeGreaterThanOrEqual(20);
     const long = fitDescription("word ".repeat(80));
