@@ -1,8 +1,8 @@
 // My Team dashboard: your team's next matches (with odds), recent results,
 // next event outlook, and activity from the teams and events you track.
 // Works with no account (saved on this device); signed in, it syncs.
-import { useState } from "react";
-import { Link } from "react-router-dom";
+import { useEffect, useState } from "react";
+import { Link, useSearchParams } from "react-router-dom";
 import { CalendarDays, Eye, History, Star, Swords, Trophy, X } from "lucide-react";
 import { useApi, qs } from "../lib/api";
 import { useCurrentSeason, useTitle } from "../lib/meta";
@@ -14,6 +14,7 @@ import { Button } from "../components/ui/button";
 import { Badge } from "../components/ui/basic";
 import { MatchList } from "../components/predict";
 import { TeamInput } from "../components/TeamInput";
+import { SeasonToggle } from "../components/SeasonToggle";
 import { EventCard } from "./Home";
 import { dateRange, num, topPct } from "../lib/format";
 
@@ -58,26 +59,44 @@ export default function MyTeamPage() {
 }
 
 function Dashboard({ team }: { team: number }) {
-  const season = useCurrentSeason();
+  // The current season by default; ?season= shows an earlier one (kept in the URL, so it's linkable and Back works).
+  const current = useCurrentSeason();
+  const [sp, setSp] = useSearchParams();
+  const season = Number(sp.get("season")) || current;
+  const isCurrent = season === current;
+  const when = isCurrent ? "this season" : "that season";
+  const setSeason = (s: number) => setSp((x) => { const n = new URLSearchParams(x); if (s === current) n.delete("season"); else n.set("season", String(s)); return n; }, { replace: true });
   const { set } = usePersonal();
+  // The team's seasons from the last load, so the toggle stays put while another season is fetched.
+  const [known, setKnown] = useState<{ team: number; seasons: number[] } | null>(null);
   const profile = useApi<TeamProfile>(`/api/teams/${team}${qs({ season })}`);
   const matches = useApi<{ matches: MatchView[] }>(`/api/teams/${team}/matches${qs({ season })}`);
+  const loaded = profile.data?.team.number === team ? profile.data.seasons : undefined;
+  useEffect(() => { if (loaded?.length) setKnown({ team, seasons: loaded }); }, [loaded, team]);
+  const knownSeasons = loaded?.length ? loaded : known?.team === team ? known.seasons : null;
   return (
     <div>
       <PageHeader eyebrow="My team" title={<Link to={`/teams/${team}`} className="hover:underline">{team} {profile.data?.team.name ?? ""}</Link>}
         actions={<Button variant="ghost" size="sm" onClick={() => set("myTeam", null)}><X /> Change team</Button>} />
+      <div className="-mt-2 mb-6 flex flex-wrap items-center gap-3">
+        {/* The team's own seasons only: kept from the last load while a new season is fetched. */}
+        {knownSeasons ? <SeasonToggle seasons={knownSeasons} value={season} onChange={setSeason} /> : <div className="skeleton h-9 w-72 rounded-lg" />}
+        <Link to={`/teams/${team}?season=${season}`} className="text-xs text-muted-foreground underline-offset-2 hover:text-foreground hover:underline">Full {team} page for this season</Link>
+      </div>
       <Async state={profile}>
         {(p) => {
           const s = p.stats;
           const today = new Date().toISOString().slice(0, 10);
-          const next = p.events.find((e) => (e.end ?? e.start ?? "") >= today);
+          const next = isCurrent ? p.events.find((e) => (e.end ?? e.start ?? "") >= today) : undefined;
           return (
             <>
               <div className="mb-8 grid grid-cols-2 gap-6 rounded-2xl border border-border bg-card p-6 lg:grid-cols-4">
-                <Stat label="OPR" value={num(s?.opr.np.value)} hint={topPct(s?.opr.np.rank, s?.opr.np.of) ?? "not ranked yet"} />
-                <Stat label="Prediction rating" value={s?.rating ? num(s.rating.np) : "—"} hint={s?.rating ? `± ${num(s.rating.sd)} · ${s.rating.matches} matches` : "no matches this season yet"} />
+                <Stat label="OPR" value={num(s?.opr.np.value)} hint={topPct(s?.opr.np.rank, s?.opr.np.of) ?? (isCurrent ? "not ranked yet" : "not ranked")} />
+                <Stat label="Prediction rating" value={s?.rating ? num(s.rating.np) : "—"} hint={s?.rating ? `± ${num(s.rating.sd)} · ${s.rating.matches} matches` : `no matches ${when}`} />
                 <Stat label="Record" value={s ? `${s.record.wins}-${s.record.losses}-${s.record.ties}` : "—"} hint={s ? `${s.record.events} events` : undefined} />
-                <Stat label="Next event" value={next ? dateRange(next.start, next.end).split(",")[0] : "—"} hint={next?.name ?? "none scheduled in our data"} />
+                {isCurrent
+                  ? <Stat label="Next event" value={next ? dateRange(next.start, next.end).split(",")[0] : "—"} hint={next?.name ?? "none scheduled in our data"} />
+                  : <Stat label="Events" value={String(p.events.length)} hint={p.events.length ? `last: ${p.events[p.events.length - 1].name}` : "none in our data"} />}
               </div>
               {next && (
                 <Section title={`Next event: ${next.name}`} description={dateRange(next.start, next.end)} action={<Button variant="secondary" size="sm" asChild><Link to={`/events/${next.season}/${next.code}?tab=odds&team=${team}`}><Trophy /> Advancement odds</Link></Button>}>
@@ -91,14 +110,19 @@ function Dashboard({ team }: { team: number }) {
       <Async state={matches} loading={<div className="skeleton h-40 rounded-xl" />}>
         {(d) => {
           const upcoming = d.matches.filter((m) => !m.played);
-          const recent = d.matches.filter((m) => m.played).slice(-6).reverse();
+          const played = d.matches.filter((m) => m.played).reverse();
+          // This season: the latest few. Earlier seasons: every match, newest first.
+          // Earlier seasons: everything returned (a match with no posted result still belongs to that season).
+          const recent = isCurrent ? played.slice(0, 6) : [...d.matches].reverse();
           return (
             <>
-              <Section title="Upcoming matches" description="With win odds from today's ratings (or the call already logged).">
-                <MatchList matches={upcoming} highlight={team} empty="No scheduled matches yet — schedules usually appear the morning of an event." />
-              </Section>
-              <Section title="Recent results" description="Was each one called before it was played?">
-                <MatchList matches={recent} highlight={team} empty="No matches played this season yet." />
+              {isCurrent && (
+                <Section title="Upcoming matches" description="With win odds from today's ratings (or the call already logged).">
+                  <MatchList matches={upcoming} highlight={team} empty="No scheduled matches yet — schedules usually appear the morning of an event." />
+                </Section>
+              )}
+              <Section title={isCurrent ? "Recent results" : `Every match (${d.matches.length})`} description="Was each one called before it was played?">
+                <MatchList matches={recent} highlight={team} empty={`No matches played ${when}.`} />
               </Section>
             </>
           );
