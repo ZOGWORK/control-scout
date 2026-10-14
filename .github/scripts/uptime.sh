@@ -14,8 +14,7 @@
 # UP:   if an `uptime` issue is open, comment "Back up at …" and close it.
 #
 # GitHub emails the repo's watchers about the issue, and the workflow's owner
-# about the failed scheduled run. Render (the rollback host) is not checked:
-# it sleeps when idle on the free plan, which is not an outage.
+# about the failed scheduled run.
 #
 # Env:
 #   SITE            default https://controlscout.org
@@ -183,7 +182,7 @@ $fence
 **Where to look**
 - Service log on the VM: \`sudo journalctl -u control-scout -n 200\`
 - Last deploy: \`sudo tail -n 100 /var/log/control-scout-deploy.log\`
-- Restart, rollback and failover to Render: [docs/deploy.md](${GITHUB_SERVER_URL:-https://github.com}/${GITHUB_REPOSITORY:-Control-Point-FTC/control-scout}/blob/main/docs/deploy.md)
+- Restart and rollback: [docs/deploy.md](${GITHUB_SERVER_URL:-https://github.com}/${GITHUB_REPOSITORY:-Control-Point-FTC/control-scout}/blob/main/docs/deploy.md)
 
 The uptime workflow closes this issue by itself when the site answers again." \
       || echo "::error::Opening the uptime issue failed; the failed run is the only alert."
