@@ -256,3 +256,14 @@ morning review. Format: **what I chose** — why — the alternative.
   the running commit on both hosts (also #23). Render keeps the in-process data
   cycle and doesn't build packs (it serves the shipped ones); the VM runs the cycle in a child process
   (`DATA_CYCLE=child`), which needs more memory than Render has.
+
+## Render retired (2026-10-14, Sushil)
+
+The Oracle VM (https://controlscout.org) is the only host. Render had been
+kept as a rollback that followed every update, but it couldn't match
+production: no offline packs beyond the shipped ones (its disk is wiped on
+restart, so the 2023–2025 full-season downloads 404'd there), a 25 s+ wake
+from sleep, and in-process data cycles on 0.15 CPU. Rollback is now a release
+switch on the VM (three are kept; docs/deploy.md). The deploy workflow no
+longer checks Render, and docs/render.md is gone. The Render service itself is
+shut down in Render's dashboard.
