@@ -116,7 +116,7 @@ export function SearchBox({ onPick, kinds, placeholder, label, size = "md", clas
       </div>
       {showList && (
         <div id={listId} role="listbox" aria-label={`${label} results`}
-          className="absolute inset-x-0 top-full z-40 mt-1.5 max-h-[min(26rem,70vh)] overflow-y-auto overscroll-contain rounded-xl border border-border bg-popover p-1.5 text-popover-foreground shadow-[0_18px_40px_-16px_rgba(0,0,0,.55)]">
+          className="absolute inset-x-0 top-full z-40 mt-1.5 max-h-[min(26rem,calc(100dvh-12rem))] overflow-y-auto overscroll-contain rounded-xl border border-border bg-popover p-1.5 text-popover-foreground shadow-[0_18px_40px_-16px_rgba(0,0,0,.55)]">
           {!query ? emptyHint : error ? <p className="px-3 py-2.5 text-sm text-destructive">{error}</p>
             : !ordered.length ? (
               <p className="px-3 py-2.5 text-sm text-muted-foreground">{busy ? "Searching…" : meta && !meta.dataLoaded ? "No FTC data has been loaded on this server yet, so there's nothing to search." : <>Nothing matches “{query}”.</>}</p>
