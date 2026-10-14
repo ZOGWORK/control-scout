@@ -9,6 +9,7 @@
 // only ever said to the signed-in owner, so it can't be used to probe
 // someone else's email. Signed in: who you are, sync, Control Point, sign out.
 import { useEffect, useId, useRef, useState, type Dispatch, type SetStateAction } from "react";
+import { AnimatePresence, motion } from "motion/react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { CheckCircle2, ExternalLink, KeyRound, LogIn, LogOut, Mail, Settings, UserRound } from "lucide-react";
 import { apiFetch } from "../../lib/api";
@@ -91,14 +92,18 @@ export function AccountMenu() {
       >
         {user ? initial : <><LogIn className="size-3.5" /><span className="hidden sm:inline">Sign in</span></>}
       </button>
+      <AnimatePresence>
       {open && (
-        <div id={panelId} role="region" aria-label={user ? "Your account" : "Sign in"}
+        <motion.div id={panelId} role="region" aria-label={user ? "Your account" : "Sign in"} key="panel"
+          initial={{ opacity: 0, y: -6, scale: 0.98 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={{ opacity: 0, y: -4, scale: 0.98 }}
+          transition={{ duration: 0.16, ease: [0.2, 0.8, 0.2, 1] }} style={{ transformOrigin: "top right" }}
           className="fixed inset-x-2 top-14 z-50 max-h-[calc(100dvh-4rem)] overflow-y-auto rounded-xl border border-border bg-popover p-4 text-popover-foreground shadow-[0_18px_40px_-16px_rgba(0,0,0,.55)] sm:absolute sm:inset-x-auto sm:right-0 sm:top-full sm:mt-2 sm:w-96">
           {merging ? <MergeScreen user={merging} added={added} onDone={() => { setMerging(null); setAdded(null); }} />
             : user ? <SignedInPanel user={user} onClose={() => setOpen(false)} />
             : <SignInPanel flow={flow} setFlow={setFlow} />}
-        </div>
+        </motion.div>
       )}
+      </AnimatePresence>
     </div>
   );
 }
