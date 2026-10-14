@@ -10,7 +10,7 @@ import { Shell } from "./components/layout/Shell";
 import { SearchProvider } from "./components/layout/Search";
 import { Toaster } from "./components/ui/sonner";
 import { LoadingBlock } from "./components/states";
-import { MetaProvider } from "./lib/meta";
+import { CanonicalSync, MetaProvider } from "./lib/meta";
 import { AlertsRunner } from "./lib/alerts";
 import { LitePackSync } from "./lib/packSync";
 // The landing page is part of the main bundle, not lazy: its API calls then start in
@@ -69,6 +69,7 @@ createRoot(document.getElementById("root")!).render(
             <Toaster />
             <AlertsRunner />
             <LitePackSync />
+            <CanonicalSync />
           </SearchProvider>
         </MetaProvider>
       </PersonalProvider>
