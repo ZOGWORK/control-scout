@@ -9,7 +9,7 @@ import { Reveal } from './motion';
 /** Page body: max width 1200 (unless fullBleed), brief's gutters. */
 export function Page({ children, className, fullBleed }: { children: ReactNode; className?: string; fullBleed?: boolean }) {
   return (
-    <div className={cn('w-full', !fullBleed && 'mx-auto max-w-[1200px]', className)}>{children}</div>
+    <div className={cn('w-full', !fullBleed && 'mx-auto max-w-[1200px] min-[1700px]:max-w-[1600px]', className)}>{children}</div>
   );
 }
 
