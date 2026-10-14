@@ -97,7 +97,7 @@ function Hero({ p, onSeason }: { p: TeamProfile; onSeason: (s: number) => void }
     flags.toggleTracked();
     if (!on) { toast(`Stopped tracking ${t.number}`); return; }
     toast.success(`Tracking ${t.number}`, {
-      description: `It's on My team under Tracked teams, comes first in search and in Predict's quick picks.${personal.settings.notify.trackedTeams ? " You'll get alerts before its matches." : " Turn on alerts for tracked teams in Settings › Notifications to hear before its matches."}`,
+      description: `It's on My team under Tracked teams, comes first in search and in Predict's quick picks.${personal.settings.notify.trackedTeams ? " While Control Scout is open in a tab, you'll get an alert before its matches." : " Turn on alerts for tracked teams in Settings › Notifications to hear before its matches (while Control Scout is open in a tab)."}`,
       action: { label: "My team", onClick: () => nav("/my-team") },
     });
   };
