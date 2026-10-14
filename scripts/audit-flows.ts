@@ -200,7 +200,7 @@ const flows: Flow[] = [
         await page.getByText("Control Scout").first().waitFor({ timeout: 15_000 });
         // A page never opened online: its code chunk must come from the precache.
         await page.goto(`${PROD}/methodology`, { waitUntil: "domcontentloaded" });
-        await page.getByRole("heading", { name: "How it works" }).waitFor({ timeout: 15_000 });
+        await page.getByRole("heading", { name: /How Control Scout predictions work/ }).waitFor({ timeout: 15_000 });
         // A prediction with no server: from the lite pack.
         await page.goto(`${PROD}/predict?red=18360,24089&blue=14380,23636&season=2025`, { waitUntil: "domcontentloaded" });
         await page.getByText(/to win/).first().waitFor({ timeout: 20_000 });

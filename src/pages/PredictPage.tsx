@@ -209,7 +209,8 @@ function ThisWeek({ onPick, picked }: { onPick: (v: string) => void; picked: str
 /** The manual lab: what-if alliances and advancement for any team at any event. Opens by itself for lab links (?mode=…). */
 function Lab() {
   const [sp, setSp] = useSearchParams();
-  const linked = sp.get("mode");
+  // A lab link: an explicit mode, or (older links) a matchup or an event without one.
+  const linked = sp.get("mode") ?? (sp.get("red") || sp.get("blue") ? "match" : sp.get("code") ? "advancement" : null);
   const mode: LabMode = linked === "advancement" ? "advancement" : "match";
   const [open, setOpen] = useState(linked === "match" || linked === "advancement");
   useEffect(() => { if (linked === "match" || linked === "advancement") setOpen(true); }, [linked]);
