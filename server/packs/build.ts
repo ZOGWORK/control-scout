@@ -21,6 +21,7 @@ import { all, kvGet } from "../db.js";
 import { SEASON_NUMBERS, seasonInfo } from "../data/seasons.js";
 import { forecasterFor } from "../predict/engine.js";
 import { packsDir } from "./routes.js";
+import { PACK_INDEXES, PACK_TABLES as FULL_TABLES, PACK_TEAMS_DDL } from "../../src/shared/packSchema.js";
 
 export const PACK_FORMAT = 1;
 const KEEP_VERSIONS = 3;
@@ -55,18 +56,6 @@ export async function buildLite(version: string, dir: string, log: (m: string) =
     contents: `Every team's prediction rating for ${Object.keys(books).length} seasons plus team names — enough to predict any match on this device with no connection.` };
 }
 
-const FULL_TABLES: { name: string; ddl: string; teamsJoin?: boolean }[] = [
-  { name: "events", ddl: "CREATE TABLE events (season INTEGER, code TEXT, name TEXT, type TEXT, division_code TEXT, region TEXT, league TEXT, venue TEXT, city TEXT, state TEXT, country TEXT, start TEXT, \"end\" TEXT, timezone TEXT, remote INTEGER, hybrid INTEGER, website TEXT, livestream TEXT, source TEXT, PRIMARY KEY (season, code))" },
-  { name: "event_teams", ddl: "CREATE TABLE event_teams (season INTEGER, code TEXT, team INTEGER, rank INTEGER, rp REAL, tbp REAL, wins INTEGER, losses INTEGER, ties INTEGER, qual_played INTEGER, dq INTEGER, PRIMARY KEY (season, code, team))" },
-  { name: "matches", ddl: "CREATE TABLE matches (season INTEGER, code TEXT, level TEXT, series INTEGER, number INTEGER, label TEXT, description TEXT, time TEXT, played INTEGER, red_total INTEGER, red_np INTEGER, red_auto INTEGER, red_teleop INTEGER, red_endgame INTEGER, red_pen INTEGER, red_bonus TEXT, blue_total INTEGER, blue_np INTEGER, blue_auto INTEGER, blue_teleop INTEGER, blue_endgame INTEGER, blue_pen INTEGER, blue_bonus TEXT, video TEXT, source TEXT, PRIMARY KEY (season, code, level, series, number))" },
-  { name: "match_teams", ddl: "CREATE TABLE match_teams (season INTEGER, code TEXT, level TEXT, series INTEGER, number INTEGER, team INTEGER, alliance TEXT, station INTEGER, surrogate INTEGER, dq INTEGER, on_field INTEGER, PRIMARY KEY (season, code, level, series, number, team))" },
-  { name: "alliances", ddl: "CREATE TABLE alliances (season INTEGER, code TEXT, number INTEGER, name TEXT, captain INTEGER, pick1 INTEGER, pick2 INTEGER, backup INTEGER, PRIMARY KEY (season, code, number))" },
-  { name: "awards", ddl: "CREATE TABLE awards (season INTEGER, code TEXT, type TEXT, placement INTEGER, team INTEGER, name TEXT, PRIMARY KEY (season, code, type, placement, team))" },
-  { name: "advancement", ddl: "CREATE TABLE advancement (season INTEGER, code TEXT, slots INTEGER, advances_to TEXT, rows TEXT, PRIMARY KEY (season, code))" },
-  { name: "team_event_stats", ddl: "CREATE TABLE team_event_stats (season INTEGER, code TEXT, team INTEGER, opr_np REAL, opr_auto REAL, opr_teleop REAL, opr_endgame REAL, opr_pen REAL, avg_score REAL, avg_np REAL, avg_pen REAL, matches INTEGER, wins INTEGER, losses INTEGER, ties INTEGER, PRIMARY KEY (season, code, team))" },
-  { name: "team_season_stats", ddl: "CREATE TABLE team_season_stats (season INTEGER, team INTEGER, opr_np REAL, opr_auto REAL, opr_teleop REAL, opr_endgame REAL, opr_pen REAL, rank_np INTEGER, rank_auto INTEGER, rank_teleop INTEGER, rank_endgame INTEGER, ranked_teams INTEGER, rating_np REAL, rating_auto REAL, rating_teleop REAL, rating_endgame REAL, rating_pen REAL, rating_sd REAL, rating_matches INTEGER, rating_rank INTEGER, events INTEGER, matches INTEGER, wins INTEGER, losses INTEGER, ties INTEGER, avg_np REAL, avg_score REAL, avg_pen REAL, PRIMARY KEY (season, team))" },
-];
-
 export async function buildFull(season: number, version: string, dir: string, log: (m: string) => void): Promise<BuiltFile | null> {
   const n = await all<{ c: number }>("SELECT COUNT(*) c FROM matches WHERE season = ?", [season]);
   if (!Number(n[0]?.c)) return null;
@@ -84,7 +73,7 @@ export async function buildFull(season: number, version: string, dir: string, lo
     { sql: "INSERT INTO pack_info VALUES ('built_at', ?)", args: [new Date().toISOString()] },
     { sql: "INSERT INTO pack_info VALUES ('source', 'FIRST Events API (primary), FTC Scout (fallback)')", args: [] },
   ], "write");
-  await out.execute("CREATE TABLE teams (number INTEGER PRIMARY KEY, name TEXT, full_name TEXT, school TEXT, sponsors TEXT, city TEXT, state TEXT, country TEXT, rookie_year INTEGER, website TEXT, home_region TEXT)");
+  await out.execute(PACK_TEAMS_DDL);
   let rows = 0;
   for (const t of FULL_TABLES) {
     await out.execute(t.ddl);
@@ -100,8 +89,7 @@ export async function buildFull(season: number, version: string, dir: string, lo
   for (let i = 0; i < teams.length; i += 1000) {
     await out.batch(teams.slice(i, i + 1000).map((r) => ({ sql: "INSERT INTO teams VALUES (?,?,?,?,?,?,?,?,?,?,?)", args: [r.number, r.name, r.full_name, r.school, r.sponsors, r.city, r.state, r.country, r.rookie_year, r.website, r.home_region] })), "write");
   }
-  await out.execute("CREATE INDEX match_teams_team ON match_teams (team)");
-  await out.execute("CREATE INDEX event_teams_team ON event_teams (team)");
+  for (const ix of PACK_INDEXES) await out.execute(ix);
   await out.execute("VACUUM");
   out.close();
   // Windows can hold the file briefly after close: copy, then clean up the temp file.

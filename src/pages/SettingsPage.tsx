@@ -24,8 +24,9 @@ import { toast } from "../components/ui/sonner";
 import { OtpInput } from "../components/arc/otp-input/otp-input";
 import { HoldToConfirm } from "../components/arc/hold-to-confirm/hold-to-confirm";
 import { cn } from "../components/cn";
-import { ago } from "../lib/format";
+import { ago, seasonLabel } from "../lib/format";
 import { packStatus } from "../lib/packs";
+import { removeSeason, useSavedSeasons } from "../lib/offline/seasons";
 
 type SectionId = "profile" | "appearance" | "tracking" | "notifications" | "offline" | "scouting" | "privacy" | "about";
 interface SectionDef { id: SectionId; label: string; hint: string; icon: ComponentType<{ className?: string }>; group: "You" | "About" }
@@ -378,14 +379,28 @@ function Notifications() {
 function OfflineData() {
   const [est, setEst] = useState<{ usage?: number; quota?: number } | null>(null);
   const pack = packStatus();
-  useEffect(() => { navigator.storage?.estimate?.().then(setEst, () => setEst({})); }, []);
+  const saved = useSavedSeasons();
+  useEffect(() => { navigator.storage?.estimate?.().then(setEst, () => setEst({})); }, [saved]);
+  const remove = (season: number) => removeSeason(season).then(() => toast(`${seasonLabel(season)} removed from this device`), (e) => toast.error(e.message));
   return (
     <div>
+      <Group title="Saved seasons" description={<>A saved season's team pages, event pages and search work on this device with no connection, showing the data as of its release. <Link to="/download" className="underline">Save a season</Link></>}>
+        {saved.length ? saved.map((s) => (
+          <Row key={s.season} label={seasonLabel(s.season)}
+            description={`${fmtBytes(s.bytes)} · saved ${ago(new Date(s.savedAt).toISOString())}${s.dataAsOf ? ` · results up to ${new Date(s.dataAsOf).toLocaleDateString()}` : ""}`}>
+            <Button variant="outline" size="sm" onClick={() => remove(s.season)}><X /> Remove</Button>
+          </Row>
+        )) : (
+          <Row label="None saved yet" description="Save a season before an event to browse it with no wifi.">
+            <Button variant="outline" size="sm" asChild><Link to="/download"><HardDriveDownload /> Save a season</Link></Button>
+          </Row>
+        )}
+      </Group>
       <Group title="Offline pack" description={<>Packs let predictions run on this device with no connection, e.g. at a venue with no signal. <Link to="/download" className="underline">Download page</Link></>}>
         <Row label="Lite pack on this device" description={pack ? `Version ${pack.version} · ${fmtBytes(pack.bytes)} · saved ${ago(new Date(pack.savedAt).toISOString())}` : "None saved yet."}>
           <Button variant="outline" size="sm" asChild><Link to="/download"><Download /> {pack ? "Check for updates" : "Get the pack"}</Link></Button>
         </Row>
-        <Row label="Storage used by this site" description="Cached pages, packs and recordings.">
+        <Row label="Storage used by this site" description="Cached pages, packs, saved seasons and recordings.">
           <span className="text-sm tabular-nums text-foreground">{est?.usage != null ? `${fmtBytes(est.usage)}${est.quota ? ` of ${fmtBytes(est.quota)}` : ""}` : "—"}</span>
         </Row>
       </Group>
