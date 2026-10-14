@@ -1,0 +1,54 @@
+name: Uptime
+
+# Every 5 minutes, check that https://controlscout.org answers: /api/health
+# says ready and the home page serves HTML. The logic is in
+# .github/scripts/uptime.sh; in short:
+#   - 3 attempts ~20 s apart before calling it down, so a blip or a deploy
+#     restart (~10 s of 503 / ready:false) never alerts anyone.
+#   - Down: open an issue labelled `uptime` ("controlscout.org is down"), or,
+#     if one is already open, comment at most once an hour. The run fails too.
+#   - Up again: comment "Back up at … (down ~N min)" on that issue and close it.
+# GitHub's own notification emails do the alerting: watchers of the repo get
+# the issue, and the workflow's owner gets the failed scheduled run.
+#
+# Only controlscout.org (the Oracle VM) is checked. Render, the rollback host,
+# sleeps when idle on the free plan, which is not an outage.
+#
+# Note: GitHub runs scheduled workflows on a best-effort basis. Runs can start
+# several minutes late (more at busy times), and are paused after 60 days
+# without repository activity. Treat "every 5 minutes" as "roughly".
+# No secrets: the built-in GITHUB_TOKEN is enough to manage issues.
+
+on:
+  schedule:
+    - cron: '*/5 * * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write
+
+# A slow run (retries) must not race the next one into opening two issues.
+concurrency:
+  group: uptime
+  cancel-in-progress: false
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      # Only the script is needed, not the whole repository.
+      - uses: actions/checkout@v4
+        with:
+          sparse-checkout: .github/scripts
+          sparse-checkout-cone-mode: false
+
+      - name: Check controlscout.org
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          SITE: https://controlscout.org
+          # Set to 1 to print the issue calls instead of making them.
+          DRY_RUN: '0'
+        run: bash .github/scripts/uptime.sh
