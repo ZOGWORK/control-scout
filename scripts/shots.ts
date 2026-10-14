@@ -58,11 +58,11 @@ async function capture(browser: Browser, route: string, vp: keyof typeof SIZES, 
   await page.waitForFunction(() => !document.querySelector(".skeleton, [aria-busy=true]"), null, { timeout: 45_000 }).catch(() => console.warn(`  ! ${route}: still loading after 45 s`));
   await page.evaluate(() => document.fonts.ready);
   await page.waitForTimeout(1200);
-  // --search "text": open the ⌘K palette, type, and wait for results.
+  // --search "text": focus the top-bar search (⌘K), type, and wait for results.
   const q = opt("search");
   if (q) {
     await page.keyboard.press("Control+k");
-    await page.getByRole("dialog").waitFor();
+    await page.getByRole("combobox", { name: "Search teams, events and matches" }).waitFor({ state: "visible" });
     await page.keyboard.type(q, { delay: 60 });
     await page.waitForFunction(() => !document.body.innerText.includes("Searching…"), null, { timeout: 15_000 });
     await page.waitForTimeout(600);

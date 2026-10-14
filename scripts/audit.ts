@@ -179,15 +179,16 @@ async function searchBar(browser: Browser, vp: Viewport) {
   const page = await ctx.newPage();
   await page.goto(BASE + "/", { waitUntil: "networkidle", timeout: 90_000 });
   for (const [q, want] of SEARCHES) {
-    // The visible search control: the home hero button / header pill.
+    // The visible search control: the home hero button / header field (phones: header button).
     await page.getByRole("button", { name: /search|Team number|Teams, events/i }).first().click();
-    const input = page.getByRole("dialog").getByRole("combobox").or(page.getByRole("dialog").locator("input")).first();
+    const input = page.getByRole("combobox", { name: "Search teams, events and matches" });
+    await input.waitFor({ state: "visible" });
     await input.fill("");
     await input.type(q, { delay: 40 });
     const ok = await page.getByRole("option", { name: want }).first().waitFor({ timeout: 20_000 }).then(() => true, () => false);
     if (!ok) {
-      const shown = (await page.getByRole("dialog").innerText().catch(() => "")).replace(/\s+/g, " ").slice(0, 160);
-      add({ route: "/ (search bar)", viewport: vp, mode: "normal", kind: "search-broken", detail: `"${q}" didn't find ${want.source}; dialog showed: ${shown}` });
+      const shown = (await page.getByRole("listbox").first().innerText().catch(() => "")).replace(/\s+/g, " ").slice(0, 160);
+      add({ route: "/ (search bar)", viewport: vp, mode: "normal", kind: "search-broken", detail: `"${q}" didn't find ${want.source}; results showed: ${shown}` });
     }
     await page.keyboard.press("Escape");
   }

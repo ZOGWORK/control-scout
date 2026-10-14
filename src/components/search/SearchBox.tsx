@@ -63,9 +63,13 @@ export interface SearchBoxProps {
   /** Shown under the field while it's empty and focused (e.g. quick picks). */
   emptyHint?: ReactNode;
   autoFocus?: boolean;
+  /** Called whenever the box closes on its own (Escape on an empty field, focus leaving, a pick). */
+  onClose?: () => void;
+  /** Keyboard shortcut shown at the right while the field is empty (e.g. "⌘K"). */
+  hint?: string;
 }
 
-export function SearchBox({ onPick, kinds, placeholder, label, size = "md", className, inputRef, emptyHint, autoFocus }: SearchBoxProps) {
+export function SearchBox({ onPick, kinds, placeholder, label, size = "md", className, inputRef, emptyHint, autoFocus, onClose, hint }: SearchBoxProps) {
   const [q, setQ] = useState("");
   const [open, setOpen] = useState(false);
   const [active, setActive] = useState(0);
@@ -83,12 +87,12 @@ export function SearchBox({ onPick, kinds, placeholder, label, size = "md", clas
     document.addEventListener("pointerdown", away);
     return () => document.removeEventListener("pointerdown", away);
   }, [open]);
-  const pick = (h: SearchHit) => { onPick(h); setQ(""); setOpen(false); (document.activeElement as HTMLElement | null)?.blur?.(); };
+  const pick = (h: SearchHit) => { onPick(h); setQ(""); setOpen(false); (document.activeElement as HTMLElement | null)?.blur?.(); onClose?.(); };
   const query = q.trim();
   const showList = open && (query ? true : !!emptyHint);
   const lg = size === "lg";
   return (
-    <div ref={box} className={cn("relative", className)} onBlur={(e) => { if (!box.current?.contains(e.relatedTarget as Node | null)) setOpen(false); }}>
+    <div ref={box} className={cn("relative", className)} onBlur={(e) => { if (!box.current?.contains(e.relatedTarget as Node | null)) { setOpen(false); onClose?.(); } }}>
       <div className={cn("flex items-center gap-2.5 rounded-xl border border-border bg-card text-foreground transition-[border-color,box-shadow] focus-within:border-accent/60 focus-within:shadow-[0_0_0_3px_color-mix(in_srgb,var(--color-accent)_18%,transparent)]", lg ? "h-14 px-4" : "h-9 px-3")}>
         {busy ? <Loader2 className={cn("shrink-0 animate-spin text-muted-foreground", lg ? "size-5" : "size-4")} /> : <Search className={cn("shrink-0 text-accent", lg ? "size-5" : "size-4")} />}
         <input
@@ -96,7 +100,7 @@ export function SearchBox({ onPick, kinds, placeholder, label, size = "md", clas
           onChange={(e) => { setQ(e.target.value); setOpen(true); }}
           onFocus={() => setOpen(true)}
           onKeyDown={(e) => {
-            if (e.key === "Escape") { if (q) setQ(""); else { setOpen(false); (e.target as HTMLInputElement).blur(); } return; }
+            if (e.key === "Escape") { if (q) setQ(""); else { setOpen(false); (e.target as HTMLInputElement).blur(); onClose?.(); } return; }
             if (!ordered.length) return;
             if (e.key === "ArrowDown") { e.preventDefault(); setOpen(true); setActive((i) => (i + 1) % ordered.length); }
             else if (e.key === "ArrowUp") { e.preventDefault(); setActive((i) => (i - 1 + ordered.length) % ordered.length); }
@@ -107,6 +111,7 @@ export function SearchBox({ onPick, kinds, placeholder, label, size = "md", clas
           aria-activedescendant={showList && ordered[active] ? `${listId}-${active}` : undefined}
           className={cn("min-w-0 flex-1 bg-transparent outline-none placeholder:text-muted-foreground", lg ? "text-base" : "text-sm")}
         />
+        {!q && hint && <kbd className="hidden shrink-0 rounded border border-border px-1.5 font-mono text-[10px] text-muted-foreground sm:inline">{hint}</kbd>}
         {q && <button type="button" onClick={() => setQ("")} aria-label="Clear search" className="rounded p-0.5 text-muted-foreground hover:text-foreground"><X className="size-4" /></button>}
       </div>
       {showList && (
