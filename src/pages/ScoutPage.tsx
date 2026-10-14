@@ -14,7 +14,7 @@ import { ToggleGroup, ToggleGroupItem, Switch } from "../components/ui/controls"
 import { toast } from "../components/ui/sonner";
 import { TeamInput } from "../components/TeamInput";
 import { SeasonToggle } from "../components/SeasonToggle";
-import { Recordings } from "../components/VideoDialog";
+import { Recordings } from "../components/MatchVideo";
 import { cn } from "../components/cn";
 
 export default function ScoutPage() {

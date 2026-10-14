@@ -254,3 +254,24 @@ export interface TeamSummary {
   lastEvent: { code: string; name: string; start: string | null; end: string | null; rank: number | null; record: string | null } | null;
   nextEvent: { code: string; name: string; start: string | null; end: string | null; rank: number | null; record: string | null } | null;
 }
+
+/** One match, with everything around it: /api/events/:season/:code/matches/:key */
+export interface MatchDetail {
+  event: { season: number; code: string; name: string; status: EventSummary["status"] };
+  match: MatchView;
+  /** FIRST's description, e.g. "Qualification 12" or "Match 3 (R2)". */
+  description: string | null;
+  /** Team → driver station (1–3). */
+  stations: Record<number, number>;
+  /** Bonus ranking points earned (2025+), in the season's own names. */
+  bonus: { labels: [string, string, string]; red: [boolean, boolean, boolean] | null; blue: [boolean, boolean, boolean] | null } | null;
+  /** Every robot in the lineup: who it is, and how it's doing at this event and this season. */
+  teams: Record<number, {
+    name: string | null; city: string | null; state: string | null;
+    event: Pick<FieldRow, "rank" | "rp" | "wins" | "losses" | "ties" | "qualPlayed" | "opr" | "rating"> | null;
+    season: { opr: number | null; rank: number | null; of: number | null } | null;
+  }>;
+  /** The neighbouring matches at this event (by schedule order), for stepping through. */
+  prev: { key: string; label: string } | null;
+  next: { key: string; label: string } | null;
+}
