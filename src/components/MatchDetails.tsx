@@ -165,7 +165,10 @@ function Breakdown({ d }: { d: MatchDetail }) {
 
 function Prediction({ d }: { d: MatchDetail }) {
   const m = d.match, p = m.prediction;
-  if (!p) return <p className="rounded-xl border border-dashed border-border p-4 text-sm text-text-muted">No prediction: the engine predicts full 2-against-2 matches only.</p>;
+  if (!p) {
+    const full = [m.red, m.blue].every((a) => a.teams.filter((t) => t.onField).length === 2);
+    return <p className="rounded-xl border border-dashed border-border p-4 text-sm text-text-muted">{full ? "No prediction was recorded for this match yet. Played matches get one at the next data refresh." : "No prediction: the engine predicts full 2-against-2 matches only, and a robot was missing here."}</p>;
+  }
   const played = m.played && m.red.score && m.blue.score;
   const tie = played && m.red.score!.total === m.blue.score!.total;
   const called = played && !tie ? (p.pRed > 0.5) === (m.red.score!.total > m.blue.score!.total) : null;
