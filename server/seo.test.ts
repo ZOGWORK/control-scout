@@ -24,7 +24,11 @@ beforeAll(async () => {
   await new Promise((r) => server.once("listening", r));
   port = (server.address() as AddressInfo).port;
 });
-afterAll(() => { server?.close(); Object.assign(process.env, saved); });
+afterAll(() => {
+  server?.close();
+  // Restore exactly: a variable that was unset is deleted (assigning undefined would store "undefined").
+  for (const [k, v] of Object.entries(saved)) { if (v === undefined) delete process.env[k]; else process.env[k] = v; }
+});
 
 const get = (path: string, host: string) => fetch(`http://127.0.0.1:${port}${path}`, { redirect: "manual", headers: { "X-Forwarded-Host": host, Host: host } });
 
@@ -37,10 +41,18 @@ describe("canonical redirects", () => {
     }
   });
   it("aliases and trailing slashes → the real path, in one hop (even from www)", async () => {
-    expect((await get("/team/4215", "controlscout.org")).headers.get("location")).toBe("/teams/4215");
-    expect((await get("/teams/4215/", "controlscout.org")).headers.get("location")).toBe("/teams/4215");
-    expect((await get("/event/2025/USNJNOM3?tab=matches", "controlscout.org")).headers.get("location")).toBe("/events/2025/USNJNOM3?tab=matches");
+    expect((await get("/team/4215", "controlscout.org")).headers.get("location")).toBe("https://controlscout.org/teams/4215");
+    expect((await get("/teams/4215/", "controlscout.org")).headers.get("location")).toBe("https://controlscout.org/teams/4215");
+    expect((await get("/event/2025/USNJNOM3?tab=matches", "controlscout.org")).headers.get("location")).toBe("https://controlscout.org/events/2025/USNJNOM3?tab=matches");
+    expect((await get("/index.html", "controlscout.org")).headers.get("location")).toBe("https://controlscout.org/");
     expect((await get("/team/4215/", "www.controlscout.org")).headers.get("location")).toBe("https://controlscout.org/teams/4215");
+  });
+  it("never redirects off the site (//host paths collapse; every redirect is absolute on the apex)", async () => {
+    for (const p of ["//attacker.example/foo/", "///attacker.example/foo", "//attacker.example"]) {
+      const loc = (await get(p, "controlscout.org")).headers.get("location")!;
+      expect(new URL(loc).origin).toBe("https://controlscout.org");
+      expect(loc.startsWith("https://controlscout.org/attacker.example")).toBe(true);
+    }
   });
   it("leaves the apex, the root, loopback and /api alone", async () => {
     expect((await get("/teams/4215", "controlscout.org")).status).toBe(200);
