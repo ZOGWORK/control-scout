@@ -97,13 +97,13 @@ export function authRouter(): Router {
   r.get("/google/callback", h(async (req, res) => {
     const state = readCookie(req, "cs_oauth_state");
     res.clearCookie("cs_oauth_state", { path: "/api/auth/google" });
-    if (!authProviders().google || !state || state !== req.query.state || typeof req.query.code !== "string") { res.redirect("/settings?signin=failed"); return; }
+    if (!authProviders().google || !state || state !== req.query.state || typeof req.query.code !== "string") { res.redirect("/settings?section=profile&signin=failed"); return; }
     const tok = await fetch("https://oauth2.googleapis.com/token", {
       method: "POST", headers: { "Content-Type": "application/x-www-form-urlencoded" },
       body: new URLSearchParams({ code: req.query.code, client_id: env.googleClientId!, client_secret: env.googleClientSecret!, redirect_uri: googleRedirect(), grant_type: "authorization_code" }),
     }).then((x) => x.json()).catch(() => null);
     const info = tok?.access_token ? await fetch("https://openidconnect.googleapis.com/v1/userinfo", { headers: { Authorization: `Bearer ${tok.access_token}` } }).then((x) => x.json()).catch(() => null) : null;
-    if (!info?.sub || !info.email || info.email_verified === false) { res.redirect("/settings?signin=failed"); return; }
+    if (!info?.sub || !info.email || info.email_verified === false) { res.redirect("/settings?section=profile&signin=failed"); return; }
     const user = await userForIdentity("google", String(info.sub), String(info.email).toLowerCase(), info.name ?? null);
     await linkToSharedAccount(user, "google", String(info.email).toLowerCase());
     await startSession(res, user, req.get("user-agent"));

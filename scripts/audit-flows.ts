@@ -98,15 +98,28 @@ const flows: Flow[] = [
   {
     name: "Settings: theme, density and background apply immediately",
     async run(page) {
-      await page.goto(`${BASE}/settings`, { waitUntil: "networkidle" });
+      await page.goto(`${BASE}/settings?section=appearance`, { waitUntil: "networkidle" });
       await page.getByRole("radio", { name: /Light/ }).or(page.getByRole("button", { name: /^Light$/ })).first().click();
       assert(await page.evaluate(() => !document.documentElement.classList.contains("dark")), "still dark after Light");
       await page.getByRole("radio", { name: /Compact/ }).or(page.getByRole("button", { name: /^Compact$/ })).first().click();
       assert(await page.evaluate(() => /compact/.test(document.documentElement.className + " " + (document.documentElement.dataset.density ?? ""))), "density not applied to <html>");
       await page.getByRole("switch", { name: /Animated background/ }).or(page.locator("#ambient")).first().click();
       assert(await page.evaluate(() => document.documentElement.classList.contains("ambient-off")), "ambient-off not applied");
-      const sections = await page.locator("main section[id]").evaluateAll((els) => els.map((e) => e.id));
+      const sections = await page.getByRole("navigation", { name: "Settings sections" }).getByRole("button").allInnerTexts();
       assert(sections.length === 8, `expected 8 sections, got ${sections.length}: ${sections.join(", ")}`);
+      // Every section opens from the list and shows its own body (a group heading inside the section).
+      const body: Record<string, string> = {
+        "Profile": "Sign in", "Appearance": "Display", "My team & tracking": "My team", "Notifications": "Delivery",
+        "Offline data": "Offline pack", "Scouting data": "Your notes", "Account & privacy": "What lives where", "About": "This app",
+      };
+      const nav = page.getByRole("navigation", { name: "Settings sections" });
+      for (const [section, group] of Object.entries(body)) {
+        await nav.getByRole("button", { name: section, exact: true }).click();
+        await page.getByRole("heading", { name: section, level: 1 }).waitFor({ timeout: 5000 });
+        // Profile on a server without sign-in says so instead of showing the Sign in group.
+        const own = page.getByRole("heading", { name: group, level: 2, exact: true });
+        await (section === "Profile" ? own.or(page.getByText("Sign-in isn't set up on this server")) : own).first().waitFor({ timeout: 5000 });
+      }
       return `light theme, compact density and background-off apply instantly; sections: ${sections.join(", ")}`;
     },
   },
@@ -119,7 +132,7 @@ const flows: Flow[] = [
       await page.evaluate(() => Promise.all(["400", "500", "600", "700", "800"].map((w) => document.fonts.load(`${w} 16px Inter`))));
       await ctx.setOffline(true); // offline-first: saving must not need the network
       await page.getByRole("button", { name: /New entry/ }).click();
-      await page.getByLabel("Team", { exact: false }).first().fill("18360");
+      await page.getByLabel("Team", { exact: true }).fill("18360"); // exact: the top-bar search label also says "teams"
       await page.getByLabel("Event code").fill("AUBRQ2");
       await page.getByLabel("Match", { exact: true }).fill("Q1");
       const plus = page.getByRole("button", { name: /plus one/ }).first();
