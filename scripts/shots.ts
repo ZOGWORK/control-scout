@@ -36,8 +36,8 @@ const BASE = opt("base") ?? `http://localhost:${WEB_PORT}`;
 const out = resolve(opt("out") ?? join(tmpdir(), "control-scout-shots", new Date().toISOString().replace(/[:.]/g, "-")));
 if (out.startsWith(resolve(process.cwd()))) { console.error("Refusing to write screenshots inside the repository — use --out outside it."); process.exit(1); }
 // Default desktop; --mobile = phone only; --both = desktop + phone.
-const viewports: ("desktop" | "mobile")[] = flag("both") ? ["desktop", "mobile"] : flag("mobile") ? ["mobile"] : ["desktop"];
-const SIZES = { desktop: { width: 1440, height: 900 }, mobile: { width: 390, height: 844 } } as const;
+const viewports: ("desktop" | "mobile" | "wide")[] = flag("wide") ? ["wide"] : flag("both") ? ["desktop", "mobile"] : flag("mobile") ? ["mobile"] : ["desktop"];
+const SIZES = { desktop: { width: 1440, height: 900 }, wide: { width: 2200, height: 1240 }, mobile: { width: 390, height: 844 } } as const;
 
 
 async function capture(browser: Browser, route: string, vp: keyof typeof SIZES, light: boolean): Promise<string> {
@@ -68,7 +68,7 @@ async function capture(browser: Browser, route: string, vp: keyof typeof SIZES, 
     await page.waitForTimeout(600);
   }
   // --pointer: rest the mouse mid-page (hover effects, the ambient light).
-  if (flag("pointer") && vp === "desktop") { await page.mouse.move(SIZES[vp].width * 0.6, SIZES[vp].height * 0.35, { steps: 12 }); await page.waitForTimeout(500); }
+  if (flag("pointer") && vp !== "mobile") { await page.mouse.move(SIZES[vp].width * 0.6, SIZES[vp].height * 0.35, { steps: 12 }); await page.waitForTimeout(500); }
   // --video N: record N seconds while the pointer glides across the page.
   if (videoSecs) {
     const { width, height } = SIZES[vp];

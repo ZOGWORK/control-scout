@@ -193,8 +193,9 @@ export function MatchRow({ m, highlight, showEvent, open, onToggle }: { m: Match
 }
 
 /** Matches, each opening its details in place. `initialOpen` (a match key,
- *  e.g. from ?match=) opens that one and scrolls it into view. */
-export function MatchList({ matches, highlight, empty, eventNames, initialOpen }: { matches: MatchView[]; highlight?: number; empty?: string; eventNames?: Record<string, string>; initialOpen?: string | null }) {
+ *  e.g. from ?match=) opens that one and scrolls it into view. `split`: at
+ *  1700px+ the rows flow into two columns, in time order (down the left, then the right). */
+export function MatchList({ matches, highlight, empty, eventNames, initialOpen, split }: { matches: MatchView[]; highlight?: number; empty?: string; eventNames?: Record<string, string>; initialOpen?: string | null; split?: boolean }) {
   const id = (m: MatchView) => `${m.code}:${m.key}`;
   const [open, setOpen] = useState<Set<string>>(() => new Set());
   const box = useRef<HTMLDivElement>(null);
@@ -210,7 +211,7 @@ export function MatchList({ matches, highlight, empty, eventNames, initialOpen }
   if (!matches.length) return <p className="rounded-xl border border-dashed border-border px-4 py-8 text-center text-sm text-text-muted">{empty ?? "No matches yet."}</p>;
   const toggle = (k: string) => setOpen((s) => { const n = new Set(s); if (n.has(k)) n.delete(k); else n.add(k); return n; });
   return (
-    <div ref={box} className="overflow-hidden rounded-xl border border-border bg-card">
+    <div ref={box} className={cn("overflow-hidden rounded-xl border border-border bg-card", split && "min-[1700px]:columns-2 min-[1700px]:gap-0 min-[1700px]:[column-rule:1px_solid_var(--color-border)] [&>*]:break-inside-avoid")}>
       {matches.map((m) => <MatchRow key={id(m)} m={m} highlight={highlight} showEvent={eventNames?.[m.code]} open={open.has(id(m))} onToggle={() => toggle(id(m))} />)}
     </div>
   );
