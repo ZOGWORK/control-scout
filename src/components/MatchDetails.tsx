@@ -2,6 +2,7 @@
 // with each robot's standing at the event and this season, the score
 // breakdown side by side, bonus RPs, what OPR expected vs what happened, the
 // prediction against the result with its reasons, and the match's video.
+import { useState } from "react";
 import { Link } from "react-router-dom";
 import { ChevronLeft, ChevronRight, PlayCircle } from "lucide-react";
 import type { MatchDetail, MatchView } from "../shared/api";
@@ -36,6 +37,7 @@ export function MatchDetails({ m, eventName }: { m: MatchView; eventName?: strin
 
 function Body({ d, eventName }: { d: MatchDetail; eventName?: string }) {
   const m = d.match;
+  const [videoOpen, setVideoOpen] = useState(false);
   const played = m.played && !!m.red.score && !!m.blue.score;
   const href = (key: string) => `/events/${m.season}/${encodeURIComponent(m.code)}?tab=matches&match=${encodeURIComponent(key)}`;
   return (
@@ -57,9 +59,10 @@ function Body({ d, eventName }: { d: MatchDetail; eventName?: string }) {
         {played ? <Breakdown d={d} /> : <p className="rounded-xl border border-dashed border-border p-4 text-sm text-text-muted">Not played yet — the score breakdown appears once the result is posted.</p>}
         <Prediction d={d} />
       </div>
-      <details className="group rounded-xl border border-border bg-card">
+      {/* Mounted only while open: closing it unmounts the recorder, which stops (and saves) any recording and releases the camera. */}
+      <details className="group rounded-xl border border-border bg-card" onToggle={(e) => setVideoOpen((e.currentTarget as HTMLDetailsElement).open)}>
         <summary className="cursor-pointer select-none px-4 py-3 text-sm font-medium">Video for {m.label}</summary>
-        <div className="border-t border-border p-4"><VideoPanel matchRef={matchRef(m)} label={`${m.code} ${m.label}`} /></div>
+        {videoOpen && <div className="border-t border-border p-4"><VideoPanel matchRef={matchRef(m)} label={`${m.code} ${m.label}`} /></div>}
       </details>
     </div>
   );
@@ -147,7 +150,7 @@ function Breakdown({ d }: { d: MatchDetail }) {
         })}
       </ul>
       <p className="border-t border-border px-3 py-2 text-xs text-text-muted">
-        {diff === 0 ? "Tie." : <>{diff > 0 ? "Red" : "Blue"} by <span className="text-text-base">{Math.abs(diff)}</span>{(r.np - b.np > 0) !== (diff > 0) && r.np !== b.np ? " — decided by penalties." : "."}</>}
+        {diff === 0 ? "Tie." : <>{diff > 0 ? "Red" : "Blue"} by <span className="text-text-base">{Math.abs(diff)}</span>{Math.sign(r.np - b.np) !== Math.sign(diff) ? " — decided by penalties." : "."}</>}
       </p>
     </section>
   );
