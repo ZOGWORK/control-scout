@@ -87,6 +87,7 @@ export async function linkToSharedAccount(user: User, how: "scout-email-code" | 
     // The same shared account may already be linked to another Scout user (an
     // older duplicate): keep the existing link; userForIdentity merges by email.
     await run("INSERT OR IGNORE INTO identities (provider, subject, user_id) VALUES (?, ?, ?)", [CP_PROVIDER, String(account.id), user.id]);
+    rememberInfo(account);
     return account;
   } catch (e) {
     logFailure("resolve", e);
@@ -104,4 +105,51 @@ export async function provenEmailFor(user: User): Promise<string | null> {
   if (!user.email) return null;
   const r = await get<{ subject: string }>("SELECT subject FROM identities WHERE user_id = ? AND provider = 'email' AND subject = ? COLLATE NOCASE", [user.id, user.email]);
   return r ? user.email : null;
+}
+
+/** What a signed-in user sees about their Control Point side: membership and teams. */
+export interface ControlPointInfo { member: boolean; teams: { teamNumber: number | null; name: string }[]; url: string }
+
+const infoCache = new Map<number, { at: number; info: SharedAccount["controlPoint"] }>();
+const INFO_TTL = 10 * 60_000;
+const INFO_MAX = 2000;
+
+/** Membership as Control Point sent it, if it has the expected shape (it's optional data: never trusted blindly). */
+function validInfo(cp: unknown): SharedAccount["controlPoint"] | null {
+  if (!cp || typeof cp !== "object" || !Array.isArray((cp as { teams?: unknown }).teams)) return null;
+  const teams = ((cp as { teams: unknown[] }).teams)
+    .filter((t): t is { teamNumber?: unknown; name?: unknown } => !!t && typeof t === "object")
+    .slice(0, 10)
+    .map((t) => ({ teamNumber: typeof t.teamNumber === "number" ? t.teamNumber : null, name: typeof t.name === "string" ? t.name : "" }));
+  return { member: (cp as { member?: unknown }).member === true, teams };
+}
+const toInfo = (cp: SharedAccount["controlPoint"]): ControlPointInfo => ({ member: cp.member, teams: cp.teams, url: env.controlPointPublicUrl!.replace(/\/$/, "") });
+
+/** Remember an account's Control Point side (from resolve or redeem), so /me needn't ask again. Bounded: expired entries go first, then the oldest. */
+export function rememberInfo(account: SharedAccount): void {
+  const info = validInfo(account.controlPoint);
+  if (!info) return;
+  const t = Date.now();
+  infoCache.delete(account.id);
+  infoCache.set(account.id, { at: t, info });
+  if (infoCache.size > INFO_MAX) {
+    for (const [k, v] of infoCache) if (t - v.at >= INFO_TTL) infoCache.delete(k);
+    while (infoCache.size > INFO_MAX) infoCache.delete(infoCache.keys().next().value!);
+  }
+}
+/** Tests: forget everything (a cold cache). */
+export const clearInfoCache = () => infoCache.clear();
+
+/** Membership for a linked account, cached for 10 minutes; null when Control Point can't be reached or sends something unexpected. */
+export async function controlPointInfo(accountId: number): Promise<ControlPointInfo | null> {
+  try {
+    const hit = infoCache.get(accountId);
+    if (hit && Date.now() - hit.at < INFO_TTL) return toInfo(hit.info);
+    infoCache.delete(accountId);
+    const a = await getAccount(accountId);
+    if (!a) return null;
+    rememberInfo(a);
+    const info = infoCache.get(accountId)?.info;
+    return info ? toInfo(info) : null;
+  } catch (e) { logFailure("account", e); return null; }
 }

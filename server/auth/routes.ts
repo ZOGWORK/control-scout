@@ -9,7 +9,7 @@ import { env } from "../env.js";
 import { cleanValue, mergeValue, PERSONAL_KEYS, type PersonalKey, type Stamped } from "../../src/shared/personal.js";
 import { currentUser, deleteUser, endSession, readCookie, startSession, token, userForIdentity, type User } from "./session.js";
 import { emailEnabled, startEmailSignIn, verifyEmailCode } from "./email.js";
-import { CP_PROVIDER, controlPointEnabled, linkedAccountId, linkToSharedAccount, logFailure, provenEmailFor, redeemHandoff } from "./controlPoint.js";
+import { CP_PROVIDER, controlPointEnabled, controlPointInfo, linkedAccountId, linkToSharedAccount, logFailure, provenEmailFor, redeemHandoff } from "./controlPoint.js";
 
 export const authProviders = () => ({ email: emailEnabled(), google: !!(env.googleClientId && env.googleClientSecret), controlPoint: controlPointEnabled() });
 
@@ -50,7 +50,9 @@ export function authRouter(): Router {
       const proven = await provenEmailFor(u);
       if (proven) linked = (await linkToSharedAccount(u, "scout-email-code", proven))?.id ?? null;
     }
-    return { user: { ...publicUser(u), controlPointLinked: linked != null }, providers: authProviders() };
+    // Membership is only ever shown to the signed-in owner of the address (never before it's proven).
+    const controlPoint = linked != null ? await controlPointInfo(linked) : null;
+    return { user: { ...publicUser(u), controlPointLinked: linked != null, controlPoint }, providers: authProviders() };
   }));
 
   r.post("/email/start", ipLimit(20, 15 * 60_000), h(async (req, res) => {
@@ -76,7 +78,8 @@ export function authRouter(): Router {
     const user = await userForIdentity("email", out.email, out.email);
     const linked = await linkToSharedAccount(user, "scout-email-code", out.email); // the shared account (best effort, 3 s max)
     await startSession(res, user, req.get("user-agent"));
-    return { user: { ...publicUser(user), controlPointLinked: linked != null || (controlPointEnabled() && (await linkedAccountId(user.id)) != null) } };
+    const id = linked?.id ?? (controlPointEnabled() ? await linkedAccountId(user.id) : null);
+    return { user: { ...publicUser(user), controlPointLinked: id != null, controlPoint: id != null ? await controlPointInfo(id) : null } };
   }));
 
   r.post("/logout", h(async (req, res) => { await endSession(req, res); return { ok: true }; }));

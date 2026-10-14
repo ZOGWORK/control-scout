@@ -15,10 +15,11 @@ let base = "", cpBase = "";
 const inbox = new Map<string, string>();
 
 // --- stub Control Point -----------------------------------------------------
-const accounts = new Map<string, { id: number; email: string; displayName: string | null; createdAt: string; controlPoint: { member: boolean; teams: never[] } }>();
+const accounts = new Map<string, { id: number; email: string; displayName: string | null; createdAt: string; controlPoint: { member: boolean; teams: { teamNumber: number | null; name: string }[] } }>();
 const handoffs = new Map<string, { email: string; state: string; used: boolean }>();
 const resolveCalls: { email: string; verifiedBy: string }[] = [];
 let cpDown = false;
+let accountReads = 0;
 let cpHang = false;
 const accountFor = (email: string) => {
   let a = accounts.get(email);
@@ -38,6 +39,12 @@ beforeAll(async () => {
   stub.post("/internal/accounts/resolve", (req, res) => {
     resolveCalls.push({ email: req.body.email, verifiedBy: req.body.verifiedBy });
     res.json({ account: accountFor(String(req.body.email).toLowerCase()) });
+  });
+  stub.get("/internal/accounts/:id", (req, res) => {
+    accountReads++;
+    const a = [...accounts.values()].find((x) => x.id === Number(req.params.id));
+    if (!a) { res.status(404).json({ error: "Not found" }); return; }
+    res.json({ account: a });
   });
   stub.post("/internal/handoff/redeem", (req, res) => {
     const h = handoffs.get(req.body.code);
@@ -89,7 +96,7 @@ function client() {
 }
 const me = async (c: ReturnType<typeof client>) => (await c.req("/api/auth/me")).json();
 
-import { linkToSharedAccount } from "./controlPoint";
+import { clearInfoCache, linkToSharedAccount } from "./controlPoint";
 
 describe("shared accounts", () => {
   it("is off without the CONTROL_POINT_* settings", async () => {
@@ -108,6 +115,47 @@ describe("shared accounts", () => {
     expect(m.user.controlPointLinked).toBe(true);
     const ids = await all<any>("SELECT provider, subject FROM identities WHERE provider = 'control-point'");
     expect(ids).toContainEqual({ provider: "control-point", subject: String(accounts.get("ada@example.com")!.id) });
+  });
+
+  it("tells the signed-in owner (only) about their Control Point membership and teams", async () => {
+    const a = accountFor("lin@example.com");
+    a.controlPoint = { member: true, teams: [{ teamNumber: 4215, name: "Hypnotic Robotics" }] };
+    const c = client();
+    const r = await c.signIn("lin@example.com");
+    expect(r.status).toBe(200);
+    expect((await r.json()).user.controlPoint).toMatchObject({ member: true, teams: [{ teamNumber: 4215, name: "Hypnotic Robotics" }] });
+    const m = await me(c);
+    expect(m.user.controlPoint.member).toBe(true);
+    expect(typeof m.user.controlPoint.url).toBe("string");
+    // Signed out: nothing about any account.
+    expect((await me(client())).user).toBeNull();
+  });
+
+  it("cold cache: /me asks Control Point for membership; if it can't, membership is null and /me still works", async () => {
+    const a = accountFor("kim@example.com");
+    a.controlPoint = { member: true, teams: [{ teamNumber: 18360, name: "Kim's Team" }] };
+    const c = client();
+    expect((await c.signIn("kim@example.com")).status).toBe(200);
+    clearInfoCache();
+    const before = accountReads;
+    expect((await me(c)).user.controlPoint).toMatchObject({ member: true, teams: [{ teamNumber: 18360 }] });
+    expect(accountReads).toBe(before + 1);
+    clearInfoCache();
+    cpDown = true;
+    const m = await me(c);
+    cpDown = false;
+    expect(m.user.controlPoint).toBeNull();
+    expect(m.user.controlPointLinked).toBe(true);
+  });
+
+  it("membership in an unexpected shape is ignored, not fatal", async () => {
+    const a = accountFor("odd@example.com");
+    (a as any).controlPoint = { member: true, teams: "nope" };
+    const c = client();
+    const r = await c.signIn("odd@example.com");
+    expect(r.status).toBe(200);
+    expect((await r.json()).user.controlPoint).toBeNull();
+    expect((await me(c)).user.controlPoint).toBeNull();
   });
 
   it("never blocks sign-in when Control Point is down, and links on the next /me", async () => {
