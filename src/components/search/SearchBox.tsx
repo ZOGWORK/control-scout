@@ -20,7 +20,8 @@ export function hitHref(h: SearchHit): string {
 
 /** Debounced search; my team, tracked and shortlisted teams/events rank first among equal matches. */
 export function useSearchHits(q: string, kinds?: HitKind[]) {
-  const [hits, setHits] = useState<SearchHit[]>([]);
+  // Results remember the query they answer, so a pick can never come from a previous query.
+  const [res, setRes] = useState<{ q: string; hits: SearchHit[] }>({ q: "", hits: [] });
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const seq = useRef(0);
@@ -35,17 +36,18 @@ export function useSearchHits(q: string, kinds?: HitKind[]) {
   useEffect(() => {
     const query = q.trim();
     const id = ++seq.current;
-    if (!query) { setHits([]); setError(null); setBusy(false); return; }
+    if (!query) { setRes({ q: "", hits: [] }); setError(null); setBusy(false); return; }
     setBusy(true);
     const t = setTimeout(() => {
       apiFetch<{ hits: SearchHit[] }>(`/api/search?q=${encodeURIComponent(query)}&limit=15${prefer ? `&prefer=${encodeURIComponent(prefer)}` : ""}`)
-        .then((r) => { if (id === seq.current) { setHits(kindKey ? r.hits.filter((h) => kindKey.split(",").includes(h.kind)) : r.hits); setError(null); } })
+        .then((r) => { if (id === seq.current) { setRes({ q: query, hits: kindKey ? r.hits.filter((h) => kindKey.split(",").includes(h.kind)) : r.hits }); setError(null); } })
         .catch((e) => { if (id === seq.current) setError(e.message); })
         .finally(() => { if (id === seq.current) setBusy(false); });
     }, 140);
     return () => clearTimeout(t);
   }, [q, prefer, kindKey]);
-  return { hits, busy, error };
+  const current = res.q === q.trim();
+  return { hits: current ? res.hits : [], busy: busy || (!!q.trim() && !current), error };
 }
 
 const GROUPS: [HitKind, string, typeof Users][] = [["team", "Teams", Users], ["event", "Events", CalendarDays], ["match", "Matches", Swords]];
@@ -74,6 +76,7 @@ export function SearchBox({ onPick, kinds, placeholder, label, size = "md", clas
   // Group order matches what's shown, so arrow keys walk the list top to bottom.
   const ordered = useMemo(() => GROUPS.flatMap(([k]) => hits.filter((h) => h.kind === k)), [hits]);
   useEffect(() => setActive(0), [hits]);
+  useEffect(() => { if (open) document.getElementById(`${listId}-${active}`)?.scrollIntoView({ block: "nearest" }); }, [active, open, listId]);
   useEffect(() => {
     if (!open) return;
     const away = (e: PointerEvent) => { if (!box.current?.contains(e.target as Node)) setOpen(false); };
@@ -85,7 +88,7 @@ export function SearchBox({ onPick, kinds, placeholder, label, size = "md", clas
   const showList = open && (query ? true : !!emptyHint);
   const lg = size === "lg";
   return (
-    <div ref={box} className={cn("relative", className)}>
+    <div ref={box} className={cn("relative", className)} onBlur={(e) => { if (!box.current?.contains(e.relatedTarget as Node | null)) setOpen(false); }}>
       <div className={cn("flex items-center gap-2.5 rounded-xl border border-border bg-card text-foreground transition-[border-color,box-shadow] focus-within:border-accent/60 focus-within:shadow-[0_0_0_3px_color-mix(in_srgb,var(--color-accent)_18%,transparent)]", lg ? "h-14 px-4" : "h-9 px-3")}>
         {busy ? <Loader2 className={cn("shrink-0 animate-spin text-muted-foreground", lg ? "size-5" : "size-4")} /> : <Search className={cn("shrink-0 text-accent", lg ? "size-5" : "size-4")} />}
         <input
