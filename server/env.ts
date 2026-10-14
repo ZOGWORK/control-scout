@@ -17,6 +17,9 @@ export const env = {
   get port() { return Number(str("PORT") ?? 3000); },
   get production() { return process.env.NODE_ENV === "production"; },
   get appUrl() { return str("APP_URL") ?? "http://localhost:5173"; },
+  /** The one public origin search engines should index (canonical, OG, sitemap URLs). In production it's
+   *  controlscout.org even on a backup host whose APP_URL is its own address (Render). */
+  get canonicalUrl() { return str("CANONICAL_URL") ?? (this.production ? "https://controlscout.org" : this.appUrl); },
   get databaseUrl() { return str("DATABASE_URL") ?? `file:${join(process.cwd(), ".data", "scout.db").replace(/\\/g, "/")}`; },
   get databaseToken() { return str("DATABASE_AUTH_TOKEN"); },
   get firstUser() { return str("FTC_EVENTS_USERNAME"); },
