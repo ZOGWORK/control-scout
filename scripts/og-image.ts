@@ -1,6 +1,7 @@
 // Renders public/og-image.png (1200×630), the link-preview card every page
 // points og:image / twitter:image at. Same look as the site: graphite, gold,
 // the hexagon mark, Space Grotesk + Inter. Re-run after a brand change:
+//   npx playwright install chromium   (once per machine; on Linux: --with-deps)
 //   npx tsx scripts/og-image.ts
 import { chromium } from "playwright";
 import { readFileSync, statSync } from "node:fs";
