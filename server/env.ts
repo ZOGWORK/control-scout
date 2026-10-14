@@ -25,6 +25,10 @@ export const env = {
   get emailFrom() { return str("EMAIL_FROM") ?? "Control Scout <verify@tryctrlpoint.org>"; },
   get googleClientId() { return str("GOOGLE_CLIENT_ID"); },
   get googleClientSecret() { return str("GOOGLE_CLIENT_SECRET"); },
+  /** Shared accounts (docs/shared-accounts.md): Control Point's internal API (loopback on the VM), its public URL, and the shared key. */
+  get controlPointInternalUrl() { return str("CONTROL_POINT_INTERNAL_URL"); },
+  get controlPointPublicUrl() { return str("CONTROL_POINT_PUBLIC_URL"); },
+  get controlPointInternalKey() { return str("CONTROL_POINT_INTERNAL_KEY"); },
   get dataDir() { return str("DATA_DIR") ?? join(process.cwd(), ".data"); },
   /** Where an FTC Scout raw cache can be imported from (seed). */
   get scoutCacheDir() { return str("SCOUT_CACHE_DIR"); },

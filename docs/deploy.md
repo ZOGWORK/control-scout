@@ -141,19 +141,18 @@ One-time setup (needs Sushil, since both steps are credentials):
 
 Manual deploys with `deploy/deploy.sh` keep working the same way.
 
-## Render: the rollback host
+## Rollback
 
-https://control-scout.onrender.com stays up as the rollback target (Sushil,
-2026-10-13), and every update applies to it too. Render rebuilds from main on
-its own, and the `render` job in `deploy.yml` waits until its `/api/health`
-reports the same commit (from `RENDER_GIT_COMMIT`). If that job fails, check
-the service's deploys in the Render dashboard; auto-deploy must stay on for
-main.
+Render was retired on 2026-10-14 (Sushil): the Oracle VM is the only host. To
+roll back, switch `current` to one of the three releases the VM keeps, then
+restart:
 
-To fail over, point DNS for `controlscout.org` and `www` at Render (add them
-as custom domains there first), or send people to the onrender.com URL. Render
-free sleeps after 15 minutes idle and takes ~25 s or more to wake (see
-`docs/perf-report.md`), so it's a fallback, not a twin.
+```bash
+ssh -i ~/.ssh/oracle-controlpoint ubuntu@132.145.202.89 'ls -1t /opt/control-scout/releases'
+ssh -i ~/.ssh/oracle-controlpoint ubuntu@132.145.202.89 'sudo ln -sfn releases/<older> /opt/control-scout/current && sudo systemctl restart control-scout'
+```
+
+The data directory is shared by every release, so a rollback keeps all data.
 
 ## Uptime alerts
 
@@ -176,10 +175,9 @@ runs can start several minutes late.
   the repo gets the issue and its comments, and the workflow's owner gets the
   failed-run email. There are no extra secrets or services; it uses the
   built-in `GITHUB_TOKEN`.
-- **Scope:** only controlscout.org (the Oracle VM). Render, the rollback host,
-  is not checked because the free plan sleeps when idle. Bruno may run his own
-  watcher for the VM; this one covers only controlscout.org, so the two don't
-  duplicate.
+- **Scope:** controlscout.org (the Oracle VM, the only host). Bruno may run
+  his own watcher for the VM; this one covers only controlscout.org, so the two
+  don't duplicate.
 - **Testing:** `CHECK_ONLY=1 bash .github/scripts/uptime.sh` runs just the
   check (exit 0 up, 1 down). `DRY_RUN=1` prints the issue calls instead of
   making them. Point either at another host with `SITE=…`.

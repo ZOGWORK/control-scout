@@ -124,6 +124,13 @@ export function MatchRow({ m, highlight, showEvent }: { m: MatchView; highlight?
               <span className="text-text-muted">–</span>
               <span className={cn("min-w-8 text-blue-alliance", redWon === true && "opacity-55")}>{m.blue.score.total}</span>
             </>
+          ) : p && !m.played && !p.noScoreBasis ? (
+            // Not played yet: the predicted score, styled as a forecast (dimmed, with a tilde).
+            <span className="flex items-center gap-1.5 opacity-70" title={`Predicted score ${Math.round(p.redMean)}–${Math.round(p.blueMean)}`} aria-label={`Predicted score ${Math.round(p.redMean)} to ${Math.round(p.blueMean)}`}>
+              <span className="min-w-8 text-right text-red-alliance">~{Math.round(p.redMean)}</span>
+              <span className="text-text-muted">–</span>
+              <span className="min-w-8 text-blue-alliance">{Math.round(p.blueMean)}</span>
+            </span>
           ) : <span className="px-2 text-xs font-medium text-text-muted">vs</span>}
         </div>
         <div className={cn("flex flex-wrap gap-x-1 rounded-lg px-1.5 py-1", teamSide === "blue" && "bg-blue-alliance/10")}>
@@ -141,7 +148,7 @@ export function MatchRow({ m, highlight, showEvent }: { m: MatchView; highlight?
               </button>
             </TooltipTrigger>
             <TooltipContent className="max-w-72">
-              {KIND_LABEL[p.kind]} · predicted {p.redMean}–{p.blueMean} · {p.tier} confidence
+              {KIND_LABEL[p.kind]} · {p.noScoreBasis ? "no predicted score: when this call was made, the season had no rated matches yet" : `predicted ${p.redMean}–${p.blueMean}`} · {p.tier} confidence
               {p.factors?.length ? <span className="mt-1 block opacity-80">{p.factors[0].label}</span> : null}
               <CalibrationTip pRed={p.pRed} />
             </TooltipContent>

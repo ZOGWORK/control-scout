@@ -14,5 +14,5 @@ coverage/
 .DS_Store
 packs-out/
 
-# Offline packs shipped with the app (lite + current season), see docs/render.md
+# Offline packs shipped with the app (lite + current season), see server/data/snapshot.ts
 !data/packs/*.db

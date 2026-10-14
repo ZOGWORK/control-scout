@@ -216,16 +216,18 @@ export async function logLivePredictions(log: Log = () => {}): Promise<number> {
   // the lead-time check and predicted_at are the same instant.
   const now = Date.now();
   const at = new Date(now).toISOString();
+  // Saved with each call: whether the season had rated matches when it was made.
+  const noScoreBasis = f.seasonEvents(season).length ? 0 : 1;
   const stmts: InStatement[] = [];
   for (const m of candidates) {
     if (!liveLoggable(m, now)) continue;
     const x = f.explain(season, m.red, m.blue);
     if (!x) continue;
     stmts.push({
-      sql: `INSERT OR IGNORE INTO predictions (kind, season, code, level, series, number, red, blue, p_red, red_mean, blue_mean, tier, factors, engine_version, predicted_at, match_time)
-            VALUES ('live', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      sql: `INSERT OR IGNORE INTO predictions (kind, season, code, level, series, number, red, blue, p_red, red_mean, blue_mean, tier, factors, engine_version, predicted_at, match_time, no_score_basis)
+            VALUES ('live', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       args: [season, m.code, m.level, m.series, m.number, JSON.stringify(m.red), JSON.stringify(m.blue), x.winProbA, x.predictedScoreA, x.predictedScoreB,
-        x.confidence.tier, JSON.stringify(x.factors), ENGINE_VERSION, at, m.time],
+        x.confidence.tier, JSON.stringify(x.factors), ENGINE_VERSION, at, m.time, noScoreBasis],
     });
   }
   await writeBatch(stmts);

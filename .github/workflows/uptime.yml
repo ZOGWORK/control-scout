@@ -11,8 +11,7 @@ name: Uptime
 # GitHub's own notification emails do the alerting: watchers of the repo get
 # the issue, and the workflow's owner gets the failed scheduled run.
 #
-# Only controlscout.org (the Oracle VM) is checked. Render, the rollback host,
-# sleeps when idle on the free plan, which is not an outage.
+# Checks controlscout.org, the Oracle VM (the only host).
 #
 # Note: GitHub runs scheduled workflows on a best-effort basis. Runs can start
 # several minutes late (more at busy times), and are paused after 60 days
