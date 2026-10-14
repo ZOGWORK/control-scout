@@ -13,7 +13,7 @@ import { readFileSync } from "node:fs";
 import { env } from "./env.js";
 
 /** The canonical origin, e.g. "https://controlscout.org" (no trailing slash). */
-export const canonicalOrigin = () => new URL(env.appUrl).origin;
+export const canonicalOrigin = () => new URL(env.canonicalUrl).origin;
 
 const LOOPBACK = new Set(["localhost", "127.0.0.1", "::1", "[::1]"]);
 
@@ -38,6 +38,8 @@ export function canonicalRedirects(req: Request, res: Response, next: NextFuncti
     // Always absolute, on the canonical origin: a redirect can never leave the site.
     return res.redirect(301, `${home.origin}${path}${qs}`);
   }
+  // A backup host serving the app under its own name (Render): usable, but never indexed as a second copy.
+  if (env.production && host && !LOOPBACK.has(host) && host !== new URL(env.canonicalUrl).hostname) res.setHeader("X-Robots-Tag", "noindex");
   next();
 }
 
