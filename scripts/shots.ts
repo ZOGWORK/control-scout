@@ -68,7 +68,7 @@ async function capture(browser: Browser, route: string, vp: keyof typeof SIZES, 
     await page.waitForTimeout(600);
   }
   // --pointer: rest the mouse mid-page (hover effects, the ambient light).
-  if (flag("pointer") && vp === "desktop") { await page.mouse.move(SIZES[vp].width * 0.6, SIZES[vp].height * 0.35, { steps: 12 }); await page.waitForTimeout(500); }
+  if (flag("pointer") && vp !== "mobile") { await page.mouse.move(SIZES[vp].width * 0.6, SIZES[vp].height * 0.35, { steps: 12 }); await page.waitForTimeout(500); }
   // --video N: record N seconds while the pointer glides across the page.
   if (videoSecs) {
     const { width, height } = SIZES[vp];
