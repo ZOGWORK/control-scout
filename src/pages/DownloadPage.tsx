@@ -25,7 +25,8 @@ export default function DownloadPage() {
   }, [attempt]);
   // The lite pack downloads itself (LitePackSync); this page just nudges it and shows where it's at.
   useEffect(() => {
-    const onChange = () => setLocal(packStatus());
+    // A newer pack was saved (maybe newer than the manifest this page read): show it, and re-read the manifest.
+    const onChange = () => { setLocal(packStatus()); setAttempt((n) => n + 1); };
     window.addEventListener(PACK_EVENT, onChange);
     return () => window.removeEventListener(PACK_EVENT, onChange);
   }, []);
@@ -86,12 +87,14 @@ function LiteStatus({ local, m, syncing }: { local: PackMeta | null; m: PackMani
   const current = local?.version === m.version;
   return (
     <p className="mb-4 flex flex-wrap items-center gap-2 rounded-xl border border-border bg-card px-4 py-3 text-sm" role="status">
-      {current ? <CheckCircle2 className="size-4 text-success" /> : syncing ? <Loader2 className="size-4 animate-spin text-muted-foreground" /> : <WifiOff className="size-4 text-muted-foreground" />}
+      {current || (local && !syncing) ? <CheckCircle2 className="size-4 text-success" /> : syncing ? <Loader2 className="size-4 animate-spin text-muted-foreground" /> : <WifiOff className="size-4 text-muted-foreground" />}
       {current
         ? <span>Offline predictions are ready on this device: lite pack {local!.version}, saved automatically {ago(new Date(local!.savedAt).toISOString())}.</span>
         : syncing
           ? <span>Getting offline predictions ready on this device ({local ? `updating ${local.version} → ${m.version}` : fmtBytes(m.lite.bytes)})…</span>
-          : <span>Offline predictions aren't on this device yet. They download on their own next time you're online{local ? ` (you have ${local.version})` : ""}.</span>}
+          : local
+            ? <span>Offline predictions work on this device from lite pack {local.version}. Version {m.version} downloads on its own next time you're online.</span>
+            : <span>Offline predictions aren't on this device yet. They download on their own next time you're online.</span>}
     </p>
   );
 }

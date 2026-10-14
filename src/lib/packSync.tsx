@@ -5,7 +5,7 @@ import { useEffect } from "react";
 
 export function LitePackSync(): null {
   useEffect(() => {
-    const run = () => { void import("./packs").then((p) => p.syncLite()); };
+    const run = () => { void import("./packs").then((p) => p.syncLite()).catch(() => {}); };
     const w = window as Window & { requestIdleCallback?: (cb: () => void, o?: { timeout: number }) => number; cancelIdleCallback?: (id: number) => void };
     const id = w.requestIdleCallback ? w.requestIdleCallback(run, { timeout: 10_000 }) : window.setTimeout(run, 3000);
     window.addEventListener("online", run);
