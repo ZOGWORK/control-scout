@@ -13,6 +13,7 @@ import { useMeta } from "../../lib/meta";
 import { Sheet, SheetContent, SheetTitle } from "../ui/overlay";
 import { TooltipProvider } from "../ui/overlay";
 import { GlobalSearch } from "./Search";
+import { AccountMenu } from "./AccountMenu";
 import { usePersonal } from "../../lib/personal";
 
 interface NavItem { to: string; label: string; icon: ComponentType<{ className?: string }>; end?: boolean }
@@ -140,6 +141,7 @@ export function Shell({ children }: { children: ReactNode }) {
               <Link to="/" className="md:hidden" aria-label="Home"><BrandMark className="size-6" /></Link>
               <p className="truncate text-sm text-text-muted"><span className="hidden sm:inline">Control Scout / </span><span className="text-text-base">{title}</span></p>
               <div className="flex flex-1 justify-end md:justify-center"><GlobalSearch /></div>
+              <AccountMenu />
             </header>
             <div className="relative min-h-0 flex-1">
               <Ambient target={mainRef} />
