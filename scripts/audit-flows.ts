@@ -203,9 +203,9 @@ const flows: Flow[] = [
       const server = spawn("npx", ["tsx", "server/index.ts"], { env: { ...process.env, NODE_ENV: "production", PORT: "3299", CS_NO_SCHEDULER: "1" }, shell: true, stdio: "ignore" });
       try {
         assert(await waitUp(`${PROD}/api/health`, 120), "production server didn't become ready");
-        await page.goto(`${PROD}/download`, { waitUntil: "networkidle" });
+        // No clicks: the lite pack downloads itself once the home page goes idle.
+        await page.goto(`${PROD}/`, { waitUntil: "networkidle" });
         await page.evaluate(async () => { await navigator.serviceWorker.ready; });
-        await page.getByRole("button", { name: /Save to this device/ }).click();
         await page.waitForFunction(() => !!localStorage.getItem("cs-pack-meta"), null, { timeout: 60_000 }); // download + sha256 check done
         await page.reload({ waitUntil: "networkidle" }); // controlled by the worker from here
         await ctx.setOffline(true);
@@ -221,7 +221,7 @@ const flows: Flow[] = [
         assert(/offline|lite pack|on this device/i.test(body), "prediction shown but not labelled as offline");
         assert(/(Provisional|Moderate|Confident)/.test(body), "offline prediction has no tier");
         await ctx.setOffline(false);
-        return "offline reload opens the app; an unvisited page loads from the precache; a match prediction runs from the lite pack, labelled offline, with a tier";
+        return "lite pack saved automatically; offline reload opens the app; an unvisited page loads from the precache; a match prediction runs from the lite pack, labelled offline, with a tier";
       } finally {
         await ctx.setOffline(false);
         if (process.platform === "win32" && server.pid) spawnSync("taskkill", ["/pid", String(server.pid), "/T", "/F"], { stdio: "ignore" }); else server.kill();
@@ -301,9 +301,13 @@ const flows: Flow[] = [
         assert(sha === f.sha256, `${f.name}: sha256 mismatch`);
       }
       await page.goto(`${BASE}/download`, { waitUntil: "networkidle" });
+      await page.getByText(/Offline predictions are ready on this device/).waitFor({ timeout: 60_000 });
       const body = await page.locator("main").innerText();
       assert(body.includes(m.version) && /SHA-256/.test(body), "Download page doesn't show version + sha256");
-      return `v${m.version}: lite + ${m.full.length} full packs, sizes and sha256 verified; listed on /download`;
+      assert(!(await page.getByRole("button", { name: /Save to this device/ }).count()), "lite pack still offered as a manual download");
+      const links = await page.locator("main a[download]").count();
+      assert(links === m.full.length, `${links} download links, expected ${m.full.length} (full packs only)`);
+      return `v${m.version}: lite + ${m.full.length} full packs, sizes and sha256 verified; lite saved automatically, only full packs downloadable on /download`;
     },
   },
 ];
