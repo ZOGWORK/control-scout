@@ -2,7 +2,7 @@
 // stays fully usable (no modal, no focus trap). Content only: teams, events
 // and matches — navigation lives in the nav.
 import { useEffect, useId, useMemo, useRef, useState, type ReactNode, type Ref } from "react";
-import { CalendarDays, Loader2, Search, Swords, Users, X } from "lucide-react";
+import { CalendarDays, ChevronDown, Loader2, Search, Swords, Users, X } from "lucide-react";
 import { apiFetch } from "../../lib/api";
 import { usePersonal } from "../../lib/personal";
 import { useMeta } from "../../lib/meta";
@@ -76,10 +76,29 @@ export function SearchBox({ onPick, kinds, placeholder, label, size = "md", clas
   const { hits, busy, error } = useSearchHits(q, kinds);
   const meta = useMeta();
   const box = useRef<HTMLDivElement>(null);
+  const list = useRef<HTMLDivElement>(null);
+  // How many results sit below the visible part of the dropdown (drives the "more below" cue).
+  const [below, setBelow] = useState(0);
+  const measure = () => {
+    const el = list.current;
+    if (!el) { setBelow(0); return; }
+    const bottom = el.scrollTop + el.clientHeight;
+    setBelow(el.scrollHeight - bottom > 6 ? [...el.querySelectorAll<HTMLElement>("[role=option]")].filter((o) => o.offsetTop + o.offsetHeight / 2 > bottom).length : 0);
+  };
   const listId = useId();
   // Group order matches what's shown, so arrow keys walk the list top to bottom.
   const ordered = useMemo(() => GROUPS.flatMap(([k]) => hits.filter((h) => h.kind === k)), [hits]);
   useEffect(() => setActive(0), [hits]);
+  // Re-measure the "more below" cue whenever the list's contents change.
+  useEffect(() => { measure(); }, [hits, open, q, busy]);
+  // …and when the list's own size changes (window resized, phone rotated).
+  useEffect(() => {
+    const el = list.current;
+    if (!el || typeof ResizeObserver === "undefined") return;
+    const ro = new ResizeObserver(() => measure());
+    ro.observe(el);
+    return () => ro.disconnect();
+  });
   useEffect(() => { if (open) document.getElementById(`${listId}-${active}`)?.scrollIntoView({ block: "nearest" }); }, [active, open, listId]);
   useEffect(() => {
     if (!open) return;
@@ -115,8 +134,9 @@ export function SearchBox({ onPick, kinds, placeholder, label, size = "md", clas
         {q && <button type="button" onClick={() => setQ("")} aria-label="Clear search" className="rounded p-0.5 text-muted-foreground hover:text-foreground"><X className="size-4" /></button>}
       </div>
       {showList && (
-        <div id={listId} role="listbox" aria-label={`${label} results`}
-          className="absolute inset-x-0 top-full z-40 mt-1.5 max-h-[min(26rem,calc(100dvh-12rem))] overflow-y-auto overscroll-contain rounded-xl border border-border bg-popover p-1.5 text-popover-foreground shadow-[0_18px_40px_-16px_rgba(0,0,0,.55)]">
+        <div className="absolute inset-x-0 top-full z-40 mt-1.5 overflow-hidden rounded-xl border border-border bg-popover text-popover-foreground shadow-[0_18px_40px_-16px_rgba(0,0,0,.55)]">
+        <div ref={list} id={listId} role="listbox" aria-label={`${label} results`} onScroll={measure}
+          className="relative max-h-[min(26rem,calc(100dvh-12rem))] overflow-y-auto overscroll-contain p-1.5">
           {!query ? emptyHint : error ? <p className="px-3 py-2.5 text-sm text-destructive">{error}</p>
             : !ordered.length ? (
               <p className="px-3 py-2.5 text-sm text-muted-foreground">{busy ? "Searching…" : meta && !meta.dataLoaded ? "No FTC data has been loaded on this server yet, so there's nothing to search." : <>Nothing matches “{query}”.</>}</p>
@@ -125,7 +145,7 @@ export function SearchBox({ onPick, kinds, placeholder, label, size = "md", clas
               if (!hs.length) return null;
               return (
                 <div key={kind} role="group" aria-label={title}>
-                  <p className="px-3 pb-1 pt-2 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">{title}</p>
+                  <p className="flex items-center gap-1.5 px-3 pb-1 pt-2 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">{title}<span className="rounded-full bg-muted px-1.5 py-px text-[10px] tabular-nums text-foreground/80">{hs.length}</span></p>
                   {hs.map((h) => {
                     const i = ordered.indexOf(h);
                     return (
@@ -143,6 +163,16 @@ export function SearchBox({ onPick, kinds, placeholder, label, size = "md", clas
                 </div>
               );
             })}
+        </div>
+        {below > 0 && (
+          // The cue: results continue below. Fades the last row and offers a one-tap scroll.
+          <div className="pointer-events-none absolute inset-x-0 bottom-0 flex h-14 items-end justify-center bg-gradient-to-t from-popover via-popover/85 to-transparent pb-2">
+            <button type="button" tabIndex={-1} onPointerDown={(e) => e.preventDefault()} onClick={() => list.current?.scrollBy({ top: list.current.clientHeight * 0.8, behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth" })}
+              className="pointer-events-auto inline-flex items-center gap-1 rounded-full border border-accent/40 bg-popover px-3 py-1 text-xs font-medium text-accent shadow-sm hover:border-accent">
+              {below} more below <ChevronDown className="size-3.5 motion-safe:animate-bounce" />
+            </button>
+          </div>
+        )}
         </div>
       )}
     </div>
