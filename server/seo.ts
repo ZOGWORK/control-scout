@@ -41,6 +41,9 @@ export function canonicalRedirects(req: Request, res: Response, next: NextFuncti
   next();
 }
 
+/** A path that names a file (any extension, e.g. .png, .xml, .webmanifest): missing ones are a 404, never the app. */
+export const MISSING_FILE = /\.[A-Za-z0-9]+$/;
+
 /** The canonical URL for a page path: canonical origin + path, no query, no trailing slash. */
 export function canonicalUrl(path: string): string {
   const p = path.length > 1 ? path.replace(/\/+$/, "") : "/";
