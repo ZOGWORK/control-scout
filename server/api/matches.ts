@@ -45,6 +45,9 @@ export async function matchViews(f: MatchFilter, opts: { predictUnplayed?: boole
     pmap.set(k, e);
   }
   const forecaster = opts.predictUnplayed ? await forecasterFor(f.season).catch(() => null) : null;
+  // No rated matches this season yet (e.g. only scrimmages, which the engine skips):
+  // ratings are carried over without a scoring baseline, so win odds stand but point predictions don't.
+  const noScoreBasis = !!forecaster && !forecaster.seasonEvents(f.season).length;
   const out: MatchView[] = [];
   for (const r of rows) {
     const key = `${r.level}:${r.series}:${r.number}`;
@@ -54,6 +57,7 @@ export async function matchViews(f: MatchFilter, opts: { predictUnplayed?: boole
     const fromRow = (x: any, kind: "live" | "backtest"): MatchPredictionView => ({
       pRed: x.p_red, redMean: x.red_mean, blueMean: x.blue_mean, tier: x.tier, kind, predictedAt: kind === "live" ? x.predicted_at : null,
       ...(x.factors ? { factors: JSON.parse(x.factors) } : {}),
+      ...(x.no_score_basis ? { noScoreBasis: true as const } : {}),
     });
     if (p?.live) prediction = fromRow(p.live, "live");
     else if (r.played && p?.backtest) prediction = fromRow(p.backtest, "backtest");
@@ -61,7 +65,7 @@ export async function matchViews(f: MatchFilter, opts: { predictUnplayed?: boole
       const red = l.red.filter((t) => t.onField).map((t) => t.number), blue = l.blue.filter((t) => t.onField).map((t) => t.number);
       if (red.length === 2 && blue.length === 2) {
         const x = forecaster.explain(f.season, red, blue);
-        if (x) prediction = { pRed: x.winProbA, redMean: x.predictedScoreA, blueMean: x.predictedScoreB, tier: x.confidence.tier, kind: "now", predictedAt: new Date().toISOString(), factors: x.factors };
+        if (x) prediction = { pRed: x.winProbA, redMean: x.predictedScoreA, blueMean: x.predictedScoreB, tier: x.confidence.tier, kind: "now", predictedAt: new Date().toISOString(), factors: x.factors, ...(noScoreBasis ? { noScoreBasis: true } : {}) };
       }
     }
     out.push({

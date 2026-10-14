@@ -7,12 +7,12 @@ import { useEffect, useRef, useState, type ComponentType, type ReactNode } from 
 import { Link, useLocation, useNavigate, useSearchParams } from "react-router-dom";
 import { AnimatePresence, motion } from "motion/react";
 import {
-  ArrowDown, ArrowUp, BellRing, ClipboardList, Download, ExternalLink, HardDriveDownload, Info, KeyRound, LogOut, Mail, Monitor, Moon, Palette,
+  ArrowDown, ArrowUp, BellRing, ClipboardList, Download, ExternalLink, HardDriveDownload, Info, KeyRound, Link2, LogOut, Mail, Monitor, Moon, Palette,
   Star, Sun, Upload, UserRound, X,
 } from "lucide-react";
 import { apiFetch } from "../lib/api";
 import { useMeta, useTitle } from "../lib/meta";
-import { usePersonal, type AccountUser } from "../lib/personal";
+import { usePersonal, type AccountUser, type AuthProviders } from "../lib/personal";
 import { clearLocalScouting, localScoutEntries, saveScoutEntry, type ScoutEntry } from "../lib/scouting";
 import { clearRecordings, fmtBytes } from "../lib/recordings";
 import { downloadCsv } from "../lib/csv";
@@ -46,7 +46,8 @@ const HASHES: Record<string, SectionId> = { account: "profile", appearance: "app
 export default function SettingsPage() {
   const [params, setParams] = useSearchParams();
   const loc = useLocation();
-  const fromHash = HASHES[loc.hash.replace(/^#/, "")];
+  const hash = loc.hash.replace(/^#/, "");
+  const fromHash = Object.prototype.hasOwnProperty.call(HASHES, hash) ? HASHES[hash] : undefined;
   const requested = params.get("section") as SectionId | null;
   const active: SectionId = SECTIONS.some((s) => s.id === requested) ? requested! : fromHash ?? "profile";
   const current = SECTIONS.find((s) => s.id === active)!;
@@ -162,7 +163,7 @@ function Profile({ signinFailed }: { signinFailed: boolean }) {
 
 const BENEFITS = ["My team and the teams and events you track", "Your shortlist and saved predictions", "Scouting notes and video links", "Your settings, on every device"];
 
-function SignIn({ providers, onSignedIn }: { providers: { email: boolean; google: boolean }; onSignedIn: (u: AccountUser) => Promise<void> }) {
+function SignIn({ providers, onSignedIn }: { providers: AuthProviders; onSignedIn: (u: AccountUser) => Promise<void> }) {
   const [email, setEmail] = useState("");
   const [sent, setSent] = useState(false);
   const [code, setCode] = useState("");
@@ -191,7 +192,7 @@ function SignIn({ providers, onSignedIn }: { providers: { email: boolean; google
           {BENEFITS.map((b) => <li key={b} className="flex items-start gap-2 text-sm text-foreground"><span className="mt-1.5 size-1.5 shrink-0 rounded-full bg-accent" />{b}</li>)}
         </ul>
       </div>
-      {!providers.email && !providers.google ? <p className="text-sm text-muted-foreground">Sign-in isn't set up on this server. Everything still works on this device.</p> : (
+      {!providers.email && !providers.google && !providers.controlPoint ? <p className="text-sm text-muted-foreground">Sign-in isn't set up on this server. Everything still works on this device.</p> : (
         <Group title="Sign in" description="No password: we email you a 6-digit code.">
           {providers.email && (
             <Row label="Email" description={sent ? `We sent a code to ${email}. It expires in 10 minutes.` : "Your email is used only to send sign-in codes."} stack>
@@ -217,6 +218,11 @@ function SignIn({ providers, onSignedIn }: { providers: { email: boolean; google
               <Button variant="secondary" asChild><a href="/api/auth/google/start">Continue with Google</a></Button>
             </Row>
           )}
+          {providers.controlPoint && (
+            <Row label="Control Point" description="One account for both apps: use your Control Point sign-in, or sign in here with the same email and it's the same account.">
+              <Button variant="secondary" asChild><a href="/api/auth/control-point/start"><KeyRound /> Continue with Control Point</a></Button>
+            </Row>
+          )}
         </Group>
       )}
     </div>
@@ -226,9 +232,19 @@ function SignIn({ providers, onSignedIn }: { providers: { email: boolean; google
 const SYNC_LABEL: Record<string, string> = { synced: "Synced", syncing: "Syncing…", offline: "Offline: will sync", error: "Sync error: will retry", local: "This device only" };
 
 function SignedIn({ user, sync, onSignOut }: { user: AccountUser; sync: string; onSignOut: () => Promise<void> }) {
-  const [name, setName] = useState(user.displayName ?? "");
-  const dirty = name.trim() !== (user.displayName ?? "");
-  const saveName = async () => { await apiFetch("/api/me", { method: "PATCH", json: { displayName: name } }).then(() => toast.success("Saved"), (e) => toast.error(e.message)); };
+  // The name as last saved (kept across section switches via the account object we update).
+  const [saved, setSaved] = useState(user.displayName ?? "");
+  const [name, setName] = useState(saved);
+  const dirty = name.trim() !== saved;
+  const saveName = async () => {
+    try {
+      await apiFetch("/api/me", { method: "PATCH", json: { displayName: name } });
+      const next = name.trim();
+      setSaved(next);
+      user.displayName = next || null; // the shared account object: switching sections shows the saved name
+      toast.success("Saved");
+    } catch (e: any) { toast.error(e.message); }
+  };
   return (
     <div>
       <Group title="Details" description="How you appear in Control Scout.">
@@ -241,6 +257,7 @@ function SignedIn({ user, sync, onSignOut }: { user: AccountUser; sync: string; 
       </Group>
       <Group title="Account facts">
         <Row label="Email" description="Used to sign in."><span className="text-sm text-foreground">{user.email}</span></Row>
+        {user.controlPointLinked && <Row label="Control Point" description="One account with Control Point: the same email works on tryctrlpoint.org."><Badge variant="success"><Link2 /> Linked</Badge></Row>}
         <Row label="Sync" description="Your data follows you to every device you sign in on.">
           <Badge variant={sync === "synced" ? "success" : sync === "error" || sync === "offline" ? "destructive" : "secondary"}>{SYNC_LABEL[sync] ?? sync}</Badge>
         </Row>
@@ -401,15 +418,22 @@ function ScoutingData() {
       toast.success(`Imported ${n} entries`);
     }).catch(() => toast.error("That file isn't a Control Scout scouting export"));
   };
-  const count = localScoutEntries().filter((e) => !e.deleted).length;
+  // Live count: re-read whenever scouting data changes (import, clear, edits elsewhere).
+  const [count, setCount] = useState(() => localScoutEntries().filter((e) => !e.deleted).length);
+  useEffect(() => {
+    const refresh = () => setCount(localScoutEntries().filter((e) => !e.deleted).length);
+    window.addEventListener("cs-scout-changed", refresh);
+    window.addEventListener("storage", refresh);
+    return () => { window.removeEventListener("cs-scout-changed", refresh); window.removeEventListener("storage", refresh); };
+  }, []);
   return (
     <div>
       <Group title="Your notes" description="Scouting notes are private to you.">
         <Row label="Entries on this device"><span className="text-sm tabular-nums text-foreground">{count}</span></Row>
         <Row label="Export" description="JSON keeps everything for re-importing; CSV opens in a spreadsheet.">
           <div className="flex flex-wrap gap-2">
-            <Button variant="outline" size="sm" onClick={exportJson}><Download /> JSON</Button>
-            <Button variant="outline" size="sm" onClick={exportCsv}><Download /> CSV</Button>
+            <Button variant="outline" size="sm" onClick={exportJson}><Download /> Export JSON</Button>
+            <Button variant="outline" size="sm" onClick={exportCsv}><Download /> Export CSV</Button>
           </div>
         </Row>
         <Row label="Import" description="A JSON export from Control Scout, from any device.">
