@@ -5,7 +5,6 @@ import { Link, useParams, useSearchParams } from "react-router-dom";
 import { Award, CalendarDays, ExternalLink, MapPin, Radio, Swords, Trophy } from "lucide-react";
 import { BRACKETS, type Slot } from "@control-scout/predict-engine";
 import { useApi } from "../lib/api";
-import { useMediaQuery } from "../hooks/useMediaQuery";
 import { useTitle } from "../lib/meta";
 import { usePersonal } from "../lib/personal";
 import type { EventDetail, FieldRow, MatchView } from "../shared/api";
@@ -220,7 +219,6 @@ function Matches({ d, team }: { d: EventDetail; team: number | null }) {
   const [onlyTeam, setOnlyTeam] = useState(!!team);
   const list = d.matches.filter((m: MatchView) => (level === "all" || m.level === level) && (!onlyTeam || !team || [...m.red.teams, ...m.blue.teams].some((t) => t.number === team)));
   const record = callRecord(d.matches);
-  const wide = useMediaQuery("(min-width: 1700px)");
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-center gap-3">
@@ -230,13 +228,10 @@ function Matches({ d, team }: { d: EventDetail; team: number | null }) {
         {team && <Button size="sm" variant={onlyTeam ? "secondary" : "outline"} onClick={() => setOnlyTeam(!onlyTeam)}>{onlyTeam ? `Only ${team}` : `Highlight ${team}`}</Button>}
         {record.length > 0 && <span className="ml-auto text-xs text-muted-foreground">{record.map((x) => `${x.kind === "live" ? "Live calls" : "Predicted"} ${x.right}/${x.n} right (${Math.round((x.right / x.n) * 100)}%)`).join(" · ")}</span>}
       </div>
-      {!d.matches.length ? <EmptyState icon={Swords} title="No schedule yet" description="The match schedule appears here once FIRST publishes it (usually the morning of the event)." /> : wide && list.length > 12 ? (
-        // Wide desktops: the list in two balanced halves, still in time order (left, then right). Narrower: one list, as before.
-        <div className="grid grid-cols-2 items-start gap-4">
-          <MatchList matches={list.slice(0, Math.ceil(list.length / 2))} highlight={team ?? undefined} />
-          <MatchList matches={list.slice(Math.ceil(list.length / 2))} highlight={team ?? undefined} />
-        </div>
-      ) : <MatchList matches={list} highlight={team ?? undefined} empty="No matches in this view." />}
+      {!d.matches.length ? <EmptyState icon={Swords} title="No schedule yet" description="The match schedule appears here once FIRST publishes it (usually the morning of the event)." /> : (
+        // Long schedules on wide desktops flow into two columns (CSS only, so nothing remounts on resize).
+        <MatchList matches={list} highlight={team ?? undefined} empty="No matches in this view." split={list.length > 12} />
+      )}
       <p className="text-xs text-muted-foreground">Played matches show the prediction logged before they were played (or, for past seasons, the prediction replayed from the matches before it). Upcoming matches show odds from today's ratings.</p>
     </div>
   );
