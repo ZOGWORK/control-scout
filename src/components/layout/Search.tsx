@@ -1,110 +1,68 @@
-// Global search (⌘K / Ctrl+K / "/"): teams, events and matches as you type.
-import { useEffect, useRef, useState, createContext, useContext, useCallback, type ReactNode } from "react";
+// Global search: an inline field in the top bar on every page, results in a
+// dropdown under it. No popup: the page stays usable behind it. Content only
+// (teams, events, matches); the nav handles navigation.
+// ⌘K / Ctrl+K / "/" focus it; on phones the header's search button expands it.
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { useNavigate } from "react-router-dom";
-import { CalendarDays, Hash, Loader2, Swords, Users } from "lucide-react";
-import { CommandDialog, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "../ui/command";
-import { apiFetch } from "../../lib/api";
-import type { SearchHit } from "../../shared/api";
-import { usePersonal } from "../../lib/personal";
-import { useMeta } from "../../lib/meta";
+import { Search } from "lucide-react";
+import { SearchBox, hitHref } from "../search/SearchBox";
+import { cn } from "../cn";
 
-const Ctx = createContext<{ open: () => void }>({ open: () => {} });
+export { hitHref };
+
+interface SearchCtx {
+  /** Focus the search field (expanding it on phones). */
+  open: () => void;
+  inputRef: React.RefObject<HTMLInputElement | null>;
+  expanded: boolean;
+  setExpanded: (v: boolean) => void;
+}
+const Ctx = createContext<SearchCtx>({ open: () => {}, inputRef: { current: null }, expanded: false, setExpanded: () => {} });
 export const useSearch = () => useContext(Ctx);
 
-export function hitHref(h: SearchHit): string {
-  if (h.kind === "team") return `/teams/${h.ref}`;
-  if (h.kind === "event") { const [s, c] = h.ref.split(":"); return `/events/${s}/${c}`; }
-  const [s, c, level, series, number] = h.ref.split(":");
-  return `/events/${s}/${c}?match=${level}:${series}:${number}`;
-}
-
 export function SearchProvider({ children }: { children: ReactNode }) {
-  const [open, setOpen] = useState(false);
+  const inputRef = useRef<HTMLInputElement | null>(null);
+  const [expanded, setExpanded] = useState(false);
+  const open = useCallback(() => {
+    setExpanded(true);
+    // After the (phone) field has rendered.
+    requestAnimationFrame(() => { inputRef.current?.focus(); inputRef.current?.select(); });
+  }, []);
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      const typing = (e.target as HTMLElement)?.closest?.("input, textarea, [contenteditable=true]");
-      if ((e.key === "k" && (e.metaKey || e.ctrlKey)) || (e.key === "/" && !typing)) { e.preventDefault(); setOpen((o) => !o); }
+      const typing = (e.target as HTMLElement)?.closest?.("input, textarea, select, [contenteditable=true]");
+      if ((e.key === "k" && (e.metaKey || e.ctrlKey)) || (e.key === "/" && !typing)) { e.preventDefault(); open(); }
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, []);
-  const openFn = useCallback(() => setOpen(true), []);
-  return (
-    <Ctx.Provider value={{ open: openFn }}>
-      {children}
-      <SearchDialog open={open} onOpenChange={setOpen} />
-    </Ctx.Provider>
-  );
+  }, [open]);
+  const value = useMemo(() => ({ open, inputRef, expanded, setExpanded }), [open, expanded]);
+  return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 }
 
-function SearchDialog({ open, onOpenChange }: { open: boolean; onOpenChange: (o: boolean) => void }) {
-  const [q, setQ] = useState("");
-  const [hits, setHits] = useState<SearchHit[]>([]);
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const seq = useRef(0);
+const isMac = typeof navigator !== "undefined" && /Mac|iPhone|iPad/.test(navigator.platform);
+
+/** The top-bar search. Inline from md up; on phones a button that expands a full-width field under the header. */
+export function GlobalSearch() {
+  const { open, inputRef, expanded, setExpanded } = useSearch();
   const nav = useNavigate();
-  const { state } = usePersonal();
-  const meta = useMeta();
-  // My team, tracked and shortlisted teams/events rank first among equal matches.
-  const prefer = [
-    ...new Set([
-      ...(state.myTeam ? [`team:${state.myTeam}`] : []),
-      ...state.tracked.teams.map((t) => `team:${t}`),
-      ...state.bookmarks.map((t) => `team:${t}`),
-      ...state.tracked.events.map((e) => `event:${e}`),
-    ]),
-  ].slice(0, 100).join(",");
-  useEffect(() => {
-    if (!open) return;
-    const query = q.trim();
-    if (!query) { setHits([]); setError(null); return; }
-    const id = ++seq.current;
-    setBusy(true);
-    const t = setTimeout(() => {
-      apiFetch<{ hits: SearchHit[] }>(`/api/search?q=${encodeURIComponent(query)}&limit=15${prefer ? `&prefer=${encodeURIComponent(prefer)}` : ""}`)
-        .then((r) => { if (id === seq.current) { setHits(r.hits); setError(null); } })
-        .catch((e) => { if (id === seq.current) setError(e.message); })
-        .finally(() => { if (id === seq.current) setBusy(false); });
-    }, 140);
-    return () => clearTimeout(t);
-  }, [q, open, prefer]);
-  const go = (href: string) => { onOpenChange(false); setQ(""); nav(href); };
-  const groups: [SearchHit["kind"], string, typeof Users][] = [["match", "Matches", Swords], ["team", "Teams", Users], ["event", "Events", CalendarDays]];
-  const quick = [
-    ...(state.myTeam ? [{ label: `My team · ${state.myTeam}`, href: `/teams/${state.myTeam}` }] : []),
-    { label: "Prediction lab", href: "/predict" },
-    { label: "Track record", href: "/methodology#accuracy" },
-    { label: "Events this week", href: "/events" },
-  ];
   return (
-    <CommandDialog open={open} onOpenChange={onOpenChange} title="Search" description="Search teams, events and matches" shouldFilter={false}>
-      <CommandInput placeholder="Team number or name, event, or a match like “USNJQ1 Q12”…" value={q} onValueChange={setQ} />
-      <CommandList>
-        {busy && <div className="flex items-center gap-2 px-4 py-3 text-sm text-text-muted"><Loader2 className="size-4 animate-spin" /> Searching…</div>}
-        {error && <div className="px-4 py-3 text-sm text-destructive">{error}</div>}
-        {!busy && q.trim() && !hits.length && !error && <CommandEmpty>{meta && !meta.dataLoaded ? "No FTC team data has been loaded on this server yet, so there's nothing to search." : <>No team, event or match matches “{q.trim()}”.</>}</CommandEmpty>}
-        {!q.trim() && (
-          <CommandGroup heading="Go to">
-            {quick.map((x) => <CommandItem key={x.href} value={x.href} onSelect={() => go(x.href)}><Hash className="size-4 text-text-muted" />{x.label}</CommandItem>)}
-          </CommandGroup>
+    <>
+      <button type="button" onClick={open} className={cn("flex h-8 items-center gap-2 rounded-lg border border-line px-2.5 text-xs text-text-muted hover:text-text-base md:hidden", expanded && "hidden")} aria-label="Search">
+        <Search className="size-3.5" /> Search
+      </button>
+      <SearchBox
+        inputRef={inputRef}
+        label="Search teams, events and matches"
+        placeholder="Search teams, events, matches…"
+        hint={isMac ? "⌘K" : "Ctrl K"}
+        onPick={(h) => nav(hitHref(h))}
+        onClose={() => setExpanded(false)}
+        className={cn(
+          "w-full md:block md:max-w-md",
+          expanded ? "absolute inset-x-0 top-full z-50 border-b border-line bg-primary p-2 md:relative md:inset-auto md:top-auto md:border-0 md:bg-transparent md:p-0" : "hidden",
         )}
-        {groups.map(([kind, title, Icon]) => {
-          const hs = hits.filter((h) => h.kind === kind);
-          if (!hs.length) return null;
-          return (
-            <CommandGroup key={kind} heading={title}>
-              {hs.map((h) => (
-                <CommandItem key={`${h.kind}:${h.ref}`} value={`${h.kind}:${h.ref}`} onSelect={() => go(hitHref(h))}>
-                  <Icon className="size-4 text-text-muted" />
-                  <span className="min-w-0 flex-1 truncate">{h.title}</span>
-                  <span className="hidden max-w-[45%] truncate text-xs text-text-muted sm:inline">{h.subtitle}</span>
-                </CommandItem>
-              ))}
-            </CommandGroup>
-          );
-        })}
-      </CommandList>
-    </CommandDialog>
+      />
+    </>
   );
 }
