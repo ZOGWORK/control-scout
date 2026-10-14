@@ -89,6 +89,10 @@ describe("page head in the first HTML", () => {
     expect(desc.length).toBeGreaterThanOrEqual(120);
     expect(desc.length).toBeLessThanOrEqual(160);
 
+    // Event codes are case-insensitive: a lowercase link gets the event's own preview, with the canonical code.
+    const lower = await renderIndex(file, "/events/2025/usnjnom3");
+    expect(lower).toContain("<title>P1-4 PM Northern League Meet (2025–26) · FTC Control Scout</title>");
+    expect(lower).toContain('<link rel="canonical" href="https://controlscout.org/events/2025/USNJNOM3" />');
     const ev = await renderIndex(file, "/events/2025/USNJNOM3");
     expect(ev).toContain("<title>P1-4 PM Northern League Meet (2025–26) · FTC Control Scout</title>");
     expect(/<meta name="description" content="([^"]*)"/.exec(ev)![1]).toContain("Nov 8, 2025");
@@ -101,7 +105,9 @@ describe("page head in the first HTML", () => {
   });
 
   it("fits descriptions to 120–160 characters", () => {
-    expect(fitDescription("Short.").length).toBeGreaterThanOrEqual(20);
+    const short = fitDescription("Short.");
+    expect(short.length).toBeGreaterThanOrEqual(120);
+    expect(short.length).toBeLessThanOrEqual(160);
     const long = fitDescription("word ".repeat(80));
     expect(long.length).toBeLessThanOrEqual(160);
     expect(long.endsWith("…")).toBe(true);
