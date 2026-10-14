@@ -23,8 +23,6 @@ import { BreakChart, Verdicts } from "../components/howitworks/LabNotes";
 import { CleanList, Prose, Reveal, SectionHead, TipLayer, useReduced } from "../components/howitworks/ui";
 import { CAL, MODEL, NOISE, RATING } from "../components/howitworks/math";
 
-/** OPR ridge strength (server/stats/opr.ts DEFAULT_LAMBDA; the web app can't import server code). */
-const OPR_LAMBDA = 0.5;
 /** Event simulations per forecast (server/app.ts → forecast(…, 2000)). */
 const SIM_RUNS = 2000;
 
@@ -87,7 +85,7 @@ export default function MethodologyPage() {
           <Prose id="opr">
             <h3>OPR, the number most sites show</h3>
             <p>OPR estimates each robot's average contribution to its alliance's score. It's solved from an event's qualification matches, with separate values for auto, TeleOp, endgame and penalties given away. The headline OPR counts non-penalty points only, so an opponent's fouls don't inflate it.</p>
-            <p>Plain least squares, which most sites use, swings wildly with five or six matches and can produce impossible negative ratings. Control Scout uses a <strong>ridge-regularised, non-negative</strong> solve instead, which shrinks thin data toward the event's average robot. The shrinkage strength, λ = {OPR_LAMBDA}, was <strong>fitted</strong> by predicting held-out matches, and it beat plain OPR on both 2024–25 and 2025–26. Alliances that included a surrogate or a disqualified robot are left out, because their score doesn't reflect normal play. A team's season OPR is its best event OPR from an event where it played at least four counted matches.</p>
+            <p>Control Scout computes OPR <strong>exactly the way FTC Scout and FTC Events do</strong>, so a team sees the same number everywhere: plain least squares over every played qualification match, counting every team FIRST lists on the alliance. TeleOp means what FIRST means by it: from 2024–25 on it includes the endgame points, and the endgame column shows that part on its own. A team's season OPR is its best event OPR. With only five or six matches, least squares can swing a lot and even go slightly negative; that's the published number, and it's one reason predictions use the rating instead.</p>
             <p>OPR is shown on team pages for reference. It doesn't drive predictions: the rating above does, because it updates after every match and carries over between seasons.</p>
           </Prose>
         </section>
@@ -212,7 +210,7 @@ function SettingsTable() {
     ["Calibration", `a ${CAL.a.toFixed(3)} · b ${CAL.b.toFixed(3)}`, "Platt scaling on win probabilities"],
     ["Captain's pick", `τ ${MODEL.pick.tau} · rank ${MODEL.pick.rankWeight}`, "How much strength vs. rank drives picks"],
     ["Simulations", SIM_RUNS.toLocaleString("en-US"), "Runs per event forecast"],
-    ["OPR ridge (Control Scout)", `λ = ${OPR_LAMBDA}`, "Shrinks thin-data OPR toward the event average"],
+    ["OPR", "least squares", "Same method and numbers as FTC Scout and FTC Events"],
   ];
   return (
     <Reveal className="mx-auto max-w-2xl">
