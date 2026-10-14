@@ -2,7 +2,7 @@
 // a real upcoming match (event-local time + IANA zone, as FIRST gives it) is
 // logged once, before it plays, and never revised; once it's played the
 // result is attached and the call itself stays exactly as logged.
-import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
+import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { all, migrate, openDb, run, setDb } from "../db";
 import { CURRENT_SEASON } from "../data/seasons";
 import { localToUtcMs } from "../data/time";
@@ -32,8 +32,10 @@ async function match(code: string, level: "qual" | "playoff", number: number, ti
 
 const ledger = () => all<any>("SELECT * FROM predictions WHERE season = ? ORDER BY code, number", [S]);
 
-beforeAll(async () => {
-  vi.useFakeTimers({ toFake: ["Date"] });
+beforeAll(() => { vi.useFakeTimers({ toFake: ["Date"] }); });
+
+// Every test starts from the same fresh database and clock, so each one runs on its own.
+beforeEach(async () => {
   vi.setSystemTime(NOW);
   const c = openDb(":memory:");
   setDb(c);
@@ -66,28 +68,33 @@ beforeAll(async () => {
 
 afterAll(() => { vi.useRealTimers(); });
 
-describe("live prediction ledger", () => {
-  let logged: any;
+/** Step 1 at NOW, with every check on the logged call; returns the row as logged. */
+async function logAndCheck(): Promise<any> {
+  expect(await logLivePredictions()).toBe(1);
+  const rows = await ledger();
+  expect(rows).toHaveLength(1);
+  const logged = rows[0];
+  expect(logged).toMatchObject({ kind: "live", season: S, code: "LIVE", level: "qual", series: 0, number: 1, red: "[201,202]", blue: "[203,204]", match_time: "2026-11-07T10:30:00" });
+  expect(logged.predicted_at).toBe(new Date(NOW).toISOString());
+  expect(Date.parse(logged.predicted_at)).toBeLessThan(localToUtcMs(logged.match_time, CHICAGO)!);
+  expect(localToUtcMs(logged.match_time, CHICAGO)).toBe(Date.parse("2026-11-07T16:30:00Z"));
+  expect(logged.p_red).toBeGreaterThan(0);
+  expect(logged.p_red).toBeLessThan(1);
+  expect(logged.tier).toBeTruthy();
+  expect(JSON.parse(logged.factors)).toBeTruthy();
+  expect(logged.outcome).toBeNull();
+  expect(logged.red_score).toBeNull();
+  expect(logged.scored_at).toBeNull();
+  return logged;
+}
 
+describe("live prediction ledger", () => {
   it("logs exactly one call for the match that is safely in the future, before it starts", async () => {
-    expect(await logLivePredictions()).toBe(1);
-    const rows = await ledger();
-    expect(rows).toHaveLength(1);
-    logged = rows[0];
-    expect(logged).toMatchObject({ kind: "live", season: S, code: "LIVE", level: "qual", series: 0, number: 1, red: "[201,202]", blue: "[203,204]", match_time: "2026-11-07T10:30:00" });
-    expect(logged.predicted_at).toBe(new Date(NOW).toISOString());
-    expect(Date.parse(logged.predicted_at)).toBeLessThan(localToUtcMs(logged.match_time, CHICAGO)!);
-    expect(localToUtcMs(logged.match_time, CHICAGO)).toBe(Date.parse("2026-11-07T16:30:00Z"));
-    expect(logged.p_red).toBeGreaterThan(0);
-    expect(logged.p_red).toBeLessThan(1);
-    expect(logged.tier).toBeTruthy();
-    expect(JSON.parse(logged.factors)).toBeTruthy();
-    expect(logged.outcome).toBeNull();
-    expect(logged.red_score).toBeNull();
-    expect(logged.scored_at).toBeNull();
+    await logAndCheck();
   });
 
   it("skips matches that started, are under a minute away, or have no provable start", async () => {
+    await logLivePredictions();
     const left = await unloggedLiveMatches(S);
     const key = (c: { code: string; level: string; number: number }) => `${c.code} ${c.level} ${c.number}`;
     expect(left.map(key).sort()).toEqual(["LIVE playoff 1", "LIVE qual 2", "LIVE qual 3", "LIVE qual 4", "LIVE qual 5", "SYD qual 1"]);
@@ -97,6 +104,7 @@ describe("live prediction ledger", () => {
   });
 
   it("never duplicates or revises a logged call", async () => {
+    const logged = await logAndCheck();
     vi.setSystemTime(NOW + 10 * 60_000);
     resetForecasters(); // even with fresh ratings
     await run("UPDATE matches SET red_total = 999 WHERE season = ? AND code = 'PRIOR' AND number = 1", [S]);
@@ -107,6 +115,7 @@ describe("live prediction ledger", () => {
   });
 
   it("attaches the outcome after the match plays, leaving the call unchanged", async () => {
+    const logged = await logAndCheck();
     const scoredAt = Date.parse("2026-11-07T16:50:00Z");
     vi.setSystemTime(scoredAt);
     // Played, with FIRST's actual start (a few minutes late) replacing the scheduled time.
