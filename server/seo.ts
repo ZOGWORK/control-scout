@@ -43,16 +43,23 @@ export function canonicalUrl(path: string): string {
   return `${canonicalOrigin()}${p}`;
 }
 
-const esc = (s: string) => s.replace(/&/g, "&amp;").replace(/"/g, "&quot;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
-
 let template: { file: string; html: string } | null = null;
+/** index.html without its generic head tags (the page's own go in their place). */
 function indexHtml(file: string): string {
-  if (!template || template.file !== file) template = { file, html: readFileSync(file, "utf8") };
+  if (!template || template.file !== file) {
+    const html = readFileSync(file, "utf8")
+      .replace(/\s*<title>[\s\S]*?<\/title>/i, "")
+      .replace(/\s*<meta\s+name="description"[^>]*>/i, "")
+      .replace(/\s*<meta\s+(?:property|name)="(?:og|twitter):[^"]*"[^>]*>/gi, "")
+      .replace(/\s*<link\s+rel="canonical"[^>]*>/i, "");
+    template = { file, html };
+  }
   return template.html;
 }
 
-/** index.html for this path, with the page's head tags in the initial HTML. */
-export function renderIndex(file: string, path: string): string {
-  const head = `<link rel="canonical" href="${esc(canonicalUrl(path))}" />`;
+/** index.html for this path, with the page's own head tags in the initial HTML. */
+export async function renderIndex(file: string, path: string): Promise<string> {
+  const { pageMeta, headTags } = await import("./seoMeta.js");
+  const head = headTags(path, await pageMeta(path));
   return indexHtml(file).replace("</head>", `    ${head}\n  </head>`);
 }

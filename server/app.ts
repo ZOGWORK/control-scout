@@ -318,10 +318,10 @@ export function createApp() {
     for (const f of ["sw.js"]) app.get(`/${f}`, (_req, res) => { res.setHeader("Cache-Control", "no-cache"); res.sendFile(join(dist, f)); });
     app.use(express.static(dist, { index: false, maxAge: "1h" }));
     // The app's HTML, with the page's canonical link in the first response (crawlers don't run JS).
-    app.get(/^(?!\/api\/|\/packs\/).*/, (req, res) => {
+    app.get(/^(?!\/api\/|\/packs\/).*/, h(async (req, res) => {
       res.setHeader("Cache-Control", "no-cache");
-      res.type("html").send(renderIndex(join(dist, "index.html"), req.path));
-    });
+      res.type("html").send(await renderIndex(join(dist, "index.html"), req.path));
+    }));
   }
 
   app.use((err: unknown, _req: Request, res: Response, _next: NextFunction) => {

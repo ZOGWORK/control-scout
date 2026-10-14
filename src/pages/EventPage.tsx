@@ -24,7 +24,7 @@ import { awardLabel, dateRange, num, place, seasonLabel } from "../lib/format";
 export default function EventPage() {
   const { season, code } = useParams();
   const state = useApi<EventDetail>(`/api/events/${season}/${code}`);
-  useTitle(state.data?.event.name ?? code);
+  useTitle(state.data ? `${state.data.event.name} (${seasonLabel(state.data.event.season)})` : code); // same as the server-rendered title
   return <Async state={state}>{(d) => <Event d={d} />}</Async>;
 }
 

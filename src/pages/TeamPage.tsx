@@ -38,7 +38,7 @@ export default function TeamPage() {
   // FTC team numbers are 1–999999; anything else can't exist, so don't ask the API.
   const valid = Number.isInteger(team) && team >= 1 && team <= 999_999;
   const state = useApi<TeamProfile>(valid ? `/api/teams/${team}${qs({ season })}` : null);
-  useTitle(state.data ? `${state.data.team.number} ${state.data.team.name ?? ""}` : `Team ${number}`);
+  useTitle(state.data?.team.name ? `Team ${state.data.team.number} — ${state.data.team.name}` : `Team ${number}`); // same as the server-rendered title
   if (!valid) return <EmptyState icon={SearchX} title={`There's no team ${number}`} description="FTC team numbers are whole numbers from 1 to 999999, like 4215." action={<Button variant="secondary" onClick={search.open}><Search /> Search teams</Button>} />;
   return (
     <Async state={state}>
