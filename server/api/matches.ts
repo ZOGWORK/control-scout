@@ -57,6 +57,7 @@ export async function matchViews(f: MatchFilter, opts: { predictUnplayed?: boole
     const fromRow = (x: any, kind: "live" | "backtest"): MatchPredictionView => ({
       pRed: x.p_red, redMean: x.red_mean, blueMean: x.blue_mean, tier: x.tier, kind, predictedAt: kind === "live" ? x.predicted_at : null,
       ...(x.factors ? { factors: JSON.parse(x.factors) } : {}),
+      ...(x.no_score_basis ? { noScoreBasis: true as const } : {}),
     });
     if (p?.live) prediction = fromRow(p.live, "live");
     else if (r.played && p?.backtest) prediction = fromRow(p.backtest, "backtest");
