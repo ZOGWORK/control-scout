@@ -16,7 +16,7 @@ import { eventDetail, listEvents, toEventInput } from "./api/events.js";
 import { matchDetail, matchViews } from "./api/matches.js";
 import { trackRecord } from "./api/accuracy.js";
 import { currentWeather } from "./weather.js";
-import { canonicalRedirects, renderIndex } from "./seo.js";
+import { MISSING_FILE, canonicalRedirects, renderIndex } from "./seo.js";
 import { sitemapChunkRoute, sitemapRoute } from "./sitemap.js";
 import { forecasterFor, dataVersion } from "./predict/engine.js";
 import { authRouter, meRouter, authProviders } from "./auth/routes.js";
@@ -323,7 +323,7 @@ export function createApp() {
     app.use(express.static(dist, { index: false, maxAge: "1h" }));
     // The app's HTML, with the page's canonical link in the first response (crawlers don't run JS).
     // A missing file (anything with an extension) is an honest 404, never the app's HTML with a 200.
-    app.get(/\.[A-Za-z0-9]{1,8}$/, (_req, res) => { res.setHeader("Cache-Control", "no-cache"); res.status(404).type("text/plain").send("Not found"); });
+    app.get(MISSING_FILE, (_req, res) => { res.setHeader("Cache-Control", "no-cache"); res.status(404).type("text/plain").send("Not found"); });
     app.get(/^(?!\/api\/|\/packs\/).*/, h(async (req, res) => {
       res.setHeader("Cache-Control", "no-cache");
       res.type("html").send(await renderIndex(join(dist, "index.html"), req.path));
