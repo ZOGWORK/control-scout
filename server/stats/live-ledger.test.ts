@@ -4,10 +4,10 @@
 // result is attached and the call itself stays exactly as logged.
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { all, migrate, openDb, run, setDb } from "../db";
-import { CURRENT_SEASON } from "../data/seasons";
+import { CURRENT_SEASON, SEASON_NUMBERS } from "../data/seasons";
 import { localToUtcMs } from "../data/time";
 import { resetForecasters } from "../predict/engine";
-import { liveLoggable, logLivePredictions, scoreLivePredictions, unloggedLiveMatches } from "./job";
+import { backtest, liveLoggable, logLivePredictions, scoreLivePredictions, unloggedLiveMatches } from "./job";
 
 const S = CURRENT_SEASON;
 const TEAMS = [201, 202, 203, 204, 205, 206];
@@ -15,8 +15,8 @@ const CHICAGO = "America/Chicago"; // CST (UTC−6) on 2026-11-07: DST ended 202
 const SYDNEY = "Australia/Sydney"; // AEDT (UTC+11)
 const NOW = Date.parse("2026-11-07T15:00:00Z"); // 09:00 in Chicago
 
-async function event(code: string, start: string, timezone: string) {
-  await run("INSERT INTO events (season, code, name, type, start, end, timezone, remote, hybrid, source) VALUES (?, ?, ?, 'Qualifier', ?, ?, ?, 0, 0, 'test')", [S, code, code, start, start, timezone]);
+async function event(code: string, start: string, timezone: string, type = "Qualifier") {
+  await run("INSERT INTO events (season, code, name, type, start, end, timezone, remote, hybrid, source) VALUES (?, ?, ?, ?, ?, ?, ?, 0, 0, 'test')", [S, code, code, type, start, start, timezone]);
   for (const t of TEAMS) await run("INSERT INTO event_teams (season, code, team) VALUES (?, ?, ?)", [S, code, t]);
 }
 
@@ -158,5 +158,27 @@ describe("live calls remember their scoring basis", () => {
     const v = (await matchViews({ season: S, code: "LIVE" })).find((m) => m.key === "qual:0:1");
     expect(v?.prediction?.kind).toBe("live");
     expect(v?.prediction?.noScoreBasis).toBe(true);
+  });
+});
+
+describe("replayed calls for the current season", () => {
+  it("played scrimmage matches get one (odds only before any rated match); scrimmages never move the ratings", async () => {
+    // A scrimmage before the rated PRIOR event: predicted, flagged no-score-basis, not learned from.
+    await event("SCRIM", "2026-10-10", CHICAGO, "Scrimmage");
+    await match("SCRIM", "qual", 1, "2026-10-10T10:00:00", [201, 202], [203, 204], [300, 5]);
+    await match("SCRIM", "qual", 2, "2026-10-10T10:10:00", [205, 206], [201, 203], [40, 41]);
+    await backtest(SEASON_NUMBERS, () => {}, { write: [S] });
+    const rows = await all<any>("SELECT code, number, no_score_basis, p_red FROM predictions WHERE kind = 'backtest' AND season = ? ORDER BY match_time", [S]);
+    const scrim = rows.filter((r) => r.code === "SCRIM");
+    expect(scrim).toHaveLength(2);
+    expect(scrim.every((r) => r.no_score_basis === 1)).toBe(true);
+    // The 300–5 blowout taught the book nothing: SCRIM Q2 starts from the same ratings as Q1.
+    // Once rated matches exist, calls carry predicted scores again.
+    expect(rows.filter((r) => r.code === "PRIOR").at(-1)!.no_score_basis).toBe(0);
+    const again = await all<any>("SELECT p_red FROM predictions WHERE kind = 'backtest' AND code = 'PRIOR' ORDER BY match_time");
+    await run("DELETE FROM matches WHERE code = 'SCRIM'");
+    await backtest(SEASON_NUMBERS, () => {}, { write: [S] });
+    const without = await all<any>("SELECT p_red FROM predictions WHERE kind = 'backtest' AND code = 'PRIOR' ORDER BY match_time");
+    expect(without).toEqual(again);
   });
 });
