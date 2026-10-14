@@ -1,12 +1,15 @@
 // Prediction UI shared by every surface. Rule: a prediction is never shown
 // without its confidence tier, and never presented as a fact.
+import { Suspense, lazy, useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
-import { Check, CircleDashed, Gauge, PlayCircle, ShieldCheck, X } from "lucide-react";
+import { Check, ChevronDown, CircleDashed, Gauge, PlayCircle, ShieldCheck, Video, X } from "lucide-react";
 import type { ConfidenceTier, Factor, MatchPredictionView, MatchView } from "../shared/api";
 import { cn } from "./cn";
 import { Tooltip, TooltipContent, TooltipTrigger } from "./ui/overlay";
 import { matchTime, oddsPct } from "../lib/format";
-import { VideoButton } from "./VideoDialog";
+import { useVideoLinkCount } from "./MatchVideo";
+
+const MatchDetails = lazy(() => import("./MatchDetails").then((x) => ({ default: x.MatchDetails })));
 import { useCalibration } from "../lib/calibration";
 
 const TIER: Record<ConfidenceTier, { label: string; cls: string; icon: typeof Gauge; blurb: string }> = {
@@ -86,7 +89,7 @@ export function CalibrationLine({ pRed, className, compact }: { pRed: number; cl
   );
 }
 
-const KIND_LABEL: Record<MatchPredictionView["kind"], string> = {
+export const KIND_LABEL: Record<MatchPredictionView["kind"], string> = {
   live: "Called before the match",
   backtest: "Predicted using only the matches before it (replayed afterward; not a live call)",
   now: "Prediction from today's ratings",
@@ -100,17 +103,28 @@ function TeamChip({ n, season, highlight, sub }: { n: number; season: number; hi
   );
 }
 
-/** One match: lineups, scores (or time), and its prediction with honest labelling. */
-export function MatchRow({ m, highlight, showEvent }: { m: MatchView; highlight?: number; showEvent?: string }) {
+/** One match: lineups, scores (or time), and its prediction with honest labelling.
+ *  Click the row (anywhere but a link or button) to open its details in place. */
+export function MatchRow({ m, highlight, showEvent, open, onToggle }: { m: MatchView; highlight?: number; showEvent?: string; open?: boolean; onToggle?: () => void }) {
+  const videos = useVideoLinkCount(`${m.season}:${m.code}:${m.level}:${m.series}:${m.number}`);
+  const detailsId = `match-${m.code}-${m.key.replace(/:/g, "-")}`;
   const p = m.prediction;
   const redWon = m.played && m.red.score && m.blue.score ? m.red.score.total > m.blue.score.total : null;
   const tie = m.played && m.red.score && m.blue.score && m.red.score.total === m.blue.score.total;
   const called = p && m.played && !tie ? (p.pRed > 0.5) === redWon : null;
   const teamSide = highlight ? (m.red.teams.some((t) => t.number === highlight) ? "red" : m.blue.teams.some((t) => t.number === highlight) ? "blue" : null) : null;
   return (
-    <div className="density-row grid grid-cols-[3.5rem_1fr_auto] items-center gap-3 border-b border-border px-3 py-2.5 last:border-b-0 hover:bg-text-base/[0.03] sm:grid-cols-[4rem_1fr_1fr_9rem]">
+    <div className="border-b border-border last:border-b-0" data-match={m.key}>
+    <div
+      className={cn("density-row grid grid-cols-[3.5rem_1fr_auto] items-center gap-3 px-3 py-2.5 hover:bg-text-base/[0.03] sm:grid-cols-[4rem_1fr_1fr_9rem]", onToggle && "cursor-pointer", open && "bg-text-base/[0.03]")}
+      onClick={onToggle ? (e) => { if (!(e.target as HTMLElement).closest("a, button, input")) onToggle(); } : undefined}
+    >
       <div className="min-w-0">
-        <p className="font-mono text-sm font-semibold">{m.label}</p>
+        {onToggle ? (
+          <button type="button" onClick={onToggle} aria-expanded={!!open} aria-controls={detailsId} aria-label={`${m.label} details`} className="flex items-center gap-0.5 rounded font-mono text-sm font-semibold outline-none focus-visible:ring-2 focus-visible:ring-ring/60">
+            {m.label}<ChevronDown className={cn("size-3.5 text-text-muted transition-transform", open && "rotate-180")} />
+          </button>
+        ) : <p className="font-mono text-sm font-semibold">{m.label}</p>}
         <p className="truncate text-[11px] text-text-muted">{showEvent ?? matchTime(m.time)}</p>
       </div>
       <div className="col-span-1 grid grid-cols-[1fr_auto_1fr] items-center gap-2 sm:col-span-2">
@@ -163,18 +177,41 @@ export function MatchRow({ m, highlight, showEvent }: { m: MatchView; highlight?
           {p?.kind === "backtest" && <span title={KIND_LABEL.backtest}>predicted</span>}
           {p?.kind === "live" && m.played && <span title={KIND_LABEL.live}>pre-match</span>}
           {m.video && <a href={m.video} target="_blank" rel="noreferrer noopener" className="inline-flex items-center hover:text-text-base" aria-label="Official match video"><PlayCircle className="size-3.5" /></a>}
-          <VideoButton matchRef={`${m.season}:${m.code}:${m.level}:${m.series}:${m.number}`} label={`${m.code} ${m.label}`} />
+          {videos > 0 && <span className="inline-flex items-center gap-0.5 text-accent" title={`${videos} saved video link${videos > 1 ? "s" : ""}`}><Video className="size-3.5" /><span className="text-[10px]">{videos}</span></span>}
         </div>
       </div>
+    </div>
+    {open && (
+      <div id={detailsId}>
+        <Suspense fallback={<div className="border-t border-border p-4"><div className="skeleton h-40 rounded-xl" /></div>}>
+          <MatchDetails m={m} eventName={showEvent} />
+        </Suspense>
+      </div>
+    )}
     </div>
   );
 }
 
-export function MatchList({ matches, highlight, empty, eventNames }: { matches: MatchView[]; highlight?: number; empty?: string; eventNames?: Record<string, string> }) {
+/** Matches, each opening its details in place. `initialOpen` (a match key,
+ *  e.g. from ?match=) opens that one and scrolls it into view. */
+export function MatchList({ matches, highlight, empty, eventNames, initialOpen }: { matches: MatchView[]; highlight?: number; empty?: string; eventNames?: Record<string, string>; initialOpen?: string | null }) {
+  const id = (m: MatchView) => `${m.code}:${m.key}`;
+  const [open, setOpen] = useState<Set<string>>(() => new Set());
+  const box = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!initialOpen) return;
+    const m = matches.find((x) => x.key === initialOpen);
+    if (!m) return;
+    setOpen((s) => (s.has(id(m)) ? s : new Set(s).add(id(m))));
+    requestAnimationFrame(() => box.current?.querySelector(`[data-match="${CSS.escape(m.key)}"]`)?.scrollIntoView({ block: "start", behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth" }));
+    // Only when the requested match changes (not on every refresh of the list).
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [initialOpen, matches.length]);
   if (!matches.length) return <p className="rounded-xl border border-dashed border-border px-4 py-8 text-center text-sm text-text-muted">{empty ?? "No matches yet."}</p>;
+  const toggle = (k: string) => setOpen((s) => { const n = new Set(s); if (n.has(k)) n.delete(k); else n.add(k); return n; });
   return (
-    <div className="overflow-hidden rounded-xl border border-border bg-card">
-      {matches.map((m) => <MatchRow key={`${m.code}:${m.key}`} m={m} highlight={highlight} showEvent={eventNames?.[m.code]} />)}
+    <div ref={box} className="overflow-hidden rounded-xl border border-border bg-card">
+      {matches.map((m) => <MatchRow key={id(m)} m={m} highlight={highlight} showEvent={eventNames?.[m.code]} open={open.has(id(m))} onToggle={() => toggle(id(m))} />)}
     </div>
   );
 }
