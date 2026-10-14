@@ -18,6 +18,9 @@ describe("favicons", () => {
     for (let i = 0; i < n; i++) expect(isPng(ico.subarray(ico.readUInt32LE(6 + 16 * i + 12)))).toBe(true);
     expect(isPng(pub("favicon-48.png")) && pngSize(pub("favicon-48.png"))).toEqual([48, 48]);
     expect(isPng(pub("apple-touch-icon.png")) && pngSize(pub("apple-touch-icon.png"))).toEqual([180, 180]);
+    // The in-app logo and the structured-data logo come from the same icon.
+    expect(pngSize(pub("logo.png"))).toEqual([96, 96]);
+    expect(pngSize(pub("logo-512.png"))).toEqual([512, 512]);
     // The installed app uses the same icon.
     const manifest = JSON.parse(readFileSync(join(process.cwd(), "public", "manifest.webmanifest"), "utf8"));
     for (const { src, sizes } of manifest.icons) {

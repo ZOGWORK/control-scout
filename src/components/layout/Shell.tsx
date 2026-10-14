@@ -34,7 +34,7 @@ const SECTIONS: { title: string | null; items: NavItem[] }[] = [
 ];
 
 export function BrandMark({ className }: { className?: string }) {
-  return <img src="/logo.svg" alt="" aria-hidden className={cn("size-7 shrink-0", className)} />;
+  return <img src="/logo.png" alt="" aria-hidden className={cn("size-7 shrink-0", className)} />;
 }
 
 function NavRow({ item, collapsed, onNavigate }: { item: NavItem; collapsed?: boolean; onNavigate?: () => void }) {

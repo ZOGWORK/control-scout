@@ -22,7 +22,7 @@ function notify(id: string, title: string, body: string, url: string) {
   if (sent().has(id)) return;
   remember(id);
   if (typeof Notification !== "undefined" && Notification.permission === "granted" && document.visibilityState !== "visible") {
-    const n = new Notification(title, { body, tag: id, icon: "/logo.svg" });
+    const n = new Notification(title, { body, tag: id, icon: "/icon-192.png" });
     n.onclick = () => { window.focus(); location.assign(url); };
   } else {
     toast(title, { description: body, action: { label: "Open", onClick: () => location.assign(url) } });
