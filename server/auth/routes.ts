@@ -9,8 +9,9 @@ import { env } from "../env.js";
 import { cleanValue, mergeValue, PERSONAL_KEYS, type PersonalKey, type Stamped } from "../../src/shared/personal.js";
 import { currentUser, deleteUser, endSession, readCookie, startSession, token, userForIdentity, type User } from "./session.js";
 import { emailEnabled, startEmailSignIn, verifyEmailCode } from "./email.js";
+import { CP_PROVIDER, controlPointEnabled, linkedAccountId, linkToSharedAccount, logFailure, provenEmailFor, redeemHandoff } from "./controlPoint.js";
 
-export const authProviders = () => ({ email: emailEnabled(), google: !!(env.googleClientId && env.googleClientSecret) });
+export const authProviders = () => ({ email: emailEnabled(), google: !!(env.googleClientId && env.googleClientSecret), controlPoint: controlPointEnabled() });
 
 const h = (fn: (req: Request, res: Response) => Promise<unknown>) => (req: Request, res: Response, next: NextFunction) => {
   fn(req, res).then((b) => { if (!res.headersSent && b !== undefined) res.json(b); }).catch(next);
@@ -42,7 +43,14 @@ export function authRouter(): Router {
 
   r.get("/me", h(async (req) => {
     const u = await currentUser(req);
-    return { user: u ? publicUser(u) : null, providers: authProviders() };
+    if (!u) return { user: null, providers: authProviders() };
+    let linked = controlPointEnabled() ? await linkedAccountId(u.id) : null;
+    // Signed in before linking worked (or Control Point was briefly down): link now.
+    if (controlPointEnabled() && linked == null) {
+      const proven = await provenEmailFor(u);
+      if (proven) linked = (await linkToSharedAccount(u, "scout-email-code", proven))?.id ?? null;
+    }
+    return { user: { ...publicUser(u), controlPointLinked: linked != null }, providers: authProviders() };
   }));
 
   r.post("/email/start", ipLimit(20, 15 * 60_000), h(async (req, res) => {
@@ -66,8 +74,9 @@ export function authRouter(): Router {
       return;
     }
     const user = await userForIdentity("email", out.email, out.email);
+    const linked = await linkToSharedAccount(user, "scout-email-code", out.email); // the shared account (best effort, 3 s max)
     await startSession(res, user, req.get("user-agent"));
-    return { user: publicUser(user) };
+    return { user: { ...publicUser(user), controlPointLinked: linked != null || (controlPointEnabled() && (await linkedAccountId(user.id)) != null) } };
   }));
 
   r.post("/logout", h(async (req, res) => { await endSession(req, res); return { ok: true }; }));
@@ -96,6 +105,30 @@ export function authRouter(): Router {
     const info = tok?.access_token ? await fetch("https://openidconnect.googleapis.com/v1/userinfo", { headers: { Authorization: `Bearer ${tok.access_token}` } }).then((x) => x.json()).catch(() => null) : null;
     if (!info?.sub || !info.email || info.email_verified === false) { res.redirect("/settings?signin=failed"); return; }
     const user = await userForIdentity("google", String(info.sub), String(info.email).toLowerCase(), info.name ?? null);
+    await linkToSharedAccount(user, "google", String(info.email).toLowerCase());
+    await startSession(res, user, req.get("user-agent"));
+    res.redirect("/my-team?signin=ok");
+  }));
+
+  // --- Continue with Control Point (docs/shared-accounts.md) -----------------
+  // Control Point proves who you are with a single-use code; Scout redeems it
+  // server to server. Off unless the CONTROL_POINT_* settings are present.
+  r.get("/control-point/start", (req, res) => {
+    if (!controlPointEnabled()) { res.status(503).json({ error: "Control Point sign-in isn't set up on this server." }); return; }
+    const home = new URL(env.appUrl);
+    if (req.hostname !== home.hostname) { res.redirect(302, `${home.origin}${req.originalUrl}`); return; }
+    const state = token(24); // base64url: 32 characters of [A-Za-z0-9_-]
+    res.cookie("cs_cp_state", state, { httpOnly: true, sameSite: "lax", secure: env.production, path: "/api/auth/control-point", maxAge: 10 * 60_000 });
+    res.redirect(`${env.controlPointPublicUrl!.replace(/\/$/, "")}/api/auth/scout/start?${new URLSearchParams({ state })}`);
+  });
+  r.get("/control-point/callback", h(async (req, res) => {
+    const state = readCookie(req, "cs_cp_state");
+    res.clearCookie("cs_cp_state", { path: "/api/auth/control-point" });
+    const code = typeof req.query.code === "string" ? req.query.code : "";
+    if (!controlPointEnabled() || !state || state !== req.query.state || !code) { res.redirect("/settings?signin=failed"); return; }
+    const account = await redeemHandoff(code, state).catch((e) => { logFailure("redeem", e); return null; });
+    if (!account) { res.redirect("/settings?signin=failed"); return; }
+    const user = await userForIdentity(CP_PROVIDER, String(account.id), account.email.toLowerCase(), account.displayName);
     await startSession(res, user, req.get("user-agent"));
     res.redirect("/my-team?signin=ok");
   }));

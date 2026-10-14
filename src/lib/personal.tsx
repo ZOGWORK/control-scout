@@ -7,14 +7,15 @@ import { apiFetch } from "./api";
 import { cleanValue, EMPTY_STATE, PERSONAL_KEYS, type PersonalKey, type PersonalState, type Stamped } from "../shared/personal";
 import { clearLocalScouting, exportLocalScouting, importLocalScouting, localScoutEntries } from "./scouting";
 
-export interface AccountUser { id: number; email: string | null; displayName: string | null; createdAt: string }
+export interface AccountUser { id: number; email: string | null; displayName: string | null; createdAt: string; /** Tied to the shared account Control Point keeps (docs/shared-accounts.md). */ controlPointLinked?: boolean }
+export interface AuthProviders { email: boolean; google: boolean; controlPoint?: boolean }
 export type SyncStatus = "local" | "synced" | "syncing" | "offline" | "error";
 
 interface PersonalApi {
   state: PersonalState;
   user: AccountUser | null;
   /** Null until /api/auth/me has answered. */
-  providers: { email: boolean; google: boolean } | null;
+  providers: AuthProviders | null;
   sync: SyncStatus;
   /** Signed in AND this device's data confirmed as the account's: safe to sync scouting. */
   syncReady: boolean;
@@ -197,7 +198,7 @@ export function PersonalProvider({ children }: { children: ReactNode }) {
   }, [apply, migrate, pull, push]);
 
   useEffect(() => {
-    apiFetch<{ user: AccountUser | null; providers: { email: boolean; google: boolean } }>("/api/auth/me")
+    apiFetch<{ user: AccountUser | null; providers: AuthProviders }>("/api/auth/me")
       .then((r) => { setProviders(r.providers); if (r.user) connect(r.user); })
       .catch(() => setProviders({ email: false, google: false }));
     const retry = () => {
