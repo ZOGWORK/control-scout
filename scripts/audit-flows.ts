@@ -167,6 +167,24 @@ const flows: Flow[] = [
     },
   },
   {
+    name: "Top-bar sign-in: on every page, opens in place, no pop-up",
+    async run(page) {
+      for (const path of ["/", "/events", "/teams/18360"]) {
+        await page.goto(`${BASE}${path}`, { waitUntil: "networkidle" });
+        await page.getByRole("banner").getByRole("button", { name: "Sign in", exact: true }).waitFor({ timeout: 10_000 });
+      }
+      await page.getByRole("button", { name: "Sign in", exact: true }).click();
+      const panel = page.getByRole("region", { name: "Sign in" });
+      await panel.waitFor();
+      assert(!(await page.getByRole("dialog").count()), "sign-in opened a dialog");
+      const text = await panel.innerText();
+      assert(/Control Point/.test(text), "panel doesn't mention Control Point accounts");
+      await page.keyboard.press("Escape");
+      assert(!(await panel.count()), "Esc didn't close the panel");
+      return "Sign in button in the top bar on /, /events and a team page; panel opens in place (no dialog), mentions Control Point, Esc closes";
+    },
+  },
+  {
     name: "Video: in-app recording stays on the device; YouTube links embed",
     async run(page) {
       const uploads: string[] = [];

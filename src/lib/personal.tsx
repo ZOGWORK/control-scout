@@ -7,7 +7,9 @@ import { apiFetch } from "./api";
 import { cleanValue, EMPTY_STATE, PERSONAL_KEYS, type PersonalKey, type PersonalState, type Stamped } from "../shared/personal";
 import { clearLocalScouting, exportLocalScouting, importLocalScouting, localScoutEntries } from "./scouting";
 
-export interface AccountUser { id: number; email: string | null; displayName: string | null; createdAt: string; /** Tied to the shared account Control Point keeps (docs/shared-accounts.md). */ controlPointLinked?: boolean }
+export interface AccountUser { id: number; email: string | null; displayName: string | null; createdAt: string; /** Tied to the shared account Control Point keeps (docs/shared-accounts.md). */ controlPointLinked?: boolean;
+  /** The signed-in owner's Control Point side: whether they're a member there, and their teams. */
+  controlPoint?: { member: boolean; teams: { teamNumber: number | null; name: string }[]; url: string } | null }
 export interface AuthProviders { email: boolean; google: boolean; controlPoint?: boolean }
 export type SyncStatus = "local" | "synced" | "syncing" | "offline" | "error";
 

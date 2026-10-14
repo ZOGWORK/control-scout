@@ -15,7 +15,7 @@ let base = "", cpBase = "";
 const inbox = new Map<string, string>();
 
 // --- stub Control Point -----------------------------------------------------
-const accounts = new Map<string, { id: number; email: string; displayName: string | null; createdAt: string; controlPoint: { member: boolean; teams: never[] } }>();
+const accounts = new Map<string, { id: number; email: string; displayName: string | null; createdAt: string; controlPoint: { member: boolean; teams: { teamNumber: number | null; name: string }[] } }>();
 const handoffs = new Map<string, { email: string; state: string; used: boolean }>();
 const resolveCalls: { email: string; verifiedBy: string }[] = [];
 let cpDown = false;
@@ -108,6 +108,20 @@ describe("shared accounts", () => {
     expect(m.user.controlPointLinked).toBe(true);
     const ids = await all<any>("SELECT provider, subject FROM identities WHERE provider = 'control-point'");
     expect(ids).toContainEqual({ provider: "control-point", subject: String(accounts.get("ada@example.com")!.id) });
+  });
+
+  it("tells the signed-in owner (only) about their Control Point membership and teams", async () => {
+    const a = accountFor("lin@example.com");
+    a.controlPoint = { member: true, teams: [{ teamNumber: 4215, name: "Hypnotic Robotics" }] };
+    const c = client();
+    const r = await c.signIn("lin@example.com");
+    expect(r.status).toBe(200);
+    expect((await r.json()).user.controlPoint).toMatchObject({ member: true, teams: [{ teamNumber: 4215, name: "Hypnotic Robotics" }] });
+    const m = await me(c);
+    expect(m.user.controlPoint.member).toBe(true);
+    expect(typeof m.user.controlPoint.url).toBe("string");
+    // Signed out: nothing about any account.
+    expect((await me(client())).user).toBeNull();
   });
 
   it("never blocks sign-in when Control Point is down, and links on the next /me", async () => {
