@@ -1,6 +1,6 @@
 // Renders public/og-image.png (1200×630), the link-preview card every page
 // points og:image / twitter:image at. Same look as the site: graphite, gold,
-// the hexagon mark, Space Grotesk + Inter. Re-run after a brand change:
+// the brand icon, Space Grotesk + Inter. Re-run after a brand change:
 //   npx playwright install chromium   (once per machine; on Linux: --with-deps)
 //   npx tsx scripts/og-image.ts
 import { chromium } from "playwright";
@@ -9,7 +9,8 @@ import { join } from "node:path";
 
 const pub = join(process.cwd(), "public");
 const font = (f: string) => `data:font/woff2;base64,${readFileSync(join(pub, "fonts", f)).toString("base64")}`;
-const logo = readFileSync(join(pub, "logo.svg"), "utf8");
+// The brand icon (run scripts/favicons.ts first: it writes logo-512.png from brand/favicon-master.png).
+const logo = `<img alt="" src="data:image/png;base64,${readFileSync(join(pub, "logo-512.png")).toString("base64")}" />`;
 
 const html = `<!doctype html><html><head><style>
 @font-face { font-family: SG; src: url(${font("SpaceGrotesk-700.woff2")}); font-weight: 700; }
@@ -24,7 +25,7 @@ body { width: 1200px; height: 630px; overflow: hidden; background: #0a0a0b; colo
 .bar { position: absolute; top: 0; left: 0; right: 0; height: 8px; background: #ffc700; }
 .wrap { position: absolute; inset: 72px 80px; display: flex; flex-direction: column; }
 .brand { display: flex; align-items: center; gap: 22px; }
-.brand svg { width: 84px; height: 84px; }
+.brand img { width: 84px; height: 84px; }
 .name { font-family: SG; font-weight: 700; font-size: 44px; letter-spacing: -.01em; }
 .name small { display: block; font-family: Inter; font-weight: 500; font-size: 20px; color: #a1a1aa; letter-spacing: .14em; text-transform: uppercase; margin-top: 4px; }
 h1 { font-family: SG; font-weight: 700; font-size: 76px; line-height: 1.02; letter-spacing: -.02em; margin-top: 56px; max-width: 980px; }
