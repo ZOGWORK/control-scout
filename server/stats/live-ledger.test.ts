@@ -143,3 +143,20 @@ describe("live prediction ledger", () => {
     expect(late.outcome).toBeNull();
   });
 });
+
+describe("live calls remember their scoring basis", () => {
+  it("a call made after rated matches this season has a scoring basis", async () => {
+    await logLivePredictions();
+    expect((await ledger())[0].no_score_basis).toBe(0);
+  });
+  it("a call made when the season's only results are scrimmages (unrated) is flagged, and keeps the flag", async () => {
+    await run("UPDATE events SET type = 'Scrimmage' WHERE season = ? AND code = 'PRIOR'", [S]);
+    resetForecasters();
+    await logLivePredictions();
+    expect((await ledger())[0].no_score_basis).toBe(1);
+    const { matchViews } = await import("../api/matches");
+    const v = (await matchViews({ season: S, code: "LIVE" })).find((m) => m.key === "qual:0:1");
+    expect(v?.prediction?.kind).toBe("live");
+    expect(v?.prediction?.noScoreBasis).toBe(true);
+  });
+});

@@ -260,6 +260,14 @@ CREATE INDEX match_teams_team_match ON match_teams (team, season, code, level, s
 DROP INDEX IF EXISTS match_teams_team;
 `,
   },
+  {
+    version: 6,
+    name: "live calls remember whether they had a scoring basis",
+    sql: `
+-- 1 = logged before the season had rated matches: win odds only, the predicted score means nothing.
+ALTER TABLE predictions ADD COLUMN no_score_basis INTEGER NOT NULL DEFAULT 0;
+`,
+  },
 ];
 
 export type Db = Client;

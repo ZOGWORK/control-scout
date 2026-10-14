@@ -110,24 +110,33 @@ function MatchOdds({ d, team, onTab }: { d: EventDetail; team: number | null; on
   const unplayed = d.matches.filter((m) => !m.played && mine(m));
   const predicted = unplayed.filter((m) => m.prediction);
   const played = d.matches.filter((m) => m.played && mine(m));
-  const over = d.event.status === "finished";
+  const fullLineup = (m: MatchView) => [m.red, m.blue].every((a) => a.teams.filter((t) => t.onField).length === 2);
+  const ended = d.event.status === "finished";
   const who = team ? `${team}'s` : "the";
   // "all 12 of the matches" / "10 of 12 of 4215's matches" / "4215's only match"
   const scope = predicted.length === unplayed.length
     ? (unplayed.length === 1 ? (team ? `${who} only match` : "the only match") : `all ${unplayed.length} of ${who} matches`)
     : `${predicted.length} of ${who} ${unplayed.length} matches`;
+  const seeHow = <button type="button" onClick={() => onTab("matches")} className="underline">See how the predictions did</button>;
+  // The event's dates have passed: never promise a list. Unplayed matches there are missing results, not upcoming.
+  const message: ReactNode = ended
+    ? (unplayed.length
+      ? <>This event has ended. {unplayed.length} scheduled {unplayed.length === 1 ? "match has" : "matches have"} no result yet, so {unplayed.length === 1 ? "it isn't" : "they aren't"} listed here as upcoming. {played.length > 0 && seeHow}</>
+      : <>All of {who} matches have been played. {seeHow}.</>)
+    : predicted.length ? (predicted.some((m) => m.prediction?.noScoreBasis)
+      ? `Win odds for ${scope} still to play. Predicted scores appear once this season has rated matches (scrimmages aren't rated), so until then the odds lean on last season.`
+      : `Win odds and predicted scores for ${scope} still to play, from current ratings.`)
+      : played.length && !unplayed.length ? <>All of {who} matches have been played. {seeHow}.</>
+        : unplayed.length
+          ? (unplayed.some(fullLineup)
+            ? "Predictions aren't available right now (the ratings are still loading). Try again in a minute."
+            : "The scheduled matches don't have full 2-against-2 lineups yet, so there's nothing to predict until they do.")
+          : "No schedule published yet. Every match gets win odds and a predicted score as soon as it is (usually the morning of the event).";
   return (
     <section aria-label="Match predictions">
       <h2 className="mb-1 font-display text-lg font-semibold text-foreground">Match predictions</h2>
-      <p className="mb-3 text-sm text-muted-foreground">
-        {predicted.length ? (predicted.some((m) => m.prediction?.noScoreBasis)
-          ? `Win odds for ${scope} still to play. Predicted scores appear once this season has rated matches (scrimmages aren't rated), so until then the odds lean on last season.`
-          : `Win odds and predicted scores for ${scope} still to play, from current ratings.`)
-          : over || (played.length && !unplayed.length) ? <>All of {who} matches have been played. <button type="button" onClick={() => onTab("matches")} className="underline">See how the predictions did</button>.</>
-            : unplayed.length ? "The scheduled matches don't have full 2-against-2 lineups yet, so there's nothing to predict until they do."
-              : "No schedule published yet. Every match gets win odds and a predicted score as soon as it is (usually the morning of the event)."}
-      </p>
-      {!over && unplayed.length > 0 && <MatchList matches={unplayed} highlight={team ?? undefined} />}
+      <p className="mb-3 text-sm text-muted-foreground">{message}</p>
+      {!ended && unplayed.length > 0 && <MatchList matches={unplayed} highlight={team ?? undefined} />}
     </section>
   );
 }
