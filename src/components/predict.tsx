@@ -170,10 +170,11 @@ export function MatchRow({ m, highlight, showEvent }: { m: MatchView; highlight?
   );
 }
 
-export function MatchList({ matches, highlight, empty, eventNames }: { matches: MatchView[]; highlight?: number; empty?: string; eventNames?: Record<string, string> }) {
+/** `split`: at 1700px+ the rows flow into two columns, in time order (down the left, then the right). */
+export function MatchList({ matches, highlight, empty, eventNames, split }: { matches: MatchView[]; highlight?: number; empty?: string; eventNames?: Record<string, string>; split?: boolean }) {
   if (!matches.length) return <p className="rounded-xl border border-dashed border-border px-4 py-8 text-center text-sm text-text-muted">{empty ?? "No matches yet."}</p>;
   return (
-    <div className="overflow-hidden rounded-xl border border-border bg-card">
+    <div className={cn("overflow-hidden rounded-xl border border-border bg-card", split && "min-[1700px]:columns-2 min-[1700px]:gap-0 min-[1700px]:[column-rule:1px_solid_var(--color-border)] [&>*]:break-inside-avoid")}>
       {matches.map((m) => <MatchRow key={`${m.code}:${m.key}`} m={m} highlight={highlight} showEvent={eventNames?.[m.code]} />)}
     </div>
   );
