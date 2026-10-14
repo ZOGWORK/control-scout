@@ -28,7 +28,7 @@ const flows: Flow[] = [
     async run(page) {
       await page.goto(`${BASE}/`, { waitUntil: "networkidle" });
       await page.keyboard.press("Control+k");
-      await page.getByRole("dialog").waitFor();
+      await page.getByRole("combobox", { name: "Search teams, events and matches" }).waitFor({ state: "visible" });
       await page.keyboard.type("X Drvie", { delay: 40 });
       await page.getByRole("option", { name: /16321 X Drive/ }).waitFor({ timeout: 10_000 });
       await page.keyboard.press("Enter");
@@ -39,7 +39,7 @@ const flows: Flow[] = [
       const searched: string[] = [];
       page.on("request", (r) => { if (r.url().includes("/api/search")) searched.push(decodeURIComponent(r.url())); });
       await page.keyboard.press("Control+k");
-      await page.getByRole("dialog").waitFor();
+      await page.getByRole("combobox", { name: "Search teams, events and matches" }).waitFor({ state: "visible" });
       await page.keyboard.type("16", { delay: 40 });
       await page.waitForTimeout(600);
       assert(searched.some((u) => u.includes("prefer=team:16321")), `search didn't send the tracked team: ${searched.at(-1) ?? "no request"}`);
@@ -121,7 +121,7 @@ const flows: Flow[] = [
       await page.getByRole("button", { name: /New entry/ }).click();
       await page.getByLabel("Team", { exact: false }).first().fill("18360");
       await page.getByLabel("Event code").fill("AUBRQ2");
-      await page.getByLabel("Match").fill("Q1");
+      await page.getByLabel("Match", { exact: true }).fill("Q1");
       const plus = page.getByRole("button", { name: /plus one/ }).first();
       if (await plus.count()) await plus.click();
       await page.locator("#notes").fill("Audit entry: fast intake");
@@ -200,7 +200,7 @@ const flows: Flow[] = [
         await page.getByText("Control Scout").first().waitFor({ timeout: 15_000 });
         // A page never opened online: its code chunk must come from the precache.
         await page.goto(`${PROD}/methodology`, { waitUntil: "domcontentloaded" });
-        await page.getByRole("heading", { name: "How it works" }).waitFor({ timeout: 15_000 });
+        await page.getByRole("heading", { name: /How Control Scout predictions work/ }).waitFor({ timeout: 15_000 });
         // A prediction with no server: from the lite pack.
         await page.goto(`${PROD}/predict?red=18360,24089&blue=14380,23636&season=2025`, { waitUntil: "domcontentloaded" });
         await page.getByText(/to win/).first().waitFor({ timeout: 20_000 });
