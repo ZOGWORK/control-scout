@@ -84,15 +84,51 @@ function Event({ d }: { d: EventDetail }) {
         <TabsContent value="playoffs" className="mt-5"><Playoffs d={d} /></TabsContent>
         <TabsContent value="awards" className="mt-5"><Awards d={d} nameOf={nameOf} /></TabsContent>
         <TabsContent value="odds" className="mt-5">
-          {d.forecastUnsupported ? <EmptyState icon={Trophy} title="No advancement odds for this event" description={d.forecastUnsupported} /> : (
-            <>
-              <TeamPicker field={d.field} value={teamParam} onChange={setTeam} />
+          {/* Every event with a schedule gets match predictions; advancement odds only where teams advance. */}
+          <TeamPicker field={d.field} value={teamParam} onChange={setTeam} />
+          {d.forecastUnsupported ? (
+            <p className="mb-6 flex items-start gap-2 rounded-xl border border-border bg-card px-4 py-3 text-sm text-muted-foreground">
+              <Trophy className="mt-0.5 size-4 shrink-0" />
+              <span>{d.forecastUnsupported} Every scheduled match below still gets win odds and a predicted score.</span>
+            </p>
+          ) : (
+            <section aria-label="Advancement odds" className="mb-10">
+              <h2 className="mb-3 font-display text-lg font-semibold text-foreground">Advancement odds</h2>
               <AdvancementView season={e.season} code={e.code} team={teamParam} nameOf={nameOf} onPickTeam={setTeam} />
-            </>
+            </section>
           )}
+          <MatchOdds d={d} team={teamParam} onTab={setTab} />
         </TabsContent>
       </Tabs>
     </div>
+  );
+}
+
+/** Win odds and predicted scores for the matches still to play (one team's, when a team is picked). */
+function MatchOdds({ d, team, onTab }: { d: EventDetail; team: number | null; onTab: (t: string) => void }) {
+  const mine = (m: MatchView) => !team || [...m.red.teams, ...m.blue.teams].some((t) => t.number === team);
+  const unplayed = d.matches.filter((m) => !m.played && mine(m));
+  const predicted = unplayed.filter((m) => m.prediction);
+  const played = d.matches.filter((m) => m.played && mine(m));
+  const over = d.event.status === "finished";
+  const who = team ? `${team}'s` : "the";
+  // "all 12 of the matches" / "10 of 12 of 4215's matches" / "4215's only match"
+  const scope = predicted.length === unplayed.length
+    ? (unplayed.length === 1 ? (team ? `${who} only match` : "the only match") : `all ${unplayed.length} of ${who} matches`)
+    : `${predicted.length} of ${who} ${unplayed.length} matches`;
+  return (
+    <section aria-label="Match predictions">
+      <h2 className="mb-1 font-display text-lg font-semibold text-foreground">Match predictions</h2>
+      <p className="mb-3 text-sm text-muted-foreground">
+        {predicted.length ? (predicted.some((m) => m.prediction?.noScoreBasis)
+          ? `Win odds for ${scope} still to play. Predicted scores appear once this season has rated matches (scrimmages aren't rated), so until then the odds lean on last season.`
+          : `Win odds and predicted scores for ${scope} still to play, from current ratings.`)
+          : over || (played.length && !unplayed.length) ? <>All of {who} matches have been played. <button type="button" onClick={() => onTab("matches")} className="underline">See how the predictions did</button>.</>
+            : unplayed.length ? "The scheduled matches don't have full 2-against-2 lineups yet, so there's nothing to predict until they do."
+              : "No schedule published yet. Every match gets win odds and a predicted score as soon as it is (usually the morning of the event)."}
+      </p>
+      {!over && unplayed.length > 0 && <MatchList matches={unplayed} highlight={team ?? undefined} />}
+    </section>
   );
 }
 
