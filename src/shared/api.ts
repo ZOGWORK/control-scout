@@ -98,6 +98,8 @@ export interface MatchPredictionView {
   kind: "live" | "backtest" | "now";
   predictedAt: string | null;
   factors?: Factor[];
+  /** The season has no rated matches yet: win odds only, the predicted score means nothing. */
+  noScoreBasis?: true;
 }
 
 export interface MatchView {
