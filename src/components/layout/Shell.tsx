@@ -12,7 +12,7 @@ import { cn } from "../cn";
 import { useMeta } from "../../lib/meta";
 import { Sheet, SheetContent, SheetTitle } from "../ui/overlay";
 import { TooltipProvider } from "../ui/overlay";
-import { useSearch } from "./Search";
+import { GlobalSearch } from "./Search";
 import { usePersonal } from "../../lib/personal";
 
 interface NavItem { to: string; label: string; icon: ComponentType<{ className?: string }>; end?: boolean }
@@ -52,7 +52,6 @@ function NavRow({ item, collapsed, onNavigate }: { item: NavItem; collapsed?: bo
 }
 
 function Sidebar({ collapsed, onToggle }: { collapsed: boolean; onToggle: () => void }) {
-  const { open } = useSearch();
   const { user, state } = usePersonal();
   return (
     <aside className={cn("hidden shrink-0 flex-col border-r border-line bg-secondary/60 transition-[width] duration-150 ease-out md:flex", collapsed ? "w-[60px]" : "w-[248px]")}>
@@ -61,11 +60,6 @@ function Sidebar({ collapsed, onToggle }: { collapsed: boolean; onToggle: () => 
           <BrandMark />
           {!collapsed && <span className="truncate font-display text-[15px] font-bold tracking-tight">Control Scout</span>}
         </Link>
-      </div>
-      <div className="px-2 pb-2">
-        <button onClick={open} className={cn("flex h-8 w-full items-center gap-2 rounded-lg border border-line bg-elevated px-2.5 text-xs text-text-muted hover:text-text-base", collapsed && "justify-center px-0")} aria-label="Search">
-          <Search className="size-3.5" />{!collapsed && <><span className="flex-1 text-left">Search</span><kbd className="rounded border border-line px-1 font-mono text-[10px]">⌘K</kbd></>}
-        </button>
       </div>
       <nav className="custom-scrollbar flex-1 space-y-4 overflow-y-auto px-2 py-1" aria-label="Main">
         {SECTIONS.map((s, i) => (
@@ -132,7 +126,6 @@ export function Shell({ children }: { children: ReactNode }) {
   const [collapsed, setCollapsed] = useState(() => { try { return localStorage.getItem("cs-sidebar") === "1"; } catch { return false; } });
   const [more, setMore] = useState(false);
   const mainRef = useRef<HTMLElement>(null);
-  const { open } = useSearch();
   const loc = useLocation();
   const title = TITLES.find(([re]) => re.test(loc.pathname))?.[1] ?? "Home";
   const toggle = () => setCollapsed((c) => { try { localStorage.setItem("cs-sidebar", c ? "0" : "1"); } catch { /* ignore */ } return !c; });
@@ -143,11 +136,10 @@ export function Shell({ children }: { children: ReactNode }) {
           <a href="#main" className="sr-only focus:not-sr-only focus:fixed focus:left-3 focus:top-3 focus:z-[200] focus:rounded-lg focus:bg-accent focus:px-3 focus:py-2 focus:text-accent-ink">Skip to content</a>
           <Sidebar collapsed={collapsed} onToggle={toggle} />
           <div className="flex min-w-0 flex-1 flex-col">
-            <header className="flex h-12 shrink-0 items-center gap-3 border-b border-line px-4 sm:px-6 lg:px-8">
+            <header className="relative z-30 flex h-12 shrink-0 items-center gap-3 border-b border-line px-4 sm:px-6 lg:px-8">
               <Link to="/" className="md:hidden" aria-label="Home"><BrandMark className="size-6" /></Link>
               <p className="truncate text-sm text-text-muted"><span className="hidden sm:inline">Control Scout / </span><span className="text-text-base">{title}</span></p>
-              <div className="flex-1" />
-              <button onClick={open} className="flex h-8 items-center gap-2 rounded-lg border border-line px-2.5 text-xs text-text-muted hover:text-text-base md:hidden" aria-label="Search"><Search className="size-3.5" /> Search</button>
+              <div className="flex flex-1 justify-end md:justify-center"><GlobalSearch /></div>
             </header>
             <div className="relative min-h-0 flex-1">
               <Ambient target={mainRef} />
