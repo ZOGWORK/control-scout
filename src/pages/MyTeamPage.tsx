@@ -64,12 +64,13 @@ function Dashboard({ team }: { team: number }) {
   const when = isCurrent ? "this season" : "that season";
   const setSeason = (s: number) => setSp((x) => { const n = new URLSearchParams(x); if (s === current) n.delete("season"); else n.set("season", String(s)); return n; }, { replace: true });
   const { set } = usePersonal();
-  const [knownSeasons, setKnownSeasons] = useState<number[] | null>(null);
+  // The team's seasons from the last load, so the toggle stays put while another season is fetched.
+  const [known, setKnown] = useState<{ team: number; seasons: number[] } | null>(null);
   const profile = useApi<TeamProfile>(`/api/teams/${team}${qs({ season })}`);
   const matches = useApi<{ matches: MatchView[] }>(`/api/teams/${team}/matches${qs({ season })}`);
-  const loaded = profile.data?.seasons;
-  useEffect(() => { if (loaded?.length) setKnownSeasons(loaded); }, [loaded]);
-  useEffect(() => { setKnownSeasons(null); }, [team]);
+  const loaded = profile.data?.team.number === team ? profile.data.seasons : undefined;
+  useEffect(() => { if (loaded?.length) setKnown({ team, seasons: loaded }); }, [loaded, team]);
+  const knownSeasons = loaded?.length ? loaded : known?.team === team ? known.seasons : null;
   return (
     <div>
       <PageHeader eyebrow="My team" title={<Link to={`/teams/${team}`} className="hover:underline">{team} {profile.data?.team.name ?? ""}</Link>}
