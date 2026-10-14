@@ -15,6 +15,7 @@ import { teamProfile, compareTeams, teamSummaries } from "./api/teams.js";
 import { eventDetail, listEvents, toEventInput } from "./api/events.js";
 import { matchDetail, matchViews } from "./api/matches.js";
 import { trackRecord } from "./api/accuracy.js";
+import { currentWeather } from "./weather.js";
 import { forecasterFor, dataVersion } from "./predict/engine.js";
 import { authRouter, meRouter, authProviders } from "./auth/routes.js";
 import { packsRouter } from "./packs/routes.js";
@@ -134,6 +135,14 @@ export function createApp() {
     await ensureSearchIndex(rebuildSearch);
     const prefer = new Set(String(req.query.prefer ?? "").split(",").filter((k) => /^(team:\d{1,6}|event:\d{4}:[A-Z0-9_-]{2,24})$/i.test(k)).slice(0, 100));
     return { q: String(req.query.q ?? ""), hits: await search(String(req.query.q ?? "").slice(0, 80), Math.min(25, Number(req.query.limit) || 12), prefer) };
+  }));
+
+  // Weather in a team's home town, for the top bar (shown only when you've set your team).
+  api.get("/weather", h(async (req) => {
+    const team = int(req.query.team, "team", { min: 1, max: 999999 });
+    const t = await get<{ city: string | null; state: string | null; country: string | null }>("SELECT city, state, country FROM teams WHERE number = ?", [team]);
+    const w = t ? await currentWeather(t).catch(() => null) : null;
+    return w ? { available: true, ...w } : { available: false };
   }));
 
   api.get("/teams/:number", h(async (req) => {
