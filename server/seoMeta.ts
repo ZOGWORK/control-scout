@@ -116,6 +116,8 @@ async function eventMeta(season: number, code: string): Promise<PageMeta | null>
   const ev: Record<string, unknown> = {
     "@context": "https://schema.org", "@type": "SportsEvent", name: e.name, url: canonicalUrl(`/events/${season}/${code}`),
     sport: "Robotics (FIRST Tech Challenge)", organizer: FTC, description,
+    // Events have no photos of their own: the site's 1200×630 card (Google's optional Event "image").
+    image: [`${canonicalOrigin()}/og-image.png`],
   };
   if (e.start) ev.startDate = e.start;
   if (e.end || e.start) ev.endDate = e.end ?? e.start;
