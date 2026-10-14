@@ -148,7 +148,7 @@ export function MatchRow({ m, highlight, showEvent }: { m: MatchView; highlight?
               </button>
             </TooltipTrigger>
             <TooltipContent className="max-w-72">
-              {KIND_LABEL[p.kind]} · {p.noScoreBasis ? "no predicted score until this season has rated matches" : `predicted ${p.redMean}–${p.blueMean}`} · {p.tier} confidence
+              {KIND_LABEL[p.kind]} · {p.noScoreBasis ? "no predicted score: when this call was made, the season had no rated matches yet" : `predicted ${p.redMean}–${p.blueMean}`} · {p.tier} confidence
               {p.factors?.length ? <span className="mt-1 block opacity-80">{p.factors[0].label}</span> : null}
               <CalibrationTip pRed={p.pRed} />
             </TooltipContent>
