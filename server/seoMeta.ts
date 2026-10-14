@@ -11,12 +11,15 @@ import { canonicalOrigin, canonicalUrl } from "./seo.js";
 export const SITE = "FTC Control Scout";
 const HOME_TITLE = "FTC Control Scout — free FTC scouting & predictions";
 const HOME_DESC = "Search any FTC team, event or match. OPR breakdowns, event-by-event trends, match predictions with a public track record, advancement odds for any team at any event — free, no login.";
-const TAIL = " Free FTC scouting and predictions, no login.";
+// Added in turn to a short description until it reaches 120 characters.
+const TAILS = [" Free FTC scouting and predictions, no login.", " OPR breakdowns, match predictions and advancement odds for every FTC team and event."];
 
 export interface PageMeta {
   title: string;
   description: string;
   type: "website" | "profile";
+  /** The page's canonical path when it differs from the requested one (e.g. an event code's case). */
+  path?: string;
   /** Personal pages (your own data, nothing to index). */
   noindex?: boolean;
 }
@@ -29,7 +32,7 @@ export function bestFit(candidates: string[]): string {
 /** 120–160 characters: pad a short one with the site line, cut a long one at a word. */
 export function fitDescription(s: string): string {
   let d = s.replace(/\s+/g, " ").trim();
-  if (d.length < 120) d = (d + TAIL).trim();
+  for (const t of TAILS) if (d.length < 120) d = (d + t).trim();
   if (d.length > 160) d = d.slice(0, 159).replace(/\s+\S*$/, "") + "…";
   return d;
 }
@@ -82,7 +85,7 @@ async function eventMeta(season: number, code: string): Promise<PageMeta | null>
     `${e.name}, an FTC ${kind}${when ? ` on ${when}` : ""}${place(e.city, e.state) ? ` in ${place(e.city, e.state)}` : ""}.${tail}`,
     `${e.name}, FTC ${kind}${when ? `, ${when}` : ""}.${tail}`,
   ]);
-  return { title: `${e.name} (${seasonInfo(season).label})`, description, type: "website" };
+  return { title: `${e.name} (${seasonInfo(season).label})`, description, type: "website", path: `/events/${season}/${code}` };
 }
 
 /** The head values for a page path (null: no page-specific values; the home ones are used). */
@@ -92,7 +95,8 @@ export async function pageMeta(path: string): Promise<PageMeta> {
     let m: RegExpMatchArray | null;
     if ((m = p.match(/^\/teams\/(\d{1,6})$/))) return await teamMeta(Number(m[1]));
     if ((m = p.match(/^\/events\/(\d{4})\/([A-Za-z0-9_-]{1,40})$/))) {
-      const e = await eventMeta(Number(m[1]), decodeURIComponent(m[2]));
+      // Event codes are case-insensitive in the app (the API uppercases them): same here.
+      const e = await eventMeta(Number(m[1]), decodeURIComponent(m[2]).toUpperCase());
       if (e) return e;
     }
   } catch { /* database not ready: fall through to the generic values */ }
@@ -106,7 +110,7 @@ const esc = (s: string) => s.replace(/&/g, "&amp;").replace(/"/g, "&quot;").repl
 /** The head tags for a page: <title>, description, robots, canonical, Open Graph, Twitter. */
 export function headTags(path: string, m: PageMeta): string {
   const title = m.title ? `${m.title} · ${SITE}` : HOME_TITLE;
-  const url = canonicalUrl(path);
+  const url = canonicalUrl(m.path ?? path);
   const image = `${canonicalOrigin()}/og-image.png`;
   const tags = [
     `<title>${esc(title)}</title>`,

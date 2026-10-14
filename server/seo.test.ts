@@ -26,7 +26,11 @@ beforeAll(async () => {
   await new Promise((r) => server.once("listening", r));
   port = (server.address() as AddressInfo).port;
 });
-afterAll(() => { server?.close(); Object.assign(process.env, saved); });
+afterAll(() => {
+  server?.close();
+  // Restore exactly: a variable that was unset is deleted (assigning undefined would store "undefined").
+  for (const [k, v] of Object.entries(saved)) { if (v === undefined) delete process.env[k]; else process.env[k] = v; }
+});
 
 const get = (path: string, host: string) => fetch(`http://127.0.0.1:${port}${path}`, { redirect: "manual", headers: { "X-Forwarded-Host": host, Host: host } });
 
@@ -39,10 +43,18 @@ describe("canonical redirects", () => {
     }
   });
   it("aliases and trailing slashes → the real path, in one hop (even from www)", async () => {
-    expect((await get("/team/4215", "controlscout.org")).headers.get("location")).toBe("/teams/4215");
-    expect((await get("/teams/4215/", "controlscout.org")).headers.get("location")).toBe("/teams/4215");
-    expect((await get("/event/2025/USNJNOM3?tab=matches", "controlscout.org")).headers.get("location")).toBe("/events/2025/USNJNOM3?tab=matches");
+    expect((await get("/team/4215", "controlscout.org")).headers.get("location")).toBe("https://controlscout.org/teams/4215");
+    expect((await get("/teams/4215/", "controlscout.org")).headers.get("location")).toBe("https://controlscout.org/teams/4215");
+    expect((await get("/event/2025/USNJNOM3?tab=matches", "controlscout.org")).headers.get("location")).toBe("https://controlscout.org/events/2025/USNJNOM3?tab=matches");
+    expect((await get("/index.html", "controlscout.org")).headers.get("location")).toBe("https://controlscout.org/");
     expect((await get("/team/4215/", "www.controlscout.org")).headers.get("location")).toBe("https://controlscout.org/teams/4215");
+  });
+  it("never redirects off the site (//host paths collapse; every redirect is absolute on the apex)", async () => {
+    for (const p of ["//attacker.example/foo/", "///attacker.example/foo", "//attacker.example"]) {
+      const loc = (await get(p, "controlscout.org")).headers.get("location")!;
+      expect(new URL(loc).origin).toBe("https://controlscout.org");
+      expect(loc.startsWith("https://controlscout.org/attacker.example")).toBe(true);
+    }
   });
   it("leaves the apex, the root, loopback and /api alone", async () => {
     expect((await get("/teams/4215", "controlscout.org")).status).toBe(200);
@@ -77,6 +89,10 @@ describe("page head in the first HTML", () => {
     expect(desc.length).toBeGreaterThanOrEqual(120);
     expect(desc.length).toBeLessThanOrEqual(160);
 
+    // Event codes are case-insensitive: a lowercase link gets the event's own preview, with the canonical code.
+    const lower = await renderIndex(file, "/events/2025/usnjnom3");
+    expect(lower).toContain("<title>P1-4 PM Northern League Meet (2025–26) · FTC Control Scout</title>");
+    expect(lower).toContain('<link rel="canonical" href="https://controlscout.org/events/2025/USNJNOM3" />');
     const ev = await renderIndex(file, "/events/2025/USNJNOM3");
     expect(ev).toContain("<title>P1-4 PM Northern League Meet (2025–26) · FTC Control Scout</title>");
     expect(/<meta name="description" content="([^"]*)"/.exec(ev)![1]).toContain("Nov 8, 2025");
@@ -89,7 +105,9 @@ describe("page head in the first HTML", () => {
   });
 
   it("fits descriptions to 120–160 characters", () => {
-    expect(fitDescription("Short.").length).toBeGreaterThanOrEqual(20);
+    const short = fitDescription("Short.");
+    expect(short.length).toBeGreaterThanOrEqual(120);
+    expect(short.length).toBeLessThanOrEqual(160);
     const long = fitDescription("word ".repeat(80));
     expect(long.length).toBeLessThanOrEqual(160);
     expect(long.endsWith("…")).toBe(true);
