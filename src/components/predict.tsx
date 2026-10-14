@@ -116,13 +116,14 @@ export function MatchRow({ m, highlight, showEvent, open, onToggle }: { m: Match
   return (
     <div className="border-b border-border last:border-b-0" data-match={m.key}>
     <div
-      className={cn("density-row grid grid-cols-[3.5rem_1fr_auto] items-center gap-3 px-3 py-2.5 hover:bg-text-base/[0.03] sm:grid-cols-[4rem_1fr_1fr_9rem]", onToggle && "cursor-pointer", open && "bg-text-base/[0.03]")}
+      className={cn("group/row density-row grid grid-cols-[3.5rem_1fr_auto] items-center gap-3 px-3 py-2.5 transition-colors sm:grid-cols-[4rem_1fr_1fr_9rem]",
+        onToggle ? "cursor-pointer hover:bg-accent/[0.07]" : "hover:bg-text-base/[0.03]", open && "bg-accent/[0.05]")}
       onClick={onToggle ? (e) => { if (!(e.target as HTMLElement).closest("a, button, input")) onToggle(); } : undefined}
     >
       <div className="min-w-0">
         {onToggle ? (
-          <button type="button" onClick={onToggle} aria-expanded={!!open} aria-controls={detailsId} aria-label={`${m.label} details`} className="flex items-center gap-0.5 rounded font-mono text-sm font-semibold outline-none focus-visible:ring-2 focus-visible:ring-ring/60">
-            {m.label}<ChevronDown className={cn("size-3.5 text-text-muted transition-transform", open && "rotate-180")} />
+          <button type="button" onClick={onToggle} aria-expanded={!!open} aria-controls={detailsId} aria-label={`${m.label} details`} className={cn("flex items-center gap-0.5 rounded font-mono text-sm font-semibold outline-none transition-colors group-hover/row:text-accent-text focus-visible:ring-2 focus-visible:ring-ring/60", open && "text-accent-text")}>
+            {m.label}<ChevronDown className={cn("size-3.5 text-text-muted transition-transform group-hover/row:text-accent-text", open && "rotate-180 text-accent-text")} />
           </button>
         ) : <p className="font-mono text-sm font-semibold">{m.label}</p>}
         <p className="truncate text-[11px] text-text-muted">{showEvent ?? matchTime(m.time)}</p>
