@@ -179,9 +179,9 @@ async function searchBar(browser: Browser, vp: Viewport) {
   const page = await ctx.newPage();
   await page.goto(BASE + "/", { waitUntil: "networkidle", timeout: 90_000 });
   for (const [q, want] of SEARCHES) {
-    // The visible search control: the home hero button / header field (phones: header button).
-    await page.getByRole("button", { name: /search|Team number|Teams, events/i }).first().click();
+    // The page's one search field: Home's hero field (elsewhere the top-bar field; on phones behind the header button).
     const input = page.getByRole("combobox", { name: "Search teams, events and matches" });
+    if (!(await input.isVisible())) await page.getByRole("button", { name: /^Search$/ }).first().click();
     await input.waitFor({ state: "visible" });
     await input.fill("");
     await input.type(q, { delay: 40 });
