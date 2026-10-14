@@ -81,6 +81,31 @@ https://controlscout.org.
 - **Docker** (for the Mac mini cluster later): `docker build -t control-scout .`
   then `docker run -p 3000:3000 -v scout-data:/app/.data --env-file .env control-scout`.
 
+### Live predictions
+
+The live ledger (`predictions` rows with `kind = 'live'`) is the honest track
+record: after every sync, the stats job logs a call for each current-season
+match that is unplayed, has a full 2v2 lineup, and starts more than a minute
+from now (event-local time read in the event's time zone). A logged call is
+never revised. Once the match is played, the next cycle attaches the score and
+outcome. A call that turns out to be logged at or after the match's actual
+start is moved to `kind = 'late'` and left out of the record. Nothing is logged
+until FIRST publishes a schedule, so the ledger stays empty between event
+weekends. `server/stats/live-ledger.test.ts` covers the whole path.
+
+To check it on the VM (read-only):
+
+```bash
+cd /opt/control-scout/current && sudo -u controlscout bash -c 'set -a; . /opt/control-scout/shared/.env; set +a; npm run live:check'
+```
+
+It prints the ledger (rows, scored, unscored, rows whose `predicted_at` is at or
+after the match start, which must be 0, and when a call was last logged and
+last scored), the upcoming matches the next cycle would log, and stale matches
+whose start has passed but which are still unplayed. During an event weekend,
+"would be logged" should empty out into "rows" within an hour (event days sync
+hourly), and "scored" should catch up after the matches are played.
+
 ## Auto-deploy (every push to main)
 
 `.github/workflows/deploy.yml` deploys each push to main. It uses the same
