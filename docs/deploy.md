@@ -73,7 +73,7 @@ https://controlscout.org.
   beside the live one (the site keeps serving), `current` switches only if
   the build succeeds, and the existing certificate is re-applied.
 - **Custom port:** set `PORT` in `shared/.env`; every deploy reads it from there.
-- **Schedule (built in):** current-season sync daily, hourly on event days;
+- **Schedule (built in):** current-season sync daily, and on event days every 15 min on the VM (`DATA_CYCLE=child`; hourly on Render; `EVENT_DAY_SYNC_MINUTES` overrides);
   stats + prediction ledger after each sync; offline packs rebuilt daily.
 - **Logs:** `journalctl -u control-scout -f`
 - **Rollback:** on the VM,

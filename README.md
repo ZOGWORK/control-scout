@@ -65,7 +65,7 @@ FTC Scout API (fallback)  ──┴─> sync job ─> SQLite ─> stats job ─�
 ```
 
 * **Sync** is idempotent and resumable. Finished seasons are frozen once
-  complete; only the current season refreshes (daily, hourly on event days).
+  complete; only the current season refreshes (daily, every 15 min on event days on the VM).
 * **Stats** recomputes per-team, per-event OPR (ridge-regularised, quals only,
   surrogates excluded) and the engine's rating book; it also writes a
   prediction for every not-yet-played match into the **calibration ledger**
