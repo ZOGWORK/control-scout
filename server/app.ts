@@ -13,7 +13,7 @@ import { ensureSearchIndex, search } from "./api/search.js";
 import { rebuildSearch } from "./stats/job.js";
 import { teamProfile, compareTeams, teamSummaries } from "./api/teams.js";
 import { eventDetail, listEvents, toEventInput } from "./api/events.js";
-import { matchViews } from "./api/matches.js";
+import { matchDetail, matchViews } from "./api/matches.js";
 import { trackRecord } from "./api/accuracy.js";
 import { forecasterFor, dataVersion } from "./predict/engine.js";
 import { authRouter, meRouter, authProviders } from "./auth/routes.js";
@@ -191,6 +191,14 @@ export function createApp() {
   api.get("/events/:season/:code", h(async (req) => {
     const d = await eventDetail(season(req.params.season), code(req.params.code));
     if (!d) throw new HttpError(404, `No event ${req.params.code} in ${req.params.season}`);
+    return d;
+  }));
+
+  api.get("/events/:season/:code/matches/:key", h(async (req) => {
+    const key = String(req.params.key);
+    if (!/^(qual|playoff):\d{1,3}:\d{1,4}$/.test(key)) throw new HttpError(400, "Match key looks like qual:0:12");
+    const d = await matchDetail(season(req.params.season), code(req.params.code), key);
+    if (!d) throw new HttpError(404, `No match ${key} at ${req.params.code}`);
     return d;
   }));
 

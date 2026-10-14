@@ -5,8 +5,9 @@
 //             (walk-forward replay; labelled as such);
 //   unplayed → the live call already logged, else one computed now.
 // A played match never shows a prediction computed after the fact.
-import { all } from "../db.js";
-import type { MatchPredictionView, MatchView } from "../../src/shared/api.js";
+import { all, get } from "../db.js";
+import type { MatchDetail, MatchPredictionView, MatchView } from "../../src/shared/api.js";
+import { eventDetail } from "./events.js";
 import { forecasterFor } from "../predict/engine.js";
 import { localToUtcMs } from "../data/time.js";
 
@@ -78,4 +79,56 @@ export async function matchViews(f: MatchFilter, opts: { predictUnplayed?: boole
     });
   }
   return out;
+}
+
+const BONUS_LABELS: Record<number, [string, string, string]> = {
+  2025: ["Movement", "Goal", "Pattern"],
+  2026: ["Swarm", "Pollinator 1", "Pollinator 2"],
+};
+
+/** One match and its context: names, event standing and OPR, season OPR rank, bonus RPs, stations. */
+export async function matchDetail(season: number, code: string, key: string): Promise<MatchDetail | null> {
+  const [level, series, number] = key.split(":");
+  if (!level || series == null || number == null) return null;
+  const d = await eventDetail(season, code);
+  const i = d?.matches.findIndex((m) => m.key === key) ?? -1;
+  if (!d || i < 0) return null;
+  const match = d.matches[i];
+  const numbers = [...match.red.teams, ...match.blue.teams].map((t) => t.number);
+  const ph = numbers.map(() => "?").join(",") || "NULL";
+  const [row, lineup, seasonStats, teamRows] = await Promise.all([
+    get<any>("SELECT description, red_bonus, blue_bonus FROM matches WHERE season = ? AND code = ? AND level = ? AND series = ? AND number = ?", [season, code, level, Number(series), Number(number)]),
+    all<any>("SELECT team, station FROM match_teams WHERE season = ? AND code = ? AND level = ? AND series = ? AND number = ?", [season, code, level, Number(series), Number(number)]),
+    all<any>(`SELECT team, opr_np, rank_np, ranked_teams FROM team_season_stats WHERE season = ? AND team IN (${ph})`, [season, ...numbers]),
+    all<any>(`SELECT number, name, city, state FROM teams WHERE number IN (${ph})`, numbers),
+  ]);
+  const bools = (s: string | null): [boolean, boolean, boolean] | null => {
+    if (!s) return null;
+    const b = JSON.parse(s) as { movement: boolean; goal: boolean; pattern: boolean };
+    return [!!b.movement, !!b.goal, !!b.pattern];
+  };
+  const labels = BONUS_LABELS[season];
+  const fieldBy = new Map(d.field.map((f) => [f.team, f]));
+  const seasonBy = new Map(seasonStats.map((s) => [Number(s.team), s]));
+  const infoBy = new Map(teamRows.map((t) => [Number(t.number), t]));
+  const teams: MatchDetail["teams"] = {};
+  for (const n of numbers) {
+    const f = fieldBy.get(n), s = seasonBy.get(n), t = infoBy.get(n);
+    teams[n] = {
+      name: f?.name ?? t?.name ?? null, city: f?.city ?? t?.city ?? null, state: f?.state ?? t?.state ?? null,
+      event: f ? { rank: f.rank, rp: f.rp, wins: f.wins, losses: f.losses, ties: f.ties, qualPlayed: f.qualPlayed, opr: f.opr, rating: f.rating } : null,
+      season: s ? { opr: s.opr_np ?? null, rank: s.rank_np ?? null, of: s.ranked_teams ?? null } : null,
+    };
+  }
+  const near = (m: MatchView | undefined) => (m ? { key: m.key, label: m.label } : null);
+  return {
+    event: { season, code, name: d.event.name, status: d.event.status },
+    match,
+    description: row?.description ?? null,
+    stations: Object.fromEntries(lineup.filter((l) => l.station != null).map((l) => [Number(l.team), Number(l.station)])),
+    bonus: labels && (row?.red_bonus || row?.blue_bonus) ? { labels, red: bools(row.red_bonus), blue: bools(row.blue_bonus) } : null,
+    teams,
+    prev: near(d.matches[i - 1]),
+    next: near(d.matches[i + 1]),
+  };
 }
