@@ -122,8 +122,8 @@ export function MatchRow({ m, highlight, showEvent, open, onToggle }: { m: Match
     >
       <div className="min-w-0">
         {onToggle ? (
-          <button type="button" onClick={onToggle} aria-expanded={!!open} aria-controls={detailsId} aria-label={`${m.label} details`} className={cn("flex items-center gap-0.5 rounded font-mono text-sm font-semibold outline-none transition-colors group-hover/row:text-accent focus-visible:ring-2 focus-visible:ring-ring/60", open && "text-accent")}>
-            {m.label}<ChevronDown className={cn("size-3.5 text-text-muted transition-transform group-hover/row:text-accent", open && "rotate-180 text-accent")} />
+          <button type="button" onClick={onToggle} aria-expanded={!!open} aria-controls={detailsId} aria-label={`${m.label} details`} className={cn("flex items-center gap-0.5 rounded font-mono text-sm font-semibold outline-none transition-colors group-hover/row:text-accent-text focus-visible:ring-2 focus-visible:ring-ring/60", open && "text-accent-text")}>
+            {m.label}<ChevronDown className={cn("size-3.5 text-text-muted transition-transform group-hover/row:text-accent-text", open && "rotate-180 text-accent-text")} />
           </button>
         ) : <p className="font-mono text-sm font-semibold">{m.label}</p>}
         <p className="truncate text-[11px] text-text-muted">{showEvent ?? matchTime(m.time)}</p>
