@@ -105,3 +105,27 @@ export async function offlineExplain(season: number, red: number[], blue: number
   book.setTime(Date.now());
   return { ...explainMatch(book, red, blue, { noise: FITTED_MODEL.noise, calibration: FITTED_MODEL.calibration }), asOf: p.builtAt };
 }
+
+/** Fired on window when the background sync saves a new lite pack. */
+export const PACK_EVENT = "cs-pack-changed";
+
+let syncing: Promise<PackMeta | null> | null = null;
+/** Keep the lite pack current in the background: download it when it's
+ *  missing or older than the published one. Quiet on failure (offline, no
+ *  packs, bad checksum); the next visit tries again. */
+export function syncLite(): Promise<PackMeta | null> {
+  if (syncing) return syncing;
+  syncing = (async () => {
+    try {
+      const m = await fetchManifest();
+      const have = packStatus();
+      if (!m.lite || (have && have.version === m.version)) return have;
+      const meta = await downloadLite(m.lite, m);
+      window.dispatchEvent(new Event(PACK_EVENT));
+      return meta;
+    } catch { return packStatus(); }
+    finally { syncing = null; }
+  })();
+  return syncing;
+}
+
