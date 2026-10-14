@@ -36,7 +36,7 @@ export default function ShortlistPage() {
   ];
   return (
     <div>
-      <PageHeader title="Shortlist" description={<>Teams you've bookmarked — handy for alliance selection. {user ? "Synced to your account." : <>Saved on this device; <Link to="/settings#account" className="underline">sign in</Link> to sync.</>}</>}
+      <PageHeader title="Shortlist" description={<>Teams you've bookmarked — handy for alliance selection. {user ? "Synced to your account." : <>Saved on this device; <Link to="/settings?section=profile" className="underline">sign in</Link> to sync.</>}</>}
         actions={list.length >= 2 ? <Button variant="secondary" asChild><Link to={`/compare?teams=${list.slice(0, 4).join(",")}`}><Scale /> Compare first {Math.min(4, list.length)}</Link></Button> : undefined}>
         <SeasonToggle value={season} onChange={setSeason} />
       </PageHeader>

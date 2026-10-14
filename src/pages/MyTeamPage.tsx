@@ -31,7 +31,7 @@ export default function MyTeamPage() {
             <div className="flex-1"><TeamInput label="Your team number" value={draft} onChange={setDraft} autoFocus /></div>
             <Button type="submit" className="h-11" disabled={!draft}><Star /> Set</Button>
           </form>
-          <p className="mt-2 text-xs text-muted-foreground">{user ? "Saved to your account." : <>Saved on this device. <Link to="/settings#account" className="underline">Sign in</Link> to sync it across devices.</>}</p>
+          <p className="mt-2 text-xs text-muted-foreground">{user ? "Saved to your account." : <>Saved on this device. <Link to="/settings?section=profile" className="underline">Sign in</Link> to sync it across devices.</>}</p>
         </div>
         {/* What the dashboard will hold, so the first visit isn't an empty page. */}
         <ul className="grid gap-3 sm:grid-cols-2" aria-label="What your dashboard shows">

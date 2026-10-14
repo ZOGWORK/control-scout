@@ -98,15 +98,18 @@ const flows: Flow[] = [
   {
     name: "Settings: theme, density and background apply immediately",
     async run(page) {
-      await page.goto(`${BASE}/settings`, { waitUntil: "networkidle" });
+      await page.goto(`${BASE}/settings?section=appearance`, { waitUntil: "networkidle" });
       await page.getByRole("radio", { name: /Light/ }).or(page.getByRole("button", { name: /^Light$/ })).first().click();
       assert(await page.evaluate(() => !document.documentElement.classList.contains("dark")), "still dark after Light");
       await page.getByRole("radio", { name: /Compact/ }).or(page.getByRole("button", { name: /^Compact$/ })).first().click();
       assert(await page.evaluate(() => /compact/.test(document.documentElement.className + " " + (document.documentElement.dataset.density ?? ""))), "density not applied to <html>");
       await page.getByRole("switch", { name: /Animated background/ }).or(page.locator("#ambient")).first().click();
       assert(await page.evaluate(() => document.documentElement.classList.contains("ambient-off")), "ambient-off not applied");
-      const sections = await page.locator("main section[id]").evaluateAll((els) => els.map((e) => e.id));
+      const sections = await page.getByRole("navigation", { name: "Settings sections" }).getByRole("button").allInnerTexts();
       assert(sections.length === 8, `expected 8 sections, got ${sections.length}: ${sections.join(", ")}`);
+      // Every section opens from the list.
+      await page.getByRole("button", { name: "Notifications", exact: true }).click();
+      await page.getByRole("heading", { name: "Notifications", level: 1 }).waitFor();
       return `light theme, compact density and background-off apply instantly; sections: ${sections.join(", ")}`;
     },
   },
