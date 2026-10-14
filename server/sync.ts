@@ -4,7 +4,7 @@
 // the plan is recomputed from the database each run, so an interrupted sync
 // just continues. Finished seasons are frozen once fully fetched; the
 // current season re-checks events around their dates (daily normally,
-// hourly on event days — the scheduler in server/jobs.ts decides cadence).
+// often on event days — the scheduler in server/index.ts decides cadence).
 import { all, get, kvGet, kvSet, run, writeBatch } from "./db.js";
 import { bundleStatements, teamStatements, type EventBundle, type EventRow } from "./data/bundle.js";
 import { CURRENT_SEASON, SEASON_NUMBERS, seasonInfo } from "./data/seasons.js";

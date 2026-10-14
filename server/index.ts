@@ -56,17 +56,23 @@ async function cycle(reason: string) {
   } finally { running = false; }
 }
 
-/** Hourly on event days (any event running today ±1 day), otherwise daily. */
+/** Is any event running today ±1 day? (event days sync often; other days daily) */
 async function eventDay(): Promise<boolean> {
   const d = (n: number) => new Date(Date.now() + n * 864e5).toISOString().slice(0, 10);
   const r = await all("SELECT 1 FROM events WHERE season = ? AND start <= ? AND COALESCE(end, start) >= ? AND type NOT IN ('Kickoff','Workshop','DemoExhibition') LIMIT 1", [CURRENT_SEASON, d(1), d(-1)]);
   return r.length > 0;
 }
 
+// On event days, sync often enough that a freshly published schedule gets its
+// pre-match (live) predictions logged before the first matches start: every
+// 15 min where the cycle runs in a child process (the VM), hourly where it
+// runs in the server process (Render's 0.15 CPU would stall pages).
+// EVENT_DAY_SYNC_MINUTES overrides either.
+const eventDayMinutes = Number(process.env.EVENT_DAY_SYNC_MINUTES) || (process.env.DATA_CYCLE === "child" ? 15 : 60);
 let last = 0;
 setInterval(async () => {
-  const gap = (await eventDay().catch(() => false)) ? 3600_000 : 24 * 3600_000;
-  if (Date.now() - last >= gap) { last = Date.now(); cycle(gap < 864e5 ? "hourly, event day" : "daily"); }
-}, 5 * 60_000).unref();
+  const gap = (await eventDay().catch(() => false)) ? eventDayMinutes * 60_000 : 24 * 3600_000;
+  if (Date.now() - last >= gap) { last = Date.now(); cycle(gap < 864e5 ? `every ${eventDayMinutes} min, event day` : "daily"); }
+}, Math.min(5, eventDayMinutes) * 60_000).unref();
 // First cycle shortly after boot (not at boot: let the server answer first).
 setTimeout(() => { last = Date.now(); cycle("startup"); }, 60_000).unref();
