@@ -121,7 +121,7 @@ const flows: Flow[] = [
       await page.getByRole("button", { name: /New entry/ }).click();
       await page.getByLabel("Team", { exact: false }).first().fill("18360");
       await page.getByLabel("Event code").fill("AUBRQ2");
-      await page.getByLabel("Match").fill("Q1");
+      await page.getByLabel("Match", { exact: true }).fill("Q1");
       const plus = page.getByRole("button", { name: /plus one/ }).first();
       if (await plus.count()) await plus.click();
       await page.locator("#notes").fill("Audit entry: fast intake");
