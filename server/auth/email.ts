@@ -4,6 +4,7 @@
 import { randomInt } from "node:crypto";
 import { get, run } from "../db.js";
 import { env } from "../env.js";
+import { codeEmail } from "./emailTemplate.js";
 import { sha256 } from "./session.js";
 
 const CODE_TTL_MS = 10 * 60_000;
@@ -59,15 +60,8 @@ export async function startEmailSignIn(rawEmail: string): Promise<StartResult> {
      ON CONFLICT(email) DO UPDATE SET code_hash = excluded.code_hash, expires_at = excluded.expires_at, attempts = 0, sent_count = excluded.sent_count, window_start = excluded.window_start`,
     [email, codeHash(email, code), new Date(now + CODE_TTL_MS).toISOString(), sent, windowStart],
   );
-  const text = `Your FTC Control Scout sign-in code is ${code}\n\nIt expires in 10 minutes. If you didn't ask for it, ignore this email — nobody can sign in without the code.`;
-  const html = `<div style="font-family:Inter,Arial,sans-serif;background:#0a0a0b;color:#f4f4f5;padding:32px">
-  <div style="max-width:420px;margin:0 auto;background:#111113;border:1px solid #ffffff14;border-radius:16px;padding:28px">
-    <div style="font-weight:700;font-size:15px;letter-spacing:.02em;color:#ffc700">FTC Control Scout</div>
-    <p style="font-size:15px;color:#a1a1aa;margin:20px 0 8px">Your sign-in code</p>
-    <div style="font-family:'JetBrains Mono',monospace;font-size:34px;font-weight:700;letter-spacing:.3em;color:#f4f4f5">${code}</div>
-    <p style="font-size:13px;color:#a1a1aa;margin-top:20px">Expires in 10 minutes. If you didn't ask for this, ignore it — nobody can sign in without the code.</p>
-  </div></div>`;
-  try { await mailer(email, `${code} is your Control Scout code`, text, html); }
+  const { subject, text, html } = codeEmail(code, { minutes: CODE_TTL_MS / 60_000, siteUrl: env.appUrl });
+  try { await mailer(email, subject, text, html); }
   catch (e) {
     console.warn(`[email] sign-in code not sent: ${(e as Error)?.name === "TimeoutError" ? "timeout" : (e as Error)?.message ?? "unknown"}`);
     await run("DELETE FROM email_codes WHERE email = ?", [email]);
