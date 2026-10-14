@@ -158,3 +158,5 @@ runs can start several minutes late.
 - **Testing:** `CHECK_ONLY=1 bash .github/scripts/uptime.sh` runs just the
   check (exit 0 up, 1 down). `DRY_RUN=1` prints the issue calls instead of
   making them. Point either at another host with `SITE=…`.
+  `bash .github/scripts/uptime.test.sh` runs the script against fake `curl`
+  and `gh` (no network); CI runs it on every pull request.
