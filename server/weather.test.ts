@@ -64,3 +64,30 @@ describe("weather widget data", () => {
     expect(await currentWeather({ city: "Paramus", state: "NJ", country: "USA" }, empty)).toBeNull();
   });
 });
+
+describe("weather: no guessing, no hammering", () => {
+  beforeEach(() => resetWeatherCache());
+
+  it("returns nothing for a town with neither state nor country (can't be checked)", async () => {
+    const f = vi.fn(async () => geo);
+    expect(await currentWeather({ city: "Paramus" }, f)).toBeNull();
+    expect(f).not.toHaveBeenCalled();
+  });
+
+  it("after a failed or empty reading, waits 5 minutes before asking again", async () => {
+    const t0 = 1_000_000;
+    let fail = true;
+    const f = vi.fn(async (url: string) => {
+      if (url.includes("geocoding")) return geo;
+      if (fail) throw new Error("down");
+      return wx;
+    });
+    const nj = { city: "Paramus", state: "NJ", country: "USA" };
+    expect(await currentWeather(nj, f, t0)).toBeNull();
+    const calls = f.mock.calls.length;
+    fail = false;
+    expect(await currentWeather(nj, f, t0 + 60_000)).toBeNull(); // still backing off
+    expect(f.mock.calls.length).toBe(calls);
+    expect((await currentWeather(nj, f, t0 + 6 * 60_000))?.tempC).toBe(22);
+  });
+});
