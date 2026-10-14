@@ -167,6 +167,25 @@ const flows: Flow[] = [
     },
   },
   {
+    name: "Match details: open in place, more than the row, no pop-up",
+    async run(page) {
+      await page.goto(`${BASE}/events/2025/AUBRQ2?match=qual:0:3`, { waitUntil: "networkidle" });
+      const d = page.locator("#match-AUBRQ2-qual-0-3");
+      await d.getByRole("region", { name: "Red alliance" }).waitFor({ timeout: 15_000 });
+      const text = await d.innerText();
+      for (const want of [/Blue alliance/i, /OPR here/, /Season/, /Auto/, /TeleOp/, /Endgame/, /Fouls given away/, /Predicted|No prediction/]) assert(want.test(text), `details missing ${want}`);
+      assert(!(await page.getByRole("dialog").count()), "match details opened a dialog");
+      // The rest of the page still works with details open: open another match too.
+      await page.getByRole("button", { name: "Q4 details", exact: true }).click();
+      await page.locator("#match-AUBRQ2-qual-0-4").getByRole("region", { name: "Blue alliance" }).waitFor({ timeout: 15_000 });
+      assert(await d.isVisible(), "opening Q4 closed Q3");
+      // Step to the next match from the details.
+      await d.getByRole("link", { name: /Next match/ }).click();
+      await page.waitForURL(/match=qual(%3A|:)0(%3A|:)4/);
+      return "?match= opens Q3 in place with lineups (names, event rank/OPR, season OPR), breakdown and prediction; several open at once; no dialog; next-match link works";
+    },
+  },
+  {
     name: "Video: in-app recording stays on the device; YouTube links embed",
     async run(page) {
       const uploads: string[] = [];
@@ -175,9 +194,11 @@ const flows: Flow[] = [
         const external = !r.url().startsWith(BASE) && !/youtube|ytimg|googlevideo|gstatic|fonts\./.test(r.url());
         if ((r.method() !== "GET" && big) || (external && r.method() !== "GET")) uploads.push(`${r.method()} ${r.url()}`);
       });
+      // Video lives in the match's details, opened in place (no dialog).
       await page.goto(`${BASE}/events/2025/AUBRQ2`, { waitUntil: "networkidle" });
-      await page.getByRole("button", { name: /Video for AUBRQ2 Q1$/ }).click();
-      const dialog = page.getByRole("dialog");
+      await page.getByRole("button", { name: "Q1 details", exact: true }).click();
+      const dialog = page.locator("#match-AUBRQ2-qual-0-1");
+      await dialog.getByText("Video for Q1").click();
       await dialog.getByRole("tab", { name: "Record" }).click();
       await dialog.getByRole("button", { name: /Start camera/ }).click();
       await dialog.getByRole("button", { name: /^Record$/ }).click();

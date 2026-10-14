@@ -1,7 +1,7 @@
-// Match video: record on this device (never uploaded) or attach a YouTube link.
+// Match video, shown inline in a match's details: record on this device
+// (never uploaded) or attach a YouTube link.
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Camera, CircleStop, Download, Link2, Trash2, Video } from "lucide-react";
-import { Dialog, DialogContent, DialogDescription, DialogTitle } from "./ui/overlay";
+import { Camera, CircleStop, Download, Link2, Trash2 } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "./ui/tabs";
 import { Button } from "./ui/button";
 import { Input } from "./ui/basic";
@@ -19,35 +19,24 @@ export function useRecordings(matchRef?: string) {
   return { list, error };
 }
 
-/** Small camera button for a match row; opens the video dialog. */
-export function VideoButton({ matchRef, label, className }: { matchRef: string; label: string; className?: string }) {
-  const [open, setOpen] = useState(false);
+/** How many YouTube links are saved for a match (for the row's video mark). */
+export function useVideoLinkCount(matchRef: string) {
   const { state } = usePersonal();
-  const links = state.videoLinks[matchRef]?.length ?? 0;
-  return (
-    <>
-      <button type="button" onClick={() => setOpen(true)} aria-label={`Video for ${label}`} className={cn("inline-flex items-center gap-0.5 rounded hover:text-text-base", links && "text-accent", className)}>
-        <Video className="size-3.5" />{links ? <span className="text-[10px]">{links}</span> : null}
-      </button>
-      {open && <VideoDialog open={open} onOpenChange={setOpen} matchRef={matchRef} label={label} />}
-    </>
-  );
+  return state.videoLinks[matchRef]?.length ?? 0;
 }
 
-export function VideoDialog({ open, onOpenChange, matchRef, label }: { open: boolean; onOpenChange: (o: boolean) => void; matchRef: string; label: string }) {
+/** Video for one match, inline (no dialog): YouTube links, record on this device, saved recordings. */
+export function VideoPanel({ matchRef, label }: { matchRef: string; label: string }) {
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-2xl">
-        <DialogTitle>Video · {label}</DialogTitle>
-        <DialogDescription>Recordings stay on this device — Control Scout never uploads or hosts video. YouTube links are saved to your list (and account, if signed in).</DialogDescription>
-        <Tabs defaultValue="links">
-          <TabsList><TabsTrigger value="links">YouTube</TabsTrigger><TabsTrigger value="record">Record</TabsTrigger><TabsTrigger value="saved">On this device</TabsTrigger></TabsList>
-          <TabsContent value="links" className="mt-4"><Links matchRef={matchRef} /></TabsContent>
-          <TabsContent value="record" className="mt-4"><Recorder matchRef={matchRef} label={label} /></TabsContent>
-          <TabsContent value="saved" className="mt-4"><SavedList matchRef={matchRef} /></TabsContent>
-        </Tabs>
-      </DialogContent>
-    </Dialog>
+    <div>
+      <p className="text-xs text-muted-foreground">Recordings stay on this device — Control Scout never uploads or hosts video. YouTube links are saved to your list (and account, if signed in).</p>
+      <Tabs defaultValue="links" className="mt-3">
+        <TabsList><TabsTrigger value="links">YouTube</TabsTrigger><TabsTrigger value="record">Record</TabsTrigger><TabsTrigger value="saved">On this device</TabsTrigger></TabsList>
+        <TabsContent value="links" className="mt-4"><Links matchRef={matchRef} /></TabsContent>
+        <TabsContent value="record" className="mt-4"><Recorder matchRef={matchRef} label={label} /></TabsContent>
+        <TabsContent value="saved" className="mt-4"><SavedList matchRef={matchRef} /></TabsContent>
+      </Tabs>
+    </div>
   );
 }
 
