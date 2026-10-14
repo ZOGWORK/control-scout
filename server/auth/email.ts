@@ -20,7 +20,11 @@ const resendMailer: Mailer = async (to, subject, text, html) => {
     body: JSON.stringify({ from: env.emailFrom, to: [to], subject, text, html }),
     signal: AbortSignal.timeout(15000),
   });
-  if (!res.ok) throw new Error(`email provider error ${res.status}`);
+  if (!res.ok) {
+    // Resend's reason (e.g. "API key is invalid", "domain is not verified"): never the key or the address.
+    const why = await res.json().then((j: { message?: unknown }) => (typeof j?.message === "string" ? j.message.slice(0, 200) : ""), () => "");
+    throw new Error(`email provider error ${res.status}${why ? `: ${why}` : ""}`);
+  }
 };
 
 let mailer: Mailer = resendMailer;
@@ -64,7 +68,11 @@ export async function startEmailSignIn(rawEmail: string): Promise<StartResult> {
     <p style="font-size:13px;color:#a1a1aa;margin-top:20px">Expires in 10 minutes. If you didn't ask for this, ignore it — nobody can sign in without the code.</p>
   </div></div>`;
   try { await mailer(email, `${code} is your Control Scout code`, text, html); }
-  catch { await run("DELETE FROM email_codes WHERE email = ?", [email]); return { ok: false, reason: "send-failed" }; }
+  catch (e) {
+    console.warn(`[email] sign-in code not sent: ${(e as Error)?.name === "TimeoutError" ? "timeout" : (e as Error)?.message ?? "unknown"}`);
+    await run("DELETE FROM email_codes WHERE email = ?", [email]);
+    return { ok: false, reason: "send-failed" };
+  }
   return { ok: true };
 }
 
