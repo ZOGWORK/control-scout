@@ -63,7 +63,7 @@ function Event({ d }: { d: EventDetail }) {
             <Button variant={tracked ? "secondary" : "outline"} size="sm" aria-pressed={tracked} onClick={() => update("tracked", (t) => ({ ...t, events: tracked ? t.events.filter((x) => x !== ref) : [...t.events, ref] }))}>
               {tracked ? "Tracking this event" : "Track event"}
             </Button>
-            <Button variant="outline" size="sm" asChild><Link to={`/predict?mode=advancement&season=${e.season}&code=${e.code}${teamParam ? `&team=${teamParam}` : ""}`}>Open in prediction lab</Link></Button>
+            <Button variant="outline" size="sm" asChild><Link to={`/predict?mode=advancement&season=${e.season}&code=${e.code}${teamParam ? `&team=${teamParam}` : ""}`}>Open in what-if lab</Link></Button>
           </div>
           <p className="mt-3 text-[11px] text-muted-foreground">Source: {e.source === "first" ? "FIRST Events API" : "FTC Scout"}</p>
         </div>

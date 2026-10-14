@@ -153,6 +153,55 @@ export async function backtest(seasons: number[], log: Log = () => {}): Promise<
   }
 }
 
+/** An unplayed current-season match with no live prediction yet. */
+export interface LiveCandidate {
+  code: string; level: string; series: number; number: number;
+  /** As stored: event-local wall time from FIRST (no zone), or ISO with a zone. */
+  time: string | null;
+  timezone: string | null;
+  /** Real scheduled start (epoch ms); null when the time or zone is unknown. */
+  start: number | null;
+  red: number[]; blue: number[];
+}
+
+/** A live prediction is logged at least this long before the scheduled start. */
+export const LIVE_LEAD_MS = 60_000;
+
+/**
+ * Whether a candidate goes into the live ledger at `now`: 2-robot alliances
+ * (with 3 listed, as in playoffs, we don't know who sits out) and a real,
+ * time-zone aware scheduled start at least LIVE_LEAD_MS away. No time or
+ * zone = can't prove it's pre-match = skip.
+ */
+export function liveLoggable(c: LiveCandidate, now = Date.now()): boolean {
+  return c.red.length === 2 && c.blue.length === 2 && c.start != null && c.start > now + LIVE_LEAD_MS;
+}
+
+/** Unplayed matches of a season not yet in the live ledger, with lineups. Read-only. */
+export async function unloggedLiveMatches(season = CURRENT_SEASON): Promise<LiveCandidate[]> {
+  const rows = await all<any>(
+    `SELECT m.code, m.level, m.series, m.number, m.time, e.timezone FROM matches m JOIN events e ON e.season = m.season AND e.code = m.code
+     WHERE m.season = ? AND m.played = 0
+       AND NOT EXISTS (SELECT 1 FROM predictions p WHERE p.kind = 'live' AND p.season = m.season AND p.code = m.code AND p.level = m.level AND p.series = m.series AND p.number = m.number)`,
+    [season],
+  );
+  if (!rows.length) return [];
+  const lineups = await all<any>("SELECT code, level, series, number, team, alliance FROM match_teams WHERE season = ? AND code IN (SELECT DISTINCT code FROM matches WHERE season = ? AND played = 0)", [season, season]);
+  const lu = new Map<string, { red: number[]; blue: number[] }>();
+  for (const t of lineups) {
+    const k = `${t.code}|${t.level}:${t.series}:${t.number}`;
+    let l = lu.get(k); if (!l) { l = { red: [], blue: [] }; lu.set(k, l); }
+    (t.alliance === "red" ? l.red : l.blue).push(Number(t.team));
+  }
+  return rows.map((m) => {
+    const l = lu.get(`${m.code}|${m.level}:${m.series}:${m.number}`) ?? { red: [], blue: [] };
+    return {
+      code: m.code, level: m.level, series: Number(m.series), number: Number(m.number), time: m.time ?? null, timezone: m.timezone ?? null,
+      start: localToUtcMs(m.time, m.timezone), red: l.red, blue: l.blue,
+    };
+  });
+}
+
 /**
  * Live ledger, step 1: write down a prediction for every scheduled, unplayed
  * match with a known lineup (first write wins — a prediction is never
@@ -160,37 +209,22 @@ export async function backtest(seasons: number[], log: Log = () => {}): Promise<
  */
 export async function logLivePredictions(log: Log = () => {}): Promise<number> {
   const season = CURRENT_SEASON;
-  const rows = await all<any>(
-    `SELECT m.code, m.level, m.series, m.number, m.time, e.timezone FROM matches m JOIN events e ON e.season = m.season AND e.code = m.code
-     WHERE m.season = ? AND m.played = 0
-       AND NOT EXISTS (SELECT 1 FROM predictions p WHERE p.kind = 'live' AND p.season = m.season AND p.code = m.code AND p.level = m.level AND p.series = m.series AND p.number = m.number)`,
-    [season],
-  );
-  if (!rows.length) return 0;
-  const lineups = await all<any>("SELECT code, level, series, number, team, alliance, on_field FROM match_teams WHERE season = ? AND code IN (SELECT DISTINCT code FROM matches WHERE season = ? AND played = 0)", [season, season]);
-  const lu = new Map<string, { red: number[]; blue: number[] }>();
-  for (const t of lineups) {
-    const k = `${t.code}|${t.level}:${t.series}:${t.number}`;
-    let l = lu.get(k); if (!l) { l = { red: [], blue: [] }; lu.set(k, l); }
-    (t.alliance === "red" ? l.red : l.blue).push(Number(t.team));
-  }
+  const candidates = await unloggedLiveMatches(season);
+  if (!candidates.some((c) => liveLoggable(c))) return 0;
   const f = await forecasterFor(season);
-  const at = new Date().toISOString();
+  // The clock is read after the ratings are built (that can take a while), so
+  // the lead-time check and predicted_at are the same instant.
+  const now = Date.now();
+  const at = new Date(now).toISOString();
   const stmts: InStatement[] = [];
-  for (const m of rows) {
-    const l = lu.get(`${m.code}|${m.level}:${m.series}:${m.number}`);
-    // Only 2-robot alliances: with 3 listed (playoffs) we don't know who sits out.
-    if (!l || l.red.length !== 2 || l.blue.length !== 2) continue;
-    // Strictly before the match: a real (time-zone aware) scheduled start at
-    // least a minute away. No time or zone = can't prove it's pre-match = skip.
-    const start = localToUtcMs(m.time, m.timezone);
-    if (start == null || start <= Date.now() + 60_000) continue;
-    const x = f.explain(season, l.red, l.blue);
+  for (const m of candidates) {
+    if (!liveLoggable(m, now)) continue;
+    const x = f.explain(season, m.red, m.blue);
     if (!x) continue;
     stmts.push({
       sql: `INSERT OR IGNORE INTO predictions (kind, season, code, level, series, number, red, blue, p_red, red_mean, blue_mean, tier, factors, engine_version, predicted_at, match_time)
             VALUES ('live', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      args: [season, m.code, m.level, m.series, m.number, JSON.stringify(l.red), JSON.stringify(l.blue), x.winProbA, x.predictedScoreA, x.predictedScoreB,
+      args: [season, m.code, m.level, m.series, m.number, JSON.stringify(m.red), JSON.stringify(m.blue), x.winProbA, x.predictedScoreA, x.predictedScoreB,
         x.confidence.tier, JSON.stringify(x.factors), ENGINE_VERSION, at, m.time],
     });
   }

@@ -34,6 +34,8 @@ jobs:
       - run: npm ci --no-audit --no-fund --loglevel=error
       - run: npm run lint
       - run: npm test
+      - name: Uptime script tests (fake curl and gh, no network)
+        run: bash .github/scripts/uptime.test.sh
       - run: npm run build
       - name: Playwright browser
         run: npx playwright install --with-deps chromium
