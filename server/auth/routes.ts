@@ -9,7 +9,7 @@ import { env } from "../env.js";
 import { cleanValue, mergeValue, PERSONAL_KEYS, type PersonalKey, type Stamped } from "../../src/shared/personal.js";
 import { currentUser, deleteUser, endSession, readCookie, startSession, token, userForIdentity, type User } from "./session.js";
 import { emailEnabled, startEmailSignIn, verifyEmailCode } from "./email.js";
-import { CP_PROVIDER, controlPointEnabled, linkedAccountId, linkToSharedAccount, provenBy, redeemHandoff } from "./controlPoint.js";
+import { CP_PROVIDER, controlPointEnabled, linkedAccountId, linkToSharedAccount, logFailure, provenEmailFor, redeemHandoff } from "./controlPoint.js";
 
 export const authProviders = () => ({ email: emailEnabled(), google: !!(env.googleClientId && env.googleClientSecret), controlPoint: controlPointEnabled() });
 
@@ -47,8 +47,8 @@ export function authRouter(): Router {
     let linked = controlPointEnabled() ? await linkedAccountId(u.id) : null;
     // Signed in before linking worked (or Control Point was briefly down): link now.
     if (controlPointEnabled() && linked == null) {
-      const how = await provenBy(u.id);
-      if (how) linked = (await linkToSharedAccount(u, how))?.id ?? null;
+      const proven = await provenEmailFor(u);
+      if (proven) linked = (await linkToSharedAccount(u, "scout-email-code", proven))?.id ?? null;
     }
     return { user: { ...publicUser(u), controlPointLinked: linked != null }, providers: authProviders() };
   }));
@@ -74,9 +74,9 @@ export function authRouter(): Router {
       return;
     }
     const user = await userForIdentity("email", out.email, out.email);
-    await linkToSharedAccount(user, "scout-email-code"); // the shared account (best effort, 3 s max)
+    const linked = await linkToSharedAccount(user, "scout-email-code", out.email); // the shared account (best effort, 3 s max)
     await startSession(res, user, req.get("user-agent"));
-    return { user: publicUser(user) };
+    return { user: { ...publicUser(user), controlPointLinked: linked != null || (controlPointEnabled() && (await linkedAccountId(user.id)) != null) } };
   }));
 
   r.post("/logout", h(async (req, res) => { await endSession(req, res); return { ok: true }; }));
@@ -105,7 +105,7 @@ export function authRouter(): Router {
     const info = tok?.access_token ? await fetch("https://openidconnect.googleapis.com/v1/userinfo", { headers: { Authorization: `Bearer ${tok.access_token}` } }).then((x) => x.json()).catch(() => null) : null;
     if (!info?.sub || !info.email || info.email_verified === false) { res.redirect("/settings?signin=failed"); return; }
     const user = await userForIdentity("google", String(info.sub), String(info.email).toLowerCase(), info.name ?? null);
-    await linkToSharedAccount(user, "google");
+    await linkToSharedAccount(user, "google", String(info.email).toLowerCase());
     await startSession(res, user, req.get("user-agent"));
     res.redirect("/my-team?signin=ok");
   }));
@@ -126,7 +126,7 @@ export function authRouter(): Router {
     res.clearCookie("cs_cp_state", { path: "/api/auth/control-point" });
     const code = typeof req.query.code === "string" ? req.query.code : "";
     if (!controlPointEnabled() || !state || state !== req.query.state || !code) { res.redirect("/settings?signin=failed"); return; }
-    const account = await redeemHandoff(code, state).catch(() => null);
+    const account = await redeemHandoff(code, state).catch((e) => { logFailure("redeem", e); return null; });
     if (!account) { res.redirect("/settings?signin=failed"); return; }
     const user = await userForIdentity(CP_PROVIDER, String(account.id), account.email.toLowerCase(), account.displayName);
     await startSession(res, user, req.get("user-agent"));

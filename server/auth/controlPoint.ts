@@ -20,6 +20,16 @@ export interface SharedAccount {
 
 export const controlPointEnabled = () => !!(env.controlPointInternalUrl && env.controlPointPublicUrl && env.controlPointInternalKey);
 
+/** A safe, secret-free reason for logs: which call, and what kind of failure. */
+function failure(op: string, e: unknown): string {
+  const err = e as { name?: string; status?: number; message?: string };
+  const kind = err?.name === "TimeoutError" || err?.name === "AbortError" ? "timeout"
+    : typeof err?.status === "number" ? `http ${err.status}`
+      : err?.message === "Control Point sent an unexpected account" ? "unexpected response" : "network";
+  return `[shared-accounts] ${op} failed: ${kind}`;
+}
+export const logFailure = (op: string, e: unknown) => console.warn(failure(op, e));
+
 /** Call Control Point's internal API. Throws on network errors, timeouts and non-2xx answers. */
 async function internal<T>(path: string, init: { method?: string; body?: unknown } = {}, timeoutMs = 3000): Promise<T> {
   const res = await fetch(`${env.controlPointInternalUrl!.replace(/\/$/, "")}${path}`, {
@@ -61,23 +71,37 @@ export async function linkedAccountId(userId: number): Promise<number | null> {
 /**
  * Tie a signed-in Scout user to their shared account (best effort: never
  * throws, never blocks sign-in; unlinked users are retried on the next /me).
- * `how` is how Scout proved the email.
+ * `provenEmail` is the address this sign-in just proved and `how` how it was
+ * proved. If it isn't the user's stored email (e.g. a Google account whose
+ * address changed), nothing is linked: Scout never vouches for an address it
+ * didn't just prove.
  */
-export async function linkToSharedAccount(user: User, how: "scout-email-code" | "google"): Promise<SharedAccount | null> {
+export async function linkToSharedAccount(user: User, how: "scout-email-code" | "google", provenEmail: string): Promise<SharedAccount | null> {
   if (!controlPointEnabled() || !user.email) return null;
+  if (provenEmail.trim().toLowerCase() !== user.email.trim().toLowerCase()) {
+    console.warn("[shared-accounts] link skipped: the proven email differs from the account's email");
+    return null;
+  }
   try {
-    const account = await resolveAccount(user.email, how, user.displayName);
+    const account = await resolveAccount(provenEmail.trim().toLowerCase(), how, user.displayName);
     // The same shared account may already be linked to another Scout user (an
     // older duplicate): keep the existing link; userForIdentity merges by email.
     await run("INSERT OR IGNORE INTO identities (provider, subject, user_id) VALUES (?, ?, ?)", [CP_PROVIDER, String(account.id), user.id]);
     return account;
-  } catch {
+  } catch (e) {
+    logFailure("resolve", e);
     return null;
   }
 }
 
-/** How the user's email was proven, for linking an existing session later. */
-export async function provenBy(userId: number): Promise<"scout-email-code" | "google" | null> {
-  const r = await get<{ provider: string }>("SELECT provider FROM identities WHERE user_id = ? AND provider IN ('email', 'google') ORDER BY provider = 'email' DESC LIMIT 1", [userId]);
-  return r?.provider === "email" ? "scout-email-code" : r?.provider === "google" ? "google" : null;
+/**
+ * For linking an existing session later (/me): the user's email counts as
+ * proven only if an email-code identity proved that exact address. A Google
+ * identity can't be re-checked without a fresh Google sign-in, so those users
+ * link on their next sign-in instead.
+ */
+export async function provenEmailFor(user: User): Promise<string | null> {
+  if (!user.email) return null;
+  const r = await get<{ subject: string }>("SELECT subject FROM identities WHERE user_id = ? AND provider = 'email' AND subject = ? COLLATE NOCASE", [user.id, user.email]);
+  return r ? user.email : null;
 }
