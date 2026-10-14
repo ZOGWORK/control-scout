@@ -154,3 +154,34 @@ To fail over, point DNS for `controlscout.org` and `www` at Render (add them
 as custom domains there first), or send people to the onrender.com URL. Render
 free sleeps after 15 minutes idle and takes ~25 s or more to wake (see
 `docs/perf-report.md`), so it's a fallback, not a twin.
+
+## Uptime alerts
+
+`.github/workflows/uptime.yml` (logic in `.github/scripts/uptime.sh`) checks
+production every 5 minutes. GitHub runs scheduled workflows best-effort, so
+runs can start several minutes late.
+
+- **What counts as up:** `https://controlscout.org/api/health` answers 200
+  with `"ready": true`, and `https://controlscout.org/` answers 200 with HTML.
+- **No false alarms on deploys:** each run tries 3 times, 20 s apart (30 s
+  timeout each). A deploy restart (~10 s of 503 / `ready: false`) or a single
+  blip passes; only a failure on every attempt counts as down.
+- **Down:** the run opens an issue labelled `uptime` ("controlscout.org is
+  down") with the time, each failed attempt (status, timing, body snippet) and
+  where to look. While it stays down, the issue gets at most one "Still down"
+  comment an hour. The run also fails.
+- **Back up:** the next good run comments "Back up at … (down ~N min)" and
+  closes the issue.
+- **Where alerts go:** GitHub's own notification emails. Everyone watching
+  the repo gets the issue and its comments, and the workflow's owner gets the
+  failed-run email. There are no extra secrets or services; it uses the
+  built-in `GITHUB_TOKEN`.
+- **Scope:** only controlscout.org (the Oracle VM). Render, the rollback host,
+  is not checked because the free plan sleeps when idle. Bruno may run his own
+  watcher for the VM; this one covers only controlscout.org, so the two don't
+  duplicate.
+- **Testing:** `CHECK_ONLY=1 bash .github/scripts/uptime.sh` runs just the
+  check (exit 0 up, 1 down). `DRY_RUN=1` prints the issue calls instead of
+  making them. Point either at another host with `SITE=…`.
+  `bash .github/scripts/uptime.test.sh` runs the script against fake `curl`
+  and `gh` (no network); CI runs it on every pull request.
