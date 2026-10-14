@@ -1,7 +1,7 @@
 // Performance measurements, always taken the same way (Sushil's task list 2–6):
 //
 //   npm run perf                              # local production build (npm run build first)
-//   npm run perf -- --base https://control-scout.onrender.com
+//   npm run perf -- --base https://controlscout.org
 //   npm run perf -- --json out.json            # also write the raw numbers
 //   npm run perf -- --budgets                  # exit 1 if any budget is blown
 //
