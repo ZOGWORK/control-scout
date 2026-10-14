@@ -21,6 +21,7 @@ export default function MyTeamPage() {
   useTitle("My team");
   const { state, set, user } = usePersonal();
   const [draft, setDraft] = useState("");
+  const current = useCurrentSeason();
   if (!state.myTeam) {
     return (
       <div>
@@ -48,6 +49,8 @@ export default function MyTeamPage() {
           ))}
         </ul>
         </div>
+        {/* Teams tracked before picking your own still show up here. */}
+        {state.tracked.teams.length + state.tracked.events.length > 0 && <div className="mt-8"><TrackedFeed season={current} /></div>}
       </div>
     );
   }
