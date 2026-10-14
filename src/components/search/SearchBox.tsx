@@ -3,6 +3,7 @@
 // and matches — navigation lives in the nav.
 import { useEffect, useId, useMemo, useRef, useState, type ReactNode, type Ref } from "react";
 import { CalendarDays, ChevronDown, Loader2, Search, Swords, Users, X } from "lucide-react";
+import { motion } from "motion/react";
 import { apiFetch } from "../../lib/api";
 import { usePersonal } from "../../lib/personal";
 import { useMeta } from "../../lib/meta";
@@ -134,7 +135,8 @@ export function SearchBox({ onPick, kinds, placeholder, label, size = "md", clas
         {q && <button type="button" onClick={() => setQ("")} aria-label="Clear search" className="rounded p-0.5 text-muted-foreground hover:text-foreground"><X className="size-4" /></button>}
       </div>
       {showList && (
-        <div className="absolute inset-x-0 top-full z-40 mt-1.5 overflow-hidden rounded-xl border border-border bg-popover text-popover-foreground shadow-[0_18px_40px_-16px_rgba(0,0,0,.55)]">
+        <motion.div initial={{ opacity: 0, y: -4 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.14, ease: [0.2, 0.8, 0.2, 1] }}
+          className="absolute inset-x-0 top-full z-40 mt-1.5 overflow-hidden rounded-xl border border-border bg-popover text-popover-foreground shadow-[0_18px_40px_-16px_rgba(0,0,0,.55)]">
         <div ref={list} id={listId} role="listbox" aria-label={`${label} results`} onScroll={measure}
           className="relative max-h-[min(26rem,calc(100dvh-12rem))] overflow-y-auto overscroll-contain p-1.5">
           {!query ? emptyHint : error ? <p className="px-3 py-2.5 text-sm text-destructive">{error}</p>
@@ -173,7 +175,7 @@ export function SearchBox({ onPick, kinds, placeholder, label, size = "md", clas
             </button>
           </div>
         )}
-        </div>
+        </motion.div>
       )}
     </div>
   );
