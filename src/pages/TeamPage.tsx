@@ -56,16 +56,24 @@ function Profile({ p, onSeason }: { p: TeamProfile; onSeason: (s: number) => voi
           description={p.seasons.length > 1 ? "Pick another season above to see past results." : "This team hasn't played an event we have data for."} />
       ) : (
         <>
-          <OprSection p={p} />
-          <TrendChart events={p.events} season={p.season} />
-          <Section title={`Event history (${p.events.length})`} description={`${seasonLabel(p.season)}, newest first`}>
-            <EventHistory events={p.events} team={p.team.number} />
-          </Section>
+          {/* Wide desktops: two columns, so the side space carries content instead of margins. */}
+          <div className="min-[1700px]:grid min-[1700px]:grid-cols-2 min-[1700px]:gap-x-8">
+            <OprSection p={p} />
+            <TrendChart events={p.events} season={p.season} />
+          </div>
+          <div className="min-[1700px]:grid min-[1700px]:grid-cols-2 min-[1700px]:items-start min-[1700px]:gap-x-8">
+            <Section title={`Event history (${p.events.length})`} description={`${seasonLabel(p.season)}, newest first`}>
+              <EventHistory events={p.events} team={p.team.number} />
+            </Section>
+            <div className="min-w-0">
+              <AwardsAllTime p={p} />
+              <ScoutNotes team={p.team.number} season={p.season} />
+            </div>
+          </div>
           <MatchesSection team={p.team.number} season={p.season} events={p.events} />
         </>
       )}
-      <AwardsAllTime p={p} />
-      <ScoutNotes team={p.team.number} season={p.season} />
+      {!hasResults && <><AwardsAllTime p={p} /><ScoutNotes team={p.team.number} season={p.season} /></>}
     </div>
   );
 }
