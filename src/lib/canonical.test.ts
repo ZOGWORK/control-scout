@@ -9,5 +9,8 @@ describe("canonicalPath (client) matches the server's canonical URLs", () => {
     expect(canonicalPath("/teams/4215")).toBe("/teams/4215");
     expect(canonicalPath("/")).toBe("/");
     expect(canonicalPath("/events")).toBe("/events");
+    // Malformed or unexpected paths never throw; they're left as they are.
+    expect(() => canonicalPath("/events/2025/%ZZ")).not.toThrow();
+    expect(canonicalPath("/events/2025/%ZZ")).toBe("/events/2025/%ZZ");
   });
 });
