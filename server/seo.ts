@@ -24,7 +24,10 @@ export function canonicalRedirects(req: Request, res: Response, next: NextFuncti
   const home = new URL(env.appUrl);
   const host = req.hostname;
   const qs = req.originalUrl.slice(req.path.length); // "?…" or ""
-  let path = req.path;
+  // Repeated slashes collapse (//evil.example/x must never become a protocol-relative redirect).
+  let path = req.path.replace(/\/{2,}/g, "/");
+  // The app's HTML has one URL: /index.html is the home page.
+  if (path === "/index.html") path = "/";
   // Singular aliases → the real routes.
   path = path.replace(/^\/team\/(\d{1,6})(?=\/|$)/, "/teams/$1").replace(/^\/event\/(\d{4})\/([^/]+)(?=\/|$)/, "/events/$1/$2");
   // No trailing slash (one URL per page).
@@ -32,10 +35,14 @@ export function canonicalRedirects(req: Request, res: Response, next: NextFuncti
   const otherHost = env.production && host && !LOOPBACK.has(host) && host !== home.hostname;
   if (otherHost || path !== req.path) {
     res.setHeader("Cache-Control", "public, max-age=3600");
-    return res.redirect(301, `${otherHost ? home.origin : ""}${path}${qs}`);
+    // Always absolute, on the canonical origin: a redirect can never leave the site.
+    return res.redirect(301, `${home.origin}${path}${qs}`);
   }
   next();
 }
+
+/** A path that names a file (any extension, e.g. .png, .xml, .webmanifest): missing ones are a 404, never the app. */
+export const MISSING_FILE = /\.[A-Za-z0-9]+$/;
 
 /** The canonical URL for a page path: canonical origin + path, no query, no trailing slash. */
 export function canonicalUrl(path: string): string {

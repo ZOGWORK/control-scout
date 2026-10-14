@@ -17,14 +17,12 @@ const xmlEsc = (s: string) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").rep
 export async function sitemapEntries(): Promise<Entry[]> {
   const [teams, events] = await Promise.all([
     all<{ number: number; updated_at: string | null }>("SELECT number, updated_at FROM teams ORDER BY number"),
-    all<{ season: number; code: string; start: string | null; end: string | null }>("SELECT season, code, start, end FROM events ORDER BY season DESC, code"),
+    all<{ season: number; code: string; upstream_updated: string | null }>("SELECT season, code, upstream_updated FROM events ORDER BY season DESC, code"),
   ]);
-  const today = new Date().toISOString().slice(0, 10);
-  // An event's page changes until it's over; after that, from its last day.
-  const evDay = (e: { start: string | null; end: string | null }) => { const d = day(e.end) ?? day(e.start); return d && d < today ? d : undefined; };
   return [
     ...STATIC_PAGES.map((p) => ({ loc: canonicalUrl(p) })),
-    ...events.map((e) => ({ loc: canonicalUrl(`/events/${e.season}/${encodeURIComponent(e.code)}`), lastmod: evDay(e) })),
+    // lastmod: the source's own change marker (late results, awards and advancement move it); none when unknown.
+    ...events.map((e) => ({ loc: canonicalUrl(`/events/${e.season}/${encodeURIComponent(e.code)}`), lastmod: day(e.upstream_updated) })),
     ...teams.map((t) => ({ loc: canonicalUrl(`/teams/${t.number}`), lastmod: day(t.updated_at) })),
   ];
 }
@@ -39,14 +37,6 @@ const index = (chunks: number) =>
   Array.from({ length: chunks }, (_, i) => `  <sitemap><loc>${xmlEsc(canonicalUrl(`/sitemap-${i + 1}.xml`))}</loc></sitemap>`).join("\n") +
   `\n</sitemapindex>\n`;
 
-// Built at most once an hour (about 30,000 rows; cheap, but no need per crawl).
-let cache: { at: number; entries: Entry[] } | null = null;
-async function entries(): Promise<Entry[]> {
-  if (!cache || Date.now() - cache.at > 3600_000) cache = { at: Date.now(), entries: await sitemapEntries() };
-  return cache.entries;
-}
-export const resetSitemapCache = () => { cache = null; };
-
 /** The sitemap document(s): one urlset, or an index plus chunks when over `chunk` URLs. */
 export function buildSitemap(e: Entry[], chunk = CHUNK): { main: string; chunks: string[] } {
   if (e.length <= chunk) return { main: urlset(e), chunks: [] };
@@ -54,17 +44,31 @@ export function buildSitemap(e: Entry[], chunk = CHUNK): { main: string; chunks:
   return { main: index(chunks.length), chunks };
 }
 
+// The finished XML, built at most once an hour (about 30,000 URLs): requests just send it.
+let cache: { at: number; built: Promise<{ main: string; chunks: string[] }> } | null = null;
+function built() {
+  if (!cache || Date.now() - cache.at > 3600_000) {
+    const at = Date.now();
+    const p = sitemapEntries().then((e) => buildSitemap(e));
+    p.catch(() => { if (cache?.at === at) cache = null; }); // a failed build isn't kept
+    cache = { at, built: p };
+  }
+  return cache.built;
+}
+export const resetSitemapCache = () => { cache = null; };
+
 const sendXml = (res: Response, xml: string) => { res.type("application/xml").setHeader("Cache-Control", "public, max-age=3600"); res.send(xml); };
 
 /** GET /sitemap.xml */
 export async function sitemapRoute(_req: Request, res: Response) {
-  sendXml(res, buildSitemap(await entries()).main);
+  sendXml(res, (await built()).main);
 }
 
 /** GET /sitemap-<n>.xml: chunk n of a split sitemap (404 when there's no such chunk). */
 export async function sitemapChunkRoute(req: Request, res: Response) {
-  const { chunks } = buildSitemap(await entries());
   const n = Number(req.params.n);
-  if (!Number.isInteger(n) || n < 1 || n > chunks.length) { res.status(404).type("text/plain").send("Not found"); return; }
+  if (!Number.isInteger(n) || n < 1) { res.status(404).type("text/plain").send("Not found"); return; }
+  const { chunks } = await built();
+  if (n > chunks.length) { res.status(404).type("text/plain").send("Not found"); return; }
   sendXml(res, chunks[n - 1]);
 }
