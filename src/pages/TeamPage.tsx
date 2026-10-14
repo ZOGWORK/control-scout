@@ -2,14 +2,15 @@
 // (hero, OPR cards with world rank, one trend chart, event history),
 // generalised from "my team" to every team.
 import { useMemo, useState } from "react";
-import { Link, useParams, useSearchParams } from "react-router-dom";
+import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { CartesianGrid, Line, LineChart, XAxis, YAxis } from "recharts";
 import {
-  Award, Bookmark, BookmarkCheck, CalendarDays, ChevronDown, ClipboardList, ExternalLink, Eye, EyeOff, Flag, Gauge, GraduationCap, Link2, MapPin, Scale, Search, SearchX, Sparkles, Star, Target, TrendingDown, TrendingUp, Trophy, Zap,
+  Award, Bookmark, BookmarkCheck, CalendarDays, ChevronDown, ClipboardList, ExternalLink, Eye, Flag, Gauge, GraduationCap, Link2, MapPin, Scale, Search, SearchX, Sparkles, Star, Target, TrendingDown, TrendingUp, Trophy, Zap,
 } from "lucide-react";
 import { useApi, qs } from "../lib/api";
 import { useTitle } from "../lib/meta";
 import { usePersonal, useTeamFlags } from "../lib/personal";
+import { toast } from "../components/ui/sonner";
 import { useScouting } from "../lib/scouting";
 import type { MatchView, TeamEventRow, TeamProfile } from "../shared/api";
 import { Section, EmptyState } from "../components/page";
@@ -88,6 +89,24 @@ const ADVANCING = new Set(["LeagueTournament", "Qualifier", "Championship", "Sup
 function Hero({ p, onSeason }: { p: TeamProfile; onSeason: (s: number) => void }) {
   const t = p.team;
   const flags = useTeamFlags(t.number);
+  const { state: personal } = usePersonal();
+  const nav = useNavigate();
+  // Say what each button did and where to see it: tracking and shortlisting change other pages, not this one.
+  const track = () => {
+    const on = !flags.tracked;
+    flags.toggleTracked();
+    if (!on) { toast(`Stopped tracking ${t.number}`); return; }
+    toast.success(`Tracking ${t.number}`, {
+      description: `It's on My team under Tracked teams, comes first in search and in Predict's quick picks.${personal.settings.notify.trackedTeams ? " You'll get alerts before its matches." : " Turn on alerts for tracked teams in Settings › Notifications to hear before its matches."}`,
+      action: { label: "My team", onClick: () => nav("/my-team") },
+    });
+  };
+  const shortlist = () => {
+    const on = !flags.bookmarked;
+    flags.toggleBookmark();
+    if (!on) { toast(`Removed ${t.number} from your shortlist`); return; }
+    toast.success(`${t.number} added to your shortlist`, { description: "Your shortlist compares the teams you're considering side by side.", action: { label: "Shortlist", onClick: () => nav("/shortlist") } });
+  };
   const loc = place(t.city, t.state, t.country);
   const s = p.stats;
   const today = new Date().toISOString().slice(0, 10);
@@ -125,10 +144,10 @@ function Hero({ p, onSeason }: { p: TeamProfile; onSeason: (s: number) => void }
             <Button variant={flags.isMine ? "secondary" : "outline"} size="sm" aria-pressed={flags.isMine} onClick={() => flags.setMine(!flags.isMine)} className="max-sm:h-11">
               <Star className={cn(flags.isMine && "fill-accent text-accent")} /> {flags.isMine ? "My team" : "Mark as my team"}
             </Button>
-            <Button variant={flags.tracked ? "secondary" : "outline"} size="sm" aria-pressed={flags.tracked} onClick={flags.toggleTracked} className="max-sm:h-11">
-              {flags.tracked ? <EyeOff /> : <Eye />} {flags.tracked ? "Tracking" : "Track"}
+            <Button variant={flags.tracked ? "secondary" : "outline"} size="sm" aria-pressed={flags.tracked} onClick={track} className="max-sm:h-11" title={flags.tracked ? "Tracked: on My team, first in search. Click to stop." : "Follow this team: it goes on My team and comes first in search"}>
+              <Eye className={cn(flags.tracked && "text-accent")} /> {flags.tracked ? "Tracking" : "Track"}
             </Button>
-            <Button variant={flags.bookmarked ? "secondary" : "outline"} size="sm" aria-pressed={flags.bookmarked} onClick={flags.toggleBookmark} className="max-sm:h-11">
+            <Button variant={flags.bookmarked ? "secondary" : "outline"} size="sm" aria-pressed={flags.bookmarked} onClick={shortlist} className="max-sm:h-11">
               {flags.bookmarked ? <BookmarkCheck /> : <Bookmark />} {flags.bookmarked ? "Shortlisted" : "Shortlist"}
             </Button>
             <Button variant="outline" size="sm" asChild className="max-sm:h-11"><Link to={`/compare?teams=${t.number}`}><Scale /> Compare</Link></Button>
