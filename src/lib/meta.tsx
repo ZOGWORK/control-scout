@@ -1,5 +1,6 @@
 // Site metadata (seasons, current season, data freshness) loaded once.
 import { createContext, useContext, useEffect, type ReactNode } from "react";
+import { useLocation } from "react-router-dom";
 import { useApi } from "./api";
 import type { Meta } from "../shared/api";
 
@@ -33,4 +34,16 @@ export function useTitle(title: string | null | undefined) {
   useEffect(() => {
     document.title = title ? `${title} · FTC Control Scout` : "FTC Control Scout — free FTC scouting & predictions";
   }, [title]);
+}
+
+/** Keeps <link rel="canonical"> in step with in-app navigation (the server sets it on the first load). */
+export function CanonicalSync() {
+  const { pathname } = useLocation();
+  useEffect(() => {
+    let link = document.querySelector<HTMLLinkElement>('link[rel="canonical"]');
+    if (!link) { link = document.createElement("link"); link.rel = "canonical"; document.head.appendChild(link); }
+    const path = pathname.length > 1 ? pathname.replace(/\/+$/, "") : "/";
+    link.href = `${window.location.origin}${path}`;
+  }, [pathname]);
+  return null;
 }
