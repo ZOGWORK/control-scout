@@ -2,10 +2,10 @@
 // scouting data, privacy, about.
 import { useEffect, useState, type ReactNode } from "react";
 import { Link } from "react-router-dom";
-import { ArrowDown, ArrowUp, Bell, Database, Download, ExternalLink, LogOut, Mail, Monitor, Moon, Palette, Shield, Sun, Upload, User, X } from "lucide-react";
+import { ArrowDown, ArrowUp, Bell, Database, Download, ExternalLink, KeyRound, Link2, LogOut, Mail, Monitor, Moon, Palette, Shield, Sun, Upload, User, X } from "lucide-react";
 import { apiFetch } from "../lib/api";
 import { useMeta, useTitle } from "../lib/meta";
-import { usePersonal, type AccountUser } from "../lib/personal";
+import { usePersonal, type AccountUser, type AuthProviders } from "../lib/personal";
 import { clearLocalScouting, localScoutEntries, saveScoutEntry, type ScoutEntry } from "../lib/scouting";
 import { clearRecordings, fmtBytes } from "../lib/recordings";
 import { downloadCsv } from "../lib/csv";
@@ -60,13 +60,13 @@ function Account() {
   );
 }
 
-function SignIn({ providers, onSignedIn }: { providers: { email: boolean; google: boolean }; onSignedIn: (u: AccountUser) => Promise<void> }) {
+function SignIn({ providers, onSignedIn }: { providers: AuthProviders; onSignedIn: (u: AccountUser) => Promise<void> }) {
   const [email, setEmail] = useState("");
   const [sent, setSent] = useState(false);
   const [code, setCode] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  if (!providers.email && !providers.google) return <p className="text-sm text-muted-foreground">Sign-in isn't set up on this server. Everything still works on this device.</p>;
+  if (!providers.email && !providers.google && !providers.controlPoint) return <p className="text-sm text-muted-foreground">Sign-in isn't set up on this server. Everything still works on this device.</p>;
   const start = async () => {
     setBusy(true); setError(null);
     try { await apiFetch("/api/auth/email/start", { method: "POST", json: { email } }); setSent(true); toast.success(`Code sent to ${email}`); }
@@ -102,6 +102,12 @@ function SignIn({ providers, onSignedIn }: { providers: { email: boolean; google
       ))}
       {error && !sent && <p className="text-sm text-destructive">{error}</p>}
       {providers.google && <Button variant="secondary" asChild><a href="/api/auth/google/start">Continue with Google</a></Button>}
+      {providers.controlPoint && (
+        <div className="space-y-1.5">
+          <Button variant="secondary" asChild><a href="/api/auth/control-point/start"><KeyRound /> Continue with Control Point</a></Button>
+          <p className="text-xs text-muted-foreground">One account for both apps: use your Control Point sign-in, or sign in here with the same email and it's the same account.</p>
+        </div>
+      )}
     </div>
   );
 }
@@ -116,6 +122,7 @@ function SignedIn({ user, sync, onSignOut }: { user: AccountUser; sync: string; 
   };
   return (
     <div className="space-y-4">
+      {user.controlPointLinked && <p className="flex items-center gap-1.5 text-xs text-muted-foreground"><Link2 className="size-3.5" /> One account with Control Point: the same email works on tryctrlpoint.org.</p>}
       <p className="text-sm">Signed in as <span className="font-medium">{user.email}</span> <Badge variant={sync === "synced" ? "success" : sync === "error" || sync === "offline" ? "destructive" : "secondary"} className="ml-1">{sync === "synced" ? "Synced" : sync === "syncing" ? "Syncing…" : sync === "offline" ? "Offline — will sync" : sync === "error" ? "Sync error — will retry" : sync}</Badge></p>
       <div className="flex max-w-md gap-2">
         <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="Display name" aria-label="Display name" className="h-10" maxLength={60} />
