@@ -42,13 +42,16 @@ log("ready");
 // Warm the current season's ratings so the first prediction is fast.
 forecasterFor(CURRENT_SEASON).then(() => log("ratings ready")).catch((e) => log(`ratings not ready: ${(e as Error).message}`));
 
+/** The data cycle runs in a child process (DATA_CYCLE=child), which needs a local database file. */
+function childCycle(): boolean { return process.env.DATA_CYCLE === "child" && !isRemote(env.databaseUrl); }
+
 let running = false;
 async function cycle(reason: string) {
   if (running || process.env.CS_NO_SCHEDULER) return;
   running = true;
   try {
     // A child needs the local file; with a remote database (or its embedded replica) the cycle stays here.
-    const child = process.env.DATA_CYCLE === "child" && !isRemote(env.databaseUrl);
+    const child = childCycle();
     log(`sync (${reason}${child ? ", in a child process" : ""})`);
     if (child) await runCycleInChild(); else await runCycle(log);
   } catch (e) {
@@ -68,7 +71,9 @@ async function eventDay(): Promise<boolean> {
 // 15 min where the cycle runs in a child process (the VM), hourly where it
 // runs in the server process (Render's 0.15 CPU would stall pages).
 // EVENT_DAY_SYNC_MINUTES overrides either.
-const eventDayMinutes = Number(process.env.EVENT_DAY_SYNC_MINUTES) || (process.env.DATA_CYCLE === "child" ? 15 : 60);
+// The same test cycle() uses: the child process needs a local database file.
+const configuredMinutes = Number(process.env.EVENT_DAY_SYNC_MINUTES);
+const eventDayMinutes = Number.isFinite(configuredMinutes) && configuredMinutes >= 1 ? configuredMinutes : (childCycle() ? 15 : 60);
 let last = 0;
 setInterval(async () => {
   const gap = (await eventDay().catch(() => false)) ? eventDayMinutes * 60_000 : 24 * 3600_000;
