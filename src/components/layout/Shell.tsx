@@ -20,7 +20,7 @@ interface NavItem { to: string; label: string; icon: ComponentType<{ className?:
 const SECTIONS: { title: string | null; items: NavItem[] }[] = [
   { title: null, items: [{ to: "/", label: "Home", icon: House, end: true }, { to: "/events", label: "Events", icon: CalendarDays }] },
   { title: "Predict", items: [
-    { to: "/predict", label: "Prediction lab", icon: Sparkles, end: true },
+    { to: "/predict", label: "Predict", icon: Sparkles, end: true },
     { to: "/compare", label: "Compare", icon: Scale },
   ] },
   { title: "Yours", items: [
@@ -110,7 +110,7 @@ function MobileTabs({ onMore }: { onMore: () => void }) {
 }
 
 const TITLES: [RegExp, string][] = [
-  [/^\/teams\//, "Team"], [/^\/events\/\d/, "Event"], [/^\/events/, "Events"], [/^\/predict\/how-it-works/, "How it works"], [/^\/predict/,"Prediction lab"],
+  [/^\/teams\//, "Team"], [/^\/events\/\d/, "Event"], [/^\/events/, "Events"], [/^\/predict\/how-it-works/, "How it works"], [/^\/predict/, "Predict"],
   [/^\/compare/, "Compare"], [/^\/my-team/, "My team"], [/^\/shortlist/, "Shortlist"], [/^\/scout/, "Scout"], [/^\/download/, "Download"],
   [/^\/settings/, "Settings"], [/^\/methodology/, "How it works"],
 ];

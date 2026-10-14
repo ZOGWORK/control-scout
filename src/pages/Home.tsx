@@ -100,7 +100,7 @@ function MyTeamNext({ team }: { team: number }) {
 /** The core loop, big: find an event, ask who wins. */
 function CoreLoop() {
   const items = [
-    { to: "/predict", icon: Sparkles, title: "Who wins?", body: "Pick any four teams — win odds, predicted scores, the three reasons why, and how sure we are.", cta: "Open the prediction lab" },
+    { to: "/predict", icon: Sparkles, title: "Who wins?", body: "Pick a team or event: win odds and predicted scores for every scheduled match, the reasons why, and how sure we are.", cta: "Open Predict" },
     { to: "/events", icon: CalendarDays, title: "Events", body: "Every event this season: live results, rankings, brackets, and any team's odds of advancing.", cta: "Browse events" },
   ];
   return (
