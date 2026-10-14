@@ -37,11 +37,13 @@ export function useTitle(title: string | null | undefined) {
 }
 
 /** The canonical form of a page path, the same as the server's: no trailing slash, event codes in
- *  upper case, team numbers without leading zeros (/events/2025/usnjnom3 → /events/2025/USNJNOM3). */
+ *  upper case, team numbers without leading zeros (/events/2025/usnjnom3 → /events/2025/USNJNOM3).
+ *  Event codes are only ever [A-Za-z0-9_-] (as on the server), so nothing is decoded and a
+ *  malformed path is left as it is, never thrown on. */
 export function canonicalPath(pathname: string): string {
   const p = pathname.length > 1 ? pathname.replace(/\/+$/, "") : "/";
   return p
-    .replace(/^\/events\/(\d{4})\/([^/]+)$/, (_m, s: string, c: string) => `/events/${s}/${decodeURIComponent(c).toUpperCase()}`)
+    .replace(/^\/events\/(\d{4})\/([A-Za-z0-9_-]{1,40})$/, (_m, s: string, c: string) => `/events/${s}/${c.toUpperCase()}`)
     .replace(/^\/teams\/0*(\d+)$/, "/teams/$1");
 }
 
