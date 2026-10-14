@@ -17,6 +17,7 @@ import { matchDetail, matchViews } from "./api/matches.js";
 import { trackRecord } from "./api/accuracy.js";
 import { currentWeather } from "./weather.js";
 import { canonicalRedirects, renderIndex } from "./seo.js";
+import { sitemapChunkRoute, sitemapRoute } from "./sitemap.js";
 import { forecasterFor, dataVersion } from "./predict/engine.js";
 import { authRouter, meRouter, authProviders } from "./auth/routes.js";
 import { packsRouter } from "./packs/routes.js";
@@ -309,6 +310,9 @@ export function createApp() {
   api.use((_req, res) => { res.status(404).json({ error: "Not found" }); });
   app.use("/api", api);
   app.use("/packs", packsRouter());
+  // The sitemap, from the database (server/sitemap.ts).
+  app.get("/sitemap.xml", h(sitemapRoute));
+  app.get("/sitemap-:n.xml", h(sitemapChunkRoute));
 
   // Built web app (production): static files with long cache for hashed assets.
   const dist = join(process.cwd(), "dist");
@@ -318,6 +322,8 @@ export function createApp() {
     for (const f of ["sw.js"]) app.get(`/${f}`, (_req, res) => { res.setHeader("Cache-Control", "no-cache"); res.sendFile(join(dist, f)); });
     app.use(express.static(dist, { index: false, maxAge: "1h" }));
     // The app's HTML, with the page's canonical link in the first response (crawlers don't run JS).
+    // A missing file (anything with an extension) is an honest 404, never the app's HTML with a 200.
+    app.get(/\.[A-Za-z0-9]{1,8}$/, (_req, res) => { res.setHeader("Cache-Control", "no-cache"); res.status(404).type("text/plain").send("Not found"); });
     app.get(/^(?!\/api\/|\/packs\/).*/, h(async (req, res) => {
       res.setHeader("Cache-Control", "no-cache");
       res.type("html").send(await renderIndex(join(dist, "index.html"), req.path));
