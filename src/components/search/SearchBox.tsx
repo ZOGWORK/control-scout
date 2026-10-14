@@ -41,7 +41,7 @@ export function useSearchHits(q: string, kinds?: HitKind[]) {
     const t = setTimeout(() => {
       apiFetch<{ hits: SearchHit[] }>(`/api/search?q=${encodeURIComponent(query)}&limit=15${prefer ? `&prefer=${encodeURIComponent(prefer)}` : ""}`)
         .then((r) => { if (id === seq.current) { setRes({ q: query, hits: kindKey ? r.hits.filter((h) => kindKey.split(",").includes(h.kind)) : r.hits }); setError(null); } })
-        .catch((e) => { if (id === seq.current) setError(e.message); })
+        .catch((e) => { if (id === seq.current) { setRes({ q: query, hits: [] }); setError(e.message); } }) // the query is answered (with an error): the spinner stops
         .finally(() => { if (id === seq.current) setBusy(false); });
     }, 140);
     return () => clearTimeout(t);
