@@ -54,12 +54,13 @@ export default function SettingsPage() {
   useTitle(`Settings · ${current.label}`);
   const go = (id: SectionId) => setParams((x) => { const n = new URLSearchParams(x); n.set("section", id); n.delete("signin"); return n; }, { replace: true });
 
-  // Esc leaves Settings (back where you came from), unless a field, dialog or menu has it.
+  // Esc leaves Settings (back where you came from), unless a field, dialog,
+  // menu or a search box (its field, results or clear button) has it.
   const navigate = useNavigate();
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.key !== "Escape" || e.defaultPrevented) return;
-      if ((e.target as Element | null)?.closest?.("input, textarea, select, [contenteditable=true], [role=dialog], [role=menu], [role=listbox]")) return;
+      if ((e.target as Element | null)?.closest?.("input, textarea, select, [contenteditable=true], [role=dialog], [role=menu], [role=listbox], [data-search-box]")) return;
       if (document.querySelector("[role=dialog], [role=alertdialog], [role=menu]")) return;
       const idx = (window.history.state as { idx?: number } | null)?.idx;
       if (typeof idx === "number" && idx > 0) navigate(-1); else navigate("/");
