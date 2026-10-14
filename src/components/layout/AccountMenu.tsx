@@ -29,11 +29,13 @@ export function AccountMenu() {
   useEffect(() => {
     if (!open) return;
     const away = (e: PointerEvent) => { if (!box.current?.contains(e.target as Node)) setOpen(false); };
-    const esc = (e: KeyboardEvent) => { if (e.key === "Escape") { setOpen(false); box.current?.querySelector<HTMLButtonElement>("[data-account-toggle]")?.focus(); } };
+    const esc = (e: KeyboardEvent) => { if (e.key === "Escape") { e.preventDefault(); setOpen(false); box.current?.querySelector<HTMLButtonElement>("[data-account-toggle]")?.focus(); } };
     document.addEventListener("pointerdown", away);
     document.addEventListener("keydown", esc);
     return () => { document.removeEventListener("pointerdown", away); document.removeEventListener("keydown", esc); };
   }, [open]);
+  // The email-code step lives here, not in the panel: closing the panel mid-sign-in keeps the code you were sent.
+  const [flow, setFlow] = useState<EmailFlow>({ email: "", sent: false });
   const initial = (user?.displayName || user?.email || "?").trim().charAt(0).toUpperCase();
   return (
     <div ref={box} className="relative shrink-0">
@@ -48,17 +50,20 @@ export function AccountMenu() {
       {open && (
         <div id={panelId} role="region" aria-label={user ? "Your account" : "Sign in"}
           className="fixed inset-x-2 top-14 z-50 max-h-[calc(100dvh-4rem)] overflow-y-auto rounded-xl border border-border bg-popover p-4 text-popover-foreground shadow-[0_18px_40px_-16px_rgba(0,0,0,.55)] sm:absolute sm:inset-x-auto sm:right-0 sm:top-full sm:mt-2 sm:w-96">
-          {user ? <SignedInPanel user={user} onClose={() => setOpen(false)} /> : <SignInPanel />}
+          {user ? <SignedInPanel user={user} onClose={() => setOpen(false)} /> : <SignInPanel flow={flow} setFlow={setFlow} />}
         </div>
       )}
     </div>
   );
 }
 
-function SignInPanel() {
+interface EmailFlow { email: string; sent: boolean }
+
+function SignInPanel({ flow, setFlow }: { flow: EmailFlow; setFlow: (f: EmailFlow) => void }) {
   const { providers, signedIn } = usePersonal();
-  const [email, setEmail] = useState("");
-  const [sent, setSent] = useState(false);
+  const { email, sent } = flow;
+  const setEmail = (v: string) => setFlow({ email: v, sent: false });
+  const setSent = (v: boolean) => setFlow({ email, sent: v });
   const [code, setCode] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -74,6 +79,7 @@ function SignInPanel() {
     try {
       const r = await apiFetch<{ user: AccountUser }>("/api/auth/email/verify", { method: "POST", json: { email, code: c } });
       await signedIn(r.user); // the panel switches to the signed-in view, with the Control Point result
+      setFlow({ email: "", sent: false });
       toast.success("Signed in. This device's data is now in your account");
     } catch (e: any) { setError(e.message); setCode(""); } finally { setBusy(false); }
   };

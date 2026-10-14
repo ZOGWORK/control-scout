@@ -112,19 +112,44 @@ export interface ControlPointInfo { member: boolean; teams: { teamNumber: number
 
 const infoCache = new Map<number, { at: number; info: SharedAccount["controlPoint"] }>();
 const INFO_TTL = 10 * 60_000;
-export const toInfo = (cp: SharedAccount["controlPoint"]): ControlPointInfo => ({ member: !!cp.member, teams: (cp.teams ?? []).slice(0, 10), url: env.controlPointPublicUrl!.replace(/\/$/, "") });
+const INFO_MAX = 2000;
 
-/** Remember an account's Control Point side (from resolve or redeem), so /me needn't ask again. */
-export function rememberInfo(account: SharedAccount): void { infoCache.set(account.id, { at: Date.now(), info: account.controlPoint }); }
+/** Membership as Control Point sent it, if it has the expected shape (it's optional data: never trusted blindly). */
+function validInfo(cp: unknown): SharedAccount["controlPoint"] | null {
+  if (!cp || typeof cp !== "object" || !Array.isArray((cp as { teams?: unknown }).teams)) return null;
+  const teams = ((cp as { teams: unknown[] }).teams)
+    .filter((t): t is { teamNumber?: unknown; name?: unknown } => !!t && typeof t === "object")
+    .slice(0, 10)
+    .map((t) => ({ teamNumber: typeof t.teamNumber === "number" ? t.teamNumber : null, name: typeof t.name === "string" ? t.name : "" }));
+  return { member: (cp as { member?: unknown }).member === true, teams };
+}
+const toInfo = (cp: SharedAccount["controlPoint"]): ControlPointInfo => ({ member: cp.member, teams: cp.teams, url: env.controlPointPublicUrl!.replace(/\/$/, "") });
 
-/** Membership for a linked account, cached for 10 minutes; null when Control Point can't be reached. */
+/** Remember an account's Control Point side (from resolve or redeem), so /me needn't ask again. Bounded: expired entries go first, then the oldest. */
+export function rememberInfo(account: SharedAccount): void {
+  const info = validInfo(account.controlPoint);
+  if (!info) return;
+  const t = Date.now();
+  infoCache.delete(account.id);
+  infoCache.set(account.id, { at: t, info });
+  if (infoCache.size > INFO_MAX) {
+    for (const [k, v] of infoCache) if (t - v.at >= INFO_TTL) infoCache.delete(k);
+    while (infoCache.size > INFO_MAX) infoCache.delete(infoCache.keys().next().value!);
+  }
+}
+/** Tests: forget everything (a cold cache). */
+export const clearInfoCache = () => infoCache.clear();
+
+/** Membership for a linked account, cached for 10 minutes; null when Control Point can't be reached or sends something unexpected. */
 export async function controlPointInfo(accountId: number): Promise<ControlPointInfo | null> {
-  const hit = infoCache.get(accountId);
-  if (hit && Date.now() - hit.at < INFO_TTL) return toInfo(hit.info);
   try {
+    const hit = infoCache.get(accountId);
+    if (hit && Date.now() - hit.at < INFO_TTL) return toInfo(hit.info);
+    infoCache.delete(accountId);
     const a = await getAccount(accountId);
     if (!a) return null;
     rememberInfo(a);
-    return toInfo(a.controlPoint);
+    const info = infoCache.get(accountId)?.info;
+    return info ? toInfo(info) : null;
   } catch (e) { logFailure("account", e); return null; }
 }
