@@ -18,7 +18,7 @@ package, so predictions can never be better in one app than the other.
 | Database | SQLite through `@libsql/client` | A local file in development and on a single box; the same client talks to Turso if hosting ever needs a networked database. Zero ops. |
 | Web | React 19 · Vite · Tailwind v4 · Radix (shadcn-style components copied into `src/components/ui`) · Motion · Recharts | Control Point's exact UI stack and theme tokens, so the two apps feel like family. |
 | Predictions | `packages/predict-engine` (pure TS) | Runs identically on the server and in the browser — offline predictions from the lite pack need no server. |
-| Deploy | Dockerfile + plain Node | Portable: Oracle VM / Render / a Mac mini cluster are all just "run the container". |
+| Deploy | Plain Node on the Oracle VM (Dockerfile too) | Portable: the VM or a Mac mini cluster are all just "run the app". |
 
 ## Run it locally
 
@@ -47,13 +47,12 @@ personal stays on the device.
 | `npm run shots -- /teams/18360 --both` | Screenshots for PRs (real servers, 2x, waits for data). See [AGENTS.md](AGENTS.md). |
 | `npm run audit` | The self-audit sweep: every route at desktop + mobile, console, overflow, labels, loading and API-down states ([docs/self-audit.md](docs/self-audit.md)). |
 | `npm run db:export` | A consistent single-file copy of the database (for moving it to a server). |
-| `npm run db:push` | Copy the public data into a Turso database ([docs/render.md](docs/render.md)). |
 
 ## Hosting
 
-* **Now:** Render (free) + Turso: [docs/render.md](docs/render.md).
-* **Later (custom domain):** the Oracle VM next to Control Point:
-  [docs/deploy.md](docs/deploy.md). A `Dockerfile` runs anywhere else.
+* https://controlscout.org runs on the Oracle VM next to Control Point:
+  [docs/deploy.md](docs/deploy.md) (deploys, rollback, alerts). A `Dockerfile`
+  runs anywhere else. (Render was retired on 2026-10-14.)
 
 ## How data flows
 
