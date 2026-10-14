@@ -77,11 +77,15 @@ function Recorder({ matchRef, label }: { matchRef: string; label: string }) {
   const [error, setError] = useState<string | null>(null);
   const supported = typeof navigator !== "undefined" && !!navigator.mediaDevices?.getUserMedia && typeof MediaRecorder !== "undefined";
   const stopAll = () => { stream.current?.getTracks().forEach((t) => t.stop()); stream.current = null; };
-  useEffect(() => () => { rec.current?.state === "recording" && rec.current.stop(); stopAll(); }, []);
+  // Unmounted (e.g. the video section closed): a camera that's still starting must be stopped when it arrives.
+  const gone = useRef(false);
+  useEffect(() => { gone.current = false; return () => { gone.current = true; rec.current?.state === "recording" && rec.current.stop(); stopAll(); }; }, []);
   const startCamera = async () => {
     setError(null);
     try {
-      stream.current = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment", width: { ideal: 1280 } }, audio: true });
+      const s = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment", width: { ideal: 1280 } }, audio: true });
+      if (gone.current) { s.getTracks().forEach((t) => t.stop()); return; }
+      stream.current = s;
       if (video.current) { video.current.srcObject = stream.current; await video.current.play().catch(() => {}); }
       setState("preview");
     } catch (e: any) {
