@@ -6,7 +6,7 @@ import type { Server } from "node:http";
 import { mkdtempSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import express from "express";
 import { canonicalRedirects, canonicalUrl, renderIndex } from "./seo";
 import { fitDescription } from "./seoMeta";
@@ -65,13 +65,18 @@ describe("canonical redirects", () => {
 });
 
 describe("page head in the first HTML", () => {
-  it("team and event pages get their own title, description (120–160), canonical, OG and Twitter tags", async () => {
+  // Each test gets its own freshly seeded database, so any one can run alone.
+  beforeEach(async () => {
     const c = openDb(":memory:");
     setDb(c);
     await migrate(c);
     await run("INSERT INTO teams (number, name, city, state, country) VALUES (4215, 'Hypnotic Robotics', 'Oradell', 'NJ', 'USA')");
     await run("INSERT INTO team_season_stats (season, team, opr_np, rank_np, ranked_teams, matches, wins, losses, ties) VALUES (2025, 4215, 101.64, 616, 8375, 32, 26, 6, 0)");
     await run("INSERT INTO events (season, code, name, type, venue, city, state, country, start, end, remote, hybrid, source) VALUES (2025, 'USNJNOM3', 'P1-4 PM Northern League Meet', 'LeagueMeet', 'Don Bosco Prep', 'Ramsey', 'NJ', 'USA', '2025-11-08', '2025-11-08', 0, 0, 'test')");
+    await run("INSERT INTO events (season, code, name, type, city, state, country, start, end, remote, hybrid, source) VALUES (2025, 'REMOTE1', 'Remote League', 'LeagueMeet', 'Columbus', 'OH', 'USA', '2025-11-08', '2025-11-08', 1, 0, 'test')");
+  });
+
+  it("team and event pages get their own title, description (120–160), canonical, OG and Twitter tags", async () => {
     const dir = mkdtempSync(join(tmpdir(), "cs-seo-"));
     const file = join(dir, "index.html");
     writeFileSync(file, '<html><head><title>FTC Control Scout — free</title>\n<meta name="description" content="generic" />\n<meta property="og:title" content="generic" />\n</head><body></body></html>');
@@ -102,6 +107,39 @@ describe("page head in the first HTML", () => {
     expect(/<meta name="description" content="([^"]*)"/.exec(home)![1]).not.toBe(desc);
     // Personal pages: noindex.
     expect(await renderIndex(file, "/my-team")).toContain('<meta name="robots" content="noindex" />');
+  });
+
+  it("JSON-LD: WebSite + Organization on home, SportsTeam and SportsEvent on their pages, URLs = canonical, script-safe", async () => {
+    const dir = mkdtempSync(join(tmpdir(), "cs-seo-ld-"));
+    const file = join(dir, "index.html");
+    writeFileSync(file, "<html><head></head><body></body></html>");
+    const ld = (html: string) => [...html.matchAll(/<script type="application\/ld\+json">([\s\S]*?)<\/script>/g)].map((m) => JSON.parse(m[1]));
+    const home = ld(await renderIndex(file, "/"));
+    expect(home.map((x) => x["@type"]).sort()).toEqual(["Organization", "WebSite"]);
+    expect(home.find((x) => x["@type"] === "Organization").logo).toBe("https://controlscout.org/logo-512.png");
+    const [team] = ld(await renderIndex(file, "/teams/4215"));
+    expect(team).toMatchObject({ "@type": "SportsTeam", name: "Hypnotic Robotics", url: "https://controlscout.org/teams/4215", location: { address: { addressLocality: "Oradell", addressRegion: "NJ" } } });
+    const [ev] = ld(await renderIndex(file, "/events/2025/USNJNOM3"));
+    expect(ev).toMatchObject({ "@type": "SportsEvent", name: "P1-4 PM Northern League Meet", startDate: "2025-11-08", url: "https://controlscout.org/events/2025/USNJNOM3", location: { name: "Don Bosco Prep" } });
+    // A name containing </script> can't break out of the tag.
+    await run("UPDATE teams SET name = 'Evil</script><script>alert(1)</script>' WHERE number = 4215");
+    const evil = await renderIndex(file, "/teams/4215");
+    expect(evil).not.toContain("</script><script>alert(1)");
+    expect(ld(evil)[0].name).toBe("Evil</script><script>alert(1)</script>");
+    expect(ld(await renderIndex(file, "/predict"))).toHaveLength(0);
+    // Replacement patterns in a name ($', $`, $&) are inserted literally, never expanded.
+    await run("UPDATE teams SET name = 'Dollar $'' Bot $` $& end' WHERE number = 4215");
+    const dollar = await renderIndex(file, "/teams/4215");
+    expect(ld(dollar)[0].name).toBe("Dollar $' Bot $` $& end");
+    expect(dollar.match(/<\/head>/g)).toHaveLength(1);
+    // An unknown team gets fallback meta but no structured data; a zero-padded number has one canonical URL.
+    expect(ld(await renderIndex(file, "/teams/999998"))).toHaveLength(0);
+    const padded = await renderIndex(file, "/teams/004215");
+    expect(padded).toContain('<link rel="canonical" href="https://controlscout.org/teams/4215" />');
+    expect(ld(padded)[0].url).toBe("https://controlscout.org/teams/4215");
+    // Attendance mode follows the event's remote/hybrid flags.
+    expect(ld(await renderIndex(file, "/events/2025/REMOTE1"))[0].eventAttendanceMode).toBe("https://schema.org/OnlineEventAttendanceMode");
+    expect(ld(await renderIndex(file, "/events/2025/USNJNOM3"))[0].eventAttendanceMode).toBe("https://schema.org/OfflineEventAttendanceMode");
   });
 
   it("fits descriptions to 120–160 characters", () => {

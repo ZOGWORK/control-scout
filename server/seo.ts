@@ -68,5 +68,6 @@ function indexHtml(file: string): string {
 export async function renderIndex(file: string, path: string): Promise<string> {
   const { pageMeta, headTags } = await import("./seoMeta.js");
   const head = headTags(path, await pageMeta(path));
-  return indexHtml(file).replace("</head>", `    ${head}\n  </head>`);
+  // A callback, so $', $`, $& in a team or event name are inserted literally (a replacement string would expand them).
+  return indexHtml(file).replace("</head>", () => `    ${head}\n  </head>`);
 }
