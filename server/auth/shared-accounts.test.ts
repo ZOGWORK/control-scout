@@ -237,6 +237,15 @@ describe("shared accounts", () => {
     expect((await c.req(`/api/auth/control-point/callback?code=code-odd&state=${s2}`)).headers.get("location")).toBe("/my-team?signin=ok");
   });
 
+  it("safeBack: same-site paths only, a stale signin= removed without breaking the query", async () => {
+    const { safeBack } = await import("./routes");
+    expect(safeBack("/events/2025/USNJNOM3?signin=failed&tab=matches")).toBe("/events/2025/USNJNOM3?tab=matches");
+    expect(safeBack("/a?x=1&signin=ok")).toBe("/a?x=1");
+    expect(safeBack("/my-team?signin=ok")).toBe("/my-team");
+    expect(safeBack("/")).toBe("/");
+    for (const bad of ["//evil.example", "/\\evil.example", "https://evil.example", "evil", "/x\r\nSet-Cookie: a=b", 42]) expect(safeBack(bad)).toBeNull();
+  });
+
   it("rejects a callback whose state doesn't match, and a reused code", async () => {
     const c = client();
     const start = await c.req("/api/auth/control-point/start");

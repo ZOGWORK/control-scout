@@ -38,8 +38,12 @@ function ipLimit(max: number, windowMs: number) {
 /** A same-site path to return to after signing in elsewhere: "/x?y", never "//host" or "/\host". */
 export function safeBack(v: unknown): string | null {
   if (typeof v !== "string" || v.length > 300 || !/^\/(?![/\\])/.test(v) || /[\r\n\\]/.test(v)) return null;
-  const clean = v.replace(/[?&]signin=[^&]*/g, "").replace(/\?&/, "?").replace(/[?&]$/, "");
-  return clean || "/";
+  // Drop a stale signin= with URLSearchParams, so the rest of the query keeps its "?".
+  const [path, query = ""] = v.split("?", 2);
+  const q = new URLSearchParams(query);
+  q.delete("signin");
+  const rest = q.toString();
+  return (path || "/") + (rest ? `?${rest}` : "");
 }
 
 const publicUser = (u: User) => ({ id: u.id, email: u.email, displayName: u.displayName, createdAt: u.createdAt });

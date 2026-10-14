@@ -12,7 +12,7 @@ import { useEffect, useId, useRef, useState, type Dispatch, type SetStateAction 
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { CheckCircle2, ExternalLink, KeyRound, LogIn, LogOut, Mail, Settings, UserRound } from "lucide-react";
 import { apiFetch } from "../../lib/api";
-import { usePersonal, type AccountUser } from "../../lib/personal";
+import { SIGNED_IN, usePersonal, type AccountUser } from "../../lib/personal";
 import { OtpInput } from "../arc/otp-input/otp-input";
 import { Button } from "../ui/button";
 import { Input } from "../ui/basic";
@@ -42,23 +42,34 @@ export function AccountMenu() {
   const [flow, setFlow] = useState<EmailFlow>({ email: "", sent: false });
   // A sign-in that found an existing Control Point account: play the merge screen in the panel.
   const [merging, setMerging] = useState<AccountUser | null>(null);
-  // What to merge (kept after the screen finishes, so a slow sync still gets the shortlist in).
-  const [mergeTarget, setMergeTarget] = useState<AccountUser | null>(null);
-  const startMerge = (u: AccountUser) => { setMerging(u); setMergeTarget(u); setOpen(true); };
-  const onSignedIn = (u: AccountUser) => { if (u.controlPoint?.member) startMerge(u); };
+  // What to merge, one per sign-in (`seq`), kept after the screen finishes so a slow sync still gets the shortlist in.
+  const [mergeTarget, setMergeTarget] = useState<{ user: AccountUser; seq: number } | null>(null);
+  const seq = useRef(0);
+  const startMerge = (u: AccountUser) => { setMerging(u); setMergeTarget({ user: u, seq: ++seq.current }); setOpen(true); };
+  // Every explicit sign-in (this panel, Settings, …) announces itself; an existing Control Point account merges.
+  useEffect(() => {
+    const on = (e: Event) => { const u = (e as CustomEvent<AccountUser>).detail; if (u?.controlPoint?.member) startMerge(u); };
+    window.addEventListener(SIGNED_IN, on);
+    return () => window.removeEventListener(SIGNED_IN, on);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  // Signed out, or a different account: a pending merge belongs to the old one, so drop it.
+  useEffect(() => {
+    if (mergeTarget && user?.id !== mergeTarget.user.id) { setMergeTarget(null); setMerging(null); setAdded(null); }
+  }, [user?.id]); // eslint-disable-line react-hooks/exhaustive-deps
   // The shortlist merge runs here (always mounted, so closing the panel can't skip it), once this
   // device's data is the account's: the added teams then sync and aren't overwritten by the first pull.
   const { syncReady } = usePersonal();
   const mergeShortlist = useShortlistMerge();
   const [added, setAdded] = useState<number | null>(null);
-  const mergedFor = useRef<number | null>(null);
+  const mergedFor = useRef<number | null>(null); // the sign-in (seq) already merged
   useEffect(() => {
-    if (!mergeTarget || !syncReady || mergedFor.current === mergeTarget.id) return;
-    mergedFor.current = mergeTarget.id;
-    const n = mergeShortlist(mergeTarget.controlPoint?.shortlist ?? []);
+    // Only into the account that signed in (never another one signed in since), once per sign-in.
+    if (!mergeTarget || !syncReady || user?.id !== mergeTarget.user.id || mergedFor.current === mergeTarget.seq) return;
+    mergedFor.current = mergeTarget.seq;
+    const n = mergeShortlist(mergeTarget.user.controlPoint?.shortlist ?? []);
     setAdded(n);
     if (!merging && n) toast.success(`${n} team${n === 1 ? "" : "s"} from your Control Point shortlist added`);
-  }, [mergeTarget, syncReady]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [mergeTarget, syncReady, user?.id]); // eslint-disable-line react-hooks/exhaustive-deps
   // Back from Google / Discord / GitHub / Control Point (?signin=ok): open the panel, merging if there's an account to merge.
   const nav = useNavigate();
   const back = new URLSearchParams(loc.search).get("signin");
@@ -85,7 +96,7 @@ export function AccountMenu() {
           className="fixed inset-x-2 top-14 z-50 max-h-[calc(100dvh-4rem)] overflow-y-auto rounded-xl border border-border bg-popover p-4 text-popover-foreground shadow-[0_18px_40px_-16px_rgba(0,0,0,.55)] sm:absolute sm:inset-x-auto sm:right-0 sm:top-full sm:mt-2 sm:w-96">
           {merging ? <MergeScreen user={merging} added={added} onDone={() => { setMerging(null); setAdded(null); }} />
             : user ? <SignedInPanel user={user} onClose={() => setOpen(false)} />
-            : <SignInPanel flow={flow} setFlow={setFlow} onSignedIn={onSignedIn} />}
+            : <SignInPanel flow={flow} setFlow={setFlow} />}
         </div>
       )}
     </div>
@@ -94,7 +105,7 @@ export function AccountMenu() {
 
 interface EmailFlow { email: string; sent: boolean }
 
-function SignInPanel({ flow, setFlow, onSignedIn }: { flow: EmailFlow; setFlow: Dispatch<SetStateAction<EmailFlow>>; onSignedIn: (u: AccountUser) => void }) {
+function SignInPanel({ flow, setFlow }: { flow: EmailFlow; setFlow: Dispatch<SetStateAction<EmailFlow>> }) {
   const { providers, signedIn } = usePersonal();
   const { email, sent } = flow;
   const setEmail = (v: string) => setFlow({ email: v, sent: false });
@@ -117,8 +128,7 @@ function SignInPanel({ flow, setFlow, onSignedIn }: { flow: EmailFlow; setFlow: 
     try {
       const r = await apiFetch<{ user: AccountUser }>("/api/auth/email/verify", { method: "POST", json: { email, code: c } });
       await signedIn(r.user); // the panel switches to the signed-in view, with the Control Point result
-      setFlow({ email: "", sent: false });
-      onSignedIn(r.user);
+      setFlow({ email: "", sent: false }); // signedIn announced the sign-in: the merge (if any) starts from that
       if (!r.user.controlPoint?.member) toast.success("Signed in. This device's data is now in your account");
     } catch (e: any) { setError(e.message); setCode(""); } finally { setBusy(false); }
   };
