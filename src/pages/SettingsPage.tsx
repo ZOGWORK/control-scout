@@ -1,8 +1,15 @@
-// Settings: account, appearance, tracking, notifications, offline & data,
-// scouting data, privacy, about.
-import { useEffect, useState, type ReactNode } from "react";
-import { Link } from "react-router-dom";
-import { ArrowDown, ArrowUp, Bell, Database, Download, ExternalLink, LogOut, Mail, Monitor, Moon, Palette, Shield, Sun, Upload, User, X } from "lucide-react";
+// Settings, laid out like Control Point's: a section list on the left (a chip
+// row on phones), the section's name as the page title, and titled groups of
+// rows (label + explanation on the left, the control on the right). Sections
+// are addressed by ?section= so anything can deep-link; old #anchors still
+// land on the right one. Esc leaves, like Control Point.
+import { useEffect, useRef, useState, type ComponentType, type ReactNode } from "react";
+import { Link, useLocation, useNavigate, useSearchParams } from "react-router-dom";
+import { AnimatePresence, motion } from "motion/react";
+import {
+  ArrowDown, ArrowUp, BellRing, ClipboardList, Download, ExternalLink, HardDriveDownload, Info, KeyRound, LogOut, Mail, Monitor, Moon, Palette,
+  Star, Sun, Upload, UserRound, X,
+} from "lucide-react";
 import { apiFetch } from "../lib/api";
 import { useMeta, useTitle } from "../lib/meta";
 import { usePersonal, type AccountUser } from "../lib/personal";
@@ -11,54 +18,149 @@ import { clearRecordings, fmtBytes } from "../lib/recordings";
 import { downloadCsv } from "../lib/csv";
 import { PageHeader } from "../components/page";
 import { Button } from "../components/ui/button";
-import { Badge, Input, Label } from "../components/ui/basic";
+import { Badge, Input } from "../components/ui/basic";
 import { Switch, ToggleGroup, ToggleGroupItem } from "../components/ui/controls";
 import { toast } from "../components/ui/sonner";
 import { OtpInput } from "../components/arc/otp-input/otp-input";
 import { HoldToConfirm } from "../components/arc/hold-to-confirm/hold-to-confirm";
+import { cn } from "../components/cn";
 import { ago } from "../lib/format";
 import { packStatus } from "../lib/packs";
 
-function Card({ id, icon: Icon, title, description, children }: { id: string; icon: typeof User; title: string; description?: ReactNode; children: ReactNode }) {
-  return (
-    <section id={id} className="scroll-mt-20 rounded-2xl border border-border bg-card p-5 sm:p-6">
-      <h2 className="flex items-center gap-2 text-base font-semibold"><Icon className="size-4 text-accent" />{title}</h2>
-      {description && <p className="mt-1 text-sm text-muted-foreground">{description}</p>}
-      <div className="mt-4">{children}</div>
-    </section>
-  );
-}
+type SectionId = "profile" | "appearance" | "tracking" | "notifications" | "offline" | "scouting" | "privacy" | "about";
+interface SectionDef { id: SectionId; label: string; hint: string; icon: ComponentType<{ className?: string }>; group: "You" | "About" }
+
+const SECTIONS: SectionDef[] = [
+  { id: "profile", label: "Profile", hint: "Sign in to sync, your name, your account", icon: UserRound, group: "You" },
+  { id: "appearance", label: "Appearance", hint: "Theme, background, density", icon: Palette, group: "You" },
+  { id: "tracking", label: "My team & tracking", hint: "Your team, and the teams and events you follow", icon: Star, group: "You" },
+  { id: "notifications", label: "Notifications", hint: "Match alerts for your teams", icon: BellRing, group: "You" },
+  { id: "offline", label: "Offline data", hint: "Packs, cache and recordings on this device", icon: HardDriveDownload, group: "You" },
+  { id: "scouting", label: "Scouting data", hint: "Export, import and clear your notes", icon: ClipboardList, group: "You" },
+  { id: "privacy", label: "Account & privacy", hint: "What lives where, and how to remove it", icon: KeyRound, group: "You" },
+  { id: "about", label: "About", hint: "Data sources, engine and credits", icon: Info, group: "About" },
+];
+/** Old in-page anchors (#account …) → sections. */
+const HASHES: Record<string, SectionId> = { account: "profile", appearance: "appearance", tracking: "tracking", notifications: "notifications", offline: "offline", scouting: "scouting", privacy: "privacy", about: "about" };
 
 export default function SettingsPage() {
-  useTitle("Settings");
-  useEffect(() => { if (location.hash) document.querySelector(location.hash)?.scrollIntoView(); }, []);
+  const [params, setParams] = useSearchParams();
+  const loc = useLocation();
+  const fromHash = HASHES[loc.hash.replace(/^#/, "")];
+  const requested = params.get("section") as SectionId | null;
+  const active: SectionId = SECTIONS.some((s) => s.id === requested) ? requested! : fromHash ?? "profile";
+  const current = SECTIONS.find((s) => s.id === active)!;
+  useTitle(`Settings · ${current.label}`);
+  const go = (id: SectionId) => setParams((x) => { const n = new URLSearchParams(x); n.set("section", id); n.delete("signin"); return n; }, { replace: true });
+
+  // Esc leaves Settings (back where you came from), unless a field, dialog or menu has it.
+  const navigate = useNavigate();
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== "Escape" || e.defaultPrevented) return;
+      if ((e.target as Element | null)?.closest?.("input, textarea, select, [contenteditable=true], [role=dialog], [role=menu], [role=listbox]")) return;
+      if (document.querySelector("[role=dialog], [role=alertdialog], [role=menu]")) return;
+      const idx = (window.history.state as { idx?: number } | null)?.idx;
+      if (typeof idx === "number" && idx > 0) navigate(-1); else navigate("/");
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [navigate]);
+
+  // Phones: keep the active chip in view in the scrolling row.
+  const navRef = useRef<HTMLUListElement>(null);
+  useEffect(() => {
+    const el = navRef.current?.querySelector<HTMLElement>("[aria-current=page]");
+    if (el && window.matchMedia?.("(max-width: 1023px)").matches) el.scrollIntoView({ block: "nearest", inline: "center", behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth" });
+  }, [active]);
+
   return (
     <div>
-      <PageHeader title="Settings" />
-      <div className="grid gap-4">
-        <Account />
-        <Appearance />
-        <Tracking />
-        <Notifications />
-        <OfflineData />
-        <ScoutingData />
-        <Privacy />
-        <About />
+      <PageHeader eyebrow="Settings" title={current.label} description={current.hint} />
+      <div className="grid grid-cols-[minmax(0,1fr)] gap-8 lg:grid-cols-[220px_minmax(0,1fr)]">
+        <nav aria-label="Settings sections" className="min-w-0 lg:sticky lg:top-6 lg:self-start">
+          <ul ref={navRef} className="-mx-4 flex gap-2 overflow-x-auto px-4 pb-1 [scrollbar-width:none] lg:mx-0 lg:block lg:space-y-0.5 lg:overflow-visible lg:px-0 [&::-webkit-scrollbar]:hidden">
+            {SECTIONS.map((s, i) => {
+              const on = s.id === active;
+              const showGroup = i === 0 || SECTIONS[i - 1].group !== s.group;
+              return (
+                <li key={s.id} className="shrink-0">
+                  {showGroup && <p className={cn("mb-1 hidden px-3 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground lg:block", i === 0 ? "mt-0" : "mt-5")}>{s.group === "You" ? "Your settings" : "About"}</p>}
+                  <button
+                    type="button" onClick={() => go(s.id)} aria-current={on ? "page" : undefined}
+                    className={cn(
+                      "relative flex min-h-11 w-full items-center gap-2.5 rounded-lg px-3 text-left text-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring max-lg:rounded-full max-lg:border max-lg:border-border",
+                      on ? "text-foreground" : "text-muted-foreground hover:bg-muted/60 hover:text-foreground",
+                    )}
+                  >
+                    {on && <motion.span layoutId="settings-active" className="absolute inset-0 rounded-lg bg-muted max-lg:rounded-full" transition={{ type: "spring", stiffness: 500, damping: 40 }} />}
+                    <s.icon className={cn("relative size-4 shrink-0", on && "text-accent")} />
+                    <span className="relative whitespace-nowrap font-medium">{s.label}</span>
+                  </button>
+                </li>
+              );
+            })}
+          </ul>
+        </nav>
+        <div className="min-w-0">
+          <AnimatePresence mode="wait" initial={false}>
+            <motion.div key={active} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -4 }} transition={{ duration: 0.18 }}>
+              {active === "profile" && <Profile signinFailed={params.get("signin") === "failed"} />}
+              {active === "appearance" && <Appearance />}
+              {active === "tracking" && <Tracking />}
+              {active === "notifications" && <Notifications />}
+              {active === "offline" && <OfflineData />}
+              {active === "scouting" && <ScoutingData />}
+              {active === "privacy" && <Privacy onOpen={go} />}
+              {active === "about" && <About />}
+            </motion.div>
+          </AnimatePresence>
+        </div>
       </div>
     </div>
   );
 }
 
-// --- Account -----------------------------------------------------------------
-
-function Account() {
-  const { user, providers, sync, signOut, signedIn } = usePersonal();
+/** A titled group of settings rows. */
+function Group({ title, description, children, className }: { title: string; description?: ReactNode; children: ReactNode; className?: string }) {
   return (
-    <Card id="account" icon={User} title="Account" description="Browsing, search and predictions never need an account. Sign in only to sync My Team, tracking, shortlist, saved predictions, video links and scouting notes across devices.">
-      {!providers ? <div className="skeleton h-20 rounded-xl" /> : user ? <SignedIn user={user} sync={sync} onSignOut={signOut} /> : <SignIn providers={providers} onSignedIn={signedIn} />}
-    </Card>
+    <section className={cn("mb-8", className)}>
+      <div className="mb-3">
+        <h2 className="text-sm font-semibold text-foreground">{title}</h2>
+        {description && <p className="mt-0.5 text-sm text-muted-foreground">{description}</p>}
+      </div>
+      <div className="rounded-xl border border-border bg-card">{children}</div>
+    </section>
   );
 }
+
+/** One row: label + explanation on the left, the control on the right (stacked on phones, or with `stack`). */
+function Row({ label, description, children, htmlFor, stack }: { label: ReactNode; description?: ReactNode; children?: ReactNode; htmlFor?: string; stack?: boolean }) {
+  return (
+    <div className={cn("flex gap-4 border-b border-border px-4 py-4 last:border-b-0", stack ? "flex-col" : "flex-col sm:flex-row sm:items-center sm:justify-between")}>
+      <div className="min-w-0">
+        {htmlFor ? <label htmlFor={htmlFor} className="text-sm font-medium text-foreground">{label}</label> : <p className="text-sm font-medium text-foreground">{label}</p>}
+        {description && <p className="mt-0.5 text-sm text-muted-foreground">{description}</p>}
+      </div>
+      {children && <div className={cn("shrink-0", stack && "w-full")}>{children}</div>}
+    </div>
+  );
+}
+
+// --- Profile ---------------------------------------------------------------------
+
+function Profile({ signinFailed }: { signinFailed: boolean }) {
+  const { user, providers, sync, signOut, signedIn } = usePersonal();
+  if (!providers) return <div className="skeleton h-48 rounded-xl" />;
+  return (
+    <div>
+      {signinFailed && !user && <p className="mb-6 rounded-xl border border-destructive/40 bg-destructive/10 px-4 py-3 text-sm text-foreground">That sign-in didn't go through. Try again, or use your email.</p>}
+      {user ? <SignedIn user={user} sync={sync} onSignOut={signOut} /> : <SignIn providers={providers} onSignedIn={signedIn} />}
+    </div>
+  );
+}
+
+const BENEFITS = ["My team and the teams and events you track", "Your shortlist and saved predictions", "Scouting notes and video links", "Your settings, on every device"];
 
 function SignIn({ providers, onSignedIn }: { providers: { email: boolean; google: boolean }; onSignedIn: (u: AccountUser) => Promise<void> }) {
   const [email, setEmail] = useState("");
@@ -66,7 +168,6 @@ function SignIn({ providers, onSignedIn }: { providers: { email: boolean; google
   const [code, setCode] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  if (!providers.email && !providers.google) return <p className="text-sm text-muted-foreground">Sign-in isn't set up on this server. Everything still works on this device.</p>;
   const start = async () => {
     setBusy(true); setError(null);
     try { await apiFetch("/api/auth/email/start", { method: "POST", json: { email } }); setSent(true); toast.success(`Code sent to ${email}`); }
@@ -77,176 +178,212 @@ function SignIn({ providers, onSignedIn }: { providers: { email: boolean; google
     try {
       const r = await apiFetch<{ user: AccountUser }>("/api/auth/email/verify", { method: "POST", json: { email, code: c } });
       await onSignedIn(r.user);
-      toast.success("Signed in — this device's data is now in your account");
+      toast.success("Signed in. This device's data is now in your account");
     } catch (e: any) { setError(e.message); setCode(""); } finally { setBusy(false); }
   };
   return (
-    <div className="max-w-md space-y-4">
-      {providers.email && (!sent ? (
-        <form onSubmit={(e) => { e.preventDefault(); start(); }} className="space-y-2">
-          <Label htmlFor="email">Email</Label>
-          <div className="flex gap-2">
-            <Input id="email" type="email" autoComplete="email" required value={email} onChange={(e) => setEmail(e.target.value)} placeholder="you@example.com" className="h-10" />
-            <Button type="submit" disabled={busy || !email}><Mail /> Send code</Button>
-          </div>
-          <p className="text-xs text-muted-foreground">We email a 6-digit code. No password to remember.</p>
-        </form>
-      ) : (
-        <div className="space-y-3">
-          <OtpInput label={`Code sent to ${email}`} description="It expires in 10 minutes." value={code} onChange={(v) => { setCode(v); if (v.length === 6) verify(v); }} autoFocus disabled={busy} error={error ?? undefined} />
-          <div className="flex gap-2">
-            <Button variant="ghost" size="sm" onClick={() => { setSent(false); setCode(""); setError(null); }}>Use a different email</Button>
-            <Button variant="ghost" size="sm" onClick={start} disabled={busy}>Send a new code</Button>
-          </div>
-        </div>
-      ))}
-      {error && !sent && <p className="text-sm text-destructive">{error}</p>}
-      {providers.google && <Button variant="secondary" asChild><a href="/api/auth/google/start">Continue with Google</a></Button>}
+    <div>
+      <div className="relative mb-8 overflow-hidden rounded-2xl border border-accent/30 bg-card p-6">
+        <div aria-hidden className="pointer-events-none absolute -right-16 -top-20 size-56 rounded-full bg-accent opacity-15 blur-3xl" />
+        <p className="relative font-display text-xl font-semibold text-foreground">Keep your scouting everywhere</p>
+        <p className="relative mt-1 max-w-xl text-sm text-muted-foreground">Browsing, search and predictions never need an account. Sign in only to keep these in sync across your devices:</p>
+        <ul className="relative mt-4 grid gap-2 sm:grid-cols-2">
+          {BENEFITS.map((b) => <li key={b} className="flex items-start gap-2 text-sm text-foreground"><span className="mt-1.5 size-1.5 shrink-0 rounded-full bg-accent" />{b}</li>)}
+        </ul>
+      </div>
+      {!providers.email && !providers.google ? <p className="text-sm text-muted-foreground">Sign-in isn't set up on this server. Everything still works on this device.</p> : (
+        <Group title="Sign in" description="No password: we email you a 6-digit code.">
+          {providers.email && (
+            <Row label="Email" description={sent ? `We sent a code to ${email}. It expires in 10 minutes.` : "Your email is used only to send sign-in codes."} stack>
+              {!sent ? (
+                <form onSubmit={(e) => { e.preventDefault(); start(); }} className="flex max-w-md gap-2">
+                  <Input id="email" type="email" autoComplete="email" required value={email} onChange={(e) => setEmail(e.target.value)} placeholder="you@example.com" aria-label="Email" className="h-10" />
+                  <Button type="submit" disabled={busy || !email}><Mail /> Send code</Button>
+                </form>
+              ) : (
+                <div className="max-w-md space-y-3">
+                  <OtpInput label="Code" value={code} onChange={(v) => { setCode(v); if (v.length === 6) verify(v); }} autoFocus disabled={busy} error={error ?? undefined} />
+                  <div className="flex gap-2">
+                    <Button variant="ghost" size="sm" onClick={() => { setSent(false); setCode(""); setError(null); }}>Use a different email</Button>
+                    <Button variant="ghost" size="sm" onClick={start} disabled={busy}>Send a new code</Button>
+                  </div>
+                </div>
+              )}
+              {error && !sent && <p className="mt-2 text-sm text-destructive">{error}</p>}
+            </Row>
+          )}
+          {providers.google && (
+            <Row label="Google" description="Use your Google account instead.">
+              <Button variant="secondary" asChild><a href="/api/auth/google/start">Continue with Google</a></Button>
+            </Row>
+          )}
+        </Group>
+      )}
     </div>
   );
 }
+
+const SYNC_LABEL: Record<string, string> = { synced: "Synced", syncing: "Syncing…", offline: "Offline: will sync", error: "Sync error: will retry", local: "This device only" };
 
 function SignedIn({ user, sync, onSignOut }: { user: AccountUser; sync: string; onSignOut: () => Promise<void> }) {
   const [name, setName] = useState(user.displayName ?? "");
-  const { clearLocal } = usePersonal();
+  const dirty = name.trim() !== (user.displayName ?? "");
   const saveName = async () => { await apiFetch("/api/me", { method: "PATCH", json: { displayName: name } }).then(() => toast.success("Saved"), (e) => toast.error(e.message)); };
-  const del = async () => {
-    try { await apiFetch("/api/me", { method: "DELETE", json: { confirm: "DELETE" } }); clearLocal(); await onSignOut(); toast.success("Account deleted"); }
-    catch (e: any) { toast.error(e.message); }
-  };
   return (
-    <div className="space-y-4">
-      <p className="text-sm">Signed in as <span className="font-medium">{user.email}</span> <Badge variant={sync === "synced" ? "success" : sync === "error" || sync === "offline" ? "destructive" : "secondary"} className="ml-1">{sync === "synced" ? "Synced" : sync === "syncing" ? "Syncing…" : sync === "offline" ? "Offline — will sync" : sync === "error" ? "Sync error — will retry" : sync}</Badge></p>
-      <div className="flex max-w-md gap-2">
-        <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="Display name" aria-label="Display name" className="h-10" maxLength={60} />
-        <Button variant="secondary" onClick={saveName}>Save</Button>
-      </div>
-      <div className="flex flex-wrap items-center gap-3">
-        <Button variant="outline" onClick={() => onSignOut().then(() => toast("Signed out — your data stays on this device"))}><LogOut /> Sign out</Button>
-        <HoldToConfirm label="Hold to delete account" confirmedLabel="Deleted" tone="danger" onConfirm={del} />
-      </div>
-      <p className="text-xs text-muted-foreground">Deleting removes your account and everything synced to it (tracking, shortlist, scouting notes, video links). Recordings on this device are separate — clear them under Offline & data.</p>
+    <div>
+      <Group title="Details" description="How you appear in Control Scout.">
+        <Row label="Display name" htmlFor="display-name" stack>
+          <form onSubmit={(e) => { e.preventDefault(); saveName(); }} className="flex max-w-md gap-2">
+            <Input id="display-name" value={name} onChange={(e) => setName(e.target.value)} placeholder="Your name" className="h-10" maxLength={60} />
+            <Button type="submit" disabled={!dirty}>Save changes</Button>
+          </form>
+        </Row>
+      </Group>
+      <Group title="Account facts">
+        <Row label="Email" description="Used to sign in."><span className="text-sm text-foreground">{user.email}</span></Row>
+        <Row label="Sync" description="Your data follows you to every device you sign in on.">
+          <Badge variant={sync === "synced" ? "success" : sync === "error" || sync === "offline" ? "destructive" : "secondary"}>{SYNC_LABEL[sync] ?? sync}</Badge>
+        </Row>
+        <Row label="Member since"><span className="text-sm text-muted-foreground">{new Date(user.createdAt).toLocaleDateString(undefined, { year: "numeric", month: "long", day: "numeric" })}</span></Row>
+      </Group>
+      <Group title="Session">
+        <Row label="Sign out" description="Your data stays on this device and in your account.">
+          <Button variant="outline" onClick={() => onSignOut().then(() => toast("Signed out. Your data stays on this device"))}><LogOut /> Sign out</Button>
+        </Row>
+      </Group>
     </div>
   );
 }
 
-// --- Appearance ---------------------------------------------------------------
+// --- Appearance --------------------------------------------------------------------
 
 function Appearance() {
   const { state, update } = usePersonal();
   const s = state.settings;
   return (
-    <Card id="appearance" icon={Palette} title="Appearance">
-      <div className="flex flex-wrap items-center gap-6">
-        <div className="space-y-1.5"><p className="text-sm">Theme</p>
+    <div>
+      <Group title="Display">
+        <Row label="Theme" description="System follows your device's light or dark setting.">
           <ToggleGroup type="single" value={s.theme} onValueChange={(v) => { if (v) update("settings", (x) => ({ ...x, theme: v as typeof s.theme })); }} aria-label="Theme">
-            <ToggleGroupItem value="dark"><Moon className="size-3.5" /> Dark</ToggleGroupItem><ToggleGroupItem value="light"><Sun className="size-3.5" /> Light</ToggleGroupItem><ToggleGroupItem value="system"><Monitor className="size-3.5" /> System</ToggleGroupItem>
+            <ToggleGroupItem value="dark"><Moon className="size-3.5" /> Dark</ToggleGroupItem>
+            <ToggleGroupItem value="light"><Sun className="size-3.5" /> Light</ToggleGroupItem>
+            <ToggleGroupItem value="system"><Monitor className="size-3.5" /> System</ToggleGroupItem>
           </ToggleGroup>
-        </div>
-        <div className="flex items-center gap-3">
-          <Switch id="ambient" checked={s.ambient !== false} onCheckedChange={(v) => update("settings", (x) => ({ ...x, ambient: v }))} />
-          <div><Label htmlFor="ambient">Animated background</Label><p className="text-xs text-muted-foreground">Slowly drifting grid and a light that follows your pointer. Always still if your device asks for reduced motion.</p></div>
-        </div>
-        <div className="space-y-1.5"><p className="text-sm">Density</p>
+        </Row>
+        <Row label="Density" description="Compact fits more on screen: tighter spacing in lists and tables.">
           <ToggleGroup type="single" value={s.density} onValueChange={(v) => { if (v) update("settings", (x) => ({ ...x, density: v as typeof s.density })); }} aria-label="Density">
-            <ToggleGroupItem value="comfortable">Comfortable</ToggleGroupItem><ToggleGroupItem value="compact">Compact</ToggleGroupItem>
+            <ToggleGroupItem value="comfortable">Comfortable</ToggleGroupItem>
+            <ToggleGroupItem value="compact">Compact</ToggleGroupItem>
           </ToggleGroup>
-        </div>
-      </div>
-    </Card>
+        </Row>
+      </Group>
+      <Group title="Background" description="This page's own background is the preview.">
+        <Row label="Animated background" htmlFor="ambient" description="A slowly drifting grid and a light that follows your pointer. Always still if your device asks for reduced motion.">
+          <Switch id="ambient" checked={s.ambient !== false} onCheckedChange={(v) => update("settings", (x) => ({ ...x, ambient: v }))} />
+        </Row>
+      </Group>
+    </div>
   );
 }
 
-// --- Tracking -----------------------------------------------------------------
+// --- My team & tracking ---------------------------------------------------------------
 
 function Tracking() {
   const { state, update, set } = usePersonal();
   const move = (arr: number[], i: number, d: number) => { const a = [...arr]; const j = i + d; if (j < 0 || j >= a.length) return a; [a[i], a[j]] = [a[j], a[i]]; return a; };
   return (
-    <Card id="tracking" icon={User} title="My team & tracking" description="Tracked teams and events show up on the My Team dashboard and come first in search.">
-      <p className="text-sm">My team: {state.myTeam ? <><Link to={`/teams/${state.myTeam}`} className="font-mono font-medium hover:underline">{state.myTeam}</Link> <Button variant="ghost" size="sm" onClick={() => set("myTeam", null)}>Clear</Button></> : <Link to="/my-team" className="underline">pick one</Link>}</p>
-      <div className="mt-4 grid gap-4 sm:grid-cols-2">
-        <div>
-          <p className="mb-2 text-sm font-medium">Tracked teams ({state.tracked.teams.length})</p>
-          {!state.tracked.teams.length ? <p className="text-sm text-muted-foreground">None — press Track on a team page.</p> : (
-            <ul className="space-y-1">{state.tracked.teams.map((t, i) => (
-              <li key={t} className="flex items-center gap-1 rounded-lg border border-border px-2 py-1 text-sm">
-                <Link to={`/teams/${t}`} className="flex-1 font-mono hover:underline">{t}</Link>
-                <Button variant="ghost" size="icon-sm" aria-label={`Move ${t} up`} onClick={() => update("tracked", (x) => ({ ...x, teams: move(x.teams, i, -1) }))}><ArrowUp /></Button>
-                <Button variant="ghost" size="icon-sm" aria-label={`Move ${t} down`} onClick={() => update("tracked", (x) => ({ ...x, teams: move(x.teams, i, 1) }))}><ArrowDown /></Button>
-                <Button variant="ghost" size="icon-sm" aria-label={`Stop tracking ${t}`} onClick={() => update("tracked", (x) => ({ ...x, teams: x.teams.filter((n) => n !== t) }))}><X /></Button>
-              </li>
-            ))}</ul>
-          )}
-        </div>
-        <div>
-          <p className="mb-2 text-sm font-medium">Tracked events ({state.tracked.events.length})</p>
-          {!state.tracked.events.length ? <p className="text-sm text-muted-foreground">None — press Track event on an event page.</p> : (
-            <ul className="space-y-1">{state.tracked.events.map((ref) => { const [s, c] = ref.split(":"); return (
-              <li key={ref} className="flex items-center gap-1 rounded-lg border border-border px-2 py-1 text-sm">
-                <Link to={`/events/${s}/${c}`} className="flex-1 font-mono hover:underline">{c} <span className="text-muted-foreground">{s}</span></Link>
-                <Button variant="ghost" size="icon-sm" aria-label={`Stop tracking ${c}`} onClick={() => update("tracked", (x) => ({ ...x, events: x.events.filter((e) => e !== ref) }))}><X /></Button>
-              </li>
-            ); })}</ul>
-          )}
-        </div>
-      </div>
-    </Card>
+    <div>
+      <Group title="My team" description="Your team's next matches, odds and alerts are front and centre.">
+        <Row label={state.myTeam ? <Link to={`/teams/${state.myTeam}`} className="font-mono hover:underline">{state.myTeam}</Link> : "No team yet"} description={state.myTeam ? "Shown on My team and first in search." : "Pick your team to get its dashboard and match alerts."}>
+          {state.myTeam ? <Button variant="outline" size="sm" onClick={() => set("myTeam", null)}>Clear</Button> : <Button size="sm" asChild><Link to="/my-team">Pick my team</Link></Button>}
+        </Row>
+      </Group>
+      <Group title={`Tracked teams (${state.tracked.teams.length})`} description="Tracked teams show up on the My Team dashboard and come first in search. Order them however you like.">
+        {!state.tracked.teams.length ? <Row label="None yet" description="Press Track on any team page." /> : state.tracked.teams.map((t, i) => (
+          <div key={t} className="flex items-center gap-1 border-b border-border px-4 py-2.5 last:border-b-0">
+            <Link to={`/teams/${t}`} className="flex-1 font-mono text-sm hover:underline">{t}</Link>
+            <Button variant="ghost" size="icon-sm" aria-label={`Move ${t} up`} disabled={i === 0} onClick={() => update("tracked", (x) => ({ ...x, teams: move(x.teams, i, -1) }))}><ArrowUp /></Button>
+            <Button variant="ghost" size="icon-sm" aria-label={`Move ${t} down`} disabled={i === state.tracked.teams.length - 1} onClick={() => update("tracked", (x) => ({ ...x, teams: move(x.teams, i, 1) }))}><ArrowDown /></Button>
+            <Button variant="ghost" size="icon-sm" aria-label={`Stop tracking ${t}`} onClick={() => update("tracked", (x) => ({ ...x, teams: x.teams.filter((n) => n !== t) }))}><X /></Button>
+          </div>
+        ))}
+      </Group>
+      <Group title={`Tracked events (${state.tracked.events.length})`}>
+        {!state.tracked.events.length ? <Row label="None yet" description="Press Track event on any event page." /> : state.tracked.events.map((ref) => {
+          const [s, c] = ref.split(":");
+          return (
+            <div key={ref} className="flex items-center gap-1 border-b border-border px-4 py-2.5 last:border-b-0">
+              <Link to={`/events/${s}/${c}`} className="flex-1 font-mono text-sm hover:underline">{c} <span className="text-muted-foreground">{s}</span></Link>
+              <Button variant="ghost" size="icon-sm" aria-label={`Stop tracking ${c}`} onClick={() => update("tracked", (x) => ({ ...x, events: x.events.filter((e) => e !== ref) }))}><X /></Button>
+            </div>
+          );
+        })}
+      </Group>
+    </div>
   );
 }
 
-// --- Notifications ------------------------------------------------------------
+// --- Notifications ---------------------------------------------------------------------
 
 function Notifications() {
   const { state, update } = usePersonal();
   const n = state.settings.notify;
   const [perm, setPerm] = useState<NotificationPermission | "unsupported">(typeof Notification === "undefined" ? "unsupported" : Notification.permission);
   const ask = async () => { if (typeof Notification !== "undefined") setPerm(await Notification.requestPermission()); };
-  const row = (k: keyof typeof n, label: string, hint: string) => (
-    <div className="flex items-center justify-between gap-4 py-2">
-      <div><Label htmlFor={`n-${k}`}>{label}</Label><p className="text-xs text-muted-foreground">{hint}</p></div>
+  const toggle = (k: keyof typeof n, label: string, hint: string) => (
+    <Row label={label} description={hint} htmlFor={`n-${k}`}>
       <Switch id={`n-${k}`} checked={n[k]} onCheckedChange={(v) => update("settings", (x) => ({ ...x, notify: { ...x.notify, [k]: v } }))} />
-    </div>
+    </Row>
   );
   return (
-    <Card id="notifications" icon={Bell} title="Notifications" description="Alerts arrive while Control Scout is open in a browser tab (checked every 5 minutes; no background push yet). With browser permission they pop up even when the tab is in the background; otherwise they appear inside the app.">
-      <div className="mb-3 flex flex-wrap items-center gap-3 text-sm">
-        Browser permission: <Badge variant={perm === "granted" ? "success" : "secondary"}>{perm}</Badge>
-        {perm === "default" && <Button size="sm" variant="secondary" onClick={ask}>Allow notifications</Button>}
-        {perm === "denied" && <span className="text-xs text-muted-foreground">Blocked — change it in your browser's site settings.</span>}
-      </div>
-      <div className="divide-y divide-border">
-        {row("myTeamMatches", "My team's matches", "30 minutes before your team's next scheduled match, with the odds")}
-        {row("trackedTeams", "Tracked teams' matches", "Same, for teams you track")}
-        {row("upsets", "Upsets", "When a tracked team wins a match it was predicted to lose (or loses one it was favoured in)")}
-        {row("eventStart", "Event start", "The morning a tracked event starts")}
-      </div>
-    </Card>
+    <div>
+      <Group title="Delivery" description="Alerts arrive while Control Scout is open in a tab (checked every 5 minutes). With browser permission they pop up even when the tab is in the background; otherwise they appear inside the app.">
+        <Row label="Browser notifications" description={perm === "denied" ? "Blocked: change it in your browser's site settings." : perm === "unsupported" ? "This browser doesn't support notifications." : "Lets alerts pop up outside the tab."}>
+          <div className="flex items-center gap-2">
+            <Badge variant={perm === "granted" ? "success" : perm === "denied" ? "destructive" : "secondary"}>{perm === "granted" ? "Allowed" : perm === "denied" ? "Blocked" : perm === "unsupported" ? "Unavailable" : "Not asked yet"}</Badge>
+            {perm === "default" && <Button size="sm" onClick={ask}>Allow</Button>}
+          </div>
+        </Row>
+      </Group>
+      <Group title="What to alert me about">
+        {toggle("myTeamMatches", "My team's matches", "30 minutes before your team's next scheduled match, with the odds")}
+        {toggle("trackedTeams", "Tracked teams' matches", "The same, for teams you track")}
+        {toggle("upsets", "Upsets", "When a tracked team wins a match it was predicted to lose, or loses one it was favoured in")}
+        {toggle("eventStart", "Event start", "The morning a tracked event starts")}
+      </Group>
+    </div>
   );
 }
 
-// --- Offline & data -------------------------------------------------------------
+// --- Offline data ---------------------------------------------------------------------------
 
 function OfflineData() {
   const [est, setEst] = useState<{ usage?: number; quota?: number } | null>(null);
   const pack = packStatus();
   useEffect(() => { navigator.storage?.estimate?.().then(setEst, () => setEst({})); }, []);
   return (
-    <Card id="offline" icon={Database} title="Offline & data" description={<>Offline packs let predictions run on this device with no connection. <Link to="/download" className="underline">Download page</Link></>}>
-      <dl className="grid gap-3 text-sm sm:grid-cols-3">
-        <div><dt className="text-muted-foreground">Lite pack on this device</dt><dd className="font-medium">{pack ? `${pack.version} · ${fmtBytes(pack.bytes)} · saved ${ago(new Date(pack.savedAt).toISOString())}` : "None"}</dd></div>
-        <div><dt className="text-muted-foreground">Storage used by this site</dt><dd className="font-medium">{est?.usage != null ? `${fmtBytes(est.usage)}${est.quota ? ` of ${fmtBytes(est.quota)} available` : ""}` : "—"}</dd></div>
-      </dl>
-      <div className="mt-4 flex flex-wrap gap-2">
-        <Button variant="outline" size="sm" asChild><Link to="/download"><Download /> Check for updates</Link></Button>
-        <Button variant="outline" size="sm" onClick={() => { if ("caches" in window) caches.keys().then((ks) => Promise.all(ks.map((k) => caches.delete(k)))).then(() => toast.success("Cached data cleared")); else toast("Nothing cached"); }}>Clear cached data</Button>
-        <Button variant="outline" size="sm" onClick={() => clearRecordings().then(() => toast.success("Recordings deleted from this device"), (e) => toast.error(e.message))}>Delete all recordings on this device</Button>
-      </div>
-    </Card>
+    <div>
+      <Group title="Offline pack" description={<>Packs let predictions run on this device with no connection, e.g. at a venue with no signal. <Link to="/download" className="underline">Download page</Link></>}>
+        <Row label="Lite pack on this device" description={pack ? `Version ${pack.version} · ${fmtBytes(pack.bytes)} · saved ${ago(new Date(pack.savedAt).toISOString())}` : "None saved yet."}>
+          <Button variant="outline" size="sm" asChild><Link to="/download"><Download /> {pack ? "Check for updates" : "Get the pack"}</Link></Button>
+        </Row>
+        <Row label="Storage used by this site" description="Cached pages, packs and recordings.">
+          <span className="text-sm tabular-nums text-foreground">{est?.usage != null ? `${fmtBytes(est.usage)}${est.quota ? ` of ${fmtBytes(est.quota)}` : ""}` : "—"}</span>
+        </Row>
+      </Group>
+      <Group title="Clean up">
+        <Row label="Cached data" description="Pages and data saved for offline use. They're downloaded again when needed.">
+          <Button variant="outline" size="sm" onClick={() => { if ("caches" in window) caches.keys().then((ks) => Promise.all(ks.map((k) => caches.delete(k)))).then(() => toast.success("Cached data cleared")); else toast("Nothing cached"); }}>Clear cached data</Button>
+        </Row>
+        <Row label="Recordings" description="Match videos recorded in the app live only on this device.">
+          <Button variant="outline" size="sm" onClick={() => clearRecordings().then(() => toast.success("Recordings deleted from this device"), (e) => toast.error(e.message))}>Delete all recordings</Button>
+        </Row>
+      </Group>
+    </div>
   );
 }
 
-// --- Scouting data ----------------------------------------------------------------
+// --- Scouting data ------------------------------------------------------------------------------
 
 function ScoutingData() {
   const exportJson = () => {
@@ -264,53 +401,79 @@ function ScoutingData() {
       toast.success(`Imported ${n} entries`);
     }).catch(() => toast.error("That file isn't a Control Scout scouting export"));
   };
+  const count = localScoutEntries().filter((e) => !e.deleted).length;
   return (
-    <Card id="scouting" icon={Upload} title="Scouting data" description="Your notes are private. Export them any time.">
-      <div className="flex flex-wrap gap-2">
-        <Button variant="outline" size="sm" onClick={exportJson}><Download /> Export JSON</Button>
-        <Button variant="outline" size="sm" onClick={exportCsv}><Download /> Export CSV</Button>
-        <Button variant="outline" size="sm" asChild><label className="cursor-pointer"><Upload /> Import JSON<input type="file" accept="application/json,.json" className="sr-only" onChange={(e) => e.target.files?.[0] && importJson(e.target.files[0])} /></label></Button>
-        <Button variant="outline" size="sm" onClick={() => { clearLocalScouting(); toast("Scouting notes cleared from this device"); }}>Clear on this device</Button>
-      </div>
-    </Card>
+    <div>
+      <Group title="Your notes" description="Scouting notes are private to you.">
+        <Row label="Entries on this device"><span className="text-sm tabular-nums text-foreground">{count}</span></Row>
+        <Row label="Export" description="JSON keeps everything for re-importing; CSV opens in a spreadsheet.">
+          <div className="flex flex-wrap gap-2">
+            <Button variant="outline" size="sm" onClick={exportJson}><Download /> JSON</Button>
+            <Button variant="outline" size="sm" onClick={exportCsv}><Download /> CSV</Button>
+          </div>
+        </Row>
+        <Row label="Import" description="A JSON export from Control Scout, from any device.">
+          <Button variant="outline" size="sm" asChild><label className="cursor-pointer"><Upload /> Import JSON<input type="file" accept="application/json,.json" className="sr-only" onChange={(e) => e.target.files?.[0] && importJson(e.target.files[0])} /></label></Button>
+        </Row>
+        <Row label="Clear on this device" description="Removes the notes stored on this device. Notes synced to your account stay there.">
+          <Button variant="outline" size="sm" onClick={() => { clearLocalScouting(); toast("Scouting notes cleared from this device"); }}>Clear</Button>
+        </Row>
+      </Group>
+    </div>
   );
 }
 
-// --- Privacy -------------------------------------------------------------------------
+// --- Account & privacy ------------------------------------------------------------------------
 
-function Privacy() {
-  const { clearLocal, user } = usePersonal();
+function Privacy({ onOpen }: { onOpen: (id: SectionId) => void }) {
+  const { clearLocal, user, signOut } = usePersonal();
+  const del = async () => {
+    try { await apiFetch("/api/me", { method: "DELETE", json: { confirm: "DELETE" } }); clearLocal(); await signOut(); toast.success("Account deleted"); }
+    catch (e: any) { toast.error(e.message); }
+  };
   return (
-    <Card id="privacy" icon={Shield} title="Privacy" description="What lives where.">
-      <ul className="space-y-1.5 text-sm text-muted-foreground">
-        <li><span className="text-foreground">Public data</span> (teams, events, matches, predictions) — from FIRST and FTC Scout; no account involved.</li>
-        <li><span className="text-foreground">On this device</span> — My Team, tracking, shortlist, settings, saved predictions, scouting notes, video links, and every recording you make. Recordings never leave the device.</li>
-        <li><span className="text-foreground">In your account</span> (signed in only) — the same list minus recordings. Your email is used only to send sign-in codes.</li>
-        <li>No ads, no trackers, no selling data.</li>
-      </ul>
-      <div className="mt-4 flex flex-wrap gap-2">
-        <Button variant="outline" size="sm" onClick={() => { clearLocal(); clearLocalScouting(); try { localStorage.clear(); } catch { /* ignore */ } toast.success("Local data cleared"); }}>Clear all local data</Button>
-        {user && <span className="self-center text-xs text-muted-foreground">Your account data is untouched — delete the account under Account.</span>}
-      </div>
-    </Card>
+    <div>
+      <Group title="What lives where">
+        <Row label="Public data" description="Teams, events, matches and predictions, from FIRST and FTC Scout. No account involved." />
+        <Row label="On this device" description="My team, tracking, shortlist, settings, saved predictions, scouting notes, video links, and every recording you make. Recordings never leave the device." />
+        <Row label="In your account" description="Signed in only: the same list minus recordings. Your email is used only to send sign-in codes." />
+        <Row label="Never" description="No ads, no trackers, no selling data." />
+      </Group>
+      <Group title="Remove data">
+        <Row label="Clear all local data" description={user ? "Wipes this device. Your account data is untouched." : "Wipes everything Control Scout stored on this device."}>
+          <Button variant="outline" size="sm" onClick={() => { clearLocal(); clearLocalScouting(); try { localStorage.clear(); } catch { /* storage unavailable */ } toast.success("Local data cleared"); }}>Clear</Button>
+        </Row>
+        {user ? (
+          <Row label="Delete account" description="Removes your account and everything synced to it: tracking, shortlist, scouting notes, video links. Recordings on this device are separate (Offline data).">
+            <HoldToConfirm label="Hold to delete account" confirmedLabel="Deleted" tone="danger" onConfirm={del} />
+          </Row>
+        ) : (
+          <Row label="Account" description="You're not signed in, so there's no account data.">
+            <Button variant="ghost" size="sm" onClick={() => onOpen("profile")}>Sign in</Button>
+          </Row>
+        )}
+      </Group>
+    </div>
   );
 }
 
-// --- About ---------------------------------------------------------------------------
+// --- About ------------------------------------------------------------------------------------
 
 function About() {
   const meta = useMeta();
   return (
-    <Card id="about" icon={ExternalLink} title="About">
-      <dl className="grid gap-2 text-sm sm:grid-cols-2">
-        <div><dt className="text-muted-foreground">Prediction engine</dt><dd>v{meta?.engineVersion ?? "…"} (shared with Control Point)</dd></div>
-        <div><dt className="text-muted-foreground">Data updated</dt><dd>{ago(meta?.dataAsOf)}</dd></div>
-      </dl>
-      <p className="mt-3 text-sm text-muted-foreground">Match data © <a className="underline" href="https://ftc-events.firstinspires.org" target="_blank" rel="noreferrer noopener">FIRST</a> (FIRST Events API) with <a className="underline" href="https://ftcscout.org" target="_blank" rel="noreferrer noopener">FTC Scout</a> as a fallback source. FTC Control Scout is not affiliated with or endorsed by FIRST®. FIRST Tech Challenge is a registered trademark of FIRST.</p>
-      <div className="mt-3 flex flex-wrap gap-3 text-sm">
-        <Link to="/methodology" className="underline">How predictions work</Link>
-        <a href="https://tryctrlpoint.org" target="_blank" rel="noreferrer noopener" className="inline-flex items-center gap-1 underline">Manage your team in Control Point <ExternalLink className="size-3" /></a>
-      </div>
-    </Card>
+    <div>
+      <Group title="This app">
+        <Row label="Prediction engine" description="Shared with Control Point, so the numbers match."><span className="font-mono text-sm text-foreground">v{meta?.engineVersion ?? "…"}</span></Row>
+        <Row label="Data updated" description="Synced from FIRST; every 15 minutes on event days."><span className="text-sm text-foreground">{ago(meta?.dataAsOf)}</span></Row>
+        <Row label="How predictions work"><Button variant="outline" size="sm" asChild><Link to="/methodology">Read it</Link></Button></Row>
+      </Group>
+      <Group title="Control Point">
+        <Row label="Manage your team" description="Control Point is the team workspace: members, tasks, attendance and more.">
+          <Button variant="outline" size="sm" asChild><a href="https://tryctrlpoint.org" target="_blank" rel="noreferrer noopener">Open Control Point <ExternalLink /></a></Button>
+        </Row>
+      </Group>
+      <p className="text-xs text-muted-foreground">Match data © <a className="underline" href="https://ftc-events.firstinspires.org" target="_blank" rel="noreferrer noopener">FIRST</a> (FIRST Events API), with <a className="underline" href="https://ftcscout.org" target="_blank" rel="noreferrer noopener">FTC Scout</a> as a fallback source. FTC Control Scout is not affiliated with or endorsed by FIRST®. FIRST Tech Challenge is a registered trademark of FIRST.</p>
+    </div>
   );
 }
