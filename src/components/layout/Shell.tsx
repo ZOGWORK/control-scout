@@ -144,7 +144,7 @@ export function Shell({ children }: { children: ReactNode }) {
             <div className="relative min-h-0 flex-1">
               <Ambient target={mainRef} />
               <main id="main" ref={mainRef} className="m-canvas custom-scrollbar absolute inset-0 z-10 overflow-y-auto">
-                <motion.div key={loc.pathname} initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.18, ease: "easeOut" }} className="mx-auto w-full max-w-[1200px] px-4 pt-8 pb-28 sm:px-6 md:pb-12 lg:px-8">
+                <motion.div key={loc.pathname} initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.18, ease: "easeOut" }} className="mx-auto w-full max-w-[1200px] px-4 pt-8 pb-28 sm:px-6 md:pb-12 lg:px-8 min-[1700px]:max-w-[1600px]">
                   <NoDataNotice />
                   {children}
                 </motion.div>
