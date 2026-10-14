@@ -15,7 +15,33 @@ export interface SharedAccount {
   email: string;
   displayName: string | null;
   createdAt: string;
-  controlPoint: { member: boolean; teams: { teamNumber: number | null; name: string }[] };
+  controlPoint: { member: boolean; teams: { teamNumber: number | null; name: string }[]; shortlist?: number[] };
+}
+
+/** Sign-in providers Scout can offer through Control Point (it runs the OAuth). */
+export const CP_VIA = ["google", "discord", "github"] as const;
+export type CpVia = (typeof CP_VIA)[number];
+export const isCpVia = (v: unknown): v is CpVia => typeof v === "string" && (CP_VIA as readonly string[]).includes(v);
+
+let via: { at: number; list: CpVia[] } = { at: 0, list: [] };
+let viaLoading: Promise<void> | null = null;
+/** Tests: forget the cached provider list. */
+export const resetViaCache = () => { via = { at: 0, list: [] }; };
+/** Which of Google/Discord/GitHub Control Point has switched on (its public /api/auth/config), refreshed every 10 minutes. */
+export async function controlPointVia(): Promise<CpVia[]> {
+  if (!controlPointEnabled()) return [];
+  if (Date.now() - via.at > 10 * 60_000) {
+    viaLoading ??= (async () => {
+      try {
+        const res = await fetch(`${env.controlPointInternalUrl!.replace(/\/$/, "")}/api/auth/config`, { signal: AbortSignal.timeout(3000) });
+        const c = res.ok ? ((await res.json()) as Record<string, unknown>) : {};
+        via = { at: Date.now(), list: CP_VIA.filter((p) => c[`${p}Enabled`] === true) };
+      } catch (e) { logFailure("config", e); via = { at: Date.now() - 9 * 60_000, list: via.list }; } // retry in a minute
+      finally { viaLoading = null; }
+    })();
+    await viaLoading;
+  }
+  return via.list;
 }
 
 export const controlPointEnabled = () => !!(env.controlPointInternalUrl && env.controlPointPublicUrl && env.controlPointInternalKey);
@@ -108,7 +134,7 @@ export async function provenEmailFor(user: User): Promise<string | null> {
 }
 
 /** What a signed-in user sees about their Control Point side: membership and teams. */
-export interface ControlPointInfo { member: boolean; teams: { teamNumber: number | null; name: string }[]; url: string }
+export interface ControlPointInfo { member: boolean; teams: { teamNumber: number | null; name: string }[]; shortlist: number[]; url: string }
 
 const infoCache = new Map<number, { at: number; info: SharedAccount["controlPoint"] }>();
 const INFO_TTL = 10 * 60_000;
@@ -121,9 +147,11 @@ function validInfo(cp: unknown): SharedAccount["controlPoint"] | null {
     .filter((t): t is { teamNumber?: unknown; name?: unknown } => !!t && typeof t === "object")
     .slice(0, 10)
     .map((t) => ({ teamNumber: typeof t.teamNumber === "number" ? t.teamNumber : null, name: typeof t.name === "string" ? t.name : "" }));
-  return { member: (cp as { member?: unknown }).member === true, teams };
+  const raw = (cp as { shortlist?: unknown }).shortlist;
+  const shortlist = Array.isArray(raw) ? [...new Set(raw.filter((n): n is number => Number.isInteger(n) && n > 0 && n <= 999999))].slice(0, 200) : [];
+  return { member: (cp as { member?: unknown }).member === true, teams, shortlist };
 }
-const toInfo = (cp: SharedAccount["controlPoint"]): ControlPointInfo => ({ member: cp.member, teams: cp.teams, url: env.controlPointPublicUrl!.replace(/\/$/, "") });
+const toInfo = (cp: SharedAccount["controlPoint"]): ControlPointInfo => ({ member: cp.member, teams: cp.teams, shortlist: cp.shortlist ?? [], url: env.controlPointPublicUrl!.replace(/\/$/, "") });
 
 /** Remember an account's Control Point side (from resolve or redeem), so /me needn't ask again. Bounded: expired entries go first, then the oldest. */
 export function rememberInfo(account: SharedAccount): void {

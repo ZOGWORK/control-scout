@@ -46,6 +46,7 @@ beforeAll(async () => {
     if (!a) { res.status(404).json({ error: "Not found" }); return; }
     res.json({ account: a });
   });
+  stub.get("/api/auth/config", (_req, res) => { res.json({ googleEnabled: true, discordEnabled: false, githubEnabled: true, youtubeEnabled: true }); });
   stub.post("/internal/handoff/redeem", (req, res) => {
     const h = handoffs.get(req.body.code);
     if (!h || h.used || h.state !== req.body.state) { res.status(400).json({ error: "invalid code" }); return; }
@@ -96,7 +97,7 @@ function client() {
 }
 const me = async (c: ReturnType<typeof client>) => (await c.req("/api/auth/me")).json();
 
-import { clearInfoCache, linkToSharedAccount } from "./controlPoint";
+import { clearInfoCache, linkToSharedAccount, resetViaCache } from "./controlPoint";
 
 describe("shared accounts", () => {
   it("is off without the CONTROL_POINT_* settings", async () => {
@@ -212,6 +213,28 @@ describe("shared accounts", () => {
     const users = await all<any>("SELECT id FROM users WHERE email = 'ada@example.com'");
     expect(users).toHaveLength(1);
     expect(m.user.id).toBe(Number(users[0].id));
+  });
+
+  it("Google/Discord/GitHub via Control Point: via passed on, back to the page you were on, shortlist on /me", async () => {
+    resetViaCache();
+    const c = client();
+    expect((await me(c)).providers.via).toEqual(["google", "github"]); // what Control Point has switched on
+    const start = await c.req(`/api/auth/control-point/start?via=github&back=${encodeURIComponent("/events/2025/USNJNOM3?tab=matches")}`);
+    const to = new URL(start.headers.get("location")!);
+    expect(to.searchParams.get("via")).toBe("github");
+    const state = to.searchParams.get("state")!;
+    const a = accountFor("sam@example.com");
+    a.controlPoint = { member: true, teams: [{ teamNumber: 4215, name: "Hypnotic Robotics" }], shortlist: [18360, 14380] } as any;
+    handoffs.set("code-via", { email: "sam@example.com", state, used: false });
+    const back = await c.req(`/api/auth/control-point/callback?code=code-via&state=${state}`);
+    expect(back.headers.get("location")).toBe("/events/2025/USNJNOM3?tab=matches&signin=ok");
+    expect((await me(c)).user.controlPoint).toMatchObject({ member: true, shortlist: [18360, 14380] });
+    // Anything that isn't a provider, or a back path off this site, is dropped.
+    const odd = await c.req(`/api/auth/control-point/start?via=evil&back=${encodeURIComponent("//evil.example/x")}`);
+    expect(new URL(odd.headers.get("location")!).searchParams.has("via")).toBe(false);
+    const s2 = new URL(odd.headers.get("location")!).searchParams.get("state")!;
+    handoffs.set("code-odd", { email: "sam@example.com", state: s2, used: false });
+    expect((await c.req(`/api/auth/control-point/callback?code=code-odd&state=${s2}`)).headers.get("location")).toBe("/my-team?signin=ok");
   });
 
   it("rejects a callback whose state doesn't match, and a reused code", async () => {
