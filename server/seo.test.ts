@@ -9,6 +9,8 @@ import { join } from "node:path";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import express from "express";
 import { canonicalRedirects, canonicalUrl, renderIndex } from "./seo";
+import { fitDescription } from "./seoMeta";
+import { migrate, openDb, run, setDb } from "./db";
 
 let server: Server;
 let port = 0;
@@ -62,13 +64,53 @@ describe("canonical redirects", () => {
   });
 });
 
-describe("canonical link in the HTML", () => {
-  it("is the apex URL of the path, without query or trailing slash", () => {
+describe("page head in the first HTML", () => {
+  it("team and event pages get their own title, description (120–160), canonical, OG and Twitter tags", async () => {
+    const c = openDb(":memory:");
+    setDb(c);
+    await migrate(c);
+    await run("INSERT INTO teams (number, name, city, state, country) VALUES (4215, 'Hypnotic Robotics', 'Oradell', 'NJ', 'USA')");
+    await run("INSERT INTO team_season_stats (season, team, opr_np, rank_np, ranked_teams, matches, wins, losses, ties) VALUES (2025, 4215, 101.64, 616, 8375, 32, 26, 6, 0)");
+    await run("INSERT INTO events (season, code, name, type, venue, city, state, country, start, end, remote, hybrid, source) VALUES (2025, 'USNJNOM3', 'P1-4 PM Northern League Meet', 'LeagueMeet', 'Don Bosco Prep', 'Ramsey', 'NJ', 'USA', '2025-11-08', '2025-11-08', 0, 0, 'test')");
     const dir = mkdtempSync(join(tmpdir(), "cs-seo-"));
     const file = join(dir, "index.html");
-    writeFileSync(file, "<html><head><title>x</title></head><body></body></html>");
+    writeFileSync(file, '<html><head><title>FTC Control Scout — free</title>\n<meta name="description" content="generic" />\n<meta property="og:title" content="generic" />\n</head><body></body></html>');
+
+    const team = await renderIndex(file, "/teams/4215");
+    expect(team).toContain("<title>Team 4215 — Hypnotic Robotics · FTC Control Scout</title>");
+    expect(team).toContain('<link rel="canonical" href="https://controlscout.org/teams/4215" />');
+    expect(team).toContain('<meta property="og:url" content="https://controlscout.org/teams/4215" />');
+    expect(team).toContain('<meta name="twitter:card" content="summary_large_image" />');
+    expect(team).toContain('<meta property="og:image" content="https://controlscout.org/og-image.png" />');
+    expect(team).not.toContain("generic"); // the template's own tags are replaced, not duplicated
+    expect(team.match(/<title>/g)).toHaveLength(1);
+    const desc = /<meta name="description" content="([^"]*)"/.exec(team)![1];
+    expect(desc).toContain("OPR 101.6 (#616 of 8,375)");
+    expect(desc.length).toBeGreaterThanOrEqual(120);
+    expect(desc.length).toBeLessThanOrEqual(160);
+
+    // Event codes are case-insensitive: a lowercase link gets the event's own preview, with the canonical code.
+    const lower = await renderIndex(file, "/events/2025/usnjnom3");
+    expect(lower).toContain("<title>P1-4 PM Northern League Meet (2025–26) · FTC Control Scout</title>");
+    expect(lower).toContain('<link rel="canonical" href="https://controlscout.org/events/2025/USNJNOM3" />');
+    const ev = await renderIndex(file, "/events/2025/USNJNOM3");
+    expect(ev).toContain("<title>P1-4 PM Northern League Meet (2025–26) · FTC Control Scout</title>");
+    expect(/<meta name="description" content="([^"]*)"/.exec(ev)![1]).toContain("Nov 8, 2025");
+
+    const home = await renderIndex(file, "/");
+    expect(home).toContain("<title>FTC Control Scout — free FTC scouting &amp; predictions</title>");
+    expect(/<meta name="description" content="([^"]*)"/.exec(home)![1]).not.toBe(desc);
+    // Personal pages: noindex.
+    expect(await renderIndex(file, "/my-team")).toContain('<meta name="robots" content="noindex" />');
+  });
+
+  it("fits descriptions to 120–160 characters", () => {
+    const short = fitDescription("Short.");
+    expect(short.length).toBeGreaterThanOrEqual(120);
+    expect(short.length).toBeLessThanOrEqual(160);
+    const long = fitDescription("word ".repeat(80));
+    expect(long.length).toBeLessThanOrEqual(160);
+    expect(long.endsWith("…")).toBe(true);
     expect(canonicalUrl("/teams/4215/")).toBe("https://controlscout.org/teams/4215");
-    expect(canonicalUrl("/")).toBe("https://controlscout.org/");
-    expect(renderIndex(file, "/events/2025/USNJNOM3")).toContain('<link rel="canonical" href="https://controlscout.org/events/2025/USNJNOM3" />');
   });
 });
