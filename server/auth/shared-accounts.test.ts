@@ -19,6 +19,7 @@ const accounts = new Map<string, { id: number; email: string; displayName: strin
 const handoffs = new Map<string, { email: string; state: string; used: boolean }>();
 const resolveCalls: { email: string; verifiedBy: string }[] = [];
 let cpDown = false;
+let cpHang = false;
 const accountFor = (email: string) => {
   let a = accounts.get(email);
   if (!a) { a = { id: 1000 + accounts.size, email, displayName: null, createdAt: new Date().toISOString(), controlPoint: { member: false, teams: [] } }; accounts.set(email, a); }
@@ -29,6 +30,7 @@ beforeAll(async () => {
   const stub = express();
   stub.use(express.json());
   stub.use("/internal", (req, res, next) => {
+    if (cpHang) return; // never answers
     if (cpDown) { res.status(500).json({ error: "down" }); return; }
     if (req.get("X-Internal-Key") !== KEY) { res.status(401).json({ error: "bad key" }); return; }
     next();
@@ -60,7 +62,7 @@ afterAll(() => {
   for (const k of ["CONTROL_POINT_INTERNAL_URL", "CONTROL_POINT_PUBLIC_URL", "CONTROL_POINT_INTERNAL_KEY", "APP_URL"]) delete process.env[k];
 });
 beforeEach(() => {
-  cpDown = false;
+  cpDown = false; cpHang = false;
   Object.assign(process.env, { CONTROL_POINT_INTERNAL_URL: cpBase, CONTROL_POINT_PUBLIC_URL: "https://cp.test", CONTROL_POINT_INTERNAL_KEY: KEY, APP_URL: "http://127.0.0.1" });
 });
 
@@ -83,9 +85,11 @@ function client() {
     await req("/api/auth/email/start", { method: "POST", json: { email } });
     return req("/api/auth/email/verify", { method: "POST", json: { email, code: inbox.get(email) } });
   };
-  return { req, signIn, cookie: () => cookie };
+  return { req, signIn, cookie: () => cookie, setCookie: (c: string) => { cookie = c; } };
 }
 const me = async (c: ReturnType<typeof client>) => (await c.req("/api/auth/me")).json();
+
+import { linkToSharedAccount } from "./controlPoint";
 
 describe("shared accounts", () => {
   it("is off without the CONTROL_POINT_* settings", async () => {
@@ -113,6 +117,31 @@ describe("shared accounts", () => {
     expect((await me(c)).user.controlPointLinked).toBe(false);
     cpDown = false;
     expect((await me(c)).user.controlPointLinked).toBe(true);
+  });
+
+  it("a hanging Control Point can't stall sign-in: the 3 s timeout ends it, and /me links later", async () => {
+    cpHang = true;
+    const c = client();
+    const t0 = Date.now();
+    expect((await c.signIn("hang@example.com")).status).toBe(200);
+    expect(Date.now() - t0).toBeLessThan(6000);
+    expect((await me(c)).user).not.toBeNull();
+    cpHang = false;
+    expect((await me(c)).user.controlPointLinked).toBe(true);
+  }, 20_000);
+
+  it("the email sign-in response already says the account is linked", async () => {
+    const c = client();
+    await c.req("/api/auth/email/start", { method: "POST", json: { email: "max@example.com" } });
+    const r = await c.req("/api/auth/email/verify", { method: "POST", json: { email: "max@example.com", code: inbox.get("max@example.com") } });
+    expect((await r.json()).user.controlPointLinked).toBe(true);
+  });
+
+  it("never links an address the sign-in didn't just prove", async () => {
+    const before = resolveCalls.length;
+    const out = await linkToSharedAccount({ id: 999, email: "old@example.com", displayName: null, createdAt: "" }, "google", "new@example.com");
+    expect(out).toBeNull();
+    expect(resolveCalls.length).toBe(before);
   });
 
   it("Continue with Control Point: state cookie, redirect, redeem, session", async () => {
@@ -149,5 +178,23 @@ describe("shared accounts", () => {
     // The state cookie is single use too: a second callback can't reuse it.
     const again = await c.req(`/api/auth/control-point/callback?code=code-2&state=${state}`);
     expect(again.headers.get("location")).toBe("/settings?signin=failed");
+  });
+
+  it("a code that was already redeemed is rejected, even replayed with its original state cookie", async () => {
+    const c = client();
+    const start = await c.req("/api/auth/control-point/start");
+    const state = new URL(start.headers.get("location")!).searchParams.get("state")!;
+    const stateCookie = c.cookie();
+    handoffs.set("code-3", { email: "rae@example.com", state, used: false });
+    const ok = await c.req(`/api/auth/control-point/callback?code=code-3&state=${state}`);
+    expect(ok.headers.get("location")).toBe("/my-team?signin=ok");
+    const sessionsAfterFirst = (await all<any>("SELECT COUNT(*) n FROM sessions"))[0].n;
+
+    const replay = client();
+    replay.setCookie(stateCookie); // the original cs_cp_state cookie, as an attacker who copied it would have
+    const r = await replay.req(`/api/auth/control-point/callback?code=code-3&state=${state}`);
+    expect(r.headers.get("location")).toBe("/settings?signin=failed");
+    expect((await me(replay)).user).toBeNull();
+    expect((await all<any>("SELECT COUNT(*) n FROM sessions"))[0].n).toBe(sessionsAfterFirst);
   });
 });
