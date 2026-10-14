@@ -1,5 +1,5 @@
 // The favicons Google Search and browsers can use: raster files present with the right
-// format and size, and linked in index.html with the ICO first and the SVG kept.
+// format and size, and linked in index.html with the ICO first.
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
@@ -18,14 +18,21 @@ describe("favicons", () => {
     for (let i = 0; i < n; i++) expect(isPng(ico.subarray(ico.readUInt32LE(6 + 16 * i + 12)))).toBe(true);
     expect(isPng(pub("favicon-48.png")) && pngSize(pub("favicon-48.png"))).toEqual([48, 48]);
     expect(isPng(pub("apple-touch-icon.png")) && pngSize(pub("apple-touch-icon.png"))).toEqual([180, 180]);
+    // The installed app uses the same icon.
+    const manifest = JSON.parse(readFileSync(join(process.cwd(), "public", "manifest.webmanifest"), "utf8"));
+    for (const { src, sizes } of manifest.icons) {
+      const n = Number(sizes.split("x")[0]);
+      expect(pngSize(pub(src.slice(1)))).toEqual([n, n]);
+    }
   });
 
-  it("index.html links the ICO first, then the PNG, then the SVG, plus the touch icon", () => {
+  it("index.html links the ICO first, then the PNG, plus the touch icon; no SVG favicon (it would win over the brand icon)", () => {
     const html = readFileSync(join(process.cwd(), "index.html"), "utf8");
     const at = (s: string) => html.indexOf(s);
     expect(at('<link rel="icon" href="/favicon.ico" sizes="any" />')).toBeGreaterThan(-1);
     expect(at("/favicon.ico")).toBeLessThan(at("/favicon-48.png"));
-    expect(at("/favicon-48.png")).toBeLessThan(at("/favicon.svg"));
+    expect(at("/favicon-48.png")).toBeGreaterThan(at("/favicon.ico"));
+    expect(html).not.toMatch(/rel="icon"[^>]*svg/);
     expect(at('<link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png" />')).toBeGreaterThan(-1);
   });
 
