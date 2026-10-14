@@ -85,3 +85,17 @@ describe("oprRows: FTC Scout's match set", () => {
     expect(teleopAsReported(2024, { teleop: 30, endgame: 10 })).toBe(40);
   });
 });
+
+describe("world ranks", () => {
+  it("rank negative OPRs too (FTC Scout does), below every positive one", async () => {
+    const { rankBy } = await import("./job");
+    const r = rankBy([[1, 50], [2, -3.2], [3, 10], [4, Number.NaN]]);
+    expect([r.get(1), r.get(3), r.get(2)]).toEqual([1, 2, 3]);
+    expect(r.has(4)).toBe(false);
+    expect(r.size).toBe(3);
+  });
+  it("can keep a floor (the prediction rating does)", async () => {
+    const { rankBy } = await import("./job");
+    expect(rankBy([[1, 5], [2, -1]], 0).has(2)).toBe(false);
+  });
+});

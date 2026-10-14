@@ -28,6 +28,12 @@ function tally(a: Acc, own: { total: number; np: number; pen: number }, opp: { t
   a.np += own.np; a.score += own.total; a.pen += own.pen;
 }
 
+/** Team → world rank (1 = highest), over finite values at or above `min`. */
+export function rankBy(vals: [number, number][], min = -Infinity): Map<number, number> {
+  const sorted = vals.filter(([, v]) => Number.isFinite(v) && v >= min).sort((a, b) => b[1] - a[1]);
+  return new Map(sorted.map(([t], i) => [t, i + 1]));
+}
+
 export async function computeSeasonStats(season: number, events: DbEvent[], log: Log = () => {}): Promise<void> {
   const ev: InStatement[] = [{ sql: "DELETE FROM team_event_stats WHERE season = ?", args: [season] }];
   const best = new Map<number, { np: number; auto: number; teleop: number; endgame: number; pen: number }>();
@@ -87,15 +93,12 @@ export async function computeSeasonStats(season: number, events: DbEvent[], log:
     if (!stored) return null;
     return season === CURRENT_SEASON ? book.get(t) : stored;
   };
-  const rankBy = (vals: [number, number][]) => {
-    const sorted = vals.filter(([, v]) => v >= 0 && Number.isFinite(v)).sort((a, b) => b[1] - a[1]);
-    return new Map(sorted.map(([t], i) => [t, i + 1]));
-  };
   const b = [...best];
+  // OPR ranks count every finite value, negatives included (as FTC Scout ranks them).
   const ranks = { np: rankBy(b.map(([t, x]) => [t, x.np])), auto: rankBy(b.map(([t, x]) => [t, x.auto])), teleop: rankBy(b.map(([t, x]) => [t, x.teleop])), endgame: rankBy(b.map(([t, x]) => [t, x.endgame])) };
   const ratingVals: [number, number][] = [];
   for (const t of seasonAcc.keys()) { const r = rating(t); if (r && r.n >= 3) ratingVals.push([t, r.auto + r.teleop + r.endgame]); }
-  const ratingRank = rankBy(ratingVals);
+  const ratingRank = rankBy(ratingVals, 0); // ratings keep their floor
   const ss: InStatement[] = [{ sql: "DELETE FROM team_season_stats WHERE season = ?", args: [season] }];
   for (const [team, a] of seasonAcc) {
     const o = best.get(team);
