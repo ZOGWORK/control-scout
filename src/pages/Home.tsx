@@ -17,7 +17,6 @@ import { Button } from "../components/ui/button";
 import { TierMark, WinBar } from "../components/predict";
 import { cn } from "../components/cn";
 import { dateRange, matchTime, oddsPct, pct, place, seasonLabel, ago } from "../lib/format";
-import { BrandMark } from "../components/layout/Shell";
 
 const iso = (d: Date) => d.toISOString().slice(0, 10);
 
@@ -53,8 +52,10 @@ function Hero() {
   const meta = useMeta();
   return (
     <Reveal className="pt-2 text-center sm:pt-8">
-      <BrandMark className="mx-auto size-12" />
-      <h1 className="mt-4 font-display text-4xl font-bold tracking-tight sm:text-5xl">FTC Control Scout</h1>
+      {/* The wordmark (brand/wordmark-master.png). The heading's text is its alt, for search engines and screen readers. */}
+      <h1>
+        <img src="/wordmark.png" alt="FTC Control Scout" width={1200} height={192} className="mx-auto h-12 w-auto max-w-full sm:h-16" />
+      </h1>
       <p className="mx-auto mt-3 max-w-xl text-muted-foreground">Every FTC team, event and match — with predictions that keep a public score of how often they come true. Free, no login.</p>
       <SearchBox
         size="lg" inputRef={searchRef} hint={SEARCH_HINT}
