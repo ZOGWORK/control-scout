@@ -87,6 +87,17 @@ export function splitFirstScore(season: number, a: Record<string, unknown>): Sco
   return { total: n(a.totalPoints), np, auto, teleop, endgame, pen, ...(bonus ? { bonus } : {}) };
 }
 
+/**
+ * TeleOp as FIRST (and FTC Scout) report it, for display and OPR. The engine
+ * always splits the endgame out of TeleOp (splitFirstScore); from INTO THE DEEP
+ * (2024) on, FIRST's teleopPoints includes the endgame (park/ascent, base,
+ * park), so the reported TeleOp adds it back. CENTERSTAGE (2023) reported
+ * them separately.
+ */
+export function teleopAsReported(season: number, s: { teleop: number; endgame: number }): number {
+  return season >= 2024 ? s.teleop + s.endgame : s.teleop;
+}
+
 /** FIRST event type names → the compact form the engine uses (FTC Scout style). */
 export function normalizeEventType(typeName: string | null | undefined): string | null {
   if (!typeName) return null;

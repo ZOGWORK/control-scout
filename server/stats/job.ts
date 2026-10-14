@@ -28,6 +28,12 @@ function tally(a: Acc, own: { total: number; np: number; pen: number }, opp: { t
   a.np += own.np; a.score += own.total; a.pen += own.pen;
 }
 
+/** Team → world rank (1 = highest), over finite values at or above `min`. */
+export function rankBy(vals: [number, number][], min = -Infinity): Map<number, number> {
+  const sorted = vals.filter(([, v]) => Number.isFinite(v) && v >= min).sort((a, b) => b[1] - a[1]);
+  return new Map(sorted.map(([t], i) => [t, i + 1]));
+}
+
 export async function computeSeasonStats(season: number, events: DbEvent[], log: Log = () => {}): Promise<void> {
   const ev: InStatement[] = [{ sql: "DELETE FROM team_event_stats WHERE season = ?", args: [season] }];
   const best = new Map<number, { np: number; auto: number; teleop: number; endgame: number; pen: number }>();
@@ -37,7 +43,7 @@ export async function computeSeasonStats(season: number, events: DbEvent[], log:
     // ordinary 2v2 matches (oprRows takes alliances of any size), so they count:
     // skipping them left ~70 events a season, championships included, with no stats.
     if (e.remote) continue;
-    const rows = oprRows(e.matches);
+    const rows = oprRows(e.matches, season);
     const res = rows.length ? solveOpr(rows) : null;
     const perTeam = new Map<number, Acc>();
     for (const m of e.matches) {
@@ -64,9 +70,10 @@ export async function computeSeasonStats(season: number, events: DbEvent[], log:
         args: [season, e.code, team, r1(o("np")), r1(o("auto")), r1(o("teleop")), r1(o("endgame")), r1(o("pen")),
           a.matches ? r1(a.score / a.matches) : null, a.matches ? r1(a.np / a.matches) : null, a.matches ? r1(a.pen / a.matches) : null, a.matches, a.w, a.l, a.t],
       });
-      // Season "best" OPR counts events where the team played enough quals to be measured.
-      if (res && (res.rows.get(team) ?? 0) >= 4) {
-        const b = best.get(team) ?? { np: -1, auto: -1, teleop: -1, endgame: -1, pen: Infinity };
+      // Season "best" OPR: the best of every event the team played quals at, as FTC Scout ranks it.
+      // (OPR can be negative now, so start from -Infinity, not a floor.)
+      if (res && res.rows.has(team)) {
+        const b = best.get(team) ?? { np: -Infinity, auto: -Infinity, teleop: -Infinity, endgame: -Infinity, pen: Infinity };
         b.np = Math.max(b.np, o("np")!); b.auto = Math.max(b.auto, o("auto")!); b.teleop = Math.max(b.teleop, o("teleop")!);
         b.endgame = Math.max(b.endgame, o("endgame")!); b.pen = Math.min(b.pen, o("pen")!);
         best.set(team, b);
@@ -86,15 +93,12 @@ export async function computeSeasonStats(season: number, events: DbEvent[], log:
     if (!stored) return null;
     return season === CURRENT_SEASON ? book.get(t) : stored;
   };
-  const rankBy = (vals: [number, number][]) => {
-    const sorted = vals.filter(([, v]) => v >= 0 && Number.isFinite(v)).sort((a, b) => b[1] - a[1]);
-    return new Map(sorted.map(([t], i) => [t, i + 1]));
-  };
   const b = [...best];
+  // OPR ranks count every finite value, negatives included (as FTC Scout ranks them).
   const ranks = { np: rankBy(b.map(([t, x]) => [t, x.np])), auto: rankBy(b.map(([t, x]) => [t, x.auto])), teleop: rankBy(b.map(([t, x]) => [t, x.teleop])), endgame: rankBy(b.map(([t, x]) => [t, x.endgame])) };
   const ratingVals: [number, number][] = [];
   for (const t of seasonAcc.keys()) { const r = rating(t); if (r && r.n >= 3) ratingVals.push([t, r.auto + r.teleop + r.endgame]); }
-  const ratingRank = rankBy(ratingVals);
+  const ratingRank = rankBy(ratingVals, 0); // ratings keep their floor
   const ss: InStatement[] = [{ sql: "DELETE FROM team_season_stats WHERE season = ?", args: [season] }];
   for (const [team, a] of seasonAcc) {
     const o = best.get(team);
@@ -302,8 +306,9 @@ export interface StatsOptions { seasons?: number[]; backtest?: boolean; log?: Lo
  * Bump when the rules for per-event stats change, so every host recomputes all
  * seasons once (the scheduled cycle otherwise refreshes only the current one).
  * 2: hybrid events counted (they were skipped, leaving events without stats).
+ * 3: OPR computed exactly like FTC Scout (least squares, all listed teams, TeleOp as FIRST reports it).
  */
-export const STATS_RULES = 2;
+export const STATS_RULES = 3;
 
 /** True when past seasons were computed under older rules. */
 export async function statsRulesStale(): Promise<boolean> {

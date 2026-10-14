@@ -80,7 +80,14 @@ morning review. Format: **what I chose** — why — the alternative.
 - **Match times**: FIRST reports event-local times with no zone; they are
   read as UTC everywhere (only ordering/gaps matter to the engine), so
   ratings don't depend on the server's time zone.
-- **OPR = ridge-regularised, non-negative least squares, λ fitted = 0.5.**
+- **OPR = plain least squares, identical to FTC Scout / FTC Events (2026-10-14, Sushil).**
+  Teams compare our OPR with FTC Scout's, so a different number reads as a
+  bug, whatever its statistical merit. Every played qual, every listed team
+  (surrogates, DQs, no-shows included), TeleOp as FIRST reports it (endgame
+  included from 2024). Verified identical to FTC Scout for every team at four
+  events across 2023–2025. OPR doesn't drive predictions; the rating does.
+  Superseded:
+- **(was) OPR = ridge-regularised, non-negative least squares, λ fitted = 0.5.**
   Shrinks toward the event's average per-robot contribution (not zero),
   constrained ≥ 0, quals only, surrogate/DQ alliance rows dropped.
   `scripts/fit-opr-lambda.ts`: held-out RMSE of next-matches' alliance np,
