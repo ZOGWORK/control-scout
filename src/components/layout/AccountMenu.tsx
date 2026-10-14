@@ -5,7 +5,7 @@
 // that address already has a Control Point account (and its teams). That's
 // only ever said to the signed-in owner, so it can't be used to probe
 // someone else's email. Signed in: who you are, sync, Control Point, sign out.
-import { useEffect, useId, useRef, useState } from "react";
+import { useEffect, useId, useRef, useState, type Dispatch, type SetStateAction } from "react";
 import { Link, useLocation } from "react-router-dom";
 import { CheckCircle2, ExternalLink, KeyRound, LogIn, LogOut, Mail, Settings, UserRound } from "lucide-react";
 import { apiFetch } from "../../lib/api";
@@ -59,11 +59,11 @@ export function AccountMenu() {
 
 interface EmailFlow { email: string; sent: boolean }
 
-function SignInPanel({ flow, setFlow }: { flow: EmailFlow; setFlow: (f: EmailFlow) => void }) {
+function SignInPanel({ flow, setFlow }: { flow: EmailFlow; setFlow: Dispatch<SetStateAction<EmailFlow>> }) {
   const { providers, signedIn } = usePersonal();
   const { email, sent } = flow;
   const setEmail = (v: string) => setFlow({ email: v, sent: false });
-  const setSent = (v: boolean) => setFlow({ email, sent: v });
+  const setSent = (v: boolean) => setFlow((f) => ({ ...f, sent: v }));
   const [code, setCode] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -71,7 +71,9 @@ function SignInPanel({ flow, setFlow }: { flow: EmailFlow; setFlow: (f: EmailFlo
   const any = providers.email || providers.google || providers.controlPoint;
   const start = async () => {
     setBusy(true); setError(null);
-    try { await apiFetch("/api/auth/email/start", { method: "POST", json: { email } }); setSent(true); }
+    const asked = email;
+    // Only if the address is still the one asked for: a late reply never overwrites a newer email.
+    try { await apiFetch("/api/auth/email/start", { method: "POST", json: { email: asked } }); setFlow((f) => (f.email === asked ? { email: asked, sent: true } : f)); }
     catch (e: any) { setError(e.message); } finally { setBusy(false); }
   };
   const verify = async (c: string) => {
