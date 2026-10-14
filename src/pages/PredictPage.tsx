@@ -104,7 +104,9 @@ function TeamPredictions({ team, onClear }: { team: number; onClear: () => void 
   const season = useCurrentSeason();
   const profile = useApi<TeamProfile>(`/api/teams/${team}${qs({ season })}`);
   const matches = useApi<{ matches: MatchView[] }>(`/api/teams/${team}/matches${qs({ season })}`);
-  const upcoming = (matches.data?.matches ?? []).filter((m) => !m.played);
+  // Unplayed and not long past: matches from ended events that never got a result aren't "next".
+  const stale = Date.now() - 12 * 3600_000;
+  const upcoming = (matches.data?.matches ?? []).filter((m) => !m.played && (!m.startsAt || Date.parse(m.startsAt) > stale));
   const t = profile.data?.team;
   const now = iso(new Date());
   const next = (profile.data?.events ?? []).find((e) => (e.end ?? e.start ?? "") >= now);
@@ -176,19 +178,15 @@ function ThisWeek({ onPick, picked }: { onPick: (v: string) => void; picked: str
   const now = new Date();
   const from = iso(new Date(now.getTime() - 2 * 864e5)), to = iso(new Date(now.getTime() + 7 * 864e5));
   const events = useApi<{ events: EventListItem[] }>(`/api/events${qs({ season, from, to })}`);
-  const upcoming = useApi<{ matches: MatchView[] }>(`/api/predict/upcoming${qs({ season })}`);
-  const counts = useMemo(() => {
-    const c = new Map<string, number>();
-    for (const m of upcoming.data?.matches ?? []) c.set(m.code, (c.get(m.code) ?? 0) + 1);
-    return c;
-  }, [upcoming.data]);
+  // Per-event counts from the event list itself (complete, unlike a capped match feed).
+  const toPlay = (e: EventListItem) => (e.status === "finished" ? 0 : Math.max(0, e.matchesTotal - e.matchesPlayed));
   return (
     <Section title="This week" description="Events from two days ago to a week out. Pick one to see its predictions.">
       <Async state={events} empty={(d) => !d.events.length && <EmptyState icon={CalendarDays} title="No events this week" description="Nothing is scheduled in the next seven days. Pick any team or event above to see its predictions." />}>
         {(d) => (
           <div className="grid gap-2 sm:grid-cols-2">
-            {[...d.events].sort((a, b) => (counts.get(b.code) ?? 0) - (counts.get(a.code) ?? 0) || (a.start ?? "").localeCompare(b.start ?? "")).slice(0, all ? undefined : 12).map((e) => {
-              const n = counts.get(e.code) ?? 0;
+            {[...d.events].sort((a, b) => toPlay(b) - toPlay(a) || (a.start ?? "").localeCompare(b.start ?? "")).slice(0, all ? undefined : 12).map((e) => {
+              const n = toPlay(e);
               return (
                 <button key={e.code} type="button" onClick={() => onPick(`event:${e.season}:${e.code}`)} aria-pressed={picked === e.code}
                   className={cn("lift flex min-w-0 items-start gap-3 rounded-xl border bg-card p-3 text-left", picked === e.code ? "border-accent/60" : "border-border")}>
@@ -196,7 +194,7 @@ function ThisWeek({ onPick, picked }: { onPick: (v: string) => void; picked: str
                     <span className="block truncate font-medium text-foreground">{e.name}</span>
                     <span className="mt-0.5 flex items-center gap-1 truncate text-xs text-muted-foreground"><MapPin className="size-3 shrink-0" />{dateRange(e.start, e.end)} · {place(e.city, e.state)}</span>
                   </span>
-                  <span className="shrink-0">{n > 0 ? <Badge variant="success">{n} predicted</Badge> : <Badge variant="secondary">{e.type ?? "Event"}</Badge>}</span>
+                  <span className="shrink-0">{n > 0 ? <Badge variant="success">{n} scheduled</Badge> : <Badge variant="secondary">{e.type ?? "Event"}</Badge>}</span>
                 </button>
               );
             })}
