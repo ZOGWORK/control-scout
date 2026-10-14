@@ -127,6 +127,11 @@ describe("page head in the first HTML", () => {
     expect(evil).not.toContain("</script><script>alert(1)");
     expect(ld(evil)[0].name).toBe("Evil</script><script>alert(1)</script>");
     expect(ld(await renderIndex(file, "/predict"))).toHaveLength(0);
+    // Replacement patterns in a name ($', $`, $&) are inserted literally, never expanded.
+    await run("UPDATE teams SET name = 'Dollar $'' Bot $` $& end' WHERE number = 4215");
+    const dollar = await renderIndex(file, "/teams/4215");
+    expect(ld(dollar)[0].name).toBe("Dollar $' Bot $` $& end");
+    expect(dollar.match(/<\/head>/g)).toHaveLength(1);
     // An unknown team gets fallback meta but no structured data; a zero-padded number has one canonical URL.
     expect(ld(await renderIndex(file, "/teams/999998"))).toHaveLength(0);
     const padded = await renderIndex(file, "/teams/004215");
