@@ -45,17 +45,68 @@ export default function PredictPage() {
   useTitle("Predict");
   const [sp, setSp] = useSearchParams();
   const pick = parsePick(sp.get("for"));
-  const setPick = (v: string | null) => setSp((x) => { if (v) x.set("for", v); else x.delete("for"); return x; });
+  // ?view=lab|events picks the view; without it, a lab link (mode, red/blue, code) opens the Lab.
+  // Each view keeps its own params (for= vs the lab's), so switching back and forth loses neither.
+  const view = viewOf(sp);
+  // Picking a team or event shows its predictions in the Events view (the lab's matchup stays for later).
+  const setPick = (v: string | null) => setSp((x) => { x.set("view", "events"); if (v) x.set("for", v); else x.delete("for"); return x; });
+  const setView = (v: "events" | "lab") => setSp((x) => { x.set("view", v); if (v === "lab" && !labLink(x)) x.set("mode", "match"); return x; });
   return (
     <div className="space-y-10">
       <div>
         <PageHeader title="Predict" description={<>Every scheduled match gets win odds and predicted scores automatically, and every advancing event gets advancement odds. Pick a team or an event to see them. Each number carries its confidence, and the <Link to="/methodology#accuracy" className="underline">track record</Link> shows how often they've been right.</>} />
         <Picker onPick={setPick} />
+        <PredictSwitch value={view} onChange={setView} />
       </div>
-      {pick?.kind === "team" && <TeamPredictions team={pick.team} onClear={() => setPick(null)} />}
-      {pick?.kind === "event" && <EventPredictions season={pick.season} code={pick.code} onClear={() => setPick(null)} />}
-      <ThisWeek onPick={setPick} picked={pick?.kind === "event" ? pick.code : null} />
-      <Lab />
+      <div role="tabpanel" id={`predict-panel-${view}`} aria-labelledby={`predict-tab-${view}`} className="space-y-10">
+        {view === "lab" ? <Lab /> : (
+          <>
+            {pick?.kind === "team" && <TeamPredictions team={pick.team} onClear={() => setPick(null)} />}
+            {pick?.kind === "event" && <EventPredictions season={pick.season} code={pick.code} onClear={() => setPick(null)} />}
+            <ThisWeek onPick={setPick} picked={pick?.kind === "event" ? pick.code : null} />
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
+
+/** Which view: ?view= if set, else the Lab for a lab link, else Events. */
+export function viewOf(sp: URLSearchParams): "events" | "lab" {
+  const v = sp.get("view");
+  return v === "lab" || v === "events" ? v : labLink(sp) ? "lab" : "events";
+}
+/** A lab link: an explicit mode, or (older links) a matchup or an event without one. */
+function labLink(sp: URLSearchParams): "match" | "advancement" | null {
+  const m = sp.get("mode") ?? (sp.get("red") || sp.get("blue") ? "match" : sp.get("code") ? "advancement" : null);
+  return m === "advancement" ? "advancement" : m === "match" ? "match" : null;
+}
+
+/** Predict (scheduled matches and events) or Predict Lab (what-ifs): one switch, right under the search. */
+function PredictSwitch({ value, onChange }: { value: "events" | "lab"; onChange: (v: "events" | "lab") => void }) {
+  const views = [
+    { v: "events" as const, label: "Events", icon: CalendarDays, hint: "Predictions for scheduled matches and events" },
+    { v: "lab" as const, label: "Lab", icon: FlaskConical, hint: "What-ifs: any four teams, or advancement odds for any team at any event" },
+  ];
+  // Tabs keyboard pattern: the selected tab is the one Tab reaches; arrows (and Home/End) move and select.
+  const onKey = (e: React.KeyboardEvent<HTMLButtonElement>) => {
+    const i = views.findIndex((x) => x.v === value);
+    const next = e.key === "ArrowRight" ? (i + 1) % views.length : e.key === "ArrowLeft" ? (i + views.length - 1) % views.length : e.key === "Home" ? 0 : e.key === "End" ? views.length - 1 : -1;
+    if (next < 0) return;
+    e.preventDefault();
+    onChange(views[next].v);
+    document.getElementById(`predict-tab-${views[next].v}`)?.focus();
+  };
+  return (
+    <div className="mt-4 inline-flex max-w-full gap-1 overflow-x-auto rounded-xl border border-line bg-card p-1" role="tablist" aria-label="Predict">
+      {views.map(({ v, label, icon: Icon, hint }) => (
+        <button key={v} id={`predict-tab-${v}`} type="button" role="tab" aria-selected={value === v} aria-controls={`predict-panel-${v}`} tabIndex={value === v ? 0 : -1}
+          title={hint} onKeyDown={onKey} onClick={() => value !== v && onChange(v)}
+          className={cn("inline-flex h-9 shrink-0 items-center gap-2 rounded-lg px-3.5 text-sm font-semibold transition-colors max-sm:h-11",
+            value === v ? "bg-accent text-accent-ink shadow-[0_4px_16px_color-mix(in_srgb,var(--color-accent)_25%,transparent)]" : "text-text-muted hover:bg-text-base/[0.06] hover:text-text-base")}>
+          <Icon className="size-4" />{label}
+        </button>
+      ))}
     </div>
   );
 }
@@ -209,37 +260,28 @@ function ThisWeek({ onPick, picked }: { onPick: (v: string) => void; picked: str
   );
 }
 
-/** The manual lab: what-if alliances and advancement for any team at any event. Opens by itself for lab links (?mode=…). */
+/** Predict Lab: what-if alliances and advancement for any team at any event (the switcher's Lab view). */
 function Lab() {
   const [sp, setSp] = useSearchParams();
-  // A lab link: an explicit mode, or (older links) a matchup or an event without one.
-  const linked = sp.get("mode") ?? (sp.get("red") || sp.get("blue") ? "match" : sp.get("code") ? "advancement" : null);
-  const mode: LabMode = linked === "advancement" ? "advancement" : "match";
-  const [open, setOpen] = useState(linked === "match" || linked === "advancement");
-  useEffect(() => { if (linked === "match" || linked === "advancement") setOpen(true); }, [linked]);
+  const mode: LabMode = labLink(sp) === "advancement" ? "advancement" : "match";
   const setMode = (m: string) => setSp((x) => { x.set("mode", m); return x; }, { replace: true });
   return (
-    <section aria-label="What-if lab" className="rounded-2xl border border-border">
-      <button type="button" onClick={() => setOpen((o) => !o)} aria-expanded={open} className="flex w-full items-center gap-3 px-4 py-4 text-left sm:px-6">
-        <FlaskConical className="size-5 shrink-0 text-accent" />
-        <span className="min-w-0 flex-1">
-          <span className="block font-display text-lg font-semibold text-foreground">Try a what-if</span>
-          <span className="block text-sm text-muted-foreground">Any four teams against each other, or advancement odds for any team at any event.</span>
-        </span>
-        <ChevronDown className={cn("size-5 shrink-0 text-muted-foreground transition-transform", open && "rotate-180")} />
-      </button>
-      {open && (
-        <div className="border-t border-border px-4 pb-6 pt-4 sm:px-6">
-          <Tabs value={mode} onValueChange={setMode}>
-            <TabsList>
-              <TabsTrigger value="match"><Swords className="size-4" /> Match</TabsTrigger>
-              <TabsTrigger value="advancement"><Trophy className="size-4" /> Advancement</TabsTrigger>
-            </TabsList>
-            <TabsContent value="match" className="mt-6"><MatchLab /></TabsContent>
-            <TabsContent value="advancement" className="mt-6"><AdvancementLab /></TabsContent>
-          </Tabs>
+    <section aria-label="Predict Lab" className="rounded-2xl border border-border px-4 pb-6 pt-5 sm:px-6">
+      <div className="mb-4 flex items-start gap-3">
+        <FlaskConical className="mt-0.5 size-5 shrink-0 text-accent" />
+        <div>
+          <h2 className="font-display text-lg font-semibold text-foreground">Predict Lab</h2>
+          <p className="text-sm text-muted-foreground">Any four teams against each other, or advancement odds for any team at any event.</p>
         </div>
-      )}
+      </div>
+      <Tabs value={mode} onValueChange={setMode}>
+        <TabsList>
+          <TabsTrigger value="match"><Swords className="size-4" /> Match</TabsTrigger>
+          <TabsTrigger value="advancement"><Trophy className="size-4" /> Advancement</TabsTrigger>
+        </TabsList>
+        <TabsContent value="match" className="mt-6"><MatchLab /></TabsContent>
+        <TabsContent value="advancement" className="mt-6"><AdvancementLab /></TabsContent>
+      </Tabs>
     </section>
   );
 }
