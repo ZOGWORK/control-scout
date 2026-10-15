@@ -29,10 +29,12 @@ import { agoSeconds, awardLabel, dateRange, num, place, seasonLabel } from "../l
 export default function EventPage() {
   const { season, code } = useParams();
   const path = `/api/events/${season}/${code}`;
-  const state = useApi<EventDetail>(path);
+  // A season is digits only (as on the server: /events/02025/X is 2025; /events/0x7E9/X is no page).
+  const validSeason = /^\d+$/.test(season ?? "");
+  const state = useApi<EventDetail>(validSeason ? path : null);
   // No such event (404), or an address that can't be one (400: a malformed code or season): the branded
   // not-found page, which the server also answers with a 404.
-  const status = (state.error as ApiError | undefined)?.status;
+  const status = validSeason ? (state.error as ApiError | undefined)?.status : 400;
   const missing = status === 404 || status === 400;
   useTitle(missing ? "Event not found" : state.data ? `${state.data.event.name} (${seasonLabel(state.data.event.season)})` : code); // same as the server-rendered title
   useLiveReload(path, state.data?.live ?? null);
