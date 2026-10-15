@@ -6,6 +6,7 @@
 import type { AddressInfo } from "node:net";
 import type { Server } from "node:http";
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
+import * as dbm from "../db";
 import { all, get, kvGet, migrate, openDb, run, setDb } from "../db";
 import { CURRENT_SEASON } from "./seasons";
 import { resetForecasters } from "../predict/engine";
@@ -350,6 +351,52 @@ describe("one writer at a time", () => {
     await release(a!);
     expect(await lockHolder()).toBeNull();
     expect(await tryAcquire("live", 60_000)).toBeTruthy();
+  });
+
+  it("while the lease is held, trying for it only reads (no write to queue behind the holder's long transactions)", async () => {
+    const a = await tryAcquire("cycle", 60_000);
+    const c = dbm.db();
+    const real = c.execute.bind(c);
+    const writes: string[] = [];
+    (c as any).execute = (s: any) => { const sql = String(s?.sql ?? s); if (/^\s*(INSERT|UPDATE|DELETE)/i.test(sql)) writes.push(sql); return real(s); };
+    try { expect(await tryAcquire("live", 60_000)).toBeNull(); }
+    finally { (c as any).execute = real; }
+    expect(writes).toEqual([]);
+    await release(a!);
+  });
+
+  it("a database busy past its timeout counts as held, not as a failure", async () => {
+    const c = dbm.db();
+    const real = c.execute.bind(c);
+    (c as any).execute = (s: any) => { if (/INSERT INTO kv/.test(String(s?.sql ?? s))) return Promise.reject(Object.assign(new Error("SQLITE_BUSY: database is locked"), { code: "SQLITE_BUSY" })); return real(s); };
+    try { expect(await tryAcquire("live", 60_000)).toBeNull(); }
+    finally { (c as any).execute = real; }
+  });
+
+  it("a tick cut short by a busy database is quiet, and the next one finishes the follow-up", async () => {
+    // Q1's result arrives; storing the new data version then hits a busy database.
+    onFetch = async () => postResult("LIVE", 1, 90, 30);
+    const c = dbm.db();
+    const real = c.execute.bind(c);
+    let busy = true;
+    (c as any).execute = (st: any) => {
+      const sql = String(st?.sql ?? st), args = (st?.args ?? []) as unknown[];
+      if (busy && /^INSERT INTO kv/.test(sql) && args[0] === "data:version") return Promise.reject(Object.assign(new Error("SQLITE_BUSY: database is locked"), { code: "SQLITE_BUSY" }));
+      return real(st);
+    };
+    try {
+      const v0 = await kvGet<string>("data:version");
+      await expect(liveTick()).resolves.toBeNull(); // no "live sync failed"
+      expect(await kvGet<string>("data:version")).toBe(v0);
+      expect(await get("SELECT 1 FROM team_event_stats WHERE season = ? AND code = 'LIVE' AND matches > 0", [S])).toBeFalsy();
+      // Next tick: FIRST reports nothing new (the result is already stored) and no full fetch is due…
+      busy = false; probeSays = false; onFetch = async () => {};
+      vi.setSystemTime(NOW + 60_000);
+      await liveTick();
+      // …but the follow-up is made up: new data version, stats with Q1.
+      expect(await kvGet<string>("data:version")).not.toBe(v0);
+      expect((await get<any>("SELECT wins FROM team_event_stats WHERE season = ? AND code = 'LIVE' AND team = 201", [S]))?.wins).toBe(1);
+    } finally { (c as any).execute = real; }
   });
 
   it("an expired lease (crashed holder) is taken over, and the old holder can't renew or release it", async () => {
