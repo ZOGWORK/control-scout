@@ -28,12 +28,17 @@ export async function runCycle(log: Log) {
   const backfill = hasFirst() && backfillOn() && quietHours() ? await nextBackfill() : null;
   if (backfill) {
     log(`  backfill: ${backfill}`);
+    // Marked before the sync and cleared only once its stats are in: syncing freezes the season, so a cycle
+    // stopped between the two would otherwise never come back for the stats.
+    await kvSet(STATS_PENDING, [...new Set([...(await statsPending()), backfill])]);
     await syncAll({ seasons: [backfill], log: (m) => log(`  ${m}`) });
   }
+  const pending = await statsPending();
   // Every season once after the stats rules change; otherwise just the current one (and a backfilled one).
   const every = await statsRulesStale();
   if (every) log("  stats rules changed: recomputing every season");
-  await runStats({ seasons: every ? undefined : [CURRENT_SEASON, ...(backfill ? [backfill] : [])], log: (m) => log(`  ${m}`) });
+  await runStats({ seasons: every ? undefined : [...new Set([CURRENT_SEASON, ...pending])], log: (m) => log(`  ${m}`) });
+  if (pending.length) await kvSet(STATS_PENDING, (await statsPending()).filter((s) => !pending.includes(s)));
   // Offline packs: rebuilt at most daily (they're versioned; devices see "new data available").
   // The timestamp alone isn't enough: an imported database carries
   // packs:last without the pack files, so also require a readable manifest.
@@ -55,9 +60,14 @@ export async function backfillDue(): Promise<boolean> {
   return hasFirst() && backfillOn() && quietHours() && (await nextBackfill()) != null;
 }
 
-async function nextBackfill(): Promise<number | null> {
+/** Backfilled seasons whose stats haven't been computed yet. */
+const STATS_PENDING = "backfill:stats-pending";
+const statsPending = async () => (await kvGet<number[]>(STATS_PENDING)) ?? [];
+
+/** The next past season to backfill: one not fully fetched, else one fetched whose stats never finished. */
+export async function nextBackfill(): Promise<number | null> {
   const rows = await all<{ season: number }>("SELECT season FROM seasons WHERE frozen = 0 AND season < ? ORDER BY season DESC", [CURRENT_SEASON]);
-  return rows.map((r) => Number(r.season)).find(isLegacy) ?? null;
+  return rows.map((r) => Number(r.season)).find(isLegacy) ?? (await statsPending())[0] ?? null;
 }
 
 /** 06:00–11:59 UTC: night across the Americas (most FTC events), when no matches are being played there.
