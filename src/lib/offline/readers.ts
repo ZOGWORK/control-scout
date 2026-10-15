@@ -9,7 +9,8 @@ import type { Database, SqlValue } from "sql.js";
 import type { EventDetail, EventSummary, FieldRow, MatchPredictionView, MatchView, SearchHit, TeamEventRow, TeamInfo, TeamProfile, TeamSeasonStats } from "../../shared/api";
 import { eventTypeLabel } from "../../shared/labels";
 import { localToUtcMs } from "../../shared/time";
-import { fuzzyScore, normalize, scoreWords, words } from "../../shared/fuzzy";
+import { normalize, scoreWords, words } from "../../shared/fuzzy";
+import { regionNames } from "../../shared/regions";
 
 /** Rows as plain objects (column → value), like the server's `all`. */
 export interface Db { all<T = any>(sql: string, params?: SqlValue[]): T[] }
@@ -240,8 +241,10 @@ export function readEventDetail(sdb: SeasonDb, code: string, opts: ReadOpts = {}
 // --- Search (server/api/search.ts) ------------------------------------------------
 //
 // The server ranks with full-text indexes the packs don't carry; offline every
-// name is scanned in memory and scored with the same fuzzy matcher (the
-// server's own fallback path), so typos and prefixes rank the same way.
+// name is scanned in memory with the same two paths: word prefixes over
+// everything its word index holds (number, name, school, place and state name;
+// event code, name, place, start date), and typos over the names its typo index
+// holds (team name + school, event name + city). Same fuzzy scoring after.
 
 const MATCH_RE = /^(?:(20\d\d)\s+)?([a-z0-9]{3,16})\s+(q|qual|m|match|f|final)\s*-?\s*(\d{1,3})(?:-(\d))?$/i;
 
@@ -264,26 +267,30 @@ function matchHit(saved: SeasonDb[], q: string): SearchHit | null {
   return { kind: "match", ref: `${season}:${code}:${row.level}:${row.series}:${row.number}`, title: `${row.label} · ${ev?.name ?? code}`, subtitle: `${code} · ${season}`, season };
 }
 
-interface Row { kind: "team" | "event"; ref: string; season: number; weight: number; title: string; subtitle: string; words: string[]; bigrams: Set<string> }
+/** words: everything searchable (prefixes); typo/bigrams: the names typos may match; shown: title + subtitle. */
+interface Row { kind: "team" | "event"; ref: string; season: number; weight: number; title: string; subtitle: string; words: string[]; typo: string[]; bigrams: Set<string>; shown: string[] }
 
 const bigrams = (s: string) => { const out = new Set<string>(); for (const w of s.split(" ")) for (let i = 0; i + 2 <= w.length; i++) out.add(w.slice(i, i + 2)); return out; };
 const rowsCache = new WeakMap<Db, { newest: number; rows: Row[] }>();
 
-/** One pack's searchable names, built once per opened pack (the newest saved season weighs more). */
+/** One pack's searchable rows, built once per opened pack (the newest saved season weighs more), like rebuildSearch (server/stats/job.ts). */
 function rowsOf({ season, db }: SeasonDb, newest: number): Row[] {
   const hit = rowsCache.get(db);
   if (hit?.newest === newest) return hit.rows;
   const weight = season === newest ? 2 : 1;
-  const row = (kind: Row["kind"], ref: string, title: string, subtitle: string, name: string): Row =>
-    ({ kind, ref, season, weight, title, subtitle, words: words(`${title} ${name}`), bigrams: bigrams(normalize(`${title} ${name}`)) });
+  const row = (kind: Row["kind"], ref: string, title: string, subtitle: string, terms: string, name: string): Row => ({
+    kind, ref, season, weight, title, subtitle, words: words(`${title} ${subtitle} ${terms}`),
+    typo: words(`${title} ${name}`), bigrams: bigrams(normalize(`${title} ${name}`)), shown: words(`${title} ${subtitle}`),
+  });
   const rows = [
     ...db.all("SELECT number, name, school, city, state, country FROM teams").map((t) => {
       const place = [t.city, t.state, t.country].filter(Boolean).join(", ");
-      return row("team", String(t.number), `${t.number} ${t.name ?? ""}`.trim(), [t.school, place].filter(Boolean).join(" · "), `${t.name ?? ""} ${t.school ?? ""}`);
+      const title = `${t.number} ${t.name ?? ""}`.trim();
+      return row("team", String(t.number), title, [t.school, place].filter(Boolean).join(" · "), `${t.number} ${t.name ?? ""} ${t.school ?? ""} ${place} ${regionNames(t.state, t.country)}`, `${t.name ?? ""} ${t.school ?? ""}`);
     }),
     ...db.all("SELECT code, name, city, state, country, start FROM events").map((e) => {
       const place = [e.city, e.state, e.country].filter(Boolean).join(", ");
-      return row("event", `${season}:${e.code}`, e.name, [e.code, e.start, place].filter(Boolean).join(" · "), `${e.code} ${e.city ?? ""}`);
+      return row("event", `${season}:${e.code}`, e.name, [e.code, e.start, place].filter(Boolean).join(" · "), `${e.code} ${e.name} ${place} ${regionNames(e.state, e.country)}`, `${e.name} ${e.city ?? ""}`);
     }),
   ];
   rowsCache.set(db, { newest, rows });
@@ -336,11 +343,13 @@ export function readSearch(dbs: SeasonDb[], q: string, limit = 15, prefer: Reado
   const best = new Map<string, { r: Row; s: number }>();
   for (const sdb of saved) {
     for (const r of rowsOf(sdb, newest)) {
-      // Cheap prefilter: a typo of a word still shares a 2-letter chunk with it.
-      let hit = false;
-      for (const b of qb) if (r.bigrams.has(b)) { hit = true; break; }
-      if (!hit || (!typos && !qs.every((q) => r.words.some((w) => w.startsWith(q))))) continue;
-      let s = Math.max(scoreWords(qs, r.words), fuzzyScore(query, `${r.title} ${r.subtitle}`) * 0.95);
+      // The word index: every query word starts a word of the row (a city, a year, a state's name…).
+      const prefix = qs.every((q) => r.words.some((w) => w.startsWith(q)));
+      // The typo index, with a cheap prefilter: a typo of a word still shares a 2-letter chunk with it.
+      let typo = false;
+      if (!prefix && typos) for (const b of qb) if (r.bigrams.has(b)) { typo = true; break; }
+      if (!prefix && !typo) continue;
+      let s = Math.max(scoreWords(qs, prefix ? r.words : r.typo), scoreWords(qs, r.shown) * 0.95);
       if (s < 0.6) continue;
       if (prefer.has(`${r.kind}:${r.ref}`)) s += 0.1;
       const k = `${r.kind}:${r.ref}`;

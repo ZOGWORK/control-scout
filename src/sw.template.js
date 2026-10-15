@@ -26,7 +26,7 @@ self.addEventListener("install", (event) => {
   event.waitUntil((async () => {
     const cache = await caches.open(CACHE);
     await cache.addAll(FILES);
-    // A saved season must stay readable offline after an update, so its engine comes along; best effort.
+    // A saved season must stay readable offline after an update, so its engine comes along; best effort. (A save puts it in the newest cache itself too: keepEngine in seasons.ts.)
     if (OFFLINE_FILES.length && (await hasSavedSeason())) await cache.addAll(OFFLINE_FILES).catch(() => {});
     await self.skipWaiting();
   })());
@@ -41,7 +41,7 @@ self.addEventListener("activate", (event) => {
   })());
 });
 
-/** Does this browser hold a saved season? (IndexedDB "control-scout-packs", keys "season:<n>"; see src/lib/offline/seasons.ts.) */
+/** Does this browser hold a saved season? (IndexedDB "control-scout-packs", keys "season:<n>:<sha256>"; see src/lib/offline/seasons.ts.) */
 function hasSavedSeason() {
   return new Promise((resolve) => {
     try {

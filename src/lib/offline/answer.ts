@@ -8,7 +8,7 @@ import { FITTED_MODEL, RatingBook, explainMatch } from "@control-scout/predict-e
 import type { EventDetail, MatchView, SearchHit, TeamProfile } from "../../shared/api";
 import { loadLite, type LitePack } from "../packs";
 import { markOffline, savedSeasons, type OfflineSource } from "./saved";
-import { openSaved } from "./seasons";
+import { readSaved } from "./seasons";
 import { readEventDetail, readMatchViews, readSearch, readTeamProfile, type ReadOpts } from "./readers";
 
 let books: { pack: LitePack | null; bySeason: Map<number, RatingBook | null> } | null = null;
@@ -52,31 +52,34 @@ function source(season: number): OfflineSource | null {
   return s ? { season, savedAt: s.savedAt, dataAsOf: s.dataAsOf } : null;
 }
 
+// Pages for one season open only that season's file; profiles and search read every saved season.
 export async function offlineTeamProfile(number: number, season?: number): Promise<TeamProfile | null> {
-  const p = readTeamProfile(await openSaved(), number, season);
+  const p = await readSaved(undefined, (dbs) => readTeamProfile(dbs, number, season));
   const src = p && source(p.season);
   return p && src ? markOffline(p, src) : null;
 }
 
 export async function offlineTeamMatches(number: number, season?: number): Promise<{ team: number; season: number; matches: MatchView[] } | null> {
-  const dbs = await openSaved();
-  const sdb = season ? dbs.find((d) => d.season === season) : dbs[0];
-  const src = sdb && source(sdb.season);
-  if (!sdb || !src) return null;
-  return markOffline({ team: number, season: sdb.season, matches: readMatchViews(sdb, { team: number }, await liteOpts()) }, src);
+  const s = season ?? savedSeasons()[0]?.season;
+  const src = s != null ? source(s) : null;
+  if (s == null || !src) return null;
+  const opts = await liteOpts();
+  return readSaved(s, ([sdb]) => (sdb ? markOffline({ team: number, season: s, matches: readMatchViews(sdb, { team: number }, opts) }, src) : null));
 }
 
 export async function offlineEventDetail(season: number, code: string): Promise<EventDetail | null> {
-  const sdb = (await openSaved()).find((d) => d.season === season);
-  const d = sdb ? readEventDetail(sdb, code.toUpperCase(), await liteOpts()) : null;
   const src = source(season);
-  return d && src ? markOffline(d, src) : null;
+  if (!src) return null;
+  const opts = await liteOpts();
+  const d = await readSaved(season, ([sdb]) => (sdb ? readEventDetail(sdb, code.toUpperCase(), opts) : null));
+  return d ? markOffline(d, src) : null;
 }
 
 export async function offlineSearch(q: string, limit = 15, prefer: ReadonlySet<string> = new Set()): Promise<{ q: string; hits: SearchHit[] } | null> {
-  const dbs = await openSaved();
-  const src = dbs[0] && source(dbs[0].season);
-  return src ? markOffline({ q, hits: readSearch(dbs, q.slice(0, 80), limit, prefer) }, src) : null;
+  return readSaved(undefined, (dbs) => {
+    const src = dbs[0] && source(dbs[0].season);
+    return src ? markOffline({ q, hits: readSearch(dbs, q.slice(0, 80), limit, prefer) }, src) : null;
+  });
 }
 
 const int = (s: string | null) => (s && /^\d+$/.test(s) ? Number(s) : undefined);
