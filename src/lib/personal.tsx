@@ -25,8 +25,12 @@ interface PersonalApi {
   sync: SyncStatus;
   /** Signed in AND this device's data confirmed as the account's: safe to sync scouting. */
   syncReady: boolean;
-  set<K extends PersonalKey>(key: K, value: PersonalState[K]): void;
-  update<K extends PersonalKey>(key: K, fn: (prev: PersonalState[K]) => PersonalState[K]): void;
+  /** Returns false when this device couldn't store the change (storage full or blocked): it lives only until the page closes. */
+  set<K extends PersonalKey>(key: K, value: PersonalState[K]): boolean;
+  update<K extends PersonalKey>(key: K, fn: (prev: PersonalState[K]) => PersonalState[K]): boolean;
+  /** What this device has actually stored for the key: null when nothing is, undefined when storage
+   *  can't be read (unknown, not empty). Equal to `state[key]` unless a write was refused. */
+  stored<K extends PersonalKey>(key: K): PersonalState[K] | null | undefined;
   signedIn(user: AccountUser): Promise<void>;
   signOut(): Promise<void>;
   /** Wipe this device's personal data (account data is untouched). */
@@ -56,7 +60,8 @@ function readLocal(): Record<PersonalKey, Stamped<any> | null> {
   }
   return out;
 }
-function writeLocal(k: PersonalKey, s: Stamped<unknown>) { try { localStorage.setItem(LS(k), JSON.stringify(s)); } catch { /* storage full or blocked */ } }
+/** False when storage is full or blocked. */
+function writeLocal(k: PersonalKey, s: Stamped<unknown>): boolean { try { localStorage.setItem(LS(k), JSON.stringify(s)); return true; } catch { return false; } }
 function pending(): Partial<Record<PersonalKey, number>> { try { return JSON.parse(localStorage.getItem(PENDING) ?? "{}"); } catch { return {}; } }
 function setPendingMap(p: Partial<Record<PersonalKey, number>>) { try { localStorage.setItem(PENDING, JSON.stringify(p)); } catch { /* ignore */ } }
 function markPending(k: PersonalKey, version: number) { const p = pending(); p[k] = Math.max(p[k] ?? 0, version); setPendingMap(p); }
@@ -96,10 +101,11 @@ export function PersonalProvider({ children }: { children: ReactNode }) {
   const readyRef = useRef(false);
   userRef.current = user;
 
-  const apply = useCallback((k: PersonalKey, s: Stamped<any>) => {
+  const apply = useCallback((k: PersonalKey, s: Stamped<any>): boolean => {
     stamped.current[k] = s;
-    writeLocal(k, s);
+    const stored = writeLocal(k, s);
     setState((prev) => ({ ...prev, [k]: s.value ?? EMPTY_STATE[k] }));
+    return stored;
   }, []);
 
   // One upload loop at a time; edits made meanwhile stay pending and go next.
@@ -226,13 +232,14 @@ export function PersonalProvider({ children }: { children: ReactNode }) {
 
   const set = useCallback(<K extends PersonalKey>(key: K, value: PersonalState[K]) => {
     const s = { value, updatedAt: Date.now() };
-    apply(key, s);
+    const stored = apply(key, s);
     // Signed out, edits stay local; they're compared with the account on the next sign-in.
     if (userRef.current) { markPending(key, s.updatedAt); push(); }
+    return stored;
   }, [apply, push]);
 
   const update = useCallback(<K extends PersonalKey>(key: K, fn: (prev: PersonalState[K]) => PersonalState[K]) => {
-    set(key, fn((stamped.current[key]?.value ?? EMPTY_STATE[key]) as PersonalState[K]));
+    return set(key, fn((stamped.current[key]?.value ?? EMPTY_STATE[key]) as PersonalState[K]));
   }, [set]);
 
   const signOut = useCallback(async () => {
@@ -258,7 +265,14 @@ export function PersonalProvider({ children }: { children: ReactNode }) {
   // An explicit sign-in (email code, from any form): announced, so the account menu can play the
   // merge for an existing Control Point account. Page loads that restore a session don't announce.
   const signedIn = useCallback((u: AccountUser) => { announceSignIn(u); return connect(u); }, [connect]);
-  const api = useMemo<PersonalApi>(() => ({ state, user, providers, sync, syncReady, set, update, signedIn, signOut, clearLocal }), [state, user, providers, sync, syncReady, set, update, signedIn, signOut, clearLocal]);
+  const stored = useCallback(<K extends PersonalKey>(key: K): PersonalState[K] | null | undefined => {
+    try {
+      const raw = localStorage.getItem(LS(key));
+      return raw ? (cleanValue(key, (JSON.parse(raw) as Stamped<unknown>).value) as PersonalState[K] | null) : null;
+    } catch { return undefined; } // blocked or corrupt: unknown
+  }, []);
+
+  const api = useMemo<PersonalApi>(() => ({ state, user, providers, sync, syncReady, set, update, stored, signedIn, signOut, clearLocal }), [state, user, providers, sync, syncReady, set, update, stored, signedIn, signOut, clearLocal]);
   return <Ctx.Provider value={api}>{children}</Ctx.Provider>;
 }
 

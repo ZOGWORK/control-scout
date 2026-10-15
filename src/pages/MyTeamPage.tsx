@@ -1,7 +1,7 @@
 // My Team dashboard: your team's next matches (with odds), recent results,
 // next event outlook, and activity from the teams and events you track.
 // Works with no account (saved on this device); signed in, it syncs.
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState, type FormEvent } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { CalendarDays, Eye, History, Star, Swords, Trophy, X } from "lucide-react";
 import { useApi, qs } from "../lib/api";
@@ -13,7 +13,8 @@ import { Async } from "../components/states";
 import { Button } from "../components/ui/button";
 import { Badge } from "../components/ui/basic";
 import { MatchList } from "../components/predict";
-import { TeamInput } from "../components/TeamInput";
+import { TeamInput, lookupTeamName } from "../components/TeamInput";
+import { teamError } from "../lib/teamCheck";
 import { SeasonToggle } from "../components/SeasonToggle";
 import { EventCard } from "./Home";
 import { dateRange, num, topPct } from "../lib/format";
@@ -22,16 +23,32 @@ export default function MyTeamPage() {
   useTitle("My team");
   const { state, set, user } = usePersonal();
   const [draft, setDraft] = useState("");
+  const [error, setError] = useState<string | null>(null);
+  const [checking, setChecking] = useState(false);
+  const input = useRef<HTMLInputElement>(null);
   const current = useCurrentSeason();
+  // An unknown number is caught here, not saved: the dashboard would be empty for it.
+  const latestDraft = useRef(draft);
+  latestDraft.current = draft;
+  const submit = async (e: FormEvent) => {
+    e.preventDefault();
+    const team = draft;
+    setChecking(true);
+    const err = await teamError(team, lookupTeamName);
+    setChecking(false);
+    if (latestDraft.current !== team) return; // edited while checking
+    if (err) { setError(err); input.current?.focus(); return; }
+    set("myTeam", Number(team));
+  };
   if (!state.myTeam) {
     return (
       <div>
         <PageHeader title="My team" description="Pick your team to get a personal dashboard: your next matches with predictions, recent results, your next event's odds, and news from teams you track." />
         <div className="grid items-start gap-6 lg:grid-cols-[minmax(0,28rem)_minmax(0,1fr)]">
         <div className="rounded-2xl border border-border bg-card p-6">
-          <form onSubmit={(e) => { e.preventDefault(); if (draft) set("myTeam", Number(draft)); }} className="flex items-start gap-2">
-            <div className="flex-1"><TeamInput label="Your team number" value={draft} onChange={setDraft} autoFocus /></div>
-            <Button type="submit" className="h-11" disabled={!draft}><Star /> Set</Button>
+          <form onSubmit={submit} noValidate className="flex items-start gap-2">
+            <div className="flex-1"><TeamInput label="Your team number" value={draft} onChange={(v) => { setDraft(v); setError(null); }} autoFocus error={error} inputRef={input} /></div>
+            <Button type="submit" className="h-11" disabled={!draft || checking}><Star /> Set</Button>
           </form>
           <p className="mt-2 text-xs text-muted-foreground">{user ? "Saved to your account." : <>Saved on this device. <Link to="/settings?section=profile" className="underline">Sign in</Link> to sync it across devices.</>}</p>
         </div>

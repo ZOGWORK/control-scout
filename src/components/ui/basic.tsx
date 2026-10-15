@@ -41,6 +41,14 @@ export function Input({ className, type, ...props }: React.ComponentProps<'input
 export function Textarea({ className, ...props }: React.ComponentProps<'textarea'>) {
   return <textarea data-slot="textarea" className={cn(field, 'min-h-20 py-2', className)} {...props} />;
 }
+/**
+ * A field's error in the destructive colour, right under the field. Point the field at it with
+ * `aria-describedby={id}` and set `aria-invalid` on it. Renders nothing without a message.
+ */
+export function FieldError({ id, className, children }: { id: string; className?: string; children?: React.ReactNode }) {
+  if (!children) return null;
+  return <p id={id} role="alert" className={cn('mt-1.5 text-xs font-medium text-destructive', className)}>{children}</p>;
+}
 export function Label({ className, ...props }: React.ComponentProps<typeof LabelPrimitive.Root>) {
   return (
     <LabelPrimitive.Root
