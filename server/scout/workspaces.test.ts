@@ -193,6 +193,20 @@ describe("workspace scout entries", () => {
     expect(await all("SELECT * FROM workspace_members WHERE account_id = ?", [a.id])).toEqual([]);
   });
 
+  it("removed in Control Point but the cache write fails: Control Point's answer still refuses the write", async () => {
+    const a = accountFor("locked@example.com");
+    a.workspaces = [{ id: "85", name: "Team", role: "member" }];
+    const call = await signIn("locked@example.com");
+    a.workspaces = [];
+    await run("UPDATE workspace_members SET updated_at = ? WHERE account_id = ?", [Date.now() - MEMBERSHIP_TTL - 1, a.id]);
+    await run("CREATE TRIGGER members_locked BEFORE DELETE ON workspace_members BEGIN SELECT RAISE(ABORT, 'locked'); END");
+    try {
+      expect((await push(call, "85", [entry()])).status).toBe(403);
+      expect(await all("SELECT * FROM workspace_members WHERE account_id = ?", [a.id])).toHaveLength(1); // the stale row survived…
+      expect((await pull(call, "85")).status).toBe(403); // …and still grants nothing
+    } finally { await run("DROP TRIGGER members_locked"); }
+  });
+
   it("Control Point unreachable: a stale cached membership still counts, so scouting carries on", async () => {
     const a = accountFor("venue@example.com");
     a.workspaces = [{ id: "91", name: "Team", role: "member" }];
