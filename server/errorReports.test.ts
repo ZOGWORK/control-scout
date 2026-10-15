@@ -7,6 +7,7 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { all, get, migrate, openDb, run, setDb } from "./db";
 import { createApp } from "./app";
 import { sha256 } from "./auth/session";
+import { PRIVATE_TABLES } from "./data/snapshot";
 import {
   fileReport, fingerprintOf, REPORT_RATE, resetReportLimits, setGithubFetch, settleFilings, storeReport, takeReportSlot, trackedReportKeys,
 } from "./errorReports";
@@ -19,8 +20,10 @@ const saved = { token: process.env.GITHUB_REPORT_TOKEN, owners: process.env.OWNE
 type Call = { method: string; path: string; body: any; auth: string | null };
 let calls: Call[] = [];
 let nextIssue = 100;
-let issueStates: Record<number, { state: string; state_reason?: string | null }> = {};
+let issueStates: Record<number, { state: string; state_reason?: string | null; body?: string }> = {};
 let failGithub: number | null = null;
+/** GitHub does the write but the answer is lost (a 502 after the fact). */
+let loseReply = false;
 let slowGithub: Promise<void> | null = null;
 
 const fakeGithub = (async (url: string | URL | Request, init?: RequestInit) => {
@@ -28,13 +31,23 @@ const fakeGithub = (async (url: string | URL | Request, init?: RequestInit) => {
   expect(u.origin).toBe("https://api.github.com");
   const path = u.pathname.replace("/repos/Control-Point-FTC/control-scout", "");
   const method = init?.method ?? "GET";
-  calls.push({ method, path, body: init?.body ? JSON.parse(String(init.body)) : null, auth: new Headers(init?.headers).get("authorization") });
+  const body = init?.body ? JSON.parse(String(init.body)) : null;
+  calls.push({ method, path, body, auth: new Headers(init?.headers).get("authorization") });
   if (slowGithub) await slowGithub;
   if (failGithub) return new Response("{}", { status: failGithub });
-  if (method === "POST" && path === "/issues") { const n = nextIssue++; issueStates[n] = { state: "open" }; return Response.json({ number: n }, { status: 201 }); }
+  if (path === "/search/issues") {
+    const fp = /"([0-9a-f]{32})"/.exec(u.searchParams.get("q") ?? "")?.[1] ?? "";
+    const items = Object.entries(issueStates).filter(([, s]) => s.body?.includes(fp) && s.state === "open").map(([n, s]) => ({ number: +n, ...s }));
+    return Response.json({ items });
+  }
+  if (method === "POST" && path === "/issues") {
+    const n = nextIssue++;
+    issueStates[n] = { state: "open", body: body.body };
+    return loseReply ? new Response("{}", { status: 502 }) : Response.json({ number: n }, { status: 201 });
+  }
   const m = /^\/issues\/(\d+)(\/comments)?$/.exec(path);
   if (m && method === "GET") return issueStates[+m[1]] ? Response.json({ number: +m[1], ...issueStates[+m[1]] }) : new Response("{}", { status: 404 });
-  if (m && m[2] && method === "POST") return Response.json({ id: 1 }, { status: 201 });
+  if (m && m[2] && method === "POST") return loseReply ? new Response("{}", { status: 502 }) : Response.json({ id: 1 }, { status: 201 });
   return new Response("{}", { status: 404 });
 }) as typeof fetch;
 
@@ -59,6 +72,7 @@ beforeEach(async () => {
   nextIssue = 100;
   issueStates = {};
   failGithub = null;
+  loseReply = false;
   slowGithub = null;
   resetReportLimits();
   await run("DELETE FROM error_reports");
@@ -98,8 +112,8 @@ describe("POST /api/reports/error", () => {
     expect(row.count).toBe(1);
     expect(row.sample).not.toMatch(/ada@example\.com|private scouting note/);
     expect(Object.keys(JSON.parse(row.sample)).sort()).toEqual(["appVersion", "message", "route", "stack", "timestamp", "userAgent"]);
-    expect(calls).toHaveLength(1);
-    const [c] = calls;
+    expect(calls.map((c) => `${c.method} ${c.path}`)).toEqual(["GET /search/issues", "POST /issues"]);
+    const c = calls[1];
     expect(c).toMatchObject({ method: "POST", path: "/issues", auth: "Bearer github_pat_TEST_ONLY_not_a_real_token" });
     expect(c.body.title).toBe("[auto] Error: no account for [redacted]");
     expect(c.body.labels).toEqual(["bug", "auto-reported"]);
@@ -144,8 +158,8 @@ describe("POST /api/reports/error", () => {
     expect(await fileReport((await rows())[0].fingerprint)).toBe("no-token");
   });
 
-  it("still answers 202 when GitHub is down, and files on a later report", async () => {
-    failGithub = 502;
+  it("still answers 202 when GitHub refuses, and files on a later report", async () => {
+    failGithub = 403;
     expect((await post(report())).status).toBe(202);
     await settleFilings();
     expect((await rows())[0]).toMatchObject({ issue_number: null, filing_at: null });
@@ -153,6 +167,24 @@ describe("POST /api/reports/error", () => {
     await post(report());
     await settleFilings();
     expect((await rows())[0]).toMatchObject({ count: 2, issue_number: 100, reported_count: 2 });
+  });
+
+  it("an issue created without a reply is adopted later, never opened twice", async () => {
+    const sample = sanitizeReport(report());
+    const fp = fingerprintOf(sample);
+    await storeReport(sample, new Date("2026-10-15T10:00:00Z"));
+    loseReply = true;
+    await expect(fileReport(fp, new Date("2026-10-15T10:00:00Z"))).rejects.toThrow(/502/);
+    loseReply = false;
+    // The claim is kept while the outcome is unknown: an immediate retry backs off.
+    expect((await rows())[0]).toMatchObject({ issue_number: null, filing_at: "2026-10-15T10:00:00.000Z" });
+    await storeReport(sample, new Date("2026-10-15T10:01:00Z"));
+    expect(await fileReport(fp, new Date("2026-10-15T10:01:00Z"))).toBe("claimed-elsewhere");
+    // Once the claim is stale, the retry finds the issue GitHub did create.
+    await storeReport(sample, new Date("2026-10-15T10:20:00Z"));
+    expect(await fileReport(fp, new Date("2026-10-15T10:20:00Z"))).toBe("adopted");
+    expect(calls.filter((c) => c.method === "POST" && c.path === "/issues")).toHaveLength(1);
+    expect((await rows())[0]).toMatchObject({ issue_number: 100, filing_at: null, reported_count: 3 });
   });
 
   it("validates the shape", async () => {
@@ -225,15 +257,26 @@ describe("daily comment", () => {
     expect(calls.filter((c) => c.path === "/issues" && c.method === "POST")).toHaveLength(1);
   });
 
-  it("gives the day's slot back if the comment fails", async () => {
+  it("gives the day's slot back if GitHub refuses the comment", async () => {
     await storeReport(sample, at("2026-10-15T10:00:00Z"));
     await fileReport(fp, at("2026-10-15T10:00:00Z"));
     await storeReport(sample, at("2026-10-16T11:00:00Z"));
-    failGithub = 500;
-    await expect(fileReport(fp, at("2026-10-16T11:00:00Z"))).rejects.toThrow(/500/);
+    failGithub = 403;
+    await expect(fileReport(fp, at("2026-10-16T11:00:00Z"))).rejects.toThrow(/403/);
     expect((await rows())[0].last_comment_at).toBe("2026-10-15T10:00:00.000Z");
     failGithub = null;
     expect(await fileReport(fp, at("2026-10-16T11:01:00Z"))).toBe("commented");
+  });
+
+  it("keeps the day's slot when a comment's outcome is unknown, so it is never posted twice", async () => {
+    await storeReport(sample, at("2026-10-15T10:00:00Z"));
+    await fileReport(fp, at("2026-10-15T10:00:00Z"));
+    await storeReport(sample, at("2026-10-16T11:00:00Z"));
+    loseReply = true; // the comment is posted, but the answer is lost
+    await expect(fileReport(fp, at("2026-10-16T11:00:00Z"))).rejects.toThrow(/502/);
+    loseReply = false;
+    expect((await rows())[0].last_comment_at).toBe("2026-10-16T11:00:00.000Z");
+    expect(await fileReport(fp, at("2026-10-16T11:01:00Z"))).toBe("throttled");
   });
 
   it("opens a new issue, linking the old one, when the issue was closed as completed and the error comes back", async () => {
@@ -258,6 +301,12 @@ describe("daily comment", () => {
     expect(await fileReport(fp, at("2026-10-20T10:00:00Z"))).toBe("not-planned");
     expect(calls.filter((c) => c.method === "POST")).toHaveLength(1);
     expect((await rows())[0].count).toBe(3);
+  });
+});
+
+describe("privacy", () => {
+  it("reports never go into the shipped public snapshot", () => {
+    expect(PRIVATE_TABLES).toContain("error_reports");
   });
 });
 

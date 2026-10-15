@@ -96,6 +96,11 @@ failing GitHub never slows the app.
 - **Never duplicates**: before opening an issue the server claims the row with a conditional `UPDATE`
   (`filing_at`); only the server that wins the claim files. A claim older than 10 minutes (a filer that
   died) can be taken over. The daily comment is claimed the same way (`last_comment_at`).
+- **Unknown outcomes** (no answer, a timeout or a 5xx after the request was sent): the claim is kept
+  until it goes stale, and before opening any issue the server searches GitHub for an open issue whose
+  body carries the fingerprint and adopts it. So a lost reply never becomes a second issue. A comment
+  with an unknown outcome keeps its day's slot, so it is never posted twice. A plain refusal (4xx) frees
+  the claim or slot straight away for the next report.
 - **Issue closed as completed** (or deleted) and the error comes back → when the next comment is due, a
   **new** issue is opened that links the old one ("#N was closed as completed; this is the same error
   again"). A fix that didn't hold is a regression worth its own issue.
