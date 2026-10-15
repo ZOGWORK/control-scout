@@ -19,7 +19,7 @@ import { TeamInput, lookupTeamName } from "../components/TeamInput";
 import { teamError } from "../lib/teamCheck";
 import { SeasonToggle } from "../components/SeasonToggle";
 import { EventCard } from "./Home";
-import { dateRange, num, seasonLabel, topPct } from "../lib/format";
+import { dateRange, num, seasonLabel, rankPct } from "../lib/format";
 import { callTally, pct } from "../lib/seasonSoFar";
 import { defaultSeason } from "../lib/myTeamSeason";
 
@@ -155,7 +155,7 @@ function Dashboard({ team }: { team: number }) {
           const s = p.stats;
           const today = new Date().toISOString().slice(0, 10);
           const next = isCurrent ? p.events.find((e) => (e.end ?? e.start ?? "") >= today) : undefined;
-          const top = topPct(s?.opr.np.rank, s?.opr.np.of);
+          const top = rankPct(s?.opr.np.rank, s?.opr.np.of);
           const r = s?.record;
           const last = p.events[p.events.length - 1];
           return (
@@ -233,13 +233,13 @@ function SeasonSoFar({ p, team, matches, matchesFailed, when, earlier, onSeason 
     );
   }
   const r = s.record;
-  const top = topPct(s.opr.np.rank, s.opr.np.of);
+  const top = rankPct(s.opr.np.rank, s.opr.np.of, true);
   const winRate = pct(r.wins, r.wins + r.losses + r.ties);
   // Live calls first; replayed ones only when there are no live ones, and always labelled as replayed.
   const shown = calls ? (calls.live.of ? { ...calls.live, live: true } : calls.backtest.of ? { ...calls.backtest, live: false } : null) : null;
   return (
     <>
-      <p className="mt-3 font-display text-5xl font-semibold tabular-nums text-accent-text">{top ? top.replace("top ", "Top ") : "Unranked"}</p>
+      <p className="mt-3 font-display text-5xl font-semibold tabular-nums text-accent-text">{top ?? "Unranked"}</p>
       <p className="text-sm text-muted-foreground">worldwide by OPR{s.opr.np.rank ? ` · #${s.opr.np.rank.toLocaleString()} of ${s.opr.np.of?.toLocaleString()}` : ""}</p>
       <div className="mt-5 grid gap-3 sm:grid-cols-2">
         <div className="rounded-xl border border-success/30 bg-success/[0.07] p-3">
