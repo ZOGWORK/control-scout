@@ -25,7 +25,7 @@ import { computeRecords } from "../stats/records.js";
 import { loadSeason } from "../stats/load.js";
 import type { EventRow } from "./bundle.js";
 import { CURRENT_SEASON } from "./seasons.js";
-import { LockBusy, withDataLock } from "./lock.js";
+import { LockBusy, isBusy, withDataLock } from "./lock.js";
 
 type Log = (m: string) => void;
 
@@ -227,7 +227,9 @@ export async function liveTick(log: Log = () => {}, now = Date.now()): Promise<R
       }
       return r;
     } catch (e) {
-      if (e instanceof LockBusy) return null; // the cycle is writing (and syncing these events too)
+      // The cycle is writing (and syncing these events too), or another writer held the database past
+      // the busy timeout: skip this tick quietly, the next one comes within a minute.
+      if (e instanceof LockBusy || isBusy(e)) return null;
       throw e;
     }
   })();

@@ -27,17 +27,30 @@ export async function lockHolder(now = Date.now()): Promise<LeaseInfo | null> {
   } catch { return null; }
 }
 
+/** SQLite "database is locked": another connection is mid-write (and kept it past the busy timeout). */
+export const isBusy = (e: unknown) => /SQLITE_BUSY|database is locked/i.test(`${(e as { code?: string })?.code ?? ""} ${(e as Error)?.message ?? ""}`);
+
 /** Take the lease if it is free (or expired). Returns its token, or null when someone else holds it. */
 export async function tryAcquire(what: string, ttlMs: number): Promise<string | null> {
+  // Look first: a read never waits on a writer (WAL), and while the lease is held there's nothing to
+  // write. Trying the upsert anyway would queue behind the holder's long write transactions (a season's
+  // stats, a backfill) and fail with SQLITE_BUSY after the busy timeout.
+  if (await lockHolder()) return null;
   const token = `${hostname()}:${process.pid}:${randomUUID()}`;
   const now = Date.now();
   const value = JSON.stringify({ token, what, until: now + ttlMs } satisfies LeaseInfo);
-  const n = await run(
-    `INSERT INTO kv (key, value, updated_at) VALUES (?, ?, ?)
-     ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at
-     WHERE COALESCE(json_extract(kv.value, '$.until'), 0) <= ?`,
-    [LOCK_KEY, value, new Date(now).toISOString(), now],
-  );
+  let n: number;
+  try {
+    n = await run(
+      `INSERT INTO kv (key, value, updated_at) VALUES (?, ?, ?)
+       ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at
+       WHERE COALESCE(json_extract(kv.value, '$.until'), 0) <= ?`,
+      [LOCK_KEY, value, new Date(now).toISOString(), now],
+    );
+  } catch (e) {
+    if (isBusy(e)) return null; // someone is writing right now: as good as held
+    throw e;
+  }
   return n > 0 ? token : null;
 }
 
