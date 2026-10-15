@@ -100,10 +100,15 @@ function oneAtATime<T>(season: number, fn: () => Promise<T>): Promise<T> {
   return run;
 }
 
-/** Delete every stored copy of a season the saved list doesn't point at (leftovers of an interrupted save). */
+const crossTab = () => typeof navigator !== "undefined" && !!navigator.locks;
+
+/** Delete every stored copy of a season the saved list doesn't point at (leftovers of an interrupted
+ *  save). Only under a cross-tab lock: without one another tab may be publishing the copy it'd delete. */
 async function sweep(season: number) {
-  const listed = savedSeasons().find((s) => s.season === season);
-  for (const k of await keys(`season:${season}:`).catch(() => [])) if (!listed || k !== key(season, listed.sha256)) await del(k).catch(() => {});
+  if (!crossTab()) return;
+  const stored = await keys(`season:${season}:`);
+  const listed = savedSeasons().find((s) => s.season === season); // read after listing keys, inside the lock
+  for (const k of stored) if (!listed || k !== key(season, listed.sha256)) await del(k);
 }
 
 async function store(season: number, file: PackFile, manifest: PackManifest, bytes: Uint8Array, db: Database): Promise<SavedSeason> {
@@ -129,16 +134,19 @@ async function store(season: number, file: PackFile, manifest: PackManifest, byt
   }
   if (was && was !== mine) retire(was);
   if (prev && prev.sha256 !== file.sha256) await del(key(season, prev.sha256)).catch(() => {});
-  await sweep(season);
+  await sweep(season).catch(() => {}); // tidying only: the save itself succeeded
   trim();
   return meta;
 }
 
 export async function removeSeason(season: number): Promise<void> {
   await oneAtATime(season, async () => {
+    const meta = savedSeasons().find((s) => s.season === season);
     close(season);
+    // The file goes first: if that fails the season stays listed, so Remove can be tried again.
+    if (meta) await del(key(season, meta.sha256));
     writeSaved(savedSeasons().filter((s) => s.season !== season));
-    await sweep(season); // this copy and any leftovers
+    await sweep(season).catch(() => {}); // leftovers of interrupted saves; the season itself is gone
   });
 }
 
