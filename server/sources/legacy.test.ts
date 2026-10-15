@@ -4,7 +4,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import fx from "./fixtures/first-legacy.json";
 import { splitFirstScore } from "../data/seasons";
-import { firstEventBundle, legacyTotals } from "./first";
+import { firstEventBundle, totalsOnly } from "./first";
 import { bundleFromScout, split } from "./ftcScout";
 import type { EventRow } from "../data/bundle";
 
@@ -44,8 +44,8 @@ describe("splitFirstScore, legacy seasons", () => {
   it("totals-only fallback: scoreXFoul is what X committed", () => {
     for (const [season, key, red, blue] of CASES) {
       const r = (fx as unknown as Record<string, Fx>)[key].result;
-      const rt = legacyTotals(season, r.scoreRedFinal, r.scoreRedFoul, r.scoreBlueFoul, r.scoreRedAuto)!;
-      const bt = legacyTotals(season, r.scoreBlueFinal, r.scoreBlueFoul, r.scoreRedFoul, r.scoreBlueAuto)!;
+      const rt = totalsOnly(season, r.scoreRedFinal, r.scoreRedFoul, r.scoreBlueFoul, r.scoreRedAuto)!;
+      const bt = totalsOnly(season, r.scoreBlueFinal, r.scoreBlueFoul, r.scoreRedFoul, r.scoreBlueAuto)!;
       expect([rt.np, rt.pen, rt.total, rt.auto], key).toEqual([red[3], red[4], red[5], red[0]]);
       expect([bt.np, bt.pen, bt.total, bt.auto], key).toEqual([blue[3], blue[4], blue[5], blue[0]]);
     }
@@ -61,6 +61,58 @@ describe("splitFirstScore, legacy seasons", () => {
   it("2023+ is untouched (opponent argument ignored)", () => {
     const a = { autoPoints: 10, dcPoints: 20, endgamePoints: 5, penaltyPointsCommitted: 10, totalPoints: 45 };
     expect(splitFirstScore(2023, a, { penaltyPointsCommitted: 99 })).toEqual(splitFirstScore(2023, a));
+  });
+});
+
+// 2023+ totals-only fallback (FIRST has results but no /scores breakdown yet).
+// Real matches: FIRST's results feed vs the breakdown-derived truth stored for
+// the same match ([np, pen committed, auto, total] per side). In every case
+// scoreXFoul is what X committed, so X's np = X's total − the opponent's fouls.
+type TotalsCase = { season: number; key: string; level: "QUALIFICATION" | "PLAYOFF"; series: number; number: number;
+  res: { rF: number; rFoul: number; rA: number; bF: number; bFoul: number; bA: number }; red: number[]; blue: number[] };
+const TOTALS: TotalsCase[] = [
+  // CENTERSTAGE: red committed 30, credited to blue (134 = 104 np + 30).
+  { season: 2023, key: "2023 AUADOS Q4", level: "QUALIFICATION", series: 0, number: 4,
+    res: { rF: 121, rFoul: 30, rA: 63, bF: 134, bFoul: 0, bA: 56 }, red: [121, 30, 63, 121], blue: [104, 0, 56, 134] },
+  // INTO THE DEEP: both sides fouled (red 20, blue 5).
+  { season: 2024, key: "2024 AUCMP Upper Bracket Match 11", level: "PLAYOFF", series: 11, number: 1,
+    res: { rF: 276, rFoul: 20, rA: 49, bF: 218, bFoul: 5, bA: 38 }, red: [271, 20, 49, 276], blue: [198, 5, 38, 218] },
+  // DECODE.
+  { season: 2025, key: "2025 AECMP Q2", level: "QUALIFICATION", series: 0, number: 2,
+    res: { rF: 132, rFoul: 25, rA: 40, bF: 143, bFoul: 0, bA: 46 }, red: [132, 25, 40, 132], blue: [118, 0, 46, 143] },
+];
+
+describe("totals-only fallback, 2023+", () => {
+  afterEach(() => { vi.unstubAllGlobals(); vi.unstubAllEnvs(); });
+
+  for (const c of TOTALS) {
+    it(`${c.key}: fouls credited to the opponent`, async () => {
+      vi.stubEnv("FTC_EVENTS_USERNAME", "u"); vi.stubEnv("FTC_EVENTS_TOKEN", "t");
+      const r = c.res;
+      const match = {
+        tournamentLevel: c.level, series: c.series, matchNumber: c.number, description: "M", postResultTime: "2024-01-01T10:00:00",
+        teams: [{ teamNumber: 1, station: "Red1" }, { teamNumber: 2, station: "Red2" }, { teamNumber: 3, station: "Blue1" }, { teamNumber: 4, station: "Blue2" }],
+        scoreRedFinal: r.rF, scoreRedFoul: r.rFoul, scoreRedAuto: r.rA, scoreBlueFinal: r.bF, scoreBlueFoul: r.bFoul, scoreBlueAuto: r.bA,
+      };
+      vi.stubGlobal("fetch", vi.fn(async (url: string) => {
+        // No breakdown published: /scores is empty, only the results feed has the match.
+        const body = url.includes("/matches/") ? { matches: [match] } : url.includes("/scores/") ? { matchScores: [] } : {};
+        return new Response(JSON.stringify(body), { status: 200, headers: { "content-type": "application/json" } });
+      }));
+      const b = await firstEventBundle({ ...REMOTE_META, season: c.season, code: "TEST", remote: false });
+      const m = b.detail!.matches[0];
+      const side = (s: typeof m.redScore) => [s!.np, s!.pen, s!.auto, s!.total];
+      expect(side(m.redScore)).toEqual(c.red);
+      expect(side(m.blueScore)).toEqual(c.blue);
+      // Each alliance's total is its own np plus the fouls the other side committed.
+      expect(m.redScore!.np + m.blueScore!.pen).toBe(m.redScore!.total);
+      expect(m.blueScore!.np + m.redScore!.pen).toBe(m.blueScore!.total);
+    });
+  }
+
+  it("unchanged for 2019–2022 (same rule as the breakdown fixtures)", () => {
+    expect(totalsOnly(2022, 54, 10, 20, 0)).toEqual({ total: 54, np: 34, auto: 0, teleop: 34, endgame: 0, pen: 10 });
+    expect(totalsOnly(2021, 51, 30, 10, 36)).toEqual({ total: 51, np: 81, auto: 36, teleop: 45, endgame: 0, pen: 30 });
   });
 });
 
