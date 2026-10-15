@@ -19,6 +19,7 @@ import { MatchList } from "../components/predict";
 import { SortTable, type Col } from "../components/SortTable";
 import { AdvancementView } from "../components/Advancement";
 import { cn } from "../components/cn";
+import { OfflineNote } from "../components/OfflineNote";
 import { awardLabel, dateRange, num, place, seasonLabel } from "../lib/format";
 
 export default function EventPage() {
@@ -42,6 +43,7 @@ function Event({ d }: { d: EventDetail }) {
   const setTeam = (t: number | null) => setSp((x) => { if (t) x.set("team", String(t)); else x.delete("team"); return x; }, { replace: true });
   return (
     <div>
+      <OfflineNote data={d} />
       <Reveal className="relative mb-6 overflow-hidden rounded-2xl border border-border bg-card p-6 sm:p-8">
         <div aria-hidden className="pointer-events-none absolute -right-20 -top-24 size-72 rounded-full bg-accent opacity-15 blur-3xl" />
         <div className="relative grid gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(0,22rem)] lg:gap-10">

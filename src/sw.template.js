@@ -15,6 +15,8 @@
 // still lazy-load its own chunks, online or offline.
 const VERSION = "__VERSION__";
 const FILES = __FILES__;
+// Needed only to read saved seasons offline (the SQLite engine): precached only when this browser has one.
+const OFFLINE_FILES = __OFFLINE_FILES__;
 const BRAND = new Set(["/logo.png", "/wordmark.png", "/favicon.ico"]);
 const PREFIX = "cs-shell-";
 const CACHE = `${PREFIX}${VERSION}`;
@@ -24,6 +26,8 @@ self.addEventListener("install", (event) => {
   event.waitUntil((async () => {
     const cache = await caches.open(CACHE);
     await cache.addAll(FILES);
+    // A saved season must stay readable offline after an update, so its engine comes along; best effort. (A save puts it in the newest cache itself too: keepEngine in seasons.ts.)
+    if (OFFLINE_FILES.length && (await hasSavedSeason())) await cache.addAll(OFFLINE_FILES).catch(() => {});
     await self.skipWaiting();
   })());
 });
@@ -36,6 +40,24 @@ self.addEventListener("activate", (event) => {
     await self.clients.claim();
   })());
 });
+
+/** Does this browser hold a saved season? (IndexedDB "control-scout-packs", keys "season:<n>:<sha256>"; see src/lib/offline/seasons.ts.) */
+function hasSavedSeason() {
+  return new Promise((resolve) => {
+    try {
+      const open = indexedDB.open("control-scout-packs");
+      open.onerror = () => resolve(false);
+      open.onupgradeneeded = () => { open.transaction.abort(); resolve(false); }; // no database yet: don't create one here
+      open.onsuccess = () => {
+        const db = open.result;
+        if (!db.objectStoreNames.contains("packs")) { db.close(); resolve(false); return; }
+        const keys = db.transaction("packs").objectStore("packs").getAllKeys();
+        keys.onsuccess = () => { db.close(); resolve(keys.result.some((k) => String(k).startsWith("season:"))); };
+        keys.onerror = () => { db.close(); resolve(false); };
+      };
+    } catch { resolve(false); }
+  });
+}
 
 async function fromCache(req) {
   const names = (await caches.keys()).filter((k) => k.startsWith(PREFIX)).sort().reverse();

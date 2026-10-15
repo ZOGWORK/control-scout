@@ -21,6 +21,7 @@ export interface LitePack {
 const DB = "control-scout-packs";
 const META = "cs-pack-meta";
 
+// Shared with saved seasons (src/lib/offline/seasons.ts): same database, one store.
 function idb(): Promise<IDBDatabase> {
   return new Promise((res, rej) => {
     const r = indexedDB.open(DB, 1);
@@ -29,8 +30,11 @@ function idb(): Promise<IDBDatabase> {
     r.onerror = () => rej(r.error);
   });
 }
-async function put(key: string, value: unknown) { const db = await idb(); await new Promise<void>((res, rej) => { const t = db.transaction("packs", "readwrite"); t.objectStore("packs").put(value, key); t.oncomplete = () => { db.close(); res(); }; t.onerror = () => rej(t.error); }); }
-async function getv<T>(key: string): Promise<T | undefined> { const db = await idb(); return new Promise((res, rej) => { const t = db.transaction("packs"); const r = t.objectStore("packs").get(key); r.onsuccess = () => { db.close(); res(r.result as T | undefined); }; r.onerror = () => rej(r.error); }); }
+export async function put(key: string, value: unknown) { const db = await idb(); await new Promise<void>((res, rej) => { const t = db.transaction("packs", "readwrite"); t.objectStore("packs").put(value, key); t.oncomplete = () => { db.close(); res(); }; t.onerror = () => rej(t.error); }); }
+export async function getv<T>(key: string): Promise<T | undefined> { const db = await idb(); return new Promise((res, rej) => { const t = db.transaction("packs"); const r = t.objectStore("packs").get(key); r.onsuccess = () => { db.close(); res(r.result as T | undefined); }; r.onerror = () => rej(r.error); }); }
+
+export async function keys(prefix: string): Promise<string[]> { const db = await idb(); return new Promise((res, rej) => { const t = db.transaction("packs"); const r = t.objectStore("packs").getAllKeys(); r.onsuccess = () => { db.close(); res(r.result.map(String).filter((k) => k.startsWith(prefix))); }; r.onerror = () => rej(r.error); }); }
+export async function del(key: string) { const db = await idb(); await new Promise<void>((res, rej) => { const t = db.transaction("packs", "readwrite"); t.objectStore("packs").delete(key); t.oncomplete = () => { db.close(); res(); }; t.onerror = () => rej(t.error); }); }
 
 export interface PackMeta { version: string; bytes: number; savedAt: number; builtAt: string; engineVersion: string }
 export function packStatus(): PackMeta | null { try { return JSON.parse(localStorage.getItem(META) ?? "null"); } catch { return null; } }
@@ -53,8 +57,8 @@ export async function fetchManifest(): Promise<PackManifest> {
 
 const hex = (buf: ArrayBuffer) => [...new Uint8Array(buf)].map((b) => b.toString(16).padStart(2, "0")).join("");
 
-/** Download with progress, verify the hash, keep it on the device. */
-export async function downloadLite(file: PackFile, manifest: PackManifest, onProgress?: (done: number, total: number) => void): Promise<PackMeta> {
+/** Download a pack file with progress and check it against its published SHA-256. */
+export async function fetchVerified(file: PackFile, onProgress?: (done: number, total: number) => void): Promise<Uint8Array> {
   const res = await fetch(file.url);
   if (!res.ok || !res.body) throw new Error(`Download failed (${res.status}).`);
   const reader = res.body.getReader();
@@ -72,12 +76,18 @@ export async function downloadLite(file: PackFile, manifest: PackManifest, onPro
   for (const p of parts) { bytes.set(p, o); o += p.length; }
   const digest = hex(await crypto.subtle.digest("SHA-256", bytes));
   if (digest !== file.sha256) throw new Error("The download didn't match its published checksum — not saved. Try again.");
+  return bytes;
+}
+
+/** Download with progress, verify the hash, keep it on the device. */
+export async function downloadLite(file: PackFile, manifest: PackManifest, onProgress?: (done: number, total: number) => void): Promise<PackMeta> {
+  const bytes = await fetchVerified(file, onProgress);
   // The pack file is gzipped JSON.
   const text = file.name.endsWith(".gz") ? await new Response(new Blob([bytes]).stream().pipeThrough(new DecompressionStream("gzip"))).text() : new TextDecoder().decode(bytes);
   const pack = JSON.parse(text) as LitePack;
   if (pack.format !== 1) throw new Error("This pack is from a newer version of Control Scout — refresh the page.");
   await put("lite", pack);
-  const meta: PackMeta = { version: manifest.version, bytes: done, savedAt: Date.now(), builtAt: pack.builtAt, engineVersion: pack.engineVersion };
+  const meta: PackMeta = { version: manifest.version, bytes: bytes.length, savedAt: Date.now(), builtAt: pack.builtAt, engineVersion: pack.engineVersion };
   localStorage.setItem(META, JSON.stringify(meta));
   cached = pack;
   return meta;
