@@ -358,14 +358,21 @@ const flows: Flow[] = [
   },
 ];
 
+// --only "<part of a name>": a typo or a missing value must not "pass" by running nothing (or quietly run everything).
+const only = process.argv.includes("--only") ? (process.argv[process.argv.indexOf("--only") + 1] ?? "").toLowerCase() : undefined;
+const selected = flows.filter((x) => only === undefined || x.name.toLowerCase().includes(only));
+if (only !== undefined && (!only || only.startsWith("--") || !selected.length)) {
+  console.error(`--only "${only}" matches no flow. Flows:\n${flows.map((x) => `  ${x.name}`).join("\n")}`);
+  process.exit(1);
+}
+
 let failed = 0;
 const browser: Browser = await (async () => {
   await ensureServers(BASE);
   return chromium.launch({ args: ["--use-fake-device-for-media-stream", "--use-fake-ui-for-media-stream"] });
 })();
 try {
-  const only = process.argv.includes("--only") ? process.argv[process.argv.indexOf("--only") + 1]?.toLowerCase() : undefined;
-  for (const f of flows.filter((x) => !only || x.name.toLowerCase().includes(only))) {
+  for (const f of selected) {
     const ctx = await browser.newContext({ viewport: { width: 1440, height: 900 }, acceptDownloads: true, permissions: ["camera", "microphone"] });
     await ctx.addInitScript(SHIM);
     const page = await ctx.newPage();
