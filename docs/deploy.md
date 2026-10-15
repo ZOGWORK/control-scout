@@ -95,8 +95,11 @@ https://controlscout.org.
   of getting nginx's 502, and a stopping server finishes the requests it's serving first (up to 10 s).
   Because a request to the open socket starts the server, **stopping the site needs both units**:
   `sudo systemctl stop control-scout.socket control-scout`, then `start` both again.
-- **Rollback:** on the VM,
-  `sudo ln -sfn releases/<older> /opt/control-scout/current && sudo systemctl restart control-scout`.
+- **Rollback:** on the VM, `sudo /opt/control-scout/bin/rollback` lists the installed releases, and
+  `sudo /opt/control-scout/bin/rollback <release>` switches to one and waits until it's up. For a release
+  from before socket activation, it also puts back the service that release expects (the server opening
+  the port itself) and stops the socket; the next deploy switches back. Don't switch `current` by hand:
+  an older release can't start while the socket holds the port.
 - **Docker** (for the Mac mini cluster later): `docker build -t control-scout .`
   then `docker run -p 3000:3000 -v scout-data:/app/.data --env-file .env control-scout`.
 
