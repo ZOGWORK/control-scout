@@ -97,6 +97,16 @@ describe("saveSeason", () => {
     expect(savedSeasons()).toEqual([]);
   });
 
+  it("a removal whose list write fails puts the file back, so the season still opens", async () => {
+    await saveSeason(file(2025, "a"), manifest);
+    vi.spyOn(Storage.prototype, "setItem").mockImplementation(() => { throw new DOMException("full", "QuotaExceededError"); });
+    await expect(removeSeason(2025)).rejects.toThrow();
+    vi.restoreAllMocks();
+    expect(savedSeasons().map((s) => s.season)).toEqual([2025]);
+    expect([...store.keys()]).toEqual(["season:2025:a"]);
+    expect(await names(2025)).toEqual(["2025:New"]);
+  });
+
   it("removing a season also clears copies an interrupted save left behind (with cross-tab locks)", async () => {
     Object.defineProperty(navigator, "locks", { configurable: true, value: { request: (_n: string, fn: () => unknown) => Promise.resolve(fn()) } });
     await saveSeason(file(2025, "a"), manifest);
