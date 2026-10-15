@@ -155,8 +155,8 @@ export async function pageMeta(path: string): Promise<PageMeta> {
   const p = path.length > 1 ? path.replace(/\/+$/, "") : "/";
   try {
     let m: RegExpMatchArray | null;
-    // Any number of digits: the value is what counts (/teams/0004215 is team 4215, as in the app).
-    if ((m = p.match(/^\/teams\/(\d{1,20})$/i))) return await teamMeta(Number(m[1]));
+    // Any number of digits: the value is what counts (/teams/0004215 is team 4215, as in the app; a huge one is out of range).
+    if ((m = p.match(/^\/teams\/(\d+)$/i))) return await teamMeta(Number(m[1]));
     if ((m = p.match(/^\/events\/(\d{4})\/([A-Za-z0-9_-]{1,40})$/i))) {
       // Event codes are case-insensitive in the app (the API uppercases them): same here.
       return (await eventMeta(Number(m[1]), m[2].toUpperCase())) ?? NOT_FOUND;
