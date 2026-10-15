@@ -99,6 +99,15 @@ describe("scouting spaces on the device", () => {
     expect(localScoutEntries("41")[0]).toMatchObject({ uuid: "mmmmmmmmmmmm", deleted: true });
     expect(pendingScoutCounts()).toEqual({ personal: 1, workspaces: { 41: 1 } });
     expect(localStorage.getItem("cs-scout-ws-cursor:41")).toBe("12");
+    // A restore that can't put every entry back drops the cursor, so the next pull brings them all again.
+    clearLocalScouting();
+    const setItem = Storage.prototype.setItem;
+    const spy = vi.spyOn(Storage.prototype, "setItem").mockImplementation(function (this: Storage, k: string, v: string) {
+      if (k.startsWith("cs-scout-ws:41:")) throw new DOMException("full", "QuotaExceededError");
+      return setItem.call(this, k, v);
+    });
+    try { importLocalScouting(JSON.parse(JSON.stringify(stash))); } finally { spy.mockRestore(); }
+    expect(localStorage.getItem("cs-scout-ws-cursor:41")).toBeNull();
     // A stash written before workspaces (no `spaces`) still imports.
     clearLocalScouting();
     importLocalScouting({ entries: stash.entries, dirty: stash.dirty });

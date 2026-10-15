@@ -218,9 +218,11 @@ export function exportLocalScouting(): SpaceExport & { spaces?: Record<string, S
 /** Put back a previously exported set (an account's stashed copy). */
 export function importLocalScouting(data: SpaceExport & { spaces?: Record<string, SpaceExport> }) {
   const put = (space: ScoutSpace, s: SpaceExport) => {
-    for (const e of s.entries ?? []) { try { writeEntry(normalizeScoutEntry(e, space)); } catch { /* storage full */ } }
+    let complete = true;
+    for (const e of s.entries ?? []) { try { writeEntry(normalizeScoutEntry(e, space)); } catch { complete = false; /* storage full */ } }
     try { const d = dirty(space); for (const u of s.dirty ?? []) d.add(u); setDirty(d, space); } catch { /* storage full */ }
-    if (space != null && s.cursor) writeCursor(space, s.cursor);
+    // The cursor only holds if every entry it covers is back; otherwise the next pull starts over.
+    if (space != null) { if (complete && s.cursor) writeCursor(space, s.cursor); else try { localStorage.removeItem(`${WS_CURSOR}${space}`); } catch { /* blocked */ } }
   };
   put(null, data);
   for (const [w, s] of Object.entries(data.spaces ?? {})) if (/^[A-Za-z0-9_-]{1,64}$/.test(w)) put(w, s);
