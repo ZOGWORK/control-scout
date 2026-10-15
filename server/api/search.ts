@@ -8,6 +8,7 @@ import { CURRENT_SEASON } from "../data/seasons.js";
 import type { SearchHit } from "../../src/shared/api.js";
 import { fuzzyScore, normalize, scoreWords, trigramQuery, words } from "./fuzzy.js";
 import { kvGet } from "../db.js";
+import { findRegions } from "../../src/shared/regions.js";
 
 /** Turn free text into a safe FTS5 query: every word as a quoted prefix term. */
 export function ftsQuery(q: string): string | null {
@@ -45,6 +46,12 @@ export async function search(q: string, limit = 12, prefer: ReadonlySet<string> 
   const seen = new Set<string>();
   const push = (h: SearchHit) => { const k = `${h.kind}:${h.ref}`; if (!seen.has(k)) { seen.add(k); out.push(h); } };
 
+  // 0. A state or province ("New Jersey", "NJ"): its events this season, as one link.
+  if (!/\d/.test(query)) for (const r of findRegions(query)) {
+    const n = Number((await get<{ n: number }>("SELECT COUNT(*) n FROM events WHERE season = ? AND country = ? AND state = ?", [CURRENT_SEASON, r.country, r.state]))?.n ?? 0);
+    if (n) push({ kind: "place", ref: r.key, title: `All events in ${r.name}`, subtitle: `${n} this season`, season: CURRENT_SEASON });
+  }
+
   // 1. A specific match ("USNJQ1 Q12").
   const mh = await matchHit(query);
   if (mh) push(mh);
@@ -80,7 +87,7 @@ export async function search(q: string, limit = 12, prefer: ReadonlySet<string> 
     if (!cands.has(k)) cands.set(k, { kind: r.kind, ref: r.ref, title: r.title, subtitle: r.subtitle, season: r.season == null ? null : Number(r.season), weight: Number(r.weight) || 1, name });
   };
   const fts = ftsQuery(query);
-  if (fts) for (const r of await all<any>("SELECT kind, ref, season, weight, title, subtitle FROM search WHERE search MATCH ? ORDER BY bm25(search, 0, 0, 0, 0, 10.0, 2.0, 1.0) LIMIT 60", [fts])) add(r, `${r.title} ${r.subtitle}`);
+  if (fts) for (const r of await all<any>("SELECT kind, ref, season, weight, title, subtitle, terms FROM search WHERE search MATCH ? ORDER BY bm25(search, 0, 0, 0, 0, 10.0, 2.0, 1.0) LIMIT 60", [fts])) add(r, `${r.title} ${r.subtitle} ${r.terms ?? ""}`);
   const tri = /[a-z]/i.test(query) ? trigramQuery(query) : null;
   if (tri) for (const r of await all<any>("SELECT kind, ref, season, weight, title, subtitle, name FROM search_fuzzy WHERE search_fuzzy MATCH ? ORDER BY bm25(search_fuzzy) LIMIT 150", [tri])) add(r, `${r.title} ${r.name}`);
   const ranked = [...cands.values()]
@@ -101,9 +108,18 @@ export async function search(q: string, limit = 12, prefer: ReadonlySet<string> 
       .map((r) => ({ r, s: scoreWords(qs, r.words) })).filter((x) => x.s >= 0.6)
       .map((x) => (prefer.has(`${x.r.kind}:${x.r.ref}`) ? { ...x, s: x.s + 0.1 } : x)) // same preference as the indexed path
       .sort((a, b) => b.s - a.s || b.r.weight - a.r.weight || (b.r.season ?? 0) - (a.r.season ?? 0));
-    for (const { r } of scanned) { if (out.length >= limit) break; push({ kind: r.kind, ref: r.ref, title: r.title, subtitle: r.subtitle, season: r.season }); }
+    // Room for the older seasons newestSeasons drops.
+    for (const { r } of scanned) { if (out.length >= limit * 4) break; push({ kind: r.kind, ref: r.ref, title: r.title, subtitle: r.subtitle, season: r.season }); }
   }
-  return out.slice(0, limit);
+  return newestSeasons(out, query).slice(0, limit);
+}
+
+/** An event code comes back every season (USNJCMP 2023, 2024, …): keep its newest season unless a year was typed. */
+function newestSeasons(hits: SearchHit[], query: string): SearchHit[] {
+  if (/\b(19|20)\d\d\b/.test(query)) return hits;
+  const newest = new Map<string, number>();
+  for (const h of hits) if (h.kind === "event") { const [s, code] = h.ref.split(":"); newest.set(code, Math.max(newest.get(code) ?? 0, Number(s))); }
+  return hits.filter((h) => { if (h.kind !== "event") return true; const [s, code] = h.ref.split(":"); return Number(s) >= (newest.get(code) ?? 0); });
 }
 
 interface FuzzyRow { kind: "team" | "event"; ref: string; season: number | null; weight: number; title: string; subtitle: string; words: string[]; bigrams: Set<string> }
