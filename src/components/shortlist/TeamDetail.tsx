@@ -5,7 +5,7 @@ import { ArrowDown, ArrowUp, ArrowUpToLine, ExternalLink, Scale, Trash2, Trendin
 import type { ForecastView, MatchView, ShortlistTeam } from "../../shared/api";
 import { useApi, qs } from "../../lib/api";
 import { useCurrentSeason } from "../../lib/meta";
-import { num, oddsPct, topPct } from "../../lib/format";
+import { num, oddsPct, rankPct } from "../../lib/format";
 import { compareHref, lastPlayed, predictionSnapshot } from "../../lib/shortlist";
 import { Button } from "../ui/button";
 import { MatchRow, TierMark } from "../predict";
@@ -87,7 +87,7 @@ export function TeamDetail({ t, season, rank, total, topPicks, onMove, onRemove 
   const recent = m.data ? lastPlayed(m.data.matches) : [];
   const names = Object.fromEntries(t.events.map((e) => [e.code, e.name]));
   const others = topPicks.filter((x) => x !== t.team).slice(0, 3);
-  const top = topPct(t.oprRank, t.of);
+  const top = rankPct(t.oprRank, t.of);
   return (
     <div className="grid gap-3 border-t border-border bg-accent/[0.03] p-3 sm:p-4 lg:grid-cols-[minmax(0,5fr)_minmax(0,7fr)]">
       <div className="grid min-w-0 content-start gap-3">
