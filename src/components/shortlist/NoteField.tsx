@@ -30,11 +30,15 @@ export function NoteField({ team, value, onSave, className }: { team: number; va
   }, [value]);
   const flush = (text: string) => {
     if (timer.current) { clearTimeout(timer.current); timer.current = null; }
-    if (text.trim() === saved.current.trim()) return;
-    // Not stored: keep `saved` as it was, so the next flush tries again.
-    if (onSave(text) === false) { unstored.current = text; setFailed(true); return; }
+    const unchanged = text.trim() === saved.current.trim();
+    // Back to the stored text with a failed edit still in the store's memory: write it anyway, to replace that edit.
+    if (unchanged && unstored.current === null) return;
+    const stored = onSave(text) !== false;
+    // Not stored: keep `saved` as it was, so the next flush tries again. (Writing the unchanged
+    // text needs no retry: whether or not it was written, the device already holds it.)
+    if (!stored && !unchanged) { unstored.current = text; setFailed(true); return; }
     unstored.current = null;
-    saved.current = text;
+    if (stored) saved.current = text;
     setFailed(false);
   };
   /** Escape: back to the stored note, in the store too (its memory may still hold text that failed to store). */
