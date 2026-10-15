@@ -43,7 +43,7 @@ export function packStatus(): PackMeta | null { try { return JSON.parse(localSto
 /** Why the pack list couldn't be read: none published yet, or the server
  *  couldn't be reached (offline, or down) — they need different messages. */
 export class ManifestError extends Error {
-  constructor(readonly reason: "none" | "unreachable" | "failed", message: string) { super(message); }
+  constructor(readonly reason: "none" | "unreachable" | "failed" | "paused", message: string) { super(message); }
 }
 
 export async function fetchManifest(): Promise<PackManifest> {
@@ -52,6 +52,11 @@ export async function fetchManifest(): Promise<PackManifest> {
   try { r = await fetch("/packs/latest.json", { cache: "no-cache" }); }
   catch { throw new ManifestError("unreachable", "Can't reach the server right now — try again in a moment."); }
   if (r.status === 404) throw new ManifestError("none", "No packs have been published on this server yet.");
+  // Switched off for now (the offlinePacks flag): the server says so in its own words.
+  if (r.status === 503) {
+    const body = await r.json().catch(() => null) as { paused?: boolean; error?: string } | null;
+    if (body?.paused) throw new ManifestError("paused", body.error ?? "Offline packs are paused right now.");
+  }
   if (!r.ok) throw new ManifestError("failed", `Couldn't read the pack list (${r.status}).`);
   return r.json();
 }

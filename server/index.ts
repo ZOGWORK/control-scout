@@ -4,9 +4,11 @@
 // are on right now (the live fast lane).
 import "./env.js";
 import { env } from "./env.js";
-import { migrate, all, isRemote, openReplicaIfRemote } from "./db.js";
+import { migrate, all, openReplicaIfRemote } from "./db.js";
 import { packsDir } from "./packs/routes.js";
-import { backfillDue, runCycle, runCycleInChild } from "./data/cycle.js";
+import { backfillDue } from "./data/cycle.js";
+import { childCycle, cycleRunning, runDataCycle } from "./data/jobs.js";
+import { flushMetrics } from "./metrics.js";
 import { startLiveSync } from "./data/live.js";
 import express from "express";
 import { ENGINE_VERSION } from "@control-scout/predict-engine";
@@ -63,22 +65,18 @@ warmTrackRecord().then(() => log("track record ready")).catch((e) => log(`track 
 // ones until they're done).
 setInterval(() => { refreshForecasters().catch(() => {}).then(() => warmTrackRecord()).catch(() => {}); }, 15_000).unref();
 
-/** The data cycle runs in a child process (DATA_CYCLE=child), which needs a local database file. */
-function childCycle(): boolean { return process.env.DATA_CYCLE === "child" && !isRemote(env.databaseUrl); }
-
-let running = false;
+// One cycle at a time in this process, whether the schedule or the owner portal started it (data/jobs.ts).
 async function cycle(reason: string) {
-  if (running || process.env.CS_NO_SCHEDULER) return;
-  running = true;
+  if (cycleRunning() || process.env.CS_NO_SCHEDULER) return;
   try {
-    // A child needs the local file; with a remote database (or its embedded replica) the cycle stays here.
-    const child = childCycle();
-    log(`sync (${reason}${child ? ", in a child process" : ""})`);
-    if (child) await runCycleInChild(); else await runCycle(log);
+    await runDataCycle(reason, log);
   } catch (e) {
     log(`sync failed: ${(e as Error).message}`);
-  } finally { running = false; }
+  }
 }
+
+// Request metrics for the owner portal: the counters held in memory go to the database every minute.
+setInterval(() => { flushMetrics().catch((e) => log(`metrics: ${(e as Error).message}`)); }, 60_000).unref();
 
 /** Is any event running today ±1 day? (event days sync often; other days daily) */
 async function eventDay(): Promise<boolean> {

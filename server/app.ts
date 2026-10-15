@@ -28,6 +28,10 @@ import { listRecords, recordRegions, recordsQuery, RecordsQueryError, streamReco
 import { FilterError } from "../src/shared/filterDsl.js";
 import { RECORDS_EXPORT_MAX, RECORDS_MAX_PAGE_SIZE } from "../src/shared/statCatalog.js";
 import { manualRefresh, type ManualOutcome } from "./data/live.js";
+import { registerCache } from "./caches.js";
+import { requestMetrics } from "./metrics.js";
+import { allFlags } from "./flags.js";
+import { ownerRouter } from "./portal/routes.js";
 import type { EventRefreshResult, ForecastView, MatchExplanationView, Meta } from "../src/shared/api.js";
 
 export class HttpError extends Error { constructor(readonly status: number, message: string) { super(message); } }
@@ -88,7 +92,7 @@ function limiter(perMinute: number) {
 /** Short-lived cache for expensive results, keyed by data version. */
 function memo<T>(ttlMs: number) {
   const m = new Map<string, { at: number; v: Promise<T> }>();
-  return async (key: string, fn: () => Promise<T>): Promise<T> => {
+  const lookup = async (key: string, fn: () => Promise<T>): Promise<T> => {
     const k = `${await dataVersion()}|${key}`;
     const hit = m.get(k);
     if (hit && Date.now() - hit.at < ttlMs) return hit.v;
@@ -98,9 +102,11 @@ function memo<T>(ttlMs: number) {
     if (m.size > 500) m.delete(m.keys().next().value!);
     return v;
   };
+  return Object.assign(lookup, { clear: () => m.clear() });
 }
 const forecastMemo = memo<ForecastView | null>(120_000);
 const partnersMemo = memo<unknown>(120_000);
+registerCache("Event forecasts", () => { forecastMemo.clear(); partnersMemo.clear(); });
 
 function refreshMessage(o: ManualOutcome): string {
   switch (o.status) {
@@ -116,6 +122,8 @@ export function createApp() {
   const app = express();
   app.disable("x-powered-by");
   app.set("trust proxy", 1);
+  // Request counts and latency per route pattern, for the owner portal (server/metrics.ts).
+  app.use(requestMetrics());
   // One host, one URL per page: www/alias hosts, trailing slashes and /team/… aliases 301 (server/seo.ts).
   app.use(canonicalRedirects);
   // CSV exports stream and gzip themselves, flushing as they go (server/api/records.ts streamedBody).
@@ -136,7 +144,7 @@ export function createApp() {
   // Anything personal stays no-store (case-insensitive, like Express routing),
   // and so does every error response, so a retry never replays a cached 503.
   api.use((req, res, next) => {
-    const personal = /^\/(me|auth|health|stats|reports)(\/|$)/i.test(req.path);
+    const personal = /^\/(me|auth|health|stats|reports|owner)(\/|$)/i.test(req.path);
     res.setHeader("Cache-Control", req.method === "GET" && !personal ? "public, max-age=60, stale-while-revalidate=300" : "no-store");
     const writeHead = res.writeHead;
     res.writeHead = function (this: typeof res, ...a: Parameters<typeof writeHead>) {
@@ -147,6 +155,13 @@ export function createApp() {
   });
 
   api.get("/health", h(async () => ({ ok: true, engine: ENGINE_VERSION, release: RELEASE })));
+
+  // Feature flags the app reads to hide switched-off features (server/flags.ts). Short-lived, so a
+  // switch flipped in the owner portal reaches open pages within a minute.
+  api.get("/flags", h(async (_req, res) => {
+    res.setHeader("Cache-Control", "public, max-age=15");
+    return { flags: await allFlags() };
+  }));
 
   api.get("/meta", h(async (): Promise<Meta> => {
     const rows = await all<any>("SELECT season, frozen, last_sync FROM seasons");
@@ -388,6 +403,7 @@ export function createApp() {
   api.use("/stats", statsRouter());
   api.use("/contact", contactRouter());
   api.use("/reports", reportsRouter());
+  api.use("/owner", ownerRouter());
 
   api.use((_req, res) => { res.status(404).json({ error: "Not found" }); });
   app.use("/api", api);
