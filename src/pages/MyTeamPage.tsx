@@ -87,16 +87,14 @@ function Dashboard({ team }: { team: number }) {
   const meta = useMeta();
   const offered = (x: number) => meta?.seasons.find((m) => m.season === x)?.predictable ?? x >= 2023;
   const asked = Number(sp.get("season")) || null;
-  // The season shown with no ?season=, per team: picked from the current season's profile, or the current season tab clicked.
+  // The season shown with no ?season=, per team: picked once from the current season's profile.
   const [picked, setPicked] = useState<{ team: number; season: number } | null>(null);
   const pickedSeason = picked?.team === team ? picked.season : null;
   const season = asked ?? pickedSeason ?? current;
   const isCurrent = season === current;
   const when = isCurrent ? "this season" : "that season";
-  const setSeason = (s: number) => {
-    if (s === current) setPicked({ team, season: current }); // chosen: stay on it even with no results yet
-    setSp((x) => { const n = new URLSearchParams(x); if (s === current) n.delete("season"); else n.set("season", String(s)); return n; }, { replace: true });
-  };
+  // A chosen season always goes in the URL (the current one too), so a reload or shared link keeps it.
+  const setSeason = (s: number) => setSp((x) => { const n = new URLSearchParams(x); n.set("season", String(s)); return n; }, { replace: true });
   const { set } = usePersonal();
   // The team's seasons from the last load, so the toggle stays put while another season is fetched.
   const [known, setKnown] = useState<{ team: number; seasons: number[] } | null>(null);
