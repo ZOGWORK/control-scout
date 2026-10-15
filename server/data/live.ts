@@ -184,11 +184,16 @@ export async function refreshEvents(events: EventRow[], o: { minFullMs?: number;
       report.failed.push({ code: e.code, error: (err as Error).message.slice(0, 200) });
     }
   });
-  if (report.fetched.length) {
+  // Events whose new results are stored but whose follow-up (data version, stats, live calls) hasn't
+  // finished: kept until it does, so a tick cut short (e.g. the database busy past its timeout) is made
+  // up on the next one even though FIRST then reports nothing new.
+  for (const e of events) if (report.fetched.includes(e.code)) followUp.set(keyOf(e), { season: e.season, code: e.code });
+  if (followUp.size) {
+    const due = [...followUp.values()];
     // New data version first: the season rows read ratings, and the live calls must use the newest ones.
     await kvSet("data:version", new Date(now()).toISOString());
     const bySeason = new Map<number, string[]>();
-    for (const e of events) if (report.fetched.includes(e.code)) bySeason.set(e.season, [...(bySeason.get(e.season) ?? []), e.code]);
+    for (const e of due) bySeason.set(e.season, [...(bySeason.get(e.season) ?? []), e.code]);
     for (const [s, codes] of bySeason) {
       await refreshEventStats(s, codes, log);
       // The record tables (/api/records, CSV) are season-wide rewrites: at most every 5 minutes while
@@ -197,12 +202,16 @@ export async function refreshEvents(events: EventRow[], o: { minFullMs?: number;
     }
     report.scored = await scoreLivePredictions(log);
     report.logged = await logLivePredictions(log);
+    for (const e of due) followUp.delete(keyOf(e));
   }
   return report;
 }
 
+/** Stored results still waiting for their follow-up (see refreshEvents). */
+const followUp = new Map<string, { season: number; code: string }>();
+
 /** Forget probe state (tests). */
-export function resetLiveState(): void { probes.clear(); lastManual.clear(); inflight.clear(); recordsAt.clear(); }
+export function resetLiveState(): void { probes.clear(); lastManual.clear(); inflight.clear(); recordsAt.clear(); followUp.clear(); }
 
 /** Seasons' last record-table rewrite by the fast lane. */
 const recordsAt = new Map<number, number>();
