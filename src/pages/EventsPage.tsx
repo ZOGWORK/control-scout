@@ -18,7 +18,7 @@ import { DateRangePicker, SeasonSelect } from "../components/records/Controls";
 import { cn } from "../components/cn";
 import { dateRange, place, seasonLabel } from "../lib/format";
 import { eventTypeLabel } from "../shared/labels";
-import { regionLabel, regionNames } from "@/shared/regions";
+import { regionLabel, regionNames } from "../shared/regions";
 import { applyFilters, FIRST_EVENTS, groupWeeks, MORE_EVENTS, placeKey, takeBatch, weekOf, type Filters, type Status } from "./eventsList";
 
 const addDays = (d: string, n: number) => { const x = new Date(`${d}T00:00:00Z`); x.setUTCDate(x.getUTCDate() + n); return x.toISOString().slice(0, 10); };
