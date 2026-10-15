@@ -49,7 +49,7 @@ export const BOOT_STYLE = `<style>
       .csb-home>p{margin:12px auto 0;max-width:36rem;font-size:16px;line-height:1.5}
       .csb-home>div{max-width:42rem;height:56px;margin:28px auto 0;border:1px solid var(--b-line);border-radius:16px}
       .csb-tabs{position:fixed;left:0;right:0;bottom:0;display:flex;padding-bottom:env(safe-area-inset-bottom);border-top:1px solid var(--b-line);background:var(--b-tab)}
-      .csb-tabs>*{display:flex;flex:1;min-height:60px;flex-direction:column;align-items:center;justify-content:center;gap:4px;font-size:12px;font-weight:500;color:var(--b-mut)}
+      .csb .csb-tabs>*{display:flex;flex:1;min-height:60px;flex-direction:column;align-items:center;justify-content:center;gap:4px;font-size:12px;font-weight:500;color:var(--b-mut)}
       .csb-tabs a[aria-current]{color:var(--b-acc)}
       .csb-tabs a[aria-current] .csb-ico{background:var(--b-acc);opacity:.9}
       @media (min-width:640px){.csb-top{padding:0 24px}.csb-crumb i{display:inline}.csb-page{padding:32px 24px 0}.csb-page h1{font-size:32px}.csb-home{padding-top:32px}.csb-home h1 img{height:64px}}
