@@ -124,6 +124,13 @@ describe("page head in the first HTML", () => {
     const pdesc = /<meta name="description" content="([^"]*)"/.exec(privacy)![1];
     expect(pdesc.length).toBeGreaterThanOrEqual(120);
     expect(pdesc.length).toBeLessThanOrEqual(160);
+    const terms = await renderIndex(file, "/terms");
+    expect(terms).toContain("<title>Terms of use · FTC Control Scout</title>");
+    expect(terms).toContain('<link rel="canonical" href="https://controlscout.org/terms" />');
+    expect(terms).not.toContain("noindex");
+    const tdesc = /<meta name="description" content="([^"]*)"/.exec(terms)![1];
+    expect(tdesc.length).toBeGreaterThanOrEqual(120);
+    expect(tdesc.length).toBeLessThanOrEqual(160);
     // Personal pages: noindex.
     expect(await renderIndex(file, "/my-team")).toContain('<meta name="robots" content="noindex" />');
   });
@@ -185,7 +192,7 @@ describe("page head in the first HTML", () => {
       expect(page.status, p).toBe(200);
       expect(page.html, p).toContain('rel="canonical"');
     }
-    // The legal and contact pages are never a 404 (/terms and /contact are listed ahead of their routes).
+    // The legal and contact pages are never a 404 (/contact is listed ahead of its route).
     for (const p of ["/privacy", "/terms", "/contact", "/Privacy"]) {
       const page = await renderPage(file, p);
       expect(page.status, p).toBe(200);
