@@ -12,7 +12,7 @@ import { spawn, spawnSync } from "node:child_process";
 import { readFileSync, writeFileSync, mkdtempSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { WEB_PORT, ensureServers, stopServers, waitUp } from "./lib/servers.js";
+import { PROD_PORT, WEB_PORT, ensureServers, stopServers, waitUp } from "./lib/servers.js";
 
 /** The service worker installed and active — or a clear failure, not a hang (`ready` never settles when install fails). */
 async function swReady(page: Page) {
@@ -21,8 +21,10 @@ async function swReady(page: Page) {
 }
 
 const BASE = `http://localhost:${WEB_PORT}`;
+const PROD = `http://localhost:${PROD_PORT}`;
 const SHIM = "globalThis.__name = (f) => f;"; // tsx's __name helper, absent in the browser
-type Flow = { name: string; run: (page: Page, ctx: BrowserContext) => Promise<string> };
+/** prod: runs only against its own production server (PROD), so needs no dev servers. */
+type Flow = { name: string; prod?: boolean; run: (page: Page, ctx: BrowserContext) => Promise<string> };
 const results: { name: string; ok: boolean; detail: string }[] = [];
 
 const ls = (page: Page, key: string) => page.evaluate((k) => { try { return JSON.parse(localStorage.getItem(k) ?? "null"); } catch { return null; } }, key);
@@ -245,15 +247,22 @@ const flows: Flow[] = [
   },
   {
     name: "Venue with no signal: the production app opens offline and still predicts",
+    prod: true,
     async run(page, ctx) {
       // Needs the production build (the service worker is production-only): `npm run build` first.
-      const PROD = "http://localhost:3299";
-      const server = spawn("npx", ["tsx", "server/index.ts"], { env: { ...process.env, NODE_ENV: "production", PORT: "3299", CS_NO_SCHEDULER: "1" }, shell: true, stdio: "ignore" });
+      const server = spawn("npx", ["tsx", "server/index.ts"], { env: { ...process.env, NODE_ENV: "production", PORT: String(PROD_PORT), CS_NO_SCHEDULER: "1" }, shell: true, stdio: "ignore" });
       try {
         assert(await waitUp(`${PROD}/api/health`, 120), "production server didn't become ready");
-        // No clicks: the lite pack downloads itself once the home page goes idle.
+        // A first visit doesn't pay for the lite pack (1.6 MB): the page loads, goes idle and stays quiet, and still no pack.
+        const packFetches: string[] = [];
+        page.on("request", (r) => { if (/\/packs\/.*lite/.test(r.url())) packFetches.push(r.url()); });
         await page.goto(`${PROD}/`, { waitUntil: "networkidle" });
         await swReady(page);
+        await page.waitForTimeout(12_000);
+        assert(!packFetches.length && !(await ls(page, "cs-pack-meta")), `the first visit downloaded the lite pack: ${packFetches.join(", ")}`);
+        // A returning visitor (a new session on this device) gets it with no clicks once the home page goes idle.
+        await page.evaluate(() => sessionStorage.clear());
+        await page.reload({ waitUntil: "networkidle" });
         await page.waitForFunction(() => !!localStorage.getItem("cs-pack-meta"), null, { timeout: 60_000 }); // download + sha256 check done
         await page.reload({ waitUntil: "networkidle" }); // controlled by the worker from here
         await ctx.setOffline(true);
@@ -269,7 +278,7 @@ const flows: Flow[] = [
         assert(/offline|lite pack|on this device/i.test(body), "prediction shown but not labelled as offline");
         assert(/(Provisional|Moderate|Confident)/.test(body), "offline prediction has no tier");
         await ctx.setOffline(false);
-        return "lite pack saved automatically; offline reload opens the app; an unvisited page loads from the precache; a match prediction runs from the lite pack, labelled offline, with a tier";
+        return "first visit: no lite pack; returning visit: lite pack saved automatically; offline reload opens the app; an unvisited page loads from the precache; a match prediction runs from the lite pack, labelled offline, with a tier";
       } finally {
         await ctx.setOffline(false);
         if (process.platform === "win32" && server.pid) spawnSync("taskkill", ["/pid", String(server.pid), "/T", "/F"], { stdio: "ignore" }); else server.kill();
@@ -278,9 +287,9 @@ const flows: Flow[] = [
   },
   {
     name: "Service worker upgrade: a new build reaches existing visitors, old caches kept",
+    prod: true,
     async run(page, ctx) {
-      const PROD = "http://localhost:3299";
-      const server = spawn("npx", ["tsx", "server/index.ts"], { env: { ...process.env, NODE_ENV: "production", PORT: "3299", CS_NO_SCHEDULER: "1" }, shell: true, stdio: "ignore" });
+      const server = spawn("npx", ["tsx", "server/index.ts"], { env: { ...process.env, NODE_ENV: "production", PORT: String(PROD_PORT), CS_NO_SCHEDULER: "1" }, shell: true, stdio: "ignore" });
       const shells = () => page.evaluate(async () => (await caches.keys()).filter((k) => k.startsWith("cs-shell-")).sort());
       try {
         assert(await waitUp(`${PROD}/api/health`, 120), "production server didn't become ready");
@@ -370,7 +379,7 @@ if (only !== undefined && (!only || only.startsWith("--") || !selected.length)) 
 
 let failed = 0;
 const browser: Browser = await (async () => {
-  await ensureServers(BASE);
+  if (selected.some((f) => !f.prod)) await ensureServers(BASE);
   return chromium.launch({ args: ["--use-fake-device-for-media-stream", "--use-fake-ui-for-media-stream"] });
 })();
 try {
