@@ -12,12 +12,15 @@ import { FieldError } from "../ui/basic";
  * `value` is the note as the app holds it (in memory); `stored` is what this device has actually
  * stored for it. They differ only when a write was refused (storage full or blocked), and then the
  * field shows the error and retries. Both come from the store, so the error survives remounts and
- * sign-ins, and clears exactly when the note is stored. Without `stored` (not given, or storage
- * unreadable), no error is tracked and Escape writes nothing.
+ * sign-ins, and clears exactly when the note is stored. When `stored` is unknown (storage can't be
+ * read), the last write's result (`onSave` returning false) shows the error instead, and Escape
+ * writes nothing: it can't tell what to restore.
  */
-export function NoteField({ team, value, stored = value, onSave, className }: { team: number; value: string; stored?: string; onSave: (text: string) => void; className?: string }) {
+export function NoteField({ team, value, stored, onSave, className }: { team: number; value: string; stored?: string; onSave: (text: string) => boolean | void; className?: string }) {
   const [draft, setDraft] = useState(value);
-  const failed = value.trim() !== stored.trim();
+  /** The last write was refused (what shows the error while `stored` is unknown). */
+  const [refused, setRefused] = useState(false);
+  const failed = stored !== undefined ? value.trim() !== stored.trim() : refused;
   const errorId = useId();
   const focused = useRef(false);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -32,10 +35,12 @@ export function NoteField({ team, value, stored = value, onSave, className }: { 
     // Unchanged, but not stored: send it again (a retry).
     if (text.trim() === sent.current.trim() && !failed) return;
     sent.current = text;
-    onSave(text);
+    const ok = onSave(text) !== false;
+    if (stored === undefined) setRefused(!ok);
   };
   /** Escape: back to the stored note, in the store's memory too when that holds a refused edit. */
   const revert = () => {
+    if (stored === undefined) { setDraft(value); return; }
     setDraft(stored);
     if (failed) { sent.current = stored; onSave(stored); }
   };

@@ -54,7 +54,7 @@ export default function ShortlistPage() {
   const shown = list.slice(0, MAX_SHOWN);
   const notes = state.shortlistNotes;
   // What this device actually stored: a note that differs was refused (storage full) and says so.
-  // Unreadable storage is unknown, not empty: those notes track nothing (and Escape never writes "").
+  // Unreadable storage is unknown, not empty: the fields then go by each write's result (and Escape never writes "").
   const storedNotes = stored("shortlistNotes");
 
   // Reordering or removing doesn't refetch: the request covers a set of teams, refreshed only when one is missing.
@@ -106,7 +106,7 @@ export default function ShortlistPage() {
 
   const common = (t: ShortlistTeam, rank: number) => ({
     t, rank, season, open: open.has(t.team), dragging: reorder.dragging === t.team,
-    note: notes[String(t.team)] ?? "", storedNote: storedNotes === undefined ? undefined : (storedNotes?.[String(t.team)] ?? ""), onNote: (text: string) => { update("shortlistNotes", (n) => setNote(n, t.team, text)); },
+    note: notes[String(t.team)] ?? "", storedNote: storedNotes === undefined ? undefined : (storedNotes?.[String(t.team)] ?? ""), onNote: (text: string) => update("shortlistNotes", (n) => setNote(n, t.team, text)),
     selected: selected.includes(t.team), selectDisabled: !selected.includes(t.team) && selected.length >= MAX_COMPARE, onSelect: (on: boolean) => pick(t.team, on),
     onToggle: () => toggle(t.team), onRemove: () => remove(t.team), handle: reorder.handleProps(t.team),
     compareLink: compareHref([t.team, ...shown.filter((x) => x !== t.team).slice(0, MAX_COMPARE - 1)], season),
@@ -181,7 +181,7 @@ const LIST_COLS = "grid items-center gap-x-2 grid-cols-[2.5rem_1.75rem_minmax(0,
 
 interface RowProps {
   t: ShortlistTeam; rank: number; season: number; open: boolean; dragging: boolean;
-  note: string; storedNote: string | undefined; onNote: (text: string) => void;
+  note: string; storedNote: string | undefined; onNote: (text: string) => boolean;
   selected: boolean; selectDisabled: boolean; onSelect: (on: boolean) => void;
   onToggle: () => void; onRemove: () => void;
   /** This team next to the top picks. */
