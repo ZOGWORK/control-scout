@@ -29,6 +29,7 @@ const ScoutPage = lazy(() => import("./pages/ScoutPage"));
 const DownloadPage = lazy(() => import("./pages/DownloadPage"));
 const SettingsPage = lazy(() => import("./pages/SettingsPage"));
 const MethodologyPage = lazy(() => import("./pages/MethodologyPage"));
+const PrivacyPage = lazy(() => import("./pages/PrivacyPage"));
 const NotFound = lazy(() => import("./pages/NotFound"));
 
 // Offline: the service worker precaches the app so it opens with no signal.
@@ -65,6 +66,7 @@ createRoot(document.getElementById("root")!).render(
                   <Route path="/settings" element={<SettingsPage />} />
                   <Route path="/methodology" element={<MethodologyPage />} />
                   <Route path="/predict/how-it-works" element={<MethodologyPage />} />
+                  <Route path="/privacy" element={<PrivacyPage />} />
                   <Route path="*" element={<NotFound />} />
                 </Routes>
               </Suspense>
