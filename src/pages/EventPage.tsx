@@ -1,13 +1,13 @@
 // Event page: schedule + results (with predictions), rankings, playoff
 // bracket, awards + advancement, and advancement odds for any team there.
-import { useEffect, useMemo, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { Link, useParams, useSearchParams } from "react-router-dom";
-import { Award, CalendarDays, ExternalLink, MapPin, Radio, Swords, Trophy } from "lucide-react";
+import { Award, CalendarDays, ExternalLink, Loader2, MapPin, Radio, RefreshCw, Swords, Trophy } from "lucide-react";
 import { BRACKETS, type Slot } from "@control-scout/predict-engine";
-import { useApi } from "../lib/api";
+import { ApiError, apiFetch, load, prime, useApi } from "../lib/api";
 import { usePredictable, useTitle } from "../lib/meta";
 import { usePersonal } from "../lib/personal";
-import type { EventDetail, FieldRow, MatchView } from "../shared/api";
+import type { EventDetail, EventRefreshResult, FieldRow, MatchView } from "../shared/api";
 import { EmptyState } from "../components/page";
 import { Async } from "../components/states";
 import { Reveal } from "../components/motion";
@@ -20,16 +20,18 @@ import { SortTable, type Col } from "../components/SortTable";
 import { AdvancementView } from "../components/Advancement";
 import { cn } from "../components/cn";
 import { OfflineNote } from "../components/OfflineNote";
-import { awardLabel, dateRange, num, place, seasonLabel } from "../lib/format";
+import { agoSeconds, awardLabel, dateRange, num, place, seasonLabel } from "../lib/format";
 
 export default function EventPage() {
   const { season, code } = useParams();
-  const state = useApi<EventDetail>(`/api/events/${season}/${code}`);
+  const path = `/api/events/${season}/${code}`;
+  const state = useApi<EventDetail>(path);
   useTitle(state.data ? `${state.data.event.name} (${seasonLabel(state.data.event.season)})` : code); // same as the server-rendered title
-  return <Async state={state}>{(d) => <Event d={d} />}</Async>;
+  useLiveReload(path, state.data?.live ?? null);
+  return <Async state={state}>{(d) => <Event d={d} path={path} />}</Async>;
 }
 
-function Event({ d }: { d: EventDetail }) {
+function Event({ d, path }: { d: EventDetail; path: string }) {
   const [sp, setSp] = useSearchParams();
   const e = d.event;
   const { state: personal, update } = usePersonal();
@@ -64,6 +66,7 @@ function Event({ d }: { d: EventDetail }) {
             {e.livestream && <a href={e.livestream} target="_blank" rel="noreferrer noopener" className="inline-flex items-center gap-1 hover:text-foreground">Livestream <ExternalLink className="size-3" /></a>}
             {e.website && <a href={e.website} target="_blank" rel="noreferrer noopener" className="inline-flex items-center gap-1 hover:text-foreground">Website <ExternalLink className="size-3" /></a>}
           </div>
+          {d.live && <LiveBar live={d.live} path={path} />}
           <div className="mt-5 flex flex-wrap gap-2">
             <Button variant={tracked ? "secondary" : "outline"} size="sm" aria-pressed={tracked} onClick={() => update("tracked", (t) => ({ ...t, events: tracked ? t.events.filter((x) => x !== ref) : [...t.events, ref] }))}>
               {tracked ? "Tracking this event" : "Track event"}
@@ -106,6 +109,63 @@ function Event({ d }: { d: EventDetail }) {
           <MatchOdds d={d} team={teamParam} onTab={setTab} />
         </TabsContent>}
       </Tabs>
+    </div>
+  );
+}
+
+/**
+ * While an event is on (today, in its time zone), reload it every
+ * live.everySeconds while the tab is visible, and at once when the tab comes
+ * back after longer than that: results show up without anyone clicking.
+ */
+function useLiveReload(path: string, live: EventDetail["live"]) {
+  // Only where the server checks FIRST on its own; otherwise reloading would just re-read the same data.
+  const every = live?.auto ? Math.max(20, live.everySeconds) * 1000 : 0;
+  useEffect(() => {
+    if (!every) return;
+    let last = Date.now();
+    const reload = () => { last = Date.now(); load(path, true).catch(() => {}); };
+    const id = setInterval(() => { if (document.visibilityState === "visible") reload(); }, every);
+    const onVisible = () => { if (document.visibilityState === "visible" && Date.now() - last >= every) reload(); };
+    document.addEventListener("visibilitychange", onVisible);
+    return () => { clearInterval(id); document.removeEventListener("visibilitychange", onVisible); };
+  }, [path, every]);
+}
+
+/** "Results updated 40 s ago" + "Refresh results", on events that are on today. */
+function LiveBar({ live, path }: { live: NonNullable<EventDetail["live"]>; path: string }) {
+  const [now, setNow] = useState(() => Date.now());
+  const [busy, setBusy] = useState(false);
+  const [note, setNote] = useState<string | null>(null);
+  const noteTimer = useRef<number>(undefined);
+  useEffect(() => { const id = setInterval(() => setNow(Date.now()), 1000); return () => clearInterval(id); }, []);
+  useEffect(() => () => window.clearTimeout(noteTimer.current), []);
+  const say = (m: string) => { setNote(m); window.clearTimeout(noteTimer.current); noteTimer.current = window.setTimeout(() => setNote(null), 8000); };
+  const refresh = async () => {
+    setBusy(true);
+    try {
+      const r = await apiFetch<EventRefreshResult>(`${path}/refresh`, { method: "POST" });
+      prime(path, r.detail);
+      setNow(Date.now());
+      say(r.message);
+    } catch (e) {
+      say(e instanceof ApiError ? e.message : "Couldn't refresh right now. Try again in a moment.");
+    } finally { setBusy(false); }
+  };
+  return (
+    <div className="mt-4 flex flex-wrap items-center gap-x-3 gap-y-2">
+      <span className="inline-flex items-center gap-2 rounded-full border border-destructive/30 bg-destructive/10 px-3 py-1 text-xs font-medium text-foreground">
+        <span aria-hidden className="relative flex size-2">
+          <span className="absolute inline-flex size-full animate-ping rounded-full bg-destructive opacity-60 motion-reduce:hidden" />
+          <span className="relative inline-flex size-2 rounded-full bg-destructive" />
+        </span>
+        {live.checkedAt ? <>Results updated <time dateTime={live.checkedAt} className="tabular-nums">{agoSeconds(live.checkedAt, now)}</time></> : "Results not checked yet today"}
+      </span>
+      <Button variant="outline" size="sm" onClick={refresh} disabled={busy} aria-busy={busy}>
+        {busy ? <Loader2 className="animate-spin" /> : <RefreshCw />} {busy ? "Checking…" : "Refresh results"}
+      </Button>
+      <span className="text-xs text-muted-foreground">{live.auto ? <>Checks for new results every {live.everySeconds < 90 ? `${live.everySeconds} s` : `${Math.round(live.everySeconds / 60)} min`} on its own</> : "Refresh to check for new results"}</span>
+      <p role="status" aria-live="polite" className="w-full text-xs text-muted-foreground empty:hidden">{note}</p>
     </div>
   );
 }

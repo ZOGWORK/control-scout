@@ -1,11 +1,13 @@
 // Control Scout server: API + (in production) the built web app, plus the
-// background schedule — sync daily, hourly while events are running; stats
-// and the prediction ledger after every sync.
+// background schedule — sync daily, every 15–60 min on event days (stats and
+// the prediction ledger after every sync), and every minute for events that
+// are on right now (the live fast lane).
 import "./env.js";
 import { env } from "./env.js";
 import { migrate, all, isRemote, openReplicaIfRemote } from "./db.js";
 import { packsDir } from "./packs/routes.js";
 import { backfillDue, runCycle, runCycleInChild } from "./data/cycle.js";
+import { startLiveSync } from "./data/live.js";
 import express from "express";
 import { ENGINE_VERSION } from "@control-scout/predict-engine";
 import { createApp } from "./app.js";
@@ -86,5 +88,8 @@ setInterval(async () => {
   // whenever the server happened to start and whatever the regular schedule.
   else if (await backfillDue().catch(() => false)) cycle("backfill");
 }, Math.min(5, eventDayMinutes) * 60_000).unref();
+// The live fast lane: events on today, every LIVE_SYNC_SECONDS (60), results within about a minute
+// (server/data/live.ts). It shares a writer lease with the cycle above, so the two never write at once.
+startLiveSync(log);
 // First cycle shortly after boot (not at boot: let the server answer first).
 setTimeout(() => { last = Date.now(); cycle("startup"); }, 60_000).unref();
