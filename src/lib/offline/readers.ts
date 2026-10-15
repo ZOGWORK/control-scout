@@ -237,6 +237,7 @@ export function readEventDetail(sdb: SeasonDb, code: string, opts: ReadOpts = {}
     alliances: alliances.map((a) => ({ number: a.number, name: a.name, captain: a.captain, pick1: a.pick1, pick2: a.pick2, backup: a.backup })),
     awards: awards.map((a) => ({ type: a.type, placement: a.placement, team: a.team, name: a.name })),
     advancement: adv ? { slots: adv.slots, advancesTo: adv.advances_to, rows: JSON.parse(adv.rows) } : null,
+    live: null, // a saved season: no live checks, no Refresh results (that needs the server)
     forecastUnsupported: OFFLINE_FORECAST,
   };
 }

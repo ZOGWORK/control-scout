@@ -49,7 +49,9 @@ export async function apiFetch<T>(path: string, init?: RequestInit & { json?: un
   return body as T;
 }
 
-interface Entry<T> { at: number; data?: T; error?: ApiError; promise?: Promise<T> }
+/** `seq`: order of the request (or prime) the data came from; an older reply never replaces newer data. */
+interface Entry<T> { at: number; data?: T; error?: ApiError; promise?: Promise<T>; seq?: number }
+let seq = 0;
 const cache = new Map<string, Entry<unknown>>();
 const listeners = new Map<string, Set<() => void>>();
 const FRESH_MS = 60_000;
@@ -61,16 +63,30 @@ export function load<T>(path: string, force = false): Promise<T> {
   const e = cache.get(path) as Entry<T> | undefined;
   if (!force && e?.promise) return e.promise;
   if (!force && e?.data !== undefined && Date.now() - e.at < FRESH_MS) return Promise.resolve(e.data);
-  const promise = apiFetch<T>(path).then(
-    // An offline answer is never fresh: the next look asks the server again.
-    (data) => { cache.set(path, { at: offlineSource(data) ? 0 : Date.now(), data }); notify(path); return data; },
-    (error: ApiError) => { const prev = cache.get(path) as Entry<T> | undefined; cache.set(path, { at: Date.now(), data: prev?.data, error }); notify(path); throw error; },
+  const my = ++seq;
+  // Another request for this path still out (not this one) stays the one callers wait on.
+  const pending = (cur: Entry<T> | undefined) => (cur?.promise !== promise ? cur?.promise : undefined);
+  const promise: Promise<T> = apiFetch<T>(path).then(
+    (data) => {
+      const cur = cache.get(path) as Entry<T> | undefined;
+      // Newer data arrived while this request was out (a later request, or "Refresh results" priming): keep it.
+      if (cur?.data !== undefined && (cur.seq ?? 0) > my) { if (cur.promise === promise) cache.set(path, { ...cur, promise: undefined }); return cur.data; }
+      // An offline answer is never fresh: the next look asks the server again.
+      cache.set(path, { at: offlineSource(data) ? 0 : Date.now(), data, seq: my, promise: pending(cur) }); notify(path); return data;
+    },
+    (error: ApiError) => {
+      const cur = cache.get(path) as Entry<T> | undefined;
+      cache.set(path, { at: Date.now(), data: cur?.data, seq: cur?.seq, error, promise: pending(cur) }); notify(path); throw error;
+    },
   );
   // A retry clears the old error so the page shows "loading" again.
-  cache.set(path, { at: e?.at ?? 0, data: e?.data, promise } as Entry<T>);
+  cache.set(path, { at: e?.at ?? 0, data: e?.data, seq: e?.seq, promise } as Entry<T>);
   notify(path);
   return promise;
 }
+
+/** Put fresh data for a path in the cache (e.g. returned by a POST) and re-render whoever shows it. */
+export function prime<T>(path: string, data: T) { cache.set(path, { at: Date.now(), data, seq: ++seq, promise: cache.get(path)?.promise as Promise<T> | undefined }); notify(path); }
 
 // Back online: whatever is on screen from saved seasons is fetched fresh.
 if (typeof window !== "undefined") {
