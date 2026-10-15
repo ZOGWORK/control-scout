@@ -25,22 +25,38 @@ if [ -z "$TARGET" ]; then
 fi
 [[ "$TARGET" =~ ^[A-Za-z0-9._-]+$ ]] || { echo "Not a release name: $TARGET"; exit 2; }
 REL_DIR="$APP_DIR/releases/$TARGET"
-[ -f "$REL_DIR/package.json" ] || { echo "No release at $REL_DIR"; exit 1; }
 
 exec 8> /run/control-scout-install.lock
-flock 8   # never alongside a deploy
+flock 8   # never alongside a deploy (which may also delete old releases)
+# Checked only now, under the lock: a deploy that held it may have removed this release.
+[ -f "$REL_DIR/package.json" ] || { echo "No release at $REL_DIR"; exit 1; }
 
+# The service as the release expects it: socket-activated (it has server/listen.ts:
+# node --import tsx, tied to control-scout.socket) or, before that, opening the
+# port itself (npx tsx, no socket). Rewritten both ways, so switching back and
+# forth between old and new releases always leaves a service that fits.
 if [ -f "$REL_DIR/server/listen.ts" ]; then
-  # Socket-activated release: the units the last deploy wrote already fit it.
-  systemctl is-active --quiet control-scout.socket || { systemctl stop control-scout || true; systemctl enable --now control-scout.socket; }
-  ln -sfn "releases/$TARGET" "$APP_DIR/current.new"
-  mv -Tf "$APP_DIR/current.new" "$APP_DIR/current"
-  systemctl restart control-scout
+  # GNU sed: \n in the replacement adds the Requires= line right after After=.
+  sed -i -e 's#^ExecStart=.*#ExecStart='"$(command -v node)"' --import tsx server/index.ts#' \
+         -e '/^Requires=control-scout.socket$/d' \
+         -e 's#^After=.*#After=network-online.target control-scout.socket\nRequires=control-scout.socket#' "$UNIT"
+  systemctl daemon-reload
+  if systemctl is-active --quiet control-scout.socket; then
+    ln -sfn "releases/$TARGET" "$APP_DIR/current.new"
+    mv -Tf "$APP_DIR/current.new" "$APP_DIR/current"
+    systemctl restart control-scout
+  else
+    # Coming from a pre-socket release: its server holds the port, so stop it before the socket takes it.
+    systemctl stop control-scout || true
+    systemctl enable --now control-scout.socket
+    ln -sfn "releases/$TARGET" "$APP_DIR/current.new"
+    mv -Tf "$APP_DIR/current.new" "$APP_DIR/current"
+    systemctl start control-scout
+  fi
 else
-  # Pre-socket release: the server opens the port itself, as it did when it was installed.
   sed -i -e 's#^ExecStart=.*#ExecStart='"$(command -v npx)"' tsx server/index.ts#' \
          -e '/^Requires=control-scout.socket$/d' \
-         -e 's#^After=network-online.target control-scout.socket$#After=network-online.target#' "$UNIT"
+         -e 's#^After=.*#After=network-online.target#' "$UNIT"
   systemctl daemon-reload
   systemctl stop control-scout || true
   systemctl disable --now control-scout.socket >/dev/null 2>&1 || true
