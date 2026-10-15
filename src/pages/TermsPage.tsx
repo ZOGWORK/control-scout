@@ -57,7 +57,7 @@ const SECTIONS: LegalSectionDef[] = [
     id: "accounts", title: "Accounts", body: (
       <>
         <p>You don't need an account to browse, search or predict. An account only syncs your own data (my team, tracked teams, shortlist, scouting) between devices.</p>
-        <p>Accounts are shared with Control Point (<Ext href="https://tryctrlpoint.org">tryctrlpoint.org</Ext>), so one sign-in works on both. Keep access to your email and sign-in methods secure, since anyone who can sign in as you can see your synced data. You can delete your account at any time in <In to="/settings?section=privacy">Settings › Account &amp; privacy</In>.</p>
+        <p>Accounts are shared with Control Point (<Ext href="https://tryctrlpoint.org">tryctrlpoint.org</Ext>): the same account works on both, and "Continue with Control Point" signs you in here with it. Keep access to your email and sign-in methods secure, since anyone who can sign in as you can see your synced data. You can delete your account at any time in <In to="/settings?section=privacy">Settings › Account &amp; privacy</In>.</p>
       </>
     ),
   },
