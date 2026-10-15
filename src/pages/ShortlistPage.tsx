@@ -46,13 +46,16 @@ const interactive = (e: MouseEvent) => !!(e.target as HTMLElement).closest("a, b
 export default function ShortlistPage() {
   useTitle("Shortlist");
   const search = useSearch();
-  const { state, update, user } = usePersonal();
+  const { state, update, stored, user } = usePersonal();
   const current = useCurrentSeason();
   const [sp, setSp] = useSearchParams();
   const season = Number(sp.get("season")) || current;
   const list = state.bookmarks;
   const shown = list.slice(0, MAX_SHOWN);
   const notes = state.shortlistNotes;
+  // What this device actually stored: a note that differs was refused (storage full) and says so.
+  // Unreadable storage is unknown, not empty: the fields then go by each write's result (and Escape never writes "").
+  const storedNotes = stored("shortlistNotes");
 
   // Reordering or removing doesn't refetch: the request covers a set of teams, refreshed only when one is missing.
   const fetched = useRef<{ season: number; set: Set<number>; key: string } | null>(null);
@@ -103,7 +106,7 @@ export default function ShortlistPage() {
 
   const common = (t: ShortlistTeam, rank: number) => ({
     t, rank, season, open: open.has(t.team), dragging: reorder.dragging === t.team,
-    note: notes[String(t.team)] ?? "", onNote: (text: string) => update("shortlistNotes", (n) => setNote(n, t.team, text)),
+    note: notes[String(t.team)] ?? "", storedNote: storedNotes === undefined ? undefined : (storedNotes?.[String(t.team)] ?? ""), onNote: (text: string) => update("shortlistNotes", (n) => setNote(n, t.team, text)),
     selected: selected.includes(t.team), selectDisabled: !selected.includes(t.team) && selected.length >= MAX_COMPARE, onSelect: (on: boolean) => pick(t.team, on),
     onToggle: () => toggle(t.team), onRemove: () => remove(t.team), handle: reorder.handleProps(t.team),
     compareLink: compareHref([t.team, ...shown.filter((x) => x !== t.team).slice(0, MAX_COMPARE - 1)], season),
@@ -178,7 +181,7 @@ const LIST_COLS = "grid items-center gap-x-2 grid-cols-[2.5rem_1.75rem_minmax(0,
 
 interface RowProps {
   t: ShortlistTeam; rank: number; season: number; open: boolean; dragging: boolean;
-  note: string; onNote: (text: string) => void;
+  note: string; storedNote: string | undefined; onNote: (text: string) => boolean;
   selected: boolean; selectDisabled: boolean; onSelect: (on: boolean) => void;
   onToggle: () => void; onRemove: () => void;
   /** This team next to the top picks. */
@@ -226,7 +229,7 @@ function ListRow(p: RowProps) {
             <span className="truncate text-sm">{t.name ?? "Unknown team"}</span>
             {t.place && <span className="hidden truncate text-xs text-text-muted xl:inline">{t.place}</span>}
           </div>
-          <NoteField team={t.team} value={p.note} onSave={p.onNote} className="-ml-1.5 mt-0.5 max-w-md" />
+          <NoteField team={t.team} value={p.note} stored={p.storedNote} onSave={p.onNote} className="-ml-1.5 mt-0.5 max-w-md" />
         </div>
         <OprSpark events={t.events} className="max-md:hidden" />
         <span className="text-right font-display text-base font-semibold tabular-nums text-accent-text">{num(t.opr)}</span>
@@ -274,7 +277,7 @@ function GridCard(p: RowProps) {
           <div className="rounded-lg bg-success/10 px-2.5 py-1.5"><dt className="text-[10px] font-semibold uppercase tracking-wider text-text-muted">W-L-T</dt><dd className="whitespace-nowrap font-display text-base font-semibold tabular-nums text-success sm:text-lg">{t.record ?? "—"}</dd></div>
         </dl>
         <OprSpark events={t.events} interactive width={320} height={44} className="mt-3 min-h-9" />
-        <NoteField team={t.team} value={p.note} onSave={p.onNote} className="-mx-1.5 mt-2" />
+        <NoteField team={t.team} value={p.note} stored={p.storedNote} onSave={p.onNote} className="-mx-1.5 mt-2" />
         <div className="mt-2 flex flex-wrap items-center gap-1.5 border-t border-border pt-2.5">
           <Button variant={open ? "default" : "secondary"} size="sm" onClick={p.onToggle} aria-expanded={open} aria-controls={detailsId}>
             <ChevronDown className={cn("transition-transform", open && "rotate-180")} /> {open ? "Less" : "Details"}

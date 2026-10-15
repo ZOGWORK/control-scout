@@ -19,7 +19,7 @@ import { clearRecordings, fmtBytes } from "../lib/recordings";
 import { downloadCsv } from "../lib/csv";
 import { PageHeader } from "../components/page";
 import { Button } from "../components/ui/button";
-import { Badge, Input } from "../components/ui/basic";
+import { Badge, FieldError, Input } from "../components/ui/basic";
 import { Switch, ToggleGroup, ToggleGroupItem } from "../components/ui/controls";
 import { toast } from "../components/ui/sonner";
 import { OtpInput } from "../components/arc/otp-input/otp-input";
@@ -151,6 +151,9 @@ function Row({ label, description, children, htmlFor, stack }: { label: ReactNod
   );
 }
 
+/** A server or network error as a sentence to put in a message. */
+const sentence = (m: unknown) => { const t = typeof m === "string" && m.trim() ? m.trim() : "Something went wrong"; return /[.!?]$/.test(t) ? t : `${t}.`; };
+
 // --- Profile ---------------------------------------------------------------------
 
 function Profile({ signinFailed }: { signinFailed: boolean }) {
@@ -239,22 +242,34 @@ function SignedIn({ user, sync, onSignOut }: { user: AccountUser; sync: string; 
   const [saved, setSaved] = useState(user.displayName ?? "");
   const [name, setName] = useState(saved);
   const dirty = name.trim() !== saved;
+  const [nameErr, setNameErr] = useState<string | null>(null);
+  const [savingName, setSavingName] = useState(false);
+  const nameInput = useRef<HTMLInputElement>(null);
   const saveName = async () => {
+    setNameErr(null);
+    setSavingName(true);
     try {
       await apiFetch("/api/me", { method: "PATCH", json: { displayName: name } });
       const next = name.trim();
       setSaved(next);
       user.displayName = next || null; // the shared account object: switching sections shows the saved name
       toast.success("Saved");
-    } catch (e: any) { toast.error(e.message); }
+    } catch (e: any) {
+      setNameErr(`Your name wasn't saved. ${sentence(e?.message)} Try again.`);
+      nameInput.current?.focus();
+    } finally { setSavingName(false); }
   };
   return (
     <div>
       <Group title="Details" description="How you appear in Control Scout.">
         <Row label="Display name" htmlFor="display-name" stack>
-          <form onSubmit={(e) => { e.preventDefault(); saveName(); }} className="flex max-w-md gap-2">
-            <Input id="display-name" value={name} onChange={(e) => setName(e.target.value)} placeholder="Your name" className="h-10" maxLength={60} />
-            <Button type="submit" disabled={!dirty}>Save changes</Button>
+          <form onSubmit={(e) => { e.preventDefault(); saveName(); }} noValidate className="max-w-md">
+            <div className="flex gap-2">
+              <Input ref={nameInput} id="display-name" value={name} onChange={(e) => { setName(e.target.value); setNameErr(null); }} placeholder="Your name" className="h-10" maxLength={60}
+                aria-invalid={nameErr ? true : undefined} aria-describedby={nameErr ? "display-name-error" : undefined} />
+              <Button type="submit" disabled={!dirty || savingName}>Save changes</Button>
+            </div>
+            <FieldError id="display-name-error">{nameErr}</FieldError>
           </form>
         </Row>
       </Group>
@@ -469,9 +484,19 @@ function ScoutingData() {
 function Privacy({ onOpen }: { onOpen: (id: SectionId) => void }) {
   const { clearLocal, user, signOut } = usePersonal();
   const consent = useConsent();
+  // The hold button's done state follows the request: it resets (and the error shows under it) if deleting fails.
+  const [deleted, setDeleted] = useState(false);
+  const [delErr, setDelErr] = useState<string | null>(null);
+  const delBox = useRef<HTMLDivElement>(null);
   const del = async () => {
+    setDelErr(null);
+    setDeleted(true);
     try { await apiFetch("/api/me", { method: "DELETE", json: { confirm: "DELETE" } }); clearLocal(); await signOut(); toast.success("Account deleted"); }
-    catch (e: any) { toast.error(e.message); }
+    catch (e: any) {
+      setDeleted(false);
+      setDelErr(`Couldn't confirm that your account was deleted. ${sentence(e?.message)} Check your account before trying again.`);
+      delBox.current?.querySelector("button")?.focus();
+    }
   };
   return (
     <div>
@@ -499,7 +524,10 @@ function Privacy({ onOpen }: { onOpen: (id: SectionId) => void }) {
         </Row>
         {user ? (
           <Row label="Delete account" description="Removes your account and everything synced to it: tracking, shortlist, scouting notes, video links. Recordings on this device are separate (Offline data).">
-            <HoldToConfirm label="Hold to delete account" confirmedLabel="Deleted" tone="danger" onConfirm={del} />
+            <div ref={delBox}>
+              <HoldToConfirm label="Hold to delete account" confirmedLabel="Deleted" tone="danger" onConfirm={del} confirmed={deleted} aria-describedby={delErr ? "delete-account-error" : undefined} />
+              <FieldError id="delete-account-error" className="max-w-xs">{delErr}</FieldError>
+            </div>
           </Row>
         ) : (
           <Row label="Account" description="You're not signed in, so there's no account data.">

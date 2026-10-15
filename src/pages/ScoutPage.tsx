@@ -1,7 +1,7 @@
 // Manual scouting: your own match and pit observations on top of public data.
 // Offline-first: saved on this device the moment you press Save; synced to
 // your account when signed in and online.
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useId, useMemo, useRef, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { ClipboardList, Cloud, CloudOff, Loader2, Minus, Plus, Save, Trash2 } from "lucide-react";
 import { useCurrentSeason, useTitle } from "../lib/meta";
@@ -9,10 +9,11 @@ import { usePersonal } from "../lib/personal";
 import { deleteScoutEntry, newScoutId, saveScoutEntry, ScoutStorageError, templateFor, useScouting, type ScoutEntry, type ScoutField, type ScoutValue } from "../lib/scouting";
 import { PageHeader, Section, EmptyState } from "../components/page";
 import { Button } from "../components/ui/button";
-import { Badge, Input, Textarea, Label } from "../components/ui/basic";
+import { Badge, FieldError, Input, Textarea, Label } from "../components/ui/basic";
 import { ToggleGroup, ToggleGroupItem, Switch } from "../components/ui/controls";
 import { toast } from "../components/ui/sonner";
-import { TeamInput } from "../components/TeamInput";
+import { TeamInput, lookupTeamName } from "../components/TeamInput";
+import { teamError } from "../lib/teamCheck";
 import { SeasonToggle } from "../components/SeasonToggle";
 import { Recordings } from "../components/MatchVideo";
 import { cn } from "../components/cn";
@@ -97,23 +98,45 @@ function EntryForm({ season, initial, team, onDone }: { season: number; initial:
   const [notes, setNotes] = useState(initial?.notes ?? "");
   const template = useMemo(() => templateFor(season, kind), [season, kind]);
   const phases = ["auto", "teleop", "endgame", "overall", "pit"] as const;
-  const save = () => {
-    if (!teamText) { toast.error("Add a team number"); return; }
+  // Inline errors: the team field's own, and one for the save itself (storage full or blocked).
+  const [teamErr, setTeamErr] = useState<string | null>(null);
+  const [saveErr, setSaveErr] = useState<string | null>(null);
+  const [checking, setChecking] = useState(false);
+  const teamRef = useRef<HTMLInputElement>(null);
+  const saveRef = useRef<HTMLButtonElement>(null);
+  const saveErrId = useId();
+  // The team check awaits a lookup: by then the form may be cancelled (closed) or still being
+  // edited. A closed form saves nothing; an open one saves what it holds now, if the team is unchanged.
+  const latest = useRef({ kind, teamText, eventCode, matchLabel, data, notes });
+  latest.current = { kind, teamText, eventCode, matchLabel, data, notes };
+  const open = useRef(true);
+  useEffect(() => { open.current = true; return () => { open.current = false; }; }, []);
+  const save = async () => {
+    setSaveErr(null);
+    setChecking(true);
+    const team = teamText;
+    const err = await teamError(team, lookupTeamName);
+    if (!open.current) return;
+    setChecking(false);
+    if (latest.current.teamText !== team) return; // edited while checking: the next Save checks the new number
+    if (err) { setTeamErr(err); teamRef.current?.focus(); return; }
+    const { kind, eventCode, matchLabel, data, notes } = latest.current;
     try {
-      saveScoutEntry({ uuid: initial?.uuid ?? newScoutId(), season, team: Number(teamText), eventCode: eventCode.trim().toUpperCase() || null, matchLabel: kind === "match" ? matchLabel.trim().toUpperCase() || null : null, kind, data, notes });
+      saveScoutEntry({ uuid: initial?.uuid ?? newScoutId(), season, team: Number(team), eventCode: eventCode.trim().toUpperCase() || null, matchLabel: kind === "match" ? matchLabel.trim().toUpperCase() || null : null, kind, data, notes });
       toast.success("Saved on this device");
       onDone();
     } catch (e) {
-      toast.error(e instanceof ScoutStorageError ? e.message : "Couldn't save");
+      setSaveErr(e instanceof ScoutStorageError ? e.message : "Couldn't save this entry on this device. Try again.");
+      saveRef.current?.focus();
     }
   };
   return (
-    <form onSubmit={(e) => { e.preventDefault(); save(); }} className="mb-8 rounded-2xl border border-border bg-card p-5 sm:p-6">
+    <form onSubmit={(e) => { e.preventDefault(); save(); }} noValidate className="mb-8 rounded-2xl border border-border bg-card p-5 sm:p-6">
       <div className="flex flex-wrap items-start gap-4">
         <ToggleGroup type="single" value={kind} onValueChange={(v) => { if (v) setKind(v as typeof kind); }} aria-label="Entry type">
           <ToggleGroupItem value="match">Match</ToggleGroupItem><ToggleGroupItem value="pit">Pit</ToggleGroupItem>
         </ToggleGroup>
-        <div className="w-32"><TeamInput label="Team" value={teamText} onChange={setTeamText} /></div>
+        <div className={teamErr ? "w-56" : "w-32"}><TeamInput label="Team" value={teamText} onChange={(v) => { setTeamText(v); setTeamErr(null); }} error={teamErr} inputRef={teamRef} /></div>
         <div className="w-36"><Input value={eventCode} onChange={(e) => setEventCode(e.target.value)} placeholder="Event code" aria-label="Event code" className="h-11 font-mono uppercase" /></div>
         {kind === "match" && <div className="w-24"><Input value={matchLabel} onChange={(e) => setMatchLabel(e.target.value)} placeholder="Q12" aria-label="Match" className="h-11 font-mono uppercase" /></div>}
       </div>
@@ -134,10 +157,11 @@ function EntryForm({ season, initial, team, onDone }: { season: number; initial:
         <Textarea id="notes" value={notes} onChange={(e) => setNotes(e.target.value)} maxLength={4000} placeholder="What stood out? Strategy, reliability, driver habits…" className="mt-2" />
       </div>
       <div className="mt-5 flex flex-wrap gap-2">
-        <Button type="submit"><Save /> Save</Button>
+        <Button ref={saveRef} type="submit" disabled={checking} aria-describedby={saveErr ? saveErrId : undefined}><Save /> Save</Button>
         <Button type="button" variant="ghost" onClick={onDone}>Cancel</Button>
         <p className="ml-auto self-center text-xs text-muted-foreground">Saved on this device first — works without a connection.</p>
       </div>
+      <FieldError id={saveErrId}>{saveErr}</FieldError>
     </form>
   );
 }

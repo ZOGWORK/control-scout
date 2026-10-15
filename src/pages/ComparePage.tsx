@@ -1,6 +1,6 @@
 // Compare up to four teams head to head: OPR by phase, prediction ratings,
 // records, event-by-event OPR, and every match where they met or partnered.
-import { useState, type CSSProperties } from "react";
+import { useRef, useState, type CSSProperties } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { Bar, BarChart, CartesianGrid, Legend, Line, LineChart, XAxis, YAxis } from "recharts";
 import { Plus, Scale, Sparkles, X } from "lucide-react";
@@ -12,7 +12,8 @@ import { Async } from "../components/states";
 import { Button } from "../components/ui/button";
 import { ChartContainer, ChartTooltip, ChartTooltipContent } from "../components/ui/chart";
 import { MatchList } from "../components/predict";
-import { TeamInput } from "../components/TeamInput";
+import { TeamInput, lookupTeamName } from "../components/TeamInput";
+import { teamError } from "../lib/teamCheck";
 import { SeasonToggle } from "../components/SeasonToggle";
 import { num, topPct } from "../lib/format";
 
@@ -25,8 +26,28 @@ export default function ComparePage() {
   const asked = Number(sp.get("season")) || null;
   const teams = (sp.get("teams") ?? "").split(",").filter((x) => /^\d+$/.test(x)).slice(0, 4);
   const [draft, setDraft] = useState("");
+  const [error, setError] = useState<string | null>(null);
+  const [checking, setChecking] = useState(false);
+  const input = useRef<HTMLInputElement>(null);
   const setTeams = (t: string[]) => setSp((x) => { x.set("teams", t.join(",")); return x; }, { replace: true });
-  const add = () => { if (draft && !teams.includes(draft) && teams.length < 4) { setTeams([...teams, draft]); setDraft(""); } };
+  const latestDraft = useRef(draft);
+  latestDraft.current = draft;
+  const add = async () => {
+    if (teams.length >= 4) return;
+    const team = draft;
+    setChecking(true);
+    const err = teams.includes(team) ? `${team} is already in the comparison.` : await teamError(team, lookupTeamName);
+    setChecking(false);
+    if (latestDraft.current !== team) return; // edited while checking
+    if (err) { setError(err); input.current?.focus(); return; }
+    // From the URL as it is now: a team removed (or added) while checking stays that way.
+    setSp((x) => {
+      const now = (x.get("teams") ?? "").split(",").filter((t) => /^\d+$/.test(t));
+      if (!now.includes(team) && now.length < 4) x.set("teams", [...now, team].join(","));
+      return x;
+    }, { replace: true });
+    setDraft("");
+  };
   // Without ?season the server picks the latest season these teams have results in.
   const state = useApi<CompareView>(teams.length ? `/api/compare${qs({ teams: teams.join(","), season: asked ?? undefined })}` : null);
   const season = asked ?? state.data?.season ?? current;
@@ -43,9 +64,9 @@ export default function ComparePage() {
               </span>
             ))}
             {teams.length < 4 && (
-              <form onSubmit={(e) => { e.preventDefault(); add(); }} className="flex items-start gap-2">
-                <div className="w-32"><TeamInput label="Add a team" value={draft} onChange={setDraft} /></div>
-                <Button type="submit" variant="secondary" className="h-11" disabled={!draft}><Plus /> Add</Button>
+              <form onSubmit={(e) => { e.preventDefault(); add(); }} noValidate className="flex items-start gap-2">
+                <div className={error ? "w-56" : "w-32"}><TeamInput label="Add a team" value={draft} onChange={(v) => { setDraft(v); setError(null); }} error={error} inputRef={input} /></div>
+                <Button type="submit" variant="secondary" className="h-11" disabled={!draft || checking}><Plus /> Add</Button>
               </form>
             )}
           </div>
