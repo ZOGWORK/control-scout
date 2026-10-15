@@ -244,7 +244,10 @@ describe("GET /api/records/:season/teams", () => {
     // The table's own order (whole rows sorted in one query) is the reference.
     const want = (await get(`/api/records/${S}/matches?sort=combinedScore&fields=combinedScore`)).body.rows.map((x: any) => `${x.eventCode}|${x.label}|${x.level}|${x.stats.combinedScore}`);
     expect(want.length).toBe(3);
-    const text = await (await fetch(`${base}/api/records/${S}/matches?format=csv&sort=combinedScore&fields=combinedScore`)).text();
+    const r = await fetch(`${base}/api/records/${S}/matches?format=csv&sort=combinedScore&fields=combinedScore`, { headers: { "accept-encoding": "identity" } });
+    expect(r.headers.get("content-encoding")).toBeNull();
+    expect(r.headers.get("vary")).toMatch(/accept-encoding/i); // a cache keeps the plain and gzipped copies apart
+    const text = await r.text();
     expect(text.trim().split("\r\n").slice(1).map((l) => { const c = l.split(","); return `${c[1]}|${c[4]}|${c[5]}|${c[8]}`; })).toEqual(want);
   });
   it("returns only the asked-for fields", async () => {
