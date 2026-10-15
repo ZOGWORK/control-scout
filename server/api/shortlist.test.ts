@@ -35,11 +35,17 @@ describe("/api/shortlist", () => {
     const body = await r.json();
     expect(body.teams.map((t: any) => t.team)).toEqual([102, 101]);
     const a = body.teams[1];
-    expect(a).toMatchObject({ name: "Alpha", place: "Sydney, NSW, Australia", opr: 80, oprRank: 3, record: "8-2-0", breakdown: { auto: 20, teleop: 45, endgame: 15 } });
+    expect(a).toMatchObject({ name: "Alpha", place: "Sydney, NSW, Australia", opr: 80, oprRank: 3, record: "8-2-0", breakdown: { auto: 20, teleop: 45, endgame: 15, event: { code: "LATE", name: "LATE Qualifier" } } });
     expect(a.events.map((e: any) => [e.code, e.opr, e.rank])).toEqual([["EARLY", 50, 4], ["LATE", 80, 1]]);
     expect(a.events[0]).toMatchObject({ auto: 10, teleop: 30, endgame: 10, avgNp: 90, name: "EARLY Qualifier" });
     // A team without results this season still gets a row, just empty.
-    expect(body.teams[0]).toMatchObject({ name: "Beta", opr: null, breakdown: { auto: null, teleop: null, endgame: null }, events: [] });
+    expect(body.teams[0]).toMatchObject({ name: "Beta", opr: null, breakdown: { auto: null, teleop: null, endgame: null, event: null }, events: [] });
+  });
+  it("takes the OPR split from the event behind the season OPR, not per-part season bests", async () => {
+    // EARLY had the better auto; the season OPR (80) comes from LATE, so LATE's parts are shown.
+    await run("UPDATE team_event_stats SET opr_auto = 30 WHERE season = ? AND code = 'EARLY' AND team = 101", [S]);
+    const a = (await (await fetch(`${base}/api/shortlist?teams=101&season=${S}`)).json()).teams[0];
+    expect(a.breakdown).toEqual({ auto: 20, teleop: 45, endgame: 15, event: { code: "LATE", name: "LATE Qualifier" } });
   });
   it("rejects a bad or oversized list", async () => {
     expect((await fetch(`${base}/api/shortlist?teams=abc`)).status).toBe(400);

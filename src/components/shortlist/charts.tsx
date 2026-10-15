@@ -30,12 +30,14 @@ export function OprSpark({ events, className, interactive = false, width = 120, 
 
 /** One stacked bar: auto / DC / endgame shares of OPR, with the numbers under it. */
 export function BreakdownBar({ auto, teleop, endgame, className }: { auto: number | null; teleop: number | null; endgame: number | null; className?: string }) {
+  // Signed values for the labels (OPR can be negative); the bar draws only the positive parts.
+  const raw = { auto, teleop, endgame };
   const v = { auto: Math.max(0, auto ?? 0), teleop: Math.max(0, teleop ?? 0), endgame: Math.max(0, endgame ?? 0) };
   const sum = v.auto + v.teleop + v.endgame;
   if (auto == null && teleop == null && endgame == null) return <p className={cn("text-sm text-text-muted", className)}>No OPR split yet this season.</p>;
   return (
     <div className={className}>
-      <div className="flex h-3 overflow-hidden rounded-full bg-muted" role="img" aria-label={PARTS.map((p) => `${p.label} ${num(v[p.k])}`).join(", ")}>
+      <div className="flex h-3 overflow-hidden rounded-full bg-muted" role="img" aria-label={PARTS.map((p) => `${p.label} ${num(raw[p.k])}`).join(", ")}>
         {PARTS.map((p) => sum > 0 && v[p.k] > 0 && (
           <div key={p.k} className="h-full first:rounded-l-full last:rounded-r-full" style={{ width: `${(v[p.k] / sum) * 100}%`, background: p.fill }} />
         ))}
@@ -44,7 +46,7 @@ export function BreakdownBar({ auto, teleop, endgame, className }: { auto: numbe
         {PARTS.map((p) => (
           <div key={p.k} className="min-w-0">
             <dt className="flex items-center gap-1.5 text-[11px] text-text-muted"><span className="size-2 shrink-0 rounded-full" style={{ background: p.fill }} />{p.label}</dt>
-            <dd className={cn("font-display text-lg font-semibold tabular-nums", p.text)}>{num(v[p.k])}<span className="ml-1 text-[11px] font-normal text-text-muted">{sum > 0 ? `${Math.round((v[p.k] / sum) * 100)}%` : ""}</span></dd>
+            <dd className={cn("font-display text-lg font-semibold tabular-nums", p.text)}>{num(raw[p.k])}<span className="ml-1 text-[11px] font-normal text-text-muted">{sum > 0 && v[p.k] > 0 ? `${Math.round((v[p.k] / sum) * 100)}%` : ""}</span></dd>
           </div>
         ))}
       </dl>

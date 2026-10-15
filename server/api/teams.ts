@@ -148,16 +148,15 @@ export async function teamSummaries(numbers: number[], season: number): Promise<
 }
 
 /**
- * The shortlist in one request: each team's summary, its season OPR split and
- * its event-by-event OPR (for the trend graphs). Three queries for the whole
- * list (summaries) plus two, however many teams, not N requests per team.
+ * The shortlist in one request: each team's summary, its OPR split and its
+ * event-by-event OPR (for the trend graphs). Three queries for the whole list
+ * (summaries) plus one, however many teams, not N requests per team.
  */
 export async function shortlistTeams(numbers: number[], season: number): Promise<ShortlistTeam[]> {
   if (!numbers.length) return [];
   const ph = numbers.map(() => "?").join(",");
-  const [summaries, split, events] = await Promise.all([
+  const [summaries, events] = await Promise.all([
     teamSummaries(numbers, season),
-    all<any>(`SELECT team, opr_auto, opr_teleop, opr_endgame FROM team_season_stats WHERE season = ? AND team IN (${ph})`, [season, ...numbers]),
     all<any>(
       `SELECT s.team, e.code, e.name, e.start, et.rank, s.opr_np, s.opr_auto, s.opr_teleop, s.opr_endgame, s.avg_np
        FROM team_event_stats s JOIN events e ON e.season = s.season AND e.code = s.code
@@ -167,14 +166,18 @@ export async function shortlistTeams(numbers: number[], season: number): Promise
   ]);
   const n = (x: unknown) => (x == null ? null : Number(x));
   return summaries.map((t) => {
-    const s = split.find((x) => Number(x.team) === t.team);
+    const evs = events.filter((e) => Number(e.team) === t.team).map((e) => ({
+      code: e.code as string, name: e.name as string, start: e.start ?? null, rank: n(e.rank),
+      opr: n(e.opr_np), auto: n(e.opr_auto), teleop: n(e.opr_teleop), endgame: n(e.opr_endgame), avgNp: n(e.avg_np),
+    }));
+    // The season OPR is the best event OPR: take the split from that same event, so the parts belong
+    // to the total shown (the season's per-part bests can come from different events).
+    const best = evs.filter((e) => e.opr != null).reduce<(typeof evs)[number] | null>((b, e) =>
+      (b == null || (t.opr != null ? Math.abs(e.opr! - t.opr) < Math.abs(b.opr! - t.opr) : e.opr! > b.opr!) ? e : b), null);
     return {
       ...t,
-      breakdown: { auto: n(s?.opr_auto), teleop: n(s?.opr_teleop), endgame: n(s?.opr_endgame) },
-      events: events.filter((e) => Number(e.team) === t.team).map((e) => ({
-        code: e.code, name: e.name, start: e.start ?? null, rank: n(e.rank),
-        opr: n(e.opr_np), auto: n(e.opr_auto), teleop: n(e.opr_teleop), endgame: n(e.opr_endgame), avgNp: n(e.avg_np),
-      })),
+      breakdown: best ? { auto: best.auto, teleop: best.teleop, endgame: best.endgame, event: { code: best.code, name: best.name } } : { auto: null, teleop: null, endgame: null, event: null },
+      events: evs,
     };
   });
 }
