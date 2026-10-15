@@ -14,6 +14,11 @@ describe("rankPct", () => {
     expect(rankPct(2, 2)).toBe("bottom 50%");
     expect(rankPct(7700, 8375)).toBe("bottom 9%");
   });
+  it("no floating-point round-up ((7 / 100) * 100 is just over 7)", () => {
+    expect(rankPct(7, 100)).toBe("top 7%");
+    expect(rankPct(94, 100)).toBe("bottom 7%");
+    for (let r = 1; r <= 100; r++) expect(rankPct(r, 100)).toBe(r <= 50 ? `top ${r}%` : `bottom ${101 - r}%`);
+  });
   it("the last rank is bottom 1%, rank 1 always top", () => {
     expect(rankPct(100, 100)).toBe("bottom 1%");
     expect(rankPct(8375, 8375)).toBe("bottom 1%");
