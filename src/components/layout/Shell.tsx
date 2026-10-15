@@ -16,6 +16,7 @@ import { GlobalSearch } from "./Search";
 import { AccountMenu } from "./AccountMenu";
 import { ClockWeather, ThemeToggle } from "./TopBarExtras";
 import { usePersonal } from "../../lib/personal";
+import { SiteFooter } from "./SiteFooter";
 
 interface NavItem { to: string; label: string; icon: ComponentType<{ className?: string }>; end?: boolean }
 
@@ -108,7 +109,7 @@ function MobileTabs({ onMore }: { onMore: () => void }) {
 const TITLES: [RegExp, string][] = [
   [/^\/teams\//, "Team"], [/^\/teams$/, "Teams"], [/^\/matches$/, "Match records"], [/^\/events\/\d/, "Event"], [/^\/events/, "Events"], [/^\/predict\/how-it-works/, "How it works"], [/^\/predict/, "Predict"],
   [/^\/compare/, "Compare"], [/^\/my-team/, "My team"], [/^\/shortlist/, "Shortlist"], [/^\/scout/, "Scout"], [/^\/download/, "Download"],
-  [/^\/settings/, "Settings"], [/^\/methodology/, "How it works"],
+  [/^\/settings/, "Settings"], [/^\/methodology/, "How it works"], [/^\/privacy/, "Privacy"], [/^\/terms/, "Terms"], [/^\/contact/, "Contact"],
 ];
 
 /** Shown everywhere when the server has no FTC data yet (a new deploy whose
@@ -149,9 +150,11 @@ export function Shell({ children }: { children: ReactNode }) {
             <div className="relative min-h-0 flex-1">
               <Ambient target={mainRef} />
               <main id="main" ref={mainRef} className="m-canvas custom-scrollbar absolute inset-0 z-10 overflow-y-auto">
-                <motion.div key={loc.pathname} initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.18, ease: "easeOut" }} className="mx-auto w-full max-w-[1200px] px-4 pt-8 pb-28 sm:px-6 md:pb-12 max-md:[[data-sticky-actions]_&]:pb-44 lg:px-8 min-[1700px]:max-w-[1600px]">
+                <motion.div key={loc.pathname} initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.18, ease: "easeOut" }} className="mx-auto flex min-h-full w-full max-w-[1200px] flex-col px-4 pt-8 pb-28 sm:px-6 md:pb-8 max-md:[[data-sticky-actions]_&]:pb-44 lg:px-8 min-[1700px]:max-w-[1600px]">
                   <NoDataNotice />
-                  {children}
+                  {/* The page grows to fill the screen, so a short page still has its footer at the bottom. */}
+                  <div className="min-w-0 flex-1">{children}</div>
+                  <SiteFooter />
                 </motion.div>
               </main>
             </div>

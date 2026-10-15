@@ -156,12 +156,12 @@ export default function ShortlistPage() {
                     <span className="text-right">OPR</span><span className="text-right max-sm:hidden">World</span><span className="text-right max-lg:hidden">Rating</span><span className="text-right max-sm:hidden">W-L-T</span><span />
                   </div>
                   <ol ref={reorder.container as RefObject<HTMLOListElement>} className="relative" aria-label="Pick list">
-                    {rows.map((t, i) => <ListRow key={t.team} {...common(t, i + 1)} />)}
+                    {rows.map((t) => <ListRow key={t.team} {...common(t, reorder.rankOf(t.team))} />)}
                   </ol>
                 </div>
               ) : (
                 <ol ref={reorder.container as RefObject<HTMLOListElement>} className="relative grid gap-3 sm:grid-cols-2 xl:grid-cols-3" aria-label="Pick list">
-                  {rows.map((t, i) => <GridCard key={t.team} {...common(t, i + 1)} />)}
+                  {rows.map((t) => <GridCard key={t.team} {...common(t, reorder.rankOf(t.team))} />)}
                 </ol>
               )}
             </>

@@ -37,6 +37,12 @@ sudo nano /opt/control-scout/shared/.env
 Fill `FTC_EVENTS_USERNAME`, `FTC_EVENTS_TOKEN`, `RESEND_API_KEY` (the same
 values as your local `.env`).
 
+Set `CONTACT_TO` to the inbox that should receive messages from the `/contact`
+form (sent through Resend, with Reply-To set to the sender). Without it,
+messages are only stored in the `contact_messages` table:
+`SELECT * FROM contact_messages ORDER BY id DESC`. The address stays on the
+server and is never sent to the browser.
+
 ## 4. Data — pick one (before the service first starts)
 
 **Fast (recommended): copy tonight's synced database** (4 seasons, ~120k
@@ -75,6 +81,13 @@ https://controlscout.org.
 - **Custom port:** set `PORT` in `shared/.env`; every deploy reads it from there.
 - **Schedule (built in):** current-season sync daily, and on event days every 15 min on the VM (`DATA_CYCLE=child`; hourly on Render; `EVENT_DAY_SYNC_MINUTES` overrides);
   stats + prediction ledger after each sync; offline packs rebuilt daily.
+- **Usage statistics** (anonymous page views from visitors who chose "Allow"; daily
+  aggregates in `analytics_daily`, no IPs, user agents, cookies or IDs): on the VM,
+  `cd /opt/control-scout/current && sudo -u controlscout bash -c 'set -a; . /opt/control-scout/shared/.env; set +a; npm run stats:report'`
+  (`-- 7` for 7 days, `-- --json` for JSON). Remotely: set `STATS_TOKEN` (a long random string, e.g.
+  `openssl rand -hex 32`) in `shared/.env`, restart, then
+  `curl -H "Authorization: Bearer $STATS_TOKEN" https://controlscout.org/api/stats/summary?days=30`.
+  Without `STATS_TOKEN` that endpoint answers 404.
 - **Logs:** `journalctl -u control-scout -f`
 - **Rollback:** on the VM,
   `sudo ln -sfn releases/<older> /opt/control-scout/current && sudo systemctl restart control-scout`.

@@ -50,6 +50,7 @@ function Hero() {
   const searchRef = usePageSearch();
   const nav = useNavigate();
   const meta = useMeta();
+  const myTeam = usePersonal().state.myTeam;
   return (
     <Reveal className="pt-2 text-center sm:pt-8">
       {/* The wordmark (brand/wordmark-master.png). The heading's text is its alt, for search engines and screen readers. */}
@@ -64,6 +65,14 @@ function Hero() {
         onPick={(h) => nav(hitHref(h))}
         className="mx-auto mt-7 w-full max-w-2xl text-left [&>div:first-child]:rounded-2xl [&>div:first-child]:shadow-[0_8px_40px_-12px_color-mix(in_srgb,var(--color-accent)_25%,transparent)]"
       />
+      {/* The page's main actions, above the fold at every size. No entrance
+          animation of their own: they paint with the rest of the hero. */}
+      <div className="mx-auto mt-5 flex max-w-2xl flex-wrap items-center justify-center gap-3">
+        <Button size="lg" asChild className="max-sm:flex-1"><Link to="/predict"><Sparkles /> Predict a match</Link></Button>
+        {myTeam
+          ? <Button size="lg" variant="secondary" asChild className="max-sm:flex-1"><Link to="/my-team"><Star /> Your team <span className="font-mono">{myTeam}</span></Link></Button>
+          : <Button size="lg" variant="secondary" asChild className="max-sm:flex-1"><Link to="/events"><CalendarDays /> Browse events</Link></Button>}
+      </div>
       {meta && <p className="mt-3 text-xs text-muted-foreground">{meta.seasons.length} seasons · data updated {ago(meta.dataAsOf)} · engine v{meta.engineVersion}</p>}
     </Reveal>
   );
