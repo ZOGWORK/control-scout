@@ -83,7 +83,7 @@ export function bootShell(path: string, meta: PageMeta): string {
   // A page with no title of its own (not found) gets the shell alone.
   const page = home
     ? `<div class="csb-page csb-home" id="cs-boot-page" data-path="/"><h1><img src="/wordmark.png" alt="FTC Control Scout" width="1200" height="192" /></h1><p>${esc(meta.description)}</p><div></div></div>`
-    : meta.title ? `<div class="csb-page" id="cs-boot-page" data-path="${esc(p)}"><h1>${esc(meta.title)}</h1><p>${esc(meta.description)}</p></div>` : "";
+    : meta.title && !meta.notFound ? `<div class="csb-page" id="cs-boot-page" data-path="${esc(p)}"><h1>${esc(meta.title)}</h1><p>${esc(meta.description)}</p></div>` : "";
   // The page block is hidden when the service worker served this HTML (made for "/") for another page offline.
   const guard = `<script>(function(){var b=document.getElementById('cs-boot-page'),p=location.pathname.replace(/\\/+$/,'')||'/';if(b&&b.getAttribute('data-path').toLowerCase()!==p.toLowerCase())b.hidden=true})()</script>`;
   return [

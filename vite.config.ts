@@ -22,8 +22,8 @@ function serviceWorker(): Plugin {
       // The in-browser SQLite engine (~650 kB) is only for saved seasons: precached only where one is saved (see sw.template.js).
       const offline = all.filter((f) => f.endsWith(".wasm"));
       const built = all.filter((f) => !offline.includes(f));
-      // The brand images the shell shows (sidebar logo, home wordmark, favicon): offline too.
-      const brand = ["/logo.png", "/wordmark.png", "/favicon.ico"];
+      // The brand images the shell shows (sidebar logo, the bare mark on the 404 page, home wordmark, favicon): offline too.
+      const brand = ["/logo.png", "/mark.png", "/wordmark.png", "/favicon.ico"];
       // Not /index.html: the server redirects it to the canonical "/" (a redirect can't be precached cross-host, nor answer a navigation).
       const files = [...new Set(["/", ...built, ...pub("fonts"), "/manifest.webmanifest", ...brand])];
       const hash = createHash("sha256");

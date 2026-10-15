@@ -34,6 +34,10 @@ describe("routes shared by the app and the server", () => {
     expect(pageTitle("/events/2025/X")).toBe("Event");
     expect(pageTitle("/teams")).toBe("Teams");
     expect(pageTitle("/")).toBe("Home");
+    // Whole routes only: anything else is the not-found page (case and a trailing slash don't matter).
+    expect(pageTitle("/teams/4215/extra")).toBe("Not found");
+    expect(pageTitle("/no-such-page")).toBe("Not found");
+    expect(pageTitle("/Teams/")).toBe("Teams");
   });
 });
 
