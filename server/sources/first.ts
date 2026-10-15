@@ -33,9 +33,8 @@ async function slot<T>(fn: () => Promise<T>): Promise<T> {
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
-/** GET a FIRST endpoint. Null on 404 (not published / no such event).
- *  `optional`: also null (no retries) on a 5xx — for data FIRST no longer serves. */
-export async function firstGet<T = any>(path: string, optional = false): Promise<T | null> {
+/** One GET with retries (network errors, 429, 5xx). 404 and 304 come back as responses. */
+async function request(path: string, headers: Record<string, string> = {}, tries: { network: number; server: number; rateLimited?: number } = { network: 4, server: 5 }): Promise<Response> {
   if (!hasFirst()) throw new FirstError(0, "FIRST Events API credentials are not configured");
   const auth = "Basic " + Buffer.from(`${env.firstUser}:${env.firstToken}`).toString("base64");
   return slot(async () => {
@@ -43,24 +42,51 @@ export async function firstGet<T = any>(path: string, optional = false): Promise
       firstStats.requests++;
       let res: Response;
       try {
-        res = await fetch(BASE + path, { headers: { Authorization: auth, Accept: "application/json" }, signal: AbortSignal.timeout(45000) });
+        res = await fetch(BASE + path, { headers: { Authorization: auth, Accept: "application/json", ...headers }, signal: AbortSignal.timeout(45000) });
       } catch (e) {
-        if (attempt < 4) { firstStats.retries++; await sleep(1000 * 2 ** attempt); continue; }
+        if (attempt < tries.network) { firstStats.retries++; await sleep(1000 * 2 ** attempt); continue; }
         throw new FirstError(0, `FIRST ${path}: ${(e as Error).message}`);
       }
-      if (res.status === 404) { firstStats.notFound++; return null; }
-      if (optional && res.status >= 500) { await res.arrayBuffer().catch(() => {}); return null; }
+      if (res.status === 404) { firstStats.notFound++; return res; }
+      // 429 (slow down) retries on its own budget: an optional request skips 5xx retries, never rate limits.
       if (res.status === 429 || res.status >= 500) {
-        if (attempt < 5) { firstStats.retries++; await sleep(Number(res.headers.get("retry-after")) * 1000 || 1500 * 2 ** attempt); continue; }
+        if (attempt < (res.status === 429 ? tries.rateLimited ?? tries.server : tries.server)) { firstStats.retries++; await sleep(Number(res.headers.get("retry-after")) * 1000 || 1500 * 2 ** attempt); continue; }
       }
-      if (!res.ok) {
+      if (!res.ok && res.status !== 304) {
         // FIRST answers "no data yet" for some endpoints with 400/500 + a message.
         const text = await res.text().catch(() => "");
         throw new FirstError(res.status, `FIRST ${path}: HTTP ${res.status} ${text.slice(0, 160)}`);
       }
-      return (await res.json()) as T;
+      return res;
     }
   });
+}
+
+/** GET a FIRST endpoint. Null on 404 (not published / no such event).
+ *  `optional`: also null (no retries) on a 5xx — for data FIRST no longer serves. */
+export async function firstGet<T = any>(path: string, optional = false): Promise<T | null> {
+  let res: Response;
+  try { res = await request(path, {}, optional ? { network: 4, server: 0, rateLimited: 5 } : undefined); }
+  catch (e) { if (optional && e instanceof FirstError && e.status >= 500) return null; throw e; }
+  if (res.status === 404) return null;
+  return (await res.json()) as T;
+}
+
+/** What a conditional GET saw: unchanged (304), or the body and its change marker. */
+export type FirstProbe = { changed: false } | { changed: true; lastModified: string | null; body: string };
+
+/**
+ * Conditional GET: FIRST's schedule, matches and scores endpoints send
+ * Last-Modified and answer If-Modified-Since with an empty 304 (checked
+ * 2026-10; rankings/alliances/awards don't). One cheap request tells the live
+ * fast lane whether anything at an event moved. A 404 reads as an empty body.
+ * Fewer retries than a full sync: the next tick tries again within a minute.
+ */
+export async function firstProbe(path: string, since: string | null): Promise<FirstProbe> {
+  const res = await request(path, since ? { "If-Modified-Since": since } : {}, { network: 1, server: 1 });
+  if (res.status === 304) return { changed: false };
+  const body = res.status === 404 ? "" : await res.text();
+  return { changed: true, lastModified: res.headers.get("last-modified"), body };
 }
 
 const str = (x: unknown) => (typeof x === "string" && x.trim() ? x.trim() : null);

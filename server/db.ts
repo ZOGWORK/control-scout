@@ -330,6 +330,15 @@ CREATE TABLE match_records (
 ) WITHOUT ROWID;
 `,
   },
+  {
+    version: 8,
+    name: "live events remember when FIRST was last checked",
+    sql: `
+-- Set by the live fast lane / "Refresh results" each time FIRST is asked, even when nothing changed
+-- (detail_synced_at moves only when the event's detail is rewritten).
+ALTER TABLE events ADD COLUMN live_checked_at TEXT;
+`,
+  },
 ];
 
 export type Db = Client;

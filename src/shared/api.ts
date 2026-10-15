@@ -171,6 +171,17 @@ export interface EventDetail {
   advancement: { slots: number; advancesTo: string | null; rows: { team: number; status: string; declined: boolean }[] } | null;
   /** Can this event be forecast (advancement simulator)? Null when yes, else why not. */
   forecastUnsupported: string | null;
+  /** Events on today (in their own time zone): how fresh the results are. Null on other days. */
+  /** `auto`: this server checks FIRST on its own every `everySeconds`; false: only "Refresh results" checks. */
+  live: { checkedAt: string | null; everySeconds: number; auto: boolean } | null;
+}
+
+/** POST /api/events/:season/:code/refresh */
+export interface EventRefreshResult {
+  /** refreshed: FIRST was asked just now; recent: someone else did seconds ago; busy: a full update is running; failed: FIRST didn't answer. */
+  outcome: "refreshed" | "recent" | "busy" | "failed";
+  message: string;
+  detail: EventDetail;
 }
 
 export interface MatchExplanationView {
