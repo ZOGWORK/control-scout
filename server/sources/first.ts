@@ -163,9 +163,12 @@ const allianceOf = (station: unknown): "red" | "blue" | null => {
 };
 const stationNo = (station: unknown) => num(Number(String(station ?? "").replace(/\D/g, ""))) || null;
 
-/** Totals-only split for 2019–2022 (no breakdown): own fouls either came off
- *  this score (2020, 2021) or were added to the opponent's (2019, 2022). */
-export function legacyTotals(season: number, final: unknown, ownFoul: unknown, oppFoul: unknown, auto: unknown): ScoreSplit | null {
+/** Totals-only split (no breakdown). In FIRST's results feed `scoreXFoul` is the
+ *  foul points alliance X committed, in every season (checked against the
+ *  breakdowns, 2019–2026). Own fouls either came off X's score (2020, 2021) or
+ *  were added to the opponent's (every other season, 2023+ included), so X's
+ *  non-penalty score is its total minus the opponent's fouls. */
+export function totalsOnly(season: number, final: unknown, ownFoul: unknown, oppFoul: unknown, auto: unknown): ScoreSplit | null {
   const t = num(final);
   if (t == null) return null;
   const pen = num(ownFoul) ?? 0, a = num(auto) ?? 0;
@@ -237,24 +240,9 @@ export async function firstEventBundle(meta: EventRow): Promise<EventBundle> {
     // Some events report every robot as off the field; then everyone listed played.
     const fixField = (ts: MatchTeam[]) => (ts.length && ts.every((t) => !t.onField) ? ts.map((t) => ({ ...t, onField: true })) : ts);
     const bd = breakdown.get(key);
-    const totals = (final: unknown, foul: unknown, auto: unknown): ScoreSplit | null => {
-      const t = num(final);
-      if (t == null) return null;
-      const f = num(foul) ?? 0, a = num(auto) ?? 0;
-      return { total: t, np: Math.max(0, t - f), auto: a, teleop: Math.max(0, t - f - a), endgame: 0, pen: 0 };
-    };
-    // Prefer the breakdown; fall back to totals (no endgame split, penalties unknown per side).
-    let redScore = bd?.red ?? null, blueScore = bd?.blue ?? null;
-    if ((!redScore || !blueScore) && season <= 2022) {
-      // 2019–2022 results: scoreRedFoul = the fouls red committed (checked against the breakdowns).
-      redScore = redScore ?? legacyTotals(season, m.scoreRedFinal, m.scoreRedFoul, m.scoreBlueFoul, m.scoreRedAuto);
-      blueScore = blueScore ?? legacyTotals(season, m.scoreBlueFinal, m.scoreBlueFoul, m.scoreRedFoul, m.scoreBlueAuto);
-    } else if (!redScore || !blueScore) {
-      const rt = totals(m.scoreRedFinal, m.scoreRedFoul, m.scoreRedAuto), bt = totals(m.scoreBlueFinal, m.scoreBlueFoul, m.scoreBlueAuto);
-      // scoreRedFoul = points red received from blue's fouls → blue committed them.
-      if (rt && bt) { rt.pen = num(m.scoreBlueFoul) ?? 0; bt.pen = num(m.scoreRedFoul) ?? 0; }
-      redScore = redScore ?? rt; blueScore = blueScore ?? bt;
-    }
+    // Prefer the breakdown; fall back to totals (no endgame split). scoreRedFoul = the fouls red committed.
+    let redScore = bd?.red ?? totalsOnly(season, m.scoreRedFinal, m.scoreRedFoul, m.scoreBlueFoul, m.scoreRedAuto);
+    let blueScore = bd?.blue ?? totalsOnly(season, m.scoreBlueFinal, m.scoreBlueFoul, m.scoreRedFoul, m.scoreBlueAuto);
     // Final totals come from the results feed (authoritative after adjustments).
     if (redScore && num(m.scoreRedFinal) != null) redScore = { ...redScore, total: m.scoreRedFinal };
     if (blueScore && num(m.scoreBlueFinal) != null) blueScore = { ...blueScore, total: m.scoreBlueFinal };
