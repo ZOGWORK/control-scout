@@ -54,7 +54,7 @@ self.addEventListener("fetch", (event) => {
 
   if (req.mode === "navigate") {
     // Pages: fresh when online, the cached shell when not (the app routes client-side).
-    event.respondWith(fetch(req).catch(async () => (await fromCache("/index.html")) ?? (await fromCache("/")) ?? Response.error()));
+    event.respondWith(fetch(req).catch(async () => (await fromCache("/")) ?? Response.error()));
     return;
   }
   if (BRAND.has(url.pathname)) {
