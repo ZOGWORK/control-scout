@@ -300,13 +300,23 @@ function rowsOf(scope: RecordScope, raw: any[], fields: string[]): AnyRow[] {
 async function pageRows(src: Source, q: RecordsQuery, w: { sql: string; args: Arg[] }, limit: number, offset: number): Promise<any[]> {
   // Near the top, sorting whole rows is cheaper than a second query.
   if (offset + limit <= 1000) return all<any>(`SELECT ${selectOf(src, q)} FROM ${src.from} WHERE ${w.sql} ORDER BY ${orderOf(src, q)} LIMIT ? OFFSET ?`, [...w.args, limit, offset]);
-  const keyCols = src.key.map((k, i) => `${k} AS _k${i}`).join(", ");
-  const keys = await all<any>(`SELECT ${keyCols} FROM ${src.from} WHERE ${w.sql} ORDER BY ${orderOf(src, q)} LIMIT ? OFFSET ?`, [...w.args, limit, offset]);
+  return rowsByKeys(src, q, await sortedKeys(src, q, w, limit, offset));
+}
+
+const keyCols = (src: Source) => src.key.map((k, i) => `${k} AS _k${i}`).join(", ");
+
+/** The matching rows' keys in sort order (small: a few ids per row). */
+function sortedKeys(src: Source, q: RecordsQuery, w: { sql: string; args: Arg[] }, limit: number, offset: number): Promise<any[]> {
+  return all<any>(`SELECT ${keyCols(src)} FROM ${src.from} WHERE ${w.sql} ORDER BY ${orderOf(src, q)} LIMIT ? OFFSET ?`, [...w.args, limit, offset]);
+}
+
+/** Whole rows for these keys, in the keys' order (a key whose row is gone since is skipped). */
+async function rowsByKeys(src: Source, q: RecordsQuery, keys: any[]): Promise<any[]> {
   if (!keys.length) return [];
   const id = (r: any) => src.key.map((_, i) => String(r[`_k${i}`])).join("|");
   const tuple = `(${src.key.map(() => "?").join(", ")})`;
   const rows = await all<any>(
-    `SELECT ${selectOf(src, q)}, ${keyCols} FROM ${src.from} WHERE (${src.key.join(", ")}) IN (VALUES ${keys.map(() => tuple).join(", ")})`,
+    `SELECT ${selectOf(src, q)}, ${keyCols(src)} FROM ${src.from} WHERE (${src.key.join(", ")}) IN (VALUES ${keys.map(() => tuple).join(", ")})`,
     keys.flatMap((k) => src.key.map((_, i) => k[`_k${i}`])),
   );
   const byId = new Map(rows.map((r) => [id(r), r]));
@@ -353,18 +363,25 @@ const ID_HEADERS: Record<RecordScope, [string, (r: any) => unknown][]> = {
  * out in chunks, dropping rows as they are written.
  * Columns: identity columns, then `fields` in order.
  */
+/** Rows per CSV read (inside the export's one read transaction). */
+export const CSV_CHUNK = 500;
+
 export async function streamRecordsCsv(season: number, q: RecordsQuery, res: Response, filename: string): Promise<void> {
   const src = sourceFor(q.scope);
   const w = whereOf(src, season, q);
   const ids = ID_HEADERS[q.scope];
   const line = (cells: unknown[]) => `${cells.map(csvCell).join(",")}\r\n`;
-  const raw = await all<any>(`SELECT ${selectOf(src, q)} FROM ${src.from} WHERE ${w.sql} ORDER BY ${orderOf(src, q)} LIMIT ?`, [...w.args, RECORDS_EXPORT_MAX]);
-  function* lines() {
+  // Which rows, in which order, is fixed by one query up front (just their keys: small), so a stats rewrite
+  // mid-export can't skip or repeat a row; the rows themselves are then read in bounded chunks, so a slow
+  // download never holds a whole season. (Not a long read transaction: an in-memory database or an
+  // embedded replica has one connection, and holding it would fail every other request meanwhile.)
+  const keys = await sortedKeys(src, q, w, RECORDS_EXPORT_MAX, 0);
+  async function* lines() {
     yield line([...ids.map(([h]) => h), ...q.fields.map((k) => STAT_BY_KEY.get(k)!.label)]);
-    while (raw.length) {
+    for (let i = 0; i < keys.length; i += CSV_CHUNK) {
       let out = "";
-      for (const r of rowsOf(q.scope, raw.splice(0, 2000), q.fields)) out += line([...ids.map(([, f]) => f(r)), ...q.fields.map((k) => r.stats[k])]);
-      yield out;
+      for (const r of rowsOf(q.scope, await rowsByKeys(src, q, keys.slice(i, i + CSV_CHUNK)), q.fields)) out += line([...ids.map(([, f]) => f(r)), ...q.fields.map((k) => r.stats[k])]);
+      if (out) yield out;
     }
   }
   res.setHeader("Content-Type", "text/csv; charset=utf-8");
