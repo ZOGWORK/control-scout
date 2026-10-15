@@ -29,6 +29,7 @@ import { eventTypeLabel } from "../lib/labels";
 import { copyLink } from "../lib/clipboard";
 import { useSearch } from "../components/layout/Search";
 import { OfflineNote } from "../components/OfflineNote";
+import { StickyActions, useScrolledPast } from "../components/StickyActions";
 
 export default function TeamPage() {
   const { number } = useParams();
@@ -119,7 +120,10 @@ function Hero({ p, onSeason }: { p: TeamProfile; onSeason: (s: number) => void }
   const top = topPct(s?.opr.np.rank, s?.opr.np.of);
   const predictable = usePredictable(p.season);
   const share = () => copyLink();
+  const [headerEnd, pastHeader] = useScrolledPast<HTMLDivElement>();
+  const predictHref = `/predict?mode=match&season=${p.season}&red=${t.number},`;
   return (
+    <>
     <Reveal className="mb-8 overflow-hidden rounded-2xl border border-border bg-card">
       <div className="grid lg:grid-cols-[minmax(0,1fr)_minmax(0,1.05fr)]">
         {/* Who this is */}
@@ -203,13 +207,22 @@ function Hero({ p, onSeason }: { p: TeamProfile; onSeason: (s: number) => void }
           </div>
           {predictable ? (
             <div className="mt-5 flex flex-wrap gap-2">
-              <Button size="sm" asChild><Link to={`/predict?mode=match&season=${p.season}&red=${t.number},`}><Sparkles /> Predict a match with {t.number}</Link></Button>
+              <Button size="sm" asChild><Link to={predictHref}><Sparkles /> Predict a match with {t.number}</Link></Button>
               {!(next && ADVANCING.has(next.type ?? "")) && <Button size="sm" variant="secondary" asChild><Link to={`/predict?mode=advancement&season=${p.season}&team=${t.number}`}><Trophy /> Advancement odds</Link></Button>}
             </div>
           ) : <p className="mt-5 text-xs text-muted-foreground">{seasonLabel(p.season)} is shown for history: results and stats, no predictions (those start with 2023–24).</p>}
         </div>
       </div>
+      <div ref={headerEnd} aria-hidden />
     </Reveal>
+    {/* Phones: once the header has scrolled away, its main actions stay in reach (history seasons: Track only, no predictions). */}
+    <StickyActions show={pastHeader} label={`Actions for team ${t.number}`}>
+      {predictable && <Button asChild><Link to={predictHref}><Sparkles /> <span className="truncate">Predict with {t.number}</span></Link></Button>}
+      <Button variant={flags.tracked ? "secondary" : "outline"} aria-pressed={flags.tracked} onClick={track} className={cn(predictable && "!flex-none")}>
+        <Eye className={cn(flags.tracked && "text-accent")} /> {flags.tracked ? "Tracking" : "Track"}
+      </Button>
+    </StickyActions>
+    </>
   );
 }
 
