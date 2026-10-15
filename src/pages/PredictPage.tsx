@@ -317,6 +317,7 @@ function MatchLab() {
     setBlue([b[0] ?? "", b[1] ?? ""]);
     setSubmittedTeams(parse(urlRed, urlBlue));
     setErrors([null, null, null, null]);
+    edits.current++;
   }, [urlRed, urlBlue]);
   const submitted = submittedTeams ? `/api/predict/match${qs({ season, red: submittedTeams.red.join(","), blue: submittedTeams.blue.join(",") })}` : null;
   const state = useApi<MatchExplanationView>(submitted);
@@ -326,12 +327,16 @@ function MatchLab() {
   const [errors, setErrors] = useState<(string | null)[]>([null, null, null, null]);
   const [checking, setChecking] = useState(false);
   const inputs = useRef<(HTMLInputElement | null)[]>([]);
-  const clearError = (i: number) => setErrors((e) => (e[i] ? e.map((x, j) => (j === i ? null : x)) : e));
+  // Bumped by every edit, swap or URL change: a check that finishes after one is stale and dropped.
+  const edits = useRef(0);
+  const clearError = (i: number) => { edits.current++; setErrors((e) => (e[i] ? e.map((x, j) => (j === i ? null : x)) : e)); };
   const run = async () => {
     if (!ready) return;
+    const at = edits.current;
     setChecking(true);
     const errs = await teamsErrors([...red, ...blue], ["red team 1", "red team 2", "blue team 1", "blue team 2"], lookupTeamName);
     setChecking(false);
+    if (edits.current !== at) return;
     setErrors(errs);
     const bad = errs.findIndex(Boolean);
     if (bad >= 0) { inputs.current[bad]?.focus(); return; }
@@ -340,7 +345,7 @@ function MatchLab() {
     setSubmittedTeams(m);
     setSp((x) => { x.set("mode", "match"); x.set("season", String(season)); x.set("red", red.join(",")); x.set("blue", blue.join(",")); return x; }, { replace: true });
   };
-  const swap = () => { setRed(blue); setBlue(red); setErrors((e) => [e[2], e[3], e[0], e[1]]); };
+  const swap = () => { edits.current++; setRed(blue); setBlue(red); setErrors((e) => [e[2], e[3], e[0], e[1]]); };
   return (
     <div className="space-y-6">
       <div className="rounded-2xl border border-border bg-card p-5 sm:p-6">

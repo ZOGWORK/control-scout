@@ -26,7 +26,7 @@ export async function teamsErrors(values: string[], labels: string[], lookup: Te
   const own = await Promise.all(values.map((v) => teamError(v, lookup)));
   return own.map((e, i) => {
     if (e) return e;
-    const first = values.findIndex((x) => x.trim() === values[i].trim());
-    return first < i ? `${values[i].trim()} is already ${labels[first]}. Pick four different teams.` : null;
+    const first = values.findIndex((x) => Number(x.trim()) === Number(values[i].trim()));
+    return first < i ? `${Number(values[i].trim())} is already ${labels[first]}. Pick four different teams.` : null;
   });
 }
