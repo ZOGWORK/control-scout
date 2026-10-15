@@ -1,14 +1,62 @@
-# FTC Control Scout
+<p align="center">
+  <img src="brand/wordmark-master.png" alt="Control Scout" width="420" />
+</p>
 
-Free-forever FTC scouting and predictions for **every** team. Search any team,
-event or match; read OPR breakdowns and trends; ask the prediction lab who
-wins a what-if alliance or how likely a team is to advance from any event —
-and check the public track record of how often those predictions came true.
+<h3 align="center">Free-forever FTC scouting and predictions for <em>every</em> team.</h3>
+
+<p align="center">
+  <strong><a href="https://controlscout.org">Live Demo — controlscout.org</a></strong>
+</p>
+
+<p align="center">
+  <img src="https://img.shields.io/badge/React-19-61DAFB?logo=react&logoColor=black" alt="React 19" />
+  <img src="https://img.shields.io/badge/TypeScript-5-3178C6?logo=typescript&logoColor=white" alt="TypeScript" />
+  <img src="https://img.shields.io/badge/Vite-7-646CFF?logo=vite&logoColor=white" alt="Vite" />
+  <img src="https://img.shields.io/badge/Tailwind_CSS-4-06B6D4?logo=tailwindcss&logoColor=white" alt="Tailwind CSS" />
+  <img src="https://img.shields.io/badge/Node.js-22-339933?logo=node.js&logoColor=white" alt="Node.js 22" />
+  <img src="https://img.shields.io/badge/SQLite-libSQL-003B57?logo=sqlite&logoColor=white" alt="SQLite via libSQL" />
+  <img src="https://img.shields.io/badge/License-GPL--3.0-blue" alt="GPL-3.0" />
+</p>
+
+Search any team, event or match; read OPR breakdowns and trends; ask the
+prediction lab who wins a what-if alliance or how likely a team is to advance
+from any event — and check the public track record of how often those
+predictions came true.
 
 Sister app of [Control Point](https://tryctrlpoint.org) (team management).
 Same design language, and the **same prediction engine**: both apps run
 [`@control-scout/predict-engine`](packages/predict-engine), one versioned
 package, so predictions can never be better in one app than the other.
+
+## Screenshots
+
+<!-- Screenshots are captured from the live app with `npm run shots` (see AGENTS.md). -->
+
+| Home | Team page |
+|---|---|
+| <img src="docs/screenshots/home.png" alt="Control Scout home" /> | <img src="docs/screenshots/team.png" alt="Control Scout team page" /> |
+
+## Features
+
+**Scout**
+- Instant search across every team, event and match
+- Team pages with full season history and event results
+- Event pages with rankings, matches and insights
+
+**Analyze**
+- OPR breakdowns (auto, teleop, endgame) with ridge-regularised quals-only stats
+- Season trends and per-event performance charts
+- Stat tables with sorting and CSV export
+
+**Predict**
+- Prediction lab: what-if alliances, head-to-head win odds
+- Advancement likelihood for any team at any event
+- Public calibration ledger — every prediction scored against reality
+
+**Access**
+- Free forever, no paywall
+- No account needed for core features; personal data stays on your device
+- Offline data packs (lite < 10 MB for predictions, full packs per season)
 
 ## Stack (and why)
 
