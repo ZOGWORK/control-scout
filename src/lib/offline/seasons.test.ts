@@ -13,6 +13,7 @@ vi.mock("../packs", () => ({
   put: async (k: string, v: unknown) => { store.set(k, v); },
   getv: async (k: string) => { gets.push(k); return store.get(k); },
   del: async (k: string) => { store.delete(k); },
+  keys: async (prefix: string) => [...store.keys()].filter((k) => k.startsWith(prefix)),
   fetchVerified: async (f: PackFile) => files.get(f.url)!,
 }));
 vi.mock("sql.js/dist/sql-wasm-browser.js", () => ({ default: () => initSqlJs() }));
@@ -37,7 +38,7 @@ const file = (season: number, sha: string): PackFile => ({ name: `${season}.sqli
 const ENGINE = "/assets/sql-wasm-browser-abc.wasm";
 
 beforeAll(async () => {
-  for (const [season, sha, name] of [[2023, "a", "Old"], [2024, "a", "Mid"], [2025, "a", "New"], [2025, "b", "Newer"]] as const) {
+  for (const [season, sha, name] of [[2023, "a", "Old"], [2024, "a", "Mid"], [2025, "a", "New"], [2025, "b", "Newer"], [2025, "c", "Newest"]] as const) {
     const db = await packDb(season, { teams: [{ number: 1, name, city: null, state: null, country: null }] });
     files.set(file(season, sha).url, db.export());
   }
@@ -77,6 +78,20 @@ describe("saveSeason", () => {
     expect([...store.keys()]).toEqual(["season:2025:a"]);
     expect(savedSeasons().map((s) => s.sha256)).toEqual(["a"]);
     expect(await names()).toEqual(["2025:New"]);
+  });
+
+  it("two releases saved at once leave exactly one stored copy, the listed one", async () => {
+    await saveSeason(file(2025, "a"), manifest);
+    await Promise.all([saveSeason(file(2025, "b"), manifest), saveSeason(file(2025, "c"), manifest)]);
+    const listed = savedSeasons().find((s) => s.season === 2025)!.sha256;
+    expect([...store.keys()]).toEqual([`season:2025:${listed}`]);
+  });
+
+  it("removing a season also clears copies an interrupted save left behind", async () => {
+    await saveSeason(file(2025, "a"), manifest);
+    store.set("season:2025:orphan", new Uint8Array(1));
+    await removeSeason(2025);
+    expect([...store.keys()]).toEqual([]);
   });
 
   it("an update replaces the old copy only once it's saved", async () => {

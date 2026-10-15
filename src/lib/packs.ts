@@ -33,6 +33,7 @@ function idb(): Promise<IDBDatabase> {
 export async function put(key: string, value: unknown) { const db = await idb(); await new Promise<void>((res, rej) => { const t = db.transaction("packs", "readwrite"); t.objectStore("packs").put(value, key); t.oncomplete = () => { db.close(); res(); }; t.onerror = () => rej(t.error); }); }
 export async function getv<T>(key: string): Promise<T | undefined> { const db = await idb(); return new Promise((res, rej) => { const t = db.transaction("packs"); const r = t.objectStore("packs").get(key); r.onsuccess = () => { db.close(); res(r.result as T | undefined); }; r.onerror = () => rej(r.error); }); }
 
+export async function keys(prefix: string): Promise<string[]> { const db = await idb(); return new Promise((res, rej) => { const t = db.transaction("packs"); const r = t.objectStore("packs").getAllKeys(); r.onsuccess = () => { db.close(); res(r.result.map(String).filter((k) => k.startsWith(prefix))); }; r.onerror = () => rej(r.error); }); }
 export async function del(key: string) { const db = await idb(); await new Promise<void>((res, rej) => { const t = db.transaction("packs", "readwrite"); t.objectStore("packs").delete(key); t.oncomplete = () => { db.close(); res(); }; t.onerror = () => rej(t.error); }); }
 
 export interface PackMeta { version: string; bytes: number; savedAt: number; builtAt: string; engineVersion: string }
