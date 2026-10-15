@@ -37,19 +37,31 @@ export interface OprResult {
  * it doesn't move a well-posed answer.
  */
 export function solveOpr(rows: OprRow[]): OprResult {
+  const { teams, solution, rows: counts } = solveLeastSquares(rows.map((r) => ({ teams: r.teams, values: OPR_COMPONENTS.map((c) => r.values[c]) })));
+  const out = {} as OprResult["opr"];
+  OPR_COMPONENTS.forEach((c, ci) => { out[c] = new Map(teams.map((t, i) => [t, solution[i][ci]])); });
+  return { opr: out, rows: counts };
+}
+
+/**
+ * The same least squares for any number of value columns at once: each row is
+ * an alliance (its listed robots) and that alliance's values. Returns, per
+ * team (sorted), the solved contribution for every column.
+ */
+export function solveLeastSquares(rows: { teams: number[]; values: number[] }[]): { teams: number[]; solution: number[][]; rows: Map<number, number> } {
   const teams = [...new Set(rows.flatMap((r) => r.teams))].sort((a, b) => a - b);
   const idx = new Map(teams.map((t, i) => [t, i]));
   const n = teams.length;
   const counts = new Map<number, number>();
   for (const r of rows) for (const t of r.teams) counts.set(t, (counts.get(t) ?? 0) + 1);
   const members = rows.map((r) => r.teams.map((t) => idx.get(t)!));
-  // Augmented matrix [AᵀA | Aᵀy₁ … Aᵀy₅]: one elimination solves every component.
-  const k = OPR_COMPONENTS.length;
+  // Augmented matrix [AᵀA | Aᵀy₁ … Aᵀyₖ]: one elimination solves every column.
+  const k = rows[0]?.values.length ?? 0;
   const M: number[][] = Array.from({ length: n }, () => new Array(n + k).fill(0));
   members.forEach((m, r) => {
     for (const i of m) {
       for (const j of m) M[i][j] += 1;
-      OPR_COMPONENTS.forEach((c, ci) => { M[i][n + ci] += rows[r].values[c]; });
+      for (let ci = 0; ci < k; ci++) M[i][n + ci] += rows[r].values[ci];
     }
   });
   for (let i = 0; i < n; i++) M[i][i] += 1e-9;
@@ -64,9 +76,7 @@ export function solveOpr(rows: OprRow[]): OprResult {
       for (let col = c; col < n + k; col++) M[r][col] -= f * M[c][col];
     }
   }
-  const out = {} as OprResult["opr"];
-  OPR_COMPONENTS.forEach((c, ci) => { out[c] = new Map(teams.map((t, i) => [t, M[i][n + ci] / M[i][i]])); });
-  return { opr: out, rows: counts };
+  return { teams, solution: teams.map((_, i) => Array.from({ length: k }, (_, ci) => M[i][n + ci] / M[i][i])), rows: counts };
 }
 
 /** Build OPR rows from match rows. */

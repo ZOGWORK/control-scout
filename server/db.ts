@@ -268,6 +268,68 @@ DROP INDEX IF EXISTS match_teams_team;
 ALTER TABLE predictions ADD COLUMN no_score_basis INTEGER NOT NULL DEFAULT 0;
 `,
   },
+  {
+    version: 7,
+    name: "records tables (team-event and team-season stats for filtering)",
+    sql: `
+-- One row per team per event (teams that played a qualification match), written
+-- by the stats job (server/stats/records.ts). Team and event fields are copied in
+-- so a filtered, sorted page is one scan of one table.
+-- Score columns: <part>_<aggregate>, over the team's qualification matches.
+CREATE TABLE team_event_records (
+  season INTEGER NOT NULL, code TEXT NOT NULL, team INTEGER NOT NULL,
+  event_name TEXT, event_type TEXT, event_region TEXT, event_start TEXT, event_end TEXT,
+  team_name TEXT, home_region TEXT, rookie_year INTEGER, school TEXT,
+  -- Case- and accent-folded copies for text filters (SQLite's lower() is ASCII-only).
+  event_name_fold TEXT, team_name_fold TEXT, school_fold TEXT,
+  rank INTEGER, rp REAL, tb1 REAL, played INTEGER, wins INTEGER, losses INTEGER, ties INTEGER,
+  total_tot REAL, total_avg REAL, total_opr REAL, total_min REAL, total_max REAL, total_dev REAL,
+  np_tot REAL, np_avg REAL, np_opr REAL, np_min REAL, np_max REAL, np_dev REAL,
+  auto_tot REAL, auto_avg REAL, auto_opr REAL, auto_min REAL, auto_max REAL, auto_dev REAL,
+  dc_tot REAL, dc_avg REAL, dc_opr REAL, dc_min REAL, dc_max REAL, dc_dev REAL,
+  endgame_tot REAL, endgame_avg REAL, endgame_opr REAL, endgame_min REAL, endgame_max REAL, endgame_dev REAL,
+  pen_tot REAL, pen_avg REAL, pen_opr REAL, pen_min REAL, pen_max REAL, pen_dev REAL,
+  opp_pen_tot REAL, opp_pen_avg REAL, opp_pen_opr REAL, opp_pen_min REAL, opp_pen_max REAL, opp_pen_dev REAL,
+  pred_win_avg REAL, pred_score_avg REAL, adv_odds REAL,
+  PRIMARY KEY (season, code, team)
+) WITHOUT ROWID;
+-- WITHOUT ROWID clusters rows by season: a filtered page reads one season's rows
+-- in order (≈30 ms for 2025–26) instead of 28k rowid lookups through an index (≈180 ms).
+
+-- One row per team per season: the same stats over all its qualification
+-- matches that season (OPR = best event OPR, as the season ranks use).
+CREATE TABLE team_season_records (
+  season INTEGER NOT NULL, team INTEGER NOT NULL,
+  team_name TEXT, home_region TEXT, rookie_year INTEGER, school TEXT,
+  team_name_fold TEXT, school_fold TEXT,
+  events INTEGER, played INTEGER, wins INTEGER, losses INTEGER, ties INTEGER,
+  total_tot REAL, total_avg REAL, total_opr REAL, total_min REAL, total_max REAL, total_dev REAL,
+  np_tot REAL, np_avg REAL, np_opr REAL, np_min REAL, np_max REAL, np_dev REAL,
+  auto_tot REAL, auto_avg REAL, auto_opr REAL, auto_min REAL, auto_max REAL, auto_dev REAL,
+  dc_tot REAL, dc_avg REAL, dc_opr REAL, dc_min REAL, dc_max REAL, dc_dev REAL,
+  endgame_tot REAL, endgame_avg REAL, endgame_opr REAL, endgame_min REAL, endgame_max REAL, endgame_dev REAL,
+  pen_tot REAL, pen_avg REAL, pen_opr REAL, pen_min REAL, pen_max REAL, pen_dev REAL,
+  opp_pen_tot REAL, opp_pen_avg REAL, opp_pen_opr REAL, opp_pen_min REAL, opp_pen_max REAL, opp_pen_dev REAL,
+  pred_win_avg REAL, pred_score_avg REAL,
+  PRIMARY KEY (season, team)
+) WITHOUT ROWID;
+
+-- One row per played match (in-person events), with event fields, lineups
+-- (listed teams, space-separated) and DC as FIRST reports it.
+CREATE TABLE match_records (
+  season INTEGER NOT NULL, code TEXT NOT NULL, level TEXT NOT NULL, series INTEGER NOT NULL, number INTEGER NOT NULL,
+  label TEXT, time TEXT,
+  event_name TEXT, event_type TEXT, event_region TEXT, event_start TEXT, event_end TEXT,
+  event_name_fold TEXT,
+  red_teams TEXT, blue_teams TEXT,
+  red_total INTEGER, red_np INTEGER, red_auto INTEGER, red_dc INTEGER, red_endgame INTEGER, red_pen INTEGER,
+  blue_total INTEGER, blue_np INTEGER, blue_auto INTEGER, blue_dc INTEGER, blue_endgame INTEGER, blue_pen INTEGER,
+  margin INTEGER, high INTEGER, combined INTEGER,
+  red_pred_win REAL,
+  PRIMARY KEY (season, code, level, series, number)
+) WITHOUT ROWID;
+`,
+  },
 ];
 
 export type Db = Client;

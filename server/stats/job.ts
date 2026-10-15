@@ -12,6 +12,7 @@ import { oprRows, solveOpr } from "./opr.js";
 import { normalize } from "../api/fuzzy.js";
 import { forecasterFor } from "../predict/engine.js";
 import { regionNames } from "../../src/shared/regions.js";
+import { computeRecords, fillAdvancementOdds, fillRecordPredictions } from "./records.js";
 
 type Log = (m: string) => void;
 const r1 = (x: number | null | undefined) => (x == null || !Number.isFinite(x) ? null : Math.round(x * 100) / 100);
@@ -316,8 +317,9 @@ export interface StatsOptions { seasons?: number[]; backtest?: boolean; log?: Lo
  * seasons once (the scheduled cycle otherwise refreshes only the current one).
  * 2: hybrid events counted (they were skipped, leaving events without stats).
  * 3: OPR computed exactly like FTC Scout (least squares, all listed teams, TeleOp as FIRST reports it).
+ * 4: records tables (team_event_records, team_season_records) for /api/records.
  */
-export const STATS_RULES = 3;
+export const STATS_RULES = 4;
 
 /** True when past seasons were computed under older rules. */
 export async function statsRulesStale(): Promise<boolean> {
@@ -330,15 +332,24 @@ export async function runStats(o: StatsOptions = {}): Promise<void> {
   // last finished ratings until the new ones are built, and frozen seasons stay read (engine.ts).
   await kvSet("data:version", new Date().toISOString());
   const seasons = o.seasons ?? SEASON_NUMBERS;
+  const withData: number[] = [];
   for (const s of seasons) {
     const events = await loadSeason(s);
     if (!events.length) { log(`${s}: no data`); continue; }
     await computeSeasonStats(s, events, log);
+    await computeRecords(s, events, log);
+    withData.push(s);
   }
   const doBacktest = o.backtest ?? !(await get("SELECT 1 FROM predictions WHERE kind = 'backtest' LIMIT 1"));
   // Every season once; after that the current season on every run, so matches played since get their replayed call.
   if (doBacktest) await backtest(PREDICT_SEASONS, log);
   else if (seasons.includes(CURRENT_SEASON)) await backtest(PREDICT_SEASONS, log, { write: [CURRENT_SEASON] });
+  // Records' exclusives need the ledger (above) and the ratings: 2023+ only (older seasons are history).
+  for (const s of withData) {
+    if (isLegacy(s)) continue;
+    await fillRecordPredictions(s, log);
+    await fillAdvancementOdds(s, log);
+  }
   await scoreLivePredictions(log);
   await logLivePredictions(log);
   await rebuildSearch(log);

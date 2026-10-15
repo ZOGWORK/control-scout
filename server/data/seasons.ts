@@ -131,7 +131,12 @@ export const ownScorePenalties = (season: number) => season === 2020 || season =
  * them separately.
  */
 export function teleopAsReported(season: number, s: { teleop: number; endgame: number }): number {
-  return season >= 2024 ? s.teleop + s.endgame : s.teleop;
+  return reportedTeleopIncludesEndgame(season) ? s.teleop + s.endgame : s.teleop;
+}
+
+/** Whether FIRST's reported TeleOp includes the endgame (see teleopAsReported). */
+export function reportedTeleopIncludesEndgame(season: number): boolean {
+  return season >= 2024;
 }
 
 /** FIRST event type names → the compact form the engine uses (FTC Scout style). */
