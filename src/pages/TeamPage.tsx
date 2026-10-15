@@ -5,9 +5,10 @@ import { useMemo, useState } from "react";
 import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { CartesianGrid, Line, LineChart, XAxis, YAxis } from "recharts";
 import {
-  Award, Bookmark, BookmarkCheck, CalendarDays, ChevronDown, ClipboardList, ExternalLink, Eye, Flag, Gauge, GraduationCap, Link2, MapPin, Scale, Search, SearchX, Sparkles, Star, Target, TrendingDown, TrendingUp, Trophy, Zap,
+  Award, Bookmark, BookmarkCheck, CalendarDays, ChevronDown, ClipboardList, ExternalLink, Eye, Flag, Gauge, GraduationCap, Link2, MapPin, Scale, Sparkles, Star, Target, TrendingDown, TrendingUp, Trophy, Zap,
 } from "lucide-react";
-import { useApi, qs } from "../lib/api";
+import { type ApiError, useApi, qs } from "../lib/api";
+import { NotFoundView } from "../components/NotFoundView";
 import { useAfterFirstPaint } from "../lib/afterPaint";
 import { usePredictable, useTitle } from "../lib/meta";
 import { usePersonal, useTeamFlags } from "../lib/personal";
@@ -28,20 +29,27 @@ import { cn } from "../components/cn";
 import { awardLabel, dateRange, int, num, place, seasonLabel, topPct } from "../lib/format";
 import { eventTypeLabel } from "../lib/labels";
 import { copyLink } from "../lib/clipboard";
-import { useSearch } from "../components/layout/Search";
 import { OfflineNote } from "../components/OfflineNote";
+import { StickyActions, useScrolledPast } from "../components/StickyActions";
 
 export default function TeamPage() {
   const { number } = useParams();
   const [sp, setSp] = useSearchParams();
   const team = Number(number);
   const season = sp.get("season");
-  const search = useSearch();
-  // FTC team numbers are 1–999999; anything else can't exist, so don't ask the API.
-  const valid = Number.isInteger(team) && team >= 1 && team <= 999_999;
+  // FTC team numbers are 1–999999, digits only (as on the server); anything else can't exist, so don't ask the API.
+  const valid = /^\d+$/.test(number ?? "") && team >= 1 && team <= 999_999;
   const state = useApi<TeamProfile>(valid ? `/api/teams/${team}${qs({ season })}` : null);
-  useTitle(state.data?.team.name ? `Team ${state.data.team.number} — ${state.data.team.name}` : `Team ${number}`); // same as the server-rendered title
-  if (!valid) return <EmptyState icon={SearchX} title={`There's no team ${number}`} description="FTC team numbers are whole numbers from 1 to 999999, like 4215." action={<Button variant="secondary" onClick={search.open}><Search /> Search teams</Button>} />;
+  // Not a team (the server answers these addresses with a 404 too), or a season the API doesn't cover: the branded not-found page.
+  const notFound = (state.error as ApiError | undefined)?.status === 404 ? state.error! : null;
+  useTitle(!valid || notFound ? "Team not found" : state.data?.team.name ? `Team ${state.data.team.number} — ${state.data.team.name}` : `Team ${number}`); // same as the server-rendered title
+  if (!valid) return <NotFoundView title={`There's no team ${number}`} description="FTC team numbers are whole numbers from 1 to 999999, like 4215. Search for the team you're after." />;
+  // The API's own reason: "No FTC team … in our data", or (with ?season=) "Season … isn't covered".
+  if (notFound) {
+    return season
+      ? <NotFoundView title={notFound.message} description="This link asks for a specific season. Without it, the team's page opens on their newest one." action={<Button variant="secondary" asChild><Link to={`/teams/${team}`}>Open team {team}'s newest season</Link></Button>} />
+      : <NotFoundView title={notFound.message} description="It may not have registered for a season we cover yet, or the number is mistyped. Search by number or name." />;
+  }
   return (
     <Async state={state}>
       {(p) => <Profile p={p} onSeason={(s) => setSp((x) => { x.set("season", String(s)); return x; }, { replace: true })} />}
@@ -122,9 +130,12 @@ function Hero({ p, onSeason }: { p: TeamProfile; onSeason: (s: number) => void }
   const top = topPct(s?.opr.np.rank, s?.opr.np.of);
   const predictable = usePredictable(p.season);
   const share = () => copyLink();
+  const [headerEnd, pastHeader] = useScrolledPast<HTMLDivElement>();
+  const predictHref = `/predict?mode=match&season=${p.season}&red=${t.number},`;
   return (
+    <>
     <Reveal fade={false} className="mb-8 overflow-hidden rounded-2xl border border-border bg-card">
-      <div className="grid lg:grid-cols-[minmax(0,1fr)_minmax(0,1.05fr)]">
+      <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.05fr)]">
         {/* Who this is */}
         <div className="relative min-w-0 p-6 sm:p-8">
           <div aria-hidden className="pointer-events-none absolute -left-24 -top-24 size-64 rounded-full bg-accent opacity-[0.12] blur-3xl" />
@@ -166,7 +177,7 @@ function Hero({ p, onSeason }: { p: TeamProfile; onSeason: (s: number) => void }
           </a>
         </div>
         {/* At a glance: the five-second answer to "is this team good?" */}
-        <div className="border-t border-border bg-secondary/60 p-6 sm:p-8 lg:border-l lg:border-t-0">
+        <div className="min-w-0 border-t border-border bg-secondary/60 p-6 sm:p-8 lg:border-l lg:border-t-0">
           <p className="text-xs font-medium uppercase tracking-[0.08em] text-muted-foreground">At a glance · {seasonLabel(p.season)}</p>
           {!s ? (
             <div className="mt-4 space-y-3 text-sm">
@@ -206,13 +217,22 @@ function Hero({ p, onSeason }: { p: TeamProfile; onSeason: (s: number) => void }
           </div>
           {predictable ? (
             <div className="mt-5 flex flex-wrap gap-2">
-              <Button size="sm" asChild><Link to={`/predict?mode=match&season=${p.season}&red=${t.number},`}><Sparkles /> Predict a match with {t.number}</Link></Button>
+              <Button size="sm" asChild><Link to={predictHref}><Sparkles /> Predict a match with {t.number}</Link></Button>
               {!(next && ADVANCING.has(next.type ?? "")) && <Button size="sm" variant="secondary" asChild><Link to={`/predict?mode=advancement&season=${p.season}&team=${t.number}`}><Trophy /> Advancement odds</Link></Button>}
             </div>
           ) : <p className="mt-5 text-xs text-muted-foreground">{seasonLabel(p.season)} is shown for history: results and stats, no predictions (those start with 2023–24).</p>}
         </div>
       </div>
+      <div ref={headerEnd} aria-hidden />
     </Reveal>
+    {/* Phones: once the header has scrolled away, its main actions stay in reach (history seasons: Track only, no predictions). */}
+    <StickyActions show={pastHeader} label={`Actions for team ${t.number}`}>
+      {predictable && <Button asChild><Link to={predictHref}><Sparkles /> <span className="truncate">Predict with {t.number}</span></Link></Button>}
+      <Button variant={flags.tracked ? "secondary" : "outline"} aria-pressed={flags.tracked} onClick={track} className={cn(predictable && "!flex-none")}>
+        <Eye className={cn(flags.tracked && "text-accent")} /> {flags.tracked ? "Tracking" : "Track"}
+      </Button>
+    </StickyActions>
+    </>
   );
 }
 
@@ -374,7 +394,7 @@ function EventHistory({ events, team }: { events: TeamEventRow[]; team: number }
               </div>
             )}
           </div>
-          <div className="grid grid-cols-3 gap-4 text-right text-sm tabular-nums">
+          <div className="grid grid-cols-3 gap-4 text-right text-sm tabular-nums max-sm:w-full max-sm:pl-[3.25rem] max-sm:text-left">
             <div><p className="text-[10px] uppercase tracking-wider text-muted-foreground">Record</p><p className="font-medium">{e.wins ?? "–"}-{e.losses ?? "–"}-{e.ties ?? "–"}</p></div>
             <div><p className="text-[10px] uppercase tracking-wider text-muted-foreground">RS</p><p className="font-medium">{num(e.rp, 2)}</p></div>
             <div><p className="text-[10px] uppercase tracking-wider text-muted-foreground">OPR</p><p className="font-medium">{num(e.opr.np)}</p></div>

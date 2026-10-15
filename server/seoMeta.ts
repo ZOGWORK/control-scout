@@ -7,6 +7,8 @@ import { get } from "./db.js";
 import { seasonInfo } from "./data/seasons.js";
 import { eventTypeLabel } from "../src/shared/labels.js";
 import { canonicalOrigin, canonicalUrl } from "./seo.js";
+import { teamKnown } from "./api/teams.js";
+import { pageModule } from "../src/shared/routes.js";
 
 export const SITE = "FTC Control Scout";
 const HOME_TITLE = "FTC Control Scout — free FTC scouting & predictions";
@@ -24,7 +26,15 @@ export interface PageMeta {
   noindex?: boolean;
   /** schema.org structured data (JSON-LD), in the first HTML with the rest of the head. */
   jsonLd?: Record<string, unknown>[];
+  /** No such page (an unknown route, team or event): served with HTTP 404, noindex, no canonical. */
+  notFound?: boolean;
 }
+
+
+const NOT_FOUND: PageMeta = {
+  title: "Page not found", description: "This page doesn't exist on FTC Control Scout. Search for any FTC team, event or match instead.",
+  type: "website", noindex: true, notFound: true,
+};
 
 const FTC = { "@type": "SportsOrganization", name: "FIRST Tech Challenge", url: "https://www.firstinspires.org/robotics/ftc" };
 const address = (city?: string | null, state?: string | null, country?: string | null) => {
@@ -69,6 +79,7 @@ const STATIC: Record<string, { title: string; description: string; noindex?: boo
   "/download": { title: "Download FTC data", description: "Download full FTC seasons as SQLite files: every event, team, match, score breakdown, ranking and award. Offline predictions are saved automatically." },
   "/privacy": { title: "Privacy policy", description: "How Control Scout handles your data: no account needed, only essential sign-in cookies, no ads or third-party trackers, anonymous stats only if you allow them." },
   "/terms": { title: "Terms of use", description: "The terms for using Control Scout: free, predictions are estimates, FTC data can be wrong, rate limits instead of scraping, and your scouting notes stay yours." },
+  "/contact": { title: "Contact", description: "Contact the Control Scout team: report a bug, ask for a data correction, suggest a feature or ask a question about your data or the site." },
   "/my-team": { title: "My team", description: "Your team's dashboard on Control Scout.", noindex: true },
   "/shortlist": { title: "Shortlist", description: "Your shortlisted FTC teams on Control Scout.", noindex: true },
   "/scout": { title: "Scout", description: "Your scouting notes on Control Scout.", noindex: true },
@@ -80,7 +91,10 @@ const place = (...parts: (string | null | undefined)[]) => parts.filter((x) => x
 const dateLong = (d: string | null) => (d ? new Date(`${d}T12:00:00Z`).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric", timeZone: "UTC" }) : "");
 
 async function teamMeta(n: number): Promise<PageMeta> {
+  if (n < 1 || n > 999_999) return NOT_FOUND;
   const t = await get<{ name: string | null; city: string | null; state: string | null; country: string | null }>("SELECT name, city, state, country FROM teams WHERE number = ?", [n]);
+  // The team API's test (teamProfile): a team we've never seen is a 404 there and here.
+  if (!t && !(await teamKnown(n))) return NOT_FOUND;
   const s = await get<{ season: number; opr_np: number | null; rank_np: number | null; ranked_teams: number | null; wins: number; losses: number; ties: number }>(
     "SELECT season, opr_np, rank_np, ranked_teams, wins, losses, ties FROM team_season_stats WHERE team = ? AND matches > 0 ORDER BY season DESC LIMIT 1", [n]);
   const name = t?.name?.trim();
@@ -103,6 +117,7 @@ async function teamMeta(n: number): Promise<PageMeta> {
 }
 
 async function eventMeta(season: number, code: string): Promise<PageMeta | null> {
+  if (season < 2000 || season > 2100) return null; // the API's own range (and never a huge number in a query)
   const e = await get<{ name: string; type: string | null; venue: string | null; city: string | null; state: string | null; country: string | null; start: string | null; end: string | null; remote: number; hybrid: number }>(
     "SELECT name, type, venue, city, state, country, start, end, remote, hybrid FROM events WHERE season = ? AND code = ?", [season, code]);
   if (!e) return null;
@@ -132,20 +147,33 @@ async function eventMeta(season: number, code: string): Promise<PageMeta | null>
   return { title: `${e.name} (${seasonInfo(season).label})`, description, type: "website", path: `/events/${season}/${code}`, jsonLd: [ev] };
 }
 
-/** The head values for a page path (null: no page-specific values; the home ones are used). */
+/** The head values for a page path: the page's own, the home ones when it has none, or notFound for no such page. */
 export async function pageMeta(path: string): Promise<PageMeta> {
-  const p = path.length > 1 ? path.replace(/\/+$/, "") : "/";
+  // Matched decoded, as React Router does (/teams/%34%32%31%35 is team 4215). Segment by segment, so an
+  // encoded "/" never adds a segment; a malformed escape stays as written (and then matches no route).
+  const decode = (s: string) => { try { const d = decodeURIComponent(s); return d.includes("/") ? s : d; } catch { return s; } };
+  const trimmed = path.length > 1 ? path.replace(/\/+$/, "") : "/";
+  const p = trimmed.split("/").map(decode).join("/");
   try {
     let m: RegExpMatchArray | null;
-    if ((m = p.match(/^\/teams\/(\d{1,6})$/))) return await teamMeta(Number(m[1]));
-    if ((m = p.match(/^\/events\/(\d{4})\/([A-Za-z0-9_-]{1,40})$/))) {
+    // Any number of digits: the value is what counts (/teams/0004215 is team 4215, as in the app; a huge one is out of range).
+    if ((m = p.match(/^\/teams\/(\d+)$/i))) return await teamMeta(Number(m[1]));
+    // The season by value too (/events/02025/X is 2025, as in the app and the API).
+    if ((m = p.match(/^\/events\/(\d+)\/([A-Za-z0-9_-]{1,40})$/i))) {
       // Event codes are case-insensitive in the app (the API uppercases them): same here.
-      const e = await eventMeta(Number(m[1]), decodeURIComponent(m[2]).toUpperCase());
-      if (e) return e;
+      return (await eventMeta(Number(m[1]), m[2].toUpperCase())) ?? NOT_FOUND;
     }
-  } catch { /* database not ready: fall through to the generic values */ }
+  } catch {
+    // Database not ready: the generic values, never a 404 (the page may well exist).
+    return { title: "", description: HOME_DESC, type: "website" };
+  }
+  // A team or event address that can't be one (/teams/abc, /teams/1234567, /events/2025/a%20b): the app says not found too.
+  if (/^\/teams\/[^/]+$/i.test(p) || /^\/events\/[^/]+\/[^/]+$/i.test(p)) return NOT_FOUND;
   const s = STATIC[p];
   if (s) return { title: s.title, description: s.noindex ? s.description : fitDescription(s.description), type: "website", ...(s.noindex ? { noindex: true } : {}) };
+  // The app's routes (src/shared/routes.ts, as React Router matches them): anything else is its not-found page.
+  // The team and event routes were checked against the database above.
+  if (pageModule(p) === "NotFound") return NOT_FOUND;
   return { title: "", description: HOME_DESC, type: "website", ...(p === "/" ? { jsonLd: homeJsonLd() } : {}) };
 }
 
@@ -159,13 +187,15 @@ export function headTags(path: string, m: PageMeta): string {
   const tags = [
     `<title>${esc(title)}</title>`,
     `<meta name="description" content="${esc(m.description)}" />`,
-    ...(m.noindex ? [`<meta name="robots" content="noindex" />`] : []),
-    `<link rel="canonical" href="${esc(url)}" />`,
+    // A 404's noindex is marked, so the app removes it on moving to a real page (CanonicalSync in src/lib/meta.tsx).
+    ...(m.noindex ? [`<meta name="robots" content="noindex"${m.notFound ? " data-not-found" : ""} />`] : []),
+    // A 404 names no canonical URL (there's no page to point at).
+    ...(m.notFound ? [] : [`<link rel="canonical" href="${esc(url)}" />`]),
     `<meta property="og:type" content="${m.type}" />`,
     `<meta property="og:site_name" content="${SITE}" />`,
     `<meta property="og:title" content="${esc(title)}" />`,
     `<meta property="og:description" content="${esc(m.description)}" />`,
-    `<meta property="og:url" content="${esc(url)}" />`,
+    ...(m.notFound ? [] : [`<meta property="og:url" content="${esc(url)}" />`]),
     `<meta property="og:image" content="${image}" />`,
     `<meta property="og:image:width" content="1200" />`,
     `<meta property="og:image:height" content="630" />`,

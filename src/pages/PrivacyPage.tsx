@@ -53,6 +53,7 @@ const SECTIONS: LegalSectionDef[] = [
         <ul>
           <li><strong>If you sign in:</strong> your email address, an optional display name, and what you choose to sync: my team, tracked teams and events, your shortlist and its notes, scouting entries and match-video links.</li>
           <li><strong>If you allow anonymous usage statistics:</strong> which pages are viewed. See <a href="#analytics">Usage statistics</a>.</li>
+          <li><strong>If you contact us:</strong> the email address, optional name and message you send through the <In to="/contact">contact form</In>.</li>
           <li><strong>Server logs:</strong> like any website, our web server briefly records requests (the page asked for, IP address, browser type) to keep the site secure and working.</li>
         </ul>
         <p>Beyond that, we don't ask for your age, school, team role or location, and we never sell or rent data to anyone.</p>
@@ -64,6 +65,7 @@ const SECTIONS: LegalSectionDef[] = [
       <ul>
         <li><strong>Your email</strong> is used only to send sign-in codes and to recognise your account. No newsletters, no marketing.</li>
         <li><strong>Synced data</strong> is there so your lists and scouting follow you between devices.</li>
+        <li><strong>Contact messages</strong> are used only to read and answer what you sent.</li>
         <li><strong>Usage statistics</strong> (only if you allow them) tell us which pages people use, so we know what to improve.</li>
         <li><strong>Server logs</strong> help us stop abuse (for example too many sign-in attempts) and fix errors.</li>
       </ul>
@@ -122,6 +124,7 @@ const SECTIONS: LegalSectionDef[] = [
         <li><strong>Sign-in sessions:</strong> 30 days, or until you sign out.</li>
         <li><strong>Sign-in codes:</strong> 10 minutes.</li>
         <li><strong>Server logs:</strong> about two weeks, then deleted automatically.</li>
+        <li><strong>Contact messages:</strong> as long as we need them to follow up. Ask us and we'll delete yours.</li>
         <li><strong>Usage statistics:</strong> anonymous page counts, with nothing that could tie them back to you.</li>
         <li><strong>Data on your device:</strong> until you clear it. It's yours, and it's under your control.</li>
       </ul>

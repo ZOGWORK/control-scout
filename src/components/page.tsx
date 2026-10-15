@@ -23,8 +23,10 @@ export function PageHeader({ title, description, actions, eyebrow, children }: {
   /** Tabs or filters under the title. */
   children?: ReactNode;
 }) {
+  // No fade-in: the title and description are the page's main content, so they paint at full
+  // opacity on the first frame (replacing the static first paint). A page change fades the whole page (Shell).
   return (
-    <Reveal className="mb-8">
+    <div className="mb-8">
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div className="min-w-0">
           {eyebrow && <p className="mb-2 text-xs font-medium uppercase tracking-[0.08em] text-muted-foreground">{eyebrow}</p>}
@@ -34,7 +36,7 @@ export function PageHeader({ title, description, actions, eyebrow, children }: {
         {actions && <div data-print-hide className="flex shrink-0 items-center gap-2">{actions}</div>}
       </div>
       {children && <div className="mt-6">{children}</div>}
-    </Reveal>
+    </div>
   );
 }
 
