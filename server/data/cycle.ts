@@ -17,28 +17,34 @@ import { packsPresent } from "../packs/routes.js";
 import { syncAll } from "../sync.js";
 import { runStats, statsRulesStale } from "../stats/job.js";
 import { CURRENT_SEASON, isLegacy } from "./seasons.js";
+import { withDataLock } from "./lock.js";
 
 type Log = (m: string) => void;
 
 export async function runCycle(log: Log) {
-  if (hasFirst()) await syncAll({ seasons: [CURRENT_SEASON], log: (m) => log(`  ${m}`) });
-  else log("  FIRST credentials missing — sync skipped (FTC Scout fallback runs per event only)");
-  // A past season not fetched in full yet (2019–2022 after they were added): one per cycle, newest
-  // first, only in the quiet hours (it takes ~10 min and would hold up live syncs while matches play).
-  const backfill = hasFirst() && backfillOn() && quietHours() ? await nextBackfill() : null;
-  if (backfill) {
-    log(`  backfill: ${backfill}`);
-    // Marked before the sync and cleared only once its stats are in: syncing freezes the season, so a cycle
-    // stopped between the two would otherwise never come back for the stats.
-    await kvSet(STATS_PENDING, [...new Set([...(await statsPending()), backfill])]);
-    await syncAll({ seasons: [backfill], log: (m) => log(`  ${m}`) });
-  }
-  const pending = await statsPending();
-  // Every season once after the stats rules change; otherwise just the current one (and a backfilled one).
-  const every = await statsRulesStale();
-  if (every) log("  stats rules changed: recomputing every season");
-  await runStats({ seasons: every ? undefined : [...new Set([CURRENT_SEASON, ...pending])], log: (m) => log(`  ${m}`) });
-  if (pending.length) await kvSet(STATS_PENDING, (await statsPending()).filter((s) => !pending.includes(s)));
+  // Sync + stats hold the writer lease (lock.ts) so the live fast lane never writes at the same time;
+  // it waits for a fast-lane tick to finish (seconds), and the fast lane skips its ticks meanwhile.
+  // The lease is renewed while held, so a long backfill keeps it.
+  await withDataLock("cycle", async () => {
+    if (hasFirst()) await syncAll({ seasons: [CURRENT_SEASON], log: (m) => log(`  ${m}`) });
+    else log("  FIRST credentials missing — sync skipped (FTC Scout fallback runs per event only)");
+    // A past season not fetched in full yet (2019–2022 after they were added): one per cycle, newest
+    // first, only in the quiet hours (it takes ~10 min and would hold up live syncs while matches play).
+    const backfill = hasFirst() && backfillOn() && quietHours() ? await nextBackfill() : null;
+    if (backfill) {
+      log(`  backfill: ${backfill}`);
+      // Marked before the sync and cleared only once its stats are in: syncing freezes the season, so a cycle
+      // stopped between the two would otherwise never come back for the stats.
+      await kvSet(STATS_PENDING, [...new Set([...(await statsPending()), backfill])]);
+      await syncAll({ seasons: [backfill], log: (m) => log(`  ${m}`) });
+    }
+    const pending = await statsPending();
+    // Every season once after the stats rules change; otherwise just the current one (and a backfilled one).
+    const every = await statsRulesStale();
+    if (every) log("  stats rules changed: recomputing every season");
+    await runStats({ seasons: every ? undefined : [...new Set([CURRENT_SEASON, ...pending])], log: (m) => log(`  ${m}`) });
+    if (pending.length) await kvSet(STATS_PENDING, (await statsPending()).filter((s) => !pending.includes(s)));
+  }, { ttlMs: 5 * 60_000, waitMs: 5 * 60_000, pollMs: 2000 });
   // Offline packs: rebuilt at most daily (they're versioned; devices see "new data available").
   // The timestamp alone isn't enough: an imported database carries
   // packs:last without the pack files, so also require a readable manifest.
