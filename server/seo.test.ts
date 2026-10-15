@@ -116,6 +116,14 @@ describe("page head in the first HTML", () => {
     const home = await renderIndex(file, "/");
     expect(home).toContain("<title>FTC Control Scout — free FTC scouting &amp; predictions</title>");
     expect(/<meta name="description" content="([^"]*)"/.exec(home)![1]).not.toBe(desc);
+    // Policy pages: their own title and a fitted description, indexable.
+    const privacy = await renderIndex(file, "/privacy");
+    expect(privacy).toContain("<title>Privacy policy · FTC Control Scout</title>");
+    expect(privacy).toContain('<link rel="canonical" href="https://controlscout.org/privacy" />');
+    expect(privacy).not.toContain("noindex");
+    const pdesc = /<meta name="description" content="([^"]*)"/.exec(privacy)![1];
+    expect(pdesc.length).toBeGreaterThanOrEqual(120);
+    expect(pdesc.length).toBeLessThanOrEqual(160);
     // Personal pages: noindex.
     expect(await renderIndex(file, "/my-team")).toContain('<meta name="robots" content="noindex" />');
   });
