@@ -129,7 +129,9 @@ export function Shell({ children }: { children: ReactNode }) {
   const [more, setMore] = useState(false);
   const mainRef = useRef<HTMLElement>(null);
   const loc = useLocation();
-  const title = TITLES.find(([re]) => re.test(loc.pathname))?.[1] ?? "Home";
+  // Any other path is the not-found page (routes match regardless of case).
+  const path = loc.pathname.toLowerCase();
+  const title = TITLES.find(([re]) => re.test(path))?.[1] ?? (path === "/" ? "Home" : "Not found");
   const toggle = () => setCollapsed((c) => { try { localStorage.setItem("cs-sidebar", c ? "0" : "1"); } catch { /* ignore */ } return !c; });
   return (
     <MotionConfig reducedMotion="user">

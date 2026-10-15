@@ -66,10 +66,20 @@ function indexHtml(file: string): string {
   return template.html;
 }
 
-/** index.html for this path, with the page's own head tags in the initial HTML. */
-export async function renderIndex(file: string, path: string): Promise<string> {
+/**
+ * index.html for this path, with the page's own head tags in the initial HTML, and its HTTP status:
+ * 404 for a path that isn't an app page (an unknown route, team or event). A 404 still carries the
+ * app's HTML, so the browser shows the app's own not-found page.
+ */
+export async function renderPage(file: string, path: string): Promise<{ status: 200 | 404; html: string }> {
   const { pageMeta, headTags } = await import("./seoMeta.js");
-  const head = headTags(path, await pageMeta(path));
+  const meta = await pageMeta(path);
+  const head = headTags(path, meta);
   // A callback, so $', $`, $& in a team or event name are inserted literally (a replacement string would expand them).
-  return indexHtml(file).replace("</head>", () => `    ${head}\n  </head>`);
+  return { status: meta.notFound ? 404 : 200, html: indexHtml(file).replace("</head>", () => `    ${head}\n  </head>`) };
+}
+
+/** index.html for this path, with the page's own head tags (renderPage without the status). */
+export async function renderIndex(file: string, path: string): Promise<string> {
+  return (await renderPage(file, path)).html;
 }
