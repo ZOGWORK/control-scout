@@ -102,6 +102,24 @@ describe("accounts", () => {
     expect([...r.json.state.bookmarks.value].sort()).toEqual([16321, 18360]); // shortlists united, nothing lost
   });
 
+  it("syncs the shortlist's pick order and notes; an older client's shortlist still works", async () => {
+    const laptop = client(), phone = laptop; // one session: the code limiter allows few sign-ins per test run
+    await signIn(laptop, "picks@example.com");
+    // An older client only knows bookmarks: it writes them, nothing else is needed.
+    expect((await phone("PUT", "/api/me/state/bookmarks", { value: [3, 1, 2], updatedAt: 1000 })).status).toBe(200);
+    // The new client reorders (bookmarks' order is the pick order) and adds notes.
+    expect((await laptop("PUT", "/api/me/state/bookmarks", { value: [2, 3, 1], updatedAt: 2000 })).status).toBe(200);
+    const put = await laptop("PUT", "/api/me/state/shortlistNotes", { value: { "2": " first pick ", bad: "x" }, updatedAt: 2000 });
+    expect(put.status).toBe(200);
+    expect(put.json.stored.value).toEqual({ "2": "first pick" });
+    const state = (await phone("GET", "/api/me/state")).json.state;
+    expect(state.bookmarks.value).toEqual([2, 3, 1]);
+    expect(state.shortlistNotes.value).toEqual({ "2": "first pick" });
+    // A device's notes merge into the account on its first sign-in.
+    const m = await laptop("POST", "/api/me/migrate", { state: { shortlistNotes: { value: { "3": "defense" }, updatedAt: 500 } }, scout: [] });
+    expect(m.json.state.shortlistNotes.value).toEqual({ "2": "first pick", "3": "defense" });
+  });
+
   it("syncs scouting entries and keeps them private to the account", async () => {
     const mine = client(), other = client();
     await signIn(mine, "scout@example.com");

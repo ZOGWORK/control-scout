@@ -24,10 +24,13 @@ export interface PersonalState {
   /** Match ref "season:CODE:level:series:number" → YouTube links. Device recordings never sync. */
   videoLinks: Record<string, VideoLink[]>;
   predictionHistory: SavedPrediction[];
+  /** Private alliance-selection notes on shortlisted teams: team number (as a string) to note. The pick
+   *  order itself is `bookmarks`' order. Added later than the rest: older clients simply don't sync it. */
+  shortlistNotes: Record<string, string>;
 }
 
 export type PersonalKey = keyof PersonalState;
-export const PERSONAL_KEYS: PersonalKey[] = ["myTeam", "tracked", "bookmarks", "settings", "videoLinks", "predictionHistory"];
+export const PERSONAL_KEYS: PersonalKey[] = ["myTeam", "tracked", "bookmarks", "settings", "videoLinks", "predictionHistory", "shortlistNotes"];
 
 export const DEFAULT_SETTINGS: Settings = {
   theme: "dark",
@@ -43,6 +46,7 @@ export const EMPTY_STATE: PersonalState = {
   settings: DEFAULT_SETTINGS,
   videoLinks: {},
   predictionHistory: [],
+  shortlistNotes: {},
 };
 
 /** A stored value with the client clock time it last changed (last write wins). */
@@ -50,6 +54,8 @@ export interface Stamped<T> { value: T; updatedAt: number }
 
 const uniq = <T>(xs: T[]) => [...new Set(xs)];
 const MAX_HISTORY = 200;
+export const MAX_NOTE = 500;
+const MAX_NOTES = 500;
 
 /** Validate + clamp one key's value (null when unusable). Server and client both run this. */
 export function cleanValue<K extends PersonalKey>(key: K, v: unknown): PersonalState[K] | null {
@@ -86,6 +92,17 @@ export function cleanValue<K extends PersonalKey>(key: K, v: unknown): PersonalS
       if (!Array.isArray(v)) return null;
       return v.filter((p) => p && typeof p.id === "string" && Array.isArray(p.red) && Array.isArray(p.blue)).slice(0, MAX_HISTORY) as PersonalState[K];
     }
+    case "shortlistNotes": {
+      if (!v || typeof v !== "object" || Array.isArray(v)) return null;
+      const out: Record<string, string> = {};
+      for (const [team, note] of Object.entries(v as Record<string, unknown>)) {
+        if (Object.keys(out).length >= MAX_NOTES) break;
+        if (!/^[1-9]\d{0,5}$/.test(team) || typeof note !== "string") continue;
+        const text = note.trim().slice(0, MAX_NOTE);
+        if (text) out[team] = text;
+      }
+      return out as PersonalState[K];
+    }
   }
   return null;
 }
@@ -114,6 +131,11 @@ export function mergeValue<K extends PersonalKey>(key: K, account: Stamped<Perso
     case "predictionHistory": {
       const ids = new Set(a.map((p: SavedPrediction) => p.id));
       return { value: [...a, ...l.filter((p: SavedPrediction) => !ids.has(p.id))].sort((x: SavedPrediction, y: SavedPrediction) => y.savedAt - x.savedAt).slice(0, MAX_HISTORY) as any, updatedAt };
+    }
+    case "shortlistNotes": {
+      // Every team's note survives; a team noted on both sides keeps the newer side's note.
+      const newer = local.updatedAt > account.updatedAt;
+      return { value: (newer ? { ...a, ...l } : { ...l, ...a }) as any, updatedAt };
     }
     case "myTeam": if (a == null) return local; if (l == null) return account; break;
   }

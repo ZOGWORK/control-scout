@@ -10,7 +10,7 @@
 // writing PNGs OUTSIDE the repository (default: OS temp dir). Prints the
 // --attach arguments for `gh pr create`.
 import { chromium, type Browser } from "playwright";
-import { mkdirSync, renameSync } from "node:fs";
+import { mkdirSync, readFileSync, renameSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { WEB_PORT, ensureServers, stopServers } from "./lib/servers.js";
@@ -20,7 +20,7 @@ const flag = (f: string) => args.includes(`--${f}`);
 const opt = (f: string) => { const i = args.indexOf(`--${f}`); return i >= 0 ? args[i + 1] : undefined; };
 // Routes: "/teams/1" or "teams/1". Git Bash rewrites a leading "/" into its
 // install path (C:/Program Files/Git/...) — undo that.
-const VALUE_FLAGS = new Set(["--out", "--base", "--search", "--video"]);
+const VALUE_FLAGS = new Set(["--out", "--base", "--search", "--video", "--storage"]);
 const routes = args.filter((a, i) => !a.startsWith("--") && !VALUE_FLAGS.has(args[i - 1] ?? ""))
   .map((a) => a.replace(/\\/g, "/").replace(/^[A-Za-z]:\/.*?\/Git(?=\/|$)/, ""))
   .map((a) => (a.startsWith("/") ? a : `/${a}`));
@@ -37,6 +37,14 @@ const out = resolve(opt("out") ?? join(tmpdir(), "control-scout-shots", new Date
 if (out.startsWith(resolve(process.cwd()))) { console.error("Refusing to write screenshots inside the repository — use --out outside it."); process.exit(1); }
 // Default desktop; --mobile = phone only; --both = desktop + phone.
 const viewports: ("desktop" | "mobile" | "wide")[] = flag("wide") ? ["wide"] : flag("both") ? ["desktop", "mobile"] : flag("mobile") ? ["mobile"] : ["desktop"];
+// --storage file.json: localStorage to seed before the page loads ({ key: value }; non-string values are
+// JSON-encoded), e.g. a populated shortlist: { "cs-personal:bookmarks": { "value": [18360], "updatedAt": 1 } }.
+const STORAGE: Record<string, string> = (() => {
+  const f = opt("storage");
+  if (!f) return {};
+  const raw = JSON.parse(readFileSync(f, "utf8")) as Record<string, unknown>;
+  return Object.fromEntries(Object.entries(raw).map(([k, v]) => [k, typeof v === "string" ? v : JSON.stringify(v)]));
+})();
 const SIZES = { desktop: { width: 1440, height: 900 }, wide: { width: 2200, height: 1240 }, mobile: { width: 390, height: 844 } } as const;
 
 
@@ -49,6 +57,7 @@ async function capture(browser: Browser, route: string, vp: keyof typeof SIZES, 
     reducedMotion: motion ? "no-preference" : "reduce",
     ...(videoSecs ? { recordVideo: { dir: out, size: SIZES[vp] } } : {}),
   });
+  if (Object.keys(STORAGE).length) await ctx.addInitScript((entries) => { for (const [k, v] of Object.entries(entries)) localStorage.setItem(k, v); }, STORAGE);
   if (light) await ctx.addInitScript(() => localStorage.setItem("cs-personal:settings", JSON.stringify({ value: { theme: "light", density: "comfortable", notify: {} }, updatedAt: 1 })));
   const page = await ctx.newPage();
   const errors: string[] = [];
