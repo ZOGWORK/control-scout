@@ -52,11 +52,16 @@ export function removePreset(filter: FilterGroup, p: FilterPreset): FilterGroup 
   return rest.length ? { ...filter, children: rest } : null;
 }
 
-/** Add the chip's group (already resolved for the season) alongside the filter, AND. */
-export function addPreset(filter: FilterGroup | null, group: FilterGroup): FilterGroup {
+/**
+ * Add the chip's group (already resolved for the season) alongside the filter, AND.
+ * `known` are the table's chips: a filter that is one of them as a whole (a link
+ * like `and-totalPointsNpOpr.gte.80-`) is kept as its own group, so it stays on.
+ */
+export function addPreset(filter: FilterGroup | null, group: FilterGroup, known: readonly FilterPreset[] = []): FilterGroup {
   // Nested even when alone, so a second chip joins it rather than merging into it.
   if (!filter || !filter.children.length) return { kind: "group", type: "and", children: [group] };
-  // An OR filter is kept whole and the chip is required too.
-  return filter.type === "and" ? { ...filter, children: [...filter.children, group] } : { kind: "group", type: "and", children: [filter, group] };
+  // An OR filter, or a whole-filter chip, is kept whole and the new chip is required too.
+  if (filter.type !== "and" || known.some((p) => matchesPreset(filter, p))) return { kind: "group", type: "and", children: [filter, group] };
+  return { ...filter, children: [...filter.children, group] };
 }
 

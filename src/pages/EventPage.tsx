@@ -101,7 +101,8 @@ function Event({ d }: { d: EventDetail }) {
               {e.status === "live" && <StatsAsOf />}
               <RecordsTable scope="teamEvent" season={e.season} code={e.code} predictable={predictable} defaultSort="rank" storageKey="event-rankings" noun="teams"
                 defaultCols={RANKING_COLS.filter((k) => k !== "advancementOdds" || !d.forecastUnsupported)} selectable highlightTeam={teamParam}
-                emptyFallback={e.status === "live" ? <EmptyState icon={Swords} title="Full stats arrive with the next stats update" description="The live standings above are current." /> : <Rankings field={d.field} season={e.season} team={teamParam} code={e.code} note />} />
+                emptyFallback={e.status === "live" ? <EmptyState icon={Swords} title="Full stats arrive with the next stats update" description="The live standings above are current." /> : <Rankings field={d.field} season={e.season} team={teamParam} code={e.code} note={NOTE_NO_RECORDS} />}
+                offlineFallback={<Rankings field={d.field} season={e.season} team={teamParam} code={e.code} note={NOTE_OFFLINE} />} />
             </>
           )}
         </TabsContent>
@@ -110,7 +111,8 @@ function Event({ d }: { d: EventDetail }) {
           {tab === "insights" && (
             <RecordsTable scope="teamEvent" season={e.season} code={e.code} predictable={predictable} defaultSort="totalPointsNpOpr" storageKey="event-insights" noun="teams"
               defaultCols={INSIGHT_COLS} selectable highlightTeam={teamParam}
-              emptyFallback={<EmptyState icon={Swords} title="No match stats yet" description="Score breakdowns, OPR and averages appear here once qualification matches have been played and the stats have been updated." />} />
+              emptyFallback={<EmptyState icon={Swords} title="No match stats yet" description="Score breakdowns, OPR and averages appear here once qualification matches have been played and the stats have been updated." />}
+              offlineFallback={<Rankings field={d.field} season={e.season} team={teamParam} code={e.code} note={NOTE_OFFLINE} />} />
           )}
         </TabsContent>
         <TabsContent value="teams" className="mt-5"><TeamsGrid field={d.field} season={e.season} team={teamParam} predictable={predictable} /></TabsContent>
@@ -284,6 +286,8 @@ function Matches({ d, team }: { d: EventDetail; team: number | null }) {
 
 /** Rankings tab columns (FTC Scout's: RS, TBP, played, record, np OPR / AVG / MAX) plus Control Scout's win % and odds. */
 const RANKING_COLS = ["rank", "rp", "tb1", "qualMatchesPlayed", "wins", "losses", "ties", "totalPointsNpOpr", "totalPointsNpAvg", "totalPointsNpMax", "predictedWinPctAvg", "advancementOdds"];
+const NOTE_NO_RECORDS = "Filters, every stat and CSV export arrive here after the next stats update. Until then, the official ranking:";
+const NOTE_OFFLINE = "You're offline, so here is the ranking saved on this device. Filters, every stat and export need a connection.";
 /** Insights tab: where the points come from. */
 const INSIGHT_COLS = ["totalPointsNpOpr", "autoPointsOpr", "dcPointsOpr", "endgamePointsOpr", "penaltyPointsCommittedOpr", "autoPointsAvg", "dcPointsAvg", "endgamePointsAvg", "totalPointsNpMax", "predictedScoreAvg"];
 
@@ -316,11 +320,11 @@ function StatsAsOf() {
   );
 }
 
-function Rankings({ field, season, team, code, note }: { field: FieldRow[]; season: number; team: number | null; code: string; note?: boolean }) {
+function Rankings({ field, season, team, code, note }: { field: FieldRow[]; season: number; team: number | null; code: string; note?: string }) {
   if (note) return (
     <div className="space-y-3">
       <p className="rounded-xl border border-border bg-card px-4 py-3 text-sm text-muted-foreground">
-        Filters, every stat and CSV export arrive here after the next stats update. Until then, the official ranking:
+        {note}
       </p>
       <Rankings field={field} season={season} team={team} code={code} />
     </div>

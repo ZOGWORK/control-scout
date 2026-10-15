@@ -61,7 +61,8 @@ export function writeTableState(sp: URLSearchParams, s: TableState, scope: Recor
   set("filter", s.filter && s.filter.children.length ? serializeFilter(s.filter) : null);
   set("sort", s.sort === defaultSort ? null : s.sort);
   set("dir", s.dir === defaultDir(s.sort, scope) ? null : s.dir);
-  set("cols", s.cols ? s.cols.join(",") : null);
+  // An empty choice (every column unticked) is written as "cols=" so a shared link keeps it.
+  if (s.cols) out.set("cols", s.cols.join(",")); else out.delete("cols");
   set("page", s.page > 1 ? String(s.page) : null);
   set("region", s.regions.length ? s.regions.join(",") : null);
   set("type", s.eventType);

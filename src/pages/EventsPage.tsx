@@ -78,18 +78,10 @@ export default function EventsPage() {
         description="Every FTC event — results, rankings, brackets and advancement odds. Filter by place, type and dates."
         actions={<Button variant="outline" size="sm" asChild><Link to={`/teams${season !== current ? `?season=${season}` : ""}`}><Users /> Team records <ArrowRight /></Link></Button>}
       />
-      <Async state={state} empty={(d) => !d.events.length && (
-        <>
-          <FilterBar season={season} onSeason={(s) => set({ season: String(s), from: null, to: null }, false)} events={[]} {...{ region, type, status, from, to, q, set, active }} />
-          <EmptyState icon={CalendarDays} title={`No events listed for ${seasonLabel(season)} yet`} />
-        </>
-      )}>
-        {(d) => (
-          <>
-            <FilterBar season={season} onSeason={(s) => set({ season: String(s), from: null, to: null }, false)} events={d.events} {...{ region, type, status, from, to, q, set, active }} />
-            <Weeks events={d.events} {...{ region, type, status, from, to, q }} onClear={() => set({ region: null, type: null, status: null, from: null, to: null, q: null }, false)} />
-          </>
-        )}
+      {/* The filter bar stays up while loading or on an error, so another season can always be picked. */}
+      <FilterBar season={season} onSeason={(s) => set({ season: String(s), from: null, to: null }, false)} events={state.data?.events ?? []} {...{ region, type, status, from, to, q, set, active }} />
+      <Async state={state} empty={(d) => !d.events.length && <EmptyState icon={CalendarDays} title={`No events listed for ${seasonLabel(season)} yet`} />}>
+        {(d) => <Weeks events={d.events} {...{ region, type, status, from, to, q }} onClear={() => set({ region: null, type: null, status: null, from: null, to: null, q: null }, false)} />}
       </Async>
     </div>
   );
@@ -176,13 +168,19 @@ function PlacePicker({ events, value, onChange }: { events: EventListItem[]; val
   let lastCountry = "";
   return (
     <Popover open={open} onOpenChange={(o) => { setOpen(o); if (!o) setQ(""); }}>
-      <PopoverTrigger asChild>
-        <button type="button" aria-label={`Place: ${label}`}
-          className={cn("inline-flex h-9 max-w-full items-center gap-2 rounded-lg border px-3 text-sm font-medium max-sm:h-11", value ? "border-accent/60 bg-accent/[0.08]" : "border-line bg-card hover:border-text-base/25")}>
-          <MapPin className="size-4 text-sky-500" /><span className="max-w-[12rem] truncate">{label}</span>
-          {value ? <X className="size-3.5 text-muted-foreground" onClick={(e) => { e.stopPropagation(); e.preventDefault(); onChange(null); }} aria-label={`Remove filter: ${label}`} /> : <ChevronDown className="size-4 opacity-60" />}
-        </button>
-      </PopoverTrigger>
+      <span className={cn("inline-flex h-9 max-w-full items-center rounded-lg border text-sm font-medium max-sm:h-11", value ? "border-accent/60 bg-accent/[0.08]" : "border-line bg-card hover:border-text-base/25")}>
+        <PopoverTrigger asChild>
+          <button type="button" aria-label={`Place: ${label}`} className="inline-flex h-full min-w-0 items-center gap-2 rounded-lg px-3">
+            <MapPin className="size-4 text-sky-500" /><span className="max-w-[12rem] truncate">{label}</span>
+            {!value && <ChevronDown className="size-4 opacity-60" />}
+          </button>
+        </PopoverTrigger>
+        {value && (
+          <button type="button" onClick={() => onChange(null)} aria-label={`Remove filter: ${label}`} className="-ml-1 mr-1 flex size-7 items-center justify-center rounded-md text-muted-foreground hover:bg-text-base/[0.08] hover:text-foreground">
+            <X className="size-3.5" />
+          </button>
+        )}
+      </span>
       <PopoverContent align="start" className="flex max-h-[min(28rem,70dvh)] w-[min(92vw,20rem)] flex-col gap-2 p-2">
         <div className="relative">
           <Search className="pointer-events-none absolute left-2.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
