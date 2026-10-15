@@ -17,6 +17,7 @@ import { Reveal } from "../components/motion";
 import { Badge, Input } from "../components/ui/basic";
 import { Button } from "../components/ui/button";
 import { StickyActions, useScrolledPast } from "../components/StickyActions";
+import { toast } from "../components/ui/sonner";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "../components/ui/tabs";
 import { ToggleGroup, ToggleGroupItem } from "../components/ui/controls";
 import { MatchList } from "../components/predict";
@@ -57,6 +58,8 @@ function Event({ d, path }: { d: EventDetail; path: string }) {
   const toggleTrack = () => update("tracked", (t) => ({ ...t, events: tracked ? t.events.filter((x) => x !== ref) : [...t.events, ref] }));
   const labHref = `/predict?mode=advancement&season=${e.season}&code=${e.code}${teamParam ? `&team=${teamParam}` : ""}`;
   const refresh = useRefreshResults(path);
+  // From the sticky bar the header's note is off screen: say the outcome in a toast instead.
+  const refreshFromBar = async () => { const r = await refresh.run(); (r.ok ? toast : toast.error)(r.message); };
   const [headerEnd, pastHeader] = useScrolledPast<HTMLDivElement>();
   const tabsRef = useRef<HTMLDivElement>(null);
   // The bar's "See odds" opens the tab and brings it into view (the header that held the button is off screen).
@@ -102,7 +105,7 @@ function Event({ d, path }: { d: EventDetail; path: string }) {
       {sticky && (
         <StickyActions show={pastHeader} label="Event actions">
           {e.status === "live" && d.live
-            ? <Button onClick={refresh.run} disabled={refresh.busy} aria-busy={refresh.busy}>{refresh.busy ? <Loader2 className="animate-spin" /> : <RefreshCw />} {refresh.busy ? "Checking…" : "Refresh results"}</Button>
+            ? <Button onClick={refreshFromBar} disabled={refresh.busy} aria-busy={refresh.busy}>{refresh.busy ? <Loader2 className="animate-spin" /> : <RefreshCw />} {refresh.busy ? "Checking…" : "Refresh results"}</Button>
             : oddsOpen
               ? <Button onClick={seeOdds}><Trophy /> See odds</Button>
               : predictable && <Button asChild><Link to={labHref}><Sparkles /> What-if lab</Link></Button>}
@@ -196,15 +199,19 @@ function useRefreshResults(path: string) {
   const noteTimer = useRef<number>(undefined);
   useEffect(() => () => window.clearTimeout(noteTimer.current), []);
   const say = (m: string) => { setNote(m); window.clearTimeout(noteTimer.current); noteTimer.current = window.setTimeout(() => setNote(null), 8000); };
-  const run = async () => {
+  /** Refreshes and returns what happened (also shown as the live bar's note). */
+  const run = async (): Promise<{ ok: boolean; message: string }> => {
     setBusy(true);
     try {
       const r = await apiFetch<EventRefreshResult>(`${path}/refresh`, { method: "POST" });
       prime(path, r.detail);
       setAt(Date.now());
       say(r.message);
+      return { ok: true, message: r.message };
     } catch (e) {
-      say(e instanceof ApiError ? e.message : "Couldn't refresh right now. Try again in a moment.");
+      const message = e instanceof ApiError ? e.message : "Couldn't refresh right now. Try again in a moment.";
+      say(message);
+      return { ok: false, message };
     } finally { setBusy(false); }
   };
   return { busy, note, at, run };
