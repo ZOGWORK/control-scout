@@ -52,7 +52,7 @@ function Hero() {
   const meta = useMeta();
   // The page's main content: full opacity on its first frame (no fade from 0).
   return (
-    <Reveal initial={false} className="pt-2 text-center sm:pt-8">
+    <Reveal fade={false} className="pt-2 text-center sm:pt-8">
       {/* The wordmark (brand/wordmark-master.png). The heading's text is its alt, for search engines and screen readers. */}
       <h1>
         <img src="/wordmark.png" alt="FTC Control Scout" width={1200} height={192} className="mx-auto h-12 w-auto max-w-full sm:h-16" />
