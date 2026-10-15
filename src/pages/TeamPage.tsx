@@ -128,7 +128,7 @@ function Hero({ p, onSeason }: { p: TeamProfile; onSeason: (s: number) => void }
   return (
     <>
     <Reveal fade={false} className="mb-8 overflow-hidden rounded-2xl border border-border bg-card">
-      <div className="grid lg:grid-cols-[minmax(0,1fr)_minmax(0,1.05fr)]">
+      <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.05fr)]">
         {/* Who this is */}
         <div className="relative min-w-0 p-6 sm:p-8">
           <div aria-hidden className="pointer-events-none absolute -left-24 -top-24 size-64 rounded-full bg-accent opacity-[0.12] blur-3xl" />
@@ -170,7 +170,7 @@ function Hero({ p, onSeason }: { p: TeamProfile; onSeason: (s: number) => void }
           </a>
         </div>
         {/* At a glance: the five-second answer to "is this team good?" */}
-        <div className="border-t border-border bg-secondary/60 p-6 sm:p-8 lg:border-l lg:border-t-0">
+        <div className="min-w-0 border-t border-border bg-secondary/60 p-6 sm:p-8 lg:border-l lg:border-t-0">
           <p className="text-xs font-medium uppercase tracking-[0.08em] text-muted-foreground">At a glance · {seasonLabel(p.season)}</p>
           {!s ? (
             <div className="mt-4 space-y-3 text-sm">
@@ -387,7 +387,7 @@ function EventHistory({ events, team }: { events: TeamEventRow[]; team: number }
               </div>
             )}
           </div>
-          <div className="grid grid-cols-3 gap-4 text-right text-sm tabular-nums">
+          <div className="grid grid-cols-3 gap-4 text-right text-sm tabular-nums max-sm:w-full max-sm:pl-[3.25rem] max-sm:text-left">
             <div><p className="text-[10px] uppercase tracking-wider text-muted-foreground">Record</p><p className="font-medium">{e.wins ?? "–"}-{e.losses ?? "–"}-{e.ties ?? "–"}</p></div>
             <div><p className="text-[10px] uppercase tracking-wider text-muted-foreground">RS</p><p className="font-medium">{num(e.rp, 2)}</p></div>
             <div><p className="text-[10px] uppercase tracking-wider text-muted-foreground">OPR</p><p className="font-medium">{num(e.opr.np)}</p></div>
