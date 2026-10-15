@@ -46,25 +46,55 @@ const scrollOf = (s: HTMLElement | null) => (s ? { x: s.scrollLeft, y: s.scrollT
 /**
  * Where each item sits if the order becomes `order` (by index into `start`'s
  * boxes). Rows: stacked from the first row's top with the original spacing, so
- * rows of different heights (an opened row) stay exact. Cards: each takes the
- * box of the slot it moves to.
+ * rows of different heights (an opened row) stay exact. Cards: laid out the
+ * way the grid flows them — row by row, an opened card spanning every column
+ * starts a row of its own — so the preview matches where each card lands.
  */
 export function targetBoxes(boxes: readonly Box[], start: readonly number[], order: readonly number[], column: boolean, gap: number): Map<number, Box> {
   const out = new Map<number, Box>();
   const at = (k: number) => boxes[start.indexOf(k)];
+  if (!boxes.length) return out;
+  const top0 = Math.min(...boxes.map((b) => b.top));
   if (column) {
-    let top = boxes[0]?.top ?? 0;
+    let top = top0;
     for (const k of order) { const b = at(k); out.set(k, { ...b, top }); top += b.height + gap; }
-  } else order.forEach((k, i) => { const b = at(k), slot = boxes[i]; out.set(k, { ...b, left: slot.left, top: slot.top }); });
+    return out;
+  }
+  // The grid's columns, from the cards that span one: their distinct left edges.
+  const cell = Math.min(...boxes.map((b) => b.width));
+  const lefts = [...new Set(boxes.filter((b) => b.width < cell + 2).map((b) => Math.round(b.left)))].sort((a, b) => a - b);
+  const x0 = Math.min(...boxes.map((b) => b.left));
+  const colGap = lefts.length > 1 ? lefts[1] - lefts[0] - cell : 0;
+  const cols = Math.max(1, Math.round((Math.max(...boxes.map((b) => b.left + b.width)) - x0 + colGap) / (cell + colGap)));
+  // Row gap: the space between two rows of the original layout (same as the column gap when there's only one row).
+  const tops = [...new Set(boxes.map((b) => Math.round(b.top)))].sort((a, b) => a - b);
+  const rowGap = tops.length > 1 ? Math.max(0, tops[1] - tops[0] - Math.min(...boxes.filter((b) => Math.round(b.top) === tops[0]).map((b) => b.height))) : colGap;
+  let col = 0, top = top0, rowH = 0;
+  for (const k of order) {
+    const b = at(k);
+    const span = Math.min(cols, Math.max(1, Math.round((b.width + colGap) / (cell + colGap))));
+    if (col + span > cols) { top += rowH + rowGap; col = 0; rowH = 0; }
+    out.set(k, { ...b, left: x0 + col * (cell + colGap), top });
+    rowH = Math.max(rowH, b.height);
+    col += span;
+  }
   return out;
 }
 
-/** The slot the dragged item's centre points at. */
-export function targetIndex(boxes: readonly Box[], from: number, center: { x: number; y: number }, column: boolean): number {
-  if (!column) return nearestSlot(boxes as Box[], center.x, center.y);
-  // Rows: its place among the others is how many of them have their middle above its middle.
+/**
+ * The slot the dragged item points at. Rows: it passes a row once its leading
+ * edge crosses that row's middle (its bottom edge going down, its top edge going
+ * up), so the first and last picks are reachable even with the row held inside
+ * the list. Cards: the slot nearest its centre.
+ */
+export function targetIndex(boxes: readonly Box[], from: number, me: { left: number; top: number; width: number; height: number }, column: boolean): number {
+  if (!column) return nearestSlot(boxes as Box[], me.left + me.width / 2, me.top + me.height / 2);
   let to = 0;
-  boxes.forEach((b, i) => { if (i !== from && b.top + b.height / 2 < center.y) to++; });
+  boxes.forEach((b, i) => {
+    if (i === from) return;
+    const mid = b.top + b.height / 2;
+    if (i < from ? me.top >= mid : me.top + me.height > mid) to++;
+  });
   return to;
 }
 
@@ -121,7 +151,7 @@ export function useReorder({ items, onCommit, describe }: {
     const at = dragPosition({ left: d.x + s.x - d.grabX, top: d.y + s.y - d.grabY }, b, d.bounds, d.column);
     const me = d.els[d.from];
     if (me) me.style.transform = `translate3d(${at.left - b.left}px, ${at.top - b.top}px, 0)`;
-    const to = targetIndex(d.boxes, d.from, { x: at.left + b.width / 2, y: at.top + b.height / 2 }, d.column);
+    const to = targetIndex(d.boxes, d.from, { ...b, ...at }, d.column);
     if (to >= 0 && to !== d.to) {
       d.to = to;
       layoutOthers(d);

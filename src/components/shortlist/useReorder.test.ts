@@ -31,10 +31,43 @@ describe("targetBoxes", () => {
 });
 
 describe("targetIndex", () => {
-  it("counts the other rows whose middle is above the dragged row's middle", () => {
-    expect(targetIndex(rows, 0, { x: 300, y: 120 }, true)).toBe(0);
-    expect(targetIndex(rows, 0, { x: 300, y: 260 }, true)).toBe(1);
-    expect(targetIndex(rows, 0, { x: 300, y: 390 }, true)).toBe(2);
+  const at = (b: Box, top: number) => ({ ...b, top });
+  it("passes a row once its leading edge crosses that row's middle", () => {
+    expect(targetIndex(rows, 0, at(rows[0], 100), true)).toBe(0);
+    expect(targetIndex(rows, 0, at(rows[0], 210), true)).toBe(1); // bottom 260 > 250, the opened row's middle
+    expect(targetIndex(rows, 2, at(rows[2], 240), true)).toBe(1); // top 240 < 250
+  });
+});
+
+describe("every pick is reachable with the drag held inside the list", () => {
+  // Equal rows: the lowest a row can go is the last row's own place.
+  const even: Box[] = [0, 1, 2, 3].map((i) => ({ left: 0, top: 100 + i * 60, width: 600, height: 50 }));
+  const evenList: Box = { left: 0, top: 100, width: 600, height: 230 };
+  const to = (bs: Box[], bounds: Box, from: number, top: number) => targetIndex(bs, from, { ...bs[from], ...dragPosition({ left: 0, top }, bs[from], bounds, true) }, true);
+
+  it("the first row reaches the last pick, and the last row the first", () => {
+    expect(to(even, evenList, 0, 9999)).toBe(3);
+    expect(to(even, evenList, 3, -9999)).toBe(0);
+  });
+
+  it("an opened (taller) row reaches both ends", () => {
+    expect(to(rows, list, 1, -9999)).toBe(0);
+    expect(to(rows, list, 1, 9999)).toBe(2);
+  });
+});
+
+describe("targetBoxes with an opened card", () => {
+  // Two columns of 100px cards, 20px gaps; C is opened and spans both columns.
+  const cards: Box[] = [
+    { left: 0, top: 0, width: 100, height: 100 },
+    { left: 120, top: 0, width: 100, height: 100 },
+    { left: 0, top: 120, width: 220, height: 300 },
+  ];
+  it("puts a full-width card on a row of its own, never in a single column", () => {
+    const t = targetBoxes(cards, [1, 2, 3], [2, 3, 1], false, 0);
+    expect(t.get(2)).toMatchObject({ left: 0, top: 0 });
+    expect(t.get(3)).toMatchObject({ left: 0, top: 120, width: 220 });
+    expect(t.get(1)).toMatchObject({ left: 0, top: 440 });
   });
 });
 
