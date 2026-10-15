@@ -47,6 +47,8 @@ export interface RecordsTableProps {
   highlightTeam?: number | null;
   /** Shown instead of the empty state when there are no records at all (no filter on). */
   emptyFallback?: ReactNode;
+  /** Shown instead of the error when offline (records need the server; e.g. the event's downloaded ranking). */
+  offlineFallback?: ReactNode;
 }
 
 const COLS_KEY = (k: string) => `cs-records-cols:${k}`;
@@ -107,16 +109,26 @@ export function RecordsTable(p: RecordsTableProps) {
     return thresholds.get(id)!;
   }, [season, scope, teamScope]);
 
+  const presets = presetsFor(scope, predictable);
+  // A chip whose threshold is still loading applies to the table as it is when the answer
+  // arrives (other edits made meanwhile are kept), and is dropped if the table went away
+  // or now shows another season or event.
+  const latest = useRef({ state, setState, where: `${season}:${code ?? ""}`, mounted: true });
+  latest.current = { ...latest.current, state, setState, where: `${season}:${code ?? ""}` };
+  useEffect(() => { latest.current.mounted = true; return () => { latest.current.mounted = false; }; }, []);
   const [chipBusy, setChipBusy] = useState<string | null>(null);
   const toggleChip = async (preset: FilterPreset) => {
     if (hasPreset(state.filter, preset)) { setState({ ...state, filter: removePreset(state.filter!, preset), page: 1 }); return; }
+    const where = `${season}:${code ?? ""}`;
     setChipBusy(preset.id);
     const g = await presetGroup(preset, season, lookup);
-    setChipBusy(null);
+    const now = latest.current;
+    if (!now.mounted || now.where !== where) return;
+    setChipBusy((b) => (b === preset.id ? null : b));
     if (!g) { toast.error(`No ${preset.label} threshold for this season yet — not enough data.`); return; }
-    setState({ ...state, filter: addPreset(state.filter, g), page: 1 });
+    if (hasPreset(now.state.filter, preset)) return; // turned on another way meanwhile
+    now.setState({ ...now.state, filter: addPreset(now.state.filter, g, presets), page: 1 });
   };
-  const presets = presetsFor(scope, predictable);
 
   const sortBy = (key: string) => {
     if (!statFor(key, scope)) return;
@@ -205,7 +217,7 @@ export function RecordsTable(p: RecordsTableProps) {
       {state.filterError ? (
         <Problem title="This link's filter couldn't be read" detail={state.filterError} onClear={() => setState(clearFilters(state))} />
       ) : api.error && !data ? (
-        (api.error as ApiError).status === 400
+        (api.error as ApiError).offline && p.offlineFallback ? p.offlineFallback : (api.error as ApiError).status === 400
           ? <Problem title="That filter doesn't work here" detail={api.error.message} onClear={() => setState(clearFilters(state))} />
           : <ErrorState error={api.error} onRetry={api.reload} />
       ) : !data ? (

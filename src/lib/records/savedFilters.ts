@@ -24,8 +24,11 @@ export function loadSaved(store: Store | null = ls()): SavedFilter[] {
   } catch { return []; }
 }
 
+/** Store the list; throws when this browser won't keep it (storage blocked or full), so the UI never claims a save that didn't happen. */
 function write(list: SavedFilter[], store: Store | null): void {
-  try { store?.setItem(SAVED_KEY, JSON.stringify(list.slice(0, SAVED_MAX))); } catch { /* storage full or blocked */ }
+  if (!store) throw new Error("This browser isn't letting the site store anything, so filters can't be saved here.");
+  try { store.setItem(SAVED_KEY, JSON.stringify(list.slice(0, SAVED_MAX))); }
+  catch { throw new Error("Couldn't save: this browser's storage is full or blocked."); }
   if (typeof window !== "undefined") window.dispatchEvent(new Event(SAVED_KEY));
 }
 

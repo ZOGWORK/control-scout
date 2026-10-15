@@ -101,6 +101,14 @@ describe("URL state", () => {
     expect(writeTableState(new URLSearchParams(), { ...s, cols: null }, "teamEvent").toString()).toBe("");
   });
 
+  it("keeps an empty column choice in the link (cols=), apart from no choice", () => {
+    const none = parseTableState(new URLSearchParams(), "teamEvent");
+    const out = writeTableState(new URLSearchParams(), { ...none, cols: [] }, "teamEvent");
+    expect(out.toString()).toBe("cols=");
+    expect(parseTableState(out, "teamEvent").cols).toEqual([]);
+    expect(none.cols).toBeNull();
+  });
+
   it("keeps a filter that doesn't parse as an error", () => {
     const s = parseTableState(new URLSearchParams("filter=and-foo.gt.1-"), "teamEvent");
     expect(s.filter).toBeNull();
@@ -153,6 +161,11 @@ describe("saved filters", () => {
     deleteSaved(a.id, store);
     expect(loadSaved(store).map((s) => s.name)).toEqual(["Close games"]);
   });
+  it("says so when the browser won't store the filter (never a silent success)", () => {
+    const full = { getItem: () => null, setItem: () => { throw new Error("QuotaExceededError"); } };
+    expect(() => saveFilter("x", "team", NESTED, full)).toThrow(/full or blocked/);
+    expect(() => saveFilter("x", "team", NESTED, null)).toThrow(/can't be saved/);
+  });
   it("refuses empty names and bad filters, and ignores corrupt storage", () => {
     const store = mem();
     expect(() => saveFilter(" ", "team", NESTED, store)).toThrow(/name/);
@@ -203,6 +216,10 @@ describe("preset chips", () => {
     // A chip stays on for a link made with another threshold.
     expect(hasPreset(parseFilter("and-and-totalPointsNpOpr.gte.70--"), pa)).toBe(true);
     expect(hasPreset(parseFilter("and-totalPointsNpOpr.gte.70-"), pa)).toBe(true);
+    // A link whose whole filter is a chip keeps that chip on when another is added.
+    const fromLink = addPreset(parseFilter("and-totalPointsNpOpr.gte.80-"), b!, FILTER_PRESETS);
+    expect(hasPreset(fromLink, pa) && hasPreset(fromLink, pb)).toBe(true);
+    expect(hasPreset(removePreset(fromLink, pa), pa)).toBe(false);
     // An OR filter is kept whole.
     const or = parseFilter("or-rp.gte.2+tb1.gte.100-");
     expect(serializeFilter(addPreset(or, a!))).toBe(`and-or-rp.gte.2+tb1.gte.100-+${serializeFilter(a!)}-`);

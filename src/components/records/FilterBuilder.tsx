@@ -274,8 +274,8 @@ function SavedList({ scope, saved, current, onApply }: { scope: RecordScope; sav
                       <Button size="sm" className="max-sm:h-10" disabled={!parsed} onClick={() => parsed && onApply(parsed)}>Use</Button>
                       <Button variant="ghost" size="icon-sm" className="max-sm:size-10" aria-label={`Rename ${s.name}`} onClick={() => setEditing({ id: s.id, name: s.name })}><Pencil /></Button>
                       <Button variant="ghost" size="icon-sm" className="max-sm:size-10" aria-label={`Delete ${s.name}`} onClick={() => {
-                        deleteSaved(s.id);
-                        toast(`Deleted “${s.name}”`, { action: { label: "Undo", onClick: () => saveFilter(s.name, s.kind, s.filter) } });
+                        try { deleteSaved(s.id); } catch (err) { toast.error((err as Error).message); return; }
+                        toast(`Deleted “${s.name}”`, { action: { label: "Undo", onClick: () => { try { saveFilter(s.name, s.kind, s.filter); } catch (err) { toast.error((err as Error).message); } } } });
                       }}><Trash2 /></Button>
                     </div>
                   </div>
