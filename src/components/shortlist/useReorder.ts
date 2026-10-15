@@ -138,11 +138,12 @@ export function useReorder({ items, onCommit, describe }: {
       e.style.transition = reduced() ? "" : SLIDE;
       e.style.transform = t.left === b.left && t.top === b.top ? "" : `translate3d(${t.left - b.left}px, ${t.top - b.top}px, 0)`;
     });
-    // Cards: an opened card can push the preview a row deeper than the grid; grow it to fit until the drop.
+    // Cards: an opened card can push the preview a row deeper than the grid; make room below it until the drop.
     if (!d.column && container.current) {
       const bottom = Math.max(...[...target.values()].map((t) => t.top + t.height));
       const over = bottom - (d.bounds.top + d.bounds.height);
-      container.current.style.minHeight = over > 0 ? `${d.bounds.height + over}px` : "";
+      // Padding, not min-height: extra height would stretch the grid's rows and move the cards measured at pickup.
+      container.current.style.paddingBottom = over > 0 ? `${over}px` : "";
     }
   };
 
@@ -173,7 +174,7 @@ export function useReorder({ items, onCommit, describe }: {
     drag.current = null;
     try { d.handle.releasePointerCapture(d.pointerId); } catch { /* already released */ }
     for (const e of d.els) if (e) e.style.willChange = "";
-    if (container.current) container.current.style.minHeight = "";
+    if (container.current) container.current.style.paddingBottom = "";
     const final = moveItem(d.start, d.from, d.to);
     setDragging(null);
     setPreview(null);
