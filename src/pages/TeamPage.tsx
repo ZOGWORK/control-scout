@@ -9,6 +9,7 @@ import {
 } from "lucide-react";
 import { type ApiError, useApi, qs } from "../lib/api";
 import { NotFoundView } from "../components/NotFoundView";
+import { useAfterFirstPaint } from "../lib/afterPaint";
 import { usePredictable, useTitle } from "../lib/meta";
 import { usePersonal, useTeamFlags } from "../lib/personal";
 import { toast } from "../components/ui/sonner";
@@ -59,11 +60,13 @@ function Profile({ p, onSeason }: { p: TeamProfile; onSeason: (s: number) => voi
   const hasResults = p.events.length > 0;
   // 2019–2022: results and stats only (no ratings, predictions or scouting templates).
   const predictable = usePredictable(p.season);
+  // The hero paints first; the sections under it (charts, tables) mount right after.
+  const rest = useAfterFirstPaint();
   return (
     <div className="min-w-0">
       <OfflineNote data={p} />
       <Hero p={p} onSeason={onSeason} />
-      {!hasResults ? (
+      {!rest ? null : !hasResults ? (
         <EmptyState className="mb-8" icon={CalendarDays} title={`No ${seasonLabel(p.season)} results for ${p.team.number} yet`}
           description={p.seasons.length > 1 ? "Pick another season above to see past results." : "This team hasn't played an event we have data for."} />
       ) : (
@@ -85,7 +88,7 @@ function Profile({ p, onSeason }: { p: TeamProfile; onSeason: (s: number) => voi
           <MatchesSection team={p.team.number} season={p.season} events={p.events} predictable={predictable} />
         </>
       )}
-      {!hasResults && <><AwardsAllTime p={p} />{predictable && <ScoutNotes team={p.team.number} season={p.season} />}</>}
+      {rest && !hasResults && <><AwardsAllTime p={p} />{predictable && <ScoutNotes team={p.team.number} season={p.season} />}</>}
     </div>
   );
 }
@@ -127,7 +130,7 @@ function Hero({ p, onSeason }: { p: TeamProfile; onSeason: (s: number) => void }
   const predictable = usePredictable(p.season);
   const share = () => copyLink();
   return (
-    <Reveal className="mb-8 overflow-hidden rounded-2xl border border-border bg-card">
+    <Reveal fade={false} className="mb-8 overflow-hidden rounded-2xl border border-border bg-card">
       <div className="grid lg:grid-cols-[minmax(0,1fr)_minmax(0,1.05fr)]">
         {/* Who this is */}
         <div className="relative min-w-0 p-6 sm:p-8">
