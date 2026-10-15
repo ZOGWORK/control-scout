@@ -14,6 +14,7 @@ import { createApp } from "./app.js";
 import { RELEASE } from "./release.js";
 import { forecasterFor, refreshForecasters } from "./predict/engine.js";
 import { CURRENT_SEASON } from "./data/seasons.js";
+import { warmTrackRecord } from "./api/accuracy.js";
 import { installShippedPacks, restoreSnapshotIfEmpty } from "./data/snapshot.js";
 
 const log = (m: string) => console.log(`[${new Date().toISOString()}] ${m}`);
@@ -43,10 +44,13 @@ log("ready");
 
 // Warm the current season's ratings so the first prediction is fast.
 forecasterFor(CURRENT_SEASON).then(() => log("ratings ready")).catch((e) => log(`ratings not ready: ${(e as Error).message}`));
+// And the track record (every scored prediction: about a second and a half cold).
+warmTrackRecord().then(() => log("track record ready")).catch((e) => log(`track record not ready: ${(e as Error).message}`));
 // After a sync (often in a child process) the data version moves: rebuild the
-// ratings in use right away, in the background, so no visitor's request is the
-// one that waits for it (pages keep the previous ratings until it's done).
-setInterval(() => { refreshForecasters().catch(() => {}); }, 15_000).unref();
+// ratings in use and the track record right away, in the background, so no
+// visitor's request is the one that waits for them (pages keep the previous
+// ones until they're done).
+setInterval(() => { refreshForecasters().catch(() => {}).then(() => warmTrackRecord()).catch(() => {}); }, 15_000).unref();
 
 /** The data cycle runs in a child process (DATA_CYCLE=child), which needs a local database file. */
 function childCycle(): boolean { return process.env.DATA_CYCLE === "child" && !isRemote(env.databaseUrl); }

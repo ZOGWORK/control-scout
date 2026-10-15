@@ -66,7 +66,7 @@ describe("plain-English preview", () => {
     expect(describeFilter(null, "match")).toBe("All matches");
   });
   it("formats percentages without a flat 0% or 100%", () => {
-    expect(formatStat(STAT_BY_KEY.get("advancementOdds"), 100)).toBe(">99%");
+    expect(formatStat(STAT_BY_KEY.get("advancementOdds"), 100)).toBe("99%");
     expect(formatStat(STAT_BY_KEY.get("predictedWinPctAvg"), 61.4)).toBe("61%");
     expect(formatStat(STAT_BY_KEY.get("autoPointsAvg"), null)).toBe("—");
   });

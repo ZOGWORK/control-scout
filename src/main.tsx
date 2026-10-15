@@ -13,6 +13,8 @@ import { LoadingBlock } from "./components/states";
 import { CanonicalSync, MetaProvider } from "./lib/meta";
 import { AlertsRunner } from "./lib/alerts";
 import { LitePackSync } from "./lib/packSync";
+import { ConsentBanner } from "./components/layout/ConsentBanner";
+import { PageViews } from "./lib/analytics";
 // The landing page is part of the main bundle, not lazy: its API calls then start in
 // the same render as the app's own (/api/meta, /api/auth/me), with no second round.
 import Home from "./pages/Home";
@@ -29,6 +31,9 @@ const ScoutPage = lazy(() => import("./pages/ScoutPage"));
 const DownloadPage = lazy(() => import("./pages/DownloadPage"));
 const SettingsPage = lazy(() => import("./pages/SettingsPage"));
 const MethodologyPage = lazy(() => import("./pages/MethodologyPage"));
+const PrivacyPage = lazy(() => import("./pages/PrivacyPage"));
+const TermsPage = lazy(() => import("./pages/TermsPage"));
+const ContactPage = lazy(() => import("./pages/ContactPage"));
 const NotFound = lazy(() => import("./pages/NotFound"));
 
 // Offline: the service worker precaches the app so it opens with no signal.
@@ -65,6 +70,9 @@ createRoot(document.getElementById("root")!).render(
                   <Route path="/settings" element={<SettingsPage />} />
                   <Route path="/methodology" element={<MethodologyPage />} />
                   <Route path="/predict/how-it-works" element={<MethodologyPage />} />
+                  <Route path="/privacy" element={<PrivacyPage />} />
+                  <Route path="/terms" element={<TermsPage />} />
+                  <Route path="/contact" element={<ContactPage />} />
                   <Route path="*" element={<NotFound />} />
                 </Routes>
               </Suspense>
@@ -73,6 +81,8 @@ createRoot(document.getElementById("root")!).render(
             <AlertsRunner />
             <LitePackSync />
             <CanonicalSync />
+            <ConsentBanner />
+            <PageViews />
           </SearchProvider>
         </MetaProvider>
       </PersonalProvider>

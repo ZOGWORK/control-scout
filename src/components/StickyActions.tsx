@@ -4,6 +4,7 @@
 import { useCallback, useEffect, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { cn } from "./cn";
+import { useConsent } from "../lib/consent";
 
 /**
  * True once the element given to `ref` has scrolled up out of view (above the
@@ -41,13 +42,17 @@ export function StickyActions({ show, label, children }: { show: boolean; label:
     document.documentElement.dataset.stickyActions = "";
     return () => { if (--mounted === 0) delete document.documentElement.dataset.stickyActions; };
   }, []);
+  // The first-visit privacy banner (ConsentBanner) sits in this same strip above the tab bar:
+  // the bar waits until that choice is made, so the two never overlap.
+  const { decided } = useConsent();
+  const visible = show && decided;
   return createPortal(
     <div
-      role="region" aria-label={label} inert={!show}
+      role="region" aria-label={label} inert={!visible}
       className={cn(
         "fixed inset-x-0 bottom-[calc(61px+env(safe-area-inset-bottom))] z-30 flex gap-2 border-t border-line bg-secondary/95 px-4 py-2 backdrop-blur-lg transition-[translate,opacity] duration-200 motion-reduce:transition-none md:hidden",
         "[&>*]:min-w-0 [&>*]:flex-1",
-        show ? "translate-y-0 opacity-100" : "pointer-events-none translate-y-full opacity-0",
+        visible ? "translate-y-0 opacity-100" : "pointer-events-none translate-y-full opacity-0",
       )}
     >
       {children}
