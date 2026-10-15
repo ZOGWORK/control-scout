@@ -52,6 +52,11 @@ export function resetConsent(): void {
 
 function notify() { if (typeof window !== "undefined") window.dispatchEvent(new Event(EVENT)); }
 
+// A choice saved in another tab is newer than this tab's unsaved one: drop the fallback.
+if (typeof window !== "undefined") {
+  window.addEventListener("storage", (e) => { if (e.key === null || e.key === CONSENT_KEY) memory = null; });
+}
+
 /** The choice in effect: an unsaved newer one first, then the stored one. */
 const current = (): Consent | null => memory ?? readConsent();
 
