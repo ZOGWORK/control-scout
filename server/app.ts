@@ -21,6 +21,7 @@ import { sitemapChunkRoute, sitemapRoute } from "./sitemap.js";
 import { liveForecaster, liveVersion, dataVersion } from "./predict/engine.js";
 import { authRouter, meRouter, authProviders } from "./auth/routes.js";
 import { packsRouter } from "./packs/routes.js";
+import { collectRouter, statsRouter } from "./analytics.js";
 import { listRecords, recordRegions, recordsQuery, RecordsQueryError, streamRecordsCsv } from "./api/records.js";
 import { FilterError } from "../src/shared/filterDsl.js";
 import { RECORDS_EXPORT_MAX, RECORDS_MAX_PAGE_SIZE } from "../src/shared/statCatalog.js";
@@ -116,7 +117,9 @@ export function createApp() {
   // One host, one URL per page: www/alias hosts, trailing slashes and /team/… aliases 301 (server/seo.ts).
   app.use(canonicalRedirects);
   app.use(compression());
-  app.use(express.json({ limit: "2mb" }));
+  // /api/collect reads its own tiny body (1 KB cap), so the 2 MB JSON parser skips it.
+  const json = express.json({ limit: "2mb" });
+  app.use((req, res, next) => (req.path === "/api/collect" ? next() : json(req, res, next)));
   app.use((_req, res, next) => {
     res.setHeader("X-Content-Type-Options", "nosniff");
     res.setHeader("Referrer-Policy", "strict-origin-when-cross-origin");
@@ -129,7 +132,7 @@ export function createApp() {
   // Anything personal stays no-store (case-insensitive, like Express routing),
   // and so does every error response, so a retry never replays a cached 503.
   api.use((req, res, next) => {
-    const personal = /^\/(me|auth|health)(\/|$)/i.test(req.path);
+    const personal = /^\/(me|auth|health|stats)(\/|$)/i.test(req.path);
     res.setHeader("Cache-Control", req.method === "GET" && !personal ? "public, max-age=60, stale-while-revalidate=300" : "no-store");
     const writeHead = res.writeHead;
     res.writeHead = function (this: typeof res, ...a: Parameters<typeof writeHead>) {
@@ -377,6 +380,8 @@ export function createApp() {
 
   api.use("/auth", authRouter());
   api.use("/me", meRouter());
+  api.use("/collect", collectRouter());
+  api.use("/stats", statsRouter());
 
   api.use((_req, res) => { res.status(404).json({ error: "Not found" }); });
   app.use("/api", api);
