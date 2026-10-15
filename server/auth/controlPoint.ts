@@ -4,7 +4,7 @@
 // recorded as identities(provider 'control-point', subject = account id).
 // Off unless all three env settings are present (Render, the rollback host,
 // runs without it: it can't reach Control Point's loopback port).
-import { get, run } from "../db.js";
+import { get, run, writeBatch } from "../db.js";
 import { env } from "../env.js";
 import type { User } from "./session.js";
 
@@ -16,7 +16,12 @@ export interface SharedAccount {
   displayName: string | null;
   createdAt: string;
   controlPoint: { member: boolean; teams: { teamNumber: number | null; name: string }[]; shortlist?: number[] };
+  /** The account's Control Point workspaces. Sent by newer Control Point deploys only: missing means none. */
+  workspaces?: unknown;
 }
+
+/** A Control Point workspace the account belongs to. `id` is opaque and stable across renames; `name` can change. */
+export interface Workspace { id: string; name: string; role: "admin" | "member" }
 
 /** Sign-in providers Scout can offer through Control Point (it runs the OAuth). */
 export const CP_VIA = ["google", "discord", "github"] as const;
@@ -113,7 +118,7 @@ export async function linkToSharedAccount(user: User, how: "scout-email-code" | 
     // The same shared account may already be linked to another Scout user (an
     // older duplicate): keep the existing link; userForIdentity merges by email.
     await run("INSERT OR IGNORE INTO identities (provider, subject, user_id) VALUES (?, ?, ?)", [CP_PROVIDER, String(account.id), user.id]);
-    rememberInfo(account);
+    await rememberInfo(account);
     return account;
   } catch (e) {
     logFailure("resolve", e);
@@ -133,10 +138,11 @@ export async function provenEmailFor(user: User): Promise<string | null> {
   return r ? user.email : null;
 }
 
-/** What a signed-in user sees about their Control Point side: membership and teams. */
-export interface ControlPointInfo { member: boolean; teams: { teamNumber: number | null; name: string }[]; shortlist: number[]; url: string }
+/** What a signed-in user sees about their Control Point side: membership, teams and workspaces. */
+export interface ControlPointInfo { member: boolean; teams: { teamNumber: number | null; name: string }[]; shortlist: number[]; workspaces: Workspace[]; url: string }
 
-const infoCache = new Map<number, { at: number; info: SharedAccount["controlPoint"] }>();
+type Info = SharedAccount["controlPoint"] & { workspaces: Workspace[] };
+const infoCache = new Map<number, { at: number; info: Info }>();
 const INFO_TTL = 10 * 60_000;
 const INFO_MAX = 2000;
 
@@ -151,22 +157,50 @@ function validInfo(cp: unknown): SharedAccount["controlPoint"] | null {
   const shortlist = Array.isArray(raw) ? [...new Set(raw.filter((n): n is number => Number.isInteger(n) && n > 0 && n <= 999999))].slice(0, 200) : [];
   return { member: (cp as { member?: unknown }).member === true, teams, shortlist };
 }
-const toInfo = (cp: SharedAccount["controlPoint"]): ControlPointInfo => ({ member: cp.member, teams: cp.teams, shortlist: cp.shortlist ?? [], url: env.controlPointPublicUrl!.replace(/\/$/, "") });
 
-/** Remember an account's Control Point side (from resolve or redeem), so /me needn't ask again. Bounded: expired entries go first, then the oldest. */
-export function rememberInfo(account: SharedAccount): void {
-  const info = validInfo(account.controlPoint);
-  if (!info) return;
-  const t = Date.now();
-  infoCache.delete(account.id);
-  infoCache.set(account.id, { at: t, info });
-  if (infoCache.size > INFO_MAX) {
-    for (const [k, v] of infoCache) if (t - v.at >= INFO_TTL) infoCache.delete(k);
-    while (infoCache.size > INFO_MAX) infoCache.delete(infoCache.keys().next().value!);
+/** A workspace id as Scout accepts it: opaque, short, URL- and key-safe (Control Point sends numeric strings). */
+export const isWorkspaceId = (v: unknown): v is string => typeof v === "string" && /^[A-Za-z0-9_-]{1,64}$/.test(v);
+
+/**
+ * The account's workspaces as Control Point sent them. Missing (an older
+ * Control Point) or malformed means none: Scout stays personal-only. Bad
+ * items are dropped one by one, never the whole list.
+ */
+export function validWorkspaces(raw: unknown): Workspace[] {
+  if (!Array.isArray(raw)) return [];
+  const out = new Map<string, Workspace>();
+  for (const w of raw.slice(0, 100)) {
+    if (!w || typeof w !== "object") continue;
+    const { id, name, role } = w as { id?: unknown; name?: unknown; role?: unknown };
+    if (!isWorkspaceId(id) || out.has(id)) continue;
+    out.set(id, { id, name: typeof name === "string" ? name.trim().slice(0, 120) : "", role: role === "admin" ? "admin" : "member" });
   }
+  return [...out.values()];
+}
+
+const toInfo = (cp: Info): ControlPointInfo => ({ member: cp.member, teams: cp.teams, shortlist: cp.shortlist ?? [], workspaces: cp.workspaces, url: env.controlPointPublicUrl!.replace(/\/$/, "") });
+
+/**
+ * Remember an account's Control Point side (from resolve, redeem or a read), so
+ * /me needn't ask again, and rewrite its cached workspace memberships. Never
+ * throws. Bounded: expired entries go first, then the oldest.
+ */
+export async function rememberInfo(account: SharedAccount): Promise<void> {
+  const workspaces = validWorkspaces(account.workspaces);
+  const info = validInfo(account.controlPoint);
+  if (info) {
+    const t = Date.now();
+    infoCache.delete(account.id);
+    infoCache.set(account.id, { at: t, info: { ...info, workspaces } });
+    if (infoCache.size > INFO_MAX) {
+      for (const [k, v] of infoCache) if (t - v.at >= INFO_TTL) infoCache.delete(k);
+      while (infoCache.size > INFO_MAX) infoCache.delete(infoCache.keys().next().value!);
+    }
+  }
+  await storeMemberships(account.id, workspaces);
 }
 /** Tests: forget everything (a cold cache). */
-export const clearInfoCache = () => infoCache.clear();
+export const clearInfoCache = () => { infoCache.clear(); lastForced.clear(); };
 
 /** Membership for a linked account, cached for 10 minutes; null when Control Point can't be reached or sends something unexpected. */
 export async function controlPointInfo(accountId: number): Promise<ControlPointInfo | null> {
@@ -175,9 +209,88 @@ export async function controlPointInfo(accountId: number): Promise<ControlPointI
     if (hit && Date.now() - hit.at < INFO_TTL) return toInfo(hit.info);
     infoCache.delete(accountId);
     const a = await getAccount(accountId);
-    if (!a) return null;
-    rememberInfo(a);
+    if (!a) { await storeMemberships(accountId, []); return null; } // gone from Control Point: no workspaces
+    await rememberInfo(a);
     const info = infoCache.get(accountId)?.info;
     return info ? toInfo(info) : null;
   } catch (e) { logFailure("account", e); return null; }
+}
+
+// ---------------------------------------------------------------------------
+// Workspace membership cache (workspace_members). Control Point decides who
+// belongs where; Scout keeps the last answer so a write needn't ask every time.
+// ---------------------------------------------------------------------------
+
+/** A cached membership younger than this is trusted as is; older, it's re-checked with Control Point first. */
+export const MEMBERSHIP_TTL = 10 * 60_000;
+
+/** Replace the account's cached memberships with what Control Point just said. Writes only the cache (and a mirror row's name, if one exists). Never throws. */
+async function storeMemberships(accountId: number, list: Workspace[]): Promise<void> {
+  const now = Date.now(), iso = new Date(now).toISOString();
+  try {
+    await writeBatch([
+      {
+        sql: `DELETE FROM workspace_members WHERE account_id = ?${list.length ? ` AND cp_workspace_id NOT IN (${list.map(() => "?").join(", ")})` : ""}`,
+        args: [accountId, ...list.map((w) => w.id)],
+      },
+      ...list.map((w) => ({
+        sql: `INSERT INTO workspace_members (account_id, cp_workspace_id, workspace_name, role, updated_at) VALUES (?, ?, ?, ?, ?)
+              ON CONFLICT(account_id, cp_workspace_id) DO UPDATE SET workspace_name = excluded.workspace_name, role = excluded.role, updated_at = excluded.updated_at`,
+        args: [accountId, w.id, w.name, w.role, now],
+      })),
+      // Renamed in Control Point: follow it on the mirror row (never creates one).
+      ...list.map((w) => ({ sql: "UPDATE workspaces SET name = ?, updated_at = ? WHERE cp_workspace_id = ? AND name <> ?", args: [w.name, iso, w.id, w.name] })),
+    ]);
+  } catch (e) { console.warn(`[shared-accounts] membership cache write failed: ${(e as Error)?.name ?? "error"}`); }
+}
+
+const refreshing = new Map<number, Promise<boolean>>();
+const lastForced = new Map<number, number>();
+const FORCED_GAP = 5_000;
+
+/**
+ * Ask Control Point for the account now (bypassing the 10-minute cache) and
+ * rewrite its memberships. One call per account at a time, and at most one
+ * every 5 s, so a stream of refused writes can't hammer Control Point.
+ * False when Control Point couldn't answer.
+ */
+export async function refreshAccount(accountId: number): Promise<boolean> {
+  const inflight = refreshing.get(accountId);
+  if (inflight) return inflight;
+  if (Date.now() - (lastForced.get(accountId) ?? 0) < FORCED_GAP) return true; // just asked: the cache is that answer
+  const p = (async () => {
+    try {
+      const a = await getAccount(accountId);
+      if (a) await rememberInfo(a);
+      else { infoCache.delete(accountId); await storeMemberships(accountId, []); }
+      return true;
+    } catch (e) { logFailure("account", e); return false; }
+    finally {
+      lastForced.set(accountId, Date.now());
+      if (lastForced.size > 5000) lastForced.clear();
+      refreshing.delete(accountId);
+    }
+  })();
+  refreshing.set(accountId, p);
+  return p;
+}
+
+export interface Membership { accountId: number; workspaceId: string; workspaceName: string; role: "admin" | "member" }
+
+/**
+ * Is this shared account a member of the workspace, and with what role?
+ * Uses the cached membership while it's fresh; on a miss (or a stale row) asks
+ * Control Point once and looks again. If Control Point can't be reached, a
+ * stale row still counts: losing the link mid-event shouldn't stop a team
+ * scouting. Null: not a member (or Control Point isn't configured).
+ */
+export async function workspaceMembership(accountId: number, workspaceId: string): Promise<Membership | null> {
+  if (!controlPointEnabled() || !isWorkspaceId(workspaceId)) return null;
+  const read = () => get<{ workspace_name: string; role: string; updated_at: number }>(
+    "SELECT workspace_name, role, updated_at FROM workspace_members WHERE account_id = ? AND cp_workspace_id = ?", [accountId, workspaceId]);
+  let row = await read();
+  if (!row || Date.now() - Number(row.updated_at) >= MEMBERSHIP_TTL) {
+    if (await refreshAccount(accountId)) row = await read();
+  }
+  return row ? { accountId, workspaceId, workspaceName: String(row.workspace_name), role: row.role === "admin" ? "admin" : "member" } : null;
 }

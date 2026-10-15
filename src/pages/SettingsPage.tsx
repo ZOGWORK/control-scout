@@ -14,7 +14,7 @@ import { apiFetch } from "../lib/api";
 import { useMeta, useTitle } from "../lib/meta";
 import { usePersonal, type AccountUser, type AuthProviders } from "../lib/personal";
 import { resetConsent, useConsent } from "../lib/consent";
-import { clearLocalScouting, localScoutEntries, saveScoutEntry, type ScoutEntry } from "../lib/scouting";
+import { clearLocalScouting, localScoutEntries, saveScoutEntry, storedScoutEntry, type ScoutEntry } from "../lib/scouting";
 import { clearRecordings, fmtBytes } from "../lib/recordings";
 import { downloadCsv } from "../lib/csv";
 import { PageHeader } from "../components/page";
@@ -436,7 +436,7 @@ function OfflineData() {
 
 function ScoutingData() {
   const exportJson = () => {
-    const data = localScoutEntries().filter((e) => !e.deleted);
+    const data = localScoutEntries().filter((e) => !e.deleted).map(storedScoutEntry); // the personal set, in its original shape
     const blob = new Blob([JSON.stringify({ format: "control-scout-scouting", version: 1, exportedAt: new Date().toISOString(), entries: data }, null, 2)], { type: "application/json" });
     const a = document.createElement("a"); a.href = URL.createObjectURL(blob); a.download = "control-scout-scouting.json"; a.click();
   };
@@ -446,7 +446,7 @@ function ScoutingData() {
       const d = JSON.parse(t);
       const list: ScoutEntry[] = Array.isArray(d) ? d : d.entries;
       let n = 0;
-      for (const e of list ?? []) if (e?.uuid && e.team && e.season) { saveScoutEntry({ ...e }); n++; }
+      for (const e of list ?? []) if (e?.uuid && e.team && e.season) { saveScoutEntry({ ...e, workspaceId: null }); n++; } // imports go to Personal
       toast.success(`Imported ${n} entries`);
     }).catch(() => toast.error("That file isn't a Control Scout scouting export"));
   };
