@@ -45,15 +45,12 @@ export default function PredictPage() {
   useTitle("Predict");
   const [sp, setSp] = useSearchParams();
   const pick = parsePick(sp.get("for"));
-  const view = labLink(sp) ? "lab" : "events";
-  // Picking a team or event shows its predictions: back to the events view (lab params dropped).
-  const setPick = (v: string | null) => setSp((x) => { for (const k of LAB_PARAMS) x.delete(k); if (v) x.set("for", v); else x.delete("for"); return x; });
-  // The switcher: Lab opens the what-if lab (match, unless a mode is already set); Events goes back.
-  const setView = (v: "events" | "lab") => setSp((x) => {
-    if (v === "lab") { if (!labLink(x)) x.set("mode", "match"); x.delete("for"); }
-    else for (const k of LAB_PARAMS) x.delete(k);
-    return x;
-  });
+  // ?view=lab|events picks the view; without it, a lab link (mode, red/blue, code) opens the Lab.
+  // Each view keeps its own params (for= vs the lab's), so switching back and forth loses neither.
+  const view = viewOf(sp);
+  // Picking a team or event shows its predictions in the Events view (the lab's matchup stays for later).
+  const setPick = (v: string | null) => setSp((x) => { x.set("view", "events"); if (v) x.set("for", v); else x.delete("for"); return x; });
+  const setView = (v: "events" | "lab") => setSp((x) => { x.set("view", v); if (v === "lab" && !labLink(x)) x.set("mode", "match"); return x; });
   return (
     <div className="space-y-10">
       <div>
@@ -61,19 +58,24 @@ export default function PredictPage() {
         <Picker onPick={setPick} />
         <PredictSwitch value={view} onChange={setView} />
       </div>
-      {view === "lab" ? <Lab /> : (
-        <>
-          {pick?.kind === "team" && <TeamPredictions team={pick.team} onClear={() => setPick(null)} />}
-          {pick?.kind === "event" && <EventPredictions season={pick.season} code={pick.code} onClear={() => setPick(null)} />}
-          <ThisWeek onPick={setPick} picked={pick?.kind === "event" ? pick.code : null} />
-        </>
-      )}
+      <div role="tabpanel" id={`predict-panel-${view}`} aria-labelledby={`predict-tab-${view}`} className="space-y-10">
+        {view === "lab" ? <Lab /> : (
+          <>
+            {pick?.kind === "team" && <TeamPredictions team={pick.team} onClear={() => setPick(null)} />}
+            {pick?.kind === "event" && <EventPredictions season={pick.season} code={pick.code} onClear={() => setPick(null)} />}
+            <ThisWeek onPick={setPick} picked={pick?.kind === "event" ? pick.code : null} />
+          </>
+        )}
+      </div>
     </div>
   );
 }
 
-/** The lab's own URL params (a lab link carries some of them). */
-const LAB_PARAMS = ["mode", "red", "blue", "code", "team", "season"];
+/** Which view: ?view= if set, else the Lab for a lab link, else Events. */
+export function viewOf(sp: URLSearchParams): "events" | "lab" {
+  const v = sp.get("view");
+  return v === "lab" || v === "events" ? v : labLink(sp) ? "lab" : "events";
+}
 /** A lab link: an explicit mode, or (older links) a matchup or an event without one. */
 function labLink(sp: URLSearchParams): "match" | "advancement" | null {
   const m = sp.get("mode") ?? (sp.get("red") || sp.get("blue") ? "match" : sp.get("code") ? "advancement" : null);
@@ -86,10 +88,20 @@ function PredictSwitch({ value, onChange }: { value: "events" | "lab"; onChange:
     { v: "events" as const, label: "Events", icon: CalendarDays, hint: "Predictions for scheduled matches and events" },
     { v: "lab" as const, label: "Lab", icon: FlaskConical, hint: "What-ifs: any four teams, or advancement odds for any team at any event" },
   ];
+  // Tabs keyboard pattern: the selected tab is the one Tab reaches; arrows (and Home/End) move and select.
+  const onKey = (e: React.KeyboardEvent<HTMLButtonElement>) => {
+    const i = views.findIndex((x) => x.v === value);
+    const next = e.key === "ArrowRight" ? (i + 1) % views.length : e.key === "ArrowLeft" ? (i + views.length - 1) % views.length : e.key === "Home" ? 0 : e.key === "End" ? views.length - 1 : -1;
+    if (next < 0) return;
+    e.preventDefault();
+    onChange(views[next].v);
+    document.getElementById(`predict-tab-${views[next].v}`)?.focus();
+  };
   return (
     <div className="mt-4 inline-flex max-w-full gap-1 overflow-x-auto rounded-xl border border-line bg-card p-1" role="tablist" aria-label="Predict">
       {views.map(({ v, label, icon: Icon, hint }) => (
-        <button key={v} type="button" role="tab" aria-selected={value === v} title={hint} onClick={() => value !== v && onChange(v)}
+        <button key={v} id={`predict-tab-${v}`} type="button" role="tab" aria-selected={value === v} aria-controls={`predict-panel-${v}`} tabIndex={value === v ? 0 : -1}
+          title={hint} onKeyDown={onKey} onClick={() => value !== v && onChange(v)}
           className={cn("inline-flex h-9 shrink-0 items-center gap-2 rounded-lg px-3.5 text-sm font-semibold transition-colors max-sm:h-11",
             value === v ? "bg-accent text-accent-ink shadow-[0_4px_16px_color-mix(in_srgb,var(--color-accent)_25%,transparent)]" : "text-text-muted hover:bg-text-base/[0.06] hover:text-text-base")}>
           <Icon className="size-4" />{label}
