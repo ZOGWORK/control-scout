@@ -1,8 +1,8 @@
 // @vitest-environment jsdom
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
-import { CONSENT_KEY, hasAnalyticsConsent, needsConsentChoice, readConsent, setAnalyticsConsent } from "./consent";
+import { CONSENT_KEY, hasAnalyticsConsent, needsConsentChoice, readConsent, resetConsent, setAnalyticsConsent, useConsent } from "./consent";
 import { ConsentBanner } from "../components/layout/ConsentBanner";
 
 const nav = navigator as Navigator & { globalPrivacyControl?: boolean };
@@ -46,6 +46,28 @@ describe("consent store", () => {
     setSignal(undefined, "1");
     setAnalyticsConsent(true);
     expect(hasAnalyticsConsent()).toBe(false);
+  });
+
+  it("a newer choice that couldn't be saved still wins: turning a stored yes off works with storage full", () => {
+    setAnalyticsConsent(true);
+    const spy = vi.spyOn(Storage.prototype, "setItem").mockImplementation(() => { throw new DOMException("full", "QuotaExceededError"); });
+    try {
+      setAnalyticsConsent(false);
+      expect(hasAnalyticsConsent()).toBe(false);
+      expect(needsConsentChoice()).toBe(false);
+    } finally { spy.mockRestore(); }
+    setAnalyticsConsent(true); // a later successful save takes over again
+    expect(hasAnalyticsConsent()).toBe(true);
+  });
+
+  it("resetConsent forgets the choice and tells mounted hooks", () => {
+    setAnalyticsConsent(true);
+    function Probe() { const c = useConsent(); return <p>{c.decided ? (c.analytics ? "yes" : "no") : "ask"}</p>; }
+    render(<Probe />);
+    expect(screen.getByText("yes")).toBeTruthy();
+    act(() => resetConsent());
+    expect(screen.getByText("ask")).toBeTruthy();
+    expect(needsConsentChoice()).toBe(true);
   });
 
   it("ignores a malformed or unknown-version record", () => {
