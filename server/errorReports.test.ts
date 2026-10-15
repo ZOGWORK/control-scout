@@ -24,6 +24,7 @@ let issueStates: Record<number, { state: string; state_reason?: string | null; b
 let failGithub: number | null = null;
 /** GitHub does the write but the answer is lost (a 502 after the fact). */
 let loseReply = false;
+let refuseComments = false;
 let slowGithub: Promise<void> | null = null;
 
 const fakeGithub = (async (url: string | URL | Request, init?: RequestInit) => {
@@ -47,6 +48,7 @@ const fakeGithub = (async (url: string | URL | Request, init?: RequestInit) => {
   }
   const m = /^\/issues\/(\d+)(\/comments)?$/.exec(path);
   if (m && method === "GET") return issueStates[+m[1]] ? Response.json({ number: +m[1], ...issueStates[+m[1]] }) : new Response("{}", { status: 404 });
+  if (m && m[2] && method === "POST" && refuseComments) return new Response("{}", { status: 403 });
   if (m && m[2] && method === "POST") return loseReply ? new Response("{}", { status: 502 }) : Response.json({ id: 1 }, { status: 201 });
   return new Response("{}", { status: 404 });
 }) as typeof fetch;
@@ -73,6 +75,7 @@ beforeEach(async () => {
   issueStates = {};
   failGithub = null;
   loseReply = false;
+  refuseComments = false;
   slowGithub = null;
   resetReportLimits();
   await run("DELETE FROM error_reports");
@@ -184,7 +187,24 @@ describe("POST /api/reports/error", () => {
     await storeReport(sample, new Date("2026-10-15T10:20:00Z"));
     expect(await fileReport(fp, new Date("2026-10-15T10:20:00Z"))).toBe("adopted");
     expect(calls.filter((c) => c.method === "POST" && c.path === "/issues")).toHaveLength(1);
+    // The issue was opened saying 1 occurrence: the 2 since are announced straight away, so GitHub is up to date.
+    const comments = calls.filter((c) => c.path === "/issues/100/comments");
+    expect(comments).toHaveLength(1);
+    expect(comments[0].body.body).toMatch(/^Seen 2 more times since 2026-10-15 \(3 in total\)\./);
     expect((await rows())[0]).toMatchObject({ issue_number: 100, filing_at: null, reported_count: 3 });
+  });
+
+  it("an adopted issue whose follow-up comment is refused keeps reported_count at what GitHub was told", async () => {
+    const sample = sanitizeReport(report());
+    const fp = fingerprintOf(sample);
+    await storeReport(sample, new Date("2026-10-15T10:00:00Z"));
+    loseReply = true;
+    await expect(fileReport(fp, new Date("2026-10-15T10:00:00Z"))).rejects.toThrow(/502/);
+    loseReply = false;
+    await storeReport(sample, new Date("2026-10-15T10:20:00Z"));
+    refuseComments = true;
+    await expect(fileReport(fp, new Date("2026-10-15T10:20:00Z"))).rejects.toThrow(/403/);
+    expect((await rows())[0]).toMatchObject({ issue_number: 100, filing_at: null, reported_count: 1 });
   });
 
   it("validates the shape", async () => {

@@ -188,7 +188,7 @@ async function openIssue(fp: string, token: string, now: Date, previous: number 
   if (!claimed) return "claimed-elsewhere";
   const release = () => run("UPDATE error_reports SET filing_at = NULL WHERE fingerprint = ? AND filing_at = ?", [fp, at]);
   let row: Row | undefined;
-  let existing: number | null;
+  let existing: { number: number; reported: number } | null;
   try {
     row = await get<Row>("SELECT * FROM error_reports WHERE fingerprint = ?", [fp]);
     if (!row) { await release(); return "missing"; }
@@ -198,17 +198,19 @@ async function openIssue(fp: string, token: string, now: Date, previous: number 
     await release(); // nothing was written to GitHub yet
     throw e;
   }
-  let number = existing;
+  const report = JSON.parse(row.sample) as ErrorReport;
+  const count = Number(row.count);
   try {
-    if (number == null) {
-      const report = JSON.parse(row.sample) as ErrorReport;
-      number = (await gh<{ number: number }>(token, "POST", "/issues", { title: issueTitle(row.message), body: issueBody(row, report, previous), labels: ISSUE_LABELS })).number;
-    }
+    // reported_count is always what GitHub was actually told: the count in the body we sent (or find).
+    const issue = existing ?? {
+      number: (await gh<{ number: number }>(token, "POST", "/issues", { title: issueTitle(row.message), body: issueBody(row, report, previous), labels: ISSUE_LABELS })).number,
+      reported: count,
+    };
     await run(
       "UPDATE error_reports SET issue_number = ?, issue_state = 'open', reported_count = ?, last_comment_at = ?, filing_at = NULL WHERE fingerprint = ?",
-      [number, Number(row.count), at, fp],
+      [issue.number, issue.reported, at, fp],
     );
-    return existing == null ? "opened" : "adopted";
+    if (!existing) return "opened";
   } catch (e) {
     // Refused outright: free the claim for the next report. Uncertain: keep the claim until it goes stale
     // (CLAIM_STALE_MS), by when GitHub's search has indexed any issue that did get created, and the next
@@ -216,14 +218,29 @@ async function openIssue(fp: string, token: string, now: Date, previous: number 
     if (refused(e)) await release();
     throw e;
   }
+  // Adopted: the issue still shows the count it was opened with. Tell GitHub about the rest now, rather than
+  // waiting for another report. Refused: reported_count stays as it is and the next daily comment catches up.
+  // Unknown outcome: counted as told, so the same occurrences are never announced twice.
+  if (count > existing.reported) {
+    try {
+      await gh(token, "POST", `/issues/${existing.number}/comments`, { body: commentBody(count - existing.reported, count, row.first_seen, report) });
+    } catch (e) {
+      if (refused(e)) throw e;
+    }
+    await run("UPDATE error_reports SET reported_count = MAX(reported_count, ?) WHERE fingerprint = ?", [count, fp]);
+  }
+  return "adopted";
 }
 
-/** An open issue already filed for this fingerprint (not `previous`), found by the fingerprint in its body. */
-async function findOpenIssue(token: string, fp: string, previous: number | null): Promise<number | null> {
+/** An open issue already filed for this fingerprint (not `previous`), found by the fingerprint in its body,
+ *  with the occurrence count that body states. */
+async function findOpenIssue(token: string, fp: string, previous: number | null): Promise<{ number: number; reported: number } | null> {
   const q = encodeURIComponent(`"${fp}" repo:${GITHUB_REPO} is:issue is:open in:body`);
   const found = await gh<{ items?: { number: number; state: string; body?: string | null }[] }>(token, "GET", `/search/issues?q=${q}&per_page=5`);
   const hit = (found.items ?? []).find((i) => i.state === "open" && i.number !== previous && (i.body ?? "").includes(fp));
-  return hit ? hit.number : null;
+  if (!hit) return null;
+  const stated = Number(/\*\*Occurrences:\*\* (\d+)/.exec(hit.body ?? "")?.[1]);
+  return { number: hit.number, reported: Number.isInteger(stated) && stated > 0 ? stated : 1 };
 }
 
 /**
