@@ -61,6 +61,21 @@ describe("scouting spaces on the device", () => {
     expect(pendingScoutCounts().workspaces).toEqual({});
   });
 
+  it("an entry stays queued if the server's copy (a newer edit that won) can't be saved on the device", async () => {
+    const e = saveScoutEntry({ uuid: "nnnnnnnnnnnn", ...base, workspaceId: "41", notes: "mine, older" });
+    server((_p, body) => ({ results: body.entries.map((x: ScoutEntry) => ({ uuid: x.uuid, ok: true, entry: { ...x, notes: "theirs, newer", updatedAt: x.updatedAt + 1000 } })) }));
+    const setItem = Storage.prototype.setItem;
+    const spy = vi.spyOn(Storage.prototype, "setItem").mockImplementation(function (this: Storage, k: string, v: string) {
+      if (k === "cs-scout-ws:41:nnnnnnnnnnnn") throw new DOMException("full", "QuotaExceededError");
+      return setItem.call(this, k, v);
+    });
+    try { await syncScouting("41"); } finally { spy.mockRestore(); }
+    expect(pendingScoutCounts().workspaces).toEqual({ 41: 1 });
+    await syncScouting("41"); // room again: the server's copy lands and the queue clears
+    expect(localScoutEntries("41")[0]).toMatchObject({ uuid: e.uuid, notes: "theirs, newer" });
+    expect(pendingScoutCounts().workspaces).toEqual({});
+  });
+
   it("the personal push is unchanged on the wire (no workspaceId, entries in their old shape)", async () => {
     const e = saveScoutEntry({ uuid: "hhhhhhhhhhhh", ...base });
     const calls = server(() => ({ results: [{ uuid: e.uuid, ok: true }] }));

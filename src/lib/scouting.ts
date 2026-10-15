@@ -269,8 +269,11 @@ export async function syncScouting(space: ScoutSpace = null): Promise<{ sent: nu
       const current = readEntry(space, res.uuid);
       const unchanged = !!current && !!sentVersion && current.updatedAt === sentVersion.updatedAt;
       if (res.ok && unchanged) {
-        now.delete(res.uuid);
-        if (res.entry) { try { writeEntry(normalizeScoutEntry(res.entry, space)); } catch { /* storage full: the next pull brings it */ } }
+        // Done only once the server's copy is on the device (it may be a newer edit that beat ours):
+        // if it can't be saved, the entry stays queued and the next push brings the copy back again.
+        let saved = true;
+        if (res.entry) { try { writeEntry(normalizeScoutEntry(res.entry, space)); } catch { saved = false; } }
+        if (saved) now.delete(res.uuid);
       }
       if (!res.ok) now.delete(res.uuid); // rejected for good (invalid): don't retry forever
     }
