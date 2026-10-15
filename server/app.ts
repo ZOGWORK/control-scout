@@ -21,7 +21,7 @@ import { sitemapChunkRoute, sitemapRoute } from "./sitemap.js";
 import { liveForecaster, liveVersion, dataVersion } from "./predict/engine.js";
 import { authRouter, meRouter, authProviders } from "./auth/routes.js";
 import { packsRouter } from "./packs/routes.js";
-import { listRecords, recordsQuery, RecordsQueryError, streamRecordsCsv } from "./api/records.js";
+import { listRecords, recordRegions, recordsQuery, RecordsQueryError, streamRecordsCsv } from "./api/records.js";
 import { FilterError } from "../src/shared/filterDsl.js";
 import { RECORDS_EXPORT_MAX, RECORDS_MAX_PAGE_SIZE } from "../src/shared/statCatalog.js";
 import { manualRefresh, type ManualOutcome } from "./data/live.js";
@@ -144,7 +144,9 @@ export function createApp() {
   api.get("/meta", h(async (): Promise<Meta> => {
     const rows = await all<any>("SELECT season, frozen, last_sync FROM seasons");
     const sync = await kvGet<{ at: string }>("sync:last");
-    const stats = await kvGet<{ at: string }>("stats:last");
+    // Records are also rebuilt by the live fast lane (every few minutes during events): the newer time counts.
+    const [full, live] = await Promise.all([kvGet<{ at: string }>("stats:last"), kvGet<{ at: string }>("records:last")]);
+    const stats = !live ? full : !full || live.at > full.at ? live : full;
     // A fresh server (no database connected yet) has no teams: the app says so
     // instead of letting every search and page look broken.
     const loaded = await all<{ one: number }>("SELECT 1 one FROM teams LIMIT 1");
@@ -296,6 +298,8 @@ export function createApp() {
   /** Team records: ?scope=event (default, one row per team per event) or season. */
   api.get("/records/:season/teams", ...records("teams"));
   api.get("/records/:season/matches", ...records("matches"));
+  /** The region codes a season's records use, named by their main place (for the Region dropdown). */
+  api.get("/records/:season/regions", recordsLimit, h(async (req) => ({ regions: await recordRegions(season(req.params.season)) })));
 
   // --- Predictions ---------------------------------------------------------
 

@@ -193,7 +193,7 @@ export async function refreshEvents(events: EventRow[], o: { minFullMs?: number;
       await refreshEventStats(s, codes, log);
       // The record tables (/api/records, CSV) are season-wide rewrites: at most every 5 minutes while
       // results come in (the 15-minute cycle rewrites them too); the engine's exclusives carry over.
-      if (now() - (recordsAt.get(s) ?? 0) >= RECORDS_EVERY_MS) { recordsAt.set(s, now()); await computeRecords(s, await loadSeason(s), log); }
+      if (now() - (recordsAt.get(s) ?? 0) >= RECORDS_EVERY_MS) { recordsAt.set(s, now()); await computeRecords(s, await loadSeason(s), log); await kvSet("records:last", { at: new Date(now()).toISOString() }); }
     }
     report.scored = await scoreLivePredictions(log);
     report.logged = await logLivePredictions(log);

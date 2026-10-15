@@ -6,7 +6,7 @@ import { Ambient } from "./Ambient";
 import { Link, NavLink, useLocation } from "react-router-dom";
 import { motion, MotionConfig } from "motion/react";
 import {
-  BookOpen, Bookmark, CalendarDays, ClipboardList, DatabaseZap, Download, House, Menu, PanelLeftClose, PanelLeftOpen, Scale, Search, Settings, Sparkles, Star,
+  BookOpen, Bookmark, CalendarDays, ClipboardList, DatabaseZap, Download, House, Menu, PanelLeftClose, PanelLeftOpen, Scale, Search, Settings, Sparkles, Star, Users,
 } from "lucide-react";
 import { cn } from "../cn";
 import { useMeta } from "../../lib/meta";
@@ -20,7 +20,7 @@ import { usePersonal } from "../../lib/personal";
 interface NavItem { to: string; label: string; icon: ComponentType<{ className?: string }>; end?: boolean }
 
 const SECTIONS: { title: string | null; items: NavItem[] }[] = [
-  { title: null, items: [{ to: "/", label: "Home", icon: House, end: true }, { to: "/events", label: "Events", icon: CalendarDays }] },
+  { title: null, items: [{ to: "/", label: "Home", icon: House, end: true }, { to: "/events", label: "Events", icon: CalendarDays }, { to: "/teams", label: "Teams", icon: Users }] },
   { title: "Predict", items: [
     { to: "/predict", label: "Predict", icon: Sparkles, end: true },
     { to: "/compare", label: "Compare", icon: Scale },
@@ -106,7 +106,7 @@ function MobileTabs({ onMore }: { onMore: () => void }) {
 }
 
 const TITLES: [RegExp, string][] = [
-  [/^\/teams\//, "Team"], [/^\/events\/\d/, "Event"], [/^\/events/, "Events"], [/^\/predict\/how-it-works/, "How it works"], [/^\/predict/, "Predict"],
+  [/^\/teams\//, "Team"], [/^\/teams$/, "Teams"], [/^\/matches$/, "Match records"], [/^\/events\/\d/, "Event"], [/^\/events/, "Events"], [/^\/predict\/how-it-works/, "How it works"], [/^\/predict/, "Predict"],
   [/^\/compare/, "Compare"], [/^\/my-team/, "My team"], [/^\/shortlist/, "Shortlist"], [/^\/scout/, "Scout"], [/^\/download/, "Download"],
   [/^\/settings/, "Settings"], [/^\/methodology/, "How it works"],
 ];
