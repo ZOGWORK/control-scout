@@ -27,7 +27,10 @@ export function SeasonToggle({ seasons, value, onChange, predictOnly }: { season
           // ui/controls), which the tooltip's data-state can't overwrite.
           <Tooltip key={s}>
             <TooltipTrigger asChild>
-              <ToggleGroupItem value={String(s)} className="shrink-0 max-sm:px-2.5" aria-label={`${seasonLabel(s)} ${game(s)}`}>{seasonLabel(s)}</ToggleGroupItem>
+              <ToggleGroupItem value={String(s)} className="shrink-0 max-sm:px-2.5" aria-label={`${seasonLabel(s)} ${game(s)}`}>
+                {/* Phones get "25–26" so four seasons and "Earlier" fit on one 390 px line without scrolling. */}
+                <span className="sm:hidden">{seasonLabel(s).slice(2)}</span><span className="max-sm:hidden">{seasonLabel(s)}</span>
+              </ToggleGroupItem>
             </TooltipTrigger>
             <TooltipContent>{game(s)}</TooltipContent>
           </Tooltip>
