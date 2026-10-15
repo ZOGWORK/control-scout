@@ -3,6 +3,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { useState } from "react";
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { NoteField } from "./NoteField";
+import { SIGNED_IN } from "../../lib/personal";
 
 afterEach(cleanup);
 
@@ -85,6 +86,30 @@ describe("NoteField", () => {
     expect(screen.getByRole("alert")).toBeTruthy();
     fireEvent.keyDown(field(), { key: "Enter" });
     expect(onSave).toHaveBeenCalledWith("fast auto");
+    expect(screen.queryByRole("alert")).toBeNull();
+  });
+
+  it("Escape in a remounted field restores the note stored before the failure, not the failed edit", () => {
+    render(<Parent results={[false]} onSave={() => {}} />);
+    fireEvent.change(field(), { target: { value: "fast auto" } });
+    fireEvent.keyDown(field(), { key: "Enter" });
+    cleanup();
+    const onSave = vi.fn(() => true);
+    render(<NoteField team={4215} value="fast auto" onSave={onSave} />);
+    fireEvent.keyDown(field(), { key: "Escape" });
+    expect(onSave).toHaveBeenLastCalledWith("");
+    expect(field().value).toBe("");
+    expect(screen.queryByRole("alert")).toBeNull();
+  });
+
+  it("a sign-in (the store replaced by an account's data) drops the remembered failure", () => {
+    render(<Parent results={[false]} onSave={() => {}} />);
+    fireEvent.change(field(), { target: { value: "fast auto" } });
+    fireEvent.keyDown(field(), { key: "Enter" });
+    cleanup();
+    window.dispatchEvent(new CustomEvent(SIGNED_IN));
+    render(<NoteField team={4215} value="fast auto" onSave={() => true} />);
+    expect(field().getAttribute("aria-invalid")).toBeNull();
     expect(screen.queryByRole("alert")).toBeNull();
   });
 
