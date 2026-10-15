@@ -1,7 +1,7 @@
 // Team profile + compare.
 import { all, get } from "../db.js";
 import { CURRENT_SEASON } from "../data/seasons.js";
-import type { CompareView, TeamEventRow, TeamInfo, TeamProfile, TeamSeasonStats, TeamSummary } from "../../src/shared/api.js";
+import type { CompareView, ShortlistTeam, TeamEventRow, TeamInfo, TeamProfile, TeamSeasonStats, TeamSummary } from "../../src/shared/api.js";
 import { matchViews } from "./matches.js";
 
 export async function teamInfo(number: number): Promise<TeamInfo | null> {
@@ -143,6 +143,38 @@ export async function teamSummaries(numbers: number[], season: number): Promise<
       opr: s?.opr_np ?? null, oprRank: s?.rank_np ?? null, of: s?.ranked_teams ?? null,
       rating: s?.rating_np ?? null, ratingSd: s?.rating_sd ?? null, record: s ? `${s.wins}-${s.losses}-${s.ties}` : null,
       lastEvent: ev(last), nextEvent: ev(next),
+    };
+  });
+}
+
+/**
+ * The shortlist in one request: each team's summary, its season OPR split and
+ * its event-by-event OPR (for the trend graphs). Three queries for the whole
+ * list (summaries) plus two, however many teams, not N requests per team.
+ */
+export async function shortlistTeams(numbers: number[], season: number): Promise<ShortlistTeam[]> {
+  if (!numbers.length) return [];
+  const ph = numbers.map(() => "?").join(",");
+  const [summaries, split, events] = await Promise.all([
+    teamSummaries(numbers, season),
+    all<any>(`SELECT team, opr_auto, opr_teleop, opr_endgame FROM team_season_stats WHERE season = ? AND team IN (${ph})`, [season, ...numbers]),
+    all<any>(
+      `SELECT s.team, e.code, e.name, e.start, et.rank, s.opr_np, s.opr_auto, s.opr_teleop, s.opr_endgame, s.avg_np
+       FROM team_event_stats s JOIN events e ON e.season = s.season AND e.code = s.code
+       LEFT JOIN event_teams et ON et.season = s.season AND et.code = s.code AND et.team = s.team
+       WHERE s.season = ? AND s.team IN (${ph})
+       ORDER BY e.start, e.code`, [season, ...numbers]),
+  ]);
+  const n = (x: unknown) => (x == null ? null : Number(x));
+  return summaries.map((t) => {
+    const s = split.find((x) => Number(x.team) === t.team);
+    return {
+      ...t,
+      breakdown: { auto: n(s?.opr_auto), teleop: n(s?.opr_teleop), endgame: n(s?.opr_endgame) },
+      events: events.filter((e) => Number(e.team) === t.team).map((e) => ({
+        code: e.code, name: e.name, start: e.start ?? null, rank: n(e.rank),
+        opr: n(e.opr_np), auto: n(e.opr_auto), teleop: n(e.opr_teleop), endgame: n(e.opr_endgame), avgNp: n(e.avg_np),
+      })),
     };
   });
 }

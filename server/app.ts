@@ -11,7 +11,7 @@ import { hasFirst } from "./env.js";
 import { CURRENT_SEASON, SEASONS, SEASON_NUMBERS, seasonInfo } from "./data/seasons.js";
 import { ensureSearchIndex, search } from "./api/search.js";
 import { rebuildSearch } from "./stats/job.js";
-import { teamProfile, compareTeams, teamSummaries } from "./api/teams.js";
+import { teamProfile, compareTeams, teamSummaries, shortlistTeams } from "./api/teams.js";
 import { eventDetail, listEvents, toEventInput } from "./api/events.js";
 import { matchDetail, matchViews } from "./api/matches.js";
 import { trackRecord } from "./api/accuracy.js";
@@ -230,6 +230,9 @@ export function createApp() {
 
   /** Many teams at once (shortlist, tracked teams): name, place, season stats, latest event. */
   api.get("/teams-summary", h(async (req) => ({ season: season(req.query.season), teams: await teamSummaries(teamList(req.query.teams, "teams", 100), season(req.query.season)) })));
+
+  /** The shortlist page in one request: summaries plus each team's OPR split and event-by-event trend. */
+  api.get("/shortlist", h(async (req) => ({ season: season(req.query.season), teams: await shortlistTeams(teamList(req.query.teams, "teams", 100), season(req.query.season)) })));
 
   // --- Predictions ---------------------------------------------------------
 
