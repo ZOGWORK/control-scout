@@ -1,6 +1,6 @@
 // Compare up to four teams head to head: OPR by phase, prediction ratings,
 // records, event-by-event OPR, and every match where they met or partnered.
-import { useState } from "react";
+import { useState, type CSSProperties } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { Bar, BarChart, CartesianGrid, Legend, Line, LineChart, XAxis, YAxis } from "recharts";
 import { Plus, Scale, Sparkles, X } from "lucide-react";
@@ -69,7 +69,8 @@ function Compare({ d }: { d: CompareView }) {
   const lab = t.length === 4 && predictable ? `/predict?mode=match&season=${d.season}&red=${t[0].team.number},${t[1].team.number}&blue=${t[2].team.number},${t[3].team.number}` : null;
   return (
     <div>
-      <div className="mb-8 grid gap-3" style={{ gridTemplateColumns: `repeat(${Math.min(t.length, 4)}, minmax(0, 1fr))` }}>
+      {/* One card per row on phones, two on tablets, all side by side from lg (a four-way row is too narrow below that). */}
+      <div className="mb-8 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-[repeat(var(--n),minmax(0,1fr))]" style={{ "--n": Math.min(t.length, 4) } as CSSProperties}>
         {t.map((x, i) => (
           <div key={x.team.number} className="min-w-0 rounded-xl border border-border bg-card p-4" style={{ borderTopColor: COLORS[i], borderTopWidth: 3 }}>
             <Link to={`/teams/${x.team.number}?season=${d.season}`} className="hover:underline"><p className="font-display text-2xl font-semibold">{x.team.number}</p><p className="truncate text-sm text-muted-foreground">{x.team.name ?? "—"}</p></Link>
@@ -123,5 +124,5 @@ function Compare({ d }: { d: CompareView }) {
 }
 
 function Row({ k, v, s }: { k: string; v: string; s: string | null }) {
-  return <div className="flex items-baseline justify-between gap-2"><dt className="text-muted-foreground">{k}</dt><dd className="text-right font-medium tabular-nums">{v}{s && <span className="ml-1.5 text-xs font-normal text-muted-foreground">{s}</span>}</dd></div>;
+  return <div className="flex items-baseline justify-between gap-2"><dt className="shrink-0 text-muted-foreground">{k}</dt><dd className="min-w-0 text-right font-medium tabular-nums">{v}{s && <span className="ml-1.5 text-xs font-normal text-muted-foreground">{s}</span>}</dd></div>;
 }

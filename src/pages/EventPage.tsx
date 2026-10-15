@@ -299,8 +299,8 @@ function EventGlance({ d, onTab }: { d: EventDetail; onTab: (t: string) => void 
           {rows.map((r) => (
             <div key={r.label} className="flex items-center justify-between gap-3 py-2">
               <dt className="shrink-0 text-muted-foreground">{r.label}</dt>
-              <dd className="min-w-0 truncate text-right">
-                {r.to ? <Link to={r.to} className="hover:text-accent">{r.value}</Link> : r.tab ? <button type="button" onClick={() => onTab(r.tab!)} className="hover:text-accent">{r.value}</button> : r.value}
+              <dd className="min-w-0 text-right max-sm:[overflow-wrap:anywhere] sm:truncate">
+                {r.to ? <Link to={r.to} className="hover:text-accent">{r.value}</Link> : r.tab ? <button type="button" onClick={() => onTab(r.tab!)} className="text-right hover:text-accent">{r.value}</button> : r.value}
               </dd>
             </div>
           ))}

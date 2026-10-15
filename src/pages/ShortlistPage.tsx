@@ -146,7 +146,8 @@ export default function ShortlistPage() {
             <>
               <p className="mb-3 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-text-muted">
                 <span><GripVertical className="inline size-3.5 align-[-3px] text-accent" /> Drag the grip (or focus it and use the arrow keys) to rank your picks.</span>
-                <span>Tick up to {MAX_COMPARE} to compare.</span>
+                <span className={cn(view === "list" && "max-sm:hidden")}>Tick up to {MAX_COMPARE} to compare.</span>
+                {view === "list" && <span className="sm:hidden">Open a pick to tick it for Compare (up to {MAX_COMPARE}).</span>}
                 {list.length > MAX_SHOWN && <span className="text-warning">Showing the first {MAX_SHOWN} of {list.length}.</span>}
               </p>
               {view === "list" ? (
@@ -200,6 +201,15 @@ function SelectBox({ t, selected, selectDisabled, onSelect }: Pick<RowProps, "t"
   return <Checkbox checked={selected} disabled={selectDisabled} onCheckedChange={(v) => onSelect(v === true)} aria-label={`Select ${t.team} to compare`} title={selectDisabled ? `Compare takes up to ${MAX_COMPARE} teams` : undefined} />;
 }
 
+/** The compare tick with its words, the whole label tappable (a 16 px box alone is too small a target on a phone). */
+function SelectLabel({ text, className, ...p }: Pick<RowProps, "t" | "selected" | "selectDisabled" | "onSelect"> & { text: string; className?: string }) {
+  return (
+    <label className={cn("inline-flex min-h-8 cursor-pointer items-center gap-2 rounded-lg px-2 text-xs text-text-muted hover:text-text-base max-sm:min-h-11", p.selectDisabled && !p.selected && "cursor-not-allowed opacity-60", className)}>
+      <SelectBox {...p} /><span>{text}</span>
+    </label>
+  );
+}
+
 function ListRow(p: RowProps) {
   const { t, rank, open, dragging } = p;
   const detailsId = `shortlist-${t.team}`;
@@ -230,7 +240,11 @@ function ListRow(p: RowProps) {
           </Button>
         </div>
       </div>
-      {open && <div id={detailsId}>{p.detail}</div>}
+      {open && <div id={detailsId}>
+        {/* Phones have no room for the tick column: picking for Compare lives in the opened row. */}
+        <div className="border-t border-border px-2 pt-1 sm:hidden"><SelectLabel {...p} text={p.selected ? "Selected to compare" : "Select to compare"} /></div>
+        {p.detail}
+      </div>}
     </li>
   );
 }
@@ -245,7 +259,7 @@ function GridCard(p: RowProps) {
         <div className="flex items-center gap-2">
           <RankBadge rank={rank} className="size-8 text-sm" />
           <Grip t={t} rank={rank} handle={p.handle} />
-          <div className="ml-auto flex items-center gap-2 text-xs text-text-muted"><SelectBox {...p} /><span className="max-sm:sr-only">Compare</span></div>
+          <SelectLabel {...p} text="Compare" className="-mr-2 ml-auto" />
         </div>
         <div className="mt-2.5 min-w-0">
           <Link to={`/teams/${t.team}?season=${p.season}`} className="group/name flex min-w-0 items-baseline">
