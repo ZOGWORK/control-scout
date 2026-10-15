@@ -17,8 +17,11 @@ export function localDbPath(url = env.databaseUrl): string | null {
   return url.slice("file:".length);
 }
 
-/** Tables holding people's own data or site usage, never in the snapshot. */
-export const PRIVATE_TABLES = ["users", "sessions", "identities", "email_codes", "user_state", "scout_entries", "error_reports", "contact_messages", "analytics_daily"];
+/** Tables holding people's own data or site usage, never in the snapshot. Emptied in this order: workspace entries before the workspaces they reference. */
+export const PRIVATE_TABLES = [
+  "users", "sessions", "identities", "email_codes", "user_state", "scout_entries", "error_reports", "contact_messages", "analytics_daily",
+  "workspace_members", "workspace_scout_entries", "workspaces",
+];
 
 /**
  * Public FTC data the snapshot ships. Every table the migrations create must be

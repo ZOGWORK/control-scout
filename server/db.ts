@@ -400,6 +400,65 @@ CREATE TABLE error_reports (
 CREATE INDEX error_reports_last_seen ON error_reports (last_seen);
 `,
   },
+  {
+    version: 12,
+    name: "workspace scouting (Control Point workspaces mirrored)",
+    sql: `
+-- Workspaces and membership come from Control Point (docs/shared-accounts.md); Scout mirrors, never edits.
+-- workspace_members: a cache of each linked account's workspaces as Control Point last sent them,
+-- rewritten whenever Scout fetches the account (sign-in, /api/auth/me at most every 10 min, or a
+-- membership miss on a workspace write). Keyed by Control Point's workspace id, so caching it
+-- never needs a workspaces row.
+CREATE TABLE workspace_members (
+  account_id INTEGER NOT NULL,      -- the shared (Control Point) account id
+  cp_workspace_id TEXT NOT NULL,    -- Control Point's workspace id: opaque, stable across renames
+  workspace_name TEXT NOT NULL DEFAULT '',
+  role TEXT NOT NULL,               -- admin | member
+  updated_at INTEGER NOT NULL,      -- ms; when Control Point last confirmed it
+  PRIMARY KEY (account_id, cp_workspace_id)
+) WITHOUT ROWID;
+CREATE INDEX workspace_members_workspace ON workspace_members (cp_workspace_id);
+
+-- One row per Control Point workspace that has used Scout: created on the first entry (or,
+-- later, the first settings change), never on sign-in or by opening Scout.
+-- settings: the workspace tier of settings (template, defaults, entry policy), JSON, NULL until an
+-- admin first saves; settings_version goes up on every change so clients can refetch.
+CREATE TABLE workspaces (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  cp_workspace_id TEXT NOT NULL UNIQUE,
+  name TEXT NOT NULL DEFAULT '',
+  settings TEXT,
+  settings_version INTEGER NOT NULL DEFAULT 0,
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL
+);
+
+-- Shared scout entries, one set per workspace. Personal entries stay in scout_entries (keyed by
+-- the Scout user). updated_at is the writer's clock and decides conflicts (newer wins); seq is the
+-- server's own order (per workspace, bumped on every accepted write) and is the pull cursor, so an
+-- entry synced late with an old updated_at is still seen by everyone who already pulled.
+CREATE TABLE workspace_scout_entries (
+  workspace_id INTEGER NOT NULL REFERENCES workspaces (id),
+  uuid TEXT NOT NULL,
+  season INTEGER NOT NULL,
+  team INTEGER NOT NULL,
+  event_code TEXT,
+  match_label TEXT,
+  kind TEXT NOT NULL,               -- match | pit
+  data TEXT NOT NULL,
+  notes TEXT NOT NULL DEFAULT '',
+  updated_at INTEGER NOT NULL,
+  deleted INTEGER NOT NULL DEFAULT 0,
+  author_account_id INTEGER NOT NULL,   -- who created it (set once, by the server)
+  author_name TEXT NOT NULL DEFAULT '',
+  editor_account_id INTEGER NOT NULL,   -- who wrote the stored version
+  editor_name TEXT NOT NULL DEFAULT '',
+  seq INTEGER NOT NULL,
+  PRIMARY KEY (workspace_id, uuid)
+);
+CREATE UNIQUE INDEX workspace_scout_seq ON workspace_scout_entries (workspace_id, seq);
+`,
+  },
 ];
 
 export type Db = Client;
