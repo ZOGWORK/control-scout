@@ -3,7 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import {
-  buildReport, captureError, clearPrompt, disableReporting, installErrorReporting, isNoise, lastError, manualReport, resetErrorReporting, sendReport, usePendingReport,
+  buildReport, captureError, clearPrompt, disableReporting, installErrorReporting, isNoise, lastError, manualReport, resetErrorReporting, SEND_TIMEOUT_MS, sendReport, usePendingReport,
 } from "./errorReporting";
 import { ErrorReportPrompt } from "../components/layout/ErrorReportPrompt";
 import { RouteErrorBoundary } from "../components/RouteErrorBoundary";
@@ -106,6 +106,37 @@ describe("recursion guard (browser)", () => {
     expect(screen.getByTestId("pending").textContent).toBe("none");
     finish(new Response("{}", { status: 202 }));
     expect(await sending).toBe("sent");
+  });
+
+  it("a stalled send times out and frees the pipeline", async () => {
+    vi.useFakeTimers();
+    try {
+      let aborted = false;
+      fetchMock.mockImplementation((_u: unknown, init?: RequestInit) => new Promise<Response>(() => { init?.signal?.addEventListener("abort", () => { aborted = true; }); }));
+      const sending = sendReport(buildReport(new Error("x")));
+      await vi.advanceTimersByTimeAsync(SEND_TIMEOUT_MS);
+      expect(await sending).toBe("failed");
+      expect(aborted).toBe(true);
+      captureError(new Error("after the stall"));
+      expect(lastError()?.message).toBe("Error: after the stall");
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("a send that finishes after its prompt was closed never closes the next prompt", async () => {
+    let finish!: (r: Response) => void;
+    fetchMock.mockImplementation(() => new Promise<Response>((r) => { finish = r; }));
+    render(<><ErrorReportPrompt /><Pending /></>);
+    act(() => captureError(new Error("first problem")));
+    fireEvent.click(screen.getByRole("button", { name: "Report" }));
+    fireEvent.click(screen.getByRole("button", { name: "Close" }));
+    await act(async () => { finish(new Response("{}", { status: 202 })); await Promise.resolve(); });
+    act(() => captureError(new Error("second problem")));
+    expect(screen.getByTestId("pending").textContent).toBe("Error: second problem");
+    await act(() => new Promise((r) => setTimeout(r, 2700)));
+    expect(screen.getByTestId("pending").textContent).toBe("Error: second problem");
+    expect(screen.getByText("Something broke — report it?")).toBeTruthy();
   });
 
   it("a failing send never throws, rejects or reports itself", async () => {

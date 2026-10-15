@@ -11,6 +11,9 @@
 //     one closed as not planned stays closed (reports are still counted here).
 // Two servers (or two requests) never open two issues for one fingerprint: the
 // filer first claims the row with a conditional UPDATE, and only the winner files.
+// When a write's outcome is unknown (no answer, a timeout, a 5xx), the claim is
+// kept until it goes stale, and the next attempt first searches GitHub for an
+// open issue carrying the fingerprint and adopts it instead of opening another.
 //
 // Nothing here may ever fail loudly: a broken report path is logged (the reason
 // only, never the report or the token) and the app carries on.
@@ -93,8 +96,15 @@ export function setGithubFetch(f: Fetch | null) { fetchImpl = f; }
 
 class GithubError extends Error { constructor(readonly status: number) { super(`GitHub answered ${status}`); } }
 
+/** GitHub definitely refused (a 4xx answer): nothing was created, so it's safe to try again later. Anything
+ *  else after a write was sent (no answer, a timeout, a 5xx, or our own failure to save the result) is
+ *  uncertain: the write may have gone through. */
+const refused = (e: unknown) => e instanceof GithubError && e.status >= 400 && e.status < 500;
+
+/** `path` is under the repository ("/issues"), or absolute from the API root when it starts with "/search/". */
 async function gh<T>(token: string, method: "GET" | "POST", path: string, body?: unknown): Promise<T> {
-  const res = await (fetchImpl ?? fetch)(`https://api.github.com/repos/${GITHUB_REPO}${path}`, {
+  const url = path.startsWith("/search/") ? `https://api.github.com${path}` : `https://api.github.com/repos/${GITHUB_REPO}${path}`;
+  const res = await (fetchImpl ?? fetch)(url, {
     method,
     headers: {
       Accept: "application/vnd.github+json",
@@ -164,7 +174,7 @@ export function commentBody(more: number, total: number, since: string | null, r
 const CLAIM_STALE_MS = 10 * 60_000;
 const COMMENT_EVERY_MS = 24 * 60 * 60_000;
 
-export type FilingOutcome = "no-token" | "missing" | "opened" | "claimed-elsewhere" | "commented" | "throttled" | "up-to-date" | "not-planned";
+export type FilingOutcome = "no-token" | "missing" | "opened" | "adopted" | "claimed-elsewhere" | "commented" | "throttled" | "up-to-date" | "not-planned";
 
 /** Opens an issue for the row, if this server wins the claim on it. `previous`: the closed issue this one replaces. */
 async function openIssue(fp: string, token: string, now: Date, previous: number | null): Promise<FilingOutcome> {
@@ -176,20 +186,44 @@ async function openIssue(fp: string, token: string, now: Date, previous: number 
     [at, fp, previous, stale],
   );
   if (!claimed) return "claimed-elsewhere";
+  const release = () => run("UPDATE error_reports SET filing_at = NULL WHERE fingerprint = ? AND filing_at = ?", [fp, at]);
+  let row: Row | undefined;
+  let existing: number | null;
   try {
-    const row = await get<Row>("SELECT * FROM error_reports WHERE fingerprint = ?", [fp]);
-    if (!row) return "missing";
-    const report = JSON.parse(row.sample) as ErrorReport;
-    const issue = await gh<{ number: number }>(token, "POST", "/issues", { title: issueTitle(row.message), body: issueBody(row, report, previous), labels: ISSUE_LABELS });
-    await run(
-      "UPDATE error_reports SET issue_number = ?, issue_state = 'open', reported_count = ?, last_comment_at = ?, filing_at = NULL WHERE fingerprint = ?",
-      [issue.number, Number(row.count), at, fp],
-    );
-    return "opened";
+    row = await get<Row>("SELECT * FROM error_reports WHERE fingerprint = ?", [fp]);
+    if (!row) { await release(); return "missing"; }
+    // An earlier attempt may have opened the issue without hearing back: adopt it instead of opening another.
+    existing = await findOpenIssue(token, fp, previous);
   } catch (e) {
-    await run("UPDATE error_reports SET filing_at = NULL WHERE fingerprint = ? AND filing_at = ?", [fp, at]);
+    await release(); // nothing was written to GitHub yet
     throw e;
   }
+  let number = existing;
+  try {
+    if (number == null) {
+      const report = JSON.parse(row.sample) as ErrorReport;
+      number = (await gh<{ number: number }>(token, "POST", "/issues", { title: issueTitle(row.message), body: issueBody(row, report, previous), labels: ISSUE_LABELS })).number;
+    }
+    await run(
+      "UPDATE error_reports SET issue_number = ?, issue_state = 'open', reported_count = ?, last_comment_at = ?, filing_at = NULL WHERE fingerprint = ?",
+      [number, Number(row.count), at, fp],
+    );
+    return existing == null ? "opened" : "adopted";
+  } catch (e) {
+    // Refused outright: free the claim for the next report. Uncertain: keep the claim until it goes stale
+    // (CLAIM_STALE_MS), by when GitHub's search has indexed any issue that did get created, and the next
+    // attempt adopts it rather than opening a duplicate.
+    if (refused(e)) await release();
+    throw e;
+  }
+}
+
+/** An open issue already filed for this fingerprint (not `previous`), found by the fingerprint in its body. */
+async function findOpenIssue(token: string, fp: string, previous: number | null): Promise<number | null> {
+  const q = encodeURIComponent(`"${fp}" repo:${GITHUB_REPO} is:issue is:open in:body`);
+  const found = await gh<{ items?: { number: number; state: string; body?: string | null }[] }>(token, "GET", `/search/issues?q=${q}&per_page=5`);
+  const hit = (found.items ?? []).find((i) => i.state === "open" && i.number !== previous && (i.body ?? "").includes(fp));
+  return hit ? hit.number : null;
 }
 
 /**
@@ -239,7 +273,9 @@ export async function fileReport(fp: string, now = new Date()): Promise<FilingOu
     await run("UPDATE error_reports SET reported_count = MAX(reported_count, ?), issue_state = 'open' WHERE fingerprint = ?", [Number(row.count), fp]);
     return "commented";
   } catch (e) {
-    await giveBack();
+    // Refused: give the day's slot back. Uncertain (the comment may be posted): keep it, so a retry can't
+    // post the same comment twice; the next one goes out a day later and covers these reports too.
+    if (refused(e)) await giveBack();
     throw e;
   }
 }

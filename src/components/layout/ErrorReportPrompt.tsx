@@ -22,17 +22,22 @@ function Prompt() {
   const report = usePendingReport();
   const [phase, setPhase] = useState<Phase>("ask");
   const timer = useRef<number | undefined>(undefined);
+  // The report on screen right now: a send that finishes after it was closed (or replaced) leaves the next one alone.
+  const shown = useRef(report);
+  shown.current = report;
   useEffect(() => () => window.clearTimeout(timer.current), []);
-  // A new prompt always starts by asking.
-  useEffect(() => { if (report) setPhase("ask"); }, [report]);
+  // A new prompt always starts by asking, and no timer from an earlier one can close it.
+  useEffect(() => { window.clearTimeout(timer.current); if (report) setPhase("ask"); }, [report]);
 
-  const close = () => { window.clearTimeout(timer.current); clearPrompt(); };
+  const close = () => { window.clearTimeout(timer.current); if (report) clearPrompt(report); };
   const send = () => {
     if (!report || phase !== "ask") return;
+    const sent = report;
     setPhase("sending");
-    void sendReport(report).then((r) => {
+    void sendReport(sent).then((r) => {
+      if (shown.current !== sent) return; // closed or replaced meanwhile: nothing left to update
       setPhase(r);
-      timer.current = window.setTimeout(close, r === "failed" ? 4000 : 2500);
+      timer.current = window.setTimeout(() => clearPrompt(sent), r === "failed" ? 4000 : 2500);
     });
   };
 

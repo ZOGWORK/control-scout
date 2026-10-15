@@ -92,19 +92,27 @@ export const lastError = () => last;
 
 export type SendResult = "sent" | "limited" | "failed";
 
-/** Posts one report. Every failure is swallowed into "failed": it can't throw or reject. */
+/** A send that hasn't answered by then is abandoned, so a stalled connection can't hold the pipeline. */
+export const SEND_TIMEOUT_MS = 10_000;
+
+/** Posts one report. Every failure (including the timeout) is swallowed into "failed": it can't throw or reject. */
 export async function sendReport(report: ErrorReport): Promise<SendResult> {
   if (sending) return "failed";
   sending = true;
+  let timer: ReturnType<typeof setTimeout> | undefined;
   try {
-    const res = await fetch(REPORT_URL, {
+    const ctrl = new AbortController();
+    const timeout = new Promise<"failed">((resolve) => { timer = setTimeout(() => { ctrl.abort(); resolve("failed"); }, SEND_TIMEOUT_MS); });
+    const send = fetch(REPORT_URL, {
       method: "POST", headers: { "Content-Type": "application/json" }, credentials: "same-origin", keepalive: true,
-      body: JSON.stringify(sanitizeReport(report)),
-    });
-    return res.ok ? "sent" : res.status === 429 ? "limited" : "failed";
+      body: JSON.stringify(sanitizeReport(report)), signal: ctrl.signal,
+    }).then((res): SendResult => (res.ok ? "sent" : res.status === 429 ? "limited" : "failed"), (): SendResult => "failed");
+    // The timeout wins even if the request ignores the abort.
+    return await Promise.race([send, timeout]);
   } catch {
     return "failed";
   } finally {
+    clearTimeout(timer);
     sending = false;
   }
 }
@@ -123,9 +131,9 @@ export function manualReport(description: string): ErrorReport {
   });
 }
 
-/** The prompt was answered (Report or Dismiss). */
-export function clearPrompt(): void {
-  if (!pending) return;
+/** The prompt was answered (Report or Dismiss). With `report`, only if that report is still the one showing. */
+export function clearPrompt(report?: ErrorReport): void {
+  if (!pending || (report && pending !== report)) return;
   pending = null;
   emit();
 }
