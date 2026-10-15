@@ -5,7 +5,7 @@ import { Link, useSearchParams } from "react-router-dom";
 import { Bar, BarChart, CartesianGrid, Legend, Line, LineChart, XAxis, YAxis } from "recharts";
 import { Plus, Scale, Sparkles, X } from "lucide-react";
 import { useApi, qs } from "../lib/api";
-import { useCurrentSeason, useTitle } from "../lib/meta";
+import { useCurrentSeason, usePredictable, useTitle } from "../lib/meta";
 import type { CompareView } from "../shared/api";
 import { PageHeader, Section, EmptyState } from "../components/page";
 import { Async } from "../components/states";
@@ -64,7 +64,9 @@ function Compare({ d }: { d: CompareView }) {
   const config = Object.fromEntries(t.map((x, i) => [String(x.team.number), { label: String(x.team.number), color: COLORS[i] }]));
   const maxEvents = Math.max(0, ...t.map((x) => x.events.length));
   const trend = Array.from({ length: maxEvents }, (_, i) => ({ i: `E${i + 1}`, ...Object.fromEntries(t.map((x) => [String(x.team.number), x.events[i]?.opr ?? null])) }));
-  const lab = t.length === 4 ? `/predict?mode=match&season=${d.season}&red=${t[0].team.number},${t[1].team.number}&blue=${t[2].team.number},${t[3].team.number}` : null;
+  // 2019–2022 are history only: their predict routes 404, so no "Predict" button.
+  const predictable = usePredictable(d.season);
+  const lab = t.length === 4 && predictable ? `/predict?mode=match&season=${d.season}&red=${t[0].team.number},${t[1].team.number}&blue=${t[2].team.number},${t[3].team.number}` : null;
   return (
     <div>
       <div className="mb-8 grid gap-3" style={{ gridTemplateColumns: `repeat(${Math.min(t.length, 4)}, minmax(0, 1fr))` }}>

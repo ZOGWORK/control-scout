@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+- `scoutEventQuery` works for 2019–2022: 2020/2021 query FTC Scout's
+  `*Trad`/`*Remote` types (and omit `penaltyPointsByOpp`, which those seasons
+  don't have). Queries for 2023+ are unchanged, character for character.
+
 ## 1.1.0 — 2026-10-13
 
 - **Playoff lineups:** a selected alliance with three teams (a second pick)

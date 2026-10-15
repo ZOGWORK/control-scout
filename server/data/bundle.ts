@@ -2,7 +2,7 @@
 // writes a bundle atomically: an event's rows are replaced as a whole, so a
 // half-fetched event never mixes old and new data.
 import type { InStatement } from "@libsql/client";
-import type { ScoreSplit } from "./seasons.js";
+import { isLegacy, type ScoreSplit } from "./seasons.js";
 
 export interface EventRow {
   season: number;
@@ -108,8 +108,15 @@ export function matchLabel(level: "qual" | "playoff", series: number, number: nu
 
 const now = () => new Date().toISOString();
 
-/** Upsert team metadata without blanking known fields. */
-export function teamStatements(teams: TeamRow[]): InStatement[] {
+/** Upsert team metadata without blanking known fields. `onlyNew`: add unknown
+ *  teams but never touch known ones (2019–2022 names and towns are years old). */
+export function teamStatements(teams: TeamRow[], onlyNew = false): InStatement[] {
+  if (onlyNew) {
+    return teams.map((t) => ({
+      sql: `INSERT OR IGNORE INTO teams (number, name, full_name, school, sponsors, city, state, country, rookie_year, website, home_region, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      args: [t.number, t.name, t.fullName, t.school, t.sponsors ? JSON.stringify(t.sponsors) : null, t.city, t.state, t.country, t.rookieYear, t.website, t.homeRegion, now()],
+    }));
+  }
   return teams.map((t) => ({
     sql: `INSERT INTO teams (number, name, full_name, school, sponsors, city, state, country, rookie_year, website, home_region, updated_at)
           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
@@ -150,7 +157,7 @@ export function bundleStatements(b: EventBundle): InStatement[] {
             detail_synced_at = COALESCE(excluded.detail_synced_at, events.detail_synced_at)`,
     args: [e.season, e.code, e.name, e.type, e.divisionCode, e.region, e.league, e.venue, e.city, e.state, e.country, e.start, e.end, e.timezone, e.remote ? 1 : 0, e.hybrid ? 1 : 0, e.website, e.livestream, e.source, e.upstreamUpdated, now(), b.detail ? now() : null],
   });
-  s.push(...teamStatements(b.teams));
+  s.push(...teamStatements(b.teams, isLegacy(e.season)));
   if (!b.detail) return s;
   const k = [e.season, e.code];
   for (const t of ["event_teams", "matches", "match_teams", "alliances", "awards"]) s.push({ sql: `DELETE FROM ${t} WHERE season = ? AND code = ?`, args: k });

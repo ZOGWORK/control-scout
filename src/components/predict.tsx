@@ -12,6 +12,7 @@ import { useVideoLinkCount } from "./MatchVideo";
 
 const MatchDetails = lazy(() => import("./MatchDetails").then((x) => ({ default: x.MatchDetails })));
 import { useCalibration } from "../lib/calibration";
+import { usePredictable } from "../lib/meta";
 
 const TIER: Record<ConfidenceTier, { label: string; cls: string; icon: typeof Gauge; blurb: string }> = {
   provisional: { label: "Provisional", cls: "border-warning/40 bg-warning/10 text-warning", icon: CircleDashed, blurb: "Mostly prior-season data — treat as a rough guess." },
@@ -155,6 +156,7 @@ export function MatchRow({ m, highlight, showEvent, eventName, open, onToggle }:
   const fav: Side | null = p ? (p.pRed >= 0.5 ? "red" : "blue") : null;
   const missing = [m.red, m.blue].some((a) => a.teams.filter((t) => t.onField).length !== 2);
   const when = showEvent ?? matchTime(m.time);
+  const predictable = usePredictable(m.season); // 2019–2022: history only, so no "No call" on every row
   return (
     <div className={cn("border-b border-border last:border-b-0", mySide && "relative before:absolute before:inset-y-0 before:left-0 before:w-[3px] before:bg-accent/70")} data-match={m.key}>
     <div
@@ -199,7 +201,7 @@ export function MatchRow({ m, highlight, showEvent, eventName, open, onToggle }:
             </TooltipContent>
           </Tooltip>
         ) : (
-          <span className="text-xs text-text-muted" title={missing && m.played ? "An alliance played with one robot. The engine predicts full 2-against-2 matches only." : undefined}>
+          !predictable ? null : <span className="text-xs text-text-muted" title={missing && m.played ? "An alliance played with one robot. The engine predicts full 2-against-2 matches only." : undefined}>
             {m.played ? (missing ? "No call · a robot sat out" : "No call") : m.red.teams.length > 2 || m.blue.teams.length > 2 ? "Lineup TBD" : "—"}
           </span>
         )}

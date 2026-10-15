@@ -5,7 +5,7 @@ import "./env.js";
 import { env } from "./env.js";
 import { migrate, all, isRemote, openReplicaIfRemote } from "./db.js";
 import { packsDir } from "./packs/routes.js";
-import { runCycle, runCycleInChild } from "./data/cycle.js";
+import { backfillDue, runCycle, runCycleInChild } from "./data/cycle.js";
 import express from "express";
 import { ENGINE_VERSION } from "@control-scout/predict-engine";
 import { createApp } from "./app.js";
@@ -82,6 +82,9 @@ let last = 0;
 setInterval(async () => {
   const gap = (await eventDay().catch(() => false)) ? eventDayMinutes * 60_000 : 24 * 3600_000;
   if (Date.now() - last >= gap) { last = Date.now(); cycle(gap < 864e5 ? `every ${eventDayMinutes} min, event day` : "daily"); }
+  // 2019–2022 not fetched yet: back-to-back cycles through the quiet hours (one season each) until done,
+  // whenever the server happened to start and whatever the regular schedule.
+  else if (await backfillDue().catch(() => false)) cycle("backfill");
 }, Math.min(5, eventDayMinutes) * 60_000).unref();
 // First cycle shortly after boot (not at boot: let the server answer first).
 setTimeout(() => { last = Date.now(); cycle("startup"); }, 60_000).unref();

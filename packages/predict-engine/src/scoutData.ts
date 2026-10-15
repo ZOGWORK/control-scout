@@ -11,24 +11,38 @@ export const ADVANCING_TYPES = new Set(["LeagueTournament", "Qualifier", "Champi
 
 /** Alliance score fields per season (totals + game-part split + RP flags). */
 function allianceFields(season: number): string {
-  const common = "autoPoints dcPoints penaltyPointsCommitted penaltyPointsByOpp totalPointsNp totalPoints";
+  // 2020/2021 deduct fouls from the offender's own score: no penaltyPointsByOpp.
+  const common = `autoPoints dcPoints penaltyPointsCommitted ${season === 2020 || season === 2021 ? "" : "penaltyPointsByOpp "}totalPointsNp totalPoints`;
   if (season >= 2025) return `${common} dcBasePoints movementRp goalRp patternRp`;
   if (season === 2024) return `${common} dcParkPoints`;
   return `${common} egPoints`;
 }
 
+/** Score/stat type fragments: 2020/2021 split traditional and remote types (remote: no W-L-T, no red/blue). */
+function typeFragments(season: number): { stats: string; scores: string } {
+  const sides = `red { ${allianceFields(season)} } blue { ${allianceFields(season)} }`;
+  if (season === 2020 || season === 2021) {
+    return {
+      stats: `... on TeamEventStats${season}Trad { rank rp wins losses ties qualMatchesPlayed } ... on TeamEventStats${season}Remote { rank rp qualMatchesPlayed }`,
+      scores: `... on MatchScores${season}Trad { ${sides} }`,
+    };
+  }
+  return { stats: `... on TeamEventStats${season} { rank rp wins losses ties qualMatchesPlayed }`, scores: `... on MatchScores${season} { ${sides} }` };
+}
+
 /** Whole event: teams + ranks, awards, every match with alliances and scores. */
 export function scoutEventQuery(season: number): string {
+  const f = typeFragments(season);
   return `query E($season: Int!, $code: String!) {
     eventByCode(season: $season, code: $code) {
       code divisionCode name type start end remote hybrid timezone regionCode updatedAt
       location { state country }
       awards { type placement teamNumber }
-      teams { teamNumber team { name location { city state } } stats { __typename ... on TeamEventStats${season} { rank rp wins losses ties qualMatchesPlayed } } }
+      teams { teamNumber team { name location { city state } } stats { __typename ${f.stats} } }
       matches {
         matchNum series tournamentLevel hasBeenPlayed actualStartTime scheduledStartTime
         teams { teamNumber alliance station surrogate dq onField }
-        scores { __typename ... on MatchScores${season} { red { ${allianceFields(season)} } blue { ${allianceFields(season)} } } }
+        scores { __typename ${f.scores} }
       }
     }
   }`;

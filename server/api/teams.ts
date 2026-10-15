@@ -13,13 +13,27 @@ export async function teamInfo(number: number): Promise<TeamInfo | null> {
   };
 }
 
-/** Seasons with any data for the team (registered, played, or ranked), newest first. */
+/** Whether we hold anything at all for the team (registered, played, or ranked, any season). */
+export async function teamKnown(number: number): Promise<boolean> {
+  return !!(await get(
+    `SELECT 1 FROM team_seasons WHERE team = ? UNION ALL SELECT 1 FROM event_teams WHERE team = ? UNION ALL SELECT 1 FROM team_season_stats WHERE team = ? LIMIT 1`,
+    [number, number, number],
+  ));
+}
+
+/**
+ * Seasons the team's robot played, newest first: matches on record, or a rank
+ * at a remote event (2020–2022 had no alliance matches). Registration alone
+ * doesn't count, except for the current season, which is always offered.
+ */
 export async function teamSeasons(number: number): Promise<number[]> {
   const rows = await all<{ season: number }>(
-    `SELECT season FROM team_seasons WHERE team = ? UNION SELECT season FROM event_teams WHERE team = ? UNION SELECT season FROM team_season_stats WHERE team = ? ORDER BY season DESC`,
+    `SELECT season FROM team_season_stats WHERE team = ? AND matches > 0
+     UNION SELECT season FROM event_teams WHERE team = ? AND qual_played > 0
+     UNION SELECT et.season FROM event_teams et JOIN events e ON e.season = et.season AND e.code = et.code WHERE et.team = ? AND e.remote = 1 AND et.rank IS NOT NULL`,
     [number, number, number],
   );
-  return rows.map((r) => Number(r.season));
+  return [...new Set([CURRENT_SEASON, ...rows.map((r) => Number(r.season))])].sort((a, b) => b - a);
 }
 
 export async function seasonStats(season: number, team: number): Promise<TeamSeasonStats | null> {
@@ -73,14 +87,16 @@ export async function teamEvents(season: number, team: number): Promise<TeamEven
 
 export async function teamProfile(number: number, season?: number): Promise<TeamProfile | null> {
   const team = await teamInfo(number);
+  if (!team && !(await teamKnown(number))) return null;
   const seasons = await teamSeasons(number);
-  if (!team && !seasons.length) return null;
   // Default: the newest season the team has results in (fall back to registered).
   let s = season;
   if (!s) {
     const withResults = await get<{ season: number }>("SELECT MAX(season) season FROM team_season_stats WHERE team = ? AND matches > 0", [number]);
-    s = seasons.includes(CURRENT_SEASON) && (await get("SELECT 1 FROM event_teams WHERE season = ? AND team = ? LIMIT 1", [CURRENT_SEASON, number]))
-      ? CURRENT_SEASON : withResults?.season ?? seasons[0] ?? CURRENT_SEASON;
+    // The current season is always listed (seasons[0]) but is only the default when the team is entered in
+    // it; otherwise the newest season it actually played, remote-only seasons included (they have no stats row).
+    const entered = !!(await get("SELECT 1 FROM event_teams WHERE season = ? AND team = ? LIMIT 1", [CURRENT_SEASON, number]));
+    s = entered || withResults?.season === CURRENT_SEASON ? CURRENT_SEASON : seasons.find((x) => x !== CURRENT_SEASON) ?? CURRENT_SEASON;
   }
   const [stats, events, awardsAllTime] = await Promise.all([
     seasonStats(s, number),
