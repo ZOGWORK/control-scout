@@ -9,7 +9,8 @@ export const CONSENT_KEY = "cs-consent";
 export type Consent = { analytics: boolean; at: string; v: 1 };
 
 const EVENT = "cs-consent-change";
-// Fallback when localStorage is blocked, so a click still hides the banner.
+// The latest choice when saving it failed (storage blocked or full): it wins over
+// whatever is stored, so a "no" still takes effect for this page's lifetime.
 let memory: Consent | null = null;
 
 /** True when the browser asks sites not to track (GPC or DNT = "1"). */
@@ -38,19 +39,31 @@ export function readConsent(): Consent | null { return parse(readRaw()); }
 /** Store a choice and tell every useConsent() on the page. */
 export function setAnalyticsConsent(analytics: boolean): void {
   const c: Consent = { analytics, at: new Date().toISOString(), v: 1 };
-  try { localStorage.setItem(CONSENT_KEY, JSON.stringify(c)); } catch { /* storage blocked: the choice lasts this page view */ memory = c; }
-  if (typeof window !== "undefined") window.dispatchEvent(new Event(EVENT));
+  try { localStorage.setItem(CONSENT_KEY, JSON.stringify(c)); memory = null; } catch { /* storage blocked or full: the choice lasts this page view */ memory = c; }
+  notify();
 }
+
+/** Forget the choice (e.g. "Clear all local data"): the banner asks again. */
+export function resetConsent(): void {
+  memory = null;
+  try { localStorage.removeItem(CONSENT_KEY); } catch { /* storage blocked */ }
+  notify();
+}
+
+function notify() { if (typeof window !== "undefined") window.dispatchEvent(new Event(EVENT)); }
+
+/** The choice in effect: an unsaved newer one first, then the stored one. */
+const current = (): Consent | null => memory ?? readConsent();
 
 /** The one check analytics code calls before sending anything. */
 export function hasAnalyticsConsent(): boolean {
   if (privacySignal()) return false;
-  return (readConsent() ?? memory)?.analytics === true;
+  return current()?.analytics === true;
 }
 
 /** Whether the first-visit banner should ask: no stored choice and no privacy signal. */
 export function needsConsentChoice(): boolean {
-  return !privacySignal() && !readConsent() && !memory;
+  return !privacySignal() && !current();
 }
 
 function subscribe(onChange: () => void) {
@@ -60,7 +73,7 @@ function subscribe(onChange: () => void) {
   return () => { window.removeEventListener(EVENT, onChange); window.removeEventListener("storage", onStorage); };
 }
 // A string snapshot so React compares by value (a parsed object would be new every read).
-const snapshot = () => `${privacySignal() ? 1 : 0}|${readRaw() ?? (memory ? JSON.stringify(memory) : "")}`;
+const snapshot = () => `${privacySignal() ? 1 : 0}|${memory ? JSON.stringify(memory) : readRaw() ?? ""}`;
 
 export type ConsentState = {
   /** Analytics may run (a "yes" stored and no privacy signal). */
