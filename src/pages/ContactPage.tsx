@@ -52,6 +52,7 @@ export default function ContactPage() {
   const [serverFields, setServerFields] = useState<Errors>({});
   const [status, setStatus] = useState<"idle" | "sending" | "sent">("idle");
   const [failure, setFailure] = useState<string | null>(null);
+  const [sentTo, setSentTo] = useState("");
   const [website, setWebsite] = useState(""); // honeypot: hidden from people
   const ids = { name: useId(), email: useId(), topic: useId(), message: useId() };
   // Signed in: fill in the account's email once it's known (never over what was typed).
@@ -70,17 +71,22 @@ export default function ContactPage() {
     setFailure(null);
     const local = check(form);
     if (Object.keys(local).length) {
-      document.getElementById(ids[(["name", "email", "topic", "message"] as Field[]).find((f) => local[f])!])?.focus();
+      const first = (["name", "email", "topic", "message"] as Field[]).find((f) => local[f])!;
+      // The topic's legend can't take focus: go to its first choice instead.
+      if (first === "topic") document.querySelector<HTMLInputElement>('input[name="topic"]')?.focus();
+      else document.getElementById(ids[first])?.focus();
       return;
     }
     setStatus("sending");
+    // The confirmation names the address actually sent, even if the field is edited while sending.
+    const submitted = form;
     try {
       const res = await fetch("/api/contact", {
         method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ...form, website }),
+        body: JSON.stringify({ ...submitted, website }),
       });
       const body = await res.json().catch(() => null) as { error?: string; fields?: Errors } | null;
-      if (res.ok) { setStatus("sent"); return; }
+      if (res.ok) { setSentTo(submitted.email.trim()); setStatus("sent"); return; }
       setStatus("idle");
       if (res.status === 400 && body?.fields) { setServerFields(body.fields); setFailure(body.error ?? "Check the highlighted fields."); return; }
       if (res.status === 429) { setFailure(body?.error ?? "Too many messages from here. Please try again later."); return; }
@@ -103,7 +109,7 @@ export default function ContactPage() {
             <motion.div role="status" initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} className="flex flex-col items-center py-8 text-center">
               <span className="mb-4 flex size-14 items-center justify-center rounded-full bg-success/12 text-success"><CheckCircle2 className="size-7" aria-hidden /></span>
               <h2 className="font-display text-xl font-semibold text-foreground">Message sent. Thank you!</h2>
-              <p className="mt-2 max-w-md text-sm text-text-muted">We've got it. If it needs an answer, we'll reply to <strong className="text-foreground">{form.email.trim()}</strong>.</p>
+              <p className="mt-2 max-w-md text-sm text-text-muted">We've got it. If it needs an answer, we'll reply to <strong className="text-foreground">{sentTo}</strong>.</p>
               <div className="mt-6 flex flex-wrap justify-center gap-2">
                 <Button variant="outline" onClick={reset}>Send another</Button>
                 <Button variant="secondary" asChild><Link to="/">Back to home</Link></Button>

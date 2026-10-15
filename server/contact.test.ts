@@ -7,7 +7,7 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { all, migrate, openDb, run, setDb } from "./db";
 import { createApp } from "./app";
 import { setMailer } from "./auth/email";
-import { CONTACT_RATE, resetContactLimits } from "./contact";
+import { CONTACT_RATE, resetContactLimits, trackedContactIps } from "./contact";
 
 let server: Server;
 let base = "";
@@ -114,5 +114,12 @@ describe("POST /api/contact", () => {
     expect(r.json.error).toMatch(/try again later/i);
     expect(Number(r.headers.get("retry-after"))).toBeGreaterThan(0);
     expect(await rows()).toHaveLength(CONTACT_RATE.max);
+  });
+
+  it("rejected forms add nothing to the limiter, so they can't grow its memory", async () => {
+    for (let i = 0; i < 3; i++) await post({ ...good, email: "bad" });
+    expect(trackedContactIps()).toBe(0);
+    await post(good);
+    expect(trackedContactIps()).toBe(1);
   });
 });

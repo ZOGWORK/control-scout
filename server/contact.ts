@@ -28,14 +28,20 @@ function rateLimit(req: Request, res: Response, next: NextFunction) {
     res.status(429).json({ error: "You've sent several messages in the last hour. Please try again later.", retryAfter });
     return;
   }
-  sent.set(ip, recent);
+  // Nothing is added here: only an accepted message (record) creates an entry.
+  if (recent.length) sent.set(ip, recent); else sent.delete(ip);
   next();
 }
 
 function record(ip: string) {
-  if (sent.size > 10_000) sent.clear();
-  sent.set(ip, [...(sent.get(ip) ?? []), Date.now()]);
+  const now = Date.now();
+  // Bound memory by dropping IPs whose messages have all expired; active limits stay.
+  if (sent.size > 10_000) for (const [k, ts] of sent) if (!ts.some((t) => now - t < CONTACT_RATE.windowMs)) sent.delete(k);
+  sent.set(ip, [...(sent.get(ip) ?? []).filter((t) => now - t < CONTACT_RATE.windowMs), now]);
 }
+
+/** Tests: how many IPs the limiter is tracking. */
+export const trackedContactIps = () => sent.size;
 
 export type FieldErrors = Partial<Record<"name" | "email" | "topic" | "message", string>>;
 export interface ContactInput { name: string | null; email: string; topic: ContactTopic; message: string }
