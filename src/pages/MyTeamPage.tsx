@@ -28,13 +28,17 @@ export default function MyTeamPage() {
   const input = useRef<HTMLInputElement>(null);
   const current = useCurrentSeason();
   // An unknown number is caught here, not saved: the dashboard would be empty for it.
+  const latestDraft = useRef(draft);
+  latestDraft.current = draft;
   const submit = async (e: FormEvent) => {
     e.preventDefault();
+    const team = draft;
     setChecking(true);
-    const err = await teamError(draft, lookupTeamName);
+    const err = await teamError(team, lookupTeamName);
     setChecking(false);
+    if (latestDraft.current !== team) return; // edited while checking
     if (err) { setError(err); input.current?.focus(); return; }
-    set("myTeam", Number(draft));
+    set("myTeam", Number(team));
   };
   if (!state.myTeam) {
     return (

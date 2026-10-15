@@ -17,14 +17,30 @@ export function NoteField({ team, value, onSave, className }: { team: number; va
   const saved = useRef(value);
   /** Escape: leave without saving the edit. */
   const skip = useRef(false);
+  /** The text this device couldn't store. The store still holds it in memory and echoes it back as
+   *  `value` (trimmed); that echo must not count as saved, or the next Enter or blur would skip the retry. */
+  const unstored = useRef<string | null>(null);
   // Another tab or device changed it: show that, unless this field is being edited.
-  useEffect(() => { saved.current = value; if (!focused.current) setDraft(value); }, [value]);
+  useEffect(() => {
+    if (unstored.current !== null && value.trim() === unstored.current.trim()) return;
+    unstored.current = null;
+    setFailed(false);
+    saved.current = value;
+    if (!focused.current) setDraft(value);
+  }, [value]);
   const flush = (text: string) => {
     if (timer.current) { clearTimeout(timer.current); timer.current = null; }
     if (text.trim() === saved.current.trim()) return;
     // Not stored: keep `saved` as it was, so the next flush tries again.
-    if (onSave(text) === false) { setFailed(true); return; }
+    if (onSave(text) === false) { unstored.current = text; setFailed(true); return; }
+    unstored.current = null;
     saved.current = text;
+    setFailed(false);
+  };
+  /** Escape: back to the stored note, in the store too (its memory may still hold text that failed to store). */
+  const revert = () => {
+    if (unstored.current !== null) { unstored.current = null; onSave(saved.current); }
+    setDraft(saved.current);
     setFailed(false);
   };
   // Leaving the page mid-pause still saves what was typed.
@@ -54,7 +70,7 @@ export function NoteField({ team, value, onSave, className }: { team: number; va
         }}
         onKeyDown={(e) => {
           if (e.key === "Enter") { e.preventDefault(); flush(e.currentTarget.value); e.currentTarget.blur(); }
-          if (e.key === "Escape") { e.preventDefault(); e.stopPropagation(); if (timer.current) clearTimeout(timer.current); timer.current = null; skip.current = true; setDraft(saved.current); setFailed(false); e.currentTarget.blur(); }
+          if (e.key === "Escape") { e.preventDefault(); e.stopPropagation(); if (timer.current) clearTimeout(timer.current); timer.current = null; skip.current = true; revert(); e.currentTarget.blur(); }
         }}
       />
     </label>

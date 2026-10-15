@@ -494,7 +494,7 @@ function Privacy({ onOpen }: { onOpen: (id: SectionId) => void }) {
     try { await apiFetch("/api/me", { method: "DELETE", json: { confirm: "DELETE" } }); clearLocal(); await signOut(); toast.success("Account deleted"); }
     catch (e: any) {
       setDeleted(false);
-      setDelErr(`Your account wasn't deleted, and nothing was removed. ${sentence(e?.message)} Try again.`);
+      setDelErr(`Couldn't confirm that your account was deleted. ${sentence(e?.message)} Check your account before trying again.`);
       delBox.current?.querySelector("button")?.focus();
     }
   };

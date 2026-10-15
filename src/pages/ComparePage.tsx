@@ -30,13 +30,23 @@ export default function ComparePage() {
   const [checking, setChecking] = useState(false);
   const input = useRef<HTMLInputElement>(null);
   const setTeams = (t: string[]) => setSp((x) => { x.set("teams", t.join(",")); return x; }, { replace: true });
+  const latestDraft = useRef(draft);
+  latestDraft.current = draft;
   const add = async () => {
     if (teams.length >= 4) return;
+    const team = draft;
     setChecking(true);
-    const err = teams.includes(draft) ? `${draft} is already in the comparison.` : await teamError(draft, lookupTeamName);
+    const err = teams.includes(team) ? `${team} is already in the comparison.` : await teamError(team, lookupTeamName);
     setChecking(false);
+    if (latestDraft.current !== team) return; // edited while checking
     if (err) { setError(err); input.current?.focus(); return; }
-    setTeams([...teams, draft]); setDraft("");
+    // From the URL as it is now: a team removed (or added) while checking stays that way.
+    setSp((x) => {
+      const now = (x.get("teams") ?? "").split(",").filter((t) => /^\d+$/.test(t));
+      if (!now.includes(team) && now.length < 4) x.set("teams", [...now, team].join(","));
+      return x;
+    }, { replace: true });
+    setDraft("");
   };
   // Without ?season the server picks the latest season these teams have results in.
   const state = useApi<CompareView>(teams.length ? `/api/compare${qs({ teams: teams.join(","), season: asked ?? undefined })}` : null);

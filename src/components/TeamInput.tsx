@@ -3,21 +3,32 @@
 import { useEffect, useId, useState, type Ref } from "react";
 import { Input } from "./ui/basic";
 import { apiFetch } from "../lib/api";
+import { offlineSource } from "../lib/offline/saved";
 import type { SearchHit } from "../shared/api";
 import { cn } from "./cn";
 
 const nameCache = new Map<number, string | null>();
 
-/** The team's name ("" when it has none), null when there's no such team, undefined when the lookup failed (offline). */
-export async function lookupTeamName(n: number): Promise<string | null | undefined> {
+/** How long a form waits for the name check before letting the number through (a slow venue network must not block saving). */
+const LOOKUP_DEADLINE_MS = 4000;
+
+/**
+ * The team's name ("" when it has none), null when the server says there's no such team, undefined when
+ * we can't tell: the lookup failed, ran past `deadlineMs`, or was answered from seasons saved on this
+ * device (a team missing from those may still exist). Only the server's answer is cached.
+ */
+export async function lookupTeamName(n: number, deadlineMs = LOOKUP_DEADLINE_MS): Promise<string | null | undefined> {
   if (nameCache.has(n)) return nameCache.get(n);
-  try {
-    const r = await apiFetch<{ hits: SearchHit[] }>(`/api/search?q=${n}&limit=3`);
+  const lookup = apiFetch<{ hits: SearchHit[] }>(`/api/search?q=${n}&limit=3`).then((r) => {
     const hit = r.hits.find((h) => h.kind === "team" && h.ref === String(n));
     const v = hit ? hit.title.replace(/^\d+\s*/, "") || "" : null;
+    if (offlineSource(r)) return v ?? undefined;
     nameCache.set(n, v);
     return v;
-  } catch { return undefined; }
+  }).catch(() => undefined);
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const deadline = new Promise<undefined>((resolve) => { timer = setTimeout(() => resolve(undefined), deadlineMs); });
+  try { return await Promise.race([lookup, deadline]); } finally { clearTimeout(timer); }
 }
 
 export function useTeamName(n: number | null): string | null | undefined {
@@ -26,7 +37,8 @@ export function useTeamName(n: number | null): string | null | undefined {
     if (!n) { setName(undefined); return; }
     if (nameCache.has(n)) { setName(nameCache.get(n)); return; }
     let live = true;
-    const t = setTimeout(() => { lookupTeamName(n).then((v) => { if (live) setName(v); }); }, 200);
+    // The hint isn't blocking a form, so it gives the request up to a minute.
+    const t = setTimeout(() => { lookupTeamName(n, 60_000).then((v) => { if (live) setName(v); }); }, 200);
     return () => { live = false; clearTimeout(t); };
   }, [n]);
   return name;

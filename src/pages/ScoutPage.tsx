@@ -105,14 +105,24 @@ function EntryForm({ season, initial, team, onDone }: { season: number; initial:
   const teamRef = useRef<HTMLInputElement>(null);
   const saveRef = useRef<HTMLButtonElement>(null);
   const saveErrId = useId();
+  // The team check awaits a lookup: by then the form may be cancelled (closed) or still being
+  // edited. A closed form saves nothing; an open one saves what it holds now, if the team is unchanged.
+  const latest = useRef({ kind, teamText, eventCode, matchLabel, data, notes });
+  latest.current = { kind, teamText, eventCode, matchLabel, data, notes };
+  const open = useRef(true);
+  useEffect(() => { open.current = true; return () => { open.current = false; }; }, []);
   const save = async () => {
     setSaveErr(null);
     setChecking(true);
-    const err = await teamError(teamText, lookupTeamName);
+    const team = teamText;
+    const err = await teamError(team, lookupTeamName);
+    if (!open.current) return;
     setChecking(false);
+    if (latest.current.teamText !== team) return; // edited while checking: the next Save checks the new number
     if (err) { setTeamErr(err); teamRef.current?.focus(); return; }
+    const { kind, eventCode, matchLabel, data, notes } = latest.current;
     try {
-      saveScoutEntry({ uuid: initial?.uuid ?? newScoutId(), season, team: Number(teamText), eventCode: eventCode.trim().toUpperCase() || null, matchLabel: kind === "match" ? matchLabel.trim().toUpperCase() || null : null, kind, data, notes });
+      saveScoutEntry({ uuid: initial?.uuid ?? newScoutId(), season, team: Number(team), eventCode: eventCode.trim().toUpperCase() || null, matchLabel: kind === "match" ? matchLabel.trim().toUpperCase() || null : null, kind, data, notes });
       toast.success("Saved on this device");
       onDone();
     } catch (e) {

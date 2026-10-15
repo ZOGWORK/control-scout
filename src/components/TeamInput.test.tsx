@@ -1,9 +1,13 @@
 // @vitest-environment jsdom
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { cleanup, render, screen } from "@testing-library/react";
-import { TeamInput } from "./TeamInput";
+import { markOffline } from "../lib/offline/saved";
 
-afterEach(cleanup);
+const apiFetch = vi.fn();
+vi.mock("../lib/api", () => ({ apiFetch: (...a: unknown[]) => apiFetch(...a) }));
+const { TeamInput, lookupTeamName } = await import("./TeamInput");
+
+afterEach(() => { cleanup(); apiFetch.mockReset(); });
 
 describe("TeamInput", () => {
   it("marks the field invalid and points it at the error message", () => {
@@ -20,5 +24,28 @@ describe("TeamInput", () => {
     const input = screen.getByRole("textbox", { name: "Add a team" });
     expect(input.getAttribute("aria-invalid")).toBeNull();
     expect(screen.queryByRole("alert")).toBeNull();
+  });
+});
+
+describe("lookupTeamName", () => {
+  it("takes the server's word: a hit is the name, a miss is null (and both are cached)", async () => {
+    apiFetch.mockResolvedValueOnce({ hits: [{ kind: "team", ref: "4215", title: "4215 Hypnotic Robotics" }] });
+    expect(await lookupTeamName(4215)).toBe("Hypnotic Robotics");
+    apiFetch.mockResolvedValueOnce({ hits: [] });
+    expect(await lookupTeamName(98765)).toBeNull();
+    expect(await lookupTeamName(98765)).toBeNull();
+    expect(apiFetch).toHaveBeenCalledTimes(2);
+  });
+  it("treats a miss in an offline answer (saved seasons only) as unknown, and doesn't cache it", async () => {
+    apiFetch.mockResolvedValue(markOffline({ hits: [] }, { season: 2025, savedAt: 1, dataAsOf: null }));
+    expect(await lookupTeamName(55555)).toBeUndefined();
+    expect(await lookupTeamName(55555)).toBeUndefined();
+    expect(apiFetch).toHaveBeenCalledTimes(2);
+  });
+  it("is unknown when the lookup fails or runs past its deadline", async () => {
+    apiFetch.mockRejectedValueOnce(new Error("offline"));
+    expect(await lookupTeamName(44444)).toBeUndefined();
+    apiFetch.mockReturnValueOnce(new Promise(() => {}));
+    expect(await lookupTeamName(33333, 20)).toBeUndefined();
   });
 });
