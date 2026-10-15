@@ -188,6 +188,9 @@ export interface MatchRecordRow {
   stats: StatValues;
 }
 
+/** A FIRST region code used by a season's records, with the place most of its events are in. */
+export interface RecordRegion { code: string; country: string | null; state: string | null; events: number }
+
 export interface RecordsResponse<Row> {
   season: number;
   scope: RecordScope;

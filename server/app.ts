@@ -21,7 +21,7 @@ import { sitemapChunkRoute, sitemapRoute } from "./sitemap.js";
 import { liveForecaster, liveVersion, dataVersion } from "./predict/engine.js";
 import { authRouter, meRouter, authProviders } from "./auth/routes.js";
 import { packsRouter } from "./packs/routes.js";
-import { listRecords, recordsQuery, RecordsQueryError, streamRecordsCsv } from "./api/records.js";
+import { listRecords, recordRegions, recordsQuery, RecordsQueryError, streamRecordsCsv } from "./api/records.js";
 import { FilterError } from "../src/shared/filterDsl.js";
 import { RECORDS_EXPORT_MAX, RECORDS_MAX_PAGE_SIZE } from "../src/shared/statCatalog.js";
 import type { ForecastView, MatchExplanationView, Meta } from "../src/shared/api.js";
@@ -271,6 +271,8 @@ export function createApp() {
   /** Team records: ?scope=event (default, one row per team per event) or season. */
   api.get("/records/:season/teams", ...records("teams"));
   api.get("/records/:season/matches", ...records("matches"));
+  /** The region codes a season's records use, named by their main place (for the Region dropdown). */
+  api.get("/records/:season/regions", recordsLimit, h(async (req) => ({ regions: await recordRegions(season(req.params.season)) })));
 
   // --- Predictions ---------------------------------------------------------
 

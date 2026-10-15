@@ -1,5 +1,5 @@
 // Site metadata (seasons, current season, data freshness) loaded once.
-import { createContext, useContext, useEffect, type ReactNode } from "react";
+import { createContext, useContext, useEffect, useState, type ReactNode } from "react";
 import { useLocation } from "react-router-dom";
 import { useApi } from "./api";
 import type { Meta } from "../shared/api";
@@ -33,6 +33,19 @@ export function useCurrentSeason(): number {
 /** Whether a season has ratings and predictions (2019–2022 are history only). 2023+ until meta loads. */
 export function usePredictable(season: number): boolean {
   return useMeta()?.seasons.find((s) => s.season === season)?.predictable ?? season >= 2023;
+}
+
+/** True while a CSS media query matches (e.g. phone width), following changes. */
+export function useMediaQuery(query: string): boolean {
+  const [on, setOn] = useState(() => typeof window !== "undefined" && window.matchMedia(query).matches);
+  useEffect(() => {
+    const m = window.matchMedia(query);
+    const fn = () => setOn(m.matches);
+    fn();
+    m.addEventListener("change", fn);
+    return () => m.removeEventListener("change", fn);
+  }, [query]);
+  return on;
 }
 
 export function useTitle(title: string | null | undefined) {

@@ -13,7 +13,7 @@ import { scoreColumn } from "../stats/records.js";
 import { foldText, parseFilter, serializeFilter, type FilterGroup, type FilterNode } from "../../src/shared/filterDsl.js";
 import {
   DEFAULT_SORT, RECORDS_EXPORT_MAX, RECORDS_MAX_PAGE_SIZE, RECORDS_PAGE_SIZE, RECORD_EVENT_TYPES, STAT_BY_KEY, statFor, statsFor,
-  type MatchRecordRow, type RecordScope, type RecordsResponse, type StatValues, type TeamEventRecord, type TeamSeasonRecord,
+  type MatchRecordRow, type RecordRegion, type RecordScope, type RecordsResponse, type StatValues, type TeamEventRecord, type TeamSeasonRecord,
 } from "../../src/shared/statCatalog.js";
 
 /** A request the client got wrong (→ 400). */
@@ -142,6 +142,8 @@ export interface RecordsQuery {
   to: string | null;
   team: number | null;
   level: "qual" | "playoff" | null;
+  /** One event (team-event and match records): its code, upper case. */
+  code: string | null;
 }
 
 const one = (q: Record<string, unknown>, name: string): string | null => {
@@ -190,10 +192,13 @@ export function recordsQuery(scope: RecordScope, q: Record<string, unknown>, max
   const teamRaw = one(q, "team");
   if (teamRaw != null && scope !== "match") throw bad("team applies to match records (filter team records with teamNumber)");
   const team = teamRaw == null ? null : intParam(q, "team", 0, 1, 999999);
+  const codeRaw = one(q, "code");
+  if (codeRaw != null && scope === "teamSeason") throw bad("code applies to team-event and match records");
+  if (codeRaw != null && !/^[A-Za-z0-9_-]{1,40}$/.test(codeRaw)) throw bad("code must be an event code like USNJQ1");
   const level = one(q, "level");
   if (level != null && (scope !== "match" || (level !== "qual" && level !== "playoff"))) throw bad(scope === "match" ? "level must be qual or playoff" : "level applies to match records");
   return {
-    scope, filter, sort, dir, fields, regions, from, to, team,
+    scope, filter, sort, dir, fields, regions, from, to, team, code: codeRaw == null ? null : codeRaw.toUpperCase(),
     eventType: eventType === "All" ? null : eventType,
     level: level as RecordsQuery["level"],
     page: intParam(q, "page", 1, 1, 100000),
@@ -252,6 +257,7 @@ function whereOf(src: Source, season: number, q: RecordsQuery): { sql: string; a
   if (q.from && src.dateFrom) { parts.push(`${src.dateFrom} >= ?`); args.push(q.from); }
   if (q.to && src.dateTo) { parts.push(`${src.dateTo} <= ?`); args.push(q.to); }
   if (q.level) { parts.push("r.level = ?"); args.push(q.level); }
+  if (q.code) { parts.push("r.code = ?"); args.push(q.code); }
   if (q.team != null) { parts.push("instr(' ' || r.red_teams || ' ' || r.blue_teams || ' ', ?) > 0"); args.push(` ${q.team} `); }
   return { sql: parts.join(" AND "), args };
 }
@@ -388,4 +394,31 @@ export async function streamRecordsCsv(season: number, q: RecordsQuery, res: Res
   res.setHeader("Content-Disposition", `attachment; filename="${filename}"`);
   // pipeline() handles backpressure and ends (or destroys) the response.
   await pipeline(Readable.from(lines()), res);
+}
+
+// ---------------------------------------------------------------------------
+// Region options
+// ---------------------------------------------------------------------------
+
+/**
+ * The FIRST region codes a season's records use (event regions and team home
+ * regions), each with the place most of its events are in, so the web app can
+ * name it ("USCANO" → California). Sorted by code.
+ */
+export async function recordRegions(season: number): Promise<RecordRegion[]> {
+  const [places, homes] = await Promise.all([
+    all<{ code: string; country: string | null; state: string | null; n: number }>(
+      "SELECT region code, country, state, COUNT(*) n FROM events WHERE season = ? AND region IS NOT NULL AND region <> '' GROUP BY region, country, state", [season]),
+    all<{ code: string }>("SELECT DISTINCT home_region code FROM team_season_records WHERE season = ? AND home_region IS NOT NULL AND home_region <> ''", [season]),
+  ]);
+  // Per code: every event counted, the place with the most events named.
+  const best = new Map<string, RecordRegion & { top: number }>();
+  for (const p of places) {
+    const code = String(p.code).toUpperCase(), n = Number(p.n);
+    const cur = best.get(code);
+    if (!cur) best.set(code, { code, country: p.country, state: p.state, events: n, top: n });
+    else { cur.events += n; if (n > cur.top) Object.assign(cur, { country: p.country, state: p.state, top: n }); }
+  }
+  for (const h of homes) { const code = String(h.code).toUpperCase(); if (!best.has(code)) best.set(code, { code, country: null, state: null, events: 0, top: 0 }); }
+  return [...best.values()].map(({ code, country, state, events }) => ({ code, country, state, events })).sort((a, b) => a.code.localeCompare(b.code));
 }
