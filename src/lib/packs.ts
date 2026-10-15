@@ -3,6 +3,7 @@
 // engine as the server. It's verified against the manifest's SHA-256 before
 // it's kept.
 import { RatingBook, explainMatch, FITTED_MODEL, type RatingBookData, type MatchExplanation } from "@control-scout/predict-engine";
+import { PACK_META_KEY } from "./packPolicy";
 
 export interface PackFile { name: string; url: string; bytes: number; sha256: string; seasons: number[]; kind: "lite" | "full"; contents: string }
 export interface PackManifest { format: number; version: string; builtAt: string; engineVersion: string; dataAsOf: string | null; lite: PackFile | null; full: PackFile[] }
@@ -19,7 +20,7 @@ export interface LitePack {
 }
 
 const DB = "control-scout-packs";
-const META = "cs-pack-meta";
+const META = PACK_META_KEY;
 
 // Shared with saved seasons (src/lib/offline/seasons.ts): same database, one store.
 function idb(): Promise<IDBDatabase> {

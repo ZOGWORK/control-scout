@@ -2,7 +2,8 @@
 // search work with no wifi (lib/offline). Each season is a full pack (every
 // event, match and team of the season in one SQLite file, still offered as a
 // plain file for analysts). The lite pack that runs predictions offline isn't
-// offered here: it downloads itself in the background (LitePackSync); this
+// offered here: it downloads itself in the background for returning visitors
+// (LitePackSync, packPolicy.ts), and opening this page fetches it at once; this
 // page only shows its status.
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
