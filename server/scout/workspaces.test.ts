@@ -10,6 +10,7 @@ import { all, migrate, openDb, run, setDb } from "../db";
 import { createApp } from "../app";
 import { setMailer } from "../auth/email";
 import { clearInfoCache, MEMBERSHIP_TTL, rememberInfo } from "../auth/controlPoint";
+import { PRIVATE_TABLES } from "../data/snapshot";
 
 const KEY = "k".repeat(40);
 let scout: Server, cp: Server;
@@ -269,6 +270,12 @@ describe("workspace scout entries", () => {
     expect(r.json.results.map((x: any) => x.ok)).toEqual([false, true]);
     const p = await push(call, null, [entry({ workspaceId: "121" })]);
     expect(p.json.results[0]).toMatchObject({ ok: false, error: "wrong space" });
+  });
+
+  it("workspace tables are private: never in the published snapshot (entries cleared before their workspaces)", () => {
+    const i = (t: string) => PRIVATE_TABLES.indexOf(t);
+    for (const t of ["workspace_members", "workspaces", "workspace_scout_entries"]) expect(i(t)).toBeGreaterThanOrEqual(0);
+    expect(i("workspace_scout_entries")).toBeLessThan(i("workspaces"));
   });
 
   it("without the Control Point settings, workspaces are off and personal scouting is unchanged", async () => {
