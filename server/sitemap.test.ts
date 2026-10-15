@@ -21,6 +21,7 @@ describe("sitemap", () => {
     expect(locs).toContain("https://controlscout.org/");
     expect(locs).toContain("https://controlscout.org/teams/4215");
     expect(locs).toContain("https://controlscout.org/privacy");
+    expect(locs).toContain("https://controlscout.org/terms");
     expect(locs).toContain("https://controlscout.org/events/2025/USNJNOM3");
     expect(locs).toContain("https://controlscout.org/events/2019/2019ALCMP"); // legacy seasons are browsable pages too
     expect(locs.some((l) => /\/(my-team|shortlist|scout|settings|api)(\/|$)/.test(l))).toBe(false);
