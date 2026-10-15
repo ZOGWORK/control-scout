@@ -17,8 +17,23 @@ export function localDbPath(url = env.databaseUrl): string | null {
   return url.slice("file:".length);
 }
 
-/** Tables holding people's own data, never in the snapshot. */
-export const PRIVATE_TABLES = ["users", "sessions", "identities", "email_codes", "user_state", "scout_entries", "error_reports", "workspace_members", "workspace_scout_entries", "workspaces"]; // workspace entries before the workspaces they reference
+/** Tables holding people's own data or site usage, never in the snapshot. Emptied in this order: workspace entries before the workspaces they reference. */
+export const PRIVATE_TABLES = [
+  "users", "sessions", "identities", "email_codes", "user_state", "scout_entries", "error_reports", "contact_messages", "analytics_daily",
+  "workspace_members", "workspace_scout_entries", "workspaces",
+];
+
+/**
+ * Public FTC data the snapshot ships. Every table the migrations create must be
+ * in exactly one of these two lists (snapshot.test.ts fails otherwise), so a new
+ * table is never shipped by accident: decide which it is when you add it.
+ * Full-text search shadow tables (search_*, search_fuzzy_*) follow their parent.
+ */
+export const PUBLIC_TABLES = [
+  "schema_version", "seasons", "teams", "team_seasons", "events", "event_teams", "matches", "match_teams", "alliances", "awards",
+  "advancement", "kv", "team_event_stats", "team_season_stats", "predictions", "search", "search_fuzzy",
+  "team_event_records", "team_season_records", "match_records",
+];
 
 /** True only when replacing the file can't lose anything: it's missing or zero
  *  bytes, has no tables at all, or has no teams AND no rows in any private
