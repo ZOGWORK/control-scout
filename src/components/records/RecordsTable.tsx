@@ -5,7 +5,7 @@
 // Used by the event Rankings and Insights tabs, /teams and /matches.
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { Link, useLocation, useNavigate, useSearchParams } from "react-router-dom";
-import { ArrowDown, ArrowUp, ArrowUpDown, ChevronLeft, ChevronRight, Columns3, Download, ListFilter, Loader2, Scale, SearchX, Sparkles, X } from "lucide-react";
+import { ArrowDown, ArrowUp, ArrowUpDown, ChevronLeft, ChevronRight, Columns3, Download, ListFilter, Loader2, RefreshCw, Scale, SearchX, Sparkles, X } from "lucide-react";
 import { apiFetch, useApi, type ApiError } from "../../lib/api";
 import type { FilterGroup } from "../../shared/filterDsl";
 import { STAT_BY_KEY, statFor, type MatchRecordRow, type RecordScope, type RecordsResponse, type TeamEventRecord, type TeamSeasonRecord } from "../../shared/statCatalog";
@@ -83,6 +83,14 @@ export function RecordsTable(p: RecordsTableProps) {
   if (api.data) last.current = api.data;
   const data = api.data ?? (api.loading ? last.current : undefined);
   const refreshing = api.loading && !!last.current;
+  // Back online after a failed (offline) load: fetch again on its own.
+  const offline = !!(api.error as ApiError | undefined)?.offline;
+  useEffect(() => {
+    if (!offline) return;
+    const fn = () => api.reload();
+    window.addEventListener("online", fn);
+    return () => window.removeEventListener("online", fn);
+  }, [offline, api.reload]);
 
   const [builder, setBuilder] = useState(false);
   const [columns, setColumns] = useState(false);
@@ -217,7 +225,12 @@ export function RecordsTable(p: RecordsTableProps) {
       {state.filterError ? (
         <Problem title="This link's filter couldn't be read" detail={state.filterError} onClear={() => setState(clearFilters(state))} />
       ) : api.error && !data ? (
-        (api.error as ApiError).offline && p.offlineFallback ? p.offlineFallback : (api.error as ApiError).status === 400
+        (api.error as ApiError).offline && p.offlineFallback ? (
+          <div className="space-y-3">
+            <div className="flex justify-end"><Button variant="outline" size="sm" onClick={api.reload}><RefreshCw /> Try again</Button></div>
+            {p.offlineFallback}
+          </div>
+        ) : (api.error as ApiError).status === 400
           ? <Problem title="That filter doesn't work here" detail={api.error.message} onClear={() => setState(clearFilters(state))} />
           : <ErrorState error={api.error} onRetry={api.reload} />
       ) : !data ? (
