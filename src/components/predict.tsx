@@ -1,6 +1,7 @@
 // Prediction UI shared by every surface. Rule: a prediction is never shown
 // without its confidence tier, and never presented as a fact.
 import { Suspense, lazy, useEffect, useRef, useState } from "react";
+import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 import { Link } from "react-router-dom";
 import { Check, ChevronDown, CircleDashed, Gauge, PlayCircle, ShieldCheck, Video, X } from "lucide-react";
 import type { ConfidenceTier, Factor, MatchPredictionView, MatchView } from "../shared/api";
@@ -108,6 +109,8 @@ function TeamChip({ n, season, highlight, sub }: { n: number; season: number; hi
 export function MatchRow({ m, highlight, showEvent, open, onToggle }: { m: MatchView; highlight?: number; showEvent?: string; open?: boolean; onToggle?: () => void }) {
   const videos = useVideoLinkCount(`${m.season}:${m.code}:${m.level}:${m.series}:${m.number}`);
   const detailsId = `match-${m.code}-${m.key.replace(/:/g, "-")}`;
+  // MotionConfig's reducedMotion only stops transforms; height is a layout animation, so it's turned off here.
+  const reduce = !!useReducedMotion();
   const p = m.prediction;
   const redWon = m.played && m.red.score && m.blue.score ? m.red.score.total > m.blue.score.total : null;
   const tie = m.played && m.red.score && m.blue.score && m.red.score.total === m.blue.score.total;
@@ -182,13 +185,18 @@ export function MatchRow({ m, highlight, showEvent, open, onToggle }: { m: Match
         </div>
       </div>
     </div>
-    {open && (
-      <div id={detailsId}>
-        <Suspense fallback={<div className="border-t border-border p-4"><div className="skeleton h-40 rounded-xl" /></div>}>
-          <MatchDetails m={m} eventName={showEvent} />
-        </Suspense>
-      </div>
-    )}
+    {/* Details unfold under the row (height + fade); instant with "reduce motion". */}
+    <AnimatePresence initial={false}>
+      {open && (
+        <motion.div id={detailsId} key="details" className="overflow-hidden"
+          initial={{ height: 0, opacity: 0 }} animate={{ height: "auto", opacity: 1 }} exit={{ height: 0, opacity: 0 }}
+          transition={reduce ? { duration: 0 } : { height: { duration: 0.26, ease: [0.2, 0.8, 0.2, 1] }, opacity: { duration: 0.18 } }}>
+          <Suspense fallback={<div className="border-t border-border p-4"><div className="skeleton h-40 rounded-xl" /></div>}>
+            <MatchDetails m={m} eventName={showEvent} />
+          </Suspense>
+        </motion.div>
+      )}
+    </AnimatePresence>
     </div>
   );
 }
