@@ -87,11 +87,23 @@ describe("saveSeason", () => {
     expect([...store.keys()]).toEqual([`season:2025:${listed}`]);
   });
 
-  it("removing a season also clears copies an interrupted save left behind", async () => {
+  it("a failed removal keeps the season listed, so Remove can be tried again", async () => {
+    await saveSeason(file(2025, "a"), manifest);
+    const packs = await import("../packs");
+    vi.spyOn(packs, "del").mockRejectedValueOnce(new Error("idb broke"));
+    await expect(removeSeason(2025)).rejects.toThrow("idb broke");
+    expect(savedSeasons().map((s) => s.season)).toEqual([2025]);
+    await removeSeason(2025);
+    expect(savedSeasons()).toEqual([]);
+  });
+
+  it("removing a season also clears copies an interrupted save left behind (with cross-tab locks)", async () => {
+    Object.defineProperty(navigator, "locks", { configurable: true, value: { request: (_n: string, fn: () => unknown) => Promise.resolve(fn()) } });
     await saveSeason(file(2025, "a"), manifest);
     store.set("season:2025:orphan", new Uint8Array(1));
     await removeSeason(2025);
     expect([...store.keys()]).toEqual([]);
+    delete (navigator as { locks?: unknown }).locks;
   });
 
   it("an update replaces the old copy only once it's saved", async () => {
