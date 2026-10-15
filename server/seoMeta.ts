@@ -60,6 +60,8 @@ export function fitDescription(s: string): string {
 
 const STATIC: Record<string, { title: string; description: string; noindex?: boolean }> = {
   "/events": { title: "FTC events", description: "Every FTC event since 2019–20: dates, venues, results, rankings, brackets, and advancement odds from 2023–24 on, for any team at any event." },
+  "/teams": { title: "FTC team stats and records", description: "Every FTC team's season and event numbers: OPR by phase, averages, highs, penalties and predicted win chances. Filter by any stat, sort, compare and export." },
+  "/matches": { title: "FTC match records", description: "Every played FTC match of the season: alliance scores by phase, winning margins and high scores. Filter by any score, sort any column and export to CSV." },
   "/predict": { title: "Predict an FTC match", description: "Pick any four FTC teams and get win odds, a predicted score and the three biggest reasons why, from the same engine that powers every Control Scout prediction." },
   "/compare": { title: "Compare FTC teams", description: "Put FTC teams side by side: OPR by game phase, prediction ratings, records and event-by-event trends for up to four teams at once." },
   "/methodology": { title: "How Control Scout predictions work", description: "How Control Scout computes OPR (exactly like FTC Scout), rates robots and predicts matches, with a public record of how often the predictions come true." },

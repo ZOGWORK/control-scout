@@ -19,6 +19,7 @@ import Home from "./pages/Home";
 
 const TeamPage = lazy(() => import("./pages/TeamPage"));
 const EventsPage = lazy(() => import("./pages/EventsPage"));
+const RecordsPage = lazy(() => import("./pages/RecordsPage"));
 const EventPage = lazy(() => import("./pages/EventPage"));
 const PredictPage = lazy(() => import("./pages/PredictPage"));
 const ComparePage = lazy(() => import("./pages/ComparePage"));
@@ -49,6 +50,8 @@ createRoot(document.getElementById("root")!).render(
               <Suspense fallback={<LoadingBlock />}>
                 <Routes>
                   <Route path="/" element={<Home />} />
+                  <Route path="/teams" element={<RecordsPage />} />
+                  <Route path="/matches" element={<RecordsPage matches />} />
                   <Route path="/teams/:number" element={<TeamPage />} />
                   <Route path="/events" element={<EventsPage />} />
                   <Route path="/events/:season/:code" element={<EventPage />} />

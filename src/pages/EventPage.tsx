@@ -1,11 +1,14 @@
-// Event page: schedule + results (with predictions), rankings, playoff
+// Event page: schedule + results (with predictions), rankings and insights
+// (records tables with filters, sorting, compare and CSV), the teams, playoff
 // bracket, awards + advancement, and advancement odds for any team there.
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { Link, useParams, useSearchParams } from "react-router-dom";
-import { Award, CalendarDays, ExternalLink, MapPin, Radio, Swords, Trophy } from "lucide-react";
+import { Award, CalendarDays, Clock, ExternalLink, MapPin, Radio, Search, Swords, Trophy, Users } from "lucide-react";
 import { BRACKETS, type Slot } from "@control-scout/predict-engine";
 import { useApi } from "../lib/api";
-import { usePredictable, useTitle } from "../lib/meta";
+import { useMeta, usePredictable, useTitle } from "../lib/meta";
+import { TABLE_PARAMS } from "../lib/records/urlState";
+import { RecordsTable } from "../components/records/RecordsTable";
 import { usePersonal } from "../lib/personal";
 import type { EventDetail, FieldRow, MatchView } from "../shared/api";
 import { EmptyState } from "../components/page";
@@ -40,9 +43,10 @@ function Event({ d }: { d: EventDetail }) {
   const nameOf = (t: number) => names.get(t) ?? "";
   // 2019–2022 are history only: no odds, no what-if lab (their predict routes 404).
   const predictable = usePredictable(e.season);
-  const asked = sp.get("tab") ?? (sp.get("match") ? "matches" : e.status === "upcoming" && !d.matches.length ? "odds" : "matches");
+  const asked = sp.get("tab") ?? (sp.get("match") ? "matches" : e.status === "upcoming" && !d.matches.length ? (predictable ? "odds" : "teams") : "matches");
   const tab = !predictable && asked === "odds" ? "matches" : asked;
-  const setTab = (t: string) => setSp((x) => { x.set("tab", t); return x; }, { replace: true });
+  // Rankings and Insights are different tables: a filter, sort or column choice belongs to the one it was made in.
+  const setTab = (t: string) => setSp((x) => { if (t !== tab) for (const k of TABLE_PARAMS) x.delete(k); x.set("tab", t); return x; }, { replace: true });
   const setTeam = (t: number | null) => setSp((x) => { if (t) x.set("team", String(t)); else x.delete("team"); return x; }, { replace: true });
   return (
     <div>
@@ -81,12 +85,35 @@ function Event({ d }: { d: EventDetail }) {
         <TabsList>
           <TabsTrigger value="matches">Matches</TabsTrigger>
           <TabsTrigger value="rankings">Rankings</TabsTrigger>
+          <TabsTrigger value="insights">Insights</TabsTrigger>
+          <TabsTrigger value="teams">Teams <span className="rounded-md bg-current/15 px-1.5 text-[11px] tabular-nums">{d.field.length}</span></TabsTrigger>
           <TabsTrigger value="playoffs">Playoffs</TabsTrigger>
           <TabsTrigger value="awards">Awards</TabsTrigger>
           {predictable && <TabsTrigger value="odds">Odds</TabsTrigger>}
         </TabsList>
         <TabsContent value="matches" className="mt-5"><Matches d={d} team={teamParam} /></TabsContent>
-        <TabsContent value="rankings" className="mt-5"><Rankings field={d.field} season={e.season} team={teamParam} code={e.code} /></TabsContent>
+        <TabsContent value="rankings" className="mt-5">
+          {tab === "rankings" && (
+            <>
+              {/* While the event is on, the ranking comes from the event itself (refreshed every minute or so);
+                  the records table below is rebuilt by the stats cycle, so it says how old it is. */}
+              {e.status === "live" && <LiveStandings field={d.field} season={e.season} team={teamParam} code={e.code} />}
+              {e.status === "live" && <StatsAsOf />}
+              <RecordsTable scope="teamEvent" season={e.season} code={e.code} predictable={predictable} defaultSort="rank" storageKey="event-rankings" noun="teams"
+                defaultCols={RANKING_COLS.filter((k) => k !== "advancementOdds" || !d.forecastUnsupported)} selectable highlightTeam={teamParam}
+                emptyFallback={e.status === "live" ? <EmptyState icon={Swords} title="Full stats arrive with the next stats update" description="The live standings above are current." /> : <Rankings field={d.field} season={e.season} team={teamParam} code={e.code} note />} />
+            </>
+          )}
+        </TabsContent>
+        <TabsContent value="insights" className="mt-5">
+          {tab === "insights" && e.status === "live" && <StatsAsOf />}
+          {tab === "insights" && (
+            <RecordsTable scope="teamEvent" season={e.season} code={e.code} predictable={predictable} defaultSort="totalPointsNpOpr" storageKey="event-insights" noun="teams"
+              defaultCols={INSIGHT_COLS} selectable highlightTeam={teamParam}
+              emptyFallback={<EmptyState icon={Swords} title="No match stats yet" description="Score breakdowns, OPR and averages appear here once qualification matches have been played and the stats have been updated." />} />
+          )}
+        </TabsContent>
+        <TabsContent value="teams" className="mt-5"><TeamsGrid field={d.field} season={e.season} team={teamParam} predictable={predictable} /></TabsContent>
         <TabsContent value="playoffs" className="mt-5"><Playoffs d={d} /></TabsContent>
         <TabsContent value="awards" className="mt-5"><Awards d={d} nameOf={nameOf} /></TabsContent>
         {predictable && <TabsContent value="odds" className="mt-5">
@@ -183,7 +210,7 @@ function EventGlance({ d, onTab }: { d: EventDetail; onTab: (t: string) => void 
   if (winners.length) rows.push({ label: "Won by", value: <span className="font-mono">{winners.join(" · ")}</span>, tab: "playoffs" });
   if (seed1) rows.push({ label: "#1 seed", value: <><span className="font-mono">{seed1.team}</span> <span className="text-muted-foreground">{seed1.name}</span></>, to: `/teams/${seed1.team}?season=${e.season}`, tab: "rankings" });
   if (topOpr) rows.push({ label: "Top OPR", value: <><span className="font-mono">{topOpr.team}</span> <span className="text-muted-foreground">{topOpr.opr.np!.toFixed(1)}</span></>, to: `/teams/${topOpr.team}?season=${e.season}` });
-  if (d.advancement?.slots) rows.push({ label: "Advancing", value: <>{d.advancement.slots} slots{d.advancement.advancesTo ? <span className="text-muted-foreground"> → {d.advancement.advancesTo}</span> : null}</>, tab: predictable ? "odds" : undefined });
+  if (d.advancement?.slots) rows.push({ label: "Advancing", value: <>{d.advancement.slots} slots{d.advancement.advancesTo ? <span className="text-muted-foreground"> → {d.advancement.advancesTo}</span> : null}</>, tab: predictable ? "odds" : "awards" });
   return (
     <div className="min-w-0 rounded-xl border border-border/70 bg-background/40 p-4 backdrop-blur-sm">
       <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">At a glance</p>
@@ -255,7 +282,49 @@ function Matches({ d, team }: { d: EventDetail; team: number | null }) {
   );
 }
 
-function Rankings({ field, season, team, code }: { field: FieldRow[]; season: number; team: number | null; code: string }) {
+/** Rankings tab columns (FTC Scout's: RS, TBP, played, record, np OPR / AVG / MAX) plus Control Scout's win % and odds. */
+const RANKING_COLS = ["rank", "rp", "tb1", "qualMatchesPlayed", "wins", "losses", "ties", "totalPointsNpOpr", "totalPointsNpAvg", "totalPointsNpMax", "predictedWinPctAvg", "advancementOdds"];
+/** Insights tab: where the points come from. */
+const INSIGHT_COLS = ["totalPointsNpOpr", "autoPointsOpr", "dcPointsOpr", "endgamePointsOpr", "penaltyPointsCommittedOpr", "autoPointsAvg", "dcPointsAvg", "endgamePointsAvg", "totalPointsNpMax", "predictedScoreAvg"];
+
+/**
+ * While an event is live: the standings from the event itself (rank, RS, record,
+ * OPR — refreshed with the event, every minute or so), first. The records table
+ * under it is rebuilt by the stats cycle, so it can lag a few matches behind.
+ */
+function LiveStandings({ field, season, team, code }: { field: FieldRow[]; season: number; team: number | null; code: string }) {
+  return (
+    <section aria-label="Live standings" className="mb-8 rounded-xl border border-red-500/30 bg-red-500/[0.04] p-3 sm:p-4">
+      <h2 className="mb-3 flex flex-wrap items-center gap-2 text-sm font-semibold">
+        <Radio className="size-4 text-red-500" /> Live standings
+        <span className="font-normal text-muted-foreground">· the official ranking, updated as matches are scored</span>
+      </h2>
+      <Rankings field={field} season={season} team={team} code={code} />
+    </section>
+  );
+}
+
+/** How fresh the records tables are, shown while an event is live (they're rebuilt by the stats cycle, not every match). */
+function StatsAsOf() {
+  const at = useMeta()?.statsAt;
+  const time = at ? new Date(at).toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" }) : null;
+  return (
+    <p className="mb-3 flex items-center gap-2 rounded-lg border border-border bg-card px-3 py-2 text-xs text-muted-foreground">
+      <Clock className="size-3.5 shrink-0" />
+      <span>Full stats and filters{time ? <> as of <span className="font-medium text-foreground">{time}</span></> : null} — rebuilt every few minutes during events, so the last few matches may not be in yet.</span>
+    </p>
+  );
+}
+
+function Rankings({ field, season, team, code, note }: { field: FieldRow[]; season: number; team: number | null; code: string; note?: boolean }) {
+  if (note) return (
+    <div className="space-y-3">
+      <p className="rounded-xl border border-border bg-card px-4 py-3 text-sm text-muted-foreground">
+        Filters, every stat and CSV export arrive here after the next stats update. Until then, the official ranking:
+      </p>
+      <Rankings field={field} season={season} team={team} code={code} />
+    </div>
+  );
   const cols: Col<FieldRow>[] = [
     { key: "rank", label: "Rank", value: (r) => r.rank, asc: true, align: "right", render: (r) => r.rank ?? "—" },
     { key: "team", label: "Team", value: (r) => r.team, render: (r) => <Link to={`/teams/${r.team}?season=${season}`} className="hover:underline"><span className="font-mono font-medium">{r.team}</span> <span className="text-muted-foreground">{r.name}</span></Link> },
@@ -269,6 +338,47 @@ function Rankings({ field, season, team, code }: { field: FieldRow[]; season: nu
     { key: "rating", label: "Rating", title: "Prediction rating now (± uncertainty)", value: (r) => r.rating?.np ?? null, align: "right", render: (r) => r.rating ? <span>{num(r.rating.np)} <span className="text-muted-foreground">±{num(r.rating.sd, 0)}</span></span> : "—" },
   ];
   return <SortTable rows={field} cols={cols} rowKey={(r) => r.team} initial={{ key: "rank", dir: "asc" }} csvName={`${code}-${season}-rankings`} highlight={(r) => r.team === team} empty="No teams registered yet." />;
+}
+
+/** Teams (N): everyone registered, as cards — rank, OPR and rating at a glance, searchable. */
+function TeamsGrid({ field, season, team, predictable }: { field: FieldRow[]; season: number; team: number | null; predictable: boolean }) {
+  const [q, setQ] = useState("");
+  const f = q.trim().toLowerCase();
+  const list = [...field]
+    .filter((t) => !f || `${t.team} ${t.name ?? ""} ${t.city ?? ""} ${t.state ?? ""}`.toLowerCase().includes(f))
+    .sort((a, b) => a.team - b.team);
+  if (!field.length) return <EmptyState icon={Users} title="No teams registered yet" description="The team list appears once FIRST publishes it." />;
+  return (
+    <div className="space-y-4">
+      <div className="relative max-w-sm">
+        <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+        <Input value={q} onChange={(e) => setQ(e.target.value)} placeholder={`Find one of ${field.length} teams`} aria-label="Find a team at this event" className="h-10 pl-9" />
+      </div>
+      {!list.length ? <EmptyState icon={Search} title="No team matches" /> : (
+        <ul className="grid gap-2.5 sm:grid-cols-2 lg:grid-cols-3">
+          {list.map((t) => (
+            <li key={t.team}>
+              <Link to={`/teams/${t.team}?season=${season}`} className={cn("lift flex h-full items-center gap-3 rounded-xl border border-border bg-card p-3", t.team === team && "border-accent/60 bg-accent/[0.06]")}>
+                <span className="flex size-12 shrink-0 flex-col items-center justify-center rounded-lg bg-muted text-center">
+                  <span className="text-[9px] font-bold uppercase tracking-wider text-muted-foreground">Rank</span>
+                  <span className={cn("font-display text-lg font-semibold leading-none tabular-nums", t.rank != null && t.rank <= 4 && "text-accent")}>{t.rank ?? "–"}</span>
+                </span>
+                <span className="min-w-0 flex-1">
+                  <span className="flex items-baseline gap-2"><span className="font-mono font-semibold">{t.team}</span><span className="truncate text-sm">{t.name}</span></span>
+                  <span className="block truncate text-xs text-muted-foreground">{place(t.city, t.state) || "—"}</span>
+                  <span className="mt-1.5 flex flex-wrap gap-1.5 text-[11px] tabular-nums">
+                    {t.opr.np != null && <span className="rounded-md bg-violet-500/12 px-1.5 py-0.5 text-violet-600 dark:text-violet-400">npOPR {num(t.opr.np)}</span>}
+                    {t.wins != null && <span className="rounded-md bg-green-500/12 px-1.5 py-0.5 text-green-600 dark:text-green-400">{t.wins}-{t.losses ?? 0}-{t.ties ?? 0}</span>}
+                    {predictable && t.rating && <span className="rounded-md bg-accent/15 px-1.5 py-0.5 text-accent-text">Rating {num(t.rating.np)} ±{num(t.rating.sd, 0)}</span>}
+                  </span>
+                </span>
+              </Link>
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
 }
 
 function slotLabel(s: Slot): string {

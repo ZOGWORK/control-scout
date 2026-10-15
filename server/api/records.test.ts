@@ -303,3 +303,18 @@ describe("GET /api/records/:season/matches", () => {
     expect((await get(`/api/records/${S}/teams?team=3`)).body.error).toMatch(/team applies to match records/);
   });
 });
+
+describe("one event's records and region options", () => {
+  it("narrows team-event and match records to one event with ?code (any case)", async () => {
+    expect((await get(`/api/records/${N}/teams?code=b2`)).body.rows.map((x: any) => x.team).sort()).toEqual([105, 106, 107]);
+    expect((await get(`/api/records/${S}/matches?code=USTST`)).body.total).toBe(3);
+    expect((await get(`/api/records/${S}/matches?code=NOPE`)).body.total).toBe(0);
+    expect((await get(`/api/records/${N}/teams?scope=season&code=B2`)).body.error).toMatch(/code applies to team-event and match records/);
+    expect((await get(`/api/records/${N}/teams?code=a;b`)).status).toBe(400);
+  });
+  it("lists the season's region codes with the place most of their events are in", async () => {
+    const { status, body } = await get(`/api/records/${S}/regions`);
+    expect(status).toBe(200);
+    expect(body.regions.find((r: any) => r.code === "USTX")).toMatchObject({ events: 1 });
+  });
+});

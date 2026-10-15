@@ -3,13 +3,20 @@
 //   npm run shots -- /teams/18360 "/events/2025/AUSYQ1?tab=odds"
 //   npm run shots -- --mobile --light /predict
 //   npm run shots -- --out C:/tmp/shots /
+//   npm run shots -- --steps flow.json --name builder /teams
+//
+// --steps <file.json> runs interactions after the page loads (open a dialog,
+// build a filter…) before the shot, or while a --video records. The file is
+// an array of { click | fill+value | type | press | wait | waitFor | reload } steps;
+// selectors are Playwright's (role=button[name="Filters"], text=Apply, css).
+// --name <label> goes in the file name, to tell several states of one route apart.
 //
 // Handles the fiddly parts once: real servers (starts API + Vite if they
 // aren't running), 2x device scale, waiting until data has loaded (network
 // idle, no skeletons, fonts ready) plus a settle delay for animations, and
 // writing PNGs OUTSIDE the repository (default: OS temp dir). Prints the
 // --attach arguments for `gh pr create`.
-import { chromium, type Browser } from "playwright";
+import { chromium, type Browser, type Page } from "playwright";
 import { mkdirSync, readFileSync, renameSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
@@ -20,7 +27,33 @@ const flag = (f: string) => args.includes(`--${f}`);
 const opt = (f: string) => { const i = args.indexOf(`--${f}`); return i >= 0 ? args[i + 1] : undefined; };
 // Routes: "/teams/1" or "teams/1". Git Bash rewrites a leading "/" into its
 // install path (C:/Program Files/Git/...) — undo that.
-const VALUE_FLAGS = new Set(["--out", "--base", "--search", "--video", "--storage"]);
+const VALUE_FLAGS = new Set(["--out", "--base", "--search", "--video", "--storage", "--steps", "--name"]);
+type Step = { click?: string; fill?: string; value?: string; type?: string; press?: string; wait?: number; waitFor?: string; reload?: boolean };
+const STEPS: Step[] = (() => {
+  const f = opt("steps");
+  if (!f) return [];
+  const s = JSON.parse(readFileSync(f, "utf8"));
+  if (!Array.isArray(s)) { console.error("--steps: the file must hold a JSON array of steps"); process.exit(1); }
+  return s;
+})();
+/** A route as a file-name part (long filter URLs cut to a readable length). */
+const slug = (route: string) => (route.replace(/^\//, "").replace(/[^\w-]+/g, "_") || "home").slice(0, 80);
+const LABEL = opt("name") ? `-${opt("name")!.replace(/[^\w-]+/g, "_")}` : "";
+/** Run --steps in order (a pause after each, so a video shows what happened). */
+async function runSteps(page: Page, slow: boolean) {
+  for (const s of STEPS) {
+    if (s.click) await page.locator(s.click).first().click();
+    else if (s.fill) await page.locator(s.fill).first().fill(s.value ?? "");
+    else if (s.type != null) await page.keyboard.type(s.type, { delay: slow ? 90 : 20 });
+    else if (s.press) await page.keyboard.press(s.press);
+    else if (s.waitFor) await page.locator(s.waitFor).first().waitFor({ state: "visible", timeout: 20_000 });
+    else if (s.reload) { await page.reload({ waitUntil: "networkidle" }); await page.waitForTimeout(800); }
+    if (s.wait) await page.waitForTimeout(s.wait);
+    await page.waitForTimeout(slow ? 450 : 150);
+  }
+  await page.waitForLoadState("networkidle").catch(() => {});
+  await page.waitForTimeout(600);
+}
 const routes = args.filter((a, i) => !a.startsWith("--") && !VALUE_FLAGS.has(args[i - 1] ?? ""))
   .map((a) => a.replace(/\\/g, "/").replace(/^[A-Za-z]:\/.*?\/Git(?=\/|$)/, ""))
   .map((a) => (a.startsWith("/") ? a : `/${a}`));
@@ -76,6 +109,8 @@ async function capture(browser: Browser, route: string, vp: keyof typeof SIZES, 
     await page.waitForFunction(() => !document.body.innerText.includes("Searching…"), null, { timeout: 15_000 });
     await page.waitForTimeout(600);
   }
+  // --steps: interactions (a dialog open, a filter built…); a video records them as they happen.
+  if (STEPS.length) await runSteps(page, videoSecs > 0);
   // --pointer: rest the mouse mid-page (hover effects, the ambient light).
   if (flag("pointer") && vp !== "mobile") { await page.mouse.move(SIZES[vp].width * 0.6, SIZES[vp].height * 0.35, { steps: 12 }); await page.waitForTimeout(500); }
   // --video N: record N seconds while the pointer glides across the page.
@@ -83,7 +118,7 @@ async function capture(browser: Browser, route: string, vp: keyof typeof SIZES, 
     const { width, height } = SIZES[vp];
     const t0 = Date.now();
     let i = 0;
-    while (Date.now() - t0 < videoSecs * 1000) {
+    while (!STEPS.length && Date.now() - t0 < videoSecs * 1000) {
       const a = (i++ / 60) * Math.PI * 2;
       await page.mouse.move(width * (0.5 + 0.3 * Math.cos(a)), height * (0.45 + 0.25 * Math.sin(a * 2)), { steps: 4 });
       await page.waitForTimeout(40);
@@ -91,7 +126,7 @@ async function capture(browser: Browser, route: string, vp: keyof typeof SIZES, 
     const video = page.video();
     await ctx.close();
     const tmp = await video!.path();
-    const file = join(out, `${vp}${light ? "-light" : ""}${q ? `-search-${q.replace(/[^\w]+/g, "_")}` : ""}-video-${route.replace(/^\//, "").replace(/[^\w-]+/g, "_") || "home"}.webm`);
+    const file = join(out, `${vp}${light ? "-light" : ""}${q ? `-search-${q.replace(/[^\w]+/g, "_")}` : ""}${LABEL}-video-${slug(route)}.webm`);
     renameSync(tmp, file);
     if (errors.length) console.warn(`  ! ${route}: page errors: ${errors.join(" | ")}`);
     return file;
@@ -99,10 +134,11 @@ async function capture(browser: Browser, route: string, vp: keyof typeof SIZES, 
   // The shell scrolls inside <main> (h-dvh, absolutely positioned over the
   // ambient layer); unroll it and put <main> back in normal flow so the page
   // content gives the shell its height and a full-page shot shows everything.
-  if (!flag("viewport") && !q && !flag("pointer")) await page.addStyleTag({ content: ".h-dvh{height:auto!important;overflow:visible!important} main#main{overflow:visible!important;position:relative!important;inset:auto!important} .h-dvh{position:relative!important} nav.fixed{position:absolute!important;left:0;right:0;bottom:0}" });
-  const name = `${vp}${light ? "-light" : ""}${flag("pointer") ? "-pointer" : ""}${q ? `-search-${q.replace(/[^\w]+/g, "_")}` : ""}-${route.replace(/^\//, "").replace(/[^\w-]+/g, "_") || "home"}.png`;
+  const full = !flag("viewport") && !q && !flag("pointer") && !STEPS.length;
+  if (full) await page.addStyleTag({ content: ".h-dvh{height:auto!important;overflow:visible!important} main#main{overflow:visible!important;position:relative!important;inset:auto!important} .h-dvh{position:relative!important} nav.fixed{position:absolute!important;left:0;right:0;bottom:0}" });
+  const name = `${vp}${light ? "-light" : ""}${flag("pointer") ? "-pointer" : ""}${q ? `-search-${q.replace(/[^\w]+/g, "_")}` : ""}${LABEL}-${slug(route)}.png`;
   const file = join(out, name);
-  await page.screenshot({ path: file, fullPage: !flag("viewport") && !q && !flag("pointer") });
+  await page.screenshot({ path: file, fullPage: full });
   if (errors.length) console.warn(`  ! ${route}: page errors: ${errors.join(" | ")}`);
   await ctx.close();
   return file;

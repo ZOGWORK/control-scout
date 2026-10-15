@@ -176,6 +176,13 @@ html.ambient-off .ambient-breath, html.ambient-off .ambient-glow { display: none
 .custom-scrollbar::-webkit-scrollbar-thumb { background: #2e2e35; border-radius: 999px; }
 .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: #3f3f47; }
 html.light .custom-scrollbar::-webkit-scrollbar-thumb { background: #d4d4d8; }
+/* Rows that scroll sideways by touch / wheel without a visible bar (toolbar chips). */
+.no-scrollbar { scrollbar-width: none; }
+.no-scrollbar::-webkit-scrollbar { display: none; }
+/* A thin bar sweeping across while a table refreshes. */
+@keyframes cs-progress { 0% { transform: translateX(-100%); } 100% { transform: translateX(300%); } }
+.cs-progress { animation: cs-progress 1s ease-in-out infinite; }
+@media (prefers-reduced-motion: reduce) { .cs-progress { animation: none; } }
 
 /* Compact density: tighter tables and cards. */
 html.compact .density-row { padding-top: 0.375rem; padding-bottom: 0.375rem; }
