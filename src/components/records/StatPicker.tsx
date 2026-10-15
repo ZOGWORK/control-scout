@@ -10,11 +10,11 @@ import { TONE_CLASS, toneOf } from "../../lib/records/describe";
 import { cn } from "../cn";
 
 const CATEGORY_HINT: Partial<Record<StatCategory, string>> = {
-  "Team": "Who the team is — FTC Scout's picker doesn't have these.",
+  "Team": "Who the team is: number, name, region, rookie year and school.",
   "Event Performance": "Official rankings at the event.",
   "Score Stats": "Alliance scores over the team's qualification matches.",
   "Match Scores": "Each alliance's score in the match.",
-  "Control Scout Exclusives": "From Control Scout's predictions — nobody else has these.",
+  "Control Scout Exclusives": "From Control Scout predictions.",
 };
 
 /** Stats a table can show/filter: the scope's catalog, minus prediction stats in seasons without predictions. */
