@@ -116,7 +116,8 @@ export function createApp() {
   app.set("trust proxy", 1);
   // One host, one URL per page: www/alias hosts, trailing slashes and /team/… aliases 301 (server/seo.ts).
   app.use(canonicalRedirects);
-  app.use(compression());
+  // CSV exports stream and gzip themselves, flushing as they go (server/api/records.ts streamedBody).
+  app.use(compression({ filter: (req, res) => !String(res.getHeader("Content-Type") ?? "").startsWith("text/csv") && compression.filter(req, res) }));
   // /api/collect reads its own tiny body (1 KB cap), so the 2 MB JSON parser skips it.
   const json = express.json({ limit: "2mb" });
   // Same matching as Express routing (case-insensitive, optional trailing slash).

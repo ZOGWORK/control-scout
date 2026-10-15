@@ -479,7 +479,8 @@ function Privacy({ onOpen }: { onOpen: (id: SectionId) => void }) {
         <Row label="Public data" description="Teams, events, matches and predictions, from FIRST and FTC Scout. No account involved." />
         <Row label="On this device" description="My team, tracking, shortlist, settings, saved predictions, scouting notes, video links, and every recording you make. Recordings never leave the device." />
         <Row label="In your account" description="Signed in only: the same list minus recordings. Your email is used only to send sign-in codes." />
-        <Row label="Never" description="No ads, no trackers, no selling data." />
+        <Row label="Never" description="No ads, no third-party trackers, no selling data. Anonymous usage stats only if you allow them." />
+        <Row label="Privacy policy" description="The details: cookies, storage, sign-in and your choices."><Button variant="outline" size="sm" asChild><Link to="/privacy">Read it</Link></Button></Row>
       </Group>
       <Group title="Privacy choices">
         <Row label="Essential storage" description="Sign-in, preferences and offline data, kept so the app works.">
