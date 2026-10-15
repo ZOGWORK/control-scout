@@ -92,8 +92,10 @@ export async function teamProfile(number: number, season?: number): Promise<Team
   let s = season;
   if (!s) {
     const withResults = await get<{ season: number }>("SELECT MAX(season) season FROM team_season_stats WHERE team = ? AND matches > 0", [number]);
-    s = seasons.includes(CURRENT_SEASON) && (await get("SELECT 1 FROM event_teams WHERE season = ? AND team = ? LIMIT 1", [CURRENT_SEASON, number]))
-      ? CURRENT_SEASON : withResults?.season ?? seasons[0] ?? CURRENT_SEASON;
+    // The current season is always listed (seasons[0]) but is only the default when the team is entered in
+    // it; otherwise the newest season it actually played, remote-only seasons included (they have no stats row).
+    const entered = !!(await get("SELECT 1 FROM event_teams WHERE season = ? AND team = ? LIMIT 1", [CURRENT_SEASON, number]));
+    s = entered || withResults?.season === CURRENT_SEASON ? CURRENT_SEASON : seasons.find((x) => x !== CURRENT_SEASON) ?? CURRENT_SEASON;
   }
   const [stats, events, awardsAllTime] = await Promise.all([
     seasonStats(s, number),
