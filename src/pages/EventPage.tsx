@@ -3,7 +3,7 @@
 // bracket, awards + advancement, and advancement odds for any team there.
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { Link, useParams, useSearchParams } from "react-router-dom";
-import { Award, CalendarDays, Clock, ExternalLink, Loader2, MapPin, Radio, RefreshCw, Search, Swords, Trophy, Users } from "lucide-react";
+import { Award, CalendarDays, Clock, ExternalLink, Loader2, MapPin, Radio, RefreshCw, Search, Sparkles, Swords, Trophy, Users } from "lucide-react";
 import { BRACKETS, type Slot } from "@control-scout/predict-engine";
 import { ApiError, apiFetch, load, prime, useApi } from "../lib/api";
 import { useMeta, usePredictable, useTitle } from "../lib/meta";
@@ -16,6 +16,7 @@ import { Async } from "../components/states";
 import { Reveal } from "../components/motion";
 import { Badge, Input } from "../components/ui/basic";
 import { Button } from "../components/ui/button";
+import { StickyActions, useScrolledPast } from "../components/StickyActions";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "../components/ui/tabs";
 import { ToggleGroup, ToggleGroupItem } from "../components/ui/controls";
 import { MatchList } from "../components/predict";
@@ -53,6 +54,17 @@ function Event({ d, path }: { d: EventDetail; path: string }) {
   // Rankings and Insights are different tables: a filter, sort or column choice belongs to the one it was made in.
   const setTab = (t: string) => setSp((x) => { if (t !== tab) for (const k of TABLE_PARAMS) x.delete(k); x.set("tab", t); return x; }, { replace: true });
   const setTeam = (t: number | null) => setSp((x) => { if (t) x.set("team", String(t)); else x.delete("team"); return x; }, { replace: true });
+  const toggleTrack = () => update("tracked", (t) => ({ ...t, events: tracked ? t.events.filter((x) => x !== ref) : [...t.events, ref] }));
+  const labHref = `/predict?mode=advancement&season=${e.season}&code=${e.code}${teamParam ? `&team=${teamParam}` : ""}`;
+  const refresh = useRefreshResults(path);
+  const [headerEnd, pastHeader] = useScrolledPast<HTMLDivElement>();
+  const tabsRef = useRef<HTMLDivElement>(null);
+  // The bar's "See odds" opens the tab and brings it into view (the header that held the button is off screen).
+  const seeOdds = () => { setTab("odds"); tabsRef.current?.scrollIntoView({ block: "start", behavior: matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth" }); };
+  // Phones get a sticky bar only where one action leads: live (refresh) or upcoming with predictions (odds / lab).
+  // Finished events and history seasons have no bar.
+  const sticky = e.status === "live" || (e.status === "upcoming" && predictable);
+  const oddsOpen = predictable && !d.forecastUnsupported;
   return (
     <div>
       <OfflineNote data={d} />
@@ -73,20 +85,32 @@ function Event({ d, path }: { d: EventDetail; path: string }) {
             {e.livestream && <a href={e.livestream} target="_blank" rel="noreferrer noopener" className="inline-flex items-center gap-1 hover:text-foreground">Livestream <ExternalLink className="size-3" /></a>}
             {e.website && <a href={e.website} target="_blank" rel="noreferrer noopener" className="inline-flex items-center gap-1 hover:text-foreground">Website <ExternalLink className="size-3" /></a>}
           </div>
-          {d.live && <LiveBar live={d.live} path={path} />}
+          {d.live && <LiveBar live={d.live} r={refresh} />}
           <div className="mt-5 flex flex-wrap gap-2">
-            <Button variant={tracked ? "secondary" : "outline"} size="sm" aria-pressed={tracked} onClick={() => update("tracked", (t) => ({ ...t, events: tracked ? t.events.filter((x) => x !== ref) : [...t.events, ref] }))}>
+            <Button variant={tracked ? "secondary" : "outline"} size="sm" aria-pressed={tracked} onClick={toggleTrack}>
               {tracked ? "Tracking this event" : "Track event"}
             </Button>
-            {predictable && <Button variant="outline" size="sm" asChild><Link to={`/predict?mode=advancement&season=${e.season}&code=${e.code}${teamParam ? `&team=${teamParam}` : ""}`}>Open in what-if lab</Link></Button>}
+            {predictable && <Button variant="outline" size="sm" asChild><Link to={labHref}>Open in what-if lab</Link></Button>}
           </div>
           {!predictable && <p className="mt-3 text-xs text-muted-foreground">{seasonLabel(e.season)} is shown for history: results, rankings and awards, no predictions (those start with 2023–24).</p>}
           <p className="mt-3 text-[11px] text-muted-foreground">Source: {e.source === "first" ? "FIRST Events API" : "FTC Scout"}</p>
         </div>
         <EventGlance d={d} onTab={setTab} />
         </div>
+        <div ref={headerEnd} aria-hidden />
       </Reveal>
+      {sticky && (
+        <StickyActions show={pastHeader} label="Event actions">
+          {e.status === "live" && d.live
+            ? <Button onClick={refresh.run} disabled={refresh.busy} aria-busy={refresh.busy}>{refresh.busy ? <Loader2 className="animate-spin" /> : <RefreshCw />} {refresh.busy ? "Checking…" : "Refresh results"}</Button>
+            : oddsOpen
+              ? <Button onClick={seeOdds}><Trophy /> See odds</Button>
+              : predictable && <Button asChild><Link to={labHref}><Sparkles /> What-if lab</Link></Button>}
+          <Button variant={tracked ? "secondary" : "outline"} aria-pressed={tracked} onClick={toggleTrack} className="!flex-none">{tracked ? "Tracking" : "Track event"}</Button>
+        </StickyActions>
+      )}
 
+      <div ref={tabsRef} className="scroll-mt-4" />
       <Tabs value={tab} onValueChange={setTab}>
         <TabsList>
           <TabsTrigger value="matches">Matches</TabsTrigger>
@@ -164,26 +188,34 @@ function useLiveReload(path: string, live: EventDetail["live"]) {
   }, [path, every]);
 }
 
-/** "Results updated 40 s ago" + "Refresh results", on events that are on today. */
-function LiveBar({ live, path }: { live: NonNullable<EventDetail["live"]>; path: string }) {
-  const [now, setNow] = useState(() => Date.now());
+/** "Refresh results" for a live event: shared by the header's live bar and the phone's sticky bar. */
+function useRefreshResults(path: string) {
   const [busy, setBusy] = useState(false);
   const [note, setNote] = useState<string | null>(null);
+  const [at, setAt] = useState(0);
   const noteTimer = useRef<number>(undefined);
-  useEffect(() => { const id = setInterval(() => setNow(Date.now()), 1000); return () => clearInterval(id); }, []);
   useEffect(() => () => window.clearTimeout(noteTimer.current), []);
   const say = (m: string) => { setNote(m); window.clearTimeout(noteTimer.current); noteTimer.current = window.setTimeout(() => setNote(null), 8000); };
-  const refresh = async () => {
+  const run = async () => {
     setBusy(true);
     try {
       const r = await apiFetch<EventRefreshResult>(`${path}/refresh`, { method: "POST" });
       prime(path, r.detail);
-      setNow(Date.now());
+      setAt(Date.now());
       say(r.message);
     } catch (e) {
       say(e instanceof ApiError ? e.message : "Couldn't refresh right now. Try again in a moment.");
     } finally { setBusy(false); }
   };
+  return { busy, note, at, run };
+}
+
+/** "Results updated 40 s ago" + "Refresh results", on events that are on today. */
+function LiveBar({ live, r }: { live: NonNullable<EventDetail["live"]>; r: ReturnType<typeof useRefreshResults> }) {
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => { const id = setInterval(() => setNow(Date.now()), 1000); return () => clearInterval(id); }, []);
+  useEffect(() => { if (r.at) setNow(r.at); }, [r.at]);
+  const { busy, note } = r;
   return (
     <div className="mt-4 flex flex-wrap items-center gap-x-3 gap-y-2">
       <span className="inline-flex items-center gap-2 rounded-full border border-destructive/30 bg-destructive/10 px-3 py-1 text-xs font-medium text-foreground">
@@ -193,7 +225,7 @@ function LiveBar({ live, path }: { live: NonNullable<EventDetail["live"]>; path:
         </span>
         {live.checkedAt ? <>Results updated <time dateTime={live.checkedAt} className="tabular-nums">{agoSeconds(live.checkedAt, now)}</time></> : "Results not checked yet today"}
       </span>
-      <Button variant="outline" size="sm" onClick={refresh} disabled={busy} aria-busy={busy}>
+      <Button variant="outline" size="sm" onClick={r.run} disabled={busy} aria-busy={busy}>
         {busy ? <Loader2 className="animate-spin" /> : <RefreshCw />} {busy ? "Checking…" : "Refresh results"}
       </Button>
       <span className="text-xs text-muted-foreground">{live.auto ? <>Checks for new results every {live.everySeconds < 90 ? `${live.everySeconds} s` : `${Math.round(live.everySeconds / 60)} min`} on its own</> : "Refresh to check for new results"}</span>
