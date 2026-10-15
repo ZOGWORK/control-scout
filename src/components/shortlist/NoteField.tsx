@@ -7,13 +7,17 @@ import { PencilLine } from "lucide-react";
 import { MAX_NOTE } from "../../shared/personal";
 import { cn } from "../cn";
 import { FieldError } from "../ui/basic";
+import { SIGNED_IN } from "../../lib/personal";
 
 /**
- * Team → note text this device couldn't store. Kept outside the field so a remount (List/Grid switch,
- * leaving and coming back) still shows the error and still retries: the store's memory holds the text,
- * so a fresh field would otherwise take it as saved. Lives as long as the page (and that memory) does.
+ * Team → the note text this device couldn't store, and the last text it did store. Kept outside the
+ * field so a remount (List/Grid switch, leaving and coming back) still shows the error, still retries
+ * (the store's memory echoes the unstored text back as `value`, which a fresh field would take as saved),
+ * and Escape still restores the stored note. Lives as long as the store's in-memory copy: it's dropped
+ * when a sign-in replaces that copy with an account's data.
  */
-const unstoredNotes = new Map<number, string>();
+const unstoredNotes = new Map<number, { text: string; saved: string }>();
+if (typeof window !== "undefined") window.addEventListener(SIGNED_IN, () => unstoredNotes.clear());
 
 export function NoteField({ team, value, onSave, className }: { team: number; value: string; onSave: (text: string) => boolean | void; className?: string }) {
   const [draft, setDraft] = useState(value);
@@ -21,14 +25,14 @@ export function NoteField({ team, value, onSave, className }: { team: number; va
   const errorId = useId();
   const focused = useRef(false);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const saved = useRef(value);
+  /** The last text this device stored for the note. */
+  const saved = useRef(unstoredNotes.get(team)?.saved ?? value);
   /** Escape: leave without saving the edit. */
   const skip = useRef(false);
-  /** The text this device couldn't store (or null). The store still holds it in memory and echoes it back as
-   *  `value` (trimmed); that echo must not count as saved, or the next Enter or blur would skip the retry. */
-  const unstored = (): string | null => unstoredNotes.get(team) ?? null;
+  /** The text this device couldn't store (or null). */
+  const unstored = (): string | null => unstoredNotes.get(team)?.text ?? null;
   const markUnstored = (text: string | null) => {
-    if (text === null) unstoredNotes.delete(team); else unstoredNotes.set(team, text);
+    if (text === null) unstoredNotes.delete(team); else unstoredNotes.set(team, { text, saved: saved.current });
     setFailed(text !== null);
   };
   // Another tab or device changed it: show that, unless this field is being edited.
@@ -57,8 +61,8 @@ export function NoteField({ team, value, onSave, className }: { team: number; va
     if (unstored() === null) return;
     // Write the stored note back over the failed edit; if that's refused too, the error stays up.
     const back = saved.current;
-    unstoredNotes.set(team, back);
-    markUnstored(onSave(back) === false ? back : null);
+    markUnstored(back); // before the write: its echo as `value` mustn't count as stored
+    if (onSave(back) !== false) markUnstored(null);
   };
   // Leaving the page mid-pause still saves what was typed.
   const latest = useRef({ draft, onSave });
