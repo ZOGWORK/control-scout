@@ -114,16 +114,19 @@ function teamEvents(db: Db, season: number, team: number): TeamEventRow[] {
 export function readTeamProfile(dbs: SeasonDb[], number: number, season?: number): TeamProfile | null {
   const saved = [...dbs].sort((a, b) => b.season - a.season);
   const mine = saved.filter((s) => inSeason(s.db, number));
-  const seasons = mine.map((s) => s.season);
   const team = mine.map((s) => teamInfo(s.db, number)).find(Boolean) ?? null;
+  // The same seasons the server lists (server/api/teams.ts teamSeasons), among those saved: ones the robot
+  // played (matches, or a rank at a remote event); registration alone only counts for the newest saved season.
+  const played = (x: SeasonDb) => !!one(x.db, "SELECT 1 FROM team_season_stats WHERE team = ? AND matches > 0", [number])
+    || !!one(x.db, "SELECT 1 FROM event_teams WHERE team = ? AND qual_played > 0", [number])
+    || !!one(x.db, "SELECT 1 FROM event_teams et JOIN events e ON e.season = et.season AND e.code = et.code WHERE et.team = ? AND e.remote = 1 AND et.rank IS NOT NULL", [number]);
+  const newest = saved[0];
+  const entered = !!newest && !!one(newest.db, "SELECT 1 FROM event_teams WHERE team = ? LIMIT 1", [number]);
+  const seasons = mine.filter((x) => played(x) || (x === newest && entered)).map((x) => x.season);
   if (!team && !seasons.length) return null;
   let s = season;
-  if (!s) {
-    const newest = saved[0]?.season;
-    const withResults = mine.find((x) => one(x.db, "SELECT 1 FROM team_season_stats WHERE team = ? AND matches > 0", [number]))?.season;
-    s = newest != null && seasons.includes(newest) && one(saved[0].db, "SELECT 1 FROM event_teams WHERE team = ? LIMIT 1", [number])
-      ? newest : withResults ?? seasons[0] ?? newest;
-  }
+  // Default: the newest saved season when the team is entered in it, else the newest it played.
+  if (!s) s = entered ? newest!.season : seasons.find((x) => x !== newest?.season) ?? seasons[0] ?? newest?.season;
   const at = saved.find((x) => x.season === s);
   if (!at || s == null) return null;
   // Awards across every saved season, newest first (each pack's own events give the names).

@@ -30,6 +30,11 @@ export function useCurrentSeason(): number {
   return d.getUTCMonth() >= 8 ? d.getUTCFullYear() : d.getUTCFullYear() - 1;
 }
 
+/** Whether a season has ratings and predictions (2019–2022 are history only). 2023+ until meta loads. */
+export function usePredictable(season: number): boolean {
+  return useMeta()?.seasons.find((s) => s.season === season)?.predictable ?? season >= 2023;
+}
+
 export function useTitle(title: string | null | undefined) {
   useEffect(() => {
     document.title = title ? `${title} · FTC Control Scout` : "FTC Control Scout — free FTC scouting & predictions";

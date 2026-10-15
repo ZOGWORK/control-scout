@@ -6,7 +6,7 @@
 import { scoutEventQuery, SCOUT_EVENT_LIST_QUERY } from "@control-scout/predict-engine";
 import type { EventBundle, MatchRow, MatchTeam } from "../data/bundle.js";
 import { matchLabel } from "../data/bundle.js";
-import type { ScoreSplit } from "../data/seasons.js";
+import { ownScorePenalties, type ScoreSplit } from "../data/seasons.js";
 
 const ENDPOINT = "https://api.ftcscout.org/graphql";
 const STATION: Record<string, number> = { One: 1, Two: 2, Three: 3, NotOnField: 0 };
@@ -27,11 +27,17 @@ export const fetchScoutEvent = (season: number, code: string) => scoutQuery(scou
 export const fetchScoutEventList = (season: number) => scoutQuery(SCOUT_EVENT_LIST_QUERY, { season });
 
 /** FTC Scout's per-season endgame field (2024+: dcPoints include it; ≤2023 they don't). */
-function split(season: number, raw: any): ScoreSplit | null {
+export function split(season: number, raw: any): ScoreSplit | null {
   if (!raw || typeof raw.totalPointsNp !== "number") return null;
   const auto = raw.autoPoints ?? 0;
   const endgame = season >= 2025 ? raw.dcBasePoints ?? 0 : season === 2024 ? raw.dcParkPoints ?? 0 : raw.egPoints ?? 0;
   const teleop = Math.max(0, season >= 2024 ? (raw.dcPoints ?? 0) - endgame : raw.dcPoints ?? 0);
+  if (ownScorePenalties(season)) {
+    // 2020/2021: fouls come off the offender's own score; FTC Scout stores them negative
+    // (and its 2020 totalPoints leaves them in), so the total is rebuilt as FIRST reports it.
+    const pen = Math.abs(raw.penaltyPointsCommitted ?? 0);
+    return { total: Math.max(0, raw.totalPointsNp - pen), np: raw.totalPointsNp, auto, teleop, endgame, pen };
+  }
   const out: ScoreSplit = { total: raw.totalPoints ?? raw.totalPointsNp, np: raw.totalPointsNp, auto, teleop, endgame, pen: raw.penaltyPointsCommitted ?? 0 };
   if (season >= 2025 && "movementRp" in raw) out.bonus = { movement: !!raw.movementRp, goal: !!raw.goalRp, pattern: !!raw.patternRp };
   return out;
@@ -51,7 +57,8 @@ export function bundleFromScout(resp: any, season: number): EventBundle | null {
     rookieYear: null, website: null, homeRegion: null,
   }));
   const matches: MatchRow[] = [];
-  for (const m of ev.matches ?? []) {
+  // Remote: one team per "match", numbers reused across teams (keys collide).
+  for (const m of ev.remote ? [] : ev.matches ?? []) {
     const level = String(m.tournamentLevel || "").toLowerCase().startsWith("qual") ? "qual" : "playoff";
     const side = (al: string): MatchTeam[] => (m.teams ?? []).filter((t: any) => t.alliance === al).map((t: any) => ({
       team: t.teamNumber, station: STATION[t.station] ?? null, surrogate: !!t.surrogate, dq: !!t.dq, onField: t.onField !== false,

@@ -34,7 +34,7 @@ export default function ScoutPage() {
       <PageHeader title="Scout" description="Your own observations — private to you. Saved on this device instantly; synced to your account when you're signed in."
         actions={<SyncChip status={status} pending={pendingCount} onSync={syncNow} signedIn={!!user} />}>
         <div className="flex flex-wrap items-center gap-3">
-          <SeasonToggle value={season} onChange={(s) => setSp((x) => { x.set("season", String(s)); return x; })} />
+          <SeasonToggle predictOnly value={season} onChange={(s) => setSp((x) => { x.set("season", String(s)); return x; })} />
           {teamFilter && <Badge variant="soft">Team {teamFilter} <button onClick={() => setSp((x) => { x.delete("team"); return x; })} aria-label="Clear team filter" className="ml-1">×</button></Badge>}
           {!formOpen && <Button onClick={() => setFormOpen(true)}><Plus /> New entry</Button>}
         </div>

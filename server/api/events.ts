@@ -1,7 +1,7 @@
 // Event list + event detail + the engine's EventInput for forecasting.
 import type { EventInput } from "@control-scout/predict-engine";
 import { all, get } from "../db.js";
-import { eventTypeLabel } from "../data/seasons.js";
+import { eventTypeLabel, isLegacy } from "../data/seasons.js";
 import type { EventDetail, EventSummary, FieldRow } from "../../src/shared/api.js";
 import { matchViews } from "./matches.js";
 import { liveForecaster } from "../predict/engine.js";
@@ -50,6 +50,8 @@ export async function eventSummary(season: number, code: string): Promise<EventS
   return r ? summary(r) : null;
 }
 
+const LEGACY_NOTE = "Seasons before 2023–24 are shown for history: results and stats, no predictions.";
+
 export async function eventDetail(season: number, code: string): Promise<EventDetail | null> {
   const r = await get<any>(`${SUMMARY_SQL} WHERE e.season = ? AND e.code = ?`, [season, code]);
   if (!r) return null;
@@ -62,7 +64,7 @@ export async function eventDetail(season: number, code: string): Promise<EventDe
     matchViews({ season, code }, { predictUnplayed: true }),
   ]);
   const oprBy = new Map(oprs.map((o) => [Number(o.team), o]));
-  const f = await liveForecaster(season).catch(() => null);
+  const f = isLegacy(season) ? null : await liveForecaster(season).catch(() => null);
   const book = f?.book(season) ?? null;
   const field: FieldRow[] = entries.map((e) => {
     const o = oprBy.get(Number(e.team));
@@ -83,7 +85,7 @@ export async function eventDetail(season: number, code: string): Promise<EventDe
     alliances: alliances.map((a) => ({ number: a.number, name: a.name, captain: a.captain, pick1: a.pick1, pick2: a.pick2, backup: a.backup })),
     awards: awards.map((a) => ({ type: a.type, placement: a.placement, team: a.team, name: a.name })),
     advancement: adv ? { slots: adv.slots, advancesTo: adv.advances_to, rows: JSON.parse(adv.rows) } : null,
-    forecastUnsupported: f ? f.unsupportedReason(input) : "Predictions are still loading.",
+    forecastUnsupported: isLegacy(season) ? LEGACY_NOTE : f ? f.unsupportedReason(input) : "Predictions are still loading.",
   };
 }
 

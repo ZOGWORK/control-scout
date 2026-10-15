@@ -10,6 +10,7 @@ import type { MatchDetail, MatchPredictionView, MatchView } from "../../src/shar
 import { eventDetail } from "./events.js";
 import { liveForecaster } from "../predict/engine.js";
 import { localToUtcMs } from "../data/time.js";
+import { isLegacy } from "../data/seasons.js";
 
 const score = (r: any, p: "red" | "blue") => r[`${p}_np`] == null ? null : {
   total: Number(r[`${p}_total`]), np: Number(r[`${p}_np`]), auto: Number(r[`${p}_auto`] ?? 0),
@@ -45,7 +46,7 @@ export async function matchViews(f: MatchFilter, opts: { predictUnplayed?: boole
     e[p.kind as "live" | "backtest"] = p;
     pmap.set(k, e);
   }
-  const forecaster = opts.predictUnplayed ? await liveForecaster(f.season).catch(() => null) : null;
+  const forecaster = opts.predictUnplayed && !isLegacy(f.season) ? await liveForecaster(f.season).catch(() => null) : null;
   // No rated matches this season yet (e.g. only scrimmages, which the engine skips):
   // ratings are carried over without a scoring baseline, so win odds stand but point predictions don't.
   const noScoreBasis = !!forecaster && !forecaster.seasonEvents(f.season).length;

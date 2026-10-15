@@ -8,7 +8,7 @@ import { ENGINE_VERSION, FITTED_MODEL } from "@control-scout/predict-engine";
 import { RELEASE } from "./release.js";
 import { all, get, kvGet } from "./db.js";
 import { hasFirst } from "./env.js";
-import { CURRENT_SEASON, SEASONS, SEASON_NUMBERS, seasonInfo } from "./data/seasons.js";
+import { CURRENT_SEASON, SEASONS, SEASON_NUMBERS, isLegacy, seasonInfo } from "./data/seasons.js";
 import { ensureSearchIndex, search } from "./api/search.js";
 import { rebuildSearch } from "./stats/job.js";
 import { teamProfile, compareTeams, teamSummaries, shortlistTeams } from "./api/teams.js";
@@ -41,6 +41,12 @@ const season = (x: unknown) => {
   if (x == null || x === "") return CURRENT_SEASON;
   const s = int(x, "season", { min: 2000, max: 2100 });
   if (!SEASON_NUMBERS.includes(s)) throw new HttpError(404, `Season ${s} isn't covered (we hold ${SEASON_NUMBERS.join(", ")})`);
+  return s;
+};
+/** Predictions: 2019–2022 are stored for history but never rated. */
+const predictSeason = (x: unknown) => {
+  const s = season(x);
+  if (isLegacy(s)) throw new HttpError(404, `Predictions cover ${SEASON_NUMBERS.filter((n) => !isLegacy(n)).join(", ")}; ${seasonInfo(s).label} is shown for history only`);
   return s;
 };
 const teamList = (x: unknown, name: string, max = 4) => {
@@ -129,7 +135,7 @@ export function createApp() {
     // instead of letting every search and page look broken.
     const loaded = await all<{ one: number }>("SELECT 1 one FROM teams LIMIT 1");
     return {
-      seasons: SEASONS.map((s) => { const r = rows.find((x) => Number(x.season) === s.season); return { ...s, frozen: !!r?.frozen, lastSync: r?.last_sync ?? null }; }).reverse(),
+      seasons: SEASONS.map((s) => { const r = rows.find((x) => Number(x.season) === s.season); return { ...s, frozen: !!r?.frozen, lastSync: r?.last_sync ?? null, predictable: !isLegacy(s.season) }; }).reverse(),
       currentSeason: CURRENT_SEASON, engineVersion: ENGINE_VERSION, dataAsOf: sync?.at ?? null, statsAt: stats?.at ?? null,
       auth: authProviders(), firstConfigured: hasFirst(), dataLoaded: loaded.length > 0,
     };
@@ -237,7 +243,7 @@ export function createApp() {
   // --- Predictions ---------------------------------------------------------
 
   api.get("/predict/match", h(async (req): Promise<MatchExplanationView> => {
-    const s = season(req.query.season);
+    const s = predictSeason(req.query.season);
     const red = teamList(req.query.red, "red", 3), blue = teamList(req.query.blue, "blue", 3);
     if (red.some((t) => blue.includes(t))) throw bad("a team can't be on both alliances");
     const f = await liveForecaster(s);
@@ -253,7 +259,7 @@ export function createApp() {
   }));
 
   api.get("/predict/upcoming", h(async (req) => {
-    const s = season(req.query.season);
+    const s = predictSeason(req.query.season);
     const days = Math.min(14, Number(req.query.days) || 7);
     const today = new Date().toISOString().slice(0, 10);
     const until = new Date(Date.now() + days * 864e5).toISOString().slice(0, 10);
@@ -287,13 +293,13 @@ export function createApp() {
   };
 
   api.get("/predict/event", limiter(30), h(async (req) => {
-    const s = season(req.query.season), c = code(req.query.code);
+    const s = predictSeason(req.query.season), c = code(req.query.code);
     const team = req.query.team ? int(req.query.team, "team", { min: 1, max: 999999 }) : null;
     return forecastFor(s, c, team, req.query.mode === "pre-event" ? "pre-event" : "current");
   }));
 
   api.get("/predict/partners", limiter(10), h(async (req) => {
-    const s = season(req.query.season), c = code(req.query.code), team = int(req.query.team, "team", { min: 1, max: 999999 });
+    const s = predictSeason(req.query.season), c = code(req.query.code), team = int(req.query.team, "team", { min: 1, max: 999999 });
     return partnersMemo(`${await liveVersion(s)}|${s}|${c}|${team}`, async () => {
       const d = await eventDetail(s, c);
       if (!d) throw new HttpError(404, `No event ${c} in ${s}`);

@@ -8,7 +8,7 @@ import {
   Award, Bookmark, BookmarkCheck, CalendarDays, ChevronDown, ClipboardList, ExternalLink, Eye, Flag, Gauge, GraduationCap, Link2, MapPin, Scale, Search, SearchX, Sparkles, Star, Target, TrendingDown, TrendingUp, Trophy, Zap,
 } from "lucide-react";
 import { useApi, qs } from "../lib/api";
-import { useTitle } from "../lib/meta";
+import { usePredictable, useTitle } from "../lib/meta";
 import { usePersonal, useTeamFlags } from "../lib/personal";
 import { toast } from "../components/ui/sonner";
 import { useScouting } from "../lib/scouting";
@@ -50,6 +50,8 @@ export default function TeamPage() {
 
 function Profile({ p, onSeason }: { p: TeamProfile; onSeason: (s: number) => void }) {
   const hasResults = p.events.length > 0;
+  // 2019–2022: results and stats only (no ratings, predictions or scouting templates).
+  const predictable = usePredictable(p.season);
   return (
     <div className="min-w-0">
       <OfflineNote data={p} />
@@ -70,13 +72,13 @@ function Profile({ p, onSeason }: { p: TeamProfile; onSeason: (s: number) => voi
             </Section>
             <div className="min-w-0">
               <AwardsAllTime p={p} />
-              <ScoutNotes team={p.team.number} season={p.season} />
+              {predictable && <ScoutNotes team={p.team.number} season={p.season} />}
             </div>
           </div>
-          <MatchesSection team={p.team.number} season={p.season} events={p.events} />
+          <MatchesSection team={p.team.number} season={p.season} events={p.events} predictable={predictable} />
         </>
       )}
-      {!hasResults && <><AwardsAllTime p={p} /><ScoutNotes team={p.team.number} season={p.season} /></>}
+      {!hasResults && <><AwardsAllTime p={p} />{predictable && <ScoutNotes team={p.team.number} season={p.season} />}</>}
     </div>
   );
 }
@@ -115,6 +117,7 @@ function Hero({ p, onSeason }: { p: TeamProfile; onSeason: (s: number) => void }
   const next = p.events.find((e) => (e.end ?? e.start ?? "") >= today) ?? null;
   const last = [...p.events].reverse().find((e) => (e.end ?? e.start ?? "") < today) ?? null;
   const top = topPct(s?.opr.np.rank, s?.opr.np.of);
+  const predictable = usePredictable(p.season);
   const share = () => copyLink();
   return (
     <Reveal className="mb-8 overflow-hidden rounded-2xl border border-border bg-card">
@@ -177,7 +180,9 @@ function Hero({ p, onSeason }: { p: TeamProfile; onSeason: (s: number) => void }
               <p className="text-sm text-muted-foreground">worldwide by OPR{s.opr.np.rank ? ` · #${s.opr.np.rank.toLocaleString()} of ${s.opr.np.of?.toLocaleString()}` : ""}</p>
               <dl className="mt-5 grid grid-cols-3 gap-3">
                 <div><dt className="text-xs text-muted-foreground">OPR</dt><dd className="font-display text-2xl font-semibold tabular-nums">{num(s.opr.np.value)}</dd></div>
-                <div><dt className="text-xs text-muted-foreground">Rating</dt><dd className="font-display text-2xl font-semibold tabular-nums">{s.rating ? num(s.rating.np) : "—"}{s.rating && <span className="text-sm font-normal text-muted-foreground"> ±{num(s.rating.sd, 0)}</span>}</dd></div>
+                {predictable
+                  ? <div><dt className="text-xs text-muted-foreground">Rating</dt><dd className="font-display text-2xl font-semibold tabular-nums">{s.rating ? num(s.rating.np) : "—"}{s.rating && <span className="text-sm font-normal text-muted-foreground"> ±{num(s.rating.sd, 0)}</span>}</dd></div>
+                  : <div><dt className="text-xs text-muted-foreground">Avg score</dt><dd className="font-display text-2xl font-semibold tabular-nums">{num(s.avg.np)}</dd></div>}
                 <div><dt className="text-xs text-muted-foreground">Record</dt><dd className="font-display text-2xl font-semibold tabular-nums">{s.record.wins}-{s.record.losses}-{s.record.ties}</dd></div>
               </dl>
             </>
@@ -196,10 +201,12 @@ function Hero({ p, onSeason }: { p: TeamProfile; onSeason: (s: number) => void }
               </Link>
             )}
           </div>
-          <div className="mt-5 flex flex-wrap gap-2">
-            <Button size="sm" asChild><Link to={`/predict?mode=match&season=${p.season}&red=${t.number},`}><Sparkles /> Predict a match with {t.number}</Link></Button>
-            {!(next && ADVANCING.has(next.type ?? "")) && <Button size="sm" variant="secondary" asChild><Link to={`/predict?mode=advancement&season=${p.season}&team=${t.number}`}><Trophy /> Advancement odds</Link></Button>}
-          </div>
+          {predictable ? (
+            <div className="mt-5 flex flex-wrap gap-2">
+              <Button size="sm" asChild><Link to={`/predict?mode=match&season=${p.season}&red=${t.number},`}><Sparkles /> Predict a match with {t.number}</Link></Button>
+              {!(next && ADVANCING.has(next.type ?? "")) && <Button size="sm" variant="secondary" asChild><Link to={`/predict?mode=advancement&season=${p.season}&team=${t.number}`}><Trophy /> Advancement odds</Link></Button>}
+            </div>
+          ) : <p className="mt-5 text-xs text-muted-foreground">{seasonLabel(p.season)} is shown for history: results and stats, no predictions (those start with 2023–24).</p>}
         </div>
       </div>
     </Reveal>
@@ -215,6 +222,7 @@ const OPR_CARDS = [["np", "Total OPR", Target], ["auto", "Autonomous", Zap], ["t
 function OprSection({ p }: { p: TeamProfile }) {
   const s = p.stats;
   const [open, setOpen] = useState<(typeof OPR_CARDS)[number][0] | null>(null);
+  const predictable = usePredictable(p.season);
   return (
     <Section title="Offensive power rating" description={<>Best event OPR this season and its world rank. Non-penalty points, computed the same way as FTC Scout and FTC Events{p.season >= 2024 ? "; TeleOp includes the endgame, as FIRST reports it" : ""}. <Link to="/methodology#opr" className="underline">How it's computed</Link></>}>
       <Stagger className="grid grid-cols-2 gap-3 lg:grid-cols-4">
@@ -236,6 +244,11 @@ function OprSection({ p }: { p: TeamProfile }) {
         })}
       </Stagger>
       {open && <OprBreakdown events={p.events} k={open} />}
+      {s && !predictable && s.record.matches > 0 && (
+        <p className="mt-3 rounded-xl border border-border bg-card p-4 text-xs text-muted-foreground">
+          Season record {s.record.wins}-{s.record.losses}-{s.record.ties} across {s.record.events} event{s.record.events === 1 ? "" : "s"} · avg alliance score {num(s.avg.score)} ({num(s.avg.np)} without penalties)
+        </p>
+      )}
       {s?.rating && (
         <div className="mt-3 grid gap-3 sm:grid-cols-[1fr_2fr]">
           <div className="rounded-xl border border-border bg-card p-4">
@@ -369,12 +382,12 @@ function EventHistory({ events, team }: { events: TeamEventRow[]; team: number }
   );
 }
 
-function MatchesSection({ team, season, events }: { team: number; season: number; events: TeamEventRow[] }) {
+function MatchesSection({ team, season, events, predictable }: { team: number; season: number; events: TeamEventRow[]; predictable: boolean }) {
   const state = useApi<{ matches: MatchView[] }>(`/api/teams/${team}/matches?season=${season}`);
   const names = Object.fromEntries(events.map((e) => [e.code, e.name]));
   const [all, setAll] = useState(false);
   return (
-    <Section title="Matches" description="Every match this season with the prediction made for it. Hover a bar for details.">
+    <Section title="Matches" description={predictable ? "Every match this season with the prediction made for it. Hover a bar for details." : "Every match this season with its score breakdown."}>
       <Async state={state} loading={<div className="skeleton h-40 rounded-xl" />}>
         {(d) => {
           const ms = [...d.matches].reverse();
