@@ -5,6 +5,7 @@ import { Link } from "react-router-dom";
 
 export const FOOTER_LINKS: { to: string; label: string }[] = [
   { to: "/privacy", label: "Privacy" },
+  { to: "/terms", label: "Terms" },
 ];
 
 export function SiteFooter() {
