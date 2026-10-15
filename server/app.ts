@@ -16,7 +16,7 @@ import { eventDetail, listEvents, toEventInput } from "./api/events.js";
 import { matchDetail, matchViews } from "./api/matches.js";
 import { trackRecord } from "./api/accuracy.js";
 import { currentWeather } from "./weather.js";
-import { MISSING_FILE, canonicalRedirects, renderIndex } from "./seo.js";
+import { MISSING_FILE, canonicalRedirects, renderPage } from "./seo.js";
 import { sitemapChunkRoute, sitemapRoute } from "./sitemap.js";
 import { liveForecaster, liveVersion, dataVersion } from "./predict/engine.js";
 import { authRouter, meRouter, authProviders } from "./auth/routes.js";
@@ -404,9 +404,12 @@ export function createApp() {
     // The app's HTML, with the page's canonical link in the first response (crawlers don't run JS).
     // A missing file (anything with an extension) is an honest 404, never the app's HTML with a 200.
     app.get(MISSING_FILE, (_req, res) => { res.setHeader("Cache-Control", "no-cache"); res.status(404).type("text/plain").send("Not found"); });
+    // A path that isn't an app page (unknown route, team or event) is a 404 that still carries the
+    // app's HTML, so the visitor sees the app's own not-found page (and search engines drop the URL).
     app.get(/^(?!\/api\/|\/packs\/).*/, h(async (req, res) => {
       res.setHeader("Cache-Control", "no-cache");
-      res.type("html").send(await renderIndex(join(dist, "index.html"), req.path));
+      const page = await renderPage(join(dist, "index.html"), req.path);
+      res.status(page.status).type("html").send(page.html);
     }));
   }
 

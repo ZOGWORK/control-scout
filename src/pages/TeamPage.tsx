@@ -5,9 +5,10 @@ import { useMemo, useState } from "react";
 import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { CartesianGrid, Line, LineChart, XAxis, YAxis } from "recharts";
 import {
-  Award, Bookmark, BookmarkCheck, CalendarDays, ChevronDown, ClipboardList, ExternalLink, Eye, Flag, Gauge, GraduationCap, Link2, MapPin, Scale, Search, SearchX, Sparkles, Star, Target, TrendingDown, TrendingUp, Trophy, Zap,
+  Award, Bookmark, BookmarkCheck, CalendarDays, ChevronDown, ClipboardList, ExternalLink, Eye, Flag, Gauge, GraduationCap, Link2, MapPin, Scale, Sparkles, Star, Target, TrendingDown, TrendingUp, Trophy, Zap,
 } from "lucide-react";
-import { useApi, qs } from "../lib/api";
+import { type ApiError, useApi, qs } from "../lib/api";
+import { NotFoundView } from "../components/NotFoundView";
 import { useAfterFirstPaint } from "../lib/afterPaint";
 import { usePredictable, useTitle } from "../lib/meta";
 import { usePersonal, useTeamFlags } from "../lib/personal";
@@ -28,7 +29,6 @@ import { cn } from "../components/cn";
 import { awardLabel, dateRange, int, num, place, seasonLabel, topPct } from "../lib/format";
 import { eventTypeLabel } from "../lib/labels";
 import { copyLink } from "../lib/clipboard";
-import { useSearch } from "../components/layout/Search";
 import { OfflineNote } from "../components/OfflineNote";
 import { StickyActions, useScrolledPast } from "../components/StickyActions";
 
@@ -37,12 +37,19 @@ export default function TeamPage() {
   const [sp, setSp] = useSearchParams();
   const team = Number(number);
   const season = sp.get("season");
-  const search = useSearch();
-  // FTC team numbers are 1–999999; anything else can't exist, so don't ask the API.
-  const valid = Number.isInteger(team) && team >= 1 && team <= 999_999;
+  // FTC team numbers are 1–999999, digits only (as on the server); anything else can't exist, so don't ask the API.
+  const valid = /^\d+$/.test(number ?? "") && team >= 1 && team <= 999_999;
   const state = useApi<TeamProfile>(valid ? `/api/teams/${team}${qs({ season })}` : null);
-  useTitle(state.data?.team.name ? `Team ${state.data.team.number} — ${state.data.team.name}` : `Team ${number}`); // same as the server-rendered title
-  if (!valid) return <EmptyState icon={SearchX} title={`There's no team ${number}`} description="FTC team numbers are whole numbers from 1 to 999999, like 4215." action={<Button variant="secondary" onClick={search.open}><Search /> Search teams</Button>} />;
+  // Not a team (the server answers these addresses with a 404 too), or a season the API doesn't cover: the branded not-found page.
+  const notFound = (state.error as ApiError | undefined)?.status === 404 ? state.error! : null;
+  useTitle(!valid || notFound ? "Team not found" : state.data?.team.name ? `Team ${state.data.team.number} — ${state.data.team.name}` : `Team ${number}`); // same as the server-rendered title
+  if (!valid) return <NotFoundView title={`There's no team ${number}`} description="FTC team numbers are whole numbers from 1 to 999999, like 4215. Search for the team you're after." />;
+  // The API's own reason: "No FTC team … in our data", or (with ?season=) "Season … isn't covered".
+  if (notFound) {
+    return season
+      ? <NotFoundView title={notFound.message} description="This link asks for a specific season. Without it, the team's page opens on their newest one." action={<Button variant="secondary" asChild><Link to={`/teams/${team}`}>Open team {team}'s newest season</Link></Button>} />
+      : <NotFoundView title={notFound.message} description="It may not have registered for a season we cover yet, or the number is mistyped. Search by number or name." />;
+  }
   return (
     <Async state={state}>
       {(p) => <Profile p={p} onSeason={(s) => setSp((x) => { x.set("season", String(s)); return x; }, { replace: true })} />}

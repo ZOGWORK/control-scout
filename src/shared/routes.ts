@@ -36,11 +36,16 @@ export function pageModule(path: string): PageModule | null {
   return "NotFound";
 }
 
+// Whole routes, so an unknown path under a real one (/teams/4215/extra) reads "Not found".
 const TITLES: [RegExp, string][] = [
-  [/^\/teams\//, "Team"], [/^\/teams$/, "Teams"], [/^\/matches$/, "Match records"], [/^\/events\/\d/, "Event"], [/^\/events/, "Events"], [/^\/predict\/how-it-works/, "How it works"], [/^\/predict/, "Predict"],
-  [/^\/compare/, "Compare"], [/^\/my-team/, "My team"], [/^\/shortlist/, "Shortlist"], [/^\/scout/, "Scout"], [/^\/download/, "Download"],
-  [/^\/settings/, "Settings"], [/^\/methodology/, "How it works"], [/^\/privacy/, "Privacy"], [/^\/terms/, "Terms"], [/^\/contact/, "Contact"],
+  [/^\/teams\/[^/]+$/, "Team"], [/^\/teams$/, "Teams"], [/^\/matches$/, "Match records"], [/^\/events\/[^/]+\/[^/]+$/, "Event"], [/^\/events$/, "Events"], [/^\/predict\/how-it-works$/, "How it works"], [/^\/predict(\/accuracy)?$/, "Predict"],
+  [/^\/compare$/, "Compare"], [/^\/my-team$/, "My team"], [/^\/shortlist$/, "Shortlist"], [/^\/scout$/, "Scout"], [/^\/download$/, "Download"],
+  [/^\/settings$/, "Settings"], [/^\/methodology$/, "How it works"], [/^\/privacy$/, "Privacy"], [/^\/terms$/, "Terms"], [/^\/contact$/, "Contact"],
 ];
 
-/** The page's short name in the top bar ("Control Scout / Events"). */
-export const pageTitle = (path: string) => TITLES.find(([re]) => re.test(path))?.[1] ?? "Home";
+/** The page's short name in the top bar ("Control Scout / Events"); any other path is the not-found page.
+ *  Matched without case and with a trailing slash dropped, as React Router does. */
+export const pageTitle = (path: string) => {
+  const p = path.toLowerCase().replace(/(.)\/+$/, "$1");
+  return TITLES.find(([re]) => re.test(p))?.[1] ?? (p === "/" ? "Home" : "Not found");
+};
