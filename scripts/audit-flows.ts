@@ -2,6 +2,7 @@
 // see — actually using each feature in a real browser on the real servers.
 //
 //   npm run audit:flows
+//   npm run audit:flows -- --only "service worker"   (flows whose name contains it)
 //
 // Each flow prints ✓/✗ with what it checked; any console error/warning or page
 // error during a flow fails it. Exit code 1 if anything failed.
@@ -12,6 +13,12 @@ import { readFileSync, writeFileSync, mkdtempSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { WEB_PORT, ensureServers, stopServers, waitUp } from "./lib/servers.js";
+
+/** The service worker installed and active — or a clear failure, not a hang (`ready` never settles when install fails). */
+async function swReady(page: Page) {
+  const ok = await page.evaluate(() => Promise.race([navigator.serviceWorker.ready.then(() => true), new Promise<boolean>((r) => setTimeout(() => r(false), 60_000))]));
+  assert(ok, "the service worker never became ready (its install failed: a precached file didn't load)");
+}
 
 const BASE = `http://localhost:${WEB_PORT}`;
 const SHIM = "globalThis.__name = (f) => f;"; // tsx's __name helper, absent in the browser
@@ -244,7 +251,7 @@ const flows: Flow[] = [
         assert(await waitUp(`${PROD}/api/health`, 120), "production server didn't become ready");
         // No clicks: the lite pack downloads itself once the home page goes idle.
         await page.goto(`${PROD}/`, { waitUntil: "networkidle" });
-        await page.evaluate(async () => { await navigator.serviceWorker.ready; });
+        await swReady(page);
         await page.waitForFunction(() => !!localStorage.getItem("cs-pack-meta"), null, { timeout: 60_000 }); // download + sha256 check done
         await page.reload({ waitUntil: "networkidle" }); // controlled by the worker from here
         await ctx.setOffline(true);
@@ -276,7 +283,7 @@ const flows: Flow[] = [
       try {
         assert(await waitUp(`${PROD}/api/health`, 120), "production server didn't become ready");
         await page.goto(`${PROD}/`, { waitUntil: "networkidle" });
-        await page.evaluate(async () => { await navigator.serviceWorker.ready; });
+        await swReady(page);
         const before = await shells();
         assert(before.length >= 1, "build A's cache missing");
         // Build B (a new release: the worker's embedded version changes).
@@ -357,7 +364,8 @@ const browser: Browser = await (async () => {
   return chromium.launch({ args: ["--use-fake-device-for-media-stream", "--use-fake-ui-for-media-stream"] });
 })();
 try {
-  for (const f of flows) {
+  const only = process.argv.includes("--only") ? process.argv[process.argv.indexOf("--only") + 1]?.toLowerCase() : undefined;
+  for (const f of flows.filter((x) => !only || x.name.toLowerCase().includes(only))) {
     const ctx = await browser.newContext({ viewport: { width: 1440, height: 900 }, acceptDownloads: true, permissions: ["camera", "microphone"] });
     await ctx.addInitScript(SHIM);
     const page = await ctx.newPage();
