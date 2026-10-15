@@ -13,6 +13,7 @@ import { LoadingBlock } from "./components/states";
 import { CanonicalSync, MetaProvider } from "./lib/meta";
 import { AlertsRunner } from "./lib/alerts";
 import { LitePackSync } from "./lib/packSync";
+import { ConsentBanner } from "./components/layout/ConsentBanner";
 // The landing page is part of the main bundle, not lazy: its API calls then start in
 // the same render as the app's own (/api/meta, /api/auth/me), with no second round.
 import Home from "./pages/Home";
@@ -75,6 +76,7 @@ createRoot(document.getElementById("root")!).render(
             <AlertsRunner />
             <LitePackSync />
             <CanonicalSync />
+            <ConsentBanner />
           </SearchProvider>
         </MetaProvider>
       </PersonalProvider>
