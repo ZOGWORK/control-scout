@@ -28,9 +28,9 @@ interface PersonalApi {
   /** Returns false when this device couldn't store the change (storage full or blocked): it lives only until the page closes. */
   set<K extends PersonalKey>(key: K, value: PersonalState[K]): boolean;
   update<K extends PersonalKey>(key: K, fn: (prev: PersonalState[K]) => PersonalState[K]): boolean;
-  /** What this device has actually stored for the key (null when nothing, or storage is unreadable).
-   *  Equal to `state[key]` unless a write was refused; read it while rendering to show that. */
-  stored<K extends PersonalKey>(key: K): PersonalState[K] | null;
+  /** What this device has actually stored for the key: null when nothing is, undefined when storage
+   *  can't be read (unknown, not empty). Equal to `state[key]` unless a write was refused. */
+  stored<K extends PersonalKey>(key: K): PersonalState[K] | null | undefined;
   signedIn(user: AccountUser): Promise<void>;
   signOut(): Promise<void>;
   /** Wipe this device's personal data (account data is untouched). */
@@ -265,11 +265,11 @@ export function PersonalProvider({ children }: { children: ReactNode }) {
   // An explicit sign-in (email code, from any form): announced, so the account menu can play the
   // merge for an existing Control Point account. Page loads that restore a session don't announce.
   const signedIn = useCallback((u: AccountUser) => { announceSignIn(u); return connect(u); }, [connect]);
-  const stored = useCallback(<K extends PersonalKey>(key: K): PersonalState[K] | null => {
+  const stored = useCallback(<K extends PersonalKey>(key: K): PersonalState[K] | null | undefined => {
     try {
       const raw = localStorage.getItem(LS(key));
       return raw ? (cleanValue(key, (JSON.parse(raw) as Stamped<unknown>).value) as PersonalState[K] | null) : null;
-    } catch { return null; }
+    } catch { return undefined; } // blocked or corrupt: unknown
   }, []);
 
   const api = useMemo<PersonalApi>(() => ({ state, user, providers, sync, syncReady, set, update, stored, signedIn, signOut, clearLocal }), [state, user, providers, sync, syncReady, set, update, stored, signedIn, signOut, clearLocal]);
