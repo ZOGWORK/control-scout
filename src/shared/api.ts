@@ -255,6 +255,24 @@ export interface TeamSummary {
   nextEvent: { code: string; name: string; start: string | null; end: string | null; rank: number | null; record: string | null } | null;
 }
 
+/** One event a team played this season, for the shortlist's trend graphs (OPR is event OPR, non-penalty). */
+export interface ShortlistEventPoint {
+  code: string; name: string; start: string | null; rank: number | null;
+  opr: number | null; auto: number | null; teleop: number | null; endgame: number | null;
+  /** Average non-penalty alliance score in the team's matches there. */
+  avgNp: number | null;
+}
+
+/** A shortlist row: the team summary plus the season OPR split and an event-by-event trend, in one request
+ *  for the whole list (/api/shortlist). */
+export interface ShortlistTeam extends TeamSummary {
+  /** OPR split auto / TeleOp (driver-controlled) / endgame, from the one event that gives the season OPR (`opr`),
+   *  so the parts belong to that total. Null parts when the team has no event stats. */
+  breakdown: { auto: number | null; teleop: number | null; endgame: number | null; event: { code: string; name: string } | null };
+  /** Events played this season with stats, oldest first. */
+  events: ShortlistEventPoint[];
+}
+
 /** One match, with everything around it: /api/events/:season/:code/matches/:key */
 export interface MatchDetail {
   event: { season: number; code: string; name: string; status: EventSummary["status"] };
