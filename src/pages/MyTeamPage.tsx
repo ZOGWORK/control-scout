@@ -1,16 +1,16 @@
 // My Team dashboard: your team's next matches (with odds), recent results,
 // next event outlook, and activity from the teams and events you track.
 // Works with no account (saved on this device); signed in, it syncs.
-import { useEffect, useMemo, useRef, useState, type FormEvent, type ReactNode } from "react";
+import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import { Link, useSearchParams } from "react-router-dom";
-import { ArrowRight, CalendarDays, Crosshair, Eye, Gauge, History, Star, Swords, Target, Trophy, X, type LucideIcon } from "lucide-react";
+import { ArrowRight, CalendarDays, Crosshair, Eye, History, Sparkles, Star, Swords, Target, Trophy, X } from "lucide-react";
 import { useApi, qs } from "../lib/api";
-import { useCurrentSeason, usePredictable, useTitle } from "../lib/meta";
+import { useCurrentSeason, useMeta, usePredictable, useTitle } from "../lib/meta";
 import { usePersonal } from "../lib/personal";
 import type { EventSummary, EventListItem, MatchView, TeamProfile, TeamSummary } from "../shared/api";
 import { PageHeader, Section, EmptyState } from "../components/page";
 import { Reveal, Stagger, StaggerItem } from "../components/motion";
-import { cn } from "../components/cn";
+import { Meter, StatTile, TONES, rankPc } from "../components/StatTile";
 import { Async } from "../components/states";
 import { Button } from "../components/ui/button";
 import { Badge } from "../components/ui/basic";
@@ -102,7 +102,9 @@ function Dashboard({ team }: { team: number }) {
     for (const e of prof?.events ?? []) { names[e.code] = e.name; dates[e.code] = dateRange(e.start, e.end); }
     return { names, dates };
   }, [prof]);
-  const earlier = knownSeasons?.find((x) => x < season);
+  // The latest earlier season the toggle offers (it lists predictable seasons only), so the button never opens one without a tab.
+  const meta = useMeta();
+  const earlier = knownSeasons?.find((x) => x < season && (meta?.seasons.find((m) => m.season === x)?.predictable ?? x >= 2023));
   return (
     <div>
       {/* Hero: who this is (big number, gold), and how the season is going. */}
@@ -127,7 +129,7 @@ function Dashboard({ team }: { team: number }) {
           <div className="min-w-0 border-t border-border bg-secondary/60 p-6 sm:p-8 lg:border-l lg:border-t-0">
             <p className="text-xs font-medium uppercase tracking-[0.08em] text-muted-foreground">Season so far</p>
             <Async state={profile} loading={<div className="skeleton mt-3 h-40 rounded-xl" />}>
-              {(d) => <SeasonSoFar p={d} team={team} matches={matches.data?.matches} when={when} earlier={earlier} onSeason={setSeason} />}
+              {(d) => <SeasonSoFar p={d} team={team} matches={matches.data?.matches} matchesFailed={!!matches.error} when={when} earlier={earlier} onSeason={setSeason} />}
             </Async>
           </div>
         </div>
@@ -138,25 +140,25 @@ function Dashboard({ team }: { team: number }) {
           const today = new Date().toISOString().slice(0, 10);
           const next = isCurrent ? p.events.find((e) => (e.end ?? e.start ?? "") >= today) : undefined;
           const top = topPct(s?.opr.np.rank, s?.opr.np.of);
-          const oprPc = s?.opr.np.rank && s.opr.np.of ? Math.round((1 - (s.opr.np.rank - 1) / s.opr.np.of) * 100) : 0;
           const r = s?.record;
           const last = p.events[p.events.length - 1];
           return (
             <>
               <Stagger className="mb-8 grid grid-cols-2 gap-3 lg:grid-cols-4">
-                <StatTile tone="accent" icon={Target} label="OPR" value={num(s?.opr.np.value)}
+                <StaggerItem><StatTile tone="accent" icon={Target} label="OPR" value={num(s?.opr.np.value)}
                   hint={s?.opr.np.rank ? `#${s.opr.np.rank.toLocaleString()} of ${s.opr.np.of?.toLocaleString()}${top ? ` · ${top}` : ""}` : isCurrent ? "not ranked yet" : "not ranked"}
-                  bar={s?.opr.np.rank ? <Meter parts={[{ pc: oprPc, cls: "bg-accent" }]} /> : null} />
-                <StatTile tone="info" icon={Gauge} label="Prediction rating"
+                  bar={s?.opr.np.rank ? <Meter parts={[{ pc: rankPc(s.opr.np.rank, s.opr.np.of), cls: TONES.accent.bar }]} /> : null} /></StaggerItem>
+                {/* Same colours as the team page: rating amber, record green, events violet. */}
+                <StaggerItem><StatTile tone="amber" icon={Sparkles} label="Prediction rating"
                   value={s?.rating ? <>{num(s.rating.np)}<span className="ml-1 text-base font-medium text-muted-foreground">±{num(s.rating.sd)}</span></> : "—"}
-                  hint={s?.rating ? `${s.rating.rank ? `#${s.rating.rank.toLocaleString()} worldwide · ` : ""}${s.rating.matches} matches` : `no matches ${when}`} />
-                <StatTile tone="success" icon={Trophy} label="Record"
+                  hint={s?.rating ? `${s.rating.rank ? `#${s.rating.rank.toLocaleString()} worldwide · ` : ""}${s.rating.matches} matches` : `no matches ${when}`} /></StaggerItem>
+                <StaggerItem><StatTile tone="emerald" icon={Trophy} label="Record"
                   value={r ? <span aria-label={`${r.wins} wins, ${r.losses} losses, ${r.ties} ties`}><span className="text-success">{r.wins}</span><span className="text-muted-foreground">-</span><span className="text-destructive">{r.losses}</span><span className="text-muted-foreground">-{r.ties}</span></span> : "—"}
                   hint={r ? `${r.matches} matches · ${r.events} event${r.events === 1 ? "" : "s"}` : `no matches ${when}`}
-                  bar={r && r.wins + r.losses + r.ties > 0 ? <RecordMeter w={r.wins} l={r.losses} t={r.ties} /> : null} />
-                {isCurrent
+                  bar={r && r.wins + r.losses + r.ties > 0 ? <RecordMeter w={r.wins} l={r.losses} t={r.ties} /> : null} /></StaggerItem>
+                <StaggerItem>{isCurrent
                   ? <StatTile tone="violet" icon={CalendarDays} label="Next event" value={next ? dateRange(next.start, next.end).split(",")[0] : "—"} hint={next?.name ?? "none scheduled in our data"} />
-                  : <StatTile tone="violet" icon={CalendarDays} label="Events" value={String(p.events.length)} hint={last ? `last: ${last.name}` : "none in our data"} />}
+                  : <StatTile tone="violet" icon={CalendarDays} label="Events" value={String(p.events.length)} hint={last ? `last: ${last.name}` : "none in our data"} />}</StaggerItem>
               </Stagger>
               {next && (
                 <Section title={`Next event: ${next.name}`} description={dateRange(next.start, next.end)} action={<Button variant="secondary" size="sm" asChild><Link to={`/events/${next.season}/${next.code}?tab=odds&team=${team}`}><Trophy /> Advancement odds</Link></Button>}>
@@ -198,7 +200,7 @@ function Dashboard({ team }: { team: number }) {
 // ---------------------------------------------------------------------------
 
 /** The hero's right half: world standing by OPR in gold, then win rate and how many calls were right. */
-function SeasonSoFar({ p, team, matches, when, earlier, onSeason }: { p: TeamProfile; team: number; matches?: MatchView[]; when: string; earlier?: number; onSeason: (s: number) => void }) {
+function SeasonSoFar({ p, team, matches, matchesFailed, when, earlier, onSeason }: { p: TeamProfile; team: number; matches?: MatchView[]; matchesFailed: boolean; when: string; earlier?: number; onSeason: (s: number) => void }) {
   const s = p.stats;
   const predictable = usePredictable(p.season);
   const calls = useMemo(() => (matches ? callTally(matches, team) : null), [matches, team]);
@@ -227,16 +229,17 @@ function SeasonSoFar({ p, team, matches, when, earlier, onSeason }: { p: TeamPro
         <div className="rounded-xl border border-success/30 bg-success/[0.07] p-3">
           <p className="flex items-center gap-1.5 text-xs text-muted-foreground"><Trophy className="size-3.5 text-success" aria-hidden />Win rate</p>
           <p className="mt-1 font-display text-2xl font-semibold tabular-nums text-success">{winRate}%</p>
-          <RecordMeter w={r.wins} l={r.losses} t={r.ties} />
+          <div className="mt-2"><RecordMeter w={r.wins} l={r.losses} t={r.ties} /></div>
           <p className="mt-1.5 text-xs text-muted-foreground"><span className="font-medium text-success">{r.wins} won</span> · <span className="font-medium text-destructive">{r.losses} lost</span>{r.ties > 0 && <> · {r.ties} tied</>}</p>
         </div>
         {predictable && (
           <div className="rounded-xl border border-info/30 bg-info/[0.07] p-3">
             <p className="flex items-center gap-1.5 text-xs text-muted-foreground"><Crosshair className="size-3.5 text-info" aria-hidden />Our calls</p>
-            {!calls ? <div className="skeleton mt-2 h-14 rounded-lg" /> : shown ? (
+            {matchesFailed ? <p className="mt-1 text-sm text-muted-foreground">Couldn't load this season's matches, so there's no tally of calls. The match list below can retry.</p>
+              : !calls ? <div className="skeleton mt-2 h-14 rounded-lg" /> : shown ? (
               <>
                 <p className="mt-1 font-display text-2xl font-semibold tabular-nums text-info">{shown.right} of {shown.of}<span className="ml-1.5 text-sm font-medium text-muted-foreground">{pct(shown.right, shown.of)}%</span></p>
-                <Meter parts={[{ pc: pct(shown.right, shown.of) ?? 0, cls: "bg-info" }]} />
+                <div className="mt-2"><Meter parts={[{ pc: pct(shown.right, shown.of) ?? 0, cls: TONES.sky.bar }]} /></div>
                 <p className="mt-1.5 text-xs text-muted-foreground">{shown.live ? "called right before the match" : "right when replayed afterward (not live calls)"}</p>
               </>
             ) : <p className="mt-1 text-sm text-muted-foreground">No decided matches with a call {when}.</p>}
@@ -244,36 +247,6 @@ function SeasonSoFar({ p, team, matches, when, earlier, onSeason }: { p: TeamPro
         )}
       </div>
     </>
-  );
-}
-
-const TONES = {
-  accent: { box: "border-accent/30 bg-accent/[0.06]", chip: "bg-accent/15 text-accent-text" },
-  info: { box: "border-info/30 bg-info/[0.06]", chip: "bg-info/15 text-info" },
-  success: { box: "border-success/30 bg-success/[0.06]", chip: "bg-success/15 text-success" },
-  violet: { box: "border-violet-500/30 bg-violet-500/[0.06]", chip: "bg-violet-500/15 text-violet-600 dark:text-violet-400" },
-} as const;
-
-function StatTile({ tone, icon: Icon, label, value, hint, bar }: { tone: keyof typeof TONES; icon: LucideIcon; label: string; value: ReactNode; hint?: ReactNode; bar?: ReactNode }) {
-  const t = TONES[tone];
-  return (
-    <StaggerItem className={cn("flex min-w-0 flex-col rounded-xl border p-4", t.box)}>
-      <span className="flex items-center gap-2 text-sm leading-tight text-muted-foreground">
-        <span className={cn("flex size-7 shrink-0 items-center justify-center rounded-lg", t.chip)}><Icon className="size-4" aria-hidden /></span>{label}
-      </span>
-      <span className="mt-2 block font-display text-3xl font-semibold tabular-nums text-foreground">{value}</span>
-      {hint && <span className="mt-1 block break-words text-xs text-muted-foreground">{hint}</span>}
-      {bar && <span className="mt-auto block pt-2">{bar}</span>}
-    </StaggerItem>
-  );
-}
-
-/** A thin bar of coloured parts, each a percent of the whole. Decorative: the numbers are always in text beside it. */
-function Meter({ parts }: { parts: { pc: number; cls: string }[] }) {
-  return (
-    <span aria-hidden className="mt-2 flex h-1.5 overflow-hidden rounded-full bg-muted">
-      {parts.map((x, i) => <span key={i} className={cn("h-full transition-[width] duration-700 motion-reduce:transition-none", x.cls)} style={{ width: `${x.pc}%` }} />)}
-    </span>
   );
 }
 
