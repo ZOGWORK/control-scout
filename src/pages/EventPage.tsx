@@ -23,14 +23,20 @@ import { SortTable, type Col } from "../components/SortTable";
 import { AdvancementView } from "../components/Advancement";
 import { cn } from "../components/cn";
 import { OfflineNote } from "../components/OfflineNote";
+import { NotFoundView } from "../components/NotFoundView";
 import { agoSeconds, awardLabel, dateRange, num, place, seasonLabel } from "../lib/format";
 
 export default function EventPage() {
   const { season, code } = useParams();
   const path = `/api/events/${season}/${code}`;
   const state = useApi<EventDetail>(path);
-  useTitle(state.data ? `${state.data.event.name} (${seasonLabel(state.data.event.season)})` : code); // same as the server-rendered title
+  // No such event (404), or an address that can't be one (400: a malformed code or season): the branded
+  // not-found page, which the server also answers with a 404.
+  const status = (state.error as ApiError | undefined)?.status;
+  const missing = status === 404 || status === 400;
+  useTitle(missing ? "Event not found" : state.data ? `${state.data.event.name} (${seasonLabel(state.data.event.season)})` : code); // same as the server-rendered title
   useLiveReload(path, state.data?.live ?? null);
+  if (missing) return <NotFoundView title={status === 404 ? state.error!.message : `No event ${code} in ${season}`} description="The event code may be mistyped or from another season. Search by name, code or city." />;
   return <Async state={state}>{(d) => <Event d={d} path={path} />}</Async>;
 }
 
