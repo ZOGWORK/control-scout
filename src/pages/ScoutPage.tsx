@@ -145,7 +145,7 @@ function EntryForm({ season, initial, team, onDone }: { season: number; initial:
           const fields = template.fields.filter((f) => f.phase === ph);
           if (!fields.length) return null;
           return (
-            <fieldset key={ph} className="rounded-xl border border-border p-4">
+            <fieldset key={ph} className="min-w-0 rounded-xl border border-border p-4">
               <legend className="px-1 text-xs font-bold uppercase tracking-wider text-muted-foreground">{ph === "teleop" ? "TeleOp" : ph[0].toUpperCase() + ph.slice(1)}</legend>
               <div className="space-y-3">{fields.map((f) => <Field key={f.id} f={f} value={data[f.id]} onChange={(v) => setData((d) => ({ ...d, [f.id]: v }))} />)}</div>
             </fieldset>

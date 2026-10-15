@@ -2,7 +2,11 @@
 // ports so they never hit another app's dev server (e.g. Control Point on 5173).
 import { spawn, spawnSync, type ChildProcess } from "node:child_process";
 
-export const WEB_PORT = 5199, API_PORT = 3199;
+/** Overridable (AUDIT_WEB_PORT / AUDIT_API_PORT) when those ports are taken. */
+const port = (v: string | undefined, fallback: number) => { const n = Number(v); return Number.isInteger(n) && n > 0 && n < 65536 ? n : fallback; };
+export const WEB_PORT = port(process.env.AUDIT_WEB_PORT, 5199), API_PORT = port(process.env.AUDIT_API_PORT, 3199);
+/** The production build's server for the offline/service-worker flows (AUDIT_PROD_PORT). */
+export const PROD_PORT = port(process.env.AUDIT_PROD_PORT, 3299);
 
 /** True only when Control Scout's own API answers (not some other app on the
  *  port) AND has its data ready. The server opens its port before its data is

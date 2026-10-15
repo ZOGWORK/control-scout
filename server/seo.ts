@@ -9,8 +9,11 @@
 // The HTML itself carries <link rel="canonical"> in the first response, so
 // crawlers and link-preview bots (which don't run JS) see it.
 import type { NextFunction, Request, Response } from "express";
-import { readFileSync } from "node:fs";
+import { readFileSync, statSync } from "node:fs";
+import { dirname, join } from "node:path";
 import { env } from "./env.js";
+import { BOOT_STYLE, bootShell } from "./bootShell.js";
+import { pageModule } from "../src/shared/routes.js";
 
 /** The canonical origin, e.g. "https://controlscout.org" (no trailing slash). */
 export const canonicalOrigin = () => new URL(env.canonicalUrl).origin;
@@ -66,10 +69,76 @@ function indexHtml(file: string): string {
   return template.html;
 }
 
-/** index.html for this path, with the page's own head tags in the initial HTML. */
-export async function renderIndex(file: string, path: string): Promise<string> {
+/** Vite's build manifest (build.manifest: dist/.vite/manifest.json), read once per index.html. */
+interface ManifestChunk { file: string; imports?: string[]; css?: string[]; isEntry?: boolean }
+let manifest: { file: string; chunks: Record<string, ManifestChunk> | null } | null = null;
+function viteManifest(indexFile: string): Record<string, ManifestChunk> | null {
+  if (!manifest || manifest.file !== indexFile) {
+    let chunks: Record<string, ManifestChunk> | null = null;
+    try { chunks = JSON.parse(readFileSync(join(dirname(indexFile), ".vite", "manifest.json"), "utf8")); } catch { /* dev, tests: no manifest */ }
+    manifest = { file: indexFile, chunks };
+  }
+  return manifest.chunks;
+}
+
+/** A shared dependency this big (bytes) is left for the app to fetch once it runs: on a slow phone
+ *  connection it would otherwise share the bandwidth the first paint needs (the charts library). */
+export const PRELOAD_MAX_DEP = 150_000;
+const sizes = new Map<string, number>();
+const fileSize = (f: string) => {
+  let n = sizes.get(f);
+  if (n === undefined) { try { n = statSync(f).size; } catch { n = 0; } sizes.set(f, n); }
+  return n;
+};
+
+/** <link>s that start loading this page's code chunk with the HTML, rather than after the main
+ *  bundle has run and asked for it. Files the entry already loads are left out, and so is a large
+ *  shared dependency (PRELOAD_MAX_DEP). Page CSS is fetched early but never blocks the first paint. */
+export function routePreloads(indexFile: string, path: string): string {
+  const chunks = viteManifest(indexFile);
+  const mod = pageModule(path);
+  const page = mod && chunks?.[`src/pages/${mod}.tsx`];
+  if (!chunks || !page) return "";
+  const entry = Object.values(chunks).find((c) => c.isEntry);
+  const have = new Set<string>();
+  const walk = (c: ManifestChunk, into: Set<string>, css: Set<string>) => {
+    if (into.has(c.file)) return;
+    into.add(c.file);
+    for (const f of c.css ?? []) css.add(f);
+    for (const k of c.imports ?? []) if (chunks[k]) walk(chunks[k], into, css);
+  };
+  const entryCss = new Set<string>();
+  if (entry) walk(entry, have, entryCss);
+  const js = new Set<string>();
+  const css = new Set<string>();
+  walk(page, js, css);
+  const dist = dirname(indexFile);
+  const tags = [
+    ...[...css].filter((f) => !entryCss.has(f)).map((f) => `<link rel="preload" as="style" crossorigin href="/${f}" />`),
+    ...[...js].filter((f) => !have.has(f) && (f === page.file || fileSize(join(dist, f)) <= PRELOAD_MAX_DEP))
+      .map((f) => `<link rel="modulepreload" crossorigin href="/${f}" />`),
+  ];
+  return tags.join("\n    ");
+}
+
+/**
+ * index.html for this path (the page's own head tags, its code chunk preloaded, and the static first
+ * paint: server/bootShell.ts) and its HTTP status: 404 for a path that isn't an app page (an unknown
+ * route, team or event). A 404 still carries the app's HTML, so the browser shows the app's own
+ * not-found page.
+ */
+export async function renderPage(file: string, path: string): Promise<{ status: 200 | 404; html: string }> {
   const { pageMeta, headTags } = await import("./seoMeta.js");
-  const head = headTags(path, await pageMeta(path));
-  // A callback, so $', $`, $& in a team or event name are inserted literally (a replacement string would expand them).
-  return indexHtml(file).replace("</head>", () => `    ${head}\n  </head>`);
+  const meta = await pageMeta(path);
+  const head = [headTags(path, meta), routePreloads(file, path), BOOT_STYLE].filter(Boolean).join("\n    ");
+  // Callbacks, so $', $`, $& in a team or event name are inserted literally (a replacement string would expand them).
+  const html = indexHtml(file)
+    .replace("</head>", () => `    ${head}\n  </head>`)
+    .replace(/<div id="root">(?:<!--cs-boot-->)?<\/div>/, () => `<div id="root">${bootShell(path, meta)}</div>`);
+  return { status: meta.notFound ? 404 : 200, html };
+}
+
+/** index.html for this path (renderPage without the status). */
+export async function renderIndex(file: string, path: string): Promise<string> {
+  return (await renderPage(file, path)).html;
 }

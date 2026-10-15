@@ -1,5 +1,5 @@
 // Site metadata (seasons, current season, data freshness) loaded once.
-import { createContext, useContext, useEffect, useState, type ReactNode } from "react";
+import { createContext, useContext, useEffect, useState, useSyncExternalStore, type ReactNode } from "react";
 import { useLocation } from "react-router-dom";
 import { useApi } from "./api";
 import type { Meta } from "../shared/api";
@@ -65,13 +65,40 @@ export function canonicalPath(pathname: string): string {
     .replace(/^\/teams\/0*(\d+)$/, "/teams/$1");
 }
 
-/** Keeps <link rel="canonical"> in step with in-app navigation (the server sets it on the first load). */
+// How many not-found pages are showing (0 or 1; a count so a remount never races an unmount).
+let notFoundShown = 0;
+const notFoundSubs = new Set<() => void>();
+const subscribeNotFound = (fn: () => void) => { notFoundSubs.add(fn); return () => { notFoundSubs.delete(fn); }; };
+
+/** A not-found page is showing: the head says noindex and names no canonical URL (as the server's 404 does). */
+export function useNotFoundHead() {
+  useEffect(() => {
+    notFoundShown++;
+    notFoundSubs.forEach((f) => f());
+    return () => { notFoundShown--; notFoundSubs.forEach((f) => f()); };
+  }, []);
+}
+
+/** Keeps <link rel="canonical"> (and a not-found page's noindex) in step with in-app navigation (the server sets both on the first load). */
 export function CanonicalSync() {
   const { pathname } = useLocation();
+  const notFound = useSyncExternalStore(subscribeNotFound, () => notFoundShown > 0);
   useEffect(() => {
+    // Only the not-found noindex (marked data-not-found, by the server or here) is ours: a personal page's own stays.
+    const robots = document.querySelector<HTMLMetaElement>('meta[name="robots"][data-not-found]');
     let link = document.querySelector<HTMLLinkElement>('link[rel="canonical"]');
+    if (notFound) {
+      link?.remove();
+      if (!robots) {
+        const m = document.createElement("meta");
+        m.name = "robots"; m.content = "noindex"; m.setAttribute("data-not-found", "");
+        document.head.appendChild(m);
+      }
+      return;
+    }
+    robots?.remove();
     if (!link) { link = document.createElement("link"); link.rel = "canonical"; document.head.appendChild(link); }
     link.href = `${window.location.origin}${canonicalPath(pathname)}`;
-  }, [pathname]);
+  }, [pathname, notFound]);
   return null;
 }

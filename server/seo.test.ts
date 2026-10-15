@@ -3,12 +3,12 @@
 // the HTML carries the canonical link.
 import type { AddressInfo } from "node:net";
 import type { Server } from "node:http";
-import { mkdtempSync, writeFileSync } from "node:fs";
+import { mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import express from "express";
-import { canonicalRedirects, canonicalUrl, renderIndex } from "./seo";
+import { canonicalRedirects, canonicalUrl, renderIndex, renderPage } from "./seo";
 import { fitDescription } from "./seoMeta";
 import { migrate, openDb, run, setDb } from "./db";
 
@@ -131,6 +131,7 @@ describe("page head in the first HTML", () => {
     const tdesc = /<meta name="description" content="([^"]*)"/.exec(terms)![1];
     expect(tdesc.length).toBeGreaterThanOrEqual(120);
     expect(tdesc.length).toBeLessThanOrEqual(160);
+    expect(await renderIndex(file, "/contact")).toContain("<title>Contact · FTC Control Scout</title>");
     // Personal pages: noindex.
     expect(await renderIndex(file, "/my-team")).toContain('<meta name="robots" content="noindex" />');
   });
@@ -167,6 +168,49 @@ describe("page head in the first HTML", () => {
     // Attendance mode follows the event's remote/hybrid flags.
     expect(ld(await renderIndex(file, "/events/2025/REMOTE1"))[0].eventAttendanceMode).toBe("https://schema.org/OnlineEventAttendanceMode");
     expect(ld(await renderIndex(file, "/events/2025/USNJNOM3"))[0].eventAttendanceMode).toBe("https://schema.org/OfflineEventAttendanceMode");
+  });
+
+  it("HTTP 404 (app HTML, noindex, no canonical) for unknown routes, teams and events; 200 for every app route", async () => {
+    const dir = mkdtempSync(join(tmpdir(), "cs-seo-404-"));
+    const file = join(dir, "index.html");
+    writeFileSync(file, '<html><head></head><body><div id="root"></div></body></html>');
+    for (const p of ["/this-page-does-not-exist", "/privacy-policy", "/teams/999999", "/teams/0", "/teams/0000000", "/teams/abc", "/teams/0x10", "/teams/1234567", `/teams/${"9".repeat(400)}`, "/teams/4215/extra",
+      "/events/2025/NOPE", "/events/2019/USNJNOM3", "/events/abc/USNJNOM3", "/events/0x7E9/USNJNOM3", `/events/${"9".repeat(400)}/USNJNOM3`,"/events/2025/a%20b", "/events/2025", "/teams/%E0%A4%A", "/teams%2F4215"]) {
+      const page = await renderPage(file, p);
+      expect(page.status, p).toBe(404);
+      expect(page.html, p).toContain('<div id="root">'); // the app renders its own not-found page
+      // Marked, so the app drops it on moving to a real page.
+      expect(page.html, p).toContain('<meta name="robots" content="noindex" data-not-found />');
+      expect(page.html, p).not.toContain('rel="canonical"');
+      expect(page.html, p).toContain("<title>Page not found · FTC Control Scout</title>");
+    }
+    // Every route in the app's router (src/main.tsx) is a 200, in any case; known teams and events too.
+    const main = readFileSync(join(process.cwd(), "src/main.tsx"), "utf8");
+    const routes = [...main.matchAll(/<Route path="([^"]+)"/g)].map((m) => m[1]).filter((r) => r !== "*" && !r.includes(":"));
+    expect(routes.length).toBeGreaterThan(10);
+    for (const p of [...routes, "/Teams", "/teams/4215", "/teams/004215", "/teams/0004215", `/teams/${"0".repeat(40)}4215`, "/teams/%34%32%31%35", "/%74eams", "/events/2025/%55SNJNOM3", "/events/02025/USNJNOM3","/events/2025/USNJNOM3", "/events/2025/usnjnom3"]) {
+      const page = await renderPage(file, p);
+      expect(page.status, p).toBe(200);
+      expect(page.html, p).toContain('rel="canonical"');
+    }
+    // The legal and contact pages are never a 404.
+    for (const p of ["/privacy", "/terms", "/contact", "/Privacy"]) {
+      const page = await renderPage(file, p);
+      expect(page.status, p).toBe(200);
+      expect(page.html, p).not.toContain("data-not-found");
+    }
+    // A team with results but no profile row is a real page (the team API serves it too).
+    await run("INSERT INTO team_season_stats (season, team, matches, wins, losses, ties) VALUES (2025, 77777, 5, 3, 2, 0)");
+    expect((await renderPage(file, "/teams/77777")).status).toBe(200);
+  });
+
+  it("never a 404 when the database can't answer (the page may exist)", async () => {
+    const dir = mkdtempSync(join(tmpdir(), "cs-seo-db-"));
+    const file = join(dir, "index.html");
+    writeFileSync(file, "<html><head></head><body></body></html>");
+    setDb(openDb(":memory:")); // no tables: every query throws
+    expect((await renderPage(file, "/teams/999999")).status).toBe(200);
+    expect((await renderPage(file, "/events/2025/NOPE")).status).toBe(200);
   });
 
   it("fits descriptions to 120–160 characters", () => {
