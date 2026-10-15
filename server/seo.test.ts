@@ -116,6 +116,14 @@ describe("page head in the first HTML", () => {
     const home = await renderIndex(file, "/");
     expect(home).toContain("<title>FTC Control Scout — free FTC scouting &amp; predictions</title>");
     expect(/<meta name="description" content="([^"]*)"/.exec(home)![1]).not.toBe(desc);
+    // Policy pages: their own title and a fitted description, indexable.
+    const privacy = await renderIndex(file, "/privacy");
+    expect(privacy).toContain("<title>Privacy policy · FTC Control Scout</title>");
+    expect(privacy).toContain('<link rel="canonical" href="https://controlscout.org/privacy" />');
+    expect(privacy).not.toContain("noindex");
+    const pdesc = /<meta name="description" content="([^"]*)"/.exec(privacy)![1];
+    expect(pdesc.length).toBeGreaterThanOrEqual(120);
+    expect(pdesc.length).toBeLessThanOrEqual(160);
     // Personal pages: noindex.
     expect(await renderIndex(file, "/my-team")).toContain('<meta name="robots" content="noindex" />');
   });
@@ -158,7 +166,7 @@ describe("page head in the first HTML", () => {
     const dir = mkdtempSync(join(tmpdir(), "cs-seo-404-"));
     const file = join(dir, "index.html");
     writeFileSync(file, '<html><head></head><body><div id="root"></div></body></html>');
-    for (const p of ["/this-page-does-not-exist", "/privacy", "/teams/999999", "/teams/0", "/teams/0000000", "/teams/abc", "/teams/0x10", "/teams/1234567", `/teams/${"9".repeat(400)}`, "/teams/4215/extra",
+    for (const p of ["/this-page-does-not-exist", "/privacy-policy", "/teams/999999", "/teams/0", "/teams/0000000", "/teams/abc", "/teams/0x10", "/teams/1234567", `/teams/${"9".repeat(400)}`, "/teams/4215/extra",
       "/events/2025/NOPE", "/events/2019/USNJNOM3", "/events/abc/USNJNOM3", "/events/2025/a%20b", "/events/2025"]) {
       const page = await renderPage(file, p);
       expect(page.status, p).toBe(404);
@@ -176,6 +184,12 @@ describe("page head in the first HTML", () => {
       const page = await renderPage(file, p);
       expect(page.status, p).toBe(200);
       expect(page.html, p).toContain('rel="canonical"');
+    }
+    // The legal and contact pages are never a 404 (/terms and /contact are listed ahead of their routes).
+    for (const p of ["/privacy", "/terms", "/contact", "/Privacy"]) {
+      const page = await renderPage(file, p);
+      expect(page.status, p).toBe(200);
+      expect(page.html, p).not.toContain("data-not-found");
     }
     // A team with results but no profile row is a real page (the team API serves it too).
     await run("INSERT INTO team_season_stats (season, team, matches, wins, losses, ties) VALUES (2025, 77777, 5, 3, 2, 0)");
