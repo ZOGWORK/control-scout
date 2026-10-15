@@ -124,6 +124,13 @@ describe("page head in the first HTML", () => {
     const pdesc = /<meta name="description" content="([^"]*)"/.exec(privacy)![1];
     expect(pdesc.length).toBeGreaterThanOrEqual(120);
     expect(pdesc.length).toBeLessThanOrEqual(160);
+    const terms = await renderIndex(file, "/terms");
+    expect(terms).toContain("<title>Terms of use · FTC Control Scout</title>");
+    expect(terms).toContain('<link rel="canonical" href="https://controlscout.org/terms" />');
+    expect(terms).not.toContain("noindex");
+    const tdesc = /<meta name="description" content="([^"]*)"/.exec(terms)![1];
+    expect(tdesc.length).toBeGreaterThanOrEqual(120);
+    expect(tdesc.length).toBeLessThanOrEqual(160);
     // Personal pages: noindex.
     expect(await renderIndex(file, "/my-team")).toContain('<meta name="robots" content="noindex" />');
   });
