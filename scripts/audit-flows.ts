@@ -187,6 +187,8 @@ const flows: Flow[] = [
       const text = await panel.innerText();
       assert(/Control Point/.test(text), "panel doesn't mention Control Point accounts");
       await page.keyboard.press("Escape");
+      // It animates closed: give it a moment, then it must be gone.
+      await panel.waitFor({ state: "detached", timeout: 2000 }).catch(() => {});
       assert(!(await panel.count()), "Esc didn't close the panel");
       return "Sign in button in the top bar on /, /events and a team page; panel opens in place (no dialog), mentions Control Point, Esc closes";
     },

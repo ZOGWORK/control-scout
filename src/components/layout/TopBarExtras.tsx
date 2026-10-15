@@ -3,6 +3,7 @@
 // Same as Control Point's top bar: "3:42 PM · 72° · Sunny".
 import { useEffect, useState } from "react";
 import { Moon, Sun } from "lucide-react";
+import { AnimatePresence, motion } from "motion/react";
 import { apiFetch, qs } from "../../lib/api";
 import { usePersonal } from "../../lib/personal";
 import { useTheme } from "../../hooks/useTheme";
@@ -73,7 +74,11 @@ export function ThemeToggle() {
       title={`Switch to ${next} mode`}
       className="flex size-8 shrink-0 items-center justify-center rounded-lg text-text-muted outline-none transition-colors hover:bg-text-base/[0.06] hover:text-text-base focus-visible:ring-2 focus-visible:ring-ring/60"
     >
-      {resolved === "dark" ? <Sun className="size-4" /> : <Moon className="size-4" />}
+      <AnimatePresence mode="wait" initial={false}>
+        <motion.span key={resolved} className="flex" initial={{ opacity: 0, rotate: -90, scale: 0.6 }} animate={{ opacity: 1, rotate: 0, scale: 1 }} exit={{ opacity: 0, rotate: 90, scale: 0.6 }} transition={{ duration: 0.18 }}>
+          {resolved === "dark" ? <Sun className="size-4" /> : <Moon className="size-4" />}
+        </motion.span>
+      </AnimatePresence>
     </button>
   );
 }
