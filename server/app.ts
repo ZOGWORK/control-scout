@@ -116,7 +116,8 @@ export function createApp() {
   app.set("trust proxy", 1);
   // One host, one URL per page: www/alias hosts, trailing slashes and /team/… aliases 301 (server/seo.ts).
   app.use(canonicalRedirects);
-  app.use(compression());
+  // CSV exports stream and gzip themselves, flushing as they go (server/api/records.ts streamedBody).
+  app.use(compression({ filter: (req, res) => !String(res.getHeader("Content-Type") ?? "").startsWith("text/csv") && compression.filter(req, res) }));
   app.use(express.json({ limit: "2mb" }));
   app.use((_req, res, next) => {
     res.setHeader("X-Content-Type-Options", "nosniff");
