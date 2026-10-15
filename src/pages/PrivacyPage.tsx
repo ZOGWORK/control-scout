@@ -98,7 +98,7 @@ const SECTIONS: LegalSectionDef[] = [
       <>
         <p>You can sign in with a <strong>code sent to your email</strong>, or with <strong>Google, Discord or GitHub through Control Point</strong>, our sister app for FTC team workspaces (<Ext href="https://tryctrlpoint.org">tryctrlpoint.org</Ext>).</p>
         <ul>
-          <li>One account works on both apps. Your email address and display name are kept in a shared account record run by Control Point, so signing in to one signs you in to the other.</li>
+          <li>One account works on both apps. Your email address and display name are kept in a shared account record run by Control Point. Each app keeps its own sign-in: choose "Continue with Control Point" to sign in to Control Scout with your Control Point account.</li>
           <li>Sign-in codes are emailed by our email provider, Resend, from <span className="font-mono text-[13px]">verify@tryctrlpoint.org</span>. A code is stored only in scrambled (hashed) form and expires after 10 minutes.</li>
           <li>When you sign in with Google, Discord or GitHub, we receive your email address from that service, and nothing from your account there beyond what's needed to sign you in.</li>
         </ul>
