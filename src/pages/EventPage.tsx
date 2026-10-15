@@ -5,7 +5,7 @@ import { Link, useParams, useSearchParams } from "react-router-dom";
 import { Award, CalendarDays, ExternalLink, MapPin, Radio, Swords, Trophy } from "lucide-react";
 import { BRACKETS, type Slot } from "@control-scout/predict-engine";
 import { useApi } from "../lib/api";
-import { useTitle } from "../lib/meta";
+import { usePredictable, useTitle } from "../lib/meta";
 import { usePersonal } from "../lib/personal";
 import type { EventDetail, FieldRow, MatchView } from "../shared/api";
 import { EmptyState } from "../components/page";
@@ -38,7 +38,10 @@ function Event({ d }: { d: EventDetail }) {
   const teamParam = Number(sp.get("team")) || null;
   const names = useMemo(() => new Map(d.field.map((f) => [f.team, f.name ?? ""])), [d.field]);
   const nameOf = (t: number) => names.get(t) ?? "";
-  const tab = sp.get("tab") ?? (sp.get("match") ? "matches" : e.status === "upcoming" && !d.matches.length ? "odds" : "matches");
+  // 2019–2022 are history only: no odds, no what-if lab (their predict routes 404).
+  const predictable = usePredictable(e.season);
+  const asked = sp.get("tab") ?? (sp.get("match") ? "matches" : e.status === "upcoming" && !d.matches.length ? "odds" : "matches");
+  const tab = !predictable && asked === "odds" ? "matches" : asked;
   const setTab = (t: string) => setSp((x) => { x.set("tab", t); return x; }, { replace: true });
   const setTeam = (t: number | null) => setSp((x) => { if (t) x.set("team", String(t)); else x.delete("team"); return x; }, { replace: true });
   return (
@@ -65,8 +68,9 @@ function Event({ d }: { d: EventDetail }) {
             <Button variant={tracked ? "secondary" : "outline"} size="sm" aria-pressed={tracked} onClick={() => update("tracked", (t) => ({ ...t, events: tracked ? t.events.filter((x) => x !== ref) : [...t.events, ref] }))}>
               {tracked ? "Tracking this event" : "Track event"}
             </Button>
-            <Button variant="outline" size="sm" asChild><Link to={`/predict?mode=advancement&season=${e.season}&code=${e.code}${teamParam ? `&team=${teamParam}` : ""}`}>Open in what-if lab</Link></Button>
+            {predictable && <Button variant="outline" size="sm" asChild><Link to={`/predict?mode=advancement&season=${e.season}&code=${e.code}${teamParam ? `&team=${teamParam}` : ""}`}>Open in what-if lab</Link></Button>}
           </div>
+          {!predictable && <p className="mt-3 text-xs text-muted-foreground">{seasonLabel(e.season)} is shown for history: results, rankings and awards, no predictions (those start with 2023–24).</p>}
           <p className="mt-3 text-[11px] text-muted-foreground">Source: {e.source === "first" ? "FIRST Events API" : "FTC Scout"}</p>
         </div>
         <EventGlance d={d} onTab={setTab} />
@@ -79,13 +83,13 @@ function Event({ d }: { d: EventDetail }) {
           <TabsTrigger value="rankings">Rankings</TabsTrigger>
           <TabsTrigger value="playoffs">Playoffs</TabsTrigger>
           <TabsTrigger value="awards">Awards</TabsTrigger>
-          <TabsTrigger value="odds">Odds</TabsTrigger>
+          {predictable && <TabsTrigger value="odds">Odds</TabsTrigger>}
         </TabsList>
         <TabsContent value="matches" className="mt-5"><Matches d={d} team={teamParam} /></TabsContent>
         <TabsContent value="rankings" className="mt-5"><Rankings field={d.field} season={e.season} team={teamParam} code={e.code} /></TabsContent>
         <TabsContent value="playoffs" className="mt-5"><Playoffs d={d} /></TabsContent>
         <TabsContent value="awards" className="mt-5"><Awards d={d} nameOf={nameOf} /></TabsContent>
-        <TabsContent value="odds" className="mt-5">
+        {predictable && <TabsContent value="odds" className="mt-5">
           {/* Every event with a schedule gets match predictions; advancement odds only where teams advance. */}
           <TeamPicker field={d.field} value={teamParam} onChange={setTeam} />
           {d.forecastUnsupported ? (
@@ -100,7 +104,7 @@ function Event({ d }: { d: EventDetail }) {
             </section>
           )}
           <MatchOdds d={d} team={teamParam} onTab={setTab} />
-        </TabsContent>
+        </TabsContent>}
       </Tabs>
     </div>
   );
@@ -169,6 +173,7 @@ function callRecord(matches: MatchView[]): { kind: "live" | "backtest"; n: numbe
 
 /** The right side of the hero: what a visitor came to learn, at a glance — real data only. */
 function EventGlance({ d, onTab }: { d: EventDetail; onTab: (t: string) => void }) {
+  const predictable = usePredictable(d.event.season);
   const e = d.event;
   const winners = d.awards.filter((a) => a.type === "Winner").map((a) => a.team);
   const seed1 = d.field.find((f) => f.rank === 1) ?? null;
@@ -178,7 +183,7 @@ function EventGlance({ d, onTab }: { d: EventDetail; onTab: (t: string) => void 
   if (winners.length) rows.push({ label: "Won by", value: <span className="font-mono">{winners.join(" · ")}</span>, tab: "playoffs" });
   if (seed1) rows.push({ label: "#1 seed", value: <><span className="font-mono">{seed1.team}</span> <span className="text-muted-foreground">{seed1.name}</span></>, to: `/teams/${seed1.team}?season=${e.season}`, tab: "rankings" });
   if (topOpr) rows.push({ label: "Top OPR", value: <><span className="font-mono">{topOpr.team}</span> <span className="text-muted-foreground">{topOpr.opr.np!.toFixed(1)}</span></>, to: `/teams/${topOpr.team}?season=${e.season}` });
-  if (d.advancement?.slots) rows.push({ label: "Advancing", value: <>{d.advancement.slots} slots{d.advancement.advancesTo ? <span className="text-muted-foreground"> → {d.advancement.advancesTo}</span> : null}</>, tab: "odds" });
+  if (d.advancement?.slots) rows.push({ label: "Advancing", value: <>{d.advancement.slots} slots{d.advancement.advancesTo ? <span className="text-muted-foreground"> → {d.advancement.advancesTo}</span> : null}</>, tab: predictable ? "odds" : undefined });
   return (
     <div className="min-w-0 rounded-xl border border-border/70 bg-background/40 p-4 backdrop-blur-sm">
       <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">At a glance</p>
@@ -209,7 +214,7 @@ function EventGlance({ d, onTab }: { d: EventDetail; onTab: (t: string) => void 
           ))}
         </dl>
       )}
-      {e.status !== "finished" && !d.forecastUnsupported && (
+      {predictable && e.status !== "finished" && !d.forecastUnsupported && (
         <Button size="sm" className="mt-3 w-full" onClick={() => onTab("odds")}><Trophy /> Who advances? See the odds</Button>
       )}
     </div>
@@ -217,6 +222,7 @@ function EventGlance({ d, onTab }: { d: EventDetail; onTab: (t: string) => void 
 }
 
 function Matches({ d, team }: { d: EventDetail; team: number | null }) {
+  const predictable = usePredictable(d.event.season);
   const [level, setLevel] = useState<"all" | "qual" | "playoff">("all");
   const [onlyTeam, setOnlyTeam] = useState(!!team);
   const [sp] = useSearchParams();
@@ -244,7 +250,7 @@ function Matches({ d, team }: { d: EventDetail; team: number | null }) {
       {!d.matches.length ? <EmptyState icon={Swords} title="No schedule yet" description="The match schedule appears here once FIRST publishes it (usually the morning of the event)." /> : (
         <MatchList matches={list} highlight={team ?? undefined} empty="No matches in this view." initialOpen={want} />
       )}
-      <p className="text-xs text-muted-foreground">Played matches show the prediction logged before they were played (or, for past seasons, the prediction replayed from the matches before it). Upcoming matches show odds from today's ratings.</p>
+      {predictable && <p className="text-xs text-muted-foreground">Played matches show the prediction logged before they were played (or, for past seasons, the prediction replayed from the matches before it). Upcoming matches show odds from today's ratings.</p>}
     </div>
   );
 }
