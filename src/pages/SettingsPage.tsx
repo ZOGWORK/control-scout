@@ -508,6 +508,7 @@ function About() {
         <Row label="Prediction engine" description="Shared with Control Point, so the numbers match."><span className="font-mono text-sm text-foreground">v{meta?.engineVersion ?? "…"}</span></Row>
         <Row label="Data updated" description="Synced from FIRST; every 15 minutes on event days."><span className="text-sm text-foreground">{ago(meta?.dataAsOf)}</span></Row>
         <Row label="How predictions work"><Button variant="outline" size="sm" asChild><Link to="/methodology">Read it</Link></Button></Row>
+        <Row label="Contact" description="Report a bug or wrong data, suggest a feature, or ask a question."><Button variant="outline" size="sm" asChild><Link to="/contact">Contact us</Link></Button></Row>
       </Group>
       <Group title="Control Point">
         <Row label="Manage your team" description="Control Point is the team workspace: members, tasks, attendance and more.">

@@ -109,7 +109,7 @@ function MobileTabs({ onMore }: { onMore: () => void }) {
 const TITLES: [RegExp, string][] = [
   [/^\/teams\//, "Team"], [/^\/teams$/, "Teams"], [/^\/matches$/, "Match records"], [/^\/events\/\d/, "Event"], [/^\/events/, "Events"], [/^\/predict\/how-it-works/, "How it works"], [/^\/predict/, "Predict"],
   [/^\/compare/, "Compare"], [/^\/my-team/, "My team"], [/^\/shortlist/, "Shortlist"], [/^\/scout/, "Scout"], [/^\/download/, "Download"],
-  [/^\/settings/, "Settings"], [/^\/methodology/, "How it works"], [/^\/privacy/, "Privacy"], [/^\/terms/, "Terms"],
+  [/^\/settings/, "Settings"], [/^\/methodology/, "How it works"], [/^\/privacy/, "Privacy"], [/^\/terms/, "Terms"], [/^\/contact/, "Contact"],
 ];
 
 /** Shown everywhere when the server has no FTC data yet (a new deploy whose
