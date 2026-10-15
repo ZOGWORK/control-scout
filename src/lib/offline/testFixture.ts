@@ -89,7 +89,10 @@ export async function season2024(): Promise<SeasonDb> {
   const db = await packDb(2024, {
     teams: [team(100, "Gearheads (old name)", "Newark"), team(999, "Retired", "Princeton")],
     events: [{ season: 2024, code: "USNJCMP", name: "New Jersey Championship", type: "Championship", city: "Princeton", state: "NJ", country: "USA", start: "2025-03-01", end: "2025-03-02", timezone: "America/New_York", remote: 0, source: "ftcscout" }],
-    event_teams: [{ season: 2024, code: "USNJCMP", team: 100, rank: 4, rp: 1.5, tbp: 20, wins: 3, losses: 2, ties: 0, qual_played: 5, dq: 0 }],
+    event_teams: [
+      { season: 2024, code: "USNJCMP", team: 100, rank: 4, rp: 1.5, tbp: 20, wins: 3, losses: 2, ties: 0, qual_played: 5, dq: 0 },
+      { season: 2024, code: "USNJCMP", team: 999, rank: 9, rp: 0.5, tbp: 4, wins: 1, losses: 4, ties: 0, qual_played: 5, dq: 0 },
+    ],
     awards: [{ season: 2024, code: "USNJCMP", type: "Design", placement: 2, team: 100, name: null }],
   });
   return { season: 2024, db: wrap(db) };

@@ -29,8 +29,9 @@ export async function teamKnown(number: number): Promise<boolean> {
 export async function teamSeasons(number: number): Promise<number[]> {
   const rows = await all<{ season: number }>(
     `SELECT season FROM team_season_stats WHERE team = ? AND matches > 0
+     UNION SELECT season FROM event_teams WHERE team = ? AND qual_played > 0
      UNION SELECT et.season FROM event_teams et JOIN events e ON e.season = et.season AND e.code = et.code WHERE et.team = ? AND e.remote = 1 AND et.rank IS NOT NULL`,
-    [number, number],
+    [number, number, number],
   );
   return [...new Set([CURRENT_SEASON, ...rows.map((r) => Number(r.season))])].sort((a, b) => b - a);
 }
