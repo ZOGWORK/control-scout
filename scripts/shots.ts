@@ -7,7 +7,8 @@
 //
 // --steps <file.json> runs interactions after the page loads (open a dialog,
 // build a filter…) before the shot, or while a --video records. The file is
-// an array of { click | fill+value | type | press | wait | waitFor | reload } steps;
+// an array of { click | hold(+ms) | fill+value | type | press | wait | waitFor | reload } steps
+// (hold: press the pointer on an element for ms, default 1600, e.g. a hold-to-confirm button);
 // selectors are Playwright's (role=button[name="Filters"], text=Apply, css).
 // --name <label> goes in the file name, to tell several states of one route apart.
 //
@@ -28,7 +29,7 @@ const opt = (f: string) => { const i = args.indexOf(`--${f}`); return i >= 0 ? a
 // Routes: "/teams/1" or "teams/1". Git Bash rewrites a leading "/" into its
 // install path (C:/Program Files/Git/...) — undo that.
 const VALUE_FLAGS = new Set(["--out", "--base", "--search", "--video", "--storage", "--steps", "--name"]);
-type Step = { click?: string; fill?: string; value?: string; type?: string; press?: string; wait?: number; waitFor?: string; reload?: boolean };
+type Step = { click?: string; hold?: string; ms?: number; fill?: string; value?: string; type?: string; press?: string; wait?: number; waitFor?: string; reload?: boolean };
 const STEPS: Step[] = (() => {
   const f = opt("steps");
   if (!f) return [];
@@ -43,6 +44,7 @@ const LABEL = opt("name") ? `-${opt("name")!.replace(/[^\w-]+/g, "_")}` : "";
 async function runSteps(page: Page, slow: boolean) {
   for (const s of STEPS) {
     if (s.click) await page.locator(s.click).first().click();
+    else if (s.hold) { await page.locator(s.hold).first().hover(); await page.mouse.down(); await page.waitForTimeout(s.ms ?? 1600); await page.mouse.up(); }
     else if (s.fill) await page.locator(s.fill).first().fill(s.value ?? "");
     else if (s.type != null) await page.keyboard.type(s.type, { delay: slow ? 90 : 20 });
     else if (s.press) await page.keyboard.press(s.press);

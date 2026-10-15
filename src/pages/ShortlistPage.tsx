@@ -177,7 +177,7 @@ const LIST_COLS = "grid items-center gap-x-2 grid-cols-[2.5rem_1.75rem_minmax(0,
 
 interface RowProps {
   t: ShortlistTeam; rank: number; season: number; open: boolean; dragging: boolean;
-  note: string; onNote: (text: string) => void;
+  note: string; onNote: (text: string) => boolean;
   selected: boolean; selectDisabled: boolean; onSelect: (on: boolean) => void;
   onToggle: () => void; onRemove: () => void;
   /** This team next to the top picks. */
