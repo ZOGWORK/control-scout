@@ -21,6 +21,7 @@ import { SeasonToggle } from "../components/SeasonToggle";
 import { EventCard } from "./Home";
 import { dateRange, num, seasonLabel, topPct } from "../lib/format";
 import { callTally, pct } from "../lib/seasonSoFar";
+import { defaultSeason } from "../lib/myTeamSeason";
 
 export default function MyTeamPage() {
   useTitle("My team");
@@ -79,18 +80,34 @@ export default function MyTeamPage() {
 }
 
 function Dashboard({ team }: { team: number }) {
-  // The current season by default; ?season= shows an earlier one (kept in the URL, so it's linkable and Back works).
+  // ?season= shows a chosen season (kept in the URL, so it's linkable and Back works). Without it: the current
+  // season once the team has played in it, else the latest season it played (decided before anything renders).
   const current = useCurrentSeason();
   const [sp, setSp] = useSearchParams();
-  const season = Number(sp.get("season")) || current;
+  const meta = useMeta();
+  const offered = (x: number) => meta?.seasons.find((m) => m.season === x)?.predictable ?? x >= 2023;
+  const asked = Number(sp.get("season")) || null;
+  // The season shown with no ?season=, per team: picked once from the current season's profile.
+  const [picked, setPicked] = useState<{ team: number; season: number } | null>(null);
+  const pickedSeason = picked?.team === team ? picked.season : null;
+  const season = asked ?? pickedSeason ?? current;
   const isCurrent = season === current;
   const when = isCurrent ? "this season" : "that season";
-  const setSeason = (s: number) => setSp((x) => { const n = new URLSearchParams(x); if (s === current) n.delete("season"); else n.set("season", String(s)); return n; }, { replace: true });
+  // A chosen season always goes in the URL (the current one too), so a reload or shared link keeps it.
+  const setSeason = (s: number) => setSp((x) => { const n = new URLSearchParams(x); n.set("season", String(s)); return n; }, { replace: true });
   const { set } = usePersonal();
   // The team's seasons from the last load, so the toggle stays put while another season is fetched.
   const [known, setKnown] = useState<{ team: number; seasons: number[] } | null>(null);
-  const profile = useApi<TeamProfile>(`/api/teams/${team}${qs({ season })}`);
-  const matches = useApi<{ matches: MatchView[] }>(`/api/teams/${team}/matches${qs({ season })}`);
+  const fetched = useApi<TeamProfile>(`/api/teams/${team}${qs({ season })}`);
+  // Deciding until the current season's profile is in (on an error the current season stays, with the error shown).
+  const deciding = !asked && pickedSeason == null && !fetched.error;
+  const probe = deciding && fetched.data?.team.number === team && fetched.data.season === current ? fetched.data : undefined;
+  const auto = probe ? defaultSeason(probe, offered) : null;
+  useEffect(() => { if (auto != null) setPicked({ team, season: auto }); }, [auto, team]);
+  const fetchedMatches = useApi<{ matches: MatchView[] }>(`/api/teams/${team}/matches${qs({ season })}`);
+  // While deciding, everything shows its loading state, so the empty current season never flashes up.
+  const profile = deciding ? { ...fetched, data: undefined } : fetched;
+  const matches = deciding ? { ...fetchedMatches, data: undefined, error: undefined } : fetchedMatches;
   const loaded = profile.data?.team.number === team ? profile.data.seasons : undefined;
   useEffect(() => { if (loaded?.length) setKnown({ team, seasons: loaded }); }, [loaded, team]);
   const knownSeasons = loaded?.length ? loaded : known?.team === team ? known.seasons : null;
@@ -103,8 +120,7 @@ function Dashboard({ team }: { team: number }) {
     return { names, dates };
   }, [prof]);
   // The latest earlier season the toggle offers (it lists predictable seasons only), so the button never opens one without a tab.
-  const meta = useMeta();
-  const earlier = knownSeasons?.find((x) => x < season && (meta?.seasons.find((m) => m.season === x)?.predictable ?? x >= 2023));
+  const earlier = knownSeasons?.find((x) => x < season && offered(x));
   return (
     <div>
       {/* Hero: who this is (big number, gold), and how the season is going. */}
@@ -113,7 +129,7 @@ function Dashboard({ team }: { team: number }) {
           <div className="relative min-w-0 p-6 sm:p-8">
             <div aria-hidden className="pointer-events-none absolute -left-24 -top-24 size-64 rounded-full bg-accent opacity-[0.12] blur-3xl" />
             <div className="relative flex items-center justify-between gap-3">
-              <p className="flex items-center gap-1.5 text-xs font-medium uppercase tracking-[0.08em] text-accent-text"><Star className="size-3.5 fill-current" aria-hidden />My team · {seasonLabel(season)}</p>
+              <p className="flex items-center gap-1.5 text-xs font-medium uppercase tracking-[0.08em] text-accent-text"><Star className="size-3.5 fill-current" aria-hidden />My team{!deciding && ` · ${seasonLabel(season)}`}</p>
               <Button variant="ghost" size="sm" onClick={() => set("myTeam", null)} className="-mr-2 max-sm:h-11"><X /> Change team</Button>
             </div>
             <h1 className="relative mt-1">
@@ -190,7 +206,7 @@ function Dashboard({ team }: { team: number }) {
           );
         }}
       </Async>
-      <TrackedFeed season={season} />
+      {!deciding && <TrackedFeed season={season} />}
     </div>
   );
 }
