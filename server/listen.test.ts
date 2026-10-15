@@ -23,7 +23,14 @@ describe("systemdSocket", () => {
 // The server the way the VM runs it: node --import tsx (not npx, whose extra
 // process wouldn't pass the socket on).
 const procs: ChildProcess[] = [];
-afterEach(() => { for (const p of procs.splice(0)) p.kill("SIGKILL"); });
+// Each child leads its own process group (detached), so cleanup also reaches the servers it started:
+// a server left running would keep this worker's pipes open and the test run would never end.
+afterEach(() => {
+  for (const p of procs.splice(0)) {
+    try { process.kill(-p.pid!, "SIGKILL"); } catch { p.kill("SIGKILL"); }
+    p.stdout?.destroy(); p.stdin?.destroy();
+  }
+});
 const port = () => 30_000 + Math.floor(Math.random() * 20_000);
 const fixture = ["--import", "tsx", "server/listen.fixture.ts"];
 const exited = (p: ChildProcess) => new Promise<number | null>((r) => p.once("exit", (code) => r(code)));
@@ -44,7 +51,7 @@ async function get(url: string, tries = 50): Promise<string> {
 describe.skipIf(process.platform === "win32")("stopping", () => {
   it("SIGTERM lets a request in progress finish, then exits cleanly", async () => {
     const p = port();
-    const server = spawn(process.execPath, fixture, { env: { ...process.env, PORT: String(p) }, stdio: "ignore" });
+    const server = spawn(process.execPath, fixture, { env: { ...process.env, PORT: String(p) }, stdio: "ignore", detached: true });
     procs.push(server);
     await get(`http://127.0.0.1:${p}/hello`);
     const slow = once(`http://127.0.0.1:${p}/slow`);
@@ -63,7 +70,7 @@ describe.skipIf(!activate)("systemd socket activation", () => {
     const p = port();
     // systemd-socket-activate opens the port now and starts the server only when the first connection arrives:
     // that request waits in the socket's queue, exactly like a request during a deploy's restart.
-    const holder = spawn("systemd-socket-activate", ["-l", `127.0.0.1:${p}`, process.execPath, ...fixture], { stdio: "ignore" });
+    const holder = spawn("systemd-socket-activate", ["-l", `127.0.0.1:${p}`, process.execPath, ...fixture], { stdio: "ignore", detached: true });
     procs.push(holder);
     expect(await get(`http://127.0.0.1:${p}/hello`)).toMatch(/^socket \d+$/);
   }, 20_000);
@@ -75,7 +82,7 @@ const python = process.platform !== "win32" && spawnSync("python3", ["--version"
 describe.skipIf(!python)("restart with the socket held", () => {
   it("drops no request: one in progress finishes, one sent mid-restart waits for the new server", async () => {
     const p = port();
-    const owner = spawn("python3", ["server/listen.owner.py", String(p), process.execPath, ...fixture], { stdio: ["pipe", "pipe", "inherit"] });
+    const owner = spawn("python3", ["server/listen.owner.py", String(p), process.execPath, ...fixture], { stdio: ["pipe", "pipe", "ignore"], detached: true });
     procs.push(owner);
     const lines: string[] = [];
     owner.stdout!.on("data", (d) => lines.push(...String(d).trim().split("\n")));
