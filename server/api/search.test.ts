@@ -22,6 +22,8 @@ beforeAll(async () => {
   await run("INSERT INTO events (season, code, name, city, start, source) VALUES (2025, 'AUSYQ1', 'Sydney South Qualifier', 'Sydney', '2025-11-16', 'first')");
   await run("INSERT INTO events (season, code, name, city, start, source) VALUES (2024, 'USMICMP2', 'Michigan FTC State Championship-SE', 'Warren', '2024-12-06', 'first')");
   await run("INSERT INTO events (season, code, name, city, state, country, start, source) VALUES (2026, 'USNJRAM1', 'P1-5 AM Northeast League Meet', 'Ramsey', 'NJ', 'USA', '2026-11-07', 'first')");
+  for (const [season, code, name] of [[2026, "USNJCMP", "New Jersey Championship"], [2025, "USNJCMP", "New Jersey Championship"], [2025, "USNJCMPPKWY", "New Jersey Championship - Parkway Division"]] as const)
+    await run("INSERT INTO events (season, code, name, city, state, country, start, source) VALUES (?, ?, ?, 'Union', 'NJ', 'USA', '2027-03-14', 'first')", [season, code, name]);
   await run("INSERT INTO matches (season, code, level, series, number, label, played, source) VALUES (2025, 'AUSYQ1', 'qual', 0, 12, 'Q12', 1, 'first')");
   await rebuildSearch();
 });
@@ -32,6 +34,18 @@ describe("search", () => {
   it("finds places by full state name, not just the code (New Jersey → NJ)", async () => {
     expect(await titles("new jersey")).toContain("P1-5 AM Northeast League Meet");
     expect(await titles("ramsey nj")).toContain("P1-5 AM Northeast League Meet");
+  });
+  it("offers a state's events as one link", async () => {
+    const hits = await search("new jersey", 12);
+    expect(hits[0]).toMatchObject({ kind: "place", ref: "USA:NJ", title: "All events in New Jersey" });
+    expect((await search("NJ", 12))[0]?.kind).toBe("place");
+  });
+  it("shows an event code once, from its newest season, unless a year is typed", async () => {
+    const refs = (await search("new jersey championship", 12)).filter((h) => h.kind === "event").map((h) => h.ref);
+    expect(refs).toContain("2026:USNJCMP");
+    expect(refs).not.toContain("2025:USNJCMP");
+    expect(refs).toContain("2025:USNJCMPPKWY"); // a division is its own event
+    expect((await search("2025 new jersey championship", 12)).map((h) => h.ref)).toContain("2025:USNJCMP");
   });
   it("tolerates typos in team names", async () => {
     expect((await titles("X Drvie"))[0]).toBe("16321 X Drive");

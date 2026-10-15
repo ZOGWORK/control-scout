@@ -2,18 +2,20 @@
 // stays fully usable (no modal, no focus trap). Content only: teams, events
 // and matches — navigation lives in the nav.
 import { useEffect, useId, useMemo, useRef, useState, type ReactNode, type Ref } from "react";
-import { CalendarDays, ChevronDown, Loader2, Search, Swords, Users, X } from "lucide-react";
+import { CalendarDays, ChevronDown, Loader2, MapPin, Search, Swords, Users, X } from "lucide-react";
 import { apiFetch } from "../../lib/api";
 import { usePersonal } from "../../lib/personal";
 import { useMeta } from "../../lib/meta";
 import type { SearchHit } from "../../shared/api";
 import { cn } from "../cn";
+import { seasonLabel } from "../../lib/format";
 
 export type HitKind = SearchHit["kind"];
 
 export function hitHref(h: SearchHit): string {
   if (h.kind === "team") return `/teams/${h.ref}`;
   if (h.kind === "event") { const [s, c] = h.ref.split(":"); return `/events/${s}/${c}`; }
+  if (h.kind === "place") return `/events?region=${encodeURIComponent(h.ref)}`;
   const [s, c, level, series, number] = h.ref.split(":");
   return `/events/${s}/${c}?match=${level}:${series}:${number}`;
 }
@@ -50,7 +52,7 @@ export function useSearchHits(q: string, kinds?: HitKind[]) {
   return { hits: current ? res.hits : [], busy: busy || (!!q.trim() && !current), error };
 }
 
-const GROUPS: [HitKind, string, typeof Users][] = [["team", "Teams", Users], ["event", "Events", CalendarDays], ["match", "Matches", Swords]];
+const GROUPS: [HitKind, string, typeof Users][] = [["place", "Places", MapPin], ["team", "Teams", Users], ["event", "Events", CalendarDays], ["match", "Matches", Swords]];
 
 export interface SearchBoxProps {
   onPick: (h: SearchHit) => void;
@@ -152,11 +154,17 @@ export function SearchBox({ onPick, kinds, placeholder, label, size = "md", clas
                       <div
                         key={`${h.kind}:${h.ref}`} id={`${listId}-${i}`} role="option" aria-selected={i === active}
                         onPointerDown={(e) => e.preventDefault()} onClick={() => pick(h)} onPointerMove={() => setActive(i)}
-                        className={cn("flex cursor-pointer items-center gap-2.5 rounded-lg px-3 py-2 text-sm", i === active ? "bg-accent/[0.12] text-foreground" : "text-foreground/90")}
+                        className={cn("flex cursor-pointer items-center gap-2.5 rounded-lg px-3 py-1.5 text-sm", i === active ? "bg-accent/[0.12] text-foreground" : "text-foreground/90")}
                       >
-                        <Icon className="size-4 shrink-0 text-muted-foreground" />
-                        <span className="min-w-0 flex-1 truncate">{h.title}</span>
-                        <span className="hidden max-w-[45%] truncate text-xs text-muted-foreground sm:inline">{h.subtitle}</span>
+                        <Icon className={cn("size-4 shrink-0", h.kind === "place" ? "text-accent" : "text-muted-foreground")} />
+                        {/* Two lines: the whole name gets the width (event divisions differ only at the end), then season and details. */}
+                        <span className="min-w-0 flex-1">
+                          <span className="block truncate">{h.title}</span>
+                          <span className="flex min-w-0 items-center gap-1.5 text-xs text-muted-foreground">
+                            {(h.kind === "event" || h.kind === "match") && h.season != null && <span className="shrink-0 rounded bg-muted px-1 py-px text-[10px] font-medium tabular-nums text-foreground/80">{seasonLabel(h.season)}</span>}
+                            <span className="truncate">{h.subtitle}</span>
+                          </span>
+                        </span>
                       </div>
                     );
                   })}
