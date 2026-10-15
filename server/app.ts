@@ -119,7 +119,8 @@ export function createApp() {
   app.use(compression());
   // /api/collect reads its own tiny body (1 KB cap), so the 2 MB JSON parser skips it.
   const json = express.json({ limit: "2mb" });
-  app.use((req, res, next) => (req.path === "/api/collect" ? next() : json(req, res, next)));
+  // Same matching as Express routing (case-insensitive, optional trailing slash).
+  app.use((req, res, next) => (/^\/api\/collect\/?$/i.test(req.path) ? next() : json(req, res, next)));
   app.use((_req, res, next) => {
     res.setHeader("X-Content-Type-Options", "nosniff");
     res.setHeader("Referrer-Policy", "strict-origin-when-cross-origin");

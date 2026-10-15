@@ -56,16 +56,23 @@ export async function statsSummary(days = 30, now = new Date(), c: Client = db()
   };
 }
 
-/** Per-IP limiter held in memory only (never written anywhere). */
+/** Per-IP limiter held in memory only (never written anywhere). Expired keys are
+ *  swept at most once per window, so an IP is gone within two windows of its last request. */
 export function rateLimiter(max: number, windowMs: number) {
   const hits = new Map<string, { n: number; at: number }>();
-  return (key: string, now = Date.now()): boolean => {
+  let swept = 0;
+  const allow = (key: string, now = Date.now()): boolean => {
+    if (now - swept >= windowMs) {
+      for (const [k, h] of hits) if (now - h.at >= windowMs) hits.delete(k);
+      swept = now;
+    }
     const h = hits.get(key);
     if (h && now - h.at < windowMs) { h.n++; return h.n <= max; }
     if (hits.size > 50_000) hits.clear();
     hits.set(key, { n: 1, at: now });
     return true;
   };
+  return Object.assign(allow, { size: () => hits.size });
 }
 
 /** The body limit: a page view is ~100 bytes. */

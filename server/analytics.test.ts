@@ -53,8 +53,14 @@ describe("POST /api/collect", () => {
     expect(await rows()).toEqual([]);
   });
 
-  it("drops an oversized body with 413", async () => {
+  it("drops an oversized body with 413, whatever form of the URL", async () => {
     expect((await post({ ...view, pad: "x".repeat(2000) })).status).toBe(413);
+    for (const url of ["/api/collect/", "/api/Collect"]) {
+      const r = await fetch(base + url, { method: "POST", body: JSON.stringify({ ...view, pad: "x".repeat(2000) }), headers: { "Content-Type": "application/json", "User-Agent": CHROME } });
+      expect(r.status, url).toBe(413);
+    }
+    expect((await fetch(`${base}/api/collect/`, { method: "POST", body: JSON.stringify(view), headers: { "Content-Type": "application/json", "User-Agent": CHROME } })).status).toBe(204);
+    await run("DELETE FROM analytics_daily");
     expect(await rows()).toEqual([]);
   });
 
@@ -128,5 +134,15 @@ describe("helpers", () => {
     const allow = rateLimiter(2, 1000);
     expect([allow("a", 0), allow("a", 1), allow("a", 2), allow("b", 2)]).toEqual([true, true, false, true]);
     expect(allow("a", 1001)).toBe(true);
+  });
+
+  it("rateLimiter forgets expired keys (IPs aren't kept past their window)", () => {
+    const allow = rateLimiter(5, 1000);
+    allow("1.1.1.1", 0); allow("2.2.2.2", 500);
+    expect(allow.size()).toBe(2);
+    allow("3.3.3.3", 1200); // sweep: 1.1.1.1 expired, 2.2.2.2 not yet
+    expect(allow.size()).toBe(2);
+    allow("3.3.3.3", 2300); // sweep: 2.2.2.2 and 3.3.3.3's first window expired
+    expect(allow.size()).toBe(1);
   });
 });
