@@ -47,6 +47,11 @@ describe("search", () => {
     expect(refs).toContain("2025:USNJCMPPKWY"); // a division is its own event
     expect((await search("2025 new jersey championship", 12)).map((h) => h.ref)).toContain("2025:USNJCMP");
   });
+  it("drops older seasons of an event from typo matches too", async () => {
+    const refs = (await search("jresey chmpionship", 12)).filter((h) => h.kind === "event").map((h) => h.ref);
+    expect(refs).toContain("2026:USNJCMP");
+    expect(refs).not.toContain("2025:USNJCMP");
+  });
   it("tolerates typos in team names", async () => {
     expect((await titles("X Drvie"))[0]).toBe("16321 X Drive");
     expect((await titles("cyber dragns"))[0]).toBe("10820 Cyber Dragons");

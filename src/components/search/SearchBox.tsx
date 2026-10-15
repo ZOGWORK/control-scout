@@ -157,9 +157,9 @@ export function SearchBox({ onPick, kinds, placeholder, label, size = "md", clas
                         className={cn("flex cursor-pointer items-center gap-2.5 rounded-lg px-3 py-1.5 text-sm", i === active ? "bg-accent/[0.12] text-foreground" : "text-foreground/90")}
                       >
                         <Icon className={cn("size-4 shrink-0", h.kind === "place" ? "text-accent" : "text-muted-foreground")} />
-                        {/* Two lines: the whole name gets the width (event divisions differ only at the end), then season and details. */}
+                        {/* The whole name gets the width and wraps before it cuts (event divisions differ only at the end); then season and details. */}
                         <span className="min-w-0 flex-1">
-                          <span className="block truncate">{h.title}</span>
+                          <span className="line-clamp-2 break-words">{h.title}</span>
                           <span className="flex min-w-0 items-center gap-1.5 text-xs text-muted-foreground">
                             {(h.kind === "event" || h.kind === "match") && h.season != null && <span className="shrink-0 rounded bg-muted px-1 py-px text-[10px] font-medium tabular-nums text-foreground/80">{seasonLabel(h.season)}</span>}
                             <span className="truncate">{h.subtitle}</span>
