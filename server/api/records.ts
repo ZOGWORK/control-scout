@@ -5,8 +5,7 @@
 // SQL safety: stat keys only ever reach SQL through the whitelists below
 // (catalog key → column expression); every value is a bound parameter.
 import type { Response } from "express";
-import { Readable } from "node:stream";
-import { pipeline } from "node:stream/promises";
+import { createGzip } from "node:zlib";
 import { EXCLUDED_TYPES } from "@control-scout/predict-engine";
 import { all } from "../db.js";
 import { scoreColumn } from "../stats/records.js";
@@ -317,17 +316,21 @@ function sortedKeys(src: Source, q: RecordsQuery, w: { sql: string; args: Arg[] 
   return all<any>(`SELECT ${keyCols(src)} FROM ${src.from} WHERE ${w.sql} ORDER BY ${orderOf(src, q)} LIMIT ? OFFSET ?`, [...w.args, limit, offset]);
 }
 
-/** Whole rows for these keys, in the keys' order (a key whose row is gone since is skipped). */
+/**
+ * Whole rows for these keys, in the keys' order (a key whose row is gone since is skipped).
+ * The keys are a VALUES list joined to the table one primary-key lookup each (CROSS JOIN keeps
+ * the list as the outer loop). A row-value `(a, b, c) IN (VALUES …)` used only the key's first
+ * column, so every chunk scanned the whole season: ≈100 ms per 500 team-events instead of ≈25.
+ */
 async function rowsByKeys(src: Source, q: RecordsQuery, keys: any[]): Promise<any[]> {
   if (!keys.length) return [];
-  const id = (r: any) => src.key.map((_, i) => String(r[`_k${i}`])).join("|");
-  const tuple = `(${src.key.map(() => "?").join(", ")})`;
-  const rows = await all<any>(
-    `SELECT ${selectOf(src, q)}, ${keyCols(src)} FROM ${src.from} WHERE (${src.key.join(", ")}) IN (VALUES ${keys.map(() => tuple).join(", ")})`,
-    keys.flatMap((k) => src.key.map((_, i) => k[`_k${i}`])),
+  const tuple = `(${["?", ...src.key.map(() => "?")].join(", ")})`;
+  const cols = src.key.map((_, i) => `k${i}`);
+  return all<any>(
+    `WITH wanted(ord, ${cols.join(", ")}) AS (VALUES ${keys.map(() => tuple).join(", ")}) ` +
+      `SELECT ${selectOf(src, q)} FROM wanted CROSS JOIN ${src.from} ON ${src.key.map((k, i) => `${k} = wanted.k${i}`).join(" AND ")} ORDER BY wanted.ord`,
+    keys.flatMap((k, n) => [n, ...src.key.map((_, i) => k[`_k${i}`])]),
   );
-  const byId = new Map(rows.map((r) => [id(r), r]));
-  return keys.map((k) => byId.get(id(k))).filter((r) => r != null);
 }
 
 /** One page of records plus the total count of matching rows. */
@@ -364,10 +367,10 @@ const ID_HEADERS: Record<RecordScope, [string, (r: any) => unknown][]> = {
 
 /**
  * Every matching row as CSV (the page/pageSize parameters are ignored), sorted
- * like the table. One SELECT reads the whole export, so it is one consistent
- * view even while the stats job rewrites the tables (separate page queries
- * could skip or repeat rows across a rewrite); the CSV text is then streamed
- * out in chunks, dropping rows as they are written.
+ * like the table. One SELECT fixes which rows and in which order, so it is
+ * one consistent view even while the stats job rewrites the tables (separate
+ * page queries could skip or repeat rows across a rewrite); the rows are then
+ * read and streamed out in chunks, dropping them as they are written.
  * Columns: identity columns, then `fields` in order.
  */
 /** Rows per CSV read (inside the export's one read transaction). */
@@ -382,19 +385,66 @@ export async function streamRecordsCsv(season: number, q: RecordsQuery, res: Res
   // mid-export can't skip or repeat a row; the rows themselves are then read in bounded chunks, so a slow
   // download never holds a whole season. (Not a long read transaction: an in-memory database or an
   // embedded replica has one connection, and holding it would fail every other request meanwhile.)
-  const keys = await sortedKeys(src, q, w, RECORDS_EXPORT_MAX, 0);
-  async function* lines() {
-    yield line([...ids.map(([h]) => h), ...q.fields.map((k) => STAT_BY_KEY.get(k)!.label)]);
+  // The header row goes out before any query runs, so the download starts at once.
+  res.setHeader("Content-Type", "text/csv; charset=utf-8");
+  res.setHeader("Content-Disposition", `attachment; filename="${filename}"`);
+  const body = streamedBody(res);
+  if (!(await body.send(line([...ids.map(([h]) => h), ...q.fields.map((k) => STAT_BY_KEY.get(k)!.label)])))) return;
+  try {
+    const keys = await sortedKeys(src, q, w, RECORDS_EXPORT_MAX, 0);
     for (let i = 0; i < keys.length; i += CSV_CHUNK) {
       let out = "";
       for (const r of rowsOf(q.scope, await rowsByKeys(src, q, keys.slice(i, i + CSV_CHUNK)), q.fields)) out += line([...ids.map(([, f]) => f(r)), ...q.fields.map((k) => r.stats[k])]);
-      if (out) yield out;
+      if (out && !(await body.send(out))) return;
     }
+    body.end();
+  } catch (e) {
+    body.abort(); // headers are out: cut the download off (never a complete-looking partial file), then report
+    throw e;
   }
-  res.setHeader("Content-Type", "text/csv; charset=utf-8");
-  res.setHeader("Content-Disposition", `attachment; filename="${filename}"`);
-  // pipeline() handles backpressure and ends (or destroys) the response.
-  await pipeline(Readable.from(lines()), res);
+}
+
+/**
+ * A response body written piece by piece, gzipped when the client takes gzip. The app's
+ * compression middleware leaves text/csv alone (server/app.ts): it would hold output in zlib's
+ * buffer, and the database reads in between run on the main thread, so compressed bytes only
+ * left when a whole chunk backed up. Here each piece is flushed and actually handed to the
+ * socket before the next read starts.
+ */
+function streamedBody(res: Response) {
+  const gzip = res.req.acceptsEncodings("gzip", "identity") === "gzip";
+  const gz = gzip ? createGzip() : null;
+  if (gz) {
+    res.setHeader("Content-Encoding", "gzip");
+    res.vary("Accept-Encoding");
+    gz.on("error", () => res.destroy());
+    gz.pipe(res);
+  }
+  const out = gz ?? res;
+  const gone = new Promise<void>((done) => res.once("close", done)); // finished or the client left
+  void gone.then(() => gz?.destroy());
+  const waitFor = (stream: NodeJS.EventEmitter, event: string) => new Promise<void>((done) => stream.once(event, done));
+  let first = true;
+  return {
+    /**
+     * Write `text` and flush it; resolves once the client has room for more (false when it has
+     * gone: stop). The first piece is waited for until compressed, so the download starts before
+     * the first read; later ones compress (off the main thread) while the next chunk is read.
+     */
+    async send(text: string): Promise<boolean> {
+      if (res.destroyed || res.writableEnded) return false;
+      const more = out.write(text);
+      const sent: Promise<void>[] = [];
+      if (gz) { const flushed = new Promise<void>((done) => gz.flush(() => done())); if (first) sent.push(flushed); }
+      first = false;
+      if (!more) sent.push(waitFor(out, "drain"));
+      // Then yield to the event loop, so pending socket writes go out before the next (blocking) read.
+      await Promise.race([gone, Promise.all(sent).then(() => new Promise((done) => setImmediate(done)))]);
+      return !res.destroyed;
+    },
+    end(): void { out.end(); },
+    abort(): void { gz?.destroy(); res.destroy(); },
+  };
 }
 
 // ---------------------------------------------------------------------------
