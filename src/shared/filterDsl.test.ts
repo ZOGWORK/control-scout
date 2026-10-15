@@ -1,7 +1,7 @@
 // The records filter language: URL format (stable forever), round-trips, and
 // clear errors for anything malformed.
 import { describe, expect, it } from "vitest";
-import { encodeFilterText, filterKeys, FilterError, parseFilter, serializeFilter, validateFilter, type FilterGroup } from "./filterDsl";
+import { encodeFilterText, filterKeys, FilterError, foldText, formatFilterNumber, parseFilter, serializeFilter, validateFilter, type FilterGroup } from "./filterDsl";
 import { RECORD_SCOPES, STAT_CATALOG, statsFor } from "./statCatalog";
 
 const NESTED = "and-penaltyPointsCommittedTot.lt.2+or-totalPointsOpr.gte.55+autoPointsAvg.gte.30--";
@@ -55,6 +55,27 @@ describe("filter DSL", () => {
   it("keeps negative numbers apart from group closers", () => {
     expect(parseFilter("and-penaltyPointsCommittedOpr.gt.-5-", "teamEvent").children[0]).toMatchObject({ value: -5 });
     expect(parseFilter("and-or-penaltyPointsCommittedOpr.gte.-0.5--", "teamEvent")).toEqual({ kind: "group", type: "and", children: [{ kind: "group", type: "or", children: [{ kind: "cond", key: "penaltyPointsCommittedOpr", op: "gte", value: -0.5 }] }] });
+  });
+  it("writes every finite number exactly, without exponents, and reads it back", () => {
+    expect(formatFilterNumber(0.000000000000000000001)).toBe("0.000000000000000000001");
+    expect(formatFilterNumber(1e21)).toBe("1000000000000000000000");
+    expect(formatFilterNumber(-1.2345e-7)).toBe("-0.00000012345");
+    expect(formatFilterNumber(1.5e300)).toBe(`15${"0".repeat(299)}`);
+    expect(formatFilterNumber(12.5)).toBe("12.5");
+    const values = [0, -0, 1, -1, 0.1, 1 / 3, -2 / 3, 1e-7, 1.5e-7, 1e-21, 0.000000000000000000001, 5e-324, 1e21, 1e21 + 2 ** 20, 9007199254740993, 1.7976931348623157e308, -1.234e-30, 123456789.123456789];
+    for (const v of values) {
+      const tree: FilterGroup = { kind: "group", type: "and", children: [{ kind: "cond", key: "totalPointsOpr", op: "gte", value: v }] };
+      const s = serializeFilter(tree);
+      expect(s.split(".gte.")[1], String(v)).toMatch(/^-?\d+(\.\d+)?-$/); // plain decimal, no exponent
+      expect(Object.is((parseFilter(s, "teamEvent").children[0] as any).value, v), `${v} → ${s}`).toBe(true);
+    }
+    expect(() => formatFilterNumber(Infinity)).toThrow(FilterError);
+    expect(() => formatFilterNumber(NaN)).toThrow(FilterError);
+  });
+  it("folds text case- and accent-insensitively", () => {
+    expect(foldText("Équipe Ñandú ROBÓTICA")).toBe("equipe nandu robotica");
+    expect(foldText("İstanbul Straße")).toBe("istanbul straße");
+    expect(foldText("机器人队")).toBe("机器人队");
   });
   it("encodes every separator in text values", () => {
     expect(encodeFilterText("a-b.c+d e")).toBe("a%2Db%2Ec%2Bd%20e");

@@ -18,6 +18,7 @@ import { teleopAsReported } from "../data/seasons.js";
 import { solveLeastSquares } from "./opr.js";
 import { forecasterFor } from "../predict/engine.js";
 import type { DbEvent, DbMatch } from "./load.js";
+import { foldText } from "../../src/shared/filterDsl.js";
 import { AGGREGATES, SCORE_STATS, type Aggregate, type ScoreStatBase } from "../../src/shared/statCatalog.js";
 
 type Log = (m: string) => void;
@@ -55,14 +56,23 @@ function aggregate(samples: number[][]): Record<Aggregate, number | null>[] {
 const scoreArgs = (aggs: Record<Aggregate, number | null>[]) => aggs.flatMap((a) => AGGREGATES.map((g) => fin(a[g])));
 
 interface TeamMeta { name: string | null; home_region: string | null; rookie_year: number | null; school: string | null }
-interface Ranking { rank: number | null; rp: number | null; tbp: number | null; wins: number | null; losses: number | null; ties: number | null; qual_played: number | null }
+interface Ranking { rank: number | null; rp: number | null; tbp: number | null }
 
 /** Rewrite a season's records from its loaded events (after computeSeasonStats). */
 export async function computeRecords(season: number, events: DbEvent[], log: Log = () => {}): Promise<void> {
-  const [teamRows, rankRows] = await Promise.all([
+  const [teamRows, rankRows, oldEv, oldSs, oldMr] = await Promise.all([
     all<any>("SELECT number, name, home_region, rookie_year, school FROM teams WHERE number IN (SELECT team FROM event_teams WHERE season = ?)", [season]),
-    all<any>("SELECT code, team, rank, rp, tbp, wins, losses, ties, qual_played FROM event_teams WHERE season = ?", [season]),
+    all<any>("SELECT code, team, rank, rp, tbp FROM event_teams WHERE season = ?", [season]),
+    // The engine's numbers (filled after the backtest) carry over to the rewritten
+    // rows, so they never go missing while a refresh runs; the fill steps update them.
+    all<any>("SELECT code, team, pred_win_avg, pred_score_avg, adv_odds FROM team_event_records WHERE season = ?", [season]),
+    all<any>("SELECT team, pred_win_avg, pred_score_avg FROM team_season_records WHERE season = ?", [season]),
+    all<any>("SELECT code, level, series, number, red_pred_win FROM match_records WHERE season = ? AND red_pred_win IS NOT NULL", [season]),
   ]);
+  const prevEv = new Map(oldEv.map((r) => [`${r.code}|${r.team}`, [r.pred_win_avg, r.pred_score_avg, r.adv_odds]]));
+  const prevSs = new Map(oldSs.map((r) => [Number(r.team), [r.pred_win_avg, r.pred_score_avg]]));
+  const prevMr = new Map(oldMr.map((r) => [`${r.code}|${r.level}:${r.series}:${r.number}`, r.red_pred_win]));
+  const fold = (x: string | null | undefined) => (x == null ? null : foldText(x));
   const teams = new Map<number, TeamMeta>(teamRows.map((t) => [Number(t.number), t]));
   const ranks = new Map<string, Ranking>(rankRows.map((r) => [`${r.code}|${r.team}`, r]));
   const num = (x: unknown) => (x == null ? null : Number(x));
@@ -70,7 +80,7 @@ export async function computeRecords(season: number, events: DbEvent[], log: Log
   const evStmts: InStatement[] = [{ sql: "DELETE FROM team_event_records WHERE season = ?", args: [season] }];
   const seasonAcc = new Map<number, { samples: number[][]; events: number; played: number; w: number; l: number; t: number; bestOpr: (number | null)[] }>();
   const evCols = ["season", "code", "team", "event_name", "event_type", "event_region", "event_start", "event_end", "team_name", "home_region", "rookie_year", "school",
-    "rank", "rp", "tb1", "played", "wins", "losses", "ties", ...SCORE_COLS];
+    "event_name_fold", "team_name_fold", "school_fold", "rank", "rp", "tb1", "played", "wins", "losses", "ties", ...SCORE_COLS, "pred_win_avg", "pred_score_avg", "adv_odds"];
   const evSql = `INSERT INTO team_event_records (${evCols.join(", ")}) VALUES (${evCols.map(() => "?").join(", ")})`;
 
   for (const e of events) {
@@ -100,12 +110,16 @@ export async function computeRecords(season: number, events: DbEvent[], log: Log
       aggs.forEach((g, p) => { g.Opr = o ? o[p] : null; });
       const rk = ranks.get(`${e.code}|${team}`);
       const meta = teams.get(team);
-      // Official ranking numbers when FIRST published them; otherwise counted from the matches.
-      const wins = num(rk?.wins) ?? a.w, losses = num(rk?.losses) ?? a.l, ties = num(rk?.ties) ?? a.t, played = num(rk?.qual_played) ?? a.samples.length;
+      // Record and matches played: this event's own qualification matches. FIRST's
+      // published ranking row can't be used here: league standings carry earlier
+      // meets' matches, which would then count again in every meet and the season.
+      // Its rank, ranking score and tiebreaker are kept as published.
+      const wins = a.w, losses = a.l, ties = a.t, played = a.samples.length;
       evStmts.push({
         sql: evSql,
         args: [season, e.code, team, e.name, e.type, e.region, e.start, e.end, meta?.name ?? null, meta?.home_region ?? null, num(meta?.rookie_year), meta?.school ?? null,
-          num(rk?.rank), fin(num(rk?.rp)), fin(num(rk?.tbp)), played, wins, losses, ties, ...scoreArgs(aggs)],
+          fold(e.name), fold(meta?.name), fold(meta?.school),
+          num(rk?.rank), fin(num(rk?.rp)), fin(num(rk?.tbp)), played, wins, losses, ties, ...scoreArgs(aggs), ...(prevEv.get(`${e.code}|${team}`) ?? [null, null, null])],
       });
       let s = seasonAcc.get(team);
       if (!s) { s = { samples: [], events: 0, played: 0, w: 0, l: 0, t: 0, bestOpr: PARTS.map(() => null) }; seasonAcc.set(team, s); }
@@ -116,20 +130,21 @@ export async function computeRecords(season: number, events: DbEvent[], log: Log
   }
   await writeBatch(evStmts);
 
-  const ssCols = ["season", "team", "team_name", "home_region", "rookie_year", "school", "events", "played", "wins", "losses", "ties", ...SCORE_COLS];
+  const ssCols = ["season", "team", "team_name", "home_region", "rookie_year", "school", "team_name_fold", "school_fold", "events", "played", "wins", "losses", "ties", ...SCORE_COLS, "pred_win_avg", "pred_score_avg"];
   const ssSql = `INSERT INTO team_season_records (${ssCols.join(", ")}) VALUES (${ssCols.map(() => "?").join(", ")})`;
   const ssStmts: InStatement[] = [{ sql: "DELETE FROM team_season_records WHERE season = ?", args: [season] }];
   for (const [team, s] of seasonAcc) {
     const aggs = aggregate(s.samples);
     aggs.forEach((g, p) => { g.Opr = s.bestOpr[p]; });
     const meta = teams.get(team);
-    ssStmts.push({ sql: ssSql, args: [season, team, meta?.name ?? null, meta?.home_region ?? null, num(meta?.rookie_year), meta?.school ?? null, s.events, s.played, s.w, s.l, s.t, ...scoreArgs(aggs)] });
+    ssStmts.push({ sql: ssSql, args: [season, team, meta?.name ?? null, meta?.home_region ?? null, num(meta?.rookie_year), meta?.school ?? null, fold(meta?.name), fold(meta?.school),
+      s.events, s.played, s.w, s.l, s.t, ...scoreArgs(aggs), ...(prevSs.get(team) ?? [null, null])] });
   }
   await writeBatch(ssStmts);
 
   // Match records: every played match with both scores, at in-person events.
-  const mrCols = ["season", "code", "level", "series", "number", "label", "time", "event_name", "event_type", "event_region", "event_start", "event_end", "red_teams", "blue_teams",
-    "red_total", "red_np", "red_auto", "red_dc", "red_endgame", "red_pen", "blue_total", "blue_np", "blue_auto", "blue_dc", "blue_endgame", "blue_pen", "margin", "high", "combined"];
+  const mrCols = ["season", "code", "level", "series", "number", "label", "time", "event_name", "event_type", "event_region", "event_start", "event_end", "event_name_fold", "red_teams", "blue_teams",
+    "red_total", "red_np", "red_auto", "red_dc", "red_endgame", "red_pen", "blue_total", "blue_np", "blue_auto", "blue_dc", "blue_endgame", "blue_pen", "margin", "high", "combined", "red_pred_win"];
   const mrSql = `INSERT INTO match_records (${mrCols.join(", ")}) VALUES (${mrCols.map(() => "?").join(", ")})`;
   const mrStmts: InStatement[] = [{ sql: "DELETE FROM match_records WHERE season = ?", args: [season] }];
   for (const e of events) {
@@ -140,9 +155,10 @@ export async function computeRecords(season: number, events: DbEvent[], log: Log
       const side = (s: Side) => [s.total, s.np, s.auto, teleopAsReported(season, s), s.endgame, s.pen];
       mrStmts.push({
         sql: mrSql,
-        args: [season, e.code, m.level, m.series, m.number, m.label, m.time, e.name, e.type, e.region, e.start, e.end,
+        args: [season, e.code, m.level, m.series, m.number, m.label, m.time, e.name, e.type, e.region, e.start, e.end, fold(e.name),
           m.red.map((t) => t.team).join(" "), m.blue.map((t) => t.team).join(" "), ...side(red), ...side(blue),
-          Math.abs(red.total - blue.total), Math.max(red.total, blue.total), red.total + blue.total],
+          Math.abs(red.total - blue.total), Math.max(red.total, blue.total), red.total + blue.total,
+          prevMr.get(`${e.code}|${m.level}:${m.series}:${m.number}`) ?? null],
       });
     }
   }

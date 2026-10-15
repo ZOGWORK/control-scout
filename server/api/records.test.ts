@@ -5,13 +5,13 @@
 import type { AddressInfo } from "node:net";
 import type { Server } from "node:http";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { all, migrate, openDb, run, setDb } from "../db";
+import { all, db, migrate, openDb, run, setDb } from "../db";
 import { createApp } from "../app";
 import { loadSeason } from "../stats/load";
-import { computeRecords, fillAdvancementOdds } from "../stats/records";
+import { computeRecords, fillAdvancementOdds, fillRecordPredictions } from "../stats/records";
 import { forecasterFor } from "../predict/engine";
-import { compileFilter, recordColumns, RecordsQueryError } from "./records";
-import { encodeFilterText, parseFilter } from "../../src/shared/filterDsl";
+import { compileFilter, recordColumns, recordFolded, RecordsQueryError } from "./records";
+import { encodeFilterText, foldText, parseFilter } from "../../src/shared/filterDsl";
 import { RECORD_SCOPES, statsFor } from "../../src/shared/statCatalog";
 
 let server: Server;
@@ -31,9 +31,10 @@ async function match(number: number, red: [number, boolean?, boolean?][], blue: 
 }
 
 async function nestRow(team: number, code: string, v: { pen: number | null; opr: number | null; auto: number | null; name?: string; type?: string; region?: string; start?: string }) {
-  await run(`INSERT INTO team_event_records (season, code, team, event_name, event_type, event_region, event_start, event_end, team_name, pen_tot, total_opr, auto_avg)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-    [N, code, team, `Event ${code}`, v.type ?? "Qualifier", v.region ?? "USTX", v.start ?? "2025-12-06", v.start ?? "2025-12-06", v.name ?? `Team ${team}`, v.pen, v.opr, v.auto]);
+  const name = v.name ?? `Team ${team}`;
+  await run(`INSERT INTO team_event_records (season, code, team, event_name, event_type, event_region, event_start, event_end, team_name, pen_tot, total_opr, auto_avg, team_name_fold, event_name_fold)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    [N, code, team, `Event ${code}`, v.type ?? "Qualifier", v.region ?? "USTX", v.start ?? "2025-12-06", v.start ?? "2025-12-06", name, v.pen, v.opr, v.auto, foldText(name), foldText(`Event ${code}`)]);
 }
 
 beforeAll(async () => {
@@ -61,6 +62,7 @@ beforeAll(async () => {
   await nestRow(106, "B2", { pen: null, opr: 90, auto: 50 }); // ✗ penalties unknown
   await nestRow(107, "B2", { pen: 2, opr: 55, auto: 30, name: "Edge Case" }); // ✗ pen not < 2
   await nestRow(108, "C3", { pen: 1.99, opr: 55, auto: 0, name: "') OR 1=1 --", type: "Scrimmage" }); // ✓ OPR boundary
+  await nestRow(109, "C3", { pen: 9, opr: 1, auto: 1, name: "Équipe Ñandú Robótica", type: "Scrimmage" });
 
   server = createApp().listen(0);
   await new Promise((r) => server.once("listening", r));
@@ -87,9 +89,28 @@ describe("records tables (stats job)", () => {
     expect(byTeam.get(3)).toMatchObject({ played: 3, total_tot: 180, wins: 1, losses: 2 }); // Q3 counted although not on the field
     expect(byTeam.get(4)).toMatchObject({ played: 2, total_tot: 110 }); // Q3 as a surrogate: not counted
   });
-  it("uses FIRST's official ranking numbers when published", async () => {
+  it("keeps FIRST's published rank, ranking score and tiebreaker, but counts the record from the event's own matches", async () => {
+    // League standings carry earlier meets' matches (team 2's published row says 2-1 over 3,
+    // team 1's 9-3 over 12): copying them would count those matches again in every meet and the season.
     const r = (await all<any>("SELECT rank, rp, tb1, wins, losses, played FROM team_event_records WHERE season = ? AND team = 2", [S]))[0];
-    expect(r).toMatchObject({ rank: 1, rp: 2.5, tb1: 40, wins: 2, losses: 1, played: 3 });
+    expect(r).toMatchObject({ rank: 1, rp: 2.5, tb1: 40, wins: 1, losses: 2, played: 3 });
+    expect((await all<any>("SELECT wins, losses, played FROM team_event_records WHERE season = ? AND team = 1", [S]))[0]).toMatchObject({ wins: 3, losses: 0, played: 3 });
+    expect((await all<any>("SELECT wins, losses, played FROM team_season_records WHERE season = ? AND team = 1", [S]))[0]).toMatchObject({ wins: 3, losses: 0, played: 3 });
+  });
+  it("keeps the engine's numbers on rows a refresh rewrites, until the fill steps replace them", async () => {
+    await run("UPDATE team_event_records SET pred_win_avg = 61.5, pred_score_avg = 88, adv_odds = 12.5 WHERE season = ? AND team = 1", [S]);
+    await run("UPDATE team_season_records SET pred_win_avg = 60, pred_score_avg = 87 WHERE season = ? AND team = 1", [S]);
+    await run("UPDATE match_records SET red_pred_win = 70 WHERE season = ? AND number = 1", [S]);
+    await computeRecords(S, await loadSeason(S));
+    expect((await all<any>("SELECT pred_win_avg, pred_score_avg, adv_odds FROM team_event_records WHERE season = ? AND team = 1", [S]))[0]).toMatchObject({ pred_win_avg: 61.5, pred_score_avg: 88, adv_odds: 12.5 });
+    expect((await all<any>("SELECT pred_win_avg, pred_score_avg FROM team_season_records WHERE season = ? AND team = 1", [S]))[0]).toMatchObject({ pred_win_avg: 60, pred_score_avg: 87 });
+    expect((await all<any>("SELECT red_pred_win FROM match_records WHERE season = ? AND number = 1", [S]))[0].red_pred_win).toBe(70);
+    // The fill step swaps in fresh values in one transaction (no ledger here: none).
+    await fillRecordPredictions(S);
+    expect((await all<any>("SELECT pred_win_avg FROM team_event_records WHERE season = ? AND team = 1", [S]))[0].pred_win_avg).toBeNull();
+  });
+  it("stores case- and accent-folded names for text filters", async () => {
+    expect((await all<any>("SELECT team_name_fold, school_fold, event_name_fold FROM team_event_records WHERE season = ? AND team = 4", [S]))[0]).toEqual({ team_name_fold: "delta-drive", school_fold: "high school", event_name_fold: "test qualifier" });
   });
   it("solves OPR for every score part (total = non-penalty + penalties received)", async () => {
     const r = (await all<any>("SELECT total_opr, np_opr, opp_pen_opr FROM team_event_records WHERE season = ? AND team = 1", [S]))[0];
@@ -120,9 +141,11 @@ describe("records tables (stats job)", () => {
 describe("filter → SQL", () => {
   it("binds every value and only ever emits whitelisted columns", () => {
     const args: (string | number)[] = [];
-    const sql = compileFilter(parseFilter(`and-teamName.contains.${encodeFilterText("') OR 1=1 --")}+or-totalPointsOpr.gte.55+autoPointsAvg.lt.-3--`, "teamEvent"), recordColumns("teamEvent"), args);
-    expect(sql).toBe("(instr(lower(r.team_name), lower(?)) > 0 AND (r.total_opr >= ? OR r.auto_avg < ?))");
-    expect(args).toEqual(["') OR 1=1 --", 55, -3]);
+    const sql = compileFilter(parseFilter(`and-teamName.contains.${encodeFilterText("') OR 1=1 --")}+or-totalPointsOpr.gte.55+autoPointsAvg.lt.-3--`, "teamEvent"), recordColumns("teamEvent"), args, recordFolded("teamEvent"));
+    expect(sql).toBe("(instr(r.team_name_fold, ?) > 0 AND (r.total_opr >= ? OR r.auto_avg < ?))");
+    expect(args).toEqual(["') or 1=1 --", 55, -3]);
+    const a2: (string | number)[] = [];
+    expect(compileFilter(parseFilter("and-eventCode.eq.ustst-", "teamEvent"), recordColumns("teamEvent"), a2, recordFolded("teamEvent"))).toBe("(lower(r.code) = ?)");
   });
   it("refuses a key that isn't in the whitelist", () => {
     for (const key of ["1=1; DROP TABLE teams", "constructor", "__proto__", "toString"])
@@ -163,13 +186,26 @@ describe("GET /api/records/:season/teams", () => {
   it("pages deep into a big season in the same order (key-first paging past row 1000)", async () => {
     // 1500 rows with repeating values, so ties fall back to the team/event tiebreak.
     await run(`WITH RECURSIVE n(i) AS (SELECT 1 UNION ALL SELECT i + 1 FROM n WHERE i < 1500)
-      INSERT INTO team_event_records (season, code, team, team_name, auto_avg) SELECT 2023, 'E' || (i % 7), i, 'T' || (i % 13), CASE WHEN i % 11 = 0 THEN NULL ELSE i % 37 END FROM n`);
+      INSERT INTO team_event_records (season, code, team, team_name, team_name_fold, auto_avg) SELECT 2023, 'E' || (i % 7), i, 'T' || (i % 13), 't' || (i % 13), CASE WHEN i % 11 = 0 THEN NULL ELSE i % 37 END FROM n`);
     const want = (await all<any>("SELECT team FROM team_event_records WHERE season = 2023 ORDER BY auto_avg IS NULL, auto_avg DESC, team, code")).map((r) => Number(r.team));
     const got: number[] = [];
     for (let page = 1; page <= 4; page++) got.push(...(await get(`/api/records/2023/teams?sort=autoPointsAvg&pageSize=500&page=${page}&fields=autoPointsAvg`)).body.rows.map((x: any) => x.team));
     expect(got).toEqual(want);
     const deep = await get(`/api/records/2023/teams?sort=teamName&dir=desc&pageSize=10&page=120`);
-    expect(deep.body.rows.map((x: any) => x.team)).toEqual((await all<any>("SELECT team FROM team_event_records WHERE season = 2023 ORDER BY team_name IS NULL, team_name COLLATE NOCASE DESC, team, code LIMIT 10 OFFSET 1190")).map((r) => Number(r.team)));
+    expect(deep.body.rows.map((x: any) => x.team)).toEqual((await all<any>("SELECT team FROM team_event_records WHERE season = 2023 ORDER BY team_name IS NULL, team_name_fold DESC, team, code LIMIT 10 OFFSET 1190")).map((r) => Number(r.team)));
+  });
+  it("exports a big season from one consistent read (a single statement), in table order", async () => {
+    const c = db();
+    const real = c.execute.bind(c);
+    let reads = 0;
+    (c as any).execute = (stmt: any) => { if (String(stmt?.sql ?? stmt).includes("FROM team_event_records")) reads++; return real(stmt); };
+    try {
+      const text = await (await fetch(`${base}/api/records/2023/teams?format=csv&sort=autoPointsAvg&fields=autoPointsAvg`)).text();
+      const teams = text.trim().split("\r\n").slice(1).map((l) => Number(l.split(",")[1]));
+      expect(reads).toBe(1); // not one query per chunk: a rewrite mid-export can't skip or repeat rows
+      expect(teams).toEqual((await all<any>("SELECT team FROM team_event_records WHERE season = 2023 ORDER BY auto_avg IS NULL, auto_avg DESC, team, code")).map((r) => Number(r.team)));
+      expect(new Set(teams).size).toBe(1500);
+    } finally { (c as any).execute = real; }
   });
   it("returns only the asked-for fields", async () => {
     const r = await get(`/api/records/${N}/teams?fields=teamName,autoPointsAvg&pageSize=1`);
@@ -177,18 +213,25 @@ describe("GET /api/records/:season/teams", () => {
     expect(Object.keys(r.body.rows[0].stats)).toEqual(["teamName", "autoPointsAvg"]);
   });
   it("narrows by region, event type and dates", async () => {
-    expect((await get(`/api/records/${N}/teams?region=gb,ustx`)).body.total).toBe(8);
+    expect((await get(`/api/records/${N}/teams?region=gb,ustx`)).body.total).toBe(9);
     expect((await get(`/api/records/${N}/teams?region=gb`)).body.rows.map((x: any) => x.team)).toEqual([105]);
     expect((await get(`/api/records/${N}/teams?eventType=LeagueMeet`)).body.total).toBe(1);
     expect((await get(`/api/records/${N}/teams?eventType=Official`)).body.total).toBe(7); // no scrimmage
     expect((await get(`/api/records/${N}/teams?from=2026-01-01`)).body.total).toBe(1);
-    expect((await get(`/api/records/${N}/teams?to=2025-12-31`)).body.total).toBe(7);
+    expect((await get(`/api/records/${N}/teams?to=2025-12-31`)).body.total).toBe(8);
   });
   it("matches text case-insensitively and never as SQL", async () => {
     expect((await get(`/api/records/${N}/teams?filter=and-teamName.contains.EDGE-`)).body.rows.map((x: any) => x.team)).toEqual([107]);
     expect((await get(`/api/records/${N}/teams?filter=and-teamName.eq.edge%2520case-`)).body.total).toBe(1);
     const inj = await get(`/api/records/${N}/teams?${new URLSearchParams({ filter: `and-teamName.contains.${encodeFilterText("') OR 1=1 --")}-` })}`);
     expect(inj.body.rows.map((x: any) => x.team)).toEqual([108]);
+  });
+  it("matches accented names case- and accent-insensitively", async () => {
+    for (const f of ["and-teamName.contains.equipe-", "and-teamName.contains.%C3%89QUIPE-", "and-teamName.contains.robotica-", "and-teamName.eq.%C3%A9quipe%20%C3%B1and%C3%BA%20rob%C3%B3tica-"]) {
+      const r = await get(`/api/records/${N}/teams?${new URLSearchParams({ filter: f })}`);
+      expect(r.body.rows.map((x: any) => x.team), f).toEqual([109]);
+    }
+    expect((await get(`/api/records/${N}/teams?${new URLSearchParams({ filter: "and-teamName.ne.equipe nandu robotica-".replace(/ /g, "%20") })}`)).body.rows.map((x: any) => x.team)).not.toContain(109);
   });
   it("serves team-season records with ?scope=season", async () => {
     const r = await get(`/api/records/${S}/teams?scope=season&filter=and-totalPointsTot.gte.200-`);
