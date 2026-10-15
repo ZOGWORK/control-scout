@@ -26,6 +26,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "../components/ui/overla
 import { MatchList } from "../components/predict";
 import { SeasonToggle } from "../components/SeasonToggle";
 import { cn } from "../components/cn";
+import { Meter, StatTile, TONES, rankPc, type Tone } from "../components/StatTile";
 import { awardLabel, dateRange, int, num, place, seasonLabel, topPct } from "../lib/format";
 import { eventTypeLabel } from "../lib/labels";
 import { copyLink } from "../lib/clipboard";
@@ -240,28 +241,27 @@ function Hero({ p, onSeason }: { p: TeamProfile; onSeason: (s: number) => void }
 // OPR + rating
 // ---------------------------------------------------------------------------
 
-const OPR_CARDS = [["np", "Total OPR", Target], ["auto", "Autonomous", Zap], ["teleop", "TeleOp", Gauge], ["endgame", "Endgame", Flag]] as const;
+const OPR_CARDS = [["np", "Total OPR", Target, "accent"], ["auto", "Autonomous", Zap, "sky"], ["teleop", "TeleOp", Gauge, "emerald"], ["endgame", "Endgame", Flag, "violet"]] as const satisfies readonly (readonly [string, string, unknown, Tone])[];
+const OPR_TONE: Record<string, Tone> = Object.fromEntries(OPR_CARDS.map(([k, , , tone]) => [k, tone]));
 
-function OprSection({ p }: { p: TeamProfile }) {
+/** Exported for its test. */
+export function OprSection({ p }: { p: TeamProfile }) {
   const s = p.stats;
   const [open, setOpen] = useState<(typeof OPR_CARDS)[number][0] | null>(null);
   const predictable = usePredictable(p.season);
   return (
     <Section title="Offensive power rating" description={<>Best event OPR this season and its world rank. Non-penalty points, computed with standard least squares{p.season >= 2024 ? "; TeleOp includes the endgame, as FIRST reports it" : ""}. <Link to="/methodology#opr" className="underline">How it's computed</Link></>}>
       <Stagger className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-        {OPR_CARDS.map(([k, label, Icon]) => {
+        {OPR_CARDS.map(([k, label, Icon, tone]) => {
           const stat = s?.opr[k];
           const top = topPct(stat?.rank, stat?.of);
-          const pc = stat?.rank && stat.of ? Math.round((1 - (stat.rank - 1) / stat.of) * 100) : 0;
           return (
             <StaggerItem key={k}>
-              <button onClick={() => setOpen(open === k ? null : k)} aria-expanded={open === k} aria-label={`${label}: ${num(stat?.value)}. Show event by event`}
-                className={cn("group w-full rounded-xl border p-4 text-left transition-[border-color,transform] hover:-translate-y-0.5 hover:border-accent/50 motion-reduce:hover:translate-y-0", k === "np" ? "border-accent/30 bg-accent/[0.05]" : "border-border bg-card", open === k && "border-accent/60")}>
-                <span className="flex items-center gap-1.5 text-sm text-muted-foreground"><Icon className={cn("size-4", k === "np" && "text-accent")} />{label}</span>
-                <span className="mt-1 block font-display text-3xl font-semibold tabular-nums text-foreground">{num(stat?.value)}</span>
-                <span className="mt-1 block text-xs text-muted-foreground">{stat?.rank ? `Rank #${stat.rank.toLocaleString()} of ${stat.of?.toLocaleString()}` : "Unranked"}{top && ` · ${top}`}</span>
-                <span className="mt-2 block h-1 overflow-hidden rounded-full bg-muted"><span className="block h-full rounded-full bg-accent transition-[width] duration-700" style={{ width: `${pc}%` }} /></span>
-              </button>
+              {/* Each stat in its own colour; only the open one gets the ring (data-selected), none at rest. */}
+              <StatTile tone={tone} icon={Icon} label={label} value={num(stat?.value)} onClick={() => setOpen(open === k ? null : k)} selected={open === k}
+                ariaLabel={`${label}: ${num(stat?.value)}. Show event by event`}
+                hint={<>{stat?.rank ? `Rank #${stat.rank.toLocaleString()} of ${stat.of?.toLocaleString()}` : "Unranked"}{top && ` · ${top}`}</>}
+                bar={<Meter parts={[{ pc: rankPc(stat?.rank, stat?.of), cls: TONES[tone].bar }]} />} />
             </StaggerItem>
           );
         })}
@@ -274,13 +274,11 @@ function OprSection({ p }: { p: TeamProfile }) {
       )}
       {s?.rating && (
         <div className="mt-3 grid gap-3 sm:grid-cols-[1fr_2fr]">
-          <div className="rounded-xl border border-border bg-card p-4">
-            <span className="flex items-center gap-1.5 text-sm text-muted-foreground"><Trophy className="size-4" />Prediction rating</span>
-            <span className="mt-1 block font-display text-3xl font-semibold tabular-nums">{num(s.rating.np)} <span className="text-base font-medium text-muted-foreground">± {num(s.rating.sd)}</span></span>
-            <span className="mt-1 block text-xs text-muted-foreground">{s.rating.rank ? `#${s.rating.rank.toLocaleString()} worldwide · ` : ""}{s.rating.matches} matches this season</span>
-          </div>
+          <StatTile tone="amber" icon={Sparkles} label="Prediction rating"
+            value={<>{num(s.rating.np)} <span className="text-base font-medium text-muted-foreground">± {num(s.rating.sd)}</span></>}
+            hint={`${s.rating.rank ? `#${s.rating.rank.toLocaleString()} worldwide · ` : ""}${s.rating.matches} matches this season`} />
           <div className="rounded-xl border border-border bg-card p-4 text-sm text-muted-foreground">
-            <p>The rating is what the prediction engine expects this robot to add to its alliance <em>now</em> (auto {num(s.rating.auto)}, TeleOp {num(s.rating.teleop)}, endgame {num(s.rating.endgame)}; gives away ~{num(s.rating.pen)} penalty pts a match). Unlike OPR it updates after every match and carries over from last season, so it's what drives win odds. <Link to="/methodology#rating" className="underline">How ratings work</Link></p>
+            <p>The rating is what the prediction engine expects this robot to add to its alliance <em>now</em> (<span className={cn("font-medium", TONES.sky.text)}>auto {num(s.rating.auto)}</span>, <span className={cn("font-medium", TONES.emerald.text)}>TeleOp {num(s.rating.teleop)}</span>, <span className={cn("font-medium", TONES.violet.text)}>endgame {num(s.rating.endgame)}</span>; gives away ~{num(s.rating.pen)} penalty pts a match). Unlike OPR it updates after every match and carries over from last season, so it's what drives win odds. <Link to="/methodology#rating" className="underline">How ratings work</Link></p>
             <p className="mt-2 text-xs">Season record {s.record.wins}-{s.record.losses}-{s.record.ties} across {s.record.events} event{s.record.events === 1 ? "" : "s"} · avg alliance score {num(s.avg.score)}</p>
           </div>
         </div>
@@ -289,16 +287,20 @@ function OprSection({ p }: { p: TeamProfile }) {
   );
 }
 
+const BREAKDOWN_COLS = [["np", "OPR"], ["auto", "Auto"], ["teleop", "TeleOp"], ["endgame", "Endgame"], ["pen", "Pen. given"]] as const;
+
 function OprBreakdown({ events, k }: { events: TeamEventRow[]; k: "np" | "auto" | "teleop" | "endgame" }) {
+  // Tied to the open tile: a top edge in its colour, and its column (header and values) in that colour too.
+  const tone = TONES[OPR_TONE[k]];
   return (
-    <div className="mt-3 overflow-x-auto rounded-xl border border-border bg-card">
+    <div className={cn("mt-3 overflow-x-auto rounded-xl border border-t-2 border-border bg-card", tone.edge)}>
       <table className="w-full text-sm">
-        <thead><tr className="text-left text-[10px] font-bold uppercase tracking-wider text-text-muted"><th className="h-10 px-3">Event</th><th className="px-3 text-right">OPR</th><th className="px-3 text-right">Auto</th><th className="px-3 text-right">TeleOp</th><th className="px-3 text-right">Endgame</th><th className="px-3 text-right">Pen. given</th></tr></thead>
+        <thead><tr className="text-left text-[10px] font-bold uppercase tracking-wider text-text-muted"><th className="h-10 px-3">Event</th>{BREAKDOWN_COLS.map(([c, label]) => <th key={c} className={cn("px-3 text-right", c === k && tone.text)}>{label}</th>)}</tr></thead>
         <tbody>
           {events.map((e) => (
             <tr key={e.code} className="border-t border-border">
               <td className="px-3 py-2"><Link to={`/events/${e.season}/${e.code}`} className="hover:underline">{e.name}</Link></td>
-              {(["np", "auto", "teleop", "endgame", "pen"] as const).map((c) => <td key={c} className={cn("px-3 text-right tabular-nums", c === k && "font-semibold text-accent")}>{num(e.opr[c])}</td>)}
+              {BREAKDOWN_COLS.map(([c]) => <td key={c} className={cn("px-3 text-right tabular-nums", c === k && cn("font-semibold", tone.text))}>{num(e.opr[c])}</td>)}
             </tr>
           ))}
         </tbody>
