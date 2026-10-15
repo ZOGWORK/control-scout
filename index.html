@@ -17,18 +17,23 @@
     <meta property="og:description" content="Free FTC scouting and predictions for every team — with a public track record of how often the predictions come true." />
     <link rel="preload" href="/fonts/Inter-400.woff2" as="font" type="font/woff2" crossorigin />
     <link rel="preload" href="/fonts/SpaceGrotesk-700.woff2" as="font" type="font/woff2" crossorigin />
-  </head>
-  <body>
-    <div id="root"></div>
+    <!-- Page titles (h1) are Space Grotesk 600: the largest text above the fold. -->
+    <link rel="preload" href="/fonts/SpaceGrotesk-600.woff2" as="font" type="font/woff2" crossorigin />
     <script>
-      // Apply the saved theme before React mounts (no flash). Dark graphite is the default.
+      // Apply the saved theme before anything paints (no flash): here in <head>, ahead of the
+      // static first paint the server puts in #root (server/bootShell.ts). Dark graphite is the default.
       try {
         var s = JSON.parse(localStorage.getItem('cs-personal:settings') || 'null');
         var t = s && s.value && s.value.theme;
         if (t === 'light' || (t === 'system' && window.matchMedia && window.matchMedia('(prefers-color-scheme: light)').matches)) document.documentElement.classList.add('light');
         if (s && s.value && s.value.density === 'compact') document.documentElement.classList.add('compact');
+        // The static first paint's sidebar matches a collapsed one.
+        if (localStorage.getItem('cs-sidebar') === '1') document.documentElement.classList.add('cs-sb-min');
       } catch (e) {}
     </script>
+  </head>
+  <body>
+    <div id="root"><!--cs-boot--></div>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>
