@@ -125,12 +125,34 @@ export function encodeFilterText(s: string): string {
   return encodeURIComponent(s).replace(/[-.!~*'()]/g, (c) => `%${c.charCodeAt(0).toString(16).toUpperCase().padStart(2, "0")}`);
 }
 
-const fmtNumber = (n: number) => {
+/**
+ * A number in plain decimal notation (the grammar has no exponents), exact:
+ * JavaScript's shortest round-trip digits with the decimal point moved, so
+ * Number(result) === n for every finite n (1e-21 → "0.000000000000000000001").
+ */
+export function formatFilterNumber(n: number): string {
   if (!Number.isFinite(n)) throw new FilterError(`value ${n} isn't a finite number`);
-  // Plain decimal notation (the grammar has no exponents).
+  if (Object.is(n, -0)) return "-0"; // String(-0) is "0"
   const s = String(n);
-  return /e/i.test(s) ? n.toFixed(20).replace(/\.?0+$/, "") : s;
-};
+  const m = /^(-?)(\d)(?:\.(\d+))?e([+-]\d+)$/.exec(s);
+  if (!m) return s;
+  const [, sign, lead, rest = "", exp] = m;
+  const digits = lead + rest, point = 1 + Number(exp); // where the decimal point falls within `digits`
+  const body = point <= 0 ? `0.${"0".repeat(-point)}${digits}`
+    : point >= digits.length ? digits + "0".repeat(point - digits.length)
+    : `${digits.slice(0, point)}.${digits.slice(point)}`;
+  return sign + body;
+}
+const fmtNumber = formatFilterNumber;
+
+/**
+ * Text as text filters compare it: Unicode-aware lower case with accents
+ * stripped ("Équipe Ñandú" → "equipe nandu"). The server stores folded copies
+ * of name columns and folds the filter value the same way.
+ */
+export function foldText(s: string): string {
+  return s.normalize("NFKD").replace(/\p{M}+/gu, "").toLowerCase();
+}
 
 /** Serialise a filter tree; parseFilter(serializeFilter(g)) deep-equals g. Uses "+" between items. */
 export function serializeFilter(g: FilterGroup): string {

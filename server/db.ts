@@ -280,6 +280,8 @@ CREATE TABLE team_event_records (
   season INTEGER NOT NULL, code TEXT NOT NULL, team INTEGER NOT NULL,
   event_name TEXT, event_type TEXT, event_region TEXT, event_start TEXT, event_end TEXT,
   team_name TEXT, home_region TEXT, rookie_year INTEGER, school TEXT,
+  -- Case- and accent-folded copies for text filters (SQLite's lower() is ASCII-only).
+  event_name_fold TEXT, team_name_fold TEXT, school_fold TEXT,
   rank INTEGER, rp REAL, tb1 REAL, played INTEGER, wins INTEGER, losses INTEGER, ties INTEGER,
   total_tot REAL, total_avg REAL, total_opr REAL, total_min REAL, total_max REAL, total_dev REAL,
   np_tot REAL, np_avg REAL, np_opr REAL, np_min REAL, np_max REAL, np_dev REAL,
@@ -299,6 +301,7 @@ CREATE TABLE team_event_records (
 CREATE TABLE team_season_records (
   season INTEGER NOT NULL, team INTEGER NOT NULL,
   team_name TEXT, home_region TEXT, rookie_year INTEGER, school TEXT,
+  team_name_fold TEXT, school_fold TEXT,
   events INTEGER, played INTEGER, wins INTEGER, losses INTEGER, ties INTEGER,
   total_tot REAL, total_avg REAL, total_opr REAL, total_min REAL, total_max REAL, total_dev REAL,
   np_tot REAL, np_avg REAL, np_opr REAL, np_min REAL, np_max REAL, np_dev REAL,
@@ -317,6 +320,7 @@ CREATE TABLE match_records (
   season INTEGER NOT NULL, code TEXT NOT NULL, level TEXT NOT NULL, series INTEGER NOT NULL, number INTEGER NOT NULL,
   label TEXT, time TEXT,
   event_name TEXT, event_type TEXT, event_region TEXT, event_start TEXT, event_end TEXT,
+  event_name_fold TEXT,
   red_teams TEXT, blue_teams TEXT,
   red_total INTEGER, red_np INTEGER, red_auto INTEGER, red_dc INTEGER, red_endgame INTEGER, red_pen INTEGER,
   blue_total INTEGER, blue_np INTEGER, blue_auto INTEGER, blue_dc INTEGER, blue_endgame INTEGER, blue_pen INTEGER,
