@@ -40,12 +40,12 @@ export function BrandMark({ className }: { className?: string }) {
 function NavRow({ item, collapsed, onNavigate }: { item: NavItem; collapsed?: boolean; onNavigate?: () => void }) {
   return (
     <NavLink to={item.to} end={item.end} onClick={onNavigate} title={collapsed ? item.label : undefined}
-      className={({ isActive }) => cn("group relative flex h-8 w-full items-center gap-2.5 rounded-lg px-2.5 text-[13px] font-medium outline-none focus-visible:ring-2 focus-visible:ring-ring/60",
+      className={({ isActive }) => cn("group relative flex h-10 w-full items-center gap-3 rounded-lg px-3 text-[15px] font-medium outline-none focus-visible:ring-2 focus-visible:ring-ring/60",
         isActive ? "text-text-base" : "text-text-muted hover:bg-text-base/[0.05] hover:text-text-base", collapsed && "justify-center px-0")}>
       {({ isActive }) => (
         <>
           {isActive && <motion.span layoutId="cs-nav-active" transition={{ type: "spring", stiffness: 500, damping: 38 }} className="absolute inset-0 rounded-lg bg-text-base/[0.08]" />}
-          <item.icon className={cn("relative size-4 shrink-0", isActive && "text-accent")} />
+          <item.icon className={cn("relative size-5 shrink-0", isActive && "text-accent")} />
           {!collapsed && <span className="relative truncate">{item.label}</span>}
         </>
       )}
@@ -57,28 +57,28 @@ function Sidebar({ collapsed, onToggle }: { collapsed: boolean; onToggle: () => 
   const { user, state } = usePersonal();
   return (
     <aside className={cn("hidden shrink-0 flex-col border-r border-line bg-secondary/60 transition-[width] duration-150 ease-out md:flex", collapsed ? "w-[60px]" : "w-[248px]")}>
-      <div className={cn("flex h-12 items-center gap-2 px-3", collapsed && "justify-center px-0")}>
-        <Link to="/" className="flex min-w-0 items-center gap-2 rounded-lg outline-none focus-visible:ring-2 focus-visible:ring-ring/60" aria-label="Control Scout home">
-          <BrandMark />
-          {!collapsed && <span className="truncate font-display text-[15px] font-bold tracking-tight">Control Scout</span>}
+      <div className={cn("flex h-12 items-center gap-2.5 px-3.5", collapsed && "justify-center px-0")}>
+        <Link to="/" className="flex min-w-0 items-center gap-2.5 rounded-lg outline-none focus-visible:ring-2 focus-visible:ring-ring/60" aria-label="Control Scout home">
+          <BrandMark className="size-8" />
+          {!collapsed && <span className="truncate font-display text-[17px] font-bold tracking-tight">Control Scout</span>}
         </Link>
       </div>
-      <nav className="custom-scrollbar flex-1 space-y-4 overflow-y-auto px-2 py-1" aria-label="Main">
+      <nav className="custom-scrollbar flex-1 space-y-5 overflow-y-auto px-2 py-2" aria-label="Main">
         {SECTIONS.map((s, i) => (
           <div key={i} className="space-y-0.5">
-            {s.title && !collapsed && <p className="px-2.5 pb-1 text-[10px] font-bold uppercase tracking-[0.2em] text-text-muted/70">{s.title}</p>}
+            {s.title && !collapsed && <p className="px-3 pb-1.5 text-[11px] font-bold uppercase tracking-[0.2em] text-text-muted/70">{s.title}</p>}
             {s.items.map((it) => <NavRow key={it.to} item={it} collapsed={collapsed} />)}
           </div>
         ))}
       </nav>
       <div className={cn("flex items-center gap-2 border-t border-line p-2", collapsed && "flex-col")}>
         {!collapsed && (
-          <Link to="/settings" className="min-w-0 flex-1 truncate rounded-lg px-2 py-1.5 text-xs text-text-muted hover:bg-text-base/[0.05] hover:text-text-base">
+          <Link to="/settings" className="min-w-0 flex-1 truncate rounded-lg px-2.5 py-2 text-sm text-text-muted hover:bg-text-base/[0.05] hover:text-text-base">
             {user ? (user.displayName || user.email) : state.myTeam ? `Team ${state.myTeam} · on this device` : "Not signed in"}
           </Link>
         )}
-        <button onClick={onToggle} className="flex size-8 items-center justify-center rounded-lg text-text-muted hover:bg-text-base/[0.06] hover:text-text-base" aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}>
-          {collapsed ? <PanelLeftOpen className="size-4" /> : <PanelLeftClose className="size-4" />}
+        <button onClick={onToggle} className="flex size-9 items-center justify-center rounded-lg text-text-muted hover:bg-text-base/[0.06] hover:text-text-base" aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}>
+          {collapsed ? <PanelLeftOpen className="size-5" /> : <PanelLeftClose className="size-5" />}
         </button>
       </div>
     </aside>
@@ -163,7 +163,7 @@ export function Shell({ children }: { children: ReactNode }) {
               <nav className="space-y-4" aria-label="All pages">
                 {SECTIONS.map((s, i) => (
                   <div key={i} className="space-y-0.5">
-                    {s.title && <p className="px-2.5 pb-1 text-[10px] font-bold uppercase tracking-[0.2em] text-text-muted/70">{s.title}</p>}
+                    {s.title && <p className="px-3 pb-1.5 text-[11px] font-bold uppercase tracking-[0.2em] text-text-muted/70">{s.title}</p>}
                     {s.items.map((it) => <NavRow key={it.to} item={it} onNavigate={() => setMore(false)} />)}
                   </div>
                 ))}
