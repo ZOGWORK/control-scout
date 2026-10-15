@@ -5,11 +5,13 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { apiFetch } from "./api";
 import { cleanValue, EMPTY_STATE, PERSONAL_KEYS, type PersonalKey, type PersonalState, type Stamped } from "../shared/personal";
-import { clearLocalScouting, exportLocalScouting, importLocalScouting, localScoutEntries } from "./scouting";
+import { clearLocalScouting, exportLocalScouting, importLocalScouting, localScoutEntries, storedScoutEntry } from "./scouting";
 
 export interface AccountUser { id: number; email: string | null; displayName: string | null; createdAt: string; /** Tied to the shared account Control Point keeps (docs/shared-accounts.md). */ controlPointLinked?: boolean;
   /** The signed-in owner's Control Point side: whether they're a member there, and their teams. */
-  controlPoint?: { member: boolean; teams: { teamNumber: number | null; name: string }[]; shortlist?: number[]; url: string } | null }
+  controlPoint?: { member: boolean; teams: { teamNumber: number | null; name: string }[]; shortlist?: number[];
+    /** Control Point workspaces (one shared scout space each). Missing from older servers: treat as none. */
+    workspaces?: { id: string; name: string; role: "admin" | "member" }[]; url: string } | null }
 /** Fired on window for every explicit sign-in (detail: the AccountUser). */
 export const SIGNED_IN = "cs-signed-in";
 export function announceSignIn(u: AccountUser) { window.dispatchEvent(new CustomEvent<AccountUser>(SIGNED_IN, { detail: u })); }
@@ -151,7 +153,7 @@ export function PersonalProvider({ children }: { children: ReactNode }) {
   /** First sign-in with anonymous data on this device: merge it into the account. */
   const migrate = useCallback(async (alive: () => boolean = () => true) => {
     const snapshot = Object.fromEntries(PERSONAL_KEYS.filter((k) => stamped.current[k]).map((k) => [k, stamped.current[k]])) as Record<PersonalKey, Stamped<any>>;
-    const r = await apiFetch<{ state: Record<PersonalKey, Stamped<any>> }>("/api/me/migrate", { method: "POST", json: { state: snapshot, scout: localScoutEntries() } });
+    const r = await apiFetch<{ state: Record<PersonalKey, Stamped<any>> }>("/api/me/migrate", { method: "POST", json: { state: snapshot, scout: localScoutEntries().map(storedScoutEntry) } });
     if (!alive()) return;
     for (const [k, s] of Object.entries(r.state) as [PersonalKey, Stamped<any>][]) {
       const now = stamped.current[k];

@@ -9,7 +9,8 @@ import { env } from "../env.js";
 import { cleanValue, mergeValue, PERSONAL_KEYS, type PersonalKey, type Stamped } from "../../src/shared/personal.js";
 import { currentUser, deleteUser, endSession, readCookie, startSession, token, userForIdentity, type User } from "./session.js";
 import { emailEnabled, startEmailSignIn, verifyEmailCode } from "./email.js";
-import { CP_PROVIDER, controlPointEnabled, controlPointInfo, controlPointVia, isCpVia, rememberInfo, linkedAccountId, linkToSharedAccount, logFailure, provenEmailFor, redeemHandoff } from "./controlPoint.js";
+import { cleanScoutEntry, pushWorkspaceEntries, workspaceAccess, type ScoutEntryInput } from "../scout/entries.js";
+import { CP_PROVIDER, controlPointEnabled, isWorkspaceId, controlPointInfo, controlPointVia, isCpVia, rememberInfo, linkedAccountId, linkToSharedAccount, logFailure, provenEmailFor, redeemHandoff } from "./controlPoint.js";
 
 export const authProviders = () => ({ email: emailEnabled(), google: !!(env.googleClientId && env.googleClientSecret), controlPoint: controlPointEnabled() });
 
@@ -151,7 +152,7 @@ export function authRouter(): Router {
     const account = await redeemHandoff(code, state).catch((e) => { logFailure("redeem", e); return null; });
     if (!account) { res.redirect("/settings?signin=failed"); return; }
     const user = await userForIdentity(CP_PROVIDER, String(account.id), account.email.toLowerCase(), account.displayName);
-    rememberInfo(account); // /me shows the Control Point side (and its shortlist) straight away
+    await rememberInfo(account); // /me shows the Control Point side (and its shortlist) straight away
     await startSession(res, user, req.get("user-agent"));
     const back = safeBack(readCookie(req, "cs_cp_back"));
     res.clearCookie("cs_cp_back", { path: "/api/auth/control-point" });
@@ -183,22 +184,6 @@ async function writeStateIfNewer(userId: number, key: PersonalKey, s: Stamped<un
   await run(WRITE_IF_NEWER, [userId, key, JSON.stringify(s.value), s.updatedAt]);
   const row = await get<any>("SELECT value, updated_at FROM user_state WHERE user_id = ? AND key = ?", [userId, key]);
   return { value: JSON.parse(row.value), updatedAt: Number(row.updated_at) };
-}
-
-export interface ScoutEntryInput { uuid: string; season: number; team: number; eventCode: string | null; matchLabel: string | null; kind: "match" | "pit"; data: Record<string, unknown>; notes: string; updatedAt: number; deleted?: boolean }
-
-export function cleanScoutEntry(x: any): ScoutEntryInput | null {
-  if (!x || typeof x !== "object") return null;
-  if (typeof x.uuid !== "string" || !/^[A-Za-z0-9_-]{8,64}$/.test(x.uuid)) return null;
-  const season = Number(x.season), team = Number(x.team), updatedAt = Number(x.updatedAt);
-  if (!Number.isInteger(season) || season < 2000 || !Number.isInteger(team) || team < 1 || team > 999999 || !Number.isFinite(updatedAt)) return null;
-  if (x.kind !== "match" && x.kind !== "pit") return null;
-  const data = x.data && typeof x.data === "object" ? x.data : {};
-  if (JSON.stringify(data).length > 20_000) return null;
-  return {
-    uuid: x.uuid, season, team, eventCode: typeof x.eventCode === "string" ? x.eventCode.slice(0, 24) : null, matchLabel: typeof x.matchLabel === "string" ? x.matchLabel.slice(0, 24) : null,
-    kind: x.kind, data, notes: typeof x.notes === "string" ? x.notes.slice(0, 4000) : "", updatedAt, deleted: !!x.deleted,
-  };
 }
 
 const scoutRow = (r: any) => ({ uuid: r.uuid, season: r.season, team: r.team, eventCode: r.event_code, matchLabel: r.match_label, kind: r.kind, data: JSON.parse(r.data), notes: r.notes, updatedAt: Number(r.updated_at), deleted: !!r.deleted });
@@ -265,7 +250,7 @@ export function meRouter(): Router {
       }
       await tx.commit();
     } catch (e) { await tx.rollback().catch(() => {}); throw e; } finally { tx.close(); }
-    const entries = Array.isArray(req.body?.scout) ? req.body.scout.slice(0, 5000).map(cleanScoutEntry).filter(Boolean) as ScoutEntryInput[] : [];
+    const entries = Array.isArray(req.body?.scout) ? req.body.scout.slice(0, 5000).filter((x: any) => x?.workspaceId == null).map(cleanScoutEntry).filter(Boolean) as ScoutEntryInput[] : [];
     if (entries.length) await upsertScout(uid(req), entries);
     return { state: merged, scoutMerged: entries.length };
   }));
@@ -276,15 +261,27 @@ export function meRouter(): Router {
     return { entries: rows.map(scoutRow) };
   }));
 
-  /** Offline-first sync: the device sends queued entries; newer updatedAt wins. */
+  /**
+   * Offline-first sync: the device sends queued entries; newer updatedAt wins.
+   * One space per request: `workspaceId` absent or null is the personal set,
+   * a Control Point workspace id is that workspace's shared set (members only).
+   */
   r.post("/scout/sync", h(async (req, res) => {
     const raw = Array.isArray(req.body?.entries) ? req.body.entries : [];
     if (raw.length > 200) { res.status(413).json({ error: "Send at most 200 entries per request" }); return; }
+    const workspaceId = req.body?.workspaceId ?? null;
+    if (workspaceId !== null) {
+      if (!isWorkspaceId(workspaceId)) { res.status(400).json({ error: "Invalid workspaceId" }); return; }
+      const access = await workspaceAccess((req as any).user, workspaceId);
+      if (!access.ok) { res.status(access.status).json({ error: access.error }); return; }
+      return { results: await pushWorkspaceEntries((req as any).user, access.membership, raw) };
+    }
     const results: { uuid: string; ok: boolean; error?: string }[] = [];
     const good: ScoutEntryInput[] = [];
     for (const x of raw) {
       const e = cleanScoutEntry(x);
       if (!e) { results.push({ uuid: String(x?.uuid ?? ""), ok: false, error: "invalid entry" }); continue; }
+      if (x.workspaceId != null) { results.push({ uuid: e.uuid, ok: false, error: "wrong space" }); continue; }
       const owner = await get<{ user_id: number }>("SELECT user_id FROM scout_entries WHERE uuid = ?", [e.uuid]);
       if (owner && Number(owner.user_id) !== uid(req)) { results.push({ uuid: e.uuid, ok: false, error: "not yours" }); continue; }
       good.push(e); results.push({ uuid: e.uuid, ok: true });
