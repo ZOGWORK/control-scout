@@ -45,6 +45,20 @@ describe("NoteField", () => {
     expect(screen.queryByRole("alert")).toBeNull();
   });
 
+  it("typing back the stored text after a failure replaces the failed edit in the store", () => {
+    const onSave = vi.fn();
+    render(<Parent results={[false]} onSave={onSave} />);
+    fireEvent.change(field(), { target: { value: "fast auto" } });
+    fireEvent.keyDown(field(), { key: "Enter" });
+    expect(screen.getByRole("alert")).toBeTruthy();
+    fireEvent.change(field(), { target: { value: "" } });
+    fireEvent.keyDown(field(), { key: "Enter" });
+    expect(onSave).toHaveBeenCalledTimes(2);
+    expect(onSave).toHaveBeenLastCalledWith("");
+    expect(field().getAttribute("aria-invalid")).toBeNull();
+    expect(screen.queryByRole("alert")).toBeNull();
+  });
+
   it("has no error state when saving works", () => {
     const onSave = vi.fn();
     render(<Parent results={[true]} onSave={onSave} />);
