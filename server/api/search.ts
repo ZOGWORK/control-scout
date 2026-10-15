@@ -80,7 +80,7 @@ export async function search(q: string, limit = 12, prefer: ReadonlySet<string> 
     if (!cands.has(k)) cands.set(k, { kind: r.kind, ref: r.ref, title: r.title, subtitle: r.subtitle, season: r.season == null ? null : Number(r.season), weight: Number(r.weight) || 1, name });
   };
   const fts = ftsQuery(query);
-  if (fts) for (const r of await all<any>("SELECT kind, ref, season, weight, title, subtitle FROM search WHERE search MATCH ? ORDER BY bm25(search, 0, 0, 0, 0, 10.0, 2.0, 1.0) LIMIT 60", [fts])) add(r, `${r.title} ${r.subtitle}`);
+  if (fts) for (const r of await all<any>("SELECT kind, ref, season, weight, title, subtitle, terms FROM search WHERE search MATCH ? ORDER BY bm25(search, 0, 0, 0, 0, 10.0, 2.0, 1.0) LIMIT 60", [fts])) add(r, `${r.title} ${r.subtitle} ${r.terms ?? ""}`);
   const tri = /[a-z]/i.test(query) ? trigramQuery(query) : null;
   if (tri) for (const r of await all<any>("SELECT kind, ref, season, weight, title, subtitle, name FROM search_fuzzy WHERE search_fuzzy MATCH ? ORDER BY bm25(search_fuzzy) LIMIT 150", [tri])) add(r, `${r.title} ${r.name}`);
   const ranked = [...cands.values()]

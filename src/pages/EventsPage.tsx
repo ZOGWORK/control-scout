@@ -12,6 +12,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from ".
 import { SeasonToggle } from "../components/SeasonToggle";
 import { EventCard } from "./Home";
 import { seasonLabel } from "../lib/format";
+import { regionNames } from "@/shared/regions";
 
 const weekOf = (d: string) => {
   const x = new Date(`${d}T00:00:00Z`);
@@ -34,7 +35,7 @@ export default function EventsPage() {
           <SeasonToggle value={season} onChange={(s) => setSp({ season: String(s) })} />
           <div className="relative min-w-[14rem] flex-1">
             <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
-            <Input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Filter by name, code or city" className="h-10 pl-9" aria-label="Filter events" />
+            <Input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Filter by name, code, city or state" className="h-10 pl-9" aria-label="Filter events" />
           </div>
           <Select value={type} onValueChange={setType}>
             <SelectTrigger className="h-10 w-48" aria-label="Event type"><SelectValue /></SelectTrigger>
@@ -61,7 +62,7 @@ export default function EventsPage() {
 function Weeks({ events, q, type }: { events: EventListItem[]; q: string; type: string }) {
   const groups = useMemo(() => {
     const needle = q.trim().toLowerCase();
-    const list = events.filter((e) => (type === "all" || e.type === type) && (!needle || `${e.name} ${e.code} ${e.city ?? ""} ${e.state ?? ""} ${e.country ?? ""}`.toLowerCase().includes(needle)));
+    const list = events.filter((e) => (type === "all" || e.type === type) && (!needle || `${e.name} ${e.code} ${e.city ?? ""} ${e.state ?? ""} ${e.country ?? ""} ${regionNames(e.state, e.country)}`.toLowerCase().includes(needle)));
     const m = new Map<string, EventListItem[]>();
     for (const e of list) { const w = e.start ? weekOf(e.start) : "TBA"; m.set(w, [...(m.get(w) ?? []), e]); }
     return [...m.entries()].sort(([a], [b]) => a.localeCompare(b));

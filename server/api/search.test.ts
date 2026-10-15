@@ -21,6 +21,7 @@ beforeAll(async () => {
   }
   await run("INSERT INTO events (season, code, name, city, start, source) VALUES (2025, 'AUSYQ1', 'Sydney South Qualifier', 'Sydney', '2025-11-16', 'first')");
   await run("INSERT INTO events (season, code, name, city, start, source) VALUES (2024, 'USMICMP2', 'Michigan FTC State Championship-SE', 'Warren', '2024-12-06', 'first')");
+  await run("INSERT INTO events (season, code, name, city, state, country, start, source) VALUES (2026, 'USNJRAM1', 'P1-5 AM Northeast League Meet', 'Ramsey', 'NJ', 'USA', '2026-11-07', 'first')");
   await run("INSERT INTO matches (season, code, level, series, number, label, played, source) VALUES (2025, 'AUSYQ1', 'qual', 0, 12, 'Q12', 1, 'first')");
   await rebuildSearch();
 });
@@ -28,6 +29,10 @@ beforeAll(async () => {
 const titles = async (q: string) => (await search(q, 5)).map((h) => h.title);
 
 describe("search", () => {
+  it("finds places by full state name, not just the code (New Jersey → NJ)", async () => {
+    expect(await titles("new jersey")).toContain("P1-5 AM Northeast League Meet");
+    expect(await titles("ramsey nj")).toContain("P1-5 AM Northeast League Meet");
+  });
   it("tolerates typos in team names", async () => {
     expect((await titles("X Drvie"))[0]).toBe("16321 X Drive");
     expect((await titles("cyber dragns"))[0]).toBe("10820 Cyber Dragons");
