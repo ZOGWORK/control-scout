@@ -15,7 +15,7 @@ import { MatchList } from "../components/predict";
 import { TeamInput, lookupTeamName } from "../components/TeamInput";
 import { teamError } from "../lib/teamCheck";
 import { SeasonToggle } from "../components/SeasonToggle";
-import { num, topPct } from "../lib/format";
+import { num, rankPct } from "../lib/format";
 
 const COLORS = ["var(--color-chart-1)", "var(--color-chart-2)", "var(--color-chart-3)", "var(--color-chart-4)"];
 
@@ -97,7 +97,7 @@ function Compare({ d }: { d: CompareView }) {
             <Link to={`/teams/${x.team.number}?season=${d.season}`} className="hover:underline"><p className="font-display text-2xl font-semibold">{x.team.number}</p><p className="truncate text-sm text-muted-foreground">{x.team.name ?? "—"}</p></Link>
             {!x.stats ? <p className="mt-3 text-sm text-muted-foreground">No results this season.</p> : (
               <dl className="mt-3 space-y-1.5 text-sm">
-                <Row k="OPR" v={num(x.stats.opr.np.value)} s={topPct(x.stats.opr.np.rank, x.stats.opr.np.of)} />
+                <Row k="OPR" v={num(x.stats.opr.np.value)} s={rankPct(x.stats.opr.np.rank, x.stats.opr.np.of)} />
                 <Row k="Rating" v={x.stats.rating ? `${num(x.stats.rating.np)} ±${num(x.stats.rating.sd, 0)}` : "—"} s={x.stats.rating?.rank ? `#${x.stats.rating.rank}` : null} />
                 <Row k="Record" v={`${x.stats.record.wins}-${x.stats.record.losses}-${x.stats.record.ties}`} s={`${x.stats.record.events} events`} />
                 <Row k="Avg score" v={num(x.stats.avg.score)} s={null} />

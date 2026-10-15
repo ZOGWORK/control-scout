@@ -18,11 +18,18 @@ export function oddsPct(p: number | null | undefined, decided = false): string {
 export const num = (x: number | null | undefined, digits = 1) => (x == null || !Number.isFinite(x) ? "—" : x.toFixed(digits).replace(/\.0+$/, ""));
 export const int = (x: number | null | undefined) => (x == null || !Number.isFinite(x) ? "—" : Math.round(x).toLocaleString());
 
-/** "top 4%" from a rank out of n. */
-export function topPct(rank: number | null | undefined, of: number | null | undefined): string | null {
-  if (!rank || !of) return null;
-  const pc = Math.max(1, Math.ceil((rank / of) * 100));
-  return `top ${pc}%`;
+/**
+ * Where a rank out of n sits, as a share of teams: "top 4%" (the share ranked at or above it) up to
+ * and including 50%; past that, "bottom 9%" (the share ranked at or below it), so a low rank never
+ * reads "top 91%". `capital` starts it with a capital letter ("Top 4%"). No rank → null.
+ */
+export function rankPct(rank: number | null | undefined, of: number | null | undefined, capital = false): string | null {
+  if (!rank || !of || rank < 1) return null;
+  const r = Math.min(rank, of);
+  const share = (n: number) => Math.max(1, Math.ceil((n * 100) / of)); // multiply first: (7 / 100) * 100 is 7.000000000000001
+  const top = share(r); // teams ranked r or better
+  const label = top <= 50 || r === 1 ? `top ${top}%` : `bottom ${share(of - r + 1)}%`; // teams ranked r or worse
+  return capital ? label[0].toUpperCase() + label.slice(1) : label;
 }
 
 const MONTH = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
