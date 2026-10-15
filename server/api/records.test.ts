@@ -194,18 +194,25 @@ describe("GET /api/records/:season/teams", () => {
     const deep = await get(`/api/records/2023/teams?sort=teamName&dir=desc&pageSize=10&page=120`);
     expect(deep.body.rows.map((x: any) => x.team)).toEqual((await all<any>("SELECT team FROM team_event_records WHERE season = 2023 ORDER BY team_name IS NULL, team_name_fold DESC, team, code LIMIT 10 OFFSET 1190")).map((r) => Number(r.team)));
   });
-  it("exports a big season from one consistent read (a single statement), in table order", async () => {
+  it("exports a big season: its rows and order fixed by one key query, then read in bounded chunks", async () => {
     const c = db();
-    const real = c.execute.bind(c);
-    let reads = 0;
-    (c as any).execute = (stmt: any) => { if (String(stmt?.sql ?? stmt).includes("FROM team_event_records")) reads++; return real(stmt); };
+    const realExec = c.execute.bind(c), realTx = c.transaction.bind(c);
+    let keyReads = 0, rowReads = 0, txs = 0;
+    (c as any).transaction = (m: any) => { txs++; return realTx(m); };
+    (c as any).execute = (s: any) => {
+      const sql = String(s?.sql ?? s);
+      if (sql.includes("FROM team_event_records")) { if (sql.includes(" IN (VALUES ")) rowReads++; else keyReads++; }
+      return realExec(s);
+    };
     try {
       const text = await (await fetch(`${base}/api/records/2023/teams?format=csv&sort=autoPointsAvg&fields=autoPointsAvg`)).text();
       const teams = text.trim().split("\r\n").slice(1).map((l) => Number(l.split(",")[1]));
-      expect(reads).toBe(1); // not one query per chunk: a rewrite mid-export can't skip or repeat rows
+      expect(keyReads).toBe(1); // which rows, in which order: one statement, so a rewrite mid-export can't skip or repeat rows
+      expect(rowReads).toBeGreaterThanOrEqual(3); // 1500 rows, 500 at a time: never the whole season in memory
+      expect(txs).toBe(0); // no long transaction holding the (possibly only) connection
       expect(teams).toEqual((await all<any>("SELECT team FROM team_event_records WHERE season = 2023 ORDER BY auto_avg IS NULL, auto_avg DESC, team, code")).map((r) => Number(r.team)));
       expect(new Set(teams).size).toBe(1500);
-    } finally { (c as any).execute = real; }
+    } finally { (c as any).execute = realExec; (c as any).transaction = realTx; }
   });
   it("returns only the asked-for fields", async () => {
     const r = await get(`/api/records/${N}/teams?fields=teamName,autoPointsAvg&pageSize=1`);
