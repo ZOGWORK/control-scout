@@ -135,6 +135,17 @@ describe("offline search (same hits as /api/search)", () => {
     expect(readSearch(dbs(), "jersey championship")[0]).toMatchObject({ ref: "2024:USNJCMP", season: 2024 });
   });
 
+  it("finds by every field the server indexes: city, state name, school, start year", () => {
+    const refs = (q: string) => readSearch(dbs(), q, 25).map((h) => h.ref);
+    expect(refs("Princeton")).toEqual(expect.arrayContaining(["999", "2024:USNJCMP"])); // city only
+    expect(refs("Camden")).toEqual(["300"]);
+    expect(refs("new jersey")).toEqual(expect.arrayContaining(["300", "500", "2025:USNJQ9"])); // NJ, by its name (regionNames)
+    expect(refs("sprockets high")).toEqual(["400"]);
+    expect(refs("2099")).toEqual(["2025:USNJQ9"]); // a year only in the start date
+    expect(refs("2025 jersey")).toEqual(expect.arrayContaining(["2025:USNJQ1", "2024:USNJCMP"]));
+    expect(refs("Newrak")).toEqual(["2025:USNJQ1"]); // typos match names only (an event's includes its city), as the server's typo index
+  });
+
   it("resolves a match query straight to the match", () => {
     expect(readSearch(dbs(), "USNJQ1 Q2")[0]).toEqual({ kind: "match", ref: "2025:USNJQ1:qual:0:2", title: "Q2 · New Jersey Qualifier 1", subtitle: "USNJQ1 · 2025", season: 2025 });
   });

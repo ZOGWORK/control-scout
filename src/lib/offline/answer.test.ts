@@ -6,7 +6,8 @@ import { season2024, season2025 } from "./testFixture";
 import type { SeasonDb } from "./readers";
 
 let dbs: SeasonDb[] = [];
-vi.mock("./seasons", () => ({ openSaved: async () => dbs }));
+const reads: (number | undefined)[] = [];
+vi.mock("./seasons", () => ({ readSaved: async (only: number | undefined, read: (d: SeasonDb[]) => unknown) => { reads.push(only); return read(dbs.filter((d) => only === undefined || d.season === only)); } }));
 vi.mock("../packs", () => ({ loadLite: async () => null }));
 
 import { offlineAnswer } from "./answer";
@@ -39,6 +40,14 @@ describe("offlineAnswer", () => {
     expect(s.q).toBe("gear");
     expect(s.hits[0].ref).toBe("100");
     expect(offlineSource(s)).not.toBeNull();
+  });
+
+  it("opens only the season a season's page asks for", async () => {
+    reads.length = 0;
+    await offlineAnswer("/api/events/2025/USNJQ1");
+    await offlineAnswer("/api/teams/100/matches?season=2024");
+    await offlineAnswer("/api/teams/100/matches"); // the newest saved
+    expect(reads).toEqual([2025, 2024, 2025]);
   });
 
   it("is null for what the saved seasons can't answer", async () => {
