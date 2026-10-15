@@ -16,6 +16,8 @@ import { forecasterFor, refreshForecasters } from "./predict/engine.js";
 import { CURRENT_SEASON } from "./data/seasons.js";
 import { warmTrackRecord } from "./api/accuracy.js";
 import { installShippedPacks, restoreSnapshotIfEmpty } from "./data/snapshot.js";
+import { drainOnSigterm, systemdSocket } from "./listen.js";
+import type { Server } from "node:http";
 
 const log = (m: string) => console.log(`[${new Date().toISOString()}] ${m}`);
 
@@ -23,6 +25,13 @@ const log = (m: string) => console.log(`[${new Date().toISOString()}] ${m}`);
 // quickly), then prepare the data: restore the shipped snapshot into an empty
 // local database (before anything opens that file) and run migrations. Until
 // then the app's pages load and its API answers 503 "starting up".
+// On the VM systemd already holds the port open (server/listen.ts), so the
+// server takes it only once it's ready: requests during a deploy's restart
+// wait a few seconds in the socket's queue instead of getting a 502 or 503.
+const socket = systemdSocket();
+for (const k of ["LISTEN_FDS", "LISTEN_PID", "LISTEN_FDNAMES"]) delete process.env[k]; // not for child processes
+let http: Server | null = null;
+drainOnSigterm(() => http, log);
 let ready = false;
 const server = express();
 server.get("/api/health", (_req, res) => res.json({ ok: true, engine: ENGINE_VERSION, release: RELEASE, ready }));
@@ -34,12 +43,14 @@ server.use("/api", (_req, res, next) => {
 });
 const app = createApp();
 server.use(app);
-server.listen(env.port, () => log(`Control Scout listening on :${env.port}${env.production ? "" : " (dev)"}`));
+const listening = (where: string) => () => log(`Control Scout listening on ${where}${env.production ? "" : " (dev)"}`);
+if (!socket) http = server.listen(env.port, listening(`:${env.port}`));
 log(`data: ${await restoreSnapshotIfEmpty().catch((e) => `snapshot restore failed: ${(e as Error).message}`)}`);
 log(`packs: ${(() => { try { return installShippedPacks(packsDir()); } catch (e) { return `shipped packs failed: ${(e as Error).message}`; } })()}`);
 await openReplicaIfRemote(log);
 await migrate();
 ready = true;
+if (socket) http = server.listen(socket, listening("the systemd socket"));
 log("ready");
 
 // Warm the current season's ratings so the first prediction is fast.

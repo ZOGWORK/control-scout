@@ -33,6 +33,7 @@ ALL_DOMAINS="$DOMAIN $EXTRA_DOMAINS"
 CERTBOT_EMAIL="${CERTBOT_EMAIL:-}"
 SITE_CONF="/etc/nginx/sites-available/control-scout"
 UNIT="/etc/systemd/system/control-scout.service"
+SOCKET_UNIT="/etc/systemd/system/control-scout.socket"
 
 [ "$(id -u)" = 0 ] || { echo "Run with sudo"; exit 1; }
 [ -f "$REL_DIR/package.json" ] || { echo "No release at $REL_DIR — run deploy/deploy.sh from your machine"; exit 1; }
@@ -89,18 +90,40 @@ chown -R root:root "$REL_DIR"
 chmod 755 "$REL_DIR"   # readable (not writable) by the app user
 chown -h root:root "$REL_DIR/.env" "$REL_DIR/.data"
 
+# The port belongs to a systemd socket, not to the server: systemd keeps it open
+# through every restart and hands it to each new server (server/listen.ts), so
+# requests during a deploy wait a few seconds in its queue instead of getting
+# nginx's 502. Loopback only: nginx is the one client.
+SOCKET_NEW="[Unit]
+Description=FTC Control Scout port (kept open across restarts)
+
+[Socket]
+ListenStream=127.0.0.1:$APP_PORT
+Backlog=4096
+NoDelay=true
+
+[Install]
+WantedBy=sockets.target"
+SOCKET_CHANGED=0
+[ "$(cat "$SOCKET_UNIT" 2>/dev/null)" = "$SOCKET_NEW" ] || { printf '%s\n' "$SOCKET_NEW" > "$SOCKET_UNIT"; SOCKET_CHANGED=1; }
+
+# node --import tsx, not npx tsx: npx would start node as a separate child
+# process, which doesn't receive the socket.
 cat > "$UNIT" <<EOF
 [Unit]
 Description=FTC Control Scout
-After=network-online.target
+After=network-online.target control-scout.socket
+Requires=control-scout.socket
 
 [Service]
 User=$APP_USER
 WorkingDirectory=$APP_DIR/current
 EnvironmentFile=$SHARED/.env
-ExecStart=$(command -v npx) tsx server/index.ts
+ExecStart=$(command -v node) --import tsx server/index.ts
 Restart=always
 RestartSec=5
+# On stop, the server finishes the requests in progress (up to 10 s) before exiting.
+TimeoutStopSec=30
 # Hardening: the app may write only its data directory.
 NoNewPrivileges=true
 ProtectSystem=strict
@@ -112,7 +135,14 @@ PrivateTmp=true
 WantedBy=multi-user.target
 EOF
 systemctl daemon-reload
-systemctl enable control-scout >/dev/null
+systemctl enable control-scout control-scout.socket >/dev/null
+# The socket can only take the port once nothing else holds it: the first time
+# (the server used to open the port itself) or when PORT changed, stop the
+# server first. That one switch has a short gap; every restart after it has none.
+if [ "$SOCKET_CHANGED" = 1 ] || ! systemctl is-active --quiet control-scout.socket; then
+  systemctl stop control-scout || true
+  systemctl restart control-scout.socket
+fi
 
 # Switch to the new build only now that it succeeded (atomic rename), then restart.
 ln -sfn "releases/$RELEASE" "$APP_DIR/current.new"
@@ -125,6 +155,7 @@ printf 'DOMAIN=%q\nEXTRA_DOMAINS=%q\n' "$DOMAIN" "$EXTRA_DOMAINS" > "$SHARED/dep
 chmod 644 "$SHARED/deploy.conf"
 install -d -o root -g root -m 755 "$APP_DIR/bin"
 install -o root -g root -m 755 "$REL_DIR/deploy/vm-update.sh" "$APP_DIR/bin/update"
+install -o root -g root -m 755 "$REL_DIR/deploy/vm-rollback.sh" "$APP_DIR/bin/rollback"
 
 # Keep the three newest releases for rollback.
 ls -1dt "$APP_DIR"/releases/*/ | tail -n +4 | while read -r old; do
@@ -171,5 +202,5 @@ else
   echo ">>> HTTPS failed on first install (see above; DNS for every domain must point here). Serving HTTP only."
 fi
 
-sleep 8
-curl -fsS "http://127.0.0.1:$APP_PORT/api/health" && echo && echo "Control Scout $RELEASE is up on :$APP_PORT ($DOMAIN)"
+# The server takes the socket once its data is ready, so this waits for it.
+curl -fsS --max-time 120 "http://127.0.0.1:$APP_PORT/api/health" && echo && echo "Control Scout $RELEASE is up on :$APP_PORT ($DOMAIN)"
