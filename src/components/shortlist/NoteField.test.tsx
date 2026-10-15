@@ -59,6 +59,20 @@ describe("NoteField", () => {
     expect(screen.queryByRole("alert")).toBeNull();
   });
 
+  it("keeps the error while writing the stored text back is refused too, then clears it once a write works", () => {
+    const onSave = vi.fn();
+    render(<Parent results={[false, false, true]} onSave={onSave} />);
+    fireEvent.change(field(), { target: { value: "fast auto" } });
+    fireEvent.keyDown(field(), { key: "Enter" });
+    fireEvent.keyDown(field(), { key: "Escape" }); // writes "" back: refused
+    expect(onSave).toHaveBeenLastCalledWith("");
+    expect(field().value).toBe("");
+    expect(screen.getByRole("alert")).toBeTruthy();
+    fireEvent.keyDown(field(), { key: "Enter" }); // the same text again: retried, and stored
+    expect(onSave).toHaveBeenCalledTimes(3);
+    expect(screen.queryByRole("alert")).toBeNull();
+  });
+
   it("has no error state when saving works", () => {
     const onSave = vi.fn();
     render(<Parent results={[true]} onSave={onSave} />);

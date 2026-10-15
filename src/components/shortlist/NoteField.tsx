@@ -33,19 +33,23 @@ export function NoteField({ team, value, onSave, className }: { team: number; va
     const unchanged = text.trim() === saved.current.trim();
     // Back to the stored text with a failed edit still in the store's memory: write it anyway, to replace that edit.
     if (unchanged && unstored.current === null) return;
-    const stored = onSave(text) !== false;
-    // Not stored: keep `saved` as it was, so the next flush tries again. (Writing the unchanged
-    // text needs no retry: whether or not it was written, the device already holds it.)
-    if (!stored && !unchanged) { unstored.current = text; setFailed(true); return; }
+    // Not stored: keep `saved` as it was and the error up, so the next flush tries again. That holds for
+    // the unchanged text too: notes share one record, so another note's save may have stored the failed edit.
+    if (onSave(text) === false) { unstored.current = text; setFailed(true); return; }
     unstored.current = null;
-    if (stored) saved.current = text;
+    saved.current = text;
     setFailed(false);
   };
   /** Escape: back to the stored note, in the store too (its memory may still hold text that failed to store). */
   const revert = () => {
-    if (unstored.current !== null) { unstored.current = null; onSave(saved.current); }
     setDraft(saved.current);
-    setFailed(false);
+    if (unstored.current === null) { setFailed(false); return; }
+    // Write the stored note back over the failed edit; if that's refused too, the error stays up.
+    const back = saved.current;
+    unstored.current = back;
+    const stored = onSave(back) !== false;
+    if (stored) unstored.current = null;
+    setFailed(!stored);
   };
   // Leaving the page mid-pause still saves what was typed.
   const latest = useRef({ draft, onSave });
