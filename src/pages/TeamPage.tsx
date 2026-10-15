@@ -247,7 +247,7 @@ function OprSection({ p }: { p: TeamProfile }) {
   const [open, setOpen] = useState<(typeof OPR_CARDS)[number][0] | null>(null);
   const predictable = usePredictable(p.season);
   return (
-    <Section title="Offensive power rating" description={<>Best event OPR this season and its world rank. Non-penalty points, computed the same way as FTC Scout and FTC Events{p.season >= 2024 ? "; TeleOp includes the endgame, as FIRST reports it" : ""}. <Link to="/methodology#opr" className="underline">How it's computed</Link></>}>
+    <Section title="Offensive power rating" description={<>Best event OPR this season and its world rank. Non-penalty points, computed with standard least squares{p.season >= 2024 ? "; TeleOp includes the endgame, as FIRST reports it" : ""}. <Link to="/methodology#opr" className="underline">How it's computed</Link></>}>
       <Stagger className="grid grid-cols-2 gap-3 lg:grid-cols-4">
         {OPR_CARDS.map(([k, label, Icon]) => {
           const stat = s?.opr[k];
