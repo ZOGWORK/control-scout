@@ -27,7 +27,7 @@ import { MatchList } from "../components/predict";
 import { SeasonToggle } from "../components/SeasonToggle";
 import { cn } from "../components/cn";
 import { Meter, StatTile, TONES, rankPc, type Tone } from "../components/StatTile";
-import { awardLabel, dateRange, int, num, place, seasonLabel, topPct } from "../lib/format";
+import { awardLabel, dateRange, int, num, place, seasonLabel, rankPct } from "../lib/format";
 import { eventTypeLabel } from "../lib/labels";
 import { copyLink } from "../lib/clipboard";
 import { OfflineNote } from "../components/OfflineNote";
@@ -128,7 +128,7 @@ function Hero({ p, onSeason }: { p: TeamProfile; onSeason: (s: number) => void }
   const today = new Date().toISOString().slice(0, 10);
   const next = p.events.find((e) => (e.end ?? e.start ?? "") >= today) ?? null;
   const last = [...p.events].reverse().find((e) => (e.end ?? e.start ?? "") < today) ?? null;
-  const top = topPct(s?.opr.np.rank, s?.opr.np.of);
+  const top = rankPct(s?.opr.np.rank, s?.opr.np.of, true);
   const predictable = usePredictable(p.season);
   const share = () => copyLink();
   const [headerEnd, pastHeader] = useScrolledPast<HTMLDivElement>();
@@ -191,7 +191,7 @@ function Hero({ p, onSeason }: { p: TeamProfile; onSeason: (s: number) => void }
             </div>
           ) : (
             <>
-              <p className="mt-3 font-display text-5xl font-semibold tabular-nums text-accent">{top ? top.replace("top ", "Top ") : "Unranked"}</p>
+              <p className="mt-3 font-display text-5xl font-semibold tabular-nums text-accent">{top ?? "Unranked"}</p>
               <p className="text-sm text-muted-foreground">worldwide by OPR{s.opr.np.rank ? ` · #${s.opr.np.rank.toLocaleString()} of ${s.opr.np.of?.toLocaleString()}` : ""}</p>
               <dl className="mt-5 grid grid-cols-3 gap-3">
                 <div><dt className="text-xs text-muted-foreground">OPR</dt><dd className="font-display text-2xl font-semibold tabular-nums">{num(s.opr.np.value)}</dd></div>
@@ -254,7 +254,7 @@ export function OprSection({ p }: { p: TeamProfile }) {
       <Stagger className="grid grid-cols-2 gap-3 lg:grid-cols-4">
         {OPR_CARDS.map(([k, label, Icon, tone]) => {
           const stat = s?.opr[k];
-          const top = topPct(stat?.rank, stat?.of);
+          const top = rankPct(stat?.rank, stat?.of);
           return (
             <StaggerItem key={k}>
               {/* Each stat in its own colour; only the open one gets the ring (data-selected), none at rest. */}
