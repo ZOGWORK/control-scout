@@ -97,72 +97,99 @@ export const KIND_LABEL: Record<MatchPredictionView["kind"], string> = {
 };
 
 function TeamChip({ n, season, highlight, sub }: { n: number; season: number; highlight?: number; sub?: boolean }) {
+  const me = n === highlight;
   return (
-    <Link to={`/teams/${n}?season=${season}`} className={cn("tabular rounded px-1 font-mono text-[13px] hover:underline", n === highlight ? "font-bold text-accent" : "text-text-base", sub && "opacity-60")}>
+    <Link to={`/teams/${n}?season=${season}`} title={sub ? `${n} (surrogate or didn't play)` : undefined}
+      className={cn("tabular rounded-md px-1.5 py-0.5 font-mono text-[13px] hover:underline", me ? "bg-accent/15 font-bold text-accent ring-1 ring-accent/60" : "text-text-base", sub && "opacity-55")}>
       {n}{sub && <span className="sr-only"> (surrogate)</span>}
     </Link>
   );
 }
 
-/** One match: lineups, scores (or time), and its prediction with honest labelling.
+type Side = "red" | "blue";
+
+/** One alliance: its teams and score in one tinted box. The winner's box is stronger; the loser's fades back. */
+function AllianceBox({ side, m, score, forecast, outcome, highlight }: {
+  side: Side; m: MatchView; score: number | null; forecast: number | null; outcome: "win" | "loss" | "tie" | null; highlight?: number;
+}) {
+  const a = m[side];
+  return (
+    <div className={cn(
+      // Phones: one line per alliance, teams then score. Wider: the two boxes face each other, scores in the middle.
+      "flex min-w-0 items-center justify-between gap-2 rounded-lg border-l-[3px] px-2.5 py-1.5",
+      side === "red" ? "border-red-alliance bg-red-alliance/[0.06]" : "border-blue-alliance bg-blue-alliance/[0.06] sm:flex-row-reverse sm:border-l-0 sm:border-r-[3px]",
+      outcome === "win" && (side === "red" ? "bg-red-alliance/[0.14]" : "bg-blue-alliance/[0.14]"),
+    )}>
+      <div className={cn("flex min-w-0 flex-wrap gap-x-0.5", side === "blue" && "sm:justify-end")}>
+        {a.teams.map((t) => <TeamChip key={t.number} n={t.number} season={m.season} highlight={highlight} sub={t.surrogate || !t.onField} />)}
+      </div>
+      {score != null ? (
+        <span className={cn("shrink-0 font-display text-lg font-bold tabular-nums", side === "red" ? "text-red-alliance" : "text-blue-alliance", outcome === "loss" && "opacity-45")}>
+          {score}{outcome === "win" && <span className="sr-only"> (won)</span>}
+        </span>
+      ) : forecast != null ? (
+        <span className={cn("shrink-0 font-display text-base font-semibold tabular-nums opacity-60", side === "red" ? "text-red-alliance" : "text-blue-alliance")} title="Predicted score">~{forecast}</span>
+      ) : null}
+    </div>
+  );
+}
+
+/** One match: two alliance boxes facing each other, then the call in plain words.
  *  Click the row (anywhere but a link or button) to open its details in place. */
-export function MatchRow({ m, highlight, showEvent, open, onToggle }: { m: MatchView; highlight?: number; showEvent?: string; open?: boolean; onToggle?: () => void }) {
+/** `showEvent` replaces the time under the label; `eventName` only names the event inside the details. */
+export function MatchRow({ m, highlight, showEvent, eventName, open, onToggle }: { m: MatchView; highlight?: number; showEvent?: string; eventName?: string; open?: boolean; onToggle?: () => void }) {
   const videos = useVideoLinkCount(`${m.season}:${m.code}:${m.level}:${m.series}:${m.number}`);
   const detailsId = `match-${m.code}-${m.key.replace(/:/g, "-")}`;
   // MotionConfig's reducedMotion only stops transforms; height is a layout animation, so it's turned off here.
   const reduce = !!useReducedMotion();
   const p = m.prediction;
-  const redWon = m.played && m.red.score && m.blue.score ? m.red.score.total > m.blue.score.total : null;
-  const tie = m.played && m.red.score && m.blue.score && m.red.score.total === m.blue.score.total;
-  const called = p && m.played && !tie ? (p.pRed > 0.5) === redWon : null;
-  const teamSide = highlight ? (m.red.teams.some((t) => t.number === highlight) ? "red" : m.blue.teams.some((t) => t.number === highlight) ? "blue" : null) : null;
+  const scored = m.played && m.red.score && m.blue.score;
+  const red = scored ? m.red.score!.total : null, blue = scored ? m.blue.score!.total : null;
+  const tie = scored && red === blue;
+  const winner: Side | null = scored && !tie ? (red! > blue! ? "red" : "blue") : null;
+  const outcome = (s: Side) => (!scored ? null : tie ? "tie" : winner === s ? "win" : "loss");
+  const called = p && scored && !tie ? (p.pRed > 0.5) === (winner === "red") : null;
+  const mySide: Side | null = highlight ? (m.red.teams.some((t) => t.number === highlight) ? "red" : m.blue.teams.some((t) => t.number === highlight) ? "blue" : null) : null;
+  const mine = mySide ? outcome(mySide) : null;
+  const forecast = !scored && p && !p.noScoreBasis ? { red: Math.round(p.redMean), blue: Math.round(p.blueMean) } : null;
+  const fav: Side | null = p ? (p.pRed >= 0.5 ? "red" : "blue") : null;
+  const missing = [m.red, m.blue].some((a) => a.teams.filter((t) => t.onField).length !== 2);
+  const when = showEvent ?? matchTime(m.time);
   return (
-    <div className="border-b border-border last:border-b-0" data-match={m.key}>
+    <div className={cn("border-b border-border last:border-b-0", mySide && "relative before:absolute before:inset-y-0 before:left-0 before:w-[3px] before:bg-accent/70")} data-match={m.key}>
     <div
-      className={cn("group/row density-row grid grid-cols-[3.5rem_1fr_auto] items-center gap-3 px-3 py-2.5 transition-colors sm:grid-cols-[4rem_1fr_1fr_9rem]",
+      className={cn("group/row density-row grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-3 gap-y-1.5 px-3 py-2.5 transition-colors",
+        "sm:grid-cols-[5.5rem_minmax(0,1fr)_minmax(0,1fr)_10.5rem]",
         onToggle ? "cursor-pointer hover:bg-accent/[0.07]" : "hover:bg-text-base/[0.03]", open && "bg-accent/[0.05]")}
       onClick={onToggle ? (e) => { if (!(e.target as HTMLElement).closest("a, button, input")) onToggle(); } : undefined}
     >
-      <div className="min-w-0">
+      <div className="flex min-w-0 items-baseline gap-2 sm:block">
         {onToggle ? (
           <button type="button" onClick={onToggle} aria-expanded={!!open} aria-controls={detailsId} aria-label={`${m.label} details`} className={cn("flex items-center gap-0.5 rounded font-mono text-sm font-semibold outline-none transition-colors group-hover/row:text-accent-text focus-visible:ring-2 focus-visible:ring-ring/60", open && "text-accent-text")}>
             {m.label}<ChevronDown className={cn("size-3.5 text-text-muted transition-transform group-hover/row:text-accent-text", open && "rotate-180 text-accent-text")} />
           </button>
         ) : <p className="font-mono text-sm font-semibold">{m.label}</p>}
-        <p className="truncate text-[11px] text-text-muted">{showEvent ?? matchTime(m.time)}</p>
+        <p className={cn("text-[11px] text-text-muted", showEvent ? "truncate" : "whitespace-nowrap")} title={when}>{when}</p>
       </div>
-      <div className="col-span-1 grid grid-cols-[1fr_auto_1fr] items-center gap-2 sm:col-span-2">
-        <div className={cn("flex flex-wrap justify-end gap-x-1 rounded-lg px-1.5 py-1", teamSide === "red" && "bg-red-alliance/10")}>
-          {m.red.teams.map((t) => <TeamChip key={t.number} n={t.number} season={m.season} highlight={highlight} sub={t.surrogate || !t.onField} />)}
-        </div>
-        <div className="flex items-center gap-1.5 font-display text-base font-bold tabular-nums">
-          {m.played && m.red.score && m.blue.score ? (
-            <>
-              <span className={cn("min-w-8 text-right text-red-alliance", redWon === false && !tie && "opacity-55")}>{m.red.score.total}</span>
-              <span className="text-text-muted">–</span>
-              <span className={cn("min-w-8 text-blue-alliance", redWon === true && "opacity-55")}>{m.blue.score.total}</span>
-            </>
-          ) : p && !m.played && !p.noScoreBasis ? (
-            // Not played yet: the predicted score, styled as a forecast (dimmed, with a tilde).
-            <span className="flex items-center gap-1.5 opacity-70" title={`Predicted score ${Math.round(p.redMean)}–${Math.round(p.blueMean)}`} aria-label={`Predicted score ${Math.round(p.redMean)} to ${Math.round(p.blueMean)}`}>
-              <span className="min-w-8 text-right text-red-alliance">~{Math.round(p.redMean)}</span>
-              <span className="text-text-muted">–</span>
-              <span className="min-w-8 text-blue-alliance">{Math.round(p.blueMean)}</span>
-            </span>
-          ) : <span className="px-2 text-xs font-medium text-text-muted">vs</span>}
-        </div>
-        <div className={cn("flex flex-wrap gap-x-1 rounded-lg px-1.5 py-1", teamSide === "blue" && "bg-blue-alliance/10")}>
-          {m.blue.teams.map((t) => <TeamChip key={t.number} n={t.number} season={m.season} highlight={highlight} sub={t.surrogate || !t.onField} />)}
-        </div>
+      {/* Phones: the call sits on the label line; the two alliances stack below as a scoreboard. */}
+      <div className="col-span-2 row-start-2 grid gap-1 sm:col-span-2 sm:col-start-2 sm:row-start-1 sm:grid-cols-2 sm:gap-1.5">
+        <AllianceBox side="red" m={m} score={red} forecast={forecast?.red ?? null} outcome={outcome("red")} highlight={highlight} />
+        <AllianceBox side="blue" m={m} score={blue} forecast={forecast?.blue ?? null} outcome={outcome("blue")} highlight={highlight} />
       </div>
-      <div className="col-span-3 flex items-center gap-2 sm:col-span-1 sm:flex-col sm:items-stretch sm:gap-1">
-        {p ? (
+      <div className="flex min-w-0 flex-col items-end gap-0.5 text-right sm:col-start-4 sm:row-start-1">
+        {mine && (
+          <span className={cn("rounded-full px-2 py-px text-[11px] font-semibold",
+            mine === "win" ? "bg-success/15 text-success" : mine === "loss" ? "bg-destructive/15 text-destructive" : "bg-muted text-text-muted")}>
+            {highlight} {mine === "win" ? "won" : mine === "loss" ? "lost" : "tied"}
+          </span>
+        )}
+        {p && fav ? (
           <Tooltip>
             <TooltipTrigger asChild>
-              <button type="button" className="flex flex-1 items-center gap-2 rounded-md text-left outline-none focus-visible:ring-2 focus-visible:ring-ring/60 sm:flex-none">
-                <span className="w-9 text-right text-xs font-semibold tabular-nums text-red-alliance">{oddsPct(p.pRed)}</span>
-                <WinBar pRed={p.pRed} size="sm" className="min-w-12 flex-1" />
-                <span className="w-9 text-xs font-semibold tabular-nums text-blue-alliance">{oddsPct(1 - p.pRed)}</span>
+              <button type="button" className="flex items-center gap-1.5 rounded-md text-xs outline-none focus-visible:ring-2 focus-visible:ring-ring/60" aria-label={`Predicted ${fav} ${oddsPct(fav === "red" ? p.pRed : 1 - p.pRed)}`}>
+                <span className="text-text-muted">Picked</span>
+                <span className={cn("font-semibold tabular-nums", fav === "red" ? "text-red-alliance" : "text-blue-alliance")}>{fav === "red" ? "Red" : "Blue"} {oddsPct(fav === "red" ? p.pRed : 1 - p.pRed)}</span>
+                <WinBar pRed={p.pRed} size="sm" className="w-12" />
               </button>
             </TooltipTrigger>
             <TooltipContent className="max-w-72">
@@ -171,14 +198,15 @@ export function MatchRow({ m, highlight, showEvent, open, onToggle }: { m: Match
               <CalibrationTip pRed={p.pRed} />
             </TooltipContent>
           </Tooltip>
-        ) : <span className="text-xs text-text-muted" title="The engine predicts full 2-against-2 matches only">{
-          m.played ? ([m.red, m.blue].some((a) => a.teams.filter((t) => t.onField).length !== 2) ? "Robot missing — not predicted" : "No prediction")
-            : m.red.teams.length > 2 || m.blue.teams.length > 2 ? "Lineup TBD" : "—"}</span>}
-        <div className="flex items-center justify-end gap-1.5 text-[11px] text-text-muted">
-          {called === true && <span className="inline-flex items-center gap-0.5 text-success"><Check className="size-3" /> Called</span>}
-          {called === false && <span className="inline-flex items-center gap-0.5 text-warning"><X className="size-3" /> Upset</span>}
+        ) : (
+          <span className="text-xs text-text-muted" title={missing && m.played ? "An alliance played with one robot. The engine predicts full 2-against-2 matches only." : undefined}>
+            {m.played ? (missing ? "No call · a robot sat out" : "No call") : m.red.teams.length > 2 || m.blue.teams.length > 2 ? "Lineup TBD" : "—"}
+          </span>
+        )}
+        <div className="flex items-center gap-1.5 text-[11px] text-text-muted">
+          {called === true && <span className="inline-flex items-center gap-0.5 font-medium text-success"><Check className="size-3" /> Right</span>}
+          {called === false && <span className="inline-flex items-center gap-0.5 font-medium text-warning"><X className="size-3" /> Upset</span>}
           {p && <TierMark tier={p.tier} />}
-          {p?.kind === "backtest" && <span title={KIND_LABEL.backtest}>predicted</span>}
           {p?.kind === "live" && m.played && <span title={KIND_LABEL.live}>pre-match</span>}
           {m.video && <a href={m.video} target="_blank" rel="noreferrer noopener" className="inline-flex items-center hover:text-text-base" aria-label="Official match video"><PlayCircle className="size-3.5" /></a>}
           {videos > 0 && <span className="inline-flex items-center gap-0.5 text-accent" title={`${videos} saved video link${videos > 1 ? "s" : ""}`}><Video className="size-3.5" /><span className="text-[10px]">{videos}</span></span>}
@@ -192,7 +220,7 @@ export function MatchRow({ m, highlight, showEvent, open, onToggle }: { m: Match
           initial={{ height: 0, opacity: 0 }} animate={{ height: "auto", opacity: 1 }} exit={{ height: 0, opacity: 0 }}
           transition={reduce ? { duration: 0 } : { height: { duration: 0.26, ease: [0.2, 0.8, 0.2, 1] }, opacity: { duration: 0.18 } }}>
           <Suspense fallback={<div className="border-t border-border p-4"><div className="skeleton h-40 rounded-xl" /></div>}>
-            <MatchDetails m={m} eventName={showEvent} />
+            <MatchDetails m={m} eventName={eventName ?? showEvent} />
           </Suspense>
         </motion.div>
       )}
@@ -201,10 +229,12 @@ export function MatchRow({ m, highlight, showEvent, open, onToggle }: { m: Match
   );
 }
 
-/** Matches, each opening its details in place. `initialOpen` (a match key,
- *  e.g. from ?match=) opens that one and scrolls it into view. `split`: at
- *  1700px+ the rows flow into two columns, in time order (down the left, then the right). */
-export function MatchList({ matches, highlight, empty, eventNames, initialOpen, split }: { matches: MatchView[]; highlight?: number; empty?: string; eventNames?: Record<string, string>; initialOpen?: string | null; split?: boolean }) {
+const LEVEL_TITLE: Record<MatchView["level"], string> = { qual: "Qualifications", playoff: "Playoffs" };
+
+/** Matches in one column, time order, under Qualifications / Playoffs headings, each opening its details
+ *  in place. `initialOpen` (a match key, e.g. from ?match=) opens that one and scrolls it into view.
+ *  With `highlight`, a summary line gives that team's record in the matches shown. */
+export function MatchList({ matches, highlight, empty, eventNames, initialOpen }: { matches: MatchView[]; highlight?: number; empty?: string; eventNames?: Record<string, string>; initialOpen?: string | null }) {
   const id = (m: MatchView) => `${m.code}:${m.key}`;
   const [open, setOpen] = useState<Set<string>>(() => new Set());
   const box = useRef<HTMLDivElement>(null);
@@ -219,11 +249,52 @@ export function MatchList({ matches, highlight, empty, eventNames, initialOpen, 
   }, [initialOpen, matches.length]);
   if (!matches.length) return <p className="rounded-xl border border-dashed border-border px-4 py-8 text-center text-sm text-text-muted">{empty ?? "No matches yet."}</p>;
   const toggle = (k: string) => setOpen((s) => { const n = new Set(s); if (n.has(k)) n.delete(k); else n.add(k); return n; });
+  // One event: Qualifications / Playoffs headings. Several (a team's season): a heading per event, in the list's own order.
+  const oneEvent = new Set(matches.map((m) => m.code)).size === 1;
+  const groups: { key: string; title: string; href?: string; ms: MatchView[] }[] = [];
+  if (oneEvent) for (const l of ["qual", "playoff"] as const) { const ms = matches.filter((m) => m.level === l); if (ms.length) groups.push({ key: l, title: LEVEL_TITLE[l], ms }); }
+  else for (const m of matches) {
+    const last = groups[groups.length - 1];
+    if (last?.key === m.code) last.ms.push(m);
+    else groups.push({ key: m.code, title: eventNames?.[m.code] ?? m.code, href: `/events/${m.season}/${m.code}`, ms: [m] });
+  }
+  const rec = highlight ? teamRecord(matches, highlight) : null;
   return (
-    <div ref={box} className={cn("overflow-hidden rounded-xl border border-border bg-card", split && "min-[1700px]:columns-2 min-[1700px]:gap-0 min-[1700px]:[column-rule:1px_solid_var(--color-border)] [&>*]:break-inside-avoid")}>
-      {matches.map((m) => <MatchRow key={id(m)} m={m} highlight={highlight} showEvent={eventNames?.[m.code]} open={open.has(id(m))} onToggle={() => toggle(id(m))} />)}
+    <div ref={box} className="space-y-2">
+      {rec && rec.played > 0 && (
+        <p className="text-sm text-text-muted">
+          <span className="font-semibold text-accent">{highlight}</span> in these matches: <span className={cn("font-semibold", rec.w ? "text-success" : "text-text-muted")}>{rec.w} won</span> · <span className={cn("font-semibold", rec.l ? "text-destructive" : "text-text-muted")}>{rec.l} lost</span>{rec.t > 0 && <> · {rec.t} tied</>}{rec.upcoming > 0 && <> · {rec.upcoming} to play</>}
+        </p>
+      )}
+      <div className="overflow-hidden rounded-xl border border-border bg-card">
+        {groups.map((g, i) => (
+          <section key={`${g.key}:${i}`} aria-label={g.title}>
+            {(groups.length > 1 || g.href) && (
+              <h3 className="flex items-center gap-2 border-b border-border bg-muted/40 px-3 py-1.5 text-[11px] font-semibold uppercase tracking-wider text-text-muted">
+                {g.href ? <Link to={g.href} className="truncate normal-case tracking-normal text-[13px] text-text-base hover:text-accent-text hover:underline">{g.title}</Link> : g.title}
+                <span className="shrink-0 rounded-full bg-muted px-1.5 py-px text-[10px] tabular-nums text-text-base/80">{g.ms.length}</span>
+              </h3>
+            )}
+            {g.ms.map((m) => <MatchRow key={id(m)} m={m} highlight={highlight} eventName={eventNames?.[m.code]} open={open.has(id(m))} onToggle={() => toggle(id(m))} />)}
+          </section>
+        ))}
+      </div>
     </div>
   );
+}
+
+/** A team's wins, losses and ties in these matches (and how many it still has to play). */
+export function teamRecord(matches: MatchView[], team: number) {
+  const r = { w: 0, l: 0, t: 0, played: 0, upcoming: 0 };
+  for (const m of matches) {
+    const side = m.red.teams.some((t) => t.number === team) ? m.red : m.blue.teams.some((t) => t.number === team) ? m.blue : null;
+    if (!side) continue;
+    const other = side === m.red ? m.blue : m.red;
+    if (!m.played || !side.score || !other.score) { r.upcoming++; continue; }
+    r.played++;
+    if (side.score.total > other.score.total) r.w++; else if (side.score.total < other.score.total) r.l++; else r.t++;
+  }
+  return r;
 }
 
 function CalibrationTip({ pRed }: { pRed: number }) {
