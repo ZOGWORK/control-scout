@@ -105,10 +105,11 @@ function MobileTabs({ onMore }: { onMore: () => void }) {
   );
 }
 
+// Whole routes (src/main.tsx), so an unknown path under a real one (/teams/4215/extra) reads "Not found".
 const TITLES: [RegExp, string][] = [
-  [/^\/teams\//, "Team"], [/^\/teams$/, "Teams"], [/^\/matches$/, "Match records"], [/^\/events\/\d/, "Event"], [/^\/events/, "Events"], [/^\/predict\/how-it-works/, "How it works"], [/^\/predict/, "Predict"],
-  [/^\/compare/, "Compare"], [/^\/my-team/, "My team"], [/^\/shortlist/, "Shortlist"], [/^\/scout/, "Scout"], [/^\/download/, "Download"],
-  [/^\/settings/, "Settings"], [/^\/methodology/, "How it works"],
+  [/^\/teams\/[^/]+$/, "Team"], [/^\/teams$/, "Teams"], [/^\/matches$/, "Match records"], [/^\/events\/[^/]+\/[^/]+$/, "Event"], [/^\/events$/, "Events"], [/^\/predict\/how-it-works$/, "How it works"], [/^\/predict(\/accuracy)?$/, "Predict"],
+  [/^\/compare$/, "Compare"], [/^\/my-team$/, "My team"], [/^\/shortlist$/, "Shortlist"], [/^\/scout$/, "Scout"], [/^\/download$/, "Download"],
+  [/^\/settings$/, "Settings"], [/^\/methodology$/, "How it works"],
 ];
 
 /** Shown everywhere when the server has no FTC data yet (a new deploy whose
@@ -130,7 +131,7 @@ export function Shell({ children }: { children: ReactNode }) {
   const mainRef = useRef<HTMLElement>(null);
   const loc = useLocation();
   // Any other path is the not-found page (routes match regardless of case).
-  const path = loc.pathname.toLowerCase();
+  const path = loc.pathname.toLowerCase().replace(/(.)\/+$/, "$1");
   const title = TITLES.find(([re]) => re.test(path))?.[1] ?? (path === "/" ? "Home" : "Not found");
   const toggle = () => setCollapsed((c) => { try { localStorage.setItem("cs-sidebar", c ? "0" : "1"); } catch { /* ignore */ } return !c; });
   return (

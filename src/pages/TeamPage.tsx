@@ -35,14 +35,19 @@ export default function TeamPage() {
   const [sp, setSp] = useSearchParams();
   const team = Number(number);
   const season = sp.get("season");
-  // FTC team numbers are 1–999999; anything else can't exist, so don't ask the API.
-  const valid = Number.isInteger(team) && team >= 1 && team <= 999_999;
+  // FTC team numbers are 1–999999, digits only (as on the server); anything else can't exist, so don't ask the API.
+  const valid = /^\d+$/.test(number ?? "") && team >= 1 && team <= 999_999;
   const state = useApi<TeamProfile>(valid ? `/api/teams/${team}${qs({ season })}` : null);
-  // Not a team (the server answers these addresses with a 404 too): the branded not-found page.
-  const missing = !valid || (state.error as ApiError | undefined)?.status === 404;
-  useTitle(missing ? "Team not found" : state.data?.team.name ? `Team ${state.data.team.number} — ${state.data.team.name}` : `Team ${number}`); // same as the server-rendered title
+  // Not a team (the server answers these addresses with a 404 too), or a season the API doesn't cover: the branded not-found page.
+  const notFound = (state.error as ApiError | undefined)?.status === 404 ? state.error! : null;
+  useTitle(!valid || notFound ? "Team not found" : state.data?.team.name ? `Team ${state.data.team.number} — ${state.data.team.name}` : `Team ${number}`); // same as the server-rendered title
   if (!valid) return <NotFoundView title={`There's no team ${number}`} description="FTC team numbers are whole numbers from 1 to 999999, like 4215. Search for the team you're after." />;
-  if (missing) return <NotFoundView title={`No team ${team} in our data`} description="It may not have registered for a season we cover yet, or the number is mistyped. Search by number or name." />;
+  // The API's own reason: "No FTC team … in our data", or (with ?season=) "Season … isn't covered".
+  if (notFound) {
+    return season
+      ? <NotFoundView title={notFound.message} description="This link asks for a specific season. Without it, the team's page opens on their newest one." action={<Button variant="secondary" asChild><Link to={`/teams/${team}`}>Open team {team}'s newest season</Link></Button>} />
+      : <NotFoundView title={notFound.message} description="It may not have registered for a season we cover yet, or the number is mistyped. Search by number or name." />;
+  }
   return (
     <Async state={state}>
       {(p) => <Profile p={p} onSeason={(s) => setSp((x) => { x.set("season", String(s)); return x; }, { replace: true })} />}
