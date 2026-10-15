@@ -56,7 +56,7 @@ function Event({ d, path }: { d: EventDetail; path: string }) {
   return (
     <div>
       <OfflineNote data={d} />
-      <Reveal className="relative mb-6 overflow-hidden rounded-2xl border border-border bg-card p-6 sm:p-8">
+      <Reveal fade={false} className="relative mb-6 overflow-hidden rounded-2xl border border-border bg-card p-6 sm:p-8">
         <div aria-hidden className="pointer-events-none absolute -right-20 -top-24 size-72 rounded-full bg-accent opacity-15 blur-3xl" />
         <div className="relative grid gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(0,22rem)] lg:gap-10">
         <div className="min-w-0">

@@ -23,6 +23,7 @@
     "sync": "tsx scripts/sync.ts",
     "seed:scout": "tsx scripts/seed-from-scout-cache.ts",
     "stats": "tsx scripts/stats.ts",
+    "stats:report": "tsx scripts/stats-report.ts",
     "packs": "tsx scripts/build-packs.ts",
     "db:export": "tsx scripts/db-export.ts",
     "db:push": "tsx scripts/db-push.ts",
