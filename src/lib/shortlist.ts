@@ -48,7 +48,7 @@ export function nearestSlot(rects: readonly { left: number; top: number; width: 
 export function setNote(notes: Readonly<Record<string, string>>, team: number, text: string): Record<string, string> {
   const out = { ...notes };
   const t = text.trim();
-  if (t) out[String(team)] = text.slice(0, 500);
+  if (t) out[String(team)] = t.slice(0, 500);
   else delete out[String(team)];
   return out;
 }
@@ -76,7 +76,7 @@ export function readView(phone: boolean): ShortlistView {
 export function saveView(v: ShortlistView) { try { localStorage.setItem(VIEW_KEY, v); } catch { /* blocked */ } }
 
 export interface PredictionSnapshot {
-  /** The team's next predicted match (today's ratings). */
+  /** The team's next predicted match (its logged pre-match call, or today's ratings). */
   next: { m: MatchView; pWin: number; tier: ConfidenceTier } | null;
   /** Mean win chance over its predicted upcoming matches. */
   upcoming: { n: number; pWin: number; tier: ConfidenceTier } | null;
@@ -101,7 +101,7 @@ export function predictionSnapshot(matches: readonly MatchView[], team: number):
     const s = sideOf(m), p = m.prediction;
     if (!s || !p) continue;
     const pWin = s.side === "red" ? p.pRed : 1 - p.pRed;
-    if (!m.played) { if (p.kind === "now") up.push({ m, pWin, tier: p.tier }); continue; }
+    if (!m.played) { if (p.kind === "now" || p.kind === "live") up.push({ m, pWin, tier: p.tier }); continue; }
     // Like the season record: a match it sat out, or a qual played as a surrogate, isn't its own.
     if (!s.me.onField || (m.level === "qual" && s.me.surrogate) || p.kind === "now") continue;
     const red = m.red.score?.total, blue = m.blue.score?.total;

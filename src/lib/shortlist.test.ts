@@ -66,7 +66,7 @@ describe("older shortlist data", () => {
 
 const team = (n: number, extra: Partial<ShortlistTeam> = {}): ShortlistTeam => ({
   team: n, name: `T${n}`, place: "Here", opr: 50, oprRank: 10, of: 100, rating: 40, ratingSd: 3, record: "5-1-0", lastEvent: null, nextEvent: null,
-  breakdown: { auto: 10, teleop: 30, endgame: 10 }, events: [], ...extra,
+  breakdown: { auto: 10, teleop: 30, endgame: 10, event: null }, events: [], ...extra,
 });
 
 describe("CSV", () => {
@@ -99,6 +99,10 @@ describe("prediction snapshot", () => {
     expect(s.upcoming?.pWin).toBeCloseTo(0.6);
     expect(s.past).toMatchObject({ n: 1, kind: "live", actual: 1 });
     expect(s.past!.expected).toBeCloseTo(0.6);
+  });
+  it("counts an upcoming match's logged pre-match call as its prediction", () => {
+    const s = predictionSnapshot([match(1, { played: false, red: [1, 2], blue: [3, 4], pRed: 0.65, kind: "live" })], 1);
+    expect(s.next?.pWin).toBeCloseTo(0.65);
   });
   it("never blends live and backtest calls, and skips matches the team sat out", () => {
     const ms = [

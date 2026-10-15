@@ -266,8 +266,9 @@ export interface ShortlistEventPoint {
 /** A shortlist row: the team summary plus the season OPR split and an event-by-event trend, in one request
  *  for the whole list (/api/shortlist). */
 export interface ShortlistTeam extends TeamSummary {
-  /** Season OPR split (the same best-event row as `opr`): auto / TeleOp (driver-controlled) / endgame. */
-  breakdown: { auto: number | null; teleop: number | null; endgame: number | null };
+  /** OPR split auto / TeleOp (driver-controlled) / endgame, from the one event that gives the season OPR (`opr`),
+   *  so the parts belong to that total. Null parts when the team has no event stats. */
+  breakdown: { auto: number | null; teleop: number | null; endgame: number | null; event: { code: string; name: string } | null };
   /** Events played this season with stats, oldest first. */
   events: ShortlistEventPoint[];
 }

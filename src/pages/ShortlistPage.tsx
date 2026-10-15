@@ -68,7 +68,11 @@ export default function ShortlistPage() {
   const toggle = (t: number) => setOpen((s) => { const n = new Set(s); if (n.has(t)) n.delete(t); else n.add(t); return n; });
   const [picked, setPicked] = useState<number[]>([]);
   const selected = shown.filter((t) => picked.includes(t)); // pick order, and only teams still listed
-  const pick = (t: number, on: boolean) => setPicked((p) => (on ? (p.includes(t) || p.length >= MAX_COMPARE ? p : [...p, t]) : p.filter((x) => x !== t)));
+  // Only teams still listed count toward the limit (one removed elsewhere frees its slot).
+  const pick = (t: number, on: boolean) => setPicked((p) => {
+    const live = p.filter((x) => shown.includes(x));
+    return on ? (live.includes(t) || live.length >= MAX_COMPARE ? live : [...live, t]) : live.filter((x) => x !== t);
+  });
 
   const describe = useCallback((t: number) => { const n = byTeam.get(t)?.name; return n ? `${t} ${n}` : `Team ${t}`; }, [byTeam]);
   const reorder = useReorder({ items: shown, describe, onCommit: (order) => update("bookmarks", (b) => applyOrder(b, order)) });
@@ -90,7 +94,7 @@ export default function ShortlistPage() {
     const rows = shown.map((t) => byTeam.get(t)).filter(Boolean) as ShortlistTeam[];
     const sorted = [...rows].sort((a, b) => { const x = score(a), y = score(b); if (x == null) return y == null ? 0 : 1; if (y == null) return -1; return asc ? x - y : y - x; }).map((r) => r.team);
     update("bookmarks", (b) => applyOrder(b, sorted));
-    toast(`Picks ordered by ${label}`, { action: { label: "Undo", onClick: () => update("bookmarks", () => before) } });
+    toast(`Picks ordered by ${label}`, { action: { label: "Undo", onClick: () => update("bookmarks", (b) => applyOrder(b, before)) } });
   };
 
   const compareTeams = selected.length >= 2 ? selected : shown.slice(0, MAX_COMPARE);
@@ -100,7 +104,7 @@ export default function ShortlistPage() {
   const common = (t: ShortlistTeam, rank: number) => ({
     t, rank, season, open: open.has(t.team), dragging: reorder.dragging === t.team,
     note: notes[String(t.team)] ?? "", onNote: (text: string) => update("shortlistNotes", (n) => setNote(n, t.team, text)),
-    selected: picked.includes(t.team), selectDisabled: !picked.includes(t.team) && picked.length >= MAX_COMPARE, onSelect: (on: boolean) => pick(t.team, on),
+    selected: selected.includes(t.team), selectDisabled: !selected.includes(t.team) && selected.length >= MAX_COMPARE, onSelect: (on: boolean) => pick(t.team, on),
     onToggle: () => toggle(t.team), onRemove: () => remove(t.team), handle: reorder.handleProps(t.team),
     compareLink: compareHref([t.team, ...shown.filter((x) => x !== t.team).slice(0, MAX_COMPARE - 1)], season),
     detail: <TeamDetail t={t} season={season} rank={rank} total={shown.length} topPicks={shown.slice(0, MAX_COMPARE)} onMove={(d) => reorder.moveBy(t.team, d)} onRemove={() => remove(t.team)} />,

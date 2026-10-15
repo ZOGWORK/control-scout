@@ -60,7 +60,7 @@ function Snapshot({ t, season, matches }: { t: ShortlistTeam; season: number; ma
         <>
           {snap?.next ? (
             <Tile label={`Next: ${snap.next.m.label}`} value={oddsPct(snap.next.pWin)} tone="text-accent-text"
-              hint={<><span>to win{snap.upcoming && snap.upcoming.n > 1 ? ` · ${oddsPct(snap.upcoming.pWin)} avg over ${snap.upcoming.n}` : ""}</span><TierMark tier={snap.next.tier} /></>} />
+              hint={<><span>to win</span><TierMark tier={snap.next.tier} />{snap.upcoming && snap.upcoming.n > 1 && <><span>· {oddsPct(snap.upcoming.pWin)} avg over {snap.upcoming.n}</span><TierMark tier={snap.upcoming.tier} /></>}</>} />
           ) : snap?.past ? (
             <Tile label={`Expected win rate (${snap.past.n} matches)`} value={oddsPct(snap.past.expected)} tone="text-accent-text"
               hint={<><span>won {Math.round(snap.past.actual * 100)}% · {snap.past.kind === "live" ? "calls logged before each match" : "backtest replay"}</span><TierMark tier={snap.past.tier} /></>} />
@@ -93,6 +93,7 @@ export function TeamDetail({ t, season, rank, total, topPicks, onMove, onRemove 
       <div className="grid min-w-0 content-start gap-3">
         <Block title="OPR breakdown" aside={<span className="normal-case tracking-normal text-text-base"><span className="font-display text-base font-semibold text-accent-text">{num(t.opr)}</span> total{t.oprRank ? <span className="text-text-muted"> · #{t.oprRank.toLocaleString()} world{top ? ` (${top})` : ""}</span> : null}</span>}>
           <BreakdownBar auto={t.breakdown.auto} teleop={t.breakdown.teleop} endgame={t.breakdown.endgame} />
+          {t.breakdown.event && <p className="mt-2 text-[11px] text-text-muted">Split from {t.breakdown.event.name}, the event behind the season OPR.</p>}
         </Block>
         <Block title="Event by event" aside={<span className="inline-flex items-center gap-1 normal-case tracking-normal"><TrendingUp className="size-3" /> OPR split per event</span>}>
           <EventPointsChart events={t.events} />
