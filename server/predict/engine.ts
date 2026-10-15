@@ -44,15 +44,16 @@ export class ScoutForecaster extends Forecaster {
     const records: AwardRecord[] = [];
     const books = new Map<number, RatingBook>(), events = new Map<number, EventRecord[]>(), advancement = new Map<number, AdvancementRecord[]>();
     for (const s of this.seasons) {
-      const dbEvents = await loadSeason(s);
-      if (!dbEvents.length) continue;
-      for (const e of dbEvents) if (e.region) { this.regionByCode.set(e.code, e.region); this.regions.add(e.region); }
-      const evs = dbEvents.map((e) => toEventRecord(e)).filter((x): x is EventRecord => !!x).sort((a, b) => a.startTime - b.startTime || a.code.localeCompare(b.code));
-      events.set(s, evs);
-      advancement.set(s, await loadAdvancement(s));
-      for (const e of evs) for (const a of e.awards) records.push({ season: s, team: a.team, time: e.startTime, type: a.type, placement: a.placement });
+      const d = await seasonData(s);
+      if (!d) continue;
+      for (const [code, region] of d.regions) { this.regionByCode.set(code, region); this.regions.add(region); }
+      events.set(s, d.events);
+      advancement.set(s, d.advancement);
+      for (const e of d.events) for (const a of e.awards) records.push({ season: s, team: a.team, time: e.startTime, type: a.type, placement: a.placement });
       book.startSeason(s);
-      for (const m of evs.flatMap((e) => e.matches).sort((x, y) => x.time - y.time)) book.update(m);
+      // Yield every few thousand matches so pages keep answering during a rebuild.
+      let n = 0;
+      for (const m of d.matches) { book.update(m); if (++n % 4000 === 0) await yieldLoop(); }
       books.set(s, book.clone());
       await yieldLoop();
     }
@@ -157,6 +158,35 @@ export class ScoutForecaster extends Forecaster {
   }
 }
 
+// ---------------------------------------------------------------------------
+// Season data, read once per frozen season. A finished season's rows never
+// change once frozen (sync skips it), so a new data version (a sync of the
+// current season, every 15 min on event days) only re-reads the current one:
+// ~70 ms instead of ~6 s of reads for the finished seasons in the window.
+// ---------------------------------------------------------------------------
+
+interface SeasonData { events: EventRecord[]; matches: EventRecord["matches"]; advancement: AdvancementRecord[]; regions: [string, string][] }
+const seasonCache = new Map<number, { key: string; d: Promise<SeasonData | null> }>();
+
+async function seasonData(season: number): Promise<SeasonData | null> {
+  const row = await all<{ frozen: number; last_complete: string | null }>("SELECT frozen, last_complete FROM seasons WHERE season = ?", [season]);
+  const key = Number(row[0]?.frozen) === 1 ? `frozen:${row[0].last_complete ?? ""}` : null;
+  const hit = seasonCache.get(season);
+  if (key && hit?.key === key) return hit.d;
+  const d = (async (): Promise<SeasonData | null> => {
+    const dbEvents = await loadSeason(season);
+    if (!dbEvents.length) return null;
+    const events = dbEvents.map((e) => toEventRecord(e)).filter((x): x is EventRecord => !!x).sort((a, b) => a.startTime - b.startTime || a.code.localeCompare(b.code));
+    return {
+      events, matches: events.flatMap((e) => e.matches).sort((x, y) => x.time - y.time),
+      advancement: await loadAdvancement(season),
+      regions: dbEvents.filter((e) => e.region).map((e) => [e.code, e.region!] as [string, string]),
+    };
+  })();
+  if (key) { seasonCache.set(season, { key, d }); d.catch(() => seasonCache.delete(season)); } else seasonCache.delete(season);
+  return d;
+}
+
 async function loadAdvancement(season: number): Promise<AdvancementRecord[]> {
   const rows = await all<any>(
     "SELECT a.code, a.slots, a.advances_to, a.rows, e.type, e.region, e.end FROM advancement a JOIN events e ON e.season = a.season AND e.code = a.code WHERE a.season = ?",
@@ -181,6 +211,7 @@ export async function dataVersion(): Promise<string> {
   return (await kvGet<string>("data:version")) ?? "0";
 }
 
+/** The forecaster for exactly the current data (jobs and packs need the newest ratings). */
 export async function forecasterFor(season: number): Promise<ScoutForecaster> {
   const anchor = anchorFor(season);
   const version = await dataVersion();
@@ -188,9 +219,38 @@ export async function forecasterFor(season: number): Promise<ScoutForecaster> {
   if (hit && hit.version === version) return hit.f;
   const f = (async () => { const x = new ScoutForecaster(anchor); await x.rebuild(); return x; })();
   cache.set(anchor, { version, f });
-  f.catch(() => cache.delete(anchor));
+  f.then(() => { if (cache.get(anchor)?.f === f) built.set(anchor, { version, f }); }, () => { if (cache.get(anchor)?.f === f) cache.delete(anchor); });
   return f;
 }
 
-/** Drop cached forecasters (tests, or after a manual data change). */
-export function resetForecasters(): void { cache.clear(); }
+/** The last fully built forecaster per anchor: what pages answer with while a newer one builds. */
+const built = new Map<number, { version: string; f: Promise<ScoutForecaster> }>();
+
+/**
+ * For pages: the ratings as of the last finished build, at once. When the data
+ * has moved on (a sync just finished), the new build starts in the background
+ * and takes over when it's done, so no visitor waits for a rebuild. Only the
+ * very first build (server start) is waited for.
+ */
+export async function liveForecaster(season: number): Promise<ScoutForecaster> {
+  const anchor = anchorFor(season);
+  const fresh = forecasterFor(season);
+  const prev = built.get(anchor);
+  if (!prev) return fresh;
+  fresh.catch(() => {}); // a failed rebuild keeps the previous ratings
+  return prev.f;
+}
+
+/** The data version of the ratings pages are answering with (for caches of results computed from them). */
+export async function liveVersion(season: number): Promise<string> {
+  return built.get(anchorFor(season))?.version ?? dataVersion();
+}
+
+/** Rebuild, in the background, every forecaster in use whose data moved on (polled after syncs). */
+export async function refreshForecasters(): Promise<void> {
+  const version = await dataVersion();
+  for (const [anchor, hit] of [...cache]) if (hit.version !== version) await forecasterFor(anchor).catch(() => {});
+}
+
+/** Drop cached forecasters and season data (tests, or after a manual data change). */
+export function resetForecasters(): void { cache.clear(); built.clear(); seasonCache.clear(); }

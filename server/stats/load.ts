@@ -50,7 +50,11 @@ export async function loadSeason(season: number, codes?: string[]): Promise<DbEv
   if (!codes) {
     const all_ = (await all<{ code: string }>("SELECT code FROM events WHERE season = ? ORDER BY code", [season])).map((r) => r.code);
     const out: DbEvent[] = [];
-    for (let i = 0; i < all_.length; i += LOAD_BATCH) out.push(...(await loadSeason(season, all_.slice(i, i + LOAD_BATCH))));
+    for (let i = 0; i < all_.length; i += LOAD_BATCH) {
+      out.push(...(await loadSeason(season, all_.slice(i, i + LOAD_BATCH))));
+      // The local database answers on this thread: let waiting requests in between batches (a season is ~4 s of reads).
+      await new Promise<void>((r) => setImmediate(r));
+    }
     return out;
   }
   if (!codes.length) return [];

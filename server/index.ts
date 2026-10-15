@@ -10,7 +10,7 @@ import express from "express";
 import { ENGINE_VERSION } from "@control-scout/predict-engine";
 import { createApp } from "./app.js";
 import { RELEASE } from "./release.js";
-import { forecasterFor } from "./predict/engine.js";
+import { forecasterFor, refreshForecasters } from "./predict/engine.js";
 import { CURRENT_SEASON } from "./data/seasons.js";
 import { installShippedPacks, restoreSnapshotIfEmpty } from "./data/snapshot.js";
 
@@ -41,6 +41,10 @@ log("ready");
 
 // Warm the current season's ratings so the first prediction is fast.
 forecasterFor(CURRENT_SEASON).then(() => log("ratings ready")).catch((e) => log(`ratings not ready: ${(e as Error).message}`));
+// After a sync (often in a child process) the data version moves: rebuild the
+// ratings in use right away, in the background, so no visitor's request is the
+// one that waits for it (pages keep the previous ratings until it's done).
+setInterval(() => { refreshForecasters().catch(() => {}); }, 15_000).unref();
 
 /** The data cycle runs in a child process (DATA_CYCLE=child), which needs a local database file. */
 function childCycle(): boolean { return process.env.DATA_CYCLE === "child" && !isRemote(env.databaseUrl); }
