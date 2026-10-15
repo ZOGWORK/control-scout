@@ -89,6 +89,12 @@ https://controlscout.org.
   `curl -H "Authorization: Bearer $STATS_TOKEN" https://controlscout.org/api/stats/summary?days=30`.
   Without `STATS_TOKEN` that endpoint answers 404.
 - **Logs:** `journalctl -u control-scout -f`
+- **Restarts without errors:** the port belongs to the `control-scout.socket` unit, not to
+  the server. systemd keeps it open through every restart and hands it to each new server,
+  which takes it once its data is ready. Requests during a deploy wait a few seconds instead
+  of getting nginx's 502, and a stopping server finishes the requests it's serving first (up to 10 s).
+  Because a request to the open socket starts the server, **stopping the site needs both units**:
+  `sudo systemctl stop control-scout.socket control-scout`, then `start` both again.
 - **Rollback:** on the VM,
   `sudo ln -sfn releases/<older> /opt/control-scout/current && sudo systemctl restart control-scout`.
 - **Docker** (for the Mac mini cluster later): `docker build -t control-scout .`
