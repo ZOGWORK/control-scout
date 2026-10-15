@@ -46,6 +46,15 @@ describe("offline team profile (same shape as /api/teams/:n)", () => {
     expect(p.season).toBe(2024);
   });
 
+  it("lists only seasons the team played: a registration-only newest season isn't offered or opened", async () => {
+    const { packDb } = await import("./testFixture");
+    const { wrap } = await import("./readers");
+    const reg = { season: 2025, db: wrap(await packDb(2025, { teams: [{ number: 999, name: "Retired", city: null, state: null, country: null }] })) };
+    const p = readTeamProfile([reg, s24], 999)!;
+    expect(p.seasons).toEqual([2024]);
+    expect(p.season).toBe(2024);
+  });
+
   it("drops events where a listed team never took the field once results exist", () => {
     expect(readTeamProfile([s25], 500)!.events).toEqual([]);
   });

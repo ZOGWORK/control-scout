@@ -118,6 +118,7 @@ export function readTeamProfile(dbs: SeasonDb[], number: number, season?: number
   // The same seasons the server lists (server/api/teams.ts teamSeasons), among those saved: ones the robot
   // played (matches, or a rank at a remote event); registration alone only counts for the newest saved season.
   const played = (x: SeasonDb) => !!one(x.db, "SELECT 1 FROM team_season_stats WHERE team = ? AND matches > 0", [number])
+    || !!one(x.db, "SELECT 1 FROM event_teams WHERE team = ? AND qual_played > 0", [number])
     || !!one(x.db, "SELECT 1 FROM event_teams et JOIN events e ON e.season = et.season AND e.code = et.code WHERE et.team = ? AND e.remote = 1 AND et.rank IS NOT NULL", [number]);
   const newest = saved[0];
   const entered = !!newest && !!one(newest.db, "SELECT 1 FROM event_teams WHERE team = ? LIMIT 1", [number]);
