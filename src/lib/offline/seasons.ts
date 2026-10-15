@@ -7,7 +7,7 @@
 // sql.js and its .wasm load only when a season is saved or read, and come
 // from this site (cached for the service worker), never a CDN.
 import type { Database, SqlJsStatic } from "sql.js";
-import { del, fetchVerified, getv, put, type PackFile, type PackManifest } from "../packs";
+import { del, fetchVerified, getv, keys, put, type PackFile, type PackManifest } from "../packs";
 import { savedSeasons, writeSaved, type SavedSeason } from "./saved";
 import { wrap, type Db, type SeasonDb } from "./readers";
 
@@ -86,6 +86,27 @@ export async function saveSeason(file: PackFile, manifest: PackManifest, onProgr
   const db = await openPack(bytes, season);
   // Ask the browser not to clear it under storage pressure (granted quietly or not at all).
   navigator.storage?.persist?.().catch(() => {});
+  // One save per season at a time, across tabs: two releases saved at once would otherwise both
+  // replace the same previous copy and leave one download stored but unlisted.
+  return oneAtATime(season, () => store(season, file, manifest, bytes, db));
+}
+
+// Web Locks cover every tab; without them (old browsers, tests) this tab's own saves still queue.
+const queues = new Map<number, Promise<unknown>>();
+function oneAtATime<T>(season: number, fn: () => Promise<T>): Promise<T> {
+  if (typeof navigator !== "undefined" && navigator.locks) return navigator.locks.request(`cs-season-${season}`, fn) as Promise<T>;
+  const run = (queues.get(season) ?? Promise.resolve()).catch(() => {}).then(fn);
+  queues.set(season, run);
+  return run;
+}
+
+/** Delete every stored copy of a season the saved list doesn't point at (leftovers of an interrupted save). */
+async function sweep(season: number) {
+  const listed = savedSeasons().find((s) => s.season === season);
+  for (const k of await keys(`season:${season}:`).catch(() => [])) if (!listed || k !== key(season, listed.sha256)) await del(k).catch(() => {});
+}
+
+async function store(season: number, file: PackFile, manifest: PackManifest, bytes: Uint8Array, db: Database): Promise<SavedSeason> {
   const k = key(season, file.sha256);
   const prev = savedSeasons().find((s) => s.season === season);
   try { await put(k, bytes); }
@@ -108,15 +129,17 @@ export async function saveSeason(file: PackFile, manifest: PackManifest, onProgr
   }
   if (was && was !== mine) retire(was);
   if (prev && prev.sha256 !== file.sha256) await del(key(season, prev.sha256)).catch(() => {});
+  await sweep(season);
   trim();
   return meta;
 }
 
 export async function removeSeason(season: number): Promise<void> {
-  const meta = savedSeasons().find((s) => s.season === season);
-  close(season);
-  writeSaved(savedSeasons().filter((s) => s.season !== season));
-  if (meta) await del(key(season, meta.sha256));
+  await oneAtATime(season, async () => {
+    close(season);
+    writeSaved(savedSeasons().filter((s) => s.season !== season));
+    await sweep(season); // this copy and any leftovers
+  });
 }
 
 /** A saved season's open entry (null when it isn't saved), now the most recently used. */
