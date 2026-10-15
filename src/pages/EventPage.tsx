@@ -207,7 +207,8 @@ function useRefreshResults(path: string) {
       prime(path, r.detail);
       setAt(Date.now());
       say(r.message);
-      return { ok: true, message: r.message };
+      // "failed" comes back as a 200 (FIRST didn't answer; the cached detail is still good).
+      return { ok: r.outcome !== "failed", message: r.message };
     } catch (e) {
       const message = e instanceof ApiError ? e.message : "Couldn't refresh right now. Try again in a moment.";
       say(message);
