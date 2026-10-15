@@ -13,6 +13,8 @@ import { LoadingBlock } from "./components/states";
 import { CanonicalSync, MetaProvider } from "./lib/meta";
 import { AlertsRunner } from "./lib/alerts";
 import { LitePackSync } from "./lib/packSync";
+import { ConsentBanner } from "./components/layout/ConsentBanner";
+import { PageViews } from "./lib/analytics";
 // The landing page is part of the main bundle, not lazy: its API calls then start in
 // the same render as the app's own (/api/meta, /api/auth/me), with no second round.
 import Home from "./pages/Home";
@@ -41,9 +43,11 @@ const PAGES = {
   DownloadPage: lazyPage(() => import("./pages/DownloadPage")),
   SettingsPage: lazyPage(() => import("./pages/SettingsPage")),
   MethodologyPage: lazyPage(() => import("./pages/MethodologyPage")),
+  PrivacyPage: lazyPage(() => import("./pages/PrivacyPage")),
+  TermsPage: lazyPage(() => import("./pages/TermsPage")),
   NotFound: lazyPage(() => import("./pages/NotFound")),
 } satisfies Record<PageModule, unknown>;
-const { TeamPage, EventsPage, RecordsPage, EventPage, PredictPage, ComparePage, MyTeamPage, ShortlistPage, ScoutPage, DownloadPage, SettingsPage, MethodologyPage, NotFound } = PAGES;
+const { TeamPage, EventsPage, RecordsPage, EventPage, PredictPage, ComparePage, MyTeamPage, ShortlistPage, ScoutPage, DownloadPage, SettingsPage, MethodologyPage, PrivacyPage, TermsPage, NotFound } = PAGES;
 
 // Offline: the service worker precaches the app so it opens with no signal.
 // Production builds only (dev serves unbundled modules).
@@ -84,6 +88,8 @@ void ready.catch(() => { /* a failed load is retried (and shown) by the page's o
                   <Route path="/settings" element={<SettingsPage />} />
                   <Route path="/methodology" element={<MethodologyPage />} />
                   <Route path="/predict/how-it-works" element={<MethodologyPage />} />
+                  <Route path="/privacy" element={<PrivacyPage />} />
+                  <Route path="/terms" element={<TermsPage />} />
                   <Route path="*" element={<NotFound />} />
                 </Routes>
               </Suspense>
@@ -92,6 +98,8 @@ void ready.catch(() => { /* a failed load is retried (and shown) by the page's o
             <AlertsRunner />
             <LitePackSync />
             <CanonicalSync />
+            <ConsentBanner />
+            <PageViews />
           </SearchProvider>
         </MetaProvider>
       </PersonalProvider>

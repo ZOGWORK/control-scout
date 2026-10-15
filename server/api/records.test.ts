@@ -201,7 +201,7 @@ describe("GET /api/records/:season/teams", () => {
     (c as any).transaction = (m: any) => { txs++; return realTx(m); };
     (c as any).execute = (s: any) => {
       const sql = String(s?.sql ?? s);
-      if (sql.includes("FROM team_event_records")) { if (sql.includes(" IN (VALUES ")) rowReads++; else keyReads++; }
+      if (sql.includes("team_event_records")) { if (sql.startsWith("WITH wanted(")) rowReads++; else keyReads++; }
       return realExec(s);
     };
     try {
@@ -213,6 +213,42 @@ describe("GET /api/records/:season/teams", () => {
       expect(teams).toEqual((await all<any>("SELECT team FROM team_event_records WHERE season = 2023 ORDER BY auto_avg IS NULL, auto_avg DESC, team, code")).map((r) => Number(r.team)));
       expect(new Set(teams).size).toBe(1500);
     } finally { (c as any).execute = realExec; (c as any).transaction = realTx; }
+  });
+  it("starts a CSV download before any query runs, through gzip, then streams every row in order", async () => {
+    const c = db();
+    const realExec = c.execute.bind(c);
+    let release!: () => void;
+    const gate = new Promise<void>((r) => { release = r; });
+    let queries = 0;
+    (c as any).execute = async (s: any) => {
+      if (String(s?.sql ?? s).includes("team_event_records")) { queries++; await gate; }
+      return realExec(s);
+    };
+    try {
+      const r = await fetch(`${base}/api/records/2023/teams?format=csv&sort=teamName&fields=teamName`, { headers: { "accept-encoding": "gzip" } });
+      expect(r.headers.get("content-encoding")).toBe("gzip");
+      const reader = r.body!.getReader();
+      const dec = new TextDecoder();
+      // The header row arrives (compressed, flushed) while the key query is still held back.
+      const first = dec.decode((await reader.read()).value, { stream: true });
+      expect(first).toBe("Season,Team,Event Code,Event,Event Type,Event Start,Team Name\r\n");
+      expect(queries).toBe(1);
+      release();
+      let text = first;
+      for (let x = await reader.read(); !x.done; x = await reader.read()) text += dec.decode(x.value, { stream: true });
+      const got = text.trim().split("\r\n").slice(1).map((l) => `${l.split(",")[1]}|${l.split(",")[2]}`);
+      expect(got).toEqual((await all<any>("SELECT team, code FROM team_event_records WHERE season = 2023 ORDER BY team_name IS NULL, team_name_fold ASC, team, code")).map((x) => `${x.team}|${x.code}`));
+    } finally { release(); (c as any).execute = realExec; }
+  });
+  it("exports match records in order, each row read by its whole key", async () => {
+    // The table's own order (whole rows sorted in one query) is the reference.
+    const want = (await get(`/api/records/${S}/matches?sort=combinedScore&fields=combinedScore`)).body.rows.map((x: any) => `${x.eventCode}|${x.label}|${x.level}|${x.stats.combinedScore}`);
+    expect(want.length).toBe(3);
+    const r = await fetch(`${base}/api/records/${S}/matches?format=csv&sort=combinedScore&fields=combinedScore`, { headers: { "accept-encoding": "identity" } });
+    expect(r.headers.get("content-encoding")).toBeNull();
+    expect(r.headers.get("vary")).toMatch(/accept-encoding/i); // a cache keeps the plain and gzipped copies apart
+    const text = await r.text();
+    expect(text.trim().split("\r\n").slice(1).map((l) => { const c = l.split(","); return `${c[1]}|${c[4]}|${c[5]}|${c[8]}`; })).toEqual(want);
   });
   it("returns only the asked-for fields", async () => {
     const r = await get(`/api/records/${N}/teams?fields=teamName,autoPointsAvg&pageSize=1`);

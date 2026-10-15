@@ -27,7 +27,7 @@ describe("routes shared by the app and the server", () => {
       ["/events", "EventsPage"], ["/events/2025/USNJNOM3", "EventPage"], ["/predict", "PredictPage"], ["/predict/accuracy", null],
       ["/predict/how-it-works", "MethodologyPage"], ["/methodology", "MethodologyPage"], ["/compare", "ComparePage"], ["/my-team", "MyTeamPage"],
       ["/shortlist", "ShortlistPage"], ["/scout", "ScoutPage"], ["/download", "DownloadPage"], ["/settings", "SettingsPage"],
-      ["/nope", "NotFound"], ["/events/2025", "NotFound"], ["/teams/4215/x", "NotFound"],
+      ["/privacy", "PrivacyPage"], ["/terms", "TermsPage"], ["/nope", "NotFound"], ["/events/2025", "NotFound"], ["/teams/4215/x", "NotFound"],
     ];
     for (const [path, mod] of cases) expect(pageModule(path), path).toBe(mod);
     for (const [, mod] of cases) if (mod) expect(existsSync(join(__dirname, "..", "src", "pages", `${mod}.tsx`)), mod).toBe(true);
