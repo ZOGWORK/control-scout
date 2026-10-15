@@ -143,9 +143,13 @@ export async function removeSeason(season: number): Promise<void> {
   await oneAtATime(season, async () => {
     const meta = savedSeasons().find((s) => s.season === season);
     close(season);
-    // The file goes first: if that fails the season stays listed, so Remove can be tried again.
-    if (meta) await del(key(season, meta.sha256));
-    writeSaved(savedSeasons().filter((s) => s.season !== season));
+    // The list and the file change together: if either step fails, the season stays listed with its
+    // file in place (restored if it was already deleted), so Remove can be tried again.
+    const k = meta ? key(season, meta.sha256) : null;
+    const bytes = k ? await getv<Uint8Array>(k) : undefined;
+    if (k) await del(k);
+    try { writeSaved(savedSeasons().filter((s) => s.season !== season)); }
+    catch (e) { if (k && bytes) await put(k, bytes).catch(() => {}); throw e; }
     await sweep(season).catch(() => {}); // leftovers of interrupted saves; the season itself is gone
   });
 }
