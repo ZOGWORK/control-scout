@@ -57,7 +57,9 @@ export default function ContactPage() {
   // Signed in: fill in the account's email once it's known (never over what was typed).
   useEffect(() => { if (user?.email) setForm((f) => (f.email ? f : { ...f, email: user.email! })); }, [user?.email]);
 
-  const errors: Errors = { ...check(form), ...serverFields };
+  // The server's reason wins for a field until that field is edited (edits clear it to undefined, which must not hide our own check).
+  const checked = check(form);
+  const errors: Errors = Object.fromEntries((["name", "email", "topic", "message"] as Field[]).map((f) => [f, serverFields[f] ?? checked[f]]));
   const shown = (f: Field) => (touched[f] || serverFields[f] ? errors[f] : undefined);
   const set = (f: Field, v: string) => { setForm((x) => ({ ...x, [f]: v })); setServerFields((x) => ({ ...x, [f]: undefined })); };
   const leave = (f: Field) => setTouched((t) => ({ ...t, [f]: true }));
@@ -96,7 +98,7 @@ export default function ContactPage() {
     <div>
       <PageHeader title="Contact us" description="Found a bug, spotted wrong data, or have an idea? Tell us here." />
       <div className="grid grid-cols-[minmax(0,1fr)] gap-8 lg:grid-cols-[minmax(0,1fr)_320px]">
-        <div className="rounded-2xl border border-line bg-card/70 p-4 sm:p-6">
+        <div className="self-start rounded-2xl border border-line bg-card/70 p-4 sm:p-6">
           {status === "sent" ? (
             <motion.div role="status" initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} className="flex flex-col items-center py-8 text-center">
               <span className="mb-4 flex size-14 items-center justify-center rounded-full bg-success/12 text-success"><CheckCircle2 className="size-7" aria-hidden /></span>
