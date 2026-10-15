@@ -36,10 +36,23 @@ export function rankBy(vals: [number, number][], min = -Infinity): Map<number, n
   return new Map(sorted.map(([t], i) => [t, i + 1]));
 }
 
-export async function computeSeasonStats(season: number, events: DbEvent[], log: Log = () => {}): Promise<void> {
-  const ev: InStatement[] = [{ sql: "DELETE FROM team_event_stats WHERE season = ?", args: [season] }];
-  const best = new Map<number, { np: number; auto: number; teleop: number; endgame: number; pen: number }>();
-  const seasonAcc = new Map<number, Acc & { events: Set<string> }>();
+type Best = { np: number; auto: number; teleop: number; endgame: number; pen: number };
+type SeasonAcc = Acc & { events: Set<string> };
+
+const TES_SQL = "INSERT INTO team_event_stats (season, code, team, opr_np, opr_auto, opr_teleop, opr_endgame, opr_pen, avg_score, avg_np, avg_pen, matches, wins, losses, ties) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
+const TSS_COLS = `season, team, opr_np, opr_auto, opr_teleop, opr_endgame, opr_pen, rank_np, rank_auto, rank_teleop, rank_endgame, ranked_teams,
+  rating_np, rating_auto, rating_teleop, rating_endgame, rating_pen, rating_sd, rating_matches, rating_rank, events, matches, wins, losses, ties, avg_np, avg_score, avg_pen`;
+const TSS_SQL = `INSERT INTO team_season_stats (${TSS_COLS}) VALUES (${Array(28).fill("?").join(", ")})`;
+
+/**
+ * Per-event rows (OPR + qual record) and per-season tallies for a set of
+ * events. Pure: the full job passes the whole season, the live fast lane only
+ * the events its teams played.
+ */
+function tallyEvents(season: number, events: DbEvent[]): { eventRows: Map<string, InStatement[]>; best: Map<number, Best>; seasonAcc: Map<number, SeasonAcc> } {
+  const eventRows = new Map<string, InStatement[]>();
+  const best = new Map<number, Best>();
+  const seasonAcc = new Map<number, SeasonAcc>();
   for (const e of events) {
     // Remote-only events have no alliances to separate. Hybrid events are mostly
     // ordinary 2v2 matches (oprRows takes alliances of any size), so they count:
@@ -63,12 +76,14 @@ export async function computeSeasonStats(season: number, events: DbEvent[], log:
         }
       }
     }
+    const out: InStatement[] = [];
+    eventRows.set(e.code, out);
     const teams = new Set([...perTeam.keys(), ...(res ? res.rows.keys() : [])]);
     for (const team of teams) {
       const a = perTeam.get(team) ?? acc();
       const o = (c: "np" | "auto" | "teleop" | "endgame" | "pen") => res?.opr[c].get(team) ?? null;
-      ev.push({
-        sql: "INSERT INTO team_event_stats (season, code, team, opr_np, opr_auto, opr_teleop, opr_endgame, opr_pen, avg_score, avg_np, avg_pen, matches, wins, losses, ties) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+      out.push({
+        sql: TES_SQL,
         args: [season, e.code, team, r1(o("np")), r1(o("auto")), r1(o("teleop")), r1(o("endgame")), r1(o("pen")),
           a.matches ? r1(a.score / a.matches) : null, a.matches ? r1(a.np / a.matches) : null, a.matches ? r1(a.pen / a.matches) : null, a.matches, a.w, a.l, a.t],
       });
@@ -82,18 +97,38 @@ export async function computeSeasonStats(season: number, events: DbEvent[], log:
       }
     }
   }
-  await writeBatch(ev);
+  return { eventRows, best, seasonAcc };
+}
 
-  // Ratings from the shared engine. Past seasons: as of the team's last match
-  // (no growth extrapolation); the current season: grown to now, exactly what
-  // predictions use. Legacy seasons (pre-2023) are history only: no ratings.
+/** Ratings from the shared engine. Past seasons: as of the team's last match
+ *  (no growth extrapolation); the current season: grown to now, exactly what
+ *  predictions use. Legacy seasons (pre-2023) are history only: no ratings. */
+async function ratingReader(season: number) {
   const book = isLegacy(season) ? null : (await forecasterFor(season)).book(season);
-  const rating = (t: number) => {
+  return (t: number) => {
     if (!book) return null;
     const stored = book.ratings.get(t);
     if (!stored) return null;
     return season === CURRENT_SEASON ? book.get(t) : stored;
   };
+}
+
+type Rating = ReturnType<Awaited<ReturnType<typeof ratingReader>>>;
+interface Ranks { np?: number | null; auto?: number | null; teleop?: number | null; endgame?: number | null; of?: number | null; rating?: number | null }
+
+function seasonRowArgs(season: number, team: number, a: SeasonAcc, o: Best | undefined, r: Rating, k: Ranks) {
+  return [season, team, r1(o?.np), r1(o?.auto), r1(o?.teleop), r1(o?.endgame), o && Number.isFinite(o.pen) ? r1(o.pen) : null,
+    k.np ?? null, k.auto ?? null, k.teleop ?? null, k.endgame ?? null, k.of ?? null,
+    r ? r1(r.auto + r.teleop + r.endgame) : null, r ? r1(r.auto) : null, r ? r1(r.teleop) : null, r ? r1(r.endgame) : null, r ? r1(r.pen) : null,
+    r ? r1(Math.sqrt(r.uncertainty)) : null, r?.n ?? null, k.rating ?? null,
+    a.events.size, a.matches, a.w, a.l, a.t, a.matches ? r1(a.np / a.matches) : null, a.matches ? r1(a.score / a.matches) : null, a.matches ? r1(a.pen / a.matches) : null];
+}
+
+export async function computeSeasonStats(season: number, events: DbEvent[], log: Log = () => {}): Promise<void> {
+  const { eventRows, best, seasonAcc } = tallyEvents(season, events);
+  await writeBatch([{ sql: "DELETE FROM team_event_stats WHERE season = ?", args: [season] }, ...[...eventRows.values()].flat()]);
+
+  const rating = await ratingReader(season);
   const b = [...best];
   // OPR ranks count every finite value, negatives included (as FTC Scout ranks them).
   const ranks = { np: rankBy(b.map(([t, x]) => [t, x.np])), auto: rankBy(b.map(([t, x]) => [t, x.auto])), teleop: rankBy(b.map(([t, x]) => [t, x.teleop])), endgame: rankBy(b.map(([t, x]) => [t, x.endgame])) };
@@ -102,21 +137,57 @@ export async function computeSeasonStats(season: number, events: DbEvent[], log:
   const ratingRank = rankBy(ratingVals, 0); // ratings keep their floor
   const ss: InStatement[] = [{ sql: "DELETE FROM team_season_stats WHERE season = ?", args: [season] }];
   for (const [team, a] of seasonAcc) {
-    const o = best.get(team);
-    const r = rating(team);
     ss.push({
-      sql: `INSERT INTO team_season_stats (season, team, opr_np, opr_auto, opr_teleop, opr_endgame, opr_pen, rank_np, rank_auto, rank_teleop, rank_endgame, ranked_teams,
-              rating_np, rating_auto, rating_teleop, rating_endgame, rating_pen, rating_sd, rating_matches, rating_rank, events, matches, wins, losses, ties, avg_np, avg_score, avg_pen)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      args: [season, team, r1(o?.np), r1(o?.auto), r1(o?.teleop), r1(o?.endgame), o && Number.isFinite(o.pen) ? r1(o.pen) : null,
-        ranks.np.get(team) ?? null, ranks.auto.get(team) ?? null, ranks.teleop.get(team) ?? null, ranks.endgame.get(team) ?? null, ranks.np.size,
-        r ? r1(r.auto + r.teleop + r.endgame) : null, r ? r1(r.auto) : null, r ? r1(r.teleop) : null, r ? r1(r.endgame) : null, r ? r1(r.pen) : null,
-        r ? r1(Math.sqrt(r.uncertainty)) : null, r?.n ?? null, ratingRank.get(team) ?? null,
-        a.events.size, a.matches, a.w, a.l, a.t, a.matches ? r1(a.np / a.matches) : null, a.matches ? r1(a.score / a.matches) : null, a.matches ? r1(a.pen / a.matches) : null],
+      sql: TSS_SQL,
+      args: seasonRowArgs(season, team, a, best.get(team), rating(team), {
+        np: ranks.np.get(team), auto: ranks.auto.get(team), teleop: ranks.teleop.get(team), endgame: ranks.endgame.get(team), of: ranks.np.size, rating: ratingRank.get(team),
+      }),
     });
   }
   await writeBatch(ss);
   log(`${season}: stats for ${seasonAcc.size} teams, OPR ranks for ${ranks.np.size}`);
+}
+
+/**
+ * Incremental stats for events whose results just changed (the live fast
+ * lane): their per-event rows (OPR, record), and the season rows of the teams
+ * that play there, from every event those teams played this season. Season
+ * world ranks are left as they are (they need every team's numbers; the full
+ * job recomputes them on its next run). Milliseconds instead of the full
+ * season's seconds.
+ */
+export async function refreshEventStats(season: number, codes: string[], log: Log = () => {}): Promise<{ teams: number }> {
+  if (!codes.length) return { teams: 0 };
+  const q = codes.map(() => "?").join(",");
+  // Teams in the event now, plus those its stats counted before (a corrected lineup or a withdrawn result
+  // can drop a team, whose season totals must lose those matches too).
+  const teamRows = await all<{ team: number }>(
+    `SELECT team FROM event_teams WHERE season = ? AND code IN (${q}) UNION SELECT team FROM match_teams WHERE season = ? AND code IN (${q})
+     UNION SELECT team FROM team_event_stats WHERE season = ? AND code IN (${q})`,
+    [season, ...codes, season, ...codes, season, ...codes],
+  );
+  const teams = teamRows.map((r) => Number(r.team));
+  const tq = teams.map(() => "?").join(",");
+  const others = teams.length ? await all<{ code: string }>(`SELECT DISTINCT code FROM match_teams WHERE season = ? AND team IN (${tq})`, [season, ...teams]) : [];
+  const events = await loadSeason(season, [...new Set([...codes, ...others.map((r) => r.code)])]);
+  const { eventRows, best, seasonAcc } = tallyEvents(season, events);
+  const stmts: InStatement[] = [];
+  for (const c of codes) stmts.push({ sql: "DELETE FROM team_event_stats WHERE season = ? AND code = ?", args: [season, c] }, ...(eventRows.get(c) ?? []));
+  const rating = await ratingReader(season);
+  const rankCols = new Set(["rank_np", "rank_auto", "rank_teleop", "rank_endgame", "ranked_teams", "rating_rank"]);
+  const keep = TSS_COLS.split(",").map((c) => c.trim()).filter((c) => c !== "season" && c !== "team" && !rankCols.has(c));
+  const upsert = `${TSS_SQL} ON CONFLICT(season, team) DO UPDATE SET ${keep.map((c) => `${c} = excluded.${c}`).join(", ")}`;
+  let n = 0;
+  for (const team of teams) {
+    const a = seasonAcc.get(team);
+    // No counted match left this season (all withdrawn or moved): its season row goes, as a full run would leave none.
+    if (!a) { stmts.push({ sql: "DELETE FROM team_season_stats WHERE season = ? AND team = ?", args: [season, team] }); continue; }
+    stmts.push({ sql: upsert, args: seasonRowArgs(season, team, a, best.get(team), rating(team), {}) });
+    n++;
+  }
+  await writeBatch(stmts);
+  log(`${season}: live stats for ${codes.join(", ")} (${n} teams)`);
+  return { teams: n };
 }
 
 // ---------------------------------------------------------------------------

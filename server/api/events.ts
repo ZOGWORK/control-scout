@@ -5,6 +5,7 @@ import { eventTypeLabel, isLegacy } from "../data/seasons.js";
 import type { EventDetail, EventSummary, FieldRow } from "../../src/shared/api.js";
 import { matchViews } from "./matches.js";
 import { liveForecaster } from "../predict/engine.js";
+import { FULL_EVERY_MS, isEventDay, liveIo, liveSyncOn, liveSyncSeconds } from "../data/live.js";
 
 const today = () => new Date().toISOString().slice(0, 10);
 
@@ -86,8 +87,13 @@ export async function eventDetail(season: number, code: string): Promise<EventDe
     awards: awards.map((a) => ({ type: a.type, placement: a.placement, team: a.team, name: a.name })),
     advancement: adv ? { slots: adv.slots, advancesTo: adv.advances_to, rows: JSON.parse(adv.rows) } : null,
     forecastUnsupported: isLegacy(season) ? LEGACY_NOTE : f ? f.unsupportedReason(input) : "Predictions are still loading.",
+    // Without FIRST credentials only the 5-minute FTC Scout fetch runs, so that's the cadence the page shows.
+    live: isEventDay(r) ? { checkedAt: latest(r.live_checked_at, r.detail_synced_at), everySeconds: liveIo.canProbe() ? liveSyncSeconds() : FULL_EVERY_MS / 1000, auto: liveSyncOn() } : null,
   };
 }
+
+/** The later of two ISO timestamps (either may be missing). */
+const latest = (a: string | null, b: string | null) => (!a ? b ?? null : !b ? a : a > b ? a : b);
 
 /** The engine's view of an event (same fields Control Point passes from FtcEventFull). */
 export function toEventInput(ev: EventSummary, field: FieldRow[], matches: EventDetail["matches"], alliances: any[]): EventInput {
