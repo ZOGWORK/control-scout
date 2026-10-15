@@ -249,8 +249,9 @@ export function MatchList({ matches, highlight, empty, eventNames, initialOpen }
   }, [initialOpen, matches.length]);
   if (!matches.length) return <p className="rounded-xl border border-dashed border-border px-4 py-8 text-center text-sm text-text-muted">{empty ?? "No matches yet."}</p>;
   const toggle = (k: string) => setOpen((s) => { const n = new Set(s); if (n.has(k)) n.delete(k); else n.add(k); return n; });
-  // One event: Qualifications / Playoffs headings. Several (a team's season): a heading per event, in the list's own order.
-  const oneEvent = new Set(matches.map((m) => m.code)).size === 1;
+  // An event's own schedule: Qualifications / Playoffs headings. A list across events (the caller passes
+  // eventNames: a team's season): a heading per event, in the list's own order, even when only one shows.
+  const oneEvent = !eventNames && new Set(matches.map((m) => m.code)).size === 1;
   const groups: { key: string; title: string; href?: string; ms: MatchView[] }[] = [];
   if (oneEvent) for (const l of ["qual", "playoff"] as const) { const ms = matches.filter((m) => m.level === l); if (ms.length) groups.push({ key: l, title: LEVEL_TITLE[l], ms }); }
   else for (const m of matches) {
@@ -283,12 +284,15 @@ export function MatchList({ matches, highlight, empty, eventNames, initialOpen }
   );
 }
 
-/** A team's wins, losses and ties in these matches (and how many it still has to play). */
+/** A team's wins, losses and ties in these matches (and how many it still has to play). Like the season
+ *  record (computeSeasonStats): a match the team sat out, or played as a qualification surrogate, doesn't count. */
 export function teamRecord(matches: MatchView[], team: number) {
   const r = { w: 0, l: 0, t: 0, played: 0, upcoming: 0 };
   for (const m of matches) {
     const side = m.red.teams.some((t) => t.number === team) ? m.red : m.blue.teams.some((t) => t.number === team) ? m.blue : null;
     if (!side) continue;
+    const me = side.teams.find((t) => t.number === team)!;
+    if (m.played && (!me.onField || (m.level === "qual" && me.surrogate))) continue;
     const other = side === m.red ? m.blue : m.red;
     if (!m.played || !side.score || !other.score) { r.upcoming++; continue; }
     r.played++;
