@@ -32,6 +32,8 @@ export const env = {
   get controlPointInternalUrl() { return str("CONTROL_POINT_INTERNAL_URL"); },
   get controlPointPublicUrl() { return str("CONTROL_POINT_PUBLIC_URL"); },
   get controlPointInternalKey() { return str("CONTROL_POINT_INTERNAL_KEY"); },
+  /** Owner-only GET /api/stats/summary (Authorization: Bearer <token>); unset = the endpoint 404s. */
+  get statsToken() { return str("STATS_TOKEN"); },
   get dataDir() { return str("DATA_DIR") ?? join(process.cwd(), ".data"); },
   /** Where an FTC Scout raw cache can be imported from (seed). */
   get scoutCacheDir() { return str("SCOUT_CACHE_DIR"); },

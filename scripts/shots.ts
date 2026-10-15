@@ -93,6 +93,8 @@ async function capture(browser: Browser, route: string, vp: keyof typeof SIZES, 
     ...(videoSecs ? { recordVideo: { dir: out, size: SIZES[vp] } } : {}),
   });
   if (Object.keys(STORAGE).length) await ctx.addInitScript((entries) => { for (const [k, v] of Object.entries(entries)) localStorage.setItem(k, v); }, STORAGE);
+  // The first-visit privacy banner would sit on every shot: answer it ("No thanks") unless --banner asks to see it.
+  if (!flag("banner") && !("cs-consent" in STORAGE)) await ctx.addInitScript(() => localStorage.setItem("cs-consent", JSON.stringify({ analytics: false, at: "2026-01-01T00:00:00.000Z", v: 1 })));
   if (light) await ctx.addInitScript(() => localStorage.setItem("cs-personal:settings", JSON.stringify({ value: { theme: "light", density: "comfortable", notify: {} }, updatedAt: 1 })));
   const page = await ctx.newPage();
   const errors: string[] = [];

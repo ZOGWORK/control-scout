@@ -13,6 +13,7 @@ import {
 import { apiFetch } from "../lib/api";
 import { useMeta, useTitle } from "../lib/meta";
 import { usePersonal, type AccountUser, type AuthProviders } from "../lib/personal";
+import { resetConsent, useConsent } from "../lib/consent";
 import { clearLocalScouting, localScoutEntries, saveScoutEntry, type ScoutEntry } from "../lib/scouting";
 import { clearRecordings, fmtBytes } from "../lib/recordings";
 import { downloadCsv } from "../lib/csv";
@@ -482,6 +483,7 @@ function ScoutingData() {
 
 function Privacy({ onOpen }: { onOpen: (id: SectionId) => void }) {
   const { clearLocal, user, signOut } = usePersonal();
+  const consent = useConsent();
   // The hold button's done state follows the request: it resets (and the error shows under it) if deleting fails.
   const [deleted, setDeleted] = useState(false);
   const [delErr, setDelErr] = useState<string | null>(null);
@@ -502,11 +504,23 @@ function Privacy({ onOpen }: { onOpen: (id: SectionId) => void }) {
         <Row label="Public data" description="Teams, events, matches and predictions, from FIRST and FTC Scout. No account involved." />
         <Row label="On this device" description="My team, tracking, shortlist, settings, saved predictions, scouting notes, video links, and every recording you make. Recordings never leave the device." />
         <Row label="In your account" description="Signed in only: the same list minus recordings. Your email is used only to send sign-in codes." />
-        <Row label="Never" description="No ads, no trackers, no selling data." />
+        <Row label="Never" description="No ads, no third-party trackers, no selling data. Anonymous usage stats only if you allow them." />
+        <Row label="Privacy policy" description="The details: cookies, storage, sign-in and your choices."><Button variant="outline" size="sm" asChild><Link to="/privacy">Read it</Link></Button></Row>
+      </Group>
+      <Group title="Privacy choices">
+        <Row label="Essential storage" description="Sign-in, preferences and offline data, kept so the app works.">
+          <Badge>Always on</Badge>
+        </Row>
+        <Row label="Anonymous usage statistics" htmlFor="consent-analytics"
+          description={consent.signal
+            ? "Off: your browser sends a Global Privacy Control or Do Not Track signal, and Control Scout respects it."
+            : <>Counts page views with no cookies, no IDs and no IP address. <Link to="/privacy" className="underline underline-offset-2 hover:text-foreground">Privacy policy</Link></>}>
+          <Switch id="consent-analytics" checked={consent.analytics} disabled={consent.signal} onCheckedChange={consent.setAnalytics} />
+        </Row>
       </Group>
       <Group title="Remove data">
         <Row label="Clear all local data" description={user ? "Wipes this device. Your account data is untouched." : "Wipes everything Control Scout stored on this device."}>
-          <Button variant="outline" size="sm" onClick={() => { clearLocal(); clearLocalScouting(); try { localStorage.clear(); } catch { /* storage unavailable */ } toast.success("Local data cleared"); }}>Clear</Button>
+          <Button variant="outline" size="sm" onClick={() => { clearLocal(); clearLocalScouting(); try { localStorage.clear(); } catch { /* storage unavailable */ } resetConsent(); toast.success("Local data cleared"); }}>Clear</Button>
         </Row>
         {user ? (
           <Row label="Delete account" description="Removes your account and everything synced to it: tracking, shortlist, scouting notes, video links. Recordings on this device are separate (Offline data).">

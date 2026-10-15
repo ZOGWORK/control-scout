@@ -52,12 +52,52 @@ export function block(rows: Row[]): AccuracyBlock | null {
   };
 }
 
+/** The last track record built, and the build under way (one at a time, shared by every caller). */
 let cached: { key: string; value: TrackRecord } | null = null;
+let building: { key: string; value: Promise<TrackRecord> } | null = null;
 
-export async function trackRecord(): Promise<TrackRecord> {
+/** What the track record depends on: the data version and the scored live calls. */
+async function trackRecordKey(): Promise<string> {
   const live = await all<{ c: number; s: string | null }>("SELECT COUNT(*) c, MAX(scored_at) s FROM predictions WHERE kind = 'live' AND outcome IS NOT NULL");
-  const key = `${await dataVersion()}|${live[0]?.c}|${live[0]?.s}`;
+  return `${await dataVersion()}|${live[0]?.c}|${live[0]?.s}`;
+}
+
+function build(key: string): Promise<TrackRecord> {
+  if (building?.key === key) return building.value;
+  const value = computeTrackRecord().then((v) => {
+    // A newer build may have started meanwhile: never let an older one overwrite it.
+    if (building?.value === value) { cached = { key, value: v }; building = null; }
+    return v;
+  }, (e) => { if (building?.value === value) building = null; throw e; });
+  building = { key, value };
+  return value;
+}
+
+/**
+ * The track record, cached in memory by what it depends on. Building it reads every scored
+ * prediction (≈1.5 s cold), so the server builds it at startup and again whenever the data moves
+ * on (warmTrackRecord); meanwhile visitors get the previous one, the way pages keep the previous
+ * ratings while new ones build. Only the very first build, before any exists, is waited for.
+ */
+export async function trackRecord(): Promise<TrackRecord> {
+  const key = await trackRecordKey();
   if (cached?.key === key) return cached.value;
+  const next = build(key);
+  if (!cached) return next;
+  next.catch(() => {}); // a failed rebuild keeps the previous record (and is retried on the next request or warm-up)
+  return cached.value;
+}
+
+/** Build the track record now if the data moved on (server start, and polled after syncs), so no visitor waits for it. */
+export async function warmTrackRecord(): Promise<void> {
+  const key = await trackRecordKey();
+  if (cached?.key !== key) await build(key);
+}
+
+/** Forget the cached track record (tests). */
+export function resetTrackRecord(): void { cached = null; building = null; }
+
+async function computeTrackRecord(): Promise<TrackRecord> {
   const rows = await all<any>("SELECT kind, season, p_red p, outcome y, tier, level, match_time time FROM predictions WHERE outcome IS NOT NULL");
   const seasons = SEASONS.filter((s) => PREDICT_SEASONS.includes(s.season)).map((s) => {
     const of = (kind: string) => rows.filter((r) => r.kind === kind && Number(r.season) === s.season).map((r) => ({ p: Number(r.p), y: Number(r.y), tier: r.tier, level: r.level, time: r.time }));
@@ -79,7 +119,5 @@ export async function trackRecord(): Promise<TrackRecord> {
     const m = ms.find((x) => x.key === `${r.level}:${r.series}:${r.number}`);
     if (m?.prediction) recentCalls.push(m as TrackRecord["recentCalls"][number]);
   }
-  const value: TrackRecord = { seasons, engineVersion: ENGINE_VERSION, liveThreshold: LIVE_THRESHOLD, headline, recentCalls, generatedAt: new Date().toISOString() };
-  cached = { key, value };
-  return value;
+  return { seasons, engineVersion: ENGINE_VERSION, liveThreshold: LIVE_THRESHOLD, headline, recentCalls, generatedAt: new Date().toISOString() };
 }

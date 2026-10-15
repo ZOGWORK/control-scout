@@ -6,11 +6,17 @@ import { motion, type HTMLMotionProps, type Variants } from 'motion/react';
 
 const ease = [0.2, 0.8, 0.2, 1] as const;
 
-/** Fades + rises in on mount. */
-export function Reveal({ delay = 0, y = 8, ...props }: HTMLMotionProps<'div'> & { delay?: number; y?: number }) {
+/**
+ * Fades + rises in on mount. `fade={false}` keeps the rise but paints the
+ * content at full opacity from the first frame: use it on a page's hero,
+ * whose big text is the Largest Contentful Paint. Chrome ignores text under
+ * opacity 0, and a compositor-driven fade means LCP only lands once the fade
+ * has finished (seconds later on a throttled phone).
+ */
+export function Reveal({ delay = 0, y = 8, fade = true, ...props }: HTMLMotionProps<'div'> & { delay?: number; y?: number; fade?: boolean }) {
   return (
     <motion.div
-      initial={{ opacity: 0, y }}
+      initial={{ opacity: fade ? 0 : 1, y }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.36, ease, delay }}
       {...props}
