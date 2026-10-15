@@ -48,6 +48,8 @@ describe("legacy seasons", () => {
     expect(await teamSeasons(300)).toEqual([2026]);
     expect(await teamProfile(999)).toBeNull(); // nothing on record: still a 404, the current season doesn't invent a team
     expect((await teamProfile(100))!.season).toBe(2022);
+    expect((await teamProfile(200))!.season).toBe(2020); // remote-only results: opens on them, not on an empty current season
+    expect((await teamProfile(300))!.season).toBe(2026); // nothing played: the current season
   });
 
   it("meta flags them; predict routes refuse them; browsing works", async () => {
