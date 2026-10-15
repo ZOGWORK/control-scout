@@ -22,7 +22,7 @@ const DEVICE: { name: string; what: string }[] = [
   { name: "Recordings", what: "Videos you record in the app (control-scout-media). They never leave your device." },
 ];
 
-function StorageTable({ caption, head, rows }: { caption: string; head: [string, string, string?]; rows: { name: string; what: string; lasts?: string }[] }) {
+function StorageTable({ caption, head, rows, mono }: { caption: string; head: [string, string, string?]; rows: { name: string; what: string; lasts?: string }[]; mono?: boolean }) {
   return (
     <div className="overflow-hidden rounded-xl border border-line">
       <table className="w-full text-left text-sm">
@@ -34,7 +34,7 @@ function StorageTable({ caption, head, rows }: { caption: string; head: [string,
           {rows.map((r) => (
             // Phones: each row stacks (name, then what it does, then how long).
             <tr key={r.name} className="flex flex-col gap-1 px-4 py-3 sm:table-row sm:p-0">
-              <th scope="row" className="font-mono text-[13px] font-medium text-foreground sm:w-[30%] sm:px-4 sm:py-3 sm:align-top">{r.name}</th>
+              <th scope="row" className={`${mono ? "font-mono text-[13px]" : ""} font-medium text-foreground sm:w-[30%] sm:px-4 sm:py-3 sm:align-top`}>{r.name}</th>
               <td className="text-text-muted sm:px-4 sm:py-3 sm:align-top">{r.what}</td>
               {head[2] && <td className="text-xs text-text-muted/80 sm:w-[22%] sm:px-4 sm:py-3 sm:align-top sm:text-sm"><span className="sm:hidden">Lasts: </span>{r.lasts}</td>}
             </tr>
@@ -55,7 +55,7 @@ const SECTIONS: LegalSectionDef[] = [
           <li><strong>If you allow anonymous usage statistics:</strong> which pages are viewed. See <a href="#analytics">Usage statistics</a>.</li>
           <li><strong>Server logs:</strong> like any website, our web server briefly records requests (the page asked for, IP address, browser type) to keep the site secure and working.</li>
         </ul>
-        <p>We don't ask for your name, age, school, team role or location, and we never sell or rent data to anyone.</p>
+        <p>Beyond that, we don't ask for your age, school, team role or location, and we never sell or rent data to anyone.</p>
       </>
     ),
   },
@@ -73,7 +73,7 @@ const SECTIONS: LegalSectionDef[] = [
     id: "storage", title: "Cookies and storage on your device", body: (
       <>
         <p>Control Scout sets <strong>only essential cookies</strong>, all of them for signing in. There are no advertising or tracking cookies, and no third-party cookies.</p>
-        <StorageTable caption="Cookies" head={["Cookie", "What it's for", "How long"]} rows={COOKIES} />
+        <StorageTable caption="Cookies" head={["Cookie", "What it's for", "How long"]} rows={COOKIES} mono />
         <p className="pt-2">Everything else stays in your browser's own storage (local storage and IndexedDB) on this device. We can't see it unless you sign in and sync it, and recordings are never uploaded at all.</p>
         <StorageTable caption="Data stored on your device" head={["On your device", "What it holds"]} rows={DEVICE} />
         <p className="pt-2">Your answer to the usage-statistics question is kept on your device too. Match videos play from <strong>youtube-nocookie.com</strong>, YouTube's privacy-enhanced mode, only when you open one.</p>
