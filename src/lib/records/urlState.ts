@@ -8,8 +8,10 @@ import { DEFAULT_SORT, RECORD_EVENT_TYPES, statFor, type RecordScope } from "../
 
 export interface TableState {
   filter: FilterGroup | null;
-  /** The filter text as it was in the URL when it didn't parse (shown as an error, never silently dropped). */
+  /** Why the URL's filter didn't parse (shown as an error, never silently dropped). */
   filterError: string | null;
+  /** That unreadable filter text: kept in the URL until the filter is cleared or replaced. */
+  filterRaw?: string | null;
   sort: string;
   dir: "asc" | "desc";
   /** Null = the table's own default / saved columns. */
@@ -48,7 +50,7 @@ export function parseTableState(sp: URLSearchParams, scope: RecordScope, default
   const typeRaw = sp.get("type");
   const eventType = scope !== "teamSeason" && typeRaw && (RECORD_EVENT_TYPES as readonly string[]).includes(typeRaw) ? typeRaw : null;
   const date = (k: string) => { const v = sp.get(k); return scope !== "teamSeason" && v && DATE.test(v) ? v : null; };
-  return { filter, filterError, sort, dir, cols, page, regions, eventType, from: date("from"), to: date("to") };
+  return { filter, filterError, filterRaw: filterError ? raw : null, sort, dir, cols, page, regions, eventType, from: date("from"), to: date("to") };
 }
 
 /**
@@ -58,7 +60,8 @@ export function parseTableState(sp: URLSearchParams, scope: RecordScope, default
 export function writeTableState(sp: URLSearchParams, s: TableState, scope: RecordScope, defaultSort = DEFAULT_SORT[scope]): URLSearchParams {
   const out = new URLSearchParams(sp);
   const set = (k: string, v: string | null) => { if (v == null || v === "") out.delete(k); else out.set(k, v); };
-  set("filter", s.filter && s.filter.children.length ? serializeFilter(s.filter) : null);
+  // An unreadable filter stays as it was (other edits never silently drop it).
+  set("filter", s.filter && s.filter.children.length ? serializeFilter(s.filter) : s.filterError ? s.filterRaw ?? null : null);
   set("sort", s.sort === defaultSort ? null : s.sort);
   set("dir", s.dir === defaultDir(s.sort, scope) ? null : s.dir);
   // An empty choice (every column unticked) is written as "cols=" so a shared link keeps it.
@@ -74,7 +77,7 @@ export function writeTableState(sp: URLSearchParams, s: TableState, scope: Recor
 /** True when anything narrows the rows (what "Clear Filters" resets). */
 export const hasFilters = (s: TableState) => !!(s.filter?.children.length || s.regions.length || s.eventType || s.from || s.to);
 
-export const clearFilters = (s: TableState): TableState => ({ ...s, filter: null, filterError: null, regions: [], eventType: null, from: null, to: null, page: 1 });
+export const clearFilters = (s: TableState): TableState => ({ ...s, filter: null, filterError: null, filterRaw: null, regions: [], eventType: null, from: null, to: null, page: 1 });
 
 /**
  * A query string for the address bar: URLSearchParams.toString(), but with the
@@ -85,6 +88,9 @@ export const searchString = (sp: URLSearchParams) => {
   const s = sp.toString().replace(/%2B/g, "+").replace(/%2C/g, ",");
   return s ? `?${s}` : "";
 };
+
+/** A page that exists for `total` rows: past the end → the last page (1 when there are none). */
+export const clampPage = (page: number, total: number, pageSize: number) => Math.max(1, Math.min(page, Math.ceil(total / Math.max(1, pageSize))));
 
 // --- API URLs ------------------------------------------------------------------
 
@@ -107,7 +113,8 @@ export function recordsUrl(r: RecordsRequest, format: "json" | "csv" = "json"): 
   if (r.state.filter && r.state.filter.children.length) p.set("filter", serializeFilter(r.state.filter));
   p.set("sort", r.state.sort);
   p.set("dir", r.state.dir);
-  if (r.fields.length) p.set("fields", r.fields.join(","));
+  // Always sent: an empty list ("fields=") asks for no stat columns, not the whole catalog.
+  p.set("fields", r.fields.join(","));
   if (r.state.regions.length) p.set("region", r.state.regions.join(","));
   if (r.state.eventType) p.set("eventType", r.state.eventType);
   if (r.state.from) p.set("from", r.state.from);

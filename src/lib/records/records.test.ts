@@ -4,7 +4,7 @@ import { statFor, STAT_BY_KEY } from "../../shared/statCatalog";
 import { FILTER_PRESETS } from "../../config/filterPresets";
 import { addChild, emptyCond, emptyGroup, fromBuilder, removeNode, toBuilder, updateNode, type BCond, type BGroup } from "./builder";
 import { describeFilter, formatStat } from "./describe";
-import { clearFilters, hasFilters, parseTableState, recordsUrl, searchString, writeTableState } from "./urlState";
+import { clampPage, clearFilters, hasFilters, parseTableState, recordsUrl, searchString, writeTableState } from "./urlState";
 import { deleteSaved, loadSaved, renameSaved, saveFilter, SAVED_KEY } from "./savedFilters";
 import { addPreset, conditionFor, hasPreset, presetGroup, presetsFor, removePreset } from "./presets";
 
@@ -109,6 +109,22 @@ describe("URL state", () => {
     expect(none.cols).toBeNull();
   });
 
+  it("keeps an unreadable filter in the URL through other edits, until it's cleared or replaced", () => {
+    const s = parseTableState(new URLSearchParams("filter=and-foo.gt.1-"), "teamEvent");
+    const edited = writeTableState(new URLSearchParams(), { ...s, regions: ["USTX"], cols: ["rp"] }, "teamEvent");
+    expect(edited.get("filter")).toBe("and-foo.gt.1-");
+    expect(parseTableState(edited, "teamEvent").filterError).toMatch(/unknown stat "foo"/);
+    expect(writeTableState(edited, clearFilters(parseTableState(edited, "teamEvent")), "teamEvent").has("filter")).toBe(false);
+    const replaced = writeTableState(edited, { ...s, filter: parseFilter("and-rp.gt.1-"), filterError: null, filterRaw: null }, "teamEvent");
+    expect(replaced.get("filter")).toBe("and-rp.gt.1-");
+  });
+
+  it("moves a page past the end to the last page", () => {
+    expect(clampPage(9, 137, 50)).toBe(3);
+    expect(clampPage(2, 137, 50)).toBe(2);
+    expect(clampPage(4, 0, 50)).toBe(1);
+  });
+
   it("keeps a filter that doesn't parse as an error", () => {
     const s = parseTableState(new URLSearchParams("filter=and-foo.gt.1-"), "teamEvent");
     expect(s.filter).toBeNull();
@@ -140,8 +156,11 @@ describe("API and CSV links", () => {
     expect(u.searchParams.has("page")).toBe(false);
     expect(u.searchParams.has("pageSize")).toBe(false);
   });
-  it("uses the matches endpoint for match records", () => {
-    expect(recordsUrl({ season: 2024, scope: "match", state: parseTableState(new URLSearchParams(), "match"), fields: [] })).toMatch(/^\/api\/records\/2024\/matches\?sort=highScore&dir=desc&page=1/);
+  it("uses the matches endpoint for match records, and sends an empty column choice as fields= (not the whole catalog)", () => {
+    const state = parseTableState(new URLSearchParams(), "match");
+    expect(recordsUrl({ season: 2024, scope: "match", state, fields: [] })).toMatch(/^\/api\/records\/2024\/matches\?sort=highScore&dir=desc&fields=&page=1/);
+    const csv = new URL(recordsUrl({ season: 2024, scope: "match", state, fields: [] }, "csv"), "http://x");
+    expect(csv.searchParams.get("fields")).toBe("");
   });
 });
 

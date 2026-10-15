@@ -45,6 +45,9 @@ function Event({ d, path }: { d: EventDetail; path: string }) {
   const nameOf = (t: number) => names.get(t) ?? "";
   // 2019–2022 are history only: no odds, no what-if lab (their predict routes 404).
   const predictable = usePredictable(e.season);
+  // The records tables follow the live results: fetched again whenever the event's results are checked or the stats are rebuilt.
+  const statsAt = useMeta()?.statsAt ?? "";
+  const recordsKey = `${d.live?.checkedAt ?? ""}|${statsAt}`;
   const asked = sp.get("tab") ?? (sp.get("match") ? "matches" : e.status === "upcoming" && !d.matches.length ? (predictable ? "odds" : "teams") : "matches");
   const tab = !predictable && asked === "odds" ? "matches" : asked;
   // Rankings and Insights are different tables: a filter, sort or column choice belongs to the one it was made in.
@@ -102,7 +105,7 @@ function Event({ d, path }: { d: EventDetail; path: string }) {
                   the records table below is rebuilt by the stats cycle, so it says how old it is. */}
               {e.status === "live" && <LiveStandings field={d.field} season={e.season} team={teamParam} code={e.code} />}
               {e.status === "live" && <StatsAsOf />}
-              <RecordsTable scope="teamEvent" season={e.season} code={e.code} predictable={predictable} defaultSort="rank" storageKey="event-rankings" noun="teams"
+              <RecordsTable scope="teamEvent" season={e.season} code={e.code} predictable={predictable} refreshKey={recordsKey} defaultSort="rank" storageKey="event-rankings" noun="teams"
                 defaultCols={RANKING_COLS.filter((k) => k !== "advancementOdds" || !d.forecastUnsupported)} selectable highlightTeam={teamParam}
                 emptyFallback={e.status === "live" ? <EmptyState icon={Swords} title="Full stats arrive with the next stats update" description="The live standings above are current." /> : <Rankings field={d.field} season={e.season} team={teamParam} code={e.code} note={NOTE_NO_RECORDS} />}
                 offlineFallback={<Rankings field={d.field} season={e.season} team={teamParam} code={e.code} note={NOTE_OFFLINE} />} />
@@ -112,7 +115,7 @@ function Event({ d, path }: { d: EventDetail; path: string }) {
         <TabsContent value="insights" className="mt-5">
           {tab === "insights" && e.status === "live" && <StatsAsOf />}
           {tab === "insights" && (
-            <RecordsTable scope="teamEvent" season={e.season} code={e.code} predictable={predictable} defaultSort="totalPointsNpOpr" storageKey="event-insights" noun="teams"
+            <RecordsTable scope="teamEvent" season={e.season} code={e.code} predictable={predictable} refreshKey={recordsKey} defaultSort="totalPointsNpOpr" storageKey="event-insights" noun="teams"
               defaultCols={INSIGHT_COLS} selectable highlightTeam={teamParam}
               emptyFallback={<EmptyState icon={Swords} title="No match stats yet" description="Score breakdowns, OPR and averages appear here once qualification matches have been played and the stats have been updated." />}
               offlineFallback={<Rankings field={d.field} season={e.season} team={teamParam} code={e.code} note={NOTE_OFFLINE} />} />

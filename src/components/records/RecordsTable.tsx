@@ -9,7 +9,7 @@ import { ArrowDown, ArrowUp, ArrowUpDown, ChevronLeft, ChevronRight, Columns3, D
 import { apiFetch, useApi, type ApiError } from "../../lib/api";
 import type { FilterGroup } from "../../shared/filterDsl";
 import { STAT_BY_KEY, statFor, type MatchRecordRow, type RecordScope, type RecordsResponse, type TeamEventRecord, type TeamSeasonRecord } from "../../shared/statCatalog";
-import { clearFilters, defaultDir, hasFilters, parseTableState, recordsUrl, searchString, writeTableState, type TableState } from "../../lib/records/urlState";
+import { clampPage, clearFilters, defaultDir, hasFilters, parseTableState, recordsUrl, searchString, writeTableState, type TableState } from "../../lib/records/urlState";
 import { describeFilter, formatStat, headerOf, TONE_CLASS, toneOf } from "../../lib/records/describe";
 import { addPreset, hasPreset, presetGroup, presetsFor, removePreset, type ThresholdLookup } from "../../lib/records/presets";
 import type { FilterPreset } from "../../config/filterPresets";
@@ -49,6 +49,8 @@ export interface RecordsTableProps {
   emptyFallback?: ReactNode;
   /** Shown instead of the error when offline (records need the server; e.g. the event's downloaded ranking). */
   offlineFallback?: ReactNode;
+  /** When this changes (e.g. a live event's results were checked again), the rows are fetched again. */
+  refreshKey?: string;
 }
 
 const COLS_KEY = (k: string) => `cs-records-cols:${k}`;
@@ -83,6 +85,19 @@ export function RecordsTable(p: RecordsTableProps) {
   if (api.data) last.current = api.data;
   const data = api.data ?? (api.loading ? last.current : undefined);
   const refreshing = api.loading && !!last.current;
+  // A page past the end (an old link, or fewer rows since): go to the last page that has rows.
+  const pastEnd = !!api.data && api.data.total > 0 && !api.data.rows.length && state.page > 1;
+  useEffect(() => {
+    if (!pastEnd || !api.data) return;
+    setState({ ...state, page: clampPage(state.page, api.data.total, api.data.pageSize) }, true);
+  }, [pastEnd]); // eslint-disable-line react-hooks/exhaustive-deps
+  // New results upstream (refreshKey moved): fetch the same rows again, bypassing the cache.
+  const seenKey = useRef(p.refreshKey);
+  useEffect(() => {
+    if (p.refreshKey === seenKey.current) return;
+    seenKey.current = p.refreshKey;
+    api.reload();
+  }, [p.refreshKey, api.reload]);
   // Back online after a failed (offline) load: fetch again on its own.
   const offline = !!(api.error as ApiError | undefined)?.offline;
   useEffect(() => {
@@ -233,7 +248,8 @@ export function RecordsTable(p: RecordsTableProps) {
         ) : (api.error as ApiError).status === 400
           ? <Problem title="That filter doesn't work here" detail={api.error.message} onClear={() => setState(clearFilters(state))} />
           : <ErrorState error={api.error} onRetry={api.reload} />
-      ) : !data ? (
+      ) : !data || (!data.rows.length && data.total > 0 && state.page > 1) ? (
+        // (rows exist, just not on this page: the effect above moves to the last page)
         <TableSkeleton />
       ) : !data.rows.length ? (
         !filtered && p.emptyFallback ? p.emptyFallback : (
@@ -263,7 +279,7 @@ export function RecordsTable(p: RecordsTableProps) {
       )}
 
       <FilterBuilder open={builder} onOpenChange={setBuilder} scope={scope} predictable={predictable} value={state.filter} noun={p.noun}
-        onApply={(filter) => setState({ ...state, filter, filterError: null, page: 1 })} countFor={countFor} />
+        onApply={(filter) => setState({ ...state, filter, filterError: null, filterRaw: null, page: 1 })} countFor={countFor} />
       <Panel open={columns} onOpenChange={setColumns}
         title={<span className="flex items-center gap-2"><Columns3 className="size-5 text-sky-500" /> Choose statistics</span>}
         description="Tick any stat to show it as a column. Your choice is remembered for this table on this device."
