@@ -1,10 +1,10 @@
 // Match video, shown inline in a match's details: record on this device
 // (never uploaded) or attach a YouTube link.
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useId, useRef, useState } from "react";
 import { Camera, CircleStop, Download, Link2, Trash2 } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "./ui/tabs";
 import { Button } from "./ui/button";
-import { Input } from "./ui/basic";
+import { FieldError, Input } from "./ui/basic";
 import { toast } from "./ui/sonner";
 import { usePersonal } from "../lib/personal";
 import { youtubeId } from "../shared/personal";
@@ -43,17 +43,26 @@ export function VideoPanel({ matchRef, label }: { matchRef: string; label: strin
 function Links({ matchRef }: { matchRef: string }) {
   const { state, update } = usePersonal();
   const [url, setUrl] = useState("");
+  const [error, setError] = useState<string | null>(null);
+  const input = useRef<HTMLInputElement>(null);
+  const errorId = useId();
   const links = state.videoLinks[matchRef] ?? [];
   const add = () => {
-    if (!youtubeId(url)) { toast.error("That isn't a YouTube video link"); return; }
-    update("videoLinks", (v) => ({ ...v, [matchRef]: [...(v[matchRef] ?? []).filter((l) => l.url !== url), { url, title: null, addedAt: Date.now() }] }));
-    setUrl("");
+    const fail = (msg: string) => { setError(msg); input.current?.focus(); };
+    if (!youtubeId(url)) return fail("That isn't a YouTube video link. Paste one like https://youtu.be/… or https://www.youtube.com/watch?v=…");
+    const stored = update("videoLinks", (v) => ({ ...v, [matchRef]: [...(v[matchRef] ?? []).filter((l) => l.url !== url), { url, title: null, addedAt: Date.now() }] }));
+    if (!stored) return fail("Couldn't save the link on this device: storage is full or blocked.");
+    setUrl(""); setError(null);
   };
   return (
     <div className="space-y-3">
-      <form onSubmit={(e) => { e.preventDefault(); add(); }} className="flex gap-2">
-        <Input value={url} onChange={(e) => setUrl(e.target.value)} placeholder="https://youtu.be/…" aria-label="YouTube link" className="h-10" />
-        <Button type="submit" variant="secondary" disabled={!url}><Link2 /> Add</Button>
+      <form onSubmit={(e) => { e.preventDefault(); add(); }} noValidate>
+        <div className="flex gap-2">
+          <Input ref={input} value={url} onChange={(e) => { setUrl(e.target.value); setError(null); }} placeholder="https://youtu.be/…" aria-label="YouTube link" className="h-10"
+            aria-invalid={error ? true : undefined} aria-describedby={error ? errorId : undefined} />
+          <Button type="submit" variant="secondary" disabled={!url}><Link2 /> Add</Button>
+        </div>
+        <FieldError id={errorId}>{error}</FieldError>
       </form>
       {!links.length ? <p className="text-sm text-muted-foreground">No links for this match yet.</p> : links.map((l) => (
         <div key={l.url} className="space-y-1.5">

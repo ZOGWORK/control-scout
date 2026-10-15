@@ -3,7 +3,7 @@
 // this week's events are listed underneath. The manual what-if lab (any four
 // teams, advancement for any team at any event) sits at the bottom.
 // Every output carries its confidence tier.
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { ArrowLeftRight, ArrowRight, BookmarkPlus, CalendarDays, ChevronDown, FlaskConical, Link2, MapPin, Sparkles, Star, Swords, Trophy, Users, WifiOff, X } from "lucide-react";
 import { ENGINE_VERSION } from "@control-scout/predict-engine";
@@ -19,7 +19,8 @@ import { Badge, Input } from "../components/ui/basic";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "../components/ui/tabs";
 import { toast } from "../components/ui/sonner";
 import { CalibrationLine, ConfidenceBadge, FactorList, MatchList, WinBar } from "../components/predict";
-import { TeamInput } from "../components/TeamInput";
+import { TeamInput, lookupTeamName } from "../components/TeamInput";
+import { teamsErrors } from "../lib/teamCheck";
 import { SeasonToggle } from "../components/SeasonToggle";
 import { AdvancementView } from "../components/Advancement";
 import { SearchBox } from "../components/search/SearchBox";
@@ -315,19 +316,31 @@ function MatchLab() {
     setRed([r[0] ?? "", r[1] ?? ""]);
     setBlue([b[0] ?? "", b[1] ?? ""]);
     setSubmittedTeams(parse(urlRed, urlBlue));
+    setErrors([null, null, null, null]);
   }, [urlRed, urlBlue]);
   const submitted = submittedTeams ? `/api/predict/match${qs({ season, red: submittedTeams.red.join(","), blue: submittedTeams.blue.join(",") })}` : null;
   const state = useApi<MatchExplanationView>(submitted);
   // Offline: the submitted (validated) matchup — never the half-typed draft.
   const offline = useOfflineFallback(state.error?.offline && submittedTeams ? { season, ...submittedTeams } : null);
-  const run = () => {
+  // One error per field (red 1, red 2, blue 1, blue 2), set on submit and cleared as that field is edited.
+  const [errors, setErrors] = useState<(string | null)[]>([null, null, null, null]);
+  const [checking, setChecking] = useState(false);
+  const inputs = useRef<(HTMLInputElement | null)[]>([]);
+  const clearError = (i: number) => setErrors((e) => (e[i] ? e.map((x, j) => (j === i ? null : x)) : e));
+  const run = async () => {
     if (!ready) return;
+    setChecking(true);
+    const errs = await teamsErrors([...red, ...blue], ["red team 1", "red team 2", "blue team 1", "blue team 2"], lookupTeamName);
+    setChecking(false);
+    setErrors(errs);
+    const bad = errs.findIndex(Boolean);
+    if (bad >= 0) { inputs.current[bad]?.focus(); return; }
     const m = parse(red.join(","), blue.join(","));
-    if (!m) { toast.error("Pick four different teams"); return; }
+    if (!m) return;
     setSubmittedTeams(m);
     setSp((x) => { x.set("mode", "match"); x.set("season", String(season)); x.set("red", red.join(",")); x.set("blue", blue.join(",")); return x; }, { replace: true });
   };
-  const swap = () => { setRed(blue); setBlue(red); };
+  const swap = () => { setRed(blue); setBlue(red); setErrors((e) => [e[2], e[3], e[0], e[1]]); };
   return (
     <div className="space-y-6">
       <div className="rounded-2xl border border-border bg-card p-5 sm:p-6">
@@ -335,17 +348,17 @@ function MatchLab() {
           <SeasonToggle predictOnly value={season} onChange={(s) => setSp((x) => { x.set("season", String(s)); return x; }, { replace: true })} />
           <span className="text-xs text-muted-foreground">Ratings as of now for {seasonLabel(season)}</span>
         </div>
-        <form onSubmit={(e) => { e.preventDefault(); run(); }} className="grid items-start gap-4 md:grid-cols-[1fr_auto_1fr]">
+        <form onSubmit={(e) => { e.preventDefault(); run(); }} noValidate className="grid items-start gap-4 md:grid-cols-[1fr_auto_1fr]">
           <fieldset className="rounded-xl border border-red-alliance/30 bg-red-alliance/[0.04] p-4">
             <legend className="px-1 text-sm font-semibold text-red-alliance">Red alliance</legend>
-            <div className="grid grid-cols-2 gap-3">{red.map((v, i) => <TeamInput key={i} label={`Red team ${i + 1}`} tone="red" value={v} onChange={(x) => setRed((r) => r.map((y, j) => (j === i ? x : y)))} autoFocus={i === 0 && !v} />)}</div>
+            <div className="grid grid-cols-2 gap-3">{red.map((v, i) => <TeamInput key={i} label={`Red team ${i + 1}`} tone="red" value={v} onChange={(x) => { setRed((r) => r.map((y, j) => (j === i ? x : y))); clearError(i); }} autoFocus={i === 0 && !v} error={errors[i]} inputRef={(el) => { inputs.current[i] = el; }} />)}</div>
           </fieldset>
           <div className="flex justify-center md:pt-8"><Button type="button" variant="ghost" size="icon" onClick={swap} aria-label="Swap alliances"><ArrowLeftRight /></Button></div>
           <fieldset className="rounded-xl border border-blue-alliance/30 bg-blue-alliance/[0.04] p-4">
             <legend className="px-1 text-sm font-semibold text-blue-alliance">Blue alliance</legend>
-            <div className="grid grid-cols-2 gap-3">{blue.map((v, i) => <TeamInput key={i} label={`Blue team ${i + 1}`} tone="blue" value={v} onChange={(x) => setBlue((r) => r.map((y, j) => (j === i ? x : y)))} />)}</div>
+            <div className="grid grid-cols-2 gap-3">{blue.map((v, i) => <TeamInput key={i} label={`Blue team ${i + 1}`} tone="blue" value={v} onChange={(x) => { setBlue((r) => r.map((y, j) => (j === i ? x : y))); clearError(2 + i); }} error={errors[2 + i]} inputRef={(el) => { inputs.current[2 + i] = el; }} />)}</div>
           </fieldset>
-          <div className="md:col-span-3"><Button type="submit" size="lg" disabled={!ready} className="w-full sm:w-auto"><Sparkles /> Predict this match</Button></div>
+          <div className="md:col-span-3"><Button type="submit" size="lg" disabled={!ready || checking} className="w-full sm:w-auto"><Sparkles /> Predict this match</Button></div>
         </form>
       </div>
       {submitted && (state.error
