@@ -18,7 +18,7 @@ import { trackRecord } from "./api/accuracy.js";
 import { currentWeather } from "./weather.js";
 import { MISSING_FILE, canonicalRedirects, renderIndex } from "./seo.js";
 import { sitemapChunkRoute, sitemapRoute } from "./sitemap.js";
-import { forecasterFor, dataVersion } from "./predict/engine.js";
+import { liveForecaster, liveVersion, dataVersion } from "./predict/engine.js";
 import { authRouter, meRouter, authProviders } from "./auth/routes.js";
 import { packsRouter } from "./packs/routes.js";
 import type { ForecastView, MatchExplanationView, Meta } from "../src/shared/api.js";
@@ -237,7 +237,7 @@ export function createApp() {
     const s = season(req.query.season);
     const red = teamList(req.query.red, "red", 3), blue = teamList(req.query.blue, "blue", 3);
     if (red.some((t) => blue.includes(t))) throw bad("a team can't be on both alliances");
-    const f = await forecasterFor(s);
+    const f = await liveForecaster(s);
     const x = f.explain(s, red, blue);
     if (!x) throw new HttpError(503, "Ratings for this season aren't ready yet.");
     const names = new Map((await all<any>(`SELECT number, name FROM teams WHERE number IN (${[...red, ...blue].map(() => "?").join(",")})`, [...red, ...blue])).map((r) => [Number(r.number), r.name]));
@@ -261,11 +261,12 @@ export function createApp() {
   }));
 
   const forecastFor = async (s: number, c: string, team: number | null, mode: ForecastView["mode"]): Promise<ForecastView> => {
-    const v = await forecastMemo(`${s}|${c}|${team ?? ""}|${mode}`, async () => {
+    // Keyed by the ratings in use too: while new ones build, results from the previous ones aren't cached as the new data's.
+    const v = await forecastMemo(`${await liveVersion(s)}|${s}|${c}|${team ?? ""}|${mode}`, async () => {
       const d = await eventDetail(s, c);
       if (!d) throw new HttpError(404, `No event ${c} in ${s}`);
       if (d.forecastUnsupported) throw new HttpError(422, d.forecastUnsupported);
-      const f = await forecasterFor(s);
+      const f = await liveForecaster(s);
       const ev = toEventInput(d.event, d.field, d.matches, d.alliances);
       const fc = mode === "pre-event" ? f.preEventForecast(ev, team, 2000) : f.forecast(ev, team, 2000);
       if (!fc) throw new HttpError(503, "Ratings for this season aren't ready yet.");
@@ -290,12 +291,12 @@ export function createApp() {
 
   api.get("/predict/partners", limiter(10), h(async (req) => {
     const s = season(req.query.season), c = code(req.query.code), team = int(req.query.team, "team", { min: 1, max: 999999 });
-    return partnersMemo(`${s}|${c}|${team}`, async () => {
+    return partnersMemo(`${await liveVersion(s)}|${s}|${c}|${team}`, async () => {
       const d = await eventDetail(s, c);
       if (!d) throw new HttpError(404, `No event ${c} in ${s}`);
       if (d.forecastUnsupported) throw new HttpError(422, d.forecastUnsupported);
       if (!d.field.some((x) => x.team === team)) throw new HttpError(422, `Team ${team} isn't registered for ${c}`);
-      const f = await forecasterFor(s);
+      const f = await liveForecaster(s);
       const p = await f.partners(toEventInput(d.event, d.field, d.matches, d.alliances), team);
       if (!p) throw new HttpError(503, "Ratings for this season aren't ready yet.");
       return p;
