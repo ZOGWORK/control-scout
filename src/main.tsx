@@ -45,9 +45,10 @@ const PAGES = {
   MethodologyPage: lazyPage(() => import("./pages/MethodologyPage")),
   PrivacyPage: lazyPage(() => import("./pages/PrivacyPage")),
   TermsPage: lazyPage(() => import("./pages/TermsPage")),
+  ContactPage: lazyPage(() => import("./pages/ContactPage")),
   NotFound: lazyPage(() => import("./pages/NotFound")),
 } satisfies Record<PageModule, unknown>;
-const { TeamPage, EventsPage, RecordsPage, EventPage, PredictPage, ComparePage, MyTeamPage, ShortlistPage, ScoutPage, DownloadPage, SettingsPage, MethodologyPage, PrivacyPage, TermsPage, NotFound } = PAGES;
+const { TeamPage, EventsPage, RecordsPage, EventPage, PredictPage, ComparePage, MyTeamPage, ShortlistPage, ScoutPage, DownloadPage, SettingsPage, MethodologyPage, PrivacyPage, TermsPage, ContactPage, NotFound } = PAGES;
 
 // Offline: the service worker precaches the app so it opens with no signal.
 // Production builds only (dev serves unbundled modules).
@@ -90,6 +91,7 @@ void ready.catch(() => { /* a failed load is retried (and shown) by the page's o
                   <Route path="/predict/how-it-works" element={<MethodologyPage />} />
                   <Route path="/privacy" element={<PrivacyPage />} />
                   <Route path="/terms" element={<TermsPage />} />
+                  <Route path="/contact" element={<ContactPage />} />
                   <Route path="*" element={<NotFound />} />
                 </Routes>
               </Suspense>

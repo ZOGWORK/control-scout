@@ -12,13 +12,14 @@ const MAX_ATTEMPTS = 5;
 const MAX_SENDS_PER_HOUR = 5;
 const RESEND_COOLDOWN_MS = 30_000;
 
-export type Mailer = (to: string, subject: string, text: string, html: string) => Promise<void>;
+/** `replyTo`: where a reply goes (the contact form sets the sender's address). */
+export type Mailer = (to: string, subject: string, text: string, html: string, opts?: { replyTo?: string }) => Promise<void>;
 
-const resendMailer: Mailer = async (to, subject, text, html) => {
+const resendMailer: Mailer = async (to, subject, text, html, opts) => {
   const res = await fetch("https://api.resend.com/emails", {
     method: "POST",
     headers: { Authorization: `Bearer ${env.resendKey}`, "Content-Type": "application/json" },
-    body: JSON.stringify({ from: env.emailFrom, to: [to], subject, text, html }),
+    body: JSON.stringify({ from: env.emailFrom, to: [to], subject, text, html, ...(opts?.replyTo ? { reply_to: opts.replyTo } : {}) }),
     signal: AbortSignal.timeout(15000),
   });
   if (!res.ok) {
@@ -32,6 +33,8 @@ let mailer: Mailer = resendMailer;
 /** Tests swap the mailer; production uses Resend. */
 export function setMailer(m: Mailer | null): void { mailer = m ?? resendMailer; }
 export const emailEnabled = () => !!env.resendKey || mailer !== resendMailer;
+/** Send one email through the configured mailer (Resend, or a test's). Throws on failure. */
+export const sendEmail: Mailer = (...args) => mailer(...args);
 
 export const normalizeEmail = (e: string) => e.trim().toLowerCase();
 export const validEmail = (e: string) => e.length <= 254 && /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(e);

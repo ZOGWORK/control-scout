@@ -7,7 +7,7 @@
 /** A lazily loaded page module under src/pages (the file name without .tsx). */
 export type PageModule =
   | "TeamPage" | "EventsPage" | "RecordsPage" | "EventPage" | "PredictPage" | "ComparePage" | "MyTeamPage"
-  | "ShortlistPage" | "ScoutPage" | "DownloadPage" | "SettingsPage" | "MethodologyPage" | "PrivacyPage" | "TermsPage" | "NotFound";
+  | "ShortlistPage" | "ScoutPage" | "DownloadPage" | "SettingsPage" | "MethodologyPage" | "PrivacyPage" | "TermsPage" | "ContactPage" | "NotFound";
 
 // React Router matches case-insensitively, a trailing slash included: so do these.
 const ROUTES: [RegExp, PageModule | null][] = [
@@ -27,6 +27,7 @@ const ROUTES: [RegExp, PageModule | null][] = [
   [/^\/(methodology|predict\/how-it-works)\/?$/i, "MethodologyPage"],
   [/^\/privacy\/?$/i, "PrivacyPage"],
   [/^\/terms\/?$/i, "TermsPage"],
+  [/^\/contact\/?$/i, "ContactPage"],
 ];
 
 /** The lazy page module a path renders (null: Home or a redirect, nothing to load). */
@@ -38,7 +39,7 @@ export function pageModule(path: string): PageModule | null {
 const TITLES: [RegExp, string][] = [
   [/^\/teams\//, "Team"], [/^\/teams$/, "Teams"], [/^\/matches$/, "Match records"], [/^\/events\/\d/, "Event"], [/^\/events/, "Events"], [/^\/predict\/how-it-works/, "How it works"], [/^\/predict/, "Predict"],
   [/^\/compare/, "Compare"], [/^\/my-team/, "My team"], [/^\/shortlist/, "Shortlist"], [/^\/scout/, "Scout"], [/^\/download/, "Download"],
-  [/^\/settings/, "Settings"], [/^\/methodology/, "How it works"], [/^\/privacy/, "Privacy"], [/^\/terms/, "Terms"],
+  [/^\/settings/, "Settings"], [/^\/methodology/, "How it works"], [/^\/privacy/, "Privacy"], [/^\/terms/, "Terms"], [/^\/contact/, "Contact"],
 ];
 
 /** The page's short name in the top bar ("Control Scout / Events"). */
