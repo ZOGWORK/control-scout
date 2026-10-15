@@ -119,8 +119,9 @@ function Hero({ p, onSeason }: { p: TeamProfile; onSeason: (s: number) => void }
   const top = topPct(s?.opr.np.rank, s?.opr.np.of);
   const predictable = usePredictable(p.season);
   const share = () => copyLink();
+  // The page's main content: full opacity on its first frame (no fade from 0).
   return (
-    <Reveal className="mb-8 overflow-hidden rounded-2xl border border-border bg-card">
+    <Reveal initial={false} className="mb-8 overflow-hidden rounded-2xl border border-border bg-card">
       <div className="grid lg:grid-cols-[minmax(0,1fr)_minmax(0,1.05fr)]">
         {/* Who this is */}
         <div className="relative min-w-0 p-6 sm:p-8">

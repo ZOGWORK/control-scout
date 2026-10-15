@@ -1,7 +1,7 @@
 // App shell — Control Point's modern layout: a collapsible left sidebar with
 // an animated active pill, a slim top bar with the search pill, and a bottom
 // tab bar on phones.
-import { useRef, useState, type ComponentType, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ComponentType, type ReactNode } from "react";
 import { Ambient } from "./Ambient";
 import { Link, NavLink, useLocation } from "react-router-dom";
 import { motion, MotionConfig } from "motion/react";
@@ -16,6 +16,7 @@ import { GlobalSearch } from "./Search";
 import { AccountMenu } from "./AccountMenu";
 import { ClockWeather, ThemeToggle } from "./TopBarExtras";
 import { usePersonal } from "../../lib/personal";
+import { pageTitle } from "../../shared/routes";
 
 interface NavItem { to: string; label: string; icon: ComponentType<{ className?: string }>; end?: boolean }
 
@@ -105,12 +106,6 @@ function MobileTabs({ onMore }: { onMore: () => void }) {
   );
 }
 
-const TITLES: [RegExp, string][] = [
-  [/^\/teams\//, "Team"], [/^\/teams$/, "Teams"], [/^\/matches$/, "Match records"], [/^\/events\/\d/, "Event"], [/^\/events/, "Events"], [/^\/predict\/how-it-works/, "How it works"], [/^\/predict/, "Predict"],
-  [/^\/compare/, "Compare"], [/^\/my-team/, "My team"], [/^\/shortlist/, "Shortlist"], [/^\/scout/, "Scout"], [/^\/download/, "Download"],
-  [/^\/settings/, "Settings"], [/^\/methodology/, "How it works"],
-];
-
 /** Shown everywhere when the server has no FTC data yet (a new deploy whose
  *  database isn't connected): says why pages and search are empty. */
 function NoDataNotice() {
@@ -129,7 +124,10 @@ export function Shell({ children }: { children: ReactNode }) {
   const [more, setMore] = useState(false);
   const mainRef = useRef<HTMLElement>(null);
   const loc = useLocation();
-  const title = TITLES.find(([re]) => re.test(loc.pathname))?.[1] ?? "Home";
+  const title = pageTitle(loc.pathname);
+  // The first page is drawn at full opacity (it replaces the static first paint, see server/bootShell.ts); later page changes fade in.
+  const firstPage = useRef(true);
+  useEffect(() => { firstPage.current = false; }, []);
   const toggle = () => setCollapsed((c) => { try { localStorage.setItem("cs-sidebar", c ? "0" : "1"); } catch { /* ignore */ } return !c; });
   return (
     <MotionConfig reducedMotion="user">
@@ -149,7 +147,7 @@ export function Shell({ children }: { children: ReactNode }) {
             <div className="relative min-h-0 flex-1">
               <Ambient target={mainRef} />
               <main id="main" ref={mainRef} className="m-canvas custom-scrollbar absolute inset-0 z-10 overflow-y-auto">
-                <motion.div key={loc.pathname} initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.18, ease: "easeOut" }} className="mx-auto w-full max-w-[1200px] px-4 pt-8 pb-28 sm:px-6 md:pb-12 lg:px-8 min-[1700px]:max-w-[1600px]">
+                <motion.div key={loc.pathname} initial={firstPage.current ? false : { opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.18, ease: "easeOut" }} className="mx-auto w-full max-w-[1200px] px-4 pt-8 pb-28 sm:px-6 md:pb-12 lg:px-8 min-[1700px]:max-w-[1600px]">
                   <NoDataNotice />
                   {children}
                 </motion.div>
