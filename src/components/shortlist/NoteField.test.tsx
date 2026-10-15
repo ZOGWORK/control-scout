@@ -73,6 +73,21 @@ describe("NoteField", () => {
     expect(screen.queryByRole("alert")).toBeNull();
   });
 
+  it("a remounted field (List/Grid switch) still shows the failure and still retries", () => {
+    render(<Parent results={[false]} onSave={() => {}} />);
+    fireEvent.change(field(), { target: { value: "fast auto" } });
+    fireEvent.keyDown(field(), { key: "Enter" });
+    cleanup();
+    // The new field gets the failed text from the store's memory as its value.
+    const onSave = vi.fn(() => true);
+    render(<NoteField team={4215} value="fast auto" onSave={onSave} />);
+    expect(field().getAttribute("aria-invalid")).toBe("true");
+    expect(screen.getByRole("alert")).toBeTruthy();
+    fireEvent.keyDown(field(), { key: "Enter" });
+    expect(onSave).toHaveBeenCalledWith("fast auto");
+    expect(screen.queryByRole("alert")).toBeNull();
+  });
+
   it("has no error state when saving works", () => {
     const onSave = vi.fn();
     render(<Parent results={[true]} onSave={onSave} />);
