@@ -15,6 +15,9 @@ import { AlertsRunner } from "./lib/alerts";
 import { LitePackSync } from "./lib/packSync";
 import { ConsentBanner } from "./components/layout/ConsentBanner";
 import { PageViews } from "./lib/analytics";
+import { installErrorReporting } from "./lib/errorReporting";
+import { RouteErrorBoundary } from "./components/RouteErrorBoundary";
+import { ErrorReportPrompt } from "./components/layout/ErrorReportPrompt";
 // The landing page is part of the main bundle, not lazy: its API calls then start in
 // the same render as the app's own (/api/meta, /api/auth/me), with no second round.
 import Home from "./pages/Home";
@@ -56,6 +59,9 @@ if (import.meta.env.PROD && "serviceWorker" in navigator) {
   window.addEventListener("load", () => { navigator.serviceWorker.register("/sw.js").catch(() => { /* offline support is a bonus */ }); });
 }
 
+// Uncaught errors and unhandled rejections offer a report (src/lib/errorReporting.ts), from the very start.
+installErrorReporting();
+
 // The first render waits for the current page's code (already on its way: the server's HTML
 // modulepreloads it), so it draws the page itself rather than a loading block, replacing the
 // static first paint in one step. Never longer than 3 s: then the usual Suspense fallback shows.
@@ -71,6 +77,7 @@ void ready.catch(() => { /* a failed load is retried (and shown) by the page's o
           <ThemeSync />
           <SearchProvider>
             <Shell>
+              <RouteErrorBoundary>
               <Suspense fallback={<LoadingBlock />}>
                 <Routes>
                   <Route path="/" element={<Home />} />
@@ -95,8 +102,10 @@ void ready.catch(() => { /* a failed load is retried (and shown) by the page's o
                   <Route path="*" element={<NotFound />} />
                 </Routes>
               </Suspense>
+              </RouteErrorBoundary>
             </Shell>
             <Toaster />
+            <ErrorReportPrompt />
             <AlertsRunner />
             <LitePackSync />
             <CanonicalSync />

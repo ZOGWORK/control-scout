@@ -4,6 +4,7 @@ import tailwindcss from "@tailwindcss/vite";
 import { fileURLToPath } from "node:url";
 import { createHash } from "node:crypto";
 import { readdirSync, readFileSync } from "node:fs";
+import { execSync } from "node:child_process";
 import type { Plugin } from "vite";
 
 /** Emits /sw.js from src/sw.template.js with this build's version and the
@@ -36,8 +37,17 @@ function serviceWorker(): Plugin {
   };
 }
 
+/** The web app's version for error reports: package version + commit ("0.1.0+4498100"); the version alone without git. */
+function appVersion(): string {
+  const { version } = JSON.parse(readFileSync(fileURLToPath(new URL("./package.json", import.meta.url)), "utf8")) as { version: string };
+  let commit = process.env.RENDER_GIT_COMMIT?.trim() ?? "";
+  if (!commit) try { commit = execSync("git rev-parse --short HEAD", { stdio: ["ignore", "pipe", "ignore"] }).toString().trim(); } catch { /* not a git checkout */ }
+  return commit ? `${version}+${commit.slice(0, 7)}` : version;
+}
+
 export default defineConfig({
   plugins: [react(), tailwindcss(), serviceWorker()],
+  define: { __APP_VERSION__: JSON.stringify(appVersion()) },
   resolve: { alias: { "@": fileURLToPath(new URL("./src", import.meta.url)) } },
   server: {
     port: 5173,

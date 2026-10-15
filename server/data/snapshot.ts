@@ -18,7 +18,7 @@ export function localDbPath(url = env.databaseUrl): string | null {
 }
 
 /** Tables holding people's own data, never in the snapshot. */
-export const PRIVATE_TABLES = ["users", "sessions", "identities", "email_codes", "user_state", "scout_entries"];
+export const PRIVATE_TABLES = ["users", "sessions", "identities", "email_codes", "user_state", "scout_entries", "error_reports"];
 
 /** True only when replacing the file can't lose anything: it's missing or zero
  *  bytes, has no tables at all, or has no teams AND no rows in any private
