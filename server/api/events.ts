@@ -4,7 +4,7 @@ import { all, get } from "../db.js";
 import { eventTypeLabel } from "../data/seasons.js";
 import type { EventDetail, EventSummary, FieldRow } from "../../src/shared/api.js";
 import { matchViews } from "./matches.js";
-import { forecasterFor } from "../predict/engine.js";
+import { liveForecaster } from "../predict/engine.js";
 
 const today = () => new Date().toISOString().slice(0, 10);
 
@@ -62,7 +62,7 @@ export async function eventDetail(season: number, code: string): Promise<EventDe
     matchViews({ season, code }, { predictUnplayed: true }),
   ]);
   const oprBy = new Map(oprs.map((o) => [Number(o.team), o]));
-  const f = await forecasterFor(season).catch(() => null);
+  const f = await liveForecaster(season).catch(() => null);
   const book = f?.book(season) ?? null;
   const field: FieldRow[] = entries.map((e) => {
     const o = oprBy.get(Number(e.team));
