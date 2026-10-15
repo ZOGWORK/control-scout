@@ -17,7 +17,8 @@ function serviceWorker(): Plugin {
     apply: "build",
     generateBundle(_options, bundle) {
       const pub = (dir: string) => readdirSync(fileURLToPath(new URL(`./public/${dir}`, import.meta.url))).map((f) => `/${dir}/${f}`);
-      const all = Object.keys(bundle).filter((f) => !f.endsWith(".map")).map((f) => `/${f}`);
+      // Not the build manifest (.vite/manifest.json): the server reads it, it is never served.
+      const all = Object.keys(bundle).filter((f) => !f.endsWith(".map") && !f.startsWith(".vite/")).map((f) => `/${f}`);
       // The in-browser SQLite engine (~650 kB) is only for saved seasons: precached only where one is saved (see sw.template.js).
       const offline = all.filter((f) => f.endsWith(".wasm"));
       const built = all.filter((f) => !offline.includes(f));
@@ -50,6 +51,8 @@ export default defineConfig({
   build: {
     outDir: "dist",
     sourcemap: false,
+    // dist/.vite/manifest.json: the server maps a page to its code chunk and preloads it from the HTML (server/seo.ts).
+    manifest: true,
     rollupOptions: {
       output: {
         manualChunks(id) {

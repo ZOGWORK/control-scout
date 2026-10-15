@@ -8,6 +8,7 @@ import { seasonInfo } from "./data/seasons.js";
 import { eventTypeLabel } from "../src/shared/labels.js";
 import { canonicalOrigin, canonicalUrl } from "./seo.js";
 import { teamKnown } from "./api/teams.js";
+import { pageModule } from "../src/shared/routes.js";
 
 export const SITE = "FTC Control Scout";
 const HOME_TITLE = "FTC Control Scout — free FTC scouting & predictions";
@@ -29,16 +30,6 @@ export interface PageMeta {
   notFound?: boolean;
 }
 
-/**
- * The web app's routes (src/main.tsx), lowercase (React Router matches paths regardless of case).
- * The team and event routes (/teams/:number, /events/:season/:code) are checked against the database.
- */
-const APP_ROUTES = new Set([
-  "/", "/teams", "/matches", "/events", "/predict", "/predict/accuracy", "/compare", "/my-team", "/shortlist",
-  "/scout", "/download", "/settings", "/methodology", "/predict/how-it-works",
-  // The legal and contact pages.
-  "/privacy", "/terms", "/contact",
-]);
 
 const NOT_FOUND: PageMeta = {
   title: "Page not found", description: "This page doesn't exist on FTC Control Scout. Search for any FTC team, event or match instead.",
@@ -180,7 +171,9 @@ export async function pageMeta(path: string): Promise<PageMeta> {
   if (/^\/teams\/[^/]+$/i.test(p) || /^\/events\/[^/]+\/[^/]+$/i.test(p)) return NOT_FOUND;
   const s = STATIC[p];
   if (s) return { title: s.title, description: s.noindex ? s.description : fitDescription(s.description), type: "website", ...(s.noindex ? { noindex: true } : {}) };
-  if (!APP_ROUTES.has(p.toLowerCase())) return NOT_FOUND;
+  // The app's routes (src/shared/routes.ts, as React Router matches them): anything else is its not-found page.
+  // The team and event routes were checked against the database above.
+  if (pageModule(p) === "NotFound") return NOT_FOUND;
   return { title: "", description: HOME_DESC, type: "website", ...(p === "/" ? { jsonLd: homeJsonLd() } : {}) };
 }
 
