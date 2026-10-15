@@ -183,10 +183,10 @@ export function RecordsTable(p: RecordsTableProps) {
 
       {/* Toolbar */}
       <div className="flex flex-wrap items-center gap-2 rounded-xl border border-line bg-card p-1.5">
-        <Button variant="secondary" size="sm" className="shrink-0 max-sm:h-10" onClick={() => setColumns(true)} aria-label={`Statistics: ${cols.length} columns`}>
+        <Button variant="secondary" size="sm" className="shrink-0 max-sm:h-10" onClick={() => { setBuilder(false); setColumns(!columns); }} aria-pressed={columns} aria-label={`Statistics: ${cols.length} columns`}>
           <Columns3 className="text-sky-500" /> <span className="max-sm:hidden">Statistics</span><span className="rounded bg-text-base/10 px-1.5 text-[11px] tabular-nums">{cols.length}</span>
         </Button>
-        <Button variant={conditions ? "default" : "secondary"} size="sm" className="shrink-0 max-sm:h-10" onClick={() => setBuilder(true)} aria-label={`Filters${conditions ? `: ${conditions} conditions` : ""}`}>
+        <Button variant={conditions ? "default" : "secondary"} size="sm" className="shrink-0 max-sm:h-10" onClick={() => { setColumns(false); setBuilder(!builder); }} aria-pressed={builder} aria-label={`Filters${conditions ? `: ${conditions} conditions` : ""}`}>
           <ListFilter className={conditions ? "" : "text-accent"} /> Filters{conditions > 0 && <span className="rounded bg-accent-ink/15 px-1.5 text-[11px] tabular-nums">{conditions}</span>}
         </Button>
         {presets.length > 0 && (
@@ -228,7 +228,7 @@ export function RecordsTable(p: RecordsTableProps) {
           {refreshing && <Loader2 className="ml-1.5 inline size-3.5 animate-spin" />}
         </span>
         {state.filter && state.filter.children.length > 0 && (
-          <button type="button" onClick={() => setBuilder(true)} className="min-w-0 max-w-full truncate rounded-md border-l-2 border-accent max-sm:whitespace-normal max-sm:line-clamp-3 bg-accent/[0.07] px-2 py-0.5 text-left text-text-base hover:bg-accent/[0.12]" title="Edit filters">
+          <button type="button" onClick={() => { setColumns(false); setBuilder(true); }} className="min-w-0 max-w-full truncate rounded-md border-l-2 border-accent max-sm:whitespace-normal max-sm:line-clamp-3 bg-accent/[0.07] px-2 py-0.5 text-left text-text-base hover:bg-accent/[0.12]" title="Edit filters">
             {describeFilter(state.filter, scope)}
           </button>
         )}
