@@ -339,6 +339,24 @@ CREATE TABLE match_records (
 ALTER TABLE events ADD COLUMN live_checked_at TEXT;
 `,
   },
+  {
+    version: 9,
+    name: "anonymous usage statistics (daily aggregates only)",
+    sql: `
+-- One row per UTC day x route pattern x external referrer host ('' = none) x screen bucket x language.
+-- Page views from visitors who opted in (server/analytics.ts). No raw events, IPs, user agents or IDs.
+CREATE TABLE analytics_daily (
+  day TEXT NOT NULL,
+  path TEXT NOT NULL,
+  referrer_host TEXT NOT NULL DEFAULT '',
+  screen TEXT NOT NULL,
+  lang TEXT NOT NULL DEFAULT '',
+  views INTEGER NOT NULL DEFAULT 0,
+  sessions INTEGER NOT NULL DEFAULT 0,
+  PRIMARY KEY (day, path, referrer_host, screen, lang)
+) WITHOUT ROWID;
+`,
+  },
 ];
 
 export type Db = Client;
