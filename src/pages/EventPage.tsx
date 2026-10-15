@@ -199,7 +199,7 @@ function EventGlance({ d, onTab }: { d: EventDetail; onTab: (t: string) => void 
         </button>
       ) : (
         <p className="mt-2 text-sm text-muted-foreground">
-          {e.status === "upcoming" ? "Every match here gets a prediction before it's played, scored afterwards on the public track record." : "No decided matches with predictions here yet."}
+          {!predictable ? "Results, rankings and awards from the official record." : e.status === "upcoming" ? "Every match here gets a prediction before it's played, scored afterwards on the public track record." : "No decided matches with predictions here yet."}
         </p>
       )}
       {rows.length > 0 && (
