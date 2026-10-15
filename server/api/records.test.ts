@@ -312,6 +312,17 @@ describe("one event's records and region options", () => {
     expect((await get(`/api/records/${N}/teams?scope=season&code=B2`)).body.error).toMatch(/code applies to team-event and match records/);
     expect((await get(`/api/records/${N}/teams?code=a;b`)).status).toBe(400);
   });
+  it("treats an empty fields= as no stat columns (identity only), in JSON and CSV", async () => {
+    const j = await get(`/api/records/${S}/matches?fields=`);
+    expect(j.status).toBe(200);
+    expect(j.body.columns).toEqual([]);
+    expect(j.body.rows[0].stats).toEqual({});
+    expect(j.body.rows[0].red.length).toBeGreaterThan(0);
+    const csv = await (await fetch(`${base}/api/records/${S}/matches?fields=&format=csv`)).text();
+    expect(csv.split("\r\n")[0]).toBe("Season,Event Code,Event,Event Start,Match,Level,Red,Blue");
+    // Without fields at all, every stat comes back as before.
+    expect((await get(`/api/records/${S}/matches`)).body.columns.length).toBeGreaterThan(5);
+  });
   it("lists the season's region codes with the place most of their events are in", async () => {
     const { status, body } = await get(`/api/records/${S}/regions`);
     expect(status).toBe(200);

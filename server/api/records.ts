@@ -177,7 +177,8 @@ export function recordsQuery(scope: RecordScope, q: Record<string, unknown>, max
   const sortDef = statFor(sort, scope)!;
   const dir = (dirRaw ?? (sortDef.type === "text" || sortDef.lowerIsBetter ? "asc" : "desc")) as "asc" | "desc";
   const fieldsRaw = one(q, "fields");
-  const fields = fieldsRaw == null ? statsFor(scope).map((s) => s.key) : [...new Set(fieldsRaw.split(",").map((s) => s.trim()).filter(Boolean))];
+  // No `fields` = every stat; `fields=` (empty) = none, only the identity columns (a table with every stat unticked).
+  const fields = q.fields === "" ? [] : fieldsRaw == null ? statsFor(scope).map((s) => s.key) : [...new Set(fieldsRaw.split(",").map((s) => s.trim()).filter(Boolean))];
   for (const f of fields) if (!statFor(f, scope)) throw bad(`fields: ${STAT_BY_KEY.has(f) ? `"${f}" isn't available for these records` : `unknown stat "${f}"`}`);
   const regionRaw = one(q, "region");
   const regions = regionRaw == null ? [] : [...new Set(regionRaw.split(",").map((s) => s.trim().toUpperCase()).filter(Boolean))];
