@@ -18,8 +18,8 @@ export interface Meta {
 }
 
 export interface SearchHit {
-  kind: "team" | "event" | "match";
-  /** team: "4215"; event: "2025:USNJQ1"; match: "2025:USNJQ1:qual:0:12" */
+  kind: "team" | "event" | "match" | "place";
+  /** team: "4215"; event: "2025:USNJQ1"; match: "2025:USNJQ1:qual:0:12"; place: "USA:NJ" */
   ref: string;
   title: string;
   subtitle: string;
