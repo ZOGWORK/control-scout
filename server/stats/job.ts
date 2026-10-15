@@ -10,7 +10,7 @@ import { loadSeason, toEventRecord, type DbEvent } from "./load.js";
 import { localToUtcMs } from "../data/time.js";
 import { oprRows, solveOpr } from "./opr.js";
 import { normalize } from "../api/fuzzy.js";
-import { forecasterFor, resetForecasters } from "../predict/engine.js";
+import { forecasterFor } from "../predict/engine.js";
 import { regionNames } from "../../src/shared/regions.js";
 
 type Log = (m: string) => void;
@@ -327,9 +327,9 @@ export async function statsRulesStale(): Promise<boolean> {
 
 export async function runStats(o: StatsOptions = {}): Promise<void> {
   const log = o.log ?? (() => {});
-  // New data → new version: cached forecasters rebuild on next use.
+  // New data → new version: forecasters rebuild (they're keyed by it). No reset: pages keep the
+  // last finished ratings until the new ones are built, and frozen seasons stay read (engine.ts).
   await kvSet("data:version", new Date().toISOString());
-  resetForecasters();
   const seasons = o.seasons ?? SEASON_NUMBERS;
   for (const s of seasons) {
     const events = await loadSeason(s);

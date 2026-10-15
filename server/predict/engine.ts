@@ -252,5 +252,5 @@ export async function refreshForecasters(): Promise<void> {
   for (const [anchor, hit] of [...cache]) if (hit.version !== version) await forecasterFor(anchor).catch(() => {});
 }
 
-/** Drop cached forecasters and season data (tests, or after a manual data change). */
+/** Drop cached forecasters and season data (tests, or after a manual data change). Not for syncs: a new data version already rebuilds, without making pages wait. */
 export function resetForecasters(): void { cache.clear(); built.clear(); seasonCache.clear(); }

@@ -5,6 +5,7 @@ import * as db from "../db";
 import { kvSet, migrate, openDb, run, setDb } from "../db";
 import { CURRENT_SEASON } from "../data/seasons";
 import { forecasterFor, liveForecaster, liveVersion, refreshForecasters, resetForecasters } from "./engine";
+import { runStats } from "../stats/job";
 
 const S = CURRENT_SEASON;
 
@@ -55,6 +56,16 @@ describe("ratings after a sync", () => {
     await kvSet("data:version", "v2");
     await refreshForecasters();
     expect(await liveForecaster(S)).not.toBe(first);
+  });
+
+  it("a stats run (after every sync) keeps the previous ratings for pages", async () => {
+    const first = await liveForecaster(S);
+    await playedMatch(S, "NEWQ1", 2, [3, 4], [1, 2], [150, 40]);
+    const job = runStats({ seasons: [S], backtest: false });
+    await new Promise((r) => setTimeout(r, 0)); // the job has started (new data version, rebuilding)
+    expect(await liveForecaster(S)).toBe(first); // pages: answered at once from the last finished ratings
+    await job;
+    expect(await liveForecaster(S)).not.toBe(first); // the job's rebuild took over
   });
 
   it("reads a frozen season once; the current season every rebuild", async () => {
