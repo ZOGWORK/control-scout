@@ -1,7 +1,7 @@
 // The filter builder's and the column picker's home: a side panel docked on the right (under the top bar)
-// that leaves the page usable, not a dialog over it. The page's scroll area (#main) narrows to make room
-// on wide screens, so the table stays in view next to it; on phones it's a sheet over the lower part of
-// the screen. No backdrop, no focus trap: Esc or × closes it, and focus goes back where it came from.
+// that leaves the page usable, not a dialog over it. On wide screens the page's scroll area (#main) narrows
+// to make room, so the table stays in view next to it; narrower, it lies over the right side (no backdrop);
+// on phones it's a sheet over the lower part of the screen. No backdrop, no focus trap: Esc or × closes it, and focus goes back where it came from.
 import { useEffect, useId, useRef, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { X } from "lucide-react";
@@ -10,6 +10,9 @@ import { cn } from "../cn";
 
 /** Width of the docked panel (also the room #main makes for it). */
 export const PANEL_WIDTH = "min(30rem, 42vw)";
+
+/** Panels open right now: a panel closing as another opens (Filters → Statistics) leaves focus alone. */
+let openPanels = 0;
 
 export function Panel({ open, onOpenChange, title, description, children, footer, className }: {
   open: boolean;
@@ -21,6 +24,8 @@ export function Panel({ open, onOpenChange, title, description, children, footer
   className?: string;
 }) {
   const phone = useMediaQuery("(max-width: 639px)");
+  // Room to push the page aside and still show a useful table next to the panel; narrower, it overlays.
+  const roomy = useMediaQuery("(min-width: 1280px)");
   const id = useId();
   const box = useRef<HTMLDivElement>(null);
   const opener = useRef<Element | null>(null);
@@ -31,19 +36,26 @@ export function Panel({ open, onOpenChange, title, description, children, footer
   useEffect(() => {
     if (!open) return;
     opener.current = document.activeElement;
+    openPanels++;
     requestAnimationFrame(() => box.current?.querySelector<HTMLElement>("input, button:not([data-close]), [tabindex]")?.focus());
     const onKey = (e: KeyboardEvent) => { if (e.key === "Escape" && !e.defaultPrevented) close.current(false); };
     document.addEventListener("keydown", onKey);
-    return () => { document.removeEventListener("keydown", onKey); (opener.current as HTMLElement | null)?.focus?.(); };
+    return () => {
+      document.removeEventListener("keydown", onKey);
+      openPanels--;
+      // Back to the opener after this commit, unless another panel took over (it keeps focus).
+      const back = opener.current as HTMLElement | null;
+      requestAnimationFrame(() => { if (!openPanels) back?.focus?.(); });
+    };
   }, [open]);
 
   // Wide screens: the page makes room so nothing sits under the panel.
   useEffect(() => {
     const main = document.getElementById("main");
-    if (!open || phone || !main) return;
+    if (!open || !roomy || !main) return;
     main.style.paddingRight = PANEL_WIDTH;
     return () => { main.style.paddingRight = ""; };
-  }, [open, phone]);
+  }, [open, roomy]);
 
   if (!open || typeof document === "undefined") return null;
   return createPortal(
@@ -63,7 +75,8 @@ export function Panel({ open, onOpenChange, title, description, children, footer
           <X className="size-4" />
         </button>
       </div>
-      <div className="flex min-h-0 flex-1 flex-col">{children}</div>
+      {/* A size container: what's inside lays out by the panel's width, not the window's. */}
+      <div className="@container flex min-h-0 flex-1 flex-col">{children}</div>
       {footer && <div className="shrink-0 border-t border-line pt-3">{footer}</div>}
     </div>,
     document.body,
