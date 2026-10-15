@@ -3,7 +3,7 @@
 // dropdowns, a plain-English line for the active filter, server-side sorting
 // and paging, and everything in the URL so a link reproduces the view.
 // Used by the event Rankings and Insights tabs, /teams and /matches.
-import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode, type RefObject } from "react";
 import { Link, useLocation, useNavigate, useSearchParams } from "react-router-dom";
 import { ArrowDown, ArrowUp, ArrowUpDown, ChevronLeft, ChevronRight, Columns3, Download, ListFilter, Loader2, RefreshCw, Scale, SearchX, Sparkles, X } from "lucide-react";
 import { apiFetch, useApi, type ApiError } from "../../lib/api";
@@ -317,8 +317,12 @@ function TableSkeleton() {
   );
 }
 
-const th = "h-11 whitespace-nowrap px-3 align-bottom text-[11px] font-bold uppercase tracking-wider";
-const sticky = "sticky left-0 z-10 bg-card shadow-[1px_0_0_var(--color-line)]";
+// Header cells carry their own background and draw the line under them as a shadow (the floating copy of the
+// header row, FloatingHead, reuses them).
+const th = "bg-card shadow-[inset_0_-2px_0_color-mix(in_srgb,var(--color-text-base)_20%,transparent)] h-12 whitespace-nowrap px-5 pb-2.5 align-bottom text-[11px] font-bold uppercase tracking-wider";
+// Grid lines a step stronger than the app's hairlines: rows and columns stay easy to follow across a wide table.
+const grid = "border-text-base/15";
+const sticky = "sticky left-0 z-10 bg-card shadow-[1px_0_0_color-mix(in_srgb,var(--color-text-base)_22%,transparent)]";
 
 function SortHead({ k, label, title, state, sortBy, className, tone, align = "right" }: { k: string | null; label: ReactNode; title?: string; state: TableState; sortBy: (k: string) => void; className?: string; tone?: string; align?: "left" | "right" }) {
   const on = k != null && state.sort === k;
@@ -341,11 +345,10 @@ function Table({ data, scope, cols, state, sortBy, code, highlightTeam, selectab
   highlightTeam?: number | null; selectable: boolean; selected: number[]; onSelect: (t: number) => void;
 }) {
   const showEvent = scope === "teamEvent" && !code;
-  return (
-    <div className="custom-scrollbar overflow-x-auto rounded-xl border border-line bg-card">
-      <table className="w-full border-collapse text-sm">
-        <thead>
-          <tr className="border-b border-line">
+  const { ref, more } = useMoreToTheRight();
+  const tableRef = useRef<HTMLTableElement>(null);
+  const headRow = (
+          <tr>
             {scope === "match" ? (
               <>
                 <SortHead k="eventName" label="Match" state={state} sortBy={sortBy} align="left" className={sticky} />
@@ -363,11 +366,21 @@ function Table({ data, scope, cols, state, sortBy, code, highlightTeam, selectab
               const tone = TONE_CLASS[toneOf(d)];
               return (
                 <SortHead key={k} k={k} state={state} sortBy={sortBy} tone={tone.text} title={`${d?.label}${d?.description ? ` — ${d.description}` : ""}`}
-                  className={cn("relative", state.sort === k && "bg-accent/[0.06]")}
+                  className={cn("relative border-l border-text-base/[0.08]", state.sort === k && "bg-accent/[0.06]")}
                   label={<>{d?.category === "Control Scout Exclusives" && <Sparkles className="size-3" />}{headerOf(d, k)}<span aria-hidden className={cn("absolute inset-x-2 bottom-0 h-0.5 rounded-full", tone.bar, state.sort === k ? "opacity-100" : "opacity-50")} /></>} />
               );
             })}
           </tr>
+  );
+  return (
+    <div className="relative">
+    {/* The column labels follow you down the page: a copy of the header row pinned under the top bar
+        (the table itself scrolls sideways, which a sticky <thead> can't escape). */}
+    <FloatingHead table={tableRef} scroller={ref}>{headRow}</FloatingHead>
+    <div ref={ref} className={cn("custom-scrollbar overflow-x-auto overscroll-x-contain rounded-xl border bg-card", grid)}>
+      <table ref={tableRef} className="w-full border-collapse text-sm">
+        <thead>
+{headRow}
         </thead>
         <tbody>
           {data.rows.map((r) => {
@@ -376,21 +389,21 @@ function Table({ data, scope, cols, state, sortBy, code, highlightTeam, selectab
             const sel = team != null && selected.includes(team);
             return (
               <tr key={"key" in r ? `${r.eventCode}:${r.key}` : `${team}:${"eventCode" in r ? r.eventCode : ""}`}
-                className={cn("group/row border-b border-line last:border-b-0 hover:bg-text-base/[0.03]", hl && "bg-accent/[0.07]", sel && "bg-sky-500/[0.07]")}>
+                className={cn("group/row border-b last:border-b-0", grid, " hover:bg-text-base/[0.03]", hl && "bg-accent/[0.07]", sel && "bg-sky-500/[0.07]")}>
                 {"key" in r ? (
                   <>
-                    <td className={cn(sticky, "density-row px-3 py-2 group-hover/row:bg-[color-mix(in_srgb,var(--color-card)_97%,var(--color-text-base))]")}>
+                    <td className={cn(sticky, "density-row px-5 py-3 group-hover/row:bg-[color-mix(in_srgb,var(--color-card)_97%,var(--color-text-base))]")}>
                       <Link to={`/events/${r.season}/${r.eventCode}?match=${encodeURIComponent(r.key)}`} className="block max-w-[13rem] hover:text-accent">
                         <span className="font-semibold">{r.label}</span>
                         <span className="block truncate text-xs text-text-muted">{r.eventName}</span>
                       </Link>
                     </td>
-                    <td className="density-row whitespace-nowrap px-3 py-2"><Alliance teams={r.red} season={r.season} side="red" /></td>
-                    <td className="density-row whitespace-nowrap px-3 py-2"><Alliance teams={r.blue} season={r.season} side="blue" /></td>
+                    <td className="density-row whitespace-nowrap px-5 py-3"><Alliance teams={r.red} season={r.season} side="red" /></td>
+                    <td className="density-row whitespace-nowrap px-5 py-3"><Alliance teams={r.blue} season={r.season} side="blue" /></td>
                   </>
                 ) : (
                   <>
-                    <td className={cn(sticky, "density-row px-3 py-2", hl && "bg-[color-mix(in_srgb,var(--color-card)_92%,var(--color-accent))]")}>
+                    <td className={cn(sticky, "density-row px-5 py-3", hl && "bg-[color-mix(in_srgb,var(--color-card)_92%,var(--color-accent))]")}>
                       <div className="flex items-center gap-2.5">
                         {selectable && (
                           <input type="checkbox" checked={sel} onChange={() => onSelect(team!)} aria-label={`Select ${team} to compare`}
@@ -403,7 +416,7 @@ function Table({ data, scope, cols, state, sortBy, code, highlightTeam, selectab
                       </div>
                     </td>
                     {showEvent && "eventCode" in r && (
-                      <td className="density-row px-3 py-2">
+                      <td className="density-row px-5 py-3">
                         <Link to={`/events/${r.season}/${r.eventCode}`} className="block max-w-[16rem] hover:text-accent">
                           <span className="block truncate">{r.eventName}</span>
                           <span className="block text-xs text-text-muted">{dateRange(r.eventStart)}</span>
@@ -417,7 +430,7 @@ function Table({ data, scope, cols, state, sortBy, code, highlightTeam, selectab
                   const v = r.stats[k];
                   const tone = toneOf(d);
                   return (
-                    <td key={k} className={cn("density-row whitespace-nowrap px-3 py-2 text-right tabular-nums", d?.type === "text" && "text-left", state.sort === k && "bg-accent/[0.04] font-semibold",
+                    <td key={k} className={cn("density-row whitespace-nowrap border-l border-text-base/[0.08] px-5 py-3 text-right tabular-nums", d?.type === "text" && "text-left", state.sort === k && "bg-accent/[0.04] font-semibold",
                       (tone === "gold" || tone === "redAlliance" || tone === "blueAlliance") && v != null && TONE_CLASS[tone].text)}>
                       {formatStat(d, v)}
                     </td>
@@ -429,7 +442,77 @@ function Table({ data, scope, cols, state, sortBy, code, highlightTeam, selectab
         </tbody>
       </table>
     </div>
+    {/* More columns off to the right: a fade at the edge says so (gone once you've scrolled to the end). */}
+    <div aria-hidden className={cn("pointer-events-none absolute inset-y-px right-px w-16 rounded-r-xl bg-gradient-to-l from-card to-transparent transition-opacity", more ? "opacity-100" : "opacity-0")} />
+    </div>
   );
+}
+
+/**
+ * A copy of the header row, pinned to the top of the page's scroll area (#main, under the top bar) once the real one has scrolled off it,
+ * until the table itself has gone by. Its columns take the real header's measured widths, and it scrolls
+ * sideways with the table. Clicking a label sorts, like the real one.
+ */
+function FloatingHead({ table, scroller, children }: { table: RefObject<HTMLTableElement | null>; scroller: RefObject<HTMLDivElement | null>; children: ReactNode }) {
+  const clip = useRef<HTMLDivElement>(null);
+  const [cols, setCols] = useState<{ widths: number[]; width: number } | null>(null);
+  const [show, setShow] = useState(false);
+  useEffect(() => {
+    const t = table.current, sc = scroller.current;
+    if (!t || !sc) return;
+    // The page scrolls inside <main id="main"> (Shell), not the window: its top edge is where labels pin.
+    const area = document.getElementById("main");
+    const topOf = () => area?.getBoundingClientRect().top ?? 0;
+    const measure = () => {
+      const cells = [...(t.tHead?.rows[0]?.cells ?? [])];
+      setCols({ widths: cells.map((c) => c.getBoundingClientRect().width), width: t.getBoundingClientRect().width });
+    };
+    const place = () => {
+      const head = t.tHead?.getBoundingClientRect(), all = t.getBoundingClientRect();
+      const top = topOf();
+      setShow(!!head && head.bottom < top && all.bottom > top + head.height * 2);
+      if (clip.current) clip.current.scrollLeft = sc.scrollLeft;
+    };
+    measure(); place();
+    const ro = new ResizeObserver(() => { measure(); place(); });
+    ro.observe(t);
+    const page = area ?? window;
+    page.addEventListener("scroll", place, { passive: true });
+    window.addEventListener("resize", place);
+    sc.addEventListener("scroll", place, { passive: true });
+    return () => { ro.disconnect(); page.removeEventListener("scroll", place); window.removeEventListener("resize", place); sc.removeEventListener("scroll", place); };
+  }, [table, scroller]);
+  return (
+    <div className="sticky top-0 z-30 h-0">
+      <div ref={clip} aria-hidden className={cn("absolute inset-x-0 top-0 overflow-hidden rounded-t-xl border bg-card shadow-[0_8px_16px_-8px_rgb(0_0_0/0.5)] transition-opacity", grid,
+        show && cols ? "opacity-100" : "invisible opacity-0")}>
+        {cols && (
+          <table className="border-collapse text-sm" style={{ width: cols.width, tableLayout: "fixed" }}>
+            <colgroup>{cols.widths.map((w, i) => <col key={i} style={{ width: w }} />)}</colgroup>
+            <thead>{children}</thead>
+          </table>
+        )}
+      </div>
+    </div>
+  );
+}
+
+/** Whether a sideways-scrolling box has more to show to the right. */
+function useMoreToTheRight() {
+  const ref = useRef<HTMLDivElement>(null);
+  const [more, setMore] = useState(false);
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const check = () => setMore(el.scrollLeft + el.clientWidth < el.scrollWidth - 2);
+    check();
+    el.addEventListener("scroll", check, { passive: true });
+    const ro = new ResizeObserver(check);
+    ro.observe(el);
+    if (el.firstElementChild) ro.observe(el.firstElementChild);
+    return () => { el.removeEventListener("scroll", check); ro.disconnect(); };
+  }, []);
+  return { ref, more };
 }
 
 function Alliance({ teams, season, side }: { teams: number[]; season: number; side: "red" | "blue" }) {
