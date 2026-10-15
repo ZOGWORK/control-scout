@@ -135,45 +135,35 @@ function Grid({ cols, tones, rows, mode, selected, onPick }: {
   selected: ReadonlySet<string>;
   onPick: (k: string) => void;
 }) {
+  // Each stat: its name, then its aggregates as one row of buttons across the full width (fits the narrow
+  // side panel: nothing scrolls off). Every button keeps its label, ticked or not.
   return (
-    <div className="overflow-x-auto">
-      <table className="w-full border-separate border-spacing-y-0.5 text-sm">
-        <thead>
-          <tr>
-            <th className="sr-only">Stat</th>
-            {cols.map((c, i) => <th key={c} scope="col" className={cn("px-0.5 pb-1 text-center text-[10px] font-bold tracking-wider", tones ? TONE_CLASS[tones[i]].text : "text-text-muted")}>{c}</th>)}
-          </tr>
-        </thead>
-        <tbody>
-          {rows.map((r) => {
-            const tone = TONE_CLASS[toneOf(r.cells.find((c) => c) ?? undefined)];
-            return (
-              <tr key={r.id}>
-                <th scope="row" className="py-1 pl-2 pr-2 text-left align-middle font-medium" title={r.description}>
-                  <span className="flex items-center gap-2"><span className={cn("size-2 shrink-0 rounded-full", tones ? "bg-text-base/40" : tone.bar)} />{r.label}</span>
-                  <span className="block max-w-[14rem] truncate pl-4 text-[11px] font-normal text-text-muted max-sm:hidden">{r.description}</span>
-                </th>
-                {r.cells.map((d, i) => (
-                  <td key={i} className="px-0.5 text-center">
-                    {d ? (
-                      <button
-                        type="button" onClick={() => onPick(d.key)} title={`${d.label}${d.description ? ` — ${d.description}` : ""}`} aria-label={d.label}
-                        role={mode === "multi" ? "checkbox" : "option"} aria-checked={mode === "multi" ? selected.has(d.key) : undefined} aria-selected={mode === "single" ? selected.has(d.key) : undefined}
-                        className={cn(
-                          "inline-flex h-8 w-full min-w-[2.75rem] items-center justify-center rounded-md border text-[11px] font-semibold tabular-nums transition-colors max-sm:h-10",
-                          selected.has(d.key) ? "border-accent bg-accent text-accent-ink" : cn("border-line hover:border-text-base/30 hover:bg-text-base/[0.06]", tones ? TONE_CLASS[tones[i]].text : "text-text-muted"),
-                        )}
-                      >
-                        {selected.has(d.key) && mode === "multi" ? <Check className="size-3.5" strokeWidth={3} /> : cols[i]}
-                      </button>
-                    ) : <span className="text-text-muted/40">·</span>}
-                  </td>
-                ))}
-              </tr>
-            );
-          })}
-        </tbody>
-      </table>
+    <div className="space-y-2" role="group">
+      {rows.map((r) => {
+        const tone = TONE_CLASS[toneOf(r.cells.find((c) => c) ?? undefined)];
+        return (
+          <div key={r.id} className="rounded-lg px-2 py-1.5">
+            <p className="flex items-center gap-2 text-sm font-medium" title={r.description}>
+              <span className={cn("size-2 shrink-0 rounded-full", tones ? "bg-text-base/40" : tone.bar)} />{r.label}
+            </p>
+            <p className="truncate pl-4 text-[11px] text-text-muted">{r.description}</p>
+            <div className="mt-1.5 grid gap-1 pl-4" style={{ gridTemplateColumns: `repeat(${cols.length}, minmax(0, 1fr))` }}>
+              {r.cells.map((d, i) => d ? (
+                <button
+                  key={i} type="button" onClick={() => onPick(d.key)} title={`${d.label}${d.description ? ` — ${d.description}` : ""}`} aria-label={d.label}
+                  role={mode === "multi" ? "checkbox" : "option"} aria-checked={mode === "multi" ? selected.has(d.key) : undefined} aria-selected={mode === "single" ? selected.has(d.key) : undefined}
+                  className={cn(
+                    "inline-flex h-8 min-w-0 items-center justify-center gap-0.5 rounded-md border text-[11px] font-semibold tabular-nums transition-colors max-sm:h-10",
+                    selected.has(d.key) ? "border-accent bg-accent text-accent-ink" : cn("border-line hover:border-text-base/30 hover:bg-text-base/[0.06]", tones ? TONE_CLASS[tones[i]].text : "text-text-muted"),
+                  )}
+                >
+                  {selected.has(d.key) && mode === "multi" && <Check className="size-3 shrink-0" strokeWidth={3} />}{cols[i]}
+                </button>
+              ) : <span key={i} className="grid place-items-center text-text-muted/40">·</span>)}
+            </div>
+          </div>
+        );
+      })}
     </div>
   );
 }
