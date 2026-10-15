@@ -138,7 +138,8 @@ function AllianceBox({ side, m, score, forecast, outcome, highlight }: {
 /** One match: two alliance boxes facing each other, then the call in plain words.
  *  Click the row (anywhere but a link or button) to open its details in place. */
 /** `showEvent` replaces the time under the label; `eventName` only names the event inside the details. */
-export function MatchRow({ m, highlight, showEvent, eventName, open, onToggle }: { m: MatchView; highlight?: number; showEvent?: string; eventName?: string; open?: boolean; onToggle?: () => void }) {
+/** `outcomeAccent`: the highlighted team's rows get a left edge in its result's colour (green won, red lost) instead of gold. */
+export function MatchRow({ m, highlight, showEvent, eventName, open, onToggle, outcomeAccent }: { m: MatchView; highlight?: number; showEvent?: string; eventName?: string; open?: boolean; onToggle?: () => void; outcomeAccent?: boolean }) {
   const videos = useVideoLinkCount(`${m.season}:${m.code}:${m.level}:${m.series}:${m.number}`);
   const detailsId = `match-${m.code}-${m.key.replace(/:/g, "-")}`;
   // MotionConfig's reducedMotion only stops transforms; height is a layout animation, so it's turned off here.
@@ -158,7 +159,8 @@ export function MatchRow({ m, highlight, showEvent, eventName, open, onToggle }:
   const when = showEvent ?? matchTime(m.time);
   const predictable = usePredictable(m.season); // 2019–2022: history only, so no "No call" on every row
   return (
-    <div className={cn("border-b border-border last:border-b-0", mySide && "relative before:absolute before:inset-y-0 before:left-0 before:w-[3px] before:bg-accent/70")} data-match={m.key}>
+    <div className={cn("border-b border-border last:border-b-0", mySide && "relative before:absolute before:inset-y-0 before:left-0 before:w-[3px]",
+      mySide && (outcomeAccent && mine === "win" ? "before:bg-success" : outcomeAccent && mine === "loss" ? "before:bg-destructive" : "before:bg-accent/70"))} data-match={m.key}>
     <div
       className={cn("group/row density-row grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-3 gap-y-1.5 px-3 py-2.5 transition-colors",
         "sm:grid-cols-[5.5rem_minmax(0,1fr)_minmax(0,1fr)_10.5rem]",
@@ -235,8 +237,9 @@ const LEVEL_TITLE: Record<MatchView["level"], string> = { qual: "Qualifications"
 
 /** Matches in one column, time order, under Qualifications / Playoffs headings, each opening its details
  *  in place. `initialOpen` (a match key, e.g. from ?match=) opens that one and scrolls it into view.
- *  With `highlight`, a summary line gives that team's record in the matches shown. */
-export function MatchList({ matches, highlight, empty, eventNames, initialOpen }: { matches: MatchView[]; highlight?: number; empty?: string; eventNames?: Record<string, string>; initialOpen?: string | null }) {
+ *  With `highlight`, a summary line gives that team's record in the matches shown.
+ *  `eventDates` (by event code, with `eventNames`) puts each event's dates in its heading; `outcomeAccent`: see MatchRow. */
+export function MatchList({ matches, highlight, empty, eventNames, eventDates, initialOpen, outcomeAccent }: { matches: MatchView[]; highlight?: number; empty?: string; eventNames?: Record<string, string>; eventDates?: Record<string, string>; initialOpen?: string | null; outcomeAccent?: boolean }) {
   const id = (m: MatchView) => `${m.code}:${m.key}`;
   const [open, setOpen] = useState<Set<string>>(() => new Set());
   const box = useRef<HTMLDivElement>(null);
@@ -254,12 +257,12 @@ export function MatchList({ matches, highlight, empty, eventNames, initialOpen }
   // An event's own schedule: Qualifications / Playoffs headings. A list across events (the caller passes
   // eventNames: a team's season): a heading per event, in the list's own order, even when only one shows.
   const oneEvent = !eventNames && new Set(matches.map((m) => m.code)).size === 1;
-  const groups: { key: string; title: string; href?: string; ms: MatchView[] }[] = [];
+  const groups: { key: string; title: string; date?: string; href?: string; ms: MatchView[] }[] = [];
   if (oneEvent) for (const l of ["qual", "playoff"] as const) { const ms = matches.filter((m) => m.level === l); if (ms.length) groups.push({ key: l, title: LEVEL_TITLE[l], ms }); }
   else for (const m of matches) {
     const last = groups[groups.length - 1];
     if (last?.key === m.code) last.ms.push(m);
-    else groups.push({ key: m.code, title: eventNames?.[m.code] ?? m.code, href: `/events/${m.season}/${m.code}`, ms: [m] });
+    else groups.push({ key: m.code, title: eventNames?.[m.code] ?? m.code, date: eventDates?.[m.code], href: `/events/${m.season}/${m.code}`, ms: [m] });
   }
   const rec = highlight ? teamRecord(matches, highlight) : null;
   return (
@@ -272,13 +275,22 @@ export function MatchList({ matches, highlight, empty, eventNames, initialOpen }
       <div className="overflow-hidden rounded-xl border border-border bg-card">
         {groups.map((g, i) => (
           <section key={`${g.key}:${i}`} aria-label={g.title}>
-            {(groups.length > 1 || g.href) && (
+            {(groups.length > 1 || g.href) && (g.date ? (
+              // A dated event heading reads as a heading: the event's full name, then its dates (under it on phones).
+              <h3 className="flex items-center gap-2 border-b border-border bg-muted/40 px-3 py-2">
+                <span className="flex min-w-0 flex-1 flex-col sm:flex-row sm:items-baseline sm:gap-2">
+                  <Link to={g.href!} className="truncate text-sm font-semibold text-text-base hover:text-accent-text hover:underline">{g.title}</Link>
+                  <span className="shrink-0 text-xs font-normal text-text-muted">{g.date}</span>
+                </span>
+                <span className="shrink-0 rounded-full bg-muted px-2 py-px text-[11px] font-medium tabular-nums text-text-base/80">{g.ms.length}<span className="sr-only"> matches</span></span>
+              </h3>
+            ) : (
               <h3 className="flex items-center gap-2 border-b border-border bg-muted/40 px-3 py-1.5 text-[11px] font-semibold uppercase tracking-wider text-text-muted">
                 {g.href ? <Link to={g.href} className="truncate normal-case tracking-normal text-[13px] text-text-base hover:text-accent-text hover:underline">{g.title}</Link> : g.title}
                 <span className="shrink-0 rounded-full bg-muted px-1.5 py-px text-[10px] tabular-nums text-text-base/80">{g.ms.length}</span>
               </h3>
-            )}
-            {g.ms.map((m) => <MatchRow key={id(m)} m={m} highlight={highlight} eventName={eventNames?.[m.code]} open={open.has(id(m))} onToggle={() => toggle(id(m))} />)}
+            ))}
+            {g.ms.map((m) => <MatchRow key={id(m)} m={m} highlight={highlight} outcomeAccent={outcomeAccent} eventName={eventNames?.[m.code]} open={open.has(id(m))} onToggle={() => toggle(id(m))} />)}
           </section>
         ))}
       </div>
