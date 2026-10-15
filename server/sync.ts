@@ -7,7 +7,7 @@
 // often on event days — the scheduler in server/index.ts decides cadence).
 import { all, get, kvGet, kvSet, run, writeBatch } from "./db.js";
 import { bundleStatements, teamStatements, type EventBundle, type EventRow } from "./data/bundle.js";
-import { CURRENT_SEASON, SEASON_NUMBERS, seasonInfo } from "./data/seasons.js";
+import { CURRENT_SEASON, SEASON_NUMBERS, isLegacy, seasonInfo } from "./data/seasons.js";
 import { FirstError, firstEventBundle, firstEvents, firstTeams } from "./sources/first.js";
 import { bundleFromScout, fetchScoutEvent } from "./sources/ftcScout.js";
 import { hasFirst } from "./env.js";
@@ -41,7 +41,7 @@ export async function syncTeams(season: number, force = false, log: SyncLog = ()
   if (!force && last && Date.now() - Date.parse(last) < 7 * 864e5) return 0;
   const teams = await firstTeams(season, (p, of) => { if (p % 25 === 0) log(`  teams ${season}: page ${p}/${of}`); });
   await writeBatch([
-    ...teamStatements(teams),
+    ...teamStatements(teams, isLegacy(season)), // old seasons never overwrite today's names
     ...teams.map((t) => ({ sql: "INSERT OR IGNORE INTO team_seasons (season, team) VALUES (?, ?)", args: [season, t.number] })),
   ]);
   await kvSet(key, new Date().toISOString());

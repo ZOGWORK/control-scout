@@ -18,7 +18,7 @@ import { gzipSync } from "node:zlib";
 import { createClient } from "@libsql/client";
 import { ENGINE_VERSION } from "@control-scout/predict-engine";
 import { all, kvGet } from "../db.js";
-import { SEASON_NUMBERS, seasonInfo } from "../data/seasons.js";
+import { PREDICT_SEASONS, SEASON_NUMBERS, seasonInfo } from "../data/seasons.js";
 import { forecasterFor } from "../predict/engine.js";
 import { packsDir } from "./routes.js";
 import { PACK_INDEXES, PACK_TABLES as FULL_TABLES, PACK_TEAMS_DDL } from "../../src/shared/packSchema.js";
@@ -40,7 +40,7 @@ async function nextVersion(dir: string): Promise<string> {
 
 export async function buildLite(version: string, dir: string, log: (m: string) => void): Promise<BuiltFile> {
   const books: Record<string, unknown> = {};
-  for (const s of SEASON_NUMBERS) {
+  for (const s of PREDICT_SEASONS) { // legacy seasons have no ratings
     const f = await forecasterFor(s);
     const b = f.book(s);
     if (b) books[String(s)] = b.toData();

@@ -117,7 +117,7 @@ export default function ShortlistPage() {
         actions={shown.length >= 2 ? <Button variant="secondary" asChild><Link to={compareHref(compareTeams, season)}><Scale /> {compareLabel}</Link></Button> : undefined}>
         {list.length > 0 && (
           <div className="flex flex-wrap items-center gap-2" data-print-hide>
-            <SeasonToggle value={season} onChange={(s) => setSp((x) => { x.set("season", String(s)); return x; }, { replace: true })} />
+            <SeasonToggle predictOnly value={season} onChange={(s) => setSp((x) => { x.set("season", String(s)); return x; }, { replace: true })} />
             <div className="ml-auto flex flex-wrap items-center gap-2">
               <DropdownMenu>
                 <DropdownMenuTrigger asChild><Button variant="secondary" size="sm" disabled={!data.data}><ArrowDownWideNarrow /> Order picks</Button></DropdownMenuTrigger>

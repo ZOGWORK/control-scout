@@ -5,7 +5,7 @@
 import type { InStatement } from "@libsql/client";
 import { RatingBook, FITTED_MODEL, explainMatch, ENGINE_VERSION, type EventRecord } from "@control-scout/predict-engine";
 import { all, get, kvGet, kvSet, run, writeBatch } from "../db.js";
-import { CURRENT_SEASON, SEASON_NUMBERS } from "../data/seasons.js";
+import { CURRENT_SEASON, PREDICT_SEASONS, SEASON_NUMBERS, isLegacy } from "../data/seasons.js";
 import { loadSeason, toEventRecord, type DbEvent } from "./load.js";
 import { localToUtcMs } from "../data/time.js";
 import { oprRows, solveOpr } from "./opr.js";
@@ -85,9 +85,8 @@ export async function computeSeasonStats(season: number, events: DbEvent[], log:
 
   // Ratings from the shared engine. Past seasons: as of the team's last match
   // (no growth extrapolation); the current season: grown to now, exactly what
-  // predictions use.
-  const f = await forecasterFor(season);
-  const book = f.book(season);
+  // predictions use. Legacy seasons (pre-2023) are history only: no ratings.
+  const book = isLegacy(season) ? null : (await forecasterFor(season)).book(season);
   const rating = (t: number) => {
     if (!book) return null;
     const stored = book.ratings.get(t);
@@ -338,8 +337,8 @@ export async function runStats(o: StatsOptions = {}): Promise<void> {
   }
   const doBacktest = o.backtest ?? !(await get("SELECT 1 FROM predictions WHERE kind = 'backtest' LIMIT 1"));
   // Every season once; after that the current season on every run, so matches played since get their replayed call.
-  if (doBacktest) await backtest(SEASON_NUMBERS, log);
-  else if (seasons.includes(CURRENT_SEASON)) await backtest(SEASON_NUMBERS, log, { write: [CURRENT_SEASON] });
+  if (doBacktest) await backtest(PREDICT_SEASONS, log);
+  else if (seasons.includes(CURRENT_SEASON)) await backtest(PREDICT_SEASONS, log, { write: [CURRENT_SEASON] });
   await scoreLivePredictions(log);
   await logLivePredictions(log);
   await rebuildSearch(log);

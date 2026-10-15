@@ -290,7 +290,7 @@ function MatchLab() {
     <div className="space-y-6">
       <div className="rounded-2xl border border-border bg-card p-5 sm:p-6">
         <div className="mb-4 flex flex-wrap items-center gap-3">
-          <SeasonToggle value={season} onChange={(s) => setSp((x) => { x.set("season", String(s)); return x; }, { replace: true })} />
+          <SeasonToggle predictOnly value={season} onChange={(s) => setSp((x) => { x.set("season", String(s)); return x; }, { replace: true })} />
           <span className="text-xs text-muted-foreground">Ratings as of now for {seasonLabel(season)}</span>
         </div>
         <form onSubmit={(e) => { e.preventDefault(); run(); }} className="grid items-start gap-4 md:grid-cols-[1fr_auto_1fr]">
@@ -453,7 +453,7 @@ function AdvancementLab() {
   return (
     <div className="space-y-6">
       <div className="rounded-2xl border border-border bg-card p-5 sm:p-6">
-        <div className="mb-4 flex flex-wrap items-center gap-3"><SeasonToggle value={season} onChange={(s) => { set("season", String(s)); set("code", null); }} /></div>
+        <div className="mb-4 flex flex-wrap items-center gap-3"><SeasonToggle predictOnly value={season} onChange={(s) => { set("season", String(s)); set("code", null); }} /></div>
         <div className="grid gap-4 md:grid-cols-[12rem_minmax(0,1fr)]">
           <div className="min-w-0">
             <TeamInput label="Team" value={teamText} onChange={(v) => { setTeamText(v); set("team", v || null); }} />

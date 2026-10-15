@@ -7,7 +7,7 @@
 import { env, hasFirst } from "../env.js";
 import type { AdvancementRow, AllianceRow, AwardRow, EntryRow, EventBundle, EventRow, MatchRow, MatchTeam, TeamRow } from "../data/bundle.js";
 import { matchKey, matchLabel } from "../data/bundle.js";
-import { normalizeAwardName, normalizeEventType, splitFirstScore, type ScoreSplit } from "../data/seasons.js";
+import { normalizeAwardName, normalizeEventType, ownScorePenalties, splitFirstScore, type ScoreSplit } from "../data/seasons.js";
 
 const BASE = "https://ftc-api.firstinspires.org/v2.0";
 
@@ -33,8 +33,9 @@ async function slot<T>(fn: () => Promise<T>): Promise<T> {
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
-/** GET a FIRST endpoint. Null on 404 (not published / no such event). */
-export async function firstGet<T = any>(path: string): Promise<T | null> {
+/** GET a FIRST endpoint. Null on 404 (not published / no such event).
+ *  `optional`: also null (no retries) on a 5xx — for data FIRST no longer serves. */
+export async function firstGet<T = any>(path: string, optional = false): Promise<T | null> {
   if (!hasFirst()) throw new FirstError(0, "FIRST Events API credentials are not configured");
   const auth = "Basic " + Buffer.from(`${env.firstUser}:${env.firstToken}`).toString("base64");
   return slot(async () => {
@@ -48,6 +49,7 @@ export async function firstGet<T = any>(path: string): Promise<T | null> {
         throw new FirstError(0, `FIRST ${path}: ${(e as Error).message}`);
       }
       if (res.status === 404) { firstStats.notFound++; return null; }
+      if (optional && res.status >= 500) { await res.arrayBuffer().catch(() => {}); return null; }
       if (res.status === 429 || res.status >= 500) {
         if (attempt < 5) { firstStats.retries++; await sleep(Number(res.headers.get("retry-after")) * 1000 || 1500 * 2 ** attempt); continue; }
       }
@@ -135,6 +137,16 @@ const allianceOf = (station: unknown): "red" | "blue" | null => {
 };
 const stationNo = (station: unknown) => num(Number(String(station ?? "").replace(/\D/g, ""))) || null;
 
+/** Totals-only split for 2019–2022 (no breakdown): own fouls either came off
+ *  this score (2020, 2021) or were added to the opponent's (2019, 2022). */
+export function legacyTotals(season: number, final: unknown, ownFoul: unknown, oppFoul: unknown, auto: unknown): ScoreSplit | null {
+  const t = num(final);
+  if (t == null) return null;
+  const pen = num(ownFoul) ?? 0, a = num(auto) ?? 0;
+  const np = ownScorePenalties(season) ? t + pen : Math.max(0, t - (num(oppFoul) ?? 0));
+  return { total: t, np, auto: a, teleop: Math.max(0, np - a), endgame: 0, pen };
+}
+
 /**
  * Assemble a full bundle for one event. `meta` is the event-list row.
  * FIRST answers "not published yet" with 200 + empty lists (and 404 for an
@@ -145,16 +157,20 @@ const stationNo = (station: unknown) => num(Number(String(station ?? "").replace
 export async function firstEventBundle(meta: EventRow): Promise<EventBundle> {
   const { season, code } = meta;
   const c = encodeURIComponent(code);
+  // Remote events (2020–2022): every team plays alone under the same match
+  // numbers, so the keys collide; keep the event, rankings and awards only.
+  const solo = <T,>(f: () => Promise<T>) => (meta.remote ? Promise.resolve(null) : f());
   const [schedQ, schedP, results, scoresQ, scoresP, rankings, alliances, awards, advancement] = await Promise.all([
-    firstGet<any>(`/${season}/schedule/${c}?tournamentLevel=qual`),
-    firstGet<any>(`/${season}/schedule/${c}?tournamentLevel=playoff`),
-    firstGet<any>(`/${season}/matches/${c}`),
-    firstGet<any>(`/${season}/scores/${c}/qual`),
-    firstGet<any>(`/${season}/scores/${c}/playoff`),
+    solo(() => firstGet<any>(`/${season}/schedule/${c}?tournamentLevel=qual`)),
+    solo(() => firstGet<any>(`/${season}/schedule/${c}?tournamentLevel=playoff`)),
+    solo(() => firstGet<any>(`/${season}/matches/${c}`)),
+    solo(() => firstGet<any>(`/${season}/scores/${c}/qual`)),
+    solo(() => firstGet<any>(`/${season}/scores/${c}/playoff`)),
     firstGet<any>(`/${season}/rankings/${c}`),
     firstGet<any>(`/${season}/alliances/${c}`),
     firstGet<any>(`/${season}/awards/${c}`),
-    firstGet<any>(`/${season}/advancement/${c}`),
+    // 2019–2022: FIRST answers 503 "Advancement data unavailable" for many events; don't let that cost the event.
+    firstGet<any>(`/${season}/advancement/${c}`, season <= 2022),
   ]);
 
   // Score breakdowns by match key.
@@ -165,7 +181,7 @@ export async function firstEventBundle(meta: EventRow): Promise<EventBundle> {
     const red = (s.alliances ?? []).find((a: any) => String(a.alliance).toLowerCase() === "red");
     const blue = (s.alliances ?? []).find((a: any) => String(a.alliance).toLowerCase() === "blue");
     if (!red || !blue) continue;
-    breakdown.set(matchKey({ level, series: s.matchSeries ?? 0, number: s.matchNumber }), { red: splitFirstScore(season, red), blue: splitFirstScore(season, blue) });
+    breakdown.set(matchKey({ level, series: s.matchSeries ?? 0, number: s.matchNumber }), { red: splitFirstScore(season, red, blue), blue: splitFirstScore(season, blue, red) });
   }
 
   // Matches: start from the schedule (surrogates, unplayed matches), overlay results.
@@ -203,7 +219,11 @@ export async function firstEventBundle(meta: EventRow): Promise<EventBundle> {
     };
     // Prefer the breakdown; fall back to totals (no endgame split, penalties unknown per side).
     let redScore = bd?.red ?? null, blueScore = bd?.blue ?? null;
-    if (!redScore || !blueScore) {
+    if ((!redScore || !blueScore) && season <= 2022) {
+      // 2019–2022 results: scoreRedFoul = the fouls red committed (checked against the breakdowns).
+      redScore = redScore ?? legacyTotals(season, m.scoreRedFinal, m.scoreRedFoul, m.scoreBlueFoul, m.scoreRedAuto);
+      blueScore = blueScore ?? legacyTotals(season, m.scoreBlueFinal, m.scoreBlueFoul, m.scoreRedFoul, m.scoreBlueAuto);
+    } else if (!redScore || !blueScore) {
       const rt = totals(m.scoreRedFinal, m.scoreRedFoul, m.scoreRedAuto), bt = totals(m.scoreBlueFinal, m.scoreBlueFoul, m.scoreBlueAuto);
       // scoreRedFoul = points red received from blue's fouls → blue committed them.
       if (rt && bt) { rt.pen = num(m.scoreBlueFoul) ?? 0; bt.pen = num(m.scoreRedFoul) ?? 0; }

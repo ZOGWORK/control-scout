@@ -4,7 +4,7 @@
 // Live and backtest are always separate blocks — never blended. "Live" counts
 // only predictions written down before the match was played.
 import { all } from "../db.js";
-import { SEASONS } from "../data/seasons.js";
+import { PREDICT_SEASONS, SEASONS } from "../data/seasons.js";
 import { ENGINE_VERSION, type ConfidenceTier } from "@control-scout/predict-engine";
 import type { AccuracyBlock, TrackRecord } from "../../src/shared/api.js";
 import { matchViews } from "./matches.js";
@@ -59,7 +59,7 @@ export async function trackRecord(): Promise<TrackRecord> {
   const key = `${await dataVersion()}|${live[0]?.c}|${live[0]?.s}`;
   if (cached?.key === key) return cached.value;
   const rows = await all<any>("SELECT kind, season, p_red p, outcome y, tier, level, match_time time FROM predictions WHERE outcome IS NOT NULL");
-  const seasons = SEASONS.map((s) => {
+  const seasons = SEASONS.filter((s) => PREDICT_SEASONS.includes(s.season)).map((s) => {
     const of = (kind: string) => rows.filter((r) => r.kind === kind && Number(r.season) === s.season).map((r) => ({ p: Number(r.p), y: Number(r.y), tier: r.tier, level: r.level, time: r.time }));
     return { season: s.season, label: `${s.label} ${s.game}`, live: block(of("live")), backtest: block(of("backtest")) };
   }).reverse();
