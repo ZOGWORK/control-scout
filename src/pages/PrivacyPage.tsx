@@ -54,6 +54,7 @@ const SECTIONS: LegalSectionDef[] = [
           <li><strong>If you sign in:</strong> your email address, an optional display name, and what you choose to sync: my team, tracked teams and events, your shortlist and its notes, scouting entries and match-video links.</li>
           <li><strong>If you allow anonymous usage statistics:</strong> which pages are viewed. See <a href="#analytics">Usage statistics</a>.</li>
           <li><strong>If you contact us:</strong> the email address, optional name and message you send through the <In to="/contact">contact form</In>.</li>
+          <li><strong>If you report an error:</strong> only when you tap Report, or send a report from Settings: the error message and its technical details (the page, the app version, your browser), with emails, codes and other personal details removed, plus anything you type. Reports go into our private issue tracker on GitHub so we can fix the bug. Your notes and scouting entries are never included.</li>
           <li><strong>Server logs:</strong> like any website, our web server briefly records requests (the page asked for, IP address, browser type) to keep the site secure and working.</li>
         </ul>
         <p>Beyond that, we don't ask for your age, school, team role or location, and we never sell or rent data to anyone.</p>

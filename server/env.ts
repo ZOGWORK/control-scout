@@ -36,6 +36,11 @@ export const env = {
   get controlPointInternalKey() { return str("CONTROL_POINT_INTERNAL_KEY"); },
   /** Owner-only GET /api/stats/summary (Authorization: Bearer <token>); unset = the endpoint 404s. */
   get statsToken() { return str("STATS_TOKEN"); },
+  /** In-app error reports → GitHub issues (docs/error-reporting.md): a fine-grained PAT, Issues read/write on
+   *  Control-Point-FTC/control-scout only. Unset: reports are only stored. Never sent to the browser or logged. */
+  get githubReportToken() { return str("GITHUB_REPORT_TOKEN"); },
+  /** Owner allowlist (comma-separated emails): who may read owner-only data such as GET /api/reports/errors. */
+  get ownerEmails() { return (str("OWNER_EMAILS") ?? "").split(",").map((e) => e.trim().toLowerCase()).filter(Boolean); },
   get dataDir() { return str("DATA_DIR") ?? join(process.cwd(), ".data"); },
   /** Where an FTC Scout raw cache can be imported from (seed). */
   get scoutCacheDir() { return str("SCOUT_CACHE_DIR"); },
