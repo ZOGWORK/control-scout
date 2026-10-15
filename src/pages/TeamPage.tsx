@@ -28,6 +28,7 @@ import { awardLabel, dateRange, int, num, place, seasonLabel, topPct } from "../
 import { eventTypeLabel } from "../lib/labels";
 import { copyLink } from "../lib/clipboard";
 import { useSearch } from "../components/layout/Search";
+import { OfflineNote } from "../components/OfflineNote";
 
 export default function TeamPage() {
   const { number } = useParams();
@@ -51,6 +52,7 @@ function Profile({ p, onSeason }: { p: TeamProfile; onSeason: (s: number) => voi
   const hasResults = p.events.length > 0;
   return (
     <div className="min-w-0">
+      <OfflineNote data={p} />
       <Hero p={p} onSeason={onSeason} />
       {!hasResults ? (
         <EmptyState className="mb-8" icon={CalendarDays} title={`No ${seasonLabel(p.season)} results for ${p.team.number} yet`}
