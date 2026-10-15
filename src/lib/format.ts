@@ -26,7 +26,7 @@ export const int = (x: number | null | undefined) => (x == null || !Number.isFin
 export function rankPct(rank: number | null | undefined, of: number | null | undefined, capital = false): string | null {
   if (!rank || !of || rank < 1) return null;
   const r = Math.min(rank, of);
-  const share = (n: number) => Math.max(1, Math.ceil((n / of) * 100));
+  const share = (n: number) => Math.max(1, Math.ceil((n * 100) / of)); // multiply first: (7 / 100) * 100 is 7.000000000000001
   const top = share(r); // teams ranked r or better
   const label = top <= 50 || r === 1 ? `top ${top}%` : `bottom ${share(of - r + 1)}%`; // teams ranked r or worse
   return capital ? label[0].toUpperCase() + label.slice(1) : label;
