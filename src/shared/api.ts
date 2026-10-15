@@ -3,7 +3,7 @@ import type { ConfidenceTier, Factor, Forecast, Partners, TeamStrength } from "@
 
 export type { ConfidenceTier, Factor, Forecast, Partners, TeamStrength };
 
-export interface SeasonMeta { season: number; game: string; label: string; frozen: boolean; lastSync: string | null }
+export interface SeasonMeta { season: number; game: string; label: string; frozen: boolean; lastSync: string | null; /** False for 2019–2022: history only, no ratings or predictions. */ predictable: boolean }
 
 export interface Meta {
   seasons: SeasonMeta[];

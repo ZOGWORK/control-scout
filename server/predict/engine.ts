@@ -11,7 +11,7 @@ import {
   type AdvancementRecord, type AwardRecord, type EventInput, type EventRecord, type Forecast, type PredictModel,
 } from "@control-scout/predict-engine";
 import { all, kvGet } from "../db.js";
-import { CURRENT_SEASON } from "../data/seasons.js";
+import { CURRENT_SEASON, PREDICT_SEASONS } from "../data/seasons.js";
 import { loadSeason, toEventRecord } from "../stats/load.js";
 
 const yieldLoop = () => new Promise<void>((r) => setImmediate(r));
@@ -28,7 +28,8 @@ export class ScoutForecaster extends Forecaster {
 
   constructor(readonly anchor: number) { super(); }
 
-  get seasons(): number[] { return [this.anchor - 2, this.anchor - 1, this.anchor]; }
+  /** The window, minus legacy seasons (history only: never replayed into ratings). */
+  get seasons(): number[] { return [this.anchor - 2, this.anchor - 1, this.anchor].filter((s) => PREDICT_SEASONS.includes(s)); }
   protected hasRatings(): boolean { return this.books.size > 0; }
   protected advancementRecords(season: number): AdvancementRecord[] { return this.advancement.get(season) ?? []; }
   seasonEvents(season: number): EventRecord[] { return this.events.get(season) ?? []; }

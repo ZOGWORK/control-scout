@@ -51,7 +51,7 @@ export function Hero() {
           className="font-mono text-xs leading-relaxed text-muted-foreground"
           initial={reduced ? false : { opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.6, delay: 0.6 }}
         >
-          FTC seasons 2023–24 to 2026–27 · engine v{ENGINE_VERSION}, shared with Control Point · tested on {tested.toLocaleString("en-US")} matches it never saw while tuning
+          Predicts FTC seasons 2023–24 to 2026–27 (results back to 2019–20) · engine v{ENGINE_VERSION}, shared with Control Point · tested on {tested.toLocaleString("en-US")} matches it never saw while tuning
         </motion.p>
       </div>
       <motion.div initial={reduced ? false : { opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.7, ease, delay: 0.3 }} className="min-w-0">

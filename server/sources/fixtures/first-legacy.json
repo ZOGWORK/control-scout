@@ -1,0 +1,753 @@
+{
+ "2019 2019ALCMP Q10": {
+  "scores": {
+   "matchLevel": "QUALIFICATION",
+   "matchSeries": 0,
+   "matchNumber": 10,
+   "alliances": [
+    {
+     "alliance": "Blue",
+     "robot1Navigated": false,
+     "robot1Parked": true,
+     "robot1CapstoneLevel": -1,
+     "robot2Navigated": false,
+     "robot2Parked": false,
+     "robot2CapstoneLevel": -1,
+     "autoStones": [
+      "STONE",
+      "NONE",
+      "NONE",
+      "NONE",
+      "NONE",
+      "NONE"
+     ],
+     "autoDelivered": 1,
+     "autoReturned": 0,
+     "firstReturnedIsSkystone": false,
+     "autoPlaced": 0,
+     "foundationRepositioned": false,
+     "foundationMoved": false,
+     "driverControlledDelivered": 4,
+     "driverControlledReturned": 0,
+     "driverControlledPlaced": 4,
+     "tallestSkyscraper": 2,
+     "autoDeliveryPoints": 2,
+     "autoPlacedPoints": 0,
+     "autonomousPoints": 2,
+     "repositionedPoints": 0,
+     "navigationPoints": 0,
+     "driverControlledDeliveryPoints": 4,
+     "driverControlledPlacedPoints": 4,
+     "skyscraperBonusPoints": 4,
+     "capstonePoints": 0,
+     "driverControlledPoints": 12,
+     "parkingPoints": 0,
+     "endGamePoints": 0,
+     "minorPenalties": 1,
+     "majorPenalties": 0,
+     "penaltyPoints": 0,
+     "totalPoints": 19
+    },
+    {
+     "alliance": "Red",
+     "robot1Navigated": true,
+     "robot1Parked": false,
+     "robot1CapstoneLevel": 3,
+     "robot2Navigated": false,
+     "robot2Parked": false,
+     "robot2CapstoneLevel": -1,
+     "autoStones": [
+      "NONE",
+      "NONE",
+      "NONE",
+      "NONE",
+      "NONE",
+      "NONE"
+     ],
+     "autoDelivered": 0,
+     "autoReturned": 0,
+     "firstReturnedIsSkystone": false,
+     "autoPlaced": 0,
+     "foundationRepositioned": true,
+     "foundationMoved": true,
+     "driverControlledDelivered": 3,
+     "driverControlledReturned": 0,
+     "driverControlledPlaced": 3,
+     "tallestSkyscraper": 3,
+     "autoDeliveryPoints": 0,
+     "autoPlacedPoints": 0,
+     "autonomousPoints": 15,
+     "repositionedPoints": 10,
+     "navigationPoints": 5,
+     "driverControlledDeliveryPoints": 3,
+     "driverControlledPlacedPoints": 3,
+     "skyscraperBonusPoints": 6,
+     "capstonePoints": 8,
+     "driverControlledPoints": 12,
+     "parkingPoints": 0,
+     "endGamePoints": 0,
+     "minorPenalties": 0,
+     "majorPenalties": 0,
+     "penaltyPoints": 5,
+     "totalPoints": 55
+    }
+   ]
+  },
+  "result": {
+   "actualStartTime": "2020-02-22T04:40:00",
+   "description": "Qualification 10",
+   "tournamentLevel": "QUALIFICATION",
+   "series": 0,
+   "matchNumber": 10,
+   "scoreRedFinal": 55,
+   "scoreRedFoul": 0,
+   "scoreRedAuto": 15,
+   "scoreBlueFinal": 19,
+   "scoreBlueFoul": 5,
+   "scoreBlueAuto": 2,
+   "postResultTime": "2020-02-22T04:40:00",
+   "videoURL": ""
+  }
+ },
+ "2020 AUNSWPYQT01 Q3": {
+  "scores": {
+   "matchLevel": "QUALIFICATION",
+   "matchSeries": 0,
+   "matchNumber": 3,
+   "alliances": [
+    {
+     "alliance": "Blue",
+     "team": 0,
+     "adjust": 0,
+     "dcPoints": 36,
+     "autoPoints": 65,
+     "dcTowerLow": 0,
+     "dcTowerMid": 9,
+     "dcTowerHigh": 0,
+     "navigated1": true,
+     "navigated2": false,
+     "wobbleDelivered1": true,
+     "wobbleDelivered2": false,
+     "autoTowerLow": 0,
+     "autoTowerMid": 0,
+     "autoTowerHigh": 0,
+     "autoTowerPoints": 0,
+     "autoPowerShotLeft": true,
+     "autoPowerShotCenter": true,
+     "autoPowerShotRight": true,
+     "autoPowerShotPoints": 45,
+     "wobbleRings1": 0,
+     "wobbleRings2": 0,
+     "wobbleEnd1": 2,
+     "wobbleEnd2": 2,
+     "wobbleEndPoints": 40,
+     "wobbleRingPoints": 0,
+     "autoWobblePoints": 15,
+     "endPowerShotLeft": false,
+     "endPowerShotCenter": true,
+     "endPowerShotRight": false,
+     "endPowerShotPoints": 15,
+     "penaltyPoints": 10,
+     "majorPenalties": 0,
+     "minorPenalties": 1,
+     "navigationPoints": 5,
+     "endgamePoints": 55,
+     "totalPoints": 146
+    },
+    {
+     "alliance": "Red",
+     "team": 0,
+     "adjust": 0,
+     "dcPoints": 54,
+     "autoPoints": 56,
+     "dcTowerLow": 0,
+     "dcTowerMid": 0,
+     "dcTowerHigh": 9,
+     "navigated1": false,
+     "navigated2": true,
+     "wobbleDelivered1": true,
+     "wobbleDelivered2": false,
+     "autoTowerLow": 0,
+     "autoTowerMid": 0,
+     "autoTowerHigh": 3,
+     "autoTowerPoints": 36,
+     "autoPowerShotLeft": false,
+     "autoPowerShotCenter": false,
+     "autoPowerShotRight": false,
+     "autoPowerShotPoints": 0,
+     "wobbleRings1": 0,
+     "wobbleRings2": 0,
+     "wobbleEnd1": 2,
+     "wobbleEnd2": 0,
+     "wobbleEndPoints": 20,
+     "wobbleRingPoints": 0,
+     "autoWobblePoints": 15,
+     "endPowerShotLeft": false,
+     "endPowerShotCenter": false,
+     "endPowerShotRight": false,
+     "endPowerShotPoints": 0,
+     "penaltyPoints": 0,
+     "majorPenalties": 0,
+     "minorPenalties": 0,
+     "navigationPoints": 5,
+     "endgamePoints": 20,
+     "totalPoints": 130
+    }
+   ]
+  },
+  "result": {
+   "actualStartTime": "2020-11-08T10:44:41.926",
+   "description": "Qualification 3",
+   "tournamentLevel": "QUALIFICATION",
+   "series": 0,
+   "matchNumber": 3,
+   "scoreRedFinal": 130,
+   "scoreRedFoul": 0,
+   "scoreRedAuto": 56,
+   "scoreBlueFinal": 146,
+   "scoreBlueFoul": 10,
+   "scoreBlueAuto": 65,
+   "postResultTime": "2020-11-08T10:49:24.814",
+   "videoURL": null
+  }
+ },
+ "2021 CABCCMP Q1": {
+  "scores": {
+   "matchLevel": "QUALIFICATION",
+   "matchSeries": 0,
+   "matchNumber": 1,
+   "randomization": 4,
+   "alliances": [
+    {
+     "alliance": "Blue",
+     "barcodeElement1": "TEAM_SHIPPING_ELEMENT",
+     "barcodeElement2": "TEAM_SHIPPING_ELEMENT",
+     "carousel": false,
+     "autoNavigated1": "IN_WAREHOUSE",
+     "autoNavigated2": "COMPLETELY_IN_WAREHOUSE",
+     "autoBonus1": false,
+     "autoBonus2": false,
+     "autoStorageFreight": 0,
+     "autoFreight1": 0,
+     "autoFreight2": 0,
+     "autoFreight3": 0,
+     "driverControlledStorageFreight": 0,
+     "driverControlledFreight1": 0,
+     "driverControlledFreight2": 1,
+     "driverControlledFreight3": 2,
+     "sharedFreight": 3,
+     "endgameDelivered": 4,
+     "allianceBalanced": false,
+     "sharedUnbalanced": true,
+     "endgameParked1": "IN_WAREHOUSE",
+     "endgameParked2": "NONE",
+     "capped": 0,
+     "minorPenalties": 1,
+     "majorPenalties": 0,
+     "carouselPoints": 0,
+     "autoNavigationPoints": 15,
+     "autoFreightPoints": 0,
+     "autoBonusPoints": 0,
+     "driverControlledAllianceHubPoints": 16,
+     "driverControlledSharedHubPoints": 12,
+     "driverControlledStoragePoints": 0,
+     "endgameDeliveryPoints": 24,
+     "allianceBalancedPoints": 0,
+     "sharedUnbalancedPoints": 20,
+     "endgameParkingPoints": 3,
+     "cappingPoints": 0,
+     "autoPoints": 15,
+     "driverControlledPoints": 28,
+     "endgamePoints": 47,
+     "penaltyPoints": 10,
+     "totalPoints": 80
+    },
+    {
+     "alliance": "Red",
+     "barcodeElement1": "DUCK",
+     "barcodeElement2": "TEAM_SHIPPING_ELEMENT",
+     "carousel": false,
+     "autoNavigated1": "NONE",
+     "autoNavigated2": "COMPLETELY_IN_WAREHOUSE",
+     "autoBonus1": false,
+     "autoBonus2": true,
+     "autoStorageFreight": 0,
+     "autoFreight1": 1,
+     "autoFreight2": 0,
+     "autoFreight3": 0,
+     "driverControlledStorageFreight": 0,
+     "driverControlledFreight1": 1,
+     "driverControlledFreight2": 0,
+     "driverControlledFreight3": 0,
+     "sharedFreight": 1,
+     "endgameDelivered": 4,
+     "allianceBalanced": false,
+     "sharedUnbalanced": false,
+     "endgameParked1": "NONE",
+     "endgameParked2": "NONE",
+     "capped": 1,
+     "minorPenalties": 0,
+     "majorPenalties": 1,
+     "carouselPoints": 0,
+     "autoNavigationPoints": 10,
+     "autoFreightPoints": 6,
+     "autoBonusPoints": 20,
+     "driverControlledAllianceHubPoints": 2,
+     "driverControlledSharedHubPoints": 4,
+     "driverControlledStoragePoints": 0,
+     "endgameDeliveryPoints": 24,
+     "allianceBalancedPoints": 0,
+     "sharedUnbalancedPoints": 0,
+     "endgameParkingPoints": 0,
+     "cappingPoints": 15,
+     "autoPoints": 36,
+     "driverControlledPoints": 6,
+     "endgamePoints": 39,
+     "penaltyPoints": 30,
+     "totalPoints": 51
+    }
+   ]
+  },
+  "result": {
+   "actualStartTime": "2022-02-26T12:01:34.908",
+   "description": "Qualification 1",
+   "tournamentLevel": "QUALIFICATION",
+   "series": 0,
+   "matchNumber": 1,
+   "scoreRedFinal": 51,
+   "scoreRedFoul": 30,
+   "scoreRedAuto": 36,
+   "scoreBlueFinal": 80,
+   "scoreBlueFoul": 10,
+   "scoreBlueAuto": 15,
+   "postResultTime": "2022-02-26T12:07:40.961",
+   "videoURL": null
+  }
+ },
+ "2022 AUCAQ Q2": {
+  "scores": {
+   "matchLevel": "QUALIFICATION",
+   "matchSeries": 0,
+   "matchNumber": 2,
+   "randomization": 3,
+   "alliances": [
+    {
+     "alliance": "Blue",
+     "team": 0,
+     "sideOfField": "SCORING_SIDE",
+     "initSignalSleeve1": false,
+     "initSignalSleeve2": true,
+     "robot1Auto": "NONE",
+     "robot2Auto": "NONE",
+     "autoTerminal": 0,
+     "autoJunctions": [
+      [
+       [],
+       [],
+       [],
+       [],
+       []
+      ],
+      [
+       [],
+       [],
+       [],
+       [],
+       []
+      ],
+      [
+       [],
+       [],
+       [],
+       [],
+       []
+      ],
+      [
+       [],
+       [],
+       [],
+       [],
+       []
+      ],
+      [
+       [],
+       [],
+       [],
+       [],
+       []
+      ]
+     ],
+     "dcJunctions": [
+      [
+       [],
+       [],
+       [],
+       [],
+       [
+        "OTHER_CONE"
+       ]
+      ],
+      [
+       [],
+       [],
+       [
+        "MY_CONE",
+        "OTHER_CONE"
+       ],
+       [
+        "OTHER_CONE",
+        "MY_CONE"
+       ],
+       []
+      ],
+      [
+       [],
+       [
+        "MY_CONE"
+       ],
+       [],
+       [
+        "MY_CONE"
+       ],
+       []
+      ],
+      [
+       [],
+       [
+        "MY_CONE"
+       ],
+       [
+        "MY_CONE"
+       ],
+       [
+        "OTHER_CONE",
+        "OTHER_CONE"
+       ],
+       []
+      ],
+      [
+       [],
+       [],
+       [],
+       [
+        "OTHER_CONE"
+       ],
+       []
+      ]
+     ],
+     "dcTerminalNear": 0,
+     "dcTerminalFar": 0,
+     "egNavigated1": false,
+     "egNavigated2": false,
+     "minorPenalties": 2,
+     "majorPenalties": 0,
+     "autoNavigationPoints": 0,
+     "signalBonusPoints": 0,
+     "autoJunctionConePoints": 0,
+     "autoTerminalConePoints": 0,
+     "dcJunctionConePoints": 28,
+     "dcTerminalConePoints": 0,
+     "ownershipPoints": 15,
+     "circuitPoints": 0,
+     "egNavigationPoints": 0,
+     "autoPoints": 0,
+     "dcPoints": 28,
+     "endgamePoints": 15,
+     "penaltyPointsCommitted": 20,
+     "prePenaltyTotal": 43,
+     "autoJunctionCones": [
+      0,
+      0,
+      0,
+      0
+     ],
+     "dcJunctionCones": [
+      0,
+      0,
+      2,
+      4
+     ],
+     "beacons": 0,
+     "ownedJunctions": 5,
+     "circuit": false,
+     "totalPoints": 53
+    },
+    {
+     "alliance": "Red",
+     "team": 0,
+     "sideOfField": "SCORING_SIDE",
+     "initSignalSleeve1": false,
+     "initSignalSleeve2": true,
+     "robot1Auto": "NONE",
+     "robot2Auto": "NONE",
+     "autoTerminal": 0,
+     "autoJunctions": [
+      [
+       [],
+       [],
+       [],
+       [],
+       []
+      ],
+      [
+       [],
+       [],
+       [],
+       [],
+       []
+      ],
+      [
+       [],
+       [],
+       [],
+       [],
+       []
+      ],
+      [
+       [],
+       [],
+       [],
+       [],
+       []
+      ],
+      [
+       [],
+       [],
+       [],
+       [],
+       []
+      ]
+     ],
+     "dcJunctions": [
+      [
+       [],
+       [],
+       [],
+       [],
+       [
+        "MY_CONE"
+       ]
+      ],
+      [
+       [],
+       [],
+       [
+        "OTHER_CONE",
+        "MY_CONE"
+       ],
+       [
+        "MY_CONE",
+        "OTHER_CONE"
+       ],
+       []
+      ],
+      [
+       [],
+       [
+        "OTHER_CONE"
+       ],
+       [],
+       [
+        "OTHER_CONE"
+       ],
+       []
+      ],
+      [
+       [],
+       [
+        "OTHER_CONE"
+       ],
+       [
+        "OTHER_CONE"
+       ],
+       [
+        "MY_CONE",
+        "MY_CONE"
+       ],
+       []
+      ],
+      [
+       [],
+       [],
+       [],
+       [
+        "MY_CONE"
+       ],
+       []
+      ]
+     ],
+     "dcTerminalNear": 0,
+     "dcTerminalFar": 0,
+     "egNavigated1": false,
+     "egNavigated2": false,
+     "minorPenalties": 1,
+     "majorPenalties": 0,
+     "autoNavigationPoints": 0,
+     "signalBonusPoints": 0,
+     "autoJunctionConePoints": 0,
+     "autoTerminalConePoints": 0,
+     "dcJunctionConePoints": 22,
+     "dcTerminalConePoints": 0,
+     "ownershipPoints": 12,
+     "circuitPoints": 0,
+     "egNavigationPoints": 0,
+     "autoPoints": 0,
+     "dcPoints": 22,
+     "endgamePoints": 12,
+     "penaltyPointsCommitted": 10,
+     "prePenaltyTotal": 34,
+     "autoJunctionCones": [
+      0,
+      0,
+      0,
+      0
+     ],
+     "dcJunctionCones": [
+      1,
+      1,
+      3,
+      1
+     ],
+     "beacons": 0,
+     "ownedJunctions": 4,
+     "circuit": false,
+     "totalPoints": 54
+    }
+   ]
+  },
+  "result": {
+   "actualStartTime": "2022-11-05T09:40:58.026",
+   "description": "Qualification 2",
+   "tournamentLevel": "QUALIFICATION",
+   "series": 0,
+   "matchNumber": 2,
+   "scoreRedFinal": 54,
+   "scoreRedFoul": 10,
+   "scoreRedAuto": 0,
+   "scoreBlueFinal": 53,
+   "scoreBlueFoul": 20,
+   "scoreBlueAuto": 0,
+   "postResultTime": "2022-11-05T09:45:25.947",
+   "videoURL": null
+  }
+ },
+ "remote": {
+  "event": "2020 CAONPIQT1",
+  "meta": {
+   "code": "CAONPIQT1",
+   "name": "ON FTC Qualifier #1 REMOTE ",
+   "typeName": "Qualifier",
+   "remote": true,
+   "dateStart": "2021-03-06T00:00:00",
+   "dateEnd": "2021-03-11T00:00:00"
+  },
+  "rankings": {
+   "rankings": [
+    {
+     "rank": 1,
+     "teamNumber": 18844,
+     "displayTeamNumber": "18844",
+     "sortOrder1": 1037,
+     "sortOrder2": 288,
+     "sortOrder3": 305,
+     "sortOrder4": 31268.2944,
+     "sortOrder5": 0,
+     "sortOrder6": 216,
+     "wins": 0,
+     "losses": 0,
+     "ties": 0,
+     "qualAverage": 0,
+     "dq": 0,
+     "matchesPlayed": 6,
+     "matchesCounted": 6
+    },
+    {
+     "rank": 2,
+     "teamNumber": 16417,
+     "displayTeamNumber": "16417",
+     "sortOrder1": 1003,
+     "sortOrder2": 309,
+     "sortOrder3": 220,
+     "sortOrder4": 710516.2018,
+     "sortOrder5": 0,
+     "sortOrder6": 178,
+     "wins": 0,
+     "losses": 0,
+     "ties": 0,
+     "qualAverage": 0,
+     "dq": 0,
+     "matchesPlayed": 6,
+     "matchesCounted": 6
+    },
+    {
+     "rank": 3,
+     "teamNumber": 16397,
+     "displayTeamNumber": "16397",
+     "sortOrder1": 976,
+     "sortOrder2": 281,
+     "sortOrder3": 345,
+     "sortOrder4": 839877.7252,
+     "sortOrder5": 0,
+     "sortOrder6": 183,
+     "wins": 0,
+     "losses": 0,
+     "ties": 0,
+     "qualAverage": 0,
+     "dq": 0,
+     "matchesPlayed": 6,
+     "matchesCounted": 6
+    },
+    {
+     "rank": 4,
+     "teamNumber": 18920,
+     "displayTeamNumber": "18920",
+     "sortOrder1": 872,
+     "sortOrder2": 207,
+     "sortOrder3": 385,
+     "sortOrder4": 539308.7036,
+     "sortOrder5": 0,
+     "sortOrder6": 169,
+     "wins": 0,
+     "losses": 0,
+     "ties": 0,
+     "qualAverage": 0,
+     "dq": 0,
+     "matchesPlayed": 6,
+     "matchesCounted": 6
+    }
+   ]
+  },
+  "awards": {
+   "awards": [
+    {
+     "awardId": 11,
+     "eventCode": "CAONPIQT1",
+     "name": "Inspire Award",
+     "series": 1,
+     "teamNumber": 18960
+    },
+    {
+     "awardId": 11,
+     "eventCode": "CAONPIQT1",
+     "name": "Inspire Award 2nd Place",
+     "series": 2,
+     "teamNumber": 16397
+    },
+    {
+     "awardId": 11,
+     "eventCode": "CAONPIQT1",
+     "name": "Inspire Award 3rd Place",
+     "series": 3,
+     "teamNumber": 16417
+    },
+    {
+     "awardId": 14,
+     "eventCode": "CAONPIQT1",
+     "name": "Top Ranked",
+     "series": 1,
+     "teamNumber": 18844
+    }
+   ]
+  }
+ }
+}

@@ -80,7 +80,7 @@ function Dashboard({ team }: { team: number }) {
         actions={<Button variant="ghost" size="sm" onClick={() => set("myTeam", null)}><X /> Change team</Button>} />
       <div className="-mt-2 mb-6 flex flex-wrap items-center gap-3">
         {/* The team's own seasons only: kept from the last load while a new season is fetched. */}
-        {knownSeasons ? <SeasonToggle seasons={knownSeasons} value={season} onChange={setSeason} /> : <div className="skeleton h-9 w-72 rounded-lg" />}
+        {knownSeasons ? <SeasonToggle predictOnly seasons={knownSeasons} value={season} onChange={setSeason} /> : <div className="skeleton h-9 w-72 rounded-lg" />}
         <Link to={`/teams/${team}?season=${season}`} className="text-xs text-muted-foreground underline-offset-2 hover:text-foreground hover:underline">Full {team} page for this season</Link>
       </div>
       <Async state={profile}>

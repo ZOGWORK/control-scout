@@ -16,6 +16,11 @@ export interface SeasonInfo {
 }
 
 export const SEASONS: SeasonInfo[] = [
+  // Legacy seasons: stored and shown (team history), never rated or predicted.
+  { season: 2019, game: "SKYSTONE", label: "2019–20" },
+  { season: 2020, game: "ULTIMATE GOAL", label: "2020–21" },
+  { season: 2021, game: "FREIGHT FRENZY", label: "2021–22" },
+  { season: 2022, game: "POWERPLAY", label: "2022–23" },
   { season: 2023, game: "CENTERSTAGE", label: "2023–24" },
   { season: 2024, game: "INTO THE DEEP", label: "2024–25" },
   { season: 2025, game: "DECODE", label: "2025–26" },
@@ -24,6 +29,11 @@ export const SEASONS: SeasonInfo[] = [
 
 export const SEASON_NUMBERS = SEASONS.map((s) => s.season);
 export const CURRENT_SEASON = Math.max(...SEASON_NUMBERS);
+/** Seasons the engine rates, predicts and backtests. Older ones are history only:
+ *  replaying them would change every rating from 2023 on. */
+export const FIRST_PREDICT_SEASON = 2023;
+export const PREDICT_SEASONS = SEASON_NUMBERS.filter((s) => s >= FIRST_PREDICT_SEASON);
+export const isLegacy = (s: number) => s < FIRST_PREDICT_SEASON;
 export const seasonInfo = (s: number) => SEASONS.find((x) => x.season === s) ?? { season: s, game: `${s}–${String((s + 1) % 100).padStart(2, "0")}`, label: `${s}–${String((s + 1) % 100).padStart(2, "0")}` };
 
 /** The FTC season a date falls in (seasons kick off in September). */
@@ -49,7 +59,8 @@ const n = (x: unknown) => (typeof x === "number" && Number.isFinite(x) ? x : 0);
  * One alliance's FIRST `/scores` breakdown → engine components.
  * TeleOp excludes the endgame in every season (the engine's convention).
  */
-export function splitFirstScore(season: number, a: Record<string, unknown>): ScoreSplit {
+export function splitFirstScore(season: number, a: Record<string, unknown>, opp?: Record<string, unknown>): ScoreSplit {
+  if (season <= 2022) return splitLegacy(season, a, opp);
   const auto = n(a.autoPoints);
   let teleop: number, endgame: number, pen: number;
   let bonus: ScoreSplit["bonus"];
@@ -86,6 +97,31 @@ export function splitFirstScore(season: number, a: Record<string, unknown>): Sco
   const np = auto + teleop + endgame;
   return { total: n(a.totalPoints), np, auto, teleop, endgame, pen, ...(bonus ? { bonus } : {}) };
 }
+
+/**
+ * 2019–2022. Penalties: SKYSTONE and POWERPLAY credit fouls to the opponent;
+ * ULTIMATE GOAL and FREIGHT FRENZY deduct them from the offender's own score.
+ * In SKYSTONE `penaltyPoints` is what this alliance received (the opponent's
+ * fouls) and `endGamePoints` is unreliable, so the endgame is what's left of
+ * the non-penalty total. All four report TeleOp without the endgame.
+ */
+function splitLegacy(season: number, a: Record<string, unknown>, opp?: Record<string, unknown>): ScoreSplit {
+  const total = n(a.totalPoints);
+  if (season === 2019) {
+    const auto = n(a.autonomousPoints), teleop = n(a.driverControlledPoints), np = Math.max(0, total - n(a.penaltyPoints));
+    return { total, np, auto, teleop, endgame: Math.max(0, np - auto - teleop), pen: n(opp?.penaltyPoints) };
+  }
+  if (season === 2022) {
+    const auto = n(a.autoPoints), teleop = n(a.dcPoints), endgame = n(a.endgamePoints);
+    return { total, np: auto + teleop + endgame, auto, teleop, endgame, pen: n(a.penaltyPointsCommitted) };
+  }
+  // 2020, 2021: total = np − own penalties (FIRST floors it at 0).
+  const auto = n(a.autoPoints), teleop = n(season === 2020 ? a.dcPoints : a.driverControlledPoints), endgame = n(a.endgamePoints);
+  return { total, np: auto + teleop + endgame, auto, teleop, endgame, pen: n(a.penaltyPoints) };
+}
+
+/** Penalties a season deducts from the offender's own score (vs crediting the opponent). */
+export const ownScorePenalties = (season: number) => season === 2020 || season === 2021;
 
 /**
  * TeleOp as FIRST (and FTC Scout) report it, for display and OPR. The engine
