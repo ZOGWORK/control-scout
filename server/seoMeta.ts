@@ -95,7 +95,7 @@ const place = (...parts: (string | null | undefined)[]) => parts.filter((x) => x
 const dateLong = (d: string | null) => (d ? new Date(`${d}T12:00:00Z`).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric", timeZone: "UTC" }) : "");
 
 async function teamMeta(n: number): Promise<PageMeta> {
-  if (n < 1) return NOT_FOUND;
+  if (n < 1 || n > 999_999) return NOT_FOUND;
   const t = await get<{ name: string | null; city: string | null; state: string | null; country: string | null }>("SELECT name, city, state, country FROM teams WHERE number = ?", [n]);
   // The team API's test (teamProfile): a team we've never seen is a 404 there and here.
   if (!t && !(await teamKnown(n))) return NOT_FOUND;
@@ -155,7 +155,8 @@ export async function pageMeta(path: string): Promise<PageMeta> {
   const p = path.length > 1 ? path.replace(/\/+$/, "") : "/";
   try {
     let m: RegExpMatchArray | null;
-    if ((m = p.match(/^\/teams\/(\d{1,6})$/i))) return await teamMeta(Number(m[1]));
+    // Any number of digits: the value is what counts (/teams/0004215 is team 4215, as in the app).
+    if ((m = p.match(/^\/teams\/(\d{1,20})$/i))) return await teamMeta(Number(m[1]));
     if ((m = p.match(/^\/events\/(\d{4})\/([A-Za-z0-9_-]{1,40})$/i))) {
       // Event codes are case-insensitive in the app (the API uppercases them): same here.
       return (await eventMeta(Number(m[1]), m[2].toUpperCase())) ?? NOT_FOUND;
@@ -182,7 +183,8 @@ export function headTags(path: string, m: PageMeta): string {
   const tags = [
     `<title>${esc(title)}</title>`,
     `<meta name="description" content="${esc(m.description)}" />`,
-    ...(m.noindex ? [`<meta name="robots" content="noindex" />`] : []),
+    // A 404's noindex is marked, so the app removes it on moving to a real page (CanonicalSync in src/lib/meta.tsx).
+    ...(m.noindex ? [`<meta name="robots" content="noindex"${m.notFound ? " data-not-found" : ""} />`] : []),
     // A 404 names no canonical URL (there's no page to point at).
     ...(m.notFound ? [] : [`<link rel="canonical" href="${esc(url)}" />`]),
     `<meta property="og:type" content="${m.type}" />`,

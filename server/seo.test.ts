@@ -158,12 +158,13 @@ describe("page head in the first HTML", () => {
     const dir = mkdtempSync(join(tmpdir(), "cs-seo-404-"));
     const file = join(dir, "index.html");
     writeFileSync(file, '<html><head></head><body><div id="root"></div></body></html>');
-    for (const p of ["/this-page-does-not-exist", "/privacy", "/teams/999999", "/teams/0", "/teams/abc", "/teams/1234567", "/teams/4215/extra",
+    for (const p of ["/this-page-does-not-exist", "/privacy", "/teams/999999", "/teams/0", "/teams/0000000", "/teams/abc", "/teams/0x10", "/teams/1234567","/teams/4215/extra",
       "/events/2025/NOPE", "/events/2019/USNJNOM3", "/events/abc/USNJNOM3", "/events/2025/a%20b", "/events/2025"]) {
       const page = await renderPage(file, p);
       expect(page.status, p).toBe(404);
       expect(page.html, p).toContain('<div id="root">'); // the app renders its own not-found page
-      expect(page.html, p).toContain('<meta name="robots" content="noindex" />');
+      // Marked, so the app drops it on moving to a real page.
+      expect(page.html, p).toContain('<meta name="robots" content="noindex" data-not-found />');
       expect(page.html, p).not.toContain('rel="canonical"');
       expect(page.html, p).toContain("<title>Page not found · FTC Control Scout</title>");
     }
@@ -171,7 +172,7 @@ describe("page head in the first HTML", () => {
     const main = readFileSync(join(process.cwd(), "src/main.tsx"), "utf8");
     const routes = [...main.matchAll(/<Route path="([^"]+)"/g)].map((m) => m[1]).filter((r) => r !== "*" && !r.includes(":"));
     expect(routes.length).toBeGreaterThan(10);
-    for (const p of [...routes, "/Teams", "/teams/4215", "/teams/004215", "/events/2025/USNJNOM3", "/events/2025/usnjnom3"]) {
+    for (const p of [...routes, "/Teams", "/teams/4215", "/teams/004215", "/teams/0004215","/events/2025/USNJNOM3", "/events/2025/usnjnom3"]) {
       const page = await renderPage(file, p);
       expect(page.status, p).toBe(200);
       expect(page.html, p).toContain('rel="canonical"');
