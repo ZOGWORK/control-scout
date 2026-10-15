@@ -155,6 +155,7 @@ printf 'DOMAIN=%q\nEXTRA_DOMAINS=%q\n' "$DOMAIN" "$EXTRA_DOMAINS" > "$SHARED/dep
 chmod 644 "$SHARED/deploy.conf"
 install -d -o root -g root -m 755 "$APP_DIR/bin"
 install -o root -g root -m 755 "$REL_DIR/deploy/vm-update.sh" "$APP_DIR/bin/update"
+install -o root -g root -m 755 "$REL_DIR/deploy/vm-rollback.sh" "$APP_DIR/bin/rollback"
 
 # Keep the three newest releases for rollback.
 ls -1dt "$APP_DIR"/releases/*/ | tail -n +4 | while read -r old; do
