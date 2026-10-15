@@ -357,6 +357,24 @@ CREATE TABLE analytics_daily (
 ) WITHOUT ROWID;
 `,
   },
+  {
+    version: 10,
+    name: "contact form messages",
+    sql: `
+-- One row per message sent from /contact (server/contact.ts). No IP address is kept.
+-- emailed: 1 once it was forwarded to CONTACT_TO, 0 if that wasn't set or the send failed.
+CREATE TABLE contact_messages (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  created_at TEXT NOT NULL,
+  topic TEXT NOT NULL,       -- bug | data | feature | other
+  name TEXT,
+  email TEXT NOT NULL,
+  message TEXT NOT NULL,
+  emailed INTEGER NOT NULL DEFAULT 0
+);
+CREATE INDEX contact_messages_created ON contact_messages (created_at);
+`,
+  },
 ];
 
 export type Db = Client;
