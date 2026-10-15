@@ -85,7 +85,7 @@ export default function MethodologyPage() {
           <Prose id="opr">
             <h3>OPR, the number most sites show</h3>
             <p>OPR estimates each robot's average contribution to its alliance's score. It's solved from an event's qualification matches, with separate values for auto, TeleOp, endgame and penalties given away. The headline OPR counts non-penalty points only, so an opponent's fouls don't inflate it.</p>
-            <p>Control Scout computes OPR <strong>exactly the way FTC Scout and FTC Events do</strong>, so a team sees the same number everywhere: plain least squares over every played qualification match, counting every team FIRST lists on the alliance. TeleOp means what FIRST means by it: from 2024–25 on it includes the endgame points, and the endgame column shows that part on its own. A team's season OPR is its best event OPR. With only five or six matches, least squares can swing a lot and even go slightly negative; that's the published number, and it's one reason predictions use the rating instead.</p>
+            <p>Control Scout computes OPR the <strong>standard way</strong>: plain least squares over every played qualification match, counting every team FIRST lists on the alliance. TeleOp means what FIRST means by it: from 2024–25 on it includes the endgame points, and the endgame column shows that part on its own. A team's season OPR is its best event OPR. With only five or six matches, least squares can swing a lot and even go slightly negative; that's the published number, and it's one reason predictions use the rating instead.</p>
             <p>OPR is shown on team pages for reference. It doesn't drive predictions: the rating above does, because it updates after every match and carries over between seasons.</p>
           </Prose>
         </section>
@@ -210,7 +210,7 @@ function SettingsTable() {
     ["Calibration", `a ${CAL.a.toFixed(3)} · b ${CAL.b.toFixed(3)}`, "Platt scaling on win probabilities"],
     ["Captain's pick", `τ ${MODEL.pick.tau} · rank ${MODEL.pick.rankWeight}`, "How much strength vs. rank drives picks"],
     ["Simulations", SIM_RUNS.toLocaleString("en-US"), "Runs per event forecast"],
-    ["OPR", "least squares", "Same method and numbers as FTC Scout and FTC Events"],
+    ["OPR", "least squares", "Standard least squares over qualification matches"],
   ];
   return (
     <Reveal className="mx-auto max-w-2xl">
