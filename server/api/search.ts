@@ -8,6 +8,7 @@ import { CURRENT_SEASON } from "../data/seasons.js";
 import type { SearchHit } from "../../src/shared/api.js";
 import { fuzzyScore, normalize, scoreWords, trigramQuery, words } from "./fuzzy.js";
 import { kvGet } from "../db.js";
+import { findRegions } from "../../src/shared/regions.js";
 
 /** Turn free text into a safe FTS5 query: every word as a quoted prefix term. */
 export function ftsQuery(q: string): string | null {
@@ -44,6 +45,12 @@ export async function search(q: string, limit = 12, prefer: ReadonlySet<string> 
   const out: SearchHit[] = [];
   const seen = new Set<string>();
   const push = (h: SearchHit) => { const k = `${h.kind}:${h.ref}`; if (!seen.has(k)) { seen.add(k); out.push(h); } };
+
+  // 0. A state or province ("New Jersey", "NJ"): its events this season, as one link.
+  if (!/\d/.test(query)) for (const r of findRegions(query)) {
+    const n = Number((await get<{ n: number }>("SELECT COUNT(*) n FROM events WHERE season = ? AND country = ? AND state = ?", [CURRENT_SEASON, r.country, r.state]))?.n ?? 0);
+    if (n) push({ kind: "place", ref: r.key, title: `All events in ${r.name}`, subtitle: `${n} this season`, season: CURRENT_SEASON });
+  }
 
   // 1. A specific match ("USNJQ1 Q12").
   const mh = await matchHit(query);
@@ -89,7 +96,13 @@ export async function search(q: string, limit = 12, prefer: ReadonlySet<string> 
     // Your own teams/events win ties and near-ties, never beat a much better match.
     .map((x) => (prefer.has(`${x.c.kind}:${x.c.ref}`) ? { ...x, s: x.s + 0.1 } : x))
     .sort((a, b) => b.s - a.s || b.c.weight - a.c.weight || (b.c.season ?? 0) - (a.c.season ?? 0) || a.c.title.localeCompare(b.c.title));
-  for (const { c } of ranked) push({ kind: c.kind, ref: c.ref, title: c.title, subtitle: c.subtitle, season: c.season });
+  // An event code comes back every season (USNJCMP 2023, 2024, …): keep the newest unless a year was typed.
+  const newest = new Map<string, number>();
+  if (!/\b(19|20)\d\d\b/.test(query)) for (const { c } of ranked) if (c.kind === "event") { const [s, code] = c.ref.split(":"); newest.set(code, Math.max(newest.get(code) ?? 0, Number(s))); }
+  for (const { c } of ranked) {
+    if (c.kind === "event" && newest.size) { const [s, code] = c.ref.split(":"); if (Number(s) < (newest.get(code) ?? 0)) continue; }
+    push({ kind: c.kind, ref: c.ref, title: c.title, subtitle: c.subtitle, season: c.season });
+  }
   // Short typos can share no trigram with the right word ("dirve" vs "drive"):
   // when the index didn't find enough, scan the names in memory (bounded edit
   // distance, ~28k names, a few ms).
