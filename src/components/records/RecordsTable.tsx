@@ -474,14 +474,22 @@ function FloatingHead({ table, scroller, children }: { table: RefObject<HTMLTabl
       if (clip.current) clip.current.scrollLeft = sc.scrollLeft;
     };
     measure(); place();
+    // Every header cell is watched, not just the table: adding or removing a column can reflow the others
+    // while a full-width table keeps its size. Cells that come and go are picked up as the row changes.
     const ro = new ResizeObserver(() => { measure(); place(); });
-    ro.observe(t);
+    const watch = () => { ro.disconnect(); ro.observe(t); for (const c of t.tHead?.rows[0]?.cells ?? []) ro.observe(c); };
+    watch();
+    const mo = new MutationObserver(() => { watch(); measure(); });
+    if (t.tHead) mo.observe(t.tHead, { childList: true, subtree: true });
     const page = area ?? window;
     page.addEventListener("scroll", place, { passive: true });
     window.addEventListener("resize", place);
     sc.addEventListener("scroll", place, { passive: true });
-    return () => { ro.disconnect(); page.removeEventListener("scroll", place); window.removeEventListener("resize", place); sc.removeEventListener("scroll", place); };
+    return () => { ro.disconnect(); mo.disconnect(); page.removeEventListener("scroll", place); window.removeEventListener("resize", place); sc.removeEventListener("scroll", place); };
   }, [table, scroller]);
+  // The copy is for the eye and the mouse: the real header (and its sort buttons) is what keyboards and
+  // screen readers use, so the copy's buttons stay out of the tab order (and it is aria-hidden).
+  useEffect(() => { clip.current?.querySelectorAll("button").forEach((b) => { b.tabIndex = -1; }); });
   return (
     <div className="sticky top-0 z-30 h-0">
       <div ref={clip} aria-hidden className={cn("absolute inset-x-0 top-0 overflow-hidden rounded-t-xl border bg-card shadow-[0_8px_16px_-8px_rgb(0_0_0/0.5)] transition-opacity", grid,
