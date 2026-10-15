@@ -9,7 +9,7 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { all, migrate, openDb, run, setDb } from "../db";
 import { createApp } from "../app";
 import { setMailer } from "../auth/email";
-import { clearInfoCache, MEMBERSHIP_TTL } from "../auth/controlPoint";
+import { clearInfoCache, MEMBERSHIP_TTL, rememberInfo } from "../auth/controlPoint";
 
 const KEY = "k".repeat(40);
 let scout: Server, cp: Server;
@@ -205,6 +205,17 @@ describe("workspace scout entries", () => {
       expect(await all("SELECT * FROM workspace_members WHERE account_id = ?", [a.id])).toHaveLength(1); // the stale row survived…
       expect((await pull(call, "85")).status).toBe(403); // …and still grants nothing
     } finally { await run("DROP TRIGGER members_locked"); }
+  });
+
+  it("a re-check's saved answer is replaced by a newer one (sign-in), so a removal sticks within the 5 s window", async () => {
+    const a = accountFor("window@example.com");
+    a.workspaces = [{ id: "87", name: "Team", role: "member" }];
+    const call = await signIn("window@example.com");
+    await run("UPDATE workspace_members SET updated_at = ? WHERE account_id = ?", [Date.now() - MEMBERSHIP_TTL - 1, a.id]);
+    expect((await push(call, "87", [entry()])).status).toBe(200); // a forced re-check: its answer (member) is saved
+    a.workspaces = [];
+    await rememberInfo(a as any); // a newer answer, as a sign-in or hand-off brings it: removed
+    expect((await push(call, "87", [entry()])).status).toBe(403);
   });
 
   it("Control Point unreachable: a stale cached membership still counts, so scouting carries on", async () => {
