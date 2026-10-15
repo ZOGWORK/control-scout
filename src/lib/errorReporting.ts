@@ -24,6 +24,8 @@ const MAX_PROMPTS = 3;
 let busy = false;
 let sending = false;
 let disabled = false;
+/** Switched off by the owner (the errorReporting flag, src/lib/flags.ts): no prompts until it's back on. */
+let paused = false;
 let prompts = 0;
 const offered = new Set<string>();
 let last: ErrorReport | null = null;
@@ -68,7 +70,7 @@ export function buildReport(error: unknown, extraStack?: string): ErrorReport {
  * and ignores errors raised while the reporting pipeline itself is running.
  */
 export function captureError(error: unknown, extraStack?: string): void {
-  if (busy || sending || disabled) return;
+  if (busy || sending || disabled || paused) return;
   busy = true;
   try {
     if (isNoise(error)) return;
@@ -138,6 +140,12 @@ export function clearPrompt(report?: ErrorReport): void {
   emit();
 }
 
+/** The errorReporting flag changed: while it's off nothing prompts, and a prompt on screen goes away. */
+export function setReportingPaused(off: boolean): void {
+  paused = off;
+  if (off && pending) { pending = null; emit(); }
+}
+
 /** The prompt's own UI failed: stop prompting for this page load rather than risk a loop. */
 export function disableReporting(): void {
   disabled = true;
@@ -164,7 +172,7 @@ export function installErrorReporting(): void {
 
 /** Tests: back to a fresh page load. */
 export function resetErrorReporting(): void {
-  busy = sending = disabled = false;
+  busy = sending = disabled = paused = false;
   prompts = 0;
   offered.clear();
   last = pending = null;

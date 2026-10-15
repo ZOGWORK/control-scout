@@ -26,6 +26,7 @@ import { env } from "./env.js";
 import { RELEASE } from "./release.js";
 import { currentUser } from "./auth/session.js";
 import { ownerOf } from "./owner.js";
+import { isEnabled } from "./flags.js";
 import { fingerprintSource, reportShapeError, sanitizeReport, type ErrorReport } from "../src/shared/errorReport.js";
 
 export const GITHUB_REPO = "Control-Point-FTC/control-scout";
@@ -341,6 +342,8 @@ export function reportsRouter(): Router {
     (async () => {
       // JSON only: a cross-site form can't post JSON without a preflight we never allow.
       if (!req.is("application/json")) { res.status(415).json({ error: "Send JSON" }); return; }
+      // Switched off in the owner portal: accepted and dropped (the app stops asking too, via /api/flags).
+      if (!(await isEnabled("errorReporting"))) { res.status(202).json({ ok: true }); return; }
       const problem = reportShapeError(req.body);
       if (problem) { res.status(400).json({ error: problem }); return; }
       const user = await currentUser(req).catch(() => null);

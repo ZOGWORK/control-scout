@@ -400,6 +400,52 @@ CREATE TABLE error_reports (
 CREATE INDEX error_reports_last_seen ON error_reports (last_seen);
 `,
   },
+  {
+    version: 13,
+    name: "owner portal: feature flags, audit log, request metrics, feedback status",
+    sql: `
+-- Runtime kill switches (server/flags.ts, src/shared/flags.ts). A flag with no row is on.
+CREATE TABLE feature_flags (
+  name TEXT PRIMARY KEY,
+  enabled INTEGER NOT NULL,
+  updated_at TEXT NOT NULL,
+  updated_by TEXT NOT NULL
+);
+
+-- Every owner action (server/portal/audit.ts): who (the owner's email), what, when, details (JSON).
+-- result: how an action that runs on after the request ended (a data job) finished; NULL for instant ones.
+CREATE TABLE owner_audit (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  at TEXT NOT NULL,
+  actor TEXT NOT NULL,
+  action TEXT NOT NULL,
+  details TEXT,
+  result TEXT
+);
+CREATE INDEX owner_audit_at ON owner_audit (at);
+
+-- API request counts and latency per UTC day and route pattern (server/metrics.ts). Route patterns only
+-- (ids, team numbers and event codes replaced), never full URLs, IPs or accounts.
+-- b0..b11: requests per latency bucket (upper bounds in METRIC_BUCKETS_MS, the last one open-ended).
+CREATE TABLE request_metrics_daily (
+  day TEXT NOT NULL,
+  route TEXT NOT NULL,
+  count INTEGER NOT NULL DEFAULT 0,
+  errors INTEGER NOT NULL DEFAULT 0,
+  total_ms REAL NOT NULL DEFAULT 0,
+  max_ms REAL NOT NULL DEFAULT 0,
+  b0 INTEGER NOT NULL DEFAULT 0, b1 INTEGER NOT NULL DEFAULT 0, b2 INTEGER NOT NULL DEFAULT 0, b3 INTEGER NOT NULL DEFAULT 0,
+  b4 INTEGER NOT NULL DEFAULT 0, b5 INTEGER NOT NULL DEFAULT 0, b6 INTEGER NOT NULL DEFAULT 0, b7 INTEGER NOT NULL DEFAULT 0,
+  b8 INTEGER NOT NULL DEFAULT 0, b9 INTEGER NOT NULL DEFAULT 0, b10 INTEGER NOT NULL DEFAULT 0, b11 INTEGER NOT NULL DEFAULT 0,
+  PRIMARY KEY (day, route)
+) WITHOUT ROWID;
+
+-- The owner's feedback inbox (the contact form's messages): open | resolved | archived.
+ALTER TABLE contact_messages ADD COLUMN status TEXT NOT NULL DEFAULT 'open';
+ALTER TABLE contact_messages ADD COLUMN status_at TEXT;
+CREATE INDEX contact_messages_status ON contact_messages (status, created_at);
+`,
+  },
 ];
 
 export type Db = Client;

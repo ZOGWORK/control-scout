@@ -7,6 +7,7 @@ import express, { type NextFunction, type Request, type Response, type Router } 
 import { all, db, get, run, writeBatch } from "../db.js";
 import { env } from "../env.js";
 import { cleanValue, mergeValue, PERSONAL_KEYS, type PersonalKey, type Stamped } from "../../src/shared/personal.js";
+import { isOwnerEmail } from "../owner.js";
 import { currentUser, deleteUser, endSession, readCookie, startSession, token, userForIdentity, type User } from "./session.js";
 import { emailEnabled, startEmailSignIn, verifyEmailCode } from "./email.js";
 import { CP_PROVIDER, controlPointEnabled, controlPointInfo, controlPointVia, isCpVia, rememberInfo, linkedAccountId, linkToSharedAccount, logFailure, provenEmailFor, redeemHandoff } from "./controlPoint.js";
@@ -47,6 +48,8 @@ export function safeBack(v: unknown): string | null {
 }
 
 const publicUser = (u: User) => ({ id: u.id, email: u.email, displayName: u.displayName, createdAt: u.createdAt });
+/** The owner portal's nav item shows only for owners (OWNER_EMAILS): they get isOwner: true, everyone else nothing at all. */
+const ownerMark = (u: User) => (isOwnerEmail(u.email) ? { isOwner: true as const } : {});
 
 export function authRouter(): Router {
   const r = express.Router();
@@ -65,7 +68,7 @@ export function authRouter(): Router {
     }
     // Membership is only ever shown to the signed-in owner of the address (never before it's proven).
     const controlPoint = linked != null ? await controlPointInfo(linked) : null;
-    return { user: { ...publicUser(u), controlPointLinked: linked != null, controlPoint }, providers: { ...authProviders(), via } };
+    return { user: { ...publicUser(u), ...ownerMark(u), controlPointLinked: linked != null, controlPoint }, providers: { ...authProviders(), via } };
   }));
 
   r.post("/email/start", ipLimit(20, 15 * 60_000), h(async (req, res) => {
@@ -92,7 +95,7 @@ export function authRouter(): Router {
     const linked = await linkToSharedAccount(user, "scout-email-code", out.email); // the shared account (best effort, 3 s max)
     await startSession(res, user, req.get("user-agent"));
     const id = linked?.id ?? (controlPointEnabled() ? await linkedAccountId(user.id) : null);
-    return { user: { ...publicUser(user), controlPointLinked: id != null, controlPoint: id != null ? await controlPointInfo(id) : null } };
+    return { user: { ...publicUser(user), ...ownerMark(user), controlPointLinked: id != null, controlPoint: id != null ? await controlPointInfo(id) : null } };
   }));
 
   r.post("/logout", h(async (req, res) => { await endSession(req, res); return { ok: true }; }));
