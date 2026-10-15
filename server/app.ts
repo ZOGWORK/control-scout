@@ -22,6 +22,7 @@ import { liveForecaster, liveVersion, dataVersion } from "./predict/engine.js";
 import { authRouter, meRouter, authProviders } from "./auth/routes.js";
 import { contactRouter } from "./contact.js";
 import { scoutRouter } from "./scout/entries.js";
+import { reportsRouter } from "./errorReports.js";
 import { packsRouter } from "./packs/routes.js";
 import { collectRouter, statsRouter } from "./analytics.js";
 import { listRecords, recordRegions, recordsQuery, RecordsQueryError, streamRecordsCsv } from "./api/records.js";
@@ -136,7 +137,7 @@ export function createApp() {
   // Anything personal stays no-store (case-insensitive, like Express routing),
   // and so does every error response, so a retry never replays a cached 503.
   api.use((req, res, next) => {
-    const personal = /^\/(me|auth|health|stats|scout)(\/|$)/i.test(req.path);
+    const personal = /^\/(me|auth|health|stats|reports|scout)(\/|$)/i.test(req.path);
     res.setHeader("Cache-Control", req.method === "GET" && !personal ? "public, max-age=60, stale-while-revalidate=300" : "no-store");
     const writeHead = res.writeHead;
     res.writeHead = function (this: typeof res, ...a: Parameters<typeof writeHead>) {
@@ -388,6 +389,7 @@ export function createApp() {
   api.use("/collect", collectRouter());
   api.use("/stats", statsRouter());
   api.use("/contact", contactRouter());
+  api.use("/reports", reportsRouter());
 
   api.use((_req, res) => { res.status(404).json({ error: "Not found" }); });
   app.use("/api", api);

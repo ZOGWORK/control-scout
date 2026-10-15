@@ -7,7 +7,7 @@ import { useEffect, useRef, useState, type ComponentType, type ReactNode } from 
 import { Link, useLocation, useNavigate, useSearchParams } from "react-router-dom";
 import { AnimatePresence, motion } from "motion/react";
 import {
-  ArrowDown, ArrowUp, BellRing, ClipboardList, Download, ExternalLink, HardDriveDownload, Info, KeyRound, Link2, LogOut, Mail, Monitor, Moon, Palette,
+  ArrowDown, ArrowUp, BellRing, Bug, ClipboardList, Download, ExternalLink, HardDriveDownload, Info, KeyRound, Link2, LogOut, Mail, Monitor, Moon, Palette,
   Star, Sun, Upload, UserRound, X,
 } from "lucide-react";
 import { apiFetch } from "../lib/api";
@@ -17,9 +17,11 @@ import { resetConsent, useConsent } from "../lib/consent";
 import { clearLocalScouting, localScoutEntries, saveScoutEntry, storedScoutEntry, type ScoutEntry } from "../lib/scouting";
 import { clearRecordings, fmtBytes } from "../lib/recordings";
 import { downloadCsv } from "../lib/csv";
+import { manualReport, sendReport } from "../lib/errorReporting";
+import { REPORT_LIMITS } from "../shared/errorReport";
 import { PageHeader } from "../components/page";
 import { Button } from "../components/ui/button";
-import { Badge, FieldError, Input } from "../components/ui/basic";
+import { Badge, FieldError, Input, Textarea } from "../components/ui/basic";
 import { Switch, ToggleGroup, ToggleGroupItem } from "../components/ui/controls";
 import { toast } from "../components/ui/sonner";
 import { OtpInput } from "../components/arc/otp-input/otp-input";
@@ -541,6 +543,35 @@ function Privacy({ onOpen }: { onOpen: (id: SectionId) => void }) {
 
 // --- About ------------------------------------------------------------------------------------
 
+const BUG_MIN = 10;
+
+/** "Report a bug": the visitor's words, sanitized, plus the last error this page load hit (src/lib/errorReporting.ts). */
+function ReportBug() {
+  const [text, setText] = useState("");
+  const [sending, setSending] = useState(false);
+  const ready = text.trim().length >= BUG_MIN && !sending;
+  const send = () => {
+    if (!ready) return;
+    setSending(true);
+    void sendReport(manualReport(text)).then((r) => {
+      setSending(false);
+      if (r === "sent") { setText(""); toast.success("Thanks, your report is on its way to the developers"); }
+      else if (r === "limited") toast("You've sent several reports this hour. Please try again later");
+      else toast.error("Couldn't send the report just now. Try again in a moment");
+    });
+  };
+  return (
+    <Row label="Report a bug" htmlFor="bug-report" stack
+      description={<>Say what went wrong. We send your words with the app version, your browser and the last error this visit hit, if any. Never your notes or personal details, so leave names and contact details out.</>}>
+      <Textarea id="bug-report" rows={3} maxLength={REPORT_LIMITS.description} value={text} onChange={(e) => setText(e.target.value)} placeholder="For example: the odds tab on an event page stays blank" />
+      <div className="mt-2 flex items-center justify-between gap-3">
+        <span className="text-xs tabular-nums text-muted-foreground">{text.length}/{REPORT_LIMITS.description}</span>
+        <Button variant="secondary" size="sm" className="max-sm:h-10" disabled={!ready} onClick={send}><Bug /> {sending ? "Sending…" : "Send report"}</Button>
+      </div>
+    </Row>
+  );
+}
+
 function About() {
   const meta = useMeta();
   return (
@@ -549,6 +580,7 @@ function About() {
         <Row label="Prediction engine" description="Shared with Control Point, so the numbers match."><span className="font-mono text-sm text-foreground">v{meta?.engineVersion ?? "…"}</span></Row>
         <Row label="Data updated" description="Synced from FIRST; every 15 minutes on event days."><span className="text-sm text-foreground">{ago(meta?.dataAsOf)}</span></Row>
         <Row label="How predictions work"><Button variant="outline" size="sm" asChild><Link to="/methodology">Read it</Link></Button></Row>
+        <ReportBug />
         <Row label="Contact" description="Report a bug or wrong data, suggest a feature, or ask a question."><Button variant="outline" size="sm" asChild><Link to="/contact">Contact us</Link></Button></Row>
       </Group>
       <Group title="Control Point">
