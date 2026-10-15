@@ -17,7 +17,10 @@ function serviceWorker(): Plugin {
     apply: "build",
     generateBundle(_options, bundle) {
       const pub = (dir: string) => readdirSync(fileURLToPath(new URL(`./public/${dir}`, import.meta.url))).map((f) => `/${dir}/${f}`);
-      const built = Object.keys(bundle).filter((f) => !f.endsWith(".map")).map((f) => `/${f}`);
+      const all = Object.keys(bundle).filter((f) => !f.endsWith(".map")).map((f) => `/${f}`);
+      // The in-browser SQLite engine (~650 kB) is only for saved seasons: precached only where one is saved (see sw.template.js).
+      const offline = all.filter((f) => f.endsWith(".wasm"));
+      const built = all.filter((f) => !offline.includes(f));
       // The brand images the shell shows (sidebar logo, home wordmark, favicon): offline too.
       const brand = ["/logo.png", "/wordmark.png", "/favicon.ico"];
       // Not /index.html: the server redirects it to the canonical "/" (a redirect can't be precached cross-host, nor answer a navigation).
@@ -27,7 +30,7 @@ function serviceWorker(): Plugin {
       const stamp = new Date().toISOString().replace(/\D/g, "").slice(0, 14);
       const version = `${stamp}-${hash.digest("hex").slice(0, 10)}`;
       const template = readFileSync(fileURLToPath(new URL("./src/sw.template.js", import.meta.url)), "utf8");
-      this.emitFile({ type: "asset", fileName: "sw.js", source: template.replace("__VERSION__", version).replace("__FILES__", JSON.stringify(files)) });
+      this.emitFile({ type: "asset", fileName: "sw.js", source: template.replace("__VERSION__", version).replace("__FILES__", JSON.stringify(files)).replace("__OFFLINE_FILES__", JSON.stringify(offline)) });
     },
   };
 }
