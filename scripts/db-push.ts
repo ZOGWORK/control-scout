@@ -21,7 +21,12 @@ process.env.DATABASE_AUTH_TOKEN = process.env.PUSH_DATABASE_AUTH_TOKEN ?? "";
 const PUBLIC_TABLES = [
   "seasons", "teams", "team_seasons", "events", "event_teams", "matches", "match_teams",
   "alliances", "awards", "advancement", "team_event_stats", "team_season_stats", "predictions", "kv",
+  "team_event_records", "team_season_records", "match_records",
 ];
+/** WITHOUT ROWID tables (no rowid to page by): their primary key order instead. */
+const KEY_ORDER: Record<string, string> = {
+  team_event_records: "season, code, team", team_season_records: "season, team", match_records: "season, code, level, series, number",
+};
 const BATCH = 400;
 
 const { migrate, db } = await import("../server/db.js");
@@ -58,10 +63,13 @@ for (const table of PUBLIC_TABLES) {
   };
   let copied = 0;
   for (let last = -1; ;) {
-    const rows = (await source.execute({ sql: `SELECT rowid AS _rid, ${cols.join(", ")} FROM ${table} WHERE rowid > ? ORDER BY rowid LIMIT ${BATCH}`, args: [last] })).rows;
+    const page = KEY_ORDER[table]
+      ? { sql: `SELECT ${cols.join(", ")} FROM ${table} ORDER BY ${KEY_ORDER[table]} LIMIT ${BATCH} OFFSET ?`, args: [copied] }
+      : { sql: `SELECT rowid AS _rid, ${cols.join(", ")} FROM ${table} WHERE rowid > ? ORDER BY rowid LIMIT ${BATCH}`, args: [last] };
+    const rows = (await source.execute(page)).rows;
     if (!rows.length) break;
     await to.batch(rows.map((r) => ({ sql, args: argsFor(r) })), "write");
-    last = Number(rows[rows.length - 1]._rid);
+    if (!KEY_ORDER[table]) last = Number(rows[rows.length - 1]._rid);
     copied += rows.length;
   }
   console.log(`  ${table}: ${copied.toLocaleString()} rows`);

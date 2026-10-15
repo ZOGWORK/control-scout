@@ -119,6 +119,30 @@ export class ScoutForecaster extends Forecaster {
     const book = prevSeason ? prevSeason.clone() : new RatingBook(FITTED_MODEL.rating);
     book.startSeason(ev.season);
     for (const m of this.seasonEvents(ev.season).flatMap((e) => e.matches).filter((m) => m.time < startMs).sort((x, y) => x.time - y.time)) book.update(m);
+    return this.forecastFrozen(ev, myTeam, runs, book, startMs);
+  }
+
+  /**
+   * preEventForecast for many events of one season at once (the records
+   * table's advancement odds): the season is replayed once, in time order,
+   * instead of once per event — same numbers as preEventForecast per event.
+   * Yields [event code, forecast or null] in start order.
+   */
+  *preEventForecasts(season: number, evs: EventInput[], runs = 2000): Generator<[string, Forecast | null]> {
+    const prevSeason = this.books.get(season - 1);
+    const book = prevSeason ? prevSeason.clone() : new RatingBook(FITTED_MODEL.rating);
+    book.startSeason(season);
+    const matches = this.seasonEvents(season).flatMap((e) => e.matches).sort((x, y) => x.time - y.time);
+    let next = 0;
+    const dated = evs.filter((e) => e.season === season && e.start).map((e) => ({ e, startMs: Date.parse(`${e.start}T00:00:00Z`) })).sort((a, b) => a.startMs - b.startMs);
+    for (const { e, startMs } of dated) {
+      while (next < matches.length && matches[next].time < startMs) book.update(matches[next++]);
+      yield [e.code, this.forecastFrozen(e, null, runs, book.clone(), startMs)];
+    }
+  }
+
+  /** Forecast an event from a book frozen at its start, with its results stripped. */
+  private forecastFrozen(ev: EventInput, myTeam: number | null, runs: number, book: RatingBook, startMs: number): Forecast | null {
     book.setTime(startMs);
     const stripped: EventInput = {
       ...ev,

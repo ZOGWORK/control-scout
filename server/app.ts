@@ -21,6 +21,9 @@ import { sitemapChunkRoute, sitemapRoute } from "./sitemap.js";
 import { liveForecaster, liveVersion, dataVersion } from "./predict/engine.js";
 import { authRouter, meRouter, authProviders } from "./auth/routes.js";
 import { packsRouter } from "./packs/routes.js";
+import { listRecords, recordsQuery, RecordsQueryError, streamRecordsCsv } from "./api/records.js";
+import { FilterError } from "../src/shared/filterDsl.js";
+import { RECORDS_EXPORT_MAX, RECORDS_MAX_PAGE_SIZE } from "../src/shared/statCatalog.js";
 import type { ForecastView, MatchExplanationView, Meta } from "../src/shared/api.js";
 
 export class HttpError extends Error { constructor(readonly status: number, message: string) { super(message); } }
@@ -239,6 +242,35 @@ export function createApp() {
 
   /** The shortlist page in one request: summaries plus each team's OPR split and event-by-event trend. */
   api.get("/shortlist", h(async (req) => ({ season: season(req.query.season), teams: await shortlistTeams(teamList(req.query.teams, "teams", 100), season(req.query.season)) })));
+
+  // --- Records: season stat tables with filters (src/shared/filterDsl.ts) --
+
+  const recordsLimit = limiter(120), recordsCsvLimit = limiter(10);
+  const records = (kind: "teams" | "matches") => [
+    (req: Request, res: Response, next: NextFunction) => (req.query.format === "csv" ? recordsCsvLimit : recordsLimit)(req, res, next),
+    h(async (req, res) => {
+      const s = season(req.params.season);
+      const scopeRaw = req.query.scope;
+      if (kind === "matches" && scopeRaw != null) throw bad("scope applies to team records");
+      if (scopeRaw != null && scopeRaw !== "event" && scopeRaw !== "season") throw bad("scope must be event (one row per team per event) or season (one row per team)");
+      const scope = kind === "matches" ? "match" : scopeRaw === "season" ? "teamSeason" : "teamEvent";
+      const format = req.query.format ?? "json";
+      if (format !== "json" && format !== "csv") throw bad("format must be json or csv");
+      try {
+        const q = recordsQuery(scope, req.query as Record<string, unknown>, format === "csv" ? RECORDS_EXPORT_MAX : RECORDS_MAX_PAGE_SIZE);
+        if (format === "csv") { await streamRecordsCsv(s, q, res, `control-scout-${s}-${kind}${scope === "teamSeason" ? "-season" : ""}.csv`); return undefined; }
+        return await listRecords(s, q);
+      } catch (e) {
+        if (e instanceof FilterError || e instanceof RecordsQueryError) throw bad(e.message);
+        // A CSV stream that fails part-way has already sent its headers: it's been cut off, nothing more to say.
+        if (res.headersSent) { console.error("[api] records export", e); return undefined; }
+        throw e;
+      }
+    }),
+  ];
+  /** Team records: ?scope=event (default, one row per team per event) or season. */
+  api.get("/records/:season/teams", ...records("teams"));
+  api.get("/records/:season/matches", ...records("matches"));
 
   // --- Predictions ---------------------------------------------------------
 
