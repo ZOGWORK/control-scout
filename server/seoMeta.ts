@@ -69,6 +69,7 @@ const STATIC: Record<string, { title: string; description: string; noindex?: boo
   "/download": { title: "Download FTC data", description: "Download full FTC seasons as SQLite files: every event, team, match, score breakdown, ranking and award. Offline predictions are saved automatically." },
   "/privacy": { title: "Privacy policy", description: "How Control Scout handles your data: no account needed, only essential sign-in cookies, no ads or third-party trackers, anonymous stats only if you allow them." },
   "/terms": { title: "Terms of use", description: "The terms for using Control Scout: free, predictions are estimates, FTC data can be wrong, rate limits instead of scraping, and your scouting notes stay yours." },
+  "/contact": { title: "Contact", description: "Contact the Control Scout team: report a bug, ask for a data correction, suggest a feature or ask a question about your data or the site." },
   "/my-team": { title: "My team", description: "Your team's dashboard on Control Scout.", noindex: true },
   "/shortlist": { title: "Shortlist", description: "Your shortlisted FTC teams on Control Scout.", noindex: true },
   "/scout": { title: "Scout", description: "Your scouting notes on Control Scout.", noindex: true },
