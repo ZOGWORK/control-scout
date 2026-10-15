@@ -232,6 +232,30 @@ describe("refreshing live events", () => {
     expect(await get("SELECT matches FROM team_season_stats WHERE season = ? AND team = 299", [S])).toBeFalsy();
   });
 
+  it("a probe that fails after another one wrote its marker leaves the old markers (the change is seen again)", async () => {
+    let fail = true;
+    liveIo.probe = async (_e, st) => { const prev = st.marks.get("m"); st.marks.set("m", "v2"); if (fail) throw new Error("schedule 500"); return prev !== "v2"; };
+    await refreshEvents([await row("LIVE")]); // first sight: full fetch (due), probe failed
+    fail = false;
+    vi.setSystemTime(NOW + 60_000);
+    const r = await refreshEvents([await row("LIVE")], { minFullMs: 3600_000 });
+    expect(r.fetched).toEqual(["LIVE"]); // "v2" was never committed: still a change
+  });
+
+  it("rewrites the season's record tables with new results at most every 5 minutes", async () => {
+    onFetch = async () => postResult("LIVE", 1, 90, 30);
+    await refreshEvents([await row("LIVE")]);
+    expect((await get<any>("SELECT played FROM team_event_records WHERE season = ? AND code = 'LIVE' AND team = 201", [S]))?.played).toBe(1);
+    onFetch = async () => postResult("LIVE", 2, 20, 70);
+    vi.setSystemTime(NOW + 60_000);
+    await refreshEvents([await row("LIVE")], { minFullMs: 0 });
+    expect((await get<any>("SELECT played FROM team_event_records WHERE season = ? AND code = 'LIVE' AND team = 201", [S]))?.played).toBe(1); // within 5 min: not yet
+    vi.setSystemTime(NOW + 6 * 60_000);
+    onFetch = async () => {};
+    await refreshEvents([await row("LIVE")], { minFullMs: 0 });
+    expect((await get<any>("SELECT played FROM team_event_records WHERE season = ? AND code = 'LIVE' AND team = 201", [S]))?.played).toBe(2);
+  });
+
   it("a failing event doesn't stop the others", async () => {
     await event("OTHER", "2026-11-07", CHICAGO);
     liveIo.fetch = async (e) => { if (e.code === "LIVE") throw new Error("FIRST 500"); fetches.push(e.code); return "first"; };
