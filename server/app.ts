@@ -24,7 +24,8 @@ import { packsRouter } from "./packs/routes.js";
 import { listRecords, recordsQuery, RecordsQueryError, streamRecordsCsv } from "./api/records.js";
 import { FilterError } from "../src/shared/filterDsl.js";
 import { RECORDS_EXPORT_MAX, RECORDS_MAX_PAGE_SIZE } from "../src/shared/statCatalog.js";
-import type { ForecastView, MatchExplanationView, Meta } from "../src/shared/api.js";
+import { manualRefresh, type ManualOutcome } from "./data/live.js";
+import type { EventRefreshResult, ForecastView, MatchExplanationView, Meta } from "../src/shared/api.js";
 
 export class HttpError extends Error { constructor(readonly status: number, message: string) { super(message); } }
 const bad = (msg: string) => new HttpError(400, msg);
@@ -97,6 +98,16 @@ function memo<T>(ttlMs: number) {
 }
 const forecastMemo = memo<ForecastView | null>(120_000);
 const partnersMemo = memo<unknown>(120_000);
+
+function refreshMessage(o: ManualOutcome): string {
+  switch (o.status) {
+    case "refreshed": return o.fetched ? "Updated from FIRST just now." : "Checked FIRST just now: nothing new yet.";
+    case "recent": return "Someone refreshed this event seconds ago, so these are the latest results.";
+    case "busy": return "A full data update is running and includes this event. New results will show in a minute or two.";
+    case "failed": return "FIRST didn't answer just now. Showing the latest results we have.";
+    default: return "";
+  }
+}
 
 export function createApp() {
   const app = express();
@@ -210,10 +221,24 @@ export function createApp() {
     })).map(({ venue: _v, divisionCode: _d, region: _r, remote: _m, ...e }) => e),
   })));
 
-  api.get("/events/:season/:code", h(async (req) => {
+  api.get("/events/:season/:code", h(async (req, res) => {
     const d = await eventDetail(season(req.params.season), code(req.params.code));
     if (!d) throw new HttpError(404, `No event ${req.params.code} in ${req.params.season}`);
+    // On an event day results move every minute: revalidate every time (the ETag keeps that a cheap 304).
+    if (d.live) res.setHeader("Cache-Control", "no-cache");
     return d;
+  }));
+
+  // "Refresh results" on an event that's on today: no login. One real check of FIRST per event
+  // every 20 s (everyone else shares it), on top of the live fast lane's every-minute checks.
+  api.post("/events/:season/:code/refresh", limiter(12), h(async (req): Promise<EventRefreshResult> => {
+    const s = season(req.params.season), c = code(req.params.code);
+    const out = await manualRefresh(s, c, { log: (m) => console.log(`[${new Date().toISOString()}] ${m}`) });
+    if (out.status === "not-found") throw new HttpError(404, `No event ${c} in ${s}`);
+    if (out.status === "not-live") throw new HttpError(409, "Only events that are on today (in their time zone) can be refreshed. Other events update with the regular sync.");
+    const detail = await eventDetail(s, c);
+    if (!detail) throw new HttpError(404, `No event ${c} in ${s}`);
+    return { outcome: out.status, message: refreshMessage(out), detail };
   }));
 
   api.get("/events/:season/:code/matches/:key", h(async (req) => {

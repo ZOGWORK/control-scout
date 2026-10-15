@@ -55,6 +55,16 @@ export function ago(iso: string | null | undefined): string {
   return `${Math.round(s / 86400)} days ago`;
 }
 
+/** To the second, for live freshness: "just now", "40 s ago", "3 min ago" (then like ago()). */
+export function agoSeconds(iso: string | null | undefined, now = Date.now()): string {
+  if (!iso) return "never";
+  const s = Math.max(0, Math.round((now - Date.parse(iso)) / 1000));
+  if (s < 5) return "just now";
+  if (s < 60) return `${s} s ago`;
+  if (s < 3600) return `${Math.floor(s / 60)} min ago`;
+  return ago(iso);
+}
+
 export const seasonLabel = (s: number) => `${s}–${String((s + 1) % 100).padStart(2, "0")}`;
 
 const AWARD_LABEL: Record<string, string> = {
