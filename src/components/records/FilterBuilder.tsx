@@ -65,7 +65,9 @@ export function FilterBuilder({ open, onOpenChange, scope, predictable, value, o
       countFor(filter).then((n) => { if (live) setCount({ key, n, loading: false }); }, () => { if (live) setCount({ key, n: null, loading: false }); });
     }, 300);
     return () => { live = false; clearTimeout(t); };
-  }, [open, key]); // eslint-disable-line react-hooks/exhaustive-deps
+    // countFor changes with the page's own filters (season, region, type, dates), which stay editable while
+    // the panel is open: the count follows them too.
+  }, [open, key, countFor]); // eslint-disable-line react-hooks/exhaustive-deps
   const saved = useSavedFilters(scope);
   const incomplete = [...errors.keys()].filter((k) => k !== root.id).length;
   const rootError = errors.get(root.id);
@@ -199,14 +201,14 @@ function ConditionRow({ c, scope, predictable, error, ops }: { c: BCond; scope: 
   const shown = !!error && !!c.key && c.value.trim() !== "";
   return (
     <div className={cn("rounded-lg border bg-card p-2", shown ? "border-danger/50" : "border-line")} data-condition>
-      <div className="grid grid-cols-[minmax(0,1fr)_auto] gap-2 sm:grid-cols-[minmax(0,1fr)_8.5rem_9rem_auto]">
+      <div className="grid grid-cols-[minmax(0,1fr)_auto] gap-2 @min-[27rem]:grid-cols-[minmax(0,1fr)_8.5rem_9rem_auto]">
         <button type="button" onClick={() => ops.pick(c.id)} className={cn("flex h-9 min-w-0 items-center gap-2 rounded-lg border px-2.5 text-left text-sm max-sm:h-11", def ? "border-line hover:border-text-base/30" : "border-dashed border-accent/60 text-accent-text")} aria-label={def ? `Statistic: ${def.label}. Change` : "Choose a statistic"}>
           {def ? <span className={cn("size-2 shrink-0 rounded-full", tone.bar)} /> : <Plus className="size-4 shrink-0" />}
           <span className="min-w-0 flex-1 truncate font-medium">{def?.label ?? "Choose a statistic"}</span>
           <Pencil className="size-3.5 shrink-0 text-text-muted" />
         </button>
-        <Button variant="ghost" size="icon" className="sm:order-last" onClick={() => ops.remove(c.id)} aria-label="Remove condition"><X /></Button>
-        <div className="col-span-2 grid grid-cols-[8.5rem_minmax(0,1fr)] gap-2 sm:col-span-2 sm:contents">
+        <Button variant="ghost" size="icon" className="@min-[27rem]:order-last" onClick={() => ops.remove(c.id)} aria-label="Remove condition"><X /></Button>
+        <div className="col-span-2 grid grid-cols-[8.5rem_minmax(0,1fr)] gap-2 @min-[27rem]:col-span-2 @min-[27rem]:contents">
           <Select value={c.op} onValueChange={(v) => ops.patch(c.id, { op: v as FilterOp })} disabled={!def}>
             <SelectTrigger className="h-9 max-sm:h-11" aria-label="Comparison"><SelectValue /></SelectTrigger>
             <SelectContent>
