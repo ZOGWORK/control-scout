@@ -414,9 +414,9 @@ export async function streamRecordsCsv(season: number, q: RecordsQuery, res: Res
 function streamedBody(res: Response) {
   const gzip = res.req.acceptsEncodings("gzip", "identity") === "gzip";
   const gz = gzip ? createGzip() : null;
+  res.vary("Accept-Encoding"); // either way: a cache must not hand a plain copy to a gzip client (or the reverse)
   if (gz) {
     res.setHeader("Content-Encoding", "gzip");
-    res.vary("Accept-Encoding");
     gz.on("error", () => res.destroy());
     gz.pipe(res);
   }
