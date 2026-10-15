@@ -131,6 +131,7 @@ describe("page head in the first HTML", () => {
     const tdesc = /<meta name="description" content="([^"]*)"/.exec(terms)![1];
     expect(tdesc.length).toBeGreaterThanOrEqual(120);
     expect(tdesc.length).toBeLessThanOrEqual(160);
+    expect(await renderIndex(file, "/contact")).toContain("<title>Contact · FTC Control Scout</title>");
     // Personal pages: noindex.
     expect(await renderIndex(file, "/my-team")).toContain('<meta name="robots" content="noindex" />');
   });

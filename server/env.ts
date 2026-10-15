@@ -26,6 +26,8 @@ export const env = {
   get firstToken() { return str("FTC_EVENTS_TOKEN"); },
   get resendKey() { return str("RESEND_API_KEY"); },
   get emailFrom() { return str("EMAIL_FROM") ?? "Control Scout <verify@tryctrlpoint.org>"; },
+  /** Where contact-form messages are emailed (never sent to the browser). Unset: messages are only stored. */
+  get contactTo() { return str("CONTACT_TO"); },
   get googleClientId() { return str("GOOGLE_CLIENT_ID"); },
   get googleClientSecret() { return str("GOOGLE_CLIENT_SECRET"); },
   /** Shared accounts (docs/shared-accounts.md): Control Point's internal API (loopback on the VM), its public URL, and the shared key. */

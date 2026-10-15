@@ -37,6 +37,12 @@ sudo nano /opt/control-scout/shared/.env
 Fill `FTC_EVENTS_USERNAME`, `FTC_EVENTS_TOKEN`, `RESEND_API_KEY` (the same
 values as your local `.env`).
 
+Set `CONTACT_TO` to the inbox that should receive messages from the `/contact`
+form (sent through Resend, with Reply-To set to the sender). Without it,
+messages are only stored in the `contact_messages` table:
+`SELECT * FROM contact_messages ORDER BY id DESC`. The address stays on the
+server and is never sent to the browser.
+
 ## 4. Data — pick one (before the service first starts)
 
 **Fast (recommended): copy tonight's synced database** (4 seasons, ~120k

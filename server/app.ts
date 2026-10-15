@@ -20,6 +20,7 @@ import { MISSING_FILE, canonicalRedirects, renderIndex } from "./seo.js";
 import { sitemapChunkRoute, sitemapRoute } from "./sitemap.js";
 import { liveForecaster, liveVersion, dataVersion } from "./predict/engine.js";
 import { authRouter, meRouter, authProviders } from "./auth/routes.js";
+import { contactRouter } from "./contact.js";
 import { packsRouter } from "./packs/routes.js";
 import { listRecords, recordRegions, recordsQuery, RecordsQueryError, streamRecordsCsv } from "./api/records.js";
 import { FilterError } from "../src/shared/filterDsl.js";
@@ -377,6 +378,7 @@ export function createApp() {
 
   api.use("/auth", authRouter());
   api.use("/me", meRouter());
+  api.use("/contact", contactRouter());
 
   api.use((_req, res) => { res.status(404).json({ error: "Not found" }); });
   app.use("/api", api);
