@@ -6,6 +6,7 @@
 import type { AddressInfo } from "node:net";
 import type { Server } from "node:http";
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
+import * as dbm from "../db";
 import { all, get, kvGet, migrate, openDb, run, setDb } from "../db";
 import { CURRENT_SEASON } from "./seasons";
 import { resetForecasters } from "../predict/engine";
@@ -350,6 +351,39 @@ describe("one writer at a time", () => {
     await release(a!);
     expect(await lockHolder()).toBeNull();
     expect(await tryAcquire("live", 60_000)).toBeTruthy();
+  });
+
+  it("while the lease is held, trying for it only reads (no write to queue behind the holder's long transactions)", async () => {
+    const a = await tryAcquire("cycle", 60_000);
+    const c = dbm.db();
+    const real = c.execute.bind(c);
+    const writes: string[] = [];
+    (c as any).execute = (s: any) => { const sql = String(s?.sql ?? s); if (/^\s*(INSERT|UPDATE|DELETE)/i.test(sql)) writes.push(sql); return real(s); };
+    try { expect(await tryAcquire("live", 60_000)).toBeNull(); }
+    finally { (c as any).execute = real; }
+    expect(writes).toEqual([]);
+    await release(a!);
+  });
+
+  it("a database busy past its timeout counts as held, not as a failure", async () => {
+    const c = dbm.db();
+    const real = c.execute.bind(c);
+    (c as any).execute = (s: any) => { if (/INSERT INTO kv/.test(String(s?.sql ?? s))) return Promise.reject(Object.assign(new Error("SQLITE_BUSY: database is locked"), { code: "SQLITE_BUSY" })); return real(s); };
+    try { expect(await tryAcquire("live", 60_000)).toBeNull(); }
+    finally { (c as any).execute = real; }
+  });
+
+  it("the fast lane skips a tick quietly when the database is busy (no 'live sync failed')", async () => {
+    // New results arrive, then storing the new data version hits a busy database.
+    const c = dbm.db();
+    const real = c.execute.bind(c);
+    (c as any).execute = (st: any) => {
+      const sql = String(st?.sql ?? st), args = (st?.args ?? []) as unknown[];
+      if (/^INSERT INTO kv/.test(sql) && args[0] === "data:version") return Promise.reject(Object.assign(new Error("SQLITE_BUSY: database is locked"), { code: "SQLITE_BUSY" }));
+      return real(st);
+    };
+    try { await expect(liveTick()).resolves.toBeNull(); }
+    finally { (c as any).execute = real; }
   });
 
   it("an expired lease (crashed holder) is taken over, and the old holder can't renew or release it", async () => {
