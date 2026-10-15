@@ -80,6 +80,15 @@ describe("NoteField", () => {
     expect(field().value).toBe("slow");
   });
 
+  it("with storage unreadable (stored unknown) it tracks nothing, and Escape never erases the note", () => {
+    const onSave = vi.fn();
+    render(<NoteField team={4215} value="fast auto" stored={undefined} onSave={onSave} />);
+    expect(screen.queryByRole("alert")).toBeNull();
+    fireEvent.keyDown(field(), { key: "Escape" });
+    expect(onSave).not.toHaveBeenCalled();
+    expect(field().value).toBe("fast auto");
+  });
+
   it("has no error state when saving works", () => {
     const onSave = vi.fn();
     render(<Store writes={[true]} onSave={onSave} />);

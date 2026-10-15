@@ -12,7 +12,8 @@ import { FieldError } from "../ui/basic";
  * `value` is the note as the app holds it (in memory); `stored` is what this device has actually
  * stored for it. They differ only when a write was refused (storage full or blocked), and then the
  * field shows the error and retries. Both come from the store, so the error survives remounts and
- * sign-ins, and clears exactly when the note is stored. Without `stored`, no error is tracked.
+ * sign-ins, and clears exactly when the note is stored. Without `stored` (not given, or storage
+ * unreadable), no error is tracked and Escape writes nothing.
  */
 export function NoteField({ team, value, stored = value, onSave, className }: { team: number; value: string; stored?: string; onSave: (text: string) => void; className?: string }) {
   const [draft, setDraft] = useState(value);
