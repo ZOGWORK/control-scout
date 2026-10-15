@@ -18,7 +18,10 @@ function serviceWorker(): Plugin {
     generateBundle(_options, bundle) {
       const pub = (dir: string) => readdirSync(fileURLToPath(new URL(`./public/${dir}`, import.meta.url))).map((f) => `/${dir}/${f}`);
       const built = Object.keys(bundle).filter((f) => !f.endsWith(".map")).map((f) => `/${f}`);
-      const files = [...new Set(["/", "/index.html", ...built, ...pub("fonts"), "/manifest.webmanifest"])];
+      // The brand images the shell shows (sidebar logo, home wordmark, favicon): offline too.
+      const brand = ["/logo.png", "/wordmark.png", "/favicon.ico"];
+      // Not /index.html: the server redirects it to the canonical "/" (a redirect can't be precached cross-host, nor answer a navigation).
+      const files = [...new Set(["/", ...built, ...pub("fonts"), "/manifest.webmanifest", ...brand])];
       const hash = createHash("sha256");
       for (const f of Object.values(bundle)) hash.update(f.fileName).update(f.type === "chunk" ? f.code : typeof f.source === "string" ? f.source : Buffer.from(f.source));
       const stamp = new Date().toISOString().replace(/\D/g, "").slice(0, 14);
