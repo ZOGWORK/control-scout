@@ -21,6 +21,8 @@ import { hasFirst } from "../env.js";
 import { NO_MATCH_TYPES, pool, syncEvent } from "../sync.js";
 import { firstProbe } from "../sources/first.js";
 import { refreshEventStats, logLivePredictions, scoreLivePredictions } from "../stats/job.js";
+import { computeRecords } from "../stats/records.js";
+import { loadSeason } from "../stats/load.js";
 import type { EventRow } from "./bundle.js";
 import { CURRENT_SEASON } from "./seasons.js";
 import { LockBusy, withDataLock } from "./lock.js";
@@ -112,7 +114,8 @@ const keyOf = (e: { season: number; code: string }) => `${e.season}:${e.code}`;
 async function probeEvent(e: EventRow, st: ProbeState): Promise<boolean> {
   const c = encodeURIComponent(e.code);
   const paths = [`/${e.season}/matches/${c}`, `/${e.season}/schedule/${c}?tournamentLevel=qual`, `/${e.season}/schedule/${c}?tournamentLevel=playoff`];
-  const seen = await Promise.all(paths.map(async (p) => {
+  // allSettled: every probe finishes before the outcome is known (no late write after a failure).
+  const settled = await Promise.allSettled(paths.map(async (p) => {
     const prev = st.marks.get(p) ?? null;
     const since = prev?.startsWith("lm:") ? prev.slice(3) : null;
     const r = await firstProbe(p, since);
@@ -121,7 +124,9 @@ async function probeEvent(e: EventRow, st: ProbeState): Promise<boolean> {
     st.marks.set(p, mark);
     return mark !== prev;
   }));
-  return seen.some(Boolean);
+  const failed = settled.find((r): r is PromiseRejectedResult => r.status === "rejected");
+  if (failed) throw failed.reason;
+  return settled.some((r) => r.status === "fulfilled" && r.value);
 }
 
 function hashText(s: string): string {
@@ -153,16 +158,16 @@ export async function refreshEvents(events: EventRow[], o: { minFullMs?: number;
     const k = keyOf(e);
     let st = probes.get(k);
     if (!st) { st = { marks: new Map(), fullAt: 0 }; probes.set(k, st); }
-    // The markers only move on once the change is stored: a failed fetch rolls them back, so the next
-    // tick sees the change again (not a 304 for results we never saved).
-    const before = new Map(st.marks);
+    // Probes write their markers into a copy, committed only once the change is stored: a failed probe or
+    // fetch leaves the old markers, so the next tick sees the change again (not a 304 for results never saved).
+    const scratch: ProbeState = { marks: new Map(st.marks), fullAt: st.fullAt };
     try {
       // Without FIRST credentials there is nothing to probe: FTC Scout (the fallback) gets the slow rate only.
       // A failed probe doesn't block the rest: the full fetch still runs when it's due.
       let changed = false, probed = false, probeError: unknown = null;
       if (liveIo.canProbe()) {
-        try { changed = await liveIo.probe(e, st); probed = true; }
-        catch (err) { st.marks = new Map(before); probeError = err; }
+        try { changed = await liveIo.probe(e, scratch); probed = true; }
+        catch (err) { probeError = err; }
       }
       let fetched = false;
       if (changed || now() - st.fullAt >= minFull) {
@@ -171,11 +176,11 @@ export async function refreshEvents(events: EventRow[], o: { minFullMs?: number;
         fetched = true;
         report.fetched.push(e.code);
       }
+      if (probed) st.marks = scratch.marks; // stored (or nothing changed): the markers move on
       if (!probed && !fetched) { if (probeError) throw probeError; return; } // nothing was asked: "updated" stays put
       await run("UPDATE events SET live_checked_at = ? WHERE season = ? AND code = ?", [new Date(now()).toISOString(), e.season, e.code]);
       report.checked.push(e.code);
     } catch (err) {
-      st.marks = before;
       report.failed.push({ code: e.code, error: (err as Error).message.slice(0, 200) });
     }
   });
@@ -184,7 +189,12 @@ export async function refreshEvents(events: EventRow[], o: { minFullMs?: number;
     await kvSet("data:version", new Date(now()).toISOString());
     const bySeason = new Map<number, string[]>();
     for (const e of events) if (report.fetched.includes(e.code)) bySeason.set(e.season, [...(bySeason.get(e.season) ?? []), e.code]);
-    for (const [s, codes] of bySeason) await refreshEventStats(s, codes, log);
+    for (const [s, codes] of bySeason) {
+      await refreshEventStats(s, codes, log);
+      // The record tables (/api/records, CSV) are season-wide rewrites: at most every 5 minutes while
+      // results come in (the 15-minute cycle rewrites them too); the engine's exclusives carry over.
+      if (now() - (recordsAt.get(s) ?? 0) >= RECORDS_EVERY_MS) { recordsAt.set(s, now()); await computeRecords(s, await loadSeason(s), log); }
+    }
     report.scored = await scoreLivePredictions(log);
     report.logged = await logLivePredictions(log);
   }
@@ -192,7 +202,11 @@ export async function refreshEvents(events: EventRow[], o: { minFullMs?: number;
 }
 
 /** Forget probe state (tests). */
-export function resetLiveState(): void { probes.clear(); lastManual.clear(); inflight.clear(); }
+export function resetLiveState(): void { probes.clear(); lastManual.clear(); inflight.clear(); recordsAt.clear(); }
+
+/** Seasons' last record-table rewrite by the fast lane. */
+const recordsAt = new Map<number, number>();
+export const RECORDS_EVERY_MS = 5 * 60_000;
 
 // ---------------------------------------------------------------------------
 // The loop

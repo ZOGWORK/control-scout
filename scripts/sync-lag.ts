@@ -89,7 +89,8 @@ function summary(name: string, ks: string[]) {
   const a = rows.map(acc).filter((x): x is number => x != null);
   return { brier: mean(rows.map(brier)), acc: mean(a), n: rows.length };
 }
-const q = (xs: number[], p: number) => { const s = [...xs].sort((a, b) => a - b); return s[Math.floor(p * (s.length - 1))]; };
+// Quantile; NaN for an empty sample (prints "NaN" instead of throwing).
+const q = (xs: number[], p: number) => { if (!xs.length) return NaN; const s = [...xs].sort((a, b) => a - b); return s[Math.floor(p * (s.length - 1))]; };
 console.log(`rating move per team per match (oracle pass): median ${q(ratingMoves, 0.5).toFixed(2)} pts, p90 ${q(ratingMoves, 0.9).toFixed(2)}; median rating ${q(ratingLevels, 0.5).toFixed(1)} (np pts per robot)`);
 for (const sc of scenarios) { const s = summary(sc.name, keys); console.log(`${sc.name.padEnd(7)} all: Brier ${s.brier.toFixed(4)} acc ${(s.acc * 100).toFixed(2)}% (n ${s.n})`); }
 // Paired comparisons where the information actually differed.
@@ -99,6 +100,7 @@ for (const [a, b] of [["60 s", "15 min"], ["60 s", "daily"], ["oracle", "60 s"]]
   const d = diff.map((k) => brier(rb.get(k)!) - brier(ra.get(k)!));
   const dp = diff.map((k) => Math.abs(ra.get(k)!.p - rb.get(k)!.p));
   const flips = diff.filter((k) => (ra.get(k)!.p > 0.5) !== (rb.get(k)!.p > 0.5)).length;
+  if (!diff.length) { console.log(`${a} vs ${b}: no match saw different same-event results`); continue; }
   const sa = summary(a, diff), sb = summary(b, diff);
   console.log(`${a} vs ${b}: ${diff.length} of ${keys.length} matches saw different same-event results; on those Brier ${sb.brier.toFixed(4)} → ${sa.brier.toFixed(4)} (Δ ${mean(d).toFixed(4)} ± ${(1.96 * se(d)).toFixed(4)} 95% CI), acc ${(sb.acc * 100).toFixed(2)}% → ${(sa.acc * 100).toFixed(2)}%, |Δp| median ${q(dp, 0.5).toFixed(3)} p90 ${q(dp, 0.9).toFixed(3)}, ${flips} favourite flips; whole season Δ Brier ${(d.reduce((x, y) => x + y, 0) / keys.length).toFixed(5)}`);
 }

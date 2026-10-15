@@ -34,7 +34,7 @@ async function slot<T>(fn: () => Promise<T>): Promise<T> {
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 /** One GET with retries (network errors, 429, 5xx). 404 and 304 come back as responses. */
-async function request(path: string, headers: Record<string, string> = {}, tries = { network: 4, server: 5 }): Promise<Response> {
+async function request(path: string, headers: Record<string, string> = {}, tries: { network: number; server: number; rateLimited?: number } = { network: 4, server: 5 }): Promise<Response> {
   if (!hasFirst()) throw new FirstError(0, "FIRST Events API credentials are not configured");
   const auth = "Basic " + Buffer.from(`${env.firstUser}:${env.firstToken}`).toString("base64");
   return slot(async () => {
@@ -48,8 +48,9 @@ async function request(path: string, headers: Record<string, string> = {}, tries
         throw new FirstError(0, `FIRST ${path}: ${(e as Error).message}`);
       }
       if (res.status === 404) { firstStats.notFound++; return res; }
+      // 429 (slow down) retries on its own budget: an optional request skips 5xx retries, never rate limits.
       if (res.status === 429 || res.status >= 500) {
-        if (attempt < tries.server) { firstStats.retries++; await sleep(Number(res.headers.get("retry-after")) * 1000 || 1500 * 2 ** attempt); continue; }
+        if (attempt < (res.status === 429 ? tries.rateLimited ?? tries.server : tries.server)) { firstStats.retries++; await sleep(Number(res.headers.get("retry-after")) * 1000 || 1500 * 2 ** attempt); continue; }
       }
       if (!res.ok && res.status !== 304) {
         // FIRST answers "no data yet" for some endpoints with 400/500 + a message.
@@ -65,7 +66,7 @@ async function request(path: string, headers: Record<string, string> = {}, tries
  *  `optional`: also null (no retries) on a 5xx — for data FIRST no longer serves. */
 export async function firstGet<T = any>(path: string, optional = false): Promise<T | null> {
   let res: Response;
-  try { res = await request(path, {}, optional ? { network: 4, server: 0 } : undefined); }
+  try { res = await request(path, {}, optional ? { network: 4, server: 0, rateLimited: 5 } : undefined); }
   catch (e) { if (optional && e instanceof FirstError && e.status >= 500) return null; throw e; }
   if (res.status === 404) return null;
   return (await res.json()) as T;
