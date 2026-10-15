@@ -43,6 +43,14 @@ messages are only stored in the `contact_messages` table:
 `SELECT * FROM contact_messages ORDER BY id DESC`. The address stays on the
 server and is never sent to the browser.
 
+Set `GITHUB_REPORT_TOKEN` to file in-app error reports as GitHub issues on
+`Control-Point-FTC/control-scout` (a fine-grained token with Issues read/write on
+that repository only; the exact steps are in
+[error-reporting.md](error-reporting.md)). Without it, reports are only stored in
+the `error_reports` table. Set `OWNER_EMAILS` (comma-separated) to the accounts
+allowed to read them at `GET /api/reports/errors`; everyone else gets a 404. Set
+both on Render's environment too if it should file reports while it serves.
+
 ## 4. Data — pick one (before the service first starts)
 
 **Fast (recommended): copy tonight's synced database** (4 seasons, ~120k

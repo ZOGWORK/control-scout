@@ -22,7 +22,9 @@ const out = join(process.cwd(), "data", "snapshot.db.br");
 if (existsSync(tmp)) rmSync(tmp);
 await all("VACUUM INTO ?", [tmp.replace(/\\/g, "/")]); // consistent copy, WAL included
 const c = createClient({ url: `file:${tmp.replace(/\\/g, "/")}` });
-for (const t of PRIVATE) await c.execute(`DELETE FROM ${t}`);
+// A database from before a private table's migration simply doesn't have it: nothing to clear.
+const present = new Set((await c.execute("SELECT name FROM sqlite_master WHERE type = 'table'")).rows.map((r) => String(r.name)));
+for (const t of PRIVATE) if (present.has(t)) await c.execute(`DELETE FROM ${t}`);
 await c.execute("DELETE FROM kv WHERE key LIKE 'packs:%'"); // packs aren't shipped
 await c.execute("PRAGMA journal_mode = DELETE");
 await c.execute("VACUUM");

@@ -377,6 +377,31 @@ CREATE INDEX contact_messages_created ON contact_messages (created_at);
   },
   {
     version: 11,
+    name: "in-app error reports",
+    sql: `
+-- One row per distinct error (server/errorReports.ts, docs/error-reporting.md). No IP, account or other
+-- personal data: sample is the latest sanitized report (message, stack, route, app version, time, browser).
+-- issue_number: the GitHub issue filed for it (NULL until filed, or when no GITHUB_REPORT_TOKEN is set).
+-- reported_count: the count GitHub was last told (the issue body or the latest comment).
+-- filing_at: a claim held while one server files or re-files the issue, so two never open duplicates.
+CREATE TABLE error_reports (
+  fingerprint TEXT PRIMARY KEY,
+  message TEXT NOT NULL,
+  count INTEGER NOT NULL DEFAULT 1,
+  first_seen TEXT NOT NULL,
+  last_seen TEXT NOT NULL,
+  sample TEXT NOT NULL,
+  issue_number INTEGER,
+  issue_state TEXT,          -- open | closed | not_planned
+  reported_count INTEGER NOT NULL DEFAULT 0,
+  last_comment_at TEXT,
+  filing_at TEXT
+);
+CREATE INDEX error_reports_last_seen ON error_reports (last_seen);
+`,
+  },
+  {
+    version: 12,
     name: "workspace scouting (Control Point workspaces mirrored)",
     sql: `
 -- Workspaces and membership come from Control Point (docs/shared-accounts.md); Scout mirrors, never edits.
