@@ -227,6 +227,9 @@ export const MEMBERSHIP_TTL = 10 * 60_000;
 /** Replace the account's cached memberships with what Control Point just said. Writes only the cache (and a mirror row's name, if one exists). Never throws. */
 async function storeMemberships(accountId: number, list: Workspace[]): Promise<void> {
   const now = Date.now(), iso = new Date(now).toISOString();
+  // Every fresh answer passes through here: a re-check's saved answer must never be older than it.
+  const last = lastForced.get(accountId);
+  if (last) lastForced.set(accountId, { at: last.at, list });
   try {
     await writeBatch([
       {
@@ -267,13 +270,16 @@ export async function refreshAccount(accountId: number): Promise<Workspace[] | n
     let list: Workspace[] | null = null;
     try {
       const a = await getAccount(accountId);
-      if (a) { list = validWorkspaces(a.workspaces); await rememberInfo(a); }
-      else { list = []; infoCache.delete(accountId); await storeMemberships(accountId, []); }
-    } catch (e) { logFailure("account", e); }
-    lastForced.set(accountId, { at: Date.now(), list });
+      list = a ? validWorkspaces(a.workspaces) : [];
+      // Saved before the cache write: any answer that lands later (a sign-in, /me) replaces it in storeMemberships.
+      lastForced.set(accountId, { at: Date.now(), list });
+      if (a) await rememberInfo(a);
+      else { infoCache.delete(accountId); await storeMemberships(accountId, []); }
+    } catch (e) { logFailure("account", e); lastForced.set(accountId, { at: Date.now(), list: null }); }
     if (lastForced.size > 5000) lastForced.clear();
     refreshing.delete(accountId);
-    return list;
+    // A newer answer may have arrived while this one was being saved: report the latest.
+    return lastForced.get(accountId)?.list ?? list;
   })();
   refreshing.set(accountId, p);
   return p;
