@@ -50,6 +50,11 @@ export async function runCycle(log: Log) {
 /** Backfill runs where the cycle has its own process (the VM); CS_BACKFILL=on|off overrides. */
 const backfillOn = () => (process.env.CS_BACKFILL ?? (process.env.DATA_CYCLE === "child" ? "on" : "off")) === "on";
 
+/** A past season is waiting and now is when it may be fetched (the scheduler then starts a cycle for it). */
+export async function backfillDue(): Promise<boolean> {
+  return hasFirst() && backfillOn() && quietHours() && (await nextBackfill()) != null;
+}
+
 async function nextBackfill(): Promise<number | null> {
   const rows = await all<{ season: number }>("SELECT season FROM seasons WHERE frozen = 0 AND season < ? ORDER BY season DESC", [CURRENT_SEASON]);
   return rows.map((r) => Number(r.season)).find(isLegacy) ?? null;
