@@ -1,68 +1,42 @@
 // A private one-line note on a shortlisted team. Saves as you type (after a
 // short pause), on blur and on Enter; Escape puts the saved note back.
 // If this device can't store it (storage full or blocked), the field says so
-// inline and keeps the text, and the next edit, blur or Enter tries again.
+// inline and keeps the text, and the next blur or Enter tries again.
 import { useEffect, useId, useRef, useState } from "react";
 import { PencilLine } from "lucide-react";
 import { MAX_NOTE } from "../../shared/personal";
 import { cn } from "../cn";
 import { FieldError } from "../ui/basic";
-import { SIGNED_IN } from "../../lib/personal";
 
 /**
- * Team → the note text this device couldn't store, and the last text it did store. Kept outside the
- * field so a remount (List/Grid switch, leaving and coming back) still shows the error, still retries
- * (the store's memory echoes the unstored text back as `value`, which a fresh field would take as saved),
- * and Escape still restores the stored note. Lives as long as the store's in-memory copy: it's dropped
- * when a sign-in replaces that copy with an account's data.
+ * `value` is the note as the app holds it (in memory); `stored` is what this device has actually
+ * stored for it. They differ only when a write was refused (storage full or blocked), and then the
+ * field shows the error and retries. Both come from the store, so the error survives remounts and
+ * sign-ins, and clears exactly when the note is stored. Without `stored`, no error is tracked.
  */
-const unstoredNotes = new Map<number, { text: string; saved: string }>();
-if (typeof window !== "undefined") window.addEventListener(SIGNED_IN, () => unstoredNotes.clear());
-
-export function NoteField({ team, value, onSave, className }: { team: number; value: string; onSave: (text: string) => boolean | void; className?: string }) {
+export function NoteField({ team, value, stored = value, onSave, className }: { team: number; value: string; stored?: string; onSave: (text: string) => void; className?: string }) {
   const [draft, setDraft] = useState(value);
-  const [failed, setFailed] = useState(() => unstoredNotes.has(team));
+  const failed = value.trim() !== stored.trim();
   const errorId = useId();
   const focused = useRef(false);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  /** The last text this device stored for the note. */
-  const saved = useRef(unstoredNotes.get(team)?.saved ?? value);
+  /** The text last handed to `onSave` (or loaded): typing pauses don't send it twice. */
+  const sent = useRef(value);
   /** Escape: leave without saving the edit. */
   const skip = useRef(false);
-  /** The text this device couldn't store (or null). */
-  const unstored = (): string | null => unstoredNotes.get(team)?.text ?? null;
-  const markUnstored = (text: string | null) => {
-    if (text === null) unstoredNotes.delete(team); else unstoredNotes.set(team, { text, saved: saved.current });
-    setFailed(text !== null);
-  };
   // Another tab or device changed it: show that, unless this field is being edited.
-  useEffect(() => {
-    const u = unstored();
-    if (u !== null && value.trim() === u.trim()) return;
-    markUnstored(null);
-    saved.current = value;
-    if (!focused.current) setDraft(value);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [value]);
+  useEffect(() => { sent.current = value; if (!focused.current) setDraft(value); }, [value]);
   const flush = (text: string) => {
     if (timer.current) { clearTimeout(timer.current); timer.current = null; }
-    const unchanged = text.trim() === saved.current.trim();
-    // Back to the stored text with a failed edit still in the store's memory: write it anyway, to replace that edit.
-    if (unchanged && unstored() === null) return;
-    // Not stored: keep `saved` as it was and the error up, so the next flush tries again. That holds for
-    // the unchanged text too: notes share one record, so another note's save may have stored the failed edit.
-    if (onSave(text) === false) { markUnstored(text); return; }
-    markUnstored(null);
-    saved.current = text;
+    // Unchanged, but not stored: send it again (a retry).
+    if (text.trim() === sent.current.trim() && !failed) return;
+    sent.current = text;
+    onSave(text);
   };
-  /** Escape: back to the stored note, in the store too (its memory may still hold text that failed to store). */
+  /** Escape: back to the stored note, in the store's memory too when that holds a refused edit. */
   const revert = () => {
-    setDraft(saved.current);
-    if (unstored() === null) return;
-    // Write the stored note back over the failed edit; if that's refused too, the error stays up.
-    const back = saved.current;
-    markUnstored(back); // before the write: its echo as `value` mustn't count as stored
-    if (onSave(back) !== false) markUnstored(null);
+    setDraft(stored);
+    if (failed) { sent.current = stored; onSave(stored); }
   };
   // Leaving the page mid-pause still saves what was typed.
   const latest = useRef({ draft, onSave });
@@ -70,7 +44,7 @@ export function NoteField({ team, value, onSave, className }: { team: number; va
   useEffect(() => () => {
     if (!timer.current) return;
     clearTimeout(timer.current);
-    if (latest.current.draft.trim() !== saved.current.trim()) latest.current.onSave(latest.current.draft);
+    if (latest.current.draft.trim() !== sent.current.trim()) latest.current.onSave(latest.current.draft);
   }, []);
   return (
     <div className={cn("min-w-0", className)}>
