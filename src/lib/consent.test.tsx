@@ -60,6 +60,15 @@ describe("consent store", () => {
     expect(hasAnalyticsConsent()).toBe(true);
   });
 
+  it("a choice saved in another tab replaces this tab's unsaved one", () => {
+    const spy = vi.spyOn(Storage.prototype, "setItem").mockImplementation(() => { throw new DOMException("full", "QuotaExceededError"); });
+    try { setAnalyticsConsent(true); } finally { spy.mockRestore(); }
+    expect(hasAnalyticsConsent()).toBe(true);
+    localStorage.setItem(CONSENT_KEY, JSON.stringify({ analytics: false, at: "2026-10-15T00:00:00Z", v: 1 }));
+    window.dispatchEvent(new StorageEvent("storage", { key: CONSENT_KEY }));
+    expect(hasAnalyticsConsent()).toBe(false);
+  });
+
   it("resetConsent forgets the choice and tells mounted hooks", () => {
     setAnalyticsConsent(true);
     function Probe() { const c = useConsent(); return <p>{c.decided ? (c.analytics ? "yes" : "no") : "ask"}</p>; }
