@@ -156,7 +156,11 @@ async function eventMeta(season: number, code: string): Promise<PageMeta | null>
 
 /** The head values for a page path: the page's own, the home ones when it has none, or notFound for no such page. */
 export async function pageMeta(path: string): Promise<PageMeta> {
-  const p = path.length > 1 ? path.replace(/\/+$/, "") : "/";
+  // Matched decoded, as React Router does (/teams/%34%32%31%35 is team 4215). Segment by segment, so an
+  // encoded "/" never adds a segment; a malformed escape stays as written (and then matches no route).
+  const decode = (s: string) => { try { const d = decodeURIComponent(s); return d.includes("/") ? s : d; } catch { return s; } };
+  const trimmed = path.length > 1 ? path.replace(/\/+$/, "") : "/";
+  const p = trimmed.split("/").map(decode).join("/");
   try {
     let m: RegExpMatchArray | null;
     // Any number of digits: the value is what counts (/teams/0004215 is team 4215, as in the app; a huge one is out of range).
