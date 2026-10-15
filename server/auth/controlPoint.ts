@@ -244,32 +244,36 @@ async function storeMemberships(accountId: number, list: Workspace[]): Promise<v
   } catch (e) { console.warn(`[shared-accounts] membership cache write failed: ${(e as Error)?.name ?? "error"}`); }
 }
 
-const refreshing = new Map<number, Promise<boolean>>();
-const lastForced = new Map<number, number>();
+const refreshing = new Map<number, Promise<Workspace[] | null>>();
+/** The last forced answer per account: when, and the list (null: Control Point couldn't answer). */
+const lastForced = new Map<number, { at: number; list: Workspace[] | null }>();
 const FORCED_GAP = 5_000;
 
 /**
  * Ask Control Point for the account now (bypassing the 10-minute cache) and
  * rewrite its memberships. One call per account at a time, and at most one
- * every 5 s, so a stream of refused writes can't hammer Control Point.
- * False when Control Point couldn't answer.
+ * every 5 s (within that, the last answer is reused), so a stream of refused
+ * writes can't hammer Control Point. Returns the workspaces Control Point
+ * listed (an unknown account has none), or null when it couldn't answer.
+ * Callers decide from this list, not from the cache, so a failed cache write
+ * can never keep a removed member in.
  */
-export async function refreshAccount(accountId: number): Promise<boolean> {
+export async function refreshAccount(accountId: number): Promise<Workspace[] | null> {
   const inflight = refreshing.get(accountId);
   if (inflight) return inflight;
-  if (Date.now() - (lastForced.get(accountId) ?? 0) < FORCED_GAP) return true; // just asked: the cache is that answer
+  const last = lastForced.get(accountId);
+  if (last && Date.now() - last.at < FORCED_GAP) return last.list;
   const p = (async () => {
+    let list: Workspace[] | null = null;
     try {
       const a = await getAccount(accountId);
-      if (a) await rememberInfo(a);
-      else { infoCache.delete(accountId); await storeMemberships(accountId, []); }
-      return true;
-    } catch (e) { logFailure("account", e); return false; }
-    finally {
-      lastForced.set(accountId, Date.now());
-      if (lastForced.size > 5000) lastForced.clear();
-      refreshing.delete(accountId);
-    }
+      if (a) { list = validWorkspaces(a.workspaces); await rememberInfo(a); }
+      else { list = []; infoCache.delete(accountId); await storeMemberships(accountId, []); }
+    } catch (e) { logFailure("account", e); }
+    lastForced.set(accountId, { at: Date.now(), list });
+    if (lastForced.size > 5000) lastForced.clear();
+    refreshing.delete(accountId);
+    return list;
   })();
   refreshing.set(accountId, p);
   return p;
@@ -280,17 +284,21 @@ export interface Membership { accountId: number; workspaceId: string; workspaceN
 /**
  * Is this shared account a member of the workspace, and with what role?
  * Uses the cached membership while it's fresh; on a miss (or a stale row) asks
- * Control Point once and looks again. If Control Point can't be reached, a
- * stale row still counts: losing the link mid-event shouldn't stop a team
- * scouting. Null: not a member (or Control Point isn't configured).
+ * Control Point once and goes by its answer. If Control Point can't be
+ * reached, a stale row still counts: losing the link mid-event shouldn't stop
+ * a team scouting. Null: not a member (or Control Point isn't configured).
  */
 export async function workspaceMembership(accountId: number, workspaceId: string): Promise<Membership | null> {
   if (!controlPointEnabled() || !isWorkspaceId(workspaceId)) return null;
-  const read = () => get<{ workspace_name: string; role: string; updated_at: number }>(
+  const row = await get<{ workspace_name: string; role: string; updated_at: number }>(
     "SELECT workspace_name, role, updated_at FROM workspace_members WHERE account_id = ? AND cp_workspace_id = ?", [accountId, workspaceId]);
-  let row = await read();
-  if (!row || Date.now() - Number(row.updated_at) >= MEMBERSHIP_TTL) {
-    if (await refreshAccount(accountId)) row = await read();
+  if (row && Date.now() - Number(row.updated_at) < MEMBERSHIP_TTL) {
+    return { accountId, workspaceId, workspaceName: String(row.workspace_name), role: row.role === "admin" ? "admin" : "member" };
+  }
+  const list = await refreshAccount(accountId);
+  if (list) {
+    const w = list.find((x) => x.id === workspaceId);
+    return w ? { accountId, workspaceId, workspaceName: w.name, role: w.role } : null;
   }
   return row ? { accountId, workspaceId, workspaceName: String(row.workspace_name), role: row.role === "admin" ? "admin" : "member" } : null;
 }

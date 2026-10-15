@@ -140,7 +140,9 @@ and never creates, edits or removes `members` rows.
   `workspaceId`, `GET /api/scout/sync`) needs the signed-in user's linked
   account to be a member of that workspace:
   - A cached row younger than 10 minutes is trusted as it is.
-  - A missing or older row makes Scout ask Control Point once, then look again.
+  - A missing or older row makes Scout ask Control Point once and decide from
+    its answer, not from the cache, so a failed cache write can never keep a
+    removed member in.
     These re-checks are at most one per account at a time, and at most one
     every 5 seconds.
   - Still not a member: `403`. Not linked to Control Point, or Control Point
