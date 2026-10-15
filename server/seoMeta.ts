@@ -126,6 +126,7 @@ async function teamMeta(n: number): Promise<PageMeta> {
 }
 
 async function eventMeta(season: number, code: string): Promise<PageMeta | null> {
+  if (season < 2000 || season > 2100) return null; // the API's own range (and never a huge number in a query)
   const e = await get<{ name: string; type: string | null; venue: string | null; city: string | null; state: string | null; country: string | null; start: string | null; end: string | null; remote: number; hybrid: number }>(
     "SELECT name, type, venue, city, state, country, start, end, remote, hybrid FROM events WHERE season = ? AND code = ?", [season, code]);
   if (!e) return null;
@@ -166,7 +167,8 @@ export async function pageMeta(path: string): Promise<PageMeta> {
     let m: RegExpMatchArray | null;
     // Any number of digits: the value is what counts (/teams/0004215 is team 4215, as in the app; a huge one is out of range).
     if ((m = p.match(/^\/teams\/(\d+)$/i))) return await teamMeta(Number(m[1]));
-    if ((m = p.match(/^\/events\/(\d{4})\/([A-Za-z0-9_-]{1,40})$/i))) {
+    // The season by value too (/events/02025/X is 2025, as in the app and the API).
+    if ((m = p.match(/^\/events\/(\d+)\/([A-Za-z0-9_-]{1,40})$/i))) {
       // Event codes are case-insensitive in the app (the API uppercases them): same here.
       return (await eventMeta(Number(m[1]), m[2].toUpperCase())) ?? NOT_FOUND;
     }
