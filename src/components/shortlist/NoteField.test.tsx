@@ -80,13 +80,18 @@ describe("NoteField", () => {
     expect(field().value).toBe("slow");
   });
 
-  it("with storage unreadable (stored unknown) it tracks nothing, and Escape never erases the note", () => {
-    const onSave = vi.fn();
-    render(<NoteField team={4215} value="fast auto" stored={undefined} onSave={onSave} />);
-    expect(screen.queryByRole("alert")).toBeNull();
+  it("with storage unreadable (stored unknown) it goes by the write's result, and Escape never erases the note", () => {
+    const results = [false, true];
+    const onSave = vi.fn(() => results.shift() ?? true);
+    render(<NoteField team={4215} value="" stored={undefined} onSave={onSave} />);
+    type("fast auto");
+    expect(screen.getByRole("alert")).toBeTruthy();
     fireEvent.keyDown(field(), { key: "Escape" });
-    expect(onSave).not.toHaveBeenCalled();
-    expect(field().value).toBe("fast auto");
+    expect(onSave).toHaveBeenCalledOnce(); // Escape wrote nothing
+    fireEvent.change(field(), { target: { value: "fast auto" } });
+    fireEvent.keyDown(field(), { key: "Enter" }); // same text as sent: retried because it was refused
+    expect(onSave).toHaveBeenCalledTimes(2);
+    expect(screen.queryByRole("alert")).toBeNull();
   });
 
   it("has no error state when saving works", () => {
