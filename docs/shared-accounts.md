@@ -816,6 +816,39 @@ private). Device code: `src/lib/lostEdits.ts`, `src/components/scout/EntryHistor
   type any version's text back in as an edit anyway, so restoring someone
   else's version is limited to admins in the app, not on the server.
 
+### Scout consensus ("Your team's take")
+
+A workspace's live entries on a team, rolled up per season (v1.6). Rules in `src/shared/consensus.ts`
+(`aggregateConsensus`, pure), server in `server/scout/consensus.ts`, UI in `src/components/ScoutConsensus.tsx`.
+
+- **API:** `GET /api/scout/workspaces/:workspaceId/consensus?season=YYYY&teams=1,2,3` (1 to 24 teams).
+  Members only, the same check as reading entries (`workspaceAccess`): 401 signed out, 403 not a member,
+  503 while workspace scouting is paused; a read-only (orphaned) space still reads. Answer
+  `{ workspaceId, season, teams: TeamConsensus[] }`, one per team asked, in that order (repeats too); a team
+  with no live entries has `entries: 0`. `Cache-Control: private, no-store`.
+- **Server function:** `consensusFor(workspaceId, season, teams)` returns the same `TeamConsensus[]` for server
+  code that has already checked membership (the pre-match report).
+- **What's counted:** live (non-deleted) entries of that workspace, team and season only. Each entry is read
+  with the fields of the template it was made with (its workspace template version, else the built-in
+  default); a template id naming another workspace is read as the built-in, never with that workspace's fields.
+  Answers are grouped by kind and field id across template versions; labels (and a rating's scale) come from
+  the most recently updated entry that has the field.
+  - **Ratings:** the average of the answers given (0 = not rated). An answer on another scale counts in
+    proportion (placed on its own 1..max, then shown on the newest scale).
+  - **Counters:** the plain average of the answers given.
+  - **Strengths / weaknesses:** a rating answer in the top quarter of its scale (4 or 5 of 5) counts its field
+    as a strength once; the bottom quarter (1 or 2 of 5) as a weakness. Top 5 by count.
+  - **Tags ("Most noted"):** a choice's answer ("Returned to base: Full") and a yes / no answered yes, once per
+    entry, top 5 by count. Text answers are never aggregated.
+  - `entries` (match + pit), `scouts` (distinct authors), `lastUpdated` (newest live entry's updatedAt).
+- **Freshness:** cached per workspace, season and team for 60 s; every accepted entry write to the workspace
+  (add, edit, delete, restore: `bus.ts` `onEntriesWritten`) drops that workspace's cache at once. The page
+  refetches every minute while visible and soon after any scouting change on the device.
+- **Where it shows:** the team page (under the header) and Compare, for the account's own workspaces only (the
+  one remembered for the Scout page if it's still theirs, else the first; a switcher when there are several).
+  Signed out, no workspace, a refusal or an error: nothing is shown. No entries: "No scouting on N in
+  <workspace> yet" with a link to scout the team there.
+
 ## Not in scope (yet)
 
 - Signing out of Control Point doesn't end Scout sessions (Scout sessions last
