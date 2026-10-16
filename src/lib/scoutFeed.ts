@@ -3,7 +3,7 @@
 // the picks the filter bar offers, taken from the entries themselves.
 import { useCallback, useMemo } from "react";
 import type { SetURLSearchParams } from "react-router-dom";
-import { compareMatchLabels, ENTRY_FILTER_PARAMS, entryMatches, filtersFromSearch, sortEntries, sortFromSearch, type EntryFilterParam, type EntrySort } from "../shared/scoutFilter";
+import { compareMatchLabels, ENTRY_FILTER_PARAMS, entryMatches, filtersFromSearch, parseEntryFilters, sortEntries, sortFromSearch, upperAscii, type EntryFilterParam, type EntrySort } from "../shared/scoutFilter";
 import type { FilterOptions } from "../components/scout/EntryFilterBar";
 import type { ScoutEntry } from "./scouting";
 
@@ -22,8 +22,12 @@ export function asAuthored(e: ScoutEntry, me: FeedViewer | null): ScoutEntry {
 /** The filter bar's picks: the teams, events, authors and match labels the entries have. */
 export function feedOptions(entries: readonly ScoutEntry[], withAuthors: boolean, me: FeedViewer | null, eventNames?: ReadonlyMap<string, string>): FilterOptions {
   const teams = [...new Set(entries.map((e) => e.team))].sort((a, b) => a - b);
-  const codes = [...new Set(entries.map((e) => e.eventCode?.trim().toUpperCase()).filter((c): c is string => !!c))].sort();
-  const matches = [...new Set(entries.map((e) => e.matchLabel?.trim().toUpperCase()).filter((m): m is string => !!m))].sort(compareMatchLabels);
+  // Each option is the value as the predicate compares it (upperAscii), and only one that picking it finds again
+  // (a label with a comma or stray spaces can't be a filter value, so it isn't offered).
+  const values = (param: "event" | "match", raw: (string | null)[]) => [...new Set(raw.filter((v): v is string => !!v).map(upperAscii))]
+    .filter((v) => { const r = parseEntryFilters({ [param]: v }); return r.ok && r.filters[param]?.length === 1 && r.filters[param]![0] === v; });
+  const codes = values("event", entries.map((e) => e.eventCode)).sort();
+  const matches = values("match", entries.map((e) => e.matchLabel)).sort(compareMatchLabels);
   let authors: FilterOptions["authors"] = null;
   if (withAuthors) {
     // The newest name each author has gone by (entries come newest first).

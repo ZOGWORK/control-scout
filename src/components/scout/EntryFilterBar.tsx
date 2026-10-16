@@ -64,7 +64,7 @@ export function EntryFilterBar(p: EntryFilterBarProps) {
         <div className="-mx-4 flex gap-2 overflow-x-auto px-4 pb-1 sm:hidden" aria-label="Filters on">
           {chips.map((c) => (
             <button key={c.param} type="button" onClick={() => p.onFilter(c.param, null)} aria-label={`Remove filter: ${c.label}`}
-              className="inline-flex h-9 shrink-0 items-center gap-1.5 rounded-full border border-accent/50 bg-accent/10 pl-3 pr-2 text-sm text-foreground">
+              className="inline-flex h-11 shrink-0 items-center gap-1.5 rounded-full border border-accent/50 bg-accent/10 pl-3 pr-2 text-sm text-foreground">
               {c.label}<X className="size-3.5 text-muted-foreground" />
             </button>
           ))}
