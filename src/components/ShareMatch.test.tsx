@@ -12,12 +12,15 @@ let n = 0;
 const q = () => ({ season: 2025, red: [4215, 16379 + n], blue: [33950, 21058] }); // a fresh address per test (files are kept per address)
 const nav = navigator as unknown as { share?: unknown; canShare?: unknown };
 let clicked: HTMLAnchorElement[] = [];
+/** Every object URL made, and the blob behind it. */
+let blobs = new Map<string, Blob>();
 
 beforeEach(() => {
   n++;
   clicked = [];
   vi.stubGlobal("fetch", vi.fn(async () => new Response(new Blob([PNG], { type: "image/png" }), { status: 200, headers: { "content-type": "image/png" } })));
-  URL.createObjectURL = vi.fn(() => "blob:card");
+  blobs = new Map();
+  URL.createObjectURL = vi.fn((b: Blob | MediaSource) => { const u = `blob:card-${blobs.size + 1}`; blobs.set(u, b as Blob); return u; });
   URL.revokeObjectURL = vi.fn();
   vi.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(function (this: HTMLAnchorElement) { clicked.push(this); });
   delete nav.share;
@@ -31,7 +34,7 @@ describe("shareCard", () => {
     expect(await shareCard(q(), "Our model gives…")).toBe("downloaded");
     expect(clicked).toHaveLength(1);
     expect(clicked[0].download).toBe(`control-scout-4215-${16379 + n}-vs-33950-21058.png`);
-    expect(clicked[0].href).toBe("blob:card");
+    expect(clicked[0].href).toMatch(/^blob:card-\d+$/);
     expect(vi.mocked(fetch).mock.calls[0][0]).toBe(`/api/share/match.png?season=2025&red=4215,${16379 + n}&blue=33950,21058`);
   });
 
@@ -92,9 +95,43 @@ describe("ShareMatch", () => {
     const download = await screen.findByRole("button", { name: /download image/i });
     expect(screen.getByRole("button", { name: /copy link/i })).toBeTruthy();
     expect(screen.queryByRole("button", { name: /share image/i })).toBeNull();
-    expect(screen.getByRole("img", { name: /Our model gives 4215 & \d+ a 73% win chance vs 33950 & 21058/ }).getAttribute("src")).toContain("/api/share/match.png?");
+    const img = await screen.findByRole("img", { name: /Our model gives 4215 & \d+ a 73% win chance vs 33950 & 21058/ });
     fireEvent.click(download);
     await waitFor(() => expect(clicked).toHaveLength(1));
+    // The download is the very file the preview shows.
+    expect(blobs.get(clicked[0].href)).toBe(blobs.get(img.getAttribute("src")!));
+  });
+
+  it("previews the same fetched file it shares (never the address, which the browser may hold an older copy of), and frees it on change and close", async () => {
+    nav.share = vi.fn(async () => {});
+    nav.canShare = vi.fn(() => true);
+    const { unmount } = render(<ShareMatch query={q()} pRed={0.73} />);
+    fireEvent.click(screen.getByRole("button", { name: /share/i }));
+    const img = await screen.findByRole("img");
+    const wide = img.getAttribute("src")!;
+    expect(wide).toMatch(/^blob:card-\d+$/);
+    expect(fetch).toHaveBeenCalledTimes(1);
+    fireEvent.click(screen.getByRole("button", { name: /share image/i }));
+    await waitFor(() => expect(nav.share).toHaveBeenCalled());
+    const shared = vi.mocked(nav.share as (d: ShareData) => Promise<void>).mock.calls[0][0].files![0];
+    expect(shared).toBe(blobs.get(wide));
+    expect(fetch).toHaveBeenCalledTimes(1); // shared from memory, no second fetch
+    // Another shape: a new preview, the old one released.
+    fireEvent.click(screen.getByRole("radio", { name: /square/i }));
+    await waitFor(() => expect(screen.getByRole("img").getAttribute("src")).not.toBe(wide));
+    expect(URL.revokeObjectURL).toHaveBeenCalledWith(wide);
+    const square = screen.getByRole("img").getAttribute("src")!;
+    expect((blobs.get(square) as File).name).toMatch(/-square\.png$/);
+    unmount();
+    expect(URL.revokeObjectURL).toHaveBeenCalledWith(square);
+  });
+
+  it("says so in the preview when the image can't be made", async () => {
+    vi.stubGlobal("fetch", vi.fn(async () => new Response(JSON.stringify({ error: "Ratings for this season aren't ready yet." }), { status: 503, headers: { "content-type": "application/json" } })));
+    render(<ShareMatch query={q()} pRed={0.73} />);
+    fireEvent.click(screen.getByRole("button", { name: /share/i }));
+    expect(await screen.findByText("Ratings for this season aren't ready yet.")).toBeTruthy();
+    expect(screen.queryByRole("img")).toBeNull();
   });
 
   it("with a share sheet that takes files the panel offers it, and a square option for Instagram", async () => {
@@ -104,7 +141,8 @@ describe("ShareMatch", () => {
     fireEvent.click(screen.getByRole("button", { name: /share/i }));
     expect(await screen.findByRole("button", { name: /share image/i })).toBeTruthy();
     fireEvent.click(screen.getByRole("radio", { name: /square/i }));
-    await waitFor(() => expect(screen.getByRole("img").getAttribute("src")).toContain("format=square"));
+    await waitFor(() => expect((blobs.get(screen.getByRole("img").getAttribute("src")!) as File | undefined)?.name).toMatch(/-square\.png$/));
+    expect(vi.mocked(fetch).mock.calls.at(-1)![0]).toContain("format=square");
     fireEvent.click(screen.getByRole("button", { name: /share image/i }));
     await waitFor(() => expect(nav.share).toHaveBeenCalled());
     expect(vi.mocked(nav.share as (d: ShareData) => Promise<void>).mock.calls[0][0].files?.[0].name).toMatch(/-square\.png$/);
