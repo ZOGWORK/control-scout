@@ -122,13 +122,15 @@ async function capture(browser: Browser, route: string, vp: keyof typeof SIZES, 
   // never offers an install, so --install also hands the page a stand-in beforeinstallprompt once it has loaded;
   // the nudge opens a few seconds later: wait with --steps '[{"waitFor":"[data-install-nudge]"}]'.
   if (flag("install")) {
-    await ctx.addInitScript(() => {
-      localStorage.setItem("cs-install-demo", "1");
-      window.addEventListener("load", () => {
-        const e = new Event("beforeinstallprompt", { cancelable: true });
-        Object.assign(e, { prompt: () => Promise.resolve(), userChoice: Promise.resolve({ outcome: "dismissed", platform: "web" }) });
-        window.dispatchEvent(e);
-      });
+    // As a string: tsx would wrap the object's arrow functions in a __name() helper the page doesn't have.
+    await ctx.addInitScript({
+      content: `localStorage.setItem("cs-install-demo", "1");
+        window.addEventListener("load", function () {
+          var e = new Event("beforeinstallprompt", { cancelable: true });
+          e.prompt = function () { return Promise.resolve(); };
+          e.userChoice = Promise.resolve({ outcome: "dismissed", platform: "web" });
+          window.dispatchEvent(e);
+        });`,
     });
   }
   if (light) await ctx.addInitScript(() => localStorage.setItem("cs-personal:settings", JSON.stringify({ value: { theme: "light", density: "comfortable", notify: {} }, updatedAt: 1 })));
