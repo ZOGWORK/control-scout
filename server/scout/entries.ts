@@ -108,7 +108,7 @@ export async function workspaceAdminAccess(user: User, workspaceId: string): Pro
 /**
  * Express guard for admin-only workspace routes: the workspace id from
  * `req.params.workspaceId`, else the query, else the body. 401 signed out,
- * 400 bad id, 403 not a member or not an admin; otherwise the membership is
+ * 503 while workspace scouting is paused, 400 bad id, 403 not a member or not an admin; otherwise the membership is
  * on `res.locals.membership` for the handler.
  */
 export function requireWorkspaceAdmin() {
@@ -116,6 +116,7 @@ export function requireWorkspaceAdmin() {
     (async () => {
       const user = await currentUser(req);
       if (!user) { res.status(401).json({ error: "Sign in first." }); return; }
+      if (await workspacePaused(res)) return; // workspace scouting switched off in the owner portal: 503
       const workspaceId = req.params?.workspaceId ?? req.query?.workspaceId ?? req.body?.workspaceId;
       if (!isWorkspaceId(workspaceId)) { res.status(400).json({ error: "workspaceId required" }); return; }
       const access = await workspaceAdminAccess(user, workspaceId);
