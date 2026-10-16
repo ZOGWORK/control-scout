@@ -164,13 +164,21 @@ describe("ScoutQueueSync (the app-wide reconnect trigger)", () => {
     saveScoutEntry({ uuid: "wwwwwwwwwww1", ...base, notes: "quick", data: { custom_lift: 42, fouls: 2, custom_none: "" }, workspaceId: "42" });
     expect(moveQueuedToPersonal("42")).toBe(1);
     const [e] = localScoutEntries(null);
-    expect(e.data).toEqual({ fouls: 2 });
+    expect(e.data).toEqual({ custom_lift: 42, fouls: 2, custom_none: "" }); // every answer kept
     expect(e.notes).toBe("quick\n\nWorkspace answers:\nLift height: 42");
   });
 
   it("personalCopy names the workspace the answers came from, and says yes for a ticked toggle", () => {
     expect(personalCopy({ ramp: true, defense: true }, "", [{ id: "ramp", label: "Used the ramp" }], [{ id: "defense" }], "Robo Raptors"))
-      .toEqual({ data: { defense: true }, notes: "Answers from Robo Raptors:\nUsed the ramp: yes" });
+      .toEqual({ data: { ramp: true, defense: true }, notes: "Answers from Robo Raptors:\nUsed the ramp: yes", overflow: 0 });
+  });
+
+  it("personalCopy never cuts the notes: answers that don't fit stay in the data, and it says by how much", () => {
+    const long = "n".repeat(3990);
+    const out = personalCopy({ ramp: 7 }, long, [{ id: "ramp", label: "Ramp" }], [], null);
+    expect(out.notes).toBe(long);
+    expect(out.data).toEqual({ ramp: 7 });
+    expect(out.overflow).toBe(long.length + "\n\nWorkspace answers:\nRamp: 7".length - 4000);
   });
 
   it("moving resets the workspace's pull cursor, so a later re-add pulls everything again", () => {

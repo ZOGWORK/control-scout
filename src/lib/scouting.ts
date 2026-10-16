@@ -440,7 +440,7 @@ export function moveQueuedToPersonal(space: string): number {
     // The workspace's own questions have no label in Personal: their answers go into the notes (personalCopy).
     const copy = normalizeScoutEntry({
       uuid: newScoutId(), season: e.season, team: e.team, eventCode: e.eventCode, matchLabel: e.matchLabel, kind: e.kind,
-      ...personalCopy(e.data ?? {}, e.notes ?? "", workspaceFieldsOnDevice(space, e.season, e.kind), templateFor(e.season, e.kind).fields, null), updatedAt: Date.now(),
+      ...asPersonal(e.data ?? {}, e.notes ?? "", workspaceFieldsOnDevice(space, e.season, e.kind), templateFor(e.season, e.kind).fields), updatedAt: Date.now(),
     }, null);
     try {
       writeEntry(copy);
@@ -471,23 +471,36 @@ function workspaceFieldsOnDevice(space: string, season: number, kind: "match" | 
   return templateFor(season, kind).fields;
 }
 
+/** personalCopy's data and notes only (an automatic move: what doesn't fit the notes stays in data). */
+const asPersonal = (data: Record<string, ScoutValue>, notes: string, fields: { id: string; label: string }[], builtin: { id: string }[]) => {
+  const { data: d, notes: n } = personalCopy(data, notes, fields, builtin, null);
+  return { data: d, notes: n };
+};
+
+/** How long notes may be (the server keeps 4,000 characters, cleanScoutEntry). */
+export const NOTES_MAX = 4000;
+
 /**
- * What a draft from a read-only workspace keeps in Personal (Task 19): Personal entries use the built-in
- * questions, so answers to the workspace's own questions would have no label there. Those are written into
- * the notes instead ("Label: answer"), readable anywhere; answers to built-in questions stay as answers.
+ * What an entry from a read-only workspace keeps in Personal (Task 19): Personal entries use the built-in
+ * questions, so answers to the workspace's own questions would have no label there. They're written into
+ * the notes as well ("Label: answer"), readable anywhere. Nothing is dropped: every answer stays in `data`
+ * too, and the notes the scout wrote are never cut. `overflow`: how many characters the readable answers
+ * didn't fit by (0: they're all in the notes); they're still in `data`.
  */
-export function personalCopy(data: Record<string, ScoutValue>, notes: string, fields: { id: string; label: string }[], builtin: { id: string }[], from: string | null): { data: Record<string, ScoutValue>; notes: string } {
+export function personalCopy(data: Record<string, ScoutValue>, notes: string, fields: { id: string; label: string }[], builtin: { id: string }[], from: string | null): { data: Record<string, ScoutValue>; notes: string; overflow: number } {
   const known = new Set(builtin.map((f) => f.id));
-  const kept: Record<string, ScoutValue> = {};
   const lines: string[] = [];
   for (const [id, v] of Object.entries(data)) {
-    if (known.has(id)) { kept[id] = v; continue; }
-    if (v === undefined || v === null || v === "" || v === false) continue;
+    if (known.has(id) || v === undefined || v === null || v === "" || v === false) continue;
     const label = fields.find((f) => f.id === id)?.label || id;
     lines.push(`${label}: ${v === true ? "yes" : Array.isArray(v) ? v.join(", ") : String(v)}`);
   }
-  const extra = lines.length ? `${from ? `Answers from ${from}` : "Workspace answers"}:\n${lines.join("\n")}` : "";
-  return { data: kept, notes: [notes.trim(), extra].filter(Boolean).join("\n\n").slice(0, 4000) };
+  const mine = notes.trim();
+  if (!lines.length) return { data: { ...data }, notes: mine, overflow: 0 };
+  const full = [mine, `${from ? `Answers from ${from}` : "Workspace answers"}:\n${lines.join("\n")}`].filter(Boolean).join("\n\n");
+  if (full.length <= NOTES_MAX) return { data: { ...data }, notes: full, overflow: 0 };
+  // Too long for the notes: the scout's own notes stay whole, and the answers stay in data (nothing lost).
+  return { data: { ...data }, notes: mine, overflow: full.length - NOTES_MAX };
 }
 
 /** Pull a space's entries from the account (Personal) or the workspace (changes since the last pull); local unsynced edits are kept if newer. */
