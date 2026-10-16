@@ -3,7 +3,7 @@
 // a non-member (403), a signed-out visitor or an account with no workspaces sees nothing, and the app only ever
 // asks about the account's own workspaces.
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { cleanup, render, screen, waitFor } from "@testing-library/react";
+import { act, cleanup, render, screen, waitFor } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import type { AccountUser } from "../lib/personal";
 import type { TeamConsensus } from "../shared/consensus";
@@ -12,7 +12,7 @@ const h = vi.hoisted(() => ({ user: null as AccountUser | null }));
 vi.mock("../lib/personal", () => ({ usePersonal: () => ({ user: h.user, providers: {}, state: { myTeam: null }, syncReady: false }) }));
 
 const { TeamConsensusSection, CompareConsensus } = await import("./ScoutConsensus");
-const { invalidate } = await import("../lib/api");
+const { clearConsensusMemo } = await import("../lib/consensus");
 const { rememberSpace } = await import("../lib/scoutSpace");
 
 const S = 2025;
@@ -36,7 +36,7 @@ beforeEach(() => {
   vi.stubGlobal("ResizeObserver", class { observe() {} unobserve() {} disconnect() {} });
   vi.stubGlobal("matchMedia", (q: string) => ({ matches: false, media: q, addEventListener() {}, removeEventListener() {}, addListener() {}, removeListener() {} }));
   localStorage.clear();
-  invalidate("/api/");
+  clearConsensusMemo();
   asked = [];
   answer = (ws, teams) => json(200, { workspaceId: ws, season: S, teams: teams.map(scouted) });
   vi.stubGlobal("fetch", async (path: string) => {
@@ -101,6 +101,28 @@ describe("TeamConsensusSection", () => {
     team(101);
     expect(await screen.findByText(/Gearheads scouting: what its scouts agree on/)).toBeTruthy();
     expect(asked.some((p) => p.includes("/999/"))).toBe(false);
+  });
+
+  it("a refresh that's refused after an answer hides the old summary", async () => {
+    h.user = userIn([{ id: "901", name: "Gearheads" }]);
+    const { container } = team();
+    expect(await screen.findByText("4.5")).toBeTruthy();
+    answer = () => json(403, { error: "You're not a member of this workspace in Control Point." });
+    act(() => { document.dispatchEvent(new Event("visibilitychange")); });
+    await waitFor(() => expect(container.textContent).toBe(""));
+    expect(asked).toHaveLength(2);
+  });
+
+  it("another account in the same workspace asks again (never left loading, never the last account's answer)", async () => {
+    h.user = userIn([{ id: "901", name: "Gearheads" }]);
+    const view = team();
+    expect(await screen.findByText("4.5")).toBeTruthy();
+    answer = (ws, teams) => json(200, { workspaceId: ws, season: S, teams: teams.map(empty) });
+    h.user = { ...userIn([{ id: "901", name: "Gearheads" }]), id: 8 };
+    view.rerender(<MemoryRouter><TeamConsensusSection team={18360} season={S} /></MemoryRouter>);
+    expect(await screen.findByText("No scouting on 18360 in Gearheads yet.")).toBeTruthy();
+    expect(screen.queryByText("4.5")).toBeNull();
+    expect(asked).toHaveLength(2);
   });
 });
 
