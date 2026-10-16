@@ -8,7 +8,7 @@
 // For other features:  if (!(await isEnabled("realtime"))) { …refuse politely… }
 // A database that can't be read never turns a feature off: the last known value
 // (or the default, on) stands.
-import { all, run } from "./db.js";
+import { primaryDb, run } from "./db.js";
 import { registerCache } from "./caches.js";
 import { DEFAULT_FLAGS, FLAGS, isFlag, type Flag, type FlagSet } from "../src/shared/flags.js";
 
@@ -21,7 +21,8 @@ let cached: { at: number; flags: FlagSet } | null = null;
 let loading: Promise<FlagSet> | null = null;
 
 async function load(): Promise<FlagSet> {
-  const rows = await all<{ name: string; enabled: number }>("SELECT name, enabled FROM feature_flags");
+  // From the primary, not an embedded replica (minutes behind): a switch flipped on another host counts within FLAG_TTL_MS.
+  const rows = (await primaryDb().execute("SELECT name, enabled FROM feature_flags")).rows as unknown as { name: string; enabled: number }[];
   const flags = { ...DEFAULT_FLAGS };
   for (const r of rows) if (isFlag(r.name)) flags[r.name] = Number(r.enabled) === 1;
   return flags;
@@ -63,7 +64,7 @@ export async function setFlag(flag: Flag, enabled: boolean, by: string): Promise
 
 /** The flags with who changed each last, for the owner portal. */
 export async function flagDetails(): Promise<{ name: Flag; enabled: boolean; updatedAt: string | null; updatedBy: string | null }[]> {
-  const rows = await all<{ name: string; enabled: number; updated_at: string; updated_by: string }>("SELECT * FROM feature_flags");
+  const rows = (await primaryDb().execute("SELECT * FROM feature_flags")).rows as unknown as { name: string; enabled: number; updated_at: string; updated_by: string }[];
   return FLAGS.map((name) => {
     const r = rows.find((x) => x.name === name);
     return { name, enabled: r ? Number(r.enabled) === 1 : DEFAULT_FLAGS[name], updatedAt: r?.updated_at ?? null, updatedBy: r?.updated_by ?? null };
