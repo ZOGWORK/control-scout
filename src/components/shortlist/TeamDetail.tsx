@@ -76,7 +76,9 @@ function Snapshot({ t, season, matches }: { t: ShortlistTeam; season: number; ma
   );
 }
 
-export function TeamDetail({ t, season, rank, total, topPicks, onMove, onRemove }: {
+export function TeamDetail({ t, season, rank, total, topPicks, onMove, onRemove, readOnly = false }: {
+  /** A read-only list (Task 19): no move or remove. */
+  readOnly?: boolean;
   t: ShortlistTeam; season: number; rank: number; total: number;
   /** The first picks (for "compare with your top picks"). */
   topPicks: number[];
@@ -112,10 +114,12 @@ export function TeamDetail({ t, season, rank, total, topPicks, onMove, onRemove 
         <div className="flex flex-wrap gap-2" role="group" aria-label={`Actions for ${t.team}`}>
           <Button variant="secondary" size="sm" asChild><Link to={compareHref([t.team, ...others], season)}><Scale /> {others.length ? `Compare with top ${others.length}` : "Compare"}</Link></Button>
           <Button variant="secondary" size="sm" asChild><Link to={`/teams/${t.team}?season=${season}`}><ExternalLink /> Team page</Link></Button>
+          {!readOnly && <>
           <Button variant="outline" size="sm" onClick={() => onMove(-1)} disabled={rank === 1} aria-label={`Move ${t.team} up one pick`}><ArrowUp /> Up</Button>
           <Button variant="outline" size="sm" onClick={() => onMove(1)} disabled={rank === total} aria-label={`Move ${t.team} down one pick`}><ArrowDown /> Down</Button>
           <Button variant="outline" size="sm" onClick={() => onMove("top")} disabled={rank === 1} aria-label={`Make ${t.team} first pick`}><ArrowUpToLine /> First pick</Button>
           <Button variant="destructive" size="sm" onClick={onRemove} className="ml-auto"><Trash2 /> Remove</Button>
+          </>}
         </div>
       </div>
     </div>

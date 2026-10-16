@@ -53,6 +53,8 @@ export interface RowProps {
   detail: ReactNode;
   /** For the opened panel's id (two lists on one page must not share ids). Default "shortlist". */
   idPrefix?: string;
+  /** A read-only list (an orphaned workspace's, Task 19): no grip and no Remove. */
+  readOnly?: boolean;
 }
 
 function Grip({ t, rank, handle, className }: { t: ShortlistTeam; rank: number; handle: RowProps["handle"]; className?: string }) {
@@ -85,7 +87,7 @@ export function ListRow(p: RowProps) {
     <li data-reorder-key={t.team} className={cn("relative border-b border-border bg-card last:border-b-0", dragging && "z-20 rounded-xl border-transparent shadow-2xl ring-2 ring-accent/70")}>
       <div className={cn(LIST_COLS, "density-row cursor-pointer px-2 py-2 transition-colors hover:bg-accent/[0.06] sm:px-3", open && "bg-accent/[0.05]")}
         onClick={(e) => { if (!interactive(e)) p.onToggle(); }}>
-        <Grip t={t} rank={rank} handle={p.handle} />
+        {p.readOnly ? <span aria-hidden /> : <Grip t={t} rank={rank} handle={p.handle} />}
         <RankBadge rank={rank} />
         <span className="max-sm:hidden"><SelectBox {...p} /></span>
         <div className="min-w-0">
@@ -102,7 +104,7 @@ export function ListRow(p: RowProps) {
         <span className="text-right text-sm tabular-nums max-lg:hidden">{t.rating ? <>{num(t.rating)}<span className="text-[11px] text-text-muted"> ±{num(t.ratingSd, 0)}</span></> : "—"}</span>
         <span className="text-right text-sm tabular-nums text-success max-sm:hidden">{t.record ?? "—"}</span>
         <div className="flex items-center justify-end gap-0.5">
-          <Button variant="ghost" size="icon-sm" onClick={p.onRemove} aria-label={`Remove ${t.team}`} className="max-sm:hidden hover:text-destructive"><Trash2 /></Button>
+          {!p.readOnly && <Button variant="ghost" size="icon-sm" onClick={p.onRemove} aria-label={`Remove ${t.team}`} className="max-sm:hidden hover:text-destructive"><Trash2 /></Button>}
           <Button variant="ghost" size="icon-sm" onClick={p.onToggle} aria-expanded={open} aria-controls={detailsId} aria-label={`${open ? "Hide" : "Show"} details for ${t.team}`} className={cn(open && "text-accent-text")}>
             <ChevronDown className={cn("transition-transform", open && "rotate-180")} />
           </Button>
@@ -126,7 +128,7 @@ export function GridCard(p: RowProps) {
       <div className="relative p-3.5">
         <div className="flex items-center gap-2">
           <RankBadge rank={rank} className="size-8 text-sm" />
-          <Grip t={t} rank={rank} handle={p.handle} />
+          {!p.readOnly && <Grip t={t} rank={rank} handle={p.handle} />}
           <SelectLabel {...p} text="Compare" className="-mr-2 ml-auto" />
         </div>
         <div className="mt-2.5 min-w-0">
@@ -149,7 +151,7 @@ export function GridCard(p: RowProps) {
           </Button>
           <Button variant="ghost" size="sm" asChild><Link to={p.compareLink} aria-label={`Compare ${t.team} with your top picks`}><Scale /> Compare</Link></Button>
           <Button variant="ghost" size="sm" asChild><Link to={`/teams/${t.team}?season=${p.season}`} aria-label={`Open team ${t.team}`}><ExternalLink /> Team</Link></Button>
-          <Button variant="ghost" size="icon-sm" onClick={p.onRemove} aria-label={`Remove ${t.team}`} className="ml-auto hover:text-destructive"><Trash2 /></Button>
+          {!p.readOnly && <Button variant="ghost" size="icon-sm" onClick={p.onRemove} aria-label={`Remove ${t.team}`} className="ml-auto hover:text-destructive"><Trash2 /></Button>}
         </div>
       </div>
       {open && <div id={detailsId}>{p.detail}</div>}

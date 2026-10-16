@@ -27,7 +27,7 @@ import { isWorkspaceId, type Membership } from "../auth/controlPoint.js";
 import { currentUser, type User } from "../auth/session.js";
 import { applyPickOp, cleanPickOp, type Pick, type PickList, type PickOp, type PickPerson } from "../../src/shared/picklist.js";
 import { publishPicklist, serialized } from "./bus.js";
-import { workspaceAccess, workspacePaused, writerName } from "./entries.js";
+import { accessError, workspaceAccess, workspacePaused, writerName } from "./entries.js";
 import { logActivity, type ActivityActor } from "./activityLog.js";
 
 const isSeason = (v: unknown): v is number => typeof v === "number" && Number.isSafeInteger(v) && v >= 2000 && v <= 2100;
@@ -183,25 +183,25 @@ const jsonOnly = (req: Request, res: Response, next: NextFunction) => {
 };
 
 /** Signed in, workspace scouting on, a member of :workspaceId. Sets res.locals.user / membership. */
-async function member(req: Request, res: Response): Promise<{ user: User; m: Membership } | null> {
+async function member(req: Request, res: Response, write = false): Promise<{ user: User; m: Membership } | null> {
   res.set("Cache-Control", "no-store");
   const user = await currentUser(req);
   if (!user) { res.status(401).json({ error: "Sign in first." }); return null; }
   if (await workspacePaused(res)) return null;
   const workspaceId = req.params.workspaceId;
   if (!isWorkspaceId(workspaceId)) { res.status(400).json({ error: "workspaceId required" }); return null; }
-  const access = await workspaceAccess(user, workspaceId);
-  if (!access.ok) { res.status(access.status).json({ error: access.error }); return null; }
+  const access = await workspaceAccess(user, workspaceId, { write });
+  if (!access.ok) { res.status(access.status).json(accessError(access)); return null; }
   return { user, m: access.membership };
 }
 
 /**
  * The one gate every pick list change passes (the POST route, whatever the op): a member, as for reads, plus
- * whatever a write needs on top. A rule that makes a workspace's lists read-only (e.g. an orphaned space)
- * belongs here, so it covers every op at once.
+ * whatever a write needs on top: a read-only (orphaned) space refuses every op with 423 workspace_read_only
+ * (Task 19, orphans.ts), so it covers every op at once.
  */
 export async function picklistWriter(req: Request, res: Response): Promise<{ user: User; m: Membership } | null> {
-  return member(req, res);
+  return member(req, res, true);
 }
 
 /**

@@ -29,7 +29,8 @@ import { Badge } from "../ui/basic";
 import { toast } from "../ui/sonner";
 import { ErrorState, LoadingBlock } from "../states";
 
-export type Viewer = { accountId?: number; role?: "admin" | "member" } | null;
+/** `readOnly`: the space is read-only (Task 19, an orphaned workspace): nothing can be restored there. */
+export type Viewer = { accountId?: number; role?: "admin" | "member"; readOnly?: boolean } | null;
 
 type Versioned = EntryText & { season: number; templateId?: string; templateVersion?: number };
 
@@ -39,6 +40,7 @@ type Versioned = EntryText & { season: number; templateId?: string; templateVers
  * an admin's, as for any write (the server refuses it otherwise).
  */
 export function restoreBlock(current: ScoutEntry | null, writer: number | null, me: Viewer): string | null {
+  if (me?.readOnly) return "This workspace is read-only, so nothing can be restored here.";
   if (!me?.role) return "Only members of this workspace can restore versions.";
   if (writer != null && me.role !== "admin" && writer !== me.accountId) return "Only whoever wrote a version, or a workspace admin, can restore it.";
   if (current?.deleted && !canDeleteScoutEntry(current, me)) return "This entry was deleted. Only its author or a workspace admin can bring it back.";

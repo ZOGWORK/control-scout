@@ -11,6 +11,7 @@ import { useCallback, useEffect, useState } from "react";
 import { apiFetch } from "./api";
 import type { EntryPhoto } from "../shared/photos";
 import { dropRestored, exportLostEdits, LOST_PREFIX, lostBackupFailed, recordLostEdit } from "./lostEdits";
+import { READ_ONLY_STATUS } from "../shared/orphaned";
 
 import { builtinTemplate } from "../shared/scoutDefaults";
 
@@ -90,8 +91,21 @@ export const PUSH_DEBOUNCE_MS = 300;
  * (scoutSpace.ts) and the app checks the account again; queued entries are never dropped here.
  */
 export const SCOUT_DENIED = "cs-scout-denied";
+/**
+ * A workspace answered a write with 423 (Task 19, src/shared/orphaned.ts): it's read-only now (deleted in
+ * Control Point, or no admin left), not a removal. detail: the workspace id. The app re-reads the account
+ * (its list marks the space read-only, and the page shows the banner); queued entries are never dropped here.
+ */
+export const SCOUT_READ_ONLY = "cs-scout-read-only";
+/**
+ * The server says the account's workspace list changed (a live stream's `workspace` or `account` event: a
+ * space went read-only or came back, a re-add, a role change). The app re-reads /api/auth/me at once.
+ */
+export const ACCOUNT_STALE = "cs-account-stale";
 const deniedBy = (space: ScoutSpace, e: unknown) => {
-  if (space != null && (e as { status?: unknown } | null)?.status === 403) window.dispatchEvent(new CustomEvent<string>(SCOUT_DENIED, { detail: space }));
+  const status = (e as { status?: unknown } | null)?.status;
+  if (space != null && status === 403) window.dispatchEvent(new CustomEvent<string>(SCOUT_DENIED, { detail: space }));
+  if (space != null && status === READ_ONLY_STATUS) window.dispatchEvent(new CustomEvent<string>(SCOUT_READ_ONLY, { detail: space }));
 };
 
 /** The workspace refused a write (detail: ScoutRefusal); the server's copy is already back on the device. */
@@ -510,21 +524,25 @@ export function adoptServerEntry(space: string, entry: ScoutEntry) {
  * before the removal reached the device): the server refused them (403) and the account's workspace
  * list no longer has it. Nothing is dropped: every queued entry that isn't a delete moves to Personal
  * as a new personal entry (your own copy: its fields and notes; the workspace's photos and authorship
- * stay behind), queued to sync to your account. Queued deletes are simply let go (there is nothing to
- * keep). The moved entries leave the workspace's copy on this device, so a later re-add can't show
- * them twice. Returns how many moved. docs/shared-accounts.md, "Revoked while offline".
+ * stay behind), queued to sync to your account. Queued deletes are let go (there is nothing to keep): their
+ * local tombstone goes too, so a workspace still readable here (read-only, Task 19) shows the server's copy
+ * again after the next pull instead of hiding it. The moved entries leave the workspace's copy on this
+ * device, so a later re-add can't show them twice. Returns how many moved. docs/shared-accounts.md,
+ * "Revoked while offline".
  */
 export function moveQueuedToPersonal(space: string): number {
   const d = dirty(space);
   if (!d.size) return 0;
-  let moved = 0;
+  let moved = 0, dropped = 0;
   const keep = new Set<string>();
   for (const uuid of d) {
     const e = readEntry(space, uuid);
-    if (!e || e.deleted) continue;
+    if (!e) continue;
+    if (e.deleted) { try { localStorage.removeItem(keyFor(space, uuid)); dropped++; } catch { /* blocked */ } continue; }
+    // The workspace's own questions have no label in Personal: their answers go into the notes (personalCopy).
     const copy = normalizeScoutEntry({
       uuid: newScoutId(), season: e.season, team: e.team, eventCode: e.eventCode, matchLabel: e.matchLabel, kind: e.kind,
-      data: e.data ?? {}, notes: e.notes ?? "", updatedAt: Date.now(),
+      ...asPersonal(e.data ?? {}, e.notes ?? "", workspaceFieldsOnDevice(space, e.season, e.kind), templateFor(e.season, e.kind).fields), updatedAt: Date.now(),
     }, null);
     try {
       writeEntry(copy);
@@ -539,10 +557,52 @@ export function moveQueuedToPersonal(space: string): number {
   }
   try { setDirty(keep, space); } catch { /* storage blocked */ }
   // The workspace's copies on this device are no longer complete: a later return (re-added) pulls it all again.
-  if (moved) try { localStorage.removeItem(`${WS_CURSOR}${space}`); } catch { /* blocked */ }
+  if (moved || dropped) try { localStorage.removeItem(`${WS_CURSOR}${space}`); } catch { /* blocked */ }
   window.dispatchEvent(new Event(EVT));
   if (moved) window.dispatchEvent(new CustomEvent<SavedDetail>(SAVED, { detail: { space: null, deleted: false } }));
   return moved;
+}
+
+/** The workspace's current questions for a season and kind as last seen on this device (scoutTemplates.ts keeps them), else the built-in ones. */
+function workspaceFieldsOnDevice(space: string, season: number, kind: "match" | "pit"): { id: string; label: string }[] {
+  try {
+    const t = JSON.parse(localStorage.getItem(`cs-scout-tpl:${space}:${season}`) ?? "null") as Record<string, unknown> | null;
+    const f = t?.[kind];
+    if (Array.isArray(f)) return f.filter((x): x is { id: string; label: string } => !!x && typeof x.id === "string" && typeof x.label === "string");
+  } catch { /* unreadable: the built-in questions */ }
+  return templateFor(season, kind).fields;
+}
+
+/** personalCopy's data and notes only (an automatic move: what doesn't fit the notes stays in data). */
+const asPersonal = (data: Record<string, ScoutValue>, notes: string, fields: { id: string; label: string }[], builtin: { id: string }[]) => {
+  const { data: d, notes: n } = personalCopy(data, notes, fields, builtin, null);
+  return { data: d, notes: n };
+};
+
+/** How long notes may be (the server keeps 4,000 characters, cleanScoutEntry). */
+export const NOTES_MAX = 4000;
+
+/**
+ * What an entry from a read-only workspace keeps in Personal (Task 19): Personal entries use the built-in
+ * questions, so answers to the workspace's own questions would have no label there. They're written into
+ * the notes as well ("Label: answer"), readable anywhere. Nothing is dropped: every answer stays in `data`
+ * too, and the notes the scout wrote are never cut. `overflow`: how many characters the readable answers
+ * didn't fit by (0: they're all in the notes); they're still in `data`.
+ */
+export function personalCopy(data: Record<string, ScoutValue>, notes: string, fields: { id: string; label: string }[], builtin: { id: string }[], from: string | null): { data: Record<string, ScoutValue>; notes: string; overflow: number } {
+  const known = new Set(builtin.map((f) => f.id));
+  const lines: string[] = [];
+  for (const [id, v] of Object.entries(data)) {
+    if (known.has(id) || v === undefined || v === null || v === "" || v === false) continue;
+    const label = fields.find((f) => f.id === id)?.label || id;
+    lines.push(`${label}: ${v === true ? "yes" : Array.isArray(v) ? v.join(", ") : String(v)}`);
+  }
+  const mine = notes.trim();
+  if (!lines.length) return { data: { ...data }, notes: mine, overflow: 0 };
+  const full = [mine, `${from ? `Answers from ${from}` : "Workspace answers"}:\n${lines.join("\n")}`].filter(Boolean).join("\n\n");
+  if (full.length <= NOTES_MAX) return { data: { ...data }, notes: full, overflow: 0 };
+  // Too long for the notes: the scout's own notes stay whole, and the answers stay in data (nothing lost).
+  return { data: { ...data }, notes: mine, overflow: full.length - NOTES_MAX };
 }
 
 /** Pull a space's entries from the account (Personal) or the workspace (changes since the last pull); local unsynced edits are kept if newer. */
