@@ -19,7 +19,7 @@ const entry = (over: Partial<ScoutEntry> = {}): ScoutEntry => ({
   updatedAt: 1000, authorAccountId: 8, authorDisplayName: "Marcus", ...over,
 });
 const c = (id: number, over: Partial<EntryComment> = {}): EntryComment => ({
-  id, workspaceId: "41", entryUuid: "aaaaaaaaaaaa", authorAccountId: 7, authorName: "Priya", body: `comment ${id}`, createdAt: Date.now() - 120_000, editedAt: null, ...over,
+  id, workspaceId: "41", entryUuid: "aaaaaaaaaaaa", authorAccountId: 7, authorName: "Priya", body: `comment ${id}`, createdAt: Date.now() - 150_000, editedAt: null, ...over,
 });
 const THREAD = "/api/scout/workspaces/41/entries/aaaaaaaaaaaa/comments";
 
