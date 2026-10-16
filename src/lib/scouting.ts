@@ -10,10 +10,10 @@
 import { useCallback, useEffect, useState } from "react";
 import { apiFetch } from "./api";
 
+import type { ScoutField, ScoutTemplate } from "../shared/scoutTemplate";
+
 export type ScoutValue = number | boolean | string;
-export type FieldType = "counter" | "toggle" | "choice" | "rating" | "text";
-export interface ScoutField { id: string; label: string; type: FieldType; phase: "auto" | "teleop" | "endgame" | "overall" | "pit"; options?: string[]; max?: number }
-export interface ScoutTemplate { id: string; kind: "match" | "pit"; name: string; fields: ScoutField[] }
+export type { FieldType, ScoutField, ScoutTemplate } from "../shared/scoutTemplate";
 
 /** Where an entry lives: null = Personal, else a Control Point workspace id. */
 export type ScoutSpace = string | null;
@@ -38,6 +38,13 @@ export interface ScoutEntry {
   /** Who wrote the latest version (workspace entries, from the server). */
   editorAccountId?: number;
   editorDisplayName?: string;
+  /**
+   * The template it was made with (workspace entries): "ws:<workspace>:<season>:<kind>" and that
+   * template's version, or a built-in id with version 0. Absent on entries made before templates
+   * (and on personal entries, which always use the built-in defaults): read with the built-in.
+   */
+  templateId?: string;
+  templateVersion?: number;
 }
 
 // --- Templates -------------------------------------------------------------
@@ -94,14 +101,15 @@ const PIT: ScoutField[] = [
   { id: "weight", label: "Robot weight (lb)", type: "counter", phase: "pit", max: 60 },
 ];
 
+/** The built-in default template (Personal, and any workspace that hasn't customised that kind). */
 export function templateFor(season: number, kind: "match" | "pit"): ScoutTemplate {
-  if (kind === "pit") return { id: `pit`, kind, name: "Pit scouting", fields: PIT };
+  if (kind === "pit") return { id: `pit`, kind, name: "Pit scouting", fields: PIT, version: 0 };
   const fields = MATCH[season] ?? [
     { id: "autoScore", label: "Auto scoring", type: "rating", phase: "auto", max: 5 },
     { id: "teleScore", label: "TeleOp scoring", type: "rating", phase: "teleop", max: 5 },
     { id: "endgame", label: "Endgame", type: "rating", phase: "endgame", max: 5 },
   ];
-  return { id: `match-${season}`, kind, name: "Match scouting", fields: [...fields, ...common] };
+  return { id: `match-${season}`, kind, name: "Match scouting", fields: [...fields, ...common], version: 0 };
 }
 
 // --- Local store -------------------------------------------------------------
@@ -166,7 +174,7 @@ export function normalizeScoutEntry(raw: any, space: ScoutSpace): ScoutEntry {
 /** The shape kept on the device (and in exports): a personal entry exactly as before workspaces. */
 export function storedScoutEntry(e: ScoutEntry): Record<string, unknown> {
   if (e.workspaceId != null) return { ...e };
-  const { workspaceId: _w, authorAccountId: _a, authorDisplayName: _n, editorAccountId: _ea, editorDisplayName: _en, ...rest } = e;
+  const { workspaceId: _w, authorAccountId: _a, authorDisplayName: _n, editorAccountId: _ea, editorDisplayName: _en, templateId: _t, templateVersion: _tv, ...rest } = e;
   return rest;
 }
 
@@ -288,13 +296,14 @@ export function importLocalScouting(data: SpaceExport & { spaces?: Record<string
   window.dispatchEvent(new Event(EVT));
 }
 
-/** Remove every space's entries, queues and cursors from this device. */
+/** Remove every space's entries, queues and cursors (and cached workspace templates) from this device. */
 export function clearLocalScouting() {
   const keys: string[] = [];
   try {
     for (let i = 0; i < localStorage.length; i++) {
       const k = localStorage.key(i);
-      if (k && (k.startsWith("cs-scout:") || k.startsWith(WS) || k.startsWith(WS_DIRTY) || k.startsWith(WS_CURSOR))) keys.push(k);
+      // (cs-scout-tpl…: workspace templates kept for offline forms, scoutTemplates.ts.)
+      if (k && (k.startsWith("cs-scout:") || k.startsWith(WS) || k.startsWith(WS_DIRTY) || k.startsWith(WS_CURSOR) || k.startsWith("cs-scout-tpl"))) keys.push(k);
     }
     for (const k of keys) localStorage.removeItem(k);
     localStorage.removeItem(DIRTY);

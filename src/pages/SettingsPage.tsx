@@ -335,6 +335,11 @@ function Tracking() {
         <Row label={state.myTeam ? <Link to={`/teams/${state.myTeam}`} className="font-mono hover:underline">{state.myTeam}</Link> : "No team yet"} description={state.myTeam ? "Shown on My team and first in search." : "Pick your team to get its dashboard and match alerts."}>
           {state.myTeam ? <Button variant="outline" size="sm" onClick={() => set("myTeam", null)}>Clear</Button> : <Button size="sm" asChild><Link to="/my-team">Pick my team</Link></Button>}
         </Row>
+        {state.myTeam && (
+          <Row label="Followed team dashboard" description="Next matches with predictions, recent results and your tracked teams, for the team you follow.">
+            <Button variant="outline" size="sm" asChild><Link to="/my-team">Open</Link></Button>
+          </Row>
+        )}
       </Group>
       <Group title={`Tracked teams (${state.tracked.teams.length})`} description="Tracked teams show up on the My Team dashboard and come first in search. Order them however you like.">
         {!state.tracked.teams.length ? <Row label="None yet" description="Press Track on any team page." /> : state.tracked.teams.map((t, i) => (
