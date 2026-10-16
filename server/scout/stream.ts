@@ -31,6 +31,9 @@
 //                            GET /api/scout/workspaces/:id/activity lists it; no id. Live only: ones logged during
 //                            the catch-up follow `ready`; a reader that was away refetches the feed's newest page.
 //                            A coalesced edit arrives as a new item whose details.firstId says which older ones it replaces.
+//   event: assignment        scouting assignments changed (assignments.ts); no id. data {"action": "created" | "updated" |
+//                            "deleted", "assignments": [...]}, each exactly as GET /api/scout/workspaces/:id/assignments lists
+//                            it (deleted: as it was). Live only, like `activity`; a reader that was away refetches the list.
 //   event: comment           a comment on one of the workspace's entries was written, edited or deleted (comments.ts); no id
 //                            (comments have their own order, so it never moves the entry cursor). data: a CommentEvent
 //                            (src/shared/comments.ts) {action, workspaceId, entryUuid, commentId, count, comment?}. Live only,
@@ -44,8 +47,9 @@
 import express, { type Request, type Response, type Router } from "express";
 import { isWorkspaceId } from "../auth/controlPoint.js";
 import { currentUser } from "../auth/session.js";
-import { subscribe, subscribeActivity, subscribeComments, subscribeRevoked, subscribeSettings, subscribeTemplate, type ActivityNotice, type LiveEntry, type SettingsNotice, type TemplateNotice } from "./bus.js";
+import { subscribe, subscribeActivity, subscribeAssignments, subscribeComments, subscribeRevoked, subscribeSettings, subscribeTemplate, type ActivityNotice, type LiveEntry, type SettingsNotice, type TemplateNotice } from "./bus.js";
 import { openLiveConnection } from "../liveConnections.js";
+import type { AssignmentNotice } from "../../src/shared/assignments.js";
 import { pullWorkspaceLive, workspaceAccess, type WorkspaceEntryOut } from "./entries.js";
 import type { CommentEvent } from "../../src/shared/comments.js";
 
@@ -177,6 +181,16 @@ data: ${JSON.stringify(a)}
     write("event: membership_revoked\ndata: {}\n\n");
     end();
   });
+  // Assignment changes likewise (bounded, sent once live).
+  const heldAssignments: AssignmentNotice[] = [];
+  const sendAssignments = (n: AssignmentNotice) => write(`event: assignment
+data: ${JSON.stringify(n)}
+
+`);
+  const unsubscribeAssignments = subscribeAssignments(workspaceId, (n) => {
+    if (live) sendAssignments(n);
+    else if (heldAssignments.push(n) > LIMITS.maxHeld) end();
+  });
   // Comment changes likewise (held during the catch-up, bounded, sent once live).
   const heldComments: CommentEvent[] = [];
   const sendComment = (c: CommentEvent) => write(`event: comment
@@ -207,10 +221,10 @@ data: ${JSON.stringify(c)}
     if (closed) return;
     closed = true;
     clearInterval(heartbeat); clearInterval(recheck);
-    unsubscribe(); unsubscribeTemplate(); unsubscribeSettings(); unsubscribeActivity(); unsubscribeRevoked(); unsubscribeComments();
+    unsubscribe(); unsubscribeTemplate(); unsubscribeSettings(); unsubscribeActivity(); unsubscribeRevoked(); unsubscribeComments(); unsubscribeAssignments();
     streams.delete(stream);
     release();
-    held.length = 0; heldActivity.length = 0; heldComments.length = 0;
+    held.length = 0; heldActivity.length = 0; heldComments.length = 0; heldAssignments.length = 0;
     res.end();
   }
   res.on("close", end);
@@ -236,6 +250,7 @@ data: ${JSON.stringify(c)}
     if (heldTemplate) { sendTemplate(heldTemplate); heldTemplate = null; }
     if (heldSettings) { sendSettings(heldSettings); heldSettings = null; }
     for (const a of heldActivity.splice(0)) sendActivity(a);
+    for (const n of heldAssignments.splice(0)) sendAssignments(n);
     for (const c of heldComments.splice(0)) sendComment(c);
   } catch (e) {
     console.error("[scout stream] catch-up failed", e);
