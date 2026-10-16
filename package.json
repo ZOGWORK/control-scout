@@ -36,6 +36,8 @@
     "audit:flows": "tsx scripts/audit-flows.ts",
     "perf": "tsx scripts/perf.ts",
     "query-profile": "tsx scripts/query-profile.ts",
+    "power-rankings:new": "tsx scripts/power-rankings-new.ts",
+    "power-rankings:check": "tsx scripts/power-rankings-check.ts",
     "audit:perf": "npm run build && tsx scripts/perf.ts --budgets"
   },
   "dependencies": {
@@ -47,6 +49,7 @@
     "compression": "^1.8.1",
     "express": "^4.21.2",
     "lucide-react": "^0.546.0",
+    "marked": "^18.1.1",
     "motion": "^12.23.24",
     "radix-ui": "^1.7.0",
     "react": "^19.0.0",

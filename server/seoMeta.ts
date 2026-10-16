@@ -9,6 +9,9 @@ import { eventTypeLabel } from "../src/shared/labels.js";
 import { canonicalOrigin, canonicalUrl } from "./seo.js";
 import { teamKnown } from "./api/teams.js";
 import { pageModule } from "../src/shared/routes.js";
+import { latestRankings, rankingsWeek } from "./powerRankings/store.js";
+import { staticRankingsHtml } from "./powerRankings/static.js";
+import { isWeekId, weekLabel, type PowerRankingsResponse } from "../src/shared/powerRankings.js";
 
 export const SITE = "FTC Control Scout";
 const HOME_TITLE = "FTC Control Scout — free FTC scouting & predictions";
@@ -19,7 +22,7 @@ const TAILS = [" Free FTC scouting and predictions, no login.", " OPR breakdowns
 export interface PageMeta {
   title: string;
   description: string;
-  type: "website" | "profile";
+  type: "website" | "profile" | "article";
   /** The page's canonical path when it differs from the requested one (e.g. an event code's case). */
   path?: string;
   /** Personal pages (your own data, nothing to index). */
@@ -28,6 +31,9 @@ export interface PageMeta {
   jsonLd?: Record<string, unknown>[];
   /** No such page (an unknown route, team or event): served with HTTP 404, noindex, no canonical. */
   notFound?: boolean;
+  /** The page's content as static, already-safe HTML for the first paint (server/bootShell.ts), for pages
+   *  whose words are the point (power rankings): crawlers and previews read it without running the app. */
+  bodyHtml?: string;
 }
 
 
@@ -147,6 +153,55 @@ async function eventMeta(season: number, code: string): Promise<PageMeta | null>
   return { title: `${e.name} (${seasonInfo(season).label})`, description, type: "website", path: `/events/${season}/${code}`, jsonLd: [ev] };
 }
 
+const POWER_DESC = "The weekly top 25 FTC teams, each with a short written take and live rating, OPR and record.";
+
+/** The top of a week's list, for a description: "#1 4215 Hypnotic Robotics, #2 …". */
+const topLine = (r: PowerRankingsResponse, n: number) =>
+  (r.week?.entries ?? []).slice(0, n).map((e) => `#${e.rank} ${e.team}${e.name ? ` ${e.name}` : ""}`).join(", ");
+
+/** Structured data for a week: the article and its ranked list. */
+function rankingsJsonLd(r: PowerRankingsResponse, path: string): Record<string, unknown>[] {
+  const w = r.week!;
+  const o = canonicalOrigin();
+  const url = canonicalUrl(`/power-rankings/${w.week}`);
+  const list = {
+    "@context": "https://schema.org", "@type": "ItemList", name: w.title, url: canonicalUrl(path), numberOfItems: w.entries.length, itemListOrder: "https://schema.org/ItemListOrderAscending",
+    itemListElement: w.entries.map((e) => ({ "@type": "ListItem", position: e.rank, name: `${e.team}${e.name ? ` ${e.name}` : ""}`, url: canonicalUrl(`/teams/${e.team}`) })),
+  };
+  const article = {
+    "@context": "https://schema.org", "@type": "Article", headline: w.title, description: w.introText.slice(0, 300), datePublished: w.published, dateModified: w.published,
+    url, mainEntityOfPage: url, image: [`${o}/og-image.png`],
+    author: { "@type": "Organization", name: SITE, url: `${o}/` }, publisher: { "@type": "Organization", name: SITE, logo: { "@type": "ImageObject", url: `${o}/logo-512.png` } },
+  };
+  return [article, list];
+}
+
+/** /power-rankings (the latest week and the archive) and /power-rankings/<week>: an unknown week is a 404. */
+async function powerRankingsMeta(week: string | null): Promise<PageMeta> {
+  if (week === null) {
+    const r = await latestRankings();
+    const bodyHtml = staticRankingsHtml(r);
+    // Nothing published yet: a real page that says so, kept out of the index until there's something to read.
+    if (!r.week) return { title: "FTC power rankings", description: fitDescription(POWER_DESC), type: "website", noindex: true, path: "/power-rankings", bodyHtml };
+    const label = weekLabel(r.week.week);
+    return {
+      title: "FTC power rankings", type: "website", path: "/power-rankings", bodyHtml, jsonLd: rankingsJsonLd(r, "/power-rankings"),
+      description: bestFit([`${POWER_DESC} ${label}: ${topLine(r, 3)}.`, `${POWER_DESC} ${label}: ${topLine(r, 1)}.`, POWER_DESC]),
+      ...(r.week.sample ? { noindex: true } : {}),
+    };
+  }
+  const id = week.toLowerCase();
+  const r = isWeekId(id) ? await rankingsWeek(id) : null;
+  if (!r?.week) return NOT_FOUND;
+  const w = r.week;
+  const path = `/power-rankings/${id}`;
+  return {
+    title: `${w.title} (${seasonInfo(w.season).label})`, type: "article", path, bodyHtml: staticRankingsHtml(r), jsonLd: rankingsJsonLd(r, path),
+    description: bestFit([`${w.introText} ${topLine(r, 3)}.`, w.introText, `FTC power rankings, ${weekLabel(w.week)}: ${topLine(r, 3)}.`]),
+    ...(w.sample ? { noindex: true } : {}),
+  };
+}
+
 /** The head values for a page path: the page's own, the home ones when it has none, or notFound for no such page. */
 export async function pageMeta(path: string): Promise<PageMeta> {
   // Matched decoded, as React Router does (/teams/%34%32%31%35 is team 4215). Segment by segment, so an
@@ -163,6 +218,7 @@ export async function pageMeta(path: string): Promise<PageMeta> {
       // Event codes are case-insensitive in the app (the API uppercases them): same here.
       return (await eventMeta(Number(m[1]), m[2].toUpperCase())) ?? NOT_FOUND;
     }
+    if ((m = p.match(/^\/power-rankings(?:\/([^/]+))?$/i))) return await powerRankingsMeta(m[1] ?? null);
   } catch {
     // Database not ready: the generic values, never a 404 (the page may well exist).
     return { title: "", description: HOME_DESC, type: "website" };
