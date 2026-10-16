@@ -24,8 +24,7 @@ export const FLAG_INFO: Record<Flag, { label: string; on: string; off: string; p
   workspaceScouting: {
     label: "Workspace scouting",
     on: "Members of a Control Point workspace share scout entries.",
-    off: "Shared entries pause; everyone's personal scouting keeps working.",
-    pending: "Workspace scouting hasn't shipped yet: this switch takes effect when it does.",
+    off: "Shared entries pause (devices keep them queued until it's back on); everyone's personal scouting keeps working.",
   },
   errorReporting: {
     label: "Error reports",

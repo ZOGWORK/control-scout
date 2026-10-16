@@ -288,23 +288,38 @@ describe("audit log", () => {
 });
 
 describe("overview and usage", () => {
-  it("shows workspaces as unknown until workspace scouting's tables exist, then counts them", async () => {
-    let o = (await call("GET", "/api/owner/overview", { cookie: ownerCookie })).json;
-    expect(o.accounts.total).toBeGreaterThanOrEqual(2);
-    expect(o.workspaces).toBeNull();
-    expect(o.scoutEntries.workspace).toBeNull();
-    expect(o.storage.databaseBytes).toBeGreaterThan(0);
-    await run("CREATE TABLE workspaces (id INTEGER PRIMARY KEY, cp_workspace_id TEXT)");
-    await run("CREATE TABLE workspace_scout_entries (workspace_id INTEGER, uuid TEXT, deleted INTEGER NOT NULL DEFAULT 0)");
-    await run("INSERT INTO workspaces (cp_workspace_id) VALUES ('w1'), ('w2')");
-    await run("INSERT INTO workspace_scout_entries (workspace_id, uuid, deleted) VALUES (1, 'a', 0), (1, 'b', 1)");
+  it("counts workspaces and their live (not deleted) shared entries", async () => {
+    const now = new Date().toISOString();
+    await run("INSERT INTO workspaces (cp_workspace_id, name, created_at, updated_at) VALUES ('w1', 'One', ?, ?), ('w2', 'Two', ?, ?)", [now, now, now, now]);
+    const ws = Number((await get<{ id: number }>("SELECT id FROM workspaces WHERE cp_workspace_id = 'w1'"))!.id);
+    const add = (uuid: string, seq: number, deleted: number) => run(
+      `INSERT INTO workspace_scout_entries (workspace_id, uuid, season, team, kind, data, updated_at, deleted, author_account_id, editor_account_id, seq)
+       VALUES (?, ?, 2025, 18360, 'match', '{}', 1, ?, 7, 7, ?)`, [ws, uuid, deleted, seq]);
+    await add("a", 1, 0);
+    await add("b", 2, 1);
     try {
-      o = (await call("GET", "/api/owner/overview", { cookie: ownerCookie })).json;
+      const o = (await call("GET", "/api/owner/overview", { cookie: ownerCookie })).json;
+      expect(o.accounts.total).toBeGreaterThanOrEqual(2);
+      expect(o.storage.databaseBytes).toBeGreaterThan(0);
       expect(o.workspaces).toBe(2);
       expect(o.scoutEntries.workspace).toBe(1);
     } finally {
-      await run("DROP TABLE workspaces");
-      await run("DROP TABLE workspace_scout_entries");
+      await run("DELETE FROM workspace_scout_entries");
+      await run("DELETE FROM workspaces");
+    }
+  });
+
+  it("shows workspace counts as unknown on a database without workspace scouting's tables", async () => {
+    // An older database (before migration 12): the tables are moved aside for the check.
+    await run("ALTER TABLE workspace_scout_entries RENAME TO wse_aside");
+    await run("ALTER TABLE workspaces RENAME TO ws_aside");
+    try {
+      const o = (await call("GET", "/api/owner/overview", { cookie: ownerCookie })).json;
+      expect(o.workspaces).toBeNull();
+      expect(o.scoutEntries.workspace).toBeNull();
+    } finally {
+      await run("ALTER TABLE ws_aside RENAME TO workspaces");
+      await run("ALTER TABLE wse_aside RENAME TO workspace_scout_entries");
     }
   });
 
