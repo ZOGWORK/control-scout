@@ -207,6 +207,25 @@ describe("workspace templates on the Scout page", () => {
     } finally { vi.useRealTimers(); }
   });
 
+  it("answers don't follow a new entry to another workspace: its questions and template are that workspace's", async () => {
+    h.personal.user = { ...user("member"), controlPoint: { ...user("member").controlPoint!, workspaces: [{ id: WS, name: "Gearheads", role: "member" }, { id: "902", name: "Bolt Bots", role: "member" }] } };
+    const bolt: WorkspaceTemplate = { ...tpl(4, v2Fields), workspaceId: "902" };
+    vi.stubGlobal("fetch", vi.fn(async (url: string) => {
+      const t = url.startsWith(`/api/scout/workspaces/${WS}/`) ? current : url.startsWith("/api/scout/workspaces/902/") ? bolt : null;
+      return new Response(JSON.stringify(t ? { template: t } : { error: "x" }), { status: t ? 200 : 500 });
+    }));
+    show();
+    await newEntry();
+    fireEvent.click(await screen.findByRole("button", { name: "Cones stacked plus one" }));
+    fireEvent.click(screen.getByRole("button", { name: /^Bolt Bots/ }));
+    expect(await screen.findByText("Climbed the bar")).toBeTruthy();
+    expect(screen.queryByText("Cones stacked")).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Save" }));
+    await waitFor(() => expect(localScoutEntries("902").some((e) => e.team === 4444)).toBe(true));
+    expect(localScoutEntries("902").find((e) => e.team === 4444)).toMatchObject({ templateId: "ws:902:2025:match", templateVersion: 4, data: {} });
+    expect(localScoutEntries(WS).some((e) => e.team === 4444)).toBe(false);
+  });
+
   it("opening a form checks for a newer template (a missed live notice doesn't leave old fields)", async () => {
     show();
     await waitFor(() => expect(fetched.filter((u) => u.includes("/template")).length).toBeGreaterThan(0));

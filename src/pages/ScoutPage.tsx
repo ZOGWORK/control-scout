@@ -176,12 +176,22 @@ function EntryForm({ season, initial, team, space, spaceName, workspaceTemplate,
     [sameKindEdit, kind, entryTemplate.template, space, workspaceTemplate, season]);
   // Once a field has an answer, a new entry keeps the template it was being filled in with: a template that
   // arrives late (a slow first load, a live change) never swaps the questions, or drops answers, mid-entry.
-  const [pinned, setPinned] = useState<{ kind: string; template: typeof latestTemplate } | null>(null);
-  const template = !sameKindEdit && pinned?.kind === kind ? pinned.template : latestTemplate;
+  // The pin holds for one space, season and kind only.
+  const scope = `${space ?? ""}:${season}:${kind}`;
+  const [pinned, setPinned] = useState<{ scope: string; template: typeof latestTemplate } | null>(null);
+  const template = !sameKindEdit && pinned?.scope === scope ? pinned.template : latestTemplate;
   const answer = (id: string, v: ScoutValue) => {
-    if (!sameKindEdit && pinned?.kind !== kind) setPinned({ kind, template });
+    if (!sameKindEdit && pinned?.scope !== scope) setPinned({ scope, template });
     setData((d) => ({ ...d, [id]: v }));
   };
+  // A new entry moved to another space or season starts its answers afresh (they belonged to the other one's questions).
+  const where = `${space ?? ""}:${season}`;
+  const shownWhere = useRef(where);
+  useEffect(() => {
+    if (shownWhere.current === where) return;
+    shownWhere.current = where;
+    if (!initial) { setData({}); setPinned(null); }
+  }, [where, initial]);
   // No field edits against a stand-in: an edit whose own template version isn't here yet (loading, or offline)
   // shows its answers untouched and lets notes change; a new entry waits for the workspace's template.
   const fieldsLocked = sameKindEdit && !entryTemplate.exact;
