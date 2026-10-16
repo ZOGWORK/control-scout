@@ -614,6 +614,50 @@ CREATE INDEX workspace_activity_subject ON workspace_activity (workspace_id, sub
 CREATE INDEX workspace_activity_at ON workspace_activity (at);
 `,
   },
+  {
+    version: 18,
+    name: "workspace entry version history",
+    sql: `
+-- The last 20 versions of each workspace scout entry (server/scout/history.ts): one row per accepted write
+-- that changed something, written in the same transaction as the write; older ones pruned in it too.
+-- version_no counts up per entry (never reused). written_by: who wrote that version (the editor, not the
+-- entry's author). The text only (data, notes and where it was scouted): photos have their own list.
+-- restored_from_version: the version a restore brought back (NULL: not a restore, or a version that never
+-- reached the server, kept on the loser's device). restored: 1 when the write was a restore.
+CREATE TABLE workspace_entry_versions (
+  workspace_id INTEGER NOT NULL REFERENCES workspaces (id),
+  uuid TEXT NOT NULL,
+  version_no INTEGER NOT NULL,
+  season INTEGER NOT NULL,
+  team INTEGER NOT NULL,
+  event_code TEXT,
+  match_label TEXT,
+  kind TEXT NOT NULL,
+  data TEXT NOT NULL,
+  notes TEXT NOT NULL DEFAULT '',
+  deleted INTEGER NOT NULL DEFAULT 0,
+  updated_at INTEGER NOT NULL,
+  written_by_account_id INTEGER NOT NULL,
+  written_by_name TEXT NOT NULL DEFAULT '',
+  template_id TEXT,
+  template_version INTEGER,
+  restored INTEGER NOT NULL DEFAULT 0,
+  restored_from_version INTEGER,
+  PRIMARY KEY (workspace_id, uuid, version_no)
+) WITHOUT ROWID;
+
+-- The stored version each entry's write was based on (the writer's last copy from the server; NULL: unknown,
+-- a new entry or an older build). A device whose own edit is replaced by one based on an older copy knows
+-- the writer never saw it (src/lib/lostEdits.ts).
+ALTER TABLE workspace_scout_entries ADD COLUMN base_updated_at INTEGER;
+
+-- Entries written before history existed start with what's stored now as their first version.
+INSERT INTO workspace_entry_versions (workspace_id, uuid, version_no, season, team, event_code, match_label, kind, data, notes, deleted, updated_at,
+    written_by_account_id, written_by_name, template_id, template_version)
+  SELECT workspace_id, uuid, 1, season, team, event_code, match_label, kind, data, notes, deleted, updated_at,
+    editor_account_id, editor_name, template_id, template_version FROM workspace_scout_entries;
+`,
+  },
 ];
 
 export type Db = Client;
