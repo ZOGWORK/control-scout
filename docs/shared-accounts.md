@@ -204,8 +204,15 @@ then find a fresh row. A team of 20 scouting at an event is about 20 calls a
 minute (one every 3 s on average, about 1,200 an hour), each a single-row read
 on Control Point's loopback port. The hard ceiling is one call per account
 every 5 s (240 a minute for 20 people), reached only if the cache could never
-be written. `/api/auth/me` adds at most one more per account every 10 minutes
-(its own cache), and an idle account costs nothing.
+be written. `/api/auth/me` reuses Control Point's last answer for a minute
+(`ME_TTL`, Task 19; it was 10 minutes, so someone re-added in Control Point
+could miss the space for that long), then asks again through `refreshAccount`.
+The app asks `/me` every 5 minutes while visible (and on focus), so that is at
+most one more call per account a minute, usually far fewer, and an idle account
+costs nothing. When Control Point can't answer, `/me` still goes by the last
+answer for up to 10 minutes, as before. A membership answer that adds a
+workspace or changes a role also tells that account's open streams
+(`event: account`), so the app re-reads `/me` at once.
 
 **Manual refresh.** The space switcher has a refresh button (it should
 rarely be needed). It pushes the space's queue, pulls what's new from the
@@ -233,6 +240,117 @@ at all, so a read-only copy there would be invisible. In Personal the work
 stays visible, editable and backed up, and it never reaches the workspace
 behind its admins' backs. Nothing moves while Control Point's answer is
 unknown, or for any failure other than a 403.
+
+### Orphaned workspaces
+
+A workspace can disappear from Control Point (deleted) or lose its last admin.
+Its scout space is then **read-only** instead of broken
+(`server/scout/orphans.ts`, decided in `storeMemberships` in
+`server/auth/controlPoint.ts`; Task 19). Only workspaces with a scout space (a
+mirror row) are considered.
+
+**Detection,** from each membership answer (sign-in, `/me`, a read or write
+re-check, the stream sweep):
+
+- **Deleted.** A workspace drops out of an account's answer, and Control
+  Point's members route (`GET /internal/workspaces/:id/members`) answers
+  404 with `error: "not_found"`. Any other answer (the workspace listed, an
+  older deploy's bare `Not found`, an error, a timeout) is not a deletion: a
+  workspace that still exists means the person was removed, which is handled
+  as before (Personal, `membership_revoked`, `member.left`, removal audit).
+- **No admin left.** An account that was an admin of the workspace no longer
+  is (it left, or was demoted), and Control Point lists no admin. An older
+  Control Point (no members route) can't say, so it never makes a workspace
+  read-only. Scout's own cache was considered as a fallback, but it only
+  knows the admins who have used Control Scout, so an empty cache would lock
+  out a workspace whose admin simply never opened Scout.
+- Control Point can't say (the members route times out or errors): nothing is
+  decided. For a workspace that dropped out of an answer, the membership goes
+  (Control Point no longer lists it, so it grants nothing), but nothing is
+  logged: the departure waits in `workspace_pending_departures`, apart from
+  the membership cache. The account's next answer asks again. If the
+  workspace was deleted, the account becomes a former member. Otherwise it is a
+  removal, logged and audited at that point. For
+  an admin who left or was demoted, the workspace is owed a check
+  (`orphan_check_at`), made from the next answer that lists it (anyone's, at
+  most once a minute).
+
+`workspaces.orphaned_at` (when Scout saw it, kept if the reason changes) and
+`orphan_reason` (`deleted` | `no_admin`) are set (migration 22), the
+workspace's open streams get `event: workspace` with
+`{"orphaned": {"at", "reason"}}`, the accounts involved get `event: account`,
+and the owner audit records `workspace.orphaned`.
+
+**Former members.** For a deleted workspace, everyone in Scout's membership
+cache for it at that moment (everyone who has used Control Scout there and
+was still a member) is copied, with their role, into
+`workspace_former_members`. The answer that saw the deletion is still being
+stored, so the account that saw it is included. Control Point no longer lists
+these accounts, and their cached rows go as their answers arrive, but this list
+keeps them reading. Someone removed before the deletion is not on it. A
+no-admin workspace has no such list: it still exists, so its members are
+whoever Control Point lists, as ever, only read-only. Someone removed from a
+no-admin workspace is removed as usual.
+
+**Read-only.** Reads keep working for the members (or former members):
+entries (pull and stream), comments, assignments, photos, members, activity,
+settings, template, pick list and CSV export. Every write is refused with
+**423 `{"error": "…", "code": "workspace_read_only"}`**, never 403 (403 means
+"you were removed"). That covers entry add, edit and delete; comment post,
+edit and delete; assignment create, done or reopen, and delete; photo presign,
+complete and delete; every pick list change (`picklistWriter`); template and
+settings changes; and member removal. The
+check is in `workspaceAccess(user, id, { write })`; the guards derive `write`
+from the method (anything but GET or HEAD), so a new write route behind them
+is covered too. `/api/auth/me` lists the workspace with
+`orphaned: {at, reason}`, adding deleted ones the account reads as a former
+member. The stream sweep keeps a former member's stream open.
+
+**The app.** The space stays in the switcher (marked "read-only"). The Scout
+page shows the banner "This workspace no longer exists in Control Point — this
+space is read-only. Your entries are preserved." (or, for no admin, "This
+workspace has no admin left in Control Point — …"). It offers no New entry,
+Delete, Template, Save, comment box, assignment actions, pick list changes or
+photo uploads;
+entries open with View. Settings → Workspace shows the same banner and no admin
+controls. A new entry, or an edit, that was open when the space went
+read-only keeps what was typed: its Save button becomes "Save to Personal"
+(an edit is saved as a new personal entry). Personal entries use the built-in
+questions, so answers to the workspace's own questions are written into the
+notes ("Label: answer"). Every answer also stays in the entry's data, and
+the scout's own notes are never cut. If the answers don't fit the 4,000-character
+notes, Save to Personal asks the scout to shorten the notes first. A queued
+entry moved automatically keeps the answers in its data only. The same
+conversion (`personalCopy`) applies to queued entries moved to Personal. A 423 or a live `workspace` or `account` event re-reads `/me` at
+once.
+
+**Queued offline edits** for a space that went read-only are moved to
+Personal, never dropped, with a notice: "N entries saved in <workspace>
+couldn't sync: the workspace is read-only now. They're kept in Personal, so
+nothing was lost." This uses `moveQueuedToPersonal`, as for a removal. It
+happens only after the server refuses one more push with 423: a workspace that
+came back takes the push instead, and nothing moves. Any other failure keeps
+them queued. Queued deletes are let go along with their local tombstones,
+and the space is pulled again from the start, so the entries the server kept
+show again. We chose Personal over waiting for a restore because a deleted
+workspace usually never comes back. Queued edits would then wait forever,
+unseen by anyone else. In Personal they stay visible, editable and backed up.
+
+**Back.** When an orphaned workspace is listed again in an account's answer
+and has an admin, it's writable again. An admin in that answer brings it back
+at once; otherwise Control Point's members route is asked, at most once a
+minute per workspace. The mark and the former members are cleared. Streams get
+`event: workspace` with `{"orphaned": null}`. Every account involved forgets
+its cached `/me` answer and gets `event: account`, so a former member who
+wasn't re-added loses the space promptly, like any removal. The owner audit
+records `workspace.restored`. A deleted workspace that comes back with no admin
+becomes a no-admin one.
+
+**Owner portal.** The Orphaned spaces panel lists each read-only space: its
+name, when it went read-only, why, entries kept, and who can still read it.
+The Overview counts them. It's a list only: nothing is deleted from there,
+because former members still read and export those entries, and a workspace
+that comes back is writable again.
 
 ### Workspace scout entries
 

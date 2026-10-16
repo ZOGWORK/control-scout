@@ -3,12 +3,13 @@
 // your account when signed in and online.
 import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
-import { ClipboardCheck, ClipboardList, Cloud, CloudOff, Download, History, Info, LayoutList, ListOrdered, Loader2, MessageSquare, Plus, Save, SearchX, Trash2, X } from "lucide-react";
+import { ClipboardCheck, ClipboardList, Cloud, CloudOff, Download, History, Info, LayoutList, ListOrdered, Loader2, Lock, MessageSquare, Plus, Save, SearchX, Trash2, X } from "lucide-react";
 import { useCurrentSeason, useTitle } from "../lib/meta";
 import { usePersonal } from "../lib/personal";
-import { canDeleteScoutEntry, deleteScoutEntry, localScoutEntries, newScoutId, refusalMessage, SCOUT_REFUSED, type ScoutRefusal, saveScoutEntry, ScoutStorageError, usePendingScoutCounts, useScouting, type ScoutEntry, type ScoutSpace, type ScoutValue } from "../lib/scouting";
+import { canDeleteScoutEntry, deleteScoutEntry, localScoutEntries, newScoutId, personalCopy, refusalMessage, SCOUT_REFUSED, type ScoutRefusal, saveScoutEntry, ScoutStorageError, usePendingScoutCounts, useScouting, type ScoutEntry, type ScoutSpace, type ScoutValue } from "../lib/scouting";
 import { resolveTemplate, useEntryTemplate, useEntryTemplateState, useWorkspaceTemplate } from "../lib/scoutTemplates";
 import { ALL_PHASES, phaseLabel, type WorkspaceTemplate } from "../shared/scoutTemplate";
+import { orphanBanner, type OrphanState } from "../shared/orphaned";
 import { workspaceExportUrl } from "../shared/scoutExport";
 import { activeFilterCount } from "../shared/scoutFilter";
 import { EntryFilterBar } from "../components/scout/EntryFilterBar";
@@ -52,6 +53,9 @@ export default function ScoutPage() {
   const { user, syncReady, offlineAccount, refreshUser, state: personal } = usePersonal();
   const spaces = useScoutSpaces();
   const { space, current: workspace } = spaces;
+  // Read-only (Task 19): the workspace was deleted in Control Point, or has no admin left. Everything reads
+  // and exports; nothing can be added, edited, deleted or commented on (the server refuses it too, 423).
+  const readOnly = workspace?.orphaned ?? null;
   // The workspace's shared settings (Tier 2, docs/settings.md): its default season and event for this space.
   // A season in the URL wins; Personal is unchanged (the current season, no event).
   const wss = useWorkspaceSettings(space);
@@ -129,7 +133,7 @@ export default function ScoutPage() {
   const filtering = activeFilterCount(feed.filters) > 0;
   // The workspace's template for this season (Personal: the built-in defaults). Admins edit it here (?view=template).
   const wt = useWorkspaceTemplate(space, season);
-  const isAdmin = me?.role === "admin";
+  const isAdmin = me?.role === "admin" && !readOnly;
   const showTemplate = !!workspace && isAdmin && sp.get("view") === "template";
   // Every form that opens (New entry, an edit, or one opened from the URL) checks for a newer template first:
   // the live notice can be missed (realtime off, or a reconnect gap), and polling only pulls entries.
@@ -189,7 +193,8 @@ export default function ScoutPage() {
   return (
     <div>
       <PageHeader title="Scout"
-        description={workspace ? `Shared with everyone in ${workspaceLabel(workspace)}. Saved on this device instantly; the workspace sees new entries as they sync.`
+        description={workspace && readOnly ? `Shared with everyone who was in ${workspaceLabel(workspace)}. Read-only: everything here can be read and exported.`
+          : workspace ? `Shared with everyone in ${workspaceLabel(workspace)}. Saved on this device instantly; the workspace sees new entries as they sync.`
           : "Your own observations — private to you. Saved on this device instantly; synced to your account when you're signed in."}
         actions={spaces.resolving ? undefined : <SyncChip status={offlineAccount ? "offline" : status} pending={pendingCount} onSync={syncNow} signedIn={!!user} live={live} />}>
         {spaces.switchable && <ScoutSpaceSwitcher workspaces={spaces.workspaces} space={space} pending={pending} onSelect={selectSpace} onRefresh={syncReady ? refreshSpace : undefined} className="mb-4" />}
@@ -200,9 +205,10 @@ export default function ScoutPage() {
             <button type="button" onClick={spaces.dismissNotice} aria-label="Dismiss" className="-m-2 grid size-9 shrink-0 place-items-center rounded-lg text-muted-foreground hover:text-foreground"><X className="size-4" /></button>
           </div>
         )}
+        {readOnly && !spaces.resolving && <ReadOnlyBanner state={readOnly} />}
         <div className="flex flex-wrap items-center gap-3">
           <SeasonToggle predictOnly value={season} onChange={(s) => setSp((x) => { x.set("season", String(s)); return x; })} />
-          {!formOpen && <Button onClick={openNew}><Plus /> New entry</Button>}
+          {!formOpen && !readOnly && <Button onClick={openNew}><Plus /> New entry</Button>}
           {workspace && !spaces.resolving && (
             <Button variant="outline" aria-pressed={showActivity} onClick={toggleActivity}><History /> Activity</Button>
           )}
@@ -231,14 +237,15 @@ export default function ScoutPage() {
       )}
       {formOpen && !spaces.resolving && (
         <EntryForm key={editEntry?.uuid ?? `new-${formTeam ?? ""}-${formNonce}`} season={season} initial={editEntry} team={formTeam} space={space} spaceName={workspace ? workspaceLabel(workspace) : null} workspaceTemplate={wt.template} templatePending={templatePending}
+          readOnly={!!readOnly}
           defaultEvent={(space != null && formEvent?.space === space && formEvent.season === season && formEvent.code) || newEntryEventCode(space, wss.defaults, season)}
           onDone={() => { setFormOpen(false); setFormEvent(null); setSp((x) => { x.delete("entry"); x.delete("new"); return x; }); }} />
       )}
       {formOpen && !spaces.resolving && editEntry?.workspaceId != null && <EntryComments key={`comments-${editEntry.uuid}`} entry={editEntry} className="-mt-4 mb-8" />}
       {showAssignments && workspace && space != null ? (
         <AssignmentsView space={space} workspaceName={workspaceLabel(workspace)} season={season} defaultEvent={newEntryEventCode(space, wss.defaults, season)}
-          state={assignments} myAccountId={me?.accountId ?? null} isAdmin={isAdmin} localEntries={entries} onScout={scoutAssigned} />
-      ) : showPicklist && workspace ? <SharedPicklist key={`${workspace.id}:${season}`} workspaceId={workspace.id} workspaceName={workspaceLabel(workspace)} season={season} live={live} me={pickMe} shortlist={personal.bookmarks} />
+          state={assignments} myAccountId={me?.accountId ?? null} isAdmin={isAdmin} localEntries={entries} onScout={scoutAssigned} readOnly={!!readOnly} />
+      ) : showPicklist && workspace ? <SharedPicklist key={`${workspace.id}:${season}`} workspaceId={workspace.id} workspaceName={workspaceLabel(workspace)} season={season} live={live} me={pickMe} shortlist={personal.bookmarks} readOnly={!!readOnly} />
         : showActivity && workspace ? <ActivityFeed state={activity} workspaceName={workspaceLabel(workspace)} onOpenEntry={openEntry} /> : <>
       <Section title={`Entries (${entries.length})`}>
         {spaces.resolving ? <LoadingBlock rows={3} label="Loading scout space" /> : !entries.length ? <EmptyState icon={ClipboardList} title="No scouting entries yet" description="Start one above, or from any team page. Entries save on this device first, so scouting works with no signal." /> : <>
@@ -249,7 +256,7 @@ export default function ScoutPage() {
               action={<Button variant="outline" onClick={feed.clear}>Clear filters</Button>} />
           ) : (
             <ul className="grid gap-2 md:grid-cols-2">
-              {feed.shown.map((e) => <EntryCard key={e.uuid} e={e} assigned={badgeFor(e.team, e.eventCode)} canDelete={canDeleteScoutEntry(e, me)} comments={commentCounts[e.uuid] ?? 0} onEdit={() => setSp((x) => { x.set("entry", e.uuid); return x; })} />)}
+              {feed.shown.map((e) => <EntryCard key={e.uuid} e={e} assigned={badgeFor(e.team, e.eventCode)} canDelete={!readOnly && canDeleteScoutEntry(e, me)} readOnly={!!readOnly} comments={commentCounts[e.uuid] ?? 0} onEdit={() => setSp((x) => { x.set("entry", e.uuid); return x; })} />)}
             </ul>
           )}
         </>}
@@ -282,7 +289,22 @@ function SyncChip({ status, pending, onSync, signedIn, live }: { status: string;
   );
 }
 
-function EntryCard({ e, assigned, canDelete, comments, onEdit }: { e: ScoutEntry; assigned: string | null; canDelete: boolean; comments: number; onEdit: () => void }) {
+/** The banner on a read-only space (Task 19). */
+function ReadOnlyBanner({ state }: { state: OrphanState }) {
+  return (
+    <div role="status" className="mb-4 flex items-start gap-3 rounded-xl border border-warning/40 bg-warning/10 px-4 py-3 text-sm">
+      <Lock className="mt-0.5 size-4 shrink-0 text-warning" aria-hidden />
+      <div className="min-w-0 flex-1">
+        <p className="font-medium text-foreground">{orphanBanner(state.reason)}</p>
+        <p className="mt-0.5 text-muted-foreground">
+          You can still read, filter and export everything here. {state.reason === "deleted" ? "If the workspace comes back in Control Point" : "Once Control Point gives it an admin again"}, editing returns on its own.
+        </p>
+      </div>
+    </div>
+  );
+}
+
+function EntryCard({ e, assigned, canDelete, readOnly, comments, onEdit }: { e: ScoutEntry; assigned: string | null; canDelete: boolean; readOnly: boolean; comments: number; onEdit: () => void }) {
   // The fields it was made with (an older template version stays readable after the admin changes it).
   const t = useEntryTemplate(e);
   const shown = t.fields.filter((f) => e.data[f.id] !== undefined && e.data[f.id] !== false && e.data[f.id] !== 0 && e.data[f.id] !== "").slice(0, 5);
@@ -305,7 +327,7 @@ function EntryCard({ e, assigned, canDelete, comments, onEdit }: { e: ScoutEntry
               <MessageSquare />{comments}
             </Button>
           )}
-          <Button variant="ghost" size="sm" onClick={onEdit}>Edit</Button>
+          <Button variant="ghost" size="sm" onClick={onEdit}>{readOnly ? "View" : "Edit"}</Button>
           {canDelete && <Button variant="ghost" size="icon-sm" aria-label="Delete entry" onClick={() => { deleteScoutEntry(e); toast("Entry deleted"); }}><Trash2 /></Button>}
         </div>
       </div>
@@ -316,8 +338,14 @@ function EntryCard({ e, assigned, canDelete, comments, onEdit }: { e: ScoutEntry
   );
 }
 
-function EntryForm({ season, initial, team, space, spaceName, workspaceTemplate, templatePending, defaultEvent, onDone }: {
+function EntryForm({ season, initial, team, space, spaceName, workspaceTemplate, templatePending, defaultEvent, onDone, readOnly = false }: {
   season: number; initial: ScoutEntry | null; team?: number; space: ScoutSpace; spaceName: string | null;
+  /**
+   * A read-only space (Task 19). An entry opened there shows with every field disabled and no Save. A form
+   * that was already open when the space went read-only (a live update), or a new entry, keeps what was typed:
+   * its Save keeps it in Personal instead (an edit as a new personal copy).
+   */
+  readOnly?: boolean;
   /** The workspace's current template (null: Personal, or not known yet: the built-in defaults). */
   workspaceTemplate: WorkspaceTemplate | null;
   /** The workspace's template hasn't come yet (none on this device): new entries wait for it. */
@@ -326,6 +354,9 @@ function EntryForm({ season, initial, team, space, spaceName, workspaceTemplate,
   defaultEvent: string;
   onDone: () => void;
 }) {
+  const startedWritable = useRef(!readOnly);
+  const viewOnly = readOnly && !!initial && !startedWritable.current;
+  const toPersonal = readOnly && !viewOnly;
   const [kind, setKind] = useState<"match" | "pit">(initial?.kind ?? "match");
   const [teamText, setTeamText] = useState(initial ? String(initial.team) : team ? String(team) : "");
   const [eventCode, setEventCode] = useState(initial ? initial.eventCode ?? "" : defaultEvent);
@@ -397,12 +428,16 @@ function EntryForm({ season, initial, team, space, spaceName, workspaceTemplate,
     if (!fieldsLocked) for (const f of template.fields) if (f.type === "counter" && (f.min ?? 0) > 0 && data[f.id] === undefined) data[f.id] = f.min!;
     // Workspace entries record the template they were made with (an edit of the same kind keeps the entry's own,
     // whatever stands in on screen); Personal ones always use the built-in defaults.
-    const made = space == null ? {}
+    const made = space == null || toPersonal ? {}
       : initial && kind === initial.kind ? (initial.templateId ? { templateId: initial.templateId, templateVersion: initial.templateVersion ?? 0 } : {})
       : { templateId: template.id, templateVersion: template.version ?? 0 };
+    // Kept in Personal (the workspace went read-only): its own answers go into the notes, which must fit them.
+    const copy = toPersonal ? personalCopy(data, notes, template.fields, resolveTemplate(null, season, kind).fields, spaceName) : null;
+    if (copy?.overflow) { setSaveErr(`The workspace's answers are written into the notes in Personal: shorten the notes by ${copy.overflow} characters so they fit.`); saveRef.current?.focus(); return; }
+    const kept = copy ? { data: copy.data, notes: copy.notes } : { data, notes };
     try {
-      saveScoutEntry({ uuid: initial?.uuid ?? newScoutId(), season, team: Number(team), eventCode: eventCode.trim().toUpperCase() || null, matchLabel: kind === "match" ? matchLabel.trim().toUpperCase() || null : null, kind, data, notes, workspaceId: space, ...made });
-      toast.success("Saved on this device");
+      saveScoutEntry({ uuid: (toPersonal ? null : initial?.uuid) ?? newScoutId(), season, team: Number(team), eventCode: eventCode.trim().toUpperCase() || null, matchLabel: kind === "match" ? matchLabel.trim().toUpperCase() || null : null, kind, ...kept, workspaceId: toPersonal ? null : space, ...made });
+      toast.success(toPersonal ? "Kept in Personal: the workspace is read-only" : "Saved on this device");
       onDone();
     } catch (e) {
       setSaveErr(e instanceof ScoutStorageError ? e.message : "Couldn't save this entry on this device. Try again.");
@@ -410,7 +445,8 @@ function EntryForm({ season, initial, team, space, spaceName, workspaceTemplate,
     }
   };
   return (
-    <form onSubmit={(e) => { e.preventDefault(); save(); }} noValidate className="mb-8 rounded-2xl border border-border bg-card p-5 sm:p-6">
+    <form onSubmit={(e) => { e.preventDefault(); if (!viewOnly) save(); }} noValidate className="mb-8 rounded-2xl border border-border bg-card p-5 sm:p-6">
+      <fieldset disabled={viewOnly} className="m-0 min-w-0 border-0 p-0">
       <div className="flex flex-wrap items-start gap-4">
         <ToggleGroup type="single" value={kind} onValueChange={(v) => { if (v) setKind(v as typeof kind); }} aria-label="Entry type">
           <ToggleGroupItem value="match">Match</ToggleGroupItem><ToggleGroupItem value="pit">Pit</ToggleGroupItem>
@@ -439,11 +475,18 @@ function EntryForm({ season, initial, team, space, spaceName, workspaceTemplate,
         <Label htmlFor="notes">Notes</Label>
         <Textarea id="notes" value={notes} onChange={(e) => setNotes(e.target.value)} maxLength={4000} placeholder="What stood out? Strategy, reliability, driver habits…" className="mt-2" />
       </div>
-      {initial && <EntryPhotos entry={initial} editable className="mt-5" />}
+      </fieldset>
+      {initial && <EntryPhotos entry={initial} editable={!readOnly} className="mt-5" />}
+      {toPersonal && (
+        <p role="status" className="mt-5 rounded-lg border border-warning/40 bg-warning/10 px-3 py-2 text-sm">
+          This workspace is read-only now, so this entry can't be saved to it. Save keeps what you typed in Personal{initial ? ", as a new entry of your own" : ""}.
+        </p>
+      )}
       <div className="mt-5 flex flex-wrap gap-2">
-        <Button ref={saveRef} type="submit" disabled={checking || fieldsPending} aria-describedby={saveErr ? saveErrId : undefined}><Save /> Save</Button>
-        <Button type="button" variant="ghost" onClick={onDone}>Cancel</Button>
-        <p className="ml-auto self-center text-xs text-muted-foreground">{spaceName ? <>Saves to <span className="font-medium text-foreground">{spaceName}</span>, shared with the workspace. </> : null}Saved on this device first — works without a connection.</p>
+        {!viewOnly && <Button ref={saveRef} type="submit" disabled={checking || fieldsPending} aria-describedby={saveErr ? saveErrId : undefined}><Save /> {toPersonal ? "Save to Personal" : "Save"}</Button>}
+        <Button type="button" variant={viewOnly ? "outline" : "ghost"} onClick={onDone}>{viewOnly ? "Close" : "Cancel"}</Button>
+        <p className="ml-auto self-center text-xs text-muted-foreground">{viewOnly ? <>This workspace is read-only, so this entry can be read but not changed.</>
+          : <>{spaceName && !toPersonal ? <>Saves to <span className="font-medium text-foreground">{spaceName}</span>, shared with the workspace. </> : null}Saved on this device first — works without a connection.</>}</p>
       </div>
       <FieldError id={saveErrId}>{saveErr}</FieldError>
     </form>

@@ -37,7 +37,10 @@ export function EntryComments({ entry, className }: { entry: ScoutEntry; classNa
   const thread = useEntryComments(synced ? space : null, synced ? entry.uuid : null);
   const { user } = usePersonal();
   const cp = user?.controlPoint;
-  const me = { accountId: cp?.accountId, admin: cp?.workspaces?.find((w) => w.id === space)?.role === "admin" };
+  const ws = cp?.workspaces?.find((w) => w.id === space);
+  // A read-only space (Task 19: deleted in Control Point, or no admin left): the thread reads, nothing changes.
+  const readOnly = !!ws?.orphaned;
+  const me = { accountId: cp?.accountId, admin: ws?.role === "admin" };
   const headingId = useId();
   if (space == null) return null; // Personal entries have no comments
   const n = thread.comments.length;
@@ -65,11 +68,13 @@ export function EntryComments({ entry, className }: { entry: ScoutEntry; classNa
           {n > 0 && (
             <ol className="mt-4 space-y-4" aria-label="Comments, oldest first">
               {thread.comments.map((c) => (
-                <CommentRow key={c.id} c={c} mine={me.accountId != null && c.authorAccountId === me.accountId} admin={me.admin} thread={thread} />
+                <CommentRow key={c.id} c={c} mine={!readOnly && me.accountId != null && c.authorAccountId === me.accountId} admin={!readOnly && me.admin} thread={thread} />
               ))}
             </ol>
           )}
-          {thread.closed
+          {readOnly
+            ? <p className="mt-4 text-sm text-muted-foreground">This workspace is read-only: its comments can be read, not added to.</p>
+            : thread.closed
             ? <p className="mt-4 text-sm text-muted-foreground">This entry was deleted, so it can't take new comments.</p>
             : <Composer post={thread.post} />}
         </>

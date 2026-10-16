@@ -70,6 +70,11 @@ describe("workspacesOf", () => {
     const cp = { member: true, teams: [], url: "", workspaces: [gear, { id: "bad id", name: "x", role: "member" }, { ...gear, name: "dup" }, { id: "903", name: "", role: "owner" }] };
     expect(workspacesOf(user(cp))).toEqual({ known: true, list: [gear, { id: "903", name: "", role: "member" }] });
   });
+  it("keeps a read-only space's orphan state (Task 19), dropping a malformed one", () => {
+    const orphaned = { at: "2026-10-16T09:00:00.000Z", reason: "deleted" };
+    const cp = { member: true, teams: [], url: "", workspaces: [{ ...gear, orphaned }, { id: "904", name: "B", role: "member", orphaned: { at: 5, reason: "gone" } }] };
+    expect(workspacesOf(user(cp)).list).toEqual([{ ...gear, orphaned }, { id: "904", name: "B", role: "member" }]);
+  });
   it("unknown when signed out, Control Point unreachable, or an older server", () => {
     expect(workspacesOf(null).known).toBe(false);
     expect(workspacesOf(user(null)).known).toBe(false);
