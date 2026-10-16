@@ -34,6 +34,7 @@ import { copyLink } from "../lib/clipboard";
 import { direction, trendLabel } from "../shared/trend";
 import { OfflineNote } from "../components/OfflineNote";
 import { StickyActions, useScrolledPast } from "../components/StickyActions";
+import { TeamConsensusSection } from "../components/ScoutConsensus";
 
 export default function TeamPage() {
   const { number } = useParams();
@@ -70,6 +71,8 @@ function Profile({ p, onSeason }: { p: TeamProfile; onSeason: (s: number) => voi
     <div className="min-w-0">
       <OfflineNote data={p} />
       <Hero p={p} onSeason={onSeason} />
+      {/* Workspace members only: their workspace's scouting on this team (nothing for anyone else). */}
+      {rest && predictable && <TeamConsensusSection team={p.team.number} season={p.season} />}
       {!rest ? null : !hasResults ? (
         <EmptyState className="mb-8" icon={CalendarDays} title={`No ${seasonLabel(p.season)} results for ${p.team.number} yet`}
           description={p.seasons.length > 1 ? "Pick another season above to see past results." : "This team hasn't played an event we have data for."} />
@@ -168,7 +171,7 @@ function Hero({ p, onSeason }: { p: TeamProfile; onSeason: (s: number) => void }
             <Button variant={flags.isMine ? "secondary" : "outline"} size="sm" aria-pressed={flags.isMine} onClick={() => flags.setMine(!flags.isMine)} className="max-sm:h-11">
               <Star className={cn(flags.isMine && "fill-accent text-accent")} /> {flags.isMine ? "My team" : "Mark as my team"}
             </Button>
-            <Button variant={flags.tracked ? "secondary" : "outline"} size="sm" aria-pressed={flags.tracked} onClick={track} className="max-sm:h-11" title={flags.tracked ? "Tracked: on My team, first in search. Click to stop." : "Follow this team: it goes on My team and comes first in search"}>
+            <Button variant={flags.tracked ? "secondary" : "outline"} size="sm" aria-pressed={flags.tracked} onClick={track} className="max-sm:h-11" data-tour="track" title={flags.tracked ? "Tracked: on My team, first in search. Click to stop." : "Follow this team: it goes on My team and comes first in search"}>
               <Eye className={cn(flags.tracked && "text-accent")} /> {flags.tracked ? "Tracking" : "Track"}
             </Button>
             <Button variant={flags.bookmarked ? "secondary" : "outline"} size="sm" aria-pressed={flags.bookmarked} onClick={shortlist} className="max-sm:h-11">
@@ -227,7 +230,7 @@ function Hero({ p, onSeason }: { p: TeamProfile; onSeason: (s: number) => void }
           </div>
           {predictable ? (
             <div className="mt-5 flex flex-wrap gap-2">
-              <Button size="sm" asChild><Link to={predictHref}><Sparkles /> Predict a match with {t.number}</Link></Button>
+              <Button size="sm" asChild><Link to={predictHref} data-tour="predict"><Sparkles /> Predict a match with {t.number}</Link></Button>
               {!(next && ADVANCING.has(next.type ?? "")) && <Button size="sm" variant="secondary" asChild><Link to={`/predict?mode=advancement&season=${p.season}&team=${t.number}`}><Trophy /> Advancement odds</Link></Button>}
             </div>
           ) : <p className="mt-5 text-xs text-muted-foreground">{seasonLabel(p.season)} is shown for history: results and stats, no predictions (those start with 2023–24).</p>}

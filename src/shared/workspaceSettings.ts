@@ -128,4 +128,6 @@ export const DEVICE_ONLY_KEYS = [
   "cs-scout-ws-dirty:", // a workspace's entries waiting to sync
   "cs-account-cache", // the signed-in account as /api/auth/me last answered, for opening offline (src/lib/personal.tsx)
   "cs-scout-lost:", // edits this device lost to newer ones, kept to restore (src/lib/lostEdits.ts)
+  "cs-tour", // the first-run tour was finished or skipped here (src/lib/tour.ts)
+  "cs-tour-demo", // automation opt-in that lets a driven browser see the tour (npm run shots -- --tour)
 ] as const;

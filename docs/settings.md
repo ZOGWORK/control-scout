@@ -125,6 +125,8 @@ These keys never leave the device (`DEVICE_ONLY_KEYS`):
 | `cs-scout-dirty`, `cs-scout-ws-dirty:<workspace>` | Entries waiting to sync |
 | `cs-account-cache` | The signed-in account as `/api/auth/me` last answered (`src/lib/personal.tsx`). When the app opens offline it stands in for the account, so the scout space (and where new entries go) is the workspace it was. Removed on sign-out or when `/me` says signed out; used only for the device's own account |
 | `cs-scout-lost:<workspace>` | Edits this device lost to a newer one from someone else, kept so they can be compared and restored (`src/lib/lostEdits.ts`; at most 30 per workspace, 30 days). A restore sends the entry, as any edit; the list itself never leaves the device |
+| `cs-tour` | The first-run tour was finished or skipped on this device (`src/lib/tour.ts`): `{v, outcome: "done" \| "skipped", at, step}`. It never shows again here. See "First-run tour" below |
+| `cs-tour-demo` | `"1"` lets a browser driven by automation see the tour (`npm run shots -- --tour`); real visitors never have it |
 
 The queue's entries go up as entries (that is the queue's job). The queue key
 itself, the space and the view are never sent: not in a personal sync
@@ -143,10 +145,22 @@ itself, the space and the view are never sent: not in a personal sync
 | `cs-scout-lost:<workspace>` | 3 | No (a restore sends the entry) |
 | `cs-scout-ws-cursor:<workspace>` | sync bookkeeping | Only as the pull's `since=` cursor |
 | `cs-scout-tpl:<ws>:<season>`, `cs-scout-tplv:<ws>:<season>:<v>`, `cs-scout-wss:<ws>` | 2 (cache) | No |
-| `cs-scout-space`, `cs-shortlist-view`, `cs-account-cache` | 3 | No |
+| `cs-scout-space`, `cs-shortlist-view`, `cs-account-cache`, `cs-tour`, `cs-tour-demo` | 3 | No |
 | `cs-sidebar`, `cs-records-cols:<table>`, `cs-saved-filters:v1` | local UI state | No |
 | `cs-consent`, `cs-alerts-sent`, `cs-offline-seasons`, `cs-pack-meta`, `cs-seen` | device state | No |
 | sessionStorage `cs-session`, `cs-stats-session`, `cs-landed` | this tab only | `cs-stats-session` only as the analytics "new session" bit (no ID) |
+
+### First-run tour: device-only on purpose
+
+Whether the tour was finished or skipped is kept per device, not in Tier 1.
+Syncing it would only matter for someone signed in on a second device who
+hasn't seen the tour there, and that person has already used the app: they
+have a team of their own, tracked teams or events, a shortlist, or a Control
+Point workspace, which do sync. The tour never shows to anyone with any of
+those (`knowsTheApp` in `src/lib/tour.ts`), so a synced flag would add a
+personal key, its server validation and a merge rule for no visible change.
+The worst case is a signed-in person with none of those seeing the four-step
+tour once more on a new device.
 
 ## Precedence
 
