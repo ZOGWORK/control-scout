@@ -158,14 +158,20 @@ function pair(v: string | null): number[] | null {
   return n.every((x) => x >= 1) && n[0] !== n[1] ? n : null;
 }
 
-/** A matchup's words for its link preview: the card's headline, the predicted score and the confidence. */
-function matchupDescription(q: { red: number[]; blue: number[]; pRed: number; pBlue?: number; played?: boolean; predicted: [number, number] | null; tier: string; final?: [number, number] | null }): string {
+/** A confidence tier in words, as the card says it. */
+const TIER_WORDS: Record<string, string> = { provisional: "provisional confidence", moderate: "moderate confidence", confident: "high confidence" };
+const tierWords = (t: string) => TIER_WORDS[t] ?? `${t} confidence`;
+
+/** A matchup's words for its link preview: the card's headline, the predicted score and the confidence
+ *  (and, for a backtest, that it was replayed afterward: never passed off as a call made before the match). */
+function matchupDescription(q: { red: number[]; blue: number[]; pRed: number; pBlue?: number; played?: boolean; predicted: [number, number] | null; tier: string; final?: [number, number] | null; backtest?: boolean }): string {
   const fav = (q.pBlue ?? 1 - q.pRed) > q.pRed ? "blue" : "red";
   const order = (x: [number, number]) => (fav === "red" ? x : [x[1], x[0]]).map((n) => Math.round(n)).join("–");
   let d = `${shareHeadline(q)}.`;
   if (q.predicted) d += ` Predicted score ${order(q.predicted)}`;
   if (q.final) d += `${q.predicted ? ";" : ""} final ${order(q.final)}`;
-  d += `${q.predicted || q.final ? ", " : " "}${q.tier} confidence.`;
+  d += `${q.predicted || q.final ? ", " : " "}${tierWords(q.tier)}.`;
+  if (q.backtest) d += " A backtest replay, not a live call.";
   return fitDescription(d);
 }
 
@@ -189,7 +195,7 @@ async function matchupMeta(sp: URLSearchParams): Promise<PageMeta | null> {
     title: `${allianceText(red)} vs ${allianceText(blue)}: match prediction`,
     description: matchupDescription({ red, blue, pRed: x.winProbA, pBlue: x.winProbB, predicted, tier: x.confidence.tier }),
     type: "website", path: "/predict",
-    share: { query, alt: `${shareHeadline({ red, blue, pRed: x.winProbA, pBlue: x.winProbB })} (${seasonInfo(season).label}, ${x.confidence.tier} confidence)` },
+    share: { query, alt: `${shareHeadline({ red, blue, pRed: x.winProbA, pBlue: x.winProbB })} (${seasonInfo(season).label}, ${tierWords(x.confidence.tier)})` },
   };
 }
 
@@ -207,8 +213,8 @@ async function eventMatchMeta(ev: PageMeta, season: number, code: string, key: s
   return {
     ...ev,
     title: `${m.label}: ${allianceText(red)} vs ${allianceText(blue)} · ${ev.title}`,
-    description: matchupDescription({ ...call, predicted: p.noScoreBasis ? null : [p.redMean, p.blueMean], tier: p.tier, final: played ? [m.red.score!.total, m.blue.score!.total] : null }),
-    share: { query: { season, red, blue, event: code, match: key }, alt: `${shareHeadline(call)} (${m.label}, ${name}; ${p.tier} confidence${p.kind === "backtest" ? ", a backtest replay" : ""})` },
+    description: matchupDescription({ ...call, predicted: p.noScoreBasis ? null : [p.redMean, p.blueMean], tier: p.tier, final: played ? [m.red.score!.total, m.blue.score!.total] : null, backtest: p.kind === "backtest" }),
+    share: { query: { season, red, blue, event: code, match: key }, alt: `${shareHeadline(call)} (${m.label}, ${name}; ${tierWords(p.tier)}${p.kind === "backtest" ? ", a backtest replay" : ""})` },
   };
 }
 

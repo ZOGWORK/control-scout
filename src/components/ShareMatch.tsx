@@ -47,11 +47,11 @@ export function ShareMatch({ query, pRed, pBlue, played, className }: {
   return (
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
-        <Button variant="outline" size="sm" className={cn("max-sm:h-11 max-sm:px-4", className)}><Share2 /> Share</Button>
+        <Button variant="outline" size="sm" className={className}><Share2 /> Share</Button>
       </PopoverTrigger>
-      <PopoverContent align="end" className="w-[22rem] max-w-[calc(100vw-2rem)] space-y-3">
+      <PopoverContent align="end" collisionPadding={8} className="max-h-[var(--radix-popover-content-available-height)] w-[22rem] max-w-[calc(100vw-2rem)] space-y-3 overflow-y-auto">
         <p className="text-sm font-semibold text-text-base">Share this prediction</p>
-        <div className={cn("relative overflow-hidden rounded-lg border border-line bg-[#0a0a0b]", format === "square" ? "mx-auto aspect-square w-3/4" : "aspect-[1200/630] w-full")}>
+        <div className={cn("relative overflow-hidden rounded-lg border border-line bg-[#0a0a0b]", format === "square" ? "mx-auto aspect-square w-1/2" : "aspect-[1200/630] w-full")}>
           {loaded !== src && <div className="skeleton absolute inset-0" aria-hidden />}
           <img key={src} src={src} alt={text} className="relative size-full object-contain" onLoad={() => setLoaded(src)} />
         </div>
