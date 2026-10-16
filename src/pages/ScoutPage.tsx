@@ -3,7 +3,7 @@
 // your account when signed in and online.
 import { useEffect, useId, useMemo, useRef, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
-import { ClipboardList, Cloud, CloudOff, Download, History, Info, LayoutList, Loader2, Plus, Save, SearchX, Trash2, X } from "lucide-react";
+import { ClipboardList, Cloud, CloudOff, Download, History, Info, LayoutList, Loader2, MessageSquare, Plus, Save, SearchX, Trash2, X } from "lucide-react";
 import { useCurrentSeason, useTitle } from "../lib/meta";
 import { usePersonal } from "../lib/personal";
 import { canDeleteScoutEntry, deleteScoutEntry, localScoutEntries, newScoutId, refusalMessage, SCOUT_REFUSED, type ScoutRefusal, saveScoutEntry, ScoutStorageError, usePendingScoutCounts, useScouting, type ScoutEntry, type ScoutSpace, type ScoutValue } from "../lib/scouting";
@@ -25,6 +25,8 @@ import { useScoutLive, type LiveMode } from "../lib/scoutLive";
 import { EntryAttribution } from "../components/EntryAttribution";
 import { EntryPhotos } from "../components/scout/EntryPhotos";
 import { ActivityFeed } from "../components/scout/ActivityFeed";
+import { EntryComments } from "../components/scout/EntryComments";
+import { useCommentCounts } from "../lib/scoutComments";
 import { useWorkspaceActivity } from "../lib/scoutActivity";
 import { PageHeader, Section, EmptyState } from "../components/page";
 import { Button } from "../components/ui/button";
@@ -62,6 +64,8 @@ export default function ScoutPage() {
   }, [settingsKnown, space, openedSeason, season]);
   const { entries, status, pendingCount, syncNow } = useScouting({ season }, syncReady, space);
   const live = useScoutLive(space, syncReady);
+  // How many comments each workspace entry has (Task 15), for the cards; live with the stream.
+  const commentCounts = useCommentCounts(syncReady ? space : null);
   const pending = usePendingScoutCounts();
   // The server ended this workspace's stream: access is gone, so back to Personal (with a notice).
   const { revoke } = spaces;
@@ -174,6 +178,7 @@ export default function ScoutPage() {
           defaultEvent={newEntryEventCode(space, wss.defaults, season)}
           onDone={() => { setFormOpen(false); setSp((x) => { x.delete("entry"); x.delete("new"); return x; }); }} />
       )}
+      {formOpen && !spaces.resolving && editEntry?.workspaceId != null && <EntryComments key={`comments-${editEntry.uuid}`} entry={editEntry} className="-mt-4 mb-8" />}
       {showActivity && workspace ? <ActivityFeed state={activity} workspaceName={workspaceLabel(workspace)} onOpenEntry={openEntry} /> : <>
       <Section title={`Entries (${entries.length})`}>
         {spaces.resolving ? <LoadingBlock rows={3} label="Loading scout space" /> : !entries.length ? <EmptyState icon={ClipboardList} title="No scouting entries yet" description="Start one above, or from any team page. Entries save on this device first, so scouting works with no signal." /> : <>
@@ -184,7 +189,7 @@ export default function ScoutPage() {
               action={<Button variant="outline" onClick={feed.clear}>Clear filters</Button>} />
           ) : (
             <ul className="grid gap-2 md:grid-cols-2">
-              {feed.shown.map((e) => <EntryCard key={e.uuid} e={e} canDelete={canDeleteScoutEntry(e, me)} onEdit={() => setSp((x) => { x.set("entry", e.uuid); return x; })} />)}
+              {feed.shown.map((e) => <EntryCard key={e.uuid} e={e} canDelete={canDeleteScoutEntry(e, me)} comments={commentCounts[e.uuid] ?? 0} onEdit={() => setSp((x) => { x.set("entry", e.uuid); return x; })} />)}
             </ul>
           )}
         </>}
@@ -217,7 +222,7 @@ function SyncChip({ status, pending, onSync, signedIn, live }: { status: string;
   );
 }
 
-function EntryCard({ e, canDelete, onEdit }: { e: ScoutEntry; canDelete: boolean; onEdit: () => void }) {
+function EntryCard({ e, canDelete, comments, onEdit }: { e: ScoutEntry; canDelete: boolean; comments: number; onEdit: () => void }) {
   // The fields it was made with (an older template version stays readable after the admin changes it).
   const t = useEntryTemplate(e);
   const shown = t.fields.filter((f) => e.data[f.id] !== undefined && e.data[f.id] !== false && e.data[f.id] !== 0 && e.data[f.id] !== "").slice(0, 5);
@@ -234,6 +239,11 @@ function EntryCard({ e, canDelete, onEdit }: { e: ScoutEntry; canDelete: boolean
           )}
         </div>
         <div className="flex gap-1">
+          {comments > 0 && (
+            <Button variant="ghost" size="sm" onClick={onEdit} className="text-muted-foreground max-sm:h-11" aria-label={`${comments} comment${comments === 1 ? "" : "s"}: open the entry`}>
+              <MessageSquare />{comments}
+            </Button>
+          )}
           <Button variant="ghost" size="sm" onClick={onEdit}>Edit</Button>
           {canDelete && <Button variant="ghost" size="icon-sm" aria-label="Delete entry" onClick={() => { deleteScoutEntry(e); toast("Entry deleted"); }}><Trash2 /></Button>}
         </div>

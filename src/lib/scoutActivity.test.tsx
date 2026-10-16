@@ -54,6 +54,14 @@ describe("describeActivity", () => {
     expect(describeActivity(item({ type: "picklist.changed", details: {} }))).toEqual({ verb: "picklist changed", subject: "" });
   });
 
+  it("comments: where, never the text; an admin's deletion of someone else's names whose", () => {
+    const d = { uuid: "u1", season: 2025, team: 18360, kind: "match", eventCode: "USNJQ1", matchLabel: "Q12", commentId: 4, excerpt: "Great auto" };
+    expect(describeActivity(item({ type: "comment.created", details: d }))).toEqual({ verb: "commented on", subject: "team 18360 · match Q12 · USNJQ1" });
+    expect(describeActivity(item({ type: "comment.deleted", details: { ...d, authorName: "Marcus" } })))
+      .toEqual({ verb: "deleted a comment on", subject: "team 18360 · match Q12 · USNJQ1", note: "by Marcus" });
+    expect(activityEntry(item({ type: "comment.created", details: d }))).toBe("u1");
+  });
+
   it("entry items open their entry, except a deletion; other items open nothing", () => {
     expect(activityEntry(item())).toBe("u1");
     expect(activityEntry(item({ type: "entry.deleted" }))).toBeNull();
