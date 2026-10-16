@@ -14,7 +14,7 @@ import { clearInfoCache } from "../auth/controlPoint";
 import { invalidateFlags, setFlag } from "../flags";
 import { subscribe, type LiveEntry } from "./bus";
 import { fakeR2 } from "./fakeR2";
-import { expiresAt, MAY_NOT_REMOVE, NOT_SYNCED, runPhotoMaintenance, TOO_MANY } from "./photos";
+import { expiresAt, MAY_NOT_REMOVE, NOT_SYNCED, runPhotoMaintenance, sweepStaleReservations, TOO_MANY } from "./photos";
 import { PHOTO_LIMITS, STORAGE_FULL } from "../../src/shared/photos";
 
 const KEY = "k".repeat(40);
@@ -227,14 +227,20 @@ describe("entry photos: upload", () => {
   it("records only what's really in storage, and only as large as declared", async () => {
     const t = await team();
     const e = await push(t.ben.call, t.ws, entry());
+    const status = async (id: string) => (await get<any>("SELECT status FROM entry_photos WHERE id = ?", [id]))?.status;
+    // Completed before uploading: refused, and the reservation stays counted while its URL still works.
     const missing = await upload(t.ben.call, t.ws, e.uuid, 1000, { put: null });
     expect(missing.done.status).toBe(409);
-    expect(await all("SELECT * FROM entry_photos")).toEqual([]); // the reservation is released
+    expect(await status(missing.slot.json.photoId)).toBe("pending");
+    // The upload landing afterwards is tracked by that reservation: completing again records it.
+    expect((await fetch(missing.slot.json.uploadUrl, { method: "PUT", headers: missing.slot.json.headers, body: jpeg(1000) })).status).toBe(200);
+    expect((await t.ben.call("POST", `/api/scout/photos/${missing.slot.json.photoId}/complete`, { workspaceId: t.ws })).status).toBe(200);
     // A body larger than reserved never gets stored (the size is signed), so there's nothing to record.
     const bigger = await upload(t.ben.call, t.ws, e.uuid, 1000, { put: jpeg(5000) });
     expect(bigger.done.status).toBe(409);
-    expect(fakeR2.keys()).toEqual([]);
-    expect(await all("SELECT * FROM entry_photos")).toEqual([]);
+    expect(fakeR2.keys()).toHaveLength(1);
+    expect(await status(bigger.slot.json.photoId)).toBe("pending");
+    await t.ben.call("DELETE", `/api/scout/photos/${missing.slot.json.photoId}?workspaceId=${t.ws}`);
     // Nor can a finished upload's URL be used again to swap in a larger image.
     const ok = await upload(t.ben.call, t.ws, e.uuid, 1000);
     expect(ok.done.status).toBe(200);
@@ -399,8 +405,25 @@ describe("entry photos: nightly expiry", () => {
     const purged = await owner("POST", "/api/owner/storage/purge", { season: 2025, eventCode: "USPENDQ1", confirm: true });
     expect(purged.json.purged).toEqual({ photos: 1, bytes: 700, failures: 0 });
     expect(fakeR2.keys()).toEqual([]);
+    // Cancelled, not forgotten: its URL may still work for a few minutes, so its bytes stay counted.
+    expect((await get<any>("SELECT status, bytes FROM entry_photos WHERE id = ?", [slot.json.photoId]))).toMatchObject({ status: "cancelled", bytes: 700 });
+    expect((await t.ben.call("POST", `/api/scout/photos/${slot.json.photoId}/complete`, { workspaceId: t.ws })).status).toBe(409);
+    // A PUT on the still-live URL lands under that counted reservation; the sweep removes it once the URL is long dead.
+    expect((await fetch(slot.json.uploadUrl, { method: "PUT", headers: slot.json.headers, body: jpeg(700) })).status).toBe(200);
+    expect((await sweepStaleReservations(Date.now() + 31 * 60_000)).removed).toBe(1);
+    expect(fakeR2.keys()).toEqual([]);
     expect(await all("SELECT * FROM entry_photos")).toEqual([]);
-    expect((await t.ben.call("POST", `/api/scout/photos/${slot.json.photoId}/complete`, { workspaceId: t.ws })).status).toBe(404);
+  });
+
+  it("an entry moved to another event moves its photos' expiry with it", async () => {
+    await run("INSERT OR REPLACE INTO events (season, code, name, start, end, source) VALUES (2025, 'USOLD2Q1', 'Old', ?, ?, 'first')", [daysAgo(10), daysAgo(10)]);
+    await run("INSERT OR REPLACE INTO events (season, code, name, start, end, source) VALUES (2025, 'USNEXTQ1', 'Next', ?, ?, 'first')", [daysAgo(-5), daysAgo(-5)]);
+    const t = await team();
+    const e = await push(t.ada.call, t.ws, entry({ eventCode: "USOLD2Q1" }));
+    const id = (await upload(t.ben.call, t.ws, e.uuid)).slot.json.photoId;
+    await push(t.ada.call, t.ws, { ...entry(), uuid: e.uuid, eventCode: "USNEXTQ1", updatedAt: 90_000 }); // corrected
+    expect((await runPhotoMaintenance())!.expired).toBe(0);
+    expect(await get<any>("SELECT status, event_code, event_end FROM entry_photos WHERE id = ?", [id])).toMatchObject({ status: "ready", event_code: "USNEXTQ1", event_end: daysAgo(-5) });
   });
 
   it("a stored object larger than its record is deleted by the nightly listing", async () => {
@@ -432,7 +455,7 @@ describe("entry photos: nightly expiry", () => {
 describe("entry photos: storage guardrails", () => {
   /** Pretend this many bytes are stored (records only: the meter reads the records). */
   async function fill(t: { ws: string; ada: { call: Call } }, bytes: number) {
-    const e = await push(t.ada.call, t.ws, entry());
+    const e = await push(t.ada.call, t.ws, entry({ eventCode: "USBIGQ1" }));
     const ws = await get<{ id: number }>("SELECT id FROM workspaces WHERE cp_workspace_id = ?", [t.ws]);
     await run(`INSERT INTO entry_photos (id, workspace_id, entry_uuid, season, event_code, object_key, bytes, status, added_by_account_id, created_at, expires_at)
       VALUES (?, ?, ?, 2025, 'USBIGQ1', ?, ?, 'ready', 1, ?, ?)`, [`fill-${bytes}`, ws!.id, e.uuid, `photos/2025/USBIGQ1/${e.uuid}/fill-${bytes}.jpg`, bytes, Date.now(), Date.now() + 10 * DAY]);

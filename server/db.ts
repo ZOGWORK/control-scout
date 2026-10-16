@@ -511,7 +511,8 @@ CREATE INDEX contact_messages_status ON contact_messages (status, created_at);
     sql: `
 -- Photos on workspace scout entries (server/scout/photos.ts, docs/r2-photos.md). The image is in R2 under
 -- object_key (photos/<season>/<event>/<entry uuid>/<id>.jpg), this row is its record.
--- status: pending (upload URL handed out, bytes reserved against the storage cap) | ready | expired
+-- status: pending (upload URL handed out, bytes reserved against the storage cap) | cancelled (a purged or
+-- refused upload: still counted until the sweep, its URL may be live) | ready | expired
 -- (the image was deleted after its event, or purged by the owner: the entry shows "photo expired").
 -- bytes: the declared size while pending, the stored object's size once ready (the meter).
 -- event_end: the event's last day (YYYY-MM-DD) from the synced events table, NULL when unknown.
