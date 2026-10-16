@@ -16,7 +16,15 @@ import { FieldError } from "../ui/basic";
  * read), the last write's result (`onSave` returning false) shows the error instead, and Escape
  * writes nothing: it can't tell what to restore.
  */
-export function NoteField({ team, value, stored, onSave, className }: { team: number; value: string; stored?: string; onSave: (text: string) => boolean | void; className?: string }) {
+export function NoteField({ team, value, stored, onSave, className, label, placeholder = "Add a pick note…", maxLength = MAX_NOTE, failedText }: {
+  team: number; value: string; stored?: string; onSave: (text: string) => boolean | void; className?: string;
+  /** What a screen reader hears for the field (default: "Private note on team <n>"). */
+  label?: string;
+  placeholder?: string;
+  maxLength?: number;
+  /** What the field says when the note isn't stored (default: this device's storage is full or blocked). */
+  failedText?: string;
+}) {
   const [draft, setDraft] = useState(value);
   /** The last write was refused (what shows the error while `stored` is unknown). */
   const [refused, setRefused] = useState(false);
@@ -28,18 +36,29 @@ export function NoteField({ team, value, stored, onSave, className }: { team: nu
   const sent = useRef(value);
   /** Escape: leave without saving the edit. */
   const skip = useRef(false);
-  // Another tab or device changed it: show that, unless this field is being edited.
-  useEffect(() => { sent.current = value; if (!focused.current) setDraft(value); }, [value]);
+  /** Typed in since the last save (or since focus): only then does leaving the field write. */
+  const edited = useRef(false);
+  // Another tab, device or member changed it: show that, unless this field holds an edit not yet saved.
+  // (A field focused but untouched follows the change, and leaving it writes nothing: it never puts back
+  // the text it showed before.)
+  useEffect(() => {
+    sent.current = value;
+    if (!focused.current || (!edited.current && value.trim() !== latest.current.draft.trim())) setDraft(value);
+  }, [value]); // eslint-disable-line react-hooks/exhaustive-deps
   const flush = (text: string) => {
     if (timer.current) { clearTimeout(timer.current); timer.current = null; }
+    // Not touched since the last save: nothing to write, unless that save wasn't stored (a retry).
+    if (!edited.current && !failed) return;
     // Unchanged, but not stored: send it again (a retry).
-    if (text.trim() === sent.current.trim() && !failed) return;
+    if (text.trim() === sent.current.trim() && !failed) { edited.current = false; return; }
+    edited.current = false;
     sent.current = text;
     const ok = onSave(text) !== false;
     if (stored === undefined) setRefused(!ok);
   };
   /** Escape: back to the stored note, in the store's memory too when that holds a refused edit. */
   const revert = () => {
+    edited.current = false;
     if (stored === undefined) { setDraft(value); return; }
     setDraft(stored);
     if (failed) { sent.current = stored; onSave(stored); }
@@ -56,15 +75,16 @@ export function NoteField({ team, value, stored, onSave, className }: { team: nu
     <div className={cn("min-w-0", className)}>
     <label className={cn("group/note flex min-w-0 items-center gap-1.5 rounded-md px-1.5 py-1 text-xs transition-colors focus-within:bg-muted/60 hover:bg-muted/40", failed && "ring-1 ring-destructive/60")}>
       <PencilLine className={cn("size-3.5 shrink-0", draft.trim() ? "text-accent" : "text-text-muted/70 group-hover/note:text-text-muted")} aria-hidden />
-      <span className="sr-only">Private note on team {team}</span>
+      <span className="sr-only">{label ?? `Private note on team ${team}`}</span>
       <input
-        type="text" value={draft} maxLength={MAX_NOTE} placeholder="Add a pick note…" enterKeyHint="done" data-note={team}
+        type="text" value={draft} maxLength={maxLength} placeholder={placeholder} enterKeyHint="done" data-note={team}
         aria-invalid={failed ? true : undefined} aria-describedby={failed ? errorId : undefined}
         className="min-w-0 flex-1 bg-transparent text-text-base outline-none placeholder:text-text-muted/70"
-        onFocus={() => { focused.current = true; }}
+        onFocus={() => { focused.current = true; edited.current = false; }}
         onBlur={(e) => { focused.current = false; if (skip.current) { skip.current = false; return; } flush(e.currentTarget.value); }}
         onChange={(e) => {
           const text = e.currentTarget.value;
+          edited.current = true;
           setDraft(text);
           if (timer.current) clearTimeout(timer.current);
           timer.current = setTimeout(() => flush(text), 700);
@@ -75,7 +95,7 @@ export function NoteField({ team, value, stored, onSave, className }: { team: nu
         }}
       />
     </label>
-    <FieldError id={errorId} className="mt-0.5 px-1.5">{failed ? "Not saved: this device's storage is full or blocked. Your text is still here; free up space and press Enter to retry." : null}</FieldError>
+    <FieldError id={errorId} className="mt-0.5 px-1.5">{failed ? failedText ?? "Not saved: this device's storage is full or blocked. Your text is still here; free up space and press Enter to retry." : null}</FieldError>
     </div>
   );
 }

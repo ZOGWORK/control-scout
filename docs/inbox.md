@@ -22,7 +22,7 @@ who switched that kind off, and writes one row per remaining account.
 | `comment.created` (or `comment.added`) | comments | the entry's author | the entry |
 | `template.changed`, `settings.changed` | template | every cached member of the workspace (`workspace_members`) | admins: the template editor, or Settings › Workspace for settings; members: the activity view |
 | `member.joined`, `member.left` | membership | the member it's about (`details.accountId`) | the workspace's space, or Personal after leaving |
-| `picklist.*` | picklist | every cached member of the workspace | the activity view (Task 11 can point it at the pick list in `inboxLink`) |
+| `picklist.*` | picklist | every cached member of the workspace | the shared pick list (`/scout?space=…&season=…&view=picklist`) |
 
 `settings.changed` (Task 6: the defaults for new entries) is grouped with template changes
 under one switch. Both are an admin changing how everyone in the workspace scouts.
@@ -48,8 +48,9 @@ needed: the fan-out reads these fields.
   (several teams at once: `details.teams` and `details.assignmentIds`, `team` = the first),
   plus `assignment.completed`, `assignment.reopened` and `assignment.deleted`. See
   [assignments.md](assignments.md).
-- **Task 11 (pick list):** `picklist.changed` (any `picklist.*`), subject
-  `picklist:<season>`, details `{ season }`.
+- **Task 11 (pick list, [picklist.md](picklist.md)):** `picklist.added`, `picklist.removed`,
+  `picklist.moved`, `picklist.noted` (any `picklist.*` works), subject `picklist:<season>`,
+  details `{ season, team, ... }`.
 - **Task 15 (comments):** `comment.created`, subject `entry:<uuid>`, details
   `{ uuid, season, team, kind, eventCode, matchLabel, commentId, excerpt }`. `excerpt` is
   the first characters of the comment (140, on one line). The entry's author is looked up

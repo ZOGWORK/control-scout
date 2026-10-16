@@ -67,6 +67,7 @@ beforeAll(async () => {
   setDb(c);
   await migrate(c);
   for (const t of [18360, 7]) await run("INSERT INTO event_teams (season, code, team) VALUES (?, ?, ?)", [2025, "USNJQ1", t]); // assignable teams
+  await run("INSERT INTO teams (number, name) VALUES (18360, 'Pyro'), (7, 'Seven')"); // teams the pick list knows
   setMailer(async (to, _s, text) => { inbox.set(to, /\b(\d{6})\b/.exec(text)![1]); });
   delete process.env.R2_FAKE_DIR;
   process.env.R2_FAKE = "1"; // before createApp: it mounts the photo storage stand-in
@@ -184,6 +185,7 @@ async function workspace() {
   expect(comment.status).toBe(201);
   const assigned = await ada("POST", `/api/scout/workspaces/${id}/assignments`, { season: 2025, eventCode: "USNJQ1", teams: [18360], assigneeAccountIds: [maxId] });
   expect(assigned.status).toBe(201);
+  expect((await max("POST", `/api/scout/workspaces/${id}/picklist`, { season: 2025, op: "add", team: 18360 })).status).toBe(200);
   return { id, t, tag, ada, max, adaId, maxId, first, commentId: comment.json.comment.id as string, assignmentId: assigned.json.created[0].id as number };
 }
 
@@ -205,6 +207,9 @@ function writes(w: Awaited<ReturnType<typeof workspace>>) {
     ["photo delete", w.max, () => w.max("DELETE", `/api/scout/photos/00000000-0000-0000-0000-000000000000?workspaceId=${w.id}`)],
     ["template change", w.ada, () => w.ada("PUT", `/api/scout/workspaces/${w.id}/template`, { season: 2025, fields: [] })],
     ["settings change", w.ada, () => w.ada("PUT", `/api/scout/workspaces/${w.id}/settings`, { settings: {} })],
+    ["pick list add", w.max, () => w.max("POST", `/api/scout/workspaces/${w.id}/picklist`, { season: 2025, op: "add", team: 7 })],
+    ["pick list remove", w.max, () => w.max("POST", `/api/scout/workspaces/${w.id}/picklist`, { season: 2025, op: "remove", team: 18360 })],
+    ["pick list note", w.max, () => w.max("POST", `/api/scout/workspaces/${w.id}/picklist`, { season: 2025, op: "note", team: 18360, note: "late" })],
     ["member removal", w.ada, () => w.ada("POST", `/api/scout/workspaces/${w.id}/members/remove`, { accountId: w.maxId })],
   ] as const;
 }
@@ -220,6 +225,9 @@ async function expectReads(call: Call, w: Awaited<ReturnType<typeof workspace>>)
   const a = await call("GET", `/api/scout/workspaces/${w.id}/assignments`);
   expect(a.status).toBe(200);
   expect(a.json.assignments).toHaveLength(1);
+  const picks = await call("GET", `/api/scout/workspaces/${w.id}/picklist?season=2025`);
+  expect(picks.status).toBe(200);
+  expect(picks.json.list.picks.map((x: any) => x.team)).toEqual([18360]);
   for (const path of [`/api/scout/workspaces/${w.id}/members`, `/api/scout/workspaces/${w.id}/activity`, `/api/scout/workspaces/${w.id}/settings`,
     `/api/scout/workspaces/${w.id}/template?season=2025`, `/api/scout/workspaces/${w.id}/export.csv?season=2025`]) {
     expect((await call("GET", path)).status, path).toBe(200);
@@ -274,6 +282,7 @@ describe("orphaned workspaces: detection", () => {
     expect((await pull(w.ada, w.id)).json.entries.map((e: any) => [e.notes, e.deleted]).sort()).toEqual([["by max", false], ["kept", false]]);
     expect((await w.ada("GET", `/api/scout/workspaces/${w.id}/entries/${w.first.uuid}/comments`)).json.comments).toHaveLength(1);
     expect((await w.ada("GET", `/api/scout/workspaces/${w.id}/assignments`)).json.assignments[0].status).toBe("open");
+    expect((await w.ada("GET", `/api/scout/workspaces/${w.id}/picklist?season=2025`)).json.list.picks.map((x: any) => [x.team, x.note])).toEqual([[18360, ""]]);
   });
 
   it("a personal removal does not orphan the workspace: the removed member gets 403, the rest write as ever", async () => {

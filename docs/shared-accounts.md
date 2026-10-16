@@ -265,7 +265,7 @@ re-check, the stream sweep):
 - Control Point unreachable: nothing changes; the next answer decides.
 
 `workspaces.orphaned_at` (when Scout saw it, kept if the reason changes) and
-`orphan_reason` (`deleted` | `no_admin`) are set (migration 20), the
+`orphan_reason` (`deleted` | `no_admin`) are set (migration 22), the
 workspace's open streams get `event: workspace` with
 `{"orphaned": {"at", "reason"}}`, the accounts involved get `event: account`,
 and the owner audit records `workspace.orphaned`.
@@ -283,11 +283,12 @@ no-admin workspace is removed as usual.
 
 **Read-only.** Reads keep working for the members (or former members):
 entries (pull and stream), comments, assignments, photos, members, activity,
-settings, template and CSV export. Every write is refused with
+settings, template, pick list and CSV export. Every write is refused with
 **423 `{"error": "…", "code": "workspace_read_only"}`**, never 403 (403 means
 "you were removed"). That covers entry add, edit and delete; comment post,
 edit and delete; assignment create, done or reopen, and delete; photo presign,
-complete and delete; template and settings changes; and member removal. The
+complete and delete; every pick list change (`picklistWriter`); template and
+settings changes; and member removal. The
 check is in `workspaceAccess(user, id, { write })`; the guards derive `write`
 from the method (anything but GET or HEAD), so a new write route behind them
 is covered too. `/api/auth/me` lists the workspace with
@@ -298,7 +299,8 @@ member. The stream sweep keeps a former member's stream open.
 page shows the banner "This workspace no longer exists in Control Point — this
 space is read-only. Your entries are preserved." (or, for no admin, "This
 workspace has no admin left in Control Point — …"). It offers no New entry,
-Delete, Template, Save, comment box, assignment actions or photo uploads;
+Delete, Template, Save, comment box, assignment actions, pick list changes or
+photo uploads;
 entries open with View. Settings → Workspace shows the same banner and no admin
 controls. A 423 or a live `workspace` or `account` event re-reads `/me` at
 once.
