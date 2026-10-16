@@ -175,8 +175,10 @@ it to the workspace's open streams in the same step (`pushWorkspaceEntries` →
 `publishEntries`), as `event: upsert` or `event: delete` (a tombstone is a
 first-class event with its own `seq`). The other devices merge it 50 ms after
 it arrives (a burst is one list refresh). Measured locally (two browsers, the
-dev servers, realtime on): an add shows up on the other screen in about
-0.5 s and a delete in about 0.2 s after the tap.
+dev servers, realtime on): an add shows up on the other screen about 0.6 s
+after Save (that includes Save's team check and the 300 ms batching), and a
+delete about 0.2 s after the tap. A removal in Control Point reached the
+removed member's screen in 34 to 44 s.
 
 Catch-up never relies on a refresh: a stream that drops reconnects from the
 device's cursor (1 s, 2 s, 5 s … backoff); a tab hidden for over a minute
