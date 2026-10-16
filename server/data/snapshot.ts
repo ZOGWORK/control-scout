@@ -22,11 +22,7 @@ export function localDbPath(url = env.databaseUrl): string | null {
 export const PRIVATE_TABLES = [
   "users", "sessions", "identities", "email_codes", "user_state", "scout_entries", "error_reports", "contact_messages", "analytics_daily",
   "workspace_members", "entry_photos", "workspace_scout_entries", "workspace_template_versions", "workspaces",
-<<<<<<< HEAD
-  "owner_audit", "feature_flags", "request_metrics_daily", "owner_alerts", "workspace_activity", "workspace_entry_versions",
-=======
-  "owner_audit", "feature_flags", "request_metrics_daily", "owner_alerts", "workspace_activity", "inbox_items",
->>>>>>> origin/main
+  "owner_audit", "feature_flags", "request_metrics_daily", "owner_alerts", "workspace_activity", "inbox_items", "workspace_entry_versions",
 ];
 
 /**

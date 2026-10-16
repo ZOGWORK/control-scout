@@ -27,11 +27,8 @@ import { templateRouter } from "./scout/templates.js";
 import { exportRouter } from "./scout/export.js";
 import { settingsRouter } from "./scout/settings.js";
 import { activityRouter } from "./scout/activity.js";
-<<<<<<< HEAD
 import { historyRouter } from "./scout/history.js";
-=======
 import { inboxRouter } from "./inbox/routes.js";
->>>>>>> origin/main
 import { reportsRouter } from "./errorReports.js";
 import { packsRouter } from "./packs/routes.js";
 import { collectRouter, statsRouter } from "./analytics.js";
