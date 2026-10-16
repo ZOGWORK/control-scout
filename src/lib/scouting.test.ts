@@ -163,6 +163,23 @@ describe("workspace permissions on the device", () => {
     expect(refusalMessage(r.got[0])).toMatch(/deleted by its author or a workspace admin/);
   });
 
+  it("a refusal in an early batch is announced even if a later batch's request fails", async () => {
+    const first = saveScoutEntry({ uuid: "tttttttttttt", ...base, workspaceId: "41", authorAccountId: 7 });
+    deleteScoutEntry(first);
+    for (let i = 0; i < 200; i++) saveScoutEntry({ uuid: `u${String(i).padStart(11, "0")}`, ...base, workspaceId: "41" });
+    let calls = 0;
+    vi.stubGlobal("fetch", vi.fn(async (_p: string, init?: RequestInit) => {
+      if (++calls > 1) return new Response(JSON.stringify({ error: "down" }), { status: 500, headers: { "Content-Type": "application/json" } });
+      const body = JSON.parse(String(init!.body));
+      const results = body.entries.map((x: ScoutEntry) => (x.uuid === first.uuid ? { uuid: x.uuid, ok: false, error: "forbidden", entry: theirs(x) } : { uuid: x.uuid, ok: true }));
+      return new Response(JSON.stringify({ results }), { status: 200, headers: { "Content-Type": "application/json" } });
+    }));
+    const r = refusals();
+    try { await expect(syncScouting("41")).rejects.toBeTruthy(); } finally { r.off(); }
+    expect(r.got.map((x) => x.uuid)).toEqual([first.uuid]);
+    expect(localScoutEntries("41").find((e) => e.uuid === first.uuid)).toMatchObject({ deleted: false });
+  });
+
   it("a refused delete of something already deleted is quiet", async () => {
     const e = saveScoutEntry({ uuid: "rrrrrrrrrrrr", ...base, workspaceId: "41", authorAccountId: 7 });
     deleteScoutEntry(e);

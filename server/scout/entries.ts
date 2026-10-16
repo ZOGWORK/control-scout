@@ -157,6 +157,9 @@ export async function pushWorkspaceEntries(user: User, m: Membership, raw: unkno
     const space = (x as { workspaceId?: unknown } | null)?.workspaceId;
     if (!e) { results.push({ uuid: String((x as any)?.uuid ?? ""), ok: false, error: "invalid entry" }); continue; }
     if (space !== undefined && space !== m.workspaceId) { results.push({ uuid: e.uuid, ok: false, error: "wrong space" }); continue; }
+    // One version per entry per push (a device sends each queued entry once): a second one would make
+    // the per-entry result ambiguous (which version was refused?), so it's refused itself.
+    if (good.some((x) => x.uuid === e.uuid)) { results.push({ uuid: e.uuid, ok: false, error: "duplicate entry" }); continue; }
     good.push(e);
     results.push({ uuid: e.uuid, ok: true });
   }
