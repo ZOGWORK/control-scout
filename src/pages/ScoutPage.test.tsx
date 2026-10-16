@@ -16,11 +16,12 @@ import { TooltipProvider } from "../components/ui/overlay";
 const h = vi.hoisted(() => ({
   personal: { user: null as AccountUser | null, providers: { email: true, google: false } as object | null, syncReady: false, state: { videoLinks: {} } },
   live: "off" as LiveMode,
+  lookup: async (_n: number): Promise<string | null> => "Test Team",
 }));
 vi.mock("../lib/personal", () => ({ usePersonal: () => h.personal }));
 vi.mock("../lib/scoutLive", () => ({ useScoutLive: (space: string | null) => (space == null ? "off" : h.live) }));
 vi.mock("../components/MatchVideo", () => ({ Recordings: () => null }));
-vi.mock("../components/TeamInput", async (orig) => ({ ...(await orig<typeof import("../components/TeamInput")>()), lookupTeamName: async () => "Test Team" }));
+vi.mock("../components/TeamInput", async (orig) => ({ ...(await orig<typeof import("../components/TeamInput")>()), lookupTeamName: (n: number) => h.lookup(n) }));
 
 const { default: ScoutPage } = await import("./ScoutPage");
 
@@ -51,6 +52,7 @@ beforeEach(() => {
   localStorage.clear();
   h.personal = { user: null, providers: { email: true, google: false }, syncReady: false, state: { videoLinks: {} } };
   h.live = "off";
+  h.lookup = async () => "Test Team";
   resetFlags({ ...DEFAULT_FLAGS });
   seed();
 });
@@ -76,7 +78,7 @@ describe("Scout spaces", () => {
     expect(listed().join()).toContain("2222");
     expect(listed().join()).not.toMatch(/1111|3333/);
     await waitFor(() => expect(param()).toBe("901"));
-    expect(JSON.parse(localStorage.getItem(SPACE_STORAGE_KEY)!)).toEqual({ id: "901", name: "Gearheads" });
+    expect(JSON.parse(localStorage.getItem(SPACE_STORAGE_KEY)!)).toEqual({ id: "901", name: "Gearheads", account: 1 });
   });
 
   it("the switcher changes the space and its list, with nothing leaking across", async () => {
@@ -90,7 +92,7 @@ describe("Scout spaces", () => {
     await waitFor(() => expect(param()).toBe("personal"));
     expect(listed().join()).toContain("1111");
     expect(listed().join()).not.toMatch(/2222|3333/);
-    expect(JSON.parse(localStorage.getItem(SPACE_STORAGE_KEY)!)).toEqual({ id: "personal" });
+    expect(JSON.parse(localStorage.getItem(SPACE_STORAGE_KEY)!)).toEqual({ id: "personal", account: 1 });
   });
 
   it("the URL wins over the remembered space", () => {
@@ -155,6 +157,46 @@ describe("Scout spaces", () => {
     r.rerender(page("/scout?season=2025"));
     await waitFor(() => expect(param()).toBe("personal"));
     expect(screen.getByRole("status").textContent).toContain("You no longer have access to Gearheads");
+  });
+
+  it("switching spaces while Save checks the team: nothing goes to the old space; the next Save goes to the new one", async () => {
+    let answer!: (v: string) => void;
+    h.lookup = () => new Promise((r) => { answer = r; });
+    h.personal.user = signedIn();
+    show("/scout?season=2025&space=901");
+    fireEvent.click(screen.getByRole("button", { name: /New entry/ }));
+    fireEvent.change(screen.getByLabelText("Team"), { target: { value: "4444" } });
+    fireEvent.click(screen.getByRole("button", { name: "Save" }));
+    fireEvent.click(screen.getByRole("button", { name: /^Bolt Bots/ }));
+    await waitFor(() => expect(param()).toBe("902"));
+    await act(async () => { answer("Test Team"); });
+    expect(localScoutEntries("901").some((e) => e.team === 4444)).toBe(false);
+    expect(localScoutEntries("902").some((e) => e.team === 4444)).toBe(false);
+    h.lookup = async () => "Test Team";
+    fireEvent.click(screen.getByRole("button", { name: "Save" }));
+    await waitFor(() => expect(localScoutEntries("902").some((e) => e.team === 4444)).toBe(true));
+    expect(localScoutEntries("901").some((e) => e.team === 4444)).toBe(false);
+  });
+
+  it("another account signing in on the same page: no notice, and the first account's revoked workspaces don't carry over", async () => {
+    h.personal.user = signedIn();
+    h.live = "revoked";
+    const r = show();
+    await waitFor(() => expect(param()).toBe("personal"));
+    h.live = "off";
+    h.personal = { ...h.personal, user: { ...signedIn([gear]), id: 2 } };
+    r.rerender(page("/scout?season=2025"));
+    expect(screen.getByRole("button", { name: /^Gearheads/ })).toBeTruthy();
+    cleanup();
+    // And the other way: a page showing A's workspace, then B (without it) signs in: no "no longer have access".
+    localStorage.removeItem(SPACE_STORAGE_KEY);
+    h.personal = { ...h.personal, user: signedIn([gear]) };
+    const r2 = show();
+    expect(screen.getByRole("button", { pressed: true }).textContent).toContain("Gearheads");
+    h.personal = { ...h.personal, user: { ...signedIn([bolt]), id: 3 } };
+    r2.rerender(page("/scout?season=2025&space=901"));
+    await waitFor(() => expect(screen.getByRole("button", { pressed: true }).textContent).toContain("Bolt Bots"));
+    expect(screen.queryByText(/no longer have access/)).toBeNull();
   });
 
   it("workspace scouting switched off: Personal only", () => {

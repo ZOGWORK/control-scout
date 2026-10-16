@@ -458,7 +458,7 @@ function ScoutNotes({ team, season }: { team: number; season: number }) {
       {!entries.length ? <p className="rounded-xl border border-dashed border-border px-4 py-6 text-center text-sm text-muted-foreground">No notes for {team} in {seasonLabel(season)} yet.</p> : (
         <div className="grid gap-2 sm:grid-cols-2">
           {entries.slice(0, 6).map((e) => (
-            <Link key={e.uuid} to={`/scout?team=${team}&season=${season}&entry=${e.uuid}`} className="lift rounded-xl border border-border bg-card p-3 text-sm">
+            <Link key={e.uuid} to={`/scout?team=${team}&season=${season}&space=personal&entry=${e.uuid}`} className="lift rounded-xl border border-border bg-card p-3 text-sm">
               <p className="font-medium">{e.kind === "pit" ? "Pit scouting" : `Match ${e.matchLabel ?? ""}`} {e.eventCode && <span className="text-muted-foreground">· {e.eventCode}</span>}</p>
               <p className="mt-1 line-clamp-2 text-muted-foreground">{e.notes || `${Object.keys(e.data).length} fields recorded`}</p>
               <p className="mt-1 text-[11px] text-muted-foreground">{int(Object.keys(e.data).length)} fields · {new Date(e.updatedAt).toLocaleDateString()}</p>

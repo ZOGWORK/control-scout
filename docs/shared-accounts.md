@@ -257,7 +257,8 @@ Which space opens (`resolveScoutSpace`):
 2. Otherwise the URL wins: `/scout?space=<workspace id>` or
    `/scout?space=personal`.
 3. Then the space remembered on this device: localStorage `cs-scout-space`,
-   `{ id, name }`, which is never synced.
+   `{ id, name, account }`, which is never synced. A space remembered for another
+   account that signed in on this device is ignored.
 4. Then the account's first workspace, or Personal if it has none.
 
 A workspace from steps 2 or 3 that the account no longer belongs to is

@@ -149,8 +149,8 @@ function EntryForm({ season, initial, team, space, spaceName, onDone }: { season
   const saveErrId = useId();
   // The team check awaits a lookup: by then the form may be cancelled (closed) or still being
   // edited. A closed form saves nothing; an open one saves what it holds now, if the team is unchanged.
-  const latest = useRef({ kind, teamText, eventCode, matchLabel, data, notes });
-  latest.current = { kind, teamText, eventCode, matchLabel, data, notes };
+  const latest = useRef({ kind, teamText, eventCode, matchLabel, data, notes, space });
+  latest.current = { kind, teamText, eventCode, matchLabel, data, notes, space };
   const open = useRef(true);
   useEffect(() => { open.current = true; return () => { open.current = false; }; }, []);
   const save = async () => {
@@ -161,6 +161,7 @@ function EntryForm({ season, initial, team, space, spaceName, onDone }: { season
     if (!open.current) return;
     setChecking(false);
     if (latest.current.teamText !== team) return; // edited while checking: the next Save checks the new number
+    if (latest.current.space !== space) return; // switched spaces while checking: the next Save goes to the space now shown
     if (err) { setTeamErr(err); teamRef.current?.focus(); return; }
     const { kind, eventCode, matchLabel, data, notes } = latest.current;
     try {
