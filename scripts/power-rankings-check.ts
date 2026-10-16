@@ -6,9 +6,9 @@
 //   npm run power-rankings:check -- content/power-rankings/2026-w43.md
 import "../server/env.js";
 import { readFileSync } from "node:fs";
-import { basename } from "node:path";
+import { basename, dirname, resolve } from "node:path";
 import { all, migrate } from "../server/db.js";
-import { CONTENT_DIR, SAMPLE_DIR, loadDir } from "../server/powerRankings/store.js";
+import { CONTENT_DIR, SAMPLE_DIR, WEEK_FILE, loadDir } from "../server/powerRankings/store.js";
 import { parseRankings, type RankingDoc } from "../server/powerRankings/format.js";
 
 const files = process.argv.slice(2).filter((a) => !a.startsWith("--"));
@@ -18,8 +18,17 @@ const report = (where: string, errors: string[]) => { failed = true; console.err
 
 if (files.length) {
   for (const f of files) {
+    // The same checks the server and CI make on the whole directory (loadDir): the name, the format,
+    // and the sample rule for where the file sits.
+    if (!WEEK_FILE.test(basename(f))) { report(f, ["the file name must be the week, like 2026-w43.md (lower-case w, two-digit week)"]); continue; }
     const r = parseRankings(readFileSync(f, "utf8"), basename(f));
-    if (r.ok) docs.push({ where: f, doc: r.doc }); else report(f, r.errors);
+    if (!r.ok) { report(f, r.errors); continue; }
+    const inSample = resolve(dirname(f)) === resolve(SAMPLE_DIR);
+    if (r.doc.sample !== inSample) {
+      report(f, [inSample ? "a file in the sample directory must say `sample: true`" : "`sample: true` files belong in content/power-rankings-sample, never with the published weeks"]);
+      continue;
+    }
+    docs.push({ where: f, doc: r.doc });
   }
 } else {
   for (const [dir, sample] of [[CONTENT_DIR, false], [SAMPLE_DIR, true]] as const) {
