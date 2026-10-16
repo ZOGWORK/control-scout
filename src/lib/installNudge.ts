@@ -87,9 +87,12 @@ export const markInstalled = (now: Date = new Date()) => write({ installed: now.
  * Take today's one showing, if it's still free: re-reads the record from storage (another tab may have
  * shown it, or been turned down, since this one last looked) and writes the day. Tabs take turns
  * through a Web Lock where there is one, so two tabs opened together can't both show it.
+ * `stillWanted` is asked just before the day is written: false (the visitor left meanwhile) uses nothing.
  */
-export async function claimDailyShow(now: () => Date = () => new Date()): Promise<boolean> {
+export async function claimDailyShow(stillWanted: () => boolean = () => true, now: () => Date = () => new Date()): Promise<boolean> {
   const take = () => {
+    // The page may have moved on while waiting for the lock: leave the day unused.
+    if (!stillWanted()) return false;
     if (ruledOut(readInstall(), now())) { emit(); return false; }
     markShown(now());
     return true;
