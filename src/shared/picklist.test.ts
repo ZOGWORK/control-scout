@@ -2,7 +2,7 @@
 // whichever arrives first, because operations name teams rather than positions.
 import { describe, expect, it } from "vitest";
 import { applyPickOp, cleanPickOp, isPickList, MAX_PICKS, moveOpFor, type Pick, type PickOp } from "./picklist";
-import { newer, withPending } from "../lib/sharedPicklist";
+import { displayOrder, newer, withPending } from "../lib/sharedPicklist";
 import { moveItem } from "../lib/shortlist";
 
 const me = { accountId: 1, name: "Priya" };
@@ -121,6 +121,15 @@ describe("on the device", () => {
     expect(newer(pl(3, 1), pl(4, 2)).version).toBe(4);
     expect(newer(pl(3, 1), { ...pl(1, 2), season: 2024 }).season).toBe(2024);
   });
+  it("pick numbers: the drag's preview for the rows it holds; picks loading or arriving mid-drag keep their place", () => {
+    // Dragging 2 above 1 (preview [2, 1]); 3 arrived mid-drag (unknown to the drag); 4 still loading.
+    const rank = (t: number) => ({ 1: 2, 2: 1 } as Record<number, number>)[t] ?? 0;
+    expect(displayOrder([1, 2, 3, 4], (t) => t !== 4, rank)).toEqual([2, 1, 3, 4]);
+    expect(displayOrder([4, 1, 2, 3], (t) => t !== 4, rank)).toEqual([4, 2, 1, 3]);
+    // No drag: the list as it is.
+    expect(displayOrder([5, 6, 7], () => true, (t) => [5, 6, 7].indexOf(t) + 1)).toEqual([5, 6, 7]);
+  });
+
   it("isPickList", () => {
     expect(isPickList(pl(1, 1))).toBe(true);
     expect(isPickList({ ...pl(1, 1), picks: [{ team: "x" }] })).toBe(false);

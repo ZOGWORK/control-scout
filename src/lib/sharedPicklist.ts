@@ -36,6 +36,18 @@ export function withPending(list: PickList, pending: readonly PickOp[], me: Pick
   return picks === list.picks ? list : { ...list, picks };
 }
 
+/**
+ * The order the pick numbers show: the whole list, with the rows on screen (`shown`) in the order a drag in
+ * progress would leave them (`rankOf`: the drag hook's 1-based place, 0 for a team it doesn't know). A pick not
+ * on screen yet (its stats loading), or one that appeared mid-drag, keeps its own place.
+ */
+export function displayOrder(teams: readonly number[], shown: (team: number) => boolean, rankOf: (team: number) => number): number[] {
+  const inDrag = teams.filter((t) => shown(t) && rankOf(t) > 0);
+  const dragOrder = [...inDrag].sort((a, b) => rankOf(a) - rankOf(b));
+  let j = 0;
+  return teams.map((t) => (shown(t) && rankOf(t) > 0 ? dragOrder[j++] : t));
+}
+
 /** Keep the newer of two lists (by version) for the same workspace and season. */
 export const newer = (cur: PickList | null, next: PickList) =>
   !cur || cur.workspaceId !== next.workspaceId || cur.season !== next.season || next.version > cur.version ? next : cur;
@@ -47,6 +59,10 @@ export interface PickListState {
   error: ApiError | null;
   /** Changes not yet confirmed by the server. */
   saving: boolean;
+  /** A note this member wrote that the server didn't take (kept so it isn't lost: they retry or put it back). */
+  unsavedNote: (team: number) => string | undefined;
+  /** A team's note as the server has it (what a note that failed to save is compared with). */
+  savedNote: (team: number) => string | undefined;
   change: (op: PickOp) => void;
   reload: () => void;
 }
@@ -61,6 +77,8 @@ export function usePickList(space: string | null, season: number, live: LiveMode
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<ApiError | null>(null);
   const [pending, setPending] = useState<Pending[]>([]);
+  // Notes the server didn't take, by `${space}:${season}:${team}`: the text stays in the field, marked unsaved.
+  const [unsaved, setUnsaved] = useState<Record<string, string>>({});
   const key = space ? `${space}:${season}` : null;
   const keyRef = useRef(key);
   keyRef.current = key;
@@ -132,6 +150,8 @@ export function usePickList(space: string | null, season: number, live: LiveMode
         } catch (e) {
           // Refused (409: a team it names is gone, or the list is full) or not sent: say so, show the server's list.
           const err = e instanceof ApiError ? e : new ApiError(0, "Couldn't save the change.");
+          // A note keeps its text (the field shows it unsaved and retries on Enter), unless its team is gone (409).
+          if (p.op.op === "note" && err.status !== 409) { const note = p.op.note, key = `${k}:${p.op.team}`; setUnsaved((u) => ({ ...u, [key]: note })); }
           if (keyRef.current === k) {
             refused.current(err.status === 409 ? err.message : `Not saved: ${err.message}`);
             void refetch.current();
@@ -146,6 +166,8 @@ export function usePickList(space: string | null, season: number, live: LiveMode
   const change = useCallback((op: PickOp) => {
     if (!space) return;
     const p: Pending = { id: nextId.current++, op, space, season };
+    // A new write of a note replaces one that failed (a retry, or putting the saved one back).
+    if (op.op === "note") { const key = `${space}:${season}:${op.team}`; setUnsaved((u) => { if (!(key in u)) return u; const { [key]: _gone, ...rest } = u; return rest; }); }
     queue.current.push(p);
     setPending((cur) => [...cur, p]);
     void drain();
@@ -153,5 +175,7 @@ export function usePickList(space: string | null, season: number, live: LiveMode
 
   const mine = useMemo(() => pending.filter((p) => p.space === space && p.season === season).map((p) => p.op), [pending, space, season]);
   const list = useMemo(() => (server ? withPending(server, mine, me) : null), [server, mine, me]);
-  return { list, loading: !server && (loading || !error), error: server ? null : error, saving: mine.length > 0, change, reload: () => { void fetchList(); } };
+  return { list, loading: !server && (loading || !error), error: server ? null : error, saving: mine.length > 0, change,
+    unsavedNote: (team: number) => unsaved[`${space}:${season}:${team}`],
+    savedNote: (team: number) => server?.picks.find((p) => p.team === team)?.note, reload: () => { void fetchList(); } };
 }

@@ -24,6 +24,7 @@ let posts: Record<string, unknown>[] = [];
 let refuseNext = false;
 let gets = 0;
 let statsDown = false;
+let notesDown = false;
 
 const json = (status: number, body: unknown) => new Response(JSON.stringify(body), { status, headers: { "Content-Type": "application/json" } });
 
@@ -31,7 +32,7 @@ beforeEach(() => {
   vi.stubGlobal("ResizeObserver", class { observe() {} unobserve() {} disconnect() {} });
   vi.stubGlobal("matchMedia", (q: string) => ({ matches: false, media: q, addEventListener() {}, removeEventListener() {}, addListener() {}, removeListener() {} }));
   localStorage.clear();
-  posts = []; refuseNext = false; gets = 0; statsDown = false;
+  posts = []; refuseNext = false; gets = 0; statsDown = false; notesDown = false;
   server = {
     workspaceId: "901", season: S, version: 3,
     picks: [pick(101, 1, { note: "Strong auto", noteBy: { accountId: 2, name: "Marcus" }, noteUpdatedAt: Date.now() - 120_000 }), pick(102, 2)],
@@ -41,6 +42,7 @@ beforeEach(() => {
       if (init?.method === "POST") {
         const body = JSON.parse(String(init.body));
         posts.push(body);
+        if (notesDown && body.op === "note") return json(503, { error: "Workspace scouting is paused right now." });
         if (refuseNext) { refuseNext = false; return json(409, { error: "That team was removed from the pick list meanwhile.", list: server }); }
         return json(200, { changed: true, list: { ...server, version: server.version + 1 } });
       }
@@ -138,6 +140,23 @@ describe("SharedPicklist", () => {
     act(() => announcePicklistResync("other"));
     act(() => announcePicklistResync("901"));
     await waitFor(() => expect(gets).toBe(before + 1));
+  });
+
+  it("a note the server didn't take keeps its text, marked unsaved, and Enter tries again", async () => {
+    show();
+    await waitFor(() => expect(rows()).toEqual([101, 102]));
+    const input = document.querySelector<HTMLInputElement>('input[data-note="102"]')!;
+    notesDown = true;
+    fireEvent.focus(input);
+    fireEvent.change(input, { target: { value: "Fast cycles" } });
+    fireEvent.keyDown(input, { key: "Enter" });
+    await waitFor(() => expect(within(input.closest("li")!).getByText(/Not saved\. Your text is still here/)).toBeTruthy());
+    expect(input.value).toBe("Fast cycles");
+    notesDown = false;
+    fireEvent.focus(input);
+    fireEvent.keyDown(input, { key: "Enter" });
+    await waitFor(() => expect(posts.filter((p) => p.op === "note")).toHaveLength(2));
+    expect(posts.at(-1)).toEqual({ season: S, op: "note", team: 102, note: "Fast cycles" });
   });
 
   it("a refused change (409) is dropped and the list fetched again", async () => {
