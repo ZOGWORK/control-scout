@@ -22,6 +22,8 @@ import { announceSettingsChange } from "./workspaceSettings";
 import { announceActivity, isActivityItem } from "./scoutActivity";
 import { announcePicklist } from "./sharedPicklist";
 import { isPickList } from "../shared/picklist";
+import { announceAssignments } from "./assignments";
+import type { AssignmentNotice } from "../shared/assignments";
 import { announceComment, announceCommentsResync } from "./scoutComments";
 import { isCommentEvent } from "../shared/comments";
 
@@ -162,6 +164,14 @@ export function followWorkspace(space: string, onMode: (m: LiveMode) => void, de
       let list: unknown;
       try { list = JSON.parse((ev as MessageEvent<string>).data); } catch { return; }
       if (isPickList(list) && list.workspaceId === space) announcePicklist(list);
+    });
+    s.addEventListener("assignment", (ev) => {
+      // Scouting assignments changed (Task 10): the list, badges and cards (assignments.ts) apply it.
+      if (es !== s) return;
+      let n: unknown;
+      try { n = JSON.parse((ev as MessageEvent<string>).data); } catch { return; }
+      const notice = n as AssignmentNotice | null;
+      if (notice && (notice.action === "created" || notice.action === "updated" || notice.action === "deleted") && Array.isArray(notice.assignments)) announceAssignments(space, notice);
     });
     s.addEventListener("comment", (ev) => {
       // A comment on one of the workspace's entries changed: the open thread and the card counts merge it.
