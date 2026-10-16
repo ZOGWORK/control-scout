@@ -32,7 +32,13 @@ import { publishEntries, serialized, type LiveEntry } from "./bus.js";
 import { photosByEntry } from "./photoRows.js";
 import type { EntryPhoto } from "../../src/shared/photos.js";
 
-export interface ScoutEntryInput { uuid: string; season: number; team: number; eventCode: string | null; matchLabel: string | null; kind: "match" | "pit"; data: Record<string, unknown>; notes: string; updatedAt: number; deleted?: boolean }
+export interface ScoutEntryInput {
+  uuid: string; season: number; team: number; eventCode: string | null; matchLabel: string | null; kind: "match" | "pit"; data: Record<string, unknown>; notes: string; updatedAt: number; deleted?: boolean;
+  /** The template it was made with (workspace entries; see src/shared/scoutTemplate.ts). Null: unknown (made before templates). */
+  templateId?: string | null; templateVersion?: number | null;
+}
+
+const TEMPLATE_ID = /^[A-Za-z0-9:_-]{1,100}$/;
 
 export function cleanScoutEntry(x: any): ScoutEntryInput | null {
   if (!x || typeof x !== "object") return null;
@@ -45,6 +51,9 @@ export function cleanScoutEntry(x: any): ScoutEntryInput | null {
   return {
     uuid: x.uuid, season, team, eventCode: typeof x.eventCode === "string" ? x.eventCode.slice(0, 24) : null, matchLabel: typeof x.matchLabel === "string" ? x.matchLabel.slice(0, 24) : null,
     kind: x.kind, data, notes: typeof x.notes === "string" ? x.notes.slice(0, 4000) : "", updatedAt, deleted: !!x.deleted,
+    ...(typeof x.templateId === "string" && TEMPLATE_ID.test(x.templateId)
+      ? { templateId: x.templateId, templateVersion: Number.isSafeInteger(x.templateVersion) && x.templateVersion >= 0 ? x.templateVersion : 0 }
+      : {}),
   };
 }
 
@@ -62,6 +71,7 @@ const workspaceRow = (workspaceId: string, r: any, photos: EntryPhoto[] = []): W
   data: JSON.parse(r.data), notes: r.notes, updatedAt: Number(r.updated_at), deleted: !!r.deleted,
   authorAccountId: Number(r.author_account_id), authorDisplayName: r.author_name,
   editorAccountId: Number(r.editor_account_id), editorDisplayName: r.editor_name,
+  ...(r.template_id ? { templateId: String(r.template_id), templateVersion: Number(r.template_version ?? 0) } : {}),
   photos, photoExpired: photos.some((p) => p.expired), photosRev: Number(r.photos_rev ?? 0),
 });
 /** Stored rows (of one workspace) as live entries, each with its photos. */
@@ -148,13 +158,16 @@ export function requireWorkspaceAdmin() {
 }
 
 const UPSERT = `INSERT INTO workspace_scout_entries
-    (workspace_id, uuid, season, team, event_code, match_label, kind, data, notes, updated_at, deleted, author_account_id, author_name, editor_account_id, editor_name, seq)
-  VALUES ((SELECT id FROM workspaces WHERE cp_workspace_id = ?), ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
+    (workspace_id, uuid, season, team, event_code, match_label, kind, data, notes, updated_at, deleted, author_account_id, author_name, editor_account_id, editor_name, template_id, template_version, seq)
+  VALUES ((SELECT id FROM workspaces WHERE cp_workspace_id = ?), ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
     (SELECT COALESCE(MAX(s.seq), 0) + 1 FROM workspace_scout_entries s WHERE s.workspace_id = (SELECT id FROM workspaces WHERE cp_workspace_id = ?)))
   ON CONFLICT(workspace_id, uuid) DO UPDATE SET
     season = excluded.season, team = excluded.team, event_code = excluded.event_code, match_label = excluded.match_label, kind = excluded.kind,
     data = excluded.data, notes = excluded.notes, updated_at = excluded.updated_at, deleted = excluded.deleted,
-    editor_account_id = excluded.editor_account_id, editor_name = excluded.editor_name, seq = excluded.seq
+    editor_account_id = excluded.editor_account_id, editor_name = excluded.editor_name, seq = excluded.seq,
+    -- Devices send the template the entry was made with (an edit keeps it); one that sends none (an older build) leaves the stored one.
+    template_id = COALESCE(excluded.template_id, workspace_scout_entries.template_id),
+    template_version = CASE WHEN excluded.template_id IS NULL THEN workspace_scout_entries.template_version ELSE excluded.template_version END
   WHERE excluded.updated_at > workspace_scout_entries.updated_at
     AND (? = 1 OR workspace_scout_entries.author_account_id = excluded.editor_account_id
       OR (excluded.deleted = 0 AND workspace_scout_entries.deleted = 0))`; // mayWrite, in the same statement as the write
@@ -213,7 +226,7 @@ async function writeWorkspaceEntries(user: User, m: Membership, good: ScoutEntry
     ...good.map((e) => ({
       sql: UPSERT,
       args: [m.workspaceId, e.uuid, e.season, e.team, e.eventCode, e.matchLabel, e.kind, JSON.stringify(e.data), e.notes, e.updatedAt, e.deleted ? 1 : 0,
-        m.accountId, name, m.accountId, name, m.workspaceId, m.role === "admin" ? 1 : 0],
+        m.accountId, name, m.accountId, name, e.templateId ?? null, e.templateId ? e.templateVersion ?? 0 : null, m.workspaceId, m.role === "admin" ? 1 : 0],
     })),
   ]);
   return readLiveEntries(m.workspaceId, good.map((e) => e.uuid));

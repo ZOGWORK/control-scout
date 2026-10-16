@@ -13,6 +13,7 @@
 //   is visible again.
 import { useEffect, useState } from "react";
 import { applyLiveEntries, notifyScoutChanged, pullScouting, scoutCursor, type ScoutEntry, type ScoutSpace } from "./scouting";
+import { announceTemplateChange } from "./scoutTemplates";
 
 /** off: Personal, signed out or hidden · connecting · live · polling (the fallback) · revoked: the server ended it (no access). */
 export type LiveMode = "off" | "connecting" | "live" | "polling" | "revoked";
@@ -113,6 +114,13 @@ export function followWorkspace(space: string, onMode: (m: LiveMode) => void, de
       close(); flushPendingNow();
       setMode("connecting");
       pull(space).catch(() => undefined).finally(() => { if (!stopped && !es && !retry) connect(); });
+    });
+    s.addEventListener("template", (ev) => {
+      // An admin changed the template: open forms and editors refetch it (scoutTemplates.ts).
+      if (es !== s) return;
+      let n: { season?: unknown; version?: unknown } = {};
+      try { n = JSON.parse((ev as MessageEvent<string>).data) ?? {}; } catch { /* refetch every season */ }
+      announceTemplateChange({ space, season: Number.isSafeInteger(n.season) ? n.season as number : undefined, version: Number.isSafeInteger(n.version) ? n.version as number : undefined });
     });
     s.addEventListener("membership_revoked", () => {
       if (es !== s) return;

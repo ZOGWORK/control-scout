@@ -278,6 +278,8 @@ describe("workspace scout entries", () => {
     const i = (t: string) => PRIVATE_TABLES.indexOf(t);
     for (const t of ["workspace_members", "workspaces", "workspace_scout_entries"]) expect(i(t)).toBeGreaterThanOrEqual(0);
     expect(i("workspace_scout_entries")).toBeLessThan(i("workspaces"));
+    expect(i("workspace_template_versions")).toBeGreaterThanOrEqual(0);
+    expect(i("workspace_template_versions")).toBeLessThan(i("workspaces"));
   });
 
   it("without the Control Point settings, workspaces are off and personal scouting is unchanged", async () => {

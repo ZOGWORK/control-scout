@@ -561,6 +561,33 @@ CREATE TABLE owner_alerts (
 CREATE UNIQUE INDEX owner_alerts_open ON owner_alerts (kind) WHERE resolved_at IS NULL;
 `,
   },
+  {
+    version: 15,
+    name: "workspace scout templates (versioned) and the template each entry was made with",
+    sql: `
+-- A workspace's scout template (server/scout/templates.ts, docs/shared-accounts.md "Workspace templates").
+-- The current template of each season lives in workspaces.settings (JSON: scoutTemplate.<season>); every
+-- admin change bumps workspaces.settings_version and writes the new version here too. Rows are never
+-- changed or deleted, so an entry made with an older version still renders with the fields it was made with.
+-- match / pit: the field lists (JSON), NULL = that kind uses the built-in default.
+CREATE TABLE workspace_template_versions (
+  workspace_id INTEGER NOT NULL REFERENCES workspaces (id),
+  season INTEGER NOT NULL,
+  version INTEGER NOT NULL,
+  match TEXT,
+  pit TEXT,
+  created_at TEXT NOT NULL,
+  created_by_account_id INTEGER NOT NULL,
+  created_by_name TEXT NOT NULL DEFAULT '',
+  PRIMARY KEY (workspace_id, season, version)
+) WITHOUT ROWID;
+
+-- The template an entry was made with: "ws:<workspace>:<season>:<kind>" (or a built-in id) and its version.
+-- NULL on entries made before templates: they read with the built-in default.
+ALTER TABLE workspace_scout_entries ADD COLUMN template_id TEXT;
+ALTER TABLE workspace_scout_entries ADD COLUMN template_version INTEGER;
+`,
+  },
 ];
 
 export type Db = Client;
