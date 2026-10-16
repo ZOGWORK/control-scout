@@ -28,10 +28,12 @@ interface StoredSeason { version: number; match: ScoutField[] | null; pit: Scout
 type Settings = Record<string, unknown> & { scoutTemplate?: Record<string, StoredSeason> };
 
 const SEASON_MIN = 2000, SEASON_MAX = 2100;
+/** One queue per workspace for every change to its settings JSON (template and settings saves alike). */
+export const settingsLock = (workspaceId: string) => `settings:${workspaceId}`;
 const isSeason = (n: number) => Number.isInteger(n) && n >= SEASON_MIN && n <= SEASON_MAX;
 
 /** settings JSON, read leniently: anything unreadable is an empty object (never a 500). */
-function parseSettings(raw: unknown): Settings {
+export function parseSettings(raw: unknown): Settings {
   if (typeof raw !== "string" || !raw) return {};
   try { const v = JSON.parse(raw); return v && typeof v === "object" && !Array.isArray(v) ? v : {}; } catch { return {}; }
 }
@@ -106,7 +108,7 @@ export async function saveTemplate(user: User, m: Membership, body: any): Promis
     if (raw.length && !c.fields.length) return { ok: false, status: 400, error: `None of the ${kind} fields could be used.`, dropped };
     incoming[kind] = c.fields;
   }
-  return serialized(`template:${m.workspaceId}`, async () => {
+  return serialized(settingsLock(m.workspaceId), async () => {
     const cur = await currentTemplate(m.workspaceId, season);
     if (baseVersion !== null && baseVersion !== cur.version) {
       return { ok: false as const, status: 409 as const, error: "Another admin changed this template meanwhile. Here's their version; make your change again on top of it.", template: cur };
