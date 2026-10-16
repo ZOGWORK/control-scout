@@ -8,9 +8,15 @@ const url = (ws: string) => `/api/scout/workspaces/${encodeURIComponent(ws)}/mem
 
 export type MembersStatus = "loading" | "ready" | "error";
 
-/** The members of a workspace, fetched when it's shown; `reload` asks again (after a removal). */
-export function useWorkspaceMembers(ws: string): { data: WorkspaceMembersResponse | null; status: MembersStatus; error: string | null; reload: () => void } {
-  const [state, setState] = useState<{ ws: string; data: WorkspaceMembersResponse | null; status: MembersStatus; error: string | null }>({ ws, data: null, status: "loading", error: null });
+interface State { ws: string; data: WorkspaceMembersResponse | null; status: MembersStatus; error: string | null }
+
+/**
+ * The members of a workspace, fetched when it's shown. `reload` asks again; a reload that fails keeps
+ * the list on screen with `error` set (the view shows both). `drop` takes someone off the list at once
+ * (after a removal succeeded), so a failed reload can't leave them showing.
+ */
+export function useWorkspaceMembers(ws: string): { data: WorkspaceMembersResponse | null; status: MembersStatus; error: string | null; reload: () => void; drop: (accountId: number) => void } {
+  const [state, setState] = useState<State>({ ws, data: null, status: "loading", error: null });
   const gen = useRef(0);
   const load = useCallback(() => {
     const g = ++gen.current;
@@ -20,8 +26,11 @@ export function useWorkspaceMembers(ws: string): { data: WorkspaceMembersRespons
       .catch((e) => { if (gen.current === g) setState((s) => ({ ...s, ws, status: s.data ? "ready" : "error", error: e instanceof ApiError ? e.message : "Couldn't load the members." })); });
   }, [ws]);
   useEffect(() => { load(); }, [load]);
+  const drop = useCallback((accountId: number) => {
+    setState((s) => (s.ws === ws && s.data ? { ...s, data: { ...s.data, members: s.data.members.filter((m) => m.accountId !== accountId) } } : s));
+  }, [ws]);
   const cur = state.ws === ws ? state : { ws, data: null, status: "loading" as const, error: null };
-  return { data: cur.data, status: cur.status, error: cur.error, reload: load };
+  return { data: cur.data, status: cur.status, error: cur.error, reload: load, drop };
 }
 
 /** Ask Control Point (through Scout) to remove a member. Throws ApiError with the server's explanation. */

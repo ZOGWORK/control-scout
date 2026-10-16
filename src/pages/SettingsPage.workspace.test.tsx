@@ -161,6 +161,32 @@ describe("Settings → Workspace → Members (Task 9)", () => {
     expect(screen.queryByRole("dialog")).toBeNull();
   });
 
+  it("removed, then the list can't reload: they're off the list anyway, with the reload error and a retry", async () => {
+    let removed = false;
+    h.members = { list: () => { if (removed) throw new Error("down"); return people(true); }, remove: () => { removed = true; return json(200, { ok: true, self: false }); } };
+    show(userIn([{ id: "77", name: "Gearheads", role: "admin" }]));
+    await list();
+    fireEvent.click(screen.getByRole("button", { name: "Remove Max Member" }));
+    await act(async () => { fireEvent.click(within(await screen.findByRole("dialog")).getByRole("button", { name: /^Remove$/ })); });
+    await waitFor(() => expect(screen.queryByText("Max Member")).toBeNull());
+    expect(await screen.findByText(/Couldn't refresh the list/)).toBeTruthy();
+    expect(screen.getByRole("button", { name: /Try again/ })).toBeTruthy();
+  });
+
+  it("an open dialog never carries over to another workspace", async () => {
+    h.members = { list: () => people(true), remove: () => json(200, { ok: true, self: false }) };
+    const both = userIn([{ id: "77", name: "Gearheads", role: "admin" }, { id: "78", name: "Sprockets", role: "admin" }]);
+    const r = show(both, "/settings?section=workspace&workspace=77");
+    await list();
+    fireEvent.click(screen.getByRole("button", { name: "Remove Max Member" }));
+    await screen.findByRole("dialog");
+    // The account refresh drops Gearheads while the dialog is open: Settings falls back to Sprockets.
+    h.personal = { ...h.personal, user: userIn([{ id: "78", name: "Sprockets", role: "admin" }]) };
+    r.rerender(<TooltipProvider><MemoryRouter initialEntries={["/settings?section=workspace&workspace=77"]}><SettingsPage /></MemoryRouter></TooltipProvider>);
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+    expect(removes).toEqual([]);
+  });
+
   it("the last admin leaving: Control Point's refusal is shown in the dialog", async () => {
     h.members = { list: () => people(true), remove: () => json(409, { error: "You're the workspace's last admin. Make someone else an admin in Control Point before you leave.", code: "last_admin" }) };
     show(userIn([{ id: "77", name: "Gearheads", role: "admin" }]));

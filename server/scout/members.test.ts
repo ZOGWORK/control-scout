@@ -9,7 +9,7 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { all, get, migrate, openDb, run, setDb } from "../db";
 import { createApp } from "../app";
 import { setMailer } from "../auth/email";
-import { clearInfoCache, MEMBERSHIP_TTL } from "../auth/controlPoint";
+import { clearInfoCache, MEMBERSHIP_TTL, rememberInfo } from "../auth/controlPoint";
 import { subscribeRevoked } from "./bus";
 import { LAST_ADMIN_SELF, REMOVE_UNSUPPORTED } from "../../src/shared/workspaceMembers";
 
@@ -23,6 +23,8 @@ const accounts = new Map<string, { id: number; email: string; displayName: strin
 const teams = new Map<string, { name: string; members: Map<string, { name: string; role: "admin" | "member" }> }>();
 let membersRoutes = true; // false: an older Control Point (no members routes)
 let cpDown = false;
+let cpHangs = false;
+let afterRemove: null | (() => Promise<unknown>) = null;
 const removeCalls: { workspaceId: string; body: any }[] = [];
 const accountFor = (email: string) => {
   let a = accounts.get(email);
@@ -62,6 +64,8 @@ beforeAll(async () => {
   stub.post("/internal/workspaces/:id/members/remove", (req, res, next) => {
     if (!membersRoutes) { next(); return; }
     removeCalls.push({ workspaceId: req.params.id, body: req.body });
+    if (cpHangs) return; // never answers: Scout's call times out
+
     const t = teams.get(req.params.id);
     const actor = byId(req.body.actorAccountId), target = byId(req.body.accountId);
     if (!t || !actor || t.members.get(actor.email)?.role !== "admin") { res.status(403).json({ error: "not_admin" }); return; }
@@ -69,6 +73,8 @@ beforeAll(async () => {
     const admins = [...t.members.values()].filter((m) => m.role === "admin").length;
     if (t.members.get(target.email)!.role === "admin" && admins <= 1) { res.status(409).json({ error: "last_admin" }); return; }
     t.members.delete(target.email);
+    // Something else sees the removal before Control Point answers Scout (e.g. the target's /me).
+    if (afterRemove) { void afterRemove().then(() => res.json({ ok: true })); return; }
     res.json({ ok: true });
   });
   stub.get("/api/auth/config", (_req, res) => { res.json({}); });
@@ -90,7 +96,7 @@ afterAll(() => {
   for (const k of ["CONTROL_POINT_INTERNAL_URL", "CONTROL_POINT_PUBLIC_URL", "CONTROL_POINT_INTERNAL_KEY", "APP_URL"]) delete process.env[k];
 });
 beforeEach(() => {
-  cpDown = false; membersRoutes = true; removeCalls.length = 0;
+  cpDown = false; cpHangs = false; afterRemove = null; membersRoutes = true; removeCalls.length = 0;
   clearInfoCache();
   Object.assign(process.env, { CONTROL_POINT_INTERNAL_URL: cpBase, CONTROL_POINT_PUBLIC_URL: "https://cp.test", CONTROL_POINT_INTERNAL_KEY: KEY, APP_URL: "http://127.0.0.1" });
 });
@@ -265,9 +271,39 @@ describe("workspace members", () => {
     await members(w.ada, w.id);
     cpDown = true;
     const r = await remove(w.ada, w.id, w.maxId);
-    expect(r.status).toBe(502);
+    expect(r).toMatchObject({ status: 502, json: { code: "unconfirmed", error: expect.stringMatching(/Couldn't confirm/) } });
     expect(await cached(w.maxId, w.id)).toBeTruthy();
     expect(w.t.members.has(`max.${w.tag}@example.com`)).toBe(true);
+  });
+
+  it("a timeout after Control Point removed them: 502 unconfirmed, and the background re-check catches up", async () => {
+    const w = await workspace();
+    await members(w.ada, w.id);
+    cpHangs = true; // the stub removes nothing and never answers
+    w.t.members.delete(`max.${w.tag}@example.com`); // ...but Control Point did remove Max
+    const r = await remove(w.ada, w.id, w.maxId);
+    expect(r).toMatchObject({ status: 502, json: { code: "unconfirmed" } });
+    cpHangs = false;
+    await expect.poll(() => cached(w.maxId, w.id), { timeout: 10_000 }).toBeUndefined();
+  }, 30_000);
+
+  it("a refresh that sees the removal first doesn't record it twice: once, with the admin as actor", async () => {
+    const w = await workspace();
+    afterRemove = async () => { clearInfoCache(); await w.max("GET", "/api/auth/me"); };
+    expect((await remove(w.ada, w.id, w.maxId)).status).toBe(200);
+    const left = (await activity(w.id)).filter((a) => a.type === "member.left");
+    expect(left).toHaveLength(1);
+    expect(left[0].actor).toEqual({ accountId: w.adaId, name: "Ada" });
+    expect((await audits()).filter((a) => a.details.workspaceId === w.id)).toHaveLength(1);
+  });
+
+  it("an account read already on its way can't put a removed member back", async () => {
+    const w = await workspace();
+    const stale = { ...payload(accounts.get(`max.${w.tag}@example.com`)!) }; // read before the removal
+    expect((await remove(w.ada, w.id, w.maxId)).status).toBe(200);
+    await rememberInfo(stale as any); // ...and landing after it
+    expect(await cached(w.maxId, w.id)).toBeUndefined();
+    expect((await push(w.max, w.id, [entry()])).status).toBe(403);
   });
 
   it("someone already gone: 404, and the cache catches up", async () => {

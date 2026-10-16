@@ -189,7 +189,7 @@ const toInfo = (accountId: number, cp: Info): ControlPointInfo => ({ accountId, 
  * throws. Bounded: expired entries go first, then the oldest.
  */
 export async function rememberInfo(account: SharedAccount): Promise<void> {
-  const workspaces = validWorkspaces(account.workspaces);
+  const workspaces = withoutDropped(account.id, validWorkspaces(account.workspaces));
   const info = validInfo(account.controlPoint);
   if (info) {
     const t = Date.now();
@@ -203,7 +203,7 @@ export async function rememberInfo(account: SharedAccount): Promise<void> {
   await storeMemberships(account.id, workspaces, account);
 }
 /** Tests: forget everything (a cold cache). */
-export const clearInfoCache = () => { infoCache.clear(); lastForced.clear(); };
+export const clearInfoCache = () => { infoCache.clear(); lastForced.clear(); dropped.clear(); };
 
 /** Membership for a linked account, cached for 10 minutes; null when Control Point can't be reached or sends something unexpected. */
 export async function controlPointInfo(accountId: number): Promise<ControlPointInfo | null> {
@@ -248,8 +248,9 @@ async function storeMemberships(accountId: number, list: Workspace[], account?: 
     const actor = CONTROL_POINT_ACTOR, subject = `member:${accountId}`;
     // Guarded on the cache row (read again inside the transaction), so two refreshes racing log a change once.
     const cachedRow = (id: string) => ({ sql: "EXISTS (SELECT 1 FROM workspace_members WHERE account_id = ? AND cp_workspace_id = ?)", args: [accountId, id] });
+    // A removal Scout itself is making (removeMember) is recorded there, once, with the admin as actor.
     const logs = [
-      ...left.map(([id, role]) => ({ id, stmt: activityStatement(id, actor, "member.left", subject, { accountId, name, role }, now, cachedRow(id)) })),
+      ...left.filter(([id]) => !removing.has(dropKey(accountId, id))).map(([id, role]) => ({ id, stmt: activityStatement(id, actor, "member.left", subject, { accountId, name, role }, now, cachedRow(id)) })),
       ...joined.map((w) => {
         const g = cachedRow(w.id);
         return { id: w.id, stmt: activityStatement(w.id, actor, "member.joined", subject, { accountId, name, role: w.role }, now, { sql: `NOT ${g.sql}`, args: g.args }) };
@@ -276,6 +277,7 @@ async function storeMemberships(accountId: number, list: Workspace[], account?: 
     for (const r of res[logs.length].rows as unknown as { cp_workspace_id: string; workspace_name: string; role: string }[]) {
       const workspaceId = String(r.cp_workspace_id);
       publishRevoked(workspaceId, accountId);
+      if (removing.has(dropKey(accountId, workspaceId))) continue;
       await auditRemoval("Control Point", {
         origin: "control-point", workspaceId, workspaceName: String(r.workspace_name ?? ""),
         accountId, name: name || await memberName(accountId, account), role: r.role === "admin" ? "admin" : "member", actorAccountId: null,
@@ -326,7 +328,7 @@ export async function refreshAccount(accountId: number): Promise<Workspace[] | n
     let list: Workspace[] | null = null;
     try {
       const a = await getAccount(accountId);
-      list = a ? validWorkspaces(a.workspaces) : [];
+      list = a ? withoutDropped(accountId, validWorkspaces(a.workspaces)) : [];
       // Saved before the cache write: any answer that lands later (a sign-in, /me) replaces it in storeMemberships.
       lastForced.set(accountId, { at: Date.now(), list });
       if (a) await rememberInfo(a);
@@ -426,7 +428,7 @@ export type RemoveResult = { ok: true } | { ok: false; reason: "unsupported" | "
  * (POST /internal/workspaces/:id/members/remove). Control Point checks the actor is an admin and that
  * the last admin stays. Throws when it can't be reached or fails (nothing removed, as far as Scout knows).
  */
-export async function removeWorkspaceMember(workspaceId: string, accountId: number, actorAccountId: number): Promise<RemoveResult> {
+async function removeWorkspaceMember(workspaceId: string, accountId: number, actorAccountId: number): Promise<RemoveResult> {
   try {
     await internal(`/internal/workspaces/${encodeURIComponent(workspaceId)}/members/remove`, { method: "POST", body: { accountId, actorAccountId } }, 8000);
     return { ok: true };
@@ -441,6 +443,43 @@ export async function removeWorkspaceMember(workspaceId: string, accountId: numb
   }
 }
 
+const dropKey = (accountId: number, workspaceId: string) => `${accountId}:${workspaceId}`;
+/** Removals Scout is making right now: a refresh that sees one first drops the row but leaves the record to removeMember. */
+const removing = new Set<string>();
+/**
+ * When Scout last dropped a membership itself. An account read that was already on its way (sign-in,
+ * /me, a re-check) may still list the workspace; within DROP_HOLD_MS that answer is out of date and
+ * must not put the row back. Longer than any Control Point call can take (3 to 8 s timeouts).
+ */
+const dropped = new Map<string, number>();
+export const DROP_HOLD_MS = 15_000;
+function withoutDropped(accountId: number, list: Workspace[]): Workspace[] {
+  if (!dropped.size) return list;
+  const t = Date.now();
+  for (const [k, at] of dropped) if (t - at > DROP_HOLD_MS) dropped.delete(k);
+  return list.filter((w) => !dropped.has(dropKey(accountId, w.id)));
+}
+
+type Target = { accountId: number; name?: string; role?: "admin" | "member" };
+
+/**
+ * An admin's Remove in Scout: Control Point removes `target` (checking the admin and the last admin
+ * itself), then Scout drops its cached membership at once (dropMembership). While Control Point is
+ * deciding, a refresh that already sees the removal drops the row but doesn't record it, so the
+ * removal is logged and audited once, with the admin as actor. Throws when Control Point can't be
+ * reached or fails: the removal may or may not have happened.
+ */
+export async function removeMember(workspaceId: string, workspaceName: string, target: Target,
+  actor: ActivityActor & { accountId: number }, actorAudit: string): Promise<RemoveResult> {
+  const key = dropKey(target.accountId, workspaceId);
+  removing.add(key);
+  try {
+    const r = await removeWorkspaceMember(workspaceId, target.accountId, actor.accountId);
+    if (r.ok) await dropMembership(workspaceId, workspaceName, target, actor, actorAudit);
+    return r;
+  } finally { removing.delete(key); }
+}
+
 /**
  * Control Point removed `target` from the workspace at an admin's request in Scout: drop Scout's
  * cached membership now (no waiting for the next refresh), log member.left in the workspace's feed
@@ -449,10 +488,12 @@ export async function removeWorkspaceMember(workspaceId: string, accountId: numb
  * account, personal data and entries are untouched; their workspace entries keep their authorship.
  * Never throws (Control Point has already removed them).
  */
-export async function dropMembership(workspaceId: string, workspaceName: string, target: { accountId: number; name?: string; role?: "admin" | "member" },
+async function dropMembership(workspaceId: string, workspaceName: string, target: Target,
   actor: ActivityActor & { accountId: number }, actorAudit: string): Promise<void> {
   const { accountId } = target;
-  // Forget every cached answer that still lists the workspace, so the next check asks Control Point.
+  // Forget every cached answer that still lists the workspace, so the next check asks Control Point,
+  // and keep answers already on their way from putting it back.
+  dropped.set(dropKey(accountId, workspaceId), Date.now());
   infoCache.delete(accountId);
   lastForced.delete(accountId);
   let name = target.name?.trim().slice(0, 60) || "";
