@@ -2,7 +2,7 @@ import { createServer, type Server } from "node:http";
 import type { AddressInfo } from "node:net";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
-  INITIAL_STATE, OUTBOX_MAX, checkSite, configFrom, duration, formatAlert, postDiscord, step, tick,
+  INITIAL_STATE, OUTBOX_MAX, checkSite, enqueue, type DiscordPayload, type Queued, configFrom, duration, formatAlert, postDiscord, step, tick,
   type FetchLike, type MonitorState, type SiteResult, type StoredState,
 } from "./uptime";
 
@@ -312,7 +312,24 @@ describe("tick", () => {
     for (let i = 0; i < OUTBOX_MAX + 3; i++) { await go(false, false); await go(false, false); await go(true, false); }
     const outbox = (await store.get())?.outbox ?? [];
     expect(outbox).toHaveLength(OUTBOX_MAX);
-    expect(outbox.at(-1)?.embeds[0].title).toBe("example.test is back up");
+    expect(outbox.at(-1)?.payload.embeds[0].title).toBe("example.test is back up");
+  });
+
+  it("no backlog of stale reminders when Discord comes back after a long gap", async () => {
+    const hook = await mockWebhook();
+    let hookUp = false;
+    let t = T0;
+    const f: FetchLike = (u, i) => {
+      if (u.startsWith(SITE)) return fakeFetch({ api: "refuse", home: "refuse" })(u, i);
+      return hookUp ? fetch(u, i) : Promise.resolve(new Response("busy", { status: 500 }));
+    };
+    const store = memStore();
+    // 70 minutes down while Discord refuses everything.
+    for (let i = 0; i < 70; i++, t += MIN) await tick({ site: SITE, webhookUrl: hook.url }, { fetch: f, store, log: () => {}, now: () => t });
+    expect((await store.get())?.outbox?.map((q) => q.kind)).toEqual(["down"]);
+    hookUp = true;
+    await tick({ site: SITE, webhookUrl: hook.url }, { fetch: f, store, log: () => {}, now: () => t });
+    expect((hook.received as Array<{ embeds: Array<{ title: string }> }>).map((p) => p.embeds[0].title)).toEqual(["example.test is down"]);
   });
 
   it("no webhook: still tracks state and logs instead of posting", async () => {
@@ -322,6 +339,22 @@ describe("tick", () => {
     expect(out.delivery).toBe("skipped");
     expect(store.puts.at(-1)?.down).toBe(true);
     expect(lines.some((l) => l.startsWith("UPTIME_DISCORD_WEBHOOK is not set"))).toBe(true);
+  });
+});
+
+describe("enqueue", () => {
+  const q = (kind: Queued["kind"], n = 0): Queued => ({ kind, payload: { content: `${kind}${n}` } as DiscordPayload });
+  it("keeps down and recovered in order", () => {
+    expect(enqueue([q("down")], q("recovered")).map((x) => x.kind)).toEqual(["down", "recovered"]);
+  });
+  it("a newer reminder replaces a queued one", () => {
+    expect(enqueue([q("recovered"), q("reminder", 1)], q("reminder", 2)).map((x) => x.payload.content)).toEqual(["recovered0", "reminder2"]);
+  });
+  it("'back up' drops a queued reminder", () => {
+    expect(enqueue([q("reminder")], q("recovered")).map((x) => x.kind)).toEqual(["recovered"]);
+  });
+  it("no reminder while the outage's down is still queued", () => {
+    expect(enqueue([q("down")], q("reminder")).map((x) => x.kind)).toEqual(["down"]);
   });
 });
 
