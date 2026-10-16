@@ -26,6 +26,13 @@ interface PersonalApi {
   user: AccountUser | null;
   /** Null until /api/auth/me has answered. */
   providers: AuthProviders | null;
+  /**
+   * True while `user` is the account this device last saw signed in (ACCOUNT_CACHE_KEY), because the
+   * app opened offline and /api/auth/me couldn't answer. Its workspaces still pick the scout space,
+   * so entries saved now go to the right one and sync once /me answers again; nothing syncs until then
+   * (syncReady stays false).
+   */
+  offlineAccount: boolean;
   sync: SyncStatus;
   /** Signed in AND this device's data confirmed as the account's: safe to sync scouting. */
   syncReady: boolean;
@@ -96,6 +103,25 @@ function takeStash(owner: string): Stash | null {
   try { const raw = localStorage.getItem(STASH(owner)); if (!raw) return null; localStorage.removeItem(STASH(owner)); return JSON.parse(raw); } catch { return null; }
 }
 
+/**
+ * Device-only (Tier 3, docs/settings.md): the signed-in account as /api/auth/me last answered, kept so
+ * an app opened offline still knows its workspaces (scout spaces). Written on every answer with an
+ * account, removed on sign-out or when /me says signed out. Used only for the device's own account
+ * (OWNER) and never sent anywhere.
+ */
+export const ACCOUNT_CACHE_KEY = "cs-account-cache";
+function cacheAccount(u: AccountUser | null) {
+  try { if (u) localStorage.setItem(ACCOUNT_CACHE_KEY, JSON.stringify(u)); else localStorage.removeItem(ACCOUNT_CACHE_KEY); } catch { /* storage blocked: no offline account */ }
+}
+/** The cached account, if it's the one this device's data belongs to. */
+function cachedAccount(): AccountUser | null {
+  try {
+    const raw = localStorage.getItem(ACCOUNT_CACHE_KEY);
+    const u = raw ? (JSON.parse(raw) as AccountUser) : null;
+    return u && Number.isSafeInteger(u.id) && String(u.id) === getOwner() ? u : null;
+  } catch { return null; }
+}
+
 const getOwner = () => { try { return localStorage.getItem(OWNER) ?? ""; } catch { return ""; } };
 const setOwner = (v: string) => { try { localStorage.setItem(OWNER, v); } catch { /* ignore */ } };
 
@@ -107,6 +133,8 @@ export function PersonalProvider({ children }: { children: ReactNode }) {
   const [state, setState] = useState<PersonalState>(() => toState(stamped.current));
   const [user, setUser] = useState<AccountUser | null>(null);
   const [providers, setProviders] = useState<PersonalApi["providers"]>(null);
+  const [offlineAccount, setOfflineAccount] = useState(false);
+  const offlineRef = useRef(false);
   const [sync, setSync] = useState<SyncStatus>("local");
   /** True once this device's data is confirmed to belong to the signed-in account. */
   const [syncReady, setSyncReady] = useState(false);
@@ -185,6 +213,8 @@ export function PersonalProvider({ children }: { children: ReactNode }) {
     const mine = ++generation.current;
     const alive = () => generation.current === mine;
     connectingFor.current = String(u.id);
+    offlineRef.current = false; setOfflineAccount(false);
+    cacheAccount(u);
     setUser(u);
     userRef.current = u;
     readyRef.current = false;
@@ -223,10 +253,28 @@ export function PersonalProvider({ children }: { children: ReactNode }) {
   }, [apply, migrate, pull, push]);
 
   useEffect(() => {
-    apiFetch<{ user: AccountUser | null; providers: AuthProviders }>("/api/auth/me")
-      .then((r) => { setProviders(r.providers); if (r.user) connect(r.user); })
-      .catch(() => setProviders({ email: false, google: false }));
+    // Opened offline: /me can't answer, so the account this device last saw stands in (offlineAccount) until it can.
+    // A reply is for the generation it was asked in: a sign-out or another sign-in meanwhile makes it stale.
+    const load = () => { const asked = generation.current; return apiFetch<{ user: AccountUser | null; providers: AuthProviders }>("/api/auth/me")
+      .then((r) => {
+        if (generation.current !== asked) return;
+        setProviders(r.providers);
+        if (r.user) { connect(r.user); return; }
+        cacheAccount(null);
+        if (offlineRef.current) { offlineRef.current = false; setOfflineAccount(false); generation.current++; userRef.current = null; setUser(null); setSync("local"); }
+      })
+      .catch((e: { offline?: boolean }) => {
+        if (generation.current !== asked) return;
+        if (offlineRef.current) return; // still offline: keep the cached account
+        setProviders((p) => p ?? { email: false, google: false });
+        const cached = e?.offline ? cachedAccount() : null;
+        if (!cached || userRef.current) return;
+        offlineRef.current = true; setOfflineAccount(true);
+        userRef.current = cached; setUser(cached); setSync("offline");
+      }); };
+    void load();
     const retry = () => {
+      if (offlineRef.current) { void load(); return; } // back online: ask /me again, then sync as usual
       const u = userRef.current;
       if (!u) return;
       if (!readyRef.current) connect(u); // the sign-in sync didn't finish (e.g. offline): redo it
@@ -259,6 +307,7 @@ export function PersonalProvider({ children }: { children: ReactNode }) {
     await apiFetch("/api/auth/logout", { method: "POST", json: {} }).catch(() => {});
     // The device keeps its copy, still marked as this account's (never treated as anonymous).
     generation.current++; // any connection still in flight is now stale
+    cacheAccount(null); offlineRef.current = false; setOfflineAccount(false);
     connectingFor.current = null;
     setUser(null);
     userRef.current = null;
@@ -291,7 +340,7 @@ export function PersonalProvider({ children }: { children: ReactNode }) {
   const appliedSeq = useRef(0);
   const refreshUser = useCallback(async () => {
     const u = userRef.current;
-    if (!u) return;
+    if (!u || offlineRef.current) return; // the offline stand-in: the reconnect asks /me itself
     const mine = generation.current;
     const seq = ++refreshSeq.current;
     lastRefresh.current = Date.now();
@@ -299,10 +348,13 @@ export function PersonalProvider({ children }: { children: ReactNode }) {
       const r = await apiFetch<{ user: AccountUser | null }>("/api/auth/me");
       // A newer refresh already answered (e.g. the one after leaving a workspace): this older reply is stale.
       if (seq < appliedSeq.current) return;
+      // The session ended (signed out elsewhere, or expired): opening offline later mustn't bring this account back.
+      if (generation.current === mine && !r.user) cacheAccount(null);
       // Signed out meanwhile, or another account: that's the next page load's to handle, not this refresh's.
       if (generation.current !== mine || !r.user || r.user.id !== userRef.current?.id) return;
       appliedSeq.current = seq;
       if (JSON.stringify(r.user) === JSON.stringify(userRef.current)) return;
+      cacheAccount(r.user);
       userRef.current = r.user;
       setUser(r.user);
     } catch { /* offline: the next one tries again */ }
@@ -316,7 +368,7 @@ export function PersonalProvider({ children }: { children: ReactNode }) {
     return () => { clearInterval(t); document.removeEventListener("visibilitychange", onFront); window.removeEventListener("focus", onFront); };
   }, [refreshUser]);
 
-  const api = useMemo<PersonalApi>(() => ({ state, user, providers, sync, syncReady, set, update, stored, signedIn, signOut, refreshUser, clearLocal }), [state, user, providers, sync, syncReady, set, update, stored, signedIn, signOut, refreshUser, clearLocal]);
+  const api = useMemo<PersonalApi>(() => ({ state, user, providers, offlineAccount, sync, syncReady, set, update, stored, signedIn, signOut, refreshUser, clearLocal }), [state, user, providers, offlineAccount, sync, syncReady, set, update, stored, signedIn, signOut, refreshUser, clearLocal]);
   return <Ctx.Provider value={api}>{children}</Ctx.Provider>;
 }
 
