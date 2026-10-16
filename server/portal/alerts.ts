@@ -3,11 +3,14 @@
 // refreshes its text and details.
 //
 // Today the owner portal shows the open ones (the storage panel's warning).
-// Hand-off to the owner inbox (Task 14, docs/r2-photos.md): the inbox reads
-// open alerts with inbox_item_id IS NULL, makes one inbox item (and
-// notification) for each, and stores the item's id in inbox_item_id, so each
-// alert notifies once; a resolved alert can close its item.
-import { get, run } from "../db.js";
+// Hand-off to the owner inbox (server/inbox/inbox.ts, docs/inbox.md): the inbox
+// reads open alerts with inbox_item_id IS NULL, makes one inbox item for each
+// owner account, and stores the first item's id in inbox_item_id, so each
+// alert notifies once. A new alert is delivered at once (and the scheduler
+// retries any still waiting, e.g. for an owner's first sign-in); a resolved
+// alert marks its items read.
+import { all, get, run } from "../db.js";
+import { closeAlertItems, deliverOwnerAlerts } from "../inbox/inbox.js";
 import type { OwnerAlert } from "../../src/shared/photos.js";
 
 const toAlert = (r: any): OwnerAlert => ({ id: Number(r.id), kind: r.kind, level: r.level, title: r.title, body: r.body, createdAt: r.created_at, resolvedAt: r.resolved_at ?? null });
@@ -21,12 +24,17 @@ export async function raiseAlert(kind: string, level: OwnerAlert["level"], title
     "INSERT OR IGNORE INTO owner_alerts (kind, level, title, body, details, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)",
     [kind, level, title, body, json, now, now]) > 0;
   if (!created) await run("UPDATE owner_alerts SET level = ?, title = ?, body = ?, details = ?, updated_at = ? WHERE kind = ? AND resolved_at IS NULL", [level, title, body, json, now, kind]);
+  if (created) await deliverOwnerAlerts();
   return { alert: (await openAlert(kind))!, created };
 }
 
 /** Close the open alert of this kind, if any. */
 export async function resolveAlert(kind: string): Promise<boolean> {
-  return await run("UPDATE owner_alerts SET resolved_at = ?, updated_at = ? WHERE kind = ? AND resolved_at IS NULL", [new Date().toISOString(), new Date().toISOString(), kind]) > 0;
+  // Closed first, then its inbox items marked read: a delivery running meanwhile makes items only for open alerts.
+  const now = new Date().toISOString();
+  const closed = await all<{ id: number }>("UPDATE owner_alerts SET resolved_at = ?, updated_at = ? WHERE kind = ? AND resolved_at IS NULL RETURNING id", [now, now, kind]);
+  await closeAlertItems(closed.map((r) => Number(r.id))).catch((e) => console.error("[inbox] couldn't close alert items", e));
+  return closed.length > 0;
 }
 
 export async function openAlert(kind: string): Promise<OwnerAlert | null> {
