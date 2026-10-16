@@ -95,3 +95,35 @@ self.addEventListener("fetch", (event) => {
     })());
   }
 });
+
+// --- Web push (docs/push.md) ------------------------------------------------------------------
+// The server sends { title, body, url, tag } (src/shared/push.ts). A tap focuses an open Control Scout tab
+// and takes it to the url (a path in this app, never another site), or opens a new window there.
+const pushPath = (u) => (typeof u === "string" && /^\/(?!\/)[^\s\\]*$/.test(u) ? u : "/");
+
+self.addEventListener("push", (event) => {
+  let data = {};
+  try { data = event.data ? event.data.json() : {}; } catch { data = { body: event.data ? event.data.text() : "" }; }
+  const title = typeof data.title === "string" && data.title ? data.title : "Control Scout";
+  event.waitUntil(self.registration.showNotification(title, {
+    body: typeof data.body === "string" ? data.body : "",
+    tag: typeof data.tag === "string" ? data.tag : undefined,
+    icon: "/icon-192.png",
+    badge: "/icon-192.png",
+    data: { url: pushPath(data.url) },
+  }));
+});
+
+self.addEventListener("notificationclick", (event) => {
+  event.notification.close();
+  const url = new URL(pushPath(event.notification.data && event.notification.data.url), self.location.origin).href;
+  event.waitUntil((async () => {
+    const tabs = await self.clients.matchAll({ type: "window", includeUncontrolled: true });
+    const tab = tabs.find((c) => new URL(c.url).origin === self.location.origin);
+    if (tab) {
+      await tab.focus().catch(() => {});
+      if ("navigate" in tab) { const moved = await tab.navigate(url).catch(() => null); if (moved) return; }
+    }
+    await self.clients.openWindow(url);
+  })());
+});

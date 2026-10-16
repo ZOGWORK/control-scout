@@ -2,13 +2,15 @@
 // few minutes: my team's / tracked teams' matches starting within 30 minutes
 // (with the odds), upsets involving tracked teams, and tracked events starting
 // today. Browser notifications when permitted, otherwise an in-app toast.
-// Each alert fires once (remembered on this device).
+// Each alert fires once (remembered on this device). On a device with web push on (push.ts), push
+// delivers these instead, even with the app closed, so this steps aside and nothing arrives twice.
 import { useEffect, useRef } from "react";
 import { apiFetch } from "./api";
 import { usePersonal } from "./personal";
 import { useCurrentSeason } from "./meta";
 import { toast } from "../components/ui/sonner";
 import { oddsPct } from "./format";
+import { pushDeliversHere } from "./push";
 import type { EventSummary, EventListItem, MatchView } from "../shared/api";
 
 const SENT = "cs-alerts-sent";
@@ -77,7 +79,9 @@ export function AlertsRunner() {
       }
     };
     const anyOn = () => { const n = ref.current.settings.notify; return n.myTeamMatches || n.trackedTeams || n.upsets || n.eventStart; };
-    const run = () => { if (anyOn()) tick().catch(() => {}); };
+    // Push delivers on this device: it covers these, even with the app closed. Checked each time, so if push stops
+    // working (switched off, subscription gone, permission revoked) the in-tab alerts take over again.
+    const run = () => { if (anyOn()) pushDeliversHere().then((push) => (push ? undefined : tick())).catch(() => {}); };
     const first = setTimeout(run, 10_000);
     const t = setInterval(run, POLL_MS);
     return () => { stopped = true; clearTimeout(first); clearInterval(t); };
