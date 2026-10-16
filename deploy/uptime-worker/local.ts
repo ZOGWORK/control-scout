@@ -8,11 +8,11 @@
 // UPTIME_DISCORD_WEBHOOK is set in this shell. Stop with Ctrl+C.
 // ONCE=1 runs a single tick and exits (0 up, 1 failing).
 
-import { configFrom, INITIAL_STATE, num, tick, type MonitorState } from "./src/uptime";
+import { configFrom, INITIAL_STATE, num, tick, type StoredState } from "./src/uptime";
 
 const cfg = configFrom(process.env);
 const intervalMs = num(process.env.INTERVAL_SECONDS, 60) * 1000;
-let state: MonitorState = { ...INITIAL_STATE };
+let state: StoredState = { ...INITIAL_STATE };
 const log = (line: string) => console.log(`${new Date().toISOString()} ${line}`);
 
 async function once(): Promise<boolean> {

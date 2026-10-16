@@ -11,7 +11,7 @@
 // The types below are the few pieces of the Workers runtime this file uses,
 // declared here so the repo needs no @cloudflare/workers-types.
 
-import { configFrom, tick, type MonitorState } from "./uptime";
+import { configFrom, tick, type StoredState } from "./uptime";
 
 interface DurableObjectStorage {
   get<T>(key: string): Promise<T | undefined>;
@@ -56,17 +56,17 @@ export class Monitor {
         const out = await tick(configFrom(this.env as unknown as Record<string, string | undefined>), {
           fetch: (url, init) => fetch(url, init),
           store: {
-            get: () => this.ctx.storage.get<MonitorState>(KEY),
+            get: () => this.ctx.storage.get<StoredState>(KEY),
             put: (s) => this.ctx.storage.put(KEY, s),
           },
           log: (line) => console.log(line),
         });
-        return Response.json({ ok: out.result.ok, state: out.state, alert: out.alert?.kind ?? null, delivery: out.delivery });
+        return Response.json({ ok: out.result.ok, state: out.state, alert: out.alert?.kind ?? null, delivery: out.delivery, pending: out.pending.length });
       } finally {
         this.running = false;
       }
     }
-    if (path === "/state") return Response.json((await this.ctx.storage.get<MonitorState>(KEY)) ?? null);
+    if (path === "/state") return Response.json((await this.ctx.storage.get<StoredState>(KEY)) ?? null);
     return new Response("Not found", { status: 404 });
   }
 }
