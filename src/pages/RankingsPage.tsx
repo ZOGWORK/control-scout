@@ -84,6 +84,9 @@ export default function RankingsPage() {
   const status = res.error?.status;
   useEffect(() => {
     if (status !== 400 && status !== 404) return;
+    // Whether the season has ratings comes from /api/meta: decide only once it's here (until then, or if it
+    // never comes, the page shows the API's message and keeps the link as it is).
+    if (seasonParam && !meta) return;
     const q = new URLSearchParams();
     // A season with ratings stays (the server's head keeps it too); the week and page go.
     if (seasonParam && meta?.seasons.some((s) => s.season === seasonParam && s.predictable)) q.set("season", String(seasonParam));
