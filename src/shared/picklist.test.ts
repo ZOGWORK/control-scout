@@ -58,6 +58,8 @@ describe("applyPickOp", () => {
     expect(moveOpFor([1, 2, 3, 4, 5], [1, 3, 4, 2, 5], 2)).toEqual({ op: "move", team: 2, beforeTeam: null, afterTeam: 4 });
     expect(moveOpFor([1, 2, 3], [2, 3, 1], 1)).toEqual({ op: "move", team: 1, beforeTeam: null, afterTeam: 3 });
     expect(moveOpFor([1, 2, 3], [1, 3, 2], 3)).toEqual({ op: "move", team: 3, beforeTeam: 2 });
+    // What the device sends is what the server accepts.
+    for (const op of [moveOpFor([1, 2, 3], [2, 3, 1], 1), moveOpFor([1, 2, 3], [1, 3, 2], 3)]) expect(cleanPickOp(JSON.parse(JSON.stringify(op)))).toEqual(op);
   });
 
   it("concurrent reorders merge deterministically: the same list whichever arrives first", () => {
