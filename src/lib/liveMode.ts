@@ -67,17 +67,21 @@ const teamsOf = (m: MatchView) => [...m.red.teams, ...m.blue.teams].map((t) => t
 
 /**
  * The next unplayed match, in schedule order (scheduled start where every match has one, else the
- * order the event lists them: quals, then playoffs), that involves one of `teams` (any match when
+ * stage order: quals, then playoffs, by series and number), that involves one of `teams` (any match when
  * `teams` is null). A match whose start has passed but has no result yet is still next: it's running
  * late or being scored. Null when nothing is left.
  */
 export function nextMatch(matches: MatchView[], teams: ReadonlySet<number> | ReadonlyMap<number, unknown> | null): MatchView | null {
-  const left = matches.map((m, i) => ({ m, i })).filter(({ m }) => !m.played && (!teams || teamsOf(m).some((t) => teams.has(t))));
+  const left = matches.filter((m) => !m.played && (!teams || teamsOf(m).some((t) => teams.has(t))));
   if (!left.length) return null;
   const at = (m: MatchView) => (m.startsAt ? Date.parse(m.startsAt) : NaN);
-  // Times decide only when every candidate has one (a missing time can't be placed); ties keep list order.
-  if (left.every(({ m }) => Number.isFinite(at(m)))) left.sort((a, b) => at(a.m) - at(b.m) || a.i - b.i);
-  return left[0].m;
+  // Schedule order: quals before playoffs, then series and number (never the API's order, which puts
+  // matches without a time first, e.g. an unscheduled playoff ahead of the quals still to play).
+  const stage = (a: MatchView, b: MatchView) => (a.level === b.level ? 0 : a.level === "qual" ? -1 : 1) || a.series - b.series || a.number - b.number;
+  // Times decide only when every candidate has one (a missing time can't be placed).
+  const timed = left.every((m) => Number.isFinite(at(m)));
+  left.sort((a, b) => (timed ? at(a) - at(b) : 0) || stage(a, b));
+  return left[0];
 }
 
 /** What the countdown says: "4:05" (under an hour), "1 h 05 min", or null once the start has passed. */
