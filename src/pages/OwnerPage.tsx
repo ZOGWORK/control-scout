@@ -512,12 +512,16 @@ function FeedbackPanel() {
   const [older, setOlder] = useState<{ status: FeedbackStatus | "all"; messages: FeedbackMessage[]; more: boolean } | null>(null);
   const [loadingOlder, setLoadingOlder] = useState(false);
   const extra = older?.status === status ? older : null;
+  // Bumped by every move: a page asked for before it is out of date and dropped when it arrives.
+  const olderGen = useRef(0);
   const loadOlder = async (first: FeedbackList) => {
     const last = (extra?.messages.at(-1) ?? first.messages.at(-1))?.id;
     if (!last) return;
+    const gen = olderGen.current;
     setLoadingOlder(true);
     try {
       const page = await apiFetch<FeedbackList>(`${path}&before=${last}`);
+      if (gen !== olderGen.current) return;
       setOlder({ status, messages: [...(extra?.messages ?? []), ...page.messages], more: page.more });
     } catch (e) { toast.error((e as ApiError).message); } finally { setLoadingOlder(false); }
   };
@@ -525,7 +529,9 @@ function FeedbackPanel() {
     setBusy(m.id);
     try {
       await apiFetch(`/api/owner/feedback/${m.id}`, { method: "PATCH", json: { status: to } });
-      setOlder(null); // older pages may hold the moved message: they load again on request
+      // Older pages may hold the moved message: they load again on request, and one still on its way is dropped.
+      olderGen.current++;
+      setOlder(null);
       // Every list (and the overview's open count) is out of date now, not just this one.
       // Marked stale rather than dropped: what's on screen reloads in place, the rest when next shown.
       markStale("/api/owner/feedback");
