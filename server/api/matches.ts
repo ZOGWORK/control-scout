@@ -69,7 +69,7 @@ export async function matchViews(f: MatchFilter, opts: { predictUnplayed?: boole
     else if (!r.played && forecaster) {
       const red = l.red.filter((t) => t.onField).map((t) => t.number), blue = l.blue.filter((t) => t.onField).map((t) => t.number);
       if (red.length === 2 && blue.length === 2) {
-        const x = forecaster.explain(f.season, red, blue);
+        const x = forecaster.explain(f.season, red, blue, r.level);
         // A live event's page polls this every 30 s and should mostly get a 304, so the body must not
         // change unless the data did: no predictedAt (a call from today's ratings isn't logged at a
         // moment), and pRed to 4 places (the ratings decay with the clock, moving it ~1e-9 per read).

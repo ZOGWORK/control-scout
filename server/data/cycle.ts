@@ -13,7 +13,8 @@ import { fileURLToPath } from "node:url";
 import { hasFirst } from "../env.js";
 import { all, kvGet, kvSet } from "../db.js";
 import { buildPacks } from "../packs/build.js";
-import { packsPresent } from "../packs/routes.js";
+import { ENGINE_VERSION } from "@control-scout/predict-engine";
+import { packsEngine, packsPresent } from "../packs/routes.js";
 import { syncAll } from "../sync.js";
 import { runStats, statsRulesStale } from "../stats/job.js";
 import { CURRENT_SEASON, isLegacy } from "./seasons.js";
@@ -49,8 +50,9 @@ export async function runCycle(log: Log) {
   // The timestamp alone isn't enough: an imported database carries
   // packs:last without the pack files, so also require a readable manifest.
   // CS_PACKS=off: hosts with a throwaway disk (Render free) skip packs; /download says none are built.
+  // A new engine version rebuilds them right away: its ratings carry state older packs lack.
   const lastPacks = await kvGet<string>("packs:last");
-  if (process.env.CS_PACKS !== "off" && (!lastPacks || Date.now() - Date.parse(lastPacks) > 23 * 3600_000 || !packsPresent())) {
+  if (process.env.CS_PACKS !== "off" && (!lastPacks || Date.now() - Date.parse(lastPacks) > 23 * 3600_000 || !packsPresent() || packsEngine() !== ENGINE_VERSION)) {
     try {
       await buildPacks((m) => log(`  ${m}`));
       await kvSet("packs:last", new Date().toISOString());

@@ -8,7 +8,7 @@
 // season (browsing 2023) gets its own window ending at that season.
 import {
   Forecaster, FITTED_MODEL, RatingBook, indexAwards, MODELLED_AWARDS, normType, explainMatch,
-  type AdvancementRecord, type AwardRecord, type EventInput, type EventRecord, type Forecast, type PredictModel,
+  type AdvancementRecord, type AwardRecord, type BonusFlags, type EventInput, type EventRecord, type Forecast, type MatchRecord, type PredictModel,
 } from "@control-scout/predict-engine";
 import { all, kvGet } from "../db.js";
 import { CURRENT_SEASON, PREDICT_SEASONS } from "../data/seasons.js";
@@ -22,6 +22,8 @@ export class ScoutForecaster extends Forecaster {
   protected awardHistory = new Map<number, AwardRecord[]>();
   private books = new Map<number, RatingBook>();
   private events = new Map<number, EventRecord[]>();
+  /** Stored matches by `season|code|level:series:number`, for recorded bonus RPs. */
+  private stored = new Map<string, MatchRecord>();
   private advancement = new Map<number, AdvancementRecord[]>();
   private regionByCode = new Map<string, string>();
   private regions = new Set<string>();
@@ -61,6 +63,7 @@ export class ScoutForecaster extends Forecaster {
     }
     this.books = books;
     this.events = events;
+    this.stored = new Map([...events.values()].flat().flatMap((e) => e.matches.map((m) => [`${m.season}|${m.eventCode}|${m.level}:${m.series}:${m.number}`, m] as [string, MatchRecord])));
     this.advancement = advancement;
     this.awardHistory = indexAwards(records);
     this.builtAt = new Date().toISOString();
@@ -81,6 +84,11 @@ export class ScoutForecaster extends Forecaster {
     b.startSeason(season);
     this.books.set(season, b);
     return b;
+  }
+
+  /** Recorded bonus RPs of a synced match, for live payloads that omit them. */
+  protected recordedBonus(season: number, code: string, key: string, side: "red" | "blue"): BonusFlags | null {
+    return this.stored.get(`${season}|${code}|${key}`)?.[side].bonusRp ?? null;
   }
 
   protected regionOf(code: string): string | null {
@@ -196,11 +204,15 @@ export class ScoutForecaster extends Forecaster {
     return new Before().forecast(stripped, myTeam, runs);
   }
 
-  /** Match explanation (win %, scores, factors, confidence) from current ratings. */
-  explain(season: number, red: number[], blue: number[]) {
+  /**
+   * Match explanation (win %, scores, factors, confidence) from current
+   * ratings. `level` feeds the contextual win probability; generic what-ifs
+   * with no known match default to a qualification match.
+   */
+  explain(season: number, red: number[], blue: number[], level: "qual" | "playoff" = "qual") {
     const b = this.book(season);
     if (!b) return null;
-    return explainMatch(b, red, blue, { noise: FITTED_MODEL.noise, calibration: FITTED_MODEL.calibration });
+    return explainMatch(b, red, blue, { noise: FITTED_MODEL.noise, calibration: FITTED_MODEL.calibration, contextual: FITTED_MODEL.contextual, context: { level } });
   }
 }
 
