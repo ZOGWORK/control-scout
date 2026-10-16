@@ -1,7 +1,7 @@
 // Manual scouting: your own match and pit observations on top of public data.
 // Offline-first: saved on this device the moment you press Save; synced to
 // your account when signed in and online.
-import { useEffect, useId, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { ClipboardList, Cloud, CloudOff, Download, History, Info, LayoutList, Loader2, Plus, Save, SearchX, Trash2, X } from "lucide-react";
 import { useCurrentSeason, useTitle } from "../lib/meta";
@@ -42,7 +42,7 @@ export default function ScoutPage() {
   const current = useCurrentSeason();
   // One team in the filter (a link from a team page, or picked in the filter bar): a new entry starts with it.
   const teamFilter = /^\d+$/.test(sp.get("team") ?? "") ? Number(sp.get("team")) || undefined : undefined;
-  const { user, syncReady } = usePersonal();
+  const { user, syncReady, offlineAccount, refreshUser } = usePersonal();
   const spaces = useScoutSpaces();
   const { space, current: workspace } = spaces;
   // The workspace's shared settings (Tier 2, docs/settings.md): its default season and event for this space.
@@ -61,7 +61,14 @@ export default function ScoutPage() {
     else if (space == null) setOpened(null);
   }, [settingsKnown, space, openedSeason, season]);
   const { entries, status, pendingCount, syncNow } = useScouting({ season }, syncReady, space);
-  const live = useScoutLive(space, syncReady);
+  // The switcher's manual refresh (rarely needed: the stream keeps the list live) reopens the stream with a new generation.
+  const [liveGeneration, setLiveGeneration] = useState(0);
+  const live = useScoutLive(space, syncReady, liveGeneration);
+  const refreshSpace = useCallback(async () => {
+    const [synced] = await Promise.all([syncNow(), refreshUser?.()]);
+    setLiveGeneration((g) => g + 1);
+    return synced;
+  }, [syncNow, refreshUser]);
   const pending = usePendingScoutCounts();
   // The server ended this workspace's stream: access is gone, so back to Personal (with a notice).
   const { revoke } = spaces;
@@ -139,8 +146,8 @@ export default function ScoutPage() {
       <PageHeader title="Scout"
         description={workspace ? `Shared with everyone in ${workspaceLabel(workspace)}. Saved on this device instantly; the workspace sees new entries as they sync.`
           : "Your own observations — private to you. Saved on this device instantly; synced to your account when you're signed in."}
-        actions={spaces.resolving ? undefined : <SyncChip status={status} pending={pendingCount} onSync={syncNow} signedIn={!!user} live={live} />}>
-        {spaces.switchable && <ScoutSpaceSwitcher workspaces={spaces.workspaces} space={space} pending={pending} onSelect={selectSpace} className="mb-4" />}
+        actions={spaces.resolving ? undefined : <SyncChip status={offlineAccount ? "offline" : status} pending={pendingCount} onSync={syncNow} signedIn={!!user} live={live} />}>
+        {spaces.switchable && <ScoutSpaceSwitcher workspaces={spaces.workspaces} space={space} pending={pending} onSelect={selectSpace} onRefresh={syncReady ? refreshSpace : undefined} className="mb-4" />}
         {spaces.notice && (
           <div role="status" className="mb-4 flex items-start gap-3 rounded-xl border border-warning/40 bg-warning/10 px-4 py-3 text-sm">
             <Info className="mt-0.5 size-4 shrink-0 text-warning" />

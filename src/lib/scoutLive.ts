@@ -186,13 +186,17 @@ function useVisible(): boolean {
   return visible;
 }
 
-/** Keep a workspace space live while it's on screen and signed in. Personal (null): always "off". */
-export function useScoutLive(space: ScoutSpace, signedIn: boolean): LiveMode {
+/**
+ * Keep a workspace space live while it's on screen and signed in. Personal (null): always "off".
+ * A new `generation` (the space switcher's manual refresh) closes the stream and opens a fresh one,
+ * which catches up from the device's cursor.
+ */
+export function useScoutLive(space: ScoutSpace, signedIn: boolean, generation = 0): LiveMode {
   const visible = useVisible();
   const [mode, setMode] = useState<LiveMode>("off");
   useEffect(() => {
     if (space == null || !signedIn || !visible) { setMode("off"); return; }
     return followWorkspace(space, setMode);
-  }, [space, signedIn, visible]);
+  }, [space, signedIn, visible, generation]);
   return mode;
 }
