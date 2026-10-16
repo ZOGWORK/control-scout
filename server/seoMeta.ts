@@ -4,11 +4,12 @@
 // own values from the database here. The app's own document.title stays as
 // the in-app fallback.
 import { get } from "./db.js";
-import { seasonInfo } from "./data/seasons.js";
+import { CURRENT_SEASON, SEASON_NUMBERS, isLegacy, seasonInfo } from "./data/seasons.js";
 import { eventTypeLabel } from "../src/shared/labels.js";
 import { canonicalOrigin, canonicalUrl } from "./seo.js";
 import { teamKnown } from "./api/teams.js";
 import { pageModule } from "../src/shared/routes.js";
+import { allianceText, shareHeadline, shareImagePath, sharePagePath, type ShareCardQuery } from "../src/shared/share.js";
 
 export const SITE = "FTC Control Scout";
 const HOME_TITLE = "FTC Control Scout — free FTC scouting & predictions";
@@ -28,6 +29,8 @@ export interface PageMeta {
   jsonLd?: Record<string, unknown>[];
   /** No such page (an unknown route, team or event): served with HTTP 404, noindex, no canonical. */
   notFound?: boolean;
+  /** A shared matchup: its card is the link preview image, and og:url is the matchup's own address. */
+  share?: { query: ShareCardQuery; alt: string };
 }
 
 
@@ -147,8 +150,72 @@ async function eventMeta(season: number, code: string): Promise<PageMeta | null>
   return { title: `${e.name} (${seasonInfo(season).label})`, description, type: "website", path: `/events/${season}/${code}`, jsonLd: [ev] };
 }
 
-/** The head values for a page path: the page's own, the home ones when it has none, or notFound for no such page. */
-export async function pageMeta(path: string): Promise<PageMeta> {
+/** Two distinct team numbers per alliance from "a,b" (what the Predict Lab and a match lineup hold), else null. */
+function pair(v: string | null): number[] | null {
+  const t = (v ?? "").split(",");
+  if (t.length !== 2 || !t.every((x) => /^\d{1,6}$/.test(x.trim()))) return null;
+  const n = t.map((x) => Number(x.trim()));
+  return n.every((x) => x >= 1) && n[0] !== n[1] ? n : null;
+}
+
+/** A matchup's words for its link preview: the card's headline, the predicted score and the confidence. */
+function matchupDescription(q: { red: number[]; blue: number[]; pRed: number; pBlue?: number; played?: boolean; predicted: [number, number] | null; tier: string; final?: [number, number] | null }): string {
+  const fav = (q.pBlue ?? 1 - q.pRed) > q.pRed ? "blue" : "red";
+  const order = (x: [number, number]) => (fav === "red" ? x : [x[1], x[0]]).map((n) => Math.round(n)).join("–");
+  let d = `${shareHeadline(q)}.`;
+  if (q.predicted) d += ` Predicted score ${order(q.predicted)}`;
+  if (q.final) d += `${q.predicted ? ";" : ""} final ${order(q.final)}`;
+  d += `${q.predicted || q.final ? ", " : " "}${q.tier} confidence.`;
+  return fitDescription(d);
+}
+
+/** /predict?mode=match&season=…&red=a,b&blue=c,d: the matchup's own title, words and card. */
+async function matchupMeta(sp: URLSearchParams): Promise<PageMeta | null> {
+  const mode = sp.get("mode");
+  if (mode != null && mode !== "match") return null;
+  if (sp.get("view") === "events") return null;
+  const red = pair(sp.get("red")), blue = pair(sp.get("blue"));
+  if (!red || !blue || red.some((t) => blue.includes(t))) return null;
+  const raw = sp.get("season");
+  const season = raw == null || raw === "" ? CURRENT_SEASON : /^\d{4}$/.test(raw) ? Number(raw) : NaN;
+  if (!SEASON_NUMBERS.includes(season) || isLegacy(season)) return null;
+  const { liveForecaster } = await import("./predict/engine.js");
+  const f = await liveForecaster(season);
+  const x = f.explain(season, red, blue);
+  if (!x) return null;
+  const query: ShareCardQuery = { season, red, blue };
+  const predicted: [number, number] | null = f.seasonEvents(season).length ? [x.predictedScoreA, x.predictedScoreB] : null;
+  return {
+    title: `${allianceText(red)} vs ${allianceText(blue)}: match prediction`,
+    description: matchupDescription({ red, blue, pRed: x.winProbA, pBlue: x.winProbB, predicted, tier: x.confidence.tier }),
+    type: "website", path: "/predict",
+    share: { query, alt: `${shareHeadline({ red, blue, pRed: x.winProbA, pBlue: x.winProbB })} (${seasonInfo(season).label}, ${x.confidence.tier} confidence)` },
+  };
+}
+
+/** /events/…?match=qual:1:12: the event's page, with that match's call as its title, words and card. */
+async function eventMatchMeta(ev: PageMeta, season: number, code: string, key: string | null): Promise<PageMeta> {
+  if (!key || !/^(qual|playoff):\d{1,4}:\d{1,4}$/.test(key) || isLegacy(season)) return ev;
+  const { matchViews } = await import("./api/matches.js");
+  const m = (await matchViews({ season, code }, { predictUnplayed: true })).find((x) => x.key === key);
+  const p = m?.prediction;
+  if (!m || !p) return ev;
+  const red = m.red.teams.filter((t) => t.onField).map((t) => t.number), blue = m.blue.teams.filter((t) => t.onField).map((t) => t.number);
+  const played = !!(m.played && m.red.score && m.blue.score);
+  const name = ev.title.replace(/ \(\d{4}–\d{2}\)$/, "");
+  const call = { red, blue, pRed: p.pRed, played };
+  return {
+    ...ev,
+    title: `${m.label}: ${allianceText(red)} vs ${allianceText(blue)} · ${ev.title}`,
+    description: matchupDescription({ ...call, predicted: p.noScoreBasis ? null : [p.redMean, p.blueMean], tier: p.tier, final: played ? [m.red.score!.total, m.blue.score!.total] : null }),
+    share: { query: { season, red, blue, event: code, match: key }, alt: `${shareHeadline(call)} (${m.label}, ${name}; ${p.tier} confidence${p.kind === "backtest" ? ", a backtest replay" : ""})` },
+  };
+}
+
+/** The head values for a page path: the page's own, the home ones when it has none, or notFound for no such page.
+ *  The query only matters for a shared matchup (/predict?…red=…&blue=…, /events/…?match=…). */
+export async function pageMeta(path: string, search = ""): Promise<PageMeta> {
+  const sp = new URLSearchParams(search);
   // Matched decoded, as React Router does (/teams/%34%32%31%35 is team 4215). Segment by segment, so an
   // encoded "/" never adds a segment; a malformed escape stays as written (and then matches no route).
   const decode = (s: string) => { try { const d = decodeURIComponent(s); return d.includes("/") ? s : d; } catch { return s; } };
@@ -161,7 +228,10 @@ export async function pageMeta(path: string): Promise<PageMeta> {
     // The season by value too (/events/02025/X is 2025, as in the app and the API).
     if ((m = p.match(/^\/events\/(\d+)\/([A-Za-z0-9_-]{1,40})$/i))) {
       // Event codes are case-insensitive in the app (the API uppercases them): same here.
-      return (await eventMeta(Number(m[1]), m[2].toUpperCase())) ?? NOT_FOUND;
+      const ev = await eventMeta(Number(m[1]), m[2].toUpperCase());
+      if (!ev) return NOT_FOUND;
+      // A shared match: its own call, or the event's values if it can't be read.
+      return sp.has("match") ? await eventMatchMeta(ev, Number(m[1]), m[2].toUpperCase(), sp.get("match")).catch(() => ev) : ev;
     }
   } catch {
     // Database not ready: the generic values, never a 404 (the page may well exist).
@@ -169,6 +239,11 @@ export async function pageMeta(path: string): Promise<PageMeta> {
   }
   // A team or event address that can't be one (/teams/abc, /teams/1234567, /events/2025/a%20b): the app says not found too.
   if (/^\/teams\/[^/]+$/i.test(p) || /^\/events\/[^/]+\/[^/]+$/i.test(p)) return NOT_FOUND;
+  if (p === "/predict" && (sp.has("red") || sp.has("blue"))) {
+    // A shared matchup; the Predict page's own values when it isn't one (or ratings aren't ready).
+    const mm = await matchupMeta(sp).catch(() => null);
+    if (mm) return mm;
+  }
   const s = STATIC[p];
   if (s) return { title: s.title, description: s.noindex ? s.description : fitDescription(s.description), type: "website", ...(s.noindex ? { noindex: true } : {}) };
   // The app's routes (src/shared/routes.ts, as React Router matches them): anything else is its not-found page.
@@ -183,7 +258,10 @@ const esc = (s: string) => s.replace(/&/g, "&amp;").replace(/"/g, "&quot;").repl
 export function headTags(path: string, m: PageMeta): string {
   const title = m.title ? `${m.title} · ${SITE}` : HOME_TITLE;
   const url = canonicalUrl(m.path ?? path);
-  const image = `${canonicalOrigin()}/og-image.png`;
+  // A shared matchup previews as its card, and its link (og:url) is the matchup itself; the canonical stays the page's.
+  const image = m.share ? `${canonicalOrigin()}${shareImagePath(m.share.query)}` : `${canonicalOrigin()}/og-image.png`;
+  const ogUrl = m.share ? `${canonicalOrigin()}${sharePagePath(m.share.query)}` : url;
+  const alt = m.share?.alt ?? "FTC Control Scout";
   const tags = [
     `<title>${esc(title)}</title>`,
     `<meta name="description" content="${esc(m.description)}" />`,
@@ -195,15 +273,17 @@ export function headTags(path: string, m: PageMeta): string {
     `<meta property="og:site_name" content="${SITE}" />`,
     `<meta property="og:title" content="${esc(title)}" />`,
     `<meta property="og:description" content="${esc(m.description)}" />`,
-    ...(m.notFound ? [] : [`<meta property="og:url" content="${esc(url)}" />`]),
-    `<meta property="og:image" content="${image}" />`,
+    ...(m.notFound ? [] : [`<meta property="og:url" content="${esc(ogUrl)}" />`]),
+    `<meta property="og:image" content="${esc(image)}" />`,
+    ...(m.share ? [`<meta property="og:image:type" content="image/png" />`] : []),
     `<meta property="og:image:width" content="1200" />`,
     `<meta property="og:image:height" content="630" />`,
-    `<meta property="og:image:alt" content="FTC Control Scout" />`,
+    `<meta property="og:image:alt" content="${esc(alt)}" />`,
     `<meta name="twitter:card" content="summary_large_image" />`,
     `<meta name="twitter:title" content="${esc(title)}" />`,
     `<meta name="twitter:description" content="${esc(m.description)}" />`,
-    `<meta name="twitter:image" content="${image}" />`,
+    `<meta name="twitter:image" content="${esc(image)}" />`,
+    `<meta name="twitter:image:alt" content="${esc(alt)}" />`,
     // JSON-LD: "<" escaped so no value can close the script tag.
     ...(m.jsonLd ?? []).map((j) => `<script type="application/ld+json">${JSON.stringify(j).replace(/</g, "\\u003c")}</script>`),
   ];

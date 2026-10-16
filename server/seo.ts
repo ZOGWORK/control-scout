@@ -122,14 +122,14 @@ export function routePreloads(indexFile: string, path: string): string {
 }
 
 /**
- * index.html for this path (the page's own head tags, its code chunk preloaded, and the static first
+ * index.html for this path and query (the page's own head tags, its code chunk preloaded, and the static first
  * paint: server/bootShell.ts) and its HTTP status: 404 for a path that isn't an app page (an unknown
  * route, team or event). A 404 still carries the app's HTML, so the browser shows the app's own
  * not-found page.
  */
-export async function renderPage(file: string, path: string): Promise<{ status: 200 | 404; html: string }> {
+export async function renderPage(file: string, path: string, search = ""): Promise<{ status: 200 | 404; html: string }> {
   const { pageMeta, headTags } = await import("./seoMeta.js");
-  const meta = await pageMeta(path);
+  const meta = await pageMeta(path, search);
   const head = [headTags(path, meta), routePreloads(file, path), BOOT_STYLE].filter(Boolean).join("\n    ");
   // Callbacks, so $', $`, $& in a team or event name are inserted literally (a replacement string would expand them).
   const html = indexHtml(file)
@@ -139,6 +139,6 @@ export async function renderPage(file: string, path: string): Promise<{ status: 
 }
 
 /** index.html for this path (renderPage without the status). */
-export async function renderIndex(file: string, path: string): Promise<string> {
-  return (await renderPage(file, path)).html;
+export async function renderIndex(file: string, path: string, search = ""): Promise<string> {
+  return (await renderPage(file, path, search)).html;
 }
