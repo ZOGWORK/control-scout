@@ -19,7 +19,7 @@ export type PhotoViewer = { accountId?: number; role?: "admin" | "member" } | nu
 /** You, in this entry's workspace: your shared account id (when the server sends it) and role. */
 function useMe(space: string | null): PhotoViewer {
   const { user } = usePersonal();
-  const cp = user?.controlPoint as ({ accountId?: number; workspaces?: { id: string; role: "admin" | "member" }[] } | null | undefined);
+  const cp = user?.controlPoint;
   if (space == null || !cp) return null;
   return { accountId: cp.accountId, role: cp.workspaces?.find((w) => w.id === space)?.role };
 }

@@ -45,8 +45,16 @@ describe("EntryPhotos", () => {
     fireEvent.click(screen.getByRole("button", { name: /Open photo 2 of 2/ }));
     expect(screen.getByRole("dialog")).toBeTruthy();
     expect(screen.getByText(/2 \/ 2/)).toBeTruthy();
-    // Ben added it: he may remove it.
+    // Ben (account 8) added it: he may remove it.
     expect(screen.getByRole("button", { name: /Remove photo/ })).toBeTruthy();
+  });
+
+  it("no Remove for a member on someone else's photo on someone else's entry", () => {
+    resetFlags({ ...DEFAULT_FLAGS }, true);
+    render(<EntryPhotos entry={entry({ photos: [photo("a", { addedByAccountId: 7 })] })} />);
+    fireEvent.click(screen.getByRole("button", { name: /Open photo 1 of 1/ }));
+    expect(screen.getByRole("dialog")).toBeTruthy();
+    expect(screen.queryByRole("button", { name: /Remove photo/ })).toBeNull();
   });
 
   it("a list view with no photos shows nothing; an unsynced entry in the form asks to sync first", () => {

@@ -9,7 +9,7 @@
 // photo of several MB becomes a few hundred KB.
 import { apiFetch, ApiError } from "./api";
 import { useServerFlag } from "./flags";
-import { adoptServerEntry, type ScoutEntry } from "./scouting";
+import { adoptServerEntry, canDeleteScoutEntry, type ScoutEntry } from "./scouting";
 import { PHOTO_LIMITS } from "../shared/photos";
 
 /** Photos on (R2 configured and the switch on), as the server last said. Off until it has answered. */
@@ -125,11 +125,12 @@ export const photoErrorMessage = (e: unknown) =>
   e instanceof PhotoError || e instanceof ApiError ? (e as Error).message : "Something went wrong with the photo. Try again.";
 
 /**
- * May you remove this photo? (the server's rule: who added it, the entry's author, or an admin).
- * `me.accountId` unknown (an older server): shown, and the server decides.
+ * May you remove this photo? The server's rule (server/scout/photos.ts mayRemovePhoto): whoever added
+ * it, or whoever may delete the entry itself (its author or a workspace admin, canDeleteScoutEntry).
  */
 export function canRemovePhoto(entry: ScoutEntry, photo: { addedByAccountId: number }, me: { accountId?: number; role?: "admin" | "member" } | null): boolean {
   if (!me?.role) return false;
-  if (me.role === "admin" || me.accountId == null) return true;
-  return photo.addedByAccountId === me.accountId || entry.authorAccountId === me.accountId;
+  if (me.accountId != null && photo.addedByAccountId === me.accountId) return true;
+  // An entry not synced yet has no photos, so canDeleteScoutEntry's "author 0 is yours" never applies here.
+  return !!entry.authorAccountId && canDeleteScoutEntry(entry, me);
 }
