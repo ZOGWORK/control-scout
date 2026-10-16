@@ -1,5 +1,5 @@
 // Scouting assignments (Task 10; docs/assignments.md): at an event the workspace's admin deals out who
-// scouts which team. Stored in workspace_assignments (migration 18), one row per member, team and event.
+// scouts which team. Stored in workspace_assignments (migration 19), one row per member, team and event.
 //
 // Permissions (Control Point's roles; Scout has none of its own):
 //   create   admins only. Every team × every assignee in one request (many teams → one member, or one team →
