@@ -16,6 +16,8 @@ import { applyLiveEntries, notifyScoutChanged, pullScouting, scoutCursor, type S
 import { announceTemplateChange } from "./scoutTemplates";
 import { announceSettingsChange } from "./workspaceSettings";
 import { announceActivity, isActivityItem } from "./scoutActivity";
+import { announcePicklist } from "./sharedPicklist";
+import { isPickList } from "../shared/picklist";
 
 /** off: Personal, signed out or hidden · connecting · live · polling (the fallback) · revoked: the server ended it (no access). */
 export type LiveMode = "off" | "connecting" | "live" | "polling" | "revoked";
@@ -141,6 +143,13 @@ export function followWorkspace(space: string, onMode: (m: LiveMode) => void, de
       let item: unknown;
       try { item = JSON.parse((ev as MessageEvent<string>).data); } catch { return; }
       if (isActivityItem(item) && item.workspaceId === space) announceActivity(item);
+    });
+    s.addEventListener("picklist", (ev) => {
+      // A shared pick list changed (the whole list): an open pick list view (sharedPicklist.ts) keeps the newest version.
+      if (es !== s) return;
+      let list: unknown;
+      try { list = JSON.parse((ev as MessageEvent<string>).data); } catch { return; }
+      if (isPickList(list) && list.workspaceId === space) announcePicklist(list);
     });
     s.addEventListener("membership_revoked", () => { if (es === s) revoked(); });
     s.onerror = () => { if (es === s) { flushPendingNow(); failed(); } };

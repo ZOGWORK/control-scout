@@ -10,6 +10,7 @@
 // and subscribe, and a shared order for `serialized`; the stream protocol would
 // not change.
 import type { WorkspaceEntryOut } from "./entries.js";
+import type { PickList } from "../../src/shared/picklist.js";
 
 /** A written entry with its place in the workspace's write order. */
 export type LiveEntry = WorkspaceEntryOut & { seq: number };
@@ -149,5 +150,30 @@ export function subscribeRevoked(workspaceId: string, fn: RevokedListener): () =
     if (!s) return;
     s.delete(fn);
     if (!s.size) revokedChannels.delete(workspaceId);
+  };
+}
+
+// Shared pick lists (picklist.ts, Task 11): after every change, the whole list as it now is (it's small:
+// at most MAX_PICKS teams). Open streams pass it on as `event: picklist` (no id, like `activity`); a
+// device keeps the highest version it has seen per season.
+export type PicklistNotice = PickList;
+type PicklistListener = (n: PicklistNotice) => void;
+const picklistChannels = new Map<string, Set<PicklistListener>>();
+
+/** Tell every open stream of the workspace that a pick list changed. Never throws. */
+export function publishPicklist(workspaceId: string, n: PicklistNotice): void {
+  for (const fn of [...(picklistChannels.get(workspaceId) ?? [])]) { try { fn(n); } catch (err) { console.error("[live] picklist listener failed", err); } }
+}
+
+/** Listen to a workspace's pick list changes; returns the unsubscribe. */
+export function subscribePicklist(workspaceId: string, fn: PicklistListener): () => void {
+  let subs = picklistChannels.get(workspaceId);
+  if (!subs) { subs = new Set(); picklistChannels.set(workspaceId, subs); }
+  subs.add(fn);
+  return () => {
+    const s = picklistChannels.get(workspaceId);
+    if (!s) return;
+    s.delete(fn);
+    if (!s.size) picklistChannels.delete(workspaceId);
   };
 }

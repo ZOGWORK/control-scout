@@ -16,7 +16,13 @@ import { FieldError } from "../ui/basic";
  * read), the last write's result (`onSave` returning false) shows the error instead, and Escape
  * writes nothing: it can't tell what to restore.
  */
-export function NoteField({ team, value, stored, onSave, className }: { team: number; value: string; stored?: string; onSave: (text: string) => boolean | void; className?: string }) {
+export function NoteField({ team, value, stored, onSave, className, label, placeholder = "Add a pick note…", maxLength = MAX_NOTE }: {
+  team: number; value: string; stored?: string; onSave: (text: string) => boolean | void; className?: string;
+  /** What a screen reader hears for the field (default: "Private note on team <n>"). */
+  label?: string;
+  placeholder?: string;
+  maxLength?: number;
+}) {
   const [draft, setDraft] = useState(value);
   /** The last write was refused (what shows the error while `stored` is unknown). */
   const [refused, setRefused] = useState(false);
@@ -56,9 +62,9 @@ export function NoteField({ team, value, stored, onSave, className }: { team: nu
     <div className={cn("min-w-0", className)}>
     <label className={cn("group/note flex min-w-0 items-center gap-1.5 rounded-md px-1.5 py-1 text-xs transition-colors focus-within:bg-muted/60 hover:bg-muted/40", failed && "ring-1 ring-destructive/60")}>
       <PencilLine className={cn("size-3.5 shrink-0", draft.trim() ? "text-accent" : "text-text-muted/70 group-hover/note:text-text-muted")} aria-hidden />
-      <span className="sr-only">Private note on team {team}</span>
+      <span className="sr-only">{label ?? `Private note on team ${team}`}</span>
       <input
-        type="text" value={draft} maxLength={MAX_NOTE} placeholder="Add a pick note…" enterKeyHint="done" data-note={team}
+        type="text" value={draft} maxLength={maxLength} placeholder={placeholder} enterKeyHint="done" data-note={team}
         aria-invalid={failed ? true : undefined} aria-describedby={failed ? errorId : undefined}
         className="min-w-0 flex-1 bg-transparent text-text-base outline-none placeholder:text-text-muted/70"
         onFocus={() => { focused.current = true; }}
