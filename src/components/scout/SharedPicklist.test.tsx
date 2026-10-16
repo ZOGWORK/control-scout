@@ -23,6 +23,7 @@ let server: PickList;
 let posts: Record<string, unknown>[] = [];
 let refuseNext = false;
 let gets = 0;
+let statsDown = false;
 
 const json = (status: number, body: unknown) => new Response(JSON.stringify(body), { status, headers: { "Content-Type": "application/json" } });
 
@@ -30,7 +31,7 @@ beforeEach(() => {
   vi.stubGlobal("ResizeObserver", class { observe() {} unobserve() {} disconnect() {} });
   vi.stubGlobal("matchMedia", (q: string) => ({ matches: false, media: q, addEventListener() {}, removeEventListener() {}, addListener() {}, removeListener() {} }));
   localStorage.clear();
-  posts = []; refuseNext = false; gets = 0;
+  posts = []; refuseNext = false; gets = 0; statsDown = false;
   server = {
     workspaceId: "901", season: S, version: 3,
     picks: [pick(101, 1, { note: "Strong auto", noteBy: { accountId: 2, name: "Marcus" }, noteUpdatedAt: Date.now() - 120_000 }), pick(102, 2)],
@@ -48,7 +49,9 @@ beforeEach(() => {
     }
     if (path.startsWith("/api/shortlist")) {
       await new Promise((r) => setTimeout(r, 20));
-      return json(200, { season: S, teams: [team(101, 80, 3), team(102, 61.5, 40), team(103, 50, 90)] });
+      if (statsDown) return json(500, { error: "Stats are down" });
+      const asked = new URLSearchParams(path.split("?")[1]).get("teams")!.split(",").map(Number);
+      return json(200, { season: S, teams: [team(101, 80, 3), team(102, 61.5, 40), team(103, 50, 90), team(104, 45, 120)].filter((t) => asked.includes(t.team)) });
     }
     throw new Error(`unexpected ${path}`);
   });
@@ -107,6 +110,20 @@ describe("SharedPicklist", () => {
     await waitFor(() => expect(rows()).toEqual([101, 102, 103]));
     expect(document.body.contains(input)).toBe(true);
     expect(document.activeElement).toBe(input);
+  });
+
+  it("a pick whose stats failed to load says so with a Retry, beside the rows already shown", async () => {
+    show();
+    await waitFor(() => expect(rows()).toEqual([101, 102]));
+    statsDown = true;
+    act(() => announcePicklist({ ...server, version: 5, picks: [...server.picks, pick(104, 3)] }));
+    const alert = await screen.findByRole("alert");
+    expect(alert.textContent).toMatch(/Couldn't load team 104: Stats are down/);
+    expect(rows()).toEqual([101, 102]);
+    statsDown = false;
+    fireEvent.click(within(alert).getByRole("button", { name: "Retry" }));
+    await waitFor(() => expect(rows()).toEqual([101, 102, 104]));
+    expect(screen.queryByRole("alert")).toBeNull();
   });
 
   it("a refused change (409) is dropped and the list fetched again", async () => {

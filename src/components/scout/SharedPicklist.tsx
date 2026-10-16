@@ -115,6 +115,7 @@ export function SharedPicklist({ workspaceId, workspaceName, season, live, me, s
 
   const compareTeams = selected.length >= 2 ? selected : teams.slice(0, MAX_COMPARE);
   const rows = reorder.order.map((t) => byTeam.get(t)).filter(Boolean) as ShortlistTeam[];
+  const missing = teams.filter((t) => !byTeam.has(t));
   const common = (t: ShortlistTeam, rank: number) => {
     const p = byPick.get(t.team)!;
     return {
@@ -167,6 +168,18 @@ export function SharedPicklist({ workspaceId, workspaceName, season, live, me, s
               {pl.saving && <span className="inline-flex items-center gap-1"><Loader2 className="size-3 animate-spin" /> Saving</span>}
               {live === "live" && <span className="inline-flex items-center gap-1 text-success"><span aria-hidden className="size-1.5 rounded-full bg-success" />Live</span>}
             </p>
+            {/* Picks whose stats haven't arrived (one just added by someone): never hidden without saying so. */}
+            {missing.length > 0 && (data.error ? (
+              <div role="alert" className="mb-3 flex flex-wrap items-center gap-2 rounded-xl border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm">
+                <span className="min-w-0 flex-1">Couldn't load {missing.length === 1 ? `team ${missing[0]}` : `${missing.length} picks (${missing.join(", ")})`}: {data.error.message}</span>
+                <Button variant="outline" size="sm" onClick={data.reload}>Retry</Button>
+              </div>
+            ) : (
+              <p role="status" className="mb-3 flex items-center gap-1.5 text-xs text-text-muted">
+                {data.loading ? <><Loader2 className="size-3 animate-spin" /> Loading {missing.length === 1 ? `team ${missing[0]}` : `${missing.length} picks`}…</>
+                  : <>No numbers yet for {missing.join(", ")}.</>}
+              </p>
+            ))}
             {view === "list" ? (
               <div className="overflow-hidden rounded-2xl border border-border bg-card">
                 <ListHeader />
