@@ -5,7 +5,7 @@
 // ordinary save that goes up with a restore marker. Personal entries never conflict.
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
-  applyLiveEntries, localScoutEntries, pendingScoutCounts, pullScouting, restoreScoutVersion, saveScoutEntry, scoutDraftBase, setScoutViewer, syncScouting, type ScoutEntry,
+  applyLiveEntries, clearLocalScouting, exportLocalScouting, importLocalScouting, localScoutEntries, pendingScoutCounts, pullScouting, restoreScoutVersion, saveScoutEntry, scoutDraftBase, setScoutViewer, syncScouting, type ScoutEntry,
 } from "./scouting";
 import { dropLostEdit, lostEdits, markLostSeen, SCOUT_LOST_UNSAVED, SCOUT_OVERWRITTEN, type LostEdit } from "./lostEdits";
 import { entryDiff, formatAnswer } from "./entryDiff";
@@ -159,6 +159,20 @@ describe("when the device can't keep the losing version", () => {
     expect(pendingScoutCounts().workspaces.w1).toBe(1);
   });
 
+  it("an account's stashed lost edits: merged back with any already here; the ones the device can't store are handed back", () => {
+    const mine = offlineEdit();
+    applyLiveEntries("w1", [{ entry: server({ updatedAt: mine.updatedAt + 5000, notes: "Priya's notes" }), seq: 2 }]);
+    const stash = exportLocalScouting();
+    expect(Object.keys(stash.lost ?? {})).toEqual(["cs-scout-lost:w1"]);
+    // Merged with what's here (no duplicate of the same version).
+    expect(importLocalScouting({ entries: [], dirty: [], lost: stash.lost }).lostFailed).toEqual({});
+    expect(lostEdits("w1")).toHaveLength(1);
+    // A full device: handed back, so the caller keeps its stash.
+    clearLocalScouting();
+    full();
+    expect(importLocalScouting({ entries: [], dirty: [], lost: stash.lost }).lostFailed).toEqual(stash.lost);
+  });
+
   it("a push answer does the same: the edit stays queued until it can be kept", async () => {
     const mine = offlineEdit();
     full();
@@ -198,6 +212,12 @@ describe("restoring a lost version", () => {
     const gone = saveScoutEntry({ ...edited, deleted: true });
     expect(gone.updatedAt).toBeGreaterThan(edited.updatedAt);
     expect(edited.updatedAt).toBeGreaterThan(restored.updatedAt);
+  });
+
+  it("restoring a version made before templates names the built-in template, so the entry's newer one doesn't stay", () => {
+    applyLiveEntries("w1", [{ entry: server({ updatedAt: 1000, kind: "pit", templateId: "ws:w1:2025:pit", templateVersion: 3 }), seq: 1 }]);
+    const r = restoreScoutVersion(localScoutEntries("w1")[0], { ...base, updatedAt: 500 });
+    expect(r).toMatchObject({ kind: "match", templateId: "match-2025", templateVersion: 0 });
   });
 
   it("keeping their version forgets yours", () => {

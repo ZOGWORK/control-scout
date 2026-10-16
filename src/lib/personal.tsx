@@ -7,6 +7,7 @@ import { apiFetch } from "./api";
 import type { OrphanState } from "../shared/orphaned";
 import { cleanValue, EMPTY_STATE, PERSONAL_KEYS, type PersonalKey, type PersonalState, type Stamped } from "../shared/personal";
 import { clearLocalScouting, exportLocalScouting, importLocalScouting, localScoutEntries, setScoutViewer, storedScoutEntry } from "./scouting";
+import { LOST_PREFIX, lostBackupFailed } from "./lostEdits";
 
 export interface AccountUser { id: number; email: string | null; displayName: string | null; createdAt: string; /** Tied to the shared account Control Point keeps (docs/shared-accounts.md). */ controlPointLinked?: boolean;
   /** Only present (true) for the owner (OWNER_EMAILS): shows the owner portal's nav item. The server enforces access. */
@@ -97,11 +98,29 @@ const STASH = (owner: string) => `cs-stash:${owner}`;
 interface Stash { personal: Partial<Record<PersonalKey, Stamped<unknown>>>; pending: Partial<Record<PersonalKey, number>>; scouting: ReturnType<typeof exportLocalScouting> }
 function stashOwner(owner: string, live: Record<PersonalKey, Stamped<any> | null>) {
   const s: Stash = { personal: Object.fromEntries(PERSONAL_KEYS.filter((k) => live[k]).map((k) => [k, live[k]!])), pending: pending(), scouting: exportLocalScouting() };
+  // Overwritten edits an earlier switch couldn't put back yet (the device was full) stay in the stash too.
+  const left = peekStash(owner)?.scouting?.lost;
+  if (left) s.scouting.lost = { ...left, ...s.scouting.lost };
   try { localStorage.setItem(STASH(owner), JSON.stringify(s)); }
   catch { throw new Error("This device is out of storage, so it can't keep the other account's unsynced data aside. Free some space and sign in again."); }
 }
-function takeStash(owner: string): Stash | null {
-  try { const raw = localStorage.getItem(STASH(owner)); if (!raw) return null; localStorage.removeItem(STASH(owner)); return JSON.parse(raw); } catch { return null; }
+function peekStash(owner: string): Stash | null {
+  try { const raw = localStorage.getItem(STASH(owner)); return raw ? JSON.parse(raw) : null; } catch { return null; }
+}
+/**
+ * Put an account's stashed copy back. The stash is removed only once everything that exists nowhere else is
+ * back: overwritten edits (lostEdits.ts) the device couldn't store stay stashed (and are said to be waiting),
+ * to be tried again on the next sign-in.
+ */
+function restoreStash(owner: string, mine: Stash, apply: (k: PersonalKey, s: Stamped<any>) => void) {
+  for (const [k, s] of Object.entries(mine.personal ?? {}) as [PersonalKey, Stamped<any>][]) apply(k, s);
+  if (mine.pending) setPendingMap({ ...pending(), ...mine.pending });
+  const { lostFailed } = importLocalScouting(mine.scouting ?? { entries: [], dirty: [] });
+  try {
+    if (!Object.keys(lostFailed).length) localStorage.removeItem(STASH(owner));
+    else localStorage.setItem(STASH(owner), JSON.stringify({ personal: {}, pending: {}, scouting: { entries: [], dirty: [], lost: lostFailed } } satisfies Stash));
+  } catch { /* the full stash stays as it was: tried again next time */ }
+  for (const k of Object.keys(lostFailed)) lostBackupFailed(k.slice(LOST_PREFIX.length));
 }
 
 /**
@@ -237,14 +256,15 @@ export function PersonalProvider({ children }: { children: ReactNode }) {
         setOwner(String(u.id));
         // This account's own copy from an earlier visit, if any: back in place,
         // its unsent edits still pending.
-        const mine = takeStash(String(u.id));
-        if (mine) {
-          for (const [k, s] of Object.entries(mine.personal) as [PersonalKey, Stamped<any>][]) apply(k, s);
-          setPendingMap(mine.pending ?? {});
-          importLocalScouting(mine.scouting ?? { entries: [], dirty: [] });
-        }
+        const mine = peekStash(String(u.id));
+        if (mine) restoreStash(String(u.id), mine, apply);
         await pull(alive);
-      } else await pull(alive);
+      } else {
+        // Overwritten edits an earlier switch couldn't put back (the device was full): try again.
+        const left = peekStash(String(u.id));
+        if (left) restoreStash(String(u.id), left, apply);
+        await pull(alive);
+      }
       if (!alive()) return;
       setOwner(String(u.id));
       readyRef.current = true;

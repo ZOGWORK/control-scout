@@ -316,8 +316,20 @@ export function importLocalScouting(data: SpaceExport & { spaces?: Record<string
   put(null, data);
   for (const [w, s] of Object.entries(data.spaces ?? {})) if (/^[A-Za-z0-9_-]{1,64}$/.test(w)) put(w, s);
   for (const [k, v] of Object.entries(data.templates ?? {})) if (TEMPLATE_KEY.test(k) && typeof v === "string") { try { localStorage.setItem(k, v); } catch { /* storage full: fetched again online */ } }
-  for (const [k, v] of Object.entries(data.lost ?? {})) if (LOST_KEY.test(k) && typeof v === "string") { try { localStorage.setItem(k, v); } catch { /* storage full */ } }
+  // Overwritten edits (lostEdits.ts) exist nowhere else: merged with any already here, and the ones the device
+  // can't store are handed back (lostFailed) so the caller keeps them.
+  const lostFailed: Record<string, string> = {};
+  for (const [k, v] of Object.entries(data.lost ?? {})) {
+    if (!LOST_KEY.test(k) || typeof v !== "string") continue;
+    try {
+      const here = JSON.parse(localStorage.getItem(k) ?? "[]");
+      const back = JSON.parse(v);
+      const merged = [...(Array.isArray(here) ? here : []), ...(Array.isArray(back) ? back : []).filter((b: { id?: unknown }) => !(Array.isArray(here) && here.some((h: { id?: unknown }) => h?.id === b?.id)))];
+      localStorage.setItem(k, JSON.stringify(merged));
+    } catch { lostFailed[k] = v; }
+  }
   window.dispatchEvent(new Event(EVT));
+  return { lostFailed };
 }
 
 /** Remove every space's entries, queues and cursors (and cached workspace templates) from this device. */
@@ -508,7 +520,9 @@ export function restoreScoutVersion(current: Pick<ScoutEntry, "uuid" | "workspac
 }): ScoutEntry {
   return saveScoutEntry({
     uuid: current.uuid, workspaceId: current.workspaceId, season: v.season, team: v.team, eventCode: v.eventCode, matchLabel: v.matchLabel, kind: v.kind,
-    data: { ...v.data }, notes: v.notes, deleted: false, ...(v.templateId ? { templateId: v.templateId, templateVersion: v.templateVersion ?? 0 } : {}),
+    data: { ...v.data }, notes: v.notes, deleted: false,
+    // A version made before templates names the built-in one explicitly: sending none would keep the template the entry has now.
+    templateId: v.templateId ?? builtinTemplate(v.season, v.kind).id, templateVersion: v.templateId ? v.templateVersion ?? 0 : 0,
     restoredFrom: v.updatedAt,
   });
 }
