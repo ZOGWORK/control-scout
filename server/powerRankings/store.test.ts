@@ -12,6 +12,7 @@ import { renderPage } from "../seo";
 import { resetSitemapCache, sitemapEntries } from "../sitemap";
 import { CONTENT_DIR, SAMPLE_DIR, loadDir, useContentDir } from "./store";
 import { env } from "../env";
+import { latestRatedSeason, newWeekFile, topByRating } from "./scaffold";
 import type { PowerRankingsResponse } from "../../src/shared/powerRankings";
 
 const S = 2025;
@@ -37,7 +38,13 @@ beforeAll(async () => {
   setDb(c);
   await migrate(c);
   for (const t of TEAMS) await run("INSERT INTO teams (number, name, city, state, country) VALUES (?, ?, 'Austin', 'TX', 'USA')", [t, t === 5000 ? "Alpha & <Co>" : `Team ${t}`]);
-  await run("INSERT INTO team_season_stats (season, team, rating_np, rating_rank, opr_np, wins, losses, ties, matches, rating_matches, events) VALUES (?, 5000, 210.25, 3, 180.5, 9, 1, 0, 10, 10, 2)", [S]);
+  await run("INSERT INTO team_season_stats (season, team, rating_np, rating_rank, opr_np, wins, losses, ties, matches, rating_matches, events) VALUES (?, 5000, 210.25, 99, 180.5, 9, 1, 0, 10, 10, 2)", [S]);
+  // Two teams rated above 5000 (so it's #3 in the world, as /rankings counts: the stored rating_rank isn't used),
+  // and one with too few rated matches to be ranked at all.
+  await run("INSERT INTO team_season_stats (season, team, rating_np, opr_np, wins, losses, ties, matches, rating_matches, events) VALUES (?, 5028, 300, 250, 6, 0, 0, 6, 6, 1), (?, 5029, 250, 190, 4, 1, 0, 5, 5, 1), (?, 5027, 400, 300, 2, 0, 0, 2, 2, 1)", [S, S, S]);
+  // The world rankings' weekly snapshot for week 41's Monday.
+  await run("INSERT INTO ranking_weeks (season, week, teams, taken_at) VALUES (?, '2026-10-05', 2, '2026-10-05T00:00:00Z')", [S]);
+  await run("INSERT INTO ranking_snapshots (season, week, team, rank, rating) VALUES (?, '2026-10-05', 5029, 1, 260), (?, '2026-10-05', 5000, 2, 200)", [S, S]);
 
   dir = mkdtempSync(join(tmpdir(), "pr-"));
   // Week 41, then week 42 with 5001/5000 swapped, 5002 out and 5025 in. Week 43 is published in the future.
@@ -111,7 +118,8 @@ describe("/api/power-rankings", () => {
   it("by week (case-insensitive); the first week has no comparison", async () => {
     const { status, body } = await api("/api/power-rankings/2026-W41");
     expect(status).toBe(200);
-    expect(body.week).toMatchObject({ week: "2026-w41", comparedWith: null, previous: null, next: "2026-w42" });
+    // Its world-rankings link is that week's snapshot (keyed by the week's Monday).
+    expect(body.week).toMatchObject({ week: "2026-w41", comparedWith: null, previous: null, next: "2026-w42", worldRankings: "/rankings?season=2025&week=2026-10-05" });
     expect(body.week!.entries.every((e) => e.movement === null)).toBe(true);
   });
 
@@ -136,7 +144,7 @@ describe("pages (first HTML)", () => {
     expect(page.html).toContain('<a href="/teams/5000">5000 Alpha &amp; &lt;Co&gt;</a>');
     expect(page.html).toContain("Rating 210.3 (#3 worldwide) · OPR 180.5 · 9-1-0");
     expect(page.html).toContain('<a href="/power-rankings/2026-w41">');
-    expect(page.html).toContain('<a href="/rankings">');
+    expect(page.html).toContain('<a href="/rankings?season=2025">'); // no snapshot for week 42: the live list
     expect(page.html).not.toMatch(/<script>alert|<img src=x/);
     expect(page.html).toContain('"@type":"ItemList"');
     expect(page.html).not.toContain('name="robots"');
@@ -189,6 +197,27 @@ describe("no weeks yet", () => {
     } finally {
       useContentDir(null);
     }
+  });
+});
+
+describe("npm run power-rankings:new", () => {
+  it("fills the world rankings' newest weekly snapshot (its ranks and ratings), with each team's OPR and record now", async () => {
+    expect(await latestRatedSeason()).toBe(S);
+    const top = await topByRating(S);
+    expect(top.week).toBe("2026-10-05");
+    expect(top.teams.map((t) => [t.team, t.name, t.rating])).toEqual([[5029, "Team 5029", 260], [5000, "Alpha & <Co>", 200]]);
+    const { text, teams, from } = await newWeekFile({ week: "2026-w44", season: S, published: "2026-10-26" });
+    expect([teams, from]).toEqual([2, "2026-10-05"]);
+    expect(text).toContain("week: 2026-w44\npublished: 2026-10-26");
+    expect(text).toContain("## 1. 5029 Team 5029\nTODO: blurb. (Rating 260.0, OPR 190.0, record 4-1-0.)");
+    expect(text).toContain("## 2. 5000 Alpha & <Co>\nTODO: blurb. (Rating 200.0, OPR 180.5, record 9-1-0.)");
+  });
+
+  it("--live: the ranking right now (3+ rated matches, ties to the lower number)", async () => {
+    await run("INSERT INTO team_season_stats (season, team, rating_np, opr_np, wins, losses, ties, matches, rating_matches, events) VALUES (?, 5001, 250, 200, 5, 0, 0, 5, 5, 1)", [S]);
+    const top = await topByRating(S, { live: true });
+    expect(top.week).toBeNull();
+    expect(top.teams.map((t) => [t.team, t.rating])).toEqual([[5028, 300], [5001, 250], [5029, 250], [5000, 210.25]]); // 5027: too few rated matches
   });
 });
 

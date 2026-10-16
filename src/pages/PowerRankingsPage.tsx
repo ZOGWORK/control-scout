@@ -148,7 +148,7 @@ function Week({ w, archive, onLink }: { w: PowerRankingsWeek; archive: PowerRank
       <nav aria-label="Other weeks" className="mb-10 flex flex-wrap items-center gap-2">
         {w.previous && <Button variant="secondary" asChild><Link to={`/power-rankings/${w.previous}`}><ArrowLeft /> Week {Number(w.previous.slice(6))}</Link></Button>}
         {w.next && <Button variant="secondary" asChild><Link to={`/power-rankings/${w.next}`}>Week {Number(w.next.slice(6))} <ArrowRight /></Link></Button>}
-        <Button variant="ghost" asChild><Link to="/rankings"><ListOrdered /> Every team in the world rankings</Link></Button>
+        <Button variant="ghost" asChild><Link to={w.worldRankings}><ListOrdered /> Every team in the world rankings</Link></Button>
       </nav>
       <Archive archive={archive} current={w.week} />
     </>

@@ -7,7 +7,7 @@ import { all } from "./db.js";
 import { canonicalUrl } from "./seo.js";
 import { publishedWeeks } from "./powerRankings/store.js";
 
-const STATIC_PAGES = ["/", "/events", "/predict", "/compare", "/methodology", "/download", "/privacy", "/terms", "/contact"];
+const STATIC_PAGES = ["/", "/events", "/rankings", "/predict", "/compare", "/methodology", "/download", "/privacy", "/terms", "/contact"];
 export const CHUNK = 45_000; // under the 50,000-URL limit, and far under 50 MB
 
 interface Entry { loc: string; lastmod?: string }

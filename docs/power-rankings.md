@@ -7,15 +7,17 @@ merged and deployed, the week is live at:
 - `https://controlscout.org/power-rankings`: the latest week, plus the archive of every past week
 - `https://controlscout.org/power-rankings/2026-w42`: that week's own shareable URL
 
-The site adds each team's live rating, world rank, OPR and record, and works out its movement
-(▲ / ▼ / – / New) from the previous week's file. You only write the words.
+The site adds each team's live rating, world rank (counted the same way as `/rankings`), OPR and
+record, and works out its movement (▲ / ▼ / – / New) from the previous week's file. Each week
+also links to the world rankings for that week. You only write the words.
 
 ## Step by step
 
 1. **Branch from main.**
    `git switch main && git pull && git switch -c power-rankings/2026-w43`
-2. **Scaffold the week.** This writes `content/power-rankings/<this ISO week>.md` with the current
-   top 25 by rating already filled in:
+2. **Scaffold the week.** This writes `content/power-rankings/<this ISO week>.md` with the world
+   rankings' top 25 already filled in. It uses the newest weekly snapshot (the list `/rankings?week=…`
+   shows), or the live ranking with `--live` or when the season has no snapshot yet:
    ```bash
    npm run power-rankings:new
    # or pick the week, season and publish date yourself:

@@ -142,6 +142,26 @@ export class ScoutForecaster extends Forecaster {
     }
   }
 
+  /**
+   * The season's ratings at each of `times` (epoch ms): the book replayed from the season's rated
+   * matches before each instant (same order and starting point as rebuild, so replaying past the last
+   * match gives the stored ratings), its clock set to that instant. `at` is called in time order, and
+   * may only read the book during the call (the replay goes on with the same book). The weekly
+   * rankings snapshots (server/stats/rankings.ts) use it.
+   */
+  replayTo(season: number, times: number[], at: (ms: number, book: RatingBook) => void): void {
+    const prevSeason = this.books.get(season - 1);
+    const book = prevSeason ? prevSeason.clone() : new RatingBook(FITTED_MODEL.rating);
+    book.startSeason(season);
+    const matches = this.seasonEvents(season).flatMap((e) => e.matches).sort((x, y) => x.time - y.time);
+    let next = 0;
+    for (const t of [...times].sort((a, b) => a - b)) {
+      while (next < matches.length && matches[next].time < t) book.update(matches[next++]);
+      book.setTime(t);
+      at(t, book);
+    }
+  }
+
   /** Forecast an event from a book frozen at its start, with its results stripped. */
   private forecastFrozen(ev: EventInput, myTeam: number | null, runs: number, book: RatingBook, startMs: number): Forecast | null {
     book.setTime(startMs);
