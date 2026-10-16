@@ -48,15 +48,14 @@ export function entryDiff(before: EntryText, after: EntryText, beforeFields: Sco
   const known = [...new Set([...newDefs.keys(), ...oldDefs.keys()])];
   const answered = new Set([...Object.keys(before.data ?? {}), ...Object.keys(after.data ?? {})]);
   const ids = [...known, ...[...answered].filter((k) => !newDefs.has(k) && !oldDefs.has(k)).sort()];
-  // A deleted version has no answers: compare the answers only between live versions (the status row says the rest).
-  if (!before.deleted && !after.deleted) {
-    for (const id of ids) {
-      const fb = oldDefs.get(id) ?? newDefs.get(id), fa = newDefs.get(id) ?? oldDefs.get(id);
-      // A field neither version answered (and the form shows the same for both) isn't a difference.
-      add(`f:${id}`, fa?.label ?? id, formatAnswer(before.data?.[id], fb), formatAnswer(after.data?.[id], fa));
-    }
-    add("notes", "Notes", text(before.notes), text(after.notes));
+  // A deleted version has no answers: its side reads empty, so the live side shows everything it holds (what a restore brings back).
+  const bData = before.deleted ? {} : before.data ?? {}, aData = after.deleted ? {} : after.data ?? {};
+  for (const id of ids) {
+    const fb = oldDefs.get(id) ?? newDefs.get(id), fa = newDefs.get(id) ?? oldDefs.get(id);
+    // A field neither version answered (and the form shows the same for both) isn't a difference.
+    add(`f:${id}`, fa?.label ?? id, formatAnswer(bData[id], fb), formatAnswer(aData[id], fa));
   }
+  add("notes", "Notes", text(before.deleted ? "" : before.notes), text(after.deleted ? "" : after.notes));
   return rows;
 }
 

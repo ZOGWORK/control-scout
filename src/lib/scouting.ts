@@ -456,7 +456,7 @@ const canonical = (d: Record<string, unknown>) => JSON.stringify(Object.keys(d ?
  * A delete that lost isn't an edit to keep (an entry deleted under you is a loss, and shows as one).
  */
 export function lostTo(cur: ScoutEntry, theirs: ScoutEntry, queued: boolean): boolean {
-  if (cur.workspaceId == null || theirs.updatedAt <= cur.updatedAt || cur.deleted || sameText(cur, theirs)) return false;
+  if (cur.workspaceId == null || theirs.updatedAt < cur.updatedAt || (theirs.updatedAt === cur.updatedAt && !queued) || cur.deleted || sameText(cur, theirs)) return false;
   const by = theirs.editorAccountId ?? 0;
   if (viewerAccountId != null && by === viewerAccountId) return false;
   if (queued) return true;

@@ -60,6 +60,14 @@ describe("detecting the last-write-wins loser", () => {
     expect(lostEdits("w1")[0].seen).toBe(true);
   });
 
+  it("a tie: the push answer has our timestamp but someone else's text (theirs landed first): kept too", async () => {
+    const mine = offlineEdit();
+    answer((_p, body) => ({ results: body.entries.map((x: ScoutEntry) => ({ uuid: x.uuid, ok: true, entry: server({ updatedAt: mine.updatedAt, notes: "same instant" }) })) }));
+    await syncScouting("w1");
+    expect(lostEdits("w1").map((l) => [l.mine.notes, l.by.name])).toEqual([["my offline notes", "Priya"]]);
+    expect(localScoutEntries("w1")[0].notes).toBe("same instant");
+  });
+
   it("the push answer says a newer edit beat ours: kept too", async () => {
     const mine = offlineEdit();
     answer((_p, body) => ({ results: body.entries.map((x: ScoutEntry) => ({ uuid: x.uuid, ok: true, entry: server({ updatedAt: mine.updatedAt + 10, notes: "won", baseUpdatedAt: 1000 }) })) }));
@@ -214,7 +222,12 @@ describe("field-level diffs", () => {
     const r5 = { id: "drive", label: "Driving", type: "rating" as const, phase: "overall" as const, max: 5 };
     expect(entryDiff({ ...base, data: { drive: 4 } }, { ...base, data: { drive: 4 } }, [r5], [{ ...r5, max: 10, label: "Driving (1-10)" }]))
       .toEqual([{ key: "f:drive", label: "Driving (1-10)", before: "4 / 5", after: "4 / 10" }]);
-    expect(entryDiff(base, { ...base, deleted: true, data: {}, notes: "" }, fields)).toEqual([{ key: "deleted", label: "Status", before: "Live", after: "Deleted" }]);
+    // A deleted side reads empty, so the live side's answers and notes still show (what a restore brings back).
+    expect(entryDiff(base, { ...base, deleted: true, data: {}, notes: "" }, fields)).toEqual([
+      { key: "deleted", label: "Status", before: "Live", after: "Deleted" },
+      { key: "f:autoHive", label: "autoHive", before: "2", after: "—" },
+      { key: "notes", label: "Notes", before: "steady", after: "—" },
+    ]);
     expect(formatAnswer(undefined, { type: "counter", min: 1 })).toBe("1");
     expect(formatAnswer(4, { type: "rating", max: 5 })).toBe("4 / 5");
   });

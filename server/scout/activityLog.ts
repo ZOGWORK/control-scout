@@ -171,7 +171,7 @@ export async function pruneActivity(now = Date.now()): Promise<number> {
 // --- Entries ----------------------------------------------------------------------------------
 
 /** What an entry looked like before a write (the stored row), for telling what the write did. */
-export interface EntryBefore { deleted: boolean; season: number; team: number; eventCode: string | null; matchLabel: string | null; kind: string; data: string; notes: string }
+export interface EntryBefore { deleted: boolean; season: number; team: number; eventCode: string | null; matchLabel: string | null; kind: string; data: string; notes: string; templateId?: string | null; templateVersion?: number | null }
 /** And after it (as stored). */
 export interface EntryAfter { uuid: string; deleted: boolean; season: number; team: number; eventCode: string | null; matchLabel: string | null; kind: string; data: Record<string, unknown>; notes: string }
 

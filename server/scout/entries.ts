@@ -261,8 +261,8 @@ async function writeWorkspaceEntries(user: User, m: Membership, good: ScoutEntry
         args: [m.workspaceId, e.uuid, e.season, e.team, e.eventCode, e.matchLabel, e.kind, JSON.stringify(e.data), e.notes, e.updatedAt, e.deleted ? 1 : 0,
           m.accountId, name, m.accountId, name, e.templateId ?? null, e.templateId ? e.templateVersion ?? 0 : null, e.baseUpdatedAt ?? null, m.workspaceId, m.role === "admin" ? 1 : 0],
       },
-      // A write that changes nothing (or a tombstone for an entry never seen) is no version.
-      ...(entryChange(prior.get(e.uuid), { ...e, deleted: !!e.deleted })
+      // A write that changes nothing (or a tombstone for an entry never seen) is no version; a new template for the same answers is one.
+      ...(entryChange(prior.get(e.uuid), { ...e, deleted: !!e.deleted }) || templateChanged(prior.get(e.uuid), e)
         ? versionStatements(m.workspaceId, e.uuid, beforeSeq, { restored: e.restoredFrom != null && !e.deleted, fromVersion: e.deleted ? null : restored.get(e.uuid)?.versionNo ?? null })
         : []),
     ]),
@@ -270,16 +270,26 @@ async function writeWorkspaceEntries(user: User, m: Membership, good: ScoutEntry
   return readLiveEntries(m.workspaceId, good.map((e) => e.uuid));
 }
 
+/**
+ * Does this write give a stored, live entry a different template (the same answers read with other fields)?
+ * A write that sends none keeps the stored one (the upsert's COALESCE), so that's no change.
+ */
+function templateChanged(before: EntryBefore | undefined, e: ScoutEntryInput): boolean {
+  if (!before || e.deleted || !e.templateId) return false;
+  return e.templateId !== (before.templateId ?? null) || (e.templateVersion ?? 0) !== (before.templateVersion ?? null);
+}
+
 /** The stored version of these entries before a write (for the activity feed: added, edited, deleted, or nothing). */
 async function storedVersions(workspaceId: string, uuids: string[]): Promise<Map<string, EntryBefore>> {
   if (!uuids.length) return new Map();
   const rows = await all<any>(
-    `SELECT w.uuid, w.deleted, w.season, w.team, w.event_code, w.match_label, w.kind, w.data, w.notes FROM workspace_scout_entries w
+    `SELECT w.uuid, w.deleted, w.season, w.team, w.event_code, w.match_label, w.kind, w.data, w.notes, w.template_id, w.template_version FROM workspace_scout_entries w
        JOIN workspaces ws ON ws.id = w.workspace_id WHERE ws.cp_workspace_id = ? AND w.uuid IN (${uuids.map(() => "?").join(", ")})`,
     [workspaceId, ...uuids]);
   return new Map(rows.map((r) => [String(r.uuid), {
     deleted: !!Number(r.deleted), season: Number(r.season), team: Number(r.team), eventCode: r.event_code ?? null, matchLabel: r.match_label ?? null,
     kind: String(r.kind), data: String(r.data), notes: String(r.notes ?? ""),
+    templateId: r.template_id ?? null, templateVersion: r.template_version == null ? null : Number(r.template_version),
   }]));
 }
 
