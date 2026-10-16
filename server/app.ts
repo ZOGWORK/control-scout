@@ -41,6 +41,8 @@ import { listRecords, recordRegions, recordsQuery, RecordsQueryError, streamReco
 import { FilterError } from "../src/shared/filterDsl.js";
 import { RECORDS_EXPORT_MAX, RECORDS_MAX_PAGE_SIZE } from "../src/shared/statCatalog.js";
 import { manualRefresh, type ManualOutcome } from "./data/live.js";
+import { defaultRankingsSeason, rankingPlaces, rankingsPage, snapshotWeeks, type RankingsQuery } from "./api/rankings.js";
+import { MAX_REGIONS, isWeek, parsePlaces } from "../src/shared/rankings.js";
 import { registerCache } from "./caches.js";
 import { requestMetrics } from "./metrics.js";
 import { allFlags, isEnabled } from "./flags.js";
@@ -346,6 +348,38 @@ export function createApp() {
   /** The region codes a season's records use, named by their main place (for the Region dropdown). */
   api.get("/records/:season/regions", recordsLimit, h(async (req) => ({ regions: await recordRegions(season(req.params.season)) })));
 
+  // --- World rankings (/rankings): every rated team, movement since last week -----
+
+  const rankingsLimit = limiter(120);
+  const rankingsQuery = async (req: Request): Promise<RankingsQuery> => {
+    // No season asked for: the current one once anyone is rated in it, else the latest with ratings.
+    const s = req.query.season == null || req.query.season === "" ? await defaultRankingsSeason() : predictSeason(req.query.season);
+    const week = req.query.week == null || req.query.week === "" ? null : String(req.query.week);
+    if (week != null) {
+      if (!isWeek(week)) throw bad("week: a Monday, as YYYY-MM-DD");
+      if (!(await snapshotWeeks(s)).includes(week)) throw new HttpError(404, `No rankings snapshot for the week of ${week} in ${seasonInfo(s).label}`);
+    }
+    // ?region=USA:TX,Canada (or repeated ?region=…: Express gives an array, joined the same way).
+    const places = parsePlaces(req.query.region == null ? null : String(req.query.region));
+    if (!places) throw bad(`region: up to ${MAX_REGIONS} places, comma-separated: a country as FIRST names it (USA) or a country and state code (USA:TX)`);
+    const page = req.query.page == null || req.query.page === "" ? 1 : int(req.query.page, "page", { min: 1, max: 10_000 });
+    return { season: s, week, places, page };
+  };
+  /** One page of the world ranking (src/shared/rankings.ts). Cached per data version with an ETag: a repeat is a 304. */
+  api.get("/rankings", rankingsLimit, h(async (req, res) => {
+    const { body, etag } = await rankingsPage(await rankingsQuery(req));
+    res.setHeader("ETag", etag);
+    if (req.fresh) { res.status(304).end(); return undefined; }
+    res.type("application/json").send(body);
+    return undefined;
+  }));
+  /** The places with ranked teams (for the region filter), the snapshot weeks, and ?team='s place ("My region"). */
+  api.get("/rankings/places", rankingsLimit, h(async (req) => {
+    const s = req.query.season == null || req.query.season === "" ? await defaultRankingsSeason() : predictSeason(req.query.season);
+    const team = req.query.team == null || req.query.team === "" ? null : int(req.query.team, "team", { min: 1, max: 999999 });
+    return rankingPlaces(s, team);
+  }));
+
   // --- Predictions ---------------------------------------------------------
 
   api.get("/predict/match", h(async (req): Promise<MatchExplanationView> => {
@@ -505,8 +539,8 @@ export function createApp() {
     // app's HTML, so the visitor sees the app's own not-found page (and search engines drop the URL).
     app.get(/^(?!\/api\/|\/packs\/).*/, h(async (req, res) => {
       res.setHeader("Cache-Control", "no-cache");
-      // The query names a shared matchup (its card is the link preview): /predict?…, /events/…?match=….
-      const page = await renderPage(join(dist, "index.html"), req.path, req.originalUrl.slice(req.path.length));
+      // The query names the page's view: rankings filters, a shared matchup (its card is the link preview).
+      const page = await renderPage(join(dist, "index.html"), req.path, req.query as Record<string, unknown>);
       res.status(page.status).type("html").send(page.html);
     }));
   }
