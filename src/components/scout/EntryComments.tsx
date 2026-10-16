@@ -104,7 +104,7 @@ function CommentRow({ c, mine, admin, thread }: { c: EntryComment; mine: boolean
   };
   return (
     <li className="flex gap-3">
-      <span aria-hidden className="mt-0.5 grid size-8 shrink-0 place-items-center rounded-full bg-primary/15 text-xs font-medium text-primary">
+      <span aria-hidden className="mt-0.5 grid size-8 shrink-0 place-items-center rounded-full bg-accent/20 text-xs font-medium text-foreground">
         {(c.authorName.trim()[0] ?? "?").toUpperCase()}
       </span>
       <div className="min-w-0 flex-1">
@@ -132,14 +132,14 @@ function CommentRow({ c, mine, admin, thread }: { c: EntryComment; mine: boolean
             {confirming ? (
               <>
                 <span className="text-xs text-muted-foreground">{mine ? "Delete your comment?" : `Delete ${c.authorName || "this member"}'s comment?`}</span>
-                <Button type="button" size="sm" variant="ghost" className={cn("text-danger", touch)} onClick={remove} disabled={busy}>{busy ? <Loader2 className="animate-spin" /> : <Trash2 />}Delete</Button>
+                <Button type="button" size="sm" variant="ghost" className={cn("text-danger", touch)} onClick={remove} disabled={busy}>{busy ? <Loader2 className="animate-spin" /> : <Trash2 className="size-4" />}Delete</Button>
                 <Button type="button" size="sm" variant="ghost" className={touch} onClick={() => setConfirming(false)} disabled={busy}>Keep</Button>
               </>
             ) : (
               <>
                 {mine && <Button type="button" size="sm" variant="ghost" className={cn("text-muted-foreground", touch)} onClick={() => { setDraft(c.body); setEditing(true); }} aria-label="Edit your comment"><Pencil />Edit</Button>}
                 <Button type="button" size="sm" variant="ghost" className={cn("text-muted-foreground", touch)} onClick={() => setConfirming(true)}
-                  aria-label={mine ? "Delete your comment" : `Delete ${c.authorName || "this member"}'s comment`}><Trash2 />Delete</Button>
+                  aria-label={mine ? "Delete your comment" : `Delete ${c.authorName || "this member"}'s comment`}><Trash2 className="size-4" />Delete</Button>
               </>
             )}
           </div>
