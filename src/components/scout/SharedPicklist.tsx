@@ -82,7 +82,10 @@ export function SharedPicklist({ workspaceId, workspaceName, season, live, me, s
 
   const describe = useCallback((t: number) => { const n = byTeam.get(t)?.name; return n ? `${t} ${n}` : `Team ${t}`; }, [byTeam]);
   const change = pl.change;
-  const reorder = useReorder({ items: teams, describe, onCommit: useCallback((order: number[], moved: number, to: number, from: number) => change(moveOpFor(moveItem(order, to, from), order, moved)), [change]) });
+  // Only picks with a row on screen take part in a drag (one whose stats are still loading has no row to measure).
+  // Moves name teams, so a pick left out keeps its place relative to the others.
+  const shown = useMemo(() => teams.filter((t) => byTeam.has(t)), [teams, byTeam, data.data]); // eslint-disable-line react-hooks/exhaustive-deps
+  const reorder = useReorder({ items: shown, describe, onCommit: useCallback((order: number[], moved: number, to: number, from: number) => change(moveOpFor(moveItem(order, to, from), order, moved)), [change]) });
 
   const remove = (t: number) => {
     const i = teams.indexOf(t);
@@ -124,7 +127,7 @@ export function SharedPicklist({ workspaceId, workspaceName, season, live, me, s
       selected: selected.includes(t.team), selectDisabled: !selected.includes(t.team) && selected.length >= MAX_COMPARE, onSelect: (on: boolean) => pick(t.team, on),
       onToggle: () => toggle(t.team), onRemove: () => remove(t.team), handle: reorder.handleProps(t.team),
       compareLink: compareHref([t.team, ...teams.filter((x) => x !== t.team).slice(0, MAX_COMPARE - 1)], season),
-      detail: <TeamDetail t={t} season={season} rank={rank} total={teams.length} topPicks={teams.slice(0, MAX_COMPARE)} onMove={(d) => reorder.moveBy(t.team, d)} onRemove={() => remove(t.team)} />,
+      detail: <TeamDetail t={t} season={season} rank={rank} total={shown.length} topPicks={teams.slice(0, MAX_COMPARE)} onMove={(d) => reorder.moveBy(t.team, d)} onRemove={() => remove(t.team)} />,
     };
   };
 
