@@ -352,6 +352,49 @@ next time the form opens. The current template is also kept on the device
 (`cs-scout-tpl:<workspace>:<season>`), so the form works offline with the
 last one seen.
 
+### Workspace activity feed
+
+Every workspace's scout space has an **Activity** view (`/scout?view=activity`)
+that every member can see. It lists who did what, newest first, grouped by
+day. Server code: `server/scout/activityLog.ts`. Table: `workspace_activity`
+(migration 16, private).
+
+- **Logged now.** These are logged after the change commits, and only when
+  something actually changed:
+  - `entry.added`, `entry.edited`, `entry.deleted`, `entry.restored`. Nothing
+    is logged for a refused write (a member deleting someone else's entry), an
+    older version that lost to a newer one, a resend, an edit that changes
+    nothing, or a tombstone for an entry nobody else ever saw.
+  - `template.changed`, with the season, version and kinds. A save that
+    changes nothing isn't logged.
+  - `photo.added` and `photo.removed`. Expiry by the nightly job isn't logged.
+  - `member.joined` and `member.left`. These come from the membership refresh
+    when an account's set of workspaces changes, and are written in the same
+    transaction as the cache write. The actor is "Control Point", because Scout
+    doesn't know who added or removed someone there. They're logged only for
+    workspaces that already have a scout space.
+- **Later tasks.** They call
+  `logActivity(workspaceId, actor, type, subject, details, opts?)` with their
+  own `type` strings (`assignment.created`, `picklist.changed`,
+  `comment.added`, ...). New kinds need no schema change. The app shows an
+  unknown type generically.
+- **Edit coalescing.** Suppose the same person edits the same entry again
+  within 5 minutes of their last edit, and nothing else was logged about that
+  entry in between. Then the earlier "edited" item is replaced by a new one at
+  the top. The new item carries `edits` (how many edits it stands for),
+  `firstId`, `firstAt`, and the union of the changed fields. A reader drops any
+  item of the same type, subject and actor whose id is between `firstId` and
+  the new one.
+- **API.** `GET /api/scout/workspaces/:id/activity?before=<id>&limit=50`
+  returns `{ items, more }`, newest first. It's for members only: 401 when
+  signed out, 403 for non-members, 503 while workspace scouting is paused.
+- **Live.** Every new item is sent on the workspace's stream as
+  `event: activity`, with no `id`. The app fetches the newest page again on
+  each reconnect, and every 30 s while it's polling.
+- **Retention.** Items are kept for 90 days. The scheduler prunes older ones
+  every 6 hours (not when `CS_NO_SCHEDULER` is set), and the API never lists
+  them.
+
 ## Not in scope (yet)
 
 - Signing out of Control Point doesn't end Scout sessions (Scout sessions last
