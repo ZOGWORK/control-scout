@@ -96,6 +96,16 @@ export async function markOrphaned(workspaceId: string, reason: OrphanReason, no
         args: [workspaceId],
       }
       : { sql: "DELETE FROM workspace_former_members WHERE workspace_id = (SELECT id FROM workspaces WHERE cp_workspace_id = ?)", args: [workspaceId] },
+    // Departures Control Point couldn't explain earlier (controlPoint.ts storeMemberships): former members too.
+    ...(reason === "deleted" ? [
+      {
+        sql: `INSERT OR IGNORE INTO workspace_former_members (workspace_id, account_id, role)
+              SELECT ws.id, p.account_id, p.role FROM workspace_pending_departures p JOIN workspaces ws ON ws.cp_workspace_id = p.cp_workspace_id
+               WHERE p.cp_workspace_id = ? AND ws.orphan_reason = 'deleted'`,
+        args: [workspaceId],
+      },
+      { sql: "DELETE FROM workspace_pending_departures WHERE cp_workspace_id = ?", args: [workspaceId] },
+    ] : []),
   ], "write");
   const row = res[0].rows[0] as unknown as { name: string; orphaned_at: string } | undefined;
   if (!row) return null;

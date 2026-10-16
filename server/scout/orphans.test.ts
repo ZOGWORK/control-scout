@@ -31,6 +31,7 @@ const accounts = new Map<string, { id: number; email: string; displayName: strin
 const teams = new Map<string, { name: string; members: Map<string, { name: string; role: "admin" | "member" }> }>();
 let membersCalls = 0;
 let membersDown = false; // the members route fails (500): Control Point can't say
+let accountsDown = false; // the account route fails too: Control Point unreachable
 const accountFor = (email: string) => {
   let a = accounts.get(email);
   if (!a) { a = { id: 7000 + accounts.size, email, displayName: null, createdAt: new Date().toISOString(), controlPoint: { member: false, teams: [] } }; accounts.set(email, a); }
@@ -48,6 +49,7 @@ beforeAll(async () => {
   stub.use("/internal", (req, res, next) => { if (req.get("X-Internal-Key") !== KEY) { res.status(401).json({ error: "bad key" }); return; } next(); });
   stub.post("/internal/accounts/resolve", (req, res) => { res.json({ account: payload(accountFor(String(req.body.email).toLowerCase())) }); });
   stub.get("/internal/accounts/:id", (req, res) => {
+    if (accountsDown) { res.status(500).json({ error: "down" }); return; }
     const a = byId(Number(req.params.id));
     if (!a) { res.status(404).json({ error: "Not found" }); return; }
     res.json({ account: payload(a) });
@@ -83,7 +85,7 @@ afterAll(() => {
 });
 beforeEach(async () => {
   clearInfoCache();
-  membersDown = false;
+  membersDown = false; accountsDown = false;
   Object.assign(process.env, {
     CONTROL_POINT_INTERNAL_URL: cpBase, CONTROL_POINT_PUBLIC_URL: "https://cp.test", CONTROL_POINT_INTERNAL_KEY: KEY, APP_URL: "http://127.0.0.1",
     R2_FAKE: "1", R2_ENDPOINT: `${base}/__fake-r2`, OWNER_EMAILS: "owner@example.com",
@@ -348,8 +350,14 @@ describe("orphaned workspaces: Control Point can't say", () => {
     await stale();
     expect((await pull(w.max, w.id)).status).toBe(403); // not listed, not (yet) known deleted
     expect((await state(w.id))?.orphaned_at).toBeNull();
-    // Nothing recorded as a removal, and Max's cached row stays (stale), so the next answer asks again.
-    expect(await get("SELECT updated_at FROM workspace_members WHERE account_id = ? AND cp_workspace_id = ?", [w.maxId, w.id])).toEqual({ updated_at: 0 });
+    // Nothing recorded as a removal; the departure is pending, apart from the membership cache (which grants nothing now).
+    expect(await get("SELECT 1 x FROM workspace_members WHERE account_id = ? AND cp_workspace_id = ?", [w.maxId, w.id])).toBeUndefined();
+    expect(await get("SELECT role FROM workspace_pending_departures WHERE account_id = ? AND cp_workspace_id = ?", [w.maxId, w.id])).toEqual({ role: "member" });
+    // Control Point then unreachable altogether: no stale membership to fall back on, so still refused.
+    accountsDown = true;
+    await stale();
+    expect((await push(w.max, w.id, [entry()])).status).toBe(403);
+    accountsDown = false;
     expect(await all("SELECT 1 FROM workspace_activity a JOIN workspaces ws ON ws.id = a.workspace_id WHERE ws.cp_workspace_id = ? AND a.type = 'member.left'", [w.id])).toEqual([]);
     expect((await audits("workspace.member_removed")).filter((d) => d.workspaceId === w.id)).toEqual([]);
     membersDown = false;
@@ -357,6 +365,25 @@ describe("orphaned workspaces: Control Point can't say", () => {
     await expectReads(w.max, w); // deleted after all: Max is a former member and reads it
     expect((await state(w.id))?.orphan_reason).toBe("deleted");
     expect(await get("SELECT role FROM workspace_former_members f JOIN workspaces ws ON ws.id = f.workspace_id WHERE ws.cp_workspace_id = ? AND f.account_id = ?", [w.id, w.maxId])).toEqual({ role: "member" });
+    expect(await all("SELECT 1 FROM workspace_pending_departures WHERE cp_workspace_id = ?", [w.id])).toEqual([]);
+  });
+
+  it("(a) undecided, then Control Point says the workspace exists: a removal, logged and audited once then", async () => {
+    const w = await workspace();
+    w.t.members.delete(`max.${w.tag}@example.com`);
+    membersDown = true;
+    await stale();
+    expect((await pull(w.max, w.id)).status).toBe(403);
+    expect((await audits("workspace.member_removed")).filter((d) => d.workspaceId === w.id)).toEqual([]);
+    membersDown = false;
+    await stale();
+    expect((await pull(w.max, w.id)).status).toBe(403);
+    await stale();
+    await pull(w.max, w.id); // asked again: nothing more to log
+    expect((await state(w.id))?.orphaned_at).toBeNull();
+    expect((await audits("workspace.member_removed")).filter((d) => d.workspaceId === w.id)).toEqual([expect.objectContaining({ accountId: w.maxId, role: "member" })]);
+    expect(await all("SELECT a.details FROM workspace_activity a JOIN workspaces ws ON ws.id = a.workspace_id WHERE ws.cp_workspace_id = ? AND a.type = 'member.left'", [w.id])).toHaveLength(1);
+    expect(await all("SELECT 1 FROM workspace_pending_departures WHERE cp_workspace_id = ?", [w.id])).toEqual([]);
   });
 
   it("(b) the members route fails when the last admin is demoted: the check is owed, and the next answer listing it makes it", async () => {

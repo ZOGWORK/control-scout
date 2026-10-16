@@ -771,6 +771,18 @@ CREATE TABLE workspace_former_members (
   PRIMARY KEY (workspace_id, account_id)
 ) WITHOUT ROWID;
 CREATE INDEX workspace_former_members_account ON workspace_former_members (account_id);
+
+-- A workspace that dropped out of an account's Control Point answer when Control Point couldn't say whether it was
+-- deleted (its members route timed out or failed). Kept apart from workspace_members, so it never grants access;
+-- the account's next answer asks again: deleted makes it a former member, otherwise it's logged as a removal then.
+CREATE TABLE workspace_pending_departures (
+  account_id INTEGER NOT NULL,
+  cp_workspace_id TEXT NOT NULL,
+  role TEXT NOT NULL,
+  workspace_name TEXT NOT NULL DEFAULT '',
+  at INTEGER NOT NULL,
+  PRIMARY KEY (account_id, cp_workspace_id)
+) WITHOUT ROWID;
 `,
   },
 ];

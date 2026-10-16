@@ -437,9 +437,10 @@ export function moveQueuedToPersonal(space: string): number {
     const e = readEntry(space, uuid);
     if (!e) continue;
     if (e.deleted) { try { localStorage.removeItem(keyFor(space, uuid)); dropped++; } catch { /* blocked */ } continue; }
+    // The workspace's own questions have no label in Personal: their answers go into the notes (personalCopy).
     const copy = normalizeScoutEntry({
       uuid: newScoutId(), season: e.season, team: e.team, eventCode: e.eventCode, matchLabel: e.matchLabel, kind: e.kind,
-      data: e.data ?? {}, notes: e.notes ?? "", updatedAt: Date.now(),
+      ...personalCopy(e.data ?? {}, e.notes ?? "", workspaceFieldsOnDevice(space, e.season, e.kind), templateFor(e.season, e.kind).fields, null), updatedAt: Date.now(),
     }, null);
     try {
       writeEntry(copy);
@@ -458,6 +459,35 @@ export function moveQueuedToPersonal(space: string): number {
   window.dispatchEvent(new Event(EVT));
   if (moved) window.dispatchEvent(new CustomEvent<SavedDetail>(SAVED, { detail: { space: null, deleted: false } }));
   return moved;
+}
+
+/** The workspace's current questions for a season and kind as last seen on this device (scoutTemplates.ts keeps them), else the built-in ones. */
+function workspaceFieldsOnDevice(space: string, season: number, kind: "match" | "pit"): { id: string; label: string }[] {
+  try {
+    const t = JSON.parse(localStorage.getItem(`cs-scout-tpl:${space}:${season}`) ?? "null") as Record<string, unknown> | null;
+    const f = t?.[kind];
+    if (Array.isArray(f)) return f.filter((x): x is { id: string; label: string } => !!x && typeof x.id === "string" && typeof x.label === "string");
+  } catch { /* unreadable: the built-in questions */ }
+  return templateFor(season, kind).fields;
+}
+
+/**
+ * What a draft from a read-only workspace keeps in Personal (Task 19): Personal entries use the built-in
+ * questions, so answers to the workspace's own questions would have no label there. Those are written into
+ * the notes instead ("Label: answer"), readable anywhere; answers to built-in questions stay as answers.
+ */
+export function personalCopy(data: Record<string, ScoutValue>, notes: string, fields: { id: string; label: string }[], builtin: { id: string }[], from: string | null): { data: Record<string, ScoutValue>; notes: string } {
+  const known = new Set(builtin.map((f) => f.id));
+  const kept: Record<string, ScoutValue> = {};
+  const lines: string[] = [];
+  for (const [id, v] of Object.entries(data)) {
+    if (known.has(id)) { kept[id] = v; continue; }
+    if (v === undefined || v === null || v === "" || v === false) continue;
+    const label = fields.find((f) => f.id === id)?.label || id;
+    lines.push(`${label}: ${v === true ? "yes" : Array.isArray(v) ? v.join(", ") : String(v)}`);
+  }
+  const extra = lines.length ? `${from ? `Answers from ${from}` : "Workspace answers"}:\n${lines.join("\n")}` : "";
+  return { data: kept, notes: [notes.trim(), extra].filter(Boolean).join("\n\n").slice(0, 4000) };
 }
 
 /** Pull a space's entries from the account (Personal) or the workspace (changes since the last pull); local unsynced edits are kept if newer. */

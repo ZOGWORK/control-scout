@@ -265,9 +265,12 @@ re-check, the stream sweep):
   knows the admins who have used Control Scout, so an empty cache would lock
   out a workspace whose admin simply never opened Scout.
 - Control Point can't say (the members route times out or errors): nothing is
-  decided. For a workspace that dropped out of an answer, the cached row stays
-  (marked stale, so it never counts as a fresh membership) and nothing is
-  logged, so the account's next answer sees the departure and asks again. For
+  decided. For a workspace that dropped out of an answer, the membership goes
+  (Control Point no longer lists it, so it grants nothing), but nothing is
+  logged: the departure waits in `workspace_pending_departures`, apart from
+  the membership cache. The account's next answer asks again. If the
+  workspace was deleted, the account becomes a former member. Otherwise it is a
+  removal, logged and audited at that point. For
   an admin who left or was demoted, the workspace is owed a check
   (`orphan_check_at`), made from the next answer that lists it (anyone's, at
   most once a minute).
@@ -312,7 +315,10 @@ photo uploads;
 entries open with View. Settings → Workspace shows the same banner and no admin
 controls. A new entry, or an edit, that was open when the space went
 read-only keeps what was typed: its Save button becomes "Save to Personal"
-(an edit is saved as a new personal entry). A 423 or a live `workspace` or `account` event re-reads `/me` at
+(an edit is saved as a new personal entry). Personal entries use the built-in
+questions, so answers to the workspace's own questions are written into the
+notes ("Label: answer"). The same happens to queued entries moved to
+Personal (`personalCopy`). A 423 or a live `workspace` or `account` event re-reads `/me` at
 once.
 
 **Queued offline edits** for a space that went read-only are moved to

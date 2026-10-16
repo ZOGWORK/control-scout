@@ -6,7 +6,7 @@ import { Link, useSearchParams } from "react-router-dom";
 import { ClipboardCheck, ClipboardList, Cloud, CloudOff, Download, History, Info, LayoutList, ListOrdered, Loader2, Lock, MessageSquare, Plus, Save, SearchX, Trash2, X } from "lucide-react";
 import { useCurrentSeason, useTitle } from "../lib/meta";
 import { usePersonal } from "../lib/personal";
-import { canDeleteScoutEntry, deleteScoutEntry, localScoutEntries, newScoutId, refusalMessage, SCOUT_REFUSED, type ScoutRefusal, saveScoutEntry, ScoutStorageError, usePendingScoutCounts, useScouting, type ScoutEntry, type ScoutSpace, type ScoutValue } from "../lib/scouting";
+import { canDeleteScoutEntry, deleteScoutEntry, localScoutEntries, newScoutId, personalCopy, refusalMessage, SCOUT_REFUSED, type ScoutRefusal, saveScoutEntry, ScoutStorageError, usePendingScoutCounts, useScouting, type ScoutEntry, type ScoutSpace, type ScoutValue } from "../lib/scouting";
 import { resolveTemplate, useEntryTemplate, useEntryTemplateState, useWorkspaceTemplate } from "../lib/scoutTemplates";
 import { ALL_PHASES, phaseLabel, type WorkspaceTemplate } from "../shared/scoutTemplate";
 import { orphanBanner, type OrphanState } from "../shared/orphaned";
@@ -432,7 +432,7 @@ function EntryForm({ season, initial, team, space, spaceName, workspaceTemplate,
       : initial && kind === initial.kind ? (initial.templateId ? { templateId: initial.templateId, templateVersion: initial.templateVersion ?? 0 } : {})
       : { templateId: template.id, templateVersion: template.version ?? 0 };
     try {
-      saveScoutEntry({ uuid: (toPersonal ? null : initial?.uuid) ?? newScoutId(), season, team: Number(team), eventCode: eventCode.trim().toUpperCase() || null, matchLabel: kind === "match" ? matchLabel.trim().toUpperCase() || null : null, kind, data, notes, workspaceId: toPersonal ? null : space, ...made });
+      saveScoutEntry({ uuid: (toPersonal ? null : initial?.uuid) ?? newScoutId(), season, team: Number(team), eventCode: eventCode.trim().toUpperCase() || null, matchLabel: kind === "match" ? matchLabel.trim().toUpperCase() || null : null, kind, ...(toPersonal ? personalCopy(data, notes, template.fields, resolveTemplate(null, season, kind).fields, spaceName) : { data, notes }), workspaceId: toPersonal ? null : space, ...made });
       toast.success(toPersonal ? "Kept in Personal: the workspace is read-only" : "Saved on this device");
       onDone();
     } catch (e) {

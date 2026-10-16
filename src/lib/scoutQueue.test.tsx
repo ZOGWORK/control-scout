@@ -4,7 +4,7 @@
 // none while workspace scouting is off), and the pending counts follow saves and syncs.
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { act, cleanup, render, renderHook } from "@testing-library/react";
-import { ACCOUNT_STALE, localScoutEntries, moveQueuedToPersonal, pendingScoutCounts, saveScoutEntry, syncQueuedScouting, syncScouting, usePendingScoutCounts, type ScoutEntry } from "./scouting";
+import { ACCOUNT_STALE, localScoutEntries, moveQueuedToPersonal, personalCopy, pendingScoutCounts, saveScoutEntry, syncQueuedScouting, syncScouting, usePendingScoutCounts, type ScoutEntry } from "./scouting";
 import { resetFlags } from "./flags";
 import { DEFAULT_FLAGS } from "../shared/flags";
 import type { AccountUser } from "./personal";
@@ -156,6 +156,21 @@ describe("ScoutQueueSync (the app-wide reconnect trigger)", () => {
     expect(pendingScoutCounts().workspaces).toEqual({ 42: 1 });
     expect(localScoutEntries(null)).toEqual([]);
     expect(h.toasts).toEqual([]);
+  });
+
+  it("moving keeps the workspace's own answers readable: they go into the notes, built-in answers stay answers", () => {
+    localStorage.setItem("cs-scout-tpl:42:2025", JSON.stringify({ workspaceId: "42", season: 2025, version: 3, settingsVersion: 3,
+      match: [{ id: "custom_lift", label: "Lift height", type: "number", phase: "endgame" }, { id: "fouls", label: "Fouls drawn", type: "counter", phase: "overall" }], pit: null, updatedAt: null, updatedBy: null }));
+    saveScoutEntry({ uuid: "wwwwwwwwwww1", ...base, notes: "quick", data: { custom_lift: 42, fouls: 2, custom_none: "" }, workspaceId: "42" });
+    expect(moveQueuedToPersonal("42")).toBe(1);
+    const [e] = localScoutEntries(null);
+    expect(e.data).toEqual({ fouls: 2 });
+    expect(e.notes).toBe("quick\n\nWorkspace answers:\nLift height: 42");
+  });
+
+  it("personalCopy names the workspace the answers came from, and says yes for a ticked toggle", () => {
+    expect(personalCopy({ ramp: true, defense: true }, "", [{ id: "ramp", label: "Used the ramp" }], [{ id: "defense" }], "Robo Raptors"))
+      .toEqual({ data: { defense: true }, notes: "Answers from Robo Raptors:\nUsed the ramp: yes" });
   });
 
   it("moving resets the workspace's pull cursor, so a later re-add pulls everything again", () => {
