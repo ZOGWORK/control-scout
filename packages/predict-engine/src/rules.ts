@@ -70,19 +70,50 @@ export const BRACKETS: Record<number, Bracket> = {
   },
 };
 
+/** Number of bonus ranking points earned (flags, or an already-counted number). */
+export function bonusCount(b: { movement: boolean; goal: boolean; pattern: boolean } | number | undefined): number {
+  if (b == null) return 0;
+  return typeof b === "number" ? b : Number(b.movement) + Number(b.goal) + Number(b.pattern);
+}
+
 /** Ranking points for one alliance in one qualification match. */
-export function rankingPoints(season: number, own: { total: number; bonus?: { movement: boolean; goal: boolean; pattern: boolean } }, opp: { total: number }): number {
+export function rankingPoints(season: number, own: { total: number; bonus?: { movement: boolean; goal: boolean; pattern: boolean } | number }, opp: { total: number }): number {
   const win = own.total > opp.total, tie = own.total === opp.total;
-  if (season >= 2025) {
-    const b = own.bonus;
-    return (win ? 3 : tie ? 1 : 0) + (b ? Number(b.movement) + Number(b.goal) + Number(b.pattern) : 0);
-  }
+  if (season >= 2025) return (win ? 3 : tie ? 1 : 0) + bonusCount(own.bonus);
   return win ? 2 : tie ? 1 : 0;
 }
 
-/** Sort key after average RP (higher is better), per season. */
-export function tiebreakKeys(season: number, avg: { np: number; auto: number; endgame: number }): number[] {
+/**
+ * Sort keys after the ranking score (higher is better), per season:
+ * - 2026 BIOBUZZ (Table 13-1): average non-foul match points, average TIPS,
+ *   average auto points, then random. TIPS aren't in the data yet, so they
+ *   count as equal for everyone and the order falls through to auto points.
+ * - 2025 DECODE: average non-foul points (matches 99.7% of official ranks).
+ * - 2024 and before: average auto, then endgame.
+ */
+export function tiebreakKeys(season: number, avg: { np: number; auto: number; endgame: number; tips?: number }): number[] {
+  if (season >= 2026) return [avg.np, avg.tips ?? 0, avg.auto];
   return season >= 2025 ? [avg.np] : [avg.auto, avg.endgame];
+}
+
+/** One team's numbers for ordering advancement (2025+, Table 4-2). */
+export interface AdvancementEntry {
+  total: number; awards: number; playoffs: number; alliance: number; quals: number;
+  /** Qualification averages and best scores (non-foul), excluding surrogate matches. */
+  avgNp: number; avgAuto: number; bestNp: number; secondNp: number;
+}
+
+/**
+ * Advancement order for equal point totals (2025+; Table 4-2): judged award
+ * points, playoff points, alliance selection points, qualification points,
+ * average qualification non-foul points, average auto points, highest and
+ * second-highest qualification non-foul score. Returns 0 when still tied
+ * (the event software then draws randomly).
+ */
+export function compareAdvancement(a: AdvancementEntry, b: AdvancementEntry): number {
+  const keys: (keyof AdvancementEntry)[] = ["total", "awards", "playoffs", "alliance", "quals", "avgNp", "avgAuto", "bestNp", "secondNp"];
+  for (const k of keys) if (a[k] !== b[k]) return b[k] - a[k];
+  return 0;
 }
 
 // ---------------------------------------------------------------------------
@@ -161,8 +192,11 @@ export function awardPoints(awards: { type: string; placement: number }[]): numb
   return best;
 }
 
-/** Judged awards worth 12/6/3 (Dean's List, winner/finalist awards are worth 0). */
-export const JUDGED_AWARDS = new Set(["Think", "Connect", "Innovate", "Control", "Motivate", "Design", "Reach", "Sustain", "JudgesChoice", "Compass"]);
+/**
+ * Team judged awards worth 12/6/3 (A211, Table 6-1). Individual awards
+ * (Compass, Dean's List / Leadership) and alliance awards earn no points.
+ */
+export const JUDGED_AWARDS = new Set(["Think", "Connect", "Innovate", "Control", "Motivate", "Design", "Reach", "Sustain", "JudgesChoice"]);
 
 // ---------------------------------------------------------------------------
 // 2024–25 fixed advancement order (most common published order)
