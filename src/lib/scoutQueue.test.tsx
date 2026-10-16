@@ -141,6 +141,23 @@ describe("ScoutQueueSync (the app-wide reconnect trigger)", () => {
     await vi.waitFor(() => expect(pendingScoutCounts().personal).toBe(0)); // and Personal syncs it to the account
   });
 
+  it("another account signing in while the rescue's push is on its way: its queue is never moved", async () => {
+    localStorage.setItem("cs-personal-owner", "1");
+    saveScoutEntry({ uuid: "wwwwwwwwwww1", ...base, workspaceId: "42" });
+    let answer!: () => void;
+    const gate = new Promise<void>((r) => { answer = r; });
+    vi.stubGlobal("fetch", vi.fn(async () => { await gate; return new Response(JSON.stringify({ error: "not a member" }), { status: 403, headers: { "Content-Type": "application/json" } }); }));
+    h.personal = { user: user(["41"]), syncReady: true };
+    render(<ScoutQueueSync />);
+    await new Promise((r) => setTimeout(r, 20));
+    // Account 2 takes over the device (personal.tsx swaps the local data and the owner) before the 403 lands.
+    localStorage.setItem("cs-personal-owner", "2");
+    await act(async () => { answer(); await new Promise((r) => setTimeout(r, 30)); });
+    expect(pendingScoutCounts().workspaces).toEqual({ 42: 1 });
+    expect(localScoutEntries(null)).toEqual([]);
+    expect(h.toasts).toEqual([]);
+  });
+
   it("moving resets the workspace's pull cursor, so a later re-add pulls everything again", () => {
     saveScoutEntry({ uuid: "wwwwwwwwwww1", ...base, workspaceId: "42" });
     localStorage.setItem("cs-scout-ws-cursor:42", "17");

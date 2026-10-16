@@ -137,6 +137,7 @@ export const QUEUE_RETRY_MS = 30_000;
 export const movedNotice = (n: number, name?: string) =>
   `${n === 1 ? "1 entry" : `${n} entries`} saved in ${name?.trim() || "a workspace you've left"} couldn't sync: you're no longer a member there. ${n === 1 ? "It's" : "They're"} kept in Personal, so nothing was lost.`;
 
+const deviceOwner = () => { try { return localStorage.getItem("cs-personal-owner"); } catch { return null; } };
 /** One rescue per workspace at a time. */
 const rescuing = new Set<string>();
 /**
@@ -144,12 +145,16 @@ const rescuing = new Set<string>();
  * no longer has: push once more, and only when the server refuses it too (403) move them to
  * Personal, with a notice. Anything else (offline, paused, a server error) leaves them queued.
  */
-async function rescueQueued(space: string, name?: string): Promise<void> {
+async function rescueQueued(space: string, name: string | undefined, alive: () => boolean): Promise<void> {
   if (rescuing.has(space)) return;
   rescuing.add(space);
+  // The device's data belongs to one account (personal.tsx, cs-personal-owner). Another account signing in
+  // while the push is on its way swaps the local queues: then the answer is about the other account's
+  // queue and nothing moves.
+  const owner = deviceOwner();
   try { await syncScouting(space); }
   catch (e) {
-    if ((e as { status?: unknown } | null)?.status !== 403) return;
+    if ((e as { status?: unknown } | null)?.status !== 403 || !alive() || deviceOwner() !== owner) return;
     const n = moveQueuedToPersonal(space);
     if (!n) return;
     toast.warning(movedNotice(n, name), { duration: 20_000 });
@@ -173,19 +178,20 @@ export function useQueuedScoutSync(): void {
   const memberOf = enabled && known ? all.map((w) => w.id).join(",") : null;
   useEffect(() => {
     if (!syncReady) return;
+    let alive = true; // until the account (or its workspaces) change: a rescue started before then moves nothing
     const list = ids ? ids.split(",") : [];
     const members = memberOf == null ? null : new Set(memberOf ? memberOf.split(",") : []);
     const left = () => (members ? Object.keys(pendingScoutCounts().workspaces).filter((w) => !members.has(w)) : []);
     const run = () => {
       void syncQueuedScouting(list);
       const remembered = readRememberedSpace();
-      for (const w of left()) void rescueQueued(w, remembered?.id === w ? remembered.name : undefined);
+      for (const w of left()) void rescueQueued(w, remembered?.id === w ? remembered.name : undefined, () => alive);
     };
     const tick = () => { const p = pendingScoutCounts(); if (p.personal || list.some((w) => p.workspaces[w]) || left().length) run(); };
     tick();
     window.addEventListener("online", run);
     const t = setInterval(tick, QUEUE_RETRY_MS);
-    return () => { window.removeEventListener("online", run); clearInterval(t); };
+    return () => { alive = false; window.removeEventListener("online", run); clearInterval(t); };
   }, [syncReady, ids, memberOf]);
   useEffect(() => {
     const denied = () => { void refreshUser?.(); };
