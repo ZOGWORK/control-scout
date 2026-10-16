@@ -34,6 +34,11 @@
 //                            GET /api/scout/workspaces/:id/activity lists it; no id. Live only: ones logged during
 //                            the catch-up follow `ready`; a reader that was away refetches the feed's newest page.
 //                            A coalesced edit arrives as a new item whose details.firstId says which older ones it replaces.
+//   event: comment           a comment on one of the workspace's entries was written, edited or deleted (comments.ts); no id
+//                            (comments have their own order, so it never moves the entry cursor). data: a CommentEvent
+//                            (src/shared/comments.ts) {action, workspaceId, entryUuid, commentId, count, comment?}. Live only,
+//                            like `activity` (ones during the catch-up follow `ready`): a device that was away refetches
+//                            the threads it has open, and the counts, on `ready`.
 //   : ping                   a comment every 25 s (proxies drop silent connections)
 //
 // Proxy: the response says X-Accel-Buffering: no, and nginx's site gives this
@@ -42,9 +47,10 @@
 import express, { type Request, type Response, type Router } from "express";
 import { isWorkspaceId, membershipAnsweredAt, refreshAccount } from "../auth/controlPoint.js";
 import { currentUser } from "../auth/session.js";
-import { subscribe, subscribeActivity, subscribeRevoked, subscribeSettings, subscribeTemplate, type ActivityNotice, type LiveEntry, type SettingsNotice, type TemplateNotice } from "./bus.js";
+import { subscribe, subscribeActivity, subscribeComments, subscribeRevoked, subscribeSettings, subscribeTemplate, type ActivityNotice, type LiveEntry, type SettingsNotice, type TemplateNotice } from "./bus.js";
 import { openLiveConnection } from "../liveConnections.js";
 import { pullWorkspaceLive, workspaceAccess, type WorkspaceEntryOut } from "./entries.js";
+import type { CommentEvent } from "../../src/shared/comments.js";
 
 /**
  * Streams one account may hold at once (tabs and devices) and the whole server, the heartbeat
@@ -241,6 +247,16 @@ data: ${JSON.stringify(a)}
   const unsubscribeRevoked = subscribeRevoked(workspaceId, (accountId) => {
     if (accountId === access.membership.accountId) stream.revoke();
   });
+  // Comment changes likewise (held during the catch-up, bounded, sent once live).
+  const heldComments: CommentEvent[] = [];
+  const sendComment = (c: CommentEvent) => write(`event: comment
+data: ${JSON.stringify(c)}
+
+`);
+  const unsubscribeComments = subscribeComments(workspaceId, (c) => {
+    if (live) sendComment(c);
+    else if (heldComments.push(c) > LIMITS.maxHeld) end();
+  });
   // The re-check sweep (above) checks this stream's session and the account's membership.
   // A check that can't run (the database or Control Point briefly away) keeps the stream, as reads do.
   const stream: Stream = {
@@ -257,11 +273,11 @@ data: ${JSON.stringify(a)}
     if (closed) return;
     closed = true;
     clearInterval(heartbeat);
-    unsubscribe(); unsubscribeTemplate(); unsubscribeSettings(); unsubscribeActivity(); unsubscribeRevoked();
+    unsubscribe(); unsubscribeTemplate(); unsubscribeSettings(); unsubscribeActivity(); unsubscribeRevoked(); unsubscribeComments();
     streams.delete(stream);
     stopSweepIfIdle();
     release();
-    held.length = 0; heldActivity.length = 0;
+    held.length = 0; heldActivity.length = 0; heldComments.length = 0;
     res.end();
   }
   res.on("close", end);
@@ -287,6 +303,7 @@ data: ${JSON.stringify(a)}
     if (heldTemplate) { sendTemplate(heldTemplate); heldTemplate = null; }
     if (heldSettings) { sendSettings(heldSettings); heldSettings = null; }
     for (const a of heldActivity.splice(0)) sendActivity(a);
+    for (const c of heldComments.splice(0)) sendComment(c);
   } catch (e) {
     console.error("[scout stream] catch-up failed", e);
     end();

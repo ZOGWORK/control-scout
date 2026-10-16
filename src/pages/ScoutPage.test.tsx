@@ -244,6 +244,8 @@ describe("Scout spaces", () => {
     calls.length = 0;
     saveScoutEntry({ uuid: "gearheads002", ...base, team: 4444, workspaceId: "901" }); // queued, not pushed yet
     calls.length = 0;
+    const resyncs: unknown[] = [];
+    window.addEventListener("cs-scout-comments-resync", (e) => resyncs.push((e as CustomEvent).detail));
     fireEvent.click(screen.getByRole("button", { name: "Refresh this space" }));
     expect(await screen.findByText("Updated just now")).toBeTruthy();
     // (The page's first pull moved the cursor to 7: the refresh pulls from there.)
@@ -252,6 +254,7 @@ describe("Scout spaces", () => {
     expect(pulled).toBeGreaterThan(pushed); // …then the catch-up pull from the cursor…
     expect(calls).toContain("refreshUser"); // …the account (/api/auth/me)…
     expect(h.generations.at(-1)).toBe(gen + 1); // …and a fresh stream
+    expect(resyncs).toContainEqual({ space: "901" }); // open comment threads refetch too
     expect(localStorage.getItem("cs-scout-ws-cursor:901")).toBe("7");
   });
 
