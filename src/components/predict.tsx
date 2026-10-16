@@ -109,11 +109,25 @@ function TeamChip({ n, season, highlight, sub }: { n: number; season: number; hi
 
 type Side = "red" | "blue";
 
+/** How many times `value` has changed since the first render (0: never): a new score arriving
+ *  (live auto-refresh) restarts its flash; a row that mounts with its score doesn't flash. */
+function useChangeCount<T>(value: T): number {
+  const prev = useRef(value);
+  const [n, setN] = useState(0);
+  useEffect(() => {
+    if (Object.is(prev.current, value)) return;
+    prev.current = value;
+    setN((x) => x + 1);
+  }, [value]);
+  return n;
+}
+
 /** One alliance: its teams and score in one tinted box. The winner's box is stronger; the loser's fades back. */
 function AllianceBox({ side, m, score, forecast, outcome, highlight }: {
   side: Side; m: MatchView; score: number | null; forecast: number | null; outcome: "win" | "loss" | "tie" | null; highlight?: number;
 }) {
   const a = m[side];
+  const flash = useChangeCount(score);
   return (
     <div className={cn(
       // Phones: one line per alliance, teams then score. Wider: the two boxes face each other, scores in the middle.
@@ -125,7 +139,7 @@ function AllianceBox({ side, m, score, forecast, outcome, highlight }: {
         {a.teams.map((t) => <TeamChip key={t.number} n={t.number} season={m.season} highlight={highlight} sub={t.surrogate || !t.onField} />)}
       </div>
       {score != null ? (
-        <span className={cn("shrink-0 font-display text-lg font-bold tabular-nums", side === "red" ? "text-red-alliance" : "text-blue-alliance", outcome === "loss" && "opacity-45")}>
+        <span key={flash} className={cn("shrink-0 font-display text-lg font-bold tabular-nums", flash > 0 && "cs-score-flash -mx-1 px-1", side === "red" ? "text-red-alliance" : "text-blue-alliance", outcome === "loss" && "opacity-45")}>
           {score}{outcome === "win" && <span className="sr-only"> (won)</span>}
         </span>
       ) : forecast != null ? (
