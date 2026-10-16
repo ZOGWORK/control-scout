@@ -14,9 +14,12 @@ import { setFlag } from "../flags";
 import { csvCell } from "../api/records";
 import { builtinTemplate } from "../../src/shared/scoutDefaults";
 import { exportFilename, workspaceExportUrl } from "../../src/shared/scoutExport";
+import { entryMatches, filtersFromSearch, type FilterableEntry } from "../../src/shared/scoutFilter";
 import { EXPORT_CHUNK, exportColumns, FIXED_HEADERS, OTHER_FIELDS_HEADER, parseExportFilters } from "./export";
 
 const KEY = "k".repeat(40);
+/** An entry as a member's device pulls it. */
+type Pulled = FilterableEntry & { uuid: string; season: number };
 let scout: Server, cp: Server;
 let base = "", cpBase = "";
 const inbox = new Map<string, string>();
@@ -339,6 +342,40 @@ describe("workspace CSV export", () => {
     const fouls = rows[0].indexOf("Fouls drawn");
     expect(rows.slice(1).filter((r) => r[fouls] === "1")).toHaveLength(4999);
   }, 30_000);
+
+  it("parity: the export holds exactly the entries the Scout page's feed shows for the same filters (src/shared/scoutFilter.ts)", async () => {
+    const { admin, member } = await team("509");
+    await push(member, "509", [
+      entry({ uuid: "parity000001", team: 111, eventCode: "USCAQ1", matchLabel: "Q2", notes: "Fast INTAKE" }),
+      entry({ uuid: "parity000002", team: 222, eventCode: "uscaq1", matchLabel: "q10", notes: "slow, tips over" }),
+      entry({ uuid: "parity000003", team: 111, eventCode: "USTXCMP", kind: "pit", matchLabel: null, data: { drivetrain: "Swerve", canDefend: true } }),
+      entry({ uuid: "parity000004", team: 333, eventCode: null, matchLabel: "ß1", notes: "Équipe ÖSTERREICH" }),
+      entry({ uuid: "parity000005", team: 444, season: 2024, notes: "fast" }),
+      entry({ uuid: "parity000006", team: 111, matchLabel: "F1", notes: "deleted" }),
+    ]);
+    await push(member, "509", [entry({ uuid: "parity000006", team: 111, matchLabel: "F1", deleted: true, updatedAt: 1_900_000_000_000 })]);
+    await push(admin, "509", [entry({ uuid: "parity000007", team: 222, matchLabel: "M3-2", notes: "coach says fast" })]);
+    // What a member's device holds: the workspace pull (tombstones included).
+    const pulled = (await member("GET", "/api/scout/sync?workspaceId=509&since=0")).json.entries as Pulled[];
+    expect(pulled.map((x) => x.uuid).sort()).toEqual(["parity000001", "parity000002", "parity000003", "parity000004", "parity000005", "parity000006", "parity000007"]);
+    const coach = accountFor("csv-coach@example.com").id, priya = accountFor("csv-priya@example.com").id;
+    const queries = [
+      "season=2025", "season=2024", "season=2025&team=111", "season=2025&team=111,222", "season=2025&event=USCAQ1", "season=2025&event=ustxcmp",
+      `season=2025&author=${coach}`, `season=2025&author=${priya}&kind=match`, "season=2025&match=Q10", "season=2025&match=q2,F1",
+      `season=2025&match=${encodeURIComponent("ß1")}`, "season=2025&match=SS1", "season=2025&kind=pit", "season=2025&q=fast", "season=2025&q=FAST+intake",
+      "season=2025&q=swerve", "season=2025&q=true", "season=2025&q=coach", "season=2025&q=priya", `season=2025&q=${encodeURIComponent("équipe")}`,
+      "season=2025&q=deleted", "season=2025&team=222&q=fast", "season=2025&team=999",
+    ];
+    for (const q of queries) {
+      const sp = new URLSearchParams(q);
+      const { filters, invalid } = filtersFromSearch(sp);
+      expect(invalid, q).toEqual([]);
+      const feed = pulled.filter((x) => x.season === Number(sp.get("season")) && entryMatches(x, filters)).map((x) => x.uuid).sort();
+      const out = await exportOf(member, "509", q);
+      expect(out.status, q).toBe(200);
+      expect(out.rows.map((r) => r["Entry ID"]).sort(), q).toEqual(feed);
+    }
+  });
 
   it("the Scout page's export link carries only the filters the export knows", () => {
     expect(workspaceExportUrl("w1", new URLSearchParams("season=2025&team=18360&space=w1&view=template&entry=x"))).toBe("/api/scout/workspaces/w1/export.csv?season=2025&team=18360");
