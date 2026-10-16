@@ -60,38 +60,51 @@ export function useAssignments(space: string | null, season: number, live: LiveM
   const [list, setList] = useState<Assignment[]>(() => (space ? readStored(space, season) ?? [] : []));
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<ApiError | null>(null);
+  // One generation per space and season: a reply from an earlier one changes nothing.
   const gen = useRef(0);
-  const loaded = useRef(false);
+  // The latest request started: an older reply that lands after a newer one is dropped.
+  const latestReq = useRef(0);
+  // Changes applied since each request started (live notices, or this device's own): a reply read before
+  // them must not undo them, so they're applied again on top of it.
+  const log = useRef<{ seq: number; notice: AssignmentNotice }[]>([]);
+  const seq = useRef(0);
+  const inflight = useRef(0);
 
   const fetchList = useCallback(async () => {
     if (!space) return;
-    const g = gen.current;
+    const g = gen.current, req = ++latestReq.current, since = seq.current;
+    inflight.current++;
     setLoading(true);
     try {
       const r = await apiFetch<{ assignments: unknown[] }>(`${base(space)}?season=${season}`);
-      if (gen.current !== g) return;
-      const next = (r.assignments ?? []).filter(isAssignment);
+      if (gen.current !== g || req !== latestReq.current) return;
+      let next = (r.assignments ?? []).filter(isAssignment);
+      for (const l of log.current) if (l.seq > since) next = applyNotice(next, l.notice, season);
       setList(next); store(space, season, next); setError(null);
-      loaded.current = true;
     } catch (e) {
-      if (gen.current === g) setError(e instanceof ApiError ? e : new ApiError(0, "Couldn't load the assignments."));
+      if (gen.current === g && req === latestReq.current) setError(e instanceof ApiError ? e : new ApiError(0, "Couldn't load the assignments."));
     } finally {
-      if (gen.current === g) setLoading(false);
+      if (gen.current === g) {
+        if (--inflight.current <= 0) { inflight.current = 0; log.current = []; setLoading(false); }
+      }
     }
   }, [space, season]);
 
   useEffect(() => {
     gen.current++;
-    loaded.current = false;
+    log.current = []; inflight.current = 0;
     setList(space ? readStored(space, season) ?? [] : []);
     setError(null);
     void fetchList();
   }, [space, season, fetchList]);
 
-  // Back live (a reconnect may have missed changes): fetch again. Polling: every 30 s.
+  // Live again (a reconnect may have missed changes, and the first load may have failed): fetch again.
+  // Polling: every 30 s.
+  const wasLive = useRef(false);
   useEffect(() => {
     if (!space) return;
-    if (live === "live" && loaded.current) void fetchList();
+    if (live === "live" && wasLive.current === false) { wasLive.current = true; void fetchList(); }
+    if (live !== "live") wasLive.current = false;
     if (live !== "polling") return;
     const t = setInterval(() => { void fetchList(); }, ASSIGNMENTS_POLL_MS);
     return () => clearInterval(t);
@@ -99,6 +112,7 @@ export function useAssignments(space: string | null, season: number, live: LiveM
 
   const apply = useCallback((n: AssignmentNotice) => {
     if (!space) return;
+    if (inflight.current > 0) log.current.push({ seq: ++seq.current, notice: n });
     setList((cur) => { const next = applyNotice(cur, n, season); store(space, season, next); return next; });
   }, [space, season]);
 

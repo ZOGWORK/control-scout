@@ -61,16 +61,20 @@ async function withProgress(workspaceId: string, rows: any[]): Promise<Assignmen
   return rows.map((r) => toAssignment(workspaceId, r, by.get(progressKey(Number(r.season), String(r.event_code), Number(r.team), Number(r.assignee_account_id))) ?? 0));
 }
 
-export interface ListFilter { season?: number; eventCode?: string; assigneeAccountId?: number }
+export interface ListFilter { season?: number; eventCode?: string; assigneeAccountId?: number; teams?: number[] }
 
-/** A workspace's assignments (filtered), oldest first. Reading never creates anything. */
+/**
+ * A workspace's assignments (filtered), oldest first: all of them, never a silent first page (a workspace's
+ * list is people dealing out teams by hand: hundreds per season at most). Reading never creates anything.
+ */
 export async function listAssignments(workspaceId: string, f: ListFilter = {}): Promise<Assignment[]> {
   const where: string[] = ["w.cp_workspace_id = ?"];
   const args: (string | number)[] = [workspaceId];
   if (f.season != null) { where.push("a.season = ?"); args.push(f.season); }
   if (f.eventCode != null) { where.push("a.event_code = ?"); args.push(f.eventCode); }
   if (f.assigneeAccountId != null) { where.push("a.assignee_account_id = ?"); args.push(f.assigneeAccountId); }
-  const rows = await all<any>(`SELECT a.* FROM workspace_assignments a JOIN workspaces w ON w.id = a.workspace_id WHERE ${where.join(" AND ")} ORDER BY a.id LIMIT 2000`, args);
+  if (f.teams?.length) { where.push(`a.team IN (${f.teams.map(() => "?").join(", ")})`); args.push(...f.teams); }
+  const rows = await all<any>(`SELECT a.* FROM workspace_assignments a JOIN workspaces w ON w.id = a.workspace_id WHERE ${where.join(" AND ")} ORDER BY a.id`, args);
   return withProgress(workspaceId, rows);
 }
 
@@ -143,10 +147,12 @@ export async function createAssignments(user: User, m: Membership, body: unknown
       args: [m.workspaceId, season, eventCode, team, a, members.get(a)!.name, m.accountId, actor.name, now],
     }))), "write");
     const createdIds = res.flatMap((r) => r.rows.map((x) => Number(x.id)));
-    const atEvent = await listAssignments(m.workspaceId, { season, eventCode });
-    return { createdIds, atEvent };
+    // What this request made (by the ids the inserts returned), and every holder of the requested teams at the event.
+    const created = await byIds(m.workspaceId, createdIds);
+    const atEvent = await listAssignments(m.workspaceId, { season, eventCode, teams });
+    return { createdIds, created, atEvent };
   });
-  const created = outcome.atEvent.filter((a) => outcome.createdIds.includes(a.id));
+  const created = outcome.created;
   const existing = outcome.atEvent.filter((a) => !outcome.createdIds.includes(a.id) && teams.includes(a.team) && assignees.includes(a.assigneeAccountId));
   const duplicates: DuplicateWarning[] = [];
   for (const team of teams) {
