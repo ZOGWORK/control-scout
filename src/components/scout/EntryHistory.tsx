@@ -12,7 +12,7 @@
 //
 // A restore is an ordinary save (restoreScoutVersion): a fresh updatedAt,
 // attributed to you, checked by the server like any write.
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { History, RotateCcw, TriangleAlert, X } from "lucide-react";
 import { apiFetch, ApiError } from "../../lib/api";
 import { agoShort } from "../../lib/format";
@@ -51,7 +51,7 @@ const subjectOf = (e: Pick<EntryText, "team" | "kind" | "matchLabel" | "eventCod
 function useDiff(before: Versioned | null, after: Versioned): DiffRow[] {
   const ta = useEntryTemplate(after);
   const tb = useEntryTemplate(before ?? after);
-  return useMemo(() => (before ? entryDiff(before, after, [ta.fields, tb.fields]) : entrySummary(after, [ta.fields])), [before, after, ta, tb]);
+  return useMemo(() => (before ? entryDiff(before, after, tb.fields, ta.fields) : entrySummary(after, ta.fields)), [before, after, ta, tb]);
 }
 
 export function DiffTable({ rows, beforeLabel, afterLabel, caption }: { rows: DiffRow[]; beforeLabel: string; afterLabel: string; caption: string }) {
@@ -164,13 +164,17 @@ const historyUrl = (ws: string, uuid: string) => `/api/scout/workspaces/${encode
 /** The entry's kept versions from the server, newest first; refetched when the entry changes while open. */
 function useHistory(entry: ScoutEntry, open: boolean) {
   const [state, setState] = useState<{ versions: EntryVersion[] | null; error: ApiError | null; loading: boolean }>({ versions: null, error: null, loading: false });
+  // Only the latest request's answer counts: a slower, older one must not put back an older list.
+  const latest = useRef(0);
   const load = useCallback(() => {
     if (!entry.workspaceId) return;
+    const req = ++latest.current;
     setState((s) => ({ ...s, loading: true }));
     apiFetch<{ versions: EntryVersion[] }>(historyUrl(entry.workspaceId, entry.uuid))
-      .then((r) => setState({ versions: r.versions ?? [], error: null, loading: false }))
-      .catch((e) => setState((s) => ({ ...s, loading: false, error: e instanceof ApiError ? e : new ApiError(0, "Couldn't load the history.") })));
+      .then((r) => { if (req === latest.current) setState({ versions: r.versions ?? [], error: null, loading: false }); })
+      .catch((e) => { if (req === latest.current) setState((s) => ({ ...s, loading: false, error: e instanceof ApiError ? e : new ApiError(0, "Couldn't load the history.") })); });
   }, [entry.workspaceId, entry.uuid]);
+  useEffect(() => () => { latest.current++; }, []);
   useEffect(() => { if (open) load(); }, [open, load, entry.updatedAt]);
   return { ...state, reload: load };
 }

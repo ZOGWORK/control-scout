@@ -32,9 +32,11 @@ const text = (v: string | null | undefined) => (v && v.trim() ? v : NONE);
 /**
  * Rows for every part that differs, `before` → `after`: whether it's deleted, team, kind, event, match,
  * then each answer (in the order of `after`'s template, then `before`'s, then any answer no template
- * names, by id), then the notes. `fields`: the templates' fields, newest first; the first label found wins.
+ * names, by id), then the notes. `beforeFields` / `afterFields`: each version's own template, so each side
+ * reads as it did when it was written (a rating scale changed since keeps its old "of"); the label is the
+ * newer one's.
  */
-export function entryDiff(before: EntryText, after: EntryText, fields: ScoutField[][]): DiffRow[] {
+export function entryDiff(before: EntryText, after: EntryText, beforeFields: ScoutField[], afterFields: ScoutField[] = beforeFields): DiffRow[] {
   const rows: DiffRow[] = [];
   const add = (key: string, label: string, b: string, a: string) => { if (b !== a) rows.push({ key, label, before: b, after: a }); };
   add("deleted", "Status", before.deleted ? "Deleted" : "Live", after.deleted ? "Deleted" : "Live");
@@ -42,16 +44,16 @@ export function entryDiff(before: EntryText, after: EntryText, fields: ScoutFiel
   add("kind", "Type", before.kind === "pit" ? "Pit" : "Match", after.kind === "pit" ? "Pit" : "Match");
   add("event", "Event", text(before.eventCode), text(after.eventCode));
   add("match", "Match", text(before.matchLabel), text(after.matchLabel));
-  const byId = new Map<string, ScoutField>();
-  for (const list of fields) for (const f of list) if (!byId.has(f.id)) byId.set(f.id, f);
+  const oldDefs = new Map(beforeFields.map((f) => [f.id, f])), newDefs = new Map(afterFields.map((f) => [f.id, f]));
+  const known = [...new Set([...newDefs.keys(), ...oldDefs.keys()])];
   const answered = new Set([...Object.keys(before.data ?? {}), ...Object.keys(after.data ?? {})]);
-  const ids = [...byId.keys(), ...[...answered].filter((k) => !byId.has(k)).sort()];
+  const ids = [...known, ...[...answered].filter((k) => !newDefs.has(k) && !oldDefs.has(k)).sort()];
   // A deleted version has no answers: compare the answers only between live versions (the status row says the rest).
   if (!before.deleted && !after.deleted) {
     for (const id of ids) {
-      const f = byId.get(id);
+      const fb = oldDefs.get(id) ?? newDefs.get(id), fa = newDefs.get(id) ?? oldDefs.get(id);
       // A field neither version answered (and the form shows the same for both) isn't a difference.
-      add(`f:${id}`, f?.label ?? id, formatAnswer(before.data?.[id], f), formatAnswer(after.data?.[id], f));
+      add(`f:${id}`, fa?.label ?? id, formatAnswer(before.data?.[id], fb), formatAnswer(after.data?.[id], fa));
     }
     add("notes", "Notes", text(before.notes), text(after.notes));
   }
@@ -59,7 +61,7 @@ export function entryDiff(before: EntryText, after: EntryText, fields: ScoutFiel
 }
 
 /** Every answered part of one version (the oldest kept version has nothing before it to compare with). */
-export function entrySummary(v: EntryText, fields: ScoutField[][]): DiffRow[] {
+export function entrySummary(v: EntryText, fields: ScoutField[]): DiffRow[] {
   const blank: EntryText = { team: v.team, eventCode: v.eventCode, matchLabel: v.matchLabel, kind: v.kind, data: {}, notes: "", deleted: v.deleted };
   return entryDiff(blank, v, fields).filter((r) => r.after !== NONE);
 }
