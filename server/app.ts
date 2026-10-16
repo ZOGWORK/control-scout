@@ -24,6 +24,7 @@ import { contactRouter } from "./contact.js";
 import { scoutRouter } from "./scout/entries.js";
 import { streamRouter } from "./scout/stream.js";
 import { templateRouter } from "./scout/templates.js";
+import { exportRouter } from "./scout/export.js";
 import { reportsRouter } from "./errorReports.js";
 import { packsRouter } from "./packs/routes.js";
 import { collectRouter, statsRouter } from "./analytics.js";
@@ -415,6 +416,8 @@ export function createApp() {
   api.use("/scout/photos", photosRouter());
   api.use("/scout", scoutRouter());
   api.use("/scout", templateRouter());
+  // Workspace entries as CSV (Task 18): streamed, members only. Per IP, and a team at an event often shares one.
+  api.use("/scout", exportRouter(limiter(30)));
   // The owner portal's switches: with realtime off the stream answers 503 and the app polls instead; with
   // workspace scouting off it answers 503 too, since a stream's catch-up reads shared entries like a pull.
   api.use("/scout", streamRouter({ enabled: async () => (await isEnabled("realtime")) && (await isEnabled("workspaceScouting")) }));
