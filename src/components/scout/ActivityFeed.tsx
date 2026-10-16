@@ -2,7 +2,7 @@
 // what, newest first, grouped by day, live from the workspace's stream.
 // Every member sees it. Tapping an item about an entry opens that entry.
 import type { ComponentType } from "react";
-import { Camera, History, ImageMinus, LayoutList, Loader2, Pencil, Plus, RotateCcw, Trash2, UserMinus, UserPlus } from "lucide-react";
+import { Camera, CircleCheck, ClipboardCheck, ClipboardX, History, ImageMinus, LayoutList, Loader2, Pencil, Plus, RotateCcw, Trash2, UserMinus, UserPlus } from "lucide-react";
 import { agoShort } from "../../lib/format";
 import { useNow } from "../../lib/useNow";
 import { activityEntry, describeActivity, groupByDay, type ActivityItem, type ActivityState } from "../../lib/scoutActivity";
@@ -22,6 +22,10 @@ const LOOK: Record<string, { icon: ComponentType<{ className?: string }>; tone: 
   "template.changed": { icon: LayoutList, tone: "bg-warning/15 text-warning" },
   "member.joined": { icon: UserPlus, tone: "bg-success/15 text-success" },
   "member.left": { icon: UserMinus, tone: "bg-muted text-muted-foreground" },
+  "assignment.created": { icon: ClipboardCheck, tone: "bg-sky-500/15 text-sky-600 dark:text-sky-400" },
+  "assignment.completed": { icon: CircleCheck, tone: "bg-success/15 text-success" },
+  "assignment.reopened": { icon: RotateCcw, tone: "bg-warning/15 text-warning" },
+  "assignment.deleted": { icon: ClipboardX, tone: "bg-muted text-muted-foreground" },
 };
 const FALLBACK = { icon: History, tone: "bg-muted text-muted-foreground" };
 

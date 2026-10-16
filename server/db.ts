@@ -680,6 +680,39 @@ CREATE INDEX workspace_entry_comments_thread ON workspace_entry_comments (worksp
   },
   {
     version: 19,
+    name: "scouting assignments",
+    sql: `
+-- Who in a workspace scouts which team at an event (server/scout/assignments.ts, docs/assignments.md).
+-- Admins create and delete them; the assignee (or an admin) marks one done, only an admin reopens it.
+-- One row per member, team and event: the same team can be held by several members (the app warns), but
+-- the same member is never assigned the same team at the same event twice.
+-- event_code: upper case. created_at / done_at: ms. done_by: the account that marked it done (NULL while open).
+-- version: 1 when created, +1 on every status change, so a device can tell an older copy from a newer one.
+-- Names are copied when written, so a member who leaves keeps a readable line.
+CREATE TABLE workspace_assignments (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  workspace_id INTEGER NOT NULL REFERENCES workspaces (id),
+  season INTEGER NOT NULL,
+  event_code TEXT NOT NULL,
+  team INTEGER NOT NULL,
+  assignee_account_id INTEGER NOT NULL,
+  assignee_name TEXT NOT NULL DEFAULT '',
+  created_by_account_id INTEGER NOT NULL,
+  created_by_name TEXT NOT NULL DEFAULT '',
+  created_at INTEGER NOT NULL,
+  status TEXT NOT NULL DEFAULT 'open' CHECK (status IN ('open', 'done')),
+  done_at INTEGER,
+  done_by INTEGER,
+  done_by_name TEXT,
+  version INTEGER NOT NULL DEFAULT 1
+);
+CREATE UNIQUE INDEX workspace_assignments_pair ON workspace_assignments (workspace_id, season, event_code, team, assignee_account_id);
+CREATE INDEX workspace_assignments_event ON workspace_assignments (workspace_id, season, event_code);
+CREATE INDEX workspace_assignments_assignee ON workspace_assignments (workspace_id, assignee_account_id);
+`,
+  },
+  {
+    version: 20,
     name: "workspace entry version history",
     sql: `
 -- The last 20 versions of each workspace scout entry (server/scout/history.ts): one row per accepted write
