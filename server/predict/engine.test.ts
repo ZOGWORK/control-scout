@@ -5,7 +5,7 @@ import * as db from "../db";
 import { kvSet, migrate, openDb, run, setDb } from "../db";
 import { CURRENT_SEASON } from "../data/seasons";
 import { forecasterFor, liveForecaster, liveVersion, refreshForecasters, resetForecasters } from "./engine";
-import { runStats } from "../stats/job";
+import { runStats, statsRulesStale, STATS_RULES } from "../stats/job";
 
 const S = CURRENT_SEASON;
 
@@ -99,5 +99,17 @@ describe("Prediction Engine 2.0 in the app", () => {
     expect(recorded("red")).toEqual({ movement: false, goal: true, pattern: true });
     expect(recorded("blue")).toEqual({ movement: true, goal: false, pattern: false });
     expect((f as unknown as { recordedBonus(s: number, c: string, k: string, x: "red" | "blue"): unknown }).recordedBonus(S, "NEWQ1", "qual:0:9", "red")).toBeNull();
+  });
+});
+
+describe("engine upgrade marker", () => {
+  it("a partial stats run after an engine change doesn't mark the upgrade done; a full run does", async () => {
+    await kvSet("stats:rules", STATS_RULES);
+    await kvSet("stats:engine", "1.1.0");
+    expect(await statsRulesStale()).toBe(true);
+    await runStats({ seasons: [S], backtest: false });
+    expect(await statsRulesStale()).toBe(true); // only one season was recomputed
+    await runStats({ backtest: false });
+    expect(await statsRulesStale()).toBe(false);
   });
 });

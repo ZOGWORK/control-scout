@@ -51,13 +51,12 @@ const vendorDir = join(CP, "vendor");
 const tgzName = existsSync(vendorDir) ? readdirSync(vendorDir).find((f) => /^control-scout-predict-engine-.*\.tgz$/.test(f)) : undefined;
 if (!tgzName) { console.error(`No vendored engine tarball under ${vendorDir}.`); process.exit(1); }
 const vendored = untar(readFileSync(join(vendorDir, tgzName)));
-const lf = (b: Buffer) => b.toString("utf8").replace(/\r\n/g, "\n");
 let files = 0;
 for (const [name, bytes] of vendored) {
   if (!name.startsWith("dist/") && name !== "package.json") continue;
   const local = join(ENGINE_DIR, name);
   if (!existsSync(local)) { fail(`${name}: in ${tgzName} but not in this build`); continue; }
-  if (lf(readFileSync(local)) !== lf(bytes)) fail(`${name}: differs from ${tgzName}`);
+  if (!readFileSync(local).equals(bytes)) fail(`${name}: bytes differ from ${tgzName}`);
   files++;
 }
 for (const f of readdirSync(join(ENGINE_DIR, "dist"))) if (!vendored.has(`dist/${f}`)) fail(`dist/${f}: built here but missing from ${tgzName}`);
