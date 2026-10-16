@@ -18,7 +18,7 @@ import { INBOX_PAGE, INBOX_PAGE_MAX } from "../../src/shared/inbox.js";
 import { inboxCounts, listInbox, markRead, subscribeInbox, unreadCount, type InboxNotice } from "./inbox.js";
 
 /** Streams per account (tabs and devices) and per server, the heartbeat, and how often a stream re-checks its session. */
-export const INBOX_LIMITS = { perAccount: 8, total: 2000, heartbeatMs: 25_000, recheckMs: 5 * 60_000 };
+export const INBOX_LIMITS = { perAccount: 8, total: 2000, heartbeatMs: 25_000, recheckMs: 5 * 60_000, maxBufferedBytes: 64 * 1024 };
 const MAX_IDS = 200;
 
 interface Stream { userId: number; end: (closeSocket?: boolean) => void }
@@ -92,7 +92,12 @@ async function openStream(req: Request, res: Response, opts: { streamEnabled?: (
   req.socket.setNoDelay(true);
 
   let closed = false;
-  const write = (chunk: string) => { if (!closed) res.write(chunk); };
+  const write = (chunk: string) => {
+    if (closed) return;
+    res.write(chunk);
+    // A reader that stopped reading is let go (it reconnects and gets the count again) instead of the server holding its backlog.
+    if (res.writableLength > INBOX_LIMITS.maxBufferedBytes) end();
+  };
   const send = (n: InboxNotice) => write(`event: inbox\ndata: ${JSON.stringify(n)}\n\n`);
   const unsubscribe = subscribeInbox(user.id, send);
   const stream: Stream = { userId: user.id, end: (closeSocket) => { end(); if (closeSocket) res.socket?.end(); } };

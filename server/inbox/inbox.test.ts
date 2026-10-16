@@ -174,6 +174,15 @@ describe("inbox: who gets what", () => {
     expect(await titles(member)).toEqual([]);
   });
 
+  it("an author who has left the workspace hears nothing more about their entries", async () => {
+    const { admin, member, first } = await team("1419");
+    leave("priya-1419@example.com", "1419");
+    clearInfoCache();
+    expect((await member("GET", "/api/auth/me")).status).toBe(200); // the refresh drops her cached membership
+    await push(admin, "1419", { ...first, notes: "after she left", updatedAt: first.updatedAt + 1 });
+    expect((await inbox(member)).items.map((i) => i.type)).toEqual(["member.left"]);
+  });
+
   it("repeated edits by the same person (coalesced in the feed) stay one unread item", async () => {
     const { admin, member, first } = await team("1403");
     await push(admin, "1403", { ...first, notes: "one", updatedAt: first.updatedAt + 1 });

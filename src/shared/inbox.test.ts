@@ -40,7 +40,7 @@ describe("links", () => {
     expect(inboxLink("901", "entry.deleted", { uuid: "u1", season: 2025 })).toBe("/scout?space=901&view=activity");
     expect(inboxLink("901", "template.changed", { season: 2025 }, { admin: true })).toBe("/scout?space=901&season=2025&view=template");
     expect(inboxLink("901", "template.changed", { season: 2025 })).toBe("/scout?space=901&view=activity");
-    expect(inboxLink("901", "settings.changed", {}, { admin: true })).toBe("/settings?section=workspace");
+    expect(inboxLink("901", "settings.changed", {}, { admin: true })).toBe("/settings?section=workspace&workspace=901");
     expect(inboxLink("901", "member.joined", {})).toBe("/scout?space=901");
     expect(inboxLink("901", "member.left", {})).toBe("/scout?space=personal");
     expect(inboxLink("a b&c", "picklist.changed", {})).toBe("/scout?space=a+b%26c&view=activity");

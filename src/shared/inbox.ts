@@ -107,7 +107,7 @@ export function inboxLink(workspaceId: string, type: string, d: Record<string, u
       return uuid && type !== "entry.deleted" ? scoutHref(workspaceId, { season, entry: uuid }) : scoutHref(workspaceId, { view: "activity" });
     case "template":
       if (!opts.admin) return scoutHref(workspaceId, { view: "activity" });
-      return type === "settings.changed" ? "/settings?section=workspace" : scoutHref(workspaceId, { season, view: "template" });
+      return type === "settings.changed" ? `/settings?${new URLSearchParams({ section: "workspace", workspace: workspaceId }).toString()}` : scoutHref(workspaceId, { season, view: "template" });
     case "membership":
       return type === "member.left" ? "/scout?space=personal" : scoutHref(workspaceId, {});
     case "assignments":

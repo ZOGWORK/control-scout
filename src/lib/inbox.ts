@@ -124,15 +124,6 @@ export function isInboxItem(x: unknown): x is InboxItem {
   return !!i && Number.isSafeInteger(i.id) && Number.isFinite(i.at) && typeof i.title === "string" && typeof i.link === "string" && typeof i.read === "boolean";
 }
 
-/**
- * The newest page on top of what's shown: within the page's range the page is the truth (fresher read
- * state, and an item the server replaced, such as a coalesced edit, is gone); older items loaded before stay.
- */
-export function mergeInbox(current: InboxItem[], page: InboxItem[], more: boolean): InboxItem[] {
-  if (!more || !page.length) return more ? current : page; // no more on the server: the page is all there is
-  const floor = page.at(-1)!.id;
-  return [...page, ...current.filter((i) => i.id < floor)];
-}
 
 export interface InboxState {
   unread: number; mode: InboxMode;
@@ -143,7 +134,14 @@ export interface InboxState {
   markAllRead: () => void;
 }
 
-/** The inbox of the signed-in account (`userId`; null: signed out, nothing runs). */
+/**
+ * The inbox of the signed-in account (`userId`; null: signed out, nothing runs).
+ *
+ * Every refresh replaces the list with the newest page (older pages loaded with "Load older" go: their read
+ * state can't be refreshed with it). Replies are applied in order: each request takes a number, and a reply
+ * is used only when no newer request (a refresh, or a read change sent from here) started after it, so a
+ * slow snapshot can never bring back items or unread state a later one replaced.
+ */
 export function useInbox(userId: number | null): InboxState {
   const visible = useVisible();
   const [unread, setUnread] = useState(0);
@@ -156,26 +154,24 @@ export function useInbox(userId: number | null): InboxState {
   const [loadingOlder, setLoadingOlder] = useState(false);
   // One generation per account: a reply for an earlier one (signed out, or someone else signed in) changes nothing.
   const gen = useRef(0);
+  // The latest request's number (refreshes, older pages and read changes share it).
+  const seq = useRef(0);
   const loadedRef = useRef(false);
-  const itemsRef = useRef(items);
-  itemsRef.current = items;
 
   const load = useCallback(() => {
     if (userId == null) return;
-    const g = gen.current;
+    const g = gen.current, s = ++seq.current;
+    const current = () => gen.current === g && seq.current === s;
     if (!loadedRef.current) setLoading(true);
     apiFetch<InboxPage>(`/api/inbox?limit=${INBOX_PAGE}`)
       .then((r) => {
-        if (gen.current !== g) return;
-        const page = (r.items ?? []).filter(isInboxItem);
-        // The newest page replaces what's shown when it doesn't reach it (a gap); otherwise it's merged on top.
-        const gap = !loadedRef.current || (!!r.more && page.length > 0 && page.at(-1)!.id > (itemsRef.current[0]?.id ?? 0));
-        if (gap || !r.more) setMore(!!r.more);
-        setItems((cur) => (gap ? page : mergeInbox(cur, page, !!r.more)));
+        if (!current()) return;
+        setItems((r.items ?? []).filter(isInboxItem));
+        setMore(!!r.more);
         if (Number.isFinite(r.unread)) setUnread(r.unread);
         loadedRef.current = true; setLoaded(true); setError(null);
       })
-      .catch((e) => { if (gen.current === g) setError(e instanceof ApiError ? e : new ApiError(0, "Couldn't load your notifications.")); })
+      .catch((e) => { if (current()) setError(e instanceof ApiError ? e : new ApiError(0, "Couldn't load your notifications.")); })
       .finally(() => { if (gen.current === g) setLoading(false); });
   }, [userId]);
 
@@ -198,11 +194,11 @@ export function useInbox(userId: number | null): InboxState {
   const oldest = items.at(-1)?.id;
   const loadOlder = useCallback(() => {
     if (userId == null || !oldest) return;
-    const g = gen.current;
+    const g = gen.current, s = ++seq.current;
     setLoadingOlder(true);
     apiFetch<InboxPage>(`/api/inbox?limit=${INBOX_PAGE}&before=${oldest}`)
       .then((r) => {
-        if (gen.current !== g) return;
+        if (gen.current !== g || seq.current !== s) return; // the list was refreshed meanwhile: this page may not fit it
         const page = (r.items ?? []).filter(isInboxItem);
         setItems((cur) => { const ids = new Set(cur.map((i) => i.id)); return [...cur, ...page.filter((i) => !ids.has(i.id))]; });
         setMore(!!r.more);
@@ -211,11 +207,14 @@ export function useInbox(userId: number | null): InboxState {
       .finally(() => { if (gen.current === g) setLoadingOlder(false); });
   }, [userId, oldest]);
 
+  // A read change: shown at once; any reply to a request started before it is ignored, and once the server has
+  // it the list is fetched again (the server's state, with this change in it).
   const send = useCallback((body: unknown) => {
     const g = gen.current;
+    seq.current++;
     apiFetch<{ unread: number }>("/api/inbox/read", { method: "POST", json: body })
-      .then((r) => { if (gen.current === g && Number.isFinite(r.unread)) setUnread(r.unread); })
-      .catch(() => { if (gen.current === g) load(); }); // the server's state wins: show it again
+      .catch(() => undefined)
+      .then(() => { if (gen.current === g) load(); });
   }, [load]);
 
   const markRead = useCallback((ids: number[]) => {

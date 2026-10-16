@@ -30,9 +30,11 @@ export async function raiseAlert(kind: string, level: OwnerAlert["level"], title
 
 /** Close the open alert of this kind, if any. */
 export async function resolveAlert(kind: string): Promise<boolean> {
-  const open = await all<{ id: number }>("SELECT id FROM owner_alerts WHERE kind = ? AND resolved_at IS NULL", [kind]);
-  await closeAlertItems(open.map((r) => Number(r.id))).catch((e) => console.error("[inbox] couldn't close alert items", e));
-  return await run("UPDATE owner_alerts SET resolved_at = ?, updated_at = ? WHERE kind = ? AND resolved_at IS NULL", [new Date().toISOString(), new Date().toISOString(), kind]) > 0;
+  // Closed first, then its inbox items marked read: a delivery running meanwhile makes items only for open alerts.
+  const now = new Date().toISOString();
+  const closed = await all<{ id: number }>("UPDATE owner_alerts SET resolved_at = ?, updated_at = ? WHERE kind = ? AND resolved_at IS NULL RETURNING id", [now, now, kind]);
+  await closeAlertItems(closed.map((r) => Number(r.id))).catch((e) => console.error("[inbox] couldn't close alert items", e));
+  return closed.length > 0;
 }
 
 export async function openAlert(kind: string): Promise<OwnerAlert | null> {

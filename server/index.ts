@@ -21,7 +21,7 @@ import { installShippedPacks, restoreSnapshotIfEmpty } from "./data/snapshot.js"
 import { drainOnSigterm, systemdSocket } from "./listen.js";
 import { closeAllStreams } from "./scout/stream.js";
 import { closeInboxStreams } from "./inbox/routes.js";
-import { deliverOwnerAlerts, pruneInbox } from "./inbox/inbox.js";
+import { deliverOwnerAlerts, inboxSettled, pruneInbox } from "./inbox/inbox.js";
 import { photoSchedulerTick } from "./scout/photos.js";
 import { pruneActivity } from "./scout/activityLog.js";
 import type { Server } from "node:http";
@@ -40,7 +40,8 @@ for (const k of ["LISTEN_FDS", "LISTEN_PID", "LISTEN_FDNAMES"]) delete process.e
 let http: Server | null = null;
 // Live scout streams end first, so their connections don't hold the drain (clients reconnect to the next server).
 process.once("SIGTERM", () => { closeAllStreams(); closeInboxStreams(); });
-drainOnSigterm(() => http, log);
+// Queued inbox fan-outs (activity already written) finish before the process exits.
+drainOnSigterm(() => http, log, 10_000, inboxSettled);
 let ready = false;
 const server = express();
 server.get("/api/health", (_req, res) => res.json({ ok: true, engine: ENGINE_VERSION, release: RELEASE, ready }));

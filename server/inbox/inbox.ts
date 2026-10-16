@@ -12,6 +12,9 @@
 //      photo.removed       (edits)             the entry's author (workspace_scout_entries.author_account_id)
 //      comment.created / comment.added
 //                          (comments)          the entry's author (details.uuid, else subject entry:<uuid>)
+//    Every recipient must still be a (cached) member of the workspace when the item is written, except for
+//    member.left (it's about losing membership).
+//
 //      template.changed /
 //      settings.changed    (template)          every cached member of the workspace (an admin changed how
 //                                              everyone scouts: the fields, or the defaults for new entries)
@@ -227,11 +230,16 @@ export async function fanOut(item: ActivityNotice): Promise<number[]> {
     if (category === "picklist") {
       stmts.push({ sql: "DELETE FROM inbox_items WHERE user_id = ? AND workspace_id = ? AND category = 'picklist' AND read_at IS NULL", args: [r.userId, item.workspaceId] });
     }
+    // Checked in the insert itself, so nothing slips in between: the account still exists (one deleted meanwhile
+    // gets nothing), and it's still a member of the workspace (the cached membership, as every read checks), except
+    // for the membership items themselves (being removed is news to someone who's no longer a member).
+    const member = category === "membership" ? "" : " AND EXISTS (SELECT 1 FROM workspace_members WHERE account_id = ? AND cp_workspace_id = ?)";
     stmts.push({
       sql: `INSERT OR IGNORE INTO inbox_items (user_id, at, workspace_id, workspace_name, category, type, subject, actor_account_id, actor_name, title, body, link, source_activity_id)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+            SELECT ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ? WHERE EXISTS (SELECT 1 FROM users WHERE id = ?)${member}`,
       args: [r.userId, item.at, item.workspaceId, workspaceName.slice(0, 120), category, item.type, item.subject.slice(0, 120), actor, item.actor.name.slice(0, 80),
-        title.slice(0, 200), body.slice(0, 400), inboxLink(item.workspaceId, item.type, item.details, { admin: r.admin }), item.id],
+        title.slice(0, 200), body.slice(0, 400), inboxLink(item.workspaceId, item.type, item.details, { admin: r.admin }), item.id,
+        r.userId, ...(member ? [r.accountId, item.workspaceId] : [])],
     });
   }
   await db().batch(stmts, "write");
@@ -275,10 +283,13 @@ async function deliver(): Promise<number> {
   for (const a of alerts) {
     const at = Date.parse(a.created_at) || Date.now();
     for (const userId of on) {
+      // Only while the alert is still open (resolveAlert closes it before marking its items read, so an item
+      // is either made before that and marked read, or not made at all) and the account still exists.
       stmts.push({
         sql: `INSERT OR IGNORE INTO inbox_items (user_id, at, workspace_id, workspace_name, category, type, subject, actor_name, title, body, link, source_alert_id)
-              VALUES (?, ?, NULL, '', 'ownerAlerts', 'owner.alert', ?, 'Control Scout', ?, ?, ?, ?)`,
-        args: [userId, at, `alert:${a.kind}`.slice(0, 120), String(a.title).slice(0, 200), String(a.body).slice(0, 400), alertLink(String(a.kind)), Number(a.id)],
+              SELECT ?, ?, NULL, '', 'ownerAlerts', 'owner.alert', ?, 'Control Scout', ?, ?, ?, ?
+               WHERE EXISTS (SELECT 1 FROM owner_alerts WHERE id = ? AND resolved_at IS NULL) AND EXISTS (SELECT 1 FROM users WHERE id = ?)`,
+        args: [userId, at, `alert:${a.kind}`.slice(0, 120), String(a.title).slice(0, 200), String(a.body).slice(0, 400), alertLink(String(a.kind)), Number(a.id), Number(a.id), userId],
       });
     }
     stmts.push({
