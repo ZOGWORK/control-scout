@@ -106,6 +106,10 @@ export const lostNotice = (name?: string) => name?.trim()
   ? `You no longer have access to ${name.trim()}. Its shared entries are hidden; your personal entries are unchanged.`
   : "You don't have access to that workspace's scout space, so it isn't shown. Your personal entries are unchanged.";
 
+/** The notice when the workspace on screen is taken away (removed in Control Point, or by an admin in Scout). */
+export const removedNotice = (name?: string) =>
+  `You were removed from ${name?.trim() || "this workspace"}. Its shared entries are hidden here; your personal entries are unchanged.`;
+
 export interface ScoutSpaces {
   /** The space on screen (null = Personal). */
   space: ScoutSpace;
@@ -152,7 +156,7 @@ export function ScoutQueueSync(): null { useQueuedScoutSync(); return null; }
 
 /** The Scout page's space: resolved from the account, the URL and this device, and kept in the URL. */
 export function useScoutSpaces(): ScoutSpaces {
-  const { user, providers } = usePersonal();
+  const { user, providers, refreshUser } = usePersonal();
   const enabled = useFlag("workspaceScouting");
   const [sp, setSp] = useSearchParams();
   const [remembered, setRemembered] = useState(readRememberedSpace);
@@ -183,7 +187,7 @@ export function useScoutSpaces(): ScoutSpaces {
   const leave = useCallback((w: WorkspaceSpace) => {
     leaving.current = true;
     setRevoked(w.id);
-    setNotice(lostNotice(workspaceLabel(w)));
+    setNotice(removedNotice(w.name));
     setRemembered(rememberSpace(null, undefined, userId));
     setSp((x) => { x.set("space", PERSONAL_PARAM); x.delete("entry"); return x; }, { replace: true });
   }, [setSp, setRevoked, userId]);
@@ -203,7 +207,8 @@ export function useScoutSpaces(): ScoutSpaces {
   const revoke = useCallback((id: string) => {
     if (shown.current?.id === id) { const was = shown.current; shown.current = null; leave(was); }
     else setRevoked(id);
-  }, [leave, setRevoked]);
+    void refreshUser?.(); // the account's workspaces as the server now has them (so Settings and the switcher agree)
+  }, [leave, setRevoked, refreshUser]);
 
   // A workspace asked for that isn't the account's: say so once, and stop asking for it.
   const lostKey = r.lost && !resolving && r.switchable ? r.lost.id : null;
