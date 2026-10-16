@@ -38,6 +38,13 @@ describe("parseRankings", () => {
     expect(errorsOf(file(Array.from({ length: 26 }, (_, i) => 1000 + i)))).toContain("found 26 entries; a week has exactly 25");
   });
 
+  it("a malformed team number is an error, never a shorter team", () => {
+    for (const bad of ["19066.5", "4215x", "4215,"]) {
+      const text = file().replace("## 3. 1002", `## 3. ${bad}`);
+      expect(errorsOf(text).some((e) => /an entry heading must look like "## 1\. 4215"/.test(e)), bad).toBe(true);
+    }
+  });
+
   it("a duplicate team names both places", () => {
     const teams = Array.from({ length: 25 }, (_, i) => 1000 + i);
     teams[9] = 1002;

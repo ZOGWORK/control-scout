@@ -58,7 +58,9 @@ beforeAll(async () => {
   // Broken (24 teams) and a sample in the real directory: both left out.
   writeFileSync(join(dir, "2026-w39.md"), weekFile({ week: "2026-w39", published: "2026-09-20", teams: TEAMS.slice(0, 24) }));
   writeFileSync(join(dir, "2026-w40.md"), weekFile({ week: "2026-w40", published: "2026-09-28", teams: TEAMS, extra: "sample: true" }));
-  writeFileSync(join(dir, "notes.md"), "not a week");
+  // A week under the wrong name (it would never show: an error, not skipped), and a non-markdown file (ignored).
+  writeFileSync(join(dir, "2026-W44.md"), weekFile({ week: "2026-w44", published: "2026-10-12", teams: TEAMS }));
+  writeFileSync(join(dir, ".gitkeep"), "");
   useContentDir(dir);
 
   server = createApp().listen(0);
@@ -76,12 +78,13 @@ afterAll(() => {
 const api = async (path: string) => { const r = await fetch(`${base}${path}`); return { status: r.status, body: (await r.json()) as PowerRankingsResponse & { error?: string } }; };
 
 describe("loading", () => {
-  it("keeps valid week files, leaves out broken ones and samples (with the reasons), ignores other files", () => {
+  it("keeps valid week files; leaves out broken ones, samples and misnamed .md files (with the reasons); ignores other files", () => {
     const l = loadDir(dir, false);
     expect(l.docs.map((d) => d.week)).toEqual(["2026-w41", "2026-w42", "2026-w43"]);
-    expect(l.errors.map((e) => e.file)).toEqual(["2026-w39.md", "2026-w40.md"]);
-    expect(l.errors[0].errors).toContain("found 24 entries; a week has exactly 25");
-    expect(l.errors[1].errors[0]).toMatch(/belong in content\/power-rankings-sample/);
+    expect(l.errors.map((e) => e.file).sort()).toEqual(["2026-W44.md", "2026-w39.md", "2026-w40.md"]);
+    expect(l.errors.find((e) => e.file === "2026-W44.md")!.errors[0]).toMatch(/file name must be the week, like 2026-w43\.md/);
+    expect(l.errors.find((e) => e.file === "2026-w39.md")!.errors).toContain("found 24 entries; a week has exactly 25");
+    expect(l.errors.find((e) => e.file === "2026-w40.md")!.errors[0]).toMatch(/belong in content\/power-rankings-sample/);
     expect(loadDir(join(tmpdir(), "nope-does-not-exist"), false)).toEqual({ docs: [], errors: [] });
   });
 });
