@@ -110,4 +110,17 @@ describe("workspace defaults on the Scout page", () => {
     await act(async () => { await new Promise((r) => setTimeout(r, 30)); });
     expect(eventField().value).toBe("");
   });
+
+  it("leaving the space and coming back applies the default as it is then", async () => {
+    const page = show(`/scout?space=${WS}`);
+    await waitFor(() => expect(checkedSeason()).toMatch(/^2024/));
+    settings = settingsAt(3, 2025, null);
+    await act(async () => { announceSettingsChange({ space: WS, settingsVersion: 3 }); await new Promise((r) => setTimeout(r, 30)); });
+    expect(checkedSeason()).toMatch(/^2024/); // held for this visit
+    fireEvent.click(screen.getByRole("button", { name: /^Personal/ }));
+    await waitFor(() => expect(fetched.length).toBeGreaterThan(0));
+    fireEvent.click(screen.getByRole("button", { name: /^Gearheads/ }));
+    await waitFor(() => expect(checkedSeason()).toMatch(/^2025/));
+    page.unmount();
+  });
 });

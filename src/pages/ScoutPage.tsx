@@ -40,14 +40,16 @@ export default function ScoutPage() {
   // A season in the URL wins; Personal is unchanged (the current season, no event).
   const wss = useWorkspaceSettings(space);
   const urlSeason = Number(sp.get("season")) || 0;
-  // Applied once, when the space opens: the first settings known for it fix its season for this visit,
+  // Applied when the space opens: the first settings known for it fix its season for this visit,
   // so a later change to the default never moves the page (or an open form) under the member.
   const [opened, setOpened] = useState<{ space: string; season: number } | null>(null);
   const openedSeason = opened && opened.space === space ? opened.season : null;
   const season = urlSeason || openedSeason || (space != null && wss.defaults.season) || current;
   const settingsKnown = space != null && wss.settings != null;
+  // Leaving the space ends the visit: coming back applies the default as it is then.
   useEffect(() => {
     if (settingsKnown && space != null && openedSeason == null) setOpened({ space, season });
+    else if (space == null) setOpened(null);
   }, [settingsKnown, space, openedSeason, season]);
   const { entries, status, pendingCount, syncNow } = useScouting({ season, team: teamFilter }, syncReady, space);
   const live = useScoutLive(space, syncReady);
