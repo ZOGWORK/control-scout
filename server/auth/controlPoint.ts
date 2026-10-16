@@ -6,9 +6,11 @@
 // runs without it: it can't reach Control Point's loopback port).
 import { all, db, get, run } from "../db.js";
 import { activityStatement, CONTROL_POINT_ACTOR, publishLogged, type ActivityActor } from "../scout/activityLog.js";
-import { publishRevoked } from "../scout/bus.js";
+import { publishAccountChanged, publishRevoked } from "../scout/bus.js";
+import { formerWorkspaces, markOrphaned, mirroredStates, restoreWorkspace } from "../scout/orphans.js";
 import { recordAudit } from "../portal/audit.js";
 import { env } from "../env.js";
+import type { OrphanReason, OrphanState } from "../../src/shared/orphaned.js";
 import type { User } from "./session.js";
 
 export const CP_PROVIDER = "control-point";
@@ -148,8 +150,14 @@ export async function provenEmailFor(user: User): Promise<string | null> {
   return r ? user.email : null;
 }
 
+/**
+ * A workspace as /api/auth/me lists it: Control Point's, plus `orphaned` while its scout space is read-only
+ * (Task 19). A workspace deleted in Control Point stays in its former members' list this way.
+ */
+export type WorkspaceOut = Workspace & { orphaned?: OrphanState };
+
 /** What a signed-in user sees about their Control Point side: membership, teams and workspaces. */
-export interface ControlPointInfo { /** The shared account's id: what workspace entries record as author/editor, so the app can tell which are yours. */ accountId: number; member: boolean; teams: { teamNumber: number | null; name: string }[]; shortlist: number[]; workspaces: Workspace[]; url: string }
+export interface ControlPointInfo { /** The shared account's id: what workspace entries record as author/editor, so the app can tell which are yours. */ accountId: number; member: boolean; teams: { teamNumber: number | null; name: string }[]; shortlist: number[]; workspaces: WorkspaceOut[]; url: string }
 
 type Info = SharedAccount["controlPoint"] & { workspaces: Workspace[] };
 const infoCache = new Map<number, { at: number; info: Info }>();
@@ -210,20 +218,47 @@ export async function rememberInfo(account: SharedAccount): Promise<void> {
   await storeMemberships(account.id, workspaces, account);
 }
 /** Tests: forget everything (a cold cache). */
-export const clearInfoCache = () => { infoCache.clear(); lastForced.clear(); dropped.clear(); deferred.clear(); answeredAt.clear(); };
+export const clearInfoCache = () => { infoCache.clear(); lastForced.clear(); dropped.clear(); deferred.clear(); answeredAt.clear(); workspaceChecks.clear(); };
 
-/** Membership for a linked account, cached for 10 minutes; null when Control Point can't be reached or sends something unexpected. */
+/**
+ * Membership for a linked account (/api/auth/me). Control Point's answer is reused for ME_TTL (a minute, like
+ * a cached membership: Task 19, so someone re-added in Control Point sees the space within a minute, not ten),
+ * then asked again through refreshAccount (one call per account at a time). When Control Point can't answer,
+ * the last answer still counts for INFO_TTL (10 minutes), as before. Null when there's none to go by, or the
+ * account is gone from Control Point. Read-only (orphaned) workspaces are marked, and the deleted ones the
+ * account still reads as a former member are added (withOrphans).
+ */
 export async function controlPointInfo(accountId: number): Promise<ControlPointInfo | null> {
   try {
     const hit = infoCache.get(accountId);
-    if (hit && Date.now() - hit.at < INFO_TTL) return toInfo(accountId, hit.info);
-    infoCache.delete(accountId);
-    const a = await getAccount(accountId);
-    if (!a) { await storeMemberships(accountId, []); return null; } // gone from Control Point: no workspaces
-    await rememberInfo(a);
-    const info = infoCache.get(accountId)?.info;
-    return info ? toInfo(accountId, info) : null;
+    if (hit && Date.now() - hit.at < ME_TTL) return withOrphans(toInfo(accountId, hit.info));
+    const asked = Date.now();
+    const list = await refreshAccount(accountId);
+    const fresh = infoCache.get(accountId);
+    // An answer from this refresh (or one coalesced with it, at most FORCED_GAP old).
+    if (list) return fresh && fresh.at >= asked - FORCED_GAP ? withOrphans(toInfo(accountId, fresh.info)) : null;
+    if (hit && Date.now() - hit.at < INFO_TTL) return withOrphans(toInfo(accountId, hit.info)); // Control Point away: the last answer
+    return null;
   } catch (e) { logFailure("account", e); return null; }
+}
+
+/** How long /api/auth/me reuses Control Point's last answer for an account before asking again. */
+export const ME_TTL = 60_000;
+
+/**
+ * The account's workspaces with their orphan state (Task 19): a listed one whose scout space is read-only
+ * gets `orphaned`; a deleted one the account was in when it went (a former member) is added, read-only.
+ * The database being away leaves the list as Control Point sent it.
+ */
+async function withOrphans(info: ControlPointInfo): Promise<ControlPointInfo> {
+  try {
+    const [states, former] = await Promise.all([mirroredStates(info.workspaces.map((w) => w.id)), formerWorkspaces(info.accountId)]);
+    const listed = info.workspaces.map((w) => { const o = states.get(w.id); return o ? { ...w, orphaned: o } : w; });
+    return { ...info, workspaces: [...listed, ...former.filter((f) => !listed.some((w) => w.id === f.id))] };
+  } catch (e) {
+    console.warn(`[shared-accounts] orphan state read failed: ${(e as Error)?.name ?? "error"}`);
+    return info;
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -265,13 +300,25 @@ async function storeMemberships(accountId: number, list: Workspace[], account?: 
     const was = new Map(cached.map((r) => [String(r.cp_workspace_id), String(r.role)]));
     const joined = list.filter((w) => !was.has(w.id));
     const left = [...was].filter(([id]) => !list.some((w) => w.id === id));
+    const roleChanged = list.some((w) => was.has(w.id) && was.get(w.id) !== w.role);
+    // Orphaned workspaces (Task 19): the scout spaces involved (a mirror row), each with its read-only state.
+    const mirror = await mirroredStates([...new Set([...left.map(([id]) => id), ...list.map((w) => w.id)])]);
+    // A scout space gone from this answer because Control Point deleted the workspace (its members route
+    // says not_found) is not a removal: no member.left, no revoke, no removal audit. It goes read-only, and
+    // everyone in the cache for it now (this account's row included: it's dropped below) keeps reading it.
+    const gone = new Set<string>();
+    for (const [id] of left) {
+      if (!mirror.has(id)) continue;
+      if (mirror.get(id)?.reason === "deleted" || (await checkWorkspace(id)).state === "gone") gone.add(id);
+    }
+    for (const id of gone) if (mirror.get(id)?.reason !== "deleted") await orphaned(id, "deleted");
     const name = joined.length || left.length ? await memberName(accountId, account) : "";
     const actor = CONTROL_POINT_ACTOR, subject = `member:${accountId}`;
     // Guarded on the cache row (read again inside the transaction), so two refreshes racing log a change once.
     const cachedRow = (id: string) => ({ sql: "EXISTS (SELECT 1 FROM workspace_members WHERE account_id = ? AND cp_workspace_id = ?)", args: [accountId, id] });
     // A removal Scout itself is making (removeMember) is recorded there, once, with the admin as actor.
     const logs = [
-      ...left.filter(([id]) => !removing.has(dropKey(accountId, id))).map(([id, role]) => ({ id, stmt: activityStatement(id, actor, "member.left", subject, { accountId, name, role }, now, cachedRow(id)) })),
+      ...left.filter(([id]) => !removing.has(dropKey(accountId, id)) && !gone.has(id)).map(([id, role]) => ({ id, stmt: activityStatement(id, actor, "member.left", subject, { accountId, name, role }, now, cachedRow(id)) })),
       ...joined.map((w) => {
         const g = cachedRow(w.id);
         return { id: w.id, stmt: activityStatement(w.id, actor, "member.joined", subject, { accountId, name, role: w.role }, now, { sql: `NOT ${g.sql}`, args: g.args }) };
@@ -297,6 +344,7 @@ async function storeMemberships(accountId: number, list: Workspace[], account?: 
     // account's open streams there end now, and the owner audit records the removal Control Point made.
     for (const r of res[logs.length].rows as unknown as { cp_workspace_id: string; workspace_name: string; role: string }[]) {
       const workspaceId = String(r.cp_workspace_id);
+      if (gone.has(workspaceId)) continue; // deleted in Control Point: read-only, not a removal (above)
       publishRevoked(workspaceId, accountId);
       if (removing.has(dropKey(accountId, workspaceId))) {
         // Scout's own removal is in flight: it records this (or, if its call fails, records what we saw).
@@ -310,7 +358,103 @@ async function storeMemberships(accountId: number, list: Workspace[], account?: 
         accountId, name: name || await memberName(accountId, account), role: r.role === "admin" ? "admin" : "member", actorAccountId: null,
       });
     }
+    await adminChecks(accountId, list, was, gone, mirror);
+    // A workspace joined (or re-added) or a role changed: the account's open streams tell the app to re-read /me now.
+    if (joined.length || roleChanged) publishAccountChanged(accountId);
   } catch (e) { console.warn(`[shared-accounts] membership cache write failed: ${(e as Error)?.name ?? "error"}`); }
+}
+
+// ---------------------------------------------------------------------------
+// Orphaned workspaces (Task 19; scout/orphans.ts, docs/shared-accounts.md "Orphaned workspaces").
+// Decided here, from each membership answer, and only for workspaces with a scout space:
+// (a) deleted: a workspace drops out of an account's answer and Control Point's members route says it no
+//     longer exists (404 not_found). A personal removal (the route still lists the workspace) is not this.
+// (b) no admin: an account that was an admin there no longer is (it left, or was demoted) and Control Point
+//     lists no admin; with an older Control Point (no members route), when Scout's own cache has none left.
+// Back: an orphaned workspace listed again with an admin (this account, or anyone Control Point lists).
+// Control Point unreachable: nothing changes; the next answer decides.
+// ---------------------------------------------------------------------------
+
+type WorkspaceCheck = { state: "gone" } | { state: "exists"; admins: number } | { state: "unsupported" } | { state: "unknown" };
+const workspaceChecks = new Map<string, { at: number; p: Promise<WorkspaceCheck> }>();
+/** How often a read-only workspace still listed for its members is asked about again (has an admin come back?). */
+export const ORPHAN_RECHECK_MS = 60_000;
+const CHECK_REUSE_MS = 5_000;
+
+/** Does the workspace still exist in Control Point, and how many admins has it? Coalesced per workspace; an answer is reused for `maxAge`. */
+function checkWorkspace(workspaceId: string, maxAge = CHECK_REUSE_MS): Promise<WorkspaceCheck> {
+  const hit = workspaceChecks.get(workspaceId);
+  if (hit && Date.now() - hit.at < maxAge) return hit.p;
+  const p = (async (): Promise<WorkspaceCheck> => {
+    try {
+      const r = await internal<{ members?: unknown }>(`/internal/workspaces/${encodeURIComponent(workspaceId)}/members`);
+      if (!Array.isArray(r?.members)) return { state: "unknown" };
+      return { state: "exists", admins: r.members.filter((m) => !!m && typeof m === "object" && (m as { role?: unknown }).role === "admin").length };
+    } catch (e) {
+      // Only Control Point's own answer that the workspace doesn't exist counts as deleted: 404 with error "not_found".
+      // Any other 404 (an older deploy's bare "Not found", a proxy's page) proves nothing.
+      if ((e as { status?: number }).status === 404 && (e as Error).message === "not_found") return { state: "gone" };
+      if (missingRoute(e)) return { state: "unsupported" };
+      logFailure("workspace members", e);
+      return { state: "unknown" };
+    }
+  })();
+  workspaceChecks.delete(workspaceId);
+  workspaceChecks.set(workspaceId, { at: Date.now(), p });
+  if (workspaceChecks.size > 2000) workspaceChecks.delete(workspaceChecks.keys().next().value!);
+  return p;
+}
+
+/** Admins in Scout's own membership cache for the workspace (the fallback when Control Point can't list members). */
+async function cachedAdmins(workspaceId: string): Promise<number> {
+  return Number((await get<{ n: number }>("SELECT COUNT(*) n FROM workspace_members WHERE cp_workspace_id = ? AND role = 'admin'", [workspaceId]))?.n ?? 0);
+}
+
+/** Admins the workspace has, as far as Scout can tell (null: it can't tell right now). */
+async function adminsOf(c: WorkspaceCheck, workspaceId: string): Promise<number | null> {
+  return c.state === "exists" ? c.admins : c.state === "unsupported" ? cachedAdmins(workspaceId) : null;
+}
+
+/** Mark it read-only; the accounts it concerns re-read /me (their open streams say so). */
+async function orphaned(workspaceId: string, reason: OrphanReason): Promise<void> {
+  const accounts = await markOrphaned(workspaceId, reason);
+  for (const a of accounts ?? []) publishAccountChanged(a);
+}
+
+/**
+ * Writable again: the accounts it concerns forget their cached /me answer (all but `current`, whose answer
+ * this is) and re-read it now, so a former member who wasn't re-added loses the space promptly too.
+ */
+async function restored(workspaceId: string, current: number): Promise<void> {
+  const accounts = await restoreWorkspace(workspaceId);
+  if (!accounts) return;
+  for (const a of new Set([...accounts, current])) {
+    if (a !== current) { infoCache.delete(a); lastForced.delete(a); }
+    publishAccountChanged(a);
+  }
+}
+
+/** After a membership answer is stored: (b) no admin left, and orphaned workspaces coming back. Never throws. */
+async function adminChecks(accountId: number, list: Workspace[], was: Map<string, string>, gone: Set<string>, mirror: Map<string, OrphanState | null>): Promise<void> {
+  try {
+    // This account was an admin of a scout space and isn't any more (left, or demoted): any admin left?
+    for (const [id, role] of was) {
+      if (role !== "admin" || gone.has(id) || !mirror.has(id) || mirror.get(id)) continue;
+      if (list.find((w) => w.id === id)?.role === "admin") continue;
+      if ((await adminsOf(await checkWorkspace(id), id)) === 0) await orphaned(id, "no_admin");
+    }
+    // A read-only scout space this answer lists: it exists. An admin here brings it back at once; otherwise
+    // ask Control Point who's in it (at most once a minute per workspace while it stays read-only).
+    for (const w of list) {
+      const st = mirror.get(w.id);
+      if (!st) continue;
+      if (w.role === "admin") { await restored(w.id, accountId); continue; }
+      const admins = await adminsOf(await checkWorkspace(w.id, ORPHAN_RECHECK_MS), w.id);
+      if (admins == null) continue;
+      if (admins > 0) await restored(w.id, accountId);
+      else if (st.reason === "deleted") await orphaned(w.id, "no_admin"); // back, but with no admin
+    }
+  } catch (e) { console.warn(`[shared-accounts] orphan check failed: ${(e as Error)?.name ?? "error"}`); }
 }
 
 /** What the owner audit records for each workspace removal (Task 9). `origin`: the app it was made in. */
@@ -338,7 +482,7 @@ const lastForced = new Map<number, { at: number; list: Workspace[] | null }>();
 const FORCED_GAP = 5_000;
 
 /**
- * Ask Control Point for the account now (bypassing /me's 10-minute cache) and
+ * Ask Control Point for the account now (bypassing /me's one-minute cache, ME_TTL) and
  * rewrite its memberships. One call per account at a time, and at most one
  * every 5 s (within that, the last answer is reused), so a stream of refused
  * writes can't hammer Control Point. Returns the workspaces Control Point

@@ -16,7 +16,7 @@
 //   every (re)connect (`ready`) and every poll, open threads and the counts
 //   refetch instead (anything said while away comes with them).
 import { useEffect, useState } from "react";
-import { applyLiveEntries, notifyScoutChanged, pullScouting, scoutCursor, type ScoutEntry, type ScoutSpace } from "./scouting";
+import { ACCOUNT_STALE, applyLiveEntries, notifyScoutChanged, pullScouting, scoutCursor, type ScoutEntry, type ScoutSpace } from "./scouting";
 import { announceTemplateChange } from "./scoutTemplates";
 import { announceSettingsChange } from "./workspaceSettings";
 import { announceActivity, isActivityItem } from "./scoutActivity";
@@ -172,6 +172,11 @@ export function followWorkspace(space: string, onMode: (m: LiveMode) => void, de
       if (isCommentEvent(c) && c.workspaceId === space) announceComment(c);
     });
     s.addEventListener("membership_revoked", () => { if (es === s) revoked(); });
+    // The workspace went read-only or came back (Task 19), or the account's workspace list changed: the
+    // account is re-read (useQueuedScoutSync), and with it the banner and what the page lets you change.
+    const stale = () => { if (es === s) window.dispatchEvent(new Event(ACCOUNT_STALE)); };
+    s.addEventListener("workspace", stale);
+    s.addEventListener("account", stale);
     s.onerror = () => { if (es === s) { flushPendingNow(); failed(); } };
   }
 

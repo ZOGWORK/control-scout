@@ -30,7 +30,7 @@ import {
   type DuplicateWarning, type EventTeamOption,
 } from "../../src/shared/assignments.js";
 import { publishAssignments, serialized } from "./bus.js";
-import { requireWorkspaceAdmin, workspaceAccess, workspacePaused, writerName } from "./entries.js";
+import { accessError, isWrite, requireWorkspaceAdmin, workspaceAccess, workspacePaused, writerName } from "./entries.js";
 import { logActivity, type ActivityActor } from "./activityLog.js";
 
 const CP_PROVIDER = "control-point";
@@ -234,8 +234,8 @@ function requireWorkspaceMember() {
       if (await workspacePaused(res)) return;
       const workspaceId = req.params.workspaceId;
       if (!isWorkspaceId(workspaceId)) { res.status(400).json({ error: "workspaceId required" }); return; }
-      const access = await workspaceAccess(user, workspaceId);
-      if (!access.ok) { res.status(access.status).json({ error: access.error }); return; }
+      const access = await workspaceAccess(user, workspaceId, { write: isWrite(req) });
+      if (!access.ok) { res.status(access.status).json(accessError(access)); return; }
       res.locals.user = user;
       res.locals.membership = access.membership;
       next();

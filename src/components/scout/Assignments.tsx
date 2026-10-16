@@ -26,8 +26,10 @@ import { cn } from "../cn";
 
 const plural = (n: number, one: string, many = `${one}s`) => `${n} ${n === 1 ? one : many}`;
 
-export function AssignmentsView({ space, workspaceName, season, defaultEvent, state, myAccountId, isAdmin, localEntries, onScout }: {
+export function AssignmentsView({ space, workspaceName, season, defaultEvent, state, myAccountId, isAdmin: admin, localEntries, onScout, readOnly = false }: {
   space: string; workspaceName: string; season: number;
+  /** The space is read-only (Task 19): the lists read, nothing can be assigned, scouted, marked or removed. */
+  readOnly?: boolean;
   /** The workspace's default event (settings), for the Assign sheet. */
   defaultEvent: string;
   state: AssignmentsState;
@@ -39,6 +41,7 @@ export function AssignmentsView({ space, workspaceName, season, defaultEvent, st
   onScout: (team: number, eventCode: string) => void;
 }) {
   const { list, loading, error, reload } = state;
+  const isAdmin = admin && !readOnly;
   const [assignOpen, setAssignOpen] = useState(false);
   const mine = useMemo(() => list.filter((a) => a.assigneeAccountId === myAccountId)
     .sort((a, b) => (a.status === b.status ? a.id - b.id : a.status === "open" ? -1 : 1)), [list, myAccountId]);
@@ -64,7 +67,7 @@ export function AssignmentsView({ space, workspaceName, season, defaultEvent, st
               <ul className="grid gap-3 md:grid-cols-2" aria-label="My assignments">
                 {mine.map((a) => (
                   <AssignmentCard key={a.id} a={a} progress={assignmentProgress(a, localEntries, myAccountId)} busy={act.busy === a.id}
-                    canDone={a.status === "open"} canReopen={isAdmin && a.status === "done"}
+                    canDone={!readOnly && a.status === "open"} canReopen={isAdmin && a.status === "done"} canScout={!readOnly}
                     onDone={() => act.status(a, "done")} onReopen={() => act.status(a, "open")} onScout={() => onScout(a.team, a.eventCode)} />
                 ))}
               </ul>
@@ -83,7 +86,7 @@ export function AssignmentsView({ space, workspaceName, season, defaultEvent, st
                 </h3>
                 <ul className="divide-y divide-border overflow-hidden rounded-xl border border-border bg-card">
                   {rows.map((a) => (
-                    <AssignmentRow key={a.id} a={a} progress={assignmentProgress(a, localEntries, myAccountId)} mine={a.assigneeAccountId === myAccountId} isAdmin={isAdmin}
+                    <AssignmentRow key={a.id} a={a} progress={assignmentProgress(a, localEntries, myAccountId)} mine={!readOnly && a.assigneeAccountId === myAccountId} isAdmin={isAdmin}
                       busy={act.busy === a.id} onDone={() => act.status(a, "done")} onReopen={() => act.status(a, "open")} onDelete={() => act.remove(a)} />
                   ))}
                 </ul>
@@ -129,8 +132,8 @@ function StatusBadge({ a }: { a: Assignment }) {
     : <Badge variant="beta">Open</Badge>;
 }
 
-function AssignmentCard({ a, progress, busy, canDone, canReopen, onDone, onReopen, onScout }: {
-  a: Assignment; progress: number; busy: boolean; canDone: boolean; canReopen: boolean;
+function AssignmentCard({ a, progress, busy, canDone, canReopen, canScout, onDone, onReopen, onScout }: {
+  a: Assignment; progress: number; busy: boolean; canDone: boolean; canReopen: boolean; canScout: boolean;
   onDone: () => void; onReopen: () => void; onScout: () => void;
 }) {
   const now = useNow();
@@ -151,7 +154,7 @@ function AssignmentCard({ a, progress, busy, canDone, canReopen, onDone, onReope
         <span className="text-muted-foreground">{progress === 1 ? "entry" : "entries"} by you for this team here</span>
       </p>
       <div className="mt-4 flex flex-wrap gap-2">
-        {a.status === "open" && <Button onClick={onScout}><ClipboardList /> Scout</Button>}
+        {a.status === "open" && canScout && <Button onClick={onScout}><ClipboardList /> Scout</Button>}
         {canDone && <Button variant="outline" onClick={onDone} disabled={busy}>{busy ? <Loader2 className="animate-spin" /> : <CircleCheck />} Done</Button>}
         {canReopen && <Button variant="outline" onClick={onReopen} disabled={busy}>{busy ? <Loader2 className="animate-spin" /> : <RotateCcw />} Reopen</Button>}
       </div>

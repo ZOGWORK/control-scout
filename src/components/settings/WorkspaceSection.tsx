@@ -4,12 +4,13 @@
 // Personal sections: a workspace never sets them.
 import { useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
-import { ExternalLink, LayoutList, Save } from "lucide-react";
+import { ExternalLink, LayoutList, Lock, Save } from "lucide-react";
 import { useCurrentSeason, useMeta } from "../../lib/meta";
 import { usePersonal } from "../../lib/personal";
 import { readRememberedSpace, workspaceLabel, workspacesOf, type WorkspaceSpace } from "../../lib/scoutSpace";
 import { useWorkspaceTemplate } from "../../lib/scoutTemplates";
 import { saveWorkspaceSettings, useWorkspaceSettings } from "../../lib/workspaceSettings";
+import { orphanBanner } from "../../shared/orphaned";
 import type { WorkspaceSettings } from "../../shared/workspaceSettings";
 import { seasonLabel } from "../../lib/format";
 import { Button } from "../ui/button";
@@ -40,7 +41,8 @@ export function WorkspaceSection() {
   const { list } = workspacesOf(user);
   const [ws, select] = useSelectedWorkspace(list);
   if (!ws) return null;
-  const isAdmin = ws.role === "admin";
+  // A read-only space (Task 19): its settings read, nobody changes them.
+  const isAdmin = ws.role === "admin" && !ws.orphaned;
   return (
     <div>
       {list.length > 1 && (
@@ -53,6 +55,12 @@ export function WorkspaceSection() {
             </SelectContent>
           </Select>
         </div>
+      )}
+      {ws.orphaned && (
+        <p role="status" className="mb-6 flex items-start gap-3 rounded-xl border border-warning/40 bg-warning/10 px-4 py-3 text-sm">
+          <Lock className="mt-0.5 size-4 shrink-0 text-warning" aria-hidden />
+          <span className="min-w-0 flex-1">{orphanBanner(ws.orphaned.reason)}</span>
+        </p>
       )}
       <Membership workspace={ws} url={user?.controlPoint?.url} />
       <WorkspaceShared key={ws.id} workspace={ws} isAdmin={isAdmin} />
@@ -67,7 +75,7 @@ export function WorkspaceSection() {
 function Membership({ workspace, url }: { workspace: WorkspaceSpace; url?: string }) {
   return (
     <Group title="Membership" description={`${workspaceLabel(workspace)} is a Control Point workspace: everyone in it shares one scout space here.`}>
-      <Row label="Your role" description={workspace.role === "admin" ? "You can change this workspace's shared settings below." : "You can read this workspace's shared settings; its admins change them."}>
+      <Row label="Your role" description={workspace.orphaned ? "This workspace is read-only: its shared settings can be read, not changed." : workspace.role === "admin" ? "You can change this workspace's shared settings below." : "You can read this workspace's shared settings; its admins change them."}>
         <Badge variant={workspace.role === "admin" ? "success" : "secondary"}>{workspace.role === "admin" ? "Admin" : "Member"}</Badge>
       </Row>
       {/* Keyed: another workspace is a fresh list, and an open dialog never carries over to it. */}

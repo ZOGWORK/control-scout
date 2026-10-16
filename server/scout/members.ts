@@ -23,6 +23,8 @@ import {
 import { currentUser, type User } from "../auth/session.js";
 import { LAST_ADMIN, LAST_ADMIN_SELF, REMOVE_UNSUPPORTED, type WorkspaceMembersResponse } from "../../src/shared/workspaceMembers.js";
 import { requireWorkspaceAdmin, workspaceAccess, workspacePaused, writerName } from "./entries.js";
+import { formerMembersOf } from "./orphans.js";
+import type { OrphanState } from "../../src/shared/orphaned.js";
 
 const h = (fn: (req: Request, res: Response) => Promise<unknown>) => (req: Request, res: Response, next: NextFunction) => {
   fn(req, res).then((b) => { if (!res.headersSent && b !== undefined) res.json(b); }).catch(next);
@@ -35,8 +37,15 @@ const jsonOnly = (req: Request, res: Response, next: NextFunction) => {
 const byRoleThenName = (a: WorkspaceMember, b: WorkspaceMember) =>
   (a.role === b.role ? 0 : a.role === "admin" ? -1 : 1) || a.name.localeCompare(b.name, undefined, { sensitivity: "base" });
 
-/** The list for one viewer: Control Point's when it answers, else Scout's own cache. */
-export async function membersFor(m: Membership): Promise<WorkspaceMembersResponse> {
+/**
+ * The list for one viewer: Control Point's when it answers, else Scout's own cache. A read-only space (Task 19)
+ * offers no Remove; one deleted in Control Point lists its former members (who still read it).
+ */
+export async function membersFor(m: Membership, orphaned: OrphanState | null = null): Promise<WorkspaceMembersResponse> {
+  if (orphaned?.reason === "deleted") {
+    const members = (await formerMembersOf(m.workspaceId)).sort(byRoleThenName).map((x) => ({ ...x, you: x.accountId === m.accountId }));
+    return { members, source: "scout", canRemove: false, removeUnavailable: null };
+  }
   let listed: WorkspaceMember[] | "unsupported" | null = null;
   try { listed = await listWorkspaceMembers(m.workspaceId); } catch { listed = null; }
   const fromCp = Array.isArray(listed);
@@ -44,7 +53,7 @@ export async function membersFor(m: Membership): Promise<WorkspaceMembersRespons
     .slice().sort(byRoleThenName)
     .map((x) => ({ ...x, you: x.accountId === m.accountId }));
   const removeUnavailable = listed === "unsupported" && m.role === "admin" ? REMOVE_UNSUPPORTED : null;
-  return { members, source: fromCp ? "control-point" : "scout", canRemove: m.role === "admin" && !removeUnavailable, removeUnavailable };
+  return { members, source: fromCp ? "control-point" : "scout", canRemove: m.role === "admin" && !removeUnavailable && !orphaned, removeUnavailable };
 }
 
 export function membersRouter(): Router {
@@ -59,7 +68,7 @@ export function membersRouter(): Router {
     if (!isWorkspaceId(workspaceId)) { res.status(400).json({ error: "workspaceId required" }); return; }
     const access = await workspaceAccess(user, workspaceId);
     if (!access.ok) { res.status(access.status).json({ error: access.error }); return; }
-    return membersFor(access.membership);
+    return membersFor(access.membership, access.orphaned);
   }));
 
   r.post("/workspaces/:workspaceId/members/remove", jsonOnly, requireWorkspaceAdmin(), h(async (req, res) => {
