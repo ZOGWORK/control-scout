@@ -6,7 +6,7 @@ import { Link, useSearchParams } from "react-router-dom";
 import { ClipboardList, Cloud, CloudOff, Download, History, Info, LayoutList, Loader2, Plus, Save, SearchX, Trash2, X } from "lucide-react";
 import { useCurrentSeason, useTitle } from "../lib/meta";
 import { usePersonal } from "../lib/personal";
-import { canDeleteScoutEntry, deleteScoutEntry, localScoutEntries, newScoutId, refusalMessage, SCOUT_REFUSED, type ScoutRefusal, saveScoutEntry, ScoutStorageError, usePendingScoutCounts, useScouting, type ScoutEntry, type ScoutSpace, type ScoutValue } from "../lib/scouting";
+import { canDeleteScoutEntry, deleteScoutEntry, localScoutEntries, newScoutId, scoutDraftBase, refusalMessage, SCOUT_REFUSED, type ScoutRefusal, saveScoutEntry, ScoutStorageError, usePendingScoutCounts, useScouting, type ScoutEntry, type ScoutSpace, type ScoutValue } from "../lib/scouting";
 import { resolveTemplate, useEntryTemplate, useEntryTemplateState, useWorkspaceTemplate } from "../lib/scoutTemplates";
 import { ALL_PHASES, phaseLabel, type WorkspaceTemplate } from "../shared/scoutTemplate";
 import { workspaceExportUrl } from "../shared/scoutExport";
@@ -322,6 +322,8 @@ function EntryForm({ season, initial, team, space, spaceName, workspaceTemplate,
   // edited. A closed form saves nothing; an open one saves what it holds now, if the team is unchanged.
   const latest = useRef({ kind, teamText, eventCode, matchLabel, data, notes, space, template, fieldsLocked });
   latest.current = { kind, teamText, eventCode, matchLabel, data, notes, space, template, fieldsLocked };
+  // The server version this edit started from (Task 16): a newer one arriving while the form is open is one this save never saw.
+  const draftBase = useRef(initial ? scoutDraftBase(initial) : undefined);
   const open = useRef(true);
   useEffect(() => { open.current = true; return () => { open.current = false; }; }, []);
   const save = async () => {
@@ -347,7 +349,7 @@ function EntryForm({ season, initial, team, space, spaceName, workspaceTemplate,
       : initial && kind === initial.kind ? (initial.templateId ? { templateId: initial.templateId, templateVersion: initial.templateVersion ?? 0 } : {})
       : { templateId: template.id, templateVersion: template.version ?? 0 };
     try {
-      saveScoutEntry({ uuid: initial?.uuid ?? newScoutId(), season, team: Number(team), eventCode: eventCode.trim().toUpperCase() || null, matchLabel: kind === "match" ? matchLabel.trim().toUpperCase() || null : null, kind, data, notes, workspaceId: space, ...made });
+      saveScoutEntry({ uuid: initial?.uuid ?? newScoutId(), season, team: Number(team), eventCode: eventCode.trim().toUpperCase() || null, matchLabel: kind === "match" ? matchLabel.trim().toUpperCase() || null : null, kind, data, notes, workspaceId: space, ...made }, initial ? { base: draftBase.current ?? null } : {});
       toast.success("Saved on this device");
       onDone();
     } catch (e) {

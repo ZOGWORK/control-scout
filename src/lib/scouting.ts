@@ -173,12 +173,14 @@ type NewEntry = Omit<ScoutEntry, "updatedAt" | "workspaceId" | "authorAccountId"
 /**
  * Save on the device first (throws if the device refuses), then queue for sync. `workspaceId` picks the space (Personal when absent).
  * A workspace entry keeps its author, and its editor becomes "you, not synced yet" (0) until the server stamps the real one.
+ * `opts.base`: the draft's base (scoutDraftBase of the copy the form opened with), so a version that arrived while
+ * the form was open counts as unseen; without it, the base is the copy on the device now.
  */
-export function saveScoutEntry(e: NewEntry): ScoutEntry {
+export function saveScoutEntry(e: NewEntry, opts: { base?: number | null } = {}): ScoutEntry {
   const space = e.workspaceId ?? null;
   const prior = space != null ? readEntry(space, e.uuid) : null;
   // The server version this edit builds on: the copy last taken from the server (a queued edit keeps its own base).
-  const base = !prior ? undefined : dirty(space).has(e.uuid) ? prior.baseUpdatedAt : prior.updatedAt;
+  const base = opts.base !== undefined ? opts.base ?? undefined : prior ? scoutDraftBase(prior) : undefined;
   const authorship = space == null ? {} : {
     authorAccountId: e.authorAccountId ?? prior?.authorAccountId ?? 0, authorDisplayName: e.authorDisplayName ?? prior?.authorDisplayName ?? "",
     editorAccountId: 0, editorDisplayName: "",
@@ -201,6 +203,15 @@ export function saveScoutEntry(e: NewEntry): ScoutEntry {
   window.dispatchEvent(new Event(EVT));
   window.dispatchEvent(new CustomEvent(SAVED, { detail: entry.workspaceId }));
   return entry;
+}
+
+/**
+ * The server version an edit of this copy builds on: its own updatedAt when it's the server's copy, or, for an
+ * edit still queued on this device, the base that edit had. A form keeps this from when it opened (Task 16).
+ */
+export function scoutDraftBase(e: ScoutEntry): number | undefined {
+  if (e.workspaceId == null) return undefined;
+  return dirty(e.workspaceId).has(e.uuid) ? e.baseUpdatedAt : e.updatedAt;
 }
 
 export function deleteScoutEntry(e: ScoutEntry) { saveScoutEntry({ ...e, deleted: true, data: {}, notes: "" }); }
