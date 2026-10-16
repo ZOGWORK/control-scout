@@ -1,0 +1,35 @@
+# Cloudflare Worker that checks controlscout.org every minute and alerts Discord.
+# Setup and deploy steps: README.md in this folder.
+name = "control-scout-uptime"
+main = "src/worker.ts"
+compatibility_date = "2025-09-01"
+workers_dev = true
+
+# Every minute (the shortest a Cron Trigger allows).
+[triggers]
+crons = ["* * * * *"]
+
+# The monitor's state (one instance, strongly consistent). SQLite-backed
+# Durable Objects are available on the Workers Free plan.
+[[durable_objects.bindings]]
+name = "MONITOR"
+class_name = "Monitor"
+
+[[migrations]]
+tag = "v1"
+new_sqlite_classes = ["Monitor"]
+
+[vars]
+SITE = "https://controlscout.org"
+# Consecutive failed checks (one a minute) before the "down" alert.
+FAIL_THRESHOLD = "2"
+# Minimum gap between "still down" reminders.
+REMIND_MINUTES = "30"
+# Per-request timeout for each check.
+TIMEOUT_MS = "10000"
+
+# UPTIME_DISCORD_WEBHOOK is a secret, never in this file:
+#   npx wrangler secret put UPTIME_DISCORD_WEBHOOK
+
+[observability]
+enabled = true
