@@ -144,7 +144,9 @@ and never creates, edits or removes `members` rows.
 - **Every workspace read and write** (`POST /api/me/scout/sync` with a
   `workspaceId`, `GET /api/scout/sync`) needs the signed-in user's linked
   account to be a member of that workspace:
-  - A cached row younger than 10 minutes is trusted as it is.
+  - A cached row younger than 60 seconds (`MEMBERSHIP_TTL`) is trusted as it
+    is. So a removal in Control Point counts for every read and write within a
+    minute.
   - A missing or older row makes Scout ask Control Point once and decide from
     its answer, not from the cache, so a failed cache write can never keep a
     removed member in.
@@ -161,6 +163,76 @@ and never creates, edits or removes `members` rows.
 - Personal scouting doesn't depend on any of this. With no Control Point
   settings, no `workspaces` field, or Control Point down, Scout works exactly
   as before, and sign-in is never blocked.
+
+### Live sync and membership freshness
+
+"Live like messaging": a change reaches the other members' screens in about a
+second, and a removal in Control Point takes effect within about a minute.
+
+**Entries.** A save on the Scout page is pushed 300 ms later (a burst of saves
+goes together); a delete is pushed at once. The server writes it and publishes
+it to the workspace's open streams in the same step (`pushWorkspaceEntries` →
+`publishEntries`), as `event: upsert` or `event: delete` (a tombstone is a
+first-class event with its own `seq`). The other devices merge it 50 ms after
+it arrives (a burst is one list refresh). Measured locally (two browsers, the
+dev servers, realtime on): an add shows up on the other screen about 0.6 s
+after Save (that includes Save's team check and the 300 ms batching), and a
+delete about 0.2 s after the tap. A removal in Control Point reached the
+removed member's screen in 34 to 44 s.
+
+Catch-up never relies on a refresh: a stream that drops reconnects from the
+device's cursor (1 s, 2 s, 5 s … backoff); a tab hidden for over a minute
+closes its stream and reopens it, from the cursor, when it's visible again;
+entries saved while offline go up on `online` and every 30 s
+(`ScoutQueueSync`).
+
+**Membership on reads and writes.** Every workspace read and write checks
+the membership with a cache of at most 60 seconds (above). The stream sweep
+(`server/scout/stream.ts`, every 5 s while any stream is open) asks Control
+Point about each account with an open stream just before its last answer turns
+60 s old, and ends that account's streams in workspaces Control Point no longer
+lists. Every check goes through `refreshAccount`: one call per account at a
+time, at most one every 5 s, and one answer refreshes all of that account's
+workspaces. Control Point unreachable: a stale row still counts (a missing
+row doesn't), and the sweep asks that account again a minute later, not every
+tick. A session that ends (sign-out, expiry) ends its streams too.
+
+**Expected Control Point load.** Each active account costs about one account
+read (`GET /internal/accounts/:id`) a minute, whatever it does: the sweep
+keeps its rows fresh while it has the space open, and its reads and writes
+then find a fresh row. A team of 20 scouting at an event is about 20 calls a
+minute (one every 3 s on average, about 1,200 an hour), each a single-row read
+on Control Point's loopback port. The hard ceiling is one call per account
+every 5 s (240 a minute for 20 people), reached only if the cache could never
+be written. `/api/auth/me` adds at most one more per account every 10 minutes
+(its own cache), and an idle account costs nothing.
+
+**Manual refresh.** The space switcher has a refresh button (it should
+rarely be needed). It pushes the space's queue, pulls what's new from the
+cursor, re-reads `/api/auth/me` and reopens the live stream, then says
+"Updated just now" (or "Couldn't update" when offline).
+
+**Opened offline.** The device keeps the account `/api/auth/me` last
+answered (`cs-account-cache`, Tier 3 in `docs/settings.md`). When the app
+opens offline and `/me` can't answer, that account stands in: the Scout page
+opens the workspace it would have, and new entries go to that workspace's
+queue rather than to Personal. Nothing syncs until `/me` answers again (on
+`online` and every 30 s); then the normal sign-in sync runs and the queue goes
+up.
+
+**Revoked while offline.** If the account lost the workspace in the meantime,
+the push is refused (403) and the account's workspace list no longer has it.
+The queued entries are then **moved to Personal** (`moveQueuedToPersonal`),
+never dropped, with a notice: "N entries saved in <workspace> couldn't sync:
+you're no longer a member there. They're kept in Personal, so nothing was
+lost." Each becomes a new personal entry (its fields and notes; photos and
+authorship stay with the workspace) and syncs to the person's account. Queued
+deletes are let go, as there is nothing to keep. We chose Personal over a
+read-only copy because a removed member no longer sees the workspace's space
+at all, so a read-only copy there would be invisible. In Personal the work
+stays visible, editable and backed up, and it never reaches the workspace
+behind its admins' backs. Nothing moves while Control Point's answer is
+unknown, or for any failure other than a 403.
 
 ### Workspace scout entries
 
@@ -226,14 +298,18 @@ never forks it. Server code: `server/scout/members.ts`; Control Point calls in
 - **Older Control Point.** Without the members routes the list comes from
   Scout's cache and the Remove buttons are off with "Removing members needs
   the latest Control Point". Nothing else changes.
-- **Removed in Control Point.** The next membership refresh (sign-in, `/me`
-  with a cold cache, or any read or write once the cached row is older than 10
-  minutes) drops the row, logs `member.left` (actor Control Point), records the
-  audit row (`origin: "control-point"`), and ends the person's streams there.
-  The app re-reads `/api/auth/me` every 5 minutes while visible and when it
-  comes back to the front, and a refused poll (403) counts like
-  `membership_revoked`, so the page leaves the workspace for Personal with
-  "You were removed from <workspace>".
+- **Removed in Control Point.** The next membership refresh drops the row, logs
+  `member.left` (actor Control Point), records the audit row (`origin:
+  "control-point"`), and ends the person's streams there. A refresh happens at
+  sign-in, on `/me` with a cold cache, on any read or write once the cached row
+  is older than 60 seconds, and in the stream sweep (below) for anyone with a
+  workspace open. So the person loses access within about a minute:
+  - With the space open (a live stream), the sweep finds it and the stream ends
+    with `membership_revoked`.
+  - Without a stream, their next read or write is refused (403).
+  Either way the page leaves the workspace for Personal with "You were removed
+  from <workspace>". The app also re-reads `/api/auth/me` every 5 minutes while
+  visible and when it comes back to the front.
 - **What removal never does.** It ends workspace access only. The person's
   Scout account, personal data and personal entries are untouched, and their
   workspace entries stay with their authorship.
