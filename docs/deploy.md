@@ -75,6 +75,21 @@ owner portal's **Storage** panel shows usage against 10 GB per event, with a
 confirmed, audited purge. Never set `R2_FAKE` on a server (it's ignored in
 production anyway).
 
+**Web push.** Generate a VAPID key pair once, on the VM (it prints both keys;
+don't paste them anywhere but the env file):
+
+```bash
+npx web-push generate-vapid-keys
+```
+
+Put them in `/opt/control-scout/shared/.env` as `VAPID_PUBLIC_KEY` and
+`VAPID_PRIVATE_KEY`, with `VAPID_SUBJECT=mailto:<a contact address>` (or an
+https: URL), and restart. Any backup host (Render) gets the same three values:
+subscriptions are tied to the public key, so a different or changed pair ends
+them. Without all three, push stays dormant and Settings › Notifications says
+it's unavailable. The owner portal's **Push notifications** switch stops all
+sending without a deploy. What is sent and when: [push.md](push.md).
+
 ## 4. Data — pick one (before the service first starts)
 
 **Fast (recommended): copy tonight's synced database** (4 seasons, ~120k
