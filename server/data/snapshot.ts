@@ -36,6 +36,8 @@ export const PUBLIC_TABLES = [
   "schema_version", "seasons", "teams", "team_seasons", "events", "event_teams", "matches", "match_teams", "alliances", "awards",
   "advancement", "kv", "team_event_stats", "team_season_stats", "predictions", "search", "search_fuzzy",
   "team_event_records", "team_season_records", "match_records",
+  // Weekly world rankings: ranks and ratings derived from public match results, nobody's own data.
+  "ranking_snapshots", "ranking_weeks",
 ];
 
 /** True only when replacing the file can't lose anything: it's missing or zero

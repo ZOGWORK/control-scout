@@ -11,6 +11,7 @@ import express from "express";
 import { canonicalRedirects, canonicalUrl, renderIndex, renderPage } from "./seo";
 import { fitDescription } from "./seoMeta";
 import { migrate, openDb, run, setDb } from "./db";
+import { clearAllCaches } from "./caches";
 
 let server: Server;
 let port = 0;
@@ -135,6 +136,43 @@ describe("page head in the first HTML", () => {
     expect(await renderIndex(file, "/contact")).toContain("<title>Contact · FTC Control Scout</title>");
     // Personal pages: noindex.
     expect(await renderIndex(file, "/my-team")).toContain('<meta name="robots" content="noindex" />');
+  });
+
+  it("/rankings: its own title and description (the #1 team named), a canonical that keeps the view, an ItemList, and the title in the first paint", async () => {
+    clearAllCaches(); // the ranking is cached per data version, and each test here has a fresh database
+    const dir = mkdtempSync(join(tmpdir(), "cs-seo-rk-"));
+    const file = join(dir, "index.html");
+    writeFileSync(file, '<html><head><title>x</title></head><body><div id="root"></div></body></html>');
+    await run("INSERT INTO teams (number, name, state, country) VALUES (18360, 'Zeta', 'TX', 'USA')");
+    await run("UPDATE team_season_stats SET rating_np = 120.44, rating_matches = 9 WHERE season = 2025 AND team = 4215");
+    await run("INSERT INTO team_season_stats (season, team, rating_np, rating_matches) VALUES (2025, 18360, 99.5, 6)");
+    await run("INSERT INTO ranking_weeks (season, week, teams, taken_at) VALUES (2025, '2026-02-16', 2, 'x')");
+
+    const page = await renderPage(file, "/rankings");
+    expect(page.status).toBe(200);
+    const html = page.html;
+    // No rated team yet in the newest season: it opens on the latest season with ratings.
+    expect(html).toContain("<title>FTC world rankings 2025–26 · FTC Control Scout</title>");
+    const desc = /<meta name="description" content="([^"]*)"/.exec(html)![1];
+    expect(desc).toContain("#1: 4215 Hypnotic Robotics (120.4)");
+    expect(desc.length).toBeGreaterThanOrEqual(120);
+    expect(desc.length).toBeLessThanOrEqual(160);
+    expect(desc).not.toMatch(/ftc ?scout/i);
+    expect(html).toContain('<link rel="canonical" href="https://controlscout.org/rankings" />');
+    expect(html).toContain('<h1>FTC world rankings 2025–26</h1>'); // the static first paint
+    const [list] = [...html.matchAll(/<script type="application\/ld\+json">(.*?)<\/script>/g)].map((m) => JSON.parse(m[1]));
+    expect(list).toMatchObject({ "@type": "ItemList", numberOfItems: 2, url: "https://controlscout.org/rankings" });
+    expect(list.itemListElement[1]).toEqual({ "@type": "ListItem", position: 2, name: "18360 Zeta", url: "https://controlscout.org/teams/18360" });
+
+    // A region, a season, a week and a page are each their own list: kept in the canonical URL.
+    const tx = await renderIndex(file, "/rankings", { region: "USA:TX", season: "2025", week: "2026-02-16" });
+    expect(tx).toContain("<title>FTC rankings: Texas 2025–26, week of Feb 16, 2026 · FTC Control Scout</title>");
+    expect(tx).toContain('<link rel="canonical" href="https://controlscout.org/rankings?season=2025&amp;region=USA%3ATX&amp;week=2026-02-16" />');
+    // Parameters the API would refuse are dropped, never a 404 (the app shows its own message).
+    const odd = await renderPage(file, "/rankings", { region: "<x>", season: "1999", week: "2026-02-17", page: "-3" });
+    expect(odd.status).toBe(200);
+    expect(odd.html).toContain('<link rel="canonical" href="https://controlscout.org/rankings" />');
+    expect(odd.html).not.toContain("<x>");
   });
 
   it("JSON-LD: WebSite + Organization on home, SportsTeam and SportsEvent on their pages, URLs = canonical, script-safe", async () => {

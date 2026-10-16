@@ -12,6 +12,7 @@ import { matchTime, oddsPct } from "../lib/format";
 import { Async } from "./states";
 import { CalibrationLine, ConfidenceBadge, FactorList, KIND_LABEL, WinBar } from "./predict";
 import { VideoPanel } from "./MatchVideo";
+import { ShareMatch } from "./ShareMatch";
 import { cn } from "./cn";
 
 type Side = "red" | "blue";
@@ -174,11 +175,18 @@ function Prediction({ d }: { d: MatchDetail }) {
   const played = m.played && m.red.score && m.blue.score;
   const tie = played && m.red.score!.total === m.blue.score!.total;
   const called = played && !tie ? (p.pRed > 0.5) === (m.red.score!.total > m.blue.score!.total) : null;
+  // The robots on the field: the lineup the call was made for (and the share card names).
+  const red = m.red.teams.filter((t) => t.onField).map((t) => t.number), blue = m.blue.teams.filter((t) => t.onField).map((t) => t.number);
   return (
     <section className="rounded-xl border border-border bg-card p-4" aria-label="Prediction">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <p className="text-xs text-text-muted">{KIND_LABEL[p.kind]}</p>
-        <ConfidenceBadge tier={p.tier} />
+        <div className="flex items-center gap-2">
+          <ConfidenceBadge tier={p.tier} />
+          {red.length > 0 && blue.length > 0 && (
+            <ShareMatch query={{ season: m.season, red, blue, event: m.code, match: m.key }} pRed={p.pRed} played={!!played} />
+          )}
+        </div>
       </div>
       <div className="mt-3 flex items-center gap-2">
         <span className="w-10 text-right text-sm font-semibold tabular-nums text-red-alliance">{oddsPct(p.pRed)}</span>
