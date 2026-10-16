@@ -297,6 +297,25 @@ describe("GET /api/scout/stream", () => {
     } finally { restore(); }
   });
 
+  it("a reader that stops reading is let go once its backlog passes the limit (it reconnects from its cursor)", async () => {
+    const { A, B } = await team("285");
+    const restore = setStreamLimits({ maxBufferedBytes: 64 * 1024 });
+    try {
+      const { request } = await import("node:http");
+      const req = request(`${base}/api/scout/stream?workspaceId=285`, { headers: { Cookie: B.cookie } });
+      const res = await new Promise<import("node:http").IncomingMessage>((r) => { req.on("response", r); req.end(); });
+      expect(res.statusCode).toBe(200);
+      res.pause(); // never reads
+      await until(() => activeStreamCount() === 1);
+      const big = "x".repeat(18_000);
+      for (let i = 0; i < 40 && activeStreamCount() > 0; i++) {
+        await push(A, "285", Array.from({ length: 50 }, () => entry({ data: { note: big } })));
+      }
+      await until(() => activeStreamCount() === 0, 5000);
+      res.destroy();
+    } finally { restore(); }
+  });
+
   it("the kill switch: off answers 503 before anything else", async () => {
     const app = express().use("/api/scout", streamRouter({ enabled: async () => false }));
     const srv = app.listen(0);

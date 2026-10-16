@@ -75,6 +75,7 @@ export function agoSeconds(iso: string | null | undefined, now = Date.now()): st
 
 /** Short relative time for attributions: "just now", "2m ago", "3h ago", "4d ago", then the date. */
 export function agoShort(ms: number, now = Date.now()): string {
+  if (!Number.isFinite(new Date(ms).getTime())) return "time unknown";
   const s = Math.max(0, (now - ms) / 1000);
   if (s < 60) return "just now";
   if (s < 3600) return `${Math.floor(s / 60)}m ago`;

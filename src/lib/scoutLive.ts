@@ -116,6 +116,10 @@ export function followWorkspace(space: string, onMode: (m: LiveMode) => void, de
     });
     s.addEventListener("membership_revoked", () => {
       if (es !== s) return;
+      // For good: no reconnect, no polling, not even when the network comes back.
+      flushPendingNow();
+      stopped = true;
+      window.removeEventListener("online", online);
       close(); stopPolling(); clearRetry();
       setMode("revoked");
     });

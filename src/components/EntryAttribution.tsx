@@ -28,11 +28,14 @@ export function EntryAttribution({ e, className }: { e: ScoutEntry; className?: 
   const now = useNow();
   const p = attribution(e, now);
   if (!p) return null;
+  // The server accepts any finite updatedAt; one outside Date's range must not break the list.
+  const at = new Date(e.updatedAt);
+  const valid = Number.isFinite(at.getTime());
   return (
-    <p className={cn("truncate text-xs text-muted-foreground", className)} title={`${attributionText(e, now)} (${new Date(e.updatedAt).toLocaleString()})`}>
+    <p className={cn("truncate text-xs text-muted-foreground", className)} title={valid ? `${attributionText(e, now)} (${at.toLocaleString()})` : undefined}>
       <span className="font-medium text-foreground">{p.author}</span>
       {p.editor && <> · edited by <span className="font-medium text-foreground">{p.editor}</span></>}
-      {" · "}<time dateTime={new Date(e.updatedAt).toISOString()}>{p.when}</time>
+      {" · "}<time dateTime={valid ? at.toISOString() : undefined}>{p.when}</time>
     </p>
   );
 }

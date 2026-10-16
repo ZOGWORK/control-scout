@@ -33,9 +33,11 @@ import { pullWorkspaceLive, workspaceAccess, type WorkspaceEntryOut } from "./en
 /**
  * Streams one account may hold at once (tabs and devices) and the whole server, the heartbeat
  * (well under nginx's default proxy_read_timeout of 60 s, should a proxy keep that default), and
- * how often a long stream re-checks the session and the membership.
+ * how often a long stream re-checks the session and the membership. A reader that falls behind
+ * (more than maxBufferedBytes waiting to be sent, or maxHeld entries written during its catch-up)
+ * is let go: it reconnects from its cursor instead of the server holding its backlog in memory.
  */
-export const LIMITS = { perAccount: 8, total: 1000, heartbeatMs: 25_000, recheckMs: 5 * 60_000 };
+export const LIMITS = { perAccount: 8, total: 1000, heartbeatMs: 25_000, recheckMs: 5 * 60_000, maxBufferedBytes: 1 << 20, maxHeld: 2000 };
 /** Catch-up pages (of PULL_LIMIT entries) a stream sends on connect before it asks the client to pull instead. */
 export const CATCHUP_PAGES = 10;
 
@@ -72,6 +74,12 @@ function cursorFrom(req: Request): number | null {
   const n = Number(raw);
   return raw.trim() !== "" && Number.isSafeInteger(n) && n >= 0 ? n : null;
 }
+
+/** Resolves once the response can take more, or has closed. */
+const drained = (res: Response) => new Promise<void>((resolve) => {
+  const done = () => { res.off("drain", done); res.off("close", done); resolve(); };
+  res.on("drain", done); res.on("close", done);
+});
 
 /** /api/scout/stream. `enabled`: a kill switch (off: 503, and the client falls back to polling). */
 export function streamRouter(opts: { enabled?: () => Promise<boolean> } = {}): Router {
@@ -112,15 +120,23 @@ async function open(req: Request, res: Response, opts: { enabled?: () => Promise
   const held: LiveEntry[] = [];
   // Entries are published in seq order (a workspace's writes are serialized, bus.ts), so one at
   // or below the cursor was already sent: by the catch-up, or as an earlier event.
+  const write = (chunk: string) => {
+    if (closed) return;
+    res.write(chunk);
+    if (res.writableLength > LIMITS.maxBufferedBytes) end(); // too far behind: it reconnects from its cursor
+  };
   const send = (e: LiveEntry) => {
     if (closed || e.seq <= cursor) return;
-    res.write(entryFrame(e));
+    write(entryFrame(e));
     cursor = e.seq;
   };
-  const unsubscribe = subscribe(workspaceId, (e) => { if (live) send(e); else held.push(e); });
+  const unsubscribe = subscribe(workspaceId, (e) => {
+    if (live) send(e);
+    else if (held.push(e) > LIMITS.maxHeld) end();
+  });
   const stream: Stream = { userId: user.id, workspaceId, end: (closeSocket) => { end(); if (closeSocket) res.socket?.end(); } };
   streams.add(stream);
-  const heartbeat = setInterval(() => { if (!closed) res.write(": ping\n\n"); }, LIMITS.heartbeatMs);
+  const heartbeat = setInterval(() => write(": ping\n\n"), LIMITS.heartbeatMs);
   // A check that can't run (the database or Control Point briefly away) keeps the stream, as reads do.
   const recheck = setInterval(() => {
     void (async () => {
@@ -128,7 +144,7 @@ async function open(req: Request, res: Response, opts: { enabled?: () => Promise
       if (u === undefined || closed) return;
       const a = u ? await workspaceAccess(u, workspaceId).catch(() => undefined) : null;
       if (a === undefined || closed || a?.ok) return;
-      res.write("event: membership_revoked\ndata: {}\n\n");
+      write("event: membership_revoked\ndata: {}\n\n");
       end();
     })();
   }, LIMITS.recheckMs);
@@ -148,14 +164,19 @@ async function open(req: Request, res: Response, opts: { enabled?: () => Promise
     let pages = 0, more = true;
     while (more && !closed && pages < CATCHUP_PAGES) {
       const page = await pullWorkspaceLive(workspaceId, cursor);
-      for (const e of page.entries) send(e);
+      for (const e of page.entries) {
+        send(e);
+        // Wait for a slow reader instead of buffering the whole catch-up in memory.
+        if (res.writableNeedDrain && !closed) await drained(res);
+      }
+      if (closed) return;
       cursor = Math.max(cursor, page.cursor); more = page.more; pages++;
     }
     if (closed) return;
-    if (more) { res.write(`event: resync\ndata: ${JSON.stringify({ cursor })}\n\n`); end(); return; }
+    if (more) { write(`event: resync\ndata: ${JSON.stringify({ cursor })}\n\n`); end(); return; }
     live = true;
     for (const e of held.splice(0)) send(e);
-    res.write(`event: ready\ndata: ${JSON.stringify({ cursor })}\n\n`);
+    write(`event: ready\ndata: ${JSON.stringify({ cursor })}\n\n`);
   } catch (e) {
     console.error("[scout stream] catch-up failed", e);
     end();
