@@ -351,7 +351,8 @@ export async function listRecords(season: number, q: RecordsQuery): Promise<Reco
 // CSV export
 // ---------------------------------------------------------------------------
 
-const csvCell = (v: unknown): string => {
+/** One CSV cell (RFC 4180 quoting), with the formula-injection guard. Also the workspace scout export's. */
+export const csvCell = (v: unknown): string => {
   if (v == null) return "";
   let s = String(v);
   // Spreadsheet formula injection: text starting with = + - @ is shown as text.
@@ -411,7 +412,7 @@ export async function streamRecordsCsv(season: number, q: RecordsQuery, res: Res
  * left when a whole chunk backed up. Here each piece is flushed and actually handed to the
  * socket before the next read starts.
  */
-function streamedBody(res: Response) {
+export function streamedBody(res: Response) {
   const gzip = res.req.acceptsEncodings("gzip", "identity") === "gzip";
   const gz = gzip ? createGzip() : null;
   res.vary("Accept-Encoding"); // either way: a cache must not hand a plain copy to a gzip client (or the reverse)
@@ -433,6 +434,8 @@ function streamedBody(res: Response) {
      */
     async send(text: string): Promise<boolean> {
       if (res.destroyed || res.writableEnded) return false;
+      // Request metrics time a streamed download to its first byte, not its last (server/metrics.ts).
+      if (first) res.locals.firstByteAt ??= performance.now();
       const more = out.write(text);
       const sent: Promise<void>[] = [];
       if (gz) { const flushed = new Promise<void>((done) => gz.flush(() => done())); if (first) sent.push(flushed); }
