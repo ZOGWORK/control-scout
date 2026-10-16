@@ -20,6 +20,27 @@ const field = () => screen.getByRole("textbox", { name: "Private note on team 42
 const type = (text: string) => { fireEvent.change(field(), { target: { value: text } }); fireEvent.keyDown(field(), { key: "Enter" }); };
 
 describe("NoteField", () => {
+  it("a field focused but untouched follows a change made elsewhere, and leaving it writes nothing", () => {
+    const onSave = vi.fn();
+    const { rerender } = render(<NoteField team={4215} value="old" onSave={onSave} />);
+    fireEvent.focus(field());
+    rerender(<NoteField team={4215} value="from a teammate" onSave={onSave} />);
+    expect(field().value).toBe("from a teammate");
+    fireEvent.blur(field());
+    expect(onSave).not.toHaveBeenCalled();
+  });
+
+  it("an edit being typed is kept over a change made elsewhere, and saved on leaving", () => {
+    const onSave = vi.fn();
+    const { rerender } = render(<NoteField team={4215} value="old" onSave={onSave} />);
+    fireEvent.focus(field());
+    fireEvent.change(field(), { target: { value: "mine" } });
+    rerender(<NoteField team={4215} value="from a teammate" onSave={onSave} />);
+    expect(field().value).toBe("mine");
+    fireEvent.blur(field());
+    expect(onSave).toHaveBeenCalledWith("mine");
+  });
+
   it("shows an inline, linked error when the note isn't stored, keeps the text, and retries", () => {
     const onSave = vi.fn();
     render(<Store writes={[false, true]} onSave={onSave} />);
