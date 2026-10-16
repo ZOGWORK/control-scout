@@ -431,8 +431,12 @@ function EntryForm({ season, initial, team, space, spaceName, workspaceTemplate,
     const made = space == null || toPersonal ? {}
       : initial && kind === initial.kind ? (initial.templateId ? { templateId: initial.templateId, templateVersion: initial.templateVersion ?? 0 } : {})
       : { templateId: template.id, templateVersion: template.version ?? 0 };
+    // Kept in Personal (the workspace went read-only): its own answers go into the notes, which must fit them.
+    const copy = toPersonal ? personalCopy(data, notes, template.fields, resolveTemplate(null, season, kind).fields, spaceName) : null;
+    if (copy?.overflow) { setSaveErr(`The workspace's answers are written into the notes in Personal: shorten the notes by ${copy.overflow} characters so they fit.`); saveRef.current?.focus(); return; }
+    const kept = copy ? { data: copy.data, notes: copy.notes } : { data, notes };
     try {
-      saveScoutEntry({ uuid: (toPersonal ? null : initial?.uuid) ?? newScoutId(), season, team: Number(team), eventCode: eventCode.trim().toUpperCase() || null, matchLabel: kind === "match" ? matchLabel.trim().toUpperCase() || null : null, kind, ...(toPersonal ? personalCopy(data, notes, template.fields, resolveTemplate(null, season, kind).fields, spaceName) : { data, notes }), workspaceId: toPersonal ? null : space, ...made });
+      saveScoutEntry({ uuid: (toPersonal ? null : initial?.uuid) ?? newScoutId(), season, team: Number(team), eventCode: eventCode.trim().toUpperCase() || null, matchLabel: kind === "match" ? matchLabel.trim().toUpperCase() || null : null, kind, ...kept, workspaceId: toPersonal ? null : space, ...made });
       toast.success(toPersonal ? "Kept in Personal: the workspace is read-only" : "Saved on this device");
       onDone();
     } catch (e) {

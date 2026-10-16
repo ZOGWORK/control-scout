@@ -317,8 +317,11 @@ controls. A new entry, or an edit, that was open when the space went
 read-only keeps what was typed: its Save button becomes "Save to Personal"
 (an edit is saved as a new personal entry). Personal entries use the built-in
 questions, so answers to the workspace's own questions are written into the
-notes ("Label: answer"). The same happens to queued entries moved to
-Personal (`personalCopy`). A 423 or a live `workspace` or `account` event re-reads `/me` at
+notes ("Label: answer"). Every answer also stays in the entry's data, and
+the scout's own notes are never cut. If the answers don't fit the 4,000-character
+notes, Save to Personal asks the scout to shorten the notes first. A queued
+entry moved automatically keeps the answers in its data only. The same
+conversion (`personalCopy`) applies to queued entries moved to Personal. A 423 or a live `workspace` or `account` event re-reads `/me` at
 once.
 
 **Queued offline edits** for a space that went read-only are moved to
