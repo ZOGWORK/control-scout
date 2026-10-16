@@ -4,9 +4,13 @@
 //   mean     = Σ robot (auto + TeleOp + endgame) + Σ opponent penalties committed
 //   variance = (a + b·mean)²  (game randomness grows with score level)
 //            + Σ robot rating uncertainty (we know new/early teams less well)
-// P(red wins) = Φ((μr − μb) / √(σr² + σb²)).
+// P(red wins) = Φ((μr − μb) / √(σr² + σb²)) — the raw probability. Prediction
+// Engine 2.0 then corrects it with the contextual model (contextual.ts) when
+// the caller passes one and the book has reliability state; otherwise it is
+// Platt-calibrated as in 1.x.
 import type { RatingBook } from "./rating.js";
 import { calibrateProb, type CalibrationParams } from "./calibration.js";
+import { contextualWinProb, type ContextualModel, type MatchContext, type ProbabilityModel } from "./contextual.js";
 
 export interface NoiseParams {
   /** Score noise: σ = a + b·mean (fitted by likelihood on the tuning season). */
@@ -31,6 +35,19 @@ export interface MatchPrediction {
   red: AlliancePrediction;
   blue: AlliancePrediction;
   pRedWin: number;
+  /** Raw Gaussian P(red wins) from the score gap, before any calibration. */
+  pRaw?: number;
+  /** Which probability model produced pRedWin ("legacy" = Platt-calibrated Gaussian). */
+  model?: ProbabilityModel;
+}
+
+export interface PredictOptions {
+  /** Qualification or playoff (the contextual model uses it; default "qual"). */
+  context?: MatchContext;
+  /** Contextual probability model (FITTED_MODEL.contextual). Used when the
+   *  book has this season's reliability state; otherwise the legacy
+   *  calibrated probability is returned. Scores and ranges are unaffected. */
+  contextual?: ContextualModel;
 }
 
 /** Standard normal CDF (Abramowitz–Stegun erf, |error| < 1.5e-7). */
@@ -40,7 +57,7 @@ export function phi(x: number): number {
   return x >= 0 ? 0.5 * (1 + y) : 0.5 * (1 - y);
 }
 
-export function predictMatch(book: RatingBook, red: number[], blue: number[], noise: NoiseParams = DEFAULT_NOISE, cal?: CalibrationParams): MatchPrediction {
+export function predictMatch(book: RatingBook, red: number[], blue: number[], noise: NoiseParams = DEFAULT_NOISE, cal?: CalibrationParams, opts: PredictOptions = {}): MatchPrediction {
   const r = book.allianceExpectation(red);
   const b = book.allianceExpectation(blue);
   const side = (own: typeof r, opp: typeof r): AlliancePrediction => {
@@ -50,6 +67,10 @@ export function predictMatch(book: RatingBook, red: number[], blue: number[], no
   };
   const rp = side(r, b), bp = side(b, r);
   const raw = phi((rp.mean - bp.mean) / Math.sqrt(rp.sd ** 2 + bp.sd ** 2));
-  const pRedWin = cal ? calibrateProb(raw, cal) : raw;
-  return { red: rp, blue: bp, pRedWin };
+  const out: MatchPrediction = { red: rp, blue: bp, pRedWin: cal ? calibrateProb(raw, cal) : raw, pRaw: raw, model: "legacy" };
+  // The contextual model corrects the RAW Gaussian probability (L = logit of
+  // it), never the Platt-calibrated one: it carries its own calibration.
+  const pc = contextualWinProb(opts.contextual, book, red, blue, { ...out, pRedWin: raw }, opts.context);
+  if (pc != null) { out.pRedWin = pc; out.model = "contextual"; }
+  return out;
 }

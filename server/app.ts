@@ -414,15 +414,20 @@ export function createApp() {
     const s = predictSeason(req.query.season);
     const red = teamList(req.query.red, "red", 3), blue = teamList(req.query.blue, "blue", 3);
     if (red.some((t) => blue.includes(t))) throw bad("a team can't be on both alliances");
+    // Qualification or playoff: feeds the contextual win probability. A
+    // what-if with no level is treated as a qualification match.
+    const lv = req.query.level;
+    if (lv != null && lv !== "qual" && lv !== "playoff") throw bad("level must be qual or playoff");
+    const level = lv === "playoff" ? "playoff" : "qual";
     const f = await liveForecaster(s);
-    const x = f.explain(s, red, blue);
+    const x = f.explain(s, red, blue, level);
     if (!x) throw new HttpError(503, "Ratings for this season aren't ready yet.");
     const names = new Map((await all<any>(`SELECT number, name FROM teams WHERE number IN (${[...red, ...blue].map(() => "?").join(",")})`, [...red, ...blue])).map((r) => [Number(r.number), r.name]));
     return {
       season: s, red, blue, winProbRed: x.winProbA, winProbBlue: x.winProbB, predictedRed: x.predictedScoreA, predictedBlue: x.predictedScoreB,
       rangeRed: x.scoreRangeA, rangeBlue: x.scoreRangeB, factors: x.factors, confidence: x.confidence,
       teamsRed: x.teamsA.map((t) => ({ ...t, name: names.get(t.team) ?? null })), teamsBlue: x.teamsB.map((t) => ({ ...t, name: names.get(t.team) ?? null })),
-      engineVersion: ENGINE_VERSION,
+      level, probabilityModel: x.probabilityModel, engineVersion: ENGINE_VERSION,
     };
   }));
 
@@ -482,10 +487,15 @@ export function createApp() {
       const fc = mode === "pre-event" ? f.preEventForecast(ev, team, 2000) : f.forecast(ev, team, 2000);
       if (!fc) throw new HttpError(503, "Ratings for this season aren't ready yet.");
       const finished = d.event.status === "finished";
-      // 2025+ games award bonus ranking points; without a fitted model for this
-      // season the simulator can't include them — say so instead of hiding it.
+      // 2025+ games award bonus ranking points. Without a fitted model for this
+      // season, a live event draws them from its own recorded results (the
+      // engine says so in its assumptions); before any match is played none are
+      // simulated, so say that instead of hiding it. Official ranks (after
+      // quals) already include them.
       const bonusModelled = s < 2025 || !!FITTED_MODEL.bonus[String(s)];
-      const assumptions = bonusModelled ? fc.assumptions : [...fc.assumptions, `Bonus ranking points for ${seasonInfo(s).game} aren't modelled yet (no fitted model for this season), so simulated ranks count win/tie points only — real ranks and the odds that depend on them may differ.`];
+      const explained = fc.assumptions.some((a) => /bonus ranking point/i.test(a));
+      const assumptions = bonusModelled || explained || fc.stage !== "pre" ? fc.assumptions
+        : [...fc.assumptions, `Bonus ranking points for ${seasonInfo(s).game} aren't modelled yet (no fitted model for this season and no results yet), so simulated ranks count win/tie points only — real ranks and the odds that depend on them may differ.`];
       return {
         ...fc, assumptions, bonusModelled, eventName: d.event.name, eventStart: d.event.start, eventEnd: d.event.end, myTeam: team, engineVersion: ENGINE_VERSION, mode,
         hindsightNote: mode === "current" && finished ? "This event is over: these odds use ratings that already include its results. Switch to “Before the event” for the forecast made without hindsight." : null,

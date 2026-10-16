@@ -13,7 +13,16 @@ export interface ScoreSplitInput {
   teleop?: number | null;
   endgame?: number | null;
   penaltiesCommitted?: number | null;
+  /**
+   * Recorded bonus ranking points (2025+; BIOBUZZ's swarm / pollinator 1 /
+   * pollinator 2 use the same three slots). Null or missing = not reported:
+   * the forecast then samples them instead of treating a guess as a fact.
+   */
+  bonusRp?: BonusFlags | null;
 }
+
+/** A season's three bonus ranking points, in the engine's season-blind slots. */
+export interface BonusFlags { movement: boolean; goal: boolean; pattern: boolean }
 
 export interface AllianceInput {
   teams: { number: number; surrogate?: boolean }[];

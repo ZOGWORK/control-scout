@@ -14,6 +14,26 @@ const TAG: Record<Verdict, { text: string; cls: string }> = {
 
 const NOTES: { v: Verdict; title: string; body: string; more: string; wide?: boolean }[] = [
   {
+    v: "ship", wide: true, title: "Prediction Engine 2.0: a learned win-probability correction",
+    body: "A small logistic model that adjusts the score-gap probability for match context (where points come from, lopsided alliances, experience, time away, playoffs) and three track-record signals per robot. Replayed over 2025–26, which it never trained on, winner accuracy went from 72.68% to 74.65%.",
+    more: "Fitted on 2023–24 and 2024–25, chosen on Jan–Feb 2025, calibrated on Mar–May 2025, frozen before 2025–26 was scored. On 37,140 decided 2025–26 matches: +1.98 points (95% range +1.62 to +2.32), Brier 0.1789 → 0.1684, log loss 0.537 → 0.510. Predicted scores are untouched. Costs: 10-bin calibration error rose from 1.02% to 1.26%, May 2026 lost 0.99 points on 810 matches and July 1.71 points on 234, and the gain is smallest for strong favourites (+0.22 points). The track-record signals add only +0.10 points of the gain on their own; most of it comes from the match context.",
+  },
+  {
+    v: "ship", title: "Order-free population baseline",
+    body: "The season's average robot, which newcomers start from, used to depend on which alliance of a match was counted first. Both alliances now count together.",
+    more: "A colour swap of a season's first match moved the next newcomer's starting rating from about 97 to 27 points. Now it can't. On 2025–26 win odds were unchanged (accuracy identical, Brier +0.000004) and score error improved slightly (27.874 → 27.864 points). It's a correctness fix, not an accuracy claim.",
+  },
+  {
+    v: "no", title: "Faster rating updates",
+    body: "Learning more from each match looked better on early-2025 development data, but it lost accuracy on the season it hadn't seen.",
+    more: "On 2025–26: 72.44% vs 72.68% winner accuracy, Brier 0.1802 vs 0.1789, score error 28.12 vs 27.87 points. The existing gains stay.",
+  },
+  {
+    v: "no", title: "Covariance-aware ratings",
+    body: "A rating system that tracks how partners' estimates are tied together. It predicted scores better but not winners, and its ranges got too wide.",
+    more: "On 2025–26: score error 27.32 vs 27.87 points, but winner accuracy only 72.78% vs 72.68%, nominal 80% ranges covered 87.9%, and its event-level behaviour is untested. Deferred, not shipped.",
+  },
+  {
     v: "ship", title: "Platt calibration",
     body: "A two-number correction to win probabilities. Calibration error on the test season fell from 0.017 to 0.0105, and accuracy barely moved, because favourites almost always stay favourites.",
     more: "Fitted by maximum likelihood on 2024–25 live predictions: a = 0.937, b = 0.020. On 2025–26, live Brier went from 0.1791 to 0.1789 and pre-event accuracy from 68.65% to 68.78%. The correction keeps predictions in the same order. Its small offset can tip a raw call between about 49.5% and 50% to the other side, which is where that small accuracy change comes from.",

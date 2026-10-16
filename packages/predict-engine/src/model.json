@@ -1,6 +1,6 @@
 {
- "version": 1,
- "fittedOn": "2024\u201325 (settings), tested on 2025\u201326",
+ "version": 2,
+ "fittedOn": "2024–25 (settings), tested on 2025–26",
  "rating": {
   "k0": 0.65,
   "n0": 10,
@@ -60,7 +60,7 @@
   ]
  },
  "accuracy": {
-  "testSeason": "2025\u201326",
+  "testSeason": "2025–26",
   "matches": {
    "count": 37395,
    "liveAccuracy": 0.7274,
@@ -160,10 +160,92 @@
     "baseRate": 0.1839
    }
   },
-  "pickTop3": 0.696911196911197
+  "pickTop3": 0.696911196911197,
+  "engine2": {
+   "note": "Prediction Engine 2.0 vs 1.1.0 on identical matches: chronological replay of the whole 2025-26 season from finalized results (every match predicted from earlier results only; predictions inside a timestamp group made before any of its results). Held out from fitting, selection and calibration; not a prospective live result.",
+   "testSeason": "2025–26",
+   "matches": 37414,
+   "nonTies": 37140,
+   "events": 1219,
+   "accuracy": 0.7465266558966074,
+   "baselineAccuracy": 0.7267635971997846,
+   "accuracyGain95": [
+    0.016240263496237535,
+    0.02320379242903288
+   ],
+   "brier": 0.1684208840478484,
+   "baselineBrier": 0.17894028134421489,
+   "brierChange95": [
+    -0.011542020453554068,
+    -0.009546734743146252
+   ],
+   "logLoss": 0.5101965279762287,
+   "baselineLogLoss": 0.537493869431886,
+   "ece": 0.012626480793802138,
+   "baselineEce": 0.010231376042926356,
+   "scoreMae": 27.86355509152421,
+   "baselineScoreMae": 27.873933259113603,
+   "scoreRange80Coverage": 0.8204682739081627,
+   "baselineScoreRange80Coverage": 0.8202277222430107
+  }
  },
  "calibration": {
   "a": 0.936632910767947,
   "b": 0.019772447704615496
+ },
+ "contextual": {
+  "kind": "contextual-logistic-reliability",
+  "id": "ctx-rel-2026-10-16-1a36820c",
+  "coefficients": [
+   0.005801933001845236,
+   -0.08734261949534072,
+   -0.2752969871497752,
+   0.17246351491080336,
+   0.11297044872108032,
+   -0.01330313757721049,
+   -0.02127053149025523,
+   0.12811691450081228,
+   0.029428048029559607,
+   -0.14639294646372977,
+   -0.08698623405706282,
+   0.032605348306557196,
+   0.07322025788054136,
+   0.032803481814515464,
+   -0.004147131685170887,
+   -0.11638253003834045,
+   -0.07750155048087558
+  ],
+  "scale": [
+   0.35333704832605023,
+   0.31372614065484583,
+   0.17391673864238053,
+   0.2032090968797187,
+   0.7712669125046528,
+   0.12953288779826855,
+   0.2206443887447818,
+   0.5193982183787053,
+   0.8719412785775297,
+   0.4204285612101274,
+   0.2052876923360014,
+   0.8188773892408825,
+   0.2753660004257903,
+   0.3258990415752877,
+   0.05,
+   0.38546414225065545,
+   0.2182609369162325
+  ],
+  "calibration": {
+   "slope": 0.9414911747184092,
+   "intercept": 0.004591262950340726
+  },
+  "provenance": {
+   "fitSeasons": [
+    2023,
+    2024
+   ],
+   "frozenSelectionSha256": "1a36820cc616dbc2f36c0cdb19f041b2cbb913f46d765663b08bdc7c70386e14",
+   "frozenAt": "2026-10-16T18:19:37.995889+00:00",
+   "baseEngineVersion": "1.1.0"
+  }
  }
 }

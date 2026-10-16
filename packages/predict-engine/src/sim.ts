@@ -14,8 +14,8 @@
 import type { TeamRating } from "./types.js";
 import type { NoiseParams } from "./matchModel.js";
 import {
-  BRACKETS, ORDER_2024, allianceCount, allianceSelectionPoints, awardPoints, playoffPoints, qualPoints, rankingPoints, tiebreakKeys,
-  type Slot,
+  BRACKETS, ORDER_2024, allianceCount, allianceSelectionPoints, awardPoints, compareAdvancement, playoffPoints, qualPoints, rankingPoints, tiebreakKeys,
+  type AdvancementEntry, type Slot,
 } from "./rules.js";
 import { npOf } from "./rating.js";
 
@@ -44,10 +44,10 @@ function normal(r: () => number): number {
 // Inputs
 // ---------------------------------------------------------------------------
 
-export interface PlayedResult {
-  red: { total: number; np: number; auto: number; endgame: number; bonus?: { movement: boolean; goal: boolean; pattern: boolean } };
-  blue: { total: number; np: number; auto: number; endgame: number; bonus?: { movement: boolean; goal: boolean; pattern: boolean } };
-}
+/** One alliance of a played match. `bonus` is the recorded bonus RPs (flags, or a count); when
+ *  it is missing (not reported) a 2025+ simulation samples it every run. */
+export interface PlayedSide { total: number; np: number; auto: number; endgame: number; bonus?: { movement: boolean; goal: boolean; pattern: boolean } | number; tips?: number }
+export interface PlayedResult { red: PlayedSide; blue: PlayedSide }
 
 export interface QualMatch {
   red: number[];
@@ -93,6 +93,13 @@ export interface SimInput {
   quals: QualMatch[];
   noise: NoiseParams;
   bonus?: BonusModel;
+  /**
+   * Seasons without a fitted bonus model: recorded bonus-RP counts of this
+   * event's played qualification alliances. Unplayed (or unreported)
+   * alliances draw from them, so played and simulated matches count bonus
+   * RPs on the same scale. Empty or missing = no bonus RPs simulated.
+   */
+  bonusSamples?: number[];
   pick?: PickModel;
   /** Alliances already selected (captain first), if selection has happened. */
   alliances?: number[][];
@@ -146,6 +153,15 @@ export function simulateEvent(input: SimInput): Map<number, TeamOutcome> {
   const pick = input.pick ?? DEFAULT_PICK;
   const acc = new Map(teams.map((t) => [t, { adv: 0, cap: 0, picked: 0, win: 0, fin: 0, ranks: [] as number[], q: 0, a: 0, p: 0, w: 0 }]));
   const rating = (t: number): TeamRating => input.ratings.get(t) ?? { auto: 0, teleop: 0, endgame: 0, pen: 0, n: 0, uncertainty: 400 };
+  // Bonus RPs for an alliance whose achievements aren't known: the season's
+  // fitted model (from its non-penalty score) or this event's recorded mix.
+  const sampleBonus = (np: number): { movement: boolean; goal: boolean; pattern: boolean } | number | undefined => {
+    if (input.season < 2025) return undefined;
+    const bm = input.bonus;
+    if (bm) return { movement: r() < logistic(bm.movement[0] + bm.movement[1] * np), goal: r() < logistic(bm.goal[0] + bm.goal[1] * np), pattern: r() < logistic(bm.pattern[0] + bm.pattern[1] * np) };
+    const xs = input.bonusSamples;
+    return xs?.length ? xs[Math.floor(r() * xs.length)] : undefined;
+  };
 
   for (let run = 0; run < input.runs; run++) {
     // 1. True strength for this run.
@@ -166,31 +182,42 @@ export function simulateEvent(input: SimInput): Map<number, TeamOutcome> {
       return { np, total: np + Math.max(0, pen + normal(r) * Math.sqrt(Math.max(pen, 1))), auto: auto * f, endgame: eg * f };
     };
 
-    // 2. Quals → ranks.
+    // 2. Quals → ranks. Per-team qualification stats feed the ranking
+    // tiebreaks and, for 2025+, the advancement tiebreaks; with official
+    // ranks they come from the played matches alone.
+    const st = new Map(teams.map((t) => [t, { rp: 0, n: 0, np: 0, auto: 0, eg: 0, tips: 0, best: 0, second: 0 }]));
+    const tally = (t: number, own: { np: number; auto: number; endgame: number; tips?: number }, rp: number) => {
+      const s = st.get(t)!;
+      s.rp += rp; s.n++; s.np += own.np; s.auto += own.auto; s.eg += own.endgame; s.tips += own.tips ?? 0;
+      if (own.np > s.best) { s.second = s.best; s.best = own.np; } else if (own.np > s.second) s.second = own.np;
+    };
     let rankOf: Map<number, number>;
-    if (input.ranks) rankOf = input.ranks;
-    else {
-      const st = new Map(teams.map((t) => [t, { rp: 0, n: 0, np: 0, auto: 0, eg: 0 }]));
+    if (input.ranks) {
+      rankOf = input.ranks;
+      if (input.season >= 2025) for (const m of input.quals) {
+        if (!m.result) continue;
+        for (const [side, own] of [[m.red, m.result.red], [m.blue, m.result.blue]] as const) for (const t of side) if (!m.noRank?.includes(t)) tally(t, own, 0);
+      }
+    } else {
       for (const m of input.quals) {
         let res = m.result;
         if (!res) {
           const red = playScore(m.red, m.blue), blue = playScore(m.blue, m.red);
-          const bonus = (np: number) => input.season >= 2025 && input.bonus
-            ? { movement: r() < logistic(input.bonus.movement[0] + input.bonus.movement[1] * np), goal: r() < logistic(input.bonus.goal[0] + input.bonus.goal[1] * np), pattern: r() < logistic(input.bonus.pattern[0] + input.bonus.pattern[1] * np) }
-            : undefined;
-          res = { red: { ...red, bonus: bonus(red.np) }, blue: { ...blue, bonus: bonus(blue.np) } };
+          res = { red: { ...red, bonus: sampleBonus(red.np) }, blue: { ...blue, bonus: sampleBonus(blue.np) } };
         }
         for (const [side, own, opp] of [[m.red, res.red, res.blue], [m.blue, res.blue, res.red]] as const) {
-          const rp = rankingPoints(input.season, own, opp);
-          for (const t of side) { if (m.noRank?.includes(t)) continue; const s = st.get(t)!; s.rp += rp; s.n++; s.np += own.np; s.auto += own.auto; s.eg += own.endgame; }
+          // A played alliance whose bonus RPs weren't reported: sample them.
+          const scored = own.bonus !== undefined || input.season < 2025 ? own : { ...own, bonus: sampleBonus(own.np) };
+          const rp = rankingPoints(input.season, scored, opp);
+          for (const t of side) { if (m.noRank?.includes(t)) continue; tally(t, own, rp); }
         }
       }
       const order = teams.filter((t) => st.get(t)!.n > 0).sort((x, y) => {
         const a = st.get(x)!, b = st.get(y)!;
         const d = b.rp / b.n - a.rp / a.n;
         if (Math.abs(d) > 1e-9) return d;
-        const ka = tiebreakKeys(input.season, { np: a.np / a.n, auto: a.auto / a.n, endgame: a.eg / a.n });
-        const kb = tiebreakKeys(input.season, { np: b.np / b.n, auto: b.auto / b.n, endgame: b.eg / b.n });
+        const ka = tiebreakKeys(input.season, { np: a.np / a.n, auto: a.auto / a.n, endgame: a.eg / a.n, tips: a.tips / a.n });
+        const kb = tiebreakKeys(input.season, { np: b.np / b.n, auto: b.auto / b.n, endgame: b.eg / b.n, tips: b.tips / b.n });
         for (let i = 0; i < ka.length; i++) if (ka[i] !== kb[i]) return kb[i] - ka[i];
         return r() - 0.5;
       });
@@ -296,9 +323,24 @@ export function simulateEvent(input: SimInput): Map<number, TeamOutcome> {
         const w = awardPoints(awards.get(t) ?? []);
         const c = acc.get(t);
         if (c) { c.q += q; c.a += a; c.p += p; c.w += w; }
-        return { t, total: q + a + p + w, rank: rankOf.get(t)! };
+        const qs = st.get(t);
+        const games = qs?.n ?? 0;
+        const entry: AdvancementEntry = {
+          total: q + a + p + w, awards: w, playoffs: p, alliance: a, quals: q,
+          avgNp: games ? qs!.np / games : 0, avgAuto: games ? qs!.auto / games : 0, bestNp: qs?.best ?? 0, secondNp: qs?.second ?? 0,
+        };
+        return { t, entry };
       });
-      pts.sort((x, y) => y.total - x.total || x.rank - y.rank);
+      // Official order (Table 4-2); teams tied on every criterion are drawn in
+      // a uniformly random order (a shuffle of each tied group, not a random
+      // comparator, which would be biased by the sort's comparison order).
+      pts.sort((x, y) => compareAdvancement(x.entry, y.entry));
+      for (let i = 0; i < pts.length;) {
+        let j = i + 1;
+        while (j < pts.length && compareAdvancement(pts[i].entry, pts[j].entry) === 0) j++;
+        for (let k = j - 1; k > i; k--) { const m = i + Math.floor(r() * (k - i + 1)); [pts[k], pts[m]] = [pts[m], pts[k]]; }
+        i = j;
+      }
       for (const p of pts) { if (advanced.length >= input.slots) break; if (eligible(p.t)) advanced.push(p.t); }
     } else {
       const byPlace = (pl: number) => { for (const [k, p] of place) if (p === pl) return alliances[k - 1]; return undefined; };

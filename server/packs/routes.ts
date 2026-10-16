@@ -13,6 +13,11 @@ export const PACKS_PAUSED = "Offline packs are paused right now. Predictions and
 export const packsDir = () => join(env.dataDir, "packs");
 
 /** True when the manifest parses and every file it lists is on disk. */
+/** Engine version the current packs were built with (null when there are none). */
+export function packsEngine(): string | null {
+  try { return (JSON.parse(readFileSync(join(packsDir(), "latest.json"), "utf8")) as Manifest).engineVersion ?? null; } catch { return null; }
+}
+
 export function packsPresent(): boolean {
   try {
     const m = JSON.parse(readFileSync(join(packsDir(), "latest.json"), "utf8")) as Manifest;

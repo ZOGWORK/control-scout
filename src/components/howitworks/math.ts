@@ -8,6 +8,12 @@ export const RATING = FITTED_MODEL.rating;
 export const NOISE = FITTED_MODEL.noise;
 export const CAL = FITTED_MODEL.calibration ?? { a: 1, b: 0 };
 
+/** Prediction Engine 2.0's measured change on the held-out 2025–26 replay (vs 1.1.0, same matches). */
+export const E2 = (FITTED_MODEL.accuracy as { engine2: {
+  accuracy: number; baselineAccuracy: number; accuracyGain95: [number, number];
+  brier: number; baselineBrier: number; ece: number; baselineEce: number; matches: number;
+} }).engine2;
+
 /** z for a central 80% interval. */
 export const Z80 = 1.2815515655446004;
 
