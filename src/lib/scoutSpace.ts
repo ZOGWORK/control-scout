@@ -17,7 +17,7 @@ import { pendingScoutCounts, syncQueuedScouting, type ScoutSpace } from "./scout
 
 export interface WorkspaceSpace { id: string; name: string; role: "admin" | "member" }
 
-/** Device-only (Tier 3): the space last shown here, as { id, name } (id "personal" for Personal). */
+/** Device-only (Tier 3): the space last shown here, as { id, name, account } (id "personal" for Personal). */
 export const SPACE_STORAGE_KEY = "cs-scout-space";
 /** The URL's word for the Personal space. */
 export const PERSONAL_PARAM = "personal";
@@ -43,7 +43,8 @@ export function workspacesOf(user: AccountUser | null): { list: WorkspaceSpace[]
   return { list, known: true };
 }
 
-export interface RememberedSpace { id: string; name?: string }
+/** `account`: the account (AccountUser.id) it was remembered for; another account signing in on this device ignores it. */
+export interface RememberedSpace { id: string; name?: string; account?: number }
 
 export function readRememberedSpace(): RememberedSpace | null {
   try {
@@ -52,14 +53,14 @@ export function readRememberedSpace(): RememberedSpace | null {
     const v = JSON.parse(raw) as unknown;
     if (typeof v === "string") return v === PERSONAL_PARAM || WORKSPACE_ID.test(v) ? { id: v } : null;
     if (!v || typeof v !== "object") return null;
-    const { id, name } = v as { id?: unknown; name?: unknown };
+    const { id, name, account } = v as { id?: unknown; name?: unknown; account?: unknown };
     if (typeof id !== "string" || !(id === PERSONAL_PARAM || WORKSPACE_ID.test(id))) return null;
-    return typeof name === "string" && name ? { id, name: name.slice(0, 120) } : { id };
+    return { id, ...(typeof name === "string" && name ? { name: name.slice(0, 120) } : {}), ...(Number.isSafeInteger(account) ? { account: account as number } : {}) };
   } catch { return null; }
 }
 
-export function rememberSpace(space: ScoutSpace, name?: string): RememberedSpace {
-  const v: RememberedSpace = space == null ? { id: PERSONAL_PARAM } : name ? { id: space, name } : { id: space };
+export function rememberSpace(space: ScoutSpace, name?: string, account?: number | null): RememberedSpace {
+  const v: RememberedSpace = { id: space ?? PERSONAL_PARAM, ...(space != null && name ? { name } : {}), ...(account != null ? { account } : {}) };
   try { localStorage.setItem(SPACE_STORAGE_KEY, JSON.stringify(v)); } catch { /* storage blocked: this visit only */ }
   return v;
 }
@@ -71,6 +72,8 @@ export interface SpaceInput {
   workspaces: WorkspaceSpace[];
   /** Whether `workspaces` is Control Point's answer (else nothing is "lost"). */
   known: boolean;
+  /** The signed-in account (AccountUser.id): a space remembered for another account is ignored. */
+  account?: number | null;
   /** ?space= */
   url: string | null;
   remembered: RememberedSpace | null;
@@ -88,11 +91,12 @@ export interface SpaceResolution {
 export function resolveScoutSpace(i: SpaceInput): SpaceResolution {
   if (!i.signedIn || !i.enabled || !i.known) return { space: null, switchable: false, lost: null };
   let lost: SpaceResolution["lost"] = null;
-  for (const id of [i.url, i.remembered?.id]) {
+  const remembered = i.remembered && (i.remembered.account == null || i.remembered.account === i.account) ? i.remembered : null;
+  for (const id of [i.url, remembered?.id]) {
     if (!id) continue;
     if (id === PERSONAL_PARAM) return { space: null, switchable: true, lost };
     if (i.workspaces.some((w) => w.id === id)) return { space: id, switchable: true, lost };
-    if (!lost && WORKSPACE_ID.test(id)) lost = { id, name: i.remembered?.id === id ? i.remembered.name : undefined };
+    if (!lost && WORKSPACE_ID.test(id)) lost = { id, name: remembered?.id === id ? remembered.name : undefined };
   }
   return { space: i.workspaces[0]?.id ?? null, switchable: true, lost };
 }
@@ -152,13 +156,21 @@ export function useScoutSpaces(): ScoutSpaces {
   const enabled = useFlag("workspaceScouting");
   const [sp, setSp] = useSearchParams();
   const [remembered, setRemembered] = useState(readRememberedSpace);
-  const [revoked, setRevoked] = useState<string[]>([]);
+  // Workspaces whose access ended while this page was open, for the account they ended for (another
+  // account signing in on the same page starts with none).
+  const userId = user?.id ?? null;
+  const [revokedFor, setRevokedFor] = useState<{ user: number | null; ids: string[] }>({ user: null, ids: [] });
+  const revoked = revokedFor.user === userId ? revokedFor.ids : [];
+  const setRevoked = useCallback((id: string) => setRevokedFor((x) => {
+    const ids = x.user === userId ? x.ids : [];
+    return ids.includes(id) && x.user === userId ? x : { user: userId, ids: [...ids, id] };
+  }), [userId]);
   const [notice, setNotice] = useState<string | null>(null);
   const { list, known } = useMemo(() => workspacesOf(user), [user]);
   const workspaces = useMemo(() => list.filter((w) => !revoked.includes(w.id)), [list, revoked]);
   const url = sp.get("space");
   const authKnown = providers !== null;
-  const r = resolveScoutSpace({ signedIn: !!user, enabled, workspaces, known, url, remembered });
+  const r = resolveScoutSpace({ signedIn: !!user, enabled, workspaces, known, account: userId, url, remembered });
   // Until sign-in answers, a workspace in the URL or remembered here may be the one to show: wait, rather than flash Personal.
   const candidate = url ?? remembered?.id;
   const resolving = !authKnown && !!candidate && candidate !== PERSONAL_PARAM;
@@ -170,26 +182,28 @@ export function useScoutSpaces(): ScoutSpaces {
   const leaving = useRef(false);
   const leave = useCallback((w: WorkspaceSpace) => {
     leaving.current = true;
-    setRevoked((x) => (x.includes(w.id) ? x : [...x, w.id]));
+    setRevoked(w.id);
     setNotice(lostNotice(workspaceLabel(w)));
-    setRemembered(rememberSpace(null));
+    setRemembered(rememberSpace(null, undefined, userId));
     setSp((x) => { x.set("space", PERSONAL_PARAM); x.delete("entry"); return x; }, { replace: true });
-  }, [setSp]);
+  }, [setSp, setRevoked, userId]);
 
   // The workspace on screen disappeared from the account's list (a new answer from Control Point): to Personal.
   const shown = useRef<WorkspaceSpace | null>(null);
+  const shownFor = useRef<number | null>(null);
   useLayoutEffect(() => {
+    if (shownFor.current !== userId) { shown.current = null; shownFor.current = userId; } // another account: nothing was taken away
     const was = shown.current;
     if (was && known && !list.some((w) => w.id === was.id)) { shown.current = null; leave(was); return; }
     if (!user) shown.current = null; // signed out: nothing was taken away
     else if (current) shown.current = current;
     else if (!resolving) shown.current = null;
-  }, [list, known, user, current, resolving, leave]);
+  }, [list, known, user, userId, current, resolving, leave]);
 
   const revoke = useCallback((id: string) => {
     if (shown.current?.id === id) { const was = shown.current; shown.current = null; leave(was); }
-    else setRevoked((x) => (x.includes(id) ? x : [...x, id]));
-  }, [leave]);
+    else setRevoked(id);
+  }, [leave, setRevoked]);
 
   // A workspace asked for that isn't the account's: say so once, and stop asking for it.
   const lostKey = r.lost && !resolving && r.switchable ? r.lost.id : null;
@@ -202,17 +216,17 @@ export function useScoutSpaces(): ScoutSpaces {
     if (leaving.current) { if (url === PERSONAL_PARAM) leaving.current = false; return; }
     if (!r.switchable || resolving) return;
     if (url !== param) setSp((x) => { x.set("space", param); return x; }, { replace: true });
-    if (remembered?.id !== param || (name && remembered.name !== name)) setRemembered(rememberSpace(space, name));
-  }, [r.switchable, resolving, url, param, space, name, remembered, setSp]);
+    if (remembered?.id !== param || remembered.account !== (userId ?? undefined) || (name && remembered.name !== name)) setRemembered(rememberSpace(space, name, userId));
+  }, [r.switchable, resolving, url, param, space, name, remembered, userId, setSp]);
 
   const select = useCallback((next: ScoutSpace) => {
     setNotice(null);
     const w = next == null ? undefined : workspaces.find((x) => x.id === next);
     if (next != null && !w) return;
-    setRemembered(rememberSpace(next, w?.name));
+    setRemembered(rememberSpace(next, w?.name, userId));
     // Another space's entry can't be edited here: the form closes with the switch.
     setSp((x) => { x.set("space", spaceParam(next)); x.delete("entry"); return x; });
-  }, [workspaces, setSp]);
+  }, [workspaces, setSp, userId]);
 
   return {
     space, workspaces: r.switchable ? workspaces : [], switchable: r.switchable && !resolving, resolving, current,

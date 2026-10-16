@@ -49,6 +49,12 @@ describe("resolveScoutSpace", () => {
     expect(resolveScoutSpace(input({ url: "not a valid id!" })).lost).toBeNull(); // junk is ignored, not reported
   });
 
+  it("a space remembered for another account on this device is ignored (not used, not reported)", () => {
+    expect(resolveScoutSpace(input({ account: 2, remembered: { id: "902", account: 1 } })).space).toBe("901");
+    expect(resolveScoutSpace(input({ account: 2, remembered: { id: "777", name: "Old Team", account: 1 } })).lost).toBeNull();
+    expect(resolveScoutSpace(input({ account: 1, remembered: { id: "902", account: 1 } })).space).toBe("902");
+  });
+
   it("workspace scouting switched off: Personal only, no switcher", () => {
     expect(resolveScoutSpace(input({ enabled: false, url: "901" }))).toEqual({ space: null, switchable: false, lost: null });
   });
