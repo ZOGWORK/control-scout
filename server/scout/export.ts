@@ -46,6 +46,23 @@ function listOf(v: unknown): string[] {
   return raw.flatMap((x) => (typeof x === "string" ? x.split(",") : [])).map((x) => x.trim()).filter(Boolean);
 }
 
+/** Text as q compares it: Unicode case folding (not SQLite's ASCII-only LOWER), composed accents. */
+const fold = (s: string) => s.normalize("NFC").toLocaleLowerCase("und");
+
+/**
+ * Does a stored row hold every word of q (already folded)? Each word must appear in the team number, event,
+ * match, notes, author, last editor or one of its answers, read as decoded values (never the stored JSON's
+ * keys, quotes or escapes; a toggle as true / false, as the CSV writes it). Substrings, no wildcards.
+ */
+export function matchesQuery(r: any, words: string[] | undefined): boolean {
+  if (!words?.length) return true;
+  let answers: unknown[] = [];
+  try { const d = JSON.parse(r.data); if (d && typeof d === "object" && !Array.isArray(d)) answers = Object.values(d); } catch { /* none */ }
+  const text = fold([r.team, r.event_code, r.match_label, r.notes, r.author_name, r.editor_name,
+    ...answers.map((v) => (v !== null && typeof v === "object" ? JSON.stringify(v) : v))].filter((v) => v != null).join("\n"));
+  return words.every((w) => text.includes(w));
+}
+
 /** The export's filters from a query string, or what's wrong with them (a 400). */
 export function parseExportFilters(query: Record<string, unknown>): { ok: true; filters: ExportFilters } | { ok: false; error: string } {
   const season = Number(query.season);
@@ -77,13 +94,13 @@ export function parseExportFilters(query: Record<string, unknown>): { ok: true; 
   }
   if (query.q !== undefined) {
     if (typeof query.q !== "string" || query.q.length > 200) return { ok: false, error: "q must be up to 200 characters" };
-    const words = query.q.toLowerCase().split(/\s+/).filter(Boolean); // every word applies (200 characters bound them)
+    const words = fold(query.q).split(/\s+/).filter(Boolean); // every word applies (200 characters bound them)
     if (words.length) f.q = words;
   }
   return { ok: true, filters: f };
 }
 
-/** The WHERE clause for a workspace (its mirror row id) and filters; deleted entries never match. */
+/** The WHERE clause for a workspace (its mirror row id) and filters, all but q (matchesQuery); deleted entries never match. */
 export function exportWhere(workspaceRowId: number, f: ExportFilters): { sql: string; args: (string | number)[] } {
   const parts = ["w.workspace_id = ?", "w.deleted = 0", "w.season = ?"];
   const args: (string | number)[] = [workspaceRowId, f.season];
@@ -97,12 +114,7 @@ export function exportWhere(workspaceRowId: number, f: ExportFilters): { sql: st
   anyOf("w.author_account_id", f.author);
   anyOf("UPPER(w.match_label)", f.match);
   if (f.kind) { parts.push("w.kind = ?"); args.push(f.kind); }
-  // Free text: plain substring (instr, so % and _ are just characters), each word somewhere in the entry: its
-  // columns, or one of its answers as decoded values (json_each: never the stored JSON's keys, quotes or escapes;
-  // a toggle reads as true / false, as the CSV writes it, not json_each's 1 / 0).
-  const columns = "LOWER(w.team || ' ' || COALESCE(w.event_code, '') || ' ' || COALESCE(w.match_label, '') || ' ' || w.notes || ' ' || w.author_name || ' ' || w.editor_name)";
-  const answers = "EXISTS (SELECT 1 FROM json_each(CASE WHEN json_valid(w.data) THEN w.data ELSE '{}' END) a WHERE instr(LOWER(CASE a.type WHEN 'true' THEN 'true' WHEN 'false' THEN 'false' ELSE CAST(a.value AS TEXT) END), ?) > 0)";
-  for (const word of f.q ?? []) { parts.push(`(instr(${columns}, ?) > 0 OR ${answers})`); args.push(word, word); }
+  // Free text (q) isn't here: SQLite's LOWER only folds ASCII, so matchesQuery applies it to the rows read.
   return { sql: parts.join(" AND "), args };
 }
 
@@ -169,7 +181,8 @@ export const EXPORT_CHUNK = 500;
 /**
  * Stream the export (membership already checked). Which entries, in which order (newest edit first), is
  * fixed by one query of their ids up front; the rows are then read in chunks of EXPORT_CHUNK (filters
- * applied again, so one deleted or changed meanwhile drops out rather than going out stale).
+ * applied again, so one deleted or changed meanwhile drops out rather than going out stale), and q is
+ * applied to each row read (matchesQuery), so only ids are ever held for the whole set.
  */
 export async function streamWorkspaceCsv(workspaceId: string, workspaceName: string, f: ExportFilters, res: Response): Promise<void> {
   const t = await currentTemplate(workspaceId, f.season);
@@ -183,7 +196,7 @@ export async function streamWorkspaceCsv(workspaceId: string, workspaceName: str
   res.setHeader("Content-Disposition", `attachment; filename="${exportFilename(workspaceName, workspaceId, f.season)}"`);
   res.setHeader("Cache-Control", "no-store");
   const body = streamedBody(res);
-  if (!(await body.send(`﻿${line([...FIXED_HEADERS, ...cols.map((c) => c.header), OTHER_FIELDS_HEADER])}`))) return;
+  if (!(await body.send(`\uFEFF${line([...FIXED_HEADERS, ...cols.map((c) => c.header), OTHER_FIELDS_HEADER])}`))) return;
   try {
     const ws = await get<{ id: number }>("SELECT id FROM workspaces WHERE cp_workspace_id = ?", [workspaceId]);
     if (ws) {
@@ -194,7 +207,7 @@ export async function streamWorkspaceCsv(workspaceId: string, workspaceName: str
         const rows = await all<any>(`SELECT w.* FROM workspace_scout_entries w WHERE ${w.sql} AND w.uuid IN (${chunk.map(() => "?").join(", ")})`, [...w.args, ...chunk]);
         const byId = new Map(rows.map((r) => [String(r.uuid), r]));
         let out = "";
-        for (const k of chunk) { const r = byId.get(k); if (r) out += line(exportRow(r, cols)); }
+        for (const k of chunk) { const r = byId.get(k); if (r && matchesQuery(r, f.q)) out += line(exportRow(r, cols)); }
         if (out && !(await body.send(out))) return;
       }
     }

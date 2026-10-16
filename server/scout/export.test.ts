@@ -218,7 +218,7 @@ describe("workspace CSV export", () => {
       entry({ uuid: "filt00000003", team: 111, eventCode: "USTXCMP", kind: "pit", matchLabel: null, data: { drivetrain: "Swerve" } }),
       entry({ uuid: "filt00000004", team: 333, season: 2024 }),
       entry({ uuid: "filt00000005", team: 111, notes: "100% sure_thing" }),
-      entry({ uuid: "filt00000008", team: 555, kind: "pit", matchLabel: null, data: { notes2: '6"wheel', canDefend: true, endgameCapable: false } }),
+      entry({ uuid: "filt00000008", team: 555, kind: "pit", matchLabel: null, data: { notes2: '6"wheel', canDefend: true, endgameCapable: false }, notes: "Équipe ÖSTERREICH" }),
     ]);
     await push(admin, "504", [entry({ uuid: "filt00000006", team: 444, notes: "coach note" })]);
     // A deleted entry: created, then deleted by its author.
@@ -244,6 +244,8 @@ describe("workspace CSV export", () => {
     expect(await ids("season=2025&q=drivetrain")).toEqual([]); // a field id isn't an answer
     expect(await ids("season=2025&q=true")).toEqual(["filt00000008"]); // toggles read as true / false
     expect(await ids("season=2025&q=false")).toEqual(["filt00000008"]);
+    expect(await ids(`season=2025&q=${encodeURIComponent("équipe österreich")}`)).toEqual(["filt00000008"]); // Unicode case
+    expect(await ids(`season=2025&q=${encodeURIComponent("ÉQUIPE")}`)).toEqual(["filt00000008"]);
     expect(await ids("season=2025&q=a b c d e f g h i j fast")).toEqual([]); // every word applies, the 11th too
     expect(await ids("season=2025&team=111&q=fast intake")).toEqual(["filt00000001"]);
     expect(await ids("season=2025&team=999")).toEqual([]);

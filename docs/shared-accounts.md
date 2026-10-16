@@ -371,7 +371,9 @@ minute.
     matches any value of that list and every filter given.
   - Event codes and match labels match in any case.
   - `q`: every word must appear in the team number, event, match, notes,
-    author, last editor or a field's answer.
+    author, last editor or a field's answer (decoded values; toggles read
+    as `true` / `false`). Matching ignores case for any language
+    (Unicode-aware), so it runs on each row as it's read, not in SQL.
   - A bad value is a 400.
   - Deleted entries are never exported.
 - **Columns:** Entry ID, Team, Event, Match, Kind, Author, Updated at (ISO
