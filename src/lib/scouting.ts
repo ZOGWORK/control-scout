@@ -333,14 +333,14 @@ export async function syncScouting(space: ScoutSpace = null): Promise<{ sent: nu
         // Done only once the server's copy is on the device (it may be a newer edit that beat ours):
         // if it can't be saved, the entry stays queued and the next push brings the copy back again.
         let saved = true;
-        if (res.entry) { try { writeEntry(normalizeScoutEntry(res.entry, space)); } catch { saved = false; } }
+        if (res.entry) { try { writeEntry(withNewerPhotos(normalizeScoutEntry(res.entry, space), current)); } catch { saved = false; } }
         if (saved) now.delete(res.uuid);
       }
       else if (!res.ok && res.error === "forbidden" && space != null && res.entry) {
         // Refused by the workspace's permissions: put the server's copy back (once this version is
         // the one still on the device; a newer local edit goes up on its own) and say why.
         if (!unchanged) continue;
-        try { writeEntry(normalizeScoutEntry(res.entry, space)); } catch { continue; /* stays queued: the next push brings the copy again */ }
+        try { writeEntry(withNewerPhotos(normalizeScoutEntry(res.entry, space), current)); } catch { continue; /* stays queued: the next push brings the copy again */ }
         now.delete(res.uuid);
         const kind = sentVersion?.deleted ? "delete" : "edit-deleted";
         // Deleting something already deleted (by its author or an admin) needs no message.
@@ -358,15 +358,25 @@ export async function syncScouting(space: ScoutSpace = null): Promise<{ sent: nu
 }
 
 /**
- * Newer wins; an equal stamp from the server wins unless this device has that entry queued.
- * Photos are the server's alone: a newer photo list (photosRev) is taken even when the device's text edit wins.
+ * A server copy of a workspace entry, keeping whichever photo list is newer (photosRev): the
+ * device's or the copy's. Photos are chosen apart from the text, so a late answer (an upload's,
+ * a push's) never brings back a photo a newer change removed.
+ */
+function withNewerPhotos(server: ScoutEntry, cur: ScoutEntry | null): ScoutEntry {
+  if (server.workspaceId == null || !cur || (server.photosRev ?? 0) >= (cur.photosRev ?? 0)) return server;
+  return { ...server, photos: cur.photos, photoExpired: cur.photoExpired, photosRev: cur.photosRev };
+}
+
+/**
+ * The text: newer wins; an equal stamp from the server wins unless this device has that entry queued.
+ * The photos (the server's alone), separately: the newer photosRev wins, whichever text does.
  */
 function mergeFromServer(space: ScoutSpace, list: ScoutEntry[]) {
   const d = dirty(space);
   for (const raw of list) {
     const e = normalizeScoutEntry(raw, space);
     const cur = readEntry(space, e.uuid);
-    if (!cur || e.updatedAt > cur.updatedAt || (space != null && e.updatedAt === cur.updatedAt && !d.has(e.uuid))) writeEntry(e);
+    if (!cur || e.updatedAt > cur.updatedAt || (space != null && e.updatedAt === cur.updatedAt && !d.has(e.uuid))) writeEntry(withNewerPhotos(e, cur));
     else if (space != null && (e.photosRev ?? 0) > (cur.photosRev ?? 0)) writeEntry({ ...cur, photos: e.photos, photoExpired: e.photoExpired, photosRev: e.photosRev });
   }
 }

@@ -58,7 +58,7 @@ export const levelFor = (bytes: number): StorageLevel => {
 
 export const PHOTO_TIMING = {
   /** How long an upload URL works. */
-  uploadTtlSec: 600,
+  uploadTtlSec: 300,
   /** How long a view URL works; the redirect to it is cached a bit less. */
   viewTtlSec: 900,
   /** A reservation never completed is released (and its object, if any, deleted) after this. */
@@ -184,8 +184,18 @@ export async function reservePhoto(user: User, m: Membership, entryUuid: unknown
     if (Number(p?.n) >= PHOTO_TIMING.pendingPerAccount) return fail(429, "Too many uploads at once. Wait for these to finish.");
     return fail(404, "This entry was deleted.");
   }
-  return { ok: true, photoId: id, uploadUrl: uploadUrl(c, key, "image/jpeg", PHOTO_TIMING.uploadTtlSec), headers: { "Content-Type": "image/jpeg" }, expiresAt: now + PHOTO_TIMING.uploadTtlSec * 1000 };
+  // The browser sends Content-Length itself (it can't set it); the URL is signed for exactly `bytes`.
+  return { ok: true, photoId: id, uploadUrl: uploadUrl(c, key, "image/jpeg", bytes, PHOTO_TIMING.uploadTtlSec), headers: { "Content-Type": "image/jpeg" }, expiresAt: now + PHOTO_TIMING.uploadTtlSec * 1000 };
 }
+
+/**
+ * One change at a time per photo: completing an upload and anything that deletes the image (removal,
+ * expiry, purge, the sweeps) each hold this from their storage call to their row change, so a
+ * deletion can never land between an upload's check and its record (a "ready" photo with no image).
+ * In-process, like the workspace write order (bus.ts): one server process writes photos.
+ */
+const photoLock = <T>(id: string, fn: () => Promise<T>) => serialized(`photo:${id}`, fn);
+const statusOf = async (id: string) => (await get<{ status: string }>("SELECT status FROM entry_photos WHERE id = ?", [id]))?.status ?? null;
 
 async function photoRow(m: Membership, photoId: unknown): Promise<any | null> {
   if (typeof photoId !== "string" || !/^[0-9a-f-]{36}$/.test(photoId)) return null;
@@ -202,26 +212,31 @@ export async function completePhoto(m: Membership, photoId: unknown): Promise<{ 
   if (!c) return fail(404, "Not found");
   const p = await photoRow(m, photoId);
   if (!p) return fail(404, "No such photo.");
-  if (p.status === "ready") return { ok: true, entry: withoutSeq((await readLiveEntries(m.workspaceId, [p.entry_uuid])).get(p.entry_uuid)) }; // a retry
-  if (p.status !== "pending") return fail(410, "This photo has expired.");
   if (Number(p.added_by_account_id) !== m.accountId) return fail(403, "Only the person uploading a photo can finish it.");
-  const head = await headObject(c, p.object_key).catch(() => undefined);
-  if (head === undefined) return fail(502, "Couldn't reach photo storage. Try again.");
-  if (!head) {
-    await run("DELETE FROM entry_photos WHERE id = ? AND status = 'pending'", [p.id]);
-    return fail(409, "The photo didn't finish uploading. Try again.");
-  }
-  if (head.bytes < 1 || head.bytes > Number(p.bytes) || head.bytes > PHOTO_LIMITS.maxBytes) {
-    // Larger than reserved: it never counts against the cap unreserved. Gone again, and so is the reservation.
-    await deleteObject(c, p.object_key).catch(() => undefined); // the nightly sweep catches it otherwise
-    await run("DELETE FROM entry_photos WHERE id = ? AND status = 'pending'", [p.id]);
-    return fail(413, "The uploaded photo wasn't the size it said. Try again.");
-  }
-  const rows = await commitPhotoChange(m.workspaceId, Number(p.workspace_id), [p.entry_uuid], [
-    { sql: "UPDATE entry_photos SET status = 'ready', bytes = ?, recorded_at = ? WHERE id = ? AND status = 'pending'", args: [head.bytes, Date.now(), p.id] },
-  ]);
-  await checkStorageAlerts().catch((e) => console.error("[photos] storage alert check failed", e));
-  return { ok: true, entry: withoutSeq(rows.get(p.entry_uuid)) };
+  const out = await photoLock(p.id, async (): Promise<{ ok: true; entry: WorkspaceEntryOut | null } | Fail> => {
+    const status = await statusOf(p.id);
+    if (status === "ready") return { ok: true, entry: withoutSeq((await readLiveEntries(m.workspaceId, [p.entry_uuid])).get(p.entry_uuid)) }; // a retry
+    if (status === "expired") return fail(410, "This photo has expired.");
+    if (status !== "pending") return fail(409, "This upload was cancelled. Try again.");
+    const head = await headObject(c, p.object_key).catch(() => undefined);
+    if (head === undefined) return fail(502, "Couldn't reach photo storage. Try again.");
+    if (!head) {
+      await run("DELETE FROM entry_photos WHERE id = ? AND status = 'pending'", [p.id]);
+      return fail(409, "The photo didn't finish uploading. Try again.");
+    }
+    if (head.bytes !== Number(p.bytes)) {
+      // Not what was reserved against the cap (storage should have refused it already): gone again, with its reservation.
+      await deleteObject(c, p.object_key).catch(() => undefined); // the nightly listing catches it otherwise
+      await run("DELETE FROM entry_photos WHERE id = ? AND status = 'pending'", [p.id]);
+      return fail(413, "The uploaded photo wasn't the size it said. Try again.");
+    }
+    const rows = await commitPhotoChange(m.workspaceId, Number(p.workspace_id), [p.entry_uuid], [
+      { sql: "UPDATE entry_photos SET status = 'ready', recorded_at = ? WHERE id = ? AND status = 'pending'", args: [Date.now(), p.id] },
+    ]);
+    return { ok: true, entry: withoutSeq(rows.get(p.entry_uuid)) };
+  });
+  if (out.ok) await checkStorageAlerts().catch((e) => console.error("[photos] storage alert check failed", e));
+  return out;
 }
 
 export const MAY_NOT_REMOVE = "You can remove photos you added, or any photo on your own entry. A workspace admin can remove the rest.";
@@ -234,38 +249,50 @@ export const mayRemovePhoto = (m: Pick<Membership, "accountId" | "role">, p: { a
 export async function removePhoto(m: Membership, photoId: unknown): Promise<{ ok: true; entry: WorkspaceEntryOut | null } | Fail> {
   const c = r2();
   if (!c) return fail(404, "Not found");
-  const p = await photoRow(m, photoId);
-  if (!p || p.status === "pending") return fail(404, "No such photo.");
-  if (!mayRemovePhoto(m, { addedByAccountId: Number(p.added_by_account_id), entryAuthorAccountId: p.entry_author == null ? null : Number(p.entry_author) })) return fail(403, MAY_NOT_REMOVE);
-  if (p.status === "ready") {
-    try { await deleteObject(c, p.object_key); } catch { return fail(502, "Couldn't reach photo storage, so the photo is still there. Try again."); }
-  }
-  const rows = await commitPhotoChange(m.workspaceId, Number(p.workspace_id), [p.entry_uuid], [{ sql: "DELETE FROM entry_photos WHERE id = ?", args: [p.id] }]);
-  return { ok: true, entry: withoutSeq(rows.get(p.entry_uuid)) };
+  const first = await photoRow(m, photoId);
+  if (!first) return fail(404, "No such photo.");
+  return photoLock(first.id, async () => {
+    const p = await photoRow(m, photoId); // as it is now, under the lock
+    if (!p || p.status === "pending") return fail(404, "No such photo.");
+    if (!mayRemovePhoto(m, { addedByAccountId: Number(p.added_by_account_id), entryAuthorAccountId: p.entry_author == null ? null : Number(p.entry_author) })) return fail(403, MAY_NOT_REMOVE);
+    if (p.status === "ready") {
+      try { await deleteObject(c, p.object_key); } catch { return fail(502, "Couldn't reach photo storage, so the photo is still there. Try again."); }
+    }
+    const rows = await commitPhotoChange(m.workspaceId, Number(p.workspace_id), [p.entry_uuid], [{ sql: "DELETE FROM entry_photos WHERE id = ?", args: [p.id] }]);
+    return { ok: true as const, entry: withoutSeq(rows.get(p.entry_uuid)) };
+  });
 }
 
 // --- Expiry, purge and the meter ------------------------------------------------------------
 
 interface DueRow { id: string; workspace_id: number; cp_workspace_id: string; entry_uuid: string; object_key: string; status: string }
 
+/**
+ * Delete one photo's image, then change its record, under the photo's lock, and only if its status is
+ * still one of `from` (re-read under the lock: an upload may have completed, or a removal won, meanwhile).
+ * "expire": a ready photo's row stays as expired ("photo expired"); "forget": the row goes. A pending
+ * photo's row always just goes (its reservation released). Ready ones stream to the workspace.
+ */
+async function dropPhoto(c: R2Config, p: DueRow, how: "expire" | "forget", reason: string, from: string[]): Promise<"done" | "skipped" | "failed"> {
+  return photoLock(p.id, async () => {
+    const status = await statusOf(p.id);
+    if (!status || !from.includes(status)) return "skipped";
+    try { await deleteObject(c, p.object_key); } catch { return "failed"; } // tried again next time
+    if (status === "pending") { await run("DELETE FROM entry_photos WHERE id = ? AND status = 'pending'", [p.id]); return "done"; }
+    await commitPhotoChange(p.cp_workspace_id, Number(p.workspace_id), [p.entry_uuid], [how === "expire"
+      ? { sql: "UPDATE entry_photos SET status = 'expired', expired_at = ?, expired_reason = ? WHERE id = ? AND status = ?", args: [Date.now(), reason, p.id, status] }
+      : { sql: "DELETE FROM entry_photos WHERE id = ?", args: [p.id] }]);
+    return "done";
+  });
+}
+
 /** Delete the images of these photos and mark them expired (rows kept: "photo expired"); pending ones are just released. */
-async function expirePhotos(c: R2Config, rows: DueRow[], reason: string): Promise<{ expired: number; failures: number }> {
+async function expirePhotos(c: R2Config, rows: DueRow[], reason: string, from = ["ready"]): Promise<{ expired: number; failures: number }> {
   let expired = 0, failures = 0;
-  const byWs = new Map<string, { dbId: number; ready: DueRow[] }>();
   for (const p of rows) {
-    try { await deleteObject(c, p.object_key); } catch { failures++; continue; } // tried again next night
-    if (p.status === "pending") { await run("DELETE FROM entry_photos WHERE id = ? AND status = 'pending'", [p.id]); continue; }
-    const g = byWs.get(p.cp_workspace_id) ?? { dbId: Number(p.workspace_id), ready: [] };
-    g.ready.push(p);
-    byWs.set(p.cp_workspace_id, g);
-  }
-  const now = Date.now();
-  for (const [ws, g] of byWs) {
-    await commitPhotoChange(ws, g.dbId, g.ready.map((p) => p.entry_uuid), [{
-      sql: `UPDATE entry_photos SET status = 'expired', expired_at = ?, expired_reason = ? WHERE id IN (${g.ready.map(() => "?").join(", ")}) AND status = 'ready'`,
-      args: [now, reason, ...g.ready.map((p) => p.id)],
-    }]);
-    expired += g.ready.length;
+    const r = await dropPhoto(c, p, "expire", reason, from);
+    if (r === "failed") failures++;
+    else if (r === "done" && p.status === "ready") expired++;
   }
   return { expired, failures };
 }
@@ -276,11 +303,13 @@ export interface MaintenanceResult { at: string; usedBytes: number; bucketBytes:
 export async function sweepStaleReservations(now = Date.now()): Promise<{ removed: number; failures: number }> {
   const c = r2();
   if (!c) return { removed: 0, failures: 0 };
-  const stale = await all<any>("SELECT id, object_key FROM entry_photos WHERE status = 'pending' AND created_at < ?", [now - PHOTO_TIMING.staleReservationMs]);
+  const stale = await all<DueRow>(`SELECT p.id, p.workspace_id, w.cp_workspace_id, p.entry_uuid, p.object_key, p.status
+    FROM entry_photos p JOIN workspaces w ON w.id = p.workspace_id WHERE p.status = 'pending' AND p.created_at < ?`, [now - PHOTO_TIMING.staleReservationMs]);
   let removed = 0, failures = 0;
   for (const p of stale) {
-    try { await deleteObject(c, p.object_key); } catch { failures++; continue; }
-    removed += await run("DELETE FROM entry_photos WHERE id = ? AND status = 'pending'", [p.id]);
+    // Still pending under the lock: an upload completing right now wins and keeps its photo.
+    const r = await dropPhoto(c, p, "forget", "abandoned", ["pending"]);
+    if (r === "done") removed++; else if (r === "failed") failures++;
   }
   return { removed, failures };
 }
@@ -312,23 +341,32 @@ export async function runPhotoMaintenance(now = Date.now()): Promise<Maintenance
   let failures = ex.failures, removed = 0;
 
   // Photos of deleted entries: nothing shows them any more.
-  const orphaned = await all<any>(`SELECT p.id, p.object_key ${join} JOIN workspace_scout_entries e ON e.workspace_id = p.workspace_id AND e.uuid = p.entry_uuid
-    WHERE e.deleted = 1 AND p.status IN ('pending', 'ready')`);
+  const orphaned = await all<DueRow>(`SELECT p.id, p.workspace_id, w.cp_workspace_id, p.entry_uuid, p.object_key, p.status ${join}
+    JOIN workspace_scout_entries e ON e.workspace_id = p.workspace_id AND e.uuid = p.entry_uuid WHERE e.deleted = 1 AND p.status IN ('pending', 'ready')`);
   for (const p of orphaned) {
-    try { await deleteObject(c, p.object_key); } catch { failures++; continue; }
-    removed += await run("DELETE FROM entry_photos WHERE id = ?", [p.id]);
+    const r = await dropPhoto(c, p, "forget", "entry-deleted", ["pending", "ready"]);
+    if (r === "done") removed++; else if (r === "failed") failures++;
   }
   const sweep = await sweepStaleReservations(now);
   removed += sweep.removed; failures += sweep.failures;
 
-  // The bucket itself: objects with no record (an upload whose reservation was released) go too.
+  // The bucket itself: objects with no record (an upload whose reservation was released) go, and so does
+  // a stored photo whose object is larger than its record says (storage should never allow it; the meter
+  // and the cap read the records, so nothing may hide outside them).
   let bucketBytes: number | null = null, bucketObjects: number | null = null, orphans = 0;
   try {
-    const known = new Set((await all<{ object_key: string }>("SELECT object_key FROM entry_photos WHERE status IN ('pending', 'ready')")).map((r) => r.object_key));
+    const known = new Map((await all<DueRow & { bytes: number }>(
+      "SELECT p.id, p.workspace_id, w.cp_workspace_id, p.entry_uuid, p.object_key, p.status, p.bytes FROM entry_photos p JOIN workspaces w ON w.id = p.workspace_id WHERE p.status IN ('pending', 'ready')",
+    )).map((r) => [r.object_key, r]));
     bucketBytes = 0; bucketObjects = 0;
     for (const o of await listObjects(c, "photos/")) {
-      if (!known.has(o.key) && o.lastModified < now - PHOTO_TIMING.orphanGraceMs) {
+      const rec = known.get(o.key);
+      if (!rec && o.lastModified < now - PHOTO_TIMING.orphanGraceMs) {
         try { await deleteObject(c, o.key); orphans++; continue; } catch { failures++; }
+      } else if (rec && o.bytes > Number(rec.bytes)) {
+        const r = await dropPhoto(c, rec, "forget", "oversize", ["pending", "ready"]);
+        if (r === "done") { orphans++; continue; }
+        if (r === "failed") failures++;
       }
       bucketBytes += o.bytes; bucketObjects++;
     }

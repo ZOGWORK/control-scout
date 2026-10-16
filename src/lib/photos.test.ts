@@ -4,7 +4,7 @@
 // server winning over the device's copy even when a text edit is queued.
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { canRemovePhoto, compressPhoto, fitWithin, jpegHasExif, PhotoError, uploadEntryPhoto, type CompressDeps } from "./photos";
-import { applyLiveEntries, localScoutEntries, saveScoutEntry, type ScoutEntry } from "./scouting";
+import { adoptServerEntry, applyLiveEntries, localScoutEntries, saveScoutEntry, type ScoutEntry } from "./scouting";
 import { PHOTO_LIMITS } from "../shared/photos";
 
 beforeEach(() => { localStorage.clear(); });
@@ -111,6 +111,12 @@ describe("photo lists from the server", () => {
     // An older list (a late frame) doesn't undo it.
     applyLiveEntries(ws, [{ entry: mk({ photos: [], photosRev: 0 }), seq: 3 }]);
     expect(localScoutEntries(ws)[0].photos).toEqual([photo]);
+    // A late answer with an equal stamp but an older photo list (an upload's, after a removal streamed in) keeps the newer list.
+    applyLiveEntries(ws, [{ entry: mk({ updatedAt: localScoutEntries(ws)[0].updatedAt, notes: "mine, not synced", photos: [], photosRev: 2 }), seq: 4 }]);
+    expect(localScoutEntries(ws)[0]).toMatchObject({ photos: [], photosRev: 2 });
+    adoptServerEntry(ws, mk({ updatedAt: localScoutEntries(ws)[0].updatedAt + 1, notes: "newer text", photos: [photo], photosRev: 1 }));
+    expect(localScoutEntries(ws)[0]).toMatchObject({ notes: "newer text", photos: [], photosRev: 2 });
+    saveScoutEntry({ ...localScoutEntries(ws)[0], photos: [photo], photosRev: 1 });
     // A text edit keeps the photos it had.
     saveScoutEntry({ ...localScoutEntries(ws)[0], photos: undefined, notes: "again" });
     expect(localScoutEntries(ws)[0]).toMatchObject({ notes: "again", photos: [photo] });

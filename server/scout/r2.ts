@@ -42,9 +42,13 @@ export function r2(): R2Config | null {
 
 const objectUrl = (c: R2Config, key: string) => `${c.endpoint}/${encodeURIComponent(c.bucket)}/${key.split("/").map(encodeURIComponent).join("/")}`;
 
-/** A URL the browser PUTs the photo to (Content-Type must be exactly `contentType`). */
-export function uploadUrl(c: R2Config, key: string, contentType: string, ttlSec: number): string {
-  return presign({ method: "PUT", url: objectUrl(c, key), creds: c.creds, expiresSec: ttlSec, headers: { "Content-Type": contentType } });
+/**
+ * A URL the browser PUTs the photo to. Content-Type and Content-Length are signed: the body must be
+ * exactly `bytes` long (the browser sends the length itself), so storage refuses anything larger
+ * than what was reserved against the cap, a repeat PUT within the URL's lifetime included.
+ */
+export function uploadUrl(c: R2Config, key: string, contentType: string, bytes: number, ttlSec: number): string {
+  return presign({ method: "PUT", url: objectUrl(c, key), creds: c.creds, expiresSec: ttlSec, headers: { "Content-Type": contentType, "Content-Length": String(bytes) } });
 }
 
 /** A short-lived URL to view a photo. */
