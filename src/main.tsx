@@ -53,9 +53,10 @@ const PAGES = {
   PrivacyPage: lazyPage(() => import("./pages/PrivacyPage")),
   TermsPage: lazyPage(() => import("./pages/TermsPage")),
   ContactPage: lazyPage(() => import("./pages/ContactPage")),
+  MatchReportPage: lazyPage(() => import("./pages/MatchReportPage")),
   NotFound: lazyPage(() => import("./pages/NotFound")),
 } satisfies Record<PageModule, unknown>;
-const { TeamPage, EventsPage, RecordsPage, EventPage, PredictPage, ComparePage, MyTeamPage, ShortlistPage, ScoutPage, DownloadPage, SettingsPage, MethodologyPage, PrivacyPage, TermsPage, ContactPage, NotFound } = PAGES;
+const { TeamPage, EventsPage, RecordsPage, EventPage, PredictPage, ComparePage, MyTeamPage, ShortlistPage, ScoutPage, DownloadPage, SettingsPage, MethodologyPage, PrivacyPage, TermsPage, ContactPage, MatchReportPage, NotFound } = PAGES;
 
 // Offline: the service worker precaches the app so it opens with no signal.
 // Production builds only (dev serves unbundled modules).
@@ -93,6 +94,7 @@ void ready.catch(() => { /* a failed load is retried (and shown) by the page's o
                   <Route path="/teams/:number" element={<TeamPage />} />
                   <Route path="/events" element={<EventsPage />} />
                   <Route path="/events/:season/:code" element={<EventPage />} />
+                  <Route path="/events/:season/:code/match/:key" element={<MatchReportPage />} />
                   <Route path="/predict" element={<PredictPage />} />
                   <Route path="/predict/accuracy" element={<Navigate to={{ pathname: "/methodology", hash: "#accuracy" }} replace />} />
                   <Route path="/compare" element={<ComparePage />} />
