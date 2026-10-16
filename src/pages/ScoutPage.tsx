@@ -3,13 +3,18 @@
 // your account when signed in and online.
 import { useEffect, useId, useMemo, useRef, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
-import { ClipboardList, Cloud, CloudOff, Download, History, Info, LayoutList, Loader2, MessageSquare, Plus, Save, Trash2, X } from "lucide-react";
+import { ClipboardList, Cloud, CloudOff, Download, History, Info, LayoutList, Loader2, MessageSquare, Plus, Save, SearchX, Trash2, X } from "lucide-react";
 import { useCurrentSeason, useTitle } from "../lib/meta";
 import { usePersonal } from "../lib/personal";
 import { canDeleteScoutEntry, deleteScoutEntry, localScoutEntries, newScoutId, refusalMessage, SCOUT_REFUSED, type ScoutRefusal, saveScoutEntry, ScoutStorageError, usePendingScoutCounts, useScouting, type ScoutEntry, type ScoutSpace, type ScoutValue } from "../lib/scouting";
 import { resolveTemplate, useEntryTemplate, useEntryTemplateState, useWorkspaceTemplate } from "../lib/scoutTemplates";
 import { ALL_PHASES, phaseLabel, type WorkspaceTemplate } from "../shared/scoutTemplate";
 import { workspaceExportUrl } from "../shared/scoutExport";
+import { activeFilterCount } from "../shared/scoutFilter";
+import { EntryFilterBar } from "../components/scout/EntryFilterBar";
+import { useEntryFeed, type FeedViewer } from "../lib/scoutFeed";
+import { qs, useApi } from "../lib/api";
+import type { EventListItem } from "../shared/api";
 import { ScoutFieldInput } from "../components/scout/ScoutFieldInput";
 import { TemplateEditor } from "../components/scout/TemplateEditor";
 import { useScoutSpaces, workspaceLabel } from "../lib/scoutSpace";
@@ -37,7 +42,8 @@ export default function ScoutPage() {
   useTitle("Scout");
   const [sp, setSp] = useSearchParams();
   const current = useCurrentSeason();
-  const teamFilter = Number(sp.get("team")) || undefined;
+  // One team in the filter (a link from a team page, or picked in the filter bar): a new entry starts with it.
+  const teamFilter = /^\d+$/.test(sp.get("team") ?? "") ? Number(sp.get("team")) || undefined : undefined;
   const { user, syncReady } = usePersonal();
   const spaces = useScoutSpaces();
   const { space, current: workspace } = spaces;
@@ -56,7 +62,7 @@ export default function ScoutPage() {
     if (settingsKnown && space != null && openedSeason == null) setOpened({ space, season });
     else if (space == null) setOpened(null);
   }, [settingsKnown, space, openedSeason, season]);
-  const { entries, status, pendingCount, syncNow } = useScouting({ season, team: teamFilter }, syncReady, space);
+  const { entries, status, pendingCount, syncNow } = useScouting({ season }, syncReady, space);
   const live = useScoutLive(space, syncReady);
   // How many comments each workspace entry has (Task 15), for the cards; live with the stream.
   const commentCounts = useCommentCounts(syncReady ? space : null);
@@ -66,15 +72,45 @@ export default function ScoutPage() {
   useEffect(() => { if (live === "revoked" && space != null) revoke(space); }, [live, space, revoke]);
   const editing = sp.get("entry");
   const editEntry = entries.find((e) => e.uuid === editing) ?? null;
-  const [formOpen, setFormOpen] = useState(!!teamFilter || !!editing);
+  // "Scout this team" (a team page) links here with ?new=1: the form opens with that team. A filtered link alone doesn't open it.
+  const opensNew = sp.get("new") === "1";
+  const [formOpen, setFormOpen] = useState(opensNew || !!editing);
+  // The team a new entry starts with: fixed when the form opens, so filtering while it's open never resets it.
+  const [formTeam, setFormTeam] = useState(opensNew ? teamFilter : undefined);
+  const openNew = () => { setFormTeam(teamFilter); setFormOpen(true); };
   useEffect(() => { if (editing) setFormOpen(true); }, [editing]);
   // Another space's entry can't be edited here: switching closes an edit (a new entry stays open and saves to the new space).
-  const selectSpace = (s: ScoutSpace) => { if (editing) setFormOpen(!!teamFilter); spaces.select(s); };
+  // Authors are a workspace's own, so the author filter doesn't carry over.
+  // (Cleared once the switch is in the URL: two URL writes in one go would drop one.)
+  const switching = useRef<{ to: ScoutSpace } | null>(null);
+  const selectSpace = (s: ScoutSpace) => {
+    if (editing) setFormOpen(false);
+    switching.current = s !== space ? { to: s } : null;
+    spaces.select(s);
+  };
+  useEffect(() => {
+    if (!switching.current || switching.current.to !== space) return;
+    switching.current = null;
+    if (sp.has("author")) setSp((x) => { x.delete("author"); return x; }, { replace: true });
+  }, [space, sp, setSp]);
   // Your account and role in this workspace (Control Point's), for which entries you may delete. The server enforces it.
   const me = useMemo(() => {
     const cp = user?.controlPoint;
     return space == null || !cp ? null : { accountId: cp.accountId, role: cp.workspaces?.find((w) => w.id === space)?.role };
   }, [user, space]);
+  // The feed: the space's entries filtered and sorted as the URL says (Task 17; the export applies the same filters).
+  const viewer = useMemo<FeedViewer | null>(() => (me?.accountId ? { accountId: me.accountId, displayName: user?.displayName ?? "" } : null), [me, user?.displayName]);
+  const [wantEvents, setWantEvents] = useState(false);
+  const hasEvents = entries.some((e) => e.eventCode);
+  const eventList = useApi<{ events: EventListItem[] }>(wantEvents && hasEvents ? `/api/events${qs({ season })}` : null);
+  const eventNames = useMemo(() => new Map((eventList.data?.events ?? []).map((e) => [e.code.toUpperCase(), e.name])), [eventList.data]);
+  const feed = useEntryFeed(entries, sp, setSp, { workspace: space != null, me: viewer, eventNames });
+  // A filter the export would refuse (a hand-edited link): dropped, so the feed and the export always agree.
+  const invalidFilters = feed.invalid.join();
+  useEffect(() => {
+    if (invalidFilters) setSp((x) => { for (const k of invalidFilters.split(",")) x.delete(k); return x; }, { replace: true });
+  }, [invalidFilters, setSp]);
+  const filtering = activeFilterCount(feed.filters) > 0;
   // The workspace's template for this season (Personal: the built-in defaults). Admins edit it here (?view=template).
   const wt = useWorkspaceTemplate(space, season);
   const isAdmin = me?.role === "admin";
@@ -118,19 +154,18 @@ export default function ScoutPage() {
         )}
         <div className="flex flex-wrap items-center gap-3">
           <SeasonToggle predictOnly value={season} onChange={(s) => setSp((x) => { x.set("season", String(s)); return x; })} />
-          {teamFilter && <Badge variant="soft">Team {teamFilter} <button onClick={() => setSp((x) => { x.delete("team"); return x; })} aria-label="Clear team filter" className="ml-1">×</button></Badge>}
-          {!formOpen && <Button onClick={() => setFormOpen(true)}><Plus /> New entry</Button>}
+          {!formOpen && <Button onClick={openNew}><Plus /> New entry</Button>}
           {workspace && !spaces.resolving && (
             <Button variant="outline" aria-pressed={showActivity} onClick={toggleActivity}><History /> Activity</Button>
           )}
           {workspace && isAdmin && !spaces.resolving && (
             <Button variant="outline" aria-pressed={showTemplate} onClick={toggleTemplate}><LayoutList /> Template</Button>
           )}
-          {/* The server applies the filters in the URL (season, team, …: src/shared/scoutExport.ts) and checks membership. */}
+          {/* The server applies the URL's filters (src/shared/scoutFilter.ts, the same predicate as the feed) and checks membership. */}
           {workspace && !spaces.resolving && (
             <Button variant="outline" asChild>
-              <a href={workspaceExportUrl(workspace.id, new URLSearchParams({ ...Object.fromEntries(sp), season: String(season) }))} download
-                aria-label={teamFilter ? `Export team ${teamFilter}'s ${season} entries as CSV` : `Export all ${season} entries as CSV`}><Download /> Export CSV</a>
+              <a href={workspaceExportUrl(workspace.id, exportParams(sp, season))} download
+                aria-label={filtering ? `Export the ${feed.shown.length} filtered ${season} entries as CSV` : `Export all ${season} entries as CSV`}><Download /> Export CSV</a>
             </Button>
           )}
         </div>
@@ -139,18 +174,25 @@ export default function ScoutPage() {
         <TemplateEditor key={`${workspace.id}:${season}`} workspaceId={workspace.id} workspaceName={workspaceLabel(workspace)} season={season} template={wt.template} onClose={toggleTemplate} />
       )}
       {formOpen && !spaces.resolving && (
-        <EntryForm key={editEntry?.uuid ?? `new-${teamFilter ?? ""}`} season={season} initial={editEntry} team={teamFilter} space={space} spaceName={workspace ? workspaceLabel(workspace) : null} workspaceTemplate={wt.template} templatePending={templatePending}
+        <EntryForm key={editEntry?.uuid ?? `new-${formTeam ?? ""}`} season={season} initial={editEntry} team={formTeam} space={space} spaceName={workspace ? workspaceLabel(workspace) : null} workspaceTemplate={wt.template} templatePending={templatePending}
           defaultEvent={newEntryEventCode(space, wss.defaults, season)}
-          onDone={() => { setFormOpen(false); setSp((x) => { x.delete("entry"); return x; }); }} />
+          onDone={() => { setFormOpen(false); setSp((x) => { x.delete("entry"); x.delete("new"); return x; }); }} />
       )}
       {formOpen && !spaces.resolving && editEntry?.workspaceId != null && <EntryComments key={`comments-${editEntry.uuid}`} entry={editEntry} className="-mt-4 mb-8" />}
       {showActivity && workspace ? <ActivityFeed state={activity} workspaceName={workspaceLabel(workspace)} onOpenEntry={openEntry} /> : <>
-      <Section title={`Entries (${entries.length})`} description={teamFilter ? `For team ${teamFilter}` : "Newest first"}>
-        {spaces.resolving ? <LoadingBlock rows={3} label="Loading scout space" /> : !entries.length ? <EmptyState icon={ClipboardList} title="No scouting entries yet" description="Start one above, or from any team page. Entries save on this device first, so scouting works with no signal." /> : (
-          <ul className="grid gap-2 md:grid-cols-2">
-            {entries.map((e) => <EntryCard key={e.uuid} e={e} canDelete={canDeleteScoutEntry(e, me)} comments={commentCounts[e.uuid] ?? 0} onEdit={() => setSp((x) => { x.set("entry", e.uuid); return x; })} />)}
-          </ul>
-        )}
+      <Section title={`Entries (${entries.length})`}>
+        {spaces.resolving ? <LoadingBlock rows={3} label="Loading scout space" /> : !entries.length ? <EmptyState icon={ClipboardList} title="No scouting entries yet" description="Start one above, or from any team page. Entries save on this device first, so scouting works with no signal." /> : <>
+          <EntryFilterBar filters={feed.filters} query={feed.query} sort={feed.sort} options={feed.options} shown={feed.shown.length} total={entries.length}
+            onFilter={feed.setFilter} onSort={feed.setSort} onClear={feed.clear} onWantEvents={() => setWantEvents(true)} />
+          {!feed.shown.length ? (
+            <EmptyState icon={SearchX} title="No entries match" description={`None of the ${entries.length} entries in this space match these filters.`}
+              action={<Button variant="outline" onClick={feed.clear}>Clear filters</Button>} />
+          ) : (
+            <ul className="grid gap-2 md:grid-cols-2">
+              {feed.shown.map((e) => <EntryCard key={e.uuid} e={e} canDelete={canDeleteScoutEntry(e, me)} comments={commentCounts[e.uuid] ?? 0} onEdit={() => setSp((x) => { x.set("entry", e.uuid); return x; })} />)}
+            </ul>
+          )}
+        </>}
       </Section>
       <Section title="Match recordings" description="Videos you recorded in the app stay on this device only — they're never uploaded. YouTube links you add sync with your account.">
         <Recordings />
@@ -158,6 +200,13 @@ export default function ScoutPage() {
       </>}
     </div>
   );
+}
+
+/** What Export CSV sends: the page URL's filters (the feed's), for the season on screen. */
+function exportParams(sp: URLSearchParams, season: number): URLSearchParams {
+  const out = new URLSearchParams(sp);
+  out.set("season", String(season));
+  return out;
 }
 
 function SyncChip({ status, pending, onSync, signedIn, live }: { status: string; pending: number; onSync: () => void; signedIn: boolean; live: LiveMode }) {
