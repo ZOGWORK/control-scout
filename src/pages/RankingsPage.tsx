@@ -2,7 +2,7 @@
 // its move since last week, filterable by country and state, one page of 50 at a time. Everything is
 // in the URL (?season=&region=&week=&page=), so a link reproduces the view. Rules and definitions:
 // src/shared/rankings.ts. No charts on this route: it is linked around and must stay light.
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { ArrowDown, ArrowUp, Check, ChevronDown, ChevronLeft, ChevronRight, ListOrdered, MapPin, Minus, Search, Star, TrendingDown, TrendingUp, Trophy, X } from "lucide-react";
 import { useApi, qs } from "../lib/api";
@@ -39,8 +39,10 @@ const weekLabel = (w: string, year = true) => new Date(`${w}T12:00:00Z`).toLocal
 export default function RankingsPage() {
   const [sp, setSp] = useSearchParams();
   const current = useCurrentSeason();
+  const meta = useMeta();
   const seasonParam = Number(sp.get("season")) || null;
-  const places = useMemo(() => parsePlaces(sp.get("region")) ?? [], [sp]);
+  // Repeated ?region= values count too, as the API and the server's page head read them.
+  const places = useMemo(() => parsePlaces(sp.getAll("region").join(",")) ?? [], [sp]);
   const week = sp.get("week");
   const page = Math.max(1, Number(sp.get("page")) || 1);
   const { state: personal } = usePersonal();
@@ -66,6 +68,28 @@ export default function RankingsPage() {
     setSp(q);
   };
   const setPlaces = (keys: string[]) => go({ region: keys.join(",") || null });
+
+  // The URL says the view the API answered with (places as it read them, the page clamped to the last),
+  // so the address bar and the canonical link match what's shown and what the server's head names.
+  useEffect(() => {
+    if (!res.data) return;
+    const q = new URLSearchParams(sp);
+    q.delete("region");
+    if (res.data.places.length) q.set("region", res.data.places.join(","));
+    if (res.data.page > 1) q.set("page", String(res.data.page)); else q.delete("page");
+    if (q.toString() !== sp.toString()) setSp(q, { replace: true });
+  }, [res.data, sp, setSp]);
+  // A link the API refuses (a season without ratings, a week never saved, a page that isn't a number) falls back
+  // to the default view, as the server's page head does, rather than a dead end.
+  const status = res.error?.status;
+  useEffect(() => {
+    if (status !== 400 && status !== 404) return;
+    const q = new URLSearchParams();
+    // A season with ratings stays (the server's head keeps it too); the week and page go.
+    if (seasonParam && meta?.seasons.some((s) => s.season === seasonParam && s.predictable)) q.set("season", String(seasonParam));
+    if (places.length) q.set("region", places.map(placeKey).join(","));
+    if (q.toString() !== sp.toString()) setSp(q, { replace: true });
+  }, [status, places, sp, setSp, seasonParam, meta]);
   // Your team's state when we can name it (as the filter offers), else its country.
   const mineRaw = placesInfo.data?.mine ?? null;
   const [mineCountry, mineState] = (mineRaw ?? "").split(":");

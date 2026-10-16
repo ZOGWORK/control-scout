@@ -22,4 +22,9 @@ describe("canonicalQuery (client) keeps /rankings' view, like the server", () =>
     expect(canonicalQuery("/rankings/", "")).toBe("");
     expect(canonicalQuery("/teams", "?season=2025")).toBe("");
   });
+  it("normalised as the server reads the view: places as the API parses them (repeats joined), refused values left out", () => {
+    expect(canonicalQuery("/rankings", "?region=USA:tx&region=Canada")).toBe("?region=USA%3ATX%2CCanada");
+    expect(canonicalQuery("/rankings", "?region=%3Cx%3E&week=2026-02-17&page=-3&season=abc")).toBe("");
+    expect(canonicalQuery("/rankings", "?week=2026-02-16&page=2.5")).toBe("?week=2026-02-16");
+  });
 });
