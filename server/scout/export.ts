@@ -98,9 +98,10 @@ export function exportWhere(workspaceRowId: number, f: ExportFilters): { sql: st
   anyOf("UPPER(w.match_label)", f.match);
   if (f.kind) { parts.push("w.kind = ?"); args.push(f.kind); }
   // Free text: plain substring (instr, so % and _ are just characters), each word somewhere in the entry: its
-  // columns, or one of its answers as decoded values (json_each: never the stored JSON's keys, quotes or escapes).
+  // columns, or one of its answers as decoded values (json_each: never the stored JSON's keys, quotes or escapes;
+  // a toggle reads as true / false, as the CSV writes it, not json_each's 1 / 0).
   const columns = "LOWER(w.team || ' ' || COALESCE(w.event_code, '') || ' ' || COALESCE(w.match_label, '') || ' ' || w.notes || ' ' || w.author_name || ' ' || w.editor_name)";
-  const answers = "EXISTS (SELECT 1 FROM json_each(CASE WHEN json_valid(w.data) THEN w.data ELSE '{}' END) a WHERE instr(LOWER(CAST(a.value AS TEXT)), ?) > 0)";
+  const answers = "EXISTS (SELECT 1 FROM json_each(CASE WHEN json_valid(w.data) THEN w.data ELSE '{}' END) a WHERE instr(LOWER(CASE a.type WHEN 'true' THEN 'true' WHEN 'false' THEN 'false' ELSE CAST(a.value AS TEXT) END), ?) > 0)";
   for (const word of f.q ?? []) { parts.push(`(instr(${columns}, ?) > 0 OR ${answers})`); args.push(word, word); }
   return { sql: parts.join(" AND "), args };
 }
