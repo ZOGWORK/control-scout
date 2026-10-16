@@ -249,8 +249,11 @@ describe("workspace CSV export", () => {
     expect(await ids("season=2025&q=a b c d e f g h i j fast")).toEqual([]); // every word applies, the 11th too
     expect(await ids("season=2025&team=111&q=fast intake")).toEqual(["filt00000001"]);
     expect(await ids("season=2025&team=999")).toEqual([]);
-    // Bad filters are a 400, never ignored.
-    for (const q of ["", "season=abc", "season=2025&team=abc", "season=2025&kind=both", "season=2025&event=a%20b", "season=2025&author=-1"]) {
+  });
+
+  it("bad filters are a 400, never ignored (a fresh app: the rate limit starts full)", async () => {
+    const { member } = await team("504");
+    for (const q of ["", "season=abc", "season=2025&team=abc", "season=2025&kind=both", "season=2025&event=a%20b", "season=2025&author=-1", "season=2025&team[value]=111", "season=2025&event[a]=X"]) {
       expect((await member("GET", `/api/scout/workspaces/504/export.csv?${q}`)).status).toBe(400);
     }
   });
@@ -360,5 +363,7 @@ describe("export columns", () => {
       .toEqual({ ok: true, filters: { season: 2025, team: [1, 2], event: ["USCA"], match: ["Q1"], kind: "pit", author: [5, 6], q: ["fast", "intake"] } });
     expect(parseExportFilters({ season: "2025", team: Array.from({ length: 51 }, (_, i) => String(i + 1)).join(",") }).ok).toBe(false);
     expect(parseExportFilters({ season: "2025", q: "x".repeat(201) }).ok).toBe(false);
+    expect(parseExportFilters({ season: "2025", team: { value: "111" } }).ok).toBe(false); // never a dropped filter
+    expect(parseExportFilters({ season: "2025", match: ["Q1", { a: "Q2" }] }).ok).toBe(false);
   });
 });
