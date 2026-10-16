@@ -3,7 +3,7 @@
 // your account when signed in and online.
 import { useEffect, useId, useMemo, useRef, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
-import { ClipboardList, Cloud, CloudOff, Download, History, Info, LayoutList, Loader2, Plus, Save, Trash2, X } from "lucide-react";
+import { ClipboardCheck, ClipboardList, Cloud, CloudOff, Download, History, Info, LayoutList, Loader2, Plus, Save, Trash2, X } from "lucide-react";
 import { useCurrentSeason, useTitle } from "../lib/meta";
 import { usePersonal } from "../lib/personal";
 import { canDeleteScoutEntry, deleteScoutEntry, localScoutEntries, newScoutId, refusalMessage, SCOUT_REFUSED, type ScoutRefusal, saveScoutEntry, ScoutStorageError, usePendingScoutCounts, useScouting, type ScoutEntry, type ScoutSpace, type ScoutValue } from "../lib/scouting";
@@ -21,6 +21,9 @@ import { EntryAttribution } from "../components/EntryAttribution";
 import { EntryPhotos } from "../components/scout/EntryPhotos";
 import { ActivityFeed } from "../components/scout/ActivityFeed";
 import { useWorkspaceActivity } from "../lib/scoutActivity";
+import { AssignmentsView } from "../components/scout/Assignments";
+import { assignedLabel, useAssignmentIndex, useAssignments } from "../lib/assignments";
+import { assignmentKey } from "../shared/assignments";
 import { PageHeader, Section, EmptyState } from "../components/page";
 import { Button } from "../components/ui/button";
 import { Badge, FieldError, Input, Textarea, Label } from "../components/ui/basic";
@@ -87,6 +90,19 @@ export default function ScoutPage() {
   const showActivity = !!workspace && !spaces.resolving && sp.get("view") === "activity";
   const activity = useWorkspaceActivity(showActivity ? space : null, live);
   const toggleActivity = () => setSp((x) => { if (x.get("view") === "activity") x.delete("view"); else x.set("view", "activity"); return x; });
+  // Scouting assignments (Task 10, ?view=assignments): loaded for the whole space, for the view and the badges.
+  const assignments = useAssignments(workspace && !spaces.resolving ? space : null, season, live);
+  const assignIndex = useAssignmentIndex(assignments.list);
+  const showAssignments = !!workspace && !spaces.resolving && sp.get("view") === "assignments";
+  const myOpen = workspace && me ? assignments.list.filter((a) => a.assigneeAccountId === me.accountId && a.status === "open").length : 0;
+  const toggleAssignments = () => setSp((x) => { if (x.get("view") === "assignments") x.delete("view"); else x.set("view", "assignments"); return x; });
+  // Scout an assigned team: a new entry for it at the assignment's event.
+  const scoutAssigned = (team: number, eventCode: string) => {
+    setSp((x) => { x.delete("view"); x.delete("entry"); x.set("team", String(team)); x.set("event", eventCode); return x; });
+    setFormOpen(true);
+  };
+  const eventParam = sp.get("event");
+  const badgeFor = (team: number, eventCode: string | null) => (workspace && eventCode ? assignedLabel(assignIndex.get(assignmentKey(season, eventCode, team)) ?? [], me?.accountId) : null);
   // Tapping an item about an entry opens it (in its season), if this device has it and it wasn't deleted since.
   const openEntry = (uuid: string) => {
     const e = space == null ? null : localScoutEntries(space).find((x) => x.uuid === uuid && !x.deleted);
@@ -119,6 +135,11 @@ export default function ScoutPage() {
           {workspace && !spaces.resolving && (
             <Button variant="outline" aria-pressed={showActivity} onClick={toggleActivity}><History /> Activity</Button>
           )}
+          {workspace && !spaces.resolving && (
+            <Button variant="outline" aria-pressed={showAssignments} onClick={toggleAssignments}>
+              <ClipboardCheck /> Assignments{myOpen > 0 && <Badge variant="beta" className="ml-0.5" aria-label={`${myOpen} open for you`}>{myOpen}</Badge>}
+            </Button>
+          )}
           {workspace && isAdmin && !spaces.resolving && (
             <Button variant="outline" aria-pressed={showTemplate} onClick={toggleTemplate}><LayoutList /> Template</Button>
           )}
@@ -136,14 +157,17 @@ export default function ScoutPage() {
       )}
       {formOpen && !spaces.resolving && (
         <EntryForm key={editEntry?.uuid ?? `new-${teamFilter ?? ""}`} season={season} initial={editEntry} team={teamFilter} space={space} spaceName={workspace ? workspaceLabel(workspace) : null} workspaceTemplate={wt.template} templatePending={templatePending}
-          defaultEvent={newEntryEventCode(space, wss.defaults, season)}
-          onDone={() => { setFormOpen(false); setSp((x) => { x.delete("entry"); return x; }); }} />
+          defaultEvent={(space != null && eventParam?.trim().toUpperCase()) || newEntryEventCode(space, wss.defaults, season)}
+          onDone={() => { setFormOpen(false); setSp((x) => { x.delete("entry"); x.delete("event"); return x; }); }} />
       )}
-      {showActivity && workspace ? <ActivityFeed state={activity} workspaceName={workspaceLabel(workspace)} onOpenEntry={openEntry} /> : <>
+      {showAssignments && workspace && space != null ? (
+        <AssignmentsView space={space} workspaceName={workspaceLabel(workspace)} season={season} defaultEvent={newEntryEventCode(space, wss.defaults, season)}
+          state={assignments} myAccountId={me?.accountId ?? null} isAdmin={isAdmin} localEntries={entries} onScout={scoutAssigned} />
+      ) : showActivity && workspace ? <ActivityFeed state={activity} workspaceName={workspaceLabel(workspace)} onOpenEntry={openEntry} /> : <>
       <Section title={`Entries (${entries.length})`} description={teamFilter ? `For team ${teamFilter}` : "Newest first"}>
         {spaces.resolving ? <LoadingBlock rows={3} label="Loading scout space" /> : !entries.length ? <EmptyState icon={ClipboardList} title="No scouting entries yet" description="Start one above, or from any team page. Entries save on this device first, so scouting works with no signal." /> : (
           <ul className="grid gap-2 md:grid-cols-2">
-            {entries.map((e) => <EntryCard key={e.uuid} e={e} canDelete={canDeleteScoutEntry(e, me)} onEdit={() => setSp((x) => { x.set("entry", e.uuid); return x; })} />)}
+            {entries.map((e) => <EntryCard key={e.uuid} e={e} assigned={badgeFor(e.team, e.eventCode)} canDelete={canDeleteScoutEntry(e, me)} onEdit={() => setSp((x) => { x.set("entry", e.uuid); return x; })} />)}
           </ul>
         )}
       </Section>
@@ -168,7 +192,7 @@ function SyncChip({ status, pending, onSync, signedIn, live }: { status: string;
   );
 }
 
-function EntryCard({ e, canDelete, onEdit }: { e: ScoutEntry; canDelete: boolean; onEdit: () => void }) {
+function EntryCard({ e, assigned, canDelete, onEdit }: { e: ScoutEntry; assigned: string | null; canDelete: boolean; onEdit: () => void }) {
   // The fields it was made with (an older template version stays readable after the admin changes it).
   const t = useEntryTemplate(e);
   const shown = t.fields.filter((f) => e.data[f.id] !== undefined && e.data[f.id] !== false && e.data[f.id] !== 0 && e.data[f.id] !== "").slice(0, 5);
@@ -181,6 +205,7 @@ function EntryCard({ e, canDelete, onEdit }: { e: ScoutEntry; canDelete: boolean
             <>
               <p className="text-xs text-muted-foreground">{e.eventCode ?? "No event"}</p>
               <EntryAttribution e={e} className="mt-0.5" />
+              {assigned && <Badge variant="beta" className="mt-1.5"><ClipboardCheck /> {assigned}</Badge>}
             </>
           )}
         </div>

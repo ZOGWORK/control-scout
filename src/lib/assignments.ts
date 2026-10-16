@@ -1,0 +1,164 @@
+// Scouting assignments on the device (Task 10; server/scout/assignments.ts): a workspace's list for a
+// season, from GET /api/scout/workspaces/:id/assignments, kept live by the workspace's stream
+// (scoutLive.ts re-announces each `event: assignment` as SCOUT_ASSIGNMENT). Fetched again whenever the
+// stream (re)connects and every 30 s while the app polls instead. The last list is kept on the device
+// (per space and season), so My assignments and the badges are there with no signal at the venue.
+//
+// Progress: the server counts the assignee's synced entries; this device adds what it knows that the
+// server can't yet (entries saved here and not synced), so a scout sees their count move the moment they save.
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { apiFetch, ApiError } from "./api";
+import type { LiveMode } from "./scoutLive";
+import type { ScoutEntry } from "./scouting";
+import {
+  assignmentKey, isAssignment, type AssignableMember, type Assignment, type AssignmentNotice, type AssignmentStatus,
+  type CreateAssignmentsBody, type CreateAssignmentsResult, type EventTeamOption,
+} from "../shared/assignments";
+
+export type { Assignment } from "../shared/assignments";
+
+/** Window event: assignments changed on a workspace's stream. detail: { space, notice }. */
+export const SCOUT_ASSIGNMENT = "cs-scout-assignment";
+export const announceAssignments = (space: string, notice: AssignmentNotice) => {
+  window.dispatchEvent(new CustomEvent(SCOUT_ASSIGNMENT, { detail: { space, notice } }));
+};
+
+export const ASSIGNMENTS_POLL_MS = 30_000;
+
+const base = (space: string) => `/api/scout/workspaces/${encodeURIComponent(space)}/assignments`;
+const storeKey = (space: string, season: number) => `cs-assignments:${space}:${season}`;
+
+function readStored(space: string, season: number): Assignment[] | null {
+  try {
+    const raw = localStorage.getItem(storeKey(space, season));
+    const v = raw ? JSON.parse(raw) : null;
+    return Array.isArray(v) ? v.filter(isAssignment) : null;
+  } catch { return null; }
+}
+function store(space: string, season: number, list: Assignment[]) {
+  try { localStorage.setItem(storeKey(space, season), JSON.stringify(list)); } catch { /* full or blocked: the list still shows */ }
+}
+
+/** Apply a live notice to a list (one season's): created/updated replace by id, deleted removes. */
+export function applyNotice(list: Assignment[], n: AssignmentNotice, season: number): Assignment[] {
+  const touched = n.assignments.filter(isAssignment);
+  const ids = new Set(touched.map((a) => a.id));
+  const rest = list.filter((a) => !ids.has(a.id));
+  if (n.action === "deleted") return rest;
+  return [...rest, ...touched.filter((a) => a.season === season)].sort((a, b) => a.id - b.id);
+}
+
+export interface AssignmentsState {
+  list: Assignment[]; loading: boolean; error: ApiError | null;
+  reload: () => void;
+  /** Put the server's answer to a change in at once (the stream brings it too; same result). */
+  apply: (n: AssignmentNotice) => void;
+}
+
+/** A workspace's assignments for a season (null space: Personal, none). */
+export function useAssignments(space: string | null, season: number, live: LiveMode): AssignmentsState {
+  const [list, setList] = useState<Assignment[]>(() => (space ? readStored(space, season) ?? [] : []));
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<ApiError | null>(null);
+  const gen = useRef(0);
+  const loaded = useRef(false);
+
+  const fetchList = useCallback(async () => {
+    if (!space) return;
+    const g = gen.current;
+    setLoading(true);
+    try {
+      const r = await apiFetch<{ assignments: unknown[] }>(`${base(space)}?season=${season}`);
+      if (gen.current !== g) return;
+      const next = (r.assignments ?? []).filter(isAssignment);
+      setList(next); store(space, season, next); setError(null);
+      loaded.current = true;
+    } catch (e) {
+      if (gen.current === g) setError(e instanceof ApiError ? e : new ApiError(0, "Couldn't load the assignments."));
+    } finally {
+      if (gen.current === g) setLoading(false);
+    }
+  }, [space, season]);
+
+  useEffect(() => {
+    gen.current++;
+    loaded.current = false;
+    setList(space ? readStored(space, season) ?? [] : []);
+    setError(null);
+    void fetchList();
+  }, [space, season, fetchList]);
+
+  // Back live (a reconnect may have missed changes): fetch again. Polling: every 30 s.
+  useEffect(() => {
+    if (!space) return;
+    if (live === "live" && loaded.current) void fetchList();
+    if (live !== "polling") return;
+    const t = setInterval(() => { void fetchList(); }, ASSIGNMENTS_POLL_MS);
+    return () => clearInterval(t);
+  }, [live, space, fetchList]);
+
+  const apply = useCallback((n: AssignmentNotice) => {
+    if (!space) return;
+    setList((cur) => { const next = applyNotice(cur, n, season); store(space, season, next); return next; });
+  }, [space, season]);
+
+  useEffect(() => {
+    if (!space) return;
+    const on = (ev: Event) => {
+      const d = (ev as CustomEvent<{ space: string; notice: AssignmentNotice }>).detail;
+      if (d?.space === space && d.notice && Array.isArray(d.notice.assignments)) apply(d.notice);
+    };
+    window.addEventListener(SCOUT_ASSIGNMENT, on);
+    return () => window.removeEventListener(SCOUT_ASSIGNMENT, on);
+  }, [space, apply]);
+
+  return { list, loading, error, reload: () => { void fetchList(); }, apply };
+}
+
+/** Who holds each team at each event: assignmentKey → the assignments (badges on team rows and entry cards). */
+export function useAssignmentIndex(list: Assignment[]): Map<string, Assignment[]> {
+  return useMemo(() => {
+    const m = new Map<string, Assignment[]>();
+    for (const a of list) {
+      const k = assignmentKey(a.season, a.eventCode, a.team);
+      m.set(k, [...(m.get(k) ?? []), a]);
+    }
+    return m;
+  }, [list]);
+}
+
+/** "Assigned to Priya" / "Assigned to you" / "Assigned to Priya and Sam" / "Assigned to Priya +2". */
+export function assignedLabel(holders: Assignment[], myAccountId: number | null | undefined): string | null {
+  if (!holders.length) return null;
+  const names = holders.map((a) => (a.assigneeAccountId === myAccountId ? "you" : a.assigneeName || "a member"));
+  // "you" first: it's what matters to the reader.
+  names.sort((a, b) => (a === "you" ? -1 : b === "you" ? 1 : 0));
+  if (names.length === 1) return `Assigned to ${names[0]}`;
+  if (names.length === 2) return `Assigned to ${names[0]} and ${names[1]}`;
+  return `Assigned to ${names[0]} +${names.length - 1}`;
+}
+
+/**
+ * The assignee's entries for this assignment: the server's count, or this device's when it knows more
+ * (entries saved here that haven't synced yet are the signed-in scout's own).
+ */
+export function assignmentProgress(a: Assignment, local: ScoutEntry[], myAccountId: number | null | undefined): number {
+  const mine = a.assigneeAccountId === myAccountId;
+  const here = local.filter((e) => !e.deleted && e.season === a.season && e.team === a.team && (e.eventCode ?? "").toUpperCase() === a.eventCode
+    && (e.authorAccountId === a.assigneeAccountId || (mine && !e.authorAccountId))).length;
+  return Math.max(a.progress, here);
+}
+
+// --- Changes ---------------------------------------------------------------------------------
+
+export const createAssignments = (space: string, body: CreateAssignmentsBody) =>
+  apiFetch<CreateAssignmentsResult>(base(space), { method: "POST", json: body });
+
+export const setAssignmentStatus = (space: string, id: number, status: AssignmentStatus) =>
+  apiFetch<{ assignment: Assignment; changed: boolean }>(`${base(space)}/${id}`, { method: "PATCH", json: { status } });
+
+export const deleteAssignment = (space: string, id: number) =>
+  apiFetch<{ deleted: number }>(`${base(space)}/${id}`, { method: "DELETE" });
+
+export const fetchAssignOptions = (space: string, season: number, eventCode: string) =>
+  apiFetch<{ members: AssignableMember[]; teams: EventTeamOption[] }>(`${base(space)}/options?season=${season}&event=${encodeURIComponent(eventCode)}`);

@@ -16,6 +16,8 @@ import { applyLiveEntries, notifyScoutChanged, pullScouting, scoutCursor, type S
 import { announceTemplateChange } from "./scoutTemplates";
 import { announceSettingsChange } from "./workspaceSettings";
 import { announceActivity, isActivityItem } from "./scoutActivity";
+import { announceAssignments } from "./assignments";
+import type { AssignmentNotice } from "../shared/assignments";
 
 /** off: Personal, signed out or hidden · connecting · live · polling (the fallback) · revoked: the server ended it (no access). */
 export type LiveMode = "off" | "connecting" | "live" | "polling" | "revoked";
@@ -141,6 +143,14 @@ export function followWorkspace(space: string, onMode: (m: LiveMode) => void, de
       let item: unknown;
       try { item = JSON.parse((ev as MessageEvent<string>).data); } catch { return; }
       if (isActivityItem(item) && item.workspaceId === space) announceActivity(item);
+    });
+    s.addEventListener("assignment", (ev) => {
+      // Scouting assignments changed (Task 10): the list, badges and cards (assignments.ts) apply it.
+      if (es !== s) return;
+      let n: unknown;
+      try { n = JSON.parse((ev as MessageEvent<string>).data); } catch { return; }
+      const notice = n as AssignmentNotice | null;
+      if (notice && (notice.action === "created" || notice.action === "updated" || notice.action === "deleted") && Array.isArray(notice.assignments)) announceAssignments(space, notice);
     });
     s.addEventListener("membership_revoked", () => { if (es === s) revoked(); });
     s.onerror = () => { if (es === s) { flushPendingNow(); failed(); } };

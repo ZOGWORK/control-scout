@@ -83,6 +83,18 @@ export function inboxCategory(type: string): InboxCategory | null {
 const str = (v: unknown) => (typeof v === "string" && v ? v : null);
 const num = (v: unknown) => (typeof v === "number" && Number.isFinite(v) ? v : null);
 
+/** "team 1234", "teams 1234 and 5678", "teams 1234, 5678 and 3 more": an assignment's teams (details.teams when it covers several). */
+export function assignedTeams(d: Record<string, unknown>): string {
+  const teams = Array.isArray(d.teams) ? d.teams.filter((t): t is number => typeof t === "number" && Number.isFinite(t)) : [];
+  if (teams.length > 1) {
+    if (teams.length === 2) return `teams ${teams[0]} and ${teams[1]}`;
+    if (teams.length === 3) return `teams ${teams[0]}, ${teams[1]} and ${teams[2]}`;
+    return `teams ${teams[0]}, ${teams[1]} and ${teams.length - 2} more`;
+  }
+  const team = num(d.team);
+  return team ? `team ${team}` : "a team";
+}
+
 /** "team 18360 · match Q12 · USNJQ1" / "team 18360 · pit" for an entry. */
 export function entrySubject(d: Record<string, unknown>): string {
   const team = num(d.team);
@@ -111,7 +123,8 @@ export function inboxLink(workspaceId: string, type: string, d: Record<string, u
     case "membership":
       return type === "member.left" ? "/scout?space=personal" : scoutHref(workspaceId, {});
     case "assignments":
-      return num(d.team) ? scoutHref(workspaceId, { season, team: num(d.team) }) : scoutHref(workspaceId, { view: "activity" });
+      // The Assignments view (Task 10): My assignments, with progress and Done. A removed one is only in the feed.
+      return type === "assignment.deleted" ? scoutHref(workspaceId, { view: "activity" }) : scoutHref(workspaceId, { season, view: "assignments" });
     default:
       return scoutHref(workspaceId, { view: "activity" });
   }
@@ -149,9 +162,14 @@ export function inboxText(type: string, d: Record<string, unknown>, actorName: s
     }
   }
   if (type.startsWith("assignment.")) {
-    const team = num(d.team);
+    const what = assignedTeams(d);
     const where = [str(d.matchLabel) ? `match ${str(d.matchLabel)}` : d.kind === "pit" ? "pit" : null, str(d.eventCode)].filter(Boolean).join(" · ");
-    return { title: `${who} assigned you to scout ${team ? `team ${team}` : "a team"}`, body: where };
+    // Task 10: done / reopened / deleted reach the assignee only when someone else (an admin) did it.
+    const about = [what, where].filter(Boolean).join(" · ");
+    if (type === "assignment.completed") return { title: `${who} marked your assignment done`, body: about };
+    if (type === "assignment.reopened") return { title: `${who} reopened your assignment`, body: about };
+    if (type === "assignment.deleted") return { title: `${who} removed your assignment`, body: about };
+    return { title: `${who} assigned you to scout ${what}`, body: where };
   }
   if (type.startsWith("picklist.")) return { title: `${who} updated the pick list`, body: num(d.season) ? `${num(d.season)} season` : "" };
   return { title: `${who}: ${type.replace(/[._]/g, " ")}`, body: "" };
