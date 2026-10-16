@@ -24,6 +24,7 @@ import { closeInboxStreams } from "./inbox/routes.js";
 import { deliverOwnerAlerts, inboxSettled, pruneInbox } from "./inbox/inbox.js";
 import { photoSchedulerTick } from "./scout/photos.js";
 import { pruneActivity } from "./scout/activityLog.js";
+import { pruneSentLog, pushTick } from "./push/push.js";
 import type { Server } from "node:http";
 
 const log = (m: string) => console.log(`[${new Date().toISOString()}] ${m}`);
@@ -126,6 +127,10 @@ if (!process.env.CS_NO_SCHEDULER) {
   };
   setTimeout(pruneNotes, 100_000).unref();
   setInterval(pruneNotes, 6 * 3600_000).unref();
+  // Web push (server/push/push.ts, docs/push.md): every minute, match reminders 15 min ahead, upsets and event
+  // starts for subscribed devices. Nothing at all without the VAPID settings or with the owner's push switch off.
+  setInterval(() => { pushTick(Date.now(), log).catch((e) => log(`push: ${(e as Error).message}`)); }, 60_000).unref();
+  setInterval(() => { pruneSentLog().catch((e) => log(`push: ${(e as Error).message}`)); }, 6 * 3600_000).unref();
 }
 // The live fast lane: events on today, every LIVE_SYNC_SECONDS (60), results within about a minute
 // (server/data/live.ts). It shares a writer lease with the cycle above, so the two never write at once.
