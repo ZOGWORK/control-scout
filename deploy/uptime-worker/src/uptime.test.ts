@@ -2,8 +2,8 @@ import { createServer, type Server } from "node:http";
 import type { AddressInfo } from "node:net";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
-  INITIAL_STATE, checkSite, configFrom, duration, formatAlert, postDiscord, step, tick,
-  type FetchLike, type MonitorState, type SiteResult,
+  INITIAL_STATE, OUTBOX_MAX, checkSite, configFrom, duration, formatAlert, postDiscord, step, tick,
+  type FetchLike, type MonitorState, type SiteResult, type StoredState,
 } from "./uptime";
 
 const SITE = "https://example.test";
@@ -232,10 +232,10 @@ describe("postDiscord", () => {
 // --- a whole tick ----------------------------------------------------------------------
 
 describe("tick", () => {
-  function memStore(initial?: MonitorState) {
+  function memStore(initial?: StoredState) {
     let s = initial;
-    const puts: MonitorState[] = [];
-    return { puts, get: async () => s, put: async (n: MonitorState) => { s = n; puts.push(n); } };
+    const puts: StoredState[] = [];
+    return { puts, get: async () => s, put: async (n: StoredState) => { s = n; puts.push(n); } };
   }
 
   it("writes nothing while healthy", async () => {
@@ -259,14 +259,60 @@ describe("tick", () => {
       .toEqual(["example.test is down", "example.test is back up"]);
   });
 
-  it("a failed post keeps the old state, so the next tick retries", async () => {
-    const hook = await mockWebhook(500);
-    const store = memStore({ failures: 1, firstFailureAt: T0, down: false, lastAlertAt: null });
-    const f: FetchLike = (u, i) => (u.startsWith(SITE) ? fakeFetch({ api: "refuse", home: "refuse" })(u, i) : fetch(u, i));
-    const out = await tick({ site: SITE, webhookUrl: hook.url }, { fetch: f, store, log: () => {} });
+  /** A webhook whose answer can be switched between ticks, and a site likewise. */
+  async function flaky() {
+    const hook = await mockWebhook();
+    let hookUp = true;
+    let siteUp = true;
+    const titles = () => (hook.received as Array<{ embeds: Array<{ title: string }> }>).map((p) => p.embeds[0].title);
+    const f: FetchLike = (u, i) => {
+      if (u.startsWith(SITE)) return fakeFetch(siteUp ? { api: API_UP, home: HOME_UP } : { api: "refuse", home: "refuse" })(u, i);
+      return hookUp ? fetch(u, i) : Promise.resolve(new Response("busy", { status: 500 }));
+    };
+    const store = memStore();
+    const go = (up: boolean, hookOk: boolean) => { siteUp = up; hookUp = hookOk; return tick({ site: SITE, webhookUrl: hook.url }, { fetch: f, store, log: () => {} }); };
+    return { go, titles, store };
+  }
+
+  it("a failed post is queued and retried on the next tick", async () => {
+    const { go, titles, store } = await flaky();
+    await go(false, true);
+    const out = await go(false, false); // confirmed down, Discord refuses
     expect(out).toMatchObject({ alert: { kind: "down" }, delivery: "failed" });
-    expect(store.puts).toEqual([]);
-    expect((await store.get())?.down).toBe(false);
+    expect(out.state.down).toBe(true); // the health history still moves on
+    expect((await store.get())?.outbox).toHaveLength(1);
+    const retry = await go(false, true);
+    expect(retry).toMatchObject({ alert: null, delivery: "sent", pending: [] });
+    expect(titles()).toEqual(["example.test is down"]);
+    expect((await store.get())?.outbox).toBeUndefined();
+  });
+
+  it("a failed 'down' isn't lost when the site recovers before the retry", async () => {
+    const { go, titles } = await flaky();
+    await go(false, true);
+    await go(false, false); // down alert fails
+    const out = await go(true, true); // back up: sends the queued down, then recovered
+    expect(out.alert?.kind).toBe("recovered");
+    expect(titles()).toEqual(["example.test is down", "example.test is back up"]);
+  });
+
+  it("a failed 'back up' isn't merged into the next outage", async () => {
+    const { go, titles } = await flaky();
+    await go(false, true);
+    await go(false, true); // down: sent
+    await go(true, false); // recovered: post fails
+    await go(false, false); // fails again (1 in a row), still can't post
+    await go(false, true); // 2 in a row: the old "back up", then the new "down"
+    expect(titles()).toEqual(["example.test is down", "example.test is back up", "example.test is down"]);
+  });
+
+  it("keeps at most OUTBOX_MAX undelivered messages, dropping the oldest", async () => {
+    const { go, store } = await flaky();
+    // Outages (down, then back up) while Discord is unreachable.
+    for (let i = 0; i < OUTBOX_MAX + 3; i++) { await go(false, false); await go(false, false); await go(true, false); }
+    const outbox = (await store.get())?.outbox ?? [];
+    expect(outbox).toHaveLength(OUTBOX_MAX);
+    expect(outbox.at(-1)?.embeds[0].title).toBe("example.test is back up");
   });
 
   it("no webhook: still tracks state and logs instead of posting", async () => {

@@ -9,8 +9,8 @@
 //      so 1-2 minutes) before "down"; a reminder at most every REMIND_MINUTES
 //      while it stays down; "recovered" on the first good tick after that.
 //   3. formatAlert() + postDiscord(): one Discord message per alert. Without a
-//      webhook configured it only logs. State is saved only once the alert went
-//      out, so a failed post is retried on the next tick.
+//      webhook configured it only logs. A message whose post fails waits in an
+//      outbox and is retried, in order, on the next tick.
 
 export type FetchLike = (url: string, init?: RequestInit) => Promise<Response>;
 export type Log = (line: string) => void;
@@ -283,10 +283,26 @@ export interface UptimeConfig {
   timeoutMs?: number;
 }
 
-export interface StateStore {
-  get(): Promise<MonitorState | undefined>;
-  put(state: MonitorState): Promise<void>;
+/**
+ * What is saved between ticks: the debounce state, plus the messages that
+ * haven't reached Discord yet (oldest first). Keeping the two apart means a
+ * failed post never rewinds the health history: a "down" whose post failed
+ * stays queued even if the site recovers before the retry, and the "back up"
+ * that follows is queued behind it, so Discord still sees both, in order.
+ */
+export interface StoredState extends MonitorState {
+  outbox?: DiscordPayload[];
 }
+
+export interface StateStore {
+  get(): Promise<StoredState | undefined>;
+  put(state: StoredState): Promise<void>;
+}
+
+/** Undelivered messages kept at most; the oldest go first when it's full. */
+export const OUTBOX_MAX = 10;
+
+type Delivery = "sent" | "skipped" | "failed";
 
 /** Reads a numeric env var; falls back when unset or not a positive number. */
 export function num(v: string | undefined, fallback: number): number {
@@ -309,20 +325,31 @@ export function configFrom(env: Record<string, string | undefined>): UptimeConfi
 export async function tick(
   cfg: UptimeConfig,
   deps: { fetch: FetchLike; store: StateStore; log: Log; now?: () => number },
-): Promise<{ result: SiteResult; state: MonitorState; alert: Alert | null; delivery: "sent" | "skipped" | "failed" | null }> {
-  const prev = (await deps.store.get()) ?? { ...INITIAL_STATE };
+): Promise<{ result: SiteResult; state: MonitorState; alert: Alert | null; delivery: Delivery | null; pending: DiscordPayload[] }> {
+  const saved: StoredState = (await deps.store.get()) ?? { ...INITIAL_STATE };
+  const { outbox = [], ...prev } = saved;
   const result = await checkSite(deps.fetch, cfg.site, { timeoutMs: cfg.timeoutMs, now: deps.now });
   const { state, alert } = step(prev, result, { threshold: cfg.threshold, remindMs: cfg.remindMs });
   const summary = result.checks.map(describeCheck).join(" | ");
   deps.log(`${result.ok ? "UP" : "FAIL"} (${state.failures} in a row): ${summary}`);
+  if (alert) deps.log(`Alert "${alert.kind}"`);
 
-  let delivery: "sent" | "skipped" | "failed" | null = null;
-  if (alert) {
-    delivery = await postDiscord(deps.fetch, cfg.webhookUrl, formatAlert(alert, cfg.site), deps.log);
-    deps.log(`Alert "${alert.kind}": ${delivery}`);
-    // Keep the old state on a failed post, so the next tick sends it again.
-    if (delivery === "failed") return { result, state: prev, alert, delivery };
+  // Send what's queued, oldest first, then this tick's alert. Stop at the first
+  // failure so the order holds; the rest waits for the next tick.
+  let queue = alert ? [...outbox, formatAlert(alert, cfg.site)] : outbox;
+  let delivery: Delivery | null = null;
+  while (queue.length) {
+    delivery = await postDiscord(deps.fetch, cfg.webhookUrl, queue[0], deps.log);
+    if (delivery === "failed") break;
+    queue = queue.slice(1);
   }
-  if (JSON.stringify(state) !== JSON.stringify(prev)) await deps.store.put(state);
-  return { result, state, alert, delivery };
+  if (queue.length > OUTBOX_MAX) {
+    deps.log(`Dropping ${queue.length - OUTBOX_MAX} undelivered alert(s), the oldest`);
+    queue = queue.slice(-OUTBOX_MAX);
+  }
+  if (queue.length) deps.log(`${queue.length} alert(s) not delivered yet; retrying next check`);
+
+  const next: StoredState = queue.length ? { ...state, outbox: queue } : state;
+  if (JSON.stringify(next) !== JSON.stringify(saved)) await deps.store.put(next);
+  return { result, state, alert, delivery, pending: queue };
 }
