@@ -210,7 +210,7 @@ export async function rememberInfo(account: SharedAccount): Promise<void> {
   await storeMemberships(account.id, workspaces, account);
 }
 /** Tests: forget everything (a cold cache). */
-export const clearInfoCache = () => { infoCache.clear(); lastForced.clear(); dropped.clear(); deferred.clear(); };
+export const clearInfoCache = () => { infoCache.clear(); lastForced.clear(); dropped.clear(); deferred.clear(); answeredAt.clear(); };
 
 /** Membership for a linked account, cached for 10 minutes; null when Control Point can't be reached or sends something unexpected. */
 export async function controlPointInfo(accountId: number): Promise<ControlPointInfo | null> {
@@ -231,8 +231,20 @@ export async function controlPointInfo(accountId: number): Promise<ControlPointI
 // belongs where; Scout keeps the last answer so a write needn't ask every time.
 // ---------------------------------------------------------------------------
 
-/** A cached membership younger than this is trusted as is; older, it's re-checked with Control Point first. */
-export const MEMBERSHIP_TTL = 10 * 60_000;
+/**
+ * A cached membership younger than this is trusted as is; older, it's re-checked with Control Point first
+ * (Task 12: every workspace read and write, so a removal in Control Point counts within a minute, not ten).
+ * Control Point's load stays flat: one account read refreshes all of that account's rows, re-checks are
+ * coalesced per account and at most one every 5 s (refreshAccount), and an account with an open stream is
+ * re-checked by the stream sweep (stream.ts) just before its rows go stale. docs/shared-accounts.md has
+ * the call-rate estimate.
+ */
+export const MEMBERSHIP_TTL = 60_000;
+
+/** When Control Point last answered for each account (any fetch that rewrote its memberships): the stream sweep's clock. */
+const answeredAt = new Map<number, number>();
+/** When Control Point last answered for this account (ms since epoch), 0 when this server hasn't asked since it started. */
+export const membershipAnsweredAt = (accountId: number): number => answeredAt.get(accountId) ?? 0;
 
 /**
  * Replace the account's cached memberships with what Control Point just said. Writes only the cache (and a
@@ -243,6 +255,8 @@ export const MEMBERSHIP_TTL = 10 * 60_000;
  */
 async function storeMemberships(accountId: number, list: Workspace[], account?: Pick<SharedAccount, "displayName" | "email">): Promise<void> {
   const now = Date.now(), iso = new Date(now).toISOString();
+  answeredAt.delete(accountId); answeredAt.set(accountId, now); // newest last, so the bound below drops the oldest
+  if (answeredAt.size > 5000) answeredAt.delete(answeredAt.keys().next().value!);
   // Every fresh answer passes through here: a re-check's saved answer must never be older than it.
   const last = lastForced.get(accountId);
   if (last) lastForced.set(accountId, { at: last.at, list });
@@ -324,7 +338,7 @@ const lastForced = new Map<number, { at: number; list: Workspace[] | null }>();
 const FORCED_GAP = 5_000;
 
 /**
- * Ask Control Point for the account now (bypassing the 10-minute cache) and
+ * Ask Control Point for the account now (bypassing /me's 10-minute cache) and
  * rewrite its memberships. One call per account at a time, and at most one
  * every 5 s (within that, the last answer is reused), so a stream of refused
  * writes can't hammer Control Point. Returns the workspaces Control Point

@@ -1,7 +1,7 @@
 // Manual scouting: your own match and pit observations on top of public data.
 // Offline-first: saved on this device the moment you press Save; synced to
 // your account when signed in and online.
-import { useEffect, useId, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { ClipboardCheck, ClipboardList, Cloud, CloudOff, Download, History, Info, LayoutList, Loader2, MessageSquare, Plus, Save, SearchX, Trash2, X } from "lucide-react";
 import { useCurrentSeason, useTitle } from "../lib/meta";
@@ -28,7 +28,7 @@ import { ActivityFeed } from "../components/scout/ActivityFeed";
 import { ConflictNotices, HistorySheet } from "../components/scout/EntryHistory";
 import { LOST_UNSAVED_MESSAGE, SCOUT_LOST_UNSAVED } from "../lib/lostEdits";
 import { EntryComments } from "../components/scout/EntryComments";
-import { useCommentCounts } from "../lib/scoutComments";
+import { announceCommentsResync, useCommentCounts } from "../lib/scoutComments";
 import { useWorkspaceActivity } from "../lib/scoutActivity";
 import { AssignmentsView } from "../components/scout/Assignments";
 import { assignedLabel, useAssignmentIndex, useAssignments } from "../lib/assignments";
@@ -49,7 +49,7 @@ export default function ScoutPage() {
   const current = useCurrentSeason();
   // One team in the filter (a link from a team page, or picked in the filter bar): a new entry starts with it.
   const teamFilter = /^\d+$/.test(sp.get("team") ?? "") ? Number(sp.get("team")) || undefined : undefined;
-  const { user, syncReady } = usePersonal();
+  const { user, syncReady, offlineAccount, refreshUser } = usePersonal();
   const spaces = useScoutSpaces();
   const { space, current: workspace } = spaces;
   // The workspace's shared settings (Tier 2, docs/settings.md): its default season and event for this space.
@@ -68,7 +68,16 @@ export default function ScoutPage() {
     else if (space == null) setOpened(null);
   }, [settingsKnown, space, openedSeason, season]);
   const { entries, status, pendingCount, syncNow } = useScouting({ season }, syncReady, space);
-  const live = useScoutLive(space, syncReady);
+  // The switcher's manual refresh (rarely needed: the stream keeps the list live) reopens the stream with a new generation.
+  const [liveGeneration, setLiveGeneration] = useState(0);
+  const live = useScoutLive(space, syncReady, liveGeneration);
+  const refreshSpace = useCallback(async () => {
+    const [synced] = await Promise.all([syncNow(), refreshUser?.()]);
+    setLiveGeneration((g) => g + 1);
+    // Open comment threads, the card counts and the assignments refetch too (the new stream does again once it is ready).
+    if (space != null) { announceCommentsResync(space); reloadAssignments.current(); }
+    return synced;
+  }, [syncNow, refreshUser, space]);
   // How many comments each workspace entry has (Task 15), for the cards; live with the stream.
   const commentCounts = useCommentCounts(syncReady ? space : null);
   const pending = usePendingScoutCounts();
@@ -189,9 +198,9 @@ export default function ScoutPage() {
       <PageHeader title="Scout"
         description={workspace ? `Shared with everyone in ${workspaceLabel(workspace)}. Saved on this device instantly; the workspace sees new entries as they sync.`
           : "Your own observations — private to you. Saved on this device instantly; synced to your account when you're signed in."}
-        actions={spaces.resolving ? undefined : <SyncChip status={status} pending={pendingCount} onSync={syncNow} signedIn={!!user} live={live} />}>
-        {spaces.switchable && <ScoutSpaceSwitcher workspaces={spaces.workspaces} space={space} pending={pending} onSelect={selectSpace} className="mb-4" />}
-        {/* Edits this device lost to newer ones from other members (Task 16): once each, with their diff. */}
+        actions={spaces.resolving ? undefined : <SyncChip status={offlineAccount ? "offline" : status} pending={pendingCount} onSync={syncNow} signedIn={!!user} live={live} />}>
+        {spaces.switchable && <ScoutSpaceSwitcher workspaces={spaces.workspaces} space={space} pending={pending} onSelect={selectSpace} onRefresh={syncReady ? refreshSpace : undefined} className="mb-4" />}
+        {/* Edits this device lost to newer ones from other members (Task 16): each until dismissed, with its diff. */}
         {space != null && !spaces.resolving && <ConflictNotices space={space} me={me} />}
         {spaces.notice && (
           <div role="status" className="mb-4 flex items-start gap-3 rounded-xl border border-warning/40 bg-warning/10 px-4 py-3 text-sm">
