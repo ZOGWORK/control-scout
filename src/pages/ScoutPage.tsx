@@ -135,14 +135,29 @@ export default function ScoutPage() {
   // Scouting assignments (Task 10, ?view=assignments): loaded for the whole space, for the view and the badges.
   const assignments = useAssignments(workspace && !spaces.resolving ? space : null, season, live);
   const assignIndex = useAssignmentIndex(assignments.list);
+  // Progress is the server's count of each assignee's entries: once entries change (added, edited, deleted,
+  // moved; here or live from others) and this device's writes have synced, ask again, so a deleted or moved
+  // entry stops counting. Debounced: a burst of changes makes one request.
+  const reloadAssignments = useRef(assignments.reload);
+  reloadAssignments.current = assignments.reload;
+  const hasAssignments = useRef(false);
+  hasAssignments.current = assignments.list.length > 0;
+  const firstEntries = useRef(true);
+  useEffect(() => {
+    if (firstEntries.current) { firstEntries.current = false; return; }
+    if (!hasAssignments.current || status === "syncing") return;
+    const t = setTimeout(() => reloadAssignments.current(), 2000);
+    return () => clearTimeout(t);
+  }, [entries, status]);
   const showAssignments = !!workspace && !spaces.resolving && sp.get("view") === "assignments";
   const myOpen = workspace && me ? assignments.list.filter((a) => a.assigneeAccountId === me.accountId && a.status === "open").length : 0;
   const toggleAssignments = () => setSp((x) => { if (x.get("view") === "assignments") x.delete("view"); else x.set("view", "assignments"); return x; });
   // Scout an assigned team: the list filtered to that team at that event, and a new entry for it there.
-  const [formEvent, setFormEvent] = useState<string | null>(null);
+  // The event of the assignment Scout was tapped on: only for that space and season (a switch falls back to the defaults).
+  const [formEvent, setFormEvent] = useState<{ space: ScoutSpace; season: number; code: string } | null>(null);
   const scoutAssigned = (team: number, eventCode: string) => {
     setSp((x) => { x.delete("view"); x.delete("entry"); x.set("team", String(team)); x.set("event", eventCode); return x; });
-    setFormTeam(team); setFormEvent(eventCode); setFormNonce((n) => n + 1); setFormOpen(true);
+    setFormTeam(team); setFormEvent({ space, season, code: eventCode }); setFormNonce((n) => n + 1); setFormOpen(true);
   };
   const badgeFor = (team: number, eventCode: string | null) => (workspace && eventCode ? assignedLabel(assignIndex.get(assignmentKey(season, eventCode, team)) ?? [], me?.accountId) : null);
   // Tapping an item about an entry opens it (in its season), if this device has it and it wasn't deleted since.
@@ -198,7 +213,7 @@ export default function ScoutPage() {
       )}
       {formOpen && !spaces.resolving && (
         <EntryForm key={editEntry?.uuid ?? `new-${formTeam ?? ""}-${formNonce}`} season={season} initial={editEntry} team={formTeam} space={space} spaceName={workspace ? workspaceLabel(workspace) : null} workspaceTemplate={wt.template} templatePending={templatePending}
-          defaultEvent={(space != null && formEvent) || newEntryEventCode(space, wss.defaults, season)}
+          defaultEvent={(space != null && formEvent?.space === space && formEvent.season === season && formEvent.code) || newEntryEventCode(space, wss.defaults, season)}
           onDone={() => { setFormOpen(false); setFormEvent(null); setSp((x) => { x.delete("entry"); x.delete("new"); return x; }); }} />
       )}
       {formOpen && !spaces.resolving && editEntry?.workspaceId != null && <EntryComments key={`comments-${editEntry.uuid}`} entry={editEntry} className="-mt-4 mb-8" />}
