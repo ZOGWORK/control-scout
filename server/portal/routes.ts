@@ -18,6 +18,8 @@ import { isFeedbackStatus, listFeedback, setFeedbackStatus } from "./feedback.js
 import { isOp, opsStatus, startOp } from "./ops.js";
 import { ownerOverview } from "./overview.js";
 import { predictionHealth } from "./predictionHealth.js";
+import { ownerStorage, purgeEvent, runPhotoMaintenance } from "../scout/photos.js";
+import { r2 } from "../scout/r2.js";
 
 const h = (fn: (req: Request, res: Response) => Promise<unknown>) => (req: Request, res: Response, next: NextFunction) => {
   fn(req, res).then((b) => { if (!res.headersSent && b !== undefined) res.json(b); }).catch(next);
@@ -97,6 +99,26 @@ export function ownerRouter(): Router {
     if (!out.ok) { res.status(409).json({ error: out.error }); return; }
     res.status(202);
     return { job: out.job, status: await opsStatus() };
+  }));
+
+  // Photo storage (R2, docs/r2-photos.md): usage against the free tier, per event, and the owner's purge.
+  r.get("/storage", h(async () => ownerStorage()));
+  r.post("/storage/purge", h(async (req, res) => {
+    if (req.body?.confirm !== true) { res.status(400).json({ error: "Confirm with {\"confirm\": true}" }); return; }
+    const season = num(req.body?.season, 0, 0, 2100), eventCode = req.body?.eventCode;
+    if (season < 2000 || typeof eventCode !== "string" || eventCode.length > 32) { res.status(400).json({ error: "season and eventCode required" }); return; }
+    if (!r2()) { res.status(409).json({ error: "Photo storage isn't configured on this server." }); return; }
+    const out = await purgeEvent(season, eventCode);
+    await recordAudit(actor(req), "storage.purge", { season, eventCode, photos: out.photos, bytes: out.bytes }, out.failures ? `failed: ${out.failures} couldn't be deleted (tried again tonight)` : null);
+    return { purged: out, storage: await ownerStorage() };
+  }));
+  r.post("/storage/maintenance", h(async (req, res) => {
+    if (req.body?.confirm !== true) { res.status(400).json({ error: "Confirm with {\"confirm\": true}" }); return; }
+    if (!r2()) { res.status(409).json({ error: "Photo storage isn't configured on this server." }); return; }
+    const out = await runPhotoMaintenance();
+    await recordAudit(actor(req), "storage.maintenance", out ? { expired: out.expired, removed: out.removed, orphans: out.orphans, usedBytes: out.usedBytes } : null,
+      out?.failures ? `failed: ${out.failures} couldn't be deleted (tried again tonight)` : null);
+    return { result: out, storage: await ownerStorage() };
   }));
 
   r.get("/audit", h(async (req) => ({ entries: await listAudit(num(req.query.limit, 100, 1, 500)) })));
