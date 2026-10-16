@@ -7,8 +7,9 @@
 //
 // --steps <file.json> runs interactions after the page loads (open a dialog,
 // build a filter…) before the shot, or while a --video records. The file is
-// an array of { click | hold(+ms) | fill+value | type | press | wait | waitFor | reload } steps
-// (hold: press the pointer on an element for ms, default 1600, e.g. a hold-to-confirm button);
+// an array of { click | hold(+ms) | fill+value | upload+files | type | press | wait | waitFor | reload } steps
+// (hold: press the pointer on an element for ms, default 1600, e.g. a hold-to-confirm button;
+// upload: put local files into a file input, e.g. a photo to attach);
 // selectors are Playwright's (role=button[name="Filters"], text=Apply, css).
 // --name <label> goes in the file name, to tell several states of one route apart.
 //
@@ -39,7 +40,7 @@ const COOKIE = (() => {
   if (!name || !rest.length) { console.error("--cookie-file: the file must hold name=value"); process.exit(1); }
   return { name, value: rest.join("=") };
 })();
-type Step = { click?: string; hold?: string; ms?: number; fill?: string; value?: string; type?: string; press?: string; wait?: number; waitFor?: string; reload?: boolean };
+type Step = { click?: string; hold?: string; ms?: number; fill?: string; value?: string; type?: string; press?: string; wait?: number; waitFor?: string; reload?: boolean; upload?: string; files?: string[] };
 const STEPS: Step[] = (() => {
   const f = opt("steps");
   if (!f) return [];
@@ -56,6 +57,7 @@ async function runSteps(page: Page, slow: boolean) {
     if (s.click) await page.locator(s.click).first().click();
     else if (s.hold) { await page.locator(s.hold).first().hover(); await page.mouse.down(); await page.waitForTimeout(s.ms ?? 1600); await page.mouse.up(); }
     else if (s.fill) await page.locator(s.fill).first().fill(s.value ?? "");
+    else if (s.upload) await page.locator(s.upload).first().setInputFiles(s.files ?? []);
     else if (s.type != null) await page.keyboard.type(s.type, { delay: slow ? 90 : 20 });
     else if (s.press) await page.keyboard.press(s.press);
     else if (s.waitFor) await page.locator(s.waitFor).first().waitFor({ state: "visible", timeout: 20_000 });
@@ -63,7 +65,7 @@ async function runSteps(page: Page, slow: boolean) {
     if (s.wait) await page.waitForTimeout(s.wait);
     await page.waitForTimeout(slow ? 450 : 150);
   }
-  await page.waitForLoadState("networkidle").catch(() => {});
+  await page.waitForLoadState("networkidle", { timeout: 10_000 }).catch(() => {});
   await page.waitForTimeout(600);
 }
 const routes = args.filter((a, i) => !a.startsWith("--") && !VALUE_FLAGS.has(args[i - 1] ?? ""))
@@ -114,7 +116,10 @@ async function capture(browser: Browser, route: string, vp: keyof typeof SIZES, 
   const page = await ctx.newPage();
   const errors: string[] = [];
   page.on("pageerror", (e) => errors.push(e.message));
-  await page.goto(BASE + route, { waitUntil: "networkidle", timeout: 60_000 });
+  // Loaded, then the network quiet; a page holding a live stream open (a workspace's scout space) is never
+  // quiet, so it gets 10 s and goes on (the skeleton check below still waits for its data).
+  await page.goto(BASE + route, { waitUntil: "load", timeout: 60_000 });
+  await page.waitForLoadState("networkidle", { timeout: 10_000 }).catch(() => {});
   // Data loaded: no skeletons left, fonts ready, then let charts/motion settle.
   await page.waitForFunction(() => !document.querySelector(".skeleton, [aria-busy=true]"), null, { timeout: 45_000 }).catch(() => console.warn(`  ! ${route}: still loading after 45 s`));
   await page.evaluate(() => document.fonts.ready);

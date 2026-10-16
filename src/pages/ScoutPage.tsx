@@ -9,6 +9,7 @@ import { usePersonal } from "../lib/personal";
 import { deleteScoutEntry, newScoutId, saveScoutEntry, ScoutStorageError, templateFor, useScouting, type ScoutEntry, type ScoutField, type ScoutSpace, type ScoutValue } from "../lib/scouting";
 import { useScoutLive, type LiveMode } from "../lib/scoutLive";
 import { EntryAttribution } from "../components/EntryAttribution";
+import { EntryPhotos } from "../components/scout/EntryPhotos";
 import { PageHeader, Section, EmptyState } from "../components/page";
 import { Button } from "../components/ui/button";
 import { Badge, FieldError, Input, Textarea, Label } from "../components/ui/basic";
@@ -109,6 +110,7 @@ function EntryCard({ e, onEdit }: { e: ScoutEntry; onEdit: () => void }) {
       </div>
       {shown.length > 0 && <div className="mt-2 flex flex-wrap gap-1">{shown.map((f) => <Badge key={f.id} variant="secondary">{f.label}: {String(e.data[f.id] === true ? "yes" : e.data[f.id])}</Badge>)}</div>}
       {e.notes && <p className="mt-2 line-clamp-3 text-sm text-muted-foreground">{e.notes}</p>}
+      <EntryPhotos entry={e} className="mt-3" />
     </li>
   );
 }
@@ -180,6 +182,7 @@ function EntryForm({ season, initial, team, space, onDone }: { season: number; i
         <Label htmlFor="notes">Notes</Label>
         <Textarea id="notes" value={notes} onChange={(e) => setNotes(e.target.value)} maxLength={4000} placeholder="What stood out? Strategy, reliability, driver habits…" className="mt-2" />
       </div>
+      {initial && <EntryPhotos entry={initial} editable className="mt-5" />}
       <div className="mt-5 flex flex-wrap gap-2">
         <Button ref={saveRef} type="submit" disabled={checking} aria-describedby={saveErr ? saveErrId : undefined}><Save /> Save</Button>
         <Button type="button" variant="ghost" onClick={onDone}>Cancel</Button>

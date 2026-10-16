@@ -505,6 +505,61 @@ ALTER TABLE contact_messages ADD COLUMN status_at TEXT;
 CREATE INDEX contact_messages_status ON contact_messages (status, created_at);
 `,
   },
+  {
+    version: 14,
+    name: "entry photos (Cloudflare R2) and owner alerts",
+    sql: `
+-- Photos on workspace scout entries (server/scout/photos.ts, docs/r2-photos.md). The image is in R2 under
+-- object_key (photos/<season>/<event>/<entry uuid>/<id>.jpg), this row is its record.
+-- status: pending (upload URL handed out, bytes reserved against the storage cap) | ready | expired
+-- (the image was deleted after its event, or purged by the owner: the entry shows "photo expired").
+-- bytes: the declared size while pending, the stored object's size once ready (the meter).
+-- event_end: the event's last day (YYYY-MM-DD) from the synced events table, NULL when unknown.
+-- expires_at: when the nightly job deletes the image (ms): 2 days after the event ended, else 14 days after upload.
+CREATE TABLE entry_photos (
+  id TEXT PRIMARY KEY,
+  workspace_id INTEGER NOT NULL REFERENCES workspaces (id),
+  entry_uuid TEXT NOT NULL,
+  season INTEGER NOT NULL,
+  event_code TEXT NOT NULL DEFAULT '',
+  object_key TEXT NOT NULL UNIQUE,
+  bytes INTEGER NOT NULL,
+  status TEXT NOT NULL,
+  added_by_account_id INTEGER NOT NULL,
+  added_by_name TEXT NOT NULL DEFAULT '',
+  created_at INTEGER NOT NULL,
+  recorded_at INTEGER,
+  event_end TEXT,
+  expires_at INTEGER NOT NULL,
+  expired_at INTEGER,
+  expired_reason TEXT
+);
+CREATE INDEX entry_photos_entry ON entry_photos (workspace_id, entry_uuid);
+CREATE INDEX entry_photos_status ON entry_photos (status, expires_at);
+CREATE INDEX entry_photos_event ON entry_photos (season, event_code);
+
+-- Bumped on every photo change of an entry (which also gives the entry a new seq, so it streams):
+-- devices take the server's photo list when this is newer, whatever the entry's text edits.
+ALTER TABLE workspace_scout_entries ADD COLUMN photos_rev INTEGER NOT NULL DEFAULT 0;
+
+-- Things the owner must act on (the first: photo storage near the free tier). At most one open alert per kind.
+-- Shown in the owner portal now. inbox_item_id: set by the owner inbox (Task 14) once it has made an
+-- inbox item for the alert, so each alert notifies once.
+CREATE TABLE owner_alerts (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  kind TEXT NOT NULL,
+  level TEXT NOT NULL,
+  title TEXT NOT NULL,
+  body TEXT NOT NULL,
+  details TEXT,
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL,
+  resolved_at TEXT,
+  inbox_item_id INTEGER
+);
+CREATE UNIQUE INDEX owner_alerts_open ON owner_alerts (kind) WHERE resolved_at IS NULL;
+`,
+  },
 ];
 
 export type Db = Client;

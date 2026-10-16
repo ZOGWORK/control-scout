@@ -9,6 +9,7 @@
 // workspace's entries are pulled by the server's cursor.
 import { useCallback, useEffect, useState } from "react";
 import { apiFetch } from "./api";
+import type { EntryPhoto } from "../shared/photos";
 
 export type ScoutValue = number | boolean | string;
 export type FieldType = "counter" | "toggle" | "choice" | "rating" | "text";
@@ -38,6 +39,10 @@ export interface ScoutEntry {
   /** Who wrote the latest version (workspace entries, from the server). */
   editorAccountId?: number;
   editorDisplayName?: string;
+  /** Workspace entries: photos (src/lib/photos.ts), the server's list. photosRev goes up on each photo change. */
+  photos?: EntryPhoto[];
+  photoExpired?: boolean;
+  photosRev?: number;
 }
 
 // --- Templates -------------------------------------------------------------
@@ -194,10 +199,12 @@ type NewEntry = Omit<ScoutEntry, "updatedAt" | "workspaceId" | "authorAccountId"
  */
 export function saveScoutEntry(e: NewEntry): ScoutEntry {
   const space = e.workspaceId ?? null;
-  const prior = space != null && e.authorAccountId == null ? readEntry(space, e.uuid) : null;
+  const prior = space != null ? readEntry(space, e.uuid) : null;
   const authorship = space == null ? {} : {
     authorAccountId: e.authorAccountId ?? prior?.authorAccountId ?? 0, authorDisplayName: e.authorDisplayName ?? prior?.authorDisplayName ?? "",
     editorAccountId: 0, editorDisplayName: "",
+    // Photos are the server's: an edit to the text keeps the list the device has.
+    ...(prior?.photos && e.photos === undefined ? { photos: prior.photos, photoExpired: prior.photoExpired, photosRev: prior.photosRev } : {}),
   };
   const entry = normalizeScoutEntry({ ...e, ...authorship, updatedAt: Date.now() }, space);
   try {
@@ -317,14 +324,24 @@ export async function syncScouting(space: ScoutSpace = null): Promise<{ sent: nu
   return { sent };
 }
 
-/** Newer wins; an equal stamp from the server wins unless this device has that entry queued. */
+/**
+ * Newer wins; an equal stamp from the server wins unless this device has that entry queued.
+ * Photos are the server's alone: a newer photo list (photosRev) is taken even when the device's text edit wins.
+ */
 function mergeFromServer(space: ScoutSpace, list: ScoutEntry[]) {
   const d = dirty(space);
   for (const raw of list) {
     const e = normalizeScoutEntry(raw, space);
     const cur = readEntry(space, e.uuid);
     if (!cur || e.updatedAt > cur.updatedAt || (space != null && e.updatedAt === cur.updatedAt && !d.has(e.uuid))) writeEntry(e);
+    else if (space != null && (e.photosRev ?? 0) > (cur.photosRev ?? 0)) writeEntry({ ...cur, photos: e.photos, photoExpired: e.photoExpired, photosRev: e.photosRev });
   }
+}
+
+/** The server's copy of a workspace entry after a photo change (upload or removal): merged like a pull, lists refreshed. */
+export function adoptServerEntry(space: string, entry: ScoutEntry) {
+  mergeFromServer(space, [entry]);
+  window.dispatchEvent(new Event(EVT));
 }
 
 /** Pull a space's entries from the account (Personal) or the workspace (changes since the last pull); local unsynced edits are kept if newer. */
