@@ -124,7 +124,8 @@ describe("who gets in", () => {
 describe("feature flags", () => {
   it("are all on by default, for the app too", async () => {
     const r = await call("GET", "/api/flags");
-    expect(r.json.flags).toEqual({ realtime: true, workspaceScouting: true, errorReporting: true, offlinePacks: true });
+    // photos: on, yet false for the app here: it also needs R2, which this server doesn't have.
+    expect(r.json.flags).toEqual({ realtime: true, workspaceScouting: true, errorReporting: true, offlinePacks: true, photos: false });
     expect(r.headers.get("cache-control")).toBe("public, max-age=15");
   });
 

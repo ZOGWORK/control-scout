@@ -29,6 +29,8 @@ import { controlPointEnabled, isWorkspaceId, linkedAccountId, workspaceMembershi
 import { currentUser, type User } from "../auth/session.js";
 import { isEnabled } from "../flags.js";
 import { publishEntries, serialized, type LiveEntry } from "./bus.js";
+import { photosByEntry } from "./photoRows.js";
+import type { EntryPhoto } from "../../src/shared/photos.js";
 
 export interface ScoutEntryInput { uuid: string; season: number; team: number; eventCode: string | null; matchLabel: string | null; kind: "match" | "pit"; data: Record<string, unknown>; notes: string; updatedAt: number; deleted?: boolean }
 
@@ -51,15 +53,32 @@ export interface WorkspaceEntryOut extends ScoutEntryInput {
   workspaceId: string; deleted: boolean;
   authorAccountId: number; authorDisplayName: string;
   editorAccountId: number; editorDisplayName: string;
+  /** Its photos (photos.ts), the server's list: photosRev goes up on every photo change, so a device takes the newer list. */
+  photos: EntryPhoto[]; photoExpired: boolean; photosRev: number;
 }
 
-const workspaceRow = (workspaceId: string, r: any): WorkspaceEntryOut => ({
+const workspaceRow = (workspaceId: string, r: any, photos: EntryPhoto[] = []): WorkspaceEntryOut => ({
   uuid: r.uuid, workspaceId, season: Number(r.season), team: Number(r.team), eventCode: r.event_code, matchLabel: r.match_label, kind: r.kind,
   data: JSON.parse(r.data), notes: r.notes, updatedAt: Number(r.updated_at), deleted: !!r.deleted,
   authorAccountId: Number(r.author_account_id), authorDisplayName: r.author_name,
   editorAccountId: Number(r.editor_account_id), editorDisplayName: r.editor_name,
+  photos, photoExpired: photos.some((p) => p.expired), photosRev: Number(r.photos_rev ?? 0),
 });
-const liveRow = (workspaceId: string, r: any): LiveEntry => ({ ...workspaceRow(workspaceId, r), seq: Number(r.seq) });
+/** Stored rows (of one workspace) as live entries, each with its photos. */
+async function liveRows(workspaceId: string, rows: any[]): Promise<LiveEntry[]> {
+  if (!rows.length) return [];
+  const photos = await photosByEntry(Number(rows[0].workspace_id), rows.map((r) => String(r.uuid)));
+  return rows.map((r) => ({ ...workspaceRow(workspaceId, r, photos.get(String(r.uuid))), seq: Number(r.seq) }));
+}
+
+/** What's stored for these entries of a workspace now, with seq and photos (to publish a change). */
+export async function readLiveEntries(workspaceId: string, uuids: string[]): Promise<Map<string, LiveEntry>> {
+  if (!uuids.length) return new Map();
+  const rows = await all<any>(
+    `SELECT w.* FROM workspace_scout_entries w JOIN workspaces ws ON ws.id = w.workspace_id WHERE ws.cp_workspace_id = ? AND w.uuid IN (${uuids.map(() => "?").join(", ")})`,
+    [workspaceId, ...uuids]);
+  return new Map((await liveRows(workspaceId, rows)).map((e) => [e.uuid, e]));
+}
 
 /** How a writer is named on shared entries: their display name, else the part of their email before the @. */
 export const writerName = (u: User) => (u.displayName?.trim() || u.email?.split("@")[0] || "Member").slice(0, 60);
@@ -197,15 +216,11 @@ async function writeWorkspaceEntries(user: User, m: Membership, good: ScoutEntry
         m.accountId, name, m.accountId, name, m.workspaceId, m.role === "admin" ? 1 : 0],
     })),
   ]);
-  const uuids = good.map((e) => e.uuid);
-  const rows = await all<any>(
-    `SELECT w.* FROM workspace_scout_entries w JOIN workspaces ws ON ws.id = w.workspace_id WHERE ws.cp_workspace_id = ? AND w.uuid IN (${uuids.map(() => "?").join(", ")})`,
-    [m.workspaceId, ...uuids]);
-  return new Map(rows.map((r) => [String(r.uuid), liveRow(m.workspaceId, r)]));
+  return readLiveEntries(m.workspaceId, good.map((e) => e.uuid));
 }
 
 /** The workspace's latest seq (0 before its first entry). */
-async function lastSeq(workspaceId: string): Promise<number> {
+export async function lastSeq(workspaceId: string): Promise<number> {
   const r = await get<{ seq: number | null }>(
     "SELECT MAX(w.seq) seq FROM workspace_scout_entries w JOIN workspaces ws ON ws.id = w.workspace_id WHERE ws.cp_workspace_id = ?", [workspaceId]);
   return Number(r?.seq ?? 0);
@@ -224,7 +239,7 @@ export async function pullWorkspaceLive(workspaceId: string, since: number): Pro
   const ws = await get<{ id: number }>("SELECT id FROM workspaces WHERE cp_workspace_id = ?", [workspaceId]);
   if (!ws) return { entries: [], cursor: since, more: false }; // nothing written yet (and reading never creates the row)
   const rows = await all<any>("SELECT * FROM workspace_scout_entries WHERE workspace_id = ? AND seq > ? ORDER BY seq LIMIT ?", [ws.id, since, PULL_LIMIT]);
-  return { entries: rows.map((r) => liveRow(workspaceId, r)), cursor: rows.length ? Number(rows.at(-1).seq) : since, more: rows.length === PULL_LIMIT };
+  return { entries: await liveRows(workspaceId, rows), cursor: rows.length ? Number(rows.at(-1).seq) : since, more: rows.length === PULL_LIMIT };
 }
 
 const h = (fn: (req: Request, res: Response) => Promise<unknown>) => (req: Request, res: Response, next: NextFunction) => {
