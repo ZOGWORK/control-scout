@@ -102,6 +102,11 @@ export default function ScoutPage() {
     setFormOpen(true);
   };
   const eventParam = sp.get("event");
+  // Progress counts every entry of the space this season on the device, whatever the entry list is filtered to
+  // (`entries` is the trigger: it changes whenever the device's entries do).
+  const seasonEntries = useMemo(() => (space == null ? [] : localScoutEntries(space).filter((e) => !e.deleted && e.season === season)),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [space, season, entries]);
   const badgeFor = (team: number, eventCode: string | null) => (workspace && eventCode ? assignedLabel(assignIndex.get(assignmentKey(season, eventCode, team)) ?? [], me?.accountId) : null);
   // Tapping an item about an entry opens it (in its season), if this device has it and it wasn't deleted since.
   const openEntry = (uuid: string) => {
@@ -162,7 +167,7 @@ export default function ScoutPage() {
       )}
       {showAssignments && workspace && space != null ? (
         <AssignmentsView space={space} workspaceName={workspaceLabel(workspace)} season={season} defaultEvent={newEntryEventCode(space, wss.defaults, season)}
-          state={assignments} myAccountId={me?.accountId ?? null} isAdmin={isAdmin} localEntries={entries} onScout={scoutAssigned} />
+          state={assignments} myAccountId={me?.accountId ?? null} isAdmin={isAdmin} localEntries={seasonEntries} onScout={scoutAssigned} />
       ) : showActivity && workspace ? <ActivityFeed state={activity} workspaceName={workspaceLabel(workspace)} onOpenEntry={openEntry} /> : <>
       <Section title={`Entries (${entries.length})`} description={teamFilter ? `For team ${teamFilter}` : "Newest first"}>
         {spaces.resolving ? <LoadingBlock rows={3} label="Loading scout space" /> : !entries.length ? <EmptyState icon={ClipboardList} title="No scouting entries yet" description="Start one above, or from any team page. Entries save on this device first, so scouting works with no signal." /> : (

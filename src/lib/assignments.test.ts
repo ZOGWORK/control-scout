@@ -3,8 +3,9 @@
 // (the server's count or this device's, whichever knows more), the stream's `event: assignment`, and the
 // words the feed and the inbox use.
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { applyNotice, assignedLabel, assignmentProgress, SCOUT_ASSIGNMENT } from "./assignments";
-import { followWorkspace } from "./scoutLive";
+import { act, renderHook, waitFor } from "@testing-library/react";
+import { announceAssignments, applyNotice, assignedLabel, assignmentProgress, SCOUT_ASSIGNMENT, useAssignments } from "./assignments";
+import { followWorkspace, type LiveMode } from "./scoutLive";
 import { describeActivity, type ActivityItem } from "./scoutActivity";
 import { inboxLink, inboxText } from "../shared/inbox";
 import type { Assignment, AssignmentNotice } from "../shared/assignments";
@@ -63,6 +64,36 @@ describe("assignments on the device", () => {
     stop();
     window.removeEventListener(SCOUT_ASSIGNMENT, on);
     expect(heard.map((h) => [h.space, h.notice.action, h.notice.assignments[0].team])).toEqual([["41", "created", 1234]]);
+  });
+
+  it("useAssignments: a reply read before a live change doesn't undo it; an older reply never replaces a newer one", async () => {
+    localStorage.clear();
+    const replies: ((list: Assignment[]) => void)[] = [];
+    vi.stubGlobal("fetch", vi.fn(() => new Promise<Response>((resolve) => { replies.push((list) => resolve(new Response(JSON.stringify({ assignments: list }), { status: 200 }))); })));
+    const { result, rerender } = renderHook(({ live }: { live: LiveMode }) => useAssignments("41", 2025, live), { initialProps: { live: "connecting" as LiveMode } });
+    await waitFor(() => expect(replies).toHaveLength(1));
+    // While the first request is out, the stream marks 1234 done; the reply (read before that) says open.
+    act(() => announceAssignments("41", { action: "updated", assignments: [a(1, 1234, 7, { status: "done" })] }));
+    await act(async () => { replies[0]([a(1, 1234), a(2, 5678)]); });
+    expect(result.current.list.map((x) => [x.team, x.status])).toEqual([[1234, "done"], [5678, "open"]]);
+    // Two requests out: the second's reply lands first; the first's, older, is dropped.
+    rerender({ live: "live" });
+    await waitFor(() => expect(replies).toHaveLength(2));
+    act(() => result.current.reload());
+    await waitFor(() => expect(replies).toHaveLength(3));
+    await act(async () => { replies[2]([a(1, 1234, 7, { status: "done" })]); });
+    await act(async () => { replies[1]([a(1, 1234), a(2, 5678), a(3, 9999)]); });
+    expect(result.current.list.map((x) => x.team)).toEqual([1234]);
+  });
+
+  it("useAssignments: a first load that failed is fetched again when the stream comes up", async () => {
+    localStorage.clear();
+    let calls = 0;
+    vi.stubGlobal("fetch", vi.fn(async () => (++calls === 1 ? new Response(JSON.stringify({ error: "down" }), { status: 500 }) : new Response(JSON.stringify({ assignments: [a(1, 1234)] }), { status: 200 }))));
+    const { result, rerender } = renderHook(({ live }: { live: LiveMode }) => useAssignments("41", 2025, live), { initialProps: { live: "connecting" as LiveMode } });
+    await waitFor(() => expect(result.current.error).not.toBeNull());
+    rerender({ live: "live" });
+    await waitFor(() => expect(result.current.list.map((x) => x.team)).toEqual([1234]));
   });
 
   it("feed and inbox words", () => {

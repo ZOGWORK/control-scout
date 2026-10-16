@@ -99,6 +99,13 @@ describe("assignments on the Scout page", () => {
     await waitFor(() => expect(myCards().map((c) => c.textContent).join()).not.toContain("9999"));
   });
 
+  it("progress counts every entry this season, whatever team the entry list is filtered to", async () => {
+    saveScoutEntry({ uuid: "progress0002", season: 2025, team: 1234, eventCode: EV, matchLabel: "Q1", kind: "match", data: {}, notes: "", workspaceId: WS });
+    show(`/scout?space=${WS}&season=2025&team=5678&view=assignments`);
+    await waitFor(() => expect(myCards()).toHaveLength(2));
+    expect(myCards()[0].textContent).toMatch(/1234.*1entry by you/);
+  });
+
   it("admin: the Assign sheet picks members and several teams, warns about a team someone holds, and still assigns", async () => {
     h.personal.user = userAs("admin");
     show(`/scout?space=${WS}&season=2025&view=assignments`);

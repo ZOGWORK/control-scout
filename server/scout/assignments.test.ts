@@ -196,6 +196,21 @@ describe("assignments: create", () => {
   });
 });
 
+describe("assignments: many", () => {
+  it("past 2,000 assignments: a new one is still returned, published and logged, and the list has every row", async () => {
+    const { admin, member, priya } = await team("2006");
+    await create(admin, "2006", [9999], [priya]); // the scout space
+    const ws = (await all<{ id: number }>("SELECT id FROM workspaces WHERE cp_workspace_id = '2006'"))[0].id;
+    await run(`WITH RECURSIVE n(i) AS (SELECT 1 UNION ALL SELECT i + 1 FROM n WHERE i < 2100)
+      INSERT INTO workspace_assignments (workspace_id, season, event_code, team, assignee_account_id, assignee_name, created_by_account_id, created_by_name, created_at)
+      SELECT ?, ?, ?, 100000 + i, ?, 'Priya', 1, 'Coach', 0 FROM n`, [ws, S, EV, priya]);
+    const r = await create(admin, "2006", [1234], [priya]);
+    expect(r.json.created.map((a: Assignment) => a.team)).toEqual([1234]);
+    expect((await inbox(member)).map((i) => i.title)[0]).toBe("Coach assigned you to scout team 1234");
+    expect(await list(admin, "2006")).toHaveLength(2102);
+  });
+});
+
 describe("assignments: done, reopen, delete", () => {
   it("the assignee marks it done; another member can't; only an admin reopens; only an admin deletes", async () => {
     const { admin, member, sam, priya } = await team("2011");
