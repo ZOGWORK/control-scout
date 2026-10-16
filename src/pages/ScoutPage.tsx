@@ -6,7 +6,7 @@ import { Link, useSearchParams } from "react-router-dom";
 import { ClipboardList, Cloud, CloudOff, Loader2, Minus, Plus, Save, Trash2 } from "lucide-react";
 import { useCurrentSeason, useTitle } from "../lib/meta";
 import { usePersonal } from "../lib/personal";
-import { deleteScoutEntry, newScoutId, saveScoutEntry, ScoutStorageError, templateFor, useScouting, type ScoutEntry, type ScoutField, type ScoutSpace, type ScoutValue } from "../lib/scouting";
+import { canDeleteScoutEntry, deleteScoutEntry, newScoutId, refusalMessage, SCOUT_REFUSED, type ScoutRefusal, saveScoutEntry, ScoutStorageError, templateFor, useScouting, type ScoutEntry, type ScoutField, type ScoutSpace, type ScoutValue } from "../lib/scouting";
 import { useScoutLive, type LiveMode } from "../lib/scoutLive";
 import { EntryAttribution } from "../components/EntryAttribution";
 import { EntryPhotos } from "../components/scout/EntryPhotos";
@@ -35,6 +35,16 @@ export default function ScoutPage() {
   const editEntry = entries.find((e) => e.uuid === editing) ?? null;
   const [formOpen, setFormOpen] = useState(!!teamFilter || !!editing);
   useEffect(() => { if (editing) setFormOpen(true); }, [editing]);
+  // Your account and role in this workspace (Control Point's), for which entries you may delete. The server enforces it.
+  const me = useMemo(() => {
+    const cp = user?.controlPoint;
+    return space == null || !cp ? null : { accountId: cp.accountId, role: cp.workspaces?.find((w) => w.id === space)?.role };
+  }, [user, space]);
+  useEffect(() => {
+    const refused = (ev: Event) => { const r = (ev as CustomEvent<ScoutRefusal>).detail; if (r.space === space) toast.error(refusalMessage(r)); };
+    window.addEventListener(SCOUT_REFUSED, refused);
+    return () => window.removeEventListener(SCOUT_REFUSED, refused);
+  }, [space]);
   return (
     <div>
       <PageHeader title="Scout"
@@ -54,7 +64,7 @@ export default function ScoutPage() {
       <Section title={`Entries (${entries.length})`} description={teamFilter ? `For team ${teamFilter}` : "Newest first"}>
         {!entries.length ? <EmptyState icon={ClipboardList} title="No scouting entries yet" description="Start one above, or from any team page. Entries save on this device first, so scouting works with no signal." /> : (
           <ul className="grid gap-2 md:grid-cols-2">
-            {entries.map((e) => <EntryCard key={e.uuid} e={e} onEdit={() => setSp((x) => { x.set("entry", e.uuid); return x; })} />)}
+            {entries.map((e) => <EntryCard key={e.uuid} e={e} canDelete={canDeleteScoutEntry(e, me)} onEdit={() => setSp((x) => { x.set("entry", e.uuid); return x; })} />)}
           </ul>
         )}
       </Section>
@@ -88,7 +98,7 @@ function SyncChip({ status, pending, onSync, signedIn, live }: { status: string;
   );
 }
 
-function EntryCard({ e, onEdit }: { e: ScoutEntry; onEdit: () => void }) {
+function EntryCard({ e, canDelete, onEdit }: { e: ScoutEntry; canDelete: boolean; onEdit: () => void }) {
   const t = templateFor(e.season, e.kind);
   const shown = t.fields.filter((f) => e.data[f.id] !== undefined && e.data[f.id] !== false && e.data[f.id] !== 0 && e.data[f.id] !== "").slice(0, 5);
   return (
@@ -105,7 +115,7 @@ function EntryCard({ e, onEdit }: { e: ScoutEntry; onEdit: () => void }) {
         </div>
         <div className="flex gap-1">
           <Button variant="ghost" size="sm" onClick={onEdit}>Edit</Button>
-          <Button variant="ghost" size="icon-sm" aria-label="Delete entry" onClick={() => { deleteScoutEntry(e); toast("Entry deleted"); }}><Trash2 /></Button>
+          {canDelete && <Button variant="ghost" size="icon-sm" aria-label="Delete entry" onClick={() => { deleteScoutEntry(e); toast("Entry deleted"); }}><Trash2 /></Button>}
         </div>
       </div>
       {shown.length > 0 && <div className="mt-2 flex flex-wrap gap-1">{shown.map((f) => <Badge key={f.id} variant="secondary">{f.label}: {String(e.data[f.id] === true ? "yes" : e.data[f.id])}</Badge>)}</div>}
