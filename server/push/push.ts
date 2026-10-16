@@ -354,7 +354,13 @@ export async function deliver(plans: Planned[], now = Date.now(), log: Log = () 
        WHERE (SELECT COUNT(*) FROM push_sent WHERE subscription_id = ? AND outcome IN ('sent', 'sending') AND at > ?) < ?`,
       [p.sub.id, p.kind, p.subject, now, p.sub.id, now - 864e5, PUSH_DAILY_LIMIT]);
     if (!claimed) {
-      const limited = await run("INSERT OR IGNORE INTO push_sent (subscription_id, kind, subject, at, outcome) VALUES (?, ?, ?, ?, 'limited')", [p.sub.id, p.kind, p.subject, now]);
+      // Only while the device really is at its cap: a claim another server just released (a busy push service) must
+      // stay free for the next tick's retry, never become 'limited'.
+      const limited = await run(
+        `INSERT OR IGNORE INTO push_sent (subscription_id, kind, subject, at, outcome)
+         SELECT ?, ?, ?, ?, 'limited'
+         WHERE (SELECT COUNT(*) FROM push_sent WHERE subscription_id = ? AND outcome IN ('sent', 'sending') AND at > ?) >= ?`,
+        [p.sub.id, p.kind, p.subject, now, p.sub.id, now - 864e5, PUSH_DAILY_LIMIT]);
       if (limited) report.limited++;
       continue; // otherwise already sent (or being sent) by an earlier tick or another server
     }
