@@ -3,7 +3,7 @@
 // Each space shows its role ("admin") and, when entries wait to sync there, how many.
 // Next to it, a manual refresh (Task 12): a fallback the live stream should make unnecessary.
 import { useRef, useState } from "react";
-import { RefreshCw } from "lucide-react";
+import { Lock, RefreshCw } from "lucide-react";
 import SegmentedControl from "./arc/segmented-control/segmented-control";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "./ui/controls";
 import { Button } from "./ui/button";
@@ -15,10 +15,12 @@ import type { PendingScoutCounts, ScoutSpace } from "../lib/scouting";
 /** More workspaces than this: a dropdown instead of the segmented control. */
 export const SEGMENTED_MAX_WORKSPACES = 4;
 
-function Extras({ role, pending, active }: { role?: WorkspaceSpace["role"]; pending: number; active: boolean }) {
+function Extras({ role, readOnly, pending, active }: { role?: WorkspaceSpace["role"]; readOnly?: boolean; pending: number; active: boolean }) {
   return (
     <>
-      {role === "admin" && <span className="text-[11px] font-normal text-muted-foreground">admin</span>}
+      {/* A read-only space (Task 19): deleted in Control Point, or no admin left. Its role no longer lets anyone change it. */}
+      {readOnly ? <span className="inline-flex items-center gap-0.5 text-[11px] font-normal text-muted-foreground"><Lock className="size-3" aria-hidden />read-only</span>
+        : role === "admin" && <span className="text-[11px] font-normal text-muted-foreground">admin</span>}
       {/* The space on screen shows its own sync state in the header; the others, only a count. */}
       {pending > 0 && !active && (
         <span className="inline-flex min-w-[1.25rem] items-center justify-center rounded-full bg-warning/15 px-1.5 text-[11px] font-medium tabular-nums text-warning">
@@ -82,8 +84,8 @@ export function ScoutSpaceSwitcher({ workspaces, space, pending, onSelect, onRef
   const value = spaceParam(space);
   const choose = (v: string) => onSelect(v === PERSONAL_PARAM ? null : v);
   const count = (id: string | null) => (id == null ? pending.personal : pending.workspaces[id] ?? 0);
-  const spaces = [{ id: null as string | null, name: "Personal", role: undefined as WorkspaceSpace["role"] | undefined },
-    ...workspaces.map((w) => ({ id: w.id as string | null, name: workspaceLabel(w), role: w.role }))];
+  const spaces = [{ id: null as string | null, name: "Personal", role: undefined as WorkspaceSpace["role"] | undefined, readOnly: false },
+    ...workspaces.map((w) => ({ id: w.id as string | null, name: workspaceLabel(w), role: w.role, readOnly: !!w.orphaned }))];
 
   const control = workspaces.length > SEGMENTED_MAX_WORKSPACES ? (
     <Select value={value} onValueChange={choose}>
@@ -91,7 +93,7 @@ export function ScoutSpaceSwitcher({ workspaces, space, pending, onSelect, onRef
       <SelectContent className="min-w-[16rem]">
         {spaces.map((s) => (
           <SelectItem key={spaceParam(s.id)} value={spaceParam(s.id)} className="max-sm:py-2.5">
-            <span className="inline-flex min-w-0 items-center gap-2"><span className="truncate">{s.name}</span><Extras role={s.role} pending={count(s.id)} active={s.id === space} /></span>
+            <span className="inline-flex min-w-0 items-center gap-2"><span className="truncate">{s.name}</span><Extras role={s.role} readOnly={s.readOnly} pending={count(s.id)} active={s.id === space} /></span>
           </SelectItem>
         ))}
       </SelectContent>
@@ -99,7 +101,7 @@ export function ScoutSpaceSwitcher({ workspaces, space, pending, onSelect, onRef
   ) : (
     <SegmentedControl label="Scout space" value={value} onValueChange={choose}
       className={cn("max-w-full max-sm:[&_button]:min-h-10", !onRefresh && className)}
-      options={spaces.map((s) => ({ value: spaceParam(s.id), label: s.name, accessory: <Extras role={s.role} pending={count(s.id)} active={s.id === space} /> }))} />
+      options={spaces.map((s) => ({ value: spaceParam(s.id), label: s.name, accessory: <Extras role={s.role} readOnly={s.readOnly} pending={count(s.id)} active={s.id === space} /> }))} />
   );
   if (!onRefresh) return control;
   // Phone: the switcher (it scrolls sideways) and the button share a row; the status goes under them.

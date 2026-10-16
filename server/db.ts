@@ -747,6 +747,44 @@ CREATE TABLE workspace_picklist_versions (
 );
 `,
   },
+  {
+    version: 22,
+    name: "orphaned workspaces",
+    sql: `
+-- A scout space whose Control Point workspace is gone, or has no admin left (server/scout/orphans.ts,
+-- docs/shared-accounts.md "Orphaned workspaces"). orphaned_at: when Scout saw it (ISO), NULL while the
+-- workspace is fine. orphan_reason: 'deleted' (Control Point's members route answers 404 not_found) or
+-- 'no_admin'. Both are cleared when the workspace comes back. While set, the space is read-only.
+ALTER TABLE workspaces ADD COLUMN orphaned_at TEXT;
+ALTER TABLE workspaces ADD COLUMN orphan_reason TEXT;
+-- orphan_check_at: ms, set when Scout owes the workspace a no-admin check that Control Point couldn't answer
+-- (its last known admin left or was demoted); the next membership answer listing it makes the check. NULL: none owed.
+ALTER TABLE workspaces ADD COLUMN orphan_check_at INTEGER;
+
+-- Who keeps reading a space deleted in Control Point: everyone in Scout's membership cache
+-- (workspace_members) for it when Scout saw it deleted, with the role they had. Their cached memberships
+-- go as Control Point stops listing them; these rows stay until the workspace comes back.
+CREATE TABLE workspace_former_members (
+  workspace_id INTEGER NOT NULL REFERENCES workspaces (id),
+  account_id INTEGER NOT NULL,
+  role TEXT NOT NULL,
+  PRIMARY KEY (workspace_id, account_id)
+) WITHOUT ROWID;
+CREATE INDEX workspace_former_members_account ON workspace_former_members (account_id);
+
+-- A workspace that dropped out of an account's Control Point answer when Control Point couldn't say whether it was
+-- deleted (its members route timed out or failed). Kept apart from workspace_members, so it never grants access;
+-- the account's next answer asks again: deleted makes it a former member, otherwise it's logged as a removal then.
+CREATE TABLE workspace_pending_departures (
+  account_id INTEGER NOT NULL,
+  cp_workspace_id TEXT NOT NULL,
+  role TEXT NOT NULL,
+  workspace_name TEXT NOT NULL DEFAULT '',
+  at INTEGER NOT NULL,
+  PRIMARY KEY (account_id, cp_workspace_id)
+) WITHOUT ROWID;
+`,
+  },
 ];
 
 export type Db = Client;

@@ -36,7 +36,7 @@ import { isWorkspaceId, type Membership } from "../auth/controlPoint.js";
 import { currentUser, type User } from "../auth/session.js";
 import { publishComment, serialized } from "./bus.js";
 import { entryDetails, logActivity } from "./activityLog.js";
-import { workspaceAccess, workspacePaused, writerName } from "./entries.js";
+import { accessError, isWrite, workspaceAccess, workspacePaused, writerName } from "./entries.js";
 import { inboxText } from "../../src/shared/inbox.js";
 import { inboxSettled, notifyInboxChanged } from "../inbox/inbox.js";
 import { cleanCommentBody, commentExcerpt, type CommentEvent, type EntryComment } from "../../src/shared/comments.js";
@@ -282,8 +282,8 @@ async function member(req: Request, res: Response, needEntry = true): Promise<{ 
   if (!isWorkspaceId(workspaceId)) { res.status(400).json({ error: "workspaceId required" }); return null; }
   const uuid = String(req.params.uuid ?? "");
   if (needEntry && !UUID.test(uuid)) { res.status(400).json({ error: "No such entry." }); return null; }
-  const access = await workspaceAccess(user, workspaceId);
-  if (!access.ok) { res.status(access.status).json({ error: access.error }); return null; }
+  const access = await workspaceAccess(user, workspaceId, { write: isWrite(req) });
+  if (!access.ok) { res.status(access.status).json(accessError(access)); return null; }
   return { user, m: access.membership, uuid };
 }
 

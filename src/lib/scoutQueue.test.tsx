@@ -4,7 +4,7 @@
 // none while workspace scouting is off), and the pending counts follow saves and syncs.
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { act, cleanup, render, renderHook } from "@testing-library/react";
-import { localScoutEntries, moveQueuedToPersonal, pendingScoutCounts, saveScoutEntry, syncQueuedScouting, syncScouting, usePendingScoutCounts, type ScoutEntry } from "./scouting";
+import { ACCOUNT_STALE, localScoutEntries, moveQueuedToPersonal, personalCopy, pendingScoutCounts, saveScoutEntry, syncQueuedScouting, syncScouting, usePendingScoutCounts, type ScoutEntry } from "./scouting";
 import { resetFlags } from "./flags";
 import { DEFAULT_FLAGS } from "../shared/flags";
 import type { AccountUser } from "./personal";
@@ -136,7 +136,7 @@ describe("ScoutQueueSync (the app-wide reconnect trigger)", () => {
     const personal = localScoutEntries(null);
     expect(personal.map((e) => [e.team, e.notes, e.workspaceId])).toEqual([[2222, "slow lift", null]]);
     expect(personal[0].uuid).not.toBe("wwwwwwwwwww1");
-    expect(localScoutEntries("42").map((e) => e.uuid)).toEqual(["wwwwwwwwwww2"]); // the old tombstone only (hidden)
+    expect(localScoutEntries("42")).toEqual([]); // the queued delete was let go, its local tombstone with it
     expect(h.toasts).toEqual([expect.stringMatching(/^1 entry saved in Robo Lions couldn't sync: you're no longer a member there\. It's kept in Personal/)]);
     await vi.waitFor(() => expect(pendingScoutCounts().personal).toBe(0)); // and Personal syncs it to the account
   });
@@ -156,6 +156,29 @@ describe("ScoutQueueSync (the app-wide reconnect trigger)", () => {
     expect(pendingScoutCounts().workspaces).toEqual({ 42: 1 });
     expect(localScoutEntries(null)).toEqual([]);
     expect(h.toasts).toEqual([]);
+  });
+
+  it("moving keeps the workspace's own answers readable: they go into the notes, built-in answers stay answers", () => {
+    localStorage.setItem("cs-scout-tpl:42:2025", JSON.stringify({ workspaceId: "42", season: 2025, version: 3, settingsVersion: 3,
+      match: [{ id: "custom_lift", label: "Lift height", type: "number", phase: "endgame" }, { id: "fouls", label: "Fouls drawn", type: "counter", phase: "overall" }], pit: null, updatedAt: null, updatedBy: null }));
+    saveScoutEntry({ uuid: "wwwwwwwwwww1", ...base, notes: "quick", data: { custom_lift: 42, fouls: 2, custom_none: "" }, workspaceId: "42" });
+    expect(moveQueuedToPersonal("42")).toBe(1);
+    const [e] = localScoutEntries(null);
+    expect(e.data).toEqual({ custom_lift: 42, fouls: 2, custom_none: "" }); // every answer kept
+    expect(e.notes).toBe("quick\n\nWorkspace answers:\nLift height: 42");
+  });
+
+  it("personalCopy names the workspace the answers came from, and says yes for a ticked toggle", () => {
+    expect(personalCopy({ ramp: true, defense: true }, "", [{ id: "ramp", label: "Used the ramp" }], [{ id: "defense" }], "Robo Raptors"))
+      .toEqual({ data: { ramp: true, defense: true }, notes: "Answers from Robo Raptors:\nUsed the ramp: yes", overflow: 0 });
+  });
+
+  it("personalCopy never cuts the notes: answers that don't fit stay in the data, and it says by how much", () => {
+    const long = "n".repeat(3990);
+    const out = personalCopy({ ramp: 7 }, long, [{ id: "ramp", label: "Ramp" }], [], null);
+    expect(out.notes).toBe(long);
+    expect(out.data).toEqual({ ramp: 7 });
+    expect(out.overflow).toBe(long.length + "\n\nWorkspace answers:\nRamp: 7".length - 4000);
   });
 
   it("moving resets the workspace's pull cursor, so a later re-add pulls everything again", () => {
@@ -219,6 +242,84 @@ describe("ScoutQueueSync (the app-wide reconnect trigger)", () => {
     render(<ScoutQueueSync />);
     await vi.waitFor(() => expect(refreshUser).toHaveBeenCalled());
     expect(pendingScoutCounts().workspaces).toEqual({ 41: 1 }); // still listed: kept queued, not moved
+  });
+
+  // Task 19: a space that went read-only (deleted in Control Point, or no admin left).
+  const readOnlyUser = (id: string): AccountUser => ({ ...user([]), controlPoint: { accountId: 9001, member: true, teams: [], url: "",
+    workspaces: [{ id, name: `W${id}`, role: "member", orphaned: { at: "2026-10-16T00:00:00.000Z", reason: "deleted" } }] } });
+  /** A server answering pushes to `ws` with 423 workspace_read_only. */
+  function readOnlyServer(ws: string) {
+    const calls: (string | null)[] = [];
+    vi.stubGlobal("fetch", vi.fn(async (_path: string, init?: RequestInit) => {
+      const body = JSON.parse(String(init?.body ?? "{}"));
+      calls.push(body.workspaceId ?? null);
+      if (body.workspaceId === ws) return new Response(JSON.stringify({ error: "read-only", code: "workspace_read_only" }), { status: 423, headers: { "Content-Type": "application/json" } });
+      return new Response(JSON.stringify({ results: body.entries.map((e: ScoutEntry) => ({ uuid: e.uuid, ok: true })) }), { status: 200, headers: { "Content-Type": "application/json" } });
+    }));
+    return { calls };
+  }
+
+  it("read-only space: entries queued there are tried once (423), then kept in Personal with a notice, nothing lost", async () => {
+    saveScoutEntry({ uuid: "wwwwwwwwwww1", ...base, team: 2222, notes: "offline note", workspaceId: "42" });
+    const s = readOnlyServer("42");
+    const refreshUser = vi.fn(async () => undefined);
+    h.personal = { user: readOnlyUser("42"), syncReady: true, refreshUser };
+    render(<ScoutQueueSync />);
+    await vi.waitFor(() => expect(pendingScoutCounts().workspaces).toEqual({}));
+    expect(s.calls.filter((w) => w === "42")).toHaveLength(1);
+    expect(localScoutEntries(null).map((e) => [e.team, e.notes, e.workspaceId])).toEqual([[2222, "offline note", null]]);
+    expect(h.toasts).toEqual([expect.stringMatching(/^1 entry saved in W42 couldn't sync: the workspace is read-only now\. It's kept in Personal, so nothing was lost\./)]);
+    expect(refreshUser).toHaveBeenCalled(); // the 423 re-reads the account (the banner)
+    await vi.waitFor(() => expect(pendingScoutCounts().personal).toBe(0));
+  });
+
+  it("read-only space: a queued delete the server refused is let go, and the entry comes back from the server", async () => {
+    const kept = { uuid: "wwwwwwwwwww1", ...base, team: 2222, notes: "server copy", workspaceId: "42", updatedAt: 1000, authorAccountId: 5, authorDisplayName: "Max" };
+    localStorage.setItem("cs-scout-ws:42:wwwwwwwwwww1", JSON.stringify(kept));
+    localStorage.setItem("cs-scout-ws-cursor:42", "9");
+    saveScoutEntry({ ...kept, deleted: true, data: {}, notes: "" }); // deleted here while offline; the space went read-only
+    const pulls: string[] = [];
+    vi.stubGlobal("fetch", vi.fn(async (path: string, init?: RequestInit) => {
+      if (init?.method === "POST") return new Response(JSON.stringify({ error: "read-only", code: "workspace_read_only" }), { status: 423, headers: { "Content-Type": "application/json" } });
+      pulls.push(path);
+      return new Response(JSON.stringify({ entries: [kept], cursor: 9, more: false }), { status: 200, headers: { "Content-Type": "application/json" } });
+    }));
+    h.personal = { user: readOnlyUser("42"), syncReady: true };
+    render(<ScoutQueueSync />);
+    await vi.waitFor(() => expect(localScoutEntries("42").map((e) => [e.uuid, !!e.deleted, e.notes])).toEqual([["wwwwwwwwwww1", false, "server copy"]]));
+    expect(pendingScoutCounts().workspaces).toEqual({});
+    expect(pulls).toEqual(["/api/scout/sync?workspaceId=42&since=0"]); // from the start: the cursor was reset
+    expect(localScoutEntries(null)).toEqual([]); // nothing to keep in Personal for a delete
+  });
+
+  it("read-only space that came back meanwhile: the push goes through there, nothing moves", async () => {
+    saveScoutEntry({ uuid: "wwwwwwwwwww1", ...base, workspaceId: "42" });
+    const s = server();
+    h.personal = { user: readOnlyUser("42"), syncReady: true };
+    render(<ScoutQueueSync />);
+    await vi.waitFor(() => expect(pendingScoutCounts().workspaces).toEqual({}));
+    expect(s.calls).toEqual([{ workspaceId: "42", uuids: ["wwwwwwwwwww1"] }]);
+    expect(localScoutEntries(null)).toEqual([]);
+    expect(h.toasts).toEqual([]);
+  });
+
+  it("read-only space, but a failure other than 423 (offline, a server error): kept queued there", async () => {
+    saveScoutEntry({ uuid: "wwwwwwwwwww1", ...base, workspaceId: "42" });
+    vi.stubGlobal("fetch", vi.fn(async () => new Response(JSON.stringify({ error: "down" }), { status: 500, headers: { "Content-Type": "application/json" } })));
+    h.personal = { user: readOnlyUser("42"), syncReady: true };
+    render(<ScoutQueueSync />);
+    await new Promise((r) => setTimeout(r, 30));
+    expect(pendingScoutCounts().workspaces).toEqual({ 42: 1 });
+    expect(localScoutEntries(null)).toEqual([]);
+  });
+
+  it("a live notice that the account's spaces changed re-reads the account at once", async () => {
+    const refreshUser = vi.fn(async () => undefined);
+    h.personal = { user: user(["41"]), syncReady: true, refreshUser };
+    server();
+    render(<ScoutQueueSync />);
+    act(() => { window.dispatchEvent(new Event(ACCOUNT_STALE)); });
+    expect(refreshUser).toHaveBeenCalledTimes(1);
   });
 
   it("signed out: nothing is sent", async () => {

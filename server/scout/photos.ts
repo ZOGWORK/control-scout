@@ -41,7 +41,7 @@ import { currentUser, type User } from "../auth/session.js";
 import { isEnabled } from "../flags.js";
 import { publishEntries, serialized, type LiveEntry } from "./bus.js";
 import { entryDetails, logActivity, type ActivityActor } from "./activityLog.js";
-import { lastSeq, readLiveEntries, workspaceAccess, workspacePaused, writerName, type WorkspaceEntryOut } from "./entries.js";
+import { accessError, isWrite, lastSeq, readLiveEntries, workspaceAccess, workspacePaused, writerName, type WorkspaceEntryOut } from "./entries.js";
 import { deleteObject, headObject, listObjects, r2, uploadUrl, viewUrl, type R2Config } from "./r2.js";
 import { openAlert, raiseAlert, resolveAlert } from "../portal/alerts.js";
 import { PHOTO_LIMITS, STORAGE_FULL, type OwnerStorage, type StorageLevel } from "../../src/shared/photos.js";
@@ -474,8 +474,8 @@ async function member(req: Request, res: Response): Promise<{ user: User; m: Mem
   if (!user) { res.status(401).json({ error: "Sign in to add photos." }); return null; }
   const workspaceId = req.body?.workspaceId ?? req.query.workspaceId;
   if (!isWorkspaceId(workspaceId)) { res.status(400).json({ error: "workspaceId required" }); return null; }
-  const access = await workspaceAccess(user, workspaceId);
-  if (!access.ok) { res.status(access.status).json({ error: access.error }); return null; }
+  const access = await workspaceAccess(user, workspaceId, { write: isWrite(req) });
+  if (!access.ok) { res.status(access.status).json(accessError(access)); return null; }
   return { user, m: access.membership };
 }
 

@@ -6,7 +6,7 @@ import { useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode }
 import { useSearchParams } from "react-router-dom";
 import {
   Activity, AlertTriangle, Archive, Bug, Building2, CheckCircle2, ClipboardList, Database, DatabaseZap, ExternalLink, Gauge, HardDrive, HardDriveDownload,
-  Inbox, LayoutDashboard, Link2, Mail, PackageOpen, Radio, RefreshCw, RotateCcw, ScrollText, ServerCog, Target, Timer, ToggleRight, Trash2, Users,
+  Inbox, LayoutDashboard, Link2, Mail, PackageOpen, Radio, RefreshCw, RotateCcw, ScrollText, ServerCog, Target, Timer, ToggleRight, Trash2, Unlink, Users,
 } from "lucide-react";
 import { PageHeader, Section, EmptyState } from "../components/page";
 import { StatTile, Meter } from "../components/StatTile";
@@ -28,6 +28,7 @@ import type {
   AuditEntry, FeedbackList, FeedbackMessage, FeedbackStatus, FlagRow, LedgerKind, OpName, OpsStatus, OwnerOverview, OwnerUsage, PredictionHealth, RouteStats,
 } from "../shared/owner";
 import type { Flag } from "../shared/flags";
+import type { OrphanedWorkspace, OrphanReason } from "../shared/orphaned";
 import { StorageBanner, StoragePanel } from "../components/owner/StoragePanel";
 
 const PANELS = [
@@ -39,6 +40,7 @@ const PANELS = [
   { id: "errors", label: "Errors", icon: Bug },
   { id: "ops", label: "Data jobs", icon: DatabaseZap },
   { id: "storage", label: "Storage", icon: HardDrive },
+  { id: "orphaned", label: "Orphaned spaces", icon: Unlink },
   { id: "audit", label: "Audit log", icon: ScrollText },
 ] as const;
 type PanelId = (typeof PANELS)[number]["id"];
@@ -71,6 +73,7 @@ export default function OwnerPage() {
         <TabsContent value="errors"><ErrorsPanel /></TabsContent>
         <TabsContent value="ops"><OpsPanel /></TabsContent>
         <TabsContent value="storage"><StoragePanel /></TabsContent>
+        <TabsContent value="orphaned"><OrphanedPanel /></TabsContent>
         <TabsContent value="audit"><AuditPanel /></TabsContent>
       </Tabs>
     </div>
@@ -119,9 +122,14 @@ function OverviewPanel({ onOpen }: { onOpen: (id: string) => void }) {
             </TileGrid>
           </Section>
           <Section title="Waiting for you">
-            <TileGrid cols={3}>
+            <TileGrid cols={o.orphanedWorkspaces != null ? 4 : 3}>
               <StatTile tone="accent" icon={Inbox} label="Open feedback" value={int(o.inbox.openFeedback)} hint="Messages from the contact form" onClick={() => onOpen("feedback")} ariaLabel={`Open feedback: ${o.inbox.openFeedback}. Show the inbox`} />
               <StatTile tone="amber" icon={Bug} label="Error reports" value={int(o.inbox.errorReports)} hint={o.inbox.unfiledErrors ? `${int(o.inbox.unfiledErrors)} not on GitHub yet` : "All filed on GitHub"} onClick={() => onOpen("errors")} ariaLabel={`Error reports: ${o.inbox.errorReports}. Show them`} />
+              {o.orphanedWorkspaces != null && (
+                <StatTile tone="violet" icon={Unlink} label="Orphaned spaces" value={int(o.orphanedWorkspaces)}
+                  hint={o.orphanedWorkspaces ? "Read-only: deleted in Control Point, or no admin left" : "Every scout space has its workspace"}
+                  onClick={() => onOpen("orphaned")} ariaLabel={`Orphaned spaces: ${o.orphanedWorkspaces}. Show them`} />
+              )}
               <StatTile tone="emerald" icon={ServerCog} label="Up for" value={uptime(o.health.uptimeSeconds)} hint={`Since ${when(o.health.startedAt)}`} />
             </TileGrid>
           </Section>
@@ -737,6 +745,53 @@ function OpsPanel() {
   );
 }
 
+// --- Orphaned spaces (Task 19) ----------------------------------------------------------------
+
+const REASON: Record<OrphanReason, string> = { deleted: "Deleted in Control Point", no_admin: "No admin left" };
+
+/**
+ * Scout spaces left read-only because their Control Point workspace was deleted or has no admin. Listed
+ * only: their former members still read and export them, and a workspace that comes back is writable again.
+ */
+function OrphanedPanel() {
+  const state = useApi<{ workspaces: OrphanedWorkspace[] }>("/api/owner/orphaned-workspaces");
+  return (
+    <Section title="Orphaned spaces" description="Scout spaces whose Control Point workspace was deleted or has no admin left. They're read-only: everyone listed can still read and export the entries. Nothing here is deleted; a workspace that comes back in Control Point is writable again on its own.">
+      <Async state={state} empty={(d) => !d.workspaces.length && <EmptyState icon={Unlink} title="No orphaned spaces" description="Every scout space still has its Control Point workspace and an admin." />}>
+        {({ workspaces }) => (
+          <ul className="grid gap-3 lg:grid-cols-2" aria-label="Orphaned spaces">
+            {workspaces.map((w) => (
+              <li key={w.workspaceId} className="min-w-0 rounded-xl border border-border bg-card p-4">
+                <div className="flex flex-wrap items-start justify-between gap-2">
+                  <div className="min-w-0">
+                    <h3 className="truncate font-medium text-foreground">{w.name || `Workspace ${w.workspaceId}`}</h3>
+                    <p className="mt-0.5 text-xs text-muted-foreground">
+                      <span className="font-mono">#{w.workspaceId}</span> · read-only since <span title={w.orphanedAt}>{when(w.orphanedAt)}</span>
+                    </p>
+                  </div>
+                  <Badge variant={w.reason === "deleted" ? "destructive" : "soft"}>{REASON[w.reason]}</Badge>
+                </div>
+                <dl className="mt-3 grid grid-cols-2 gap-3 text-sm">
+                  <div><dt className="text-xs text-muted-foreground">Entries kept</dt><dd className="font-medium tabular-nums text-foreground">{int(w.entries)}</dd></div>
+                  <div><dt className="text-xs text-muted-foreground">{w.reason === "deleted" ? "Former members" : "Members"}</dt><dd className="font-medium tabular-nums text-foreground">{int(w.members.length)}</dd></div>
+                </dl>
+                {w.members.length > 0 && (
+                  <ul className="mt-3 flex flex-wrap gap-1.5" aria-label={`Who can read ${w.name || "it"}`}>
+                    {w.members.slice(0, 12).map((m) => (
+                      <li key={m.accountId}><Badge variant="secondary">{m.name}{m.role === "admin" ? " · admin" : ""}</Badge></li>
+                    ))}
+                    {w.members.length > 12 && <li><Badge variant="secondary">+{w.members.length - 12} more</Badge></li>}
+                  </ul>
+                )}
+              </li>
+            ))}
+          </ul>
+        )}
+      </Async>
+    </Section>
+  );
+}
+
 // --- Audit log --------------------------------------------------------------------------------
 
 function describe(e: AuditEntry): string {
@@ -757,6 +812,12 @@ function describe(e: AuditEntry): string {
         ? `${d.accountId === d.actorAccountId ? `${who} left` : `Removed ${who} from`} ${where} (in Control Scout)`
         : `${who} is no longer in ${where} (changed in Control Point)`;
     }
+    case "workspace.orphaned": {
+      // Task 19: a scout space went read-only.
+      const where = String(d.workspaceName ?? "") || `workspace ${d.workspaceId}`;
+      return d.reason === "deleted" ? `${where} was deleted in Control Point: its scout space is read-only` : `${where} has no admin left: its scout space is read-only`;
+    }
+    case "workspace.restored": return `${String(d.workspaceName ?? "") || `Workspace ${d.workspaceId}`} is back in Control Point: its scout space is writable again`;
     default: return e.action;
   }
 }
