@@ -4,6 +4,7 @@
 // Anonymous-first: everything works in localStorage without an account; on
 // sign-in, local data is merged into the account (nothing lost), then the
 // account is the source of truth.
+import { INBOX_TOGGLE_KEYS, type InboxToggleKey } from "./inbox.js";
 
 export interface TrackedState { teams: number[]; events: string[] } // events: "season:CODE"
 export interface VideoLink { url: string; title: string | null; addedAt: number }
@@ -13,7 +14,9 @@ export interface Settings {
   density: "comfortable" | "compact";
   /** Animated background (on by default; reduced motion always stills it). */
   ambient: boolean;
-  notify: { myTeamMatches: boolean; trackedTeams: boolean; upsets: boolean; eventStart: boolean };
+  /** Match alerts, plus the notification inbox's per-kind switches (src/shared/inbox.ts): those are
+   *  optional and missing means on, so a value saved before they existed is unchanged byte for byte. */
+  notify: { myTeamMatches: boolean; trackedTeams: boolean; upsets: boolean; eventStart: boolean } & Partial<Record<InboxToggleKey, boolean>>;
 }
 
 export interface PersonalState {
@@ -31,6 +34,8 @@ export interface PersonalState {
 
 export type PersonalKey = keyof PersonalState;
 export const PERSONAL_KEYS: PersonalKey[] = ["myTeam", "tracked", "bookmarks", "settings", "videoLinks", "predictionHistory", "shortlistNotes"];
+
+const NOTIFY_KEYS = new Set<string>(["myTeamMatches", "trackedTeams", "upsets", "eventStart", ...INBOX_TOGGLE_KEYS]);
 
 export const DEFAULT_SETTINGS: Settings = {
   theme: "dark",
@@ -74,7 +79,8 @@ export function cleanValue<K extends PersonalKey>(key: K, v: unknown): PersonalS
         theme: ["dark", "light", "system"].includes(o.theme as string) ? o.theme : DEFAULT_SETTINGS.theme,
         density: o.density === "compact" ? "compact" : "comfortable",
         ambient: o.ambient !== false,
-        notify: { ...DEFAULT_SETTINGS.notify, ...Object.fromEntries(Object.entries(o.notify ?? {}).filter(([, b]) => typeof b === "boolean")) },
+        // Known switches only, booleans only. The inbox's are kept only when present (missing: on).
+        notify: { ...DEFAULT_SETTINGS.notify, ...Object.fromEntries(Object.entries(o.notify && typeof o.notify === "object" ? o.notify : {}).filter(([k, b]) => NOTIFY_KEYS.has(k) && typeof b === "boolean")) },
       } as PersonalState[K];
     }
     case "videoLinks": {
