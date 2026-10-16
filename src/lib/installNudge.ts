@@ -83,6 +83,22 @@ export const markShown = (now: Date = new Date()) => write({ lastShown: dayKey(n
 export const markDismissed = (now: Date = new Date()) => write({ dismissed: now.toISOString() });
 export const markInstalled = (now: Date = new Date()) => write({ installed: now.toISOString() });
 
+/**
+ * Take today's one showing, if it's still free: re-reads the record from storage (another tab may have
+ * shown it, or been turned down, since this one last looked) and writes the day. Tabs take turns
+ * through a Web Lock where there is one, so two tabs opened together can't both show it.
+ */
+export async function claimDailyShow(now: () => Date = () => new Date()): Promise<boolean> {
+  const take = () => {
+    if (ruledOut(readInstall(), now())) { emit(); return false; }
+    markShown(now());
+    return true;
+  };
+  const locks = typeof navigator !== "undefined" ? (navigator as Navigator & { locks?: LockManager }).locks : undefined;
+  if (!locks?.request) return take();
+  try { return await locks.request("cs-install-show", take); } catch { return take(); }
+}
+
 /** True when the record rules it out on `now`'s day (already shown today, turned down, or installed). */
 export function ruledOut(r: InstallRecord, now: Date = new Date()): boolean {
   return !!r.dismissed || !!r.installed || r.lastShown === dayKey(now);
@@ -164,14 +180,22 @@ const snapshot = () => version;
 
 /** Re-renders when the offer or the record changes. */
 export function useInstallState(): { offer: BeforeInstallPromptEvent | null; record: InstallRecord } {
-  useSyncExternalStore(subscribe, snapshot, snapshot);
-  return { offer, record: readInstall() };
+  const v = useSyncExternalStore(subscribe, snapshot, snapshot);
+  // One parsed record per change, so effects that depend on it don't re-run on every render.
+  if (!cached || cached.version !== v) cached = { version: v, record: readInstall() };
+  return { offer, record: cached.record };
+}
+let cached: { version: number; record: InstallRecord } | null = null;
+
+/** Forget what this device answered (Settings' "Clear all local data"): the nudge may show again. */
+export function resetInstall(): void {
+  memory = null;
+  try { localStorage.removeItem(INSTALL_KEY); } catch { /* storage blocked */ }
+  emit();
 }
 
 /** Tests only. */
 export function resetInstallForTests(): void {
   offer = null;
-  memory = null;
-  try { localStorage.removeItem(INSTALL_KEY); } catch { /* storage blocked */ }
-  emit();
+  resetInstall();
 }

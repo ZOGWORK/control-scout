@@ -167,8 +167,11 @@ tour once more on a new device.
 ### Add-to-home-screen nudge
 
 A small card (`src/components/layout/InstallNudge.tsx`) offering to put the
-app on the home screen: "One tap from the stands", and straight to your team
-when you have one set. It sells speed, never offline use. The rules:
+app on the home screen: "One tap from the stands". With a team of your own
+it names the team, promising only what the installed app (`start_url` "/")
+does: signed in, Home goes straight to My team ("opens straight to team
+N"); signed out, Home leads with the team's next match ("to team N and its
+next match"). It sells speed, never offline use. The rules:
 
 - **When the browser offers an install.** Chrome, Edge and Samsung Internet
   fire `beforeinstallprompt`; it's caught from page start (`preventDefault`,
@@ -181,7 +184,10 @@ when you have one set. It sells speed, never offline use. The rules:
   browsers (Chrome, Firefox, in-app browsers) get nothing: their menus differ.
 - **First app open, then at most once per calendar day** (local time). Showing
   it writes the day (`lastShown`), so reloads, other tabs and ignoring it
-  never bring it back the same day; the next day it may show again.
+  never bring it back the same day; the next day it may show again. The
+  record is read from storage again at the moment of showing, under a Web
+  Lock (`cs-install-show`) where the browser has them, so two tabs opened
+  together can't both show it.
 - **Ignoring isn't a dismissal.** Leaving the page it's on (or closing the
   tab) hides it, and it can come back the next day.
 - **Dismissed is forever:** "No thanks", the ×, Esc in the card, or "Cancel"
@@ -194,8 +200,9 @@ when you have one set. It sells speed, never offline use. The rules:
 - **The tour goes first.** It shares the first-run slot (`src/lib/firstRun.ts`).
   On a page where the tour may still open (not finished or skipped here, not
   an automated browser, not someone who knows the app, a tour page) the nudge
-  stays away; on the page where the tour (or any other first-run surface)
-  held the slot it waits for the next page or visit. So on a first visit the
+  stays away; in the page view where the tour (or any other first-run
+  surface) held the slot it waits for the next page view or visit (coming
+  back to the same page later counts). So on a first visit the
   tour comes first and the nudge follows on a later page. "First app open"
   is therefore the first page view where the browser offers an install and
   the tour isn't due.

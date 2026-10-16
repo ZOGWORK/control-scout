@@ -163,8 +163,27 @@ describe("Add-to-home-screen nudge: when it shows", () => {
     mount();
     offerInstall();
     await settle();
-    expect(nudge()?.textContent).toContain("One tap from the stands, and it opens straight to team 18360.");
+    // Signed out, the installed app opens on Home, which leads with the team's next match.
+    expect(nudge()?.textContent).toContain("One tap from the stands to team 18360 and its next match.");
     expect(nudge()?.textContent).not.toMatch(/offline|FTC Scout/i);
+  });
+
+  it("signed in with a team, promises what Home does: straight to the team", async () => {
+    personal.current = { state: { ...EMPTY_STATE, myTeam: 18360 }, user: { id: 1 } };
+    mount();
+    offerInstall();
+    await settle();
+    expect(nudge()?.textContent).toContain("One tap from the stands, and it opens straight to team 18360.");
+  });
+
+  it("another tab that showed it first (no storage event yet) keeps this one quiet", async () => {
+    mount();
+    offerInstall();
+    // The other tab writes today's showing while this one waits out its delay.
+    localStorage.setItem("cs-install", JSON.stringify({ v: 1, lastShown: dayKey() }));
+    await settle();
+    expect(nudge()).toBeNull();
+    expect(firstRunHolder()).toBeNull(); // the slot went back
   });
 
   it("sits above the tab bar, and above a page's sticky action bar on phones", async () => {
@@ -308,6 +327,20 @@ describe("Add-to-home-screen nudge: the tour goes first", () => {
     act(() => go("/teams/1234"));
     await settle();
     expect(nudge()).not.toBeNull(); // a later page
+  });
+
+  it("only that page view waits: coming back to the same page later can show it", async () => {
+    mount("/settings");
+    act(() => { claimFirstRun("other"); });
+    offerInstall();
+    await settle();
+    act(() => releaseFirstRun("other"));
+    await settle(10_000);
+    expect(nudge()).toBeNull();
+    act(() => go("/teams"));
+    act(() => go("/settings")); // a new visit to the same page
+    await settle();
+    expect(nudge()).not.toBeNull();
   });
 
   it("stays off pages where the tour may still open, and shows elsewhere", async () => {
