@@ -11,11 +11,17 @@
 //   (the hook unmounts or `signedIn` goes false), and after the tab has been
 //   hidden for a minute; it reopens (catching up from the cursor) when the tab
 //   is visible again.
+// - Comments (scoutComments.ts): each `event: comment` is re-announced for the
+//   open thread and the counts on the cards. Those events carry no id, so on
+//   every (re)connect (`ready`) and every poll, open threads and the counts
+//   refetch instead (anything said while away comes with them).
 import { useEffect, useState } from "react";
 import { applyLiveEntries, notifyScoutChanged, pullScouting, scoutCursor, type ScoutEntry, type ScoutSpace } from "./scouting";
 import { announceTemplateChange } from "./scoutTemplates";
 import { announceSettingsChange } from "./workspaceSettings";
 import { announceActivity, isActivityItem } from "./scoutActivity";
+import { announceComment, announceCommentsResync } from "./scoutComments";
+import { isCommentEvent } from "../shared/comments";
 
 /** off: Personal, signed out or hidden · connecting · live · polling (the fallback) · revoked: the server ended it (no access). */
 export type LiveMode = "off" | "connecting" | "live" | "polling" | "revoked";
@@ -50,7 +56,11 @@ export function followWorkspace(space: string, onMode: (m: LiveMode) => void, de
   const clearRetry = () => { if (retry) { clearTimeout(retry); retry = null; } };
   // A 403 is the server saying this account isn't in the workspace any more (polling has no
   // membership_revoked event): ended for good, like the stream's. Anything else: the next tick tries again.
-  const poll = () => { pull(space).catch((e: unknown) => { if ((e as { status?: unknown } | null)?.status === 403) revoked(); }); };
+  // A pull that worked: open comment threads and the card counts refetch too (scoutComments.ts).
+  const poll = () => {
+    pull(space).then(() => { if (!stopped) announceCommentsResync(space); })
+      .catch((e: unknown) => { if ((e as { status?: unknown } | null)?.status === 403) revoked(); });
+  };
   const startPolling = () => {
     setMode("polling");
     if (poller) return;
@@ -111,6 +121,8 @@ export function followWorkspace(space: string, onMode: (m: LiveMode) => void, de
       failures = 0;
       stopPolling(); clearRetry();
       setMode("live");
+      // Comment events have no id to catch up from: what's on screen refetches (scoutComments.ts).
+      announceCommentsResync(space);
     });
     s.addEventListener("resync", () => {
       // Too far behind for the stream: pull (pages through), then stream from the new cursor.
@@ -141,6 +153,13 @@ export function followWorkspace(space: string, onMode: (m: LiveMode) => void, de
       let item: unknown;
       try { item = JSON.parse((ev as MessageEvent<string>).data); } catch { return; }
       if (isActivityItem(item) && item.workspaceId === space) announceActivity(item);
+    });
+    s.addEventListener("comment", (ev) => {
+      // A comment on one of the workspace's entries changed: the open thread and the card counts merge it.
+      if (es !== s) return;
+      let c: unknown;
+      try { c = JSON.parse((ev as MessageEvent<string>).data); } catch { return; }
+      if (isCommentEvent(c) && c.workspaceId === space) announceComment(c);
     });
     s.addEventListener("membership_revoked", () => { if (es === s) revoked(); });
     s.onerror = () => { if (es === s) { flushPendingNow(); failed(); } };
