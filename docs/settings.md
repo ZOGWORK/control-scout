@@ -127,6 +127,8 @@ These keys never leave the device (`DEVICE_ONLY_KEYS`):
 | `cs-scout-lost:<workspace>` | Edits this device lost to a newer one from someone else, kept so they can be compared and restored (`src/lib/lostEdits.ts`; at most 30 per workspace, 30 days). A restore sends the entry, as any edit; the list itself never leaves the device |
 | `cs-tour` | The first-run tour was finished or skipped on this device (`src/lib/tour.ts`): `{v, outcome: "done" \| "skipped", at, step}`. It never shows again here. See "First-run tour" below |
 | `cs-tour-demo` | `"1"` lets a browser driven by automation see the tour (`npm run shots -- --tour`); real visitors never have it |
+| `cs-install` | The add-to-home-screen nudge on this device (`src/lib/installNudge.ts`): `{v, lastShown: "YYYY-MM-DD", dismissed?, installed?}`. See "Add-to-home-screen nudge" below |
+| `cs-install-demo` | `"1"` lets a browser driven by automation see the nudge (`npm run shots -- --install`); real visitors never have it |
 
 The queue's entries go up as entries (that is the queue's job). The queue key
 itself, the space and the view are never sent: not in a personal sync
@@ -145,7 +147,7 @@ itself, the space and the view are never sent: not in a personal sync
 | `cs-scout-lost:<workspace>` | 3 | No (a restore sends the entry) |
 | `cs-scout-ws-cursor:<workspace>` | sync bookkeeping | Only as the pull's `since=` cursor |
 | `cs-scout-tpl:<ws>:<season>`, `cs-scout-tplv:<ws>:<season>:<v>`, `cs-scout-wss:<ws>` | 2 (cache) | No |
-| `cs-scout-space`, `cs-shortlist-view`, `cs-account-cache`, `cs-tour`, `cs-tour-demo` | 3 | No |
+| `cs-scout-space`, `cs-shortlist-view`, `cs-account-cache`, `cs-tour`, `cs-tour-demo`, `cs-install`, `cs-install-demo` | 3 | No |
 | `cs-sidebar`, `cs-records-cols:<table>`, `cs-saved-filters:v1` | local UI state | No |
 | `cs-consent`, `cs-alerts-sent`, `cs-offline-seasons`, `cs-pack-meta`, `cs-seen` | device state | No |
 | sessionStorage `cs-session`, `cs-stats-session`, `cs-landed` | this tab only | `cs-stats-session` only as the analytics "new session" bit (no ID) |
@@ -161,6 +163,54 @@ those (`knowsTheApp` in `src/lib/tour.ts`), so a synced flag would add a
 personal key, its server validation and a merge rule for no visible change.
 The worst case is a signed-in person with none of those seeing the four-step
 tour once more on a new device.
+
+### Add-to-home-screen nudge
+
+A small card (`src/components/layout/InstallNudge.tsx`) offering to put the
+app on the home screen: "One tap from the stands", and straight to your team
+when you have one set. It sells speed, never offline use. The rules:
+
+- **When the browser offers an install.** Chrome, Edge and Samsung Internet
+  fire `beforeinstallprompt`; it's caught from page start (`preventDefault`,
+  so the browser's own mini-infobar stays away) and "Add to home screen"
+  calls its `prompt()`. Firefox and desktop Safari never offer one: nothing
+  shows there.
+- **iOS Safari** has no install offer, so it gets a hint instead: "Tap Share,
+  then Add to Home Screen", under the same rules. Safari can't tell a page it
+  was added, so "Got it" ends the hint for good, like "No thanks". Other iOS
+  browsers (Chrome, Firefox, in-app browsers) get nothing: their menus differ.
+- **First app open, then at most once per calendar day** (local time). Showing
+  it writes the day (`lastShown`), so reloads, other tabs and ignoring it
+  never bring it back the same day; the next day it may show again.
+- **Ignoring isn't a dismissal.** Leaving the page it's on (or closing the
+  tab) hides it, and it can come back the next day.
+- **Dismissed is forever:** "No thanks", the ×, Esc in the card, or "Cancel"
+  in the browser's own install dialog (`dismissed`).
+- **Never once installed:** running from the home screen (`display-mode`
+  standalone, fullscreen, minimal-ui or window-controls-overlay, or iOS's
+  `navigator.standalone`), the `appinstalled` event or an accepted install
+  dialog (`installed`), or `navigator.getInstalledRelatedApps()` finding it
+  (the manifest's `related_applications` names the app on controlscout.org).
+- **The tour goes first.** It shares the first-run slot (`src/lib/firstRun.ts`).
+  On a page where the tour may still open (not finished or skipped here, not
+  an automated browser, not someone who knows the app, a tour page) the nudge
+  stays away; on the page where the tour (or any other first-run surface)
+  held the slot it waits for the next page or visit. So on a first visit the
+  tour comes first and the nudge follows on a later page. "First app open"
+  is therefore the first page view where the browser offers an install and
+  the tour isn't due.
+- **Never in front of anything:** after the privacy choice, once the page is
+  idle (then 2.5 s), and not while typing or while a dialog or menu is open.
+  On phones it sits above the tab bar, and above the sticky action bar on
+  pages that have one; from md up, bottom left. The error-report prompt is at
+  the top and the bell is in the top bar, so they never meet.
+- **Never to bots** or browsers driven by automation (the tour's
+  `isAutomated`). `npm run shots -- --install` opts a shot in: it sets
+  `cs-install-demo` and hands the page a stand-in install offer, since an
+  automated Chromium never makes a real one.
+
+Device-only, like the tour: an install is per device, and a "No thanks" on a
+laptop says nothing about a phone.
 
 ## Precedence
 
