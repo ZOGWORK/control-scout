@@ -21,6 +21,7 @@ import { installShippedPacks, restoreSnapshotIfEmpty } from "./data/snapshot.js"
 import { drainOnSigterm, systemdSocket } from "./listen.js";
 import { closeAllStreams } from "./scout/stream.js";
 import { photoSchedulerTick } from "./scout/photos.js";
+import { pruneActivity } from "./scout/activityLog.js";
 import type { Server } from "node:http";
 
 const log = (m: string) => console.log(`[${new Date().toISOString()}] ${m}`);
@@ -110,6 +111,10 @@ setInterval(async () => {
 // check the free-tier guardrails. Nothing without R2 configured; off with the rest of the schedule.
 if (!process.env.CS_NO_SCHEDULER) {
   setInterval(() => { photoSchedulerTick(log).catch((e) => log(`photos: ${(e as Error).message}`)); }, 15 * 60_000).unref();
+  // Workspace activity feeds keep 90 days (server/scout/activityLog.ts): a small indexed delete, every 6 hours, and once soon after boot.
+  const prune = () => { pruneActivity().then((n) => { if (n) log(`activity: pruned ${n} items older than 90 days`); }).catch((e) => log(`activity: ${(e as Error).message}`)); };
+  setTimeout(prune, 90_000).unref();
+  setInterval(prune, 6 * 3600_000).unref();
 }
 // The live fast lane: events on today, every LIVE_SYNC_SECONDS (60), results within about a minute
 // (server/data/live.ts). It shares a writer lease with the cycle above, so the two never write at once.
