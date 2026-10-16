@@ -79,6 +79,6 @@ team again any other way starts it afresh.
 
 ## Storage
 
-Migration 18 adds `workspace_picklist` (one row per team: rank, who added it and when, the
+Migration 19 adds `workspace_picklist` (one row per team: rank, who added it and when, the
 note and who last wrote it and when, and `removed_at` while it's off the list) and `workspace_picklist_versions` (the version per
 workspace and season). Both are private tables and never ship in the public snapshot.
