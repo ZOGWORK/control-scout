@@ -7,7 +7,7 @@ import { Link } from "react-router-dom";
 import { Copy, GripVertical, LayoutGrid, List, ListOrdered, Loader2, Plus, Scale } from "lucide-react";
 import { useApi, qs } from "../../lib/api";
 import { compareHref, moveItem, readView, saveView, type ShortlistView } from "../../lib/shortlist";
-import { usePickList } from "../../lib/sharedPicklist";
+import { displayOrder, usePickList } from "../../lib/sharedPicklist";
 import type { LiveMode } from "../../lib/scoutLive";
 import { agoShort } from "../../lib/format";
 import { useNow } from "../../lib/useNow";
@@ -30,12 +30,17 @@ const isPhone = () => typeof window !== "undefined" && !!window.matchMedia?.("(m
 const who = (p: PickPerson | null, me: PickPerson) => (!p ? "" : p.accountId != null && p.accountId === me.accountId ? "you" : p.name || "a member");
 
 /** The shared note, and who added the team and last wrote the note. */
-function SharedNote({ pick, me, onSave }: { pick: Pick; me: PickPerson; onSave: (text: string) => void }) {
+function SharedNote({ pick, me, onSave, unsaved, saved }: {
+  pick: Pick; me: PickPerson; onSave: (text: string) => void;
+  /** This member's note the server didn't take, and the note the server has: the field keeps the first, marked unsaved. */
+  unsaved?: string; saved?: string;
+}) {
   const now = useNow();
   const noteBy = pick.note && pick.noteBy && pick.noteUpdatedAt != null ? `note by ${who(pick.noteBy, me)} · ${agoShort(pick.noteUpdatedAt, now)}` : null;
   return (
     <div className="min-w-0">
-      <NoteField team={pick.team} value={pick.note} onSave={onSave} label={`Shared note on team ${pick.team}, seen by the whole workspace`} placeholder="Add a note for the team…" maxLength={MAX_PICK_NOTE} />
+      <NoteField team={pick.team} value={unsaved ?? pick.note} stored={unsaved !== undefined ? saved ?? "" : pick.note} onSave={onSave}
+        failedText="Not saved. Your text is still here: press Enter to try again, or Escape to put back the saved note." label={`Shared note on team ${pick.team}, seen by the whole workspace`} placeholder="Add a note for the team…" maxLength={MAX_PICK_NOTE} />
       <p className="truncate px-1.5 text-[11px] text-text-muted" title={new Date(pick.addedAt).toLocaleString()}>
         Added by {who(pick.addedBy, me)}{noteBy ? ` · ${noteBy}` : ""}
       </p>
@@ -121,9 +126,7 @@ export function SharedPicklist({ workspaceId, workspaceName, season, live, me, s
   const missing = teams.filter((t) => !byTeam.has(t));
   // Pick numbers and moves go by the whole list, picks still loading included: the rows shown take their
   // slots in it, in the order a drag in progress would leave them.
-  const previewShown = [...shown].sort((a, b) => reorder.rankOf(a) - reorder.rankOf(b));
-  let k = 0;
-  const fullOrder = teams.map((t) => (byTeam.has(t) ? previewShown[k++] : t));
+  const fullOrder = displayOrder(teams, (t) => byTeam.has(t), reorder.rankOf);
   const rankFor = (t: number) => fullOrder.indexOf(t) + 1;
   /** One place up or down, or to the top or bottom, of the whole list. */
   const moveFull = (team: number, d: number | "top" | "bottom") => {
@@ -144,7 +147,7 @@ export function SharedPicklist({ workspaceId, workspaceName, season, live, me, s
     const p = byPick.get(t.team)!;
     return {
       t, rank, season, open: open.has(t.team), dragging: reorder.dragging === t.team, idPrefix: "picklist",
-      note: <SharedNote pick={p} me={me} onSave={(text) => change({ op: "note", team: t.team, note: text })} />,
+      note: <SharedNote pick={p} me={me} unsaved={pl.unsavedNote(t.team)} saved={pl.savedNote(t.team)} onSave={(text) => change({ op: "note", team: t.team, note: text })} />,
       selected: selected.includes(t.team), selectDisabled: !selected.includes(t.team) && selected.length >= MAX_COMPARE, onSelect: (on: boolean) => pick(t.team, on),
       onToggle: () => toggle(t.team), onRemove: () => remove(t.team), handle: handleFor(t.team),
       compareLink: compareHref([t.team, ...teams.filter((x) => x !== t.team).slice(0, MAX_COMPARE - 1)], season),

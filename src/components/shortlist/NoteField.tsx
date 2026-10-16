@@ -16,12 +16,14 @@ import { FieldError } from "../ui/basic";
  * read), the last write's result (`onSave` returning false) shows the error instead, and Escape
  * writes nothing: it can't tell what to restore.
  */
-export function NoteField({ team, value, stored, onSave, className, label, placeholder = "Add a pick note…", maxLength = MAX_NOTE }: {
+export function NoteField({ team, value, stored, onSave, className, label, placeholder = "Add a pick note…", maxLength = MAX_NOTE, failedText }: {
   team: number; value: string; stored?: string; onSave: (text: string) => boolean | void; className?: string;
   /** What a screen reader hears for the field (default: "Private note on team <n>"). */
   label?: string;
   placeholder?: string;
   maxLength?: number;
+  /** What the field says when the note isn't stored (default: this device's storage is full or blocked). */
+  failedText?: string;
 }) {
   const [draft, setDraft] = useState(value);
   /** The last write was refused (what shows the error while `stored` is unknown). */
@@ -93,7 +95,7 @@ export function NoteField({ team, value, stored, onSave, className, label, place
         }}
       />
     </label>
-    <FieldError id={errorId} className="mt-0.5 px-1.5">{failed ? "Not saved: this device's storage is full or blocked. Your text is still here; free up space and press Enter to retry." : null}</FieldError>
+    <FieldError id={errorId} className="mt-0.5 px-1.5">{failed ? failedText ?? "Not saved: this device's storage is full or blocked. Your text is still here; free up space and press Enter to retry." : null}</FieldError>
     </div>
   );
 }
