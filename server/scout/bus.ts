@@ -64,6 +64,30 @@ export function publishTemplate(workspaceId: string, n: TemplateNotice): void {
   for (const fn of [...(templateChannels.get(workspaceId) ?? [])]) { try { fn(n); } catch (err) { console.error("[live] template listener failed", err); } }
 }
 
+// Workspace settings changes (settings.ts, Task 6): a notice with the new settings version only.
+// Open streams pass it on as `event: settings`; clients refetch GET /api/scout/workspaces/:id/settings.
+export interface SettingsNotice { settingsVersion: number }
+type SettingsListener = (n: SettingsNotice) => void;
+const settingsChannels = new Map<string, Set<SettingsListener>>();
+
+/** Tell every open stream of the workspace that its settings changed. Never throws. */
+export function publishSettings(workspaceId: string, n: SettingsNotice): void {
+  for (const fn of [...(settingsChannels.get(workspaceId) ?? [])]) { try { fn(n); } catch (err) { console.error("[live] settings listener failed", err); } }
+}
+
+/** Listen to a workspace's settings changes; returns the unsubscribe. */
+export function subscribeSettings(workspaceId: string, fn: SettingsListener): () => void {
+  let subs = settingsChannels.get(workspaceId);
+  if (!subs) { subs = new Set(); settingsChannels.set(workspaceId, subs); }
+  subs.add(fn);
+  return () => {
+    const s = settingsChannels.get(workspaceId);
+    if (!s) return;
+    s.delete(fn);
+    if (!s.size) settingsChannels.delete(workspaceId);
+  };
+}
+
 /** Listen to a workspace's template changes; returns the unsubscribe. */
 export function subscribeTemplate(workspaceId: string, fn: TemplateListener): () => void {
   let subs = templateChannels.get(workspaceId);

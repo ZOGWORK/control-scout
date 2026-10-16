@@ -3,12 +3,16 @@
 // rows (label + explanation on the left, the control on the right). Sections
 // are addressed by ?section= so anything can deep-link; old #anchors still
 // land on the right one. Esc leaves, like Control Point.
-import { useEffect, useRef, useState, type ComponentType, type ReactNode } from "react";
+//
+// Two kinds of settings (docs/settings.md): Personal (yours, synced with your account, and the only
+// ones that set your view, inside a workspace too) and Workspace (shared by a Control Point
+// workspace, changed by its admins; shown only to its members).
+import { useEffect, useRef, useState, type ComponentType } from "react";
 import { Link, useLocation, useNavigate, useSearchParams } from "react-router-dom";
 import { AnimatePresence, motion } from "motion/react";
 import {
   ArrowDown, ArrowUp, BellRing, Bug, ClipboardList, Download, ExternalLink, HardDriveDownload, Info, KeyRound, Link2, LogOut, Mail, Monitor, Moon, Palette,
-  Star, Sun, Upload, UserRound, X,
+  Star, Sun, Upload, UserRound, Users, X,
 } from "lucide-react";
 import { apiFetch } from "../lib/api";
 import { useMeta, useTitle } from "../lib/meta";
@@ -31,18 +35,23 @@ import { cn } from "../components/cn";
 import { ago, seasonLabel } from "../lib/format";
 import { packStatus } from "../lib/packs";
 import { removeSeason, useSavedSeasons } from "../lib/offline/seasons";
+import { workspacesOf } from "../lib/scoutSpace";
+import { Group, Row } from "../components/settings/rows";
+import { WorkspaceSection } from "../components/settings/WorkspaceSection";
 
-type SectionId = "profile" | "appearance" | "tracking" | "notifications" | "offline" | "scouting" | "privacy" | "about";
-interface SectionDef { id: SectionId; label: string; hint: string; icon: ComponentType<{ className?: string }>; group: "You" | "About" }
+type SectionId = "profile" | "appearance" | "tracking" | "notifications" | "offline" | "scouting" | "privacy" | "workspace" | "about";
+type SectionGroup = "Personal" | "Workspace" | "About";
+interface SectionDef { id: SectionId; label: string; hint: string; icon: ComponentType<{ className?: string }>; group: SectionGroup }
 
-const SECTIONS: SectionDef[] = [
-  { id: "profile", label: "Profile", hint: "Sign in to sync, your name, your account", icon: UserRound, group: "You" },
-  { id: "appearance", label: "Appearance", hint: "Theme, background, density", icon: Palette, group: "You" },
-  { id: "tracking", label: "My team & tracking", hint: "Your team, and the teams and events you follow", icon: Star, group: "You" },
-  { id: "notifications", label: "Notifications", hint: "Match alerts for your teams", icon: BellRing, group: "You" },
-  { id: "offline", label: "Offline data", hint: "Packs, cache and recordings on this device", icon: HardDriveDownload, group: "You" },
-  { id: "scouting", label: "Scouting data", hint: "Export, import and clear your notes", icon: ClipboardList, group: "You" },
-  { id: "privacy", label: "Account & privacy", hint: "What lives where, and how to remove it", icon: KeyRound, group: "You" },
+const ALL_SECTIONS: SectionDef[] = [
+  { id: "profile", label: "Profile", hint: "Sign in to sync, your name, your account", icon: UserRound, group: "Personal" },
+  { id: "appearance", label: "Appearance", hint: "Theme, background, density", icon: Palette, group: "Personal" },
+  { id: "tracking", label: "My team & tracking", hint: "Your team, and the teams and events you follow", icon: Star, group: "Personal" },
+  { id: "notifications", label: "Notifications", hint: "Match alerts for your teams", icon: BellRing, group: "Personal" },
+  { id: "offline", label: "Offline data", hint: "Packs, cache and recordings on this device", icon: HardDriveDownload, group: "Personal" },
+  { id: "scouting", label: "Scouting data", hint: "Export, import and clear your notes", icon: ClipboardList, group: "Personal" },
+  { id: "privacy", label: "Account & privacy", hint: "What lives where, and how to remove it", icon: KeyRound, group: "Personal" },
+  { id: "workspace", label: "Workspace", hint: "Shared by your Control Point workspace: defaults, template, entry policy", icon: Users, group: "Workspace" },
   { id: "about", label: "About", hint: "Data sources, engine and credits", icon: Info, group: "About" },
 ];
 /** Old in-page anchors (#account …) → sections. */
@@ -50,6 +59,11 @@ const HASHES: Record<string, SectionId> = { account: "profile", appearance: "app
 
 export default function SettingsPage() {
   const [params, setParams] = useSearchParams();
+  // The Workspace section: only for members of a Control Point workspace, while workspace scouting is on.
+  const { user } = usePersonal();
+  const workspaceScouting = useFlag("workspaceScouting");
+  const inWorkspace = workspaceScouting && workspacesOf(user).list.length > 0;
+  const SECTIONS = inWorkspace ? ALL_SECTIONS : ALL_SECTIONS.filter((s) => s.id !== "workspace");
   const loc = useLocation();
   const hash = loc.hash.replace(/^#/, "");
   const fromHash = Object.prototype.hasOwnProperty.call(HASHES, hash) ? HASHES[hash] : undefined;
@@ -92,7 +106,7 @@ export default function SettingsPage() {
               const showGroup = i === 0 || SECTIONS[i - 1].group !== s.group;
               return (
                 <li key={s.id} className="shrink-0">
-                  {showGroup && <p className={cn("mb-1 hidden px-3 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground lg:block", i === 0 ? "mt-0" : "mt-5")}>{s.group === "You" ? "Your settings" : "About"}</p>}
+                  {showGroup && <p className={cn("mb-1 hidden px-3 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground lg:block", i === 0 ? "mt-0" : "mt-5")}>{s.group}</p>}
                   <button
                     type="button" onClick={() => go(s.id)} aria-current={on ? "page" : undefined}
                     className={cn(
@@ -119,37 +133,12 @@ export default function SettingsPage() {
               {active === "offline" && <OfflineData />}
               {active === "scouting" && <ScoutingData />}
               {active === "privacy" && <Privacy onOpen={go} />}
+              {active === "workspace" && <WorkspaceSection />}
               {active === "about" && <About />}
             </motion.div>
           </AnimatePresence>
         </div>
       </div>
-    </div>
-  );
-}
-
-/** A titled group of settings rows. */
-function Group({ title, description, children, className }: { title: string; description?: ReactNode; children: ReactNode; className?: string }) {
-  return (
-    <section className={cn("mb-8", className)}>
-      <div className="mb-3">
-        <h2 className="text-sm font-semibold text-foreground">{title}</h2>
-        {description && <p className="mt-0.5 text-sm text-muted-foreground">{description}</p>}
-      </div>
-      <div className="rounded-xl border border-border bg-card">{children}</div>
-    </section>
-  );
-}
-
-/** One row: label + explanation on the left, the control on the right (stacked on phones, or with `stack`). */
-function Row({ label, description, children, htmlFor, stack }: { label: ReactNode; description?: ReactNode; children?: ReactNode; htmlFor?: string; stack?: boolean }) {
-  return (
-    <div className={cn("flex gap-4 border-b border-border px-4 py-4 last:border-b-0", stack ? "flex-col" : "flex-col sm:flex-row sm:items-center sm:justify-between")}>
-      <div className="min-w-0">
-        {htmlFor ? <label htmlFor={htmlFor} className="text-sm font-medium text-foreground">{label}</label> : <p className="text-sm font-medium text-foreground">{label}</p>}
-        {description && <p className="mt-0.5 text-sm text-muted-foreground">{description}</p>}
-      </div>
-      {children && <div className={cn("shrink-0", stack && "w-full")}>{children}</div>}
     </div>
   );
 }
@@ -300,7 +289,7 @@ function Appearance() {
   const s = state.settings;
   return (
     <div>
-      <Group title="Display">
+      <Group title="Display" description="Yours alone, on every device, inside a workspace's scout space too.">
         <Row label="Theme" description="System follows your device's light or dark setting.">
           <ToggleGroup type="single" value={s.theme} onValueChange={(v) => { if (v) update("settings", (x) => ({ ...x, theme: v as typeof s.theme })); }} aria-label="Theme">
             <ToggleGroupItem value="dark"><Moon className="size-3.5" /> Dark</ToggleGroupItem>
@@ -388,7 +377,7 @@ function Notifications() {
           </div>
         </Row>
       </Group>
-      <Group title="What to alert me about">
+      <Group title="What to alert me about" description="Yours alone: a workspace never changes them.">
         {toggle("myTeamMatches", "My team's matches", "30 minutes before your team's next scheduled match, with the odds")}
         {toggle("trackedTeams", "Tracked teams' matches", "The same, for teams you track")}
         {toggle("upsets", "Upsets", "When a tracked team wins a match it was predicted to lose, or loses one it was favoured in")}
@@ -512,6 +501,8 @@ function Privacy({ onOpen }: { onOpen: (id: SectionId) => void }) {
         <Row label="Public data" description="Teams, events, matches and predictions, from FIRST and FTC Scout. No account involved." />
         <Row label="On this device" description="My team, tracking, shortlist, settings, saved predictions, scouting notes, video links, and every recording you make. Recordings never leave the device." />
         <Row label="In your account" description="Signed in only: the same list minus recordings. Your email is used only to send sign-in codes." />
+        <Row label="Only on this device, never sent" description="Which scout space you last opened, list or grid view, and the list of entries waiting to sync (the entries themselves go up when you're back online)." />
+        <Row label="Shared with a workspace" description="Workspace members only: the workspace's scout entries, its template and its defaults for new entries, which its admins set. Your own settings stay yours." />
         <Row label="Never" description="No ads, no third-party trackers, no selling data. Anonymous usage stats only if you allow them." />
         <Row label="Privacy policy" description="The details: cookies, storage, sign-in and your choices."><Button variant="outline" size="sm" asChild><Link to="/privacy">Read it</Link></Button></Row>
       </Group>
