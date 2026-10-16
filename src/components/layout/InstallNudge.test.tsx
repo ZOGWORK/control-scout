@@ -176,6 +176,22 @@ describe("Add-to-home-screen nudge: when it shows", () => {
     expect(nudge()?.textContent).toContain("One tap from the stands, and it opens straight to team 18360.");
   });
 
+  it("leaving the page while waiting for the cross-tab lock leaves today's showing unused", async () => {
+    let grant: () => void = () => {};
+    const locks = { request: (_name: string, cb: () => unknown) => new Promise((resolve) => { grant = () => resolve(cb()); }) };
+    Object.defineProperty(navigator, "locks", { value: locks, configurable: true });
+    try {
+      mount();
+      offerInstall();
+      await settle(); // the delay has run; the claim is waiting on the lock (another tab holds it)
+      act(() => go("/teams"));
+      await act(async () => { grant(); await Promise.resolve(); });
+      expect(nudge()).toBeNull();
+      expect(readInstall().lastShown).toBeUndefined();
+      expect(firstRunHolder()).toBeNull();
+    } finally { delete (navigator as { locks?: unknown }).locks; }
+  });
+
   it("another tab that showed it first (no storage event yet) keeps this one quiet", async () => {
     mount();
     offerInstall();

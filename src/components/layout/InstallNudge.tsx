@@ -89,7 +89,8 @@ export function InstallNudge() {
       if (await relatedAppInstalled()) { if (!cancelled) setRelated(true); return; }
       if (cancelled || !claimFirstRun(SLOT)) return; // someone else got there first: re-checked when the slot frees
       // Today's showing, checked against storage again: another tab may have taken it meanwhile.
-      if (!(await claimDailyShow())) { releaseFirstRun(SLOT); return; }
+      // Writing the day can wait on another tab: if this page view is no longer the one, the day stays unused.
+      if (!(await claimDailyShow(() => !cancelled))) { releaseFirstRun(SLOT); return; }
       openedOn.current = loc.pathname;
       setOpen(kind);
     };
