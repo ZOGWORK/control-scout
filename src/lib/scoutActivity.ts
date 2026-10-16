@@ -62,40 +62,44 @@ export function useWorkspaceActivity(space: string | null, live: LiveMode): Acti
   const [error, setError] = useState<ApiError | null>(null);
   const [more, setMore] = useState(false);
   const [loadingOlder, setLoadingOlder] = useState(false);
-  // Replies for another space (switched meanwhile) are dropped.
-  const current = useRef(space);
-  current.current = space;
+  // One generation per feed shown (a space, or the same space opened again): a reply from an earlier
+  // one changes nothing, so a request still out when the view closes can't touch the next feed.
+  const gen = useRef(0);
   const loaded = useRef(false);
-  const itemsRef = useRef(items);
-  itemsRef.current = items;
+  // The newest id a fetched page has covered. Live items don't move it: one arriving during a reconnect
+  // must not hide the items missed before it (the gap check below compares pages with pages).
+  const fetchedNewest = useRef(0);
 
   const fetchNewest = useCallback(async () => {
     if (!space) return;
+    const g = gen.current;
     if (!loaded.current) setLoading(true);
     try {
       const r = await apiFetch<{ items: unknown[]; more: boolean }>(url(space));
-      if (current.current !== space) return;
+      if (gen.current !== g) return;
       const page = (r.items ?? []).filter(isActivityItem);
-      // A refresh whose page doesn't reach what's shown (more than a page logged meanwhile) starts the feed
+      // A page that doesn't reach the last one fetched (more than a page logged meanwhile) starts the feed
       // again from it, so there's never a hole; otherwise it only adds the newer items.
-      const shownNewest = itemsRef.current[0]?.id ?? 0;
-      const gap = loaded.current && !!r.more && page.length > 0 && page.at(-1)!.id > shownNewest;
+      const gap = loaded.current && !!r.more && page.length > 0 && page.at(-1)!.id > fetchedNewest.current;
       if (gap) { setMore(true); setItems(page); }
       else {
         if (!loaded.current) setMore(!!r.more);
         setItems((cur) => mergeActivity(cur, page)); // the first load keeps anything that streamed in meanwhile
       }
+      if (page.length) fetchedNewest.current = Math.max(gap ? 0 : fetchedNewest.current, page[0].id);
       loaded.current = true;
       setError(null);
     } catch (e) {
-      if (current.current === space) setError(e instanceof ApiError ? e : new ApiError(0, "Couldn't load the activity."));
+      if (gen.current === g) setError(e instanceof ApiError ? e : new ApiError(0, "Couldn't load the activity."));
     } finally {
-      if (current.current === space) setLoading(false);
+      if (gen.current === g) setLoading(false);
     }
   }, [space]);
 
   useEffect(() => {
-    setItems([]); setMore(false); setError(null); loaded.current = false;
+    gen.current++;
+    setItems([]); setMore(false); setError(null); setLoading(false); setLoadingOlder(false);
+    loaded.current = false; fetchedNewest.current = 0;
     void fetchNewest();
   }, [fetchNewest]);
 
@@ -121,15 +125,16 @@ export function useWorkspaceActivity(space: string | null, live: LiveMode): Acti
   const oldest = items.at(-1)?.id;
   const loadOlder = useCallback(() => {
     if (!space || !oldest) return;
+    const g = gen.current;
     setLoadingOlder(true);
     apiFetch<{ items: unknown[]; more: boolean }>(url(space, oldest))
       .then((r) => {
-        if (current.current !== space) return;
+        if (gen.current !== g) return;
         setItems((cur) => mergeActivity(cur, (r.items ?? []).filter(isActivityItem)));
         setMore(!!r.more);
       })
-      .catch((e) => { if (current.current === space) setError(e instanceof ApiError ? e : new ApiError(0, "Couldn't load older activity.")); })
-      .finally(() => { if (current.current === space) setLoadingOlder(false); });
+      .catch((e) => { if (gen.current === g) setError(e instanceof ApiError ? e : new ApiError(0, "Couldn't load older activity.")); })
+      .finally(() => { if (gen.current === g) setLoadingOlder(false); });
   }, [space, oldest]);
 
   return { items, loading, error, more, loadingOlder, loadOlder, reload: () => { void fetchNewest(); } };

@@ -5,7 +5,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { act, cleanup, renderHook, waitFor } from "@testing-library/react";
 import { activityEntry, describeActivity, groupByDay, mergeActivity, SCOUT_ACTIVITY, useWorkspaceActivity, type ActivityItem } from "./scoutActivity";
-import { followWorkspace } from "./scoutLive";
+import { followWorkspace, type LiveMode } from "./scoutLive";
 
 const item = (over: Partial<ActivityItem> = {}): ActivityItem => ({
   id: 1, workspaceId: "41", at: Date.UTC(2026, 9, 15, 15), actor: { accountId: 7, name: "Priya" }, type: "entry.added", subject: "entry:u1",
@@ -104,5 +104,39 @@ describe("live", () => {
     await waitFor(() => expect(result.current.items.map((i) => i.id)).toEqual([4, 3, 2, 1]));
     expect(fetchMock.mock.calls.at(-1)![0]).toBe("/api/scout/workspaces/41/activity?limit=50&before=2");
     expect(result.current.more).toBe(false);
+  });
+
+  const json = (body: unknown) => new Response(JSON.stringify(body), { status: 200, headers: { "Content-Type": "application/json" } });
+  const ids = (from: number, to: number) => Array.from({ length: from - to + 1 }, (_, k) => item({ id: from - k, subject: `entry:u${from - k}` }));
+
+  it("a reconnect that missed more than a page starts again from the newest page, even when a live item came first", async () => {
+    let page = { items: ids(100, 51), more: true };
+    vi.stubGlobal("fetch", vi.fn(async () => json(page)));
+    const { result, rerender } = renderHook(({ live }) => useWorkspaceActivity("41", live), { initialProps: { live: "connecting" as LiveMode } });
+    await waitFor(() => expect(result.current.items).toHaveLength(50));
+    // Items 101–160 were missed; 161 streams in before the refetch answers.
+    act(() => { window.dispatchEvent(new CustomEvent(SCOUT_ACTIVITY, { detail: item({ id: 161, subject: "entry:u161" }) })); });
+    page = { items: ids(161, 112), more: true };
+    rerender({ live: "live" });
+    await waitFor(() => expect(result.current.items[0].id).toBe(161));
+    await waitFor(() => expect(result.current.items.at(-1)!.id).toBe(112)); // no 100…51 below a hole
+    expect(result.current.items).toHaveLength(50);
+    expect(result.current.more).toBe(true);
+  });
+
+  it("closing the feed while older items load leaves nothing stuck when it opens again", async () => {
+    let release: (r: Response) => void = () => {};
+    vi.stubGlobal("fetch", vi.fn(async (u: string) => (u.includes("before=") ? new Promise<Response>((r) => { release = r; }) : json({ items: [item({ id: 3 }), item({ id: 2 })], more: true }))));
+    const { result, rerender } = renderHook(({ space }) => useWorkspaceActivity(space, "live"), { initialProps: { space: "41" as string | null } });
+    await waitFor(() => expect(result.current.items).toHaveLength(2));
+    act(() => { result.current.loadOlder(); });
+    expect(result.current.loadingOlder).toBe(true);
+    rerender({ space: null });
+    rerender({ space: "41" });
+    await waitFor(() => expect(result.current.items).toHaveLength(2));
+    expect(result.current.loadingOlder).toBe(false);
+    await act(async () => { release(json({ items: [item({ id: 1 })], more: false })); });
+    expect(result.current.items.map((i) => i.id)).toEqual([3, 2]); // the old request's answer changes nothing
+    expect(result.current.more).toBe(true);
   });
 });
