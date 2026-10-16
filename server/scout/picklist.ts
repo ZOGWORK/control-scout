@@ -17,6 +17,8 @@
 //   picklist:<season>). Rapid moves (or note edits) by one member coalesce into one item, as entry edits do.
 //   Every picklist.* item also reaches the other members' inboxes, one unread line per workspace
 //   (server/inbox/inbox.ts).
+// - A removed team's row is kept (removed_at) so Undo ({op: "add", restore: true}) brings it back as it was:
+//   who added it, its note and who wrote it. Adding it again any other way starts it afresh.
 // - The workspace mirror row is created by the first change, not by a read.
 import express, { type NextFunction, type Request, type Response, type Router } from "express";
 import type { InStatement } from "@libsql/client";
@@ -44,7 +46,7 @@ export async function readPickList(workspaceId: string, season: number): Promise
   const v = await get<{ version: number }>(
     `SELECT v.version FROM workspace_picklist_versions v JOIN workspaces w ON w.id = v.workspace_id WHERE w.cp_workspace_id = ? AND v.season = ?`, [workspaceId, season]);
   const rows = await all<any>(
-    `SELECT p.* FROM workspace_picklist p JOIN workspaces w ON w.id = p.workspace_id WHERE w.cp_workspace_id = ? AND p.season = ? ORDER BY p.rank, p.team`, [workspaceId, season]);
+    `SELECT p.* FROM workspace_picklist p JOIN workspaces w ON w.id = p.workspace_id WHERE w.cp_workspace_id = ? AND p.season = ? AND p.removed_at IS NULL ORDER BY p.rank, p.team`, [workspaceId, season]);
   return { workspaceId, season, version: Number(v?.version ?? 0), picks: rows.map(toPick) };
 }
 
@@ -78,7 +80,9 @@ export async function changePickList(user: User, m: Membership, season: number, 
   return serialized(lock(m.workspaceId), async () => {
     const cur = await readPickList(m.workspaceId, season);
     const now = Date.now();
-    const r = applyPickOp(cur.picks, op, by, now);
+    // Undo of a remove: the removed row, as it was.
+    const previous = op.op === "add" && op.restore ? await removedPick(m.workspaceId, season, op.team) : null;
+    const r = applyPickOp(cur.picks, op, by, now, previous);
     if (!r.ok) {
       return r.reason === "full"
         ? { ok: false as const, status: 409 as const, error: "The pick list is full (100 teams). Remove one first.", list: cur }
@@ -94,6 +98,14 @@ export async function changePickList(user: User, m: Membership, season: number, 
   });
 }
 
+/** A team's pick as it was when it was last removed from the list (null: never removed, or back on it). */
+async function removedPick(workspaceId: string, season: number, team: number): Promise<Pick | null> {
+  const r = await get<any>(
+    `SELECT p.* FROM workspace_picklist p JOIN workspaces w ON w.id = p.workspace_id WHERE w.cp_workspace_id = ? AND p.season = ? AND p.team = ? AND p.removed_at IS NOT NULL`,
+    [workspaceId, season, team]);
+  return r ? toPick(r) : null;
+}
+
 /** Write what changed (rows added, removed, moved or re-noted) and bump the version, in one transaction. */
 async function write(m: Membership, season: number, before: PickList, after: Pick[], now: number) {
   // Lazily: the first change creates the workspace's mirror row (when no entry, template or setting has yet).
@@ -104,13 +116,17 @@ async function write(m: Membership, season: number, before: PickList, after: Pic
   const old = new Map(before.picks.map((p) => [p.team, p]));
   const keep = new Set(after.map((p) => p.team));
   const stmts: InStatement[] = [];
-  for (const p of before.picks) if (!keep.has(p.team)) stmts.push({ sql: "DELETE FROM workspace_picklist WHERE workspace_id = ? AND season = ? AND team = ?", args: [id, season, p.team] });
+  // A removed team's row stays (removed_at), so an Undo can bring back its note and who added it.
+  for (const p of before.picks) if (!keep.has(p.team)) stmts.push({ sql: "UPDATE workspace_picklist SET removed_at = ? WHERE workspace_id = ? AND season = ? AND team = ?", args: [now, id, season, p.team] });
   for (const p of after) {
     const o = old.get(p.team);
     if (!o) {
       stmts.push({
         sql: `INSERT INTO workspace_picklist (workspace_id, season, team, rank, added_by_account_id, added_by_name, added_at, note, note_by_account_id, note_by_name, note_updated_at)
-              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+              ON CONFLICT(workspace_id, season, team) DO UPDATE SET rank = excluded.rank, added_by_account_id = excluded.added_by_account_id,
+                added_by_name = excluded.added_by_name, added_at = excluded.added_at, note = excluded.note, note_by_account_id = excluded.note_by_account_id,
+                note_by_name = excluded.note_by_name, note_updated_at = excluded.note_updated_at, removed_at = NULL`,
         args: [id, season, p.team, p.rank, p.addedBy.accountId, p.addedBy.name.slice(0, 80), p.addedAt, p.note, p.noteBy?.accountId ?? null, p.noteBy?.name.slice(0, 80) ?? null, p.noteUpdatedAt],
       });
     } else if (o.rank !== p.rank || o.note !== p.note || o.noteUpdatedAt !== p.noteUpdatedAt) {
@@ -139,7 +155,7 @@ async function logChange(workspaceId: string, actor: ActivityActor, season: numb
   const subject = `picklist:${season}`;
   switch (op.op) {
     case "add":
-      await logActivity(workspaceId, actor, "picklist.added", subject, { season, team: op.team, rank: r.to });
+      await logActivity(workspaceId, actor, "picklist.added", subject, { season, team: op.team, rank: r.to, ...(op.restore ? { restored: true } : {}) });
       return;
     case "import": {
       const added = r.added ?? [];
@@ -182,7 +198,7 @@ async function member(req: Request, res: Response): Promise<{ user: User; m: Mem
 /**
  * /api/scout/workspaces/:workspaceId/picklist
  *   GET  ?season=   any member. {list: {workspaceId, season, version, picks}}
- *   POST {season, op: "add", team, beforeTeam?}    add (at the end, or just before beforeTeam)
+ *   POST {season, op: "add", team, beforeTeam?, restore?}    add (at the end, or just before beforeTeam); restore: Undo of a remove
  *        {season, op: "remove", team}
  *        {season, op: "move", team, beforeTeam}     beforeTeam null: to the end
  *        {season, op: "note", team, note}           the shared note ("" clears it)
