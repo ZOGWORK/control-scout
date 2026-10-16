@@ -8,7 +8,7 @@ import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-libra
 import { MemoryRouter } from "react-router-dom";
 import type { AccountUser } from "../lib/personal";
 import { localScoutEntries, saveScoutEntry, templateFor } from "../lib/scouting";
-import { announceTemplateChange } from "../lib/scoutTemplates";
+import { announceTemplateChange, TEMPLATE_WAIT_MS } from "../lib/scoutTemplates";
 import { resetFlags } from "../lib/flags";
 import { DEFAULT_FLAGS } from "../shared/flags";
 import { TooltipProvider } from "../components/ui/overlay";
@@ -52,6 +52,11 @@ function stubServer() {
     return new Response(JSON.stringify({ error: "offline in tests" }), { status: 500 });
   }));
 }
+
+/** A server whose template request hangs until the test answers it (other requests fail at once). */
+const stall = (hold: (r: (res: Response) => void) => void) => vi.fn((url: string) => (url.includes("/template")
+  ? new Promise<Response>((r) => hold(r))
+  : Promise.resolve(new Response(JSON.stringify({ error: "offline in tests" }), { status: 500 }))));
 
 const show = (url = `/scout?season=2025&space=${WS}`) => render(<TooltipProvider><MemoryRouter initialEntries={[url]}><ScoutPage /></MemoryRouter></TooltipProvider>);
 const listed = () => screen.queryAllByRole("listitem").map((li) => li.textContent ?? "");
@@ -172,7 +177,7 @@ describe("workspace templates on the Scout page", () => {
 
   it("a workspace template never seen on this device: the new form waits for it (no saving built-in answers by accident)", async () => {
     let answer: (r: Response) => void = () => {};
-    vi.stubGlobal("fetch", vi.fn(() => new Promise<Response>((r) => { answer = r; })));
+    vi.stubGlobal("fetch", stall((r) => { answer = r; }));
     show();
     await newEntry();
     expect(screen.getByRole("status", { name: /Loading the workspace's fields/ })).toBeTruthy();
@@ -180,6 +185,26 @@ describe("workspace templates on the Scout page", () => {
     await act(async () => { answer(new Response(JSON.stringify({ template: current }), { status: 200 })); });
     expect(await screen.findByText("Cones stacked")).toBeTruthy();
     expect((screen.getByRole("button", { name: "Save" }) as HTMLButtonElement).disabled).toBe(false);
+  });
+
+  it("a stalled first template request doesn't block scouting: after a few seconds the built-in fields open", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    try {
+      let answer: (r: Response) => void = () => {};
+      vi.stubGlobal("fetch", stall((r) => { answer = r; }));
+      show();
+      await newEntry();
+      expect(screen.getByRole("status", { name: /Loading the workspace's fields/ })).toBeTruthy();
+      await act(async () => { vi.advanceTimersByTime(TEMPLATE_WAIT_MS + 10); });
+      expect(await screen.findByText("Artifacts classified (TeleOp)")).toBeTruthy();
+      expect((screen.getByRole("button", { name: "Save" }) as HTMLButtonElement).disabled).toBe(false);
+      // An answer given meanwhile keeps the questions it was given for, even when the template turns up late.
+      fireEvent.click(screen.getByRole("button", { name: "Overflow artifacts plus one" }));
+      await act(async () => { answer(new Response(JSON.stringify({ template: current }), { status: 200 })); });
+      expect(screen.queryByText("Cones stacked")).toBeNull();
+      fireEvent.click(screen.getByRole("button", { name: "Save" }));
+      await waitFor(() => expect(localScoutEntries(WS).find((e) => e.team === 4444)).toMatchObject({ templateId: "match-2025", templateVersion: 0, data: { overflow: 1 } }));
+    } finally { vi.useRealTimers(); }
   });
 
   it("opening a form checks for a newer template (a missed live notice doesn't leave old fields)", async () => {

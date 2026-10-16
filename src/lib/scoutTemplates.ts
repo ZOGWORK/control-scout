@@ -70,6 +70,9 @@ export function resolveTemplate(wt: WorkspaceTemplate | null, season: number, ki
 
 export type TemplateStatus = "personal" | "loading" | "ready" | "offline";
 
+/** How long a new-entry form waits for a workspace template this device has never seen before using the built-in fields. */
+export const TEMPLATE_WAIT_MS = 6_000;
+
 /**
  * The template a space's new entries use for a season: null for Personal (the built-in defaults), else
  * the workspace's (from the device at once, then from the server). `refresh` refetches.
@@ -83,6 +86,9 @@ export function useWorkspaceTemplate(space: ScoutSpace, season: number): { templ
     fetchWorkspaceTemplate(space, season)
       .then((t) => setState((s) => (s.key === key ? { key, template: t, status: "ready" } : s)))
       .catch(() => setState((s) => (s.key === key ? { ...s, status: "offline" } : s)));
+    // Venue Wi-Fi can look online yet stall: after TEMPLATE_WAIT_MS stop waiting (a form held for a first
+    // template opens with the built-in fields); a late answer still arrives and is used from then on.
+    setTimeout(() => setState((s) => (s.key === key && s.status === "loading" ? { ...s, status: "offline" } : s)), TEMPLATE_WAIT_MS);
   }, [space, season, key]);
   useEffect(() => {
     setState(initial(space, season));
