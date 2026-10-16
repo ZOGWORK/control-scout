@@ -296,22 +296,30 @@ async function storeMemberships(accountId: number, list: Workspace[], account?: 
   const last = lastForced.get(accountId);
   if (last) lastForced.set(accountId, { at: last.at, list });
   try {
-    const cached = await all<{ cp_workspace_id: string; role: string }>("SELECT cp_workspace_id, role FROM workspace_members WHERE account_id = ?", [accountId]);
+    const cached = await all<{ cp_workspace_id: string; role: string; workspace_name: string }>("SELECT cp_workspace_id, role, workspace_name FROM workspace_members WHERE account_id = ?", [accountId]);
     const was = new Map(cached.map((r) => [String(r.cp_workspace_id), String(r.role)]));
     const joined = list.filter((w) => !was.has(w.id));
     const left = [...was].filter(([id]) => !list.some((w) => w.id === id));
     const roleChanged = list.some((w) => was.has(w.id) && was.get(w.id) !== w.role);
     // Orphaned workspaces (Task 19): the scout spaces involved (a mirror row), each with its read-only state.
-    const mirror = await mirroredStates([...new Set([...left.map(([id]) => id), ...list.map((w) => w.id)])]);
+    // Departures Control Point couldn't explain on an earlier answer (deleted, or a removal?), still unlisted: asked again.
+    const pendingRows = await all<{ cp_workspace_id: string; role: string; workspace_name: string }>(
+      "SELECT cp_workspace_id, role, workspace_name FROM workspace_pending_departures WHERE account_id = ?", [accountId]);
+    const pending = new Map(pendingRows.map((r) => [String(r.cp_workspace_id), r]));
+    const listed = new Set(list.map((w) => w.id));
+    const pendingLeft = [...pending.keys()].filter((id) => !listed.has(id) && !was.has(id));
+    // Orphaned workspaces (Task 19): the scout spaces involved (a mirror row), each with its read-only state.
+    const mirror = await mirroredStates([...new Set([...left.map(([id]) => id), ...pendingLeft, ...list.map((w) => w.id)])]);
     // A scout space gone from this answer because Control Point deleted the workspace (its members route
     // says not_found) is not a removal: no member.left, no revoke, no removal audit. It goes read-only, and
     // everyone in the cache for it now (this account's row included: it's dropped below) keeps reading it.
     const gone = new Set<string>();
-    // Control Point couldn't say (timeout, error): undecided. The cached row stays, marked stale (so it never
-    // counts as a fresh membership), and nothing is logged, so the next answer for this account sees the
-    // departure again and asks again. Only Control Point's answer decides between deleted and removed.
+    // Control Point couldn't say (timeout, error): undecided. The membership goes (it grants nothing: Control Point
+    // no longer lists it), but nothing is logged or audited yet: the departure is kept in workspace_pending_departures,
+    // apart from the membership cache, and asked about again on this account's next answer. Only Control Point's
+    // answer decides between deleted (read-only, a former member) and removed (logged then).
     const undecided = new Set<string>();
-    for (const [id] of left) {
+    for (const id of [...left.map(([id]) => id), ...pendingLeft]) {
       if (!mirror.has(id)) continue;
       if (mirror.get(id)?.reason === "deleted") { gone.add(id); continue; }
       const c = await checkWorkspace(id);
@@ -319,27 +327,49 @@ async function storeMemberships(accountId: number, list: Workspace[], account?: 
       else if (c.state === "unknown") undecided.add(id);
     }
     for (const id of gone) if (mirror.get(id)?.reason !== "deleted") await orphaned(id, "deleted");
-    const keepIds = [...list.map((w) => w.id), ...undecided];
-    const name = joined.length || left.length ? await memberName(accountId, account) : "";
+    // Earlier undecided departures now decided as removals: logged and audited now, once.
+    const removedLater = pendingLeft.filter((id) => !gone.has(id) && !undecided.has(id));
+    const name = joined.length || left.length || removedLater.length ? await memberName(accountId, account) : "";
     const actor = CONTROL_POINT_ACTOR, subject = `member:${accountId}`;
     // Guarded on the cache row (read again inside the transaction), so two refreshes racing log a change once.
     const cachedRow = (id: string) => ({ sql: "EXISTS (SELECT 1 FROM workspace_members WHERE account_id = ? AND cp_workspace_id = ?)", args: [accountId, id] });
+    const pendingRow = (id: string) => ({ sql: "EXISTS (SELECT 1 FROM workspace_pending_departures WHERE account_id = ? AND cp_workspace_id = ?)", args: [accountId, id] });
     // A removal Scout itself is making (removeMember) is recorded there, once, with the admin as actor.
     const logs = [
       ...left.filter(([id]) => !removing.has(dropKey(accountId, id)) && !gone.has(id) && !undecided.has(id)).map(([id, role]) => ({ id, stmt: activityStatement(id, actor, "member.left", subject, { accountId, name, role }, now, cachedRow(id)) })),
+      ...removedLater.map((id) => ({ id, stmt: activityStatement(id, actor, "member.left", subject, { accountId, name, role: pending.get(id)!.role === "admin" ? "admin" : "member" }, now, pendingRow(id)) })),
       ...joined.map((w) => {
         const g = cachedRow(w.id);
         return { id: w.id, stmt: activityStatement(w.id, actor, "member.joined", subject, { accountId, name, role: w.role }, now, { sql: `NOT ${g.sql}`, args: g.args }) };
       }),
     ];
+    const marks = (xs: string[]) => xs.map(() => "?").join(", ");
+    const settled = [...listed, ...gone];
     const res = await db().batch([
       ...logs.map((l) => l.stmt),
       {
-        sql: `DELETE FROM workspace_members WHERE account_id = ?${keepIds.length ? ` AND cp_workspace_id NOT IN (${keepIds.map(() => "?").join(", ")})` : ""}
+        sql: `DELETE FROM workspace_members WHERE account_id = ?${list.length ? ` AND cp_workspace_id NOT IN (${marks(list.map((w) => w.id))})` : ""}
               RETURNING cp_workspace_id, workspace_name, role`,
-        args: [accountId, ...keepIds],
+        args: [accountId, ...list.map((w) => w.id)],
       },
-      ...[...undecided].map((id) => ({ sql: "UPDATE workspace_members SET updated_at = 0 WHERE account_id = ? AND cp_workspace_id = ?", args: [accountId, id] })),
+      // Earlier undecided departures decided as removals (RETURNING: only this write's, so each is audited once).
+      {
+        sql: `DELETE FROM workspace_pending_departures WHERE account_id = ? AND cp_workspace_id IN (${removedLater.length ? marks(removedLater) : "NULL"})
+              RETURNING cp_workspace_id, workspace_name, role`,
+        args: [accountId, ...removedLater],
+      },
+      ...[...undecided].filter((id) => was.has(id)).map((id) => ({
+        sql: `INSERT INTO workspace_pending_departures (account_id, cp_workspace_id, role, workspace_name, at) VALUES (?, ?, ?, ?, ?)
+              ON CONFLICT(account_id, cp_workspace_id) DO UPDATE SET role = excluded.role`,
+        args: [accountId, id, was.get(id)!, String(cached.find((r) => String(r.cp_workspace_id) === id)?.workspace_name ?? ""), now],
+      })),
+      // A pending departure from a workspace now known deleted: a former member (markOrphaned takes the others).
+      ...[...gone].filter((id) => pending.has(id)).map((id) => ({
+        sql: "INSERT OR IGNORE INTO workspace_former_members (workspace_id, account_id, role) SELECT id, ?, ? FROM workspaces WHERE cp_workspace_id = ? AND orphan_reason = 'deleted'",
+        args: [accountId, pending.get(id)!.role, id],
+      })),
+      // Listed again, or decided deleted: nothing pending any more.
+      ...(settled.length ? [{ sql: `DELETE FROM workspace_pending_departures WHERE account_id = ? AND cp_workspace_id IN (${marks(settled)})`, args: [accountId, ...settled] }] : []),
       ...list.map((w) => ({
         sql: `INSERT INTO workspace_members (account_id, cp_workspace_id, workspace_name, role, updated_at) VALUES (?, ?, ?, ?, ?)
               ON CONFLICT(account_id, cp_workspace_id) DO UPDATE SET workspace_name = excluded.workspace_name, role = excluded.role, updated_at = excluded.updated_at`,
@@ -351,9 +381,11 @@ async function storeMemberships(accountId: number, list: Workspace[], account?: 
     logs.forEach((l, i) => publishLogged(l.id, [...res[i].rows]));
     // Rows this write actually dropped (a racing refresh that dropped them first reports none): the
     // account's open streams there end now, and the owner audit records the removal Control Point made.
-    for (const r of res[logs.length].rows as unknown as { cp_workspace_id: string; workspace_name: string; role: string }[]) {
+    type Dropped = { cp_workspace_id: string; workspace_name: string; role: string };
+    const droppedRows = [...(res[logs.length].rows as unknown as Dropped[]), ...(res[logs.length + 1].rows as unknown as Dropped[])];
+    for (const r of droppedRows) {
       const workspaceId = String(r.cp_workspace_id);
-      if (gone.has(workspaceId)) continue; // deleted in Control Point: read-only, not a removal (above)
+      if (gone.has(workspaceId) || undecided.has(workspaceId)) continue; // deleted (read-only), or not decided yet: not a removal
       publishRevoked(workspaceId, accountId);
       if (removing.has(dropKey(accountId, workspaceId))) {
         // Scout's own removal is in flight: it records this (or, if its call fails, records what we saw).
