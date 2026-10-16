@@ -40,6 +40,7 @@ import { isWorkspaceId, type Membership } from "../auth/controlPoint.js";
 import { currentUser, type User } from "../auth/session.js";
 import { isEnabled } from "../flags.js";
 import { publishEntries, serialized, type LiveEntry } from "./bus.js";
+import { entryDetails, logActivity, type ActivityActor } from "./activityLog.js";
 import { lastSeq, readLiveEntries, workspaceAccess, workspacePaused, writerName, type WorkspaceEntryOut } from "./entries.js";
 import { deleteObject, headObject, listObjects, r2, uploadUrl, viewUrl, type R2Config } from "./r2.js";
 import { openAlert, raiseAlert, resolveAlert } from "../portal/alerts.js";
@@ -129,6 +130,12 @@ async function commitPhotoChange(workspaceId: string, workspaceDbId: number, uui
     publishEntries(workspaceId, [...rows.values()].filter((e) => e.seq > before).sort((a, b) => a.seq - b.seq));
     return rows;
   });
+}
+
+/** A photo added or removed, in the workspace's activity feed (after the change committed). Expiry by the nightly job isn't logged. */
+async function logPhoto(workspaceId: string, actor: ActivityActor, type: "photo.added" | "photo.removed", e: LiveEntry | undefined, p: { id: string; entry_uuid: string }) {
+  const details = e ? entryDetails(e) : { uuid: p.entry_uuid };
+  await logActivity(workspaceId, actor, type, `entry:${p.entry_uuid}`, { ...details, photoId: p.id });
 }
 
 const withoutSeq = (e: LiveEntry | undefined): WorkspaceEntryOut | null => {
@@ -233,6 +240,7 @@ export async function completePhoto(m: Membership, photoId: unknown): Promise<{ 
     const rows = await commitPhotoChange(m.workspaceId, Number(p.workspace_id), [p.entry_uuid], [
       { sql: "UPDATE entry_photos SET status = 'ready', recorded_at = ? WHERE id = ? AND status = 'pending'", args: [Date.now(), p.id] },
     ]);
+    await logPhoto(m.workspaceId, { accountId: m.accountId, name: String(p.added_by_name ?? "") }, "photo.added", rows.get(p.entry_uuid), p);
     return { ok: true, entry: withoutSeq(rows.get(p.entry_uuid)) };
   });
   if (out.ok) await checkStorageAlerts().catch((e) => console.error("[photos] storage alert check failed", e));
@@ -245,8 +253,8 @@ export const MAY_NOT_REMOVE = "You can remove photos you added, or any photo on 
 export const mayRemovePhoto = (m: Pick<Membership, "accountId" | "role">, p: { addedByAccountId: number; entryAuthorAccountId: number | null }) =>
   m.role === "admin" || p.addedByAccountId === m.accountId || p.entryAuthorAccountId === m.accountId;
 
-/** Remove a photo: its R2 object first, then its record; the entry streams. */
-export async function removePhoto(m: Membership, photoId: unknown): Promise<{ ok: true; entry: WorkspaceEntryOut | null } | Fail> {
+/** Remove a photo: its R2 object first, then its record; the entry streams. `user`: who removed it, for the activity feed. */
+export async function removePhoto(m: Membership, photoId: unknown, user?: User): Promise<{ ok: true; entry: WorkspaceEntryOut | null } | Fail> {
   const c = r2();
   if (!c) return fail(404, "Not found");
   const first = await photoRow(m, photoId);
@@ -261,6 +269,7 @@ export async function removePhoto(m: Membership, photoId: unknown): Promise<{ ok
       try { await deleteObject(c, p.object_key); } catch { return fail(502, "Couldn't reach photo storage, so the photo is still there. Try again."); }
     }
     const rows = await commitPhotoChange(m.workspaceId, Number(p.workspace_id), [p.entry_uuid], [{ sql: "DELETE FROM entry_photos WHERE id = ?", args: [p.id] }]);
+    await logPhoto(m.workspaceId, { accountId: m.accountId, name: user ? writerName(user) : "A member" }, "photo.removed", rows.get(p.entry_uuid), p);
     return { ok: true as const, entry: withoutSeq(rows.get(p.entry_uuid)) };
   });
 }
@@ -505,7 +514,7 @@ export function photosRouter(): Router {
   r.delete("/:id", h(async (req, res) => {
     const who = await member(req, res);
     if (!who) return;
-    const out = await removePhoto(who.m, req.params.id);
+    const out = await removePhoto(who.m, req.params.id, who.user);
     return answer(res, out, () => out.ok && { entry: out.entry });
   }));
 
