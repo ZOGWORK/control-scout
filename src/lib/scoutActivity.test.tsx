@@ -124,6 +124,23 @@ describe("live", () => {
     expect(result.current.more).toBe(true);
   });
 
+  it("starting again keeps an item that streamed in while that page was on its way", async () => {
+    let answer: (r: Response) => void = () => {};
+    let first = true;
+    vi.stubGlobal("fetch", vi.fn(async () => {
+      if (first) { first = false; return json({ items: ids(100, 51), more: true }); }
+      return new Promise<Response>((r) => { answer = r; });
+    }));
+    const { result, rerender } = renderHook(({ live }) => useWorkspaceActivity("41", live), { initialProps: { live: "connecting" as LiveMode } });
+    await waitFor(() => expect(result.current.items).toHaveLength(50));
+    rerender({ live: "live" }); // the refetch: read 160…111 on the server
+    act(() => { window.dispatchEvent(new CustomEvent(SCOUT_ACTIVITY, { detail: item({ id: 161, subject: "entry:u161" }) })); });
+    await act(async () => { answer(json({ items: ids(160, 111), more: true })); });
+    await waitFor(() => expect(result.current.items.at(-1)!.id).toBe(111));
+    expect(result.current.items[0].id).toBe(161);
+    expect(result.current.items).toHaveLength(51);
+  });
+
   it("closing the feed while older items load leaves nothing stuck when it opens again", async () => {
     let release: (r: Response) => void = () => {};
     vi.stubGlobal("fetch", vi.fn(async (u: string) => (u.includes("before=") ? new Promise<Response>((r) => { release = r; }) : json({ items: [item({ id: 3 }), item({ id: 2 })], more: true }))));

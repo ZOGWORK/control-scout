@@ -81,7 +81,9 @@ export function useWorkspaceActivity(space: string | null, live: LiveMode): Acti
       // A page that doesn't reach the last one fetched (more than a page logged meanwhile) starts the feed
       // again from it, so there's never a hole; otherwise it only adds the newer items.
       const gap = loaded.current && !!r.more && page.length > 0 && page.at(-1)!.id > fetchedNewest.current;
-      if (gap) { setMore(true); setItems(page); }
+      // The reset drops only what's older than the page (below the hole): items that streamed in while it
+      // was on its way, newer than it, stay.
+      if (gap) { const floor = page.at(-1)!.id; setMore(true); setItems((cur) => mergeActivity(cur.filter((i) => i.id >= floor), page)); }
       else {
         if (!loaded.current) setMore(!!r.more);
         setItems((cur) => mergeActivity(cur, page)); // the first load keeps anything that streamed in meanwhile
