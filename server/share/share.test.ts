@@ -12,7 +12,7 @@ import { createApp } from "../app";
 import { renderIndex } from "../seo";
 import { cardFonts, fitText, glyphs, parseFont, textWidth } from "./fonts";
 import { cardSvg, renderCard, type CardModel } from "./card";
-import { CARD_CACHE_MAX, cardCacheSize } from "./match";
+import { CARD_CACHE_MAX, PromiseLru, cardCacheSize } from "./match";
 
 /** Width and height from a PNG's IHDR chunk (after checking the signature). */
 function pngSize(b: Uint8Array): { width: number; height: number } {
@@ -173,6 +173,42 @@ describe("GET /api/share/match.png", () => {
   it("keeps a bounded number of cards", () => {
     expect(cardCacheSize()).toBeGreaterThan(0);
     expect(cardCacheSize()).toBeLessThanOrEqual(CARD_CACHE_MAX);
+  });
+});
+
+describe("the card cache (PromiseLru)", () => {
+  it("past its limit drops the least recently used card, keeping one just used", async () => {
+    const lru = new PromiseLru<number>(CARD_CACHE_MAX);
+    let made = 0;
+    const make = (n: number) => () => { made++; return Promise.resolve(n); };
+    for (let i = 0; i < CARD_CACHE_MAX; i++) lru.getOrCreate(`k${i}`, make(i));
+    expect(lru.size).toBe(CARD_CACHE_MAX);
+    // k0 is the oldest; using it makes k1 the oldest.
+    expect(await lru.get("k0")).toBe(0);
+    for (let i = CARD_CACHE_MAX; i < CARD_CACHE_MAX + 5; i++) lru.getOrCreate(`k${i}`, make(i));
+    expect(lru.size).toBe(CARD_CACHE_MAX);
+    expect(lru.has("k0")).toBe(true);
+    for (let i = 1; i <= 5; i++) expect(lru.has(`k${i}`), `k${i}`).toBe(false);
+    expect(lru.has("k6")).toBe(true);
+    expect(lru.has(`k${CARD_CACHE_MAX + 4}`)).toBe(true);
+    // A cached key is never made twice.
+    const before = made;
+    expect(await lru.getOrCreate("k0", make(99))).toBe(0);
+    expect(made).toBe(before);
+  });
+  it("shares one producer between concurrent requests, and forgets a failure", async () => {
+    const lru = new PromiseLru<number>(4);
+    let calls = 0;
+    let fail = true;
+    const make = () => { calls++; return fail ? Promise.reject(new Error("no")) : Promise.resolve(1); };
+    const [a, b] = [lru.getOrCreate("x", make), lru.getOrCreate("x", make)];
+    expect(a).toBe(b);
+    await expect(a).rejects.toThrow("no");
+    await Promise.resolve();
+    expect(lru.has("x")).toBe(false);
+    fail = false;
+    expect(await lru.getOrCreate("x", make)).toBe(1);
+    expect(calls).toBe(2);
   });
 });
 
