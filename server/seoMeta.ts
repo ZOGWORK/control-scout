@@ -14,6 +14,9 @@ import { teamKnown } from "./api/teams.js";
 import { pageModule } from "../src/shared/routes.js";
 import { normalMatchKey } from "../src/shared/matchReport.js";
 import { allianceText, shareHeadline, shareImagePath, sharePagePath, type ShareCardQuery } from "../src/shared/share.js";
+import { latestRankings, rankingsWeek } from "./powerRankings/store.js";
+import { staticRankingsHtml } from "./powerRankings/static.js";
+import { isWeekId, weekLabel, type PowerRankingsResponse } from "../src/shared/powerRankings.js";
 
 export const SITE = "FTC Control Scout";
 const HOME_TITLE = "FTC Control Scout — free FTC scouting & predictions";
@@ -24,7 +27,7 @@ const TAILS = [" Free FTC scouting and predictions, no login.", " OPR breakdowns
 export interface PageMeta {
   title: string;
   description: string;
-  type: "website" | "profile";
+  type: "website" | "profile" | "article";
   /** The page's canonical path when it differs from the requested one (e.g. an event code's case). */
   path?: string;
   /** Personal pages (your own data, nothing to index). */
@@ -35,6 +38,9 @@ export interface PageMeta {
   notFound?: boolean;
   /** A shared matchup: its card is the link preview image, and og:url is the matchup's own address. */
   share?: { query: ShareCardQuery; alt: string };
+  /** The page's content as static, already-safe HTML for the first paint (server/bootShell.ts), for pages
+   *  whose words are the point (power rankings): crawlers and previews read it without running the app. */
+  bodyHtml?: string;
 }
 
 
@@ -152,6 +158,55 @@ async function eventMeta(season: number, code: string): Promise<PageMeta | null>
   ev.eventAttendanceMode = `https://schema.org/${e.remote ? "Online" : e.hybrid ? "Mixed" : "Offline"}EventAttendanceMode`;
   ev.eventStatus = "https://schema.org/EventScheduled";
   return { title: `${e.name} (${seasonInfo(season).label})`, description, type: "website", path: `/events/${season}/${code}`, jsonLd: [ev] };
+}
+
+const POWER_DESC = "The weekly top 25 FTC teams, each with a short written take and live rating, OPR and record.";
+
+/** The top of a week's list, for a description: "#1 4215 Hypnotic Robotics, #2 …". */
+const topLine = (r: PowerRankingsResponse, n: number) =>
+  (r.week?.entries ?? []).slice(0, n).map((e) => `#${e.rank} ${e.team}${e.name ? ` ${e.name}` : ""}`).join(", ");
+
+/** Structured data for a week: the article and its ranked list. */
+function rankingsJsonLd(r: PowerRankingsResponse, path: string): Record<string, unknown>[] {
+  const w = r.week!;
+  const o = canonicalOrigin();
+  const url = canonicalUrl(`/power-rankings/${w.week}`);
+  const list = {
+    "@context": "https://schema.org", "@type": "ItemList", name: w.title, url: canonicalUrl(path), numberOfItems: w.entries.length, itemListOrder: "https://schema.org/ItemListOrderAscending",
+    itemListElement: w.entries.map((e) => ({ "@type": "ListItem", position: e.rank, name: `${e.team}${e.name ? ` ${e.name}` : ""}`, url: canonicalUrl(`/teams/${e.team}`) })),
+  };
+  const article = {
+    "@context": "https://schema.org", "@type": "Article", headline: w.title, description: w.introText.slice(0, 300), datePublished: w.published, dateModified: w.published,
+    url, mainEntityOfPage: url, image: [`${o}/og-image.png`],
+    author: { "@type": "Organization", name: SITE, url: `${o}/` }, publisher: { "@type": "Organization", name: SITE, logo: { "@type": "ImageObject", url: `${o}/logo-512.png` } },
+  };
+  return [article, list];
+}
+
+/** /power-rankings (the latest week and the archive) and /power-rankings/<week>: an unknown week is a 404. */
+async function powerRankingsMeta(week: string | null): Promise<PageMeta> {
+  if (week === null) {
+    const r = await latestRankings();
+    const bodyHtml = staticRankingsHtml(r);
+    // Nothing published yet: a real page that says so (left out of the sitemap until there's something to read).
+    // No noindex: the app keeps no per-page robots tag in step on navigation, so it would follow the visitor to
+    // other pages; and this page is the one to index once the first week is out.
+    if (!r.week) return { title: "FTC power rankings", description: fitDescription(POWER_DESC), type: "website", path: "/power-rankings", bodyHtml };
+    const label = weekLabel(r.week.week);
+    return {
+      title: "FTC power rankings", type: "website", path: "/power-rankings", bodyHtml, jsonLd: rankingsJsonLd(r, "/power-rankings"),
+      description: bestFit([`${POWER_DESC} ${label}: ${topLine(r, 3)}.`, `${POWER_DESC} ${label}: ${topLine(r, 1)}.`, POWER_DESC]),
+    };
+  }
+  const id = week.toLowerCase();
+  const r = isWeekId(id) ? await rankingsWeek(id) : null;
+  if (!r?.week) return NOT_FOUND;
+  const w = r.week;
+  const path = `/power-rankings/${id}`;
+  return {
+    title: `${w.title} (${seasonInfo(w.season).label})`, type: "article", path, bodyHtml: staticRankingsHtml(r), jsonLd: rankingsJsonLd(r, path),
+    description: bestFit([`${w.introText} ${topLine(r, 3)}.`, w.introText, `FTC power rankings, ${weekLabel(w.week)}: ${topLine(r, 3)}.`]),
+  };
 }
 
 /**
@@ -307,6 +362,7 @@ export async function pageMeta(path: string, query: Record<string, unknown> = {}
       return (key && (await matchReportMeta(Number(m[1]), m[2].toUpperCase(), key))) || NOT_FOUND;
     }
     if (/^\/rankings$/i.test(p)) return await rankingsMeta(query);
+    if ((m = p.match(/^\/power-rankings(?:\/([^/]+))?$/i))) return await powerRankingsMeta(m[1] ?? null);
   } catch {
     // Database not ready: the generic values, never a 404 (the page may well exist).
     return { title: "", description: HOME_DESC, type: "website" };

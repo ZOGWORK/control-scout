@@ -8,6 +8,7 @@ import type { OrphanState } from "../shared/orphaned";
 import { cleanValue, EMPTY_STATE, PERSONAL_KEYS, type PersonalKey, type PersonalState, type Stamped } from "../shared/personal";
 import { clearLocalScouting, exportLocalScouting, importLocalScouting, localScoutEntries, setScoutViewer, storedScoutEntry } from "./scouting";
 import { LOST_PREFIX, lostBackupFailed, mergeLostLists } from "./lostEdits";
+import { dropPushOnSignOut } from "./push";
 
 export interface AccountUser { id: number; email: string | null; displayName: string | null; createdAt: string; /** Tied to the shared account Control Point keeps (docs/shared-accounts.md). */ controlPointLinked?: boolean;
   /** Only present (true) for the owner (OWNER_EMAILS): shows the owner portal's nav item. The server enforces access. */
@@ -351,6 +352,8 @@ export function PersonalProvider({ children }: { children: ReactNode }) {
   }, [set]);
 
   const signOut = useCallback(async () => {
+    // Push is the account's: this device stops getting it (while the session can still say which subscription).
+    await dropPushOnSignOut();
     await apiFetch("/api/auth/logout", { method: "POST", json: {} }).catch(() => {});
     // The device keeps its copy, still marked as this account's (never treated as anonymous).
     generation.current++; // any connection still in flight is now stale

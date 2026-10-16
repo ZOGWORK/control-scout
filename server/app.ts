@@ -20,6 +20,8 @@ import { trackRecord } from "./api/accuracy.js";
 import { currentWeather } from "./weather.js";
 import { MISSING_FILE, canonicalRedirects, renderPage } from "./seo.js";
 import { sitemapChunkRoute, sitemapRoute } from "./sitemap.js";
+import { latestRankings, rankingsWeek } from "./powerRankings/store.js";
+import { isWeekId } from "../src/shared/powerRankings.js";
 import { liveForecaster, liveVersion, dataVersion } from "./predict/engine.js";
 import { authRouter, meRouter, authProviders } from "./auth/routes.js";
 import { contactRouter } from "./contact.js";
@@ -37,6 +39,8 @@ import { commentsRouter } from "./scout/comments.js";
 import { consensusRouter } from "./scout/consensus.js";
 import { matchReportRouter } from "./scout/matchReport.js";
 import { inboxRouter } from "./inbox/routes.js";
+import { pushRouter } from "./push/routes.js";
+import { vapidReady } from "./push/push.js";
 import { reportsRouter } from "./errorReports.js";
 import { packsRouter } from "./packs/routes.js";
 import { collectRouter, statsRouter } from "./analytics.js";
@@ -188,7 +192,7 @@ export function createApp() {
     res.setHeader("Cache-Control", "public, max-age=15");
     // Photos also need R2 configured on this server: without it the app hides them as if switched off.
     const flags = await allFlags();
-    return { flags: { ...flags, photos: flags.photos && !!r2() } };
+    return { flags: { ...flags, photos: flags.photos && !!r2(), push: flags.push && vapidReady() } };
   }));
 
   api.get("/meta", h(async (): Promise<Meta> => {
@@ -219,6 +223,15 @@ export function createApp() {
     const t = await get<{ city: string | null; state: string | null; country: string | null }>("SELECT city, state, country FROM teams WHERE number = ?", [team]);
     const w = t ? await currentWeather(t).catch(() => null) : null;
     return w ? { available: true, ...w } : { available: false };
+  }));
+
+  // Power rankings (server/powerRankings/): the latest published week, or one week, each with the archive.
+  api.get("/power-rankings", h(async () => latestRankings()));
+  api.get("/power-rankings/:week", h(async (req) => {
+    const id = String(req.params.week).toLowerCase();
+    const r = isWeekId(id) ? await rankingsWeek(id) : null;
+    if (!r) throw new HttpError(404, `No power rankings published for ${id.slice(0, 20)}`);
+    return r;
   }));
 
   api.get("/teams/:number", h(async (req) => {
@@ -534,6 +547,8 @@ export function createApp() {
   // The notification inbox (docs/inbox.md): per account, across workspaces. Its stream follows the realtime switch only
   // (owner alerts aren't workspace scouting); while it's off the app polls the unread count.
   api.use("/inbox", inboxRouter({ streamEnabled: () => isEnabled("realtime") }));
+  // Web push (docs/push.md): this device's subscription for the signed-in account. Per IP, so a loop can't churn rows.
+  api.use("/push", limiter(30), pushRouter());
   api.use("/collect", collectRouter());
   api.use("/stats", statsRouter());
   api.use("/contact", contactRouter());

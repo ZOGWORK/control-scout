@@ -1,7 +1,7 @@
 {
   "name": "control-scout",
   "private": true,
-  "version": "1.5.0",
+  "version": "1.6.0",
   "description": "FTC Control Scout — free FTC scouting and prediction for every team.",
   "license": "GPL-3.0-only",
   "type": "module",
@@ -36,6 +36,8 @@
     "audit:flows": "tsx scripts/audit-flows.ts",
     "perf": "tsx scripts/perf.ts",
     "query-profile": "tsx scripts/query-profile.ts",
+    "power-rankings:new": "tsx scripts/power-rankings-new.ts",
+    "power-rankings:check": "tsx scripts/power-rankings-check.ts",
     "audit:perf": "npm run build && tsx scripts/perf.ts --budgets"
   },
   "dependencies": {
@@ -48,6 +50,7 @@
     "compression": "^1.8.1",
     "express": "^4.21.2",
     "lucide-react": "^0.546.0",
+    "marked": "^18.1.1",
     "motion": "^12.23.24",
     "radix-ui": "^1.7.0",
     "react": "^19.0.0",
@@ -58,7 +61,8 @@
     "sql.js": "1.14.2",
     "tailwind-merge": "^3.5.0",
     "tsx": "^4.20.6",
-    "tw-animate-css": "^1.4.0"
+    "tw-animate-css": "^1.4.0",
+    "web-push": "^3.6.7"
   },
   "devDependencies": {
     "@tailwindcss/vite": "^4.1.14",
@@ -68,6 +72,7 @@
     "@types/node": "^24.0.0",
     "@types/react": "^19.0.0",
     "@types/react-dom": "^19.0.0",
+    "@types/web-push": "^3.6.4",
     "@vitejs/plugin-react": "^5.0.4",
     "concurrently": "^9.2.1",
     "fake-indexeddb": "^6.2.4",

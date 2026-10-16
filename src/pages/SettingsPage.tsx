@@ -27,6 +27,8 @@ import { manualReport, sendReport } from "../lib/errorReporting";
 import { useFlag } from "../lib/flags";
 import { REPORT_LIMITS } from "../shared/errorReport";
 import { INBOX_CATEGORIES, INBOX_CATEGORY_INFO, INBOX_TOGGLE, inboxCategoryOn } from "../shared/inbox";
+import { UPSET_THRESHOLD } from "../shared/push";
+import { PushDevice } from "../components/settings/PushDevice";
 import { PageHeader } from "../components/page";
 import { Button } from "../components/ui/button";
 import { Badge, FieldError, Input, Textarea } from "../components/ui/basic";
@@ -50,7 +52,7 @@ const ALL_SECTIONS: SectionDef[] = [
   { id: "profile", label: "Profile", hint: "Sign in to sync, your name, your account", icon: UserRound, group: "Personal" },
   { id: "appearance", label: "Appearance", hint: "Theme, background, density", icon: Palette, group: "Personal" },
   { id: "tracking", label: "My team & tracking", hint: "Your team, and the teams and events you follow", icon: Star, group: "Personal" },
-  { id: "notifications", label: "Notifications", hint: "Match alerts for your teams", icon: BellRing, group: "Personal" },
+  { id: "notifications", label: "Notifications", hint: "Push and match alerts for your teams", icon: BellRing, group: "Personal" },
   { id: "offline", label: "Offline data", hint: "Packs, cache and recordings on this device", icon: HardDriveDownload, group: "Personal" },
   { id: "scouting", label: "Scouting data", hint: "Export, import and clear your notes", icon: ClipboardList, group: "Personal" },
   { id: "privacy", label: "Account & privacy", hint: "What lives where, and how to remove it", icon: KeyRound, group: "Personal" },
@@ -361,18 +363,19 @@ function Tracking() {
 // --- Notifications ---------------------------------------------------------------------
 
 function Notifications() {
-  const { state, update } = usePersonal();
+  const { state, update, user } = usePersonal();
   const n = state.settings.notify;
   const [perm, setPerm] = useState<NotificationPermission | "unsupported">(typeof Notification === "undefined" ? "unsupported" : Notification.permission);
   const ask = async () => { if (typeof Notification !== "undefined") setPerm(await Notification.requestPermission()); };
-  const toggle = (k: keyof typeof n, label: string, hint: string) => (
+  const toggle = (k: "myTeamMatches" | "trackedTeams" | "upsets" | "eventStart", label: string, hint: string) => (
     <Row label={label} description={hint} htmlFor={`n-${k}`}>
       <Switch id={`n-${k}`} checked={n[k]} onCheckedChange={(v) => update("settings", (x) => ({ ...x, notify: { ...x.notify, [k]: v } }))} />
     </Row>
   );
   return (
     <div>
-      <Group title="Delivery" description="Alerts arrive while Control Scout is open in a tab (checked every 5 minutes). With browser permission they pop up even when the tab is in the background; otherwise they appear inside the app.">
+      <PushDevice signedIn={!!user} onPermission={setPerm} />
+      <Group title="In a tab" description="While Control Scout is open in a tab, alerts are checked every 5 minutes. With browser permission they pop up even when the tab is in the background; otherwise they appear inside the app. A device with push on gets them by push instead.">
         <Row label="Browser notifications" description={perm === "denied" ? "Blocked: change it in your browser's site settings." : perm === "unsupported" ? "This browser doesn't support notifications." : "Lets alerts pop up outside the tab."}>
           <div className="flex items-center gap-2">
             <Badge variant={perm === "granted" ? "success" : perm === "denied" ? "destructive" : "secondary"}>{perm === "granted" ? "Allowed" : perm === "denied" ? "Blocked" : perm === "unsupported" ? "Unavailable" : "Not asked yet"}</Badge>
@@ -380,11 +383,11 @@ function Notifications() {
           </div>
         </Row>
       </Group>
-      <Group title="What to alert me about" description="Yours alone: a workspace never changes them.">
-        {toggle("myTeamMatches", "My team's matches", "30 minutes before your team's next scheduled match, with the odds")}
+      <Group title="What to alert me about" description="Yours alone: a workspace never changes them. They apply to push and to alerts in a tab.">
+        {toggle("myTeamMatches", "My team's matches", "Before your team's next scheduled match, with the odds: 15 minutes ahead by push, up to 30 in a tab")}
         {toggle("trackedTeams", "Tracked teams' matches", "The same, for teams you track")}
-        {toggle("upsets", "Upsets", "When a tracked team wins a match it was predicted to lose, or loses one it was favoured in")}
-        {toggle("eventStart", "Event start", "The morning a tracked event starts")}
+        {toggle("upsets", "Upsets", `When the favourite loses at an event you follow (one you track, or one your teams are at). By push: our pre-match call gave the losing side ${Math.round(UPSET_THRESHOLD * 100)}% or more`)}
+        {toggle("eventStart", "Event start", "When an event you follow gets under way: its first result, or its first scheduled match time")}
       </Group>
       <InboxToggles />
     </div>

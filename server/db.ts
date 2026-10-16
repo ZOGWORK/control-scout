@@ -859,6 +859,42 @@ CREATE TABLE ranking_weeks (
 CREATE INDEX workspace_scout_team ON workspace_scout_entries (workspace_id, season, team);
 `,
   },
+  {
+    version: 25,
+    name: "web push",
+    sql: `
+-- Web push (server/push/push.ts, docs/push.md): one row per device that turned notifications on, for a
+-- signed-in account. endpoint, p256dh and auth are what the browser's PushSubscription gives (the push
+-- service URL and the keys a payload is encrypted to). ua_family: the browser family only ("Chrome on
+-- Android"), never the full User-Agent. Times are ms. last_success_at: the last push the service accepted.
+-- AUTOINCREMENT: an id is never reused, so a late answer about a deleted subscription can't touch a newer one.
+CREATE TABLE push_subscriptions (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  user_id INTEGER NOT NULL,
+  endpoint TEXT NOT NULL UNIQUE,
+  p256dh TEXT NOT NULL,
+  auth TEXT NOT NULL,
+  ua_family TEXT NOT NULL DEFAULT '',
+  created_at INTEGER NOT NULL,
+  last_success_at INTEGER
+);
+CREATE INDEX push_subscriptions_user ON push_subscriptions (user_id);
+
+-- What was pushed, so each thing is sent once per device however often the job runs, on however many
+-- servers: a row is claimed before sending. kind: match | upset | start. subject: "season:CODE:level:series:number"
+-- for a match or an upset, "season:CODE" for an event start. outcome: sent | limited (over the daily cap,
+-- not sent) | failed (not sent, never retried). at: ms, for the daily cap and pruning.
+CREATE TABLE push_sent (
+  subscription_id INTEGER NOT NULL,
+  kind TEXT NOT NULL,
+  subject TEXT NOT NULL,
+  at INTEGER NOT NULL,
+  outcome TEXT NOT NULL DEFAULT 'sent',
+  PRIMARY KEY (subscription_id, kind, subject)
+) WITHOUT ROWID;
+CREATE INDEX push_sent_at ON push_sent (subscription_id, at);
+`,
+  },
 ];
 
 export type Db = Client;
