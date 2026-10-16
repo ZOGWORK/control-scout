@@ -50,18 +50,20 @@ const n = (x: unknown) => (x == null ? null : Number(x));
 
 /** The report for one match, or null when there's no such event or match. */
 export async function matchReport(season: number, code: string, key: string): Promise<MatchReport | null> {
-  const [d, ev] = await Promise.all([matchDetail(season, code, key), eventDetail(season, code)]);
+  // The event detail isn't cached: build it once and hand it to matchDetail.
+  const ev = await eventDetail(season, code);
+  const d = ev ? await matchDetail(season, code, key, ev) : null;
   if (!d || !ev) return null;
   const m = d.match;
   const numbers = [...new Set([...m.red.teams, ...m.blue.teams].map((t) => t.number))];
   if (!numbers.length) return { event: ev.event, live: ev.live, match: m, description: d.description, teams: [], prev: d.prev, next: d.next };
   const ph = numbers.map(() => "?").join(",");
   const [stats, records, events, cut] = await Promise.all([
-    all<any>(`SELECT team, opr_np, opr_auto, opr_teleop, opr_endgame, opr_pen, rank_np, ranked_teams, matches, wins, losses, ties FROM team_season_stats WHERE season = ? AND team IN (${ph})`, [season, ...numbers]),
+    all<any>(`SELECT team, opr_np, opr_pen, rank_np, ranked_teams, matches, wins, losses, ties FROM team_season_stats WHERE season = ? AND team IN (${ph})`, [season, ...numbers]),
     all<any>(`SELECT team, played, np_dev, np_avg FROM team_season_records WHERE season = ? AND team IN (${ph})`, [season, ...numbers]),
     all<any>(
-      `SELECT s.team, e.code, e.name, e.start, s.opr_np FROM team_event_stats s JOIN events e ON e.season = s.season AND e.code = s.code
-        WHERE s.season = ? AND s.team IN (${ph}) AND s.matches >= ? AND s.opr_np IS NOT NULL ORDER BY e.start, e.code`, [season, ...numbers, MIN_EVENT_MATCHES]),
+      `SELECT s.team, e.code, e.name, e.start, s.opr_np, s.opr_auto, s.opr_teleop, s.opr_endgame, s.matches FROM team_event_stats s JOIN events e ON e.season = s.season AND e.code = s.code
+        WHERE s.season = ? AND s.team IN (${ph}) AND s.opr_np IS NOT NULL ORDER BY e.start, e.code`, [season, ...numbers]),
     seasonCutoffs(season),
   ]);
   const statBy = new Map(stats.map((s) => [Number(s.team), s]));
@@ -69,12 +71,18 @@ export async function matchReport(season: number, code: string, key: string): Pr
   const fieldBy = new Map(ev.field.map((f) => [f.team, f]));
   const teams: ReportTeam[] = numbers.map((team) => {
     const s = statBy.get(team), r = recBy.get(team), f = fieldBy.get(team), info = d.teams[team];
-    const trend: TrendPoint[] = events.filter((e) => Number(e.team) === team).map((e) => ({ code: e.code, name: e.name, start: e.start ?? null, opr: Number(e.opr_np) }));
+    const mine = events.filter((e) => Number(e.team) === team);
+    const trend: TrendPoint[] = mine.filter((e) => Number(e.matches ?? 0) >= MIN_EVENT_MATCHES)
+      .map((e) => ({ code: e.code, name: e.name, start: e.start ?? null, opr: Number(e.opr_np) }));
+    // The season OPR is the best event OPR, while the stored per-part bests can come from different events:
+    // take the split from the event that gives the season OPR, so the parts belong to the total shown.
+    const seasonNp = s ? n(s.opr_np) : null;
+    const best = mine.reduce<any>((b, e) => (b == null || (seasonNp != null ? Math.abs(Number(e.opr_np) - seasonNp) < Math.abs(Number(b.opr_np) - seasonNp) : Number(e.opr_np) > Number(b.opr_np)) ? e : b), null);
     return {
       team, name: info?.name ?? null, city: info?.city ?? null, state: info?.state ?? null,
       event: f ? { rank: f.rank, wins: f.wins, losses: f.losses, ties: f.ties, qualPlayed: f.qualPlayed, opr: f.opr } : null,
       season: s ? {
-        opr: { np: n(s.opr_np), auto: n(s.opr_auto), teleop: n(s.opr_teleop), endgame: n(s.opr_endgame), pen: n(s.opr_pen) },
+        opr: { np: seasonNp, auto: best ? n(best.opr_auto) : null, teleop: best ? n(best.opr_teleop) : null, endgame: best ? n(best.opr_endgame) : null, pen: n(s.opr_pen) },
         rank: n(s.rank_np), of: n(s.ranked_teams), matches: Number(s.matches ?? 0), wins: Number(s.wins ?? 0), losses: Number(s.losses ?? 0), ties: Number(s.ties ?? 0),
       } : null,
       trend,

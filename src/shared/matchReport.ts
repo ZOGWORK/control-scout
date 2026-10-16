@@ -156,3 +156,10 @@ export const matchReportHref = (m: Pick<MatchView, "season" | "code" | "key">) =
 
 /** A match key as the API takes it: qual:0:12 / playoff:3:1. */
 export const MATCH_KEY = /^(qual|playoff):\d{1,3}:\d{1,4}$/;
+
+/** A key as written in an address, in its one canonical form (QUAL:0:01 → qual:0:1); null when it can't be one.
+ *  The page and the server's preview read an address the same way. */
+export function normalMatchKey(raw: string | null | undefined): string | null {
+  const m = /^(qual|playoff):(\d{1,3}):(\d{1,4})$/i.exec(raw ?? "");
+  return m ? `${m[1].toLowerCase()}:${Number(m[2])}:${Number(m[3])}` : null;
+}

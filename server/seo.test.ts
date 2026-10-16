@@ -198,7 +198,7 @@ describe("page head in the first HTML", () => {
       expect(page.html, p).not.toMatch(/owner portal/i);
     }
     expect(routes.length).toBeGreaterThan(10);
-    for (const p of [...routes, "/Teams", "/teams/4215", "/teams/004215", "/teams/0004215", `/teams/${"0".repeat(40)}4215`, "/teams/%34%32%31%35", "/%74eams", "/events/2025/%55SNJNOM3", "/events/02025/USNJNOM3","/events/2025/USNJNOM3", "/events/2025/usnjnom3", "/events/2025/USNJNOM3/match/qual:0:1", "/events/2025/usnjnom3/match/QUAL%3A0%3A1"]) {
+    for (const p of [...routes, "/Teams", "/teams/4215", "/teams/004215", "/teams/0004215", `/teams/${"0".repeat(40)}4215`, "/teams/%34%32%31%35", "/%74eams", "/events/2025/%55SNJNOM3", "/events/02025/USNJNOM3","/events/2025/USNJNOM3", "/events/2025/usnjnom3", "/events/2025/USNJNOM3/match/qual:0:1", "/events/2025/usnjnom3/match/QUAL%3A0%3A1", "/events/2025/USNJNOM3/match/qual:0:01"]) {
       const page = await renderPage(file, p);
       expect(page.status, p).toBe(200);
       expect(page.html, p).toContain('rel="canonical"');
@@ -207,6 +207,8 @@ describe("page head in the first HTML", () => {
     const rep = (await renderPage(file, "/events/2025/USNJNOM3/match/qual:0:1")).html;
     expect(rep).toContain("<title>Q1 at P1-4 PM Northern League Meet: know your match · FTC Control Scout</title>");
     expect(rep).toContain('<meta name="robots" content="noindex" />');
+    // Any spelling of the key previews under the one address the app opens.
+    expect((await renderPage(file, "/events/2025/usnjnom3/match/QUAL:0:01")).html).toContain('<link rel="canonical" href="https://controlscout.org/events/2025/USNJNOM3/match/qual:0:1" />');
     // The legal and contact pages are never a 404.
     for (const p of ["/privacy", "/terms", "/contact", "/Privacy"]) {
       const page = await renderPage(file, p);
