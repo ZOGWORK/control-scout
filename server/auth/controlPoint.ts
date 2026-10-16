@@ -4,7 +4,8 @@
 // recorded as identities(provider 'control-point', subject = account id).
 // Off unless all three env settings are present (Render, the rollback host,
 // runs without it: it can't reach Control Point's loopback port).
-import { get, run, writeBatch } from "../db.js";
+import { all, db, get, run } from "../db.js";
+import { activityStatement, CONTROL_POINT_ACTOR, publishLogged } from "../scout/activityLog.js";
 import { env } from "../env.js";
 import type { User } from "./session.js";
 
@@ -197,7 +198,7 @@ export async function rememberInfo(account: SharedAccount): Promise<void> {
       while (infoCache.size > INFO_MAX) infoCache.delete(infoCache.keys().next().value!);
     }
   }
-  await storeMemberships(account.id, workspaces);
+  await storeMemberships(account.id, workspaces, account);
 }
 /** Tests: forget everything (a cold cache). */
 export const clearInfoCache = () => { infoCache.clear(); lastForced.clear(); };
@@ -224,14 +225,36 @@ export async function controlPointInfo(accountId: number): Promise<ControlPointI
 /** A cached membership younger than this is trusted as is; older, it's re-checked with Control Point first. */
 export const MEMBERSHIP_TTL = 10 * 60_000;
 
-/** Replace the account's cached memberships with what Control Point just said. Writes only the cache (and a mirror row's name, if one exists). Never throws. */
-async function storeMemberships(accountId: number, list: Workspace[]): Promise<void> {
+/**
+ * Replace the account's cached memberships with what Control Point just said. Writes only the cache (and a
+ * mirror row's name, if one exists), plus the activity feed: a workspace that appears in the list, or drops
+ * out of it, is logged as member.joined / member.left (actor Control Point: Scout doesn't know who added or
+ * removed them) in the same transaction, guarded on the cache row so each change is logged once. Only for
+ * workspaces with a scout space (a mirror row). Never throws.
+ */
+async function storeMemberships(accountId: number, list: Workspace[], account?: Pick<SharedAccount, "displayName" | "email">): Promise<void> {
   const now = Date.now(), iso = new Date(now).toISOString();
   // Every fresh answer passes through here: a re-check's saved answer must never be older than it.
   const last = lastForced.get(accountId);
   if (last) lastForced.set(accountId, { at: last.at, list });
   try {
-    await writeBatch([
+    const cached = await all<{ cp_workspace_id: string; role: string }>("SELECT cp_workspace_id, role FROM workspace_members WHERE account_id = ?", [accountId]);
+    const was = new Map(cached.map((r) => [String(r.cp_workspace_id), String(r.role)]));
+    const joined = list.filter((w) => !was.has(w.id));
+    const left = [...was].filter(([id]) => !list.some((w) => w.id === id));
+    const name = joined.length || left.length ? await memberName(accountId, account) : "";
+    const actor = CONTROL_POINT_ACTOR, subject = `member:${accountId}`;
+    // Guarded on the cache row (read again inside the transaction), so two refreshes racing log a change once.
+    const cachedRow = (id: string) => ({ sql: "EXISTS (SELECT 1 FROM workspace_members WHERE account_id = ? AND cp_workspace_id = ?)", args: [accountId, id] });
+    const logs = [
+      ...left.map(([id, role]) => ({ id, stmt: activityStatement(id, actor, "member.left", subject, { accountId, name, role }, now, cachedRow(id)) })),
+      ...joined.map((w) => {
+        const g = cachedRow(w.id);
+        return { id: w.id, stmt: activityStatement(w.id, actor, "member.joined", subject, { accountId, name, role: w.role }, now, { sql: `NOT ${g.sql}`, args: g.args }) };
+      }),
+    ];
+    const res = await db().batch([
+      ...logs.map((l) => l.stmt),
       {
         sql: `DELETE FROM workspace_members WHERE account_id = ?${list.length ? ` AND cp_workspace_id NOT IN (${list.map(() => "?").join(", ")})` : ""}`,
         args: [accountId, ...list.map((w) => w.id)],
@@ -243,8 +266,17 @@ async function storeMemberships(accountId: number, list: Workspace[]): Promise<v
       })),
       // Renamed in Control Point: follow it on the mirror row (never creates one).
       ...list.map((w) => ({ sql: "UPDATE workspaces SET name = ?, updated_at = ? WHERE cp_workspace_id = ? AND name <> ?", args: [w.name, iso, w.id, w.name] })),
-    ]);
+    ], "write");
+    logs.forEach((l, i) => publishLogged(l.id, [...res[i].rows]));
   } catch (e) { console.warn(`[shared-accounts] membership cache write failed: ${(e as Error)?.name ?? "error"}`); }
+}
+
+/** How a member is named in the feed: as on their entries (the Scout profile's name, else the email before the @), else Control Point's. */
+async function memberName(accountId: number, account?: Pick<SharedAccount, "displayName" | "email">): Promise<string> {
+  const u = await get<{ display_name: string | null; email: string | null }>(
+    "SELECT u.display_name, u.email FROM identities i JOIN users u ON u.id = i.user_id WHERE i.provider = ? AND i.subject = ? ORDER BY u.id LIMIT 1", [CP_PROVIDER, String(accountId)]);
+  const pick = (displayName?: string | null, email?: string | null) => displayName?.trim() || email?.split("@")[0] || "";
+  return (pick(u?.display_name, u?.email) || pick(account?.displayName, account?.email) || "A member").slice(0, 60);
 }
 
 const refreshing = new Map<number, Promise<Workspace[] | null>>();
