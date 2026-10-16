@@ -164,13 +164,28 @@ describe("when the device can't keep the losing version", () => {
     applyLiveEntries("w1", [{ entry: server({ updatedAt: mine.updatedAt + 5000, notes: "Priya's notes" }), seq: 2 }]);
     const stash = exportLocalScouting();
     expect(Object.keys(stash.lost ?? {})).toEqual(["cs-scout-lost:w1"]);
-    // Merged with what's here (no duplicate of the same version).
-    expect(importLocalScouting({ entries: [], dirty: [], lost: stash.lost }).lostFailed).toEqual({});
+    // Merged with what's here (no duplicate of the same version), and open notices hear about it.
+    let heard = 0;
+    const on = () => { heard++; };
+    window.addEventListener(SCOUT_OVERWRITTEN, on);
+    expect(importLocalScouting({ entries: [], dirty: [], lost: stash.lost }).failed).toBeNull();
+    window.removeEventListener(SCOUT_OVERWRITTEN, on);
+    expect(heard).toBe(1);
     expect(lostEdits("w1")).toHaveLength(1);
     // A full device: handed back, so the caller keeps its stash.
     clearLocalScouting();
     full();
-    expect(importLocalScouting({ entries: [], dirty: [], lost: stash.lost }).lostFailed).toEqual(stash.lost);
+    expect(importLocalScouting({ entries: [], dirty: [], lost: stash.lost }).failed?.lost).toEqual(stash.lost);
+  });
+
+  it("queued entries that can't be put back are handed back too (with their queue)", () => {
+    const queued = saveScoutEntry({ uuid: "stashed00001", ...base, workspaceId: "w1" });
+    const stash = exportLocalScouting();
+    clearLocalScouting();
+    vi.spyOn(Storage.prototype, "setItem").mockImplementation(() => { throw new DOMException("full", "QuotaExceededError"); });
+    const { failed } = importLocalScouting(stash);
+    expect(failed?.spaces.w1.entries.map((e) => e.uuid)).toEqual([queued.uuid]);
+    expect(failed?.spaces.w1.dirty).toEqual([queued.uuid]);
   });
 
   it("a push answer does the same: the edit stays queued until it can be kept", async () => {

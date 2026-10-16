@@ -109,6 +109,14 @@ export function dropRestored(space: string, uuid: string, restoredFrom: number) 
   dropLostEdit(space, `${uuid}:${restoredFrom}`);
 }
 
+/** Two stored lists of one workspace's lost edits (JSON) as one, each version once (by id). */
+export function mergeLostLists(a: string | null | undefined, b: string | null | undefined): string {
+  const parse = (s: string | null | undefined): LostEdit[] => { try { const v = JSON.parse(s ?? "[]"); return Array.isArray(v) ? v.filter(isLost) : []; } catch { return []; } };
+  const out = parse(a);
+  for (const l of parse(b)) if (!out.some((x) => x.id === l.id)) out.push(l);
+  return JSON.stringify(out);
+}
+
 /** Every workspace's lost edits on this device (an account's stash, personal.tsx). */
 export function exportLostEdits(): Record<string, string> {
   const out: Record<string, string> = {};
