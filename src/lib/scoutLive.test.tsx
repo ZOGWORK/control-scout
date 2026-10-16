@@ -7,7 +7,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { act, cleanup, render, renderHook, screen } from "@testing-library/react";
 import { BACKOFF_MS, followWorkspace, HIDDEN_CLOSE_MS, POLL_MS, STREAM_RETRY_WHILE_POLLING_MS, useScoutLive, type LiveMode } from "./scoutLive";
-import { localScoutEntries, saveScoutEntry, scoutCursor, useScouting, type ScoutEntry } from "./scouting";
+import { deleteScoutEntry, localScoutEntries, PUSH_DEBOUNCE_MS, saveScoutEntry, scoutCursor, useScouting, type ScoutEntry } from "./scouting";
 import { attributionText, EntryAttribution } from "../components/EntryAttribution";
 import { NOW_TICK_MS, nowClock } from "./useNow";
 import { TEMPLATE_CHANGED, type TemplateChange } from "./scoutTemplates";
@@ -190,6 +190,29 @@ describe("useScouting pushes a save right away", () => {
     expect(posts).toHaveLength(1); // one push for the burst, this space only
     expect(posts[0].workspaceId).toBe("41");
     expect(posts[0].entries.map((e: ScoutEntry) => e.uuid).sort()).toEqual(["eeeeeeeeeeee", "ffffffffffff"]);
+  });
+
+  it("a delete is pushed at once (no 300 ms wait), taking a save that was waiting with it", async () => {
+    const posts: any[] = [];
+    vi.stubGlobal("fetch", vi.fn(async (path: string, init?: RequestInit) => {
+      const body = init?.body ? JSON.parse(String(init.body)) : undefined;
+      if (init?.method === "POST") posts.push(body);
+      const answer = init?.method === "POST" ? { results: body.entries.map((x: ScoutEntry) => ({ uuid: x.uuid, ok: true })) } : { entries: [], cursor: 0, more: false };
+      return new Response(JSON.stringify(answer), { status: 200, headers: { "Content-Type": "application/json" } });
+    }));
+    renderHook(() => useScouting({}, true, "41"));
+    await act(async () => { await vi.advanceTimersByTimeAsync(10); });
+    let saved!: ScoutEntry;
+    act(() => { saved = saveScoutEntry({ uuid: "gggggggggggg", ...base, workspaceId: "41" }); });
+    await act(async () => { await vi.advanceTimersByTimeAsync(PUSH_DEBOUNCE_MS + 50); });
+    expect(posts).toHaveLength(1); // an add: after the short wait
+    act(() => { saveScoutEntry({ uuid: "hhhhhhhhhhhh", ...base, workspaceId: "41" }); }); // waiting…
+    act(() => { deleteScoutEntry(saved); });
+    await act(async () => { await vi.advanceTimersByTimeAsync(1); }); // no timer: it's already gone
+    expect(posts).toHaveLength(2);
+    expect(posts[1].entries.map((e: ScoutEntry) => [e.uuid, !!e.deleted]).sort()).toEqual([["gggggggggggg", true], ["hhhhhhhhhhhh", false]]);
+    await act(async () => { await vi.advanceTimersByTimeAsync(PUSH_DEBOUNCE_MS + 50); });
+    expect(posts).toHaveLength(2); // the waiting save went with the delete: nothing left to push
   });
 });
 
