@@ -174,6 +174,13 @@ describe("subscription API", () => {
     expect(await all("SELECT * FROM push_subscriptions")).toEqual([]);
   });
 
+  it("writes nothing for an account deleted while its subscribe request was in flight", async () => {
+    const a = await account();
+    await deleteUser(a.id);
+    await saveSubscription(a.id, subFor("late"), "Chrome");
+    expect(await all("SELECT * FROM push_subscriptions")).toEqual([]);
+  });
+
   it("keeps push tables out of the public snapshot", () => {
     expect(PRIVATE_TABLES).toEqual(expect.arrayContaining(["push_subscriptions", "push_sent"]));
   });
@@ -317,6 +324,9 @@ describe("event starts", () => {
     await run("INSERT INTO events (season, code, name, type, start, end, timezone, source) VALUES (2025, 'ST4', 'ST4', 'Qualifier', ?, ?, ?, 'first')", [localDay(now - 864e5), localDay(now), ZONE]);
     await run("INSERT INTO event_teams (season, code, team) VALUES (2025, 'ST4', 11)");
     await match("ST4", 1, { time: wall(now - 864e5), red: [11, 1], blue: [2, 3], played: true });
+    // Started, but no time zone: its first local day can't be told, so no start push.
+    await event("ST6", { zone: null, start: localDay(now), teams: [11] });
+    await match("ST6", 1, { time: wall(now - 30 * MIN), red: [11, 1], blue: [2, 3], played: true });
     // Started, but not followed.
     await event("ST5", { teams: [99] });
     await match("ST5", 1, { time: wall(now - 30 * MIN), red: [99, 1], blue: [2, 3], played: true });
@@ -366,6 +376,21 @@ describe("delivery", () => {
     expect(r).toMatchObject({ sent: PUSH_DAILY_LIMIT, limited: 3 });
     // Limited ones are logged and never sent later.
     expect((await deliver(plans, Date.now() + 2 * 864e5)).sent).toBe(0);
+  });
+
+  it("holds the daily cap across servers sending at the same time, counting pushes in flight", async () => {
+    const a = await account({ myTeam: 1 });
+    await subscribe(a.id, "busy-day");
+    const [sub] = await loadRecipients();
+    const now = Date.now();
+    for (let i = 0; i < PUSH_DAILY_LIMIT - 1; i++) await run("INSERT INTO push_sent (subscription_id, kind, subject, at, outcome) VALUES (?, 'upset', ?, ?, 'sent')", [sub.id, `earlier:${i}`, now - 3600_000]);
+    // A slow push service, so both "servers" are mid-send together.
+    setPushSender(async (s, payload, ttl) => { sent.push({ endpoint: s.endpoint, payload: JSON.parse(payload), ttl }); await new Promise((r) => setTimeout(r, 200)); return { ok: true }; });
+    const plan = (subject: string): Planned => ({ sub, kind: "upset", subject, expiresAt: now + 3600_000, payload: () => ({ title: subject, body: "", url: "/", tag: subject }) });
+    const [x, y] = await Promise.all([deliver([plan("a")], now), deliver([plan("b")], now)]);
+    expect(x.sent + y.sent).toBe(1);
+    expect(x.limited + y.limited).toBe(1);
+    expect(sent).toHaveLength(1);
   });
 
   it("drops a plan whose time has passed by the moment of sending, and writes the countdown then", async () => {
