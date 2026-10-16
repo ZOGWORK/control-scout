@@ -830,7 +830,15 @@ CREATE TABLE workspace_pending_departures (
 `,
   },
   {
-    version: 23,
+    version: 24,
+    name: "scout consensus index",
+    sql: `
+-- Scout consensus (server/scout/consensus.ts) reads one workspace's entries on a few teams of one season.
+CREATE INDEX workspace_scout_team ON workspace_scout_entries (workspace_id, season, team);
+`,
+  },
+  {
+    version: 25,
     name: "web push",
     sql: `
 -- Web push (server/push/push.ts, docs/push.md): one row per device that turned notifications on, for a

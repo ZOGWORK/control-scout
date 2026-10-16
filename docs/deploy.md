@@ -235,6 +235,23 @@ The data directory is shared by every release, so a rollback keeps all data.
 
 ## Uptime alerts
 
+Two independent checks watch production:
+
+1. **Discord, every minute (primary).** A Cloudflare Worker,
+   [deploy/uptime-worker](../deploy/uptime-worker/README.md), checks
+   `/api/health` (200, `"ready": true`) and `/` (200, HTML with the app shell)
+   every minute from Cloudflare, outside the VM. After 2 failed checks in a row
+   (1–2 minutes) it posts to the Control Point Discord `#announcements` with
+   the failing check, status and latency; a reminder at most every 30 minutes
+   while it stays down; and "back up" when it recovers. The webhook URL is the
+   Worker secret `UPTIME_DISCORD_WEBHOOK` (set with `wrangler secret put`,
+   never committed); without it the Worker only logs. Setup steps are in that
+   folder's README.
+2. **GitHub issue, every ~5 minutes (backup).** Described below. It keeps
+   working if Cloudflare or the Worker stops.
+
+Neither runs on the VM, so both still alert when the whole VM is down.
+
 `.github/workflows/uptime.yml` (logic in `.github/scripts/uptime.sh`) checks
 production every 5 minutes. GitHub runs scheduled workflows best-effort, so
 runs can start several minutes late.
