@@ -362,9 +362,9 @@ minute.
 
 `GET /api/scout/workspaces/:id/export.csv?season=YYYY[&filters]`
 
-- **Filters** (`src/shared/scoutExport.ts`) are applied by the server. The
-  page passes the filters it shows (today `season` and `team`), never a list
-  of entries. `season` is required. The other filters are optional: `team`,
+- **Filters** (`src/shared/scoutFilter.ts`, the same parser and predicate as
+  the Scout page's feed) are applied by the server. The page passes the
+  filters it shows (its URL's), never a list of entries. `season` is required. The other filters are optional: `team`,
   `event`, `kind` (`match` | `pit`), `author` (Control Point account id),
   `match` (label) and `q` (free text).
   - A list filter is comma-separated or repeated. An entry matches if it
@@ -404,6 +404,53 @@ minute.
   at a time and each chunk is flushed before the next read, so a big
   workspace never sits in memory. Request metrics time the download to its
   first byte, so a long download doesn't show up as a slow route.
+
+### Searching and filtering entries
+
+The entry list on the Scout page has a filter bar: a text search, then
+team, event, author, match and kind (all / match / pit), and a sort.
+These are quick dropdowns and chips, not the nested filter builder from
+Records.
+
+- **One definition.** `src/shared/scoutFilter.ts` parses the filters and
+  decides which entries match. The feed and the CSV export both use it,
+  with the parameters described above. The feed filters the entries on
+  the device, so it works offline. The export filters on the server
+  (`exportWhere` in SQL, then `matchesQuery`), so **Export CSV** downloads
+  exactly what the feed shows. Match labels and event codes fold case for
+  ASCII letters only, as SQLite's `UPPER` does, so both sides agree.
+  `server/scout/export.test.ts` has a parity test that runs both on the
+  same entries.
+- **The URL holds the state:**
+  `?team=&event=&author=&match=&kind=&q=&sort=`. A filtered feed is
+  therefore a link you can share. `space`, `season` and `view` work as
+  before. If a link has a value the export would refuse (for example
+  `team=abc`), the page removes that value from the URL, so the feed and
+  the export never disagree.
+- **Picker options come from the entries on screen:** their teams, their
+  event codes (with event names once the event list is opened), their
+  authors, and their match labels in playing order.
+- **Your unsynced entries:** a workspace entry you made that hasn't synced
+  yet has no author on it. The feed treats it as yours, which is how the
+  server will stamp it.
+- **Sorts:**
+  - `newest` (the default): newest edit first.
+  - `team`: by team number, then newest.
+  - `match`: event by event (A to Z, entries without an event last), then
+    in playing order, then by team. Playing order means qualifications in
+    natural order (Q2 before Q10), then playoffs (M3, M3-2, SF1-1), then
+    finals (F1), then other labels, with pit entries (no label) last.
+- **Personal gets the same bar without the author filter**, because every
+  Personal entry is yours. An `author` in the URL is ignored there.
+  Switching spaces clears `author`, since authors belong to one workspace.
+  Other filters carry over.
+- **No match:** the feed shows "No entries match" with **Clear filters**.
+  The count reads "12 of 87 entries".
+- **Phones:** the search box sits next to a **Filters** button that opens
+  a bottom sheet with the pickers and the sort. The filters that are on
+  show below as chips; tap one to remove it.
+- "Scout this team" on a team page links with `new=1`, which opens the
+  form for that team. A link with a team filter alone only filters.
 
 ### Workspace activity feed
 

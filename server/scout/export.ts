@@ -22,88 +22,31 @@ import { currentUser } from "../auth/session.js";
 import { csvCell, streamedBody } from "../api/records.js";
 import { builtinTemplate } from "../../src/shared/scoutDefaults.js";
 import { exportFilename } from "../../src/shared/scoutExport.js";
+import { matchesWords, parseExportFilters, type ExportFilters, type FilterableEntry } from "../../src/shared/scoutFilter.js";
 import type { ScoutField, TemplateKind } from "../../src/shared/scoutTemplate.js";
 import { currentTemplate } from "./templates.js";
 import { workspaceAccess, workspacePaused } from "./entries.js";
 
-/** The filters, as the server applies them (parsed from the query by parseExportFilters). */
-export interface ExportFilters {
-  season: number;
-  team?: number[];
-  event?: string[];
-  kind?: TemplateKind;
-  author?: number[];
-  match?: string[];
-  /** Words that must each appear somewhere in the entry. */
-  q?: string[];
-}
+// The filters and their parsing are shared with the Scout page's feed: src/shared/scoutFilter.ts.
+export { parseExportFilters, type ExportFilters };
 
-const MAX_LIST = 50;
-
-/** A list parameter: comma-separated, or repeated. Null when it isn't plain text (e.g. team[x]=1, which the query parser makes an object): a 400, never a dropped filter. */
-function listOf(v: unknown): string[] | null {
-  const raw = Array.isArray(v) ? v : v === undefined ? [] : [v];
-  if (!raw.every((x) => typeof x === "string")) return null;
-  return (raw as string[]).flatMap((x) => x.split(",")).map((x) => x.trim()).filter(Boolean);
-}
-
-/** Text as q compares it: Unicode case folding (not SQLite's ASCII-only LOWER), composed accents. */
-const fold = (s: string) => s.normalize("NFC").toLocaleLowerCase("und");
+/** A stored row as the shared predicate reads an entry (src/shared/scoutFilter.ts). */
+export const rowEntry = (r: any): FilterableEntry => ({
+  team: Number(r.team), eventCode: r.event_code ?? null, matchLabel: r.match_label ?? null, kind: String(r.kind), notes: r.notes ?? null,
+  authorAccountId: Number(r.author_account_id), authorDisplayName: r.author_name ?? null, editorDisplayName: r.editor_name ?? null,
+  data: r.data, deleted: !!Number(r.deleted),
+});
 
 /**
- * Does a stored row hold every word of q (already folded)? Each word must appear in the team number, event,
- * match, notes, author, last editor or one of its answers, read as decoded values (never the stored JSON's
- * keys, quotes or escapes; a toggle as true / false, as the CSV writes it). Substrings, no wildcards.
+ * Does a stored row hold every word of q (already folded)? The shared predicate's text search
+ * (matchesWords): the team number, event, match, notes, author, last editor or an answer.
  */
-export function matchesQuery(r: any, words: string[] | undefined): boolean {
-  if (!words?.length) return true;
-  let answers: unknown[] = [];
-  try { const d = JSON.parse(r.data); if (d && typeof d === "object" && !Array.isArray(d)) answers = Object.values(d); } catch { /* none */ }
-  const text = fold([r.team, r.event_code, r.match_label, r.notes, r.author_name, r.editor_name,
-    ...answers.map((v) => (v !== null && typeof v === "object" ? JSON.stringify(v) : v))].filter((v) => v != null).join("\n"));
-  return words.every((w) => text.includes(w));
-}
+export const matchesQuery = (r: any, words: string[] | undefined): boolean => matchesWords(rowEntry(r), words);
 
-/** The export's filters from a query string, or what's wrong with them (a 400). */
-export function parseExportFilters(query: Record<string, unknown>): { ok: true; filters: ExportFilters } | { ok: false; error: string } {
-  const season = Number(query.season);
-  if (!Number.isInteger(season) || season < 2000 || season > 2100) return { ok: false, error: "season required" };
-  const f: ExportFilters = { season };
-  const parsed = { team: listOf(query.team), event: listOf(query.event), author: listOf(query.author), match: listOf(query.match) };
-  for (const [k, v] of Object.entries(parsed)) if (!v) return { ok: false, error: `${k} must be plain values` };
-  const lists = parsed as Record<keyof typeof parsed, string[]>;
-  for (const [k, v] of Object.entries(lists)) if (v.length > MAX_LIST) return { ok: false, error: `at most ${MAX_LIST} values for ${k}` };
-  if (lists.team.length) {
-    const teams = lists.team.map(Number);
-    if (teams.some((t) => !Number.isInteger(t) || t < 1 || t > 999999)) return { ok: false, error: "team must be team numbers" };
-    f.team = teams;
-  }
-  if (lists.event.length) {
-    if (lists.event.some((e) => !/^[A-Za-z0-9_-]{1,24}$/.test(e))) return { ok: false, error: "event must be event codes" };
-    f.event = lists.event.map((e) => e.toUpperCase());
-  }
-  if (lists.author.length) {
-    const ids = lists.author.map(Number);
-    if (ids.some((a) => !Number.isSafeInteger(a) || a < 1)) return { ok: false, error: "author must be account ids" };
-    f.author = ids;
-  }
-  if (lists.match.length) {
-    if (lists.match.some((m) => m.length > 24)) return { ok: false, error: "match must be match labels" };
-    f.match = lists.match.map((m) => m.toUpperCase());
-  }
-  if (query.kind !== undefined && query.kind !== "") {
-    if (query.kind !== "match" && query.kind !== "pit") return { ok: false, error: "kind must be match or pit" };
-    f.kind = query.kind;
-  }
-  if (query.q !== undefined) {
-    if (typeof query.q !== "string" || query.q.length > 200) return { ok: false, error: "q must be up to 200 characters" };
-    const words = fold(query.q).split(/\s+/).filter(Boolean); // every word applies (200 characters bound them)
-    if (words.length) f.q = words;
-  }
-  return { ok: true, filters: f };
-}
-
-/** The WHERE clause for a workspace (its mirror row id) and filters, all but q (matchesQuery); deleted entries never match. */
+/**
+ * The WHERE clause for a workspace (its mirror row id) and filters, all but q (matchesQuery); deleted entries never match.
+ * The same tests as the shared predicate (entryMatches), in SQL: UPPER folds ASCII letters only, as upperAscii does.
+ */
 export function exportWhere(workspaceRowId: number, f: ExportFilters): { sql: string; args: (string | number)[] } {
   const parts = ["w.workspace_id = ?", "w.deleted = 0", "w.season = ?"];
   const args: (string | number)[] = [workspaceRowId, f.season];
