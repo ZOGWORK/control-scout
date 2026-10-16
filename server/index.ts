@@ -19,6 +19,7 @@ import { CURRENT_SEASON } from "./data/seasons.js";
 import { warmTrackRecord } from "./api/accuracy.js";
 import { installShippedPacks, restoreSnapshotIfEmpty } from "./data/snapshot.js";
 import { drainOnSigterm, systemdSocket } from "./listen.js";
+import { closeAllStreams } from "./scout/stream.js";
 import type { Server } from "node:http";
 
 const log = (m: string) => console.log(`[${new Date().toISOString()}] ${m}`);
@@ -33,6 +34,8 @@ const log = (m: string) => console.log(`[${new Date().toISOString()}] ${m}`);
 const socket = systemdSocket();
 for (const k of ["LISTEN_FDS", "LISTEN_PID", "LISTEN_FDNAMES"]) delete process.env[k]; // not for child processes
 let http: Server | null = null;
+// Live scout streams end first, so their connections don't hold the drain (clients reconnect to the next server).
+process.once("SIGTERM", closeAllStreams);
 drainOnSigterm(() => http, log);
 let ready = false;
 const server = express();

@@ -17,9 +17,8 @@ export const DEFAULT_FLAGS: FlagSet = { realtime: true, workspaceScouting: true,
 export const FLAG_INFO: Record<Flag, { label: string; on: string; off: string; pending?: string }> = {
   realtime: {
     label: "Live updates stream",
-    on: "Pages that follow an event get results pushed to them as they land.",
-    off: "No stream connections are accepted; pages refresh on their own schedule instead.",
-    pending: "The live stream hasn't shipped yet: this switch takes effect when it does.",
+    on: "Members looking at a workspace's scout entries see new ones arrive live.",
+    off: "No live connections are accepted; the entry list refreshes every few seconds instead.",
   },
   workspaceScouting: {
     label: "Workspace scouting",

@@ -14,11 +14,14 @@
 // - Pull is by cursor: `seq`, the server's per-workspace write order, not the
 //   writers' clocks (an entry synced late with an old updatedAt would slip
 //   behind a timestamp cursor).
+// - Every accepted write is published to the workspace's live streams
+//   (bus.ts, stream.ts), in seq order.
 import express, { type NextFunction, type Request, type Response, type Router } from "express";
 import { all, get, writeBatch } from "../db.js";
 import { controlPointEnabled, isWorkspaceId, linkedAccountId, workspaceMembership, type Membership } from "../auth/controlPoint.js";
 import { currentUser, type User } from "../auth/session.js";
 import { isEnabled } from "../flags.js";
+import { publishEntries, serialized, type LiveEntry } from "./bus.js";
 
 export interface ScoutEntryInput { uuid: string; season: number; team: number; eventCode: string | null; matchLabel: string | null; kind: "match" | "pit"; data: Record<string, unknown>; notes: string; updatedAt: number; deleted?: boolean }
 
@@ -49,6 +52,7 @@ const workspaceRow = (workspaceId: string, r: any): WorkspaceEntryOut => ({
   authorAccountId: Number(r.author_account_id), authorDisplayName: r.author_name,
   editorAccountId: Number(r.editor_account_id), editorDisplayName: r.editor_name,
 });
+const liveRow = (workspaceId: string, r: any): LiveEntry => ({ ...workspaceRow(workspaceId, r), seq: Number(r.seq) });
 
 /** How a writer is named on shared entries: their display name, else the part of their email before the @. */
 export const writerName = (u: User) => (u.displayName?.trim() || u.email?.split("@")[0] || "Member").slice(0, 60);
@@ -94,6 +98,22 @@ export async function pushWorkspaceEntries(user: User, m: Membership, raw: unkno
     results.push({ uuid: e.uuid, ok: true });
   }
   if (!good.length) return results;
+  // One write at a time per workspace, so the live streams get entries in seq order (bus.ts).
+  const stored = await serialized(m.workspaceId, async () => {
+    const before = await lastSeq(m.workspaceId);
+    const rows = await writeWorkspaceEntries(user, m, good);
+    // Written by this push: a new seq (an entry beaten by a newer edit, or resent unchanged, keeps its old one).
+    publishEntries(m.workspaceId, [...rows.values()].filter((e) => e.seq > before).sort((a, b) => a.seq - b.seq));
+    return rows;
+  });
+  for (const r of results) if (r.ok) { const e = stored.get(r.uuid); r.entry = e && withoutSeq(e); }
+  return results;
+}
+
+const withoutSeq = ({ seq: _s, ...e }: LiveEntry): WorkspaceEntryOut => e;
+
+/** Upsert the entries (newer updatedAt wins) and read back what's stored for each, with its seq. */
+async function writeWorkspaceEntries(user: User, m: Membership, good: ScoutEntryInput[]): Promise<Map<string, LiveEntry>> {
   const now = new Date().toISOString(), name = writerName(user);
   await writeBatch([
     // Lazily: the workspace's first entry creates its mirror row.
@@ -108,19 +128,30 @@ export async function pushWorkspaceEntries(user: User, m: Membership, raw: unkno
   const rows = await all<any>(
     `SELECT w.* FROM workspace_scout_entries w JOIN workspaces ws ON ws.id = w.workspace_id WHERE ws.cp_workspace_id = ? AND w.uuid IN (${uuids.map(() => "?").join(", ")})`,
     [m.workspaceId, ...uuids]);
-  const stored = new Map(rows.map((r) => [String(r.uuid), workspaceRow(m.workspaceId, r)]));
-  for (const r of results) if (r.ok) r.entry = stored.get(r.uuid);
-  return results;
+  return new Map(rows.map((r) => [String(r.uuid), liveRow(m.workspaceId, r)]));
+}
+
+/** The workspace's latest seq (0 before its first entry). */
+async function lastSeq(workspaceId: string): Promise<number> {
+  const r = await get<{ seq: number | null }>(
+    "SELECT MAX(w.seq) seq FROM workspace_scout_entries w JOIN workspaces ws ON ws.id = w.workspace_id WHERE ws.cp_workspace_id = ?", [workspaceId]);
+  return Number(r?.seq ?? 0);
 }
 
 export const PULL_LIMIT = 500;
 
 /** Entries written to the workspace after `since` (a cursor from an earlier pull; 0 = everything), tombstones included, in write order. */
 export async function pullWorkspaceEntries(workspaceId: string, since: number): Promise<{ entries: WorkspaceEntryOut[]; cursor: number; more: boolean }> {
+  const page = await pullWorkspaceLive(workspaceId, since);
+  return { ...page, entries: page.entries.map(withoutSeq) };
+}
+
+/** pullWorkspaceEntries with each entry's seq (the live stream's event ids). */
+export async function pullWorkspaceLive(workspaceId: string, since: number): Promise<{ entries: LiveEntry[]; cursor: number; more: boolean }> {
   const ws = await get<{ id: number }>("SELECT id FROM workspaces WHERE cp_workspace_id = ?", [workspaceId]);
   if (!ws) return { entries: [], cursor: since, more: false }; // nothing written yet (and reading never creates the row)
   const rows = await all<any>("SELECT * FROM workspace_scout_entries WHERE workspace_id = ? AND seq > ? ORDER BY seq LIMIT ?", [ws.id, since, PULL_LIMIT]);
-  return { entries: rows.map((r) => workspaceRow(workspaceId, r)), cursor: rows.length ? Number(rows.at(-1).seq) : since, more: rows.length === PULL_LIMIT };
+  return { entries: rows.map((r) => liveRow(workspaceId, r)), cursor: rows.length ? Number(rows.at(-1).seq) : since, more: rows.length === PULL_LIMIT };
 }
 
 const h = (fn: (req: Request, res: Response) => Promise<unknown>) => (req: Request, res: Response, next: NextFunction) => {

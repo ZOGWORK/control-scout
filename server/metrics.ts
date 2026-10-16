@@ -76,11 +76,19 @@ export function recordRequest(method: string, path: string, status: number, ms: 
   t.b[i]++;
 }
 
-/** Express middleware: times every /api and /packs request (not /api/health or /api/owner). */
+/**
+ * Which paths are counted: /api and /packs, except /api/health (monitors), the owner portal's own calls, and
+ * the live stream (/api/scout/stream: its "latency" is how long it stayed open; the Usage panel counts open
+ * streams as live connections instead).
+ */
+export const isMeasured = (path: string) =>
+  /^\/(api|packs)\//i.test(path) && !/^\/api\/(health|owner|scout\/stream)(\/|$)/i.test(path);
+
+/** Express middleware: times every request isMeasured() counts. */
 export function requestMetrics() {
   return (req: Request, res: Response, next: NextFunction) => {
     const p = req.path;
-    if (!/^\/(api|packs)\//i.test(p) || /^\/api\/(health|owner)(\/|$)/i.test(p)) return next();
+    if (!isMeasured(p)) return next();
     const t0 = performance.now();
     res.once("close", () => { try { recordRequest(req.method, p, res.statusCode, performance.now() - t0); } catch { /* never break a response */ } });
     next();
