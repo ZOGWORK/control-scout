@@ -214,6 +214,17 @@ describe("entry version history", () => {
     expect(JSON.parse((await activity("1605", e.uuid)).at(-1).details)).toMatchObject({ fromVersion: 2, undeleted: true });
   });
 
+  it("a write that only moves the entry to another template version is a version (its answers now read differently)", async () => {
+    const { a } = await team("1607");
+    const plain = entry({ updatedAt: 1000 });
+    const e = { ...plain, templateId: "ws:1607:2025:match", templateVersion: 1 };
+    await push(a, "1607", [e]);
+    await push(a, "1607", [{ ...e, updatedAt: 2000, templateVersion: 2 }]);
+    // Sending no template keeps the stored one: no change, no version.
+    await push(a, "1607", [{ ...plain, updatedAt: 3000 }]);
+    expect((await versions("1607", e.uuid)).map((v) => Number(v.template_version))).toEqual([1, 2]);
+  });
+
   it("a restore marker on a delete is just the delete; personal entries have no history", async () => {
     const { a } = await team("1606");
     const e = entry({ updatedAt: 1000 });
