@@ -1,8 +1,8 @@
 // Conflicts and version history of shared scout entries (Task 16).
 //
 // - ConflictNotices: "Your edit was overwritten by <name>" for each edit this
-//   device lost to a newer one (lostEdits.ts), once: dismissing it, or opening
-//   its diff, marks it seen. The version stays restorable from History.
+//   device lost to a newer one (lostEdits.ts), until it is dismissed, restored
+//   or discarded (once seen it never shows again); the version stays restorable from History.
 // - ConflictDialog: their version against yours, field by field (template
 //   labels), with Restore my version / Keep theirs.
 // - HistorySheet: the entry's kept versions (the server keeps 20), who wrote
@@ -119,7 +119,7 @@ export function ConflictNotices({ space, me }: { space: string; me: Viewer }) {
                 <span className="text-muted-foreground"> · {subjectOf(l.mine)}. Your version is kept on this device.</span>
               </p>
               <div className="ml-auto flex items-center gap-1">
-                <Button size="sm" variant="secondary" onClick={() => { markLostSeen(space, l.id); setOpen(l); }}>View diff</Button>
+                <Button size="sm" variant="secondary" onClick={() => setOpen(l)}>View diff</Button>
                 <button type="button" onClick={() => markLostSeen(space, l.id)} aria-label="Dismiss" className="grid size-9 place-items-center rounded-lg text-muted-foreground hover:text-foreground"><X className="size-4" /></button>
               </div>
             </div>
@@ -150,7 +150,7 @@ export function ConflictDialog({ lost, current, me, onClose }: { lost: LostEdit;
         {blocked && <p role="note" className="text-sm text-muted-foreground">{blocked}</p>}
         <DialogFooter className="flex-wrap gap-2">
           <Button variant="outline" onClick={() => { dropLostEdit(lost.space, lost.id); onClose(); }}>Keep theirs</Button>
-          <Button disabled={!!blocked || !current} onClick={() => { if (current && restore(current, { ...mine, updatedAt: lost.mine.updatedAt }, "your version")) onClose(); }}><RotateCcw /> Restore my version</Button>
+          <Button disabled={!!blocked || !current} onClick={() => { if (current && restore(current, { ...mine, updatedAt: lost.mine.updatedAt }, "your version")) { markLostSeen(lost.space, lost.id); onClose(); } }}><RotateCcw /> Restore my version</Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>
@@ -214,7 +214,7 @@ function LostCard({ lost, entry, current, me, now, onDone }: { lost: LostEdit; e
       <DiffTable rows={rows} beforeLabel="Current" afterLabel="Yours" caption="Current version against your overwritten edit" />
       {blocked && <p role="note" className="text-xs text-muted-foreground">{blocked}</p>}
       <div className="flex flex-wrap gap-2">
-        <Button size="sm" disabled={!!blocked} onClick={() => { if (restore(entry, { ...mine, updatedAt: lost.mine.updatedAt }, "your version")) onDone(); }}><RotateCcw /> Restore my version</Button>
+        <Button size="sm" disabled={!!blocked} onClick={() => { if (restore(entry, { ...mine, updatedAt: lost.mine.updatedAt }, "your version")) { markLostSeen(lost.space, lost.id); onDone(); } }}><RotateCcw /> Restore my version</Button>
         <Button size="sm" variant="outline" onClick={() => dropLostEdit(lost.space, lost.id)}>Discard</Button>
       </div>
     </section>

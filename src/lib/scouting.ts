@@ -10,7 +10,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { apiFetch } from "./api";
 import type { EntryPhoto } from "../shared/photos";
-import { dropRestored, exportLostEdits, LOST_PREFIX, recordLostEdit } from "./lostEdits";
+import { dropRestored, exportLostEdits, LOST_PREFIX, lostBackupFailed, recordLostEdit } from "./lostEdits";
 
 import { builtinTemplate } from "../shared/scoutDefaults";
 
@@ -188,8 +188,9 @@ export function saveScoutEntry(e: NewEntry): ScoutEntry {
     // Photos are the server's: an edit to the text keeps the list the device has.
     ...(prior?.photos && e.photos === undefined ? { photos: prior.photos, photoExpired: prior.photoExpired, photosRev: prior.photosRev } : {}),
   };
-  // A restore must win over the version it replaces, even when that writer's clock runs ahead of this one.
-  const now = space != null && e.restoredFrom != null && !e.deleted ? Math.max(Date.now(), (prior?.updatedAt ?? 0) + 1) : Date.now();
+  // A workspace edit (a restore, a delete, any change) must win over the version it's made on, even when
+  // that version's writer had a clock running ahead of this one: newer wins, so it's stamped after it.
+  const now = space != null ? Math.max(Date.now(), (prior?.updatedAt ?? 0) + 1) : Date.now();
   const entry = normalizeScoutEntry({ ...e, ...authorship, updatedAt: now }, space);
   try {
     writeEntry(entry);
@@ -358,7 +359,8 @@ async function pushQueued(space: ScoutSpace): Promise<{ sent: number }> {
         let saved = true;
         const server = res.entry && normalizeScoutEntry(res.entry, space);
         // A newer edit from someone else beat ours on the server: keep ours (Task 16) before taking theirs.
-        if (space != null && server && lostTo(current, server, true)) recordLostEdit(space, current, server);
+        // If that copy can't be stored, ours stays on the device, queued, until it can.
+        if (space != null && server && lostTo(current, server, true) && !recordLostEdit(space, current, server)) { lostBackupFailed(space); continue; }
         if (server) { try { writeEntry(withNewerPhotos(server, current)); } catch { saved = false; } }
         if (saved) now.delete(res.uuid);
         // A restore that landed: the lost version it brought back is no longer lost.
@@ -406,8 +408,10 @@ function mergeFromServer(space: ScoutSpace, list: ScoutEntry[]) {
     const e = normalizeScoutEntry(raw, space);
     const cur = readEntry(space, e.uuid);
     if (!cur || e.updatedAt > cur.updatedAt || (space != null && e.updatedAt === cur.updatedAt && !d.has(e.uuid))) {
-      // This device's own edit is being replaced by someone else's: keep it, and say so (once).
-      if (space != null && cur && lostTo(cur, e, d.has(e.uuid))) recordLostEdit(space, cur, e);
+      // This device's own edit is being replaced by someone else's: keep it, and say so (once). If the device
+      // can't store that copy, the edit stays as it is (and queued, if it was): its push brings the newer copy back.
+      // (A synced version of yours is in the server's history already, so that one is replaced either way.)
+      if (space != null && cur && lostTo(cur, e, d.has(e.uuid)) && !recordLostEdit(space, cur, e) && d.has(e.uuid)) { lostBackupFailed(space); continue; }
       writeEntry(withNewerPhotos(e, cur));
       // A queued edit older than the server's copy can't win: nothing is left to send (it's kept above if it was a loss).
       if (space != null && cur && e.updatedAt > cur.updatedAt && d.delete(e.uuid)) dropped = true;

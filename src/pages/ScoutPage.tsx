@@ -21,6 +21,7 @@ import { EntryAttribution } from "../components/EntryAttribution";
 import { EntryPhotos } from "../components/scout/EntryPhotos";
 import { ActivityFeed } from "../components/scout/ActivityFeed";
 import { ConflictNotices, HistorySheet } from "../components/scout/EntryHistory";
+import { LOST_UNSAVED_MESSAGE, SCOUT_LOST_UNSAVED } from "../lib/lostEdits";
 import { useWorkspaceActivity } from "../lib/scoutActivity";
 import { PageHeader, Section, EmptyState } from "../components/page";
 import { Button } from "../components/ui/button";
@@ -90,8 +91,10 @@ export default function ScoutPage() {
   const toggleActivity = () => setSp((x) => { if (x.get("view") === "activity") x.delete("view"); else x.set("view", "activity"); return x; });
   // Tapping an item about an entry opens it (in its season), if this device has it and it wasn't deleted since.
   const openEntry = (uuid: string) => {
-    const e = space == null ? null : localScoutEntries(space).find((x) => x.uuid === uuid && !x.deleted);
-    if (!e) { toast("That entry was deleted, or hasn't synced to this device yet."); return; }
+    const e = space == null ? null : localScoutEntries(space).find((x) => x.uuid === uuid);
+    if (!e) { toast("That entry hasn't synced to this device yet."); return; }
+    // A deleted entry opens its History (Task 16): its versions, and any edit of yours it overwrote, to restore.
+    if (e.deleted) { setHistoryFor(uuid); return; }
     setSp((x) => { x.delete("view"); x.delete("team"); x.set("season", String(e.season)); x.set("entry", uuid); return x; });
   };
   // The entry whose History sheet is open (Task 16): looked up on the device, so it stays open if the entry is deleted meanwhile.
@@ -99,7 +102,12 @@ export default function ScoutPage() {
   useEffect(() => { setHistoryFor(null); }, [space]);
   const historyEntry = historyFor && space != null ? entries.find((e) => e.uuid === historyFor) ?? localScoutEntries(space).find((e) => e.uuid === historyFor) ?? null : null;
   useEffect(() => {
-    const refused =(ev: Event) => { const r = (ev as CustomEvent<ScoutRefusal>).detail; if (r.space === space) toast.error(refusalMessage(r)); };
+    const unsaved = (ev: Event) => { if ((ev as CustomEvent<string>).detail === space) toast.error(LOST_UNSAVED_MESSAGE, { id: "cs-lost-unsaved" }); };
+    window.addEventListener(SCOUT_LOST_UNSAVED, unsaved);
+    return () => window.removeEventListener(SCOUT_LOST_UNSAVED, unsaved);
+  }, [space]);
+  useEffect(() => {
+    const refused = (ev: Event) => { const r = (ev as CustomEvent<ScoutRefusal>).detail; if (r.space === space) toast.error(refusalMessage(r)); };
     window.addEventListener(SCOUT_REFUSED, refused);
     return () => window.removeEventListener(SCOUT_REFUSED, refused);
   }, [space]);
@@ -154,11 +162,11 @@ export default function ScoutPage() {
           </ul>
         )}
       </Section>
-      {historyEntry && <HistorySheet entry={historyEntry} me={me} open onOpenChange={(o) => { if (!o) setHistoryFor(null); }} />}
       <Section title="Match recordings" description="Videos you recorded in the app stay on this device only — they're never uploaded. YouTube links you add sync with your account.">
         <Recordings />
       </Section>
       </>}
+      {historyEntry && <HistorySheet entry={historyEntry} me={me} open onOpenChange={(o) => { if (!o) setHistoryFor(null); }} />}
     </div>
   );
 }

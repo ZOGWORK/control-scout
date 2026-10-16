@@ -63,7 +63,8 @@ export function ActivityFeed({ state, workspaceName, onOpenEntry }: {
 function ActivityRow({ item, now, onOpenEntry }: { item: ActivityItem; now: number; onOpenEntry: (uuid: string) => void }) {
   const { icon: Icon, tone } = LOOK[item.type] ?? FALLBACK;
   const { verb, subject, note } = describeActivity(item);
-  const target = activityEntry(item);
+  // A deleted entry's line opens it too: the page shows its History, where it can be restored (Task 16).
+  const target = activityEntry(item) ?? (item.type === "entry.deleted" && item.subject.startsWith("entry:") ? item.subject.slice(6) || null : null);
   const at = new Date(item.at);
   const body = (
     <>

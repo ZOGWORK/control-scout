@@ -539,9 +539,19 @@ private). Device code: `src/lib/lostEdits.ts`, `src/components/scout/EntryHistor
   An edit made after seeing yours is ordinary teamwork, not a conflict. The
   losing version is kept on the device (Tier 3, `cs-scout-lost:<workspace>`, see
   [settings.md](settings.md)), because the server may never have had it. The
-  Scout page says "Your edit was overwritten by <name>" once per lost version,
-  with **View diff**: a field-level before and after, labelled from each
-  version's template. A deleted entry is shown as a status change.
+  Scout page says "Your edit was overwritten by <name>" for each lost version
+  until it's dismissed, restored or discarded, and never again after that.
+  **View diff** shows a field-level before and after, labelled from each
+  version's template. A deleted entry is shown as a status change. If the
+  device can't store that copy (storage full), the queued edit is left in
+  place, still queued, rather than replaced, and the app says so. A synced
+  version is in the server's history already, so it's replaced either way.
+- **Timestamps.** A workspace edit, delete or restore is stamped after the
+  version it was made on (`max(now, that updatedAt + 1)`), so it wins even
+  when the other writer's clock runs ahead.
+- **History affordance.** Each shared entry has a History button. A deleted
+  entry's History opens from its line in the Activity view, so its author or an
+  admin can bring back a version.
 - **Restore.** The loser (their lost version, or a version they wrote) or an
   admin (any version) can restore from the notice or from the entry's
   **History** sheet. A restore is an ordinary save: a fresh `updatedAt` (newer
