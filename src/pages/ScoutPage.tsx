@@ -172,8 +172,16 @@ function EntryForm({ season, initial, team, space, spaceName, workspaceTemplate,
   // uses the space's current one: the workspace's, or the built-in defaults (Personal, never customised).
   const entryTemplate = useEntryTemplateState(initial ?? { season, kind, templateId: undefined, templateVersion: undefined });
   const sameKindEdit = !!initial && kind === initial.kind;
-  const template = useMemo(() => (sameKindEdit ? entryTemplate.template : resolveTemplate(space == null ? null : workspaceTemplate, season, kind)),
+  const latestTemplate = useMemo(() => (sameKindEdit ? entryTemplate.template : resolveTemplate(space == null ? null : workspaceTemplate, season, kind)),
     [sameKindEdit, kind, entryTemplate.template, space, workspaceTemplate, season]);
+  // Once a field has an answer, a new entry keeps the template it was being filled in with: a template that
+  // arrives late (a slow first load, a live change) never swaps the questions, or drops answers, mid-entry.
+  const [pinned, setPinned] = useState<{ kind: string; template: typeof latestTemplate } | null>(null);
+  const template = !sameKindEdit && pinned?.kind === kind ? pinned.template : latestTemplate;
+  const answer = (id: string, v: ScoutValue) => {
+    if (!sameKindEdit && pinned?.kind !== kind) setPinned({ kind, template });
+    setData((d) => ({ ...d, [id]: v }));
+  };
   // No field edits against a stand-in: an edit whose own template version isn't here yet (loading, or offline)
   // shows its answers untouched and lets notes change; a new entry waits for the workspace's template.
   const fieldsLocked = sameKindEdit && !entryTemplate.exact;
@@ -244,7 +252,7 @@ function EntryForm({ season, initial, team, space, spaceName, workspaceTemplate,
           return (
             <fieldset key={ph} className="min-w-0 rounded-xl border border-border p-4">
               <legend className="px-1 text-xs font-bold uppercase tracking-wider text-muted-foreground">{phaseLabel(ph)}</legend>
-              <div className="space-y-3">{fields.map((f) => <ScoutFieldInput key={f.id} f={f} value={data[f.id]} onChange={(v) => setData((d) => ({ ...d, [f.id]: v }))} />)}</div>
+              <div className="space-y-3">{fields.map((f) => <ScoutFieldInput key={f.id} f={f} value={data[f.id]} onChange={(v) => answer(f.id, v)} />)}</div>
             </fieldset>
           );
         })}
