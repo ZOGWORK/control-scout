@@ -129,10 +129,21 @@ export async function disablePush(): Promise<PushStatus> {
   const reg = pushSupport() === "ok" ? await registration() : null;
   const sub = await reg?.pushManager.getSubscription().catch(() => null);
   if (sub) {
-    await apiFetch("/api/push/subscriptions", { method: "DELETE", json: { endpoint: sub.endpoint } }).catch(() => {});
+    // The browser first, so it works with the server unreachable, push switched off or no one signed in: an
+    // unsubscribed endpoint answers "gone" to the next push, and the server then deletes it anyway.
+    const endpoint = sub.endpoint;
     await sub.unsubscribe().catch(() => {});
+    await apiFetch("/api/push/subscriptions", { method: "DELETE", json: { endpoint } }).catch(() => {});
   }
   return "off";
+}
+
+/** Does this browser hold a push subscription for the site (whatever the server's state)? Settings keeps a way to
+ *  remove it whenever it does. */
+export async function hasLocalSubscription(): Promise<boolean> {
+  if (pushSupport() !== "ok") return false;
+  const reg = await registration(0);
+  return !!(await reg?.pushManager.getSubscription().catch(() => null));
 }
 
 /** Signing out: this device stops getting the account's pushes (best effort, before the session ends). Whatever the

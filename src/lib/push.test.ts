@@ -118,6 +118,17 @@ describe("push status", () => {
     expect(await (await import("./push")).pushDeliversHere()).toBe(false);
   });
 
+  it("turning off works with the server unreachable: the browser unsubscribes first", async () => {
+    setup({ permission: "granted" });
+    const push = await import("./push");
+    await push.enablePush();
+    expect(await push.hasLocalSubscription()).toBe(true);
+    vi.mocked(fetch).mockImplementation(async () => { throw new TypeError("Failed to fetch"); });
+    expect(await push.disablePush()).toBe("off");
+    expect(subscription).toBeNull();
+    expect(await push.hasLocalSubscription()).toBe(false);
+  });
+
   it("signing out removes this device's subscription even while push is switched off", async () => {
     setup({ permission: "granted" });
     await (await import("./push")).enablePush();

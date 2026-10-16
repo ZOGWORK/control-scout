@@ -51,6 +51,11 @@ line saying why, when:
   in the site settings);
 - the server has no VAPID keys or the owner switched push off.
 
+**Turn off** stays available whenever the browser holds a subscription, even
+with the server unreachable or push switched off: the browser unsubscribes
+first, then the server is asked to forget it (if it can't be reached, the next
+push to that endpoint comes back "gone" and the server deletes it then).
+
 On a device with push on, the in-tab alerts step aside so nothing arrives twice,
 but only after checking (every 5 minutes) that push can still deliver there:
 switched off by the owner, the server's keys gone, permission revoked or the

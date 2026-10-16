@@ -393,6 +393,26 @@ describe("delivery", () => {
     expect(sent).toHaveLength(1);
   });
 
+  it("sends nothing to a subscription whose account was deleted after the recipients were read", async () => {
+    const now = Date.now();
+    const a = await account({ myTeam: 4215 }), b = await account({ myTeam: 4215 }), c = await account({ myTeam: 4215 });
+    await subscribe(a.id, "a"); await subscribe(b.id, "b"); await subscribe(c.id, "c");
+    const subs = await loadRecipients();
+    const byUser = (id: number) => subs.find((s) => s.userId === id)!;
+    // c's account goes before delivery starts; b's while a's push is still with the (slow) push service.
+    await deleteUser(c.id);
+    setPushSender(async (sub, payload, ttl) => {
+      sent.push({ endpoint: sub.endpoint, payload: JSON.parse(payload), ttl });
+      if (sub.endpoint.endsWith("/a")) await deleteUser(b.id);
+      return { ok: true };
+    });
+    const plan = (sub: (typeof subs)[number]): Planned => ({ sub, kind: "start", subject: "2025:X", expiresAt: now + 3600_000, payload: () => ({ title: "t", body: "", url: "/", tag: "t" }) });
+    const r = await deliver([plan(byUser(a.id)), plan(byUser(b.id)), plan(byUser(c.id))], now);
+    expect(r.sent).toBe(1);
+    expect(sent.map((s) => s.endpoint)).toEqual([subFor("a").endpoint]);
+    expect(await all<any>("SELECT subscription_id FROM push_sent")).toEqual([{ subscription_id: byUser(a.id).id }]);
+  });
+
   it("a push another server is retrying is never marked limited below the cap", async () => {
     const a = await account({ myTeam: 1 });
     await subscribe(a.id, "contended");
