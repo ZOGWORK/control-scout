@@ -10,6 +10,7 @@
 //       (entries.ts, after the write commits, for entries the write actually changed: a refused
 //       write, an older version beaten by a newer one, or a resend with nothing new logs nothing)
 //   template.changed   subject template:<season>; details { season, version, kinds: ["match" | "pit"] } (templates.ts)
+//   settings.changed   subject settings; details { settingsVersion, changed: ["season" | "eventCode"], defaults: { season, eventCode } } (settings.ts)
 //   photo.added / photo.removed   subject entry:<uuid>; details as entries' plus photoId (photos.ts)
 //   member.joined / member.left   subject member:<accountId>; details { accountId, name, role }; actor
 //       Control Point (controlPoint.ts, from the membership refresh, in the same transaction as the
@@ -37,7 +38,7 @@ export const CONTROL_POINT_ACTOR: ActivityActor = { accountId: null, name: "Cont
 /** The kinds logged now. Later tasks add their own strings (no schema change). */
 export const ACTIVITY_TYPES = [
   "entry.added", "entry.edited", "entry.deleted", "entry.restored",
-  "template.changed", "photo.added", "photo.removed", "member.joined", "member.left",
+  "template.changed", "settings.changed", "photo.added", "photo.removed", "member.joined", "member.left",
 ] as const;
 export type ActivityType = (typeof ACTIVITY_TYPES)[number] | (string & {});
 

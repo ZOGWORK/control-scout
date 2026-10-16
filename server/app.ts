@@ -24,6 +24,7 @@ import { contactRouter } from "./contact.js";
 import { scoutRouter } from "./scout/entries.js";
 import { streamRouter } from "./scout/stream.js";
 import { templateRouter } from "./scout/templates.js";
+import { settingsRouter } from "./scout/settings.js";
 import { activityRouter } from "./scout/activity.js";
 import { reportsRouter } from "./errorReports.js";
 import { packsRouter } from "./packs/routes.js";
@@ -416,6 +417,7 @@ export function createApp() {
   api.use("/scout/photos", photosRouter());
   api.use("/scout", scoutRouter());
   api.use("/scout", templateRouter());
+  api.use("/scout", settingsRouter());
   api.use("/scout", activityRouter());
   // The owner portal's switches: with realtime off the stream answers 503 and the app polls instead; with
   // workspace scouting off it answers 503 too, since a stream's catch-up reads shared entries like a pull.
