@@ -390,6 +390,19 @@ describe("entry photos: nightly expiry", () => {
     expect((await all<any>("SELECT object_key FROM entry_photos WHERE status = 'ready'")).every((r) => fakeR2.has(r.object_key))).toBe(true);
   });
 
+  it("an owner purge also cancels unfinished uploads of the event: object gone, reservation released, completion refused", async () => {
+    const t = await team();
+    const owner = await asOwner();
+    const e = await push(t.ada.call, t.ws, entry({ eventCode: "USPENDQ1" }));
+    const slot = await t.ben.call("POST", "/api/scout/photos/presign", { workspaceId: t.ws, entryUuid: e.uuid, bytes: 700 });
+    await fetch(slot.json.uploadUrl, { method: "PUT", headers: slot.json.headers, body: jpeg(700) });
+    const purged = await owner("POST", "/api/owner/storage/purge", { season: 2025, eventCode: "USPENDQ1", confirm: true });
+    expect(purged.json.purged).toEqual({ photos: 1, bytes: 700, failures: 0 });
+    expect(fakeR2.keys()).toEqual([]);
+    expect(await all("SELECT * FROM entry_photos")).toEqual([]);
+    expect((await t.ben.call("POST", `/api/scout/photos/${slot.json.photoId}/complete`, { workspaceId: t.ws })).status).toBe(404);
+  });
+
   it("a stored object larger than its record is deleted by the nightly listing", async () => {
     const t = await team();
     const e = await push(t.ada.call, t.ws, entry());
