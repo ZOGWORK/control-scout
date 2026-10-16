@@ -244,7 +244,7 @@ after quals 10,905; after selection 10,861.
 | Check | Command | Result |
 |---|---|---|
 | Engine unit and regression tests (native vitest) | `npx vitest run packages/predict-engine` | **68 passed**, 0 failed: 34 existing plus 34 new |
-| Control Scout full suite (before merging main) | `npx vitest run` | **1,422 passed, 3 skipped**, 0 failed (142 files, 141 s) |
+| Control Scout full suite | `npx vitest run` | **1,496 passed, 3 skipped**, 0 failed after merging current `main` (149 files); 1,422 / 3 skipped before the merge |
 | Control Scout type check | `npm run lint` | clean (before and after merging `main`) |
 | Control Scout integration tests | `npx vitest run server/predict/engine.test.ts` | 6 passed, including contextual explain with level and recorded bonus |
 | Control Point type check | `npm run lint` | clean |
