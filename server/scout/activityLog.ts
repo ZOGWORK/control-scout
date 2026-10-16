@@ -173,7 +173,7 @@ export async function pruneActivity(now = Date.now()): Promise<number> {
 /** What an entry looked like before a write (the stored row), for telling what the write did. */
 export interface EntryBefore { deleted: boolean; season: number; team: number; eventCode: string | null; matchLabel: string | null; kind: string; data: string; notes: string; templateId?: string | null; templateVersion?: number | null }
 /** And after it (as stored). */
-export interface EntryAfter { uuid: string; deleted: boolean; season: number; team: number; eventCode: string | null; matchLabel: string | null; kind: string; data: Record<string, unknown>; notes: string }
+export interface EntryAfter { uuid: string; deleted: boolean; season: number; team: number; eventCode: string | null; matchLabel: string | null; kind: string; data: Record<string, unknown>; notes: string; templateId?: string | null; templateVersion?: number | null }
 
 /** Which parts of an entry an edit changed: "team", "match", "event", "kind", "season", "notes", and each answer's field id. */
 export function changedParts(before: EntryBefore, after: EntryAfter): string[] {
@@ -219,16 +219,21 @@ export async function logEntryWrites(workspaceId: string, actor: ActivityActor,
   writes: { before: EntryBefore | undefined; after: EntryAfter; restore?: { fromAt: number; fromVersion: number | null; fromName: string | null } }[]): Promise<void> {
   for (const { before, after, restore } of writes) {
     const c = entryChange(before, after);
-    if (!c) continue;
+    // A restore that brings back only another template (the same numbers, read with other fields) still changed the entry.
+    const template = !!restore && !!before && !after.deleted && !!after.templateId
+      && (after.templateId !== (before.templateId ?? null) || (after.templateVersion ?? null) !== (before.templateVersion ?? null));
+    if (!c && !template) continue;
     // A restore of an earlier version (never a delete: that's logged as the delete it is).
     if (restore && !after.deleted) {
+      const changed = [...(c?.changed ?? []), ...(template ? ["template"] : [])];
       const details = {
         ...entryDetails(after), fromAt: restore.fromAt, fromVersion: restore.fromVersion, fromName: restore.fromName,
-        ...(c.changed ? { changed: c.changed.slice(0, MAX_CHANGED) } : {}), ...(c.type === "entry.restored" ? { undeleted: true } : {}),
+        ...(changed.length ? { changed: changed.slice(0, MAX_CHANGED) } : {}), ...(c?.type === "entry.restored" ? { undeleted: true } : {}),
       };
       await logActivity(workspaceId, actor, "entry.version_restored", `entry:${after.uuid}`, details);
       continue;
     }
+    if (!c) continue;
     const details = { ...entryDetails(after), ...(c.changed ? { changed: c.changed.slice(0, MAX_CHANGED) } : {}) };
     await logActivity(workspaceId, actor, c.type, `entry:${after.uuid}`, details, c.type === "entry.edited" ? { coalesce: true, merge: mergeChanged } : {});
   }
