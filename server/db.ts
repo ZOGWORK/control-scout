@@ -614,6 +614,46 @@ CREATE INDEX workspace_activity_subject ON workspace_activity (workspace_id, sub
 CREATE INDEX workspace_activity_at ON workspace_activity (at);
 `,
   },
+  {
+    version: 17,
+    name: "notification inbox",
+    sql: `
+-- The notification inbox (server/inbox/inbox.ts, docs/inbox.md): things that happened that concern one
+-- account (an edit to my entry, an assignment, a template change, being added to a workspace, an owner
+-- alert, ...), with read state kept here so it's the same on every device. Kept 90 days (the scheduler).
+-- user_id: the Scout account it's for (users.id: what sessions and synced settings belong to; a Control
+-- Point account maps to it through identities). at: ms. workspace_id: Control Point's workspace id (text,
+-- no reference: the inbox outlives a mirror row), NULL for owner alerts. category: the Settings switch
+-- (assignments, edits, template, membership, picklist, comments, ownerAlerts). type: the activity type it
+-- came from, or owner.alert. title / body / link: written when the item is made, so every device says and
+-- opens the same thing. read_at: ms, NULL while unread.
+-- source_activity_id / source_alert_id: the workspace_activity or owner_alerts row it came from; unique per
+-- account, so a retried fan-out or hand-off never makes a second item.
+CREATE TABLE inbox_items (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  user_id INTEGER NOT NULL,
+  at INTEGER NOT NULL,
+  workspace_id TEXT,
+  workspace_name TEXT NOT NULL DEFAULT '',
+  category TEXT NOT NULL,
+  type TEXT NOT NULL,
+  subject TEXT NOT NULL DEFAULT '',
+  actor_account_id INTEGER,
+  actor_name TEXT NOT NULL DEFAULT '',
+  title TEXT NOT NULL,
+  body TEXT NOT NULL DEFAULT '',
+  link TEXT NOT NULL DEFAULT '',
+  read_at INTEGER,
+  source_activity_id INTEGER,
+  source_alert_id INTEGER
+);
+CREATE INDEX inbox_items_user ON inbox_items (user_id, id);
+CREATE INDEX inbox_items_unread ON inbox_items (user_id) WHERE read_at IS NULL;
+CREATE INDEX inbox_items_at ON inbox_items (at);
+CREATE UNIQUE INDEX inbox_items_activity ON inbox_items (user_id, source_activity_id) WHERE source_activity_id IS NOT NULL;
+CREATE UNIQUE INDEX inbox_items_alert ON inbox_items (user_id, source_alert_id) WHERE source_alert_id IS NOT NULL;
+`,
+  },
 ];
 
 export type Db = Client;
