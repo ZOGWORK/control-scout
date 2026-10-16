@@ -40,10 +40,11 @@ export interface ExportFilters {
 
 const MAX_LIST = 50;
 
-/** A list parameter: comma-separated, or repeated. */
-function listOf(v: unknown): string[] {
+/** A list parameter: comma-separated, or repeated. Null when it isn't plain text (e.g. team[x]=1, which the query parser makes an object): a 400, never a dropped filter. */
+function listOf(v: unknown): string[] | null {
   const raw = Array.isArray(v) ? v : v === undefined ? [] : [v];
-  return raw.flatMap((x) => (typeof x === "string" ? x.split(",") : [])).map((x) => x.trim()).filter(Boolean);
+  if (!raw.every((x) => typeof x === "string")) return null;
+  return (raw as string[]).flatMap((x) => x.split(",")).map((x) => x.trim()).filter(Boolean);
 }
 
 /** Text as q compares it: Unicode case folding (not SQLite's ASCII-only LOWER), composed accents. */
@@ -68,7 +69,9 @@ export function parseExportFilters(query: Record<string, unknown>): { ok: true; 
   const season = Number(query.season);
   if (!Number.isInteger(season) || season < 2000 || season > 2100) return { ok: false, error: "season required" };
   const f: ExportFilters = { season };
-  const lists = { team: listOf(query.team), event: listOf(query.event), author: listOf(query.author), match: listOf(query.match) };
+  const parsed = { team: listOf(query.team), event: listOf(query.event), author: listOf(query.author), match: listOf(query.match) };
+  for (const [k, v] of Object.entries(parsed)) if (!v) return { ok: false, error: `${k} must be plain values` };
+  const lists = parsed as Record<keyof typeof parsed, string[]>;
   for (const [k, v] of Object.entries(lists)) if (v.length > MAX_LIST) return { ok: false, error: `at most ${MAX_LIST} values for ${k}` };
   if (lists.team.length) {
     const teams = lists.team.map(Number);
