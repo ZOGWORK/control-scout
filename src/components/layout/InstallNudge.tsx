@@ -7,7 +7,7 @@
 // When: after the privacy choice, once the page is idle, while nothing else
 // has the visitor's attention, and only with the first-run slot
 // (src/lib/firstRun.ts). The tour goes first: on a page where the tour may
-// still open the nudge stays away, and on the page where the tour (or another
+// still open the nudge stays away, and in the page view where the tour (or another
 // first-run surface) held the slot it waits for the next page or visit. Never
 // to crawlers or automated browsers (`npm run shots -- --install` opts in).
 //
@@ -23,7 +23,7 @@ import { useConsent } from "../../lib/consent";
 import { usePersonal } from "../../lib/personal";
 import { claimFirstRun, firstRunHolder, releaseFirstRun, useFirstRunHolder } from "../../lib/firstRun";
 import { isAutomated, isShown, isTourPage, knowsTheApp, readTour, tourDemo } from "../../lib/tour";
-import { installDemo, isIosSafari, markDismissed, markShown, promptInstall, relatedAppInstalled, ruledOut, runningInstalled, useInstallState } from "../../lib/installNudge";
+import { claimDailyShow, installDemo, isIosSafari, markDismissed, promptInstall, relatedAppInstalled, ruledOut, runningInstalled, useInstallState } from "../../lib/installNudge";
 
 /** After the page is idle, wait this long before showing (the page settles first). */
 export const NUDGE_DELAY_MS = 2500;
@@ -60,15 +60,15 @@ export function InstallNudge() {
   const { offer, record } = useInstallState();
   const [open, setOpen] = useState<Kind | null>(null);
   const [related, setRelated] = useState(false);
-  // The page on which another first-run surface held the slot: the nudge waits for the next one.
+  // The page view (location key) in which another first-run surface held the slot: the nudge waits for the next one.
   const [yieldedOn, setYieldedOn] = useState<string | null>(null);
   const openedOn = useRef<string | null>(null);
 
   // Read the live holder: the tour may have let go in this same commit (it closes when the page changes).
   useEffect(() => {
     const h = firstRunHolder();
-    if (h && h !== SLOT) setYieldedOn(loc.pathname);
-  }, [holder, loc.pathname]);
+    if (h && h !== SLOT) setYieldedOn(loc.key);
+  }, [holder, loc.key]);
 
   const automated = isAutomated() && !installDemo();
   const tourAutomated = isAutomated() && !tourDemo();
@@ -76,7 +76,7 @@ export function InstallNudge() {
   const tourFirst = readTour() === null && !tourAutomated && !knowsTheApp(state, user) && isTourPage(loc.pathname);
   const kind: Kind | null = offer ? "prompt" : isIosSafari() ? "ios" : null;
   const eligible = !open && kind !== null && !automated && decided && !runningInstalled() && !related
-    && !ruledOut(record) && !tourFirst && yieldedOn !== loc.pathname && (holder === null || holder === SLOT);
+    && !ruledOut(record) && !tourFirst && yieldedOn !== loc.key && (holder === null || holder === SLOT);
 
   useEffect(() => {
     if (!eligible || !kind) return;
@@ -88,7 +88,8 @@ export function InstallNudge() {
       // Installed as an app the browser knows about (manifest related_applications): never.
       if (await relatedAppInstalled()) { if (!cancelled) setRelated(true); return; }
       if (cancelled || !claimFirstRun(SLOT)) return; // someone else got there first: re-checked when the slot frees
-      markShown();
+      // Today's showing, checked against storage again: another tab may have taken it meanwhile.
+      if (!(await claimDailyShow())) { releaseFirstRun(SLOT); return; }
       openedOn.current = loc.pathname;
       setOpen(kind);
     };
@@ -108,16 +109,20 @@ export function InstallNudge() {
 
   return (
     <AnimatePresence>
-      {open && <NudgeCard kind={open} team={state.myTeam} onAdd={add} onDismiss={dismiss} />}
+      {open && <NudgeCard kind={open} team={state.myTeam} signedIn={!!user} onAdd={add} onDismiss={dismiss} />}
     </AnimatePresence>
   );
 }
 
 /** The card itself. */
-export function NudgeCard({ kind, team, onAdd, onDismiss }: { kind: Kind; team: number | null; onAdd: () => void; onDismiss: () => void }) {
+export function NudgeCard({ kind, team, signedIn, onAdd, onDismiss }: { kind: Kind; team: number | null; signedIn: boolean; onAdd: () => void; onDismiss: () => void }) {
   const titleId = useId();
   const bodyId = useId();
-  const body = team != null ? `One tap from the stands, and it opens straight to team ${team}.` : "One tap from the stands to any team's stats and match odds.";
+  // What the installed app opens to (start_url "/"): signed in with a team, Home goes straight to My team;
+  // signed out, Home leads with the team's next match.
+  const body = team == null ? "One tap from the stands to any team's stats and match odds."
+    : signedIn ? `One tap from the stands, and it opens straight to team ${team}.`
+    : `One tap from the stands to team ${team} and its next match.`;
   return (
     <motion.section
       role="region" aria-labelledby={titleId} aria-describedby={bodyId}
