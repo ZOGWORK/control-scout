@@ -2,7 +2,7 @@
 // (validated by cleanValue; a value saved before they existed stays byte for byte the same), and links.
 import { describe, expect, it } from "vitest";
 import { cleanValue, DEFAULT_SETTINGS } from "./personal";
-import { INBOX_CATEGORIES, INBOX_TOGGLE, inboxCategory, inboxCategoryOn, inboxLink } from "./inbox";
+import { INBOX_CATEGORIES, INBOX_TOGGLE, inboxCategory, inboxCategoryOn, inboxLink, inboxText } from "./inbox";
 
 describe("settings.notify: the inbox switches", () => {
   it("an old value (no inbox keys) cleans to exactly itself: every kind on", () => {
@@ -43,6 +43,19 @@ describe("links", () => {
     expect(inboxLink("901", "settings.changed", {}, { admin: true })).toBe("/settings?section=workspace&workspace=901");
     expect(inboxLink("901", "member.joined", {})).toBe("/scout?space=901");
     expect(inboxLink("901", "member.left", {})).toBe("/scout?space=personal");
-    expect(inboxLink("a b&c", "picklist.changed", {})).toBe("/scout?space=a+b%26c&view=activity");
+    // The pick list (Task 11) opens the shared pick list, in its season.
+    expect(inboxLink("a b&c", "picklist.changed", {})).toBe("/scout?space=a+b%26c&view=picklist");
+    expect(inboxLink("901", "picklist.moved", { season: 2025, team: 18360 })).toBe("/scout?space=901&season=2025&view=picklist");
+    expect(inboxLink("901", "picklist.added", { season: 2025, team: 18360 }, { admin: true })).toBe("/scout?space=901&season=2025&view=picklist");
+  });
+});
+
+describe("pick list words (Task 11)", () => {
+  it("say who changed it, the season and what they did", () => {
+    expect(inboxText("picklist.added", { season: 2025, team: 18360 }, "Coach", "Gearheads")).toEqual({ title: "Coach updated the pick list", body: "2025 season · added team 18360" });
+    expect(inboxText("picklist.added", { season: 2025, teams: [1, 2], count: 2 }, "Coach", "Gearheads").body).toBe("2025 season · added 2 teams");
+    expect(inboxText("picklist.moved", { season: 2025, team: 7, to: 1, teams: [7, 8] }, "Coach", "").body).toBe("2025 season · moved 2 teams");
+    expect(inboxText("picklist.removed", { season: 2025, team: 7 }, "", "").title).toBe("Someone updated the pick list");
+    expect(inboxText("picklist.changed", { season: 2025 }, "Coach", "").body).toBe("2025 season");
   });
 });
