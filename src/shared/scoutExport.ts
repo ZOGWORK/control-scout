@@ -15,7 +15,8 @@
 //   match   match labels, e.g. Q12 (any case)
 //   q       free text: every word must appear in the team number, event code,
 //           match label, notes, author or last editor, or a field's answer
-// Deleted entries are never exported.
+// Deleted entries are never exported. Parsing and matching: src/shared/scoutFilter.ts (shared with the
+// Scout page's feed, so the export holds exactly what the feed shows).
 
 export const EXPORT_FILTER_PARAMS = ["season", "team", "event", "kind", "author", "match", "q"] as const;
 export type ExportFilterParam = (typeof EXPORT_FILTER_PARAMS)[number];
