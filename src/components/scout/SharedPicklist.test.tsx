@@ -1,0 +1,107 @@
+// @vitest-environment jsdom
+// The shared pick list view (Task 11): the Shortlist's rows with inline OPR and world rank, the shared
+// note with who wrote it, a change shown at once and sent as a team-naming operation, another member's
+// change arriving live, and a refused change (409) answered by a refetch.
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { MemoryRouter } from "react-router-dom";
+import type { PickList } from "../../shared/picklist";
+import type { ShortlistTeam } from "../../shared/api";
+import { announcePicklist } from "../../lib/sharedPicklist";
+import { SharedPicklist } from "./SharedPicklist";
+
+const S = 2025;
+const team = (n: number, opr: number, rank: number): ShortlistTeam => ({
+  team: n, name: `Team ${n} name`, place: "Sydney", opr, oprRank: rank, of: 500, rating: null, ratingSd: null, record: "8-2-0",
+  lastEvent: null, nextEvent: null, breakdown: { auto: null, teleop: null, endgame: null, event: null }, events: [],
+});
+const pick = (n: number, rank: number, over: Partial<PickList["picks"][number]> = {}) => ({
+  team: n, rank, addedBy: { accountId: 1, name: "Priya" }, addedAt: Date.now() - 60_000, note: "", noteBy: null, noteUpdatedAt: null, ...over,
+});
+
+let server: PickList;
+let posts: Record<string, unknown>[] = [];
+let refuseNext = false;
+let gets = 0;
+
+const json = (status: number, body: unknown) => new Response(JSON.stringify(body), { status, headers: { "Content-Type": "application/json" } });
+
+beforeEach(() => {
+  vi.stubGlobal("ResizeObserver", class { observe() {} unobserve() {} disconnect() {} });
+  vi.stubGlobal("matchMedia", (q: string) => ({ matches: false, media: q, addEventListener() {}, removeEventListener() {}, addListener() {}, removeListener() {} }));
+  localStorage.clear();
+  posts = []; refuseNext = false; gets = 0;
+  server = {
+    workspaceId: "901", season: S, version: 3,
+    picks: [pick(101, 1, { note: "Strong auto", noteBy: { accountId: 2, name: "Marcus" }, noteUpdatedAt: Date.now() - 120_000 }), pick(102, 2)],
+  };
+  vi.stubGlobal("fetch", async (path: string, init?: RequestInit) => {
+    if (path.startsWith("/api/scout/workspaces/901/picklist")) {
+      if (init?.method === "POST") {
+        const body = JSON.parse(String(init.body));
+        posts.push(body);
+        if (refuseNext) { refuseNext = false; return json(409, { error: "That team was removed from the pick list meanwhile.", list: server }); }
+        return json(200, { changed: true, list: { ...server, version: server.version + 1 } });
+      }
+      gets++;
+      return json(200, { list: server });
+    }
+    if (path.startsWith("/api/shortlist")) return json(200, { season: S, teams: [team(101, 80, 3), team(102, 61.5, 40)] });
+    throw new Error(`unexpected ${path}`);
+  });
+});
+afterEach(() => { cleanup(); vi.unstubAllGlobals(); });
+
+const rows = () => [...document.querySelectorAll("[data-reorder-key]")].map((e) => Number(e.getAttribute("data-reorder-key")));
+
+function show() {
+  return render(
+    <MemoryRouter>
+      <SharedPicklist workspaceId="901" workspaceName="Gearheads" season={S} live="off" me={{ accountId: 1, name: "Priya" }} shortlist={[18360, 101]} />
+    </MemoryRouter>,
+  );
+}
+
+describe("SharedPicklist", () => {
+  it("shows each pick with inline OPR and world rank, and the shared note with who wrote it", async () => {
+    show();
+    await waitFor(() => expect(rows()).toEqual([101, 102]));
+    const first = document.querySelector<HTMLElement>('[data-reorder-key="101"]')!;
+    expect(within(first).getByText("80")).toBeTruthy();
+    expect(within(first).getByText("#3")).toBeTruthy();
+    expect(within(first).getByDisplayValue("Strong auto")).toBeTruthy();
+    expect(within(first).getByText(/Added by you · note by Marcus · 2m ago/)).toBeTruthy();
+    expect(within(document.querySelector<HTMLElement>('[data-reorder-key="102"]')!).getByText("#40")).toBeTruthy();
+    expect(screen.getByRole("button", { name: /Copy from my shortlist \(1\)/ })).toBeTruthy();
+  });
+
+  it("a keyboard reorder shows at once and goes up as a move naming the team it lands before", async () => {
+    show();
+    await waitFor(() => expect(rows()).toEqual([101, 102]));
+    fireEvent.keyDown(screen.getByRole("button", { name: /Reorder 102/ }), { key: "ArrowUp" });
+    await waitFor(() => expect(rows()).toEqual([102, 101]));
+    await waitFor(() => expect(posts).toEqual([{ season: S, op: "move", team: 102, beforeTeam: 101 }]));
+  });
+
+  it("another member's change arrives live and replaces the list (an older version never does)", async () => {
+    show();
+    await waitFor(() => expect(rows()).toEqual([101, 102]));
+    act(() => announcePicklist({ ...server, version: 5, picks: [pick(102, 1), pick(101, 2), pick(18360, 3, { addedBy: { accountId: 2, name: "Marcus" } })] }));
+    await waitFor(() => expect(rows()).toEqual([102, 101]));
+    act(() => announcePicklist({ ...server, version: 4 }));
+    expect(rows()).toEqual([102, 101]);
+    act(() => announcePicklist({ ...server, workspaceId: "other", version: 9, picks: [] }));
+    expect(rows()).toEqual([102, 101]);
+  });
+
+  it("a refused change (409) is dropped and the list fetched again", async () => {
+    show();
+    await waitFor(() => expect(rows()).toEqual([101, 102]));
+    const before = gets;
+    refuseNext = true;
+    fireEvent.click(within(document.querySelector<HTMLElement>('[data-reorder-key="102"]')!).getByRole("button", { name: "Remove 102" }));
+    await waitFor(() => expect(posts).toEqual([{ season: S, op: "remove", team: 102 }]));
+    await waitFor(() => expect(gets).toBeGreaterThan(before));
+    await waitFor(() => expect(rows()).toEqual([101, 102]));
+  });
+});

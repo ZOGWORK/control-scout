@@ -2,7 +2,7 @@
 // what, newest first, grouped by day, live from the workspace's stream.
 // Every member sees it. Tapping an item about an entry opens that entry.
 import type { ComponentType } from "react";
-import { Camera, History, ImageMinus, LayoutList, Loader2, Pencil, Plus, RotateCcw, Trash2, UserMinus, UserPlus } from "lucide-react";
+import { ArrowUpDown, Camera, History, ImageMinus, LayoutList, ListMinus, ListPlus, Loader2, Pencil, PencilLine, Plus, RotateCcw, Trash2, UserMinus, UserPlus } from "lucide-react";
 import { agoShort } from "../../lib/format";
 import { useNow } from "../../lib/useNow";
 import { activityEntry, describeActivity, groupByDay, type ActivityItem, type ActivityState } from "../../lib/scoutActivity";
@@ -21,6 +21,10 @@ const LOOK: Record<string, { icon: ComponentType<{ className?: string }>; tone: 
   "template.changed": { icon: LayoutList, tone: "bg-warning/15 text-warning" },
   "member.joined": { icon: UserPlus, tone: "bg-success/15 text-success" },
   "member.left": { icon: UserMinus, tone: "bg-muted text-muted-foreground" },
+  "picklist.added": { icon: ListPlus, tone: "bg-orange-500/15 text-orange-700 dark:text-orange-400" },
+  "picklist.removed": { icon: ListMinus, tone: "bg-muted text-muted-foreground" },
+  "picklist.moved": { icon: ArrowUpDown, tone: "bg-orange-500/15 text-orange-700 dark:text-orange-400" },
+  "picklist.noted": { icon: PencilLine, tone: "bg-orange-500/15 text-orange-700 dark:text-orange-400" },
 };
 const FALLBACK = { icon: History, tone: "bg-muted text-muted-foreground" };
 

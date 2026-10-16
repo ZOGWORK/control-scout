@@ -110,10 +110,29 @@ export function inboxLink(workspaceId: string, type: string, d: Record<string, u
       return type === "settings.changed" ? `/settings?${new URLSearchParams({ section: "workspace", workspace: workspaceId }).toString()}` : scoutHref(workspaceId, { season, view: "template" });
     case "membership":
       return type === "member.left" ? "/scout?space=personal" : scoutHref(workspaceId, {});
+    case "picklist":
+      // The shared pick list itself (Task 11), in the season it changed.
+      return scoutHref(workspaceId, { season, view: "picklist" });
     case "assignments":
       return num(d.team) ? scoutHref(workspaceId, { season, team: num(d.team) }) : scoutHref(workspaceId, { view: "activity" });
     default:
       return scoutHref(workspaceId, { view: "activity" });
+  }
+}
+
+/** What a pick list item did, in a few words ("added team 18360", "moved 3 teams"); null when it can't tell. */
+export function picklistChange(type: string, d: Record<string, unknown>): string | null {
+  const team = num(d.team);
+  const teams = Array.isArray(d.teams) ? d.teams.length : 0;
+  const count = num(d.count);
+  switch (type) {
+    case "picklist.added":
+      if (count != null && count !== 1) return `added ${count} teams`;
+      return team ? `added team ${team}` : null;
+    case "picklist.removed": return team ? `removed team ${team}` : null;
+    case "picklist.moved": return teams > 1 ? `moved ${teams} teams` : team ? `moved team ${team}${num(d.to) ? ` to pick ${num(d.to)}` : ""}` : null;
+    case "picklist.noted": return teams > 1 ? `notes on ${teams} teams` : team ? `note on team ${team}` : null;
+    default: return null;
   }
 }
 
@@ -153,6 +172,6 @@ export function inboxText(type: string, d: Record<string, unknown>, actorName: s
     const where = [str(d.matchLabel) ? `match ${str(d.matchLabel)}` : d.kind === "pit" ? "pit" : null, str(d.eventCode)].filter(Boolean).join(" · ");
     return { title: `${who} assigned you to scout ${team ? `team ${team}` : "a team"}`, body: where };
   }
-  if (type.startsWith("picklist.")) return { title: `${who} updated the pick list`, body: num(d.season) ? `${num(d.season)} season` : "" };
+  if (type.startsWith("picklist.")) return { title: `${who} updated the pick list`, body: [num(d.season) ? `${num(d.season)} season` : null, picklistChange(type, d)].filter(Boolean).join(" · ") };
   return { title: `${who}: ${type.replace(/[._]/g, " ")}`, body: "" };
 }

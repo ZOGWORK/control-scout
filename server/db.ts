@@ -654,6 +654,39 @@ CREATE UNIQUE INDEX inbox_items_activity ON inbox_items (user_id, source_activit
 CREATE UNIQUE INDEX inbox_items_alert ON inbox_items (user_id, source_alert_id) WHERE source_alert_id IS NOT NULL;
 `,
   },
+  {
+    version: 18,
+    name: "workspace shared pick lists",
+    sql: `
+-- A workspace's shared pick list per season (server/scout/picklist.ts, docs/picklist.md): FTC team numbers in
+-- pick order, edited by any member. rank: 1..n, renumbered by the server after every change (changes to one
+-- workspace are applied one at a time, in arrival order). added_by_* / note_by_*: who, as the server stamped it
+-- (Control Point account id and display name); *_at: ms. note: shared with the whole workspace, last write wins.
+CREATE TABLE workspace_picklist (
+  workspace_id INTEGER NOT NULL REFERENCES workspaces (id),
+  season INTEGER NOT NULL,
+  team INTEGER NOT NULL,
+  rank INTEGER NOT NULL,
+  added_by_account_id INTEGER,
+  added_by_name TEXT NOT NULL DEFAULT '',
+  added_at INTEGER NOT NULL,
+  note TEXT NOT NULL DEFAULT '',
+  note_by_account_id INTEGER,
+  note_by_name TEXT,
+  note_updated_at INTEGER,
+  PRIMARY KEY (workspace_id, season, team)
+);
+CREATE INDEX workspace_picklist_order ON workspace_picklist (workspace_id, season, rank);
+-- One row per list that has ever changed: its version, bumped by every change (devices keep the newest).
+CREATE TABLE workspace_picklist_versions (
+  workspace_id INTEGER NOT NULL REFERENCES workspaces (id),
+  season INTEGER NOT NULL,
+  version INTEGER NOT NULL DEFAULT 0,
+  updated_at INTEGER NOT NULL,
+  PRIMARY KEY (workspace_id, season)
+);
+`,
+  },
 ];
 
 export type Db = Client;

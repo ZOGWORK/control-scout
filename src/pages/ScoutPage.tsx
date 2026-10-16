@@ -3,7 +3,7 @@
 // your account when signed in and online.
 import { useEffect, useId, useMemo, useRef, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
-import { ClipboardList, Cloud, CloudOff, Download, History, Info, LayoutList, Loader2, Plus, Save, Trash2, X } from "lucide-react";
+import { ClipboardList, Cloud, CloudOff, Download, History, Info, LayoutList, ListOrdered, Loader2, Plus, Save, Trash2, X } from "lucide-react";
 import { useCurrentSeason, useTitle } from "../lib/meta";
 import { usePersonal } from "../lib/personal";
 import { canDeleteScoutEntry, deleteScoutEntry, localScoutEntries, newScoutId, refusalMessage, SCOUT_REFUSED, type ScoutRefusal, saveScoutEntry, ScoutStorageError, usePendingScoutCounts, useScouting, type ScoutEntry, type ScoutSpace, type ScoutValue } from "../lib/scouting";
@@ -21,6 +21,7 @@ import { EntryAttribution } from "../components/EntryAttribution";
 import { EntryPhotos } from "../components/scout/EntryPhotos";
 import { ActivityFeed } from "../components/scout/ActivityFeed";
 import { useWorkspaceActivity } from "../lib/scoutActivity";
+import { SharedPicklist } from "../components/scout/SharedPicklist";
 import { PageHeader, Section, EmptyState } from "../components/page";
 import { Button } from "../components/ui/button";
 import { Badge, FieldError, Input, Textarea, Label } from "../components/ui/basic";
@@ -36,7 +37,7 @@ export default function ScoutPage() {
   const [sp, setSp] = useSearchParams();
   const current = useCurrentSeason();
   const teamFilter = Number(sp.get("team")) || undefined;
-  const { user, syncReady } = usePersonal();
+  const { user, syncReady, state: personal } = usePersonal();
   const spaces = useScoutSpaces();
   const { space, current: workspace } = spaces;
   // The workspace's shared settings (Tier 2, docs/settings.md): its default season and event for this space.
@@ -87,6 +88,10 @@ export default function ScoutPage() {
   const showActivity = !!workspace && !spaces.resolving && sp.get("view") === "activity";
   const activity = useWorkspaceActivity(showActivity ? space : null, live);
   const toggleActivity = () => setSp((x) => { if (x.get("view") === "activity") x.delete("view"); else x.set("view", "activity"); return x; });
+  // The workspace's shared pick list (?view=picklist, Task 11): every member sees and edits it, in place of the entry list.
+  const showPicklist = !!workspace && !spaces.resolving && sp.get("view") === "picklist";
+  const togglePicklist = () => setSp((x) => { if (x.get("view") === "picklist") x.delete("view"); else x.set("view", "picklist"); return x; });
+  const pickMe = useMemo(() => ({ accountId: user?.controlPoint?.accountId ?? null, name: user?.displayName?.trim() || "You" }), [user]);
   // Tapping an item about an entry opens it (in its season), if this device has it and it wasn't deleted since.
   const openEntry = (uuid: string) => {
     const e = space == null ? null : localScoutEntries(space).find((x) => x.uuid === uuid && !x.deleted);
@@ -119,6 +124,9 @@ export default function ScoutPage() {
           {workspace && !spaces.resolving && (
             <Button variant="outline" aria-pressed={showActivity} onClick={toggleActivity}><History /> Activity</Button>
           )}
+          {workspace && !spaces.resolving && (
+            <Button variant="outline" aria-pressed={showPicklist} onClick={togglePicklist}><ListOrdered /> Pick list</Button>
+          )}
           {workspace && isAdmin && !spaces.resolving && (
             <Button variant="outline" aria-pressed={showTemplate} onClick={toggleTemplate}><LayoutList /> Template</Button>
           )}
@@ -139,7 +147,8 @@ export default function ScoutPage() {
           defaultEvent={newEntryEventCode(space, wss.defaults, season)}
           onDone={() => { setFormOpen(false); setSp((x) => { x.delete("entry"); return x; }); }} />
       )}
-      {showActivity && workspace ? <ActivityFeed state={activity} workspaceName={workspaceLabel(workspace)} onOpenEntry={openEntry} /> : <>
+      {showPicklist && workspace ? <SharedPicklist key={`${workspace.id}:${season}`} workspaceId={workspace.id} workspaceName={workspaceLabel(workspace)} season={season} live={live} me={pickMe} shortlist={personal.bookmarks} />
+        : showActivity && workspace ? <ActivityFeed state={activity} workspaceName={workspaceLabel(workspace)} onOpenEntry={openEntry} /> : <>
       <Section title={`Entries (${entries.length})`} description={teamFilter ? `For team ${teamFilter}` : "Newest first"}>
         {spaces.resolving ? <LoadingBlock rows={3} label="Loading scout space" /> : !entries.length ? <EmptyState icon={ClipboardList} title="No scouting entries yet" description="Start one above, or from any team page. Entries save on this device first, so scouting works with no signal." /> : (
           <ul className="grid gap-2 md:grid-cols-2">
