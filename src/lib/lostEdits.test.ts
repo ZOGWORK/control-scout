@@ -5,7 +5,7 @@
 // ordinary save that goes up with a restore marker. Personal entries never conflict.
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
-  applyLiveEntries, localScoutEntries, pendingScoutCounts, pullScouting, restoreScoutVersion, saveScoutEntry, setScoutViewer, syncScouting, type ScoutEntry,
+  applyLiveEntries, localScoutEntries, pendingScoutCounts, pullScouting, restoreScoutVersion, saveScoutEntry, scoutDraftBase, setScoutViewer, syncScouting, type ScoutEntry,
 } from "./scouting";
 import { dropLostEdit, lostEdits, markLostSeen, SCOUT_LOST_UNSAVED, SCOUT_OVERWRITTEN, type LostEdit } from "./lostEdits";
 import { entryDiff, formatAnswer } from "./entryDiff";
@@ -92,6 +92,22 @@ describe("detecting the last-write-wins loser", () => {
     applyLiveEntries("w1", [{ entry: server({ updatedAt: 4000, notes: "mine again" }, ME, "Me"), seq: 3 }]);
     applyLiveEntries("w1", [{ entry: server({ updatedAt: 5000, notes: "Marcus offline", baseUpdatedAt: 1000 }, 9, "Marcus"), seq: 4 }]);
     expect(lostEdits("w1").map((l) => [l.mine.notes, l.by.name])).toEqual([["mine again", "Marcus"]]);
+  });
+});
+
+describe("the base of an edit", () => {
+  it("a form keeps the version it opened with: a newer one that arrived while it was open isn't claimed as seen", () => {
+    applyLiveEntries("w1", [{ entry: server({ updatedAt: 1000 }), seq: 1 }]);
+    const opened = localScoutEntries("w1")[0];
+    const base = scoutDraftBase(opened);
+    expect(base).toBe(1000);
+    // Marcus's edit arrives while the form is open.
+    applyLiveEntries("w1", [{ entry: server({ updatedAt: 2000, notes: "Marcus" }, 9, "Marcus"), seq: 2 }]);
+    const saved = saveScoutEntry({ ...opened, notes: "from the open form" }, { base });
+    expect(saved.baseUpdatedAt).toBe(1000);
+    expect(saved.updatedAt).toBeGreaterThan(2000);
+    // Without a draft base, the copy on the device now is the base.
+    expect(saveScoutEntry({ ...opened, notes: "x" }).baseUpdatedAt).toBe(1000); // still queued: keeps its own base
   });
 });
 
