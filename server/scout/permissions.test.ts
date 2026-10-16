@@ -203,6 +203,17 @@ describe("workspace permissions", () => {
     expect(r.json.results[0]).toMatchObject({ ok: true, entry: { deleted: true, authorAccountId: ids.b } });
   });
 
+  it("two versions of one entry in a push: the second is refused, so each result names the version it's about", async () => {
+    const { a, b } = await team("311");
+    const e = entry({ updatedAt: 500 });
+    await push(a, "311", [e]);
+    const r = await push(b, "311", [{ ...e, updatedAt: 1000, notes: "B's edit" }, tomb(e, 2000)]);
+    expect(r.json.results).toEqual([
+      expect.objectContaining({ uuid: e.uuid, ok: true, entry: expect.objectContaining({ notes: "B's edit", deleted: false }) }),
+      { uuid: e.uuid, ok: false, error: "duplicate entry" },
+    ]);
+  });
+
   it("an older delete loses to a newer edit as before: ok with the newer copy, not 'forbidden'", async () => {
     const { a, b } = await team("307");
     const e = entry({ updatedAt: 3000 });

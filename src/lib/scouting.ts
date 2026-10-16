@@ -343,9 +343,10 @@ export async function syncScouting(space: ScoutSpace = null): Promise<{ sent: nu
     }
     setDirty(now, space);
     sent += batch.length;
+    // Per batch: a later batch's request may fail, and what this one put back must still be shown and explained.
+    window.dispatchEvent(new Event(EVT));
+    for (const x of refused.splice(0)) window.dispatchEvent(new CustomEvent<ScoutRefusal>(SCOUT_REFUSED, { detail: x }));
   }
-  window.dispatchEvent(new Event(EVT));
-  for (const x of refused) window.dispatchEvent(new CustomEvent<ScoutRefusal>(SCOUT_REFUSED, { detail: x }));
   return { sent };
 }
 
