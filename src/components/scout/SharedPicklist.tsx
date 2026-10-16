@@ -2,7 +2,7 @@
 // per season that every member sees and edits, live. Built from the Shortlist's own rows (PickRows,
 // useReorder, TeamDetail, NoteField): drag or arrow keys to rank, inline OPR and world rank, a panel that
 // opens in place, and a shared note on each pick with who wrote it and when.
-import { useCallback, useMemo, useRef, useState, type FormEvent, type RefObject } from "react";
+import { useCallback, useMemo, useRef, useState, type FormEvent, type KeyboardEvent, type RefObject } from "react";
 import { Link } from "react-router-dom";
 import { Copy, GripVertical, LayoutGrid, List, ListOrdered, Loader2, Plus, Scale } from "lucide-react";
 import { useApi, qs } from "../../lib/api";
@@ -119,15 +119,36 @@ export function SharedPicklist({ workspaceId, workspaceName, season, live, me, s
   const compareTeams = selected.length >= 2 ? selected : teams.slice(0, MAX_COMPARE);
   const rows = reorder.order.map((t) => byTeam.get(t)).filter(Boolean) as ShortlistTeam[];
   const missing = teams.filter((t) => !byTeam.has(t));
+  // Pick numbers and moves go by the whole list, picks still loading included: the rows shown take their
+  // slots in it, in the order a drag in progress would leave them.
+  const previewShown = [...shown].sort((a, b) => reorder.rankOf(a) - reorder.rankOf(b));
+  let k = 0;
+  const fullOrder = teams.map((t) => (byTeam.has(t) ? previewShown[k++] : t));
+  const rankFor = (t: number) => fullOrder.indexOf(t) + 1;
+  /** One place up or down, or to the top or bottom, of the whole list. */
+  const moveFull = (team: number, d: number | "top" | "bottom") => {
+    const from = teams.indexOf(team);
+    if (from < 0) return;
+    const to = d === "top" ? 0 : d === "bottom" ? teams.length - 1 : Math.max(0, Math.min(teams.length - 1, from + d));
+    if (to !== from) change(moveOpFor(teams, moveItem(teams, from, to), team));
+  };
+  // All rows on screen: the drag hook's own moves (they animate). Some still loading: by the whole list.
+  const move = (team: number, d: number | "top" | "bottom") => (missing.length ? moveFull(team, d) : reorder.moveBy(team, d));
+  const KEYS: Record<string, number | "top" | "bottom"> = { ArrowUp: -1, ArrowLeft: -1, ArrowDown: 1, ArrowRight: 1, Home: "top", End: "bottom" };
+  const handleFor = (team: number) => {
+    const h = reorder.handleProps(team);
+    if (!missing.length) return h;
+    return { ...h, onKeyDown: (e: KeyboardEvent<HTMLElement>) => { const d = KEYS[e.key]; if (d === undefined) return; e.preventDefault(); moveFull(team, d); } };
+  };
   const common = (t: ShortlistTeam, rank: number) => {
     const p = byPick.get(t.team)!;
     return {
       t, rank, season, open: open.has(t.team), dragging: reorder.dragging === t.team, idPrefix: "picklist",
       note: <SharedNote pick={p} me={me} onSave={(text) => change({ op: "note", team: t.team, note: text })} />,
       selected: selected.includes(t.team), selectDisabled: !selected.includes(t.team) && selected.length >= MAX_COMPARE, onSelect: (on: boolean) => pick(t.team, on),
-      onToggle: () => toggle(t.team), onRemove: () => remove(t.team), handle: reorder.handleProps(t.team),
+      onToggle: () => toggle(t.team), onRemove: () => remove(t.team), handle: handleFor(t.team),
       compareLink: compareHref([t.team, ...teams.filter((x) => x !== t.team).slice(0, MAX_COMPARE - 1)], season),
-      detail: <TeamDetail t={t} season={season} rank={rank} total={shown.length} topPicks={teams.slice(0, MAX_COMPARE)} onMove={(d) => reorder.moveBy(t.team, d)} onRemove={() => remove(t.team)} />,
+      detail: <TeamDetail t={t} season={season} rank={rank} total={teams.length} topPicks={teams.slice(0, MAX_COMPARE)} onMove={(d) => move(t.team, d)} onRemove={() => remove(t.team)} />,
     };
   };
 
@@ -187,12 +208,12 @@ export function SharedPicklist({ workspaceId, workspaceName, season, live, me, s
               <div className="overflow-hidden rounded-2xl border border-border bg-card">
                 <ListHeader />
                 <ol ref={reorder.container as RefObject<HTMLOListElement>} className="relative" aria-label="Shared pick list">
-                  {rows.map((t) => <ListRow key={t.team} {...common(t, reorder.rankOf(t.team))} />)}
+                  {rows.map((t) => <ListRow key={t.team} {...common(t, rankFor(t.team))} />)}
                 </ol>
               </div>
             ) : (
               <ol ref={reorder.container as RefObject<HTMLOListElement>} className={cn("relative grid gap-3 sm:grid-cols-2 xl:grid-cols-3")} aria-label="Shared pick list">
-                {rows.map((t) => <GridCard key={t.team} {...common(t, reorder.rankOf(t.team))} />)}
+                {rows.map((t) => <GridCard key={t.team} {...common(t, rankFor(t.team))} />)}
               </ol>
             )}
           </>

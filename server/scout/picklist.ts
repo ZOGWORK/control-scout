@@ -196,6 +196,15 @@ async function member(req: Request, res: Response): Promise<{ user: User; m: Mem
 }
 
 /**
+ * The one gate every pick list change passes (the POST route, whatever the op): a member, as for reads, plus
+ * whatever a write needs on top. A rule that makes a workspace's lists read-only (e.g. an orphaned space)
+ * belongs here, so it covers every op at once.
+ */
+export async function picklistWriter(req: Request, res: Response): Promise<{ user: User; m: Membership } | null> {
+  return member(req, res);
+}
+
+/**
  * /api/scout/workspaces/:workspaceId/picklist
  *   GET  ?season=   any member. {list: {workspaceId, season, version, picks}}
  *   POST {season, op: "add", team, beforeTeam?, restore?}    add (at the end, or just before beforeTeam); restore: Undo of a remove
@@ -216,7 +225,7 @@ export function picklistRouter(): Router {
     return { list: await readPickList(who.m.workspaceId, season) };
   }));
   r.post("/workspaces/:workspaceId/picklist", jsonOnly, h(async (req, res) => {
-    const who = await member(req, res);
+    const who = await picklistWriter(req, res);
     if (!who) return;
     const body = (req.body && typeof req.body === "object" ? req.body : {}) as Record<string, unknown>;
     if (!isSeason(body.season)) { res.status(400).json({ error: "season required" }); return; }
