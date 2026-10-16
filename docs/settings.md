@@ -22,6 +22,16 @@ There is no migration: an existing `cs-personal:settings` blob is read as it
 is, isn't rewritten on load, and syncs byte for byte
 (`src/lib/settingsTiers.test.tsx`).
 
+**Notification inbox switches** (Task 14, [inbox.md](inbox.md)) live in
+`settings.notify`, beside the match alerts: `inboxAssignments`, `inboxEdits`,
+`inboxTemplate` (template and workspace settings changes), `inboxMembership`,
+`inboxPicklist`, `inboxComments` and `inboxOwnerAlerts` (owners only). They're
+optional and a missing key means on, so an older `notify` value still syncs
+byte for byte. `cleanValue` keeps only known `notify` keys with boolean values.
+They're shown in Settings › Personal › Notifications. The server reads them from
+the account's synced copy when it makes an inbox item, so a switched-off kind
+makes no item at all.
+
 ## Tier 2: Workspace
 
 Stored on the workspace's mirror row, as sibling keys in one JSON object:

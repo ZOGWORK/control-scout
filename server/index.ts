@@ -20,6 +20,8 @@ import { warmTrackRecord } from "./api/accuracy.js";
 import { installShippedPacks, restoreSnapshotIfEmpty } from "./data/snapshot.js";
 import { drainOnSigterm, systemdSocket } from "./listen.js";
 import { closeAllStreams } from "./scout/stream.js";
+import { closeInboxStreams } from "./inbox/routes.js";
+import { deliverOwnerAlerts, inboxSettled, pruneInbox } from "./inbox/inbox.js";
 import { photoSchedulerTick } from "./scout/photos.js";
 import { pruneActivity } from "./scout/activityLog.js";
 import type { Server } from "node:http";
@@ -37,8 +39,9 @@ const socket = systemdSocket();
 for (const k of ["LISTEN_FDS", "LISTEN_PID", "LISTEN_FDNAMES"]) delete process.env[k]; // not for child processes
 let http: Server | null = null;
 // Live scout streams end first, so their connections don't hold the drain (clients reconnect to the next server).
-process.once("SIGTERM", closeAllStreams);
-drainOnSigterm(() => http, log);
+process.once("SIGTERM", () => { closeAllStreams(); closeInboxStreams(); });
+// Queued inbox fan-outs (activity already written) finish before the process exits.
+drainOnSigterm(() => http, log, 10_000, inboxSettled);
 let ready = false;
 const server = express();
 server.get("/api/health", (_req, res) => res.json({ ok: true, engine: ENGINE_VERSION, release: RELEASE, ready }));
@@ -115,6 +118,14 @@ if (!process.env.CS_NO_SCHEDULER) {
   const prune = () => { pruneActivity().then((n) => { if (n) log(`activity: pruned ${n} items older than 90 days`); }).catch((e) => log(`activity: ${(e as Error).message}`)); };
   setTimeout(prune, 90_000).unref();
   setInterval(prune, 6 * 3600_000).unref();
+  // The notification inbox keeps 90 days too (server/inbox/inbox.ts); owner alerts still waiting for an owner
+  // account (none had signed up when the alert was raised) are delivered on the same beat.
+  const pruneNotes = () => {
+    pruneInbox().then((n) => { if (n) log(`inbox: pruned ${n} items older than 90 days`); }).catch((e) => log(`inbox: ${(e as Error).message}`));
+    void deliverOwnerAlerts();
+  };
+  setTimeout(pruneNotes, 100_000).unref();
+  setInterval(pruneNotes, 6 * 3600_000).unref();
 }
 // The live fast lane: events on today, every LIVE_SYNC_SECONDS (60), results within about a minute
 // (server/data/live.ts). It shares a writer lease with the cycle above, so the two never write at once.
