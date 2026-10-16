@@ -235,7 +235,7 @@ export default function ScoutPage() {
       {showTemplate && workspace && (
         <TemplateEditor key={`${workspace.id}:${season}`} workspaceId={workspace.id} workspaceName={workspaceLabel(workspace)} season={season} template={wt.template} onClose={toggleTemplate} />
       )}
-      {formOpen && !spaces.resolving && (!readOnly || editEntry) && (
+      {formOpen && !spaces.resolving && (
         <EntryForm key={editEntry?.uuid ?? `new-${formTeam ?? ""}-${formNonce}`} season={season} initial={editEntry} team={formTeam} space={space} spaceName={workspace ? workspaceLabel(workspace) : null} workspaceTemplate={wt.template} templatePending={templatePending}
           readOnly={!!readOnly}
           defaultEvent={(space != null && formEvent?.space === space && formEvent.season === season && formEvent.code) || newEntryEventCode(space, wss.defaults, season)}
@@ -340,7 +340,11 @@ function EntryCard({ e, assigned, canDelete, readOnly, comments, onEdit }: { e: 
 
 function EntryForm({ season, initial, team, space, spaceName, workspaceTemplate, templatePending, defaultEvent, onDone, readOnly = false }: {
   season: number; initial: ScoutEntry | null; team?: number; space: ScoutSpace; spaceName: string | null;
-  /** A read-only space (Task 19): the entry shows, every field disabled, no Save. */
+  /**
+   * A read-only space (Task 19). An entry opened there shows with every field disabled and no Save. A form
+   * that was already open when the space went read-only (a live update), or a new entry, keeps what was typed:
+   * its Save keeps it in Personal instead (an edit as a new personal copy).
+   */
   readOnly?: boolean;
   /** The workspace's current template (null: Personal, or not known yet: the built-in defaults). */
   workspaceTemplate: WorkspaceTemplate | null;
@@ -350,6 +354,9 @@ function EntryForm({ season, initial, team, space, spaceName, workspaceTemplate,
   defaultEvent: string;
   onDone: () => void;
 }) {
+  const startedWritable = useRef(!readOnly);
+  const viewOnly = readOnly && !!initial && !startedWritable.current;
+  const toPersonal = readOnly && !viewOnly;
   const [kind, setKind] = useState<"match" | "pit">(initial?.kind ?? "match");
   const [teamText, setTeamText] = useState(initial ? String(initial.team) : team ? String(team) : "");
   const [eventCode, setEventCode] = useState(initial ? initial.eventCode ?? "" : defaultEvent);
@@ -421,12 +428,12 @@ function EntryForm({ season, initial, team, space, spaceName, workspaceTemplate,
     if (!fieldsLocked) for (const f of template.fields) if (f.type === "counter" && (f.min ?? 0) > 0 && data[f.id] === undefined) data[f.id] = f.min!;
     // Workspace entries record the template they were made with (an edit of the same kind keeps the entry's own,
     // whatever stands in on screen); Personal ones always use the built-in defaults.
-    const made = space == null ? {}
+    const made = space == null || toPersonal ? {}
       : initial && kind === initial.kind ? (initial.templateId ? { templateId: initial.templateId, templateVersion: initial.templateVersion ?? 0 } : {})
       : { templateId: template.id, templateVersion: template.version ?? 0 };
     try {
-      saveScoutEntry({ uuid: initial?.uuid ?? newScoutId(), season, team: Number(team), eventCode: eventCode.trim().toUpperCase() || null, matchLabel: kind === "match" ? matchLabel.trim().toUpperCase() || null : null, kind, data, notes, workspaceId: space, ...made });
-      toast.success("Saved on this device");
+      saveScoutEntry({ uuid: (toPersonal ? null : initial?.uuid) ?? newScoutId(), season, team: Number(team), eventCode: eventCode.trim().toUpperCase() || null, matchLabel: kind === "match" ? matchLabel.trim().toUpperCase() || null : null, kind, data, notes, workspaceId: toPersonal ? null : space, ...made });
+      toast.success(toPersonal ? "Kept in Personal: the workspace is read-only" : "Saved on this device");
       onDone();
     } catch (e) {
       setSaveErr(e instanceof ScoutStorageError ? e.message : "Couldn't save this entry on this device. Try again.");
@@ -434,8 +441,8 @@ function EntryForm({ season, initial, team, space, spaceName, workspaceTemplate,
     }
   };
   return (
-    <form onSubmit={(e) => { e.preventDefault(); if (!readOnly) save(); }} noValidate className="mb-8 rounded-2xl border border-border bg-card p-5 sm:p-6">
-      <fieldset disabled={readOnly} className="m-0 min-w-0 border-0 p-0">
+    <form onSubmit={(e) => { e.preventDefault(); if (!viewOnly) save(); }} noValidate className="mb-8 rounded-2xl border border-border bg-card p-5 sm:p-6">
+      <fieldset disabled={viewOnly} className="m-0 min-w-0 border-0 p-0">
       <div className="flex flex-wrap items-start gap-4">
         <ToggleGroup type="single" value={kind} onValueChange={(v) => { if (v) setKind(v as typeof kind); }} aria-label="Entry type">
           <ToggleGroupItem value="match">Match</ToggleGroupItem><ToggleGroupItem value="pit">Pit</ToggleGroupItem>
@@ -466,11 +473,16 @@ function EntryForm({ season, initial, team, space, spaceName, workspaceTemplate,
       </div>
       </fieldset>
       {initial && <EntryPhotos entry={initial} editable={!readOnly} className="mt-5" />}
+      {toPersonal && (
+        <p role="status" className="mt-5 rounded-lg border border-warning/40 bg-warning/10 px-3 py-2 text-sm">
+          This workspace is read-only now, so this entry can't be saved to it. Save keeps what you typed in Personal{initial ? ", as a new entry of your own" : ""}.
+        </p>
+      )}
       <div className="mt-5 flex flex-wrap gap-2">
-        {!readOnly && <Button ref={saveRef} type="submit" disabled={checking || fieldsPending} aria-describedby={saveErr ? saveErrId : undefined}><Save /> Save</Button>}
-        <Button type="button" variant={readOnly ? "outline" : "ghost"} onClick={onDone}>{readOnly ? "Close" : "Cancel"}</Button>
-        <p className="ml-auto self-center text-xs text-muted-foreground">{readOnly ? <>This workspace is read-only, so this entry can be read but not changed.</>
-          : <>{spaceName ? <>Saves to <span className="font-medium text-foreground">{spaceName}</span>, shared with the workspace. </> : null}Saved on this device first — works without a connection.</>}</p>
+        {!viewOnly && <Button ref={saveRef} type="submit" disabled={checking || fieldsPending} aria-describedby={saveErr ? saveErrId : undefined}><Save /> {toPersonal ? "Save to Personal" : "Save"}</Button>}
+        <Button type="button" variant={viewOnly ? "outline" : "ghost"} onClick={onDone}>{viewOnly ? "Close" : "Cancel"}</Button>
+        <p className="ml-auto self-center text-xs text-muted-foreground">{viewOnly ? <>This workspace is read-only, so this entry can be read but not changed.</>
+          : <>{spaceName && !toPersonal ? <>Saves to <span className="font-medium text-foreground">{spaceName}</span>, shared with the workspace. </> : null}Saved on this device first — works without a connection.</>}</p>
       </div>
       <FieldError id={saveErrId}>{saveErr}</FieldError>
     </form>

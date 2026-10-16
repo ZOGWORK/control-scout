@@ -4,7 +4,8 @@
 // no New entry, no Delete, no Template, no comment box, no Save. Export still works. A writable space
 // shows none of this.
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { localScoutEntries } from "../lib/scouting";
 import { MemoryRouter } from "react-router-dom";
 import type { AccountUser } from "../lib/personal";
 import { resetFlags } from "../lib/flags";
@@ -73,6 +74,24 @@ describe("read-only space", () => {
     show("/scout?season=2025&space=901");
     expect(await screen.findByText(orphanBanner("no_admin"))).toBeTruthy();
     expect(screen.queryByRole("button", { name: /new entry/i })).toBeNull();
+  });
+
+  it("going read-only while a new entry is open keeps the draft, and Save keeps it in Personal", async () => {
+    h.personal.user = signedIn();
+    const view = show("/scout?season=2025&space=901");
+    fireEvent.click(await screen.findByRole("button", { name: /new entry/i }));
+    fireEvent.change(screen.getByLabelText("Team"), { target: { value: "2222" } });
+    fireEvent.change(screen.getByLabelText("Notes"), { target: { value: "typed before the workspace went" } });
+    // A live update: the workspace was deleted in Control Point.
+    h.personal.user = signedIn({ at: "2026-10-16T09:00:00.000Z", reason: "deleted" });
+    view.rerender(<TooltipProvider><MemoryRouter initialEntries={["/scout?season=2025&space=901"]}><ScoutPage /></MemoryRouter></TooltipProvider>);
+    expect(await screen.findByText(orphanBanner("deleted"))).toBeTruthy();
+    const notes = screen.getByLabelText("Notes") as HTMLTextAreaElement;
+    expect(notes.value).toBe("typed before the workspace went"); // the draft is still there, editable
+    expect(notes.matches(":disabled")).toBe(false);
+    fireEvent.click(screen.getByRole("button", { name: "Save to Personal" }));
+    await waitFor(() => expect(localScoutEntries(null).map((e) => [e.team, e.notes, e.workspaceId])).toEqual([[2222, "typed before the workspace went", null]]));
+    expect(localScoutEntries("901").map((e) => e.uuid)).toEqual(["gearheads001"]); // nothing new queued for the read-only space
   });
 
   it("a writable space: no banner, writing as ever", async () => {

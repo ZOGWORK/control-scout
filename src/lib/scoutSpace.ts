@@ -15,7 +15,7 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } fr
 import { useSearchParams } from "react-router-dom";
 import { useFlag } from "./flags";
 import { usePersonal, type AccountUser } from "./personal";
-import { ACCOUNT_STALE, moveQueuedToPersonal, pendingScoutCounts, SCOUT_DENIED, SCOUT_READ_ONLY, syncQueuedScouting, syncScouting, type ScoutSpace } from "./scouting";
+import { ACCOUNT_STALE, moveQueuedToPersonal, pendingScoutCounts, pullScouting, SCOUT_DENIED, SCOUT_READ_ONLY, syncQueuedScouting, syncScouting, type ScoutSpace } from "./scouting";
 import { toast } from "../components/ui/sonner";
 import { isOrphanReason, READ_ONLY_STATUS, type OrphanState } from "../shared/orphaned";
 
@@ -168,6 +168,8 @@ async function rescueQueued(space: string, name: string | undefined, alive: () =
   catch (e) {
     if ((e as { status?: unknown } | null)?.status !== (readOnly ? READ_ONLY_STATUS : 403) || !alive() || deviceOwner() !== owner) return;
     const n = moveQueuedToPersonal(space);
+    // Still readable here (read-only): the server's copies of what was queued (refused edits and deletes) come back.
+    if (readOnly) void pullScouting(space).catch(() => undefined);
     if (!n) return;
     toast.warning((readOnly ? readOnlyMovedNotice : movedNotice)(n, name), { duration: 20_000 });
     void syncScouting(null).catch(() => undefined); // up to the account now (else the next tick)

@@ -30,6 +30,7 @@ const inbox = new Map<string, string>();
 const accounts = new Map<string, { id: number; email: string; displayName: string | null; createdAt: string; controlPoint: { member: boolean; teams: never[] } }>();
 const teams = new Map<string, { name: string; members: Map<string, { name: string; role: "admin" | "member" }> }>();
 let membersCalls = 0;
+let membersDown = false; // the members route fails (500): Control Point can't say
 const accountFor = (email: string) => {
   let a = accounts.get(email);
   if (!a) { a = { id: 7000 + accounts.size, email, displayName: null, createdAt: new Date().toISOString(), controlPoint: { member: false, teams: [] } }; accounts.set(email, a); }
@@ -53,6 +54,7 @@ beforeAll(async () => {
   });
   stub.get("/internal/workspaces/:id/members", (req, res) => {
     membersCalls++;
+    if (membersDown) { res.status(500).json({ error: "down" }); return; }
     const t = teams.get(req.params.id);
     if (!t) { res.status(404).json({ error: "not_found" }); return; }
     res.json({ workspace: { id: req.params.id, name: t.name }, members: [...t.members].map(([email, m]) => ({ accountId: accounts.get(email)?.id ?? null, name: m.name, role: m.role })) });
@@ -81,6 +83,7 @@ afterAll(() => {
 });
 beforeEach(async () => {
   clearInfoCache();
+  membersDown = false;
   Object.assign(process.env, {
     CONTROL_POINT_INTERNAL_URL: cpBase, CONTROL_POINT_PUBLIC_URL: "https://cp.test", CONTROL_POINT_INTERNAL_KEY: KEY, APP_URL: "http://127.0.0.1",
     R2_FAKE: "1", R2_ENDPOINT: `${base}/__fake-r2`, OWNER_EMAILS: "owner@example.com",
@@ -334,6 +337,41 @@ describe("orphaned workspaces: detection", () => {
     expect((await pull(w.max, w.id)).status).toBe(403);
     expect(membersCalls).toBe(before + 1); // asked once, said the workspace exists
     expect((await state(w.id))?.orphaned_at).toBeNull();
+  });
+});
+
+describe("orphaned workspaces: Control Point can't say", () => {
+  it("(a) the members route fails when a workspace drops out: undecided, kept, retried on the next answer", async () => {
+    const w = await workspace();
+    teams.delete(w.id);
+    membersDown = true;
+    await stale();
+    expect((await pull(w.max, w.id)).status).toBe(403); // not listed, not (yet) known deleted
+    expect((await state(w.id))?.orphaned_at).toBeNull();
+    // Nothing recorded as a removal, and Max's cached row stays (stale), so the next answer asks again.
+    expect(await get("SELECT updated_at FROM workspace_members WHERE account_id = ? AND cp_workspace_id = ?", [w.maxId, w.id])).toEqual({ updated_at: 0 });
+    expect(await all("SELECT 1 FROM workspace_activity a JOIN workspaces ws ON ws.id = a.workspace_id WHERE ws.cp_workspace_id = ? AND a.type = 'member.left'", [w.id])).toEqual([]);
+    expect((await audits("workspace.member_removed")).filter((d) => d.workspaceId === w.id)).toEqual([]);
+    membersDown = false;
+    await stale();
+    await expectReads(w.max, w); // deleted after all: Max is a former member and reads it
+    expect((await state(w.id))?.orphan_reason).toBe("deleted");
+    expect(await get("SELECT role FROM workspace_former_members f JOIN workspaces ws ON ws.id = f.workspace_id WHERE ws.cp_workspace_id = ? AND f.account_id = ?", [w.id, w.maxId])).toEqual({ role: "member" });
+  });
+
+  it("(b) the members route fails when the last admin is demoted: the check is owed, and the next answer listing it makes it", async () => {
+    const w = await workspace();
+    w.t.members.set(`ada.${w.tag}@example.com`, { name: "Ada Admin", role: "member" });
+    membersDown = true;
+    await stale();
+    await pull(w.ada, w.id);
+    expect((await state(w.id))?.orphaned_at).toBeNull();
+    expect(await get("SELECT orphan_check_at IS NOT NULL owed FROM workspaces WHERE cp_workspace_id = ?", [w.id])).toEqual({ owed: 1 });
+    membersDown = false;
+    await stale();
+    expect((await push(w.max, w.id, [entry()])).status).toBe(READ_ONLY_STATUS); // Max's answer lists it: checked, no admin
+    expect(await state(w.id)).toEqual({ orphaned_at: expect.any(String), orphan_reason: "no_admin" });
+    expect(await get("SELECT orphan_check_at FROM workspaces WHERE cp_workspace_id = ?", [w.id])).toEqual({ orphan_check_at: null });
   });
 });
 
