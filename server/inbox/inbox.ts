@@ -8,7 +8,8 @@
 //      type (category)                         who gets it
 //      assignment.*        (assignments)       details.assigneeAccountId (Task 10: assignment.created)
 //      entry.edited / entry.deleted /
-//      entry.restored / photo.added /
+//      entry.restored / entry.version_restored /
+//      photo.added /
 //      photo.removed       (edits)             the entry's author (workspace_scout_entries.author_account_id)
 //      comment.created / comment.added
 //                          (comments)          the entry's author (details.uuid, else subject entry:<uuid>)

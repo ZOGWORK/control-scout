@@ -10,6 +10,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { apiFetch } from "./api";
 import type { EntryPhoto } from "../shared/photos";
+import { dropRestored, exportLostEdits, LOST_PREFIX, lostBackupFailed, mergeLostLists, recordLostEdit, SCOUT_OVERWRITTEN } from "./lostEdits";
 import { READ_ONLY_STATUS } from "../shared/orphaned";
 
 import { builtinTemplate } from "../shared/scoutDefaults";
@@ -51,6 +52,14 @@ export interface ScoutEntry {
   photos?: EntryPhoto[];
   photoExpired?: boolean;
   photosRev?: number;
+  /**
+   * Workspace entries: the server's version this edit was based on (its updatedAt: the device's last copy from
+   * the server when the edit was made). A device whose own version is replaced by one based on an older copy
+   * knows the writer never saw it (lostTo). Absent: a new entry, or unknown (an older build).
+   */
+  baseUpdatedAt?: number;
+  /** Workspace entries, until synced: this edit restores an earlier version (the one with this updatedAt). */
+  restoredFrom?: number;
 }
 
 // --- Templates -------------------------------------------------------------
@@ -146,7 +155,7 @@ export function normalizeScoutEntry(raw: any, space: ScoutSpace): ScoutEntry {
 /** The shape kept on the device (and in exports): a personal entry exactly as before workspaces. */
 export function storedScoutEntry(e: ScoutEntry): Record<string, unknown> {
   if (e.workspaceId != null) return { ...e };
-  const { workspaceId: _w, authorAccountId: _a, authorDisplayName: _n, editorAccountId: _ea, editorDisplayName: _en, templateId: _t, templateVersion: _tv, ...rest } = e;
+  const { workspaceId: _w, authorAccountId: _a, authorDisplayName: _n, editorAccountId: _ea, editorDisplayName: _en, templateId: _t, templateVersion: _tv, baseUpdatedAt: _b, restoredFrom: _r, ...rest } = e;
   return rest;
 }
 
@@ -191,17 +200,27 @@ type NewEntry = Omit<ScoutEntry, "updatedAt" | "workspaceId" | "authorAccountId"
 /**
  * Save on the device first (throws if the device refuses), then queue for sync. `workspaceId` picks the space (Personal when absent).
  * A workspace entry keeps its author, and its editor becomes "you, not synced yet" (0) until the server stamps the real one.
+ * `opts.base`: the draft's base (scoutDraftBase of the copy the form opened with), so a version that arrived while
+ * the form was open counts as unseen; without it, the base is the copy on the device now.
  */
-export function saveScoutEntry(e: NewEntry): ScoutEntry {
+export function saveScoutEntry(e: NewEntry, opts: { base?: number | null } = {}): ScoutEntry {
   const space = e.workspaceId ?? null;
   const prior = space != null ? readEntry(space, e.uuid) : null;
+  // The server version this edit builds on: the copy last taken from the server (a queued edit keeps its own base).
+  const base = opts.base !== undefined ? opts.base ?? undefined : prior ? scoutDraftBase(prior) : undefined;
   const authorship = space == null ? {} : {
     authorAccountId: e.authorAccountId ?? prior?.authorAccountId ?? 0, authorDisplayName: e.authorDisplayName ?? prior?.authorDisplayName ?? "",
     editorAccountId: 0, editorDisplayName: "",
+    baseUpdatedAt: base,
+    // Only the save that restores says so (a delete, or a later edit, is not a restore).
+    restoredFrom: e.deleted ? undefined : e.restoredFrom,
     // Photos are the server's: an edit to the text keeps the list the device has.
     ...(prior?.photos && e.photos === undefined ? { photos: prior.photos, photoExpired: prior.photoExpired, photosRev: prior.photosRev } : {}),
   };
-  const entry = normalizeScoutEntry({ ...e, ...authorship, updatedAt: Date.now() }, space);
+  // A workspace edit (a restore, a delete, any change) must win over the version it's made on, even when
+  // that version's writer had a clock running ahead of this one: newer wins, so it's stamped after it.
+  const now = space != null ? Math.max(Date.now(), (prior?.updatedAt ?? 0) + 1) : Date.now();
+  const entry = normalizeScoutEntry({ ...e, ...authorship, updatedAt: now }, space);
   try {
     writeEntry(entry);
     const d = dirty(entry.workspaceId); d.add(entry.uuid); setDirty(d, entry.workspaceId);
@@ -212,6 +231,18 @@ export function saveScoutEntry(e: NewEntry): ScoutEntry {
   window.dispatchEvent(new CustomEvent<SavedDetail>(SAVED, { detail: { space: entry.workspaceId, deleted: !!entry.deleted } }));
   return entry;
 }
+
+/**
+ * The server version an edit of this copy builds on: its own updatedAt when it's the server's copy, or, for an
+ * edit still queued on this device, the base that edit had. A form keeps this from when it opened (Task 16).
+ */
+export function scoutDraftBase(e: ScoutEntry): number | undefined {
+  if (e.workspaceId == null) return undefined;
+  return dirty(e.workspaceId).has(e.uuid) ? e.baseUpdatedAt : e.updatedAt;
+}
+
+/** Is this entry waiting to sync on this device? */
+export const isScoutQueued = (e: Pick<ScoutEntry, "uuid" | "workspaceId">) => dirty(e.workspaceId).has(e.uuid);
 
 export function deleteScoutEntry(e: ScoutEntry) { saveScoutEntry({ ...e, deleted: true, data: {}, notes: "" }); }
 
@@ -250,12 +281,13 @@ export async function syncQueuedScouting(workspaces: string[]): Promise<void> {
 interface SpaceExport { entries: ScoutEntry[]; dirty: string[]; cursor?: number }
 /** Workspace templates kept on the device (scoutTemplates.ts): current ones and the versions entries were made with. */
 const TEMPLATE_KEY = /^cs-scout-tplv?:[A-Za-z0-9_-]{1,64}:\d{4}(:\d+)?$/;
+const LOST_KEY = /^cs-scout-lost:[A-Za-z0-9_-]{1,64}$/;
 
 /**
  * Everything scouting-related on this device, including what hasn't synced yet. `spaces`: the workspaces' cached entries and queues.
  * `templates`: the workspace templates kept here, so cached entries still read with their fields offline after an account switch.
  */
-export function exportLocalScouting(): SpaceExport & { spaces?: Record<string, SpaceExport>; templates?: Record<string, string> } {
+export function exportLocalScouting(): SpaceExport & { spaces?: Record<string, SpaceExport>; templates?: Record<string, string>; lost?: Record<string, string> } {
   const templates: Record<string, string> = {};
   try {
     for (let i = 0; i < localStorage.length; i++) {
@@ -267,22 +299,48 @@ export function exportLocalScouting(): SpaceExport & { spaces?: Record<string, S
     entries: localScoutEntries(), dirty: [...dirty()],
     spaces: Object.fromEntries(localSpaces().map((w) => [w, { entries: localScoutEntries(w), dirty: [...dirty(w)], cursor: readCursor(w) }])),
     templates,
+    // Edits this device lost to newer ones (lostEdits.ts): they belong to this account, so they go aside with it.
+    lost: exportLostEdits(),
   };
 }
 
 /** Put back a previously exported set (an account's stashed copy). */
-export function importLocalScouting(data: SpaceExport & { spaces?: Record<string, SpaceExport>; templates?: Record<string, string> }) {
+export function importLocalScouting(data: SpaceExport & { spaces?: Record<string, SpaceExport>; templates?: Record<string, string>; lost?: Record<string, string> }) {
+  // What couldn't be put back (storage full): handed back, in the same shape, so the caller keeps it. Entries and
+  // overwritten edits only: they may exist nowhere else (templates are fetched again online).
+  const failed: SpaceExport & { spaces: Record<string, SpaceExport>; lost: Record<string, string> } = { entries: [], dirty: [], spaces: {}, lost: {} };
   const put = (space: ScoutSpace, s: SpaceExport) => {
-    let complete = true;
-    for (const e of s.entries ?? []) { try { writeEntry(normalizeScoutEntry(e, space)); } catch { complete = false; /* storage full */ } }
-    try { const d = dirty(space); for (const u of s.dirty ?? []) d.add(u); setDirty(d, space); } catch { /* storage full */ }
+    const missed: ScoutEntry[] = [];
+    for (const e of s.entries ?? []) {
+      // A copy on the device that's as new or newer (edited since an earlier, partial put-back) is kept: newer wins.
+      const cur = readEntry(space, e.uuid);
+      if (cur && cur.updatedAt >= (Number(e.updatedAt) || 0)) continue;
+      try { writeEntry(normalizeScoutEntry(e, space)); } catch { missed.push(e); /* storage full */ }
+    }
+    let queueKept = true;
+    try { const d = dirty(space); for (const u of s.dirty ?? []) d.add(u); setDirty(d, space); } catch { queueKept = false; /* storage full */ }
     // The cursor only holds if every entry it covers is back; otherwise the next pull starts over.
-    if (space != null) { if (complete && s.cursor) writeCursor(space, s.cursor); else try { localStorage.removeItem(`${WS_CURSOR}${space}`); } catch { /* blocked */ } }
+    if (space != null) { if (!missed.length && s.cursor) writeCursor(space, s.cursor); else try { localStorage.removeItem(`${WS_CURSOR}${space}`); } catch { /* blocked */ } }
+    if (!missed.length && queueKept) return;
+    // Hand back the entries that didn't make it, and (if the queue couldn't be written) every queued one.
+    const queued = new Set(s.dirty ?? []);
+    const back = queueKept ? missed : [...missed, ...(s.entries ?? []).filter((e) => queued.has(e.uuid) && !missed.includes(e))];
+    const out = { entries: back, dirty: back.map((e) => e.uuid).filter((u) => queued.has(u)) };
+    if (space == null) Object.assign(failed, out); else failed.spaces[space] = out;
   };
   put(null, data);
   for (const [w, s] of Object.entries(data.spaces ?? {})) if (/^[A-Za-z0-9_-]{1,64}$/.test(w)) put(w, s);
   for (const [k, v] of Object.entries(data.templates ?? {})) if (TEMPLATE_KEY.test(k) && typeof v === "string") { try { localStorage.setItem(k, v); } catch { /* storage full: fetched again online */ } }
+  // Overwritten edits (lostEdits.ts): merged with any already here, each version once.
+  let lostBack = false;
+  for (const [k, v] of Object.entries(data.lost ?? {})) {
+    if (!LOST_KEY.test(k) || typeof v !== "string") continue;
+    try { localStorage.setItem(k, mergeLostLists(localStorage.getItem(k), v)); lostBack = true; } catch { failed.lost[k] = v; }
+  }
   window.dispatchEvent(new Event(EVT));
+  if (lostBack) window.dispatchEvent(new Event(SCOUT_OVERWRITTEN)); // open notices show what came back
+  const any = failed.entries.length || Object.keys(failed.spaces).length || Object.keys(failed.lost).length;
+  return { failed: any ? failed : null };
 }
 
 /** Remove every space's entries, queues and cursors (and cached workspace templates) from this device. */
@@ -292,7 +350,7 @@ export function clearLocalScouting() {
     for (let i = 0; i < localStorage.length; i++) {
       const k = localStorage.key(i);
       // (cs-scout-tpl…: workspace templates kept for offline forms, scoutTemplates.ts; cs-scout-wss: workspace settings, workspaceSettings.ts.)
-      if (k && (k.startsWith("cs-scout:") || k.startsWith(WS) || k.startsWith(WS_DIRTY) || k.startsWith(WS_CURSOR) || k.startsWith("cs-scout-tpl") || k.startsWith("cs-scout-wss:"))) keys.push(k);
+      if (k && (k.startsWith("cs-scout:") || k.startsWith(WS) || k.startsWith(WS_DIRTY) || k.startsWith(WS_CURSOR) || k.startsWith("cs-scout-tpl") || k.startsWith("cs-scout-wss:") || k.startsWith(LOST_PREFIX))) keys.push(k);
     }
     for (const k of keys) localStorage.removeItem(k);
     localStorage.removeItem(DIRTY);
@@ -363,14 +421,25 @@ async function pushQueued(space: ScoutSpace): Promise<{ sent: number }> {
         // Done only once the server's copy is on the device (it may be a newer edit that beat ours):
         // if it can't be saved, the entry stays queued and the next push brings the copy back again.
         let saved = true;
-        if (res.entry) { try { writeEntry(withNewerPhotos(normalizeScoutEntry(res.entry, space), current)); } catch { saved = false; } }
+        const server = res.entry && normalizeScoutEntry(res.entry, space);
+        // A newer edit from someone else beat ours on the server: keep ours (Task 16) before taking theirs.
+        // If that copy can't be stored, ours stays on the device, queued, until it can.
+        if (space != null && server && lostTo(current, server, true) && !recordLostEdit(space, current, server)) { lostBackupFailed(space); continue; }
+        if (server) { try { writeEntry(withNewerPhotos(server, current)); } catch { saved = false; } }
         if (saved) now.delete(res.uuid);
+        // A restore that landed: the lost version it brought back is no longer lost.
+        if (space != null && sentVersion?.restoredFrom != null && server?.updatedAt === sentVersion.updatedAt) dropRestored(space, res.uuid, sentVersion.restoredFrom);
       }
       else if (!res.ok && res.error === "forbidden" && space != null && res.entry) {
         // Refused by the workspace's permissions: put the server's copy back (once this version is
         // the one still on the device; a newer local edit goes up on its own) and say why.
         if (!unchanged) continue;
-        try { writeEntry(withNewerPhotos(normalizeScoutEntry(res.entry, space), current)); } catch { continue; /* stays queued: the next push brings the copy again */ }
+        const server = normalizeScoutEntry(res.entry, space);
+        // An edit refused because the entry was deleted meanwhile was never stored anywhere: keep it on the
+        // device (Task 16) before the deleted copy goes back, so its author or an admin can still bring it back.
+        // (A member's Restore stays blocked on an entry they didn't write: the same rule as this refusal.)
+        if (current && !current.deleted && server.deleted && !sameScoutText(current, server) && !recordLostEdit(space, current, server)) { lostBackupFailed(space); continue; }
+        try { writeEntry(withNewerPhotos(server, current)); } catch { continue; /* stays queued: the next push brings the copy again */ }
         now.delete(res.uuid);
         const kind = sentVersion?.deleted ? "delete" : "edit-deleted";
         // Deleting something already deleted (by its author or an admin) needs no message.
@@ -403,12 +472,70 @@ function withNewerPhotos(server: ScoutEntry, cur: ScoutEntry | null): ScoutEntry
  */
 function mergeFromServer(space: ScoutSpace, list: ScoutEntry[]) {
   const d = dirty(space);
+  let dropped = false;
   for (const raw of list) {
     const e = normalizeScoutEntry(raw, space);
     const cur = readEntry(space, e.uuid);
-    if (!cur || e.updatedAt > cur.updatedAt || (space != null && e.updatedAt === cur.updatedAt && !d.has(e.uuid))) writeEntry(withNewerPhotos(e, cur));
+    if (!cur || e.updatedAt > cur.updatedAt || (space != null && e.updatedAt === cur.updatedAt && !d.has(e.uuid))) {
+      // This device's own edit is being replaced by someone else's: keep it, and say so (once). If the device
+      // can't store that copy, the edit stays as it is (and queued, if it was): its push brings the newer copy back.
+      // (A synced version of yours is in the server's history already, so that one is replaced either way.)
+      if (space != null && cur && lostTo(cur, e, d.has(e.uuid)) && !recordLostEdit(space, cur, e) && d.has(e.uuid)) { lostBackupFailed(space); continue; }
+      writeEntry(withNewerPhotos(e, cur));
+      // A queued edit older than the server's copy can't win: nothing is left to send (it's kept above if it was a loss).
+      if (space != null && cur && e.updatedAt > cur.updatedAt && d.delete(e.uuid)) dropped = true;
+    }
     else if (space != null && (e.photosRev ?? 0) > (cur.photosRev ?? 0)) writeEntry({ ...cur, photos: e.photos, photoExpired: e.photoExpired, photosRev: e.photosRev });
   }
+  if (dropped) setDirty(d, space);
+}
+
+// --- Lost edits (Task 16) ------------------------------------------------------
+
+/** This device's shared account id (personal.tsx sets it on sign-in): tells your own edits from other members'. */
+let viewerAccountId: number | null = null;
+export function setScoutViewer(accountId: number | null | undefined) { viewerAccountId = Number.isSafeInteger(accountId) && accountId! > 0 ? accountId! : null; }
+
+type Text = Pick<ScoutEntry, "team" | "kind" | "eventCode" | "matchLabel" | "notes" | "deleted" | "data" | "templateId" | "templateVersion">;
+/** Do two versions of an entry say the same thing (answers, notes, where, deleted, template)? */
+export const sameScoutText = (a: Text, b: Text) => a.team === b.team && a.kind === b.kind && (a.eventCode ?? "") === (b.eventCode ?? "")
+  && (a.matchLabel ?? "") === (b.matchLabel ?? "") && a.notes === b.notes && !!a.deleted === !!b.deleted && canonical(a.data) === canonical(b.data)
+  // The template too: the same numbers read with other fields (another rating scale) say something else.
+  && (a.templateId ?? "") === (b.templateId ?? "") && (a.templateVersion ?? 0) === (b.templateVersion ?? 0);
+const canonical = (d: Record<string, unknown>) => JSON.stringify(Object.keys(d ?? {}).sort().map((k) => [k, d[k]]));
+
+/**
+ * Did this device lose an edit (last-write-wins) when `theirs` replaces `cur`? Yes when theirs is newer, says
+ * something different, was written by someone else (not this account from another device), and either
+ *  - cur is an edit of this device's still waiting to sync (`queued`: offline, or not sent yet), or
+ *  - cur is this account's own synced version, and theirs was based on an older copy (its baseUpdatedAt is
+ *    before cur's updatedAt): the writer never saw it. Edits made after seeing yours are not conflicts.
+ * A delete that lost isn't an edit to keep (an entry deleted under you is a loss, and shows as one).
+ */
+export function lostTo(cur: ScoutEntry, theirs: ScoutEntry, queued: boolean): boolean {
+  if (cur.workspaceId == null || theirs.updatedAt < cur.updatedAt || (theirs.updatedAt === cur.updatedAt && !queued) || cur.deleted || sameScoutText(cur, theirs)) return false;
+  const by = theirs.editorAccountId ?? 0;
+  if (viewerAccountId != null && by === viewerAccountId) return false;
+  if (queued) return true;
+  return viewerAccountId != null && cur.editorAccountId === viewerAccountId && theirs.baseUpdatedAt != null && theirs.baseUpdatedAt < cur.updatedAt;
+}
+
+/**
+ * Restore an earlier version of a workspace entry (a version from its history, or an edit this device lost):
+ * an ordinary save, so it gets a fresh updatedAt, goes up with the queue, is attributed to you, and the
+ * server checks it like any write (bringing back a deleted entry is still its author's or an admin's).
+ */
+export function restoreScoutVersion(current: Pick<ScoutEntry, "uuid" | "workspaceId">, v: {
+  season: number; team: number; eventCode: string | null; matchLabel: string | null; kind: "match" | "pit";
+  data: Record<string, ScoutValue>; notes: string; updatedAt: number; templateId?: string; templateVersion?: number;
+}): ScoutEntry {
+  return saveScoutEntry({
+    uuid: current.uuid, workspaceId: current.workspaceId, season: v.season, team: v.team, eventCode: v.eventCode, matchLabel: v.matchLabel, kind: v.kind,
+    data: { ...v.data }, notes: v.notes, deleted: false,
+    // A version made before templates names the built-in one explicitly: sending none would keep the template the entry has now.
+    templateId: v.templateId ?? builtinTemplate(v.season, v.kind).id, templateVersion: v.templateId ? v.templateVersion ?? 0 : 0,
+    restoredFrom: v.updatedAt,
+  });
 }
 
 /** The server's copy of a workspace entry after a photo change (upload or removal): merged like a pull, lists refreshed. */

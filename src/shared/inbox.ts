@@ -69,7 +69,7 @@ export const INBOX_RETENTION_MS = 90 * 24 * 3600_000;
  */
 export function inboxCategory(type: string): InboxCategory | null {
   if (type.startsWith("assignment.")) return "assignments";
-  if (type === "entry.edited" || type === "entry.deleted" || type === "entry.restored" || type === "photo.added" || type === "photo.removed") return "edits";
+  if (type === "entry.edited" || type === "entry.deleted" || type === "entry.restored" || type === "entry.version_restored" || type === "photo.added" || type === "photo.removed") return "edits";
   // Workspace settings (Task 6: the defaults for new entries) are an admin's change to how everyone scouts, like the template.
   if (type === "template.changed" || type === "settings.changed") return "template";
   if (type === "member.joined" || type === "member.left") return "membership";
@@ -160,6 +160,7 @@ export function inboxText(type: string, d: Record<string, unknown>, actorName: s
     }
     case "entry.deleted": return { title: `${who} deleted your entry`, body: entrySubject(d) };
     case "entry.restored": return { title: `${who} restored your entry`, body: entrySubject(d) };
+    case "entry.version_restored": return { title: `${who} restored an earlier version of your entry`, body: [entrySubject(d), num(d.fromVersion) ? `version ${num(d.fromVersion)}` : null].filter(Boolean).join(" · ") };
     case "photo.added": return { title: `${who} added a photo to your entry`, body: entrySubject(d) };
     case "photo.removed": return { title: `${who} removed a photo from your entry`, body: entrySubject(d) };
     case "template.changed": {

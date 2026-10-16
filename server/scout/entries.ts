@@ -25,6 +25,11 @@
 //   (bus.ts, stream.ts), in seq order, and logged in the workspace's activity
 //   feed (activityLog.ts) as added / edited / deleted / restored; a refused
 //   write or one that changed nothing is not.
+// - Every write that changed an entry also adds a version to its history
+//   (history.ts, the last 20 kept), in the same transaction. A restore of an
+//   earlier version (`restoredFrom`) is an ordinary write: the same permission
+//   check, a fresh updatedAt, attributed to whoever restores; it's logged as
+//   entry.version_restored.
 import express, { type NextFunction, type Request, type Response, type Router } from "express";
 import { all, get, writeBatch } from "../db.js";
 import { controlPointEnabled, isWorkspaceId, linkedAccountId, MEMBERSHIP_TTL, membershipAnsweredAt, workspaceMembership, type Membership } from "../auth/controlPoint.js";
@@ -34,13 +39,18 @@ import { currentUser, type User } from "../auth/session.js";
 import { isEnabled } from "../flags.js";
 import { publishEntries, serialized, type LiveEntry } from "./bus.js";
 import { photosByEntry } from "./photoRows.js";
-import { logEntryWrites, type EntryBefore } from "./activityLog.js";
+import { entryChange, logEntryWrites, type EntryBefore } from "./activityLog.js";
+import { versionsAt, versionStatements } from "./history.js";
 import type { EntryPhoto } from "../../src/shared/photos.js";
 
 export interface ScoutEntryInput {
   uuid: string; season: number; team: number; eventCode: string | null; matchLabel: string | null; kind: "match" | "pit"; data: Record<string, unknown>; notes: string; updatedAt: number; deleted?: boolean;
   /** The template it was made with (workspace entries; see src/shared/scoutTemplate.ts). Null: unknown (made before templates). */
   templateId?: string | null; templateVersion?: number | null;
+  /** Workspace entries: the stored version this edit was based on (the writer's last copy from the server). Absent: unknown. */
+  baseUpdatedAt?: number;
+  /** Workspace entries: this write restores an earlier version, the one with this updatedAt (history.ts). */
+  restoredFrom?: number;
 }
 
 const TEMPLATE_ID = /^[A-Za-z0-9:_-]{1,100}$/;
@@ -59,11 +69,13 @@ export function cleanScoutEntry(x: any): ScoutEntryInput | null {
     ...(typeof x.templateId === "string" && TEMPLATE_ID.test(x.templateId)
       ? { templateId: x.templateId, templateVersion: Number.isSafeInteger(x.templateVersion) && x.templateVersion >= 0 ? x.templateVersion : 0 }
       : {}),
+    ...(Number.isFinite(x.baseUpdatedAt) ? { baseUpdatedAt: Number(x.baseUpdatedAt) } : {}),
+    ...(Number.isFinite(x.restoredFrom) ? { restoredFrom: Number(x.restoredFrom) } : {}),
   };
 }
 
 /** A shared entry as the API sends it (the client's ScoutEntry, plus who last edited it). */
-export interface WorkspaceEntryOut extends ScoutEntryInput {
+export interface WorkspaceEntryOut extends Omit<ScoutEntryInput, "restoredFrom"> {
   workspaceId: string; deleted: boolean;
   authorAccountId: number; authorDisplayName: string;
   editorAccountId: number; editorDisplayName: string;
@@ -77,6 +89,7 @@ const workspaceRow = (workspaceId: string, r: any, photos: EntryPhoto[] = []): W
   authorAccountId: Number(r.author_account_id), authorDisplayName: r.author_name,
   editorAccountId: Number(r.editor_account_id), editorDisplayName: r.editor_name,
   ...(r.template_id ? { templateId: String(r.template_id), templateVersion: Number(r.template_version ?? 0) } : {}),
+  ...(r.base_updated_at != null ? { baseUpdatedAt: Number(r.base_updated_at) } : {}),
   photos, photoExpired: photos.some((p) => p.expired), photosRev: Number(r.photos_rev ?? 0),
 });
 /** Stored rows (of one workspace) as live entries, each with its photos. */
@@ -191,13 +204,13 @@ export function requireWorkspaceAdmin() {
 }
 
 const UPSERT = `INSERT INTO workspace_scout_entries
-    (workspace_id, uuid, season, team, event_code, match_label, kind, data, notes, updated_at, deleted, author_account_id, author_name, editor_account_id, editor_name, template_id, template_version, seq)
-  VALUES ((SELECT id FROM workspaces WHERE cp_workspace_id = ?), ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
+    (workspace_id, uuid, season, team, event_code, match_label, kind, data, notes, updated_at, deleted, author_account_id, author_name, editor_account_id, editor_name, template_id, template_version, base_updated_at, seq)
+  VALUES ((SELECT id FROM workspaces WHERE cp_workspace_id = ?), ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
     (SELECT COALESCE(MAX(s.seq), 0) + 1 FROM workspace_scout_entries s WHERE s.workspace_id = (SELECT id FROM workspaces WHERE cp_workspace_id = ?)))
   ON CONFLICT(workspace_id, uuid) DO UPDATE SET
     season = excluded.season, team = excluded.team, event_code = excluded.event_code, match_label = excluded.match_label, kind = excluded.kind,
     data = excluded.data, notes = excluded.notes, updated_at = excluded.updated_at, deleted = excluded.deleted,
-    editor_account_id = excluded.editor_account_id, editor_name = excluded.editor_name, seq = excluded.seq,
+    editor_account_id = excluded.editor_account_id, editor_name = excluded.editor_name, seq = excluded.seq, base_updated_at = excluded.base_updated_at,
     -- Devices send the template the entry was made with (an edit keeps it); one that sends none (an older build) leaves the stored one.
     template_id = COALESCE(excluded.template_id, workspace_scout_entries.template_id),
     template_version = CASE WHEN excluded.template_id IS NULL THEN workspace_scout_entries.template_version ELSE excluded.template_version END
@@ -233,12 +246,19 @@ export async function pushWorkspaceEntries(user: User, m: Membership, raw: unkno
   const stored = await serialized(m.workspaceId, async () => {
     const before = await lastSeq(m.workspaceId);
     const prior = await storedVersions(m.workspaceId, good.map((e) => e.uuid));
-    const rows = await writeWorkspaceEntries(user, m, good);
+    // Restores: which kept version each brings back (for its history row and the activity feed).
+    const restored = await versionsAt(m.workspaceId, good.filter((e) => e.restoredFrom != null).map((e) => ({ uuid: e.uuid, updatedAt: e.restoredFrom! })));
+    const rows = await writeWorkspaceEntries(user, m, good, before, prior, restored);
     // Written by this push: a new seq (an entry beaten by a newer edit, refused, or resent unchanged, keeps its old one).
     const written = [...rows.values()].filter((e) => e.seq > before).sort((a, b) => a.seq - b.seq);
     publishEntries(m.workspaceId, written);
     // The activity feed, once the write has committed: only entries this push changed (never throws).
-    await logEntryWrites(m.workspaceId, { accountId: m.accountId, name: writerName(user) }, written.map((after) => ({ before: prior.get(after.uuid), after })));
+    const sentNow = new Map(good.map((e) => [e.uuid, e]));
+    await logEntryWrites(m.workspaceId, { accountId: m.accountId, name: writerName(user) }, written.map((after) => {
+      const fromAt = sentNow.get(after.uuid)?.restoredFrom;
+      const from = restored.get(after.uuid);
+      return { before: prior.get(after.uuid), after, ...(fromAt != null ? { restore: { fromAt, fromVersion: from?.versionNo ?? null, fromName: from?.name ?? null } } : {}) };
+    }));
     return rows;
   });
   const sent = new Map(good.map((e) => [e.uuid, e]));
@@ -254,31 +274,52 @@ export async function pushWorkspaceEntries(user: User, m: Membership, raw: unkno
 
 const withoutSeq = ({ seq: _s, ...e }: LiveEntry): WorkspaceEntryOut => e;
 
-/** Upsert the entries (newer updatedAt wins) and read back what's stored for each, with its seq. */
-async function writeWorkspaceEntries(user: User, m: Membership, good: ScoutEntryInput[]): Promise<Map<string, LiveEntry>> {
+/**
+ * Upsert the entries (newer updatedAt wins) and read back what's stored for each, with its seq. Each write that
+ * changes its entry (against `prior`, the stored versions read in this serialized section) also records a
+ * version, in the same transaction, if the upsert took it (history.ts).
+ */
+async function writeWorkspaceEntries(user: User, m: Membership, good: ScoutEntryInput[], beforeSeq: number, prior: Map<string, EntryBefore>,
+  restored: Map<string, { versionNo: number }>): Promise<Map<string, LiveEntry>> {
   const now = new Date().toISOString(), name = writerName(user);
   await writeBatch([
     // Lazily: the workspace's first entry creates its mirror row.
     { sql: "INSERT INTO workspaces (cp_workspace_id, name, created_at, updated_at) VALUES (?, ?, ?, ?) ON CONFLICT(cp_workspace_id) DO NOTHING", args: [m.workspaceId, m.workspaceName, now, now] },
-    ...good.map((e) => ({
-      sql: UPSERT,
-      args: [m.workspaceId, e.uuid, e.season, e.team, e.eventCode, e.matchLabel, e.kind, JSON.stringify(e.data), e.notes, e.updatedAt, e.deleted ? 1 : 0,
-        m.accountId, name, m.accountId, name, e.templateId ?? null, e.templateId ? e.templateVersion ?? 0 : null, m.workspaceId, m.role === "admin" ? 1 : 0],
-    })),
+    ...good.flatMap((e) => [
+      {
+        sql: UPSERT,
+        args: [m.workspaceId, e.uuid, e.season, e.team, e.eventCode, e.matchLabel, e.kind, JSON.stringify(e.data), e.notes, e.updatedAt, e.deleted ? 1 : 0,
+          m.accountId, name, m.accountId, name, e.templateId ?? null, e.templateId ? e.templateVersion ?? 0 : null, e.baseUpdatedAt ?? null, m.workspaceId, m.role === "admin" ? 1 : 0],
+      },
+      // A write that changes nothing (or a tombstone for an entry never seen) is no version; a new template for the same answers is one.
+      ...(entryChange(prior.get(e.uuid), { ...e, deleted: !!e.deleted }) || templateChanged(prior.get(e.uuid), e)
+        ? versionStatements(m.workspaceId, e.uuid, beforeSeq, { restored: e.restoredFrom != null && !e.deleted, fromVersion: e.deleted ? null : restored.get(e.uuid)?.versionNo ?? null })
+        : []),
+    ]),
   ]);
   return readLiveEntries(m.workspaceId, good.map((e) => e.uuid));
+}
+
+/**
+ * Does this write give a stored, live entry a different template (the same answers read with other fields)?
+ * A write that sends none keeps the stored one (the upsert's COALESCE), so that's no change.
+ */
+function templateChanged(before: EntryBefore | undefined, e: ScoutEntryInput): boolean {
+  if (!before || e.deleted || !e.templateId) return false;
+  return e.templateId !== (before.templateId ?? null) || (e.templateVersion ?? 0) !== (before.templateVersion ?? null);
 }
 
 /** The stored version of these entries before a write (for the activity feed: added, edited, deleted, or nothing). */
 async function storedVersions(workspaceId: string, uuids: string[]): Promise<Map<string, EntryBefore>> {
   if (!uuids.length) return new Map();
   const rows = await all<any>(
-    `SELECT w.uuid, w.deleted, w.season, w.team, w.event_code, w.match_label, w.kind, w.data, w.notes FROM workspace_scout_entries w
+    `SELECT w.uuid, w.deleted, w.season, w.team, w.event_code, w.match_label, w.kind, w.data, w.notes, w.template_id, w.template_version FROM workspace_scout_entries w
        JOIN workspaces ws ON ws.id = w.workspace_id WHERE ws.cp_workspace_id = ? AND w.uuid IN (${uuids.map(() => "?").join(", ")})`,
     [workspaceId, ...uuids]);
   return new Map(rows.map((r) => [String(r.uuid), {
     deleted: !!Number(r.deleted), season: Number(r.season), team: Number(r.team), eventCode: r.event_code ?? null, matchLabel: r.match_label ?? null,
     kind: String(r.kind), data: String(r.data), notes: String(r.notes ?? ""),
+    templateId: r.template_id ?? null, templateVersion: r.template_version == null ? null : Number(r.template_version),
   }]));
 }
 

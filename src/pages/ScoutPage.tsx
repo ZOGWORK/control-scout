@@ -6,7 +6,7 @@ import { Link, useSearchParams } from "react-router-dom";
 import { ClipboardCheck, ClipboardList, Cloud, CloudOff, Download, History, Info, LayoutList, ListOrdered, Loader2, Lock, MessageSquare, Plus, Save, SearchX, Trash2, X } from "lucide-react";
 import { useCurrentSeason, useTitle } from "../lib/meta";
 import { usePersonal } from "../lib/personal";
-import { canDeleteScoutEntry, deleteScoutEntry, localScoutEntries, newScoutId, personalCopy, refusalMessage, SCOUT_REFUSED, type ScoutRefusal, saveScoutEntry, ScoutStorageError, usePendingScoutCounts, useScouting, type ScoutEntry, type ScoutSpace, type ScoutValue } from "../lib/scouting";
+import { canDeleteScoutEntry, deleteScoutEntry, localScoutEntries, newScoutId, personalCopy, scoutDraftBase, refusalMessage, SCOUT_REFUSED, type ScoutRefusal, saveScoutEntry, ScoutStorageError, usePendingScoutCounts, useScouting, type ScoutEntry, type ScoutSpace, type ScoutValue } from "../lib/scouting";
 import { resolveTemplate, useEntryTemplate, useEntryTemplateState, useWorkspaceTemplate } from "../lib/scoutTemplates";
 import { ALL_PHASES, phaseLabel, type WorkspaceTemplate } from "../shared/scoutTemplate";
 import { orphanBanner, type OrphanState } from "../shared/orphaned";
@@ -26,6 +26,8 @@ import { useScoutLive, type LiveMode } from "../lib/scoutLive";
 import { EntryAttribution } from "../components/EntryAttribution";
 import { EntryPhotos } from "../components/scout/EntryPhotos";
 import { ActivityFeed } from "../components/scout/ActivityFeed";
+import { ConflictNotices, HistorySheet } from "../components/scout/EntryHistory";
+import { LOST_UNSAVED_MESSAGE, SCOUT_LOST_UNSAVED } from "../lib/lostEdits";
 import { EntryComments } from "../components/scout/EntryComments";
 import { announceCommentsResync, useCommentCounts } from "../lib/scoutComments";
 import { useWorkspaceActivity } from "../lib/scoutActivity";
@@ -181,10 +183,21 @@ export default function ScoutPage() {
   const badgeFor = (team: number, eventCode: string | null) => (workspace && eventCode ? assignedLabel(assignIndex.get(assignmentKey(season, eventCode, team)) ?? [], me?.accountId) : null);
   // Tapping an item about an entry opens it (in its season), if this device has it and it wasn't deleted since.
   const openEntry = (uuid: string) => {
-    const e = space == null ? null : localScoutEntries(space).find((x) => x.uuid === uuid && !x.deleted);
-    if (!e) { toast("That entry was deleted, or hasn't synced to this device yet."); return; }
+    const e = space == null ? null : localScoutEntries(space).find((x) => x.uuid === uuid);
+    if (!e) { toast("That entry hasn't synced to this device yet."); return; }
+    // A deleted entry opens its History (Task 16): its versions, and any edit of yours it overwrote, to restore.
+    if (e.deleted) { setHistoryFor(uuid); return; }
     setSp((x) => { x.delete("view"); x.delete("team"); x.set("season", String(e.season)); x.set("entry", uuid); return x; });
   };
+  // The entry whose History sheet is open (Task 16): looked up on the device, so it stays open if the entry is deleted meanwhile.
+  const [historyFor, setHistoryFor] = useState<string | null>(null);
+  useEffect(() => { setHistoryFor(null); }, [space]);
+  const historyEntry = historyFor && space != null ? entries.find((e) => e.uuid === historyFor) ?? localScoutEntries(space).find((e) => e.uuid === historyFor) ?? null : null;
+  useEffect(() => {
+    const unsaved = (ev: Event) => { if ((ev as CustomEvent<string>).detail === space) toast.error(LOST_UNSAVED_MESSAGE, { id: "cs-lost-unsaved" }); };
+    window.addEventListener(SCOUT_LOST_UNSAVED, unsaved);
+    return () => window.removeEventListener(SCOUT_LOST_UNSAVED, unsaved);
+  }, [space]);
   useEffect(() => {
     const refused = (ev: Event) => { const r = (ev as CustomEvent<ScoutRefusal>).detail; if (r.space === space) toast.error(refusalMessage(r)); };
     window.addEventListener(SCOUT_REFUSED, refused);
@@ -198,6 +211,8 @@ export default function ScoutPage() {
           : "Your own observations — private to you. Saved on this device instantly; synced to your account when you're signed in."}
         actions={spaces.resolving ? undefined : <SyncChip status={offlineAccount ? "offline" : status} pending={pendingCount} onSync={syncNow} signedIn={!!user} live={live} />}>
         {spaces.switchable && <ScoutSpaceSwitcher workspaces={spaces.workspaces} space={space} pending={pending} onSelect={selectSpace} onRefresh={syncReady ? refreshSpace : undefined} className="mb-4" />}
+        {/* Edits this device lost to newer ones from other members (Task 16): each until dismissed, with its diff. */}
+        {space != null && !spaces.resolving && <ConflictNotices space={space} me={me && { ...me, readOnly: !!readOnly }} />}
         {spaces.notice && (
           <div role="status" className="mb-4 flex items-start gap-3 rounded-xl border border-warning/40 bg-warning/10 px-4 py-3 text-sm">
             <Info className="mt-0.5 size-4 shrink-0 text-warning" />
@@ -256,7 +271,7 @@ export default function ScoutPage() {
               action={<Button variant="outline" onClick={feed.clear}>Clear filters</Button>} />
           ) : (
             <ul className="grid gap-2 md:grid-cols-2">
-              {feed.shown.map((e) => <EntryCard key={e.uuid} e={e} assigned={badgeFor(e.team, e.eventCode)} canDelete={!readOnly && canDeleteScoutEntry(e, me)} readOnly={!!readOnly} comments={commentCounts[e.uuid] ?? 0} onEdit={() => setSp((x) => { x.set("entry", e.uuid); return x; })} />)}
+              {feed.shown.map((e) => <EntryCard key={e.uuid} e={e} assigned={badgeFor(e.team, e.eventCode)} canDelete={!readOnly && canDeleteScoutEntry(e, me)} readOnly={!!readOnly} comments={commentCounts[e.uuid] ?? 0} onEdit={() => setSp((x) => { x.set("entry", e.uuid); return x; })} onHistory={() => setHistoryFor(e.uuid)} />)}
             </ul>
           )}
         </>}
@@ -265,6 +280,7 @@ export default function ScoutPage() {
         <Recordings />
       </Section>
       </>}
+      {historyEntry && <HistorySheet entry={historyEntry} me={me && { ...me, readOnly: !!readOnly }} open onOpenChange={(o) => { if (!o) setHistoryFor(null); }} />}
     </div>
   );
 }
@@ -304,7 +320,7 @@ function ReadOnlyBanner({ state }: { state: OrphanState }) {
   );
 }
 
-function EntryCard({ e, assigned, canDelete, readOnly, comments, onEdit }: { e: ScoutEntry; assigned: string | null; canDelete: boolean; readOnly: boolean; comments: number; onEdit: () => void }) {
+function EntryCard({ e, assigned, canDelete, readOnly, comments, onEdit, onHistory }: { e: ScoutEntry; assigned: string | null; canDelete: boolean; readOnly: boolean; comments: number; onEdit: () => void; onHistory: () => void }) {
   // The fields it was made with (an older template version stays readable after the admin changes it).
   const t = useEntryTemplate(e);
   const shown = t.fields.filter((f) => e.data[f.id] !== undefined && e.data[f.id] !== false && e.data[f.id] !== 0 && e.data[f.id] !== "").slice(0, 5);
@@ -328,6 +344,7 @@ function EntryCard({ e, assigned, canDelete, readOnly, comments, onEdit }: { e: 
             </Button>
           )}
           <Button variant="ghost" size="sm" onClick={onEdit}>{readOnly ? "View" : "Edit"}</Button>
+          {e.workspaceId != null && <Button variant="ghost" size="icon-sm" aria-label="Version history" title="History" onClick={onHistory} className="max-sm:size-10"><History /></Button>}
           {canDelete && <Button variant="ghost" size="icon-sm" aria-label="Delete entry" onClick={() => { deleteScoutEntry(e); toast("Entry deleted"); }}><Trash2 /></Button>}
         </div>
       </div>
@@ -407,6 +424,8 @@ function EntryForm({ season, initial, team, space, spaceName, workspaceTemplate,
   // edited. A closed form saves nothing; an open one saves what it holds now, if the team is unchanged.
   const latest = useRef({ kind, teamText, eventCode, matchLabel, data, notes, space, template, fieldsLocked });
   latest.current = { kind, teamText, eventCode, matchLabel, data, notes, space, template, fieldsLocked };
+  // The server version this edit started from (Task 16): a newer one arriving while the form is open is one this save never saw.
+  const draftBase = useRef(initial ? scoutDraftBase(initial) : undefined);
   const open = useRef(true);
   useEffect(() => { open.current = true; return () => { open.current = false; }; }, []);
   const save = async () => {
@@ -436,7 +455,7 @@ function EntryForm({ season, initial, team, space, spaceName, workspaceTemplate,
     if (copy?.overflow) { setSaveErr(`The workspace's answers are written into the notes in Personal: shorten the notes by ${copy.overflow} characters so they fit.`); saveRef.current?.focus(); return; }
     const kept = copy ? { data: copy.data, notes: copy.notes } : { data, notes };
     try {
-      saveScoutEntry({ uuid: (toPersonal ? null : initial?.uuid) ?? newScoutId(), season, team: Number(team), eventCode: eventCode.trim().toUpperCase() || null, matchLabel: kind === "match" ? matchLabel.trim().toUpperCase() || null : null, kind, ...kept, workspaceId: toPersonal ? null : space, ...made });
+      saveScoutEntry({ uuid: (toPersonal ? null : initial?.uuid) ?? newScoutId(), season, team: Number(team), eventCode: eventCode.trim().toUpperCase() || null, matchLabel: kind === "match" ? matchLabel.trim().toUpperCase() || null : null, kind, ...kept, workspaceId: toPersonal ? null : space, ...made }, initial && !toPersonal ? { base: draftBase.current ?? null } : {});
       toast.success(toPersonal ? "Kept in Personal: the workspace is read-only" : "Saved on this device");
       onDone();
     } catch (e) {

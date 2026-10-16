@@ -172,6 +172,13 @@ export function describeActivity(i: ActivityItem): { verb: string; subject: stri
     }
     case "entry.deleted": return { verb: "deleted", subject: entrySubject(d) };
     case "entry.restored": return { verb: "restored", subject: entrySubject(d) };
+    case "entry.version_restored": {
+      // Task 16: an earlier version brought back (a kept version, or an overwritten edit kept on the restorer's device).
+      const from = num(d.fromVersion);
+      const name = str(d.fromName);
+      const note = [from ? `version ${from}${name ? ` by ${name}` : ""}` : "an edit that was overwritten", d.undeleted ? "undeleted" : null].filter(Boolean).join(" · ");
+      return { verb: "restored an earlier version of", subject: entrySubject(d), note };
+    }
     case "photo.added": return { verb: "added a photo to", subject: entrySubject(d) };
     case "photo.removed": return { verb: "removed a photo from", subject: entrySubject(d) };
     case "template.changed": {

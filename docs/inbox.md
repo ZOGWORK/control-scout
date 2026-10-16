@@ -18,7 +18,7 @@ who switched that kind off, and writes one row per remaining account.
 | Activity type | Category (switch) | Who gets it | Opens |
 | --- | --- | --- | --- |
 | `assignment.*` | assignments | `details.assigneeAccountId` (or each of `details.assigneeAccountIds`) | the Assignments view (`/scout?space=…&season=…&view=assignments`); `assignment.deleted` opens the activity view |
-| `entry.edited`, `entry.deleted`, `entry.restored`, `photo.added`, `photo.removed` | edits | the entry's author (`workspace_scout_entries.author_account_id`) | the entry (`?entry=<uuid>`); a deleted one opens the activity view |
+| `entry.edited`, `entry.deleted`, `entry.restored`, `entry.version_restored`, `photo.added`, `photo.removed` | edits | the entry's author (`workspace_scout_entries.author_account_id`) | the entry (`?entry=<uuid>`); a deleted one opens the activity view |
 | `comment.created` (or `comment.added`) | comments | the entry's author | the entry |
 | `template.changed`, `settings.changed` | template | every cached member of the workspace (`workspace_members`) | admins: the template editor, or Settings › Workspace for settings; members: the activity view |
 | `member.joined`, `member.left` | membership | the member it's about (`details.accountId`) | the workspace's space, or Personal after leaving |

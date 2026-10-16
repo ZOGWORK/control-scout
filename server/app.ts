@@ -27,6 +27,7 @@ import { templateRouter } from "./scout/templates.js";
 import { exportRouter } from "./scout/export.js";
 import { settingsRouter } from "./scout/settings.js";
 import { activityRouter } from "./scout/activity.js";
+import { historyRouter } from "./scout/history.js";
 import { membersRouter } from "./scout/members.js";
 import { picklistRouter } from "./scout/picklist.js";
 import { assignmentsRouter } from "./scout/assignments.js";
@@ -427,6 +428,8 @@ export function createApp() {
   api.use("/scout", exportRouter(limiter(30)));
   api.use("/scout", settingsRouter());
   api.use("/scout", activityRouter());
+  // Entry version history (Task 16): members only.
+  api.use("/scout", historyRouter());
   api.use("/scout", membersRouter());
   api.use("/scout", picklistRouter());
   api.use("/scout", assignmentsRouter());
