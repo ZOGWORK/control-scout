@@ -1,6 +1,6 @@
 // The page cache: an older reply never replaces newer data (a later request, or "Refresh results" priming).
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { load, prime } from "./api";
+import { load, markStale, prime } from "./api";
 
 const replies: ((body: unknown) => void)[] = [];
 vi.stubGlobal("navigator", { onLine: true });
@@ -21,5 +21,19 @@ describe("load / prime ordering", () => {
     expect(await b).toEqual({ v: "newest" });
     await flush();
     expect(await load<{ v: string }>(path)).toEqual({ v: "newest" });
+  });
+});
+
+describe("markStale", () => {
+  it("keeps the data but makes the next look ask the server again (never leaves a reader with nothing)", async () => {
+    const path = "/api/owner/overview";
+    prime(path, { n: 1 });
+    expect(await load(path)).toEqual({ n: 1 }); // fresh: no request
+    expect(replies).toHaveLength(0);
+    markStale("/api/owner/");
+    const next = load<{ n: number }>(path);
+    expect(replies).toHaveLength(1);
+    replies[0]({ n: 2 });
+    expect(await next).toEqual({ n: 2 });
   });
 });

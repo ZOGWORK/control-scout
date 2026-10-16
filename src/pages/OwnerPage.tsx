@@ -18,7 +18,7 @@ import { Switch } from "../components/ui/controls";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "../components/ui/overlay";
 import { toast } from "../components/ui/sonner";
 import { cn } from "../components/cn";
-import { apiFetch, ApiError, invalidate, prime, useApi } from "../lib/api";
+import { apiFetch, ApiError, markStale, prime, useApi } from "../lib/api";
 import { useTitle } from "../lib/meta";
 import { ago, int, pct, seasonLabel } from "../lib/format";
 import { fmtBytes } from "../lib/recordings";
@@ -513,10 +513,9 @@ function FeedbackPanel() {
     try {
       await apiFetch(`/api/owner/feedback/${m.id}`, { method: "PATCH", json: { status: to } });
       // Every list (and the overview's open count) is out of date now, not just this one.
-      // (This one reloads in place, so it doesn't flash a loading state.)
-      for (const s of ["open", "resolved", "archived", "all"]) if (s !== status) invalidate(`/api/owner/feedback?status=${s}`);
-      invalidate("/api/owner/overview");
-      state.reload();
+      // Marked stale rather than dropped: what's on screen reloads in place, the rest when next shown.
+      markStale("/api/owner/feedback");
+      markStale("/api/owner/overview");
       toast.success(to === "open" ? "Moved back to open" : to === "resolved" ? "Marked resolved" : "Archived");
     } catch (e) { toast.error((e as ApiError).message); } finally { setBusy(null); }
   };
