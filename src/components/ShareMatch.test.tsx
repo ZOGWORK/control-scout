@@ -5,7 +5,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { ShareMatch } from "./ShareMatch";
-import { canShareFiles, shareCard } from "../lib/shareCard";
+import { CARD_FILE_TTL_MS, canShareFiles, cardFile, shareCard } from "../lib/shareCard";
 
 const PNG = new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
 let n = 0;
@@ -63,6 +63,19 @@ describe("shareCard", () => {
     nav.share = vi.fn(async () => { throw new DOMException("nope", "NotAllowedError"); });
     expect(await shareCard(q(), "x")).toBe("downloaded");
     expect(clicked).toHaveLength(1);
+  });
+
+  it("reuses a fetched card for a few minutes, then fetches it again (revalidated, never stale from the HTTP cache)", async () => {
+    const now = Date.now();
+    const clock = vi.spyOn(Date, "now").mockReturnValue(now);
+    const query = q();
+    await cardFile(query);
+    await cardFile(query);
+    expect(fetch).toHaveBeenCalledTimes(1);
+    expect(vi.mocked(fetch).mock.calls[0][1]).toEqual({ cache: "no-cache" });
+    clock.mockReturnValue(now + CARD_FILE_TTL_MS + 1);
+    await cardFile(query);
+    expect(fetch).toHaveBeenCalledTimes(2);
   });
 
   it("a server error says so instead of downloading a broken file", async () => {

@@ -72,7 +72,33 @@ export async function cardModel(q: Required<Pick<ShareCardQuery, "season" | "red
 interface Card { png: Buffer; etag: string }
 /** Cards kept in memory (~60–110 KB each). */
 export const CARD_CACHE_MAX = 64;
-const cards = new Map<string, Promise<Card>>();
+
+/** A bounded cache of pending or finished results, least recently used dropped first. A result that fails is
+ *  forgotten (the next request tries again); concurrent requests for one key share one producer. */
+export class PromiseLru<T> {
+  private m = new Map<string, Promise<T>>();
+  constructor(readonly max: number) {}
+  get size() { return this.m.size; }
+  clear() { this.m.clear(); }
+  has(key: string) { return this.m.has(key); }
+  /** The entry, marked most recently used. */
+  get(key: string): Promise<T> | undefined {
+    const hit = this.m.get(key);
+    if (hit) { this.m.delete(key); this.m.set(key, hit); }
+    return hit;
+  }
+  getOrCreate(key: string, make: () => Promise<T>): Promise<T> {
+    const hit = this.get(key);
+    if (hit) return hit;
+    const p = make();
+    this.m.set(key, p);
+    p.catch(() => { if (this.m.get(key) === p) this.m.delete(key); });
+    while (this.m.size > this.max) this.m.delete(this.m.keys().next().value!);
+    return p;
+  }
+}
+
+const cards = new PromiseLru<Card>(CARD_CACHE_MAX);
 registerCache("Share cards", () => cards.clear());
 
 /** The cache key: the request, the data and ratings it was drawn from, the engine and the drawing. */
@@ -82,26 +108,18 @@ export async function cardKey(q: ShareCardQuery): Promise<string> {
 
 /** A finished card from the cache, if there is one (no rendering). */
 export function cachedCard(key: string): Promise<Card> | undefined {
-  const hit = cards.get(key);
-  if (hit) { cards.delete(key); cards.set(key, hit); } // most recently used last
-  return hit;
+  return cards.get(key);
 }
 
 /** Draw (or reuse) the card for this request. Concurrent requests for the same card share one render. */
 export function matchCard(key: string, q: ShareCardQuery): Promise<Card> {
-  const hit = cachedCard(key);
-  if (hit) return hit;
-  const p = (async () => {
+  return cards.getOrCreate(key, async () => {
     const model = await cardModel(q);
     const png = await renderCard(model);
     // The ETag is the data version the card was drawn from (in the key) plus a hash of the image.
     const etag = `"sc${CARD_VERSION}-${createHash("sha1").update(key).update(png).digest("base64url").slice(0, 22)}"`;
     return { png, etag };
-  })();
-  cards.set(key, p);
-  p.catch(() => { if (cards.get(key) === p) cards.delete(key); });
-  while (cards.size > CARD_CACHE_MAX) cards.delete(cards.keys().next().value!);
-  return p;
+  });
 }
 
 /** For tests. */
