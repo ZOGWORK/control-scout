@@ -17,7 +17,7 @@ who switched that kind off, and writes one row per remaining account.
 
 | Activity type | Category (switch) | Who gets it | Opens |
 | --- | --- | --- | --- |
-| `assignment.*` | assignments | `details.assigneeAccountId` (or each of `details.assigneeAccountIds`) | `/scout?space=…&season=…&team=…` |
+| `assignment.*` | assignments | `details.assigneeAccountId` (or each of `details.assigneeAccountIds`) | the Assignments view (`/scout?space=…&season=…&view=assignments`); `assignment.deleted` opens the activity view |
 | `entry.edited`, `entry.deleted`, `entry.restored`, `photo.added`, `photo.removed` | edits | the entry's author (`workspace_scout_entries.author_account_id`) | the entry (`?entry=<uuid>`); a deleted one opens the activity view |
 | `comment.created` (or `comment.added`) | comments | the entry's author | the entry |
 | `template.changed`, `settings.changed` | template | every cached member of the workspace (`workspace_members`) | admins: the template editor, or Settings › Workspace for settings; members: the activity view |
@@ -44,7 +44,10 @@ needed: the fan-out reads these fields.
   `{ assigneeAccountId, team, season, eventCode?, matchLabel?, kind? }`. Use
   `assigneeAccountIds: number[]` for several assignees. Other `assignment.*` types
   (for example `assignment.completed`) notify the assignee in the same way, unless the
-  assignee is the actor.
+  assignee is the actor. Task 10 emits `assignment.created` once per assignee per request
+  (several teams at once: `details.teams` and `details.assignmentIds`, `team` = the first),
+  plus `assignment.completed`, `assignment.reopened` and `assignment.deleted`. See
+  [assignments.md](assignments.md).
 - **Task 11 (pick list):** `picklist.changed` (any `picklist.*`), subject
   `picklist:<season>`, details `{ season }`.
 - **Task 15 (comments):** `comment.created`, subject `entry:<uuid>`, details
