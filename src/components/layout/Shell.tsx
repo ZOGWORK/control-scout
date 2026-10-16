@@ -6,7 +6,7 @@ import { Ambient } from "./Ambient";
 import { Link, NavLink, useLocation } from "react-router-dom";
 import { motion, MotionConfig } from "motion/react";
 import {
-  BookOpen, Bookmark, CalendarDays, ClipboardList, DatabaseZap, Download, House, Menu, PanelLeftClose, PanelLeftOpen, Scale, Search, Settings, Sparkles, Star, Users,
+  BookOpen, Bookmark, CalendarDays, ClipboardList, DatabaseZap, Download, House, Menu, PanelLeftClose, PanelLeftOpen, Scale, Search, Settings, ShieldCheck, Sparkles, Star, Users,
 } from "lucide-react";
 import { cn } from "../cn";
 import { useMeta } from "../../lib/meta";
@@ -35,6 +35,14 @@ const SECTIONS: { title: string | null; items: NavItem[] }[] = [
   { title: null, items: [{ to: "/download", label: "Download", icon: Download }, { to: "/methodology", label: "How it works", icon: BookOpen }, { to: "/settings", label: "Settings", icon: Settings }] },
 ];
 
+/** The owner portal's item: only for the owner (/api/auth/me says isOwner), never rendered for anyone else. */
+const OWNER_ITEM: NavItem = { to: "/owner", label: "Owner", icon: ShieldCheck };
+function useSections() {
+  const { user } = usePersonal();
+  if (!user?.isOwner) return SECTIONS;
+  return SECTIONS.map((s, i) => (i === SECTIONS.length - 1 ? { ...s, items: [...s.items, OWNER_ITEM] } : s));
+}
+
 export function BrandMark({ className }: { className?: string }) {
   return <img src="/logo.png" alt="" aria-hidden className={cn("size-7 shrink-0", className)} />;
 }
@@ -57,6 +65,7 @@ function NavRow({ item, collapsed, onNavigate }: { item: NavItem; collapsed?: bo
 
 function Sidebar({ collapsed, onToggle }: { collapsed: boolean; onToggle: () => void }) {
   const { user, state } = usePersonal();
+  const sections = useSections();
   return (
     <aside className={cn("hidden shrink-0 flex-col border-r border-line bg-secondary/60 transition-[width] duration-150 ease-out md:flex", collapsed ? "w-[60px]" : "w-[248px]")}>
       <div className={cn("flex h-12 items-center gap-2.5 px-3.5", collapsed && "justify-center px-0")}>
@@ -66,7 +75,7 @@ function Sidebar({ collapsed, onToggle }: { collapsed: boolean; onToggle: () => 
         </Link>
       </div>
       <nav className="custom-scrollbar flex-1 space-y-5 overflow-y-auto px-2 py-2" aria-label="Main">
-        {SECTIONS.map((s, i) => (
+        {sections.map((s, i) => (
           <div key={i} className="space-y-0.5">
             {s.title && !collapsed && <p className="px-3 pb-1.5 text-[11px] font-bold uppercase tracking-[0.2em] text-text-muted/70">{s.title}</p>}
             {s.items.map((it) => <NavRow key={it.to} item={it} collapsed={collapsed} />)}
@@ -125,7 +134,10 @@ export function Shell({ children }: { children: ReactNode }) {
   const [more, setMore] = useState(false);
   const mainRef = useRef<HTMLElement>(null);
   const loc = useLocation();
-  const title = pageTitle(loc.pathname);
+  const { user } = usePersonal();
+  const sections = useSections();
+  // /owner is a not-found page in the route table (the server can't tell owners apart); for the owner it's the portal.
+  const title = user?.isOwner && /^\/owner\/?$/i.test(loc.pathname) ? "Owner" : pageTitle(loc.pathname);
   // The first page is drawn at full opacity (it replaces the static first paint, see server/bootShell.ts); later page changes fade in.
   const firstPage = useRef(true);
   useEffect(() => { firstPage.current = false; }, []);
@@ -162,7 +174,7 @@ export function Shell({ children }: { children: ReactNode }) {
             <SheetContent side="left" className="w-[85vw] max-w-[320px] p-3">
               <SheetTitle className="px-2 pb-2 pt-1 font-display text-base">Control Scout</SheetTitle>
               <nav className="space-y-4" aria-label="All pages">
-                {SECTIONS.map((s, i) => (
+                {sections.map((s, i) => (
                   <div key={i} className="space-y-0.5">
                     {s.title && <p className="px-3 pb-1.5 text-[11px] font-bold uppercase tracking-[0.2em] text-text-muted/70">{s.title}</p>}
                     {s.items.map((it) => <NavRow key={it.to} item={it} onNavigate={() => setMore(false)} />)}

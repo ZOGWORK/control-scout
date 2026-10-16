@@ -95,6 +95,16 @@ if (typeof window !== "undefined") {
   });
 }
 
+/** Mark cached data under a prefix as out of date without dropping it: what's on screen refetches now
+ *  (keeping its data meanwhile), anything else refetches the next time it's shown. */
+export function markStale(prefix: string) {
+  for (const [k, e] of cache) {
+    if (!k.startsWith(prefix)) continue;
+    e.at = 0;
+    if (listeners.get(k)?.size) load(k, true).catch(() => {});
+  }
+}
+
 export function invalidate(prefix: string) { for (const k of cache.keys()) if (k.startsWith(prefix)) { cache.delete(k); notify(k); } }
 
 export interface ApiState<T> { data: T | undefined; error: ApiError | undefined; loading: boolean; reload: () => void }

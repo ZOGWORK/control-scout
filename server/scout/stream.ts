@@ -28,6 +28,7 @@ import express, { type Request, type Response, type Router } from "express";
 import { isWorkspaceId } from "../auth/controlPoint.js";
 import { currentUser } from "../auth/session.js";
 import { subscribe, type LiveEntry } from "./bus.js";
+import { openLiveConnection } from "../liveConnections.js";
 import { pullWorkspaceLive, workspaceAccess, type WorkspaceEntryOut } from "./entries.js";
 
 /**
@@ -136,6 +137,8 @@ async function open(req: Request, res: Response, opts: { enabled?: () => Promise
   });
   const stream: Stream = { userId: user.id, workspaceId, end: (closeSocket) => { end(); if (closeSocket) res.socket?.end(); } };
   streams.add(stream);
+  // Counted for the owner portal's Usage panel (live connections), released in end().
+  const release = openLiveConnection("scout-stream");
   const heartbeat = setInterval(() => write(": ping\n\n"), LIMITS.heartbeatMs);
   // A check that can't run (the database or Control Point briefly away) keeps the stream, as reads do.
   const recheck = setInterval(() => {
@@ -154,6 +157,7 @@ async function open(req: Request, res: Response, opts: { enabled?: () => Promise
     clearInterval(heartbeat); clearInterval(recheck);
     unsubscribe();
     streams.delete(stream);
+    release();
     held.length = 0;
     res.end();
   }

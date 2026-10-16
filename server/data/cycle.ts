@@ -81,16 +81,26 @@ export async function nextBackfill(): Promise<number | null> {
 export const quietHours = (now = new Date()) => now.getUTCHours() >= 6 && now.getUTCHours() < 12;
 
 const SCRIPT = fileURLToPath(new URL("../../scripts/data-cycle.ts", import.meta.url));
+const PACKS_SCRIPT = fileURLToPath(new URL("../../scripts/build-packs.ts", import.meta.url));
 
 /** Run the cycle in a child Node process (same loader flags, same env); resolves when it exits cleanly. */
 export function runCycleInChild(timeoutMs = 2 * 3600_000): Promise<void> {
+  return runScriptInChild(SCRIPT, "data cycle", timeoutMs);
+}
+
+/** Build the offline packs in a child Node process (the owner portal's "Rebuild offline packs" where the cycle runs in one). */
+export function runPacksInChild(timeoutMs = 3600_000): Promise<void> {
+  return runScriptInChild(PACKS_SCRIPT, "pack build", timeoutMs);
+}
+
+function runScriptInChild(script: string, what: string, timeoutMs: number): Promise<void> {
   return new Promise((resolve, reject) => {
-    const child = spawn(process.execPath, [...process.execArgv, SCRIPT], { env: process.env, stdio: ["ignore", "inherit", "inherit"] });
+    const child = spawn(process.execPath, [...process.execArgv, script], { env: process.env, stdio: ["ignore", "inherit", "inherit"] });
     const timer = setTimeout(() => child.kill("SIGKILL"), timeoutMs);
     child.once("error", (e) => { clearTimeout(timer); reject(e); });
     child.once("exit", (code, signal) => {
       clearTimeout(timer);
-      if (code === 0) resolve(); else reject(new Error(`data cycle process exited with ${signal ?? `code ${code}`}`));
+      if (code === 0) resolve(); else reject(new Error(`${what} process exited with ${signal ?? `code ${code}`}`));
     });
   });
 }

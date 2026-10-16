@@ -18,6 +18,7 @@ import { clearLocalScouting, localScoutEntries, saveScoutEntry, storedScoutEntry
 import { clearRecordings, fmtBytes } from "../lib/recordings";
 import { downloadCsv } from "../lib/csv";
 import { manualReport, sendReport } from "../lib/errorReporting";
+import { useFlag } from "../lib/flags";
 import { REPORT_LIMITS } from "../shared/errorReport";
 import { PageHeader } from "../components/page";
 import { Button } from "../components/ui/button";
@@ -574,13 +575,15 @@ function ReportBug() {
 
 function About() {
   const meta = useMeta();
+  // Error reports switched off by the owner: no bug report box (the contact form below still works).
+  const reportsOn = useFlag("errorReporting");
   return (
     <div>
       <Group title="This app">
         <Row label="Prediction engine" description="Shared with Control Point, so the numbers match."><span className="font-mono text-sm text-foreground">v{meta?.engineVersion ?? "…"}</span></Row>
         <Row label="Data updated" description="Synced from FIRST; every 15 minutes on event days."><span className="text-sm text-foreground">{ago(meta?.dataAsOf)}</span></Row>
         <Row label="How predictions work"><Button variant="outline" size="sm" asChild><Link to="/methodology">Read it</Link></Button></Row>
-        <ReportBug />
+        {reportsOn && <ReportBug />}
         <Row label="Contact" description="Report a bug or wrong data, suggest a feature, or ask a question."><Button variant="outline" size="sm" asChild><Link to="/contact">Contact us</Link></Button></Row>
       </Group>
       <Group title="Control Point">

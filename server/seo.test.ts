@@ -186,7 +186,15 @@ describe("page head in the first HTML", () => {
     }
     // Every route in the app's router (src/main.tsx) is a 200, in any case; known teams and events too.
     const main = readFileSync(join(process.cwd(), "src/main.tsx"), "utf8");
-    const routes = [...main.matchAll(/<Route path="([^"]+)"/g)].map((m) => m[1]).filter((r) => r !== "*" && !r.includes(":"));
+    // Except /owner: the owner portal is a 404 for every visitor on the server (it can't tell the owner from a
+    // page load), and the app draws the portal only for the owner. Tested below.
+    const routes = [...main.matchAll(/<Route path="([^"]+)"/g)].map((m) => m[1]).filter((r) => r !== "*" && !r.includes(":") && r !== "/owner");
+    for (const p of ["/owner", "/Owner", "/owner/"]) {
+      const page = await renderPage(file, p);
+      expect(page.status, p).toBe(404);
+      expect(page.html, p).toContain("<title>Page not found · FTC Control Scout</title>");
+      expect(page.html, p).not.toMatch(/owner portal/i);
+    }
     expect(routes.length).toBeGreaterThan(10);
     for (const p of [...routes, "/Teams", "/teams/4215", "/teams/004215", "/teams/0004215", `/teams/${"0".repeat(40)}4215`, "/teams/%34%32%31%35", "/%74eams", "/events/2025/%55SNJNOM3", "/events/02025/USNJNOM3","/events/2025/USNJNOM3", "/events/2025/usnjnom3"]) {
       const page = await renderPage(file, p);
