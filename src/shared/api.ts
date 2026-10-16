@@ -198,6 +198,10 @@ export interface MatchExplanationView {
   confidence: { tier: ConfidenceTier; reason: string; minMatches: number; ratingShare: number };
   teamsRed: (TeamStrength & { name: string | null })[];
   teamsBlue: (TeamStrength & { name: string | null })[];
+  /** The match level the odds assume (a what-if with no level is a qualification match). */
+  level?: "qual" | "playoff";
+  /** "contextual" (engine 2.0's win-probability model) or "legacy" (no reliability state yet). */
+  probabilityModel?: "contextual" | "legacy";
   engineVersion: string;
 }
 
@@ -234,7 +238,11 @@ export interface AccuracyBlock {
 }
 
 export interface TrackRecord {
-  seasons: { season: number; label: string; live: AccuracyBlock | null; backtest: AccuracyBlock | null }[];
+  seasons: {
+    season: number; label: string; live: AccuracyBlock | null; backtest: AccuracyBlock | null;
+    /** Live calls split by the engine version that made them (versions are never compared on mixed cohorts). */
+    liveByEngine?: { engine: string; n: number; accuracy: number; brier: number; logLoss: number }[];
+  }[];
   engineVersion: string;
   /** Minimum live sample before the headline switches from backtest to live. */
   liveThreshold: number;

@@ -222,7 +222,7 @@ export async function backtest(seasons: number[], log: Log = () => {}, opts: { w
     for (const m of matches) {
       if (write.has(s) && m.red.teams.length === 2 && m.blue.teams.length === 2) {
         book.setTime(m.time);
-        const x = explainMatch(book, m.red.teams, m.blue.teams, { noise: FITTED_MODEL.noise, calibration: FITTED_MODEL.calibration });
+        const x = explainMatch(book, m.red.teams, m.blue.teams, { noise: FITTED_MODEL.noise, calibration: FITTED_MODEL.calibration, contextual: FITTED_MODEL.contextual, context: { level: m.level } });
         stmts.push({
           sql: `INSERT INTO predictions (kind, season, code, level, series, number, red, blue, p_red, red_mean, blue_mean, tier, factors, engine_version, predicted_at, match_time, red_score, blue_score, outcome, scored_at, no_score_basis)
                 VALUES ('backtest', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, ?, ?, ?, ?, ?, ?, ?, ?)`,
@@ -307,7 +307,7 @@ export async function logLivePredictions(log: Log = () => {}): Promise<number> {
   const stmts: InStatement[] = [];
   for (const m of candidates) {
     if (!liveLoggable(m, now)) continue;
-    const x = f.explain(season, m.red, m.blue);
+    const x = f.explain(season, m.red, m.blue, m.level === "playoff" ? "playoff" : "qual");
     if (!x) continue;
     stmts.push({
       sql: `INSERT OR IGNORE INTO predictions (kind, season, code, level, series, number, red, blue, p_red, red_mean, blue_mean, tier, factors, engine_version, predicted_at, match_time, no_score_basis)
@@ -393,9 +393,12 @@ export interface StatsOptions { seasons?: number[]; backtest?: boolean; log?: Lo
  */
 export const STATS_RULES = 4;
 
-/** True when past seasons were computed under older rules. */
+/** True when past seasons were computed under older rules or by another engine version
+ *  (a new engine rewrites every season's replayed calls, records and odds once). */
 export async function statsRulesStale(): Promise<boolean> {
-  return (await kvGet<number>("stats:rules")) !== STATS_RULES;
+  if ((await kvGet<number>("stats:rules")) !== STATS_RULES) return true;
+  const last = await kvGet<{ engine?: string }>("stats:last");
+  return !!last && last.engine !== ENGINE_VERSION;
 }
 
 export async function runStats(o: StatsOptions = {}): Promise<void> {
@@ -412,7 +415,9 @@ export async function runStats(o: StatsOptions = {}): Promise<void> {
     await computeRecords(s, events, log);
     withData.push(s);
   }
-  const doBacktest = o.backtest ?? !(await get("SELECT 1 FROM predictions WHERE kind = 'backtest' LIMIT 1"));
+  // Every season when the ledger is empty or holds another engine version's calls.
+  const doBacktest = o.backtest ?? (!(await get("SELECT 1 FROM predictions WHERE kind = 'backtest' LIMIT 1"))
+    || !!(await get("SELECT 1 FROM predictions WHERE kind = 'backtest' AND engine_version <> ? LIMIT 1", [ENGINE_VERSION])));
   // Every season once; after that the current season on every run, so matches played since get their replayed call.
   if (doBacktest) await backtest(PREDICT_SEASONS, log);
   else if (seasons.includes(CURRENT_SEASON)) await backtest(PREDICT_SEASONS, log, { write: [CURRENT_SEASON] });

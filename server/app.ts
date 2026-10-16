@@ -401,15 +401,20 @@ export function createApp() {
     const s = predictSeason(req.query.season);
     const red = teamList(req.query.red, "red", 3), blue = teamList(req.query.blue, "blue", 3);
     if (red.some((t) => blue.includes(t))) throw bad("a team can't be on both alliances");
+    // Qualification or playoff: feeds the contextual win probability. A
+    // what-if with no level is treated as a qualification match.
+    const lv = req.query.level;
+    if (lv != null && lv !== "qual" && lv !== "playoff") throw bad("level must be qual or playoff");
+    const level = lv === "playoff" ? "playoff" : "qual";
     const f = await liveForecaster(s);
-    const x = f.explain(s, red, blue);
+    const x = f.explain(s, red, blue, level);
     if (!x) throw new HttpError(503, "Ratings for this season aren't ready yet.");
     const names = new Map((await all<any>(`SELECT number, name FROM teams WHERE number IN (${[...red, ...blue].map(() => "?").join(",")})`, [...red, ...blue])).map((r) => [Number(r.number), r.name]));
     return {
       season: s, red, blue, winProbRed: x.winProbA, winProbBlue: x.winProbB, predictedRed: x.predictedScoreA, predictedBlue: x.predictedScoreB,
       rangeRed: x.scoreRangeA, rangeBlue: x.scoreRangeB, factors: x.factors, confidence: x.confidence,
       teamsRed: x.teamsA.map((t) => ({ ...t, name: names.get(t.team) ?? null })), teamsBlue: x.teamsB.map((t) => ({ ...t, name: names.get(t.team) ?? null })),
-      engineVersion: ENGINE_VERSION,
+      level, probabilityModel: x.probabilityModel, engineVersion: ENGINE_VERSION,
     };
   }));
 

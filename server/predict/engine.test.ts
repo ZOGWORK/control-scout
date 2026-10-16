@@ -79,3 +79,25 @@ describe("ratings after a sync", () => {
     spy.mockRestore();
   });
 });
+
+describe("Prediction Engine 2.0 in the app", () => {
+  it("match explanations use the contextual win probability, with the match level", async () => {
+    const f = await liveForecaster(S);
+    const q = f.explain(S, [1, 3], [2, 4])!;
+    expect(q.probabilityModel).toBe("contextual");
+    expect(f.explain(S, [1, 3], [2, 4], "qual")!.winProbA).toBe(q.winProbA); // no level = qualification
+    expect(f.explain(S, [1, 3], [2, 4], "playoff")!.winProbA).not.toBe(q.winProbA);
+    expect(f.explain(S, [1, 3], [2, 4], "playoff")!.predictedScoreA).toBe(q.predictedScoreA); // scores unchanged
+  });
+
+  it("recorded bonus RPs of synced matches are available to live forecasts", async () => {
+    await run("UPDATE matches SET red_bonus = ?, blue_bonus = ? WHERE season = ? AND code = 'NEWQ1' AND number = 1",
+      [JSON.stringify({ movement: false, goal: true, pattern: true }), JSON.stringify({ movement: true, goal: false, pattern: false }), S]);
+    await kvSet("data:version", "v3");
+    const f = await forecasterFor(S);
+    const recorded = (side: "red" | "blue") => (f as unknown as { recordedBonus(s: number, c: string, k: string, x: "red" | "blue"): unknown }).recordedBonus(S, "NEWQ1", "qual:0:1", side);
+    expect(recorded("red")).toEqual({ movement: false, goal: true, pattern: true });
+    expect(recorded("blue")).toEqual({ movement: true, goal: false, pattern: false });
+    expect((f as unknown as { recordedBonus(s: number, c: string, k: string, x: "red" | "blue"): unknown }).recordedBonus(S, "NEWQ1", "qual:0:9", "red")).toBeNull();
+  });
+});
