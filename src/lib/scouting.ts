@@ -124,6 +124,26 @@ const EVT = "cs-scout-changed";
 /** A local save (detail: its space): open lists push it right away, so other members see it live. */
 const SAVED = "cs-scout-saved";
 
+/** The workspace refused a write (detail: ScoutRefusal); the server's copy is already back on the device. */
+export const SCOUT_REFUSED = "cs-scout-refused";
+export interface ScoutRefusal { space: string; uuid: string; /** What was refused: a delete, or an edit to an entry that had been deleted meanwhile. */ kind: "delete" | "edit-deleted" }
+
+/** What the app says when a workspace refuses a write. */
+export const refusalMessage = (r: Pick<ScoutRefusal, "kind">) => r.kind === "delete"
+  ? "Only the author or a workspace admin can delete this entry. It's been put back."
+  : "This entry was deleted by its author or a workspace admin, so your edit wasn't saved.";
+
+/**
+ * Who may delete a shared entry (the server's rule, docs/workspaces.md): its author or a
+ * workspace admin. A personal entry is always yours; a workspace entry not synced yet
+ * (author 0) is yours too. `me`: your shared account id and role in the entry's workspace.
+ */
+export function canDeleteScoutEntry(e: ScoutEntry, me: { accountId?: number; role?: "admin" | "member" } | null): boolean {
+  if (e.workspaceId == null) return true;
+  if (!me?.role) return false; // not a member (as far as this device knows): the server would refuse
+  return me.role === "admin" || !e.authorAccountId || (me.accountId != null && e.authorAccountId === me.accountId);
+}
+
 const keyFor = (space: ScoutSpace, uuid: string) => (space == null ? KEY(uuid) : `${WS}${space}:${uuid}`);
 const dirtyKey = (space: ScoutSpace) => (space == null ? DIRTY : `${WS_DIRTY}${space}`);
 
@@ -297,9 +317,10 @@ export async function syncScouting(space: ScoutSpace = null): Promise<{ sent: nu
   if (!d.size) return { sent: 0 };
   const queued = [...d].map((u) => readEntry(space, u)).filter((x): x is ScoutEntry => !!x);
   let sent = 0;
+  const refused: ScoutRefusal[] = [];
   for (let i = 0; i < queued.length; i += 200) {
     const batch = queued.slice(i, i + 200);
-    const r = await apiFetch<{ results: { uuid: string; ok: boolean; entry?: ScoutEntry }[] }>("/api/me/scout/sync", {
+    const r = await apiFetch<{ results: { uuid: string; ok: boolean; error?: string; entry?: ScoutEntry }[] }>("/api/me/scout/sync", {
       method: "POST",
       json: space == null ? { entries: batch.map(storedScoutEntry) } : { workspaceId: space, entries: batch },
     });
@@ -315,12 +336,24 @@ export async function syncScouting(space: ScoutSpace = null): Promise<{ sent: nu
         if (res.entry) { try { writeEntry(normalizeScoutEntry(res.entry, space)); } catch { saved = false; } }
         if (saved) now.delete(res.uuid);
       }
-      if (!res.ok) now.delete(res.uuid); // rejected for good (invalid): don't retry forever
+      else if (!res.ok && res.error === "forbidden" && space != null && res.entry) {
+        // Refused by the workspace's permissions: put the server's copy back (once this version is
+        // the one still on the device; a newer local edit goes up on its own) and say why.
+        if (!unchanged) continue;
+        try { writeEntry(normalizeScoutEntry(res.entry, space)); } catch { continue; /* stays queued: the next push brings the copy again */ }
+        now.delete(res.uuid);
+        const kind = sentVersion?.deleted ? "delete" : "edit-deleted";
+        // Deleting something already deleted (by its author or an admin) needs no message.
+        if (!(kind === "delete" && res.entry.deleted)) refused.push({ space, uuid: res.uuid, kind });
+      }
+      else if (!res.ok) now.delete(res.uuid); // rejected for good (invalid): don't retry forever
     }
     setDirty(now, space);
     sent += batch.length;
+    // Per batch: a later batch's request may fail, and what this one put back must still be shown and explained.
+    window.dispatchEvent(new Event(EVT));
+    for (const x of refused.splice(0)) window.dispatchEvent(new CustomEvent<ScoutRefusal>(SCOUT_REFUSED, { detail: x }));
   }
-  window.dispatchEvent(new Event(EVT));
   return { sent };
 }
 
