@@ -1,0 +1,1049 @@
+{
+  "evaluated_at": "2026-10-16T21:37:03.969908+00:00",
+  "cohort": {
+    "season": 2025,
+    "matches": 37414,
+    "events": 1219
+  },
+  "parity": {
+    "legacy_seq_vs_research_champion": {
+      "max_abs": 0.0,
+      "mean_abs": 0.0,
+      "n_over_1e-12": 0,
+      "n_over_1e-6": 0,
+      "n_over_1e-3": 0,
+      "winner_pick_disagreements": 0
+    },
+    "primary_seq_vs_research_reliability_primary": {
+      "max_abs": 4.440892098500626e-16,
+      "mean_abs": 3.403952102336559e-17,
+      "n_over_1e-12": 0,
+      "n_over_1e-6": 0,
+      "n_over_1e-3": 0,
+      "winner_pick_disagreements": 0
+    }
+  },
+  "metrics": {
+    "combined": {
+      "matches": 37414,
+      "non_ties": 37140,
+      "exact_half_predictions": 0,
+      "accuracy": 0.7465266558966074,
+      "legacy_accuracy": 0.7465266558966074,
+      "brier": 0.1684208840478484,
+      "log_loss": 0.5101965279762287,
+      "ece10": 0.012626480793802138,
+      "reliability_bins": [
+        {
+          "lo": 0.0,
+          "n": 2653,
+          "mean_p": 0.052060427544584495,
+          "mean_y": 0.0548435733132303
+        },
+        {
+          "lo": 0.1,
+          "n": 3177,
+          "mean_p": 0.15022850609244953,
+          "mean_y": 0.14258734655335223
+        },
+        {
+          "lo": 0.2,
+          "n": 3466,
+          "mean_p": 0.2513893645209599,
+          "mean_y": 0.23499711482977495
+        },
+        {
+          "lo": 0.3,
+          "n": 3971,
+          "mean_p": 0.3502896937873841,
+          "mean_y": 0.34978594812389824
+        },
+        {
+          "lo": 0.4,
+          "n": 4313,
+          "mean_p": 0.44944502490700317,
+          "mean_y": 0.4462091351727336
+        },
+        {
+          "lo": 0.5,
+          "n": 4378,
+          "mean_p": 0.5489374215233355,
+          "mean_y": 0.5674965737779808
+        },
+        {
+          "lo": 0.6,
+          "n": 4251,
+          "mean_p": 0.6497425081821849,
+          "mean_y": 0.666196189131969
+        },
+        {
+          "lo": 0.7,
+          "n": 3907,
+          "mean_p": 0.7496012760400468,
+          "mean_y": 0.7784745328896852
+        },
+        {
+          "lo": 0.8,
+          "n": 3797,
+          "mean_p": 0.8493994933328548,
+          "mean_y": 0.876218066894917
+        },
+        {
+          "lo": 0.9,
+          "n": 3501,
+          "mean_p": 0.9489743803653033,
+          "mean_y": 0.9495858326192517
+        }
+      ],
+      "score_mae": 27.86355509152421,
+      "score_bias_actual_minus_predicted": -1.7899755310368104,
+      "interval80_coverage": 0.8204682739081627
+    },
+    "legacy_seq": {
+      "matches": 37414,
+      "non_ties": 37140,
+      "exact_half_predictions": 0,
+      "accuracy": 0.7267635971997846,
+      "legacy_accuracy": 0.7267635971997846,
+      "brier": 0.17894028134421489,
+      "log_loss": 0.537493869431886,
+      "ece10": 0.010231376042926356,
+      "reliability_bins": [
+        {
+          "lo": 0.0,
+          "n": 2421,
+          "mean_p": 0.05392640357137423,
+          "mean_y": 0.07187112763320942
+        },
+        {
+          "lo": 0.1,
+          "n": 3141,
+          "mean_p": 0.15103124115754987,
+          "mean_y": 0.16109519261381725
+        },
+        {
+          "lo": 0.2,
+          "n": 3537,
+          "mean_p": 0.2504216834081709,
+          "mean_y": 0.25671472999717276
+        },
+        {
+          "lo": 0.3,
+          "n": 4006,
+          "mean_p": 0.35077382606765306,
+          "mean_y": 0.37044433349975037
+        },
+        {
+          "lo": 0.4,
+          "n": 4390,
+          "mean_p": 0.45129364707700736,
+          "mean_y": 0.4507972665148064
+        },
+        {
+          "lo": 0.5,
+          "n": 4447,
+          "mean_p": 0.5500959171750159,
+          "mean_y": 0.5588036878794693
+        },
+        {
+          "lo": 0.6,
+          "n": 4484,
+          "mean_p": 0.6496776282045775,
+          "mean_y": 0.6504237288135594
+        },
+        {
+          "lo": 0.7,
+          "n": 4215,
+          "mean_p": 0.7501638383788575,
+          "mean_y": 0.7774614472123369
+        },
+        {
+          "lo": 0.8,
+          "n": 3771,
+          "mean_p": 0.8487268252538932,
+          "mean_y": 0.8505701405462742
+        },
+        {
+          "lo": 0.9,
+          "n": 3002,
+          "mean_p": 0.9458442541345106,
+          "mean_y": 0.9323784143904064
+        }
+      ],
+      "score_mae": 27.873933259113603,
+      "score_bias_actual_minus_predicted": -1.7475888756861224,
+      "interval80_coverage": 0.8202277222430107
+    },
+    "pop_only": {
+      "matches": 37414,
+      "non_ties": 37140,
+      "exact_half_predictions": 0,
+      "accuracy": 0.7267635971997846,
+      "legacy_accuracy": 0.7267635971997846,
+      "brier": 0.1789443266854858,
+      "log_loss": 0.5374987077956783,
+      "ece10": 0.010390075605995313,
+      "reliability_bins": [
+        {
+          "lo": 0.0,
+          "n": 2418,
+          "mean_p": 0.05393428420333697,
+          "mean_y": 0.07154673283705541
+        },
+        {
+          "lo": 0.1,
+          "n": 3140,
+          "mean_p": 0.15106112128857418,
+          "mean_y": 0.16178343949044585
+        },
+        {
+          "lo": 0.2,
+          "n": 3537,
+          "mean_p": 0.2504773033405071,
+          "mean_y": 0.2553011026293469
+        },
+        {
+          "lo": 0.3,
+          "n": 3998,
+          "mean_p": 0.350758353765614,
+          "mean_y": 0.37168584292146073
+        },
+        {
+          "lo": 0.4,
+          "n": 4402,
+          "mean_p": 0.451224774141965,
+          "mean_y": 0.45002271694684237
+        },
+        {
+          "lo": 0.5,
+          "n": 4454,
+          "mean_p": 0.5501354550216789,
+          "mean_y": 0.5593848226313426
+        },
+        {
+          "lo": 0.6,
+          "n": 4479,
+          "mean_p": 0.649629851624867,
+          "mean_y": 0.6501451216789462
+        },
+        {
+          "lo": 0.7,
+          "n": 4218,
+          "mean_p": 0.750115248855169,
+          "mean_y": 0.7773826458036984
+        },
+        {
+          "lo": 0.8,
+          "n": 3767,
+          "mean_p": 0.8486713612552317,
+          "mean_y": 0.8506769312450225
+        },
+        {
+          "lo": 0.9,
+          "n": 3001,
+          "mean_p": 0.945812906659036,
+          "mean_y": 0.9323558813728757
+        }
+      ],
+      "score_mae": 27.86355509152421,
+      "score_bias_actual_minus_predicted": -1.7899755310368104,
+      "interval80_coverage": 0.8204682739081627
+    },
+    "primary_seq": {
+      "matches": 37414,
+      "non_ties": 37140,
+      "exact_half_predictions": 0,
+      "accuracy": 0.7464997307485192,
+      "legacy_accuracy": 0.7464997307485192,
+      "brier": 0.1684171728430039,
+      "log_loss": 0.5101847479158166,
+      "ece10": 0.012500163276479933,
+      "reliability_bins": [
+        {
+          "lo": 0.0,
+          "n": 2655,
+          "mean_p": 0.0521123816779605,
+          "mean_y": 0.05480225988700565
+        },
+        {
+          "lo": 0.1,
+          "n": 3179,
+          "mean_p": 0.15029103315534784,
+          "mean_y": 0.14312676942434727
+        },
+        {
+          "lo": 0.2,
+          "n": 3462,
+          "mean_p": 0.25135774388698723,
+          "mean_y": 0.23497978047371462
+        },
+        {
+          "lo": 0.3,
+          "n": 3979,
+          "mean_p": 0.3502381662709594,
+          "mean_y": 0.349334003518472
+        },
+        {
+          "lo": 0.4,
+          "n": 4312,
+          "mean_p": 0.4494821658501734,
+          "mean_y": 0.4467764378478664
+        },
+        {
+          "lo": 0.5,
+          "n": 4362,
+          "mean_p": 0.5490406108790069,
+          "mean_y": 0.566941769830353
+        },
+        {
+          "lo": 0.6,
+          "n": 4253,
+          "mean_p": 0.6496999375364574,
+          "mean_y": 0.6664707265459675
+        },
+        {
+          "lo": 0.7,
+          "n": 3912,
+          "mean_p": 0.7496028509623948,
+          "mean_y": 0.7783742331288344
+        },
+        {
+          "lo": 0.8,
+          "n": 3798,
+          "mean_p": 0.8493719929977043,
+          "mean_y": 0.8758557135334386
+        },
+        {
+          "lo": 0.9,
+          "n": 3502,
+          "mean_p": 0.9489579734230552,
+          "mean_y": 0.9498857795545402
+        }
+      ],
+      "score_mae": 27.873933259113603,
+      "score_bias_actual_minus_predicted": -1.7475888756861224,
+      "interval80_coverage": 0.8202277222430107
+    }
+  },
+  "vs_baseline": {
+    "combined": {
+      "event": {
+        "clusters": 1219,
+        "draws": 5000,
+        "accuracy_delta": 0.019763058696822832,
+        "accuracy_delta_95": [
+          0.016240263496237535,
+          0.02320379242903288
+        ],
+        "brier_delta": -0.010519397296366492,
+        "brier_delta_95": [
+          -0.011542020453554068,
+          -0.009546734743146252
+        ],
+        "extra_correct": 734.0
+      },
+      "week": {
+        "clusters": 34,
+        "draws": 5000,
+        "accuracy_delta": 0.019763058696822832,
+        "accuracy_delta_95": [
+          0.015562591596632286,
+          0.023691253531182295
+        ],
+        "brier_delta": -0.010519397296366492,
+        "brier_delta_95": [
+          -0.01188504535482411,
+          -0.00907619979957833
+        ],
+        "extra_correct": 734.0
+      }
+    },
+    "pop_only": {
+      "event": {
+        "clusters": 1219,
+        "draws": 5000,
+        "accuracy_delta": 0.0,
+        "accuracy_delta_95": [
+          -0.00018717803812136804,
+          0.00018929854823120315
+        ],
+        "brier_delta": 4.045341270879919e-06,
+        "brier_delta_95": [
+          -8.323725297168192e-06,
+          1.671363244716768e-05
+        ],
+        "extra_correct": 0.0
+      },
+      "week": {
+        "clusters": 34,
+        "draws": 5000,
+        "accuracy_delta": 0.0,
+        "accuracy_delta_95": [
+          -0.0002954761821398564,
+          0.00027349339715782803
+        ],
+        "brier_delta": 4.045341270879919e-06,
+        "brier_delta_95": [
+          -1.7889308074821422e-05,
+          2.8269244409310373e-05
+        ],
+        "extra_correct": 0.0
+      }
+    },
+    "primary_seq": {
+      "event": {
+        "clusters": 1219,
+        "draws": 5000,
+        "accuracy_delta": 0.01973613354873452,
+        "accuracy_delta_95": [
+          0.01622582338811915,
+          0.02319390744362395
+        ],
+        "brier_delta": -0.010523108501210994,
+        "brier_delta_95": [
+          -0.011547897261929336,
+          -0.009543899189558579
+        ],
+        "extra_correct": 733.0
+      },
+      "week": {
+        "clusters": 34,
+        "draws": 5000,
+        "accuracy_delta": 0.01973613354873452,
+        "accuracy_delta_95": [
+          0.015552344998657782,
+          0.02364884007827394
+        ],
+        "brier_delta": -0.010523108501210994,
+        "brier_delta_95": [
+          -0.01189009846504452,
+          -0.009070346340444499
+        ],
+        "extra_correct": 733.0
+      }
+    }
+  },
+  "subgroups": {
+    "combined": {
+      "qualification": {
+        "matches": 32289,
+        "accuracy_delta": 0.021155106243564537,
+        "brier_delta": -0.01080250384579498
+      },
+      "playoff": {
+        "matches": 5125,
+        "accuracy_delta": 0.010999803574936129,
+        "brier_delta": -0.008735743174513505
+      },
+      "experience0": {
+        "matches": 2866,
+        "accuracy_delta": 0.017605633802816878,
+        "brier_delta": -0.0077463574375858935
+      },
+      "experience1to3": {
+        "matches": 7943,
+        "accuracy_delta": 0.0290941430567907,
+        "brier_delta": -0.014869041718244908
+      },
+      "experience4to9": {
+        "matches": 11513,
+        "accuracy_delta": 0.02336162393910235,
+        "brier_delta": -0.012252478727626498
+      },
+      "experience10plus": {
+        "matches": 15092,
+        "accuracy_delta": 0.012533333333333396,
+        "brier_delta": -0.007434672944006848
+      },
+      "close_baseline_40to60": {
+        "matches": 8837,
+        "accuracy_delta": 0.05665334094802965,
+        "brier_delta": -0.014195905500572759
+      },
+      "strong_favorite_baseline80plus": {
+        "matches": 12335,
+        "accuracy_delta": 0.0021969080553295717,
+        "brier_delta": -0.005931489939332152
+      },
+      "month_2025-10": {
+        "matches": 131,
+        "accuracy_delta": 0.015384615384615441,
+        "brier_delta": -0.00444320305341292
+      },
+      "month_2025-11": {
+        "matches": 7611,
+        "accuracy_delta": 0.026940942269409462,
+        "brier_delta": -0.013365985169525613
+      },
+      "month_2025-12": {
+        "matches": 7184,
+        "accuracy_delta": 0.02496493688639545,
+        "brier_delta": -0.012500007969668991
+      },
+      "month_2026-01": {
+        "matches": 9259,
+        "accuracy_delta": 0.02111449717022207,
+        "brier_delta": -0.01081371862384653
+      },
+      "month_2026-02": {
+        "matches": 8338,
+        "accuracy_delta": 0.012062726176115812,
+        "brier_delta": -0.008617300445024068
+      },
+      "month_2026-03": {
+        "matches": 2316,
+        "accuracy_delta": 0.018695652173913113,
+        "brier_delta": -0.00781173450906647
+      },
+      "month_2026-04": {
+        "matches": 571,
+        "accuracy_delta": 0.01581722319859402,
+        "brier_delta": -0.004619079270099941
+      },
+      "month_2026-05": {
+        "matches": 810,
+        "accuracy_delta": -0.00988875154511748,
+        "brier_delta": -0.0031292677751545706
+      },
+      "month_2026-06": {
+        "matches": 960,
+        "accuracy_delta": 0.017801047120418856,
+        "brier_delta": -0.006904243942247007
+      },
+      "month_2026-07": {
+        "matches": 234,
+        "accuracy_delta": -0.017094017094017144,
+        "brier_delta": 0.0017325805579711528
+      },
+      "region_CAON": {
+        "matches": 566,
+        "accuracy_delta": 0.01243339253996445,
+        "brier_delta": -0.010054411873589464
+      },
+      "region_CMPZ2": {
+        "matches": 948,
+        "accuracy_delta": -0.0031746031746031633,
+        "brier_delta": -0.0006346066192316202
+      },
+      "region_FPE": {
+        "matches": 1315,
+        "accuracy_delta": 0.008396946564885432,
+        "brier_delta": -0.004524242051122229
+      },
+      "region_KZ": {
+        "matches": 638,
+        "accuracy_delta": 0.0299212598425197,
+        "brier_delta": -0.01820284134451816
+      },
+      "region_RO": {
+        "matches": 1716,
+        "accuracy_delta": 0.010544815465729385,
+        "brier_delta": -0.011394438840909654
+      },
+      "region_USCANO": {
+        "matches": 1072,
+        "accuracy_delta": 0.032833020637898724,
+        "brier_delta": -0.014193344565937072
+      },
+      "region_USCASD": {
+        "matches": 611,
+        "accuracy_delta": 0.016420361247947435,
+        "brier_delta": -0.011351305196764527
+      },
+      "region_USCHS": {
+        "matches": 1033,
+        "accuracy_delta": 0.009756097560975618,
+        "brier_delta": -0.007052273743350185
+      },
+      "region_USFL": {
+        "matches": 1016,
+        "accuracy_delta": 0.02871287128712874,
+        "brier_delta": -0.011351632925309135
+      },
+      "region_USGA": {
+        "matches": 578,
+        "accuracy_delta": 0.00874125874125875,
+        "brier_delta": -0.014958338482697314
+      },
+      "region_USIA": {
+        "matches": 1441,
+        "accuracy_delta": 0.01882845188284521,
+        "brier_delta": -0.007846851259595555
+      },
+      "region_USIL": {
+        "matches": 1078,
+        "accuracy_delta": 0.027077497665732975,
+        "brier_delta": -0.012546033997614614
+      },
+      "region_USMI": {
+        "matches": 2393,
+        "accuracy_delta": 0.012695725772323363,
+        "brier_delta": -0.010670322910253771
+      },
+      "region_USMN": {
+        "matches": 837,
+        "accuracy_delta": 0.033816425120772986,
+        "brier_delta": -0.01603702820523739
+      },
+      "region_USMOKS": {
+        "matches": 1413,
+        "accuracy_delta": 0.007137758743754441,
+        "brier_delta": -0.007683827905564489
+      },
+      "region_USNJ": {
+        "matches": 1072,
+        "accuracy_delta": 0.014044943820224698,
+        "brier_delta": -0.008088766574711276
+      },
+      "region_USNYNY": {
+        "matches": 603,
+        "accuracy_delta": 0.0033277870216306127,
+        "brier_delta": -0.010045815049372492
+      },
+      "region_USOK": {
+        "matches": 563,
+        "accuracy_delta": 0.003603603603603567,
+        "brier_delta": -0.007344784039829966
+      },
+      "region_USOR": {
+        "matches": 809,
+        "accuracy_delta": 0.02621722846441943,
+        "brier_delta": -0.012980652968243578
+      },
+      "region_USPA": {
+        "matches": 580,
+        "accuracy_delta": 0.017331022530329365,
+        "brier_delta": -0.008431939513350056
+      },
+      "region_USTX": {
+        "matches": 3957,
+        "accuracy_delta": 0.01654786150712828,
+        "brier_delta": -0.009613673990130328
+      },
+      "region_USTXHO": {
+        "matches": 811,
+        "accuracy_delta": 0.02111801242236022,
+        "brier_delta": -0.011982574437238463
+      },
+      "region_USWA": {
+        "matches": 968,
+        "accuracy_delta": 0.04379562043795615,
+        "brier_delta": -0.011929879371402413
+      }
+    },
+    "pop_only": {
+      "qualification": {
+        "matches": 32289,
+        "accuracy_delta": -3.120222159813668e-05,
+        "brier_delta": 4.8068723643990285e-06
+      },
+      "playoff": {
+        "matches": 5125,
+        "accuracy_delta": 0.00019642506383810154,
+        "brier_delta": -7.525275054764968e-07
+      },
+      "experience0": {
+        "matches": 2866,
+        "accuracy_delta": 0.00035211267605639307,
+        "brier_delta": -1.1681654594891677e-05
+      },
+      "experience1to3": {
+        "matches": 7943,
+        "accuracy_delta": 0.00038114597890992474,
+        "brier_delta": 1.5120782514921327e-05
+      },
+      "experience4to9": {
+        "matches": 11513,
+        "accuracy_delta": -0.0003499868754921476,
+        "brier_delta": 3.1552550505409283e-06
+      },
+      "experience10plus": {
+        "matches": 15092,
+        "accuracy_delta": 0.0,
+        "brier_delta": 1.8818707569756565e-06
+      },
+      "close_baseline_40to60": {
+        "matches": 8837,
+        "accuracy_delta": 0.0,
+        "brier_delta": -7.803126884087241e-07
+      },
+      "strong_favorite_baseline80plus": {
+        "matches": 12335,
+        "accuracy_delta": 0.0,
+        "brier_delta": -6.672593315243391e-07
+      },
+      "month_2025-10": {
+        "matches": 131,
+        "accuracy_delta": 0.015384615384615441,
+        "brier_delta": -0.001612190398988328
+      },
+      "month_2025-11": {
+        "matches": 7611,
+        "accuracy_delta": -0.000398142003981361,
+        "brier_delta": 3.749039706701929e-05
+      },
+      "month_2025-12": {
+        "matches": 7184,
+        "accuracy_delta": 0.00014025245441795509,
+        "brier_delta": 4.239820122931004e-06
+      },
+      "month_2026-01": {
+        "matches": 9259,
+        "accuracy_delta": 0.0,
+        "brier_delta": 3.6576330243731636e-06
+      },
+      "month_2026-02": {
+        "matches": 8338,
+        "accuracy_delta": 0.0,
+        "brier_delta": 5.907836610474781e-07
+      },
+      "month_2026-03": {
+        "matches": 2316,
+        "accuracy_delta": 0.0,
+        "brier_delta": 2.4992955566793817e-06
+      },
+      "month_2026-04": {
+        "matches": 571,
+        "accuracy_delta": 0.0,
+        "brier_delta": -1.043729107974567e-06
+      },
+      "month_2026-05": {
+        "matches": 810,
+        "accuracy_delta": 0.0,
+        "brier_delta": 1.3946414296195364e-06
+      },
+      "month_2026-06": {
+        "matches": 960,
+        "accuracy_delta": 0.0,
+        "brier_delta": 5.170918776498112e-09
+      },
+      "month_2026-07": {
+        "matches": 234,
+        "accuracy_delta": 0.0,
+        "brier_delta": 6.974613541571584e-06
+      },
+      "region_CAON": {
+        "matches": 566,
+        "accuracy_delta": 0.0,
+        "brier_delta": 2.6139071253011847e-05
+      },
+      "region_CMPZ2": {
+        "matches": 948,
+        "accuracy_delta": 0.0,
+        "brier_delta": 2.2407322999851154e-06
+      },
+      "region_FPE": {
+        "matches": 1315,
+        "accuracy_delta": 0.0,
+        "brier_delta": 1.0858665130952794e-06
+      },
+      "region_KZ": {
+        "matches": 638,
+        "accuracy_delta": 0.0,
+        "brier_delta": 1.2018758939136287e-05
+      },
+      "region_RO": {
+        "matches": 1716,
+        "accuracy_delta": 0.0,
+        "brier_delta": -9.71308318220565e-07
+      },
+      "region_USCANO": {
+        "matches": 1072,
+        "accuracy_delta": 0.0,
+        "brier_delta": 4.20841463730226e-06
+      },
+      "region_USCASD": {
+        "matches": 611,
+        "accuracy_delta": -0.0016420361247947435,
+        "brier_delta": -1.1402939515542387e-05
+      },
+      "region_USCHS": {
+        "matches": 1033,
+        "accuracy_delta": 0.0,
+        "brier_delta": 3.0597638135121397e-06
+      },
+      "region_USFL": {
+        "matches": 1016,
+        "accuracy_delta": 0.0,
+        "brier_delta": -2.291377570468045e-05
+      },
+      "region_USGA": {
+        "matches": 578,
+        "accuracy_delta": 0.0,
+        "brier_delta": 0.0001873555256245718
+      },
+      "region_USIA": {
+        "matches": 1441,
+        "accuracy_delta": -0.0006973500697350365,
+        "brier_delta": 4.6885923644990335e-05
+      },
+      "region_USIL": {
+        "matches": 1078,
+        "accuracy_delta": -0.0009337068160597539,
+        "brier_delta": 1.0540665398350857e-05
+      },
+      "region_USMI": {
+        "matches": 2393,
+        "accuracy_delta": 0.00042319085907749354,
+        "brier_delta": -2.9572931909832567e-05
+      },
+      "region_USMN": {
+        "matches": 837,
+        "accuracy_delta": 0.0,
+        "brier_delta": 2.2421420379559187e-05
+      },
+      "region_USMOKS": {
+        "matches": 1413,
+        "accuracy_delta": 0.0,
+        "brier_delta": -6.193303365237268e-06
+      },
+      "region_USNJ": {
+        "matches": 1072,
+        "accuracy_delta": 0.0009363295880150391,
+        "brier_delta": 4.1783747512486036e-05
+      },
+      "region_USNYNY": {
+        "matches": 603,
+        "accuracy_delta": 0.0,
+        "brier_delta": 3.986193974153673e-06
+      },
+      "region_USOK": {
+        "matches": 563,
+        "accuracy_delta": 0.0,
+        "brier_delta": 7.007152628485391e-05
+      },
+      "region_USOR": {
+        "matches": 809,
+        "accuracy_delta": 0.0,
+        "brier_delta": -1.0779178865660821e-05
+      },
+      "region_USPA": {
+        "matches": 580,
+        "accuracy_delta": 0.0017331022530330253,
+        "brier_delta": -9.166091145790256e-06
+      },
+      "region_USTX": {
+        "matches": 3957,
+        "accuracy_delta": -0.0005091649694500822,
+        "brier_delta": 1.0242950060107558e-05
+      },
+      "region_USTXHO": {
+        "matches": 811,
+        "accuracy_delta": 0.0,
+        "brier_delta": 2.20389612504146e-06
+      },
+      "region_USWA": {
+        "matches": 968,
+        "accuracy_delta": 0.0,
+        "brier_delta": 2.9761534613093055e-05
+      }
+    },
+    "primary_seq": {
+      "qualification": {
+        "matches": 32289,
+        "accuracy_delta": 0.0211239040219664,
+        "brier_delta": -0.010807484620208141
+      },
+      "playoff": {
+        "matches": 5125,
+        "accuracy_delta": 0.010999803574936129,
+        "brier_delta": -0.008731455719494102
+      },
+      "experience0": {
+        "matches": 2866,
+        "accuracy_delta": 0.018309859154929664,
+        "brier_delta": -0.007783753333973298
+      },
+      "experience1to3": {
+        "matches": 7943,
+        "accuracy_delta": 0.0290941430567907,
+        "brier_delta": -0.014867956864328846
+      },
+      "experience4to9": {
+        "matches": 11513,
+        "accuracy_delta": 0.023274127220229257,
+        "brier_delta": -0.012250237975146017
+      },
+      "experience10plus": {
+        "matches": 15092,
+        "accuracy_delta": 0.012399999999999967,
+        "brier_delta": -0.007439052029414278
+      },
+      "close_baseline_40to60": {
+        "matches": 8837,
+        "accuracy_delta": 0.0568817818389491,
+        "brier_delta": -0.014186182815485504
+      },
+      "strong_favorite_baseline80plus": {
+        "matches": 12335,
+        "accuracy_delta": 0.0021155410903173077,
+        "brier_delta": -0.0059354950634639
+      },
+      "month_2025-10": {
+        "matches": 131,
+        "accuracy_delta": 0.015384615384615441,
+        "brier_delta": -0.0025675496414628574
+      },
+      "month_2025-11": {
+        "matches": 7611,
+        "accuracy_delta": 0.027073656270736546,
+        "brier_delta": -0.013404498342821175
+      },
+      "month_2025-12": {
+        "matches": 7184,
+        "accuracy_delta": 0.02496493688639545,
+        "brier_delta": -0.012509445452325102
+      },
+      "month_2026-01": {
+        "matches": 9259,
+        "accuracy_delta": 0.02089682194166309,
+        "brier_delta": -0.010813660823704913
+      },
+      "month_2026-02": {
+        "matches": 8338,
+        "accuracy_delta": 0.011942098914354604,
+        "brier_delta": -0.008619212865579429
+      },
+      "month_2026-03": {
+        "matches": 2316,
+        "accuracy_delta": 0.018695652173913113,
+        "brier_delta": -0.007813254929446706
+      },
+      "month_2026-04": {
+        "matches": 571,
+        "accuracy_delta": 0.01581722319859402,
+        "brier_delta": -0.004623618360225429
+      },
+      "month_2026-05": {
+        "matches": 810,
+        "accuracy_delta": -0.008652657601977753,
+        "brier_delta": -0.003130498578734625
+      },
+      "month_2026-06": {
+        "matches": 960,
+        "accuracy_delta": 0.017801047120418856,
+        "brier_delta": -0.006904757948273305
+      },
+      "month_2026-07": {
+        "matches": 234,
+        "accuracy_delta": -0.017094017094017144,
+        "brier_delta": 0.0017299101484145318
+      },
+      "region_CAON": {
+        "matches": 566,
+        "accuracy_delta": 0.010657193605683846,
+        "brier_delta": -0.01007161884557184
+      },
+      "region_CMPZ2": {
+        "matches": 948,
+        "accuracy_delta": -0.0031746031746031633,
+        "brier_delta": -0.0006398831360257817
+      },
+      "region_FPE": {
+        "matches": 1315,
+        "accuracy_delta": 0.008396946564885432,
+        "brier_delta": -0.0045249133648170015
+      },
+      "region_KZ": {
+        "matches": 638,
+        "accuracy_delta": 0.0299212598425197,
+        "brier_delta": -0.01820185058179677
+      },
+      "region_RO": {
+        "matches": 1716,
+        "accuracy_delta": 0.010544815465729385,
+        "brier_delta": -0.01139027726413891
+      },
+      "region_USCANO": {
+        "matches": 1072,
+        "accuracy_delta": 0.032833020637898724,
+        "brier_delta": -0.014197514170611936
+      },
+      "region_USCASD": {
+        "matches": 611,
+        "accuracy_delta": 0.016420361247947435,
+        "brier_delta": -0.011369675773660104
+      },
+      "region_USCHS": {
+        "matches": 1033,
+        "accuracy_delta": 0.008780487804878057,
+        "brier_delta": -0.007055907079939999
+      },
+      "region_USFL": {
+        "matches": 1016,
+        "accuracy_delta": 0.02871287128712874,
+        "brier_delta": -0.011314407021970091
+      },
+      "region_USGA": {
+        "matches": 578,
+        "accuracy_delta": 0.006993006993006978,
+        "brier_delta": -0.01521351214566713
+      },
+      "region_USIA": {
+        "matches": 1441,
+        "accuracy_delta": 0.018131101813110173,
+        "brier_delta": -0.007869058173596177
+      },
+      "region_USIL": {
+        "matches": 1078,
+        "accuracy_delta": 0.02801120448179273,
+        "brier_delta": -0.012556342606321574
+      },
+      "region_USMI": {
+        "matches": 2393,
+        "accuracy_delta": 0.01227253491324587,
+        "brier_delta": -0.010605481165223557
+      },
+      "region_USMN": {
+        "matches": 837,
+        "accuracy_delta": 0.033816425120772986,
+        "brier_delta": -0.01610695646652227
+      },
+      "region_USMOKS": {
+        "matches": 1413,
+        "accuracy_delta": 0.007137758743754441,
+        "brier_delta": -0.0076832709197143245
+      },
+      "region_USNJ": {
+        "matches": 1072,
+        "accuracy_delta": 0.014044943820224698,
+        "brier_delta": -0.008129947781210373
+      },
+      "region_USNYNY": {
+        "matches": 603,
+        "accuracy_delta": 0.0033277870216306127,
+        "brier_delta": -0.01004473049429061
+      },
+      "region_USOK": {
+        "matches": 563,
+        "accuracy_delta": 0.00540540540540535,
+        "brier_delta": -0.0073483290948334334
+      },
+      "region_USOR": {
+        "matches": 809,
+        "accuracy_delta": 0.024968789013732784,
+        "brier_delta": -0.012970479610219882
+      },
+      "region_USPA": {
+        "matches": 580,
+        "accuracy_delta": 0.017331022530329365,
+        "brier_delta": -0.008428068973019315
+      },
+      "region_USTX": {
+        "matches": 3957,
+        "accuracy_delta": 0.01731160896130346,
+        "brier_delta": -0.009634793071461117
+      },
+      "region_USTXHO": {
+        "matches": 811,
+        "accuracy_delta": 0.02111801242236022,
+        "brier_delta": -0.011985468740943112
+      },
+      "region_USWA": {
+        "matches": 968,
+        "accuracy_delta": 0.04171011470281538,
+        "brier_delta": -0.011935179859877604
+      }
+    }
+  }
+}

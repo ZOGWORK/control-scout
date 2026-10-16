@@ -21,7 +21,7 @@ import { PointsChart, QualifierSim, RunFlow } from "../components/howitworks/Eve
 import { AccuracySection } from "../components/howitworks/AccuracySection";
 import { BreakChart, Verdicts } from "../components/howitworks/LabNotes";
 import { CleanList, Prose, Reveal, SectionHead, TipLayer, useReduced } from "../components/howitworks/ui";
-import { CAL, MODEL, NOISE, RATING } from "../components/howitworks/math";
+import { CAL, E2, MODEL, NOISE, RATING } from "../components/howitworks/math";
 
 /** Event simulations per forecast (server/app.ts → forecast(…, 2000)). */
 const SIM_RUNS = 2000;
@@ -101,8 +101,11 @@ export default function MethodologyPage() {
           </Prose>
           <BellFigure />
           <Prose>
+            <h3>Prediction Engine 2.0: reading the match, not just the score gap</h3>
+            <p>Two curves only see the expected score gap. Since <strong>Prediction Engine 2.0</strong>, a small learned correction adjusts that probability using what the gap leaves out: where each side's points come from (auto, endgame, penalties), how lopsided each alliance is, how many matches each robot has played and how long since its last one, how sure the ratings are, whether it's a playoff, and three track-record signals per robot (does it beat or miss expectations, how much its alliances swing, how often they collapse). Those signals come from alliance scores, so they can't say which partner had the bad match; they're hints, not verdicts. Predicted scores and their ranges don't change.</p>
+            <p>It was fitted on 2023–24 and 2024–25 matches, chosen and calibrated on early-2025 data, then frozen before it saw 2025–26. Replayed over the whole 2025–26 season (37,414 matches it never trained on, each predicted only from earlier results), it picked the winner {(100 * E2.accuracy).toFixed(2)}% of the time against {(100 * E2.baselineAccuracy).toFixed(2)}% before: <strong>+{(100 * (E2.accuracy - E2.baselineAccuracy)).toFixed(2)} points</strong> (95% range {(100 * E2.accuracyGain95[0]).toFixed(2)} to {(100 * E2.accuracyGain95[1]).toFixed(2)}). The Brier score fell from {E2.baselineBrier.toFixed(4)} to {E2.brier.toFixed(4)}. Not everything improved: one calibration measure got a little worse ({(100 * E2.baselineEce).toFixed(2)}% to {(100 * E2.ece).toFixed(2)}%), and a few late-season months lost a little accuracy. That's a replay of a past season, not a promise about this one, and the live track record keeps each engine version's calls apart.</p>
             <h3>A final calibration touch</h3>
-            <p>Even good models are a little over- or under-confident. So the engine applies <strong>Platt scaling</strong>: a tiny correction, fitted on 2024–25, that gently pulls probabilities toward 50% (multiply the log-odds by {CAL.a.toFixed(3)}, nudge by {CAL.b.toFixed(3)}). It keeps every prediction in the same order; only a call that was already within half a point of 50% can tip to the other side. It just makes "70%" mean 70%. On the test season it cut calibration error from 0.017 to 0.0105. Probabilities are never shown as 0% or 100% unless the match is already decided.</p>
+            <p>Even good models are a little over- or under-confident, so every probability gets a final two-number <strong>calibration</strong> step that gently pulls it toward 50% and keeps calls in the same order. It just makes "70%" mean 70%. When a device has ratings from before engine 2.0 (an old offline pack), it uses the original score-gap probability with its own correction (multiply the log-odds by {CAL.a.toFixed(3)}, nudge by {CAL.b.toFixed(3)}) until fresh ratings arrive. Probabilities are never shown as 0% or 100% unless the match is already decided.</p>
           </Prose>
           <Playground />
           <Prose id="factors">
@@ -146,7 +149,7 @@ export default function MethodologyPage() {
         <section id="lab" className="scroll-mt-20 pt-20">
           <SectionHead num="06" eyebrow="Lab notes" title="What we tried, and what made the cut" />
           <Prose>
-            <p>The engine improves through small experiments, each judged the same way: tune on 2024–25, test on 2025–26, and compare against the baselines on identical matches. An idea ships only if it helps calibration and doesn't make anything else worse. Plenty of good-sounding ideas don't make it. Control Scout and Control Point share these results because they share the engine.</p>
+            <p>The engine improves through small experiments, each judged the same way: tune on 2024–25, test on 2025–26, and compare against the baselines on identical matches. An idea ships when it improves the probability scores (Brier and log loss) on identical held-out matches, and any trade-off it brings is written down here. Plenty of good-sounding ideas don't make it. Control Scout and Control Point share these results because they share the engine.</p>
           </Prose>
           <Verdicts />
           <BreakChart />
@@ -180,12 +183,12 @@ export default function MethodologyPage() {
           <SettingsTable />
           <Prose id="engine" className="mt-8">
             <h3>One engine, two apps</h3>
-            <p>Predictions come from <code>@control-scout/predict-engine</code> v{ENGINE_VERSION}. Control Point runs the exact same package and version, so the numbers you see here are the numbers Control Point shows for the same teams. Any change that could move a number needs a version bump and a held-out backtest showing it's at least as good.</p>
+            <p>Predictions come from <strong>Prediction Engine 2.0</strong> (<code>@control-scout/predict-engine</code> v{ENGINE_VERSION}). Control Point runs the exact same package and version, so the numbers you see here are the numbers Control Point shows for the same teams. Any change that could move a number needs a version bump and a held-out backtest showing it's at least as good.</p>
           </Prose>
         </section>
 
         <footer className="mx-auto mt-20 flex max-w-2xl flex-wrap items-center justify-between gap-4 border-t-2 border-foreground pt-5 text-sm text-muted-foreground">
-          <span className="min-w-0 flex-1 basis-64">Control Scout · predictions by the shared engine v{ENGINE_VERSION} · settings fitted on {MODEL.fittedOn}.</span>
+          <span className="min-w-0 flex-1 basis-64">Control Scout · predictions by Prediction Engine 2.0 (v{ENGINE_VERSION}), shared with Control Point · settings fitted on {MODEL.fittedOn}.</span>
           <div className="flex flex-wrap gap-2">
             <Button asChild size="sm"><Link to="/predict"><FlaskConical /> Predict <ArrowRight /></Link></Button>
           </div>
@@ -207,7 +210,8 @@ function SettingsTable() {
     ["Uncertainty", `${RATING.uncKnown} / ${RATING.uncRookie} pts²`, `Known team / no history, ×${RATING.uncDecay} per match`],
     ["Score spread", `${NOISE.a} + ${NOISE.b} × score`, "Typical miss of an alliance score"],
     ["Event-start extra", `${NOISE.preExtra} pts²`, "Per robot, for predictions frozen at event start"],
-    ["Calibration", `a ${CAL.a.toFixed(3)} · b ${CAL.b.toFixed(3)}`, "Platt scaling on win probabilities"],
+    ["Win probability (2.0)", `${MODEL.contextual!.coefficients.length} inputs · slope ${MODEL.contextual!.calibration.slope.toFixed(3)}`, "Contextual correction of the score-gap probability, then its own calibration"],
+    ["Calibration (fallback)", `a ${CAL.a.toFixed(3)} · b ${CAL.b.toFixed(3)}`, "Platt scaling, used when ratings carry no 2.0 track-record state"],
     ["Captain's pick", `τ ${MODEL.pick.tau} · rank ${MODEL.pick.rankWeight}`, "How much strength vs. rank drives picks"],
     ["Simulations", SIM_RUNS.toLocaleString("en-US"), "Runs per event forecast"],
     ["OPR", "least squares", "Standard least squares over qualification matches"],
