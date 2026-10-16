@@ -7,9 +7,10 @@ import express, { type NextFunction, type Request, type Response, type Router } 
 import { all, db, get, run, writeBatch } from "../db.js";
 import { env } from "../env.js";
 import { cleanValue, mergeValue, PERSONAL_KEYS, type PersonalKey, type Stamped } from "../../src/shared/personal.js";
+import { isOwnerEmail } from "../owner.js";
 import { currentUser, deleteUser, endSession, readCookie, startSession, token, userForIdentity, type User } from "./session.js";
 import { emailEnabled, startEmailSignIn, verifyEmailCode } from "./email.js";
-import { cleanScoutEntry, pushWorkspaceEntries, workspaceAccess, type ScoutEntryInput } from "../scout/entries.js";
+import { cleanScoutEntry, pushWorkspaceEntries, workspaceAccess, workspacePaused, type ScoutEntryInput } from "../scout/entries.js";
 import { CP_PROVIDER, controlPointEnabled, isWorkspaceId, controlPointInfo, controlPointVia, isCpVia, rememberInfo, linkedAccountId, linkToSharedAccount, logFailure, provenEmailFor, redeemHandoff } from "./controlPoint.js";
 
 export const authProviders = () => ({ email: emailEnabled(), google: !!(env.googleClientId && env.googleClientSecret), controlPoint: controlPointEnabled() });
@@ -48,6 +49,8 @@ export function safeBack(v: unknown): string | null {
 }
 
 const publicUser = (u: User) => ({ id: u.id, email: u.email, displayName: u.displayName, createdAt: u.createdAt });
+/** The owner portal's nav item shows only for owners (OWNER_EMAILS): they get isOwner: true, everyone else nothing at all. */
+const ownerMark = (u: User) => (isOwnerEmail(u.email) ? { isOwner: true as const } : {});
 
 export function authRouter(): Router {
   const r = express.Router();
@@ -66,7 +69,7 @@ export function authRouter(): Router {
     }
     // Membership is only ever shown to the signed-in owner of the address (never before it's proven).
     const controlPoint = linked != null ? await controlPointInfo(linked) : null;
-    return { user: { ...publicUser(u), controlPointLinked: linked != null, controlPoint }, providers: { ...authProviders(), via } };
+    return { user: { ...publicUser(u), ...ownerMark(u), controlPointLinked: linked != null, controlPoint }, providers: { ...authProviders(), via } };
   }));
 
   r.post("/email/start", ipLimit(20, 15 * 60_000), h(async (req, res) => {
@@ -93,7 +96,7 @@ export function authRouter(): Router {
     const linked = await linkToSharedAccount(user, "scout-email-code", out.email); // the shared account (best effort, 3 s max)
     await startSession(res, user, req.get("user-agent"));
     const id = linked?.id ?? (controlPointEnabled() ? await linkedAccountId(user.id) : null);
-    return { user: { ...publicUser(user), controlPointLinked: id != null, controlPoint: id != null ? await controlPointInfo(id) : null } };
+    return { user: { ...publicUser(user), ...ownerMark(user), controlPointLinked: id != null, controlPoint: id != null ? await controlPointInfo(id) : null } };
   }));
 
   r.post("/logout", h(async (req, res) => { await endSession(req, res); return { ok: true }; }));
@@ -271,6 +274,8 @@ export function meRouter(): Router {
     if (raw.length > 200) { res.status(413).json({ error: "Send at most 200 entries per request" }); return; }
     const workspaceId = req.body?.workspaceId ?? null;
     if (workspaceId !== null) {
+      // Switched off by the owner: the shared set pauses (503, nothing written); the personal set below is untouched.
+      if (await workspacePaused(res)) return;
       if (!isWorkspaceId(workspaceId)) { res.status(400).json({ error: "Invalid workspaceId" }); return; }
       const access = await workspaceAccess((req as any).user, workspaceId);
       if (!access.ok) { res.status(access.status).json({ error: access.error }); return; }

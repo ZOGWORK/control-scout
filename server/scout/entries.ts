@@ -27,6 +27,7 @@ import express, { type NextFunction, type Request, type Response, type Router } 
 import { all, get, writeBatch } from "../db.js";
 import { controlPointEnabled, isWorkspaceId, linkedAccountId, workspaceMembership, type Membership } from "../auth/controlPoint.js";
 import { currentUser, type User } from "../auth/session.js";
+import { isEnabled } from "../flags.js";
 import { publishEntries, serialized, type LiveEntry } from "./bus.js";
 
 export interface ScoutEntryInput { uuid: string; season: number; team: number; eventCode: string | null; matchLabel: string | null; kind: "match" | "pit"; data: Record<string, unknown>; notes: string; updatedAt: number; deleted?: boolean }
@@ -226,12 +227,23 @@ const h = (fn: (req: Request, res: Response) => Promise<unknown>) => (req: Reque
   fn(req, res).then((b) => { if (!res.headersSent && b !== undefined) res.json(b); }).catch(next);
 };
 
+/** Workspace scouting switched off in the owner portal (the workspaceScouting flag): shared pushes and pulls answer this
+ *  (503, nothing read or written, the device keeps its queue for later); personal scouting carries on. */
+export const WORKSPACE_PAUSED = "Workspace scouting is paused right now. Your entries stay on this device and sync once it's back; personal scouting still syncs.";
+export async function workspacePaused(res: Response): Promise<boolean> {
+  if (await isEnabled("workspaceScouting")) return false;
+  res.set("Cache-Control", "no-store");
+  res.status(503).json({ error: WORKSPACE_PAUSED, paused: true });
+  return true;
+}
+
 /** /api/scout: the workspace pull. (The push is the existing /api/me/scout/sync, with a workspaceId.) */
 export function scoutRouter(): Router {
   const r = express.Router();
   r.get("/sync", h(async (req, res) => {
     const user = await currentUser(req);
     if (!user) { res.status(401).json({ error: "Sign in to sync this across devices." }); return; }
+    if (await workspacePaused(res)) return;
     const workspaceId = req.query.workspaceId;
     if (!isWorkspaceId(workspaceId)) { res.status(400).json({ error: "workspaceId required" }); return; }
     const since = req.query.since === undefined ? 0 : Number(req.query.since);

@@ -9,6 +9,7 @@ import type { SearchHit } from "../../src/shared/api.js";
 import { fuzzyScore, normalize, scoreWords, trigramQuery, words } from "./fuzzy.js";
 import { kvGet } from "../db.js";
 import { findRegions } from "../../src/shared/regions.js";
+import { registerCache } from "../caches.js";
 
 /** Turn free text into a safe FTS5 query: every word as a quoted prefix term. */
 export function ftsQuery(q: string): string | null {
@@ -141,6 +142,7 @@ async function fuzzyRows(): Promise<FuzzyRow[]> {
   rows.catch(() => { if (rowsCache?.rows === rows) rowsCache = null; });
   return rows;
 }
+registerCache("Search typo index", () => { rowsCache = null; });
 
 /**
  * A database upgraded to migration 4 has an empty typo index until the next

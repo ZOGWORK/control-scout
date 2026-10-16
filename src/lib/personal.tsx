@@ -8,6 +8,8 @@ import { cleanValue, EMPTY_STATE, PERSONAL_KEYS, type PersonalKey, type Personal
 import { clearLocalScouting, exportLocalScouting, importLocalScouting, localScoutEntries, storedScoutEntry } from "./scouting";
 
 export interface AccountUser { id: number; email: string | null; displayName: string | null; createdAt: string; /** Tied to the shared account Control Point keeps (docs/shared-accounts.md). */ controlPointLinked?: boolean;
+  /** Only present (true) for the owner (OWNER_EMAILS): shows the owner portal's nav item. The server enforces access. */
+  isOwner?: true;
   /** The signed-in owner's Control Point side: whether they're a member there, and their teams. */
   controlPoint?: { /** The shared account id (author/editor ids on workspace entries). Missing from older servers. */ accountId?: number; member: boolean; teams: { teamNumber: number | null; name: string }[]; shortlist?: number[];
     /** Control Point workspaces (one shared scout space each). Missing from older servers: treat as none. */

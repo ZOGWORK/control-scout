@@ -11,6 +11,8 @@ import { createApp } from "../app";
 import { setMailer } from "../auth/email";
 import { clearInfoCache, MEMBERSHIP_TTL, rememberInfo } from "../auth/controlPoint";
 import { PRIVATE_TABLES } from "../data/snapshot";
+import { setFlag } from "../flags";
+import { WORKSPACE_PAUSED } from "./entries";
 
 const KEY = "k".repeat(40);
 let scout: Server, cp: Server;
@@ -285,5 +287,30 @@ describe("workspace scout entries", () => {
     expect((await push(call, "131", [entry()])).status).toBe(403);
     expect((await push(call, null, [entry()])).status).toBe(200);
     expect((await call("GET", "/api/auth/me")).json.user.controlPoint).toBeNull();
+  });
+});
+
+describe("the workspaceScouting switch (owner portal)", () => {
+  it("off: shared pushes and pulls answer 503 paused and write nothing; personal scouting is unaffected; back on: works again", async () => {
+    const a = accountFor("paused@example.com");
+    a.workspaces = [{ id: "141", name: "Paused Robotics", role: "member" }];
+    const call = await signIn("paused@example.com");
+    await setFlag("workspaceScouting", false, "owner@example.com");
+    try {
+      const before = { ws: await count("workspaces"), entries: await count("workspace_scout_entries") };
+      const p = await push(call, "141", [entry()]);
+      expect(p.status).toBe(503);
+      expect(p.json).toMatchObject({ paused: true, error: WORKSPACE_PAUSED });
+      expect((await pull(call, "141")).status).toBe(503);
+      expect({ ws: await count("workspaces"), entries: await count("workspace_scout_entries") }).toEqual(before);
+      // Personal scouting syncs as usual.
+      const personal = await push(call, null, [entry()]);
+      expect(personal.status).toBe(200);
+      expect(personal.json.results[0].ok).toBe(true);
+      // Signed out still needs signing in first, paused or not.
+      expect((await client()("GET", "/api/scout/sync?workspaceId=141")).status).toBe(401);
+    } finally { await setFlag("workspaceScouting", true, "owner@example.com"); }
+    expect((await push(call, "141", [entry()])).status).toBe(200);
+    expect((await pull(call, "141")).json.entries).toHaveLength(1);
   });
 });

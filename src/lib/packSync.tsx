@@ -7,6 +7,7 @@
 import { useEffect, useMemo, useRef } from "react";
 import { useLocation } from "react-router-dom";
 import { usePersonal } from "./personal";
+import { useFlag } from "./flags";
 import { PACK_META_KEY, followsTeams, noteVisit, shouldSyncLite, type ConnectionInfo } from "./packPolicy";
 
 /** After load + idle, this much quiet (no new requests, no route change) before the download may start. */
@@ -27,6 +28,8 @@ function hasPack(): boolean {
 export function LitePackSync(): null {
   const { state } = usePersonal();
   const follows = followsTeams(state);
+  // Switched off by the owner (the offlinePacks flag): no background downloads at all.
+  const packsOn = useFlag("offlinePacks");
   // Once per session (StrictMode's second call reads the verdict the first one stored).
   const returning = useMemo(() => noteVisit(storage("localStorage"), storage("sessionStorage")), []);
 
@@ -38,7 +41,7 @@ export function LitePackSync(): null {
     const conn = (navigator as Navigator & { connection?: Connection }).connection;
     let quiet = false, loaded = false, startedAt = 0, idleId: number | undefined, timer: number | undefined;
     const run = () => {
-      if (!quiet) return;
+      if (!quiet || !packsOn) return;
       if (!shouldSyncLite({ online: navigator.onLine !== false, returning, follows, hasPack: hasPack(), connection: conn })) return;
       void import("./packs").then((p) => p.syncLite()).catch(() => {});
     };
@@ -81,7 +84,7 @@ export function LitePackSync(): null {
       window.removeEventListener("online", run);
       conn?.removeEventListener?.("change", run);
     };
-  }, [returning, follows]);
+  }, [returning, follows, packsOn]);
 
   // A route change is new page work too (its code and data may come from cache, unseen by the observer).
   useEffect(() => { kickRef.current(); }, [pathname]);
