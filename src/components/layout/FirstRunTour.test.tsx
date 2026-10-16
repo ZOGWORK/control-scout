@@ -10,7 +10,7 @@ import { ConsentBanner } from "./ConsentBanner";
 import { FirstRunTour } from "./FirstRunTour";
 
 const personal = vi.hoisted(() => ({
-  current: { state: null as unknown as PersonalState, user: null as unknown, providers: { email: true, google: false } as unknown, sync: "local" },
+  current: { state: null as unknown as PersonalState, user: null as unknown, providers: { email: true, google: false } as unknown, sync: "local", syncReady: false },
 }));
 vi.mock("../../lib/personal", () => ({ usePersonal: () => personal.current }));
 
@@ -67,7 +67,7 @@ beforeEach(() => {
   setAnalyticsConsent(false); // the privacy choice is made (its own tests cover the banner)
   setWebdriver(false);
   setUA(realUA);
-  personal.current = { state: EMPTY_STATE, user: null, providers: { email: true, google: false }, sync: "local" };
+  personal.current = { state: EMPTY_STATE, user: null, providers: { email: true, google: false }, sync: "local", syncReady: false };
   Element.prototype.getBoundingClientRect = laidOut;
   Element.prototype.scrollIntoView = vi.fn();
 });
@@ -162,6 +162,52 @@ describe("who sees it", () => {
     expect(card()).toBeNull();
   });
 
+  it("signed in: decides only once the account's data has synced here (a failed sync isn't enough)", async () => {
+    const user = { id: 1, email: "a@b.c", displayName: null, createdAt: "", controlPoint: null };
+    personal.current = { ...personal.current, user, sync: "error", syncReady: false };
+    const a = mount();
+    await settle();
+    expect(card()).toBeNull();
+    a.unmount();
+    personal.current = { ...personal.current, user, sync: "synced", syncReady: true };
+    mount();
+    await opened();
+  });
+
+  it("Clear all local data (resetTour) lets it show again without a reload", async () => {
+    mount();
+    await opened();
+    fireEvent.click(screen.getByRole("button", { name: "Skip" }));
+    act(() => go("/"));
+    await settle();
+    expect(card()).toBeNull();
+    act(() => resetTour());
+    await opened();
+  });
+
+  it("finished in another tab: closes here and gives the first-run slot back", async () => {
+    mount();
+    await opened();
+    expect(firstRunHolder()).toBe("tour");
+    localStorage.setItem(TOUR_KEY, JSON.stringify({ v: 1, outcome: "done", at: "", step: 4 }));
+    act(() => { window.dispatchEvent(new StorageEvent("storage", { key: TOUR_KEY })); });
+    expect(card()).toBeNull();
+    expect(firstRunHolder()).toBeNull();
+  });
+
+  it("holds off while a panel or dialog is open (with or without Radix's data-state)", async () => {
+    const panel = document.createElement("div");
+    panel.setAttribute("role", "dialog");
+    panel.setAttribute("data-tour", "x"); // laid out by the test's box stub
+    document.body.appendChild(panel);
+    try {
+      mount();
+      await settle();
+      expect(card()).toBeNull();
+    } finally { panel.remove(); }
+    await opened();
+  });
+
   it("waits for the account to answer before deciding", async () => {
     personal.current = { ...personal.current, providers: null };
     mount();
@@ -241,6 +287,22 @@ describe("keyboard and screen readers", () => {
     expect(document.activeElement).toBe(buttons[0]);
     fireEvent.keyDown(dialog, { key: "Tab", shiftKey: true });
     expect(document.activeElement).toBe(buttons[2]);
+  });
+
+  it("keys typed in a field (search opened with Ctrl+K) stay the field's", async () => {
+    mount();
+    await opened();
+    key("ArrowRight");
+    expect(stepId()).toBe("search");
+    const input = document.createElement("input");
+    document.body.appendChild(input);
+    try {
+      input.focus();
+      key("ArrowRight", input);
+      key("ArrowLeft", input);
+      key("Escape", input);
+      expect(stepId()).toBe("search");
+    } finally { input.remove(); }
   });
 
   it("an Esc another prompt handles (and stops) doesn't skip the tour", async () => {

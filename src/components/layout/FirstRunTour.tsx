@@ -23,7 +23,7 @@ import { cn } from "../cn";
 import { useConsent } from "../../lib/consent";
 import { usePersonal } from "../../lib/personal";
 import { claimFirstRun, releaseFirstRun, useFirstRunHolder } from "../../lib/firstRun";
-import { MIN_POINTING_STEPS, endTour, findTarget, isAutomated, isTourPage, knowsTheApp, readTour, resolveSteps, tourDemo, TOUR_KEY, type TourOutcome, type TourStep } from "../../lib/tour";
+import { MIN_POINTING_STEPS, endTour, findTarget, isAutomated, isShown, isTourPage, knowsTheApp, readTour, resolveSteps, tourDemo, TOUR_CHANGE, TOUR_KEY, type TourOutcome, type TourStep } from "../../lib/tour";
 
 /** After the page is idle, wait this long before opening (the page settles; no flash on a bounce). */
 export const TOUR_DELAY_MS = 900;
@@ -58,14 +58,21 @@ function whenIdle(cb: () => void): () => void {
 function busyElsewhere(): boolean {
   const a = document.activeElement as HTMLElement | null;
   if (a?.closest("input, textarea, select, [contenteditable=true]")) return true;
-  return !!document.querySelector('[role="dialog"][data-state="open"], [role="menu"][data-state="open"]');
+  // Any dialog, menu or sheet on screen (Radix ones and the app's own panels alike), other than the tour's.
+  for (const el of document.querySelectorAll('[role="dialog"], [role="alertdialog"], [role="menu"]')) {
+    if (!el.closest("[data-tour-overlay]") && isShown(el)) return true;
+  }
+  return false;
 }
+
+/** Typing in a field: its own keys (arrows move the cursor, Esc clears) aren't the tour's. */
+const editable = (t: EventTarget | null) => t instanceof Element && !!t.closest("input, textarea, select, [contenteditable=true]");
 
 /** Decides whether and when the tour opens, and records how it ended. */
 export function FirstRunTour() {
   const loc = useLocation();
   const { decided } = useConsent();
-  const { state, user, providers, sync } = usePersonal();
+  const { state, user, providers, sync, syncReady } = usePersonal();
   const holder = useFirstRunHolder();
   const [ended, setEnded] = useState(() => readTour() !== null);
   const [steps, setSteps] = useState<TourStep[] | null>(null);
@@ -73,14 +80,18 @@ export function FirstRunTour() {
 
   // Finished or skipped in another tab: close here too.
   useEffect(() => {
-    const onStorage = (e: StorageEvent) => { if ((e.key === null || e.key === TOUR_KEY) && readTour()) { setEnded(true); setSteps(null); } };
+    const onStorage = (e: StorageEvent) => { if ((e.key === null || e.key === TOUR_KEY) && readTour()) { setEnded(true); setSteps(null); releaseFirstRun(SLOT); } };
+    // Reset here ("Clear all local data"): it may show again, without a reload.
+    const onChange = () => setEnded(readTour() !== null);
     window.addEventListener("storage", onStorage);
-    return () => window.removeEventListener("storage", onStorage);
+    window.addEventListener(TOUR_CHANGE, onChange);
+    return () => { window.removeEventListener("storage", onStorage); window.removeEventListener(TOUR_CHANGE, onChange); };
   }, []);
 
   const automated = isAutomated() && !tourDemo();
   // Signed-in data (tracked teams, workspaces) arrives with /api/auth/me and the first sync: wait for both.
-  const settled = providers !== null && sync !== "syncing";
+  // Signed in, only a sync that worked counts (a failed one leaves this device without the account's data).
+  const settled = providers !== null && sync !== "syncing" && (!user || syncReady);
   const eligible = !ended && !steps && !automated && decided && settled && !knowsTheApp(state, user)
     && isTourPage(loc.pathname) && (holder === null || holder === SLOT);
 
@@ -186,7 +197,7 @@ export function TourOverlay({ steps, onEnd }: { steps: TourStep[]; onEnd: (outco
   // Keys anywhere on the page while the tour is open (a prompt that handles its own Esc stops it first).
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (e.defaultPrevented || e.altKey || e.ctrlKey || e.metaKey) return;
+      if (e.defaultPrevented || e.altKey || e.ctrlKey || e.metaKey || editable(e.target)) return;
       if (e.key === "Escape") { e.preventDefault(); skip(); }
       else if (e.key === "ArrowRight") { e.preventDefault(); next(); }
       else if (e.key === "ArrowLeft") { e.preventDefault(); back(); }

@@ -14,6 +14,8 @@ export const TOUR_KEY = "cs-tour";
  * (`npm run shots -- --tour`). It doesn't bring back a tour that was finished or skipped.
  */
 export const TOUR_DEMO_KEY = "cs-tour-demo";
+/** Fired on window when this tab resets the record (resetTour), so an open app can offer the tour again. */
+export const TOUR_CHANGE = "cs-tour-change";
 
 export type TourOutcome = "done" | "skipped";
 export interface TourRecord { v: 1; outcome: TourOutcome; at: string; /** The step it ended on (1-based). */ step: number }
@@ -47,6 +49,7 @@ export function endTour(outcome: TourOutcome, step: number): TourRecord {
 export function resetTour(): void {
   memory = null;
   try { localStorage.removeItem(TOUR_KEY); } catch { /* storage blocked */ }
+  if (typeof window !== "undefined") window.dispatchEvent(new Event(TOUR_CHANGE));
 }
 
 // Crawlers, link previews, Lighthouse/PageSpeed and headless browsers.
