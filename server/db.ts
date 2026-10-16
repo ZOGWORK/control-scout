@@ -663,6 +663,7 @@ CREATE UNIQUE INDEX inbox_items_alert ON inbox_items (user_id, source_alert_id) 
 -- One row per member, team and event: the same team can be held by several members (the app warns), but
 -- the same member is never assigned the same team at the same event twice.
 -- event_code: upper case. created_at / done_at: ms. done_by: the account that marked it done (NULL while open).
+-- version: 1 when created, +1 on every status change, so a device can tell an older copy from a newer one.
 -- Names are copied when written, so a member who leaves keeps a readable line.
 CREATE TABLE workspace_assignments (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -678,7 +679,8 @@ CREATE TABLE workspace_assignments (
   status TEXT NOT NULL DEFAULT 'open' CHECK (status IN ('open', 'done')),
   done_at INTEGER,
   done_by INTEGER,
-  done_by_name TEXT
+  done_by_name TEXT,
+  version INTEGER NOT NULL DEFAULT 1
 );
 CREATE UNIQUE INDEX workspace_assignments_pair ON workspace_assignments (workspace_id, season, event_code, team, assignee_account_id);
 CREATE INDEX workspace_assignments_event ON workspace_assignments (workspace_id, season, event_code);

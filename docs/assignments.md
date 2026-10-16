@@ -59,7 +59,9 @@ to Priya" and "team 1234 to Priya and Sam" are both one request.
 
 - Every change goes out on the workspace's stream as `event: assignment`, with no id,
   like `activity`. Its data is `{ action: "created" | "updated" | "deleted", assignments }`.
-  The list, the badges and the cards apply it at once. When the stream reconnects, or
+  The list, the badges and the cards apply it at once. Each assignment carries a `version`
+  (+1 on every status change): the app never lets an older copy replace a newer one, and
+  never brings back one it has seen deleted. When the stream reconnects, or
   every 30 s while polling, the app fetches the list again.
 - The activity feed logs `assignment.created` (one line per assignee per request, naming
   all their teams), `assignment.completed`, `assignment.reopened` and

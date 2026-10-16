@@ -29,7 +29,7 @@ const userAs = (role: "admin" | "member"): AccountUser => ({
 });
 const asg = (id: number, team: number, assignee: number, over: Partial<Assignment> = {}): Assignment => ({
   id, workspaceId: WS, season: 2025, eventCode: EV, team, assigneeAccountId: assignee, assigneeName: assignee === ME ? "Priya" : "Sam",
-  createdByAccountId: 1, createdByName: "Coach", createdAt: Date.now() - 60_000, status: "open", doneAt: null, doneByAccountId: null, doneByName: null, progress: 0, ...over,
+  createdByAccountId: 1, createdByName: "Coach", createdAt: Date.now() - 60_000, status: "open", doneAt: null, doneByAccountId: null, doneByName: null, version: 1, progress: 0, ...over,
 });
 let list: Assignment[];
 const calls: { method: string; path: string; body: any }[] = [];
@@ -112,6 +112,12 @@ describe("assignments on the Scout page", () => {
     fireEvent.click(within(myCards()[1]).getByRole("button", { name: /Scout/ }));
     await waitFor(() => expect((screen.getByLabelText("Event code") as HTMLInputElement).value).toBe(EV));
     expect((screen.getByLabelText(/^Team/) as HTMLInputElement).value).toBe("5678");
+    // A draft for the same team with another event typed in: Scout again starts afresh at the assignment's event.
+    fireEvent.change(screen.getByLabelText("Event code"), { target: { value: "ELSEWHERE" } });
+    fireEvent.click(screen.getByRole("button", { name: /Assignments/ }));
+    await waitFor(() => expect(myCards()).toHaveLength(2));
+    fireEvent.click(within(myCards()[1]).getByRole("button", { name: /Scout/ }));
+    await waitFor(() => expect((screen.getByLabelText("Event code") as HTMLInputElement).value).toBe(EV));
   });
 
   it("admin: the Assign sheet picks members and several teams, warns about a team someone holds, and still assigns", async () => {

@@ -218,10 +218,10 @@ describe("assignments: done, reopen, delete", () => {
     expect((await sam("PATCH", path("2011", `/${a.id}`), { status: "done" })).status).toBe(403);
     const done = await member("PATCH", path("2011", `/${a.id}`), { status: "done" });
     expect(done.status).toBe(200);
-    expect(done.json.assignment).toMatchObject({ status: "done", doneByName: "Priya" });
+    expect(done.json.assignment).toMatchObject({ status: "done", doneByName: "Priya", version: 2 });
     expect((await member("PATCH", path("2011", `/${a.id}`), { status: "open" })).status).toBe(403);
     const reopened = await admin("PATCH", path("2011", `/${a.id}`), { status: "open" });
-    expect(reopened.json.assignment).toMatchObject({ status: "open", doneAt: null, doneByName: null });
+    expect(reopened.json.assignment).toMatchObject({ status: "open", doneAt: null, doneByName: null, version: 3 });
     // An admin can mark it done too: the assignee hears about it (they didn't do it themselves).
     expect((await admin("PATCH", path("2011", `/${a.id}`), { status: "done" })).json.changed).toBe(true);
     expect((await member("DELETE", path("2011", `/${a.id}`))).status).toBe(403);

@@ -26,6 +26,8 @@ export interface Assignment {
   doneAt: number | null;
   doneByAccountId: number | null;
   doneByName: string | null;
+  /** 1 when created, +1 on every status change: of two copies, the higher version is the newer. */
+  version: number;
   /** Entries the assignee has made for this team at this event (this season, not deleted), as the server counts them. */
   progress: number;
 }
