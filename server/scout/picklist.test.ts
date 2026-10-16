@@ -239,6 +239,23 @@ describe("shared pick list", () => {
     expect((await op(marcus, "1105", { op: "note", team: 101, note: "x" })).status).toBe(409);
   });
 
+  it("Undo of a remove brings the pick back as it was (who added it, its note); adding it again otherwise starts afresh", async () => {
+    const { priya, marcus, ids } = await team("1112");
+    await op(priya, "1112", { op: "add", team: 101 });
+    await op(priya, "1112", { op: "add", team: 102 });
+    await op(priya, "1112", { op: "note", team: 101, note: "Keep" });
+    const kept = (await priya("GET", `${url("1112")}?season=${S}`)).json.list.picks[0];
+    await op(marcus, "1112", { op: "remove", team: 101 });
+    expect(order(await priya("GET", `${url("1112")}?season=${S}`))).toEqual([102]);
+    const back = await op(marcus, "1112", { op: "add", team: 101, beforeTeam: 102, restore: true });
+    expect(back.json.list.picks[0]).toEqual({ ...kept, rank: 1 });
+    expect(back.json.list.picks[0]).toMatchObject({ addedBy: { accountId: ids.priya }, note: "Keep", noteBy: { name: "Priya" } });
+    expect((await activity("1112")).at(-1)).toMatchObject({ type: "picklist.added", actor: "Marcus", team: 101, restored: true });
+    await op(marcus, "1112", { op: "remove", team: 101 });
+    const fresh = await op(marcus, "1112", { op: "add", team: 101 });
+    expect(fresh.json.list.picks.find((p: any) => p.team === 101)).toMatchObject({ addedBy: { accountId: ids.marcus }, note: "", noteBy: null });
+  });
+
   it("the inline stats come from the Shortlist's own request for the picks", async () => {
     const { priya } = await team("1106");
     await op(priya, "1106", { op: "add", team: 101 });

@@ -20,9 +20,9 @@ workspace scouting is paused in the owner portal. Writes must be JSON (CSRF).
 | Request | Body | Answer |
 | --- | --- | --- |
 | `GET /api/scout/workspaces/:id/picklist?season=` | | `{ list: { workspaceId, season, version, picks } }` |
-| `POST /api/scout/workspaces/:id/picklist` | `{ season, op: "add", team, beforeTeam? }` | `{ changed, list }` |
+| `POST /api/scout/workspaces/:id/picklist` | `{ season, op: "add", team, beforeTeam?, restore? }` (`restore`: Undo of a remove) | `{ changed, list }` |
 | | `{ season, op: "remove", team }` | |
-| | `{ season, op: "move", team, beforeTeam }` (`null`: to the end) | |
+| | `{ season, op: "move", team, beforeTeam }` (`null`: to the end), or `{ season, op: "move", team, afterTeam }` | |
 | | `{ season, op: "note", team, note }` (`""` clears it) | |
 | | `{ season, op: "import", teams }` (copy from my shortlist) | |
 
@@ -35,8 +35,11 @@ the client. An unknown team is a 400. A list holds at most 100 teams; a full lis
 The server applies operations one at a time per workspace, in the order they arrive. After
 each one it numbers the list 1..n and bumps its version.
 
-Operations name teams, never positions. A drag sends "move 18360 to just before 7393", or
-"to the end". So when two members reorder at the same moment, both moves apply in arrival
+Operations name teams, never positions. A team dragged up goes "just before the team it now
+sits above" (`beforeTeam`, or `null` for the end). A team dragged down goes "just after the
+team it now sits below" (`afterTeam`). Either way it is anchored to the last team it passed.
+The move is worked out from the list as it was when the drag started, so a change that
+arrives mid-drag doesn't redirect it. So when two members reorder at the same moment, both moves apply in arrival
 order and neither is bounced. Every device that applies the same operations in the same
 order gets the same list, so the merge is deterministic.
 
@@ -53,7 +56,13 @@ the one shown.
 ## Notes
 
 Each pick has one note shared with the whole workspace. Last write wins, in arrival order.
-The row shows who added the team and who last wrote the note, and when.
+The row shows who added the team and who last wrote the note, and when. A note field that
+is focused but untouched follows a teammate's change, and leaving it writes nothing, so it
+never puts back the text it showed before.
+
+Removing a team keeps its row (`removed_at`). **Undo** sends `add` with `restore: true`,
+which brings the pick back as it was: who added it, its note and who wrote that. Adding the
+team again any other way starts it afresh.
 
 ## Live updates, activity and the inbox
 
@@ -71,5 +80,5 @@ The row shows who added the team and who last wrote the note, and when.
 ## Storage
 
 Migration 18 adds `workspace_picklist` (one row per team: rank, who added it and when, the
-note and who last wrote it and when) and `workspace_picklist_versions` (the version per
+note and who last wrote it and when, and `removed_at` while it's off the list) and `workspace_picklist_versions` (the version per
 workspace and season). Both are private tables and never ship in the public snapshot.

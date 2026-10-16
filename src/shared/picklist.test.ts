@@ -3,6 +3,7 @@
 import { describe, expect, it } from "vitest";
 import { applyPickOp, cleanPickOp, isPickList, MAX_PICKS, moveOpFor, type Pick, type PickOp } from "./picklist";
 import { newer, withPending } from "../lib/sharedPicklist";
+import { moveItem } from "../lib/shortlist";
 
 const me = { accountId: 1, name: "Priya" };
 const list = (...teams: number[]): Pick[] => teams.map((team, i) => ({ team, rank: i + 1, addedBy: me, addedAt: 1, note: "", noteBy: null, noteUpdatedAt: null }));
@@ -40,6 +41,23 @@ describe("applyPickOp", () => {
     const b = a.ok ? applyPickOp(a.picks, { op: "note", team: 1, note: "slow" }, { accountId: 2, name: "Marcus" }, 9) : a;
     expect(b.ok && b.picks[0]).toMatchObject({ note: "slow", noteBy: { accountId: 2, name: "Marcus" }, noteUpdatedAt: 9 });
     expect(applyPickOp(list(1), { op: "note", team: 2, note: "x" }, me, 5)).toEqual({ ok: false, reason: "missing" });
+  });
+
+  it("a restoring add (Undo) brings back the pick it's given; a plain add ignores it", () => {
+    const old = { ...list(7)[0], note: "kept", noteBy: { accountId: 2, name: "Marcus" }, noteUpdatedAt: 3 };
+    const r = applyPickOp(list(1), { op: "add", team: 7, beforeTeam: 1, restore: true }, { accountId: 9, name: "Ada" }, 5, old);
+    expect(r.ok && r.picks[0]).toEqual({ ...old, rank: 1 });
+    const plain = applyPickOp(list(1), { op: "add", team: 7 }, { accountId: 9, name: "Ada" }, 5, old);
+    expect(plain.ok && plain.picks[1]).toMatchObject({ note: "", addedBy: { accountId: 9 } });
+    expect(cleanPickOp({ op: "add", team: 7, restore: true })).toEqual({ op: "add", team: 7, beforeTeam: null, restore: true });
+  });
+
+  it("a drag's move comes from the list as it was at pickup, even if the list changed under it", () => {
+    // Picked up [1,2,3,4,5]; 3 dragged below 4: useReorder commits ([1,2,4,3,5], 3, to 3, from 2).
+    const order = [1, 2, 4, 3, 5], to = 3, from = 2;
+    expect(moveOpFor(moveItem(order, to, from), order, 3)).toEqual({ op: "move", team: 3, beforeTeam: null, afterTeam: 4 });
+    // Meanwhile another member moved 5 to the top: the move still lands 3 just after 4.
+    expect(run(list(5, 1, 2, 3, 4), [moveOpFor(moveItem(order, to, from), order, 3)])).toEqual([5, 1, 2, 4, 3]);
   });
 
   it("copies a shortlist in: new teams at the end, in its order, up to the cap", () => {

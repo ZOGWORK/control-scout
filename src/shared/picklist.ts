@@ -44,7 +44,8 @@ export interface PickList {
 }
 
 export type PickOp =
-  | { op: "add"; team: number; beforeTeam?: number | null }
+  /** restore: an Undo of a remove; the server brings back the pick as it was (who added it, its note). */
+  | { op: "add"; team: number; beforeTeam?: number | null; restore?: boolean }
   | { op: "remove"; team: number }
   /** Just before beforeTeam (null: to the end), or just after afterTeam when that's given instead. */
   | { op: "move"; team: number; beforeTeam: number | null; afterTeam?: number }
@@ -64,7 +65,7 @@ export function cleanPickOp(x: unknown): PickOp | { error: string } {
   }
   if (!isTeam(b.team)) return { error: "team must be a team number" };
   switch (b.op) {
-    case "add": return { op: "add", team: b.team, beforeTeam: (before as number | null | undefined) ?? null };
+    case "add": return { op: "add", team: b.team, beforeTeam: (before as number | null | undefined) ?? null, ...(b.restore === true ? { restore: true } : {}) };
     case "remove": return { op: "remove", team: b.team };
     case "move": {
       const after = b.afterTeam;
@@ -97,7 +98,9 @@ const renumber = (picks: Pick[]) => picks.map((p, i) => (p.rank === i + 1 ? p : 
  * Never mutates its input. Idempotent where that's what the member meant: adding a team already on the
  * list or removing one that's gone changes nothing; moving or noting a team that's gone is "missing".
  */
-export function applyPickOp(list: readonly Pick[], op: PickOp, by: PickPerson, at: number): ApplyResult {
+export function applyPickOp(list: readonly Pick[], op: PickOp, by: PickPerson, at: number,
+  /** For a restoring add: the pick as it was before its removal (its attribution and note come back with it). */
+  previous?: Pick | null): ApplyResult {
   const picks = [...list];
   const idx = (t: number) => picks.findIndex((p) => p.team === t);
   const fresh = (team: number): Pick => ({ team, rank: 0, addedBy: by, addedAt: at, note: "", noteBy: null, noteUpdatedAt: null });
@@ -108,7 +111,7 @@ export function applyPickOp(list: readonly Pick[], op: PickOp, by: PickPerson, a
       // An anchor removed meanwhile: the end (adding is never refused for where it was going).
       const at2 = op.beforeTeam == null ? -1 : idx(op.beforeTeam);
       const pos = at2 < 0 ? picks.length : at2;
-      picks.splice(pos, 0, fresh(op.team));
+      picks.splice(pos, 0, op.restore && previous?.team === op.team ? { ...previous, rank: 0 } : fresh(op.team));
       return { ok: true, picks: renumber(picks), changed: true, to: pos + 1, added: [op.team] };
     }
     case "import": {

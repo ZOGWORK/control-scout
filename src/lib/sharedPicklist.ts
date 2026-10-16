@@ -148,5 +148,5 @@ export function usePickList(space: string | null, season: number, live: LiveMode
 
   const mine = useMemo(() => pending.filter((p) => p.space === space && p.season === season).map((p) => p.op), [pending, space, season]);
   const list = useMemo(() => (server ? withPending(server, mine, me) : null), [server, mine, me]);
-  return { list, loading: loading && !server, error: server ? null : error, saving: mine.length > 0, change, reload: () => { void fetchList(); } };
+  return { list, loading: !server && (loading || !error), error: server ? null : error, saving: mine.length > 0, change, reload: () => { void fetchList(); } };
 }

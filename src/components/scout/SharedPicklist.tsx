@@ -6,7 +6,7 @@ import { useCallback, useMemo, useRef, useState, type FormEvent, type RefObject 
 import { Link } from "react-router-dom";
 import { Copy, GripVertical, LayoutGrid, List, ListOrdered, Loader2, Plus, Scale } from "lucide-react";
 import { useApi, qs } from "../../lib/api";
-import { compareHref, readView, saveView, type ShortlistView } from "../../lib/shortlist";
+import { compareHref, moveItem, readView, saveView, type ShortlistView } from "../../lib/shortlist";
 import { usePickList } from "../../lib/sharedPicklist";
 import type { LiveMode } from "../../lib/scoutLive";
 import { agoShort } from "../../lib/format";
@@ -77,14 +77,14 @@ export function SharedPicklist({ workspaceId, workspaceName, season, live, me, s
 
   const describe = useCallback((t: number) => { const n = byTeam.get(t)?.name; return n ? `${t} ${n}` : `Team ${t}`; }, [byTeam]);
   const change = pl.change;
-  const reorder = useReorder({ items: teams, describe, onCommit: useCallback((order: number[], moved: number) => change(moveOpFor(teams, order, moved)), [change, teams]) });
+  const reorder = useReorder({ items: teams, describe, onCommit: useCallback((order: number[], moved: number, to: number, from: number) => change(moveOpFor(moveItem(order, to, from), order, moved)), [change]) });
 
   const remove = (t: number) => {
     const i = teams.indexOf(t);
     const before = i >= 0 ? teams[i + 1] ?? null : null;
     change({ op: "remove", team: t });
     setPicked((p) => p.filter((x) => x !== t));
-    toast(`Removed ${describe(t)} from the pick list`, { action: { label: "Undo", onClick: () => change({ op: "add", team: t, beforeTeam: before }) } });
+    toast(`Removed ${describe(t)} from the pick list`, { action: { label: "Undo", onClick: () => change({ op: "add", team: t, beforeTeam: before, restore: true }) } });
   };
 
   // Add a team.

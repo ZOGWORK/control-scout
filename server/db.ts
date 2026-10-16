@@ -662,6 +662,8 @@ CREATE UNIQUE INDEX inbox_items_alert ON inbox_items (user_id, source_alert_id) 
 -- pick order, edited by any member. rank: 1..n, renumbered by the server after every change (changes to one
 -- workspace are applied one at a time, in arrival order). added_by_* / note_by_*: who, as the server stamped it
 -- (Control Point account id and display name); *_at: ms. note: shared with the whole workspace, last write wins.
+-- removed_at: ms, set when a member removes the team (the row stays so Undo brings back its note and who added it);
+-- NULL while it's on the list. Adding the team again without Undo starts it afresh.
 CREATE TABLE workspace_picklist (
   workspace_id INTEGER NOT NULL REFERENCES workspaces (id),
   season INTEGER NOT NULL,
@@ -674,6 +676,7 @@ CREATE TABLE workspace_picklist (
   note_by_account_id INTEGER,
   note_by_name TEXT,
   note_updated_at INTEGER,
+  removed_at INTEGER,
   PRIMARY KEY (workspace_id, season, team)
 );
 CREATE INDEX workspace_picklist_order ON workspace_picklist (workspace_id, season, rank);
