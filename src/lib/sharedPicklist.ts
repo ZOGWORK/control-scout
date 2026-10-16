@@ -79,6 +79,9 @@ export function usePickList(space: string | null, season: number, live: LiveMode
   const [pending, setPending] = useState<Pending[]>([]);
   // Notes the server didn't take, by `${space}:${season}:${team}`: the text stays in the field, marked unsaved.
   const [unsaved, setUnsaved] = useState<Record<string, string>>({});
+  // The newest note write per team (same keys): only its failure marks the field unsaved, so an older write
+  // failing after a newer one was made never brings its text back.
+  const latestNote = useRef(new Map<string, number>());
   const key = space ? `${space}:${season}` : null;
   const keyRef = useRef(key);
   keyRef.current = key;
@@ -151,12 +154,16 @@ export function usePickList(space: string | null, season: number, live: LiveMode
           // Refused (409: a team it names is gone, or the list is full) or not sent: say so, show the server's list.
           const err = e instanceof ApiError ? e : new ApiError(0, "Couldn't save the change.");
           // A note keeps its text (the field shows it unsaved and retries on Enter), unless its team is gone (409).
-          if (p.op.op === "note" && err.status !== 409) { const note = p.op.note, key = `${k}:${p.op.team}`; setUnsaved((u) => ({ ...u, [key]: note })); }
+          if (p.op.op === "note" && err.status !== 409) {
+            const note = p.op.note, key = `${k}:${p.op.team}`;
+            if (latestNote.current.get(key) === p.id) setUnsaved((u) => ({ ...u, [key]: note }));
+          }
           if (keyRef.current === k) {
             refused.current(err.status === 409 ? err.message : `Not saved: ${err.message}`);
             void refetch.current();
           }
         }
+        if (p.op.op === "note") { const key = `${k}:${p.op.team}`; if (latestNote.current.get(key) === p.id) latestNote.current.delete(key); }
         if (queue.current[0] === p) queue.current.shift();
         setPending((cur) => cur.filter((x) => x.id !== p.id));
       }
@@ -167,7 +174,7 @@ export function usePickList(space: string | null, season: number, live: LiveMode
     if (!space) return;
     const p: Pending = { id: nextId.current++, op, space, season };
     // A new write of a note replaces one that failed (a retry, or putting the saved one back).
-    if (op.op === "note") { const key = `${space}:${season}:${op.team}`; setUnsaved((u) => { if (!(key in u)) return u; const { [key]: _gone, ...rest } = u; return rest; }); }
+    if (op.op === "note") { const key = `${space}:${season}:${op.team}`; latestNote.current.set(key, p.id); setUnsaved((u) => { if (!(key in u)) return u; const { [key]: _gone, ...rest } = u; return rest; }); }
     queue.current.push(p);
     setPending((cur) => [...cur, p]);
     void drain();
