@@ -1,16 +1,18 @@
 // The live stream of workspace entries (GET /api/scout/stream), read raw over
 // HTTP against a stub Control Point: auth, catch-up then live with no gaps or
 // duplicates, tombstones as delete events, heartbeat, cleanup, caps, the kill
-// switch, and no compression in front of it.
+// switch, and no compression in front of it. Task 12: membership cached for at most 60 s on reads
+// and writes, the re-check sweep that ends a removed member's streams within a minute, per-account
+// coalescing and the 5 s floor, and deletes going out the moment they're pushed.
 import type { AddressInfo } from "node:net";
 import type { Server } from "node:http";
 import express from "express";
-import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from "vitest";
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { migrate, openDb, run, setDb } from "../db";
 import { createApp } from "../app";
 import { setMailer } from "../auth/email";
 import { clearInfoCache, MEMBERSHIP_TTL } from "../auth/controlPoint";
-import { activeStreamCount, closeAllStreams, setStreamLimits, streamRouter } from "./stream";
+import { activeStreamCount, closeAllStreams, LIMITS, setStreamLimits, streamRouter, sweep } from "./stream";
 import { subscriberCount } from "./bus";
 import { setFlag } from "../flags";
 import { liveConnections } from "../liveConnections";
@@ -21,6 +23,9 @@ let base = "", cpBase = "";
 const inbox = new Map<string, string>();
 type Ws = { id: string; name: string; role: "admin" | "member" };
 const accounts = new Map<string, { id: number; email: string; displayName: string | null; createdAt: string; controlPoint: { member: boolean; teams: never[] }; workspaces?: Ws[] }>();
+/** Account reads Scout asked Control Point for (GET /internal/accounts/:id), answered or not; cpDown: it answers 503. */
+let cpCalls = 0;
+let cpDown = false;
 const accountFor = (email: string) => {
   let a = accounts.get(email);
   if (!a) { a = { id: 3000 + accounts.size, email, displayName: null, createdAt: new Date().toISOString(), controlPoint: { member: false, teams: [] } }; accounts.set(email, a); }
@@ -30,7 +35,12 @@ const accountFor = (email: string) => {
 beforeAll(async () => {
   const stub = express();
   stub.use(express.json());
-  stub.use("/internal", (req, res, next) => { if (req.get("X-Internal-Key") !== KEY) { res.status(401).json({ error: "bad key" }); return; } next(); });
+  stub.use("/internal", (req, res, next) => {
+    if (req.get("X-Internal-Key") !== KEY) { res.status(401).json({ error: "bad key" }); return; }
+    if (req.method === "GET" && /^\/accounts\/\d+$/.test(req.path)) cpCalls++;
+    if (cpDown) { res.status(503).json({ error: "down" }); return; }
+    next();
+  });
   stub.post("/internal/accounts/resolve", (req, res) => { res.json({ account: accountFor(String(req.body.email).toLowerCase()) }); });
   stub.get("/internal/accounts/:id", (req, res) => {
     const a = [...accounts.values()].find((x) => x.id === Number(req.params.id));
@@ -59,6 +69,8 @@ beforeEach(() => {
   Object.assign(process.env, { CONTROL_POINT_INTERNAL_URL: cpBase, CONTROL_POINT_PUBLIC_URL: "https://cp.test", CONTROL_POINT_INTERNAL_KEY: KEY, APP_URL: "http://127.0.0.1" });
 });
 afterEach(async () => {
+  vi.useRealTimers();
+  cpDown = false;
   closeAllStreams();
   await until(() => activeStreamCount() === 0);
 });
@@ -85,10 +97,11 @@ async function signIn(email: string, displayName?: string): Promise<Member> {
   return { get cookie() { return cookie; }, call };
 }
 
+// (performance.now, not Date: some tests move the clock by hand.)
 async function until(ok: () => boolean, ms = 3000) {
-  const end = Date.now() + ms;
+  const end = performance.now() + ms;
   while (!ok()) {
-    if (Date.now() > end) throw new Error("timed out waiting");
+    if (performance.now() > end) throw new Error("timed out waiting");
     await new Promise((r) => setTimeout(r, 10));
   }
 }
@@ -284,14 +297,14 @@ describe("GET /api/scout/stream", () => {
     } finally { restore(); }
   });
 
-  it("a member removed in Control Point is told and dropped at the next re-check", async () => {
-    const restore = setStreamLimits({ recheckMs: 50 });
+  it("a member removed in Control Point is told and dropped by the running re-check sweep", async () => {
+    const restore = setStreamLimits({ recheckMs: 300, sweepMs: 20 });
     try {
       const { B } = await team("281");
       const s = await stream(B, "workspaceId=281");
       await s.ready();
       const b = accountFor("marcus@example.com");
-      b.workspaces = [];
+      b.workspaces = (b.workspaces ?? []).filter((w) => w.id !== "281");
       await run("UPDATE workspace_members SET updated_at = ? WHERE account_id = ?", [Date.now() - MEMBERSHIP_TTL - 1, b.id]);
       clearInfoCache(); // past the 5 s re-check window of the connect's own refresh
       await until(() => s.frames.some((f) => f.event === "membership_revoked"));
@@ -368,6 +381,12 @@ describe("GET /api/scout/stream", () => {
     expect(liveConnections().total).toBe(before);
   });
 
+  it("Task 12 defaults: the sweep re-checks within a minute, every 5 s; the cache lasts 60 s", () => {
+    expect(LIMITS.recheckMs).toBeLessThanOrEqual(60_000);
+    expect(LIMITS.sweepMs).toBeLessThanOrEqual(5_000);
+    expect(MEMBERSHIP_TTL).toBe(60_000);
+  });
+
   it("closeAllStreams (SIGTERM) ends every stream", async () => {
     const { B } = await team("291");
     const s = await stream(B, "workspaceId=291");
@@ -375,6 +394,146 @@ describe("GET /api/scout/stream", () => {
     closeAllStreams();
     expect(activeStreamCount()).toBe(0);
     expect(subscriberCount()).toBe(0);
+    s.close();
+  });
+});
+
+// Task 12: the clock moves by hand (Date only: sockets, the database and timers run as normal).
+describe("live sync hardening (Task 12)", () => {
+  const removeFrom = (email: string, ws: string) => {
+    const a = accountFor(email);
+    a.workspaces = (a.workspaces ?? []).filter((w) => w.id !== ws);
+  };
+  const clockAt = (t: number) => { vi.useFakeTimers({ toFake: ["Date"] }); vi.setSystemTime(t); };
+  const pull = (m: Member, ws: string) => m.call("GET", `/api/scout/sync?workspaceId=${ws}&since=0`);
+
+  it("writes: the cached membership counts for 60 s, then Control Point decides (a removal there is refused within the minute)", async () => {
+    const { B } = await team("301");
+    expect((await push(B, "301", [entry()])).status).toBe(200); // asks Control Point: the row is fresh now
+    const t0 = Date.now();
+    clockAt(t0);
+    removeFrom("marcus@example.com", "301");
+    const calls = cpCalls;
+    vi.setSystemTime(t0 + 59_000);
+    expect((await push(B, "301", [entry()])).status).toBe(200); // still within the cache
+    expect(cpCalls).toBe(calls);
+    vi.setSystemTime(t0 + 61_000);
+    const refused = await push(B, "301", [entry()]);
+    expect(refused.status).toBe(403);
+    expect(refused.json.error).toMatch(/not a member/);
+    expect(cpCalls).toBe(calls + 1);
+  });
+
+  it("reads: a pull re-checks once the cached row is over 60 s old", async () => {
+    const { B } = await team("302");
+    expect((await pull(B, "302")).status).toBe(200);
+    const t0 = Date.now();
+    clockAt(t0);
+    removeFrom("marcus@example.com", "302");
+    const calls = cpCalls;
+    vi.setSystemTime(t0 + 30_000);
+    expect((await pull(B, "302")).status).toBe(200);
+    expect(cpCalls).toBe(calls);
+    vi.setSystemTime(t0 + 60_500);
+    expect((await pull(B, "302")).status).toBe(403);
+    expect(cpCalls).toBe(calls + 1);
+  });
+
+  it("per-account coalescing and the 5 s floor; Control Point down: a stale row still counts, a missing one doesn't", async () => {
+    const { B } = await team("303");
+    expect((await pull(B, "303")).status).toBe(200);
+    const t0 = Date.now();
+    clockAt(t0);
+    // Stale: five reads at once ask Control Point once.
+    vi.setSystemTime(t0 + 61_000);
+    let calls = cpCalls;
+    expect((await Promise.all(Array.from({ length: 5 }, () => pull(B, "303")))).map((r) => r.status)).toEqual([200, 200, 200, 200, 200]);
+    expect(cpCalls).toBe(calls + 1);
+    // Control Point goes down once the row is stale again: reads carry on (stale row), at most one call per 5 s.
+    cpDown = true;
+    vi.setSystemTime(t0 + 123_000);
+    calls = cpCalls;
+    expect((await Promise.all(Array.from({ length: 3 }, () => pull(B, "303")))).map((r) => r.status)).toEqual([200, 200, 200]);
+    expect(cpCalls).toBe(calls + 1);
+    vi.setSystemTime(t0 + 126_000);
+    expect((await push(B, "303", [entry()])).status).toBe(200);
+    expect(cpCalls).toBe(calls + 1); // within 5 s of the last try: no call
+    vi.setSystemTime(t0 + 129_000);
+    expect((await pull(B, "303")).status).toBe(200);
+    expect(cpCalls).toBe(calls + 2);
+    // A workspace with no cached row is refused while Control Point can't say.
+    accountFor("marcus@example.com").workspaces!.push({ id: "304", name: "Team 304", role: "member" });
+    vi.setSystemTime(t0 + 135_000);
+    expect((await pull(B, "304")).status).toBe(403);
+  });
+
+  // These run the sweep by hand (its own timer, every 5 s, doesn't fire within a test this short).
+  it("the sweep ends an open stream within 60 s of a removal in Control Point, one call per account however many streams", async () => {
+    const { B } = await team("305");
+    const s1 = await stream(B, "workspaceId=305"), s2 = await stream(B, "workspaceId=305");
+    await s1.ready(); await s2.ready(); // each connect checked membership: Control Point's answer is fresh
+    const t0 = Date.now();
+    clockAt(t0);
+    const calls = cpCalls;
+    vi.setSystemTime(t0 + 1_000);
+    removeFrom("marcus@example.com", "305"); // removed in Control Point
+    vi.setSystemTime(t0 + 50_000);
+    await sweep();
+    expect(cpCalls).toBe(calls); // the answer is under a minute old: nothing to ask
+    expect(activeStreamCount()).toBe(2);
+    vi.setSystemTime(t0 + 56_000);
+    await sweep(); // due before the next tick: asks once for both streams
+    expect(cpCalls).toBe(calls + 1);
+    await until(() => s1.frames.some((f) => f.event === "membership_revoked") && s2.frames.some((f) => f.event === "membership_revoked"));
+    await until(() => activeStreamCount() === 0);
+    // Removed at +1 s, told at +56 s: within the minute.
+  });
+
+  it("the sweep keeps streams while Control Point is down, asks again a minute later (not every tick), then revokes", async () => {
+    const { B } = await team("306");
+    const s = await stream(B, "workspaceId=306");
+    await s.ready();
+    const t0 = Date.now();
+    clockAt(t0);
+    cpDown = true;
+    const calls = cpCalls;
+    vi.setSystemTime(t0 + 56_000);
+    await sweep();
+    expect(cpCalls).toBe(calls + 1);
+    vi.setSystemTime(t0 + 61_000);
+    await sweep();
+    vi.setSystemTime(t0 + 66_000);
+    await sweep();
+    expect(cpCalls).toBe(calls + 1); // not every tick
+    expect(activeStreamCount()).toBe(1);
+    expect(s.frames.some((f) => f.event === "membership_revoked")).toBe(false);
+    cpDown = false;
+    removeFrom("marcus@example.com", "306");
+    vi.setSystemTime(t0 + 112_000);
+    await sweep();
+    expect(cpCalls).toBe(calls + 2);
+    await until(() => s.frames.some((f) => f.event === "membership_revoked"));
+    await until(() => activeStreamCount() === 0);
+  });
+
+  it("a delete goes out on the other members' streams the moment it's pushed, like an add", async () => {
+    const { A, B } = await team("307");
+    const s = await stream(B, "workspaceId=307");
+    await s.ready();
+    const e = entry();
+    let t = performance.now();
+    await push(A, "307", [e]);
+    await until(() => s.entries().length === 1, 1000);
+    const add = performance.now() - t;
+    t = performance.now();
+    await push(A, "307", [{ ...e, deleted: true, data: {}, notes: "", updatedAt: e.updatedAt + 1 }]);
+    await until(() => s.entries().length === 2, 1000);
+    const del = performance.now() - t;
+    expect(s.entries()[1]).toMatchObject({ event: "delete", id: "2" });
+    expect(s.data()[1]).toMatchObject({ uuid: e.uuid, deleted: true });
+    // Published in the push itself: both reach the stream well inside the 1-2 s target.
+    expect(add).toBeLessThan(1000);
+    expect(del).toBeLessThan(1000);
     s.close();
   });
 });

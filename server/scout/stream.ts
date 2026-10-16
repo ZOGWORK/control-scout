@@ -20,8 +20,11 @@
 //                            then reconnect. data {"cursor": n}
 //   event: membership_revoked  the member lost access; the stream ends. Sent at once when an admin
 //                            removes them (Settings → Workspace → Members) or a membership refresh finds
-//                            the workspace gone from Control Point's answer (bus.ts publishRevoked); else
-//                            by the periodic re-check (LIMITS.recheckMs).
+//                            the workspace gone from Control Point's answer (bus.ts publishRevoked); and
+//                            by the re-check sweep below: an account with an open stream is re-checked with
+//                            Control Point at least every LIMITS.recheckMs (60 s), so a removal made in
+//                            Control Point ends its streams within about a minute. Also sent when the
+//                            session ends (signed out, expired).
 //   event: template          an admin changed the workspace's template; no id (it isn't an entry,
 //                            so it never moves the cursor). data {"season", "version", "settingsVersion"}:
 //                            refetch GET /api/scout/workspaces/:id/template. Sent once live (one during the catch-up comes after `ready`).
@@ -49,7 +52,7 @@
 // path its own location without buffering and with a long read timeout
 // (deploy/oracle-vm-setup.sh). Compression skips text/event-stream (app.ts).
 import express, { type Request, type Response, type Router } from "express";
-import { isWorkspaceId } from "../auth/controlPoint.js";
+import { isWorkspaceId, membershipAnsweredAt, refreshAccount } from "../auth/controlPoint.js";
 import { currentUser } from "../auth/session.js";
 import { subscribe, subscribeActivity, subscribeAssignments, subscribeComments, subscribePicklist, subscribeRevoked, subscribeSettings, subscribeTemplate, type ActivityNotice, type LiveEntry, type PicklistNotice, type SettingsNotice, type TemplateNotice } from "./bus.js";
 import { openLiveConnection } from "../liveConnections.js";
@@ -60,16 +63,85 @@ import type { CommentEvent } from "../../src/shared/comments.js";
 /**
  * Streams one account may hold at once (tabs and devices) and the whole server, the heartbeat
  * (well under nginx's default proxy_read_timeout of 60 s, should a proxy keep that default), and
- * how often a long stream re-checks the session and the membership. A reader that falls behind
- * (more than maxBufferedBytes waiting to be sent, or maxHeld entries written during its catch-up)
- * is let go: it reconnects from its cursor instead of the server holding its backlog in memory.
+ * how often a stream re-checks the session and the membership: the sweep runs every sweepMs and
+ * re-checks each streaming account whose last answer from Control Point is about to be recheckMs
+ * old (so at most recheckMs passes between a removal there and the stream ending). A reader that
+ * falls behind (more than maxBufferedBytes waiting to be sent, or maxHeld entries written during its
+ * catch-up) is let go: it reconnects from its cursor instead of the server holding its backlog in memory.
  */
-export const LIMITS = { perAccount: 8, total: 1000, heartbeatMs: 25_000, recheckMs: 5 * 60_000, maxBufferedBytes: 1 << 20, maxHeld: 2000 };
+export const LIMITS = { perAccount: 8, total: 1000, heartbeatMs: 25_000, recheckMs: 60_000, sweepMs: 5_000, maxBufferedBytes: 1 << 20, maxHeld: 2000 };
 /** Catch-up pages (of PULL_LIMIT entries) a stream sends on connect before it asks the client to pull instead. */
 export const CATCHUP_PAGES = 10;
 
-interface Stream { userId: number; workspaceId: string; end: (closeSocket?: boolean) => void }
+interface Stream {
+  userId: number; accountId: number; workspaceId: string; req: Request;
+  /** When the sweep last checked this stream's session. */
+  sessionAt: number;
+  end: (closeSocket?: boolean) => void;
+  /** Say membership_revoked, then end. */
+  revoke: () => void;
+}
 const streams = new Set<Stream>();
+
+// ---------------------------------------------------------------------------
+// The re-check sweep (Task 12). One timer for the whole server, running only while streams are open.
+// Each tick: every stream's session once per recheckMs (a database read), and every streaming account
+// whose last Control Point answer (membershipAnsweredAt: any fetch counts, a read's or a write's too)
+// would be recheckMs old before the next tick is asked again: one call per account however many
+// streams it has (refreshAccount coalesces, and allows one call per 5 s). A removal ends the account's
+// streams there (storeMemberships publishes it, and the sweep decides from the answer too). Control
+// Point unreachable: the streams stay, as reads do, and the account is asked again a recheckMs later.
+// ---------------------------------------------------------------------------
+let sweeper: ReturnType<typeof setInterval> | null = null;
+let sweeping = false;
+/** When the sweep last asked Control Point about each account (answered or not), so an outage isn't asked every tick. */
+const askedAt = new Map<number, number>();
+
+function startSweep() {
+  if (sweeper) return;
+  sweeper = setInterval(() => { void sweep(); }, LIMITS.sweepMs);
+  sweeper.unref?.();
+}
+function stopSweepIfIdle() {
+  if (streams.size || !sweeper) return;
+  clearInterval(sweeper); sweeper = null; askedAt.clear();
+}
+
+/** One pass of the re-check (exported for tests; the timer calls it). */
+export async function sweep(): Promise<void> {
+  if (sweeping) return;
+  sweeping = true;
+  try {
+    const now = Date.now();
+    // Due before the next tick: the account's answer would be recheckMs old by then.
+    const due = Math.max(0, LIMITS.recheckMs - LIMITS.sweepMs);
+    const byAccount = new Map<number, Stream[]>();
+    for (const s of streams) {
+      const list = byAccount.get(s.accountId);
+      if (list) list.push(s); else byAccount.set(s.accountId, [s]);
+    }
+    await Promise.all([...byAccount].map(async ([accountId, list]) => {
+      // The session first: signed out or expired ends the stream like a removal.
+      for (const s of list) {
+        if (now - s.sessionAt < due) continue;
+        s.sessionAt = now;
+        const u = await currentUser(s.req).catch(() => undefined);
+        if (u === null) s.revoke(); // undefined: the database was away; try again next time
+      }
+      const last = Math.max(membershipAnsweredAt(accountId), askedAt.get(accountId) ?? 0);
+      if (now - last < due) return;
+      askedAt.set(accountId, now);
+      const answer = await refreshAccount(accountId).catch(() => null);
+      if (!answer) return; // Control Point unreachable: a stale membership still counts
+      for (const s of list) if (!answer.some((w) => w.id === s.workspaceId)) s.revoke();
+    }));
+    for (const id of askedAt.keys()) if (!byAccount.has(id)) askedAt.delete(id);
+  } catch (e) {
+    console.error("[scout stream] re-check failed", e);
+  } finally {
+    sweeping = false;
+  }
+}
 
 /**
  * Open streams right now: the whole server's, or one account's. Kept here, in
@@ -188,9 +260,7 @@ data: ${JSON.stringify(a)}
   });
   // Removed from the workspace (bus.ts publishRevoked): end now, not at the next re-check.
   const unsubscribeRevoked = subscribeRevoked(workspaceId, (accountId) => {
-    if (accountId !== access.membership.accountId || closed) return;
-    write("event: membership_revoked\ndata: {}\n\n");
-    end();
+    if (accountId === access.membership.accountId) stream.revoke();
   });
   // Assignment changes likewise (bounded, sent once live).
   const heldAssignments: AssignmentNotice[] = [];
@@ -212,28 +282,25 @@ data: ${JSON.stringify(c)}
     if (live) sendComment(c);
     else if (heldComments.push(c) > LIMITS.maxHeld) end();
   });
-  const stream: Stream = { userId: user.id, workspaceId, end: (closeSocket) => { end(); if (closeSocket) res.socket?.end(); } };
+  // The re-check sweep (above) checks this stream's session and the account's membership.
+  // A check that can't run (the database or Control Point briefly away) keeps the stream, as reads do.
+  const stream: Stream = {
+    userId: user.id, accountId: access.membership.accountId, workspaceId, req, sessionAt: Date.now(),
+    end: (closeSocket) => { end(); if (closeSocket) res.socket?.end(); },
+    revoke: () => { if (closed) return; write("event: membership_revoked\ndata: {}\n\n"); end(); },
+  };
   streams.add(stream);
+  startSweep();
   // Counted for the owner portal's Usage panel (live connections), released in end().
   const release = openLiveConnection("scout-stream");
   const heartbeat = setInterval(() => write(": ping\n\n"), LIMITS.heartbeatMs);
-  // A check that can't run (the database or Control Point briefly away) keeps the stream, as reads do.
-  const recheck = setInterval(() => {
-    void (async () => {
-      const u = await currentUser(req).catch(() => undefined);
-      if (u === undefined || closed) return;
-      const a = u ? await workspaceAccess(u, workspaceId).catch(() => undefined) : null;
-      if (a === undefined || closed || a?.ok) return;
-      write("event: membership_revoked\ndata: {}\n\n");
-      end();
-    })();
-  }, LIMITS.recheckMs);
   function end() {
     if (closed) return;
     closed = true;
-    clearInterval(heartbeat); clearInterval(recheck);
+    clearInterval(heartbeat);
     unsubscribe(); unsubscribeTemplate(); unsubscribeSettings(); unsubscribeActivity(); unsubscribeRevoked(); unsubscribeComments(); unsubscribeAssignments(); unsubscribePicklist();
     streams.delete(stream);
+    stopSweepIfIdle();
     release();
     held.length = 0; heldActivity.length = 0; heldComments.length = 0; heldAssignments.length = 0; heldPicklists.clear();
     res.end();

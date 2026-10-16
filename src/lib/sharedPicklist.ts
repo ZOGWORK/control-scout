@@ -16,6 +16,9 @@ import { applyPickOp, isPickList, type PickList, type PickOp, type PickPerson } 
 /** Window event: a workspace's pick list arrived on its stream. detail: PickList. */
 export const SCOUT_PICKLIST = "cs-scout-picklist";
 export const announcePicklist = (l: PickList) => { window.dispatchEvent(new CustomEvent(SCOUT_PICKLIST, { detail: l })); };
+/** Window event: fetch a workspace's open pick list again (the space switcher's manual refresh). detail: { space }. */
+export const SCOUT_PICKLIST_RESYNC = "cs-scout-picklist-resync";
+export const announcePicklistResync = (space: string) => { window.dispatchEvent(new CustomEvent(SCOUT_PICKLIST_RESYNC, { detail: { space } })); };
 
 export const PICKLIST_POLL_MS = 30_000;
 
@@ -109,8 +112,10 @@ export function usePickList(space: string | null, season: number, live: LiveMode
   useEffect(() => {
     if (!space) return;
     const on = (ev: Event) => { const l = (ev as CustomEvent<unknown>).detail; if (isPickList(l)) accept(l); };
+    const resync = (ev: Event) => { if ((ev as CustomEvent<{ space?: string }>).detail?.space === space) void refetch.current(); };
     window.addEventListener(SCOUT_PICKLIST, on);
-    return () => window.removeEventListener(SCOUT_PICKLIST, on);
+    window.addEventListener(SCOUT_PICKLIST_RESYNC, resync);
+    return () => { window.removeEventListener(SCOUT_PICKLIST, on); window.removeEventListener(SCOUT_PICKLIST_RESYNC, resync); };
   }, [space, accept]);
 
   /** Send queued changes one at a time, in order. */

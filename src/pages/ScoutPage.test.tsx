@@ -16,10 +16,11 @@ import { TooltipProvider } from "../components/ui/overlay";
 const h = vi.hoisted(() => ({
   personal: { user: null as AccountUser | null, providers: { email: true, google: false } as object | null, syncReady: false, state: { videoLinks: {} } },
   live: "off" as LiveMode,
+  generations: [] as number[],
   lookup: async (_n: number): Promise<string | null> => "Test Team",
 }));
 vi.mock("../lib/personal", () => ({ usePersonal: () => h.personal }));
-vi.mock("../lib/scoutLive", () => ({ useScoutLive: (space: string | null) => (space == null ? "off" : h.live) }));
+vi.mock("../lib/scoutLive", () => ({ useScoutLive: (space: string | null, _signedIn: boolean, generation = 0) => { h.generations.push(generation); return space == null ? "off" : h.live; } }));
 vi.mock("../components/MatchVideo", () => ({ Recordings: () => null }));
 vi.mock("../components/TeamInput", async (orig) => ({ ...(await orig<typeof import("../components/TeamInput")>()), lookupTeamName: (n: number) => h.lookup(n) }));
 
@@ -216,6 +217,57 @@ describe("Scout spaces", () => {
     show();
     expect(listed().join()).not.toContain("1111");
     expect(screen.getByRole("status", { name: /Loading scout space/ })).toBeTruthy();
+  });
+
+  it("a push or pull for the space on screen refused (403): back to Personal, with a notice", async () => {
+    h.personal.user = signedIn();
+    show();
+    expect(screen.getByRole("button", { pressed: true }).textContent).toContain("Gearheads");
+    act(() => { window.dispatchEvent(new CustomEvent("cs-scout-denied", { detail: "901" })); });
+    await waitFor(() => expect(param()).toBe("personal"));
+    expect(screen.getByRole("status").textContent).toContain("You were removed from Gearheads.");
+  });
+
+  it("the manual refresh: pushes the queue, pulls from the cursor, re-reads the account and reconnects the stream, then says so", async () => {
+    const calls: string[] = [];
+    vi.stubGlobal("fetch", vi.fn(async (url: string, init?: RequestInit) => {
+      const body = init?.body ? JSON.parse(String(init.body)) : null;
+      calls.push(`${init?.method ?? "GET"} ${String(url)}`);
+      const answer = init?.method === "POST" ? { results: body.entries.map((e: { uuid: string }) => ({ uuid: e.uuid, ok: true })) } : { entries: [], cursor: 7, more: false };
+      return new Response(JSON.stringify(answer), { status: 200, headers: { "Content-Type": "application/json" } });
+    }));
+    const refreshUser = vi.fn(async () => { calls.push("refreshUser"); });
+    h.personal = { ...h.personal, user: signedIn(), syncReady: true, refreshUser } as typeof h.personal;
+    show();
+    await waitFor(() => expect(calls.some((c) => c.startsWith("GET /api/scout/sync?workspaceId=901"))).toBe(true)); // the page's own first sync
+    const gen = h.generations.at(-1)!;
+    calls.length = 0;
+    saveScoutEntry({ uuid: "gearheads002", ...base, team: 4444, workspaceId: "901" }); // queued, not pushed yet
+    calls.length = 0;
+    const resyncs: unknown[] = [];
+    window.addEventListener("cs-scout-comments-resync", (e) => resyncs.push((e as CustomEvent).detail));
+    fireEvent.click(screen.getByRole("button", { name: "Refresh this space" }));
+    expect(await screen.findByText("Updated just now")).toBeTruthy();
+    // (The page's first pull moved the cursor to 7: the refresh pulls from there.)
+    const pushed = calls.indexOf("POST /api/me/scout/sync"), pulled = calls.indexOf("GET /api/scout/sync?workspaceId=901&since=7");
+    expect(pushed).toBeGreaterThanOrEqual(0); // the queue first…
+    expect(pulled).toBeGreaterThan(pushed); // …then the catch-up pull from the cursor…
+    expect(calls).toContain("refreshUser"); // …the account (/api/auth/me)…
+    expect(h.generations.at(-1)).toBe(gen + 1); // …and a fresh stream
+    expect(resyncs).toContainEqual({ space: "901" }); // open comment threads refetch too
+    // Another space has its own status: Gearheads' "Updated just now" isn't shown for Bolt Bots.
+    fireEvent.click(within(switcher()!).getByRole("button", { name: /Bolt Bots/ }));
+    await waitFor(() => expect(param()).toBe("902"));
+    expect(screen.queryByText("Updated just now")).toBeNull();
+    expect(localStorage.getItem("cs-scout-ws-cursor:901")).toBe("7");
+  });
+
+  it("the manual refresh says when it couldn't update", async () => {
+    vi.stubGlobal("fetch", vi.fn(async () => { throw new TypeError("Failed to fetch"); }));
+    h.personal = { ...h.personal, user: signedIn(), syncReady: true, refreshUser: async () => undefined } as typeof h.personal;
+    show();
+    fireEvent.click(screen.getByRole("button", { name: "Refresh this space" }));
+    expect(await screen.findByText("Couldn't update. Check your connection.")).toBeTruthy();
   });
 
   it("many workspaces: a dropdown instead of the segmented control", () => {

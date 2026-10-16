@@ -7,7 +7,7 @@ import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testi
 import { MemoryRouter } from "react-router-dom";
 import type { PickList } from "../../shared/picklist";
 import type { ShortlistTeam } from "../../shared/api";
-import { announcePicklist } from "../../lib/sharedPicklist";
+import { announcePicklist, announcePicklistResync } from "../../lib/sharedPicklist";
 import { SharedPicklist } from "./SharedPicklist";
 
 const S = 2025;
@@ -129,6 +129,15 @@ describe("SharedPicklist", () => {
     fireEvent.click(within(alert).getByRole("button", { name: "Retry" }));
     await waitFor(() => expect(rows()).toContain(104));
     expect(screen.queryByRole("alert")).toBeNull();
+  });
+
+  it("the space switcher's manual refresh fetches the list again", async () => {
+    show();
+    await waitFor(() => expect(rows()).toEqual([101, 102]));
+    const before = gets;
+    act(() => announcePicklistResync("other"));
+    act(() => announcePicklistResync("901"));
+    await waitFor(() => expect(gets).toBe(before + 1));
   });
 
   it("a refused change (409) is dropped and the list fetched again", async () => {
