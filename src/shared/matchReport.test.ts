@@ -1,6 +1,6 @@
 // v1.6 Task 2: the pre-match report's flag rules, one by one (src/shared/matchReport.ts).
 import { describe, expect, it } from "vitest";
-import { dataFlags, matchReportHref, topCutoff, watchFlags, type FlagCutoffs, type FlagInput, type TrendPoint, type WatchInput } from "./matchReport";
+import { dataFlags, matchReportHref, normalMatchKey, topCutoff, watchFlags, type FlagCutoffs, type FlagInput, type TrendPoint, type WatchInput } from "./matchReport";
 
 const base: FlagInput = { penOpr: 2, seasonMatches: 12, npDev: 20, npAvg: 100, qualPlayed: 12, trend: [] };
 const cut: FlagCutoffs = { penalties: 10, inconsistent: 0.6, rising: 8 };
@@ -79,6 +79,13 @@ describe("watch flags", () => {
     expect(watchFlags(1, { ...none, shortlist: [1] })[0].detail).toBe("On your shortlist.");
     expect(watchFlags(1, { ...none, picklist: [1], shortlist: [1] })[0].detail).toMatch(/workspace's pick list and your shortlist/);
   });
+});
+
+it("a key in an address reads one way, on the page and in the server's preview", () => {
+  expect(normalMatchKey("qual:0:12")).toBe("qual:0:12");
+  expect(normalMatchKey("QUAL:0:012")).toBe("qual:0:12");
+  expect(normalMatchKey("Playoff:03:1")).toBe("playoff:3:1");
+  for (const bad of ["final:1:1", "qual:0", "qual:0:12345", "", null, undefined]) expect(normalMatchKey(bad)).toBeNull();
 });
 
 it("the report's address", () => {

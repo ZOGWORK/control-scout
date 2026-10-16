@@ -14,15 +14,17 @@ import { useTitle } from "../lib/meta";
 import { useEventPoll } from "../lib/liveMode";
 import { matchReportPath, useMatchReportWorkspace, useWatchFlags } from "../lib/matchReport";
 import { matchTime, seasonLabel } from "../lib/format";
-import { MATCH_KEY, matchReportHref, type MatchReport } from "../shared/matchReport";
+import { matchReportHref, normalMatchKey, type MatchReport } from "../shared/matchReport";
 import { Async } from "../components/states";
 import { Page } from "../components/page";
 import { NotFoundView } from "../components/NotFoundView";
 import { MatchReportView } from "../components/MatchReport";
 
 export default function MatchReportPage() {
-  const { season, code, key } = useParams();
-  const valid = /^\d+$/.test(season ?? "") && !!code && MATCH_KEY.test(key ?? "");
+  const { season, code, key: rawKey } = useParams();
+  // Read the key as the server's preview does (QUAL:0:01 is qual:0:1), so a link that previews also opens.
+  const key = normalMatchKey(rawKey);
+  const valid = /^\d+$/.test(season ?? "") && !!code && key != null;
   const path = valid ? matchReportPath(season!, code!, key!) : null;
   const state = useApi<MatchReport>(path);
   const status = valid ? (state.error as ApiError | undefined)?.status : 400;
@@ -30,7 +32,7 @@ export default function MatchReportPage() {
   useTitle(missing ? "Match not found" : state.data ? `${state.data.match.label} · ${state.data.event.name}` : "Know your match");
   useEventPoll(state.data, () => { if (path) load(path, true).catch(() => {}); });
   if (missing) {
-    return <NotFoundView title={`No match ${key ?? ""} at ${code ?? ""}`} description="The match may not be scheduled yet, or the link is from another event. Open the event to see its schedule." />;
+    return <NotFoundView title={`No match ${rawKey ?? ""} at ${code ?? ""}`} description="The match may not be scheduled yet, or the link is from another event. Open the event to see its schedule." />;
   }
   return (
     <Page>

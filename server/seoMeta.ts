@@ -9,6 +9,7 @@ import { eventTypeLabel } from "../src/shared/labels.js";
 import { canonicalOrigin, canonicalUrl } from "./seo.js";
 import { teamKnown } from "./api/teams.js";
 import { pageModule } from "../src/shared/routes.js";
+import { normalMatchKey } from "../src/shared/matchReport.js";
 
 export const SITE = "FTC Control Scout";
 const HOME_TITLE = "FTC Control Scout — free FTC scouting & predictions";
@@ -183,7 +184,8 @@ export async function pageMeta(path: string): Promise<PageMeta> {
     }
     // A match's scouting report: the match must exist (a key that can't be one is not found too).
     if ((m = p.match(/^\/events\/(\d+)\/([A-Za-z0-9_-]{1,40})\/match\/([^/]+)$/i))) {
-      return (await matchReportMeta(Number(m[1]), m[2].toUpperCase(), m[3].toLowerCase())) ?? NOT_FOUND;
+      const key = normalMatchKey(m[3]);
+      return (key && (await matchReportMeta(Number(m[1]), m[2].toUpperCase(), key))) || NOT_FOUND;
     }
   } catch {
     // Database not ready: the generic values, never a 404 (the page may well exist).

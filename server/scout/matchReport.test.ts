@@ -60,8 +60,11 @@ async function seedFtc() {
   const rec = (team: number, dev: number) => run("INSERT INTO team_season_records (season, team, played, np_avg, np_dev) VALUES (?, ?, 10, 100, ?)", [S, team, dev]);
   await rec(11, 25); await rec(12, 80); await rec(13, 25); await rec(14, 25);
   // 13 went from 30 to 52 OPR; 14 stayed level.
-  const tes = (code: string, team: number, opr: number) => run("INSERT INTO team_event_stats (season, code, team, opr_np, matches) VALUES (?, ?, ?, ?, 5)", [S, code, team, opr]);
-  await tes("EARLY1", 13, 30); await tes(EV, 13, 52); await tes("EARLY1", 14, 50); await tes(EV, 14, 51);
+  const tes = (code: string, team: number, opr: number, parts: [number, number, number] | [null, null, null] = [null, null, null]) =>
+    run("INSERT INTO team_event_stats (season, code, team, opr_np, opr_auto, opr_teleop, opr_endgame, matches) VALUES (?, ?, ?, ?, ?, ?, ?, 5)", [S, code, team, opr, ...parts]);
+  // The season's per-part bests (12 / 30 / 13 above) came from different events; 13's split shown is the one
+  // from the event that gives its season OPR (52 is the closest to 55).
+  await tes("EARLY1", 13, 30, [20, 5, 5]); await tes(EV, 13, 52, [10, 30, 12]); await tes("EARLY1", 14, 50); await tes(EV, 14, 51);
 }
 
 beforeAll(async () => {
@@ -140,7 +143,9 @@ describe("the public report", () => {
     expect(d.match.played).toBe(false);
     expect(d.teams.map((t) => t.team)).toEqual([11, 13, 12, 14]); // red, then blue
     const t13 = d.teams.find((t) => t.team === 13)!;
-    expect(t13.season).toMatchObject({ opr: { np: 55, auto: 12, teleop: 30, endgame: 13, pen: 1 }, rank: 7, of: 34, matches: 10, wins: 7 });
+    expect(t13.season).toMatchObject({ opr: { np: 55, auto: 10, teleop: 30, endgame: 12, pen: 1 }, rank: 7, of: 34, matches: 10, wins: 7 });
+    // No event stats at all: no split rather than parts from different events.
+    expect(d.teams.find((t) => t.team === 11)!.season!.opr).toEqual({ np: 55, auto: null, teleop: null, endgame: null, pen: 9 });
     expect(t13.event).toMatchObject({ rank: 3, wins: 3, losses: 1, qualPlayed: 4 });
     expect(t13.trend.map((x) => [x.code, x.opr])).toEqual([["EARLY1", 30], [EV, 52]]);
     expect(t13.name).toBe("Climbers");
