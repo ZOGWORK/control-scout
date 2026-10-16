@@ -40,6 +40,10 @@ describe("describeActivity", () => {
       .toEqual({ verb: "edited", subject: "team 1 · pit", note: "changed notes, 2 answers · 3 edits" });
     expect(describeActivity(item({ type: "template.changed", subject: "template:2025", details: { season: 2025, version: 4, kinds: ["pit"] } })))
       .toEqual({ verb: "changed the", subject: "2025 pit fields", note: "version 4" });
+    expect(describeActivity(item({ type: "settings.changed", subject: "settings", details: { settingsVersion: 3, changed: ["eventCode"], defaults: { season: 2025, eventCode: "USNYQ1" } } })))
+      .toEqual({ verb: "changed the", subject: "defaults for new entries", note: "season 2025, event USNYQ1" });
+    expect(describeActivity(item({ type: "settings.changed", subject: "settings", details: { defaults: { season: null, eventCode: null } } })).note)
+      .toBe("current season, no event");
     expect(describeActivity(item({ type: "member.left", actor: { accountId: null, name: "Control Point" }, details: { name: "Sam" } })))
       .toEqual({ verb: "removed", subject: "Sam from the workspace" });
     expect(describeActivity(item({ type: "picklist.changed", details: {} }))).toEqual({ verb: "picklist changed", subject: "" });

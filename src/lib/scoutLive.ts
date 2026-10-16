@@ -14,6 +14,7 @@
 import { useEffect, useState } from "react";
 import { applyLiveEntries, notifyScoutChanged, pullScouting, scoutCursor, type ScoutEntry, type ScoutSpace } from "./scouting";
 import { announceTemplateChange } from "./scoutTemplates";
+import { announceSettingsChange } from "./workspaceSettings";
 import { announceActivity, isActivityItem } from "./scoutActivity";
 
 /** off: Personal, signed out or hidden · connecting · live · polling (the fallback) · revoked: the server ended it (no access). */
@@ -119,9 +120,18 @@ export function followWorkspace(space: string, onMode: (m: LiveMode) => void, de
     s.addEventListener("template", (ev) => {
       // An admin changed the template: open forms and editors refetch it (scoutTemplates.ts).
       if (es !== s) return;
-      let n: { season?: unknown; version?: unknown } = {};
+      let n: { season?: unknown; version?: unknown; settingsVersion?: unknown } = {};
       try { n = JSON.parse((ev as MessageEvent<string>).data) ?? {}; } catch { /* refetch every season */ }
       announceTemplateChange({ space, season: Number.isSafeInteger(n.season) ? n.season as number : undefined, version: Number.isSafeInteger(n.version) ? n.version as number : undefined });
+      // A template save bumps the workspace's settings version too: cached settings older than it refetch.
+      if (Number.isSafeInteger(n.settingsVersion)) announceSettingsChange({ space, settingsVersion: n.settingsVersion as number });
+    });
+    s.addEventListener("settings", (ev) => {
+      // An admin changed the workspace's settings (defaults): open forms and Settings refetch (workspaceSettings.ts).
+      if (es !== s) return;
+      let n: { settingsVersion?: unknown } = {};
+      try { n = JSON.parse((ev as MessageEvent<string>).data) ?? {}; } catch { /* refetch */ }
+      announceSettingsChange({ space, settingsVersion: Number.isSafeInteger(n.settingsVersion) ? n.settingsVersion as number : undefined });
     });
     s.addEventListener("activity", (ev) => {
       // An item for the workspace's activity feed: the feed (scoutActivity.ts) merges it.

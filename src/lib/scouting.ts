@@ -264,8 +264,8 @@ export function clearLocalScouting() {
   try {
     for (let i = 0; i < localStorage.length; i++) {
       const k = localStorage.key(i);
-      // (cs-scout-tpl…: workspace templates kept for offline forms, scoutTemplates.ts.)
-      if (k && (k.startsWith("cs-scout:") || k.startsWith(WS) || k.startsWith(WS_DIRTY) || k.startsWith(WS_CURSOR) || k.startsWith("cs-scout-tpl"))) keys.push(k);
+      // (cs-scout-tpl…: workspace templates kept for offline forms, scoutTemplates.ts; cs-scout-wss: workspace settings, workspaceSettings.ts.)
+      if (k && (k.startsWith("cs-scout:") || k.startsWith(WS) || k.startsWith(WS_DIRTY) || k.startsWith(WS_CURSOR) || k.startsWith("cs-scout-tpl") || k.startsWith("cs-scout-wss:"))) keys.push(k);
     }
     for (const k of keys) localStorage.removeItem(k);
     localStorage.removeItem(DIRTY);
