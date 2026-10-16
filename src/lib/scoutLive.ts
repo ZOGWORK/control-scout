@@ -15,6 +15,7 @@ import { useEffect, useState } from "react";
 import { applyLiveEntries, notifyScoutChanged, pullScouting, scoutCursor, type ScoutEntry, type ScoutSpace } from "./scouting";
 import { announceTemplateChange } from "./scoutTemplates";
 import { announceSettingsChange } from "./workspaceSettings";
+import { announceActivity, isActivityItem } from "./scoutActivity";
 
 /** off: Personal, signed out or hidden · connecting · live · polling (the fallback) · revoked: the server ended it (no access). */
 export type LiveMode = "off" | "connecting" | "live" | "polling" | "revoked";
@@ -131,6 +132,13 @@ export function followWorkspace(space: string, onMode: (m: LiveMode) => void, de
       let n: { settingsVersion?: unknown } = {};
       try { n = JSON.parse((ev as MessageEvent<string>).data) ?? {}; } catch { /* refetch */ }
       announceSettingsChange({ space, settingsVersion: Number.isSafeInteger(n.settingsVersion) ? n.settingsVersion as number : undefined });
+    });
+    s.addEventListener("activity", (ev) => {
+      // An item for the workspace's activity feed: the feed (scoutActivity.ts) merges it.
+      if (es !== s) return;
+      let item: unknown;
+      try { item = JSON.parse((ev as MessageEvent<string>).data); } catch { return; }
+      if (isActivityItem(item) && item.workspaceId === space) announceActivity(item);
     });
     s.addEventListener("membership_revoked", () => {
       if (es !== s) return;

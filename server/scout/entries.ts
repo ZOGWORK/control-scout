@@ -22,7 +22,9 @@
 //   writers' clocks (an entry synced late with an old updatedAt would slip
 //   behind a timestamp cursor).
 // - Every accepted write is published to the workspace's live streams
-//   (bus.ts, stream.ts), in seq order.
+//   (bus.ts, stream.ts), in seq order, and logged in the workspace's activity
+//   feed (activityLog.ts) as added / edited / deleted / restored; a refused
+//   write or one that changed nothing is not.
 import express, { type NextFunction, type Request, type Response, type Router } from "express";
 import { all, get, writeBatch } from "../db.js";
 import { controlPointEnabled, isWorkspaceId, linkedAccountId, workspaceMembership, type Membership } from "../auth/controlPoint.js";
@@ -30,6 +32,7 @@ import { currentUser, type User } from "../auth/session.js";
 import { isEnabled } from "../flags.js";
 import { publishEntries, serialized, type LiveEntry } from "./bus.js";
 import { photosByEntry } from "./photoRows.js";
+import { logEntryWrites, type EntryBefore } from "./activityLog.js";
 import type { EntryPhoto } from "../../src/shared/photos.js";
 
 export interface ScoutEntryInput {
@@ -199,9 +202,13 @@ export async function pushWorkspaceEntries(user: User, m: Membership, raw: unkno
   // One write at a time per workspace, so the live streams get entries in seq order (bus.ts).
   const stored = await serialized(m.workspaceId, async () => {
     const before = await lastSeq(m.workspaceId);
+    const prior = await storedVersions(m.workspaceId, good.map((e) => e.uuid));
     const rows = await writeWorkspaceEntries(user, m, good);
-    // Written by this push: a new seq (an entry beaten by a newer edit, or resent unchanged, keeps its old one).
-    publishEntries(m.workspaceId, [...rows.values()].filter((e) => e.seq > before).sort((a, b) => a.seq - b.seq));
+    // Written by this push: a new seq (an entry beaten by a newer edit, refused, or resent unchanged, keeps its old one).
+    const written = [...rows.values()].filter((e) => e.seq > before).sort((a, b) => a.seq - b.seq);
+    publishEntries(m.workspaceId, written);
+    // The activity feed, once the write has committed: only entries this push changed (never throws).
+    await logEntryWrites(m.workspaceId, { accountId: m.accountId, name: writerName(user) }, written.map((after) => ({ before: prior.get(after.uuid), after })));
     return rows;
   });
   const sent = new Map(good.map((e) => [e.uuid, e]));
@@ -230,6 +237,19 @@ async function writeWorkspaceEntries(user: User, m: Membership, good: ScoutEntry
     })),
   ]);
   return readLiveEntries(m.workspaceId, good.map((e) => e.uuid));
+}
+
+/** The stored version of these entries before a write (for the activity feed: added, edited, deleted, or nothing). */
+async function storedVersions(workspaceId: string, uuids: string[]): Promise<Map<string, EntryBefore>> {
+  if (!uuids.length) return new Map();
+  const rows = await all<any>(
+    `SELECT w.uuid, w.deleted, w.season, w.team, w.event_code, w.match_label, w.kind, w.data, w.notes FROM workspace_scout_entries w
+       JOIN workspaces ws ON ws.id = w.workspace_id WHERE ws.cp_workspace_id = ? AND w.uuid IN (${uuids.map(() => "?").join(", ")})`,
+    [workspaceId, ...uuids]);
+  return new Map(rows.map((r) => [String(r.uuid), {
+    deleted: !!Number(r.deleted), season: Number(r.season), team: Number(r.team), eventCode: r.event_code ?? null, matchLabel: r.match_label ?? null,
+    kind: String(r.kind), data: String(r.data), notes: String(r.notes ?? ""),
+  }]));
 }
 
 /** The workspace's latest seq (0 before its first entry). */

@@ -14,13 +14,15 @@
 // - Writes are admin-only (requireWorkspaceAdmin, roles from Control Point),
 //   JSON only (CSRF, as /api/me), validated field by field (src/shared/scoutTemplate.ts).
 //   The mirror row is created by the first save if no entry made it yet.
-// - Each change is announced on the workspace's live streams (`event: template`).
+// - Each change is announced on the workspace's live streams (`event: template`)
+//   and logged in its activity feed (template.changed; a save that changes nothing isn't).
 import express, { type NextFunction, type Request, type Response, type Router } from "express";
 import { db, get } from "../db.js";
 import { isWorkspaceId, type Membership } from "../auth/controlPoint.js";
 import { currentUser, type User } from "../auth/session.js";
 import { cleanFields, type DroppedField, type ScoutField, type TemplateKind, type WorkspaceTemplate } from "../../src/shared/scoutTemplate.js";
 import { publishTemplate, serialized } from "./bus.js";
+import { logActivity } from "./activityLog.js";
 import { requireWorkspaceAdmin, workspaceAccess, workspacePaused, writerName } from "./entries.js";
 
 /** One season's current template, as kept in workspaces.settings.scoutTemplate. */
@@ -118,6 +120,8 @@ export async function saveTemplate(user: User, m: Membership, body: any): Promis
     await writeVersion(user, m, season, cur, next);
     const saved = await currentTemplate(m.workspaceId, season);
     publishTemplate(m.workspaceId, { season, version: saved.version, settingsVersion: saved.settingsVersion });
+    const kinds = (["match", "pit"] as const).filter((k) => !sameList(next[k], cur[k]));
+    await logActivity(m.workspaceId, { accountId: m.accountId, name: writerName(user) }, "template.changed", `template:${season}`, { season, version: saved.version, kinds });
     return { ok: true as const, changed: true, template: saved, dropped };
   });
 }
