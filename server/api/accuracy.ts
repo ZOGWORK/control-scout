@@ -9,6 +9,7 @@ import { ENGINE_VERSION, type ConfidenceTier } from "@control-scout/predict-engi
 import type { AccuracyBlock, TrackRecord } from "../../src/shared/api.js";
 import { matchViews } from "./matches.js";
 import { dataVersion } from "../predict/engine.js";
+import { registerCache } from "../caches.js";
 
 /** Live matches needed before the headline switches from backtest to live. */
 export const LIVE_THRESHOLD = 300;
@@ -16,7 +17,7 @@ export const LIVE_THRESHOLD = 300;
 interface Row { p: number; y: number; tier: ConfidenceTier; level: string; time: string | null }
 
 const EPS = 1e-6;
-const isoWeek = (t: string) => {
+export const isoWeek = (t: string) => {
   const d = new Date(t.length > 10 ? t.slice(0, 10) + "T00:00:00Z" : t + "T00:00:00Z");
   const day = (d.getUTCDay() + 6) % 7; // Monday = 0
   d.setUTCDate(d.getUTCDate() - day);
@@ -96,6 +97,7 @@ export async function warmTrackRecord(): Promise<void> {
 
 /** Forget the cached track record (tests). */
 export function resetTrackRecord(): void { cached = null; building = null; }
+registerCache("Track record", resetTrackRecord);
 
 async function computeTrackRecord(): Promise<TrackRecord> {
   const rows = await all<any>("SELECT kind, season, p_red p, outcome y, tier, level, match_time time FROM predictions WHERE outcome IS NOT NULL");

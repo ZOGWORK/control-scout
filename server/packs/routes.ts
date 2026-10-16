@@ -1,10 +1,14 @@
 // /packs/* — versioned offline data packs (built by scripts/build-packs.ts).
 // latest.json is the manifest the app polls; pack files are immutable.
-import express, { type Router } from "express";
+import express, { type NextFunction, type Request, type Response, type Router } from "express";
 import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { env } from "../env.js";
 import type { Manifest } from "./build.js";
+import { isEnabled } from "../flags.js";
+
+/** Offline packs switched off in the owner portal: every pack URL says so (503), nothing is served. */
+export const PACKS_PAUSED = "Offline packs are paused right now. Predictions and pages still work online.";
 
 export const packsDir = () => join(env.dataDir, "packs");
 
@@ -19,6 +23,13 @@ export function packsPresent(): boolean {
 
 export function packsRouter(): Router {
   const r = express.Router();
+  r.use((_req: Request, res: Response, next: NextFunction) => {
+    isEnabled("offlinePacks").then((on) => {
+      if (on) return next();
+      res.setHeader("Cache-Control", "no-store");
+      res.status(503).json({ error: PACKS_PAUSED, paused: true });
+    }, next);
+  });
   r.get("/latest.json", (_req, res) => {
     const f = join(packsDir(), "latest.json");
     if (!existsSync(f)) { res.status(404).json({ error: "No offline packs have been built on this server yet." }); return; }

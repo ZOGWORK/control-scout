@@ -48,7 +48,7 @@ export default function DownloadPage() {
       {err ? (
         <EmptyState
           icon={err.reason === "none" ? HardDriveDownload : WifiOff}
-          title={err.reason === "none" ? "No packs yet" : "Couldn't check for packs"}
+          title={err.reason === "none" ? "No packs yet" : err.reason === "paused" ? "Offline packs are paused" : "Couldn't check for packs"}
           description={<>
             {err.message}
             {local && <span className="mt-2 block">Already on this device: lite pack {local.version}, saved {ago(new Date(local.savedAt).toISOString())}. Offline predictions use it.</span>}

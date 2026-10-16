@@ -13,6 +13,7 @@ import {
 import { all, kvGet } from "../db.js";
 import { CURRENT_SEASON, PREDICT_SEASONS } from "../data/seasons.js";
 import { loadSeason, toEventRecord } from "../stats/load.js";
+import { registerCache } from "../caches.js";
 
 const yieldLoop = () => new Promise<void>((r) => setImmediate(r));
 
@@ -279,3 +280,4 @@ export async function refreshForecasters(): Promise<void> {
 
 /** Drop cached forecasters and season data (tests, or after a manual data change). Not for syncs: a new data version already rebuilds, without making pages wait. */
 export function resetForecasters(): void { cache.clear(); built.clear(); seasonCache.clear(); }
+registerCache("Prediction ratings", resetForecasters);

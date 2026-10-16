@@ -28,7 +28,17 @@ const flag = (f: string) => args.includes(`--${f}`);
 const opt = (f: string) => { const i = args.indexOf(`--${f}`); return i >= 0 ? args[i + 1] : undefined; };
 // Routes: "/teams/1" or "teams/1". Git Bash rewrites a leading "/" into its
 // install path (C:/Program Files/Git/...) — undo that.
-const VALUE_FLAGS = new Set(["--out", "--base", "--search", "--video", "--storage", "--steps", "--name"]);
+const VALUE_FLAGS = new Set(["--out", "--base", "--search", "--video", "--storage", "--steps", "--name", "--cookie-file"]);
+// --cookie-file <file>: a "name=value" cookie (e.g. cs_session=<a local test account's session>) for pages
+// that need a signed-in account, such as /owner. Read from a file so the value never lands in shell history
+// or the output; only sent to a localhost base.
+const COOKIE = (() => {
+  const f = opt("cookie-file");
+  if (!f) return null;
+  const [name, ...rest] = readFileSync(f, "utf8").trim().split("=");
+  if (!name || !rest.length) { console.error("--cookie-file: the file must hold name=value"); process.exit(1); }
+  return { name, value: rest.join("=") };
+})();
 type Step = { click?: string; hold?: string; ms?: number; fill?: string; value?: string; type?: string; press?: string; wait?: number; waitFor?: string; reload?: boolean };
 const STEPS: Step[] = (() => {
   const f = opt("steps");
@@ -92,6 +102,11 @@ async function capture(browser: Browser, route: string, vp: keyof typeof SIZES, 
     reducedMotion: motion ? "no-preference" : "reduce",
     ...(videoSecs ? { recordVideo: { dir: out, size: SIZES[vp] } } : {}),
   });
+  if (COOKIE) {
+    const host = new URL(BASE).hostname;
+    if (!["localhost", "127.0.0.1"].includes(host)) { console.error("--cookie-file only works against a localhost base"); process.exit(1); }
+    await ctx.addCookies([{ name: COOKIE.name, value: COOKIE.value, domain: host, path: "/", httpOnly: true, sameSite: "Lax" }]);
+  }
   if (Object.keys(STORAGE).length) await ctx.addInitScript((entries) => { for (const [k, v] of Object.entries(entries)) localStorage.setItem(k, v); }, STORAGE);
   // The first-visit privacy banner would sit on every shot: answer it ("No thanks") unless --banner asks to see it.
   if (!flag("banner") && !("cs-consent" in STORAGE)) await ctx.addInitScript(() => localStorage.setItem("cs-consent", JSON.stringify({ analytics: false, at: "2026-01-01T00:00:00.000Z", v: 1 })));

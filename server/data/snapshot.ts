@@ -17,10 +17,12 @@ export function localDbPath(url = env.databaseUrl): string | null {
   return url.slice("file:".length);
 }
 
-/** Tables holding people's own data or site usage, never in the snapshot. Emptied in this order: workspace entries before the workspaces they reference. */
+/** Tables holding people's own data or site usage, never in the snapshot. Emptied in this order: workspace entries before the workspaces they reference.
+ *  owner_audit, feature_flags and request_metrics_daily are this server's own operations (the owner's email, its switches, its traffic). */
 export const PRIVATE_TABLES = [
   "users", "sessions", "identities", "email_codes", "user_state", "scout_entries", "error_reports", "contact_messages", "analytics_daily",
   "workspace_members", "workspace_scout_entries", "workspaces",
+  "owner_audit", "feature_flags", "request_metrics_daily",
 ];
 
 /**

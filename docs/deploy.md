@@ -51,6 +51,19 @@ the `error_reports` table. Set `OWNER_EMAILS` (comma-separated) to the accounts
 allowed to read them at `GET /api/reports/errors`; everyone else gets a 404. Set
 both on Render's environment too if it should file reports while it serves.
 
+`OWNER_EMAILS` also opens the **owner portal** at `/owner` (signed in with one of
+those emails): overview, usage (API requests per day, sync volume, slowest
+routes, live connections), prediction health (calibration and drift), runtime
+switches, the feedback inbox (contact messages, resolve or archive), error
+reports, data jobs (re-sync, rebuild packs, clear caches, each confirmed and
+never alongside the scheduled sync) and an audit log of everything done there.
+For anyone else `/owner` is the ordinary not-found page and every
+`/api/owner/*` call is a 404. The switches (`feature_flags`) take effect within
+about 10 seconds on every server, with no deploy; all are on until turned off.
+Request metrics are kept per route pattern and UTC day in
+`request_metrics_daily` (written once a minute; a restart loses at most that
+minute).
+
 ## 4. Data — pick one (before the service first starts)
 
 **Fast (recommended): copy tonight's synced database** (4 seasons, ~120k
