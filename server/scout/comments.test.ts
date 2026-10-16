@@ -14,7 +14,7 @@ import { invalidateFlags, setFlag } from "../flags";
 import { subscribeComments } from "./bus";
 import { closeAllStreams } from "./stream";
 import { COMMENT_RATE, resetCommentRate, takeCommentToken } from "./comments";
-import { inboxSettled } from "../inbox/inbox";
+import { inboxSettled, subscribeInbox } from "../inbox/inbox";
 import { closeInboxStreams } from "../inbox/routes";
 import { COMMENT_MAX, type CommentEvent, type EntryComment } from "../../src/shared/comments";
 import type { InboxItem } from "../../src/shared/inbox";
@@ -327,6 +327,9 @@ describe("comments: activity and the inbox", () => {
     const { admin, member, first } = await team("1541");
     const id = (await post(admin, "1541", first.uuid, "typo heer")).json.commentId;
     await inboxSettled();
+    const priyaUser = (await member("GET", "/api/auth/me")).json.user.id as number;
+    let notices = 0;
+    const offInbox = subscribeInbox(priyaUser, () => { notices++; });
     await admin("PATCH", `${thread("1541", first.uuid)}/${id}`, { body: "typo here" });
     expect((await feed(member, "1541")).find((i) => i.type === "comment.created")!.details.excerpt).toBe("typo here");
     expect((await inbox(member)).items[0].body).toBe("team 18360 · match Q1 · USNJQ1 · “typo here”");
@@ -335,6 +338,9 @@ describe("comments: activity and the inbox", () => {
     expect(after.details.excerpt).toBeUndefined();
     expect(after.details.deleted).toBe(true);
     expect((await inbox(member)).items[0].body).toBe("team 18360 · match Q1 · USNJQ1");
+    // The author's open inbox heard about both changes (so it refetches the new text).
+    expect(notices).toBeGreaterThanOrEqual(2);
+    offInbox();
     // An admin deleting their own comment isn't moderation: nothing logged.
     expect((await feed(member, "1541")).some((i) => i.type === "comment.deleted")).toBe(false);
   });
