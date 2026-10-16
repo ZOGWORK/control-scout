@@ -393,12 +393,12 @@ export interface StatsOptions { seasons?: number[]; backtest?: boolean; log?: Lo
  */
 export const STATS_RULES = 4;
 
-/** True when past seasons were computed under older rules or by another engine version
- *  (a new engine rewrites every season's replayed calls, records and odds once). */
+/** True when past seasons were computed under older rules, or haven't all been
+ *  recomputed by this engine version yet (a new engine rewrites every season's
+ *  replayed calls, records and odds once). Both markers are written only by a
+ *  run over every season, so a partial run can't hide an unfinished upgrade. */
 export async function statsRulesStale(): Promise<boolean> {
-  if ((await kvGet<number>("stats:rules")) !== STATS_RULES) return true;
-  const last = await kvGet<{ engine?: string }>("stats:last");
-  return !!last && last.engine !== ENGINE_VERSION;
+  return (await kvGet<number>("stats:rules")) !== STATS_RULES || (await kvGet<string>("stats:engine")) !== ENGINE_VERSION;
 }
 
 export async function runStats(o: StatsOptions = {}): Promise<void> {
@@ -434,7 +434,7 @@ export async function runStats(o: StatsOptions = {}): Promise<void> {
   await snapshotRankings({ log }).catch((e) => log(`rankings snapshots failed: ${(e as Error).message}`));
   await rebuildSearch(log);
   await kvSet("stats:last", { at: new Date().toISOString(), seasons, engine: ENGINE_VERSION });
-  if (seasons.length === SEASON_NUMBERS.length) await kvSet("stats:rules", STATS_RULES);
+  if (seasons.length === SEASON_NUMBERS.length) { await kvSet("stats:rules", STATS_RULES); await kvSet("stats:engine", ENGINE_VERSION); }
   const prev = await kvGet<string>("data:version");
   log(`stats done (data version ${prev})`);
 }

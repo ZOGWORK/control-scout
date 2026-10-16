@@ -331,8 +331,16 @@ export function simulateEvent(input: SimInput): Map<number, TeamOutcome> {
         };
         return { t, entry };
       });
-      // Official order (Table 4-2); a full tie is a random draw.
-      pts.sort((x, y) => compareAdvancement(x.entry, y.entry) || r() - 0.5);
+      // Official order (Table 4-2); teams tied on every criterion are drawn in
+      // a uniformly random order (a shuffle of each tied group, not a random
+      // comparator, which would be biased by the sort's comparison order).
+      pts.sort((x, y) => compareAdvancement(x.entry, y.entry));
+      for (let i = 0; i < pts.length;) {
+        let j = i + 1;
+        while (j < pts.length && compareAdvancement(pts[i].entry, pts[j].entry) === 0) j++;
+        for (let k = j - 1; k > i; k--) { const m = i + Math.floor(r() * (k - i + 1)); [pts[k], pts[m]] = [pts[m], pts[k]]; }
+        i = j;
+      }
       for (const p of pts) { if (advanced.length >= input.slots) break; if (eligible(p.t)) advanced.push(p.t); }
     } else {
       const byPlace = (pl: number) => { for (const [k, p] of place) if (p === pl) return alliances[k - 1]; return undefined; };
