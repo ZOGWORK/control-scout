@@ -88,33 +88,46 @@ describe("push status", () => {
     expect(requestPermission).toHaveBeenCalledTimes(1);
     expect(reg.pushManager.subscribe).toHaveBeenCalledWith(expect.objectContaining({ userVisibleOnly: true }));
     expect(calls.find((c) => c.path === "/api/push/subscriptions" && c.method === "POST")?.body).toEqual({ endpoint: "https://push.example.com/send/1", keys: { p256dh: "p", auth: "a" } });
-    expect(push.pushOnHere()).toBe(true);
+    (globalThis as any).Notification.permission = "granted";
+    expect(await push.pushDeliversHere()).toBe(true);
     expect(await push.disablePush()).toBe("off");
     expect(calls.find((c) => c.method === "DELETE")?.body).toEqual({ endpoint: "https://push.example.com/send/1" });
     expect(subscription).toBeNull();
-    expect(push.pushOnHere()).toBe(false);
+    expect(await push.pushDeliversHere()).toBe(false);
   });
 
-  it("lets the in-tab alerts step aside only while push can actually deliver", async () => {
-    setup();
+  it("lets the in-tab alerts step aside only while push can actually deliver, and comes back with it", async () => {
+    setup({ permission: "granted" });
     const push = await import("./push");
-    expect(await push.pushDeliversHere()).toBe(false); // never turned on
-    (globalThis as any).Notification.permission = "granted";
+    expect(await push.pushDeliversHere()).toBe(false); // never turned on: no request either
+    expect(calls).toEqual([]);
     await push.enablePush();
     expect(await push.pushDeliversHere()).toBe(true);
-    // The owner switches push off: the next check says no, and forgets this device's record.
+    // The owner switches push off for a while: the alerts take over, and the subscription is kept.
     available = false;
     setup({ permission: "granted" });
-    localStorage.setItem("cs-push-on", "1");
-    const again = await import("./push");
-    expect(await again.pushDeliversHere()).toBe(false);
-    expect(again.pushOnHere()).toBe(false);
-    // The server dropped the subscription (a 410 pruned it): the same.
+    expect(await (await import("./push")).pushDeliversHere()).toBe(false);
+    expect(subscription).not.toBeNull();
+    // Back on: push delivers again, with nothing to redo on the device.
     available = true;
     setup({ permission: "granted" });
-    localStorage.setItem("cs-push-on", "1");
+    expect(await (await import("./push")).pushDeliversHere()).toBe(true);
+    // The server dropped the subscription (a 410 pruned it): the alerts take over.
+    setup({ permission: "granted" });
     vi.mocked(fetch).mockImplementation(async (path: any) => (String(path).endsWith("/check") ? Response.json({ subscribed: false }) : Response.json({ available: true, publicKey: "x" })));
     expect(await (await import("./push")).pushDeliversHere()).toBe(false);
+  });
+
+  it("signing out removes this device's subscription even while push is switched off", async () => {
+    setup({ permission: "granted" });
+    await (await import("./push")).enablePush();
+    available = false;
+    setup({ permission: "granted" });
+    const push = await import("./push");
+    expect(await push.readPushStatus(true)).toBe("unavailable");
+    await push.dropPushOnSignOut();
+    expect(calls.filter((c) => c.method === "DELETE").map((c) => c.body)).toEqual([{ endpoint: "https://push.example.com/send/1" }]);
+    expect(subscription).toBeNull();
   });
 
   it("asks the server again for its push settings, instead of keeping an old answer", async () => {

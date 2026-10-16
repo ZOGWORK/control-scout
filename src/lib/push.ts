@@ -21,11 +21,6 @@ export type PushStatus =
   | "off"
   | "on";
 
-/** Set while this device has a working subscription: in-tab alerts (alerts.tsx) step aside so nothing arrives twice. */
-const ON_KEY = "cs-push-on";
-export const pushOnHere = () => { try { return localStorage.getItem(ON_KEY) === "1"; } catch { return false; } };
-const markOn = (on: boolean) => { try { if (on) localStorage.setItem(ON_KEY, "1"); else localStorage.removeItem(ON_KEY); } catch { /* storage blocked */ } };
-
 const isIos = () => /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
 const standalone = () => (typeof matchMedia === "function" && matchMedia("(display-mode: standalone)").matches) || (navigator as { standalone?: boolean }).standalone === true;
 
@@ -64,19 +59,17 @@ function pushConfig(fresh = false): Promise<PushConfig> {
 export async function readPushStatus(signedIn: boolean): Promise<PushStatus> {
   const support = pushSupport();
   if (support !== "ok") return support;
-  if (Notification.permission === "denied") { markOn(false); return "denied"; }
+  if (Notification.permission === "denied") return "denied";
   const c = await pushConfig().catch(() => null);
-  if (!c?.available) { markOn(false); return "unavailable"; }
+  if (!c?.available) return "unavailable";
   const reg = await registration();
   if (!reg) return "no-worker";
   if (!signedIn) return "signed-out";
   const sub = await reg.pushManager.getSubscription().catch(() => null);
-  if (!sub || Notification.permission !== "granted") { markOn(false); return "off"; }
+  if (!sub || Notification.permission !== "granted") return "off";
   const r = await apiFetch<{ subscribed: boolean }>("/api/push/subscriptions/check", { method: "POST", json: { endpoint: sub.endpoint } }).catch(() => null);
-  // Unknown (offline): trust this device's own record.
-  const on = r ? r.subscribed : pushOnHere();
-  markOn(on);
-  return on ? "on" : "off";
+  // Unknown (offline): the browser's subscription stands.
+  return !r || r.subscribed ? "on" : "off";
 }
 
 function keyBytes(b64url: string): Uint8Array<ArrayBuffer> {
@@ -107,38 +100,32 @@ export async function enablePush(): Promise<PushStatus> {
   if (sub && had && !sameBytes(new Uint8Array(had), want)) { await sub.unsubscribe().catch(() => {}); sub = null; }
   sub ??= await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: want });
   await apiFetch("/api/push/subscriptions", { method: "POST", json: sub.toJSON() });
-  markOn(true);
   return "on";
 }
 
 /**
  * Can push reach this device right now? Checked before the in-tab alerts step aside (alerts.tsx), so they never stop
  * while push can't deliver: the owner switched it off, the keys went, permission was revoked, or the server dropped
- * this device's subscription. Offline (the server can't say): trusts the last answer. Clears the record when not.
+ * this device's subscription. Read from the browser's subscription and the server each time, never from a saved
+ * flag. Offline (the server can't say): the browser's subscription stands.
  */
 export async function pushDeliversHere(): Promise<boolean> {
-  if (!pushOnHere()) return false;
-  if (pushSupport() !== "ok" || Notification.permission !== "granted") { markOn(false); return false; }
+  if (pushSupport() !== "ok" || Notification.permission !== "granted") return false;
   const reg = await registration(0);
   const sub = await reg?.pushManager.getSubscription().catch(() => null);
-  if (!sub) { markOn(false); return false; }
-  let c: PushConfig, r: { subscribed: boolean };
+  if (!sub) return false; // the usual case: never turned on, and no request made
   try {
-    c = await pushConfig();
-    r = await apiFetch<{ subscribed: boolean }>("/api/push/subscriptions/check", { method: "POST", json: { endpoint: sub.endpoint } });
+    const c = await pushConfig();
+    if (!c.available) return false;
+    return (await apiFetch<{ subscribed: boolean }>("/api/push/subscriptions/check", { method: "POST", json: { endpoint: sub.endpoint } })).subscribed;
   } catch (e) {
-    // Signed out (401) means no account to push for; any other failure (offline): keep the last answer.
-    if ((e as { status?: number }).status === 401) { markOn(false); return false; }
-    return true;
+    // Signed out (401): no account to push for. Anything else (offline): assume it still works.
+    return (e as { status?: number }).status !== 401;
   }
-  const ok = c.available && r.subscribed;
-  if (!ok) markOn(false);
-  return ok;
 }
 
 /** Turn push off for this device: forget it on the server, then unsubscribe in the browser. */
 export async function disablePush(): Promise<PushStatus> {
-  markOn(false);
   const reg = pushSupport() === "ok" ? await registration() : null;
   const sub = await reg?.pushManager.getSubscription().catch(() => null);
   if (sub) {
@@ -148,8 +135,11 @@ export async function disablePush(): Promise<PushStatus> {
   return "off";
 }
 
-/** Signing out: this device stops getting the account's pushes (best effort, before the session ends). */
+/** Signing out: this device stops getting the account's pushes (best effort, before the session ends). Whatever the
+ *  server's push state right now: a subscription that exists is the account's, so it goes, even while push is off. */
 export async function dropPushOnSignOut(): Promise<void> {
-  if (!pushOnHere()) return;
+  if (pushSupport() !== "ok") return;
+  const reg = await registration(0);
+  if (!(await reg?.pushManager.getSubscription().catch(() => null))) return;
   await disablePush().catch(() => {});
 }
