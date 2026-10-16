@@ -9,7 +9,7 @@ import { clearLocalScouting, exportLocalScouting, importLocalScouting, localScou
 
 export interface AccountUser { id: number; email: string | null; displayName: string | null; createdAt: string; /** Tied to the shared account Control Point keeps (docs/shared-accounts.md). */ controlPointLinked?: boolean;
   /** The signed-in owner's Control Point side: whether they're a member there, and their teams. */
-  controlPoint?: { member: boolean; teams: { teamNumber: number | null; name: string }[]; shortlist?: number[];
+  controlPoint?: { /** The shared account id (author/editor ids on workspace entries). Missing from older servers. */ accountId?: number; member: boolean; teams: { teamNumber: number | null; name: string }[]; shortlist?: number[];
     /** Control Point workspaces (one shared scout space each). Missing from older servers: treat as none. */
     workspaces?: { id: string; name: string; role: "admin" | "member" }[]; url: string } | null }
 /** Fired on window for every explicit sign-in (detail: the AccountUser). */
