@@ -165,7 +165,7 @@ function UsagePanel() {
                   <StatTile tone="accent" icon={Activity} label="API requests" value={int(u.totals.requests)} hint={`${int(u.totals.requests / Math.max(1, u.days))} a day on average`} />
                   <StatTile tone="sky" icon={RefreshCw} label="Sync requests" value={int(u.totals.sync)} hint="Personal data, scouting and offline packs" />
                   <StatTile tone={u.totals.errors ? "amber" : "emerald"} icon={AlertTriangle} label="Server errors" value={int(u.totals.errors)} hint={u.totals.requests ? `${pct(u.totals.errors / u.totals.requests, 2)} of requests` : "No requests yet"} />
-                  <StatTile tone="violet" icon={Radio} label="Live connections" value={int(u.live.total)} hint={u.live.peak ? `Peak ${int(u.live.peak)} since this server started` : "Nothing streams yet"} />
+                  <StatTile tone="violet" icon={Radio} label="Live connections" value={int(u.live.total)} hint={u.live.peak ? `Peak ${int(u.live.peak)} since this server started` : "None opened since this server started"} />
                 </TileGrid>
                 <p className="mt-3 text-xs text-muted-foreground">{int(views)} page views in this period from visitors who opted into usage statistics. Health checks and this page's own requests aren't counted.</p>
               </Section>

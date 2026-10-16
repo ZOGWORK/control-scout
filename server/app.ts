@@ -22,6 +22,7 @@ import { liveForecaster, liveVersion, dataVersion } from "./predict/engine.js";
 import { authRouter, meRouter, authProviders } from "./auth/routes.js";
 import { contactRouter } from "./contact.js";
 import { scoutRouter } from "./scout/entries.js";
+import { streamRouter } from "./scout/stream.js";
 import { reportsRouter } from "./errorReports.js";
 import { packsRouter } from "./packs/routes.js";
 import { collectRouter, statsRouter } from "./analytics.js";
@@ -31,7 +32,7 @@ import { RECORDS_EXPORT_MAX, RECORDS_MAX_PAGE_SIZE } from "../src/shared/statCat
 import { manualRefresh, type ManualOutcome } from "./data/live.js";
 import { registerCache } from "./caches.js";
 import { requestMetrics } from "./metrics.js";
-import { allFlags } from "./flags.js";
+import { allFlags, isEnabled } from "./flags.js";
 import { ownerRouter } from "./portal/routes.js";
 import type { EventRefreshResult, ForecastView, MatchExplanationView, Meta } from "../src/shared/api.js";
 
@@ -128,7 +129,8 @@ export function createApp() {
   // One host, one URL per page: www/alias hosts, trailing slashes and /team/… aliases 301 (server/seo.ts).
   app.use(canonicalRedirects);
   // CSV exports stream and gzip themselves, flushing as they go (server/api/records.ts streamedBody).
-  app.use(compression({ filter: (req, res) => !String(res.getHeader("Content-Type") ?? "").startsWith("text/csv") && compression.filter(req, res) }));
+  // Live streams (text/event-stream, server/scout/stream.ts) are never compressed: gzip would hold events back.
+  app.use(compression({ filter: (req, res) => !/^text\/(csv|event-stream)/.test(String(res.getHeader("Content-Type") ?? "")) && compression.filter(req, res) }));
   // /api/collect reads its own tiny body (1 KB cap), so the 2 MB JSON parser skips it.
   const json = express.json({ limit: "2mb" });
   // Same matching as Express routing (case-insensitive, optional trailing slash).
@@ -401,6 +403,8 @@ export function createApp() {
   api.use("/auth", authRouter());
   api.use("/me", meRouter());
   api.use("/scout", scoutRouter());
+  // The realtime switch (owner portal): off, the stream answers 503 and the app polls instead.
+  api.use("/scout", streamRouter({ enabled: () => isEnabled("realtime") }));
   api.use("/collect", collectRouter());
   api.use("/stats", statsRouter());
   api.use("/contact", contactRouter());

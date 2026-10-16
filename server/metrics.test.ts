@@ -1,6 +1,6 @@
 import { beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { all, migrate, openDb, run, setDb } from "./db";
-import { MAX_ROUTES, OTHER_ROUTE, flushMetrics, isSyncRoute, normalizeRoute, percentile, recordRequest, resetMetrics, usageSummary } from "./metrics";
+import { MAX_ROUTES, OTHER_ROUTE, flushMetrics, isMeasured, isSyncRoute, normalizeRoute, percentile, recordRequest, resetMetrics, usageSummary } from "./metrics";
 import { driftAlerts, MIN_BASELINE, MIN_WEEK } from "./portal/predictionHealth";
 
 describe("normalizeRoute", () => {
@@ -25,6 +25,11 @@ describe("normalizeRoute", () => {
   it("keeps ids out, so thousands of teams are one pattern", () => {
     const routes = new Set(Array.from({ length: 2000 }, (_, i) => normalizeRoute(`/api/teams/${i + 1}/matches`)));
     expect([...routes]).toEqual(["/api/teams/:n/matches"]);
+  });
+
+  it("leaves out health checks, the owner portal, the live stream and static files", () => {
+    for (const p of ["/api/health", "/api/owner/usage", "/api/scout/stream", "/API/Scout/Stream/", "/assets/index-abc.js", "/teams/18360"]) expect(isMeasured(p), p).toBe(false);
+    for (const p of ["/api/teams/1", "/api/scout/sync", "/packs/latest.json", "/api/scout/streams-not"]) expect(isMeasured(p), p).toBe(true);
   });
 
   it("tells sync traffic apart", () => {

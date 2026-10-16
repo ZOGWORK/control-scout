@@ -1,6 +1,6 @@
 // Open live connections (server-sent event streams), counted for the owner portal's Usage panel.
 //
-// Nothing streams yet. The live stream (and anything else that holds a connection open) registers
+// The workspace live stream (server/scout/stream.ts, "scout-stream") and anything else that holds a connection open registers
 // each one here and releases it when it closes:
 //
 //   const done = openLiveConnection("event-stream");
