@@ -3,7 +3,7 @@
 At an event, a workspace admin decides who scouts which team. Every member sees the
 list, so two people don't end up scouting the same team without knowing it.
 
-- Server: `server/scout/assignments.ts` (table `workspace_assignments`, migration 18)
+- Server: `server/scout/assignments.ts` (table `workspace_assignments`, migration 19)
 - App: `src/lib/assignments.ts`, `src/components/scout/Assignments.tsx`; the Scout page's
   **Assignments** view (`/scout?space=<workspace>&view=assignments`)
 - Shared types: `src/shared/assignments.ts`
