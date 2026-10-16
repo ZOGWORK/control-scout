@@ -138,9 +138,10 @@ export interface InboxState {
  * The inbox of the signed-in account (`userId`; null: signed out, nothing runs).
  *
  * Every refresh replaces the list with the newest page (older pages loaded with "Load older" go: their read
- * state can't be refreshed with it). Replies are applied in order: each request takes a number, and a reply
- * is used only when no newer request (a refresh, or a read change sent from here) started after it, so a
- * slow snapshot can never bring back items or unread state a later one replaced.
+ * state can't be refreshed with it). Replies are applied in order: each refresh or read change takes a number,
+ * and a refresh's reply is used only when no newer one of those started after it, so a slow snapshot can never
+ * bring back items or unread state a later one replaced. An older page never cancels a refresh: its reply is
+ * dropped instead when the list changed after it was asked for.
  */
 export function useInbox(userId: number | null): InboxState {
   const visible = useVisible();
@@ -154,8 +155,11 @@ export function useInbox(userId: number | null): InboxState {
   const [loadingOlder, setLoadingOlder] = useState(false);
   // One generation per account: a reply for an earlier one (signed out, or someone else signed in) changes nothing.
   const gen = useRef(0);
-  // The latest request's number (refreshes, older pages and read changes share it).
+  // The latest refresh or read change; and the latest older-page request (its own count).
   const seq = useRef(0);
+  const olderSeq = useRef(0);
+  // Bumped whenever a refresh's page replaces the list: an older page asked for before that doesn't fit it.
+  const listVersion = useRef(0);
   const loadedRef = useRef(false);
 
   const load = useCallback(() => {
@@ -166,6 +170,7 @@ export function useInbox(userId: number | null): InboxState {
     apiFetch<InboxPage>(`/api/inbox?limit=${INBOX_PAGE}`)
       .then((r) => {
         if (!current()) return;
+        listVersion.current++;
         setItems((r.items ?? []).filter(isInboxItem));
         setMore(!!r.more);
         if (Number.isFinite(r.unread)) setUnread(r.unread);
@@ -194,17 +199,17 @@ export function useInbox(userId: number | null): InboxState {
   const oldest = items.at(-1)?.id;
   const loadOlder = useCallback(() => {
     if (userId == null || !oldest) return;
-    const g = gen.current, s = ++seq.current;
+    const g = gen.current, s = seq.current, v = listVersion.current, o = ++olderSeq.current;
     setLoadingOlder(true);
     apiFetch<InboxPage>(`/api/inbox?limit=${INBOX_PAGE}&before=${oldest}`)
       .then((r) => {
-        if (gen.current !== g || seq.current !== s) return; // the list was refreshed meanwhile: this page may not fit it
+        if (gen.current !== g || seq.current !== s || listVersion.current !== v || olderSeq.current !== o) return; // the list changed meanwhile: this page may not fit it
         const page = (r.items ?? []).filter(isInboxItem);
         setItems((cur) => { const ids = new Set(cur.map((i) => i.id)); return [...cur, ...page.filter((i) => !ids.has(i.id))]; });
         setMore(!!r.more);
       })
       .catch((e) => { if (gen.current === g) setError(e instanceof ApiError ? e : new ApiError(0, "Couldn't load older notifications.")); })
-      .finally(() => { if (gen.current === g) setLoadingOlder(false); });
+      .finally(() => { if (gen.current === g && olderSeq.current === o) setLoadingOlder(false); });
   }, [userId, oldest]);
 
   // A read change: shown at once; any reply to a request started before it is ignored, and once the server has

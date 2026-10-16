@@ -106,6 +106,21 @@ describe("useInbox: replies in order", () => {
     await act(async () => { pending.find((p) => p.path === "/api/inbox/read")!.resolve({ unread: 2 }); });
     await act(async () => { lists().at(-1)!.resolve(page([item(3, true), item(2), item(1)])); });
     expect(result.current.items.map((i) => i.read)).toEqual([true, false, false]);
+
+    // "Load older" while a refresh is out doesn't cancel the refresh; the older page (asked for before the
+    // refresh answered) is dropped instead.
+    await act(async () => { result.current.load(); });
+    await act(async () => { result.current.loadOlder(); });
+    const older = pending.filter((p) => p.path.includes("before="));
+    await act(async () => { lists().filter((p) => !p.path.includes("before=")).at(-1)!.resolve(page([item(4), item(3, true), item(2), item(1)])); });
+    expect(result.current.items.map((i) => i.id)).toEqual([4, 3, 2, 1]);
+    expect(older).toHaveLength(1);
+    await act(async () => { older[0].resolve({ items: [item(0)], more: false, unread: 0 }); });
+    expect(result.current.items.map((i) => i.id)).toEqual([4, 3, 2, 1]);
+    // Asked for on the current list, an older page is appended.
+    await act(async () => { result.current.loadOlder(); });
+    await act(async () => { pending.filter((p) => p.path.includes("before=")).at(-1)!.resolve({ items: [item(0)], more: false, unread: 0 }); });
+    expect(result.current.items.map((i) => i.id)).toEqual([4, 3, 2, 1, 0]);
     vi.doUnmock("./api");
   });
 });
