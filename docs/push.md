@@ -25,7 +25,11 @@ portal's **Push notifications** switch (`push` flag) does the same at runtime.
 
 ## Who can turn it on
 
-Push needs a signed-in account. A device's subscription belongs to the account
+Push needs a signed-in account.
+
+A subscription's endpoint must be on a browser push service (FCM, Mozilla,
+Apple, Windows: `PUSH_HOSTS` in `src/shared/push.ts`), since the server sends
+requests to it. A device's subscription belongs to the account
 signed in on it, and what it follows is read from that account's synced data
 (`user_state`: `myTeam`, `tracked`, `settings.notify`) each time the job runs,
 so changing a tracked team or a switch on any device applies at once.
@@ -47,7 +51,10 @@ line saying why, when:
   in the site settings);
 - the server has no VAPID keys or the owner switched push off.
 
-On a device with push on, the in-tab alerts step aside so nothing arrives twice.
+On a device with push on, the in-tab alerts step aside so nothing arrives twice,
+but only after checking (every 5 minutes) that push can still deliver there:
+switched off by the owner, the server's keys gone, permission revoked or the
+subscription dropped, and the in-tab alerts take over again.
 
 ## What is sent
 
@@ -79,6 +86,13 @@ goes out once however many ticks or servers see it. Then:
   subscription is deleted.
 - **429, 5xx or no answer**: the claim is released and the next tick tries
   again while the push is still timely.
+
+Each planned push carries an expiry, checked against the clock at the moment
+it's sent (a slow push service can take seconds per send): a match reminder
+expires 1 minute before the match, so it never arrives after the start, and its
+"in N min" is written when it's sent. A "gone" answer deletes only the row that
+still has that endpoint, and subscription ids are never reused, so a late answer
+can't remove a device that turned notifications off and on again.
 - **Any other refusal**: logged `failed`, never retried.
 
 At most 20 pushes per device in any 24 hours; beyond that they're logged

@@ -10,7 +10,7 @@ import { usePersonal } from "./personal";
 import { useCurrentSeason } from "./meta";
 import { toast } from "../components/ui/sonner";
 import { oddsPct } from "./format";
-import { pushOnHere } from "./push";
+import { pushDeliversHere } from "./push";
 import type { EventSummary, EventListItem, MatchView } from "../shared/api";
 
 const SENT = "cs-alerts-sent";
@@ -79,7 +79,9 @@ export function AlertsRunner() {
       }
     };
     const anyOn = () => { const n = ref.current.settings.notify; return n.myTeamMatches || n.trackedTeams || n.upsets || n.eventStart; };
-    const run = () => { if (anyOn() && !pushOnHere()) tick().catch(() => {}); };
+    // Push delivers on this device: it covers these, even with the app closed. Checked each time, so if push stops
+    // working (switched off, subscription gone, permission revoked) the in-tab alerts take over again.
+    const run = () => { if (anyOn()) pushDeliversHere().then((push) => (push ? undefined : tick())).catch(() => {}); };
     const first = setTimeout(run, 10_000);
     const t = setInterval(run, POLL_MS);
     return () => { stopped = true; clearTimeout(first); clearInterval(t); };

@@ -34,7 +34,12 @@ export interface PushSubscriptionInput { endpoint: string; keys: { p256dh: strin
 
 const B64URL = /^[A-Za-z0-9_-]+={0,2}$/;
 
-/** Validate a browser subscription (null when unusable). The endpoint must be an https URL; the keys are
+/** The browsers' push services. The server POSTs to a subscription's endpoint, so only these hosts are accepted:
+ *  never an address a user picked (an internal service, say). Chrome/Edge (FCM, WNS), Firefox (Mozilla), Safari (Apple). */
+export const PUSH_HOSTS = /^(fcm\.googleapis\.com|android\.googleapis\.com|updates\.push\.services\.mozilla\.com|push\.services\.mozilla\.com|web\.push\.apple\.com|[a-z0-9-]+\.push\.apple\.com|[a-z0-9-]+\.notify\.windows\.com)$/;
+
+/** Validate a browser subscription (null when unusable). The endpoint must be an https URL on a known push
+ *  service (PUSH_HOSTS); the keys are
  *  a P-256 public key (65 bytes) and a 16-byte auth secret, base64url as PushSubscription.toJSON() gives them. */
 export function cleanSubscription(v: unknown): PushSubscriptionInput | null {
   const o = v as Partial<PushSubscriptionInput> | null;
@@ -43,7 +48,7 @@ export function cleanSubscription(v: unknown): PushSubscriptionInput | null {
   if (endpoint.length > 1000 || typeof p256dh !== "string" || typeof auth !== "string") return null;
   try {
     const u = new URL(endpoint);
-    if (u.protocol !== "https:" || u.username || u.password) return null;
+    if (u.protocol !== "https:" || u.username || u.password || u.port || !PUSH_HOSTS.test(u.hostname)) return null;
   } catch { return null; }
   const bytes = (s: string) => (B64URL.test(s) ? Math.floor((s.replace(/=+$/, "").length * 3) / 4) : -1);
   if (bytes(p256dh) !== 65 || bytes(auth) !== 16) return null;

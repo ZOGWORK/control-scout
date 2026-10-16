@@ -47,10 +47,17 @@ async function registration(waitMs = 5000): Promise<ServiceWorkerRegistration | 
   } catch { return null; }
 }
 
-let config: Promise<PushConfig> | null = null;
-function pushConfig(): Promise<PushConfig> {
-  config ??= apiFetch<PushConfig>("/api/push/config").catch((e) => { config = null; throw e; });
-  return config;
+/** The server's push settings, kept a minute (the owner can switch push on or off, or the keys can change). */
+const CONFIG_TTL_MS = 60_000;
+let config: { at: number; value: Promise<PushConfig> } | null = null;
+function pushConfig(fresh = false): Promise<PushConfig> {
+  if (fresh || !config || Date.now() - config.at > CONFIG_TTL_MS) {
+    const value = apiFetch<PushConfig>("/api/push/config");
+    const entry = { at: Date.now(), value };
+    config = entry;
+    value.catch(() => { if (config === entry) config = null; });
+  }
+  return config.value;
 }
 
 /** The current status (asks nothing of the user). */
@@ -59,7 +66,7 @@ export async function readPushStatus(signedIn: boolean): Promise<PushStatus> {
   if (support !== "ok") return support;
   if (Notification.permission === "denied") { markOn(false); return "denied"; }
   const c = await pushConfig().catch(() => null);
-  if (!c?.available) return "unavailable";
+  if (!c?.available) { markOn(false); return "unavailable"; }
   const reg = await registration();
   if (!reg) return "no-worker";
   if (!signedIn) return "signed-out";
@@ -90,7 +97,7 @@ export async function enablePush(): Promise<PushStatus> {
   const permission = await Notification.requestPermission();
   if (permission === "denied") return "denied";
   if (permission !== "granted") return "off"; // dismissed: nothing changes, they can tap again
-  const c = await pushConfig();
+  const c = await pushConfig(true);
   if (!c.available || !c.publicKey) return "unavailable";
   const reg = await registration();
   if (!reg) return "no-worker";
@@ -102,6 +109,31 @@ export async function enablePush(): Promise<PushStatus> {
   await apiFetch("/api/push/subscriptions", { method: "POST", json: sub.toJSON() });
   markOn(true);
   return "on";
+}
+
+/**
+ * Can push reach this device right now? Checked before the in-tab alerts step aside (alerts.tsx), so they never stop
+ * while push can't deliver: the owner switched it off, the keys went, permission was revoked, or the server dropped
+ * this device's subscription. Offline (the server can't say): trusts the last answer. Clears the record when not.
+ */
+export async function pushDeliversHere(): Promise<boolean> {
+  if (!pushOnHere()) return false;
+  if (pushSupport() !== "ok" || Notification.permission !== "granted") { markOn(false); return false; }
+  const reg = await registration(0);
+  const sub = await reg?.pushManager.getSubscription().catch(() => null);
+  if (!sub) { markOn(false); return false; }
+  let c: PushConfig, r: { subscribed: boolean };
+  try {
+    c = await pushConfig();
+    r = await apiFetch<{ subscribed: boolean }>("/api/push/subscriptions/check", { method: "POST", json: { endpoint: sub.endpoint } });
+  } catch (e) {
+    // Signed out (401) means no account to push for; any other failure (offline): keep the last answer.
+    if ((e as { status?: number }).status === 401) { markOn(false); return false; }
+    return true;
+  }
+  const ok = c.available && r.subscribed;
+  if (!ok) markOn(false);
+  return ok;
 }
 
 /** Turn push off for this device: forget it on the server, then unsubscribe in the browser. */

@@ -79,7 +79,7 @@ async function account(state: { myTeam?: number | null; teams?: number[]; events
 }
 
 const p256dh = Buffer.alloc(65, 4).toString("base64url"), auth = Buffer.alloc(16, 7).toString("base64url");
-const subFor = (tag: string) => ({ endpoint: `https://push.example.com/send/${tag}`, keys: { p256dh, auth } });
+const subFor = (tag: string) => ({ endpoint: `https://fcm.googleapis.com/fcm/send/${tag}`, keys: { p256dh, auth } });
 async function subscribe(userId: number, tag: string, createdAt = Date.now() - 3600_000) {
   await saveSubscription(userId, subFor(tag), "Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36 Chrome/141.0 Mobile Safari/537.36", createdAt);
   return subFor(tag).endpoint;
@@ -129,8 +129,10 @@ describe("subscription API", () => {
     const a = await account();
     expect((await api("/subscriptions", { method: "POST", body: subFor("x") })).status).toBe(401);
     expect((await api("/subscriptions", { method: "POST", cookie: a.cookie, body: "endpoint=x", type: "application/x-www-form-urlencoded" })).status).toBe(415);
-    for (const bad of [{}, { endpoint: "http://push.example.com/x", keys: { p256dh, auth } }, { endpoint: "https://push.example.com/x", keys: { p256dh: "short", auth } },
-      { endpoint: "https://push.example.com/x", keys: { p256dh, auth: Buffer.alloc(8).toString("base64url") } }, { endpoint: `https://p.example.com/${"x".repeat(1000)}`, keys: { p256dh, auth } }]) {
+    for (const bad of [{}, { endpoint: "http://fcm.googleapis.com/fcm/send/x", keys: { p256dh, auth } }, { endpoint: "https://fcm.googleapis.com/fcm/send/x", keys: { p256dh: "short", auth } },
+      { endpoint: "https://fcm.googleapis.com/fcm/send/x", keys: { p256dh, auth: Buffer.alloc(8).toString("base64url") } }, { endpoint: `https://fcm.googleapis.com/${"x".repeat(1000)}`, keys: { p256dh, auth } },
+      // Only the browsers' push services: the server POSTs to the endpoint, so never an address a user picked.
+      { endpoint: "https://internal.example.com/admin", keys: { p256dh, auth } }, { endpoint: "https://fcm.googleapis.com:8443/fcm/send/x", keys: { p256dh, auth } }]) {
       expect((await api("/subscriptions", { method: "POST", cookie: a.cookie, body: bad })).status).toBe(400);
     }
     expect(await all("SELECT * FROM push_subscriptions")).toEqual([]);
@@ -178,7 +180,9 @@ describe("subscription API", () => {
 
   it("validates subscriptions and reduces a User-Agent to its browser family", () => {
     expect(cleanSubscription(subFor("ok"))).toEqual(subFor("ok"));
-    expect(cleanSubscription({ endpoint: "https://u:p@push.example.com/x", keys: { p256dh, auth } })).toBeNull();
+    expect(cleanSubscription({ endpoint: "https://u:p@fcm.googleapis.com/x", keys: { p256dh, auth } })).toBeNull();
+    for (const host of ["updates.push.services.mozilla.com", "web.push.apple.com", "wns2-par02p.notify.windows.com"]) expect(cleanSubscription({ endpoint: `https://${host}/x`, keys: { p256dh, auth } })).not.toBeNull();
+    expect(cleanSubscription({ endpoint: "https://fcm.googleapis.com.evil.example/x", keys: { p256dh, auth } })).toBeNull();
     expect(uaFamily("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/141.0 Safari/537.36 Edg/141.0")).toBe("Edge on Windows");
     expect(uaFamily("Mozilla/5.0 (X11; Linux x86_64; rv:131.0) Gecko/20100101 Firefox/131.0")).toBe("Firefox on Linux");
     expect(uaFamily("")).toBe("Unknown browser");
@@ -357,11 +361,47 @@ describe("delivery", () => {
     const a = await account({ myTeam: 1 });
     await subscribe(a.id, "lots");
     const [sub] = await loadRecipients();
-    const plans: Planned[] = Array.from({ length: PUSH_DAILY_LIMIT + 3 }, (_, i) => ({ sub, kind: "upset", subject: `2025:X:qual:0:${i}`, ttl: 60, payload: { title: "t", body: "b", url: "/", tag: `t${i}` } }));
+    const plans: Planned[] = Array.from({ length: PUSH_DAILY_LIMIT + 3 }, (_, i) => ({ sub, kind: "upset", subject: `2025:X:qual:0:${i}`, expiresAt: Date.now() + 10 * 864e5, payload: () => ({ title: "t", body: "b", url: "/", tag: `t${i}` }) }));
     const r = await deliver(plans, Date.now());
     expect(r).toMatchObject({ sent: PUSH_DAILY_LIMIT, limited: 3 });
     // Limited ones are logged and never sent later.
     expect((await deliver(plans, Date.now() + 2 * 864e5)).sent).toBe(0);
+  });
+
+  it("drops a plan whose time has passed by the moment of sending, and writes the countdown then", async () => {
+    const a = await account({ myTeam: 1 });
+    await subscribe(a.id, "slow"); await subscribe(a.id, "late");
+    const subs = await loadRecipients();
+    const now = Date.now();
+    let calls = 0;
+    // A slow push service: the first send takes long enough that the second plan has expired.
+    setPushSender(async (sub, payload, ttl) => { calls++; sent.push({ endpoint: sub.endpoint, payload: JSON.parse(payload), ttl }); await new Promise((r) => setTimeout(r, 300)); return { ok: true }; });
+    const plan = (sub: (typeof subs)[number], expiresAt: number): Planned => ({ sub, kind: "match", subject: "2025:X:qual:0:1", expiresAt, payload: (at) => ({ title: `in ${Math.round((expiresAt + MIN - at) / MIN)} min`, body: "", url: "/", tag: "t" }) });
+    const r = await deliver([plan(subs[0], now + 14 * MIN), plan(subs[1], now + 200)], now);
+    expect(r).toMatchObject({ sent: 1, expired: 1 });
+    expect(calls).toBe(1);
+    expect(sent[0].payload.title).toBe("in 15 min");
+    expect(sent[0].ttl).toBeLessThanOrEqual(14 * 60);
+    // The expired one left no claim behind.
+    expect(await all("SELECT * FROM push_sent WHERE subscription_id = ?", [subs[1].id])).toEqual([]);
+  });
+
+  it("a late 'gone' answer never deletes a newer subscription, and ids are never reused", async () => {
+    const a = await account({ myTeam: 4215 });
+    await subscribe(a.id, "old");
+    const [old] = await loadRecipients();
+    let release!: () => void;
+    setPushSender(async () => { await new Promise<void>((r) => { release = r; }); return { ok: false, status: 410, error: "Gone" }; });
+    const p = deliver([{ sub: old, kind: "start", subject: "2025:X", expiresAt: Date.now() + 3600_000, payload: () => ({ title: "t", body: "", url: "/", tag: "t" }) }], Date.now());
+    await new Promise((r) => setTimeout(r, 50));
+    // Meanwhile the device turns notifications off and on again: a new subscription.
+    await api("/subscriptions", { method: "DELETE", cookie: a.cookie, body: { endpoint: old.endpoint } });
+    await subscribe(a.id, "new");
+    release();
+    expect(await p).toMatchObject({ pruned: 1 });
+    const rows = await all<any>("SELECT id, endpoint FROM push_subscriptions");
+    expect(rows).toEqual([{ id: expect.any(Number), endpoint: subFor("new").endpoint }]);
+    expect(rows[0].id).not.toBe(old.id);
   });
 
   it("stays dormant with the VAPID settings unset or the owner's switch off: nothing is planned or sent", async () => {

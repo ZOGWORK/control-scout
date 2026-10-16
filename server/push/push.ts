@@ -22,7 +22,8 @@
 // push_sent (subscription, kind, subject) before sending, so a push goes out once however many ticks or
 // servers see it. At most PUSH_DAILY_LIMIT per device in 24 hours (the rest are logged 'limited', never sent
 // later). A push service answering 404/410 means the device unsubscribed: the subscription is deleted.
-// A 429/5xx/network failure releases the claim (the next tick retries while it's still timely).
+// A 429/5xx/network failure releases the claim (the next tick retries while it's still timely). A plan carries an
+// expiry (a reminder: 1 min before its match), checked against the clock at the moment of sending.
 //
 // Sending uses the web-push package (RFC 8291 aes128gcm payload encryption + RFC 8292 VAPID): audited,
 // widely used crypto rather than our own. Without VAPID_PUBLIC_KEY / VAPID_PRIVATE_KEY / VAPID_SUBJECT,
@@ -125,7 +126,9 @@ export async function hasSubscription(userId: number, endpoint: string): Promise
   return !!(await get("SELECT 1 FROM push_subscriptions WHERE user_id = ? AND endpoint = ?", [userId, endpoint]));
 }
 
-export async function dropSubscription(id: number): Promise<void> {
+/** Delete a subscription and its sent log; with `endpoint`, only if the row still has that endpoint. */
+export async function dropSubscription(id: number, endpoint?: string): Promise<void> {
+  if (endpoint !== undefined && !(await get("SELECT 1 FROM push_subscriptions WHERE id = ? AND endpoint = ?", [id, endpoint]))) return;
   await run("DELETE FROM push_sent WHERE subscription_id = ?", [id]);
   await run("DELETE FROM push_subscriptions WHERE id = ?", [id]);
 }
@@ -184,7 +187,9 @@ const follows = (r: Recipient, season: number, code: string, roster: Set<number>
 
 // --- Planning ------------------------------------------------------------------------------------
 
-export interface Planned { sub: Recipient; kind: PushKind; subject: string; payload: PushPayload; ttl: number }
+/** One push to send. `payload` is written at the moment of sending (a reminder's countdown is then exact), and a
+ *  plan whose `expiresAt` (ms) has passed by then is dropped unsent: a reminder never arrives after its match starts. */
+export interface Planned { sub: Recipient; kind: PushKind; subject: string; expiresAt: number; payload: (at: number) => PushPayload }
 
 const pct = (p: number) => `${Math.min(99, Math.max(1, Math.round(p * 100)))}%`;
 const day = (now: number, n: number) => new Date(now + n * 864e5).toISOString().slice(0, 10);
@@ -227,12 +232,14 @@ export async function planMatchReminders(recipients: Recipient[], now = Date.now
     for (const r of want) {
       const teams = [...new Set([...(r.notify.myTeamMatches && r.myTeam ? [r.myTeam] : []), ...(r.notify.trackedTeams ? r.tracked.teams : [])])].filter((t) => inMatch.has(t));
       if (!teams.length) continue;
-      const mins = Math.max(1, Math.round((m.startMs - now) / 60_000));
       const first = teams[0], side = l.red.includes(first) ? "red" : "blue";
       const odds = m.p_red != null ? ` · ${first} ${pct(side === "red" ? Number(m.p_red) : 1 - Number(m.p_red))} to win (${m.tier} confidence)` : "";
       out.push({
-        sub: r, kind: "match", subject: `${ek}:${key}`, ttl: Math.ceil((m.startMs - now) / 1000),
-        payload: { title: `${listTeams(teams)} ${teams.length > 1 ? "play" : "plays"} ${m.label} in ${mins} min`, body: `${m.name}${odds}`, url: matchUrl(Number(m.season), m.code, key), tag: `match:${ek}:${key}` },
+        sub: r, kind: "match", subject: `${ek}:${key}`, expiresAt: m.startMs - PUSH_MIN_LEAD_MS,
+        payload: (at) => ({
+          title: `${listTeams(teams)} ${teams.length > 1 ? "play" : "plays"} ${m.label} in ${Math.max(1, Math.round((m.startMs - at) / 60_000))} min`,
+          body: `${m.name}${odds}`, url: matchUrl(Number(m.season), m.code, key), tag: `match:${ek}:${key}`,
+        }),
       });
     }
   }
@@ -272,12 +279,12 @@ export async function planUpsets(recipients: Recipient[], now = Date.now()): Pro
     for (const r of want) {
       if (!(scoredAt >= r.createdAt) || !follows(r, season, p.code, roster.get(`${season}:${p.code}`))) continue;
       out.push({
-        sub: r, kind: "upset", subject: `${season}:${p.code}:${key}`, ttl: 3600,
-        payload: {
+        sub: r, kind: "upset", subject: `${season}:${p.code}:${key}`, expiresAt: now + 3600_000,
+        payload: () => ({
           title: `Upset in ${p.label} at ${p.name}`,
           body: `${listTeams(winners)} beat ${listTeams(losers)} ${ws}–${ls}. Our call before the match gave them ${pct(underdog)} (${p.tier} confidence).`,
           url: matchUrl(season, p.code, key), tag: `upset:${season}:${p.code}:${key}`,
-        },
+        }),
       });
     }
   }
@@ -309,12 +316,12 @@ export async function planEventStarts(recipients: Recipient[], now = Date.now())
     for (const r of want) {
       if (!follows(r, season, e.code, roster.get(`${season}:${e.code}`))) continue;
       out.push({
-        sub: r, kind: "start", subject: `${season}:${e.code}`, ttl: 3 * 3600,
-        payload: {
+        sub: r, kind: "start", subject: `${season}:${e.code}`, expiresAt: now + 3 * 3600_000,
+        payload: () => ({
           title: `${e.name} has started`,
           body: Number(e.played) > 0 ? "First results are in. Live odds and rankings on the event page." : "Matches are under way. Live odds and results on the event page.",
           url: eventUrl(season, e.code), tag: `start:${season}:${e.code}`,
-        },
+        }),
       });
     }
   }
@@ -323,16 +330,19 @@ export async function planEventStarts(recipients: Recipient[], now = Date.now())
 
 // --- Delivering ----------------------------------------------------------------------------------
 
-export interface PushReport { planned: number; sent: number; limited: number; failed: number; retry: number; pruned: number }
+export interface PushReport { planned: number; sent: number; limited: number; failed: number; retry: number; pruned: number; expired: number }
 
-/** Claim and send each planned push once (see the header). */
+/** Claim and send each planned push once (see the header). `now` is when the plans were made; sends take real
+ *  time (a slow push service: up to 10 s each), so each one reads the clock again as it goes. */
 export async function deliver(plans: Planned[], now = Date.now(), log: Log = () => {}): Promise<PushReport> {
-  const report: PushReport = { planned: plans.length, sent: 0, limited: 0, failed: 0, retry: 0, pruned: 0 };
+  const report: PushReport = { planned: plans.length, sent: 0, limited: 0, failed: 0, retry: 0, pruned: 0, expired: 0 };
+  const t0 = Date.now(), clock = () => now + (Date.now() - t0);
   const seen = new Set<string>(), gone = new Set<number>(), recent = new Map<number, number>();
   for (const p of plans) {
     const k = `${p.sub.id}|${p.kind}|${p.subject}`;
     if (seen.has(k) || gone.has(p.sub.id)) continue;
     seen.add(k);
+    if (clock() >= p.expiresAt) { report.expired++; continue; } // too late to be useful: never sent
     if (!recent.has(p.sub.id)) {
       const c = await get<{ n: number }>("SELECT COUNT(*) n FROM push_sent WHERE subscription_id = ? AND outcome = 'sent' AND at > ?", [p.sub.id, now - 864e5]);
       recent.set(p.sub.id, Number(c?.n ?? 0));
@@ -342,15 +352,22 @@ export async function deliver(plans: Planned[], now = Date.now(), log: Log = () 
       [p.sub.id, p.kind, p.subject, now, limited ? "limited" : "sending"]);
     if (!claimed) continue; // already sent (or being sent) by an earlier tick or another server
     if (limited) { report.limited++; continue; }
-    const r = await sender({ endpoint: p.sub.endpoint, keys: { p256dh: p.sub.p256dh, auth: p.sub.auth } }, JSON.stringify(p.payload), Math.max(60, p.ttl));
+    const at = clock();
+    if (at >= p.expiresAt) {
+      await run("DELETE FROM push_sent WHERE subscription_id = ? AND kind = ? AND subject = ?", [p.sub.id, p.kind, p.subject]);
+      report.expired++;
+      continue;
+    }
+    const r = await sender({ endpoint: p.sub.endpoint, keys: { p256dh: p.sub.p256dh, auth: p.sub.auth } }, JSON.stringify(p.payload(at)), Math.max(1, Math.floor((p.expiresAt - at) / 1000)));
     if (r.ok) {
       await run("UPDATE push_sent SET outcome = 'sent' WHERE subscription_id = ? AND kind = ? AND subject = ?", [p.sub.id, p.kind, p.subject]);
-      await run("UPDATE push_subscriptions SET last_success_at = ? WHERE id = ?", [now, p.sub.id]);
+      await run("UPDATE push_subscriptions SET last_success_at = ? WHERE id = ? AND endpoint = ?", [now, p.sub.id, p.sub.endpoint]);
       recent.set(p.sub.id, recent.get(p.sub.id)! + 1);
       report.sent++;
     } else if (r.status === 404 || r.status === 410) {
-      // The browser unsubscribed (or the site's permission was revoked): this endpoint is gone for good.
-      await dropSubscription(p.sub.id);
+      // The browser unsubscribed (or the site's permission was revoked): this endpoint is gone for good. Only that
+      // endpoint's row goes (ids are never reused, and the endpoint is checked too), never a newer subscription.
+      await dropSubscription(p.sub.id, p.sub.endpoint);
       gone.add(p.sub.id);
       report.pruned++;
     } else if (r.status == null || r.status === 429 || r.status >= 500) {

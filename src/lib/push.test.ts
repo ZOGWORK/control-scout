@@ -95,6 +95,39 @@ describe("push status", () => {
     expect(push.pushOnHere()).toBe(false);
   });
 
+  it("lets the in-tab alerts step aside only while push can actually deliver", async () => {
+    setup();
+    const push = await import("./push");
+    expect(await push.pushDeliversHere()).toBe(false); // never turned on
+    (globalThis as any).Notification.permission = "granted";
+    await push.enablePush();
+    expect(await push.pushDeliversHere()).toBe(true);
+    // The owner switches push off: the next check says no, and forgets this device's record.
+    available = false;
+    setup({ permission: "granted" });
+    localStorage.setItem("cs-push-on", "1");
+    const again = await import("./push");
+    expect(await again.pushDeliversHere()).toBe(false);
+    expect(again.pushOnHere()).toBe(false);
+    // The server dropped the subscription (a 410 pruned it): the same.
+    available = true;
+    setup({ permission: "granted" });
+    localStorage.setItem("cs-push-on", "1");
+    vi.mocked(fetch).mockImplementation(async (path: any) => (String(path).endsWith("/check") ? Response.json({ subscribed: false }) : Response.json({ available: true, publicKey: "x" })));
+    expect(await (await import("./push")).pushDeliversHere()).toBe(false);
+  });
+
+  it("asks the server again for its push settings, instead of keeping an old answer", async () => {
+    available = false;
+    setup();
+    const push = await import("./push");
+    expect(await push.readPushStatus(true)).toBe("unavailable");
+    available = true;
+    // Turning on always reads the settings fresh.
+    expect(await push.enablePush()).toBe("on");
+    expect(calls.filter((c) => c.path === "/api/push/config")).toHaveLength(2);
+  });
+
   it("does nothing when the prompt is dismissed or blocked", async () => {
     setup();
     const push = await import("./push");

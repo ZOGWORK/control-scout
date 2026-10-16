@@ -845,8 +845,9 @@ CREATE INDEX workspace_scout_team ON workspace_scout_entries (workspace_id, seas
 -- signed-in account. endpoint, p256dh and auth are what the browser's PushSubscription gives (the push
 -- service URL and the keys a payload is encrypted to). ua_family: the browser family only ("Chrome on
 -- Android"), never the full User-Agent. Times are ms. last_success_at: the last push the service accepted.
+-- AUTOINCREMENT: an id is never reused, so a late answer about a deleted subscription can't touch a newer one.
 CREATE TABLE push_subscriptions (
-  id INTEGER PRIMARY KEY,
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
   user_id INTEGER NOT NULL,
   endpoint TEXT NOT NULL UNIQUE,
   p256dh TEXT NOT NULL,
