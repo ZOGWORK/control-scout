@@ -65,6 +65,10 @@ export const env = {
   get vapidPublicKey() { return str("VAPID_PUBLIC_KEY"); },
   get vapidPrivateKey() { return str("VAPID_PRIVATE_KEY"); },
   get vapidSubject() { return str("VAPID_SUBJECT"); },
+  /** Development and tests only: serve the clearly marked SAMPLE power rankings (content/power-rankings-sample)
+   *  in place of the real ones (content/power-rankings), to see the pages before any week is published.
+   *  Ignored in production, so sample weeks can never show on the live site. */
+  get powerRankingsSample() { return !this.production && str("POWER_RANKINGS_SAMPLE") === "1"; },
   get dataDir() { return str("DATA_DIR") ?? join(process.cwd(), ".data"); },
   /** Where an FTC Scout raw cache can be imported from (seed). */
   get scoutCacheDir() { return str("SCOUT_CACHE_DIR"); },

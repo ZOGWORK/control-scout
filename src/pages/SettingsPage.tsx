@@ -19,6 +19,7 @@ import { useMeta, useTitle } from "../lib/meta";
 import { usePersonal, type AccountUser, type AuthProviders } from "../lib/personal";
 import { resetConsent, useConsent } from "../lib/consent";
 import { resetTour } from "../lib/tour";
+import { resetInstall } from "../lib/installNudge";
 import { clearLocalScouting, localScoutEntries, saveScoutEntry, storedScoutEntry, type ScoutEntry } from "../lib/scouting";
 import { clearRecordings, fmtBytes } from "../lib/recordings";
 import { downloadCsv } from "../lib/csv";
@@ -592,7 +593,7 @@ function Privacy({ onOpen }: { onOpen: (id: SectionId) => void }) {
       </Group>
       <Group title="Remove data">
         <Row label="Clear all local data" description={user ? "Wipes this device. Your account data is untouched." : "Wipes everything Control Scout stored on this device."}>
-          <Button variant="outline" size="sm" onClick={() => { clearLocal(); clearLocalScouting(); try { localStorage.clear(); } catch { /* storage unavailable */ } resetConsent(); resetTour(); toast.success("Local data cleared"); }}>Clear</Button>
+          <Button variant="outline" size="sm" onClick={() => { clearLocal(); clearLocalScouting(); try { localStorage.clear(); } catch { /* storage unavailable */ } resetConsent(); resetTour(); resetInstall(); toast.success("Local data cleared"); }}>Clear</Button>
         </Row>
         {user ? (
           <Row label="Delete account" description="Removes your account and everything synced to it: tracking, shortlist, scouting notes, video links. Recordings on this device are separate (Offline data).">

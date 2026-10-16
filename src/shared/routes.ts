@@ -7,7 +7,7 @@
 /** A lazily loaded page module under src/pages (the file name without .tsx). */
 export type PageModule =
   | "TeamPage" | "EventsPage" | "RecordsPage" | "RankingsPage" | "EventPage" | "PredictPage" | "ComparePage" | "MyTeamPage"
-  | "ShortlistPage" | "ScoutPage" | "DownloadPage" | "SettingsPage" | "MethodologyPage" | "PrivacyPage" | "TermsPage" | "ContactPage" | "MatchReportPage" | "NotFound";
+  | "ShortlistPage" | "ScoutPage" | "DownloadPage" | "SettingsPage" | "MethodologyPage" | "PrivacyPage" | "TermsPage" | "ContactPage" | "MatchReportPage" | "PowerRankingsPage" | "NotFound";
 
 // React Router matches case-insensitively, a trailing slash included: so do these.
 const ROUTES: [RegExp, PageModule | null][] = [
@@ -30,6 +30,7 @@ const ROUTES: [RegExp, PageModule | null][] = [
   [/^\/privacy\/?$/i, "PrivacyPage"],
   [/^\/terms\/?$/i, "TermsPage"],
   [/^\/contact\/?$/i, "ContactPage"],
+  [/^\/power-rankings(\/[^/]+)?\/?$/i, "PowerRankingsPage"],
 ];
 
 /** The lazy page module a path renders (null: Home or a redirect, nothing to load). */
@@ -44,6 +45,7 @@ const TITLES: [RegExp, string][] = [
   [/^\/teams\/[^/]+$/, "Team"], [/^\/teams$/, "Teams"], [/^\/rankings$/, "Rankings"], [/^\/matches$/, "Match records"], [/^\/events\/[^/]+\/[^/]+$/, "Event"], [/^\/events$/, "Events"], [/^\/predict\/how-it-works$/, "How it works"], [/^\/predict(\/accuracy)?$/, "Predict"],
   [/^\/compare$/, "Compare"], [/^\/my-team$/, "My team"], [/^\/shortlist$/, "Shortlist"], [/^\/scout$/, "Scout"], [/^\/download$/, "Download"],
   [/^\/settings$/, "Settings"], [/^\/methodology$/, "How it works"], [/^\/privacy$/, "Privacy"], [/^\/terms$/, "Terms"], [/^\/contact$/, "Contact"],
+  [/^\/power-rankings(\/[^/]+)?$/, "Power rankings"],
 ];
 
 /** The page's short name in the top bar ("Control Scout / Events"); any other path is the not-found page.

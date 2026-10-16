@@ -130,4 +130,6 @@ export const DEVICE_ONLY_KEYS = [
   "cs-scout-lost:", // edits this device lost to newer ones, kept to restore (src/lib/lostEdits.ts)
   "cs-tour", // the first-run tour was finished or skipped here (src/lib/tour.ts)
   "cs-tour-demo", // automation opt-in that lets a driven browser see the tour (npm run shots -- --tour)
+  "cs-install", // the add-to-home-screen nudge: last day shown, turned down, installed (src/lib/installNudge.ts)
+  "cs-install-demo", // automation opt-in that lets a driven browser see the nudge (npm run shots -- --install)
 ] as const;
