@@ -69,6 +69,9 @@ export function subscribeInbox(userId: number, fn: Listener): () => void {
 }
 
 /** Tell each account's open streams its unread count now. Never throws. */
+/** Items of these accounts changed in place (e.g. a comment's text in its notification, comments.ts): their open inboxes refetch. */
+export const notifyInboxChanged = (userIds: Iterable<number>): Promise<void> => notifyUsers(userIds);
+
 async function notifyUsers(userIds: Iterable<number>): Promise<void> {
   for (const id of new Set(userIds)) {
     const subs = listeners.get(id);

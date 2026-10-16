@@ -656,6 +656,30 @@ CREATE UNIQUE INDEX inbox_items_alert ON inbox_items (user_id, source_alert_id) 
   },
   {
     version: 18,
+    name: "entry comments",
+    sql: `
+-- Comments on workspace scout entries (server/scout/comments.ts, Task 15): a flat thread per entry, oldest
+-- first. workspace_id: the mirror row (workspaces.id). entry_uuid: the entry's uuid in that workspace.
+-- author_account_id / author_name: the shared (Control Point) account and the name shown, stamped by the
+-- server. body: plain text, trimmed, at most 2,000 characters. created_at / edited_at / deleted_at: ms.
+-- A deleted comment keeps its row (so ids are never reused and the count stays right) but loses its body,
+-- and is never sent to devices again: it disappears from the thread.
+CREATE TABLE workspace_entry_comments (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  workspace_id INTEGER NOT NULL REFERENCES workspaces (id),
+  entry_uuid TEXT NOT NULL,
+  author_account_id INTEGER NOT NULL,
+  author_name TEXT NOT NULL DEFAULT '',
+  body TEXT NOT NULL DEFAULT '',
+  created_at INTEGER NOT NULL,
+  edited_at INTEGER,
+  deleted_at INTEGER
+);
+CREATE INDEX workspace_entry_comments_thread ON workspace_entry_comments (workspace_id, entry_uuid, id);
+`,
+  },
+  {
+    version: 19,
     name: "workspace entry version history",
     sql: `
 -- The last 20 versions of each workspace scout entry (server/scout/history.ts): one row per accepted write
