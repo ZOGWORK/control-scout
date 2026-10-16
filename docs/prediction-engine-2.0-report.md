@@ -330,9 +330,28 @@ because 0 is falsy.
 - Control Scout's ledger and stats recompute again on the version change.
 - `populationUpdate: "sequential"` and omitting `contextual` reproduce 1.1.0 numbers inside 2.0 if a partial rollback is needed.
 
-**Deployment record:**
-- *Control Scout:* PR, merge commit, deploy run, `/api/health` engine. Pending; filled in below.
-- *Control Point:* PR, merge commit, deploy run, `/api/health` engine. Pending; filled in below.
+**Deployment record (16 Oct 2026, UTC):**
+
+| | Control Scout | Control Point |
+|---|---|---|
+| PR | [#136](https://github.com/Control-Point-FTC/control-scout/pull/136): Greptile 5/5 on head `388a1ec`, 0 unresolved threads, CI green | [#274](https://github.com/Control-Point-FTC/control-point/pull/274): Greptile 5/5 on head `00c32f9d`, 0 unresolved threads |
+| Merge commit | `3b47215323552c962728ef3f46245e22db701326` | `2b3f0bdf258f5cbe231e40213096a31d32e157a9` |
+| Deploy run | "Deploy to Oracle VM" 38977937368: success (CI 38977937331 green) | "Deploy to Oracle VM" 38977972718: success; Verify step matched bundle `index-trFkljOv.js` |
+| Running engine | `controlscout.org/api/health` → `engine 2.0.0`, release `3b47215`; Render backup also `2.0.0` | `tryctrlpoint.org/api/health` → `engine 2.0.0` |
+| Contextual model live | `/api/predict/match` → `probabilityModel: contextual`. The same lineup gives 19.2% (qual) and 13.2% (playoff) with identical predicted scores. `level=bogus` returns 400. | Not exercised: `/api/predict/*` needs sign-in (AGENTS rules 8–9) |
+| Offline packs | Rebuilt by the first post-deploy cycle (22:56): manifest `2026-10-16.2`, `engineVersion 2.0.0`; lite pack books carry `stateVersion 1` with reliability state for 6,445 / 7,257 / 7,812 teams (2023–2025) | Built per request by the new server |
+| Ledgers | Backtest ledger rewritten on 2.0. Production 2025 rows equal this report's local 2.0 replay bit for bit (for example USTXHOCMP playoff 2-1: 0.9092465727497665). | Live snapshots now label each call with the engine version |
+
+Two review rounds before merge fixed:
+- a partial-stats-run upgrade marker;
+- a fair draw for advancement ties;
+- a strict byte check;
+- the bonus-assumption copy;
+- offline bonus flags;
+- per-version live scoring;
+- linear scoring.
+
+After those fixes, the final engine's 2025 event backtests were identical to the numbers in section 7.
 
 ## 10. Remaining issues and next experiments
 
