@@ -10,6 +10,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { apiFetch } from "./api";
 import type { EntryPhoto } from "../shared/photos";
+import { READ_ONLY_STATUS } from "../shared/orphaned";
 
 import { builtinTemplate } from "../shared/scoutDefaults";
 
@@ -81,8 +82,21 @@ export const PUSH_DEBOUNCE_MS = 300;
  * (scoutSpace.ts) and the app checks the account again; queued entries are never dropped here.
  */
 export const SCOUT_DENIED = "cs-scout-denied";
+/**
+ * A workspace answered a write with 423 (Task 19, src/shared/orphaned.ts): it's read-only now (deleted in
+ * Control Point, or no admin left), not a removal. detail: the workspace id. The app re-reads the account
+ * (its list marks the space read-only, and the page shows the banner); queued entries are never dropped here.
+ */
+export const SCOUT_READ_ONLY = "cs-scout-read-only";
+/**
+ * The server says the account's workspace list changed (a live stream's `workspace` or `account` event: a
+ * space went read-only or came back, a re-add, a role change). The app re-reads /api/auth/me at once.
+ */
+export const ACCOUNT_STALE = "cs-account-stale";
 const deniedBy = (space: ScoutSpace, e: unknown) => {
-  if (space != null && (e as { status?: unknown } | null)?.status === 403) window.dispatchEvent(new CustomEvent<string>(SCOUT_DENIED, { detail: space }));
+  const status = (e as { status?: unknown } | null)?.status;
+  if (space != null && status === 403) window.dispatchEvent(new CustomEvent<string>(SCOUT_DENIED, { detail: space }));
+  if (space != null && status === READ_ONLY_STATUS) window.dispatchEvent(new CustomEvent<string>(SCOUT_READ_ONLY, { detail: space }));
 };
 
 /** The workspace refused a write (detail: ScoutRefusal); the server's copy is already back on the device. */

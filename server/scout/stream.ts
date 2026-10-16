@@ -42,6 +42,12 @@
 //                            (src/shared/comments.ts) {action, workspaceId, entryUuid, commentId, count, comment?}. Live only,
 //                            like `activity` (ones during the catch-up follow `ready`): a device that was away refetches
 //                            the threads it has open, and the counts, on `ready`.
+//   event: workspace         the workspace went read-only (Task 19, orphans.ts: deleted in Control Point, or no admin
+//                            left) or came back; no id. data {"orphaned": {"at", "reason"} | null}. The stream stays
+//                            open: former members of a deleted workspace keep reading it (they are not revoked).
+//   event: account           this account's workspace list changed (joined or re-added in Control Point, a role
+//                            changed, a workspace orphaned or restored); no id, data {}. Sent on every open stream of
+//                            the account, in any workspace: the app re-reads /api/auth/me at once.
 //   : ping                   a comment every 25 s (proxies drop silent connections)
 //
 // Proxy: the response says X-Accel-Buffering: no, and nginx's site gives this
@@ -50,7 +56,9 @@
 import express, { type Request, type Response, type Router } from "express";
 import { isWorkspaceId, membershipAnsweredAt, refreshAccount } from "../auth/controlPoint.js";
 import { currentUser } from "../auth/session.js";
-import { subscribe, subscribeActivity, subscribeAssignments, subscribeComments, subscribeRevoked, subscribeSettings, subscribeTemplate, type ActivityNotice, type LiveEntry, type SettingsNotice, type TemplateNotice } from "./bus.js";
+import { subscribe, subscribeAccountChanged, subscribeActivity, subscribeAssignments, subscribeComments, subscribeRevoked, subscribeSettings, subscribeTemplate, subscribeWorkspaceState, type ActivityNotice, type LiveEntry, type SettingsNotice, type TemplateNotice } from "./bus.js";
+import { formerMember } from "./orphans.js";
+import type { OrphanState } from "../../src/shared/orphaned.js";
 import { openLiveConnection } from "../liveConnections.js";
 import type { AssignmentNotice } from "../../src/shared/assignments.js";
 import { pullWorkspaceLive, workspaceAccess, type WorkspaceEntryOut } from "./entries.js";
@@ -129,7 +137,12 @@ export async function sweep(): Promise<void> {
       askedAt.set(accountId, now);
       const answer = await refreshAccount(accountId).catch(() => null);
       if (!answer) return; // Control Point unreachable: a stale membership still counts
-      for (const s of list) if (!answer.some((w) => w.id === s.workspaceId)) s.revoke();
+      for (const s of list) {
+        if (answer.some((w) => w.id === s.workspaceId)) continue;
+        // Not listed: removed, unless the workspace was deleted in Control Point while they were in it (Task 19: kept, read-only).
+        const former = await formerMember(accountId, s.workspaceId).catch(() => undefined);
+        if (former === null) s.revoke(); // undefined: the database was away; try again next time
+      }
     }));
     for (const id of askedAt.keys()) if (!byAccount.has(id)) askedAt.delete(id);
   } catch (e) {
@@ -251,6 +264,14 @@ data: ${JSON.stringify(a)}
   const unsubscribeRevoked = subscribeRevoked(workspaceId, (accountId) => {
     if (accountId === access.membership.accountId) stream.revoke();
   });
+  // Read-only or back (Task 19): the latest state, held during the catch-up and sent once live.
+  let heldState: { orphaned: OrphanState | null } | null = null;
+  const sendState = (n: { orphaned: OrphanState | null }) => write(`event: workspace\ndata: ${JSON.stringify(n)}\n\n`);
+  const unsubscribeState = subscribeWorkspaceState(workspaceId, (orphaned) => { if (live) sendState({ orphaned }); else heldState = { orphaned }; });
+  // The account's workspace list changed (in any workspace): the app re-reads /me. Held during the catch-up too.
+  let heldAccount = false;
+  const sendAccount = () => write("event: account\ndata: {}\n\n");
+  const unsubscribeAccount = subscribeAccountChanged(access.membership.accountId, () => { if (live) sendAccount(); else heldAccount = true; });
   // Assignment changes likewise (bounded, sent once live).
   const heldAssignments: AssignmentNotice[] = [];
   const sendAssignments = (n: AssignmentNotice) => write(`event: assignment
@@ -287,7 +308,7 @@ data: ${JSON.stringify(c)}
     if (closed) return;
     closed = true;
     clearInterval(heartbeat);
-    unsubscribe(); unsubscribeTemplate(); unsubscribeSettings(); unsubscribeActivity(); unsubscribeRevoked(); unsubscribeComments(); unsubscribeAssignments();
+    unsubscribe(); unsubscribeTemplate(); unsubscribeSettings(); unsubscribeActivity(); unsubscribeRevoked(); unsubscribeComments(); unsubscribeAssignments(); unsubscribeState(); unsubscribeAccount();
     streams.delete(stream);
     stopSweepIfIdle();
     release();
@@ -319,6 +340,8 @@ data: ${JSON.stringify(c)}
     for (const a of heldActivity.splice(0)) sendActivity(a);
     for (const n of heldAssignments.splice(0)) sendAssignments(n);
     for (const c of heldComments.splice(0)) sendComment(c);
+    if (heldState) { sendState(heldState); heldState = null; }
+    if (heldAccount) { sendAccount(); heldAccount = false; }
   } catch (e) {
     console.error("[scout stream] catch-up failed", e);
     end();

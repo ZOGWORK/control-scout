@@ -4,7 +4,7 @@
 // none while workspace scouting is off), and the pending counts follow saves and syncs.
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { act, cleanup, render, renderHook } from "@testing-library/react";
-import { localScoutEntries, moveQueuedToPersonal, pendingScoutCounts, saveScoutEntry, syncQueuedScouting, syncScouting, usePendingScoutCounts, type ScoutEntry } from "./scouting";
+import { ACCOUNT_STALE, localScoutEntries, moveQueuedToPersonal, pendingScoutCounts, saveScoutEntry, syncQueuedScouting, syncScouting, usePendingScoutCounts, type ScoutEntry } from "./scouting";
 import { resetFlags } from "./flags";
 import { DEFAULT_FLAGS } from "../shared/flags";
 import type { AccountUser } from "./personal";
@@ -219,6 +219,65 @@ describe("ScoutQueueSync (the app-wide reconnect trigger)", () => {
     render(<ScoutQueueSync />);
     await vi.waitFor(() => expect(refreshUser).toHaveBeenCalled());
     expect(pendingScoutCounts().workspaces).toEqual({ 41: 1 }); // still listed: kept queued, not moved
+  });
+
+  // Task 19: a space that went read-only (deleted in Control Point, or no admin left).
+  const readOnlyUser = (id: string): AccountUser => ({ ...user([]), controlPoint: { accountId: 9001, member: true, teams: [], url: "",
+    workspaces: [{ id, name: `W${id}`, role: "member", orphaned: { at: "2026-10-16T00:00:00.000Z", reason: "deleted" } }] } });
+  /** A server answering pushes to `ws` with 423 workspace_read_only. */
+  function readOnlyServer(ws: string) {
+    const calls: (string | null)[] = [];
+    vi.stubGlobal("fetch", vi.fn(async (_path: string, init?: RequestInit) => {
+      const body = JSON.parse(String(init?.body ?? "{}"));
+      calls.push(body.workspaceId ?? null);
+      if (body.workspaceId === ws) return new Response(JSON.stringify({ error: "read-only", code: "workspace_read_only" }), { status: 423, headers: { "Content-Type": "application/json" } });
+      return new Response(JSON.stringify({ results: body.entries.map((e: ScoutEntry) => ({ uuid: e.uuid, ok: true })) }), { status: 200, headers: { "Content-Type": "application/json" } });
+    }));
+    return { calls };
+  }
+
+  it("read-only space: entries queued there are tried once (423), then kept in Personal with a notice, nothing lost", async () => {
+    saveScoutEntry({ uuid: "wwwwwwwwwww1", ...base, team: 2222, notes: "offline note", workspaceId: "42" });
+    const s = readOnlyServer("42");
+    const refreshUser = vi.fn(async () => undefined);
+    h.personal = { user: readOnlyUser("42"), syncReady: true, refreshUser };
+    render(<ScoutQueueSync />);
+    await vi.waitFor(() => expect(pendingScoutCounts().workspaces).toEqual({}));
+    expect(s.calls.filter((w) => w === "42")).toHaveLength(1);
+    expect(localScoutEntries(null).map((e) => [e.team, e.notes, e.workspaceId])).toEqual([[2222, "offline note", null]]);
+    expect(h.toasts).toEqual([expect.stringMatching(/^1 entry saved in W42 couldn't sync: the workspace is read-only now\. It's kept in Personal, so nothing was lost\./)]);
+    expect(refreshUser).toHaveBeenCalled(); // the 423 re-reads the account (the banner)
+    await vi.waitFor(() => expect(pendingScoutCounts().personal).toBe(0));
+  });
+
+  it("read-only space that came back meanwhile: the push goes through there, nothing moves", async () => {
+    saveScoutEntry({ uuid: "wwwwwwwwwww1", ...base, workspaceId: "42" });
+    const s = server();
+    h.personal = { user: readOnlyUser("42"), syncReady: true };
+    render(<ScoutQueueSync />);
+    await vi.waitFor(() => expect(pendingScoutCounts().workspaces).toEqual({}));
+    expect(s.calls).toEqual([{ workspaceId: "42", uuids: ["wwwwwwwwwww1"] }]);
+    expect(localScoutEntries(null)).toEqual([]);
+    expect(h.toasts).toEqual([]);
+  });
+
+  it("read-only space, but a failure other than 423 (offline, a server error): kept queued there", async () => {
+    saveScoutEntry({ uuid: "wwwwwwwwwww1", ...base, workspaceId: "42" });
+    vi.stubGlobal("fetch", vi.fn(async () => new Response(JSON.stringify({ error: "down" }), { status: 500, headers: { "Content-Type": "application/json" } })));
+    h.personal = { user: readOnlyUser("42"), syncReady: true };
+    render(<ScoutQueueSync />);
+    await new Promise((r) => setTimeout(r, 30));
+    expect(pendingScoutCounts().workspaces).toEqual({ 42: 1 });
+    expect(localScoutEntries(null)).toEqual([]);
+  });
+
+  it("a live notice that the account's spaces changed re-reads the account at once", async () => {
+    const refreshUser = vi.fn(async () => undefined);
+    h.personal = { user: user(["41"]), syncReady: true, refreshUser };
+    server();
+    render(<ScoutQueueSync />);
+    act(() => { window.dispatchEvent(new Event(ACCOUNT_STALE)); });
+    expect(refreshUser).toHaveBeenCalledTimes(1);
   });
 
   it("signed out: nothing is sent", async () => {

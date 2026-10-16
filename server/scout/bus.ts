@@ -12,6 +12,7 @@
 import type { WorkspaceEntryOut } from "./entries.js";
 import type { AssignmentNotice } from "../../src/shared/assignments.js";
 import type { CommentEvent } from "../../src/shared/comments.js";
+import type { OrphanState } from "../../src/shared/orphaned.js";
 
 /** A written entry with its place in the workspace's write order. */
 export type LiveEntry = WorkspaceEntryOut & { seq: number };
@@ -198,5 +199,53 @@ export function subscribeComments(workspaceId: string, fn: CommentListener): () 
     if (!s) return;
     s.delete(fn);
     if (!s.size) commentChannels.delete(workspaceId);
+  };
+}
+
+// Orphaned workspaces (Task 19, orphans.ts): the workspace went read-only (deleted in Control Point, or no
+// admin left) or came back. Open streams of the workspace pass it on as `event: workspace` and stay open:
+// its former members keep reading. data: {orphaned: OrphanState | null}.
+type WorkspaceStateListener = (orphaned: OrphanState | null) => void;
+const workspaceStateChannels = new Map<string, Set<WorkspaceStateListener>>();
+
+/** Tell the workspace's open streams it went read-only (or back to normal: null). Never throws. */
+export function publishWorkspaceState(workspaceId: string, orphaned: OrphanState | null): void {
+  for (const fn of [...(workspaceStateChannels.get(workspaceId) ?? [])]) { try { fn(orphaned); } catch (err) { console.error("[live] workspace state listener failed", err); } }
+}
+
+/** Listen for the workspace going read-only or coming back; returns the unsubscribe. */
+export function subscribeWorkspaceState(workspaceId: string, fn: WorkspaceStateListener): () => void {
+  let subs = workspaceStateChannels.get(workspaceId);
+  if (!subs) { subs = new Set(); workspaceStateChannels.set(workspaceId, subs); }
+  subs.add(fn);
+  return () => {
+    const s = workspaceStateChannels.get(workspaceId);
+    if (!s) return;
+    s.delete(fn);
+    if (!s.size) workspaceStateChannels.delete(workspaceId);
+  };
+}
+
+// An account's workspace list changed in a way only /api/auth/me shows (Task 19): a workspace joined or
+// re-added in Control Point, a role changed, a workspace restored. Each of the account's open streams (in
+// any workspace) says `event: account`, so the app re-reads /me at once instead of at its next refresh.
+type AccountListener = () => void;
+const accountChannels = new Map<number, Set<AccountListener>>();
+
+/** Tell the account's open streams that its workspace list changed. Never throws. */
+export function publishAccountChanged(accountId: number): void {
+  for (const fn of [...(accountChannels.get(accountId) ?? [])]) { try { fn(); } catch (err) { console.error("[live] account listener failed", err); } }
+}
+
+/** Listen for the account's workspace list changing; returns the unsubscribe. */
+export function subscribeAccountChanged(accountId: number, fn: AccountListener): () => void {
+  let subs = accountChannels.get(accountId);
+  if (!subs) { subs = new Set(); accountChannels.set(accountId, subs); }
+  subs.add(fn);
+  return () => {
+    const s = accountChannels.get(accountId);
+    if (!s) return;
+    s.delete(fn);
+    if (!s.size) accountChannels.delete(accountId);
   };
 }
