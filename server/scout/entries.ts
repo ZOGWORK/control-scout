@@ -32,7 +32,9 @@
 //   entry.version_restored.
 import express, { type NextFunction, type Request, type Response, type Router } from "express";
 import { all, get, writeBatch } from "../db.js";
-import { controlPointEnabled, isWorkspaceId, linkedAccountId, workspaceMembership, type Membership } from "../auth/controlPoint.js";
+import { controlPointEnabled, isWorkspaceId, linkedAccountId, MEMBERSHIP_TTL, membershipAnsweredAt, workspaceMembership, type Membership } from "../auth/controlPoint.js";
+import { formerMember, orphanState } from "./orphans.js";
+import { READ_ONLY_CODE, READ_ONLY_ERROR, READ_ONLY_STATUS, type OrphanState } from "../../src/shared/orphaned.js";
 import { currentUser, type User } from "../auth/session.js";
 import { isEnabled } from "../flags.js";
 import { publishEntries, serialized, type LiveEntry } from "./bus.js";
@@ -109,15 +111,43 @@ export async function readLiveEntries(workspaceId: string, uuids: string[]): Pro
 /** How a writer is named on shared entries: their display name, else the part of their email before the @. */
 export const writerName = (u: User) => (u.displayName?.trim() || u.email?.split("@")[0] || "Member").slice(0, 60);
 
-export type Access = { ok: true; membership: Membership } | { ok: false; status: 403; error: string };
+/** `orphaned`: the space is read-only (Task 19, orphans.ts); reads go on, writes are refused. */
+export type Access = { ok: true; membership: Membership; orphaned: OrphanState | null }
+  | { ok: false; status: 403 | typeof READ_ONLY_STATUS; error: string; code?: typeof READ_ONLY_CODE };
 
-/** May this signed-in user read and write this workspace's entries right now? */
-export async function workspaceAccess(user: User, workspaceId: string): Promise<Access> {
+/** The body of a refused access: the error, and for a read-only space its code (READ_ONLY_CODE). */
+export const accessError = (a: Extract<Access, { ok: false }>) => (a.code ? { error: a.error, code: a.code } : { error: a.error });
+
+/** A request that changes something (anything but GET/HEAD): refused in a read-only space. */
+export const isWrite = (req: Request) => req.method !== "GET" && req.method !== "HEAD";
+
+/**
+ * May this signed-in user read (and, with `write`, change) this workspace right now? A member as Control Point
+ * says, or for a workspace deleted in Control Point, a former member (orphans.ts). A read-only (orphaned)
+ * space answers writes with 423 READ_ONLY_CODE, never 403: that means "you were removed".
+ */
+export async function workspaceAccess(user: User, workspaceId: string, opts: { write?: boolean } = {}): Promise<Access> {
   const accountId = controlPointEnabled() ? await linkedAccountId(user.id) : null;
   if (accountId == null) return { ok: false, status: 403, error: "Workspace scouting needs an account linked with Control Point." };
-  const membership = await workspaceMembership(accountId, workspaceId);
+  let orphaned = await orphanState(workspaceId);
+  let membership: Membership | null = null;
+  // A former member of a deleted workspace: their standing is Scout's own, so Control Point needn't be asked
+  // more than once a minute (it still is then: that's how a re-created workspace comes back).
+  const former = orphaned?.reason === "deleted" ? await formerMember(accountId, workspaceId) : null;
+  if (former && Date.now() - membershipAnsweredAt(accountId) < MEMBERSHIP_TTL) membership = { accountId, workspaceId, ...former };
+  else {
+    const asked = membershipAnsweredAt(accountId);
+    membership = await workspaceMembership(accountId, workspaceId);
+    // Control Point just answered: that may have orphaned the workspace or brought it back.
+    if (membershipAnsweredAt(accountId) !== asked) orphaned = await orphanState(workspaceId);
+    if (!membership && orphaned?.reason === "deleted") {
+      const f = await formerMember(accountId, workspaceId);
+      if (f) membership = { accountId, workspaceId, ...f };
+    }
+  }
   if (!membership) return { ok: false, status: 403, error: "You're not a member of this workspace in Control Point." };
-  return { ok: true, membership };
+  if (orphaned && opts.write) return { ok: false, status: READ_ONLY_STATUS, error: READ_ONLY_ERROR, code: READ_ONLY_CODE };
+  return { ok: true, membership, orphaned };
 }
 
 /** Roles come from Control Point (workspace_members, refreshed from it); Scout has none of its own. */
@@ -144,8 +174,8 @@ export const ADMIN_ONLY = "Only workspace admins can change this. Roles are mana
  * member gets 403. A promotion in Control Point counts from the next
  * membership refresh (sign-in, /me, or within MEMBERSHIP_TTL).
  */
-export async function workspaceAdminAccess(user: User, workspaceId: string): Promise<Access> {
-  const access = await workspaceAccess(user, workspaceId);
+export async function workspaceAdminAccess(user: User, workspaceId: string, opts: { write?: boolean } = {}): Promise<Access> {
+  const access = await workspaceAccess(user, workspaceId, opts);
   if (access.ok && access.membership.role !== "admin") return { ok: false, status: 403, error: ADMIN_ONLY };
   return access;
 }
@@ -153,8 +183,8 @@ export async function workspaceAdminAccess(user: User, workspaceId: string): Pro
 /**
  * Express guard for admin-only workspace routes: the workspace id from
  * `req.params.workspaceId`, else the query, else the body. 401 signed out,
- * 503 while workspace scouting is paused, 400 bad id, 403 not a member or not an admin; otherwise the membership is
- * on `res.locals.membership` for the handler.
+ * 503 while workspace scouting is paused, 400 bad id, 403 not a member or not an admin, 423 a change (any method
+ * but GET/HEAD) in a read-only space; otherwise the membership is on `res.locals.membership` for the handler.
  */
 export function requireWorkspaceAdmin() {
   return (req: Request, res: Response, next: NextFunction) => {
@@ -164,8 +194,8 @@ export function requireWorkspaceAdmin() {
       if (await workspacePaused(res)) return; // workspace scouting switched off in the owner portal: 503
       const workspaceId = req.params?.workspaceId ?? req.query?.workspaceId ?? req.body?.workspaceId;
       if (!isWorkspaceId(workspaceId)) { res.status(400).json({ error: "workspaceId required" }); return; }
-      const access = await workspaceAdminAccess(user, workspaceId);
-      if (!access.ok) { res.status(access.status).json({ error: access.error }); return; }
+      const access = await workspaceAdminAccess(user, workspaceId, { write: isWrite(req) });
+      if (!access.ok) { res.status(access.status).json(accessError(access)); return; }
       res.locals.user = user;
       res.locals.membership = access.membership;
       next();

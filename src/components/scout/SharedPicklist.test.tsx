@@ -193,3 +193,22 @@ describe("SharedPicklist", () => {
     await waitFor(() => expect(rows()).toEqual([101, 102]));
   });
 });
+
+describe("SharedPicklist in a read-only space (Task 19)", () => {
+  it("reads (picks, stats, notes) but offers nothing that changes the list, and sends nothing", async () => {
+    render(
+      <MemoryRouter>
+        <SharedPicklist workspaceId="901" workspaceName="Gearheads" season={S} live="off" me={{ accountId: 1, name: "Priya" }} shortlist={[18360, 101]} readOnly />
+      </MemoryRouter>,
+    );
+    await waitFor(() => expect(rows()).toEqual([101, 102]));
+    expect(screen.getByText("Strong auto")).toBeTruthy();
+    expect(screen.getByText(/The workspace is read-only/)).toBeTruthy();
+    expect(screen.queryByRole("form", { name: "Add a team to the pick list" })).toBeNull();
+    expect(screen.queryByRole("button", { name: /copy from my shortlist/i })).toBeNull();
+    expect(screen.queryByRole("button", { name: /^Remove/ })).toBeNull();
+    expect(screen.queryByRole("button", { name: /^Reorder/ })).toBeNull();
+    expect(screen.queryByLabelText(/Shared note on team/)).toBeNull();
+    expect(posts).toEqual([]);
+  });
+});

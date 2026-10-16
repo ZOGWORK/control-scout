@@ -12,6 +12,8 @@ import { createApp } from "../app";
 import { setMailer } from "../auth/email";
 import { clearInfoCache } from "../auth/controlPoint";
 import { HISTORY_LIMIT } from "../../src/shared/entryHistory";
+import { READ_ONLY_CODE, READ_ONLY_STATUS } from "../../src/shared/orphaned";
+import { markOrphaned } from "./orphans";
 
 const KEY = "k".repeat(40);
 let scout: Server, cp: Server;
@@ -229,6 +231,25 @@ describe("entry version history", () => {
     const last = (await activity("1607", e.uuid)).at(-1);
     expect(last.type).toBe("entry.version_restored");
     expect(JSON.parse(last.details)).toMatchObject({ fromVersion: 1, changed: ["template"] });
+  });
+
+  it("a read-only (orphaned) space: a restore is refused with 423 workspace_read_only and records nothing; history still reads", async () => {
+    const { a, admin } = await team("1608");
+    const e = entry({ updatedAt: 1000, notes: "first" });
+    await push(a, "1608", [e]);
+    await push(a, "1608", [{ ...e, updatedAt: 2000, notes: "second" }]);
+    expect((await history(admin, "1608", e.uuid)).status).toBe(200); // the admin has used the space too
+    // The workspace is deleted in Control Point (gone from every account's list) and Scout has marked it so.
+    for (const email of Object.values(EMAILS)) { const acct = accountFor(email); acct.workspaces = acct.workspaces!.filter((w) => w.id !== "1608"); }
+    await markOrphaned("1608", "deleted");
+    for (const who of [a, admin]) {
+      const r = await push(who, "1608", [{ ...e, updatedAt: 3000, notes: "first", restoredFrom: 1000 }]);
+      expect(r.status).toBe(READ_ONLY_STATUS);
+      expect(r.json).toMatchObject({ code: READ_ONLY_CODE });
+    }
+    expect((await versions("1608", e.uuid)).length).toBe(2);
+    expect((await activity("1608", e.uuid)).some((x) => x.type === "entry.version_restored")).toBe(false);
+    expect((await history(a, "1608", e.uuid)).status).toBe(200);
   });
 
   it("a restore marker on a delete is just the delete; personal entries have no history", async () => {

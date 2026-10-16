@@ -4,6 +4,7 @@
 // data into the account so nothing is lost.
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { apiFetch } from "./api";
+import type { OrphanState } from "../shared/orphaned";
 import { cleanValue, EMPTY_STATE, PERSONAL_KEYS, type PersonalKey, type PersonalState, type Stamped } from "../shared/personal";
 import { clearLocalScouting, exportLocalScouting, importLocalScouting, localScoutEntries, setScoutViewer, storedScoutEntry } from "./scouting";
 
@@ -13,7 +14,7 @@ export interface AccountUser { id: number; email: string | null; displayName: st
   /** The signed-in owner's Control Point side: whether they're a member there, and their teams. */
   controlPoint?: { /** The shared account id (author/editor ids on workspace entries). Missing from older servers. */ accountId?: number; member: boolean; teams: { teamNumber: number | null; name: string }[]; shortlist?: number[];
     /** Control Point workspaces (one shared scout space each). Missing from older servers: treat as none. */
-    workspaces?: { id: string; name: string; role: "admin" | "member" }[]; url: string } | null }
+    workspaces?: { id: string; name: string; role: "admin" | "member"; /** Read-only (Task 19): deleted in Control Point, or no admin left. */ orphaned?: OrphanState }[]; url: string } | null }
 /** Fired on window for every explicit sign-in (detail: the AccountUser). */
 export const SIGNED_IN = "cs-signed-in";
 export function announceSignIn(u: AccountUser) { window.dispatchEvent(new CustomEvent<AccountUser>(SIGNED_IN, { detail: u })); }

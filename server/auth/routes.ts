@@ -10,7 +10,7 @@ import { cleanValue, mergeValue, PERSONAL_KEYS, type PersonalKey, type Stamped }
 import { isOwnerEmail } from "../owner.js";
 import { currentUser, deleteUser, endSession, readCookie, startSession, token, userForIdentity, type User } from "./session.js";
 import { emailEnabled, startEmailSignIn, verifyEmailCode } from "./email.js";
-import { cleanScoutEntry, pushWorkspaceEntries, workspaceAccess, workspacePaused, type ScoutEntryInput } from "../scout/entries.js";
+import { accessError, cleanScoutEntry, pushWorkspaceEntries, workspaceAccess, workspacePaused, type ScoutEntryInput } from "../scout/entries.js";
 import { CP_PROVIDER, controlPointEnabled, isWorkspaceId, controlPointInfo, controlPointVia, isCpVia, rememberInfo, linkedAccountId, linkToSharedAccount, logFailure, provenEmailFor, redeemHandoff } from "./controlPoint.js";
 
 export const authProviders = () => ({ email: emailEnabled(), google: !!(env.googleClientId && env.googleClientSecret), controlPoint: controlPointEnabled() });
@@ -277,8 +277,8 @@ export function meRouter(): Router {
       // Switched off by the owner: the shared set pauses (503, nothing written); the personal set below is untouched.
       if (await workspacePaused(res)) return;
       if (!isWorkspaceId(workspaceId)) { res.status(400).json({ error: "Invalid workspaceId" }); return; }
-      const access = await workspaceAccess((req as any).user, workspaceId);
-      if (!access.ok) { res.status(access.status).json({ error: access.error }); return; }
+      const access = await workspaceAccess((req as any).user, workspaceId, { write: true });
+      if (!access.ok) { res.status(access.status).json(accessError(access)); return; }
       return { results: await pushWorkspaceEntries((req as any).user, access.membership, raw) };
     }
     const results: { uuid: string; ok: boolean; error?: string }[] = [];
