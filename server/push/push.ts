@@ -333,6 +333,10 @@ export async function planEventStarts(recipients: Recipient[], now = Date.now())
 
 // --- Delivering ----------------------------------------------------------------------------------
 
+/** SQL: this subscription still exists, with this endpoint, for this account, and the account still exists. */
+const STILL_THERE = "EXISTS (SELECT 1 FROM push_subscriptions s JOIN users u ON u.id = s.user_id WHERE s.id = ? AND s.endpoint = ? AND s.user_id = ?)";
+const stillThere = (r: Recipient) => [r.id, r.endpoint, r.userId];
+
 export interface PushReport { planned: number; sent: number; limited: number; failed: number; retry: number; pruned: number; expired: number }
 
 /** Claim and send each planned push once (see the header). `now` is when the plans were made; sends take real
@@ -348,21 +352,31 @@ export async function deliver(plans: Planned[], now = Date.now(), log: Log = () 
     if (clock() >= p.expiresAt) { report.expired++; continue; } // too late to be useful: never sent
     // Claim it, in one statement, only while the device has a slot left today: pushes sent or being sent (on any
     // server) count, so two servers can't both take the 20th. No claim and no slot: logged as limited instead.
+    // The recipients were read before delivery began: the claim also requires the subscription to still exist, for
+    // the same account, and that account to still exist (deleted or signed out meanwhile: nothing is sent).
     const claimed = await run(
       `INSERT OR IGNORE INTO push_sent (subscription_id, kind, subject, at, outcome)
        SELECT ?, ?, ?, ?, 'sending'
-       WHERE (SELECT COUNT(*) FROM push_sent WHERE subscription_id = ? AND outcome IN ('sent', 'sending') AND at > ?) < ?`,
-      [p.sub.id, p.kind, p.subject, now, p.sub.id, now - 864e5, PUSH_DAILY_LIMIT]);
+       WHERE ${STILL_THERE}
+         AND (SELECT COUNT(*) FROM push_sent WHERE subscription_id = ? AND outcome IN ('sent', 'sending') AND at > ?) < ?`,
+      [p.sub.id, p.kind, p.subject, now, ...stillThere(p.sub), p.sub.id, now - 864e5, PUSH_DAILY_LIMIT]);
     if (!claimed) {
       // Only while the device really is at its cap: a claim another server just released (a busy push service) must
       // stay free for the next tick's retry, never become 'limited'.
       const limited = await run(
         `INSERT OR IGNORE INTO push_sent (subscription_id, kind, subject, at, outcome)
          SELECT ?, ?, ?, ?, 'limited'
-         WHERE (SELECT COUNT(*) FROM push_sent WHERE subscription_id = ? AND outcome IN ('sent', 'sending') AND at > ?) >= ?`,
-        [p.sub.id, p.kind, p.subject, now, p.sub.id, now - 864e5, PUSH_DAILY_LIMIT]);
+         WHERE ${STILL_THERE}
+           AND (SELECT COUNT(*) FROM push_sent WHERE subscription_id = ? AND outcome IN ('sent', 'sending') AND at > ?) >= ?`,
+        [p.sub.id, p.kind, p.subject, now, ...stillThere(p.sub), p.sub.id, now - 864e5, PUSH_DAILY_LIMIT]);
       if (limited) report.limited++;
       continue; // otherwise already sent (or being sent) by an earlier tick or another server
+    }
+    // Checked again right before sending (a send can wait seconds behind slow ones): gone now, then nothing goes out.
+    if (!(await get(`SELECT 1 WHERE ${STILL_THERE}`, stillThere(p.sub)))) {
+      await run("DELETE FROM push_sent WHERE subscription_id = ? AND kind = ? AND subject = ?", [p.sub.id, p.kind, p.subject]);
+      gone.add(p.sub.id);
+      continue;
     }
     const at = clock();
     if (at >= p.expiresAt) {

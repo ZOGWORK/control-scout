@@ -27,8 +27,8 @@ import { manualReport, sendReport } from "../lib/errorReporting";
 import { useFlag } from "../lib/flags";
 import { REPORT_LIMITS } from "../shared/errorReport";
 import { INBOX_CATEGORIES, INBOX_CATEGORY_INFO, INBOX_TOGGLE, inboxCategoryOn } from "../shared/inbox";
-import { PUSH_DAILY_LIMIT, UPSET_THRESHOLD } from "../shared/push";
-import { disablePush, enablePush, readPushStatus, type PushStatus } from "../lib/push";
+import { UPSET_THRESHOLD } from "../shared/push";
+import { PushDevice } from "../components/settings/PushDevice";
 import { PageHeader } from "../components/page";
 import { Button } from "../components/ui/button";
 import { Badge, FieldError, Input, Textarea } from "../components/ui/basic";
@@ -391,52 +391,6 @@ function Notifications() {
       </Group>
       <InboxToggles />
     </div>
-  );
-}
-
-/** One line per push state: why it's dormant, or what it does. */
-const PUSH_HINT: Record<PushStatus, string> = {
-  checking: "Checking this device…",
-  unsupported: "This browser can't receive push notifications. Alerts still arrive while Control Scout is open in a tab.",
-  "ios-install": "On iPhone and iPad, notifications need Control Scout on your Home Screen: tap Share, then Add to Home Screen, and open it from there.",
-  "no-worker": "This page hasn't started its background worker yet. Reload the page, then try again.",
-  unavailable: "Notifications aren't available on this server right now. Alerts still arrive while Control Scout is open in a tab.",
-  "signed-out": "Sign in to turn them on: they follow your team, tracked teams and tracked events from your account.",
-  denied: "Blocked for this site. To allow them, open the site settings (the icon next to the address), set Notifications to Allow, then reload.",
-  off: "Off on this device. Turning them on asks your browser for permission.",
-  on: `On for this device: reminders 15 minutes before your teams' matches, upsets and event starts, even with Control Scout closed. At most ${PUSH_DAILY_LIMIT} a day.`,
-};
-
-/** Push for this device: off until a tap on "Turn on notifications" (the only place permission is asked). */
-function PushDevice({ signedIn, onPermission }: { signedIn: boolean; onPermission: (p: NotificationPermission) => void }) {
-  const [status, setStatus] = useState<PushStatus>("checking");
-  const [busy, setBusy] = useState(false);
-  useEffect(() => {
-    let live = true;
-    readPushStatus(signedIn).then((s) => { if (live) setStatus(s); }, () => { if (live) setStatus("unavailable"); });
-    return () => { live = false; };
-  }, [signedIn]);
-  const run = async (fn: () => Promise<PushStatus>, target: PushStatus, done: string) => {
-    setBusy(true);
-    try {
-      const s = await fn();
-      setStatus(s);
-      if (typeof Notification !== "undefined") onPermission(Notification.permission);
-      if (s === target) toast(done);
-    } catch (e) {
-      toast.error(`Couldn't change notifications: ${(e as Error).message}`);
-    } finally { setBusy(false); }
-  };
-  return (
-    <Group title="Push notifications" description="Match reminders, upsets and event starts on this device, even when Control Scout is closed. Turn them on for each phone or computer separately.">
-      <Row label="This device" description={<>{PUSH_HINT[status]}{status === "signed-out" && <> <Link to="/settings?section=profile" className="underline">Sign in</Link></>}</>}>
-        <div className="flex items-center gap-2">
-          <Badge variant={status === "on" ? "success" : status === "denied" ? "destructive" : "secondary"}>{status === "on" ? "On" : status === "denied" ? "Blocked" : status === "off" ? "Off" : status === "checking" ? "Checking" : "Unavailable"}</Badge>
-          {status === "off" && <Button size="sm" disabled={busy} onClick={() => run(enablePush, "on", "Notifications on for this device")}><BellRing /> Turn on notifications</Button>}
-          {status === "on" && <Button variant="outline" size="sm" disabled={busy} onClick={() => run(disablePush, "off", "Notifications turned off")}>Turn off</Button>}
-        </div>
-      </Row>
-    </Group>
   );
 }
 
