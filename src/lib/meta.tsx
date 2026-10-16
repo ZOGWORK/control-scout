@@ -3,6 +3,7 @@ import { createContext, useContext, useEffect, useState, useSyncExternalStore, t
 import { useLocation } from "react-router-dom";
 import { useApi } from "./api";
 import type { Meta } from "../shared/api";
+import { isWeek, parsePlaces, placeKey } from "../shared/rankings";
 
 const Ctx = createContext<Meta | null>(null);
 
@@ -79,9 +80,27 @@ export function useNotFoundHead() {
   }, []);
 }
 
+/** The query a page's canonical URL keeps: only /rankings' view (each place, week and page is its own list,
+ *  as the server's canonical says: server/seoMeta.ts rankingsMeta), normalised the same way (places as the
+ *  API reads them, repeated ones joined; values it would refuse left out), in a fixed order. Anything else:
+ *  none. A page past the last, which only the server can clamp, is put right by the page itself
+ *  (RankingsPage rewrites its URL to the view the API answered with). */
+export function canonicalQuery(pathname: string, search: string): string {
+  if (!/^\/rankings\/?$/i.test(pathname)) return "";
+  const sp = new URLSearchParams(search), q = new URLSearchParams();
+  const season = sp.get("season"), week = sp.get("week"), page = Number(sp.get("page"));
+  const places = parsePlaces(sp.getAll("region").join(","));
+  if (season && /^\d{4}$/.test(season)) q.set("season", season);
+  if (places?.length) q.set("region", places.map(placeKey).join(","));
+  if (week && isWeek(week)) q.set("week", week);
+  if (Number.isInteger(page) && page > 1 && page <= 10_000) q.set("page", String(page));
+  const s = q.toString();
+  return s ? `?${s}` : "";
+}
+
 /** Keeps <link rel="canonical"> (and a not-found page's noindex) in step with in-app navigation (the server sets both on the first load). */
 export function CanonicalSync() {
-  const { pathname } = useLocation();
+  const { pathname, search } = useLocation();
   const notFound = useSyncExternalStore(subscribeNotFound, () => notFoundShown > 0);
   useEffect(() => {
     // Only the not-found noindex (marked data-not-found, by the server or here) is ours: a personal page's own stays.
@@ -98,7 +117,7 @@ export function CanonicalSync() {
     }
     robots?.remove();
     if (!link) { link = document.createElement("link"); link.rel = "canonical"; document.head.appendChild(link); }
-    link.href = `${window.location.origin}${canonicalPath(pathname)}`;
-  }, [pathname, notFound]);
+    link.href = `${window.location.origin}${canonicalPath(pathname)}${canonicalQuery(pathname, search)}`;
+  }, [pathname, search, notFound]);
   return null;
 }
