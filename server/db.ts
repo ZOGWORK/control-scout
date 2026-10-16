@@ -588,6 +588,32 @@ ALTER TABLE workspace_scout_entries ADD COLUMN template_id TEXT;
 ALTER TABLE workspace_scout_entries ADD COLUMN template_version INTEGER;
 `,
   },
+  {
+    version: 16,
+    name: "workspace activity feed",
+    sql: `
+-- What happened in each workspace's scout space, newest first (server/scout/activityLog.ts): entries added,
+-- edited, deleted; template changes; photos; members joining and leaving (from the Control Point membership
+-- refresh); later assignments, the pick list and comments. Members read it; kept 90 days (the scheduler prunes it).
+-- id: the feed's order and its page cursor (AUTOINCREMENT, so an id is never reused).
+-- at: ms. actor_account_id: the shared (Control Point) account, NULL for Control Point itself.
+-- type: e.g. entry.edited. subject: what it's about, "<kind>:<key>" (entry:<uuid>, template:<season>, member:<account>).
+-- details: JSON, per type (team, match, event, season, version, changed fields, ...): new kinds of event need no schema change.
+CREATE TABLE workspace_activity (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  workspace_id INTEGER NOT NULL REFERENCES workspaces (id),
+  at INTEGER NOT NULL,
+  actor_account_id INTEGER,
+  actor_name TEXT NOT NULL DEFAULT '',
+  type TEXT NOT NULL,
+  subject TEXT NOT NULL DEFAULT '',
+  details TEXT NOT NULL DEFAULT '{}'
+);
+CREATE INDEX workspace_activity_feed ON workspace_activity (workspace_id, id);
+CREATE INDEX workspace_activity_subject ON workspace_activity (workspace_id, subject, id);
+CREATE INDEX workspace_activity_at ON workspace_activity (at);
+`,
+  },
 ];
 
 export type Db = Client;

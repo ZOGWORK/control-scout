@@ -3,10 +3,10 @@
 // your account when signed in and online.
 import { useEffect, useId, useMemo, useRef, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
-import { ClipboardList, Cloud, CloudOff, Download, Info, LayoutList, Loader2, Plus, Save, Trash2, X } from "lucide-react";
+import { ClipboardList, Cloud, CloudOff, Download, History, Info, LayoutList, Loader2, Plus, Save, Trash2, X } from "lucide-react";
 import { useCurrentSeason, useTitle } from "../lib/meta";
 import { usePersonal } from "../lib/personal";
-import { canDeleteScoutEntry, deleteScoutEntry, newScoutId, refusalMessage, SCOUT_REFUSED, type ScoutRefusal, saveScoutEntry, ScoutStorageError, usePendingScoutCounts, useScouting, type ScoutEntry, type ScoutSpace, type ScoutValue } from "../lib/scouting";
+import { canDeleteScoutEntry, deleteScoutEntry, localScoutEntries, newScoutId, refusalMessage, SCOUT_REFUSED, type ScoutRefusal, saveScoutEntry, ScoutStorageError, usePendingScoutCounts, useScouting, type ScoutEntry, type ScoutSpace, type ScoutValue } from "../lib/scouting";
 import { resolveTemplate, useEntryTemplate, useEntryTemplateState, useWorkspaceTemplate } from "../lib/scoutTemplates";
 import { ALL_PHASES, phaseLabel, type WorkspaceTemplate } from "../shared/scoutTemplate";
 import { workspaceExportUrl } from "../shared/scoutExport";
@@ -18,6 +18,8 @@ import { LoadingBlock } from "../components/states";
 import { useScoutLive, type LiveMode } from "../lib/scoutLive";
 import { EntryAttribution } from "../components/EntryAttribution";
 import { EntryPhotos } from "../components/scout/EntryPhotos";
+import { ActivityFeed } from "../components/scout/ActivityFeed";
+import { useWorkspaceActivity } from "../lib/scoutActivity";
 import { PageHeader, Section, EmptyState } from "../components/page";
 import { Button } from "../components/ui/button";
 import { Badge, FieldError, Input, Textarea, Label } from "../components/ui/basic";
@@ -65,6 +67,16 @@ export default function ScoutPage() {
   // A workspace whose template this device has never seen: hold the form until the first answer (offline: the built-in fields).
   const templatePending = space != null && !wt.template && wt.status === "loading";
   const toggleTemplate = () => setSp((x) => { if (x.get("view") === "template") x.delete("view"); else x.set("view", "template"); return x; });
+  // The workspace's activity feed (?view=activity): every member sees it, in place of the entry list.
+  const showActivity = !!workspace && !spaces.resolving && sp.get("view") === "activity";
+  const activity = useWorkspaceActivity(showActivity ? space : null, live);
+  const toggleActivity = () => setSp((x) => { if (x.get("view") === "activity") x.delete("view"); else x.set("view", "activity"); return x; });
+  // Tapping an item about an entry opens it (in its season), if this device has it and it wasn't deleted since.
+  const openEntry = (uuid: string) => {
+    const e = space == null ? null : localScoutEntries(space).find((x) => x.uuid === uuid && !x.deleted);
+    if (!e) { toast("That entry was deleted, or hasn't synced to this device yet."); return; }
+    setSp((x) => { x.delete("view"); x.delete("team"); x.set("season", String(e.season)); x.set("entry", uuid); return x; });
+  };
   useEffect(() => {
     const refused = (ev: Event) => { const r = (ev as CustomEvent<ScoutRefusal>).detail; if (r.space === space) toast.error(refusalMessage(r)); };
     window.addEventListener(SCOUT_REFUSED, refused);
@@ -88,6 +100,9 @@ export default function ScoutPage() {
           <SeasonToggle predictOnly value={season} onChange={(s) => setSp((x) => { x.set("season", String(s)); return x; })} />
           {teamFilter && <Badge variant="soft">Team {teamFilter} <button onClick={() => setSp((x) => { x.delete("team"); return x; })} aria-label="Clear team filter" className="ml-1">×</button></Badge>}
           {!formOpen && <Button onClick={() => setFormOpen(true)}><Plus /> New entry</Button>}
+          {workspace && !spaces.resolving && (
+            <Button variant="outline" aria-pressed={showActivity} onClick={toggleActivity}><History /> Activity</Button>
+          )}
           {workspace && isAdmin && !spaces.resolving && (
             <Button variant="outline" aria-pressed={showTemplate} onClick={toggleTemplate}><LayoutList /> Template</Button>
           )}
@@ -107,6 +122,7 @@ export default function ScoutPage() {
         <EntryForm key={editEntry?.uuid ?? `new-${teamFilter ?? ""}`} season={season} initial={editEntry} team={teamFilter} space={space} spaceName={workspace ? workspaceLabel(workspace) : null} workspaceTemplate={wt.template} templatePending={templatePending}
           onDone={() => { setFormOpen(false); setSp((x) => { x.delete("entry"); return x; }); }} />
       )}
+      {showActivity && workspace ? <ActivityFeed state={activity} workspaceName={workspaceLabel(workspace)} onOpenEntry={openEntry} /> : <>
       <Section title={`Entries (${entries.length})`} description={teamFilter ? `For team ${teamFilter}` : "Newest first"}>
         {spaces.resolving ? <LoadingBlock rows={3} label="Loading scout space" /> : !entries.length ? <EmptyState icon={ClipboardList} title="No scouting entries yet" description="Start one above, or from any team page. Entries save on this device first, so scouting works with no signal." /> : (
           <ul className="grid gap-2 md:grid-cols-2">
@@ -117,6 +133,7 @@ export default function ScoutPage() {
       <Section title="Match recordings" description="Videos you recorded in the app stay on this device only — they're never uploaded. YouTube links you add sync with your account.">
         <Recordings />
       </Section>
+      </>}
     </div>
   );
 }
