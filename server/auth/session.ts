@@ -69,8 +69,10 @@ export async function endSession(req: Request, res: Response): Promise<void> {
 
 /** Delete an account and everything personal attached to it. */
 export async function deleteUser(id: number): Promise<void> {
-  for (const t of ["sessions", "identities", "user_state", "scout_entries"]) await run(`DELETE FROM ${t} WHERE user_id = ?`, [id]);
+  // The account row goes first: anything written for it from then on checks it exists (the notification inbox
+  // does), and whatever was written before is deleted below.
   await run("DELETE FROM users WHERE id = ?", [id]);
+  for (const t of ["sessions", "identities", "user_state", "scout_entries", "inbox_items"]) await run(`DELETE FROM ${t} WHERE user_id = ?`, [id]);
 }
 
 export async function sessionsFor(id: number) {

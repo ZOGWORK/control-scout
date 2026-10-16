@@ -1,6 +1,8 @@
 import { beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { all, migrate, openDb, run, setDb } from "./db";
-import { MAX_ROUTES, OTHER_ROUTE, flushMetrics, isMeasured, isSyncRoute, normalizeRoute, percentile, recordRequest, resetMetrics, usageSummary } from "./metrics";
+import type { AddressInfo } from "node:net";
+import express from "express";
+import { MAX_ROUTES, OTHER_ROUTE, flushMetrics, isMeasured, isSyncRoute, normalizeRoute, percentile, recordRequest, requestMetrics, resetMetrics, usageSummary } from "./metrics";
 import { driftAlerts, MIN_BASELINE, MIN_WEEK } from "./portal/predictionHealth";
 
 describe("normalizeRoute", () => {
@@ -16,6 +18,7 @@ describe("normalizeRoute", () => {
     ["/api/auth/control-point/callback", "/api/auth/control-point/callback"],
     ["/API/teams/42/", "/api/teams/:n"],
     ["/packs/latest.json", "/packs/latest.json"],
+    ["/api/scout/workspaces/ws_123/export.csv", "/api/scout/workspaces/:id/export.csv"],
     ["/packs/scout-pack-2026-10-15-1-lite.json.gz", "/packs/:file"],
     ["/api/reports/errors", "/api/reports/errors"],
     ["/api/x/0123456789abcdef0123456789abcdef", "/api/x/:id"],
@@ -57,6 +60,26 @@ describe("percentile", () => {
 describe("request counters", () => {
   beforeAll(async () => { const c = openDb(":memory:"); setDb(c); await migrate(c); });
   beforeEach(async () => { resetMetrics(); await run("DELETE FROM request_metrics_daily"); });
+
+  it("a streamed download counts to its first byte, not to its end (a long CSV export isn't a slow route)", async () => {
+    const app = express();
+    app.use(requestMetrics());
+    app.get("/api/scout/workspaces/:id/export.csv", (_req, res) => {
+      res.locals.firstByteAt = performance.now(); // as streamedBody marks it (server/api/records.ts)
+      res.write("header\n");
+      setTimeout(() => res.end("rows\n"), 400);
+    });
+    const srv = app.listen(0);
+    await new Promise((r) => srv.once("listening", r));
+    try {
+      await (await fetch(`http://127.0.0.1:${(srv.address() as AddressInfo).port}/api/scout/workspaces/w1/export.csv`)).text();
+      await new Promise((r) => setTimeout(r, 20)); // the close event
+    } finally { srv.close(); }
+    await flushMetrics();
+    const rows = await all<any>("SELECT * FROM request_metrics_daily");
+    expect(rows.map((r) => r.route)).toEqual(["GET /api/scout/workspaces/:id/export.csv"]);
+    expect(Number(rows[0].max_ms)).toBeLessThan(200);
+  });
 
   it("flush into one row per day and pattern, adding up across flushes", async () => {
     const now = Date.parse("2026-10-15T12:00:00Z");

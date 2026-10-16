@@ -11,6 +11,7 @@ import { createApp } from "../app";
 import { setMailer } from "../auth/email";
 import { clearInfoCache, MEMBERSHIP_TTL, rememberInfo } from "../auth/controlPoint";
 import { subscribeRevoked } from "./bus";
+import { inboxSettled } from "../inbox/inbox";
 import { LAST_ADMIN_SELF, REMOVE_UNSUPPORTED } from "../../src/shared/workspaceMembers";
 
 const KEY = "k".repeat(40);
@@ -209,6 +210,9 @@ describe("workspace members", () => {
     expect((await activity(w.id)).filter((a) => a.type.startsWith("member."))).toEqual([
       { actor: { accountId: w.adaId, name: "Ada" }, type: "member.left", subject: `member:${w.maxId}`, details: { accountId: w.maxId, name: "Max Member", role: "member", origin: "control-scout" } },
     ]);
+    // The removed person gets an inbox item (Task 14 fans member.left out to details.accountId).
+    await inboxSettled();
+    expect((await w.max("GET", "/api/inbox")).json.items.map((i: any) => i.type)).toContain("member.left");
     // Max is out straight away (no 10-minute wait): writes refused, the list no longer has him.
     expect((await push(w.max, w.id, [entry()])).status).toBe(403);
     expect((await w.max("GET", "/api/auth/me")).json.user.controlPoint.workspaces).toEqual([]);
