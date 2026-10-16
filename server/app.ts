@@ -14,6 +14,8 @@ import { rebuildSearch } from "./stats/job.js";
 import { teamProfile, compareTeams, teamSummaries, shortlistTeams } from "./api/teams.js";
 import { eventDetail, listEvents, toEventInput } from "./api/events.js";
 import { matchDetail, matchViews } from "./api/matches.js";
+import { matchReport } from "./api/matchReport.js";
+import { MATCH_KEY as REPORT_KEY } from "../src/shared/matchReport.js";
 import { trackRecord } from "./api/accuracy.js";
 import { currentWeather } from "./weather.js";
 import { MISSING_FILE, canonicalRedirects, renderPage } from "./seo.js";
@@ -33,6 +35,7 @@ import { picklistRouter } from "./scout/picklist.js";
 import { assignmentsRouter } from "./scout/assignments.js";
 import { commentsRouter } from "./scout/comments.js";
 import { consensusRouter } from "./scout/consensus.js";
+import { matchReportRouter } from "./scout/matchReport.js";
 import { inboxRouter } from "./inbox/routes.js";
 import { pushRouter } from "./push/routes.js";
 import { vapidReady } from "./push/push.js";
@@ -43,11 +46,14 @@ import { listRecords, recordRegions, recordsQuery, RecordsQueryError, streamReco
 import { FilterError } from "../src/shared/filterDsl.js";
 import { RECORDS_EXPORT_MAX, RECORDS_MAX_PAGE_SIZE } from "../src/shared/statCatalog.js";
 import { manualRefresh, type ManualOutcome } from "./data/live.js";
+import { defaultRankingsSeason, rankingPlaces, rankingsPage, snapshotWeeks, type RankingsQuery } from "./api/rankings.js";
+import { MAX_REGIONS, isWeek, parsePlaces } from "../src/shared/rankings.js";
 import { registerCache } from "./caches.js";
 import { requestMetrics } from "./metrics.js";
 import { allFlags, isEnabled } from "./flags.js";
 import { ownerRouter } from "./portal/routes.js";
 import { photosRouter } from "./scout/photos.js";
+import { MATCH_KEY, ShareError, cachedCard, cardKey, matchCard } from "./share/match.js";
 import { env } from "./env.js";
 import { r2 } from "./scout/r2.js";
 import { fakeR2Router } from "./scout/fakeR2.js";
@@ -297,6 +303,18 @@ export function createApp() {
     return d;
   }));
 
+  // "Know your match" (v1.6 Task 2): the lineup's OPR, trend and data flags in one request (the
+  // workspace's consensus comes from /api/scout/workspaces/:id/match-report, members only).
+  api.get("/events/:season/:code/matches/:key/report", h(async (req, res) => {
+    const key = String(req.params.key);
+    if (!REPORT_KEY.test(key)) throw new HttpError(400, "Match key looks like qual:0:12");
+    const r = await matchReport(season(req.params.season), code(req.params.code), key);
+    if (!r) throw new HttpError(404, `No match ${key} at ${req.params.code}`);
+    // On an event day the lineup's numbers move with every result: revalidate (the ETag keeps it a 304).
+    if (r.live) res.setHeader("Cache-Control", "no-cache");
+    return r;
+  }));
+
   api.get("/compare", h(async (req) => {
     const numbers = teamList(req.query.teams, "teams", 4);
     // No season asked for: the latest season where any of them has results
@@ -347,6 +365,38 @@ export function createApp() {
   /** The region codes a season's records use, named by their main place (for the Region dropdown). */
   api.get("/records/:season/regions", recordsLimit, h(async (req) => ({ regions: await recordRegions(season(req.params.season)) })));
 
+  // --- World rankings (/rankings): every rated team, movement since last week -----
+
+  const rankingsLimit = limiter(120);
+  const rankingsQuery = async (req: Request): Promise<RankingsQuery> => {
+    // No season asked for: the current one once anyone is rated in it, else the latest with ratings.
+    const s = req.query.season == null || req.query.season === "" ? await defaultRankingsSeason() : predictSeason(req.query.season);
+    const week = req.query.week == null || req.query.week === "" ? null : String(req.query.week);
+    if (week != null) {
+      if (!isWeek(week)) throw bad("week: a Monday, as YYYY-MM-DD");
+      if (!(await snapshotWeeks(s)).includes(week)) throw new HttpError(404, `No rankings snapshot for the week of ${week} in ${seasonInfo(s).label}`);
+    }
+    // ?region=USA:TX,Canada (or repeated ?region=…: Express gives an array, joined the same way).
+    const places = parsePlaces(req.query.region == null ? null : String(req.query.region));
+    if (!places) throw bad(`region: up to ${MAX_REGIONS} places, comma-separated: a country as FIRST names it (USA) or a country and state code (USA:TX)`);
+    const page = req.query.page == null || req.query.page === "" ? 1 : int(req.query.page, "page", { min: 1, max: 10_000 });
+    return { season: s, week, places, page };
+  };
+  /** One page of the world ranking (src/shared/rankings.ts). Cached per data version with an ETag: a repeat is a 304. */
+  api.get("/rankings", rankingsLimit, h(async (req, res) => {
+    const { body, etag } = await rankingsPage(await rankingsQuery(req));
+    res.setHeader("ETag", etag);
+    if (req.fresh) { res.status(304).end(); return undefined; }
+    res.type("application/json").send(body);
+    return undefined;
+  }));
+  /** The places with ranked teams (for the region filter), the snapshot weeks, and ?team='s place ("My region"). */
+  api.get("/rankings/places", rankingsLimit, h(async (req) => {
+    const s = req.query.season == null || req.query.season === "" ? await defaultRankingsSeason() : predictSeason(req.query.season);
+    const team = req.query.team == null || req.query.team === "" ? null : int(req.query.team, "team", { min: 1, max: 999999 });
+    return rankingPlaces(s, team);
+  }));
+
   // --- Predictions ---------------------------------------------------------
 
   api.get("/predict/match", h(async (req): Promise<MatchExplanationView> => {
@@ -363,6 +413,40 @@ export function createApp() {
       teamsRed: x.teamsA.map((t) => ({ ...t, name: names.get(t.team) ?? null })), teamsBlue: x.teamsB.map((t) => ({ ...t, name: names.get(t.team) ?? null })),
       engineVersion: ENGINE_VERSION,
     };
+  }));
+
+  // --- Share cards (server/share) ------------------------------------------
+
+  /** A matchup's prediction as a PNG: 1200×630 (link previews) or ?format=square 1080×1080. */
+  const shareLimit = limiter(30);
+  api.get("/share/match.png", h(async (req, res) => {
+    const s = predictSeason(req.query.season);
+    const red = teamList(req.query.red, "red", 3), blue = teamList(req.query.blue, "blue", 3);
+    if (red.some((t) => blue.includes(t))) throw bad("a team can't be on both alliances");
+    const event = req.query.event != null && req.query.event !== "" ? code(req.query.event) : undefined;
+    const match = req.query.match != null && req.query.match !== "" ? String(req.query.match) : undefined;
+    if (match && !event) throw bad("match needs its event");
+    if (match && !MATCH_KEY.test(match)) throw bad("match must be a match key like qual:1:12");
+    const format = req.query.format ?? "landscape";
+    if (format !== "landscape" && format !== "square") throw bad("format must be landscape or square");
+    const q = { season: s, red, blue, event, match, format } as const;
+    const key = await cardKey(q);
+    // Only drawing a new card counts against the rate limit: a cached one costs nothing to send.
+    if (!cachedCard(key)) {
+      const allowed = await new Promise<boolean>((resolve) => { shareLimit(req, res, () => resolve(true)); if (res.headersSent) resolve(false); });
+      if (!allowed) return undefined;
+    }
+    let card;
+    try { card = await matchCard(key, q); } catch (e) {
+      if (e instanceof ShareError) throw new HttpError(e.status, e.message);
+      throw e;
+    }
+    // Same address, same data → same bytes: cache for a day, then revalidate by ETag (it moves on with the data).
+    res.setHeader("Cache-Control", "public, max-age=86400, stale-while-revalidate=604800");
+    res.setHeader("ETag", card.etag);
+    if (req.fresh) { res.status(304).end(); return undefined; }
+    res.type("png").send(card.png);
+    return undefined;
   }));
 
   api.get("/predict/upcoming", h(async (req) => {
@@ -439,6 +523,8 @@ export function createApp() {
   api.use("/scout", commentsRouter());
   // Scout consensus (v1.6 Task 1): a workspace's entries on a team rolled up; members only.
   api.use("/scout", consensusRouter());
+  // The pre-match report's workspace half (v1.6 Task 2): consensus, pick list and assignments; members only.
+  api.use("/scout", matchReportRouter());
   // The owner portal's switches: with realtime off the stream answers 503 and the app polls instead; with
   // workspace scouting off it answers 503 too, since a stream's catch-up reads shared entries like a pull.
   api.use("/scout", streamRouter({ enabled: async () => (await isEnabled("realtime")) && (await isEnabled("workspaceScouting")) }));
@@ -474,7 +560,8 @@ export function createApp() {
     // app's HTML, so the visitor sees the app's own not-found page (and search engines drop the URL).
     app.get(/^(?!\/api\/|\/packs\/).*/, h(async (req, res) => {
       res.setHeader("Cache-Control", "no-cache");
-      const page = await renderPage(join(dist, "index.html"), req.path);
+      // The query names the page's view: rankings filters, a shared matchup (its card is the link preview).
+      const page = await renderPage(join(dist, "index.html"), req.path, req.query as Record<string, unknown>);
       res.status(page.status).type("html").send(page.html);
     }));
   }
