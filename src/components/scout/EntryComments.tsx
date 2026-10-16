@@ -18,10 +18,12 @@ import { useNow } from "../../lib/useNow";
 import { usePersonal } from "../../lib/personal";
 import { useEntryComments } from "../../lib/scoutComments";
 import type { ScoutEntry } from "../../lib/scouting";
-import { COMMENT_MAX, type EntryComment } from "../../shared/comments";
+import { COMMENT_MAX, commentLength, type EntryComment } from "../../shared/comments";
 
 /** Show the characters-left counter once a comment gets this close to the limit. */
 const COUNTER_FROM = COMMENT_MAX - 200;
+/** Something to send, within the limit (counted like the server: characters after trimming, not UTF-16 units). */
+const sendable = (text: string) => { const n = commentLength(text); return n > 0 && n <= COMMENT_MAX; };
 const touch = "max-sm:h-11 max-sm:min-w-11";
 
 /** Keep a focused field above the on-screen keyboard (it opens after focus, and shrinks the visual viewport). */
@@ -99,7 +101,7 @@ function CommentRow({ c, mine, admin, thread }: { c: EntryComment; mine: boolean
     catch (e) { toast.error((e as Error).message); setBusy(false); setConfirming(false); }
   };
   const onKey = (e: KeyboardEvent<HTMLTextAreaElement>) => {
-    if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) { e.preventDefault(); if (draft.trim() && !busy) void save(); }
+    if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) { e.preventDefault(); if (sendable(draft) && !busy) void save(); }
     if (e.key === "Escape") { e.preventDefault(); setEditing(false); setDraft(c.body); setError(null); }
   };
   return (
@@ -115,12 +117,12 @@ function CommentRow({ c, mine, admin, thread }: { c: EntryComment; mine: boolean
         </p>
         {editing ? (
           <div className="mt-1.5">
-            <Textarea value={draft} onChange={(e) => setDraft(e.target.value)} onKeyDown={onKey} onFocus={(e) => keepVisible(e.currentTarget)} maxLength={COMMENT_MAX}
+            <Textarea value={draft} onChange={(e) => setDraft(e.target.value)} onKeyDown={onKey} onFocus={(e) => keepVisible(e.currentTarget)} readOnly={busy}
               aria-label="Edit your comment" aria-invalid={!!error} aria-describedby={error ? errId : undefined} autoFocus rows={3} className="scroll-mb-24 text-base sm:text-sm" />
             <div className="mt-2 flex flex-wrap items-center gap-2">
-              <Button type="button" size="sm" className={touch} onClick={save} disabled={busy || !draft.trim()}>{busy ? <Loader2 className="animate-spin" /> : null}Save</Button>
+              <Button type="button" size="sm" className={touch} onClick={save} disabled={busy || !sendable(draft)}>{busy ? <Loader2 className="animate-spin" /> : null}Save</Button>
               <Button type="button" size="sm" variant="ghost" className={touch} onClick={() => { setEditing(false); setDraft(c.body); setError(null); }} disabled={busy}>Cancel</Button>
-              <CharsLeft length={draft.length} />
+              <CharsLeft length={commentLength(draft)} />
             </div>
             {error && <p id={errId} role="alert" className="mt-1 text-xs text-danger">{error}</p>}
           </div>
@@ -152,7 +154,7 @@ function CommentRow({ c, mine, admin, thread }: { c: EntryComment; mine: boolean
 function CharsLeft({ length }: { length: number }) {
   if (length < COUNTER_FROM) return null;
   const left = COMMENT_MAX - length;
-  return <span className={cn("ml-auto text-xs tabular-nums", left <= 0 ? "text-danger" : "text-muted-foreground")} aria-live="polite">{left.toLocaleString()} characters left</span>;
+  return <span className={cn("ml-auto text-xs tabular-nums", left < 0 ? "text-danger" : "text-muted-foreground")} aria-live="polite">{left < 0 ? `${(-left).toLocaleString()} over the ${COMMENT_MAX.toLocaleString()}-character limit` : `${left.toLocaleString()} characters left`}</span>;
 }
 
 function Composer({ post }: { post: (body: string) => Promise<void> }) {
@@ -163,24 +165,26 @@ function Composer({ post }: { post: (body: string) => Promise<void> }) {
   const errId = useId();
   const fieldId = useId();
   const send = async () => {
-    if (!draft.trim() || busy) return;
+    if (!sendable(draft) || busy) return;
+    const sent = draft;
     setBusy(true); setError(null);
-    try { await post(draft); setDraft(""); ref.current?.focus(); }
+    // Cleared only if it still holds what was sent: words typed while it was sending stay.
+    try { await post(sent); setDraft((d) => (d === sent ? "" : d)); ref.current?.focus(); }
     catch (e) { setError((e as Error).message); } // the draft stays, to try again
     finally { setBusy(false); }
   };
   return (
     <div className="mt-5 border-t border-border pt-4">
       <label htmlFor={fieldId} className="sr-only">Add a comment</label>
-      <Textarea id={fieldId} ref={ref} value={draft} onChange={(e) => { setDraft(e.target.value); setError(null); }} maxLength={COMMENT_MAX} rows={2}
+      <Textarea id={fieldId} ref={ref} value={draft} onChange={(e) => { setDraft(e.target.value); setError(null); }} rows={2}
         placeholder="Add a comment for the workspace" enterKeyHint="enter" aria-invalid={!!error} aria-describedby={error ? errId : undefined}
         onFocus={(e) => keepVisible(e.currentTarget)}
         onKeyDown={(e) => { if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) { e.preventDefault(); void send(); } }}
         className="scroll-mb-24 min-h-11 text-base sm:text-sm" />
       <div className="mt-2 flex flex-wrap items-center gap-2">
-        <Button type="button" onClick={send} disabled={busy || !draft.trim()}>{busy ? <Loader2 className="animate-spin" /> : <Send />}Comment</Button>
+        <Button type="button" onClick={send} disabled={busy || !sendable(draft)}>{busy ? <Loader2 className="animate-spin" /> : <Send />}Comment</Button>
         <span className="hidden text-xs text-muted-foreground sm:inline">Ctrl+Enter to send · everyone in the workspace sees it</span>
-        <CharsLeft length={draft.length} />
+        <CharsLeft length={commentLength(draft)} />
       </div>
       {error && <p id={errId} role="alert" className="mt-1 text-xs text-danger">{error}</p>}
     </div>

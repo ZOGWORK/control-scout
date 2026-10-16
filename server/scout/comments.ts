@@ -50,11 +50,13 @@ const buckets = new Map<number, { tokens: number; at: number }>();
 /** Take one comment write from the account's allowance; returns the seconds to wait when there's none. */
 export function takeCommentToken(accountId: number, now = Date.now()): number | null {
   const { burst, perMinute } = COMMENT_RATE;
+  const refilled = (v: { tokens: number; at: number }) => Math.min(burst, v.tokens + (Math.max(0, now - v.at) / 60_000) * perMinute);
+  // Too many tracked: forget every other account whose allowance has refilled by now (as good as a fresh one).
+  if (buckets.size >= 20_000) { for (const [k, v] of buckets) if (k !== accountId && refilled(v) >= burst) buckets.delete(k); }
   const b = buckets.get(accountId) ?? { tokens: burst, at: now };
-  b.tokens = Math.min(burst, b.tokens + ((now - b.at) / 60_000) * perMinute);
+  b.tokens = refilled(b);
   b.at = now;
   buckets.set(accountId, b);
-  if (buckets.size > 20_000) { for (const [k, v] of buckets) if (v.tokens >= burst) buckets.delete(k); }
   if (b.tokens < 1) return Math.max(1, Math.ceil(((1 - b.tokens) / perMinute) * 60));
   b.tokens -= 1;
   return null;
@@ -109,11 +111,25 @@ export async function commentCounts(workspaceId: string): Promise<Record<string,
   return Object.fromEntries(rows.map((r) => [String(r.entry_uuid), Number(r.n)]));
 }
 
-/** Run one change to a workspace's threads after the ones before it, and publish what it did. */
-function change(m: Membership, fn: () => Promise<CommentEvent | Fail>): Promise<CommentEvent | Fail> {
+/**
+ * Each change's place in the server's order of comment changes (CommentEvent.rev): increasing, and
+ * time-based so it keeps increasing across restarts. Devices apply a change to a comment or a count
+ * only if it's newer than the last one they applied, so a slow reply never undoes a later change.
+ */
+let lastRev = 0;
+const nextRev = () => (lastRev = Math.max(lastRev + 1, Date.now() * 1000));
+
+/**
+ * Run one change to a workspace's threads after the ones before it: write it (`fn`, which stamps
+ * the event's rev), publish it, then `after` (the activity feed and the inbox), still in that order,
+ * so the feed's record of a comment (its excerpt) can't be changed before it exists, or out of turn.
+ */
+function change(m: Membership, fn: (rev: number) => Promise<CommentEvent | Fail>, after: (e: CommentEvent) => Promise<void>): Promise<CommentEvent | Fail> {
   return serialized(`comments:${m.workspaceId}`, async () => {
-    const out = await fn();
-    if (!("ok" in out)) publishComment(m.workspaceId, out);
+    const out = await fn(nextRev());
+    if ("ok" in out) return out;
+    publishComment(m.workspaceId, out);
+    await after(out); // never throws (logActivity and followExcerpt catch their own)
     return out;
   });
 }
@@ -126,7 +142,7 @@ export async function postComment(user: User, m: Membership, uuid: string, raw: 
   if (Number(e.deleted)) return fail(409, ENTRY_DELETED);
   const wait = takeCommentToken(m.accountId, now);
   if (wait != null) return fail(429, TOO_FAST, wait);
-  const out = await change(m, async () => {
+  return change(m, async (rev) => {
     // The entry must still be there, and not deleted, when the comment is written: checked in the insert itself.
     const [ins, cnt] = await db().batch([
       {
@@ -138,13 +154,12 @@ export async function postComment(user: User, m: Membership, uuid: string, raw: 
     ], "write");
     if (!ins.rows.length) return fail(409, ENTRY_DELETED);
     const comment = toComment(m.workspaceId, ins.rows[0]);
-    return { action: "created", workspaceId: m.workspaceId, entryUuid: uuid, commentId: comment.id, count: Number(cnt.rows[0].n), comment } satisfies CommentEvent;
+    return { action: "created", workspaceId: m.workspaceId, entryUuid: uuid, commentId: comment.id, count: Number(cnt.rows[0].n), rev, comment } satisfies CommentEvent;
+  }, async (out) => {
+    // The feed and the entry author's inbox (after the comment has committed and streamed).
+    await logActivity(m.workspaceId, { accountId: m.accountId, name: writerName(user) }, "comment.created", `entry:${uuid}`,
+      { ...detailsOf(e), commentId: out.commentId, excerpt: commentExcerpt(clean.body) });
   });
-  if ("ok" in out) return out;
-  // The feed and the entry author's inbox (never throws; after the comment has committed and streamed).
-  await logActivity(m.workspaceId, { accountId: m.accountId, name: writerName(user) }, "comment.created", `entry:${uuid}`,
-    { ...detailsOf(e), commentId: out.commentId, excerpt: commentExcerpt(clean.body) });
-  return out;
 }
 
 const commentId = (raw: unknown) => { const n = Number(raw); return typeof raw === "string" && /^\d{1,15}$/.test(raw) && Number.isSafeInteger(n) && n > 0 ? n : null; };
@@ -167,11 +182,12 @@ export async function editComment(m: Membership, uuid: string, rawId: unknown, r
   // The same text again: nothing changes (not even "edited").
   if (String(before.body) === clean.body) {
     const n = await get<{ n: number }>("SELECT COUNT(*) n FROM workspace_entry_comments WHERE workspace_id = ? AND entry_uuid = ? AND deleted_at IS NULL", [e.workspace_id, uuid]);
-    return { action: "edited", workspaceId: m.workspaceId, entryUuid: uuid, commentId: id, count: Number(n?.n ?? 0), comment: toComment(m.workspaceId, before) };
+    // rev 0: nothing new, so a device never prefers it over a change it has already applied.
+    return { action: "edited", workspaceId: m.workspaceId, entryUuid: uuid, commentId: id, count: Number(n?.n ?? 0), rev: 0, comment: toComment(m.workspaceId, before) };
   }
   const wait = takeCommentToken(m.accountId, now);
   if (wait != null) return fail(429, TOO_FAST, wait);
-  const out = await change(m, async () => {
+  return change(m, async (rev) => {
     const [upd, cnt] = await db().batch([
       {
         sql: `UPDATE workspace_entry_comments SET body = ?, edited_at = ?
@@ -182,10 +198,8 @@ export async function editComment(m: Membership, uuid: string, rawId: unknown, r
       countStatement(e.workspace_id, uuid),
     ], "write");
     if (!upd.rows.length) return fail(409, "That comment or its entry was deleted meanwhile.");
-    return { action: "edited", workspaceId: m.workspaceId, entryUuid: uuid, commentId: id, count: Number(cnt.rows[0].n), comment: toComment(m.workspaceId, upd.rows[0]) } satisfies CommentEvent;
-  });
-  if (!("ok" in out)) await followExcerpt(m.workspaceId, uuid, id, commentExcerpt(clean.body));
-  return out;
+    return { action: "edited", workspaceId: m.workspaceId, entryUuid: uuid, commentId: id, count: Number(cnt.rows[0].n), rev, comment: toComment(m.workspaceId, upd.rows[0]) } satisfies CommentEvent;
+  }, () => followExcerpt(m.workspaceId, uuid, id, commentExcerpt(clean.body)));
 }
 
 export async function deleteComment(user: User, m: Membership, uuid: string, rawId: unknown): Promise<CommentEvent | Fail> {
@@ -197,7 +211,7 @@ export async function deleteComment(user: User, m: Membership, uuid: string, raw
   if (!before) return fail(404, "That comment was already deleted.");
   const admin = m.role === "admin";
   if (!admin && Number(before.author_account_id) !== m.accountId) return fail(403, NOT_YOURS_DELETE);
-  const out = await change(m, async () => {
+  return change(m, async (rev) => {
     const [del, cnt] = await db().batch([
       {
         sql: `UPDATE workspace_entry_comments SET body = '', deleted_at = ?
@@ -207,16 +221,15 @@ export async function deleteComment(user: User, m: Membership, uuid: string, raw
       countStatement(e.workspace_id, uuid),
     ], "write");
     if (!del.rows.length) return fail(404, "That comment was already deleted.");
-    return { action: "deleted", workspaceId: m.workspaceId, entryUuid: uuid, commentId: id, count: Number(cnt.rows[0].n) } satisfies CommentEvent;
+    return { action: "deleted", workspaceId: m.workspaceId, entryUuid: uuid, commentId: id, count: Number(cnt.rows[0].n), rev } satisfies CommentEvent;
+  }, async () => {
+    await followExcerpt(m.workspaceId, uuid, id, null);
+    // Moderation is visible: an admin removing someone else's comment says so in the feed (no inbox item).
+    if (Number(before.author_account_id) !== m.accountId) {
+      await logActivity(m.workspaceId, { accountId: m.accountId, name: writerName(user) }, "comment.deleted", `entry:${uuid}`,
+        { ...detailsOf(e), commentId: id, authorName: String(before.author_name ?? "") });
+    }
   });
-  if ("ok" in out) return out;
-  await followExcerpt(m.workspaceId, uuid, id, null);
-  // Moderation is visible: an admin removing someone else's comment says so in the feed (no inbox item).
-  if (Number(before.author_account_id) !== m.accountId) {
-    await logActivity(m.workspaceId, { accountId: m.accountId, name: writerName(user) }, "comment.deleted", `entry:${uuid}`,
-      { ...detailsOf(e), commentId: id, authorName: String(before.author_name ?? "") });
-  }
-  return out;
 }
 
 /**

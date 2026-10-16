@@ -253,6 +253,14 @@ describe("comments: rate limit", () => {
     expect(takeCommentToken(1, t)).toBeGreaterThan(0);
     expect(takeCommentToken(1, t + 60_000 / COMMENT_RATE.perMinute + 1)).toBeNull();
   });
+
+  it("with very many accounts tracked, a spent allowance is still remembered (only refilled ones are forgotten)", () => {
+    const t = 5_000_000;
+    for (let i = 0; i < COMMENT_RATE.burst; i++) expect(takeCommentToken(42, t)).toBeNull();
+    for (let a = 100_000; a < 120_100; a++) takeCommentToken(a, t); // 20,100 others, each one comment in
+    expect(takeCommentToken(42, t + 1000)).toBeGreaterThan(0); // still out of allowance
+    expect(takeCommentToken(130_000, t + 1000)).toBeNull(); // a newcomer is charged, not forgotten at once
+  });
 });
 
 describe("comments: live", () => {
@@ -279,6 +287,8 @@ describe("comments: live", () => {
     expect(events.map((e) => [e.action, e.count, e.comment?.body])).toEqual([["created", 1, "live one"], ["edited", 1, "live two"], ["deleted", 0, undefined]]);
     expect(events[0]).toMatchObject({ workspaceId: "1530", entryUuid: first.uuid, commentId: id, comment: { authorName: "Priya" } });
     expect(heard).toEqual(events);
+    expect(events[0].rev).toBeLessThan(events[1].rev);
+    expect(events[1].rev).toBeLessThan(events[2].rev);
     off(); ac.abort(); await reading;
   });
 });
@@ -298,6 +308,19 @@ describe("comments: activity and the inbox", () => {
     // The author commenting on their own entry: no item for anyone.
     await post(member, "1540", first.uuid, "thanks");
     expect((await inbox(member)).items.filter((i) => i.category === "comments")).toHaveLength(1);
+  });
+
+  it("a comment deleted the moment it streams: its notification never keeps the text (the feed records it first)", async () => {
+    const { admin, member, first } = await team("1542");
+    const off = subscribeComments("1542", (c) => { if (c.action === "created") void admin("DELETE", `${thread("1542", first.uuid)}/${c.commentId}`); });
+    expect((await post(admin, "1542", first.uuid, "oops, wrong entry")).status).toBe(201);
+    off();
+    await new Promise((r) => setTimeout(r, 300));
+    expect((await list(member, "1542", first.uuid)).comments).toEqual([]);
+    const created = (await feed(member, "1542")).find((i) => i.type === "comment.created")!;
+    expect(created.details).toMatchObject({ deleted: true });
+    expect(created.details.excerpt).toBeUndefined();
+    expect((await inbox(member)).items.filter((i) => i.category === "comments").map((i) => i.body)).toEqual(["team 18360 · match Q1 · USNJQ1"]);
   });
 
   it("the excerpt follows an edit, and goes when the comment is deleted (feed and inbox)", async () => {
