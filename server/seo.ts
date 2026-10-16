@@ -49,7 +49,7 @@ export function canonicalRedirects(req: Request, res: Response, next: NextFuncti
 /** A path that names a file (any extension, e.g. .png, .xml, .webmanifest): missing ones are a 404, never the app. */
 export const MISSING_FILE = /\.[A-Za-z0-9]+$/;
 
-/** The canonical URL for a page path: canonical origin + path, no query, no trailing slash. */
+/** The canonical URL for a page path: canonical origin + path, no trailing slash (a query only where the page passes one: /rankings). */
 export function canonicalUrl(path: string): string {
   const p = path.length > 1 ? path.replace(/\/+$/, "") : "/";
   return `${canonicalOrigin()}${p}`;
@@ -127,9 +127,9 @@ export function routePreloads(indexFile: string, path: string): string {
  * route, team or event). A 404 still carries the app's HTML, so the browser shows the app's own
  * not-found page.
  */
-export async function renderPage(file: string, path: string, search = ""): Promise<{ status: 200 | 404; html: string }> {
+export async function renderPage(file: string, path: string, query: Record<string, unknown> = {}): Promise<{ status: 200 | 404; html: string }> {
   const { pageMeta, headTags } = await import("./seoMeta.js");
-  const meta = await pageMeta(path, search);
+  const meta = await pageMeta(path, query);
   const head = [headTags(path, meta), routePreloads(file, path), BOOT_STYLE].filter(Boolean).join("\n    ");
   // Callbacks, so $', $`, $& in a team or event name are inserted literally (a replacement string would expand them).
   const html = indexHtml(file)
@@ -139,6 +139,6 @@ export async function renderPage(file: string, path: string, search = ""): Promi
 }
 
 /** index.html for this path (renderPage without the status). */
-export async function renderIndex(file: string, path: string, search = ""): Promise<string> {
-  return (await renderPage(file, path, search)).html;
+export async function renderIndex(file: string, path: string, query: Record<string, unknown> = {}): Promise<string> {
+  return (await renderPage(file, path, query)).html;
 }
