@@ -193,7 +193,8 @@ export default function ScoutPage() {
   return (
     <div>
       <PageHeader title="Scout"
-        description={workspace ? `Shared with everyone in ${workspaceLabel(workspace)}. Saved on this device instantly; the workspace sees new entries as they sync.`
+        description={workspace && readOnly ? `Shared with everyone who was in ${workspaceLabel(workspace)}. Read-only: everything here can be read and exported.`
+          : workspace ? `Shared with everyone in ${workspaceLabel(workspace)}. Saved on this device instantly; the workspace sees new entries as they sync.`
           : "Your own observations — private to you. Saved on this device instantly; synced to your account when you're signed in."}
         actions={spaces.resolving ? undefined : <SyncChip status={offlineAccount ? "offline" : status} pending={pendingCount} onSync={syncNow} signedIn={!!user} live={live} />}>
         {spaces.switchable && <ScoutSpaceSwitcher workspaces={spaces.workspaces} space={space} pending={pending} onSelect={selectSpace} onRefresh={syncReady ? refreshSpace : undefined} className="mb-4" />}
