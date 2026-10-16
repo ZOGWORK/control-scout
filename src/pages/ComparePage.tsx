@@ -16,6 +16,7 @@ import { TeamInput, lookupTeamName } from "../components/TeamInput";
 import { teamError } from "../lib/teamCheck";
 import { SeasonToggle } from "../components/SeasonToggle";
 import { num, rankPct } from "../lib/format";
+import { CompareConsensus } from "../components/ScoutConsensus";
 
 const COLORS = ["var(--color-chart-1)", "var(--color-chart-2)", "var(--color-chart-3)", "var(--color-chart-4)"];
 
@@ -107,6 +108,8 @@ function Compare({ d }: { d: CompareView }) {
           </div>
         ))}
       </div>
+      {/* Workspace members only: their workspace's scouting on these teams. */}
+      {predictable && <CompareConsensus teams={t.map((x) => x.team.number)} season={d.season} colors={COLORS} />}
       {lab && <Button asChild variant="secondary" className="mb-8"><Link to={lab}><Sparkles /> Predict {t[0].team.number}+{t[1].team.number} vs {t[2].team.number}+{t[3].team.number}</Link></Button>}
       <div className="grid gap-6 lg:grid-cols-2">
         <Section title="OPR by phase" description="Best event OPR this season">
