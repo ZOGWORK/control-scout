@@ -22,6 +22,8 @@ import { OwnerRoute } from "./pages/OwnerRoute";
 import { RouteErrorBoundary } from "./components/RouteErrorBoundary";
 import { ErrorReportPrompt } from "./components/layout/ErrorReportPrompt";
 import { FirstRunTour } from "./components/layout/FirstRunTour";
+import { InstallNudge } from "./components/layout/InstallNudge";
+import { captureInstallPrompt } from "./lib/installNudge";
 // The landing page is part of the main bundle, not lazy: its API calls then start in
 // the same render as the app's own (/api/meta, /api/auth/me), with no second round.
 import Home from "./pages/Home";
@@ -62,6 +64,9 @@ const { TeamPage, EventsPage, RecordsPage, EventPage, PredictPage, ComparePage, 
 if (import.meta.env.PROD && "serviceWorker" in navigator) {
   window.addEventListener("load", () => { navigator.serviceWorker.register("/sw.js").catch(() => { /* offline support is a bonus */ }); });
 }
+
+// The browser's install offer can come before the app has mounted: hold it for the nudge (src/lib/installNudge.ts).
+captureInstallPrompt();
 
 // Uncaught errors and unhandled rejections offer a report (src/lib/errorReporting.ts), from the very start.
 installErrorReporting();
@@ -121,6 +126,7 @@ void ready.catch(() => { /* a failed load is retried (and shown) by the page's o
             <CanonicalSync />
             <ConsentBanner />
             <FirstRunTour />
+            <InstallNudge />
             <PageViews />
           </SearchProvider>
         </MetaProvider>

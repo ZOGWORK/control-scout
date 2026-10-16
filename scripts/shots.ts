@@ -13,6 +13,7 @@
 // selectors are Playwright's (role=button[name="Filters"], text=Apply, css).
 // --name <label> goes in the file name, to tell several states of one route apart.
 // --tour lets the first-run tour show (it's kept out of shots otherwise).
+// --install lets the add-to-home-screen nudge show, with a stand-in install offer.
 //
 // Handles the fiddly parts once: real servers (starts API + Vite if they
 // aren't running), 2x device scale, waiting until data has loaded (network
@@ -117,6 +118,19 @@ async function capture(browser: Browser, route: string, vp: keyof typeof SIZES, 
   // --tour lets it show (src/lib/tour.ts, cs-tour-demo). Each shot is a fresh visitor, so it opens on step 1:
   // wait for it with --steps '[{"waitFor":"[data-tour-card]"}]' and press ArrowRight for the later steps.
   if (flag("tour")) await ctx.addInitScript(() => localStorage.setItem("cs-tour-demo", "1"));
+  // Same for the add-to-home-screen nudge (src/lib/installNudge.ts, cs-install-demo). An automated Chromium
+  // never offers an install, so --install also hands the page a stand-in beforeinstallprompt once it has loaded;
+  // the nudge opens a few seconds later: wait with --steps '[{"waitFor":"[data-install-nudge]"}]'.
+  if (flag("install")) {
+    await ctx.addInitScript(() => {
+      localStorage.setItem("cs-install-demo", "1");
+      window.addEventListener("load", () => {
+        const e = new Event("beforeinstallprompt", { cancelable: true });
+        Object.assign(e, { prompt: () => Promise.resolve(), userChoice: Promise.resolve({ outcome: "dismissed", platform: "web" }) });
+        window.dispatchEvent(e);
+      });
+    });
+  }
   if (light) await ctx.addInitScript(() => localStorage.setItem("cs-personal:settings", JSON.stringify({ value: { theme: "light", density: "comfortable", notify: {} }, updatedAt: 1 })));
   const page = await ctx.newPage();
   const errors: string[] = [];
