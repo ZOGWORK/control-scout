@@ -78,7 +78,9 @@ const DIRTY = "cs-scout-dirty";
 const WS = "cs-scout-ws:";
 const WS_DIRTY = "cs-scout-ws-dirty:";
 const WS_CURSOR = "cs-scout-ws-cursor:";
-const EVT = "cs-scout-changed";
+/** Fired on window after any change to the scout entries on this device (a save, a pull, a live entry). */
+export const SCOUT_CHANGED = "cs-scout-changed";
+const EVT = SCOUT_CHANGED;
 /** A local save (detail: SavedDetail): open lists push it right away, so other members see it live. */
 const SAVED = "cs-scout-saved";
 interface SavedDetail { space: ScoutSpace; deleted: boolean }

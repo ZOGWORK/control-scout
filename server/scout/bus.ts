@@ -21,8 +21,16 @@ export type LiveEntry = WorkspaceEntryOut & { seq: number };
 type Listener = (e: LiveEntry) => void;
 const channels = new Map<string, Set<Listener>>();
 
+// Server-side caches derived from a workspace's entries (scout consensus: consensus.ts) hear every write,
+// whether or not any stream is open.
+type WriteHook = (workspaceId: string, entries: LiveEntry[]) => void;
+const writeHooks = new Set<WriteHook>();
+/** Hear every workspace's entry writes (process-wide; never removed). */
+export function onEntriesWritten(fn: WriteHook): void { writeHooks.add(fn); }
+
 /** Tell every open stream of the workspace about entries just written (in seq order). Never throws. */
 export function publishEntries(workspaceId: string, entries: LiveEntry[]): void {
+  if (entries.length) for (const fn of writeHooks) { try { fn(workspaceId, entries); } catch (err) { console.error("[live] write hook failed", err); } }
   const subs = channels.get(workspaceId);
   if (!subs?.size) return;
   for (const e of entries) for (const fn of [...subs]) { try { fn(e); } catch (err) { console.error("[live] listener failed", err); } }
