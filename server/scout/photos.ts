@@ -253,7 +253,9 @@ export async function removePhoto(m: Membership, photoId: unknown): Promise<{ ok
   if (!first) return fail(404, "No such photo.");
   return photoLock(first.id, async () => {
     const p = await photoRow(m, photoId); // as it is now, under the lock
-    if (!p || p.status === "pending") return fail(404, "No such photo.");
+    // Only photos (ready or expired): a reservation (pending or cancelled) is released by the sweep alone,
+    // never early, since its upload URL may still work.
+    if (!p || (p.status !== "ready" && p.status !== "expired")) return fail(404, "No such photo.");
     if (!mayRemovePhoto(m, { addedByAccountId: Number(p.added_by_account_id), entryAuthorAccountId: p.entry_author == null ? null : Number(p.entry_author) })) return fail(403, MAY_NOT_REMOVE);
     if (p.status === "ready") {
       try { await deleteObject(c, p.object_key); } catch { return fail(502, "Couldn't reach photo storage, so the photo is still there. Try again."); }
@@ -513,7 +515,7 @@ export function photosRouter(): Router {
     if (!who) return;
     const c = r2();
     const p = c && await photoRow(who.m, req.params.id);
-    if (!c || !p || p.status === "pending") { res.status(404).json({ error: "No such photo." }); return; }
+    if (!c || !p || (p.status !== "ready" && p.status !== "expired")) { res.status(404).json({ error: "No such photo." }); return; }
     if (p.status === "expired") { res.status(410).json({ error: "photo expired" }); return; }
     res.set("Cache-Control", `private, max-age=${PHOTO_TIMING.viewTtlSec - 120}`);
     res.redirect(302, viewUrl(c, p.object_key, PHOTO_TIMING.viewTtlSec));
