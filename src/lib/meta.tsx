@@ -62,7 +62,8 @@ export function canonicalPath(pathname: string): string {
   const p = pathname.length > 1 ? pathname.replace(/\/+$/, "") : "/";
   return p
     .replace(/^\/events\/(\d{4})\/([A-Za-z0-9_-]{1,40})$/, (_m, s: string, c: string) => `/events/${s}/${c.toUpperCase()}`)
-    .replace(/^\/teams\/0*(\d+)$/, "/teams/$1");
+    .replace(/^\/teams\/0*(\d+)$/, "/teams/$1")
+    .replace(/^\/power-rankings\/(\d{4}-w\d{2})$/i, (_m, w: string) => `/power-rankings/${w.toLowerCase()}`);
 }
 
 // How many not-found pages are showing (0 or 1; a count so a remount never races an unmount).

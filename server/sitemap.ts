@@ -5,6 +5,7 @@
 import type { Request, Response } from "express";
 import { all } from "./db.js";
 import { canonicalUrl } from "./seo.js";
+import { publishedWeeks } from "./powerRankings/store.js";
 
 const STATIC_PAGES = ["/", "/events", "/predict", "/compare", "/methodology", "/download", "/privacy", "/terms", "/contact"];
 export const CHUNK = 45_000; // under the 50,000-URL limit, and far under 50 MB
@@ -19,8 +20,12 @@ export async function sitemapEntries(): Promise<Entry[]> {
     all<{ number: number; updated_at: string | null }>("SELECT number, updated_at FROM teams ORDER BY number"),
     all<{ season: number; code: string; upstream_updated: string | null }>("SELECT season, code, upstream_updated FROM events ORDER BY season DESC, code"),
   ]);
+  // Power rankings: the hub and every published week, newest first (none until the first is; never sample weeks).
+  const weeks = publishedWeeks().filter((w) => !w.sample).reverse();
   return [
     ...STATIC_PAGES.map((p) => ({ loc: canonicalUrl(p) })),
+    ...(weeks.length ? [{ loc: canonicalUrl("/power-rankings"), lastmod: weeks[0].published }] : []),
+    ...weeks.map((w) => ({ loc: canonicalUrl(`/power-rankings/${w.week}`), lastmod: w.published })),
     // lastmod: the source's own change marker (late results, awards and advancement move it); none when unknown.
     ...events.map((e) => ({ loc: canonicalUrl(`/events/${e.season}/${encodeURIComponent(e.code)}`), lastmod: day(e.upstream_updated) })),
     ...teams.map((t) => ({ loc: canonicalUrl(`/teams/${t.number}`), lastmod: day(t.updated_at) })),

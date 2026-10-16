@@ -18,6 +18,8 @@ import { trackRecord } from "./api/accuracy.js";
 import { currentWeather } from "./weather.js";
 import { MISSING_FILE, canonicalRedirects, renderPage } from "./seo.js";
 import { sitemapChunkRoute, sitemapRoute } from "./sitemap.js";
+import { latestRankings, rankingsWeek } from "./powerRankings/store.js";
+import { isWeekId } from "../src/shared/powerRankings.js";
 import { liveForecaster, liveVersion, dataVersion } from "./predict/engine.js";
 import { authRouter, meRouter, authProviders } from "./auth/routes.js";
 import { contactRouter } from "./contact.js";
@@ -213,6 +215,15 @@ export function createApp() {
     const t = await get<{ city: string | null; state: string | null; country: string | null }>("SELECT city, state, country FROM teams WHERE number = ?", [team]);
     const w = t ? await currentWeather(t).catch(() => null) : null;
     return w ? { available: true, ...w } : { available: false };
+  }));
+
+  // Power rankings (server/powerRankings/): the latest published week, or one week, each with the archive.
+  api.get("/power-rankings", h(async () => latestRankings()));
+  api.get("/power-rankings/:week", h(async (req) => {
+    const id = String(req.params.week).toLowerCase();
+    const r = isWeekId(id) ? await rankingsWeek(id) : null;
+    if (!r) throw new HttpError(404, `No power rankings published for ${id.slice(0, 20)}`);
+    return r;
   }));
 
   api.get("/teams/:number", h(async (req) => {

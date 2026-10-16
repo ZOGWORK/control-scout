@@ -6,7 +6,7 @@ import { Ambient } from "./Ambient";
 import { Link, NavLink, useLocation } from "react-router-dom";
 import { motion, MotionConfig } from "motion/react";
 import {
-  BookOpen, Bookmark, CalendarDays, ClipboardList, DatabaseZap, Download, House, Menu, PanelLeftClose, PanelLeftOpen, Scale, Search, Settings, ShieldCheck, Sparkles, Star, Users,
+  BookOpen, Bookmark, CalendarDays, ClipboardList, DatabaseZap, Download, House, Menu, PanelLeftClose, PanelLeftOpen, Scale, Search, Settings, ShieldCheck, Sparkles, Star, Trophy, Users,
 } from "lucide-react";
 import { cn } from "../cn";
 import { useMeta } from "../../lib/meta";
@@ -25,7 +25,7 @@ import { useYoursRow, FOLLOWED_TEAM_PATH } from "../../lib/yoursRow";
 interface NavItem { to: string; label: string; icon: ComponentType<{ className?: string }>; end?: boolean }
 
 const SECTIONS: { title: string | null; items: NavItem[] }[] = [
-  { title: null, items: [{ to: "/", label: "Home", icon: House, end: true }, { to: "/events", label: "Events", icon: CalendarDays }, { to: "/teams", label: "Teams", icon: Users }] },
+  { title: null, items: [{ to: "/", label: "Home", icon: House, end: true }, { to: "/events", label: "Events", icon: CalendarDays }, { to: "/teams", label: "Teams", icon: Users }, { to: "/power-rankings", label: "Power rankings", icon: Trophy }] },
   { title: "Predict", items: [
     { to: "/predict", label: "Predict", icon: Sparkles, end: true },
     { to: "/compare", label: "Compare", icon: Scale },
