@@ -6,7 +6,7 @@
 
 /** A lazily loaded page module under src/pages (the file name without .tsx). */
 export type PageModule =
-  | "TeamPage" | "EventsPage" | "RecordsPage" | "EventPage" | "PredictPage" | "ComparePage" | "MyTeamPage"
+  | "TeamPage" | "EventsPage" | "RecordsPage" | "RankingsPage" | "EventPage" | "PredictPage" | "ComparePage" | "MyTeamPage"
   | "ShortlistPage" | "ScoutPage" | "DownloadPage" | "SettingsPage" | "MethodologyPage" | "PrivacyPage" | "TermsPage" | "ContactPage" | "NotFound";
 
 // React Router matches case-insensitively, a trailing slash included: so do these.
@@ -14,6 +14,7 @@ const ROUTES: [RegExp, PageModule | null][] = [
   [/^\/$/, null], // Home is in the main bundle.
   [/^\/(teams|matches)\/?$/i, "RecordsPage"],
   [/^\/teams\/[^/]+\/?$/i, "TeamPage"],
+  [/^\/rankings\/?$/i, "RankingsPage"],
   [/^\/events\/?$/i, "EventsPage"],
   [/^\/events\/[^/]+\/[^/]+\/?$/i, "EventPage"],
   [/^\/predict\/?$/i, "PredictPage"],
@@ -38,7 +39,7 @@ export function pageModule(path: string): PageModule | null {
 
 // Whole routes, so an unknown path under a real one (/teams/4215/extra) reads "Not found".
 const TITLES: [RegExp, string][] = [
-  [/^\/teams\/[^/]+$/, "Team"], [/^\/teams$/, "Teams"], [/^\/matches$/, "Match records"], [/^\/events\/[^/]+\/[^/]+$/, "Event"], [/^\/events$/, "Events"], [/^\/predict\/how-it-works$/, "How it works"], [/^\/predict(\/accuracy)?$/, "Predict"],
+  [/^\/teams\/[^/]+$/, "Team"], [/^\/teams$/, "Teams"], [/^\/rankings$/, "Rankings"],[/^\/matches$/, "Match records"], [/^\/events\/[^/]+\/[^/]+$/, "Event"], [/^\/events$/, "Events"], [/^\/predict\/how-it-works$/, "How it works"], [/^\/predict(\/accuracy)?$/, "Predict"],
   [/^\/compare$/, "Compare"], [/^\/my-team$/, "My team"], [/^\/shortlist$/, "Shortlist"], [/^\/scout$/, "Scout"], [/^\/download$/, "Download"],
   [/^\/settings$/, "Settings"], [/^\/methodology$/, "How it works"], [/^\/privacy$/, "Privacy"], [/^\/terms$/, "Terms"], [/^\/contact$/, "Contact"],
 ];

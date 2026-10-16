@@ -79,9 +79,19 @@ export function useNotFoundHead() {
   }, []);
 }
 
+/** The query a page's canonical URL keeps: only /rankings' view (each place, week and page is its own list,
+ *  as the server's canonical says: server/seoMeta.ts rankingsMeta), in a fixed order. Anything else: none. */
+export function canonicalQuery(pathname: string, search: string): string {
+  if (!/^\/rankings\/?$/i.test(pathname)) return "";
+  const sp = new URLSearchParams(search), q = new URLSearchParams();
+  for (const k of ["season", "region", "week", "page"]) { const v = sp.get(k); if (v && !(k === "page" && v === "1")) q.set(k, v); }
+  const s = q.toString();
+  return s ? `?${s}` : "";
+}
+
 /** Keeps <link rel="canonical"> (and a not-found page's noindex) in step with in-app navigation (the server sets both on the first load). */
 export function CanonicalSync() {
-  const { pathname } = useLocation();
+  const { pathname, search } = useLocation();
   const notFound = useSyncExternalStore(subscribeNotFound, () => notFoundShown > 0);
   useEffect(() => {
     // Only the not-found noindex (marked data-not-found, by the server or here) is ours: a personal page's own stays.
@@ -98,7 +108,7 @@ export function CanonicalSync() {
     }
     robots?.remove();
     if (!link) { link = document.createElement("link"); link.rel = "canonical"; document.head.appendChild(link); }
-    link.href = `${window.location.origin}${canonicalPath(pathname)}`;
-  }, [pathname, notFound]);
+    link.href = `${window.location.origin}${canonicalPath(pathname)}${canonicalQuery(pathname, search)}`;
+  }, [pathname, search, notFound]);
   return null;
 }
