@@ -4,7 +4,7 @@
 // none while workspace scouting is off), and the pending counts follow saves and syncs.
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { act, cleanup, render, renderHook } from "@testing-library/react";
-import { localScoutEntries, pendingScoutCounts, saveScoutEntry, syncQueuedScouting, syncScouting, usePendingScoutCounts, type ScoutEntry } from "./scouting";
+import { localScoutEntries, moveQueuedToPersonal, pendingScoutCounts, saveScoutEntry, syncQueuedScouting, syncScouting, usePendingScoutCounts, type ScoutEntry } from "./scouting";
 import { resetFlags } from "./flags";
 import { DEFAULT_FLAGS } from "../shared/flags";
 import type { AccountUser } from "./personal";
@@ -139,6 +139,31 @@ describe("ScoutQueueSync (the app-wide reconnect trigger)", () => {
     expect(localScoutEntries("42").map((e) => e.uuid)).toEqual(["wwwwwwwwwww2"]); // the old tombstone only (hidden)
     expect(h.toasts).toEqual([expect.stringMatching(/^1 entry saved in Robo Lions couldn't sync: you're no longer a member there\. It's kept in Personal/)]);
     await vi.waitFor(() => expect(pendingScoutCounts().personal).toBe(0)); // and Personal syncs it to the account
+  });
+
+  it("moving resets the workspace's pull cursor, so a later re-add pulls everything again", () => {
+    saveScoutEntry({ uuid: "wwwwwwwwwww1", ...base, workspaceId: "42" });
+    localStorage.setItem("cs-scout-ws-cursor:42", "17");
+    expect(moveQueuedToPersonal("42")).toBe(1);
+    expect(localStorage.getItem("cs-scout-ws-cursor:42")).toBeNull();
+  });
+
+  it("a device too full to queue the Personal copy: nothing moves, and no half-made copy is left (a retry makes no duplicates)", () => {
+    saveScoutEntry({ uuid: "wwwwwwwwwww1", ...base, workspaceId: "42" });
+    const real = Storage.prototype.setItem;
+    const spy = vi.spyOn(Storage.prototype, "setItem").mockImplementation(function (this: Storage, k: string, v: string) {
+      if (k === "cs-scout-dirty") throw new DOMException("full", "QuotaExceededError");
+      return real.call(this, k, v);
+    });
+    try {
+      expect(moveQueuedToPersonal("42")).toBe(0);
+      expect(moveQueuedToPersonal("42")).toBe(0);
+    } finally { spy.mockRestore(); }
+    expect(localScoutEntries(null)).toEqual([]);
+    expect(pendingScoutCounts().workspaces).toEqual({ 42: 1 });
+    expect(localScoutEntries("42").map((e) => e.uuid)).toEqual(["wwwwwwwwwww1"]);
+    expect(moveQueuedToPersonal("42")).toBe(1); // room again: it moves, once
+    expect(localScoutEntries(null)).toHaveLength(1);
   });
 
   it("a workspace the account no longer lists but the server still accepts: synced there, not moved", async () => {

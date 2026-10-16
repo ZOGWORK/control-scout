@@ -242,7 +242,7 @@ describe("inbox: who gets what", () => {
     await logActivity("1407", { accountId: coach, name: "Coach" }, "assignment.created", "assignment:a1", { team: 4321, season: 2025, eventCode: "USNJQ1", matchLabel: "Q7", assigneeAccountId: priya });
     await logActivity("1407", { accountId: coach, name: "Coach" }, "assignment.created", "assignment:a2", { team: 99, season: 2025, assigneeAccountId: coach });
     const items = (await inbox(member)).items;
-    expect(items.map((i) => [i.title, i.body, i.link])).toEqual([["Coach assigned you to scout team 4321", "match Q7 · USNJQ1", "/scout?space=1407&season=2025&team=4321"]]);
+    expect(items.map((i) => [i.title, i.body, i.link])).toEqual([["Coach assigned you to scout team 4321", "match Q7 · USNJQ1", "/scout?space=1407&season=2025&view=assignments"]]);
     expect(await titles(admin)).toEqual([]);
   });
 

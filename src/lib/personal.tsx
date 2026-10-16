@@ -254,21 +254,24 @@ export function PersonalProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     // Opened offline: /me can't answer, so the account this device last saw stands in (offlineAccount) until it can.
-    const load = () => apiFetch<{ user: AccountUser | null; providers: AuthProviders }>("/api/auth/me")
+    // A reply is for the generation it was asked in: a sign-out or another sign-in meanwhile makes it stale.
+    const load = () => { const asked = generation.current; return apiFetch<{ user: AccountUser | null; providers: AuthProviders }>("/api/auth/me")
       .then((r) => {
+        if (generation.current !== asked) return;
         setProviders(r.providers);
         if (r.user) { connect(r.user); return; }
         cacheAccount(null);
         if (offlineRef.current) { offlineRef.current = false; setOfflineAccount(false); generation.current++; userRef.current = null; setUser(null); setSync("local"); }
       })
       .catch((e: { offline?: boolean }) => {
+        if (generation.current !== asked) return;
         if (offlineRef.current) return; // still offline: keep the cached account
         setProviders((p) => p ?? { email: false, google: false });
         const cached = e?.offline ? cachedAccount() : null;
         if (!cached || userRef.current) return;
         offlineRef.current = true; setOfflineAccount(true);
         userRef.current = cached; setUser(cached); setSync("offline");
-      });
+      }); };
     void load();
     const retry = () => {
       if (offlineRef.current) { void load(); return; } // back online: ask /me again, then sync as usual
@@ -345,6 +348,8 @@ export function PersonalProvider({ children }: { children: ReactNode }) {
       const r = await apiFetch<{ user: AccountUser | null }>("/api/auth/me");
       // A newer refresh already answered (e.g. the one after leaving a workspace): this older reply is stale.
       if (seq < appliedSeq.current) return;
+      // The session ended (signed out elsewhere, or expired): opening offline later mustn't bring this account back.
+      if (generation.current === mine && !r.user) cacheAccount(null);
       // Signed out meanwhile, or another account: that's the next page load's to handle, not this refresh's.
       if (generation.current !== mine || !r.user || r.user.id !== userRef.current?.id) return;
       appliedSeq.current = seq;

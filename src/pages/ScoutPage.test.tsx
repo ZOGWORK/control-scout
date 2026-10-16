@@ -255,6 +255,10 @@ describe("Scout spaces", () => {
     expect(calls).toContain("refreshUser"); // …the account (/api/auth/me)…
     expect(h.generations.at(-1)).toBe(gen + 1); // …and a fresh stream
     expect(resyncs).toContainEqual({ space: "901" }); // open comment threads refetch too
+    // Another space has its own status: Gearheads' "Updated just now" isn't shown for Bolt Bots.
+    fireEvent.click(within(switcher()!).getByRole("button", { name: /Bolt Bots/ }));
+    await waitFor(() => expect(param()).toBe("902"));
+    expect(screen.queryByText("Updated just now")).toBeNull();
     expect(localStorage.getItem("cs-scout-ws-cursor:901")).toBe("7");
   });
 
