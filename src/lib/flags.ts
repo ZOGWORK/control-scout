@@ -6,6 +6,8 @@ import { useSyncExternalStore } from "react";
 import { DEFAULT_FLAGS, type Flag, type FlagSet } from "../shared/flags";
 
 let flags: FlagSet = { ...DEFAULT_FLAGS };
+/** Has the server answered at least once on this page? */
+let confirmed = false;
 const subs = new Set<() => void>();
 const listeners = new Set<(f: FlagSet) => void>();
 
@@ -26,7 +28,10 @@ export async function refreshFlags(): Promise<FlagSet> {
       const body = (await r.json()) as { flags?: Partial<FlagSet> };
       const next = { ...DEFAULT_FLAGS };
       for (const k of Object.keys(next) as Flag[]) if (typeof body.flags?.[k] === "boolean") next[k] = body.flags[k]!;
+      const first = !confirmed;
+      confirmed = true;
       set(next);
+      if (first) for (const f of subs) f();
     }
   } catch { /* offline: keep what we have */ }
   return flags;
@@ -46,6 +51,12 @@ const subscribe = (f: () => void) => { subs.add(f); return () => { subs.delete(f
 /** A flag, re-rendering when it changes. */
 export const useFlag = (name: Flag) => useSyncExternalStore(subscribe, () => flags[name], () => DEFAULT_FLAGS[name]);
 
+/**
+ * A flag that's off until the server says it's on: for features that also need something only the
+ * server knows (photos need R2 configured), so their UI never flashes in and out on a server without it.
+ */
+export const useServerFlag = (name: Flag) => useSyncExternalStore(subscribe, () => confirmed && flags[name], () => false);
+
 let started = false;
 /** Load the flags now and keep them fresh (once per page load). */
 export function startFlags(): void {
@@ -58,4 +69,8 @@ export function startFlags(): void {
 }
 
 /** Tests: back to every flag on. */
-export function resetFlags(next: FlagSet = { ...DEFAULT_FLAGS }): void { set(next); }
+export function resetFlags(next: FlagSet = { ...DEFAULT_FLAGS }, serverAnswered = false): void {
+  confirmed = serverAnswered;
+  set(next);
+  for (const f of subs) f();
+}

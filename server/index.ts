@@ -20,6 +20,7 @@ import { warmTrackRecord } from "./api/accuracy.js";
 import { installShippedPacks, restoreSnapshotIfEmpty } from "./data/snapshot.js";
 import { drainOnSigterm, systemdSocket } from "./listen.js";
 import { closeAllStreams } from "./scout/stream.js";
+import { photoSchedulerTick } from "./scout/photos.js";
 import type { Server } from "node:http";
 
 const log = (m: string) => console.log(`[${new Date().toISOString()}] ${m}`);
@@ -104,6 +105,12 @@ setInterval(async () => {
   // whenever the server happened to start and whatever the regular schedule.
   else if (await backfillDue().catch(() => false)) cycle("backfill");
 }, Math.min(5, eventDayMinutes) * 60_000).unref();
+// Entry photos (docs/r2-photos.md): every 15 min release uploads that never finished; once a day (after
+// 08:00 UTC, one server only) expire photos of events that ended over 2 days ago, total the bucket and
+// check the free-tier guardrails. Nothing without R2 configured; off with the rest of the schedule.
+if (!process.env.CS_NO_SCHEDULER) {
+  setInterval(() => { photoSchedulerTick(log).catch((e) => log(`photos: ${(e as Error).message}`)); }, 15 * 60_000).unref();
+}
 // The live fast lane: events on today, every LIVE_SYNC_SECONDS (60), results within about a minute
 // (server/data/live.ts). It shares a writer lease with the cycle above, so the two never write at once.
 startLiveSync(log);

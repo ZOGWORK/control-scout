@@ -35,6 +35,10 @@ import { registerCache } from "./caches.js";
 import { requestMetrics } from "./metrics.js";
 import { allFlags, isEnabled } from "./flags.js";
 import { ownerRouter } from "./portal/routes.js";
+import { photosRouter } from "./scout/photos.js";
+import { env } from "./env.js";
+import { r2 } from "./scout/r2.js";
+import { fakeR2Router } from "./scout/fakeR2.js";
 import type { EventRefreshResult, ForecastView, MatchExplanationView, Meta } from "../src/shared/api.js";
 
 export class HttpError extends Error { constructor(readonly status: number, message: string) { super(message); } }
@@ -125,6 +129,8 @@ export function createApp() {
   const app = express();
   app.disable("x-powered-by");
   app.set("trust proxy", 1);
+  // Development and tests only (R2_FAKE=1, never in production): a local stand-in for the photo bucket (server/scout/fakeR2.ts).
+  if (env.r2Fake) app.use("/__fake-r2", fakeR2Router());
   // Request counts and latency per route pattern, for the owner portal (server/metrics.ts).
   app.use(requestMetrics());
   // One host, one URL per page: www/alias hosts, trailing slashes and /team/… aliases 301 (server/seo.ts).
@@ -164,7 +170,9 @@ export function createApp() {
   // switch flipped in the owner portal reaches open pages within a minute.
   api.get("/flags", h(async (_req, res) => {
     res.setHeader("Cache-Control", "public, max-age=15");
-    return { flags: await allFlags() };
+    // Photos also need R2 configured on this server: without it the app hides them as if switched off.
+    const flags = await allFlags();
+    return { flags: { ...flags, photos: flags.photos && !!r2() } };
   }));
 
   api.get("/meta", h(async (): Promise<Meta> => {
@@ -403,6 +411,8 @@ export function createApp() {
 
   api.use("/auth", authRouter());
   api.use("/me", meRouter());
+  // Entry photos (docs/r2-photos.md): 404 throughout unless R2 is configured and the photos switch is on.
+  api.use("/scout/photos", photosRouter());
   api.use("/scout", scoutRouter());
   api.use("/scout", templateRouter());
   // The owner portal's switches: with realtime off the stream answers 503 and the app polls instead; with
