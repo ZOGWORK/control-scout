@@ -9,7 +9,14 @@
 // - Newer updatedAt wins, on the server too: an older write never replaces a
 //   newer row. Deletes are tombstones.
 // - Authorship is stamped by the server, never taken from the client: the
-//   first writer is the author; every accepted write records its editor.
+//   first writer is the author (it never changes after); every accepted write
+//   records its editor.
+// - Permissions (docs/workspaces.md), checked in the upsert itself so the
+//   check and the write can't be split by another write: any member creates
+//   and edits; deleting, and editing an entry that's already deleted
+//   (bringing it back), is for its author or a workspace admin. A refused
+//   write is reported per entry ("forbidden", with the server's copy), never
+//   stored and never published.
 // - The workspace mirror row is created by the first entry written, not before.
 // - Pull is by cursor: `seq`, the server's per-workspace write order, not the
 //   writers' clocks (an entry synced late with an old updatedAt would slip
@@ -68,6 +75,59 @@ export async function workspaceAccess(user: User, workspaceId: string): Promise<
   return { ok: true, membership };
 }
 
+/** Roles come from Control Point (workspace_members, refreshed from it); Scout has none of its own. */
+export type WorkspaceRole = Membership["role"];
+
+/**
+ * May this writer put this version over the stored one? (null stored: a new
+ * entry, always allowed; that includes a tombstone for an entry created and
+ * deleted on a device before it ever synced: it's the writer's own.) The same
+ * rule as the upsert's WHERE, for the client and for explaining a refusal.
+ */
+export function mayWrite(role: WorkspaceRole, writerAccountId: number, stored: { authorAccountId: number; deleted: boolean } | null, deleting: boolean): boolean {
+  if (!stored || role === "admin" || stored.authorAccountId === writerAccountId) return true;
+  return !deleting && !stored.deleted; // a member edits anyone's live entry; deleting it, or reviving a deleted one, is the author's or an admin's
+}
+
+export const FORBIDDEN = "forbidden";
+
+export const ADMIN_ONLY = "Only workspace admins can change this. Roles are managed in Control Point.";
+
+/**
+ * Workspace admins only (templates, workspace settings: Tasks 5 and 6). Same
+ * membership check as workspaceAccess, then the role Control Point gave: a
+ * member gets 403. A promotion in Control Point counts from the next
+ * membership refresh (sign-in, /me, or within MEMBERSHIP_TTL).
+ */
+export async function workspaceAdminAccess(user: User, workspaceId: string): Promise<Access> {
+  const access = await workspaceAccess(user, workspaceId);
+  if (access.ok && access.membership.role !== "admin") return { ok: false, status: 403, error: ADMIN_ONLY };
+  return access;
+}
+
+/**
+ * Express guard for admin-only workspace routes: the workspace id from
+ * `req.params.workspaceId`, else the query, else the body. 401 signed out,
+ * 503 while workspace scouting is paused, 400 bad id, 403 not a member or not an admin; otherwise the membership is
+ * on `res.locals.membership` for the handler.
+ */
+export function requireWorkspaceAdmin() {
+  return (req: Request, res: Response, next: NextFunction) => {
+    (async () => {
+      const user = await currentUser(req);
+      if (!user) { res.status(401).json({ error: "Sign in first." }); return; }
+      if (await workspacePaused(res)) return; // workspace scouting switched off in the owner portal: 503
+      const workspaceId = req.params?.workspaceId ?? req.query?.workspaceId ?? req.body?.workspaceId;
+      if (!isWorkspaceId(workspaceId)) { res.status(400).json({ error: "workspaceId required" }); return; }
+      const access = await workspaceAdminAccess(user, workspaceId);
+      if (!access.ok) { res.status(access.status).json({ error: access.error }); return; }
+      res.locals.user = user;
+      res.locals.membership = access.membership;
+      next();
+    })().catch(next);
+  };
+}
+
 const UPSERT = `INSERT INTO workspace_scout_entries
     (workspace_id, uuid, season, team, event_code, match_label, kind, data, notes, updated_at, deleted, author_account_id, author_name, editor_account_id, editor_name, seq)
   VALUES ((SELECT id FROM workspaces WHERE cp_workspace_id = ?), ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
@@ -76,8 +136,11 @@ const UPSERT = `INSERT INTO workspace_scout_entries
     season = excluded.season, team = excluded.team, event_code = excluded.event_code, match_label = excluded.match_label, kind = excluded.kind,
     data = excluded.data, notes = excluded.notes, updated_at = excluded.updated_at, deleted = excluded.deleted,
     editor_account_id = excluded.editor_account_id, editor_name = excluded.editor_name, seq = excluded.seq
-  WHERE excluded.updated_at > workspace_scout_entries.updated_at`;
+  WHERE excluded.updated_at > workspace_scout_entries.updated_at
+    AND (? = 1 OR workspace_scout_entries.author_account_id = excluded.editor_account_id
+      OR (excluded.deleted = 0 AND workspace_scout_entries.deleted = 0))`; // mayWrite, in the same statement as the write
 
+/** Per entry. ok: the stored copy (ours, or a newer edit that beat it). error "forbidden": refused by mayWrite; `entry` is the server's copy for the device to put back. */
 export interface PushResult { uuid: string; ok: boolean; error?: string; entry?: WorkspaceEntryOut }
 
 /**
@@ -94,6 +157,9 @@ export async function pushWorkspaceEntries(user: User, m: Membership, raw: unkno
     const space = (x as { workspaceId?: unknown } | null)?.workspaceId;
     if (!e) { results.push({ uuid: String((x as any)?.uuid ?? ""), ok: false, error: "invalid entry" }); continue; }
     if (space !== undefined && space !== m.workspaceId) { results.push({ uuid: e.uuid, ok: false, error: "wrong space" }); continue; }
+    // One version per entry per push (a device sends each queued entry once): a second one would make
+    // the per-entry result ambiguous (which version was refused?), so it's refused itself.
+    if (good.some((x) => x.uuid === e.uuid)) { results.push({ uuid: e.uuid, ok: false, error: "duplicate entry" }); continue; }
     good.push(e);
     results.push({ uuid: e.uuid, ok: true });
   }
@@ -106,7 +172,14 @@ export async function pushWorkspaceEntries(user: User, m: Membership, raw: unkno
     publishEntries(m.workspaceId, [...rows.values()].filter((e) => e.seq > before).sort((a, b) => a.seq - b.seq));
     return rows;
   });
-  for (const r of results) if (r.ok) { const e = stored.get(r.uuid); r.entry = e && withoutSeq(e); }
+  const sent = new Map(good.map((e) => [e.uuid, e]));
+  for (const r of results) {
+    if (!r.ok) continue;
+    const e = stored.get(r.uuid);
+    r.entry = e && withoutSeq(e);
+    // Newer than the stored copy, yet not written: only the permission check refuses that.
+    if (e && e.updatedAt < sent.get(r.uuid)!.updatedAt) { r.ok = false; r.error = FORBIDDEN; }
+  }
   return results;
 }
 
@@ -121,7 +194,7 @@ async function writeWorkspaceEntries(user: User, m: Membership, good: ScoutEntry
     ...good.map((e) => ({
       sql: UPSERT,
       args: [m.workspaceId, e.uuid, e.season, e.team, e.eventCode, e.matchLabel, e.kind, JSON.stringify(e.data), e.notes, e.updatedAt, e.deleted ? 1 : 0,
-        m.accountId, name, m.accountId, name, m.workspaceId],
+        m.accountId, name, m.accountId, name, m.workspaceId, m.role === "admin" ? 1 : 0],
     })),
   ]);
   const uuids = good.map((e) => e.uuid);

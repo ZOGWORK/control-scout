@@ -139,7 +139,7 @@ export async function provenEmailFor(user: User): Promise<string | null> {
 }
 
 /** What a signed-in user sees about their Control Point side: membership, teams and workspaces. */
-export interface ControlPointInfo { member: boolean; teams: { teamNumber: number | null; name: string }[]; shortlist: number[]; workspaces: Workspace[]; url: string }
+export interface ControlPointInfo { /** The shared account's id: what workspace entries record as author/editor, so the app can tell which are yours. */ accountId: number; member: boolean; teams: { teamNumber: number | null; name: string }[]; shortlist: number[]; workspaces: Workspace[]; url: string }
 
 type Info = SharedAccount["controlPoint"] & { workspaces: Workspace[] };
 const infoCache = new Map<number, { at: number; info: Info }>();
@@ -178,7 +178,7 @@ export function validWorkspaces(raw: unknown): Workspace[] {
   return [...out.values()];
 }
 
-const toInfo = (cp: Info): ControlPointInfo => ({ member: cp.member, teams: cp.teams, shortlist: cp.shortlist ?? [], workspaces: cp.workspaces, url: env.controlPointPublicUrl!.replace(/\/$/, "") });
+const toInfo = (accountId: number, cp: Info): ControlPointInfo => ({ accountId, member: cp.member, teams: cp.teams, shortlist: cp.shortlist ?? [], workspaces: cp.workspaces, url: env.controlPointPublicUrl!.replace(/\/$/, "") });
 
 /**
  * Remember an account's Control Point side (from resolve, redeem or a read), so
@@ -206,13 +206,13 @@ export const clearInfoCache = () => { infoCache.clear(); lastForced.clear(); };
 export async function controlPointInfo(accountId: number): Promise<ControlPointInfo | null> {
   try {
     const hit = infoCache.get(accountId);
-    if (hit && Date.now() - hit.at < INFO_TTL) return toInfo(hit.info);
+    if (hit && Date.now() - hit.at < INFO_TTL) return toInfo(accountId, hit.info);
     infoCache.delete(accountId);
     const a = await getAccount(accountId);
     if (!a) { await storeMemberships(accountId, []); return null; } // gone from Control Point: no workspaces
     await rememberInfo(a);
     const info = infoCache.get(accountId)?.info;
-    return info ? toInfo(info) : null;
+    return info ? toInfo(accountId, info) : null;
   } catch (e) { logFailure("account", e); return null; }
 }
 
