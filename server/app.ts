@@ -48,6 +48,7 @@ import { requestMetrics } from "./metrics.js";
 import { allFlags, isEnabled } from "./flags.js";
 import { ownerRouter } from "./portal/routes.js";
 import { photosRouter } from "./scout/photos.js";
+import { MATCH_KEY, ShareError, cachedCard, cardKey, matchCard } from "./share/match.js";
 import { env } from "./env.js";
 import { r2 } from "./scout/r2.js";
 import { fakeR2Router } from "./scout/fakeR2.js";
@@ -397,6 +398,40 @@ export function createApp() {
     };
   }));
 
+  // --- Share cards (server/share) ------------------------------------------
+
+  /** A matchup's prediction as a PNG: 1200×630 (link previews) or ?format=square 1080×1080. */
+  const shareLimit = limiter(30);
+  api.get("/share/match.png", h(async (req, res) => {
+    const s = predictSeason(req.query.season);
+    const red = teamList(req.query.red, "red", 3), blue = teamList(req.query.blue, "blue", 3);
+    if (red.some((t) => blue.includes(t))) throw bad("a team can't be on both alliances");
+    const event = req.query.event != null && req.query.event !== "" ? code(req.query.event) : undefined;
+    const match = req.query.match != null && req.query.match !== "" ? String(req.query.match) : undefined;
+    if (match && !event) throw bad("match needs its event");
+    if (match && !MATCH_KEY.test(match)) throw bad("match must be a match key like qual:1:12");
+    const format = req.query.format ?? "landscape";
+    if (format !== "landscape" && format !== "square") throw bad("format must be landscape or square");
+    const q = { season: s, red, blue, event, match, format } as const;
+    const key = await cardKey(q);
+    // Only drawing a new card counts against the rate limit: a cached one costs nothing to send.
+    if (!cachedCard(key)) {
+      const allowed = await new Promise<boolean>((resolve) => { shareLimit(req, res, () => resolve(true)); if (res.headersSent) resolve(false); });
+      if (!allowed) return undefined;
+    }
+    let card;
+    try { card = await matchCard(key, q); } catch (e) {
+      if (e instanceof ShareError) throw new HttpError(e.status, e.message);
+      throw e;
+    }
+    // Same address, same data → same bytes: cache for a day, then revalidate by ETag (it moves on with the data).
+    res.setHeader("Cache-Control", "public, max-age=86400, stale-while-revalidate=604800");
+    res.setHeader("ETag", card.etag);
+    if (req.fresh) { res.status(304).end(); return undefined; }
+    res.type("png").send(card.png);
+    return undefined;
+  }));
+
   api.get("/predict/upcoming", h(async (req) => {
     const s = predictSeason(req.query.season);
     const days = Math.min(14, Number(req.query.days) || 7);
@@ -504,6 +539,7 @@ export function createApp() {
     // app's HTML, so the visitor sees the app's own not-found page (and search engines drop the URL).
     app.get(/^(?!\/api\/|\/packs\/).*/, h(async (req, res) => {
       res.setHeader("Cache-Control", "no-cache");
+      // The query names the page's view: rankings filters, a shared matchup (its card is the link preview).
       const page = await renderPage(join(dist, "index.html"), req.path, req.query as Record<string, unknown>);
       res.status(page.status).type("html").send(page.html);
     }));
