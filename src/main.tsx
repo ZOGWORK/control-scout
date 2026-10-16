@@ -13,6 +13,7 @@ import { LoadingBlock } from "./components/states";
 import { CanonicalSync, MetaProvider } from "./lib/meta";
 import { AlertsRunner } from "./lib/alerts";
 import { LitePackSync } from "./lib/packSync";
+import { ScoutQueueSync } from "./lib/scoutSpace";
 import { ConsentBanner } from "./components/layout/ConsentBanner";
 import { PageViews } from "./lib/analytics";
 import { installErrorReporting, setReportingPaused } from "./lib/errorReporting";
@@ -115,6 +116,7 @@ void ready.catch(() => { /* a failed load is retried (and shown) by the page's o
             <ErrorReportPrompt />
             <AlertsRunner />
             <LitePackSync />
+            <ScoutQueueSync />
             <CanonicalSync />
             <ConsentBanner />
             <PageViews />

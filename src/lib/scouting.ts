@@ -245,6 +245,33 @@ export function pendingScoutCounts(): { personal: number; workspaces: Record<str
   return { personal: dirty(null).size, workspaces: Object.fromEntries(localSpaces().map((w) => [w, dirty(w).size]).filter(([, n]) => n)) };
 }
 
+export type PendingScoutCounts = ReturnType<typeof pendingScoutCounts>;
+const samePending = (a: PendingScoutCounts, b: PendingScoutCounts) => a.personal === b.personal
+  && Object.keys(a.workspaces).length === Object.keys(b.workspaces).length && Object.entries(a.workspaces).every(([w, n]) => b.workspaces[w] === n);
+
+/** pendingScoutCounts(), kept current as entries are saved and synced (in this tab or another). */
+export function usePendingScoutCounts(): PendingScoutCounts {
+  const [counts, setCounts] = useState(pendingScoutCounts);
+  useEffect(() => {
+    const refresh = () => { const next = pendingScoutCounts(); setCounts((cur) => (samePending(cur, next) ? cur : next)); };
+    refresh();
+    window.addEventListener(EVT, refresh);
+    window.addEventListener("storage", refresh);
+    return () => { window.removeEventListener(EVT, refresh); window.removeEventListener("storage", refresh); };
+  }, []);
+  return counts;
+}
+
+/**
+ * Push every queue with something in it: Personal and the given workspaces (the account's, so a
+ * space it has left isn't retried). A failure stays queued for the next try.
+ */
+export async function syncQueuedScouting(workspaces: string[]): Promise<void> {
+  const p = pendingScoutCounts();
+  const spaces: ScoutSpace[] = [...(p.personal ? [null] : []), ...workspaces.filter((w) => p.workspaces[w])];
+  await Promise.all(spaces.map((s) => syncScouting(s).catch(() => undefined)));
+}
+
 interface SpaceExport { entries: ScoutEntry[]; dirty: string[]; cursor?: number }
 /** Everything scouting-related on this device, including what hasn't synced yet. `spaces`: the workspaces' cached entries and queues. */
 export function exportLocalScouting(): SpaceExport & { spaces?: Record<string, SpaceExport> } {
@@ -312,7 +339,19 @@ export function applyLiveEntries(space: string, list: { entry: ScoutEntry; seq: 
  * (with the authorship it stamped, or a newer edit from someone else), which
  * replaces the device's copy unless that changed meanwhile.
  */
-export async function syncScouting(space: ScoutSpace = null): Promise<{ sent: number }> {
+export function syncScouting(space: ScoutSpace = null): Promise<{ sent: number }> {
+  // One push per space at a time: a second call (a reconnect heard by the page and by the
+  // background sync at once) waits for the first, then sends only what's still queued.
+  const key = space ?? "";
+  const run = (pushing.get(key) ?? Promise.resolve()).then(() => pushQueued(space));
+  const settled = run.catch(() => undefined);
+  pushing.set(key, settled);
+  void settled.then(() => { if (pushing.get(key) === settled) pushing.delete(key); });
+  return run;
+}
+const pushing = new Map<string, Promise<unknown>>();
+
+async function pushQueued(space: ScoutSpace): Promise<{ sent: number }> {
   const d = dirty(space);
   if (!d.size) return { sent: 0 };
   const queued = [...d].map((u) => readEntry(space, u)).filter((x): x is ScoutEntry => !!x);

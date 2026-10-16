@@ -3,10 +3,13 @@
 // your account when signed in and online.
 import { useEffect, useId, useMemo, useRef, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
-import { ClipboardList, Cloud, CloudOff, Loader2, Minus, Plus, Save, Trash2 } from "lucide-react";
+import { ClipboardList, Cloud, CloudOff, Info, Loader2, Minus, Plus, Save, Trash2, X } from "lucide-react";
 import { useCurrentSeason, useTitle } from "../lib/meta";
 import { usePersonal } from "../lib/personal";
-import { canDeleteScoutEntry, deleteScoutEntry, newScoutId, refusalMessage, SCOUT_REFUSED, type ScoutRefusal, saveScoutEntry, ScoutStorageError, templateFor, useScouting, type ScoutEntry, type ScoutField, type ScoutSpace, type ScoutValue } from "../lib/scouting";
+import { canDeleteScoutEntry, deleteScoutEntry, newScoutId, refusalMessage, SCOUT_REFUSED, type ScoutRefusal, saveScoutEntry, ScoutStorageError, templateFor, usePendingScoutCounts, useScouting, type ScoutEntry, type ScoutField, type ScoutSpace, type ScoutValue } from "../lib/scouting";
+import { useScoutSpaces, workspaceLabel } from "../lib/scoutSpace";
+import { ScoutSpaceSwitcher } from "../components/ScoutSpaceSwitcher";
+import { LoadingBlock } from "../components/states";
 import { useScoutLive, type LiveMode } from "../lib/scoutLive";
 import { EntryAttribution } from "../components/EntryAttribution";
 import { EntryPhotos } from "../components/scout/EntryPhotos";
@@ -28,13 +31,20 @@ export default function ScoutPage() {
   const season = Number(sp.get("season")) || current;
   const teamFilter = Number(sp.get("team")) || undefined;
   const { user, syncReady } = usePersonal();
-  const space = devSpace(sp);
+  const spaces = useScoutSpaces();
+  const { space, current: workspace } = spaces;
   const { entries, status, pendingCount, syncNow } = useScouting({ season, team: teamFilter }, syncReady, space);
   const live = useScoutLive(space, syncReady);
+  const pending = usePendingScoutCounts();
+  // The server ended this workspace's stream: access is gone, so back to Personal (with a notice).
+  const { revoke } = spaces;
+  useEffect(() => { if (live === "revoked" && space != null) revoke(space); }, [live, space, revoke]);
   const editing = sp.get("entry");
   const editEntry = entries.find((e) => e.uuid === editing) ?? null;
   const [formOpen, setFormOpen] = useState(!!teamFilter || !!editing);
   useEffect(() => { if (editing) setFormOpen(true); }, [editing]);
+  // Another space's entry can't be edited here: switching closes an edit (a new entry stays open and saves to the new space).
+  const selectSpace = (s: ScoutSpace) => { if (editing) setFormOpen(!!teamFilter); spaces.select(s); };
   // Your account and role in this workspace (Control Point's), for which entries you may delete. The server enforces it.
   const me = useMemo(() => {
     const cp = user?.controlPoint;
@@ -48,21 +58,29 @@ export default function ScoutPage() {
   return (
     <div>
       <PageHeader title="Scout"
-        description={space == null ? "Your own observations — private to you. Saved on this device instantly; synced to your account when you're signed in."
-          : "Shared with your workspace. Saved on this device instantly; everyone in the workspace sees new entries as they sync."}
-        actions={<SyncChip status={status} pending={pendingCount} onSync={syncNow} signedIn={!!user} live={live} />}>
+        description={workspace ? `Shared with everyone in ${workspaceLabel(workspace)}. Saved on this device instantly; the workspace sees new entries as they sync.`
+          : "Your own observations — private to you. Saved on this device instantly; synced to your account when you're signed in."}
+        actions={spaces.resolving ? undefined : <SyncChip status={status} pending={pendingCount} onSync={syncNow} signedIn={!!user} live={live} />}>
+        {spaces.switchable && <ScoutSpaceSwitcher workspaces={spaces.workspaces} space={space} pending={pending} onSelect={selectSpace} className="mb-4" />}
+        {spaces.notice && (
+          <div role="status" className="mb-4 flex items-start gap-3 rounded-xl border border-warning/40 bg-warning/10 px-4 py-3 text-sm">
+            <Info className="mt-0.5 size-4 shrink-0 text-warning" />
+            <p className="min-w-0 flex-1">{spaces.notice}</p>
+            <button type="button" onClick={spaces.dismissNotice} aria-label="Dismiss" className="-m-2 grid size-9 shrink-0 place-items-center rounded-lg text-muted-foreground hover:text-foreground"><X className="size-4" /></button>
+          </div>
+        )}
         <div className="flex flex-wrap items-center gap-3">
           <SeasonToggle predictOnly value={season} onChange={(s) => setSp((x) => { x.set("season", String(s)); return x; })} />
           {teamFilter && <Badge variant="soft">Team {teamFilter} <button onClick={() => setSp((x) => { x.delete("team"); return x; })} aria-label="Clear team filter" className="ml-1">×</button></Badge>}
           {!formOpen && <Button onClick={() => setFormOpen(true)}><Plus /> New entry</Button>}
         </div>
       </PageHeader>
-      {formOpen && (
-        <EntryForm key={editEntry?.uuid ?? `new-${teamFilter ?? ""}`} season={season} initial={editEntry} team={teamFilter} space={space}
+      {formOpen && !spaces.resolving && (
+        <EntryForm key={editEntry?.uuid ?? `new-${teamFilter ?? ""}`} season={season} initial={editEntry} team={teamFilter} space={space} spaceName={workspace ? workspaceLabel(workspace) : null}
           onDone={() => { setFormOpen(false); setSp((x) => { x.delete("entry"); return x; }); }} />
       )}
       <Section title={`Entries (${entries.length})`} description={teamFilter ? `For team ${teamFilter}` : "Newest first"}>
-        {!entries.length ? <EmptyState icon={ClipboardList} title="No scouting entries yet" description="Start one above, or from any team page. Entries save on this device first, so scouting works with no signal." /> : (
+        {spaces.resolving ? <LoadingBlock rows={3} label="Loading scout space" /> : !entries.length ? <EmptyState icon={ClipboardList} title="No scouting entries yet" description="Start one above, or from any team page. Entries save on this device first, so scouting works with no signal." /> : (
           <ul className="grid gap-2 md:grid-cols-2">
             {entries.map((e) => <EntryCard key={e.uuid} e={e} canDelete={canDeleteScoutEntry(e, me)} onEdit={() => setSp((x) => { x.set("entry", e.uuid); return x; })} />)}
           </ul>
@@ -75,23 +93,13 @@ export default function ScoutPage() {
   );
 }
 
-/**
- * Which space the page shows. Until the space switcher (Task 4) lands, a workspace is reachable
- * only in development, with ?space=<Control Point workspace id>; production always shows Personal.
- */
-function devSpace(sp: URLSearchParams): ScoutSpace {
-  if (!import.meta.env.DEV) return null;
-  const w = sp.get("space");
-  return w && /^[A-Za-z0-9_-]{1,64}$/.test(w) ? w : null;
-}
-
 function SyncChip({ status, pending, onSync, signedIn, live }: { status: string; pending: number; onSync: () => void; signedIn: boolean; live: LiveMode }) {
   if (!signedIn) return <Badge variant="secondary"><CloudOff /> On this device only</Badge>;
   const synced = status !== "syncing" && status !== "offline" && status !== "error" && !pending;
   return (
     <button onClick={onSync} className="inline-flex items-center gap-1.5 rounded-lg border border-border px-2.5 py-1.5 text-xs text-muted-foreground hover:text-foreground">
       {status === "syncing" ? <Loader2 className="size-3.5 animate-spin" /> : status === "offline" || status === "error" ? <CloudOff className="size-3.5 text-warning" /> : <Cloud className="size-3.5 text-success" />}
-      {status === "syncing" ? "Syncing…" : status === "offline" ? `Offline — ${pending} waiting` : status === "error" ? `Sync failed — ${pending} waiting · retry` : pending ? `${pending} waiting` : "Synced"}
+      {status === "syncing" ? "Syncing…" : status === "offline" ? `Offline — ${pending} pending` : status === "error" ? `Sync failed — ${pending} pending · retry` : pending ? `${pending} pending` : "Synced"}
       {synced && live === "live" && <span className="inline-flex items-center gap-1 text-success"><span aria-hidden className="size-1.5 rounded-full bg-success" />Live</span>}
       {synced && live === "polling" && <span>· checks every 15 s</span>}
     </button>
@@ -125,7 +133,7 @@ function EntryCard({ e, canDelete, onEdit }: { e: ScoutEntry; canDelete: boolean
   );
 }
 
-function EntryForm({ season, initial, team, space, onDone }: { season: number; initial: ScoutEntry | null; team?: number; space: ScoutSpace; onDone: () => void }) {
+function EntryForm({ season, initial, team, space, spaceName, onDone }: { season: number; initial: ScoutEntry | null; team?: number; space: ScoutSpace; spaceName: string | null; onDone: () => void }) {
   const [kind, setKind] = useState<"match" | "pit">(initial?.kind ?? "match");
   const [teamText, setTeamText] = useState(initial ? String(initial.team) : team ? String(team) : "");
   const [eventCode, setEventCode] = useState(initial?.eventCode ?? "");
@@ -143,8 +151,8 @@ function EntryForm({ season, initial, team, space, onDone }: { season: number; i
   const saveErrId = useId();
   // The team check awaits a lookup: by then the form may be cancelled (closed) or still being
   // edited. A closed form saves nothing; an open one saves what it holds now, if the team is unchanged.
-  const latest = useRef({ kind, teamText, eventCode, matchLabel, data, notes });
-  latest.current = { kind, teamText, eventCode, matchLabel, data, notes };
+  const latest = useRef({ kind, teamText, eventCode, matchLabel, data, notes, space });
+  latest.current = { kind, teamText, eventCode, matchLabel, data, notes, space };
   const open = useRef(true);
   useEffect(() => { open.current = true; return () => { open.current = false; }; }, []);
   const save = async () => {
@@ -155,6 +163,7 @@ function EntryForm({ season, initial, team, space, onDone }: { season: number; i
     if (!open.current) return;
     setChecking(false);
     if (latest.current.teamText !== team) return; // edited while checking: the next Save checks the new number
+    if (latest.current.space !== space) return; // switched spaces while checking: the next Save goes to the space now shown
     if (err) { setTeamErr(err); teamRef.current?.focus(); return; }
     const { kind, eventCode, matchLabel, data, notes } = latest.current;
     try {
@@ -196,7 +205,7 @@ function EntryForm({ season, initial, team, space, onDone }: { season: number; i
       <div className="mt-5 flex flex-wrap gap-2">
         <Button ref={saveRef} type="submit" disabled={checking} aria-describedby={saveErr ? saveErrId : undefined}><Save /> Save</Button>
         <Button type="button" variant="ghost" onClick={onDone}>Cancel</Button>
-        <p className="ml-auto self-center text-xs text-muted-foreground">Saved on this device first — works without a connection.</p>
+        <p className="ml-auto self-center text-xs text-muted-foreground">{spaceName ? <>Saves to <span className="font-medium text-foreground">{spaceName}</span>, shared with the workspace. </> : null}Saved on this device first — works without a connection.</p>
       </div>
       <FieldError id={saveErrId}>{saveErr}</FieldError>
     </form>
