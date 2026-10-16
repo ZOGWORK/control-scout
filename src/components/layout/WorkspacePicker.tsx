@@ -55,7 +55,7 @@ export function WorkspacePickerPopover({ workspaces, open, onOpenChange, childre
   return (
     <Popover open={open} onOpenChange={onOpenChange}>
       <PopoverTrigger asChild>{children}</PopoverTrigger>
-      <PopoverContent side="right" align="start" className="w-80 p-3">
+      <PopoverContent side="right" align="start" collisionPadding={8} className="max-h-[var(--radix-popover-content-available-height)] w-80 overflow-y-auto p-3">
         <p className="px-1 font-display text-base font-semibold">{TITLE}</p>
         <p className="mb-2 px-1 text-xs text-text-muted">{DESCRIPTION}</p>
         <WorkspaceList workspaces={workspaces} onChoose={() => onOpenChange(false)} />

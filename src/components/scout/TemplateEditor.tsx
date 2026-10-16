@@ -76,7 +76,17 @@ export function TemplateEditor({ workspaceId, workspaceName, season, template, o
     const a = [...fs]; [a[i], a[j]] = [a[j], a[i]]; return a;
   });
   const update = (id: string, patch: Partial<ScoutField>) => setFields((fs) => fs.map((f) => (f.id === id ? tidy({ ...f, ...patch }) : f)));
-  const remove = (f: ScoutField) => { setFields((fs) => fs.filter((x) => x.id !== f.id)); if (editing === f.id) setEditing(null); toast(`Removed “${f.label}”`, { action: { label: "Undo", onClick: () => setFields((fs) => (fs.some((x) => x.id === f.id) ? fs : [...fs, f])) } }); };
+  const remove = (f: ScoutField) => {
+    const at = fields.findIndex((x) => x.id === f.id);
+    const from = kind;
+    setFields((fs) => fs.filter((x) => x.id !== f.id));
+    if (editing === f.id) setEditing(null);
+    // Undo puts it back where it was (in the kind it came from).
+    toast(`Removed “${f.label}”`, { action: { label: "Undo", onClick: () => setDraft((d) => {
+      if (d[from].some((x) => x.id === f.id)) return d;
+      const a = [...d[from]]; a.splice(Math.min(at, a.length), 0, f); return { ...d, [from]: a };
+    }) } });
+  };
   const add = (type: FieldType, phase: FieldPhase) => {
     const f = blankField(type, phase, KINDS.flatMap((k) => draft[k].map((x) => x.id)));
     setFields((fs) => {
@@ -143,7 +153,7 @@ export function TemplateEditor({ workspaceId, workspaceName, season, template, o
       </div>
 
       {mode === "preview" ? <Preview kind={kind} fields={fields} /> : (
-        <div className="mt-4 space-y-4">
+        <fieldset disabled={busy} className="mt-4 min-w-0 space-y-4 disabled:opacity-70">
           {phasesFor(kind).map((ph) => {
             const list = fields.filter((f) => f.phase === ph);
             return (
@@ -182,7 +192,7 @@ export function TemplateEditor({ workspaceId, workspaceName, season, template, o
               </fieldset>
             );
           })}
-        </div>
+        </fieldset>
       )}
 
       <div className="mt-5 flex flex-wrap items-center gap-2">
@@ -288,7 +298,8 @@ function OptionsEditor({ id, options, onChange }: { id: string; options: string[
 
 function Preview({ kind, fields }: { kind: TemplateKind; fields: ScoutField[] }) {
   const [data, setData] = useState<Record<string, ScoutValue>>({});
-  const usable = fields.filter((f) => !fieldProblem(f, kind));
+  // Exactly what will be saved (trimmed, clamped, repeated options merged), so the preview matches members' form.
+  const usable = fields.flatMap((f) => { const r = cleanField(f, kind); return "field" in r ? [r.field] : []; });
   return (
     <div className="mt-4">
       <p className="mb-3 text-xs text-muted-foreground">What members see in a new {kind} entry. Try the controls; nothing is saved.</p>

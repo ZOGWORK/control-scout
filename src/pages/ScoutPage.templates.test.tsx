@@ -157,6 +157,48 @@ describe("workspace templates on the Scout page", () => {
     expect(screen.queryByRole("heading", { name: /Scout template/ })).toBeNull();
   });
 
+  it("an edit whose own template version can't be loaded keeps its answers and its template reference", async () => {
+    saveScoutEntry({ uuid: "madewithv1cc", season: 2025, team: 2224, eventCode: null, matchLabel: "Q3", kind: "match", data: { cones: 4 }, notes: "", workspaceId: WS, templateId: `ws:${WS}:2025:match`, templateVersion: 1 });
+    current = tpl(2, v2Fields);
+    versions = {}; // version 1 can't be fetched (e.g. offline)
+    show(`/scout?season=2025&space=${WS}&entry=madewithv1cc`);
+    expect(await screen.findByText(/earlier version of the workspace's fields/)).toBeTruthy();
+    expect(screen.queryByText("Climbed the bar")).toBeNull(); // no field edits against the stand-in
+    fireEvent.change(screen.getByLabelText("Notes"), { target: { value: "notes only" } });
+    fireEvent.click(screen.getByRole("button", { name: "Save" }));
+    await waitFor(() => expect(localScoutEntries(WS).find((e) => e.uuid === "madewithv1cc")!.notes).toBe("notes only"));
+    expect(localScoutEntries(WS).find((e) => e.uuid === "madewithv1cc")).toMatchObject({ templateId: `ws:${WS}:2025:match`, templateVersion: 1, data: { cones: 4 } });
+  });
+
+  it("a workspace template never seen on this device: the new form waits for it (no saving built-in answers by accident)", async () => {
+    let answer: (r: Response) => void = () => {};
+    vi.stubGlobal("fetch", vi.fn(() => new Promise<Response>((r) => { answer = r; })));
+    show();
+    await newEntry();
+    expect(screen.getByRole("status", { name: /Loading the workspace's fields/ })).toBeTruthy();
+    expect((screen.getByRole("button", { name: "Save" }) as HTMLButtonElement).disabled).toBe(true);
+    await act(async () => { answer(new Response(JSON.stringify({ template: current }), { status: 200 })); });
+    expect(await screen.findByText("Cones stacked")).toBeTruthy();
+    expect((screen.getByRole("button", { name: "Save" }) as HTMLButtonElement).disabled).toBe(false);
+  });
+
+  it("opening a form checks for a newer template (a missed live notice doesn't leave old fields)", async () => {
+    show();
+    await waitFor(() => expect(fetched.filter((u) => u.includes("/template")).length).toBeGreaterThan(0));
+    current = tpl(2, v2Fields); // changed meanwhile, no notice
+    await newEntry();
+    expect(await screen.findByText("Climbed the bar")).toBeTruthy();
+  });
+
+  it("an untouched counter with a lowest value saves that value", async () => {
+    current = tpl(1, [{ id: "laps", label: "Laps", type: "counter", phase: "teleop", min: 2, max: 9 }]);
+    show();
+    await newEntry("6666");
+    expect(await screen.findByText("Laps")).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Save" }));
+    await waitFor(() => expect(localScoutEntries(WS).find((e) => e.team === 6666)?.data).toEqual({ laps: 2 }));
+  });
+
   it("the built-in template is unchanged by all this (Personal's defaults)", () => {
     expect(templateFor(2025, "match")).toMatchObject({ id: "match-2025", version: 0 });
     expect(templateFor(2025, "pit")).toMatchObject({ id: "pit", version: 0 });
