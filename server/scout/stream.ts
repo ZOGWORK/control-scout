@@ -18,7 +18,10 @@
 //   event: resync            too far behind to stream the catch-up: the server
 //                            ends the stream; pull with GET /api/scout/sync,
 //                            then reconnect. data {"cursor": n}
-//   event: membership_revoked  the member lost access; the stream ends
+//   event: membership_revoked  the member lost access; the stream ends. Sent at once when an admin
+//                            removes them (Settings → Workspace → Members) or a membership refresh finds
+//                            the workspace gone from Control Point's answer (bus.ts publishRevoked); else
+//                            by the periodic re-check (LIMITS.recheckMs).
 //   event: template          an admin changed the workspace's template; no id (it isn't an entry,
 //                            so it never moves the cursor). data {"season", "version", "settingsVersion"}:
 //                            refetch GET /api/scout/workspaces/:id/template. Sent once live (one during the catch-up comes after `ready`).
@@ -36,7 +39,7 @@
 import express, { type Request, type Response, type Router } from "express";
 import { isWorkspaceId } from "../auth/controlPoint.js";
 import { currentUser } from "../auth/session.js";
-import { subscribe, subscribeActivity, subscribeSettings, subscribeTemplate, type ActivityNotice, type LiveEntry, type SettingsNotice, type TemplateNotice } from "./bus.js";
+import { subscribe, subscribeActivity, subscribeRevoked, subscribeSettings, subscribeTemplate, type ActivityNotice, type LiveEntry, type SettingsNotice, type TemplateNotice } from "./bus.js";
 import { openLiveConnection } from "../liveConnections.js";
 import { pullWorkspaceLive, workspaceAccess, type WorkspaceEntryOut } from "./entries.js";
 
@@ -162,6 +165,12 @@ data: ${JSON.stringify(a)}
     if (live) sendActivity(a);
     else if (heldActivity.push(a) > LIMITS.maxHeld) end();
   });
+  // Removed from the workspace (bus.ts publishRevoked): end now, not at the next re-check.
+  const unsubscribeRevoked = subscribeRevoked(workspaceId, (accountId) => {
+    if (accountId !== access.membership.accountId || closed) return;
+    write("event: membership_revoked\ndata: {}\n\n");
+    end();
+  });
   const stream: Stream = { userId: user.id, workspaceId, end: (closeSocket) => { end(); if (closeSocket) res.socket?.end(); } };
   streams.add(stream);
   // Counted for the owner portal's Usage panel (live connections), released in end().
@@ -182,7 +191,7 @@ data: ${JSON.stringify(a)}
     if (closed) return;
     closed = true;
     clearInterval(heartbeat); clearInterval(recheck);
-    unsubscribe(); unsubscribeTemplate(); unsubscribeSettings(); unsubscribeActivity();
+    unsubscribe(); unsubscribeTemplate(); unsubscribeSettings(); unsubscribeActivity(); unsubscribeRevoked();
     streams.delete(stream);
     release();
     held.length = 0; heldActivity.length = 0;

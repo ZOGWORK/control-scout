@@ -183,7 +183,11 @@ export function describeActivity(i: ActivityItem): { verb: string; subject: stri
       return { verb: "changed the", subject: "defaults for new entries", note: parts.join(", ") };
     }
     case "member.joined": return { verb: "added", subject: `${str(d.name) ?? "a member"} to the workspace`, note: d.role === "admin" ? "admin" : undefined };
-    case "member.left": return { verb: "removed", subject: `${str(d.name) ?? "a member"} from the workspace` };
+    // From Control Point's answer (actor "Control Point"), or removed by an admin in Scout's settings
+    // (details.origin "control-scout"); details.self: they removed themselves, i.e. left.
+    case "member.left":
+      if (d.self === true) return { verb: "left", subject: "the workspace" };
+      return { verb: "removed", subject: `${str(d.name) ?? "a member"} from the workspace`, note: d.origin === "control-scout" ? "in Control Scout" : undefined };
     default: return { verb: i.type.replace(/[._]/g, " "), subject: "" };
   }
 }

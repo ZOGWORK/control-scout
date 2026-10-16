@@ -749,6 +749,14 @@ function describe(e: AuditEntry): string {
     case "ops.caches": return "Clear caches";
     case "storage.purge": return `Purged ${d.photos ?? 0} photos of ${String(d.eventCode ?? "") || "no event"} (${d.season})`;
     case "storage.maintenance": return "Ran the photo cleanup";
+    case "workspace.member_removed": {
+      // Task 9: every removal from a workspace, made in Scout's settings or seen from Control Point.
+      const who = String(d.name ?? "") || `account ${d.accountId}`;
+      const where = String(d.workspaceName ?? "") || `workspace ${d.workspaceId}`;
+      return d.origin === "control-scout"
+        ? `${d.accountId === d.actorAccountId ? `${who} left` : `Removed ${who} from`} ${where} (in Control Scout)`
+        : `${who} is no longer in ${where} (changed in Control Point)`;
+    }
     default: return e.action;
   }
 }
