@@ -219,6 +219,23 @@ describe("workspace settings", () => {
     expect(heard).toEqual([{ settingsVersion: 1 }]);
   });
 
+  it("a change is logged in the workspace's activity feed (a no-op isn't)", async () => {
+    const { admin, member } = await team("510");
+    await put(admin, "510", { defaults: { season: 2025, eventCode: "USNYQ1" }, baseVersion: 0 });
+    await put(admin, "510", { defaults: { season: 2025 }, baseVersion: 1 }); // no change
+    await put(admin, "510", { defaults: { eventCode: null }, baseVersion: 1 });
+    const rows = await all<{ type: string; subject: string; actor_name: string; details: string }>(
+      "SELECT type, subject, actor_name, details FROM workspace_activity WHERE workspace_id = (SELECT id FROM workspaces WHERE cp_workspace_id = '510') AND type = 'settings.changed' ORDER BY id");
+    expect(rows.map((r) => [r.type, r.subject, r.actor_name, JSON.parse(r.details)])).toEqual([
+      ["settings.changed", "settings", "Coach", { settingsVersion: 1, changed: ["season", "eventCode"], defaults: { season: 2025, eventCode: "USNYQ1" } }],
+      ["settings.changed", "settings", "Coach", { settingsVersion: 2, changed: ["eventCode"], defaults: { season: 2025, eventCode: null } }],
+    ]);
+    // Members read it in the feed.
+    const feed = await member("GET", "/api/scout/workspaces/510/activity");
+    expect(feed.status).toBe(200);
+    expect(JSON.stringify(feed.json)).toContain("settings.changed");
+  });
+
   it("workspace scouting paused in the owner portal: reads and saves answer 503", async () => {
     const { admin } = await team("509");
     await setFlag("workspaceScouting", false, "owner@test");

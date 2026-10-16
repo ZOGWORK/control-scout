@@ -100,6 +100,10 @@ portal.
   nothing changed.
 - Without the stream, the next open or load brings the change.
 
+**Activity.** Each change (not a no-op) is logged in the workspace's activity feed as
+`settings.changed` (subject `settings`; details `{settingsVersion, changed, defaults}`), so members
+see who changed the defaults and to what.
+
 ## Tier 3: Device-only
 
 These keys never leave the device (`DEVICE_ONLY_KEYS`):

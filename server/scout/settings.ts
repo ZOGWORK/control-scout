@@ -20,6 +20,7 @@ import {
 import { publishSettings, serialized } from "./bus.js";
 import { requireWorkspaceAdmin, workspaceAccess, workspacePaused, writerName } from "./entries.js";
 import { parseSettings, settingsLock } from "./templates.js";
+import { logActivity } from "./activityLog.js";
 
 /** The workspace's settings as members read them (defaults and the fixed policy when never written). Never writes. */
 export async function currentSettings(workspaceId: string): Promise<WorkspaceSettings> {
@@ -62,6 +63,10 @@ export async function saveSettings(user: User, m: Membership, body: unknown): Pr
     await write(user, m, cur.settingsVersion, next);
     const saved = await currentSettings(m.workspaceId);
     publishSettings(m.workspaceId, { settingsVersion: saved.settingsVersion });
+    // In the workspace's activity feed (activityLog.ts; never throws).
+    const changed = (["season", "eventCode"] as const).filter((k) => next[k] !== cur.defaults[k]);
+    await logActivity(m.workspaceId, { accountId: m.accountId, name: writerName(user) }, "settings.changed", "settings",
+      { settingsVersion: saved.settingsVersion, changed, defaults: { season: saved.defaults.season, eventCode: saved.defaults.eventCode } });
     return { ok: true as const, changed: true, settings: saved, dropped };
   });
 }

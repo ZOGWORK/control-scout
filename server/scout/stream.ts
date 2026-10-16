@@ -24,6 +24,10 @@
 //                            refetch GET /api/scout/workspaces/:id/template. Sent once live (one during the catch-up comes after `ready`).
 //   event: settings          an admin changed the workspace's settings (its defaults); no id. data {"settingsVersion"}:
 //                            refetch GET /api/scout/workspaces/:id/settings. Sent once live, like `template`.
+//   event: activity          an item just logged in the workspace's activity feed (activityLog.ts), exactly as
+//                            GET /api/scout/workspaces/:id/activity lists it; no id. Live only: ones logged during
+//                            the catch-up follow `ready`; a reader that was away refetches the feed's newest page.
+//                            A coalesced edit arrives as a new item whose details.firstId says which older ones it replaces.
 //   : ping                   a comment every 25 s (proxies drop silent connections)
 //
 // Proxy: the response says X-Accel-Buffering: no, and nginx's site gives this
@@ -32,7 +36,7 @@
 import express, { type Request, type Response, type Router } from "express";
 import { isWorkspaceId } from "../auth/controlPoint.js";
 import { currentUser } from "../auth/session.js";
-import { subscribe, subscribeSettings, subscribeTemplate, type LiveEntry, type SettingsNotice, type TemplateNotice } from "./bus.js";
+import { subscribe, subscribeActivity, subscribeSettings, subscribeTemplate, type ActivityNotice, type LiveEntry, type SettingsNotice, type TemplateNotice } from "./bus.js";
 import { openLiveConnection } from "../liveConnections.js";
 import { pullWorkspaceLive, workspaceAccess, type WorkspaceEntryOut } from "./entries.js";
 
@@ -148,6 +152,16 @@ async function open(req: Request, res: Response, opts: { enabled?: () => Promise
   let heldSettings: SettingsNotice | null = null;
   const sendSettings = (n: SettingsNotice) => write(`event: settings\ndata: ${JSON.stringify(n)}\n\n`);
   const unsubscribeSettings = subscribeSettings(workspaceId, (n) => { if (live) sendSettings(n); else heldSettings = n; });
+  // Activity items logged during the catch-up are held (bounded like entries) and sent once live.
+  const heldActivity: ActivityNotice[] = [];
+  const sendActivity = (a: ActivityNotice) => write(`event: activity
+data: ${JSON.stringify(a)}
+
+`);
+  const unsubscribeActivity = subscribeActivity(workspaceId, (a) => {
+    if (live) sendActivity(a);
+    else if (heldActivity.push(a) > LIMITS.maxHeld) end();
+  });
   const stream: Stream = { userId: user.id, workspaceId, end: (closeSocket) => { end(); if (closeSocket) res.socket?.end(); } };
   streams.add(stream);
   // Counted for the owner portal's Usage panel (live connections), released in end().
@@ -168,10 +182,10 @@ async function open(req: Request, res: Response, opts: { enabled?: () => Promise
     if (closed) return;
     closed = true;
     clearInterval(heartbeat); clearInterval(recheck);
-    unsubscribe(); unsubscribeTemplate(); unsubscribeSettings();
+    unsubscribe(); unsubscribeTemplate(); unsubscribeSettings(); unsubscribeActivity();
     streams.delete(stream);
     release();
-    held.length = 0;
+    held.length = 0; heldActivity.length = 0;
     res.end();
   }
   res.on("close", end);
@@ -196,6 +210,7 @@ async function open(req: Request, res: Response, opts: { enabled?: () => Promise
     write(`event: ready\ndata: ${JSON.stringify({ cursor })}\n\n`);
     if (heldTemplate) { sendTemplate(heldTemplate); heldTemplate = null; }
     if (heldSettings) { sendSettings(heldSettings); heldSettings = null; }
+    for (const a of heldActivity.splice(0)) sendActivity(a);
   } catch (e) {
     console.error("[scout stream] catch-up failed", e);
     end();
