@@ -58,11 +58,12 @@ export function downloadFile(file: File): void {
 export type ShareOutcome = "shared" | "cancelled" | "downloaded";
 
 /**
- * Share the card: the share sheet with the image (and the link in its text) where supported,
+ * Share the card (`shown`: the file already on screen, else fetched): the share sheet with the image (and the link in its text) where supported,
  * otherwise (no navigator.share, no file support, or the sheet failed) a download.
  */
-export async function shareCard(q: ShareCardQuery, text: string): Promise<ShareOutcome> {
-  const file = await cardFile(q);
+export async function shareCard(q: ShareCardQuery, text: string, shown?: File): Promise<ShareOutcome> {
+  // The file the panel is showing, when there is one: what's shared is exactly what was previewed.
+  const file = shown ?? await cardFile(q);
   if (canShareFiles(file)) {
     try {
       await navigator.share({ files: [file], title: "Control Scout prediction", text: `${text}\n${shareUrl(q)}` });
