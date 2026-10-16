@@ -73,7 +73,17 @@ export function agoSeconds(iso: string | null | undefined, now = Date.now()): st
   return ago(iso);
 }
 
-export const seasonLabel = (s: number) => `${s}–${String((s + 1) % 100).padStart(2, "0")}`;
+/** Short relative time for attributions: "just now", "2m ago", "3h ago", "4d ago", then the date. */
+export function agoShort(ms: number, now = Date.now()): string {
+  const s = Math.max(0, (now - ms) / 1000);
+  if (s < 60) return "just now";
+  if (s < 3600) return `${Math.floor(s / 60)}m ago`;
+  if (s < 86400) return `${Math.floor(s / 3600)}h ago`;
+  if (s < 7 * 86400) return `${Math.floor(s / 86400)}d ago`;
+  return new Date(ms).toLocaleDateString(undefined, { month: "short", day: "numeric", ...(new Date(ms).getFullYear() !== new Date(now).getFullYear() ? { year: "numeric" } : {}) });
+}
+
+export const seasonLabel =(s: number) => `${s}–${String((s + 1) % 100).padStart(2, "0")}`;
 
 const AWARD_LABEL: Record<string, string> = {
   Inspire: "Inspire", Think: "Think", Connect: "Connect", Innovate: "Innovate", Control: "Control", Motivate: "Motivate", Design: "Design",

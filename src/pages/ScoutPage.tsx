@@ -6,7 +6,9 @@ import { Link, useSearchParams } from "react-router-dom";
 import { ClipboardList, Cloud, CloudOff, Loader2, Minus, Plus, Save, Trash2 } from "lucide-react";
 import { useCurrentSeason, useTitle } from "../lib/meta";
 import { usePersonal } from "../lib/personal";
-import { deleteScoutEntry, newScoutId, saveScoutEntry, ScoutStorageError, templateFor, useScouting, type ScoutEntry, type ScoutField, type ScoutValue } from "../lib/scouting";
+import { deleteScoutEntry, newScoutId, saveScoutEntry, ScoutStorageError, templateFor, useScouting, type ScoutEntry, type ScoutField, type ScoutSpace, type ScoutValue } from "../lib/scouting";
+import { useScoutLive, type LiveMode } from "../lib/scoutLive";
+import { EntryAttribution } from "../components/EntryAttribution";
 import { PageHeader, Section, EmptyState } from "../components/page";
 import { Button } from "../components/ui/button";
 import { Badge, FieldError, Input, Textarea, Label } from "../components/ui/basic";
@@ -25,15 +27,19 @@ export default function ScoutPage() {
   const season = Number(sp.get("season")) || current;
   const teamFilter = Number(sp.get("team")) || undefined;
   const { user, syncReady } = usePersonal();
-  const { entries, status, pendingCount, syncNow } = useScouting({ season, team: teamFilter }, syncReady);
+  const space = devSpace(sp);
+  const { entries, status, pendingCount, syncNow } = useScouting({ season, team: teamFilter }, syncReady, space);
+  const live = useScoutLive(space, syncReady);
   const editing = sp.get("entry");
   const editEntry = entries.find((e) => e.uuid === editing) ?? null;
   const [formOpen, setFormOpen] = useState(!!teamFilter || !!editing);
   useEffect(() => { if (editing) setFormOpen(true); }, [editing]);
   return (
     <div>
-      <PageHeader title="Scout" description="Your own observations — private to you. Saved on this device instantly; synced to your account when you're signed in."
-        actions={<SyncChip status={status} pending={pendingCount} onSync={syncNow} signedIn={!!user} />}>
+      <PageHeader title="Scout"
+        description={space == null ? "Your own observations — private to you. Saved on this device instantly; synced to your account when you're signed in."
+          : "Shared with your workspace. Saved on this device instantly; everyone in the workspace sees new entries as they sync."}
+        actions={<SyncChip status={status} pending={pendingCount} onSync={syncNow} signedIn={!!user} live={live} />}>
         <div className="flex flex-wrap items-center gap-3">
           <SeasonToggle predictOnly value={season} onChange={(s) => setSp((x) => { x.set("season", String(s)); return x; })} />
           {teamFilter && <Badge variant="soft">Team {teamFilter} <button onClick={() => setSp((x) => { x.delete("team"); return x; })} aria-label="Clear team filter" className="ml-1">×</button></Badge>}
@@ -41,7 +47,7 @@ export default function ScoutPage() {
         </div>
       </PageHeader>
       {formOpen && (
-        <EntryForm key={editEntry?.uuid ?? `new-${teamFilter ?? ""}`} season={season} initial={editEntry} team={teamFilter}
+        <EntryForm key={editEntry?.uuid ?? `new-${teamFilter ?? ""}`} season={season} initial={editEntry} team={teamFilter} space={space}
           onDone={() => { setFormOpen(false); setSp((x) => { x.delete("entry"); return x; }); }} />
       )}
       <Section title={`Entries (${entries.length})`} description={teamFilter ? `For team ${teamFilter}` : "Newest first"}>
@@ -58,12 +64,25 @@ export default function ScoutPage() {
   );
 }
 
-function SyncChip({ status, pending, onSync, signedIn }: { status: string; pending: number; onSync: () => void; signedIn: boolean }) {
+/**
+ * Which space the page shows. Until the space switcher (Task 4) lands, a workspace is reachable
+ * only in development, with ?space=<Control Point workspace id>; production always shows Personal.
+ */
+function devSpace(sp: URLSearchParams): ScoutSpace {
+  if (!import.meta.env.DEV) return null;
+  const w = sp.get("space");
+  return w && /^[A-Za-z0-9_-]{1,64}$/.test(w) ? w : null;
+}
+
+function SyncChip({ status, pending, onSync, signedIn, live }: { status: string; pending: number; onSync: () => void; signedIn: boolean; live: LiveMode }) {
   if (!signedIn) return <Badge variant="secondary"><CloudOff /> On this device only</Badge>;
+  const synced = status !== "syncing" && status !== "offline" && status !== "error" && !pending;
   return (
     <button onClick={onSync} className="inline-flex items-center gap-1.5 rounded-lg border border-border px-2.5 py-1.5 text-xs text-muted-foreground hover:text-foreground">
       {status === "syncing" ? <Loader2 className="size-3.5 animate-spin" /> : status === "offline" || status === "error" ? <CloudOff className="size-3.5 text-warning" /> : <Cloud className="size-3.5 text-success" />}
       {status === "syncing" ? "Syncing…" : status === "offline" ? `Offline — ${pending} waiting` : status === "error" ? `Sync failed — ${pending} waiting · retry` : pending ? `${pending} waiting` : "Synced"}
+      {synced && live === "live" && <span className="inline-flex items-center gap-1 text-success"><span aria-hidden className="size-1.5 rounded-full bg-success" />Live</span>}
+      {synced && live === "polling" && <span>· checks every 15 s</span>}
     </button>
   );
 }
@@ -76,7 +95,12 @@ function EntryCard({ e, onEdit }: { e: ScoutEntry; onEdit: () => void }) {
       <div className="flex items-start justify-between gap-2">
         <div className="min-w-0">
           <p className="font-medium"><Link to={`/teams/${e.team}?season=${e.season}`} className="font-mono hover:underline">{e.team}</Link> · {e.kind === "pit" ? "Pit" : `Match ${e.matchLabel ?? ""}`}</p>
-          <p className="text-xs text-muted-foreground">{e.eventCode ?? "No event"} · {new Date(e.updatedAt).toLocaleString()}</p>
+          {e.workspaceId == null ? <p className="text-xs text-muted-foreground">{e.eventCode ?? "No event"} · {new Date(e.updatedAt).toLocaleString()}</p> : (
+            <>
+              <p className="text-xs text-muted-foreground">{e.eventCode ?? "No event"}</p>
+              <EntryAttribution e={e} className="mt-0.5" />
+            </>
+          )}
         </div>
         <div className="flex gap-1">
           <Button variant="ghost" size="sm" onClick={onEdit}>Edit</Button>
@@ -89,7 +113,7 @@ function EntryCard({ e, onEdit }: { e: ScoutEntry; onEdit: () => void }) {
   );
 }
 
-function EntryForm({ season, initial, team, onDone }: { season: number; initial: ScoutEntry | null; team?: number; onDone: () => void }) {
+function EntryForm({ season, initial, team, space, onDone }: { season: number; initial: ScoutEntry | null; team?: number; space: ScoutSpace; onDone: () => void }) {
   const [kind, setKind] = useState<"match" | "pit">(initial?.kind ?? "match");
   const [teamText, setTeamText] = useState(initial ? String(initial.team) : team ? String(team) : "");
   const [eventCode, setEventCode] = useState(initial?.eventCode ?? "");
@@ -122,7 +146,7 @@ function EntryForm({ season, initial, team, onDone }: { season: number; initial:
     if (err) { setTeamErr(err); teamRef.current?.focus(); return; }
     const { kind, eventCode, matchLabel, data, notes } = latest.current;
     try {
-      saveScoutEntry({ uuid: initial?.uuid ?? newScoutId(), season, team: Number(team), eventCode: eventCode.trim().toUpperCase() || null, matchLabel: kind === "match" ? matchLabel.trim().toUpperCase() || null : null, kind, data, notes });
+      saveScoutEntry({ uuid: initial?.uuid ?? newScoutId(), season, team: Number(team), eventCode: eventCode.trim().toUpperCase() || null, matchLabel: kind === "match" ? matchLabel.trim().toUpperCase() || null : null, kind, data, notes, workspaceId: space });
       toast.success("Saved on this device");
       onDone();
     } catch (e) {

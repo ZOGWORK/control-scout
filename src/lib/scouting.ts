@@ -116,6 +116,8 @@ const WS = "cs-scout-ws:";
 const WS_DIRTY = "cs-scout-ws-dirty:";
 const WS_CURSOR = "cs-scout-ws-cursor:";
 const EVT = "cs-scout-changed";
+/** A local save (detail: its space): open lists push it right away, so other members see it live. */
+const SAVED = "cs-scout-saved";
 
 const keyFor = (space: ScoutSpace, uuid: string) => (space == null ? KEY(uuid) : `${WS}${space}:${uuid}`);
 const dirtyKey = (space: ScoutSpace) => (space == null ? DIRTY : `${WS_DIRTY}${space}`);
@@ -186,9 +188,18 @@ export class ScoutStorageError extends Error {}
 type NewEntry = Omit<ScoutEntry, "updatedAt" | "workspaceId" | "authorAccountId" | "authorDisplayName">
   & Partial<Pick<ScoutEntry, "updatedAt" | "workspaceId" | "authorAccountId" | "authorDisplayName">>;
 
-/** Save on the device first (throws if the device refuses), then queue for sync. `workspaceId` picks the space (Personal when absent). */
+/**
+ * Save on the device first (throws if the device refuses), then queue for sync. `workspaceId` picks the space (Personal when absent).
+ * A workspace entry keeps its author, and its editor becomes "you, not synced yet" (0) until the server stamps the real one.
+ */
 export function saveScoutEntry(e: NewEntry): ScoutEntry {
-  const entry = normalizeScoutEntry({ ...e, updatedAt: Date.now() }, e.workspaceId ?? null);
+  const space = e.workspaceId ?? null;
+  const prior = space != null && e.authorAccountId == null ? readEntry(space, e.uuid) : null;
+  const authorship = space == null ? {} : {
+    authorAccountId: e.authorAccountId ?? prior?.authorAccountId ?? 0, authorDisplayName: e.authorDisplayName ?? prior?.authorDisplayName ?? "",
+    editorAccountId: 0, editorDisplayName: "",
+  };
+  const entry = normalizeScoutEntry({ ...e, ...authorship, updatedAt: Date.now() }, space);
   try {
     writeEntry(entry);
     const d = dirty(entry.workspaceId); d.add(entry.uuid); setDirty(d, entry.workspaceId);
@@ -196,6 +207,7 @@ export function saveScoutEntry(e: NewEntry): ScoutEntry {
     throw new ScoutStorageError("This device couldn't save the entry (storage full or blocked). Nothing was lost from earlier entries.");
   }
   window.dispatchEvent(new Event(EVT));
+  window.dispatchEvent(new CustomEvent(SAVED, { detail: entry.workspaceId }));
   return entry;
 }
 
@@ -245,6 +257,27 @@ export function clearLocalScouting() {
 
 function readCursor(space: string): number { try { return Number(localStorage.getItem(`${WS_CURSOR}${space}`)) || 0; } catch { return 0; } }
 function writeCursor(space: string, c: number) { try { localStorage.setItem(`${WS_CURSOR}${space}`, String(c)); } catch { /* storage full: pull again from the old cursor */ } }
+/** Move a workspace's cursor forward only: the live stream and a pull may both have advanced it. */
+function advanceCursor(space: string, c: number) { if (c > readCursor(space)) writeCursor(space, c); }
+
+/** How far this device has a workspace's entries (the server's seq): where a pull or the live stream starts. */
+export const scoutCursor = (space: string) => readCursor(space);
+
+/** Tell open lists that entries changed (live updates batch their notices). */
+export const notifyScoutChanged = () => window.dispatchEvent(new Event(EVT));
+
+/**
+ * Entries from the live stream (stream order): merged newer-wins like a pull, then the pull
+ * cursor moves to the last one's seq, so a later pull starts after them. Throws if the device
+ * can't save one; the cursor then stays before it, and the next pull or stream brings it again.
+ * Doesn't notify (the caller batches): call notifyScoutChanged() after.
+ */
+export function applyLiveEntries(space: string, list: { entry: ScoutEntry; seq: number }[]) {
+  for (const { entry, seq } of list) {
+    mergeFromServer(space, [entry]);
+    advanceCursor(space, seq);
+  }
+}
 
 /**
  * Push a space's queued entries (≤200 per request); keep any entry edited
@@ -304,7 +337,7 @@ export async function pullScouting(space: ScoutSpace = null): Promise<void> {
       const since = readCursor(space);
       const r = await apiFetch<{ entries: ScoutEntry[]; cursor: number; more: boolean }>(`/api/scout/sync?workspaceId=${encodeURIComponent(space)}&since=${since}`);
       mergeFromServer(space, r.entries);
-      writeCursor(space, r.cursor);
+      advanceCursor(space, r.cursor);
       if (!r.more) break;
     }
   }
@@ -334,8 +367,21 @@ export function useScouting(filter: { season?: number; team?: number }, signedIn
     const online = () => run();
     window.addEventListener("online", online);
     const t = setInterval(() => { if (dirty(space).size) run(); }, 30_000);
+    // A save in this space goes up at once (a burst of saves, together), not at the next 30 s tick.
+    let soon: ReturnType<typeof setTimeout> | null = null;
+    const push = async () => {
+      soon = null;
+      setStatus("syncing");
+      try { await syncScouting(space); setStatus("idle"); }
+      catch (e: any) { setStatus(e?.offline ? "offline" : "error"); }
+    };
+    const saved = (ev: Event) => { if (signedIn && (ev as CustomEvent<ScoutSpace>).detail === space && !soon) soon = setTimeout(push, 300); };
+    window.addEventListener(SAVED, saved);
     run();
-    return () => { window.removeEventListener(EVT, refresh); window.removeEventListener("storage", refresh); window.removeEventListener("online", online); clearInterval(t); };
-  }, [read, run, space]);
+    return () => {
+      window.removeEventListener(EVT, refresh); window.removeEventListener("storage", refresh); window.removeEventListener("online", online); window.removeEventListener(SAVED, saved);
+      clearInterval(t); if (soon) clearTimeout(soon);
+    };
+  }, [read, run, space, signedIn]);
   return { entries, status, pendingCount: dirty(space).size, syncNow: run };
 }
