@@ -38,7 +38,7 @@ import { publishComment, serialized } from "./bus.js";
 import { entryDetails, logActivity } from "./activityLog.js";
 import { workspaceAccess, workspacePaused, writerName } from "./entries.js";
 import { inboxText } from "../../src/shared/inbox.js";
-import { inboxSettled } from "../inbox/inbox.js";
+import { inboxSettled, notifyInboxChanged } from "../inbox/inbox.js";
 import { cleanCommentBody, commentExcerpt, type CommentEvent, type EntryComment } from "../../src/shared/comments.js";
 
 /** Comments (posts and edits) one account may write: a burst of `burst`, refilling at `perMinute`. */
@@ -251,9 +251,12 @@ async function followExcerpt(workspaceId: string, uuid: string, id: number, exce
       const { excerpt: _old, ...rest } = d;
       const next = excerpt == null ? { ...rest, deleted: true } : { ...rest, excerpt };
       stmts.push({ sql: "UPDATE workspace_activity SET details = ? WHERE id = ?", args: [JSON.stringify(next), r.id] });
-      stmts.push({ sql: "UPDATE inbox_items SET body = ? WHERE source_activity_id = ?", args: [inboxText("comment.created", next, r.actor_name, "").body, r.id] });
+      stmts.push({ sql: "UPDATE inbox_items SET body = ? WHERE source_activity_id = ? AND body <> ? RETURNING user_id", args: [inboxText("comment.created", next, r.actor_name, "").body, r.id, inboxText("comment.created", next, r.actor_name, "").body] });
     }
-    await db().batch(stmts, "write");
+    const results = await db().batch(stmts, "write");
+    // Open inboxes of the items that changed refetch, so the old text doesn't stay on screen.
+    const users = results.flatMap((res) => res.rows.map((row) => Number(row.user_id))).filter(Number.isSafeInteger);
+    if (users.length) await notifyInboxChanged(users);
   } catch (e) {
     console.error("[comments] couldn't update the comment's activity", e);
   }
