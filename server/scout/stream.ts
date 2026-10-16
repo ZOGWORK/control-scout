@@ -22,6 +22,8 @@
 //   event: template          an admin changed the workspace's template; no id (it isn't an entry,
 //                            so it never moves the cursor). data {"season", "version", "settingsVersion"}:
 //                            refetch GET /api/scout/workspaces/:id/template. Sent once live (one during the catch-up comes after `ready`).
+//   event: settings          an admin changed the workspace's settings (its defaults); no id. data {"settingsVersion"}:
+//                            refetch GET /api/scout/workspaces/:id/settings. Sent once live, like `template`.
 //   : ping                   a comment every 25 s (proxies drop silent connections)
 //
 // Proxy: the response says X-Accel-Buffering: no, and nginx's site gives this
@@ -30,7 +32,7 @@
 import express, { type Request, type Response, type Router } from "express";
 import { isWorkspaceId } from "../auth/controlPoint.js";
 import { currentUser } from "../auth/session.js";
-import { subscribe, subscribeTemplate, type LiveEntry, type TemplateNotice } from "./bus.js";
+import { subscribe, subscribeSettings, subscribeTemplate, type LiveEntry, type SettingsNotice, type TemplateNotice } from "./bus.js";
 import { openLiveConnection } from "../liveConnections.js";
 import { pullWorkspaceLive, workspaceAccess, type WorkspaceEntryOut } from "./entries.js";
 
@@ -142,6 +144,10 @@ async function open(req: Request, res: Response, opts: { enabled?: () => Promise
   let heldTemplate: TemplateNotice | null = null;
   const sendTemplate = (n: TemplateNotice) => write(`event: template\ndata: ${JSON.stringify(n)}\n\n`);
   const unsubscribeTemplate = subscribeTemplate(workspaceId, (n) => { if (live) sendTemplate(n); else heldTemplate = n; });
+  // Settings changes likewise (the latest one held during the catch-up).
+  let heldSettings: SettingsNotice | null = null;
+  const sendSettings = (n: SettingsNotice) => write(`event: settings\ndata: ${JSON.stringify(n)}\n\n`);
+  const unsubscribeSettings = subscribeSettings(workspaceId, (n) => { if (live) sendSettings(n); else heldSettings = n; });
   const stream: Stream = { userId: user.id, workspaceId, end: (closeSocket) => { end(); if (closeSocket) res.socket?.end(); } };
   streams.add(stream);
   // Counted for the owner portal's Usage panel (live connections), released in end().
@@ -162,7 +168,7 @@ async function open(req: Request, res: Response, opts: { enabled?: () => Promise
     if (closed) return;
     closed = true;
     clearInterval(heartbeat); clearInterval(recheck);
-    unsubscribe(); unsubscribeTemplate();
+    unsubscribe(); unsubscribeTemplate(); unsubscribeSettings();
     streams.delete(stream);
     release();
     held.length = 0;
@@ -189,6 +195,7 @@ async function open(req: Request, res: Response, opts: { enabled?: () => Promise
     for (const e of held.splice(0)) send(e);
     write(`event: ready\ndata: ${JSON.stringify({ cursor })}\n\n`);
     if (heldTemplate) { sendTemplate(heldTemplate); heldTemplate = null; }
+    if (heldSettings) { sendSettings(heldSettings); heldSettings = null; }
   } catch (e) {
     console.error("[scout stream] catch-up failed", e);
     end();
