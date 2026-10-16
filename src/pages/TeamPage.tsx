@@ -33,6 +33,7 @@ import { eventTypeLabel } from "../lib/labels";
 import { copyLink } from "../lib/clipboard";
 import { OfflineNote } from "../components/OfflineNote";
 import { StickyActions, useScrolledPast } from "../components/StickyActions";
+import { TeamConsensusSection } from "../components/ScoutConsensus";
 
 export default function TeamPage() {
   const { number } = useParams();
@@ -69,6 +70,8 @@ function Profile({ p, onSeason }: { p: TeamProfile; onSeason: (s: number) => voi
     <div className="min-w-0">
       <OfflineNote data={p} />
       <Hero p={p} onSeason={onSeason} />
+      {/* Workspace members only: their workspace's scouting on this team (nothing for anyone else). */}
+      {rest && predictable && <TeamConsensusSection team={p.team.number} season={p.season} />}
       {!rest ? null : !hasResults ? (
         <EmptyState className="mb-8" icon={CalendarDays} title={`No ${seasonLabel(p.season)} results for ${p.team.number} yet`}
           description={p.seasons.length > 1 ? "Pick another season above to see past results." : "This team hasn't played an event we have data for."} />
