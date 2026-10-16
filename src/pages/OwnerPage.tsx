@@ -508,10 +508,24 @@ function FeedbackPanel() {
   const path = `/api/owner/feedback?status=${status}`;
   const state = useApi<FeedbackList>(path);
   const [busy, setBusy] = useState<number | null>(null);
+  // Older pages ("Show older"), for the list they were loaded for; the first page is the cached one above.
+  const [older, setOlder] = useState<{ status: FeedbackStatus | "all"; messages: FeedbackMessage[]; more: boolean } | null>(null);
+  const [loadingOlder, setLoadingOlder] = useState(false);
+  const extra = older?.status === status ? older : null;
+  const loadOlder = async (first: FeedbackList) => {
+    const last = (extra?.messages.at(-1) ?? first.messages.at(-1))?.id;
+    if (!last) return;
+    setLoadingOlder(true);
+    try {
+      const page = await apiFetch<FeedbackList>(`${path}&before=${last}`);
+      setOlder({ status, messages: [...(extra?.messages ?? []), ...page.messages], more: page.more });
+    } catch (e) { toast.error((e as ApiError).message); } finally { setLoadingOlder(false); }
+  };
   const move = async (m: FeedbackMessage, to: FeedbackStatus) => {
     setBusy(m.id);
     try {
       await apiFetch(`/api/owner/feedback/${m.id}`, { method: "PATCH", json: { status: to } });
+      setOlder(null); // older pages may hold the moved message: they load again on request
       // Every list (and the overview's open count) is out of date now, not just this one.
       // Marked stale rather than dropped: what's on screen reloads in place, the rest when next shown.
       markStale("/api/owner/feedback");
@@ -532,8 +546,9 @@ function FeedbackPanel() {
       </div>
       <Async state={state} empty={(d) => !d.messages.length && <EmptyState icon={Inbox} title={status === "open" ? "Inbox zero" : "Nothing here"} description={status === "open" ? "Every message has been dealt with." : undefined} />}>
         {(d) => (
+          <>
           <ul className="space-y-3">
-            {d.messages.map((m) => (
+            {[...d.messages, ...(extra?.messages ?? []).filter((m) => !d.messages.some((x) => x.id === m.id))].map((m) => (
               <li key={m.id} className="rounded-xl border border-border bg-card p-4">
                 <div className="flex flex-wrap items-center gap-2 text-sm">
                   <Badge variant={m.topic === "bug" ? "destructive" : m.topic === "data" ? "soft" : m.topic === "feature" ? "beta" : "secondary"}>{TOPIC[m.topic] ?? m.topic}</Badge>
@@ -553,6 +568,12 @@ function FeedbackPanel() {
               </li>
             ))}
           </ul>
+          {(extra ? extra.more : d.more) && (
+            <div className="mt-4 flex justify-center">
+              <Button variant="outline" disabled={loadingOlder} onClick={() => void loadOlder(d)}>{loadingOlder ? "Loading…" : "Show older messages"}</Button>
+            </div>
+          )}
+          </>
         )}
       </Async>
     </Section>

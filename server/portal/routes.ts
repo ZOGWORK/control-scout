@@ -72,7 +72,8 @@ export function ownerRouter(): Router {
 
   r.get("/feedback", h(async (req) => {
     const s = req.query.status;
-    return listFeedback(s === "all" || isFeedbackStatus(s) ? s : "open", num(req.query.limit, 100, 1, 500));
+    const before = req.query.before ? num(req.query.before, 0, 1, Number.MAX_SAFE_INTEGER) : null;
+    return listFeedback(s === "all" || isFeedbackStatus(s) ? s : "open", num(req.query.limit, 100, 1, 500), before);
   }));
   r.patch("/feedback/:id", h(async (req, res) => {
     const id = num(req.params.id, 0, 0, Number.MAX_SAFE_INTEGER);

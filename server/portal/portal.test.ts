@@ -197,6 +197,19 @@ describe("feedback inbox", () => {
     expect((await call("GET", "/api/owner/feedback", { cookie: ownerCookie })).json.messages.map((m: any) => m.id)).toEqual([b]);
   });
 
+  it("pages through older messages, so none is out of reach", async () => {
+    const ids: number[] = [];
+    for (let i = 0; i < 5; i++) ids.push(await add(`Paged message number ${i}, long enough`));
+    const first = (await call("GET", "/api/owner/feedback?limit=2", { cookie: ownerCookie })).json;
+    expect(first.messages.map((m: any) => m.id)).toEqual([ids[4], ids[3]]);
+    expect(first.more).toBe(true);
+    const second = (await call("GET", `/api/owner/feedback?limit=2&before=${ids[3]}`, { cookie: ownerCookie })).json;
+    expect(second.messages.map((m: any) => m.id)).toEqual([ids[2], ids[1]]);
+    const last = (await call("GET", `/api/owner/feedback?limit=2&before=${ids[1]}`, { cookie: ownerCookie })).json;
+    expect(last.messages.map((m: any) => m.id)).toEqual([ids[0]]);
+    expect(last.more).toBe(false);
+  });
+
   it("refuses an unknown status or message", async () => {
     const a = await add("Hello there, one more message");
     expect((await call("PATCH", `/api/owner/feedback/${a}`, { cookie: ownerCookie, body: { status: "deleted" } })).status).toBe(400);
