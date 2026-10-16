@@ -15,7 +15,9 @@ import { AlertsRunner } from "./lib/alerts";
 import { LitePackSync } from "./lib/packSync";
 import { ConsentBanner } from "./components/layout/ConsentBanner";
 import { PageViews } from "./lib/analytics";
-import { installErrorReporting } from "./lib/errorReporting";
+import { installErrorReporting, setReportingPaused } from "./lib/errorReporting";
+import { onFlags, startFlags } from "./lib/flags";
+import { OwnerRoute } from "./pages/OwnerRoute";
 import { RouteErrorBoundary } from "./components/RouteErrorBoundary";
 import { ErrorReportPrompt } from "./components/layout/ErrorReportPrompt";
 // The landing page is part of the main bundle, not lazy: its API calls then start in
@@ -61,6 +63,9 @@ if (import.meta.env.PROD && "serviceWorker" in navigator) {
 
 // Uncaught errors and unhandled rejections offer a report (src/lib/errorReporting.ts), from the very start.
 installErrorReporting();
+// Feature flags the owner can switch off (src/lib/flags.ts): error reports stop prompting while theirs is off.
+startFlags();
+onFlags((f) => setReportingPaused(!f.errorReporting));
 
 // The first render waits for the current page's code (already on its way: the server's HTML
 // modulepreloads it), so it draws the page itself rather than a loading block, replacing the
@@ -99,6 +104,8 @@ void ready.catch(() => { /* a failed load is retried (and shown) by the page's o
                   <Route path="/privacy" element={<PrivacyPage />} />
                   <Route path="/terms" element={<TermsPage />} />
                   <Route path="/contact" element={<ContactPage />} />
+                  {/* Owners only; everyone else (and the server, for everyone) sees the not-found page. */}
+                  <Route path="/owner" element={<OwnerRoute notFound={<NotFound />} />} />
                   <Route path="*" element={<NotFound />} />
                 </Routes>
               </Suspense>

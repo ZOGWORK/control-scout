@@ -12,6 +12,8 @@ import { setMailer } from "../auth/email";
 import { clearInfoCache, MEMBERSHIP_TTL } from "../auth/controlPoint";
 import { activeStreamCount, closeAllStreams, setStreamLimits, streamRouter } from "./stream";
 import { subscriberCount } from "./bus";
+import { setFlag } from "../flags";
+import { liveConnections } from "../liveConnections";
 
 const KEY = "k".repeat(40);
 let scout: Server, cp: Server;
@@ -325,6 +327,45 @@ describe("GET /api/scout/stream", () => {
       expect(s.res.status).toBe(503);
       expect(s.res.headers.get("cache-control")).toBe("no-store");
     } finally { srv.close(); }
+  });
+
+  it("the app wires the owner portal's realtime switch: off answers 503 (the app polls), back on streams", async () => {
+    const { B } = await team("293");
+    await setFlag("realtime", false, "owner@example.com");
+    try {
+      const off = await stream(B, "workspaceId=293");
+      expect(off.res.status).toBe(503);
+      expect((await off.res.json()).error).toMatch(/paused/);
+      expect(activeStreamCount()).toBe(0);
+    } finally { await setFlag("realtime", true, "owner@example.com"); }
+    // Workspace scouting paused: no catch-up download through the stream either.
+    await setFlag("workspaceScouting", false, "owner@example.com");
+    try {
+      const paused = await stream(B, "workspaceId=293&since=0");
+      expect(paused.res.status).toBe(503);
+      expect(activeStreamCount()).toBe(0);
+    } finally { await setFlag("workspaceScouting", true, "owner@example.com"); }
+    const on = await stream(B, "workspaceId=293");
+    expect(on.res.status).toBe(200);
+    await on.ready();
+    on.close();
+  });
+
+  it("each open stream counts once in the owner portal's live connections, and is let go when it closes", async () => {
+    const { A, B } = await team("294");
+    const before = liveConnections().total;
+    const a = await stream(A, "workspaceId=294");
+    const b = await stream(B, "workspaceId=294");
+    await a.ready(); await b.ready();
+    expect(liveConnections().total).toBe(before + 2);
+    expect(liveConnections().byKind["scout-stream"]).toBe(2);
+    expect(liveConnections().total).toBe(activeStreamCount()); // one count, not two
+    a.close();
+    await until(() => activeStreamCount() === 1);
+    expect(liveConnections().total).toBe(before + 1);
+    b.close();
+    await until(() => activeStreamCount() === 0);
+    expect(liveConnections().total).toBe(before);
   });
 
   it("closeAllStreams (SIGTERM) ends every stream", async () => {
