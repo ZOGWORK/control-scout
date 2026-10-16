@@ -76,3 +76,30 @@ export function subscribeTemplate(workspaceId: string, fn: TemplateListener): ()
     if (!s.size) templateChannels.delete(workspaceId);
   };
 }
+
+// Activity feed items (activityLog.ts): each one logged is passed on by open streams as `event: activity`
+// (no id: the feed has its own order, so it never moves the entry cursor).
+export interface ActivityNotice {
+  id: number; workspaceId: string; at: number; actor: { accountId: number | null; name: string };
+  type: string; subject: string; details: Record<string, unknown>;
+}
+type ActivityListener = (a: ActivityNotice) => void;
+const activityChannels = new Map<string, Set<ActivityListener>>();
+
+/** Tell every open stream of the workspace about an activity item just logged. Never throws. */
+export function publishActivity(workspaceId: string, a: ActivityNotice): void {
+  for (const fn of [...(activityChannels.get(workspaceId) ?? [])]) { try { fn(a); } catch (err) { console.error("[live] activity listener failed", err); } }
+}
+
+/** Listen to a workspace's activity items; returns the unsubscribe. */
+export function subscribeActivity(workspaceId: string, fn: ActivityListener): () => void {
+  let subs = activityChannels.get(workspaceId);
+  if (!subs) { subs = new Set(); activityChannels.set(workspaceId, subs); }
+  subs.add(fn);
+  return () => {
+    const s = activityChannels.get(workspaceId);
+    if (!s) return;
+    s.delete(fn);
+    if (!s.size) activityChannels.delete(workspaceId);
+  };
+}
