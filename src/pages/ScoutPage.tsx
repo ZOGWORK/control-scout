@@ -3,12 +3,13 @@
 // your account when signed in and online.
 import { useEffect, useId, useMemo, useRef, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
-import { ClipboardList, Cloud, CloudOff, Info, LayoutList, Loader2, Plus, Save, Trash2, X } from "lucide-react";
+import { ClipboardList, Cloud, CloudOff, Download, Info, LayoutList, Loader2, Plus, Save, Trash2, X } from "lucide-react";
 import { useCurrentSeason, useTitle } from "../lib/meta";
 import { usePersonal } from "../lib/personal";
 import { canDeleteScoutEntry, deleteScoutEntry, newScoutId, refusalMessage, SCOUT_REFUSED, type ScoutRefusal, saveScoutEntry, ScoutStorageError, usePendingScoutCounts, useScouting, type ScoutEntry, type ScoutSpace, type ScoutValue } from "../lib/scouting";
 import { resolveTemplate, useEntryTemplate, useEntryTemplateState, useWorkspaceTemplate } from "../lib/scoutTemplates";
 import { ALL_PHASES, phaseLabel, type WorkspaceTemplate } from "../shared/scoutTemplate";
+import { workspaceExportUrl } from "../shared/scoutExport";
 import { ScoutFieldInput } from "../components/scout/ScoutFieldInput";
 import { TemplateEditor } from "../components/scout/TemplateEditor";
 import { useScoutSpaces, workspaceLabel } from "../lib/scoutSpace";
@@ -89,6 +90,13 @@ export default function ScoutPage() {
           {!formOpen && <Button onClick={() => setFormOpen(true)}><Plus /> New entry</Button>}
           {workspace && isAdmin && !spaces.resolving && (
             <Button variant="outline" aria-pressed={showTemplate} onClick={toggleTemplate}><LayoutList /> Template</Button>
+          )}
+          {/* The server applies the filters in the URL (season, team, …: src/shared/scoutExport.ts) and checks membership. */}
+          {workspace && !spaces.resolving && (
+            <Button variant="outline" asChild>
+              <a href={workspaceExportUrl(workspace.id, new URLSearchParams({ ...Object.fromEntries(sp), season: String(season) }))} download
+                aria-label={teamFilter ? `Export team ${teamFilter}'s ${season} entries as CSV` : `Export all ${season} entries as CSV`}><Download /> Export CSV</a>
+            </Button>
           )}
         </div>
       </PageHeader>

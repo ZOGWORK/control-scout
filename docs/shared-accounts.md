@@ -352,6 +352,57 @@ next time the form opens. The current template is also kept on the device
 (`cs-scout-tpl:<workspace>:<season>`), so the form works offline with the
 last one seen.
 
+### Exporting entries (CSV)
+
+Any member can download a workspace's entries for a season as CSV (Scout
+page › the workspace's space › **Export CSV**). Non-members get a 403,
+signed-out users a 401, and a pause of workspace scouting a 503.
+`server/scout/export.ts` builds the file; it is rate-limited per IP to 30 a
+minute.
+
+`GET /api/scout/workspaces/:id/export.csv?season=YYYY[&filters]`
+
+- **Filters** (`src/shared/scoutExport.ts`) are applied by the server. The
+  page passes the filters it shows (today `season` and `team`), never a list
+  of entries. `season` is required. The other filters are optional: `team`,
+  `event`, `kind` (`match` | `pit`), `author` (Control Point account id),
+  `match` (label) and `q` (free text).
+  - A list filter is comma-separated or repeated. An entry matches if it
+    matches any value of that list and every filter given.
+  - Event codes and match labels match in any case.
+  - `q`: every word must appear in the team number, event, match, notes,
+    author, last editor or a field's answer.
+  - A bad value is a 400.
+  - Deleted entries are never exported.
+- **Columns:** Entry ID, Team, Event, Match, Kind, Author, Updated at (ISO
+  8601, UTC), Notes. Then one column per field of the workspace's **current**
+  template for the season: match fields, then pit fields, or only one kind's
+  with `kind=`. A kind the workspace hasn't customised uses the built-in
+  default. The last column is **Other fields**.
+  - Headers are the field labels. A label both kinds use becomes
+    `Match: <label>` / `Pit: <label>`. A header that still repeats (two
+    fields of one kind with one label, or a label equal to a fixed column)
+    gets ` [<field id>]`.
+  - Answers: toggles are `TRUE`/`FALSE`, and numbers and text are as entered.
+- **Older template versions:** an entry's answers are placed by **field id**
+  onto the current template's columns, whatever version it was made with, so
+  a relabelled field keeps its column. An answer whose field the current
+  template no longer has goes into **Other fields**, a JSON object keyed by
+  field id (e.g. `{"arm":false}`), so nothing is lost silently. An entry
+  shows answers only under its own kind's columns.
+- **Format:** UTF-8 with a BOM (so Excel reads it as UTF-8), RFC 4180 (CRLF,
+  quoted when a cell has a comma, quote or line break, quotes doubled).
+  - Formula guard: a text cell starting with `=`, `+`, `-`, `@`, a tab or a
+    CR gets a leading `'`. Numbers are left alone.
+  - File name: `scout-<workspace slug>-<season>.csv`.
+  - The response is `Cache-Control: no-store`.
+- **Streaming:** this uses the same writer as the records CSV export. The
+  header row goes out before any entry is read. Then one query fixes which
+  entries go in, in which order (newest edit first). The rows are read 500
+  at a time and each chunk is flushed before the next read, so a big
+  workspace never sits in memory. Request metrics time the download to its
+  first byte, so a long download doesn't show up as a slow route.
+
 ## Not in scope (yet)
 
 - Signing out of Control Point doesn't end Scout sessions (Scout sessions last
