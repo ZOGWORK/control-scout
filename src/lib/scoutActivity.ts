@@ -7,7 +7,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { apiFetch, ApiError } from "./api";
 import type { LiveMode } from "./scoutLive";
-import { entrySubject } from "../shared/inbox";
+import { assignedTeams, entrySubject } from "../shared/inbox";
 
 export interface ActivityItem {
   id: number; workspaceId: string; at: number;
@@ -151,7 +151,9 @@ const num = (v: unknown) => (typeof v === "number" && Number.isFinite(v) ? v : n
 /** "team 18360 · match Q12 · USNJQ1" / "team 18360 · pit" for an entry item (shared with the inbox). */
 export { entrySubject };
 
-const FIELD_NAMES: Record<string, string> = { team: "team", season: "season", kind: "kind", event: "event", match: "match", notes: "notes" };
+const assignmentWhere = (d: Record<string, unknown>) => [str(d.eventCode), num(d.season) ? `${num(d.season)}` : null].filter(Boolean).join(" · ") || undefined;
+
+const FIELD_NAMES:Record<string, string> = { team: "team", season: "season", kind: "kind", event: "event", match: "match", notes: "notes" };
 
 /** What an item says: the verb ("edited") and what it's about ("team 18360 · match Q12"), plus an optional note. */
 export function describeActivity(i: ActivityItem): { verb: string; subject: string; note?: string } {
@@ -191,6 +193,11 @@ export function describeActivity(i: ActivityItem): { verb: string; subject: stri
     case "member.left":
       if (d.self === true) return { verb: "left", subject: "the workspace" };
       return { verb: "removed", subject: `${str(d.name) ?? "a member"} from the workspace`, note: d.origin === "control-scout" ? "in Control Scout" : undefined };
+    // Task 10: scouting assignments.
+    case "assignment.created": return { verb: "assigned", subject: `${assignedTeams(d)} to ${str(d.assigneeName) ?? "a member"}`, note: assignmentWhere(d) };
+    case "assignment.completed": return { verb: "marked done", subject: `${str(d.assigneeName) ?? "a member"}'s ${assignedTeams(d)}`, note: assignmentWhere(d) };
+    case "assignment.reopened": return { verb: "reopened", subject: `${str(d.assigneeName) ?? "a member"}'s ${assignedTeams(d)}`, note: assignmentWhere(d) };
+    case "assignment.deleted": return { verb: "removed", subject: `${str(d.assigneeName) ?? "a member"}'s assignment for ${assignedTeams(d)}`, note: assignmentWhere(d) };
     default: return { verb: i.type.replace(/[._]/g, " "), subject: "" };
   }
 }

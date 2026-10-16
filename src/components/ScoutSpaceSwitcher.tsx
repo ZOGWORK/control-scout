@@ -106,7 +106,8 @@ export function ScoutSpaceSwitcher({ workspaces, space, pending, onSelect, onRef
   return (
     <div className={cn("grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-2 gap-y-1 sm:flex sm:flex-wrap", className)}>
       <div className="min-w-0">{control}</div>
-      <RefreshButton onRefresh={onRefresh} />
+      {/* One per space: a result (or a request still on its way) never shows under another space. */}
+      <RefreshButton key={value} onRefresh={onRefresh} />
     </div>
   );
 }

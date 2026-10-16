@@ -427,11 +427,17 @@ export function moveQueuedToPersonal(space: string): number {
     try {
       writeEntry(copy);
       const p = dirty(null); p.add(copy.uuid); setDirty(p, null);
-    } catch { keep.add(uuid); continue; } // the device is full: it stays where it was, queued, for the next try
+    } catch {
+      // The device is full: it stays where it was, queued, for the next try, and no half-made copy is left behind.
+      try { localStorage.removeItem(keyFor(null, copy.uuid)); } catch { /* blocked */ }
+      keep.add(uuid); continue;
+    }
     try { localStorage.removeItem(keyFor(space, uuid)); } catch { /* blocked: hidden anyway */ }
     moved++;
   }
   try { setDirty(keep, space); } catch { /* storage blocked */ }
+  // The workspace's copies on this device are no longer complete: a later return (re-added) pulls it all again.
+  if (moved) try { localStorage.removeItem(`${WS_CURSOR}${space}`); } catch { /* blocked */ }
   window.dispatchEvent(new Event(EVT));
   if (moved) window.dispatchEvent(new CustomEvent<SavedDetail>(SAVED, { detail: { space: null, deleted: false } }));
   return moved;

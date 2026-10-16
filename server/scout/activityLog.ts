@@ -49,6 +49,9 @@ export const CONTROL_POINT_ACTOR: ActivityActor = { accountId: null, name: "Cont
 export const ACTIVITY_TYPES = [
   "entry.added", "entry.edited", "entry.deleted", "entry.restored",
   "template.changed", "settings.changed", "photo.added", "photo.removed", "member.joined", "member.left",
+  // Task 10 (assignments.ts): subject assignment:<id>; details { assigneeAccountId, assigneeName, team, season, eventCode,
+  // assignmentId } (a create for several teams at once: teams[] and assignmentIds[], team = the first).
+  "assignment.created", "assignment.completed", "assignment.reopened", "assignment.deleted",
 ] as const;
 export type ActivityType = (typeof ACTIVITY_TYPES)[number] | (string & {});
 

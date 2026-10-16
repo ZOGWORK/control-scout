@@ -101,6 +101,41 @@ describe("opened offline", () => {
     expect(seen).toMatchObject({ user: null, offlineAccount: false });
   });
 
+  it("a refresh that finds the session ended removes the cached account (opening offline later won't bring it back)", async () => {
+    online(USER);
+    let refresh!: () => Promise<void>;
+    function R() { refresh = usePersonal().refreshUser; return null; }
+    render(<MemoryRouter><PersonalProvider><R /></PersonalProvider></MemoryRouter>);
+    await vi.waitFor(() => expect(localStorage.getItem(ACCOUNT_CACHE_KEY)).not.toBeNull());
+    online(null); // expired on the server
+    await act(async () => { await refresh(); });
+    expect(localStorage.getItem(ACCOUNT_CACHE_KEY)).toBeNull();
+  });
+
+  it("a /me reply that lands after a sign-out changes nothing (no account, no cache brought back)", async () => {
+    localStorage.setItem("cs-personal-owner", "1");
+    localStorage.setItem(ACCOUNT_CACHE_KEY, JSON.stringify(USER));
+    offline();
+    let p!: ReturnType<typeof usePersonal>;
+    function P() { p = usePersonal(); return null; }
+    render(<MemoryRouter><PersonalProvider><P /></PersonalProvider></MemoryRouter>);
+    await act(async () => { await new Promise((r) => setTimeout(r, 20)); });
+    expect(p.offlineAccount).toBe(true);
+    // Back online, but /me is slow; the person signs out before it answers.
+    let answer!: () => void;
+    const gate = new Promise<void>((r) => { answer = r; });
+    vi.stubGlobal("fetch", vi.fn(async (url: string) => {
+      const path = new URL(String(url), "http://x").pathname;
+      if (path === "/api/auth/me") { await gate; return json({ user: USER, providers: { email: true, google: false } }); }
+      return json({ ok: true });
+    }));
+    act(() => { window.dispatchEvent(new Event("online")); });
+    await act(async () => { await p.signOut(); });
+    await act(async () => { answer(); await new Promise((r) => setTimeout(r, 30)); });
+    expect(p.user).toBeNull();
+    expect(localStorage.getItem(ACCOUNT_CACHE_KEY)).toBeNull();
+  });
+
   it("written on every answer with an account, removed on sign-out", async () => {
     online(USER);
     await mount();
