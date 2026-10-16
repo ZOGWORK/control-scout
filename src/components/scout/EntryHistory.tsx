@@ -17,7 +17,7 @@ import { History, RotateCcw, TriangleAlert, X } from "lucide-react";
 import { apiFetch, ApiError } from "../../lib/api";
 import { agoShort } from "../../lib/format";
 import { useNow } from "../../lib/useNow";
-import { canDeleteScoutEntry, localScoutEntries, restoreScoutVersion, type ScoutEntry } from "../../lib/scouting";
+import { canDeleteScoutEntry, isScoutQueued, localScoutEntries, restoreScoutVersion, sameScoutText, type ScoutEntry } from "../../lib/scouting";
 import { dropLostEdit, markLostSeen, useLostEdits, type LostEdit } from "../../lib/lostEdits";
 import { entryDiff, entrySummary, type DiffRow, type EntryText } from "../../lib/entryDiff";
 import { useEntryTemplate } from "../../lib/scoutTemplates";
@@ -175,7 +175,7 @@ function useHistory(entry: ScoutEntry, open: boolean) {
       .catch((e) => { if (req === latest.current) setState((s) => ({ ...s, loading: false, error: e instanceof ApiError ? e : new ApiError(0, "Couldn't load the history.") })); });
   }, [entry.workspaceId, entry.uuid]);
   useEffect(() => () => { latest.current++; }, []);
-  // Again whenever the entry changes, and when a queued edit of it is confirmed (the server stamps its editor then).
+  // Again whenever the entry changes, and when a queued edit of it is confirmed (the server stamps its editor then; the queue empties).
   useEffect(() => { if (open) load(); }, [open, load, entry.updatedAt, entry.editorAccountId]);
   return { ...state, reload: load };
 }
@@ -186,6 +186,10 @@ export function HistorySheet({ entry, me, open, onOpenChange }: { entry: ScoutEn
   const lost = useLostEdits(entry.workspaceId).filter((l) => l.uuid === entry.uuid);
   const current: Versioned = entry;
   const done = () => onOpenChange(false);
+  // A change still queued on this device isn't in the history yet: no version is current. Otherwise the current one is the
+  // newest version saying what the entry says (a save that changed nothing moves updatedAt but adds no version).
+  const queued = isScoutQueued(entry);
+  const currentNo = queued ? null : versions?.find((v) => sameScoutText(v, entry))?.versionNo ?? null;
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetContent aria-describedby={undefined} className="sm:max-w-lg">
@@ -200,11 +204,11 @@ export function HistorySheet({ entry, me, open, onOpenChange }: { entry: ScoutEn
               : versions && (
                 <>
                 {/* This device has a change the history doesn't yet (still syncing): none of these is the current one. */}
-                {versions[0] && entry.updatedAt > versions[0].updatedAt && (
+                {queued && (
                   <p role="status" className="text-sm text-muted-foreground">The latest change on this device is still syncing. It shows here once the workspace has it.</p>
                 )}
                 <ol className="space-y-3">
-                  {versions.map((v, i) => <VersionCard key={v.versionNo} v={v} older={versions[i + 1] ?? null} latest={v.updatedAt === entry.updatedAt && v.deleted === !!entry.deleted} entry={entry} me={me} now={now} onDone={done} />)}
+                  {versions.map((v, i) => <VersionCard key={v.versionNo} v={v} older={versions[i + 1] ?? null} latest={v.versionNo === currentNo} entry={entry} me={me} now={now} onDone={done} />)}
                 </ol>
                 </>
               )}

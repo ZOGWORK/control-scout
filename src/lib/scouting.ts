@@ -227,6 +227,9 @@ export function scoutDraftBase(e: ScoutEntry): number | undefined {
   return dirty(e.workspaceId).has(e.uuid) ? e.baseUpdatedAt : e.updatedAt;
 }
 
+/** Is this entry waiting to sync on this device? */
+export const isScoutQueued = (e: Pick<ScoutEntry, "uuid" | "workspaceId">) => dirty(e.workspaceId).has(e.uuid);
+
 export function deleteScoutEntry(e: ScoutEntry) { saveScoutEntry({ ...e, deleted: true, data: {}, notes: "" }); }
 
 /** Entries waiting to sync, per space. */
@@ -398,7 +401,7 @@ async function pushQueued(space: ScoutSpace): Promise<{ sent: number }> {
         // An edit refused because the entry was deleted meanwhile was never stored anywhere: keep it on the
         // device (Task 16) before the deleted copy goes back, so its author or an admin can still bring it back.
         // (A member's Restore stays blocked on an entry they didn't write: the same rule as this refusal.)
-        if (current && !current.deleted && server.deleted && !sameText(current, server) && !recordLostEdit(space, current, server)) { lostBackupFailed(space); continue; }
+        if (current && !current.deleted && server.deleted && !sameScoutText(current, server) && !recordLostEdit(space, current, server)) { lostBackupFailed(space); continue; }
         try { writeEntry(withNewerPhotos(server, current)); } catch { continue; /* stays queued: the next push brings the copy again */ }
         now.delete(res.uuid);
         const kind = sentVersion?.deleted ? "delete" : "edit-deleted";
@@ -456,7 +459,9 @@ function mergeFromServer(space: ScoutSpace, list: ScoutEntry[]) {
 let viewerAccountId: number | null = null;
 export function setScoutViewer(accountId: number | null | undefined) { viewerAccountId = Number.isSafeInteger(accountId) && accountId! > 0 ? accountId! : null; }
 
-const sameText = (a: ScoutEntry, b: ScoutEntry) => a.team === b.team && a.kind === b.kind && (a.eventCode ?? "") === (b.eventCode ?? "")
+type Text = Pick<ScoutEntry, "team" | "kind" | "eventCode" | "matchLabel" | "notes" | "deleted" | "data" | "templateId" | "templateVersion">;
+/** Do two versions of an entry say the same thing (answers, notes, where, deleted, template)? */
+export const sameScoutText = (a: Text, b: Text) => a.team === b.team && a.kind === b.kind && (a.eventCode ?? "") === (b.eventCode ?? "")
   && (a.matchLabel ?? "") === (b.matchLabel ?? "") && a.notes === b.notes && !!a.deleted === !!b.deleted && canonical(a.data) === canonical(b.data)
   // The template too: the same numbers read with other fields (another rating scale) say something else.
   && (a.templateId ?? "") === (b.templateId ?? "") && (a.templateVersion ?? 0) === (b.templateVersion ?? 0);
@@ -471,7 +476,7 @@ const canonical = (d: Record<string, unknown>) => JSON.stringify(Object.keys(d ?
  * A delete that lost isn't an edit to keep (an entry deleted under you is a loss, and shows as one).
  */
 export function lostTo(cur: ScoutEntry, theirs: ScoutEntry, queued: boolean): boolean {
-  if (cur.workspaceId == null || theirs.updatedAt < cur.updatedAt || (theirs.updatedAt === cur.updatedAt && !queued) || cur.deleted || sameText(cur, theirs)) return false;
+  if (cur.workspaceId == null || theirs.updatedAt < cur.updatedAt || (theirs.updatedAt === cur.updatedAt && !queued) || cur.deleted || sameScoutText(cur, theirs)) return false;
   const by = theirs.editorAccountId ?? 0;
   if (viewerAccountId != null && by === viewerAccountId) return false;
   if (queued) return true;

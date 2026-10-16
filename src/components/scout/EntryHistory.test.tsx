@@ -1,9 +1,9 @@
 // @vitest-environment jsdom
-// The conflict notice (Task 16): "Your edit was overwritten by <name>", shown once per lost edit, with a
+// The conflict notice (Task 16): "Your edit was overwritten by <name>", shown per lost edit until dismissed, with a
 // field-level diff labelled from the template, and Restore my version queueing a restore.
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { act, cleanup, fireEvent, render, screen } from "@testing-library/react";
-import { applyLiveEntries, localScoutEntries, pendingScoutCounts, saveScoutEntry, setScoutViewer, type ScoutEntry } from "../../lib/scouting";
+import { applyLiveEntries, localScoutEntries, pendingScoutCounts, saveScoutEntry, setScoutViewer, syncScouting, type ScoutEntry } from "../../lib/scouting";
 import { builtinTemplate } from "../../shared/scoutDefaults";
 import { ConflictNotices, HistorySheet, restoreBlock } from "./EntryHistory";
 
@@ -57,20 +57,34 @@ describe("ConflictNotices", () => {
 
 describe("HistorySheet", () => {
   afterEach(() => { vi.unstubAllGlobals(); });
-  it("marks Current by the entry's actual state, and loads again once a queued edit is confirmed", async () => {
-    const calls: string[] = [];
-    let versions = [{ versionNo: 1, updatedAt: 1000, writtenBy: { accountId: 7, name: "Priya" }, season: 2025, team: 18360, eventCode: "USNJQ1", matchLabel: "Q1", kind: "match", data: {}, notes: "first", deleted: false, restored: false, restoredFromVersion: null }];
-    vi.stubGlobal("fetch", vi.fn(async (path: string) => { calls.push(path); return new Response(JSON.stringify({ versions }), { status: 200, headers: { "Content-Type": "application/json" } }); }));
-    // A queued edit (editor 0) newer than anything the server has.
-    const queued = server({ updatedAt: 2000, notes: "mine", editorAccountId: 0, editorDisplayName: "" });
-    const { rerender } = render(<HistorySheet entry={queued} me={me} open onOpenChange={() => {}} />);
+  it("marks Current by what the entry says, says when a change is still queued, and loads again once it's confirmed", async () => {
+    const hist: string[] = [];
+    const v1 = { versionNo: 1, updatedAt: 1000, writtenBy: { accountId: 7, name: "Priya" }, season: 2025, team: 18360, eventCode: "USNJQ1", matchLabel: "Q1", kind: "match", data: { [counter.id]: 1 }, notes: "first", deleted: false, restored: false, restoredFromVersion: null };
+    let versions: typeof v1[] = [v1];
+    vi.stubGlobal("fetch", vi.fn(async (path: string, init?: RequestInit) => {
+      const body = init?.body ? JSON.parse(String(init.body)) : null;
+      const json = path.includes("/history") ? (hist.push(path), { versions })
+        : { results: body.entries.map((x: ScoutEntry) => ({ uuid: x.uuid, ok: true, entry: { ...x, editorAccountId: 8, editorDisplayName: "Marcus" } })) };
+      return new Response(JSON.stringify(json), { status: 200, headers: { "Content-Type": "application/json" } });
+    }));
+    applyLiveEntries("w1", [{ entry: server({ updatedAt: 1000 }), seq: 1 }]);
+    const mine = saveScoutEntry({ ...localScoutEntries("w1")[0], notes: "mine" }); // queued on this device
+    const sheet = () => <HistorySheet entry={localScoutEntries("w1")[0]} me={me} open onOpenChange={() => {}} />;
+    const { rerender } = render(sheet());
     await screen.findByText(/still syncing/);
     expect(screen.queryByText("Current")).toBeNull();
-    // Confirmed: the server's copy (same updatedAt, editor stamped) → loads again and v2 is Current.
-    versions = [{ ...versions[0], versionNo: 2, updatedAt: 2000, writtenBy: { accountId: 8, name: "Marcus" }, notes: "mine" }, ...versions];
-    rerender(<HistorySheet entry={{ ...queued, editorAccountId: 8, editorDisplayName: "Marcus" }} me={me} open onOpenChange={() => {}} />);
+    // Confirmed: the server now has v2; the sheet loads again and v2 is Current.
+    versions = [{ ...v1, versionNo: 2, updatedAt: mine.updatedAt, writtenBy: { accountId: 8, name: "Marcus" }, notes: "mine" }, v1];
+    await act(async () => { await syncScouting("w1"); });
+    rerender(sheet());
     await screen.findByText("Current");
-    expect(calls).toHaveLength(2);
+    expect(hist).toHaveLength(2);
+    expect(screen.queryByText(/still syncing/)).toBeNull();
+    // A save that changed nothing (a newer updatedAt, no new version) leaves v2 Current once it's confirmed.
+    act(() => { saveScoutEntry({ ...localScoutEntries("w1")[0] }); });
+    await act(async () => { await syncScouting("w1"); });
+    rerender(sheet());
+    await screen.findByText("Current");
     expect(screen.queryByText(/still syncing/)).toBeNull();
   });
 });
