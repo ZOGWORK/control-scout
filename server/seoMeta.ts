@@ -188,13 +188,14 @@ async function powerRankingsMeta(week: string | null): Promise<PageMeta> {
   if (week === null) {
     const r = await latestRankings();
     const bodyHtml = staticRankingsHtml(r);
-    // Nothing published yet: a real page that says so, kept out of the index until there's something to read.
-    if (!r.week) return { title: "FTC power rankings", description: fitDescription(POWER_DESC), type: "website", noindex: true, path: "/power-rankings", bodyHtml };
+    // Nothing published yet: a real page that says so (left out of the sitemap until there's something to read).
+    // No noindex: the app keeps no per-page robots tag in step on navigation, so it would follow the visitor to
+    // other pages; and this page is the one to index once the first week is out.
+    if (!r.week) return { title: "FTC power rankings", description: fitDescription(POWER_DESC), type: "website", path: "/power-rankings", bodyHtml };
     const label = weekLabel(r.week.week);
     return {
       title: "FTC power rankings", type: "website", path: "/power-rankings", bodyHtml, jsonLd: rankingsJsonLd(r, "/power-rankings"),
       description: bestFit([`${POWER_DESC} ${label}: ${topLine(r, 3)}.`, `${POWER_DESC} ${label}: ${topLine(r, 1)}.`, POWER_DESC]),
-      ...(r.week.sample ? { noindex: true } : {}),
     };
   }
   const id = week.toLowerCase();
@@ -205,7 +206,6 @@ async function powerRankingsMeta(week: string | null): Promise<PageMeta> {
   return {
     title: `${w.title} (${seasonInfo(w.season).label})`, type: "article", path, bodyHtml: staticRankingsHtml(r), jsonLd: rankingsJsonLd(r, path),
     description: bestFit([`${w.introText} ${topLine(r, 3)}.`, w.introText, `FTC power rankings, ${weekLabel(w.week)}: ${topLine(r, 3)}.`]),
-    ...(w.sample ? { noindex: true } : {}),
   };
 }
 

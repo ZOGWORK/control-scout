@@ -187,13 +187,13 @@ describe("sitemap", () => {
 });
 
 describe("no weeks yet", () => {
-  it("the hub is a real page that says so (noindex), and the sitemap leaves it out", async () => {
+  it("the hub is a real page that says so (no robots tag to leak to other pages), and the sitemap leaves it out", async () => {
     useContentDir(mkdtempSync(join(tmpdir(), "pr-empty-")));
     try {
       expect((await api("/api/power-rankings")).body).toEqual({ week: null, archive: [] });
       const page = await renderPage(index, "/power-rankings");
       expect(page.status).toBe(200);
-      expect(page.html).toContain('<meta name="robots" content="noindex" />');
+      expect(page.html).not.toContain('name="robots"');
       expect(page.html).toContain("No power rankings are published yet");
       resetSitemapCache();
       expect((await sitemapEntries()).some((x) => x.loc.includes("power-rankings"))).toBe(false);
