@@ -457,7 +457,9 @@ let viewerAccountId: number | null = null;
 export function setScoutViewer(accountId: number | null | undefined) { viewerAccountId = Number.isSafeInteger(accountId) && accountId! > 0 ? accountId! : null; }
 
 const sameText = (a: ScoutEntry, b: ScoutEntry) => a.team === b.team && a.kind === b.kind && (a.eventCode ?? "") === (b.eventCode ?? "")
-  && (a.matchLabel ?? "") === (b.matchLabel ?? "") && a.notes === b.notes && !!a.deleted === !!b.deleted && canonical(a.data) === canonical(b.data);
+  && (a.matchLabel ?? "") === (b.matchLabel ?? "") && a.notes === b.notes && !!a.deleted === !!b.deleted && canonical(a.data) === canonical(b.data)
+  // The template too: the same numbers read with other fields (another rating scale) say something else.
+  && (a.templateId ?? "") === (b.templateId ?? "") && (a.templateVersion ?? 0) === (b.templateVersion ?? 0);
 const canonical = (d: Record<string, unknown>) => JSON.stringify(Object.keys(d ?? {}).sort().map((k) => [k, d[k]]));
 
 /**

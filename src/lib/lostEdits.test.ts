@@ -86,6 +86,13 @@ describe("detecting the last-write-wins loser", () => {
     expect(lostEdits("w1").map((l) => [l.mine.notes, l.by.name])).toEqual([["my offline notes", "Priya"]]);
   });
 
+  it("the same answers under another template version are a different version: a loss, not a match", () => {
+    applyLiveEntries("w1", [{ entry: server({ updatedAt: 1000, templateId: "ws:w1:2025:match", templateVersion: 1 }), seq: 1 }]);
+    const mine = saveScoutEntry({ ...localScoutEntries("w1")[0], templateVersion: 2 });
+    applyLiveEntries("w1", [{ entry: server({ updatedAt: mine.updatedAt + 1000, templateId: "ws:w1:2025:match", templateVersion: 3 }), seq: 2 }]);
+    expect(lostEdits("w1")).toHaveLength(1);
+  });
+
   it("no notice for your own edit from another device, for a newer copy that says the same, or for personal entries", async () => {
     let mine = offlineEdit();
     applyLiveEntries("w1", [{ entry: server({ updatedAt: mine.updatedAt + 1, notes: "from my phone" }, ME, "Me"), seq: 2 }]);

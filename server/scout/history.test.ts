@@ -223,6 +223,12 @@ describe("entry version history", () => {
     // Sending no template keeps the stored one: no change, no version.
     await push(a, "1607", [{ ...plain, updatedAt: 3000 }]);
     expect((await versions("1607", e.uuid)).map((v) => Number(v.template_version))).toEqual([1, 2]);
+    // Restoring version 1 brings back only its template: a version, and an entry.version_restored item.
+    await push(a, "1607", [{ ...e, updatedAt: 4000, templateVersion: 1, restoredFrom: 1000 }]);
+    expect((await versions("1607", e.uuid)).map((v) => Number(v.template_version))).toEqual([1, 2, 1]);
+    const last = (await activity("1607", e.uuid)).at(-1);
+    expect(last.type).toBe("entry.version_restored");
+    expect(JSON.parse(last.details)).toMatchObject({ fromVersion: 1, changed: ["template"] });
   });
 
   it("a restore marker on a delete is just the delete; personal entries have no history", async () => {
