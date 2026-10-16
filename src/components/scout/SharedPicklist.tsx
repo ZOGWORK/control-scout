@@ -62,7 +62,12 @@ export function SharedPicklist({ workspaceId, workspaceName, season, live, me, s
     fetched.current = { season, set: new Set(teams), key: [...teams].sort((a, b) => a - b).join(",") };
   }
   const data = useApi<{ season: number; teams: ShortlistTeam[] }>(teams.length ? `/api/shortlist${qs({ teams: fetched.current.key, season })}` : null);
-  const byTeam = new Map((data.data?.teams ?? []).map((t) => [t.team, t]));
+  // Every row's stats fetched so far this season: a team added by someone else fetches its own without
+  // taking the rows already shown off screen (a note being typed there keeps its focus).
+  const stats = useRef<{ season: number; map: Map<number, ShortlistTeam> }>({ season, map: new Map() });
+  if (stats.current.season !== season) stats.current = { season, map: new Map() };
+  if (data.data?.season === season) for (const t of data.data.teams) stats.current.map.set(t.team, t);
+  const byTeam = stats.current.map;
 
   const [view, setViewState] = useState<ShortlistView>(() => readView(isPhone()));
   const setView = (v: ShortlistView) => { setViewState(v); saveView(v); };
@@ -153,8 +158,8 @@ export function SharedPicklist({ workspaceId, workspaceName, season, live, me, s
         : !teams.length ? (
           <EmptyState icon={ListOrdered} title="No picks yet"
             description={shortlist.length ? "Add a team above, or copy your own shortlist in to start the workspace's list." : "Add a team above to start the workspace's list. Everyone in the workspace sees it and can change it."} />
-        ) : !data.data && !data.error ? <LoadingBlock rows={Math.min(teams.length, 6)} label="Loading team stats" />
-        : data.error && !data.data ? <ErrorState error={data.error} onRetry={data.reload} />
+        ) : !byTeam.size && !data.error ? <LoadingBlock rows={Math.min(teams.length, 6)} label="Loading team stats" />
+        : data.error && !byTeam.size ? <ErrorState error={data.error} onRetry={data.reload} />
         : (
           <>
             <p className="mb-3 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-text-muted">

@@ -46,7 +46,10 @@ beforeEach(() => {
       gets++;
       return json(200, { list: server });
     }
-    if (path.startsWith("/api/shortlist")) return json(200, { season: S, teams: [team(101, 80, 3), team(102, 61.5, 40)] });
+    if (path.startsWith("/api/shortlist")) {
+      await new Promise((r) => setTimeout(r, 20));
+      return json(200, { season: S, teams: [team(101, 80, 3), team(102, 61.5, 40), team(103, 50, 90)] });
+    }
     throw new Error(`unexpected ${path}`);
   });
 });
@@ -92,6 +95,18 @@ describe("SharedPicklist", () => {
     expect(rows()).toEqual([102, 101]);
     act(() => announcePicklist({ ...server, workspaceId: "other", version: 9, picks: [] }));
     expect(rows()).toEqual([102, 101]);
+  });
+
+  it("a team someone else adds doesn't take the rows already shown off screen (a note being typed keeps its field)", async () => {
+    show();
+    await waitFor(() => expect(rows()).toEqual([101, 102]));
+    const input = document.querySelector<HTMLInputElement>('input[data-note="101"]')!;
+    input.focus();
+    act(() => announcePicklist({ ...server, version: 5, picks: [...server.picks, pick(103, 3)] }));
+    expect(document.body.contains(input)).toBe(true);
+    await waitFor(() => expect(rows()).toEqual([101, 102, 103]));
+    expect(document.body.contains(input)).toBe(true);
+    expect(document.activeElement).toBe(input);
   });
 
   it("a refused change (409) is dropped and the list fetched again", async () => {
