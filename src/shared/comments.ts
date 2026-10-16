@@ -34,6 +34,11 @@ export interface CommentEvent {
   entryUuid: string;
   commentId: number;
   count: number;
+  /**
+   * The change's place in the server's order (increasing). A device applies a change to a comment, or to
+   * an entry's count, only when it's newer than the last it applied there. 0: nothing changed (a resend).
+   */
+  rev: number;
   comment?: EntryComment;
 }
 
@@ -46,8 +51,13 @@ export function cleanCommentBody(raw: unknown): { ok: true; body: string } | { o
   // eslint-disable-next-line no-control-regex
   const body = raw.replace(/\r\n?/g, "\n").replace(/[\u0000-\u0008\u000B-\u001F\u007F]/g, "").trim();
   if (!body) return { ok: false, error: "Write a comment first." };
-  if ([...body].length > COMMENT_MAX) return { ok: false, error: `Comments can be up to ${COMMENT_MAX.toLocaleString("en-US")} characters.` };
+  if (commentLength(body) > COMMENT_MAX) return { ok: false, error: `Comments can be up to ${COMMENT_MAX.toLocaleString("en-US")} characters.` };
   return { ok: true, body };
+}
+
+/** A comment's length as the limit counts it: characters (code points) after trimming, the same on the device and the server. */
+export function commentLength(text: string): number {
+  return [...text.replace(/\r\n?/g, "\n").trim()].length;
 }
 
 /** The first COMMENT_EXCERPT characters of a comment on one line, with an ellipsis when cut. */
@@ -67,6 +77,6 @@ export function isEntryComment(x: unknown): x is EntryComment {
 export function isCommentEvent(x: unknown): x is CommentEvent {
   const e = x as CommentEvent;
   return !!e && (e.action === "created" || e.action === "edited" || e.action === "deleted") && typeof e.workspaceId === "string"
-    && typeof e.entryUuid === "string" && Number.isSafeInteger(e.commentId) && Number.isSafeInteger(e.count) && e.count >= 0
+    && typeof e.entryUuid === "string" && Number.isSafeInteger(e.commentId) && Number.isSafeInteger(e.count) && e.count >= 0 && Number.isSafeInteger(e.rev) && e.rev >= 0
     && (e.comment === undefined || isEntryComment(e.comment));
 }

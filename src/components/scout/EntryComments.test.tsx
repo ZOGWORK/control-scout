@@ -35,7 +35,7 @@ beforeEach(() => {
     if (method === "POST" && url === THREAD) {
       const body = JSON.parse(String(init!.body)).body;
       posted.push(body);
-      const e: CommentEvent = { action: "created", workspaceId: "41", entryUuid: "aaaaaaaaaaaa", commentId: 3, count: 3, comment: c(3, { body, createdAt: Date.now() }) };
+      const e: CommentEvent = { action: "created", workspaceId: "41", entryUuid: "aaaaaaaaaaaa", commentId: 3, count: 3, rev: 100, comment: c(3, { body, createdAt: Date.now() }) };
       return new Response(JSON.stringify(e), { status: 201 });
     }
     return new Response(JSON.stringify({ error: "Not found" }), { status: 404 });
@@ -90,7 +90,7 @@ describe("EntryComments", () => {
   it("a comment from someone else arrives live", async () => {
     render(<EntryComments entry={entry()} />);
     await waitFor(() => expect(items()).toHaveLength(2));
-    act(() => { announceComment({ action: "created", workspaceId: "41", entryUuid: "aaaaaaaaaaaa", commentId: 5, count: 3, comment: c(5, { authorAccountId: 10, authorName: "Ada", body: "live!" }) }); });
+    act(() => { announceComment({ action: "created", workspaceId: "41", entryUuid: "aaaaaaaaaaaa", commentId: 5, count: 3, rev: 200, comment: c(5, { authorAccountId: 10, authorName: "Ada", body: "live!" }) }); });
     expect(items()).toHaveLength(3);
     expect(items()[2].textContent).toContain("live!");
   });
@@ -101,5 +101,37 @@ describe("EntryComments", () => {
     rerender(<EntryComments entry={entry({ authorAccountId: 0 })} />);
     expect(screen.getByText(/save and sync this entry/i)).toBeTruthy();
     expect(screen.queryByLabelText("Add a comment")).toBeNull();
+  });
+});
+
+describe("EntryComments: the composer", () => {
+  it("counts characters like the server (an emoji is one), and refuses over the limit", async () => {
+    render(<EntryComments entry={entry()} />);
+    await waitFor(() => expect(items()).toHaveLength(2));
+    const box = screen.getByLabelText("Add a comment");
+    fireEvent.change(box, { target: { value: "\u{1F642}".repeat(1990) } });
+    expect(screen.getByText("10 characters left")).toBeTruthy();
+    expect((screen.getByRole("button", { name: "Comment" }) as HTMLButtonElement).disabled).toBe(false);
+    fireEvent.change(box, { target: { value: "\u{1F642}".repeat(2003) } });
+    expect(screen.getByText("3 over the 2,000-character limit")).toBeTruthy();
+    expect((screen.getByRole("button", { name: "Comment" }) as HTMLButtonElement).disabled).toBe(true);
+  });
+
+  it("words typed while a comment is sending stay in the box", async () => {
+    let finish: (r: Response) => void = () => undefined;
+    vi.stubGlobal("fetch", vi.fn(async (_url: string, init?: RequestInit) => {
+      if ((init?.method ?? "GET") === "POST") return new Promise<Response>((r) => { finish = r; });
+      return new Response(JSON.stringify({ comments: thread, entryDeleted: false }), { status: 200 });
+    }));
+    render(<EntryComments entry={entry()} />);
+    await waitFor(() => expect(items()).toHaveLength(2));
+    const box = screen.getByLabelText("Add a comment") as HTMLTextAreaElement;
+    fireEvent.change(box, { target: { value: "first" } });
+    fireEvent.click(screen.getByRole("button", { name: "Comment" }));
+    fireEvent.change(box, { target: { value: "first and more" } });
+    const e: CommentEvent = { action: "created", workspaceId: "41", entryUuid: "aaaaaaaaaaaa", commentId: 7, count: 3, rev: 300, comment: c(7, { body: "first" }) };
+    await act(async () => { finish(new Response(JSON.stringify(e), { status: 201 })); });
+    await waitFor(() => expect(items()).toHaveLength(3));
+    expect(box.value).toBe("first and more");
   });
 });

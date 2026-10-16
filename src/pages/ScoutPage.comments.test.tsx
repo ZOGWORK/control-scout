@@ -53,7 +53,7 @@ describe("comment counts on entry cards", () => {
     show("/scout?season=2025&space=901");
     const count = await screen.findByRole("button", { name: "3 comments: open the entry" });
     expect(screen.getAllByRole("button", { name: /comments?: open the entry/ })).toHaveLength(1); // the other entry has none
-    act(() => { announceComment({ action: "created", workspaceId: "901", entryUuid: "gearheads002", commentId: 9, count: 1, comment: { id: 9, workspaceId: "901", entryUuid: "gearheads002", authorAccountId: 5, authorName: "Coach", body: "hi", createdAt: 1, editedAt: null } }); });
+    act(() => { announceComment({ action: "created", workspaceId: "901", entryUuid: "gearheads002", commentId: 9, count: 1, rev: 50, comment: { id: 9, workspaceId: "901", entryUuid: "gearheads002", authorAccountId: 5, authorName: "Coach", body: "hi", createdAt: 1, editedAt: null } }); });
     expect(screen.getByRole("button", { name: "1 comment: open the entry" })).toBeTruthy();
     fireEvent.click(count);
     await waitFor(() => expect(new URLSearchParams(where.split("?")[1]).get("entry")).toBe("gearheads001"));
