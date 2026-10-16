@@ -41,6 +41,24 @@ export const env = {
   get githubReportToken() { return str("GITHUB_REPORT_TOKEN"); },
   /** Owner allowlist (comma-separated emails): who may read owner-only data such as GET /api/reports/errors. */
   get ownerEmails() { return (str("OWNER_EMAILS") ?? "").split(",").map((e) => e.trim().toLowerCase()).filter(Boolean); },
+  /** Entry photos in Cloudflare R2 (docs/r2-photos.md). All unset: photos are off and their UI hidden. Never logged. */
+  get r2AccountId() { return str("R2_ACCOUNT_ID"); },
+  get r2AccessKeyId() { return str("R2_ACCESS_KEY_ID"); },
+  get r2SecretAccessKey() { return str("R2_SECRET_ACCESS_KEY"); },
+  get r2Bucket() { return str("R2_BUCKET"); },
+  /** The S3 API endpoint, https://<account id>.r2.cloudflarestorage.com (derived from R2_ACCOUNT_ID when unset). */
+  get r2Endpoint() { return str("R2_ENDPOINT"); },
+  /** Read for completeness only: the bucket is private, so photos are always served through short-lived signed URLs. */
+  get r2PublicUrl() { return str("R2_PUBLIC_URL"); },
+  /** New uploads stop at this many GB (10^9 bytes) stored, under R2's 10 GB free tier. Default 9.5. */
+  get r2SoftCapGb() {
+    const n = Number(str("R2_SOFT_CAP_GB"));
+    return Number.isFinite(n) && n > 0 && n <= 10 ? n : 9.5;
+  },
+  /** Development and tests only: an in-process stand-in for R2 (server/scout/fakeR2.ts). Ignored in production. */
+  get r2Fake() { return !this.production && str("R2_FAKE") === "1"; },
+  /** Where the stand-in keeps objects (unset: in memory). */
+  get r2FakeDir() { return str("R2_FAKE_DIR"); },
   get dataDir() { return str("DATA_DIR") ?? join(process.cwd(), ".data"); },
   /** Where an FTC Scout raw cache can be imported from (seed). */
   get scoutCacheDir() { return str("SCOUT_CACHE_DIR"); },
