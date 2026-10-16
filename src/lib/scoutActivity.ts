@@ -179,6 +179,12 @@ export function describeActivity(i: ActivityItem): { verb: string; subject: stri
       const which = kinds.length === 1 ? `${kinds[0]} fields` : "fields";
       return { verb: "changed the", subject: `${num(d.season) ?? ""} ${which}`.trim(), note: num(d.version) ? `version ${num(d.version)}` : undefined };
     }
+    case "settings.changed": {
+      // Task 6: an admin changed the defaults for new entries (details.defaults: the new values).
+      const def = d.defaults && typeof d.defaults === "object" ? d.defaults as Record<string, unknown> : {};
+      const parts = [num(def.season) ? `season ${num(def.season)}` : "current season", str(def.eventCode) ? `event ${str(def.eventCode)}` : "no event"];
+      return { verb: "changed the", subject: "defaults for new entries", note: parts.join(", ") };
+    }
     case "member.joined": return { verb: "added", subject: `${str(d.name) ?? "a member"} to the workspace`, note: d.role === "admin" ? "admin" : undefined };
     case "member.left": return { verb: "removed", subject: `${str(d.name) ?? "a member"} from the workspace` };
     default: return { verb: i.type.replace(/[._]/g, " "), subject: "" };

@@ -12,6 +12,7 @@ import { ALL_PHASES, phaseLabel, type WorkspaceTemplate } from "../shared/scoutT
 import { ScoutFieldInput } from "../components/scout/ScoutFieldInput";
 import { TemplateEditor } from "../components/scout/TemplateEditor";
 import { useScoutSpaces, workspaceLabel } from "../lib/scoutSpace";
+import { newEntryEventCode, useWorkspaceSettings } from "../lib/workspaceSettings";
 import { ScoutSpaceSwitcher } from "../components/ScoutSpaceSwitcher";
 import { LoadingBlock } from "../components/states";
 import { useScoutLive, type LiveMode } from "../lib/scoutLive";
@@ -33,11 +34,25 @@ export default function ScoutPage() {
   useTitle("Scout");
   const [sp, setSp] = useSearchParams();
   const current = useCurrentSeason();
-  const season = Number(sp.get("season")) || current;
   const teamFilter = Number(sp.get("team")) || undefined;
   const { user, syncReady } = usePersonal();
   const spaces = useScoutSpaces();
   const { space, current: workspace } = spaces;
+  // The workspace's shared settings (Tier 2, docs/settings.md): its default season and event for this space.
+  // A season in the URL wins; Personal is unchanged (the current season, no event).
+  const wss = useWorkspaceSettings(space);
+  const urlSeason = Number(sp.get("season")) || 0;
+  // Applied when the space opens: the first settings known for it fix its season for this visit,
+  // so a later change to the default never moves the page (or an open form) under the member.
+  const [opened, setOpened] = useState<{ space: string; season: number } | null>(null);
+  const openedSeason = opened && opened.space === space ? opened.season : null;
+  const season = urlSeason || openedSeason || (space != null && wss.defaults.season) || current;
+  const settingsKnown = space != null && wss.settings != null;
+  // Leaving the space ends the visit: coming back applies the default as it is then.
+  useEffect(() => {
+    if (settingsKnown && space != null && openedSeason == null) setOpened({ space, season });
+    else if (space == null) setOpened(null);
+  }, [settingsKnown, space, openedSeason, season]);
   const { entries, status, pendingCount, syncNow } = useScouting({ season, team: teamFilter }, syncReady, space);
   const live = useScoutLive(space, syncReady);
   const pending = usePendingScoutCounts();
@@ -62,7 +77,8 @@ export default function ScoutPage() {
   // Every form that opens (New entry, an edit, or one opened from the URL) checks for a newer template first:
   // the live notice can be missed (realtime off, or a reconnect gap), and polling only pulls entries.
   const refreshTemplate = wt.refresh;
-  useEffect(() => { if (formOpen) refreshTemplate(); }, [formOpen, editing, refreshTemplate]);
+  const refreshSettings = wss.refresh;
+  useEffect(() => { if (formOpen) { refreshTemplate(); refreshSettings(); } }, [formOpen, editing, refreshTemplate, refreshSettings]);
   // A workspace whose template this device has never seen: hold the form until the first answer (offline: the built-in fields).
   const templatePending = space != null && !wt.template && wt.status === "loading";
   const toggleTemplate = () => setSp((x) => { if (x.get("view") === "template") x.delete("view"); else x.set("view", "template"); return x; });
@@ -112,6 +128,7 @@ export default function ScoutPage() {
       )}
       {formOpen && !spaces.resolving && (
         <EntryForm key={editEntry?.uuid ?? `new-${teamFilter ?? ""}`} season={season} initial={editEntry} team={teamFilter} space={space} spaceName={workspace ? workspaceLabel(workspace) : null} workspaceTemplate={wt.template} templatePending={templatePending}
+          defaultEvent={newEntryEventCode(space, wss.defaults, season)}
           onDone={() => { setFormOpen(false); setSp((x) => { x.delete("entry"); return x; }); }} />
       )}
       {showActivity && workspace ? <ActivityFeed state={activity} workspaceName={workspaceLabel(workspace)} onOpenEntry={openEntry} /> : <>
@@ -171,17 +188,23 @@ function EntryCard({ e, canDelete, onEdit }: { e: ScoutEntry; canDelete: boolean
   );
 }
 
-function EntryForm({ season, initial, team, space, spaceName, workspaceTemplate, templatePending, onDone }: {
+function EntryForm({ season, initial, team, space, spaceName, workspaceTemplate, templatePending, defaultEvent, onDone }: {
   season: number; initial: ScoutEntry | null; team?: number; space: ScoutSpace; spaceName: string | null;
   /** The workspace's current template (null: Personal, or not known yet: the built-in defaults). */
   workspaceTemplate: WorkspaceTemplate | null;
   /** The workspace's template hasn't come yet (none on this device): new entries wait for it. */
   templatePending: boolean;
+  /** Where a new entry's event starts: the workspace's default event (Personal: none). */
+  defaultEvent: string;
   onDone: () => void;
 }) {
   const [kind, setKind] = useState<"match" | "pit">(initial?.kind ?? "match");
   const [teamText, setTeamText] = useState(initial ? String(initial.team) : team ? String(team) : "");
-  const [eventCode, setEventCode] = useState(initial?.eventCode ?? "");
+  const [eventCode, setEventCode] = useState(initial ? initial.eventCode ?? "" : defaultEvent);
+  // A new entry's event follows the workspace's default (it can arrive after the form opens, or change
+  // with the space) until it's typed in; an edit keeps its own.
+  const eventTouched = useRef(!!initial);
+  useEffect(() => { if (!eventTouched.current) setEventCode(defaultEvent); }, [defaultEvent]);
   const [matchLabel, setMatchLabel] = useState(initial?.matchLabel ?? "");
   const [data, setData] = useState<Record<string, ScoutValue>>(initial?.data ?? {});
   const [notes, setNotes] = useState(initial?.notes ?? "");
@@ -265,7 +288,7 @@ function EntryForm({ season, initial, team, space, spaceName, workspaceTemplate,
           <ToggleGroupItem value="match">Match</ToggleGroupItem><ToggleGroupItem value="pit">Pit</ToggleGroupItem>
         </ToggleGroup>
         <div className={teamErr ? "w-56" : "w-32"}><TeamInput label="Team" value={teamText} onChange={(v) => { setTeamText(v); setTeamErr(null); }} error={teamErr} inputRef={teamRef} /></div>
-        <div className="w-36"><Input value={eventCode} onChange={(e) => setEventCode(e.target.value)} placeholder="Event code" aria-label="Event code" className="h-11 font-mono uppercase" /></div>
+        <div className="w-36"><Input value={eventCode} onChange={(e) => { eventTouched.current = true; setEventCode(e.target.value); }} placeholder="Event code" aria-label="Event code" className="h-11 font-mono uppercase" /></div>
         {kind === "match" && <div className="w-24"><Input value={matchLabel} onChange={(e) => setMatchLabel(e.target.value)} placeholder="Q12" aria-label="Match" className="h-11 font-mono uppercase" /></div>}
       </div>
       {fieldsPending ? <div className="mt-5"><LoadingBlock rows={2} label="Loading the workspace's fields" /></div> : fieldsLocked ? (

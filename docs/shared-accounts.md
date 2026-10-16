@@ -310,7 +310,7 @@ Storage (migration 15, `server/scout/templates.ts`):
   `scoutTemplate.<season>`:
   `{ version, match: Field[] | null, pit: Field[] | null, updatedAt, updatedBy }`.
   `null` means the built-in default. Other keys of `settings` are left as they
-  are. That's where Task 6's `defaults` and `entryPolicy` go.
+  are: Task 6's `defaults` and `entryPolicy` sit beside it ([settings.md](settings.md)).
 - **Versions:** every admin change bumps that season's `version` (1, 2, …) and
   the row's `settings_version`, which counts every change to the workspace's
   settings. Saving what's already there changes nothing.
