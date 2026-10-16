@@ -3,7 +3,7 @@
 // re-encoded from pixels), the three-step upload, and photo lists from the
 // server winning over the device's copy even when a text edit is queued.
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { compressPhoto, fitWithin, jpegHasExif, PhotoError, uploadEntryPhoto, type CompressDeps } from "./photos";
+import { canRemovePhoto, compressPhoto, fitWithin, jpegHasExif, PhotoError, uploadEntryPhoto, type CompressDeps } from "./photos";
 import { applyLiveEntries, localScoutEntries, saveScoutEntry, type ScoutEntry } from "./scouting";
 import { PHOTO_LIMITS } from "../shared/photos";
 
@@ -83,6 +83,18 @@ describe("upload", () => {
     expect(calls[1].headers).toEqual({ "Content-Type": "image/jpeg" });
     expect(jpegHasExif(new Uint8Array(await (calls[1].body as Blob).arrayBuffer()))).toBe(false);
     expect(localScoutEntries("w1")[0].photos).toEqual([photo]);
+  });
+});
+
+describe("who sees Remove (the server's rule)", () => {
+  const e = { workspaceId: "w", authorAccountId: 7 } as ScoutEntry;
+  it("the photo's adder, the entry's author, or an admin; nobody outside the workspace", () => {
+    expect(canRemovePhoto(e, { addedByAccountId: 8 }, { accountId: 8, role: "member" })).toBe(true); // added it
+    expect(canRemovePhoto(e, { addedByAccountId: 8 }, { accountId: 7, role: "member" })).toBe(true); // the entry is theirs
+    expect(canRemovePhoto(e, { addedByAccountId: 8 }, { accountId: 9, role: "member" })).toBe(false);
+    expect(canRemovePhoto(e, { addedByAccountId: 8 }, { accountId: 9, role: "admin" })).toBe(true);
+    expect(canRemovePhoto(e, { addedByAccountId: 8 }, { accountId: 8 })).toBe(false); // no role here: not a member
+    expect(canRemovePhoto(e, { addedByAccountId: 8 }, null)).toBe(false);
   });
 });
 

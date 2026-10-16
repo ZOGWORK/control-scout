@@ -92,7 +92,9 @@ redirects to a 15-minute presigned GET (cached privately for 13 minutes).
 Thumbnails are lazy-loaded; tap one for fullscreen (swipe or arrow keys to move).
 
 **Removing**: whoever added the photo, the entry's author, or a workspace admin
-(the server enforces it; the button only shows for them). The R2 object is
+(the same shape as the entry delete rule, docs/shared-accounts.md; the server
+enforces it, and the button only shows for them, from `/api/auth/me`'s
+`controlPoint.accountId` and role). The R2 object is
 deleted first; if R2 can't be reached the photo stays and the member is told.
 
 **Live**: every photo change gives the entry a new `seq` and bumps its
