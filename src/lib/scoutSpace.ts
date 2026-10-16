@@ -7,13 +7,16 @@
 //   device (localStorage cs-scout-space, never synced), then the account's first workspace, then
 //   Personal when it has none.
 // - A URL or remembered workspace the account no longer belongs to is skipped, with a notice.
-// - Losing the space on screen (the live stream says access ended, or the account's workspaces
-//   change) goes to Personal, with a notice.
+// - Losing the space on screen (the live stream says access ended, a push or pull is refused with
+//   403, or the account's workspaces change) goes to Personal, with a notice.
+// - Entries still queued for a workspace the account has left are moved to Personal, never dropped
+//   (useQueuedScoutSync, moveQueuedToPersonal).
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { useFlag } from "./flags";
 import { usePersonal, type AccountUser } from "./personal";
-import { pendingScoutCounts, syncQueuedScouting, type ScoutSpace } from "./scouting";
+import { moveQueuedToPersonal, pendingScoutCounts, SCOUT_DENIED, syncQueuedScouting, syncScouting, type ScoutSpace } from "./scouting";
+import { toast } from "../components/ui/sonner";
 
 export interface WorkspaceSpace { id: string; name: string; role: "admin" | "member" }
 
@@ -130,25 +133,65 @@ export interface ScoutSpaces {
 
 export const QUEUE_RETRY_MS = 30_000;
 
+/** The notice when entries queued for a workspace the account has left were moved to Personal. */
+export const movedNotice = (n: number, name?: string) =>
+  `${n === 1 ? "1 entry" : `${n} entries`} saved in ${name?.trim() || "a workspace you've left"} couldn't sync: you're no longer a member there. ${n === 1 ? "It's" : "They're"} kept in Personal, so nothing was lost.`;
+
+/** One rescue per workspace at a time. */
+const rescuing = new Set<string>();
+/**
+ * A workspace with entries queued on this device that the account's list (Control Point's answer)
+ * no longer has: push once more, and only when the server refuses it too (403) move them to
+ * Personal, with a notice. Anything else (offline, paused, a server error) leaves them queued.
+ */
+async function rescueQueued(space: string, name?: string): Promise<void> {
+  if (rescuing.has(space)) return;
+  rescuing.add(space);
+  try { await syncScouting(space); }
+  catch (e) {
+    if ((e as { status?: unknown } | null)?.status !== 403) return;
+    const n = moveQueuedToPersonal(space);
+    if (!n) return;
+    toast.warning(movedNotice(n, name), { duration: 20_000 });
+    void syncScouting(null).catch(() => undefined); // up to the account now (else the next tick)
+  } finally { rescuing.delete(space); }
+}
+
 /**
  * Entries saved while offline go up when the connection comes back, in every space, not only the
  * one on screen (whose list syncs itself): at sign-in, on reconnect, and every 30 s while any wait.
- * Workspaces only while workspace scouting is on and the account still belongs to them.
+ * Workspaces only while workspace scouting is on and the account still belongs to them; a queue for
+ * one it has left is rescued (rescueQueued). A refused push or pull (SCOUT_DENIED) re-reads the
+ * account at once, so its workspace list (and with it the page and this queue) catches up.
  */
 export function useQueuedScoutSync(): void {
-  const { user, syncReady } = usePersonal();
+  const { user, syncReady, refreshUser } = usePersonal();
   const enabled = useFlag("workspaceScouting");
-  const ids = useMemo(() => (enabled ? workspacesOf(user).list.map((w) => w.id) : []).join(","), [user, enabled]);
+  const { list: all, known } = useMemo(() => workspacesOf(user), [user]);
+  const ids = useMemo(() => (enabled ? all.map((w) => w.id) : []).join(","), [all, enabled]);
+  // Which workspaces the account belongs to, when Control Point's answer is known (else nothing counts as left).
+  const memberOf = enabled && known ? all.map((w) => w.id).join(",") : null;
   useEffect(() => {
     if (!syncReady) return;
     const list = ids ? ids.split(",") : [];
-    const run = () => { void syncQueuedScouting(list); };
-    const tick = () => { const p = pendingScoutCounts(); if (p.personal || list.some((w) => p.workspaces[w])) run(); };
+    const members = memberOf == null ? null : new Set(memberOf ? memberOf.split(",") : []);
+    const left = () => (members ? Object.keys(pendingScoutCounts().workspaces).filter((w) => !members.has(w)) : []);
+    const run = () => {
+      void syncQueuedScouting(list);
+      const remembered = readRememberedSpace();
+      for (const w of left()) void rescueQueued(w, remembered?.id === w ? remembered.name : undefined);
+    };
+    const tick = () => { const p = pendingScoutCounts(); if (p.personal || list.some((w) => p.workspaces[w]) || left().length) run(); };
     tick();
     window.addEventListener("online", run);
     const t = setInterval(tick, QUEUE_RETRY_MS);
     return () => { window.removeEventListener("online", run); clearInterval(t); };
-  }, [syncReady, ids]);
+  }, [syncReady, ids, memberOf]);
+  useEffect(() => {
+    const denied = () => { void refreshUser?.(); };
+    window.addEventListener(SCOUT_DENIED, denied);
+    return () => window.removeEventListener(SCOUT_DENIED, denied);
+  }, [refreshUser]);
 }
 
 /** Mount once inside PersonalProvider: useQueuedScoutSync() for the whole app. */
@@ -209,6 +252,13 @@ export function useScoutSpaces(): ScoutSpaces {
     else setRevoked(id);
     void refreshUser?.(); // the account's workspaces as the server now has them (so Settings and the switcher agree)
   }, [leave, setRevoked, refreshUser]);
+
+  // A push or pull for the space on screen was refused (403): access is gone, as when the stream says so.
+  useEffect(() => {
+    const denied = (ev: Event) => { const id = (ev as CustomEvent<string>).detail; if (id === shown.current?.id) revoke(id); };
+    window.addEventListener(SCOUT_DENIED, denied);
+    return () => window.removeEventListener(SCOUT_DENIED, denied);
+  }, [revoke]);
 
   // A workspace asked for that isn't the account's: say so once, and stop asking for it.
   const lostKey = r.lost && !resolving && r.switchable ? r.lost.id : null;
