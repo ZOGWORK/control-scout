@@ -286,15 +286,22 @@ export function PersonalProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const lastRefresh = useRef(Date.now()); // the page load just asked
+  // Each refresh's order, and the newest one applied: a reply older than that is dropped.
+  const refreshSeq = useRef(0);
+  const appliedSeq = useRef(0);
   const refreshUser = useCallback(async () => {
     const u = userRef.current;
     if (!u) return;
     const mine = generation.current;
+    const seq = ++refreshSeq.current;
     lastRefresh.current = Date.now();
     try {
       const r = await apiFetch<{ user: AccountUser | null }>("/api/auth/me");
+      // A newer refresh already answered (e.g. the one after leaving a workspace): this older reply is stale.
+      if (seq < appliedSeq.current) return;
       // Signed out meanwhile, or another account: that's the next page load's to handle, not this refresh's.
       if (generation.current !== mine || !r.user || r.user.id !== userRef.current?.id) return;
+      appliedSeq.current = seq;
       if (JSON.stringify(r.user) === JSON.stringify(userRef.current)) return;
       userRef.current = r.user;
       setUser(r.user);

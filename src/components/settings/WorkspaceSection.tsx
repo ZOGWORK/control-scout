@@ -70,7 +70,8 @@ function Membership({ workspace, url }: { workspace: WorkspaceSpace; url?: strin
       <Row label="Your role" description={workspace.role === "admin" ? "You can change this workspace's shared settings below." : "You can read this workspace's shared settings; its admins change them."}>
         <Badge variant={workspace.role === "admin" ? "success" : "secondary"}>{workspace.role === "admin" ? "Admin" : "Member"}</Badge>
       </Row>
-      <WorkspaceMembers workspace={workspace} />
+      {/* Keyed: another workspace is a fresh list, and an open dialog never carries over to it. */}
+      <WorkspaceMembers key={workspace.id} workspace={workspace} />
       <Row label="Invites and roles" description={MEMBERSHIP_NOTE}>
         {url && <Button variant="outline" size="sm" asChild><a href={url} target="_blank" rel="noreferrer noopener">Open Control Point <ExternalLink /></a></Button>}
       </Row>

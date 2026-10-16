@@ -10,13 +10,14 @@
 //        Scout checks the admin (requireWorkspaceAdmin: a member is 403 without asking Control Point),
 //        then Control Point checks again and removes them with its own removal path.
 //        200 {ok, self}; 400 bad accountId; 403 not an admin (Control Point's answer included);
-//        404 not in the workspace; 409 the last admin; 501 an older Control Point; 502 unreachable.
+//        404 not in the workspace; 409 the last admin; 501 an older Control Point; 502 unconfirmed
+//        (unreachable or timed out: it may have happened; the account is re-checked in the background).
 //        On success Scout drops its cached membership at once, logs member.left (actor: the admin)
 //        in the workspace's feed, ends the person's open streams there and records the removal in
 //        the owner audit. Their account, personal data and every entry stay; authorship is kept.
 import express, { type NextFunction, type Request, type Response, type Router } from "express";
 import {
-  cachedWorkspaceMembers, dropMembership, isWorkspaceId, listWorkspaceMembers, refreshAccount, removeWorkspaceMember,
+  cachedWorkspaceMembers, isWorkspaceId, listWorkspaceMembers, refreshAccount, removeMember,
   type Membership, type WorkspaceMember,
 } from "../auth/controlPoint.js";
 import { currentUser, type User } from "../auth/session.js";
@@ -76,8 +77,16 @@ export function membersRouter(): Router {
       target = listed?.find((x) => x.accountId === accountId);
     } catch { /* the remove call below says whether Control Point is there */ }
     let result;
-    try { result = await removeWorkspaceMember(m.workspaceId, accountId, m.accountId); }
-    catch { res.status(502).json({ error: "Couldn't reach Control Point, so nobody was removed. Try again in a moment." }); return; }
+    try {
+      result = await removeMember(m.workspaceId, m.workspaceName, { accountId, name: target?.name, role: target?.role },
+        { accountId: m.accountId, name: writerName(user) }, user.email ?? `account ${m.accountId}`);
+    } catch {
+      // A timeout or lost answer can come after Control Point removed them: don't claim either way.
+      // Re-checking the account brings Scout in line with whatever Control Point did (and logs it).
+      void refreshAccount(accountId);
+      res.status(502).json({ error: "Couldn't confirm the removal with Control Point. Check the list again in a moment.", code: "unconfirmed" });
+      return;
+    }
     if (!result.ok) {
       switch (result.reason) {
         case "unsupported": res.status(501).json({ error: REMOVE_UNSUPPORTED, code: "unsupported" }); return;
@@ -91,8 +100,6 @@ export function membersRouter(): Router {
         default: res.status(400).json({ error: "Control Point couldn't read that request.", code: "invalid_input" }); return;
       }
     }
-    await dropMembership(m.workspaceId, m.workspaceName, { accountId, name: target?.name, role: target?.role },
-      { accountId: m.accountId, name: writerName(user) }, user.email ?? `account ${m.accountId}`);
     return { ok: true, self };
   }));
 

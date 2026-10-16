@@ -215,7 +215,13 @@ never forks it. Server code: `server/scout/members.ts`; Control Point calls in
   their open streams there with `membership_revoked`, and records
   `workspace.member_removed` in the owner audit. Errors: 400 bad id, 403, 404
   (already gone; the cache catches up), 409, 501 (older Control Point), 502
-  (unreachable: nothing changed).
+  `unconfirmed` (unreachable or timed out: it may have happened, so Scout
+  re-checks the account in the background).
+- **Races.** While Scout's removal is in flight, a refresh that already sees it
+  drops the row but leaves the record to the removal, so it's logged and
+  audited once, with the admin as actor. For 15 s after Scout drops a
+  membership, an account read that was already on its way and still lists the
+  workspace can't put the row back.
 - **Older Control Point.** Without the members routes the list comes from
   Scout's cache and the Remove buttons are off with "Removing members needs
   the latest Control Point". Nothing else changes.

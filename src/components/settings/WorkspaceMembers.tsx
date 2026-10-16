@@ -18,9 +18,10 @@ import { Row } from "./rows";
 const initials = (name: string) => name.split(/\s+/).filter(Boolean).slice(0, 2).map((w) => w[0]!.toUpperCase()).join("") || "?";
 
 export function WorkspaceMembers({ workspace }: { workspace: WorkspaceSpace }) {
-  const { data, status, error, reload } = useWorkspaceMembers(workspace.id);
+  const { data, status, error, reload, drop } = useWorkspaceMembers(workspace.id);
   const { refreshUser } = usePersonal();
-  const [confirm, setConfirm] = useState<WorkspaceMemberOut | null>(null);
+  // The person and the workspace they're being removed from, fixed when the dialog opens.
+  const [confirm, setConfirm] = useState<(WorkspaceMemberOut & { workspaceId: string }) | null>(null);
   const [removing, setRemoving] = useState(false);
   const [problem, setProblem] = useState<string | null>(null);
   const label = workspaceLabel(workspace);
@@ -30,13 +31,14 @@ export function WorkspaceMembers({ workspace }: { workspace: WorkspaceSpace }) {
     : data.source === "control-point" ? `Everyone in ${label}, as Control Point lists them.`
       : "Members who use Control Scout. Control Point couldn't list everyone just now.";
 
-  const open = (m: WorkspaceMemberOut) => { setProblem(null); setConfirm(m); };
+  const open = (m: WorkspaceMemberOut) => { setProblem(null); setConfirm({ ...m, workspaceId: workspace.id }); };
   const remove = async () => {
     if (!confirm?.accountId) return;
     setRemoving(true); setProblem(null);
     try {
-      const r = await removeWorkspaceMember(workspace.id, confirm.accountId);
+      const r = await removeWorkspaceMember(confirm.workspaceId, confirm.accountId);
       setConfirm(null);
+      drop(confirm.accountId); // gone from the list now, whatever the reload below brings
       if (r.self) {
         toast.success(`You left ${label}`);
         await refreshUser(); // the workspace leaves the account: Settings and the scout space follow
@@ -46,7 +48,7 @@ export function WorkspaceMembers({ workspace }: { workspace: WorkspaceSpace }) {
       }
     } catch (e) {
       setProblem(e instanceof ApiError ? e.message : "Couldn't remove them. Try again.");
-      if (e instanceof ApiError && (e.status === 501 || e.status === 404)) reload(); // the list catches up
+      if (e instanceof ApiError && [404, 501, 502].includes(e.status)) reload(); // the list catches up
     } finally { setRemoving(false); }
   };
 
@@ -82,6 +84,12 @@ export function WorkspaceMembers({ workspace }: { workspace: WorkspaceSpace }) {
               ))}
             </ul>
             {isAdmin && data.removeUnavailable && <p className="mt-2 text-sm text-muted-foreground" role="note">{data.removeUnavailable}</p>}
+            {error && (
+              <div className="mt-2 flex items-center justify-between gap-2">
+                <p className="text-sm text-muted-foreground" role="status">Couldn't refresh the list: {error}</p>
+                <Button variant="outline" size="sm" onClick={reload}><RefreshCw /> Try again</Button>
+              </div>
+            )}
           </>
         )}
       </Row>
