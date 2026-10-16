@@ -65,7 +65,7 @@ of that kind.
 | --- | --- | --- |
 | Match reminder | `myTeamMatches` (my team), `trackedTeams` (tracked teams) | The match's scheduled start is 15 minutes away or less (and at least 1 minute). The scheduled time is FIRST's event-local time read in the event's time zone (`localToUtcMs`). No time or no zone: skipped. One push per device per match, even if the schedule moves afterwards. Several of your teams in one match: one push. |
 | Upset | `upsets` | A match at a **followed event** whose pre-match call in the live ledger (`predictions`, `kind = 'live'`) gave the side that lost **65% or more**. Ties are never upsets. Only upsets scored in the last 30 minutes, and after the device subscribed. |
-| Event start | `eventStart` | A **followed event** has started: its first match result is in, or its first scheduled match time has passed, whichever comes first, on the event's first day in its own time zone. Once per event. |
+| Event start | `eventStart` | A **followed event** has started: its first match result is in, or its first scheduled match time has passed, whichever comes first, on the event's first day in its own time zone (an event with no time zone gets none). Once per event. |
 
 A **followed event** is one in the account's tracked events, or one whose
 roster (`event_teams`, plus anyone in its match lineups) includes the account's
@@ -95,8 +95,9 @@ still has that endpoint, and subscription ids are never reused, so a late answer
 can't remove a device that turned notifications off and on again.
 - **Any other refusal**: logged `failed`, never retried.
 
-At most 20 pushes per device in any 24 hours; beyond that they're logged
-`limited` and never sent later. The sent log keeps 7 days.
+At most 20 pushes per device in any 24 hours, counting pushes in flight on any
+server (the slot is taken in the same statement as the claim); beyond that
+they're logged `limited` and never sent later. The sent log keeps 7 days.
 
 Sending uses the [`web-push`](https://www.npmjs.com/package/web-push) package
 (RFC 8291 aes128gcm payload encryption and RFC 8292 VAPID), not our own

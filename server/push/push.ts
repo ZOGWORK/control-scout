@@ -14,7 +14,7 @@
 //          losing side UPSET_THRESHOLD (65%) or more. Ties are never upsets. Only upsets scored in the last
 //          UPSET_FRESH_MS and after the device subscribed.
 //   start  eventStart: a followed event's first match result is in, or its first scheduled match's start has
-//          passed, whichever comes first, on the event's first day in its own time zone. Once per event.
+//          passed, whichever comes first, on the event's first day in its own time zone (no zone: never). Once per event.
 // A followed event: one in tracked.events, or one whose roster (event_teams, else its match lineups)
 // includes my team or a tracked team.
 //
@@ -100,12 +100,15 @@ export async function saveSubscription(userId: number, s: PushSubscriptionInput,
   const prior = await get<{ id: number; user_id: number }>("SELECT id, user_id FROM push_subscriptions WHERE endpoint = ?", [s.endpoint]);
   // A device that changes hands (another account signs in on it) starts a clean sent log.
   if (prior && Number(prior.user_id) !== userId) await run("DELETE FROM push_sent WHERE subscription_id = ?", [prior.id]);
+  // Only for an account that still exists: a request that passed the session check just before the account was
+  // deleted (deleteUser removes the users row first) writes nothing.
   await run(
-    `INSERT INTO push_subscriptions (user_id, endpoint, p256dh, auth, ua_family, created_at) VALUES (?, ?, ?, ?, ?, ?)
+    `INSERT INTO push_subscriptions (user_id, endpoint, p256dh, auth, ua_family, created_at)
+     SELECT ?, ?, ?, ?, ?, ? WHERE EXISTS (SELECT 1 FROM users WHERE id = ?)
      ON CONFLICT (endpoint) DO UPDATE SET p256dh = excluded.p256dh, auth = excluded.auth, ua_family = excluded.ua_family,
        created_at = CASE WHEN push_subscriptions.user_id = excluded.user_id THEN push_subscriptions.created_at ELSE excluded.created_at END,
        user_id = excluded.user_id`,
-    [userId, s.endpoint, s.keys.p256dh, s.keys.auth, uaFamily(userAgent), now],
+    [userId, s.endpoint, s.keys.p256dh, s.keys.auth, uaFamily(userAgent), now, userId],
   );
   const extra = await all<{ id: number }>(
     "SELECT id FROM push_subscriptions WHERE user_id = ? ORDER BY COALESCE(last_success_at, created_at) DESC, id DESC LIMIT -1 OFFSET ?",
@@ -303,8 +306,8 @@ export async function planEventStarts(recipients: Recipient[], now = Date.now())
     [day(now, -1), day(now, 1)]);
   const started = rows.filter((e) => {
     if (!isEventDay(e, now)) return false;
-    const firstDay = e.timezone ? localDate(now, e.timezone) === e.start : true;
-    if (!firstDay) return false;
+    // Without a time zone the event's first local day can't be told from its second: no start push at all.
+    if (!e.timezone || localDate(now, e.timezone) !== e.start) return false;
     const first = localToUtcMs(e.first_time, e.timezone);
     return Number(e.played) > 0 || (first != null && first <= now);
   });
@@ -337,21 +340,24 @@ export interface PushReport { planned: number; sent: number; limited: number; fa
 export async function deliver(plans: Planned[], now = Date.now(), log: Log = () => {}): Promise<PushReport> {
   const report: PushReport = { planned: plans.length, sent: 0, limited: 0, failed: 0, retry: 0, pruned: 0, expired: 0 };
   const t0 = Date.now(), clock = () => now + (Date.now() - t0);
-  const seen = new Set<string>(), gone = new Set<number>(), recent = new Map<number, number>();
+  const seen = new Set<string>(), gone = new Set<number>();
   for (const p of plans) {
     const k = `${p.sub.id}|${p.kind}|${p.subject}`;
     if (seen.has(k) || gone.has(p.sub.id)) continue;
     seen.add(k);
     if (clock() >= p.expiresAt) { report.expired++; continue; } // too late to be useful: never sent
-    if (!recent.has(p.sub.id)) {
-      const c = await get<{ n: number }>("SELECT COUNT(*) n FROM push_sent WHERE subscription_id = ? AND outcome = 'sent' AND at > ?", [p.sub.id, now - 864e5]);
-      recent.set(p.sub.id, Number(c?.n ?? 0));
+    // Claim it, in one statement, only while the device has a slot left today: pushes sent or being sent (on any
+    // server) count, so two servers can't both take the 20th. No claim and no slot: logged as limited instead.
+    const claimed = await run(
+      `INSERT OR IGNORE INTO push_sent (subscription_id, kind, subject, at, outcome)
+       SELECT ?, ?, ?, ?, 'sending'
+       WHERE (SELECT COUNT(*) FROM push_sent WHERE subscription_id = ? AND outcome IN ('sent', 'sending') AND at > ?) < ?`,
+      [p.sub.id, p.kind, p.subject, now, p.sub.id, now - 864e5, PUSH_DAILY_LIMIT]);
+    if (!claimed) {
+      const limited = await run("INSERT OR IGNORE INTO push_sent (subscription_id, kind, subject, at, outcome) VALUES (?, ?, ?, ?, 'limited')", [p.sub.id, p.kind, p.subject, now]);
+      if (limited) report.limited++;
+      continue; // otherwise already sent (or being sent) by an earlier tick or another server
     }
-    const limited = recent.get(p.sub.id)! >= PUSH_DAILY_LIMIT;
-    const claimed = await run("INSERT OR IGNORE INTO push_sent (subscription_id, kind, subject, at, outcome) VALUES (?, ?, ?, ?, ?)",
-      [p.sub.id, p.kind, p.subject, now, limited ? "limited" : "sending"]);
-    if (!claimed) continue; // already sent (or being sent) by an earlier tick or another server
-    if (limited) { report.limited++; continue; }
     const at = clock();
     if (at >= p.expiresAt) {
       await run("DELETE FROM push_sent WHERE subscription_id = ? AND kind = ? AND subject = ?", [p.sub.id, p.kind, p.subject]);
@@ -362,7 +368,6 @@ export async function deliver(plans: Planned[], now = Date.now(), log: Log = () 
     if (r.ok) {
       await run("UPDATE push_sent SET outcome = 'sent' WHERE subscription_id = ? AND kind = ? AND subject = ?", [p.sub.id, p.kind, p.subject]);
       await run("UPDATE push_subscriptions SET last_success_at = ? WHERE id = ? AND endpoint = ?", [now, p.sub.id, p.sub.endpoint]);
-      recent.set(p.sub.id, recent.get(p.sub.id)! + 1);
       report.sent++;
     } else if (r.status === 404 || r.status === 410) {
       // The browser unsubscribed (or the site's permission was revoked): this endpoint is gone for good. Only that
