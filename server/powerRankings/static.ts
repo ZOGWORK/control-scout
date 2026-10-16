@@ -24,7 +24,7 @@ export function staticRankingsHtml(r: PowerRankingsResponse): string {
   } else {
     parts.push(`<p class="csb-pr-when">No power rankings are published yet. The first week will show here.</p>`);
   }
-  parts.push(`<p><a href="/rankings">See every team in the world rankings</a></p>`);
+  parts.push(`<p><a href="${esc(w?.worldRankings ?? "/rankings")}">See every team in the world rankings</a></p>`);
   if (r.archive.length) {
     parts.push(`<h2>All weeks</h2><ul class="csb-pr-arch">${r.archive.map((a) =>
       `<li><a href="/power-rankings/${esc(a.week)}">${esc(a.title)}</a> · ${esc(longDate(a.published))}</li>`).join("")}</ul>`);

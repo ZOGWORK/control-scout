@@ -830,6 +830,28 @@ CREATE TABLE workspace_pending_departures (
 `,
   },
   {
+    version: 23,
+    name: "weekly world rankings snapshots",
+    sql: `
+-- The world ranking as of each Monday 00:00 UTC (week, YYYY-MM-DD), written by the stats job
+-- (server/stats/rankings.ts) from a replay of the season's rated matches up to that instant: every
+-- team with 3+ rated matches, its rank and its rating then. A week is written once, whole, and never
+-- rewritten; weeks older than a year are pruned. /rankings measures movement against these
+-- (src/shared/rankings.ts). Public FTC-derived data, like team_season_stats.
+CREATE TABLE ranking_snapshots (
+  season INTEGER NOT NULL, week TEXT NOT NULL, team INTEGER NOT NULL,
+  rank INTEGER NOT NULL, rating REAL NOT NULL,
+  PRIMARY KEY (season, week, team)
+) WITHOUT ROWID;
+-- One row per written week (in the same transaction as its rows, so a row here means the week is complete).
+CREATE TABLE ranking_weeks (
+  season INTEGER NOT NULL, week TEXT NOT NULL,
+  teams INTEGER NOT NULL, taken_at TEXT NOT NULL,
+  PRIMARY KEY (season, week)
+) WITHOUT ROWID;
+`,
+  },
+  {
     version: 24,
     name: "scout consensus index",
     sql: `

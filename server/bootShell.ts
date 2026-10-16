@@ -69,7 +69,7 @@ export const BOOT_STYLE = `<style>
 
 interface Item { to: string; label: string; end?: boolean }
 const SECTIONS: { title: string | null; items: Item[] }[] = [
-  { title: null, items: [{ to: "/", label: "Home", end: true }, { to: "/events", label: "Events" }, { to: "/teams", label: "Teams" }, { to: "/power-rankings", label: "Power rankings" }] },
+  { title: null, items: [{ to: "/", label: "Home", end: true }, { to: "/events", label: "Events" }, { to: "/teams", label: "Teams" }, { to: "/rankings", label: "Rankings" }, { to: "/power-rankings", label: "Power rankings" }] },
   { title: "Predict", items: [{ to: "/predict", label: "Predict", end: true }, { to: "/compare", label: "Compare" }] },
   { title: "Yours", items: [{ to: "/my-team", label: "My team" }, { to: "/shortlist", label: "Shortlist" }, { to: "/scout", label: "Scout" }] },
   { title: null, items: [{ to: "/download", label: "Download" }, { to: "/methodology", label: "How it works" }, { to: "/settings", label: "Settings" }] },

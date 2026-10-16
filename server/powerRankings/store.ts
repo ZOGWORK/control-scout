@@ -16,7 +16,9 @@ import { env } from "../env.js";
 import { registerCache } from "../caches.js";
 import { droppedOut, movements, parseRankings, type RankingDoc } from "./format.js";
 import { markdownText, renderMarkdown } from "./markdown.js";
-import type { PowerRankingsEntry, PowerRankingsResponse, PowerRankingsStats, PowerRankingsSummary, PowerRankingsWeek } from "../../src/shared/powerRankings.js";
+import { snapshotWeeks } from "../api/rankings.js";
+import { RANKED_MIN_MATCHES } from "../../src/shared/rankings.js";
+import { weekStart, type PowerRankingsEntry, PowerRankingsResponse, PowerRankingsStats, PowerRankingsSummary, PowerRankingsWeek } from "../../src/shared/powerRankings.js";
 
 export const CONTENT_DIR = fileURLToPath(new URL("../../content/power-rankings", import.meta.url));
 export const SAMPLE_DIR = fileURLToPath(new URL("../../content/power-rankings-sample", import.meta.url));
@@ -94,8 +96,14 @@ async function teamInfo(season: number, teams: number[]): Promise<Map<number, Te
   const q = teams.map(() => "?").join(",");
   const [names, stats] = await Promise.all([
     all<{ number: number; name: string | null; city: string | null; state: string | null; country: string | null }>(`SELECT number, name, city, state, country FROM teams WHERE number IN (${q})`, teams),
-    all<{ team: number; rating_np: number | null; rating_rank: number | null; opr_np: number | null; wins: number; losses: number; ties: number; matches: number }>(
-      `SELECT team, rating_np, rating_rank, opr_np, wins, losses, ties, matches FROM team_season_stats WHERE season = ? AND team IN (${q})`, [season, ...teams]),
+    // The world rank exactly as /rankings counts it (src/shared/rankings.ts rankTeams: rated from
+    // RANKED_MIN_MATCHES matches, by rating, ties to the lower number); none for a team not ranked there.
+    all<{ team: number; rating_np: number | null; world_rank: number | null; opr_np: number | null; wins: number; losses: number; ties: number; matches: number }>(
+      `SELECT s.team, s.rating_np, s.opr_np, s.wins, s.losses, s.ties, s.matches,
+         CASE WHEN s.rating_np IS NOT NULL AND s.rating_np >= 0 AND s.rating_matches >= ? THEN 1 + (
+           SELECT COUNT(*) FROM team_season_stats o WHERE o.season = s.season AND o.rating_np IS NOT NULL AND o.rating_np >= 0 AND o.rating_matches >= ?
+             AND (o.rating_np > s.rating_np OR (o.rating_np = s.rating_np AND o.team < s.team))) END AS world_rank
+       FROM team_season_stats s WHERE s.season = ? AND s.team IN (${q})`, [RANKED_MIN_MATCHES, RANKED_MIN_MATCHES, season, ...teams]),
   ]);
   const byTeam = new Map(stats.map((s) => [Number(s.team), s]));
   for (const n of names) out.set(Number(n.number), { name: n.name?.trim() || null, place: placeOf(n), stats: null });
@@ -104,7 +112,7 @@ async function teamInfo(season: number, teams: number[]): Promise<Map<number, Te
     const info = out.get(t) ?? { name: null, place: null, stats: null };
     if (s && Number(s.matches) > 0) {
       info.stats = {
-        rating: s.rating_np == null ? null : Number(s.rating_np), ratingRank: s.rating_rank == null ? null : Number(s.rating_rank),
+        rating: s.rating_np == null ? null : Number(s.rating_np), ratingRank: s.world_rank == null ? null : Number(s.world_rank),
         opr: s.opr_np == null ? null : Number(s.opr_np), wins: Number(s.wins), losses: Number(s.losses), ties: Number(s.ties),
       };
     }
@@ -122,7 +130,10 @@ async function buildWeek(doc: RankingDoc, weeks: RankingDoc[]): Promise<PowerRan
   const compared = weeks.slice(0, i).reverse().find((w) => w.season === doc.season) ?? null;
   const moves = movements(doc, compared);
   const dropped = droppedOut(doc, compared);
-  const info = await teamInfo(doc.season, [...doc.entries.map((e) => e.team), ...dropped.map((d) => d.team)]);
+  const [info, snapshots] = await Promise.all([teamInfo(doc.season, [...doc.entries.map((e) => e.team), ...dropped.map((d) => d.team)]), snapshotWeeks(doc.season)]);
+  // The world rankings as they stood that week (its weekly snapshot, keyed by the Monday), else the season's live list.
+  const monday = weekStart(doc.week);
+  const worldRankings = snapshots.includes(monday) ? `/rankings?season=${doc.season}&week=${monday}` : `/rankings?season=${doc.season}`;
   const entries: PowerRankingsEntry[] = doc.entries.map((e, k) => {
     const t = info.get(e.team);
     return { rank: e.rank, team: e.team, name: t?.name ?? null, place: t?.place ?? null, blurbHtml: renderMarkdown(e.blurb), movement: moves[k], stats: t?.stats ?? null };
@@ -132,6 +143,7 @@ async function buildWeek(doc: RankingDoc, weeks: RankingDoc[]): Promise<PowerRan
     introHtml: renderMarkdown(doc.intro), introText: markdownText(doc.intro), sample: doc.sample, entries,
     comparedWith: compared?.week ?? null, previous: weeks[i - 1]?.week ?? null, next: weeks[i + 1]?.week ?? null,
     droppedOut: dropped.map((d) => ({ ...d, name: info.get(d.team)?.name ?? null })),
+    worldRankings,
   };
 }
 

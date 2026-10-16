@@ -31,6 +31,7 @@ import { Meter, StatTile, TONES, rankPc, type Tone } from "../components/StatTil
 import { awardLabel, dateRange, int, num, place, seasonLabel, rankPct } from "../lib/format";
 import { eventTypeLabel } from "../lib/labels";
 import { copyLink } from "../lib/clipboard";
+import { direction, trendLabel } from "../shared/trend";
 import { OfflineNote } from "../components/OfflineNote";
 import { StickyActions, useScrolledPast } from "../components/StickyActions";
 import { TeamConsensusSection } from "../components/ScoutConsensus";
@@ -336,14 +337,6 @@ const TRENDS: { key: TrendKey; label: string; suffix?: string; lowerIsBetter?: b
   { key: "rp", label: "Ranking points", get: (e) => e.rp },
 ];
 
-function direction(vals: (number | null)[]): "up" | "down" | "flat" | null {
-  const xs = vals.filter((v): v is number => v != null);
-  if (xs.length < 2) return null;
-  const first = xs[0], last = xs[xs.length - 1];
-  const d = (last - first) / Math.max(1, Math.abs(first));
-  return Math.abs(d) < 0.08 ? "flat" : d > 0 ? "up" : "down";
-}
-
 function TrendChart({ events, season }: { events: TeamEventRow[]; season: number }) {
   const [key, setKey] = useState<TrendKey>("opr");
   const t = TRENDS.find((x) => x.key === key)!;
@@ -361,7 +354,7 @@ function TrendChart({ events, season }: { events: TeamEventRow[]; season: number
         <div className="mb-2 flex flex-wrap items-baseline gap-3">
           <span className="font-display text-3xl font-semibold tabular-nums">{num(last)}{last != null && t.suffix}</span>
           <span className="text-sm text-muted-foreground">latest</span>
-          {dir && <Badge variant={good == null ? "secondary" : good ? "success" : "destructive"}>{dir === "up" ? <TrendingUp /> : dir === "down" ? <TrendingDown /> : null}{dir === "up" ? "Rising" : dir === "down" ? "Falling" : "Steady"}</Badge>}
+          {dir && <Badge variant={good == null ? "secondary" : good ? "success" : "destructive"}>{dir === "up" ? <TrendingUp /> : dir === "down" ? <TrendingDown /> : null}{trendLabel(dir)}</Badge>}
         </div>
         {rows.length < 2 ? <p className="py-8 text-center text-sm text-muted-foreground">One event so far — the trend line appears after a second event.</p> : (
           <ChartContainer config={{ value: { label: t.label, color: "var(--color-chart-1)" } }} className="h-56 w-full">

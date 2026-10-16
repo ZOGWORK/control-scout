@@ -102,6 +102,9 @@ export interface PowerRankingsWeek {
   next: string | null;
   /** Teams in the previous week's list that aren't in this one. */
   droppedOut: { team: number; name: string | null; lastRank: number }[];
+  /** The world rankings (/rankings) for the week's season: as they stood that week when there's a
+   *  weekly snapshot for its Monday, else the live list. */
+  worldRankings: string;
 }
 
 /** GET /api/power-rankings (the latest week) and /api/power-rankings/:week. */

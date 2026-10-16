@@ -4,7 +4,10 @@
 // own values from the database here. The app's own document.title stays as
 // the in-app fallback.
 import { get } from "./db.js";
-import { seasonInfo } from "./data/seasons.js";
+import { PREDICT_SEASONS, seasonInfo } from "./data/seasons.js";
+import { defaultRankingsSeason, rankings, snapshotWeeks } from "./api/rankings.js";
+import { isWeek, parsePlaces, placeKey } from "../src/shared/rankings.js";
+import { regionLabel } from "../src/shared/regions.js";
 import { eventTypeLabel } from "../src/shared/labels.js";
 import { canonicalOrigin, canonicalUrl } from "./seo.js";
 import { teamKnown } from "./api/teams.js";
@@ -202,8 +205,47 @@ async function powerRankingsMeta(week: string | null): Promise<PageMeta> {
   };
 }
 
+/** A query value as one string (a repeated parameter joined with commas, as the API reads it). */
+const qstr = (v: unknown): string | null => (typeof v === "string" ? v : Array.isArray(v) && v.every((x) => typeof x === "string") ? v.join(",") : null);
+
+/**
+ * /rankings?season=&region=&week=&page=: the ranking's own title and description (its #1 team named),
+ * a canonical URL that keeps the view's parameters (each region and page is its own list), and the
+ * page's teams as a schema.org ItemList. A parameter the API would refuse is left out, never a 404.
+ */
+async function rankingsMeta(query: Record<string, unknown>): Promise<PageMeta> {
+  const seasonRaw = Number(qstr(query.season));
+  const explicit = PREDICT_SEASONS.includes(seasonRaw);
+  const season = explicit ? seasonRaw : await defaultRankingsSeason();
+  const places = parsePlaces(qstr(query.region)) ?? [];
+  const weekRaw = qstr(query.week);
+  const week = weekRaw && isWeek(weekRaw) && (await snapshotWeeks(season)).includes(weekRaw) ? weekRaw : null;
+  const pageRaw = Number(qstr(query.page));
+  const page = Number.isInteger(pageRaw) && pageRaw > 1 && pageRaw <= 10_000 ? pageRaw : 1;
+  const r = await rankings({ season, week, places, page });
+  const label = seasonInfo(season).label;
+  const where = places.map((p) => (p.state ? regionLabel(placeKey(p)) : p.country)).join(", ");
+  const when = week ? `, week of ${dateLong(week)}` : "";
+  const title = `${where ? `FTC rankings: ${where}` : "FTC world rankings"} ${label}${when}${r.page > 1 ? ` (page ${r.page})` : ""}`;
+  const top = r.rows[0];
+  const lead = `Every rated FTC team${where ? ` from ${where}` : ""} ranked by Control Scout's prediction rating for ${label}${week ? ` as of ${dateLong(week)}` : ""}, with each team's move since last week.`;
+  const first = top ? ` #${top.rank.toLocaleString("en-US")}: ${top.team}${top.name ? ` ${top.name}` : ""} (${top.rating.toFixed(1)}).` : "";
+  const description = bestFit([`${lead}${first} Filter by country or state.`, `${lead}${first}`, lead]);
+  const q = new URLSearchParams();
+  if (explicit) q.set("season", String(season));
+  if (places.length) q.set("region", places.map(placeKey).join(","));
+  if (week) q.set("week", week);
+  if (r.page > 1) q.set("page", String(r.page));
+  const path = `/rankings${q.size ? `?${q.toString()}` : ""}`;
+  const list = r.rows.length ? [{
+    "@context": "https://schema.org", "@type": "ItemList", name: title, url: canonicalUrl(path), numberOfItems: r.total,
+    itemListElement: r.rows.slice(0, 10).map((t) => ({ "@type": "ListItem", position: t.rank, name: `${t.team}${t.name ? ` ${t.name}` : ""}`, url: canonicalUrl(`/teams/${t.team}`) })),
+  }] : undefined;
+  return { title, description, type: "website", path, ...(list ? { jsonLd: list } : {}) };
+}
+
 /** The head values for a page path: the page's own, the home ones when it has none, or notFound for no such page. */
-export async function pageMeta(path: string): Promise<PageMeta> {
+export async function pageMeta(path: string, query: Record<string, unknown> = {}): Promise<PageMeta> {
   // Matched decoded, as React Router does (/teams/%34%32%31%35 is team 4215). Segment by segment, so an
   // encoded "/" never adds a segment; a malformed escape stays as written (and then matches no route).
   const decode = (s: string) => { try { const d = decodeURIComponent(s); return d.includes("/") ? s : d; } catch { return s; } };
@@ -218,6 +260,7 @@ export async function pageMeta(path: string): Promise<PageMeta> {
       // Event codes are case-insensitive in the app (the API uppercases them): same here.
       return (await eventMeta(Number(m[1]), m[2].toUpperCase())) ?? NOT_FOUND;
     }
+    if (/^\/rankings$/i.test(p)) return await rankingsMeta(query);
     if ((m = p.match(/^\/power-rankings(?:\/([^/]+))?$/i))) return await powerRankingsMeta(m[1] ?? null);
   } catch {
     // Database not ready: the generic values, never a 404 (the page may well exist).
