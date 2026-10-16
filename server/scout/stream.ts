@@ -35,6 +35,11 @@
 //                            GET /api/scout/workspaces/:id/picklist?season= returns it ({workspaceId, season, version, picks});
 //                            no id. Keep the highest version per season. Live only, like `activity`: the latest per
 //                            season during the catch-up follows `ready`; a reader that was away refetches the list.
+//   event: comment           a comment on one of the workspace's entries was written, edited or deleted (comments.ts); no id
+//                            (comments have their own order, so it never moves the entry cursor). data: a CommentEvent
+//                            (src/shared/comments.ts) {action, workspaceId, entryUuid, commentId, count, comment?}. Live only,
+//                            like `activity` (ones during the catch-up follow `ready`): a device that was away refetches
+//                            the threads it has open, and the counts, on `ready`.
 //   : ping                   a comment every 25 s (proxies drop silent connections)
 //
 // Proxy: the response says X-Accel-Buffering: no, and nginx's site gives this
@@ -43,9 +48,10 @@
 import express, { type Request, type Response, type Router } from "express";
 import { isWorkspaceId } from "../auth/controlPoint.js";
 import { currentUser } from "../auth/session.js";
-import { subscribe, subscribeActivity, subscribePicklist, subscribeRevoked, subscribeSettings, subscribeTemplate, type ActivityNotice, type LiveEntry, type PicklistNotice, type SettingsNotice, type TemplateNotice } from "./bus.js";
+import { subscribe, subscribeActivity, subscribeComments, subscribePicklist, subscribeRevoked, subscribeSettings, subscribeTemplate, type ActivityNotice, type LiveEntry, type PicklistNotice, type SettingsNotice, type TemplateNotice } from "./bus.js";
 import { openLiveConnection } from "../liveConnections.js";
 import { pullWorkspaceLive, workspaceAccess, type WorkspaceEntryOut } from "./entries.js";
+import type { CommentEvent } from "../../src/shared/comments.js";
 
 /**
  * Streams one account may hold at once (tabs and devices) and the whole server, the heartbeat
@@ -171,10 +177,7 @@ data: ${JSON.stringify(a)}
   });
   // Pick list changes during the catch-up: the latest per season is held and sent once live.
   const heldPicklists = new Map<number, PicklistNotice>();
-  const sendPicklist = (n: PicklistNotice) => write(`event: picklist
-data: ${JSON.stringify(n)}
-
-`);
+  const sendPicklist = (n: PicklistNotice) => write(`event: picklist\ndata: ${JSON.stringify(n)}\n\n`);
   const unsubscribePicklist = subscribePicklist(workspaceId, (n) => {
     if (live) sendPicklist(n);
     else if ((heldPicklists.get(n.season)?.version ?? -1) < n.version) heldPicklists.set(n.season, n);
@@ -184,6 +187,16 @@ data: ${JSON.stringify(n)}
     if (accountId !== access.membership.accountId || closed) return;
     write("event: membership_revoked\ndata: {}\n\n");
     end();
+  });
+  // Comment changes likewise (held during the catch-up, bounded, sent once live).
+  const heldComments: CommentEvent[] = [];
+  const sendComment = (c: CommentEvent) => write(`event: comment
+data: ${JSON.stringify(c)}
+
+`);
+  const unsubscribeComments = subscribeComments(workspaceId, (c) => {
+    if (live) sendComment(c);
+    else if (heldComments.push(c) > LIMITS.maxHeld) end();
   });
   const stream: Stream = { userId: user.id, workspaceId, end: (closeSocket) => { end(); if (closeSocket) res.socket?.end(); } };
   streams.add(stream);
@@ -205,10 +218,10 @@ data: ${JSON.stringify(n)}
     if (closed) return;
     closed = true;
     clearInterval(heartbeat); clearInterval(recheck);
-    unsubscribe(); unsubscribeTemplate(); unsubscribeSettings(); unsubscribeActivity(); unsubscribePicklist(); unsubscribeRevoked();
+    unsubscribe(); unsubscribeTemplate(); unsubscribeSettings(); unsubscribeActivity(); unsubscribeRevoked(); unsubscribeComments(); unsubscribePicklist();
     streams.delete(stream);
     release();
-    held.length = 0; heldActivity.length = 0; heldPicklists.clear();
+    held.length = 0; heldActivity.length = 0; heldComments.length = 0; heldPicklists.clear();
     res.end();
   }
   res.on("close", end);
@@ -236,6 +249,7 @@ data: ${JSON.stringify(n)}
     for (const a of heldActivity.splice(0)) sendActivity(a);
     for (const n of heldPicklists.values()) sendPicklist(n);
     heldPicklists.clear();
+    for (const c of heldComments.splice(0)) sendComment(c);
   } catch (e) {
     console.error("[scout stream] catch-up failed", e);
     end();

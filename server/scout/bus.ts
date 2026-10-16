@@ -11,6 +11,7 @@
 // not change.
 import type { WorkspaceEntryOut } from "./entries.js";
 import type { PickList } from "../../src/shared/picklist.js";
+import type { CommentEvent } from "../../src/shared/comments.js";
 
 /** A written entry with its place in the workspace's write order. */
 export type LiveEntry = WorkspaceEntryOut & { seq: number };
@@ -175,5 +176,28 @@ export function subscribePicklist(workspaceId: string, fn: PicklistListener): ()
     if (!s) return;
     s.delete(fn);
     if (!s.size) picklistChannels.delete(workspaceId);
+  };
+}
+
+// Entry comments (comments.ts, Task 15): each change to a thread is passed on by open streams as
+// `event: comment` (no id, like activity: comments have their own order and never move the entry cursor).
+type CommentListener = (c: CommentEvent) => void;
+const commentChannels = new Map<string, Set<CommentListener>>();
+
+/** Tell every open stream of the workspace about a comment just written, edited or deleted. Never throws. */
+export function publishComment(workspaceId: string, c: CommentEvent): void {
+  for (const fn of [...(commentChannels.get(workspaceId) ?? [])]) { try { fn(c); } catch (err) { console.error("[live] comment listener failed", err); } }
+}
+
+/** Listen to a workspace's comment changes; returns the unsubscribe. */
+export function subscribeComments(workspaceId: string, fn: CommentListener): () => void {
+  let subs = commentChannels.get(workspaceId);
+  if (!subs) { subs = new Set(); commentChannels.set(workspaceId, subs); }
+  subs.add(fn);
+  return () => {
+    const s = commentChannels.get(workspaceId);
+    if (!s) return;
+    s.delete(fn);
+    if (!s.size) commentChannels.delete(workspaceId);
   };
 }

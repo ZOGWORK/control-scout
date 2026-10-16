@@ -50,7 +50,12 @@ needed: the fan-out reads these fields.
   details `{ season, team, ... }`.
 - **Task 15 (comments):** `comment.created`, subject `entry:<uuid>`, details
   `{ uuid, season, team, kind, eventCode, matchLabel, commentId, excerpt }`. `excerpt` is
-  the first characters of the comment. The entry's author is looked up from `uuid`.
+  the first characters of the comment (140, on one line). The entry's author is looked up
+  from `uuid`. Shipped in `server/scout/comments.ts`: when the comment is edited, the
+  excerpt in the activity item and in the inbox items made from it follows; when it's
+  deleted, the excerpt goes (`details.deleted: true`) and the item's body is the entry
+  alone. An admin deleting someone else's comment logs `comment.deleted` (feed only, no
+  inbox item).
 
 ### Owner alerts
 
