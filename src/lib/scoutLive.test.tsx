@@ -146,6 +146,9 @@ describe("followWorkspace", () => {
     expect(modes.at(-1)).toBe("revoked");
     const opened = FakeES.all.length;
     await act(async () => { await vi.advanceTimersByTimeAsync(STREAM_RETRY_WHILE_POLLING_MS * 2); });
+    act(() => { window.dispatchEvent(new Event("online")); }); // back online: still nothing (the member has no access)
+    expect(FakeES.all).toHaveLength(opened);
+    expect(modes.at(-1)).toBe("revoked");
     expect(FakeES.all).toHaveLength(opened);
     stop();
   });
@@ -215,6 +218,10 @@ describe("attribution", () => {
     expect(attributionText(remote({ updatedAt: now - 3 * 3600_000 }), now)).toBe("Priya · 3h ago");
     expect(attributionText(remote({ authorAccountId: 0, authorDisplayName: "", editorAccountId: 0, editorDisplayName: "", updatedAt: now }), now)).toBe("You · just now"); // not synced yet
     expect(attributionText({ ...remote(), workspaceId: null }, now)).toBeNull();
+    // An updatedAt outside Date's range (the server accepts any finite number) renders instead of crashing the list.
+    render(<EntryAttribution e={remote({ updatedAt: 1e20 })} />);
+    render(<EntryAttribution e={remote({ uuid: "zzzzzzzzzzzz", updatedAt: -1e20 })} />);
+    expect(screen.getAllByText("time unknown")).toHaveLength(2);
   });
 
   it("a saved edit keeps the author and waits for the server to name the editor", () => {
