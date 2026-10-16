@@ -4,7 +4,7 @@
 // own keys, queue, cursor and sync, and pending counts are split by space.
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
-  clearLocalScouting, deleteScoutEntry, exportLocalScouting, importLocalScouting, localScoutEntries, pendingScoutCounts,
+  canDeleteScoutEntry, clearLocalScouting, deleteScoutEntry, refusalMessage, SCOUT_REFUSED, type ScoutRefusal, exportLocalScouting, importLocalScouting, localScoutEntries, pendingScoutCounts,
   pullScouting, saveScoutEntry, syncScouting, type ScoutEntry,
 } from "./scouting";
 
@@ -127,5 +127,77 @@ describe("scouting spaces on the device", () => {
     clearLocalScouting();
     importLocalScouting({ entries: stash.entries, dirty: stash.dirty });
     expect(localScoutEntries().map((e) => e.uuid)).toEqual(["llllllllllll"]);
+  });
+});
+
+describe("workspace permissions on the device", () => {
+  /** The server's copy as a refused write gets it back. */
+  const theirs = (x: ScoutEntry, over: Partial<ScoutEntry> = {}) => ({ ...x, deleted: false, data: { auto: 3 }, notes: "A's note", updatedAt: 500, authorAccountId: 7, authorDisplayName: "Priya", editorAccountId: 7, editorDisplayName: "Priya", ...over });
+  const refusals = () => {
+    const got: ScoutRefusal[] = [];
+    const fn = (ev: Event) => got.push((ev as CustomEvent<ScoutRefusal>).detail);
+    window.addEventListener(SCOUT_REFUSED, fn);
+    return { got, off: () => window.removeEventListener(SCOUT_REFUSED, fn) };
+  };
+
+  it("a refused delete puts the server's copy back, clears the queue and says why", async () => {
+    const e = saveScoutEntry({ uuid: "pppppppppppp", ...base, workspaceId: "41", authorAccountId: 7, authorDisplayName: "Priya" });
+    deleteScoutEntry(e);
+    expect(localScoutEntries("41")[0].deleted).toBe(true);
+    server((_p, body) => ({ results: body.entries.map((x: ScoutEntry) => ({ uuid: x.uuid, ok: false, error: "forbidden", entry: theirs(x) })) }));
+    const r = refusals();
+    try { await syncScouting("41"); } finally { r.off(); }
+    expect(localScoutEntries("41")[0]).toMatchObject({ uuid: e.uuid, deleted: false, notes: "A's note", authorAccountId: 7 });
+    expect(pendingScoutCounts().workspaces).toEqual({});
+    expect(r.got).toEqual([{ space: "41", uuid: e.uuid, kind: "delete" }]);
+    expect(refusalMessage(r.got[0])).toMatch(/^Only the author or a workspace admin can delete this entry/);
+  });
+
+  it("a refused edit of an entry deleted meanwhile takes the tombstone and says so", async () => {
+    const e = saveScoutEntry({ uuid: "qqqqqqqqqqqq", ...base, workspaceId: "41", authorAccountId: 7, authorDisplayName: "Priya" });
+    server((_p, body) => ({ results: body.entries.map((x: ScoutEntry) => ({ uuid: x.uuid, ok: false, error: "forbidden", entry: theirs(x, { deleted: true, data: {}, notes: "" }) })) }));
+    const r = refusals();
+    try { await syncScouting("41"); } finally { r.off(); }
+    expect(localScoutEntries("41")[0]).toMatchObject({ uuid: e.uuid, deleted: true });
+    expect(r.got.map((x) => x.kind)).toEqual(["edit-deleted"]);
+    expect(refusalMessage(r.got[0])).toMatch(/deleted by its author or a workspace admin/);
+  });
+
+  it("a refusal in an early batch is announced even if a later batch's request fails", async () => {
+    const first = saveScoutEntry({ uuid: "tttttttttttt", ...base, workspaceId: "41", authorAccountId: 7 });
+    deleteScoutEntry(first);
+    for (let i = 0; i < 200; i++) saveScoutEntry({ uuid: `u${String(i).padStart(11, "0")}`, ...base, workspaceId: "41" });
+    let calls = 0;
+    vi.stubGlobal("fetch", vi.fn(async (_p: string, init?: RequestInit) => {
+      if (++calls > 1) return new Response(JSON.stringify({ error: "down" }), { status: 500, headers: { "Content-Type": "application/json" } });
+      const body = JSON.parse(String(init!.body));
+      const results = body.entries.map((x: ScoutEntry) => (x.uuid === first.uuid ? { uuid: x.uuid, ok: false, error: "forbidden", entry: theirs(x) } : { uuid: x.uuid, ok: true }));
+      return new Response(JSON.stringify({ results }), { status: 200, headers: { "Content-Type": "application/json" } });
+    }));
+    const r = refusals();
+    try { await expect(syncScouting("41")).rejects.toBeTruthy(); } finally { r.off(); }
+    expect(r.got.map((x) => x.uuid)).toEqual([first.uuid]);
+    expect(localScoutEntries("41").find((e) => e.uuid === first.uuid)).toMatchObject({ deleted: false });
+  });
+
+  it("a refused delete of something already deleted is quiet", async () => {
+    const e = saveScoutEntry({ uuid: "rrrrrrrrrrrr", ...base, workspaceId: "41", authorAccountId: 7 });
+    deleteScoutEntry(e);
+    server((_p, body) => ({ results: body.entries.map((x: ScoutEntry) => ({ uuid: x.uuid, ok: false, error: "forbidden", entry: theirs(x, { deleted: true }) })) }));
+    const r = refusals();
+    try { await syncScouting("41"); } finally { r.off(); }
+    expect(r.got).toEqual([]);
+    expect(pendingScoutCounts().workspaces).toEqual({});
+  });
+
+  it("who sees Delete: personal always; in a workspace the author (or an unsynced entry) and admins", () => {
+    const ws = (authorAccountId: number) => ({ uuid: "ssssssssssss", ...base, workspaceId: "41", updatedAt: 1, authorAccountId, authorDisplayName: "" }) as ScoutEntry;
+    expect(canDeleteScoutEntry({ ...ws(0), workspaceId: null }, null)).toBe(true);
+    expect(canDeleteScoutEntry(ws(7), { accountId: 7, role: "member" })).toBe(true);
+    expect(canDeleteScoutEntry(ws(7), { accountId: 8, role: "member" })).toBe(false);
+    expect(canDeleteScoutEntry(ws(0), { accountId: 8, role: "member" })).toBe(true);
+    expect(canDeleteScoutEntry(ws(7), { accountId: 8, role: "admin" })).toBe(true);
+    expect(canDeleteScoutEntry(ws(7), { accountId: 7 })).toBe(false); // not a member any more
+    expect(canDeleteScoutEntry(ws(7), { role: "member" })).toBe(false); // an older server without accountId
   });
 });

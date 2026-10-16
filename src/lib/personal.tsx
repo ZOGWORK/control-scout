@@ -11,7 +11,7 @@ export interface AccountUser { id: number; email: string | null; displayName: st
   /** Only present (true) for the owner (OWNER_EMAILS): shows the owner portal's nav item. The server enforces access. */
   isOwner?: true;
   /** The signed-in owner's Control Point side: whether they're a member there, and their teams. */
-  controlPoint?: { member: boolean; teams: { teamNumber: number | null; name: string }[]; shortlist?: number[];
+  controlPoint?: { /** The shared account id (author/editor ids on workspace entries). Missing from older servers. */ accountId?: number; member: boolean; teams: { teamNumber: number | null; name: string }[]; shortlist?: number[];
     /** Control Point workspaces (one shared scout space each). Missing from older servers: treat as none. */
     workspaces?: { id: string; name: string; role: "admin" | "member" }[]; url: string } | null }
 /** Fired on window for every explicit sign-in (detail: the AccountUser). */
