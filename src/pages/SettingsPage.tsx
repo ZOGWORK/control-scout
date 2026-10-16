@@ -24,6 +24,7 @@ import { downloadCsv } from "../lib/csv";
 import { manualReport, sendReport } from "../lib/errorReporting";
 import { useFlag } from "../lib/flags";
 import { REPORT_LIMITS } from "../shared/errorReport";
+import { INBOX_CATEGORIES, INBOX_CATEGORY_INFO, INBOX_TOGGLE, inboxCategoryOn } from "../shared/inbox";
 import { PageHeader } from "../components/page";
 import { Button } from "../components/ui/button";
 import { Badge, FieldError, Input, Textarea } from "../components/ui/basic";
@@ -383,7 +384,29 @@ function Notifications() {
         {toggle("upsets", "Upsets", "When a tracked team wins a match it was predicted to lose, or loses one it was favoured in")}
         {toggle("eventStart", "Event start", "The morning a tracked event starts")}
       </Group>
+      <InboxToggles />
     </div>
+  );
+}
+
+/** The notification inbox's per-kind switches (the bell, top right). A kind switched off makes no items at all. */
+function InboxToggles() {
+  const { state, update, user } = usePersonal();
+  const n = state.settings.notify;
+  const kinds = INBOX_CATEGORIES.filter((c) => !INBOX_CATEGORY_INFO[c].ownerOnly || user?.isOwner);
+  return (
+    <Group title="Notification inbox" description={user
+      ? "What the bell at the top right collects for you, from every workspace you're in. Read state syncs across your devices."
+      : "Sign in to get the bell at the top right: assignments, changes to your entries and news from your workspaces."}>
+      {kinds.map((c) => {
+        const key = INBOX_TOGGLE[c], info = INBOX_CATEGORY_INFO[c];
+        return (
+          <Row key={c} label={info.label} description={info.hint} htmlFor={`n-${key}`}>
+            <Switch id={`n-${key}`} checked={inboxCategoryOn(n, c)} onCheckedChange={(v) => update("settings", (x) => ({ ...x, notify: { ...x.notify, [key]: v } }))} />
+          </Row>
+        );
+      })}
+    </Group>
   );
 }
 
