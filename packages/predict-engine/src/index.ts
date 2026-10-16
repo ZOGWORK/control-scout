@@ -7,6 +7,7 @@ export * from "./types.js";
 export * from "./inputs.js";
 export * from "./rating.js";
 export * from "./matchModel.js";
+export * from "./contextual.js";
 export * from "./calibration.js";
 export * from "./rules.js";
 export * from "./sim.js";
@@ -18,4 +19,4 @@ export * from "./explain.js";
 export { FITTED_MODEL } from "./model.js";
 
 /** Package version (kept in step with package.json by a test). */
-export const ENGINE_VERSION = "1.1.0";
+export const ENGINE_VERSION = "2.0.0";

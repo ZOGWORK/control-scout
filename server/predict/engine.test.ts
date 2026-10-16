@@ -5,7 +5,7 @@ import * as db from "../db";
 import { kvSet, migrate, openDb, run, setDb } from "../db";
 import { CURRENT_SEASON } from "../data/seasons";
 import { forecasterFor, liveForecaster, liveVersion, refreshForecasters, resetForecasters } from "./engine";
-import { runStats } from "../stats/job";
+import { runStats, statsRulesStale, STATS_RULES } from "../stats/job";
 
 const S = CURRENT_SEASON;
 
@@ -77,5 +77,39 @@ describe("ratings after a sync", () => {
     expect(reads(S - 1)).toBe(1);
     expect(reads(S)).toBe(2);
     spy.mockRestore();
+  });
+});
+
+describe("Prediction Engine 2.0 in the app", () => {
+  it("match explanations use the contextual win probability, with the match level", async () => {
+    const f = await liveForecaster(S);
+    const q = f.explain(S, [1, 3], [2, 4])!;
+    expect(q.probabilityModel).toBe("contextual");
+    expect(f.explain(S, [1, 3], [2, 4], "qual")!.winProbA).toBe(q.winProbA); // no level = qualification
+    expect(f.explain(S, [1, 3], [2, 4], "playoff")!.winProbA).not.toBe(q.winProbA);
+    expect(f.explain(S, [1, 3], [2, 4], "playoff")!.predictedScoreA).toBe(q.predictedScoreA); // scores unchanged
+  });
+
+  it("recorded bonus RPs of synced matches are available to live forecasts", async () => {
+    await run("UPDATE matches SET red_bonus = ?, blue_bonus = ? WHERE season = ? AND code = 'NEWQ1' AND number = 1",
+      [JSON.stringify({ movement: false, goal: true, pattern: true }), JSON.stringify({ movement: true, goal: false, pattern: false }), S]);
+    await kvSet("data:version", "v3");
+    const f = await forecasterFor(S);
+    const recorded = (side: "red" | "blue") => (f as unknown as { recordedBonus(s: number, c: string, k: string, x: "red" | "blue"): unknown }).recordedBonus(S, "NEWQ1", "qual:0:1", side);
+    expect(recorded("red")).toEqual({ movement: false, goal: true, pattern: true });
+    expect(recorded("blue")).toEqual({ movement: true, goal: false, pattern: false });
+    expect((f as unknown as { recordedBonus(s: number, c: string, k: string, x: "red" | "blue"): unknown }).recordedBonus(S, "NEWQ1", "qual:0:9", "red")).toBeNull();
+  });
+});
+
+describe("engine upgrade marker", () => {
+  it("a partial stats run after an engine change doesn't mark the upgrade done; a full run does", async () => {
+    await kvSet("stats:rules", STATS_RULES);
+    await kvSet("stats:engine", "1.1.0");
+    expect(await statsRulesStale()).toBe(true);
+    await runStats({ seasons: [S], backtest: false });
+    expect(await statsRulesStale()).toBe(true); // only one season was recomputed
+    await runStats({ backtest: false });
+    expect(await statsRulesStale()).toBe(false);
   });
 });

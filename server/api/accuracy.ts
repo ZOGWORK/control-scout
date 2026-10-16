@@ -100,10 +100,14 @@ export function resetTrackRecord(): void { cached = null; building = null; }
 registerCache("Track record", resetTrackRecord);
 
 async function computeTrackRecord(): Promise<TrackRecord> {
-  const rows = await all<any>("SELECT kind, season, p_red p, outcome y, tier, level, match_time time FROM predictions WHERE outcome IS NOT NULL");
+  const rows = await all<any>("SELECT kind, season, p_red p, outcome y, tier, level, match_time time, engine_version engine FROM predictions WHERE outcome IS NOT NULL");
   const seasons = SEASONS.filter((s) => PREDICT_SEASONS.includes(s.season)).map((s) => {
-    const of = (kind: string) => rows.filter((r) => r.kind === kind && Number(r.season) === s.season).map((r) => ({ p: Number(r.p), y: Number(r.y), tier: r.tier, level: r.level, time: r.time }));
-    return { season: s.season, label: `${s.label} ${s.game}`, live: block(of("live")), backtest: block(of("backtest")) };
+    const of = (kind: string, engine?: string) => rows.filter((r) => r.kind === kind && Number(r.season) === s.season && (engine == null || r.engine === engine))
+      .map((r) => ({ p: Number(r.p), y: Number(r.y), tier: r.tier, level: r.level, time: r.time }));
+    // Prospective evidence per engine version: each version's own calls only.
+    const engines = [...new Set(rows.filter((r) => r.kind === "live" && Number(r.season) === s.season).map((r) => String(r.engine)))].sort();
+    const liveByEngine = engines.map((engine) => { const b = block(of("live", engine))!; return { engine, n: b.n, accuracy: b.accuracy, brier: b.brier, logLoss: b.logLoss }; });
+    return { season: s.season, label: `${s.label} ${s.game}`, live: block(of("live")), backtest: block(of("backtest")), liveByEngine };
   }).reverse();
   // Headline: live once it has a real sample, otherwise the latest backtest — always labelled.
   let headline: TrackRecord["headline"] = null;

@@ -6,11 +6,13 @@
 import { npOf, type RatingBook, type RatingParams } from "./rating.js";
 import { predictMatch, type NoiseParams } from "./matchModel.js";
 import type { CalibrationParams } from "./calibration.js";
+import type { ContextualModel, MatchContext } from "./contextual.js";
+import { bonusCount } from "./rules.js";
 import { rng, simulateEvent, type AwardInput, type BonusModel, type PickModel, type QualMatch, type SimInput, type TeamOutcome } from "./sim.js";
 import { awardFeatures, sampleAwards, type AwardModel, type AwardRecord } from "./awards.js";
 import { ADVANCING_TYPES } from "./scoutData.js";
 import type { AllianceResult, MatchRecord } from "./types.js";
-import type { AllianceInput, EventInput, FirstAdvancement } from "./inputs.js";
+import type { AllianceInput, BonusFlags, EventInput, FirstAdvancement, MatchInput } from "./inputs.js";
 
 /** The fitted model (server/predict/model.json, from scripts/predict/export-model.mts). */
 export interface PredictModel {
@@ -18,6 +20,8 @@ export interface PredictModel {
   rating: RatingParams; noise: Required<NoiseParams>; pick: PickModel;
   bonus: Record<string, BonusModel>; awards: AwardModel; accuracy?: unknown;
   calibration?: CalibrationParams;
+  /** Contextual win-probability model (2.0+); absent = legacy calibrated Gaussian. */
+  contextual?: ContextualModel;
 }
 
 /** FIRST advancement for a finished event (null = not published). */
@@ -108,10 +112,30 @@ export abstract class Forecaster {
   protected abstract awardSlots(season: number, type: string | null): { type: string; placement: number }[];
   protected abstract readonly awardHistory: Map<number, AwardRecord[]>;
 
-  match(season: number, red: number[], blue: number[]) {
+  /**
+   * Recorded bonus RPs of a played match the app has stored (e.g. from its
+   * synced history), for event payloads that don't carry them. Null = not
+   * known. Apps override this; the default knows nothing.
+   */
+  protected recordedBonus(_season: number, _code: string, _key: string, _side: "red" | "blue"): BonusFlags | null {
+    return null;
+  }
+
+  /** One match's prediction. `ctx.level` defaults to "qual" for generic what-ifs. */
+  match(season: number, red: number[], blue: number[], ctx: MatchContext = {}) {
     const book = this.book(season);
     if (!book) return null;
-    return predictMatch(book, red, blue, this.model.noise, this.model.calibration);
+    return this.predict(book, red, blue, ctx);
+  }
+
+  /** The engine's prediction for a lineup on a given book (score model + win probability). */
+  protected predict(book: RatingBook, red: number[], blue: number[], ctx: MatchContext = {}) {
+    return predictMatch(book, red, blue, this.model.noise, this.model.calibration, { context: ctx, contextual: this.model.contextual });
+  }
+
+  /** A played alliance's recorded bonus RPs: from the payload, else the app's store. */
+  private bonusOf(ev: EventInput, m: MatchInput, side: "red" | "blue"): BonusFlags | undefined {
+    return m[side].score?.bonusRp ?? this.recordedBonus(ev.season, ev.code, m.key, side) ?? undefined;
   }
 
   // -------------------------------------------------------------------------
@@ -169,14 +193,15 @@ export abstract class Forecaster {
     const base = Date.parse(`${ev.start ?? "1970-01-01"}T00:00:00Z`);
     for (const m of ev.matches) {
       if (!m.played || have.has(m.key)) continue;
-      const side = (a: AllianceInput): AllianceResult | null => {
+      const side = (a: AllianceInput, color: "red" | "blue"): AllianceResult | null => {
         const sc = a.score;
         if (!sc || sc.total == null) return null;
         const np = sc.totalNp ?? sc.total;
         const auto = sc.auto ?? 0, endgame = sc.endgame ?? 0;
-        return { teams: a.teams.map((t) => t.number), auto, endgame, teleop: sc.teleop ?? Math.max(0, np - auto - endgame), np, penCommitted: sc.penaltiesCommitted ?? 0, total: sc.total };
+        const bonusRp = this.bonusOf(ev, m, color);
+        return { teams: a.teams.map((t) => t.number), auto, endgame, teleop: sc.teleop ?? Math.max(0, np - auto - endgame), np, penCommitted: sc.penaltiesCommitted ?? 0, total: sc.total, ...(bonusRp ? { bonusRp } : {}) };
       };
-      const red = side(m.red), blue = side(m.blue);
+      const red = side(m.red, "red"), blue = side(m.blue, "blue");
       if (!red || !blue) continue;
       // Only 2 robots per alliance play. The live payload doesn't say which
       // robots of a 3-team playoff alliance sat out, so skip those matches
@@ -225,9 +250,12 @@ export abstract class Forecaster {
       };
       const rs = m.red.score, bs = m.blue.score;
       if (m.played && rs?.total != null && bs?.total != null) {
+        // Recorded bonus RPs are facts and are kept; unreported ones stay
+        // missing and are sampled per simulation run (never a fixed guess).
+        const rb = this.bonusOf(ev, m, "red"), bb = this.bonusOf(ev, m, "blue");
         q.result = {
-          red: { total: rs.total, np: rs.totalNp ?? rs.total, auto: rs.auto ?? 0, endgame: rs.endgame ?? 0 },
-          blue: { total: bs.total, np: bs.totalNp ?? bs.total, auto: bs.auto ?? 0, endgame: bs.endgame ?? 0 },
+          red: { total: rs.total, np: rs.totalNp ?? rs.total, auto: rs.auto ?? 0, endgame: rs.endgame ?? 0, ...(rb ? { bonus: rb } : {}) },
+          blue: { total: bs.total, np: bs.totalNp ?? bs.total, auto: bs.auto ?? 0, endgame: bs.endgame ?? 0, ...(bb ? { bonus: bb } : {}) },
         };
       }
       return q;
@@ -243,11 +271,19 @@ export abstract class Forecaster {
       }
     }
     const bonus = this.model.bonus[String(ev.season)];
-    if (stage === "live" && bonus) assumptions.push("Bonus ranking points of matches already played are estimated from their scores.");
-    if (stage === "live" && bonus) for (const q of quals) if (q.result) {
-      // Played matches: bonus RPs aren't in the merged payload; use expected values from the score.
-      const lg = (c: [number, number], np: number) => 1 / (1 + Math.exp(-(c[0] + c[1] * np)));
-      for (const side of [q.result.red, q.result.blue]) side.bonus = { movement: lg(bonus.movement, side.np) > 0.5, goal: lg(bonus.goal, side.np) > 0.5, pattern: lg(bonus.pattern, side.np) > 0.5 };
+    let bonusSamples: number[] | undefined;
+    if (stage === "live" && ev.season >= 2025) {
+      const sides = quals.flatMap((q) => (q.result ? [q.result.red, q.result.blue] : []));
+      const unreported = sides.filter((s) => !s.bonus).length;
+      if (!bonus) {
+        // No fitted bonus model for this season: unplayed (and unreported)
+        // alliances draw from this event's recorded bonus RPs.
+        bonusSamples = sides.filter((s) => s.bonus).map((s) => bonusCount(s.bonus));
+        assumptions.push(bonusSamples.length
+          ? "There's no fitted bonus ranking point model for this season yet, so simulated matches draw bonus RPs from this event's recorded results."
+          : "There's no fitted bonus ranking point model for this season yet and none are recorded at this event, so simulated matches earn no bonus RPs.");
+      }
+      if (unreported) assumptions.push(`Bonus ranking points weren't reported for ${unreported} played alliance result${unreported === 1 ? "" : "s"}; they're sampled in each simulation instead.`);
     }
     const adv = this.advancementFor(ev, startTime);
     if (adv.source === "estimated") assumptions.push(`Advancement slots (${adv.slots}) and already-qualified teams are estimated from earlier ${ev.type ?? ""} events in ${adv.region}.`);
@@ -265,7 +301,7 @@ export abstract class Forecaster {
     const playoffPlayed = stage === "selected" ? this.playoffResults(ev) : undefined;
     if (playoffPlayed) assumptions.push("Playoff matches already played keep their real results.");
     const input: SimInput = {
-      season: ev.season, ratings, quals, noise: this.model.noise, bonus, pick: this.model.pick, ranks, alliances, awards, playoffPlayed,
+      season: ev.season, ratings, quals, noise: this.model.noise, bonus, bonusSamples, pick: this.model.pick, ranks, alliances, awards, playoffPlayed,
       prequalified: new Set(adv.prequalified), ineligible: new Set(adv.ineligible), slots: adv.slots, runs, seed: 1,
     };
     return { input, assumptions, adv };
@@ -305,7 +341,7 @@ export abstract class Forecaster {
     const teams: ForecastTeam[] = [...res.values()].map((o) => this.teamView(o, book, o.team === myTeam));
     const matches: ForecastMatch[] = ev.matches.filter((m) => m.red.teams.length && m.blue.teams.length).slice(0, 400).map((m) => {
       const red = m.red.teams.map((t) => t.number), blue = m.blue.teams.map((t) => t.number);
-      const p = !m.played && red.length <= 2 && blue.length <= 2 ? predictMatch(book, red, blue, this.model.noise, this.model.calibration) : null;
+      const p = !m.played && red.length <= 2 && blue.length <= 2 ? this.predict(book, red, blue, { level: m.level }) : null;
       return {
         key: m.key, label: m.label, level: m.level, red, blue, pRedWin: p?.pRedWin ?? null, redMean: p?.red.mean ?? null, blueMean: p?.blue.mean ?? null,
         played: m.played && m.red.score?.total != null && m.blue.score?.total != null ? { red: m.red.score.total, blue: m.blue.score.total } : null,

@@ -34,10 +34,10 @@ async function liteOpts(): Promise<ReadOpts> {
       const rt = b.get(team);
       return { np: Math.round((rt.auto + rt.teleop + rt.endgame) * 10) / 10, sd: Math.round(Math.sqrt(rt.uncertainty) * 10) / 10, matches: rt.n };
     },
-    predict: (season, red, blue) => {
+    predict: (season, red, blue, level) => {
       const b = book(season);
       if (!b) return null;
-      const x = explainMatch(b, red, blue, { noise: FITTED_MODEL.noise, calibration: FITTED_MODEL.calibration });
+      const x = explainMatch(b, red, blue, { noise: FITTED_MODEL.noise, calibration: FITTED_MODEL.calibration, contextual: FITTED_MODEL.contextual, context: { level } });
       return {
         pRed: x.winProbA, redMean: x.predictedScoreA, blueMean: x.predictedScoreB, tier: x.confidence.tier, kind: "now", predictedAt: new Date().toISOString(), factors: x.factors,
         // No rated match this season yet (the server's noScoreBasis): win odds stand, the predicted score doesn't.

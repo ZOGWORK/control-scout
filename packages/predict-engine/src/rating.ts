@@ -56,6 +56,11 @@ export interface RatingParams {
   /** Extra prediction variance (points², per robot) per week of break,
    *  counting at most growthMaxWeeks. */
   rebuildUncPerWeek: number;
+  /** Population baseline update: "symmetric" (2.0+) folds both alliances
+   *  of a match in together, so the baseline (and every newcomer's prior)
+   *  doesn't depend on which side is listed first; "sequential" is the 1.1.0
+   *  red-then-blue update, kept only to replay old versions exactly. */
+  populationUpdate?: "symmetric" | "sequential";
 }
 
 export const DEFAULT_RATING_PARAMS: RatingParams = {
@@ -76,6 +81,7 @@ export const DEFAULT_RATING_PARAMS: RatingParams = {
   rebuildGapWeeks: 0,
   rebuildN: 3,
   rebuildUncPerWeek: 0,
+  populationUpdate: "symmetric",
 };
 
 /** True when two (possibly partial) settings objects mean the same RatingBook:
@@ -94,6 +100,61 @@ export interface RatingBookData {
   history: [number, (number | null)[]][];
   season: number | null;
   now: number;
+  /** Reliability state per team (engine 2.0+). Older data has none, and a
+   *  book loaded from it predicts with the legacy probability model. */
+  reliability?: [number, ReliabilityState][];
+  /** Layout version of `reliability` (RELIABILITY_STATE_VERSION). */
+  stateVersion?: number;
+}
+
+/**
+ * Causal reliability proxies for one robot (engine 2.0+), learned this
+ * season from its alliances' standardized residuals. They come from alliance
+ * totals, so they can't tell which partner caused a bad score: team-level
+ * proxies, not observed robot failures.
+ */
+export interface ReliabilityState {
+  /** EMA of the clipped standardized residual (positive = beats expectations). */
+  bias: number;
+  /** EMA of the clipped squared residual (1 = as variable as the model assumes). */
+  variance: number;
+  /** EMA of "the alliance scored under half its expected non-penalty points". */
+  failure: number;
+}
+
+/** Layout version of RatingBookData.reliability. */
+export const RELIABILITY_STATE_VERSION = 1;
+
+/** Frozen state-update settings (FTC prediction validation, 16 Oct 2026). */
+export const RELIABILITY_PARAMS = {
+  biasAlpha: 0.2, varianceAlpha: 0.1, failureAlpha: 0.1,
+  initialBias: 0, initialVariance: 1, initialFailure: 0.05,
+  biasZClip: 4, varianceZSquaredClip: 25,
+  failureExpectedNpMinimum: 40, failureActualFraction: 0.5,
+  /** Residual scale σ = noiseA + noiseB · expected NP (fixed by the frozen model). */
+  noiseA: 14, noiseB: 0.2,
+} as const;
+
+export const initialReliability = (): ReliabilityState => ({
+  bias: RELIABILITY_PARAMS.initialBias, variance: RELIABILITY_PARAMS.initialVariance, failure: RELIABILITY_PARAMS.initialFailure,
+});
+
+/** One alliance observation folded into a robot's reliability state. */
+export function updateReliability(old: ReliabilityState, z: number, failed: boolean): ReliabilityState {
+  const P = RELIABILITY_PARAMS;
+  return {
+    bias: (1 - P.biasAlpha) * old.bias + P.biasAlpha * Math.max(-P.biasZClip, Math.min(P.biasZClip, z)),
+    variance: (1 - P.varianceAlpha) * old.variance + P.varianceAlpha * Math.min(P.varianceZSquaredClip, z * z),
+    failure: (1 - P.failureAlpha) * old.failure + P.failureAlpha * (failed ? 1 : 0),
+  };
+}
+
+/** Standardized residual and failure flag of an alliance result, measured
+ *  against the expectation the book held before learning it. */
+export function allianceResidual(expected: { np: number; uncertainty: number }, actualNp: number): { z: number; failed: boolean } {
+  const P = RELIABILITY_PARAMS;
+  const z = (actualNp - expected.np) / Math.sqrt((P.noiseA + P.noiseB * expected.np) ** 2 + expected.uncertainty);
+  return { z, failed: expected.np >= P.failureExpectedNpMinimum && actualNp < P.failureActualFraction * expected.np };
 }
 const zero = (): Vec => ({ auto: 0, teleop: 0, endgame: 0, pen: 0 });
 
@@ -111,6 +172,15 @@ export class RatingBook {
   season: number | null = null;
   /** Current time (epoch ms): advanced by update(), or set for predictions. */
   now = 0;
+  /** Reliability state of the teams that have played this season. */
+  private reliability = new Map<number, ReliabilityState>();
+  /**
+   * True when the reliability state covers the whole season so far (a book
+   * that started the season itself, or one loaded with 2.0 state). Data
+   * from older versions has none; the contextual probability model must not
+   * run on an invented history, so predictions fall back to the legacy model.
+   */
+  reliabilityReady = true;
 
   constructor(params: Partial<RatingParams> = {}) {
     this.params = { ...DEFAULT_RATING_PARAMS, ...params };
@@ -138,6 +208,8 @@ export class RatingBook {
     this.baseSq = zero();
     this.baseReady = false;
     this.now = 0;
+    this.reliability.clear();
+    this.reliabilityReady = true;
   }
 
   /** Move the clock (e.g. to an event's start before predicting it). */
@@ -208,6 +280,12 @@ export class RatingBook {
     return { ...r, auto: r.auto * f, teleop: r.teleop * f, endgame: r.endgame * f, uncertainty: unc };
   }
 
+  /** A team's reliability state now (the season-start value if it hasn't played). */
+  reliabilityOf(team: number): ReliabilityState {
+    const r = this.reliability.get(team);
+    return r ? { ...r } : initialReliability();
+  }
+
   /** Stored rating, created from the prior on a team's first match. */
   private stored(team: number): TeamRating {
     let r = this.ratings.get(team);
@@ -267,16 +345,37 @@ export class RatingBook {
         r.uncertainty = Math.max(p.uncMin, r.uncertainty * p.uncDecay);
       }
     }
-    // Population baseline from raw per-robot shares (independent of ratings),
-    // after both alliances, in the same red-then-blue order as before.
-    for (const { actual, share } of sides) {
-      for (const c of COMPONENTS) {
-        const x = actual[c] * share;
-        if (!this.baseReady) { this.base[c] = x; this.baseSq[c] = x * x; }
-        else {
-          this.base[c] += p.baseAlpha * (x - this.base[c]);
-          this.baseSq[c] += p.baseAlpha * (x * x - this.baseSq[c]);
+    // Reliability: each alliance's standardized residual against the
+    // expectation held before this match, applied to every robot on it.
+    for (const { al, exp } of sides) {
+      const { z, failed } = allianceResidual(exp, al.auto + al.teleop + al.endgame);
+      for (const t of al.teams) this.reliability.set(t, updateReliability(this.reliabilityOf(t), z, failed));
+    }
+    if (p.populationUpdate === "sequential") {
+      // Population baseline from raw per-robot shares (independent of ratings),
+      // after both alliances, in the same red-then-blue order as before.
+      for (const { actual, share } of sides) {
+        for (const c of COMPONENTS) {
+          const x = actual[c] * share;
+          if (!this.baseReady) { this.base[c] = x; this.baseSq[c] = x * x; }
+          else {
+            this.base[c] += p.baseAlpha * (x - this.base[c]);
+            this.baseSq[c] += p.baseAlpha * (x * x - this.baseSq[c]);
+          }
         }
+        this.baseReady = true;
+      }
+    } else {
+      // Symmetric: both alliances' per-robot shares enter together (the
+      // season's first match seeds the baseline with their mean), so the
+      // order the alliances are listed in can't move the baseline.
+      const robots = sides.reduce((n, x) => n + x.al.teams.length, 0);
+      const alpha = 1 - (1 - p.baseAlpha) ** sides.length;
+      for (const c of COMPONENTS) {
+        const first = sides.reduce((n, x) => n + x.actual[c], 0) / robots;
+        const second = sides.reduce((n, x) => n + (x.actual[c] * x.share) ** 2 * x.al.teams.length, 0) / robots;
+        if (!this.baseReady) { this.base[c] = first; this.baseSq[c] = second; }
+        else { this.base[c] += alpha * (first - this.base[c]); this.baseSq[c] += alpha * (second - this.baseSq[c]); }
       }
       this.baseReady = true;
     }
@@ -292,6 +391,8 @@ export class RatingBook {
     c.history = new Map([...this.history].map(([t, h]) => [t, [...h]]));
     c.season = this.season;
     c.now = this.now;
+    c.reliability = new Map([...this.reliability].map(([t, r]) => [t, { ...r }]));
+    c.reliabilityReady = this.reliabilityReady;
     return c;
   }
 
@@ -308,6 +409,11 @@ export class RatingBook {
       // JSON has no NaN (a season a team skipped): stored as null.
       history: [...this.history].filter(([t]) => keep(t)).map(([t, h]) => [t, h.map((z) => (Number.isFinite(z) ? z : null))]),
       season: this.season, now: this.now,
+      // Only a complete state is written; a book without one stays legacy.
+      ...(this.reliabilityReady ? {
+        reliability: [...this.reliability].filter(([t]) => keep(t)).map(([t, r]) => [t, { ...r }] as [number, ReliabilityState]),
+        stateVersion: RELIABILITY_STATE_VERSION,
+      } : {}),
     };
   }
 
@@ -320,6 +426,9 @@ export class RatingBook {
     b.history = new Map(d.history.map(([t, h]) => [t, h.map((z) => z ?? NaN)]));
     b.season = d.season;
     b.now = d.now;
+    // Pre-2.0 data (or an unknown layout) has no usable reliability state.
+    b.reliabilityReady = d.stateVersion === RELIABILITY_STATE_VERSION && Array.isArray(d.reliability);
+    if (b.reliabilityReady) for (const [t, r] of d.reliability!) b.reliability.set(t, { ...r });
     return b;
   }
 

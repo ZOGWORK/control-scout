@@ -13,6 +13,7 @@
 // CONFIDENCE_RULE — and are checked against the calibration ledger.
 import { predictMatch, type NoiseParams } from "./matchModel.js";
 import type { CalibrationParams } from "./calibration.js";
+import type { ContextualModel, MatchContext, ProbabilityModel } from "./contextual.js";
 import type { RatingBook } from "./rating.js";
 import type { Component, TeamRating } from "./types.js";
 
@@ -65,6 +66,8 @@ export interface MatchExplanation {
   scoreRangeB: [number, number];
   factors: Factor[];
   confidence: { tier: ConfidenceTier; reason: string; minMatches: number; ratingShare: number };
+  /** Which model produced the win odds ("legacy" when the book has no reliability state). */
+  probabilityModel: ProbabilityModel;
   teamsA: TeamStrength[];
   teamsB: TeamStrength[];
 }
@@ -72,6 +75,9 @@ export interface MatchExplanation {
 export interface ExplainOptions {
   noise?: NoiseParams;
   calibration?: CalibrationParams;
+  /** Contextual win-probability model (FITTED_MODEL.contextual) and the match's context. */
+  contextual?: ContextualModel;
+  context?: MatchContext;
   /** Names used in factor sentences (default "Red" / "Blue"). */
   nameA?: string;
   nameB?: string;
@@ -108,7 +114,7 @@ function carrier(side: TeamStrength[], c: Exclude<Component, "pen">, base: numbe
  */
 export function explainMatch(book: RatingBook, teamsA: number[], teamsB: number[], opts: ExplainOptions = {}): MatchExplanation {
   const nameA = opts.nameA ?? "Red", nameB = opts.nameB ?? "Blue";
-  const p = predictMatch(book, teamsA, teamsB, opts.noise, opts.calibration);
+  const p = predictMatch(book, teamsA, teamsB, opts.noise, opts.calibration, { contextual: opts.contextual, context: opts.context });
   const A = teamsA.map((t) => strength(book, t));
   const B = teamsB.map((t) => strength(book, t));
   const sum = (xs: TeamStrength[], k: keyof TeamStrength) => xs.reduce((s, x) => s + (x[k] as number), 0);
@@ -170,6 +176,7 @@ export function explainMatch(book: RatingBook, teamsA: number[], teamsB: number[
     scoreRangeB: range(p.blue.mean, p.blue.sd),
     factors,
     confidence: { tier, reason, minMatches, ratingShare: Math.round(ratingShare * 1000) / 1000 },
+    probabilityModel: p.model ?? "legacy",
     teamsA: A,
     teamsB: B,
   };
