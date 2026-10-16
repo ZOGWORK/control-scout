@@ -163,8 +163,8 @@ Personal entries stay in `scout_entries`, keyed by the Scout user, unchanged.
 Shared entries live in `workspace_scout_entries`, keyed by `(workspace_id,
 uuid)`:
 
-- The server stamps authorship: `author_*` is set by the first write, and
-  `editor_*` by every accepted write. Author fields sent by the client are
+- The server stamps authorship: `author_*` is set by the first write and
+  never changes after that, and `editor_*` is set by every accepted write. Author fields sent by the client are
   ignored. The name is the user's display name, or the part of their email
   before the `@` if they haven't set one.
 - Last write wins, on the server too. A write only replaces the stored row if
@@ -176,8 +176,66 @@ uuid)`:
 
 | route | body / query | result |
 |---|---|---|
-| `POST /api/me/scout/sync` | `{ workspaceId?: string \| null, entries }`, at most 200 | `{ results: [{ uuid, ok, error?, entry? }] }`. Without a `workspaceId` (or with `null`) the entries go to the personal set, exactly as before. With one, they go to that workspace (`403` for non-members), and `entry` is the stored copy for the device to adopt. An entry whose own `workspaceId` names a different space is refused (`"wrong space"`). |
+| `POST /api/me/scout/sync` | `{ workspaceId?: string \| null, entries }`, at most 200 | `{ results: [{ uuid, ok, error?, entry? }] }`. Without a `workspaceId` (or with `null`) the entries go to the personal set, exactly as before. With one, they go to that workspace (`403` for non-members), and `entry` is the stored copy for the device to adopt. An entry whose own `workspaceId` names a different space is refused (`"wrong space"`). A write the permissions below don't allow comes back as `{ uuid, ok: false, error: "forbidden", entry }`, with `entry` the server's current copy. The push as a whole is still `200`. |
 | `GET /api/scout/sync?workspaceId=…&since=…` | `since`: a `cursor` from the last pull, `0` the first time | `{ entries, cursor, more }`: the entries written after `since` in write order, tombstones included, 500 at most. If `more` is true, pull again from `cursor`. |
+
+### Workspace permissions
+
+Roles come from Control Point and nowhere else: `admin` is a `members` row
+with `account_type = 'admin'`, or a role with the `"*"` or `"manage_members"`
+permission. Everyone else in the workspace is a `member`. Scout has no roles of
+its own and no invite or remove screens; membership and roles are changed in
+Control Point.
+
+| | member | admin |
+|---|---|---|
+| Read the workspace's entries (pull, live stream) | yes | yes |
+| Create an entry | yes | yes |
+| Edit any entry that isn't deleted | yes | yes |
+| Delete an entry they created | yes | yes |
+| Delete someone else's entry | **no** (`forbidden`) | yes |
+| Edit (bring back) an entry that has been deleted | only one they created | yes |
+| Workspace templates and settings (Tasks 5 and 6) | no (`403`) | yes |
+
+- **The server enforces this.** The check is part of the upsert's `WHERE`
+  clause, in the same statement as the write, so no other write can land
+  between the check and the write. `mayWrite` in `server/scout/entries.ts` is
+  the same rule in TypeScript.
+- **A refused write** is never stored, never gets a `seq` and is never
+  published to the live streams. Its result is `ok: false, error:
+  "forbidden"` with the server's copy, and the app puts that copy back on the
+  device. A refused delete shows "Only the author or a workspace admin can
+  delete this entry." A refused edit of an entry that was deleted meanwhile
+  shows that it was deleted by its author or an admin.
+- **Bringing back a deleted entry.** Saving a non-deleted version over a
+  tombstone counts as a delete in reverse, so it follows the same rule: only
+  the entry's author or an admin can do it. This stops a member's offline edit
+  from undoing an admin's delete.
+- **An entry the server has never seen** is always accepted, tombstone
+  included: an entry created and deleted on a device before it synced belongs
+  to whoever sent it.
+- **Authorship never changes.** `author_account_id` is set when the row is
+  created and no later write touches it. That is what "own entry" means.
+- **Last write wins first.** A write older than the stored row loses as
+  before (`ok: true` with the newer copy). `forbidden` only appears for a
+  write that was newer and was still refused.
+- **Role changes** take effect from the next membership refresh: sign-in, the
+  hand-off, `/api/auth/me` (which asks Control Point at most every 10
+  minutes), or a write once the cached row is more than 10
+  minutes old.
+- **Admin-only routes** (templates and settings, Tasks 5 and 6) use
+  `requireWorkspaceAdmin()` from `server/scout/entries.ts`. It's Express
+  middleware that reads the workspace id from the route parameter, the query
+  or the body. It returns `401` if signed out, `400` for a bad id, and `403`
+  for a non-member or a member who isn't an admin. Otherwise it puts the
+  membership on `res.locals.membership`. `workspaceAdminAccess(user,
+  workspaceId)` is the same check without Express.
+- **The app** shows the Delete button on a workspace entry only to its author
+  (or on an entry that hasn't synced yet, which is yours) and to admins. It
+  matches `authorAccountId` against `user.controlPoint.accountId` from
+  `/api/auth/me`, and reads the role from `user.controlPoint.workspaces`.
+  Hiding the button is a convenience; the server is what enforces the rule.
+  Personal entries are unchanged.
 
 ## Not in scope (yet)
 
