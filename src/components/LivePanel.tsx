@@ -4,8 +4,9 @@
 // confidence tier. How fresh the results are, and a manual check for the impatient.
 import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
-import { Loader2, RefreshCw } from "lucide-react";
+import { ClipboardList, Loader2, RefreshCw } from "lucide-react";
 import type { EventDetail, MatchView } from "../shared/api";
+import { matchReportHref } from "../shared/matchReport";
 import { usePersonal } from "../lib/personal";
 import { useFlag } from "../lib/flags";
 import { readRememberedSpace, resolveScoutSpace, workspacesOf } from "../lib/scoutSpace";
@@ -124,6 +125,10 @@ export function LivePanel({ d, target, refresh }: { d: EventDetail; target: Live
             {!Number.isFinite(at) && <p className="mt-0.5 text-xs text-muted-foreground">{any.time ? "No time zone for this event, so no countdown." : "No start time published for this match."}</p>}
             <Lineup m={any} reasons={atEvent} />
             <Call m={any} />
+            {/* One tap to the pre-match scouting report for this match (v1.6 Task 2). */}
+            <Button variant="secondary" size="sm" asChild className="mt-2.5 max-sm:h-10 max-sm:w-full">
+              <Link to={matchReportHref(any)} data-live-report><ClipboardList /> Know your match</Link>
+            </Button>
           </>
         ) : (
           <p className="mt-1 text-sm text-foreground">{d.matches.length ? "Every scheduled match has a result. Playoffs or awards may still come." : "No schedule published yet. It appears here as soon as FIRST posts it."}</p>

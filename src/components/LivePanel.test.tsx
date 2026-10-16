@@ -85,6 +85,14 @@ describe("LivePanel", () => {
     expect(screen.getByText("Assigned to you")).toBeTruthy();
   });
 
+  it("one tap from the next match to its scouting report (v1.6 Task 2)", () => {
+    personal.tracked.teams = [18360];
+    const { container } = show(detail(MATCHES));
+    const link = container.querySelector("[data-live-report]")!;
+    expect(link.textContent).toMatch(/Know your match/);
+    expect(link.getAttribute("href")).toBe("/events/2025/LIVE1/match/qual:0:15");
+  });
+
   it("with no teams of mine, counts down to the event's next match and says how to get mine", () => {
     show(detail(MATCHES));
     expect(screen.getByText("Next match")).toBeTruthy();
