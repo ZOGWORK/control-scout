@@ -7,7 +7,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   applyLiveEntries, localScoutEntries, pendingScoutCounts, pullScouting, restoreScoutVersion, saveScoutEntry, setScoutViewer, syncScouting, type ScoutEntry,
 } from "./scouting";
-import { dropLostEdit, lostEdits, markLostSeen, SCOUT_OVERWRITTEN, type LostEdit } from "./lostEdits";
+import { dropLostEdit, lostEdits, markLostSeen, SCOUT_LOST_UNSAVED, SCOUT_OVERWRITTEN, type LostEdit } from "./lostEdits";
 import { entryDiff, formatAnswer } from "./entryDiff";
 import { builtinTemplate } from "../shared/scoutDefaults";
 
@@ -95,6 +95,43 @@ describe("detecting the last-write-wins loser", () => {
   });
 });
 
+describe("when the device can't keep the losing version", () => {
+  const full = () => {
+    const real = Storage.prototype.setItem;
+    return vi.spyOn(Storage.prototype, "setItem").mockImplementation(function (this: Storage, k: string, v: string) {
+      if (k.startsWith("cs-scout-lost:")) throw new DOMException("full", "QuotaExceededError");
+      return real.call(this, k, v);
+    });
+  };
+  afterEach(() => { vi.restoreAllMocks(); });
+
+  it("a merge leaves the queued edit in place (still queued) and says so, instead of losing it", () => {
+    const mine = offlineEdit();
+    const heard: string[] = [];
+    const on = (e: Event) => heard.push((e as CustomEvent<string>).detail);
+    window.addEventListener(SCOUT_LOST_UNSAVED, on);
+    full();
+    applyLiveEntries("w1", [{ entry: server({ updatedAt: mine.updatedAt + 5000, notes: "Priya's notes" }), seq: 2 }]);
+    window.removeEventListener(SCOUT_LOST_UNSAVED, on);
+    expect(heard).toEqual(["w1"]);
+    expect(localScoutEntries("w1")[0].notes).toBe("my offline notes");
+    expect(pendingScoutCounts().workspaces.w1).toBe(1);
+  });
+
+  it("a push answer does the same: the edit stays queued until it can be kept", async () => {
+    const mine = offlineEdit();
+    full();
+    answer((_p, body) => ({ results: body.entries.map((x: ScoutEntry) => ({ uuid: x.uuid, ok: true, entry: server({ updatedAt: mine.updatedAt + 10, notes: "won" }) })) }));
+    await syncScouting("w1");
+    expect(localScoutEntries("w1")[0].notes).toBe("my offline notes");
+    expect(pendingScoutCounts().workspaces.w1).toBe(1);
+    vi.restoreAllMocks();
+    await syncScouting("w1");
+    expect(localScoutEntries("w1")[0].notes).toBe("won");
+    expect(lostEdits("w1").map((l) => l.mine.notes)).toEqual(["my offline notes"]);
+  });
+});
+
 describe("restoring a lost version", () => {
   it("saves it as a new edit with a restore marker; once the server has it, the lost record goes", async () => {
     const mine = offlineEdit();
@@ -109,6 +146,17 @@ describe("restoring a lost version", () => {
     expect(calls[0].body.entries[0]).toMatchObject({ restoredFrom: mine.updatedAt, notes: "my offline notes" });
     expect(lostEdits("w1")).toEqual([]);
     expect(localScoutEntries("w1")[0].restoredFrom).toBeUndefined();
+  });
+
+  it("an edit or delete after a restore stays newer than it, even when the version restored over came from a clock running ahead", () => {
+    const mine = offlineEdit();
+    applyLiveEntries("w1", [{ entry: server({ updatedAt: mine.updatedAt + 60_000, notes: "ahead" }), seq: 2 }]);
+    const restored = restoreScoutVersion(localScoutEntries("w1")[0], lostEdits("w1")[0].mine);
+    const { restoredFrom: _r, ...rest } = restored;
+    const edited = saveScoutEntry({ ...rest, notes: "and one more change" });
+    const gone = saveScoutEntry({ ...edited, deleted: true });
+    expect(gone.updatedAt).toBeGreaterThan(edited.updatedAt);
+    expect(edited.updatedAt).toBeGreaterThan(restored.updatedAt);
   });
 
   it("keeping their version forgets yours", () => {

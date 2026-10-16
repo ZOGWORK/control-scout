@@ -52,22 +52,25 @@ export function lostEdits(space: string, now = Date.now()): LostEdit[] {
   } catch { return []; }
 }
 
-function write(space: string, list: LostEdit[]) {
+/** Store the list; false when the device refused (storage full or blocked). */
+function write(space: string, list: LostEdit[]): boolean {
   try {
     if (!list.length) localStorage.removeItem(key(space));
     else localStorage.setItem(key(space), JSON.stringify(list.slice(0, MAX_LOST)));
-  } catch { /* storage full: the notice still shows this time */ }
+  } catch { return false; }
   window.dispatchEvent(new Event(SCOUT_OVERWRITTEN));
+  return true;
 }
 
 /**
  * Keep a lost version (once: the same version lost again, seen by another sync, changes nothing).
- * Returns the record, or null when it was already kept.
+ * Returns false only when the device couldn't store it: the caller must then keep its own copy (the
+ * only one there is) rather than replace it, and try again later.
  */
-export function recordLostEdit(space: string, mine: ScoutEntry, theirs: ScoutEntry, now = Date.now()): LostEdit | null {
+export function recordLostEdit(space: string, mine: ScoutEntry, theirs: ScoutEntry, now = Date.now()): boolean {
   const id = `${mine.uuid}:${mine.updatedAt}`;
   const list = lostEdits(space, now);
-  if (list.some((l) => l.id === id)) return null;
+  if (list.some((l) => l.id === id)) return true;
   const rec: LostEdit = {
     id, space, uuid: mine.uuid,
     mine: {
@@ -78,12 +81,17 @@ export function recordLostEdit(space: string, mine: ScoutEntry, theirs: ScoutEnt
     by: { accountId: theirs.editorAccountId ?? 0, name: theirs.editorDisplayName || "another member" },
     theirsUpdatedAt: theirs.updatedAt, lostAt: now, seen: false,
   };
-  write(space, [rec, ...list]);
+  if (!write(space, [rec, ...list])) return false;
   window.dispatchEvent(new CustomEvent<LostEdit>(SCOUT_OVERWRITTEN, { detail: rec }));
-  return rec;
+  return true;
 }
 
-/** The notice was dismissed or opened: don't show it again (the version stays restorable). */
+/** Window event: an overwritten edit couldn't be kept (storage full), so it was left in place, queued (detail: its space). */
+export const SCOUT_LOST_UNSAVED = "cs-scout-lost-unsaved";
+export const lostBackupFailed = (space: string) => { window.dispatchEvent(new CustomEvent<string>(SCOUT_LOST_UNSAVED, { detail: space })); };
+export const LOST_UNSAVED_MESSAGE = "Someone else's newer edit is waiting, but this device is out of space to keep yours alongside it. Yours stays here, unsent, until there's room again.";
+
+/** The notice was dismissed (or the version restored): don't show it again (the version stays restorable). */
 export function markLostSeen(space: string, id: string) {
   const list = lostEdits(space);
   if (!list.some((l) => l.id === id && !l.seen)) return;
