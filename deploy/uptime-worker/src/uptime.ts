@@ -291,7 +291,12 @@ export interface UptimeConfig {
  * that follows is queued behind it, so Discord still sees both, in order.
  */
 export interface StoredState extends MonitorState {
-  outbox?: DiscordPayload[];
+  outbox?: Queued[];
+}
+
+export interface Queued {
+  kind: Alert["kind"];
+  payload: DiscordPayload;
 }
 
 export interface StateStore {
@@ -303,6 +308,23 @@ export interface StateStore {
 export const OUTBOX_MAX = 10;
 
 type Delivery = "sent" | "skipped" | "failed";
+
+/**
+ * Adds an alert to the outbox. "down" and "back up" always keep their place, in
+ * order. A reminder is only a status update, so a newer one (or the "back up")
+ * replaces any still queued, and none is queued while this outage's "down"
+ * hasn't gone out yet:
+ * when Discord comes back after a long gap it gets the outage's start and at
+ * most one current reminder, not a backlog of stale ones.
+ */
+export function enqueue(outbox: Queued[], item: Queued): Queued[] {
+  if (item.kind === "down") return [...outbox, item];
+  // "Back up" and a newer reminder both make a queued reminder stale.
+  const rest = outbox.filter((q) => q.kind !== "reminder");
+  if (item.kind === "recovered") return [...rest, item];
+  if (rest.at(-1)?.kind === "down") return rest;
+  return [...rest, item];
+}
 
 /** Reads a numeric env var; falls back when unset or not a positive number. */
 export function num(v: string | undefined, fallback: number): number {
@@ -325,7 +347,7 @@ export function configFrom(env: Record<string, string | undefined>): UptimeConfi
 export async function tick(
   cfg: UptimeConfig,
   deps: { fetch: FetchLike; store: StateStore; log: Log; now?: () => number },
-): Promise<{ result: SiteResult; state: MonitorState; alert: Alert | null; delivery: Delivery | null; pending: DiscordPayload[] }> {
+): Promise<{ result: SiteResult; state: MonitorState; alert: Alert | null; delivery: Delivery | null; pending: Queued[] }> {
   const saved: StoredState = (await deps.store.get()) ?? { ...INITIAL_STATE };
   const { outbox = [], ...prev } = saved;
   const result = await checkSite(deps.fetch, cfg.site, { timeoutMs: cfg.timeoutMs, now: deps.now });
@@ -336,10 +358,10 @@ export async function tick(
 
   // Send what's queued, oldest first, then this tick's alert. Stop at the first
   // failure so the order holds; the rest waits for the next tick.
-  let queue = alert ? [...outbox, formatAlert(alert, cfg.site)] : outbox;
+  let queue = alert ? enqueue(outbox, { kind: alert.kind, payload: formatAlert(alert, cfg.site) }) : outbox;
   let delivery: Delivery | null = null;
   while (queue.length) {
-    delivery = await postDiscord(deps.fetch, cfg.webhookUrl, queue[0], deps.log);
+    delivery = await postDiscord(deps.fetch, cfg.webhookUrl, queue[0].payload, deps.log);
     if (delivery === "failed") break;
     queue = queue.slice(1);
   }
