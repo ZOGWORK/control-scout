@@ -55,6 +55,8 @@ beforeEach(() => {
   h.lookup = async () => "Test Team";
   resetFlags({ ...DEFAULT_FLAGS });
   seed();
+  // This device has seen both workspaces' (never customised) templates, so new-entry forms open at once.
+  for (const w of ["901", "902"]) localStorage.setItem(`cs-scout-tpl:${w}:2025`, JSON.stringify({ workspaceId: w, season: 2025, version: 0, settingsVersion: 0, match: null, pit: null, updatedAt: null, updatedBy: null }));
 });
 afterEach(() => { cleanup(); resetFlags({ ...DEFAULT_FLAGS }); vi.unstubAllGlobals(); });
 

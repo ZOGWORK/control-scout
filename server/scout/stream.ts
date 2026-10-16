@@ -19,6 +19,9 @@
 //                            ends the stream; pull with GET /api/scout/sync,
 //                            then reconnect. data {"cursor": n}
 //   event: membership_revoked  the member lost access; the stream ends
+//   event: template          an admin changed the workspace's template; no id (it isn't an entry,
+//                            so it never moves the cursor). data {"season", "version", "settingsVersion"}:
+//                            refetch GET /api/scout/workspaces/:id/template. Sent once live (one during the catch-up comes after `ready`).
 //   : ping                   a comment every 25 s (proxies drop silent connections)
 //
 // Proxy: the response says X-Accel-Buffering: no, and nginx's site gives this
@@ -27,7 +30,7 @@
 import express, { type Request, type Response, type Router } from "express";
 import { isWorkspaceId } from "../auth/controlPoint.js";
 import { currentUser } from "../auth/session.js";
-import { subscribe, type LiveEntry } from "./bus.js";
+import { subscribe, subscribeTemplate, type LiveEntry, type TemplateNotice } from "./bus.js";
 import { openLiveConnection } from "../liveConnections.js";
 import { pullWorkspaceLive, workspaceAccess, type WorkspaceEntryOut } from "./entries.js";
 
@@ -135,6 +138,10 @@ async function open(req: Request, res: Response, opts: { enabled?: () => Promise
     if (live) send(e);
     else if (held.push(e) > LIMITS.maxHeld) end();
   });
+  // A template change during the catch-up is held (the latest one) and sent once live.
+  let heldTemplate: TemplateNotice | null = null;
+  const sendTemplate = (n: TemplateNotice) => write(`event: template\ndata: ${JSON.stringify(n)}\n\n`);
+  const unsubscribeTemplate = subscribeTemplate(workspaceId, (n) => { if (live) sendTemplate(n); else heldTemplate = n; });
   const stream: Stream = { userId: user.id, workspaceId, end: (closeSocket) => { end(); if (closeSocket) res.socket?.end(); } };
   streams.add(stream);
   // Counted for the owner portal's Usage panel (live connections), released in end().
@@ -155,7 +162,7 @@ async function open(req: Request, res: Response, opts: { enabled?: () => Promise
     if (closed) return;
     closed = true;
     clearInterval(heartbeat); clearInterval(recheck);
-    unsubscribe();
+    unsubscribe(); unsubscribeTemplate();
     streams.delete(stream);
     release();
     held.length = 0;
@@ -181,6 +188,7 @@ async function open(req: Request, res: Response, opts: { enabled?: () => Promise
     live = true;
     for (const e of held.splice(0)) send(e);
     write(`event: ready\ndata: ${JSON.stringify({ cursor })}\n\n`);
+    if (heldTemplate) { sendTemplate(heldTemplate); heldTemplate = null; }
   } catch (e) {
     console.error("[scout stream] catch-up failed", e);
     end();

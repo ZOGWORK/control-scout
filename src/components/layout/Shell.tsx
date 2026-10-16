@@ -18,6 +18,8 @@ import { ClockWeather, ThemeToggle } from "./TopBarExtras";
 import { usePersonal } from "../../lib/personal";
 import { pageTitle } from "../../shared/routes";
 import { SiteFooter } from "./SiteFooter";
+import { WorkspacePickerPopover, WorkspacePickerSheet } from "./WorkspacePicker";
+import { useYoursRow, FOLLOWED_TEAM_PATH } from "../../lib/yoursRow";
 
 interface NavItem { to: string; label: string; icon: ComponentType<{ className?: string }>; end?: boolean }
 
@@ -28,7 +30,8 @@ const SECTIONS: { title: string | null; items: NavItem[] }[] = [
     { to: "/compare", label: "Compare", icon: Scale },
   ] },
   { title: "Yours", items: [
-    { to: "/my-team", label: "My team", icon: Star },
+    // The YOURS row: "My team" / "My teams" (YoursNavRow decides what it opens).
+    { to: FOLLOWED_TEAM_PATH, label: "My team", icon: Star },
     { to: "/shortlist", label: "Shortlist", icon: Bookmark },
     { to: "/scout", label: "Scout", icon: ClipboardList },
   ] },
@@ -47,19 +50,66 @@ export function BrandMark({ className }: { className?: string }) {
   return <img src="/logo.png" alt="" aria-hidden className={cn("size-7 shrink-0", className)} />;
 }
 
-function NavRow({ item, collapsed, onNavigate }: { item: NavItem; collapsed?: boolean; onNavigate?: () => void }) {
+const rowClass = (on: boolean, collapsed?: boolean) => cn("group relative flex h-10 w-full items-center gap-3 rounded-lg px-3 text-[15px] font-medium outline-none focus-visible:ring-2 focus-visible:ring-ring/60",
+  on ? "text-text-base" : "text-text-muted hover:bg-text-base/[0.05] hover:text-text-base", collapsed && "justify-center px-0");
+
+function RowInner({ item, on, collapsed }: { item: NavItem; on: boolean; collapsed?: boolean }) {
+  return (
+    <>
+      {on && <motion.span layoutId="cs-nav-active" transition={{ type: "spring", stiffness: 500, damping: 38 }} className="absolute inset-0 rounded-lg bg-text-base/[0.08]" />}
+      <item.icon className={cn("relative size-5 shrink-0", on && "text-accent")} />
+      {!collapsed && <span className="relative truncate">{item.label}</span>}
+    </>
+  );
+}
+
+/** `active`: overrides the link's own match (the URL's query decides between Scout and a workspace's space). */
+function NavRow({ item, collapsed, onNavigate, active }: { item: NavItem; collapsed?: boolean; onNavigate?: () => void; active?: boolean }) {
   return (
     <NavLink to={item.to} end={item.end} onClick={onNavigate} title={collapsed ? item.label : undefined}
-      className={({ isActive }) => cn("group relative flex h-10 w-full items-center gap-3 rounded-lg px-3 text-[15px] font-medium outline-none focus-visible:ring-2 focus-visible:ring-ring/60",
-        isActive ? "text-text-base" : "text-text-muted hover:bg-text-base/[0.05] hover:text-text-base", collapsed && "justify-center px-0")}>
-      {({ isActive }) => (
-        <>
-          {isActive && <motion.span layoutId="cs-nav-active" transition={{ type: "spring", stiffness: 500, damping: 38 }} className="absolute inset-0 rounded-lg bg-text-base/[0.08]" />}
-          <item.icon className={cn("relative size-5 shrink-0", isActive && "text-accent")} />
-          {!collapsed && <span className="relative truncate">{item.label}</span>}
-        </>
-      )}
+      aria-current={active === undefined ? undefined : active ? "page" : false}
+      className={({ isActive }) => rowClass(active ?? isActive, collapsed)}>
+      {({ isActive }) => <RowInner item={item} on={active ?? isActive} collapsed={collapsed} />}
     </NavLink>
+  );
+}
+
+/**
+ * The YOURS row (src/lib/yoursRow.ts): "My team" to the followed-team page (no workspaces) or to the
+ * one workspace's scout space; "My teams" with several, opening the picker: a popover beside the row
+ * (the desktop sidebar), or `onPick` when given (phones: the bottom sheet).
+ */
+function YoursNavRow({ collapsed, onNavigate, onPick }: { collapsed?: boolean; onNavigate?: () => void; onPick?: () => void }) {
+  const { row, active } = useYoursRow();
+  const [open, setOpen] = useState(false);
+  if (row.kind !== "picker") return <NavRow item={{ to: row.to, label: row.label, icon: Star }} collapsed={collapsed} onNavigate={onNavigate} active={active} />;
+  const item: NavItem = { to: "", label: row.label, icon: Star };
+  const button = (
+    <button type="button" title={collapsed ? row.label : undefined} aria-haspopup="dialog" aria-current={active ? "page" : undefined}
+      onClick={onPick} className={rowClass(active, collapsed)}>
+      <RowInner item={item} on={active} collapsed={collapsed} />
+    </button>
+  );
+  if (onPick) return button;
+  return <WorkspacePickerPopover workspaces={row.workspaces} open={open} onOpenChange={setOpen}>{button}</WorkspacePickerPopover>;
+}
+
+/** Scout's own row: not lit while the YOURS row is (a workspace's space is "My team(s)"). */
+function useScoutRowActive(): boolean | undefined {
+  const { row, active } = useYoursRow();
+  const loc = useLocation();
+  if (row.kind === "followed") return undefined;
+  return /^\/scout\/?$/i.test(loc.pathname) && !active;
+}
+
+function SectionRows({ items, collapsed, onNavigate, onPick }: { items: NavItem[]; collapsed?: boolean; onNavigate?: () => void; onPick?: () => void }) {
+  const scoutActive = useScoutRowActive();
+  return (
+    <>
+      {items.map((it) => it.to === FOLLOWED_TEAM_PATH
+        ? <YoursNavRow key={it.to} collapsed={collapsed} onNavigate={onNavigate} onPick={onPick} />
+        : <NavRow key={it.to} item={it} collapsed={collapsed} onNavigate={onNavigate} active={it.to === "/scout" ? scoutActive : undefined} />)}
+    </>
   );
 }
 
@@ -78,7 +128,7 @@ function Sidebar({ collapsed, onToggle }: { collapsed: boolean; onToggle: () => 
         {sections.map((s, i) => (
           <div key={i} className="space-y-0.5">
             {s.title && !collapsed && <p className="px-3 pb-1.5 text-[11px] font-bold uppercase tracking-[0.2em] text-text-muted/70">{s.title}</p>}
-            {s.items.map((it) => <NavRow key={it.to} item={it} collapsed={collapsed} />)}
+            <SectionRows items={s.items} collapsed={collapsed} />
           </div>
         ))}
       </nav>
@@ -100,15 +150,26 @@ const MOBILE_TABS: NavItem[] = [
   { to: "/", label: "Home", icon: House, end: true },
   { to: "/events", label: "Events", icon: CalendarDays },
   { to: "/predict", label: "Predict", icon: Sparkles },
-  { to: "/my-team", label: "My team", icon: Star },
+  { to: FOLLOWED_TEAM_PATH, label: "My team", icon: Star },
 ];
 
-function MobileTabs({ onMore }: { onMore: () => void }) {
+const tabClass = (on: boolean) => cn("flex min-h-[60px] flex-1 flex-col items-center justify-center gap-1 text-xs font-medium", on ? "text-accent" : "text-text-muted");
+
+function MobileTabs({ onMore, onPick }: { onMore: () => void; onPick: () => void }) {
+  const { row, active } = useYoursRow();
   return (
     <nav className="fixed inset-x-0 bottom-0 z-40 flex border-t border-line bg-secondary/95 pb-[env(safe-area-inset-bottom)] backdrop-blur-lg md:hidden" aria-label="Main">
-      {MOBILE_TABS.map((t) => (
-        <NavLink key={t.to} to={t.to} end={t.end} className={({ isActive }) => cn("flex min-h-[60px] flex-1 flex-col items-center justify-center gap-1 text-xs font-medium", isActive ? "text-accent" : "text-text-muted")}>
+      {MOBILE_TABS.map((t) => t.to !== FOLLOWED_TEAM_PATH ? (
+        <NavLink key={t.to} to={t.to} end={t.end} className={({ isActive }) => tabClass(isActive)}>
           <t.icon className="size-5" />{t.label}
+        </NavLink>
+      ) : row.kind === "picker" ? (
+        <button key={t.to} type="button" onClick={onPick} aria-haspopup="dialog" aria-current={active ? "page" : undefined} className={tabClass(active)}>
+          <t.icon className="size-5" />{row.label}
+        </button>
+      ) : (
+        <NavLink key={t.to} to={row.to} aria-current={active ? "page" : undefined} className={tabClass(active)}>
+          <t.icon className="size-5" />{row.label}
         </NavLink>
       ))}
       <button onClick={onMore} className="flex min-h-[60px] flex-1 flex-col items-center justify-center gap-1 text-xs font-medium text-text-muted"><Menu className="size-5" />More</button>
@@ -132,6 +193,9 @@ function NoDataNotice() {
 export function Shell({ children }: { children: ReactNode }) {
   const [collapsed, setCollapsed] = useState(() => { try { return localStorage.getItem("cs-sidebar") === "1"; } catch { return false; } });
   const [more, setMore] = useState(false);
+  // Phones: the "My teams" picker (a bottom sheet), from the tab bar or the More menu.
+  const [picker, setPicker] = useState(false);
+  const { row: yours } = useYoursRow();
   const mainRef = useRef<HTMLElement>(null);
   const loc = useLocation();
   const { user } = usePersonal();
@@ -169,7 +233,8 @@ export function Shell({ children }: { children: ReactNode }) {
               </main>
             </div>
           </div>
-          <MobileTabs onMore={() => setMore(true)} />
+          <MobileTabs onMore={() => setMore(true)} onPick={() => setPicker(true)} />
+          {yours.kind === "picker" && <WorkspacePickerSheet workspaces={yours.workspaces} open={picker} onOpenChange={setPicker} />}
           <Sheet open={more} onOpenChange={setMore}>
             <SheetContent side="left" className="w-[85vw] max-w-[320px] p-3">
               <SheetTitle className="px-2 pb-2 pt-1 font-display text-base">Control Scout</SheetTitle>
@@ -177,7 +242,7 @@ export function Shell({ children }: { children: ReactNode }) {
                 {sections.map((s, i) => (
                   <div key={i} className="space-y-0.5">
                     {s.title && <p className="px-3 pb-1.5 text-[11px] font-bold uppercase tracking-[0.2em] text-text-muted/70">{s.title}</p>}
-                    {s.items.map((it) => <NavRow key={it.to} item={it} onNavigate={() => setMore(false)} />)}
+                    <SectionRows items={s.items} onNavigate={() => setMore(false)} onPick={() => { setMore(false); setPicker(true); }} />
                   </div>
                 ))}
               </nav>

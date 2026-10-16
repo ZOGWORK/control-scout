@@ -23,6 +23,7 @@ import { authRouter, meRouter, authProviders } from "./auth/routes.js";
 import { contactRouter } from "./contact.js";
 import { scoutRouter } from "./scout/entries.js";
 import { streamRouter } from "./scout/stream.js";
+import { templateRouter } from "./scout/templates.js";
 import { reportsRouter } from "./errorReports.js";
 import { packsRouter } from "./packs/routes.js";
 import { collectRouter, statsRouter } from "./analytics.js";
@@ -413,6 +414,7 @@ export function createApp() {
   // Entry photos (docs/r2-photos.md): 404 throughout unless R2 is configured and the photos switch is on.
   api.use("/scout/photos", photosRouter());
   api.use("/scout", scoutRouter());
+  api.use("/scout", templateRouter());
   // The owner portal's switches: with realtime off the stream answers 503 and the app polls instead; with
   // workspace scouting off it answers 503 too, since a stream's catch-up reads shared entries like a pull.
   api.use("/scout", streamRouter({ enabled: async () => (await isEnabled("realtime")) && (await isEnabled("workspaceScouting")) }));

@@ -10,6 +10,7 @@ import { BACKOFF_MS, followWorkspace, HIDDEN_CLOSE_MS, POLL_MS, STREAM_RETRY_WHI
 import { localScoutEntries, saveScoutEntry, scoutCursor, useScouting, type ScoutEntry } from "./scouting";
 import { attributionText, EntryAttribution } from "../components/EntryAttribution";
 import { NOW_TICK_MS, nowClock } from "./useNow";
+import { TEMPLATE_CHANGED, type TemplateChange } from "./scoutTemplates";
 
 class FakeES {
   static all: FakeES[] = [];
@@ -240,5 +241,21 @@ describe("attribution", () => {
     expect(screen.getAllByText("1m ago")).toHaveLength(2); // both rows moved on, from one tick
     view.unmount();
     expect(nowClock()).toEqual({ listeners: 0, running: false });
+  });
+});
+
+describe("template changes on the stream", () => {
+  it("`event: template` tells open forms to refetch (season and version passed on), and never moves the cursor", () => {
+    localStorage.setItem("cs-scout-ws-cursor:41", "4");
+    const heard: TemplateChange[] = [];
+    const on = (e: Event) => heard.push((e as CustomEvent<TemplateChange>).detail);
+    window.addEventListener(TEMPLATE_CHANGED, on);
+    const { stop } = follow();
+    try {
+      FakeES.last.emit("ready", { cursor: 4 });
+      FakeES.last.emit("template", { season: 2025, version: 3, settingsVersion: 5 });
+      expect(heard).toEqual([{ space: "41", season: 2025, version: 3 }]);
+      expect(scoutCursor("41")).toBe(4);
+    } finally { stop(); window.removeEventListener(TEMPLATE_CHANGED, on); }
   });
 });

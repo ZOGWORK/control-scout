@@ -3,10 +3,14 @@
 // your account when signed in and online.
 import { useEffect, useId, useMemo, useRef, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
-import { ClipboardList, Cloud, CloudOff, Info, Loader2, Minus, Plus, Save, Trash2, X } from "lucide-react";
+import { ClipboardList, Cloud, CloudOff, Info, LayoutList, Loader2, Plus, Save, Trash2, X } from "lucide-react";
 import { useCurrentSeason, useTitle } from "../lib/meta";
 import { usePersonal } from "../lib/personal";
-import { canDeleteScoutEntry, deleteScoutEntry, newScoutId, refusalMessage, SCOUT_REFUSED, type ScoutRefusal, saveScoutEntry, ScoutStorageError, templateFor, usePendingScoutCounts, useScouting, type ScoutEntry, type ScoutField, type ScoutSpace, type ScoutValue } from "../lib/scouting";
+import { canDeleteScoutEntry, deleteScoutEntry, newScoutId, refusalMessage, SCOUT_REFUSED, type ScoutRefusal, saveScoutEntry, ScoutStorageError, usePendingScoutCounts, useScouting, type ScoutEntry, type ScoutSpace, type ScoutValue } from "../lib/scouting";
+import { resolveTemplate, useEntryTemplate, useEntryTemplateState, useWorkspaceTemplate } from "../lib/scoutTemplates";
+import { ALL_PHASES, phaseLabel, type WorkspaceTemplate } from "../shared/scoutTemplate";
+import { ScoutFieldInput } from "../components/scout/ScoutFieldInput";
+import { TemplateEditor } from "../components/scout/TemplateEditor";
 import { useScoutSpaces, workspaceLabel } from "../lib/scoutSpace";
 import { ScoutSpaceSwitcher } from "../components/ScoutSpaceSwitcher";
 import { LoadingBlock } from "../components/states";
@@ -16,13 +20,12 @@ import { EntryPhotos } from "../components/scout/EntryPhotos";
 import { PageHeader, Section, EmptyState } from "../components/page";
 import { Button } from "../components/ui/button";
 import { Badge, FieldError, Input, Textarea, Label } from "../components/ui/basic";
-import { ToggleGroup, ToggleGroupItem, Switch } from "../components/ui/controls";
+import { ToggleGroup, ToggleGroupItem } from "../components/ui/controls";
 import { toast } from "../components/ui/sonner";
 import { TeamInput, lookupTeamName } from "../components/TeamInput";
 import { teamError } from "../lib/teamCheck";
 import { SeasonToggle } from "../components/SeasonToggle";
 import { Recordings } from "../components/MatchVideo";
-import { cn } from "../components/cn";
 
 export default function ScoutPage() {
   useTitle("Scout");
@@ -50,6 +53,17 @@ export default function ScoutPage() {
     const cp = user?.controlPoint;
     return space == null || !cp ? null : { accountId: cp.accountId, role: cp.workspaces?.find((w) => w.id === space)?.role };
   }, [user, space]);
+  // The workspace's template for this season (Personal: the built-in defaults). Admins edit it here (?view=template).
+  const wt = useWorkspaceTemplate(space, season);
+  const isAdmin = me?.role === "admin";
+  const showTemplate = !!workspace && isAdmin && sp.get("view") === "template";
+  // Every form that opens (New entry, an edit, or one opened from the URL) checks for a newer template first:
+  // the live notice can be missed (realtime off, or a reconnect gap), and polling only pulls entries.
+  const refreshTemplate = wt.refresh;
+  useEffect(() => { if (formOpen) refreshTemplate(); }, [formOpen, editing, refreshTemplate]);
+  // A workspace whose template this device has never seen: hold the form until the first answer (offline: the built-in fields).
+  const templatePending = space != null && !wt.template && wt.status === "loading";
+  const toggleTemplate = () => setSp((x) => { if (x.get("view") === "template") x.delete("view"); else x.set("view", "template"); return x; });
   useEffect(() => {
     const refused = (ev: Event) => { const r = (ev as CustomEvent<ScoutRefusal>).detail; if (r.space === space) toast.error(refusalMessage(r)); };
     window.addEventListener(SCOUT_REFUSED, refused);
@@ -73,10 +87,16 @@ export default function ScoutPage() {
           <SeasonToggle predictOnly value={season} onChange={(s) => setSp((x) => { x.set("season", String(s)); return x; })} />
           {teamFilter && <Badge variant="soft">Team {teamFilter} <button onClick={() => setSp((x) => { x.delete("team"); return x; })} aria-label="Clear team filter" className="ml-1">×</button></Badge>}
           {!formOpen && <Button onClick={() => setFormOpen(true)}><Plus /> New entry</Button>}
+          {workspace && isAdmin && !spaces.resolving && (
+            <Button variant="outline" aria-pressed={showTemplate} onClick={toggleTemplate}><LayoutList /> Template</Button>
+          )}
         </div>
       </PageHeader>
+      {showTemplate && workspace && (
+        <TemplateEditor key={`${workspace.id}:${season}`} workspaceId={workspace.id} workspaceName={workspaceLabel(workspace)} season={season} template={wt.template} onClose={toggleTemplate} />
+      )}
       {formOpen && !spaces.resolving && (
-        <EntryForm key={editEntry?.uuid ?? `new-${teamFilter ?? ""}`} season={season} initial={editEntry} team={teamFilter} space={space} spaceName={workspace ? workspaceLabel(workspace) : null}
+        <EntryForm key={editEntry?.uuid ?? `new-${teamFilter ?? ""}`} season={season} initial={editEntry} team={teamFilter} space={space} spaceName={workspace ? workspaceLabel(workspace) : null} workspaceTemplate={wt.template} templatePending={templatePending}
           onDone={() => { setFormOpen(false); setSp((x) => { x.delete("entry"); return x; }); }} />
       )}
       <Section title={`Entries (${entries.length})`} description={teamFilter ? `For team ${teamFilter}` : "Newest first"}>
@@ -107,7 +127,8 @@ function SyncChip({ status, pending, onSync, signedIn, live }: { status: string;
 }
 
 function EntryCard({ e, canDelete, onEdit }: { e: ScoutEntry; canDelete: boolean; onEdit: () => void }) {
-  const t = templateFor(e.season, e.kind);
+  // The fields it was made with (an older template version stays readable after the admin changes it).
+  const t = useEntryTemplate(e);
   const shown = t.fields.filter((f) => e.data[f.id] !== undefined && e.data[f.id] !== false && e.data[f.id] !== 0 && e.data[f.id] !== "").slice(0, 5);
   return (
     <li className="rounded-xl border border-border bg-card p-4">
@@ -133,15 +154,49 @@ function EntryCard({ e, canDelete, onEdit }: { e: ScoutEntry; canDelete: boolean
   );
 }
 
-function EntryForm({ season, initial, team, space, spaceName, onDone }: { season: number; initial: ScoutEntry | null; team?: number; space: ScoutSpace; spaceName: string | null; onDone: () => void }) {
+function EntryForm({ season, initial, team, space, spaceName, workspaceTemplate, templatePending, onDone }: {
+  season: number; initial: ScoutEntry | null; team?: number; space: ScoutSpace; spaceName: string | null;
+  /** The workspace's current template (null: Personal, or not known yet: the built-in defaults). */
+  workspaceTemplate: WorkspaceTemplate | null;
+  /** The workspace's template hasn't come yet (none on this device): new entries wait for it. */
+  templatePending: boolean;
+  onDone: () => void;
+}) {
   const [kind, setKind] = useState<"match" | "pit">(initial?.kind ?? "match");
   const [teamText, setTeamText] = useState(initial ? String(initial.team) : team ? String(team) : "");
   const [eventCode, setEventCode] = useState(initial?.eventCode ?? "");
   const [matchLabel, setMatchLabel] = useState(initial?.matchLabel ?? "");
   const [data, setData] = useState<Record<string, ScoutValue>>(initial?.data ?? {});
   const [notes, setNotes] = useState(initial?.notes ?? "");
-  const template = useMemo(() => templateFor(season, kind), [season, kind]);
-  const phases = ["auto", "teleop", "endgame", "overall", "pit"] as const;
+  // An edit keeps the template the entry was made with; a new entry (or a switch to the other kind)
+  // uses the space's current one: the workspace's, or the built-in defaults (Personal, never customised).
+  const entryTemplate = useEntryTemplateState(initial ?? { season, kind, templateId: undefined, templateVersion: undefined });
+  const sameKindEdit = !!initial && kind === initial.kind;
+  const latestTemplate = useMemo(() => (sameKindEdit ? entryTemplate.template : resolveTemplate(space == null ? null : workspaceTemplate, season, kind)),
+    [sameKindEdit, kind, entryTemplate.template, space, workspaceTemplate, season]);
+  // Once a field has an answer, a new entry keeps the template it was being filled in with: a template that
+  // arrives late (a slow first load, a live change) never swaps the questions, or drops answers, mid-entry.
+  // The pin holds for one space, season and kind only.
+  const scope = `${space ?? ""}:${season}:${kind}`;
+  const [pinned, setPinned] = useState<{ scope: string; template: typeof latestTemplate } | null>(null);
+  const template = !sameKindEdit && pinned?.scope === scope ? pinned.template : latestTemplate;
+  const answer = (id: string, v: ScoutValue) => {
+    if (!sameKindEdit && pinned?.scope !== scope) setPinned({ scope, template });
+    setData((d) => ({ ...d, [id]: v }));
+  };
+  // A new entry moved to another space or season starts its answers afresh (they belonged to the other one's questions).
+  const where = `${space ?? ""}:${season}`;
+  const shownWhere = useRef(where);
+  useEffect(() => {
+    if (shownWhere.current === where) return;
+    shownWhere.current = where;
+    if (!initial) { setData({}); setPinned(null); }
+  }, [where, initial]);
+  // No field edits against a stand-in: an edit whose own template version isn't here yet (loading, or offline)
+  // shows its answers untouched and lets notes change; a new entry waits for the workspace's template.
+  const fieldsLocked = sameKindEdit && !entryTemplate.exact;
+  const fieldsPending = !sameKindEdit && templatePending;
+  const phases = ALL_PHASES;
   // Inline errors: the team field's own, and one for the save itself (storage full or blocked).
   const [teamErr, setTeamErr] = useState<string | null>(null);
   const [saveErr, setSaveErr] = useState<string | null>(null);
@@ -151,8 +206,8 @@ function EntryForm({ season, initial, team, space, spaceName, onDone }: { season
   const saveErrId = useId();
   // The team check awaits a lookup: by then the form may be cancelled (closed) or still being
   // edited. A closed form saves nothing; an open one saves what it holds now, if the team is unchanged.
-  const latest = useRef({ kind, teamText, eventCode, matchLabel, data, notes, space });
-  latest.current = { kind, teamText, eventCode, matchLabel, data, notes, space };
+  const latest = useRef({ kind, teamText, eventCode, matchLabel, data, notes, space, template, fieldsLocked });
+  latest.current = { kind, teamText, eventCode, matchLabel, data, notes, space, template, fieldsLocked };
   const open = useRef(true);
   useEffect(() => { open.current = true; return () => { open.current = false; }; }, []);
   const save = async () => {
@@ -165,9 +220,20 @@ function EntryForm({ season, initial, team, space, spaceName, onDone }: { season
     if (latest.current.teamText !== team) return; // edited while checking: the next Save checks the new number
     if (latest.current.space !== space) return; // switched spaces while checking: the next Save goes to the space now shown
     if (err) { setTeamErr(err); teamRef.current?.focus(); return; }
-    const { kind, eventCode, matchLabel, data, notes } = latest.current;
+    const { kind, eventCode, matchLabel, data: all, notes, template, fieldsLocked } = latest.current;
+    // A new entry keeps only the template's fields (a kind switch or a template change can leave others behind);
+    // an edit keeps everything it had.
+    const ids = new Set(template.fields.map((f) => f.id));
+    const data = initial ? { ...all } : Object.fromEntries(Object.entries(all).filter(([k]) => ids.has(k)));
+    // A counter shows its lowest value until it's touched: that shown value is the answer.
+    if (!fieldsLocked) for (const f of template.fields) if (f.type === "counter" && (f.min ?? 0) > 0 && data[f.id] === undefined) data[f.id] = f.min!;
+    // Workspace entries record the template they were made with (an edit of the same kind keeps the entry's own,
+    // whatever stands in on screen); Personal ones always use the built-in defaults.
+    const made = space == null ? {}
+      : initial && kind === initial.kind ? (initial.templateId ? { templateId: initial.templateId, templateVersion: initial.templateVersion ?? 0 } : {})
+      : { templateId: template.id, templateVersion: template.version ?? 0 };
     try {
-      saveScoutEntry({ uuid: initial?.uuid ?? newScoutId(), season, team: Number(team), eventCode: eventCode.trim().toUpperCase() || null, matchLabel: kind === "match" ? matchLabel.trim().toUpperCase() || null : null, kind, data, notes, workspaceId: space });
+      saveScoutEntry({ uuid: initial?.uuid ?? newScoutId(), season, team: Number(team), eventCode: eventCode.trim().toUpperCase() || null, matchLabel: kind === "match" ? matchLabel.trim().toUpperCase() || null : null, kind, data, notes, workspaceId: space, ...made });
       toast.success("Saved on this device");
       onDone();
     } catch (e) {
@@ -185,25 +251,29 @@ function EntryForm({ season, initial, team, space, spaceName, onDone }: { season
         <div className="w-36"><Input value={eventCode} onChange={(e) => setEventCode(e.target.value)} placeholder="Event code" aria-label="Event code" className="h-11 font-mono uppercase" /></div>
         {kind === "match" && <div className="w-24"><Input value={matchLabel} onChange={(e) => setMatchLabel(e.target.value)} placeholder="Q12" aria-label="Match" className="h-11 font-mono uppercase" /></div>}
       </div>
-      <div className="mt-5 grid gap-5 md:grid-cols-2">
+      {fieldsPending ? <div className="mt-5"><LoadingBlock rows={2} label="Loading the workspace's fields" /></div> : fieldsLocked ? (
+        <p role="status" className="mt-5 rounded-lg border border-warning/40 bg-warning/10 px-3 py-2 text-sm">
+          This entry was made with an earlier version of the workspace's fields, which this device hasn't loaded yet. Its answers are kept as they are; you can still change the notes.
+        </p>
+      ) : <div className="mt-5 grid gap-5 md:grid-cols-2">
         {phases.map((ph) => {
           const fields = template.fields.filter((f) => f.phase === ph);
           if (!fields.length) return null;
           return (
             <fieldset key={ph} className="min-w-0 rounded-xl border border-border p-4">
-              <legend className="px-1 text-xs font-bold uppercase tracking-wider text-muted-foreground">{ph === "teleop" ? "TeleOp" : ph[0].toUpperCase() + ph.slice(1)}</legend>
-              <div className="space-y-3">{fields.map((f) => <Field key={f.id} f={f} value={data[f.id]} onChange={(v) => setData((d) => ({ ...d, [f.id]: v }))} />)}</div>
+              <legend className="px-1 text-xs font-bold uppercase tracking-wider text-muted-foreground">{phaseLabel(ph)}</legend>
+              <div className="space-y-3">{fields.map((f) => <ScoutFieldInput key={f.id} f={f} value={data[f.id]} onChange={(v) => answer(f.id, v)} />)}</div>
             </fieldset>
           );
         })}
-      </div>
+      </div>}
       <div className="mt-5">
         <Label htmlFor="notes">Notes</Label>
         <Textarea id="notes" value={notes} onChange={(e) => setNotes(e.target.value)} maxLength={4000} placeholder="What stood out? Strategy, reliability, driver habits…" className="mt-2" />
       </div>
       {initial && <EntryPhotos entry={initial} editable className="mt-5" />}
       <div className="mt-5 flex flex-wrap gap-2">
-        <Button ref={saveRef} type="submit" disabled={checking} aria-describedby={saveErr ? saveErrId : undefined}><Save /> Save</Button>
+        <Button ref={saveRef} type="submit" disabled={checking || fieldsPending} aria-describedby={saveErr ? saveErrId : undefined}><Save /> Save</Button>
         <Button type="button" variant="ghost" onClick={onDone}>Cancel</Button>
         <p className="ml-auto self-center text-xs text-muted-foreground">{spaceName ? <>Saves to <span className="font-medium text-foreground">{spaceName}</span>, shared with the workspace. </> : null}Saved on this device first — works without a connection.</p>
       </div>
@@ -211,46 +281,3 @@ function EntryForm({ season, initial, team, space, spaceName, onDone }: { season
     </form>
   );
 }
-
-function Field({ f, value, onChange }: { f: ScoutField; value: ScoutValue | undefined; onChange: (v: ScoutValue) => void }) {
-  const id = `f-${f.id}`;
-  if (f.type === "toggle") return <div className="flex items-center justify-between gap-3"><Label htmlFor={id}>{f.label}</Label><Switch id={id} checked={!!value} onCheckedChange={onChange} /></div>;
-  if (f.type === "counter") {
-    const n = typeof value === "number" ? value : 0;
-    return (
-      <div className="flex items-center justify-between gap-3">
-        <span className="text-sm">{f.label}</span>
-        <div className="flex items-center gap-1">
-          <Button type="button" variant="secondary" size="icon-sm" aria-label={`${f.label} minus one`} onClick={() => onChange(Math.max(0, n - 1))}><Minus /></Button>
-          <span className="w-8 text-center font-mono tabular-nums" aria-live="polite">{n}</span>
-          <Button type="button" variant="secondary" size="icon-sm" aria-label={`${f.label} plus one`} onClick={() => onChange(Math.min(f.max ?? 999, n + 1))}><Plus /></Button>
-        </div>
-      </div>
-    );
-  }
-  if (f.type === "rating") {
-    const n = typeof value === "number" ? value : 0;
-    return (
-      <div className="flex items-center justify-between gap-3">
-        <span className="text-sm">{f.label}</span>
-        <div className="flex gap-1" role="radiogroup" aria-label={f.label}>
-          {Array.from({ length: f.max ?? 5 }, (_, i) => i + 1).map((k) => (
-            <button key={k} type="button" role="radio" aria-checked={n === k} onClick={() => onChange(n === k ? 0 : k)} className={cn("size-8 rounded-lg border text-sm font-semibold max-sm:size-10", k <= n ? "border-accent/60 bg-accent/15 text-accent" : "border-border text-muted-foreground")}>{k}</button>
-          ))}
-        </div>
-      </div>
-    );
-  }
-  if (f.type === "choice") {
-    return (
-      <div className="space-y-1.5">
-        <span className="text-sm">{f.label}</span>
-        <ToggleGroup type="single" variant="chips" value={typeof value === "string" ? value : ""} onValueChange={(v) => onChange(v)} className="flex flex-wrap gap-1.5">
-          {f.options!.map((o) => <ToggleGroupItem key={o} value={o}>{o}</ToggleGroupItem>)}
-        </ToggleGroup>
-      </div>
-    );
-  }
-  return <div className="space-y-1.5"><Label htmlFor={id}>{f.label}</Label><Input id={id} value={typeof value === "string" ? value : ""} onChange={(e) => onChange(e.target.value)} /></div>;
-}
-
