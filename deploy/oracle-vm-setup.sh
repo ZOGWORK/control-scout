@@ -170,6 +170,19 @@ server {
   server_name $ALL_DOMAINS;
   client_max_body_size 4m;
   location /.well-known/acme-challenge/ { root /var/www/certbot; }
+  # Live scout entries (server-sent events): unbuffered, and held open for up to an
+  # hour between bytes (the server sends a heartbeat every 25 s anyway).
+  location = /api/scout/stream {
+    proxy_pass http://127.0.0.1:$APP_PORT;
+    proxy_set_header Host \$host;
+    proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
+    proxy_set_header X-Forwarded-Proto \$scheme;
+    proxy_http_version 1.1;
+    proxy_set_header Connection "";
+    proxy_buffering off;
+    proxy_cache off;
+    proxy_read_timeout 1h;
+  }
   location / {
     proxy_pass http://127.0.0.1:$APP_PORT;
     proxy_set_header Host \$host;
