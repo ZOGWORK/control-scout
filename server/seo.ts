@@ -122,7 +122,7 @@ export function routePreloads(indexFile: string, path: string): string {
 }
 
 /**
- * index.html for this path (the page's own head tags, its code chunk preloaded, and the static first
+ * index.html for this path and query (the page's own head tags, its code chunk preloaded, and the static first
  * paint: server/bootShell.ts) and its HTTP status: 404 for a path that isn't an app page (an unknown
  * route, team or event). A 404 still carries the app's HTML, so the browser shows the app's own
  * not-found page.

@@ -6,7 +6,7 @@
 //   unplayed → the live call already logged, else one computed now.
 // A played match never shows a prediction computed after the fact.
 import { all, get } from "../db.js";
-import type { MatchDetail, MatchPredictionView, MatchView } from "../../src/shared/api.js";
+import type { EventDetail, MatchDetail, MatchPredictionView, MatchView } from "../../src/shared/api.js";
 import { eventDetail } from "./events.js";
 import { liveForecaster } from "../predict/engine.js";
 import { localToUtcMs } from "../data/time.js";
@@ -94,10 +94,11 @@ const BONUS_LABELS: Record<number, [string, string, string]> = {
 };
 
 /** One match and its context: names, event standing and OPR, season OPR rank, bonus RPs, stations. */
-export async function matchDetail(season: number, code: string, key: string): Promise<MatchDetail | null> {
+/** `event`: the event's detail when the caller already has it (it isn't cached: never build it twice). */
+export async function matchDetail(season: number, code: string, key: string, event?: EventDetail | null): Promise<MatchDetail | null> {
   const [level, series, number] = key.split(":");
   if (!level || series == null || number == null) return null;
-  const d = await eventDetail(season, code);
+  const d = event !== undefined ? event : await eventDetail(season, code);
   const i = d?.matches.findIndex((m) => m.key === key) ?? -1;
   if (!d || i < 0) return null;
   const match = d.matches[i];

@@ -29,11 +29,13 @@ describe("routes shared by the app and the server", () => {
       ["/shortlist", "ShortlistPage"], ["/scout", "ScoutPage"], ["/download", "DownloadPage"], ["/settings", "SettingsPage"],
       ["/rankings", "RankingsPage"], ["/Rankings/", "RankingsPage"], ["/rankings/x", "NotFound"],
       ["/privacy", "PrivacyPage"], ["/terms", "TermsPage"], ["/contact", "ContactPage"], ["/nope", "NotFound"], ["/events/2025", "NotFound"], ["/teams/4215/x", "NotFound"],
+      ["/events/2025/USNJNOM3/match/qual:0:12", "MatchReportPage"], ["/events/2025/X/match/qual:0:1/", "MatchReportPage"], ["/events/2025/X/match", "NotFound"],
       ["/power-rankings", "PowerRankingsPage"], ["/power-rankings/2026-w42", "PowerRankingsPage"], ["/Power-Rankings/2026-W42/", "PowerRankingsPage"], ["/power-rankings/2026-w42/x", "NotFound"],
     ];
     for (const [path, mod] of cases) expect(pageModule(path), path).toBe(mod);
     for (const [, mod] of cases) if (mod) expect(existsSync(join(__dirname, "..", "src", "pages", `${mod}.tsx`)), mod).toBe(true);
     expect(pageTitle("/events/2025/X")).toBe("Event");
+    expect(pageTitle("/events/2025/X/match/qual:0:1")).toBe("Match report");
     expect(pageTitle("/teams")).toBe("Teams");
     expect(pageTitle("/rankings")).toBe("Rankings");
     expect(pageTitle("/")).toBe("Home");
