@@ -381,7 +381,12 @@ async function pushQueued(space: ScoutSpace): Promise<{ sent: number }> {
         // Refused by the workspace's permissions: put the server's copy back (once this version is
         // the one still on the device; a newer local edit goes up on its own) and say why.
         if (!unchanged) continue;
-        try { writeEntry(withNewerPhotos(normalizeScoutEntry(res.entry, space), current)); } catch { continue; /* stays queued: the next push brings the copy again */ }
+        const server = normalizeScoutEntry(res.entry, space);
+        // An edit refused because the entry was deleted meanwhile was never stored anywhere: keep it on the
+        // device (Task 16) before the deleted copy goes back, so its author or an admin can still bring it back.
+        // (A member's Restore stays blocked on an entry they didn't write: the same rule as this refusal.)
+        if (current && !current.deleted && server.deleted && !sameText(current, server) && !recordLostEdit(space, current, server)) { lostBackupFailed(space); continue; }
+        try { writeEntry(withNewerPhotos(server, current)); } catch { continue; /* stays queued: the next push brings the copy again */ }
         now.delete(res.uuid);
         const kind = sentVersion?.deleted ? "delete" : "edit-deleted";
         // Deleting something already deleted (by its author or an admin) needs no message.

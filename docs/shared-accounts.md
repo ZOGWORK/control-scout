@@ -583,7 +583,9 @@ private). Device code: `src/lib/lostEdits.ts`, `src/components/scout/EntryHistor
   - is this account's own synced version, and the newer copy was based on an
     older one (`baseUpdatedAt` before it), so its writer never saw it.
 
-  An edit made after seeing yours is ordinary teamwork, not a conflict. The
+  An edit made after seeing yours is ordinary teamwork, not a conflict. An
+  offline edit the server refuses because the entry was deleted meanwhile
+  (`forbidden`) is kept the same way, since the server never stored it. The
   losing version is kept on the device (Tier 3, `cs-scout-lost:<workspace>`, see
   [settings.md](settings.md)), because the server may never have had it. The
   Scout page says "Your edit was overwritten by <name>" for each lost version

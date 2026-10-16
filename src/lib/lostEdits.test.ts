@@ -68,6 +68,16 @@ describe("detecting the last-write-wins loser", () => {
     expect(localScoutEntries("w1")[0].notes).toBe("won");
   });
 
+  it("an offline edit refused because the entry was deleted meanwhile is kept too (the server never stored it)", async () => {
+    const mine = offlineEdit();
+    const gone = server({ updatedAt: mine.updatedAt - 10, deleted: true, data: {}, notes: "" }, PRIYA, "Priya");
+    answer((_p, body) => ({ results: body.entries.map((x: ScoutEntry) => ({ uuid: x.uuid, ok: false, error: "forbidden", entry: gone })) }));
+    await syncScouting("w1");
+    expect(localScoutEntries("w1")[0].deleted).toBe(true);
+    expect(pendingScoutCounts().workspaces.w1).toBeUndefined();
+    expect(lostEdits("w1").map((l) => [l.mine.notes, l.by.name])).toEqual([["my offline notes", "Priya"]]);
+  });
+
   it("no notice for your own edit from another device, for a newer copy that says the same, or for personal entries", async () => {
     let mine = offlineEdit();
     applyLiveEntries("w1", [{ entry: server({ updatedAt: mine.updatedAt + 1, notes: "from my phone" }, ME, "Me"), seq: 2 }]);
@@ -189,7 +199,7 @@ describe("field-level diffs", () => {
     const toggle = fields.find((f) => f.type === "toggle")!, counter = fields.find((f) => f.type === "counter")!, rating = fields.find((f) => f.type === "rating")!;
     const before = { ...base, data: { [counter.id]: 2, [toggle.id]: true, [rating.id]: 3 }, notes: "steady" };
     const after = { ...base, matchLabel: "Q2", data: { [counter.id]: 4, [rating.id]: 3 }, notes: "fast" };
-    const rows = entryDiff(before, after, [fields]);
+    const rows = entryDiff(before, after, fields);
     expect(rows[0]).toEqual({ key: "match", label: "Match", before: "Q1", after: "Q2" });
     expect(rows.slice(1, -1)).toEqual(expect.arrayContaining([
       { key: `f:${toggle.id}`, label: toggle.label, before: "Yes", after: "No" },
@@ -199,8 +209,12 @@ describe("field-level diffs", () => {
     expect(rows.at(-1)).toEqual({ key: "notes", label: "Notes", before: "steady", after: "fast" });
   });
   it("an answer no template names keeps its id; a deleted version shows as a status change", () => {
-    expect(entryDiff({ ...base, data: { custom1: "x" } }, { ...base, data: { custom1: "y" } }, [fields])).toEqual([{ key: "f:custom1", label: "custom1", before: "x", after: "y" }]);
-    expect(entryDiff(base, { ...base, deleted: true, data: {}, notes: "" }, [fields])).toEqual([{ key: "deleted", label: "Status", before: "Live", after: "Deleted" }]);
+    expect(entryDiff({ ...base, data: { custom1: "x" } }, { ...base, data: { custom1: "y" } }, fields)).toEqual([{ key: "f:custom1", label: "custom1", before: "x", after: "y" }]);
+    // Each side reads with its own template: a rating whose scale changed from 5 to 10 keeps "of 5" on the old side.
+    const r5 = { id: "drive", label: "Driving", type: "rating" as const, phase: "overall" as const, max: 5 };
+    expect(entryDiff({ ...base, data: { drive: 4 } }, { ...base, data: { drive: 4 } }, [r5], [{ ...r5, max: 10, label: "Driving (1-10)" }]))
+      .toEqual([{ key: "f:drive", label: "Driving (1-10)", before: "4 / 5", after: "4 / 10" }]);
+    expect(entryDiff(base, { ...base, deleted: true, data: {}, notes: "" }, fields)).toEqual([{ key: "deleted", label: "Status", before: "Live", after: "Deleted" }]);
     expect(formatAnswer(undefined, { type: "counter", min: 1 })).toBe("1");
     expect(formatAnswer(4, { type: "rating", max: 5 })).toBe("4 / 5");
   });
