@@ -42,7 +42,7 @@ const toAssignment = (workspaceId: string, r: any, progress = 0): Assignment => 
   createdAt: Number(r.created_at), status: r.status === "done" ? "done" : "open",
   doneAt: r.done_at == null ? null : Number(r.done_at), doneByAccountId: r.done_by == null ? null : Number(r.done_by),
   doneByName: r.done_by_name == null ? null : String(r.done_by_name),
-  progress,
+  version: Number(r.version ?? 1), progress,
 });
 
 const progressKey = (season: number, eventCode: string, team: number, accountId: number) => `${season}:${eventCode}:${team}:${accountId}`;
@@ -190,8 +190,8 @@ export async function setAssignmentStatus(user: User, m: Membership, id: number,
     if (cur.status === status) return { ok: true as const, assignment: cur, changed: false };
     const now = Date.now();
     await db().execute(status === "done"
-      ? { sql: "UPDATE workspace_assignments SET status = 'done', done_at = ?, done_by = ?, done_by_name = ? WHERE id = ?", args: [now, m.accountId, actor.name, id] }
-      : { sql: "UPDATE workspace_assignments SET status = 'open', done_at = NULL, done_by = NULL, done_by_name = NULL WHERE id = ?", args: [id] });
+      ? { sql: "UPDATE workspace_assignments SET status = 'done', done_at = ?, done_by = ?, done_by_name = ?, version = version + 1 WHERE id = ?", args: [now, m.accountId, actor.name, id] }
+      : { sql: "UPDATE workspace_assignments SET status = 'open', done_at = NULL, done_by = NULL, done_by_name = NULL, version = version + 1 WHERE id = ?", args: [id] });
     const [after] = await byIds(m.workspaceId, [id]);
     publishAssignments(m.workspaceId, { action: "updated", assignments: [after] });
     await logActivity(m.workspaceId, actor, status === "done" ? "assignment.completed" : "assignment.reopened", `assignment:${id}`, details(after));

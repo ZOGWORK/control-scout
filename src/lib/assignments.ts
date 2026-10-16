@@ -39,13 +39,25 @@ function store(space: string, season: number, list: Assignment[]) {
   try { localStorage.setItem(storeKey(space, season), JSON.stringify(list)); } catch { /* full or blocked: the list still shows */ }
 }
 
-/** Apply a live notice to a list (one season's): created/updated replace by id, deleted removes. */
-export function applyNotice(list: Assignment[], n: AssignmentNotice, season: number): Assignment[] {
+/**
+ * Apply a change to a list (one season's): created/updated replace by id, deleted removes. Changes can
+ * arrive out of order (a PATCH reply after the stream's newer notice), so a copy never replaces a newer
+ * version of itself, and an id in `deleted` (ids are never reused) never comes back.
+ */
+export function applyNotice(list: Assignment[], n: AssignmentNotice, season: number, deleted: ReadonlySet<number> = new Set()): Assignment[] {
   const touched = n.assignments.filter(isAssignment);
-  const ids = new Set(touched.map((a) => a.id));
-  const rest = list.filter((a) => !ids.has(a.id));
-  if (n.action === "deleted") return rest;
-  return [...rest, ...touched.filter((a) => a.season === season)].sort((a, b) => a.id - b.id);
+  if (n.action === "deleted") {
+    const ids = new Set(touched.map((a) => a.id));
+    return list.filter((a) => !ids.has(a.id));
+  }
+  const byId = new Map(list.map((a) => [a.id, a]));
+  for (const a of touched) {
+    if (deleted.has(a.id) || a.season !== season) continue;
+    const cur = byId.get(a.id);
+    if (cur && (cur.version ?? 1) > (a.version ?? 1)) continue;
+    byId.set(a.id, a);
+  }
+  return [...byId.values()].sort((a, b) => a.id - b.id);
 }
 
 export interface AssignmentsState {
@@ -69,6 +81,8 @@ export function useAssignments(space: string | null, season: number, live: LiveM
   const log = useRef<{ seq: number; notice: AssignmentNotice }[]>([]);
   const seq = useRef(0);
   const inflight = useRef(0);
+  // Ids this device has seen deleted (in this space and season): a late reply or notice never brings one back.
+  const deletedIds = useRef(new Set<number>());
 
   const fetchList = useCallback(async () => {
     if (!space) return;
@@ -79,7 +93,8 @@ export function useAssignments(space: string | null, season: number, live: LiveM
       const r = await apiFetch<{ assignments: unknown[] }>(`${base(space)}?season=${season}`);
       if (gen.current !== g || req !== latestReq.current) return;
       let next = (r.assignments ?? []).filter(isAssignment);
-      for (const l of log.current) if (l.seq > since) next = applyNotice(next, l.notice, season);
+      next = next.filter((a) => !deletedIds.current.has(a.id));
+      for (const l of log.current) if (l.seq > since) next = applyNotice(next, l.notice, season, deletedIds.current);
       setList(next); store(space, season, next); setError(null);
     } catch (e) {
       if (gen.current === g && req === latestReq.current) setError(e instanceof ApiError ? e : new ApiError(0, "Couldn't load the assignments."));
@@ -92,7 +107,7 @@ export function useAssignments(space: string | null, season: number, live: LiveM
 
   useEffect(() => {
     gen.current++;
-    log.current = []; inflight.current = 0;
+    log.current = []; inflight.current = 0; deletedIds.current = new Set();
     setList(space ? readStored(space, season) ?? [] : []);
     setError(null);
     void fetchList();
@@ -112,8 +127,9 @@ export function useAssignments(space: string | null, season: number, live: LiveM
 
   const apply = useCallback((n: AssignmentNotice) => {
     if (!space) return;
+    if (n.action === "deleted") for (const a of n.assignments) if (Number.isSafeInteger(a?.id)) deletedIds.current.add(a.id);
     if (inflight.current > 0) log.current.push({ seq: ++seq.current, notice: n });
-    setList((cur) => { const next = applyNotice(cur, n, season); store(space, season, next); return next; });
+    setList((cur) => { const next = applyNotice(cur, n, season, deletedIds.current); store(space, season, next); return next; });
   }, [space, season]);
 
   useEffect(() => {

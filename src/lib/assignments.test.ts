@@ -13,7 +13,7 @@ import type { ScoutEntry } from "./scouting";
 
 const a = (id: number, team: number, assignee = 7, over: Partial<Assignment> = {}): Assignment => ({
   id, workspaceId: "41", season: 2025, eventCode: "USTST1", team, assigneeAccountId: assignee, assigneeName: assignee === 7 ? "Priya" : "Sam",
-  createdByAccountId: 1, createdByName: "Coach", createdAt: 0, status: "open", doneAt: null, doneByAccountId: null, doneByName: null, progress: 0, ...over,
+  createdByAccountId: 1, createdByName: "Coach", createdAt: 0, status: "open", doneAt: null, doneByAccountId: null, doneByName: null, version: 1, progress: 0, ...over,
 });
 const e = (team: number, over: Partial<ScoutEntry> = {}): ScoutEntry => ({
   uuid: `u${team}${Math.random()}`, workspaceId: "41", season: 2025, team, eventCode: "ustst1", matchLabel: "Q1", kind: "match", data: {}, notes: "", updatedAt: 1, authorAccountId: 7, authorDisplayName: "Priya", ...over,
@@ -28,6 +28,26 @@ describe("assignments on the device", () => {
     list = applyNotice(list, { action: "created", assignments: [a(3, 9999), a(4, 1111, 7, { season: 2024 })] }, 2025);
     list = applyNotice(list, { action: "deleted", assignments: [a(2, 5678)] }, 2025);
     expect(list.map((x) => [x.id, x.status])).toEqual([[1, "done"], [3, "open"]]);
+  });
+
+  it("out-of-order changes: an older version never replaces a newer one, and a deleted id never comes back", () => {
+    let list = [a(1, 1234, 7, { status: "done", version: 3 })];
+    list = applyNotice(list, { action: "updated", assignments: [a(1, 1234, 7, { status: "open", version: 2 })] }, 2025);
+    expect(list.map((x) => [x.status, x.version])).toEqual([["done", 3]]);
+    const deleted = new Set([1]);
+    list = applyNotice(list, { action: "deleted", assignments: [a(1, 1234)] }, 2025, deleted);
+    list = applyNotice(list, { action: "updated", assignments: [a(1, 1234, 7, { version: 9 })] }, 2025, deleted);
+    expect(list).toEqual([]);
+  });
+
+  it("useAssignments: a late PATCH reply after a live delete doesn't bring the assignment back", async () => {
+    localStorage.clear();
+    vi.stubGlobal("fetch", vi.fn(async () => new Response(JSON.stringify({ assignments: [a(1, 1234)] }), { status: 200 })));
+    const { result } = renderHook(() => useAssignments("41", 2025, "live"));
+    await waitFor(() => expect(result.current.list).toHaveLength(1));
+    act(() => announceAssignments("41", { action: "deleted", assignments: [a(1, 1234)] }));
+    act(() => result.current.apply({ action: "updated", assignments: [a(1, 1234, 7, { status: "done", version: 2 })] }));
+    expect(result.current.list).toEqual([]);
   });
 
   it("badge wording: you first, then names", () => {

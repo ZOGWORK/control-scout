@@ -76,7 +76,9 @@ export default function ScoutPage() {
   const [formOpen, setFormOpen] = useState(opensNew || !!editing);
   // The team a new entry starts with: fixed when the form opens, so filtering while it's open never resets it.
   const [formTeam, setFormTeam] = useState(opensNew ? teamFilter : undefined);
-  const openNew = () => { setFormTeam(teamFilter); setFormEvent(null); setFormOpen(true); };
+  // Each New entry or Scout starts a fresh form (its own key): never the draft of an earlier one.
+  const [formNonce, setFormNonce] = useState(0);
+  const openNew = () => { setFormTeam(teamFilter); setFormEvent(null); setFormNonce((n) => n + 1); setFormOpen(true); };
   useEffect(() => { if (editing) setFormOpen(true); }, [editing]);
   // Another space's entry can't be edited here: switching closes an edit (a new entry stays open and saves to the new space).
   // Authors are a workspace's own, so the author filter doesn't carry over.
@@ -136,7 +138,7 @@ export default function ScoutPage() {
   const [formEvent, setFormEvent] = useState<string | null>(null);
   const scoutAssigned = (team: number, eventCode: string) => {
     setSp((x) => { x.delete("view"); x.delete("entry"); x.set("team", String(team)); x.set("event", eventCode); return x; });
-    setFormTeam(team); setFormEvent(eventCode); setFormOpen(true);
+    setFormTeam(team); setFormEvent(eventCode); setFormNonce((n) => n + 1); setFormOpen(true);
   };
   const badgeFor = (team: number, eventCode: string | null) => (workspace && eventCode ? assignedLabel(assignIndex.get(assignmentKey(season, eventCode, team)) ?? [], me?.accountId) : null);
   // Tapping an item about an entry opens it (in its season), if this device has it and it wasn't deleted since.
@@ -191,7 +193,7 @@ export default function ScoutPage() {
         <TemplateEditor key={`${workspace.id}:${season}`} workspaceId={workspace.id} workspaceName={workspaceLabel(workspace)} season={season} template={wt.template} onClose={toggleTemplate} />
       )}
       {formOpen && !spaces.resolving && (
-        <EntryForm key={editEntry?.uuid ?? `new-${formTeam ?? ""}`} season={season} initial={editEntry} team={formTeam} space={space} spaceName={workspace ? workspaceLabel(workspace) : null} workspaceTemplate={wt.template} templatePending={templatePending}
+        <EntryForm key={editEntry?.uuid ?? `new-${formTeam ?? ""}-${formNonce}`} season={season} initial={editEntry} team={formTeam} space={space} spaceName={workspace ? workspaceLabel(workspace) : null} workspaceTemplate={wt.template} templatePending={templatePending}
           defaultEvent={(space != null && formEvent) || newEntryEventCode(space, wss.defaults, season)}
           onDone={() => { setFormOpen(false); setFormEvent(null); setSp((x) => { x.delete("entry"); x.delete("new"); return x; }); }} />
       )}
