@@ -45,34 +45,47 @@ export function rememberWorkspaceSettings(s: WorkspaceSettings) {
 }
 
 const inflight = new Map<string, Promise<WorkspaceSettings>>();
-/** GET the workspace's settings, deduped, kept on the device. */
-export function fetchWorkspaceSettings(ws: string): Promise<WorkspaceSettings> {
-  let p = inflight.get(ws);
-  if (!p) {
-    p = apiFetch<{ settings: WorkspaceSettings }>(`/api/scout/workspaces/${encodeURIComponent(ws)}/settings`).then((r) => {
-      const s = normalize(r.settings);
-      rememberWorkspaceSettings(s);
-      return s;
-    });
-    inflight.set(ws, p);
-    void p.catch(() => undefined).finally(() => inflight.delete(ws));
-  }
+function request(ws: string): Promise<WorkspaceSettings> {
+  // Off the in-flight list as soon as it settles (before any caller's .then runs), so a caller that
+  // needs a newer version than this answer brought starts a fresh request.
+  const done = () => { if (inflight.get(ws) === p) inflight.delete(ws); };
+  const p: Promise<WorkspaceSettings> = apiFetch<{ settings: WorkspaceSettings }>(`/api/scout/workspaces/${encodeURIComponent(ws)}/settings`).then((r) => {
+    done();
+    const s = normalize(r.settings);
+    rememberWorkspaceSettings(s);
+    return s;
+  }, (e) => { done(); throw e; });
+  inflight.set(ws, p);
   return p;
+}
+/**
+ * GET the workspace's settings, deduped, kept on the device. `atLeast`: the version a notice announced;
+ * a request already in flight that answers with an older one is followed by a fresh request.
+ */
+export function fetchWorkspaceSettings(ws: string, atLeast = 0): Promise<WorkspaceSettings> {
+  const pending = inflight.get(ws);
+  if (!pending) return request(ws);
+  return pending.then((s) => (s.settingsVersion >= atLeast ? s : inflight.get(ws) ?? request(ws)));
 }
 
 export type SettingsStatus = "none" | "loading" | "ready" | "offline";
 
+type HookState = { key: string; settings: WorkspaceSettings | null; status: SettingsStatus };
+/** Show `s` unless the hook already shows a newer version (a slow answer never replaces a newer one). */
+const showing = (space: string, s: WorkspaceSettings) => (x: HookState): HookState =>
+  x.key !== space ? x : x.settings && x.settings.settingsVersion > s.settingsVersion ? { ...x, status: "ready" } : { key: space, settings: s, status: "ready" };
+
 /**
  * A workspace's settings: from the device at once, then from the server. Null space (Personal): none,
- * and the defaults are the app's own. `refresh` refetches.
+ * and the defaults are the app's own. `refresh` refetches (`atLeast`: the version a notice announced).
  */
-export function useWorkspaceSettings(space: string | null): { settings: WorkspaceSettings | null; defaults: WorkspaceDefaults; status: SettingsStatus; refresh: () => void } {
-  const [state, setState] = useState(() => initial(space));
+export function useWorkspaceSettings(space: string | null): { settings: WorkspaceSettings | null; defaults: WorkspaceDefaults; status: SettingsStatus; refresh: (atLeast?: number) => void } {
+  const [state, setState] = useState<HookState>(() => initial(space));
   const cur = state.key === (space ?? "") ? state : initial(space);
-  const refresh = useCallback(() => {
+  const refresh = useCallback((atLeast?: number) => {
     if (space == null) return;
-    fetchWorkspaceSettings(space)
-      .then((s) => setState((x) => (x.key === space ? { key: space, settings: s, status: "ready" } : x)))
+    fetchWorkspaceSettings(space, atLeast)
+      .then((s) => setState(showing(space, s)))
       .catch(() => setState((x) => (x.key === space ? { ...x, status: "offline" } : x)));
   }, [space]);
   useEffect(() => {
@@ -85,8 +98,8 @@ export function useWorkspaceSettings(space: string | null): { settings: Workspac
       // A notice no newer than the copy on the device needs no request (a save here already stored it;
       // a template save carries the version too): show that copy.
       const have = cachedWorkspaceSettings(space);
-      if (c.settingsVersion != null && have && have.settingsVersion >= c.settingsVersion) setState({ key: space, settings: have, status: "ready" });
-      else refresh();
+      if (c.settingsVersion != null && have && have.settingsVersion >= c.settingsVersion) setState(showing(space, have));
+      else refresh(c.settingsVersion);
     };
     window.addEventListener(SETTINGS_CHANGED, changed);
     return () => window.removeEventListener(SETTINGS_CHANGED, changed);
@@ -94,7 +107,7 @@ export function useWorkspaceSettings(space: string | null): { settings: Workspac
   return { settings: cur.settings, defaults: cur.settings?.defaults ?? NO_DEFAULTS, status: cur.status, refresh };
 }
 
-function initial(space: string | null): { key: string; settings: WorkspaceSettings | null; status: SettingsStatus } {
+function initial(space: string | null): HookState {
   if (space == null) return { key: "", settings: null, status: "none" };
   return { key: space, settings: cachedWorkspaceSettings(space), status: "loading" };
 }

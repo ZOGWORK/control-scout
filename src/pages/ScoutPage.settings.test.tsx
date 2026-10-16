@@ -7,6 +7,7 @@ import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-libra
 import { MemoryRouter } from "react-router-dom";
 import type { AccountUser } from "../lib/personal";
 import { announceSettingsChange } from "../lib/workspaceSettings";
+import { saveScoutEntry } from "../lib/scouting";
 import { resetFlags } from "../lib/flags";
 import { DEFAULT_FLAGS } from "../shared/flags";
 import { ENTRY_POLICY, type WorkspaceSettings } from "../shared/workspaceSettings";
@@ -91,5 +92,22 @@ describe("workspace defaults on the Scout page", () => {
     settings = settingsAt(3, 2024, "USNYQ9");
     await act(async () => { announceSettingsChange({ space: WS, settingsVersion: 3 }); await new Promise((r) => setTimeout(r, 20)); });
     await waitFor(() => expect(eventField().value).toBe("USNYQ9"));
+  });
+
+  it("the default applies when the space opens: a later change to it doesn't move the page", async () => {
+    show(`/scout?space=${WS}`);
+    await waitFor(() => expect(checkedSeason()).toMatch(/^2024/));
+    settings = settingsAt(3, 2025, "USCAQ1");
+    await act(async () => { announceSettingsChange({ space: WS, settingsVersion: 3 }); await new Promise((r) => setTimeout(r, 30)); });
+    await waitFor(() => expect(fetched.filter((u) => u.includes("/settings")).length).toBeGreaterThan(1));
+    expect(checkedSeason()).toMatch(/^2024/);
+  });
+
+  it("editing an entry with no event keeps it without one (the default is for new entries only)", async () => {
+    saveScoutEntry({ uuid: "editnoevent1", season: 2024, team: 4444, eventCode: null, matchLabel: "Q1", kind: "match", data: {}, notes: "", workspaceId: WS });
+    show(`/scout?space=${WS}&season=2024&entry=editnoevent1`);
+    await waitFor(() => expect(screen.getByLabelText("Event code")).toBeTruthy());
+    await act(async () => { await new Promise((r) => setTimeout(r, 30)); });
+    expect(eventField().value).toBe("");
   });
 });

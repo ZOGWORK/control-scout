@@ -39,7 +39,16 @@ export default function ScoutPage() {
   // The workspace's shared settings (Tier 2, docs/settings.md): its default season and event for this space.
   // A season in the URL wins; Personal is unchanged (the current season, no event).
   const wss = useWorkspaceSettings(space);
-  const season = Number(sp.get("season")) || (space != null && wss.defaults.season) || current;
+  const urlSeason = Number(sp.get("season")) || 0;
+  // Applied once, when the space opens: the first settings known for it fix its season for this visit,
+  // so a later change to the default never moves the page (or an open form) under the member.
+  const [opened, setOpened] = useState<{ space: string; season: number } | null>(null);
+  const openedSeason = opened && opened.space === space ? opened.season : null;
+  const season = urlSeason || openedSeason || (space != null && wss.defaults.season) || current;
+  const settingsKnown = space != null && wss.settings != null;
+  useEffect(() => {
+    if (settingsKnown && space != null && openedSeason == null) setOpened({ space, season });
+  }, [settingsKnown, space, openedSeason, season]);
   const { entries, status, pendingCount, syncNow } = useScouting({ season, team: teamFilter }, syncReady, space);
   const live = useScoutLive(space, syncReady);
   const pending = usePendingScoutCounts();
@@ -172,7 +181,7 @@ function EntryForm({ season, initial, team, space, spaceName, workspaceTemplate,
 }) {
   const [kind, setKind] = useState<"match" | "pit">(initial?.kind ?? "match");
   const [teamText, setTeamText] = useState(initial ? String(initial.team) : team ? String(team) : "");
-  const [eventCode, setEventCode] = useState(initial?.eventCode ?? defaultEvent);
+  const [eventCode, setEventCode] = useState(initial ? initial.eventCode ?? "" : defaultEvent);
   // A new entry's event follows the workspace's default (it can arrive after the form opens, or change
   // with the space) until it's typed in; an edit keeps its own.
   const eventTouched = useRef(!!initial);
