@@ -52,6 +52,19 @@ describe("describeActivity", () => {
     expect(describeActivity(item({ type: "member.left", actor: { accountId: 7, name: "Ada" }, details: { name: "Ada", origin: "control-scout", self: true } })))
       .toEqual({ verb: "left", subject: "the workspace" });
     expect(describeActivity(item({ type: "picklist.changed", details: {} }))).toEqual({ verb: "picklist changed", subject: "" });
+    // Task 11: the shared pick list. A coalesced run of moves (details.teams, details.edits) reads as one reorder.
+    expect(describeActivity(item({ type: "picklist.added", subject: "picklist:2025", details: { season: 2025, team: 18360, rank: 2 } })))
+      .toEqual({ verb: "added", subject: "team 18360 to the pick list", note: "pick 2" });
+    expect(describeActivity(item({ type: "picklist.added", subject: "picklist:2025", details: { season: 2025, teams: [1, 2, 3], count: 3, from: "shortlist" } })))
+      .toEqual({ verb: "added", subject: "3 teams to the pick list", note: "from their shortlist" });
+    expect(describeActivity(item({ type: "picklist.removed", subject: "picklist:2025", details: { season: 2025, team: 7 } })))
+      .toEqual({ verb: "removed", subject: "team 7 from the pick list" });
+    expect(describeActivity(item({ type: "picklist.moved", subject: "picklist:2025", details: { season: 2025, team: 7, to: 1, teams: [7] } })))
+      .toEqual({ verb: "moved", subject: "team 7 to pick 1", note: undefined });
+    expect(describeActivity(item({ type: "picklist.moved", subject: "picklist:2025", details: { season: 2025, team: 7, to: 1, teams: [7, 9], edits: 4 } })))
+      .toEqual({ verb: "reordered", subject: "the pick list", note: "2 teams · 4 moves" });
+    expect(describeActivity(item({ type: "picklist.noted", subject: "picklist:2025", details: { season: 2025, team: 7, excerpt: "Fast", teams: [7] } })))
+      .toEqual({ verb: "noted", subject: "team 7 in the pick list", note: "“Fast”" });
   });
 
   it("comments: where, never the text; an admin's deletion of someone else's names whose", () => {

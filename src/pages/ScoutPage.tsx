@@ -3,7 +3,7 @@
 // your account when signed in and online.
 import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
-import { ClipboardCheck, ClipboardList, Cloud, CloudOff, Download, History, Info, LayoutList, Loader2, MessageSquare, Plus, Save, SearchX, Trash2, X } from "lucide-react";
+import { ClipboardCheck, ClipboardList, Cloud, CloudOff, Download, History, Info, LayoutList, ListOrdered, Loader2, MessageSquare, Plus, Save, SearchX, Trash2, X } from "lucide-react";
 import { useCurrentSeason, useTitle } from "../lib/meta";
 import { usePersonal } from "../lib/personal";
 import { canDeleteScoutEntry, deleteScoutEntry, localScoutEntries, newScoutId, scoutDraftBase, refusalMessage, SCOUT_REFUSED, type ScoutRefusal, saveScoutEntry, ScoutStorageError, usePendingScoutCounts, useScouting, type ScoutEntry, type ScoutSpace, type ScoutValue } from "../lib/scouting";
@@ -30,6 +30,8 @@ import { LOST_UNSAVED_MESSAGE, SCOUT_LOST_UNSAVED } from "../lib/lostEdits";
 import { EntryComments } from "../components/scout/EntryComments";
 import { announceCommentsResync, useCommentCounts } from "../lib/scoutComments";
 import { useWorkspaceActivity } from "../lib/scoutActivity";
+import { SharedPicklist } from "../components/scout/SharedPicklist";
+import { announcePicklistResync } from "../lib/sharedPicklist";
 import { AssignmentsView } from "../components/scout/Assignments";
 import { assignedLabel, useAssignmentIndex, useAssignments } from "../lib/assignments";
 import { assignmentKey } from "../shared/assignments";
@@ -49,7 +51,7 @@ export default function ScoutPage() {
   const current = useCurrentSeason();
   // One team in the filter (a link from a team page, or picked in the filter bar): a new entry starts with it.
   const teamFilter = /^\d+$/.test(sp.get("team") ?? "") ? Number(sp.get("team")) || undefined : undefined;
-  const { user, syncReady, offlineAccount, refreshUser } = usePersonal();
+  const { user, syncReady, offlineAccount, refreshUser, state: personal } = usePersonal();
   const spaces = useScoutSpaces();
   const { space, current: workspace } = spaces;
   // The workspace's shared settings (Tier 2, docs/settings.md): its default season and event for this space.
@@ -75,7 +77,7 @@ export default function ScoutPage() {
     const [synced] = await Promise.all([syncNow(), refreshUser?.()]);
     setLiveGeneration((g) => g + 1);
     // Open comment threads, the card counts and the assignments refetch too (the new stream does again once it is ready).
-    if (space != null) { announceCommentsResync(space); reloadAssignments.current(); }
+    if (space != null) { announceCommentsResync(space); reloadAssignments.current(); announcePicklistResync(space); }
     return synced;
   }, [syncNow, refreshUser, space]);
   // How many comments each workspace entry has (Task 15), for the cards; live with the stream.
@@ -143,6 +145,10 @@ export default function ScoutPage() {
   const showActivity = !!workspace && !spaces.resolving && sp.get("view") === "activity";
   const activity = useWorkspaceActivity(showActivity ? space : null, live);
   const toggleActivity = () => setSp((x) => { if (x.get("view") === "activity") x.delete("view"); else x.set("view", "activity"); return x; });
+  // The workspace's shared pick list (?view=picklist, Task 11): every member sees and edits it, in place of the entry list.
+  const showPicklist = !!workspace && !spaces.resolving && sp.get("view") === "picklist";
+  const togglePicklist = () => setSp((x) => { if (x.get("view") === "picklist") x.delete("view"); else x.set("view", "picklist"); return x; });
+  const pickMe = useMemo(() => ({ accountId: user?.controlPoint?.accountId ?? null, name: user?.displayName?.trim() || "You" }), [user]);
   // Scouting assignments (Task 10, ?view=assignments): loaded for the whole space, for the view and the badges.
   const assignments = useAssignments(workspace && !spaces.resolving ? space : null, season, live);
   const assignIndex = useAssignmentIndex(assignments.list);
@@ -220,6 +226,9 @@ export default function ScoutPage() {
               <ClipboardCheck /> Assignments{myOpen > 0 && <Badge variant="beta" className="ml-0.5" aria-label={`${myOpen} open for you`}>{myOpen}</Badge>}
             </Button>
           )}
+          {workspace && !spaces.resolving && (
+            <Button variant="outline" aria-pressed={showPicklist} onClick={togglePicklist}><ListOrdered /> Pick list</Button>
+          )}
           {workspace && isAdmin && !spaces.resolving && (
             <Button variant="outline" aria-pressed={showTemplate} onClick={toggleTemplate}><LayoutList /> Template</Button>
           )}
@@ -244,7 +253,8 @@ export default function ScoutPage() {
       {showAssignments && workspace && space != null ? (
         <AssignmentsView space={space} workspaceName={workspaceLabel(workspace)} season={season} defaultEvent={newEntryEventCode(space, wss.defaults, season)}
           state={assignments} myAccountId={me?.accountId ?? null} isAdmin={isAdmin} localEntries={entries} onScout={scoutAssigned} />
-      ) : showActivity && workspace ? <ActivityFeed state={activity} workspaceName={workspaceLabel(workspace)} onOpenEntry={openEntry} /> : <>
+      ) : showPicklist && workspace ? <SharedPicklist key={`${workspace.id}:${season}`} workspaceId={workspace.id} workspaceName={workspaceLabel(workspace)} season={season} live={live} me={pickMe} shortlist={personal.bookmarks} />
+        : showActivity && workspace ? <ActivityFeed state={activity} workspaceName={workspaceLabel(workspace)} onOpenEntry={openEntry} /> : <>
       <Section title={`Entries (${entries.length})`}>
         {spaces.resolving ? <LoadingBlock rows={3} label="Loading scout space" /> : !entries.length ? <EmptyState icon={ClipboardList} title="No scouting entries yet" description="Start one above, or from any team page. Entries save on this device first, so scouting works with no signal." /> : <>
           <EntryFilterBar filters={feed.filters} query={feed.query} sort={feed.sort} options={feed.options} shown={feed.shown.length} total={entries.length}

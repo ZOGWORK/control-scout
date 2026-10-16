@@ -1,4 +1,4 @@
-// Version history of workspace scout entries (Task 16; table workspace_entry_versions, migration 20).
+// Version history of workspace scout entries (Task 16; table workspace_entry_versions, migration 21).
 //
 // - Every accepted write that changes an entry (entries.ts, pushWorkspaceEntries) adds a version in the
 //   same transaction as the write: who wrote it (the editor), when (its updatedAt), and the text: data,

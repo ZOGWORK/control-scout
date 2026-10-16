@@ -111,7 +111,9 @@ export function dragPosition(want: { left: number; top: number }, me: Box, bound
 
 export function useReorder({ items, onCommit, describe }: {
   items: number[];
-  onCommit: (order: number[], moved: number, to: number) => void;
+  /** The new order, the item moved, where it went and where it was: both indexes into the order at pickup
+   *  (a list that changed under a drag still gets the move the member made). */
+  onCommit: (order: number[], moved: number, to: number, from: number) => void;
   /** The words a screen reader hears for a team (e.g. "18360 Pymble Pyrophosphate"). */
   describe: (key: number) => string;
 }) {
@@ -181,7 +183,7 @@ export function useReorder({ items, onCommit, describe }: {
     if (commit && d.to !== d.from) {
       // Remember where everything is drawn now; once the new order renders, each settles from there.
       settleFrom.current = new Map(d.start.map((k, i) => [k, (d.els[i] ?? el(k))!.getBoundingClientRect()] as const));
-      onCommit(final, d.key, d.to);
+      onCommit(final, d.key, d.to, d.from);
       setMessage(`${describe(d.key)} moved to pick ${d.to + 1} of ${final.length}.`);
     } else {
       // Nothing changes: slide everything back home.
@@ -235,7 +237,7 @@ export function useReorder({ items, onCommit, describe }: {
     if (to === from) { setMessage(`${describe(key)} is already pick ${from + 1} of ${items.length}.`); return; }
     settleFrom.current = new Map(items.flatMap((k) => { const r = el(k)?.getBoundingClientRect(); return r ? [[k, r] as const] : []; }));
     const next = moveItem(items, from, to);
-    onCommit(next, key, to);
+    onCommit(next, key, to, from);
     setMessage(`${describe(key)} moved to pick ${to + 1} of ${items.length}.`);
   }, [items, onCommit, describe]); // eslint-disable-line react-hooks/exhaustive-deps
 

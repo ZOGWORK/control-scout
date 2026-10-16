@@ -3,9 +3,9 @@
 // trend line, and a panel that opens in place with the OPR split, event by
 // event chart, prediction snapshot and last five matches. List or grid view.
 // Order and notes live in personal state (this device, synced when signed in).
-import { useCallback, useRef, useState, type MouseEvent, type ReactNode, type RefObject } from "react";
+import { useCallback, useRef, useState, type RefObject } from "react";
 import { Link, useSearchParams } from "react-router-dom";
-import { ArrowDownWideNarrow, Bookmark, CalendarDays, ChevronDown, Download, ExternalLink, GripVertical, LayoutGrid, List, MapPin, Scale, Search, Trash2 } from "lucide-react";
+import { ArrowDownWideNarrow, Bookmark, CalendarDays, Download, GripVertical, LayoutGrid, List, Scale, Search } from "lucide-react";
 import { useSearch } from "../components/layout/Search";
 import { useApi, qs } from "../lib/api";
 import { useCurrentSeason, useTitle } from "../lib/meta";
@@ -14,34 +14,20 @@ import type { ShortlistTeam } from "../shared/api";
 import { PageHeader, EmptyState } from "../components/page";
 import { Async } from "../components/states";
 import { Button } from "../components/ui/button";
-import { Checkbox, ToggleGroup, ToggleGroupItem } from "../components/ui/controls";
+import { ToggleGroup, ToggleGroupItem } from "../components/ui/controls";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuTrigger } from "../components/ui/overlay";
 import { toast } from "../components/ui/sonner";
 import { SeasonToggle } from "../components/SeasonToggle";
 import { cn } from "../components/cn";
-import { num } from "../lib/format";
 import { downloadCsv } from "../lib/csv";
 import { applyOrder, compareHref, readView, saveView, setNote, shortlistCsvRows, type ShortlistView } from "../lib/shortlist";
 import { useReorder } from "../components/shortlist/useReorder";
-import { OprSpark } from "../components/shortlist/charts";
+import { GridCard, ListHeader, ListRow, MAX_COMPARE } from "../components/shortlist/PickRows";
 import { NoteField } from "../components/shortlist/NoteField";
 import { TeamDetail } from "../components/shortlist/TeamDetail";
 
 const MAX_SHOWN = 100;
-const MAX_COMPARE = 4;
 const isPhone = () => typeof window !== "undefined" && !!window.matchMedia?.("(max-width: 639px)").matches;
-
-/** Pick number badge: gold, blue, green for the first three, then neutral. */
-function RankBadge({ rank, className }: { rank: number; className?: string }) {
-  const tone = rank === 1 ? "bg-accent text-accent-ink shadow-[0_2px_10px_color-mix(in_srgb,var(--color-accent)_35%,transparent)]"
-    : rank === 2 ? "bg-info/20 text-info ring-1 ring-info/40"
-    : rank === 3 ? "bg-success/20 text-success ring-1 ring-success/40"
-    : "bg-muted text-text-base/80 ring-1 ring-border";
-  return <span className={cn("inline-flex size-7 shrink-0 items-center justify-center rounded-lg font-mono text-xs font-bold tabular-nums", tone, className)} aria-label={`Pick ${rank}`}>{rank}</span>;
-}
-
-/** Clicks on these don't toggle the row. */
-const interactive = (e: MouseEvent) => !!(e.target as HTMLElement).closest("a, button, input, label, [role=checkbox], [data-reorder-handle]");
 
 export default function ShortlistPage() {
   useTitle("Shortlist");
@@ -106,7 +92,7 @@ export default function ShortlistPage() {
 
   const common = (t: ShortlistTeam, rank: number) => ({
     t, rank, season, open: open.has(t.team), dragging: reorder.dragging === t.team,
-    note: notes[String(t.team)] ?? "", storedNote: storedNotes === undefined ? undefined : (storedNotes?.[String(t.team)] ?? ""), onNote: (text: string) => update("shortlistNotes", (n) => setNote(n, t.team, text)),
+    note: <NoteField team={t.team} value={notes[String(t.team)] ?? ""} stored={storedNotes === undefined ? undefined : (storedNotes?.[String(t.team)] ?? "")} onSave={(text: string) => update("shortlistNotes", (n) => setNote(n, t.team, text))} />,
     selected: selected.includes(t.team), selectDisabled: !selected.includes(t.team) && selected.length >= MAX_COMPARE, onSelect: (on: boolean) => pick(t.team, on),
     onToggle: () => toggle(t.team), onRemove: () => remove(t.team), handle: reorder.handleProps(t.team),
     compareLink: compareHref([t.team, ...shown.filter((x) => x !== t.team).slice(0, MAX_COMPARE - 1)], season),
@@ -155,10 +141,7 @@ export default function ShortlistPage() {
               </p>
               {view === "list" ? (
                 <div className="overflow-hidden rounded-2xl border border-border bg-card">
-                  <div aria-hidden className={cn(LIST_COLS, "border-b border-border bg-muted/40 px-2 py-2 text-[10px] font-bold uppercase tracking-wider text-text-muted sm:px-3")}>
-                    <span /><span>Pick</span><span className="max-sm:hidden" /><span>Team</span><span className="max-md:hidden">Trend</span>
-                    <span className="text-right">OPR</span><span className="text-right max-sm:hidden">World</span><span className="text-right max-lg:hidden">Rating</span><span className="text-right max-sm:hidden">W-L-T</span><span />
-                  </div>
+                  <ListHeader />
                   <ol ref={reorder.container as RefObject<HTMLOListElement>} className="relative" aria-label="Pick list">
                     {rows.map((t) => <ListRow key={t.team} {...common(t, reorder.rankOf(t.team))} />)}
                   </ol>
@@ -173,121 +156,5 @@ export default function ShortlistPage() {
         }}</Async>
       )}
     </div>
-  );
-}
-
-// Fixed widths (not auto), so every row's grid lines up with the header's.
-const LIST_COLS = "grid items-center gap-x-2 grid-cols-[2.5rem_1.75rem_minmax(0,1fr)_3.5rem_2rem] sm:gap-x-3 sm:grid-cols-[2rem_1.75rem_1rem_minmax(0,1fr)_4rem_4.5rem_4rem_4.25rem] md:grid-cols-[2rem_1.75rem_1rem_minmax(0,1fr)_7rem_4rem_4.5rem_4rem_4.25rem] lg:grid-cols-[2rem_1.75rem_1rem_minmax(0,1fr)_8rem_4rem_4.5rem_5rem_4.5rem_4.25rem]";
-
-interface RowProps {
-  t: ShortlistTeam; rank: number; season: number; open: boolean; dragging: boolean;
-  note: string; storedNote: string | undefined; onNote: (text: string) => boolean;
-  selected: boolean; selectDisabled: boolean; onSelect: (on: boolean) => void;
-  onToggle: () => void; onRemove: () => void;
-  /** This team next to the top picks. */
-  compareLink: string;
-  handle: ReturnType<ReturnType<typeof useReorder>["handleProps"]>;
-  detail: ReactNode;
-}
-
-function Grip({ t, rank, handle, className }: { t: ShortlistTeam; rank: number; handle: RowProps["handle"]; className?: string }) {
-  return (
-    <button type="button" {...handle} aria-label={`Reorder ${t.team}${t.name ? ` ${t.name}` : ""}, pick ${rank}. Arrow keys move it; or drag.`}
-      aria-roledescription="sortable handle"
-      className={cn("flex size-8 cursor-grab touch-none items-center justify-center rounded-lg text-text-muted outline-none transition-colors hover:bg-accent/10 hover:text-accent active:cursor-grabbing focus-visible:ring-2 focus-visible:ring-ring/60 max-sm:size-10", className)}>
-      <GripVertical className="size-4" />
-    </button>
-  );
-}
-
-function SelectBox({ t, selected, selectDisabled, onSelect }: Pick<RowProps, "t" | "selected" | "selectDisabled" | "onSelect">) {
-  return <Checkbox checked={selected} disabled={selectDisabled} onCheckedChange={(v) => onSelect(v === true)} aria-label={`Select ${t.team} to compare`} title={selectDisabled ? `Compare takes up to ${MAX_COMPARE} teams` : undefined} />;
-}
-
-/** The compare tick with its words, the whole label tappable (a 16 px box alone is too small a target on a phone). */
-function SelectLabel({ text, className, ...p }: Pick<RowProps, "t" | "selected" | "selectDisabled" | "onSelect"> & { text: string; className?: string }) {
-  return (
-    <label className={cn("inline-flex min-h-8 cursor-pointer items-center gap-2 rounded-lg px-2 text-xs text-text-muted hover:text-text-base max-sm:min-h-11", p.selectDisabled && !p.selected && "cursor-not-allowed opacity-60", className)}>
-      <SelectBox {...p} /><span>{text}</span>
-    </label>
-  );
-}
-
-function ListRow(p: RowProps) {
-  const { t, rank, open, dragging } = p;
-  const detailsId = `shortlist-${t.team}`;
-  return (
-    <li data-reorder-key={t.team} className={cn("relative border-b border-border bg-card last:border-b-0", dragging && "z-20 rounded-xl border-transparent shadow-2xl ring-2 ring-accent/70")}>
-      <div className={cn(LIST_COLS, "density-row cursor-pointer px-2 py-2 transition-colors hover:bg-accent/[0.06] sm:px-3", open && "bg-accent/[0.05]")}
-        onClick={(e) => { if (!interactive(e)) p.onToggle(); }}>
-        <Grip t={t} rank={rank} handle={p.handle} />
-        <RankBadge rank={rank} />
-        <span className="max-sm:hidden"><SelectBox {...p} /></span>
-        <div className="min-w-0">
-          <div className="flex min-w-0 items-baseline gap-2">
-            <Link to={`/teams/${t.team}?season=${p.season}`} className="font-mono text-sm font-semibold hover:text-accent-text hover:underline">{t.team}</Link>
-            <span className="truncate text-sm">{t.name ?? "Unknown team"}</span>
-            {t.place && <span className="hidden truncate text-xs text-text-muted xl:inline">{t.place}</span>}
-          </div>
-          <NoteField team={t.team} value={p.note} stored={p.storedNote} onSave={p.onNote} className="-ml-1.5 mt-0.5 max-w-md" />
-        </div>
-        <OprSpark events={t.events} className="max-md:hidden" />
-        <span className="text-right font-display text-base font-semibold tabular-nums text-accent-text">{num(t.opr)}</span>
-        <span className="text-right text-sm tabular-nums text-info max-sm:hidden">{t.oprRank ? `#${t.oprRank.toLocaleString()}` : "—"}</span>
-        <span className="text-right text-sm tabular-nums max-lg:hidden">{t.rating ? <>{num(t.rating)}<span className="text-[11px] text-text-muted"> ±{num(t.ratingSd, 0)}</span></> : "—"}</span>
-        <span className="text-right text-sm tabular-nums text-success max-sm:hidden">{t.record ?? "—"}</span>
-        <div className="flex items-center justify-end gap-0.5">
-          <Button variant="ghost" size="icon-sm" onClick={p.onRemove} aria-label={`Remove ${t.team}`} className="max-sm:hidden hover:text-destructive"><Trash2 /></Button>
-          <Button variant="ghost" size="icon-sm" onClick={p.onToggle} aria-expanded={open} aria-controls={detailsId} aria-label={`${open ? "Hide" : "Show"} details for ${t.team}`} className={cn(open && "text-accent-text")}>
-            <ChevronDown className={cn("transition-transform", open && "rotate-180")} />
-          </Button>
-        </div>
-      </div>
-      {open && <div id={detailsId}>
-        {/* Phones have no room for the tick column: picking for Compare lives in the opened row. */}
-        <div className="border-t border-border px-2 pt-1 sm:hidden"><SelectLabel {...p} text={p.selected ? "Selected to compare" : "Select to compare"} /></div>
-        {p.detail}
-      </div>}
-    </li>
-  );
-}
-
-function GridCard(p: RowProps) {
-  const { t, rank, open, dragging } = p;
-  const detailsId = `shortlist-${t.team}`;
-  return (
-    <li data-reorder-key={t.team} className={cn("relative min-w-0 overflow-hidden rounded-2xl border border-border bg-card transition-shadow", open && "sm:col-span-2 xl:col-span-3", rank === 1 && "border-accent/40", dragging && "z-20 shadow-2xl ring-2 ring-accent/70")}>
-      {rank === 1 && <div aria-hidden className="pointer-events-none absolute -right-10 -top-10 size-32 rounded-full bg-accent/10 blur-2xl" />}
-      <div className="relative p-3.5">
-        <div className="flex items-center gap-2">
-          <RankBadge rank={rank} className="size-8 text-sm" />
-          <Grip t={t} rank={rank} handle={p.handle} />
-          <SelectLabel {...p} text="Compare" className="-mr-2 ml-auto" />
-        </div>
-        <div className="mt-2.5 min-w-0">
-          <Link to={`/teams/${t.team}?season=${p.season}`} className="group/name flex min-w-0 items-baseline">
-            <span className="font-mono text-xl font-bold tabular-nums text-text-base group-hover/name:text-accent-text">{t.team}</span>
-            <span className="ml-2 min-w-0 truncate text-sm font-medium group-hover/name:underline">{t.name ?? "Unknown team"}</span>
-          </Link>
-          {t.place && <p className="mt-0.5 flex items-center gap-1 truncate text-xs text-text-muted"><MapPin className="size-3 shrink-0" />{t.place}</p>}
-        </div>
-        <dl className="mt-3 grid grid-cols-3 gap-2">
-          <div className="rounded-lg bg-accent/10 px-2.5 py-1.5"><dt className="text-[10px] font-semibold uppercase tracking-wider text-text-muted">OPR</dt><dd className="whitespace-nowrap font-display text-base font-semibold tabular-nums text-accent-text sm:text-lg">{num(t.opr)}</dd></div>
-          <div className="rounded-lg bg-info/10 px-2.5 py-1.5"><dt className="text-[10px] font-semibold uppercase tracking-wider text-text-muted">World</dt><dd className="whitespace-nowrap font-display text-base font-semibold tabular-nums text-info sm:text-lg">{t.oprRank ? `#${t.oprRank.toLocaleString()}` : "—"}</dd></div>
-          <div className="rounded-lg bg-success/10 px-2.5 py-1.5"><dt className="text-[10px] font-semibold uppercase tracking-wider text-text-muted">W-L-T</dt><dd className="whitespace-nowrap font-display text-base font-semibold tabular-nums text-success sm:text-lg">{t.record ?? "—"}</dd></div>
-        </dl>
-        <OprSpark events={t.events} interactive width={320} height={44} className="mt-3 min-h-9" />
-        <NoteField team={t.team} value={p.note} stored={p.storedNote} onSave={p.onNote} className="-mx-1.5 mt-2" />
-        <div className="mt-2 flex flex-wrap items-center gap-1.5 border-t border-border pt-2.5">
-          <Button variant={open ? "default" : "secondary"} size="sm" onClick={p.onToggle} aria-expanded={open} aria-controls={detailsId}>
-            <ChevronDown className={cn("transition-transform", open && "rotate-180")} /> {open ? "Less" : "Details"}
-          </Button>
-          <Button variant="ghost" size="sm" asChild><Link to={p.compareLink} aria-label={`Compare ${t.team} with your top picks`}><Scale /> Compare</Link></Button>
-          <Button variant="ghost" size="sm" asChild><Link to={`/teams/${t.team}?season=${p.season}`} aria-label={`Open team ${t.team}`}><ExternalLink /> Team</Link></Button>
-          <Button variant="ghost" size="icon-sm" onClick={p.onRemove} aria-label={`Remove ${t.team}`} className="ml-auto hover:text-destructive"><Trash2 /></Button>
-        </div>
-      </div>
-      {open && <div id={detailsId}>{p.detail}</div>}
-    </li>
   );
 }
