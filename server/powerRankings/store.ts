@@ -23,7 +23,7 @@ import { weekStart, type PowerRankingsEntry, PowerRankingsResponse, PowerRanking
 export const CONTENT_DIR = fileURLToPath(new URL("../../content/power-rankings", import.meta.url));
 export const SAMPLE_DIR = fileURLToPath(new URL("../../content/power-rankings-sample", import.meta.url));
 
-/** A week file's name: the week id and .md (anything else in the directory is ignored). */
+/** A week file's name: the week id and .md (another .md name is an error; other files, such as .gitkeep, are ignored). */
 export const WEEK_FILE = /^\d{4}-w\d{2}\.md$/;
 
 export interface LoadedWeeks { docs: RankingDoc[]; errors: { file: string; errors: string[] }[] }
@@ -33,11 +33,15 @@ export interface LoadedWeeks { docs: RankingDoc[]; errors: { file: string; error
  * (each must say `sample: true`); the real directory may hold none.
  */
 export function loadDir(dir: string, sample: boolean): LoadedWeeks {
-  let files: string[] = [];
-  try { files = readdirSync(dir).filter((f) => WEEK_FILE.test(f)).sort(); } catch { /* no directory: no weeks */ }
+  let all: string[] = [];
+  try { all = readdirSync(dir).sort(); } catch { /* no directory: no weeks */ }
   const docs: RankingDoc[] = [];
   const errors: LoadedWeeks["errors"] = [];
-  for (const f of files) {
+  // A markdown file with any other name (2026-W43.md, week-43.md) would never show: say so, rather than skip it quietly.
+  for (const f of all) {
+    if (/\.md$/i.test(f) && !WEEK_FILE.test(f)) errors.push({ file: f, errors: [`the file name must be the week, like 2026-w43.md (lower-case w, two-digit week)`] });
+  }
+  for (const f of all.filter((x) => WEEK_FILE.test(x))) {
     const r = parseRankings(readFileSync(join(dir, f), "utf8"), f);
     if (!r.ok) { errors.push({ file: f, errors: r.errors }); continue; }
     if (r.doc.sample !== sample) {
@@ -53,7 +57,7 @@ export function loadDir(dir: string, sample: boolean): LoadedWeeks {
 let cache: { key: string; loaded: LoadedWeeks } | null = null;
 const signature = (dir: string) => {
   try {
-    return readdirSync(dir).filter((f) => WEEK_FILE.test(f)).sort().map((f) => { const s = statSync(join(dir, f)); return `${f}:${s.size}:${s.mtimeMs}`; }).join("|");
+    return readdirSync(dir).filter((f) => /\.md$/i.test(f)).sort().map((f) => { const s = statSync(join(dir, f)); return `${f}:${s.size}:${s.mtimeMs}`; }).join("|");
   } catch { return "-"; }
 };
 let override: { dir: string; sample: boolean } | null = null;
@@ -160,14 +164,13 @@ function weekView(doc: RankingDoc, weeks: RankingDoc[]): Promise<PowerRankingsWe
 
 /** The archive (newest first), with each week's top three named. */
 async function archive(weeks: RankingDoc[]): Promise<PowerRankingsSummary[]> {
-  const bySeason = new Map<number, Set<number>>();
-  for (const w of weeks) for (const e of w.entries.slice(0, 3)) {
-    let s = bySeason.get(w.season);
-    if (!s) bySeason.set(w.season, (s = new Set()));
-    s.add(e.team);
-  }
+  // Names only (one small query): the archive needs no stats.
+  const teams = [...new Set(weeks.flatMap((w) => w.entries.slice(0, 3).map((e) => e.team)))];
   const names = new Map<number, string | null>();
-  for (const [season, teams] of bySeason) for (const [t, i] of await teamInfo(season, [...teams])) names.set(t, i.name);
+  if (teams.length) {
+    const rows = await all<{ number: number; name: string | null }>(`SELECT number, name FROM teams WHERE number IN (${teams.map(() => "?").join(",")})`, teams);
+    for (const r of rows) names.set(Number(r.number), r.name?.trim() || null);
+  }
   return [...weeks].reverse().map((w) => ({
     week: w.week, season: w.season, title: w.title, published: w.published,
     top: w.entries.slice(0, 3).map((e) => ({ team: e.team, name: names.get(e.team) ?? null })),

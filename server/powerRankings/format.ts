@@ -124,7 +124,8 @@ export function parseRankings(text: string, file: string): ParseResult {
     const n = bodyStart + i;
     if (/^##\s/.test(line)) {
       finish();
-      const h = /^##\s+(\d+)\.\s+(?:team\s+)?(\d+)\b(.*)$/i.exec(line.trim());
+      // The number ends at a space or the end ("19066.5" or "4215x" is no team, never team 19066 or 4215).
+      const h = /^##\s+(\d+)\.\s+(?:team\s+)?(\d+)(?=\s|$)(.*)$/i.exec(line.trim());
       if (!h) { errors.push(`line ${n}: an entry heading must look like "## 1. 4215" (got "${line.trim()}")`); current = { entry: { rank: NaN, team: NaN, blurb: "", movement: null }, line: n, text: [] }; return; }
       const rank = Number(h[1]), team = Number(h[2]);
       if (!(team >= 1 && team <= 999_999)) errors.push(`line ${n}: ${h[2]} isn't a valid FTC team number (1 to 999999)`);
