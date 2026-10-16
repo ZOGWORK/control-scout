@@ -127,4 +127,5 @@ export const DEVICE_ONLY_KEYS = [
   "cs-scout-dirty", // Personal entries waiting to sync (src/lib/scouting.ts)
   "cs-scout-ws-dirty:", // a workspace's entries waiting to sync
   "cs-account-cache", // the signed-in account as /api/auth/me last answered, for opening offline (src/lib/personal.tsx)
+  "cs-scout-lost:", // edits this device lost to newer ones, kept to restore (src/lib/lostEdits.ts)
 ] as const;
