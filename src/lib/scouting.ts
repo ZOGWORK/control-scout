@@ -69,8 +69,21 @@ const WS = "cs-scout-ws:";
 const WS_DIRTY = "cs-scout-ws-dirty:";
 const WS_CURSOR = "cs-scout-ws-cursor:";
 const EVT = "cs-scout-changed";
-/** A local save (detail: its space): open lists push it right away, so other members see it live. */
+/** A local save (detail: SavedDetail): open lists push it right away, so other members see it live. */
 const SAVED = "cs-scout-saved";
+interface SavedDetail { space: ScoutSpace; deleted: boolean }
+/** How long a list waits after a save before pushing, so a burst of saves goes up together. A delete goes at once. */
+export const PUSH_DEBOUNCE_MS = 300;
+
+/**
+ * A workspace refused this device outright (403 on a push or a pull: the account isn't a member any
+ * more, as far as the server can tell). detail: the workspace id. The page leaves that space
+ * (scoutSpace.ts) and the app checks the account again; queued entries are never dropped here.
+ */
+export const SCOUT_DENIED = "cs-scout-denied";
+const deniedBy = (space: ScoutSpace, e: unknown) => {
+  if (space != null && (e as { status?: unknown } | null)?.status === 403) window.dispatchEvent(new CustomEvent<string>(SCOUT_DENIED, { detail: space }));
+};
 
 /** The workspace refused a write (detail: ScoutRefusal); the server's copy is already back on the device. */
 export const SCOUT_REFUSED = "cs-scout-refused";
@@ -182,7 +195,7 @@ export function saveScoutEntry(e: NewEntry): ScoutEntry {
     throw new ScoutStorageError("This device couldn't save the entry (storage full or blocked). Nothing was lost from earlier entries.");
   }
   window.dispatchEvent(new Event(EVT));
-  window.dispatchEvent(new CustomEvent(SAVED, { detail: entry.workspaceId }));
+  window.dispatchEvent(new CustomEvent<SavedDetail>(SAVED, { detail: { space: entry.workspaceId, deleted: !!entry.deleted } }));
   return entry;
 }
 
@@ -307,7 +320,7 @@ export function syncScouting(space: ScoutSpace = null): Promise<{ sent: number }
   // One push per space at a time: a second call (a reconnect heard by the page and by the
   // background sync at once) waits for the first, then sends only what's still queued.
   const key = space ?? "";
-  const run = (pushing.get(key) ?? Promise.resolve()).then(() => pushQueued(space));
+  const run = (pushing.get(key) ?? Promise.resolve()).then(() => pushQueued(space)).catch((e: unknown) => { deniedBy(space, e); throw e; });
   const settled = run.catch(() => undefined);
   pushing.set(key, settled);
   void settled.then(() => { if (pushing.get(key) === settled) pushing.delete(key); });
@@ -390,6 +403,46 @@ export function adoptServerEntry(space: string, entry: ScoutEntry) {
   window.dispatchEvent(new Event(EVT));
 }
 
+/**
+ * Access to a workspace ended while this device still had entries queued for it (saved offline, or
+ * before the removal reached the device): the server refused them (403) and the account's workspace
+ * list no longer has it. Nothing is dropped: every queued entry that isn't a delete moves to Personal
+ * as a new personal entry (your own copy: its fields and notes; the workspace's photos and authorship
+ * stay behind), queued to sync to your account. Queued deletes are simply let go (there is nothing to
+ * keep). The moved entries leave the workspace's copy on this device, so a later re-add can't show
+ * them twice. Returns how many moved. docs/shared-accounts.md, "Revoked while offline".
+ */
+export function moveQueuedToPersonal(space: string): number {
+  const d = dirty(space);
+  if (!d.size) return 0;
+  let moved = 0;
+  const keep = new Set<string>();
+  for (const uuid of d) {
+    const e = readEntry(space, uuid);
+    if (!e || e.deleted) continue;
+    const copy = normalizeScoutEntry({
+      uuid: newScoutId(), season: e.season, team: e.team, eventCode: e.eventCode, matchLabel: e.matchLabel, kind: e.kind,
+      data: e.data ?? {}, notes: e.notes ?? "", updatedAt: Date.now(),
+    }, null);
+    try {
+      writeEntry(copy);
+      const p = dirty(null); p.add(copy.uuid); setDirty(p, null);
+    } catch {
+      // The device is full: it stays where it was, queued, for the next try, and no half-made copy is left behind.
+      try { localStorage.removeItem(keyFor(null, copy.uuid)); } catch { /* blocked */ }
+      keep.add(uuid); continue;
+    }
+    try { localStorage.removeItem(keyFor(space, uuid)); } catch { /* blocked: hidden anyway */ }
+    moved++;
+  }
+  try { setDirty(keep, space); } catch { /* storage blocked */ }
+  // The workspace's copies on this device are no longer complete: a later return (re-added) pulls it all again.
+  if (moved) try { localStorage.removeItem(`${WS_CURSOR}${space}`); } catch { /* blocked */ }
+  window.dispatchEvent(new Event(EVT));
+  if (moved) window.dispatchEvent(new CustomEvent<SavedDetail>(SAVED, { detail: { space: null, deleted: false } }));
+  return moved;
+}
+
 /** Pull a space's entries from the account (Personal) or the workspace (changes since the last pull); local unsynced edits are kept if newer. */
 export async function pullScouting(space: ScoutSpace = null): Promise<void> {
   if (space == null) {
@@ -398,7 +451,8 @@ export async function pullScouting(space: ScoutSpace = null): Promise<void> {
   } else {
     for (let page = 0; page < 100; page++) {
       const since = readCursor(space);
-      const r = await apiFetch<{ entries: ScoutEntry[]; cursor: number; more: boolean }>(`/api/scout/sync?workspaceId=${encodeURIComponent(space)}&since=${since}`);
+      const r = await apiFetch<{ entries: ScoutEntry[]; cursor: number; more: boolean }>(`/api/scout/sync?workspaceId=${encodeURIComponent(space)}&since=${since}`)
+        .catch((e: unknown) => { deniedBy(space, e); throw e; });
       mergeFromServer(space, r.entries);
       advanceCursor(space, r.cursor);
       if (!r.more) break;
@@ -416,11 +470,12 @@ export function useScouting(filter: { season?: number; team?: number }, signedIn
     .sort((a, b) => b.updatedAt - a.updatedAt), [filter.season, filter.team, space]);
   const [entries, setEntries] = useState<ScoutEntry[]>(read);
   const [status, setStatus] = useState<ScoutSync>(signedIn ? "idle" : "local");
-  const run = useCallback(async () => {
-    if (!signedIn) { setStatus("local"); return; }
+  /** Push the space's queue, then pull what's new. True when both went through. */
+  const run = useCallback(async (): Promise<boolean> => {
+    if (!signedIn) { setStatus("local"); return false; }
     setStatus("syncing");
-    try { await syncScouting(space); await pullScouting(space); setStatus("idle"); }
-    catch (e: any) { setStatus(e?.offline ? "offline" : "error"); }
+    try { await syncScouting(space); await pullScouting(space); setStatus("idle"); return true; }
+    catch (e: any) { setStatus(e?.offline ? "offline" : "error"); return false; }
   }, [signedIn, space]);
   useEffect(() => {
     const refresh = () => setEntries(read());
@@ -438,7 +493,13 @@ export function useScouting(filter: { season?: number; team?: number }, signedIn
       try { await syncScouting(space); setStatus("idle"); }
       catch (e: any) { setStatus(e?.offline ? "offline" : "error"); }
     };
-    const saved = (ev: Event) => { if (signedIn && (ev as CustomEvent<ScoutSpace>).detail === space && !soon) soon = setTimeout(push, 300); };
+    // A delete goes up at once (it must reach other members as fast as an add), taking any save waiting with it.
+    const saved = (ev: Event) => {
+      const d = (ev as CustomEvent<SavedDetail>).detail;
+      if (!signedIn || d?.space !== space) return;
+      if (d.deleted) { if (soon) clearTimeout(soon); soon = null; void push(); }
+      else soon ??= setTimeout(push, PUSH_DEBOUNCE_MS);
+    };
     window.addEventListener(SAVED, saved);
     run();
     return () => {
