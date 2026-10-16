@@ -10,7 +10,7 @@ const STAGES: { title: string; body: string; out: string; detail: ReactNode }[] 
   },
   {
     title: "Predict a match", body: "Add up each alliance, account for how noisy FTC scores are, compare the two.", out: "→ win %, score range, tier",
-    detail: <><b>Match model.</b> Expected alliance score = its robots' non-penalty ratings + the penalties the opponents tend to give away. Spread = 14 + 0.2 × expected, widened by rating uncertainty. P(red wins) is the overlap of the two curves, then calibrated. Every call also gets a confidence tier.</>,
+    detail: <><b>Match model.</b> Expected alliance score = its robots' non-penalty ratings + the penalties the opponents tend to give away. Spread = 14 + 0.2 × expected, widened by rating uncertainty. P(red wins) starts as the overlap of the two curves; Prediction Engine 2.0 then corrects it for match context and each robot's track record, and calibrates it. Every call also gets a confidence tier.</>,
   },
   {
     title: "Simulate the event", body: "Play the rest of quals, rank teams, pick alliances, run the bracket. Repeat 2,000×.", out: "→ ranks, picks, champions",
