@@ -77,14 +77,22 @@ errors. The owner portal's **Switches** panel has an **Entry photos** switch
    server, then in **one SQL statement** reserves the photo: a `pending` row is
    inserted only if the entry has fewer than 6 photos, the member has fewer
    than 12 uploads in flight, and stored + reserved bytes stay under the soft
-   cap. Racing uploads therefore can't overshoot the cap. It answers a 10-minute
-   presigned PUT URL for `photos/<season>/<eventCode>/<entryUuid>/<photoUuid>.jpg`
-   (Content-Type `image/jpeg` is part of the signature).
-3. The browser PUTs the JPEG to R2.
+   cap. Racing uploads therefore can't overshoot the cap. It answers a 5-minute
+   presigned PUT URL for `photos/<season>/<eventCode>/<entryUuid>/<photoUuid>.jpg`.
+   `Content-Type: image/jpeg` **and `Content-Length` (the reserved size)** are
+   signed headers, so R2 refuses any body of another size, a repeat PUT on the
+   same URL included: nothing larger than the reservation can be stored.
+3. The browser PUTs the JPEG to R2 (it sends Content-Length itself).
 4. `POST /api/scout/photos/<id>/complete`: the server HEADs the object. Missing:
-   the reservation is released (409). Larger than declared: the object is
-   deleted (413). Otherwise the row becomes `ready` with the stored byte size
-   (the meter), and the entry is republished.
+   the reservation is released (409). Not exactly the declared size: the object
+   is deleted (413). Otherwise the row becomes `ready` (its bytes are the meter),
+   and the entry is republished. As a backstop, the nightly listing deletes any
+   stored object larger than its record.
+
+Completing an upload and every deletion of an image (removal, expiry, purge,
+the sweeps) hold a per-photo lock from the storage call to the row change, and
+re-read the photo's status under it, so a cleanup can't delete an image between
+an upload's check and its record.
 
 **Viewing**: thumbnails and the fullscreen viewer load
 `GET /api/scout/photos/<id>?workspaceId=…`, which checks membership and

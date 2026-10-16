@@ -125,11 +125,16 @@ async function upload(call: Call, ws: string, uuid: string, size = 2000, opts: {
   const body = opts.put === undefined ? jpeg(size) : opts.put;
   if (body) {
     const put = await fetch(slot.json.uploadUrl, { method: "PUT", headers: slot.json.headers, body });
-    expect(put.status).toBe(200);
+    // The URL is signed for exactly the reserved size: storage refuses any other.
+    expect(put.status).toBe(body.length === size ? 200 : 403);
   }
   const done = await call("POST", `/api/scout/photos/${slot.json.photoId}/complete`, { workspaceId: ws });
   return { slot, done };
 }
+
+/** The owner (OWNER_EMAILS), signed in once: a second code for the same address would wait out the cooldown. */
+let ownerCall: Call | null = null;
+const asOwner = async () => (ownerCall ??= await signIn("owner@example.com"));
 
 let wsN = 0;
 /** A fresh workspace with an admin (Ada), two members (Ben, Cy), and an outsider (Dee, in another workspace). */
@@ -225,10 +230,18 @@ describe("entry photos: upload", () => {
     const missing = await upload(t.ben.call, t.ws, e.uuid, 1000, { put: null });
     expect(missing.done.status).toBe(409);
     expect(await all("SELECT * FROM entry_photos")).toEqual([]); // the reservation is released
+    // A body larger than reserved never gets stored (the size is signed), so there's nothing to record.
     const bigger = await upload(t.ben.call, t.ws, e.uuid, 1000, { put: jpeg(5000) });
-    expect(bigger.done.status).toBe(413);
-    expect(fakeR2.keys()).toEqual([]); // deleted again
+    expect(bigger.done.status).toBe(409);
+    expect(fakeR2.keys()).toEqual([]);
     expect(await all("SELECT * FROM entry_photos")).toEqual([]);
+    // Nor can a finished upload's URL be used again to swap in a larger image.
+    const ok = await upload(t.ben.call, t.ws, e.uuid, 1000);
+    expect(ok.done.status).toBe(200);
+    expect((await fetch(ok.slot.json.uploadUrl, { method: "PUT", headers: ok.slot.json.headers, body: jpeg(900_000) })).status).toBe(403);
+    expect((await fetch(ok.slot.json.uploadUrl, { method: "PUT", headers: { ...ok.slot.json.headers, "Content-Length": "900000" }, body: jpeg(1000) }).catch(() => ({ status: 0 }))).status).not.toBe(200);
+    expect(Number((await get<any>("SELECT bytes FROM entry_photos WHERE id = ?", [ok.slot.json.photoId]))!.bytes)).toBe(1000);
+    await t.ben.call("DELETE", `/api/scout/photos/${ok.slot.json.photoId}?workspaceId=${t.ws}`);
     // Only the uploader finishes an upload.
     const slot = await t.ben.call("POST", "/api/scout/photos/presign", { workspaceId: t.ws, entryUuid: e.uuid, bytes: 100 });
     await fetch(slot.json.uploadUrl, { method: "PUT", headers: slot.json.headers, body: jpeg(100) });
@@ -358,6 +371,37 @@ describe("entry photos: nightly expiry", () => {
     void today;
   });
 
+  it("a purge racing an upload's completion never leaves a ready photo without its image", async () => {
+    await run("INSERT OR REPLACE INTO events (season, code, name, start, end, source) VALUES (2025, 'USRACEQ1', 'Race', ?, ?, 'first')", [daysAgo(1), daysAgo(1)]);
+    const t = await team();
+    const owner = await asOwner();
+    for (let i = 0; i < 4; i++) {
+      const e = await push(t.ada.call, t.ws, entry({ eventCode: "USRACEQ1" }));
+      const slot = await t.ben.call("POST", "/api/scout/photos/presign", { workspaceId: t.ws, entryUuid: e.uuid, bytes: 500 });
+      await fetch(slot.json.uploadUrl, { method: "PUT", headers: slot.json.headers, body: jpeg(500) });
+      const [done] = await Promise.all([
+        t.ben.call("POST", `/api/scout/photos/${slot.json.photoId}/complete`, { workspaceId: t.ws }),
+        owner("POST", "/api/owner/storage/purge", { season: 2025, eventCode: "USRACEQ1", confirm: true }),
+      ]);
+      const row = await get<any>("SELECT status, object_key FROM entry_photos WHERE id = ?", [slot.json.photoId]);
+      if (row?.status === "ready") expect(fakeR2.has(row.object_key)).toBe(true);
+      else expect([200, 409, 410]).toContain(done.status);
+    }
+    expect((await all<any>("SELECT object_key FROM entry_photos WHERE status = 'ready'")).every((r) => fakeR2.has(r.object_key))).toBe(true);
+  });
+
+  it("a stored object larger than its record is deleted by the nightly listing", async () => {
+    const t = await team();
+    const e = await push(t.ada.call, t.ws, entry());
+    const { slot } = await upload(t.ben.call, t.ws, e.uuid, 1000);
+    const key = (await get<any>("SELECT object_key FROM entry_photos WHERE id = ?", [slot.json.photoId]))!.object_key;
+    fakeR2.put(key, jpeg(50_000)); // as if storage had let a larger body through
+    const r = await runPhotoMaintenance();
+    expect(r).toMatchObject({ orphans: 1, bucketBytes: 0 });
+    expect(fakeR2.keys()).toEqual([]);
+    expect(await all("SELECT * FROM entry_photos")).toEqual([]);
+  });
+
   it("cleans up what nothing points at: deleted entries' photos, abandoned uploads, untracked objects", async () => {
     const t = await team();
     const e = await push(t.ada.call, t.ws, entry());
@@ -383,7 +427,7 @@ describe("entry photos: storage guardrails", () => {
   }
 
   it("7 GB: an info notice; 9 GB: the warning and one owner alert; 9.5 GB: uploads refused; back under: resolved", async () => {
-    const owner = await signIn("owner@example.com");
+    const owner = await asOwner();
     const t = await team();
     const storage = async () => (await owner("GET", "/api/owner/storage")).json;
     const e = await fill(t, 7.2e9);
