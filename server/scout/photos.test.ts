@@ -408,6 +408,12 @@ describe("entry photos: nightly expiry", () => {
     // Cancelled, not forgotten: its URL may still work for a few minutes, so its bytes stay counted.
     expect((await get<any>("SELECT status, bytes FROM entry_photos WHERE id = ?", [slot.json.photoId]))).toMatchObject({ status: "cancelled", bytes: 700 });
     expect((await t.ben.call("POST", `/api/scout/photos/${slot.json.photoId}/complete`, { workspaceId: t.ws })).status).toBe(409);
+    // Nor can anyone remove (release) or view the reservation: only the sweep releases it.
+    for (const who of [t.ben.call, t.ada.call]) {
+      expect((await who("DELETE", `/api/scout/photos/${slot.json.photoId}?workspaceId=${t.ws}`)).status).toBe(404);
+      expect((await who("GET", `/api/scout/photos/${slot.json.photoId}?workspaceId=${t.ws}`)).status).toBe(404);
+    }
+    expect((await get<any>("SELECT status FROM entry_photos WHERE id = ?", [slot.json.photoId]))?.status).toBe("cancelled");
     // A PUT on the still-live URL lands under that counted reservation; the sweep removes it once the URL is long dead.
     expect((await fetch(slot.json.uploadUrl, { method: "PUT", headers: slot.json.headers, body: jpeg(700) })).status).toBe(200);
     expect((await sweepStaleReservations(Date.now() + 31 * 60_000)).removed).toBe(1);
