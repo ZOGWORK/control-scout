@@ -178,6 +178,15 @@ describe("when the device can't keep the losing version", () => {
     expect(importLocalScouting({ entries: [], dirty: [], lost: stash.lost }).failed?.lost).toEqual(stash.lost);
   });
 
+  it("putting a stash back never replaces a newer copy on the device; its queue marker still merges", () => {
+    const old = saveScoutEntry({ uuid: "stashed00002", ...base, workspaceId: "w1", notes: "old" });
+    const stash = exportLocalScouting();
+    const newer = saveScoutEntry({ ...old, notes: "edited since" });
+    importLocalScouting(stash);
+    expect(localScoutEntries("w1")[0]).toMatchObject({ notes: "edited since", updatedAt: newer.updatedAt });
+    expect(pendingScoutCounts().workspaces.w1).toBe(1);
+  });
+
   it("queued entries that can't be put back are handed back too (with their queue)", () => {
     const queued = saveScoutEntry({ uuid: "stashed00001", ...base, workspaceId: "w1" });
     const stash = exportLocalScouting();

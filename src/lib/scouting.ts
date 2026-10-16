@@ -311,7 +311,12 @@ export function importLocalScouting(data: SpaceExport & { spaces?: Record<string
   const failed: SpaceExport & { spaces: Record<string, SpaceExport>; lost: Record<string, string> } = { entries: [], dirty: [], spaces: {}, lost: {} };
   const put = (space: ScoutSpace, s: SpaceExport) => {
     const missed: ScoutEntry[] = [];
-    for (const e of s.entries ?? []) { try { writeEntry(normalizeScoutEntry(e, space)); } catch { missed.push(e); /* storage full */ } }
+    for (const e of s.entries ?? []) {
+      // A copy on the device that's as new or newer (edited since an earlier, partial put-back) is kept: newer wins.
+      const cur = readEntry(space, e.uuid);
+      if (cur && cur.updatedAt >= (Number(e.updatedAt) || 0)) continue;
+      try { writeEntry(normalizeScoutEntry(e, space)); } catch { missed.push(e); /* storage full */ }
+    }
     let queueKept = true;
     try { const d = dirty(space); for (const u of s.dirty ?? []) d.add(u); setDirty(d, space); } catch { queueKept = false; /* storage full */ }
     // The cursor only holds if every entry it covers is back; otherwise the next pull starts over.
