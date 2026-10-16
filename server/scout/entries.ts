@@ -263,7 +263,7 @@ async function writeWorkspaceEntries(user: User, m: Membership, good: ScoutEntry
       },
       // A write that changes nothing (or a tombstone for an entry never seen) is no version.
       ...(entryChange(prior.get(e.uuid), { ...e, deleted: !!e.deleted })
-        ? versionStatements(m.workspaceId, e.uuid, beforeSeq, { restored: e.restoredFrom != null, fromVersion: restored.get(e.uuid)?.versionNo ?? null })
+        ? versionStatements(m.workspaceId, e.uuid, beforeSeq, { restored: e.restoredFrom != null && !e.deleted, fromVersion: e.deleted ? null : restored.get(e.uuid)?.versionNo ?? null })
         : []),
     ]),
   ]);

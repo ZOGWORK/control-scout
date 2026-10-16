@@ -16,6 +16,7 @@ const LOOK: Record<string, { icon: ComponentType<{ className?: string }>; tone: 
   "entry.edited": { icon: Pencil, tone: "bg-accent/15 text-accent-text" },
   "entry.deleted": { icon: Trash2, tone: "bg-destructive/15 text-destructive" },
   "entry.restored": { icon: RotateCcw, tone: "bg-info/15 text-info" },
+  "entry.version_restored": { icon: History, tone: "bg-info/15 text-info" },
   "photo.added": { icon: Camera, tone: "bg-info/15 text-info" },
   "photo.removed": { icon: ImageMinus, tone: "bg-muted text-muted-foreground" },
   "template.changed": { icon: LayoutList, tone: "bg-warning/15 text-warning" },
