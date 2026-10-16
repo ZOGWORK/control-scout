@@ -120,9 +120,11 @@ describe("SharedPicklist", () => {
     const alert = await screen.findByRole("alert");
     expect(alert.textContent).toMatch(/Couldn't load team 104: Stats are down/);
     expect(rows()).toEqual([101, 102]);
-    // The picks on screen still reorder, as moves naming teams on screen.
-    fireEvent.keyDown(screen.getByRole("button", { name: /Reorder 102/ }), { key: "ArrowUp" });
-    await waitFor(() => expect(posts.at(-1)).toEqual({ season: S, op: "move", team: 102, beforeTeam: 101 }));
+    // The picks on screen still reorder; numbers and moves go by the whole list (104 still loading counts).
+    act(() => announcePicklist({ ...server, version: 6, picks: [pick(104, 1), ...server.picks.map((p) => ({ ...p, rank: p.rank + 1 }))] }));
+    await waitFor(() => expect(within(document.querySelector<HTMLElement>('[data-reorder-key="101"]')!).getByLabelText("Pick 2")).toBeTruthy());
+    fireEvent.keyDown(screen.getByRole("button", { name: /Reorder 101/ }), { key: "Home" });
+    await waitFor(() => expect(posts.at(-1)).toEqual({ season: S, op: "move", team: 101, beforeTeam: 104 }));
     statsDown = false;
     fireEvent.click(within(alert).getByRole("button", { name: "Retry" }));
     await waitFor(() => expect(rows()).toContain(104));
