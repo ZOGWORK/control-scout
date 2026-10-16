@@ -1,11 +1,11 @@
 // @vitest-environment jsdom
 // The conflict notice (Task 16): "Your edit was overwritten by <name>", shown once per lost edit, with a
 // field-level diff labelled from the template, and Restore my version queueing a restore.
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { act, cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { applyLiveEntries, localScoutEntries, pendingScoutCounts, saveScoutEntry, setScoutViewer, type ScoutEntry } from "../../lib/scouting";
 import { builtinTemplate } from "../../shared/scoutDefaults";
-import { ConflictNotices, restoreBlock } from "./EntryHistory";
+import { ConflictNotices, HistorySheet, restoreBlock } from "./EntryHistory";
 
 const counter = builtinTemplate(2025, "match").fields.find((f) => f.type === "counter")!;
 const server = (over: Partial<ScoutEntry> & { updatedAt: number }): ScoutEntry => ({
@@ -52,6 +52,26 @@ describe("ConflictNotices", () => {
     fireEvent.click(screen.getByRole("button", { name: "Dismiss" }));
     act(() => { applyLiveEntries("w1", [{ entry: theirs!, seq: 2 }]); });
     expect(screen.queryByText(/overwritten/)).toBeNull();
+  });
+});
+
+describe("HistorySheet", () => {
+  afterEach(() => { vi.unstubAllGlobals(); });
+  it("marks Current by the entry's actual state, and loads again once a queued edit is confirmed", async () => {
+    const calls: string[] = [];
+    let versions = [{ versionNo: 1, updatedAt: 1000, writtenBy: { accountId: 7, name: "Priya" }, season: 2025, team: 18360, eventCode: "USNJQ1", matchLabel: "Q1", kind: "match", data: {}, notes: "first", deleted: false, restored: false, restoredFromVersion: null }];
+    vi.stubGlobal("fetch", vi.fn(async (path: string) => { calls.push(path); return new Response(JSON.stringify({ versions }), { status: 200, headers: { "Content-Type": "application/json" } }); }));
+    // A queued edit (editor 0) newer than anything the server has.
+    const queued = server({ updatedAt: 2000, notes: "mine", editorAccountId: 0, editorDisplayName: "" });
+    const { rerender } = render(<HistorySheet entry={queued} me={me} open onOpenChange={() => {}} />);
+    await screen.findByText(/still syncing/);
+    expect(screen.queryByText("Current")).toBeNull();
+    // Confirmed: the server's copy (same updatedAt, editor stamped) → loads again and v2 is Current.
+    versions = [{ ...versions[0], versionNo: 2, updatedAt: 2000, writtenBy: { accountId: 8, name: "Marcus" }, notes: "mine" }, ...versions];
+    rerender(<HistorySheet entry={{ ...queued, editorAccountId: 8, editorDisplayName: "Marcus" }} me={me} open onOpenChange={() => {}} />);
+    await screen.findByText("Current");
+    expect(calls).toHaveLength(2);
+    expect(screen.queryByText(/still syncing/)).toBeNull();
   });
 });
 

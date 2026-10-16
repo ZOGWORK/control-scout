@@ -175,7 +175,8 @@ function useHistory(entry: ScoutEntry, open: boolean) {
       .catch((e) => { if (req === latest.current) setState((s) => ({ ...s, loading: false, error: e instanceof ApiError ? e : new ApiError(0, "Couldn't load the history.") })); });
   }, [entry.workspaceId, entry.uuid]);
   useEffect(() => () => { latest.current++; }, []);
-  useEffect(() => { if (open) load(); }, [open, load, entry.updatedAt]);
+  // Again whenever the entry changes, and when a queued edit of it is confirmed (the server stamps its editor then).
+  useEffect(() => { if (open) load(); }, [open, load, entry.updatedAt, entry.editorAccountId]);
   return { ...state, reload: load };
 }
 
@@ -197,9 +198,15 @@ export function HistorySheet({ entry, me, open, onOpenChange }: { entry: ScoutEn
           : error && !versions ? <ErrorState error={error} onRetry={reload} />
             : versions && !versions.length ? <p className="text-sm text-muted-foreground">No versions yet: this entry hasn't synced since history started. Its next change starts it.</p>
               : versions && (
+                <>
+                {/* This device has a change the history doesn't yet (still syncing): none of these is the current one. */}
+                {versions[0] && entry.updatedAt > versions[0].updatedAt && (
+                  <p role="status" className="text-sm text-muted-foreground">The latest change on this device is still syncing. It shows here once the workspace has it.</p>
+                )}
                 <ol className="space-y-3">
-                  {versions.map((v, i) => <VersionCard key={v.versionNo} v={v} older={versions[i + 1] ?? null} latest={i === 0} entry={entry} me={me} now={now} onDone={done} />)}
+                  {versions.map((v, i) => <VersionCard key={v.versionNo} v={v} older={versions[i + 1] ?? null} latest={v.updatedAt === entry.updatedAt && v.deleted === !!entry.deleted} entry={entry} me={me} now={now} onDone={done} />)}
                 </ol>
+                </>
               )}
       </SheetContent>
     </Sheet>
