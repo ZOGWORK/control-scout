@@ -147,7 +147,7 @@ describe("Scout spaces", () => {
     h.live = "revoked";
     r.rerender(page("/scout?season=2025"));
     await waitFor(() => expect(param()).toBe("personal"));
-    expect(screen.getByRole("status").textContent).toContain("You no longer have access to Gearheads");
+    expect(screen.getByRole("status").textContent).toContain("You were removed from Gearheads.");
     expect(screen.queryByRole("button", { name: /Gearheads/ })).toBeNull();
     expect(listed().join()).toContain("1111");
   });
@@ -158,7 +158,7 @@ describe("Scout spaces", () => {
     h.personal = { ...h.personal, user: signedIn([bolt]) };
     r.rerender(page("/scout?season=2025"));
     await waitFor(() => expect(param()).toBe("personal"));
-    expect(screen.getByRole("status").textContent).toContain("You no longer have access to Gearheads");
+    expect(screen.getByRole("status").textContent).toContain("You were removed from Gearheads.");
   });
 
   it("switching spaces while Save checks the team: nothing goes to the old space; the next Save goes to the new one", async () => {

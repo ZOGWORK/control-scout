@@ -5,7 +5,9 @@
 // Off unless all three env settings are present (Render, the rollback host,
 // runs without it: it can't reach Control Point's loopback port).
 import { all, db, get, run } from "../db.js";
-import { activityStatement, CONTROL_POINT_ACTOR, publishLogged } from "../scout/activityLog.js";
+import { activityStatement, CONTROL_POINT_ACTOR, publishLogged, type ActivityActor } from "../scout/activityLog.js";
+import { publishRevoked } from "../scout/bus.js";
+import { recordAudit } from "../portal/audit.js";
 import { env } from "../env.js";
 import type { User } from "./session.js";
 
@@ -256,7 +258,8 @@ async function storeMemberships(accountId: number, list: Workspace[], account?: 
     const res = await db().batch([
       ...logs.map((l) => l.stmt),
       {
-        sql: `DELETE FROM workspace_members WHERE account_id = ?${list.length ? ` AND cp_workspace_id NOT IN (${list.map(() => "?").join(", ")})` : ""}`,
+        sql: `DELETE FROM workspace_members WHERE account_id = ?${list.length ? ` AND cp_workspace_id NOT IN (${list.map(() => "?").join(", ")})` : ""}
+              RETURNING cp_workspace_id, workspace_name, role`,
         args: [accountId, ...list.map((w) => w.id)],
       },
       ...list.map((w) => ({
@@ -268,7 +271,28 @@ async function storeMemberships(accountId: number, list: Workspace[], account?: 
       ...list.map((w) => ({ sql: "UPDATE workspaces SET name = ?, updated_at = ? WHERE cp_workspace_id = ? AND name <> ?", args: [w.name, iso, w.id, w.name] })),
     ], "write");
     logs.forEach((l, i) => publishLogged(l.id, [...res[i].rows]));
+    // Rows this write actually dropped (a racing refresh that dropped them first reports none): the
+    // account's open streams there end now, and the owner audit records the removal Control Point made.
+    for (const r of res[logs.length].rows as unknown as { cp_workspace_id: string; workspace_name: string; role: string }[]) {
+      const workspaceId = String(r.cp_workspace_id);
+      publishRevoked(workspaceId, accountId);
+      await auditRemoval("Control Point", {
+        origin: "control-point", workspaceId, workspaceName: String(r.workspace_name ?? ""),
+        accountId, name: name || await memberName(accountId, account), role: r.role === "admin" ? "admin" : "member", actorAccountId: null,
+      });
+    }
   } catch (e) { console.warn(`[shared-accounts] membership cache write failed: ${(e as Error)?.name ?? "error"}`); }
+}
+
+/** What the owner audit records for each workspace removal (Task 9). `origin`: the app it was made in. */
+export interface RemovalAudit {
+  origin: "control-scout" | "control-point"; workspaceId: string; workspaceName: string;
+  accountId: number; name: string; role: "admin" | "member"; actorAccountId: number | null; actorName?: string;
+}
+/** Record a removal in the owner audit (`workspace.member_removed`). Never throws: the removal already happened. */
+async function auditRemoval(actor: string, d: RemovalAudit): Promise<void> {
+  try { await recordAudit(actor, "workspace.member_removed", { ...d }); }
+  catch (e) { console.warn(`[shared-accounts] removal audit failed: ${(e as Error)?.name ?? "error"}`); }
 }
 
 /** How a member is named in the feed: as on their entries (the Scout profile's name, else the email before the @), else Control Point's. */
@@ -339,4 +363,114 @@ export async function workspaceMembership(accountId: number, workspaceId: string
     return w ? { accountId, workspaceId, workspaceName: w.name, role: w.role } : null;
   }
   return row ? { accountId, workspaceId, workspaceName: String(row.workspace_name), role: row.role === "admin" ? "admin" : "member" } : null;
+}
+
+// ---------------------------------------------------------------------------
+// Workspace members (Task 9: Settings → Workspace → Members). Control Point's
+// `members` table is the source of truth; Scout lists it and asks Control
+// Point to remove someone, then drops its own cached row at once.
+// ---------------------------------------------------------------------------
+
+/** One person in a workspace, as Control Point lists them. `accountId` null: they've never used Control Scout. */
+export interface WorkspaceMember { accountId: number | null; name: string; role: "admin" | "member" }
+
+/**
+ * An older Control Point (before the members routes) answers any unknown /internal path with a bare
+ * 404 "Not found"; the new routes' own 404s carry a code ("not_found", "not_member").
+ */
+const missingRoute = (e: unknown) => (e as { status?: number }).status === 404 && (e as Error).message === "Not found";
+
+/**
+ * Everyone in the workspace, from Control Point (GET /internal/workspaces/:id/members).
+ * "unsupported": Control Point doesn't have the route yet. null: no such workspace. Throws when
+ * Control Point can't be reached or answers oddly.
+ */
+export async function listWorkspaceMembers(workspaceId: string): Promise<WorkspaceMember[] | "unsupported" | null> {
+  try {
+    const r = await internal<{ members?: unknown }>(`/internal/workspaces/${encodeURIComponent(workspaceId)}/members`);
+    if (!Array.isArray(r?.members)) throw new Error("Control Point sent an unexpected account");
+    return r.members.slice(0, 1000).flatMap((m): WorkspaceMember[] => {
+      if (!m || typeof m !== "object") return [];
+      const { accountId, name, role } = m as { accountId?: unknown; name?: unknown; role?: unknown };
+      return [{
+        accountId: Number.isSafeInteger(accountId) && (accountId as number) > 0 ? accountId as number : null,
+        name: (typeof name === "string" ? name.trim() : "").slice(0, 80) || "Member",
+        role: role === "admin" ? "admin" : "member",
+      }];
+    });
+  } catch (e) {
+    if (missingRoute(e)) return "unsupported";
+    if ((e as { status?: number }).status === 404) return null;
+    throw e;
+  }
+}
+
+/** The members Scout knows (its cached memberships: people who have used Control Scout), when Control Point can't list them. */
+export async function cachedWorkspaceMembers(workspaceId: string): Promise<(WorkspaceMember & { accountId: number })[]> {
+  // Named as memberName does (the Scout profile's name, else the email before the @), in one query.
+  const rows = await all<{ account_id: number; role: string; display_name: string | null; email: string | null }>(
+    `SELECT wm.account_id, wm.role, u.display_name, u.email FROM workspace_members wm
+       LEFT JOIN users u ON u.id = (SELECT i.user_id FROM identities i WHERE i.provider = ? AND i.subject = CAST(wm.account_id AS TEXT) ORDER BY i.user_id LIMIT 1)
+      WHERE wm.cp_workspace_id = ? ORDER BY wm.account_id LIMIT 1000`, [CP_PROVIDER, workspaceId]);
+  return rows.map((r) => ({
+    accountId: Number(r.account_id),
+    name: (r.display_name?.trim() || r.email?.split("@")[0] || "A member").slice(0, 60),
+    role: r.role === "admin" ? "admin" as const : "member" as const,
+  }));
+}
+
+export type RemoveResult = { ok: true } | { ok: false; reason: "unsupported" | "not_admin" | "not_member" | "last_admin" | "invalid_input" };
+
+/**
+ * Ask Control Point to remove `accountId` from the workspace on behalf of `actorAccountId`
+ * (POST /internal/workspaces/:id/members/remove). Control Point checks the actor is an admin and that
+ * the last admin stays. Throws when it can't be reached or fails (nothing removed, as far as Scout knows).
+ */
+export async function removeWorkspaceMember(workspaceId: string, accountId: number, actorAccountId: number): Promise<RemoveResult> {
+  try {
+    await internal(`/internal/workspaces/${encodeURIComponent(workspaceId)}/members/remove`, { method: "POST", body: { accountId, actorAccountId } }, 8000);
+    return { ok: true };
+  } catch (e) {
+    if (missingRoute(e)) return { ok: false, reason: "unsupported" };
+    const status = (e as { status?: number }).status;
+    if (status === 403) return { ok: false, reason: "not_admin" };
+    if (status === 404) return { ok: false, reason: "not_member" };
+    if (status === 409) return { ok: false, reason: "last_admin" };
+    if (status === 400) return { ok: false, reason: "invalid_input" };
+    throw e;
+  }
+}
+
+/**
+ * Control Point removed `target` from the workspace at an admin's request in Scout: drop Scout's
+ * cached membership now (no waiting for the next refresh), log member.left in the workspace's feed
+ * with the admin as actor (details.origin "control-scout"; details.self when they removed
+ * themselves), end the account's open streams there, and record it in the owner audit. Their Scout
+ * account, personal data and entries are untouched; their workspace entries keep their authorship.
+ * Never throws (Control Point has already removed them).
+ */
+export async function dropMembership(workspaceId: string, workspaceName: string, target: { accountId: number; name?: string; role?: "admin" | "member" },
+  actor: ActivityActor & { accountId: number }, actorAudit: string): Promise<void> {
+  const { accountId } = target;
+  // Forget every cached answer that still lists the workspace, so the next check asks Control Point.
+  infoCache.delete(accountId);
+  lastForced.delete(accountId);
+  let name = target.name?.trim().slice(0, 60) || "";
+  let role: "admin" | "member" = target.role ?? "member";
+  try {
+    if (!name) name = await memberName(accountId);
+    const row = await get<{ role: string }>("SELECT role FROM workspace_members WHERE account_id = ? AND cp_workspace_id = ?", [accountId, workspaceId]);
+    if (!target.role && row) role = row.role === "admin" ? "admin" : "member";
+    const self = accountId === actor.accountId;
+    const res = await db().batch([
+      activityStatement(workspaceId, actor, "member.left", `member:${accountId}`, { accountId, name, role, origin: "control-scout", ...(self ? { self } : {}) }),
+      { sql: "DELETE FROM workspace_members WHERE account_id = ? AND cp_workspace_id = ?", args: [accountId, workspaceId] },
+    ], "write");
+    publishLogged(workspaceId, [...res[0].rows]);
+  } catch (e) { console.warn(`[shared-accounts] membership drop failed: ${(e as Error)?.name ?? "error"}`); }
+  publishRevoked(workspaceId, accountId);
+  await auditRemoval(actorAudit, {
+    origin: "control-scout", workspaceId, workspaceName, accountId, name: name || "A member", role,
+    actorAccountId: actor.accountId, actorName: actor.name,
+  });
 }
