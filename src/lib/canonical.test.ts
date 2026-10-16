@@ -7,6 +7,7 @@ describe("canonicalPath (client) matches the server's canonical URLs", () => {
     expect(canonicalPath("/events/2025/USNJNOM3/")).toBe("/events/2025/USNJNOM3");
     expect(canonicalPath("/teams/004215")).toBe("/teams/4215");
     expect(canonicalPath("/teams/4215")).toBe("/teams/4215");
+    expect(canonicalPath("/power-rankings/2026-W42")).toBe("/power-rankings/2026-w42");
     expect(canonicalPath("/")).toBe("/");
     expect(canonicalPath("/events")).toBe("/events");
     // Malformed or unexpected paths never throw; they're left as they are.
