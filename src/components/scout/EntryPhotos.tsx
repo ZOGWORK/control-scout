@@ -30,6 +30,8 @@ export function EntryPhotos({ entry, editable = false, className }: { entry: Sco
   const me = useMe(entry.workspaceId);
   const [open, setOpen] = useState<number | null>(null);
   const [uploading, setUploading] = useState(0);
+  // The last upload's failure stays under the strip (the toast goes after a few seconds).
+  const [error, setError] = useState<string | null>(null);
   if (!available || entry.workspaceId == null) return null;
   const photos = (entry.photos ?? []).filter((p) => !p.expired);
   const expired = (entry.photos ?? []).length - photos.length;
@@ -40,10 +42,11 @@ export function EntryPhotos({ entry, editable = false, className }: { entry: Sco
   const add = async (files: FileList | null) => {
     const list = [...(files ?? [])].slice(0, Math.max(0, room));
     if (files && files.length > list.length) toast(`An entry holds up to ${PHOTO_LIMITS.perEntry} photos, so only ${list.length} will be added.`);
+    setError(null);
     for (const f of list) {
       setUploading((n) => n + 1);
       try { await uploadEntryPhoto(entry, f); }
-      catch (e) { toast.error(photoErrorMessage(e)); }
+      catch (e) { const msg = photoErrorMessage(e); setError(msg); toast.error(msg); }
       finally { setUploading((n) => n - 1); }
     }
   };
@@ -71,7 +74,8 @@ export function EntryPhotos({ entry, editable = false, className }: { entry: Sco
           <ImageOff className="size-3.5" aria-hidden />{expired === 1 ? "Photo expired" : `${expired} photos expired`} · photos are removed 2 days after the event
         </p>
       )}
-      {editable && !synced && <p className="text-xs text-muted-foreground">Save and sync this entry, then add photos.</p>}
+      {editable && error && <p role="alert" className="mt-1 text-xs text-danger">{error}</p>}
+      {editable && !synced &&<p className="text-xs text-muted-foreground">Save and sync this entry, then add photos.</p>}
       {open != null && photos.length > 0 && (
         <PhotoViewerDialog entry={entry} photos={photos} index={Math.min(open, photos.length - 1)} me={me} onIndex={setOpen} onClose={() => setOpen(null)} />
       )}
