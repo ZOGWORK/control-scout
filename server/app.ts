@@ -14,6 +14,8 @@ import { rebuildSearch } from "./stats/job.js";
 import { teamProfile, compareTeams, teamSummaries, shortlistTeams } from "./api/teams.js";
 import { eventDetail, listEvents, toEventInput } from "./api/events.js";
 import { matchDetail, matchViews } from "./api/matches.js";
+import { matchReport } from "./api/matchReport.js";
+import { MATCH_KEY } from "../src/shared/matchReport.js";
 import { trackRecord } from "./api/accuracy.js";
 import { currentWeather } from "./weather.js";
 import { MISSING_FILE, canonicalRedirects, renderPage } from "./seo.js";
@@ -33,6 +35,7 @@ import { picklistRouter } from "./scout/picklist.js";
 import { assignmentsRouter } from "./scout/assignments.js";
 import { commentsRouter } from "./scout/comments.js";
 import { consensusRouter } from "./scout/consensus.js";
+import { matchReportRouter } from "./scout/matchReport.js";
 import { inboxRouter } from "./inbox/routes.js";
 import { reportsRouter } from "./errorReports.js";
 import { packsRouter } from "./packs/routes.js";
@@ -295,6 +298,18 @@ export function createApp() {
     return d;
   }));
 
+  // "Know your match" (v1.6 Task 2): the lineup's OPR, trend and data flags in one request (the
+  // workspace's consensus comes from /api/scout/workspaces/:id/match-report, members only).
+  api.get("/events/:season/:code/matches/:key/report", h(async (req, res) => {
+    const key = String(req.params.key);
+    if (!MATCH_KEY.test(key)) throw new HttpError(400, "Match key looks like qual:0:12");
+    const r = await matchReport(season(req.params.season), code(req.params.code), key);
+    if (!r) throw new HttpError(404, `No match ${key} at ${req.params.code}`);
+    // On an event day the lineup's numbers move with every result: revalidate (the ETag keeps it a 304).
+    if (r.live) res.setHeader("Cache-Control", "no-cache");
+    return r;
+  }));
+
   api.get("/compare", h(async (req) => {
     const numbers = teamList(req.query.teams, "teams", 4);
     // No season asked for: the latest season where any of them has results
@@ -437,6 +452,8 @@ export function createApp() {
   api.use("/scout", commentsRouter());
   // Scout consensus (v1.6 Task 1): a workspace's entries on a team rolled up; members only.
   api.use("/scout", consensusRouter());
+  // The pre-match report's workspace half (v1.6 Task 2): consensus, pick list and assignments; members only.
+  api.use("/scout", matchReportRouter());
   // The owner portal's switches: with realtime off the stream answers 503 and the app polls instead; with
   // workspace scouting off it answers 503 too, since a stream's catch-up reads shared entries like a pull.
   api.use("/scout", streamRouter({ enabled: async () => (await isEnabled("realtime")) && (await isEnabled("workspaceScouting")) }));

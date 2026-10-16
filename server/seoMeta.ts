@@ -147,6 +147,24 @@ async function eventMeta(season: number, code: string): Promise<PageMeta | null>
   return { title: `${e.name} (${seasonInfo(season).label})`, description, type: "website", path: `/events/${season}/${code}`, jsonLd: [ev] };
 }
 
+/**
+ * A match's scouting report (/events/:season/:code/match/:key): titled for a shared link's preview. Not
+ * indexed: one per match is thousands of near-identical pages; the event page is the one to find.
+ */
+async function matchReportMeta(season: number, code: string, key: string): Promise<PageMeta | null> {
+  const k = key.match(/^(qual|playoff):(\d{1,3}):(\d{1,4})$/);
+  if (!k || season < 2000 || season > 2100) return null;
+  const r = await get<{ label: string; event: string }>(
+    "SELECT m.label, e.name event FROM matches m JOIN events e ON e.season = m.season AND e.code = m.code WHERE m.season = ? AND m.code = ? AND m.level = ? AND m.series = ? AND m.number = ?",
+    [season, code, k[1], Number(k[2]), Number(k[3])]);
+  if (!r) return null;
+  return {
+    title: `${r.label} at ${r.event}: know your match`,
+    description: fitDescription(`${r.label} at ${r.event} (${seasonInfo(season).label}): the win prediction and every robot's OPR, rank, trend and flags.`),
+    type: "website", path: `/events/${season}/${code}/match/${key}`, noindex: true,
+  };
+}
+
 /** The head values for a page path: the page's own, the home ones when it has none, or notFound for no such page. */
 export async function pageMeta(path: string): Promise<PageMeta> {
   // Matched decoded, as React Router does (/teams/%34%32%31%35 is team 4215). Segment by segment, so an
@@ -163,12 +181,16 @@ export async function pageMeta(path: string): Promise<PageMeta> {
       // Event codes are case-insensitive in the app (the API uppercases them): same here.
       return (await eventMeta(Number(m[1]), m[2].toUpperCase())) ?? NOT_FOUND;
     }
+    // A match's scouting report: the match must exist (a key that can't be one is not found too).
+    if ((m = p.match(/^\/events\/(\d+)\/([A-Za-z0-9_-]{1,40})\/match\/([^/]+)$/i))) {
+      return (await matchReportMeta(Number(m[1]), m[2].toUpperCase(), m[3].toLowerCase())) ?? NOT_FOUND;
+    }
   } catch {
     // Database not ready: the generic values, never a 404 (the page may well exist).
     return { title: "", description: HOME_DESC, type: "website" };
   }
   // A team or event address that can't be one (/teams/abc, /teams/1234567, /events/2025/a%20b): the app says not found too.
-  if (/^\/teams\/[^/]+$/i.test(p) || /^\/events\/[^/]+\/[^/]+$/i.test(p)) return NOT_FOUND;
+  if (/^\/teams\/[^/]+$/i.test(p) || /^\/events\/[^/]+\/[^/]+$/i.test(p) || /^\/events\/[^/]+\/[^/]+\/match\/[^/]+$/i.test(p)) return NOT_FOUND;
   const s = STATIC[p];
   if (s) return { title: s.title, description: s.noindex ? s.description : fitDescription(s.description), type: "website", ...(s.noindex ? { noindex: true } : {}) };
   // The app's routes (src/shared/routes.ts, as React Router matches them): anything else is its not-found page.
