@@ -84,8 +84,12 @@ errors. The owner portal's **Switches** panel has an **Entry photos** switch
    same URL included: nothing larger than the reservation can be stored.
 3. The browser PUTs the JPEG to R2 (it sends Content-Length itself).
 4. `POST /api/scout/photos/<id>/complete`: the server HEADs the object. Missing:
-   the reservation is released (409). Not exactly the declared size: the object
-   is deleted (413). Otherwise the row becomes `ready` (its bytes are the meter),
+   409, and the reservation stays (its URL still works, so its bytes stay
+   counted; completing again after the upload lands records it). Not exactly the
+   declared size: the object is deleted and the reservation becomes `cancelled`
+   (413). A reservation is never released while its URL could still be used:
+   `pending` and `cancelled` rows keep counting against the cap until the sweep,
+   30 minutes after presign (URLs live 5), deletes the object and then the row. Otherwise the row becomes `ready` (its bytes are the meter),
    and the entry is republished. As a backstop, the nightly listing deletes any
    stored object larger than its record.
 
@@ -123,8 +127,11 @@ GB here means 10^9 bytes, the cautious reading of the free tier.
 - **Expiry, nightly**: once a day after 08:00 UTC (one server only; the
   `photos:nightly-day` row in `kv` is the claim), photos whose event ended
   **more than 2 days ago** are deleted from R2: the event's end date comes from
-  the synced `events` table and is refreshed every night; when it's unknown, a
-  photo goes **14 days after upload**. The row stays as `expired`, the entry is
+  the synced `events` table and is refreshed every night (a photo follows its
+  entry: an entry corrected to another event takes its photos' expiry along;
+  the object key keeps the original event); when it's unknown, a photo goes
+  **14 days after upload**. An owner purge also cancels the event's unfinished
+  uploads. The row stays as `expired`, the entry is
   republished with `photoExpired: true`, and the app shows "Photo expired"
   instead of a broken image. The same job deletes photos of deleted entries,
   releases uploads never finished (also every 15 minutes), deletes bucket

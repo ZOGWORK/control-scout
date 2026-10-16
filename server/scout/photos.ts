@@ -92,7 +92,7 @@ async function eventEndFor(season: number, eventCode: string): Promise<string | 
 
 /** Stored and reserved photo bytes. */
 export async function usedBytes(): Promise<{ bytes: number; photos: number }> {
-  const r = await get<{ b: number | null; n: number }>("SELECT COALESCE(SUM(bytes), 0) b, COUNT(*) n FROM entry_photos WHERE status IN ('pending', 'ready')");
+  const r = await get<{ b: number | null; n: number }>("SELECT COALESCE(SUM(bytes), 0) b, COUNT(*) n FROM entry_photos WHERE status IN ('pending', 'ready', 'cancelled')");
   return { bytes: Number(r?.b ?? 0), photos: Number(r?.n ?? 0) };
 }
 
@@ -169,8 +169,8 @@ export async function reservePhoto(user: User, m: Membership, entryUuid: unknown
     sql: `INSERT INTO entry_photos (id, workspace_id, entry_uuid, season, event_code, object_key, bytes, status, added_by_account_id, added_by_name, created_at, event_end, expires_at)
       SELECT ?, ?, ?, ?, ?, ?, ?, 'pending', ?, ?, ?, ?, ?
       WHERE (SELECT COUNT(*) FROM entry_photos WHERE workspace_id = ? AND entry_uuid = ? AND status IN ('pending', 'ready')) < ?
-        AND (SELECT COUNT(*) FROM entry_photos WHERE added_by_account_id = ? AND status = 'pending') < ?
-        AND (SELECT COALESCE(SUM(bytes), 0) FROM entry_photos WHERE status IN ('pending', 'ready')) + ? <= ?
+        AND (SELECT COUNT(*) FROM entry_photos WHERE added_by_account_id = ? AND status IN ('pending', 'cancelled')) < ?
+        AND (SELECT COALESCE(SUM(bytes), 0) FROM entry_photos WHERE status IN ('pending', 'ready', 'cancelled')) + ? <= ?
         AND EXISTS (SELECT 1 FROM workspace_scout_entries WHERE workspace_id = ? AND uuid = ? AND deleted = 0)`,
     args: [id, wsId, entryUuid, season, eventCode, key, bytes, m.accountId, writerName(user), now, eventEnd, expiresAt(eventEnd, now),
       wsId, entryUuid, PHOTO_LIMITS.perEntry, m.accountId, PHOTO_TIMING.pendingPerAccount, bytes, cap, wsId, entryUuid],
@@ -180,7 +180,7 @@ export async function reservePhoto(user: User, m: Membership, entryUuid: unknown
     const n = await get<{ n: number }>("SELECT COUNT(*) n FROM entry_photos WHERE workspace_id = ? AND entry_uuid = ? AND status IN ('pending', 'ready')", [wsId, entryUuid]);
     if (Number(n?.n) >= PHOTO_LIMITS.perEntry) return fail(409, TOO_MANY);
     if ((await usedBytes()).bytes + bytes > cap) return fail(507, STORAGE_FULL);
-    const p = await get<{ n: number }>("SELECT COUNT(*) n FROM entry_photos WHERE added_by_account_id = ? AND status = 'pending'", [m.accountId]);
+    const p = await get<{ n: number }>("SELECT COUNT(*) n FROM entry_photos WHERE added_by_account_id = ? AND status IN ('pending', 'cancelled')", [m.accountId]);
     if (Number(p?.n) >= PHOTO_TIMING.pendingPerAccount) return fail(429, "Too many uploads at once. Wait for these to finish.");
     return fail(404, "This entry was deleted.");
   }
@@ -220,14 +220,14 @@ export async function completePhoto(m: Membership, photoId: unknown): Promise<{ 
     if (status !== "pending") return fail(409, "This upload was cancelled. Try again.");
     const head = await headObject(c, p.object_key).catch(() => undefined);
     if (head === undefined) return fail(502, "Couldn't reach photo storage. Try again.");
-    if (!head) {
-      await run("DELETE FROM entry_photos WHERE id = ? AND status = 'pending'", [p.id]);
-      return fail(409, "The photo didn't finish uploading. Try again.");
-    }
+    // Not there (yet): the reservation stays (its URL still works for a few minutes, so its bytes stay
+    // counted); completing again once the upload lands works, and the stale sweep releases it otherwise.
+    if (!head) return fail(409, "The photo didn't finish uploading. Try again.");
     if (head.bytes !== Number(p.bytes)) {
-      // Not what was reserved against the cap (storage should have refused it already): gone again, with its reservation.
-      await deleteObject(c, p.object_key).catch(() => undefined); // the nightly listing catches it otherwise
-      await run("DELETE FROM entry_photos WHERE id = ? AND status = 'pending'", [p.id]);
+      // Not what was reserved against the cap (storage should have refused it already): the object goes, and the
+      // reservation is cancelled, still counted until the sweep (its URL may still be live).
+      await deleteObject(c, p.object_key).catch(() => undefined); // the sweep deletes it again otherwise
+      await run("UPDATE entry_photos SET status = 'cancelled' WHERE id = ? AND status = 'pending'", [p.id]);
       return fail(413, "The uploaded photo wasn't the size it said. Try again.");
     }
     const rows = await commitPhotoChange(m.workspaceId, Number(p.workspace_id), [p.entry_uuid], [
@@ -270,8 +270,10 @@ interface DueRow { id: string; workspace_id: number; cp_workspace_id: string; en
 /**
  * Delete one photo's image, then change its record, under the photo's lock, and only if its status is
  * still one of `from` (re-read under the lock: an upload may have completed, or a removal won, meanwhile).
- * "expire": a ready photo's row stays as expired ("photo expired"); "forget": the row goes. A pending
- * photo's row always just goes (its reservation released). Ready ones stream to the workspace.
+ * "expire": a ready photo's row stays as expired ("photo expired"); "forget": the row goes. Ready ones
+ * stream to the workspace. An unfinished upload (pending) is cancelled instead: its upload URL may still
+ * work, so the row stays as `cancelled`, its bytes still counted against the cap and completion refused,
+ * until the stale sweep (long after the URL has expired) deletes the object again and then the row.
  */
 async function dropPhoto(c: R2Config, p: DueRow, how: "expire" | "forget", reason: string, from: string[]): Promise<"done" | "skipped" | "failed"> {
   return photoLock(p.id, async () => {
@@ -279,7 +281,12 @@ async function dropPhoto(c: R2Config, p: DueRow, how: "expire" | "forget", reaso
     if (!status || !from.includes(status)) return "skipped";
     p.status = status; // what it was when dropped (the caller counts by it)
     try { await deleteObject(c, p.object_key); } catch { return "failed"; } // tried again next time
-    if (status === "pending") { await run("DELETE FROM entry_photos WHERE id = ? AND status = 'pending'", [p.id]); return "done"; }
+    if (status === "pending" || status === "cancelled") {
+      await run(reason === "abandoned"
+        ? "DELETE FROM entry_photos WHERE id = ? AND status IN ('pending', 'cancelled')"
+        : "UPDATE entry_photos SET status = 'cancelled' WHERE id = ? AND status = 'pending'", [p.id]);
+      return "done";
+    }
     await commitPhotoChange(p.cp_workspace_id, Number(p.workspace_id), [p.entry_uuid], [how === "expire"
       ? { sql: "UPDATE entry_photos SET status = 'expired', expired_at = ?, expired_reason = ? WHERE id = ? AND status = ?", args: [Date.now(), reason, p.id, status] }
       : { sql: "DELETE FROM entry_photos WHERE id = ?", args: [p.id] }]);
@@ -301,16 +308,19 @@ async function expirePhotos<R extends DueRow>(c: R2Config, rows: R[], reason: st
 
 export interface MaintenanceResult { at: string; usedBytes: number; bucketBytes: number | null; bucketObjects: number | null; expired: number; removed: number; orphans: number; failures: number }
 
-/** Release reservations never completed (and delete what they may have uploaded). Cheap: run often. */
+/**
+ * Release reservations never completed, and cancelled ones, once their upload URL is long expired
+ * (staleReservationMs, well past uploadTtlSec): the object (if any) is deleted, then the row. Cheap: run often.
+ */
 export async function sweepStaleReservations(now = Date.now()): Promise<{ removed: number; failures: number }> {
   const c = r2();
   if (!c) return { removed: 0, failures: 0 };
   const stale = await all<DueRow>(`SELECT p.id, p.workspace_id, w.cp_workspace_id, p.entry_uuid, p.object_key, p.status
-    FROM entry_photos p JOIN workspaces w ON w.id = p.workspace_id WHERE p.status = 'pending' AND p.created_at < ?`, [now - PHOTO_TIMING.staleReservationMs]);
+    FROM entry_photos p JOIN workspaces w ON w.id = p.workspace_id WHERE p.status IN ('pending', 'cancelled') AND p.created_at < ?`, [now - PHOTO_TIMING.staleReservationMs]);
   let removed = 0, failures = 0;
   for (const p of stale) {
     // Still pending under the lock: an upload completing right now wins and keeps its photo.
-    const r = await dropPhoto(c, p, "forget", "abandoned", ["pending"]);
+    const r = await dropPhoto(c, p, "forget", "abandoned", ["pending", "cancelled"]);
     if (r === "done") removed++; else if (r === "failed") failures++;
   }
   return { removed, failures };
@@ -324,14 +334,22 @@ export async function sweepStaleReservations(now = Date.now()): Promise<{ remove
 export async function runPhotoMaintenance(now = Date.now()): Promise<MaintenanceResult | null> {
   const c = r2();
   if (!c) return null;
-  // End dates arrive (or move) with the event sync: take the latest for every live photo.
+  // A photo follows its entry: an entry corrected to another event (or season) moves its photos' expiry with it.
+  // (The object key keeps the event it was uploaded under: keys are never renamed.)
+  await run(`UPDATE entry_photos SET
+      season = (SELECT e.season FROM workspace_scout_entries e WHERE e.workspace_id = entry_photos.workspace_id AND e.uuid = entry_photos.entry_uuid),
+      event_code = (SELECT UPPER(COALESCE(e.event_code, '')) FROM workspace_scout_entries e WHERE e.workspace_id = entry_photos.workspace_id AND e.uuid = entry_photos.entry_uuid)
+    WHERE status IN ('pending', 'ready') AND EXISTS (SELECT 1 FROM workspace_scout_entries e WHERE e.workspace_id = entry_photos.workspace_id AND e.uuid = entry_photos.entry_uuid
+      AND (e.season <> entry_photos.season OR UPPER(COALESCE(e.event_code, '')) <> entry_photos.event_code))`);
+  // End dates arrive (or move) with the event sync: take the latest for every live photo. An event that
+  // isn't known (any more) leaves the end unknown, so the 14-day fallback applies.
   const live = await all<any>("SELECT id, season, event_code, event_end, created_at, expires_at FROM entry_photos WHERE status IN ('pending', 'ready')");
   const ends = new Map<string, string | null>();
   const updates: InStatement[] = [];
   for (const p of live) {
     const k = `${p.season}:${p.event_code}`;
     if (!ends.has(k)) ends.set(k, await eventEndFor(Number(p.season), String(p.event_code)));
-    const end = ends.get(k) ?? p.event_end ?? null;
+    const end = ends.get(k) ?? null;
     const exp = expiresAt(end, Number(p.created_at));
     if (end !== p.event_end || exp !== Number(p.expires_at)) updates.push({ sql: "UPDATE entry_photos SET event_end = ?, expires_at = ? WHERE id = ?", args: [end, exp, p.id] });
   }
@@ -358,7 +376,7 @@ export async function runPhotoMaintenance(now = Date.now()): Promise<Maintenance
   let bucketBytes: number | null = null, bucketObjects: number | null = null, orphans = 0;
   try {
     const known = new Map((await all<DueRow & { bytes: number }>(
-      "SELECT p.id, p.workspace_id, w.cp_workspace_id, p.entry_uuid, p.object_key, p.status, p.bytes FROM entry_photos p JOIN workspaces w ON w.id = p.workspace_id WHERE p.status IN ('pending', 'ready')",
+      "SELECT p.id, p.workspace_id, w.cp_workspace_id, p.entry_uuid, p.object_key, p.status, p.bytes FROM entry_photos p JOIN workspaces w ON w.id = p.workspace_id WHERE p.status IN ('pending', 'ready', 'cancelled')",
     )).map((r) => [r.object_key, r]));
     bucketBytes = 0; bucketObjects = 0;
     for (const o of await listObjects(c, "photos/")) {
@@ -408,7 +426,7 @@ export async function ownerStorage(): Promise<OwnerStorage> {
   await checkStorageAlerts(used.bytes).catch(() => undefined);
   const events = await all<any>(`SELECT p.season, p.event_code, COUNT(*) n, SUM(p.bytes) b, MAX(p.event_end) event_end, MIN(p.expires_at) expires,
       (SELECT ev.name FROM events ev WHERE ev.season = p.season AND ev.code = p.event_code) name
-    FROM entry_photos p WHERE p.status IN ('pending', 'ready') GROUP BY p.season, p.event_code ORDER BY b DESC LIMIT 200`);
+    FROM entry_photos p WHERE p.status IN ('pending', 'ready', 'cancelled') GROUP BY p.season, p.event_code ORDER BY b DESC LIMIT 200`);
   return {
     configured, enabled, usedBytes: used.bytes, photos: used.photos,
     limitBytes: t.limit, noticeBytes: t.notice, warningBytes: t.warning, softCapBytes: t.softCap, level: levelFor(used.bytes),
