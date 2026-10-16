@@ -34,6 +34,10 @@
 //                            GET /api/scout/workspaces/:id/activity lists it; no id. Live only: ones logged during
 //                            the catch-up follow `ready`; a reader that was away refetches the feed's newest page.
 //                            A coalesced edit arrives as a new item whose details.firstId says which older ones it replaces.
+//   event: picklist          a shared pick list changed (picklist.ts, Task 11): the whole list as it now is, exactly as
+//                            GET /api/scout/workspaces/:id/picklist?season= returns it ({workspaceId, season, version, picks});
+//                            no id. Keep the highest version per season. Live only, like `activity`: the latest per
+//                            season during the catch-up follows `ready`; a reader that was away refetches the list.
 //   event: assignment        scouting assignments changed (assignments.ts); no id. data {"action": "created" | "updated" |
 //                            "deleted", "assignments": [...]}, each exactly as GET /api/scout/workspaces/:id/assignments lists
 //                            it (deleted: as it was). Live only, like `activity`; a reader that was away refetches the list.
@@ -56,7 +60,7 @@
 import express, { type Request, type Response, type Router } from "express";
 import { isWorkspaceId, membershipAnsweredAt, refreshAccount } from "../auth/controlPoint.js";
 import { currentUser } from "../auth/session.js";
-import { subscribe, subscribeAccountChanged, subscribeActivity, subscribeAssignments, subscribeComments, subscribeRevoked, subscribeSettings, subscribeTemplate, subscribeWorkspaceState, type ActivityNotice, type LiveEntry, type SettingsNotice, type TemplateNotice } from "./bus.js";
+import { subscribe, subscribeAccountChanged, subscribeActivity, subscribeAssignments, subscribeComments, subscribePicklist, subscribeRevoked, subscribeSettings, subscribeTemplate, subscribeWorkspaceState, type ActivityNotice, type LiveEntry, type PicklistNotice, type SettingsNotice, type TemplateNotice } from "./bus.js";
 import { formerMember } from "./orphans.js";
 import type { OrphanState } from "../../src/shared/orphaned.js";
 import { openLiveConnection } from "../liveConnections.js";
@@ -260,6 +264,13 @@ data: ${JSON.stringify(a)}
     if (live) sendActivity(a);
     else if (heldActivity.push(a) > LIMITS.maxHeld) end();
   });
+  // Pick list changes during the catch-up: the latest per season is held and sent once live.
+  const heldPicklists = new Map<number, PicklistNotice>();
+  const sendPicklist = (n: PicklistNotice) => write(`event: picklist\ndata: ${JSON.stringify(n)}\n\n`);
+  const unsubscribePicklist = subscribePicklist(workspaceId, (n) => {
+    if (live) sendPicklist(n);
+    else if ((heldPicklists.get(n.season)?.version ?? -1) < n.version) heldPicklists.set(n.season, n);
+  });
   // Removed from the workspace (bus.ts publishRevoked): end now, not at the next re-check.
   const unsubscribeRevoked = subscribeRevoked(workspaceId, (accountId) => {
     if (accountId === access.membership.accountId) stream.revoke();
@@ -308,11 +319,11 @@ data: ${JSON.stringify(c)}
     if (closed) return;
     closed = true;
     clearInterval(heartbeat);
-    unsubscribe(); unsubscribeTemplate(); unsubscribeSettings(); unsubscribeActivity(); unsubscribeRevoked(); unsubscribeComments(); unsubscribeAssignments(); unsubscribeState(); unsubscribeAccount();
+    unsubscribe(); unsubscribeTemplate(); unsubscribeSettings(); unsubscribeActivity(); unsubscribeRevoked(); unsubscribeComments(); unsubscribeAssignments(); unsubscribePicklist(); unsubscribeState(); unsubscribeAccount();
     streams.delete(stream);
     stopSweepIfIdle();
     release();
-    held.length = 0; heldActivity.length = 0; heldComments.length = 0; heldAssignments.length = 0;
+    held.length = 0; heldActivity.length = 0; heldComments.length = 0; heldAssignments.length = 0; heldPicklists.clear();
     res.end();
   }
   res.on("close", end);
@@ -338,6 +349,8 @@ data: ${JSON.stringify(c)}
     if (heldTemplate) { sendTemplate(heldTemplate); heldTemplate = null; }
     if (heldSettings) { sendSettings(heldSettings); heldSettings = null; }
     for (const a of heldActivity.splice(0)) sendActivity(a);
+    for (const n of heldPicklists.values()) sendPicklist(n);
+    heldPicklists.clear();
     for (const n of heldAssignments.splice(0)) sendAssignments(n);
     for (const c of heldComments.splice(0)) sendComment(c);
     if (heldState) { sendState(heldState); heldState = null; }

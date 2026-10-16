@@ -20,6 +20,8 @@ import { ACCOUNT_STALE, applyLiveEntries, notifyScoutChanged, pullScouting, scou
 import { announceTemplateChange } from "./scoutTemplates";
 import { announceSettingsChange } from "./workspaceSettings";
 import { announceActivity, isActivityItem } from "./scoutActivity";
+import { announcePicklist } from "./sharedPicklist";
+import { isPickList } from "../shared/picklist";
 import { announceAssignments } from "./assignments";
 import type { AssignmentNotice } from "../shared/assignments";
 import { announceComment, announceCommentsResync } from "./scoutComments";
@@ -155,6 +157,13 @@ export function followWorkspace(space: string, onMode: (m: LiveMode) => void, de
       let item: unknown;
       try { item = JSON.parse((ev as MessageEvent<string>).data); } catch { return; }
       if (isActivityItem(item) && item.workspaceId === space) announceActivity(item);
+    });
+    s.addEventListener("picklist", (ev) => {
+      // A shared pick list changed (the whole list): an open pick list view (sharedPicklist.ts) keeps the newest version.
+      if (es !== s) return;
+      let list: unknown;
+      try { list = JSON.parse((ev as MessageEvent<string>).data); } catch { return; }
+      if (isPickList(list) && list.workspaceId === space) announcePicklist(list);
     });
     s.addEventListener("assignment", (ev) => {
       // Scouting assignments changed (Task 10): the list, badges and cards (assignments.ts) apply it.
