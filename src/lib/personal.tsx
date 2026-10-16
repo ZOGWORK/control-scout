@@ -7,7 +7,7 @@ import { apiFetch } from "./api";
 import type { OrphanState } from "../shared/orphaned";
 import { cleanValue, EMPTY_STATE, PERSONAL_KEYS, type PersonalKey, type PersonalState, type Stamped } from "../shared/personal";
 import { clearLocalScouting, exportLocalScouting, importLocalScouting, localScoutEntries, setScoutViewer, storedScoutEntry } from "./scouting";
-import { LOST_PREFIX, lostBackupFailed } from "./lostEdits";
+import { LOST_PREFIX, lostBackupFailed, mergeLostLists } from "./lostEdits";
 
 export interface AccountUser { id: number; email: string | null; displayName: string | null; createdAt: string; /** Tied to the shared account Control Point keeps (docs/shared-accounts.md). */ controlPointLinked?: boolean;
   /** Only present (true) for the owner (OWNER_EMAILS): shows the owner portal's nav item. The server enforces access. */
@@ -98,9 +98,8 @@ const STASH = (owner: string) => `cs-stash:${owner}`;
 interface Stash { personal: Partial<Record<PersonalKey, Stamped<unknown>>>; pending: Partial<Record<PersonalKey, number>>; scouting: ReturnType<typeof exportLocalScouting> }
 function stashOwner(owner: string, live: Record<PersonalKey, Stamped<any> | null>) {
   const s: Stash = { personal: Object.fromEntries(PERSONAL_KEYS.filter((k) => live[k]).map((k) => [k, live[k]!])), pending: pending(), scouting: exportLocalScouting() };
-  // Overwritten edits an earlier switch couldn't put back yet (the device was full) stay in the stash too.
-  const left = peekStash(owner)?.scouting?.lost;
-  if (left) s.scouting.lost = { ...left, ...s.scouting.lost };
+  // What an earlier sign-in couldn't put back yet (the device was full) stays in the stash too.
+  s.scouting = withLeftovers(s.scouting, peekStash(owner)?.scouting);
   try { localStorage.setItem(STASH(owner), JSON.stringify(s)); }
   catch { throw new Error("This device is out of storage, so it can't keep the other account's unsynced data aside. Free some space and sign in again."); }
 }
@@ -115,13 +114,38 @@ function peekStash(owner: string): Stash | null {
 function restoreStash(owner: string, mine: Stash, apply: (k: PersonalKey, s: Stamped<any>) => void) {
   for (const [k, s] of Object.entries(mine.personal ?? {}) as [PersonalKey, Stamped<any>][]) apply(k, s);
   if (mine.pending) setPendingMap({ ...pending(), ...mine.pending });
-  const { lostFailed } = importLocalScouting(mine.scouting ?? { entries: [], dirty: [] });
+  let { failed } = importLocalScouting(mine.scouting ?? { entries: [], dirty: [] });
+  // Something didn't fit with the stash still here: drop the stash (freeing its room) and put back just what's missing.
+  if (failed) {
+    try { localStorage.removeItem(STASH(owner)); } catch { /* blocked */ }
+    failed = importLocalScouting(failed).failed;
+  }
   try {
-    if (!Object.keys(lostFailed).length) localStorage.removeItem(STASH(owner));
-    else localStorage.setItem(STASH(owner), JSON.stringify({ personal: {}, pending: {}, scouting: { entries: [], dirty: [], lost: lostFailed } } satisfies Stash));
-  } catch { /* the full stash stays as it was: tried again next time */ }
-  for (const k of Object.keys(lostFailed)) lostBackupFailed(k.slice(LOST_PREFIX.length));
+    // What still didn't fit stays stashed (smaller than the stash it came from), tried again on the next sign-in.
+    if (!failed) localStorage.removeItem(STASH(owner));
+    else localStorage.setItem(STASH(owner), JSON.stringify({ personal: {}, pending: {}, scouting: failed } satisfies Stash));
+  } catch { /* storage blocked */ }
+  for (const k of Object.keys(failed?.lost ?? {})) lostBackupFailed(k.slice(LOST_PREFIX.length));
 }
+
+/** A stash's scouting with what an earlier sign-in couldn't put back (`left`) carried into it (nothing dropped). */
+function withLeftovers(now: Stash["scouting"], left: Stash["scouting"] | undefined): Stash["scouting"] {
+  if (!left) return now;
+  const add = (cur: { entries: ScoutEntryLike[]; dirty: string[] }, more: { entries?: ScoutEntryLike[]; dirty?: string[] } | undefined) => {
+    for (const e of more?.entries ?? []) if (!cur.entries.some((x) => x.uuid === e.uuid)) cur.entries.push(e);
+    for (const u of more?.dirty ?? []) if (!cur.dirty.includes(u)) cur.dirty.push(u);
+  };
+  const out = { ...now, entries: [...now.entries], dirty: [...now.dirty], spaces: { ...(now.spaces ?? {}) }, lost: { ...(now.lost ?? {}) } };
+  add(out, left);
+  for (const [w, s] of Object.entries(left.spaces ?? {})) {
+    const cur = out.spaces[w] = { ...(out.spaces[w] ?? { entries: [], dirty: [] }) };
+    cur.entries = [...cur.entries]; cur.dirty = [...cur.dirty];
+    add(cur, s);
+  }
+  for (const [k, v] of Object.entries(left.lost ?? {})) out.lost[k] = mergeLostLists(out.lost[k], v);
+  return out;
+}
+type ScoutEntryLike = { uuid: string };
 
 /**
  * Device-only (Tier 3, docs/settings.md): the signed-in account as /api/auth/me last answered, kept so

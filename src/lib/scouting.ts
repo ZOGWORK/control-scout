@@ -10,7 +10,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { apiFetch } from "./api";
 import type { EntryPhoto } from "../shared/photos";
-import { dropRestored, exportLostEdits, LOST_PREFIX, lostBackupFailed, recordLostEdit } from "./lostEdits";
+import { dropRestored, exportLostEdits, LOST_PREFIX, lostBackupFailed, mergeLostLists, recordLostEdit, SCOUT_OVERWRITTEN } from "./lostEdits";
 import { READ_ONLY_STATUS } from "../shared/orphaned";
 
 import { builtinTemplate } from "../shared/scoutDefaults";
@@ -306,30 +306,36 @@ export function exportLocalScouting(): SpaceExport & { spaces?: Record<string, S
 
 /** Put back a previously exported set (an account's stashed copy). */
 export function importLocalScouting(data: SpaceExport & { spaces?: Record<string, SpaceExport>; templates?: Record<string, string>; lost?: Record<string, string> }) {
+  // What couldn't be put back (storage full): handed back, in the same shape, so the caller keeps it. Entries and
+  // overwritten edits only: they may exist nowhere else (templates are fetched again online).
+  const failed: SpaceExport & { spaces: Record<string, SpaceExport>; lost: Record<string, string> } = { entries: [], dirty: [], spaces: {}, lost: {} };
   const put = (space: ScoutSpace, s: SpaceExport) => {
-    let complete = true;
-    for (const e of s.entries ?? []) { try { writeEntry(normalizeScoutEntry(e, space)); } catch { complete = false; /* storage full */ } }
-    try { const d = dirty(space); for (const u of s.dirty ?? []) d.add(u); setDirty(d, space); } catch { /* storage full */ }
+    const missed: ScoutEntry[] = [];
+    for (const e of s.entries ?? []) { try { writeEntry(normalizeScoutEntry(e, space)); } catch { missed.push(e); /* storage full */ } }
+    let queueKept = true;
+    try { const d = dirty(space); for (const u of s.dirty ?? []) d.add(u); setDirty(d, space); } catch { queueKept = false; /* storage full */ }
     // The cursor only holds if every entry it covers is back; otherwise the next pull starts over.
-    if (space != null) { if (complete && s.cursor) writeCursor(space, s.cursor); else try { localStorage.removeItem(`${WS_CURSOR}${space}`); } catch { /* blocked */ } }
+    if (space != null) { if (!missed.length && s.cursor) writeCursor(space, s.cursor); else try { localStorage.removeItem(`${WS_CURSOR}${space}`); } catch { /* blocked */ } }
+    if (!missed.length && queueKept) return;
+    // Hand back the entries that didn't make it, and (if the queue couldn't be written) every queued one.
+    const queued = new Set(s.dirty ?? []);
+    const back = queueKept ? missed : [...missed, ...(s.entries ?? []).filter((e) => queued.has(e.uuid) && !missed.includes(e))];
+    const out = { entries: back, dirty: back.map((e) => e.uuid).filter((u) => queued.has(u)) };
+    if (space == null) Object.assign(failed, out); else failed.spaces[space] = out;
   };
   put(null, data);
   for (const [w, s] of Object.entries(data.spaces ?? {})) if (/^[A-Za-z0-9_-]{1,64}$/.test(w)) put(w, s);
   for (const [k, v] of Object.entries(data.templates ?? {})) if (TEMPLATE_KEY.test(k) && typeof v === "string") { try { localStorage.setItem(k, v); } catch { /* storage full: fetched again online */ } }
-  // Overwritten edits (lostEdits.ts) exist nowhere else: merged with any already here, and the ones the device
-  // can't store are handed back (lostFailed) so the caller keeps them.
-  const lostFailed: Record<string, string> = {};
+  // Overwritten edits (lostEdits.ts): merged with any already here, each version once.
+  let lostBack = false;
   for (const [k, v] of Object.entries(data.lost ?? {})) {
     if (!LOST_KEY.test(k) || typeof v !== "string") continue;
-    try {
-      const here = JSON.parse(localStorage.getItem(k) ?? "[]");
-      const back = JSON.parse(v);
-      const merged = [...(Array.isArray(here) ? here : []), ...(Array.isArray(back) ? back : []).filter((b: { id?: unknown }) => !(Array.isArray(here) && here.some((h: { id?: unknown }) => h?.id === b?.id)))];
-      localStorage.setItem(k, JSON.stringify(merged));
-    } catch { lostFailed[k] = v; }
+    try { localStorage.setItem(k, mergeLostLists(localStorage.getItem(k), v)); lostBack = true; } catch { failed.lost[k] = v; }
   }
   window.dispatchEvent(new Event(EVT));
-  return { lostFailed };
+  if (lostBack) window.dispatchEvent(new Event(SCOUT_OVERWRITTEN)); // open notices show what came back
+  const any = failed.entries.length || Object.keys(failed.spaces).length || Object.keys(failed.lost).length;
+  return { failed: any ? failed : null };
 }
 
 /** Remove every space's entries, queues and cursors (and cached workspace templates) from this device. */
