@@ -277,6 +277,7 @@ async function dropPhoto(c: R2Config, p: DueRow, how: "expire" | "forget", reaso
   return photoLock(p.id, async () => {
     const status = await statusOf(p.id);
     if (!status || !from.includes(status)) return "skipped";
+    p.status = status; // what it was when dropped (the caller counts by it)
     try { await deleteObject(c, p.object_key); } catch { return "failed"; } // tried again next time
     if (status === "pending") { await run("DELETE FROM entry_photos WHERE id = ? AND status = 'pending'", [p.id]); return "done"; }
     await commitPhotoChange(p.cp_workspace_id, Number(p.workspace_id), [p.entry_uuid], [how === "expire"
@@ -287,14 +288,15 @@ async function dropPhoto(c: R2Config, p: DueRow, how: "expire" | "forget", reaso
 }
 
 /** Delete the images of these photos and mark them expired (rows kept: "photo expired"); pending ones are just released. */
-async function expirePhotos(c: R2Config, rows: DueRow[], reason: string, from = ["ready"]): Promise<{ expired: number; failures: number }> {
-  let expired = 0, failures = 0;
+async function expirePhotos<R extends DueRow>(c: R2Config, rows: R[], reason: string, from = ["ready"]): Promise<{ expired: number; failures: number; done: R[] }> {
+  let failures = 0;
+  const done: R[] = [];
   for (const p of rows) {
     const r = await dropPhoto(c, p, "expire", reason, from);
     if (r === "failed") failures++;
-    else if (r === "done" && p.status === "ready") expired++;
+    else if (r === "done") done.push(p);
   }
-  return { expired, failures };
+  return { expired: done.filter((p) => p.status === "ready").length, failures, done };
 }
 
 export interface MaintenanceResult { at: string; usedBytes: number; bucketBytes: number | null; bucketObjects: number | null; expired: number; removed: number; orphans: number; failures: number }
@@ -390,9 +392,11 @@ export async function purgeEvent(season: number, eventCode: string): Promise<{ p
   const rows = await all<DueRow & { bytes: number }>(
     "SELECT p.id, p.workspace_id, w.cp_workspace_id, p.entry_uuid, p.object_key, p.status, p.bytes FROM entry_photos p JOIN workspaces w ON w.id = p.workspace_id WHERE p.season = ? AND p.event_code = ? AND p.status IN ('pending', 'ready')",
     [season, eventCode]);
-  const r = await expirePhotos(c, rows, "purged");
+  // Unfinished uploads too: their objects go and their reservations are cancelled, under the same lock
+  // (a completion that comes after finds its reservation gone and answers 409).
+  const r = await expirePhotos(c, rows, "purged", ["pending", "ready"]);
   await checkStorageAlerts();
-  return { photos: rows.length - r.failures, bytes: rows.reduce((s, p) => s + Number(p.bytes), 0), failures: r.failures };
+  return { photos: r.done.length, bytes: r.done.reduce((s, p) => s + Number(p.bytes), 0), failures: r.failures };
 }
 
 /** The owner portal's storage panel. */
