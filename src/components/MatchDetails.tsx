@@ -4,8 +4,9 @@
 // prediction against the result with its reasons, and the match's video.
 import { useState } from "react";
 import { Link } from "react-router-dom";
-import { ChevronLeft, ChevronRight, PlayCircle } from "lucide-react";
+import { ChevronLeft, ChevronRight, ClipboardList, PlayCircle } from "lucide-react";
 import type { MatchDetail, MatchView } from "../shared/api";
+import { matchReportHref } from "../shared/matchReport";
 import { useApi } from "../lib/api";
 import { matchTime, oddsPct } from "../lib/format";
 import { Async } from "./states";
@@ -49,6 +50,7 @@ function Body({ d, eventName }: { d: MatchDetail; eventName?: string }) {
         {m.time && <span>{matchTime(m.time)}</span>}
         {eventName !== undefined && <Link to={href(m.key)} className="underline-offset-2 hover:underline">{d.event.name}</Link>}
         {m.video && <a href={m.video} target="_blank" rel="noreferrer noopener" className="inline-flex items-center gap-1 hover:text-text-base"><PlayCircle className="size-3.5" /> Official video</a>}
+        <Link to={matchReportHref(m)} className="inline-flex items-center gap-1 font-medium text-accent-text underline-offset-2 hover:underline"><ClipboardList className="size-3.5" aria-hidden /> Know your match</Link>
         <span className="ml-auto flex items-center gap-1">
           {d.prev && <Link to={href(d.prev.key)} className="inline-flex items-center rounded px-1.5 py-0.5 hover:bg-text-base/[0.06] hover:text-text-base" aria-label={`Previous match, ${d.prev.label}`}><ChevronLeft className="size-3.5" />{d.prev.label}</Link>}
           {d.next && <Link to={href(d.next.key)} className="inline-flex items-center rounded px-1.5 py-0.5 hover:bg-text-base/[0.06] hover:text-text-base" aria-label={`Next match, ${d.next.label}`}>{d.next.label}<ChevronRight className="size-3.5" /></Link>}

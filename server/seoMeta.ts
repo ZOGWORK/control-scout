@@ -12,6 +12,7 @@ import { eventTypeLabel } from "../src/shared/labels.js";
 import { canonicalOrigin, canonicalUrl } from "./seo.js";
 import { teamKnown } from "./api/teams.js";
 import { pageModule } from "../src/shared/routes.js";
+import { normalMatchKey } from "../src/shared/matchReport.js";
 import { allianceText, shareHeadline, shareImagePath, sharePagePath, type ShareCardQuery } from "../src/shared/share.js";
 
 export const SITE = "FTC Control Scout";
@@ -153,6 +154,24 @@ async function eventMeta(season: number, code: string): Promise<PageMeta | null>
   return { title: `${e.name} (${seasonInfo(season).label})`, description, type: "website", path: `/events/${season}/${code}`, jsonLd: [ev] };
 }
 
+/**
+ * A match's scouting report (/events/:season/:code/match/:key): titled for a shared link's preview. Not
+ * indexed: one per match is thousands of near-identical pages; the event page is the one to find.
+ */
+async function matchReportMeta(season: number, code: string, key: string): Promise<PageMeta | null> {
+  const k = key.match(/^(qual|playoff):(\d{1,3}):(\d{1,4})$/);
+  if (!k || season < 2000 || season > 2100) return null;
+  const r = await get<{ label: string; event: string }>(
+    "SELECT m.label, e.name event FROM matches m JOIN events e ON e.season = m.season AND e.code = m.code WHERE m.season = ? AND m.code = ? AND m.level = ? AND m.series = ? AND m.number = ?",
+    [season, code, k[1], Number(k[2]), Number(k[3])]);
+  if (!r) return null;
+  return {
+    title: `${r.label} at ${r.event}: know your match`,
+    description: fitDescription(`${r.label} at ${r.event} (${seasonInfo(season).label}): the win prediction and every robot's OPR, rank, trend and flags.`),
+    type: "website", path: `/events/${season}/${code}/match/${key}`, noindex: true,
+  };
+}
+
 /** Two distinct team numbers per alliance from "a,b" (what the Predict Lab and a match lineup hold), else null. */
 function pair(v: string | null): number[] | null {
   const t = (v ?? "").split(",");
@@ -282,13 +301,18 @@ export async function pageMeta(path: string, query: Record<string, unknown> = {}
       // A shared match: its own call, or the event's values if it can't be read.
       return sp.has("match") ? await eventMatchMeta(ev, Number(m[1]), m[2].toUpperCase(), sp.get("match")).catch(() => ev) : ev;
     }
+    // A match's scouting report: the match must exist (a key that can't be one is not found too).
+    if ((m = p.match(/^\/events\/(\d+)\/([A-Za-z0-9_-]{1,40})\/match\/([^/]+)$/i))) {
+      const key = normalMatchKey(m[3]);
+      return (key && (await matchReportMeta(Number(m[1]), m[2].toUpperCase(), key))) || NOT_FOUND;
+    }
     if (/^\/rankings$/i.test(p)) return await rankingsMeta(query);
   } catch {
     // Database not ready: the generic values, never a 404 (the page may well exist).
     return { title: "", description: HOME_DESC, type: "website" };
   }
   // A team or event address that can't be one (/teams/abc, /teams/1234567, /events/2025/a%20b): the app says not found too.
-  if (/^\/teams\/[^/]+$/i.test(p) || /^\/events\/[^/]+\/[^/]+$/i.test(p)) return NOT_FOUND;
+  if (/^\/teams\/[^/]+$/i.test(p) || /^\/events\/[^/]+\/[^/]+$/i.test(p) || /^\/events\/[^/]+\/[^/]+\/match\/[^/]+$/i.test(p)) return NOT_FOUND;
   if (p === "/predict" && (sp.has("red") || sp.has("blue"))) {
     // A shared matchup; the Predict page's own values when it isn't one (or ratings aren't ready).
     const mm = await matchupMeta(sp).catch(() => null);

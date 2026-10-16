@@ -34,46 +34,52 @@ export function pickWorkspace(list: WorkspaceSpace[], remembered: { id: string; 
 
 // The last answer per request, for this account only (dropped when another signs in), so going back to a page
 // shows it at once while it's asked again. A refusal or failure drops it: an old summary is never shown as current.
-const memo = new Map<string, ConsensusResponse>();
+const memo = new Map<string, unknown>();
 let memoFor: number | null = null;
 /** Tests: forget every answer. */
 export function clearConsensusMemo() { memo.clear(); memoFor = null; }
 
-export interface ConsensusState { data: ConsensusResponse | undefined; error: ApiError | undefined; loading: boolean }
+export interface WorkspaceAnswerState<T> { data: T | undefined; error: ApiError | undefined; loading: boolean }
+export type ConsensusState = WorkspaceAnswerState<ConsensusResponse>;
 
 /**
- * The consensus answer for `path`, asked now and on every refresh(). Unlike the shared page cache, the latest
+ * The answer for `path`, asked now and on every refresh(). Unlike the shared page cache, the latest
  * outcome always wins: a refresh that's refused (403, paused) or fails hides the data it had.
  */
-function useConsensusRequest(path: string | null, account: number | null): { state: ConsensusState; refresh: () => void } {
+function useWorkspaceRequest<T>(path: string | null, account: number | null): { state: WorkspaceAnswerState<T>; refresh: () => void } {
   if (memoFor !== account) { memo.clear(); memoFor = account; }
-  const [st, setSt] = useState<{ path: string | null; account: number | null; data?: ConsensusResponse; error?: ApiError }>({ path: null, account: null });
+  const [st, setSt] = useState<{ path: string | null; account: number | null; data?: T; error?: ApiError }>({ path: null, account: null });
   const seq = useRef(0);
   const refresh = useCallback(() => {
     if (!path) return;
     const my = ++seq.current;
-    apiFetch<ConsensusResponse>(path).then(
+    apiFetch<T>(path).then(
       (data) => { if (my !== seq.current) return; if (memoFor === account) memo.set(path, data); setSt({ path, account, data }); },
       (error: ApiError) => { if (my !== seq.current) return; memo.delete(path); setSt({ path, account, error }); },
     );
   }, [path, account]);
   useEffect(() => { refresh(); return () => { seq.current++; }; }, [refresh]);
   const mine = st.path === path && st.account === account;
-  const data = mine ? st.data : path ? memo.get(path) : undefined;
+  const data = mine ? st.data : path ? (memo.get(path) as T | undefined) : undefined;
   const error = mine ? st.error : undefined;
   return { state: { data, error, loading: !!path && !data && !error }, refresh };
 }
 
-export interface Consensus {
+export interface WorkspaceAnswer<T> {
   /** The account's workspaces (the switcher shows when there's more than one). */
   workspaces: WorkspaceSpace[];
   workspace: WorkspaceSpace;
   select(id: string): void;
-  state: ConsensusState;
+  state: WorkspaceAnswerState<T>;
 }
+export type Consensus = WorkspaceAnswer<ConsensusResponse>;
 
-/** The consensus of the account's chosen workspace on these teams, or null when there's none to show. */
-export function useConsensus(teams: number[], season: number | null): Consensus | null {
+/**
+ * A members-only answer from the account's chosen workspace (`pathFor` builds the request for a workspace id;
+ * null: nothing to ask), kept fresh as above. Null when there's no workspace to ask (signed out, none, or the
+ * switch off).
+ */
+export function useWorkspaceAnswer<T>(pathFor: (workspaceId: string) => string | null): WorkspaceAnswer<T> | null {
   const { user } = usePersonal();
   const enabled = useFlag("workspaceScouting");
   const userId = user?.id ?? null;
@@ -81,8 +87,8 @@ export function useConsensus(teams: number[], season: number | null): Consensus 
   const [chosen, setChosen] = useState<{ id: string; account: number | null } | null>(null);
   const remembered = useMemo(() => (chosen && chosen.account === userId ? { id: chosen.id, account: userId ?? undefined } : readRememberedSpace()), [chosen, userId]);
   const workspace = enabled && user ? pickWorkspace(list, remembered, userId) : null;
-  const path = workspace && season && teams.length ? consensusPath(workspace.id, season, teams) : null;
-  const { state, refresh } = useConsensusRequest(path, userId);
+  const path = workspace ? pathFor(workspace.id) : null;
+  const { state, refresh } = useWorkspaceRequest<T>(path, userId);
 
   // Ask again every minute while the page is visible, on coming back to it, and soon after a scouting change on this device.
   useEffect(() => {
@@ -105,6 +111,11 @@ export function useConsensus(teams: number[], season: number | null): Consensus 
 
   if (!workspace || !path) return null;
   return { workspaces: list, workspace, select, state };
+}
+
+/** The consensus of the account's chosen workspace on these teams, or null when there's none to show. */
+export function useConsensus(teams: number[], season: number | null): Consensus | null {
+  return useWorkspaceAnswer<ConsensusResponse>((id) => (season && teams.length ? consensusPath(id, season, teams) : null));
 }
 
 /** The Scout page, on this workspace, with a new entry for the team open. */
