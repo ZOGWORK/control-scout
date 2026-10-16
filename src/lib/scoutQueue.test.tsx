@@ -136,7 +136,7 @@ describe("ScoutQueueSync (the app-wide reconnect trigger)", () => {
     const personal = localScoutEntries(null);
     expect(personal.map((e) => [e.team, e.notes, e.workspaceId])).toEqual([[2222, "slow lift", null]]);
     expect(personal[0].uuid).not.toBe("wwwwwwwwwww1");
-    expect(localScoutEntries("42").map((e) => e.uuid)).toEqual(["wwwwwwwwwww2"]); // the old tombstone only (hidden)
+    expect(localScoutEntries("42")).toEqual([]); // the queued delete was let go, its local tombstone with it
     expect(h.toasts).toEqual([expect.stringMatching(/^1 entry saved in Robo Lions couldn't sync: you're no longer a member there\. It's kept in Personal/)]);
     await vi.waitFor(() => expect(pendingScoutCounts().personal).toBe(0)); // and Personal syncs it to the account
   });
@@ -248,6 +248,25 @@ describe("ScoutQueueSync (the app-wide reconnect trigger)", () => {
     expect(h.toasts).toEqual([expect.stringMatching(/^1 entry saved in W42 couldn't sync: the workspace is read-only now\. It's kept in Personal, so nothing was lost\./)]);
     expect(refreshUser).toHaveBeenCalled(); // the 423 re-reads the account (the banner)
     await vi.waitFor(() => expect(pendingScoutCounts().personal).toBe(0));
+  });
+
+  it("read-only space: a queued delete the server refused is let go, and the entry comes back from the server", async () => {
+    const kept = { uuid: "wwwwwwwwwww1", ...base, team: 2222, notes: "server copy", workspaceId: "42", updatedAt: 1000, authorAccountId: 5, authorDisplayName: "Max" };
+    localStorage.setItem("cs-scout-ws:42:wwwwwwwwwww1", JSON.stringify(kept));
+    localStorage.setItem("cs-scout-ws-cursor:42", "9");
+    saveScoutEntry({ ...kept, deleted: true, data: {}, notes: "" }); // deleted here while offline; the space went read-only
+    const pulls: string[] = [];
+    vi.stubGlobal("fetch", vi.fn(async (path: string, init?: RequestInit) => {
+      if (init?.method === "POST") return new Response(JSON.stringify({ error: "read-only", code: "workspace_read_only" }), { status: 423, headers: { "Content-Type": "application/json" } });
+      pulls.push(path);
+      return new Response(JSON.stringify({ entries: [kept], cursor: 9, more: false }), { status: 200, headers: { "Content-Type": "application/json" } });
+    }));
+    h.personal = { user: readOnlyUser("42"), syncReady: true };
+    render(<ScoutQueueSync />);
+    await vi.waitFor(() => expect(localScoutEntries("42").map((e) => [e.uuid, !!e.deleted, e.notes])).toEqual([["wwwwwwwwwww1", false, "server copy"]]));
+    expect(pendingScoutCounts().workspaces).toEqual({});
+    expect(pulls).toEqual(["/api/scout/sync?workspaceId=42&since=0"]); // from the start: the cursor was reset
+    expect(localScoutEntries(null)).toEqual([]); // nothing to keep in Personal for a delete
   });
 
   it("read-only space that came back meanwhile: the push goes through there, nothing moves", async () => {

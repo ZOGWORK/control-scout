@@ -84,7 +84,7 @@ export async function markOrphaned(workspaceId: string, reason: OrphanReason, no
   const iso = new Date(now).toISOString();
   const res = await db().batch([
     {
-      sql: `UPDATE workspaces SET orphaned_at = COALESCE(orphaned_at, ?), orphan_reason = ?, updated_at = ?
+      sql: `UPDATE workspaces SET orphaned_at = COALESCE(orphaned_at, ?), orphan_reason = ?, orphan_check_at = NULL, updated_at = ?
              WHERE cp_workspace_id = ? AND (orphan_reason IS NULL OR orphan_reason <> ?) RETURNING name, orphaned_at`,
       args: [iso, reason, iso, workspaceId, reason],
     },
@@ -118,7 +118,7 @@ export async function restoreWorkspace(workspaceId: string): Promise<number[] | 
   const iso = new Date().toISOString();
   const res = await db().batch([
     { sql: "SELECT orphan_reason FROM workspaces WHERE cp_workspace_id = ?", args: [workspaceId] }, // what it was (RETURNING gives the new values)
-    { sql: "UPDATE workspaces SET orphaned_at = NULL, orphan_reason = NULL, updated_at = ? WHERE cp_workspace_id = ? AND orphaned_at IS NOT NULL RETURNING name", args: [iso, workspaceId] },
+    { sql: "UPDATE workspaces SET orphaned_at = NULL, orphan_reason = NULL, orphan_check_at = NULL, updated_at = ? WHERE cp_workspace_id = ? AND orphaned_at IS NOT NULL RETURNING name", args: [iso, workspaceId] },
     { sql: "DELETE FROM workspace_former_members WHERE workspace_id = (SELECT id FROM workspaces WHERE cp_workspace_id = ?)", args: [workspaceId] },
   ], "write");
   const row = res[1].rows[0] as unknown as { name: string } | undefined;

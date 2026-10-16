@@ -259,10 +259,18 @@ re-check, the stream sweep):
   workspace that still exists means the person was removed, which is handled
   as before (Personal, `membership_revoked`, `member.left`, removal audit).
 - **No admin left.** An account that was an admin of the workspace no longer
-  is (it left, or was demoted), and Control Point lists no admin. With an
-  older Control Point (no members route), Scout's own membership cache decides:
-  no admin row left.
-- Control Point unreachable: nothing changes; the next answer decides.
+  is (it left, or was demoted), and Control Point lists no admin. An older
+  Control Point (no members route) can't say, so it never makes a workspace
+  read-only. Scout's own cache was considered as a fallback, but it only
+  knows the admins who have used Control Scout, so an empty cache would lock
+  out a workspace whose admin simply never opened Scout.
+- Control Point can't say (the members route times out or errors): nothing is
+  decided. For a workspace that dropped out of an answer, the cached row stays
+  (marked stale, so it never counts as a fresh membership) and nothing is
+  logged, so the account's next answer sees the departure and asks again. For
+  an admin who left or was demoted, the workspace is owed a check
+  (`orphan_check_at`), made from the next answer that lists it (anyone's, at
+  most once a minute).
 
 `workspaces.orphaned_at` (when Scout saw it, kept if the reason changes) and
 `orphan_reason` (`deleted` | `no_admin`) are set (migration 22), the
@@ -302,7 +310,9 @@ workspace has no admin left in Control Point — …"). It offers no New entry,
 Delete, Template, Save, comment box, assignment actions, pick list changes or
 photo uploads;
 entries open with View. Settings → Workspace shows the same banner and no admin
-controls. A 423 or a live `workspace` or `account` event re-reads `/me` at
+controls. A new entry, or an edit, that was open when the space went
+read-only keeps what was typed: its Save button becomes "Save to Personal"
+(an edit is saved as a new personal entry). A 423 or a live `workspace` or `account` event re-reads `/me` at
 once.
 
 **Queued offline edits** for a space that went read-only are moved to
@@ -311,7 +321,9 @@ couldn't sync: the workspace is read-only now. They're kept in Personal, so
 nothing was lost." This uses `moveQueuedToPersonal`, as for a removal. It
 happens only after the server refuses one more push with 423: a workspace that
 came back takes the push instead, and nothing moves. Any other failure keeps
-them queued. We chose Personal over waiting for a restore because a deleted
+them queued. Queued deletes are let go along with their local tombstones,
+and the space is pulled again from the start, so the entries the server kept
+show again. We chose Personal over waiting for a restore because a deleted
 workspace usually never comes back. Queued edits would then wait forever,
 unseen by anyone else. In Personal they stay visible, editable and backed up.
 

@@ -422,18 +422,21 @@ export function adoptServerEntry(space: string, entry: ScoutEntry) {
  * before the removal reached the device): the server refused them (403) and the account's workspace
  * list no longer has it. Nothing is dropped: every queued entry that isn't a delete moves to Personal
  * as a new personal entry (your own copy: its fields and notes; the workspace's photos and authorship
- * stay behind), queued to sync to your account. Queued deletes are simply let go (there is nothing to
- * keep). The moved entries leave the workspace's copy on this device, so a later re-add can't show
- * them twice. Returns how many moved. docs/shared-accounts.md, "Revoked while offline".
+ * stay behind), queued to sync to your account. Queued deletes are let go (there is nothing to keep): their
+ * local tombstone goes too, so a workspace still readable here (read-only, Task 19) shows the server's copy
+ * again after the next pull instead of hiding it. The moved entries leave the workspace's copy on this
+ * device, so a later re-add can't show them twice. Returns how many moved. docs/shared-accounts.md,
+ * "Revoked while offline".
  */
 export function moveQueuedToPersonal(space: string): number {
   const d = dirty(space);
   if (!d.size) return 0;
-  let moved = 0;
+  let moved = 0, dropped = 0;
   const keep = new Set<string>();
   for (const uuid of d) {
     const e = readEntry(space, uuid);
-    if (!e || e.deleted) continue;
+    if (!e) continue;
+    if (e.deleted) { try { localStorage.removeItem(keyFor(space, uuid)); dropped++; } catch { /* blocked */ } continue; }
     const copy = normalizeScoutEntry({
       uuid: newScoutId(), season: e.season, team: e.team, eventCode: e.eventCode, matchLabel: e.matchLabel, kind: e.kind,
       data: e.data ?? {}, notes: e.notes ?? "", updatedAt: Date.now(),
@@ -451,7 +454,7 @@ export function moveQueuedToPersonal(space: string): number {
   }
   try { setDirty(keep, space); } catch { /* storage blocked */ }
   // The workspace's copies on this device are no longer complete: a later return (re-added) pulls it all again.
-  if (moved) try { localStorage.removeItem(`${WS_CURSOR}${space}`); } catch { /* blocked */ }
+  if (moved || dropped) try { localStorage.removeItem(`${WS_CURSOR}${space}`); } catch { /* blocked */ }
   window.dispatchEvent(new Event(EVT));
   if (moved) window.dispatchEvent(new CustomEvent<SavedDetail>(SAVED, { detail: { space: null, deleted: false } }));
   return moved;

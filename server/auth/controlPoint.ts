@@ -307,18 +307,26 @@ async function storeMemberships(accountId: number, list: Workspace[], account?: 
     // says not_found) is not a removal: no member.left, no revoke, no removal audit. It goes read-only, and
     // everyone in the cache for it now (this account's row included: it's dropped below) keeps reading it.
     const gone = new Set<string>();
+    // Control Point couldn't say (timeout, error): undecided. The cached row stays, marked stale (so it never
+    // counts as a fresh membership), and nothing is logged, so the next answer for this account sees the
+    // departure again and asks again. Only Control Point's answer decides between deleted and removed.
+    const undecided = new Set<string>();
     for (const [id] of left) {
       if (!mirror.has(id)) continue;
-      if (mirror.get(id)?.reason === "deleted" || (await checkWorkspace(id)).state === "gone") gone.add(id);
+      if (mirror.get(id)?.reason === "deleted") { gone.add(id); continue; }
+      const c = await checkWorkspace(id);
+      if (c.state === "gone") gone.add(id);
+      else if (c.state === "unknown") undecided.add(id);
     }
     for (const id of gone) if (mirror.get(id)?.reason !== "deleted") await orphaned(id, "deleted");
+    const keepIds = [...list.map((w) => w.id), ...undecided];
     const name = joined.length || left.length ? await memberName(accountId, account) : "";
     const actor = CONTROL_POINT_ACTOR, subject = `member:${accountId}`;
     // Guarded on the cache row (read again inside the transaction), so two refreshes racing log a change once.
     const cachedRow = (id: string) => ({ sql: "EXISTS (SELECT 1 FROM workspace_members WHERE account_id = ? AND cp_workspace_id = ?)", args: [accountId, id] });
     // A removal Scout itself is making (removeMember) is recorded there, once, with the admin as actor.
     const logs = [
-      ...left.filter(([id]) => !removing.has(dropKey(accountId, id)) && !gone.has(id)).map(([id, role]) => ({ id, stmt: activityStatement(id, actor, "member.left", subject, { accountId, name, role }, now, cachedRow(id)) })),
+      ...left.filter(([id]) => !removing.has(dropKey(accountId, id)) && !gone.has(id) && !undecided.has(id)).map(([id, role]) => ({ id, stmt: activityStatement(id, actor, "member.left", subject, { accountId, name, role }, now, cachedRow(id)) })),
       ...joined.map((w) => {
         const g = cachedRow(w.id);
         return { id: w.id, stmt: activityStatement(w.id, actor, "member.joined", subject, { accountId, name, role: w.role }, now, { sql: `NOT ${g.sql}`, args: g.args }) };
@@ -327,10 +335,11 @@ async function storeMemberships(accountId: number, list: Workspace[], account?: 
     const res = await db().batch([
       ...logs.map((l) => l.stmt),
       {
-        sql: `DELETE FROM workspace_members WHERE account_id = ?${list.length ? ` AND cp_workspace_id NOT IN (${list.map(() => "?").join(", ")})` : ""}
+        sql: `DELETE FROM workspace_members WHERE account_id = ?${keepIds.length ? ` AND cp_workspace_id NOT IN (${keepIds.map(() => "?").join(", ")})` : ""}
               RETURNING cp_workspace_id, workspace_name, role`,
-        args: [accountId, ...list.map((w) => w.id)],
+        args: [accountId, ...keepIds],
       },
+      ...[...undecided].map((id) => ({ sql: "UPDATE workspace_members SET updated_at = 0 WHERE account_id = ? AND cp_workspace_id = ?", args: [accountId, id] })),
       ...list.map((w) => ({
         sql: `INSERT INTO workspace_members (account_id, cp_workspace_id, workspace_name, role, updated_at) VALUES (?, ?, ?, ?, ?)
               ON CONFLICT(account_id, cp_workspace_id) DO UPDATE SET workspace_name = excluded.workspace_name, role = excluded.role, updated_at = excluded.updated_at`,
@@ -370,9 +379,10 @@ async function storeMemberships(accountId: number, list: Workspace[], account?: 
 // (a) deleted: a workspace drops out of an account's answer and Control Point's members route says it no
 //     longer exists (404 not_found). A personal removal (the route still lists the workspace) is not this.
 // (b) no admin: an account that was an admin there no longer is (it left, or was demoted) and Control Point
-//     lists no admin; with an older Control Point (no members route), when Scout's own cache has none left.
+//     lists no admin. An older Control Point (no members route) can't say, so it never orphans a workspace:
+//     Scout's own cache only knows the admins who have used Control Scout, so "none in the cache" proves nothing.
 // Back: an orphaned workspace listed again with an admin (this account, or anyone Control Point lists).
-// Control Point unreachable: nothing changes; the next answer decides.
+// Control Point unreachable: nothing is decided; the question is asked again (storeMemberships, adminChecks).
 // ---------------------------------------------------------------------------
 
 type WorkspaceCheck = { state: "gone" } | { state: "exists"; admins: number } | { state: "unsupported" } | { state: "unknown" };
@@ -394,7 +404,8 @@ function checkWorkspace(workspaceId: string, maxAge = CHECK_REUSE_MS): Promise<W
       // Only Control Point's own answer that the workspace doesn't exist counts as deleted: 404 with error "not_found".
       // Any other 404 (an older deploy's bare "Not found", a proxy's page) proves nothing.
       if ((e as { status?: number }).status === 404 && (e as Error).message === "not_found") return { state: "gone" };
-      if (missingRoute(e)) return { state: "unsupported" };
+      // Any other 404 is a Control Point without the route (an older deploy's bare "Not found"): it can never say.
+      if (missingRoute(e) || (e as { status?: number }).status === 404) return { state: "unsupported" };
       logFailure("workspace members", e);
       return { state: "unknown" };
     }
@@ -405,15 +416,9 @@ function checkWorkspace(workspaceId: string, maxAge = CHECK_REUSE_MS): Promise<W
   return p;
 }
 
-/** Admins in Scout's own membership cache for the workspace (the fallback when Control Point can't list members). */
-async function cachedAdmins(workspaceId: string): Promise<number> {
-  return Number((await get<{ n: number }>("SELECT COUNT(*) n FROM workspace_members WHERE cp_workspace_id = ? AND role = 'admin'", [workspaceId]))?.n ?? 0);
-}
-
-/** Admins the workspace has, as far as Scout can tell (null: it can't tell right now). */
-async function adminsOf(c: WorkspaceCheck, workspaceId: string): Promise<number | null> {
-  return c.state === "exists" ? c.admins : c.state === "unsupported" ? cachedAdmins(workspaceId) : null;
-}
+/** Admins the workspace has in Control Point: a count, "unknown" (it couldn't answer right now), or "never" (no members route). */
+const adminsOf = (c: WorkspaceCheck): number | "unknown" | "never" =>
+  c.state === "exists" ? c.admins : c.state === "unsupported" ? "never" : "unknown";
 
 /** Mark it read-only; the accounts it concerns re-read /me (their open streams say so). */
 async function orphaned(workspaceId: string, reason: OrphanReason): Promise<void> {
@@ -441,7 +446,19 @@ async function adminChecks(accountId: number, list: Workspace[], was: Map<string
     for (const [id, role] of was) {
       if (role !== "admin" || gone.has(id) || !mirror.has(id) || mirror.get(id)) continue;
       if (list.find((w) => w.id === id)?.role === "admin") continue;
-      if ((await adminsOf(await checkWorkspace(id), id)) === 0) await orphaned(id, "no_admin");
+      const admins = adminsOf(await checkWorkspace(id));
+      if (admins === 0) await orphaned(id, "no_admin");
+      // Control Point couldn't say: owed a check, made from the next answer that lists the workspace (anyone's).
+      else if (admins === "unknown") await run("UPDATE workspaces SET orphan_check_at = ? WHERE cp_workspace_id = ?", [Date.now(), id]);
+    }
+    // Checks owed from earlier (above): any answer listing the workspace settles them, at most once a minute.
+    const owed = list.length ? await all<{ cp_workspace_id: string }>(
+      `SELECT cp_workspace_id FROM workspaces WHERE orphan_check_at IS NOT NULL AND orphaned_at IS NULL AND cp_workspace_id IN (${list.map(() => "?").join(", ")})`, list.map((w) => w.id)) : [];
+    for (const { cp_workspace_id: id } of owed) {
+      const admins = adminsOf(await checkWorkspace(String(id), ORPHAN_RECHECK_MS));
+      if (admins === "unknown") continue;
+      if (admins === 0) await orphaned(String(id), "no_admin");
+      await run("UPDATE workspaces SET orphan_check_at = NULL WHERE cp_workspace_id = ?", [String(id)]);
     }
     // A read-only scout space this answer lists: it exists. An admin here brings it back at once; otherwise
     // ask Control Point who's in it (at most once a minute per workspace while it stays read-only).
@@ -449,9 +466,9 @@ async function adminChecks(accountId: number, list: Workspace[], was: Map<string
       const st = mirror.get(w.id);
       if (!st) continue;
       if (w.role === "admin") { await restored(w.id, accountId); continue; }
-      const admins = await adminsOf(await checkWorkspace(w.id, ORPHAN_RECHECK_MS), w.id);
-      if (admins == null) continue;
-      if (admins > 0) await restored(w.id, accountId);
+      const admins = adminsOf(await checkWorkspace(w.id, ORPHAN_RECHECK_MS));
+      if (admins === "unknown") continue;
+      if (admins === "never" || admins > 0) await restored(w.id, accountId); // listed, so it exists; no route: can't say it has no admin
       else if (st.reason === "deleted") await orphaned(w.id, "no_admin"); // back, but with no admin
     }
   } catch (e) { console.warn(`[shared-accounts] orphan check failed: ${(e as Error)?.name ?? "error"}`); }

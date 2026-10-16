@@ -757,6 +757,9 @@ CREATE TABLE workspace_picklist_versions (
 -- 'no_admin'. Both are cleared when the workspace comes back. While set, the space is read-only.
 ALTER TABLE workspaces ADD COLUMN orphaned_at TEXT;
 ALTER TABLE workspaces ADD COLUMN orphan_reason TEXT;
+-- orphan_check_at: ms, set when Scout owes the workspace a no-admin check that Control Point couldn't answer
+-- (its last known admin left or was demoted); the next membership answer listing it makes the check. NULL: none owed.
+ALTER TABLE workspaces ADD COLUMN orphan_check_at INTEGER;
 
 -- Who keeps reading a space deleted in Control Point: everyone in Scout's membership cache
 -- (workspace_members) for it when Scout saw it deleted, with the role they had. Their cached memberships
