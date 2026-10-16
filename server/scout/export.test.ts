@@ -218,20 +218,21 @@ describe("workspace CSV export", () => {
       entry({ uuid: "filt00000003", team: 111, eventCode: "USTXCMP", kind: "pit", matchLabel: null, data: { drivetrain: "Swerve" } }),
       entry({ uuid: "filt00000004", team: 333, season: 2024 }),
       entry({ uuid: "filt00000005", team: 111, notes: "100% sure_thing" }),
+      entry({ uuid: "filt00000008", team: 555, kind: "pit", matchLabel: null, data: { notes2: '6"wheel' } }),
     ]);
     await push(admin, "504", [entry({ uuid: "filt00000006", team: 444, notes: "coach note" })]);
     // A deleted entry: created, then deleted by its author.
     await push(member, "504", [entry({ uuid: "filt00000007", team: 111 })]);
     await push(member, "504", [entry({ uuid: "filt00000007", team: 111, deleted: true, updatedAt: 1_900_000_000_000 })]);
     const ids = async (q: string) => { const out = await exportOf(member, "504", q); expect(out.status).toBe(200); return out.rows.map((r) => r["Entry ID"]).sort(); };
-    const all = ["filt00000001", "filt00000002", "filt00000003", "filt00000005", "filt00000006"];
+    const all = ["filt00000001", "filt00000002", "filt00000003", "filt00000005", "filt00000006", "filt00000008"];
     expect(await ids("season=2025")).toEqual(all);
     expect(await ids("season=2024")).toEqual(["filt00000004"]);
     expect(await ids("season=2025&team=111")).toEqual(["filt00000001", "filt00000003", "filt00000005"]);
     expect(await ids("season=2025&team=111,222")).toEqual(["filt00000001", "filt00000002", "filt00000003", "filt00000005"]);
     expect(await ids("season=2025&team=111&team=444")).toEqual(["filt00000001", "filt00000003", "filt00000005", "filt00000006"]);
-    expect(await ids("season=2025&event=USCAQ1")).toEqual(["filt00000001", "filt00000002", "filt00000005", "filt00000006"]);
-    expect(await ids("season=2025&kind=pit")).toEqual(["filt00000003"]);
+    expect(await ids("season=2025&event=USCAQ1")).toEqual(["filt00000001", "filt00000002", "filt00000005", "filt00000006", "filt00000008"]);
+    expect(await ids("season=2025&kind=pit")).toEqual(["filt00000003", "filt00000008"]);
     expect(await ids("season=2025&match=Q2")).toEqual(["filt00000002"]);
     expect(await ids(`season=2025&author=${accountFor("csv-coach@example.com").id}`)).toEqual(["filt00000006"]);
     expect(await ids("season=2025&q=INTAKE")).toEqual(["filt00000001"]);
@@ -239,6 +240,9 @@ describe("workspace CSV export", () => {
     expect(await ids("season=2025&q=coach")).toEqual(["filt00000006"]); // the author's name
     expect(await ids("season=2025&q=100%25")).toEqual(["filt00000005"]); // % and _ are plain characters
     expect(await ids("season=2025&q=_")).toEqual(["filt00000005"]);
+    expect(await ids(`season=2025&q=${encodeURIComponent('6"wheel')}`)).toEqual(["filt00000008"]); // answers as decoded values
+    expect(await ids("season=2025&q=drivetrain")).toEqual([]); // a field id isn't an answer
+    expect(await ids("season=2025&q=a b c d e f g h i j fast")).toEqual([]); // every word applies, the 11th too
     expect(await ids("season=2025&team=111&q=fast intake")).toEqual(["filt00000001"]);
     expect(await ids("season=2025&team=999")).toEqual([]);
     // Bad filters are a 400, never ignored.
@@ -340,6 +344,10 @@ describe("export columns", () => {
   it("a label both kinds use is prefixed; one that still repeats gets its id", () => {
     const cols = exportColumns({ match: [f("a", "Arm"), f("b", "Speed"), f("c", "Speed"), f("d", "Notes")], pit: [f("e", "arm", "pit"), f("g", "Weight", "pit")] }, ["match", "pit"]);
     expect(cols.map((c) => c.header)).toEqual(["Match: Arm", "Speed [b]", "Speed [c]", "Notes [d]", "Pit: arm", "Weight"]);
+    // A label that looks like another's suffixed name: still unique.
+    const tricky = exportColumns({ match: [f("b", "Speed"), f("c", "Speed"), f("d", "Speed [c]")] }, ["match"]).map((c) => c.header);
+    expect(tricky).toEqual(["Speed [b]", "Speed [c] (2)", "Speed [c]"]);
+    expect(new Set(tricky).size).toBe(3);
     // One kind only: nothing to tell apart.
     expect(exportColumns({ match: [f("a", "Arm")], pit: [f("e", "Arm", "pit")] }, ["pit"]).map((c) => c.header)).toEqual(["Arm"]);
   });
