@@ -393,6 +393,30 @@ describe("delivery", () => {
     expect(sent).toHaveLength(1);
   });
 
+  it("a push another server is retrying is never marked limited below the cap", async () => {
+    const a = await account({ myTeam: 1 });
+    await subscribe(a.id, "contended");
+    const [sub] = await loadRecipients();
+    const now = Date.now();
+    let release!: () => void;
+    let first = true;
+    setPushSender(async () => {
+      if (first) { first = false; await new Promise<void>((r) => { release = r; }); return { ok: false, status: 503, error: "busy" }; }
+      return { ok: true };
+    });
+    const plan: Planned = { sub, kind: "upset", subject: "2025:X:qual:0:9", expiresAt: now + 3600_000, payload: () => ({ title: "t", body: "", url: "/", tag: "t" }) };
+    const a1 = deliver([plan], now);
+    await new Promise((r) => setTimeout(r, 30));
+    // Server B finds the push claimed by A (mid-send) and must not log it as limited.
+    const b = await deliver([plan], now);
+    expect(b).toMatchObject({ sent: 0, limited: 0 });
+    release();
+    expect(await a1).toMatchObject({ retry: 1 });
+    expect(await all("SELECT * FROM push_sent")).toEqual([]);
+    // The next tick sends it.
+    expect(await deliver([plan], now + MIN)).toMatchObject({ sent: 1 });
+  });
+
   it("drops a plan whose time has passed by the moment of sending, and writes the countdown then", async () => {
     const a = await account({ myTeam: 1 });
     await subscribe(a.id, "slow"); await subscribe(a.id, "late");
