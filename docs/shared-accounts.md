@@ -237,6 +237,47 @@ Control Point.
   Hiding the button is a convenience; the server is what enforces the rule.
   Personal entries are unchanged.
 
+### Scout spaces (the Scout page)
+
+The Scout page shows one space at a time: **Personal** (your own entries,
+exactly as before workspaces) or one shared space per workspace in
+`user.controlPoint.workspaces`. The switcher at the top lists Personal first,
+then each workspace with its role ("admin") and, for the spaces not on screen,
+how many entries wait to sync there. Up to four workspaces it is a segmented
+control that scrolls sideways on a phone; with more it is a dropdown. Nothing
+migrates or merges between spaces: the switcher only changes which entries you
+see and where a new entry is saved. The logic is in `src/lib/scoutSpace.ts`.
+
+Which space opens (`resolveScoutSpace`):
+
+1. Signed out, workspace scouting paused (the `workspaceScouting` flag), or
+   Control Point's answer unknown (`controlPoint` null because it couldn't be
+   reached, or an older server without `workspaces`): Personal only, and no
+   switcher.
+2. Otherwise the URL wins: `/scout?space=<workspace id>` or
+   `/scout?space=personal`.
+3. Then the space remembered on this device: localStorage `cs-scout-space`,
+   `{ id, name, account }`, which is never synced. A space remembered for another
+   account that signed in on this device is ignored.
+4. Then the account's first workspace, or Personal if it has none.
+
+A workspace from steps 2 or 3 that the account no longer belongs to is
+skipped, and a notice says so. The page then writes the space it shows back
+to the URL (replacing the history entry) and to `cs-scout-space`. Choosing a
+space in the switcher adds a history entry.
+
+Losing access to the workspace on screen switches the page to Personal with
+"You no longer have access to <workspace>". That happens when its live stream
+ends with `membership_revoked`, or when the account's workspace list changes
+and leaves it out.
+
+Entries queued while offline go up when the connection returns in every
+space, not just the one on screen. `ScoutQueueSync` (mounted once in
+`main.tsx`) pushes each queue at sign-in, on `online`, and every 30 s while
+any entries wait. It covers Personal and the account's workspaces, and only
+while workspace scouting is on. Pushes to one space never overlap:
+`syncScouting` waits for the previous push to that space.
+
 ## Not in scope (yet)
 
 - Signing out of Control Point doesn't end Scout sessions (Scout sessions last
