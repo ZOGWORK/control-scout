@@ -7,7 +7,7 @@ import { ClipboardList, Cloud, CloudOff, Info, LayoutList, Loader2, Plus, Save, 
 import { useCurrentSeason, useTitle } from "../lib/meta";
 import { usePersonal } from "../lib/personal";
 import { canDeleteScoutEntry, deleteScoutEntry, newScoutId, refusalMessage, SCOUT_REFUSED, type ScoutRefusal, saveScoutEntry, ScoutStorageError, usePendingScoutCounts, useScouting, type ScoutEntry, type ScoutSpace, type ScoutValue } from "../lib/scouting";
-import { resolveTemplate, useEntryTemplate, useWorkspaceTemplate } from "../lib/scoutTemplates";
+import { resolveTemplate, useEntryTemplate, useEntryTemplateState, useWorkspaceTemplate } from "../lib/scoutTemplates";
 import { ALL_PHASES, phaseLabel, type WorkspaceTemplate } from "../shared/scoutTemplate";
 import { ScoutFieldInput } from "../components/scout/ScoutFieldInput";
 import { TemplateEditor } from "../components/scout/TemplateEditor";
@@ -57,6 +57,12 @@ export default function ScoutPage() {
   const wt = useWorkspaceTemplate(space, season);
   const isAdmin = me?.role === "admin";
   const showTemplate = !!workspace && isAdmin && sp.get("view") === "template";
+  // Every form that opens (New entry, an edit, or one opened from the URL) checks for a newer template first:
+  // the live notice can be missed (realtime off, or a reconnect gap), and polling only pulls entries.
+  const refreshTemplate = wt.refresh;
+  useEffect(() => { if (formOpen) refreshTemplate(); }, [formOpen, editing, refreshTemplate]);
+  // A workspace whose template this device has never seen: hold the form until the first answer (offline: the built-in fields).
+  const templatePending = space != null && !wt.template && wt.status === "loading";
   const toggleTemplate = () => setSp((x) => { if (x.get("view") === "template") x.delete("view"); else x.set("view", "template"); return x; });
   useEffect(() => {
     const refused = (ev: Event) => { const r = (ev as CustomEvent<ScoutRefusal>).detail; if (r.space === space) toast.error(refusalMessage(r)); };
@@ -90,7 +96,7 @@ export default function ScoutPage() {
         <TemplateEditor key={`${workspace.id}:${season}`} workspaceId={workspace.id} workspaceName={workspaceLabel(workspace)} season={season} template={wt.template} onClose={toggleTemplate} />
       )}
       {formOpen && !spaces.resolving && (
-        <EntryForm key={editEntry?.uuid ?? `new-${teamFilter ?? ""}`} season={season} initial={editEntry} team={teamFilter} space={space} spaceName={workspace ? workspaceLabel(workspace) : null} workspaceTemplate={wt.template}
+        <EntryForm key={editEntry?.uuid ?? `new-${teamFilter ?? ""}`} season={season} initial={editEntry} team={teamFilter} space={space} spaceName={workspace ? workspaceLabel(workspace) : null} workspaceTemplate={wt.template} templatePending={templatePending}
           onDone={() => { setFormOpen(false); setSp((x) => { x.delete("entry"); return x; }); }} />
       )}
       <Section title={`Entries (${entries.length})`} description={teamFilter ? `For team ${teamFilter}` : "Newest first"}>
@@ -148,10 +154,12 @@ function EntryCard({ e, canDelete, onEdit }: { e: ScoutEntry; canDelete: boolean
   );
 }
 
-function EntryForm({ season, initial, team, space, spaceName, workspaceTemplate, onDone }: {
+function EntryForm({ season, initial, team, space, spaceName, workspaceTemplate, templatePending, onDone }: {
   season: number; initial: ScoutEntry | null; team?: number; space: ScoutSpace; spaceName: string | null;
   /** The workspace's current template (null: Personal, or not known yet: the built-in defaults). */
   workspaceTemplate: WorkspaceTemplate | null;
+  /** The workspace's template hasn't come yet (none on this device): new entries wait for it. */
+  templatePending: boolean;
   onDone: () => void;
 }) {
   const [kind, setKind] = useState<"match" | "pit">(initial?.kind ?? "match");
@@ -162,9 +170,14 @@ function EntryForm({ season, initial, team, space, spaceName, workspaceTemplate,
   const [notes, setNotes] = useState(initial?.notes ?? "");
   // An edit keeps the template the entry was made with; a new entry (or a switch to the other kind)
   // uses the space's current one: the workspace's, or the built-in defaults (Personal, never customised).
-  const entryTemplate = useEntryTemplate(initial ?? { season, kind, templateId: undefined, templateVersion: undefined });
-  const template = useMemo(() => (initial && kind === initial.kind ? entryTemplate : resolveTemplate(space == null ? null : workspaceTemplate, season, kind)),
-    [initial, kind, entryTemplate, space, workspaceTemplate, season]);
+  const entryTemplate = useEntryTemplateState(initial ?? { season, kind, templateId: undefined, templateVersion: undefined });
+  const sameKindEdit = !!initial && kind === initial.kind;
+  const template = useMemo(() => (sameKindEdit ? entryTemplate.template : resolveTemplate(space == null ? null : workspaceTemplate, season, kind)),
+    [sameKindEdit, kind, entryTemplate.template, space, workspaceTemplate, season]);
+  // No field edits against a stand-in: an edit whose own template version isn't here yet (loading, or offline)
+  // shows its answers untouched and lets notes change; a new entry waits for the workspace's template.
+  const fieldsLocked = sameKindEdit && !entryTemplate.exact;
+  const fieldsPending = !sameKindEdit && templatePending;
   const phases = ALL_PHASES;
   // Inline errors: the team field's own, and one for the save itself (storage full or blocked).
   const [teamErr, setTeamErr] = useState<string | null>(null);
@@ -175,8 +188,8 @@ function EntryForm({ season, initial, team, space, spaceName, workspaceTemplate,
   const saveErrId = useId();
   // The team check awaits a lookup: by then the form may be cancelled (closed) or still being
   // edited. A closed form saves nothing; an open one saves what it holds now, if the team is unchanged.
-  const latest = useRef({ kind, teamText, eventCode, matchLabel, data, notes, space, template });
-  latest.current = { kind, teamText, eventCode, matchLabel, data, notes, space, template };
+  const latest = useRef({ kind, teamText, eventCode, matchLabel, data, notes, space, template, fieldsLocked });
+  latest.current = { kind, teamText, eventCode, matchLabel, data, notes, space, template, fieldsLocked };
   const open = useRef(true);
   useEffect(() => { open.current = true; return () => { open.current = false; }; }, []);
   const save = async () => {
@@ -189,13 +202,18 @@ function EntryForm({ season, initial, team, space, spaceName, workspaceTemplate,
     if (latest.current.teamText !== team) return; // edited while checking: the next Save checks the new number
     if (latest.current.space !== space) return; // switched spaces while checking: the next Save goes to the space now shown
     if (err) { setTeamErr(err); teamRef.current?.focus(); return; }
-    const { kind, eventCode, matchLabel, data: all, notes, template } = latest.current;
+    const { kind, eventCode, matchLabel, data: all, notes, template, fieldsLocked } = latest.current;
     // A new entry keeps only the template's fields (a kind switch or a template change can leave others behind);
     // an edit keeps everything it had.
     const ids = new Set(template.fields.map((f) => f.id));
-    const data = initial ? all : Object.fromEntries(Object.entries(all).filter(([k]) => ids.has(k)));
-    // Workspace entries record the template they were made with; Personal ones always use the built-in defaults.
-    const made = space == null ? {} : { templateId: template.id, templateVersion: template.version ?? 0 };
+    const data = initial ? { ...all } : Object.fromEntries(Object.entries(all).filter(([k]) => ids.has(k)));
+    // A counter shows its lowest value until it's touched: that shown value is the answer.
+    if (!fieldsLocked) for (const f of template.fields) if (f.type === "counter" && (f.min ?? 0) > 0 && data[f.id] === undefined) data[f.id] = f.min!;
+    // Workspace entries record the template they were made with (an edit of the same kind keeps the entry's own,
+    // whatever stands in on screen); Personal ones always use the built-in defaults.
+    const made = space == null ? {}
+      : initial && kind === initial.kind ? (initial.templateId ? { templateId: initial.templateId, templateVersion: initial.templateVersion ?? 0 } : {})
+      : { templateId: template.id, templateVersion: template.version ?? 0 };
     try {
       saveScoutEntry({ uuid: initial?.uuid ?? newScoutId(), season, team: Number(team), eventCode: eventCode.trim().toUpperCase() || null, matchLabel: kind === "match" ? matchLabel.trim().toUpperCase() || null : null, kind, data, notes, workspaceId: space, ...made });
       toast.success("Saved on this device");
@@ -215,7 +233,11 @@ function EntryForm({ season, initial, team, space, spaceName, workspaceTemplate,
         <div className="w-36"><Input value={eventCode} onChange={(e) => setEventCode(e.target.value)} placeholder="Event code" aria-label="Event code" className="h-11 font-mono uppercase" /></div>
         {kind === "match" && <div className="w-24"><Input value={matchLabel} onChange={(e) => setMatchLabel(e.target.value)} placeholder="Q12" aria-label="Match" className="h-11 font-mono uppercase" /></div>}
       </div>
-      <div className="mt-5 grid gap-5 md:grid-cols-2">
+      {fieldsPending ? <div className="mt-5"><LoadingBlock rows={2} label="Loading the workspace's fields" /></div> : fieldsLocked ? (
+        <p role="status" className="mt-5 rounded-lg border border-warning/40 bg-warning/10 px-3 py-2 text-sm">
+          This entry was made with an earlier version of the workspace's fields, which this device hasn't loaded yet. Its answers are kept as they are; you can still change the notes.
+        </p>
+      ) : <div className="mt-5 grid gap-5 md:grid-cols-2">
         {phases.map((ph) => {
           const fields = template.fields.filter((f) => f.phase === ph);
           if (!fields.length) return null;
@@ -226,14 +248,14 @@ function EntryForm({ season, initial, team, space, spaceName, workspaceTemplate,
             </fieldset>
           );
         })}
-      </div>
+      </div>}
       <div className="mt-5">
         <Label htmlFor="notes">Notes</Label>
         <Textarea id="notes" value={notes} onChange={(e) => setNotes(e.target.value)} maxLength={4000} placeholder="What stood out? Strategy, reliability, driver habits…" className="mt-2" />
       </div>
       {initial && <EntryPhotos entry={initial} editable className="mt-5" />}
       <div className="mt-5 flex flex-wrap gap-2">
-        <Button ref={saveRef} type="submit" disabled={checking} aria-describedby={saveErr ? saveErrId : undefined}><Save /> Save</Button>
+        <Button ref={saveRef} type="submit" disabled={checking || fieldsPending} aria-describedby={saveErr ? saveErrId : undefined}><Save /> Save</Button>
         <Button type="button" variant="ghost" onClick={onDone}>Cancel</Button>
         <p className="ml-auto self-center text-xs text-muted-foreground">{spaceName ? <>Saves to <span className="font-medium text-foreground">{spaceName}</span>, shared with the workspace. </> : null}Saved on this device first — works without a connection.</p>
       </div>

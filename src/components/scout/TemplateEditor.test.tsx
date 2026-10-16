@@ -2,7 +2,13 @@
 // The admin's template editor: add a field (type picker), edit it, reorder, remove, preview, and save
 // (the PUT carries both kinds, with an untouched built-in kind sent as null and the version edited).
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+
+const toasts = vi.hoisted(() => ({ last: null as { action?: { onClick: () => void } } | null }));
+vi.mock("../ui/sonner", () => {
+  const toast = Object.assign((_m: string, o?: { action?: { onClick: () => void } }) => { toasts.last = o ?? null; }, {});
+  return { toast: Object.assign(toast, { success: toast, error: toast, warning: toast }) };
+});
 import { TooltipProvider } from "../ui/overlay";
 import { TemplateEditor } from "./TemplateEditor";
 import { templateFor } from "../../lib/scouting";
@@ -61,6 +67,26 @@ describe("TemplateEditor", () => {
     fireEvent.click(screen.getByRole("button", { name: /Save template/ }));
     await waitFor(() => expect(sent).toHaveLength(1));
     expect(sent[0].match.filter((f: any) => f.phase === "auto").map((f: any) => f.label)).toEqual([before[1], before[0]]);
+  });
+
+  it("undoing a removal puts the field back where it was", async () => {
+    show();
+    const auto = screen.getByRole("group", { name: "Auto" });
+    const names = () => within(auto).getAllByRole("listitem").map((li) => li.querySelector("p")!.textContent);
+    const before = names();
+    fireEvent.click(within(auto).getByRole("button", { name: `Remove ${before[0]}` }));
+    expect(names()).toEqual(before.slice(1));
+    act(() => toasts.last!.action!.onClick());
+    expect(names()).toEqual(before);
+    expect((screen.getByRole("button", { name: /Save template/ }) as HTMLButtonElement).disabled).toBe(true); // nothing changed after all
+  });
+
+  it("the preview shows the options as they'll be saved (repeats merged)", () => {
+    const fields = [{ id: "park", label: "Park", type: "choice" as const, phase: "endgame" as const, options: ["A", "a", "B"] }];
+    show({ workspaceId: "901", season: 2025, version: 1, settingsVersion: 1, match: fields, pit: null, updatedAt: null, updatedBy: null });
+    fireEvent.click(screen.getByRole("radio", { name: /Preview/ }));
+    const group = screen.getByText("Park").parentElement!;
+    expect(within(group).getAllByRole("radio").map((r) => r.textContent)).toEqual(["A", "B"]);
   });
 
   it("a field that can't be saved blocks Save and says why", () => {

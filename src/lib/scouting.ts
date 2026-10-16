@@ -281,16 +281,30 @@ export async function syncQueuedScouting(workspaces: string[]): Promise<void> {
 }
 
 interface SpaceExport { entries: ScoutEntry[]; dirty: string[]; cursor?: number }
-/** Everything scouting-related on this device, including what hasn't synced yet. `spaces`: the workspaces' cached entries and queues. */
-export function exportLocalScouting(): SpaceExport & { spaces?: Record<string, SpaceExport> } {
+/** Workspace templates kept on the device (scoutTemplates.ts): current ones and the versions entries were made with. */
+const TEMPLATE_KEY = /^cs-scout-tplv?:[A-Za-z0-9_-]{1,64}:\d{4}(:\d+)?$/;
+
+/**
+ * Everything scouting-related on this device, including what hasn't synced yet. `spaces`: the workspaces' cached entries and queues.
+ * `templates`: the workspace templates kept here, so cached entries still read with their fields offline after an account switch.
+ */
+export function exportLocalScouting(): SpaceExport & { spaces?: Record<string, SpaceExport>; templates?: Record<string, string> } {
+  const templates: Record<string, string> = {};
+  try {
+    for (let i = 0; i < localStorage.length; i++) {
+      const k = localStorage.key(i);
+      if (k && TEMPLATE_KEY.test(k)) templates[k] = localStorage.getItem(k)!;
+    }
+  } catch { /* storage blocked */ }
   return {
     entries: localScoutEntries(), dirty: [...dirty()],
     spaces: Object.fromEntries(localSpaces().map((w) => [w, { entries: localScoutEntries(w), dirty: [...dirty(w)], cursor: readCursor(w) }])),
+    templates,
   };
 }
 
 /** Put back a previously exported set (an account's stashed copy). */
-export function importLocalScouting(data: SpaceExport & { spaces?: Record<string, SpaceExport> }) {
+export function importLocalScouting(data: SpaceExport & { spaces?: Record<string, SpaceExport>; templates?: Record<string, string> }) {
   const put = (space: ScoutSpace, s: SpaceExport) => {
     let complete = true;
     for (const e of s.entries ?? []) { try { writeEntry(normalizeScoutEntry(e, space)); } catch { complete = false; /* storage full */ } }
@@ -300,6 +314,7 @@ export function importLocalScouting(data: SpaceExport & { spaces?: Record<string
   };
   put(null, data);
   for (const [w, s] of Object.entries(data.spaces ?? {})) if (/^[A-Za-z0-9_-]{1,64}$/.test(w)) put(w, s);
+  for (const [k, v] of Object.entries(data.templates ?? {})) if (TEMPLATE_KEY.test(k) && typeof v === "string") { try { localStorage.setItem(k, v); } catch { /* storage full: fetched again online */ } }
   window.dispatchEvent(new Event(EVT));
 }
 

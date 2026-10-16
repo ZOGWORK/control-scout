@@ -37,10 +37,13 @@ export function cachedWorkspaceTemplate(ws: string, season: number): WorkspaceTe
   return isTemplate(t) ? t : null;
 }
 
-/** Keep a template on the device: as the current one (unless an older reply), and as its version. */
-export function rememberWorkspaceTemplate(t: WorkspaceTemplate) {
-  const cur = cachedWorkspaceTemplate(t.workspaceId, t.season);
-  if (!cur || t.settingsVersion >= cur.settingsVersion) writeJson(CURRENT(t.workspaceId, t.season), t);
+/**
+ * Keep a template on the device under its version, and (a reply for the current template only, never a
+ * version from the history, which carries today's settingsVersion) as the current one unless that's newer.
+ */
+export function rememberWorkspaceTemplate(t: WorkspaceTemplate, current = true) {
+  const cur = current ? cachedWorkspaceTemplate(t.workspaceId, t.season) : null;
+  if (current && (!cur || t.settingsVersion >= cur.settingsVersion)) writeJson(CURRENT(t.workspaceId, t.season), t);
   if (t.version > 0) writeJson(VERSION(t.workspaceId, t.season, t.version), t);
 }
 
@@ -50,7 +53,7 @@ export function fetchWorkspaceTemplate(ws: string, season: number, version?: num
   const path = `/api/scout/workspaces/${encodeURIComponent(ws)}/template?season=${season}${version != null ? `&version=${version}` : ""}`;
   let p = inflight.get(path);
   if (!p) {
-    p = apiFetch<{ template: WorkspaceTemplate }>(path).then((r) => { rememberWorkspaceTemplate(r.template); return r.template; });
+    p = apiFetch<{ template: WorkspaceTemplate }>(path).then((r) => { rememberWorkspaceTemplate(r.template, version == null); return r.template; });
     inflight.set(path, p);
     void p.catch(() => undefined).finally(() => inflight.delete(path));
   }
@@ -107,6 +110,14 @@ function initial(space: ScoutSpace, season: number) {
  * current template, else the built-in default. Entries made before templates use the built-in.
  */
 export function useEntryTemplate(e: Pick<ScoutEntry, "season" | "kind" | "templateId" | "templateVersion">): ScoutTemplate {
+  return useEntryTemplateState(e).template;
+}
+
+/**
+ * useEntryTemplate, plus `exact`: false while the entry's own version isn't on the device (still loading, or
+ * offline), so the template shown is a stand-in. An edit form must not offer field edits against a stand-in.
+ */
+export function useEntryTemplateState(e: Pick<ScoutEntry, "season" | "kind" | "templateId" | "templateVersion">): { template: ScoutTemplate; exact: boolean } {
   const ref = parseWorkspaceTemplateId(e.templateId);
   const version = Number.isSafeInteger(e.templateVersion) ? e.templateVersion! : 0;
   const ws = ref?.workspaceId ?? null, season = ref?.season ?? e.season, kind = ref?.kind ?? e.kind;
@@ -121,10 +132,10 @@ export function useEntryTemplate(e: Pick<ScoutEntry, "season" | "kind" | "templa
     return () => { live = false; };
   }, [read, ws, season, version]);
   return useMemo(() => {
-    if (!ws || version < 1) return templateFor(e.season, e.kind);
-    if (held) return resolveTemplate(held, season, kind);
-    // Not here yet: the current template if it's that version, else the newest seen (most fields still match).
-    return resolveTemplate(cachedWorkspaceTemplate(ws, season), season, kind);
+    if (!ws || version < 1) return { template: templateFor(e.season, e.kind), exact: true };
+    if (held) return { template: resolveTemplate(held, season, kind), exact: true };
+    // Not here yet: the newest template seen stands in (most fields still match) for reading only.
+    return { template: resolveTemplate(cachedWorkspaceTemplate(ws, season), season, kind), exact: false };
   }, [ws, version, held, season, kind, e.season, e.kind]);
 }
 
