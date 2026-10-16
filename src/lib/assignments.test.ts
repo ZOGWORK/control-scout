@@ -50,6 +50,20 @@ describe("assignments on the device", () => {
     expect(result.current.list).toEqual([]);
   });
 
+  it("useAssignments: a change reply for an earlier space is dropped, not mixed into the one on screen", async () => {
+    localStorage.clear();
+    vi.stubGlobal("fetch", vi.fn(async (url: string) => new Response(JSON.stringify({ assignments: url.includes("/41/") ? [a(1, 1234)] : [] }), { status: 200 })));
+    const { result, rerender } = renderHook(({ space }: { space: string }) => useAssignments(space, 2025, "live"), { initialProps: { space: "41" } });
+    await waitFor(() => expect(result.current.list).toHaveLength(1));
+    const oldApply = result.current.apply;
+    rerender({ space: "42" });
+    await waitFor(() => expect(result.current.list).toEqual([]));
+    act(() => oldApply({ action: "updated", assignments: [a(1, 1234, 7, { status: "done", version: 2 })] }));
+    expect(result.current.list).toEqual([]);
+    expect(localStorage.getItem("cs-assignments:42:2025")).toBe("[]");
+    expect(JSON.parse(localStorage.getItem("cs-assignments:41:2025")!)[0].status).toBe("open");
+  });
+
   it("badge wording: you first, then names", () => {
     expect(assignedLabel([], 7)).toBeNull();
     expect(assignedLabel([a(1, 1, 8)], 7)).toBe("Assigned to Sam");

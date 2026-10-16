@@ -120,6 +120,29 @@ describe("assignments on the Scout page", () => {
     await waitFor(() => expect((screen.getByLabelText("Event code") as HTMLInputElement).value).toBe(EV));
   });
 
+  it("the assignment's event only holds in its space: switching space while the form is open falls back to that space's defaults", async () => {
+    const u = userAs("member");
+    u.controlPoint!.workspaces = [...u.controlPoint!.workspaces!, { id: "904", name: "Bolt Bots", role: "member" }];
+    h.personal.user = u;
+    localStorage.setItem("cs-scout-tpl:904:2025", JSON.stringify({ workspaceId: "904", season: 2025, version: 0, settingsVersion: 0, match: null, pit: null, updatedAt: null, updatedBy: null }));
+    show(`/scout?space=${WS}&season=2025&view=assignments`);
+    await waitFor(() => expect(myCards()).toHaveLength(2));
+    fireEvent.click(within(myCards()[1]).getByRole("button", { name: /Scout/ }));
+    await waitFor(() => expect((screen.getByLabelText("Event code") as HTMLInputElement).value).toBe(EV));
+    fireEvent.click(within(screen.getByRole("group", { name: "Scout space" })).getByRole("button", { name: /Bolt Bots/ }));
+    await waitFor(() => expect((screen.getByLabelText("Event code") as HTMLInputElement).value).toBe(""));
+  });
+
+  it("an entry change asks the server for progress again (so a deleted entry stops counting)", async () => {
+    saveScoutEntry({ uuid: "refresh00001", season: 2025, team: 1234, eventCode: EV, matchLabel: "Q1", kind: "match", data: {}, notes: "", workspaceId: WS });
+    show(`/scout?space=${WS}&season=2025`);
+    await waitFor(() => expect(screen.getAllByText(/Assigned to/).length).toBeGreaterThan(0));
+    const gets = () => calls.filter((c) => c.method === "GET" && c.path.includes("/assignments?")).length;
+    const before = gets();
+    fireEvent.click(screen.getByRole("button", { name: "Delete entry" }));
+    await waitFor(() => expect(gets()).toBeGreaterThan(before), { timeout: 5000 });
+  });
+
   it("admin: the Assign sheet picks members and several teams, warns about a team someone holds, and still assigns", async () => {
     h.personal.user = userAs("admin");
     show(`/scout?space=${WS}&season=2025&view=assignments`);

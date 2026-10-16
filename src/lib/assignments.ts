@@ -125,8 +125,12 @@ export function useAssignments(space: string | null, season: number, live: LiveM
     return () => clearInterval(t);
   }, [live, space, fetchList]);
 
+  // The space and season on screen now: a change reply from an earlier one (the member switched while it
+  // was on its way) is dropped, never mixed into this list or saved under the wrong key.
+  const shown = useRef({ space, season });
+  shown.current = { space, season };
   const apply = useCallback((n: AssignmentNotice) => {
-    if (!space) return;
+    if (!space || shown.current.space !== space || shown.current.season !== season) return;
     if (n.action === "deleted") for (const a of n.assignments) if (Number.isSafeInteger(a?.id)) deletedIds.current.add(a.id);
     if (inflight.current > 0) log.current.push({ seq: ++seq.current, notice: n });
     setList((cur) => { const next = applyNotice(cur, n, season, deletedIds.current); store(space, season, next); return next; });
