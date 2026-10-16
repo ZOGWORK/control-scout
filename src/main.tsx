@@ -22,6 +22,8 @@ import { OwnerRoute } from "./pages/OwnerRoute";
 import { RouteErrorBoundary } from "./components/RouteErrorBoundary";
 import { ErrorReportPrompt } from "./components/layout/ErrorReportPrompt";
 import { FirstRunTour } from "./components/layout/FirstRunTour";
+import { InstallNudge } from "./components/layout/InstallNudge";
+import { captureInstallPrompt } from "./lib/installNudge";
 // The landing page is part of the main bundle, not lazy: its API calls then start in
 // the same render as the app's own (/api/meta, /api/auth/me), with no second round.
 import Home from "./pages/Home";
@@ -54,16 +56,20 @@ const PAGES = {
   PrivacyPage: lazyPage(() => import("./pages/PrivacyPage")),
   TermsPage: lazyPage(() => import("./pages/TermsPage")),
   ContactPage: lazyPage(() => import("./pages/ContactPage")),
+  MatchReportPage: lazyPage(() => import("./pages/MatchReportPage")),
   PowerRankingsPage: lazyPage(() => import("./pages/PowerRankingsPage")),
   NotFound: lazyPage(() => import("./pages/NotFound")),
 } satisfies Record<PageModule, unknown>;
-const { TeamPage, EventsPage, RecordsPage, RankingsPage, EventPage, PredictPage, ComparePage, MyTeamPage, ShortlistPage, ScoutPage, DownloadPage, SettingsPage, MethodologyPage, PrivacyPage, TermsPage, ContactPage, PowerRankingsPage, NotFound } = PAGES;
+const { TeamPage, EventsPage, RecordsPage, RankingsPage, EventPage, PredictPage, ComparePage, MyTeamPage, ShortlistPage, ScoutPage, DownloadPage, SettingsPage, MethodologyPage, PrivacyPage, TermsPage, ContactPage, MatchReportPage, PowerRankingsPage, NotFound } = PAGES;
 
 // Offline: the service worker precaches the app so it opens with no signal.
 // Production builds only (dev serves unbundled modules).
 if (import.meta.env.PROD && "serviceWorker" in navigator) {
   window.addEventListener("load", () => { navigator.serviceWorker.register("/sw.js").catch(() => { /* offline support is a bonus */ }); });
 }
+
+// The browser's install offer can come before the app has mounted: hold it for the nudge (src/lib/installNudge.ts).
+captureInstallPrompt();
 
 // Uncaught errors and unhandled rejections offer a report (src/lib/errorReporting.ts), from the very start.
 installErrorReporting();
@@ -96,6 +102,7 @@ void ready.catch(() => { /* a failed load is retried (and shown) by the page's o
                   <Route path="/rankings" element={<RankingsPage />} />
                   <Route path="/events" element={<EventsPage />} />
                   <Route path="/events/:season/:code" element={<EventPage />} />
+                  <Route path="/events/:season/:code/match/:key" element={<MatchReportPage />} />
                   <Route path="/predict" element={<PredictPage />} />
                   <Route path="/predict/accuracy" element={<Navigate to={{ pathname: "/methodology", hash: "#accuracy" }} replace />} />
                   <Route path="/compare" element={<ComparePage />} />
@@ -126,6 +133,7 @@ void ready.catch(() => { /* a failed load is retried (and shown) by the page's o
             <CanonicalSync />
             <ConsentBanner />
             <FirstRunTour />
+            <InstallNudge />
             <PageViews />
           </SearchProvider>
         </MetaProvider>

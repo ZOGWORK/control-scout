@@ -4,13 +4,15 @@
 // prediction against the result with its reasons, and the match's video.
 import { useState } from "react";
 import { Link } from "react-router-dom";
-import { ChevronLeft, ChevronRight, PlayCircle } from "lucide-react";
+import { ChevronLeft, ChevronRight, ClipboardList, PlayCircle } from "lucide-react";
 import type { MatchDetail, MatchView } from "../shared/api";
+import { matchReportHref } from "../shared/matchReport";
 import { useApi } from "../lib/api";
 import { matchTime, oddsPct } from "../lib/format";
 import { Async } from "./states";
 import { CalibrationLine, ConfidenceBadge, FactorList, KIND_LABEL, WinBar } from "./predict";
 import { VideoPanel } from "./MatchVideo";
+import { ShareMatch } from "./ShareMatch";
 import { cn } from "./cn";
 
 type Side = "red" | "blue";
@@ -48,6 +50,7 @@ function Body({ d, eventName }: { d: MatchDetail; eventName?: string }) {
         {m.time && <span>{matchTime(m.time)}</span>}
         {eventName !== undefined && <Link to={href(m.key)} className="underline-offset-2 hover:underline">{d.event.name}</Link>}
         {m.video && <a href={m.video} target="_blank" rel="noreferrer noopener" className="inline-flex items-center gap-1 hover:text-text-base"><PlayCircle className="size-3.5" /> Official video</a>}
+        <Link to={matchReportHref(m)} className="inline-flex items-center gap-1 font-medium text-accent-text underline-offset-2 hover:underline"><ClipboardList className="size-3.5" aria-hidden /> Know your match</Link>
         <span className="ml-auto flex items-center gap-1">
           {d.prev && <Link to={href(d.prev.key)} className="inline-flex items-center rounded px-1.5 py-0.5 hover:bg-text-base/[0.06] hover:text-text-base" aria-label={`Previous match, ${d.prev.label}`}><ChevronLeft className="size-3.5" />{d.prev.label}</Link>}
           {d.next && <Link to={href(d.next.key)} className="inline-flex items-center rounded px-1.5 py-0.5 hover:bg-text-base/[0.06] hover:text-text-base" aria-label={`Next match, ${d.next.label}`}>{d.next.label}<ChevronRight className="size-3.5" /></Link>}
@@ -172,11 +175,18 @@ function Prediction({ d }: { d: MatchDetail }) {
   const played = m.played && m.red.score && m.blue.score;
   const tie = played && m.red.score!.total === m.blue.score!.total;
   const called = played && !tie ? (p.pRed > 0.5) === (m.red.score!.total > m.blue.score!.total) : null;
+  // The robots on the field: the lineup the call was made for (and the share card names).
+  const red = m.red.teams.filter((t) => t.onField).map((t) => t.number), blue = m.blue.teams.filter((t) => t.onField).map((t) => t.number);
   return (
     <section className="rounded-xl border border-border bg-card p-4" aria-label="Prediction">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <p className="text-xs text-text-muted">{KIND_LABEL[p.kind]}</p>
-        <ConfidenceBadge tier={p.tier} />
+        <div className="flex items-center gap-2">
+          <ConfidenceBadge tier={p.tier} />
+          {red.length > 0 && blue.length > 0 && (
+            <ShareMatch query={{ season: m.season, red, blue, event: m.code, match: m.key }} pRed={p.pRed} played={!!played} />
+          )}
+        </div>
       </div>
       <div className="mt-3 flex items-center gap-2">
         <span className="w-10 text-right text-sm font-semibold tabular-nums text-red-alliance">{oddsPct(p.pRed)}</span>

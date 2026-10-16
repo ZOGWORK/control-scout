@@ -3,8 +3,9 @@
 import { Suspense, lazy, useEffect, useRef, useState } from "react";
 import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 import { Link } from "react-router-dom";
-import { Check, ChevronDown, CircleDashed, Gauge, PlayCircle, ShieldCheck, Video, X } from "lucide-react";
+import { Check, ChevronDown, CircleDashed, ClipboardList, Gauge, PlayCircle, ShieldCheck, Video, X } from "lucide-react";
 import type { ConfidenceTier, Factor, MatchPredictionView, MatchView } from "../shared/api";
+import { matchReportHref } from "../shared/matchReport";
 import { cn } from "./cn";
 import { Tooltip, TooltipContent, TooltipTrigger } from "./ui/overlay";
 import { matchTime, oddsPct } from "../lib/format";
@@ -227,6 +228,10 @@ export function MatchRow({ m, highlight, showEvent, eventName, open, onToggle, o
           {p && <TierMark tier={p.tier} />}
           {p?.kind === "live" && m.played && <span title={KIND_LABEL.live}>pre-match</span>}
           {m.video && <a href={m.video} target="_blank" rel="noreferrer noopener" className="inline-flex items-center hover:text-text-base" aria-label="Official match video"><PlayCircle className="size-3.5" /></a>}
+          {/* One tap to the pre-match scouting report (v1.6 Task 2). */}
+          <Link to={matchReportHref(m)} className="-my-1 inline-flex min-h-7 items-center gap-0.5 rounded-md border border-border bg-card px-1.5 font-medium text-text-base hover:border-accent/60 hover:text-accent-text" aria-label={`Know your match: ${m.label} scouting report`} data-report-link>
+            <ClipboardList className="size-3" aria-hidden />Report
+          </Link>
           {videos > 0 && <span className="inline-flex items-center gap-0.5 text-accent" title={`${videos} saved video link${videos > 1 ? "s" : ""}`}><Video className="size-3.5" /><span className="text-[10px]">{videos}</span></span>}
         </div>
       </div>

@@ -2,18 +2,8 @@
 
 export const pct = (p: number | null | undefined, digits = 0) => (p == null || !Number.isFinite(p) ? "—" : `${(p * 100).toFixed(digits)}%`);
 
-/**
- * Probabilities never show as a flat 0% / 100% — a simulation that never (or
- * always) saw an outcome hasn't proven it impossible (or certain) — so they
- * stop at 1% and 99%, shown as plain percentages (no "<" / ">"). Pass
- * `decided` only when the outcome has actually happened.
- */
-export function oddsPct(p: number | null | undefined, decided = false): string {
-  if (p == null || !Number.isFinite(p)) return "—";
-  if (!decided && p < 0.015) return "1%";
-  if (!decided && p > 0.985) return "99%";
-  return `${Math.round(p * 100)}%`;
-}
+// Win odds: one rule for the app and the share cards (src/shared/share.ts).
+export { oddsPct } from "../shared/share";
 
 export const num = (x: number | null | undefined, digits = 1) => (x == null || !Number.isFinite(x) ? "—" : x.toFixed(digits).replace(/\.0+$/, ""));
 export const int = (x: number | null | undefined) => (x == null || !Number.isFinite(x) ? "—" : Math.round(x).toLocaleString());

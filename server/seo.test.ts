@@ -86,6 +86,7 @@ describe("page head in the first HTML", () => {
     await run("INSERT INTO team_season_stats (season, team, opr_np, rank_np, ranked_teams, matches, wins, losses, ties) VALUES (2025, 4215, 101.64, 616, 8375, 32, 26, 6, 0)");
     await run("INSERT INTO events (season, code, name, type, venue, city, state, country, start, end, remote, hybrid, source) VALUES (2025, 'USNJNOM3', 'P1-4 PM Northern League Meet', 'LeagueMeet', 'Don Bosco Prep', 'Ramsey', 'NJ', 'USA', '2025-11-08', '2025-11-08', 0, 0, 'test')");
     await run("INSERT INTO events (season, code, name, type, city, state, country, start, end, remote, hybrid, source) VALUES (2025, 'REMOTE1', 'Remote League', 'LeagueMeet', 'Columbus', 'OH', 'USA', '2025-11-08', '2025-11-08', 1, 0, 'test')");
+    await run("INSERT INTO matches (season, code, level, series, number, label, played, source) VALUES (2025, 'USNJNOM3', 'qual', 0, 1, 'Q1', 0, 'test')");
   });
 
   it("team and event pages get their own title, description (120–160), canonical, OG and Twitter tags", async () => {
@@ -213,7 +214,8 @@ describe("page head in the first HTML", () => {
     const file = join(dir, "index.html");
     writeFileSync(file, '<html><head></head><body><div id="root"></div></body></html>');
     for (const p of ["/this-page-does-not-exist", "/privacy-policy", "/teams/999999", "/teams/0", "/teams/0000000", "/teams/abc", "/teams/0x10", "/teams/1234567", `/teams/${"9".repeat(400)}`, "/teams/4215/extra",
-      "/events/2025/NOPE", "/events/2019/USNJNOM3", "/events/abc/USNJNOM3", "/events/0x7E9/USNJNOM3", `/events/${"9".repeat(400)}/USNJNOM3`,"/events/2025/a%20b", "/events/2025", "/teams/%E0%A4%A", "/teams%2F4215"]) {
+      "/events/2025/NOPE", "/events/2019/USNJNOM3", "/events/abc/USNJNOM3", "/events/0x7E9/USNJNOM3", `/events/${"9".repeat(400)}/USNJNOM3`,"/events/2025/a%20b", "/events/2025", "/teams/%E0%A4%A", "/teams%2F4215",
+      "/events/2025/USNJNOM3/match/qual:0:99", "/events/2025/USNJNOM3/match/final", "/events/2025/NOPE/match/qual:0:1", "/events/2025/USNJNOM3/match/qual:0:1/x"]) {
       const page = await renderPage(file, p);
       expect(page.status, p).toBe(404);
       expect(page.html, p).toContain('<div id="root">'); // the app renders its own not-found page
@@ -234,11 +236,17 @@ describe("page head in the first HTML", () => {
       expect(page.html, p).not.toMatch(/owner portal/i);
     }
     expect(routes.length).toBeGreaterThan(10);
-    for (const p of [...routes, "/Teams", "/teams/4215", "/teams/004215", "/teams/0004215", `/teams/${"0".repeat(40)}4215`, "/teams/%34%32%31%35", "/%74eams", "/events/2025/%55SNJNOM3", "/events/02025/USNJNOM3","/events/2025/USNJNOM3", "/events/2025/usnjnom3"]) {
+    for (const p of [...routes, "/Teams", "/teams/4215", "/teams/004215", "/teams/0004215", `/teams/${"0".repeat(40)}4215`, "/teams/%34%32%31%35", "/%74eams", "/events/2025/%55SNJNOM3", "/events/02025/USNJNOM3","/events/2025/USNJNOM3", "/events/2025/usnjnom3", "/events/2025/USNJNOM3/match/qual:0:1", "/events/2025/usnjnom3/match/QUAL%3A0%3A1", "/events/2025/USNJNOM3/match/qual:0:01"]) {
       const page = await renderPage(file, p);
       expect(page.status, p).toBe(200);
       expect(page.html, p).toContain('rel="canonical"');
     }
+    // A match's scouting report: titled for a shared link, not indexed (v1.6 Task 2).
+    const rep = (await renderPage(file, "/events/2025/USNJNOM3/match/qual:0:1")).html;
+    expect(rep).toContain("<title>Q1 at P1-4 PM Northern League Meet: know your match · FTC Control Scout</title>");
+    expect(rep).toContain('<meta name="robots" content="noindex" />');
+    // Any spelling of the key previews under the one address the app opens.
+    expect((await renderPage(file, "/events/2025/usnjnom3/match/QUAL:0:01")).html).toContain('<link rel="canonical" href="https://controlscout.org/events/2025/USNJNOM3/match/qual:0:1" />');
     // The legal and contact pages are never a 404.
     for (const p of ["/privacy", "/terms", "/contact", "/Privacy"]) {
       const page = await renderPage(file, p);
