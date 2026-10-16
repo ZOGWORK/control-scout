@@ -5,7 +5,7 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { useSearchParams } from "react-router-dom";
 import {
-  Activity, AlertTriangle, Archive, Bug, Building2, CheckCircle2, ClipboardList, Database, DatabaseZap, ExternalLink, Gauge, HardDriveDownload,
+  Activity, AlertTriangle, Archive, Bug, Building2, CheckCircle2, ClipboardList, Database, DatabaseZap, ExternalLink, Gauge, HardDrive, HardDriveDownload,
   Inbox, LayoutDashboard, Link2, Mail, PackageOpen, Radio, RefreshCw, RotateCcw, ScrollText, ServerCog, Target, Timer, ToggleRight, Trash2, Users,
 } from "lucide-react";
 import { PageHeader, Section, EmptyState } from "../components/page";
@@ -28,6 +28,7 @@ import type {
   AuditEntry, FeedbackList, FeedbackMessage, FeedbackStatus, FlagRow, LedgerKind, OpName, OpsStatus, OwnerOverview, OwnerUsage, PredictionHealth, RouteStats,
 } from "../shared/owner";
 import type { Flag } from "../shared/flags";
+import { StorageBanner, StoragePanel } from "../components/owner/StoragePanel";
 
 const PANELS = [
   { id: "overview", label: "Overview", icon: LayoutDashboard },
@@ -37,6 +38,7 @@ const PANELS = [
   { id: "feedback", label: "Feedback", icon: Inbox },
   { id: "errors", label: "Errors", icon: Bug },
   { id: "ops", label: "Data jobs", icon: DatabaseZap },
+  { id: "storage", label: "Storage", icon: HardDrive },
   { id: "audit", label: "Audit log", icon: ScrollText },
 ] as const;
 type PanelId = (typeof PANELS)[number]["id"];
@@ -56,6 +58,7 @@ export default function OwnerPage() {
   return (
     <div className={CHART_VARS}>
       <PageHeader title="Owner" description="How Control Scout is doing, and the switches to run it. Only you can see this page." />
+      {panel !== "storage" && <StorageBanner onOpen={() => go("storage")} />}
       <Tabs value={panel} onValueChange={go}>
         <TabsList aria-label="Owner panels">
           {PANELS.map((p) => <TabsTrigger key={p.id} value={p.id}><p.icon aria-hidden />{p.label}</TabsTrigger>)}
@@ -67,6 +70,7 @@ export default function OwnerPage() {
         <TabsContent value="feedback"><FeedbackPanel /></TabsContent>
         <TabsContent value="errors"><ErrorsPanel /></TabsContent>
         <TabsContent value="ops"><OpsPanel /></TabsContent>
+        <TabsContent value="storage"><StoragePanel /></TabsContent>
         <TabsContent value="audit"><AuditPanel /></TabsContent>
       </Tabs>
     </div>
@@ -743,6 +747,8 @@ function describe(e: AuditEntry): string {
     case "ops.resync": return "Re-sync now";
     case "ops.packs": return "Rebuild offline packs";
     case "ops.caches": return "Clear caches";
+    case "storage.purge": return `Purged ${d.photos ?? 0} photos of ${String(d.eventCode ?? "") || "no event"} (${d.season})`;
+    case "storage.maintenance": return "Ran the photo cleanup";
     default: return e.action;
   }
 }

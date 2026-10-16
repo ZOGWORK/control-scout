@@ -64,6 +64,17 @@ Request metrics are kept per route pattern and UTC day in
 `request_metrics_daily` (written once a minute; a restart loses at most that
 minute).
 
+**Entry photos (Cloudflare R2).** Set `R2_ACCOUNT_ID`, `R2_ACCESS_KEY_ID`,
+`R2_SECRET_ACCESS_KEY`, `R2_BUCKET` (`control-scout-photos`) and `R2_ENDPOINT`
+(the bucket's S3 API endpoint) to let workspace members attach photos to scout
+entries. Optional: `R2_SOFT_CAP_GB` (default 9.5; new uploads stop there, under
+the 10 GB free tier). Without the four required values photos are off and their
+UI is hidden everywhere; nothing else changes. Bucket, CORS and token setup, the
+nightly expiry and the storage guardrails: [r2-photos.md](r2-photos.md). The
+owner portal's **Storage** panel shows usage against 10 GB per event, with a
+confirmed, audited purge. Never set `R2_FAKE` on a server (it's ignored in
+production anyway).
+
 ## 4. Data — pick one (before the service first starts)
 
 **Fast (recommended): copy tonight's synced database** (4 seasons, ~120k
