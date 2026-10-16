@@ -12,6 +12,7 @@
 // upload: put local files into a file input, e.g. a photo to attach);
 // selectors are Playwright's (role=button[name="Filters"], text=Apply, css).
 // --name <label> goes in the file name, to tell several states of one route apart.
+// --tour lets the first-run tour show (it's kept out of shots otherwise).
 //
 // Handles the fiddly parts once: real servers (starts API + Vite if they
 // aren't running), 2x device scale, waiting until data has loaded (network
@@ -112,6 +113,10 @@ async function capture(browser: Browser, route: string, vp: keyof typeof SIZES, 
   if (Object.keys(STORAGE).length) await ctx.addInitScript((entries) => { for (const [k, v] of Object.entries(entries)) localStorage.setItem(k, v); }, STORAGE);
   // The first-visit privacy banner would sit on every shot: answer it ("No thanks") unless --banner asks to see it.
   if (!flag("banner") && !("cs-consent" in STORAGE)) await ctx.addInitScript(() => localStorage.setItem("cs-consent", JSON.stringify({ analytics: false, at: "2026-01-01T00:00:00.000Z", v: 1 })));
+  // The first-run tour never shows to a browser driven by automation (this one), so it stays out of shots;
+  // --tour lets it show (src/lib/tour.ts, cs-tour-demo). Each shot is a fresh visitor, so it opens on step 1:
+  // wait for it with --steps '[{"waitFor":"[data-tour-card]"}]' and press ArrowRight for the later steps.
+  if (flag("tour")) await ctx.addInitScript(() => localStorage.setItem("cs-tour-demo", "1"));
   if (light) await ctx.addInitScript(() => localStorage.setItem("cs-personal:settings", JSON.stringify({ value: { theme: "light", density: "comfortable", notify: {} }, updatedAt: 1 })));
   const page = await ctx.newPage();
   const errors: string[] = [];

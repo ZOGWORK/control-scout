@@ -21,6 +21,7 @@ import { onFlags, startFlags } from "./lib/flags";
 import { OwnerRoute } from "./pages/OwnerRoute";
 import { RouteErrorBoundary } from "./components/RouteErrorBoundary";
 import { ErrorReportPrompt } from "./components/layout/ErrorReportPrompt";
+import { FirstRunTour } from "./components/layout/FirstRunTour";
 // The landing page is part of the main bundle, not lazy: its API calls then start in
 // the same render as the app's own (/api/meta, /api/auth/me), with no second round.
 import Home from "./pages/Home";
@@ -119,6 +120,7 @@ void ready.catch(() => { /* a failed load is retried (and shown) by the page's o
             <ScoutQueueSync />
             <CanonicalSync />
             <ConsentBanner />
+            <FirstRunTour />
             <PageViews />
           </SearchProvider>
         </MetaProvider>

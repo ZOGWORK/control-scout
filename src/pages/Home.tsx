@@ -60,7 +60,7 @@ function Hero() {
       </h1>
       <p className="mx-auto mt-3 max-w-xl text-muted-foreground">Every FTC team, event and match — with predictions that keep a public score of how often they come true. Free, no login.</p>
       <SearchBox
-        size="lg" inputRef={searchRef} hint={SEARCH_HINT}
+        size="lg" inputRef={searchRef} hint={SEARCH_HINT} tour="search"
         label="Search teams, events and matches"
         placeholder="Team number or name (typos are fine), an event, or “USNJQ1 Q12”…"
         onPick={(h) => nav(hitHref(h))}
@@ -69,7 +69,7 @@ function Hero() {
       {/* The page's main actions, above the fold at every size. No entrance
           animation of their own: they paint with the rest of the hero. */}
       <div className="mx-auto mt-5 flex max-w-2xl flex-wrap items-center justify-center gap-3">
-        <Button size="lg" asChild className="max-sm:flex-1"><Link to="/predict"><Sparkles /> Predict a match</Link></Button>
+        <Button size="lg" asChild className="max-sm:flex-1"><Link to="/predict" data-tour="predict"><Sparkles /> Predict a match</Link></Button>
         {myTeam
           ? <Button size="lg" variant="secondary" asChild className="max-sm:flex-1"><Link to="/my-team"><Star /> Your team <span className="font-mono">{myTeam}</span></Link></Button>
           : <Button size="lg" variant="secondary" asChild className="max-sm:flex-1"><Link to="/events"><CalendarDays /> Browse events</Link></Button>}
