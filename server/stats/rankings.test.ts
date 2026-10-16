@@ -3,11 +3,14 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import type { RatingBook } from "@control-scout/predict-engine";
 import { all, migrate, openDb, run, setDb } from "../db";
+import { CURRENT_SEASON } from "../data/seasons";
 import { ScoutForecaster } from "../predict/engine";
 import { retainFrom, snapshotRankings, wantedWeeks } from "./rankings";
 import { SNAPSHOT_RETAIN_WEEKS, WEEK_MS, weekStartMs } from "../../src/shared/rankings";
 
 const at = (iso: string) => Date.parse(iso);
+// A finished season (stops after its last match) and the current one (goes on through breaks).
+const DONE = CURRENT_SEASON - 1;
 
 describe("wantedWeeks", () => {
   it("every Monday after the first match through the first Monday after the last, never ahead of now", () => {
@@ -17,6 +20,11 @@ describe("wantedWeeks", () => {
     expect(wantedWeeks(at("2026-10-03T15:00:00Z"), at("2026-10-29T18:00:00Z"), at("2026-10-30T12:00:00Z"))).toEqual(["2026-10-05", "2026-10-12", "2026-10-19", "2026-10-26"]);
     // Nothing yet: the first match is this week.
     expect(wantedWeeks(at("2026-10-27T15:00:00Z"), at("2026-10-28T18:00:00Z"), at("2026-10-30T12:00:00Z"))).toEqual([]);
+  });
+  it("the current season goes on through a break: every Monday up to this week's", () => {
+    // Last match Oct 21, now Nov 13: a finished season stops at Oct 26, the current one doesn't.
+    expect(wantedWeeks(at("2026-10-03T15:00:00Z"), at("2026-10-21T18:00:00Z"), at("2026-11-13T12:00:00Z"))).toEqual(["2026-10-05", "2026-10-12", "2026-10-19", "2026-10-26"]);
+    expect(wantedWeeks(at("2026-10-03T15:00:00Z"), at("2026-10-21T18:00:00Z"), at("2026-11-13T12:00:00Z"), true)).toEqual(["2026-10-05", "2026-10-12", "2026-10-19", "2026-10-26", "2026-11-02", "2026-11-09"]);
   });
   it("nothing older than the retention window", () => {
     const now = at("2027-12-01T00:00:00Z");
@@ -63,10 +71,10 @@ describe("snapshotRankings", () => {
       : { 5: [85, 7], 7: [91, 8], 9: [60, 3], 3: [40, 4] });
 
   it("writes each wanted week once, ranked by the shared rules; a second run writes nothing", async () => {
-    const f = fakeForecaster(2026, first, last, ratingsAt);
+    const f = fakeForecaster(DONE, first, last, ratingsAt);
     const now = at("2026-10-23T09:00:00Z");
     const r = await snapshotRankings({ now, forecaster: f as unknown as ScoutForecaster });
-    expect(r.written).toEqual([{ season: 2026, week: "2026-10-05", teams: 3 }, { season: 2026, week: "2026-10-12", teams: 3 }, { season: 2026, week: "2026-10-19", teams: 4 }]);
+    expect(r.written).toEqual([{ season: DONE, week: "2026-10-05", teams: 3 }, { season: DONE, week: "2026-10-12", teams: 3 }, { season: DONE, week: "2026-10-19", teams: 4 }]);
     expect(f.replays).toBe(1); // one replay for every missing week
     const rows = await all<any>("SELECT week, team, rank, rating FROM ranking_snapshots ORDER BY week, rank");
     expect(rows.map((x) => [x.week, x.rank, x.team, x.rating])).toEqual([
@@ -81,32 +89,40 @@ describe("snapshotRankings", () => {
   });
 
   it("a written week is never rewritten, even when the data behind it changes", async () => {
-    const f1 = fakeForecaster(2026, first, last, ratingsAt);
+    const f1 = fakeForecaster(DONE, first, last, ratingsAt);
     await snapshotRankings({ now: at("2026-10-13T09:00:00Z"), forecaster: f1 as unknown as ScoutForecaster });
-    const f2 = fakeForecaster(2026, first, last, () => ({ 5: [1, 9], 7: [2, 9], 3: [3, 9] }));
+    const f2 = fakeForecaster(DONE, first, last, () => ({ 5: [1, 9], 7: [2, 9], 3: [3, 9] }));
     const r = await snapshotRankings({ now: at("2026-10-23T09:00:00Z"), forecaster: f2 as unknown as ScoutForecaster });
     expect(r.written.map((w) => w.week)).toEqual(["2026-10-19"]);
     expect((await all<any>("SELECT team FROM ranking_snapshots WHERE week = '2026-10-05' ORDER BY rank")).map((x) => x.team)).toEqual([5, 7, 3]);
   });
 
   it("prunes weeks past the retention window, keeping at least 26 weeks", async () => {
-    const f = fakeForecaster(2026, first, last, ratingsAt);
+    const f = fakeForecaster(DONE, first, last, ratingsAt);
     await snapshotRankings({ now: at("2026-10-23T09:00:00Z"), forecaster: f as unknown as ScoutForecaster });
     // 26 weeks on: all kept.
-    let r = await snapshotRankings({ now: at("2026-10-23T09:00:00Z") + 26 * WEEK_MS, forecaster: fakeForecaster(2026, first, last, ratingsAt) as unknown as ScoutForecaster });
+    let r = await snapshotRankings({ now: at("2026-10-23T09:00:00Z") + 26 * WEEK_MS, forecaster: fakeForecaster(DONE, first, last, ratingsAt) as unknown as ScoutForecaster });
     expect(r.pruned).toBe(0);
     // (that run also writes the season's final week, the Monday after its last match, now in the past)
     expect((await all<any>("SELECT week FROM ranking_weeks ORDER BY week")).map((x) => x.week)).toEqual(["2026-10-05", "2026-10-12", "2026-10-19", "2026-10-26"]);
     // Past the window: the oldest weeks (rows and markers) go.
     const later = weekStartMs("2026-10-12") + SNAPSHOT_RETAIN_WEEKS * WEEK_MS + 3600_000;
-    r = await snapshotRankings({ now: later, forecaster: fakeForecaster(2026, first, last, ratingsAt) as unknown as ScoutForecaster });
+    r = await snapshotRankings({ now: later, forecaster: fakeForecaster(DONE, first, last, ratingsAt) as unknown as ScoutForecaster });
     expect(r.pruned).toBe(3);
     expect((await all<any>("SELECT week FROM ranking_weeks ORDER BY week")).map((x) => x.week)).toEqual(["2026-10-12", "2026-10-19", "2026-10-26"]);
     expect((await all<any>("SELECT DISTINCT week FROM ranking_snapshots ORDER BY week")).map((x) => x.week)).toEqual(["2026-10-12", "2026-10-19", "2026-10-26"]);
   });
 
+  it("the current season keeps its weekly snapshots through a break, so last week stays a week ago", async () => {
+    const f = fakeForecaster(CURRENT_SEASON, first, last, ratingsAt);
+    const r = await snapshotRankings({ now: at("2026-11-13T12:00:00Z"), forecaster: f as unknown as ScoutForecaster });
+    expect(r.written.map((w) => w.week)).toEqual(["2026-10-05", "2026-10-12", "2026-10-19", "2026-10-26", "2026-11-02", "2026-11-09"]);
+    // No matches since Oct 21: the break weeks hold the same teams in the same order.
+    expect((await all<any>("SELECT team FROM ranking_snapshots WHERE week = '2026-11-09' ORDER BY rank")).map((x) => x.team)).toEqual([7, 5, 9, 3]);
+  });
+
   it("a season with no rated matches gets no weeks", async () => {
-    const f = { ...fakeForecaster(2026, first, last, ratingsAt), seasonEvents: () => [] };
+    const f = { ...fakeForecaster(DONE, first, last, ratingsAt), seasonEvents: () => [] };
     expect((await snapshotRankings({ now: at("2026-10-23T09:00:00Z"), forecaster: f as unknown as ScoutForecaster })).written).toEqual([]);
   });
 });

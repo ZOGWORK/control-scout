@@ -22,13 +22,16 @@ export const retainFrom = (now: number) => weekOf(now - SNAPSHOT_RETAIN_WEEKS * 
 
 /**
  * The weeks a season should have a snapshot for at `now`: every Monday after its first rated match,
- * up to and including the first Monday after its last one (its final standing), never in the future,
- * and no older than the retention window.
+ * never in the future, and no older than the retention window. The current season goes on through
+ * this week's Monday, breaks included (a week with no matches still gets its snapshot, so "last
+ * week" is always a week ago); a finished season stops at the first Monday after its last match
+ * (its final standing).
  */
-export function wantedWeeks(firstMatch: number, lastMatch: number, now: number): string[] {
+export function wantedWeeks(firstMatch: number, lastMatch: number, now: number, ongoing = false): string[] {
   const out: string[] = [];
   const from = Math.max(weekStartMs(weekOf(firstMatch)) + WEEK_MS, weekStartMs(retainFrom(now)));
-  const to = Math.min(weekStartMs(weekOf(lastMatch)) + WEEK_MS, weekStartMs(weekOf(now)));
+  const thisWeek = weekStartMs(weekOf(now));
+  const to = ongoing ? thisWeek : Math.min(weekStartMs(weekOf(lastMatch)) + WEEK_MS, thisWeek);
   for (let t = from; t <= to; t += WEEK_MS) out.push(weekOf(t));
   return out;
 }
@@ -50,7 +53,7 @@ export async function snapshotRankings(o: { now?: number; log?: Log; forecaster?
     let first = Infinity, last = -Infinity;
     for (const t of times) { if (t < first) first = t; if (t > last) last = t; }
     const have = new Set((await all<{ week: string }>("SELECT week FROM ranking_weeks WHERE season = ?", [season])).map((r) => r.week));
-    const missing = wantedWeeks(first, last, now).filter((w) => !have.has(w));
+    const missing = wantedWeeks(first, last, now, season === CURRENT_SEASON).filter((w) => !have.has(w));
     if (!missing.length) continue;
     const rowsByWeek = new Map<string, { team: number; rating: number; rank: number }[]>();
     f.replayTo(season, missing.map(weekStartMs), (ms, book) => {
