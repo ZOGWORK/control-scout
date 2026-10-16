@@ -30,8 +30,8 @@ const isPhone = () => typeof window !== "undefined" && !!window.matchMedia?.("(m
 const who = (p: PickPerson | null, me: PickPerson) => (!p ? "" : p.accountId != null && p.accountId === me.accountId ? "you" : p.name || "a member");
 
 /** The shared note, and who added the team and last wrote the note. */
-function SharedNote({ pick, me, onSave, unsaved, saved }: {
-  pick: Pick; me: PickPerson; onSave: (text: string) => void;
+function SharedNote({ pick, me, onSave, unsaved, saved, readOnly = false }: {
+  pick: Pick; me: PickPerson; onSave: (text: string) => void; readOnly?: boolean;
   /** This member's note the server didn't take, and the note the server has: the field keeps the first, marked unsaved. */
   unsaved?: string; saved?: string;
 }) {
@@ -39,8 +39,8 @@ function SharedNote({ pick, me, onSave, unsaved, saved }: {
   const noteBy = pick.note && pick.noteBy && pick.noteUpdatedAt != null ? `note by ${who(pick.noteBy, me)} · ${agoShort(pick.noteUpdatedAt, now)}` : null;
   return (
     <div className="min-w-0">
-      <NoteField team={pick.team} value={unsaved ?? pick.note} stored={unsaved !== undefined ? saved ?? "" : pick.note} onSave={onSave}
-        failedText="Not saved. Your text is still here: press Enter to try again, or Escape to put back the saved note." label={`Shared note on team ${pick.team}, seen by the whole workspace`} placeholder="Add a note for the team…" maxLength={MAX_PICK_NOTE} />
+      {readOnly ? (pick.note ? <p className="whitespace-pre-wrap break-words px-1.5 text-sm">{pick.note}</p> : null) : <NoteField team={pick.team} value={unsaved ?? pick.note} stored={unsaved !== undefined ? saved ?? "" : pick.note} onSave={onSave}
+        failedText="Not saved. Your text is still here: press Enter to try again, or Escape to put back the saved note." label={`Shared note on team ${pick.team}, seen by the whole workspace`} placeholder="Add a note for the team…" maxLength={MAX_PICK_NOTE} />}
       <p className="truncate px-1.5 text-[11px] text-text-muted" title={new Date(pick.addedAt).toLocaleString()}>
         Added by {who(pick.addedBy, me)}{noteBy ? ` · ${noteBy}` : ""}
       </p>
@@ -152,11 +152,11 @@ export function SharedPicklist({ workspaceId, workspaceName, season, live, me, s
     const p = byPick.get(t.team)!;
     return {
       t, rank, season, open: open.has(t.team), dragging: reorder.dragging === t.team, idPrefix: "picklist",
-      note: <SharedNote pick={p} me={me} unsaved={pl.unsavedNote(t.team)} saved={pl.savedNote(t.team)} onSave={(text) => change({ op: "note", team: t.team, note: text })} />,
+      readOnly, note: <SharedNote pick={p} me={me} readOnly={readOnly} unsaved={pl.unsavedNote(t.team)} saved={pl.savedNote(t.team)} onSave={(text) => change({ op: "note", team: t.team, note: text })} />,
       selected: selected.includes(t.team), selectDisabled: !selected.includes(t.team) && selected.length >= MAX_COMPARE, onSelect: (on: boolean) => pick(t.team, on),
       onToggle: () => toggle(t.team), onRemove: () => remove(t.team), handle: handleFor(t.team),
       compareLink: compareHref([t.team, ...teams.filter((x) => x !== t.team).slice(0, MAX_COMPARE - 1)], season),
-      detail: <TeamDetail t={t} season={season} rank={rank} total={teams.length} topPicks={teams.slice(0, MAX_COMPARE)} onMove={(d) => move(t.team, d)} onRemove={() => remove(t.team)} />,
+      detail: <TeamDetail t={t} season={season} rank={rank} total={teams.length} topPicks={teams.slice(0, MAX_COMPARE)} onMove={(d) => move(t.team, d)} onRemove={() => remove(t.team)} readOnly={readOnly} />,
     };
   };
 
@@ -213,7 +213,6 @@ export function SharedPicklist({ workspaceId, workspaceName, season, live, me, s
                   : <>No numbers yet for {missing.join(", ")}.</>}
               </p>
             ))}
-            <fieldset disabled={readOnly} className="m-0 min-w-0 border-0 p-0">
             {view === "list" ? (
               <div className="overflow-hidden rounded-2xl border border-border bg-card">
                 <ListHeader />
@@ -226,7 +225,6 @@ export function SharedPicklist({ workspaceId, workspaceName, season, live, me, s
                 {rows.map((t) => <GridCard key={t.team} {...common(t, rankFor(t.team))} />)}
               </ol>
             )}
-            </fieldset>
           </>
         )}
     </Section>
