@@ -103,6 +103,12 @@ https://controlscout.org.
   of getting nginx's 502, and a stopping server finishes the requests it's serving first (up to 10 s).
   Because a request to the open socket starts the server, **stopping the site needs both units**:
   `sudo systemctl stop control-scout.socket control-scout`, then `start` both again.
+- **Live scout stream:** `GET /api/scout/stream` is server-sent events (server/scout/stream.ts). The nginx
+  site gives it its own `location` with `proxy_buffering off` and a 1 h `proxy_read_timeout` (the server
+  sends a heartbeat every 25 s), written by `deploy/oracle-vm-setup.sh` on every update. A stopping server
+  ends its streams first, and clients reconnect to the next one from where they were. The live updates
+  are in-process: this works because the VM runs **one** server process. A deploy with several server
+  instances would need a shared bus behind `server/scout/bus.ts` (Redis pub/sub, Postgres LISTEN/NOTIFY).
 - **Rollback:** on the VM, `sudo /opt/control-scout/bin/rollback` lists the installed releases, and
   `sudo /opt/control-scout/bin/rollback <release>` switches to one and waits until it's up. For a release
   from before socket activation, it also puts back the service that release expects (the server opening
