@@ -46,6 +46,11 @@ describe("describeActivity", () => {
       .toBe("current season, no event");
     expect(describeActivity(item({ type: "member.left", actor: { accountId: null, name: "Control Point" }, details: { name: "Sam" } })))
       .toEqual({ verb: "removed", subject: "Sam from the workspace" });
+    // Task 9: removed by an admin in Scout's settings, or leaving by themselves.
+    expect(describeActivity(item({ type: "member.left", actor: { accountId: 7, name: "Ada" }, details: { name: "Sam", origin: "control-scout" } })))
+      .toEqual({ verb: "removed", subject: "Sam from the workspace", note: "in Control Scout" });
+    expect(describeActivity(item({ type: "member.left", actor: { accountId: 7, name: "Ada" }, details: { name: "Ada", origin: "control-scout", self: true } })))
+      .toEqual({ verb: "left", subject: "the workspace" });
     expect(describeActivity(item({ type: "picklist.changed", details: {} }))).toEqual({ verb: "picklist changed", subject: "" });
   });
 

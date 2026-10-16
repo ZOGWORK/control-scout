@@ -135,6 +135,22 @@ describe("followWorkspace", () => {
     expect(pull).toHaveBeenCalledTimes(2);
   });
 
+  it("polling and the pull is refused (403: no longer a member): revoked for good; other failures keep polling", async () => {
+    let status = 500;
+    const pull = vi.fn(async () => { throw Object.assign(new Error("no"), { status }); });
+    const { modes, stop } = follow({ EventSource: undefined, pull });
+    await act(async () => { await vi.advanceTimersByTimeAsync(POLL_MS); });
+    expect(modes.at(-1)).toBe("polling");
+    status = 403;
+    await act(async () => { await vi.advanceTimersByTimeAsync(POLL_MS); });
+    expect(modes.at(-1)).toBe("revoked");
+    const calls = pull.mock.calls.length;
+    await act(async () => { await vi.advanceTimersByTimeAsync(POLL_MS * 3); });
+    act(() => { window.dispatchEvent(new Event("online")); });
+    expect(pull).toHaveBeenCalledTimes(calls);
+    stop();
+  });
+
   it("resync: pulls, then streams from the new cursor; membership_revoked: stops for good", async () => {
     const pull = vi.fn(async () => { localStorage.setItem("cs-scout-ws-cursor:41", "5000"); });
     const { modes, stop } = follow({ pull });

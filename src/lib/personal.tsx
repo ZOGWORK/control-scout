@@ -37,11 +37,20 @@ interface PersonalApi {
   stored<K extends PersonalKey>(key: K): PersonalState[K] | null | undefined;
   signedIn(user: AccountUser): Promise<void>;
   signOut(): Promise<void>;
+  /**
+   * Ask /api/auth/me again and take the account's new answer (its Control Point workspaces and roles),
+   * without re-syncing. Also runs by itself every few minutes while the app is visible and when it comes
+   * back to the front, so a workspace removed in Control Point leaves the app (scoutSpace.ts) without a reload.
+   */
+  refreshUser(): Promise<void>;
   /** Wipe this device's personal data (account data is untouched). */
   clearLocal(): void;
 }
 
 const Ctx = createContext<PersonalApi | null>(null);
+/** How often a visible app re-reads the account (/api/auth/me), and the least gap when it comes back to the front. */
+export const USER_REFRESH_MS = 5 * 60_000;
+export const USER_REFRESH_MIN_GAP_MS = 60_000;
 const LS = (k: PersonalKey) => `cs-personal:${k}`;
 /** Key → the edit version (updatedAt) still waiting to reach the server. */
 const PENDING = "cs-personal-pending-v2";
@@ -278,7 +287,38 @@ export function PersonalProvider({ children }: { children: ReactNode }) {
     } catch { return undefined; } // blocked or corrupt: unknown
   }, []);
 
-  const api = useMemo<PersonalApi>(() => ({ state, user, providers, sync, syncReady, set, update, stored, signedIn, signOut, clearLocal }), [state, user, providers, sync, syncReady, set, update, stored, signedIn, signOut, clearLocal]);
+  const lastRefresh = useRef(Date.now()); // the page load just asked
+  // Each refresh's order, and the newest one applied: a reply older than that is dropped.
+  const refreshSeq = useRef(0);
+  const appliedSeq = useRef(0);
+  const refreshUser = useCallback(async () => {
+    const u = userRef.current;
+    if (!u) return;
+    const mine = generation.current;
+    const seq = ++refreshSeq.current;
+    lastRefresh.current = Date.now();
+    try {
+      const r = await apiFetch<{ user: AccountUser | null }>("/api/auth/me");
+      // A newer refresh already answered (e.g. the one after leaving a workspace): this older reply is stale.
+      if (seq < appliedSeq.current) return;
+      // Signed out meanwhile, or another account: that's the next page load's to handle, not this refresh's.
+      if (generation.current !== mine || !r.user || r.user.id !== userRef.current?.id) return;
+      appliedSeq.current = seq;
+      if (JSON.stringify(r.user) === JSON.stringify(userRef.current)) return;
+      userRef.current = r.user;
+      setUser(r.user);
+    } catch { /* offline: the next one tries again */ }
+  }, []);
+  useEffect(() => {
+    const due = () => document.visibilityState === "visible" && Date.now() - lastRefresh.current >= USER_REFRESH_MIN_GAP_MS;
+    const onFront = () => { if (due()) void refreshUser(); };
+    const t = setInterval(() => { if (document.visibilityState === "visible") void refreshUser(); }, USER_REFRESH_MS);
+    document.addEventListener("visibilitychange", onFront);
+    window.addEventListener("focus", onFront);
+    return () => { clearInterval(t); document.removeEventListener("visibilitychange", onFront); window.removeEventListener("focus", onFront); };
+  }, [refreshUser]);
+
+  const api = useMemo<PersonalApi>(() => ({ state, user, providers, sync, syncReady, set, update, stored, signedIn, signOut, refreshUser, clearLocal }), [state, user, providers, sync, syncReady, set, update, stored, signedIn, signOut, refreshUser, clearLocal]);
   return <Ctx.Provider value={api}>{children}</Ctx.Provider>;
 }
 
