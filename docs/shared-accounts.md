@@ -555,7 +555,7 @@ day. Server code: `server/scout/activityLog.ts`. Table: `workspace_activity`
 ### Version history and conflicts
 
 Last write wins, but it never silently eats someone's work. Server code:
-`server/scout/history.ts`. Table: `workspace_entry_versions` (migration 18,
+`server/scout/history.ts`. Table: `workspace_entry_versions` (migration 19,
 private). Device code: `src/lib/lostEdits.ts`, `src/components/scout/EntryHistory.tsx`.
 
 - **History.** Every accepted write that changes a workspace entry adds a
@@ -564,7 +564,7 @@ private). Device code: `src/lib/lostEdits.ts`, `src/components/scout/EntryHistor
   event, match, kind, deleted, and the template it was made with). A refused
   write, an older version that lost, a resend, or a newer stamp that changes
   nothing adds none. The last **20** versions per entry are kept; older ones are
-  pruned in the same transaction. Entries from before migration 18 start with
+  pruned in the same transaction. Entries from before migration 19 start with
   what was stored then as version 1.
 - **Not versioned.** Photos have their own list (`photos_rev`), so a restore
   never brings back or removes a photo. Personal entries have no history: they

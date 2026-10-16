@@ -189,6 +189,9 @@ export function describeActivity(i: ActivityItem): { verb: string; subject: stri
       const parts = [num(def.season) ? `season ${num(def.season)}` : "current season", str(def.eventCode) ? `event ${str(def.eventCode)}` : "no event"];
       return { verb: "changed the", subject: "defaults for new entries", note: parts.join(", ") };
     }
+    // Task 15: a comment (the text stays in the thread; the feed only says where), and an admin removing someone else's.
+    case "comment.created": return { verb: "commented on", subject: entrySubject(d) };
+    case "comment.deleted": return { verb: "deleted a comment on", subject: entrySubject(d), note: str(d.authorName) ? `by ${str(d.authorName)}` : undefined };
     case "member.joined": return { verb: "added", subject: `${str(d.name) ?? "a member"} to the workspace`, note: d.role === "admin" ? "admin" : undefined };
     // From Control Point's answer (actor "Control Point"), or removed by an admin in Scout's settings
     // (details.origin "control-scout"); details.self: they removed themselves, i.e. left.

@@ -23,6 +23,9 @@
 //       admin as actor and details.origin "control-scout" (details.self when they removed themselves),
 //       logged with the cache row's delete (controlPoint.ts dropMembership), so the refresh after it
 //       finds nothing left to log.
+//   comment.created   subject entry:<uuid>; details { uuid, season, team, kind, eventCode, matchLabel, commentId, excerpt }
+//       (comments.ts; reaches the entry author's inbox). The excerpt follows later edits and goes (details.deleted) with the comment.
+//   comment.deleted   subject entry:<uuid>; details as entries' plus commentId, authorName: only an admin deleting someone else's.
 //
 // Later tasks append their own with logActivity(): assignment.created / assignment.completed,
 // picklist.changed, comment.created, ... Readers show an unknown type generically.
