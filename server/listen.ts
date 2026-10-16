@@ -25,13 +25,16 @@ export function systemdSocket(env: NodeJS.ProcessEnv = process.env, pid = proces
  * connections, let the requests already in progress finish (at most
  * `graceMs`), then exit. With socket activation, closing here closes only this
  * process's copy of the socket; systemd keeps it open for the next server.
+ * `settle`: work a finished request left behind (the notification inbox's fan-out), awaited before exiting
+ * (within the same grace period).
  */
-export function drainOnSigterm(server: () => Server | null, log: (m: string) => void, graceMs = 10_000) {
+export function drainOnSigterm(server: () => Server | null, log: (m: string) => void, graceMs = 10_000, settle?: () => Promise<unknown>) {
   process.once("SIGTERM", () => {
     const s = server();
-    if (!s) process.exit(0);
+    const exit = () => { void Promise.resolve(settle?.()).catch(() => undefined).finally(() => process.exit(0)); };
+    if (!s) { exit(); return; }
     log("stopping: finishing requests in progress");
-    s.close(() => process.exit(0));
+    s.close(exit);
     s.closeIdleConnections();
     setTimeout(() => { log("stopping: requests still open after the grace period, exiting"); process.exit(0); }, graceMs).unref();
   });

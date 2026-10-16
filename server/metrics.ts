@@ -36,7 +36,7 @@ export function normalizeRoute(path: string): string {
     if (i === 0) return s.toLowerCase(); // "api" | "packs"
     if (/^\d+$/.test(s)) return ":n";
     if (s.includes(":")) return ":key";
-    if (s.includes(".")) return s.toLowerCase() === "latest.json" ? "latest.json" : ":file";
+    if (s.includes(".")) return ["latest.json", "export.csv"].includes(s.toLowerCase()) ? s.toLowerCase() : ":file";
     if (/^[a-z][a-zA-Z]*(-[a-z]+)*$/.test(s) && s.length <= 24) return s.toLowerCase();
     return ":id";
   });
@@ -79,7 +79,8 @@ export function recordRequest(method: string, path: string, status: number, ms: 
 /**
  * Which paths are counted: /api and /packs, except /api/health (monitors), the owner portal's own calls, and
  * the live stream (/api/scout/stream: its "latency" is how long it stayed open; the Usage panel counts open
- * streams as live connections instead).
+ * streams as live connections instead). Streamed downloads (CSV exports) are timed to their first byte
+ * (requestMetrics), so a big or slow download doesn't read as a slow route.
  */
 export const isMeasured = (path: string) =>
   /^\/(api|packs)\//i.test(path) && !/^\/api\/(health|owner|scout\/stream)(\/|$)/i.test(path);
@@ -90,7 +91,8 @@ export function requestMetrics() {
     const p = req.path;
     if (!isMeasured(p)) return next();
     const t0 = performance.now();
-    res.once("close", () => { try { recordRequest(req.method, p, res.statusCode, performance.now() - t0); } catch { /* never break a response */ } });
+    // A streamed download (CSV exports) counts to its first byte: how long the rest takes is the client's connection.
+    res.once("close", () => { try { recordRequest(req.method, p, res.statusCode, (res.locals.firstByteAt ?? performance.now()) - t0); } catch { /* never break a response */ } });
     next();
   };
 }

@@ -21,7 +21,9 @@
 //       finds nothing left to log.
 //
 // Later tasks append their own with logActivity(): assignment.created / assignment.completed,
-// picklist.changed, comment.added, entry.version_restored, ... Readers show an unknown type generically.
+// picklist.changed, comment.created, entry.version_restored, ... Readers show an unknown type generically.
+// Some also reach the notification inbox (server/inbox/inbox.ts; docs/inbox.md lists the types and the
+// details each needs to find its recipients).
 //
 // Edit coalescing: an edit to an entry by the same person within COALESCE_MS (5 minutes) of their last
 // edit to it, with nothing else logged about that entry in between, replaces that "edited" item instead of
@@ -34,6 +36,7 @@
 import type { InStatement, InValue } from "@libsql/client";
 import { all, db, get, run } from "../db.js";
 import { publishActivity, serialized, type ActivityNotice } from "./bus.js";
+import { queueInboxFanOut } from "../inbox/inbox.js";
 
 export interface ActivityActor { accountId: number | null; name: string }
 /** Membership changes come from Control Point's answer, not from a person Scout can name. */
@@ -85,6 +88,8 @@ export function activityStatement(workspaceId: string, actor: ActivityActor, typ
 export function publishLogged(workspaceId: string, rows: unknown[]): ActivityItem[] {
   const items = rows.map((r) => toItem(workspaceId, r));
   for (const it of items) publishActivity(workspaceId, it);
+  // And to the notification inbox of whoever it concerns (server/inbox/inbox.ts), after this returns.
+  queueInboxFanOut(workspaceId, items);
   return items;
 }
 
