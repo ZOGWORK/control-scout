@@ -77,7 +77,7 @@ export function parseExportFilters(query: Record<string, unknown>): { ok: true; 
   }
   if (query.q !== undefined) {
     if (typeof query.q !== "string" || query.q.length > 200) return { ok: false, error: "q must be up to 200 characters" };
-    const words = query.q.toLowerCase().split(/\s+/).filter(Boolean).slice(0, 10);
+    const words = query.q.toLowerCase().split(/\s+/).filter(Boolean); // every word applies (200 characters bound them)
     if (words.length) f.q = words;
   }
   return { ok: true, filters: f };
@@ -97,9 +97,11 @@ export function exportWhere(workspaceRowId: number, f: ExportFilters): { sql: st
   anyOf("w.author_account_id", f.author);
   anyOf("UPPER(w.match_label)", f.match);
   if (f.kind) { parts.push("w.kind = ?"); args.push(f.kind); }
-  // Free text: plain substring (instr, so % and _ are just characters), each word somewhere in the entry.
-  const haystack = "LOWER(w.team || ' ' || COALESCE(w.event_code, '') || ' ' || COALESCE(w.match_label, '') || ' ' || w.notes || ' ' || w.author_name || ' ' || w.editor_name || ' ' || w.data)";
-  for (const word of f.q ?? []) { parts.push(`instr(${haystack}, ?) > 0`); args.push(word); }
+  // Free text: plain substring (instr, so % and _ are just characters), each word somewhere in the entry: its
+  // columns, or one of its answers as decoded values (json_each: never the stored JSON's keys, quotes or escapes).
+  const columns = "LOWER(w.team || ' ' || COALESCE(w.event_code, '') || ' ' || COALESCE(w.match_label, '') || ' ' || w.notes || ' ' || w.author_name || ' ' || w.editor_name)";
+  const answers = "EXISTS (SELECT 1 FROM json_each(CASE WHEN json_valid(w.data) THEN w.data ELSE '{}' END) a WHERE instr(LOWER(CAST(a.value AS TEXT)), ?) > 0)";
+  for (const word of f.q ?? []) { parts.push(`(instr(${columns}, ?) > 0 OR ${answers})`); args.push(word, word); }
   return { sql: parts.join(" AND "), args };
 }
 
@@ -123,7 +125,18 @@ export function exportColumns(fields: Partial<Record<TemplateKind, ScoutField[]>
   })));
   const count = new Map<string, number>();
   for (const h of [...FIXED_HEADERS, OTHER_FIELDS_HEADER, ...cols.map((c) => c.header)]) count.set(norm(h), (count.get(norm(h)) ?? 0) + 1);
-  for (const c of cols) if (count.get(norm(c.header))! > 1) c.header = `${c.header} [${c.id}]`;
+  // Final names are reserved as they're given, so a suffixed name can't land on another (a field labelled
+  // "Speed [c]" beside two "Speed"s): whatever still collides gets a number until every header is unique.
+  const used = new Set<string>([...FIXED_HEADERS, OTHER_FIELDS_HEADER].map(norm));
+  const wanted = cols.map((c) => (count.get(norm(c.header))! > 1 ? `${c.header} [${c.id}]` : c.header));
+  // Plain labels first, so a field keeps its own label when only a suffixed name would clash with it.
+  const order = [...cols.keys()].sort((a, b) => Number(wanted[a] !== cols[a].header) - Number(wanted[b] !== cols[b].header));
+  for (const i of order) {
+    let h = wanted[i];
+    for (let k = 2; used.has(norm(h)); k++) h = `${wanted[i]} (${k})`;
+    used.add(norm(h));
+    cols[i].header = h;
+  }
   return cols;
 }
 
