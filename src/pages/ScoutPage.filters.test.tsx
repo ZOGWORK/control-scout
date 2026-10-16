@@ -156,6 +156,25 @@ describe("Scout feed filters (workspace)", () => {
   });
 });
 
+describe("Scout feed filters across spaces", () => {
+  it("switching spaces drops the author filter (authors are one workspace's) and keeps the rest", async () => {
+    show("/scout?season=2025&space=901&author=42&kind=match");
+    expect(feed()).toEqual(["222"]);
+    fireEvent.click(screen.getByRole("button", { name: /^Personal/ }));
+    await waitFor(() => expect(params().get("space")).toBe("personal"));
+    await waitFor(() => expect(params().has("author")).toBe(false));
+    expect(params().get("kind")).toBe("match");
+    expect(feed()).toEqual(["555"]);
+  });
+
+  it("a shared link's author filter survives the page opening on that workspace", async () => {
+    show("/scout?season=2025&author=42");
+    await waitFor(() => expect(params().get("space")).toBe("901"));
+    expect(params().get("author")).toBe("42");
+    expect(feed().sort()).toEqual(["222", "333"]);
+  });
+});
+
 describe("Scout feed filters (Personal)", () => {
   it("the same filters minus author: an author in the URL is ignored there", () => {
     show("/scout?season=2025&space=personal&author=42&q=fast");

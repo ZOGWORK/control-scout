@@ -77,11 +77,18 @@ export default function ScoutPage() {
   useEffect(() => { if (editing) setFormOpen(true); }, [editing]);
   // Another space's entry can't be edited here: switching closes an edit (a new entry stays open and saves to the new space).
   // Authors are a workspace's own, so the author filter doesn't carry over.
+  // (Cleared once the switch is in the URL: two URL writes in one go would drop one.)
+  const switching = useRef<{ to: ScoutSpace } | null>(null);
   const selectSpace = (s: ScoutSpace) => {
     if (editing) setFormOpen(false);
-    if (sp.has("author")) setSp((x) => { x.delete("author"); return x; }, { replace: true });
+    switching.current = s !== space ? { to: s } : null;
     spaces.select(s);
   };
+  useEffect(() => {
+    if (!switching.current || switching.current.to !== space) return;
+    switching.current = null;
+    if (sp.has("author")) setSp((x) => { x.delete("author"); return x; }, { replace: true });
+  }, [space, sp, setSp]);
   // Your account and role in this workspace (Control Point's), for which entries you may delete. The server enforces it.
   const me = useMemo(() => {
     const cp = user?.controlPoint;
