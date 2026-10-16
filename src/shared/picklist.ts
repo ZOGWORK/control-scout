@@ -70,7 +70,7 @@ export function cleanPickOp(x: unknown): PickOp | { error: string } {
       const after = b.afterTeam;
       if (after !== undefined) {
         if (!isTeam(after)) return { error: "afterTeam must be a team number" };
-        if (before !== undefined) return { error: "give beforeTeam or afterTeam, not both" };
+        if (before != null) return { error: "give beforeTeam or afterTeam, not both" };
         if (after === b.team) return { error: "a team can't move after itself" };
         return { op: "move", team: b.team, beforeTeam: null, afterTeam: after };
       }
