@@ -91,6 +91,13 @@ describe("next relevant match", () => {
     const noTimes = [match(1, [5, 6], [7, 8], { played: true }), match(2, [100, 1], [2, 3]), match(3, [100, 4], [5, 6], { startsAt: at(9) })];
     expect(nextMatch(noTimes, new Set([100]))?.label).toBe("Q2");
   });
+  it("puts quals still to play ahead of an unscheduled playoff, whatever order the list has", () => {
+    // matchViews lists matches without a time first: an unscheduled playoff can come before the quals.
+    const sf = match(1, [100, 1], [2, 3], { level: "playoff", series: 1, label: "SF1", key: "playoff:1:1" });
+    const list = [sf, match(30, [100, 4], [5, 6], { startsAt: at(9) }), match(29, [7, 8], [100, 9], { startsAt: at(8, 50) })];
+    expect(nextMatch(list, new Set([100]))?.label).toBe("Q29");
+    expect(nextMatch(list, null)?.label).toBe("Q29");
+  });
   it("keeps a match that's running late as next", () => {
     const now = Date.parse(at(15));
     const m = nextMatch(ms, new Set([100]))!;
