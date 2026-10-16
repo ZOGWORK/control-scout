@@ -59,6 +59,10 @@ export const env = {
   get r2Fake() { return !this.production && str("R2_FAKE") === "1"; },
   /** Where the stand-in keeps objects (unset: in memory). */
   get r2FakeDir() { return str("R2_FAKE_DIR"); },
+  /** Development and tests only: serve the clearly marked SAMPLE power rankings (content/power-rankings-sample)
+   *  in place of the real ones (content/power-rankings), to see the pages before any week is published.
+   *  Ignored in production, so sample weeks can never show on the live site. */
+  get powerRankingsSample() { return !this.production && str("POWER_RANKINGS_SAMPLE") === "1"; },
   get dataDir() { return str("DATA_DIR") ?? join(process.cwd(), ".data"); },
   /** Where an FTC Scout raw cache can be imported from (seed). */
   get scoutCacheDir() { return str("SCOUT_CACHE_DIR"); },
