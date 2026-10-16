@@ -403,8 +403,9 @@ export function createApp() {
   api.use("/auth", authRouter());
   api.use("/me", meRouter());
   api.use("/scout", scoutRouter());
-  // The realtime switch (owner portal): off, the stream answers 503 and the app polls instead.
-  api.use("/scout", streamRouter({ enabled: () => isEnabled("realtime") }));
+  // The owner portal's switches: with realtime off the stream answers 503 and the app polls instead; with
+  // workspace scouting off it answers 503 too, since a stream's catch-up reads shared entries like a pull.
+  api.use("/scout", streamRouter({ enabled: async () => (await isEnabled("realtime")) && (await isEnabled("workspaceScouting")) }));
   api.use("/collect", collectRouter());
   api.use("/stats", statsRouter());
   api.use("/contact", contactRouter());
