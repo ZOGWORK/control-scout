@@ -27,6 +27,7 @@ import { templateRouter } from "./scout/templates.js";
 import { exportRouter } from "./scout/export.js";
 import { settingsRouter } from "./scout/settings.js";
 import { activityRouter } from "./scout/activity.js";
+import { historyRouter } from "./scout/history.js";
 import { reportsRouter } from "./errorReports.js";
 import { packsRouter } from "./packs/routes.js";
 import { collectRouter, statsRouter } from "./analytics.js";
@@ -422,6 +423,8 @@ export function createApp() {
   api.use("/scout", exportRouter(limiter(30)));
   api.use("/scout", settingsRouter());
   api.use("/scout", activityRouter());
+  // Entry version history (Task 16): members only.
+  api.use("/scout", historyRouter());
   // The owner portal's switches: with realtime off the stream answers 503 and the app polls instead; with
   // workspace scouting off it answers 503 too, since a stream's catch-up reads shared entries like a pull.
   api.use("/scout", streamRouter({ enabled: async () => (await isEnabled("realtime")) && (await isEnabled("workspaceScouting")) }));

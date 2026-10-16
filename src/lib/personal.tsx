@@ -5,7 +5,7 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { apiFetch } from "./api";
 import { cleanValue, EMPTY_STATE, PERSONAL_KEYS, type PersonalKey, type PersonalState, type Stamped } from "../shared/personal";
-import { clearLocalScouting, exportLocalScouting, importLocalScouting, localScoutEntries, storedScoutEntry } from "./scouting";
+import { clearLocalScouting, exportLocalScouting, importLocalScouting, localScoutEntries, setScoutViewer, storedScoutEntry } from "./scouting";
 
 export interface AccountUser { id: number; email: string | null; displayName: string | null; createdAt: string; /** Tied to the shared account Control Point keeps (docs/shared-accounts.md). */ controlPointLinked?: boolean;
   /** Only present (true) for the owner (OWNER_EMAILS): shows the owner portal's nav item. The server enforces access. */
@@ -104,6 +104,8 @@ export function PersonalProvider({ children }: { children: ReactNode }) {
   const userRef = useRef<AccountUser | null>(null);
   const readyRef = useRef(false);
   userRef.current = user;
+  // Scouting tells this account's own edits from other members' (an overwritten edit is a conflict only if it was yours).
+  setScoutViewer(user?.controlPoint?.accountId);
 
   const apply = useCallback((k: PersonalKey, s: Stamped<any>): boolean => {
     stamped.current[k] = s;

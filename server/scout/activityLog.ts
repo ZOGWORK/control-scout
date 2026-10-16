@@ -9,6 +9,10 @@
 //       subject entry:<uuid>; details { uuid, season, team, kind, eventCode, matchLabel, changed? }
 //       (entries.ts, after the write commits, for entries the write actually changed: a refused
 //       write, an older version beaten by a newer one, or a resend with nothing new logs nothing)
+//   entry.version_restored
+//       subject entry:<uuid>; details as above plus { fromAt, fromVersion, fromName, undeleted? }: a write that
+//       restores an earlier version (history.ts), in place of the edited / restored item it would otherwise be.
+//       fromVersion null: an edit that never reached the server (kept on the loser's device).
 //   template.changed   subject template:<season>; details { season, version, kinds: ["match" | "pit"] } (templates.ts)
 //   settings.changed   subject settings; details { settingsVersion, changed: ["season" | "eventCode"], defaults: { season, eventCode } } (settings.ts)
 //   photo.added / photo.removed   subject entry:<uuid>; details as entries' plus photoId (photos.ts)
@@ -17,7 +21,7 @@
 //       cache write; only for workspaces that already have a scout space).
 //
 // Later tasks append their own with logActivity(): assignment.created / assignment.completed,
-// picklist.changed, comment.added, entry.version_restored, ... Readers show an unknown type generically.
+// picklist.changed, comment.added, ... Readers show an unknown type generically.
 //
 // Edit coalescing: an edit to an entry by the same person within COALESCE_MS (5 minutes) of their last
 // edit to it, with nothing else logged about that entry in between, replaces that "edited" item instead of
@@ -37,7 +41,7 @@ export const CONTROL_POINT_ACTOR: ActivityActor = { accountId: null, name: "Cont
 
 /** The kinds logged now. Later tasks add their own strings (no schema change). */
 export const ACTIVITY_TYPES = [
-  "entry.added", "entry.edited", "entry.deleted", "entry.restored",
+  "entry.added", "entry.edited", "entry.deleted", "entry.restored", "entry.version_restored",
   "template.changed", "settings.changed", "photo.added", "photo.removed", "member.joined", "member.left",
 ] as const;
 export type ActivityType = (typeof ACTIVITY_TYPES)[number] | (string & {});
@@ -196,10 +200,20 @@ const mergeChanged = (earlier: Record<string, unknown>, next: Record<string, unk
 });
 
 /** Log what one push did to each entry it wrote (entries.ts calls this after the write commits). */
-export async function logEntryWrites(workspaceId: string, actor: ActivityActor, writes: { before: EntryBefore | undefined; after: EntryAfter }[]): Promise<void> {
-  for (const { before, after } of writes) {
+export async function logEntryWrites(workspaceId: string, actor: ActivityActor,
+  writes: { before: EntryBefore | undefined; after: EntryAfter; restore?: { fromAt: number; fromVersion: number | null; fromName: string | null } }[]): Promise<void> {
+  for (const { before, after, restore } of writes) {
     const c = entryChange(before, after);
     if (!c) continue;
+    // A restore of an earlier version (never a delete: that's logged as the delete it is).
+    if (restore && !after.deleted) {
+      const details = {
+        ...entryDetails(after), fromAt: restore.fromAt, fromVersion: restore.fromVersion, fromName: restore.fromName,
+        ...(c.changed ? { changed: c.changed.slice(0, MAX_CHANGED) } : {}), ...(c.type === "entry.restored" ? { undeleted: true } : {}),
+      };
+      await logActivity(workspaceId, actor, "entry.version_restored", `entry:${after.uuid}`, details);
+      continue;
+    }
     const details = { ...entryDetails(after), ...(c.changed ? { changed: c.changed.slice(0, MAX_CHANGED) } : {}) };
     await logActivity(workspaceId, actor, c.type, `entry:${after.uuid}`, details, c.type === "entry.edited" ? { coalesce: true, merge: mergeChanged } : {});
   }
