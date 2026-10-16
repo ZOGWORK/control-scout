@@ -20,6 +20,9 @@ const score = (r: any, p: "red" | "blue") => r[`${p}_np`] == null ? null : {
 export interface MatchFilter { season: number; code?: string; team?: number; keys?: string[] }
 
 /** Matches with lineups and predictions. */
+/** A probability to 4 places, kept off a flat 0 or 1 (it's a call, not a result). */
+export const stableP = (p: number) => Math.min(0.9999, Math.max(0.0001, Math.round(p * 1e4) / 1e4));
+
 export async function matchViews(f: MatchFilter, opts: { predictUnplayed?: boolean } = {}): Promise<MatchView[]> {
   const where: string[] = ["m.season = ?"];
   const args: (string | number)[] = [f.season];
@@ -67,7 +70,10 @@ export async function matchViews(f: MatchFilter, opts: { predictUnplayed?: boole
       const red = l.red.filter((t) => t.onField).map((t) => t.number), blue = l.blue.filter((t) => t.onField).map((t) => t.number);
       if (red.length === 2 && blue.length === 2) {
         const x = forecaster.explain(f.season, red, blue);
-        if (x) prediction = { pRed: x.winProbA, redMean: x.predictedScoreA, blueMean: x.predictedScoreB, tier: x.confidence.tier, kind: "now", predictedAt: new Date().toISOString(), factors: x.factors, ...(noScoreBasis ? { noScoreBasis: true } : {}) };
+        // A live event's page polls this every 30 s and should mostly get a 304, so the body must not
+        // change unless the data did: no predictedAt (a call from today's ratings isn't logged at a
+        // moment), and pRed to 4 places (the ratings decay with the clock, moving it ~1e-9 per read).
+        if (x) prediction = { pRed: stableP(x.winProbA), redMean: x.predictedScoreA, blueMean: x.predictedScoreB, tier: x.confidence.tier, kind: "now", predictedAt: null, factors: x.factors, ...(noScoreBasis ? { noScoreBasis: true } : {}) };
       }
     }
     out.push({
