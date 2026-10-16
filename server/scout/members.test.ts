@@ -25,6 +25,7 @@ let membersRoutes = true; // false: an older Control Point (no members routes)
 let cpDown = false;
 let cpHangs = false;
 let afterRemove: null | (() => Promise<unknown>) = null;
+let loseAnswer = false; // Control Point removed them, but its answer to Scout fails
 const removeCalls: { workspaceId: string; body: any }[] = [];
 const accountFor = (email: string) => {
   let a = accounts.get(email);
@@ -74,7 +75,7 @@ beforeAll(async () => {
     if (t.members.get(target.email)!.role === "admin" && admins <= 1) { res.status(409).json({ error: "last_admin" }); return; }
     t.members.delete(target.email);
     // Something else sees the removal before Control Point answers Scout (e.g. the target's /me).
-    if (afterRemove) { void afterRemove().then(() => res.json({ ok: true })); return; }
+    if (afterRemove) { void afterRemove().then(() => (loseAnswer ? res.status(500).json({ error: "lost" }) : res.json({ ok: true }))); return; }
     res.json({ ok: true });
   });
   stub.get("/api/auth/config", (_req, res) => { res.json({}); });
@@ -96,7 +97,7 @@ afterAll(() => {
   for (const k of ["CONTROL_POINT_INTERNAL_URL", "CONTROL_POINT_PUBLIC_URL", "CONTROL_POINT_INTERNAL_KEY", "APP_URL"]) delete process.env[k];
 });
 beforeEach(() => {
-  cpDown = false; cpHangs = false; afterRemove = null; membersRoutes = true; removeCalls.length = 0;
+  cpDown = false; cpHangs = false; afterRemove = null; loseAnswer = false; membersRoutes = true; removeCalls.length = 0;
   clearInfoCache();
   Object.assign(process.env, { CONTROL_POINT_INTERNAL_URL: cpBase, CONTROL_POINT_PUBLIC_URL: "https://cp.test", CONTROL_POINT_INTERNAL_KEY: KEY, APP_URL: "http://127.0.0.1" });
 });
@@ -295,6 +296,27 @@ describe("workspace members", () => {
     expect(left).toHaveLength(1);
     expect(left[0].actor).toEqual({ accountId: w.adaId, name: "Ada" });
     expect((await audits()).filter((a) => a.details.workspaceId === w.id)).toHaveLength(1);
+  });
+
+  it("Control Point's answer is lost after a refresh already saw the removal: it's still recorded, once, as Control Point's", async () => {
+    const w = await workspace();
+    afterRemove = async () => { clearInfoCache(); await w.max("GET", "/api/auth/me"); };
+    loseAnswer = true;
+    expect((await remove(w.ada, w.id, w.maxId)).json.code).toBe("unconfirmed");
+    expect(await cached(w.maxId, w.id)).toBeUndefined();
+    const left = (await activity(w.id)).filter((a) => a.type === "member.left");
+    expect(left).toEqual([{ actor: { accountId: null, name: "Control Point" }, type: "member.left", subject: `member:${w.maxId}`, details: { accountId: w.maxId, name: "Max", role: "member" } }]);
+    expect((await audits()).filter((a) => a.details.workspaceId === w.id)).toEqual([
+      { actor: "Control Point", details: { origin: "control-point", workspaceId: w.id, workspaceName: w.t.name, accountId: w.maxId, name: "Max", role: "member", actorAccountId: null } },
+    ]);
+  });
+
+  it("re-added in Control Point right after a removal: a fresh answer counts at once", async () => {
+    const w = await workspace();
+    expect((await remove(w.ada, w.id, w.maxId)).status).toBe(200);
+    w.t.members.set(`max.${w.tag}@example.com`, { name: "Max Member", role: "member" });
+    expect((await push(w.max, w.id, [entry()])).status).toBe(200); // the miss asks Control Point, after the drop
+    expect(await cached(w.maxId, w.id)).toBeTruthy();
   });
 
   it("an account read already on its way can't put a removed member back", async () => {

@@ -219,9 +219,10 @@ never forks it. Server code: `server/scout/members.ts`; Control Point calls in
   re-checks the account in the background).
 - **Races.** While Scout's removal is in flight, a refresh that already sees it
   drops the row but leaves the record to the removal, so it's logged and
-  audited once, with the admin as actor. For 15 s after Scout drops a
-  membership, an account read that was already on its way and still lists the
-  workspace can't put the row back.
+  audited once, with the admin as actor; if Scout's call then fails or goes
+  unanswered, what the refresh saw is recorded as Control Point's. An account
+  answer asked for before Scout dropped a membership can't put the row back;
+  one asked for after it can (someone re-added at once counts).
 - **Older Control Point.** Without the members routes the list comes from
   Scout's cache and the Remove buttons are off with "Removing members needs
   the latest Control Point". Nothing else changes.
