@@ -27,6 +27,7 @@ describe("routes shared by the app and the server", () => {
       ["/events", "EventsPage"], ["/events/2025/USNJNOM3", "EventPage"], ["/predict", "PredictPage"], ["/predict/accuracy", null],
       ["/predict/how-it-works", "MethodologyPage"], ["/methodology", "MethodologyPage"], ["/compare", "ComparePage"], ["/my-team", "MyTeamPage"],
       ["/shortlist", "ShortlistPage"], ["/scout", "ScoutPage"], ["/download", "DownloadPage"], ["/settings", "SettingsPage"],
+      ["/rankings", "RankingsPage"], ["/Rankings/", "RankingsPage"], ["/rankings/x", "NotFound"],
       ["/privacy", "PrivacyPage"], ["/terms", "TermsPage"], ["/contact", "ContactPage"], ["/nope", "NotFound"], ["/events/2025", "NotFound"], ["/teams/4215/x", "NotFound"],
       ["/events/2025/USNJNOM3/match/qual:0:12", "MatchReportPage"], ["/events/2025/X/match/qual:0:1/", "MatchReportPage"], ["/events/2025/X/match", "NotFound"],
     ];
@@ -35,6 +36,7 @@ describe("routes shared by the app and the server", () => {
     expect(pageTitle("/events/2025/X")).toBe("Event");
     expect(pageTitle("/events/2025/X/match/qual:0:1")).toBe("Match report");
     expect(pageTitle("/teams")).toBe("Teams");
+    expect(pageTitle("/rankings")).toBe("Rankings");
     expect(pageTitle("/")).toBe("Home");
     // Whole routes only: anything else is the not-found page (case and a trailing slash don't matter).
     expect(pageTitle("/teams/4215/extra")).toBe("Not found");

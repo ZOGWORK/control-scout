@@ -28,6 +28,7 @@ import { SEARCH_HINT, usePageSearch } from "../components/layout/Search";
 import { cn } from "../components/cn";
 import { dateRange, num, oddsPct, place, seasonLabel } from "../lib/format";
 import { copyLink } from "../lib/clipboard";
+import { ShareMatch } from "../components/ShareMatch";
 
 type LabMode = "match" | "advancement";
 const ADVANCING = new Set(["LeagueTournament", "Qualifier", "Championship", "SuperQualifier", "Premier", "FIRSTChampionship"]);
@@ -415,7 +416,9 @@ function MatchResult({ x, offlineAsOf }: { x: MatchExplanationView; offlineAsOf?
         <div className="flex flex-wrap items-center justify-between gap-3">
           <ConfidenceBadge tier={x.confidence.tier} reason={x.confidence.reason} />
           <div className="flex gap-2">
-            <Button variant="outline" size="sm" onClick={share}><Link2 /> Share</Button>
+            {/* Offline there's no server to draw the card: just the link. */}
+            {offlineAsOf ? <Button variant="outline" size="sm" onClick={share}><Link2 /> Share</Button>
+              : <ShareMatch query={{ season: x.season, red: x.red, blue: x.blue }} pRed={x.winProbRed} pBlue={x.winProbBlue} />}
             <Button variant="secondary" size="sm" onClick={save}><BookmarkPlus /> Save</Button>
           </div>
         </div>

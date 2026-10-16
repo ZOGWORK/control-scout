@@ -13,6 +13,7 @@ import { normalize } from "../api/fuzzy.js";
 import { forecasterFor } from "../predict/engine.js";
 import { regionNames } from "../../src/shared/regions.js";
 import { computeRecords, fillAdvancementOdds, fillRecordPredictions } from "./records.js";
+import { snapshotRankings } from "./rankings.js";
 
 type Log = (m: string) => void;
 const r1 = (x: number | null | undefined) => (x == null || !Number.isFinite(x) ? null : Math.round(x * 100) / 100);
@@ -423,6 +424,9 @@ export async function runStats(o: StatsOptions = {}): Promise<void> {
   }
   await scoreLivePredictions(log);
   await logLivePredictions(log);
+  // Weekly world-rankings snapshots (/rankings movement): any Monday not written yet. A failure here
+  // never fails the stats; the next run writes the week.
+  await snapshotRankings({ log }).catch((e) => log(`rankings snapshots failed: ${(e as Error).message}`));
   await rebuildSearch(log);
   await kvSet("stats:last", { at: new Date().toISOString(), seasons, engine: ENGINE_VERSION });
   if (seasons.length === SEASON_NUMBERS.length) await kvSet("stats:rules", STATS_RULES);
