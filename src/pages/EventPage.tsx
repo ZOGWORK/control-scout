@@ -17,7 +17,6 @@ import { Reveal } from "../components/motion";
 import { Badge, Input } from "../components/ui/basic";
 import { Button } from "../components/ui/button";
 import { StickyActions, useScrolledPast } from "../components/StickyActions";
-import { toast } from "../components/ui/sonner";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "../components/ui/tabs";
 import { ToggleGroup, ToggleGroupItem } from "../components/ui/controls";
 import { MatchList } from "../components/predict";
@@ -26,6 +25,8 @@ import { AdvancementView } from "../components/Advancement";
 import { cn } from "../components/cn";
 import { OfflineNote } from "../components/OfflineNote";
 import { NotFoundView } from "../components/NotFoundView";
+import { LiveCountdownChip, LivePanel, useLiveTarget } from "../components/LivePanel";
+import { isLiveMode, useEventPoll } from "../lib/liveMode";
 import { agoSeconds, awardLabel, dateRange, num, place, seasonLabel } from "../lib/format";
 
 export default function EventPage() {
@@ -39,7 +40,8 @@ export default function EventPage() {
   const status = validSeason ? (state.error as ApiError | undefined)?.status : 400;
   const missing = status === 404 || status === 400;
   useTitle(missing ? "Event not found" : state.data ? `${state.data.event.name} (${seasonLabel(state.data.event.season)})` : code); // same as the server-rendered title
-  useLiveReload(path, state.data?.live ?? null);
+  // Live: scores and rankings refresh on their own (lib/liveMode.ts has the cadence).
+  useEventPoll(state.data, () => { load(path, true).catch(() => {}); });
   if (missing) return <NotFoundView title={status === 404 ? state.error!.message : `No event ${code} in ${season}`} description="The event code may be mistyped or from another season. Search by name, code or city." />;
   return <Async state={state}>{(d) => <Event d={d} path={path} />}</Async>;
 }
@@ -66,15 +68,18 @@ function Event({ d, path }: { d: EventDetail; path: string }) {
   const toggleTrack = () => update("tracked", (t) => ({ ...t, events: tracked ? t.events.filter((x) => x !== ref) : [...t.events, ref] }));
   const labHref = `/predict?mode=advancement&season=${e.season}&code=${e.code}${teamParam ? `&team=${teamParam}` : ""}`;
   const refresh = useRefreshResults(path);
-  // From the sticky bar the header's note is off screen: say the outcome in a toast instead.
-  const refreshFromBar = async () => { const r = await refresh.run(); (r.ok ? toast : toast.error)(r.message); };
   const [headerEnd, pastHeader] = useScrolledPast<HTMLDivElement>();
   const tabsRef = useRef<HTMLDivElement>(null);
   // The bar's "See odds" opens the tab and brings it into view (the header that held the button is off screen).
   const seeOdds = () => { setTab("odds"); tabsRef.current?.scrollIntoView({ block: "start", behavior: matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth" }); };
-  // Phones get a sticky bar only where one action leads: live (refresh) or upcoming with predictions (odds / lab).
+  // Phones get a sticky bar only where one action leads: live (the countdown, back to the LIVE panel) or upcoming with predictions (odds / lab).
   // Finished events and history seasons have no bar.
   const sticky = e.status === "live" || (e.status === "upcoming" && predictable);
+  // Live mode (the event is running now): the LIVE panel with the countdown replaces the live bar.
+  const liveMode = isLiveMode(d);
+  const target = useLiveTarget(d, liveMode);
+  const livePanel = useRef<HTMLDivElement>(null);
+  const toLivePanel = () => livePanel.current?.scrollIntoView({ block: "start", behavior: matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth" });
   const oddsOpen = predictable && !d.forecastUnsupported;
   return (
     <div>
@@ -89,6 +94,8 @@ function Event({ d, path }: { d: EventDetail; path: string }) {
             <span className="font-mono text-xs text-muted-foreground">{e.code} · {seasonLabel(e.season)}</span>
           </div>
           <h1 className="mt-3 font-display text-3xl font-semibold tracking-tight sm:text-4xl">{e.name}</h1>
+          {/* Right under the name, so the countdown is on a phone's first screen. */}
+          {liveMode && <div ref={livePanel} className="scroll-mt-20"><LivePanel d={d} target={target} refresh={refresh} /></div>}
           <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1.5 text-sm text-muted-foreground">
             <span className="flex items-center gap-1.5"><CalendarDays className="size-4" />{dateRange(e.start, e.end)}</span>
             {(e.venue || e.city) && <span className="flex items-center gap-1.5"><MapPin className="size-4" />{place(e.venue, e.city, e.state, e.country)}</span>}
@@ -96,7 +103,7 @@ function Event({ d, path }: { d: EventDetail; path: string }) {
             {e.livestream && <a href={e.livestream} target="_blank" rel="noreferrer noopener" className="inline-flex items-center gap-1 hover:text-foreground">Livestream <ExternalLink className="size-3" /></a>}
             {e.website && <a href={e.website} target="_blank" rel="noreferrer noopener" className="inline-flex items-center gap-1 hover:text-foreground">Website <ExternalLink className="size-3" /></a>}
           </div>
-          {d.live && <LiveBar live={d.live} r={refresh} />}
+          {d.live && !liveMode && <LiveBar live={d.live} r={refresh} />}
           <div className="mt-5 flex flex-wrap gap-2">
             <Button variant={tracked ? "secondary" : "outline"} size="sm" aria-pressed={tracked} onClick={toggleTrack}>
               {tracked ? "Tracking this event" : "Track event"}
@@ -112,8 +119,8 @@ function Event({ d, path }: { d: EventDetail; path: string }) {
       </Reveal>
       {sticky && (
         <StickyActions show={pastHeader} label="Event actions">
-          {e.status === "live" && d.live
-            ? <Button onClick={refreshFromBar} disabled={refresh.busy} aria-busy={refresh.busy}>{refresh.busy ? <Loader2 className="animate-spin" /> : <RefreshCw />} {refresh.busy ? "Checking…" : "Refresh results"}</Button>
+          {liveMode
+            ? <LiveCountdownChip target={target} onClick={toLivePanel} />
             : oddsOpen
               ? <Button onClick={seeOdds}><Trophy /> See odds</Button>
               : predictable && <Button asChild><Link to={labHref}><Sparkles /> What-if lab</Link></Button>}
@@ -178,25 +185,6 @@ function Event({ d, path }: { d: EventDetail; path: string }) {
       </Tabs>
     </div>
   );
-}
-
-/**
- * While an event is on (today, in its time zone), reload it every
- * live.everySeconds while the tab is visible, and at once when the tab comes
- * back after longer than that: results show up without anyone clicking.
- */
-function useLiveReload(path: string, live: EventDetail["live"]) {
-  // Only where the server checks FIRST on its own; otherwise reloading would just re-read the same data.
-  const every = live?.auto ? Math.max(20, live.everySeconds) * 1000 : 0;
-  useEffect(() => {
-    if (!every) return;
-    let last = Date.now();
-    const reload = () => { last = Date.now(); load(path, true).catch(() => {}); };
-    const id = setInterval(() => { if (document.visibilityState === "visible") reload(); }, every);
-    const onVisible = () => { if (document.visibilityState === "visible" && Date.now() - last >= every) reload(); };
-    document.addEventListener("visibilitychange", onVisible);
-    return () => { clearInterval(id); document.removeEventListener("visibilitychange", onVisible); };
-  }, [path, every]);
 }
 
 /** "Refresh results" for a live event: shared by the header's live bar and the phone's sticky bar. */

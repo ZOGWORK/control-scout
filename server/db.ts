@@ -851,6 +851,14 @@ CREATE TABLE ranking_weeks (
 ) WITHOUT ROWID;
 `,
   },
+  {
+    version: 24,
+    name: "scout consensus index",
+    sql: `
+-- Scout consensus (server/scout/consensus.ts) reads one workspace's entries on a few teams of one season.
+CREATE INDEX workspace_scout_team ON workspace_scout_entries (workspace_id, season, team);
+`,
+  },
 ];
 
 export type Db = Client;

@@ -32,6 +32,7 @@ import { membersRouter } from "./scout/members.js";
 import { picklistRouter } from "./scout/picklist.js";
 import { assignmentsRouter } from "./scout/assignments.js";
 import { commentsRouter } from "./scout/comments.js";
+import { consensusRouter } from "./scout/consensus.js";
 import { inboxRouter } from "./inbox/routes.js";
 import { reportsRouter } from "./errorReports.js";
 import { packsRouter } from "./packs/routes.js";
@@ -468,6 +469,8 @@ export function createApp() {
   api.use("/scout", picklistRouter());
   api.use("/scout", assignmentsRouter());
   api.use("/scout", commentsRouter());
+  // Scout consensus (v1.6 Task 1): a workspace's entries on a team rolled up; members only.
+  api.use("/scout", consensusRouter());
   // The owner portal's switches: with realtime off the stream answers 503 and the app polls instead; with
   // workspace scouting off it answers 503 too, since a stream's catch-up reads shared entries like a pull.
   api.use("/scout", streamRouter({ enabled: async () => (await isEnabled("realtime")) && (await isEnabled("workspaceScouting")) }));

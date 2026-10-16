@@ -75,7 +75,7 @@ export function GlobalSearch() {
   if (pageClaimed) return null;
   return (
     <>
-      <button type="button" onClick={open} className={cn("flex h-8 items-center gap-2 rounded-lg border border-line px-2.5 text-xs text-text-muted hover:text-text-base md:hidden", expanded && "hidden")} aria-label="Search">
+      <button type="button" onClick={open} className={cn("flex h-8 items-center gap-2 rounded-lg border border-line px-2.5 text-xs text-text-muted hover:text-text-base md:hidden", expanded && "hidden")} aria-label="Search" data-tour="search">
         <Search className="size-3.5" /> Search
       </button>
       <SearchBox
@@ -83,6 +83,7 @@ export function GlobalSearch() {
         label="Search teams, events and matches"
         placeholder="Search teams, events, matches…"
         hint={SEARCH_HINT}
+        tour="search"
         onPick={(h) => nav(hitHref(h))}
         onClose={() => setExpanded(false)}
         className={cn(
