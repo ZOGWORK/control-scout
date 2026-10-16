@@ -19,6 +19,10 @@
 //   member.joined / member.left   subject member:<accountId>; details { accountId, name, role }; actor
 //       Control Point (controlPoint.ts, from the membership refresh, in the same transaction as the
 //       cache write; only for workspaces that already have a scout space).
+//       A removal made in Scout (Settings → Workspace → Members, Task 9) is member.left too, with the
+//       admin as actor and details.origin "control-scout" (details.self when they removed themselves),
+//       logged with the cache row's delete (controlPoint.ts dropMembership), so the refresh after it
+//       finds nothing left to log.
 //
 // Later tasks append their own with logActivity(): assignment.created / assignment.completed,
 // picklist.changed, comment.created, ... Readers show an unknown type generically.

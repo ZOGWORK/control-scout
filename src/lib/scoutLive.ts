@@ -48,7 +48,9 @@ export function followWorkspace(space: string, onMode: (m: LiveMode) => void, de
   const setMode = (m: LiveMode) => { if (m !== mode) { mode = m; onMode(m); } };
   const close = () => { if (es) { es.close(); es = null; } };
   const clearRetry = () => { if (retry) { clearTimeout(retry); retry = null; } };
-  const poll = () => { pull(space).catch(() => { /* offline or refused: the next tick tries again */ }); };
+  // A 403 is the server saying this account isn't in the workspace any more (polling has no
+  // membership_revoked event): ended for good, like the stream's. Anything else: the next tick tries again.
+  const poll = () => { pull(space).catch((e: unknown) => { if ((e as { status?: unknown } | null)?.status === 403) revoked(); }); };
   const startPolling = () => {
     setMode("polling");
     if (poller) return;
@@ -140,16 +142,18 @@ export function followWorkspace(space: string, onMode: (m: LiveMode) => void, de
       try { item = JSON.parse((ev as MessageEvent<string>).data); } catch { return; }
       if (isActivityItem(item) && item.workspaceId === space) announceActivity(item);
     });
-    s.addEventListener("membership_revoked", () => {
-      if (es !== s) return;
-      // For good: no reconnect, no polling, not even when the network comes back.
-      flushPendingNow();
-      stopped = true;
-      window.removeEventListener("online", online);
-      close(); stopPolling(); clearRetry();
-      setMode("revoked");
-    });
+    s.addEventListener("membership_revoked", () => { if (es === s) revoked(); });
     s.onerror = () => { if (es === s) { flushPendingNow(); failed(); } };
+  }
+
+  /** Access ended. For good: no reconnect, no polling, not even when the network comes back. */
+  function revoked() {
+    if (stopped) return;
+    flushPendingNow();
+    stopped = true;
+    window.removeEventListener("online", online);
+    close(); stopPolling(); clearRetry();
+    setMode("revoked");
   }
 
   function flushPendingNow() { if (flushTimer) { clearTimeout(flushTimer); flush(); } }
