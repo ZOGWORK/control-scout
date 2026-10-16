@@ -17,11 +17,12 @@ import { Badge, Input } from "../ui/basic";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../ui/controls";
 import { toast } from "../ui/sonner";
 import { Group, Row } from "./rows";
+import { WorkspaceMembers } from "./WorkspaceMembers";
 
 /** The one-line explanation members see on controls only admins can use. */
 export const ADMINS_ONLY = "Only workspace admins can change these.";
 /** Membership itself is Control Point's. */
-export const MEMBERSHIP_NOTE = "Only workspace admins can change this — managed in Control Point";
+export const MEMBERSHIP_NOTE = "Adding people and changing roles happen in Control Point.";
 const NO_SEASON = "none";
 
 /** The workspace to show: ?workspace=, else the scout space last used here (when it's one), else the first. */
@@ -60,9 +61,8 @@ export function WorkspaceSection() {
 }
 
 /**
- * Who's in the workspace. Membership and roles are Control Point's; nothing here changes them.
- * Slot for Task 9: the Members list (names and roles from the mirror, with Remove for admins) goes
- * in this group, as rows after "Your role".
+ * Who's in the workspace. Membership and roles are Control Point's: the Members list (Task 9) shows
+ * what it says, and an admin's Remove asks Control Point to do it. Invites and roles stay there.
  */
 function Membership({ workspace, url }: { workspace: WorkspaceSpace; url?: string }) {
   return (
@@ -70,8 +70,8 @@ function Membership({ workspace, url }: { workspace: WorkspaceSpace; url?: strin
       <Row label="Your role" description={workspace.role === "admin" ? "You can change this workspace's shared settings below." : "You can read this workspace's shared settings; its admins change them."}>
         <Badge variant={workspace.role === "admin" ? "success" : "secondary"}>{workspace.role === "admin" ? "Admin" : "Member"}</Badge>
       </Row>
-      {/* Task 9: <WorkspaceMembers workspace={workspace} /> rows go here. */}
-      <Row label="Members and roles" description={MEMBERSHIP_NOTE}>
+      <WorkspaceMembers workspace={workspace} />
+      <Row label="Invites and roles" description={MEMBERSHIP_NOTE}>
         {url && <Button variant="outline" size="sm" asChild><a href={url} target="_blank" rel="noreferrer noopener">Open Control Point <ExternalLink /></a></Button>}
       </Row>
     </Group>

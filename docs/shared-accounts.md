@@ -46,6 +46,11 @@ The code is sha256-hashed, with a 2-minute TTL, and is single use.
 | `POST /internal/accounts/resolve` | `{ email, verifiedBy: "scout-email-code" \| "google", displayName? }` | upsert by email, then `200 { account }` |
 | `GET /internal/accounts/:id` | | `200 { account }` or `404` |
 | `POST /internal/handoff/redeem` | `{ code, state }` | `200 { account }`, or `400 { error }` if the code is invalid, expired, used, or doesn't match the state. The code is marked used. |
+| `GET /internal/workspaces/:workspaceId/members` | | `200 { workspace: { id, name }, members: [{ accountId, name, role }] }`: everyone with an active `members` row, one entry per email, admins first. `accountId` is the shared account for that email, or `null` if they've never used Scout. `400 { error: "invalid_workspace" }`, `404 { error: "not_found" }` (no such team). |
+| `POST /internal/workspaces/:workspaceId/members/remove` | `{ accountId, actorAccountId }` | `200 { ok: true }`. Both ids resolve to emails, then to active `members` rows on that team. `400 { error: "invalid_input" }`, `403 { error: "not_admin" }` (the actor isn't an admin there), `404 { error: "not_member" }` (the target has no active row there), `409 { error: "last_admin" }`. Removal is Control Point's own soft remove (the one behind an admin's `DELETE /api/members/:id`): `is_active = 0`, roles, sessions and sticky notes dropped, history kept. Removing yourself is allowed unless you're the last admin. |
+
+An older Control Point answers both members routes with a bare `404 { error: "Not found" }`
+(any unknown `/internal` path); the routes' own 404s carry a code, so Scout can tell them apart.
 
 ```ts
 account = {
@@ -184,8 +189,47 @@ uuid)`:
 Roles come from Control Point and nowhere else: `admin` is a `members` row
 with `account_type = 'admin'`, or a role with the `"*"` or `"manage_members"`
 permission. Everyone else in the workspace is a `member`. Scout has no roles of
-its own and no invite or remove screens; membership and roles are changed in
-Control Point.
+its own and no invite screen; roles are changed in Control Point. Removing a
+member can also start in Scout (below), but Control Point does it.
+
+### Workspace members (Settings → Workspace → Members)
+
+Control Point's `members` table is the source of truth; Scout mirrors it and
+never forks it. Server code: `server/scout/members.ts`; Control Point calls in
+`server/auth/controlPoint.ts`.
+
+- **List.** `GET /api/scout/workspaces/:id/members` (any member) returns
+  everyone from Control Point's members route: name, role, and `you`. People
+  who've never used Scout have no account id and can't be removed from Scout
+  (they're managed in Control Point). If Control Point can't list them
+  (unreachable, or an older deploy), Scout lists the members it knows from its
+  cache ("Members who use Control Scout").
+- **Remove.** `POST /api/scout/workspaces/:id/members/remove` `{ accountId }`.
+  Scout checks the caller is an admin (`requireWorkspaceAdmin`: a member gets
+  403 without Control Point being asked), then calls Control Point's remove
+  route with the caller's account id as the actor. Control Point checks the
+  admin again and keeps the last admin (409, shown in the confirm dialog). On
+  success Scout at once drops the person's `workspace_members` row and forgets
+  their cached account, logs `member.left` in the feed with the admin as actor
+  (`details.origin: "control-scout"`, `details.self` when they left), ends
+  their open streams there with `membership_revoked`, and records
+  `workspace.member_removed` in the owner audit. Errors: 400 bad id, 403, 404
+  (already gone; the cache catches up), 409, 501 (older Control Point), 502
+  (unreachable: nothing changed).
+- **Older Control Point.** Without the members routes the list comes from
+  Scout's cache and the Remove buttons are off with "Removing members needs
+  the latest Control Point". Nothing else changes.
+- **Removed in Control Point.** The next membership refresh (sign-in, `/me`
+  with a cold cache, or any read or write once the cached row is older than 10
+  minutes) drops the row, logs `member.left` (actor Control Point), records the
+  audit row (`origin: "control-point"`), and ends the person's streams there.
+  The app re-reads `/api/auth/me` every 5 minutes while visible and when it
+  comes back to the front, and a refused poll (403) counts like
+  `membership_revoked`, so the page leaves the workspace for Personal with
+  "You were removed from <workspace>".
+- **What removal never does.** It ends workspace access only. The person's
+  Scout account, personal data and personal entries are untouched, and their
+  workspace entries stay with their authorship.
 
 | | member | admin |
 |---|---|---|
@@ -267,9 +311,9 @@ to the URL (replacing the history entry) and to `cs-scout-space`. Choosing a
 space in the switcher adds a history entry.
 
 Losing access to the workspace on screen switches the page to Personal with
-"You no longer have access to <workspace>". That happens when its live stream
-ends with `membership_revoked`, or when the account's workspace list changes
-and leaves it out.
+"You were removed from <workspace>". That happens when its live stream ends
+with `membership_revoked`, when a poll is refused (403), or when the account's
+workspace list changes and leaves it out.
 
 Entries queued while offline go up when the connection returns in every
 space, not just the one on screen. `ScoutQueueSync` (mounted once in
@@ -372,7 +416,9 @@ day. Server code: `server/scout/activityLog.ts`. Table: `workspace_activity`
     when an account's set of workspaces changes, and are written in the same
     transaction as the cache write. The actor is "Control Point", because Scout
     doesn't know who added or removed someone there. They're logged only for
-    workspaces that already have a scout space.
+    workspaces that already have a scout space. A removal made in Scout's
+    settings is `member.left` too, with the admin as actor and
+    `details.origin: "control-scout"` (`details.self` when they left).
 - **Later tasks.** They call
   `logActivity(workspaceId, actor, type, subject, details, opts?)` with their
   own `type` strings (`assignment.created`, `picklist.changed`,

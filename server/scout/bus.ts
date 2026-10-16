@@ -127,3 +127,27 @@ export function subscribeActivity(workspaceId: string, fn: ActivityListener): ()
     if (!s.size) activityChannels.delete(workspaceId);
   };
 }
+
+// Membership ended (Task 9): an admin removed someone from Scout's settings, or a refresh found a
+// workspace gone from Control Point's answer. Each open stream of that account in that workspace says
+// `membership_revoked` and ends at once, instead of at its next periodic re-check.
+type RevokedListener = (accountId: number) => void;
+const revokedChannels = new Map<string, Set<RevokedListener>>();
+
+/** Tell the workspace's open streams that this account lost access. Never throws. */
+export function publishRevoked(workspaceId: string, accountId: number): void {
+  for (const fn of [...(revokedChannels.get(workspaceId) ?? [])]) { try { fn(accountId); } catch (err) { console.error("[live] revoked listener failed", err); } }
+}
+
+/** Listen for accounts losing access to a workspace; returns the unsubscribe. */
+export function subscribeRevoked(workspaceId: string, fn: RevokedListener): () => void {
+  let subs = revokedChannels.get(workspaceId);
+  if (!subs) { subs = new Set(); revokedChannels.set(workspaceId, subs); }
+  subs.add(fn);
+  return () => {
+    const s = revokedChannels.get(workspaceId);
+    if (!s) return;
+    s.delete(fn);
+    if (!s.size) revokedChannels.delete(workspaceId);
+  };
+}
