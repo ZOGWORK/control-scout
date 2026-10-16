@@ -188,7 +188,9 @@ export function saveScoutEntry(e: NewEntry): ScoutEntry {
     // Photos are the server's: an edit to the text keeps the list the device has.
     ...(prior?.photos && e.photos === undefined ? { photos: prior.photos, photoExpired: prior.photoExpired, photosRev: prior.photosRev } : {}),
   };
-  const entry = normalizeScoutEntry({ ...e, ...authorship, updatedAt: Date.now() }, space);
+  // A restore must win over the version it replaces, even when that writer's clock runs ahead of this one.
+  const now = space != null && e.restoredFrom != null && !e.deleted ? Math.max(Date.now(), (prior?.updatedAt ?? 0) + 1) : Date.now();
+  const entry = normalizeScoutEntry({ ...e, ...authorship, updatedAt: now }, space);
   try {
     writeEntry(entry);
     const d = dirty(entry.workspaceId); d.add(entry.uuid); setDirty(d, entry.workspaceId);

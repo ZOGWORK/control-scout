@@ -1,0 +1,143 @@
+// @vitest-environment jsdom
+// Task 16 on the device: telling when this device is the last-write-wins loser
+// (an offline edit, then a newer edit from someone else arrives by stream, pull
+// or push answer), keeping the losing version once, and restoring it as an
+// ordinary save that goes up with a restore marker. Personal entries never conflict.
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import {
+  applyLiveEntries, localScoutEntries, pendingScoutCounts, pullScouting, restoreScoutVersion, saveScoutEntry, setScoutViewer, syncScouting, type ScoutEntry,
+} from "./scouting";
+import { dropLostEdit, lostEdits, markLostSeen, SCOUT_OVERWRITTEN, type LostEdit } from "./lostEdits";
+import { entryDiff, formatAnswer } from "./entryDiff";
+import { builtinTemplate } from "../shared/scoutDefaults";
+
+const ME = 8, PRIYA = 7;
+beforeEach(() => { localStorage.clear(); setScoutViewer(ME); });
+afterEach(() => { vi.unstubAllGlobals(); setScoutViewer(null); });
+
+const base = { season: 2025, team: 18360, eventCode: "USNJQ1", matchLabel: "Q1", kind: "match" as const, data: { autoHive: 2 }, notes: "steady" };
+/** What the server holds: written by `by`. */
+const server = (over: Partial<ScoutEntry> & { updatedAt: number }, by = PRIYA, name = "Priya"): ScoutEntry => ({
+  uuid: "conflict0001", workspaceId: "w1", ...base, authorAccountId: PRIYA, authorDisplayName: "Priya", editorAccountId: by, editorDisplayName: name, ...over,
+});
+
+function answer(fn: (path: string, body: any) => unknown) {
+  const calls: { path: string; body: any }[] = [];
+  vi.stubGlobal("fetch", vi.fn(async (path: string, init?: RequestInit) => {
+    const body = init?.body ? JSON.parse(String(init.body)) : undefined;
+    calls.push({ path, body });
+    return new Response(JSON.stringify(fn(path, body)), { status: 200, headers: { "Content-Type": "application/json" } });
+  }));
+  return calls;
+}
+
+/** The device has the server's copy (synced), then edits it offline. */
+function offlineEdit(notes = "my offline notes") {
+  applyLiveEntries("w1", [{ entry: server({ updatedAt: 1000 }), seq: 1 }]);
+  return saveScoutEntry({ ...localScoutEntries("w1")[0], notes, data: { autoHive: 5 } });
+}
+
+describe("detecting the last-write-wins loser", () => {
+  it("an offline edit, then a newer edit from someone else arrives live: one notice, the losing version kept", () => {
+    const heard: LostEdit[] = [];
+    const on = (e: Event) => { const d = (e as CustomEvent<LostEdit>).detail; if (d) heard.push(d); };
+    window.addEventListener(SCOUT_OVERWRITTEN, on);
+    const mine = offlineEdit();
+    expect(mine.baseUpdatedAt).toBe(1000); // based on the copy it had
+    const theirs = server({ updatedAt: mine.updatedAt + 5000, notes: "Priya's notes", baseUpdatedAt: 1000 });
+    applyLiveEntries("w1", [{ entry: theirs, seq: 2 }]);
+    // Seen again by a pull: still one record, one notice.
+    applyLiveEntries("w1", [{ entry: theirs, seq: 2 }]);
+    window.removeEventListener(SCOUT_OVERWRITTEN, on);
+    expect(heard).toHaveLength(1);
+    const lost = lostEdits("w1");
+    expect(lost).toHaveLength(1);
+    expect(lost[0]).toMatchObject({ uuid: "conflict0001", by: { accountId: PRIYA, name: "Priya" }, seen: false, mine: { notes: "my offline notes", data: { autoHive: 5 }, updatedAt: mine.updatedAt } });
+    // The device now shows their version, and has nothing left to send for it.
+    expect(localScoutEntries("w1")[0].notes).toBe("Priya's notes");
+    expect(pendingScoutCounts().workspaces.w1).toBeUndefined();
+    markLostSeen("w1", lost[0].id);
+    expect(lostEdits("w1")[0].seen).toBe(true);
+  });
+
+  it("the push answer says a newer edit beat ours: kept too", async () => {
+    const mine = offlineEdit();
+    answer((_p, body) => ({ results: body.entries.map((x: ScoutEntry) => ({ uuid: x.uuid, ok: true, entry: server({ updatedAt: mine.updatedAt + 10, notes: "won", baseUpdatedAt: 1000 }) })) }));
+    await syncScouting("w1");
+    expect(lostEdits("w1").map((l) => [l.mine.notes, l.by.name])).toEqual([["my offline notes", "Priya"]]);
+    expect(localScoutEntries("w1")[0].notes).toBe("won");
+  });
+
+  it("no notice for your own edit from another device, for a newer copy that says the same, or for personal entries", async () => {
+    let mine = offlineEdit();
+    applyLiveEntries("w1", [{ entry: server({ updatedAt: mine.updatedAt + 1, notes: "from my phone" }, ME, "Me"), seq: 2 }]);
+    mine = saveScoutEntry({ ...localScoutEntries("w1")[0], notes: "same words" });
+    applyLiveEntries("w1", [{ entry: server({ updatedAt: mine.updatedAt + 1, notes: "same words" }), seq: 3 }]);
+    expect(lostEdits("w1")).toEqual([]);
+    // Personal: a newer copy from the account simply wins.
+    saveScoutEntry({ uuid: "personal0001", ...base, notes: "local" });
+    answer(() => ({ entries: [{ uuid: "personal0001", ...base, notes: "other device", updatedAt: Date.now() + 1000 }] }));
+    await pullScouting(null);
+    expect(localScoutEntries()[0].notes).toBe("other device");
+    expect(Object.keys(localStorage).filter((k) => k.startsWith("cs-scout-lost:"))).toEqual([]);
+  });
+
+  it("a synced edit of yours replaced by someone who never saw it is a loss; by someone who did, it isn't", () => {
+    // Your edit, synced: the server's copy says you wrote it.
+    applyLiveEntries("w1", [{ entry: server({ updatedAt: 2000, notes: "mine, synced" }, ME, "Me"), seq: 1 }]);
+    // Priya edits after seeing it (based on 2000): normal teamwork.
+    applyLiveEntries("w1", [{ entry: server({ updatedAt: 3000, notes: "Priya builds on it", baseUpdatedAt: 2000 }), seq: 2 }]);
+    expect(lostEdits("w1")).toEqual([]);
+    // You edit again and sync; then Marcus's offline edit, based on the 1000 copy, lands on top.
+    applyLiveEntries("w1", [{ entry: server({ updatedAt: 4000, notes: "mine again" }, ME, "Me"), seq: 3 }]);
+    applyLiveEntries("w1", [{ entry: server({ updatedAt: 5000, notes: "Marcus offline", baseUpdatedAt: 1000 }, 9, "Marcus"), seq: 4 }]);
+    expect(lostEdits("w1").map((l) => [l.mine.notes, l.by.name])).toEqual([["mine again", "Marcus"]]);
+  });
+});
+
+describe("restoring a lost version", () => {
+  it("saves it as a new edit with a restore marker; once the server has it, the lost record goes", async () => {
+    const mine = offlineEdit();
+    applyLiveEntries("w1", [{ entry: server({ updatedAt: mine.updatedAt + 5000, notes: "Priya's notes" }), seq: 2 }]);
+    const [lost] = lostEdits("w1");
+    const restored = restoreScoutVersion(localScoutEntries("w1")[0], lost.mine);
+    expect(restored).toMatchObject({ notes: "my offline notes", data: { autoHive: 5 }, restoredFrom: mine.updatedAt, deleted: false });
+    // Newer than their version (here stamped ahead of this device's clock), so it wins.
+    expect(restored.updatedAt).toBeGreaterThan(mine.updatedAt + 5000);
+    const calls = answer((_p, body) => ({ results: body.entries.map((x: ScoutEntry) => ({ uuid: x.uuid, ok: true, entry: { ...x, editorAccountId: ME, editorDisplayName: "Me", restoredFrom: undefined } })) }));
+    await syncScouting("w1");
+    expect(calls[0].body.entries[0]).toMatchObject({ restoredFrom: mine.updatedAt, notes: "my offline notes" });
+    expect(lostEdits("w1")).toEqual([]);
+    expect(localScoutEntries("w1")[0].restoredFrom).toBeUndefined();
+  });
+
+  it("keeping their version forgets yours", () => {
+    const mine = offlineEdit();
+    applyLiveEntries("w1", [{ entry: server({ updatedAt: mine.updatedAt + 5000 }), seq: 2 }]);
+    dropLostEdit("w1", lostEdits("w1")[0].id);
+    expect(lostEdits("w1")).toEqual([]);
+  });
+});
+
+describe("field-level diffs", () => {
+  const fields = builtinTemplate(2025, "match").fields;
+  it("labels each changed answer with the template's label and shows values as the form does", () => {
+    const toggle = fields.find((f) => f.type === "toggle")!, counter = fields.find((f) => f.type === "counter")!, rating = fields.find((f) => f.type === "rating")!;
+    const before = { ...base, data: { [counter.id]: 2, [toggle.id]: true, [rating.id]: 3 }, notes: "steady" };
+    const after = { ...base, matchLabel: "Q2", data: { [counter.id]: 4, [rating.id]: 3 }, notes: "fast" };
+    const rows = entryDiff(before, after, [fields]);
+    expect(rows[0]).toEqual({ key: "match", label: "Match", before: "Q1", after: "Q2" });
+    expect(rows.slice(1, -1)).toEqual(expect.arrayContaining([
+      { key: `f:${toggle.id}`, label: toggle.label, before: "Yes", after: "No" },
+      { key: `f:${counter.id}`, label: counter.label, before: "2", after: "4" },
+    ]));
+    expect(rows).toHaveLength(4); // the unchanged rating isn't a difference
+    expect(rows.at(-1)).toEqual({ key: "notes", label: "Notes", before: "steady", after: "fast" });
+  });
+  it("an answer no template names keeps its id; a deleted version shows as a status change", () => {
+    expect(entryDiff({ ...base, data: { custom1: "x" } }, { ...base, data: { custom1: "y" } }, [fields])).toEqual([{ key: "f:custom1", label: "custom1", before: "x", after: "y" }]);
+    expect(entryDiff(base, { ...base, deleted: true, data: {}, notes: "" }, [fields])).toEqual([{ key: "deleted", label: "Status", before: "Live", after: "Deleted" }]);
+    expect(formatAnswer(undefined, { type: "counter", min: 1 })).toBe("1");
+    expect(formatAnswer(4, { type: "rating", max: 5 })).toBe("4 / 5");
+  });
+});

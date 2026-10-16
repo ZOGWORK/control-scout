@@ -126,4 +126,5 @@ export const DEVICE_ONLY_KEYS = [
   "cs-shortlist-view", // list or grid (src/lib/shortlist.ts)
   "cs-scout-dirty", // Personal entries waiting to sync (src/lib/scouting.ts)
   "cs-scout-ws-dirty:", // a workspace's entries waiting to sync
+  "cs-scout-lost:", // edits this device lost to newer ones, kept to restore (src/lib/lostEdits.ts)
 ] as const;

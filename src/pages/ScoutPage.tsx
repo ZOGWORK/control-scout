@@ -20,6 +20,7 @@ import { useScoutLive, type LiveMode } from "../lib/scoutLive";
 import { EntryAttribution } from "../components/EntryAttribution";
 import { EntryPhotos } from "../components/scout/EntryPhotos";
 import { ActivityFeed } from "../components/scout/ActivityFeed";
+import { ConflictNotices, HistorySheet } from "../components/scout/EntryHistory";
 import { useWorkspaceActivity } from "../lib/scoutActivity";
 import { PageHeader, Section, EmptyState } from "../components/page";
 import { Button } from "../components/ui/button";
@@ -93,8 +94,12 @@ export default function ScoutPage() {
     if (!e) { toast("That entry was deleted, or hasn't synced to this device yet."); return; }
     setSp((x) => { x.delete("view"); x.delete("team"); x.set("season", String(e.season)); x.set("entry", uuid); return x; });
   };
+  // The entry whose History sheet is open (Task 16): looked up on the device, so it stays open if the entry is deleted meanwhile.
+  const [historyFor, setHistoryFor] = useState<string | null>(null);
+  useEffect(() => { setHistoryFor(null); }, [space]);
+  const historyEntry = historyFor && space != null ? entries.find((e) => e.uuid === historyFor) ?? localScoutEntries(space).find((e) => e.uuid === historyFor) ?? null : null;
   useEffect(() => {
-    const refused = (ev: Event) => { const r = (ev as CustomEvent<ScoutRefusal>).detail; if (r.space === space) toast.error(refusalMessage(r)); };
+    const refused =(ev: Event) => { const r = (ev as CustomEvent<ScoutRefusal>).detail; if (r.space === space) toast.error(refusalMessage(r)); };
     window.addEventListener(SCOUT_REFUSED, refused);
     return () => window.removeEventListener(SCOUT_REFUSED, refused);
   }, [space]);
@@ -105,6 +110,8 @@ export default function ScoutPage() {
           : "Your own observations — private to you. Saved on this device instantly; synced to your account when you're signed in."}
         actions={spaces.resolving ? undefined : <SyncChip status={status} pending={pendingCount} onSync={syncNow} signedIn={!!user} live={live} />}>
         {spaces.switchable && <ScoutSpaceSwitcher workspaces={spaces.workspaces} space={space} pending={pending} onSelect={selectSpace} className="mb-4" />}
+        {/* Edits this device lost to newer ones from other members (Task 16): once each, with their diff. */}
+        {space != null && !spaces.resolving && <ConflictNotices space={space} me={me} />}
         {spaces.notice && (
           <div role="status" className="mb-4 flex items-start gap-3 rounded-xl border border-warning/40 bg-warning/10 px-4 py-3 text-sm">
             <Info className="mt-0.5 size-4 shrink-0 text-warning" />
@@ -143,10 +150,11 @@ export default function ScoutPage() {
       <Section title={`Entries (${entries.length})`} description={teamFilter ? `For team ${teamFilter}` : "Newest first"}>
         {spaces.resolving ? <LoadingBlock rows={3} label="Loading scout space" /> : !entries.length ? <EmptyState icon={ClipboardList} title="No scouting entries yet" description="Start one above, or from any team page. Entries save on this device first, so scouting works with no signal." /> : (
           <ul className="grid gap-2 md:grid-cols-2">
-            {entries.map((e) => <EntryCard key={e.uuid} e={e} canDelete={canDeleteScoutEntry(e, me)} onEdit={() => setSp((x) => { x.set("entry", e.uuid); return x; })} />)}
+            {entries.map((e) => <EntryCard key={e.uuid} e={e} canDelete={canDeleteScoutEntry(e, me)} onEdit={() => setSp((x) => { x.set("entry", e.uuid); return x; })} onHistory={() => setHistoryFor(e.uuid)} />)}
           </ul>
         )}
       </Section>
+      {historyEntry && <HistorySheet entry={historyEntry} me={me} open onOpenChange={(o) => { if (!o) setHistoryFor(null); }} />}
       <Section title="Match recordings" description="Videos you recorded in the app stay on this device only — they're never uploaded. YouTube links you add sync with your account.">
         <Recordings />
       </Section>
@@ -168,7 +176,7 @@ function SyncChip({ status, pending, onSync, signedIn, live }: { status: string;
   );
 }
 
-function EntryCard({ e, canDelete, onEdit }: { e: ScoutEntry; canDelete: boolean; onEdit: () => void }) {
+function EntryCard({ e, canDelete, onEdit, onHistory }: { e: ScoutEntry; canDelete: boolean; onEdit: () => void; onHistory: () => void }) {
   // The fields it was made with (an older template version stays readable after the admin changes it).
   const t = useEntryTemplate(e);
   const shown = t.fields.filter((f) => e.data[f.id] !== undefined && e.data[f.id] !== false && e.data[f.id] !== 0 && e.data[f.id] !== "").slice(0, 5);
@@ -186,6 +194,7 @@ function EntryCard({ e, canDelete, onEdit }: { e: ScoutEntry; canDelete: boolean
         </div>
         <div className="flex gap-1">
           <Button variant="ghost" size="sm" onClick={onEdit}>Edit</Button>
+          {e.workspaceId != null && <Button variant="ghost" size="icon-sm" aria-label="Version history" title="History" onClick={onHistory} className="max-sm:size-10"><History /></Button>}
           {canDelete && <Button variant="ghost" size="icon-sm" aria-label="Delete entry" onClick={() => { deleteScoutEntry(e); toast("Entry deleted"); }}><Trash2 /></Button>}
         </div>
       </div>

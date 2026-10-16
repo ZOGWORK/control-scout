@@ -418,6 +418,10 @@ day. Server code: `server/scout/activityLog.ts`. Table: `workspace_activity`
     is logged for a refused write (a member deleting someone else's entry), an
     older version that lost to a newer one, a resend, an edit that changes
     nothing, or a tombstone for an entry nobody else ever saw.
+  - `entry.version_restored`, in place of `entry.edited` (or `entry.restored`)
+    when the write restores an earlier version. Details add `fromAt`,
+    `fromVersion` (null for an edit that never reached the server), `fromName`
+    and `undeleted`. See [Version history and conflicts](#version-history-and-conflicts).
   - `template.changed`, with the season, version and kinds. A save that
     changes nothing isn't logged.
   - `photo.added` and `photo.removed`. Expiry by the nightly job isn't logged.
@@ -447,6 +451,61 @@ day. Server code: `server/scout/activityLog.ts`. Table: `workspace_activity`
 - **Retention.** Items are kept for 90 days. The scheduler prunes older ones
   every 6 hours (not when `CS_NO_SCHEDULER` is set), and the API never lists
   them.
+
+### Version history and conflicts
+
+Last write wins, but it never silently eats someone's work. Server code:
+`server/scout/history.ts`. Table: `workspace_entry_versions` (migration 18,
+private). Device code: `src/lib/lostEdits.ts`, `src/components/scout/EntryHistory.tsx`.
+
+- **History.** Every accepted write that changes a workspace entry adds a
+  version in the same transaction as the write: who wrote it (the editor, not
+  the entry's author), its `updatedAt`, and the text (`data`, `notes`, team,
+  event, match, kind, deleted, and the template it was made with). A refused
+  write, an older version that lost, a resend, or a newer stamp that changes
+  nothing adds none. The last **20** versions per entry are kept; older ones are
+  pruned in the same transaction. Entries from before migration 18 start with
+  what was stored then as version 1.
+- **Not versioned.** Photos have their own list (`photos_rev`), so a restore
+  never brings back or removes a photo. Personal entries have no history: they
+  are one person's, and a newer edit from their own device simply wins.
+- **API.** `GET /api/scout/workspaces/:id/entries/:uuid/history` returns
+  `{ uuid, limit, versions }`, newest first. Members only: 401 signed out, 403
+  for non-members, 404 for an entry the workspace doesn't have, 503 while
+  workspace scouting is paused.
+- **Base.** Each workspace write carries `baseUpdatedAt`: the server version
+  the device's edit was built on (stored on the entry, sent back with it).
+- **Conflict notice.** A device is the loser when a newer copy of an entry from
+  someone else (not this account on another device) replaces a version that
+  says something different and that either:
+  - is still waiting to sync on this device (an offline or unsent edit), seen in
+    a push answer, a pull or the live stream, or
+  - is this account's own synced version, and the newer copy was based on an
+    older one (`baseUpdatedAt` before it), so its writer never saw it.
+
+  An edit made after seeing yours is ordinary teamwork, not a conflict. The
+  losing version is kept on the device (Tier 3, `cs-scout-lost:<workspace>`, see
+  [settings.md](settings.md)), because the server may never have had it. The
+  Scout page says "Your edit was overwritten by <name>" once per lost version,
+  with **View diff**: a field-level before and after, labelled from each
+  version's template. A deleted entry is shown as a status change.
+- **Restore.** The loser (their lost version, or a version they wrote) or an
+  admin (any version) can restore from the notice or from the entry's
+  **History** sheet. A restore is an ordinary save: a fresh `updatedAt` (newer
+  than the version it replaces, whatever the other device's clock), attributed
+  to whoever restores, sent with `restoredFrom` (the `updatedAt` of the version
+  it brings back). The server checks it like any write, records it as a version
+  marked `restored` (with `restored_from_version` when the server has that
+  version), and logs `entry.version_restored`. The entry's author gets an inbox
+  item under "Changes to my entries".
+- **Restore and deletes.** A restore can't get round the delete rules. A member
+  restoring onto an entry someone else deleted is bringing it back, which only
+  its author or an admin may do: the server refuses it (`forbidden`), records
+  nothing, and the app says why (the History sheet also disables Restore there).
+  A deleted version can't be restored (that would be a delete), and a delete
+  sent with a restore marker is logged as the delete it is. A member could
+  type any version's text back in as an edit anyway, so restoring someone
+  else's version is limited to admins in the app, not on the server.
 
 ## Not in scope (yet)
 
