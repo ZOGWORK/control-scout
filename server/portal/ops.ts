@@ -8,7 +8,8 @@
 // same kind is still running here, the op is refused with the reason instead of queued.
 import { kvSet } from "../db.js";
 import { lockHolder, LockBusy, withDataLock } from "../data/lock.js";
-import { cycleRunning, runDataCycle } from "../data/jobs.js";
+import { childCycle, cycleRunning, runDataCycle } from "../data/jobs.js";
+import { runPacksInChild } from "../data/cycle.js";
 import { buildPacks } from "../packs/build.js";
 import { clearAllCaches, registerCache } from "../caches.js";
 import { forecasterFor } from "../predict/engine.js";
@@ -31,9 +32,16 @@ type Log = (m: string) => void;
 const runners: Record<OpName, (log: Log) => Promise<string>> = {
   resync: async (log) => { await runDataCycle("owner", log); return "Data updated."; },
   packs: async (log) => withDataLock("owner: rebuild packs", async () => {
-    const m = await buildPacks(log);
+    // Where the cycle runs in a child process (DATA_CYCLE=child), so does this build: its long synchronous
+    // stretches would otherwise stall every request this server answers.
+    let msg: string;
+    if (childCycle()) {
+      log("building in a child process");
+      await runPacksInChild();
+      msg = "Packs built.";
+    } else msg = `Packs ${(await buildPacks(log)).version} built.`;
     await kvSet("packs:last", new Date().toISOString());
-    return `Packs ${m.version} built.`;
+    return msg;
   }, { ttlMs: 2 * 60_000, waitMs: 0 }),
   caches: async () => {
     const names = await withDataLock("owner: clear caches", async () => clearAllCaches(), { ttlMs: 60_000, waitMs: 0 });

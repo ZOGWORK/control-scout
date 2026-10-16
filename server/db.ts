@@ -500,6 +500,18 @@ export function openDb(url: string, authToken?: string | null): Client {
   return createClient({ url, authToken: authToken ?? undefined });
 }
 
+let primaryClient: Client | null = null;
+/**
+ * The database itself, bypassing the embedded replica: for the few small reads that must see another
+ * server's write within seconds (feature flags), not after the replica's next sync (minutes).
+ * Without a replica this is just db().
+ */
+export function primaryDb(): Client {
+  if (!replicaClient || client !== replicaClient) return db();
+  primaryClient ??= createClient({ url: env.databaseUrl, authToken: env.databaseToken ?? undefined });
+  return primaryClient;
+}
+
 /** Use a specific client (tests). */
 export function setDb(c: Client): void { client = c; }
 
