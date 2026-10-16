@@ -11,6 +11,7 @@
 // not change.
 import type { WorkspaceEntryOut } from "./entries.js";
 import type { PickList } from "../../src/shared/picklist.js";
+import type { AssignmentNotice } from "../../src/shared/assignments.js";
 import type { CommentEvent } from "../../src/shared/comments.js";
 
 /** A written entry with its place in the workspace's write order. */
@@ -176,6 +177,30 @@ export function subscribePicklist(workspaceId: string, fn: PicklistListener): ()
     if (!s) return;
     s.delete(fn);
     if (!s.size) picklistChannels.delete(workspaceId);
+  };
+}
+
+// Scouting assignments (assignments.ts, Task 10): each create, status change or delete is passed on by open
+// streams as `event: assignment` (no id, like activity), carrying the assignments as the list now has them,
+// so badges and cards update without a refetch.
+type AssignmentListener = (n: AssignmentNotice) => void;
+const assignmentChannels = new Map<string, Set<AssignmentListener>>();
+
+/** Tell every open stream of the workspace that its assignments changed. Never throws. */
+export function publishAssignments(workspaceId: string, n: AssignmentNotice): void {
+  for (const fn of [...(assignmentChannels.get(workspaceId) ?? [])]) { try { fn(n); } catch (err) { console.error("[live] assignment listener failed", err); } }
+}
+
+/** Listen to a workspace's assignment changes; returns the unsubscribe. */
+export function subscribeAssignments(workspaceId: string, fn: AssignmentListener): () => void {
+  let subs = assignmentChannels.get(workspaceId);
+  if (!subs) { subs = new Set(); assignmentChannels.set(workspaceId, subs); }
+  subs.add(fn);
+  return () => {
+    const s = assignmentChannels.get(workspaceId);
+    if (!s) return;
+    s.delete(fn);
+    if (!s.size) assignmentChannels.delete(workspaceId);
   };
 }
 

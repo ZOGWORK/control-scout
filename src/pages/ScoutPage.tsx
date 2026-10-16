@@ -3,7 +3,7 @@
 // your account when signed in and online.
 import { useEffect, useId, useMemo, useRef, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
-import { ClipboardList, Cloud, CloudOff, Download, History, Info, LayoutList, ListOrdered, Loader2, MessageSquare, Plus, Save, SearchX, Trash2, X } from "lucide-react";
+import { ClipboardCheck, ClipboardList, Cloud, CloudOff, Download, History, Info, LayoutList, ListOrdered, Loader2, MessageSquare, Plus, Save, SearchX, Trash2, X } from "lucide-react";
 import { useCurrentSeason, useTitle } from "../lib/meta";
 import { usePersonal } from "../lib/personal";
 import { canDeleteScoutEntry, deleteScoutEntry, localScoutEntries, newScoutId, refusalMessage, SCOUT_REFUSED, type ScoutRefusal, saveScoutEntry, ScoutStorageError, usePendingScoutCounts, useScouting, type ScoutEntry, type ScoutSpace, type ScoutValue } from "../lib/scouting";
@@ -29,6 +29,9 @@ import { EntryComments } from "../components/scout/EntryComments";
 import { useCommentCounts } from "../lib/scoutComments";
 import { useWorkspaceActivity } from "../lib/scoutActivity";
 import { SharedPicklist } from "../components/scout/SharedPicklist";
+import { AssignmentsView } from "../components/scout/Assignments";
+import { assignedLabel, useAssignmentIndex, useAssignments } from "../lib/assignments";
+import { assignmentKey } from "../shared/assignments";
 import { PageHeader, Section, EmptyState } from "../components/page";
 import { Button } from "../components/ui/button";
 import { Badge, FieldError, Input, Textarea, Label } from "../components/ui/basic";
@@ -78,7 +81,9 @@ export default function ScoutPage() {
   const [formOpen, setFormOpen] = useState(opensNew || !!editing);
   // The team a new entry starts with: fixed when the form opens, so filtering while it's open never resets it.
   const [formTeam, setFormTeam] = useState(opensNew ? teamFilter : undefined);
-  const openNew = () => { setFormTeam(teamFilter); setFormOpen(true); };
+  // Each New entry or Scout starts a fresh form (its own key): never the draft of an earlier one.
+  const [formNonce, setFormNonce] = useState(0);
+  const openNew = () => { setFormTeam(teamFilter); setFormEvent(null); setFormNonce((n) => n + 1); setFormOpen(true); };
   useEffect(() => { if (editing) setFormOpen(true); }, [editing]);
   // Another space's entry can't be edited here: switching closes an edit (a new entry stays open and saves to the new space).
   // Authors are a workspace's own, so the author filter doesn't carry over.
@@ -132,6 +137,34 @@ export default function ScoutPage() {
   const showPicklist = !!workspace && !spaces.resolving && sp.get("view") === "picklist";
   const togglePicklist = () => setSp((x) => { if (x.get("view") === "picklist") x.delete("view"); else x.set("view", "picklist"); return x; });
   const pickMe = useMemo(() => ({ accountId: user?.controlPoint?.accountId ?? null, name: user?.displayName?.trim() || "You" }), [user]);
+  // Scouting assignments (Task 10, ?view=assignments): loaded for the whole space, for the view and the badges.
+  const assignments = useAssignments(workspace && !spaces.resolving ? space : null, season, live);
+  const assignIndex = useAssignmentIndex(assignments.list);
+  // Progress is the server's count of each assignee's entries: once entries change (added, edited, deleted,
+  // moved; here or live from others) and this device's writes have synced, ask again, so a deleted or moved
+  // entry stops counting. Debounced: a burst of changes makes one request.
+  const reloadAssignments = useRef(assignments.reload);
+  reloadAssignments.current = assignments.reload;
+  const hasAssignments = useRef(false);
+  hasAssignments.current = assignments.list.length > 0;
+  const firstEntries = useRef(true);
+  useEffect(() => {
+    if (firstEntries.current) { firstEntries.current = false; return; }
+    if (!hasAssignments.current || status === "syncing") return;
+    const t = setTimeout(() => reloadAssignments.current(), 2000);
+    return () => clearTimeout(t);
+  }, [entries, status]);
+  const showAssignments = !!workspace && !spaces.resolving && sp.get("view") === "assignments";
+  const myOpen = workspace && me ? assignments.list.filter((a) => a.assigneeAccountId === me.accountId && a.status === "open").length : 0;
+  const toggleAssignments = () => setSp((x) => { if (x.get("view") === "assignments") x.delete("view"); else x.set("view", "assignments"); return x; });
+  // Scout an assigned team: the list filtered to that team at that event, and a new entry for it there.
+  // The event of the assignment Scout was tapped on: only for that space and season (a switch falls back to the defaults).
+  const [formEvent, setFormEvent] = useState<{ space: ScoutSpace; season: number; code: string } | null>(null);
+  const scoutAssigned = (team: number, eventCode: string) => {
+    setSp((x) => { x.delete("view"); x.delete("entry"); x.set("team", String(team)); x.set("event", eventCode); return x; });
+    setFormTeam(team); setFormEvent({ space, season, code: eventCode }); setFormNonce((n) => n + 1); setFormOpen(true);
+  };
+  const badgeFor = (team: number, eventCode: string | null) => (workspace && eventCode ? assignedLabel(assignIndex.get(assignmentKey(season, eventCode, team)) ?? [], me?.accountId) : null);
   // Tapping an item about an entry opens it (in its season), if this device has it and it wasn't deleted since.
   const openEntry = (uuid: string) => {
     const e = space == null ? null : localScoutEntries(space).find((x) => x.uuid === uuid && !x.deleted);
@@ -164,6 +197,11 @@ export default function ScoutPage() {
             <Button variant="outline" aria-pressed={showActivity} onClick={toggleActivity}><History /> Activity</Button>
           )}
           {workspace && !spaces.resolving && (
+            <Button variant="outline" aria-pressed={showAssignments} onClick={toggleAssignments}>
+              <ClipboardCheck /> Assignments{myOpen > 0 && <Badge variant="beta" className="ml-0.5" aria-label={`${myOpen} open for you`}>{myOpen}</Badge>}
+            </Button>
+          )}
+          {workspace && !spaces.resolving && (
             <Button variant="outline" aria-pressed={showPicklist} onClick={togglePicklist}><ListOrdered /> Pick list</Button>
           )}
           {workspace && isAdmin && !spaces.resolving && (
@@ -182,12 +220,15 @@ export default function ScoutPage() {
         <TemplateEditor key={`${workspace.id}:${season}`} workspaceId={workspace.id} workspaceName={workspaceLabel(workspace)} season={season} template={wt.template} onClose={toggleTemplate} />
       )}
       {formOpen && !spaces.resolving && (
-        <EntryForm key={editEntry?.uuid ?? `new-${formTeam ?? ""}`} season={season} initial={editEntry} team={formTeam} space={space} spaceName={workspace ? workspaceLabel(workspace) : null} workspaceTemplate={wt.template} templatePending={templatePending}
-          defaultEvent={newEntryEventCode(space, wss.defaults, season)}
-          onDone={() => { setFormOpen(false); setSp((x) => { x.delete("entry"); x.delete("new"); return x; }); }} />
+        <EntryForm key={editEntry?.uuid ?? `new-${formTeam ?? ""}-${formNonce}`} season={season} initial={editEntry} team={formTeam} space={space} spaceName={workspace ? workspaceLabel(workspace) : null} workspaceTemplate={wt.template} templatePending={templatePending}
+          defaultEvent={(space != null && formEvent?.space === space && formEvent.season === season && formEvent.code) || newEntryEventCode(space, wss.defaults, season)}
+          onDone={() => { setFormOpen(false); setFormEvent(null); setSp((x) => { x.delete("entry"); x.delete("new"); return x; }); }} />
       )}
       {formOpen && !spaces.resolving && editEntry?.workspaceId != null && <EntryComments key={`comments-${editEntry.uuid}`} entry={editEntry} className="-mt-4 mb-8" />}
-      {showPicklist && workspace ? <SharedPicklist key={`${workspace.id}:${season}`} workspaceId={workspace.id} workspaceName={workspaceLabel(workspace)} season={season} live={live} me={pickMe} shortlist={personal.bookmarks} />
+      {showAssignments && workspace && space != null ? (
+        <AssignmentsView space={space} workspaceName={workspaceLabel(workspace)} season={season} defaultEvent={newEntryEventCode(space, wss.defaults, season)}
+          state={assignments} myAccountId={me?.accountId ?? null} isAdmin={isAdmin} localEntries={entries} onScout={scoutAssigned} />
+      ) : showPicklist && workspace ? <SharedPicklist key={`${workspace.id}:${season}`} workspaceId={workspace.id} workspaceName={workspaceLabel(workspace)} season={season} live={live} me={pickMe} shortlist={personal.bookmarks} />
         : showActivity && workspace ? <ActivityFeed state={activity} workspaceName={workspaceLabel(workspace)} onOpenEntry={openEntry} /> : <>
       <Section title={`Entries (${entries.length})`}>
         {spaces.resolving ? <LoadingBlock rows={3} label="Loading scout space" /> : !entries.length ? <EmptyState icon={ClipboardList} title="No scouting entries yet" description="Start one above, or from any team page. Entries save on this device first, so scouting works with no signal." /> : <>
@@ -198,7 +239,7 @@ export default function ScoutPage() {
               action={<Button variant="outline" onClick={feed.clear}>Clear filters</Button>} />
           ) : (
             <ul className="grid gap-2 md:grid-cols-2">
-              {feed.shown.map((e) => <EntryCard key={e.uuid} e={e} canDelete={canDeleteScoutEntry(e, me)} comments={commentCounts[e.uuid] ?? 0} onEdit={() => setSp((x) => { x.set("entry", e.uuid); return x; })} />)}
+              {feed.shown.map((e) => <EntryCard key={e.uuid} e={e} assigned={badgeFor(e.team, e.eventCode)} canDelete={canDeleteScoutEntry(e, me)} comments={commentCounts[e.uuid] ?? 0} onEdit={() => setSp((x) => { x.set("entry", e.uuid); return x; })} />)}
             </ul>
           )}
         </>}
@@ -231,7 +272,7 @@ function SyncChip({ status, pending, onSync, signedIn, live }: { status: string;
   );
 }
 
-function EntryCard({ e, canDelete, comments, onEdit }: { e: ScoutEntry; canDelete: boolean; comments: number; onEdit: () => void }) {
+function EntryCard({ e, assigned, canDelete, comments, onEdit }: { e: ScoutEntry; assigned: string | null; canDelete: boolean; comments: number; onEdit: () => void }) {
   // The fields it was made with (an older template version stays readable after the admin changes it).
   const t = useEntryTemplate(e);
   const shown = t.fields.filter((f) => e.data[f.id] !== undefined && e.data[f.id] !== false && e.data[f.id] !== 0 && e.data[f.id] !== "").slice(0, 5);
@@ -244,6 +285,7 @@ function EntryCard({ e, canDelete, comments, onEdit }: { e: ScoutEntry; canDelet
             <>
               <p className="text-xs text-muted-foreground">{e.eventCode ?? "No event"}</p>
               <EntryAttribution e={e} className="mt-0.5" />
+              {assigned && <Badge variant="beta" className="mt-1.5"><ClipboardCheck /> {assigned}</Badge>}
             </>
           )}
         </div>
