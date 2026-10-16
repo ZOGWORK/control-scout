@@ -27,6 +27,7 @@ import { templateRouter } from "./scout/templates.js";
 import { exportRouter } from "./scout/export.js";
 import { settingsRouter } from "./scout/settings.js";
 import { activityRouter } from "./scout/activity.js";
+import { inboxRouter } from "./inbox/routes.js";
 import { reportsRouter } from "./errorReports.js";
 import { packsRouter } from "./packs/routes.js";
 import { collectRouter, statsRouter } from "./analytics.js";
@@ -157,7 +158,7 @@ export function createApp() {
   // Anything personal stays no-store (case-insensitive, like Express routing),
   // and so does every error response, so a retry never replays a cached 503.
   api.use((req, res, next) => {
-    const personal = /^\/(me|auth|health|stats|reports|scout|owner)(\/|$)/i.test(req.path);
+    const personal = /^\/(me|auth|health|stats|reports|scout|owner|inbox)(\/|$)/i.test(req.path);
     res.setHeader("Cache-Control", req.method === "GET" && !personal ? "public, max-age=60, stale-while-revalidate=300" : "no-store");
     const writeHead = res.writeHead;
     res.writeHead = function (this: typeof res, ...a: Parameters<typeof writeHead>) {
@@ -425,6 +426,9 @@ export function createApp() {
   // The owner portal's switches: with realtime off the stream answers 503 and the app polls instead; with
   // workspace scouting off it answers 503 too, since a stream's catch-up reads shared entries like a pull.
   api.use("/scout", streamRouter({ enabled: async () => (await isEnabled("realtime")) && (await isEnabled("workspaceScouting")) }));
+  // The notification inbox (docs/inbox.md): per account, across workspaces. Its stream follows the realtime switch only
+  // (owner alerts aren't workspace scouting); while it's off the app polls the unread count.
+  api.use("/inbox", inboxRouter({ streamEnabled: () => isEnabled("realtime") }));
   api.use("/collect", collectRouter());
   api.use("/stats", statsRouter());
   api.use("/contact", contactRouter());

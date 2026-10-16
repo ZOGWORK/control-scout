@@ -15,6 +15,7 @@ import { TooltipProvider } from "../ui/overlay";
 import { GlobalSearch } from "./Search";
 import { AccountMenu } from "./AccountMenu";
 import { ClockWeather, ThemeToggle } from "./TopBarExtras";
+import { InboxBell } from "./InboxBell";
 import { usePersonal } from "../../lib/personal";
 import { pageTitle } from "../../shared/routes";
 import { SiteFooter } from "./SiteFooter";
@@ -219,6 +220,8 @@ export function Shell({ children }: { children: ReactNode }) {
               <div className="flex flex-1 justify-end md:justify-center"><GlobalSearch /></div>
               <ClockWeather />
               <ThemeToggle />
+              {/* The notification inbox: top right, in the header only (never the sidebar). */}
+              <InboxBell />
               <AccountMenu />
             </header>
             <div className="relative min-h-0 flex-1">
