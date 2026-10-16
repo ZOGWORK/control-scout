@@ -31,6 +31,9 @@
 //                            GET /api/scout/workspaces/:id/activity lists it; no id. Live only: ones logged during
 //                            the catch-up follow `ready`; a reader that was away refetches the feed's newest page.
 //                            A coalesced edit arrives as a new item whose details.firstId says which older ones it replaces.
+//   event: assignment        scouting assignments changed (assignments.ts); no id. data {"action": "created" | "updated" |
+//                            "deleted", "assignments": [...]}, each exactly as GET /api/scout/workspaces/:id/assignments lists
+//                            it (deleted: as it was). Live only, like `activity`; a reader that was away refetches the list.
 //   : ping                   a comment every 25 s (proxies drop silent connections)
 //
 // Proxy: the response says X-Accel-Buffering: no, and nginx's site gives this
@@ -39,8 +42,9 @@
 import express, { type Request, type Response, type Router } from "express";
 import { isWorkspaceId } from "../auth/controlPoint.js";
 import { currentUser } from "../auth/session.js";
-import { subscribe, subscribeActivity, subscribeRevoked, subscribeSettings, subscribeTemplate, type ActivityNotice, type LiveEntry, type SettingsNotice, type TemplateNotice } from "./bus.js";
+import { subscribe, subscribeActivity, subscribeAssignments, subscribeRevoked, subscribeSettings, subscribeTemplate, type ActivityNotice, type LiveEntry, type SettingsNotice, type TemplateNotice } from "./bus.js";
 import { openLiveConnection } from "../liveConnections.js";
+import type { AssignmentNotice } from "../../src/shared/assignments.js";
 import { pullWorkspaceLive, workspaceAccess, type WorkspaceEntryOut } from "./entries.js";
 
 /**
@@ -171,6 +175,16 @@ data: ${JSON.stringify(a)}
     write("event: membership_revoked\ndata: {}\n\n");
     end();
   });
+  // Assignment changes likewise (bounded, sent once live).
+  const heldAssignments: AssignmentNotice[] = [];
+  const sendAssignments = (n: AssignmentNotice) => write(`event: assignment
+data: ${JSON.stringify(n)}
+
+`);
+  const unsubscribeAssignments = subscribeAssignments(workspaceId, (n) => {
+    if (live) sendAssignments(n);
+    else if (heldAssignments.push(n) > LIMITS.maxHeld) end();
+  });
   const stream: Stream = { userId: user.id, workspaceId, end: (closeSocket) => { end(); if (closeSocket) res.socket?.end(); } };
   streams.add(stream);
   // Counted for the owner portal's Usage panel (live connections), released in end().
@@ -191,10 +205,10 @@ data: ${JSON.stringify(a)}
     if (closed) return;
     closed = true;
     clearInterval(heartbeat); clearInterval(recheck);
-    unsubscribe(); unsubscribeTemplate(); unsubscribeSettings(); unsubscribeActivity(); unsubscribeRevoked();
+    unsubscribe(); unsubscribeTemplate(); unsubscribeSettings(); unsubscribeActivity(); unsubscribeRevoked(); unsubscribeAssignments();
     streams.delete(stream);
     release();
-    held.length = 0; heldActivity.length = 0;
+    held.length = 0; heldActivity.length = 0; heldAssignments.length = 0;
     res.end();
   }
   res.on("close", end);
@@ -220,6 +234,7 @@ data: ${JSON.stringify(a)}
     if (heldTemplate) { sendTemplate(heldTemplate); heldTemplate = null; }
     if (heldSettings) { sendSettings(heldSettings); heldSettings = null; }
     for (const a of heldActivity.splice(0)) sendActivity(a);
+    for (const n of heldAssignments.splice(0)) sendAssignments(n);
   } catch (e) {
     console.error("[scout stream] catch-up failed", e);
     end();
