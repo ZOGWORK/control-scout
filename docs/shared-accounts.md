@@ -226,7 +226,7 @@ Control Point.
 - **Admin-only routes** (templates and settings, Tasks 5 and 6) use
   `requireWorkspaceAdmin()` from `server/scout/entries.ts`. It's Express
   middleware that reads the workspace id from the route parameter, the query
-  or the body. It returns `401` if signed out, `400` for a bad id, and `403`
+  or the body. It returns `401` if signed out, `503` while workspace scouting is paused in the owner portal, `400` for a bad id, and `403`
   for a non-member or a member who isn't an admin. Otherwise it puts the
   membership on `res.locals.membership`. `workspaceAdminAccess(user,
   workspaceId)` is the same check without Express.
