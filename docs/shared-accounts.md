@@ -278,6 +278,80 @@ any entries wait. It covers Personal and the account's workspaces, and only
 while workspace scouting is on. Pushes to one space never overlap:
 `syncScouting` waits for the previous push to that space.
 
+### "My team" / "My teams" (the YOURS row)
+
+The YOURS row in the sidebar, the phone's tab bar and its More menu is the
+workspace entry point (`src/lib/yoursRow.ts`). It counts Control Point
+workspaces, never FTC team numbers:
+
+| Workspaces | Label | Tap |
+| --- | --- | --- |
+| none, signed out, paused, or Control Point's answer unknown | My team | `/my-team`, the followed-team dashboard (as before) |
+| exactly one | My team | that workspace's scout space (`/scout?space=<id>`) |
+| more than one | My teams | a picker: each workspace with its role and pending count; a popover on desktop, a bottom sheet on phones |
+
+The followed-team dashboard stays at `/my-team`. For workspace users it is
+linked from the picker ("My followed team"), from the team page of your
+followed team, and from Settings › My team & tracking.
+
+### Workspace templates
+
+A workspace admin can change the fields their members fill in, per season,
+for match and pit entries (Scout page › the workspace's space › **Template**,
+admins only). They can add, edit, reorder and remove fields using the
+built-in field types (`counter`, `toggle`, `choice`, `rating`, `text`) and
+phases (match: auto, TeleOp, endgame, overall; pit: pit). Personal always uses
+the built-in defaults. A workspace that hasn't customised a kind uses the
+built-in default for it too.
+
+Storage (migration 15, `server/scout/templates.ts`):
+
+- **Current template:** `workspaces.settings` (JSON) holds it under
+  `scoutTemplate.<season>`:
+  `{ version, match: Field[] | null, pit: Field[] | null, updatedAt, updatedBy }`.
+  `null` means the built-in default. Other keys of `settings` are left as they
+  are. That's where Task 6's `defaults` and `entryPolicy` go.
+- **Versions:** every admin change bumps that season's `version` (1, 2, …) and
+  the row's `settings_version`, which counts every change to the workspace's
+  settings. Saving what's already there changes nothing.
+- **History:** each version is also written to `workspace_template_versions`
+  (`workspace_id, season, version, match, pit, created_at, created_by_*`).
+  Rows are never changed or deleted.
+- **Entries:** each entry records `templateId`
+  (`ws:<workspace>:<season>:<kind>`, or a built-in id such as `match-2025`)
+  and `templateVersion` (0 for built-in), in
+  `workspace_scout_entries.template_id` / `template_version`. Old entries
+  render, and are edited, with the fields of the version they were made with.
+  The device fetches that version once and keeps it. Entries from before
+  templates have neither field and read with the built-in default.
+
+API (all members read; only admins write, roles from Control Point):
+
+- `GET /api/scout/workspaces/:id/template?season=YYYY` returns the current
+  template (version 0 with `match`/`pit` null when never customised). The
+  response is `Cache-Control: private, no-cache` with an ETag of the season's
+  version and the settings version, so an unchanged refetch is a 304.
+  `&version=n` returns one version from the history; versions never change,
+  and an unknown version is a 404. Reading never creates the mirror row.
+- `PUT /api/scout/workspaces/:id/template` takes
+  `{ season, match?, pit?, baseVersion? }`. It goes through
+  `requireWorkspaceAdmin` and must be JSON (CSRF), and the first save creates
+  the mirror row.
+  - A kind left out is kept; `null` resets it to the built-in default.
+  - Fields are validated one by one (`src/shared/scoutTemplate.ts`): numbers
+    are clamped, unknown properties dropped, and bad fields dropped and listed
+    in `dropped`. The rest is kept.
+  - A non-empty list with no usable field at all is a 400.
+  - A `baseVersion` other than the current version (another admin saved
+    first) is a 409 that carries the current template.
+
+Live: a save publishes `event: template` (`{season, version, settingsVersion}`,
+no `id`, so the cursor doesn't move) on the workspace's stream. Open forms
+and editors refetch. Without the stream, a member gets the new template the
+next time the form opens. The current template is also kept on the device
+(`cs-scout-tpl:<workspace>:<season>`), so the form works offline with the
+last one seen.
+
 ## Not in scope (yet)
 
 - Signing out of Control Point doesn't end Scout sessions (Scout sessions last

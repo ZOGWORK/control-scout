@@ -12,6 +12,7 @@ import { NotFoundView } from "../components/NotFoundView";
 import { useAfterFirstPaint } from "../lib/afterPaint";
 import { usePredictable, useTitle } from "../lib/meta";
 import { usePersonal, useTeamFlags } from "../lib/personal";
+import { FOLLOWED_TEAM_PATH, useYoursRow } from "../lib/yoursRow";
 import { toast } from "../components/ui/sonner";
 import { useScouting } from "../lib/scouting";
 import type { MatchView, TeamEventRow, TeamProfile } from "../shared/api";
@@ -107,6 +108,8 @@ function Hero({ p, onSeason }: { p: TeamProfile; onSeason: (s: number) => void }
   const flags = useTeamFlags(t.number);
   const { state: personal } = usePersonal();
   const nav = useNavigate();
+  // With Control Point workspaces, "My team" in the nav opens the workspace: the followed-team dashboard is linked from here.
+  const workspaceUser = useYoursRow().row.kind !== "followed";
   // Say what each button did and where to see it: tracking and shortlisting change other pages, not this one.
   const track = () => {
     const on = !flags.tracked;
@@ -114,7 +117,7 @@ function Hero({ p, onSeason }: { p: TeamProfile; onSeason: (s: number) => void }
     if (!on) { toast(`Stopped tracking ${t.number}`); return; }
     toast.success(`Tracking ${t.number}`, {
       description: `It's on My team under Tracked teams, comes first in search and in Predict's quick picks.${personal.settings.notify.trackedTeams ? " While Control Scout is open in a tab, you'll get an alert before its matches." : " Turn on alerts for tracked teams in Settings › Notifications to hear before its matches (while Control Scout is open in a tab)."}`,
-      action: { label: "My team", onClick: () => nav("/my-team") },
+      action: { label: workspaceUser ? "Followed team" : "My team", onClick: () => nav(FOLLOWED_TEAM_PATH) },
     });
   };
   const shortlist = () => {
@@ -176,6 +179,11 @@ function Hero({ p, onSeason }: { p: TeamProfile; onSeason: (s: number) => void }
           <a href="https://tryctrlpoint.org" target="_blank" rel="noreferrer noopener" className="relative mt-4 inline-flex items-center gap-1.5 text-xs text-muted-foreground hover:text-accent">
             Manage this team in Control Point <ExternalLink className="size-3" />
           </a>
+          {workspaceUser && flags.isMine && (
+            <Link to={FOLLOWED_TEAM_PATH} className="relative ml-4 mt-4 inline-flex items-center gap-1.5 text-xs text-muted-foreground hover:text-accent">
+              <Star className="size-3" aria-hidden /> My followed team dashboard
+            </Link>
+          )}
         </div>
         {/* At a glance: the five-second answer to "is this team good?" */}
         <div className="min-w-0 border-t border-border bg-secondary/60 p-6 sm:p-8 lg:border-l lg:border-t-0">

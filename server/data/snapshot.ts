@@ -21,7 +21,7 @@ export function localDbPath(url = env.databaseUrl): string | null {
  *  owner_audit, feature_flags and request_metrics_daily are this server's own operations (the owner's email, its switches, its traffic). */
 export const PRIVATE_TABLES = [
   "users", "sessions", "identities", "email_codes", "user_state", "scout_entries", "error_reports", "contact_messages", "analytics_daily",
-  "workspace_members", "workspace_scout_entries", "workspaces",
+  "workspace_members", "workspace_scout_entries", "workspaces", "workspace_template_versions",
   "owner_audit", "feature_flags", "request_metrics_daily",
 ];
 

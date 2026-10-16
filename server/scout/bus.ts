@@ -52,3 +52,27 @@ export function serialized<T>(workspaceId: string, fn: () => Promise<T>): Promis
   void tail.then(() => { if (queues.get(workspaceId) === tail) queues.delete(workspaceId); });
   return p;
 }
+
+// Template changes (templates.ts): a small notice, not an entry. Open streams pass it on as
+// `event: template` so open forms refetch the workspace's template; it carries no field data.
+export interface TemplateNotice { season: number; version: number; settingsVersion: number }
+type TemplateListener = (n: TemplateNotice) => void;
+const templateChannels = new Map<string, Set<TemplateListener>>();
+
+/** Tell every open stream of the workspace that its template changed. Never throws. */
+export function publishTemplate(workspaceId: string, n: TemplateNotice): void {
+  for (const fn of [...(templateChannels.get(workspaceId) ?? [])]) { try { fn(n); } catch (err) { console.error("[live] template listener failed", err); } }
+}
+
+/** Listen to a workspace's template changes; returns the unsubscribe. */
+export function subscribeTemplate(workspaceId: string, fn: TemplateListener): () => void {
+  let subs = templateChannels.get(workspaceId);
+  if (!subs) { subs = new Set(); templateChannels.set(workspaceId, subs); }
+  subs.add(fn);
+  return () => {
+    const s = templateChannels.get(workspaceId);
+    if (!s) return;
+    s.delete(fn);
+    if (!s.size) templateChannels.delete(workspaceId);
+  };
+}
