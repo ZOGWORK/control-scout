@@ -59,6 +59,12 @@ export const env = {
   get r2Fake() { return !this.production && str("R2_FAKE") === "1"; },
   /** Where the stand-in keeps objects (unset: in memory). */
   get r2FakeDir() { return str("R2_FAKE_DIR"); },
+  /** Web push (docs/push.md): the VAPID key pair from `npx web-push generate-vapid-keys`, and a contact
+   *  (mailto: or https:) push services can reach. All three set: push is available; otherwise it stays
+   *  dormant. The private key is never sent to the browser or logged. */
+  get vapidPublicKey() { return str("VAPID_PUBLIC_KEY"); },
+  get vapidPrivateKey() { return str("VAPID_PRIVATE_KEY"); },
+  get vapidSubject() { return str("VAPID_SUBJECT"); },
   get dataDir() { return str("DATA_DIR") ?? join(process.cwd(), ".data"); },
   /** Where an FTC Scout raw cache can be imported from (seed). */
   get scoutCacheDir() { return str("SCOUT_CACHE_DIR"); },

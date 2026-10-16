@@ -26,6 +26,8 @@ import { manualReport, sendReport } from "../lib/errorReporting";
 import { useFlag } from "../lib/flags";
 import { REPORT_LIMITS } from "../shared/errorReport";
 import { INBOX_CATEGORIES, INBOX_CATEGORY_INFO, INBOX_TOGGLE, inboxCategoryOn } from "../shared/inbox";
+import { PUSH_DAILY_LIMIT, UPSET_THRESHOLD } from "../shared/push";
+import { disablePush, enablePush, readPushStatus, type PushStatus } from "../lib/push";
 import { PageHeader } from "../components/page";
 import { Button } from "../components/ui/button";
 import { Badge, FieldError, Input, Textarea } from "../components/ui/basic";
@@ -49,7 +51,7 @@ const ALL_SECTIONS: SectionDef[] = [
   { id: "profile", label: "Profile", hint: "Sign in to sync, your name, your account", icon: UserRound, group: "Personal" },
   { id: "appearance", label: "Appearance", hint: "Theme, background, density", icon: Palette, group: "Personal" },
   { id: "tracking", label: "My team & tracking", hint: "Your team, and the teams and events you follow", icon: Star, group: "Personal" },
-  { id: "notifications", label: "Notifications", hint: "Match alerts for your teams", icon: BellRing, group: "Personal" },
+  { id: "notifications", label: "Notifications", hint: "Push and match alerts for your teams", icon: BellRing, group: "Personal" },
   { id: "offline", label: "Offline data", hint: "Packs, cache and recordings on this device", icon: HardDriveDownload, group: "Personal" },
   { id: "scouting", label: "Scouting data", hint: "Export, import and clear your notes", icon: ClipboardList, group: "Personal" },
   { id: "privacy", label: "Account & privacy", hint: "What lives where, and how to remove it", icon: KeyRound, group: "Personal" },
@@ -360,18 +362,19 @@ function Tracking() {
 // --- Notifications ---------------------------------------------------------------------
 
 function Notifications() {
-  const { state, update } = usePersonal();
+  const { state, update, user } = usePersonal();
   const n = state.settings.notify;
   const [perm, setPerm] = useState<NotificationPermission | "unsupported">(typeof Notification === "undefined" ? "unsupported" : Notification.permission);
   const ask = async () => { if (typeof Notification !== "undefined") setPerm(await Notification.requestPermission()); };
-  const toggle = (k: keyof typeof n, label: string, hint: string) => (
+  const toggle = (k: "myTeamMatches" | "trackedTeams" | "upsets" | "eventStart", label: string, hint: string) => (
     <Row label={label} description={hint} htmlFor={`n-${k}`}>
       <Switch id={`n-${k}`} checked={n[k]} onCheckedChange={(v) => update("settings", (x) => ({ ...x, notify: { ...x.notify, [k]: v } }))} />
     </Row>
   );
   return (
     <div>
-      <Group title="Delivery" description="Alerts arrive while Control Scout is open in a tab (checked every 5 minutes). With browser permission they pop up even when the tab is in the background; otherwise they appear inside the app.">
+      <PushDevice signedIn={!!user} onPermission={setPerm} />
+      <Group title="In a tab" description="While Control Scout is open in a tab, alerts are checked every 5 minutes. With browser permission they pop up even when the tab is in the background; otherwise they appear inside the app. A device with push on gets them by push instead.">
         <Row label="Browser notifications" description={perm === "denied" ? "Blocked: change it in your browser's site settings." : perm === "unsupported" ? "This browser doesn't support notifications." : "Lets alerts pop up outside the tab."}>
           <div className="flex items-center gap-2">
             <Badge variant={perm === "granted" ? "success" : perm === "denied" ? "destructive" : "secondary"}>{perm === "granted" ? "Allowed" : perm === "denied" ? "Blocked" : perm === "unsupported" ? "Unavailable" : "Not asked yet"}</Badge>
@@ -379,14 +382,60 @@ function Notifications() {
           </div>
         </Row>
       </Group>
-      <Group title="What to alert me about" description="Yours alone: a workspace never changes them.">
-        {toggle("myTeamMatches", "My team's matches", "30 minutes before your team's next scheduled match, with the odds")}
+      <Group title="What to alert me about" description="Yours alone: a workspace never changes them. They apply to push and to alerts in a tab.">
+        {toggle("myTeamMatches", "My team's matches", "Before your team's next scheduled match, with the odds: 15 minutes ahead by push, up to 30 in a tab")}
         {toggle("trackedTeams", "Tracked teams' matches", "The same, for teams you track")}
-        {toggle("upsets", "Upsets", "When a tracked team wins a match it was predicted to lose, or loses one it was favoured in")}
-        {toggle("eventStart", "Event start", "The morning a tracked event starts")}
+        {toggle("upsets", "Upsets", `When the favourite loses at an event you follow (one you track, or one your teams are at). By push: our pre-match call gave the losing side ${Math.round(UPSET_THRESHOLD * 100)}% or more`)}
+        {toggle("eventStart", "Event start", "When an event you follow gets under way: its first result, or its first scheduled match time")}
       </Group>
       <InboxToggles />
     </div>
+  );
+}
+
+/** One line per push state: why it's dormant, or what it does. */
+const PUSH_HINT: Record<PushStatus, string> = {
+  checking: "Checking this device…",
+  unsupported: "This browser can't receive push notifications. Alerts still arrive while Control Scout is open in a tab.",
+  "ios-install": "On iPhone and iPad, notifications need Control Scout on your Home Screen: tap Share, then Add to Home Screen, and open it from there.",
+  "no-worker": "This page hasn't started its background worker yet. Reload the page, then try again.",
+  unavailable: "Notifications aren't available on this server right now. Alerts still arrive while Control Scout is open in a tab.",
+  "signed-out": "Sign in to turn them on: they follow your team, tracked teams and tracked events from your account.",
+  denied: "Blocked for this site. To allow them, open the site settings (the icon next to the address), set Notifications to Allow, then reload.",
+  off: "Off on this device. Turning them on asks your browser for permission.",
+  on: `On for this device: reminders 15 minutes before your teams' matches, upsets and event starts, even with Control Scout closed. At most ${PUSH_DAILY_LIMIT} a day.`,
+};
+
+/** Push for this device: off until a tap on "Turn on notifications" (the only place permission is asked). */
+function PushDevice({ signedIn, onPermission }: { signedIn: boolean; onPermission: (p: NotificationPermission) => void }) {
+  const [status, setStatus] = useState<PushStatus>("checking");
+  const [busy, setBusy] = useState(false);
+  useEffect(() => {
+    let live = true;
+    readPushStatus(signedIn).then((s) => { if (live) setStatus(s); }, () => { if (live) setStatus("unavailable"); });
+    return () => { live = false; };
+  }, [signedIn]);
+  const run = async (fn: () => Promise<PushStatus>, target: PushStatus, done: string) => {
+    setBusy(true);
+    try {
+      const s = await fn();
+      setStatus(s);
+      if (typeof Notification !== "undefined") onPermission(Notification.permission);
+      if (s === target) toast(done);
+    } catch (e) {
+      toast.error(`Couldn't change notifications: ${(e as Error).message}`);
+    } finally { setBusy(false); }
+  };
+  return (
+    <Group title="Push notifications" description="Match reminders, upsets and event starts on this device, even when Control Scout is closed. Turn them on for each phone or computer separately.">
+      <Row label="This device" description={<>{PUSH_HINT[status]}{status === "signed-out" && <> <Link to="/settings?section=profile" className="underline">Sign in</Link></>}</>}>
+        <div className="flex items-center gap-2">
+          <Badge variant={status === "on" ? "success" : status === "denied" ? "destructive" : "secondary"}>{status === "on" ? "On" : status === "denied" ? "Blocked" : status === "off" ? "Off" : status === "checking" ? "Checking" : "Unavailable"}</Badge>
+          {status === "off" && <Button size="sm" disabled={busy} onClick={() => run(enablePush, "on", "Notifications on for this device")}><BellRing /> Turn on notifications</Button>}
+          {status === "on" && <Button variant="outline" size="sm" disabled={busy} onClick={() => run(disablePush, "off", "Notifications turned off")}>Turn off</Button>}
+        </div>
+      </Row>
+    </Group>
   );
 }
 
