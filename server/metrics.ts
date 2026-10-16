@@ -45,7 +45,7 @@ export function normalizeRoute(path: string): string {
 
 /** Requests that move a person's own data or offline data between device and server. */
 export const isSyncRoute = (route: string) =>
-  /^[A-Z]+ \/(api\/me\/(state|scout|migrate)|api\/workspaces\/|packs\/)/.test(route);
+  /^[A-Z]+ \/(api\/me\/(state|scout|migrate)|api\/scout\/sync|api\/workspaces\/|packs\/)/.test(route);
 
 interface Tally { count: number; errors: number; total: number; max: number; b: number[] }
 let pending = new Map<string, Tally>();

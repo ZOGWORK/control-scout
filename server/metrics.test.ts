@@ -29,6 +29,8 @@ describe("normalizeRoute", () => {
 
   it("tells sync traffic apart", () => {
     expect(isSyncRoute("POST /api/me/scout/sync")).toBe(true);
+    expect(isSyncRoute("GET /api/scout/sync")).toBe(true); // workspace pulls
+    expect(isSyncRoute(`GET ${normalizeRoute("/api/scout/sync")}`)).toBe(true);
     expect(isSyncRoute("PUT /api/me/state/myteam")).toBe(true);
     expect(isSyncRoute("GET /packs/:file")).toBe(true);
     expect(isSyncRoute("GET /api/teams/:n")).toBe(false);

@@ -59,7 +59,8 @@ export interface FeedbackMessage {
   id: number; createdAt: string; topic: string; name: string | null; email: string; message: string;
   emailed: boolean; status: FeedbackStatus; statusAt: string | null;
 }
-export interface FeedbackList { messages: FeedbackMessage[]; counts: Record<FeedbackStatus, number> }
+/** One page, newest first; `more`: older messages follow (ask with ?before=<the last id>). */
+export interface FeedbackList { messages: FeedbackMessage[]; counts: Record<FeedbackStatus, number>; more: boolean }
 
 export type OpName = "resync" | "packs" | "caches";
 export interface OpJob {
