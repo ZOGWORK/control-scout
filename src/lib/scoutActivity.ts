@@ -7,6 +7,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { apiFetch, ApiError } from "./api";
 import type { LiveMode } from "./scoutLive";
+import { entrySubject } from "../shared/inbox";
 
 export interface ActivityItem {
   id: number; workspaceId: string; at: number;
@@ -147,12 +148,8 @@ export function useWorkspaceActivity(space: string | null, live: LiveMode): Acti
 const str = (v: unknown) => (typeof v === "string" && v ? v : null);
 const num = (v: unknown) => (typeof v === "number" && Number.isFinite(v) ? v : null);
 
-/** "team 18360 · Q12 · USNJQ1" / "team 18360 · pit" for an entry item. */
-export function entrySubject(d: Record<string, unknown>): string {
-  const team = num(d.team);
-  const where = d.kind === "pit" ? "pit" : str(d.matchLabel) ? `match ${str(d.matchLabel)}` : "match";
-  return [team ? `team ${team}` : "an entry", where, str(d.eventCode)].filter(Boolean).join(" · ");
-}
+/** "team 18360 · match Q12 · USNJQ1" / "team 18360 · pit" for an entry item (shared with the inbox). */
+export { entrySubject };
 
 const FIELD_NAMES: Record<string, string> = { team: "team", season: "season", kind: "kind", event: "event", match: "match", notes: "notes" };
 
