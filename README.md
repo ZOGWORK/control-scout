@@ -119,6 +119,14 @@ FTC Scout API (fallback)  ──┴─> sync job ─> SQLite ─> stats job ─�
   before the match happens, and scores it afterwards.
 * **Packs**: a lite pack (team ratings, < 10 MB) runs predictions fully offline;
   per-season full packs hold every event, match and team.
+  **Downloaded online, run only offline:** returning visitors get the lite pack
+  in the background (`src/lib/packSync.tsx`, rules in `src/lib/packPolicy.ts`)
+  and "Save offline" stores a season, but both only store bytes. Nothing opens,
+  decodes or queries a pack (and sql.js never loads) while the server answers;
+  the app switches to them only when the browser is offline or a read the pack
+  could answer gets a network error or no answer within 4 s, shows an
+  "Offline, showing saved data" badge, and switches back on the next server
+  answer (`src/lib/api.ts`).
 
 ## Repository layout
 
