@@ -1,5 +1,19 @@
 # Changelog
 
+## 2.1.1 — 2026-10-17
+
+No served number changes. This release adds side-by-side evidence:
+- `PredictOptions.shadow` and `ExplainOptions.shadow` evaluate a second contextual
+  model on the same book, lineup and context, and return it as
+  `pShadow`/`shadowModelId` (`explainMatch(...).shadow`).
+- The Forecaster logs the served model's fallback as the shadow:
+  `ForecastMatch.pShadow`/`shadowModelId`, which is 2.0 under 2.1.
+- Apps store both probabilities with every pre-match call. Future live results can then
+  compare versions on identical matches and identical information, instead of comparing
+  different versions on different matches.
+- The 2.1 validation claims are corrected in Control Scout's
+  `docs/prediction-engine-2.1-report.md` (clean forward re-evaluation).
+
 ## 2.1.0 — 2026-10-17 · Prediction Engine 2.1
 
 From the round-2 experiments (protocol registered before any candidate was scored;
@@ -22,7 +36,12 @@ report in Control Scout `docs/prediction-engine-2.1-report.md`).
   Books carrying 2.0 state (`stateVersion` 1) predict with it rather than with the
   legacy probability. Results carry `modelId`, `probabilityModelId` and
   `ForecastMatch.modelId`.
-- **Evidence (historical replay, not live):**
+- **Evidence (historical replay, not live). Superseded:** these figures are a development
+  comparison. The select block was judged after calibrating on later (Mar–May 2025) outcomes,
+  and 2025–26 results were used to veto candidates. A forward-only re-evaluation (2.1.1
+  report correction) finds better Brier in both seasons (−0.00057 and −0.00048, intervals
+  below 0), an accuracy change of +0.17 / +0.06 pp with intervals including 0, and
+  calibration about equal to 2.0's.
   - select: +0.22 pp accuracy [+0.01, +0.42], Brier 0.15358 → 0.15313;
   - 2025–26 (secondary, already examined): +0.19 pp [+0.05, +0.33], Brier
     0.16842 → 0.16804, log loss 0.5102 → 0.5093;
