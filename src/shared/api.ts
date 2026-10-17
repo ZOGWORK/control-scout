@@ -160,6 +160,8 @@ export interface FieldRow {
   opr: { np: number | null; auto: number | null; teleop: number | null; endgame: number | null; pen: number | null };
   avgNp: number | null;
   rating: { np: number; sd: number; matches: number } | null;
+  /** The team's season OPR (np) so far, across all its events: what the field looks like before this event starts. */
+  seasonOpr?: number | null;
 }
 
 export interface EventDetail {
