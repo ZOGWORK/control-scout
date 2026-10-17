@@ -142,7 +142,7 @@ describe("MatchReportView", () => {
 describe("one tap from the match list", () => {
   it("every match row links to its report", () => {
     render(<MemoryRouter><TooltipProvider><MatchList matches={[match(), match({ key: "qual:0:13", number: 13, label: "Q13" })]} /></TooltipProvider></MemoryRouter>);
-    const links = screen.getAllByRole("link", { name: /Know your match/ });
+    const links = screen.getAllByRole("link", { name: /^Pre-match report for Q1[23]$/ });
     expect(links.map((a) => a.getAttribute("href"))).toEqual(["/events/2025/RPTQ1/match/qual:0:12", "/events/2025/RPTQ1/match/qual:0:13"]);
   });
 });
