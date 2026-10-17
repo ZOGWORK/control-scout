@@ -55,6 +55,9 @@ export interface QualMatch {
   result?: PlayedResult;
   /** Surrogates: they play, but the match doesn't count toward their rank. */
   noRank?: number[];
+  /** Disqualified in this (played) match: 0 ranking points and 0 for every sort
+   *  criterion for that team only (T601); the match still counts as played. */
+  dq?: number[];
 }
 
 /** P(bonus RP) = logistic(c0 + c1 · alliance non-penalty score), per bonus (2025+). */
@@ -186,8 +189,10 @@ export function simulateEvent(input: SimInput): Map<number, TeamOutcome> {
     // tiebreaks and, for 2025+, the advancement tiebreaks; with official
     // ranks they come from the played matches alone.
     const st = new Map(teams.map((t) => [t, { rp: 0, n: 0, np: 0, auto: 0, eg: 0, tips: 0, best: 0, second: 0 }]));
-    const tally = (t: number, own: { np: number; auto: number; endgame: number; tips?: number }, rp: number) => {
+    const ZERO = { np: 0, auto: 0, endgame: 0, tips: 0 };
+    const tally = (t: number, own: { np: number; auto: number; endgame: number; tips?: number }, rp: number, dq = false) => {
       const s = st.get(t)!;
+      if (dq) { own = ZERO; rp = 0; } // T601: counts as a match with zeros for this team only
       s.rp += rp; s.n++; s.np += own.np; s.auto += own.auto; s.eg += own.endgame; s.tips += own.tips ?? 0;
       if (own.np > s.best) { s.second = s.best; s.best = own.np; } else if (own.np > s.second) s.second = own.np;
     };
@@ -196,7 +201,7 @@ export function simulateEvent(input: SimInput): Map<number, TeamOutcome> {
       rankOf = input.ranks;
       if (input.season >= 2025) for (const m of input.quals) {
         if (!m.result) continue;
-        for (const [side, own] of [[m.red, m.result.red], [m.blue, m.result.blue]] as const) for (const t of side) if (!m.noRank?.includes(t)) tally(t, own, 0);
+        for (const [side, own] of [[m.red, m.result.red], [m.blue, m.result.blue]] as const) for (const t of side) if (!m.noRank?.includes(t)) tally(t, own, 0, !!m.dq?.includes(t));
       }
     } else {
       for (const m of input.quals) {
@@ -209,7 +214,7 @@ export function simulateEvent(input: SimInput): Map<number, TeamOutcome> {
           // A played alliance whose bonus RPs weren't reported: sample them.
           const scored = own.bonus !== undefined || input.season < 2025 ? own : { ...own, bonus: sampleBonus(own.np) };
           const rp = rankingPoints(input.season, scored, opp);
-          for (const t of side) { if (m.noRank?.includes(t)) continue; tally(t, own, rp); }
+          for (const t of side) { if (m.noRank?.includes(t)) continue; tally(t, own, rp, !!m.dq?.includes(t)); }
         }
       }
       const order = teams.filter((t) => st.get(t)!.n > 0).sort((x, y) => {

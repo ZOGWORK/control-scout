@@ -14,6 +14,21 @@ const TAG: Record<Verdict, { text: string; cls: string }> = {
 
 const NOTES: { v: Verdict; title: string; body: string; more: string; wide?: boolean }[] = [
   {
+    v: "ship", wide: true, title: "Prediction Engine 2.1: form at this event, momentum, collapses",
+    body: "Five more inputs from each robot's recent record: its residuals at the current event, a fast-moving average against its usual level, whether its last alliance collapsed, and how long ago. Chosen on early-2025 matches by a rule written down before any idea was scored.",
+    more: "Against 2.0 on the same matches: early-2025 accuracy 77.12% → 77.34% (+0.22 points), Brier 0.1536 → 0.1531; 2025–26 accuracy 74.65% → 74.85% (+0.19 points, 95% range +0.05 to +0.33), Brier 0.1684 → 0.1680. Calibration error rose (1.26% → 1.67% on 2025–26). Tried and dropped in the same round: alliance congestion, a defense rating, partner familiarity and a long-gap signal (no gain), autonomous and role compatibility (gain too small to replicate), extra uncertainty after a break (no clear gain), and a score-mean correction (worse score error).",
+  },
+  {
+    v: "no", title: "Simulated matches that follow the new odds",
+    body: "Nudging each simulated score gap so event simulations agree with 2.0's match odds. It helped some later-stage advancement odds but made pre-event calibration and rank ranges worse.",
+    more: "On 2024–25 (the deciding season), pre-event advancement Brier moved 0.0749 → 0.0742 but after-selection 0.0452 → 0.0455, rank error 5.21 → 5.27 and pre-event calibration error 0.85% → 1.03%. 2025–26 improved after selection (0.0636 → 0.0624). Mixed, so not shipped.",
+  },
+  {
+    v: "no", title: "A bonus-RP model that keeps learning",
+    body: "Refitting bonus-RP odds every week from the season's own results predicts each alliance's bonus RPs far better than a fit from the season's first weeks, but it didn't improve rank or advancement odds.",
+    more: "On the later 80% of 2025–26: bonus-count log-likelihood −1.25 → −0.95, error 0.61 → 0.55 RPs per alliance. Event odds: pre-event advancement Brier 0.1057 → 0.1060, rank error 5.14 → 5.15. Kept as a lead for BIOBUZZ, which has no bonus model yet.",
+  },
+  {
     v: "ship", wide: true, title: "Prediction Engine 2.0: a learned win-probability correction",
     body: "A small logistic model that adjusts the score-gap probability for match context (where points come from, lopsided alliances, experience, time away, playoffs) and three track-record signals per robot. Replayed over 2025–26, which it never trained on, winner accuracy went from 72.68% to 74.65%.",
     more: "Fitted on 2023–24 and 2024–25, chosen on Jan–Feb 2025, calibrated on Mar–May 2025, frozen before 2025–26 was scored. On 37,140 decided 2025–26 matches: +1.98 points (95% range +1.62 to +2.32), Brier 0.1789 → 0.1684, log loss 0.537 → 0.510. Predicted scores are untouched. Costs: 10-bin calibration error rose from 1.02% to 1.26%, May 2026 lost 0.99 points on 810 matches and July 1.71 points on 234, and the gain is smallest for strong favourites (+0.22 points). The track-record signals add only +0.10 points of the gain on their own; most of it comes from the match context.",

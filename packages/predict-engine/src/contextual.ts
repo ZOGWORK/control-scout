@@ -24,16 +24,25 @@ export interface ContextualModel {
   kind: "contextual-logistic-reliability";
   /** Identifies the frozen parameter set (recorded with predictions). */
   id: string;
+  /** 17 = engine 2.0 inputs (state version ≥ 1); 22 = engine 2.1 (needs state version 2). */
   coefficients: number[];
   scale: number[];
   calibration: { slope: number; intercept: number };
+  /** Used when a book's state is too old for this model (2.1 → the 2.0 model). */
+  fallback?: ContextualModel;
 }
 
 /** What the probability model needs to know about a match beyond its lineups. */
 export interface MatchContext {
   /** Qualification or playoff. The generic what-if default is "qual". */
   level?: "qual" | "playoff";
+  /** Event code of the match (in-event form, engine 2.1). Missing for a generic
+   *  what-if: no robot then has form at "this" event. */
+  event?: string;
 }
+
+/** State version a model's inputs need. */
+export const requiredState = (m: ContextualModel) => (m.coefficients.length > 17 ? 2 : 1);
 
 /** Which model produced a win probability. */
 export type ProbabilityModel = "contextual" | "legacy";
@@ -53,7 +62,7 @@ export function sigmoid(x: number): number {
  * model was never fitted on (an empty alliance). `raw.pRedWin` must be the
  * raw (uncalibrated) Gaussian probability.
  */
-export function contextualFeatures(book: RatingBook, red: number[], blue: number[], raw: MatchPrediction, ctx: MatchContext = {}): number[] | null {
+export function contextualFeatures(book: RatingBook, red: number[], blue: number[], raw: MatchPrediction, ctx: MatchContext = {}, inputs = 17): number[] | null {
   if (!red.length || !blue.length) return null;
   const r = red.map((t) => book.get(t)), b = blue.map((t) => book.get(t));
   const sum = <T>(xs: T[], f: (x: T) => number) => xs.reduce((a, x) => a + f(x), 0);
@@ -74,7 +83,7 @@ export function contextualFeatures(book: RatingBook, red: number[], blue: number
     return { bias: sum(xs, (x) => x.bias) / xs.length, variance: sum(xs, (x) => x.variance) / xs.length, failure: sum(xs, (x) => x.failure) / xs.length };
   };
   const qR = rel(red), qB = rel(blue);
-  return [
+  const base = [
     (sum(r, (x) => x.auto) - sum(b, (x) => x.auto)) / S,                       // D1 auto gap
     (sum(r, (x) => x.endgame) - sum(b, (x) => x.endgame)) / S,                 // D2 endgame gap
     (sum(b, (x) => x.pen) - sum(r, (x) => x.pen)) / S,                         // D3 penalties (blue − red)
@@ -93,6 +102,21 @@ export function contextualFeatures(book: RatingBook, red: number[], blue: number
     L * Math.log(Math.max(0.1, (qR.variance + qB.variance) / 2)),               // D16
     L * (qR.failure + qB.failure),                                              // D17
   ];
+  if (inputs <= 17) return base;
+  // Engine 2.1: in-event form, momentum, collapse recency (state version 2).
+  const states = (teams: number[]) => teams.map((t) => book.reliabilityOf(t));
+  const sR = states(red), sB = states(blue);
+  const avg = (xs: ReliabilityState[], f: (x: ReliabilityState) => number) => xs.reduce((a, x) => a + f(x), 0) / xs.length;
+  const atEvent = (x: ReliabilityState) => ctx.event != null && x.eventCode === ctx.event;
+  const form = (x: ReliabilityState) => (atEvent(x) ? (x.eventSum ?? 0) / ((x.eventN ?? 0) + 2) : 0);
+  const minEventN = Math.min(...[...sR, ...sB].map((x) => (atEvent(x) ? x.eventN ?? 0 : 0)));
+  return [...base,
+    avg(sR, form) - avg(sB, form),                                              // D18 in-event form
+    L * Math.log1p(minEventN),                                                  // D19
+    avg(sR, (x) => (x.fast ?? 0) - x.bias) - avg(sB, (x) => (x.fast ?? 0) - x.bias), // D20 momentum
+    avg(sR, (x) => x.lastFail ?? 0) - avg(sB, (x) => x.lastFail ?? 0),          // D21 last match collapsed
+    avg(sR, (x) => Math.log1p(Math.min(10, x.sinceFail ?? 10))) - avg(sB, (x) => Math.log1p(Math.min(10, x.sinceFail ?? 10))), // D22 recovery
+  ];
 }
 
 /** P(red wins) from the logit of the raw Gaussian probability and the features. */
@@ -110,8 +134,15 @@ export function contextualProbability(model: ContextualModel, L: number, feature
  * unsupported. Callers then use the legacy calibrated probability.
  */
 export function contextualWinProb(model: ContextualModel | undefined, book: RatingBook, red: number[], blue: number[], raw: MatchPrediction, ctx: MatchContext = {}): number | null {
+  return contextualWinProbWith(model, book, red, blue, raw, ctx)?.p ?? null;
+}
+
+/** The contextual probability and the model that produced it (the model, or its
+ *  fallback when the book's state is too old for it); null when neither applies. */
+export function contextualWinProbWith(model: ContextualModel | undefined, book: RatingBook, red: number[], blue: number[], raw: MatchPrediction, ctx: MatchContext = {}): { p: number; model: ContextualModel } | null {
   if (!model || !book.reliabilityReady) return null;
-  const x = contextualFeatures(book, red, blue, raw, ctx);
+  if (book.stateVersion < requiredState(model)) return model.fallback ? contextualWinProbWith(model.fallback, book, red, blue, raw, ctx) : null;
+  const x = contextualFeatures(book, red, blue, raw, ctx, model.coefficients.length);
   if (!x || x.some((v) => !Number.isFinite(v))) return null;
-  return contextualProbability(model, logit(clampP(raw.pRedWin, 1e-9)), x);
+  return { p: contextualProbability(model, logit(clampP(raw.pRedWin, 1e-9)), x), model };
 }

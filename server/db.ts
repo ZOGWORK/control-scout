@@ -895,6 +895,22 @@ CREATE TABLE push_sent (
 CREATE INDEX push_sent_at ON push_sent (subscription_id, at);
 `,
   },
+  {
+    version: 26,
+    name: "prediction engine 2.1: tips, ledger provenance",
+    sql: `
+-- BIOBUZZ HIVE TIPs per alliance (auto + TeleOp), the second qualification sort criterion
+-- (Section 13 Table 13-1). Null = not reported (other seasons, or a source without them).
+ALTER TABLE matches ADD COLUMN red_tips INTEGER;
+ALTER TABLE matches ADD COLUMN blue_tips INTEGER;
+-- What each logged call was made with: the probability model's parameter set (contextual id or
+-- "legacy"), the data version the ratings were built from, and the start time of the latest
+-- result the ratings had learned. Old rows stay null (engine_version still says what made them).
+ALTER TABLE predictions ADD COLUMN model_id TEXT;
+ALTER TABLE predictions ADD COLUMN data_version TEXT;
+ALTER TABLE predictions ADD COLUMN ratings_through TEXT;
+`,
+  },
 ];
 
 export type Db = Client;

@@ -81,6 +81,8 @@ export interface ForecastMatch {
   /** Played matches only: red's win odds as recorded *before* the match was
    *  played (live monitoring), or null if no forecast was made in time. */
   pre?: number | null;
+  /** The probability model's parameter set behind pRedWin (contextual id or "legacy"). */
+  modelId?: string | null;
 }
 
 export interface PartnerOption { team: number; pAdvance: number; pWin: number }
@@ -248,14 +250,16 @@ export abstract class Forecaster {
         red: m.red.teams.map((t) => t.number), blue: m.blue.teams.map((t) => t.number),
         noRank: [...m.red.teams, ...m.blue.teams].filter((t) => t.surrogate).map((t) => t.number),
       };
+      const dq = m.played ? [...m.red.teams, ...m.blue.teams].filter((t) => t.dq).map((t) => t.number) : [];
+      if (dq.length) q.dq = dq;
       const rs = m.red.score, bs = m.blue.score;
       if (m.played && rs?.total != null && bs?.total != null) {
         // Recorded bonus RPs are facts and are kept; unreported ones stay
         // missing and are sampled per simulation run (never a fixed guess).
         const rb = this.bonusOf(ev, m, "red"), bb = this.bonusOf(ev, m, "blue");
         q.result = {
-          red: { total: rs.total, np: rs.totalNp ?? rs.total, auto: rs.auto ?? 0, endgame: rs.endgame ?? 0, ...(rb ? { bonus: rb } : {}) },
-          blue: { total: bs.total, np: bs.totalNp ?? bs.total, auto: bs.auto ?? 0, endgame: bs.endgame ?? 0, ...(bb ? { bonus: bb } : {}) },
+          red: { total: rs.total, np: rs.totalNp ?? rs.total, auto: rs.auto ?? 0, endgame: rs.endgame ?? 0, ...(rb ? { bonus: rb } : {}), ...(rs.tips != null ? { tips: rs.tips } : {}) },
+          blue: { total: bs.total, np: bs.totalNp ?? bs.total, auto: bs.auto ?? 0, endgame: bs.endgame ?? 0, ...(bb ? { bonus: bb } : {}), ...(bs.tips != null ? { tips: bs.tips } : {}) },
         };
       }
       return q;
@@ -341,9 +345,10 @@ export abstract class Forecaster {
     const teams: ForecastTeam[] = [...res.values()].map((o) => this.teamView(o, book, o.team === myTeam));
     const matches: ForecastMatch[] = ev.matches.filter((m) => m.red.teams.length && m.blue.teams.length).slice(0, 400).map((m) => {
       const red = m.red.teams.map((t) => t.number), blue = m.blue.teams.map((t) => t.number);
-      const p = !m.played && red.length <= 2 && blue.length <= 2 ? this.predict(book, red, blue, { level: m.level }) : null;
+      const p = !m.played && red.length <= 2 && blue.length <= 2 ? this.predict(book, red, blue, { level: m.level, event: ev.code }) : null;
       return {
         key: m.key, label: m.label, level: m.level, red, blue, pRedWin: p?.pRedWin ?? null, redMean: p?.red.mean ?? null, blueMean: p?.blue.mean ?? null,
+        modelId: p ? p.modelId ?? "legacy" : null,
         played: m.played && m.red.score?.total != null && m.blue.score?.total != null ? { red: m.red.score.total, blue: m.blue.score.total } : null,
       };
     });

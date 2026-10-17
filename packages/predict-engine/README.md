@@ -1,6 +1,6 @@
 # @control-scout/predict-engine
 
-**Prediction Engine 2.0.** The FTC prediction engine shared by **Control Scout** and **Control Point**.
+**Prediction Engine 2.1.** The FTC prediction engine shared by **Control Scout** and **Control Point**.
 One package, one version, both apps — predictions can never be better in one
 app than the other.
 
@@ -13,7 +13,7 @@ and in the browser (offline predictions from a stats pack).
 |---|---|
 | `rating` | `RatingBook`: per-team, per-component (auto / TeleOp / endgame / penalties) contribution ratings, updated after every match with a gain that shrinks with experience; cross-season priors via z-scores; season growth. |
 | `matchModel` | `predictMatch`: alliance score ~ Normal(mean, σ²) with fitted noise σ = a + b·mean plus rating uncertainty; raw P(win) = Φ(Δ/σ). |
-| `contextual` | Prediction Engine 2.0's win probability: a frozen 17-input logistic correction of the raw P(win) (match context + per-robot reliability state), with its own calibration. Falls back to the Platt-calibrated raw P(win) when a book has no reliability state. |
+| `contextual` | The engine's win probability: a frozen logistic correction of the raw P(win) from match context and per-robot reliability and form state (2.1: 22 inputs; the 2.0 17-input model is its fallback for books with 2.0 state), with its own calibration. Falls back to the Platt-calibrated raw P(win) when a book has no reliability state. |
 | `explain` | `explainMatch`: win %, predicted scores with 80% ranges, top-3 factors (an exact split of the margin), confidence tier. |
 | `sim` + `rules` | Monte Carlo of a whole event: quals with real RP/tiebreak rules, alliance selection (fitted pick model), double-elimination playoffs, advancement points / order. |
 | `forecast` | `Forecaster`: everything an app needs to forecast an event from ratings + live event data (apps subclass it to supply data). |

@@ -36,7 +36,7 @@ const one = <T = any>(db: Db, sql: string, params: SqlValue[] = []): T | undefin
 /** What the device can add from the lite pack (ratings as of its build). */
 export interface ReadOpts {
   /** A prediction for an unplayed match (on-field lineups), or null. */
-  predict?: (season: number, red: number[], blue: number[], level: "qual" | "playoff") => MatchPredictionView | null;
+  predict?: (season: number, red: number[], blue: number[], level: "qual" | "playoff", event?: string) => MatchPredictionView | null;
   /** A team's current rating for the rankings table, or null. */
   rating?: (season: number, team: number) => FieldRow["rating"];
 }
@@ -173,7 +173,7 @@ export function readMatchViews(sdb: SeasonDb, f: { code?: string; team?: number 
     let prediction: MatchPredictionView | null = null;
     if (!r.played && opts.predict) {
       const red = l.red.filter((t) => t.onField).map((t) => t.number), blue = l.blue.filter((t) => t.onField).map((t) => t.number);
-      if (red.length === 2 && blue.length === 2) prediction = opts.predict(season, red, blue, r.level);
+      if (red.length === 2 && blue.length === 2) prediction = opts.predict(season, red, blue, r.level, r.code);
     }
     const startsAt = localToUtcMs(r.time, r.timezone);
     return {
