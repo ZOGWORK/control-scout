@@ -8,7 +8,8 @@
 // - A #hash scrolls to its element once it exists.
 //
 // It also marks the scroll area while it is scrolling (`data-scrolling` on its parent), so CSS can
-// hold the ambient background still meanwhile (index.css).
+// hold the ambient background still meanwhile, and the page while it is not (`data-scroll-idle` on
+// <html>), so rows sliding under a resting pointer don't light up one after another (index.css).
 import { useEffect, useLayoutEffect, useRef, type RefObject } from "react";
 import { useLocation, useNavigationType } from "react-router-dom";
 
@@ -70,6 +71,8 @@ function sessionStore(): Storage | null {
 
 /** How long a restore keeps chasing its position while the page's content loads in. */
 export const RESTORE_WINDOW_MS = 2500;
+/** On <html> while the page is not scrolling (the still-hover variant in index.css keys off it). */
+export const SCROLL_IDLE_ATTR = "data-scroll-idle";
 /** How long after the last scroll event the area counts as still scrolling. */
 export const SCROLL_IDLE_MS = 140;
 
@@ -143,12 +146,17 @@ export function useMainScroll(main: RefObject<HTMLElement | null>) {
     const el = main.current;
     if (!el) return;
     const flagOn = el.parentElement ?? el;
+    // The opposite flag, on <html>: CSS lets rows light up under the pointer only while it is there (the
+    // still-hover variant, index.css). Written as a present attribute on an ancestor, flipping it restyles
+    // just the elements that use it; keyed off [data-scrolling] with :not(), it restyled the whole page.
+    const root = document.documentElement;
+    root.setAttribute(SCROLL_IDLE_ATTR, "");
     let idle: ReturnType<typeof setTimeout> | undefined;
     const onScroll = () => {
       if (!restoring.current) store.current!.set(keyRef.current, el.scrollTop);
-      if (!flagOn.hasAttribute("data-scrolling")) flagOn.setAttribute("data-scrolling", "");
+      if (!flagOn.hasAttribute("data-scrolling")) { flagOn.setAttribute("data-scrolling", ""); root.removeAttribute(SCROLL_IDLE_ATTR); }
       clearTimeout(idle);
-      idle = setTimeout(() => flagOn.removeAttribute("data-scrolling"), SCROLL_IDLE_MS);
+      idle = setTimeout(() => { flagOn.removeAttribute("data-scrolling"); root.setAttribute(SCROLL_IDLE_ATTR, ""); }, SCROLL_IDLE_MS);
     };
     const persist = () => store.current!.save();
     el.addEventListener("scroll", onScroll, { passive: true });
@@ -158,6 +166,7 @@ export function useMainScroll(main: RefObject<HTMLElement | null>) {
       window.removeEventListener("pagehide", persist);
       clearTimeout(idle);
       flagOn.removeAttribute("data-scrolling");
+      root.removeAttribute(SCROLL_IDLE_ATTR);
     };
   }, [main]);
 
