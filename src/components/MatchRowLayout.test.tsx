@@ -20,7 +20,7 @@ function match(o: Partial<MatchView> = {}, red?: number, blue?: number): MatchVi
   return { season: 2025, code: "LAYQ1", key: "qual:0:7", level: "qual", series: 0, number: 7, label: "Q7", time: null, startsAt: null,
     played: red != null, red: side([31065, 14343], red), blue: side([19612, 27573], blue), video: null, prediction: pred(), ...o };
 }
-const show = (m: MatchView, highlight?: number) => render(<MemoryRouter><TooltipProvider><MatchRow m={m} highlight={highlight} /></TooltipProvider></MemoryRouter>);
+const show = (m: MatchView, highlight?: number, showEvent?: string) => render(<MemoryRouter><TooltipProvider><MatchRow m={m} highlight={highlight} showEvent={showEvent} /></TooltipProvider></MemoryRouter>);
 const q = (sel: string) => document.querySelector<HTMLElement>(sel);
 const call = () => q("[data-call]")!;
 const alliances = () => q("[data-alliances]")!;
@@ -125,6 +125,15 @@ describe("match row layout", () => {
     expect(mine.textContent).toBe("31065 lost");
     expect(q("[data-match-label]")!.contains(mine)).toBe(true);
     expect(call().contains(mine)).toBe(false);
+  });
+
+  it("a long event name truncates on its own line and adds no intrinsic width to the label column", () => {
+    show(match({}, 90, 120), 31065, "FIRST Tech Challenge World Championship - Edison Division");
+    const when = q("[data-when]")!;
+    expect(when.className).toMatch(/truncate/);
+    expect(when.className).toMatch(/\[contain:inline-size\]/);
+    expect(when.className).toMatch(/basis-full/);
+    expect(q("[data-match-label]")!.contains(when)).toBe(true);
   });
 
   it("the report is an icon button outside the call column, with a 40px tap area", () => {

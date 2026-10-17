@@ -195,7 +195,9 @@ export function MatchRow({ m, highlight, showEvent, eventName, open, onToggle, o
             {m.label}<ChevronDown className={cn("size-3.5 text-text-muted transition-transform group-hover/row:text-accent-text", open && "rotate-180 text-accent-text")} />
           </button>
         ) : <p className="font-mono text-sm font-semibold">{m.label}</p>}
-        <p className={cn("min-w-0 text-[11px] text-text-muted", showEvent ? "truncate" : "whitespace-nowrap")} title={when}>{when}</p>
+        {/* An event name (a team's season, the shortlist drawer) can be long: on its own line, truncated, and with no
+            intrinsic width (contain), so it never makes the label column reserve its full length. */}
+        <p className={cn("min-w-0 text-[11px] text-text-muted", showEvent ? "basis-full truncate [contain:inline-size]" : "whitespace-nowrap")} title={when} data-when>{when}</p>
         {/* The highlighted team's own result goes with the match, not the call. */}
         {mine && (
           <span className={cn("mt-0.5 inline-block whitespace-nowrap rounded-full px-2 py-px text-[11px] font-semibold",
