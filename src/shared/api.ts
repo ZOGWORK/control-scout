@@ -85,7 +85,7 @@ export interface TeamProfile {
 
 export interface AllianceScore {
   teams: { number: number; surrogate: boolean; dq: boolean; onField: boolean }[];
-  score: { total: number; np: number; auto: number; teleop: number; endgame: number; pen: number } | null;
+  score: { total: number; np: number; auto: number; teleop: number; endgame: number; pen: number; tips?: number } | null;
 }
 
 export interface MatchPredictionView {

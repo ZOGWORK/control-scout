@@ -206,6 +206,7 @@ const outcome = (red: number, blue: number) => (red > blue ? 1 : red < blue ? 0 
 export async function backtest(seasons: number[], log: Log = () => {}, opts: { write?: number[] } = {}): Promise<void> {
   const book = new RatingBook(FITTED_MODEL.rating);
   const ordered = [...seasons].sort((a, b) => a - b);
+  const dataVersion = (await kvGet<string>("data:version")) ?? null;
   // Seasons whose ledger is rewritten; the others are replayed only to build the ratings.
   const write = new Set(opts.write ?? ordered);
   for (const s of ordered) {
@@ -219,18 +220,20 @@ export async function backtest(seasons: number[], log: Log = () => {}, opts: { w
     const at = new Date().toISOString();
     // Before this season's first rated match there's no scoring baseline: odds stand, predicted scores don't.
     let rated = 0;
+    let lastRated: number | null = null;
     for (const m of matches) {
       if (write.has(s) && m.red.teams.length === 2 && m.blue.teams.length === 2) {
         book.setTime(m.time);
-        const x = explainMatch(book, m.red.teams, m.blue.teams, { noise: FITTED_MODEL.noise, calibration: FITTED_MODEL.calibration, contextual: FITTED_MODEL.contextual, context: { level: m.level } });
+        const x = explainMatch(book, m.red.teams, m.blue.teams, { noise: FITTED_MODEL.noise, calibration: FITTED_MODEL.calibration, contextual: FITTED_MODEL.contextual, context: { level: m.level, event: m.eventCode } });
         stmts.push({
-          sql: `INSERT INTO predictions (kind, season, code, level, series, number, red, blue, p_red, red_mean, blue_mean, tier, factors, engine_version, predicted_at, match_time, red_score, blue_score, outcome, scored_at, no_score_basis)
-                VALUES ('backtest', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          sql: `INSERT INTO predictions (kind, season, code, level, series, number, red, blue, p_red, red_mean, blue_mean, tier, factors, engine_version, predicted_at, match_time, red_score, blue_score, outcome, scored_at, no_score_basis, model_id, data_version, ratings_through)
+                VALUES ('backtest', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
           args: [s, m.eventCode, m.level, m.series, m.number, JSON.stringify(m.red.teams), JSON.stringify(m.blue.teams), x.winProbA, x.predictedScoreA, x.predictedScoreB,
-            x.confidence.tier, ENGINE_VERSION, at, new Date(m.time).toISOString(), m.red.total, m.blue.total, outcome(m.red.total, m.blue.total), at, rated ? 0 : 1],
+            x.confidence.tier, ENGINE_VERSION, at, new Date(m.time).toISOString(), m.red.total, m.blue.total, outcome(m.red.total, m.blue.total), at, rated ? 0 : 1,
+            x.probabilityModelId ?? "legacy", dataVersion, lastRated != null ? new Date(lastRated).toISOString() : null],
         });
       }
-      if (!unrated.has(m.eventCode)) { book.update(m); rated++; }
+      if (!unrated.has(m.eventCode)) { book.update(m); rated++; lastRated = m.time; }
     }
     if (write.has(s)) {
       await writeBatch(stmts, 5000);
@@ -302,18 +305,21 @@ export async function logLivePredictions(log: Log = () => {}): Promise<number> {
   // the lead-time check and predicted_at are the same instant.
   const now = Date.now();
   const at = new Date(now).toISOString();
-  // Saved with each call: whether the season had rated matches when it was made.
+  // Saved with each call: whether the season had rated matches when it was made, the data version
+  // the ratings were built from, and the latest result they had learned.
   const noScoreBasis = f.seasonEvents(season).length ? 0 : 1;
+  const dataVersion = (await kvGet<string>("data:version")) ?? null;
+  const ratingsThrough = f.ratingsThrough(season);
   const stmts: InStatement[] = [];
   for (const m of candidates) {
     if (!liveLoggable(m, now)) continue;
-    const x = f.explain(season, m.red, m.blue, m.level === "playoff" ? "playoff" : "qual");
+    const x = f.explain(season, m.red, m.blue, m.level === "playoff" ? "playoff" : "qual", m.code);
     if (!x) continue;
     stmts.push({
-      sql: `INSERT OR IGNORE INTO predictions (kind, season, code, level, series, number, red, blue, p_red, red_mean, blue_mean, tier, factors, engine_version, predicted_at, match_time, no_score_basis)
-            VALUES ('live', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      sql: `INSERT OR IGNORE INTO predictions (kind, season, code, level, series, number, red, blue, p_red, red_mean, blue_mean, tier, factors, engine_version, predicted_at, match_time, no_score_basis, model_id, data_version, ratings_through)
+            VALUES ('live', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       args: [season, m.code, m.level, m.series, m.number, JSON.stringify(m.red), JSON.stringify(m.blue), x.winProbA, x.predictedScoreA, x.predictedScoreB,
-        x.confidence.tier, JSON.stringify(x.factors), ENGINE_VERSION, at, m.time, noScoreBasis],
+        x.confidence.tier, JSON.stringify(x.factors), ENGINE_VERSION, at, m.time, noScoreBasis, x.probabilityModelId ?? "legacy", dataVersion, ratingsThrough],
     });
   }
   await writeBatch(stmts);

@@ -1,14 +1,14 @@
 {
   "format": 1,
-  "version": "2026-10-13.2",
-  "builtAt": "2026-10-13T18:08:53.177Z",
-  "engineVersion": "1.1.0",
+  "version": "2026-10-17.1",
+  "builtAt": "2026-10-17T00:49:00.510Z",
+  "engineVersion": "2.1.0",
   "dataAsOf": "2026-10-13T18:07:51.437Z",
   "lite": {
-    "name": "scout-pack-2026-10-13-2-lite.json.gz",
-    "url": "/packs/scout-pack-2026-10-13-2-lite.json.gz",
-    "bytes": 1647667,
-    "sha256": "6ece9c0fdafbe2fce94a00e20cdfc0403a690467fc8c8a6f9f510aa10115fe32",
+    "name": "scout-pack-2026-10-17-1-lite.json.gz",
+    "url": "/packs/scout-pack-2026-10-17-1-lite.json.gz",
+    "bytes": 2859586,
+    "sha256": "754f4d0b1d4d724bcda592c5b33c0e9f0200557142f9ccba97a9c5c4cd8d4462",
     "seasons": [
       2023,
       2024,
@@ -20,10 +20,10 @@
   },
   "full": [
     {
-      "name": "scout-pack-2026-10-13-2-2026.db",
-      "url": "/packs/scout-pack-2026-10-13-2-2026.db",
+      "name": "scout-pack-2026-10-17-1-2026.db",
+      "url": "/packs/scout-pack-2026-10-17-1-2026.db",
       "bytes": 2424832,
-      "sha256": "6cd2d547186cbe418db0e9b2ab51d2462af35f683fb93c1066eab9cad77167be",
+      "sha256": "cfbf822e6de13492fc2072821e1b1b0edd0d2bce35c69d699b7bbd4aa656682a",
       "seasons": [
         2026
       ],

@@ -166,12 +166,12 @@ export function bundleStatements(b: EventBundle): InStatement[] {
     s.push({ sql: "INSERT OR IGNORE INTO team_seasons (season, team) VALUES (?, ?)", args: [e.season, r.team] });
   }
   for (const m of b.detail.matches) {
-    const sc = (x: ScoreSplit | null) => x ? [x.total, x.np, x.auto, x.teleop, x.endgame, x.pen, x.bonus ? JSON.stringify(x.bonus) : null] : [null, null, null, null, null, null, null];
+    const sc = (x: ScoreSplit | null) => x ? [x.total, x.np, x.auto, x.teleop, x.endgame, x.pen, x.bonus ? JSON.stringify(x.bonus) : null, x.tips ?? null] : [null, null, null, null, null, null, null, null];
     s.push({
       sql: `INSERT OR REPLACE INTO matches (season, code, level, series, number, label, description, time, played,
-              red_total, red_np, red_auto, red_teleop, red_endgame, red_pen, red_bonus,
-              blue_total, blue_np, blue_auto, blue_teleop, blue_endgame, blue_pen, blue_bonus, video, source)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+              red_total, red_np, red_auto, red_teleop, red_endgame, red_pen, red_bonus, red_tips,
+              blue_total, blue_np, blue_auto, blue_teleop, blue_endgame, blue_pen, blue_bonus, blue_tips, video, source)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       args: [...k, m.level, m.series, m.number, m.label, m.description, m.time, m.played ? 1 : 0, ...sc(m.redScore), ...sc(m.blueScore), m.video ?? null, e.source],
     });
     for (const [alliance, ts] of [["red", m.red], ["blue", m.blue]] as const) {

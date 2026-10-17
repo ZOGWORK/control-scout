@@ -13,7 +13,8 @@ import { FITTED_MODEL } from "../model";
 import type { MatchRecord } from "../types";
 
 const M = FITTED_MODEL;
-const C = M.contextual as ContextualModel;
+const C = M.contextual as ContextualModel;          // engine 2.1 (22 inputs)
+const C20 = C.fallback as ContextualModel;            // engine 2.0 (17 inputs), the fallback
 const al = (teams: number[], np: number) => ({ teams, auto: np * 0.2, teleop: np * 0.7, endgame: np * 0.1, np, penCommitted: 0, total: np });
 const match = (red: [number[], number], blue: [number[], number], n = 1, level: "qual" | "playoff" = "qual"): MatchRecord => ({
   season: 2025, eventCode: "E", level, series: 0, number: n, time: Date.UTC(2025, 10, 1) + n * 60_000,
@@ -43,16 +44,23 @@ describe("contextual probability: frozen-model parity", () => {
       const L = x[0];
       // Research layout: x = 17 raw inputs, r = 5 reliability summaries.
       const d = [x[1], x[3], x[4], x[5], x[6], x[7], x[8], L * x[11], L / (1 + x[12] / 5), (L * Math.log1p(x[13])) / 5, (L * x[14]) / 4, L * (x[10] - 5), r[0], r[1], r[2], L * r[3], L * r[4]];
-      expect(Math.abs(contextualProbability(C, L, d) - p)).toBeLessThan(1e-12);
+      expect(Math.abs(contextualProbability(C20, L, d) - p)).toBeLessThan(1e-12);
     }
   });
 
-  it("ships the full-precision frozen parameters", () => {
-    expect(C.coefficients).toHaveLength(17);
-    expect(C.scale).toHaveLength(17);
-    expect(C.coefficients[2]).toBe(-0.2752969871497752);
-    expect(C.scale[14]).toBe(0.05);
-    expect(C.calibration).toEqual({ slope: 0.9414911747184092, intercept: 0.004591262950340726 });
+  it("reproduces every 2.1 golden case (the evaluated round-2 model)", () => {
+    const fx21 = JSON.parse(readFileSync(join(__dirname, "fixtures", "contextual-2.1-parity.json"), "utf8")) as { cases: { L: number; d: number[]; p: number }[] };
+    expect(fx21.cases.length).toBe(60);
+    for (const { L, d, p } of fx21.cases) expect(Math.abs(contextualProbability(C, L, d) - p)).toBeLessThan(1e-12);
+  });
+
+  it("ships the full-precision frozen parameters (2.1, with the 2.0 model as its fallback)", () => {
+    expect(C.coefficients).toHaveLength(22);
+    expect(C.scale).toHaveLength(22);
+    expect(C20.coefficients).toHaveLength(17);
+    expect(C20.coefficients[2]).toBe(-0.2752969871497752);
+    expect(C20.scale[14]).toBe(0.05);
+    expect(C20.calibration).toEqual({ slope: 0.9414911747184092, intercept: 0.004591262950340726 });
   });
 
   it("is red/blue symmetric apart from the fitted calibration intercept", () => {
@@ -67,7 +75,7 @@ describe("contextual probability: frozen-model parity", () => {
 
   it("stays finite and strictly inside (0, 1) for extreme inputs", () => {
     for (const L of [-20, 0, 20]) {
-      const p = contextualProbability(C, L, [L, 0, 0, 0, 0, 0, 0, 0, L, L, L, L * 3, 0, 0, 0, L * Math.log(25), L]);
+      const p = contextualProbability(C, L, [L, 0, 0, 0, 0, 0, 0, 0, L, L, L, L * 3, 0, 0, 0, L * Math.log(25), L, 4, L * 3, 4, 1, 0]);
       expect(Number.isFinite(p) && p > 0 && p < 1).toBe(true);
     }
     expect(() => contextualProbability(C, 0, [1, 2])).toThrow();
@@ -90,7 +98,7 @@ describe("predictMatch with the contextual model", () => {
   it("corrects the raw Gaussian probability, not the Platt-calibrated one", () => {
     const b = played();
     const p = predictMatch(b, [1, 2], [3, 4], M.noise, M.calibration, opts());
-    const x = contextualFeatures(b, [1, 2], [3, 4], { ...p, pRedWin: p.pRaw! }, { level: "qual" })!;
+    const x = contextualFeatures(b, [1, 2], [3, 4], { ...p, pRedWin: p.pRaw! }, { level: "qual" }, C.coefficients.length)!;
     expect(p.pRedWin).toBe(contextualProbability(C, Math.log(p.pRaw! / (1 - p.pRaw!)), x));
   });
 
@@ -120,7 +128,7 @@ describe("reliability state", () => {
   it("starts neutral, without shared mutable state", () => {
     const a = initialReliability(), b = initialReliability();
     a.bias = 5;
-    expect(b).toEqual({ bias: 0, variance: 1, failure: 0.05 });
+    expect(b).toEqual({ bias: 0, variance: 1, failure: 0.05, fast: 0, lastFail: 0, sinceFail: 10, eventSum: 0, eventN: 0 });
   });
 
   it("follows the documented EMA and clips extreme residuals", () => {
@@ -151,7 +159,7 @@ describe("reliability state", () => {
     const exp = b.allianceExpectation([1, 2]);
     b.update(next);
     const { z, failed } = allianceResidual(exp, 10);
-    expect(b.reliabilityOf(1)).toEqual(updateReliability(before, z, failed));
+    expect(b.reliabilityOf(1)).toEqual(updateReliability(before, z, failed, "E"));
   });
 
   it("applies the alliance observation to every robot on it, and resets each season", () => {
@@ -236,5 +244,50 @@ describe("population baseline (symmetric, 2.0)", () => {
     a.update(m);
     b.update({ ...m, red: m.blue, blue: m.red });
     expect(Math.abs(total(a.baseline()!) - total(b.baseline()!))).toBeGreaterThan(60);
+  });
+});
+
+describe("engine 2.1 form state", () => {
+  it("in-event form sums this event's residuals and starts over at a new event", () => {
+    const b = played();
+    const r = b.reliabilityOf(1);
+    expect(r.eventCode).toBe("E");
+    expect(r.eventN).toBe(6); // team 1 played all six matches at event E
+    b.update({ ...match([[1, 3], 90], [[2, 4], 90], 20), eventCode: "F" });
+    expect(b.reliabilityOf(1).eventCode).toBe("F");
+    expect(b.reliabilityOf(1).eventN).toBe(1);
+  });
+
+  it("collapse recency: last-match flag and matches since", () => {
+    const b = played();
+    b.update(match([[1, 2], 5], [[3, 4], 90], 30)); // red collapses
+    expect(b.reliabilityOf(1).lastFail).toBe(1);
+    expect(b.reliabilityOf(1).sinceFail).toBe(0);
+    b.update(match([[1, 2], 140], [[3, 4], 90], 31));
+    expect(b.reliabilityOf(1).lastFail).toBe(0);
+    expect(b.reliabilityOf(1).sinceFail).toBe(1);
+  });
+
+  it("in-event form only counts at the predicted match's event (none for a generic what-if)", () => {
+    const b = played();
+    const raw = predictMatch(b, [1, 2], [3, 4], M.noise, M.calibration);
+    const at = contextualFeatures(b, [1, 2], [3, 4], { ...raw, pRedWin: raw.pRaw! }, { level: "qual", event: "E" }, 22)!;
+    const none = contextualFeatures(b, [1, 2], [3, 4], { ...raw, pRedWin: raw.pRaw! }, { level: "qual" }, 22)!;
+    expect(at[17]).not.toBe(0);
+    expect(none[17]).toBe(0);
+    expect(none[18]).toBe(0);
+    expect(at.slice(0, 17)).toEqual(none.slice(0, 17));
+  });
+
+  it("a book with engine 2.0 state (version 1) predicts with the 2.0 model, not the legacy one", () => {
+    const b = played();
+    const d = b.toData();
+    const v1 = RatingBook.fromData({ ...d, stateVersion: 1, reliability: d.reliability!.map(([t, r]) => [t, { bias: r.bias, variance: r.variance, failure: r.failure }]) });
+    expect(v1.stateVersion).toBe(1);
+    const p = predictMatch(v1, [1, 2], [3, 4], M.noise, M.calibration, opts());
+    expect(p.model).toBe("contextual");
+    expect(p.modelId).toBe(C20.id);
+    expect(predictMatch(b, [1, 2], [3, 4], M.noise, M.calibration, opts()).modelId).toBe(C.id);
+    expect(v1.toData().stateVersion).toBe(1); // never claims the newer layout
   });
 });

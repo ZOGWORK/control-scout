@@ -19,13 +19,18 @@ export interface ScoreSplitInput {
    * the forecast then samples them instead of treating a guess as a fact.
    */
   bonusRp?: BonusFlags | null;
+  /** BIOBUZZ (2026+): HIVE TIPs this alliance scored (auto + TeleOp), the second
+   *  qualification sort criterion. Null or missing = not reported. */
+  tips?: number | null;
 }
 
 /** A season's three bonus ranking points, in the engine's season-blind slots. */
 export interface BonusFlags { movement: boolean; goal: boolean; pattern: boolean }
 
 export interface AllianceInput {
-  teams: { number: number; surrogate?: boolean }[];
+  /** `dq`: disqualified in this match (T601: in a qualification match the team alone
+   *  earns 0 ranking points and 0 for every sort criterion; its partner is unaffected). */
+  teams: { number: number; surrogate?: boolean; dq?: boolean }[];
   score: ScoreSplitInput | null;
 }
 

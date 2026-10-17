@@ -14,6 +14,12 @@ export const E2 = (FITTED_MODEL.accuracy as { engine2: {
   brier: number; baselineBrier: number; ece: number; baselineEce: number; matches: number;
 } }).engine2;
 
+/** Prediction Engine 2.1's measured change vs 2.0 (same matches; select block and the 2025–26 season). */
+export const E21 = (FITTED_MODEL.accuracy as { engine21: {
+  select: { accuracy: number; baselineAccuracy: number; brier: number; baselineBrier: number };
+  test2025: { accuracy: number; baselineAccuracy: number; accuracyGain95: [number, number]; brier: number; baselineBrier: number; ece: number; baselineEce: number };
+} }).engine21;
+
 /** z for a central 80% interval. */
 export const Z80 = 1.2815515655446004;
 

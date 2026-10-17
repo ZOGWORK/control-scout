@@ -68,6 +68,8 @@ export interface MatchExplanation {
   confidence: { tier: ConfidenceTier; reason: string; minMatches: number; ratingShare: number };
   /** Which model produced the win odds ("legacy" when the book has no reliability state). */
   probabilityModel: ProbabilityModel;
+  /** The contextual parameter set's id (null for the legacy model). */
+  probabilityModelId: string | null;
   teamsA: TeamStrength[];
   teamsB: TeamStrength[];
 }
@@ -177,6 +179,7 @@ export function explainMatch(book: RatingBook, teamsA: number[], teamsB: number[
     factors,
     confidence: { tier, reason, minMatches, ratingShare: Math.round(ratingShare * 1000) / 1000 },
     probabilityModel: p.model ?? "legacy",
+    probabilityModelId: p.modelId ?? null,
     teamsA: A,
     teamsB: B,
   };

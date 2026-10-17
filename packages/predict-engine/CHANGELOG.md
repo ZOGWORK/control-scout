@@ -1,5 +1,51 @@
 # Changelog
 
+## 2.1.0 — 2026-10-17 · Prediction Engine 2.1
+
+From the round-2 experiments (protocol registered before any candidate was scored;
+report in Control Scout `docs/prediction-engine-2.1-report.md`).
+
+**Win probability (changes numbers).**
+- The contextual model gains five inputs from a richer per-robot state:
+  - in-event form: clipped residuals summed at the current event, shrunk by n + 2;
+  - L × log(1 + fewest matches any robot has played at this event);
+  - momentum: a fast residual EMA (α 0.5) minus the slow bias proxy;
+  - whether each robot's last alliance collapsed;
+  - matches since the last collapse.
+- All 22 coefficients were refitted with the research learner on the same blocks
+  as 2.0 (fit: 2023 plus 2024 before 2025; select: Jan–Feb 2025; calibrate:
+  Mar–May 2025), on 2.0's symmetric-population ratings. The parameter set is
+  `ctx-rel-form-2026-10-17-1fdd2958`.
+- `MatchContext.event` (the match's event code) feeds in-event form. A generic
+  what-if has none, so it reads no in-event form.
+- **Fallback:** the frozen 2.0 model ships as `FITTED_MODEL.contextual.fallback`.
+  Books carrying 2.0 state (`stateVersion` 1) predict with it rather than with the
+  legacy probability. Results carry `modelId`, `probabilityModelId` and
+  `ForecastMatch.modelId`.
+- **Evidence (historical replay, not live):**
+  - select: +0.22 pp accuracy [+0.01, +0.42], Brier 0.15358 → 0.15313;
+  - 2025–26 (secondary, already examined): +0.19 pp [+0.05, +0.33], Brier
+    0.16842 → 0.16804, log loss 0.5102 → 0.5093;
+  - 10-bin calibration error **worsens**: 1.01% → 1.16% (select) and
+    1.26% → 1.67% (2025–26).
+  - The built package reproduces the evaluated model to 4.4e-16 on every 2025–26 match.
+
+**State.** Reliability state version 2 adds `fast`, `lastFail`, `sinceFail`,
+`eventCode`, `eventSum` and `eventN`. Versions 1 and 2 load; anything else is
+treated as legacy.
+
+**Official rules (correctness).**
+- Per-team disqualification (T601): `AllianceInput.teams[].dq`. In a played
+  qualification match, a disqualified team scores 0 ranking points and 0 for every
+  sort criterion; the match still counts and its partner is unaffected.
+- DECODE (2025) qualification sort (Table 13-1, archived TU32): average non-foul
+  points, then average BASE points (the 2025 endgame), then average AUTO.
+- BIOBUZZ TIPS: `ScoreSplitInput.tips` feeds the second Table 13-1 criterion.
+  Unreported TIPS count 0.
+- FTC Scout 2026 query and parser: they asked DECODE fields of
+  `MatchScores2026Alliance`. They now request park points (the endgame),
+  swarm / pollinator 1 / pollinator 2 RPs and tips.
+
 ## 2.0.0 — 2026-10-16 · Prediction Engine 2.0
 
 Validated in the FTC prediction validation package (frozen 16 Oct 2026) and

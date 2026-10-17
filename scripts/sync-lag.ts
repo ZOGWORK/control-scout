@@ -71,7 +71,7 @@ for (const sc of scenarios) {
       u++;
     }
     book.setTime(at);
-    const x = explainMatch(book, m.red.teams, m.blue.teams, { noise: FITTED_MODEL.noise, calibration: FITTED_MODEL.calibration, contextual: FITTED_MODEL.contextual, context: { level: m.level } });
+    const x = explainMatch(book, m.red.teams, m.blue.teams, { noise: FITTED_MODEL.noise, calibration: FITTED_MODEL.calibration, contextual: FITTED_MODEL.contextual, context: { level: m.level, event: m.eventCode } });
     const y = m.red.total > m.blue.total ? 1 : m.red.total < m.blue.total ? 0 : 0.5;
     out.set(keyOf(m), { p: x.winProbA, y, sameEvent: seenByEvent.get(m.eventCode) ?? 0 });
   }

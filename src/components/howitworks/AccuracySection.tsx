@@ -107,6 +107,12 @@ export function AccuracySection() {
               <p role="listitem" className="col-span-full bg-card px-4 py-2.5 font-mono text-xs text-muted-foreground">
                 Log loss {b.logLoss.toFixed(3)} (lower is better; a coin flip scores 0.693) · qualifiers {b.byLevel.qual.n ? `${pct(b.byLevel.qual.accuracy, 1)} right (${b.byLevel.qual.n.toLocaleString("en-US")})` : "none scored"} · playoffs {b.byLevel.playoff.n ? `${pct(b.byLevel.playoff.accuracy, 1)} right (${b.byLevel.playoff.n.toLocaleString("en-US")})` : "none scored"}
               </p>
+              {sel?.kind === "live" && (season?.liveByEngine?.length ?? 0) > 1 && (
+                // Each engine version's own pre-match calls, so a new version is never judged on an old one's record.
+                <p role="listitem" className="col-span-full bg-card px-4 py-2.5 font-mono text-xs text-muted-foreground">
+                  By engine version: {season!.liveByEngine!.map((e) => `v${e.engine} ${pct(e.accuracy, 1)} right, Brier ${e.brier.toFixed(3)} (${e.n.toLocaleString("en-US")})`).join(" · ")}
+                </p>
+              )}
             </div>
           ),<div className="grid grid-cols-2 gap-3 lg:grid-cols-4" role="status" aria-label="Loading the track record">{[0, 1, 2, 3].map((i) => <Skeleton key={i} className="h-24 rounded-xl" />)}</div>)}
           <p className="mt-3 text-sm text-muted-foreground">Live and backtest numbers are reported separately and never blended. The headline switches to live once a season has {t?.liveThreshold ?? 300} scored pre-match calls.</p>
