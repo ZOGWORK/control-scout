@@ -16,6 +16,21 @@
 @import "tw-animate-css";
 
 @custom-variant dark (&:where(html:not(.light), html:not(.light) *));
+/* Hover, but not while the page scrolls (html[data-scroll-idle] is there only while it doesn't, src/lib/mainScroll.ts):
+   rows sliding under a resting pointer would each light up and repaint. A present attribute on an ancestor means
+   only the elements using this restyle when scrolling starts and stops; any :not() form restyles the whole page. */
+@custom-variant still-hover {
+  @media (hover: hover) {
+    :where(html[data-scroll-idle]) &:hover { @slot; }
+  }
+}
+/* The same for something inside a hovered `group/row` (a match row's label). Tailwind's group-* form would wrap this
+   in :is(… *), which also restyles the whole page on every flip. */
+@custom-variant row-still-hover {
+  @media (hover: hover) {
+    :where(html[data-scroll-idle]) :where(.group\/row):hover & { @slot; }
+  }
+}
 
 @theme {
   --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
