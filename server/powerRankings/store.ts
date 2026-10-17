@@ -8,6 +8,10 @@
 //
 // Development only (POWER_RANKINGS_SAMPLE=1, never in production: server/env.ts), the sample
 // weeks in content/power-rankings-sample are served instead, marked SAMPLE on the page.
+//
+// Weeks published automatically (./auto.ts, stored in power_rankings_generated: ./generated.ts) are
+// merged in: a hand-written file for the same week, once published, takes its place. Movement is
+// counted against the previous week in the merged list, whichever kind each is.
 import { readFileSync, readdirSync, statSync } from "node:fs";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -16,6 +20,7 @@ import { env } from "../env.js";
 import { registerCache } from "../caches.js";
 import { droppedOut, movements, parseRankings, type RankingDoc } from "./format.js";
 import { markdownText, renderMarkdown } from "./markdown.js";
+import { generatedDocs } from "./generated.js";
 import { snapshotWeeks } from "../api/rankings.js";
 import { RANKED_MIN_MATCHES } from "../../src/shared/rankings.js";
 import { weekStart, type PowerRankingsEntry, PowerRankingsResponse, PowerRankingsStats, PowerRankingsSummary, PowerRankingsWeek } from "../../src/shared/powerRankings.js";
@@ -83,10 +88,27 @@ function loaded(): LoadedWeeks {
 
 const today = () => new Date().toISOString().slice(0, 10);
 
-/** The weeks visitors can see (published on or before `on`), oldest first. */
-export function publishedWeeks(on = today()): RankingDoc[] {
-  return loaded().docs.filter((d) => d.published <= on);
+/** Every valid hand-written week file (published or not), oldest first. */
+export function fileWeeks(): RankingDoc[] {
+  return loaded().docs;
 }
+
+/**
+ * The weeks visitors can see (published on or before `on`), oldest first: the hand-written files and
+ * the published generated weeks, a file replacing a generated week of the same id. Sample mode (and
+ * tests on a sample directory) shows only the samples.
+ */
+export async function publishedWeeks(on = today()): Promise<RankingDoc[]> {
+  const files = loaded().docs.filter((d) => d.published <= on);
+  if (source().sample) return files;
+  const taken = new Set(files.map((d) => d.week));
+  const generated = (await generatedDocs()).filter((d) => d.published <= on && !taken.has(d.week));
+  return [...files, ...generated].sort((a, b) => (a.week < b.week ? -1 : a.week > b.week ? 1 : a.season - b.season));
+}
+
+const esc = (s: string) => s.replace(/&/g, "&amp;").replace(/"/g, "&quot;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+/** A generated week's plain text as HTML: escaped, one paragraph (never markdown: Bruno's text is not trusted markup). */
+const plainHtml = (s: string) => (s.trim() ? `<p>${esc(s.trim())}</p>` : "");
 
 const placeOf = (t: { city: string | null; state: string | null; country: string | null }) =>
   [t.city, t.state, t.country === "USA" ? null : t.country].filter((x) => x && String(x).trim()).join(", ") || null;
@@ -132,27 +154,38 @@ registerCache("Power rankings", () => { cache = null; viewCache.clear(); });
 async function buildWeek(doc: RankingDoc, weeks: RankingDoc[]): Promise<PowerRankingsWeek> {
   const i = weeks.indexOf(doc);
   const compared = weeks.slice(0, i).reverse().find((w) => w.season === doc.season) ?? null;
-  const moves = movements(doc, compared);
-  const dropped = droppedOut(doc, compared);
+  // A generated week keeps the comparison it was written against (its blurbs say "up 4"): its frozen
+  // movement, compared week and dropped teams, even if that earlier week is later hidden or replaced.
+  const frozen = doc.generated;
+  const moves = frozen ? doc.entries.map((e) => e.movement) : movements(doc, compared);
+  const dropped = frozen ? frozen.droppedOut : droppedOut(doc, compared);
+  const comparedWith = frozen ? frozen.comparedWith : compared?.week ?? null;
   const [info, snapshots] = await Promise.all([teamInfo(doc.season, [...doc.entries.map((e) => e.team), ...dropped.map((d) => d.team)]), snapshotWeeks(doc.season)]);
   // The world rankings as they stood that week (its weekly snapshot, keyed by the Monday), else the season's live list.
   const monday = weekStart(doc.week);
   const worldRankings = snapshots.includes(monday) ? `/rankings?season=${doc.season}&week=${monday}` : `/rankings?season=${doc.season}`;
+  const g = doc.generated;
   const entries: PowerRankingsEntry[] = doc.entries.map((e, k) => {
     const t = info.get(e.team);
-    return { rank: e.rank, team: e.team, name: t?.name ?? null, place: t?.place ?? null, blurbHtml: renderMarkdown(e.blurb), movement: moves[k], stats: t?.stats ?? null };
+    return {
+      rank: e.rank, team: e.team, name: t?.name ?? null, place: t?.place ?? null, blurbHtml: g ? plainHtml(e.blurb) : renderMarkdown(e.blurb),
+      movement: moves[k], stats: t?.stats ?? null, author: g ? g.sources[k] ?? "template" : null,
+    };
   });
+  const count = (a: string) => (g ? g.sources.filter((x) => x === a).length : 0);
   return {
     week: doc.week, season: doc.season, title: doc.title, published: doc.published,
-    introHtml: renderMarkdown(doc.intro), introText: markdownText(doc.intro), sample: doc.sample, entries,
-    comparedWith: compared?.week ?? null, previous: weeks[i - 1]?.week ?? null, next: weeks[i + 1]?.week ?? null,
+    introHtml: g ? plainHtml(doc.intro) : renderMarkdown(doc.intro), introText: g ? doc.intro.trim() : markdownText(doc.intro), sample: doc.sample,
+    generated: g ? { bruno: count("bruno"), template: count("template"), owner: count("owner"), intro: g.introSource } : null,
+    entries,
+    comparedWith, previous: weeks[i - 1]?.week ?? null, next: weeks[i + 1]?.week ?? null,
     droppedOut: dropped.map((d) => ({ ...d, name: info.get(d.team)?.name ?? null })),
     worldRankings,
   };
 }
 
 function weekView(doc: RankingDoc, weeks: RankingDoc[]): Promise<PowerRankingsWeek> {
-  const key = `${weeks.map((w) => w.week).join(",")}|${doc.week}`;
+  const key = `${weeks.map((w) => `${w.week}${w.generated ? `@${w.generated.rev}` : ""}`).join(",")}|${doc.week}`;
   const hit = viewCache.get(key);
   if (hit && Date.now() - hit.at < 60_000) return hit.v;
   const v = buildWeek(doc, weeks);
@@ -179,14 +212,14 @@ async function archive(weeks: RankingDoc[]): Promise<PowerRankingsSummary[]> {
 
 /** GET /api/power-rankings: the latest week and the archive. */
 export async function latestRankings(on = today()): Promise<PowerRankingsResponse> {
-  const weeks = publishedWeeks(on);
+  const weeks = await publishedWeeks(on);
   const last = weeks.at(-1);
   return { week: last ? await weekView(last, weeks) : null, archive: await archive(weeks) };
 }
 
 /** GET /api/power-rankings/:week: that week and the archive; null when no such week is published. */
 export async function rankingsWeek(id: string, on = today()): Promise<PowerRankingsResponse | null> {
-  const weeks = publishedWeeks(on);
+  const weeks = await publishedWeeks(on);
   const doc = weeks.find((w) => w.week === id.toLowerCase());
   if (!doc) return null;
   return { week: await weekView(doc, weeks), archive: await archive(weeks) };

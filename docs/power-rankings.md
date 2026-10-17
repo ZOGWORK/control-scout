@@ -1,8 +1,13 @@
 # Power rankings: publishing a week
 
-A weekly top 25 of FTC teams with a short written take on each. Each week is one markdown file
-in `content/power-rankings/`. Publishing means adding that file in a pull request; once it's
-merged and deployed, the week is live at:
+A weekly top 25 of FTC teams with a short written take on each. A week comes from one of two places:
+
+- **Automatically, every Friday** (the default): the site publishes the week itself, with blurbs
+  written by Bruno, Control Point's AI. See [Automatic weeks](#automatic-weeks).
+- **By hand**: a markdown file in `content/power-rankings/`, added in a pull request. A file for a
+  week replaces the automatic one. See [Step by step](#step-by-step).
+
+Either way, the week is live at:
 
 - `https://controlscout.org/power-rankings`: the latest week, plus the archive of every past week
 - `https://controlscout.org/power-rankings/2026-w42`: that week's own shareable URL
@@ -10,6 +15,82 @@ merged and deployed, the week is live at:
 The site adds each team's live rating, world rank (counted the same way as `/rankings`), OPR and
 record, and works out its movement (▲ / ▼ / – / New) from the previous week's file. Each week
 also links to the world rankings for that week. You only write the words.
+
+## Automatic weeks
+
+Every **Friday at 00:00 New York time** (America/New_York, so 04:00 UTC in daylight time and 05:00 UTC
+in standard time), the server publishes that week's top 25. Nothing to do; it needs only the Control
+Point settings Scout already has for shared accounts (`CONTROL_POINT_INTERNAL_URL`,
+`CONTROL_POINT_INTERNAL_KEY`) and Control Point's own Gemini or Anthropic key.
+
+1. **The facts.** The top 25 of the **live** world ranking at that moment (the list `/rankings`
+   shows), each team with its rating, OPR, season record and last event (its rank there and its
+   awards). Movement is counted against the **previous published power-rankings week** of the season,
+   hand-written or automatic. The rating change is counted against that week too, when it was an
+   automatic week; a hand-written one records no ratings.
+2. **Bruno writes.** Scout sends these facts to Control Point (`POST /internal/bruno/power-rankings`),
+   and Bruno answers with an intro and one blurb per team. He's told to write like a friendly FTC
+   commentator, to use only the facts given, and never to mention other sites.
+3. **The fact check.** Every blurb is checked before it's published (below). Any blurb that fails is
+   replaced by a data-only line built from the numbers. If Control Point can't be reached, isn't set
+   up, or answers with something unusable, **every** blurb uses that line and the week still goes out.
+   A week is never skipped for want of Bruno.
+4. **Stored.** The week, who wrote each blurb (Bruno, the template, or the owner), and a frozen copy
+   of the facts are kept in `power_rankings_generated`, so the week can be regenerated from the same
+   facts later.
+
+The week's id is the ISO week of the Friday (`2026-w43`), and its page says "Published Friday, Oct 23".
+A week with Bruno's blurbs says "Blurbs written by Bruno, Control Point's AI, from this week's data".
+Template blurbs are never credited to Bruno: next to his they're marked "Data summary", and a week
+with none of his says "Published automatically from this week's data".
+
+**Catch-up and no double publishing.** The server checks every 5 minutes. If it was down at midnight,
+it publishes on its first check afterwards, for as long as that Friday's ISO week lasts (until Monday
+00:00 New York time; after that the week is left for the next Friday). Each season and week is published
+once: a run claims the week first, so a second check, a second server, or a restart mid-run never
+publishes it twice. A run that died part-way is taken over after 15 minutes.
+
+### How the fact check works
+
+`server/powerRankings/factCheck.ts`. A blurb passes only if all of these hold:
+
+- **Every number is that team's own:** its team number, rank, previous rank, places moved, rating,
+  rating change, OPR, wins, losses, ties and matches, and any number in its name, last event or result
+  there. Small formatting differences are fine: rounding (118 for 118.4), a sign (+12), `#3`, `3rd`.
+  The season, the week number and "top 25" are fine anywhere. "Top 10" is fine when the team is in it.
+- **A record is the team's record:** "9-1" or "9-1-0" must be its season record (so "won 120-95" fails).
+- **Number words count:** two to twenty, and second to tenth ("one" and "first" are too common to judge).
+- So **another team's number fails**, in the packet or not, and so does any number Bruno made up.
+- **At most 60 words.**
+- **No other scouting or stats site, and no web address.**
+
+The intro is checked the same way, except that any team's numbers (and the publish date) are fine in
+it. It has a 100-word limit. A failing intro is replaced by a data-only one.
+
+### Overriding a week by hand
+
+Write a markdown file for the same week as below (`content/power-rankings/2026-w43.md`). Once its
+`published` date comes, the site shows the file instead of the automatic week, everywhere (the page,
+the archive, the sitemap). If the file is merged **before** Friday, nothing is generated for that week
+at all. Movement works across both kinds: a hand-written week compares with the automatic week before
+it, and the other way round.
+
+### Owner controls
+
+In the owner portal (`/owner?panel=powerRankings`), **Power rankings** lists every automatic week, with
+who wrote each blurb and why any of Bruno's failed the fact check. You can:
+
+- **Edit** the intro or any blurb. The edit is live at once and is credited to you, not Bruno. If the
+  week changed after you opened it (another save, a regeneration), the save is refused rather than
+  undoing that change: reload and edit again.
+- **Regenerate**: Bruno writes the week again from its frozen facts, fact-checked again. Your edits
+  are replaced. If Bruno can't be reached, nothing changes.
+- **Hide** a week from the pages, archive and sitemap, or **show** it again. Nothing is deleted.
+- **Publish now**: publish this week right away instead of waiting for Friday. Friday then skips it.
+
+Each action asks for confirmation first and is written to the audit log. The **Automatic power
+rankings** switch (Switches panel) stops new weeks from being generated. Weeks already out stay up;
+hide them one by one if needed.
 
 ## Step by step
 
@@ -114,3 +195,6 @@ To see them locally, run `POWER_RANKINGS_SAMPLE=1 npm run dev`.
   HTTP 404.
 - `server/sitemap.ts`: `/power-rankings` and every published week, dated by `published`
 - `src/pages/PowerRankingsPage.tsx`: the page
+- `server/powerRankings/auto.ts`: the automatic weeks (the packet, Bruno, the Friday run); `schedule.ts`
+  (Friday 00:00 New York time), `factCheck.ts` (the check and the templates), `generated.ts` (the stored
+  weeks, merged in by `store.ts`), `ownerRoutes.ts` (the owner panel's API)
