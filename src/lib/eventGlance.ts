@@ -115,14 +115,15 @@ export function glanceStats(d: EventDetail): GlanceStats {
   let upsets: GlanceStats["upsets"] = null;
   if (record.length) {
     const kind = record[0].kind;
-    const lost = h2h.filter((m) => m.prediction?.kind === kind && m.red.score!.total !== m.blue.score!.total
-      && (m.prediction.pRed > 0.5) !== (m.red.score!.total > m.blue.score!.total));
+    // Decided matches of that kind with a favourite (an even 50% call has none, so it can't be an upset).
+    const called = h2h.filter((m) => m.prediction?.kind === kind && m.prediction.pRed !== 0.5 && m.red.score!.total !== m.blue.score!.total);
+    const lost = called.filter((m) => (m.prediction!.pRed > 0.5) !== (m.red.score!.total > m.blue.score!.total));
     let biggest: NonNullable<GlanceStats["upsets"]>["biggest"] = null;
     for (const m of lost) {
       const pFav = Math.max(m.prediction!.pRed, 1 - m.prediction!.pRed);
       if (!biggest || pFav > biggest.pFav) biggest = { ...ref(m), pFav };
     }
-    upsets = { kind, n: lost.length, of: record[0].n, biggest };
+    upsets = called.length ? { kind, n: lost.length, of: called.length, biggest } : null;
   }
 
   const live = e.status === "live";
