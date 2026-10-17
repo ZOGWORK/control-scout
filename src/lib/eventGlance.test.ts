@@ -100,7 +100,7 @@ describe("phaseOf", () => {
     const f = m(1, [1, 2], [3, 4], { level: "playoff" });
     expect(phaseOf(detail({ status: "live", matches: [q(1, true), q(2, true), f] }))).toBe("playoffs");
     expect(phaseOf(detail({ status: "live", matches: [q(1, true), q(2, false), f] }))).toBe("quals");
-    expect(phaseOf(detail({ status: "live", matches: [] }))).toBe("quals");
+    expect(phaseOf(detail({ status: "live", matches: [] }))).toBe("upcoming");
     expect(phaseOf(detail({ status: "live", matches: [q(1, true)] }))).toBe("done");
   });
 });
