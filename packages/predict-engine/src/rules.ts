@@ -86,14 +86,14 @@ export function rankingPoints(season: number, own: { total: number; bonus?: { mo
 /**
  * Sort keys after the ranking score (higher is better), per season:
  * - 2026 BIOBUZZ (Table 13-1): average non-foul match points, average TIPS,
- *   average auto points, then random. TIPS aren't in the data yet, so they
- *   count as equal for everyone and the order falls through to auto points.
- * - 2025 DECODE: average non-foul points (matches 99.7% of official ranks).
+ *   average auto points, then random. Matches with no reported TIPS count 0.
+ * - 2025 DECODE (Table 13-1, archived TU32): average non-foul match points,
+ *   average BASE points (the engine's 2025 endgame), average auto points, random.
  * - 2024 and before: average auto, then endgame.
  */
 export function tiebreakKeys(season: number, avg: { np: number; auto: number; endgame: number; tips?: number }): number[] {
   if (season >= 2026) return [avg.np, avg.tips ?? 0, avg.auto];
-  return season >= 2025 ? [avg.np] : [avg.auto, avg.endgame];
+  return season >= 2025 ? [avg.np, avg.endgame, avg.auto] : [avg.auto, avg.endgame];
 }
 
 /** One team's numbers for ordering advancement (2025+, Table 4-2). */

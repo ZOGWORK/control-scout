@@ -10,7 +10,7 @@
 // Platt-calibrated as in 1.x.
 import type { RatingBook } from "./rating.js";
 import { calibrateProb, type CalibrationParams } from "./calibration.js";
-import { contextualWinProb, type ContextualModel, type MatchContext, type ProbabilityModel } from "./contextual.js";
+import { contextualWinProbWith, type ContextualModel, type MatchContext, type ProbabilityModel } from "./contextual.js";
 
 export interface NoiseParams {
   /** Score noise: σ = a + b·mean (fitted by likelihood on the tuning season). */
@@ -39,6 +39,8 @@ export interface MatchPrediction {
   pRaw?: number;
   /** Which probability model produced pRedWin ("legacy" = Platt-calibrated Gaussian). */
   model?: ProbabilityModel;
+  /** The contextual parameter set's id, when model is "contextual". */
+  modelId?: string;
 }
 
 export interface PredictOptions {
@@ -70,7 +72,7 @@ export function predictMatch(book: RatingBook, red: number[], blue: number[], no
   const out: MatchPrediction = { red: rp, blue: bp, pRedWin: cal ? calibrateProb(raw, cal) : raw, pRaw: raw, model: "legacy" };
   // The contextual model corrects the RAW Gaussian probability (L = logit of
   // it), never the Platt-calibrated one: it carries its own calibration.
-  const pc = contextualWinProb(opts.contextual, book, red, blue, { ...out, pRedWin: raw }, opts.context);
-  if (pc != null) { out.pRedWin = pc; out.model = "contextual"; }
+  const pc = contextualWinProbWith(opts.contextual, book, red, blue, { ...out, pRedWin: raw }, opts.context);
+  if (pc != null) { out.pRedWin = pc.p; out.model = "contextual"; out.modelId = pc.model.id; }
   return out;
 }
