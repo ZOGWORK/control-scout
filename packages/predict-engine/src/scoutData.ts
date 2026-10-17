@@ -13,7 +13,9 @@ export const ADVANCING_TYPES = new Set(["LeagueTournament", "Qualifier", "Champi
 function allianceFields(season: number): string {
   // 2020/2021 deduct fouls from the offender's own score: no penaltyPointsByOpp.
   const common = `autoPoints dcPoints penaltyPointsCommitted ${season === 2020 || season === 2021 ? "" : "penaltyPointsByOpp "}totalPointsNp totalPoints`;
-  if (season >= 2025) return `${common} dcBasePoints movementRp goalRp patternRp`;
+  // BIOBUZZ: park is the endgame; three bonus RPs (swarm, pollinator 1, pollinator 2); TIPS.
+  if (season >= 2026) return `${common} dcParkPoints swarmRp pollinator1Rp pollinator2Rp tips`;
+  if (season === 2025) return `${common} dcBasePoints movementRp goalRp patternRp`;
   if (season === 2024) return `${common} dcParkPoints`;
   return `${common} egPoints`;
 }
@@ -55,7 +57,8 @@ export const SCOUT_EVENT_LIST_QUERY = `query L($season: Int!) {
 
 /** Endgame field name per season (see server/ftcScout.ts endgameField). */
 function endgameOf(season: number, a: any): number {
-  if (season >= 2025) return a.dcBasePoints ?? 0;
+  if (season >= 2026) return a.dcParkPoints ?? 0;
+  if (season === 2025) return a.dcBasePoints ?? 0;
   if (season === 2024) return a.dcParkPoints ?? 0;
   return a.egPoints ?? 0;
 }
@@ -75,7 +78,8 @@ function alliance(season: number, raw: any, teams: number[]): AllianceResult | n
     penCommitted: raw.penaltyPointsCommitted ?? 0,
     total: raw.totalPoints ?? raw.totalPointsNp,
   };
-  if (season >= 2025) out.bonusRp = { movement: !!raw.movementRp, goal: !!raw.goalRp, pattern: !!raw.patternRp };
+  if (season >= 2026) out.bonusRp = { movement: !!raw.swarmRp, goal: !!raw.pollinator1Rp, pattern: !!raw.pollinator2Rp };
+  else if (season === 2025) out.bonusRp = { movement: !!raw.movementRp, goal: !!raw.goalRp, pattern: !!raw.patternRp };
   return out;
 }
 

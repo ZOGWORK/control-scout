@@ -103,7 +103,7 @@ export interface RatingBookData {
   /** Reliability state per team (engine 2.0+). Older data has none, and a
    *  book loaded from it predicts with the legacy probability model. */
   reliability?: [number, ReliabilityState][];
-  /** Layout version of `reliability` (RELIABILITY_STATE_VERSION). */
+  /** Layout version of `reliability`: 1 = engine 2.0, 2 = engine 2.1 (adds form fields). */
   stateVersion?: number;
 }
 
@@ -120,10 +120,21 @@ export interface ReliabilityState {
   variance: number;
   /** EMA of "the alliance scored under half its expected non-penalty points". */
   failure: number;
+  /** Engine 2.1 (state version 2) form fields; absent in version-1 state. */
+  /** Fast EMA (α 0.5) of the clipped residual: recent form. */
+  fast?: number;
+  /** 1 if the robot's last alliance collapsed (the failure test), else 0. */
+  lastFail?: number;
+  /** Matches since that last collapse (10 when none this season). */
+  sinceFail?: number;
+  /** Current event and the clipped residuals summed over its matches there. */
+  eventCode?: string;
+  eventSum?: number;
+  eventN?: number;
 }
 
-/** Layout version of RatingBookData.reliability. */
-export const RELIABILITY_STATE_VERSION = 1;
+/** Layout version of RatingBookData.reliability written by this engine. */
+export const RELIABILITY_STATE_VERSION = 2;
 
 /** Frozen state-update settings (FTC prediction validation, 16 Oct 2026). */
 export const RELIABILITY_PARAMS = {
@@ -137,15 +148,22 @@ export const RELIABILITY_PARAMS = {
 
 export const initialReliability = (): ReliabilityState => ({
   bias: RELIABILITY_PARAMS.initialBias, variance: RELIABILITY_PARAMS.initialVariance, failure: RELIABILITY_PARAMS.initialFailure,
+  fast: 0, lastFail: 0, sinceFail: 10, eventSum: 0, eventN: 0,
 });
 
-/** One alliance observation folded into a robot's reliability state. */
-export function updateReliability(old: ReliabilityState, z: number, failed: boolean): ReliabilityState {
+/** One alliance observation (at `eventCode`) folded into a robot's reliability state. */
+export function updateReliability(old: ReliabilityState, z: number, failed: boolean, eventCode?: string): ReliabilityState {
   const P = RELIABILITY_PARAMS;
+  const zc = Math.max(-P.biasZClip, Math.min(P.biasZClip, z));
+  const sameEvent = eventCode != null && old.eventCode === eventCode;
   return {
-    bias: (1 - P.biasAlpha) * old.bias + P.biasAlpha * Math.max(-P.biasZClip, Math.min(P.biasZClip, z)),
+    bias: (1 - P.biasAlpha) * old.bias + P.biasAlpha * zc,
     variance: (1 - P.varianceAlpha) * old.variance + P.varianceAlpha * Math.min(P.varianceZSquaredClip, z * z),
     failure: (1 - P.failureAlpha) * old.failure + P.failureAlpha * (failed ? 1 : 0),
+    fast: 0.5 * (old.fast ?? 0) + 0.5 * zc,
+    lastFail: failed ? 1 : 0,
+    sinceFail: failed ? 0 : (old.sinceFail ?? 10) + 1,
+    ...(eventCode != null ? { eventCode, eventSum: (sameEvent ? old.eventSum ?? 0 : 0) + zc, eventN: (sameEvent ? old.eventN ?? 0 : 0) + 1 } : { eventSum: old.eventSum ?? 0, eventN: old.eventN ?? 0 }),
   };
 }
 
@@ -176,11 +194,14 @@ export class RatingBook {
   private reliability = new Map<number, ReliabilityState>();
   /**
    * True when the reliability state covers the whole season so far (a book
-   * that started the season itself, or one loaded with 2.0 state). Data
+   * that started the season itself, or one loaded with 2.0+ state). Data
    * from older versions has none; the contextual probability model must not
    * run on an invented history, so predictions fall back to the legacy model.
    */
   reliabilityReady = true;
+  /** Layout version of the state this book holds (2 when built by this engine;
+   *  1 when loaded from engine 2.0 data, which lacks the 2.1 form fields). */
+  stateVersion = RELIABILITY_STATE_VERSION;
 
   constructor(params: Partial<RatingParams> = {}) {
     this.params = { ...DEFAULT_RATING_PARAMS, ...params };
@@ -210,6 +231,7 @@ export class RatingBook {
     this.now = 0;
     this.reliability.clear();
     this.reliabilityReady = true;
+    this.stateVersion = RELIABILITY_STATE_VERSION;
   }
 
   /** Move the clock (e.g. to an event's start before predicting it). */
@@ -349,7 +371,7 @@ export class RatingBook {
     // expectation held before this match, applied to every robot on it.
     for (const { al, exp } of sides) {
       const { z, failed } = allianceResidual(exp, al.auto + al.teleop + al.endgame);
-      for (const t of al.teams) this.reliability.set(t, updateReliability(this.reliabilityOf(t), z, failed));
+      for (const t of al.teams) this.reliability.set(t, updateReliability(this.reliabilityOf(t), z, failed, m.eventCode));
     }
     if (p.populationUpdate === "sequential") {
       // Population baseline from raw per-robot shares (independent of ratings),
@@ -393,6 +415,7 @@ export class RatingBook {
     c.now = this.now;
     c.reliability = new Map([...this.reliability].map(([t, r]) => [t, { ...r }]));
     c.reliabilityReady = this.reliabilityReady;
+    c.stateVersion = this.stateVersion;
     return c;
   }
 
@@ -412,7 +435,7 @@ export class RatingBook {
       // Only a complete state is written; a book without one stays legacy.
       ...(this.reliabilityReady ? {
         reliability: [...this.reliability].filter(([t]) => keep(t)).map(([t, r]) => [t, { ...r }] as [number, ReliabilityState]),
-        stateVersion: RELIABILITY_STATE_VERSION,
+        stateVersion: this.stateVersion,
       } : {}),
     };
   }
@@ -427,7 +450,9 @@ export class RatingBook {
     b.season = d.season;
     b.now = d.now;
     // Pre-2.0 data (or an unknown layout) has no usable reliability state.
-    b.reliabilityReady = d.stateVersion === RELIABILITY_STATE_VERSION && Array.isArray(d.reliability);
+    // Version-1 state (engine 2.0) is usable by the 2.0 model only.
+    b.reliabilityReady = (d.stateVersion === 1 || d.stateVersion === 2) && Array.isArray(d.reliability);
+    b.stateVersion = b.reliabilityReady ? d.stateVersion! : 0;
     if (b.reliabilityReady) for (const [t, r] of d.reliability!) b.reliability.set(t, { ...r });
     return b;
   }

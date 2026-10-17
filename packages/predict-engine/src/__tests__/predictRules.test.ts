@@ -32,8 +32,8 @@ describe("qualification ranking (Table 13-1)", () => {
     // TIPS not reported: equal for everyone, so auto decides.
     expect(tiebreakKeys(2026, { np: 100, auto: 20, endgame: 10 })).toEqual([100, 0, 20]);
   });
-  it("earlier seasons are unchanged", () => {
-    expect(tiebreakKeys(2025, { np: 100, auto: 20, endgame: 10 })).toEqual([100]);
+  it("DECODE (2025) sorts by non-foul points, then BASE (endgame), then auto; earlier seasons unchanged", () => {
+    expect(tiebreakKeys(2025, { np: 100, auto: 20, endgame: 10 })).toEqual([100, 10, 20]);
     expect(tiebreakKeys(2024, { np: 100, auto: 20, endgame: 10 })).toEqual([20, 10]);
   });
   it("ranking points count recorded bonus RPs (flags or a count)", () => {
@@ -154,9 +154,38 @@ describe("Forecaster keeps recorded bonus RPs of played matches", () => {
     expect(f.inputFor(event(null)).input.quals[0].result!.blue.bonus).toEqual(f.stored);
   });
 
+  it("passes per-team DQs and recorded TIPS of played matches to the simulator", () => {
+    const ev = event({ movement: false, goal: false, pattern: false });
+    ev.matches[0].red.teams[0].dq = true;
+    ev.matches[0].red.score!.tips = 4;
+    const q = new FixtureForecaster().inputFor(ev).input.quals[0];
+    expect(q.dq).toEqual([1]);
+    expect(q.result!.red.tips).toBe(4);
+    expect(q.result!.blue.tips).toBeUndefined();
+  });
+
   it("leaves genuinely unknown flags missing and says they're sampled", () => {
     const { input, assumptions } = new FixtureForecaster().inputFor(event(undefined));
     expect(input.quals[0].result!.red.bonus).toBeUndefined();
     expect(assumptions.join(" ")).toMatch(/weren't reported for 2 played alliance results/);
+  });
+});
+
+describe("per-team disqualification (T601) and TIPS", () => {
+  const four = new Map([1, 2, 3, 4].map((t) => [t, rt(50)] as [number, TeamRating]));
+  const res = (r: number, b: number, tips: [number, number] = [0, 0]) => ({ red: { total: r, np: r, auto: 10, endgame: 5, bonus: { movement: false, goal: false, pattern: false }, tips: tips[0] }, blue: { total: b, np: b, auto: 10, endgame: 5, bonus: { movement: false, goal: false, pattern: false }, tips: tips[1] } });
+  const sim = (quals: QualMatch[]) => simulateEvent({ season: 2026, ratings: four, quals, noise: { a: 14, b: 0.2 }, awards: { mode: "none" }, prequalified: new Set(), slots: 1, runs: 50, seed: 2 });
+
+  it("a disqualified team earns 0 for that match; its partner keeps the alliance's result", () => {
+    // Red wins both matches; team 1 is disqualified in the first.
+    const out = sim([{ red: [1, 2], blue: [3, 4], result: res(100, 50), dq: [1] }, { red: [1, 2], blue: [3, 4], result: res(100, 50) }]);
+    expect(out.get(2)!.meanRank).toBe(1); // 3 RP per match vs team 1's 0 + 3
+    expect(out.get(1)!.meanRank).toBe(2);
+  });
+
+  it("BIOBUZZ ties on RP and non-foul points are broken by average TIPS", () => {
+    const out = sim([{ red: [1, 2], blue: [3, 4], result: res(80, 80, [6, 2]) }]);
+    for (const t of [1, 2]) expect(out.get(t)!.rankP90).toBeLessThanOrEqual(2);
+    for (const t of [3, 4]) expect(out.get(t)!.rankP10).toBeGreaterThanOrEqual(3);
   });
 });
