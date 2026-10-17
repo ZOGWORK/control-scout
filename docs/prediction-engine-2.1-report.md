@@ -163,7 +163,9 @@ All rows are compared with the 2.0 refit through the identical learner and block
 | Offline packs | Rebuilt by the first post-deploy cycle: `engineVersion 2.1.0`, state version 2 in every lite-pack book | Built per request |
 | TIPS | Stored for matches synced from now on. The ten 2026 events already in the database have none until re-fetched; they're finished and use official ranks. | Not in the live payload; counts as equal |
 
-**Rollback:** revert #138 and #275 and redeploy. Ratings rebuild on start, and a 2.1 pack loads on a 2.0 device (extra fields ignored). The ledger and stats recompute on the version change. Migration 26 only adds nullable columns, so it's harmless to keep.
+**Rollback:** revert #138 and #275 and redeploy. Server ratings rebuild on start, and the ledger and stats recompute on the version change. Migration 26 only adds nullable columns, so it's harmless to keep.
+
+Offline packs need one extra step. Engine 2.0 accepts reliability state only at version 1, so on a rolled-back 2.0 device a saved 2.1 pack (state version 2) loads *without* state and predicts with the **legacy** probability, not 2.0's. Rebuild packs on the restored server (Control Scout rebuilds them automatically when the manifest's engine version differs); devices then pick up the new manifest version on their next sync. Control Point builds packs per request; a device's saved pack refreshes when its user downloads again.
 
 ## 9. Remaining issues and the most useful next experiments
 
