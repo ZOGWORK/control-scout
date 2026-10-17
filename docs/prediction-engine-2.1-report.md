@@ -155,8 +155,15 @@ All rows are compared with the 2.0 refit through the identical learner and block
 
 | | Control Scout | Control Point |
 |---|---|---|
-| PR | to be filled | to be filled |
-| Deploy, version check | to be filled | to be filled |
+| PR | [#138](https://github.com/Control-Point-FTC/control-scout/pull/138): Greptile 5/5 on head `a929b66` after one fix (the harness now pins the frozen 2.0 baseline), 0 unresolved threads, CI green | [#275](https://github.com/Control-Point-FTC/control-point/pull/275): Greptile 5/5 on head `0076485`, 0 threads |
+| Merge commit | `49195e365f2f494b515e7e7c4137c4df7de453e7` | `f72221c753fb9345273e14d4863ce02cb1e3862a` |
+| Deploy run | "Deploy to Oracle VM" 38989340199: success | "Deploy to Oracle VM" 38989343742: success |
+| Running engine | `controlscout.org/api/health` → `2.1.0`, release `49195e3`; Render backup also `2.1.0` | `tryctrlpoint.org/api/health` → `2.1.0` |
+| Live check | `/api/predict/match` → contextual 2.1 (same lineup: 2.0 gave 19.2%, 2.1 gives 16.5%; playoff 13.6%; identical predicted scores) | Sign-in only; equivalence proved byte-identical before merge |
+| Offline packs | Rebuilt by the first post-deploy cycle: `engineVersion 2.1.0`, state version 2 in every lite-pack book | Built per request |
+| TIPS | Stored for matches synced from now on. The ten 2026 events already in the database have none until re-fetched; they're finished and use official ranks. | Not in the live payload; counts as equal |
+
+**Rollback:** revert #138 and #275 and redeploy. Ratings rebuild on start, and a 2.1 pack loads on a 2.0 device (extra fields ignored). The ledger and stats recompute on the version change. Migration 26 only adds nullable columns, so it's harmless to keep.
 
 ## 9. Remaining issues and the most useful next experiments
 
