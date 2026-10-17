@@ -37,7 +37,7 @@ export function OfflineStatus() {
         <Link to="/download" title="No signal: this is the data saved on this device. It switches back when the server answers." className="rounded-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
           <Badge variant="info" className="gap-1.5 py-1">
             <WifiOff aria-hidden="true" />
-            Offline<span className="max-sm:sr-only">, showing saved data</span>
+            <span>Offline<span className="max-sm:sr-only">, showing saved data</span></span>
           </Badge>
         </Link>
       )}
