@@ -4,9 +4,10 @@
 // The workspace half (consensus, pick list, assignments) is server/scout/matchReport.ts, members only.
 //
 // Cost: the event detail (cached), plus four small queries for the whole lineup, however many teams, and
-// the season's flag cutoffs (two scans of one season, kept CUTOFF_TTL_MS).
+// the season's flag cutoffs (two scans of one season, rebuilt at most every CUTOFF_TTL_MS and then in the
+// background, so after the first build no visitor waits for them).
 import { all } from "../db.js";
-import { eventDetail } from "./events.js";
+import { cachedEventDetail } from "./events.js";
 import { matchDetail } from "./matches.js";
 import {
   dataFlags, MIN_EVENT_MATCHES, MIN_SEASON_MATCHES, topCutoff,
@@ -14,15 +15,35 @@ import {
 } from "../../src/shared/matchReport.js";
 
 export const CUTOFF_TTL_MS = 10 * 60_000;
-const cutoffCache = new Map<number, { at: number; value: Promise<FlagCutoffs> }>();
+interface CutoffBuild { at: number; value: Promise<FlagCutoffs>; done?: FlagCutoffs }
+/** The newest build per season. */
+const cutoffCache = new Map<number, CutoffBuild>();
+/** The newest finished cutoffs per season: what reports use while a newer build runs. */
+const lastCutoffs = new Map<number, FlagCutoffs>();
 /** Tests: forget the cutoffs. */
-export function clearCutoffCache() { cutoffCache.clear(); }
+export function clearCutoffCache() { cutoffCache.clear(); lastCutoffs.clear(); }
 
-/** The season's "top 15%" lines for the data flags. */
+/** The season's "top 15%" lines for the data flags. Once they're older than CUTOFF_TTL_MS they're rebuilt in
+ *  the background while the previous set answers (they move little between rebuilds): only a season's very
+ *  first build is waited for. */
 export function seasonCutoffs(season: number): Promise<FlagCutoffs> {
-  const hit = cutoffCache.get(season);
-  if (hit && Date.now() - hit.at < CUTOFF_TTL_MS) return hit.value;
-  const value = (async (): Promise<FlagCutoffs> => {
+  let hit = cutoffCache.get(season);
+  if (!hit || Date.now() - hit.at >= CUTOFF_TTL_MS) hit = buildCutoffs(season);
+  if (hit.done) return Promise.resolve(hit.done);
+  const prev = lastCutoffs.get(season);
+  return prev ? Promise.resolve(prev) : hit.value;
+}
+
+function buildCutoffs(season: number): CutoffBuild {
+  const build: CutoffBuild = { at: Date.now(), value: computeCutoffs(season) };
+  // A failure isn't kept: the next report asks again (the previous set, if any, answers meanwhile).
+  build.value.then((v) => { build.done = v; if (cutoffCache.get(season) === build) lastCutoffs.set(season, v); }, () => { if (cutoffCache.get(season) === build) cutoffCache.delete(season); });
+  cutoffCache.set(season, build);
+  return build;
+}
+
+function computeCutoffs(season: number): Promise<FlagCutoffs> {
+  return (async (): Promise<FlagCutoffs> => {
     const [pen, cv, evs] = await Promise.all([
       all<{ x: number }>("SELECT opr_pen x FROM team_season_stats WHERE season = ? AND matches >= ? AND opr_pen IS NOT NULL", [season, MIN_SEASON_MATCHES]),
       all<{ x: number }>("SELECT np_dev / np_avg x FROM team_season_records WHERE season = ? AND played >= ? AND np_avg > 0 AND np_dev IS NOT NULL", [season, MIN_SEASON_MATCHES]),
@@ -40,18 +61,14 @@ export function seasonCutoffs(season: number): Promise<FlagCutoffs> {
     const rises = [...firstLast.values()].filter((x) => x.n >= 2).map((x) => x.last - x.first);
     return { penalties: topCutoff(pen.map((r) => Number(r.x))), inconsistent: topCutoff(cv.map((r) => Number(r.x))), rising: topCutoff(rises) };
   })();
-  // A failure isn't kept: the next report asks again.
-  value.catch(() => cutoffCache.delete(season));
-  cutoffCache.set(season, { at: Date.now(), value });
-  return value;
 }
 
 const n = (x: unknown) => (x == null ? null : Number(x));
 
 /** The report for one match, or null when there's no such event or match. */
 export async function matchReport(season: number, code: string, key: string): Promise<MatchReport | null> {
-  // The event detail isn't cached: build it once and hand it to matchDetail.
-  const ev = await eventDetail(season, code);
+  // The event detail, cached like the event page's (a live event's is built fresh), handed to matchDetail.
+  const ev = await cachedEventDetail(season, code);
   const d = ev ? await matchDetail(season, code, key, ev) : null;
   if (!d || !ev) return null;
   const m = d.match;

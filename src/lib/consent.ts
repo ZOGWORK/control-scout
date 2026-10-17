@@ -4,6 +4,7 @@
 // in localStorage ("cs-consent"); a browser privacy signal (Global Privacy
 // Control or Do Not Track) counts as "no" and is never overridden.
 import { useCallback, useSyncExternalStore } from "react";
+import { BOOT_CHOICE_GLOBAL } from "../shared/boot";
 
 export const CONSENT_KEY = "cs-consent";
 export type Consent = { analytics: boolean; at: string; v: 1 };
@@ -58,7 +59,18 @@ if (typeof window !== "undefined") {
 }
 
 /** The choice in effect: an unsaved newer one first, then the stored one. */
-const current = (): Consent | null => memory ?? readConsent();
+const current = (): Consent | null => { adoptBootChoice(); return memory ?? readConsent(); };
+
+/** A choice made in the first HTML's banner that couldn't be saved becomes this page's unsaved choice, like one made here. */
+function adoptBootChoice() {
+  if (typeof window === "undefined") return;
+  const w = window as unknown as Record<string, unknown>;
+  const raw = w[BOOT_CHOICE_GLOBAL];
+  if (raw === undefined) return;
+  delete w[BOOT_CHOICE_GLOBAL];
+  const c = parse(typeof raw === "string" ? raw : null);
+  if (c) memory = c;
+}
 
 /** The one check analytics code calls before sending anything. */
 export function hasAnalyticsConsent(): boolean {
@@ -78,7 +90,7 @@ function subscribe(onChange: () => void) {
   return () => { window.removeEventListener(EVENT, onChange); window.removeEventListener("storage", onStorage); };
 }
 // A string snapshot so React compares by value (a parsed object would be new every read).
-const snapshot = () => `${privacySignal() ? 1 : 0}|${memory ? JSON.stringify(memory) : readRaw() ?? ""}`;
+const snapshot = () => { adoptBootChoice(); return `${privacySignal() ? 1 : 0}|${memory ? JSON.stringify(memory) : readRaw() ?? ""}`; };
 
 export type ConsentState = {
   /** Analytics may run (a "yes" stored and no privacy signal). */

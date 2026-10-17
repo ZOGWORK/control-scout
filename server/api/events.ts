@@ -1,10 +1,11 @@
 // Event list + event detail + the engine's EventInput for forecasting.
 import type { EventInput } from "@control-scout/predict-engine";
-import { all, get } from "../db.js";
+import { all, get, kvGet } from "../db.js";
 import { eventTypeLabel, isLegacy } from "../data/seasons.js";
 import type { EventDetail, EventSummary, FieldRow } from "../../src/shared/api.js";
 import { matchViews } from "./matches.js";
-import { liveForecaster } from "../predict/engine.js";
+import { dataVersion, liveForecaster, liveVersion } from "../predict/engine.js";
+import { registerCache } from "../caches.js";
 import { FULL_EVERY_MS, isEventDay, liveIo, liveSyncOn, liveSyncSeconds } from "../data/live.js";
 
 const today = () => new Date().toISOString().slice(0, 10);
@@ -51,7 +52,34 @@ export async function eventSummary(season: number, code: string): Promise<EventS
   return r ? summary(r) : null;
 }
 
-const LEGACY_NOTE = "Seasons before 2023–24 are shown for history: results and stats, no predictions.";
+/** How long a cached event detail may be reused (on top of its key), and how many are kept. */
+export const DETAIL_TTL_MS = 5 * 60_000;
+const DETAIL_MAX = 300;
+const details = new Map<string, { at: number; value: Promise<EventDetail | null> }>();
+registerCache("Event details", () => details.clear());
+
+/**
+ * eventDetail for pages (the event page and match reports), cached by what it's built from: the data
+ * version (moves on with every sync and every live result), the ratings in use (liveVersion) and the
+ * day (an event's status follows the date). A big event's detail takes tens of milliseconds to build
+ * (every match, its prediction, the field), so a repeat visit or a match report reuses it. An event
+ * that's on today isn't cached: its live check times move without a new data version. Callers must
+ * not change the object they get back (it's shared).
+ */
+export async function cachedEventDetail(season: number, code: string): Promise<EventDetail | null> {
+  // data:settled moves once a sync's or live result's writes are all done: a detail built in between (new
+  // version, half-written stats) isn't kept past them.
+  const key = `${await dataVersion()}|${(await kvGet<string>("data:settled")) ?? ""}|${await liveVersion(season)}|${today()}|${season}|${code}`;
+  const hit = details.get(key);
+  if (hit && Date.now() - hit.at < DETAIL_TTL_MS) return hit.value;
+  const value = eventDetail(season, code);
+  details.set(key, { at: Date.now(), value });
+  value.then((d) => { if (!d || d.live) details.delete(key); }, () => details.delete(key));
+  while (details.size > DETAIL_MAX) details.delete(details.keys().next().value!);
+  return value;
+}
+
+const LEGACY_NOTE ="Seasons before 2023–24 are shown for history: results and stats, no predictions.";
 
 export async function eventDetail(season: number, code: string): Promise<EventDetail | null> {
   const r = await get<any>(`${SUMMARY_SQL} WHERE e.season = ? AND e.code = ?`, [season, code]);

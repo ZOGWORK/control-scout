@@ -12,7 +12,7 @@ import { CURRENT_SEASON, SEASONS, SEASON_NUMBERS, isLegacy, seasonInfo } from ".
 import { ensureSearchIndex, search } from "./api/search.js";
 import { rebuildSearch } from "./stats/job.js";
 import { teamProfile, compareTeams, teamSummaries, shortlistTeams } from "./api/teams.js";
-import { eventDetail, listEvents, toEventInput } from "./api/events.js";
+import { cachedEventDetail, eventDetail, listEvents, toEventInput } from "./api/events.js";
 import { matchDetail, matchViews } from "./api/matches.js";
 import { matchReport } from "./api/matchReport.js";
 import { MATCH_KEY as REPORT_KEY } from "../src/shared/matchReport.js";
@@ -287,7 +287,7 @@ export function createApp() {
   })));
 
   api.get("/events/:season/:code", h(async (req, res) => {
-    const d = await eventDetail(season(req.params.season), code(req.params.code));
+    const d = await cachedEventDetail(season(req.params.season), code(req.params.code));
     if (!d) throw new HttpError(404, `No event ${req.params.code} in ${req.params.season}`);
     // On an event day results move every minute: revalidate every time (the ETag keeps that a cheap 304).
     if (d.live) res.setHeader("Cache-Control", "no-cache");

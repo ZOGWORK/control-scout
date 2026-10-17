@@ -28,6 +28,8 @@ import { captureInstallPrompt } from "./lib/installNudge";
 // the same render as the app's own (/api/meta, /api/auth/me), with no second round.
 import Home from "./pages/Home";
 import { pageModule, type PageModule } from "./shared/routes";
+import { APP_CSS_ID } from "./shared/boot";
+import { installPrefetch } from "./lib/prefetch";
 
 /** A lazily loaded page that can also be loaded ahead of its first render: once loaded,
  *  it renders straight away (React.lazy would still suspend for one round). */
@@ -65,8 +67,14 @@ const { TeamPage, EventsPage, RecordsPage, RankingsPage, EventPage, PredictPage,
 // Offline: the service worker precaches the app so it opens with no signal.
 // Production builds only (dev serves unbundled modules).
 if (import.meta.env.PROD && "serviceWorker" in navigator) {
-  window.addEventListener("load", () => { navigator.serviceWorker.register("/sw.js").catch(() => { /* offline support is a bonus */ }); });
+  const register = () => { navigator.serviceWorker.register("/sw.js").catch(() => { /* offline support is a bonus */ }); };
+  // The app's code is requested after the first paint (server/seo.ts afterFirstPaint), so the page may already have loaded.
+  if (document.readyState === "complete") register(); else window.addEventListener("load", register, { once: true });
 }
+
+// A link a pointer rests on (or a finger touches, or focus reaches) starts loading its page's code and
+// main data, so the page change usually draws straight away (src/lib/prefetch.ts).
+installPrefetch((m) => { PAGES[m].preload().catch(() => { /* the page's own lazy load retries and shows it */ }); });
 
 // The browser's install offer can come before the app has mounted: hold it for the nudge (src/lib/installNudge.ts).
 captureInstallPrompt();
@@ -81,7 +89,25 @@ onFlags((f) => setReportingPaused(!f.errorReporting));
 // modulepreloads it), so it draws the page itself rather than a loading block, replacing the
 // static first paint in one step. Never longer than 3 s: then the usual Suspense fallback shows.
 const firstPage = pageModule(location.pathname);
-const ready = firstPage ? Promise.race([PAGES[firstPage].preload(), new Promise((r) => setTimeout(r, 3000))]) : Promise.resolve();
+const ready = Promise.all([
+  // A failed page download mustn't skip the stylesheet wait: the page's own lazy load retries (and shows) it.
+  firstPage ? Promise.race([PAGES[firstPage].preload(), new Promise((r) => setTimeout(r, 3000))]).catch(() => undefined) : undefined,
+  appCss(),
+]);
+
+/** The app's stylesheet doesn't block the static first paint (server/seo.ts nonBlockingCss), so the app waits
+ *  for it here: its first render is never unstyled. Already loaded (or a dev build, where Vite injects it): no wait.
+ *  Never longer than 5 s; a stylesheet that fails to load doesn't keep the app from starting. */
+function appCss(): Promise<unknown> {
+  const link = document.getElementById(APP_CSS_ID) as HTMLLinkElement | null;
+  if (!link || link.media !== "print") return Promise.resolve();
+  return new Promise((done) => {
+    const finish = () => { link.media = "all"; done(undefined); };
+    link.addEventListener("load", finish, { once: true });
+    link.addEventListener("error", finish, { once: true });
+    setTimeout(finish, 5000);
+  });
+}
 void ready.catch(() => { /* a failed load is retried (and shown) by the page's own lazy load */ }).then(() => createRoot(document.getElementById("root")!).render(
   <StrictMode>
     {/* Honour the visitor's reduced-motion setting everywhere (transforms off, fades kept). */}
