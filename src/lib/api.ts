@@ -85,6 +85,9 @@ export function load<T>(path: string, force = false): Promise<T> {
   return promise;
 }
 
+/** The data cached for a path, if any (fresh or not), without fetching. */
+export function peek<T>(path: string): T | undefined { return cache.get(path)?.data as T | undefined; }
+
 /** Put fresh data for a path in the cache (e.g. returned by a POST) and re-render whoever shows it. */
 export function prime<T>(path: string, data: T) { cache.set(path, { at: Date.now(), data, seq: ++seq, promise: cache.get(path)?.promise as Promise<T> | undefined }); notify(path); }
 

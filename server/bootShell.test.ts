@@ -5,13 +5,14 @@ import { existsSync, mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { beforeAll, describe, expect, it } from "vitest";
-import { PRELOAD_MAX_DEP, renderIndex, routePreloads } from "./seo";
+import { PRELOAD_MAX_DEP, afterFirstPaint, nonBlockingCss, renderIndex, routePreloads } from "./seo";
+import { APP_CSS_ID } from "../src/shared/boot";
 import { bootShell } from "./bootShell";
 import { migrate, openDb, run, setDb } from "./db";
 import { pageModule, pageTitle } from "../src/shared/routes";
 
 const INDEX = '<html><head><title>x</title>\n</head><body><div id="root"><!--cs-boot--></div><script type="module" src="/assets/index-a.js"></script></body></html>';
-const root = (html: string) => /<div id="root">([\s\S]*)<\/div><script type="module"/.exec(html)![1];
+const root = (html: string) => /<div id="root">([\s\S]*)<\/div><section id="cs-boot-consent"/.exec(html)![1];
 
 beforeAll(async () => {
   const c = openDb(":memory:");
@@ -78,6 +79,41 @@ describe("static first paint", () => {
     const r = bootShell('/x"><script>alert(1)</script>', { title: "T", description: "D", type: "website" });
     expect(r).toContain('data-path="/x&quot;&gt;&lt;script&gt;alert(1)&lt;/script&gt;"');
     expect(r).not.toContain("<script>alert(1)");
+  });
+});
+
+describe("first paint without waiting for the app's CSS", () => {
+  const BUILT = '<html><head><title>x</title>\n<script type="module" crossorigin src="/assets/index-a.js"></script>\n<link rel="stylesheet" crossorigin href="/assets/index-a.css">\n</head><body><div id="root"><!--cs-boot--></div></body></html>';
+
+  it("the app's stylesheet loads without blocking the first paint, with a no-JS fallback", () => {
+    const out = nonBlockingCss(BUILT);
+    expect(out).toContain(`<link rel="stylesheet" crossorigin href="/assets/index-a.css" media="print" onload="this.media='all'" onerror="this.media='all'" id="${APP_CSS_ID}" />`);
+    expect(out).toContain('<noscript><link rel="stylesheet" crossorigin href="/assets/index-a.css" /></noscript>');
+    expect(out.match(/rel="stylesheet"/g)).toHaveLength(2); // the switched one and the <noscript> one: no blocking copy left
+  });
+
+  it("the app's code is requested after the first paint, entry and preloads alike, in order", () => {
+    const html = '<html><head>\n<script type="module" crossorigin src="/assets/index-a.js"></script>\n<link rel="modulepreload" crossorigin href="/assets/vendor-react-b.js">\n<link rel="modulepreload" crossorigin href="/assets/TeamPage-d.js" />\n</head><body><div id="root"></div>\n</body></html>';
+    const out = afterFirstPaint(html);
+    expect(out).not.toMatch(/<script type="module"|rel="modulepreload"/);
+    const loader = /<script>(\(function\(\)[\s\S]*?)<\/script>\n {2}<\/body>/.exec(out)![1];
+    expect(loader).toContain('["/assets/vendor-react-b.js","/assets/TeamPage-d.js"]');
+    expect(loader).toContain('e.src="/assets/index-a.js"');
+    expect(loader).toContain("requestAnimationFrame(function(){setTimeout(go,0)})"); // the task after the first frame
+    expect(loader).toContain("setTimeout(go,100)"); // a background tab, where frames don't run
+    expect(afterFirstPaint("<html><body></body></html>")).toBe("<html><body></body></html>"); // no entry script (dev): unchanged
+  });
+
+  it("the privacy banner follows #root (React's first render leaves it alone), on every page", async () => {
+    const dir = mkdtempSync(join(tmpdir(), "cs-css-"));
+    const file = join(dir, "index.html");
+    writeFileSync(file, BUILT);
+    for (const p of ["/", "/events", "/no-such-page"]) {
+      const html = await renderIndex(file, p);
+      expect(html).toMatch(/<\/div><\/div><section id="cs-boot-consent"[\s\S]*<\/section><script>/);
+      expect(html).toContain(`id="${APP_CSS_ID}"`);
+      expect(html).not.toMatch(/<link rel="stylesheet" crossorigin href="\/assets\/index-a.css">/);
+    }
   });
 });
 

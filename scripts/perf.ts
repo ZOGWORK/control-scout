@@ -40,7 +40,8 @@ const kb = (b: number) => `${(b / 1024).toFixed(1)} KB`;
 const pct = (xs: number[], p: number) => { const s = [...xs].sort((a, b) => a - b); return s[Math.min(s.length - 1, Math.ceil((p / 100) * s.length) - 1)]; };
 
 async function interactive(page: Page) {
-  await page.waitForFunction(() => (document.querySelector("main")?.textContent ?? "").trim().length > 80 && !document.querySelector(".skeleton, [aria-busy=true]"), null, { timeout: 60_000 });
+  // The app itself, not the server's static first paint (.csb, server/bootShell.ts), which has text and no skeletons too.
+  await page.waitForFunction(() => !document.querySelector(".csb") && (document.querySelector("main")?.textContent ?? "").trim().length > 80 && !document.querySelector(".skeleton, [aria-busy=true]"), null, { timeout: 60_000 });
 }
 
 /** One page load: requests (with decoded sizes and start/end), JS bytes, time to interactive. */

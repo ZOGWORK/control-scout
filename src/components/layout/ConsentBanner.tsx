@@ -3,15 +3,20 @@
 // on) and asks about the one optional thing, anonymous usage statistics, with
 // two equally weighted buttons. It never shows again once a choice is stored,
 // and never shows at all when the browser sends GPC / Do Not Track (that
-// counts as "no"). It mounts after the page has painted (idle time), fixed in
-// place, so it can't delay the first paint or shift the layout. Esc inside it
-// means "No thanks".
-import { useEffect, useState } from "react";
+// counts as "no"). The server paints a static copy of it with the first HTML
+// (server/bootShell.ts bootConsent), so it shows at once rather than seconds
+// later as the page's largest late paint; this banner takes over from that
+// copy in place (no entrance animation, keyboard focus kept). Without the
+// static copy (e.g. after "Clear all local data"), it mounts after the page
+// has painted (idle time). Fixed in place, so it never shifts the layout. Esc
+// inside it means "No thanks".
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import { AnimatePresence, motion } from "motion/react";
 import { ShieldCheck } from "lucide-react";
 import { Button } from "../ui/button";
 import { useConsent } from "../../lib/consent";
+import { BOOT_CONSENT_ID } from "../../shared/boot";
 
 /** Resolves once the page has loaded and the browser is idle. */
 function afterFirstPaint(cb: () => void): () => void {
@@ -28,17 +33,30 @@ function afterFirstPaint(cb: () => void): () => void {
 
 export function ConsentBanner() {
   const { decided, setAnalytics } = useConsent();
-  const [ready, setReady] = useState(false);
-  useEffect(() => afterFirstPaint(() => setReady(true)), []);
+  // The server's static banner is already on screen: take over from it straight away.
+  const [fromBoot] = useState(() => !!document.getElementById(BOOT_CONSENT_ID));
+  const [ready, setReady] = useState(fromBoot);
+  useEffect(() => (fromBoot ? undefined : afterFirstPaint(() => setReady(true))), [fromBoot]);
   const show = ready && !decided;
+  const ref = useRef<HTMLElement>(null);
+  // Before the browser paints: drop the static copy, keeping keyboard focus on the same button.
+  useLayoutEffect(() => {
+    const boot = document.getElementById(BOOT_CONSENT_ID);
+    if (!boot) return;
+    const active = document.activeElement;
+    const focused = active instanceof HTMLElement && boot.contains(active) ? active.getAttribute("data-a") : null;
+    boot.remove();
+    if (focused != null) ref.current?.querySelectorAll("button")[focused === "1" ? 1 : 0]?.focus();
+  }, [show]);
   return (
     <AnimatePresence>
       {show && (
         <motion.section
+          ref={ref}
           role="region"
           aria-label="Privacy choices"
           aria-describedby="cs-consent-text"
-          initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 12 }} transition={{ duration: 0.2, ease: "easeOut" }}
+          initial={fromBoot ? false : { opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 12 }} transition={{ duration: 0.2, ease: "easeOut" }}
           onKeyDown={(e) => { if (e.key === "Escape") { e.stopPropagation(); setAnalytics(false); } }}
           className="fixed inset-x-3 bottom-[calc(60px+env(safe-area-inset-bottom)+0.75rem)] z-[60] rounded-xl border border-border bg-popover p-4 text-popover-foreground shadow-[0_18px_40px_-16px_rgba(0,0,0,.55)] md:inset-x-auto md:bottom-4 md:left-4 md:w-[22rem]"
         >
