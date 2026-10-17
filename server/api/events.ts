@@ -82,14 +82,17 @@ const LEGACY_NOTE ="Seasons before 2023–24 are shown for history: results and 
 export async function eventDetail(season: number, code: string): Promise<EventDetail | null> {
   const r = await get<any>(`${SUMMARY_SQL} WHERE e.season = ? AND e.code = ?`, [season, code]);
   if (!r) return null;
-  const [entries, oprs, alliances, awards, adv, matches] = await Promise.all([
+  const [entries, oprs, alliances, awards, adv, matches, seasonOprs] = await Promise.all([
     all<any>(`SELECT et.*, t.name, t.city, t.state FROM event_teams et LEFT JOIN teams t ON t.number = et.team WHERE et.season = ? AND et.code = ?`, [season, code]),
     all<any>("SELECT * FROM team_event_stats WHERE season = ? AND code = ?", [season, code]),
     all<any>("SELECT * FROM alliances WHERE season = ? AND code = ? ORDER BY number", [season, code]),
     all<any>("SELECT * FROM awards WHERE season = ? AND code = ? ORDER BY CASE type WHEN 'Inspire' THEN 0 WHEN 'Winner' THEN 1 WHEN 'Finalist' THEN 2 ELSE 3 END, type, placement", [season, code]),
     get<any>("SELECT * FROM advancement WHERE season = ? AND code = ?", [season, code]),
     matchViews({ season, code }, { predictUnplayed: true }),
+    // Season OPR for the "At a glance" card before the event starts (the event's own OPR is empty then).
+    all<any>("SELECT s.team, s.opr_np FROM team_season_stats s JOIN event_teams et ON et.season = s.season AND et.team = s.team WHERE et.season = ? AND et.code = ?", [season, code]),
   ]);
+  const seasonOprBy = new Map(seasonOprs.map((o) => [Number(o.team), o.opr_np == null ? null : Number(o.opr_np)]));
   const oprBy = new Map(oprs.map((o) => [Number(o.team), o]));
   const f = isLegacy(season) ? null : await liveForecaster(season).catch(() => null);
   const book = f?.book(season) ?? null;
@@ -102,6 +105,7 @@ export async function eventDetail(season: number, code: string): Promise<EventDe
       opr: { np: o?.opr_np ?? null, auto: o?.opr_auto ?? null, teleop: o?.opr_teleop ?? null, endgame: o?.opr_endgame ?? null, pen: o?.opr_pen ?? null },
       avgNp: o?.avg_np ?? null,
       rating: rt ? { np: Math.round((rt.auto + rt.teleop + rt.endgame) * 10) / 10, sd: Math.round(Math.sqrt(rt.uncertainty) * 10) / 10, matches: rt.n } : null,
+      seasonOpr: seasonOprBy.get(Number(e.team)) ?? null,
     };
   }).sort((a, b) => (a.rank ?? 1e9) - (b.rank ?? 1e9) || a.team - b.team);
   const input = toEventInput(summary(r), field, matches, alliances);
