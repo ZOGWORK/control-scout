@@ -2,7 +2,8 @@
 // The LIVE panel as a user sees it: a countdown to the next match for their teams (red and blue, the
 // win call with its tier), "Up next" without a timer when there's no time, the event's next match when
 // none of theirs is left, new data moving it on, a new score flashing, and no timer left on exit.
-import { act, cleanup, render, screen } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, within } from "@testing-library/react";
+import { useState } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { MemoryRouter } from "react-router-dom";
 import type { EventDetail, MatchView } from "../shared/api";
@@ -17,6 +18,7 @@ vi.mock("../lib/meta", () => ({ usePredictable: () => true }));
 vi.mock("../lib/calibration", () => ({ useCalibration: () => null }));
 
 const { LivePanel, LiveCountdownChip, useLiveTarget } = await import("./LivePanel");
+const { HeaderActions } = await import("./EventActions");
 const { MatchRow } = await import("./predict");
 const { TooltipProvider } = await import("./ui/overlay");
 
@@ -146,5 +148,68 @@ describe("a new score", () => {
     expect(container.querySelectorAll(".cs-score-flash").length).toBe(2);
     const fresh = render(row({ ...m, played: true, red: { ...m.red, score: score(130) }, blue: { ...m.blue, score: score(98) } }));
     expect(fresh.container.querySelector(".cs-score-flash")).toBeNull();
+  });
+});
+
+describe("the panel's actions (watch, track) beside Know your match", () => {
+  const STREAM = "https://www.youtube.com/watch?v=live123";
+  const withEvent = (o: Partial<EventDetail["event"]>): EventDetail => { const d = detail(MATCHES); return { ...d, event: { ...d.event, ...o } }; };
+  // The event page's header as it composes it: the LIVE panel while live, then the action row under the date line.
+  function Header({ d, live }: { d: EventDetail; live: boolean }) {
+    const [on, setOn] = useState(false);
+    const track = { on, toggle: () => setOn((x) => !x) };
+    const target = useLiveTarget(d, live);
+    return <>
+      {live && <LivePanel d={d} target={target} refresh={refresh} track={track} />}
+      <HeaderActions liveMode={live} livestream={d.event.livestream} track={track}><button type="button">Open in what-if lab</button></HeaderActions>
+    </>;
+  }
+  const header = (d: EventDetail, live = true) => render(<MemoryRouter><TooltipProvider><Header d={d} live={live} /></TooltipProvider></MemoryRouter>);
+  const panel = () => document.querySelector<HTMLElement>("[data-live-panel]");
+  const below = () => document.querySelector<HTMLElement>("[data-header-actions]")!;
+
+  it("shows Watch livestream inside the panel, next to Know your match, opening the stream in a new tab", () => {
+    header(withEvent({ livestream: STREAM }));
+    const link = within(panel()!).getByRole("link", { name: /Watch livestream/ });
+    expect(link.getAttribute("href")).toBe(STREAM);
+    expect(link.getAttribute("target")).toBe("_blank");
+    expect(link.getAttribute("rel")).toBe("noopener noreferrer");
+    expect(link.closest("[data-live-actions]")?.querySelector("[data-live-report]")).toBeTruthy();
+  });
+
+  it("has no Watch livestream without a stream URL", () => {
+    header(withEvent({ livestream: null }));
+    expect(screen.queryByRole("link", { name: /livestream/i })).toBeNull();
+    expect(within(panel()!).getByRole("button", { name: "Track event" })).toBeTruthy();
+  });
+
+  it("tracks and untracks the event from inside the panel", () => {
+    header(detail(MATCHES));
+    const btn = within(panel()!).getByRole("button", { name: "Track event" });
+    expect(btn.getAttribute("aria-pressed")).toBe("false");
+    fireEvent.click(btn);
+    const on = within(panel()!).getByRole("button", { name: "Tracking" });
+    expect(on.getAttribute("aria-pressed")).toBe("true");
+    fireEvent.click(on);
+    expect(within(panel()!).getByRole("button", { name: "Track event" }).getAttribute("aria-pressed")).toBe("false");
+  });
+
+  it("while live, shows watch and track once (in the panel) and keeps the what-if lab below", () => {
+    header(withEvent({ livestream: STREAM }));
+    expect(screen.getAllByRole("link", { name: /livestream/i })).toHaveLength(1);
+    expect(screen.getAllByRole("button", { name: /^Track/ })).toHaveLength(1);
+    expect(within(below()).queryByRole("link", { name: /livestream/i })).toBeNull();
+    expect(within(below()).queryByRole("button", { name: /^Track/ })).toBeNull();
+    expect(within(below()).getByRole("button", { name: "Open in what-if lab" })).toBeTruthy();
+  });
+
+  it("when not live, the header shows both, the stream as a button", () => {
+    header(withEvent({ status: "finished", livestream: STREAM }), false);
+    expect(panel()).toBeNull();
+    const link = within(below()).getByRole("link", { name: /Watch livestream/ });
+    expect(link.getAttribute("href")).toBe(STREAM);
+    expect(link.getAttribute("data-slot")).toBe("button");
+    fireEvent.click(within(below()).getByRole("button", { name: "Track event" }));
+    expect(within(below()).getByRole("button", { name: "Tracking this event" }).getAttribute("aria-pressed")).toBe("true");
   });
 });
