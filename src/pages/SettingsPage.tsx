@@ -38,8 +38,8 @@ import { OtpInput } from "../components/arc/otp-input/otp-input";
 import { HoldToConfirm } from "../components/arc/hold-to-confirm/hold-to-confirm";
 import { cn } from "../components/cn";
 import { ago, seasonLabel } from "../lib/format";
-import { packStatus } from "../lib/packs";
-import { removeSeason, useSavedSeasons } from "../lib/offline/seasons";
+import { packStatus } from "../lib/packPolicy";
+import { useSavedSeasons } from "../lib/offline/saved";
 import { workspacesOf } from "../lib/scoutSpace";
 import { Group, Row } from "../components/settings/rows";
 import { WorkspaceSection } from "../components/settings/WorkspaceSection";
@@ -422,7 +422,7 @@ function OfflineData() {
   const pack = packStatus();
   const saved = useSavedSeasons();
   useEffect(() => { navigator.storage?.estimate?.().then(setEst, () => setEst({})); }, [saved]);
-  const remove = (season: number) => removeSeason(season).then(() => toast(`${seasonLabel(season)} removed from this device`), (e) => toast.error(e.message));
+  const remove = (season: number) => import("../lib/offline/seasons").then((s) => s.removeSeason(season)).then(() => toast(`${seasonLabel(season)} removed from this device`), (e) => toast.error(e.message));
   return (
     <div>
       <Group title="Saved seasons" description={<>A saved season's team pages, event pages and search work on this device with no connection, showing the data as of its release. <Link to="/download" className="underline">Save a season</Link></>}>

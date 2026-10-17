@@ -15,6 +15,7 @@ import { TooltipProvider } from "../ui/overlay";
 import { GlobalSearch } from "./Search";
 import { AccountMenu } from "./AccountMenu";
 import { ClockWeather, ThemeToggle } from "./TopBarExtras";
+import { OfflineStatus } from "../OfflineNote";
 import { InboxBell } from "./InboxBell";
 import { usePersonal } from "../../lib/personal";
 import { pageTitle } from "../../shared/routes";
@@ -221,6 +222,7 @@ export function Shell({ children }: { children: ReactNode }) {
               <Link to="/" className="md:hidden" aria-label="Home"><BrandMark className="size-6" /></Link>
               <p className="truncate text-sm text-text-muted"><span className="hidden sm:inline">Control Scout / </span><span className="text-text-base">{title}</span></p>
               <div className="flex flex-1 justify-end md:justify-center"><GlobalSearch /></div>
+              <OfflineStatus />
               <ClockWeather />
               <ThemeToggle />
               {/* The notification inbox: top right, in the header only (never the sidebar). */}

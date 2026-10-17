@@ -3,11 +3,21 @@
 // device, someone with a My team / tracked teams / shortlist, or a device that
 // already has a pack to keep current), and never on Save-Data or a 2g/3g
 // connection. Opening the Download page still fetches it straight away.
+// Downloading is all that happens online: the pack is stored, never opened,
+// until the device has no signal (lib/api.ts).
 // Pure and tiny: it sits in the entry bundle, packs.ts (the engine) doesn't.
 import type { PersonalState } from "../shared/personal";
 
 /** localStorage: the saved lite pack's meta (packs.ts writes it). */
 export const PACK_META_KEY = "cs-pack-meta";
+
+export interface PackMeta {
+  version: string; bytes: number; savedAt: number; builtAt: string; engineVersion: string;
+  /** Seasons it holds (packs saved before this was noted don't say). */
+  seasons?: number[];
+}
+/** The lite pack saved on this device: its meta only (reading it opens nothing). */
+export function packStatus(): PackMeta | null { try { return JSON.parse(localStorage.getItem(PACK_META_KEY) ?? "null"); } catch { return null; } }
 /** localStorage: a session has happened on this device before. */
 export const SEEN_KEY = "cs-seen";
 /** sessionStorage: this session's verdict, "new" or "returning", fixed at its first page. */

@@ -1,13 +1,14 @@
 // Full seasons saved on this device, for venues with no wifi. A season pack
 // (the same SQLite file the Download page offers) is downloaded, checked
-// against its published SHA-256, opened once to make sure it really is a
-// pack, and kept in IndexedDB; team and event pages then read it with sql.js
-// (SQLite compiled to WebAssembly) when the server can't be reached.
+// against its published SHA-256 and kept in IndexedDB; team and event pages
+// then read it with sql.js (SQLite compiled to WebAssembly) when the server
+// can't be reached, and only then (lib/api.ts): online, the server answers.
 //
-// sql.js and its .wasm load only when a season is saved or read, and come
-// from this site (cached for the service worker), never a CDN.
+// sql.js and its .wasm run only when a saved season is read with no signal.
+// Saving fetches the .wasm into the service worker's cache (so it's there
+// offline) but never loads it. Both come from this site, never a CDN.
 import type { Database, SqlJsStatic } from "sql.js";
-import { del, fetchVerified, getv, keys, put, type PackFile, type PackManifest } from "../packs";
+import { checkFormat, del, fetchVerified, getv, keys, put, type PackFile, type PackManifest } from "../packs";
 import { savedSeasons, writeSaved, type SavedSeason } from "./saved";
 import { wrap, type Db, type SeasonDb } from "./readers";
 
@@ -40,6 +41,14 @@ async function keepEngine(): Promise<void> {
     const cache = await caches.open(name);
     if (!(await cache.match(url))) await cache.add(url);
   } catch { /* offline reads then need the engine fetched once online */ }
+}
+
+/** Does it start with SQLite's file header? */
+const SQLITE_MAGIC = "SQLite format 3\0";
+function isSqlite(bytes: Uint8Array): boolean {
+  if (bytes.length < SQLITE_MAGIC.length) return false;
+  for (let i = 0; i < SQLITE_MAGIC.length; i++) if (bytes[i] !== SQLITE_MAGIC.charCodeAt(i)) return false;
+  return true;
 }
 
 /** Open pack bytes and check they're a season pack of the format this app reads. */
@@ -82,13 +91,17 @@ function trim() { for (const [s, e] of open) if (open.size > KEEP_OPEN && !e.pin
 export async function saveSeason(file: PackFile, manifest: PackManifest, onProgress?: (done: number, total: number) => void): Promise<SavedSeason> {
   const season = file.seasons[0];
   if (file.kind !== "full" || file.seasons.length !== 1) throw new Error("Only single-season packs can be saved.");
+  checkFormat(manifest); // a release this app can't read never replaces a copy it can
   const bytes = await fetchVerified(file, onProgress);
-  const db = await openPack(bytes, season);
+  // Saving doesn't open it: sql.js loads only when a saved season is read with no signal. The
+  // published checksum already vouches for the bytes; this just refuses a file that isn't SQLite.
+  // (The pack's format and season are checked when it's first opened, offline.)
+  if (!isSqlite(bytes)) throw new Error("That file isn't a Control Scout season pack — not saved.");
   // Ask the browser not to clear it under storage pressure (granted quietly or not at all).
   navigator.storage?.persist?.().catch(() => {});
   // One save per season at a time, across tabs: two releases saved at once would otherwise both
   // replace the same previous copy and leave one download stored but unlisted.
-  return oneAtATime(season, () => store(season, file, manifest, bytes, db));
+  return oneAtATime(season, () => store(season, file, manifest, bytes));
 }
 
 // Web Locks cover every tab; without them (old browsers, tests) this tab's own saves still queue.
@@ -111,31 +124,26 @@ async function sweep(season: number) {
   for (const k of stored) if (!listed || k !== key(season, listed.sha256)) await del(k);
 }
 
-async function store(season: number, file: PackFile, manifest: PackManifest, bytes: Uint8Array, db: Database): Promise<SavedSeason> {
+async function store(season: number, file: PackFile, manifest: PackManifest, bytes: Uint8Array): Promise<SavedSeason> {
   const k = key(season, file.sha256);
   const prev = savedSeasons().find((s) => s.season === season);
   try { await put(k, bytes); }
   catch (e) {
-    db.close();
     throw (e as DOMException)?.name === "QuotaExceededError" ? new Error("Not enough storage on this device to save this season. Remove another saved season, or free some space.") : e;
   }
   await keepEngine();
   const meta: SavedSeason = { season, version: manifest.version, sha256: file.sha256, bytes: bytes.length, savedAt: Date.now(), dataAsOf: manifest.dataAsOf, builtAt: manifest.builtAt };
-  // Same tick as the list write, so readers woken by it find this database open.
-  const was = open.get(season), mine: Entry = { sha256: file.sha256, db: Promise.resolve(db), pins: 0 };
-  open.set(season, mine);
   try { writeSaved([...savedSeasons().filter((s) => s.season !== season), meta]); }
   catch (e) {
     // Roll back: the previous copy (if any) stays listed and readable; the new bytes go.
-    if (open.get(season) === mine) { open.delete(season); if (was) open.set(season, was); }
-    db.close();
     if (prev?.sha256 !== file.sha256) await del(k).catch(() => {});
     throw e;
   }
-  if (was && was !== mine) retire(was);
+  // An older copy still open from an earlier offline read: let it go (the next offline read opens this one).
+  const was = open.get(season);
+  if (was && was.sha256 !== file.sha256) close(season);
   if (prev && prev.sha256 !== file.sha256) await del(key(season, prev.sha256)).catch(() => {});
   await sweep(season).catch(() => {}); // tidying only: the save itself succeeded
-  trim();
   return meta;
 }
 

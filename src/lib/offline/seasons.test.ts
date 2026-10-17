@@ -15,8 +15,11 @@ vi.mock("../packs", () => ({
   del: async (k: string) => { store.delete(k); },
   keys: async (prefix: string) => [...store.keys()].filter((k) => k.startsWith(prefix)),
   fetchVerified: async (f: PackFile) => files.get(f.url)!,
+  checkFormat: (m: PackManifest) => { if (m.format !== 1) throw new Error("This pack is from a newer version of Control Scout. Refresh the page."); },
 }));
-vi.mock("sql.js/dist/sql-wasm-browser.js", () => ({ default: () => initSqlJs() }));
+// Counts sql.js engine starts: saving must never start it (it runs only for an offline read).
+const engineStarts = vi.hoisted(() => ({ n: 0 }));
+vi.mock("sql.js/dist/sql-wasm-browser.js", () => ({ default: () => { engineStarts.n++; return initSqlJs(); } }));
 vi.mock("sql.js/dist/sql-wasm-browser.wasm?url", () => ({ default: "/assets/sql-wasm-browser-abc.wasm" }));
 
 import { readSaved, removeSeason, saveSeason, savedSeasons, SEASONS_EVENT } from "./seasons";
@@ -33,7 +36,7 @@ vi.stubGlobal("caches", {
 });
 vi.stubEnv("DEV", false);
 
-const manifest = { version: "v1", builtAt: "b", dataAsOf: null } as unknown as PackManifest;
+const manifest = { format: 1, version: "v1", builtAt: "b", dataAsOf: null } as unknown as PackManifest;
 const file = (season: number, sha: string): PackFile => ({ name: `${season}.sqlite`, url: `/packs/${season}-${sha}`, bytes: 1, sha256: sha, seasons: [season], kind: "full", contents: "" });
 const ENGINE = "/assets/sql-wasm-browser-abc.wasm";
 
@@ -50,6 +53,31 @@ beforeEach(async () => {
 afterEach(() => vi.restoreAllMocks());
 
 const names = (only?: number) => readSaved(only, (dbs) => dbs.map((d) => `${d.season}:${d.db.all("SELECT name FROM teams")[0].name}`));
+
+describe("saving never runs the pack", () => {
+  it("stores the bytes without starting sql.js; the first (offline) read does", async () => {
+    // First in this file: nothing has started the engine yet (it starts once per page).
+    for (const s of [2023, 2024, 2025]) await saveSeason(file(s, "a"), manifest);
+    expect(engineStarts.n).toBe(0);
+    expect(gets).toEqual([]); // nothing read back either
+    expect(await names(2025)).toEqual(["2025:New"]);
+    expect(engineStarts.n).toBe(1);
+  });
+
+  it("a release in a newer format never replaces the saved copy", async () => {
+    await saveSeason(file(2025, "a"), manifest);
+    await expect(saveSeason(file(2025, "b"), { ...manifest, format: 2 } as PackManifest)).rejects.toThrow(/newer version/);
+    expect(savedSeasons().map((s) => s.sha256)).toEqual(["a"]);
+    expect([...store.keys()]).toEqual(["season:2025:a"]);
+  });
+
+  it("refuses a file that isn't SQLite", async () => {
+    files.set("/packs/junk", new TextEncoder().encode("<html>not a pack</html>"));
+    await expect(saveSeason({ ...file(2024, "z"), url: "/packs/junk" }, manifest)).rejects.toThrow(/isn't a Control Scout season pack/);
+    expect(savedSeasons()).toEqual([]);
+    expect([...store.keys()]).toEqual([]);
+  });
+});
 
 describe("saveSeason", () => {
   it("puts the SQLite engine in the worker's newest cache before the season shows as saved", async () => {
@@ -129,7 +157,7 @@ describe("readSaved", () => {
     for (const s of [2023, 2024, 2025]) await saveSeason(file(s, "a"), manifest);
     gets.length = 0;
     expect(await names()).toEqual(["2025:New", "2024:Mid", "2023:Old"]);
-    expect(gets).toEqual(["season:2023:a"]); // the save kept 2024 and 2025 open; 2023 was let go
+    expect(gets).toEqual(["season:2023:a", "season:2024:a", "season:2025:a"]); // saving opened none of them
     gets.length = 0;
     expect(await names(2025)).toEqual(["2025:New"]);
     expect(await names(2024)).toEqual(["2024:Mid"]);
