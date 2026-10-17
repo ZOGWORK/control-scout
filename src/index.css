@@ -166,6 +166,10 @@ html.light { --amb-line: 0.07; --amb-glow: 0.22; --amb-breath: 0.14; --amb-tint:
 /* Off: a still grid (reduced motion, or Settings → Appearance → Animated background). */
 html.ambient-off .ambient-grid, html.ambient-off .ambient-breath { animation: none; }
 html.ambient-off .ambient-breath, html.ambient-off .ambient-glow { display: none; }
+/* While the page scrolls ([data-scrolling] on the scroll area's parent, src/lib/mainScroll.ts), the
+   ambient drift holds still: every scrolled frame then redraws only what moved, not the animated
+   full-screen layers under it as well. It carries on from the same spot once scrolling stops. */
+[data-scrolling] .ambient-grid, [data-scrolling] .ambient-breath { animation-play-state: paused; }
 @media (prefers-reduced-motion: reduce) {
   .ambient-grid, .ambient-breath { animation: none; }
   .ambient-breath, .ambient-glow { display: none; }

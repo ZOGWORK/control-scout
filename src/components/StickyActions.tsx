@@ -50,7 +50,7 @@ export function StickyActions({ show, label, children }: { show: boolean; label:
     <div
       role="region" aria-label={label} inert={!visible}
       className={cn(
-        "fixed inset-x-0 bottom-[calc(61px+env(safe-area-inset-bottom))] z-30 flex gap-2 border-t border-line bg-secondary/95 px-4 py-2 backdrop-blur-lg transition-[translate,opacity] duration-200 motion-reduce:transition-none md:hidden",
+        "fixed inset-x-0 bottom-[calc(61px+env(safe-area-inset-bottom))] z-30 flex gap-2 border-t border-line bg-secondary/95 px-4 py-2 transition-[translate,opacity] duration-200 motion-reduce:transition-none md:hidden",
         "[&>*]:min-w-0 [&>*]:flex-1",
         visible ? "translate-y-0 opacity-100" : "pointer-events-none translate-y-full opacity-0",
       )}
