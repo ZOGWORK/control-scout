@@ -38,6 +38,15 @@ describe("cachedEventDetail", () => {
     expect(b!.event.name).toBe("After Sync");
   });
 
+  it("a detail built mid-sync (new version, stats still being written) is built again once the writes settle", async () => {
+    await kvSet("data:version", "v3"); // a sync has started: the version moves before its stats are written
+    const mid = await cachedEventDetail(S, "OLD");
+    await run("UPDATE events SET name = 'Stats Written' WHERE season = ? AND code = 'OLD'", [S]);
+    expect(await cachedEventDetail(S, "OLD")).toBe(mid);
+    await kvSet("data:settled", "s3"); // the run's writes are done
+    expect((await cachedEventDetail(S, "OLD"))!.event.name).toBe("Stats Written");
+  });
+
   it("\"Clear caches\" drops it", async () => {
     const a = await cachedEventDetail(S, "OLD");
     clearAllCaches();

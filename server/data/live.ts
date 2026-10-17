@@ -202,6 +202,8 @@ export async function refreshEvents(events: EventRow[], o: { minFullMs?: number;
     }
     report.scored = await scoreLivePredictions(log);
     report.logged = await logLivePredictions(log);
+    // The follow-up's writes are done (see runStats: caches keyed by the data version are keyed by this too).
+    await kvSet("data:settled", new Date(now()).toISOString());
     for (const e of due) followUp.delete(keyOf(e));
   }
   return report;
