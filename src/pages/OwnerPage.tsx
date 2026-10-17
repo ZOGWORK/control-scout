@@ -64,7 +64,7 @@ export default function OwnerPage() {
       <PageHeader title="Owner" description="How Control Scout is doing, and the switches to run it. Only you can see this page." />
       {panel !== "storage" && <StorageBanner onOpen={() => go("storage")} />}
       <Tabs value={panel} onValueChange={go}>
-        <TabsList aria-label="Owner panels">
+        <TabsList aria-label="Owner panels" className="max-w-full">
           {PANELS.map((p) => <TabsTrigger key={p.id} value={p.id}><p.icon aria-hidden />{p.label}</TabsTrigger>)}
         </TabsList>
         <TabsContent value="overview"><OverviewPanel onOpen={go} /></TabsContent>
