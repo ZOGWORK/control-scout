@@ -47,7 +47,7 @@ afterEach(() => { mode.unmount(); vi.unstubAllGlobals(); vi.restoreAllMocks(); v
 describe("online: the packs never run", () => {
   it("answers from the server and loads none of the offline code, with seasons and a lite pack saved", async () => {
     writeSaved([saved]);
-    localStorage.setItem(PACK_META_KEY, JSON.stringify({ version: "v" }));
+    localStorage.setItem(PACK_META_KEY, JSON.stringify({ version: "v", seasons: [2025] }));
     const fetch = vi.fn(async (p: string) => ok({ from: "server", p }));
     vi.stubGlobal("fetch", fetch);
     for (const p of ["/api/teams/100?season=2025", "/api/teams/100/matches", "/api/events/2025/USNJQ1", "/api/search?q=gear", "/api/predict/match?season=2025&red=1,2&blue=3,4"]) {
@@ -80,6 +80,18 @@ describe("online: the packs never run", () => {
     await vi.advanceTimersByTimeAsync(OFFLINE_TIMEOUT_MS * 3);
     expect(await meta).toEqual({ slow: true });
     expect(offlineAnswer).not.toHaveBeenCalled();
+  });
+
+  it("no timeout for a prediction the lite pack isn't known to hold (another season, or an older pack that doesn't say)", async () => {
+    vi.useFakeTimers();
+    vi.stubGlobal("fetch", vi.fn(() => new Promise<Response>((res) => setTimeout(() => res(ok({ slow: true })), OFFLINE_TIMEOUT_MS * 2))));
+    localStorage.setItem(PACK_META_KEY, JSON.stringify({ version: "v", seasons: [2025] }));
+    const other = apiFetch("/api/predict/match?season=2024&red=1,2&blue=3,4");
+    localStorage.setItem(PACK_META_KEY, JSON.stringify({ version: "v" }));
+    const older = apiFetch("/api/predict/match?season=2025&red=1,2&blue=3,4");
+    await vi.advanceTimersByTimeAsync(OFFLINE_TIMEOUT_MS * 2);
+    expect(await other).toEqual({ slow: true });
+    expect(await older).toEqual({ slow: true });
   });
 
   it("no timeout for a season that isn't saved: a slow server still answers", async () => {
@@ -168,7 +180,7 @@ describe("no signal: the packs answer", () => {
 
   it("a prediction that times out with a lite pack saved fails as offline (the Predict page then runs the pack)", async () => {
     vi.useFakeTimers();
-    localStorage.setItem(PACK_META_KEY, JSON.stringify({ version: "v" }));
+    localStorage.setItem(PACK_META_KEY, JSON.stringify({ version: "v", seasons: [2024, 2025] }));
     vi.stubGlobal("fetch", hanging());
     const p = apiFetch("/api/predict/match?season=2025&red=1,2&blue=3,4");
     const done = expect(p).rejects.toMatchObject({ status: 0, offline: true });

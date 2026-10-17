@@ -43,8 +43,9 @@ function offlineKind(path: string, method: string | undefined): "saved" | "lite"
   }
   if (!PACK_PREDICT_PATH.test(path)) return null;
   const lite = packStatus();
-  // A pack saved before its seasons were noted: assume it holds the season (the page says so if not).
-  return lite && (!lite.seasons || asked == null || lite.seasons.includes(asked)) ? "lite" : null;
+  // Only a season the pack is known to hold: a pack saved before its seasons were noted (or a request
+  // that names no season) waits for the server, as the pack might not answer it.
+  return lite?.seasons && asked != null && lite.seasons.includes(asked) ? "lite" : null;
 }
 
 // "Offline mode": something on screen came from data saved on this device. The
