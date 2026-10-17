@@ -16,7 +16,9 @@ vi.mock("../packs", () => ({
   keys: async (prefix: string) => [...store.keys()].filter((k) => k.startsWith(prefix)),
   fetchVerified: async (f: PackFile) => files.get(f.url)!,
 }));
-vi.mock("sql.js/dist/sql-wasm-browser.js", () => ({ default: () => initSqlJs() }));
+// Counts sql.js engine starts: saving must never start it (it runs only for an offline read).
+const engineStarts = vi.hoisted(() => ({ n: 0 }));
+vi.mock("sql.js/dist/sql-wasm-browser.js", () => ({ default: () => { engineStarts.n++; return initSqlJs(); } }));
 vi.mock("sql.js/dist/sql-wasm-browser.wasm?url", () => ({ default: "/assets/sql-wasm-browser-abc.wasm" }));
 
 import { readSaved, removeSeason, saveSeason, savedSeasons, SEASONS_EVENT } from "./seasons";
@@ -50,6 +52,24 @@ beforeEach(async () => {
 afterEach(() => vi.restoreAllMocks());
 
 const names = (only?: number) => readSaved(only, (dbs) => dbs.map((d) => `${d.season}:${d.db.all("SELECT name FROM teams")[0].name}`));
+
+describe("saving never runs the pack", () => {
+  it("stores the bytes without starting sql.js; the first (offline) read does", async () => {
+    // First in this file: nothing has started the engine yet (it starts once per page).
+    for (const s of [2023, 2024, 2025]) await saveSeason(file(s, "a"), manifest);
+    expect(engineStarts.n).toBe(0);
+    expect(gets).toEqual([]); // nothing read back either
+    expect(await names(2025)).toEqual(["2025:New"]);
+    expect(engineStarts.n).toBe(1);
+  });
+
+  it("refuses a file that isn't SQLite", async () => {
+    files.set("/packs/junk", new TextEncoder().encode("<html>not a pack</html>"));
+    await expect(saveSeason({ ...file(2024, "z"), url: "/packs/junk" }, manifest)).rejects.toThrow(/isn't a Control Scout season pack/);
+    expect(savedSeasons()).toEqual([]);
+    expect([...store.keys()]).toEqual([]);
+  });
+});
 
 describe("saveSeason", () => {
   it("puts the SQLite engine in the worker's newest cache before the season shows as saved", async () => {
@@ -129,7 +149,7 @@ describe("readSaved", () => {
     for (const s of [2023, 2024, 2025]) await saveSeason(file(s, "a"), manifest);
     gets.length = 0;
     expect(await names()).toEqual(["2025:New", "2024:Mid", "2023:Old"]);
-    expect(gets).toEqual(["season:2023:a"]); // the save kept 2024 and 2025 open; 2023 was let go
+    expect(gets).toEqual(["season:2023:a", "season:2024:a", "season:2025:a"]); // saving opened none of them
     gets.length = 0;
     expect(await names(2025)).toEqual(["2025:New"]);
     expect(await names(2024)).toEqual(["2024:Mid"]);
