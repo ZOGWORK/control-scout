@@ -39,6 +39,12 @@ export interface FactPacket {
   notes?: string;
 }
 
+/**
+ * The packet as stored with a generated week: the facts Bruno saw plus what the page needs to show
+ * the same comparison later (the week movement was counted against, and who dropped out then).
+ */
+export type StoredPacket = FactPacket & { comparedWith: string | null; droppedOut?: { team: number; lastRank: number }[] };
+
 /** Bruno's answer (already shape-checked by Control Point; checked again here). */
 export interface BrunoOutput { intro: string; blurbs: { team: number; text: string }[] }
 
@@ -107,17 +113,24 @@ function common(text: string, maxWords: number): string[] {
   return reasons;
 }
 
-/** "top 10" is a claim about the rank: true when the team is within it. */
+/** "top 10" / "top ten": a claim about the rank (digits or a number word). */
+const TOP = new RegExp(String.raw`\btop[\s-]+(\d{1,2}|${Object.keys(WORDS).join("|")})\b`, "gi");
+const topValue = (w: string) => (/^\d+$/.test(w) ? Number(w) : WORDS[w.toLowerCase()] ?? NaN);
+
+/** Each "top N" claim: true when the team is within it (and N is at most the list's size). */
 function topClaims(text: string, rank: number | null): { ok: Set<string>; bad: string[] } {
   const ok = new Set<string>();
   const bad: string[] = [];
-  for (const m of text.matchAll(/\btop[\s-]+(\d{1,2})\b/gi)) {
-    const n = Number(m[1]);
-    if (n <= POWER_RANKINGS_SIZE && (rank == null || rank <= n)) ok.add(m[1]);
+  for (const m of text.matchAll(TOP)) {
+    const n = topValue(m[1]);
+    if (n <= POWER_RANKINGS_SIZE && (rank == null || rank <= n)) ok.add(m[1].toLowerCase());
     else bad.push(`"${m[0]}"`);
   }
   return { ok, bad };
 }
+
+/** The text with each true "top N" claim reduced to "top" (so its N isn't checked again as a bare number). */
+const withoutTrueTops = (text: string, ok: (n: string) => boolean) => text.replace(TOP, (all, n: string) => (ok(n) ? "top" : all));
 
 const RECORD = /\b(\d{1,3})\s*[-–]\s*(\d{1,3})(?:\s*[-–]\s*(\d{1,3}))?\b/g;
 
@@ -137,7 +150,8 @@ export function checkBlurb(text: string, team: PacketTeam, packet: FactPacket): 
   const known = [...teamNumbers(team), ...packetNumbers(packet)];
   const top = topClaims(text, team.rank);
   for (const b of top.bad) reasons.push(`${b} doesn't fit rank ${team.rank}`);
-  const withoutTop = text.replace(/\btop[\s-]+(\d{1,2})\b/gi, (all, n) => (top.ok.has(n) ? "top" : all));
+  // A false claim keeps its number, so it's reported as unknown too.
+  const withoutTop = withoutTrueTops(text, (n) => top.ok.has(n.toLowerCase()));
   for (const n of numbersIn(records(withoutTop, team, reasons))) if (!matches(n, known)) reasons.push(`unknown number "${n.raw}"`);
   return { ok: reasons.length === 0, reasons };
 }
@@ -146,7 +160,7 @@ export function checkBlurb(text: string, team: PacketTeam, packet: FactPacket): 
 export function checkIntro(text: string, packet: FactPacket, friday?: string): Check {
   const reasons = common(text, MAX_INTRO_WORDS);
   const known = [...packet.teams.flatMap(teamNumbers), ...packetNumbers(packet), ...(friday ? [Number(friday.slice(8, 10)), Number(friday.slice(0, 4))] : [])];
-  const withoutTop = text.replace(/\btop[\s-]+(\d{1,2})\b/gi, (all, n) => (Number(n) <= POWER_RANKINGS_SIZE ? "top" : all));
+  const withoutTop = withoutTrueTops(text, (n) => topValue(n) <= POWER_RANKINGS_SIZE);
   for (const n of numbersIn(withoutTop)) if (!matches(n, known)) reasons.push(`unknown number "${n.raw}"`);
   return { ok: reasons.length === 0, reasons };
 }

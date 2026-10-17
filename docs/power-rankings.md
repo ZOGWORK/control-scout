@@ -80,7 +80,9 @@ it, and the other way round.
 In the owner portal (`/owner?panel=powerRankings`), **Power rankings** lists every automatic week, with
 who wrote each blurb and why any of Bruno's failed the fact check. You can:
 
-- **Edit** the intro or any blurb. The edit is live at once and is credited to you, not Bruno.
+- **Edit** the intro or any blurb. The edit is live at once and is credited to you, not Bruno. If the
+  week changed after you opened it (another save, a regeneration), the save is refused rather than
+  undoing that change: reload and edit again.
 - **Regenerate**: Bruno writes the week again from its frozen facts, fact-checked again. Your edits
   are replaced. If Bruno can't be reached, nothing changes.
 - **Hide** a week from the pages, archive and sitemap, or **show** it again. Nothing is deleted.

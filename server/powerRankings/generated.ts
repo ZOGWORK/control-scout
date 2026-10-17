@@ -5,7 +5,8 @@ import { all, get, run } from "../db.js";
 import { registerCache } from "../caches.js";
 import type { BlurbAuthor } from "../../src/shared/powerRankings.js";
 import type { RankingDoc } from "./format.js";
-import type { FactPacket } from "./factCheck.js";
+import type { PacketTeam, StoredPacket } from "./factCheck.js";
+import type { Movement } from "../../src/shared/powerRankings.js";
 
 export type GeneratedStatus = "pending" | "published" | "hidden";
 
@@ -26,15 +27,17 @@ export interface GeneratedWeek {
   intro: string;
   introSource: BlurbAuthor;
   entries: GeneratedEntry[];
-  packet: FactPacket;
+  packet: StoredPacket;
   generatedAt: string;
   editedBy: string | null;
   editedAt: string | null;
+  /** The row's version: +1 on every write. */
+  rev: number;
 }
 
 interface Row {
   season: number; week: string; published: string; status: string; intro: string; intro_source: string;
-  entries: string; packet: string; generated_at: string; edited_by: string | null; edited_at: string | null;
+  entries: string; packet: string; generated_at: string; edited_by: string | null; edited_at: string | null; rev: number;
 }
 
 const parse = <T>(s: string, fallback: T): T => { try { return JSON.parse(s) as T; } catch { return fallback; } };
@@ -43,8 +46,8 @@ function fromRow(r: Row): GeneratedWeek {
   return {
     season: Number(r.season), week: r.week, published: r.published, status: r.status as GeneratedStatus,
     intro: r.intro, introSource: r.intro_source as BlurbAuthor, entries: parse<GeneratedEntry[]>(r.entries, []),
-    packet: parse<FactPacket>(r.packet, { season: Number(r.season), week: r.week, teams: [] }),
-    generatedAt: r.generated_at, editedBy: r.edited_by, editedAt: r.edited_at,
+    packet: parse<StoredPacket>(r.packet, { season: Number(r.season), week: r.week, teams: [], comparedWith: null }),
+    generatedAt: r.generated_at, editedBy: r.edited_by, editedAt: r.edited_at, rev: Number(r.rev ?? 0),
   };
 }
 
@@ -61,12 +64,27 @@ export async function getGenerated(season: number, week: string): Promise<Genera
 /** "Power rankings, week 43" (as the scaffold titles a hand-written week). */
 export const generatedTitle = (week: string) => `Power rankings, week ${Number(week.slice(6))}`;
 
-/** A published generated week as a RankingDoc (its text is plain: rendered escaped, never as markdown). */
+/** A team's movement as frozen in the packet (what its blurb was written from). */
+function frozenMovement(t: PacketTeam | undefined, compared: boolean): Movement | null {
+  if (!compared || !t) return null;
+  if (t.movement == null) return t.priorRank == null ? { kind: "new" } : null;
+  return t.movement > 0 ? { kind: "up", by: t.movement } : t.movement < 0 ? { kind: "down", by: -t.movement } : { kind: "same" };
+}
+
+/**
+ * A published generated week as a RankingDoc (its text is plain: rendered escaped, never as markdown).
+ * Its movement is the frozen one, so arrows and blurbs agree even if the earlier week changes later.
+ */
 export function toDoc(g: GeneratedWeek): RankingDoc {
+  const byTeam = new Map(g.packet.teams.map((t) => [t.team, t]));
+  const compared = !!g.packet.comparedWith;
   return {
     week: g.week, season: g.season, title: generatedTitle(g.week), published: g.published, intro: g.intro, sample: false,
-    entries: g.entries.map((e) => ({ rank: e.rank, team: e.team, blurb: e.text, movement: null })),
-    generated: { introSource: g.introSource, sources: g.entries.map((e) => e.source), rev: g.editedAt ?? g.generatedAt },
+    entries: g.entries.map((e) => ({ rank: e.rank, team: e.team, blurb: e.text, movement: frozenMovement(byTeam.get(e.team), compared) })),
+    generated: {
+      introSource: g.introSource, sources: g.entries.map((e) => e.source), rev: revOf(g),
+      comparedWith: g.packet.comparedWith ?? null, droppedOut: g.packet.droppedOut ?? [],
+    },
   };
 }
 
@@ -86,10 +104,18 @@ export function generatedDocs(): Promise<RankingDoc[]> {
   return docs;
 }
 
-/** Owner edit: replace the intro and/or some blurbs (each becomes the owner's). */
-export async function editGenerated(season: number, week: string, change: { intro?: string; blurbs?: { team: number; text: string }[] }, at = new Date().toISOString()): Promise<GeneratedWeek | null> {
+/** A week's version: changes with every write (generation, regeneration, edit, hide/show). */
+export const revOf = (g: Pick<GeneratedWeek, "rev">) => String(g.rev);
+
+/**
+ * Owner edit: replace the intro and/or some blurbs (each becomes the owner's). `rev`: the version the
+ * editor opened (revOf); if the week changed since (another save, a regeneration), nothing is written
+ * and "conflict" comes back, so two overlapping saves can never undo each other.
+ */
+export async function editGenerated(season: number, week: string, change: { intro?: string; blurbs?: { team: number; text: string }[] }, rev: string, at = new Date().toISOString()): Promise<GeneratedWeek | "conflict" | null> {
   const g = await getGenerated(season, week);
   if (!g || g.status === "pending") return null;
+  if (revOf(g) !== rev) return "conflict";
   const intro = change.intro ?? g.intro;
   const introSource = change.intro != null && change.intro !== g.intro ? "owner" : g.introSource;
   const byTeam = new Map((change.blurbs ?? []).map((b) => [b.team, b.text]));
@@ -97,15 +123,16 @@ export async function editGenerated(season: number, week: string, change: { intr
     const text = byTeam.get(e.team);
     return text != null && text !== e.text ? { rank: e.rank, team: e.team, text, source: "owner" as const } : e;
   });
-  await run("UPDATE power_rankings_generated SET intro = ?, intro_source = ?, entries = ?, edited_by = 'owner', edited_at = ? WHERE season = ? AND week = ?",
-    [intro, introSource, JSON.stringify(entries), at, season, week]);
+  // The version guard makes read-change-write safe: a save that raced another loses, visibly.
+  const n = await run(`UPDATE power_rankings_generated SET intro = ?, intro_source = ?, entries = ?, edited_by = 'owner', edited_at = ?, rev = rev + 1 WHERE season = ? AND week = ? AND rev = ?`,
+    [intro, introSource, JSON.stringify(entries), at, season, week, Number(rev)]);
   invalidateGenerated();
-  return getGenerated(season, week);
+  return n ? getGenerated(season, week) : "conflict";
 }
 
 /** Owner: hide a published week, or show a hidden one again. */
 export async function setGeneratedStatus(season: number, week: string, status: "published" | "hidden", at = new Date().toISOString()): Promise<GeneratedWeek | null> {
-  const n = await run("UPDATE power_rankings_generated SET status = ?, edited_by = 'owner', edited_at = ? WHERE season = ? AND week = ? AND status IN ('published', 'hidden')", [status, at, season, week]);
+  const n = await run("UPDATE power_rankings_generated SET status = ?, edited_by = 'owner', edited_at = ?, rev = rev + 1 WHERE season = ? AND week = ? AND status IN ('published', 'hidden')", [status, at, season, week]);
   invalidateGenerated();
   return n ? getGenerated(season, week) : null;
 }

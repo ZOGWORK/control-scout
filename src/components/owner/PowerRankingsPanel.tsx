@@ -84,7 +84,7 @@ function Week({ w, onAsk }: { w: OwnerPowerRankingsWeek; onAsk: (a: Ask) => void
     run: async () => {
       const r = await apiFetch<{ panel: OwnerPowerRankings }>(base, {
         method: "PATCH",
-        json: { confirm: true, ...(introChanged ? { intro } : {}), ...(changed.length ? { blurbs: changed.map(([team, text]) => ({ team: Number(team), text })) } : {}) },
+        json: { confirm: true, rev: w.rev, ...(introChanged ? { intro } : {}), ...(changed.length ? { blurbs: changed.map(([team, text]) => ({ team: Number(team), text })) } : {}) },
       });
       applied(r);
       setEditing(false);
@@ -199,16 +199,16 @@ export function PowerRankingsPanel({ onOpenSwitches }: { onOpenSwitches: () => v
                   {p.enabled ? "Automatic weeks are on." : "Automatic weeks are off: nothing new is generated."}
                   <button type="button" className="text-xs text-accent-text underline underline-offset-2" onClick={onOpenSwitches}>Switches</button>
                 </li>
-                <li className="flex items-center gap-2 text-muted-foreground"><CalendarClock className="size-4" aria-hidden /> Next run {nextRun(p.nextRun)}</li>
-                <li className="flex items-center gap-2 text-muted-foreground">
-                  <Sparkles className="size-4" aria-hidden />
-                  {p.controlPoint ? "Bruno is reachable through Control Point." : "Control Point isn't configured on this server: every blurb will be the template."}
+                <li className="flex items-start gap-2 text-muted-foreground"><CalendarClock className="mt-0.5 size-4 shrink-0" aria-hidden /> Next run {nextRun(p.nextRun)}</li>
+                <li className="flex items-start gap-2 text-muted-foreground">
+                  <Sparkles className="mt-0.5 size-4 shrink-0" aria-hidden />
+                  {p.controlPoint ? "Control Point is configured. Bruno is asked on each run; if he can't be reached, that week uses the template." : "Control Point isn't configured on this server: every blurb will be the template."}
                 </li>
               </ul>
               <Button onClick={publish} disabled={!p.enabled}><Send /> Publish now</Button>
             </div>
             {p.weeks.length
-              ? <ul className="grid gap-3" aria-label="Generated weeks">{p.weeks.map((w) => <Week key={`${w.season}-${w.week}`} w={w} onAsk={setAsk} />)}</ul>
+              ? <ul className="grid gap-3" aria-label="Generated weeks">{p.weeks.map((w) => <Week key={`${w.season}-${w.week}-${w.rev}`} w={w} onAsk={setAsk} />)}</ul>
               : <EmptyState icon={Trophy} title="No automatic weeks yet" description="The first one is published on the next run, or now with Publish now." />}
           </>
         )}

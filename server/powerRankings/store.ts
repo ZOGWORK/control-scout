@@ -154,8 +154,12 @@ registerCache("Power rankings", () => { cache = null; viewCache.clear(); });
 async function buildWeek(doc: RankingDoc, weeks: RankingDoc[]): Promise<PowerRankingsWeek> {
   const i = weeks.indexOf(doc);
   const compared = weeks.slice(0, i).reverse().find((w) => w.season === doc.season) ?? null;
-  const moves = movements(doc, compared);
-  const dropped = droppedOut(doc, compared);
+  // A generated week keeps the comparison it was written against (its blurbs say "up 4"): its frozen
+  // movement, compared week and dropped teams, even if that earlier week is later hidden or replaced.
+  const frozen = doc.generated;
+  const moves = frozen ? doc.entries.map((e) => e.movement) : movements(doc, compared);
+  const dropped = frozen ? frozen.droppedOut : droppedOut(doc, compared);
+  const comparedWith = frozen ? frozen.comparedWith : compared?.week ?? null;
   const [info, snapshots] = await Promise.all([teamInfo(doc.season, [...doc.entries.map((e) => e.team), ...dropped.map((d) => d.team)]), snapshotWeeks(doc.season)]);
   // The world rankings as they stood that week (its weekly snapshot, keyed by the Monday), else the season's live list.
   const monday = weekStart(doc.week);
@@ -174,7 +178,7 @@ async function buildWeek(doc: RankingDoc, weeks: RankingDoc[]): Promise<PowerRan
     introHtml: g ? plainHtml(doc.intro) : renderMarkdown(doc.intro), introText: g ? doc.intro.trim() : markdownText(doc.intro), sample: doc.sample,
     generated: g ? { bruno: count("bruno"), template: count("template"), owner: count("owner"), intro: g.introSource } : null,
     entries,
-    comparedWith: compared?.week ?? null, previous: weeks[i - 1]?.week ?? null, next: weeks[i + 1]?.week ?? null,
+    comparedWith, previous: weeks[i - 1]?.week ?? null, next: weeks[i + 1]?.week ?? null,
     droppedOut: dropped.map((d) => ({ ...d, name: info.get(d.team)?.name ?? null })),
     worldRankings,
   };

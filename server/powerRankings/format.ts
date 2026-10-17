@@ -35,7 +35,14 @@ export interface RankingDoc {
    * Set for an automatically published week (./generated.ts): its intro and blurbs are plain text,
    * each with who wrote it; `rev` changes with every edit. Absent for a markdown file.
    */
-  generated?: { introSource: BlurbAuthor; sources: BlurbAuthor[]; rev: string };
+  generated?: {
+    introSource: BlurbAuthor;
+    sources: BlurbAuthor[];
+    rev: string;
+    /** The week its movement (in `entries`) was frozen against, and the teams that dropped out then. */
+    comparedWith: string | null;
+    droppedOut: { team: number; lastRank: number }[];
+  };
 }
 
 export type ParseResult = { ok: true; doc: RankingDoc } | { ok: false; errors: string[] };

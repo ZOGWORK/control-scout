@@ -323,6 +323,24 @@ describe("serving", () => {
     expect(w44.comparedWith).toBe("2026-w43");
     expect(w44.entries[0]).toMatchObject({ team: 7001, movement: { kind: "up", by: 1 } });
   });
+
+  it("a generated week keeps the comparison its blurbs were written from, even when the earlier week changes", async () => {
+    writeFileSync(join(dir, "2026-w42.md"), weekFile("2026-w42", "2026-10-16", [7003, ...TEAMS.filter((t) => t !== 7003)]));
+    await autoPowerRankingsTick(FRI);
+    // The earlier week is rewritten in a different order: week 43's arrows and blurbs still say what they said.
+    writeFileSync(join(dir, "2026-w42.md"), weekFile("2026-w42", "2026-10-16", [...TEAMS].reverse()));
+    let w43 = (await api("/api/power-rankings/2026-w43")).week!;
+    expect(w43.comparedWith).toBe("2026-w42");
+    expect(w43.entries[3]).toMatchObject({ team: 7003, movement: { kind: "down", by: 3 } });
+    expect(w43.entries[0]).toMatchObject({ team: 7000, movement: { kind: "up", by: 1 } });
+    // Nobody dropped out then (the rewritten week would say 7029…7025 did).
+    expect(w43.droppedOut).toEqual([]);
+    // And when it's gone altogether.
+    rmSync(join(dir, "2026-w42.md"));
+    w43 = (await api("/api/power-rankings/2026-w43")).week!;
+    expect(w43.comparedWith).toBe("2026-w42");
+    expect(w43.entries[3].movement).toEqual({ kind: "down", by: 3 });
+  });
 });
 
 describe("the owner panel", () => {
@@ -349,12 +367,23 @@ describe("the owner panel", () => {
     expect((await call("PATCH", path, { cookie: ownerCookie, body: { intro: "Mine." } })).status).toBe(400);
     expect((await call("POST", `${path}/status`, { cookie: ownerCookie, body: { status: "hidden" } })).status).toBe(400);
 
-    // Edit the intro and one blurb.
-    const edit = await call("PATCH", path, { cookie: ownerCookie, body: { confirm: true, intro: "Mine.", blurbs: [{ team: 7001, text: "Edited by hand." }] } });
+    // Edit the intro and one blurb (with the version the editor opened; none: refused).
+    const rev0 = list.json.weeks[0].rev;
+    expect((await call("PATCH", path, { cookie: ownerCookie, body: { confirm: true, intro: "Mine." } })).status).toBe(400);
+    const edit = await call("PATCH", path, { cookie: ownerCookie, body: { confirm: true, rev: rev0, intro: "Mine.", blurbs: [{ team: 7001, text: "Edited by hand." }] } });
     expect(edit.status).toBe(200);
     expect(edit.json.panel.weeks[0]).toMatchObject({ intro: "Mine.", introSource: "owner" });
     expect(edit.json.panel.weeks[0].entries[1]).toMatchObject({ team: 7001, text: "Edited by hand.", source: "owner" });
-    expect((await call("PATCH", path, { cookie: ownerCookie, body: { confirm: true, blurbs: [{ team: 4242, text: "Nope" }] } })).status).toBe(400);
+    const rev1 = edit.json.panel.weeks[0].rev;
+    expect(rev1).not.toBe(rev0);
+    // An overlapping save opened on the old version is refused, and the first save stands.
+    const stale = await call("PATCH", path, { cookie: ownerCookie, body: { confirm: true, rev: rev0, blurbs: [{ team: 7002, text: "Second owner." }] } });
+    expect(stale.status).toBe(409);
+    expect(stale.json.error).toMatch(/changed since you opened it/);
+    const afterStale = (await call("GET", "/api/owner/power-rankings", { cookie: ownerCookie })).json.weeks[0];
+    expect(afterStale.entries[1].text).toBe("Edited by hand.");
+    expect(afterStale.entries[2].text).not.toBe("Second owner.");
+    expect((await call("PATCH", path, { cookie: ownerCookie, body: { confirm: true, rev: rev1, blurbs: [{ team: 4242, text: "Nope" }] } })).status).toBe(400);
     const pub = (await api("/api/power-rankings/2026-w43")).week!;
     expect(pub.introHtml).toBe("<p>Mine.</p>");
     expect(pub.entries[1]).toMatchObject({ author: "owner", blurbHtml: "<p>Edited by hand.</p>" });

@@ -20,6 +20,7 @@ describe("a blurb passes when every number is the team's own", () => {
     "Roboteers 2.0 jump 4 spots to #3 after a 9-1 run at the Texas Championship.",
     "Rating 118 (+12) and an OPR near 98: ranked 2 of 32 and on the winning alliance.",
     "A third-place spot in the top 5, with a rating of 118.4.",
+    "Comfortably inside the top five again.",
     "Up four places this week 43, and still in the top 25.",
     "18360 keep climbing: 10 matches, 9 wins.",
   ];
@@ -34,6 +35,7 @@ describe("a blurb fails", () => {
     ["a team number that isn't in the packet", "They edged out 4215 in the semis.", /unknown number "4215"/],
     ["a wrong rounding", "Rating 117 this week.", /unknown number "117"/],
     ["a top-N claim the rank doesn't support", "Firmly in the top 2.", /doesn't fit rank 3/],
+    ["a spelled-out top-N claim the rank doesn't support", "Firmly in the top two.", /"top two" doesn't fit rank 3/],
     ["FTC Scout", "Their FTC Scout page tells the story.", /another site/],
     ["ftcscout.org", "See ftcscout.org for more.", /another site/],
     ["The Orange Alliance", "Long a favourite on The Orange Alliance.", /another site/],
