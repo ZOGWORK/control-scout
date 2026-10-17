@@ -26,6 +26,7 @@ import { cn } from "../components/cn";
 import { OfflineNote } from "../components/OfflineNote";
 import { NotFoundView } from "../components/NotFoundView";
 import { LiveCountdownChip, LivePanel, useLiveTarget } from "../components/LivePanel";
+import { HeaderActions } from "../components/EventActions";
 import { isLiveMode, useEventPoll } from "../lib/liveMode";
 import { agoSeconds, awardLabel, dateRange, num, place, seasonLabel } from "../lib/format";
 
@@ -66,6 +67,7 @@ function Event({ d, path }: { d: EventDetail; path: string }) {
   const setTab = (t: string) => setSp((x) => { if (t !== tab) for (const k of TABLE_PARAMS) x.delete(k); x.set("tab", t); return x; }, { replace: true });
   const setTeam = (t: number | null) => setSp((x) => { if (t) x.set("team", String(t)); else x.delete("team"); return x; }, { replace: true });
   const toggleTrack = () => update("tracked", (t) => ({ ...t, events: tracked ? t.events.filter((x) => x !== ref) : [...t.events, ref] }));
+  const track = { on: tracked, toggle: toggleTrack };
   const labHref = `/predict?mode=advancement&season=${e.season}&code=${e.code}${teamParam ? `&team=${teamParam}` : ""}`;
   const refresh = useRefreshResults(path);
   const [headerEnd, pastHeader] = useScrolledPast<HTMLDivElement>();
@@ -95,21 +97,17 @@ function Event({ d, path }: { d: EventDetail; path: string }) {
           </div>
           <h1 className="mt-3 font-display text-3xl font-semibold tracking-tight sm:text-4xl">{e.name}</h1>
           {/* Right under the name, so the countdown is on a phone's first screen. */}
-          {liveMode && <div ref={livePanel} className="scroll-mt-20"><LivePanel d={d} target={target} refresh={refresh} /></div>}
+          {liveMode && <div ref={livePanel} className="scroll-mt-20"><LivePanel d={d} target={target} refresh={refresh} track={track} /></div>}
           <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1.5 text-sm text-muted-foreground">
             <span className="flex items-center gap-1.5"><CalendarDays className="size-4" />{dateRange(e.start, e.end)}</span>
             {(e.venue || e.city) && <span className="flex items-center gap-1.5"><MapPin className="size-4" />{place(e.venue, e.city, e.state, e.country)}</span>}
             <span>{e.teams} teams · {e.matchesPlayed}/{e.matchesTotal} matches played</span>
-            {e.livestream && <a href={e.livestream} target="_blank" rel="noreferrer noopener" className="inline-flex items-center gap-1 hover:text-foreground">Livestream <ExternalLink className="size-3" /></a>}
             {e.website && <a href={e.website} target="_blank" rel="noreferrer noopener" className="inline-flex items-center gap-1 hover:text-foreground">Website <ExternalLink className="size-3" /></a>}
           </div>
           {d.live && !liveMode && <LiveBar live={d.live} r={refresh} />}
-          <div className="mt-5 flex flex-wrap gap-2">
-            <Button variant={tracked ? "secondary" : "outline"} size="sm" aria-pressed={tracked} onClick={toggleTrack}>
-              {tracked ? "Tracking this event" : "Track event"}
-            </Button>
+          <HeaderActions liveMode={liveMode} livestream={e.livestream} track={track}>
             {predictable && <Button variant="outline" size="sm" asChild><Link to={labHref}>Open in what-if lab</Link></Button>}
-          </div>
+          </HeaderActions>
           {!predictable && <p className="mt-3 text-xs text-muted-foreground">{seasonLabel(e.season)} is shown for history: results, rankings and awards, no predictions (those start with 2023–24).</p>}
           <p className="mt-3 text-[11px] text-muted-foreground">Source: {e.source === "first" ? "FIRST Events API" : "FTC Scout"}</p>
         </div>
