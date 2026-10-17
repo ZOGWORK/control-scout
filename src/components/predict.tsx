@@ -3,7 +3,7 @@
 import { Suspense, lazy, useEffect, useRef, useState } from "react";
 import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 import { Link } from "react-router-dom";
-import { Check, ChevronDown, CircleDashed, ClipboardList, Gauge, PlayCircle, ShieldCheck, Video, X } from "lucide-react";
+import { Check, ChevronDown, CircleDashed, ClipboardList, Gauge, History, PlayCircle, Radio, ShieldCheck, Video, X } from "lucide-react";
 import type { ConfidenceTier, Factor, MatchPredictionView, MatchView } from "../shared/api";
 import { matchReportHref } from "../shared/matchReport";
 import { cn } from "./cn";
@@ -36,13 +36,16 @@ export function ConfidenceBadge({ tier, reason, className }: { tier: ConfidenceT
   );
 }
 
+/** One small status chip in a match row's call column: never wraps, the same height for every kind. */
+const STATUS_CHIP = "inline-flex h-[18px] shrink-0 items-center gap-0.5 whitespace-nowrap rounded px-1 text-[11px] font-medium leading-none";
+
 /** Compact, always-visible tier for dense lists (match rows, the Home card):
  *  the rule is a confidence tier on every prediction surface, never hover-only. */
-export function TierMark({ tier, className }: { tier: ConfidenceTier; className?: string }) {
+export function TierMark({ tier, className, chip }: { tier: ConfidenceTier; className?: string; chip?: boolean }) {
   const t = TIER[tier];
   const color = t.cls.split(" ").find((c) => c.startsWith("text-"));
   return (
-    <span className={cn("inline-flex items-center gap-0.5 whitespace-nowrap [&_svg]:size-3", color, className)} title={`${t.label} confidence: ${t.blurb}`}>
+    <span className={cn("inline-flex items-center gap-0.5 whitespace-nowrap [&_svg]:size-3", chip ? cn(STATUS_CHIP, "border", t.cls) : color, className)} title={`${t.label} confidence: ${t.blurb}`}>
       <t.icon aria-hidden />{t.label.toLowerCase()}<span className="sr-only"> confidence</span>
     </span>
   );
@@ -131,12 +134,12 @@ function AllianceBox({ side, m, score, forecast, outcome, highlight }: {
   const flash = useChangeCount(score);
   return (
     <div className={cn(
-      // Phones: one line per alliance, teams then score. Wider: the two boxes face each other, scores in the middle.
+      // Narrow rows: one line per alliance, teams then score. Wider rows (the row's own width): the two boxes face each other, scores in the middle.
       "flex min-w-0 items-center justify-between gap-2 rounded-lg border-l-[3px] px-2.5 py-1.5",
-      side === "red" ? "border-red-alliance bg-red-alliance/[0.06]" : "border-blue-alliance bg-blue-alliance/[0.06] sm:flex-row-reverse sm:border-l-0 sm:border-r-[3px]",
+      side === "red" ? "border-red-alliance bg-red-alliance/[0.06]" : "border-blue-alliance bg-blue-alliance/[0.06] @lg:flex-row-reverse @lg:border-l-0 @lg:border-r-[3px]",
       outcome === "win" && (side === "red" ? "bg-red-alliance/[0.14]" : "bg-blue-alliance/[0.14]"),
     )}>
-      <div className={cn("flex min-w-0 flex-wrap gap-x-0.5", side === "blue" && "sm:justify-end")}>
+      <div className={cn("flex min-w-0 flex-wrap gap-x-0.5", side === "blue" && "@lg:justify-end")}>
         {a.teams.map((t) => <TeamChip key={t.number} n={t.number} season={m.season} highlight={highlight} sub={t.surrogate || !t.onField} />)}
       </div>
       {score != null ? (
@@ -174,41 +177,45 @@ export function MatchRow({ m, highlight, showEvent, eventName, open, onToggle, o
   const when = showEvent ?? matchTime(m.time);
   const predictable = usePredictable(m.season); // 2019–2022: history only, so no "No call" on every row
   return (
-    <div className={cn("border-b border-border last:border-b-0", mySide && "relative before:absolute before:inset-y-0 before:left-0 before:w-[3px]",
+    // @container: the row lays itself out by its own width (an event's tab, a team's season, a narrow drawer), not the window's.
+    <div className={cn("@container border-b border-border last:border-b-0", mySide && "relative before:absolute before:inset-y-0 before:left-0 before:w-[3px]",
       mySide && (outcomeAccent && mine === "win" ? "before:bg-success" : outcomeAccent && mine === "loss" ? "before:bg-destructive" : "before:bg-accent/70"))} data-match={m.key}>
     <div
-      className={cn("group/row density-row grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-3 gap-y-1.5 px-3 py-2.5 transition-colors",
-        "sm:grid-cols-[5.5rem_minmax(0,1fr)_minmax(0,1fr)_10.5rem]",
+      className={cn("group/row density-row grid grid-cols-[minmax(0,1fr)_auto_auto] items-center gap-x-3 gap-y-1.5 px-3 py-2.5 transition-colors",
+        // Wide rows: label | red | blue | the call | report. Fixed tracks either side, so every row lines up.
+        "@3xl:grid-cols-[5.5rem_minmax(0,1fr)_minmax(0,1fr)_11.5rem_2rem]",
         onToggle ? "cursor-pointer hover:bg-accent/[0.07]" : "hover:bg-text-base/[0.03]", open && "bg-accent/[0.05]")}
       onClick={onToggle ? (e) => { if (!(e.target as HTMLElement).closest("a, button, input")) onToggle(); } : undefined}
     >
-      <div className="flex min-w-0 items-baseline gap-2 sm:block">
+      <div className="flex min-w-0 flex-wrap items-baseline gap-x-2 gap-y-0.5 @3xl:block" data-match-label>
         {onToggle ? (
           <button type="button" onClick={onToggle} aria-expanded={!!open} aria-controls={detailsId} aria-label={`${m.label} details`} className={cn("flex items-center gap-0.5 rounded font-mono text-sm font-semibold outline-none transition-colors group-hover/row:text-accent-text focus-visible:ring-2 focus-visible:ring-ring/60", open && "text-accent-text")}>
             {m.label}<ChevronDown className={cn("size-3.5 text-text-muted transition-transform group-hover/row:text-accent-text", open && "rotate-180 text-accent-text")} />
           </button>
         ) : <p className="font-mono text-sm font-semibold">{m.label}</p>}
-        <p className={cn("text-[11px] text-text-muted", showEvent ? "truncate" : "whitespace-nowrap")} title={when}>{when}</p>
-      </div>
-      {/* Phones: the call sits on the label line; the two alliances stack below as a scoreboard. */}
-      <div className="col-span-2 row-start-2 grid gap-1 sm:col-span-2 sm:col-start-2 sm:row-start-1 sm:grid-cols-2 sm:gap-1.5">
-        <AllianceBox side="red" m={m} score={red} forecast={forecast?.red ?? null} outcome={outcome("red")} highlight={highlight} />
-        <AllianceBox side="blue" m={m} score={blue} forecast={forecast?.blue ?? null} outcome={outcome("blue")} highlight={highlight} />
-      </div>
-      <div className="flex min-w-0 flex-col items-end gap-0.5 text-right sm:col-start-4 sm:row-start-1">
+        <p className={cn("min-w-0 text-[11px] text-text-muted", showEvent ? "truncate" : "whitespace-nowrap")} title={when}>{when}</p>
+        {/* The highlighted team's own result goes with the match, not the call. */}
         {mine && (
-          <span className={cn("rounded-full px-2 py-px text-[11px] font-semibold",
-            mine === "win" ? "bg-success/15 text-success" : mine === "loss" ? "bg-destructive/15 text-destructive" : "bg-muted text-text-muted")}>
+          <span className={cn("mt-0.5 inline-block whitespace-nowrap rounded-full px-2 py-px text-[11px] font-semibold",
+            mine === "win" ? "bg-success/15 text-success" : mine === "loss" ? "bg-destructive/15 text-destructive" : "bg-muted text-text-muted")} data-mine>
             {highlight} {mine === "win" ? "won" : mine === "loss" ? "lost" : "tied"}
           </span>
         )}
+      </div>
+      {/* Narrow rows: the alliances sit under the label line (stacked, then facing each other once there's room). */}
+      <div className="col-span-3 row-start-2 grid gap-1 @lg:grid-cols-2 @lg:gap-1.5 @3xl:col-span-2 @3xl:col-start-2 @3xl:row-start-1" data-alliances>
+        <AllianceBox side="red" m={m} score={red} forecast={forecast?.red ?? null} outcome={outcome("red")} highlight={highlight} />
+        <AllianceBox side="blue" m={m} score={blue} forecast={forecast?.blue ?? null} outcome={outcome("blue")} highlight={highlight} />
+      </div>
+      {/* The call, in its own track so it never runs into the blue box: line 1 the pick and its bar, line 2 small status chips. */}
+      <div className="col-start-2 row-start-1 flex min-w-0 flex-col items-end gap-1 text-right @3xl:col-start-4" data-call>
         {p && fav ? (
           <Tooltip>
             <TooltipTrigger asChild>
-              <button type="button" className="flex items-center gap-1.5 rounded-md text-xs outline-none focus-visible:ring-2 focus-visible:ring-ring/60" aria-label={`Predicted ${fav} ${oddsPct(fav === "red" ? p.pRed : 1 - p.pRed)}`}>
+              <button type="button" className="flex items-center gap-1.5 whitespace-nowrap rounded-md text-xs outline-none focus-visible:ring-2 focus-visible:ring-ring/60" aria-label={`Predicted ${fav} ${oddsPct(fav === "red" ? p.pRed : 1 - p.pRed)}`}>
                 <span className="text-text-muted">Picked</span>
                 <span className={cn("font-semibold tabular-nums", fav === "red" ? "text-red-alliance" : "text-blue-alliance")}>{fav === "red" ? "Red" : "Blue"} {oddsPct(fav === "red" ? p.pRed : 1 - p.pRed)}</span>
-                <WinBar pRed={p.pRed} size="sm" className="w-12" />
+                <WinBar pRed={p.pRed} size="sm" className="w-12 shrink-0" />
               </button>
             </TooltipTrigger>
             <TooltipContent className="max-w-72">
@@ -218,23 +225,39 @@ export function MatchRow({ m, highlight, showEvent, eventName, open, onToggle, o
             </TooltipContent>
           </Tooltip>
         ) : (
-          !predictable ? null : <span className="text-xs text-text-muted" title={missing && m.played ? "An alliance played with one robot. The engine predicts full 2-against-2 matches only." : undefined}>
+          !predictable ? null : <span className="whitespace-nowrap text-xs text-text-muted" title={missing && m.played ? "An alliance played with one robot. The engine predicts full 2-against-2 matches only." : undefined}>
             {m.played ? (missing ? "No call · a robot sat out" : "No call") : m.red.teams.length > 2 || m.blue.teams.length > 2 ? "Lineup TBD" : "—"}
           </span>
         )}
-        <div className="flex items-center gap-1.5 text-[11px] text-text-muted">
-          {called === true && <span className="inline-flex items-center gap-0.5 font-medium text-success"><Check className="size-3" /> Right</span>}
-          {called === false && <span className="inline-flex items-center gap-0.5 font-medium text-warning"><X className="size-3" /> Upset</span>}
-          {p && <TierMark tier={p.tier} />}
-          {p?.kind === "live" && m.played && <span title={KIND_LABEL.live}>pre-match</span>}
-          {m.video && <a href={m.video} target="_blank" rel="noreferrer noopener" className="inline-flex items-center hover:text-text-base" aria-label="Official match video"><PlayCircle className="size-3.5" /></a>}
-          {/* One tap to the pre-match scouting report (v1.6 Task 2). */}
-          <Link to={matchReportHref(m)} className="-my-1 inline-flex min-h-7 items-center gap-0.5 rounded-md border border-border bg-card px-1.5 font-medium text-text-base hover:border-accent/60 hover:text-accent-text" aria-label={`Know your match: ${m.label} scouting report`} data-report-link>
-            <ClipboardList className="size-3" aria-hidden />Report
-          </Link>
-          {videos > 0 && <span className="inline-flex items-center gap-0.5 text-accent" title={`${videos} saved video link${videos > 1 ? "s" : ""}`}><Video className="size-3.5" /><span className="text-[10px]">{videos}</span></span>}
-        </div>
+        {(p || m.video || videos > 0) && (
+          <div className="flex flex-wrap items-center justify-end gap-1 text-[11px] text-text-muted" data-call-status>
+            {/* Right and Upset share one width, so the chips after them line up from row to row. */}
+            {called === true && <span className={cn(STATUS_CHIP, "min-w-[3.25rem] justify-center bg-success/12 text-success")} data-outcome="right"><Check className="size-3" aria-hidden /> Right</span>}
+            {called === false && <span className={cn(STATUS_CHIP, "min-w-[3.25rem] justify-center bg-warning/12 text-warning")} data-outcome="upset"><X className="size-3" aria-hidden /> Upset</span>}
+            {p && <TierMark tier={p.tier} chip />}
+            {/* Which ledger a played match's call came from, as an icon chip (a word never fits beside the others): the words
+                stay in its title and for screen readers. Live and replayed calls are never blended, so both are marked. */}
+            {p && m.played && (p.kind === "live" || p.kind === "backtest") && (
+              <span className={cn(STATUS_CHIP, "bg-muted text-text-muted")} title={`${p.kind === "live" ? "Pre-match" : "Replayed"}: ${KIND_LABEL[p.kind]}`} data-kind={p.kind}>
+                {p.kind === "live" ? <Radio className="size-3" aria-hidden /> : <History className="size-3" aria-hidden />}
+                <span className="sr-only">{p.kind === "live" ? "pre-match" : "replayed"}: {KIND_LABEL[p.kind]}</span>
+              </span>
+            )}
+            {m.video && <a href={m.video} target="_blank" rel="noreferrer noopener" className={cn(STATUS_CHIP, "hover:text-text-base")} aria-label="Official match video"><PlayCircle className="size-3.5" /></a>}
+            {videos > 0 && <span className={cn(STATUS_CHIP, "text-accent")} title={`${videos} saved video link${videos > 1 ? "s" : ""}`}><Video className="size-3.5" /><span className="text-[10px]">{videos}</span></span>}
+          </div>
+        )}
       </div>
+      {/* One tap to the pre-match scouting report (v1.6 Task 2): an icon button in its own track, so it never takes the
+          call's width. 32px to look at, 40px to tap (the ::after). */}
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <Link to={matchReportHref(m)} className="relative col-start-3 row-start-1 inline-flex size-8 items-center justify-center justify-self-end rounded-md border border-border bg-card text-text-muted outline-none transition-colors after:absolute after:-inset-1 hover:border-accent/60 hover:text-accent-text focus-visible:ring-2 focus-visible:ring-ring/60 @3xl:col-start-5" aria-label={`Pre-match report for ${m.label}`} data-report-link>
+            <ClipboardList className="size-4" aria-hidden />
+          </Link>
+        </TooltipTrigger>
+        <TooltipContent>Know your match: the pre-match report for {m.label}</TooltipContent>
+      </Tooltip>
     </div>
     {/* Details unfold under the row (height + fade); instant with "reduce motion". */}
     <AnimatePresence initial={false}>
