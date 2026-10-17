@@ -23,7 +23,7 @@ describe("downloadLite", () => {
     expect(parse.mock.calls.filter(([s]) => typeof s === "string" && s.includes("\"books\""))).toEqual([]); // the pack itself was never parsed
     expect(meta).toMatchObject({ version: "v1", bytes: gz.length, builtAt: pack.builtAt, engineVersion: "2.1.1" });
     expect(packStatus()).toMatchObject({ version: "v1" });
-    const stored = await getv<{ gz: boolean; bytes: Uint8Array }>("lite");
+    const stored = await getv<{ gz: boolean; bytes: Uint8Array }>("lite-gz");
     expect(stored?.gz).toBe(true);
     expect(stored?.bytes.length).toBe(gz.length);
   });
@@ -40,8 +40,24 @@ describe("downloadLite", () => {
     expect(packStatus()).toBeNull();
   });
 
-  it("still reads a pack an older version stored decoded", async () => {
-    await put("lite", pack);
+  it("still reads a pack an older version stored decoded, and never overwrites it (an older tab keeps reading it)", async () => {
+    const older = { ...pack, version: "v0" };
+    await put("lite", older);
+    expect(await loadLite()).toEqual(older);
+    vi.stubGlobal("fetch", vi.fn(async () => new Response(gz)));
+    await downloadLite(file, manifest);
+    expect(await getv("lite")).toEqual(older);
+    expect(await loadLite()).toEqual(pack); // the copy the saved meta names
+  });
+
+  it("a release in a newer format never replaces the saved pack", async () => {
+    vi.stubGlobal("fetch", vi.fn(async () => new Response(gz)));
+    await downloadLite(file, manifest);
+    const fetch = vi.fn(async () => new Response(gz));
+    vi.stubGlobal("fetch", fetch);
+    await expect(downloadLite(file, { ...manifest, format: 2, version: "v2" })).rejects.toThrow(/newer version/);
+    expect(fetch).not.toHaveBeenCalled();
+    expect(packStatus()).toMatchObject({ version: "v1" });
     expect(await loadLite()).toEqual(pack);
   });
 });

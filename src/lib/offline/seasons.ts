@@ -8,7 +8,7 @@
 // Saving fetches the .wasm into the service worker's cache (so it's there
 // offline) but never loads it. Both come from this site, never a CDN.
 import type { Database, SqlJsStatic } from "sql.js";
-import { del, fetchVerified, getv, keys, put, type PackFile, type PackManifest } from "../packs";
+import { checkFormat, del, fetchVerified, getv, keys, put, type PackFile, type PackManifest } from "../packs";
 import { savedSeasons, writeSaved, type SavedSeason } from "./saved";
 import { wrap, type Db, type SeasonDb } from "./readers";
 
@@ -91,6 +91,7 @@ function trim() { for (const [s, e] of open) if (open.size > KEEP_OPEN && !e.pin
 export async function saveSeason(file: PackFile, manifest: PackManifest, onProgress?: (done: number, total: number) => void): Promise<SavedSeason> {
   const season = file.seasons[0];
   if (file.kind !== "full" || file.seasons.length !== 1) throw new Error("Only single-season packs can be saved.");
+  checkFormat(manifest); // a release this app can't read never replaces a copy it can
   const bytes = await fetchVerified(file, onProgress);
   // Saving doesn't open it: sql.js loads only when a saved season is read with no signal. The
   // published checksum already vouches for the bytes; this just refuses a file that isn't SQLite.

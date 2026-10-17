@@ -15,6 +15,7 @@ vi.mock("../packs", () => ({
   del: async (k: string) => { store.delete(k); },
   keys: async (prefix: string) => [...store.keys()].filter((k) => k.startsWith(prefix)),
   fetchVerified: async (f: PackFile) => files.get(f.url)!,
+  checkFormat: (m: PackManifest) => { if (m.format !== 1) throw new Error("This pack is from a newer version of Control Scout. Refresh the page."); },
 }));
 // Counts sql.js engine starts: saving must never start it (it runs only for an offline read).
 const engineStarts = vi.hoisted(() => ({ n: 0 }));
@@ -35,7 +36,7 @@ vi.stubGlobal("caches", {
 });
 vi.stubEnv("DEV", false);
 
-const manifest = { version: "v1", builtAt: "b", dataAsOf: null } as unknown as PackManifest;
+const manifest = { format: 1, version: "v1", builtAt: "b", dataAsOf: null } as unknown as PackManifest;
 const file = (season: number, sha: string): PackFile => ({ name: `${season}.sqlite`, url: `/packs/${season}-${sha}`, bytes: 1, sha256: sha, seasons: [season], kind: "full", contents: "" });
 const ENGINE = "/assets/sql-wasm-browser-abc.wasm";
 
@@ -61,6 +62,13 @@ describe("saving never runs the pack", () => {
     expect(gets).toEqual([]); // nothing read back either
     expect(await names(2025)).toEqual(["2025:New"]);
     expect(engineStarts.n).toBe(1);
+  });
+
+  it("a release in a newer format never replaces the saved copy", async () => {
+    await saveSeason(file(2025, "a"), manifest);
+    await expect(saveSeason(file(2025, "b"), { ...manifest, format: 2 } as PackManifest)).rejects.toThrow(/newer version/);
+    expect(savedSeasons().map((s) => s.sha256)).toEqual(["a"]);
+    expect([...store.keys()]).toEqual(["season:2025:a"]);
   });
 
   it("refuses a file that isn't SQLite", async () => {

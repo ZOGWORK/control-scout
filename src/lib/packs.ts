@@ -91,44 +91,62 @@ export async function fetchVerified(file: PackFile, onProgress?: (done: number, 
   return bytes;
 }
 
-/** What's stored under "lite": the pack file's bytes as downloaded (gzipped JSON when `gz`). Decoding
- *  waits until the pack is needed with no signal, so the background download costs an online visit no
- *  gunzip, no JSON.parse and no big structured clone into IndexedDB (a byte array copies as one block).
- *  Packs saved before this were stored decoded (a LitePack object); loadLite reads both. */
-interface StoredLite { gz: boolean; bytes: Uint8Array }
+/** The pack format this app reads (server/packs/build.ts PACK_FORMAT; the manifest says it too). */
+export const PACK_FORMAT = 1;
+/** Refuse a release in a format this app can't read before it replaces anything saved. */
+export function checkFormat(manifest: Pick<PackManifest, "format">) {
+  if (manifest.format !== PACK_FORMAT) throw new Error("This pack is from a newer version of Control Scout. Refresh the page.");
+}
+
+/** IndexedDB key of the lite pack as downloaded: its bytes (gzipped JSON when `gz`). Decoding waits
+ *  until the pack is needed with no signal, so the background download costs an online visit no gunzip,
+ *  no JSON.parse and no big structured clone (a byte array copies as one block). Earlier versions kept
+ *  the pack decoded under "lite"; that key is left alone, so a tab still running one keeps working. */
+const LITE_KEY = "lite-gz";
+const OLD_LITE_KEY = "lite";
+interface StoredLite { gz: boolean; bytes: Uint8Array; version: string }
 
 /** Download with progress, verify the hash, keep it on the device. Stores the bytes only: nothing is
  *  decoded or run here (that happens offline, in loadLite). */
 export async function downloadLite(file: PackFile, manifest: PackManifest, onProgress?: (done: number, total: number) => void): Promise<PackMeta> {
+  checkFormat(manifest);
   const bytes = await fetchVerified(file, onProgress);
-  await put("lite", { gz: file.name.endsWith(".gz"), bytes } satisfies StoredLite);
-  const meta: PackMeta = { version: manifest.version, bytes: bytes.length, savedAt: Date.now(), builtAt: manifest.builtAt, engineVersion: manifest.engineVersion };
+  await put(LITE_KEY, { gz: file.name.endsWith(".gz"), bytes, version: manifest.version } satisfies StoredLite);
+  const meta: PackMeta = { version: manifest.version, bytes: bytes.length, savedAt: Date.now(), builtAt: manifest.builtAt, engineVersion: manifest.engineVersion, seasons: file.seasons };
   localStorage.setItem(META, JSON.stringify(meta));
   cached = null; // the next offline read decodes the new one
   return meta;
 }
 
-/** Decode what's stored (bytes, or a pack saved decoded by an older version). A pack in a newer
- *  format than this app reads counts as none. */
+/** Decode what's stored (bytes, or a pack an older version stored decoded). A pack in a format this
+ *  app doesn't read counts as none. */
 export async function decodeLite(v: StoredLite | LitePack | null | undefined): Promise<LitePack | null> {
   if (!v) return null;
-  if (!("bytes" in v)) return v.format === 1 ? v : null;
+  if (!("bytes" in v)) return v.format === PACK_FORMAT ? v : null;
   const text = v.gz ? await new Response(new Response(v.bytes as Uint8Array<ArrayBuffer>).body!.pipeThrough(new DecompressionStream("gzip"))).text() : new TextDecoder().decode(v.bytes);
   const pack = JSON.parse(text) as LitePack;
-  return pack.format === 1 ? pack : null;
+  return pack.format === PACK_FORMAT ? pack : null;
 }
 
 let cached: LitePack | null = null;
 /** The lite pack, decoded. Only the no-signal fallbacks call this (lib/offline/answer, the Predict
- *  page's offline prediction): never an online visit. */
+ *  page's offline prediction): never an online visit. The copy the saved meta names wins (an older
+ *  tab may have saved a newer release under the old key); else whichever is there. */
 export async function loadLite(): Promise<LitePack | null> {
   if (cached) return cached;
-  cached = await decodeLite(await getv<StoredLite | LitePack>("lite").catch(() => undefined)).catch(() => null);
-  return cached;
+  const [now, old] = await Promise.all([getv<StoredLite>(LITE_KEY).catch(() => undefined), getv<LitePack>(OLD_LITE_KEY).catch(() => undefined)]);
+  const want = packStatus()?.version;
+  const order = old && old.version === want && now?.version !== want ? [old, now] : [now, old];
+  for (const v of order) {
+    const p = await decodeLite(v).catch(() => null);
+    if (p) return (cached = p);
+  }
+  return null;
 }
 
 export async function removeLite(): Promise<void> {
-  await put("lite", null);
+  await put(LITE_KEY, null);
+  await put(OLD_LITE_KEY, null);
   localStorage.removeItem(META);
   cached = null;
 }

@@ -15,7 +15,7 @@ vi.mock("./offline/predict", () => { loaded.push("predict"); return {}; });
 vi.mock("./packs", () => { loaded.push("packs"); return {}; });
 vi.mock("sql.js/dist/sql-wasm-browser.js", () => { loaded.push("sql.js"); return {}; });
 
-import { ApiError, OFFLINE_TIMEOUT_MS, apiFetch, load, useApi, useOfflineMode } from "./api";
+import { ApiError, OFFLINE_TIMEOUT_MS, apiFetch, load, noteOfflineAnswer, useApi, useOfflineMode } from "./api";
 import { markOffline, offlineSource, writeSaved, type SavedSeason } from "./offline/saved";
 import { PACK_META_KEY } from "./packPolicy";
 
@@ -28,7 +28,8 @@ const hanging = () => vi.fn((_p: string, init?: RequestInit) => new Promise<Resp
   init?.signal?.addEventListener("abort", () => rej(new DOMException("aborted", "AbortError")));
 }));
 const networkDown = () => vi.stubGlobal("fetch", vi.fn(async () => { throw new TypeError("Failed to fetch"); }));
-const mode = renderHook(() => useOfflineMode());
+// The header badge's state, mounted fresh for every test.
+let mode: ReturnType<typeof renderHook<boolean, unknown>>;
 
 beforeEach(async () => {
   vi.useRealTimers();
@@ -39,8 +40,9 @@ beforeEach(async () => {
   localStorage.clear();
   offlineAnswer.mockReset();
   offlineAnswer.mockImplementation(async (path: string) => markOffline({ path }, src));
+  mode = renderHook(() => useOfflineMode());
 });
-afterEach(() => { vi.unstubAllGlobals(); vi.restoreAllMocks(); vi.useRealTimers(); });
+afterEach(() => { mode.unmount(); vi.unstubAllGlobals(); vi.restoreAllMocks(); vi.useRealTimers(); });
 
 describe("online: the packs never run", () => {
   it("answers from the server and loads none of the offline code, with seasons and a lite pack saved", async () => {
@@ -77,6 +79,42 @@ describe("online: the packs never run", () => {
     const meta = apiFetch("/api/meta");
     await vi.advanceTimersByTimeAsync(OFFLINE_TIMEOUT_MS * 3);
     expect(await meta).toEqual({ slow: true });
+    expect(offlineAnswer).not.toHaveBeenCalled();
+  });
+
+  it("no timeout for a season that isn't saved: a slow server still answers", async () => {
+    vi.useFakeTimers();
+    writeSaved([saved]); // 2025 only
+    vi.stubGlobal("fetch", vi.fn(() => new Promise<Response>((res) => setTimeout(() => res(ok({ slow: true })), OFFLINE_TIMEOUT_MS * 2))));
+    const a = apiFetch("/api/teams/100/matches?season=2024");
+    const b = apiFetch("/api/events/2024/USNJQ1");
+    await vi.advanceTimersByTimeAsync(OFFLINE_TIMEOUT_MS * 2);
+    expect(await a).toEqual({ slow: true });
+    expect(await b).toEqual({ slow: true });
+    expect(offlineAnswer).not.toHaveBeenCalled();
+  });
+
+  it("past the timeout, a saved season that can't answer keeps waiting for the server", async () => {
+    vi.useFakeTimers();
+    writeSaved([saved]);
+    offlineAnswer.mockResolvedValue(null);
+    vi.stubGlobal("fetch", vi.fn(() => new Promise<Response>((res) => setTimeout(() => res(ok({ slow: true })), OFFLINE_TIMEOUT_MS * 2))));
+    const p = apiFetch("/api/teams/4242");
+    await vi.advanceTimersByTimeAsync(OFFLINE_TIMEOUT_MS * 2);
+    expect(await p).toEqual({ slow: true });
+    expect(offlineAnswer).toHaveBeenCalledTimes(1);
+    expect(mode.result.current).toBe(false);
+  });
+
+  it("an HTTP error whose body is slow keeps its status (headers arrived: the server answered)", async () => {
+    vi.useFakeTimers();
+    writeSaved([saved]);
+    const body = new ReadableStream({ start(c) { setTimeout(() => { c.enqueue(new TextEncoder().encode(JSON.stringify({ error: "nope" }))); c.close(); }, OFFLINE_TIMEOUT_MS * 2); } });
+    vi.stubGlobal("fetch", vi.fn(async () => new Response(body, { status: 404 })));
+    const p = apiFetch("/api/teams/100");
+    const done = expect(p).rejects.toMatchObject({ status: 404, message: "nope", offline: false });
+    await vi.advanceTimersByTimeAsync(OFFLINE_TIMEOUT_MS * 2);
+    await done;
     expect(offlineAnswer).not.toHaveBeenCalled();
   });
 
@@ -166,6 +204,27 @@ describe("recovery: back to the server", () => {
     await act(() => vi.advanceTimersByTimeAsync(15_000));
     expect(view.result.current.data).toEqual({ from: "server" });
     expect(offlineSource(view.result.current.data)).toBeNull();
+    expect(mode.result.current).toBe(false);
+    view.unmount();
+  });
+
+  it("background retries keep an offline error on screen (the Predict page's lite-pack answer stays) until the server answers", async () => {
+    vi.useFakeTimers();
+    localStorage.setItem(PACK_META_KEY, JSON.stringify({ version: "v", seasons: [2025] }));
+    vi.stubGlobal("fetch", hanging());
+    const path = "/api/predict/match?season=2025&red=1,2&blue=3,4";
+    const view = renderHook(() => useApi(path));
+    await act(() => vi.advanceTimersByTimeAsync(OFFLINE_TIMEOUT_MS));
+    expect(view.result.current.error?.offline).toBe(true);
+    act(() => noteOfflineAnswer()); // what the page does once it shows the lite pack's prediction
+    const seen: boolean[] = [];
+    view.rerender();
+    await act(() => vi.advanceTimersByTimeAsync(15_000)); // a retry goes out (and hangs)
+    seen.push(!!view.result.current.error?.offline, view.result.current.loading);
+    expect(seen).toEqual([true, false]); // still the offline error, never a loading block
+    vi.stubGlobal("fetch", vi.fn(async () => ok({ pRed: 0.5 })));
+    await act(() => vi.advanceTimersByTimeAsync(15_000));
+    expect(view.result.current.data).toEqual({ pRed: 0.5 });
     expect(mode.result.current).toBe(false);
     view.unmount();
   });
