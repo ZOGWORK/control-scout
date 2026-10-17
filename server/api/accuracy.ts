@@ -112,7 +112,9 @@ async function computeTrackRecord(): Promise<TrackRecord> {
     for (const r of rows) {
       if (r.kind !== "live" || Number(r.season) !== s.season || r.ps == null || !r.model || !r.sm) continue;
       const k = `${r.model}|${r.sm}`;
-      paired.set(k, [...(paired.get(k) ?? []), { y: Number(r.y), p: Number(r.p), ps: Number(r.ps) }]);
+      let xs = paired.get(k);
+      if (!xs) { xs = []; paired.set(k, xs); }
+      xs.push({ y: Number(r.y), p: Number(r.p), ps: Number(r.ps) });
     }
     const score = (xs: { y: number; p: number }[]): ShadowScore => {
       const d = xs.filter((x) => x.y !== 0.5 && x.p !== 0.5);

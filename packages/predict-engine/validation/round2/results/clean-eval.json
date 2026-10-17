@@ -65,6 +65,12 @@
     "eval": 8244,
     "fit": 30285,
     "calibration": 11941,
+    "calibrationWindow": [
+     "2024-11-07",
+     "2025-01-01"
+    ],
+    "coefficientCutoff": "2024-11-07",
+    "widened": false,
     "2.0": {
      "converged": true,
      "calibration": [
@@ -95,6 +101,12 @@
     "eval": 7626,
     "fit": 36072,
     "calibration": 14398,
+    "calibrationWindow": [
+     "2024-12-07",
+     "2025-02-01"
+    ],
+    "coefficientCutoff": "2024-12-07",
+    "widened": false,
     "2.0": {
      "converged": true,
      "calibration": [
@@ -125,6 +137,12 @@
     "eval": 2158,
     "fit": 42238,
     "calibration": 15858,
+    "calibrationWindow": [
+     "2025-01-04",
+     "2025-03-01"
+    ],
+    "coefficientCutoff": "2025-01-04",
+    "widened": false,
     "2.0": {
      "converged": true,
      "calibration": [
@@ -155,6 +173,12 @@
     "eval": 995,
     "fit": 52656,
     "calibration": 7598,
+    "calibrationWindow": [
+     "2025-02-06",
+     "2025-04-01"
+    ],
+    "coefficientCutoff": "2025-02-06",
+    "widened": false,
     "2.0": {
      "converged": true,
      "calibration": [
@@ -185,6 +209,12 @@
     "eval": 534,
     "fit": 60459,
     "calibration": 833,
+    "calibrationWindow": [
+     "2025-04-13",
+     "2025-06-01"
+    ],
+    "coefficientCutoff": "2025-04-13",
+    "widened": false,
     "2.0": {
      "converged": true,
      "calibration": [
@@ -215,6 +245,12 @@
     "eval": 454,
     "fit": 61249,
     "calibration": 577,
+    "calibrationWindow": [
+     "2025-05-23",
+     "2025-07-01"
+    ],
+    "coefficientCutoff": "2025-05-23",
+    "widened": false,
     "2.0": {
      "converged": true,
      "calibration": [
@@ -245,6 +281,12 @@
     "eval": 131,
     "fit": 61826,
     "calibration": 454,
+    "calibrationWindow": [
+     "2025-07-04",
+     "2025-10-01"
+    ],
+    "coefficientCutoff": "2025-07-04",
+    "widened": true,
     "2.0": {
      "converged": true,
      "calibration": [
@@ -275,6 +317,12 @@
     "eval": 7611,
     "fit": 62095,
     "calibration": 316,
+    "calibrationWindow": [
+     "2025-07-26",
+     "2025-11-01"
+    ],
+    "coefficientCutoff": "2025-07-26",
+    "widened": true,
     "2.0": {
      "converged": true,
      "calibration": [
@@ -305,6 +353,12 @@
     "eval": 7184,
     "fit": 62280,
     "calibration": 7742,
+    "calibrationWindow": [
+     "2025-10-27",
+     "2025-12-01"
+    ],
+    "coefficientCutoff": "2025-10-27",
+    "widened": false,
     "2.0": {
      "converged": true,
      "calibration": [
@@ -335,6 +389,12 @@
     "eval": 9259,
     "fit": 63712,
     "calibration": 13494,
+    "calibrationWindow": [
+     "2025-11-06",
+     "2026-01-01"
+    ],
+    "coefficientCutoff": "2025-11-06",
+    "widened": false,
     "2.0": {
      "converged": true,
      "calibration": [
@@ -365,6 +425,12 @@
     "eval": 8338,
     "fit": 72492,
     "calibration": 13973,
+    "calibrationWindow": [
+     "2025-12-07",
+     "2026-02-01"
+    ],
+    "coefficientCutoff": "2025-12-07",
+    "widened": false,
     "2.0": {
      "converged": true,
      "calibration": [
@@ -395,6 +461,12 @@
     "eval": 2316,
     "fit": 77514,
     "calibration": 17289,
+    "calibrationWindow": [
+     "2026-01-04",
+     "2026-03-01"
+    ],
+    "coefficientCutoff": "2026-01-04",
+    "widened": false,
     "2.0": {
      "converged": true,
      "calibration": [
@@ -425,6 +497,12 @@
     "eval": 571,
     "fit": 86971,
     "calibration": 10148,
+    "calibrationWindow": [
+     "2026-02-04",
+     "2026-04-01"
+    ],
+    "coefficientCutoff": "2026-02-04",
+    "widened": false,
     "2.0": {
      "converged": true,
      "calibration": [
@@ -455,6 +533,12 @@
     "eval": 810,
     "fit": 95225,
     "calibration": 2465,
+    "calibrationWindow": [
+     "2026-03-06",
+     "2026-05-01"
+    ],
+    "coefficientCutoff": "2026-03-06",
+    "widened": false,
     "2.0": {
      "converged": true,
      "calibration": [
@@ -485,6 +569,12 @@
     "eval": 960,
     "fit": 97119,
     "calibration": 1381,
+    "calibrationWindow": [
+     "2026-04-12",
+     "2026-06-01"
+    ],
+    "coefficientCutoff": "2026-04-12",
+    "widened": false,
     "2.0": {
      "converged": true,
      "calibration": [
@@ -515,6 +605,12 @@
     "eval": 234,
     "fit": 98228,
     "calibration": 1232,
+    "calibrationWindow": [
+     "2026-05-24",
+     "2026-07-01"
+    ],
+    "coefficientCutoff": "2026-05-24",
+    "widened": false,
     "2.0": {
      "converged": true,
      "calibration": [
