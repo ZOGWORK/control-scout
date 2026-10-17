@@ -24,8 +24,11 @@ import { SortTable, type Col } from "../components/SortTable";
 import { AdvancementView } from "../components/Advancement";
 import { cn } from "../components/cn";
 import { OfflineNote } from "../components/OfflineNote";
+import { EventGlance } from "../components/EventGlance";
+import { callRecord } from "../lib/eventGlance";
 import { NotFoundView } from "../components/NotFoundView";
 import { LiveCountdownChip, LivePanel, useLiveTarget } from "../components/LivePanel";
+import { HeaderActions } from "../components/EventActions";
 import { isLiveMode, useEventPoll } from "../lib/liveMode";
 import { agoSeconds, awardLabel, dateRange, num, place, seasonLabel } from "../lib/format";
 
@@ -66,6 +69,7 @@ function Event({ d, path }: { d: EventDetail; path: string }) {
   const setTab = (t: string) => setSp((x) => { if (t !== tab) for (const k of TABLE_PARAMS) x.delete(k); x.set("tab", t); return x; }, { replace: true });
   const setTeam = (t: number | null) => setSp((x) => { if (t) x.set("team", String(t)); else x.delete("team"); return x; }, { replace: true });
   const toggleTrack = () => update("tracked", (t) => ({ ...t, events: tracked ? t.events.filter((x) => x !== ref) : [...t.events, ref] }));
+  const track = { on: tracked, toggle: toggleTrack };
   const labHref = `/predict?mode=advancement&season=${e.season}&code=${e.code}${teamParam ? `&team=${teamParam}` : ""}`;
   const refresh = useRefreshResults(path);
   const [headerEnd, pastHeader] = useScrolledPast<HTMLDivElement>();
@@ -86,7 +90,7 @@ function Event({ d, path }: { d: EventDetail; path: string }) {
       <OfflineNote data={d} />
       <Reveal fade={false} className="relative mb-6 overflow-hidden rounded-2xl border border-border bg-card p-6 sm:p-8">
         <div aria-hidden className="pointer-events-none absolute -right-20 -top-24 size-72 rounded-full bg-accent opacity-15 blur-3xl" />
-        <div className="relative grid gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(0,22rem)] lg:gap-10">
+        <div className="relative grid gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(0,28rem)] lg:gap-10">
         <div className="min-w-0">
           <div className="flex flex-wrap items-center gap-2">
             {e.status === "live" ? <Badge variant="destructive"><Radio /> Live</Badge> : e.status === "upcoming" ? <Badge variant="secondary">Upcoming</Badge> : <Badge variant="outline">Finished</Badge>}
@@ -95,25 +99,21 @@ function Event({ d, path }: { d: EventDetail; path: string }) {
           </div>
           <h1 className="mt-3 font-display text-3xl font-semibold tracking-tight sm:text-4xl">{e.name}</h1>
           {/* Right under the name, so the countdown is on a phone's first screen. */}
-          {liveMode && <div ref={livePanel} className="scroll-mt-20"><LivePanel d={d} target={target} refresh={refresh} /></div>}
+          {liveMode && <div ref={livePanel} className="scroll-mt-20"><LivePanel d={d} target={target} refresh={refresh} track={track} /></div>}
           <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1.5 text-sm text-muted-foreground">
             <span className="flex items-center gap-1.5"><CalendarDays className="size-4" />{dateRange(e.start, e.end)}</span>
             {(e.venue || e.city) && <span className="flex items-center gap-1.5"><MapPin className="size-4" />{place(e.venue, e.city, e.state, e.country)}</span>}
             <span>{e.teams} teams · {e.matchesPlayed}/{e.matchesTotal} matches played</span>
-            {e.livestream && <a href={e.livestream} target="_blank" rel="noreferrer noopener" className="inline-flex items-center gap-1 hover:text-foreground">Livestream <ExternalLink className="size-3" /></a>}
             {e.website && <a href={e.website} target="_blank" rel="noreferrer noopener" className="inline-flex items-center gap-1 hover:text-foreground">Website <ExternalLink className="size-3" /></a>}
           </div>
           {d.live && !liveMode && <LiveBar live={d.live} r={refresh} />}
-          <div className="mt-5 flex flex-wrap gap-2">
-            <Button variant={tracked ? "secondary" : "outline"} size="sm" aria-pressed={tracked} onClick={toggleTrack}>
-              {tracked ? "Tracking this event" : "Track event"}
-            </Button>
+          <HeaderActions liveMode={liveMode} livestream={e.livestream} track={track}>
             {predictable && <Button variant="outline" size="sm" asChild><Link to={labHref}>Open in what-if lab</Link></Button>}
-          </div>
+          </HeaderActions>
           {!predictable && <p className="mt-3 text-xs text-muted-foreground">{seasonLabel(e.season)} is shown for history: results, rankings and awards, no predictions (those start with 2023–24).</p>}
           <p className="mt-3 text-[11px] text-muted-foreground">Source: {e.source === "first" ? "FIRST Events API" : "FTC Scout"}</p>
         </div>
-        <EventGlance d={d} onTab={setTab} />
+        <EventGlance d={d} onTab={setTab} live={liveMode ? { match: target.next, mine: !!target.mine, open: toLivePanel } : undefined} />
         </div>
         <div ref={headerEnd} aria-hidden />
       </Reveal>
@@ -285,66 +285,6 @@ function TeamPicker({ field, value, onChange }: { field: FieldRow[]; value: numb
       <Input value={q} onChange={(e) => setQ(e.target.value)} placeholder={value ? String(value) : "type a number or name"} className="h-9 w-48" aria-label="Pick a team at this event" />
       {q && options.map((f) => <Button key={f.team} size="sm" variant="secondary" onClick={() => { onChange(f.team); setQ(""); }}>{f.team} {f.name && <span className="max-w-32 truncate text-muted-foreground">{f.name}</span>}</Button>)}
       {value != null && !q && <Button size="sm" variant="ghost" onClick={() => onChange(null)}>All teams</Button>}
-    </div>
-  );
-}
-
-/** How the predictions did here, live calls and backtest replays kept apart
- *  (decided matches only; live first when there are any). */
-function callRecord(matches: MatchView[]): { kind: "live" | "backtest"; n: number; right: number }[] {
-  const decided = matches.filter((m) => m.played && m.prediction && m.red.score && m.blue.score && m.red.score.total !== m.blue.score.total);
-  return (["live", "backtest"] as const).map((kind) => {
-    const xs = decided.filter((m) => m.prediction!.kind === kind);
-    return { kind, n: xs.length, right: xs.filter((m) => (m.prediction!.pRed > 0.5) === (m.red.score!.total > m.blue.score!.total)).length };
-  }).filter((x) => x.n > 0);
-}
-
-/** The right side of the hero: what a visitor came to learn, at a glance — real data only. */
-function EventGlance({ d, onTab }: { d: EventDetail; onTab: (t: string) => void }) {
-  const predictable = usePredictable(d.event.season);
-  const e = d.event;
-  const winners = d.awards.filter((a) => a.type === "Winner").map((a) => a.team);
-  const seed1 = d.field.find((f) => f.rank === 1) ?? null;
-  const topOpr = [...d.field].filter((f) => f.opr.np != null).sort((a, b) => b.opr.np! - a.opr.np!)[0] ?? null;
-  const record = callRecord(d.matches);
-  const rows: { label: string; value: ReactNode; to?: string; tab?: string }[] = [];
-  if (winners.length) rows.push({ label: "Won by", value: <span className="font-mono">{winners.join(" · ")}</span>, tab: "playoffs" });
-  if (seed1) rows.push({ label: "#1 seed", value: <><span className="font-mono">{seed1.team}</span> <span className="text-muted-foreground">{seed1.name}</span></>, to: `/teams/${seed1.team}?season=${e.season}`, tab: "rankings" });
-  if (topOpr) rows.push({ label: "Top OPR", value: <><span className="font-mono">{topOpr.team}</span> <span className="text-muted-foreground">{topOpr.opr.np!.toFixed(1)}</span></>, to: `/teams/${topOpr.team}?season=${e.season}` });
-  if (d.advancement?.slots) rows.push({ label: "Advancing", value: <>{d.advancement.slots} slots{d.advancement.advancesTo ? <span className="text-muted-foreground"> → {d.advancement.advancesTo}</span> : null}</>, tab: predictable ? "odds" : "awards" });
-  return (
-    <div className="min-w-0 rounded-xl border border-border/70 bg-background/40 p-4 backdrop-blur-sm">
-      <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">At a glance</p>
-      {record.length > 0 ? (
-        // Live calls and backtest replays are never blended: one line each, named.
-        <button type="button" onClick={() => onTab("matches")} className="mt-2 block w-full space-y-1 text-left">
-          {record.map((x, i) => (
-            <span key={x.kind} className="block">
-              <span className={cn("font-display font-semibold tabular-nums", i === 0 ? "text-3xl text-accent" : "text-lg")}>{Math.round((x.right / x.n) * 100)}%</span>
-              <span className="ml-2 text-sm text-muted-foreground">of {x.n} {x.kind === "live" ? "calls made before the match" : "matches predicted from earlier data (replayed)"}</span>
-            </span>
-          ))}
-        </button>
-      ) : (
-        <p className="mt-2 text-sm text-muted-foreground">
-          {!predictable ? "Results, rankings and awards from the official record." : e.status === "upcoming" ? "Every match here gets a prediction before it's played, scored afterwards on the public track record." : "No decided matches with predictions here yet."}
-        </p>
-      )}
-      {rows.length > 0 && (
-        <dl className="mt-3 divide-y divide-border/60 text-sm">
-          {rows.map((r) => (
-            <div key={r.label} className="flex items-center justify-between gap-3 py-2">
-              <dt className="shrink-0 text-muted-foreground">{r.label}</dt>
-              <dd className="min-w-0 text-right max-sm:[overflow-wrap:anywhere] sm:truncate">
-                {r.to ? <Link to={r.to} className="hover:text-accent">{r.value}</Link> : r.tab ? <button type="button" onClick={() => onTab(r.tab!)} className="text-right hover:text-accent">{r.value}</button> : r.value}
-              </dd>
-            </div>
-          ))}
-        </dl>
-      )}
-      {predictable && e.status !== "finished" && !d.forecastUnsupported && (
-        <Button size="sm" className="mt-3 w-full" onClick={() => onTab("odds")}><Trophy /> Who advances? See the odds</Button>
-      )}
     </div>
   );
 }
