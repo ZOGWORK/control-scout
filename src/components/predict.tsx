@@ -262,10 +262,14 @@ export function MatchList({ matches, highlight, empty, eventNames, eventDates, i
   const id = (m: MatchView) => `${m.code}:${m.key}`;
   const [open, setOpen] = useState<Set<string>>(() => new Set());
   const box = useRef<HTMLDivElement>(null);
+  // The match a link asked for is brought into view once: a live update that adds matches to the list
+  // must not pull the page back to it after the reader has scrolled on.
+  const shownFor = useRef<string | null>(null);
   useEffect(() => {
-    if (!initialOpen) return;
+    if (!initialOpen || shownFor.current === initialOpen) return;
     const m = matches.find((x) => x.key === initialOpen);
     if (!m) return;
+    shownFor.current = initialOpen;
     setOpen((s) => (s.has(id(m)) ? s : new Set(s).add(id(m))));
     requestAnimationFrame(() => box.current?.querySelector(`[data-match="${CSS.escape(m.key)}"]`)?.scrollIntoView({ block: "start", behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth" }));
     // Only when the requested match changes (not on every refresh of the list).

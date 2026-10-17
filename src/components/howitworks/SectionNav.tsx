@@ -27,7 +27,9 @@ export function scrollToId(id: string, reduced: boolean) {
 export function SectionNav() {
   const reduced = useReduced();
   const [active, setActive] = useState<string>("");
-  const [progress, setProgress] = useState(0);
+  // The progress line is written straight to its style: as state, every scrolled frame re-rendered the nav
+  // (and its shared-layout pill re-measured itself), which made this page stutter while scrolling.
+  const bar = useRef<HTMLSpanElement>(null);
   const toc = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -37,7 +39,7 @@ export function SectionNav() {
     const update = () => {
       raf = 0;
       const max = main.scrollHeight - main.clientHeight;
-      setProgress(max > 0 ? Math.min(1, main.scrollTop / max) : 0);
+      if (bar.current) bar.current.style.transform = `scaleX(${max > 0 ? Math.min(1, main.scrollTop / max) : 0})`;
       // The visible part of main (when a tool unrolls the shell, main is taller than the window).
       const top = Math.max(0, main.getBoundingClientRect().top);
       const line = top + Math.min(main.clientHeight, window.innerHeight - top) * 0.35;
@@ -85,7 +87,7 @@ export function SectionNav() {
             );
           })}
         </div>
-        <span aria-hidden className="absolute bottom-0 left-0 h-0.5 w-full origin-left bg-accent" style={{ transform: `scaleX(${progress})` }} />
+        <span ref={bar} aria-hidden className="absolute bottom-0 left-0 h-0.5 w-full origin-left bg-accent" style={{ transform: "scaleX(0)" }} />
       </div>
     </nav>
   );
