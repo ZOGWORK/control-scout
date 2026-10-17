@@ -65,7 +65,7 @@ export function phaseOf(d: Pick<EventDetail, "event" | "matches">): Phase {
   const { status } = d.event;
   if (status === "finished") return "done";
   const ms = d.matches;
-  if (!ms.length) return status === "upcoming" ? "upcoming" : "quals";
+  if (!ms.length) return "upcoming"; // no schedule yet, even on the day
   if (ms.every((m) => m.played)) return "done";
   const quals = ms.filter((m) => m.level === "qual");
   // Playoffs: one has been played, or every qualification match has.
