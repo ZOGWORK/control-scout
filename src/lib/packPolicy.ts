@@ -11,7 +11,11 @@ import type { PersonalState } from "../shared/personal";
 /** localStorage: the saved lite pack's meta (packs.ts writes it). */
 export const PACK_META_KEY = "cs-pack-meta";
 
-export interface PackMeta { version: string; bytes: number; savedAt: number; builtAt: string; engineVersion: string }
+export interface PackMeta {
+  version: string; bytes: number; savedAt: number; builtAt: string; engineVersion: string;
+  /** Seasons it holds (packs saved before this was noted don't say). */
+  seasons?: number[];
+}
 /** The lite pack saved on this device: its meta only (reading it opens nothing). */
 export function packStatus(): PackMeta | null { try { return JSON.parse(localStorage.getItem(PACK_META_KEY) ?? "null"); } catch { return null; } }
 /** localStorage: a session has happened on this device before. */

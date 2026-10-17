@@ -13,7 +13,7 @@
 // background (packSync.tsx) is separate: that only stores bytes for later.
 import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { offlineSource, savedSeasons } from "./offline/saved";
-import { PACK_META_KEY } from "./packPolicy";
+import { packStatus } from "./packPolicy";
 
 export class ApiError extends Error {
   constructor(readonly status: number, message: string, readonly offline = false) { super(message); }
@@ -26,16 +26,25 @@ const PACK_PREDICT_PATH = /^\/api\/predict\/match(\?|$)/;
 /** No answer in this long, for a read this device could answer itself: treat it as no signal. */
 export const OFFLINE_TIMEOUT_MS = 4000;
 
-function hasLitePack(): boolean {
-  try { return !!localStorage.getItem(PACK_META_KEY); } catch { return false; }
-}
-
-/** Could data saved on this device answer this request if the server can't be reached? Only these
- *  get the timeout: anything else waits for the server as long as the browser does. */
-function answerableOffline(path: string, method: string | undefined): boolean {
-  if ((method ?? "GET").toUpperCase() !== "GET") return false;
-  if (OFFLINE_PATHS.test(path)) return savedSeasons().length > 0;
-  return PACK_PREDICT_PATH.test(path) && hasLitePack();
+/**
+ * Could data saved on this device answer this read if the server can't be reached? "saved": a saved
+ * season covers it (the season asked for, when the path names one); "lite": a prediction for a season
+ * the lite pack holds. Only these get the timeout: anything else waits for the server as long as the
+ * browser does, so a slow server is never "offline" for it.
+ */
+function offlineKind(path: string, method: string | undefined): "saved" | "lite" | null {
+  if ((method ?? "GET").toUpperCase() !== "GET") return null;
+  const url = new URL(path, "http://offline.invalid");
+  const asked = Number(url.searchParams.get("season")) || null;
+  if (OFFLINE_PATHS.test(path)) {
+    const saved = savedSeasons();
+    const season = Number(/^\/api\/events\/(\d{4})\//.exec(url.pathname)?.[1]) || asked;
+    return saved.length && (season == null || saved.some((s) => s.season === season)) ? "saved" : null;
+  }
+  if (!PACK_PREDICT_PATH.test(path)) return null;
+  const lite = packStatus();
+  // A pack saved before its seasons were noted: assume it holds the season (the page says so if not).
+  return lite && (!lite.seasons || asked == null || lite.seasons.includes(asked)) ? "lite" : null;
 }
 
 // "Offline mode": something on screen came from data saved on this device. The
@@ -67,62 +76,83 @@ export function useOfflineMode(): boolean {
   return useSyncExternalStore(subscribeMode, () => usingSaved, () => false);
 }
 
+/** The saved seasons' answer for a read, or null when they can't give one. Loads the offline code. */
+function savedAnswer(path: string): Promise<unknown> {
+  return import("./offline/answer").then((m) => m.offlineAnswer(path)).catch(() => null);
+}
+
 /** No network: answer from the seasons saved on this device when they can,
  *  else fail with the network error. Never used for an HTTP error — the
  *  server's answer stands. */
 async function offlineOr<T>(path: string, method: string | undefined, error: ApiError): Promise<T> {
   if ((method ?? "GET").toUpperCase() !== "GET" || !OFFLINE_PATHS.test(path) || !savedSeasons().length) throw error;
-  const data = await import("./offline/answer").then((m) => m.offlineAnswer(path)).catch(() => null);
+  const data = await savedAnswer(path);
   if (data == null) throw error;
   setUsingSaved(true);
   return data as T;
 }
 
 const unreachable = () => new ApiError(0, navigator.onLine === false ? "You're offline." : "Can't reach the server right now.", true);
+const TIMED_OUT = Symbol("timed out");
+
+/**
+ * The response, or no signal. A read saved data could answer gets OFFLINE_TIMEOUT_MS for the server's
+ * headers (once they arrive, the server has answered: its status stands however slow the body is).
+ * Past that, a prediction counts as no signal at once (the page runs the lite pack); a saved-season read
+ * races the server against the saved answer, and keeps waiting for the server if they can't answer.
+ */
+async function respond<T>(request: Promise<Response>, kind: "saved" | "lite", path: string, ctrl: AbortController): Promise<Response | { saved: T }> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const deadline = new Promise<typeof TIMED_OUT>((r) => { timer = setTimeout(() => r(TIMED_OUT), OFFLINE_TIMEOUT_MS); });
+  const first = await Promise.race([request, deadline]).finally(() => clearTimeout(timer));
+  if (first !== TIMED_OUT) return first;
+  if (kind === "lite") { ctrl.abort(); throw unreachable(); }
+  const won = await Promise.race([request.then((res) => ({ res })), savedAnswer(path).then((data) => ({ data }))]);
+  if ("res" in won) return won.res;
+  if (won.data == null) return request;
+  ctrl.abort();
+  return { saved: won.data as T };
+}
 
 export async function apiFetch<T>(path: string, init?: RequestInit & { json?: unknown; _tries?: number }): Promise<T> {
   const { json, _tries = 0, ...rest } = init ?? {};
   // Known offline: answer at once (same error the failed fetch would give)
   // instead of firing a request that can only fail at the venue.
   if (typeof navigator !== "undefined" && navigator.onLine === false) return offlineOr<T>(path, rest.method, new ApiError(0, "You're offline.", true));
-  // A read this device could answer gets OFFLINE_TIMEOUT_MS to answer (headers and body); past that it
-  // counts as no signal. Everything else keeps the browser's own patience, so a slow server isn't "offline".
-  const ctrl = answerableOffline(path, rest.method) ? new AbortController() : null;
-  let timedOut = false;
-  const timer = ctrl ? setTimeout(() => { timedOut = true; ctrl.abort(); }, OFFLINE_TIMEOUT_MS) : undefined;
+  const kind = offlineKind(path, rest.method);
+  const ctrl = kind ? new AbortController() : null;
   const outer = rest.signal;
   const forward = () => ctrl?.abort();
   if (ctrl && outer) { if (outer.aborted) ctrl.abort(); else outer.addEventListener("abort", forward, { once: true }); }
   let res: Response;
-  let text: string;
   try {
-    try {
-      res = await fetch(path, {
-        credentials: "same-origin",
-        ...rest,
-        ...(ctrl ? { signal: ctrl.signal } : {}),
-        headers: { ...(json !== undefined ? { "Content-Type": "application/json" } : {}), ...(rest.headers ?? {}) },
-        body: json !== undefined ? JSON.stringify(json) : rest.body,
-      });
-    } catch {
-      return await offlineOr<T>(path, rest.method, unreachable());
-    }
-    // Server still starting (it opens its port before its data is ready): wait
-    // as asked and try again, so a cold start reads as a slow load, not an error.
-    // It answered, so this isn't "no signal"; each try gets its own timeout.
-    if (res.status === 503 && res.headers.has("Retry-After") && _tries < 8) {
-      clearTimeout(timer);
-      await new Promise((r) => setTimeout(r, Math.min(15, Number(res.headers.get("Retry-After")) || 5) * 1000));
-      return await apiFetch<T>(path, { ...(init ?? {}), _tries: _tries + 1 });
-    }
-    try { text = await res.text(); }
-    catch (e) { if (timedOut) return await offlineOr<T>(path, rest.method, unreachable()); throw e; }
+    const request = fetch(path, {
+      credentials: "same-origin",
+      ...rest,
+      ...(ctrl ? { signal: ctrl.signal } : {}),
+      headers: { ...(json !== undefined ? { "Content-Type": "application/json" } : {}), ...(rest.headers ?? {}) },
+      body: json !== undefined ? JSON.stringify(json) : rest.body,
+    });
+    request.catch(() => {}); // aborted once a saved answer is used: nobody waits on it then
+    const got = kind && ctrl ? await respond<T>(request, kind, path, ctrl) : await request;
+    if (!(got instanceof Response)) { setUsingSaved(true); return got.saved; }
+    res = got;
+  } catch (e) {
+    if (e instanceof ApiError) throw e;
+    return offlineOr<T>(path, rest.method, unreachable());
   } finally {
-    clearTimeout(timer);
     outer?.removeEventListener("abort", forward);
+  }
+  // Server still starting (it opens its port before its data is ready): wait
+  // as asked and try again, so a cold start reads as a slow load, not an error.
+  // It answered, so this isn't "no signal"; each try gets its own timeout.
+  if (res.status === 503 && res.headers.has("Retry-After") && _tries < 8) {
+    await new Promise((r) => setTimeout(r, Math.min(15, Number(res.headers.get("Retry-After")) || 5) * 1000));
+    return apiFetch<T>(path, { ...(init ?? {}), _tries: _tries + 1 });
   }
   // The server answered: whatever came from saved data goes back to the server's.
   if (res.status < 500) setUsingSaved(false);
+  const text = await res.text();
   let body: any = null;
   try { body = text ? JSON.parse(text) : null; } catch { /* non-JSON */ }
   if (!res.ok) throw new ApiError(res.status, body?.error ?? `Request failed (${res.status})`);
@@ -138,8 +168,9 @@ const FRESH_MS = 60_000;
 
 function notify(key: string) { listeners.get(key)?.forEach((f) => f()); }
 
-/** Load (deduped). Fresh cached data is returned as-is; stale data revalidates. */
-export function load<T>(path: string, force = false): Promise<T> {
+/** Load (deduped). Fresh cached data is returned as-is; stale data revalidates. `quiet`: a background
+ *  retry, which keeps an error on screen (e.g. the Predict page's offline fallback) until it's answered. */
+export function load<T>(path: string, force = false, quiet = false): Promise<T> {
   const e = cache.get(path) as Entry<T> | undefined;
   if (!force && e?.promise) return e.promise;
   if (!force && e?.data !== undefined && Date.now() - e.at < FRESH_MS) return Promise.resolve(e.data);
@@ -159,8 +190,8 @@ export function load<T>(path: string, force = false): Promise<T> {
       cache.set(path, { at: Date.now(), data: cur?.data, seq: cur?.seq, error, promise: pending(cur) }); notify(path); throw error;
     },
   );
-  // A retry clears the old error so the page shows "loading" again.
-  cache.set(path, { at: e?.at ?? 0, data: e?.data, seq: e?.seq, promise } as Entry<T>);
+  // A retry clears the old error so the page shows "loading" again (a quiet one doesn't).
+  cache.set(path, { at: e?.at ?? 0, data: e?.data, seq: e?.seq, promise, error: quiet ? e?.error : undefined } as Entry<T>);
   notify(path);
   return promise;
 }
@@ -175,7 +206,7 @@ function refetchOffline(): number {
   for (const [path, e] of cache) {
     if (!listeners.get(path)?.size || e.promise || !(offlineSource(e.data) || e.error?.offline)) continue;
     n++;
-    load(path, true).catch(() => {});
+    load(path, true, true).catch(() => {});
   }
   return n;
 }
