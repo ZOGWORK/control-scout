@@ -115,7 +115,7 @@ function Event({ d, path }: { d: EventDetail; path: string }) {
           {!predictable && <p className="mt-3 text-xs text-muted-foreground">{seasonLabel(e.season)} is shown for history: results, rankings and awards, no predictions (those start with 2023–24).</p>}
           <p className="mt-3 text-[11px] text-muted-foreground">Source: {e.source === "first" ? "FIRST Events API" : "FTC Scout"}</p>
         </div>
-        <EventGlance d={d} onTab={setTab} onLive={liveMode ? toLivePanel : undefined} />
+        <EventGlance d={d} onTab={setTab} live={liveMode ? { match: target.next, mine: !!target.mine, open: toLivePanel } : undefined} />
         </div>
         <div ref={headerEnd} aria-hidden />
       </Reveal>

@@ -220,6 +220,9 @@ export function readEventDetail(sdb: SeasonDb, code: string, opts: ReadOpts = {}
   const alliances = db.all("SELECT * FROM alliances WHERE season = ? AND code = ? ORDER BY number", [season, code]);
   const awards = db.all("SELECT * FROM awards WHERE season = ? AND code = ? ORDER BY CASE type WHEN 'Inspire' THEN 0 WHEN 'Winner' THEN 1 WHEN 'Finalist' THEN 2 ELSE 3 END, type, placement", [season, code]);
   const adv = one(db, "SELECT * FROM advancement WHERE season = ? AND code = ?", [season, code]);
+  // Season OPR for the "At a glance" card before the event starts (as server/api/events.ts).
+  const seasonOprBy = new Map(db.all("SELECT s.team, s.opr_np FROM team_season_stats s JOIN event_teams et ON et.season = s.season AND et.team = s.team WHERE et.season = ? AND et.code = ?", [season, code])
+    .map((o) => [Number(o.team), o.opr_np == null ? null : Number(o.opr_np)]));
   const field: FieldRow[] = entries.map((e) => {
     const o = oprBy.get(Number(e.team));
     return {
@@ -228,6 +231,7 @@ export function readEventDetail(sdb: SeasonDb, code: string, opts: ReadOpts = {}
       opr: { np: o?.opr_np ?? null, auto: o?.opr_auto ?? null, teleop: o?.opr_teleop ?? null, endgame: o?.opr_endgame ?? null, pen: o?.opr_pen ?? null },
       avgNp: o?.avg_np ?? null,
       rating: opts.rating?.(season, Number(e.team)) ?? null,
+      seasonOpr: seasonOprBy.get(Number(e.team)) ?? null,
     };
   }).sort((a, b) => (a.rank ?? 1e9) - (b.rank ?? 1e9) || a.team - b.team);
   return {

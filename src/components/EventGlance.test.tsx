@@ -9,11 +9,12 @@ import { finished, live, remote, upcoming } from "../lib/eventGlance.fixtures";
 
 vi.mock("../lib/meta", () => ({ usePredictable: () => true }));
 const { EventGlance } = await import("./EventGlance");
+type GlanceLive = import("./EventGlance").GlanceLive;
 
 afterEach(cleanup);
-const show = (d: EventDetail, onLive?: () => void) => {
+const show = (d: EventDetail, live?: GlanceLive) => {
   const onTab = vi.fn();
-  const r = render(<MemoryRouter><EventGlance d={d} onTab={onTab} onLive={onLive} /></MemoryRouter>);
+  const r = render(<MemoryRouter><EventGlance d={d} onTab={onTab} live={live} /></MemoryRouter>);
   return { ...r, onTab };
 };
 const cell = (id: string) => document.querySelector(`[data-glance="${id}"]`) as HTMLElement | null;
@@ -46,7 +47,8 @@ describe("EventGlance", () => {
 
   it("live: next match opens the live panel; both kinds of call shown apart; upset links to its report", () => {
     const onLive = vi.fn();
-    show(live(), onLive);
+    const d = live();
+    show(d, { match: d.matches[3], mine: false, open: onLive });
     expect(cell("phase")!.textContent).toBe("Qualification");
     expect(cell("progress")!.textContent).toContain("3 / 5 matches played");
     fireEvent.click(within(cell("next")!).getByRole("button"));
@@ -57,6 +59,12 @@ describe("EventGlance", () => {
     expect(within(cell("upsets")!).getByRole("link", { name: "Q2" }).getAttribute("href")).toBe("/events/2025/TEST/match/qual:0:2");
     expect(cell("won")).toBeNull();
     expect(cell("strongest")).toBeNull();
+  });
+
+  it("live mode: names the match the LIVE panel counts down to (the user's own next match when they have one)", () => {
+    const d = live();
+    show(d, { match: d.matches[4], mine: true, open: vi.fn() });
+    expect(cell("next")!.textContent).toMatch(/^Your next matchQ5/);
   });
 
   it("live without the live panel: next match links into the matches tab", () => {

@@ -99,7 +99,9 @@ export function glanceStats(d: EventDetail): GlanceStats {
     .map((c) => ({ m, c, score: m[c].score! })));
   let high: GlanceStats["high"] = null;
   for (const a of alliances) {
-    if (!high || a.score.total > high.score) high = { ...ref(a.m), score: a.score.total, alliance: a.c, teams: a.m[a.c].teams.map((t) => t.number) };
+    // The robots that played (a playoff alliance can list a third member who sat out); all of them if none is marked.
+    const on = a.m[a.c].teams.filter((t) => t.onField);
+    if (!high || a.score.total > high.score) high = { ...ref(a.m), score: a.score.total, alliance: a.c, teams: (on.length ? on : a.m[a.c].teams).map((t) => t.number) };
   }
 
   const decided = h2h.filter((m) => m.red.score!.total !== m.blue.score!.total);
