@@ -160,7 +160,7 @@ const tabClass = (on: boolean) => cn("flex min-h-[60px] flex-1 flex-col items-ce
 function MobileTabs({ onMore, onPick }: { onMore: () => void; onPick: () => void }) {
   const { row, active } = useYoursRow();
   return (
-    <nav className="fixed inset-x-0 bottom-0 z-40 flex border-t border-line bg-secondary/95 pb-[env(safe-area-inset-bottom)] md:hidden" aria-label="Main">
+    <nav className="fixed inset-x-0 bottom-0 z-40 flex border-t border-line bg-secondary pb-[env(safe-area-inset-bottom)] md:hidden" aria-label="Main">
       {MOBILE_TABS.map((t) => t.to !== FOLLOWED_TEAM_PATH ? (
         <NavLink key={t.to} to={t.to} end={t.end} className={({ isActive }) => tabClass(isActive)}>
           <t.icon className="size-5" />{t.label}
