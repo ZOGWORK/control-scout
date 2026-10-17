@@ -389,11 +389,11 @@ function Table({ data, scope, cols, state, sortBy, code, highlightTeam, selectab
             const sel = team != null && selected.includes(team);
             return (
               <tr key={"key" in r ? `${r.eventCode}:${r.key}` : `${team}:${"eventCode" in r ? r.eventCode : ""}`}
-                className={cn("group/row border-b last:border-b-0", grid, " hover:bg-text-base/[0.03]", hl && "bg-accent/[0.07]", sel && "bg-sky-500/[0.07]")}>
+                className={cn("group/row border-b last:border-b-0", grid, "still-hover:bg-text-base/[0.03]", hl && "bg-accent/[0.07]", sel && "bg-sky-500/[0.07]")}>
                 {"key" in r ? (
                   <>
-                    <td className={cn(sticky, "density-row px-5 py-3 group-hover/row:bg-[color-mix(in_srgb,var(--color-card)_97%,var(--color-text-base))]")}>
-                      <Link to={`/events/${r.season}/${r.eventCode}?match=${encodeURIComponent(r.key)}`} className="block max-w-[13rem] hover:text-accent">
+                    <td className={cn(sticky, "density-row px-5 py-3 row-still-hover:bg-[color-mix(in_srgb,var(--color-card)_97%,var(--color-text-base))]")}>
+                      <Link to={`/events/${r.season}/${r.eventCode}?match=${encodeURIComponent(r.key)}`} className="block max-w-[13rem] still-hover:text-accent">
                         <span className="font-semibold">{r.label}</span>
                         <span className="block truncate text-xs text-text-muted">{r.eventName}</span>
                       </Link>
@@ -409,7 +409,7 @@ function Table({ data, scope, cols, state, sortBy, code, highlightTeam, selectab
                           <input type="checkbox" checked={sel} onChange={() => onSelect(team!)} aria-label={`Select ${team} to compare`}
                             className="size-4 shrink-0 cursor-pointer accent-[var(--color-accent)] max-sm:size-5" />
                         )}
-                        <Link to={`/teams/${team}?season=${r.season}`} className="flex min-w-0 items-baseline gap-2 hover:text-accent">
+                        <Link to={`/teams/${team}?season=${r.season}`} className="flex min-w-0 items-baseline gap-2 still-hover:text-accent">
                           <span className="font-mono font-semibold tabular-nums">{team}</span>
                           <span className="max-w-[6.5rem] truncate text-text-muted sm:max-w-[13rem]">{String(r.stats.teamName ?? "")}</span>
                         </Link>
@@ -417,7 +417,7 @@ function Table({ data, scope, cols, state, sortBy, code, highlightTeam, selectab
                     </td>
                     {showEvent && "eventCode" in r && (
                       <td className="density-row px-5 py-3">
-                        <Link to={`/events/${r.season}/${r.eventCode}`} className="block max-w-[16rem] hover:text-accent">
+                        <Link to={`/events/${r.season}/${r.eventCode}`} className="block max-w-[16rem] still-hover:text-accent">
                           <span className="block truncate">{r.eventName}</span>
                           <span className="block text-xs text-text-muted">{dateRange(r.eventStart)}</span>
                         </Link>
@@ -527,7 +527,7 @@ function Alliance({ teams, season, side }: { teams: number[]; season: number; si
   return (
     <span className="inline-flex gap-1">
       {teams.map((t) => (
-        <Link key={t} to={`/teams/${t}?season=${season}`} className={cn("rounded-md px-1.5 py-0.5 font-mono text-xs tabular-nums hover:brightness-125", side === "red" ? "bg-red-alliance/12 text-red-alliance" : "bg-blue-alliance/12 text-blue-alliance")}>{t}</Link>
+        <Link key={t} to={`/teams/${t}?season=${season}`} className={cn("rounded-md px-1.5 py-0.5 font-mono text-xs tabular-nums still-hover:brightness-125", side === "red" ? "bg-red-alliance/12 text-red-alliance" : "bg-blue-alliance/12 text-blue-alliance")}>{t}</Link>
       ))}
     </span>
   );

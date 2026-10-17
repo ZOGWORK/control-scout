@@ -106,7 +106,7 @@ function TeamChip({ n, season, highlight, sub }: { n: number; season: number; hi
   const me = n === highlight;
   return (
     <Link to={`/teams/${n}?season=${season}`} title={sub ? `${n} (surrogate or didn't play)` : undefined}
-      className={cn("tabular rounded-md px-1.5 py-0.5 font-mono text-[13px] hover:underline", me ? "bg-accent/15 font-bold text-accent ring-1 ring-accent/60" : "text-text-base", sub && "opacity-55")}>
+      className={cn("tabular rounded-md px-1.5 py-0.5 font-mono text-[13px] still-hover:underline", me ? "bg-accent/15 font-bold text-accent ring-1 ring-accent/60" : "text-text-base", sub && "opacity-55")}>
       {n}{sub && <span className="sr-only"> (surrogate)</span>}
     </Link>
   );
@@ -184,16 +184,19 @@ export function MatchRow({ m, highlight, showEvent, eventName, open, onToggle, o
     <div
       // Narrow rows: the label keeps at least its own width (time, the team's won/lost chip), and the call's
       // chips wrap under it instead of pushing into the label.
-      className={cn("group/row density-row grid grid-cols-[minmax(min-content,1fr)_auto_auto] items-center gap-x-3 gap-y-1.5 px-3 py-2.5 transition-colors",
+      // Hover (here, on the label and on the row's links) waits for the page to stop scrolling (still-hover,
+      // index.css): otherwise every row sliding under a resting pointer lights up and the long list repaints,
+      // which was most of the cost of scrolling an event's matches. The hover fades the background only.
+      className={cn("group/row density-row grid grid-cols-[minmax(min-content,1fr)_auto_auto] items-center gap-x-3 gap-y-1.5 px-3 py-2.5 transition-[background-color]",
         // Wide rows: label | red | blue | the call | report. Fixed tracks either side, so every row lines up.
         "@3xl:grid-cols-[5.5rem_minmax(0,1fr)_minmax(0,1fr)_11.5rem_2rem]",
-        onToggle ? "cursor-pointer hover:bg-accent/[0.07]" : "hover:bg-text-base/[0.03]", open && "bg-accent/[0.05]")}
+        onToggle ? "cursor-pointer still-hover:bg-accent/[0.07]" : "still-hover:bg-text-base/[0.03]", open && "bg-accent/[0.05]")}
       onClick={onToggle ? (e) => { if (!(e.target as HTMLElement).closest("a, button, input")) onToggle(); } : undefined}
     >
       <div className="flex min-w-0 flex-wrap items-baseline gap-x-2 gap-y-0.5 @3xl:block" data-match-label>
         {onToggle ? (
-          <button type="button" onClick={onToggle} aria-expanded={!!open} aria-controls={detailsId} aria-label={`${m.label} details`} className={cn("flex items-center gap-0.5 rounded font-mono text-sm font-semibold outline-none transition-colors group-hover/row:text-accent-text focus-visible:ring-2 focus-visible:ring-ring/60", open && "text-accent-text")}>
-            {m.label}<ChevronDown className={cn("size-3.5 text-text-muted transition-transform group-hover/row:text-accent-text", open && "rotate-180 text-accent-text")} />
+          <button type="button" onClick={onToggle} aria-expanded={!!open} aria-controls={detailsId} aria-label={`${m.label} details`} className={cn("flex items-center gap-0.5 rounded font-mono text-sm font-semibold outline-none row-still-hover:text-accent-text focus-visible:ring-2 focus-visible:ring-ring/60", open && "text-accent-text")}>
+            {m.label}<ChevronDown className={cn("size-3.5 text-text-muted transition-transform row-still-hover:text-accent-text", open && "rotate-180 text-accent-text")} />
           </button>
         ) : <p className="font-mono text-sm font-semibold">{m.label}</p>}
         {/* An event name (a team's season, the shortlist drawer) can be long: on its own line, truncated, and with no
@@ -249,7 +252,7 @@ export function MatchRow({ m, highlight, showEvent, eventName, open, onToggle, o
                 <span className="sr-only">{p.kind === "live" ? "pre-match" : "replayed"}: {KIND_LABEL[p.kind]}</span>
               </span>
             )}
-            {m.video && <a href={m.video} target="_blank" rel="noreferrer noopener" className={cn(STATUS_CHIP, "hover:text-text-base")} aria-label="Official match video"><PlayCircle className="size-3.5" /></a>}
+            {m.video && <a href={m.video} target="_blank" rel="noreferrer noopener" className={cn(STATUS_CHIP, "still-hover:text-text-base")} aria-label="Official match video"><PlayCircle className="size-3.5" /></a>}
             {videos > 0 && <span className={cn(STATUS_CHIP, "text-accent")} title={`${videos} saved video link${videos > 1 ? "s" : ""}`}><Video className="size-3.5" /><span className="text-[10px]">{videos}</span></span>}
           </div>
         )}
@@ -258,7 +261,7 @@ export function MatchRow({ m, highlight, showEvent, eventName, open, onToggle, o
           call's width. 32px to look at, 40px to tap (the ::after). */}
       <Tooltip>
         <TooltipTrigger asChild>
-          <Link to={matchReportHref(m)} className="relative col-start-3 row-start-1 inline-flex size-8 items-center justify-center justify-self-end rounded-md border border-border bg-card text-text-muted outline-none transition-colors after:absolute after:-inset-1 hover:border-accent/60 hover:text-accent-text focus-visible:ring-2 focus-visible:ring-ring/60 @3xl:col-start-5" aria-label={`Pre-match report for ${m.label}`} data-report-link>
+          <Link to={matchReportHref(m)} className="relative col-start-3 row-start-1 inline-flex size-8 items-center justify-center justify-self-end rounded-md border border-border bg-card text-text-muted outline-none transition-colors after:absolute after:-inset-1 still-hover:border-accent/60 still-hover:text-accent-text focus-visible:ring-2 focus-visible:ring-ring/60 @3xl:col-start-5" aria-label={`Pre-match report for ${m.label}`} data-report-link>
             <ClipboardList className="size-4" aria-hidden />
           </Link>
         </TooltipTrigger>
