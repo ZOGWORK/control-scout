@@ -16,6 +16,7 @@ import { agoSeconds, oddsPct } from "../lib/format";
 import { Button } from "./ui/button";
 import { TierMark, WinBar } from "./predict";
 import { cn } from "./cn";
+import { LivestreamButton, TrackEventButton, type TrackControl } from "./EventActions";
 
 export interface RefreshControl { busy: boolean; note: string | null; at: number; run: () => Promise<unknown> }
 
@@ -77,7 +78,8 @@ function useSecondClock(on: boolean): number {
   return now;
 }
 
-export function LivePanel({ d, target, refresh }: { d: EventDetail; target: LiveTarget; refresh: RefreshControl }) {
+/** `track`: the page's tracked state and toggle for this event, shown beside the panel's other actions. */
+export function LivePanel({ d, target, refresh, track }: { d: EventDetail; target: LiveTarget; refresh: RefreshControl; track?: TrackControl }) {
   const e = d.event;
   const live = d.live!;
   const { teams: atEvent, mine, next: any } = target;
@@ -125,14 +127,21 @@ export function LivePanel({ d, target, refresh }: { d: EventDetail; target: Live
             {!Number.isFinite(at) && <p className="mt-0.5 text-xs text-muted-foreground">{any.time ? "No time zone for this event, so no countdown." : "No start time published for this match."}</p>}
             <Lineup m={any} reasons={atEvent} />
             <Call m={any} />
-            {/* One tap to the pre-match scouting report for this match (v1.6 Task 2). */}
-            <Button variant="secondary" size="sm" asChild className="mt-2.5 max-sm:h-10 max-sm:w-full">
-              <Link to={matchReportHref(any)} data-live-report><ClipboardList /> Know your match</Link>
-            </Button>
           </>
         ) : (
           <p className="mt-1 text-sm text-foreground">{d.matches.length ? "Every scheduled match has a result. Playoffs or awards may still come." : "No schedule published yet. It appears here as soon as FIRST posts it."}</p>
         )}
+        {/* The panel's actions, together where the eye already is: the next match's scouting report (v1.6 Task 2),
+            the stream and tracking. While live they appear only here; the header below drops its copies. */}
+        <div className="mt-2.5 flex flex-wrap gap-2 empty:hidden" data-live-actions>
+          {any && (
+            <Button variant="secondary" size="sm" asChild className="max-sm:h-10 max-sm:basis-full">
+              <Link to={matchReportHref(any)} data-live-report><ClipboardList /> Know your match</Link>
+            </Button>
+          )}
+          <LivestreamButton url={e.livestream} className="max-sm:h-10 max-sm:flex-1" />
+          {track && <TrackEventButton track={track} className="max-sm:h-10 max-sm:flex-1" />}
+        </div>
         {!mine && (atEvent.size ? (
           <p className="mt-2 text-xs text-muted-foreground">No more scheduled matches for {[...atEvent.keys()].join(", ")}{any ? ", so this is the event's next match" : ""}.</p>
         ) : (

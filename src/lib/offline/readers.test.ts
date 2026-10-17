@@ -75,7 +75,7 @@ describe("offline event detail (same shape as /api/events/:season/:code)", () =>
     expect(d.field.map((f) => f.team)).toEqual([200, 100, 300, 400, 500]); // rank order, unranked last by number
     expect(d.field[0]).toEqual({
       team: 200, name: "Bolt", city: "Trenton", state: "NJ", rank: 1, rp: 2, tbp: 50, wins: 2, losses: 0, ties: 0, qualPlayed: 2,
-      opr: { np: 60, auto: 12, teleop: 33, endgame: 15, pen: 1 }, avgNp: 115, rating: null,
+      opr: { np: 60, auto: 12, teleop: 33, endgame: 15, pen: 1 }, avgNp: 115, rating: null, seasonOpr: null,
     });
     expect(d.matches.map((m) => m.label)).toEqual(["Q1", "Q2", "M1"]);
     expect(d.matches[0]).toEqual({
@@ -108,6 +108,8 @@ describe("offline event detail (same shape as /api/events/:season/:code)", () =>
     expect(up.matches[0].prediction?.pRed).toBe(0.6);
     expect(calls).toEqual([[2025, [100, 200], [300, 400]]]);
     expect(up.field.find((f) => f.team === 100)?.rating).toEqual({ np: 48.2, sd: 5.1, matches: 3 });
+    // Season OPR (the At a glance card's field average): from the pack's team_season_stats, null where a team has none.
+    expect(Object.fromEntries(up.field.map((f) => [f.team, f.seasonOpr]))).toEqual({ 100: 55.5, 300: null });
     expect(readEventDetail(s25, "USNJQ1", opts)!.matches.every((m) => m.prediction === null)).toBe(true);
   });
 
