@@ -6,7 +6,7 @@ import { useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode }
 import { useSearchParams } from "react-router-dom";
 import {
   Activity, AlertTriangle, Archive, Bug, Building2, CheckCircle2, ClipboardList, Database, DatabaseZap, ExternalLink, Gauge, HardDrive, HardDriveDownload,
-  Inbox, LayoutDashboard, Link2, Mail, PackageOpen, Radio, RefreshCw, RotateCcw, ScrollText, ServerCog, Target, Timer, ToggleRight, Trash2, Unlink, Users,
+  Inbox, LayoutDashboard, Link2, Mail, PackageOpen, Radio, RefreshCw, RotateCcw, ScrollText, ServerCog, Target, Timer, ToggleRight, Trash2, Trophy, Unlink, Users,
 } from "lucide-react";
 import { PageHeader, Section, EmptyState } from "../components/page";
 import { StatTile, Meter } from "../components/StatTile";
@@ -30,6 +30,7 @@ import type {
 import type { Flag } from "../shared/flags";
 import type { OrphanedWorkspace, OrphanReason } from "../shared/orphaned";
 import { StorageBanner, StoragePanel } from "../components/owner/StoragePanel";
+import { PowerRankingsPanel } from "../components/owner/PowerRankingsPanel";
 
 const PANELS = [
   { id: "overview", label: "Overview", icon: LayoutDashboard },
@@ -40,6 +41,7 @@ const PANELS = [
   { id: "errors", label: "Errors", icon: Bug },
   { id: "ops", label: "Data jobs", icon: DatabaseZap },
   { id: "storage", label: "Storage", icon: HardDrive },
+  { id: "powerRankings", label: "Power rankings", icon: Trophy },
   { id: "orphaned", label: "Orphaned spaces", icon: Unlink },
   { id: "audit", label: "Audit log", icon: ScrollText },
 ] as const;
@@ -73,6 +75,7 @@ export default function OwnerPage() {
         <TabsContent value="errors"><ErrorsPanel /></TabsContent>
         <TabsContent value="ops"><OpsPanel /></TabsContent>
         <TabsContent value="storage"><StoragePanel /></TabsContent>
+        <TabsContent value="powerRankings"><PowerRankingsPanel onOpenSwitches={() => go("flags")} /></TabsContent>
         <TabsContent value="orphaned"><OrphanedPanel /></TabsContent>
         <TabsContent value="audit"><AuditPanel /></TabsContent>
       </Tabs>
@@ -804,6 +807,14 @@ function describe(e: AuditEntry): string {
     case "ops.caches": return "Clear caches";
     case "storage.purge": return `Purged ${d.photos ?? 0} photos of ${String(d.eventCode ?? "") || "no event"} (${d.season})`;
     case "storage.maintenance": return "Ran the photo cleanup";
+    case "powerRankings.publishNow": return `Published power rankings ${String(d.week ?? "")} now`;
+    case "powerRankings.regenerate": return `Regenerated power rankings ${String(d.week ?? "")} with Bruno`;
+    case "powerRankings.edit": {
+      const teams = Array.isArray(d.teams) ? d.teams.length : 0;
+      return `Edited power rankings ${String(d.week ?? "")} (${[d.intro ? "intro" : null, teams ? `${teams} ${teams === 1 ? "blurb" : "blurbs"}` : null].filter(Boolean).join(", ")})`;
+    }
+    case "powerRankings.hide": return `Hid power rankings ${String(d.week ?? "")}`;
+    case "powerRankings.unhide": return `Showed power rankings ${String(d.week ?? "")} again`;
     case "workspace.member_removed": {
       // Task 9: every removal from a workspace, made in Scout's settings or seen from Control Point.
       const who = String(d.name ?? "") || `account ${d.accountId}`;
