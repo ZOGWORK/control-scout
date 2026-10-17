@@ -155,8 +155,17 @@ All rows are compared with the 2.0 refit through the identical learner and block
 
 | | Control Scout | Control Point |
 |---|---|---|
-| PR | to be filled | to be filled |
-| Deploy, version check | to be filled | to be filled |
+| PR | [#138](https://github.com/Control-Point-FTC/control-scout/pull/138): Greptile 5/5 on head `a929b66` after one fix (the harness now pins the frozen 2.0 baseline), 0 unresolved threads, CI green | [#275](https://github.com/Control-Point-FTC/control-point/pull/275): Greptile 5/5 on head `0076485`, 0 threads |
+| Merge commit | `49195e365f2f494b515e7e7c4137c4df7de453e7` | `f72221c753fb9345273e14d4863ce02cb1e3862a` |
+| Deploy run | "Deploy to Oracle VM" 38989340199: success | "Deploy to Oracle VM" 38989343742: success |
+| Running engine | `controlscout.org/api/health` → `2.1.0`, release `49195e3`; Render backup also `2.1.0` | `tryctrlpoint.org/api/health` → `2.1.0` |
+| Live check | `/api/predict/match` → contextual 2.1 (same lineup: 2.0 gave 19.2%, 2.1 gives 16.5%; playoff 13.6%; identical predicted scores) | Sign-in only; equivalence proved byte-identical before merge |
+| Offline packs | Rebuilt by the first post-deploy cycle: `engineVersion 2.1.0`, state version 2 in every lite-pack book | Built per request |
+| TIPS | Stored for matches synced from now on. The ten 2026 events already in the database have none until re-fetched; they're finished and use official ranks. | Not in the live payload; counts as equal |
+
+**Rollback:** revert #138 and #275 and redeploy. Server ratings rebuild on start, and the ledger and stats recompute on the version change. Migration 26 only adds nullable columns, so it's harmless to keep.
+
+Offline packs need one extra step. Engine 2.0 accepts reliability state only at version 1, so on a rolled-back 2.0 device a saved 2.1 pack (state version 2) loads *without* state and predicts with the **legacy** probability, not 2.0's. Rebuild packs on the restored server (Control Scout rebuilds them automatically when the manifest's engine version differs); devices then pick up the new manifest version on their next sync. Control Point builds packs per request; a device's saved pack refreshes when its user downloads again.
 
 ## 9. Remaining issues and the most useful next experiments
 
