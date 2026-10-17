@@ -3,6 +3,10 @@
 /** The static first-visit privacy banner's element id: the app's ConsentBanner takes over from it in place. */
 export const BOOT_CONSENT_ID = "cs-boot-consent";
 
+/** Where the static banner leaves a choice it couldn't save (storage blocked or full): the app's consent
+ *  store (src/lib/consent.ts) adopts it as this page view's unsaved choice. */
+export const BOOT_CHOICE_GLOBAL = "__csConsent";
+
 /** The home page's line under the wordmark, in the static first paint and in the app: the same words at the
  *  same size, so the app's copy doesn't count as a new, later "largest paint". */
 export const HOME_TAGLINE = "Every FTC team, event and match — with predictions that keep a public score of how often they come true. Free, no login.";

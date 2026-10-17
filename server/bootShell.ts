@@ -10,7 +10,7 @@
 // the page block carries the path it was made for and hides itself on another.
 import type { PageMeta } from "./seoMeta.js";
 import { pageTitle } from "../src/shared/routes.js";
-import { BOOT_CONSENT_ID, HOME_TAGLINE } from "../src/shared/boot.js";
+import { BOOT_CHOICE_GLOBAL, BOOT_CONSENT_ID, HOME_TAGLINE } from "../src/shared/boot.js";
 
 const esc = (s: string) => s.replace(/&/g, "&amp;").replace(/"/g, "&quot;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 
@@ -107,7 +107,7 @@ export function bootConsent(): string {
   const script = `<script>(function(){var b=document.getElementById('${CONSENT_ID}');if(!b)return;var n=navigator,w=window;`
     + `function chosen(){try{var c=JSON.parse(localStorage.getItem('cs-consent')||'null');return !!(c&&c.v===1&&typeof c.analytics==='boolean')}catch(e){return false}}`
     + `if(n.globalPrivacyControl===true||n.doNotTrack==='1'||n.msDoNotTrack==='1'||w.doNotTrack==='1'||chosen()){b.parentNode.removeChild(b);return}`
-    + `function set(a){try{localStorage.setItem('cs-consent',JSON.stringify({analytics:a,at:new Date().toISOString(),v:1}))}catch(e){}if(b.parentNode)b.parentNode.removeChild(b);try{w.dispatchEvent(new Event('cs-consent-change'))}catch(e){}}`
+    + `function set(a){var c=JSON.stringify({analytics:a,at:new Date().toISOString(),v:1});try{localStorage.setItem('cs-consent',c)}catch(e){w.${BOOT_CHOICE_GLOBAL}=c}if(b.parentNode)b.parentNode.removeChild(b);try{w.dispatchEvent(new Event('cs-consent-change'))}catch(e){}}`
     + `b.addEventListener('click',function(e){var t=e.target&&e.target.closest&&e.target.closest('button[data-a]');if(t)set(t.getAttribute('data-a')==='1')});`
     + `b.addEventListener('keydown',function(e){if(e.key==='Escape')set(false)})})()</script>`;
   return `<section id="${CONSENT_ID}" class="csbc" role="region" aria-label="Privacy choices" aria-describedby="${CONSENT_ID}-text" data-nosnippet>`

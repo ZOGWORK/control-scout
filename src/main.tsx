@@ -90,7 +90,8 @@ onFlags((f) => setReportingPaused(!f.errorReporting));
 // static first paint in one step. Never longer than 3 s: then the usual Suspense fallback shows.
 const firstPage = pageModule(location.pathname);
 const ready = Promise.all([
-  firstPage ? Promise.race([PAGES[firstPage].preload(), new Promise((r) => setTimeout(r, 3000))]) : undefined,
+  // A failed page download mustn't skip the stylesheet wait: the page's own lazy load retries (and shows) it.
+  firstPage ? Promise.race([PAGES[firstPage].preload(), new Promise((r) => setTimeout(r, 3000))]).catch(() => undefined) : undefined,
   appCss(),
 ]);
 
