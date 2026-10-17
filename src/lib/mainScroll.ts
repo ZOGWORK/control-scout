@@ -75,9 +75,10 @@ export const SCROLL_IDLE_MS = 140;
 
 /**
  * Runs `step` now and again whenever the content resizes (the page's data rendering in), until the
- * window runs out or the reader takes over (wheel, touch, keys, a click). Returns a cancel function.
+ * window runs out or the reader takes over (wheel, touch, keys, a click). `onEnd` runs once when it
+ * stops, however it stops. Returns a cancel function.
  */
-export function chase(scroller: HTMLElement, content: Element | null, step: () => void, windowMs = RESTORE_WINDOW_MS): () => void {
+export function chase(scroller: HTMLElement, content: Element | null, step: () => void, windowMs = RESTORE_WINDOW_MS, onEnd?: () => void): () => void {
   const INPUTS = ["wheel", "touchstart", "keydown", "pointerdown"] as const;
   let over = false;
   const ro = typeof ResizeObserver === "undefined" || !content ? null : new ResizeObserver(() => { if (!over) step(); });
@@ -87,6 +88,7 @@ export function chase(scroller: HTMLElement, content: Element | null, step: () =
     ro?.disconnect();
     clearTimeout(timer);
     for (const t of INPUTS) scroller.removeEventListener(t, stop);
+    onEnd?.();
   };
   for (const t of INPUTS) scroller.addEventListener(t, stop, { passive: true });
   if (content) ro?.observe(content);
@@ -112,6 +114,15 @@ function documentNavigation(): string {
   } catch { return "navigate"; }
 }
 
+// The history entry whose saved position was last restored (back/forward, a reload). A page that
+// scrolls itself to something on arrival (a linked match) leaves that entry alone: the reader had
+// already scrolled on from there.
+let restoredKey: string | null = null;
+/** Whether arriving at this entry restored a saved position (so the page should not scroll itself). */
+export function restoredSavedPosition(loc: { key: string; pathname: string; search: string }): boolean {
+  return restoredKey === entryKey(loc);
+}
+
 /** Scroll restoration for the shell's scroller; its first child is the content that grows as the page renders. */
 export function useMainScroll(main: RefObject<HTMLElement | null>) {
   const loc = useLocation();
@@ -120,6 +131,12 @@ export function useMainScroll(main: RefObject<HTMLElement | null>) {
   store.current ??= new ScrollPositions(sessionStore());
   const keyRef = useRef(entryKey(loc));
   const prevPath = useRef<string | null>(null);
+  // The plan made for the current location, reused if the effect runs again for the same location
+  // (React's StrictMode replays effects in development).
+  const last = useRef<{ sig: string; plan: ScrollPlan } | null>(null);
+  // While a saved position is being restored, the clamped positions a still-short page passes through
+  // are not the reader's: the saved one stays until the restore ends.
+  const restoring = useRef(false);
 
   // Remember where each entry is, as the reader scrolls. Also flags "scrolling" for CSS.
   useEffect(() => {
@@ -128,7 +145,7 @@ export function useMainScroll(main: RefObject<HTMLElement | null>) {
     const flagOn = el.parentElement ?? el;
     let idle: ReturnType<typeof setTimeout> | undefined;
     const onScroll = () => {
-      store.current!.set(keyRef.current, el.scrollTop);
+      if (!restoring.current) store.current!.set(keyRef.current, el.scrollTop);
       if (!flagOn.hasAttribute("data-scrolling")) flagOn.setAttribute("data-scrolling", "");
       clearTimeout(idle);
       idle = setTimeout(() => flagOn.removeAttribute("data-scrolling"), SCROLL_IDLE_MS);
@@ -150,13 +167,20 @@ export function useMainScroll(main: RefObject<HTMLElement | null>) {
     if (!el) return;
     const key = entryKey(loc);
     keyRef.current = key;
-    // A newly opened page (not a reload, not back/forward into this tab) starts afresh, whatever an
-    // earlier visit to the same address left under its key.
-    const fresh = prevPath.current === null && loc.key === "default" && documentNavigation() === "navigate";
-    if (fresh) store.current!.set(key, 0);
-    const saved = fresh ? undefined : store.current!.get(key);
-    const plan = planScroll({ action, prevPath: prevPath.current, path: loc.pathname, hash: loc.hash, saved });
-    prevPath.current = loc.pathname;
+    const sig = `${action} ${key} ${loc.pathname}${loc.search}${loc.hash}`;
+    let plan: ScrollPlan;
+    if (last.current?.sig === sig) plan = last.current.plan;
+    else {
+      // A newly opened page (not a reload, not back/forward into this tab) starts afresh, whatever an
+      // earlier visit to the same address left under its key.
+      const fresh = prevPath.current === null && loc.key === "default" && documentNavigation() === "navigate";
+      if (fresh) store.current!.set(key, 0);
+      const saved = fresh ? undefined : store.current!.get(key);
+      plan = planScroll({ action, prevPath: prevPath.current, path: loc.pathname, hash: loc.hash, saved });
+      last.current = { sig, plan };
+      prevPath.current = loc.pathname;
+    }
+    restoredKey = plan.kind === "restore" ? key : null;
     if (plan.kind === "top") el.scrollTop = 0;
     // The entry has a position from the start (a tab switch replaces the entry, and the reader may
     // never scroll on it): coming back to it must not keep whatever the page left behind.
@@ -164,9 +188,21 @@ export function useMainScroll(main: RefObject<HTMLElement | null>) {
     store.current!.save();
     if (plan.kind === "keep" || plan.kind === "top") return;
     // Re-applied as the page's content loads in: until then the page is shorter than the position.
-    if (plan.kind === "restore") return chase(el, el.firstElementChild, () => { el.scrollTop = plan.y; });
+    if (plan.kind === "restore") {
+      const y = plan.y;
+      let leaving = false;
+      restoring.current = true;
+      const stop = chase(el, el.firstElementChild, () => { el.scrollTop = y; }, RESTORE_WINDOW_MS, () => {
+        restoring.current = false;
+        // Ended here (the window ran out, or the reader took over): where it stands is now the entry's.
+        // Left for another entry mid-restore: the saved place stays, for the next time back.
+        if (!leaving) store.current!.set(key, el.scrollTop);
+      });
+      return () => { leaving = true; stop(); };
+    }
+    const id = plan.id;
     return chase(el, el.firstElementChild, () => {
-      const target = document.getElementById(plan.id);
+      const target = document.getElementById(id);
       if (target && el.contains(target)) target.scrollIntoView({ block: "start" });
     });
   }, [loc.key, loc.pathname, loc.search, loc.hash, action, main]);

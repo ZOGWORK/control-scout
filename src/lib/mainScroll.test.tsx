@@ -1,9 +1,9 @@
 // @vitest-environment jsdom
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { act, cleanup, render } from "@testing-library/react";
-import { MemoryRouter, useNavigate, type NavigateFunction } from "react-router-dom";
-import { useRef } from "react";
-import { chase, entryKey, planScroll, RESTORE_WINDOW_MS, SCROLL_IDLE_MS, ScrollPositions, useMainScroll } from "./mainScroll";
+import { MemoryRouter, useLocation as useLocationProbe, useNavigate, type NavigateFunction } from "react-router-dom";
+import { StrictMode, useRef } from "react";
+import { chase, entryKey, planScroll, restoredSavedPosition, RESTORE_WINDOW_MS, SCROLL_IDLE_MS, ScrollPositions, useMainScroll } from "./mainScroll";
 
 describe("planScroll", () => {
   const base = { prevPath: "/events", path: "/teams/4215", hash: "", saved: undefined };
@@ -106,7 +106,7 @@ describe("useMainScroll", () => {
     const ref = useRef<HTMLElement>(null);
     useMainScroll(ref);
     nav = useNavigate();
-    return <div><main id="main" ref={(n) => { if (n && n !== main) { main = n; fakeScroller(n, height); } (ref as { current: HTMLElement | null }).current = n; }}><div /></main></div>;
+    return <div><main id="main" ref={(n) => { if (n && n !== main) { main = n; fakeScroller(n, height); } (ref as { current: HTMLElement | null }).current = n; }}><div><div id="sec" /></div></main></div>;
   }
   const scrollTo = (y: number) => act(() => { main.scrollTop = y; main.dispatchEvent(new Event("scroll")); });
   const go = (to: string | number) => act(() => { if (typeof to === "number") nav(to); else nav(to); });
@@ -148,6 +148,42 @@ describe("useMainScroll", () => {
     act(() => { main.dispatchEvent(new Event("wheel")); });
     height.current = 6000; act(resize);
     expect(main.scrollTop).toBe(100);
+  });
+
+  it("keeps the saved position when the reader leaves again before a restore could reach it", () => {
+    height.current = 5000;
+    render(<MemoryRouter initialEntries={["/events"]}><Harness /></MemoryRouter>);
+    scrollTo(3000);
+    go("/events/2025/X");
+    height.current = 900; // back to a list that is still loading...
+    go(-1);
+    act(() => { main.dispatchEvent(new Event("scroll")); }); // ...clamped at 100
+    go(1); // forward again before it grew
+    height.current = 5000;
+    go(-1);
+    expect(main.scrollTop).toBe(3000);
+  });
+
+  it("says when arriving restored a saved position, so pages don't scroll themselves over it", () => {
+    height.current = 5000;
+    let loc = { key: "", pathname: "", search: "" };
+    function Spy() { loc = useLocationProbe(); return null; }
+    render(<MemoryRouter initialEntries={["/events/2025/X?match=q1"]}><Harness /><Spy /></MemoryRouter>);
+    expect(restoredSavedPosition(loc)).toBe(false);
+    scrollTo(2000);
+    go("/teams/1");
+    expect(restoredSavedPosition(loc)).toBe(false);
+    go(-1);
+    expect(restoredSavedPosition(loc)).toBe(true);
+  });
+
+  it("goes to a #hash on a first load, also under StrictMode's replayed effects", () => {
+    height.current = 5000;
+    const into = vi.fn(function (this: HTMLElement) { main.scrollTop = 1700; });
+    Element.prototype.scrollIntoView = into;
+    render(<StrictMode><MemoryRouter initialEntries={["/methodology#sec"]}><Harness /></MemoryRouter></StrictMode>);
+    expect(into).toHaveBeenCalled();
+    expect(main.scrollTop).toBe(1700);
   });
 
   it("keeps the position for a query change on the same page", () => {
