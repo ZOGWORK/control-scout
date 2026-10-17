@@ -77,6 +77,12 @@ describe("glanceStats: finished event", () => {
     expect(s.record).toEqual([{ kind: "backtest", n: 2, right: 2 }]);
     expect(s.upsets).toEqual({ kind: "backtest", n: 0, of: 2, biggest: null });
   });
+  it("the high score credits only the robots that played (not a benched third member)", () => {
+    const d = finished();
+    const red = d.matches[2].red;
+    red.teams.push({ number: 4, surrogate: false, dq: false, onField: false });
+    expect(glanceStats(d).high?.teams).toEqual([1, 3]);
+  });
   it("winners without alliance data are listed as awarded", () => {
     const d = finished();
     d.alliances = [];

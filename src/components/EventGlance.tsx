@@ -5,7 +5,7 @@
 import type { ReactNode } from "react";
 import { Link } from "react-router-dom";
 import { ArrowRight, Trophy } from "lucide-react";
-import type { EventDetail } from "../shared/api";
+import type { EventDetail, MatchView } from "../shared/api";
 import { matchReportHref } from "../shared/matchReport";
 import { glanceStats, type GlanceStats, type Phase } from "../lib/eventGlance";
 import { usePredictable } from "../lib/meta";
@@ -37,7 +37,11 @@ function Cell({ label, children, hint, wide, tone, testId }: { label: string; ch
 
 const pctCall = (p: number) => `${Math.min(99, Math.max(1, Math.round(p * 100)))}%`;
 
-export function EventGlance({ d, onTab, onLive }: { d: EventDetail; onTab: (t: string) => void; onLive?: () => void }) {
+/** Live mode: the match the LIVE panel counts down to (the user's teams' next one when they have one, else the
+ *  event's), so "Next match" here names the same match the panel opens on. */
+export interface GlanceLive { match: MatchView | null; mine: boolean; open: () => void }
+
+export function EventGlance({ d, onTab, live }: { d: EventDetail; onTab: (t: string) => void; live?: GlanceLive }) {
   const predictable = usePredictable(d.event.season);
   const e = d.event;
   const s: GlanceStats = glanceStats(d);
@@ -47,11 +51,12 @@ export function EventGlance({ d, onTab, onLive }: { d: EventDetail; onTab: (t: s
   const reportLink = (key: string, children: ReactNode) => <Link to={matchReportHref({ season, code: e.code, key })} className="hover:text-accent-text">{children}</Link>;
 
   const cells: ReactNode[] = [];
-  if (s.next) {
-    const when = matchTime(s.next.startsAt ?? s.next.time);
-    const body = <>{s.next.label}{when && <span className="font-normal text-muted-foreground"> · {when}</span>} <ArrowRight className="inline size-3.5 align-[-2px] text-muted-foreground" aria-hidden /></>;
-    cells.push(<Cell key="next" testId="next" label="Next match" wide>
-      {onLive ? <button type="button" onClick={onLive} className="text-left hover:text-accent-text">{body}</button> : <Link to={`?tab=matches&match=${encodeURIComponent(s.next.key)}`} className="hover:text-accent-text">{body}</Link>}
+  const next = live ? live.match : s.next;
+  if (next) {
+    const when = matchTime(next.startsAt ?? next.time);
+    const body = <>{next.label}{when && <span className="font-normal text-muted-foreground"> · {when}</span>} <ArrowRight className="inline size-3.5 align-[-2px] text-muted-foreground" aria-hidden /></>;
+    cells.push(<Cell key="next" testId="next" label={live?.mine ? "Your next match" : "Next match"} wide>
+      {live ? <button type="button" onClick={live.open} className="text-left hover:text-accent-text">{body}</button> : <Link to={`?tab=matches&match=${encodeURIComponent(next.key)}`} className="hover:text-accent-text">{body}</Link>}
     </Cell>);
   }
   if (s.avgScore != null) cells.push(<Cell key="avg" testId="avg-score" label="Avg alliance score">{num(s.avgScore)}</Cell>);
@@ -90,7 +95,7 @@ export function EventGlance({ d, onTab, onLive }: { d: EventDetail; onTab: (t: s
   if (s.inspire) lead.push(<Cell key="inspire" testId="inspire" label="Inspire" hint={s.inspire.name}><TeamNo team={s.inspire.team} season={season} /></Cell>);
   if (seed1) lead.push(<Cell key="seed" testId="seed" label="#1 seed" hint={seed1.name}><TeamNo team={seed1.team} season={season} /></Cell>);
   if (topOpr) lead.push(<Cell key="opr" testId="top-opr" label="Top OPR"><TeamNo team={topOpr.team} season={season} /> <span className="font-normal text-muted-foreground">{topOpr.opr.np!.toFixed(1)}</span></Cell>);
-  cells.splice(s.next ? 1 : 0, 0, ...lead); // after the next match (live), before the scoring stats
+  cells.splice(next ? 1 : 0, 0, ...lead); // after the next match (live), before the scoring stats
   if (d.advancement?.slots) cells.push(<Cell key="adv" testId="advancing" label="Advancing" wide>
     <button type="button" onClick={() => onTab(predictable ? "odds" : "awards")} className="text-left hover:text-accent-text">
       {d.advancement.slots} slots{d.advancement.advancesTo ? <span className="font-normal text-muted-foreground"> → {d.advancement.advancesTo}</span> : null}
