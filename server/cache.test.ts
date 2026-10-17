@@ -65,6 +65,18 @@ describe("a live event's detail (polled by the event page every 30 s)", () => {
     });
     expect(again).toEqual({ status: 304, bytes: 0 });
   });
+  it("carries each team's season OPR for the At a glance card, and still answers a repeat with a 304", async () => {
+    await run(`INSERT INTO events (season, code, name, type, start, "end", timezone, source) VALUES (2025, 'GLANCEUP', 'Glance Upcoming', 'Qualifier', '2099-01-01', '2099-01-01', 'UTC', 'first')`);
+    await run("INSERT INTO event_teams (season, code, team) VALUES (2025, 'GLANCEUP', 201), (2025, 'GLANCEUP', 202)");
+    await run("INSERT INTO team_season_stats (season, team, opr_np) VALUES (2025, 201, 87.5), (2024, 202, 50)"); // 202: last season only
+    const first = await fetch(`${base}/api/events/2025/GLANCEUP`);
+    const body = (await first.json()) as { field: { team: number; seasonOpr: number | null }[] };
+    expect(Object.fromEntries(body.field.map((f) => [f.team, f.seasonOpr]))).toEqual({ 201: 87.5, 202: null });
+    const status = await new Promise<number>((resolve, reject) => {
+      get(`${base}/api/events/2025/GLANCEUP`, { headers: { "If-None-Match": first.headers.get("etag")! } }, (r) => { r.resume(); resolve(r.statusCode ?? 0); }).on("error", reject);
+    });
+    expect(status).toBe(304);
+  });
   it("keeps a call from today's ratings still between reads (they decay with the clock by ~1e-9)", () => {
     expect(stableP(0.6881869737194418)).toBe(stableP(0.6881869715164509));
     expect(stableP(0.6881869737194418)).toBe(0.6882);
