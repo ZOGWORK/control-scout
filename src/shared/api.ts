@@ -237,11 +237,17 @@ export interface AccuracyBlock {
   upsets: number;
 }
 
+export interface ShadowScore { accuracy: number; brier: number; logLoss: number }
+
 export interface TrackRecord {
   seasons: {
     season: number; label: string; live: AccuracyBlock | null; backtest: AccuracyBlock | null;
     /** Live calls split by the engine version that made them (versions are never compared on mixed cohorts). */
     liveByEngine?: { engine: string; n: number; accuracy: number; brier: number; logLoss: number }[];
+    /** Side by side on the same live calls: the served model vs the shadow (previous) model,
+     *  both computed from the same ratings at the same moment. Paired, so it compares models,
+     *  not match difficulty. One entry per served/shadow model pair. */
+    liveShadow?: { servedModel: string; shadowModel: string; n: number; served: ShadowScore; shadow: ShadowScore }[];
   }[];
   engineVersion: string;
   /** Minimum live sample before the headline switches from backtest to live. */
