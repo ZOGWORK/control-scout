@@ -52,19 +52,29 @@ function offlineKind(path: string, method: string | undefined): "saved" | "lite"
 let usingSaved = false;
 const modeListeners = new Set<() => void>();
 let probe: ReturnType<typeof setInterval> | undefined;
-/** While offline mode is on and the browser thinks it's online (the timeout case), retry this often. */
+/** While anything on screen is from saved data (or a no-signal error) and the browser thinks it's
+ *  online (the timeout case), retry it this often. */
 const PROBE_MS = 15_000;
+
+/** No "online" event comes when the network never went down (a request timed out): retry what's on
+ *  screen from saved data now and then, until none is left (each entry's own answer replaces it). It
+ *  runs for as long as such entries are on screen, whatever else answers meanwhile. */
+function stopProbe() { clearInterval(probe); probe = undefined; }
+function ensureProbe() {
+  if (probe || typeof window === "undefined") return;
+  probe = setInterval(() => {
+    if (!offlineOnScreen().length) { stopProbe(); return; }
+    if (typeof navigator === "undefined" || navigator.onLine !== false) refetchOffline();
+  }, PROBE_MS);
+}
 
 function setUsingSaved(on: boolean) {
   if (usingSaved === on) return;
   usingSaved = on;
   modeListeners.forEach((f) => f());
-  clearInterval(probe);
-  probe = undefined;
-  // No "online" event comes when the network never went down (a request timed out): retry what's on
-  // screen now and then, and the first answer switches back.
-  if (on) probe = setInterval(() => { if (typeof navigator === "undefined" || navigator.onLine !== false) refetchOffline(); }, PROBE_MS);
-  else refetchOffline(); // back: whatever is still on screen from saved data is fetched fresh
+  if (on) ensureProbe();
+  else if (offlineOnScreen().length) refetchOffline(); // back: whatever is still on screen from saved data is fetched fresh
+  else stopProbe();
 }
 
 /** An answer on screen came from data saved on this device (the Predict page's lite-pack fallback calls this too). */
@@ -183,11 +193,15 @@ export function load<T>(path: string, force = false, quiet = false): Promise<T> 
       // Newer data arrived while this request was out (a later request, or "Refresh results" priming): keep it.
       if (cur?.data !== undefined && (cur.seq ?? 0) > my) { if (cur.promise === promise) cache.set(path, { ...cur, promise: undefined }); return cur.data; }
       // An offline answer is never fresh: the next look asks the server again.
-      cache.set(path, { at: offlineSource(data) ? 0 : Date.now(), data, seq: my, promise: pending(cur) }); notify(path); return data;
+      cache.set(path, { at: offlineSource(data) ? 0 : Date.now(), data, seq: my, promise: pending(cur) }); notify(path);
+      if (offlineSource(data)) ensureProbe();
+      return data;
     },
     (error: ApiError) => {
       const cur = cache.get(path) as Entry<T> | undefined;
-      cache.set(path, { at: Date.now(), data: cur?.data, seq: cur?.seq, error, promise: pending(cur) }); notify(path); throw error;
+      cache.set(path, { at: Date.now(), data: cur?.data, seq: cur?.seq, error, promise: pending(cur) }); notify(path);
+      if (error?.offline) ensureProbe(); // e.g. the Predict page's lite-pack answer: retried until the server answers
+      throw error;
     },
   );
   // A retry clears the old error so the page shows "loading" again (a quiet one doesn't).
@@ -199,22 +213,21 @@ export function load<T>(path: string, force = false, quiet = false): Promise<T> 
 /** Put fresh data for a path in the cache (e.g. returned by a POST) and re-render whoever shows it. */
 export function prime<T>(path: string, data: T) { cache.set(path, { at: Date.now(), data, seq: ++seq, promise: cache.get(path)?.promise as Promise<T> | undefined }); notify(path); }
 
+/** Paths on screen showing saved data or a no-signal error. */
+function offlineOnScreen(): string[] {
+  return [...cache].filter(([path, e]) => listeners.get(path)?.size && (offlineSource(e.data) || e.error?.offline)).map(([path]) => path);
+}
+
 /** Ask the server again for whatever is on screen from saved data, or showing a no-signal error (not
- *  already being asked). Returns how many it asked for. */
-function refetchOffline(): number {
-  let n = 0;
-  for (const [path, e] of cache) {
-    if (!listeners.get(path)?.size || e.promise || !(offlineSource(e.data) || e.error?.offline)) continue;
-    n++;
-    load(path, true, true).catch(() => {});
-  }
-  return n;
+ *  already being asked; a quiet retry: it stays on screen until answered). */
+function refetchOffline() {
+  for (const path of offlineOnScreen()) if (!cache.get(path)?.promise) load(path, true, true).catch(() => {});
 }
 
 // Back online: whatever is on screen from saved seasons is fetched fresh (its answer switches offline
 // mode off); with nothing on screen from them, offline mode simply ends.
 if (typeof window !== "undefined") {
-  window.addEventListener("online", () => { if (!refetchOffline()) setUsingSaved(false); });
+  window.addEventListener("online", () => { if (offlineOnScreen().length) refetchOffline(); else setUsingSaved(false); });
 }
 
 /** Mark cached data under a prefix as out of date without dropping it: what's on screen refetches now
@@ -243,7 +256,7 @@ export function useApi<T>(path: string | null): ApiState<T> {
     if (!set) { set = new Set(); listeners.set(path, set); }
     set.add(fn);
     load<T>(path).catch(() => {});
-    return () => { set!.delete(fn); };
+    return () => { set!.delete(fn); if (probe && !offlineOnScreen().length) stopProbe(); };
   }, [path]);
   const reload = useCallback(() => { if (pathRef.current) load(pathRef.current, true).catch(() => {}); }, []);
   const e = path ? (cache.get(path) as Entry<T> | undefined) : undefined;

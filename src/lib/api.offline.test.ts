@@ -229,6 +229,28 @@ describe("recovery: back to the server", () => {
     view.unmount();
   });
 
+  it("an unrelated answer mid-retry doesn't stop the retries: the offline prediction still recovers", async () => {
+    vi.useFakeTimers();
+    localStorage.setItem(PACK_META_KEY, JSON.stringify({ version: "v", seasons: [2025] }));
+    const fetch = vi.fn(hanging());
+    vi.stubGlobal("fetch", fetch);
+    const path = "/api/predict/match?season=2025&red=5,6&blue=7,8";
+    const view = renderHook(() => useApi(path));
+    await act(() => vi.advanceTimersByTimeAsync(OFFLINE_TIMEOUT_MS));
+    act(() => noteOfflineAnswer());
+    await act(() => vi.advanceTimersByTimeAsync(15_000)); // a quiet retry goes out and hangs
+    // Meanwhile an unrelated request gets an answer: offline mode ends while the retry is still out.
+    vi.stubGlobal("fetch", vi.fn(async (p: string) => (p === "/api/meta" ? ok({}) : fetch(p, { signal: new AbortController().signal }))));
+    await act(async () => { await apiFetch("/api/meta"); });
+    await act(() => vi.advanceTimersByTimeAsync(OFFLINE_TIMEOUT_MS)); // that retry times out again
+    expect(view.result.current.error?.offline).toBe(true);
+    // The connection really comes back: the next retry still happens and gets the answer.
+    vi.stubGlobal("fetch", vi.fn(async () => ok({ pRed: 0.4 })));
+    await act(() => vi.advanceTimersByTimeAsync(15_000));
+    expect(view.result.current.data).toEqual({ pRed: 0.4 });
+    view.unmount();
+  });
+
   it("coming back online refetches what's on screen from saved data", async () => {
     writeSaved([saved]);
     const onLine = vi.spyOn(navigator, "onLine", "get").mockReturnValue(false);
