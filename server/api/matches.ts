@@ -15,6 +15,7 @@ import { isLegacy } from "../data/seasons.js";
 const score = (r: any, p: "red" | "blue") => r[`${p}_np`] == null ? null : {
   total: Number(r[`${p}_total`]), np: Number(r[`${p}_np`]), auto: Number(r[`${p}_auto`] ?? 0),
   teleop: Number(r[`${p}_teleop`] ?? 0), endgame: Number(r[`${p}_endgame`] ?? 0), pen: Number(r[`${p}_pen`] ?? 0),
+  ...(r[`${p}_tips`] != null ? { tips: Number(r[`${p}_tips`]) } : {}),
 };
 
 export interface MatchFilter { season: number; code?: string; team?: number; keys?: string[] }
@@ -69,7 +70,7 @@ export async function matchViews(f: MatchFilter, opts: { predictUnplayed?: boole
     else if (!r.played && forecaster) {
       const red = l.red.filter((t) => t.onField).map((t) => t.number), blue = l.blue.filter((t) => t.onField).map((t) => t.number);
       if (red.length === 2 && blue.length === 2) {
-        const x = forecaster.explain(f.season, red, blue, r.level);
+        const x = forecaster.explain(f.season, red, blue, r.level, r.code);
         // A live event's page polls this every 30 s and should mostly get a 304, so the body must not
         // change unless the data did: no predictedAt (a call from today's ratings isn't logged at a
         // moment), and pRed to 4 places (the ratings decay with the clock, moving it ~1e-9 per read).

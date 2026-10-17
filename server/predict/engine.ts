@@ -206,13 +206,20 @@ export class ScoutForecaster extends Forecaster {
 
   /**
    * Match explanation (win %, scores, factors, confidence) from current
-   * ratings. `level` feeds the contextual win probability; generic what-ifs
-   * with no known match default to a qualification match.
+   * ratings. `level` and `event` feed the contextual win probability; generic
+   * what-ifs with no known match default to a qualification match at no event.
    */
-  explain(season: number, red: number[], blue: number[], level: "qual" | "playoff" = "qual") {
+  explain(season: number, red: number[], blue: number[], level: "qual" | "playoff" = "qual", event?: string) {
     const b = this.book(season);
     if (!b) return null;
-    return explainMatch(b, red, blue, { noise: FITTED_MODEL.noise, calibration: FITTED_MODEL.calibration, contextual: FITTED_MODEL.contextual, context: { level } });
+    return explainMatch(b, red, blue, { noise: FITTED_MODEL.noise, calibration: FITTED_MODEL.calibration, contextual: FITTED_MODEL.contextual, context: { level, event } });
+  }
+
+  /** Start time (ISO) of the latest stored result of a season the ratings have learned, or null. */
+  ratingsThrough(season: number): string | null {
+    let max = -Infinity;
+    for (const e of this.events.get(season) ?? []) for (const m of e.matches) if (m.time > max) max = m.time;
+    return Number.isFinite(max) ? new Date(max).toISOString() : null;
   }
 }
 
