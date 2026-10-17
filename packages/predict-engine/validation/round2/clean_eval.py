@@ -12,17 +12,32 @@ t - 56 days, the final calibration from [t - 56 days, t), and the score from [t,
 No fitted quantity sees any outcome at or after t. Origins run through the 2024 season and
 the 2025-26 season (whose months stay labelled as reused data).
 
-usage: python clean_eval.py <rows-sym.json.gz> <model-2.1-p.npy> <out.json>"""
+The deployed 2.1 probabilities are recomputed here from the shipped artifact
+(packages/predict-engine/src/model.json, contextual = 2.1, contextual.fallback = 2.0) and
+the replay rows, so nothing outside the repository is needed beyond the rows file.
+
+When the 56 days before an origin hold fewer than 200 decided matches (the gaps between
+seasons), the calibration window is widened backwards a week at a time until it does, and
+the coefficient cutoff moves back with it. Each origin's actual windows are recorded.
+
+usage (rows from exp-replay.mjs on an engine build that ships the frozen 2.0 model):
+  python clean_eval.py <rows-sym.json.gz> <packages/predict-engine/src/model.json> <out.json>"""
 import sys, json, datetime, numpy as np
 sys.path.insert(0, '.')
 from explib import load, fit_logistic, raw_prob, fit_cal, apply_cal, metrics, paired, stamp
 
-rows = load(sys.argv[1]); p21 = np.load(sys.argv[2])
+rows = load(sys.argv[1])
+model = json.load(open(sys.argv[2], encoding='utf-8'))['contextual']
 y = np.array([r['y'] for r in rows]); t = np.array([r['time'] for r in rows]); season = np.array([r['season'] for r in rows])
 X = np.array([r['x'] for r in rows]); pr = np.clip(np.array([r['pRaw'] for r in rows]), 1e-9, 1 - 1e-9); L = np.log(pr / (1 - pr))
 C = {k: np.array([r['c'][k] for r in rows]) for k in rows[0]['c']}
 X21 = np.column_stack([X, C['evForm'], L * C['evN'], C['momentum'], C['lastFail'], C['recovery']])
 p20 = np.array([r['p'] for r in rows])
+# Deployed 2.1: z = L + sum(coef * D / scale); raw clipped to [1e-8, 1-1e-8]; final logit calibration.
+assert len(model['coefficients']) == X21.shape[1], 'model.json contextual is not the 22-input 2.1 model'
+from scipy.special import expit, logit as _logit
+_raw = np.clip(expit(L + (X21 / np.array(model['scale'])) @ np.array(model['coefficients'])), 1e-8, 1 - 1e-8)
+p21 = expit(model['calibration']['slope'] * _logit(_raw) + model['calibration']['intercept'])
 out = {}
 
 # ---- Part A: deployed artifacts on strictly-later blocks.
@@ -53,7 +68,10 @@ for i in range(len(origins)):
         lo = t0 - CAL
         while (((t >= lo) & (t < t0)) & (y != .5)).sum() < 200: lo -= 7 * 864e5
         calk = (t >= lo) & (t < t0); fitk = t < lo
-    rec = {'origin': origins[i].date().isoformat(), 'eval': int(ev.sum()), 'fit': int(fitk.sum()), 'calibration': int(calk.sum())}
+    iso = lambda ms: datetime.datetime.fromtimestamp(ms / 1000, datetime.timezone.utc).date().isoformat()
+    cal_start = int(t[calk].min()) if calk.any() else t0
+    rec = {'origin': origins[i].date().isoformat(), 'eval': int(ev.sum()), 'fit': int(fitk.sum()), 'calibration': int(calk.sum()),
+           'calibrationWindow': [iso(cal_start), iso(t0)], 'coefficientCutoff': iso(cal_start), 'widened': bool(t0 - cal_start > CAL + 864e5)}
     for name, D in (('2.0', X), ('2.1', X21)):
         m = fit_logistic(D, L, y, fitk); raw = raw_prob(m, D, L); b = fit_cal(raw, y, calk)
         pB[name][ev] = apply_cal(raw, b)[ev]

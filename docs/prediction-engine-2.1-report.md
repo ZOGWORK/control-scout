@@ -9,6 +9,12 @@ An independent review found two flaws in how this round's validation was describ
 
 **Clean re-evaluation** (`validation/round2/clean_eval.py`, results in `round2/results/clean-eval.json`). Both feature sets (2.0's 17 inputs, 2.1's 22) were refitted from scratch at every monthly origin from January 2025. Coefficients come from data before origin − 56 days and the final calibration from the 56 days before the origin. Each model is scored on the following month. No fitted quantity sees an outcome at or after the scored month.
 
+**Exception:** when those 56 days hold fewer than 200 decided matches, the calibration window is widened backwards a week at a time, and the coefficient cutoff moves back with it. That happened at two origins, both across the gap between seasons:
+- October 2025: calibration window 2025-07-04 to 2025-10-01;
+- November 2025: calibration window 2025-07-26 to 2025-11-01.
+
+Each origin's actual windows and cutoff are recorded in `results/clean-eval.json`. The deployed 2.1 probabilities are recomputed from the shipped `model.json`, so the script needs only the replay rows.
+
 | Segment | Matches | Accuracy 2.0 → 2.1 (change [95%]) | Brier 2.0 → 2.1 (change [95%]) | ECE 2.0 → 2.1 |
 |---|---|---|---|---|
 | 2024–25 season, Jan–Jul 2025 | 20,011 | 76.70% → 76.87% (+0.17 [−0.02, +0.37]) | 0.15646 → 0.15589 (**−0.00057 [−0.00087, −0.00028]**) | 1.11% → 1.00% |
