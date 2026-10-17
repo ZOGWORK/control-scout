@@ -83,6 +83,10 @@ export interface ForecastMatch {
   pre?: number | null;
   /** The probability model's parameter set behind pRedWin (contextual id or "legacy"). */
   modelId?: string | null;
+  /** The previous model's P(red wins) on the same book and moment (the served model's
+   *  fallback, e.g. 2.0 under 2.1), for side-by-side ledgers; null when there is none. */
+  pShadow?: number | null;
+  shadowModelId?: string | null;
 }
 
 export interface PartnerOption { team: number; pAdvance: number; pWin: number }
@@ -132,7 +136,7 @@ export abstract class Forecaster {
 
   /** The engine's prediction for a lineup on a given book (score model + win probability). */
   protected predict(book: RatingBook, red: number[], blue: number[], ctx: MatchContext = {}) {
-    return predictMatch(book, red, blue, this.model.noise, this.model.calibration, { context: ctx, contextual: this.model.contextual });
+    return predictMatch(book, red, blue, this.model.noise, this.model.calibration, { context: ctx, contextual: this.model.contextual, shadow: this.model.contextual?.fallback });
   }
 
   /** A played alliance's recorded bonus RPs: from the payload, else the app's store. */
@@ -349,6 +353,7 @@ export abstract class Forecaster {
       return {
         key: m.key, label: m.label, level: m.level, red, blue, pRedWin: p?.pRedWin ?? null, redMean: p?.red.mean ?? null, blueMean: p?.blue.mean ?? null,
         modelId: p ? p.modelId ?? "legacy" : null,
+        pShadow: p?.pShadow ?? null, shadowModelId: p?.shadowModelId ?? null,
         played: m.played && m.red.score?.total != null && m.blue.score?.total != null ? { red: m.red.score.total, blue: m.blue.score.total } : null,
       };
     });

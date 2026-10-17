@@ -189,7 +189,7 @@
    "baselineScoreRange80Coverage": 0.8202277222430107
   },
   "engine21": {
-   "note": "Prediction Engine 2.1 vs 2.0 on identical matches. select = season 2024, Jan-Feb 2025 (the decision block, never used for fitting); test2025 = the 2025-26 season, secondary and diagnostic only (already examined in 2.0 validation). Chronological replay from finalized results; not a prospective live result.",
+   "note": "Development comparison (superseded by `clean`): the select-block figures used a final calibration fitted on later (Mar-May 2025) outcomes, and 2025-26 results were used to veto candidates. Not forward-only evidence.",
    "select": {
     "matches": 15870,
     "accuracy": 0.7734449305687655,
@@ -217,6 +217,43 @@
     "baselineLogLoss": 0.5101965279762287,
     "ece": 0.01669480810856577,
     "baselineEce": 0.012626480793802138
+   },
+   "clean": {
+    "note": "Forward-only rolling evaluation of the 2.1 vs 2.0 feature sets: at each monthly origin from 2025-01, coefficients fitted on data before origin-56d, calibration on [origin-56d, origin), scored on the next month. 2025-26 months are reused data (examined before; used for round-2 vetoes).",
+    "season2024": {
+     "matches": 20011,
+     "baselineAccuracy": 0.7670303152179377,
+     "accuracy": 0.7687396309888894,
+     "accuracyGain95": [
+      -0.00015045267493646344,
+      0.00365844418643802
+     ],
+     "baselineBrier": 0.15645696018913927,
+     "brier": 0.15588905810618087,
+     "brierChange95": [
+      -0.0008662371479324259,
+      -0.00027543289669919817
+     ],
+     "baselineEce": 0.01111323591815864,
+     "ece": 0.00998795766261026
+    },
+    "season2025reused": {
+     "matches": 37414,
+     "baselineAccuracy": 0.7466343564889607,
+     "accuracy": 0.7472805600430802,
+     "accuracyGain95": [
+      -0.0008390006667442415,
+      0.0021686525524744413
+     ],
+     "baselineBrier": 0.16893746082335337,
+     "brier": 0.16846236852497212,
+     "brierChange95": [
+      -0.0006765398891883178,
+      -0.0002796582950333252
+     ],
+     "baselineEce": 0.012343051081995543,
+     "ece": 0.012999957643931914
+    }
    }
   }
  },

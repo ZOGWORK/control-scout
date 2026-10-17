@@ -291,3 +291,18 @@ describe("engine 2.1 form state", () => {
     expect(v1.toData().stateVersion).toBe(1); // never claims the newer layout
   });
 });
+
+describe("shadow predictions (engine 2.1.1)", () => {
+  it("evaluates the previous model on the same book, lineup and context, without changing the served odds", () => {
+    const b = played();
+    const served = predictMatch(b, [1, 2], [3, 4], M.noise, M.calibration, { ...opts(), context: { level: "qual", event: "E" } });
+    const both = predictMatch(b, [1, 2], [3, 4], M.noise, M.calibration, { ...opts(), context: { level: "qual", event: "E" }, shadow: C20 });
+    expect(both.pRedWin).toBe(served.pRedWin);
+    expect(both.modelId).toBe(C.id);
+    expect(both.shadowModelId).toBe(C20.id);
+    expect(both.pShadow).toBe(predictMatch(b, [1, 2], [3, 4], M.noise, M.calibration, { contextual: C20, context: { level: "qual", event: "E" } }).pRedWin);
+    const x = explainMatch(b, [1, 2], [3, 4], { noise: M.noise, calibration: M.calibration, contextual: C, context: { level: "qual" }, shadow: C20 });
+    expect(x.shadow).toEqual({ winProbA: predictMatch(b, [1, 2], [3, 4], M.noise, M.calibration, { contextual: C20 }).pRedWin, modelId: C20.id });
+    expect(explainMatch(b, [1, 2], [3, 4], { noise: M.noise, calibration: M.calibration, contextual: C }).shadow).toBeNull();
+  });
+});

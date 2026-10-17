@@ -911,6 +911,17 @@ ALTER TABLE predictions ADD COLUMN data_version TEXT;
 ALTER TABLE predictions ADD COLUMN ratings_through TEXT;
 `,
   },
+  {
+    version: 27,
+    name: "side-by-side shadow predictions",
+    sql: `
+-- The previous model's P(red wins) for the same match, from the same ratings at the same moment
+-- (engine 2.1.1: the served model's fallback, i.e. 2.0 under 2.1), so versions are compared on
+-- identical matches and information. Null for rows logged before this column existed.
+ALTER TABLE predictions ADD COLUMN p_red_shadow REAL;
+ALTER TABLE predictions ADD COLUMN shadow_model_id TEXT;
+`,
+  },
 ];
 
 export type Db = Client;

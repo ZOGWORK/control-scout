@@ -6,7 +6,7 @@
 import { all } from "../db.js";
 import { PREDICT_SEASONS, SEASONS } from "../data/seasons.js";
 import { ENGINE_VERSION, type ConfidenceTier } from "@control-scout/predict-engine";
-import type { AccuracyBlock, TrackRecord } from "../../src/shared/api.js";
+import type { AccuracyBlock, ShadowScore, TrackRecord } from "../../src/shared/api.js";
 import { matchViews } from "./matches.js";
 import { dataVersion } from "../predict/engine.js";
 import { registerCache } from "../caches.js";
@@ -100,14 +100,32 @@ export function resetTrackRecord(): void { cached = null; building = null; }
 registerCache("Track record", resetTrackRecord);
 
 async function computeTrackRecord(): Promise<TrackRecord> {
-  const rows = await all<any>("SELECT kind, season, p_red p, outcome y, tier, level, match_time time, engine_version engine FROM predictions WHERE outcome IS NOT NULL");
+  const rows = await all<any>("SELECT kind, season, p_red p, outcome y, tier, level, match_time time, engine_version engine, model_id model, p_red_shadow ps, shadow_model_id sm FROM predictions WHERE outcome IS NOT NULL");
   const seasons = SEASONS.filter((s) => PREDICT_SEASONS.includes(s.season)).map((s) => {
     const of = (kind: string, engine?: string) => rows.filter((r) => r.kind === kind && Number(r.season) === s.season && (engine == null || r.engine === engine))
       .map((r) => ({ p: Number(r.p), y: Number(r.y), tier: r.tier, level: r.level, time: r.time }));
     // Prospective evidence per engine version: each version's own calls only.
     const engines = [...new Set(rows.filter((r) => r.kind === "live" && Number(r.season) === s.season).map((r) => String(r.engine)))].sort();
     const liveByEngine = engines.map((engine) => { const b = block(of("live", engine))!; return { engine, n: b.n, accuracy: b.accuracy, brier: b.brier, logLoss: b.logLoss }; });
-    return { season: s.season, label: `${s.label} ${s.game}`, live: block(of("live")), backtest: block(of("backtest")), liveByEngine };
+    // Paired: the same live calls scored for the served and the shadow model.
+    const paired = new Map<string, { y: number; p: number; ps: number }[]>();
+    for (const r of rows) {
+      if (r.kind !== "live" || Number(r.season) !== s.season || r.ps == null || !r.model || !r.sm) continue;
+      const k = `${r.model}|${r.sm}`;
+      let xs = paired.get(k);
+      if (!xs) { xs = []; paired.set(k, xs); }
+      xs.push({ y: Number(r.y), p: Number(r.p), ps: Number(r.ps) });
+    }
+    const score = (xs: { y: number; p: number }[]): ShadowScore => {
+      const d = xs.filter((x) => x.y !== 0.5 && x.p !== 0.5);
+      const ll = -xs.reduce((a, x) => { const q = Math.min(1 - EPS, Math.max(EPS, x.p)); return a + x.y * Math.log(q) + (1 - x.y) * Math.log(1 - q); }, 0) / Math.max(1, xs.length);
+      return { accuracy: d.length ? d.filter((x) => (x.p > 0.5) === (x.y === 1)).length / d.length : 0, brier: xs.reduce((a, x) => a + (x.p - x.y) ** 2, 0) / Math.max(1, xs.length), logLoss: ll };
+    };
+    const liveShadow = [...paired].sort(([a], [b]) => a.localeCompare(b)).map(([k, xs]) => {
+      const [servedModel, shadowModel] = k.split("|");
+      return { servedModel, shadowModel, n: xs.length, served: score(xs), shadow: score(xs.map((x) => ({ y: x.y, p: x.ps }))) };
+    });
+    return { season: s.season, label: `${s.label} ${s.game}`, live: block(of("live")), backtest: block(of("backtest")), liveByEngine, liveShadow };
   }).reverse();
   // Headline: live once it has a real sample, otherwise the latest backtest — always labelled.
   let headline: TrackRecord["headline"] = null;
