@@ -19,7 +19,7 @@
 // the file easy to read: ignored, the live name is shown), then optionally the author's own
 // movement in braces ({+3}, {-2}, {=}, {new}), used only for a season's first week (later
 // weeks compute it from the previous file). Pure: no files, no database.
-import { POWER_RANKINGS_SIZE, isWeekId, type Movement } from "../../src/shared/powerRankings.js";
+import { POWER_RANKINGS_SIZE, isWeekId, type BlurbAuthor, type Movement } from "../../src/shared/powerRankings.js";
 
 export interface RankingEntry { rank: number; team: number; blurb: string; movement: Movement | null }
 
@@ -31,6 +31,18 @@ export interface RankingDoc {
   intro: string;
   sample: boolean;
   entries: RankingEntry[];
+  /**
+   * Set for an automatically published week (./generated.ts): its intro and blurbs are plain text,
+   * each with who wrote it; `rev` changes with every edit. Absent for a markdown file.
+   */
+  generated?: {
+    introSource: BlurbAuthor;
+    sources: BlurbAuthor[];
+    rev: string;
+    /** The week its movement (in `entries`) was frozen against, and the teams that dropped out then. */
+    comparedWith: string | null;
+    droppedOut: { team: number; lastRank: number }[];
+  };
 }
 
 export type ParseResult = { ok: true; doc: RankingDoc } | { ok: false; errors: string[] };
