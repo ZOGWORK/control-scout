@@ -183,6 +183,16 @@ describe("the panel's actions (watch, track) beside Know your match", () => {
     expect(within(panel()!).getByRole("button", { name: "Track event" })).toBeTruthy();
   });
 
+  it("keeps watch and track once every match is played (Know your match goes)", () => {
+    const d = withEvent({ livestream: STREAM });
+    header({ ...d, matches: d.matches.map((m) => ({ ...m, played: true })) });
+    expect(screen.getByText(/Every scheduled match has a result/)).toBeTruthy();
+    expect(document.querySelector("[data-live-report]")).toBeNull();
+    expect(within(panel()!).getByRole("link", { name: /Watch livestream/ }).getAttribute("href")).toBe(STREAM);
+    fireEvent.click(within(panel()!).getByRole("button", { name: "Track event" }));
+    expect(within(panel()!).getByRole("button", { name: "Tracking" }).getAttribute("aria-pressed")).toBe("true");
+  });
+
   it("tracks and untracks the event from inside the panel", () => {
     header(detail(MATCHES));
     const btn = within(panel()!).getByRole("button", { name: "Track event" });
