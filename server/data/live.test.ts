@@ -152,6 +152,7 @@ describe("refreshing live events", () => {
     expect(after.rank_np).toBe(before.rank_np); // world ranks: left to the full run
     expect(after.rating_np).not.toBe(before.rating_np); // ratings moved with the new result
     expect(await kvGet<string>("data:version")).not.toBe(version);
+    expect(await kvGet<string>("data:settled")).toBe(new Date(NOW).toISOString()); // the follow-up's writes are done
     expect(Date.parse((await get<any>("SELECT live_checked_at FROM events WHERE season = ? AND code = 'LIVE'", [S])).live_checked_at)).toBe(NOW);
 
     // Q2 (10:30 there) gets its pre-match call now, from ratings that include Q1.

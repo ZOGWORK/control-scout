@@ -440,6 +440,9 @@ export async function runStats(o: StatsOptions = {}): Promise<void> {
   await snapshotRankings({ log }).catch((e) => log(`rankings snapshots failed: ${(e as Error).message}`));
   await rebuildSearch(log);
   await kvSet("stats:last", { at: new Date().toISOString(), seasons, engine: ENGINE_VERSION });
+  // Every table this run writes is written: caches built in between (under the new data version, from
+  // half-written stats) are keyed by this too, so they're built again (server/api/events.ts cachedEventDetail).
+  await kvSet("data:settled", new Date().toISOString());
   if (seasons.length === SEASON_NUMBERS.length) { await kvSet("stats:rules", STATS_RULES); await kvSet("stats:engine", ENGINE_VERSION); }
   const prev = await kvGet<string>("data:version");
   log(`stats done (data version ${prev})`);

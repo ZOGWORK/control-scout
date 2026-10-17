@@ -1,6 +1,6 @@
 // Event list + event detail + the engine's EventInput for forecasting.
 import type { EventInput } from "@control-scout/predict-engine";
-import { all, get } from "../db.js";
+import { all, get, kvGet } from "../db.js";
 import { eventTypeLabel, isLegacy } from "../data/seasons.js";
 import type { EventDetail, EventSummary, FieldRow } from "../../src/shared/api.js";
 import { matchViews } from "./matches.js";
@@ -67,7 +67,9 @@ registerCache("Event details", () => details.clear());
  * not change the object they get back (it's shared).
  */
 export async function cachedEventDetail(season: number, code: string): Promise<EventDetail | null> {
-  const key = `${await dataVersion()}|${await liveVersion(season)}|${today()}|${season}|${code}`;
+  // data:settled moves once a sync's or live result's writes are all done: a detail built in between (new
+  // version, half-written stats) isn't kept past them.
+  const key = `${await dataVersion()}|${(await kvGet<string>("data:settled")) ?? ""}|${await liveVersion(season)}|${today()}|${season}|${code}`;
   const hit = details.get(key);
   if (hit && Date.now() - hit.at < DETAIL_TTL_MS) return hit.value;
   const value = eventDetail(season, code);
