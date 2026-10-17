@@ -12,8 +12,9 @@ import type { NextFunction, Request, Response } from "express";
 import { readFileSync, statSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { env } from "./env.js";
-import { BOOT_STYLE, bootShell } from "./bootShell.js";
+import { BOOT_STYLE, bootConsent, bootShell } from "./bootShell.js";
 import { pageModule } from "../src/shared/routes.js";
+import { APP_CSS_ID } from "../src/shared/boot.js";
 
 /** The canonical origin, e.g. "https://controlscout.org" (no trailing slash). */
 export const canonicalOrigin = () => new URL(env.canonicalUrl).origin;
@@ -132,10 +133,47 @@ export async function renderPage(file: string, path: string, query: Record<strin
   const meta = await pageMeta(path, query);
   const head = [headTags(path, meta), routePreloads(file, path), BOOT_STYLE].filter(Boolean).join("\n    ");
   // Callbacks, so $', $`, $& in a team or event name are inserted literally (a replacement string would expand them).
-  const html = indexHtml(file)
-    .replace("</head>", () => `    ${head}\n  </head>`)
-    .replace(/<div id="root">(?:<!--cs-boot-->)?<\/div>/, () => `<div id="root">${bootShell(path, meta)}</div>`);
+  const html = afterFirstPaint(nonBlockingCss(indexHtml(file).replace("</head>", () => `    ${head}\n  </head>`)))
+    // The privacy banner goes after #root, not in it: React's first render replaces #root, and the app's banner takes over from this one.
+    .replace(/<div id="root">(?:<!--cs-boot-->)?<\/div>/, () => `<div id="root">${bootShell(path, meta)}</div>${bootConsent()}`);
   return { status: meta.notFound ? 404 : 200, html };
+}
+
+/**
+ * The app's code, requested once the static first paint is on screen. A module script in the HTML
+ * that arrives quickly (a fast connection, the HTTP cache) runs before the browser's first paint, so
+ * the shell waited on the whole bundle being parsed; now a tiny loader at the end of <body> adds the
+ * entry script and its modulepreloads in the task after the first frame (one frame later than the
+ * HTML would have asked, on any connection). A tab opened in the background, where frames don't run,
+ * still loads it within a moment (the timer fallback). The page's own preloads (routePreloads) go
+ * through the loader too, in the same order.
+ */
+export function afterFirstPaint(html: string): string {
+  const entry = /\s*<script type="module"(?:\s+crossorigin)?\s+src="([^"]+)"><\/script>/.exec(html);
+  if (!entry) return html;
+  const preloads: string[] = [];
+  const rest = html.replace(entry[0], "").replace(/\s*<link rel="modulepreload"(?:\s+crossorigin)?\s+href="([^"]+)"\s*\/?>/g, (_m, href: string) => { preloads.push(href); return ""; });
+  const list = JSON.stringify(preloads).replace(/</g, "\\u003c");
+  const src = JSON.stringify(entry[1]).replace(/</g, "\\u003c");
+  const loader = `<script>(function(){var d=document,s=0;function go(){if(s)return;s=1;var h=d.head;${list}.forEach(function(u){var l=d.createElement('link');l.rel='modulepreload';l.crossOrigin='anonymous';l.href=u;h.appendChild(l)});`
+    + `var e=d.createElement('script');e.type='module';e.crossOrigin='anonymous';e.src=${src};h.appendChild(e)}`
+    + `if(window.requestAnimationFrame)requestAnimationFrame(function(){setTimeout(go,0)});setTimeout(go,100)})()</script>`;
+  return rest.replace("</body>", () => `${loader}\n  </body>`);
+}
+
+/**
+ * The app's global stylesheet, loaded without blocking the first paint. The static first paint
+ * (bootShell, BOOT_STYLE) carries its own inline styles, so it needn't wait for the app's CSS; the
+ * app itself doesn't render until that CSS has loaded (src/main.tsx), so nothing shows unstyled.
+ * media="print" fetches it without blocking rendering, and its onload switches it on (onerror too, so
+ * the app never waits on a stylesheet that already failed); <noscript>
+ * keeps it a normal stylesheet without JavaScript. Only the entry's own stylesheet (the first one)
+ * is changed.
+ */
+export function nonBlockingCss(html: string): string {
+  return html.replace(/<link rel="stylesheet"((?:\s+crossorigin)?)\s+href="(\/assets\/[^"]+\.css)"\s*\/?>/, (_m, co: string, href: string) =>
+    `<link rel="stylesheet"${co} href="${href}" media="print" onload="this.media='all'" onerror="this.media='all'" id="${APP_CSS_ID}" />`
+    + `<noscript><link rel="stylesheet"${co} href="${href}" /></noscript>`);
 }
 
 /** index.html for this path (renderPage without the status). */

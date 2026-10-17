@@ -16,6 +16,7 @@ import { Badge } from "../components/ui/basic";
 import { Button } from "../components/ui/button";
 import { TierMark, WinBar } from "../components/predict";
 import { cn } from "../components/cn";
+import { HOME_TAGLINE } from "../shared/boot";
 import { dateRange, matchTime, oddsPct, pct, place, seasonLabel, ago } from "../lib/format";
 
 const iso = (d: Date) => d.toISOString().slice(0, 10);
@@ -58,7 +59,7 @@ function Hero() {
       <h1>
         <img src="/wordmark.png" alt="FTC Control Scout" width={1200} height={192} className="mx-auto h-12 w-auto max-w-full sm:h-16" />
       </h1>
-      <p className="mx-auto mt-3 max-w-xl text-muted-foreground">Every FTC team, event and match — with predictions that keep a public score of how often they come true. Free, no login.</p>
+      <p className="mx-auto mt-3 max-w-xl text-muted-foreground">{HOME_TAGLINE}</p>
       <SearchBox
         size="lg" inputRef={searchRef} hint={SEARCH_HINT} tour="search"
         label="Search teams, events and matches"
@@ -74,7 +75,8 @@ function Hero() {
           ? <Button size="lg" variant="secondary" asChild className="max-sm:flex-1"><Link to="/my-team"><Star /> Your team <span className="font-mono">{myTeam}</span></Link></Button>
           : <Button size="lg" variant="secondary" asChild className="max-sm:flex-1"><Link to="/events"><CalendarDays /> Browse events</Link></Button>}
       </div>
-      {meta && <p className="mt-3 text-xs text-muted-foreground">{meta.seasons.length} seasons · data updated {ago(meta.dataAsOf)} · engine v{meta.engineVersion}</p>}
+      {/* Its line is kept while /api/meta loads, so the sections below don't move down when it arrives. */}
+      <p className="mt-3 text-xs text-muted-foreground">{meta ? <>{meta.seasons.length} seasons · data updated {ago(meta.dataAsOf)} · engine v{meta.engineVersion}</> : " "}</p>
     </Reveal>
   );
 }

@@ -38,7 +38,8 @@ export function block(rows: Row[]): AccuracyBlock | null {
   const byTier = Object.fromEntries(tiers.map((t) => { const xs = rows.filter((r) => r.tier === t); return [t, { n: xs.length, accuracy: acc(xs), brier: brier(xs) }]; })) as AccuracyBlock["byTier"];
   const q = rows.filter((r) => r.level === "qual"), pl = rows.filter((r) => r.level === "playoff");
   const weeks = new Map<string, Row[]>();
-  for (const r of rows) if (r.time) { const w = isoWeek(r.time); weeks.set(w, [...(weeks.get(w) ?? []), r]); }
+  // Appended in place: copying the week's list on every row made this quadratic (most of the track record's build time).
+  for (const r of rows) if (r.time) { const w = isoWeek(r.time); const xs = weeks.get(w); if (xs) xs.push(r); else weeks.set(w, [r]); }
   return {
     n: rows.length,
     accuracy: acc(rows),
