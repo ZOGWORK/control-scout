@@ -21,6 +21,7 @@ import { pageTitle } from "../../shared/routes";
 import { SiteFooter } from "./SiteFooter";
 import { WorkspacePickerPopover, WorkspacePickerSheet } from "./WorkspacePicker";
 import { useYoursRow, FOLLOWED_TEAM_PATH } from "../../lib/yoursRow";
+import { useMainScroll } from "../../lib/mainScroll";
 
 interface NavItem { to: string; label: string; icon: ComponentType<{ className?: string }>; end?: boolean }
 
@@ -159,7 +160,7 @@ const tabClass = (on: boolean) => cn("flex min-h-[60px] flex-1 flex-col items-ce
 function MobileTabs({ onMore, onPick }: { onMore: () => void; onPick: () => void }) {
   const { row, active } = useYoursRow();
   return (
-    <nav className="fixed inset-x-0 bottom-0 z-40 flex border-t border-line bg-secondary/95 pb-[env(safe-area-inset-bottom)] backdrop-blur-lg md:hidden" aria-label="Main">
+    <nav className="fixed inset-x-0 bottom-0 z-40 flex border-t border-line bg-secondary pb-[env(safe-area-inset-bottom)] md:hidden" aria-label="Main">
       {MOBILE_TABS.map((t) => t.to !== FOLLOWED_TEAM_PATH ? (
         <NavLink key={t.to} to={t.to} end={t.end} className={({ isActive }) => tabClass(isActive)}>
           <t.icon className="size-5" />{t.label}
@@ -198,6 +199,8 @@ export function Shell({ children }: { children: ReactNode }) {
   const [picker, setPicker] = useState(false);
   const { row: yours } = useYoursRow();
   const mainRef = useRef<HTMLElement>(null);
+  // Back/forward return to where the page was left; a new page starts at the top (the browser does neither for an element scroller).
+  useMainScroll(mainRef);
   const loc = useLocation();
   const { user } = usePersonal();
   const sections = useSections();

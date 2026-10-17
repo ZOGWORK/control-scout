@@ -2,7 +2,7 @@
 // without its confidence tier, and never presented as a fact.
 import { Suspense, lazy, useEffect, useRef, useState } from "react";
 import { AnimatePresence, motion, useReducedMotion } from "motion/react";
-import { Link } from "react-router-dom";
+import { Link, useLocation } from "react-router-dom";
 import { Check, ChevronDown, CircleDashed, ClipboardList, Gauge, History, PlayCircle, Radio, ShieldCheck, Video, X } from "lucide-react";
 import type { ConfidenceTier, Factor, MatchPredictionView, MatchView } from "../shared/api";
 import { matchReportHref } from "../shared/matchReport";
@@ -10,6 +10,7 @@ import { cn } from "./cn";
 import { Tooltip, TooltipContent, TooltipTrigger } from "./ui/overlay";
 import { matchTime, oddsPct } from "../lib/format";
 import { useVideoLinkCount } from "./MatchVideo";
+import { restoredSavedPosition } from "../lib/mainScroll";
 
 const MatchDetails = lazy(() => import("./MatchDetails").then((x) => ({ default: x.MatchDetails })));
 import { useCalibration } from "../lib/calibration";
@@ -290,15 +291,23 @@ export function MatchList({ matches, highlight, empty, eventNames, eventDates, i
   const id = (m: MatchView) => `${m.code}:${m.key}`;
   const [open, setOpen] = useState<Set<string>>(() => new Set());
   const box = useRef<HTMLDivElement>(null);
+  // The match a link asked for is brought into view once per visit (history entry): a live update that
+  // adds matches to the list must not pull the page back to it after the reader has scrolled on, and
+  // nor may Back/Forward, which return to where the reader actually was (src/lib/mainScroll.ts).
+  const loc = useLocation();
+  const shownFor = useRef<string | null>(null);
   useEffect(() => {
-    if (!initialOpen) return;
+    const visit = `${loc.key}:${initialOpen}`;
+    if (!initialOpen || shownFor.current === visit) return;
     const m = matches.find((x) => x.key === initialOpen);
     if (!m) return;
+    shownFor.current = visit;
     setOpen((s) => (s.has(id(m)) ? s : new Set(s).add(id(m))));
+    if (restoredSavedPosition(loc)) return;
     requestAnimationFrame(() => box.current?.querySelector(`[data-match="${CSS.escape(m.key)}"]`)?.scrollIntoView({ block: "start", behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth" }));
-    // Only when the requested match changes (not on every refresh of the list).
+    // Only when the requested match or the visit changes (not on every refresh of the list).
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [initialOpen, matches.length]);
+  }, [initialOpen, loc.key, matches.length]);
   if (!matches.length) return <p className="rounded-xl border border-dashed border-border px-4 py-8 text-center text-sm text-text-muted">{empty ?? "No matches yet."}</p>;
   const toggle = (k: string) => setOpen((s) => { const n = new Set(s); if (n.has(k)) n.delete(k); else n.add(k); return n; });
   // An event's own schedule: Qualifications / Playoffs headings. A list across events (the caller passes
