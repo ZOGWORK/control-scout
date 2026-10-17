@@ -69,8 +69,8 @@ log("ready");
 forecasterFor(CURRENT_SEASON).then(() => log("ratings ready")).catch((e) => log(`ratings not ready: ${(e as Error).message}`));
 // And the track record (every scored prediction: about a second and a half cold).
 warmTrackRecord().then(() => log("track record ready")).catch((e) => log(`track record not ready: ${(e as Error).message}`))
-  // Then the match report's flag cutoffs for the current season (two season scans), so the first report doesn't wait for them.
-  .then(() => seasonCutoffs(CURRENT_SEASON)).catch(() => { /* built on the first report instead */ });
+  // Then the match report's flag cutoffs (two scans of a season) for this season and last, so a first report doesn't wait for them.
+  .then(() => seasonCutoffs(CURRENT_SEASON)).then(() => seasonCutoffs(CURRENT_SEASON - 1)).catch(() => { /* built on the first report instead */ });
 // After a sync (often in a child process) the data version moves: rebuild the
 // ratings in use and the track record right away, in the background, so no
 // visitor's request is the one that waits for them (pages keep the previous
