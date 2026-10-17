@@ -251,6 +251,22 @@ describe("recovery: back to the server", () => {
     view.unmount();
   });
 
+  it("returning to a view whose refresh failed for want of a network restarts the retries", async () => {
+    vi.useFakeTimers();
+    const path = "/api/events/2025/BACK";
+    vi.stubGlobal("fetch", vi.fn(async () => ok({ v: 1 })));
+    const first = renderHook(() => useApi(path));
+    await act(() => vi.advanceTimersByTimeAsync(0));
+    networkDown();
+    await act(async () => { await load(path, true).catch(() => {}); }); // a refresh fails: server data kept, offline error noted
+    first.unmount(); // leaving stops the retries
+    const back = renderHook(() => useApi(path)); // back within the minute: the cached answer counts as fresh
+    vi.stubGlobal("fetch", vi.fn(async () => ok({ v: 2 })));
+    await act(() => vi.advanceTimersByTimeAsync(15_000));
+    expect(back.result.current.data).toEqual({ v: 2 });
+    back.unmount();
+  });
+
   it("coming back online refetches what's on screen from saved data", async () => {
     writeSaved([saved]);
     const onLine = vi.spyOn(navigator, "onLine", "get").mockReturnValue(false);

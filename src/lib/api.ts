@@ -256,6 +256,9 @@ export function useApi<T>(path: string | null): ApiState<T> {
     if (!set) { set = new Set(); listeners.set(path, set); }
     set.add(fn);
     load<T>(path).catch(() => {});
+    // Back on a view still showing saved data or a no-signal error (even one cached as fresh): keep retrying it.
+    const cur = cache.get(path);
+    if (cur && (offlineSource(cur.data) || cur.error?.offline)) ensureProbe();
     return () => { set!.delete(fn); if (probe && !offlineOnScreen().length) stopProbe(); };
   }, [path]);
   const reload = useCallback(() => { if (pathRef.current) load(pathRef.current, true).catch(() => {}); }, []);
