@@ -3,7 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { act, cleanup, render } from "@testing-library/react";
 import { MemoryRouter, useLocation as useLocationProbe, useNavigate, type NavigateFunction } from "react-router-dom";
 import { StrictMode, useRef } from "react";
-import { chase, entryKey, planScroll, restoredSavedPosition, RESTORE_WINDOW_MS, SCROLL_IDLE_MS, ScrollPositions, useMainScroll } from "./mainScroll";
+import { chase, entryKey, planScroll, restoredSavedPosition, RESTORE_WINDOW_MS, SCROLL_IDLE_ATTR, SCROLL_IDLE_MS, ScrollPositions, useMainScroll } from "./mainScroll";
 
 describe("planScroll", () => {
   const base = { prevPath: "/events", path: "/teams/4215", hash: "", saved: undefined };
@@ -205,18 +205,25 @@ describe("useMainScroll", () => {
     expect(main.scrollTop).toBe(400);
   });
 
-  it("marks the area as scrolling until the scroll goes quiet", () => {
+  it("marks the area as scrolling, and the page as idle (hover on), until the scroll goes quiet", () => {
     height.current = 5000;
-    render(<MemoryRouter initialEntries={["/"]}><Harness /></MemoryRouter>);
+    const { unmount } = render(<MemoryRouter initialEntries={["/"]}><Harness /></MemoryRouter>);
     const area = main.parentElement!;
+    const html = document.documentElement;
+    expect(html.hasAttribute(SCROLL_IDLE_ATTR)).toBe(true);
     scrollTo(10);
     expect(area.hasAttribute("data-scrolling")).toBe(true);
+    expect(html.hasAttribute(SCROLL_IDLE_ATTR)).toBe(false);
     act(() => { vi.advanceTimersByTime(SCROLL_IDLE_MS - 10); });
     scrollTo(20);
     act(() => { vi.advanceTimersByTime(SCROLL_IDLE_MS - 10); });
     expect(area.hasAttribute("data-scrolling")).toBe(true);
+    expect(html.hasAttribute(SCROLL_IDLE_ATTR)).toBe(false);
     act(() => { vi.advanceTimersByTime(20); });
     expect(area.hasAttribute("data-scrolling")).toBe(false);
+    expect(html.hasAttribute(SCROLL_IDLE_ATTR)).toBe(true);
+    unmount();
+    expect(html.hasAttribute(SCROLL_IDLE_ATTR)).toBe(false);
   });
 
   it("restores the first page's position after a reload", () => {
