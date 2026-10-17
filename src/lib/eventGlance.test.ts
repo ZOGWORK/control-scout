@@ -83,6 +83,13 @@ describe("glanceStats: finished event", () => {
     red.teams.push({ number: 4, surrogate: false, dq: false, onField: false });
     expect(glanceStats(d).high?.teams).toEqual([1, 3]);
   });
+  it("an even (50%) call has no favourite: never an upset, and not counted in the upsets' total", () => {
+    const d = live();
+    d.matches[1].prediction!.pRed = 0.5; // Q2: red lost; at 80% it was the upset
+    expect(glanceStats(d).upsets).toEqual({ kind: "live", n: 0, of: 1, biggest: null });
+    d.matches[0].prediction!.pRed = 0.5;
+    expect(glanceStats(d).upsets).toBeNull();
+  });
   it("winners without alliance data are listed as awarded", () => {
     const d = finished();
     d.alliances = [];
