@@ -2,12 +2,12 @@
 // The privacy banner in the first HTML (server/bootShell.ts bootConsent): shown with the first paint when no
 // choice is stored, removed before the first paint when one is (or the browser sends GPC / DNT), working
 // before the app loads, and taken over in place by the app's ConsentBanner.
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { act, cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { bootConsent } from "../../../server/bootShell";
 import { BOOT_CONSENT_ID } from "../../shared/boot";
-import { CONSENT_KEY, readConsent } from "../../lib/consent";
+import { CONSENT_KEY, hasAnalyticsConsent, readConsent, resetConsent } from "../../lib/consent";
 import { ConsentBanner } from "./ConsentBanner";
 
 const setSignal = (gpc: boolean | undefined, dnt: string | null) => {
@@ -70,6 +70,18 @@ describe("privacy banner in the first HTML", () => {
     expect(readConsent()?.analytics).toBe(true);
     expect(document.getElementById(BOOT_CONSENT_ID)).toBeNull();
     expect(told).toBe(1);
+  });
+
+  it("storage blocked: a choice made before the app loads still holds for this page view, as in the app", async () => {
+    const b = boot()!;
+    const spy = vi.spyOn(Storage.prototype, "setItem").mockImplementation(() => { throw new DOMException("blocked", "SecurityError"); });
+    try { fireEvent.click(b.querySelectorAll("button")[1]); } finally { spy.mockRestore(); }
+    expect(localStorage.getItem(CONSENT_KEY)).toBeNull();
+    expect(hasAnalyticsConsent()).toBe(true);
+    render(<MemoryRouter><ConsentBanner /></MemoryRouter>);
+    await new Promise((r) => setTimeout(r, 900));
+    expect(screen.queryByRole("region", { name: "Privacy choices" })).toBeNull();
+    resetConsent();
   });
 
   it("Esc means No thanks", () => {
