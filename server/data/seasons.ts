@@ -51,6 +51,8 @@ export interface ScoreSplit {
   pen: number;
   /** Bonus ranking points, mapped onto the engine's three bonus slots (2025+). */
   bonus?: { movement: boolean; goal: boolean; pattern: boolean };
+  /** BIOBUZZ (2026): HIVE TIPs, auto + TeleOp (a qualification sort criterion). */
+  tips?: number;
 }
 
 const n = (x: unknown) => (typeof x === "number" && Number.isFinite(x) ? x : 0);
@@ -64,6 +66,7 @@ export function splitFirstScore(season: number, a: Record<string, unknown>, opp?
   const auto = n(a.autoPoints);
   let teleop: number, endgame: number, pen: number;
   let bonus: ScoreSplit["bonus"];
+  let tips: number | undefined;
   if (season === 2023) {
     // CENTERSTAGE: dcPoints already excludes the endgame.
     teleop = n(a.dcPoints);
@@ -87,6 +90,7 @@ export function splitFirstScore(season: number, a: Record<string, unknown>, opp?
     teleop = n(a.teleopPoints) - endgame;
     pen = n(a.foulPointsCommitted);
     bonus = { movement: !!a.swarmRP, goal: !!a.pollinator1RP, pattern: !!a.pollinator2RP };
+    if ("autoHiveTips" in a || "teleopHiveTips" in a) tips = n(a.autoHiveTips) + n(a.teleopHiveTips);
   } else {
     // Unknown game: no endgame split until a descriptor is added.
     teleop = n(a.teleopPoints ?? a.dcPoints);
@@ -95,7 +99,7 @@ export function splitFirstScore(season: number, a: Record<string, unknown>, opp?
   }
   teleop = Math.max(0, teleop);
   const np = auto + teleop + endgame;
-  return { total: n(a.totalPoints), np, auto, teleop, endgame, pen, ...(bonus ? { bonus } : {}) };
+  return { total: n(a.totalPoints), np, auto, teleop, endgame, pen, ...(bonus ? { bonus } : {}), ...(tips != null ? { tips } : {}) };
 }
 
 /**

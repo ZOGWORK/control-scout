@@ -30,7 +30,8 @@ export const fetchScoutEventList = (season: number) => scoutQuery(SCOUT_EVENT_LI
 export function split(season: number, raw: any): ScoreSplit | null {
   if (!raw || typeof raw.totalPointsNp !== "number") return null;
   const auto = raw.autoPoints ?? 0;
-  const endgame = season >= 2025 ? raw.dcBasePoints ?? 0 : season === 2024 ? raw.dcParkPoints ?? 0 : raw.egPoints ?? 0;
+  // BIOBUZZ (2026): park is the endgame; DECODE (2025): base.
+  const endgame = season >= 2026 ? raw.dcParkPoints ?? 0 : season === 2025 ? raw.dcBasePoints ?? 0 : season === 2024 ? raw.dcParkPoints ?? 0 : raw.egPoints ?? 0;
   const teleop = Math.max(0, season >= 2024 ? (raw.dcPoints ?? 0) - endgame : raw.dcPoints ?? 0);
   if (ownScorePenalties(season)) {
     // 2020/2021: fouls come off the offender's own score; FTC Scout stores them negative
@@ -39,7 +40,9 @@ export function split(season: number, raw: any): ScoreSplit | null {
     return { total: Math.max(0, raw.totalPointsNp - pen), np: raw.totalPointsNp, auto, teleop, endgame, pen };
   }
   const out: ScoreSplit = { total: raw.totalPoints ?? raw.totalPointsNp, np: raw.totalPointsNp, auto, teleop, endgame, pen: raw.penaltyPointsCommitted ?? 0 };
-  if (season >= 2025 && "movementRp" in raw) out.bonus = { movement: !!raw.movementRp, goal: !!raw.goalRp, pattern: !!raw.patternRp };
+  if (season >= 2026 && "swarmRp" in raw) out.bonus = { movement: !!raw.swarmRp, goal: !!raw.pollinator1Rp, pattern: !!raw.pollinator2Rp };
+  else if (season === 2025 && "movementRp" in raw) out.bonus = { movement: !!raw.movementRp, goal: !!raw.goalRp, pattern: !!raw.patternRp };
+  if (season >= 2026 && typeof raw.tips === "number") out.tips = raw.tips;
   return out;
 }
 
