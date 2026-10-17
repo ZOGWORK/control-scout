@@ -41,6 +41,12 @@ export interface MatchPrediction {
   model?: ProbabilityModel;
   /** The contextual parameter set's id, when model is "contextual". */
   modelId?: string;
+  /** Shadow prediction (opts.shadow): another model's P(red wins) from the same book
+   *  at the same moment, logged next to the served one so versions can be compared on
+   *  identical matches and information. Never shown to users. */
+  pShadow?: number;
+  /** The shadow model's parameter set id ("legacy" if it couldn't run on this book). */
+  shadowModelId?: string;
 }
 
 export interface PredictOptions {
@@ -50,6 +56,8 @@ export interface PredictOptions {
    *  book has this season's reliability state; otherwise the legacy
    *  calibrated probability is returned. Scores and ranges are unaffected. */
   contextual?: ContextualModel;
+  /** A second contextual model to evaluate on the same inputs (see MatchPrediction.pShadow). */
+  shadow?: ContextualModel;
 }
 
 /** Standard normal CDF (Abramowitz–Stegun erf, |error| < 1.5e-7). */
@@ -74,5 +82,10 @@ export function predictMatch(book: RatingBook, red: number[], blue: number[], no
   // it), never the Platt-calibrated one: it carries its own calibration.
   const pc = contextualWinProbWith(opts.contextual, book, red, blue, { ...out, pRedWin: raw }, opts.context);
   if (pc != null) { out.pRedWin = pc.p; out.model = "contextual"; out.modelId = pc.model.id; }
+  if (opts.shadow) {
+    const ps = contextualWinProbWith(opts.shadow, book, red, blue, { ...out, pRedWin: raw }, opts.context);
+    out.pShadow = ps ? ps.p : (cal ? calibrateProb(raw, cal) : raw);
+    out.shadowModelId = ps ? ps.model.id : "legacy";
+  }
   return out;
 }

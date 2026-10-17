@@ -70,6 +70,8 @@ export interface MatchExplanation {
   probabilityModel: ProbabilityModel;
   /** The contextual parameter set's id (null for the legacy model). */
   probabilityModelId: string | null;
+  /** opts.shadow: the shadow model's P(A wins) on the same inputs, and its id (else null). */
+  shadow: { winProbA: number; modelId: string } | null;
   teamsA: TeamStrength[];
   teamsB: TeamStrength[];
 }
@@ -80,6 +82,8 @@ export interface ExplainOptions {
   /** Contextual win-probability model (FITTED_MODEL.contextual) and the match's context. */
   contextual?: ContextualModel;
   context?: MatchContext;
+  /** A second model evaluated on the same inputs, for side-by-side logging. */
+  shadow?: ContextualModel;
   /** Names used in factor sentences (default "Red" / "Blue"). */
   nameA?: string;
   nameB?: string;
@@ -116,7 +120,7 @@ function carrier(side: TeamStrength[], c: Exclude<Component, "pen">, base: numbe
  */
 export function explainMatch(book: RatingBook, teamsA: number[], teamsB: number[], opts: ExplainOptions = {}): MatchExplanation {
   const nameA = opts.nameA ?? "Red", nameB = opts.nameB ?? "Blue";
-  const p = predictMatch(book, teamsA, teamsB, opts.noise, opts.calibration, { contextual: opts.contextual, context: opts.context });
+  const p = predictMatch(book, teamsA, teamsB, opts.noise, opts.calibration, { contextual: opts.contextual, context: opts.context, shadow: opts.shadow });
   const A = teamsA.map((t) => strength(book, t));
   const B = teamsB.map((t) => strength(book, t));
   const sum = (xs: TeamStrength[], k: keyof TeamStrength) => xs.reduce((s, x) => s + (x[k] as number), 0);
@@ -180,6 +184,7 @@ export function explainMatch(book: RatingBook, teamsA: number[], teamsB: number[
     confidence: { tier, reason, minMatches, ratingShare: Math.round(ratingShare * 1000) / 1000 },
     probabilityModel: p.model ?? "legacy",
     probabilityModelId: p.modelId ?? null,
+    shadow: p.pShadow != null ? { winProbA: p.pShadow, modelId: p.shadowModelId! } : null,
     teamsA: A,
     teamsB: B,
   };
