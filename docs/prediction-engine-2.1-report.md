@@ -1,6 +1,37 @@
 # Prediction Engine 2.1: round-2 experiments, correctness fixes and release report
 
-**What this round established.** Only one candidate demonstrably beats Engine 2.0: the in-event form, momentum and collapse-recency inputs. They ship as Engine 2.1 (`@control-scout/predict-engine` 2.1.0). The gain is small. On the decision block it is **+0.22 percentage points** (95% interval +0.01 to +0.42) with Brier 0.15358 → 0.15313. On the secondary 2025–26 replay it is **+0.19 points** (+0.05 to +0.33) with Brier 0.16842 → 0.16804. Calibration error got worse again: 1.26% → 1.67% on 2025–26.
+## Correction (17 Oct 2026): what the evidence supports
+
+An independent review found two flaws in how this round's validation was described. Both are correct.
+
+1. **The decision-block comparison was not forward-only.** Each candidate's final two-number calibration was fitted on March–May 2025 outcomes, then applied to the January–February 2025 block it was judged on. That makes the select-block figures (+0.22 points, Brier 0.15358 → 0.15313) a development comparison that used later information. This concerns the measurement, not the deployed engine, which never sees future results when it predicts.
+2. **2025–26 influenced selection.** The protocol let a candidate be vetoed on 2025–26 results, and one was (the complementary-model probability blend). 2025–26 is therefore reused data that took part in choices, not a passive check. The earlier summary sentence "a candidate's choice never depended on later games" was wrong.
+
+**Clean re-evaluation** (`validation/round2/clean_eval.py`, results in `round2/results/clean-eval.json`). Both feature sets (2.0's 17 inputs, 2.1's 22) were refitted from scratch at every monthly origin from January 2025. Coefficients come from data before origin − 56 days and the final calibration from the 56 days before the origin. Each model is scored on the following month. No fitted quantity sees an outcome at or after the scored month.
+
+**Exception:** when those 56 days hold fewer than 200 decided matches, the calibration window is widened backwards a week at a time, and the coefficient cutoff moves back with it. That happened at two origins, both across the gap between seasons:
+- October 2025: calibration window 2025-07-04 to 2025-10-01;
+- November 2025: calibration window 2025-07-26 to 2025-11-01.
+
+Each origin's actual windows and cutoff are recorded in `results/clean-eval.json`. The deployed 2.1 probabilities are recomputed from the shipped `model.json`, so the script needs only the replay rows.
+
+| Segment | Matches | Accuracy 2.0 → 2.1 (change [95%]) | Brier 2.0 → 2.1 (change [95%]) | ECE 2.0 → 2.1 |
+|---|---|---|---|---|
+| 2024–25 season, Jan–Jul 2025 | 20,011 | 76.70% → 76.87% (+0.17 [−0.02, +0.37]) | 0.15646 → 0.15589 (**−0.00057 [−0.00087, −0.00028]**) | 1.11% → 1.00% |
+| 2025–26 season (**reused**) | 37,414 | 74.66% → 74.73% (+0.06 [−0.08, +0.22]) | 0.16894 → 0.16846 (**−0.00048 [−0.00068, −0.00028]**) | 1.23% → 1.30% |
+
+The deployed artifacts, scored only on the 988 matches after everything they saw (season 2024 from June 2025, never used for any decision): 75.33% → 76.14% (+0.81 [+0.10, +1.61]); Brier −0.00075 [−0.00206, +0.00035]; ECE 4.11% → 3.59%. This block is too small to settle the question.
+
+**What this supports:**
+- 2.1's **probabilities are better** than 2.0's under a clean forward test: Brier improves in both seasons and log loss improves.
+- **A winner-accuracy gain is not established**: both intervals include zero.
+- **The calibration penalty reported below was largely an artifact** of where calibration was fitted. With calibration fitted just before each block, ECE is about the same as 2.0's.
+
+2.1 stays deployed: its probabilities are better and no clean measure is worse. Its accuracy claim is withdrawn. Engine 2.1.1 logs 2.0's prediction next to 2.1's on every live match, from the same ratings at the same moment, in both apps. Future results will then compare the two models on identical matches and information.
+
+The original text below is kept for the record. Where it conflicts with this correction, this correction applies.
+
+**What this round established (original wording; corrected above).** Only one candidate demonstrably beats Engine 2.0: the in-event form, momentum and collapse-recency inputs. They ship as Engine 2.1 (`@control-scout/predict-engine` 2.1.0). The gain is small. On the decision block it is **+0.22 percentage points** (95% interval +0.01 to +0.42) with Brier 0.15358 → 0.15313. On the secondary 2025–26 replay it is **+0.19 points** (+0.05 to +0.33) with Brier 0.16842 → 0.16804. Calibration error got worse again: 1.26% → 1.67% on 2025–26.
 
 Nothing tried in the score or event-simulation track met the decision rule. That includes the experiments aimed at advancement predictions. Advancement and rank forecasts are therefore unchanged by 2.1 (identical to four decimals).
 
@@ -105,7 +136,7 @@ All rows are compared with the 2.0 refit through the identical learner and block
 | B combined | −0.00006 [−0.00011, −0.00001] | +0.07 | −0.00003 [−0.00007, +0.00001] | 0.00 | pass, not shipped (gain under 0.0001; not replicated) |
 | A + B combined | −0.00051 [−0.00084, −0.00018] | +0.16 | −0.00041 [−0.00059, −0.00023] | +0.20 | pass, not shipped (B adds about 0.00005 for more state) |
 
-**Multiplicity caveat:** twelve groups were screened. The individual A passes are near the boundary, but the combination replicates clearly on 2025–26. That season was not used for any choice; it was examined before, so it isn't independent proof.
+**Multiplicity caveat:** twelve groups were screened. The individual A passes are near the boundary. **Correction:** 2025–26 *was* used for choices (vetoes), and the select-block numbers used a calibration fitted on later data. See the correction at the top for the clean forward evaluation.
 
 ### Score and event simulation
 
@@ -169,7 +200,7 @@ Offline packs need one extra step. Engine 2.0 accepts reliability state only at 
 
 ## 9. Remaining issues and the most useful next experiments
 
-1. **Prospective evidence.** 2.0 and 2.1 live calls are now separated by engine and model id in both ledgers. They are the only independent test left; 2025–26 is used up.
+1. **Prospective evidence.** Since engine 2.1.1, every live call stores both 2.1's and 2.0's probability, from the same ratings at the same moment (Control Scout `predictions.p_red_shadow`; Control Point `pShadow` in live snapshots). `/api/predict/accuracy` reports them paired (`liveShadow`), and Control Point scores them paired too (`shadow`). That is the only clean, independent test left; 2025–26 is used up.
 2. **Calibration** has worsened twice (1.02% → 1.26% → 1.67%), with Brier and log loss still better. Refit the final two-number calibration on early 2026–27 live calls, then judge it on a later block.
 3. **Advancement.** The simulator-alignment lead (later-stage Brier gains on 2025–26) needs a version that keeps rank and pre-event dispersion. One option: align only playoff matches.
 4. **BIOBUZZ bonus RPs.** An online joint model learned from the season's own results is ready as a candidate. It needs 2026–27 results to judge, plus event-specific thresholds (Championship TBA) and an action-level model (TIPS counts, swarm points) once data exists.

@@ -7,6 +7,7 @@ import { all, migrate, openDb, run, setDb } from "../db";
 import { CURRENT_SEASON, SEASON_NUMBERS } from "../data/seasons";
 import { localToUtcMs } from "../data/time";
 import { resetForecasters } from "../predict/engine";
+import { FITTED_MODEL } from "@control-scout/predict-engine";
 import { backtest, liveLoggable, runStats, logLivePredictions, scoreLivePredictions, unloggedLiveMatches } from "./job";
 
 const S = CURRENT_SEASON;
@@ -91,6 +92,16 @@ async function logAndCheck(): Promise<any> {
 describe("live prediction ledger", () => {
   it("logs exactly one call for the match that is safely in the future, before it starts", async () => {
     await logAndCheck();
+  });
+
+  it("logs the served and the shadow (previous) model side by side, with what the call was made from", async () => {
+    await logLivePredictions();
+    const [row] = (await ledger()).filter((r) => r.kind === "live");
+    expect(row.model_id).toBe(FITTED_MODEL.contextual!.id);
+    expect(row.shadow_model_id).toBe(FITTED_MODEL.contextual!.fallback!.id);
+    expect(row.p_red_shadow).toBeGreaterThan(0);
+    expect(row.p_red_shadow).toBeLessThan(1);
+    expect(row.p_red_shadow).not.toBe(row.p_red);
   });
 
   it("skips matches that started, are under a minute away, or have no provable start", async () => {

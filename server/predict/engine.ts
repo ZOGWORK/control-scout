@@ -212,7 +212,7 @@ export class ScoutForecaster extends Forecaster {
   explain(season: number, red: number[], blue: number[], level: "qual" | "playoff" = "qual", event?: string) {
     const b = this.book(season);
     if (!b) return null;
-    return explainMatch(b, red, blue, { noise: FITTED_MODEL.noise, calibration: FITTED_MODEL.calibration, contextual: FITTED_MODEL.contextual, context: { level, event } });
+    return explainMatch(b, red, blue, { noise: FITTED_MODEL.noise, calibration: FITTED_MODEL.calibration, contextual: FITTED_MODEL.contextual, context: { level, event }, shadow: FITTED_MODEL.contextual?.fallback });
   }
 
   /** Start time (ISO) of the latest stored result of a season the ratings have learned, or null. */
