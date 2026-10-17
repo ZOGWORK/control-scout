@@ -21,7 +21,7 @@ import { isEnabled } from "../flags.js";
 import { defaultRankingsSeason, rankings } from "../api/rankings.js";
 import { brunoAvailable, brunoPowerRankings } from "../auth/controlPoint.js";
 import { POWER_RANKINGS_SIZE, weekIdOf } from "../../src/shared/powerRankings.js";
-import { compose, type BrunoOutput, type FactPacket, type PacketTeam } from "./factCheck.js";
+import { compose, type BrunoOutput, type FactPacket, type PacketTeam, type StoredPacket } from "./factCheck.js";
 import { getGenerated, invalidateGenerated, type GeneratedWeek } from "./generated.js";
 import { dueSlot, localDate } from "./schedule.js";
 import { fileWeeks, publishedWeeks } from "./store.js";
@@ -35,8 +35,7 @@ const quiet: Log = () => {};
 const round1 = (x: number) => Math.round(x * 10) / 10;
 const clip = (s: string, n: number) => (s.length <= n ? s : `${s.slice(0, n - 1).trimEnd()}…`);
 
-/** The frozen packet as stored: the facts plus the week its movement was counted against. */
-export type StoredPacket = FactPacket & { comparedWith: string | null };
+export type { StoredPacket };
 
 function awardLabel(a: { type: string; name: string | null }): string {
   if (a.type === "Winner") return "Winning alliance";
@@ -101,8 +100,10 @@ export async function buildPacket(season: number, week: string, at = Date.now())
     lastEvents(season, teams),
   ]);
   const byTeam = new Map(stats.map((s) => [Number(s.team), s]));
+  const inList = new Set(teams);
   return {
     season, week, comparedWith: prev?.week ?? null,
+    droppedOut: prev ? prev.entries.filter((e) => !inList.has(e.team)).map((e) => ({ team: e.team, lastRank: e.rank })) : [],
     teams: live.map((r, i) => {
       const team = Number(r.team);
       const s = byTeam.get(team);
@@ -175,7 +176,7 @@ export async function publishWeek(o: { week: string; published: string; at?: num
     const bruno = await askBruno(packet, log);
     const c = compose(packet, bruno, o.published, !!packet.comparedWith);
     await run(
-      `UPDATE power_rankings_generated SET status = 'published', intro = ?, intro_source = ?, entries = ?, packet = ?, generated_at = ?, edited_by = NULL, edited_at = NULL
+      `UPDATE power_rankings_generated SET status = 'published', intro = ?, intro_source = ?, entries = ?, packet = ?, generated_at = ?, edited_by = NULL, edited_at = NULL, rev = rev + 1
        WHERE season = ? AND week = ? AND status = 'pending'`,
       [c.intro, c.introSource, JSON.stringify(c.entries), JSON.stringify(packet), new Date().toISOString(), season, o.week]);
     invalidateGenerated();
@@ -215,17 +216,19 @@ export async function publishNow(now = Date.now(), log: Log = quiet): Promise<Pu
 /**
  * The owner's "Regenerate": Bruno writes the week again from its frozen packet (the same facts),
  * fact-checked as before. Owner edits are replaced. Null when the week doesn't exist or is mid-run;
- * "unavailable" when Bruno couldn't answer (the week is left as it was).
+ * "unavailable" when Bruno couldn't answer (the week is left as it was); "conflict" when the week was
+ * edited while Bruno was writing (that edit is kept).
  */
-export async function regenerateWeek(season: number, week: string, log: Log = quiet): Promise<GeneratedWeek | "unavailable" | null> {
+export async function regenerateWeek(season: number, week: string, log: Log = quiet): Promise<GeneratedWeek | "unavailable" | "conflict" | null> {
   const g = await getGenerated(season, week);
   if (!g || g.status === "pending") return null;
   const packet = g.packet as StoredPacket;
   const bruno = await askBruno(packet, log);
   if (!bruno) return "unavailable";
   const c = compose(packet, bruno, g.published, !!packet.comparedWith);
-  await run("UPDATE power_rankings_generated SET intro = ?, intro_source = ?, entries = ?, generated_at = ?, edited_by = NULL, edited_at = NULL WHERE season = ? AND week = ?",
-    [c.intro, c.introSource, JSON.stringify(c.entries), new Date().toISOString(), season, week]);
+  const n = await run(`UPDATE power_rankings_generated SET intro = ?, intro_source = ?, entries = ?, generated_at = ?, edited_by = NULL, edited_at = NULL, rev = rev + 1
+     WHERE season = ? AND week = ? AND rev = ?`,
+    [c.intro, c.introSource, JSON.stringify(c.entries), new Date().toISOString(), season, week, g.rev]);
   invalidateGenerated();
-  return getGenerated(season, week);
+  return n ? getGenerated(season, week) : "conflict";
 }

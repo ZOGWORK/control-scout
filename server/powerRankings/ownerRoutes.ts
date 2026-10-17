@@ -10,7 +10,7 @@ import { brunoAvailable } from "../auth/controlPoint.js";
 import { isWeekId } from "../../src/shared/powerRankings.js";
 import type { OwnerPowerRankings, OwnerPowerRankingsWeek } from "../../src/shared/owner.js";
 import { publishNow, regenerateWeek } from "./auto.js";
-import { editGenerated, getGenerated, listGenerated, setGeneratedStatus, type GeneratedWeek } from "./generated.js";
+import { editGenerated, getGenerated, listGenerated, revOf, setGeneratedStatus, type GeneratedWeek } from "./generated.js";
 import { nextSlot } from "./schedule.js";
 import { fileWeeks } from "./store.js";
 import { BLURB_MAX, INTRO_MAX } from "./format.js";
@@ -19,7 +19,7 @@ type Handler = (req: Request, res: Response) => Promise<unknown>;
 
 async function view(g: GeneratedWeek, names: Map<number, string | null>, files: Set<string>): Promise<OwnerPowerRankingsWeek> {
   return {
-    season: g.season, week: g.week, published: g.published, status: g.status, generatedAt: g.generatedAt, editedAt: g.editedAt,
+    season: g.season, week: g.week, published: g.published, status: g.status, generatedAt: g.generatedAt, editedAt: g.editedAt, rev: revOf(g),
     overridden: files.has(g.week), intro: g.intro, introSource: g.introSource, comparedWith: (g.packet as { comparedWith?: string | null }).comparedWith ?? null,
     entries: g.entries.map((e) => ({ rank: e.rank, team: e.team, name: names.get(e.team) ?? null, text: e.text, source: e.source, rejected: e.rejected ?? null })),
   };
@@ -81,6 +81,11 @@ export function powerRankingsOwnerRoutes(r: Router, h: (fn: Handler) => (req: Re
     if (!confirmed(req, res)) return;
     const out = await regenerateWeek(t.season, t.week, (m) => console.log(`[owner] ${m}`));
     if (out === null) { res.status(404).json({ error: "No such week" }); return; }
+    if (out === "conflict") {
+      await recordAudit(actor(req), "powerRankings.regenerate", t, "refused: the week was edited while Bruno was writing; the edit was kept");
+      res.status(409).json({ error: "The week was edited while Bruno was writing, so the edit was kept. Regenerate again to replace it." });
+      return;
+    }
     if (out === "unavailable") {
       await recordAudit(actor(req), "powerRankings.regenerate", t, "failed: Bruno couldn't be reached; the week is unchanged");
       res.status(502).json({ error: "Bruno couldn't be reached, so the week is unchanged. Try again later." });
@@ -108,6 +113,7 @@ export function powerRankingsOwnerRoutes(r: Router, h: (fn: Handler) => (req: Re
     if (!t) { res.status(404).json({ error: "No such week" }); return; }
     if (!confirmed(req, res)) return;
     const b = req.body ?? {};
+    if (typeof b.rev !== "string" || !b.rev) { res.status(400).json({ error: "Send the week's rev (the version you edited)" }); return; }
     const change: { intro?: string; blurbs?: { team: number; text: string }[] } = {};
     if (b.intro !== undefined) {
       if (typeof b.intro !== "string" || !clean(b.intro) || clean(b.intro).length > INTRO_MAX) { res.status(400).json({ error: `The intro must be 1 to ${INTRO_MAX} characters` }); return; }
@@ -127,8 +133,12 @@ export function powerRankingsOwnerRoutes(r: Router, h: (fn: Handler) => (req: Re
       }
     }
     if (change.intro === undefined && !change.blurbs?.length) { res.status(400).json({ error: "Nothing to change" }); return; }
-    const out = await editGenerated(t.season, t.week, change);
+    const out = await editGenerated(t.season, t.week, change, b.rev);
     if (!out) { res.status(404).json({ error: "No such week" }); return; }
+    if (out === "conflict") {
+      res.status(409).json({ error: "This week changed since you opened it (another save or a regeneration). Reload it and make your edit again." });
+      return;
+    }
     await recordAudit(actor(req), "powerRankings.edit", { ...t, intro: change.intro !== undefined, teams: change.blurbs?.map((x) => x.team) ?? [] });
     return { panel: await ownerPowerRankings() };
   }));

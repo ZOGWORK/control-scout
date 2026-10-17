@@ -93,6 +93,8 @@ export interface OwnerPowerRankingsWeek {
   status: "pending" | "published" | "hidden";
   generatedAt: string;
   editedAt: string | null;
+  /** The week's version: sent back with an edit, which is refused if the week changed since. */
+  rev: string;
   /** A hand-written file covers this week, so the site shows that instead. */
   overridden: boolean;
   intro: string;

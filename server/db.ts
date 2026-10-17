@@ -943,6 +943,7 @@ CREATE TABLE power_rankings_generated (
   generated_at TEXT NOT NULL,
   edited_by TEXT,
   edited_at TEXT,
+  rev INTEGER NOT NULL DEFAULT 0,            -- +1 on every write: an owner edit is refused if it changed since
   PRIMARY KEY (season, week)
 );
 `,
