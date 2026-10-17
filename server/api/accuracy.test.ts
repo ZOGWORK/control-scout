@@ -38,6 +38,28 @@ beforeEach(async () => {
 
 const n = (t: Awaited<ReturnType<typeof trackRecord>>) => t.seasons.find((s) => s.season === S)?.backtest?.n;
 
+describe("side by side: served vs shadow model on the same live calls", () => {
+  it("scores both models on exactly the same calls, per model pair", async () => {
+    const live = (number: number, p: number, ps: number, outcome: number) => run(
+      `INSERT INTO predictions (kind, season, code, level, series, number, red, blue, p_red, red_mean, blue_mean, tier, engine_version, predicted_at, match_time, outcome, scored_at, model_id, p_red_shadow, shadow_model_id)
+       VALUES ('live', ?, 'USLIV', 'qual', 0, ?, '1 2', '3 4', ?, 50, 40, 'confident', '2.1.1', '2026-11-01', '2026-11-01T10:00:00', ?, '2026-11-01', 'new', ?, 'old')`,
+      [S, number, p, outcome, ps]);
+    await live(1, 0.8, 0.6, 1); await live(2, 0.3, 0.55, 0); await live(3, 0.6, 0.4, 0);
+    // A live call from before shadows existed: not part of the paired comparison.
+    await run(`INSERT INTO predictions (kind, season, code, level, series, number, red, blue, p_red, red_mean, blue_mean, tier, engine_version, predicted_at, match_time, outcome, scored_at)
+       VALUES ('live', ?, 'USLIV', 'qual', 0, 9, '1 2', '3 4', 0.9, 50, 40, 'confident', '2.0.0', '2026-11-01', '2026-11-01T10:00:00', 1, '2026-11-01')`, [S]);
+    await kvSet("data:version", "v-shadow");
+    const s = (await trackRecord()).seasons.find((x) => x.season === S)!;
+    expect(s.liveShadow).toHaveLength(1);
+    const [pair] = s.liveShadow!;
+    expect(pair).toMatchObject({ servedModel: "new", shadowModel: "old", n: 3 });
+    expect(pair.served.accuracy).toBeCloseTo(2 / 3, 10);
+    expect(pair.shadow.accuracy).toBeCloseTo(2 / 3, 10); // 0.6 vs a win, 0.55 vs a loss (wrong), 0.4 vs a loss
+    expect(pair.served.brier).toBeCloseTo((0.04 + 0.09 + 0.36) / 3, 10);
+    expect(pair.shadow.brier).toBeCloseTo((0.16 + 0.3025 + 0.16) / 3, 10);
+  });
+});
+
 describe("track record cache", () => {
   it("builds once per data version, shared by concurrent callers", async () => {
     const [a, b] = await Promise.all([trackRecord(), trackRecord()]);

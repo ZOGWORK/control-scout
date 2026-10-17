@@ -15,8 +15,8 @@ const TAG: Record<Verdict, { text: string; cls: string }> = {
 const NOTES: { v: Verdict; title: string; body: string; more: string; wide?: boolean }[] = [
   {
     v: "ship", wide: true, title: "Prediction Engine 2.1: form at this event, momentum, collapses",
-    body: "Five more inputs from each robot's recent record: its residuals at the current event, a fast-moving average against its usual level, whether its last alliance collapsed, and how long ago. Chosen on early-2025 matches by a rule written down before any idea was scored.",
-    more: "Against 2.0 on the same matches: early-2025 accuracy 77.12% → 77.34% (+0.22 points), Brier 0.1536 → 0.1531; 2025–26 accuracy 74.65% → 74.85% (+0.19 points, 95% range +0.05 to +0.33), Brier 0.1684 → 0.1680. Calibration error rose (1.26% → 1.67% on 2025–26). Tried and dropped in the same round: alliance congestion, a defense rating, partner familiarity and a long-gap signal (no gain), autonomous and role compatibility (gain too small to replicate), extra uncertainty after a break (no clear gain), and a score-mean correction (worse score error).",
+    body: "Five more inputs from each robot's recent record: its residuals at the current event, a fast-moving average against its usual level, whether its last alliance collapsed, and how long ago. Better probabilities in a clean month-by-month test; not yet shown to pick more winners.",
+    more: "Re-tested forward-only (everything refitted from earlier matches before each month): Brier improved in later 2024–25 (0.15646 → 0.15589, 95% range −0.0009 to −0.0003) and 2025–26 (0.16894 → 0.16846); winner accuracy +0.17 and +0.06 points, both ranges including zero; calibration about the same. The first figures (+0.22 / +0.19 points) used a calibration fitted on later matches and 2025–26 vetoes, so they were corrected. Tried and dropped: alliance congestion, a defense rating, partner familiarity, a long-gap signal, extra uncertainty after a break and a score-mean correction; autonomous and role compatibility gained too little to replicate.",
   },
   {
     v: "no", title: "Simulated matches that follow the new odds",

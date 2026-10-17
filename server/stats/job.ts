@@ -224,13 +224,13 @@ export async function backtest(seasons: number[], log: Log = () => {}, opts: { w
     for (const m of matches) {
       if (write.has(s) && m.red.teams.length === 2 && m.blue.teams.length === 2) {
         book.setTime(m.time);
-        const x = explainMatch(book, m.red.teams, m.blue.teams, { noise: FITTED_MODEL.noise, calibration: FITTED_MODEL.calibration, contextual: FITTED_MODEL.contextual, context: { level: m.level, event: m.eventCode } });
+        const x = explainMatch(book, m.red.teams, m.blue.teams, { noise: FITTED_MODEL.noise, calibration: FITTED_MODEL.calibration, contextual: FITTED_MODEL.contextual, context: { level: m.level, event: m.eventCode }, shadow: FITTED_MODEL.contextual?.fallback });
         stmts.push({
-          sql: `INSERT INTO predictions (kind, season, code, level, series, number, red, blue, p_red, red_mean, blue_mean, tier, factors, engine_version, predicted_at, match_time, red_score, blue_score, outcome, scored_at, no_score_basis, model_id, data_version, ratings_through)
-                VALUES ('backtest', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          sql: `INSERT INTO predictions (kind, season, code, level, series, number, red, blue, p_red, red_mean, blue_mean, tier, factors, engine_version, predicted_at, match_time, red_score, blue_score, outcome, scored_at, no_score_basis, model_id, data_version, ratings_through, p_red_shadow, shadow_model_id)
+                VALUES ('backtest', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
           args: [s, m.eventCode, m.level, m.series, m.number, JSON.stringify(m.red.teams), JSON.stringify(m.blue.teams), x.winProbA, x.predictedScoreA, x.predictedScoreB,
             x.confidence.tier, ENGINE_VERSION, at, new Date(m.time).toISOString(), m.red.total, m.blue.total, outcome(m.red.total, m.blue.total), at, rated ? 0 : 1,
-            x.probabilityModelId ?? "legacy", dataVersion, lastRated != null ? new Date(lastRated).toISOString() : null],
+            x.probabilityModelId ?? "legacy", dataVersion, lastRated != null ? new Date(lastRated).toISOString() : null, x.shadow?.winProbA ?? null, x.shadow?.modelId ?? null],
         });
       }
       if (!unrated.has(m.eventCode)) { book.update(m); rated++; lastRated = m.time; }
@@ -316,10 +316,10 @@ export async function logLivePredictions(log: Log = () => {}): Promise<number> {
     const x = f.explain(season, m.red, m.blue, m.level === "playoff" ? "playoff" : "qual", m.code);
     if (!x) continue;
     stmts.push({
-      sql: `INSERT OR IGNORE INTO predictions (kind, season, code, level, series, number, red, blue, p_red, red_mean, blue_mean, tier, factors, engine_version, predicted_at, match_time, no_score_basis, model_id, data_version, ratings_through)
-            VALUES ('live', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      sql: `INSERT OR IGNORE INTO predictions (kind, season, code, level, series, number, red, blue, p_red, red_mean, blue_mean, tier, factors, engine_version, predicted_at, match_time, no_score_basis, model_id, data_version, ratings_through, p_red_shadow, shadow_model_id)
+            VALUES ('live', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       args: [season, m.code, m.level, m.series, m.number, JSON.stringify(m.red), JSON.stringify(m.blue), x.winProbA, x.predictedScoreA, x.predictedScoreB,
-        x.confidence.tier, JSON.stringify(x.factors), ENGINE_VERSION, at, m.time, noScoreBasis, x.probabilityModelId ?? "legacy", dataVersion, ratingsThrough],
+        x.confidence.tier, JSON.stringify(x.factors), ENGINE_VERSION, at, m.time, noScoreBasis, x.probabilityModelId ?? "legacy", dataVersion, ratingsThrough, x.shadow?.winProbA ?? null, x.shadow?.modelId ?? null],
     });
   }
   await writeBatch(stmts);
