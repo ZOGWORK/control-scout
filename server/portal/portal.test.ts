@@ -125,7 +125,7 @@ describe("feature flags", () => {
   it("are all on by default, for the app too", async () => {
     const r = await call("GET", "/api/flags");
     // photos and push: on, yet false for the app here: they also need R2 and VAPID keys, which this server doesn't have.
-    expect(r.json.flags).toEqual({ realtime: true, workspaceScouting: true, errorReporting: true, offlinePacks: true, photos: false, push: false });
+    expect(r.json.flags).toEqual({ realtime: true, workspaceScouting: true, errorReporting: true, offlinePacks: true, photos: false, push: false, autoPowerRankings: true });
     expect(r.headers.get("cache-control")).toBe("public, max-age=15");
   });
 
