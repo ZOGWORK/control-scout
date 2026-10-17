@@ -80,6 +80,7 @@ export const badgeVariants = cva(
         secondary: 'border-line bg-text-base/[0.06] text-text-muted',
         outline: 'border-text-base/20 text-text-muted',
         beta: 'border-sky-400/50 bg-sky-500/15 text-sky-500',
+        info: 'border-info/30 bg-info/[0.08] text-info',
         new: 'border-transparent bg-red-500 text-white',
         destructive: 'border-rose-500/30 bg-rose-500/15 text-rose-500',
         success: 'border-emerald-500/30 bg-emerald-500/15 text-emerald-500',

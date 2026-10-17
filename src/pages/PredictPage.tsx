@@ -7,8 +7,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { ArrowLeftRight, ArrowRight, BookmarkPlus, CalendarDays, ChevronDown, FlaskConical, Link2, MapPin, Sparkles, Star, Swords, Trophy, Users, WifiOff, X } from "lucide-react";
 import { ENGINE_VERSION } from "@control-scout/predict-engine";
-import { offlineExplain } from "../lib/packs";
-import { useApi, qs } from "../lib/api";
+import { noteOfflineAnswer, useApi, qs } from "../lib/api";
 import { useCurrentSeason, useTitle } from "../lib/meta";
 import { usePersonal } from "../lib/personal";
 import type { EventDetail, EventSummary, EventListItem, MatchExplanationView, MatchView, TeamProfile } from "../shared/api";
@@ -376,7 +375,8 @@ function MatchLab() {
   );
 }
 
-/** No connection: predict from the lite pack saved on this device (same engine). */
+/** No connection: predict from the lite pack saved on this device (same engine). Only ever runs once the
+ *  server couldn't be reached (an offline error): the pack code loads lazily then, never on an online visit. */
 function useOfflineFallback(q: { season: number; red: number[]; blue: number[] } | null) {
   const [out, setOut] = useState<{ data: MatchExplanationView | null; asOf: string | null; loading: boolean }>({ data: null, asOf: null, loading: false });
   const key = q ? `${q.season}|${q.red}|${q.blue}` : "";
@@ -384,9 +384,10 @@ function useOfflineFallback(q: { season: number; red: number[]; blue: number[] }
     if (!q) { setOut({ data: null, asOf: null, loading: false }); return; }
     let live = true;
     setOut((o) => ({ ...o, loading: true }));
-    offlineExplain(q.season, q.red, q.blue).then((x) => {
+    import("../lib/offline/predict").then((p) => p.offlineExplain(q.season, q.red, q.blue)).then((x) => {
       if (!live) return;
       if (!x) { setOut({ data: null, asOf: null, loading: false }); return; }
+      noteOfflineAnswer();
       setOut({
         loading: false, asOf: x.asOf,
         data: {

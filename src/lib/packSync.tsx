@@ -4,6 +4,10 @@
 // so it never competes with the page itself; then it loads packs.ts lazily (the engine stays out of the entry
 // bundle) and downloads the pack if it's missing or outdated. Reconnecting or a
 // better connection tries again.
+//
+// The rule is "download online, never RUN online": this only fetches the file,
+// checks its SHA-256 and stores the bytes (no gunzip, no JSON.parse: see
+// downloadLite). The pack is decoded and used only with no signal (lib/api.ts).
 import { useEffect, useMemo, useRef } from "react";
 import { useLocation } from "react-router-dom";
 import { usePersonal } from "./personal";
