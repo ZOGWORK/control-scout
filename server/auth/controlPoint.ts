@@ -12,6 +12,7 @@ import { recordAudit } from "../portal/audit.js";
 import { env } from "../env.js";
 import type { OrphanReason, OrphanState } from "../../src/shared/orphaned.js";
 import type { User } from "./session.js";
+import type { BrunoOutput, FactPacket } from "../powerRankings/factCheck.js";
 
 export const CP_PROVIDER = "control-point";
 
@@ -80,6 +81,21 @@ async function internal<T>(path: string, init: { method?: string; body?: unknown
 }
 
 const isAccount = (a: unknown): a is SharedAccount => !!a && typeof (a as SharedAccount).id === "number" && typeof (a as SharedAccount).email === "string";
+
+
+// --- Bruno's power-rankings blurbs (server/powerRankings/auto.ts) -------------------------------
+
+/** Bruno can be asked: needs only the internal URL and key (no sign-in hand-off involved). */
+export const brunoAvailable = () => !!(env.controlPointInternalUrl && env.controlPointInternalKey);
+
+/**
+ * Control Point's POST /internal/bruno/power-rankings: Bruno writes a week's blurbs from a fact packet.
+ * Throws on network errors, timeouts and non-2xx answers (the caller falls back to the template).
+ * A model call takes a while, so this one waits up to two minutes.
+ */
+export async function brunoPowerRankings(packet: FactPacket): Promise<BrunoOutput> {
+  return internal<BrunoOutput>("/internal/bruno/power-rankings", { method: "POST", body: packet }, 120_000);
+}
 
 /** When each account answer was asked for: an answer asked before Scout dropped a membership can't restore it (withoutDropped). */
 const askedAtOf = new WeakMap<object, number>();

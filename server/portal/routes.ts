@@ -21,6 +21,7 @@ import { predictionHealth } from "./predictionHealth.js";
 import { ownerStorage, purgeEvent, runPhotoMaintenance } from "../scout/photos.js";
 import { r2 } from "../scout/r2.js";
 import { listOrphaned } from "../scout/orphans.js";
+import { powerRankingsOwnerRoutes } from "../powerRankings/ownerRoutes.js";
 
 const h = (fn: (req: Request, res: Response) => Promise<unknown>) => (req: Request, res: Response, next: NextFunction) => {
   fn(req, res).then((b) => { if (!res.headersSent && b !== undefined) res.json(b); }).catch(next);
@@ -125,6 +126,9 @@ export function ownerRouter(): Router {
   // Scout spaces left read-only (Task 19, scout/orphans.ts): listed only. Nothing is deleted from here:
   // former members still read and export them, and a workspace re-created in Control Point comes back.
   r.get("/orphaned-workspaces", h(async () => ({ workspaces: await listOrphaned() })));
+
+  // Automatic power rankings (server/powerRankings/auto.ts): the generated weeks and their controls.
+  powerRankingsOwnerRoutes(r, h, actor);
 
   r.get("/audit", h(async (req) => ({ entries: await listAudit(num(req.query.limit, 100, 1, 500)) })));
   return r;
