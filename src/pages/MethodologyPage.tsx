@@ -4,8 +4,7 @@
 // Two sources of accuracy numbers are kept apart throughout: this site's own
 // ledger (live and backtest, from the API) and the shared engine's published
 // held-out test.
-import { useEffect } from "react";
-import { Link, useLocation } from "react-router-dom";
+import { Link } from "react-router-dom";
 import { ArrowRight, FlaskConical } from "lucide-react";
 import { ENGINE_VERSION } from "@control-scout/predict-engine";
 import { useTitle } from "../lib/meta";
@@ -13,7 +12,7 @@ import { Button } from "../components/ui/button";
 import { cn } from "../components/cn";
 import "../components/howitworks/howitworks.css";
 import { Hero } from "../components/howitworks/Hero";
-import { SectionNav, scrollToId } from "../components/howitworks/SectionNav";
+import { SectionNav } from "../components/howitworks/SectionNav";
 import { Pipeline } from "../components/howitworks/Pipeline";
 import { CarryOver, GainChart, LearnSim, RatingChips, WorkedUpdate } from "../components/howitworks/RatingFigures";
 import { BellFigure, Playground } from "../components/howitworks/MatchFigures";
@@ -29,14 +28,8 @@ const SIM_RUNS = 2000;
 export default function MethodologyPage() {
   useTitle("How it works");
   const reduced = useReduced();
-  const { hash } = useLocation();
-  // Deep links (/methodology#confidence etc.): wait for the page to lay out, then scroll.
-  useEffect(() => {
-    if (!hash) return;
-    const id = decodeURIComponent(hash.slice(1));
-    const t = setTimeout(() => scrollToId(id, true), 80);
-    return () => clearTimeout(t);
-  }, [hash]);
+  // Deep links (/methodology#confidence etc.) are scrolled to by the shell (src/lib/mainScroll.ts),
+  // which also leaves Back alone when it returns to a position saved further down.
 
   return (
     <TipLayer>

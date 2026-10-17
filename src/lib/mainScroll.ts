@@ -95,13 +95,30 @@ export function chase(scroller: HTMLElement, content: Element | null, step: () =
   return stop;
 }
 
+/**
+ * The key a history entry's position is kept under. The router gives the entry a page load opened on
+ * no key of its own ("default"), so that one is told apart by its address: another address opened
+ * later in the same tab must not share it.
+ */
+export function entryKey(loc: { key: string; pathname: string; search: string }): string {
+  return loc.key === "default" ? `default:${loc.pathname}${loc.search}` : loc.key;
+}
+
+/** How this document was opened: "navigate" (a link, the address bar), "reload" or "back_forward". */
+function documentNavigation(): string {
+  try {
+    const [nav] = performance.getEntriesByType("navigation") as PerformanceNavigationTiming[];
+    return nav?.type ?? "navigate";
+  } catch { return "navigate"; }
+}
+
 /** Scroll restoration for the shell's scroller; its first child is the content that grows as the page renders. */
 export function useMainScroll(main: RefObject<HTMLElement | null>) {
   const loc = useLocation();
   const action = useNavigationType();
   const store = useRef<ScrollPositions | null>(null);
   store.current ??= new ScrollPositions(sessionStore());
-  const keyRef = useRef(loc.key);
+  const keyRef = useRef(entryKey(loc));
   const prevPath = useRef<string | null>(null);
 
   // Remember where each entry is, as the reader scrolls. Also flags "scrolling" for CSS.
@@ -131,21 +148,26 @@ export function useMainScroll(main: RefObject<HTMLElement | null>) {
   useLayoutEffect(() => {
     const el = main.current;
     if (!el) return;
-    keyRef.current = loc.key;
-    // A fresh page load has no entry key yet ("default"): whatever was stored under it belongs to an earlier load.
-    const fresh = prevPath.current === null && loc.key === "default";
-    if (fresh) store.current!.set(loc.key, 0);
-    const saved = fresh ? undefined : store.current!.get(loc.key);
+    const key = entryKey(loc);
+    keyRef.current = key;
+    // A newly opened page (not a reload, not back/forward into this tab) starts afresh, whatever an
+    // earlier visit to the same address left under its key.
+    const fresh = prevPath.current === null && loc.key === "default" && documentNavigation() === "navigate";
+    if (fresh) store.current!.set(key, 0);
+    const saved = fresh ? undefined : store.current!.get(key);
     const plan = planScroll({ action, prevPath: prevPath.current, path: loc.pathname, hash: loc.hash, saved });
     prevPath.current = loc.pathname;
+    if (plan.kind === "top") el.scrollTop = 0;
+    // The entry has a position from the start (a tab switch replaces the entry, and the reader may
+    // never scroll on it): coming back to it must not keep whatever the page left behind.
+    if (plan.kind === "keep" || plan.kind === "top") store.current!.set(key, el.scrollTop);
     store.current!.save();
-    if (plan.kind === "keep") return;
-    if (plan.kind === "top") { el.scrollTop = 0; return; }
+    if (plan.kind === "keep" || plan.kind === "top") return;
     // Re-applied as the page's content loads in: until then the page is shorter than the position.
     if (plan.kind === "restore") return chase(el, el.firstElementChild, () => { el.scrollTop = plan.y; });
     return chase(el, el.firstElementChild, () => {
       const target = document.getElementById(plan.id);
       if (target && el.contains(target)) target.scrollIntoView({ block: "start" });
     });
-  }, [loc.key, loc.pathname, loc.hash, action, main]);
+  }, [loc.key, loc.pathname, loc.search, loc.hash, action, main]);
 }

@@ -3,7 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { act, cleanup, render } from "@testing-library/react";
 import { MemoryRouter, useNavigate, type NavigateFunction } from "react-router-dom";
 import { useRef } from "react";
-import { chase, planScroll, RESTORE_WINDOW_MS, SCROLL_IDLE_MS, ScrollPositions, useMainScroll } from "./mainScroll";
+import { chase, entryKey, planScroll, RESTORE_WINDOW_MS, SCROLL_IDLE_MS, ScrollPositions, useMainScroll } from "./mainScroll";
 
 describe("planScroll", () => {
   const base = { prevPath: "/events", path: "/teams/4215", hash: "", saved: undefined };
@@ -158,6 +158,17 @@ describe("useMainScroll", () => {
     expect(main.scrollTop).toBe(400);
   });
 
+  it("returns to a tab switched in place (a replaced entry) even if the reader never scrolled on it", () => {
+    height.current = 5000;
+    render(<MemoryRouter initialEntries={["/events/2025/X"]}><Harness /></MemoryRouter>);
+    scrollTo(400);
+    act(() => nav("/events/2025/X?tab=matches", { replace: true }));
+    go("/teams/1");
+    scrollTo(2500);
+    go(-1);
+    expect(main.scrollTop).toBe(400);
+  });
+
   it("marks the area as scrolling until the scroll goes quiet", () => {
     height.current = 5000;
     render(<MemoryRouter initialEntries={["/"]}><Harness /></MemoryRouter>);
@@ -172,8 +183,22 @@ describe("useMainScroll", () => {
     expect(area.hasAttribute("data-scrolling")).toBe(false);
   });
 
-  it("does not restore a stale position into a fresh page load", () => {
-    sessionStorage.setItem("cs-scroll", JSON.stringify([["default", 2222]]));
+  it("restores the first page's position after a reload", () => {
+    sessionStorage.setItem("cs-scroll", JSON.stringify([["default:/teams/4215", 2222]]));
+    vi.spyOn(performance, "getEntriesByType").mockReturnValue([{ type: "reload" }] as never);
+    height.current = 5000;
+    render(<MemoryRouter initialEntries={["/teams/4215"]}><Harness /></MemoryRouter>);
+    expect(main.scrollTop).toBe(2222);
+    vi.restoreAllMocks();
+  });
+
+  it("keeps first pages at different addresses apart", () => {
+    expect(entryKey({ key: "default", pathname: "/a", search: "?x=1" })).toBe("default:/a?x=1");
+    expect(entryKey({ key: "k1", pathname: "/a", search: "" })).toBe("k1");
+  });
+
+  it("does not restore a stale position into a newly opened page", () => {
+    sessionStorage.setItem("cs-scroll", JSON.stringify([["default:/teams/4215", 2222]]));
     height.current = 5000;
     render(<MemoryRouter initialEntries={["/teams/4215"]}><Harness /></MemoryRouter>);
     expect(main.scrollTop).toBe(0);
