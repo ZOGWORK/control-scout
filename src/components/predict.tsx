@@ -181,7 +181,9 @@ export function MatchRow({ m, highlight, showEvent, eventName, open, onToggle, o
     <div className={cn("@container border-b border-border last:border-b-0", mySide && "relative before:absolute before:inset-y-0 before:left-0 before:w-[3px]",
       mySide && (outcomeAccent && mine === "win" ? "before:bg-success" : outcomeAccent && mine === "loss" ? "before:bg-destructive" : "before:bg-accent/70"))} data-match={m.key}>
     <div
-      className={cn("group/row density-row grid grid-cols-[minmax(0,1fr)_auto_auto] items-center gap-x-3 gap-y-1.5 px-3 py-2.5 transition-colors",
+      // Narrow rows: the label keeps at least its own width (time, the team's won/lost chip), and the call's
+      // chips wrap under it instead of pushing into the label.
+      className={cn("group/row density-row grid grid-cols-[minmax(min-content,1fr)_auto_auto] items-center gap-x-3 gap-y-1.5 px-3 py-2.5 transition-colors",
         // Wide rows: label | red | blue | the call | report. Fixed tracks either side, so every row lines up.
         "@3xl:grid-cols-[5.5rem_minmax(0,1fr)_minmax(0,1fr)_11.5rem_2rem]",
         onToggle ? "cursor-pointer hover:bg-accent/[0.07]" : "hover:bg-text-base/[0.03]", open && "bg-accent/[0.05]")}
@@ -213,7 +215,8 @@ export function MatchRow({ m, highlight, showEvent, eventName, open, onToggle, o
           <Tooltip>
             <TooltipTrigger asChild>
               <button type="button" className="flex items-center gap-1.5 whitespace-nowrap rounded-md text-xs outline-none focus-visible:ring-2 focus-visible:ring-ring/60" aria-label={`Predicted ${fav} ${oddsPct(fav === "red" ? p.pRed : 1 - p.pRed)}`}>
-                <span className="text-text-muted">Picked</span>
+                {/* Under 20rem of row the word goes (the button's aria-label still says "Predicted …"): the label needs the room. */}
+                <span className="text-text-muted @max-xs:hidden">Picked</span>
                 <span className={cn("font-semibold tabular-nums", fav === "red" ? "text-red-alliance" : "text-blue-alliance")}>{fav === "red" ? "Red" : "Blue"} {oddsPct(fav === "red" ? p.pRed : 1 - p.pRed)}</span>
                 <WinBar pRed={p.pRed} size="sm" className="w-12 shrink-0" />
               </button>
