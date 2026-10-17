@@ -14,6 +14,11 @@ const [distDir, eventsPath, out, pop = "symmetric", overrides = "{}"] = process.
 const E = await import(pathToFileURL(resolve(distDir, "index.js")).href);
 const events = JSON.parse(gunzipSync(readFileSync(eventsPath)));
 const M = E.FITTED_MODEL;
+// The round-2 baseline is the frozen Engine 2.0 model, whichever engine build runs this:
+// 2.0 ships it as FITTED_MODEL.contextual, 2.1+ as its fallback. Refuse anything else.
+const C20_ID = "ctx-rel-2026-10-16-1a36820c";
+const C20 = [M.contextual, M.contextual?.fallback].find((m) => m?.id === C20_ID);
+if (!C20) throw new Error(`this build has no frozen Engine 2.0 model (${C20_ID}); the baseline would be mislabeled`);
 const book = new E.RatingBook({ ...M.rating, populationUpdate: pop, ...JSON.parse(overrides) });
 const DAY = 864e5;
 const np = (r) => r.auto + r.teleop + r.endgame;
@@ -37,7 +42,7 @@ for (const season of [2023, 2024, 2025]) {
     for (let k = i; k < j; k++) {
       const m = tl[k], ev = byCode.get(m.eventCode);
       const red = m.red.teams, blue = m.blue.teams;
-      const p = E.predictMatch(book, red, blue, M.noise, M.calibration, { context: { level: m.level }, contextual: M.contextual });
+      const p = E.predictMatch(book, red, blue, M.noise, M.calibration, { context: { level: m.level }, contextual: C20 });
       const x = E.contextualFeatures(book, red, blue, { ...p, pRedWin: p.pRaw }, { level: m.level });
       const rr = red.map((t) => book.get(t)), br = blue.map((t) => book.get(t));
       const all = [...rr, ...br];
