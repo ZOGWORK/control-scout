@@ -21,7 +21,7 @@ export async function sitemapEntries(): Promise<Entry[]> {
     all<{ season: number; code: string; upstream_updated: string | null }>("SELECT season, code, upstream_updated FROM events ORDER BY season DESC, code"),
   ]);
   // Power rankings: the hub and every published week, newest first (none until the first is; never sample weeks).
-  const weeks = publishedWeeks().filter((w) => !w.sample).reverse();
+  const weeks = (await publishedWeeks()).filter((w) => !w.sample).reverse();
   return [
     ...STATIC_PAGES.map((p) => ({ loc: canonicalUrl(p) })),
     ...(weeks.length ? [{ loc: canonicalUrl("/power-rankings"), lastmod: weeks[0].published }] : []),

@@ -71,7 +71,16 @@ export interface PowerRankingsEntry {
   /** Vs the previous published week of the same season; the author's own note when there is none; else null. */
   movement: Movement | null;
   stats: PowerRankingsStats | null;
+  /** Who wrote the blurb of an automatically published week (null in a hand-written week). */
+  author: BlurbAuthor | null;
 }
+
+/**
+ * Who wrote a blurb or intro in an automatically published week: Bruno (Control Point's AI, its text
+ * passed the fact check), the data-only template (Bruno was unavailable or its text failed the
+ * check), or the owner (edited in the owner portal).
+ */
+export type BlurbAuthor = "bruno" | "template" | "owner";
 
 /** One week in the archive list. */
 export interface PowerRankingsSummary {
@@ -94,6 +103,8 @@ export interface PowerRankingsWeek {
   introText: string;
   /** A development sample (never served in production): the page says so. */
   sample: boolean;
+  /** Published automatically (server/powerRankings/auto.ts): how many blurbs each author wrote; null for a hand-written week. */
+  generated: { bruno: number; template: number; owner: number; intro: BlurbAuthor } | null;
   entries: PowerRankingsEntry[];
   /** The week its movement is measured against (the previous published week of the same season), if any. */
   comparedWith: string | null;
@@ -113,6 +124,22 @@ export interface PowerRankingsResponse {
   /** Every published week, newest first. */
   archive: PowerRankingsSummary[];
 }
+
+/** "Friday, Oct 23" for a "YYYY-MM-DD" (the publish line under a week's title). */
+export const publishedLabel = (d: string) => new Date(`${d}T12:00:00Z`).toLocaleDateString("en-US", { weekday: "long", month: "short", day: "numeric", timeZone: "UTC" });
+
+/**
+ * The line an automatically published week carries. Bruno is named only when he wrote some of it;
+ * template blurbs are marked "Data summary" next to his (never labelled as his).
+ */
+export function generatedNote(g: NonNullable<PowerRankingsWeek["generated"]>): string {
+  const byBruno = g.bruno > 0;
+  if (!byBruno) return "Published automatically from this week's data.";
+  return `Blurbs written by Bruno, Control Point's AI, from this week's data.${g.template > 0 ? " Those marked Data summary are built from the numbers alone." : ""}`;
+}
+
+/** The time zone automatic weeks are published in: Friday 00:00 there (server/powerRankings/schedule.ts). */
+export const PUBLISH_TIME_ZONE = "America/New_York";
 
 /** "Oct 12, 2026" for a "YYYY-MM-DD". */
 export const longDate = (d: string) => new Date(`${d}T12:00:00Z`).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric", timeZone: "UTC" });
