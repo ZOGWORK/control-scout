@@ -1,10 +1,11 @@
 // /power-rankings (the latest week, with the archive) and /power-rankings/:week (one week).
-// A weekly top 25 written by people (content/power-rankings/*.md, docs/power-rankings.md),
-// each team with its live rating, OPR and record and its move since the previous week.
+// A weekly top 25: hand-written (content/power-rankings/*.md) or published automatically every Friday
+// with blurbs by Bruno, Control Point's AI (docs/power-rankings.md), each team with its live rating,
+// OPR and record and its move since the previous week.
 // Blurbs and the intro arrive as sanitized HTML from the server (server/powerRankings/markdown.ts).
 import type { MouseEvent } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
-import { ArrowDown, ArrowLeft, ArrowRight, ArrowUp, FlaskConical, ListOrdered, Minus, Share2, Trophy } from "lucide-react";
+import { ArrowDown, ArrowLeft, ArrowRight, ArrowUp, FlaskConical, ListOrdered, Minus, Share2, Sparkles, Trophy } from "lucide-react";
 import { useApi, type ApiError } from "../lib/api";
 import { useTitle } from "../lib/meta";
 import { copyLink } from "../lib/clipboard";
@@ -15,7 +16,7 @@ import { NotFoundView } from "../components/NotFoundView";
 import { Button } from "../components/ui/button";
 import { cn } from "../components/cn";
 import {
-  isWeekId, longDate, weekLabel,
+  generatedNote, isWeekId, publishedLabel, weekLabel,
   type Movement, type PowerRankingsEntry, type PowerRankingsResponse, type PowerRankingsSummary, type PowerRankingsWeek,
 } from "../shared/powerRankings";
 
@@ -59,7 +60,7 @@ function Stat({ label, value, hint }: { label: string; value: string; hint?: str
   );
 }
 
-function Entry({ e, comparedWith, onLink }: { e: PowerRankingsEntry; comparedWith: string | null; onLink: (ev: MouseEvent<HTMLElement>) => void }) {
+function Entry({ e, comparedWith, onLink, tagTemplate }: { e: PowerRankingsEntry; comparedWith: string | null; onLink: (ev: MouseEvent<HTMLElement>) => void; tagTemplate: boolean }) {
   const s = e.stats;
   return (
     <li className="flex gap-3 rounded-2xl border border-line bg-elevated/60 p-4 sm:gap-5 sm:p-5">
@@ -75,6 +76,7 @@ function Entry({ e, comparedWith, onLink }: { e: PowerRankingsEntry; comparedWit
         </h2>
         {e.place && <p className="mt-0.5 text-xs text-text-muted">{e.place}</p>}
         <div className={cn("mt-2 text-sm leading-relaxed text-text-base/90", PROSE)} onClick={onLink} dangerouslySetInnerHTML={{ __html: e.blurbHtml }} />
+        {tagTemplate && e.author === "template" && <p className="mt-1 text-[11px] font-medium text-text-muted">Data summary</p>}
         {s ? (
           <dl className="mt-3 grid grid-cols-3 gap-3 border-t border-line pt-3 sm:flex sm:gap-8">
             <Stat label="Rating" value={num(s.rating)} hint={s.ratingRank ? `#${s.ratingRank.toLocaleString()}` : null} />
@@ -124,7 +126,7 @@ function Week({ w, archive, onLink }: { w: PowerRankingsWeek; archive: PowerRank
       <PageHeader
         eyebrow={`${weekLabel(w.week)} · ${seasonLabel(w.season)}`}
         title={w.title}
-        description={`Published ${longDate(w.published)}${w.comparedWith ? `. Moves are since week ${Number(w.comparedWith.slice(6))}.` : "."}`}
+        description={`Published ${publishedLabel(w.published)}${w.comparedWith ? `. Moves are since week ${Number(w.comparedWith.slice(6))}.` : "."}`}
         actions={<Button variant="secondary" onClick={() => void share(w)}><Share2 /> Share</Button>}
       />
       {w.sample && (
@@ -133,9 +135,15 @@ function Week({ w, archive, onLink }: { w: PowerRankingsWeek; archive: PowerRank
           <p><strong>Sample week.</strong> Development content to preview this page, not real rankings. It's never shown on the live site.</p>
         </div>
       )}
+      {w.generated && (
+        <p role="note" className="-mt-4 mb-6 flex max-w-3xl items-start gap-2 rounded-xl border border-accent/30 bg-accent/[0.07] px-3 py-2 text-sm text-text-base/90">
+          <Sparkles className="mt-0.5 size-4 shrink-0 text-accent-text" aria-hidden />
+          <span>{generatedNote(w.generated)}</span>
+        </p>
+      )}
       <div className={cn("mb-8 max-w-3xl text-[15px] leading-relaxed text-text-base/90", PROSE)} onClick={onLink} dangerouslySetInnerHTML={{ __html: w.introHtml }} />
       <ol className="mb-6 grid gap-3" aria-label={`${w.title}: the top ${w.entries.length}`}>
-        {w.entries.map((e) => <Entry key={e.team} e={e} comparedWith={w.comparedWith} onLink={onLink} />)}
+        {w.entries.map((e) => <Entry key={e.team} e={e} comparedWith={w.comparedWith} onLink={onLink} tagTemplate={!!w.generated && w.generated.bruno > 0} />)}
       </ol>
       {w.droppedOut.length > 0 && (
         <p className="mb-6 text-sm text-text-muted">

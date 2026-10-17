@@ -1,5 +1,6 @@
 // The owner portal's API (/api/owner/*): response shapes shared by the server and the /owner page.
 import type { Flag } from "./flags.js";
+import type { BlurbAuthor } from "./powerRankings.js";
 
 export interface OwnerOverview {
   accounts: { total: number; active30d: number; new7d: number };
@@ -81,3 +82,36 @@ export interface OpsStatus {
 }
 
 export interface AuditEntry { id: number; at: string; actor: string; action: string; details: Record<string, unknown> | null; result: string | null }
+
+/** One automatically published power-rankings week, as the owner portal's Power rankings panel lists it. */
+export interface OwnerPowerRankingsWeek {
+  season: number;
+  week: string;
+  /** "YYYY-MM-DD" (New York) it went out. */
+  published: string;
+  /** pending: being written right now. */
+  status: "pending" | "published" | "hidden";
+  generatedAt: string;
+  editedAt: string | null;
+  /** The week's version: sent back with an edit, which is refused if the week changed since. */
+  rev: string;
+  /** A hand-written file covers this week, so the site shows that instead. */
+  overridden: boolean;
+  intro: string;
+  introSource: BlurbAuthor;
+  /** The week its movement was counted against. */
+  comparedWith: string | null;
+  entries: { rank: number; team: number; name: string | null; text: string; source: BlurbAuthor; rejected: string[] | null }[];
+}
+
+/** GET /api/owner/power-rankings. */
+export interface OwnerPowerRankings {
+  /** The autoPowerRankings switch. */
+  enabled: boolean;
+  /** Control Point (Bruno) is configured on this server; without it every blurb is the data-only template. */
+  controlPoint: boolean;
+  /** The next scheduled run (Friday 00:00 America/New_York), ISO. */
+  nextRun: string;
+  /** Newest first. */
+  weeks: OwnerPowerRankingsWeek[];
+}
