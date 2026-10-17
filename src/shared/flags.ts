@@ -3,14 +3,14 @@
 // reads them through server/flags.ts (cached for a few seconds) and the app
 // through GET /api/flags. Every flag is on unless the owner turned it off.
 
-export const FLAGS = ["realtime", "workspaceScouting", "errorReporting", "offlinePacks", "photos", "push"] as const;
+export const FLAGS = ["realtime", "workspaceScouting", "errorReporting", "offlinePacks", "photos", "push", "autoPowerRankings"] as const;
 export type Flag = (typeof FLAGS)[number];
 export type FlagSet = Record<Flag, boolean>;
 
 export const isFlag = (x: unknown): x is Flag => typeof x === "string" && (FLAGS as readonly string[]).includes(x);
 
 /** Every flag on: what a fresh server, or one whose flags can't be read, runs with. */
-export const DEFAULT_FLAGS: FlagSet = { realtime: true, workspaceScouting: true, errorReporting: true, offlinePacks: true, photos: true, push: true };
+export const DEFAULT_FLAGS: FlagSet = { realtime: true, workspaceScouting: true, errorReporting: true, offlinePacks: true, photos: true, push: true, autoPowerRankings: true };
 
 /** What each switch does, for the owner portal. `pending`: the feature it guards hasn't shipped yet, so
  *  the switch is stored but nothing reads it (said in the portal, never implied otherwise). */
@@ -44,5 +44,10 @@ export const FLAG_INFO: Record<Flag, { label: string; on: string; off: string; p
     label: "Push notifications",
     on: "Signed-in devices that turned notifications on get match reminders, upsets and event starts for the teams and events they follow (needs the VAPID settings on the server; without them push stays off either way).",
     off: "Nothing is sent and Settings stops offering to turn notifications on. Devices stay subscribed, so switching back on resumes them.",
+  },
+  autoPowerRankings: {
+    label: "Automatic power rankings",
+    on: "Every Friday at 00:00 New York time, a new top 25 is published from the live world ranking, with blurbs by Bruno (Control Point's AI), fact-checked against the week's data.",
+    off: "No new weeks are generated, and Publish now is refused. Weeks already published stay up (hide them one by one under Power rankings).",
   },
 };

@@ -922,6 +922,32 @@ ALTER TABLE predictions ADD COLUMN p_red_shadow REAL;
 ALTER TABLE predictions ADD COLUMN shadow_model_id TEXT;
 `,
   },
+  {
+    version: 28,
+    name: "automatic power rankings",
+    sql: `
+-- Weeks of power rankings published automatically (server/powerRankings/auto.ts): every Friday at
+-- 00:00 America/New_York, from the live world ranking, blurbs by Bruno (Control Point's AI) or a
+-- data-only template. One row per season and ISO week; a hand-written file for the same week wins.
+-- Public content (server/data/snapshot.ts): no personal data. edited_by is a role ("owner"), never
+-- an email; who did what is in owner_audit.
+CREATE TABLE power_rankings_generated (
+  season INTEGER NOT NULL,
+  week TEXT NOT NULL,                        -- ISO week of the Friday, "2026-w43"
+  published TEXT NOT NULL,                   -- YYYY-MM-DD (America/New_York) it went out
+  status TEXT NOT NULL DEFAULT 'pending',    -- pending (being written) | published | hidden
+  intro TEXT NOT NULL DEFAULT '',
+  intro_source TEXT NOT NULL DEFAULT 'template', -- bruno | template | owner
+  entries TEXT NOT NULL DEFAULT '[]',        -- JSON [{rank, team, text, source, checks?}] in rank order
+  packet TEXT NOT NULL DEFAULT '{}',         -- JSON: the frozen facts it was written from (ranks, ratings, records…)
+  generated_at TEXT NOT NULL,
+  edited_by TEXT,
+  edited_at TEXT,
+  rev INTEGER NOT NULL DEFAULT 0,            -- +1 on every write: an owner edit is refused if it changed since
+  PRIMARY KEY (season, week)
+);
+`,
+  },
 ];
 
 export type Db = Client;

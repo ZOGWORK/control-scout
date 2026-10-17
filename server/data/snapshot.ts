@@ -38,6 +38,9 @@ export const PUBLIC_TABLES = [
   "team_event_records", "team_season_records", "match_records",
   // Weekly world rankings: ranks and ratings derived from public match results, nobody's own data.
   "ranking_snapshots", "ranking_weeks",
+  // Automatically published power rankings: public pages built from public data (blurbs, ranks, ratings);
+  // edited_by is a role, never an email (who edited is in owner_audit, which is private).
+  "power_rankings_generated",
 ];
 
 /** True only when replacing the file can't lose anything: it's missing or zero
