@@ -36,6 +36,9 @@ export const env = {
   get controlPointInternalKey() { return str("CONTROL_POINT_INTERNAL_KEY"); },
   /** Owner-only GET /api/stats/summary (Authorization: Bearer <token>); unset = the endpoint 404s. */
   get statsToken() { return str("STATS_TOKEN"); },
+  /** Publish the opt-in usage totals (page views and sessions started, last 30 days) on the home page via
+   *  GET /api/public-usage (docs/public-usage.md). Off unless "1" or "true": the panel then says they aren't published. */
+  get publicUsageEnabled() { return /^(1|true)$/i.test(str("PUBLIC_USAGE_ENABLED") ?? ""); },
   /** In-app error reports → GitHub issues (docs/error-reporting.md): a fine-grained PAT, Issues read/write on
    *  Control-Point-FTC/control-scout only. Unset: reports are only stored. Never sent to the browser or logged. */
   get githubReportToken() { return str("GITHUB_REPORT_TOKEN"); },
