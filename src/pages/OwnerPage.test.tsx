@@ -88,4 +88,10 @@ describe("owner console", () => {
     expect(within(sheet).getByText("Signed in on 1 device")).toBeTruthy();
     expect(within(sheet).getByText("Hypnotic Robotics")).toBeTruthy();
   });
+
+  it("What's new: the releases visitors see, from CHANGELOG.md", async () => {
+    mount("/owner?panel=whatsNew");
+    const rail = await screen.findByRole("navigation", { name: "Releases" });
+    expect(within(rail).getAllByRole("button")[0].textContent).toMatch(/^v\d+\.\d+\.\d+Latest$/);
+  });
 });

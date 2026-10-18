@@ -2,11 +2,11 @@
 // OwnerRoute draws it for the account /api/auth/me marks isOwner, and every /api/owner/* call is
 // checked on the server (404 for anyone else). One panel at a time (?panel=…), each loading its
 // own data when opened.
-import { useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { lazy, Suspense, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { useSearchParams } from "react-router-dom";
 import {
   Activity, AlertTriangle, Archive, Bug, Building2, CheckCircle2, ClipboardList, Database, DatabaseZap, ExternalLink, Gauge, HardDrive, HardDriveDownload,
-  Inbox, LayoutDashboard, Link2, Mail, PackageOpen, Radio, RefreshCw, RotateCcw, ScrollText, Search, ServerCog, Target, Timer, ToggleRight, Trash2, Trophy, Unlink, UserRound, Users,
+  Inbox, LayoutDashboard, Link2, Mail, PackageOpen, Radio, Megaphone, RefreshCw, RotateCcw, ScrollText, Search, ServerCog, Target, Timer, ToggleRight, Trash2, Trophy, Unlink, UserRound, Users,
 } from "lucide-react";
 import { PageHeader, Section, EmptyState } from "../components/page";
 import { StatTile, Meter } from "../components/StatTile";
@@ -31,6 +31,9 @@ import type { Flag } from "../shared/flags";
 import type { OrphanedWorkspace, OrphanReason } from "../shared/orphaned";
 import { StorageBanner, StoragePanel } from "../components/owner/StoragePanel";
 import { PowerRankingsPanel } from "../components/owner/PowerRankingsPanel";
+import { currentRelease } from "../lib/changelog";
+
+const WhatsNewContent = lazy(() => import("../components/WhatsNewContent"));
 
 const PANELS = [
   { id: "overview", label: "Overview", icon: LayoutDashboard },
@@ -45,6 +48,7 @@ const PANELS = [
   { id: "powerRankings", label: "Power rankings", icon: Trophy },
   { id: "orphaned", label: "Orphaned spaces", icon: Unlink },
   { id: "audit", label: "Audit log", icon: ScrollText },
+  { id: "whatsNew", label: "What's new", icon: Megaphone },
 ] as const;
 type PanelId = (typeof PANELS)[number]["id"];
 
@@ -100,6 +104,7 @@ export default function OwnerPage() {
           <TabsContent value="powerRankings"><PowerRankingsPanel onOpenSwitches={() => go("flags")} /></TabsContent>
           <TabsContent value="orphaned"><OrphanedPanel /></TabsContent>
           <TabsContent value="audit"><AuditPanel /></TabsContent>
+          <TabsContent value="whatsNew"><WhatsNewPanel /></TabsContent>
         </div>
       </Tabs>
     </div>
@@ -326,6 +331,18 @@ function WorkspacesSection() {
           );
         }}
       </Async>
+    </Section>
+  );
+}
+
+/** The releases visitors see in What's new (Scout's own, from CHANGELOG.md), and how to publish one. */
+function WhatsNewPanel() {
+  const v = currentRelease();
+  return (
+    <Section title="What's new" description={<>The releases every visitor sees under What's new{v ? <>, currently <span className="font-mono">v{v}</span></> : null}. They come from <span className="font-mono">CHANGELOG.md</span>: a new <span className="font-mono">## x.y.z — date</span> entry (with the app's version in <span className="font-mono">package.json</span> bumped to match) goes live with its PR, and visitors see the dot until they open it.</>}>
+      <div className="overflow-hidden rounded-2xl border border-border bg-card">
+        <Suspense fallback={<LoadingBlock rows={4} label="Loading releases" />}><WhatsNewContent /></Suspense>
+      </div>
     </Section>
   );
 }
