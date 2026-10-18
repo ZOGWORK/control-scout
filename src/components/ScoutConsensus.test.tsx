@@ -151,4 +151,13 @@ describe("CompareConsensus", () => {
     render(<MemoryRouter><CompareConsensus teams={[101, 102]} season={S} colors={["red", "green"]} hideWhenEmpty /></MemoryRouter>);
     await waitFor(() => expect(screen.getAllByTestId("consensus-card")).toHaveLength(2));
   });
+
+  it("hideWhenEmpty with two workspaces: no cards, but the workspace switch stays", async () => {
+    h.user = userIn([{ id: "901", name: "Gearheads" }, { id: "902", name: "Bolt Bots" }]);
+    answer = (ws, teams) => json(200, { workspaceId: ws, season: S, teams: teams.map(empty) });
+    render(<MemoryRouter><CompareConsensus teams={[101, 102]} season={S} colors={["red", "green"]} hideWhenEmpty /></MemoryRouter>);
+    expect(await screen.findByText(/No scouting on these teams in Gearheads yet/)).toBeTruthy();
+    expect(screen.getByRole("combobox", { name: "Workspace" })).toBeTruthy();
+    expect(screen.queryByTestId("consensus-card")).toBeNull();
+  });
 });

@@ -34,7 +34,7 @@ export function TeamPicker({ onPick, exclude = [], disabled, busy, error, onEdit
   className?: string;
 }) {
   const [text, setText] = useState("");
-  const [options, setOptions] = useState<Option[]>([]);
+  const [options, setOptions] = useState<{ q: string; list: Option[] }>({ q: "", list: [] });
   const [loading, setLoading] = useState(false);
   const [open, setOpen] = useState(false);
   const [active, setActive] = useState(0);
@@ -44,12 +44,12 @@ export function TeamPicker({ onPick, exclude = [], disabled, busy, error, onEdit
   const asked = useRef("");
 
   useEffect(() => {
-    if (!q) { setOptions([]); setLoading(false); return; }
-    asked.current = q;
+    asked.current = q; // an answer for any other query (an older one, or one since cleared) is dropped
+    if (!q) { setOptions({ q: "", list: [] }); setLoading(false); return; }
     setLoading(true);
     const t = setTimeout(() => {
-      searchTeams(q).then((o) => { if (asked.current === q) { setOptions(o); setActive(0); } })
-        .catch(() => { if (asked.current === q) setOptions([]); })
+      searchTeams(q).then((o) => { if (asked.current === q) { setOptions({ q, list: o }); setActive(0); } })
+        .catch(() => { if (asked.current === q) setOptions({ q, list: [] }); })
         .finally(() => { if (asked.current === q) setLoading(false); });
     }, 150);
     return () => clearTimeout(t);
@@ -57,14 +57,15 @@ export function TeamPicker({ onPick, exclude = [], disabled, busy, error, onEdit
 
   // A typed number is always offered first, even before (or without) a match from search.
   const typed = /^\d{1,6}$/.test(q) ? Number(q) : null;
-  const shown = options.filter((o) => !exclude.includes(o.team));
+  // Only the answer to what's in the box now: never an earlier query's teams, which Enter could otherwise pick.
+  const shown = options.q === q ? options.list.filter((o) => !exclude.includes(o.team)) : [];
   const list: Option[] = typed != null && !shown.some((o) => o.team === typed) && !exclude.includes(typed)
     ? [{ team: typed, name: "", place: "" }, ...shown] : shown;
   const expanded = open && !!q && (list.length > 0 || !loading);
 
   const pick = (team: number) => {
     onPick(team);
-    setText(""); setOptions([]); setOpen(false); setActive(0);
+    setText(""); setOptions({ q: "", list: [] }); setOpen(false); setActive(0);
   };
 
   return (
@@ -77,7 +78,7 @@ export function TeamPicker({ onPick, exclude = [], disabled, busy, error, onEdit
           aria-activedescendant={expanded && list[active] ? `${listId}-${list[active].team}` : undefined}
           aria-invalid={error ? true : undefined} aria-describedby={error ? errId : undefined}
           className="h-full min-w-0 flex-1 bg-transparent text-base outline-none placeholder:text-muted-foreground"
-          onChange={(e) => { setText(e.target.value.slice(0, 60)); setOpen(true); onEdit?.(); }}
+          onChange={(e) => { setText(e.target.value.slice(0, 60)); setActive(0); setOpen(true); onEdit?.(); }}
           onFocus={() => setOpen(true)}
           onBlur={() => setTimeout(() => setOpen(false), 120)}
           onKeyDown={(e) => {
