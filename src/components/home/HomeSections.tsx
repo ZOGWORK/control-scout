@@ -10,6 +10,7 @@ import type { EventListItem, MatchView, TeamSummary, TrackRecord } from "../../s
 import type { HomeOverview, PublicUsage } from "../../shared/home";
 import { Button } from "../ui/button";
 import { TierMark, WinBar } from "../predict";
+import { ToggleGroup, ToggleGroupItem } from "../ui/controls";
 import { ErrorState } from "../states";
 import { cn } from "../cn";
 import { defaultEvidence, eventState, recordFor, shortDay, usageView, type Evidence } from "./homeModel";
@@ -206,22 +207,21 @@ export function PredictionRecord() {
         <div aria-busy="true" className="mt-4 h-52" />
       ) : (
         <>
-          <div role="tablist" aria-label="Evidence" className="mt-4 inline-flex gap-1 rounded-xl border border-line p-1">
-            {tabs.map(({ k, label }) => (
-              <button key={k} type="button" role="tab" aria-selected={kind === k} onClick={() => setChosen(k)}
-                className={cn("h-9 rounded-lg px-3 text-sm font-medium max-sm:h-11", kind === k ? "bg-elevated text-text-base shadow-sm" : "text-text-muted hover:text-text-base")}>
-                {label}
-              </button>
-            ))}
-          </div>
-          <div role="tabpanel" aria-label={kind === "live" ? "Logged live" : "Season replay"} className="mt-4">
+          {/* A choice of evidence (radio semantics, arrow keys between the two), and the record it shows. */}
+          <ToggleGroup type="single" value={kind} onValueChange={(v) => v && setChosen(v as Evidence)} aria-label="Evidence" aria-controls="record-evidence"
+            className="mt-4 rounded-xl border border-line p-1">
+            {tabs.map(({ k, label }) => <ToggleGroupItem key={k} value={k} size="lg" className="rounded-lg px-3 text-sm max-sm:h-11">{label}</ToggleGroupItem>)}
+          </ToggleGroup>
+          <div id="record-evidence" role="region" aria-live="polite" aria-label={kind === "live" ? "Logged live" : "Season replay"} className="mt-4">
             {!view ? (
               <p className="rounded-xl border border-dashed border-line px-4 py-6 text-sm text-text-muted">
                 {kind === "live" ? "No live calls have been scored yet: every match prediction is logged before the match and scored after it." : "No replayed season is on record yet."}
               </p>
             ) : (
               <>
-                <p className="font-display text-6xl font-semibold tabular-nums">{pct(view.block.accuracy, 1).replace("%", "")}<span className="text-3xl text-text-muted">%</span></p>
+                {view.noneDecided
+                  ? <p className="font-display text-6xl font-semibold text-text-muted" aria-label="No percentage yet">—</p>
+                  : <p className="font-display text-6xl font-semibold tabular-nums">{pct(view.block.accuracy, 1).replace("%", "")}<span className="text-3xl text-text-muted">%</span></p>}
                 <p className="mt-1 text-sm text-text-muted">
                   Correct winner · {view.kind === "live" ? `${view.seasonLabel}, called before each match` : `${view.seasonLabel}, replayed after the season (not calls made in advance)`}
                 </p>
@@ -234,7 +234,8 @@ export function PredictionRecord() {
                   </div>
                 )}
                 <p className="mt-2 text-xs text-text-muted">
-                  {view.split ? `${fmt(view.split.decided)} decisive calls; ties and 50:50 calls aren’t counted (${fmt(view.block.n)} scored in all).` : `${fmt(view.block.n)} scored calls; ties and 50:50 calls aren’t counted in the percentage.`}
+                  {view.noneDecided ? `All ${fmt(view.block.n)} scored ${view.block.n === 1 ? "call was a tie or a 50:50 call" : "calls were ties or 50:50 calls"}, so none could be right or wrong yet.`
+                    : view.split ? `${fmt(view.split.decided)} decisive calls; ties and 50:50 calls aren’t counted (${fmt(view.block.n)} scored in all).` : `${fmt(view.block.n)} scored calls; ties and 50:50 calls aren’t counted in the percentage.`}
                   {view.early && ` An early sample: the headline waits for ${fmt(t.liveThreshold)} live calls.`}
                   {` Engine v${t.engineVersion} serves predictions now · updated ${ago(t.generatedAt)}.`}
                 </p>

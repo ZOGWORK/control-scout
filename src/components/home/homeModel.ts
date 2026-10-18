@@ -15,6 +15,8 @@ export interface RecordView {
   split: { correct: number; missed: number; decided: number } | null;
   /** Live calls short of the sample the headline waits for. */
   early: boolean;
+  /** Every scored call so far was a tie or a 50:50 call: there's no percentage to show yet (accuracy is a stand-in 0). */
+  noneDecided: boolean;
 }
 
 /** The newest season with this kind of evidence (the headline's own season first, when it's that kind). */
@@ -28,6 +30,7 @@ export function recordFor(t: TrackRecord, kind: Evidence): RecordView | null {
     kind, season: pick.season, seasonLabel: pick.label, block,
     split: decided != null && decided > 0 ? { correct: decided - block.upsets, missed: block.upsets, decided } : null,
     early: kind === "live" && block.n < t.liveThreshold,
+    noneDecided: decided === 0,
   };
 }
 

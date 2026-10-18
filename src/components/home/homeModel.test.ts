@@ -51,6 +51,12 @@ describe("prediction record", () => {
     expect(recordFor(record({}), "backtest")).toBeNull();
   });
 
+  it("has no percentage when every scored call was a tie or a 50:50 call (accuracy is a stand-in 0 then)", () => {
+    const ties = record({ seasons: [{ season: 2026, label: "x", live: block({ n: 3, decided: 0, accuracy: 0, upsets: 0 }), backtest: null }] });
+    expect(recordFor(ties, "live")).toMatchObject({ noneDecided: true, split: null });
+    expect(recordFor(t, "backtest")!.noneDecided).toBe(false);
+  });
+
   it("opens on live calls once the headline has switched to them", () => {
     const live = record({ ...t, headline: { kind: "live", season: 2026, accuracy: 0.75, n: 40 } });
     expect(defaultEvidence(live)).toBe("live");
