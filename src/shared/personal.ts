@@ -5,6 +5,7 @@
 // sign-in, local data is merged into the account (nothing lost), then the
 // account is the source of truth.
 import { INBOX_TOGGLE_KEYS, type InboxToggleKey } from "./inbox.js";
+import { MAX_TEAM_COLORS, teamColorById } from "./teamColors.js";
 
 export interface TrackedState { teams: number[]; events: string[] } // events: "season:CODE"
 export interface VideoLink { url: string; title: string | null; addedAt: number }
@@ -30,10 +31,13 @@ export interface PersonalState {
   /** Private alliance-selection notes on shortlisted teams: team number (as a string) to note. The pick
    *  order itself is `bookmarks`' order. Added later than the rest: older clients simply don't sync it. */
   shortlistNotes: Record<string, string>;
+  /** Colours given to teams (team number as a string → a TEAM_COLORS id), used on the shortlist and in Compare.
+   *  Added later than the rest: older clients simply don't sync it. */
+  teamColors: Record<string, string>;
 }
 
 export type PersonalKey = keyof PersonalState;
-export const PERSONAL_KEYS: PersonalKey[] = ["myTeam", "tracked", "bookmarks", "settings", "videoLinks", "predictionHistory", "shortlistNotes"];
+export const PERSONAL_KEYS: PersonalKey[] = ["myTeam", "tracked", "bookmarks", "settings", "videoLinks", "predictionHistory", "shortlistNotes", "teamColors"];
 
 const NOTIFY_KEYS = new Set<string>(["myTeamMatches", "trackedTeams", "upsets", "eventStart", ...INBOX_TOGGLE_KEYS]);
 
@@ -52,6 +56,7 @@ export const EMPTY_STATE: PersonalState = {
   videoLinks: {},
   predictionHistory: [],
   shortlistNotes: {},
+  teamColors: {},
 };
 
 /** A stored value with the client clock time it last changed (last write wins). */
@@ -109,6 +114,15 @@ export function cleanValue<K extends PersonalKey>(key: K, v: unknown): PersonalS
       }
       return out as PersonalState[K];
     }
+    case "teamColors": {
+      if (!v || typeof v !== "object" || Array.isArray(v)) return null;
+      const out: Record<string, string> = {};
+      for (const [team, id] of Object.entries(v as Record<string, unknown>)) {
+        if (Object.keys(out).length >= MAX_TEAM_COLORS) break;
+        if (/^[1-9]\d{0,5}$/.test(team) && typeof id === "string" && teamColorById(id)) out[team] = id;
+      }
+      return out as PersonalState[K];
+    }
   }
   return null;
 }
@@ -138,8 +152,9 @@ export function mergeValue<K extends PersonalKey>(key: K, account: Stamped<Perso
       const ids = new Set(a.map((p: SavedPrediction) => p.id));
       return { value: [...a, ...l.filter((p: SavedPrediction) => !ids.has(p.id))].sort((x: SavedPrediction, y: SavedPrediction) => y.savedAt - x.savedAt).slice(0, MAX_HISTORY) as any, updatedAt };
     }
+    case "teamColors":
     case "shortlistNotes": {
-      // Every team's note survives; a team noted on both sides keeps the newer side's note.
+      // Every team's note (or colour) survives; a team set on both sides keeps the newer side's.
       const newer = local.updatedAt > account.updatedAt;
       return { value: (newer ? { ...a, ...l } : { ...l, ...a }) as any, updatedAt };
     }

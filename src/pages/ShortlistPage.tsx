@@ -23,6 +23,7 @@ import { downloadCsv } from "../lib/csv";
 import { applyOrder, compareHref, readView, saveView, setNote, shortlistCsvRows, type ShortlistView } from "../lib/shortlist";
 import { useReorder } from "../components/shortlist/useReorder";
 import { GridCard, ListHeader, ListRow, MAX_COMPARE } from "../components/shortlist/PickRows";
+import { TeamColorPicker } from "../components/TeamColorPicker";
 import { NoteField } from "../components/shortlist/NoteField";
 import { TeamDetail } from "../components/shortlist/TeamDetail";
 
@@ -92,6 +93,7 @@ export default function ShortlistPage() {
 
   const common = (t: ShortlistTeam, rank: number) => ({
     t, rank, season, open: open.has(t.team), dragging: reorder.dragging === t.team,
+    color: <TeamColorPicker team={t.team} />,
     note: <NoteField team={t.team} value={notes[String(t.team)] ?? ""} stored={storedNotes === undefined ? undefined : (storedNotes?.[String(t.team)] ?? "")} onSave={(text: string) => update("shortlistNotes", (n) => setNote(n, t.team, text))} />,
     selected: selected.includes(t.team), selectDisabled: !selected.includes(t.team) && selected.length >= MAX_COMPARE, onSelect: (on: boolean) => pick(t.team, on),
     onToggle: () => toggle(t.team), onRemove: () => remove(t.team), handle: reorder.handleProps(t.team),
