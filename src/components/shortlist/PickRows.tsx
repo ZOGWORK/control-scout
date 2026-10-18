@@ -55,6 +55,8 @@ export interface RowProps {
   idPrefix?: string;
   /** A read-only list (an orphaned workspace's, Task 19): no grip and no Remove. */
   readOnly?: boolean;
+  /** Before the team number: the personal shortlist's colour picker (a workspace's list has none). */
+  color?: ReactNode;
 }
 
 function Grip({ t, rank, handle, className }: { t: ShortlistTeam; rank: number; handle: RowProps["handle"]; className?: string }) {
@@ -91,7 +93,8 @@ export function ListRow(p: RowProps) {
         <RankBadge rank={rank} />
         <span className="max-sm:hidden"><SelectBox {...p} /></span>
         <div className="min-w-0">
-          <div className="flex min-w-0 items-baseline gap-2">
+          <div className="flex min-w-0 items-center gap-2">
+            {p.color}
             <Link to={`/teams/${t.team}?season=${p.season}`} className="font-mono text-sm font-semibold hover:text-accent-text hover:underline">{t.team}</Link>
             <span className="truncate text-sm">{t.name ?? "Unknown team"}</span>
             {t.place && <span className="hidden truncate text-xs text-text-muted xl:inline">{t.place}</span>}
@@ -132,10 +135,13 @@ export function GridCard(p: RowProps) {
           <SelectLabel {...p} text="Compare" className="-mr-2 ml-auto" />
         </div>
         <div className="mt-2.5 min-w-0">
+          <div className="flex min-w-0 items-center gap-1.5">
+          {p.color}
           <Link to={`/teams/${t.team}?season=${p.season}`} className="group/name flex min-w-0 items-baseline">
             <span className="font-mono text-xl font-bold tabular-nums text-text-base group-hover/name:text-accent-text">{t.team}</span>
             <span className="ml-2 min-w-0 truncate text-sm font-medium group-hover/name:underline">{t.name ?? "Unknown team"}</span>
           </Link>
+          </div>
           {t.place && <p className="mt-0.5 flex items-center gap-1 truncate text-xs text-text-muted"><MapPin className="size-3 shrink-0" />{t.place}</p>}
         </div>
         <dl className="mt-3 grid grid-cols-3 gap-2">

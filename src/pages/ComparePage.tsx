@@ -26,9 +26,15 @@ import { SeasonToggle } from "../components/SeasonToggle";
 import { num, rankPct } from "../lib/format";
 import { CompareConsensus } from "../components/ScoutConsensus";
 import { cn } from "../components/cn";
+import { useTeamColors } from "../components/TeamColorPicker";
 import { Reveal, Stagger, StaggerItem, motion } from "../components/motion";
 
 const COLORS = ["var(--color-chart-1)", "var(--color-chart-2)", "var(--color-chart-3)", "var(--color-chart-4)"];
+
+/** Each compared team's colour: the one the scout gave it on the shortlist, else the usual one for its place. */
+export function teamPalette(teams: number[], colorOf: (team: number) => { css: string } | null): string[] {
+  return teams.map((t, i) => colorOf(t)?.css ?? COLORS[i % COLORS.length]);
+}
 const MAX = 4;
 
 export default function ComparePage() {
@@ -37,6 +43,8 @@ export default function ComparePage() {
   const current = useCurrentSeason();
   const asked = Number(sp.get("season")) || null;
   const teams = (sp.get("teams") ?? "").split(",").filter((x) => /^\d+$/.test(x)).slice(0, MAX);
+  const { colorOf } = useTeamColors();
+  const palette = teamPalette(teams.map(Number), colorOf);
   const [error, setError] = useState<string | null>(null);
   const [checking, setChecking] = useState(false);
   const input = useRef<HTMLInputElement>(null);
@@ -93,7 +101,7 @@ export default function ComparePage() {
             <div className="mb-4 flex flex-wrap items-center gap-2" aria-label="Chosen teams">
               {teams.map((t, i) => (
                 <span key={t} className="inline-flex h-10 items-center gap-1.5 rounded-xl border border-border bg-card pl-3 pr-1 font-mono text-sm">
-                  <span className="size-2 rounded-full" style={{ background: COLORS[i] }} />{t}
+                  <span className="size-2 rounded-full" style={{ background: palette[i] }} />{t}
                   <Button variant="ghost" size="icon-sm" aria-label={`Remove ${t}`} onClick={() => setTeams(teams.filter((x) => x !== t))}><X /></Button>
                 </span>
               ))}
@@ -125,11 +133,13 @@ function useSuggestions(chosen: number[]): Suggestion[] {
 
 function SuggestionChip({ s, onPick, big }: { s: Suggestion; onPick: (n: number) => void; big?: boolean }) {
   const name = useTeamName(s.team);
+  const color = useTeamColors().colorOf(s.team);
   return (
     <button type="button" onClick={() => onPick(s.team)} aria-label={`Add ${s.team}${name ? ` ${name}` : ""}`}
       className={cn("lift inline-flex min-w-0 items-center gap-2 rounded-xl border border-border bg-card text-left hover:border-accent/50",
         big ? "w-full px-3.5 py-3" : "h-9 px-3 text-sm max-sm:h-11")}>
       <Plus className="size-4 shrink-0 text-accent" aria-hidden />
+      {color && <span className="size-2.5 shrink-0 rounded-full" style={{ background: color.css }} title={color.label} />}
       <span className="font-mono font-semibold tabular-nums">{s.team}</span>
       {big ? (
         <span className="min-w-0 flex-1">
@@ -219,6 +229,8 @@ const CELL = { duration: 0.28, ease: [0.2, 0.8, 0.2, 1] as const };
 
 function StatsTable({ d, onRemove }: { d: CompareView; onRemove: (n: number) => void }) {
   const t = d.teams;
+  const { colorOf } = useTeamColors();
+  const COLORS = teamPalette(t.map((x) => x.team.number), colorOf);
   return (
     <Reveal className="min-w-0 self-start overflow-x-auto rounded-2xl border border-border bg-card">
       <table className="w-full table-fixed border-collapse text-sm" style={{ minWidth: `${5 + t.length * 8}rem` }}>
@@ -282,6 +294,8 @@ function ChartCard({ title, description, delay = 0, children }: { title: string;
 
 function Compare({ d, onRemove }: { d: CompareView; onRemove: (n: number) => void }) {
   const t = d.teams;
+  const { colorOf } = useTeamColors();
+  const COLORS = teamPalette(t.map((x) => x.team.number), colorOf);
   const phase = (["auto", "teleop", "endgame"] as const).map((k) => ({ phase: k === "auto" ? "Auto" : k === "teleop" ? "TeleOp" : "Endgame", ...Object.fromEntries(t.map((x) => [String(x.team.number), x.stats?.opr[k].value ?? 0])) }));
   const config = Object.fromEntries(t.map((x, i) => [String(x.team.number), { label: String(x.team.number), color: COLORS[i] }]));
   const maxEvents = Math.max(0, ...t.map((x) => x.events.length));
