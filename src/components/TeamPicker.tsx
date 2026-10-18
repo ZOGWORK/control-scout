@@ -5,6 +5,7 @@ import { Loader2, Plus, Search } from "lucide-react";
 import { apiFetch } from "../lib/api";
 import type { SearchHit } from "../shared/api";
 import { cn } from "./cn";
+import { motion } from "./motion";
 
 interface Option { team: number; name: string; place: string }
 
@@ -95,7 +96,8 @@ export function TeamPicker({ onPick, exclude = [], disabled, busy, error, onEdit
       </div>
       {error && <p id={errId} role="alert" className="mt-1 text-xs font-medium text-destructive">{error}</p>}
       {expanded && (
-        <ul id={listId} role="listbox" aria-label="Matching teams"
+        <motion.ul id={listId} role="listbox" aria-label="Matching teams"
+          initial={{ opacity: 0, y: -4, scale: 0.99 }} animate={{ opacity: 1, y: 0, scale: 1 }} transition={{ duration: 0.16, ease: [0.2, 0.8, 0.2, 1] }}
           className="absolute inset-x-0 top-full z-30 mt-1 max-h-80 overflow-y-auto rounded-xl border border-border bg-popover p-1 shadow-lg">
           {list.length === 0 ? <li className="px-3 py-2.5 text-sm text-muted-foreground">No team matches “{q}”.</li> : list.map((o, i) => (
             <li key={o.team} id={`${listId}-${o.team}`} role="option" aria-selected={i === active}
@@ -109,7 +111,7 @@ export function TeamPicker({ onPick, exclude = [], disabled, busy, error, onEdit
               <Plus className="size-4 shrink-0 text-muted-foreground" aria-hidden />
             </li>
           ))}
-        </ul>
+        </motion.ul>
       )}
     </div>
   );

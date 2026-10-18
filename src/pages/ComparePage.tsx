@@ -26,6 +26,7 @@ import { SeasonToggle } from "../components/SeasonToggle";
 import { num, rankPct } from "../lib/format";
 import { CompareConsensus } from "../components/ScoutConsensus";
 import { cn } from "../components/cn";
+import { Reveal, Stagger, StaggerItem, motion } from "../components/motion";
 
 const COLORS = ["var(--color-chart-1)", "var(--color-chart-2)", "var(--color-chart-3)", "var(--color-chart-4)"];
 const MAX = 4;
@@ -142,10 +143,10 @@ function SuggestionChip({ s, onPick, big }: { s: Suggestion; onPick: (n: number)
 
 function QuickPicks({ list, onPick }: { list: Suggestion[]; onPick: (n: number) => void }) {
   return (
-    <div className="mt-3 flex flex-wrap items-center gap-2">
+    <Stagger className="mt-3 flex flex-wrap items-center gap-2">
       <span className="text-sm text-muted-foreground">Quick add:</span>
-      {list.slice(0, 5).map((s) => <SuggestionChip key={s.team} s={s} onPick={onPick} />)}
-    </div>
+      {list.slice(0, 5).map((s) => <StaggerItem key={s.team}><SuggestionChip s={s} onPick={onPick} /></StaggerItem>)}
+    </Stagger>
   );
 }
 
@@ -153,7 +154,7 @@ function QuickPicks({ list, onPick }: { list: Suggestion[]; onPick: (n: number) 
 function Start({ suggestions, onPick, onPickAll }: { suggestions: Suggestion[]; onPick: (n: number) => void; onPickAll: (ns: number[]) => void }) {
   const yours = suggestions.filter((s) => s.why === "Your team" || s.why === "Followed").slice(0, MAX);
   return (
-    <div className="rounded-2xl border border-border bg-card p-5 sm:p-6">
+    <Reveal className="rounded-2xl border border-border bg-card p-5 sm:p-6">
       <div className="flex items-start gap-3">
         <span className="flex size-10 shrink-0 items-center justify-center rounded-full bg-accent/15"><Scale className="size-5 text-accent" aria-hidden /></span>
         <div className="min-w-0">
@@ -169,9 +170,9 @@ function Start({ suggestions, onPick, onPickAll }: { suggestions: Suggestion[]; 
             <p className="text-sm font-medium">Start with your teams</p>
             {yours.length >= 2 && <Button size="sm" variant="secondary" onClick={() => onPickAll(yours.map((s) => s.team))}><Scale /> Compare your {yours.length} teams</Button>}
           </div>
-          <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
-            {suggestions.map((s) => <SuggestionChip key={s.team} s={s} onPick={onPick} big />)}
-          </div>
+          <Stagger className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
+            {suggestions.map((s) => <StaggerItem key={s.team} className="min-w-0"><SuggestionChip s={s} onPick={onPick} big /></StaggerItem>)}
+          </Stagger>
         </div>
       )}
       <ul className="mt-5 grid list-disc gap-x-8 gap-y-1.5 border-t border-border pl-4 pt-4 text-sm text-muted-foreground marker:text-accent sm:grid-cols-2 lg:grid-cols-4" aria-label="What you'll see">
@@ -180,7 +181,7 @@ function Start({ suggestions, onPick, onPickAll }: { suggestions: Suggestion[]; 
         <li>Event-by-event OPR, to see who's improving</li>
         <li>Every match they've played with or against each other</li>
       </ul>
-    </div>
+    </Reveal>
   );
 }
 
@@ -213,17 +214,21 @@ export function leaders(m: Pick<Metric, "better" | "value">, t: CompareTeam[]): 
   return new Set(t.filter((x) => m.value(x) === top).map((x) => x.team.number));
 }
 
+/** How a table cell fades in (a new team's column, or the rows on first load). */
+const CELL = { duration: 0.28, ease: [0.2, 0.8, 0.2, 1] as const };
+
 function StatsTable({ d, onRemove }: { d: CompareView; onRemove: (n: number) => void }) {
   const t = d.teams;
   return (
-    <div className="min-w-0 self-start overflow-x-auto rounded-2xl border border-border bg-card">
+    <Reveal className="min-w-0 self-start overflow-x-auto rounded-2xl border border-border bg-card">
       <table className="w-full table-fixed border-collapse text-sm" style={{ minWidth: `${5 + t.length * 8}rem` }}>
         <caption className="sr-only">Season stats; the best in each row is marked</caption>
         <thead>
           <tr>
             <th scope="col" className="w-20 p-3 sm:w-24"><span className="sr-only">Stat</span></th>
             {t.map((x, i) => (
-              <th key={x.team.number} scope="col" className="border-l border-border p-3 text-left align-top font-normal" style={{ boxShadow: `inset 0 3px 0 ${COLORS[i]}` }}>
+              <motion.th key={x.team.number} scope="col" className="border-l border-border p-3 text-left align-top font-normal" style={{ boxShadow: `inset 0 3px 0 ${COLORS[i]}` }}
+                initial={{ opacity: 0, y: -4 }} animate={{ opacity: 1, y: 0 }} transition={CELL}>
                 <div className="flex items-start justify-between gap-1">
                   <Link to={`/teams/${x.team.number}?season=${d.season}`} className="min-w-0 hover:underline">
                     <span className="block font-display text-xl font-semibold tabular-nums">{x.team.number}</span>
@@ -232,43 +237,46 @@ function StatsTable({ d, onRemove }: { d: CompareView; onRemove: (n: number) => 
                   <Button variant="ghost" size="icon-sm" className="-mr-1.5 -mt-1 shrink-0 max-sm:size-10" aria-label={`Remove ${x.team.number}`} onClick={() => onRemove(x.team.number)}><X /></Button>
                 </div>
                 {!x.stats && <span className="mt-1 block text-xs text-muted-foreground">No results this season</span>}
-              </th>
+              </motion.th>
             ))}
           </tr>
         </thead>
         <tbody>
-          {METRICS.map((m) => {
+          {METRICS.map((m, row) => {
             const best = leaders(m, t);
             return (
-              <tr key={m.label} className="border-t border-border">
+              <motion.tr key={m.label} className="border-t border-border" initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ ...CELL, delay: 0.05 + row * 0.03 }}>
                 <th scope="row" className="px-3 py-2 text-left font-normal text-muted-foreground">{m.label}</th>
                 {t.map((x) => {
                   const lead = best.has(x.team.number);
                   const sub = m.sub?.(x);
                   return (
-                    <td key={x.team.number} className={cn("border-l border-border px-3 py-2 tabular-nums", lead && "bg-accent/[0.08]")}>
+                    <motion.td key={x.team.number} className={cn("border-l border-border px-3 py-2 tabular-nums transition-colors duration-300", lead && "bg-accent/[0.08]")}
+                      initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={CELL}>
                       <span className={cn("whitespace-nowrap font-medium", lead && "text-accent-text")}>{m.show(x)}</span>
                       {lead && <span className="sr-only"> (best)</span>}
                       {sub && <span className="whitespace-nowrap text-xs text-muted-foreground max-sm:block sm:ml-1.5">{sub}</span>}
-                    </td>
+                    </motion.td>
                   );
                 })}
-              </tr>
+              </motion.tr>
             );
           })}
         </tbody>
       </table>
-    </div>
+    </Reveal>
   );
 }
 
-function ChartCard({ title, description, children }: { title: string; description: string; children: ReactNode }) {
+function ChartCard({ title, description, delay = 0, children }: { title: string; description: string; delay?: number; children: ReactNode }) {
   return (
-    <section aria-label={title} className="min-w-0 rounded-2xl border border-border bg-card p-4">
-      <h2 className="text-sm font-semibold">{title}</h2>
-      <p className="text-xs text-muted-foreground">{description}</p>
-      <div className="mt-2">{children}</div>
-    </section>
+    <Reveal delay={delay} className="min-w-0 rounded-2xl border border-border bg-card p-4">
+      <section aria-label={title}>
+        <h2 className="text-sm font-semibold">{title}</h2>
+        <p className="text-xs text-muted-foreground">{description}</p>
+        <div className="mt-2">{children}</div>
+      </section>
+    </Reveal>
   );
 }
 
@@ -287,7 +295,7 @@ function Compare({ d, onRemove }: { d: CompareView; onRemove: (n: number) => voi
       <div className="grid gap-4 lg:grid-cols-2">
         <StatsTable d={d} onRemove={onRemove} />
         <div className="grid min-w-0 gap-4 sm:grid-cols-2 lg:grid-cols-1">
-          <ChartCard title="OPR by phase" description="From each team's best event this season">
+          <ChartCard title="OPR by phase" description="From each team's best event this season" delay={0.06}>
             <ChartContainer config={config} className="h-48 w-full">
               <BarChart data={phase} margin={{ top: 6, right: 6, bottom: 0, left: 0 }}>
                 <CartesianGrid vertical={false} strokeDasharray="3 3" />
@@ -299,7 +307,7 @@ function Compare({ d, onRemove }: { d: CompareView; onRemove: (n: number) => voi
               </BarChart>
             </ChartContainer>
           </ChartCard>
-          <ChartCard title="OPR event by event" description="Each team's events in order (E1 = its first)">
+          <ChartCard title="OPR event by event" description="Each team's events in order (E1 = its first)" delay={0.12}>
             {maxEvents < 2 ? <p className="flex h-48 items-center justify-center rounded-xl border border-dashed border-border text-sm text-muted-foreground">Needs two events to draw a line.</p> : (
               <ChartContainer config={config} className="h-48 w-full">
                 <LineChart data={trend} margin={{ top: 6, right: 6, bottom: 0, left: 0 }}>
