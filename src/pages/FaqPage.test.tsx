@@ -48,6 +48,14 @@ describe("FAQ page", () => {
     expect(screen.getByRole("button", { name: "What is OPR?" }).getAttribute("aria-expanded")).toBe("true");
   });
 
+  it("ignores a malformed or unknown link instead of breaking", () => {
+    mount("/faq#%");
+    expect(screen.getByRole("heading", { level: 1 }).textContent).toBe("Frequently asked questions");
+    cleanup();
+    mount("/faq#no-such-question");
+    expect(screen.getAllByRole("button", { expanded: false }).length).toBe(FAQ_ITEMS.length);
+  });
+
   it("matches every word, ignoring case and accents", () => {
     const item = { id: "x", q: "Où est l'équipe?", a: ["Team [link](/x) info"] };
     expect(faqMatches(item, "EQUIPE team")).toBe(true);

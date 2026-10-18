@@ -8,7 +8,7 @@ import { useTitle } from "../lib/meta";
 import { PageHeader } from "../components/page";
 import { Input } from "../components/ui/basic";
 import { Button } from "../components/ui/button";
-import { toast } from "../components/ui/sonner";
+import { copyLink } from "../lib/clipboard";
 import { cn } from "../components/cn";
 import { FAQ, faqParts, faqText, type FaqItem } from "../shared/faq";
 
@@ -46,10 +46,8 @@ function Answer({ text }: { text: string }) {
 }
 
 function Question({ item, open, onToggle }: { item: FaqItem; open: boolean; onToggle: () => void }) {
-  const copy = () => {
-    const url = `${location.origin}/faq#${item.id}`;
-    navigator.clipboard?.writeText(url).then(() => toast("Link copied"), () => toast(url));
-  };
+  // The shared helper: falls back without the Clipboard API (plain HTTP) and says when it can't copy.
+  const copy = () => void copyLink(`${location.origin}/faq#${item.id}`);
   return (
     <li id={item.id} className="scroll-mt-20">
       <h3>
@@ -78,7 +76,9 @@ export default function FaqPage() {
   const [open, setOpen] = useState<Set<string>>(() => new Set());
   // Arriving on /faq#question opens that answer and brings it into view.
   useEffect(() => {
-    const id = decodeURIComponent(hash.slice(1));
+    // A malformed fragment (/faq#%) is ignored, never an error.
+    let id: string;
+    try { id = decodeURIComponent(hash.slice(1)); } catch { return; }
     if (!id || !FAQ.some((g) => g.items.some((i) => i.id === id))) return;
     setOpen((s) => new Set(s).add(id));
     requestAnimationFrame(() => document.getElementById(id)?.scrollIntoView({ block: "start" }));
