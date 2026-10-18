@@ -1,30 +1,31 @@
-// Home: search first; the core loop (events, prediction lab) big and inviting;
-// the track record impossible to miss; your team's next match one tap away.
+// Home, the FTC observatory: search and the two main actions first, beside a
+// country atlas of this season's teams; then the season's coverage, your team,
+// what's on the calendar, the public prediction record and Control Scout's own
+// opt-in usage. On a phone it reads in task order: search, the season, your team
+// and events come before the atlas. The brand lives in the shell's chrome.
 import { useEffect } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { ArrowRight, BadgeCheck, CalendarDays, Download, MapPin, Radio, Scale, Search, Sparkles, Star } from "lucide-react";
+import { ArrowRight, ArrowUpRight, CalendarDays, LockOpen, MapPin, Radio, Sparkles } from "lucide-react";
 import { useApi, qs } from "../lib/api";
-import { useCurrentSeason, useMeta, useTitle } from "../lib/meta";
+import { useCurrentSeason, useMediaQuery, useTitle } from "../lib/meta";
 import { usePersonal } from "../lib/personal";
-import type { EventSummary, EventListItem, MatchView, TrackRecord } from "../shared/api";
-import { SEARCH_HINT, hitHref, usePageSearch } from "../components/layout/Search";
+import type { EventListItem } from "../shared/api";
+import type { HomeOverview } from "../shared/home";
+import { SEARCH_HINT, hitHref, usePageSearch, useSearch } from "../components/layout/Search";
 import { SearchBox } from "../components/search/SearchBox";
-import { Section } from "../components/page";
-import { Async } from "../components/states";
-import { Reveal, Stagger, StaggerItem } from "../components/motion";
 import { Badge } from "../components/ui/basic";
 import { Button } from "../components/ui/button";
-import { TierMark, WinBar } from "../components/predict";
-import { cn } from "../components/cn";
-import { HOME_TAGLINE } from "../shared/boot";
-import { dateRange, matchTime, oddsPct, pct, place, seasonLabel, ago } from "../lib/format";
-
-const iso = (d: Date) => d.toISOString().slice(0, 10);
+import { Reveal } from "../components/motion";
+import { CompetitionAtlas, preloadAtlas } from "../components/home/CompetitionAtlas";
+import { FindYourTeam, OnTheCalendar, PredictionRecord, PublicUsagePanel, SeasonCoverage, YourTeam } from "../components/home/HomeSections";
+import { HOME_HEADLINE, HOME_LEAD } from "../shared/boot";
+import { dateRange, place } from "../lib/format";
 
 export default function Home() {
   useTitle(null);
   const { user, state } = usePersonal();
   const nav = useNavigate();
+  const season = useCurrentSeason();
   // Signed-in users with a team land on their dashboard (once per visit).
   useEffect(() => {
     if (user && state.myTeam && !sessionStorage.getItem("cs-landed")) {
@@ -32,16 +33,32 @@ export default function Home() {
       nav("/my-team", { replace: true });
     }
   }, [user, state.myTeam, nav]);
+  // The atlas's code and boundaries load beside the page's data, after the hero has painted.
+  useEffect(() => { const t = setTimeout(preloadAtlas, 0); return () => clearTimeout(t); }, []);
+  const overview = useApi<HomeOverview>(`/api/home/overview${qs({ season })}`);
+  const phone = useMediaQuery("(max-width: 639px)");
+  const search = useSearch();
   return (
-    <div className="space-y-10">
-      <Hero />
-      {state.myTeam && <MyTeamNext team={state.myTeam} />}
-      <CoreLoop />
-      <div className="grid gap-8 xl:grid-cols-[minmax(0,1.7fr)_minmax(0,1fr)]">
-        <ThisWeek />
-        <TrackRecordCard />
+    <div className="@container/home">
+      <div className="home-grid">
+        <div className="[grid-area:hero]"><Hero /></div>
+        <div className="[grid-area:strip]"><SeasonCoverage state={overview} /></div>
+        <div className="[grid-area:team]">{state.myTeam ? <YourTeam team={state.myTeam} season={season} /> : <FindYourTeam onSearch={search.open} />}</div>
+        <div className="[grid-area:events]"><OnTheCalendar season={season} /></div>
+        <div className="[grid-area:atlas]">
+          {overview.data ? <CompetitionAtlas overview={overview.data} currentSeason={season} compact={phone} /> : <AtlasPending failed={!!overview.error} onRetry={overview.reload} />}
+        </div>
+        <div className="[grid-area:record]"><PredictionRecord /></div>
+        <div className="[grid-area:usage]"><PublicUsagePanel /></div>
       </div>
-      <MoreTools />
+      <footer className="mt-10 flex flex-wrap items-center justify-between gap-3 border-t border-line pt-5 text-sm text-text-muted">
+        <span>FTC, with a clearer view.</span>
+        <span className="flex flex-wrap gap-x-4 gap-y-1">
+          <Link to="/methodology" className="hover:text-text-base hover:underline">How the numbers work</Link>
+          <Link to="/download" className="hover:text-text-base hover:underline">Offline packs</Link>
+          <Link to="/compare" className="hover:text-text-base hover:underline">Compare teams</Link>
+        </span>
+      </footer>
     </div>
   );
 }
@@ -50,120 +67,47 @@ function Hero() {
   // Home's search IS the page's search: the top-bar field steps aside here.
   const searchRef = usePageSearch();
   const nav = useNavigate();
-  const meta = useMeta();
-  const myTeam = usePersonal().state.myTeam;
   // The page's main content: full opacity on its first frame (no fade from 0).
   return (
-    <Reveal fade={false} className="pt-2 text-center sm:pt-8">
-      {/* The wordmark (brand/wordmark-master.png). The heading's text is its alt, for search engines and screen readers. */}
-      <h1>
-        <img src="/wordmark.png" alt="FTC Control Scout" width={1200} height={192} className="mx-auto h-12 w-auto max-w-full sm:h-16" />
+    <Reveal fade={false} className="pt-2 @4xl/home:pt-10">
+      <p className="flex items-center gap-3 text-xs font-semibold uppercase tracking-[0.2em] text-accent-text"><span aria-hidden className="h-px w-6 bg-accent" /> The FTC observatory</p>
+      <h1 className="mt-4 font-display text-[2.5rem] font-semibold leading-[1.05] tracking-[-0.02em] @lg/home:text-5xl @4xl/home:text-[3.5rem] @6xl/home:text-[4rem]">
+        {HOME_HEADLINE[0]} <span className="block text-accent-text">{HOME_HEADLINE[1]}</span>
       </h1>
-      <p className="mx-auto mt-3 max-w-xl text-muted-foreground">{HOME_TAGLINE}</p>
+      <p className="mt-4 max-w-[30rem] text-base text-text-muted">{HOME_LEAD}</p>
       <SearchBox
         size="lg" inputRef={searchRef} hint={SEARCH_HINT} tour="search"
         label="Search teams, events and matches"
-        placeholder="Team number or name (typos are fine), an event, or “USNJQ1 Q12”…"
+        placeholder="Find a team, event or match…"
         onPick={(h) => nav(hitHref(h))}
-        className="mx-auto mt-7 w-full max-w-2xl text-left [&>div:first-child]:rounded-2xl [&>div:first-child]:shadow-[0_8px_40px_-12px_color-mix(in_srgb,var(--color-accent)_25%,transparent)]"
+        className="mt-6 w-full max-w-[36rem] [&>div:first-child]:rounded-xl"
       />
-      {/* The page's main actions, above the fold at every size. No entrance
-          animation of their own: they paint with the rest of the hero. */}
-      <div className="mx-auto mt-5 flex max-w-2xl flex-wrap items-center justify-center gap-3">
-        <Button size="lg" asChild className="max-sm:flex-1"><Link to="/predict" data-tour="predict"><Sparkles /> Predict a match</Link></Button>
-        {myTeam
-          ? <Button size="lg" variant="secondary" asChild className="max-sm:flex-1"><Link to="/my-team"><Star /> Your team <span className="font-mono">{myTeam}</span></Link></Button>
-          : <Button size="lg" variant="secondary" asChild className="max-sm:flex-1"><Link to="/events"><CalendarDays /> Browse events</Link></Button>}
+      {/* The page's main actions, above the fold at every size; they paint with the rest of the hero. */}
+      <div className="mt-4 flex max-w-[36rem] flex-wrap gap-3">
+        <Button size="lg" asChild className="max-sm:flex-1"><Link to="/predict" data-tour="predict"><Sparkles /> Predict a match <ArrowUpRight /></Link></Button>
+        <Button size="lg" variant="secondary" asChild className="max-sm:flex-1"><Link to="/events"><CalendarDays /> Find an event <ArrowRight /></Link></Button>
       </div>
-      {/* Its line is kept while /api/meta loads, so the sections below don't move down when it arrives. */}
-      <p className="mt-3 text-xs text-muted-foreground">{meta ? <>{meta.seasons.length} seasons · data updated {ago(meta.dataAsOf)} · engine v{meta.engineVersion}</> : " "}</p>
+      <p className="mt-3 flex items-center gap-1.5 text-sm text-text-muted"><LockOpen className="size-4" aria-hidden /> Free to explore. No account needed.</p>
     </Reveal>
   );
 }
 
-/** Event-day: your team's next match and its odds, one tap from home. */
-function MyTeamNext({ team }: { team: number }) {
-  const season = useCurrentSeason();
-  const { data, error } = useApi<{ matches: MatchView[] }>(`/api/teams/${team}/matches${qs({ season })}`);
-  // Unplayed and not stale: a match scheduled well in the past belongs to a
-  // finished event (a left-over slot), while same-day delays still count.
-  // Without a known time zone, the event-local time read as UTC is within
-  // ±14 h of the real instant, so it still orders the schedule; the stale
-  // cutoff gets that much extra slack.
-  const now = Date.now();
-  const at = (m: MatchView) => m.startsAt ? Date.parse(m.startsAt) : m.time ? Date.parse(`${m.time.replace(/Z$/, "")}Z`) : NaN;
-  const slack = (m: MatchView) => (m.startsAt ? 12 : 26) * 3600_000;
-  const next = data?.matches
-    .filter((m) => !m.played && (!Number.isFinite(at(m)) || at(m) > now - slack(m)))
-    .sort((a, b) => (Number.isFinite(at(a)) ? at(a) : Infinity) - (Number.isFinite(at(b)) ? at(b) : Infinity))[0];
-  const side = next ? (next.red.teams.some((t) => t.number === team) ? "red" : "blue") : null;
-  const pWin = next?.prediction ? (side === "red" ? next.prediction.pRed : 1 - next.prediction.pRed) : null;
+/** The atlas's place while its numbers load (kept the same size), or a way back if they couldn't. */
+function AtlasPending({ failed, onRetry }: { failed: boolean; onRetry: () => void }) {
   return (
-    <Link to="/my-team" className="lift flex flex-wrap items-center gap-x-4 gap-y-2 rounded-xl border border-accent/30 bg-accent/[0.05] px-4 py-3 text-sm">
-      <Star className="size-4 fill-accent text-accent" />
-      <span className="font-mono font-semibold">{team}</span>
-      {next ? (
-        <>
-          <span className="text-muted-foreground">Next: {next.label} · {next.code} · {matchTime(next.time)}</span>
-          {pWin != null && <><WinBar pRed={next.prediction!.pRed} size="sm" className="w-24" /><span className="font-semibold">{oddsPct(pWin)} to win</span><TierMark tier={next.prediction!.tier} className="text-xs" /></>}
-        </>
-      ) : !data ? (
-        <span className="text-muted-foreground">{error ? "Couldn't load the schedule — open your dashboard" : "Checking the schedule…"}</span>
-      ) : <span className="text-muted-foreground">No scheduled match yet — your dashboard has the next event's odds.</span>}
-      <ArrowRight className="ml-auto size-4 text-accent" />
-    </Link>
+    <section aria-label="The competition atlas" className="min-w-0">
+      <p className="text-xs font-semibold uppercase tracking-[0.18em] text-text-muted">The competition atlas</p>
+      {failed ? (
+        <div className="mt-3 flex flex-col items-start gap-3 rounded-2xl border border-dashed border-line p-5 text-sm text-text-muted">
+          Where this season’s teams are from couldn’t load.
+          <Button variant="secondary" size="sm" onClick={onRetry}>Try again</Button>
+        </div>
+      ) : <div className="mx-auto mt-3 aspect-square max-w-[30rem] rounded-full border border-line @max-xl/home:max-w-[22rem]" aria-hidden />}
+    </section>
   );
 }
 
-/** The core loop, big: find an event, ask who wins. */
-function CoreLoop() {
-  const items = [
-    { to: "/predict", icon: Sparkles, title: "Who wins?", body: "Pick a team or event: win odds and predicted scores for every scheduled match, the reasons why, and how sure we are.", cta: "Open Predict" },
-    { to: "/events", icon: CalendarDays, title: "Events", body: "Every event this season: live results, rankings, brackets, and any team's odds of advancing.", cta: "Browse events" },
-  ];
-  return (
-    <Stagger className="grid gap-4 md:grid-cols-2">
-      {items.map((x) => (
-        <StaggerItem key={x.to}>
-          <Link to={x.to} className="lift group relative flex h-full items-start gap-4 overflow-hidden rounded-2xl border border-border bg-card p-6">
-            <div aria-hidden className="pointer-events-none absolute -right-10 -top-10 size-40 rounded-full bg-accent/10 blur-2xl transition-opacity group-hover:opacity-100 opacity-60" />
-            <span className="relative flex size-11 shrink-0 items-center justify-center rounded-xl bg-accent/15"><x.icon className="size-5 text-accent" /></span>
-            <span className="relative min-w-0">
-              <span className="block font-display text-xl font-semibold">{x.title}</span>
-              <span className="mt-1 block text-sm text-muted-foreground">{x.body}</span>
-              <span className="mt-3 inline-flex items-center gap-1 text-sm font-semibold text-accent">{x.cta} <ArrowRight className="size-4 transition-transform group-hover:translate-x-0.5" /></span>
-            </span>
-          </Link>
-        </StaggerItem>
-      ))}
-    </Stagger>
-  );
-}
-
-function ThisWeek() {
-  const season = useCurrentSeason();
-  const now = new Date();
-  const from = iso(new Date(now.getTime() - 2 * 864e5)), to = iso(new Date(now.getTime() + 7 * 864e5));
-  const state = useApi<{ events: EventListItem[] }>(`/api/events${qs({ season, from, to })}`);
-  return (
-    <Section title="This week" description={`${seasonLabel(season)} events running now or in the next 7 days`} action={<Button variant="ghost" size="sm" asChild><Link to="/events">All events <ArrowRight /></Link></Button>} className="mb-0">
-      <Async state={state} loading={<div className="grid gap-3 sm:grid-cols-2">{[0, 1, 2, 3].map((i) => <div key={i} className="skeleton h-28 rounded-xl" />)}</div>}
-        empty={(d) => !d.events.length && <p className="rounded-xl border border-dashed border-border px-4 py-8 text-center text-sm text-muted-foreground">No events this week. <Link to="/events" className="underline">Browse the season calendar</Link>.</p>}>
-        {(d) => {
-          const order = { live: 0, upcoming: 1, finished: 2 } as const;
-          const evs = [...d.events].sort((a, b) => order[a.status] - order[b.status] || (a.start ?? "").localeCompare(b.start ?? "")).slice(0, 8);
-          return (
-            <>
-              <Stagger className="grid gap-3 sm:grid-cols-2">{evs.map((e) => <StaggerItem key={e.code}><EventCard e={e} /></StaggerItem>)}</Stagger>
-              {d.events.length > evs.length && <p className="mt-3 text-sm text-muted-foreground"><Link to="/events" className="underline">{d.events.length - evs.length} more this week</Link></p>}
-            </>
-          );
-        }}
-      </Async>
-    </Section>
-  );
-}
-
+/** An event as a card (the My team page's tracked events use it). */
 export function EventCard({ e }: { e: EventListItem }) {
   return (
     <Link to={`/events/${e.season}/${e.code}`} className="lift group flex h-full flex-col rounded-xl border border-border bg-card p-4">
@@ -176,58 +120,5 @@ export function EventCard({ e }: { e: EventListItem }) {
       <p className="mt-auto flex items-center gap-1.5 pt-3 text-xs text-muted-foreground"><CalendarDays className="size-3.5" />{dateRange(e.start, e.end)}</p>
       <p className="mt-1 flex items-center gap-1.5 truncate text-xs text-muted-foreground"><MapPin className="size-3.5 shrink-0" />{place(e.city, e.state, e.country) || "Location TBA"}{e.teams ? ` · ${e.teams} teams` : ""}</p>
     </Link>
-  );
-}
-
-function TrackRecordCard() {
-  const state = useApi<TrackRecord>("/api/predict/accuracy");
-  return (
-    <Section title="Track record" description="Every call, scored after the match." action={<Button variant="ghost" size="sm" asChild><Link to="/methodology#accuracy">Full record <ArrowRight /></Link></Button>} className="mb-0">
-      <Async state={state} loading={<div className="skeleton h-64 rounded-xl" />}>
-        {(t) => {
-          const h = t.headline;
-          if (!h) return <p className="rounded-xl border border-dashed border-border px-4 py-8 text-center text-sm text-muted-foreground">No scored predictions yet.</p>;
-          const block = t.seasons.find((s) => s.season === h.season)?.[h.kind];
-          const bins = block?.reliability.filter((b) => b.n > 0) ?? [];
-          return (
-            <Link to="/methodology#accuracy" className="lift block rounded-2xl border border-border bg-card p-5">
-              <p className="font-display text-6xl font-semibold tabular-nums text-accent">{pct(h.accuracy)}</p>
-              <p className="mt-1 text-sm text-muted-foreground">of {h.n.toLocaleString()} matches called correctly</p>
-              <Badge variant={h.kind === "live" ? "success" : "secondary"} className="mt-2">{h.kind === "live" ? "Live — called before each match" : `Predicted · ${seasonLabel(h.season)} (replayed)`}</Badge>
-              {bins.length > 0 && (
-                <>
-                  <div className="mt-5 flex h-20 items-end gap-1" role="img" aria-label="Calibration: how often teams at each predicted chance actually won">
-                    {bins.map((b) => (
-                      <div key={b.lo} className="flex flex-1 flex-col items-center justify-end" title={`Said ${pct(b.predicted)} → won ${pct(b.actual)} (${b.n.toLocaleString()} matches)`}>
-                        <div className="w-full rounded-t bg-accent/80" style={{ height: `${Math.max(4, b.actual * 80)}px` }} />
-                      </div>
-                    ))}
-                  </div>
-                  <p className="mt-2 text-xs text-muted-foreground">Each bar: teams we gave 5%, 15% … 95% — and how often they actually won. The staircase means the odds mean what they say.</p>
-                </>
-              )}
-            </Link>
-          );
-        }}
-      </Async>
-    </Section>
-  );
-}
-
-function MoreTools() {
-  const items = [
-    { to: "/compare", icon: Scale, title: "Compare", body: "Head-to-head: OPR, ratings, records, every meeting." },
-    { to: "/download", icon: Download, title: "Offline packs", body: "No signal at the venue? Predictions run on your device." },
-    { to: "/methodology#accuracy", icon: BadgeCheck, title: "How sure are we?", body: "Calibration by confidence tier, week by week." },
-  ];
-  return (
-    <div className="grid gap-3 sm:grid-cols-3">
-      {items.map((x) => (
-        <Link key={x.to} to={x.to} className={cn("lift flex items-start gap-3 rounded-xl border border-border bg-card p-4")}>
-          <x.icon className="mt-0.5 size-5 shrink-0 text-accent" />
-          <span><span className="block font-medium">{x.title}</span><span className="mt-0.5 block text-sm text-muted-foreground">{x.body}</span></span>
-        </Link>
-      ))}
-    </div>
   );
 }

@@ -7,9 +7,11 @@ export const BOOT_CONSENT_ID = "cs-boot-consent";
  *  store (src/lib/consent.ts) adopts it as this page view's unsaved choice. */
 export const BOOT_CHOICE_GLOBAL = "__csConsent";
 
-/** The home page's line under the wordmark, in the static first paint and in the app: the same words at the
- *  same size, so the app's copy doesn't count as a new, later "largest paint". */
-export const HOME_TAGLINE = "Every FTC team, event and match — with predictions that keep a public score of how often they come true. Free, no login.";
+/** The home page's headline (two lines, the second in the accent colour) and the line under it, in the static
+ *  first paint and in the app: the same words at the same size, so the app's copy doesn't count as a new,
+ *  later "largest paint". The brand itself stays in the app's chrome (sidebar and top bar). */
+export const HOME_HEADLINE = ["The whole field.", "In your corner."] as const;
+export const HOME_LEAD = "Find your team. Follow the competition. Make your next call with the full picture.";
 
 /** The id of the app's stylesheet <link>, which the server makes non-blocking (server/seo.ts nonBlockingCss):
  *  the app waits for it to load before its first render (src/main.tsx), so nothing ever shows unstyled. */

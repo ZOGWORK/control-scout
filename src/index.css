@@ -226,3 +226,22 @@ html.compact .density-card { padding: 0.875rem; }
 .lift:hover { transform: translateY(-2px); border-color: color-mix(in srgb, var(--color-accent) 55%, transparent); box-shadow: 0 10px 30px -14px color-mix(in srgb, var(--color-accent) 45%, transparent); }
 .lift:active { transform: translateY(0); }
 @media (prefers-reduced-motion: reduce) { .lift:hover { transform: none; } }
+
+/* Home (src/pages/Home.tsx), sized by its own content width (the sidebar's room
+   isn't the page's): one column in task order (search, the season, your team,
+   events, then the atlas) until there's room for the observatory, where the atlas
+   sits beside the hero and events beside the prediction record. */
+.home-grid {
+  display: grid;
+  gap: 2rem;
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-areas: "hero" "strip" "team" "events" "atlas" "record" "usage";
+}
+@container home (min-width: 56rem) {
+  .home-grid {
+    column-gap: 2.5rem;
+    row-gap: 2rem;
+    grid-template-columns: minmax(0, 45fr) minmax(0, 55fr);
+    grid-template-areas: "hero atlas" "strip strip" "team team" "events record" "usage usage";
+  }
+}
