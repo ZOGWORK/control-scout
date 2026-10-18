@@ -2,7 +2,7 @@
 
 You are implementing the approved Control Scout homepage remodel in `Control-Point-FTC/control-scout`.
 
-The user has approved the **Observatory** design direction and asked you to implement it **tonight, Saturday, October 17, 2026, targeting 11:59 p.m. America/New_York (EDT)**. Start work now when this prompt is given to you. The target is not permission to skip verification or claim unfinished work is done; report precise remaining work if time runs out.
+The user has approved the **Observatory** design direction and wants implementation to **start around 12:00 a.m. America/New_York (EDT) on Sunday, October 18, 2026**, the midnight immediately following Saturday, October 17. **There is no completion deadline or task-imposed runtime limit.** Once launched at the requested time, work for as long as needed to complete the implementation, verification, and review. If launched after the requested start, begin immediately; there is no missed completion deadline to recover. Do not rush, skip checks, or stop because the calendar day changes. Report genuine external blockers and the exact remaining work honestly.
 
 ## Start from the handoff
 
@@ -72,7 +72,7 @@ npm run audit
 npm run audit:flows
 ```
 
-Follow `docs/self-audit.md`, including real feature click-throughs and loading/API-down/offline states. Log findings in `AUDIT.md`, fix them, and recheck failures. Stop stale audit servers after server edits; use the documented port overrides when needed. Do not weaken tests, performance thresholds, or audit coverage to reach the deadline.
+Follow `docs/self-audit.md`, including real feature click-throughs and loading/API-down/offline states. Log findings in `AUDIT.md`, fix them, and recheck failures. Stop stale audit servers after server edits; use the documented port overrides when needed. Keep tests, performance thresholds, and audit coverage intact; take the time needed to satisfy them.
 
 Capture before/after desktop and mobile screenshots with the existing `npm run shots` tool, outside the repository. Attach and embed them inline in the PR before marking the implementation ready; use a motion video if animation changes. Do not commit screenshot files. The handoff's concept images are design references, not evidence that your final implementation rendered correctly.
 
@@ -84,4 +84,4 @@ Leave a clear implementation report with what changed, screenshots, tests/audits
 
 The PR implements the approved responsive homepage with a real country atlas, existing complete search/scouting navigation, honest prediction evidence, public aggregate usage or a justified unavailable state, complete required checks, and current-head Greptile 5/5 with no unresolved threads.
 
-Do not stop at another proposal, a screenshot-only page, a static mockup, an unconnected interface, or a promise to continue later. If there is a genuine external blocker or the target passes before completion, report the exact state and remaining work without presenting the remodel as finished.
+Do not stop at another proposal, a screenshot-only page, a static mockup, an unconnected interface, or a promise to continue later. Continue until the acceptance criteria are satisfied, without an artificial time cutoff. If there is a genuine external blocker, report the exact state and remaining work without presenting the remodel as finished.

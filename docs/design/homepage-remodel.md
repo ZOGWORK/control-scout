@@ -4,7 +4,7 @@
 
 **Owner handoff:** Claude should implement this brief on `codex/homepage-observatory-handoff`, continuing the existing draft PR against `Control-Point-FTC/control-scout:main`.
 
-**Requested target:** tonight, Saturday, October 17, 2026, by 11:59 p.m. America/New_York (EDT). This is a requested implementation target, not a claim that an agent has started or that shipping is guaranteed. Report incomplete work and failed checks honestly if the target cannot be met.
+**Requested start:** around 12:00 a.m. America/New_York (EDT) on Sunday, October 18, 2026: the midnight immediately following Saturday, October 17. There is no completion deadline or task-imposed runtime limit. Once launched, continue implementation, verification, and review for as long as needed to satisfy the acceptance criteria. Report genuine external blockers honestly. The requested start time is not itself proof that a Claude session has been scheduled or launched.
 
 **Status of this commit:** design research and implementation instructions only. No production UI, API, analytics, engine behavior, or deployment changes are included. The accompanying PR contains rendered concept screenshots, captured outside the repository with `npm run shots`. The implementation task remains open until the acceptance criteria below pass.
 
@@ -139,7 +139,7 @@ Count season membership from `team_seasons`, joined to the team directory. A tea
 
 Keep reported directory country labels and a tested normalization layer for boundary joins. Handle aliases such as USA/United States, Türkiye/Turkey, and eSwatini/Eswatini without dropping or duplicating teams. Treat null, independent, and unmapped country values explicitly. The season total must reconcile with mapped plus unmapped/unknown categories; a missing shape is not a missing team.
 
-Do not scatter random dots within country shapes, place team pins at country centroids, infer exact robot locations from city names, or fabricate connection arcs. If later adding verified team-city or event coordinates, label their precision, cluster them, and retain source/provenance and missing-coordinate behavior. That later pipeline is outside tonight's initial scope.
+Do not scatter random dots within country shapes, place team pins at country centroids, infer exact robot locations from city names, or fabricate connection arcs. If later adding verified team-city or event coordinates, label their precision, cluster them, and retain source/provenance and missing-coordinate behavior. That later pipeline is outside the initial remodel scope.
 
 ### Interaction and motion
 
@@ -244,7 +244,7 @@ Use the actual performance tool to measure the implementation. These are constra
 
 Every remote block must have loading, populated, empty/unavailable, stale, and error behavior where applicable. Reserve space during loading. Keep search and existing navigation usable if home aggregates, usage, or map assets fail. A stale feed must not retain a green live indicator. Real events lacking schedules or scores should state exactly what is missing.
 
-## 9. Implementation sequence for tonight
+## 9. Implementation sequence
 
 1. Read `AGENTS.md`, this brief, and the PR screenshots. Fetch main; preserve unrelated working changes. Continue the handoff branch in an isolated worktree if needed.
 2. Inspect the current search, shell, boot content, personal redirect, live status, and accuracy interfaces. Identify any change since the inspected commit before editing.
