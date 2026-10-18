@@ -56,9 +56,9 @@ export default function PredictPage() {
   // Picking a team or event shows its predictions in the Events view (the lab's matchup stays for later).
   const setPick = (v: string | null) => setSp((x) => { x.set("view", "events"); if (v) x.set("for", v); else x.delete("for"); return x; });
   const setView = (v: "events" | "lab") => setSp((x) => { x.set("view", v); if (v === "lab" && !labLink(x)) x.set("mode", "match"); return x; });
-  // The header's width (the content area's, not the window's): the latest-calls card needs 64 rem.
+  // The header's width (the content area's, not the window's): the latest-calls card needs 64 rem, the grid's own threshold.
   const headerBox = useRef<HTMLDivElement>(null);
-  const wide = useWiderThan(headerBox, 1024);
+  const wide = useWiderThan(headerBox, 64);
   return (
     <div className="space-y-10">
       {/* Wide content: the latest live calls fill the header's right side (none on narrower screens: search comes first). */}
@@ -634,18 +634,18 @@ function AdvancementLab() {
   );
 }
 
-/** Whether the element is at least `px` wide, following its size (ResizeObserver). */
-function useWiderThan(ref: React.RefObject<HTMLElement | null>, px: number): boolean {
+/** Whether the element is at least `rem` root ems wide (so a larger browser font raises it, as the container query does), following its size. */
+export function useWiderThan(ref: React.RefObject<HTMLElement | null>, rem: number): boolean {
   const [wide, setWide] = useState(false);
   useEffect(() => {
     const el = ref.current;
     if (!el) return;
-    const measure = () => setWide(el.clientWidth >= px);
+    const measure = () => setWide(el.clientWidth >= rem * (parseFloat(getComputedStyle(document.documentElement).fontSize) || 16));
     measure();
     if (typeof ResizeObserver === "undefined") return;
     const ro = new ResizeObserver(measure);
     ro.observe(el);
     return () => ro.disconnect();
-  }, [ref, px]);
+  }, [ref, rem]);
   return wide;
 }
