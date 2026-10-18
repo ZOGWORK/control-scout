@@ -85,7 +85,8 @@ describe("MyTeamsPage", () => {
     const now = await waitFor(() => card.getByRole("link", { name: /Today Qualifier/ }));
     expect(now.textContent).toContain("3-1-0");
     expect(now.textContent).not.toContain("Upcoming");
-    expect(card.getByRole("link", { name: /^4215/ }).getAttribute("href")).toBe("/teams/4215?season=2026");
+    // The team's own header link (a match row's bare "4215" link can be there too, depending on the time of day).
+    expect(card.getByRole("link", { name: /^4215\s*Live Bots/ }).getAttribute("href")).toBe("/teams/4215?season=2026");
     const upcoming = (await waitFor(() => card.getByText("Upcoming matches"))).parentElement!;
     await waitFor(() => expect(upcoming.textContent).toContain("Today Qualifier"));
     expect(upcoming.textContent).not.toContain("Old Qualifier");
