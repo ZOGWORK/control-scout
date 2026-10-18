@@ -9,14 +9,17 @@ import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { CheckCircle2, Database, HardDriveDownload, Loader2, RefreshCw, Trash2, WifiOff } from "lucide-react";
 import { useTitle } from "../lib/meta";
-import { ManifestError, PACK_EVENT, fetchManifest, packStatus, syncLite, type PackFile, type PackManifest, type PackMeta } from "../lib/packs";
-import { removeSeason, saveSeason, useSavedSeasons, type SavedSeason } from "../lib/offline/seasons";
+import { ManifestError, PACK_EVENT, fetchManifest, packStatus, syncLite, type PackManifest, type PackMeta } from "../lib/packs";
+import { removeSeason, useSavedSeasons, type SavedSeason } from "../lib/offline/seasons";
+import { runSeasonBatch, useSeasonBatch } from "../lib/offline/seasonBatch";
+import { bytesOf, planSeasons, type SeasonRow } from "../lib/offline/seasonPlan";
 import { fmtBytes } from "../lib/recordings";
 import { PageHeader, Section, EmptyState } from "../components/page";
 import { Button } from "../components/ui/button";
 import { Progress } from "../components/ui/controls";
 import { toast } from "../components/ui/sonner";
 import { ago, seasonLabel } from "../lib/format";
+import { cn } from "../components/cn";
 
 export default function DownloadPage() {
   useTitle("Download");
@@ -59,19 +62,7 @@ export default function DownloadPage() {
       ) : !m ? <div className="skeleton h-48 rounded-2xl" /> : (
         <>
           <LiteStatus local={local} m={m} syncing={syncing} />
-          <section className="rounded-2xl border border-border bg-card p-6">
-              <h2 className="font-display text-xl font-semibold">Save seasons for offline use</h2>
-              <p className="mt-1 text-sm text-muted-foreground">
-                Each season holds every event, team, match (scores and breakdowns, penalties, lineups), ranking, alliance, award and advancement list.
-                Once saved it lives in this browser: team pages, event pages and search keep working at a venue with no wifi, showing the data as it was when the season was published{m.dataAsOf ? ` (this release: results up to ${new Date(m.dataAsOf).toLocaleDateString()})` : ""}.
-              </p>
-              {!m.full.length ? <p className="mt-4 text-sm text-muted-foreground">No full packs in this release.</p> : (
-                <ul className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
-                  {m.full.map((f) => <SeasonCard key={f.name} f={f} m={m} saved={f.seasons.length === 1 ? saved.find((x) => x.season === f.seasons[0]) ?? null : null} />)}
-                </ul>
-              )}
-              <StorageLine saved={saved} />
-            </section>
+          <SeasonsSection m={m} saved={saved} />
           <Section title="How offline mode works" className="mt-8">
             <ol className="grid gap-3 text-sm text-muted-foreground sm:grid-cols-3">
               <li className="rounded-xl border border-border bg-card p-4"><HardDriveDownload className="mb-2 size-5 text-accent" /><span className="text-foreground">Before the event</span>, on wifi, save the season above. It's checked against its published SHA-256 and kept in this browser. Predictions need nothing: a small lite pack of every team's ratings saves itself whenever you're online.</li>
@@ -103,47 +94,115 @@ function LiteStatus({ local, m, syncing }: { local: PackMeta | null; m: PackMani
   );
 }
 
-/** One season: save it on this device (with progress), then update or remove it. The raw file stays a small link for analysts. */
-function SeasonCard({ f, m, saved }: { f: PackFile; m: PackManifest; saved: SavedSeason | null }) {
-  const [progress, setProgress] = useState<number | null>(null);
-  const [removing, setRemoving] = useState(false);
-  const label = f.seasons.map(seasonLabel).join(", ");
-  // A newer release of the same season: its file (and checksum) changed.
-  const stale = !!saved && saved.sha256 !== f.sha256;
-  const save = () => {
-    setProgress(0);
-    saveSeason(f, m, (done, total) => setProgress(total ? Math.min(100, (done / total) * 100) : 0))
-      .then(() => toast.success(`${label} saved on this device`, { description: "Its team and event pages now work with no connection." }), (e) => toast.error(e.message))
-      .finally(() => setProgress(null));
+/**
+ * The seasons, as a list: what's on this device, what has a newer release, what isn't saved; with Download all
+ * and Update all. Saving runs one season at a time (each is tens of MB), whether started from a row or in bulk.
+ */
+function SeasonsSection({ m, saved }: { m: PackManifest; saved: SavedSeason[] }) {
+  const plan = planSeasons(m.full, saved);
+  // The save run is the app's, not this page's (lib/offline/seasonBatch): its progress survives leaving and
+  // coming back, and a second run can't start beside it.
+  const { busy, queue } = useSeasonBatch();
+  const [removing, setRemoving] = useState<number | null>(null);
+
+  const run = async (rows: SeasonRow[], bulk: string | null) => {
+    const r = await runSeasonBatch(rows.map((x) => x.file), m);
+    if (!r) return; // already saving
+    if (!bulk) {
+      if (r.saved.length) toast.success(`${seasonLabel(r.saved[0])} saved on this device`, { description: "Its team and event pages now work with no connection." });
+      else if (r.failed[0]) toast.error(r.failed[0].error.message);
+    } else if (r.failed.length) {
+      toast.error(`${bulk}: ${r.saved.length} of ${rows.length} saved. Couldn't save ${r.failed.map((f) => seasonLabel(f.season)).join(", ")}; try again.`);
+    } else toast.success(`${bulk}: ${r.saved.length} ${r.saved.length === 1 ? "season" : "seasons"} saved on this device`);
   };
-  const remove = () => {
-    if (!saved) return;
-    setRemoving(true);
-    removeSeason(saved.season).then(() => toast(`${label} removed from this device`), (e) => toast.error(e.message)).finally(() => setRemoving(false));
+  const remove = (season: number) => {
+    setRemoving(season);
+    removeSeason(season).then(() => toast(`${seasonLabel(season)} removed from this device`), (e) => toast.error(e.message)).finally(() => setRemoving(null));
   };
+  const working = busy != null || queue.length > 0;
+
   return (
-    <li className="flex flex-col rounded-xl border border-border p-3">
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <p className="font-medium">{label}</p>
-        {saved && progress == null && (stale
-          ? <span className="text-xs text-muted-foreground">Saved copy: {saved.version}</span>
-          : <span className="flex items-center gap-1.5 text-xs text-success"><CheckCircle2 className="size-3.5" />Saved · {fmtBytes(saved.bytes)}</span>)}
+    <section className="rounded-2xl border border-border bg-card" aria-labelledby="seasons-title">
+      <div className="flex flex-wrap items-start justify-between gap-4 border-b border-border p-5 sm:p-6">
+        <div className="min-w-0 max-w-2xl">
+          <h2 id="seasons-title" className="font-display text-xl font-semibold">Save seasons for offline use</h2>
+          <p className="mt-1 text-sm text-muted-foreground">
+            Each season holds every event, team, match, ranking, alliance, award and advancement list. Saved in this browser, team pages, event pages and search keep working at a venue with no wifi{m.dataAsOf ? ` (this release: results up to ${new Date(m.dataAsOf).toLocaleDateString()})` : ""}.
+          </p>
+          <p className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-1 text-sm" aria-live="polite">
+            <span><span className="font-semibold tabular-nums">{plan.savedCount}</span> of {plan.rows.length} saved</span>
+            {plan.toUpdate.length > 0 && <span className="inline-flex items-center gap-1 text-warning"><RefreshCw className="size-3.5" />{plan.toUpdate.length} {plan.toUpdate.length === 1 ? "update" : "updates"} available</span>}
+          </p>
+        </div>
+        <div className="flex flex-wrap gap-2">
+          {plan.toUpdate.length > 0 && (
+            <Button variant="secondary" onClick={() => void run(plan.toUpdate, "Update all")} disabled={working}>
+              <RefreshCw /> Update all ({plan.toUpdate.length})
+            </Button>
+          )}
+          {plan.toDownload.length > 0 && (
+            <Button onClick={() => void run(plan.toDownload, "Download all")} disabled={working}>
+              <HardDriveDownload /> Download all · {fmtBytes(bytesOf(plan.toDownload))}
+            </Button>
+          )}
+          {!plan.toUpdate.length && !plan.toDownload.length && plan.rows.length > 0 && (
+            <span className="inline-flex h-10 items-center gap-1.5 text-sm text-success"><CheckCircle2 className="size-4" /> Every season is saved and current</span>
+          )}
+        </div>
       </div>
-      <PackFacts f={f} builtAt={m.builtAt} compact />
-      <div className="mt-3 flex flex-wrap items-center gap-2">
+      {!plan.rows.length ? <p className="p-6 text-sm text-muted-foreground">No full packs in this release.</p> : (
+        <ul className="divide-y divide-border" aria-label="Seasons">
+          {plan.rows.map((r) => (
+            <SeasonRowView key={r.file.name} r={r} builtAt={m.builtAt}
+              progress={busy?.season === r.season ? busy.pct : null} queued={queue.includes(r.season)} disabled={working}
+              removing={removing === r.season} onSave={() => void run([r], null)} onRemove={() => remove(r.season)} />
+          ))}
+        </ul>
+      )}
+      <div className="border-t border-border px-5 py-3 sm:px-6"><StorageLine saved={saved} /></div>
+    </section>
+  );
+}
+
+const STATE_CHIP: Record<SeasonRow["state"], { label: string; cls: string }> = {
+  update: { label: "Update available", cls: "border-warning/40 bg-warning/10 text-warning" },
+  saved: { label: "Saved", cls: "border-success/40 bg-success/10 text-success" },
+  available: { label: "Not saved", cls: "border-border text-muted-foreground" },
+};
+
+/** One season: its status, size and release, and Save / Update / Remove (with progress while saving). The raw file stays a small link for analysts. */
+function SeasonRowView({ r, builtAt, progress, queued, disabled, removing, onSave, onRemove }: {
+  r: SeasonRow; builtAt: string; progress: number | null; queued: boolean; disabled: boolean; removing: boolean; onSave: () => void; onRemove: () => void;
+}) {
+  const label = seasonLabel(r.season);
+  const chip = STATE_CHIP[r.state];
+  return (
+    <li className="grid items-center gap-x-4 gap-y-2 px-5 py-3.5 sm:grid-cols-[8rem_minmax(0,1fr)_auto] sm:px-6">
+      <div className="flex items-center gap-2 sm:block">
+        <p className="font-display text-lg font-semibold tabular-nums">{label}</p>
+        <span className={cn("inline-flex items-center rounded-full border px-2 py-0.5 text-[11px] font-medium sm:mt-1", chip.cls)}>{chip.label}</span>
+      </div>
+      <div className="min-w-0 text-xs text-muted-foreground">
         {progress != null ? (
-          <div className="w-full" role="status">
+          <div role="status">
             <Progress value={progress} aria-label={`Saving ${label}`} />
-            <p className="mt-1.5 text-xs tabular-nums text-muted-foreground">Saving… {fmtBytes((progress / 100) * f.bytes)} of {fmtBytes(f.bytes)}</p>
+            <p className="mt-1.5 tabular-nums">Saving… {fmtBytes((progress / 100) * r.file.bytes)} of {fmtBytes(r.file.bytes)}</p>
           </div>
-        ) : (
-          <>
-            {(!saved || stale) && f.seasons.length === 1 && <Button size="sm" onClick={save}><HardDriveDownload /> {stale ? "Update" : "Save offline"}</Button>}
-            {saved && <Button variant="outline" size="sm" onClick={remove} disabled={removing}><Trash2 /> Remove</Button>}
-          </>
+        ) : queued ? <p>Waiting to save…</p> : (
+          <p className="flex flex-wrap gap-x-3 gap-y-0.5">
+            <span className="text-foreground tabular-nums">{fmtBytes(r.file.bytes)}</span>
+            <span>Released {new Date(builtAt).toLocaleDateString()}</span>
+            {r.saved && <span>{r.state === "update" ? `On this device: ${r.saved.version}` : `On this device · ${fmtBytes(r.saved.bytes)}`}</span>}
+            <span className="font-mono" title={`SHA-256 ${r.file.sha256}`}>SHA-256 {r.file.sha256.slice(0, 12)}…</span>
+          </p>
         )}
-        <a href={f.url} download className="ml-auto inline-flex items-center gap-1 text-xs text-muted-foreground underline-offset-4 hover:text-foreground hover:underline" title="The raw SQLite file, for your own analysis">
-          <Database className="size-3.5" />SQLite file
+      </div>
+      <div className="flex flex-wrap items-center gap-2 sm:justify-end">
+        {r.state !== "saved" && <Button size="sm" variant={r.state === "update" ? "secondary" : "default"} onClick={onSave} disabled={disabled}><HardDriveDownload /> {r.state === "update" ? "Update" : "Save offline"}</Button>}
+        {/* Not while saving runs: a season waiting in the run would otherwise come back after being removed. */}
+        {r.saved && <Button variant="outline" size="sm" onClick={onRemove} disabled={disabled || removing || progress != null}><Trash2 /> Remove</Button>}
+        <a href={r.file.url} download className="inline-flex min-h-8 items-center gap-1 text-xs text-muted-foreground underline-offset-4 hover:text-foreground hover:underline" title="The raw SQLite file, for your own analysis">
+          <Database className="size-3.5" />SQLite
         </a>
       </div>
     </li>
@@ -160,16 +219,5 @@ function StorageLine({ saved }: { saved: SavedSeason[] }) {
       {saved.length ? `Saved seasons use ${fmtBytes(total)} on this device.` : "No seasons saved on this device yet."}
       {est?.usage != null && ` This site uses ${fmtBytes(est.usage)}${est.quota ? ` of ${fmtBytes(est.quota)} available` : ""} in all.`}
     </p>
-  );
-}
-
-function PackFacts({ f, builtAt, compact }: { f: PackFile; builtAt: string; compact?: boolean }) {
-  return (
-    <dl className={compact ? "mt-2 grid grid-cols-2 gap-x-4 gap-y-1 text-xs" : "mt-4 grid grid-cols-2 gap-x-4 gap-y-2 text-sm"}>
-      <dt className="text-muted-foreground">Released</dt><dd>{new Date(builtAt).toLocaleDateString()}</dd>
-      <dt className="text-muted-foreground">Size</dt><dd>{fmtBytes(f.bytes)}</dd>
-      <dt className="text-muted-foreground">Seasons</dt><dd>{f.seasons.map(seasonLabel).join(", ")}</dd>
-      <dt className="text-muted-foreground">SHA-256</dt><dd className="truncate font-mono" title={f.sha256}>{f.sha256.slice(0, 16)}…</dd>
-    </dl>
   );
 }
