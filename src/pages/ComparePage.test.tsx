@@ -92,6 +92,45 @@ describe("ComparePage", () => {
     expect(where).toBe("/compare?teams=6980");
   });
 
+  it("Enter never picks an earlier query's team while the new one is still loading", async () => {
+    page();
+    const box = screen.getByRole("combobox", { name: "Add a team to compare" });
+    fireEvent.change(box, { target: { value: "gear" } });
+    await screen.findByRole("option", { name: /4215.*Gearheads/ });
+    vi.stubGlobal("fetch", () => new Promise(() => {})); // the next search never answers
+    fireEvent.change(box, { target: { value: "bolt" } });
+    fireEvent.keyDown(box, { key: "Enter" });
+    await new Promise((r) => setTimeout(r, 50));
+    expect(where).toBe("/compare");
+  });
+
+  it("a second pick while the first is still being checked keeps both", async () => {
+    let release!: () => void;
+    const gate = new Promise<void>((r) => { release = r; });
+    const json = (b: unknown) => new Response(JSON.stringify(b), { status: 200, headers: { "content-type": "application/json" } });
+    vi.stubGlobal("fetch", async (path: string) => {
+      if (path.startsWith("/api/compare")) return json(view([team(222, 1, 1)]));
+      const n = decodeURIComponent(path.split("q=")[1]?.split("&")[0] ?? "");
+      if (n === "111") await gate;
+      return json({ hits: [{ kind: "team", ref: n, title: `${n} T`, subtitle: "", season: null }] });
+    });
+    h.state.bookmarks = [111, 222];
+    page();
+    fireEvent.click(screen.getByRole("button", { name: /^Add 111/ }));
+    fireEvent.click(screen.getByRole("button", { name: /^Add 222/ }));
+    await waitFor(() => expect(where).toBe("/compare?teams=222"));
+    release();
+    await waitFor(() => expect(where).toBe("/compare?teams=222%2C111"));
+  });
+
+  it("if the comparison fails, the chosen teams can still be removed", async () => {
+    vi.stubGlobal("fetch", async () => new Response(JSON.stringify({ error: "boom" }), { status: 500, headers: { "content-type": "application/json" } }));
+    page("/compare?teams=1,2,3,4");
+    const chosen = within(screen.getByLabelText("Chosen teams"));
+    fireEvent.click(chosen.getByRole("button", { name: "Remove 3" }));
+    expect(where).toBe("/compare?teams=1%2C2%2C4");
+  });
+
   it("four teams: the search says why it's off", () => {
     page("/compare?teams=1,2,3,4");
     const box = screen.getByRole("combobox", { name: "Add a team to compare" });

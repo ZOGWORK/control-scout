@@ -111,8 +111,17 @@ export function CompareConsensus({ teams, season, colors, hideWhenEmpty }: { tea
   const c = useConsensus(teams, season);
   if (!c || c.state.error) return null;
   const data = c.state.data;
-  if (hideWhenEmpty && !data?.teams.some((x) => teams.includes(x.team) && x.entries > 0)) return null;
   const name = workspaceLabel(c.workspace);
+  if (hideWhenEmpty && !data?.teams.some((x) => teams.includes(x.team) && x.entries > 0)) {
+    // No cards, but another workspace may have scouted these teams: keep the way to switch to it.
+    if (!data || c.workspaces.length < 2) return null;
+    return (
+      <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-dashed border-border px-4 py-3 text-sm text-muted-foreground">
+        <p>No scouting on these teams in {name} yet. Another workspace may have some.</p>
+        <WorkspacePicker c={c} />
+      </div>
+    );
+  }
   return (
     <Section title="Your team's take" description={<>{name} scouting on each team, from its shared entries. Only members of {name} see this.</>} action={<WorkspacePicker c={c} />}>
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-[repeat(var(--n),minmax(0,1fr))]" style={{ "--n": Math.min(teams.length, 4) } as CSSProperties}>

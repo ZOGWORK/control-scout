@@ -39,32 +39,34 @@ export default function ComparePage() {
   const [error, setError] = useState<string | null>(null);
   const [checking, setChecking] = useState(false);
   const input = useRef<HTMLInputElement>(null);
-  const setTeams = (t: string[]) => setSp((x) => { x.set("teams", t.join(",")); return x; }, { replace: true });
-  const pending = useRef<string | null>(null);
+  // The URL as last written: React Router's functional update reads the params of the render that made the
+  // setter, so a pick finishing after another one would otherwise write over it. Every change goes through here.
+  const latest = useRef(sp);
+  latest.current = sp;
+  const edit = (fn: (now: string[]) => string[]) => {
+    const x = new URLSearchParams(latest.current);
+    x.set("teams", fn((x.get("teams") ?? "").split(",").filter((t) => /^\d+$/.test(t))).slice(0, MAX).join(","));
+    latest.current = x;
+    setSp(x, { replace: true });
+  };
+  const setTeams = (t: string[]) => edit(() => t);
+  // Picks still being checked: each finishes on its own, so a second pick never cancels the first.
+  const pending = useRef(new Set<string>());
   const add = async (n: number) => {
     const team = String(n);
-    if (teams.length >= MAX) return;
-    if (teams.includes(team)) { setError(`${team} is already in the comparison.`); return; }
-    pending.current = team;
+    if (teams.includes(team) || pending.current.has(team)) { setError(`${team} is already in the comparison.`); return; }
+    if (teams.length + pending.current.size >= MAX) return;
+    pending.current.add(team);
     setChecking(true);
     const err = await teamError(team, lookupTeamName);
-    if (pending.current !== team) return; // another pick since: its check owns the spinner and the error
-    setChecking(false);
+    pending.current.delete(team);
+    setChecking(pending.current.size > 0);
     if (err) { setError(err); input.current?.focus(); return; }
     setError(null);
     // From the URL as it is now: a team removed (or added) while checking stays that way.
-    setSp((x) => {
-      const now = (x.get("teams") ?? "").split(",").filter((t) => /^\d+$/.test(t));
-      if (!now.includes(team) && now.length < MAX) x.set("teams", [...now, team].join(","));
-      return x;
-    }, { replace: true });
+    edit((now) => (now.includes(team) ? now : [...now, team]));
   };
-  const addAll = (ns: number[]) => setSp((x) => {
-    const now = (x.get("teams") ?? "").split(",").filter((t) => /^\d+$/.test(t));
-    for (const n of ns) if (now.length < MAX && !now.includes(String(n))) now.push(String(n));
-    x.set("teams", now.join(","));
-    return x;
-  }, { replace: true });
+  const addAll = (ns: number[]) => edit((now) => [...now, ...ns.map(String).filter((n) => !now.includes(n))]);
   // Without ?season the server picks the latest season these teams have results in.
   const state = useApi<CompareView>(teams.length ? `/api/compare${qs({ teams: teams.join(","), season: asked ?? undefined })}` : null);
   const season = asked ?? state.data?.season ?? current;
@@ -84,7 +86,20 @@ export default function ComparePage() {
         {teams.length > 0 && !full && suggestions.length > 0 && <QuickPicks list={suggestions} onPick={add} />}
       </PageHeader>
       {!teams.length ? <Start suggestions={suggestions} onPick={add} onPickAll={addAll} /> : (
-        <Async state={state}>{(d) => <Compare d={d} onRemove={(n) => setTeams(teams.filter((x) => x !== String(n)))} />}</Async>
+        <>
+          {/* Until the comparison loads (or if it fails), the chosen teams can still be removed here. */}
+          {!state.data && (
+            <div className="mb-4 flex flex-wrap items-center gap-2" aria-label="Chosen teams">
+              {teams.map((t, i) => (
+                <span key={t} className="inline-flex h-10 items-center gap-1.5 rounded-xl border border-border bg-card pl-3 pr-1 font-mono text-sm">
+                  <span className="size-2 rounded-full" style={{ background: COLORS[i] }} />{t}
+                  <Button variant="ghost" size="icon-sm" aria-label={`Remove ${t}`} onClick={() => setTeams(teams.filter((x) => x !== t))}><X /></Button>
+                </span>
+              ))}
+            </div>
+          )}
+          <Async state={state}>{(d) => <Compare d={d} onRemove={(n) => setTeams(teams.filter((x) => x !== String(n)))} />}</Async>
+        </>
       )}
     </div>
   );
@@ -202,7 +217,7 @@ function StatsTable({ d, onRemove }: { d: CompareView; onRemove: (n: number) => 
   const t = d.teams;
   return (
     <div className="min-w-0 self-start overflow-x-auto rounded-2xl border border-border bg-card">
-      <table className="w-full min-w-[22rem] table-fixed border-collapse text-sm">
+      <table className="w-full table-fixed border-collapse text-sm" style={{ minWidth: `${5 + t.length * 8}rem` }}>
         <caption className="sr-only">Season stats; the best in each row is marked</caption>
         <thead>
           <tr>
