@@ -10,6 +10,7 @@ import { isWeek, parsePlaces, placeKey } from "../src/shared/rankings.js";
 import { regionLabel } from "../src/shared/regions.js";
 import { eventTypeLabel } from "../src/shared/labels.js";
 import { canonicalOrigin, canonicalUrl } from "./seo.js";
+import { FAQ, faqJsonLd, faqText } from "../src/shared/faq.js";
 import { teamKnown } from "./api/teams.js";
 import { pageModule } from "../src/shared/routes.js";
 import { normalMatchKey } from "../src/shared/matchReport.js";
@@ -92,6 +93,7 @@ const STATIC: Record<string, { title: string; description: string; noindex?: boo
   "/download": { title: "Download FTC data", description: "Download full FTC seasons as SQLite files: every event, team, match, score breakdown, ranking and award. Offline predictions are saved automatically." },
   "/privacy": { title: "Privacy policy", description: "How Control Scout handles your data: no account needed, only essential sign-in cookies, no ads or third-party trackers, anonymous stats only if you allow them." },
   "/terms": { title: "Terms of use", description: "The terms for using Control Scout: free, predictions are estimates, FTC data can be wrong, rate limits instead of scraping, and your scouting notes stay yours." },
+  "/faq": { title: "FAQ: Control Scout questions answered", description: "Answers about Control Scout: where the FTC data comes from, how predictions and confidence work, scouting with your team, offline use at venues, accounts and privacy." },
   "/contact": { title: "Contact", description: "Contact the Control Scout team: report a bug, ask for a data correction, suggest a feature or ask a question about your data or the site." },
   "/my-team": { title: "My team", description: "Your team's dashboard on Control Scout.", noindex: true },
   "/my-teams": { title: "My teams", description: "The FTC teams you're on or manage, with their stats.", noindex: true },
@@ -375,6 +377,8 @@ export async function pageMeta(path: string, query: Record<string, unknown> = {}
     const mm = await matchupMeta(sp).catch(() => null);
     if (mm) return mm;
   }
+  // The FAQ: its questions as FAQPage data, and in full in the first paint (the same text as the page).
+  if (p === "/faq") return { title: STATIC["/faq"].title, description: fitDescription(STATIC["/faq"].description), type: "website", jsonLd: [faqJsonLd(canonicalOrigin())], bodyHtml: faqHtml() };
   const s = STATIC[p];
   if (s) return { title: s.title, description: s.noindex ? s.description : fitDescription(s.description), type: "website", ...(s.noindex ? { noindex: true } : {}) };
   // The app's routes (src/shared/routes.ts, as React Router matches them): anything else is its not-found page.
@@ -419,4 +423,10 @@ export function headTags(path: string, m: PageMeta): string {
     ...(m.jsonLd ?? []).map((j) => `<script type="application/ld+json">${JSON.stringify(j).replace(/</g, "\\u003c")}</script>`),
   ];
   return tags.join("\n    ");
+}
+
+/** The FAQ as static HTML for the first paint (crawlers and link previews read it without the app). */
+function faqHtml(): string {
+  const h = (t: string) => t.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+  return FAQ.map((g) => `<h2>${h(g.title)}</h2>${g.items.map((i) => `<h3>${h(i.q)}</h3>${i.a.map((p) => `<p>${h(faqText(p))}</p>`).join("")}`).join("")}`).join("");
 }

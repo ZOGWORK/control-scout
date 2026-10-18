@@ -616,6 +616,7 @@ function About() {
         <Row label="Data updated" description="Synced from FIRST; every 15 minutes on event days."><span className="text-sm text-foreground">{ago(meta?.dataAsOf)}</span></Row>
         <Row label="How predictions work"><Button variant="outline" size="sm" asChild><Link to="/methodology">Read it</Link></Button></Row>
         {reportsOn && <ReportBug />}
+        <Row label="FAQ" description="Quick answers about the data, predictions, scouting, offline use and privacy."><Button variant="outline" size="sm" asChild><Link to="/faq">Read the FAQ</Link></Button></Row>
         <Row label="Contact" description="Report a bug or wrong data, suggest a feature, or ask a question."><Button variant="outline" size="sm" asChild><Link to="/contact">Contact us</Link></Button></Row>
       </Group>
       <Group title="Control Point">
