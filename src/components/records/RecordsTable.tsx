@@ -5,10 +5,11 @@
 // Used by the event Rankings and Insights tabs, /teams and /matches.
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode, type RefObject } from "react";
 import { Link, useLocation, useNavigate, useSearchParams } from "react-router-dom";
-import { ArrowDown, ArrowUp, ArrowUpDown, ChevronLeft, ChevronRight, Columns3, Download, ListFilter, Loader2, RefreshCw, Scale, SearchX, Sparkles, X } from "lucide-react";
+import { ArrowDown, ArrowUp, ArrowUpDown, ChevronLeft, ChevronRight, Columns3, Download, ListFilter, Loader2, MapPin, RefreshCw, Scale, SearchX, Sparkles, X } from "lucide-react";
 import { apiFetch, useApi, type ApiError } from "../../lib/api";
 import type { FilterGroup } from "../../shared/filterDsl";
 import { STAT_BY_KEY, statFor, type MatchRecordRow, type RecordScope, type RecordsResponse, type TeamEventRecord, type TeamSeasonRecord } from "../../shared/statCatalog";
+import { countryByCode } from "../../shared/countries";
 import { clampPage, clearFilters, defaultDir, hasFilters, parseTableState, recordsUrl, searchString, writeTableState, type TableState } from "../../lib/records/urlState";
 import { describeFilter, formatStat, headerOf, TONE_CLASS, toneOf } from "../../lib/records/describe";
 import { addPreset, hasPreset, presetGroup, presetsFor, removePreset, type ThresholdLookup } from "../../lib/records/presets";
@@ -173,6 +174,12 @@ export function RecordsTable(p: RecordsTableProps) {
           {c.onSeason && <SeasonSelect value={season} onChange={c.onSeason} />}
           {c.extra}
           {c.region && <RegionPicker season={season} value={state.regions} onChange={(regions) => setState({ ...state, regions, page: 1 })} />}
+          {teamScope && state.country && (
+            <Button variant="secondary" size="sm" className="max-sm:h-11" onClick={() => setState({ ...state, country: null, page: 1 })}
+              aria-label={`Teams from ${countryByCode(state.country)?.name ?? state.country}: show every country`}>
+              <MapPin className="text-accent" /> Teams from {countryByCode(state.country)?.name ?? state.country} <X className="text-text-muted" />
+            </Button>
+          )}
           {c.eventType && <EventTypeSelect value={state.eventType} onChange={(eventType) => setState({ ...state, eventType, page: 1 })} />}
           {c.dates && <DateRangePicker from={state.from} to={state.to} onChange={(from, to) => setState({ ...state, from, to, page: 1 })} />}
           {filtered && (
@@ -256,7 +263,7 @@ export function RecordsTable(p: RecordsTableProps) {
           <div className="flex flex-col items-center rounded-xl border border-dashed border-line px-6 py-12 text-center">
             <span className="mb-3 flex size-11 items-center justify-center rounded-full bg-accent/15"><SearchX className="size-5 text-accent" /></span>
             <p className="font-medium">{filtered ? `No ${p.noun} match these filters` : `No ${p.noun} yet`}</p>
-            <p className="mt-1 max-w-md text-sm text-text-muted">{filtered ? (state.filter ? describeFilter(state.filter, scope) : "Try another region, event type or date range.") : "Records appear once matches have been played and the stats have been updated."}</p>
+            <p className="mt-1 max-w-md text-sm text-text-muted">{filtered ? (state.filter ? describeFilter(state.filter, scope) : "Try another region, country, event type or date range.") : "Records appear once matches have been played and the stats have been updated."}</p>
             {filtered && <Button className="mt-4" onClick={() => setState(clearFilters(state))}><X /> Clear filters</Button>}
           </div>
         )

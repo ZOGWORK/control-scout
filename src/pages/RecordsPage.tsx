@@ -30,6 +30,9 @@ export default function RecordsPage({ matches }: { matches?: boolean }) {
     const q = new URLSearchParams();
     if (s !== current) q.set("season", String(s));
     if (v === "season") q.set("view", "season");
+    // A country (from the home page's atlas) stays on across the two team views.
+    const country = sp.get("country");
+    if (country && v !== "matches") q.set("country", country);
     navigate({ pathname: v === "matches" ? "/matches" : "/teams", search: q.toString() ? `?${q}` : "" });
   };
   const setSeason = (s: number) => {
@@ -37,7 +40,7 @@ export default function RecordsPage({ matches }: { matches?: boolean }) {
     const q = new URLSearchParams(sp);
     q.set("season", String(s));
     q.delete("page");
-    // Regions and dates belong to one season; the filter, sort and columns carry over.
+    // Regions and dates belong to one season; the filter, sort, columns and country carry over.
     for (const k of ["region", "from", "to"]) q.delete(k);
     navigate({ pathname, search: `?${q.toString()}` });
   };
