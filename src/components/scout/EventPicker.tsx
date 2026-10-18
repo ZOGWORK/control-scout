@@ -56,6 +56,7 @@ export function EventPicker({ id, season, code, onChange }: { id: string; season
       apiFetch<{ events: EventListItem[] }>(`/api/events${qs({ season, q, all: 1, limit: SEARCH_CAP })}`).then((r) => {
         if (!live) return;
         setHits({ q, events: rankEvents(r.events, q).slice(0, LIMIT) });
+        setActive(0); // whatever arrows were pressed while it loaded, the first result is the one Enter picks
       }, () => { if (live) setFailed(q); });
     }, EVENT_SEARCH_DEBOUNCE);
     return () => { live = false; clearTimeout(t); };
@@ -82,15 +83,16 @@ export function EventPicker({ id, season, code, onChange }: { id: string; season
   const current = hits && hits.q === text.trim() ? hits.events : null;
   const options = current ?? [];
   return (
-    <div className="relative mt-2">
+    // Focus moving within the picker (to Try again) keeps it open; leaving it closes it.
+    <div className="relative mt-2" onBlur={(e) => { if (!e.currentTarget.contains(e.relatedTarget as Node | null)) setOpen(false); }}>
       <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" aria-hidden />
       <Input ref={input} id={id} value={text} placeholder="Event name, city or code" autoComplete="off"
         role="combobox" aria-expanded={open && options.length > 0} aria-controls={listId} aria-autocomplete="list"
         aria-activedescendant={open && options[active] ? `${listId}-${active}` : undefined}
         onChange={(e) => { setText(e.target.value); setOpen(true); }}
-        onFocus={() => setOpen(true)} onBlur={() => setTimeout(() => setOpen(false), 120)}
+        onFocus={() => setOpen(true)}
         onKeyDown={(e) => {
-          if (e.key === "ArrowDown") { e.preventDefault(); setOpen(true); setActive((a) => Math.min(options.length - 1, a + 1)); }
+          if (e.key === "ArrowDown") { e.preventDefault(); setOpen(true); setActive((a) => Math.max(0, Math.min(options.length - 1, a + 1))); }
           else if (e.key === "ArrowUp") { e.preventDefault(); setActive((a) => Math.max(0, a - 1)); }
           else if (e.key === "Enter") {
             e.preventDefault();
@@ -102,7 +104,7 @@ export function EventPicker({ id, season, code, onChange }: { id: string; season
       {open && failed === text.trim() && (
         <div role="alert" className="absolute inset-x-0 top-full z-20 mt-1 flex items-center justify-between gap-3 rounded-xl border border-border bg-popover px-3 py-2.5 text-sm shadow-xl">
           <span className="text-muted-foreground">Couldn’t search events just now.</span>
-          <button type="button" onMouseDown={(e) => { e.preventDefault(); setRetry((n) => n + 1); }} className="inline-flex min-h-9 items-center gap-1 rounded-lg px-2 font-medium text-accent-text hover:bg-accent/10"><RotateCw className="size-3.5" aria-hidden /> Try again</button>
+          <button type="button" onClick={() => setRetry((n) => n + 1)} className="inline-flex min-h-9 items-center gap-1 rounded-lg px-2 font-medium text-accent-text hover:bg-accent/10"><RotateCw className="size-3.5" aria-hidden /> Try again</button>
         </div>
       )}
       {open && current && (

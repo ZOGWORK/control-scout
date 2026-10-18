@@ -91,6 +91,27 @@ describe("EventPicker", () => {
     expect(value).toBe("");
   });
 
+  it("picks the first result with Enter even if ArrowDown was pressed while it loaded", async () => {
+    render(<Harness />);
+    const box = screen.getByRole("combobox");
+    fireEvent.change(box, { target: { value: "qualifier" } });
+    fireEvent.keyDown(box, { key: "ArrowDown" }); // nothing loaded yet
+    await settle();
+    fireEvent.keyDown(box, { key: "Enter" });
+    expect(value).toBe("USNJBRQ");
+  });
+
+  it("keeps the error open while focus moves to Try again", async () => {
+    render(<Harness />);
+    failNext = true;
+    const box = screen.getByRole("combobox");
+    fireEvent.change(box, { target: { value: "spring" } });
+    await settle();
+    const retry = screen.getByRole("button", { name: /Try again/ });
+    fireEvent.blur(box, { relatedTarget: retry });
+    expect(screen.getByRole("alert")).toBeTruthy();
+  });
+
   it("says a search failed (not 'no match'), and retries it", async () => {
     render(<Harness />);
     failNext = true;
@@ -98,7 +119,7 @@ describe("EventPicker", () => {
     await settle();
     expect(screen.getByRole("alert").textContent).toMatch(/Couldn’t search events/);
     expect(screen.queryByText(/No 2026 event matches/)).toBeNull();
-    fireEvent.mouseDown(screen.getByRole("button", { name: /Try again/ }));
+    fireEvent.click(screen.getByRole("button", { name: /Try again/ })); // a button: Enter and Space press it too
     await settle();
     expect(screen.getByRole("option", { name: /Spring Valley Qualifier/ })).toBeTruthy();
   });
