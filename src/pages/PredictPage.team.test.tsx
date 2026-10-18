@@ -92,6 +92,14 @@ describe("Predict, a team picked", () => {
     }
   });
 
+  it("one highlight, on the chosen view card, that moves with the choice", () => {
+    page("/predict");
+    const highlights = () => within(screen.getByRole("tablist", { name: "Predict" })).getAllByRole("tab").map((el) => el.querySelectorAll(":scope > span[aria-hidden]").length);
+    expect(highlights()).toEqual([1, 0]);
+    fireEvent.click(screen.getByRole("tab", { name: /Lab: any matchup/ }));
+    expect(highlights()).toEqual([0, 1]);
+  });
+
   it("the Lab is a card that says what it does", () => {
     page("/predict");
     const lab = screen.getByRole("tab", { name: /Lab: any matchup/ });

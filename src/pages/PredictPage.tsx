@@ -27,6 +27,7 @@ import { AdvancementView } from "../components/Advancement";
 import { SearchBox } from "../components/search/SearchBox";
 import { SEARCH_HINT, usePageSearch } from "../components/layout/Search";
 import { cn } from "../components/cn";
+import { Reveal, motion } from "../components/motion";
 import { dateRange, num, oddsPct, place, seasonLabel } from "../lib/format";
 import { copyLink } from "../lib/clipboard";
 import { ShareMatch } from "../components/ShareMatch";
@@ -109,10 +110,13 @@ function PredictSwitch({ value, onChange }: { value: "events" | "lab"; onChange:
       {views.map(({ v, label, icon: Icon, hint }) => (
         <button key={v} id={`predict-tab-${v}`} type="button" role="tab" aria-selected={value === v} aria-controls={`predict-panel-${v}`} tabIndex={value === v ? 0 : -1}
           onKeyDown={onKey} onClick={() => value !== v && onChange(v)}
-          className={cn("flex min-h-[4.5rem] items-start gap-3 rounded-xl border p-3.5 text-left transition-colors",
-            value === v ? "border-accent/70 bg-[color-mix(in_srgb,var(--color-accent)_12%,var(--color-card))] shadow-[0_4px_16px_color-mix(in_srgb,var(--color-accent)_18%,transparent)]" : "border-border bg-card hover:border-accent/40 hover:bg-[color-mix(in_srgb,var(--color-text-base)_4%,var(--color-card))]")}>
-          <span className={cn("grid size-9 shrink-0 place-items-center rounded-lg", value === v ? "bg-accent text-accent-ink" : "bg-accent/[0.12] text-accent")}><Icon className="size-4" /></span>
-          <span className="min-w-0">
+          className={cn("relative flex min-h-[4.5rem] items-start gap-3 rounded-xl border border-border bg-card p-3.5 text-left transition-colors",
+            value !== v && "hover:border-accent/40 hover:bg-[color-mix(in_srgb,var(--color-text-base)_4%,var(--color-card))]")}>
+          {/* The chosen card's highlight: one shape that slides to the other card when the view changes. */}
+          {value === v && <motion.span layoutId="predict-view-active" aria-hidden transition={{ type: "spring", stiffness: 500, damping: 38 }}
+            className="absolute -inset-px rounded-xl border border-accent/70 bg-[color-mix(in_srgb,var(--color-accent)_12%,var(--color-card))] shadow-[0_4px_16px_color-mix(in_srgb,var(--color-accent)_18%,transparent)]" />}
+          <span className={cn("relative grid size-9 shrink-0 place-items-center rounded-lg transition-colors duration-300", value === v ? "bg-accent text-accent-ink" : "bg-accent/[0.12] text-accent")}><Icon className="size-4" /></span>
+          <span className="relative min-w-0">
             <span className="block text-sm font-semibold text-text-base">{label}</span>
             <span className="mt-0.5 block text-xs text-muted-foreground">{hint}</span>
           </span>
@@ -211,14 +215,14 @@ function TeamPredictions({ team, onClear }: { team: number; onClear: () => void 
             {season != null && !isCurrent && <span className="text-xs text-muted-foreground">{asked ? `Predictions from ${seasonLabel(season)}` : `No results in ${seasonLabel(current)} yet, so this is ${seasonLabel(season)}`}</span>}
           </div>
           {/* People pick one team expecting a matchup: the Lab, with this team already in. */}
-          <div className="flex flex-wrap items-center gap-3 rounded-xl border border-accent/30 bg-accent/[0.06] p-3.5">
+          <Reveal className="flex flex-wrap items-center gap-3 rounded-xl border border-accent/30 bg-accent/[0.06] p-3.5">
             <FlaskConical className="size-5 shrink-0 text-accent" aria-hidden />
             <p className="min-w-0 flex-1 text-sm"><span className="font-medium">Predict a matchup with {team}.</span> <span className="text-muted-foreground">Pick its partner and two opponents in the Lab for win odds and a predicted score.</span></p>
             <div className="flex flex-wrap gap-2">
               <Button size="sm" asChild><Link to={labMatchHref(team, s)}><Swords /> Predict a matchup</Link></Button>
               <Button size="sm" variant="secondary" asChild><Link to={labAdvancementHref(team, s)}><Trophy /> Odds at an event</Link></Button>
             </div>
-          </div>
+          </Reveal>
           {season == null ? <div className="skeleton h-40 rounded-xl" /> : isCurrent ? (
             <>
               <div>
@@ -257,7 +261,7 @@ function PastCalls({ team, season, played, calls, ev }: { team: number; season: 
     <li><span className="font-medium text-foreground">{t.right} of {t.of}</span> {what} right ({Math.round((t.right / t.of) * 100)}%)</li>
   );
   return (
-    <div>
+    <Reveal>
       <h3 className="mb-1 text-sm font-semibold text-foreground">How the calls did in {seasonLabel(season)}</h3>
       {calls.live.of || calls.backtest.of ? (
         <ul className="mb-3 space-y-0.5 text-sm text-muted-foreground" aria-label="Calls right">
@@ -267,7 +271,7 @@ function PastCalls({ team, season, played, calls, ev }: { team: number; season: 
       ) : <p className="mb-3 text-sm text-muted-foreground">No called matches for {team} in {seasonLabel(season)}.</p>}
       <MatchList matches={played.slice(0, 20)} highlight={team} eventNames={ev.names} eventDates={ev.dates} outcomeAccent empty={`No matches played in ${seasonLabel(season)}.`} />
       {played.length > 20 && <p className="mt-2 text-xs text-muted-foreground">Showing the latest 20 of {played.length}. Every match is on the <Link to={`/teams/${team}?season=${season}`} className="underline">team page</Link>.</p>}
-    </div>
+    </Reveal>
   );
 }
 

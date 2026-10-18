@@ -14,7 +14,7 @@ import { FOLLOWED_TEAM_PATH } from "../lib/yoursRow";
 import { defaultSeason } from "../lib/myTeamSeason";
 import type { MatchView, TeamEventRow, TeamProfile } from "../shared/api";
 import { EmptyState, PageHeader } from "../components/page";
-import { Reveal } from "../components/motion";
+import { Reveal, Stagger, StaggerItem } from "../components/motion";
 import { Meter, RecordMeter, StatTile, TONES, rankPc } from "../components/StatTile";
 import { Async } from "../components/states";
 import { Button } from "../components/ui/button";
@@ -75,7 +75,7 @@ export default function MyTeamsPage() {
     <div>
       {header}
       <div className="space-y-6">
-        {mine.teams.map((t) => <TeamCard key={t.teamNumber} mine={t} />)}
+        {mine.teams.map((t, i) => <TeamCard key={t.teamNumber} mine={t} delay={Math.min(i, 4) * 0.08} />)}
         {mine.unnumbered.map((w) => <UnnumberedCard key={w.id} w={w} cpUrl={cpUrl} />)}
       </div>
       <p className="mt-8 text-sm text-muted-foreground">
@@ -99,7 +99,7 @@ function WorkspaceChip({ w }: { w: WorkspaceSpace }) {
   );
 }
 
-function TeamCard({ mine }: { mine: MyTeam }) {
+function TeamCard({ mine, delay = 0 }: { mine: MyTeam; delay?: number }) {
   const team = mine.teamNumber;
   const current = useCurrentSeason();
   const meta = useMeta();
@@ -116,7 +116,7 @@ function TeamCard({ mine }: { mine: MyTeam }) {
   const isCurrent = season === current;
 
   return (
-    <Reveal fade={false} className="overflow-hidden rounded-2xl border border-border bg-card">
+    <Reveal fade={false} delay={delay} className="overflow-hidden rounded-2xl border border-border bg-card">
       <article aria-label={`Team ${team}`}>
         <header className="flex flex-wrap items-start justify-between gap-4 border-b border-border p-5 sm:p-6">
           <div className="min-w-0">
@@ -163,22 +163,22 @@ function Season({ p, isCurrent, current }: { p: TeamProfile; isCurrent: boolean;
   return (
     <>
       {!isCurrent && <p className="mb-3 text-sm text-muted-foreground">No results in {seasonLabel(current)} yet, so this is {seasonLabel(p.season)}, the latest season it played.</p>}
-      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-        <StatTile tone="accent" icon={Target} label="OPR" value={num(s?.opr.np.value)}
+      <Stagger className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+        <StaggerItem><StatTile tone="accent" icon={Target} label="OPR" value={num(s?.opr.np.value)}
           hint={s?.opr.np.rank ? `#${s.opr.np.rank.toLocaleString()} of ${s.opr.np.of?.toLocaleString()}${top ? ` · ${top}` : ""}` : isCurrent ? "not ranked yet" : "not ranked"}
-          bar={s?.opr.np.rank ? <Meter parts={[{ pc: rankPc(s.opr.np.rank, s.opr.np.of), cls: TONES.accent.bar }]} /> : null} />
-        <StatTile tone="amber" icon={Sparkles} label="Prediction rating"
+          bar={s?.opr.np.rank ? <Meter parts={[{ pc: rankPc(s.opr.np.rank, s.opr.np.of), cls: TONES.accent.bar }]} /> : null} /></StaggerItem>
+        <StaggerItem><StatTile tone="amber" icon={Sparkles} label="Prediction rating"
           value={s?.rating ? <>{num(s.rating.np)}<span className="ml-1 text-base font-medium text-muted-foreground">±{num(s.rating.sd)}</span></> : "—"}
-          hint={s?.rating ? `${s.rating.rank ? `#${s.rating.rank.toLocaleString()} worldwide · ` : ""}${s.rating.matches} matches` : `no matches ${when}`} />
-        <StatTile tone="emerald" icon={Trophy} label="Record"
+          hint={s?.rating ? `${s.rating.rank ? `#${s.rating.rank.toLocaleString()} worldwide · ` : ""}${s.rating.matches} matches` : `no matches ${when}`} /></StaggerItem>
+        <StaggerItem><StatTile tone="emerald" icon={Trophy} label="Record"
           value={r ? <span aria-label={`${r.wins} wins, ${r.losses} losses, ${r.ties} ties`}><span className="text-success">{r.wins}</span><span className="text-muted-foreground">-</span><span className="text-destructive">{r.losses}</span><span className="text-muted-foreground">-{r.ties}</span></span> : "—"}
           hint={r ? `${r.matches} matches · ${r.events} event${r.events === 1 ? "" : "s"}` : `no matches ${when}`}
-          bar={r && r.wins + r.losses + r.ties > 0 ? <RecordMeter w={r.wins} l={r.losses} t={r.ties} /> : null} />
-        {next
+          bar={r && r.wins + r.losses + r.ties > 0 ? <RecordMeter w={r.wins} l={r.losses} t={r.ties} /> : null} /></StaggerItem>
+        <StaggerItem>{next
           ? <StatTile tone="violet" icon={CalendarDays} label="Next event" value={dateRange(next.start, next.end).split(",")[0]} hint={next.name} />
           : <StatTile tone="violet" icon={CalendarDays} label={isCurrent ? "Next event" : "Events"} value={isCurrent ? "—" : String(p.events.length)}
-              hint={isCurrent ? "none scheduled in our data" : last ? `last: ${last.name}` : "none in our data"} />}
-      </div>
+              hint={isCurrent ? "none scheduled in our data" : last ? `last: ${last.name}` : "none in our data"} />}</StaggerItem>
+      </Stagger>
       {p.events.length > 0 && <Events events={p.events} isCurrent={isCurrent} today={today} />}
     </>
   );
