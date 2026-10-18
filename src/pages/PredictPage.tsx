@@ -8,7 +8,9 @@ import { Link, useSearchParams } from "react-router-dom";
 import { ArrowLeftRight, ArrowRight, BookmarkPlus, CalendarDays, ChevronDown, FlaskConical, Link2, MapPin, Sparkles, Star, Swords, Trophy, Users, WifiOff, X } from "lucide-react";
 import { ENGINE_VERSION } from "@control-scout/predict-engine";
 import { noteOfflineAnswer, useApi, qs } from "../lib/api";
-import { useCurrentSeason, useTitle } from "../lib/meta";
+import { useCurrentSeason, useMeta, useTitle } from "../lib/meta";
+import { defaultSeason } from "../lib/myTeamSeason";
+import { callTally } from "../lib/seasonSoFar";
 import { usePersonal } from "../lib/personal";
 import type { EventDetail, EventSummary, EventListItem, MatchExplanationView, MatchView, TeamProfile } from "../shared/api";
 import { PageHeader, Section, EmptyState } from "../components/page";
@@ -83,11 +85,15 @@ function labLink(sp: URLSearchParams): "match" | "advancement" | null {
   return m === "advancement" ? "advancement" : m === "match" ? "match" : null;
 }
 
-/** Predict (scheduled matches and events) or Predict Lab (what-ifs): one switch, right under the search. */
+/**
+ * Predict (scheduled matches and events) or Predict Lab (what-ifs): one switch, right under the search.
+ * Two cards that say what each does, so the Lab (any four teams) isn't missed by people who'd otherwise
+ * type one team into the search and expect a matchup.
+ */
 function PredictSwitch({ value, onChange }: { value: "events" | "lab"; onChange: (v: "events" | "lab") => void }) {
   const views = [
-    { v: "events" as const, label: "Events", icon: CalendarDays, hint: "Predictions for scheduled matches and events" },
-    { v: "lab" as const, label: "Lab", icon: FlaskConical, hint: "What-ifs: any four teams, or advancement odds for any team at any event" },
+    { v: "events" as const, label: "Scheduled", icon: CalendarDays, hint: "Odds for the matches and events on the calendar, for the team or event you pick." },
+    { v: "lab" as const, label: "Lab: any matchup", icon: FlaskConical, hint: "Pick any four teams for win odds and a predicted score, or any team's odds at any event." },
   ];
   // Tabs keyboard pattern: the selected tab is the one Tab reaches; arrows (and Home/End) move and select.
   const onKey = (e: React.KeyboardEvent<HTMLButtonElement>) => {
@@ -99,13 +105,17 @@ function PredictSwitch({ value, onChange }: { value: "events" | "lab"; onChange:
     document.getElementById(`predict-tab-${views[next].v}`)?.focus();
   };
   return (
-    <div className="mt-4 inline-flex max-w-full gap-1 overflow-x-auto rounded-xl border border-line bg-card p-1" role="tablist" aria-label="Predict">
+    <div className="mt-5 grid max-w-2xl gap-2 sm:grid-cols-2" role="tablist" aria-label="Predict">
       {views.map(({ v, label, icon: Icon, hint }) => (
         <button key={v} id={`predict-tab-${v}`} type="button" role="tab" aria-selected={value === v} aria-controls={`predict-panel-${v}`} tabIndex={value === v ? 0 : -1}
-          title={hint} onKeyDown={onKey} onClick={() => value !== v && onChange(v)}
-          className={cn("inline-flex h-9 shrink-0 items-center gap-2 rounded-lg px-3.5 text-sm font-semibold transition-colors max-sm:h-11",
-            value === v ? "bg-accent text-accent-ink shadow-[0_4px_16px_color-mix(in_srgb,var(--color-accent)_25%,transparent)]" : "text-text-muted hover:bg-text-base/[0.06] hover:text-text-base")}>
-          <Icon className="size-4" />{label}
+          onKeyDown={onKey} onClick={() => value !== v && onChange(v)}
+          className={cn("flex min-h-[4.5rem] items-start gap-3 rounded-xl border p-3.5 text-left transition-colors",
+            value === v ? "border-accent/70 bg-accent/[0.12] shadow-[0_4px_16px_color-mix(in_srgb,var(--color-accent)_18%,transparent)]" : "border-border bg-card hover:border-accent/40 hover:bg-text-base/[0.03]")}>
+          <span className={cn("grid size-9 shrink-0 place-items-center rounded-lg", value === v ? "bg-accent text-accent-ink" : "bg-accent/[0.12] text-accent")}><Icon className="size-4" /></span>
+          <span className="min-w-0">
+            <span className="block text-sm font-semibold text-text-base">{label}</span>
+            <span className="mt-0.5 block text-xs text-muted-foreground">{hint}</span>
+          </span>
         </button>
       ))}
     </div>
@@ -155,42 +165,104 @@ function PickedHeader({ icon: Icon, title, sub, to, onClear }: { icon: typeof Us
   );
 }
 
+/** Lab links with a team filled in (as red's first team, or as the advancement team). */
+export const labMatchHref = (team: number, season: number) => `/predict${qs({ view: "lab", mode: "match", season, red: team })}`;
+export const labAdvancementHref = (team: number, season: number) => `/predict${qs({ view: "lab", mode: "advancement", season, team })}`;
+
 function TeamPredictions({ team, onClear }: { team: number; onClear: () => void }) {
-  const season = useCurrentSeason();
-  const profile = useApi<TeamProfile>(`/api/teams/${team}${qs({ season })}`);
-  const matches = useApi<{ matches: MatchView[] }>(`/api/teams/${team}/matches${qs({ season })}`);
+  const [sp, setSp] = useSearchParams();
+  const current = useCurrentSeason();
+  const meta = useMeta();
+  const offered = (x: number) => meta?.seasons.find((m) => m.season === x)?.predictable ?? x >= 2023;
+  const asked = Number(sp.get("season")) || null;
+  // With no ?season: this season once the team has played in it, else its latest predictable season (as My team does).
+  const probe = useApi<TeamProfile>(`/api/teams/${team}${qs({ season: current })}`);
+  const probed = probe.data?.team.number === team && probe.data.season === current ? probe.data : undefined;
+  const season = asked ?? (probed ? defaultSeason(probed, offered) : probe.error ? current : null);
+  const profile = useApi<TeamProfile>(season != null ? `/api/teams/${team}${qs({ season })}` : null);
+  const matches = useApi<{ matches: MatchView[] }>(season != null ? `/api/teams/${team}/matches${qs({ season })}` : null);
+  const setSeason = (x: number) => setSp((q) => { q.set("season", String(x)); return q; }, { replace: true });
+  const isCurrent = season === current;
   // Unplayed and not long past: matches from ended events that never got a result aren't "next".
   const stale = Date.now() - 12 * 3600_000;
-  const upcoming = (matches.data?.matches ?? []).filter((m) => !m.played && (!m.startsAt || Date.parse(m.startsAt) > stale));
-  const t = profile.data?.team;
+  const all = useMemo(() => matches.data?.matches ?? [], [matches.data]);
+  const upcoming = all.filter((m) => !m.played && (!m.startsAt || Date.parse(m.startsAt) > stale));
+  const played = useMemo(() => all.filter((m) => m.played).reverse(), [all]);
+  const calls = useMemo(() => callTally(all, team), [all, team]);
+  const shown = calls.live.of ? { ...calls.live, live: true } : calls.backtest.of ? { ...calls.backtest, live: false } : null;
+  const p = profile.data?.team.number === team ? profile.data : probed;
+  const t = p?.team ?? probe.data?.team;
   const now = iso(new Date());
-  const next = (profile.data?.events ?? []).find((e) => (e.end ?? e.start ?? "") >= now);
+  const next = isCurrent ? (p?.events ?? []).find((e) => (e.end ?? e.start ?? "") >= now) : undefined;
+  const seasons = p?.seasons ?? probed?.seasons;
+  const s = season ?? current;
+  // Each event's name and dates, for the match lists' event headings (codes otherwise).
+  const ev = useMemo(() => {
+    const names: Record<string, string> = {}, dates: Record<string, string> = {};
+    for (const e of profile.data?.team.number === team ? profile.data.events : []) { names[e.code] = e.name; dates[e.code] = dateRange(e.start, e.end); }
+    return { names, dates };
+  }, [profile.data, team]);
   return (
     <section aria-label={`Predictions for team ${team}`} className="rounded-2xl border border-border bg-card/60 p-4 sm:p-6">
-      <PickedHeader icon={Users} title={t ? `${t.number} ${t.name ?? ""}`.trim() : `Team ${team}`} sub={t ? place(t.city, t.state, t.country) : undefined} to={`/teams/${team}`} onClear={onClear} />
-      {profile.error?.status === 404 ? <EmptyState icon={Users} title={`No team ${team}`} description="No FTC team with that number in the seasons we hold." /> : (
+      <PickedHeader icon={Users} title={t ? `${t.number} ${t.name ?? ""}`.trim() : `Team ${team}`} sub={t ? place(t.city, t.state, t.country) : undefined} to={`/teams/${team}?season=${s}`} onClear={onClear} />
+      {probe.error?.status === 404 ? <EmptyState icon={Users} title={`No team ${team}`} description="No FTC team with that number in the seasons we hold." /> : (
         <div className="space-y-8">
-          <div>
-            <h3 className="mb-2 text-sm font-semibold text-foreground">Next matches</h3>
-            <Async state={matches}>{() => (
-              <MatchList matches={upcoming.slice(0, 12)} highlight={team} empty={next ? `No schedule yet for ${next.name}. Win odds appear as soon as the event publishes its matches (usually that morning).` : `No scheduled matches for ${team} in ${seasonLabel(season)} yet.`} />
-            )}</Async>
-            {upcoming.length > 12 && <p className="mt-2 text-xs text-muted-foreground">Showing 12 of {upcoming.length}. All of them are on the <Link to={`/teams/${team}`} className="underline">team page</Link>.</p>}
+          <div className="flex flex-wrap items-center gap-3">
+            {seasons ? <SeasonToggle predictOnly seasons={seasons} value={s} onChange={setSeason} /> : <div className="skeleton h-9 w-72 max-w-full rounded-lg" />}
+            {season != null && !isCurrent && <span className="text-xs text-muted-foreground">{asked ? `Predictions from ${seasonLabel(season)}` : `No results in ${seasonLabel(current)} yet, so this is ${seasonLabel(season)}`}</span>}
           </div>
-          {next && (
-            <div>
-              <h3 className="mb-2 flex flex-wrap items-baseline gap-x-2 text-sm font-semibold text-foreground">
-                <span>Next event: <Link to={`/events/${next.season}/${next.code}`} className="hover:underline">{next.name}</Link></span>
-                <span className="text-xs font-normal text-muted-foreground">{dateRange(next.start, next.end)}</span>
-              </h3>
-              {ADVANCING.has(next.type ?? "")
-                ? <AdvancementView season={next.season} code={next.code} team={team} nameOf={() => ""} />
-                : <p className="text-sm text-muted-foreground">This event doesn't advance teams, so there are no advancement odds. Its matches get win odds once it publishes a schedule.</p>}
+          {/* People pick one team expecting a matchup: the Lab, with this team already in. */}
+          <div className="flex flex-wrap items-center gap-3 rounded-xl border border-accent/30 bg-accent/[0.06] p-3.5">
+            <FlaskConical className="size-5 shrink-0 text-accent" aria-hidden />
+            <p className="min-w-0 flex-1 text-sm"><span className="font-medium">Predict a matchup with {team}.</span> <span className="text-muted-foreground">Pick its partner and two opponents in the Lab for win odds and a predicted score.</span></p>
+            <div className="flex flex-wrap gap-2">
+              <Button size="sm" asChild><Link to={labMatchHref(team, s)}><Swords /> Predict a matchup</Link></Button>
+              <Button size="sm" variant="secondary" asChild><Link to={labAdvancementHref(team, s)}><Trophy /> Odds at an event</Link></Button>
             </div>
+          </div>
+          {season == null ? <div className="skeleton h-40 rounded-xl" /> : isCurrent ? (
+            <>
+              <div>
+                <h3 className="mb-2 text-sm font-semibold text-foreground">Next matches</h3>
+                <Async state={matches}>{() => (
+                  <MatchList matches={upcoming.slice(0, 12)} highlight={team} eventNames={ev.names} eventDates={ev.dates} empty={next ? `No schedule yet for ${next.name}. Win odds appear as soon as the event publishes its matches (usually that morning).` : `No scheduled matches for ${team} in ${seasonLabel(season)} yet.`} />
+                )}</Async>
+                {upcoming.length > 12 && <p className="mt-2 text-xs text-muted-foreground">Showing 12 of {upcoming.length}. All of them are on the <Link to={`/teams/${team}`} className="underline">team page</Link>.</p>}
+              </div>
+              {next && (
+                <div>
+                  <h3 className="mb-2 flex flex-wrap items-baseline gap-x-2 text-sm font-semibold text-foreground">
+                    <span>Next event: <Link to={`/events/${next.season}/${next.code}`} className="hover:underline">{next.name}</Link></span>
+                    <span className="text-xs font-normal text-muted-foreground">{dateRange(next.start, next.end)}</span>
+                  </h3>
+                  {ADVANCING.has(next.type ?? "")
+                    ? <AdvancementView season={next.season} code={next.code} team={team} nameOf={() => ""} />
+                    : <p className="text-sm text-muted-foreground">This event doesn't advance teams, so there are no advancement odds. Its matches get win odds once it publishes a schedule.</p>}
+                </div>
+              )}
+              {played.length > 0 && <PastCalls team={team} season={season} played={played} shown={shown} ev={ev} />}
+            </>
+          ) : (
+            <Async state={matches}>{() => <PastCalls team={team} season={season} played={played} shown={shown} ev={ev} />}</Async>
           )}
         </div>
       )}
     </section>
+  );
+}
+
+/** A season's played matches, newest first, each with the call made before it, and how many were right. */
+function PastCalls({ team, season, played, shown, ev }: { team: number; season: number; played: MatchView[]; shown: { right: number; of: number; live: boolean } | null; ev: { names: Record<string, string>; dates: Record<string, string> } }) {
+  const rate = shown && shown.of ? Math.round((shown.right / shown.of) * 100) : null;
+  return (
+    <div>
+      <h3 className="mb-1 text-sm font-semibold text-foreground">How the calls did in {seasonLabel(season)}</h3>
+      <p className="mb-3 text-sm text-muted-foreground">
+        {shown ? <><span className="font-medium text-foreground">{shown.right} of {shown.of}</span> called right{rate != null && ` (${rate}%)`}, {shown.live ? "each logged before the match" : "replayed afterward with only the data from before each match (not live calls)"}.</> : `No called matches for ${team} in ${seasonLabel(season)}.`}
+      </p>
+      <MatchList matches={played.slice(0, 20)} highlight={team} eventNames={ev.names} eventDates={ev.dates} outcomeAccent empty={`No matches played in ${seasonLabel(season)}.`} />
+      {played.length > 20 && <p className="mt-2 text-xs text-muted-foreground">Showing the latest 20 of {played.length}. Every match is on the <Link to={`/teams/${team}?season=${season}`} className="underline">team page</Link>.</p>}
+    </div>
   );
 }
 
@@ -356,7 +428,7 @@ function MatchLab() {
         <form onSubmit={(e) => { e.preventDefault(); run(); }} noValidate className="grid items-start gap-4 md:grid-cols-[1fr_auto_1fr]">
           <fieldset className="rounded-xl border border-red-alliance/30 bg-red-alliance/[0.04] p-4">
             <legend className="px-1 text-sm font-semibold text-red-alliance">Red alliance</legend>
-            <div className="grid grid-cols-2 gap-3">{red.map((v, i) => <TeamInput key={i} label={`Red team ${i + 1}`} tone="red" value={v} onChange={(x) => { setRed((r) => r.map((y, j) => (j === i ? x : y))); clearError(i); }} autoFocus={i === 0 && !v} error={errors[i]} inputRef={(el) => { inputs.current[i] = el; }} />)}</div>
+            <div className="grid grid-cols-2 gap-3">{red.map((v, i) => <TeamInput key={i} label={`Red team ${i + 1}`} tone="red" value={v} onChange={(x) => { setRed((r) => r.map((y, j) => (j === i ? x : y))); clearError(i); }} autoFocus={!v && i === red.indexOf("")} error={errors[i]} inputRef={(el) => { inputs.current[i] = el; }} />)}</div>
           </fieldset>
           <div className="flex justify-center md:pt-8"><Button type="button" variant="ghost" size="icon" onClick={swap} aria-label="Swap alliances"><ArrowLeftRight /></Button></div>
           <fieldset className="rounded-xl border border-blue-alliance/30 bg-blue-alliance/[0.04] p-4">
