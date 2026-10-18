@@ -8,6 +8,9 @@ import { useMeta } from "../lib/meta";
 import { seasonLabel } from "../lib/format";
 import { cn } from "./cn";
 
+/** The chosen season stands out: an accent fill and ring, brighter than the track in both themes. */
+const SELECTED = "aria-checked:bg-accent/20 aria-checked:text-accent-text aria-checked:ring-1 aria-checked:ring-inset aria-checked:ring-accent/50 aria-checked:shadow-none";
+
 export function SeasonToggle({ seasons, value, onChange, predictOnly }: { seasons?: number[]; value: number; onChange: (s: number) => void; predictOnly?: boolean }) {
   const meta = useMeta();
   // Before meta loads, treat 2023+ as predictable (the server's rule).
@@ -27,7 +30,7 @@ export function SeasonToggle({ seasons, value, onChange, predictOnly }: { season
           // ui/controls), which the tooltip's data-state can't overwrite.
           <Tooltip key={s}>
             <TooltipTrigger asChild>
-              <ToggleGroupItem value={String(s)} className="shrink-0 max-sm:px-2.5" aria-label={`${seasonLabel(s)} ${game(s)}`}>
+              <ToggleGroupItem value={String(s)} className={cn("shrink-0 max-sm:px-2.5", SELECTED)} aria-label={`${seasonLabel(s)} ${game(s)}`}>
                 {/* Phones get "25–26" so four seasons and "Earlier" fit on one 390 px line without scrolling. */}
                 <span className="sm:hidden">{seasonLabel(s).slice(2)}</span><span className="max-sm:hidden">{seasonLabel(s)}</span>
               </ToggleGroupItem>
@@ -41,7 +44,7 @@ export function SeasonToggle({ seasons, value, onChange, predictOnly }: { season
           <SelectTrigger
             size="sm" aria-label={olderOn ? `Season ${seasonLabel(value)} ${game(value)}` : "Earlier seasons"}
             className={cn("h-7 w-auto shrink-0 gap-1 rounded-md border-0 px-2.5 font-medium max-sm:h-10 [&>span]:overflow-visible",
-              olderOn ? "bg-background text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground")}
+              olderOn ? "bg-accent/20 text-accent-text ring-1 ring-inset ring-accent/50" : "text-muted-foreground hover:text-foreground")}
           >
             <span>{olderOn ? seasonLabel(value) : "Earlier"}</span>
           </SelectTrigger>
