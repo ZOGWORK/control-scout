@@ -35,7 +35,8 @@ vi.mock("../lib/api", async (orig) => ({
     return { data: key ? data[key] : undefined, error: undefined, loading: !key, reload: () => {} };
   },
 }));
-vi.mock("../lib/meta", async (orig) => ({ ...(await orig<typeof import("../lib/meta")>()), useCurrentSeason: () => 2026, useTitle: () => {}, useMediaQuery: () => false, useMeta: () => null }));
+let phone = false;
+vi.mock("../lib/meta", async (orig) => ({ ...(await orig<typeof import("../lib/meta")>()), useCurrentSeason: () => 2026, useTitle: () => {}, useMediaQuery: () => phone, useMeta: () => null }));
 const st = (myTeam: number | null) => ({ myTeam, tracked: { teams: [], events: [] }, bookmarks: [] });
 let personal: { user: unknown; state: ReturnType<typeof st> } = { user: null, state: st(null) };
 vi.mock("../lib/personal", () => ({ usePersonal: () => personal }));
@@ -59,7 +60,7 @@ function Where() { path = useLocation().pathname; return null; }
 const { default: Home } = await import("./Home");
 const mount = () => render(<MemoryRouter initialEntries={["/"]}><Home /><Where /></MemoryRouter>);
 
-beforeEach(() => { reduced = false; data = {}; personal = { user: null, state: st(null) }; sessionStorage.clear(); });
+beforeEach(() => { phone = false; reduced = false; data = {}; personal = { user: null, state: st(null) }; sessionStorage.clear(); });
 afterEach(cleanup);
 
 describe("Home", () => {
@@ -169,5 +170,12 @@ describe("Home", () => {
     cleanup();
     mount();
     expect(path).toBe("/");
+  });
+
+  it("opens the atlas on the globe on phones too", async () => {
+    phone = true;
+    data = { "/api/home/overview": OVERVIEW };
+    mount();
+    expect((await screen.findByRole("radio", { name: "Globe" })).getAttribute("aria-checked")).toBe("true");
   });
 });
