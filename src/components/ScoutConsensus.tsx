@@ -105,11 +105,13 @@ function TagGroup({ title, icon, tags, tone, empty }: { title: string; icon?: Re
   );
 }
 
-/** Compare's row: one small card per team, in the cards' colours. */
-export function CompareConsensus({ teams, season, colors }: { teams: number[]; season: number; colors: string[] }) {
+/** Compare's row: one small card per team, in the cards' colours. `hideWhenEmpty`: nothing until the
+ *  workspace has scouted at least one of the teams (and nothing while that's still loading). */
+export function CompareConsensus({ teams, season, colors, hideWhenEmpty }: { teams: number[]; season: number; colors: string[]; hideWhenEmpty?: boolean }) {
   const c = useConsensus(teams, season);
   if (!c || c.state.error) return null;
   const data = c.state.data;
+  if (hideWhenEmpty && !data?.teams.some((x) => teams.includes(x.team) && x.entries > 0)) return null;
   const name = workspaceLabel(c.workspace);
   return (
     <Section title="Your team's take" description={<>{name} scouting on each team, from its shared entries. Only members of {name} see this.</>} action={<WorkspacePicker c={c} />}>
