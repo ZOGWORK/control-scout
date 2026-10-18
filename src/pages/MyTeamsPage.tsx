@@ -120,7 +120,7 @@ function TeamCard({ mine }: { mine: MyTeam }) {
       <article aria-label={`Team ${team}`}>
         <header className="flex flex-wrap items-start justify-between gap-4 border-b border-border p-5 sm:p-6">
           <div className="min-w-0">
-            <Link to={`/teams/${team}`} className="group block">
+            <Link to={season != null ? `/teams/${team}?season=${season}` : `/teams/${team}`} className="group block">
               <span className="font-display text-4xl font-semibold leading-none tracking-tight transition-colors group-hover:text-accent-text">{team}</span>
               <span className="mt-1.5 block break-words text-lg text-foreground/90">
                 {name === undefined ? (probe.error ? "Name not loaded" : <span className="skeleton inline-block h-5 w-44 rounded-md align-middle" />) : name ?? "Name not on file"}
@@ -184,9 +184,9 @@ function Season({ p, isCurrent, current }: { p: TeamProfile; isCurrent: boolean;
   );
 }
 
-/** The season's events: upcoming ones, then the latest played, each with rank and record there. */
+/** The season's events: ones not started yet, then the latest started (one on now included), each with rank and record there. */
 function Events({ events, isCurrent, today }: { events: TeamEventRow[]; isCurrent: boolean; today: string }) {
-  const upcoming = isCurrent ? events.filter((e) => (e.end ?? e.start ?? "") >= today) : [];
+  const upcoming = isCurrent ? events.filter((e) => (e.start ?? e.end ?? "") > today) : [];
   const played = events.filter((e) => !upcoming.includes(e)).reverse();
   const rows = [...upcoming.slice(0, 2).map((e) => ({ e, next: true })), ...played.slice(0, 3).map((e) => ({ e, next: false }))];
   return (
@@ -198,7 +198,7 @@ function Events({ events, isCurrent, today }: { events: TeamEventRow[]; isCurren
             <Link to={`/events/${e.season}/${e.code}`} className="flex flex-wrap items-center gap-x-3 gap-y-1 px-4 py-2.5 text-sm hover:bg-text-base/[0.04]">
               <span className="min-w-0 basis-full truncate font-medium sm:basis-0 sm:flex-1">{e.name}</span>
               <span className="text-xs text-muted-foreground">{dateRange(e.start, e.end)}</span>
-              {next ? <Badge variant="secondary">Upcoming</Badge> : (
+              {next ? <Badge variant="secondary">Upcoming</Badge> : e.rank == null && rec == null && (e.end ?? e.start ?? "") >= today ? <Badge variant="secondary">On now</Badge> : (
                 <span className="flex items-center gap-2 text-xs tabular-nums text-muted-foreground">
                   {e.rank != null && <span className="inline-flex items-center gap-0.5"><Hash className="size-3" aria-hidden />{e.rank}<span className="sr-only"> rank</span></span>}
                   {rec && <span>{rec}</span>}
@@ -219,7 +219,10 @@ function Matches({ team, matches, events, isCurrent }: { team: number; matches: 
     for (const e of events) { names[e.code] = e.name; dates[e.code] = dateRange(e.start, e.end); }
     return { names, dates };
   }, [events]);
-  const upcoming = isCurrent ? matches.filter((m) => !m.played).slice(0, 3) : [];
+  // Unplayed matches at events that have ended (a result never posted) aren't upcoming: they'd push out the real next ones.
+  const today = new Date().toISOString().slice(0, 10);
+  const ended = new Set(events.filter((e) => (e.end ?? e.start ?? "9999") < today).map((e) => e.code));
+  const upcoming = isCurrent ? matches.filter((m) => !m.played && !ended.has(m.code)).slice(0, 3) : [];
   const recent = matches.filter((m) => m.played).reverse().slice(0, 3);
   return (
     <div className={isCurrent ? "mt-6 grid gap-6 lg:grid-cols-2" : "mt-6"}>

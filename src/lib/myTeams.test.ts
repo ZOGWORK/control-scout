@@ -44,6 +44,13 @@ describe("myTeamsOf", () => {
     expect(r.unnumbered.map((w) => w.name)).toEqual(["T10"]);
   });
 
+  it("a name over 120 characters (cut short in the workspace list, whole in the team list) still pairs", () => {
+    const long = `${"Long ".repeat(30)}Robotics`;
+    const r = myTeamsOf(user([ws("1", long.slice(0, 120).trim())], [{ teamNumber: 4215, name: long }]));
+    expect(r.teams.map((t) => t.teamNumber)).toEqual([4215]);
+    expect(r.unnumbered).toEqual([]);
+  });
+
   it("two workspaces for one FTC team: one card, both workspaces", () => {
     const r = myTeamsOf(user([ws("1", "Gearheads"), ws("2", "Gearheads B", "admin")], [{ teamNumber: 4215, name: "Gearheads" }, { teamNumber: 4215, name: "Gearheads B" }]));
     expect(r.teams).toEqual([{ teamNumber: 4215, workspaces: [ws("1", "Gearheads"), ws("2", "Gearheads B", "admin")] }]);
