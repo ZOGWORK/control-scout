@@ -11,6 +11,7 @@ import {
 import { cn } from "../cn";
 import { useMeta } from "../../lib/meta";
 import { Sheet, SheetContent, SheetTitle } from "../ui/overlay";
+import { WhatsNewHost, WhatsNewRow } from "../WhatsNew";
 import { TooltipProvider } from "../ui/overlay";
 import { GlobalSearch } from "./Search";
 import { AccountMenu } from "./AccountMenu";
@@ -111,6 +112,7 @@ function Sidebar({ collapsed, onToggle }: { collapsed: boolean; onToggle: () => 
           </div>
         ))}
       </nav>
+      <div className="px-2 pb-1"><WhatsNewRow collapsed={collapsed} /></div>
       <div className={cn("flex items-center gap-2 border-t border-line p-2", collapsed && "flex-col")}>
         {!collapsed && (
           <Link to="/settings" className="min-w-0 flex-1 truncate rounded-lg px-2.5 py-2 text-sm text-text-muted hover:bg-text-base/[0.05] hover:text-text-base">
@@ -211,6 +213,7 @@ export function Shell({ children }: { children: ReactNode }) {
             </div>
           </div>
           <MobileTabs onMore={() => setMore(true)} />
+          <WhatsNewHost />
           <Sheet open={more} onOpenChange={setMore}>
             <SheetContent side="left" className="w-[85vw] max-w-[320px] p-3">
               <SheetTitle className="px-2 pb-2 pt-1 font-display text-base">Control Scout</SheetTitle>
@@ -221,6 +224,7 @@ export function Shell({ children }: { children: ReactNode }) {
                     <SectionRows items={s.items} onNavigate={() => setMore(false)} />
                   </div>
                 ))}
+                <WhatsNewRow onOpen={() => setMore(false)} />
               </nav>
             </SheetContent>
           </Sheet>
