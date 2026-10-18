@@ -70,8 +70,7 @@ function Hero() {
   // The page's main content: full opacity on its first frame (no fade from 0).
   return (
     <Reveal fade={false} className="pt-2 @4xl/home:pt-10">
-      <p className="flex items-center gap-3 text-xs font-semibold uppercase tracking-[0.2em] text-accent-text"><span aria-hidden className="h-px w-6 bg-accent" /> The FTC observatory</p>
-      <h1 className="mt-4 font-display text-[2.5rem] font-semibold leading-[1.05] tracking-[-0.02em] @lg/home:text-5xl @4xl/home:text-[3.5rem] @6xl/home:text-[4rem]">
+      <h1 className="font-display text-[2.5rem] font-semibold leading-[1.05] tracking-[-0.02em] @lg/home:text-5xl @4xl/home:text-[3.5rem] @6xl/home:text-[4rem]">
         {HOME_HEADLINE[0]} <span className="block text-accent-text">{HOME_HEADLINE[1]}</span>
       </h1>
       <p className="mt-4 max-w-[30rem] text-base text-text-muted">{HOME_LEAD}</p>
@@ -95,8 +94,8 @@ function Hero() {
 /** The atlas's place while its numbers load (kept the same size), or a way back if they couldn't. */
 function AtlasPending({ failed, onRetry }: { failed: boolean; onRetry: () => void }) {
   return (
-    <section aria-label="The competition atlas" className="min-w-0">
-      <p className="text-xs font-semibold uppercase tracking-[0.18em] text-text-muted">The competition atlas</p>
+    <section aria-label="FTC Control Scout: teams by country" className="min-w-0">
+      <p className="text-xs font-semibold uppercase tracking-[0.18em] text-text-muted">FTC Control Scout</p>
       {failed ? (
         <div className="mt-3 flex flex-col items-start gap-3 rounded-2xl border border-dashed border-line p-5 text-sm text-text-muted">
           Where this season’s teams are from couldn’t load.
