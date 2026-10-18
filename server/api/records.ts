@@ -8,6 +8,8 @@ import type { Response } from "express";
 import { createGzip } from "node:zlib";
 import { EXCLUDED_TYPES } from "@control-scout/predict-engine";
 import { all } from "../db.js";
+import { registerCache } from "../caches.js";
+import { countryByCode, countryOf } from "../../src/shared/countries.js";
 import { scoreColumn } from "../stats/records.js";
 import { foldText, parseFilter, serializeFilter, type FilterGroup, type FilterNode } from "../../src/shared/filterDsl.js";
 import {
@@ -143,6 +145,8 @@ export interface RecordsQuery {
   level: "qual" | "playoff" | null;
   /** One event (team-event and match records): its code, upper case. */
   code: string | null;
+  /** Team records only: teams whose directory entry reports this country (ISO alpha-2, upper case). */
+  country: string | null;
 }
 
 const one = (q: Record<string, unknown>, name: string): string | null => {
@@ -195,10 +199,14 @@ export function recordsQuery(scope: RecordScope, q: Record<string, unknown>, max
   const codeRaw = one(q, "code");
   if (codeRaw != null && scope === "teamSeason") throw bad("code applies to team-event and match records");
   if (codeRaw != null && !/^[A-Za-z0-9_-]{1,40}$/.test(codeRaw)) throw bad("code must be an event code like USNJQ1");
+  const countryRaw = one(q, "country");
+  if (countryRaw != null && scope === "match") throw bad("country applies to team records");
+  if (countryRaw != null && !countryByCode(countryRaw)) throw bad("country must be a country code like US or GB");
   const level = one(q, "level");
   if (level != null && (scope !== "match" || (level !== "qual" && level !== "playoff"))) throw bad(scope === "match" ? "level must be qual or playoff" : "level applies to match records");
   return {
     scope, filter, sort, dir, fields, regions, from, to, team, code: codeRaw == null ? null : codeRaw.toUpperCase(),
+    country: countryRaw == null ? null : countryRaw.toUpperCase(),
     eventType: eventType === "All" ? null : eventType,
     level: level as RecordsQuery["level"],
     page: intParam(q, "page", 1, 1, 100000),
@@ -245,9 +253,36 @@ export function compileFilter(node: FilterNode, columns: Record<string, string>,
   return `${col} ${NUMBER_SQL[node.op]} ?`;
 }
 
-function whereOf(src: Source, season: number, q: RecordsQuery): { sql: string; args: Arg[] } {
+/**
+ * The directory's country labels that name a country ("USA" for US; "Türkiye" and "Turkey" both
+ * for TR), as countries.ts normalises them for the home page's atlas, so a country's rows here are
+ * exactly the teams counted there. The distinct labels are re-read at most once a minute.
+ */
+const LABELS_TTL_MS = 60_000;
+let labelCache: { at: number; value: Promise<(string | null)[]> } | null = null;
+registerCache("Country labels", () => { labelCache = null; });
+export async function countryLabels(code: string): Promise<string[]> {
+  if (!labelCache || Date.now() - labelCache.at >= LABELS_TTL_MS) {
+    const value = all<{ country: string | null }>("SELECT DISTINCT country FROM teams").then((r) => r.map((x) => x.country));
+    value.catch(() => { if (labelCache?.value === value) labelCache = null; });
+    labelCache = { at: Date.now(), value };
+  }
+  return (await labelCache.value).filter((l): l is string => l != null && countryOf(l)?.code === code);
+}
+
+/** Resolve what a query needs from the database before its SQL is built (the country's labels). */
+async function resolved(q: RecordsQuery): Promise<string[] | null> {
+  return q.country ? countryLabels(q.country) : null;
+}
+
+function whereOf(src: Source, season: number, q: RecordsQuery, labels: string[] | null = null): { sql: string; args: Arg[] } {
   const parts = [src.season, ...src.where];
   const args: Arg[] = [season];
+  // A team's home country, from the directory (the whole season's rows are filtered, so counts and pages agree).
+  if (q.country) {
+    if (!labels?.length) parts.push("0");
+    else { parts.push(`r.team IN (SELECT number FROM teams WHERE country IN (${labels.map(() => "?").join(", ")}))`); args.push(...labels); }
+  }
   if (q.filter) parts.push(compileFilter(q.filter, src.columns, args, src.folded));
   if (q.regions.length) { parts.push(`${src.region} IN (${q.regions.map(() => "?").join(", ")})`); args.push(...q.regions); }
   if (q.eventType && src.eventType) {
@@ -336,7 +371,7 @@ async function rowsByKeys(src: Source, q: RecordsQuery, keys: any[]): Promise<an
 /** One page of records plus the total count of matching rows. */
 export async function listRecords(season: number, q: RecordsQuery): Promise<RecordsResponse<AnyRow>> {
   const src = sourceFor(q.scope);
-  const w = whereOf(src, season, q);
+  const w = whereOf(src, season, q, await resolved(q));
   const [raw, count] = await Promise.all([
     pageRows(src, q, w, q.pageSize, (q.page - 1) * q.pageSize),
     all<{ n: number }>(`SELECT COUNT(*) n FROM ${src.from} WHERE ${w.sql}`, w.args),
@@ -379,7 +414,7 @@ export const CSV_CHUNK = 500;
 
 export async function streamRecordsCsv(season: number, q: RecordsQuery, res: Response, filename: string): Promise<void> {
   const src = sourceFor(q.scope);
-  const w = whereOf(src, season, q);
+  const w = whereOf(src, season, q, await resolved(q));
   const ids = ID_HEADERS[q.scope];
   const line = (cells: unknown[]) => `${cells.map(csvCell).join(",")}\r\n`;
   // Which rows, in which order, is fixed by one query up front (just their keys: small), so a stats rewrite

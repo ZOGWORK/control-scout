@@ -136,4 +136,28 @@ describe("CompareConsensus", () => {
     expect(screen.getAllByText(/3 entries by 2 scouts/)).toHaveLength(2);
     expect(asked).toEqual([`/api/scout/workspaces/901/consensus?season=${S}&teams=101%2C102%2C103`]);
   });
+
+  it("hideWhenEmpty: nothing while no team has scouting (Compare), the row once one has", async () => {
+    h.user = userIn([{ id: "901", name: "Gearheads" }]);
+    answer = (ws, teams) => json(200, { workspaceId: ws, season: S, teams: teams.map(empty) });
+    const { unmount } = render(<MemoryRouter><CompareConsensus teams={[101, 102]} season={S} colors={["red", "green"]} hideWhenEmpty /></MemoryRouter>);
+    await waitFor(() => expect(asked).toHaveLength(1));
+    await act(async () => { await new Promise((r) => setTimeout(r, 20)); });
+    expect(screen.queryByText("Your team's take")).toBeNull();
+    expect(screen.queryByText(/No scouting on/)).toBeNull();
+    unmount();
+    clearConsensusMemo();
+    answer = (ws, teams) => json(200, { workspaceId: ws, season: S, teams: teams.map((t) => (t === 101 ? scouted(t) : empty(t))) });
+    render(<MemoryRouter><CompareConsensus teams={[101, 102]} season={S} colors={["red", "green"]} hideWhenEmpty /></MemoryRouter>);
+    await waitFor(() => expect(screen.getAllByTestId("consensus-card")).toHaveLength(2));
+  });
+
+  it("hideWhenEmpty with two workspaces: no cards, but the workspace switch stays", async () => {
+    h.user = userIn([{ id: "901", name: "Gearheads" }, { id: "902", name: "Bolt Bots" }]);
+    answer = (ws, teams) => json(200, { workspaceId: ws, season: S, teams: teams.map(empty) });
+    render(<MemoryRouter><CompareConsensus teams={[101, 102]} season={S} colors={["red", "green"]} hideWhenEmpty /></MemoryRouter>);
+    expect(await screen.findByText(/No scouting on these teams in Gearheads yet/)).toBeTruthy();
+    expect(screen.getByRole("combobox", { name: "Workspace" })).toBeTruthy();
+    expect(screen.queryByTestId("consensus-card")).toBeNull();
+  });
 });
