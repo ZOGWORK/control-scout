@@ -6,16 +6,16 @@ import { useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode }
 import { useSearchParams } from "react-router-dom";
 import {
   Activity, AlertTriangle, Archive, Bug, Building2, CheckCircle2, ClipboardList, Database, DatabaseZap, ExternalLink, Gauge, HardDrive, HardDriveDownload,
-  Inbox, LayoutDashboard, Link2, Mail, PackageOpen, Radio, RefreshCw, RotateCcw, ScrollText, ServerCog, Target, Timer, ToggleRight, Trash2, Trophy, Unlink, Users,
+  Inbox, LayoutDashboard, Link2, Mail, PackageOpen, Radio, RefreshCw, RotateCcw, ScrollText, Search, ServerCog, Target, Timer, ToggleRight, Trash2, Trophy, Unlink, UserRound, Users,
 } from "lucide-react";
 import { PageHeader, Section, EmptyState } from "../components/page";
 import { StatTile, Meter } from "../components/StatTile";
-import { Async } from "../components/states";
+import { Async, LoadingBlock } from "../components/states";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "../components/ui/tabs";
-import { Badge, Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "../components/ui/basic";
+import { Badge, Input, Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "../components/ui/basic";
 import { Button } from "../components/ui/button";
 import { Switch } from "../components/ui/controls";
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "../components/ui/overlay";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "../components/ui/overlay";
 import { toast } from "../components/ui/sonner";
 import { cn } from "../components/cn";
 import { apiFetch, ApiError, markStale, prime, useApi } from "../lib/api";
@@ -25,7 +25,7 @@ import { fmtBytes } from "../lib/recordings";
 import { refreshFlags } from "../lib/flags";
 import { FLAG_INFO } from "../shared/flags";
 import type {
-  AuditEntry, FeedbackList, FeedbackMessage, FeedbackStatus, FlagRow, LedgerKind, OpName, OpsStatus, OwnerOverview, OwnerUsage, PredictionHealth, RouteStats,
+  AuditEntry, FeedbackList, FeedbackMessage, FeedbackStatus, FlagRow, LedgerKind, OpName, OpsStatus, OwnerOverview, OwnerUsage, OwnerUser, OwnerUserDetail, OwnerWorkspace, PredictionHealth, RouteStats,
 } from "../shared/owner";
 import type { Flag } from "../shared/flags";
 import type { OrphanedWorkspace, OrphanReason } from "../shared/orphaned";
@@ -34,6 +34,7 @@ import { PowerRankingsPanel } from "../components/owner/PowerRankingsPanel";
 
 const PANELS = [
   { id: "overview", label: "Overview", icon: LayoutDashboard },
+  { id: "users", label: "Users", icon: UserRound },
   { id: "usage", label: "Usage", icon: Activity },
   { id: "predictions", label: "Predictions", icon: Target },
   { id: "flags", label: "Switches", icon: ToggleRight },
@@ -59,25 +60,47 @@ export default function OwnerPage() {
   const [sp, setSp] = useSearchParams();
   const panel = (PANELS.find((p) => p.id === sp.get("panel"))?.id ?? "overview") as PanelId;
   const go = (id: string) => setSp((p) => { const n = new URLSearchParams(p); if (id === "overview") n.delete("panel"); else n.set("panel", id); return n; }, { replace: true });
+  // Counts for the tabs (what's waiting), from the overview every panel shares.
+  const overview = useApi<OwnerOverview>("/api/owner/overview");
+  const o = overview.data;
+  const badge: Partial<Record<PanelId, number>> = o ? { feedback: o.inbox.openFeedback, errors: o.inbox.errorReports, orphaned: o.orphanedWorkspaces ?? 0 } : {};
+  // Refresh: every owner request on screen loads again, and the open panel starts afresh (panels that read on open).
+  const [refreshKey, setRefreshKey] = useState(0);
+  const [refreshing, setRefreshing] = useState(false);
+  const refresh = () => {
+    setRefreshing(true);
+    markStale("/api/owner/");
+    setRefreshKey((k) => k + 1);
+    setTimeout(() => setRefreshing(false), 600);
+  };
   return (
     <div className={CHART_VARS}>
-      <PageHeader title="Owner" description="How Control Scout is doing, and the switches to run it. Only you can see this page." />
+      <PageHeader eyebrow="Owner" title="Owner console" description="Every account, workspace, switch and report: how Control Scout is doing, and the controls to run it. Only you can see this page."
+        actions={<Button variant="outline" onClick={refresh} disabled={refreshing} className="max-sm:h-11"><RefreshCw className={cn(refreshing && "animate-spin")} /> Refresh</Button>} />
       {panel !== "storage" && <StorageBanner onOpen={() => go("storage")} />}
       <Tabs value={panel} onValueChange={go}>
-        <TabsList aria-label="Owner panels" className="max-w-full">
-          {PANELS.map((p) => <TabsTrigger key={p.id} value={p.id}><p.icon aria-hidden />{p.label}</TabsTrigger>)}
+        <TabsList aria-label="Owner sections" className="max-w-full justify-start overflow-x-auto">
+          {PANELS.map((p) => (
+            <TabsTrigger key={p.id} value={p.id} className="shrink-0 max-sm:h-11">
+              <p.icon aria-hidden />{p.label}
+              {!!badge[p.id] && <Badge variant={p.id === "errors" ? "destructive" : "secondary"} className="ml-1 tabular-nums" aria-label={`${badge[p.id]} waiting`}>{badge[p.id]}</Badge>}
+            </TabsTrigger>
+          ))}
         </TabsList>
-        <TabsContent value="overview"><OverviewPanel onOpen={go} /></TabsContent>
-        <TabsContent value="usage"><UsagePanel /></TabsContent>
-        <TabsContent value="predictions"><PredictionsPanel /></TabsContent>
-        <TabsContent value="flags"><FlagsPanel /></TabsContent>
-        <TabsContent value="feedback"><FeedbackPanel /></TabsContent>
-        <TabsContent value="errors"><ErrorsPanel /></TabsContent>
-        <TabsContent value="ops"><OpsPanel /></TabsContent>
-        <TabsContent value="storage"><StoragePanel /></TabsContent>
-        <TabsContent value="powerRankings"><PowerRankingsPanel onOpenSwitches={() => go("flags")} /></TabsContent>
-        <TabsContent value="orphaned"><OrphanedPanel /></TabsContent>
-        <TabsContent value="audit"><AuditPanel /></TabsContent>
+        <div key={refreshKey}>
+          <TabsContent value="overview"><OverviewPanel onOpen={go} /></TabsContent>
+          <TabsContent value="users"><UsersPanel /></TabsContent>
+          <TabsContent value="usage"><UsagePanel /></TabsContent>
+          <TabsContent value="predictions"><PredictionsPanel /></TabsContent>
+          <TabsContent value="flags"><FlagsPanel /></TabsContent>
+          <TabsContent value="feedback"><FeedbackPanel /></TabsContent>
+          <TabsContent value="errors"><ErrorsPanel /></TabsContent>
+          <TabsContent value="ops"><OpsPanel /></TabsContent>
+          <TabsContent value="storage"><StoragePanel /></TabsContent>
+          <TabsContent value="powerRankings"><PowerRankingsPanel onOpenSwitches={() => go("flags")} /></TabsContent>
+          <TabsContent value="orphaned"><OrphanedPanel /></TabsContent>
+          <TabsContent value="audit"><AuditPanel /></TabsContent>
+        </div>
       </Tabs>
     </div>
   );
@@ -87,12 +110,12 @@ function TileGrid({ children, cols = 4 }: { children: ReactNode; cols?: 3 | 4 })
   return <div className={cn("grid grid-cols-2 gap-3", cols === 4 ? "lg:grid-cols-4" : "lg:grid-cols-3")}>{children}</div>;
 }
 
-/** A label / value list (two columns from sm up). */
-function Facts({ rows }: { rows: [ReactNode, ReactNode][] }) {
+/** A label / value list (two columns from sm up, or one: `single`, for narrow places like a side sheet). */
+function Facts({ rows, single }: { rows: [ReactNode, ReactNode][]; single?: boolean }) {
   return (
-    <dl className="grid gap-x-8 gap-y-3 rounded-xl border border-border bg-card p-4 sm:grid-cols-2">
+    <dl className={cn("grid gap-x-8 gap-y-3 rounded-xl border border-border bg-card p-4", !single && "sm:grid-cols-2")}>
       {rows.map(([k, v], i) => (
-        <div key={i} className="flex min-w-0 items-baseline justify-between gap-3 border-b border-border/60 pb-2 last:border-0 sm:[&:nth-last-child(2)]:border-0">
+        <div key={i} className={cn("flex min-w-0 items-baseline justify-between gap-3 border-b border-border/60 pb-2 last:border-0", !single && "sm:[&:nth-last-child(2)]:border-0")}>
           <dt className="shrink-0 text-sm text-muted-foreground">{k}</dt>
           <dd className="min-w-0 truncate text-right text-sm text-foreground">{v}</dd>
         </div>
@@ -111,7 +134,8 @@ function OverviewPanel({ onOpen }: { onOpen: (id: string) => void }) {
         <>
           <Section title="People and data">
             <TileGrid cols={3}>
-              <StatTile tone="accent" icon={Users} label="Accounts" value={int(o.accounts.total)} hint={`${int(o.accounts.active30d)} active in the last 30 days · ${int(o.accounts.new7d)} new this week`} />
+              <StatTile tone="accent" icon={Users} label="Accounts" value={int(o.accounts.total)} hint={`${int(o.accounts.active30d)} active in the last 30 days · ${int(o.accounts.new7d)} new this week`}
+                onClick={() => onOpen("users")} ariaLabel={`Accounts: ${o.accounts.total}. Show them`} />
               <StatTile tone="violet" icon={Link2} label="Linked to Control Point" value={int(o.controlPointLinked)}
                 hint={o.accounts.total ? `${pct(o.controlPointLinked / o.accounts.total)} of accounts` : "No accounts yet"}
                 bar={o.accounts.total ? <Meter parts={[{ pc: (o.controlPointLinked / o.accounts.total) * 100, cls: "bg-violet-500" }]} /> : undefined} />
@@ -136,6 +160,7 @@ function OverviewPanel({ onOpen }: { onOpen: (id: string) => void }) {
               <StatTile tone="emerald" icon={ServerCog} label="Up for" value={uptime(o.health.uptimeSeconds)} hint={`Since ${when(o.health.startedAt)}`} />
             </TileGrid>
           </Section>
+          {o.workspaces != null && <WorkspacesSection />}
           <Section title="Server">
             <Facts rows={[
               ["Release", <span className="font-mono">{o.health.release ? o.health.release.slice(0, 12) : "development"}</span>],
@@ -149,6 +174,159 @@ function OverviewPanel({ onOpen }: { onOpen: (id: string) => void }) {
         </>
       )}
     </Async>
+  );
+}
+
+// --- Users and workspaces ------------------------------------------------------------------------
+
+const SIGN_IN: Record<string, string> = { email: "Email code", google: "Google", "control-point": "Control Point" };
+const signInLabel = (p: string) => SIGN_IN[p] ?? p;
+const day = (iso: string | null) => (iso ? new Date(iso).toLocaleDateString(undefined, { dateStyle: "medium" }) : "—");
+
+/** Every account, most recently seen first: search, then open one for what it keeps here. */
+function UsersPanel() {
+  const [q, setQ] = useState("");
+  const [query, setQuery] = useState("");
+  useEffect(() => { const t = setTimeout(() => setQuery(q.trim()), 250); return () => clearTimeout(t); }, [q]);
+  const state = useApi<{ users: OwnerUser[]; total: number }>(`/api/owner/users${query ? `?q=${encodeURIComponent(query)}` : ""}`);
+  const [open, setOpen] = useState<number | null>(null);
+  return (
+    <Section title={`Users${state.data ? ` (${state.data.total.toLocaleString()})` : ""}`} description="Every account, most recently seen first. Open one for its sign-ins, devices, saved data, scouting and workspaces. Read-only: nothing here changes an account.">
+      <div className="relative mb-4 max-w-sm">
+        <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" aria-hidden />
+        <Input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search email or name" aria-label="Search accounts" className="pl-9 max-sm:h-11" />
+      </div>
+      <Async state={state} empty={(d) => !d.users.length && <EmptyState icon={UserRound} title={query ? `No account matches “${query}”` : "No accounts yet"} description={query ? "Try part of the email or the name." : "Accounts appear here once someone signs in."} />}>
+        {(d) => (
+          <div className="overflow-x-auto rounded-xl border border-border">
+            <Table>
+              <TableHeader>
+                <TableRow><TableHead>Account</TableHead><TableHead>Signs in with</TableHead><TableHead className="text-right">Entries</TableHead><TableHead className="text-right">Workspaces</TableHead><TableHead>Joined</TableHead><TableHead>Last seen</TableHead></TableRow>
+              </TableHeader>
+              <TableBody>
+                {d.users.map((u) => (
+                  <TableRow key={u.id} className="cursor-pointer" onClick={() => setOpen(u.id)}>
+                    <TableCell className="max-w-[18rem]">
+                      <button type="button" onClick={(e) => { e.stopPropagation(); setOpen(u.id); }} className="block min-w-0 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60 rounded">
+                        <span className="block truncate font-medium">{u.displayName || u.email || `Account ${u.id}`}</span>
+                        {u.displayName && u.email && <span className="block truncate text-xs text-muted-foreground">{u.email}</span>}
+                      </button>
+                    </TableCell>
+                    <TableCell><span className="flex flex-wrap gap-1">{u.providers.length ? u.providers.map((p) => <Badge key={p} variant="outline" className="text-[11px]">{signInLabel(p)}</Badge>) : <span className="text-xs text-muted-foreground">—</span>}</span></TableCell>
+                    <TableCell className="text-right tabular-nums">{int(u.personalEntries)}</TableCell>
+                    <TableCell className="text-right tabular-nums">{u.workspaces == null ? "—" : int(u.workspaces)}</TableCell>
+                    <TableCell className="whitespace-nowrap text-xs text-muted-foreground">{day(u.createdAt)}</TableCell>
+                    <TableCell className="whitespace-nowrap text-xs text-muted-foreground">{u.lastSeen ? ago(u.lastSeen) : "never"}</TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+            {d.total > d.users.length && <p className="border-t border-border px-4 py-2 text-xs text-muted-foreground">Showing the {d.users.length.toLocaleString()} most recently seen of {d.total.toLocaleString()}. Search to find anyone else.</p>}
+          </div>
+        )}
+      </Async>
+      <UserSheet id={open} onClose={() => setOpen(null)} />
+    </Section>
+  );
+}
+
+/** One account in full, beside the list. */
+function UserSheet({ id, onClose }: { id: number | null; onClose: () => void }) {
+  const state = useApi<OwnerUserDetail>(id == null ? null : `/api/owner/users/${id}`);
+  const u = state.data;
+  return (
+    <Sheet open={id != null} onOpenChange={(v) => { if (!v) onClose(); }}>
+      <SheetContent side="right" className="w-full gap-0 overflow-y-auto p-0 sm:max-w-md">
+        <SheetHeader className="border-b border-border px-5 py-4">
+          <SheetTitle className="truncate">{u ? u.displayName || u.email || `Account ${u.id}` : "Account"}</SheetTitle>
+          <SheetDescription className="truncate">{u?.email ?? " "}</SheetDescription>
+        </SheetHeader>
+        <div className="space-y-5 px-5 py-4 text-sm">
+          <Async state={state} loading={<LoadingBlock rows={4} label="Loading the account" />}>
+            {(d) => (
+              <>
+                <Facts single rows={[
+                  ["Joined", day(d.createdAt)],
+                  ["Last seen", d.lastSeen ? ago(d.lastSeen) : "never"],
+                  ["Signs in with", d.signIns.length ? d.signIns.map(signInLabel).join(", ") : "—"],
+                  ["Control Point account", d.controlPointAccount == null ? "Not linked" : <span className="font-mono">#{d.controlPointAccount}</span>],
+                ]} />
+                <div>
+                  <h3 className="mb-2 font-medium">Signed in on {d.sessions.length} {d.sessions.length === 1 ? "device" : "devices"}</h3>
+                  {d.sessions.length ? (
+                    <ul className="divide-y divide-border rounded-xl border border-border">
+                      {d.sessions.map((x, i) => <li key={i} className="px-3 py-2"><p className="truncate text-xs" title={x.device ?? undefined}>{x.device ?? "Unknown browser"}</p><p className="text-xs text-muted-foreground">Since {when(x.createdAt)} · until {day(x.expiresAt)}</p></li>)}
+                    </ul>
+                  ) : <p className="text-xs text-muted-foreground">No device is signed in right now.</p>}
+                </div>
+                <div>
+                  <h3 className="mb-2 font-medium">Saved to the account</h3>
+                  {d.saved.length ? <p className="flex flex-wrap gap-1">{d.saved.map((x) => <Badge key={x.key} variant="outline" className="font-mono text-[11px]" title={`Changed ${when(new Date(x.updatedAt).toISOString())}`}>{x.key}</Badge>)}</p>
+                    : <p className="text-xs text-muted-foreground">Nothing synced yet.</p>}
+                  <p className="mt-2 text-xs text-muted-foreground">{int(d.personalEntries.count)} personal scouting {d.personalEntries.count === 1 ? "entry" : "entries"}{d.personalEntries.lastUpdated ? `, last ${ago(new Date(d.personalEntries.lastUpdated).toISOString())}` : ""}.</p>
+                </div>
+                <div>
+                  <h3 className="mb-2 font-medium">Workspaces</h3>
+                  {d.workspaces.length ? (
+                    <ul className="divide-y divide-border rounded-xl border border-border">
+                      {d.workspaces.map((w) => (
+                        <li key={w.id} className="flex items-center justify-between gap-3 px-3 py-2">
+                          <span className="min-w-0"><span className="block truncate">{w.name || w.id}</span><span className="text-xs text-muted-foreground">{w.authoredEntries == null ? "" : `${int(w.authoredEntries)} entries written`}</span></span>
+                          <span className="flex shrink-0 gap-1">{w.orphaned && <Badge variant="outline">Read-only</Badge>}<Badge variant={w.role === "admin" ? "default" : "secondary"}>{w.role}</Badge></span>
+                        </li>
+                      ))}
+                    </ul>
+                  ) : <p className="text-xs text-muted-foreground">{d.controlPointAccount == null ? "Not linked to Control Point, so no workspaces." : "In no Control Point workspace that uses Scout."}</p>}
+                </div>
+              </>
+            )}
+          </Async>
+        </div>
+      </SheetContent>
+    </Sheet>
+  );
+}
+
+/** Every Scout space, busiest first: members, entries, last activity, and whether it's read-only. */
+function WorkspacesSection() {
+  const state = useApi<{ workspaces: OwnerWorkspace[] | null }>("/api/owner/workspaces");
+  const [q, setQ] = useState("");
+  return (
+    <Section title={`Workspaces${state.data?.workspaces ? ` (${state.data.workspaces.length})` : ""}`} description="Control Point workspaces that have used Scout, most recently active first.">
+      <Async state={state} loading={<LoadingBlock rows={3} label="Loading workspaces" />}
+        empty={(d) => !d.workspaces?.length && <EmptyState icon={Building2} title="No workspaces yet" description="A workspace appears here after its first shared entry or settings change." />}>
+        {(d) => {
+          const all = d.workspaces ?? [];
+          const shown = q.trim() ? all.filter((w) => w.name.toLowerCase().includes(q.trim().toLowerCase())) : all;
+          return (
+            <>
+              {all.length > 8 && (
+                <div className="relative mb-4 max-w-sm">
+                  <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" aria-hidden />
+                  <Input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search workspaces" aria-label="Search workspaces" className="pl-9 max-sm:h-11" />
+                </div>
+              )}
+              <div className="overflow-x-auto rounded-xl border border-border">
+                <Table>
+                  <TableHeader><TableRow><TableHead>Workspace</TableHead><TableHead className="text-right">Members</TableHead><TableHead className="text-right">Entries</TableHead><TableHead>Last entry</TableHead><TableHead>State</TableHead></TableRow></TableHeader>
+                  <TableBody>
+                    {shown.map((w) => (
+                      <TableRow key={w.id}>
+                        <TableCell className="max-w-[18rem] truncate font-medium">{w.name || <span className="font-mono text-muted-foreground">{w.id}</span>}</TableCell>
+                        <TableCell className="text-right tabular-nums">{w.members == null ? "—" : int(w.members)}</TableCell>
+                        <TableCell className="text-right tabular-nums">{w.entries == null ? "—" : int(w.entries)}</TableCell>
+                        <TableCell className="whitespace-nowrap text-xs text-muted-foreground">{w.lastEntryAt ? ago(new Date(w.lastEntryAt).toISOString()) : "—"}</TableCell>
+                        <TableCell>{w.orphaned ? <Badge variant="outline" title={`Since ${day(w.orphaned.at)}`}>Read-only{w.orphaned.reason ? ` · ${w.orphaned.reason === "deleted" ? "deleted" : "no admin"}` : ""}</Badge> : <Badge variant="secondary">Active</Badge>}</TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+            </>
+          );
+        }}
+      </Async>
+    </Section>
   );
 }
 
