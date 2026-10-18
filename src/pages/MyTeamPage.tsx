@@ -10,7 +10,7 @@ import { usePersonal } from "../lib/personal";
 import type { EventSummary, EventListItem, MatchView, TeamProfile, TeamSummary } from "../shared/api";
 import { PageHeader, Section, EmptyState } from "../components/page";
 import { Reveal, Stagger, StaggerItem } from "../components/motion";
-import { Meter, StatTile, TONES, rankPc } from "../components/StatTile";
+import { Meter, RecordMeter, StatTile, TONES, rankPc } from "../components/StatTile";
 import { Async } from "../components/states";
 import { Button } from "../components/ui/button";
 import { Badge } from "../components/ui/basic";
@@ -264,11 +264,6 @@ function SeasonSoFar({ p, team, matches, matchesFailed, when, earlier, onSeason 
       </div>
     </>
   );
-}
-
-function RecordMeter({ w, l, t }: { w: number; l: number; t: number }) {
-  const n = w + l + t || 1;
-  return <Meter parts={[{ pc: (w / n) * 100, cls: "bg-success" }, { pc: (l / n) * 100, cls: "bg-destructive" }, { pc: (t / n) * 100, cls: "bg-text-muted/50" }]} />;
 }
 
 function TrackedFeed({ season }: { season: number }) {
