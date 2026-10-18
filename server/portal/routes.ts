@@ -17,6 +17,7 @@ import { listAudit, recordAudit } from "./audit.js";
 import { isFeedbackStatus, listFeedback, setFeedbackStatus } from "./feedback.js";
 import { isOp, opsStatus, startOp } from "./ops.js";
 import { ownerOverview } from "./overview.js";
+import { listUsers, listWorkspaces, userDetail } from "./people.js";
 import { predictionHealth } from "./predictionHealth.js";
 import { ownerStorage, purgeEvent, runPhotoMaintenance } from "../scout/photos.js";
 import { r2 } from "../scout/r2.js";
@@ -49,6 +50,16 @@ export function ownerRouter(): Router {
   });
 
   r.get("/overview", h(async () => ownerOverview()));
+
+  // Accounts and Scout spaces, read-only (server/portal/people.ts).
+  r.get("/users", h(async (req) => listUsers(typeof req.query.q === "string" && req.query.q.trim() ? req.query.q.trim().slice(0, 80) : null, num(req.query.limit, 300, 1, 1000))));
+  r.get("/users/:id", h(async (req, res) => {
+    const id = Number(req.params.id);
+    const u = Number.isInteger(id) && id > 0 ? await userDetail(id) : null;
+    if (!u) { res.status(404).json({ error: "No such account" }); return; }
+    return u;
+  }));
+  r.get("/workspaces", h(async () => ({ workspaces: await listWorkspaces() })));
 
   r.get("/usage", h(async (req): Promise<OwnerUsage> => {
     const days = num(req.query.days, 14, 1, 90);

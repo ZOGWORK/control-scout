@@ -115,3 +115,35 @@ export interface OwnerPowerRankings {
   /** Newest first. */
   weeks: OwnerPowerRankingsWeek[];
 }
+
+/** GET /api/owner/users: one account in the list. */
+export interface OwnerUser {
+  id: number; email: string | null; displayName: string | null; createdAt: string; lastSeen: string | null;
+  /** Sign-in methods (email, google, control-point). */
+  providers: string[];
+  personalEntries: number;
+  /** Control Point workspaces it belongs to; null before workspaces exist on this server. */
+  workspaces: number | null;
+}
+
+/** GET /api/owner/users/:id */
+export interface OwnerUserDetail {
+  id: number; email: string | null; displayName: string | null; createdAt: string; lastSeen: string | null;
+  signIns: string[];
+  controlPointAccount: number | null;
+  /** Signed-in devices right now (unexpired sessions), newest first. */
+  sessions: { createdAt: string; expiresAt: string; device: string | null }[];
+  /** Personal data synced to the account: which keys, last changed (ms). */
+  saved: { key: string; updatedAt: number }[];
+  personalEntries: { count: number; lastUpdated: number | null };
+  workspaces: { id: string; name: string; role: string; orphaned: boolean; authoredEntries: number | null }[];
+}
+
+/** GET /api/owner/workspaces: one Scout space. */
+export interface OwnerWorkspace {
+  id: string; name: string; createdAt: string;
+  members: number | null; entries: number | null;
+  /** ms */
+  lastEntryAt: number | null;
+  orphaned: { at: string; reason: string | null } | null;
+}
