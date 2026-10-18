@@ -12,16 +12,18 @@ const EVENTS = [
   { code: "USNYQ2", name: "Big Apple Qualifier", start: "2026-11-15", end: "2026-11-15", city: "New York", state: "NY" },
 ] as unknown as EventListItem[];
 const calls: string[] = [];
+let failNext = false;
 vi.mock("../../lib/api", async (orig) => ({
   ...(await orig<typeof import("../../lib/api")>()),
   apiFetch: async (url: string) => {
     calls.push(url);
+    if (failNext) { failNext = false; throw new Error("offline"); }
     const q = (new URL(url, "http://x").searchParams.get("q") ?? "").toLowerCase();
     return { events: EVENTS.filter((e) => e.name.toLowerCase().includes(q) || e.code.toLowerCase().includes(q) || (e.city ?? "").toLowerCase().includes(q)) };
   },
 }));
 
-const { EventPicker, EVENT_SEARCH_DEBOUNCE } = await import("./EventPicker");
+const { EventPicker, EVENT_SEARCH_DEBOUNCE, rankEvents } = await import("./EventPicker");
 let value = "";
 function Harness({ start = "" }: { start?: string }) {
   const [code, setCode] = useState(start);
@@ -30,7 +32,7 @@ function Harness({ start = "" }: { start?: string }) {
 }
 const settle = () => act(async () => { vi.advanceTimersByTime(EVENT_SEARCH_DEBOUNCE + 10); await Promise.resolve(); await Promise.resolve(); });
 
-beforeEach(() => { vi.useFakeTimers(); calls.length = 0; value = ""; });
+beforeEach(() => { vi.useFakeTimers(); calls.length = 0; value = ""; failNext = false; });
 afterEach(() => { cleanup(); vi.useRealTimers(); });
 
 describe("EventPicker", () => {
@@ -74,5 +76,41 @@ describe("EventPicker", () => {
     fireEvent.click(screen.getByRole("button", { name: "Change event" }));
     expect(value).toBe("");
     expect(screen.getByRole("combobox")).toBeTruthy();
+  });
+
+  it("drops the old results as soon as the text changes, so Enter can't pick a stale event", async () => {
+    render(<Harness />);
+    const box = screen.getByRole("combobox");
+    fireEvent.change(box, { target: { value: "bergen" } });
+    await settle();
+    expect(screen.getAllByRole("option")).toHaveLength(1);
+    // New text, its search not answered yet: nothing is offered, and Enter picks nothing.
+    fireEvent.change(box, { target: { value: "nowhere" } });
+    expect(screen.queryAllByRole("option")).toHaveLength(0);
+    fireEvent.keyDown(box, { key: "Enter" });
+    expect(value).toBe("");
+  });
+
+  it("says a search failed (not 'no match'), and retries it", async () => {
+    render(<Harness />);
+    failNext = true;
+    fireEvent.change(screen.getByRole("combobox"), { target: { value: "spring" } });
+    await settle();
+    expect(screen.getByRole("alert").textContent).toMatch(/Couldn’t search events/);
+    expect(screen.queryByText(/No 2026 event matches/)).toBeNull();
+    fireEvent.mouseDown(screen.getByRole("button", { name: /Try again/ }));
+    await settle();
+    expect(screen.getByRole("option", { name: /Spring Valley Qualifier/ })).toBeTruthy();
+  });
+
+  it("asks for every match, so ranking sees later events too", async () => {
+    render(<Harness />);
+    fireEvent.change(screen.getByRole("combobox"), { target: { value: "qual" } });
+    await settle();
+    expect(calls.at(-1)).toContain("limit=3000");
+    // A name that starts with the query beats earlier events that only contain it.
+    const many = Array.from({ length: 80 }, (_, i) => ({ code: `E${i}`, name: `Spring Qualifier ${i}`, start: `2026-10-${String(10 + (i % 18)).padStart(2, "0")}` })) as unknown as EventListItem[];
+    const late = { code: "LATE", name: "Qual Finals", start: "2027-03-01" } as unknown as EventListItem;
+    expect(rankEvents([...many, late], "qual")[0].code).toBe("LATE");
   });
 });
