@@ -14,6 +14,7 @@ import { callTally } from "../lib/seasonSoFar";
 import { usePersonal } from "../lib/personal";
 import type { EventDetail, EventSummary, EventListItem, MatchExplanationView, MatchView, TeamProfile } from "../shared/api";
 import { PageHeader, Section, EmptyState } from "../components/page";
+import { LatestCalls } from "../components/LatestCalls";
 import { Async, ErrorState } from "../components/states";
 import { Button } from "../components/ui/button";
 import { Badge, Input } from "../components/ui/basic";
@@ -57,10 +58,16 @@ export default function PredictPage() {
   const setView = (v: "events" | "lab") => setSp((x) => { x.set("view", v); if (v === "lab" && !labLink(x)) x.set("mode", "match"); return x; });
   return (
     <div className="space-y-10">
-      <div>
+      {/* Wide content: the latest live calls fill the header's right side (none on narrower screens: search comes first). */}
+      <div className="@container/predict">
+      <div className="grid items-start gap-x-10 @5xl/predict:grid-cols-[minmax(0,1fr)_minmax(18rem,22rem)]">
+      <div className="min-w-0">
         <PageHeader title="Predict" description={<>Every scheduled match gets win odds and predicted scores automatically, and every advancing event gets advancement odds. Pick a team or an event to see them. Each number carries its confidence, and the <Link to="/methodology#accuracy" className="underline">track record</Link> shows how often they've been right.</>} />
         <Picker onPick={setPick} />
         <PredictSwitch value={view} onChange={setView} />
+      </div>
+      <LatestCalls className="hidden @5xl/predict:block" />
+      </div>
       </div>
       <div role="tabpanel" id={`predict-panel-${view}`} aria-labelledby={`predict-tab-${view}`} className="space-y-10">
         {view === "lab" ? <Lab /> : (
