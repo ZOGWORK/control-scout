@@ -42,6 +42,7 @@ export function block(rows: Row[]): AccuracyBlock | null {
   for (const r of rows) if (r.time) { const w = isoWeek(r.time); const xs = weeks.get(w); if (xs) xs.push(r); else weeks.set(w, [r]); }
   return {
     n: rows.length,
+    decided: decided.length,
     accuracy: acc(rows),
     brier: brier(rows),
     logLoss,
