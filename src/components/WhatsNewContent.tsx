@@ -1,0 +1,59 @@
+// What's new, the content (loaded only when the dialog opens): CHANGELOG.md read into releases, with a
+// version rail (beside the release on wide screens, above it on phones) and each release's groups.
+import { useMemo, useState } from "react";
+import md from "../../CHANGELOG.md?raw";
+import { inlines, parseChangelog, type ChangelogEntry } from "../lib/changelog";
+import { cn } from "./cn";
+
+const REPO = "https://github.com/Control-Point-FTC/control-scout/pull/";
+
+function Line({ text }: { text: string }) {
+  return (
+    <>
+      {inlines(text).map((p, i) => p.kind === "bold" ? <strong key={i} className="font-semibold text-foreground">{p.text}</strong>
+        : p.kind === "code" ? <code key={i} className="rounded bg-muted px-1 py-0.5 font-mono text-[0.85em]">{p.text}</code>
+        : p.kind === "pr" ? <a key={i} href={`${REPO}${p.number}`} target="_blank" rel="noreferrer noopener" className="text-muted-foreground underline-offset-2 hover:text-foreground hover:underline">{p.text}</a>
+        : <span key={i}>{p.text}</span>)}
+    </>
+  );
+}
+
+function Release({ e }: { e: ChangelogEntry }) {
+  return (
+    <article>
+      <p className="text-xs text-muted-foreground">v{e.version} · {e.date}</p>
+      <h3 className="mt-1 font-display text-xl font-semibold tracking-tight">{e.summary}</h3>
+      {e.groups.map((g) => (
+        <section key={g.heading} className="mt-5">
+          <h4 className="text-xs font-semibold uppercase tracking-[0.08em] text-accent-text">{g.heading}</h4>
+          <ul className="mt-2 grid gap-2">
+            {g.items.map((item, i) => (
+              <li key={i} className="flex gap-2 text-sm leading-relaxed text-muted-foreground"><span className="mt-2 size-1 shrink-0 rounded-full bg-muted-foreground" aria-hidden /><span><Line text={item} /></span></li>
+            ))}
+          </ul>
+        </section>
+      ))}
+    </article>
+  );
+}
+
+export default function WhatsNewContent() {
+  const all = useMemo(() => parseChangelog(md), []);
+  const [version, setVersion] = useState(all[0]?.version);
+  const e = all.find((x) => x.version === version) ?? all[0];
+  return (
+    <div className="grid min-h-0 sm:grid-cols-[160px_1fr]">
+      <nav aria-label="Releases" className="flex gap-1 overflow-x-auto border-b border-border p-2 sm:max-h-[64dvh] sm:flex-col sm:overflow-y-auto sm:border-b-0 sm:border-r">
+        {all.map((x, i) => (
+          <button key={x.version} type="button" onClick={() => setVersion(x.version)} aria-current={x.version === e?.version ? "true" : undefined}
+            className={cn("flex min-h-11 shrink-0 items-center justify-between gap-2 rounded-lg px-3 text-left text-sm transition-colors",
+              x.version === e?.version ? "bg-muted font-medium text-foreground" : "text-muted-foreground hover:bg-muted/60 hover:text-foreground")}>
+            v{x.version}
+            {i === 0 && <span className="rounded-full bg-accent px-1.5 text-[11px] font-semibold text-accent-ink">Latest</span>}
+          </button>
+        ))}
+      </nav>
+      <div className="max-h-[56dvh] overflow-y-auto px-6 py-5 sm:max-h-[64dvh]">{e ? <Release e={e} /> : <p className="text-sm text-muted-foreground">No releases listed yet.</p>}</div>
+    </div>
+  );
+}
