@@ -8,14 +8,28 @@ import type { OwnerUser, OwnerUserDetail, OwnerWorkspace } from "../../src/share
 
 const n = (x: unknown) => Number(x ?? 0);
 
+/**
+ * Who can read which Scout space, as (account_id, cp_workspace_id, role) rows: the membership cache, plus the
+ * people who keep reading a workspace deleted in Control Point (workspace_former_members), whose cached rows go
+ * as Control Point stops listing them. Built for the tables this database has; null without memberships.
+ */
+function membershipsSql(tables: Set<string>): string | null {
+  if (!tables.has("workspace_members")) return null;
+  const current = "SELECT account_id, cp_workspace_id, role, 0 former FROM workspace_members";
+  if (!tables.has("workspace_former_members") || !tables.has("workspaces")) return current;
+  return `${current} UNION ALL SELECT f.account_id, w.cp_workspace_id, f.role, 1 former FROM workspace_former_members f JOIN workspaces w ON w.id = f.workspace_id WHERE w.orphan_reason = 'deleted'`;
+}
+
 /** Accounts, most recently seen first; `q` matches email or display name. */
 export async function listUsers(q: string | null, limit = 300): Promise<{ users: OwnerUser[]; total: number }> {
   const tables = await tablesPresent();
   const like = q ? `%${q.toLowerCase()}%` : null;
   const where = like ? "WHERE lower(COALESCE(u.email, '')) LIKE ? OR lower(COALESCE(u.display_name, '')) LIKE ?" : "";
   const args = like ? [like, like] : [];
-  const members = tables.has("workspace_members")
-    ? `(SELECT COUNT(*) FROM workspace_members wm JOIN identities ci ON ci.provider = '${CP_PROVIDER}' AND CAST(ci.subject AS INTEGER) = wm.account_id WHERE ci.user_id = u.id)`
+  const ms = membershipsSql(tables);
+  // Distinct spaces: someone both cached and kept as a former member of a deleted workspace counts once.
+  const members = ms
+    ? `(SELECT COUNT(DISTINCT m.cp_workspace_id) FROM (${ms}) m JOIN identities ci ON ci.provider = '${CP_PROVIDER}' AND CAST(ci.subject AS INTEGER) = m.account_id WHERE ci.user_id = u.id)`
     : "NULL";
   const rows = await all<any>(
     `SELECT u.id, u.email, u.display_name, u.created_at, u.last_seen,
@@ -48,13 +62,19 @@ export async function userDetail(id: number, now = Date.now()): Promise<OwnerUse
   ]);
   const cp = ids.find((i) => i.provider === CP_PROVIDER);
   const account = cp ? Number(cp.subject) : null;
-  const workspaces = account != null && tables.has("workspace_members")
+  const ms = membershipsSql(tables);
+  const rows = account != null && ms
     ? await all<any>(
-      `SELECT wm.cp_workspace_id, COALESCE(NULLIF(w.name, ''), wm.workspace_name) name, wm.role, w.orphaned_at,
-         ${tables.has("workspace_scout_entries") ? "(SELECT COUNT(*) FROM workspace_scout_entries e WHERE e.workspace_id = w.id AND e.author_account_id = wm.account_id AND e.deleted = 0)" : "NULL"} authored
-       FROM workspace_members wm LEFT JOIN workspaces w ON w.cp_workspace_id = wm.cp_workspace_id
-       WHERE wm.account_id = ? ORDER BY name`, [account])
+      `SELECT m.cp_workspace_id, COALESCE(NULLIF(w.name, ''), (SELECT wm.workspace_name FROM workspace_members wm WHERE wm.cp_workspace_id = m.cp_workspace_id LIMIT 1)) name,
+         m.role, m.former, w.orphaned_at,
+         ${tables.has("workspace_scout_entries") ? "(SELECT COUNT(*) FROM workspace_scout_entries e WHERE e.workspace_id = w.id AND e.author_account_id = m.account_id AND e.deleted = 0)" : "NULL"} authored
+       FROM (${ms}) m LEFT JOIN workspaces w ON w.cp_workspace_id = m.cp_workspace_id
+       WHERE m.account_id = ? ORDER BY m.former, name`, [account])
     : [];
+  // One row per space: the current membership wins over a former one (its role is the live one).
+  const seen = new Set<string>();
+  const workspaces = rows.filter((w) => !seen.has(String(w.cp_workspace_id)) && !!seen.add(String(w.cp_workspace_id)))
+    .sort((a, b) => String(a.name ?? "").localeCompare(String(b.name ?? "")));
   return {
     id: n(u.id), email: u.email ?? null, displayName: u.display_name ?? null, createdAt: u.created_at, lastSeen: u.last_seen ?? null,
     signIns: ids.map((i) => i.provider),
@@ -70,10 +90,10 @@ export async function userDetail(id: number, now = Date.now()): Promise<OwnerUse
 export async function listWorkspaces(): Promise<OwnerWorkspace[] | null> {
   const tables = await tablesPresent();
   if (!tables.has("workspaces")) return null;
-  const hasEntries = tables.has("workspace_scout_entries"), hasMembers = tables.has("workspace_members");
+  const hasEntries = tables.has("workspace_scout_entries"), ms = membershipsSql(tables);
   const rows = await all<any>(
     `SELECT w.id, w.cp_workspace_id, w.name, w.created_at, w.orphaned_at, w.orphan_reason,
-       ${hasMembers ? "(SELECT COUNT(*) FROM workspace_members m WHERE m.cp_workspace_id = w.cp_workspace_id)" : "NULL"} members,
+       ${ms ? `(SELECT COUNT(DISTINCT m.account_id) FROM (${ms}) m WHERE m.cp_workspace_id = w.cp_workspace_id)` : "NULL"} members,
        ${hasEntries ? "(SELECT COUNT(*) FROM workspace_scout_entries e WHERE e.workspace_id = w.id AND e.deleted = 0)" : "NULL"} entries,
        ${hasEntries ? "(SELECT MAX(updated_at) FROM workspace_scout_entries e WHERE e.workspace_id = w.id)" : "NULL"} last_entry
      FROM workspaces w ORDER BY COALESCE(last_entry, 0) DESC, w.id DESC`);
