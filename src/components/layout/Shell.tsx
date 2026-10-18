@@ -20,7 +20,6 @@ import { InboxBell } from "./InboxBell";
 import { usePersonal } from "../../lib/personal";
 import { pageTitle } from "../../shared/routes";
 import { SiteFooter } from "./SiteFooter";
-import { WorkspacePickerPopover, WorkspacePickerSheet } from "./WorkspacePicker";
 import { useYoursRow, FOLLOWED_TEAM_PATH } from "../../lib/yoursRow";
 import { useMainScroll } from "../../lib/mainScroll";
 
@@ -66,7 +65,7 @@ function RowInner({ item, on, collapsed }: { item: NavItem; on: boolean; collaps
   );
 }
 
-/** `active`: overrides the link's own match (the URL's query decides between Scout and a workspace's space). */
+/** `active`: overrides the link's own match (the YOURS row is lit on its own page, /my-team or /my-teams). */
 function NavRow({ item, collapsed, onNavigate, active }: { item: NavItem; collapsed?: boolean; onNavigate?: () => void; active?: boolean }) {
   return (
     <NavLink to={item.to} end={item.end} onClick={onNavigate} title={collapsed ? item.label : undefined}
@@ -77,41 +76,18 @@ function NavRow({ item, collapsed, onNavigate, active }: { item: NavItem; collap
   );
 }
 
-/**
- * The YOURS row (src/lib/yoursRow.ts): "My team" to the followed-team page (no workspaces) or to the
- * one workspace's scout space; "My teams" with several, opening the picker: a popover beside the row
- * (the desktop sidebar), or `onPick` when given (phones: the bottom sheet).
- */
-function YoursNavRow({ collapsed, onNavigate, onPick }: { collapsed?: boolean; onNavigate?: () => void; onPick?: () => void }) {
+/** The YOURS row (src/lib/yoursRow.ts): "My team" to the followed-team page (no workspaces), or "My team(s)" to /my-teams. */
+function YoursNavRow({ collapsed, onNavigate }: { collapsed?: boolean; onNavigate?: () => void }) {
   const { row, active } = useYoursRow();
-  const [open, setOpen] = useState(false);
-  if (row.kind !== "picker") return <NavRow item={{ to: row.to, label: row.label, icon: Star }} collapsed={collapsed} onNavigate={onNavigate} active={active} />;
-  const item: NavItem = { to: "", label: row.label, icon: Star };
-  const button = (
-    <button type="button" title={collapsed ? row.label : undefined} aria-haspopup="dialog" aria-current={active ? "page" : undefined}
-      onClick={onPick} className={rowClass(active, collapsed)}>
-      <RowInner item={item} on={active} collapsed={collapsed} />
-    </button>
-  );
-  if (onPick) return button;
-  return <WorkspacePickerPopover workspaces={row.workspaces} open={open} onOpenChange={setOpen}>{button}</WorkspacePickerPopover>;
+  return <NavRow item={{ to: row.to, label: row.label, icon: Star }} collapsed={collapsed} onNavigate={onNavigate} active={active} />;
 }
 
-/** Scout's own row: not lit while the YOURS row is (a workspace's space is "My team(s)"). */
-function useScoutRowActive(): boolean | undefined {
-  const { row, active } = useYoursRow();
-  const loc = useLocation();
-  if (row.kind === "followed") return undefined;
-  return /^\/scout\/?$/i.test(loc.pathname) && !active;
-}
-
-function SectionRows({ items, collapsed, onNavigate, onPick }: { items: NavItem[]; collapsed?: boolean; onNavigate?: () => void; onPick?: () => void }) {
-  const scoutActive = useScoutRowActive();
+function SectionRows({ items, collapsed, onNavigate }: { items: NavItem[]; collapsed?: boolean; onNavigate?: () => void }) {
   return (
     <>
       {items.map((it) => it.to === FOLLOWED_TEAM_PATH
-        ? <YoursNavRow key={it.to} collapsed={collapsed} onNavigate={onNavigate} onPick={onPick} />
-        : <NavRow key={it.to} item={it} collapsed={collapsed} onNavigate={onNavigate} active={it.to === "/scout" ? scoutActive : undefined} />)}
+        ? <YoursNavRow key={it.to} collapsed={collapsed} onNavigate={onNavigate} />
+        : <NavRow key={it.to} item={it} collapsed={collapsed} onNavigate={onNavigate} />)}
     </>
   );
 }
@@ -158,7 +134,7 @@ const MOBILE_TABS: NavItem[] = [
 
 const tabClass = (on: boolean) => cn("flex min-h-[60px] flex-1 flex-col items-center justify-center gap-1 text-xs font-medium", on ? "text-accent" : "text-text-muted");
 
-function MobileTabs({ onMore, onPick }: { onMore: () => void; onPick: () => void }) {
+function MobileTabs({ onMore }: { onMore: () => void }) {
   const { row, active } = useYoursRow();
   return (
     <nav className="fixed inset-x-0 bottom-0 z-40 flex border-t border-line bg-secondary pb-[env(safe-area-inset-bottom)] md:hidden" aria-label="Main">
@@ -166,10 +142,6 @@ function MobileTabs({ onMore, onPick }: { onMore: () => void; onPick: () => void
         <NavLink key={t.to} to={t.to} end={t.end} className={({ isActive }) => tabClass(isActive)}>
           <t.icon className="size-5" />{t.label}
         </NavLink>
-      ) : row.kind === "picker" ? (
-        <button key={t.to} type="button" onClick={onPick} aria-haspopup="dialog" aria-current={active ? "page" : undefined} className={tabClass(active)}>
-          <t.icon className="size-5" />{row.label}
-        </button>
       ) : (
         <NavLink key={t.to} to={row.to} aria-current={active ? "page" : undefined} className={tabClass(active)}>
           <t.icon className="size-5" />{row.label}
@@ -196,9 +168,6 @@ function NoDataNotice() {
 export function Shell({ children }: { children: ReactNode }) {
   const [collapsed, setCollapsed] = useState(() => { try { return localStorage.getItem("cs-sidebar") === "1"; } catch { return false; } });
   const [more, setMore] = useState(false);
-  // Phones: the "My teams" picker (a bottom sheet), from the tab bar or the More menu.
-  const [picker, setPicker] = useState(false);
-  const { row: yours } = useYoursRow();
   const mainRef = useRef<HTMLElement>(null);
   // Back/forward return to where the page was left; a new page starts at the top (the browser does neither for an element scroller).
   useMainScroll(mainRef);
@@ -241,8 +210,7 @@ export function Shell({ children }: { children: ReactNode }) {
               </main>
             </div>
           </div>
-          <MobileTabs onMore={() => setMore(true)} onPick={() => setPicker(true)} />
-          {yours.kind === "picker" && <WorkspacePickerSheet workspaces={yours.workspaces} open={picker} onOpenChange={setPicker} />}
+          <MobileTabs onMore={() => setMore(true)} />
           <Sheet open={more} onOpenChange={setMore}>
             <SheetContent side="left" className="w-[85vw] max-w-[320px] p-3">
               <SheetTitle className="px-2 pb-2 pt-1 font-display text-base">Control Scout</SheetTitle>
@@ -250,7 +218,7 @@ export function Shell({ children }: { children: ReactNode }) {
                 {sections.map((s, i) => (
                   <div key={i} className="space-y-0.5">
                     {s.title && <p className="px-3 pb-1.5 text-[11px] font-bold uppercase tracking-[0.2em] text-text-muted/70">{s.title}</p>}
-                    <SectionRows items={s.items} onNavigate={() => setMore(false)} onPick={() => { setMore(false); setPicker(true); }} />
+                    <SectionRows items={s.items} onNavigate={() => setMore(false)} />
                   </div>
                 ))}
               </nav>

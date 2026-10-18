@@ -6,7 +6,7 @@
 
 /** A lazily loaded page module under src/pages (the file name without .tsx). */
 export type PageModule =
-  | "TeamPage" | "EventsPage" | "RecordsPage" | "RankingsPage" | "EventPage" | "PredictPage" | "ComparePage" | "MyTeamPage"
+  | "TeamPage" | "EventsPage" | "RecordsPage" | "RankingsPage" | "EventPage" | "PredictPage" | "ComparePage" | "MyTeamPage" | "MyTeamsPage"
   | "ShortlistPage" | "ScoutPage" | "DownloadPage" | "SettingsPage" | "MethodologyPage" | "PrivacyPage" | "TermsPage" | "ContactPage" | "MatchReportPage" | "PowerRankingsPage" | "NotFound";
 
 // React Router matches case-insensitively, a trailing slash included: so do these.
@@ -22,6 +22,7 @@ const ROUTES: [RegExp, PageModule | null][] = [
   [/^\/predict\/accuracy\/?$/i, null], // a redirect to /methodology
   [/^\/compare\/?$/i, "ComparePage"],
   [/^\/my-team\/?$/i, "MyTeamPage"],
+  [/^\/my-teams\/?$/i, "MyTeamsPage"],
   [/^\/shortlist\/?$/i, "ShortlistPage"],
   [/^\/scout\/?$/i, "ScoutPage"],
   [/^\/download\/?$/i, "DownloadPage"],
@@ -43,7 +44,7 @@ export function pageModule(path: string): PageModule | null {
 const TITLES: [RegExp, string][] = [
   [/^\/events\/[^/]+\/[^/]+\/match\/[^/]+$/, "Match report"],
   [/^\/teams\/[^/]+$/, "Team"], [/^\/teams$/, "Teams"], [/^\/rankings$/, "Rankings"], [/^\/matches$/, "Match records"], [/^\/events\/[^/]+\/[^/]+$/, "Event"], [/^\/events$/, "Events"], [/^\/predict\/how-it-works$/, "How it works"], [/^\/predict(\/accuracy)?$/, "Predict"],
-  [/^\/compare$/, "Compare"], [/^\/my-team$/, "My team"], [/^\/shortlist$/, "Shortlist"], [/^\/scout$/, "Scout"], [/^\/download$/, "Download"],
+  [/^\/compare$/, "Compare"], [/^\/my-team$/, "My team"], [/^\/my-teams$/, "My teams"], [/^\/shortlist$/, "Shortlist"], [/^\/scout$/, "Scout"], [/^\/download$/, "Download"],
   [/^\/settings$/, "Settings"], [/^\/methodology$/, "How it works"], [/^\/privacy$/, "Privacy"], [/^\/terms$/, "Terms"], [/^\/contact$/, "Contact"],
   [/^\/power-rankings(\/[^/]+)?$/, "Power rankings"],
 ];

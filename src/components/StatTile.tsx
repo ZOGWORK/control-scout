@@ -61,3 +61,9 @@ export function Meter({ parts }: { parts: { pc: number; cls: string }[] }) {
 
 /** Percentile from a world rank (rank 1 of n = 100). */
 export const rankPc = (rank: number | null | undefined, of: number | null | undefined) => (rank && of ? Math.round((1 - (rank - 1) / of) * 100) : 0);
+
+/** Wins, losses and ties as one bar (green, red, grey). */
+export function RecordMeter({ w, l, t }: { w: number; l: number; t: number }) {
+  const n = w + l + t || 1;
+  return <Meter parts={[{ pc: (w / n) * 100, cls: "bg-success" }, { pc: (l / n) * 100, cls: "bg-destructive" }, { pc: (t / n) * 100, cls: "bg-text-muted/50" }]} />;
+}
