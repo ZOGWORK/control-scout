@@ -84,6 +84,22 @@ describe("Predict, a team picked", () => {
     expect(await box.findByText("How the calls did in 2025–26")).toBeTruthy();
   });
 
+  it("the view cards are solid, chosen or hovered (no see-through fill over the page grid)", () => {
+    page("/predict");
+    for (const tab of screen.getAllByRole("tab")) {
+      expect(tab.className).not.toMatch(/(^|\s)(hover:)?bg-[a-z-]+\/\[?0?\.?\d/);
+      expect(tab.className).toMatch(/bg-card|bg-\[color-mix\(in_srgb,var\(--color-accent\)_12%,var\(--color-card\)\)\]/);
+    }
+  });
+
+  it("one highlight, on the chosen view card, that moves with the choice", () => {
+    page("/predict");
+    const highlights = () => within(screen.getByRole("tablist", { name: "Predict" })).getAllByRole("tab").map((el) => el.querySelectorAll(":scope > span[aria-hidden]").length);
+    expect(highlights()).toEqual([1, 0]);
+    fireEvent.click(screen.getByRole("tab", { name: /Lab: any matchup/ }));
+    expect(highlights()).toEqual([0, 1]);
+  });
+
   it("the Lab is a card that says what it does", () => {
     page("/predict");
     const lab = screen.getByRole("tab", { name: /Lab: any matchup/ });
