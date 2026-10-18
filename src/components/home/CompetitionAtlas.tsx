@@ -62,7 +62,7 @@ export function CompetitionAtlas({ overview, currentSeason, compact }: { overvie
   return (
     <section aria-labelledby="atlas-title" className="min-w-0">
       <div className="flex items-center justify-between gap-3">
-        <h2 id="atlas-title" className="text-xs font-semibold uppercase tracking-[0.18em] text-text-muted">The competition atlas</h2>
+        <h2 id="atlas-title" className="text-xs font-semibold uppercase tracking-[0.18em] text-text-muted">FTC Control Scout</h2>
         <div className="flex items-center gap-2">
         {mode === "globe" && !failed && drawn && (
           <button type="button" onClick={() => setPaused(!still)} aria-label={still ? "Turn the globe" : "Stop the globe turning"}
