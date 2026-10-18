@@ -79,3 +79,23 @@ Not defects (checked and recorded):
 * Performance (§5), production build: every page has its data in 150–330 ms.
   The first request after a server boot takes ~3 s while ratings warm. The
   Monte Carlo runs on the server, never on the UI thread.
+
+## Homepage remodel: the observatory (2026-10-18, #151 on #154)
+
+Re-ran `npm run audit` (every route, desktop and mobile, loading and API-down states) and `npm run audit:flows` (all 12 click-throughs, production build included) on the new home, then fixed and re-checked each finding. Also checked headless at 320, 390, 768, 1024 and 1280 px (no horizontal overflow), in light appearance, and with reduced motion.
+
+| # | Area (§) | Finding | Fix | Re-check |
+|---|---|---|---|---|
+| H1 | Accessibility (§4) | 10 × `unnamed-control` on `/`: the atlas's country-list buttons sit in a closed disclosure, so their text reads as empty. | Each button is named "Canada: 564 team listings". | Sweep: 0 findings on `/`. ✅ |
+| H2 | Tooling (§1) | The audit's first search on a fresh dev server timed out: Vite found the atlas's lazily imported d3-geo/topojson only mid-visit and reloaded the page. | `optimizeDeps.include` pre-bundles them. | Full sweep from fresh servers: search ✓ at both sizes, 0 findings. ✅ |
+| H3 | Performance (§5) | `slow`: home "ready after 9.9 s" once, as the first route on a cold dev server (Vite transforms on demand). Warm loads settle in ~1.5 s on the dev server. | None needed for the page. The production numbers are the budget: `npm run audit:perf` puts warm home interactive at 375 ms and home data at 39.5 KB. | Sweep re-run: no `slow`. Perf: all budgets met. ✅ |
+| H4 | Tooling (§1) | Flow "Settings" failed: it expected a "Delivery" group in Notifications, which main's Settings page no longer has (it went when web push shipped; this PR doesn't touch Settings). | The flow expects the section's current heading, "What to alert me about". | 12/12 flows. ✅ |
+| H5 | Offline (§5) | Flow "Service worker upgrade" failed in 2 of 4 runs: `/api/flags` was requested while offline (`ERR_INTERNET_DISCONNECTED` in the console). Unlike `apiFetch` (O2), the flags client (unchanged from main) didn't check `navigator.onLine`, so it depended on timing. | `refreshFlags` doesn't ask while offline; regression test `src/lib/flags.test.ts`. | 12/12 flows after a rebuild. ✅ |
+
+Integrity checks for the new home (§3):
+
+* Every number comes from the API, or the page says what's missing: season coverage and country totals (`/api/home/overview`), the calendar (`/api/events`), the record (`/api/predict/accuracy`) and opt-in usage (`/api/public-usage`). Unpublished usage shows "aren't published yet", never 0.
+* Live calls and season replays sit on separate tabs, each naming its season. The correct/missed bar uses `decided − upsets` and `upsets` from the same `decided` count.
+* Your team's next match keeps the stale-slot rule and shows its confidence tier. No team is shown to a visitor who hasn't picked one.
+* "Live" on the calendar needs results coming in. An event that's on today without results says so.
+* The atlas counts each team once per season by the country it reports. The list reconciles drawn + too-small-to-draw + no-country = every listing.
