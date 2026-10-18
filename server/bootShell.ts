@@ -10,7 +10,7 @@
 // the page block carries the path it was made for and hides itself on another.
 import type { PageMeta } from "./seoMeta.js";
 import { pageTitle } from "../src/shared/routes.js";
-import { BOOT_CHOICE_GLOBAL, BOOT_CONSENT_ID, HOME_TAGLINE } from "../src/shared/boot.js";
+import { BOOT_CHOICE_GLOBAL, BOOT_CONSENT_ID, HOME_HEADLINE, HOME_LEAD } from "../src/shared/boot.js";
 
 const esc = (s: string) => s.replace(/&/g, "&amp;").replace(/"/g, "&quot;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 
@@ -59,15 +59,16 @@ export const BOOT_STYLE = `<style>
       .csb-pr,.csb-pr-arch{margin:0;padding:0;list-style:none}
       .csb-pr li{padding:4px 0 12px;border-bottom:1px solid var(--b-line)}
       .csb-pr li p,.csb-pr-when{margin:4px 0}
-      .csb-home{padding-top:8px;text-align:center}
-      .csb-home h1 img{display:block;margin:0 auto;width:auto;max-width:100%;height:48px}
-      .csb-home>p{margin:12px auto 0;max-width:36rem;font-size:16px;line-height:1.5}
-      .csb-home>div{max-width:42rem;height:56px;margin:28px auto 0;border:1px solid var(--b-line);border-radius:16px}
+      .csb-home{padding-top:8px}
+      .csb .csb-home h1{margin:0;font:600 40px/1.05 "Space Grotesk",sans-serif;letter-spacing:-.02em;color:var(--b-fg)}
+      .csb-home h1 span{display:block;color:var(--b-acc)}
+      .csb-home>p{margin:16px 0 0;max-width:30rem;font-size:16px;line-height:1.5}
+      .csb-home>div{max-width:36rem;height:52px;margin:24px 0 0;border:1px solid var(--b-line);border-radius:12px}
       .csb-tabs{position:fixed;left:0;right:0;bottom:0;display:flex;padding-bottom:env(safe-area-inset-bottom);border-top:1px solid var(--b-line);background:var(--b-tab)}
       .csb .csb-tabs>*{display:flex;flex:1;min-height:60px;flex-direction:column;align-items:center;justify-content:center;gap:4px;font-size:12px;font-weight:500;color:var(--b-mut)}
       .csb-tabs a[aria-current]{color:var(--b-acc)}
       .csb-tabs a[aria-current] .csb-ico{background:var(--b-acc);opacity:.9}
-      @media (min-width:640px){.csb-top{padding:0 24px}.csb-crumb i{display:inline}.csb-page{padding:32px 24px 0}.csb-page h1{font-size:32px}.csb-home{padding-top:32px}.csb-home h1 img{height:64px}}
+      @media (min-width:640px){.csb-top{padding:0 24px}.csb-crumb i{display:inline}.csb-page{padding:32px 24px 0}.csb-page h1{font-size:32px}.csb-home{padding-top:24px}.csb .csb-home h1{font-size:56px}}
       @media (min-width:768px){.csb-side{display:flex}.csb-top>a,.csb-tabs{display:none}.csb-search{justify-content:center}.csb-search span{width:100%;max-width:28rem;height:36px;padding:0 12px;font-size:14px}}
       @media (min-width:1024px){.csb-top{padding:0 32px}.csb-page{padding:32px 32px 0}}
       @media (min-width:1700px){.csb-page{max-width:1600px}}
@@ -141,7 +142,7 @@ export function bootShell(path: string, meta: PageMeta): string {
   const nav = SECTIONS.map((s) => `<div class="csb-grp">${s.title ? `<p>${s.title}</p>` : ""}${s.items.map((it) => link(p, it)).join("")}</div>`).join("");
   // A page with no title of its own (not found) gets the shell alone.
   const page = home
-    ? `<div class="csb-page csb-home" id="cs-boot-page" data-path="/"><h1><img src="/wordmark.png" alt="FTC Control Scout" width="1200" height="192" /></h1><p>${esc(HOME_TAGLINE)}</p><div></div></div>`
+    ? `<div class="csb-page csb-home" id="cs-boot-page" data-path="/"><h1>${esc(HOME_HEADLINE[0])} <span>${esc(HOME_HEADLINE[1])}</span></h1><p>${esc(HOME_LEAD)}</p><div></div></div>`
     : meta.title && !meta.notFound
       // A content page (power rankings) puts its words here in full, as already-safe HTML (PageMeta.bodyHtml).
       ? `<div class="csb-page" id="cs-boot-page" data-path="${esc(p)}"><h1>${esc(meta.title)}</h1>${meta.bodyHtml ? `<div class="csb-body">${meta.bodyHtml}</div>` : `<p>${esc(meta.description)}</p>`}</div>` : "";
