@@ -16,7 +16,7 @@ import { SearchBox } from "../components/search/SearchBox";
 import { Badge } from "../components/ui/basic";
 import { Button } from "../components/ui/button";
 import { Reveal } from "../components/motion";
-import { CompetitionAtlas } from "../components/home/CompetitionAtlas";
+import { CompetitionAtlas, preloadAtlas } from "../components/home/CompetitionAtlas";
 import { FindYourTeam, OnTheCalendar, PredictionRecord, PublicUsagePanel, SeasonCoverage, YourTeam } from "../components/home/HomeSections";
 import { HOME_HEADLINE, HOME_LEAD } from "../shared/boot";
 import { dateRange, place } from "../lib/format";
@@ -33,6 +33,8 @@ export default function Home() {
       nav("/my-team", { replace: true });
     }
   }, [user, state.myTeam, nav]);
+  // The atlas's code and boundaries load beside the page's data, after the hero has painted.
+  useEffect(() => { const t = setTimeout(preloadAtlas, 0); return () => clearTimeout(t); }, []);
   const overview = useApi<HomeOverview>(`/api/home/overview${qs({ season })}`);
   const phone = useMediaQuery("(max-width: 639px)");
   const search = useSearch();
