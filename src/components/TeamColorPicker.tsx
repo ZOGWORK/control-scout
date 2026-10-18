@@ -5,6 +5,7 @@ import { Check, Palette } from "lucide-react";
 import { usePersonal } from "../lib/personal";
 import { TEAM_COLORS, teamColorOf, type TeamColor } from "../shared/teamColors";
 import { Popover, PopoverContent, PopoverTrigger } from "./ui/overlay";
+import { ToggleGroup, ToggleGroupItem } from "./ui/controls";
 import { cn } from "./cn";
 
 /** The scout's team colours: read one, set one (null clears it). */
@@ -18,6 +19,19 @@ export function useTeamColors(): { colorOf: (team: number) => TeamColor | null; 
     return next;
   }), [update]);
   return { colorOf, setColor };
+}
+
+/** Arrow keys move between the swatches as the grid lays them out: ←→ by one, ↑↓ by a row of four (wrapping). */
+const COLS = 4;
+function moveInGrid(e: React.KeyboardEvent<HTMLDivElement>) {
+  const step = e.key === "ArrowRight" ? 1 : e.key === "ArrowLeft" ? -1 : e.key === "ArrowDown" ? COLS : e.key === "ArrowUp" ? -COLS : 0;
+  if (!step) return;
+  const items = [...e.currentTarget.querySelectorAll<HTMLElement>("[role=radio]")];
+  const i = items.indexOf(document.activeElement as HTMLElement);
+  if (i < 0) return;
+  e.preventDefault();
+  e.stopPropagation();
+  items[(i + step + items.length) % items.length]?.focus();
 }
 
 export function TeamColorPicker({ team, className }: { team: number; className?: string }) {
@@ -34,14 +48,16 @@ export function TeamColorPicker({ team, className }: { team: number; className?:
       </PopoverTrigger>
       <PopoverContent align="start" className="w-auto p-2">
         <p className="px-1 pb-2 text-xs font-medium text-text-muted">{team}'s colour</p>
-        <div role="radiogroup" aria-label={`${team}'s colour`} className="grid grid-cols-4 gap-1.5">
+        {/* A radio group: one Tab stop, arrow keys move between colours (Radix ToggleGroup). */}
+        <ToggleGroup type="single" value={c?.id ?? ""} onValueChange={(v) => setColor(team, v || null)} aria-label={`${team}'s colour`}
+          onKeyDown={moveInGrid} className="grid grid-cols-4 gap-1.5 bg-transparent p-0">
           {TEAM_COLORS.map((x) => (
-            <button key={x.id} type="button" role="radio" aria-checked={c?.id === x.id} aria-label={x.label} title={x.label} onClick={() => setColor(team, x.id)}
-              className="flex size-9 items-center justify-center rounded-lg outline-none hover:bg-text-base/[0.06] focus-visible:ring-2 focus-visible:ring-ring/60">
+            <ToggleGroupItem key={x.id} value={x.id} aria-label={x.label} title={x.label}
+              className="flex size-9 items-center justify-center rounded-lg px-0 outline-none hover:bg-text-base/[0.06] focus-visible:ring-2 focus-visible:ring-ring/60 aria-checked:bg-transparent aria-checked:shadow-none">
               <span className="flex size-6 items-center justify-center rounded-full" style={{ background: x.css }}>{c?.id === x.id && <Check className="size-3.5 text-black/80" aria-hidden />}</span>
-            </button>
+            </ToggleGroupItem>
           ))}
-        </div>
+        </ToggleGroup>
         {c && <button type="button" onClick={() => setColor(team, null)} className="mt-2 w-full rounded-md px-2 py-1.5 text-left text-xs text-text-muted hover:bg-text-base/[0.06] hover:text-text-base">No colour</button>}
       </PopoverContent>
     </Popover>

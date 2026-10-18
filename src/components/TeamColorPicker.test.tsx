@@ -22,4 +22,20 @@ describe("TeamColorPicker", () => {
     fireEvent.click(screen.getByRole("button", { name: "No colour" }));
     expect(colors).toEqual({});
   });
+
+  it("is one Tab stop, with arrow keys moving across and down the grid", () => {
+    render(<TeamColorPicker team={16} />);
+    fireEvent.click(screen.getByRole("button", { name: "Give 16 a colour" }));
+    const radios = screen.getAllByRole("radio");
+    expect(radios).toHaveLength(8);
+    // Roving focus: only one colour is in the tab order.
+    expect(radios.filter((r) => r.getAttribute("tabindex") !== "-1")).toHaveLength(1);
+    radios[0].focus();
+    fireEvent.keyDown(radios[0], { key: "ArrowRight" });
+    expect(document.activeElement).toBe(radios[1]);
+    fireEvent.keyDown(radios[1], { key: "ArrowDown" });
+    expect(document.activeElement).toBe(radios[5]);
+    fireEvent.keyDown(radios[5], { key: "ArrowLeft" });
+    expect(document.activeElement).toBe(radios[4]);
+  });
 });
