@@ -3,6 +3,40 @@
 What changed in Control Scout, newest first. The prediction engine has its own
 changelog in `packages/predict-engine/CHANGELOG.md`.
 
+## 1.7.0 — 2026-10-18
+
+A new home page, sharper predictions, and Scout pages that are faster to read and quicker to act on.
+
+### Home
+- **A new home page.** The headline "The whole field. In your corner." sits beside a globe of where this season's teams are from, with search and Predict / Find an event right at the top. Below are the season's totals (team listings, events, match scores), your team's next match, what's on the calendar, the public prediction record (live calls and season replays kept apart) and Control Scout's own opt-in usage. The globe turns slowly, with a pause button, and stays still for reduced motion. (#151, #157)
+- **Teams by country.** Pick a country on the globe or from the list to see its team count, then open its teams with `/teams?country=`. Every team is counted once, including teams with no country listed. (#154)
+
+### Predictions
+- **Prediction Engine 2.0 and 2.1.** Win odds that account for match context, in-event form and momentum, plus fixes for official rules and bonus ranking points. Both engines' live calls are kept side by side so they can be compared fairly. (#136, #138, #140)
+- **Predict, rebuilt.** The Lab (any four teams, any event) is a card you can't miss. A matchup starts from any team, and earlier seasons' calls are a click away. The header's right side now shows the latest live calls and how each one turned out. (#153, #155, #160)
+- **Power rankings publish themselves** every Friday, with blurbs written by Bruno. (#145)
+
+### Pages
+- **My teams** has its own page, with your teams and their stats. (#150)
+- **Compare:** a search that stays put, your teams one click away, and stats and charts on one screen. (#152)
+- **Team colours.** Give each shortlisted team a colour; the shortlist and Compare use it. (#161)
+- **Records tables** have a scrollbar above the table, and each column's numbers in its header's colour. (#159)
+- **Team pages** open on the team's own numbers; your workspace's scouting take now comes last, after Matches. (#158)
+- **Event pages:** the At a glance card shows the event's stats, and the LIVE panel puts Watch livestream and Track next to Know your match. (#143, #144)
+- **Match rows:** the call has its own column, on two tidy lines, with the match report as an icon button. (#141)
+- Motion on the new pages, like the rest of the app. (#156)
+
+### Scouting
+- **Assign teams by event name.** Type an event's name, city or code and pick it from that season's events. No code needed. (#162)
+
+### Offline
+- **Download all and Update all.** The Download page lists seasons in one place, with updates first, then saved, then not saved, and saves them one at a time. (#163)
+- Offline packs only take over when there's no signal. (#142)
+
+### Speed and scrolling
+- The first paint no longer waits for the app; the privacy banner comes in the first HTML, page changes are prefetched, and event details are cached. (#146)
+- Back and forward return to where you were, scrolling is lighter, and match rows don't light up while the page scrolls. (#147, #148)
+
 ## 1.6.0 — 2026-10-16
 
 Shared scouting turns into match-day intelligence, and Scout becomes the app teams keep open at events.
