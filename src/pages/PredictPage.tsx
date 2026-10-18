@@ -110,7 +110,7 @@ function PredictSwitch({ value, onChange }: { value: "events" | "lab"; onChange:
         <button key={v} id={`predict-tab-${v}`} type="button" role="tab" aria-selected={value === v} aria-controls={`predict-panel-${v}`} tabIndex={value === v ? 0 : -1}
           onKeyDown={onKey} onClick={() => value !== v && onChange(v)}
           className={cn("flex min-h-[4.5rem] items-start gap-3 rounded-xl border p-3.5 text-left transition-colors",
-            value === v ? "border-accent/70 bg-accent/[0.12] shadow-[0_4px_16px_color-mix(in_srgb,var(--color-accent)_18%,transparent)]" : "border-border bg-card hover:border-accent/40 hover:bg-text-base/[0.03]")}>
+            value === v ? "border-accent/70 bg-[color-mix(in_srgb,var(--color-accent)_12%,var(--color-card))] shadow-[0_4px_16px_color-mix(in_srgb,var(--color-accent)_18%,transparent)]" : "border-border bg-card hover:border-accent/40 hover:bg-[color-mix(in_srgb,var(--color-text-base)_4%,var(--color-card))]")}>
           <span className={cn("grid size-9 shrink-0 place-items-center rounded-lg", value === v ? "bg-accent text-accent-ink" : "bg-accent/[0.12] text-accent")}><Icon className="size-4" /></span>
           <span className="min-w-0">
             <span className="block text-sm font-semibold text-text-base">{label}</span>
