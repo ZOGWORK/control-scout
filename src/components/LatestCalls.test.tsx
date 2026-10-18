@@ -30,8 +30,10 @@ describe("callOutcome / pickPct", () => {
     expect(callOutcome(call("Q3", 0.5, 30, 40))).toBe("even");
     expect(callOutcome(call("Q4", 0.7, 40, 40))).toBe("tie");
   });
-  it("keeps a decimal for a near-even lean", () => {
+  it("never shows a near-even pick as 50.0%", () => {
     expect(pickPct(0.501)).toBe("50.1%");
+    expect(pickPct(0.5004)).toBe("50.04%");
+    expect(pickPct(0.500001)).toBe("just over 50%");
     expect(pickPct(0.72)).toBe("72%");
   });
 });
@@ -47,6 +49,27 @@ describe("LatestCalls", () => {
     act(() => { vi.advanceTimersByTime(TURN_MS * 3); });
     expect(screen.getByText(/^Q2/)).toBeTruthy();
     expect(screen.getByText("Missed")).toBeTruthy(); // blue called at 70%, red won
+  });
+
+  it("names the picked side for near-even calls either way", () => {
+    record = { recentCalls: [call("Q1", 0.5004, 50, 40)] };
+    mount();
+    expect(screen.getByText(/Red 50\.04%/)).toBeTruthy();
+    cleanup();
+    record = { recentCalls: [call("Q2", 0.4996, 30, 40)] };
+    mount();
+    expect(screen.getByText(/Blue 50\.04%/)).toBeTruthy();
+  });
+
+  it("stays paused while focus is inside, even after the pointer leaves", () => {
+    record = { recentCalls: [call("Q1", 0.7, 50, 40), call("Q2", 0.3, 50, 40)] };
+    mount();
+    const card = screen.getByLabelText("Latest live calls");
+    fireEvent.mouseEnter(card);
+    fireEvent.focus(screen.getByRole("link", { name: /Every call, scored/ }));
+    fireEvent.mouseLeave(card);
+    act(() => { vi.advanceTimersByTime(TURN_MS * 2); });
+    expect(screen.getByText(/^Q1/)).toBeTruthy();
   });
 
   it("shows the first three still under reduced motion", () => {

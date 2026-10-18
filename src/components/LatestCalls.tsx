@@ -23,8 +23,15 @@ export function callOutcome(m: Call): "right" | "missed" | "even" | "tie" | null
   return (m.prediction.pRed > 0.5) === (r > b) ? "right" : "missed";
 }
 
-/** A pick's odds: like oddsPct, but a near-even lean keeps a decimal ("50.1%"), so it never reads as 50:50. */
-export const pickPct = (p: number) => (Math.round(p * 100) === 50 ? `${(p * 100).toFixed(1)}%` : oddsPct(p));
+/**
+ * A pick's odds, for the side that was picked (p > 0.5): like oddsPct, but a near-even lean never reads as
+ * 50:50. It keeps decimals while they still show the lean ("50.1%", "50.04%"), and below that says so.
+ */
+export function pickPct(p: number): string {
+  if (Math.round(p * 100) !== 50) return oddsPct(p);
+  for (const d of [1, 2]) { const s = (p * 100).toFixed(d); if (Number(s) > 50) return `${s}%`; }
+  return "just over 50%";
+}
 
 /** Milliseconds each call stays up. */
 export const TURN_MS = 4500;
@@ -34,14 +41,16 @@ export function LatestCalls({ className }: { className?: string }) {
   const calls = (state.data?.recentCalls ?? []).filter((m): m is Call => !!m.prediction && m.played);
   const reduced = !!useReducedMotion();
   const [paused, setPaused] = useState<boolean | null>(null);
+  // Reading pauses the turnover: the pointer over the card or focus inside it (tracked apart, so one ending doesn't end the other).
   const [hover, setHover] = useState(false);
+  const [focus, setFocus] = useState(false);
   const still = paused ?? reduced;
   const [i, setI] = useState(0);
   useEffect(() => {
-    if (still || hover || calls.length < 2) return;
+    if (still || hover || focus || calls.length < 2) return;
     const t = setInterval(() => setI((x) => (x + 1) % calls.length), TURN_MS);
     return () => clearInterval(t);
-  }, [still, hover, calls.length]);
+  }, [still, hover, focus, calls.length]);
   if (state.error || (state.data && !calls.length)) {
     return state.data ? (
       <aside className={cn("rounded-2xl border border-dashed border-line p-5 text-sm text-text-muted", className)}>
@@ -51,7 +60,8 @@ export function LatestCalls({ className }: { className?: string }) {
   }
   const shown = reduced && paused === null ? calls.slice(0, 3) : calls.length ? [calls[i % calls.length]] : [];
   return (
-    <aside aria-label="Latest live calls" onMouseEnter={() => setHover(true)} onMouseLeave={() => setHover(false)} onFocus={() => setHover(true)} onBlur={() => setHover(false)}
+    <aside aria-label="Latest live calls" onMouseEnter={() => setHover(true)} onMouseLeave={() => setHover(false)}
+      onFocus={() => setFocus(true)} onBlur={(e) => { if (!e.currentTarget.contains(e.relatedTarget as Node | null)) setFocus(false); }}
       className={cn("relative overflow-hidden rounded-2xl border border-line bg-card p-5", className)}>
       <div aria-hidden className="pointer-events-none absolute -right-16 -top-16 size-48 rounded-full bg-accent/10 blur-3xl" />
       <div className="relative flex items-center justify-between gap-3">
