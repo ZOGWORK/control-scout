@@ -4,7 +4,7 @@
 
 **Owner handoff:** Claude should implement this brief on `codex/homepage-observatory-handoff`, continuing the existing draft PR against `Control-Point-FTC/control-scout:main`.
 
-**Requested start:** around 12:00 a.m. America/New_York (EDT) on Sunday, October 18, 2026: the midnight immediately following Saturday, October 17. There is no completion deadline or task-imposed runtime limit. Once launched, continue implementation, verification, and review for as long as needed to satisfy the acceptance criteria. Report genuine external blockers honestly. The requested start time is not itself proof that a Claude session has been scheduled or launched.
+**Requested start:** the user will give the prompt to their own Claude session, and starting immediately is allowed. Begin when the user provides the prompt; do not wait for midnight or launch a separate scheduled session. There is no completion deadline or task-imposed runtime limit. Continue implementation, verification, and review for as long as needed to satisfy the acceptance criteria. Report genuine external blockers honestly.
 
 **Status of this commit:** design research and implementation instructions only. No production UI, API, analytics, engine behavior, or deployment changes are included. The accompanying PR contains rendered concept screenshots, captured outside the repository with `npm run shots`. The implementation task remains open until the acceptance criteria below pass.
 

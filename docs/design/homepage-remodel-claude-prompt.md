@@ -2,7 +2,7 @@
 
 You are implementing the approved Control Scout homepage remodel in `Control-Point-FTC/control-scout`.
 
-The user has approved the **Observatory** design direction and wants implementation to **start around 12:00 a.m. America/New_York (EDT) on Sunday, October 18, 2026**, the midnight immediately following Saturday, October 17. **There is no completion deadline or task-imposed runtime limit.** Once launched at the requested time, work for as long as needed to complete the implementation, verification, and review. If launched after the requested start, begin immediately; there is no missed completion deadline to recover. Do not rush, skip checks, or stop because the calendar day changes. Report genuine external blockers and the exact remaining work honestly.
+The user has approved the **Observatory** design direction and is giving this prompt to their own Claude session. **Starting immediately is allowed: begin when you receive this prompt.** Do not wait for midnight or launch a separate scheduled session. **There is no completion deadline or task-imposed runtime limit.** Work for as long as needed to complete the implementation, verification, and review. Do not rush or skip checks. Report genuine external blockers and the exact remaining work honestly.
 
 ## Start from the handoff
 
