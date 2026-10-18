@@ -223,7 +223,7 @@ export function PredictionRecord() {
                   ? <p className="font-display text-6xl font-semibold text-text-muted" aria-label="No percentage yet">—</p>
                   : <p className="font-display text-6xl font-semibold tabular-nums">{pct(view.block.accuracy, 1).replace("%", "")}<span className="text-3xl text-text-muted">%</span></p>}
                 <p className="mt-1 text-sm text-text-muted">
-                  Correct winner · {view.kind === "live" ? `${view.seasonLabel}, called before each match` : `${view.seasonLabel}, replayed after the season (not calls made in advance)`}
+                  Correct winner · {view.kind === "live" ? `${view.seasonLabel}, called before each match` : `${view.seasonLabel}, replayed from recorded matches (not calls made in advance)`}
                 </p>
                 {view.split && (
                   <div className="mt-4">
