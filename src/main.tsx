@@ -50,6 +50,7 @@ const PAGES = {
   PredictPage: lazyPage(() => import("./pages/PredictPage")),
   ComparePage: lazyPage(() => import("./pages/ComparePage")),
   MyTeamPage: lazyPage(() => import("./pages/MyTeamPage")),
+  MyTeamsPage: lazyPage(() => import("./pages/MyTeamsPage")),
   ShortlistPage: lazyPage(() => import("./pages/ShortlistPage")),
   ScoutPage: lazyPage(() => import("./pages/ScoutPage")),
   DownloadPage: lazyPage(() => import("./pages/DownloadPage")),
@@ -62,7 +63,7 @@ const PAGES = {
   PowerRankingsPage: lazyPage(() => import("./pages/PowerRankingsPage")),
   NotFound: lazyPage(() => import("./pages/NotFound")),
 } satisfies Record<PageModule, unknown>;
-const { TeamPage, EventsPage, RecordsPage, RankingsPage, EventPage, PredictPage, ComparePage, MyTeamPage, ShortlistPage, ScoutPage, DownloadPage, SettingsPage, MethodologyPage, PrivacyPage, TermsPage, ContactPage, MatchReportPage, PowerRankingsPage, NotFound } = PAGES;
+const { TeamPage, EventsPage, RecordsPage, RankingsPage, EventPage, PredictPage, ComparePage, MyTeamPage, MyTeamsPage, ShortlistPage, ScoutPage, DownloadPage, SettingsPage, MethodologyPage, PrivacyPage, TermsPage, ContactPage, MatchReportPage, PowerRankingsPage, NotFound } = PAGES;
 
 // Offline: the service worker precaches the app so it opens with no signal.
 // Production builds only (dev serves unbundled modules).
@@ -133,6 +134,7 @@ void ready.catch(() => { /* a failed load is retried (and shown) by the page's o
                   <Route path="/predict/accuracy" element={<Navigate to={{ pathname: "/methodology", hash: "#accuracy" }} replace />} />
                   <Route path="/compare" element={<ComparePage />} />
                   <Route path="/my-team" element={<MyTeamPage />} />
+                  <Route path="/my-teams" element={<MyTeamsPage />} />
                   <Route path="/shortlist" element={<ShortlistPage />} />
                   <Route path="/scout" element={<ScoutPage />} />
                   <Route path="/download" element={<DownloadPage />} />
