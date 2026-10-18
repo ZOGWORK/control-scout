@@ -4,12 +4,16 @@
 // there are no raw events, and no IP address, user agent, cookie or ID is
 // stored. The IP is held in memory for a minute for the rate limit only.
 // GET /api/stats/summary (STATS_TOKEN) and `npm run stats:report` read the totals.
+// GET /api/public-usage publishes two of them (page views, sessions started, per
+// day for 30 days) and nothing else, only when PUBLIC_USAGE_ENABLED is on.
 import { timingSafeEqual } from "node:crypto";
 import express, { type NextFunction, type Request, type Response, type Router } from "express";
 import type { Client } from "@libsql/client";
 import { db } from "./db.js";
 import { env } from "./env.js";
+import { registerCache } from "./caches.js";
 import { parsePageView, type PageView } from "../src/shared/analytics.js";
+import { PUBLIC_USAGE_DAYS, type PublicUsage } from "../src/shared/home.js";
 
 /** Crawlers, link previews, monitors, scripts and automated browsers. */
 export const BOT_UA = /bot|crawl|spider|slurp|archiver|scrape|headless|lighthouse|pagespeed|gtmetrix|preview|facebookexternalhit|embedly|whatsapp|telegram|discord|slack|curl|wget|python|httpclient|okhttp|axios|node-fetch|undici|go-http|java\/|libwww|phantom|puppeteer|playwright|selenium|uptime|monitor|pingdom/i;
@@ -54,6 +58,66 @@ export async function statsSummary(days = 30, now = new Date(), c: Client = db()
     screens: await q(`SELECT screen, SUM(views) AS views FROM analytics_daily ${where} GROUP BY screen ORDER BY views DESC`),
     languages: await q(`SELECT lang, SUM(views) AS views FROM analytics_daily ${where} AND lang <> '' GROUP BY lang ORDER BY views DESC, lang LIMIT 20`),
   };
+}
+
+/**
+ * What the home page shows about Control Scout's own use: page views and sessions
+ * started per UTC day for the last `days` days (today, still partial, included).
+ * Allowlisted by construction: only those two sums are read, never the paths,
+ * referrers, screens or languages the owner's summary breaks them down by.
+ *
+ * Unavailable (totals null, never a stand-in zero) when publishing is off, when
+ * nothing has ever been recorded, or when the table can't be read. A zero is
+ * shown only when it was measured: days before the first recorded day are left
+ * out (measuredFrom), days after it with no views are real zeroes.
+ */
+export async function publicUsage(enabled: boolean, now = new Date(), c: Client = db(), days = PUBLIC_USAGE_DAYS): Promise<PublicUsage> {
+  const to = dayOf(now);
+  const from = dayOf(new Date(now.getTime() - (days - 1) * 86_400_000));
+  const base = { from, to, generatedAt: now.toISOString(), coverage: "opt-in" as const };
+  const unavailable = (reason: PublicUsage["reason"]): PublicUsage => ({ ...base, status: "unavailable", reason, measuredFrom: null, measuredThrough: null, totals: null, daily: [] });
+  if (!enabled) return unavailable("not-published");
+  let first: string | null, rows: { day: string; views: number; sessions: number }[];
+  try {
+    const f = await c.execute("SELECT MIN(day) AS day FROM analytics_daily");
+    first = (f.rows[0]?.day as string | null) ?? null;
+    rows = (await c.execute({ sql: "SELECT day, SUM(views) AS views, SUM(sessions) AS sessions FROM analytics_daily WHERE day BETWEEN ? AND ? GROUP BY day", args: [from, to] }))
+      .rows.map((r) => ({ day: String(r.day), views: Number(r.views ?? 0), sessions: Number(r.sessions ?? 0) }));
+  } catch (e) {
+    console.warn(`[analytics] public usage unavailable: ${(e as Error)?.message ?? e}`);
+    return unavailable("error");
+  }
+  if (!first || first > to) return unavailable("no-data");
+  const start = first > from ? first : from;
+  const byDay = new Map(rows.map((r) => [r.day, r]));
+  const daily: PublicUsage["daily"] = [];
+  for (let t = Date.parse(`${start}T00:00:00Z`); t <= Date.parse(`${to}T00:00:00Z`); t += 86_400_000) {
+    const day = dayOf(new Date(t));
+    const r = byDay.get(day);
+    daily.push({ day, pageViews: r?.views ?? 0, sessionStarts: r?.sessions ?? 0 });
+  }
+  return {
+    ...base, status: "available", reason: null,
+    measuredFrom: first > from ? first : null,
+    measuredThrough: now.toISOString(),
+    totals: { pageViews: daily.reduce((a, d) => a + d.pageViews, 0), sessionStarts: daily.reduce((a, d) => a + d.sessionStarts, 0) },
+    daily,
+  };
+}
+
+/** Public usage is read at most once a minute (shared by every visitor; it's a daily aggregate). */
+export const PUBLIC_USAGE_TTL_MS = 60_000;
+let usageCache: { enabled: boolean; at: number; value: Promise<PublicUsage> } | null = null;
+registerCache("Public usage", () => { usageCache = null; });
+
+export function cachedPublicUsage(enabled = env.publicUsageEnabled): Promise<PublicUsage> {
+  const now = Date.now();
+  if (usageCache && usageCache.enabled === enabled && now - usageCache.at < PUBLIC_USAGE_TTL_MS) return usageCache.value;
+  const value = publicUsage(enabled);
+  // An error answer isn't kept: the next request tries the table again.
+  value.then((u) => { if (u.reason === "error" && usageCache?.value === value) usageCache = null; });
+  usageCache = { enabled, at: now, value };
+  return value;
 }
 
 /** Per-IP limiter held in memory only (never written anywhere). Expired keys are
