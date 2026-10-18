@@ -112,6 +112,26 @@ describe("Home", () => {
     expect(screen.getByTestId("map").dataset.spinning).toBe("true");
   });
 
+  it("switches between live calls and the replay as a keyboard-reachable choice, and never shows 0% for undecided calls", () => {
+    const blk = (n: number, decided: number, accuracy: number, upsets: number) => ({
+      n, decided, accuracy, upsets, brier: 0, logLoss: 0, baselineBrier: 0.25, reliability: [], weekly: [],
+      byTier: { provisional: { n: 0, accuracy: 0, brier: 0 }, moderate: { n: 0, accuracy: 0, brier: 0 }, confident: { n: 0, accuracy: 0, brier: 0 } },
+      byLevel: { qual: { n: 0, accuracy: 0 }, playoff: { n: 0, accuracy: 0 } },
+    });
+    data = { "/api/predict/accuracy": {
+      seasons: [{ season: 2026, label: "2026–27", live: blk(2, 0, 0, 0), backtest: null }, { season: 2025, label: "2025–26", live: null, backtest: blk(100, 90, 0.7, 27) }],
+      engineVersion: "2.1.1", liveThreshold: 200, headline: { kind: "backtest", season: 2025, accuracy: 0.7, n: 100 }, recentCalls: [], generatedAt: new Date().toISOString(),
+    } };
+    mount();
+    expect(screen.getByRole("radio", { name: "Season replay" }).getAttribute("aria-checked")).toBe("true");
+    expect(screen.getByText("63 correct")).toBeTruthy();
+    expect(screen.getByText("27 missed")).toBeTruthy();
+    fireEvent.click(screen.getByRole("radio", { name: "Logged live" }));
+    expect(screen.getByLabelText("No percentage yet")).toBeTruthy();
+    expect(screen.queryByText(/^0(\.0)?$/)).toBeNull();
+    expect(screen.getByText(/All 2 scored calls were ties or 50:50 calls/)).toBeTruthy();
+  });
+
   it("says usage isn't published instead of showing zero", () => {
     data = { "/api/public-usage": USAGE_OFF };
     mount();
