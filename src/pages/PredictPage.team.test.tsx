@@ -19,10 +19,10 @@ const profile = (season: number, played: boolean): TeamProfile => ({
   events: [], awardsAllTime: [],
 } as unknown as TeamProfile);
 const alliance = (teams: number[], total: number) => ({ teams: teams.map((number) => ({ number, surrogate: false, dq: false, onField: true })), score: { total, np: total, auto: 0, teleop: 0, endgame: 0, pen: 0 } });
-const played = (n: number, red: number, blue: number, pRed: number): MatchView => ({
+const played = (n: number, red: number, blue: number, pRed: number, kind: "live" | "backtest" = "live"): MatchView => ({
   season: 2025, code: "USNJQ1", key: `qual:1:${n}`, level: "qual", series: 1, number: n, label: `Q${n}`, time: null, startsAt: null, played: true,
   red: alliance([4215, 1], red), blue: alliance([2, 3], blue), video: null,
-  prediction: { pRed, redMean: 0, blueMean: 0, tier: "moderate", kind: "live", predictedAt: null },
+  prediction: { pRed, redMean: 0, blueMean: 0, tier: "moderate", kind, predictedAt: null },
 } as unknown as MatchView);
 
 let where = "";
@@ -38,6 +38,8 @@ beforeEach(() => {
     if (path === "/api/teams/4215?season=2026") return json(profile(2026, false));
     if (path === "/api/teams/4215?season=2025") return json(profile(2025, true));
     if (path === "/api/teams/4215/matches?season=2025") return json({ matches: [played(1, 100, 80, 0.7), played(2, 60, 90, 0.6), played(3, 120, 70, 0.8)] });
+    if (path === "/api/teams/4215/matches?season=2024") return json({ matches: [played(1, 100, 80, 0.7), played(2, 60, 90, 0.4, "backtest"), played(3, 50, 90, 0.7, "backtest")].map((m) => ({ ...m, season: 2024 })) });
+    if (path === "/api/teams/4215?season=2024") return json(profile(2024, true));
     if (path.startsWith("/api/teams/4215/matches")) return json({ matches: [] });
     if (path.startsWith("/api/events")) return json({ events: [] });
     throw new Error(`unexpected ${path}`);
@@ -61,6 +63,16 @@ describe("Predict, a team picked", () => {
     // Q1 and Q3 called right (red favoured, red won); Q2 wrong.
     expect(box.getByText("2 of 3")).toBeTruthy();
     expect(box.getByRole("link", { name: /Predict a matchup/ }).getAttribute("href")).toBe("/predict?view=lab&mode=match&season=2025&red=4215");
+  });
+
+  it("live and replayed calls are tallied apart, each named", async () => {
+    page("/predict?for=team:4215&season=2024");
+    const box = within(await screen.findByRole("region", { name: "Predictions for team 4215" }));
+    const tally = within(await box.findByRole("list", { name: "Calls right" }));
+    expect(tally.getAllByRole("listitem").map((li) => li.textContent)).toEqual([
+      "1 of 1 live calls (logged before the match) right (100%)",
+      "1 of 2 replayed calls (made afterward from only the data before each match, not live) right (50%)",
+    ]);
   });
 
   it("an earlier season from the switch stays in the URL", async () => {
