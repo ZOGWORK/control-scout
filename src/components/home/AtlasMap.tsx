@@ -4,8 +4,10 @@
 // flat map (Natural Earth projection). Countries with listings this season are
 // tinted, the selected one is highlighted; nothing is placed inside a country,
 // because the data says which country a team reports, not where it is.
-// Starts still. A mouse can drag the globe round; touch never captures the page's
-// scroll, and the country selector beside the map does everything without a pointer.
+// The globe turns slowly by itself (`spinning`, which the atlas switches off for reduced
+// motion and behind its pause button); it also stops while dragged, off screen or in a
+// hidden tab. A mouse can drag it round; touch never captures the page's scroll, and the
+// country selector beside the map does everything without a pointer.
 import { useEffect, useMemo, useRef, useState } from "react";
 import { geoCentroid, geoGraticule10, geoNaturalEarth1, geoOrthographic, geoPath, type GeoPermissibleObjects } from "d3-geo";
 import { feature } from "topojson-client";
@@ -29,8 +31,13 @@ export function loadWorld(): Promise<Country[]> {
 
 const SPHERE = { type: "Sphere" } as const;
 
+/** Degrees the globe turns per second when spinning (one turn a minute). */
+export const SPIN_DEG_PER_S = 6;
+
 export interface AtlasMapProps {
   mode: "globe" | "flat";
+  /** Turn the globe slowly on its own (ignored for the flat map). */
+  spinning?: boolean;
   countries: CountryTotal[];
   /** ISO numeric of the selected country. */
   selected: string | null;
@@ -40,7 +47,7 @@ export interface AtlasMapProps {
   onError: (e: Error) => void;
 }
 
-export default function AtlasMap({ mode, countries, selected, onSelect, onLoaded, onError }: AtlasMapProps) {
+export default function AtlasMap({ mode, spinning = false, countries, selected, onSelect, onLoaded, onError }: AtlasMapProps) {
   const box = useRef<HTMLDivElement>(null);
   const [width, setWidth] = useState(0);
   const [shapes, setShapes] = useState<Country[] | null>(null);
@@ -77,6 +84,32 @@ export default function AtlasMap({ mode, countries, selected, onSelect, onLoaded
     const [lon, lat] = geoCentroid(selectedShape as GeoPermissibleObjects);
     setRotation([-lon, Math.max(-60, Math.min(60, -lat))]);
   }, [selectedShape]);
+
+  // The spin: ~30 frames a second, only while it can be seen and isn't being dragged.
+  const [visible, setVisible] = useState(true);
+  useEffect(() => {
+    const el = box.current;
+    if (!el || typeof IntersectionObserver === "undefined") return;
+    const io = new IntersectionObserver(([e]) => setVisible(e.isIntersecting));
+    io.observe(el);
+    return () => io.disconnect();
+  }, []);
+  const turning = spinning && mode === "globe" && visible && !!shapes;
+  useEffect(() => {
+    if (!turning) return;
+    let raf = 0, last = performance.now(), acc = 0;
+    const tick = (now: number) => {
+      const dt = Math.min(100, now - last);
+      last = now;
+      if (!drag.current && !document.hidden) {
+        acc += dt;
+        if (acc >= 33) { const step = (acc / 1000) * SPIN_DEG_PER_S; acc = 0; setRotation(([lon, lat]) => [(lon + step) % 360, lat]); }
+      }
+      raf = requestAnimationFrame(tick);
+    };
+    raf = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(raf);
+  }, [turning]);
 
   const height = mode === "globe" ? width : Math.round(width * 0.52);
   const projection = useMemo(() => {
