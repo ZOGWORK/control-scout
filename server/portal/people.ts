@@ -1,0 +1,86 @@
+// The owner console's Users and Workspaces: who has an account and what they keep here, and every Scout
+// space with its members and entries. Read-only: the owner looks, nothing here changes an account. Each
+// count comes from the database as it stands; tables a server doesn't have yet read as null, not zero.
+import { all, get } from "../db.js";
+import { CP_PROVIDER } from "../auth/controlPoint.js";
+import { tablesPresent } from "./overview.js";
+import type { OwnerUser, OwnerUserDetail, OwnerWorkspace } from "../../src/shared/owner.js";
+
+const n = (x: unknown) => Number(x ?? 0);
+
+/** Accounts, most recently seen first; `q` matches email or display name. */
+export async function listUsers(q: string | null, limit = 300): Promise<{ users: OwnerUser[]; total: number }> {
+  const tables = await tablesPresent();
+  const like = q ? `%${q.toLowerCase()}%` : null;
+  const where = like ? "WHERE lower(COALESCE(u.email, '')) LIKE ? OR lower(COALESCE(u.display_name, '')) LIKE ?" : "";
+  const args = like ? [like, like] : [];
+  const members = tables.has("workspace_members")
+    ? `(SELECT COUNT(*) FROM workspace_members wm JOIN identities ci ON ci.provider = '${CP_PROVIDER}' AND CAST(ci.subject AS INTEGER) = wm.account_id WHERE ci.user_id = u.id)`
+    : "NULL";
+  const rows = await all<any>(
+    `SELECT u.id, u.email, u.display_name, u.created_at, u.last_seen,
+       (SELECT group_concat(provider, ',') FROM identities i WHERE i.user_id = u.id) providers,
+       (SELECT COUNT(*) FROM scout_entries s WHERE s.user_id = u.id AND s.deleted = 0) entries,
+       ${members} workspaces
+     FROM users u ${where}
+     ORDER BY COALESCE(u.last_seen, u.created_at) DESC, u.id DESC LIMIT ?`, [...args, limit]);
+  const total = n((await get<{ c: number }>(`SELECT COUNT(*) c FROM users u ${where}`, args))?.c);
+  return {
+    total,
+    users: rows.map((r): OwnerUser => ({
+      id: n(r.id), email: r.email ?? null, displayName: r.display_name ?? null, createdAt: r.created_at, lastSeen: r.last_seen ?? null,
+      providers: r.providers ? [...new Set(String(r.providers).split(","))].sort() : [],
+      personalEntries: n(r.entries), workspaces: r.workspaces == null ? null : n(r.workspaces),
+    })),
+  };
+}
+
+/** One account in full: sign-in methods, sessions, what's saved for it, and its workspaces. */
+export async function userDetail(id: number, now = Date.now()): Promise<OwnerUserDetail | null> {
+  const u = await get<any>("SELECT id, email, display_name, created_at, last_seen FROM users WHERE id = ?", [id]);
+  if (!u) return null;
+  const tables = await tablesPresent();
+  const [ids, sessions, state, entries] = await Promise.all([
+    all<any>("SELECT provider, subject FROM identities WHERE user_id = ? ORDER BY provider", [id]),
+    all<any>("SELECT created_at, expires_at, user_agent FROM sessions WHERE user_id = ? AND expires_at > ? ORDER BY created_at DESC", [id, new Date(now).toISOString()]),
+    all<any>("SELECT key, updated_at FROM user_state WHERE user_id = ? ORDER BY key", [id]),
+    get<any>("SELECT COUNT(*) c, MAX(updated_at) last FROM scout_entries WHERE user_id = ? AND deleted = 0", [id]),
+  ]);
+  const cp = ids.find((i) => i.provider === CP_PROVIDER);
+  const account = cp ? Number(cp.subject) : null;
+  const workspaces = account != null && tables.has("workspace_members")
+    ? await all<any>(
+      `SELECT wm.cp_workspace_id, COALESCE(NULLIF(w.name, ''), wm.workspace_name) name, wm.role, w.orphaned_at,
+         ${tables.has("workspace_scout_entries") ? "(SELECT COUNT(*) FROM workspace_scout_entries e WHERE e.workspace_id = w.id AND e.author_account_id = wm.account_id AND e.deleted = 0)" : "NULL"} authored
+       FROM workspace_members wm LEFT JOIN workspaces w ON w.cp_workspace_id = wm.cp_workspace_id
+       WHERE wm.account_id = ? ORDER BY name`, [account])
+    : [];
+  return {
+    id: n(u.id), email: u.email ?? null, displayName: u.display_name ?? null, createdAt: u.created_at, lastSeen: u.last_seen ?? null,
+    signIns: ids.map((i) => i.provider),
+    controlPointAccount: account,
+    sessions: sessions.map((s) => ({ createdAt: s.created_at, expiresAt: s.expires_at, device: (s.user_agent ?? "").slice(0, 160) || null })),
+    saved: state.map((s) => ({ key: s.key, updatedAt: n(s.updated_at) })),
+    personalEntries: { count: n(entries?.c), lastUpdated: entries?.last == null ? null : n(entries.last) },
+    workspaces: workspaces.map((w) => ({ id: String(w.cp_workspace_id), name: w.name ?? "", role: w.role, orphaned: !!w.orphaned_at, authoredEntries: w.authored == null ? null : n(w.authored) })),
+  };
+}
+
+/** Every Scout space (a Control Point workspace that has used Scout): members, entries, last activity. Null before workspaces exist here. */
+export async function listWorkspaces(): Promise<OwnerWorkspace[] | null> {
+  const tables = await tablesPresent();
+  if (!tables.has("workspaces")) return null;
+  const hasEntries = tables.has("workspace_scout_entries"), hasMembers = tables.has("workspace_members");
+  const rows = await all<any>(
+    `SELECT w.id, w.cp_workspace_id, w.name, w.created_at, w.orphaned_at, w.orphan_reason,
+       ${hasMembers ? "(SELECT COUNT(*) FROM workspace_members m WHERE m.cp_workspace_id = w.cp_workspace_id)" : "NULL"} members,
+       ${hasEntries ? "(SELECT COUNT(*) FROM workspace_scout_entries e WHERE e.workspace_id = w.id AND e.deleted = 0)" : "NULL"} entries,
+       ${hasEntries ? "(SELECT MAX(updated_at) FROM workspace_scout_entries e WHERE e.workspace_id = w.id)" : "NULL"} last_entry
+     FROM workspaces w ORDER BY COALESCE(last_entry, 0) DESC, w.id DESC`);
+  return rows.map((r): OwnerWorkspace => ({
+    id: String(r.cp_workspace_id), name: r.name ?? "", createdAt: r.created_at,
+    members: r.members == null ? null : n(r.members), entries: r.entries == null ? null : n(r.entries),
+    lastEntryAt: r.last_entry == null ? null : n(r.last_entry),
+    orphaned: r.orphaned_at ? { at: r.orphaned_at, reason: r.orphan_reason ?? null } : null,
+  }));
+}
