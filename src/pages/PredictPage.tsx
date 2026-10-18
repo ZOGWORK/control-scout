@@ -14,6 +14,7 @@ import { callTally } from "../lib/seasonSoFar";
 import { usePersonal } from "../lib/personal";
 import type { EventDetail, EventSummary, EventListItem, MatchExplanationView, MatchView, TeamProfile } from "../shared/api";
 import { PageHeader, Section, EmptyState } from "../components/page";
+import { LatestCalls } from "../components/LatestCalls";
 import { Async, ErrorState } from "../components/states";
 import { Button } from "../components/ui/button";
 import { Badge, Input } from "../components/ui/basic";
@@ -55,12 +56,22 @@ export default function PredictPage() {
   // Picking a team or event shows its predictions in the Events view (the lab's matchup stays for later).
   const setPick = (v: string | null) => setSp((x) => { x.set("view", "events"); if (v) x.set("for", v); else x.delete("for"); return x; });
   const setView = (v: "events" | "lab") => setSp((x) => { x.set("view", v); if (v === "lab" && !labLink(x)) x.set("mode", "match"); return x; });
+  // The header's width (the content area's, not the window's): the latest-calls card needs 64 rem, the grid's own threshold.
+  const headerBox = useRef<HTMLDivElement>(null);
+  const wide = useWiderThan(headerBox, 64);
   return (
     <div className="space-y-10">
-      <div>
+      {/* Wide content: the latest live calls fill the header's right side (none on narrower screens: search comes first). */}
+      <div ref={headerBox} className="@container/predict">
+      <div className="grid items-start gap-x-10 @5xl/predict:grid-cols-[minmax(0,1fr)_minmax(18rem,22rem)]">
+      <div className="min-w-0">
         <PageHeader title="Predict" description={<>Every scheduled match gets win odds and predicted scores automatically, and every advancing event gets advancement odds. Pick a team or an event to see them. Each number carries its confidence, and the <Link to="/methodology#accuracy" className="underline">track record</Link> shows how often they've been right.</>} />
         <Picker onPick={setPick} />
         <PredictSwitch value={view} onChange={setView} />
+      </div>
+      {/* Only mounted when there's room: no request or timer for a card nobody can see. */}
+      {wide && <LatestCalls />}
+      </div>
       </div>
       <div role="tabpanel" id={`predict-panel-${view}`} aria-labelledby={`predict-tab-${view}`} className="space-y-10">
         {view === "lab" ? <Lab /> : (
@@ -621,4 +632,20 @@ function AdvancementLab() {
         : <EmptyState icon={Trophy} title="Pick an event" description="Any qualifier, league tournament or championship. Add a team to see its chance to advance, captain and pick odds, likely rank, and expected advancement points." />}
     </div>
   );
+}
+
+/** Whether the element is at least `rem` root ems wide (so a larger browser font raises it, as the container query does), following its size. */
+export function useWiderThan(ref: React.RefObject<HTMLElement | null>, rem: number): boolean {
+  const [wide, setWide] = useState(false);
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const measure = () => setWide(el.clientWidth >= rem * (parseFloat(getComputedStyle(document.documentElement).fontSize) || 16));
+    measure();
+    if (typeof ResizeObserver === "undefined") return;
+    const ro = new ResizeObserver(measure);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [ref, rem]);
+  return wide;
 }
