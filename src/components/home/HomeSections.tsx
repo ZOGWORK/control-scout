@@ -116,7 +116,7 @@ export function FindYourTeam({ onSearch }: { onSearch: () => void }) {
   return (
     <section aria-label="Your team" className="flex flex-wrap items-center gap-x-4 gap-y-2 rounded-2xl border border-dashed border-line px-4 py-3.5 text-sm @2xl/home:px-5">
       <Star className="size-5 shrink-0 text-text-muted" aria-hidden />
-      <span className="min-w-0 flex-1 text-text-muted">Pick your team to see its next match and odds here. It stays on this device; no account needed.</span>
+      <span className="min-w-[14rem] flex-1 text-text-muted">Pick your team to see its next match and odds here. It stays on this device; no account needed.</span>
       <Button variant="secondary" size="sm" onClick={onSearch} className="max-sm:h-11"><Search /> Find your team</Button>
     </section>
   );
@@ -175,7 +175,8 @@ function CalendarRow({ e }: { e: EventListItem }) {
           <span className="block truncate font-medium group-hover:text-accent-text">{e.name}</span>
           <span className="mt-0.5 flex flex-wrap items-center gap-x-2 text-sm text-text-muted">
             <span className="inline-flex min-w-0 items-center gap-1 truncate"><MapPin className="size-3.5 shrink-0" aria-hidden />{place(e.city, e.state, e.country) || "Location TBA"}</span>
-            <span aria-hidden>·</span><span className="sr-only">Dates:</span><span className="inline-flex items-center gap-1"><CalendarDays className="size-3.5" aria-hidden />{dateRange(e.start, e.end)}</span>
+            {/* The date block on the left shows the first day; a multi-day event says its full span (screen readers always get it). */}
+            {e.end && e.end !== e.start ? <><span aria-hidden>·</span><span className="inline-flex items-center gap-1"><CalendarDays className="size-3.5" aria-hidden />{dateRange(e.start, e.end)}</span></> : <span className="sr-only">{dateRange(e.start, e.end)}</span>}
             <span aria-hidden>·</span>
             <span className={cn("inline-flex items-center gap-1", st.tone === "live" && "font-semibold text-danger")}>
               {st.tone === "live" && <Radio className="size-3.5" aria-hidden />}{st.label}{st.tone === "live" && e.matchesTotal > 0 ? ` · ${e.matchesPlayed}/${e.matchesTotal} played` : ""}

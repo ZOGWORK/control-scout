@@ -11,7 +11,14 @@ import { ToggleGroup, ToggleGroupItem } from "../ui/controls";
 import { cn } from "../cn";
 import { countryHref, pickCountry, reconcile, unmappedLabel } from "./atlasModel";
 
-const AtlasMap = lazy(() => import("./AtlasMap"));
+const loadMap = () => import("./AtlasMap");
+const AtlasMap = lazy(loadMap);
+
+/** Start fetching the map's code and boundaries early (alongside the page's data), so the atlas is ready
+ *  when its numbers arrive. Failures are left for the atlas itself to show. */
+export function preloadAtlas(): void {
+  loadMap().then((m) => m.loadWorld()).catch(() => {});
+}
 
 type Mode = "globe" | "flat";
 
