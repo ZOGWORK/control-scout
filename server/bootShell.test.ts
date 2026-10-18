@@ -66,9 +66,10 @@ describe("static first paint", () => {
     expect(html).toContain('<style>'); // its styles come with it (no wait for the app's CSS)
   });
 
-  it("home shows the wordmark heading; a page with no title of its own gets the shell alone", async () => {
+  it("home shows the headline (the brand stays in the shell's chrome); a page with no title of its own gets the shell alone", async () => {
     const home = root(await renderIndex(file, "/"));
-    expect(home).toContain('<h1><img src="/wordmark.png" alt="FTC Control Scout"');
+    expect(home).toContain("<h1>The whole field. <span>In your corner.</span></h1>");
+    expect(home).toContain('<a class="csb-brand" href="/" aria-label="Control Scout home"><img src="/logo.png" alt="" /><span>Control Scout</span></a>');
     expect(home).toContain('<a href="/" aria-current="page">');
     const lost = root(await renderIndex(file, "/no-such-page"));
     expect(lost).toContain('class="csb"');

@@ -22,6 +22,8 @@ function set(next: FlagSet) {
 
 /** Ask the server for the current flags (quietly keeps the last known ones on any failure). */
 export async function refreshFlags(): Promise<FlagSet> {
+  // Known offline: don't ask (a request that can only fail still logs a console error), like apiFetch.
+  if (typeof navigator !== "undefined" && navigator.onLine === false) return flags;
   try {
     const r = await fetch("/api/flags", { credentials: "same-origin" });
     if (r.ok) {

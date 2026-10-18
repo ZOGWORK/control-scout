@@ -1,0 +1,173 @@
+// @vitest-environment jsdom
+// The home page as a visitor meets it: search and both main actions are there
+// before any data (or the map) arrives; the atlas's selector changes the real
+// total and links to that country's teams; usage that isn't published says so
+// rather than showing zero; your team shows only when you've picked one, with
+// its confidence tier; and a signed-in scout lands on their dashboard once,
+// while coming back to / later stays on home.
+import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { MemoryRouter, useLocation } from "react-router-dom";
+import type { HomeOverview, PublicUsage } from "../shared/home";
+import type { MatchView } from "../shared/api";
+
+const OVERVIEW: HomeOverview = {
+  season: 2026, generatedAt: "2026-10-17T12:00:00Z", dataAsOf: "2026-10-17T10:00:00Z", statsAt: null,
+  coverage: { teamListings: 23, events: 4, matchScores: 9 },
+  countries: [
+    { code: "US", numeric: "840", name: "United States", listings: 15, withResults: 4 },
+    { code: "CA", numeric: "124", name: "Canada", listings: 5, withResults: 0 },
+  ],
+  unmapped: [{ label: "Independent", listings: 3 }],
+};
+const USAGE_OFF: PublicUsage = { status: "unavailable", reason: "not-published", from: "2026-09-18", to: "2026-10-17", measuredFrom: null, generatedAt: "2026-10-17T12:00:00Z", measuredThrough: null, coverage: "opt-in", totals: null, daily: [] };
+const NEXT = {
+  season: 2026, code: "USNJQ1", label: "Q12", played: false, startsAt: new Date(Date.now() + 3600_000).toISOString(), time: null,
+  red: { teams: [{ number: 4215 }, { number: 1 }] }, blue: { teams: [{ number: 2 }, { number: 3 }] },
+  prediction: { pRed: 0.64, tier: "moderate" },
+} as unknown as MatchView;
+
+let data: Record<string, unknown> = {};
+vi.mock("../lib/api", async (orig) => ({
+  ...(await orig<typeof import("../lib/api")>()),
+  useApi: (path: string | null) => {
+    const key = path ? Object.keys(data).find((k) => path.startsWith(k)) : undefined;
+    return { data: key ? data[key] : undefined, error: undefined, loading: !key, reload: () => {} };
+  },
+}));
+vi.mock("../lib/meta", async (orig) => ({ ...(await orig<typeof import("../lib/meta")>()), useCurrentSeason: () => 2026, useTitle: () => {}, useMediaQuery: () => false, useMeta: () => null }));
+const st = (myTeam: number | null) => ({ myTeam, tracked: { teams: [], events: [] }, bookmarks: [] });
+let personal: { user: unknown; state: ReturnType<typeof st> } = { user: null, state: st(null) };
+vi.mock("../lib/personal", () => ({ usePersonal: () => personal }));
+// The drawing itself is d3 on real boundaries: stood in for here (the selector and list are what's tested).
+vi.mock("../components/home/AtlasMap", async () => {
+  const { useEffect } = await import("react");
+  return {
+    default: ({ spinning, onLoaded }: { spinning?: boolean; onLoaded: (d: ReadonlySet<string>) => void }) => {
+      useEffect(() => onLoaded(new Set(["840", "124"])), []); // eslint-disable-line react-hooks/exhaustive-deps
+      return <div data-testid="map" data-spinning={String(!!spinning)} />;
+    },
+    loadWorld: () => Promise.resolve([]),
+  };
+});
+
+let reduced = false;
+vi.mock("motion/react", async (orig) => ({ ...(await orig<typeof import("motion/react")>()), useReducedMotion: () => reduced }));
+
+let path = "";
+function Where() { path = useLocation().pathname; return null; }
+const { default: Home } = await import("./Home");
+const mount = () => render(<MemoryRouter initialEntries={["/"]}><Home /><Where /></MemoryRouter>);
+
+beforeEach(() => { reduced = false; data = {}; personal = { user: null, state: st(null) }; sessionStorage.clear(); });
+afterEach(cleanup);
+
+describe("Home", () => {
+  it("has the headline, search and both actions before any data arrives", () => {
+    mount();
+    expect(screen.getByRole("heading", { level: 1 }).textContent).toBe("The whole field. In your corner.");
+    expect(screen.getByLabelText("Search teams, events and matches")).toBeTruthy();
+    expect(screen.getByRole("link", { name: /Predict a match/ }).getAttribute("href")).toBe("/predict");
+    expect(screen.getByRole("link", { name: /Find an event/ }).getAttribute("href")).toBe("/events");
+    // No made-up numbers while loading.
+    expect(screen.queryByText("23")).toBeNull();
+  });
+
+  it("shows the season's real totals, and the atlas's selector changes the country's total and its link", async () => {
+    data = { "/api/home/overview": OVERVIEW };
+    mount();
+    expect(screen.getByText("23")).toBeTruthy();
+    const readout = () => screen.getByText("Selected country").parentElement!.textContent;
+    expect(readout()).toBe("Selected countryUnited States15team listings · 2026–27");
+    expect(screen.getByRole("link", { name: /4 teams have results this season/ }).getAttribute("href")).toBe("/teams?view=season&country=US");
+    fireEvent.change(screen.getByRole("combobox", { name: /Explore/ }), { target: { value: "CA" } });
+    expect(readout()).toBe("Selected countryCanada5team listings · 2026–27");
+    expect(screen.getByText("No Canada team has played a match yet this season.")).toBeTruthy();
+    // The list reconciles every listing, including those without a country.
+    expect(screen.getByText("Reported as “Independent”")).toBeTruthy();
+    expect(screen.getByText(/= 23 team listings/)).toBeTruthy();
+    await waitFor(() => expect(screen.getByTestId("map")).toBeTruthy());
+  });
+
+  it("turns the globe by itself, with a button that stops and restarts it", async () => {
+    data = { "/api/home/overview": OVERVIEW };
+    mount();
+    const map = await screen.findByTestId("map");
+    expect(map.dataset.spinning).toBe("true");
+    fireEvent.click(await screen.findByRole("button", { name: "Stop the globe turning" }));
+    expect(screen.getByTestId("map").dataset.spinning).toBe("false");
+    fireEvent.click(screen.getByRole("button", { name: "Turn the globe" }));
+    expect(screen.getByTestId("map").dataset.spinning).toBe("true");
+    // The flat atlas doesn't turn, and offers no pause button.
+    fireEvent.click(screen.getByRole("radio", { name: "Flat atlas" }));
+    expect(screen.queryByRole("button", { name: /globe turning|Turn the globe/ })).toBeNull();
+  });
+
+  it("keeps the globe still for a visitor who asks for less motion, and lets them start it", async () => {
+    reduced = true;
+    data = { "/api/home/overview": OVERVIEW };
+    mount();
+    expect((await screen.findByTestId("map")).dataset.spinning).toBe("false");
+    fireEvent.click(await screen.findByRole("button", { name: "Turn the globe" }));
+    expect(screen.getByTestId("map").dataset.spinning).toBe("true");
+  });
+
+  it("switches between live calls and the replay as a keyboard-reachable choice, and never shows 0% for undecided calls", () => {
+    const blk = (n: number, decided: number, accuracy: number, upsets: number) => ({
+      n, decided, accuracy, upsets, brier: 0, logLoss: 0, baselineBrier: 0.25, reliability: [], weekly: [],
+      byTier: { provisional: { n: 0, accuracy: 0, brier: 0 }, moderate: { n: 0, accuracy: 0, brier: 0 }, confident: { n: 0, accuracy: 0, brier: 0 } },
+      byLevel: { qual: { n: 0, accuracy: 0 }, playoff: { n: 0, accuracy: 0 } },
+    });
+    data = { "/api/predict/accuracy": {
+      seasons: [{ season: 2026, label: "2026–27", live: blk(2, 0, 0, 0), backtest: null }, { season: 2025, label: "2025–26", live: null, backtest: blk(100, 90, 0.7, 27) }],
+      engineVersion: "2.1.1", liveThreshold: 200, headline: { kind: "backtest", season: 2025, accuracy: 0.7, n: 100 }, recentCalls: [], generatedAt: new Date().toISOString(),
+    } };
+    mount();
+    expect(screen.getByRole("radio", { name: "Season replay" }).getAttribute("aria-checked")).toBe("true");
+    expect(screen.getByText("63 correct")).toBeTruthy();
+    expect(screen.getByText("27 missed")).toBeTruthy();
+    fireEvent.click(screen.getByRole("radio", { name: "Logged live" }));
+    expect(screen.getByLabelText("No percentage yet")).toBeTruthy();
+    expect(screen.queryByText(/^0(\.0)?$/)).toBeNull();
+    expect(screen.getByText(/All 2 scored calls were ties or 50:50 calls/)).toBeTruthy();
+  });
+
+  it("says usage isn't published instead of showing zero", () => {
+    data = { "/api/public-usage": USAGE_OFF };
+    mount();
+    expect(screen.getByText(/Public usage totals aren’t published yet/)).toBeTruthy();
+    expect(screen.queryByText("Page views")).toBeNull();
+  });
+
+  it("shows a measured zero when usage is published", () => {
+    data = { "/api/public-usage": { ...USAGE_OFF, status: "available", reason: null, totals: { pageViews: 0, sessionStarts: 0 }, daily: [{ day: "2026-10-17", pageViews: 0, sessionStarts: 0 }] } };
+    mount();
+    expect(screen.getByText("Page views")).toBeTruthy();
+    expect(screen.getAllByText("0")).toHaveLength(2);
+  });
+
+  it("invites a visitor without a team to find one (no sign-in), and never shows someone else's", () => {
+    mount();
+    expect(screen.getByRole("button", { name: /Find your team/ })).toBeTruthy();
+    expect(screen.queryByText("4215")).toBeNull();
+  });
+
+  it("shows your team's next match with its odds and confidence tier", () => {
+    personal = { user: null, state: st(4215) };
+    data = { "/api/teams/4215/matches": { matches: [NEXT] }, "/api/teams-summary": { teams: [{ team: 4215, name: "Hypnotic Robotics", place: "Oradell, NJ" }] } };
+    mount();
+    expect(screen.getByText("Hypnotic Robotics")).toBeTruthy();
+    expect(screen.getByText(/64% to win/)).toBeTruthy();
+    expect(screen.getByText(/Moderate/i)).toBeTruthy();
+    expect(path).toBe("/"); // not signed in: no redirect
+  });
+
+  it("sends a signed-in scout with a team to their dashboard once per visit", () => {
+    personal = { user: { email: "a@b.c" }, state: st(4215) };
+    mount();
+    expect(path).toBe("/my-team");
+    cleanup();
+    mount();
+    expect(path).toBe("/");
+  });
+});
