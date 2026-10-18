@@ -21,7 +21,10 @@ export interface MyTeams {
   known: boolean;
 }
 
-const sameName = (a: unknown, b: string) => typeof a === "string" && a.trim() === b.trim();
+// Prepared as Scout's server prepares workspace names (validWorkspaces: trimmed, at most 120 characters), so a
+// long team name still matches its own workspace.
+const nameKey = (s: string) => s.trim().slice(0, 120).trim();
+const sameName = (a: unknown, b: string) => typeof a === "string" && nameKey(a) === nameKey(b);
 const ftcNumber = (n: unknown) => (typeof n === "number" && Number.isInteger(n) && n > 0 && n <= 999_999 ? n : null);
 
 /** The account's FTC teams (pure). */

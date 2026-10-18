@@ -8,10 +8,11 @@ import type { AccountUser } from "../lib/personal";
 import type { TeamProfile } from "../shared/api";
 
 const h = vi.hoisted(() => ({ user: null as AccountUser | null, providers: { email: true, google: false } as object | null }));
-vi.mock("../lib/personal", () => ({ usePersonal: () => ({ user: h.user, providers: h.providers, refreshUser: async () => {}, state: {} }) }));
+vi.mock("../lib/personal", () => ({ usePersonal: () => ({ user: h.user, providers: h.providers, refreshUser: async () => {}, state: { videoLinks: {}, tracked: { teams: [], events: [] }, bookmarks: [] } }) }));
 vi.mock("../lib/meta", async (orig) => ({ ...(await orig<typeof import("../lib/meta")>()), useMeta: () => null, useCurrentSeason: () => 2026, useTitle: () => {} }));
 
 const { default: MyTeamsPage } = await import("./MyTeamsPage");
+const { TooltipProvider } = await import("../components/ui/overlay");
 const { resetFlags } = await import("../lib/flags");
 const { DEFAULT_FLAGS } = await import("../shared/flags");
 
@@ -30,6 +31,14 @@ const profile = (season: number, played: boolean): TeamProfile => ({
     rank: 2, rp: null, wins: 5, losses: 1, ties: 0, qualPlayed: 6, opr: { np: 99.5, auto: null, teleop: null, endgame: null, pen: null }, avg: { score: null, np: null, pen: null }, awards: [], alliance: null }] : [],
   awardsAllTime: [],
 } as unknown as TeamProfile);
+// A team mid-event today (results already in) whose earlier event left a match with no posted result.
+const day = (offset: number) => new Date(Date.now() + offset * 864e5).toISOString().slice(0, 10);
+const ev = (code: string, name: string, start: string, end: string, rank: number | null) => ({ season: 2026, code, name, type: "Qualifier", start, end, city: null, state: null, country: null,
+  rank, rp: null, wins: rank ? 3 : null, losses: rank ? 1 : null, ties: rank ? 0 : null, qualPlayed: null, opr: { np: rank ? 77.7 : null, auto: null, teleop: null, endgame: null, pen: null }, avg: { score: null, np: null, pen: null }, awards: [], alliance: null });
+const liveProfile = () => ({ ...profile(2026, true), team: { number: 4215, name: "Live Bots" }, seasons: [2026],
+  events: [ev("OLDQ", "Old Qualifier", day(-30), day(-30), null), ev("NOWQ", "Today Qualifier", day(0), day(1), 4)] });
+const match = (code: string, key: string, number: number) => ({ season: 2026, code, key, level: "qual", series: 1, number, label: `Q${number}`, time: null, startsAt: null, played: false,
+  red: { teams: [{ number: 4215, surrogate: false, dq: false, onField: true }], score: null }, blue: { teams: [{ number: 1, surrogate: false, dq: false, onField: true }], score: null }, video: null, prediction: null });
 let paths: string[] = [];
 
 beforeEach(() => {
@@ -45,12 +54,14 @@ beforeEach(() => {
     if (path === "/api/teams/18360?season=2026") return json(profile(2026, false));
     if (path === "/api/teams/18360?season=2025") return json(profile(2025, true));
     if (path.startsWith("/api/teams/18360/matches")) return json({ matches: [] });
+    if (path === "/api/teams/4215?season=2026") return json(liveProfile());
+    if (path.startsWith("/api/teams/4215/matches")) return json({ matches: [match("OLDQ", "qual:1:3", 3), match("NOWQ", "qual:1:12", 12)] });
     throw new Error(`unexpected ${path}`);
   });
 });
 afterEach(() => { cleanup(); vi.unstubAllGlobals(); });
 
-const page = () => render(<MemoryRouter initialEntries={["/my-teams"]}><MyTeamsPage /></MemoryRouter>);
+const page = () => render(<TooltipProvider><MemoryRouter initialEntries={["/my-teams"]}><MyTeamsPage /></MemoryRouter></TooltipProvider>);
 
 describe("MyTeamsPage", () => {
   it("lists the account's team with its stats from its latest played season, linking to the team page and scout space", async () => {
@@ -65,6 +76,19 @@ describe("MyTeamsPage", () => {
     expect(card.getByRole("link", { name: /Hypnotic Robotics.*Admin/ }).getAttribute("href")).toBe("/scout?space=77");
     await waitFor(() => expect(paths).toContain("/api/teams/18360/matches?season=2025"));
     expect(paths).not.toContain("/api/teams/18360/matches?season=2026");
+  });
+
+  it("an event on now shows its results so far; a match left unplayed at an ended event isn't upcoming", async () => {
+    h.user = user([{ id: "8", name: "Live Bots", role: "member" }], [{ teamNumber: 4215, name: "Live Bots" }]);
+    page();
+    const card = within(await screen.findByRole("article", { name: "Team 4215" }));
+    const now = await waitFor(() => card.getByRole("link", { name: /Today Qualifier/ }));
+    expect(now.textContent).toContain("3-1-0");
+    expect(now.textContent).not.toContain("Upcoming");
+    expect(card.getByRole("link", { name: /^4215/ }).getAttribute("href")).toBe("/teams/4215?season=2026");
+    const upcoming = (await waitFor(() => card.getByText("Upcoming matches"))).parentElement!;
+    await waitFor(() => expect(upcoming.textContent).toContain("Today Qualifier"));
+    expect(upcoming.textContent).not.toContain("Old Qualifier");
   });
 
   it("a workspace with no FTC number says so instead of showing empty stats", () => {
