@@ -23,6 +23,7 @@ describe("sitemap", () => {
     expect(locs).toContain("https://controlscout.org/privacy");
     expect(locs).toContain("https://controlscout.org/terms");
     expect(locs).toContain("https://controlscout.org/contact");
+    expect(locs).toContain("https://controlscout.org/faq");
     expect(locs).toContain("https://controlscout.org/rankings");
     expect(locs).toContain("https://controlscout.org/events/2025/USNJNOM3");
     expect(locs).toContain("https://controlscout.org/events/2019/2019ALCMP"); // legacy seasons are browsable pages too

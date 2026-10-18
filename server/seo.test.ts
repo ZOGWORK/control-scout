@@ -277,3 +277,22 @@ describe("page head in the first HTML", () => {
     expect(canonicalUrl("/teams/4215/")).toBe("https://controlscout.org/teams/4215");
   });
 });
+
+describe("/faq", () => {
+  it("has its own title, FAQPage structured data with every question, and the questions in the first paint", async () => {
+    const { FAQ_ITEMS } = await import("../src/shared/faq");
+    const dir = mkdtempSync(join(tmpdir(), "cs-seo-faq-"));
+    const file = join(dir, "index.html");
+    writeFileSync(file, '<html><head><title>x</title></head><body><div id="root"></div></body></html>');
+    const page = await renderPage(file, "/faq");
+    expect(page.status).toBe(200);
+    expect(page.html).toContain("<title>FAQ: Control Scout questions answered · FTC Control Scout</title>");
+    const ld = [...page.html.matchAll(/<script type="application\/ld\+json">([\s\S]*?)<\/script>/g)].map((m) => JSON.parse(m[1]));
+    const faq = ld.find((x) => x["@type"] === "FAQPage");
+    expect(faq.mainEntity).toHaveLength(FAQ_ITEMS.length);
+    expect(faq.url).toBe("https://controlscout.org/faq");
+    // The first paint carries the questions themselves (crawlers and previews read them without the app).
+    expect(page.html).toContain("<h3>Do I need an account?</h3>");
+    expect(page.html).not.toMatch(/\]\(\//);
+  });
+});
