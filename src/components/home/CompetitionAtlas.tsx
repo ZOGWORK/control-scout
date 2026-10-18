@@ -33,7 +33,7 @@ class MapBoundary extends Component<{ fallback: ReactNode; children: ReactNode }
 const fmt = (n: number) => n.toLocaleString();
 
 export function CompetitionAtlas({ overview, currentSeason, compact }: { overview: HomeOverview; currentSeason: number; compact?: boolean }) {
-  const [mode, setMode] = useState<Mode>(compact ? "flat" : "globe");
+  const [mode, setMode] = useState<Mode>("globe");
   const [wanted, setWanted] = useState<string | null>(null);
   const [drawn, setDrawn] = useState<ReadonlySet<string> | null>(null);
   const [failed, setFailed] = useState(false);
