@@ -1,10 +1,11 @@
 // A records table's state in the URL, so a link reproduces the same filter,
 // sort, columns and page in a fresh browser:
-//   ?filter=and-…-&sort=autoPointsAvg&dir=desc&cols=rank,rp,…&page=2&region=USTX,USCANO&type=Qualifier&from=2025-11-01&to=2025-12-31
+//   ?filter=and-…-&sort=autoPointsAvg&dir=desc&cols=rank,rp,…&page=2&region=USTX,USCANO&type=Qualifier&from=2025-11-01&to=2025-12-31&country=US
 // `filter` is the stable filter language (src/shared/filterDsl.ts). Other page
 // params (tab, team, season…) are left alone. Pure, unit tested.
 import { parseFilter, serializeFilter, type FilterGroup } from "../../shared/filterDsl";
 import { DEFAULT_SORT, RECORD_EVENT_TYPES, statFor, type RecordScope } from "../../shared/statCatalog";
+import { countryByCode } from "../../shared/countries";
 
 export interface TableState {
   filter: FilterGroup | null;
@@ -21,10 +22,12 @@ export interface TableState {
   eventType: string | null;
   from: string | null;
   to: string | null;
+  /** Team records: teams from this country (ISO alpha-2, e.g. "US"; the home page's atlas links here). */
+  country: string | null;
 }
 
 /** The URL params a records table owns (cleared when an event page switches tab). */
-export const TABLE_PARAMS = ["filter", "sort", "dir", "cols", "page", "region", "type", "from", "to"] as const;
+export const TABLE_PARAMS = ["filter", "sort", "dir", "cols", "page", "region", "type", "from", "to", "country"] as const;
 
 const DATE = /^\d{4}-\d{2}-\d{2}$/;
 
@@ -50,7 +53,8 @@ export function parseTableState(sp: URLSearchParams, scope: RecordScope, default
   const typeRaw = sp.get("type");
   const eventType = scope !== "teamSeason" && typeRaw && (RECORD_EVENT_TYPES as readonly string[]).includes(typeRaw) ? typeRaw : null;
   const date = (k: string) => { const v = sp.get(k); return scope !== "teamSeason" && v && DATE.test(v) ? v : null; };
-  return { filter, filterError, filterRaw: filterError ? raw : null, sort, dir, cols, page, regions, eventType, from: date("from"), to: date("to") };
+  const country = scope !== "match" ? countryByCode(sp.get("country"))?.code ?? null : null;
+  return { filter, filterError, filterRaw: filterError ? raw : null, sort, dir, cols, page, regions, eventType, from: date("from"), to: date("to"), country };
 }
 
 /**
@@ -71,13 +75,14 @@ export function writeTableState(sp: URLSearchParams, s: TableState, scope: Recor
   set("type", s.eventType);
   set("from", s.from);
   set("to", s.to);
+  set("country", s.country);
   return out;
 }
 
 /** True when anything narrows the rows (what "Clear Filters" resets). */
-export const hasFilters = (s: TableState) => !!(s.filter?.children.length || s.regions.length || s.eventType || s.from || s.to);
+export const hasFilters = (s: TableState) => !!(s.filter?.children.length || s.regions.length || s.eventType || s.from || s.to || s.country);
 
-export const clearFilters = (s: TableState): TableState => ({ ...s, filter: null, filterError: null, filterRaw: null, regions: [], eventType: null, from: null, to: null, page: 1 });
+export const clearFilters = (s: TableState): TableState => ({ ...s, filter: null, filterError: null, filterRaw: null, regions: [], eventType: null, from: null, to: null, country: null, page: 1 });
 
 /**
  * A query string for the address bar: URLSearchParams.toString(), but with the
@@ -119,6 +124,7 @@ export function recordsUrl(r: RecordsRequest, format: "json" | "csv" = "json"): 
   if (r.state.eventType) p.set("eventType", r.state.eventType);
   if (r.state.from) p.set("from", r.state.from);
   if (r.state.to) p.set("to", r.state.to);
+  if (r.state.country && r.scope !== "match") p.set("country", r.state.country);
   if (r.code) p.set("code", r.code);
   if (format === "csv") p.set("format", "csv");
   else { p.set("page", String(r.state.page)); p.set("pageSize", String(r.pageSize ?? 50)); }

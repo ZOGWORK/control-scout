@@ -43,7 +43,8 @@ import { pushRouter } from "./push/routes.js";
 import { vapidReady } from "./push/push.js";
 import { reportsRouter } from "./errorReports.js";
 import { packsRouter } from "./packs/routes.js";
-import { collectRouter, statsRouter } from "./analytics.js";
+import { cachedPublicUsage, collectRouter, statsRouter } from "./analytics.js";
+import { homeOverview } from "./api/home.js";
 import { listRecords, recordRegions, recordsQuery, RecordsQueryError, streamRecordsCsv } from "./api/records.js";
 import { FilterError } from "../src/shared/filterDsl.js";
 import { RECORDS_EXPORT_MAX, RECORDS_MAX_PAGE_SIZE } from "../src/shared/statCatalog.js";
@@ -209,6 +210,17 @@ export function createApp() {
       currentSeason: CURRENT_SEASON, engineVersion: ENGINE_VERSION, dataAsOf: sync?.at ?? null, statsAt: stats?.at ?? null,
       auth: authProviders(), firstConfigured: hasFirst(), dataLoaded: loaded.length > 0,
     };
+  }));
+
+  // The home page's season coverage and teams by country (server/api/home.ts).
+  api.get("/home/overview", h(async (req) => homeOverview(season(req.query.season))));
+
+  // Opt-in page views and sessions started, last 30 days: only when the owner publishes them (PUBLIC_USAGE_ENABLED).
+  api.get("/public-usage", h(async (_req, res) => {
+    const u = await cachedPublicUsage();
+    // An unreadable feed answers 200 with its reason (the panel says so), but isn't kept by caches.
+    if (u.reason === "error") res.setHeader("Cache-Control", "no-store");
+    return u;
   }));
 
   api.get("/search", h(async (req) => {
