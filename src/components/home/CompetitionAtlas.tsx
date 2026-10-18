@@ -4,7 +4,8 @@
 // can't load, the country selector and the full list still say everything.
 import { Component, lazy, Suspense, useState, type ReactNode } from "react";
 import { Link } from "react-router-dom";
-import { ArrowRight, Globe2, Map as MapIcon } from "lucide-react";
+import { useReducedMotion } from "motion/react";
+import { ArrowRight, Globe2, Map as MapIcon, Pause, Play } from "lucide-react";
 import type { HomeOverview } from "../../shared/home";
 import { seasonLabel } from "../../lib/format";
 import { ToggleGroup, ToggleGroupItem } from "../ui/controls";
@@ -36,6 +37,10 @@ export function CompetitionAtlas({ overview, currentSeason, compact }: { overvie
   const [wanted, setWanted] = useState<string | null>(null);
   const [drawn, setDrawn] = useState<ReadonlySet<string> | null>(null);
   const [failed, setFailed] = useState(false);
+  // The globe turns on its own unless the visitor asks for less motion; the pause button stops it either way.
+  const reduced = !!useReducedMotion();
+  const [paused, setPaused] = useState<boolean | null>(null);
+  const still = paused ?? reduced;
   const selected = pickCountry(overview, wanted);
   const totals = reconcile(overview, drawn);
   const byName = [...overview.countries].sort((a, b) => a.name.localeCompare(b.name));
@@ -58,17 +63,25 @@ export function CompetitionAtlas({ overview, currentSeason, compact }: { overvie
     <section aria-labelledby="atlas-title" className="min-w-0">
       <div className="flex items-center justify-between gap-3">
         <h2 id="atlas-title" className="text-xs font-semibold uppercase tracking-[0.18em] text-text-muted">The competition atlas</h2>
+        <div className="flex items-center gap-2">
+        {mode === "globe" && !failed && drawn && (
+          <button type="button" onClick={() => setPaused(!still)} aria-label={still ? "Turn the globe" : "Stop the globe turning"}
+            className="inline-flex size-9 items-center justify-center rounded-lg border border-line text-text-muted hover:bg-text-base/[0.06] hover:text-text-base focus-visible:outline-2 focus-visible:outline-accent max-sm:size-11">
+            {still ? <Play className="size-4" aria-hidden /> : <Pause className="size-4" aria-hidden />}
+          </button>
+        )}
         <ToggleGroup type="single" value={mode} onValueChange={(v) => v && setMode(v as Mode)} aria-label="Map projection">
           <ToggleGroupItem value="globe" aria-label="Globe" className="max-sm:h-11"><Globe2 /> Globe</ToggleGroupItem>
           <ToggleGroupItem value="flat" aria-label="Flat atlas" className="max-sm:h-11"><MapIcon /> Atlas</ToggleGroupItem>
         </ToggleGroup>
+        </div>
       </div>
 
       <div className={cn("mx-auto mt-3", mode === "globe" && (compact ? "max-w-[22rem]" : "max-w-[30rem]"))}>
         {failed ? mapFallback : (
           <MapBoundary fallback={mapFallback}>
             <Suspense fallback={mapLoading}>
-              <AtlasMap mode={mode} countries={overview.countries} selected={selected?.numeric ?? null}
+              <AtlasMap mode={mode} spinning={!still} countries={overview.countries} selected={selected?.numeric ?? null}
                 onSelect={setWanted} onLoaded={setDrawn} onError={() => setFailed(true)} />
             </Suspense>
           </MapBoundary>
@@ -107,7 +120,7 @@ export function CompetitionAtlas({ overview, currentSeason, compact }: { overvie
         </p>
       )}
       <p className="mt-2 text-xs text-text-muted">
-        Country totals from each team’s reported country, not team locations.{mode === "globe" && !failed ? " Drag the globe with a mouse to turn it." : ""}
+        Country totals from each team’s reported country, not team locations.{mode === "globe" && !failed ? ` Drag the globe with a mouse to turn it${still ? "" : ", or stop it with the pause button"}.` : ""}
       </p>
 
       <details className="group mt-3 rounded-xl border border-line">
