@@ -71,8 +71,6 @@ function Profile({ p, onSeason }: { p: TeamProfile; onSeason: (s: number) => voi
     <div className="min-w-0">
       <OfflineNote data={p} />
       <Hero p={p} onSeason={onSeason} />
-      {/* Workspace members only: their workspace's scouting on this team (nothing for anyone else). */}
-      {rest && predictable && <TeamConsensusSection team={p.team.number} season={p.season} />}
       {!rest ? null : !hasResults ? (
         <EmptyState className="mb-8" icon={CalendarDays} title={`No ${seasonLabel(p.season)} results for ${p.team.number} yet`}
           description={p.seasons.length > 1 ? "Pick another season above to see past results." : "This team hasn't played an event we have data for."} />
@@ -96,6 +94,9 @@ function Profile({ p, onSeason }: { p: TeamProfile; onSeason: (s: number) => voi
         </>
       )}
       {rest && !hasResults && <><AwardsAllTime p={p} />{predictable && <ScoutNotes team={p.team.number} season={p.season} />}</>}
+      {/* Workspace members only: their workspace's scouting on this team (nothing for anyone else). Last, after
+          the team's own numbers and matches: it's the members' take, not the first thing a search opens on. */}
+      {rest && predictable && <TeamConsensusSection team={p.team.number} season={p.season} />}
     </div>
   );
 }
