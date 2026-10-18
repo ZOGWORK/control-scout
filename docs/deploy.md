@@ -219,10 +219,10 @@ Manual deploys with `deploy/deploy.sh` keep working the same way.
 ## Rollback
 
 The Oracle VM is the production host. Render (https://control-scout.onrender.com)
-is kept to the side as a backup (Sushil, 2026-10-14): it rebuilds from main on its
-own, the deploy workflow's `render` job checks it reports the same commit, and it
-serves its pages with `X-Robots-Tag: noindex` and canonical links to
-controlscout.org, so search engines never index it as a second copy. To roll back
+was kept to the side as a backup (Sushil, 2026-10-14). It is suspended, so the deploy
+workflow no longer waits for it (2026-10-17). If it's resumed, it still serves its
+pages with `X-Robots-Tag: noindex` and canonical links to controlscout.org, so
+search engines never index it as a second copy. To roll back
 production, switch `current` to one of the three releases the VM keeps, then
 restart:
 

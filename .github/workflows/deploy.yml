@@ -7,8 +7,7 @@ name: Deploy to Oracle VM
 # fetches the commit with read-only credentials that live on the VM, builds it beside
 # the live release, switches over and restarts. This job then waits until
 # https://controlscout.org/api/health reports the new commit, and fails if it
-# doesn't within 20 minutes. A second job checks that Render, the backup
-# host, rebuilt the same commit.
+# doesn't within 20 minutes.
 #
 # Secret (repo Settings → Secrets and variables → Actions):
 #   COMMANDS_REPO_TOKEN  fine-grained token, repository access: only
@@ -98,40 +97,4 @@ jobs:
             sleep 15
           done
           echo "::error::$SITE didn't report release $SHA (or newer) within 20 minutes (last: ${body:-no answer}). On the VM: sudo tail -n 100 /var/log/control-scout-deploy.log"
-          exit 1
-
-  # Render (https://control-scout.onrender.com) is kept to the side as a backup host and
-  # follows every update: it rebuilds from main on its own (auto-deploy on
-  # push). This job proves it did, by waiting for its /api/health to report
-  # the same commit. It needs no secrets, so it runs even without the queue token.
-  render:
-    if: github.ref == 'refs/heads/main'
-    runs-on: ubuntu-latest
-    timeout-minutes: 30
-    # Its own queue (never delays a VM deploy); a newer push replaces an older check.
-    concurrency:
-      group: render-check
-      cancel-in-progress: true
-    env:
-      RENDER_SITE: https://control-scout.onrender.com
-    steps:
-      - name: Wait for Render to run the new release
-        env:
-          SHA: ${{ github.sha }}
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          set -uo pipefail
-          # Render deploys main by itself: a newer commit that contains this one also counts.
-          contains() { [ "$1" = "$SHA" ] || [[ "$(gh api "repos/$GITHUB_REPOSITORY/compare/$SHA...$1" --jq .status 2>/dev/null)" =~ ^(ahead|identical)$ ]]; }
-          deadline=$(( $(date +%s) + 25 * 60 ))   # free-plan builds are slow
-          while [ "$(date +%s)" -lt "$deadline" ]; do
-            body=$(curl -fsS --max-time 60 "$RENDER_SITE/api/health" || true)
-            rel=$(echo "$body" | jq -r '.release // empty' 2>/dev/null)
-            if [ -n "$rel" ] && [ "$(echo "$body" | jq -r '.ready' 2>/dev/null)" = "true" ] && contains "$rel"; then
-              echo "Render live: $body"
-              exit 0
-            fi
-            sleep 30
-          done
-          echo "::error::$RENDER_SITE didn't report release $SHA (or newer) within 25 minutes (last: ${body:-no answer}). Check the service's deploys in the Render dashboard (auto-deploy must be on for main)."
           exit 1
