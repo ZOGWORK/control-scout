@@ -384,6 +384,7 @@ function Table({ data, scope, cols, state, sortBy, code, highlightTeam, selectab
     {/* The column labels follow you down the page: a copy of the header row pinned under the top bar
         (the table itself scrolls sideways, which a sticky <thead> can't escape). */}
     <FloatingHead table={tableRef} scroller={ref}>{headRow}</FloatingHead>
+    <TopScrollbar table={tableRef} scroller={ref} />
     <div ref={ref} className={cn("custom-scrollbar overflow-x-auto overscroll-x-contain rounded-xl border bg-card", grid)}>
       <table ref={tableRef} className="w-full border-collapse text-sm">
         <thead>
@@ -438,7 +439,7 @@ function Table({ data, scope, cols, state, sortBy, code, highlightTeam, selectab
                   const tone = toneOf(d);
                   return (
                     <td key={k} className={cn("density-row whitespace-nowrap border-l border-text-base/[0.08] px-5 py-3 text-right tabular-nums", d?.type === "text" && "text-left", state.sort === k && "bg-accent/[0.04] font-semibold",
-                      (tone === "gold" || tone === "redAlliance" || tone === "blueAlliance") && v != null && TONE_CLASS[tone].text)}>
+                      tone !== "slate" && v != null && TONE_CLASS[tone].text)}>
                       {formatStat(d, v)}
                     </td>
                   );
@@ -537,5 +538,56 @@ function Alliance({ teams, season, side }: { teams: number[]; season: number; si
         <Link key={t} to={`/teams/${t}?season=${season}`} className={cn("rounded-md px-1.5 py-0.5 font-mono text-xs tabular-nums still-hover:brightness-125", side === "red" ? "bg-red-alliance/12 text-red-alliance" : "bg-blue-alliance/12 text-blue-alliance")}>{t}</Link>
       ))}
     </span>
+  );
+}
+
+/**
+ * A sideways scrollbar above a wide table, moving with the table's own (at the bottom, often a screen or
+ * more away). Drawn rather than native, so it's visible on systems whose scrollbars only show while
+ * scrolling: drag the thumb or click the track. Only there while the table is wider than its box. Hidden
+ * from screen readers and the tab order: the table itself scrolls by keyboard, and this only mirrors it.
+ */
+export function TopScrollbar({ table, scroller }: { table: RefObject<HTMLTableElement | null>; scroller: RefObject<HTMLDivElement | null> }) {
+  const track = useRef<HTMLDivElement>(null);
+  const [m, setM] = useState<{ inner: number; outer: number; left: number; tw: number } | null>(null);
+  useEffect(() => {
+    const t = table.current, s = scroller.current;
+    if (!t || !s) return;
+    const measure = () => setM({ inner: t.scrollWidth, outer: s.clientWidth, left: s.scrollLeft, tw: track.current?.clientWidth ?? 0 });
+    measure();
+    s.addEventListener("scroll", measure, { passive: true });
+    const ro = typeof ResizeObserver === "undefined" ? null : new ResizeObserver(measure);
+    ro?.observe(t); ro?.observe(s);
+    if (track.current) ro?.observe(track.current);
+    return () => { s.removeEventListener("scroll", measure); ro?.disconnect(); };
+  }, [table, scroller]);
+  const wide = !!m && m.inner > m.outer + 1;
+  // The thumb's share of the track is the visible share of the table (at least 2.5 rem, to grab).
+  const tw = m?.tw ?? 0;
+  const thumb = wide ? Math.max(40, (m.outer / m.inner) * tw) : 0;
+  const range = Math.max(1, m ? m.inner - m.outer : 1);
+  const x = wide ? (m.left / range) * Math.max(0, tw - thumb) : 0;
+  const scrollTo = (left: number) => { const s = scroller.current; if (s) s.scrollLeft = Math.max(0, Math.min(range, left)); };
+  const drag = useRef<{ x: number; left: number } | null>(null);
+  const onDown = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (!wide || !m) return;
+    e.preventDefault();
+    const box = e.currentTarget.getBoundingClientRect();
+    const at = e.clientX - box.left;
+    // On the track beside the thumb: jump there (centred), then drag from it.
+    if (at < x || at > x + thumb) scrollTo(((at - thumb / 2) / Math.max(1, tw - thumb)) * range);
+    drag.current = { x: e.clientX, left: scroller.current?.scrollLeft ?? 0 };
+    e.currentTarget.setPointerCapture?.(e.pointerId);
+  };
+  const onMove = (e: React.PointerEvent<HTMLDivElement>) => {
+    const d = drag.current;
+    if (d) scrollTo(d.left + ((e.clientX - d.x) / Math.max(1, tw - thumb)) * range);
+  };
+  const end = () => { drag.current = null; };
+  return (
+    <div ref={track} aria-hidden data-records-topbar="" onPointerDown={onDown} onPointerMove={onMove} onPointerUp={end} onPointerCancel={end}
+      className={cn("relative cursor-pointer touch-none select-none rounded-full bg-text-base/[0.07]", wide ? "mb-1.5 h-2.5" : "invisible h-0")}>
+      <div data-records-thumb="" className="absolute inset-y-0 rounded-full bg-text-base/30 transition-colors hover:bg-text-base/45" style={{ width: thumb, transform: `translateX(${x}px)` }} />
+    </div>
   );
 }
