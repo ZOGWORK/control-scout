@@ -13,6 +13,7 @@ import { AnimatePresence, motion } from "motion/react";
 import {
   ArrowDown, ArrowUp, BellRing, Bug, ClipboardList, Download, ExternalLink, HardDriveDownload, Info, KeyRound, Link2, LogOut, Mail, Monitor, Moon, Palette,
   Star, Sun, Upload, UserRound, Users, X,
+  Megaphone,
 } from "lucide-react";
 import { apiFetch } from "../lib/api";
 import { useMeta, useTitle } from "../lib/meta";
@@ -43,6 +44,8 @@ import { useSavedSeasons } from "../lib/offline/saved";
 import { workspacesOf } from "../lib/scoutSpace";
 import { Group, Row } from "../components/settings/rows";
 import { WorkspaceSection } from "../components/settings/WorkspaceSection";
+import { openWhatsNew } from "../components/WhatsNew";
+import { currentRelease } from "../lib/changelog";
 
 type SectionId = "profile" | "appearance" | "tracking" | "notifications" | "offline" | "scouting" | "privacy" | "workspace" | "about";
 type SectionGroup = "Personal" | "Workspace" | "About";
@@ -597,6 +600,8 @@ function ReportBug() {
   );
 }
 
+const APP_RELEASE = currentRelease();
+
 function About() {
   const meta = useMeta();
   // Error reports switched off by the owner: no bug report box (the contact form below still works).
@@ -604,6 +609,9 @@ function About() {
   return (
     <div>
       <Group title="This app">
+        <Row label="What's new" description={`Every release of Control Scout, newest first.${APP_RELEASE ? ` This is v${APP_RELEASE}.` : ""}`}>
+          <Button variant="outline" size="sm" onClick={openWhatsNew}><Megaphone /> What's new</Button>
+        </Row>
         <Row label="Prediction engine" description="Shared with Control Point, so the numbers match."><span className="font-mono text-sm text-foreground">v{meta?.engineVersion ?? "…"}</span></Row>
         <Row label="Data updated" description="Synced from FIRST; every 15 minutes on event days."><span className="text-sm text-foreground">{ago(meta?.dataAsOf)}</span></Row>
         <Row label="How predictions work"><Button variant="outline" size="sm" asChild><Link to="/methodology">Read it</Link></Button></Row>
