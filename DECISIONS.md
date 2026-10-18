@@ -284,3 +284,13 @@ and it stays out of search: canonical, OG and sitemap URLs use `CANONICAL_URL`
 (controlscout.org in production, whatever the host's own `APP_URL`), and any
 other host that serves the app gets `X-Robots-Tag: noindex`. Production and
 rollback stay on the VM.
+
+## Deploy stops checking Render (2026-10-17, Sushil)
+
+"Remove the render step." The Render service is suspended (it answers "This
+service has been suspended by its owner"), so the deploy workflow's `render`
+job timed out after 25 minutes on every push and marked the run as failed,
+even though the VM deploy had gone live. The job is removed; the workflow now
+only deploys to the VM and waits for controlscout.org to report the commit.
+The noindex and canonical handling for other hosts stays, in case Render is
+resumed.
