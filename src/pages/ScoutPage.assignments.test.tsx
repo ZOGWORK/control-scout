@@ -51,6 +51,7 @@ beforeEach(() => {
     const ok = (x: unknown, status = 200) => new Response(JSON.stringify(x), { status });
     const p = `/api/scout/workspaces/${WS}/assignments`;
     if (u.pathname === p && method === "GET") return ok({ assignments: list });
+    if (u.pathname === "/api/events") return ok({ events: [{ season: 2025, code: EV, name: "Test Qualifier", start: "2025-11-01", end: "2025-11-01", city: "Edison", state: "NJ", country: "USA" }] });
     if (u.pathname === `${p}/options`) return ok({ members: [{ accountId: ME, name: "Priya", role: "admin" }, { accountId: SAM, name: "Sam", role: "member" }], teams: [{ team: 1234, name: "Alpha" }, { team: 2222, name: "Beta" }, { team: 5678, name: "Gamma" }] });
     if (u.pathname.startsWith(`${p}/`) && method === "PATCH") {
       const id = Number(u.pathname.split("/").pop());
@@ -148,7 +149,10 @@ describe("assignments on the Scout page", () => {
     show(`/scout?space=${WS}&season=2025&view=assignments`);
     fireEvent.click(await screen.findByRole("button", { name: /^Assign$/ }));
     const sheet = await screen.findByRole("dialog");
-    fireEvent.change(within(sheet).getByLabelText(/Event/), { target: { value: EV.toLowerCase() } });
+    // The event is picked by name, from that season's events.
+    fireEvent.change(within(sheet).getByRole("combobox"), { target: { value: "test qual" } });
+    fireEvent.mouseDown(await within(sheet).findByRole("option", { name: /Test Qualifier/ }));
+    expect(within(sheet).getByText("Test Qualifier")).toBeTruthy();
     await waitFor(() => expect(within(sheet).getByRole("list", { name: "Teams at this event" })).toBeTruthy());
     // Team rows carry who already holds them.
     expect(within(sheet).getByText("Assigned to Sam")).toBeTruthy();
