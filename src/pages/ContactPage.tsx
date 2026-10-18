@@ -184,7 +184,7 @@ export default function ContactPage() {
             Accounts are shared with our sister app for FTC team workspaces. <a className="underline underline-offset-2 hover:text-foreground" href="https://tryctrlpoint.org" target="_blank" rel="noreferrer noopener">tryctrlpoint.org</a>
           </OtherWay>
           <OtherWay icon={MessageCircle} tone="text-success bg-success/12" title="Before you write">
-            <Link className="underline underline-offset-2 hover:text-foreground" to="/methodology">How it works</Link> explains every number and prediction. The <Link className="underline underline-offset-2 hover:text-foreground" to="/privacy">privacy policy</Link> and <Link className="underline underline-offset-2 hover:text-foreground" to="/terms">terms</Link> cover your data and the rules.
+            The <Link className="underline underline-offset-2 hover:text-foreground" to="/faq">FAQ</Link> answers the common questions. <Link className="underline underline-offset-2 hover:text-foreground" to="/methodology">How it works</Link> explains every number and prediction. The <Link className="underline underline-offset-2 hover:text-foreground" to="/privacy">privacy policy</Link> and <Link className="underline underline-offset-2 hover:text-foreground" to="/terms">terms</Link> cover your data and the rules.
           </OtherWay>
         </aside>
       </div>

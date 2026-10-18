@@ -59,11 +59,12 @@ const PAGES = {
   PrivacyPage: lazyPage(() => import("./pages/PrivacyPage")),
   TermsPage: lazyPage(() => import("./pages/TermsPage")),
   ContactPage: lazyPage(() => import("./pages/ContactPage")),
+  FaqPage: lazyPage(() => import("./pages/FaqPage")),
   MatchReportPage: lazyPage(() => import("./pages/MatchReportPage")),
   PowerRankingsPage: lazyPage(() => import("./pages/PowerRankingsPage")),
   NotFound: lazyPage(() => import("./pages/NotFound")),
 } satisfies Record<PageModule, unknown>;
-const { TeamPage, EventsPage, RecordsPage, RankingsPage, EventPage, PredictPage, ComparePage, MyTeamPage, MyTeamsPage, ShortlistPage, ScoutPage, DownloadPage, SettingsPage, MethodologyPage, PrivacyPage, TermsPage, ContactPage, MatchReportPage, PowerRankingsPage, NotFound } = PAGES;
+const { TeamPage, EventsPage, RecordsPage, RankingsPage, EventPage, PredictPage, ComparePage, MyTeamPage, MyTeamsPage, ShortlistPage, ScoutPage, DownloadPage, SettingsPage, MethodologyPage, PrivacyPage, TermsPage, ContactPage, FaqPage, MatchReportPage, PowerRankingsPage, NotFound } = PAGES;
 
 // Offline: the service worker precaches the app so it opens with no signal.
 // Production builds only (dev serves unbundled modules).
@@ -144,6 +145,7 @@ void ready.catch(() => { /* a failed load is retried (and shown) by the page's o
                   <Route path="/privacy" element={<PrivacyPage />} />
                   <Route path="/terms" element={<TermsPage />} />
                   <Route path="/contact" element={<ContactPage />} />
+                  <Route path="/faq" element={<FaqPage />} />
                   <Route path="/power-rankings" element={<PowerRankingsPage />} />
                   <Route path="/power-rankings/:week" element={<PowerRankingsPage />} />
                   {/* Owners only; everyone else (and the server, for everyone) sees the not-found page. */}

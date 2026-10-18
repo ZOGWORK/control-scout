@@ -21,7 +21,7 @@ export type PageView = {
 
 const STATIC_ROUTES = new Set([
   "/", "/teams", "/matches", "/events", "/predict", "/predict/how-it-works", "/compare", "/my-team", "/my-teams", "/shortlist",
-  "/scout", "/download", "/settings", "/methodology", "/privacy", "/terms",
+  "/scout", "/download", "/settings", "/methodology", "/privacy", "/terms", "/faq",
 ]);
 const DYNAMIC_ROUTES: [RegExp, string][] = [
   [/^\/teams\/[^/]+$/, "/teams/:number"],
