@@ -12,6 +12,8 @@ const MANIFEST: PackManifest = { format: 1, version: "2026-10-17.2", builtAt: "2
 let saved: SavedSeason[] = [];
 const order: number[] = [];
 let failSeason: number | null = null;
+// While set, each save waits here until the test lets it finish.
+let gate: Promise<void> | null = null;
 const toastErr = vi.fn(), toastOk = vi.fn();
 
 vi.mock("../lib/packs", async (orig) => ({ ...(await orig<typeof import("../lib/packs")>()), fetchManifest: async () => MANIFEST, packStatus: () => null, syncLite: async () => null }));
@@ -20,6 +22,7 @@ vi.mock("../lib/offline/seasons", () => ({
   saveSeason: async (f: PackFile, _m: PackManifest, onProgress?: (d: number, t: number) => void) => {
     order.push(f.seasons[0]);
     onProgress?.(5, 10);
+    if (gate) await gate;
     await Promise.resolve();
     if (f.seasons[0] === failSeason) throw new Error("network");
     return { season: f.seasons[0] };
@@ -30,10 +33,11 @@ vi.mock("../components/ui/sonner", () => ({ toast: Object.assign(vi.fn(), { succ
 vi.mock("../lib/meta", async (orig) => ({ ...(await orig<typeof import("../lib/meta")>()), useTitle: () => {} }));
 
 const { default: DownloadPage } = await import("./DownloadPage");
+const { resetSeasonBatch, runSeasonBatch } = await import("../lib/offline/seasonBatch");
 const mount = () => render(<MemoryRouter><DownloadPage /></MemoryRouter>);
 const sv = (season: number, sha: string) => ({ season, sha256: sha, version: "2026-09-01.1", bytes: 9_000_000, savedAt: 1 }) as unknown as SavedSeason;
 
-beforeEach(() => { saved = []; order.length = 0; failSeason = null; toastErr.mockClear(); toastOk.mockClear(); });
+beforeEach(() => { saved = []; order.length = 0; failSeason = null; gate = null; resetSeasonBatch(); toastErr.mockClear(); toastOk.mockClear(); });
 afterEach(cleanup);
 
 describe("Download page seasons", () => {
@@ -73,5 +77,34 @@ describe("Download page seasons", () => {
     expect(await screen.findByText("Every season is saved and current")).toBeTruthy();
     expect(screen.queryByRole("button", { name: /Download all|Update all/ })).toBeNull();
     await act(async () => {});
+  });
+
+  it("keeps Remove off while a run is saving, so a waiting season can't be removed and then saved again", async () => {
+    saved = [sv(2026, "old"), sv(2025, "old")];
+    let open!: () => void;
+    gate = new Promise((r) => { open = r; });
+    mount();
+    fireEvent.click(await screen.findByRole("button", { name: /Update all \(2\)/ }));
+    await waitFor(() => expect(screen.getByText("Waiting to save…")).toBeTruthy());
+    for (const b of screen.getAllByRole("button", { name: /Remove/ })) expect((b as HTMLButtonElement).disabled).toBe(true);
+    open();
+    await waitFor(() => expect(toastOk).toHaveBeenCalled());
+  });
+
+  it("is one run for the app: leaving and coming back shows its progress, and a second can't start", async () => {
+    saved = [];
+    let open!: () => void;
+    gate = new Promise((r) => { open = r; });
+    const first = mount();
+    fireEvent.click(await screen.findByRole("button", { name: /Download all/ }));
+    await waitFor(() => expect(screen.getByRole("status", { name: "" })).toBeTruthy());
+    first.unmount();
+    mount();
+    expect(await screen.findByText(/Saving…/)).toBeTruthy();
+    expect((screen.getByRole("button", { name: /Download all/ }) as HTMLButtonElement).disabled).toBe(true);
+    expect(await runSeasonBatch(MANIFEST.full, MANIFEST)).toBeNull();
+    open();
+    await waitFor(() => expect(toastOk).toHaveBeenCalled());
+    expect(order).toEqual([2026, 2025, 2024, 2023]);
   });
 });

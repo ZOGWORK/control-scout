@@ -5,12 +5,13 @@
 // offered here: it downloads itself in the background for returning visitors
 // (LitePackSync, packPolicy.ts), and opening this page fetches it at once; this
 // page only shows its status.
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { CheckCircle2, Database, HardDriveDownload, Loader2, RefreshCw, Trash2, WifiOff } from "lucide-react";
 import { useTitle } from "../lib/meta";
 import { ManifestError, PACK_EVENT, fetchManifest, packStatus, syncLite, type PackManifest, type PackMeta } from "../lib/packs";
-import { removeSeason, saveSeason, useSavedSeasons, type SavedSeason } from "../lib/offline/seasons";
+import { removeSeason, useSavedSeasons, type SavedSeason } from "../lib/offline/seasons";
+import { runSeasonBatch, useSeasonBatch } from "../lib/offline/seasonBatch";
 import { bytesOf, planSeasons, type SeasonRow } from "../lib/offline/seasonPlan";
 import { fmtBytes } from "../lib/recordings";
 import { PageHeader, Section, EmptyState } from "../components/page";
@@ -99,35 +100,20 @@ function LiteStatus({ local, m, syncing }: { local: PackMeta | null; m: PackMani
  */
 function SeasonsSection({ m, saved }: { m: PackManifest; saved: SavedSeason[] }) {
   const plan = planSeasons(m.full, saved);
-  // The season being saved now and its progress (0–100), and the ones waiting behind it.
-  const [busy, setBusy] = useState<{ season: number; pct: number } | null>(null);
-  const [queue, setQueue] = useState<number[]>([]);
+  // The save run is the app's, not this page's (lib/offline/seasonBatch): its progress survives leaving and
+  // coming back, and a second run can't start beside it.
+  const { busy, queue } = useSeasonBatch();
   const [removing, setRemoving] = useState<number | null>(null);
-  const running = useRef(false);
 
   const run = async (rows: SeasonRow[], bulk: string | null) => {
-    if (running.current || !rows.length) return;
-    running.current = true;
-    setQueue(rows.map((r) => r.season));
-    const failed: string[] = [];
-    let done = 0;
-    for (const r of rows) {
-      setQueue((q) => q.filter((x) => x !== r.season));
-      setBusy({ season: r.season, pct: 0 });
-      try {
-        await saveSeason(r.file, m, (got, total) => setBusy({ season: r.season, pct: total ? Math.min(100, (got / total) * 100) : 0 }));
-        done++;
-        if (!bulk) toast.success(`${seasonLabel(r.season)} saved on this device`, { description: "Its team and event pages now work with no connection." });
-      } catch (e) {
-        failed.push(seasonLabel(r.season));
-        if (!bulk) toast.error((e as Error).message);
-      }
-    }
-    setBusy(null); setQueue([]); running.current = false;
-    if (bulk) {
-      if (failed.length) toast.error(`${bulk}: ${done} of ${rows.length} saved. Couldn't save ${failed.join(", ")}; try again.`);
-      else toast.success(`${bulk}: ${done} ${done === 1 ? "season" : "seasons"} saved on this device`);
-    }
+    const r = await runSeasonBatch(rows.map((x) => x.file), m);
+    if (!r) return; // already saving
+    if (!bulk) {
+      if (r.saved.length) toast.success(`${seasonLabel(r.saved[0])} saved on this device`, { description: "Its team and event pages now work with no connection." });
+      else if (r.failed[0]) toast.error(r.failed[0].error.message);
+    } else if (r.failed.length) {
+      toast.error(`${bulk}: ${r.saved.length} of ${rows.length} saved. Couldn't save ${r.failed.map((f) => seasonLabel(f.season)).join(", ")}; try again.`);
+    } else toast.success(`${bulk}: ${r.saved.length} ${r.saved.length === 1 ? "season" : "seasons"} saved on this device`);
   };
   const remove = (season: number) => {
     setRemoving(season);
@@ -213,7 +199,8 @@ function SeasonRowView({ r, builtAt, progress, queued, disabled, removing, onSav
       </div>
       <div className="flex flex-wrap items-center gap-2 sm:justify-end">
         {r.state !== "saved" && <Button size="sm" variant={r.state === "update" ? "secondary" : "default"} onClick={onSave} disabled={disabled}><HardDriveDownload /> {r.state === "update" ? "Update" : "Save offline"}</Button>}
-        {r.saved && <Button variant="outline" size="sm" onClick={onRemove} disabled={removing || progress != null}><Trash2 /> Remove</Button>}
+        {/* Not while saving runs: a season waiting in the run would otherwise come back after being removed. */}
+        {r.saved && <Button variant="outline" size="sm" onClick={onRemove} disabled={disabled || removing || progress != null}><Trash2 /> Remove</Button>}
         <a href={r.file.url} download className="inline-flex min-h-8 items-center gap-1 text-xs text-muted-foreground underline-offset-4 hover:text-foreground hover:underline" title="The raw SQLite file, for your own analysis">
           <Database className="size-3.5" />SQLite
         </a>
