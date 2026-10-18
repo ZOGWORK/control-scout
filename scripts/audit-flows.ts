@@ -118,7 +118,7 @@ const flows: Flow[] = [
       assert(sections.length === 8, `expected 8 sections, got ${sections.length}: ${sections.join(", ")}`);
       // Every section opens from the list and shows its own body (a group heading inside the section).
       const body: Record<string, string> = {
-        "Profile": "Sign in", "Appearance": "Display", "My team & tracking": "My team", "Notifications": "Delivery",
+        "Profile": "Sign in", "Appearance": "Display", "My team & tracking": "My team", "Notifications": "What to alert me about",
         "Offline data": "Offline pack", "Scouting data": "Your notes", "Account & privacy": "What lives where", "About": "This app",
       };
       const nav = page.getByRole("navigation", { name: "Settings sections" });

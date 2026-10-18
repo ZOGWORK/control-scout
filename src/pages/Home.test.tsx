@@ -40,14 +40,26 @@ const st = (myTeam: number | null) => ({ myTeam, tracked: { teams: [], events: [
 let personal: { user: unknown; state: ReturnType<typeof st> } = { user: null, state: st(null) };
 vi.mock("../lib/personal", () => ({ usePersonal: () => personal }));
 // The drawing itself is d3 on real boundaries: stood in for here (the selector and list are what's tested).
-vi.mock("../components/home/AtlasMap", () => ({ default: () => <div data-testid="map" />, loadWorld: () => Promise.resolve([]) }));
+vi.mock("../components/home/AtlasMap", async () => {
+  const { useEffect } = await import("react");
+  return {
+    default: ({ spinning, onLoaded }: { spinning?: boolean; onLoaded: (d: ReadonlySet<string>) => void }) => {
+      useEffect(() => onLoaded(new Set(["840", "124"])), []); // eslint-disable-line react-hooks/exhaustive-deps
+      return <div data-testid="map" data-spinning={String(!!spinning)} />;
+    },
+    loadWorld: () => Promise.resolve([]),
+  };
+});
+
+let reduced = false;
+vi.mock("motion/react", async (orig) => ({ ...(await orig<typeof import("motion/react")>()), useReducedMotion: () => reduced }));
 
 let path = "";
 function Where() { path = useLocation().pathname; return null; }
 const { default: Home } = await import("./Home");
 const mount = () => render(<MemoryRouter initialEntries={["/"]}><Home /><Where /></MemoryRouter>);
 
-beforeEach(() => { data = {}; personal = { user: null, state: st(null) }; sessionStorage.clear(); });
+beforeEach(() => { reduced = false; data = {}; personal = { user: null, state: st(null) }; sessionStorage.clear(); });
 afterEach(cleanup);
 
 describe("Home", () => {
@@ -75,6 +87,29 @@ describe("Home", () => {
     expect(screen.getByText("Reported as “Independent”")).toBeTruthy();
     expect(screen.getByText(/= 23 team listings/)).toBeTruthy();
     await waitFor(() => expect(screen.getByTestId("map")).toBeTruthy());
+  });
+
+  it("turns the globe by itself, with a button that stops and restarts it", async () => {
+    data = { "/api/home/overview": OVERVIEW };
+    mount();
+    const map = await screen.findByTestId("map");
+    expect(map.dataset.spinning).toBe("true");
+    fireEvent.click(await screen.findByRole("button", { name: "Stop the globe turning" }));
+    expect(screen.getByTestId("map").dataset.spinning).toBe("false");
+    fireEvent.click(screen.getByRole("button", { name: "Turn the globe" }));
+    expect(screen.getByTestId("map").dataset.spinning).toBe("true");
+    // The flat atlas doesn't turn, and offers no pause button.
+    fireEvent.click(screen.getByRole("radio", { name: "Flat atlas" }));
+    expect(screen.queryByRole("button", { name: /globe turning|Turn the globe/ })).toBeNull();
+  });
+
+  it("keeps the globe still for a visitor who asks for less motion, and lets them start it", async () => {
+    reduced = true;
+    data = { "/api/home/overview": OVERVIEW };
+    mount();
+    expect((await screen.findByTestId("map")).dataset.spinning).toBe("false");
+    fireEvent.click(await screen.findByRole("button", { name: "Turn the globe" }));
+    expect(screen.getByTestId("map").dataset.spinning).toBe("true");
   });
 
   it("says usage isn't published instead of showing zero", () => {
