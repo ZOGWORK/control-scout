@@ -224,7 +224,10 @@ export interface ForecastView extends Forecast {
 export interface ReliabilityBin { lo: number; hi: number; n: number; predicted: number; actual: number }
 
 export interface AccuracyBlock {
+  /** Every scored call (ties and 50:50 calls included). */
   n: number;
+  /** Calls that could be right or wrong: neither a tied match nor a 50:50 call. `accuracy` and `upsets` count these. */
+  decided: number;
   /** Share of decided (non-tie) matches where the favourite won. */
   accuracy: number;
   brier: number;
@@ -236,6 +239,7 @@ export interface AccuracyBlock {
   byLevel: { qual: { n: number; accuracy: number }; playoff: { n: number; accuracy: number } };
   /** Week-by-week accuracy (ISO week start). */
   weekly: { week: string; n: number; accuracy: number }[];
+  /** Decided calls the favourite lost (missed calls): decided − upsets were called correctly. */
   upsets: number;
 }
 
