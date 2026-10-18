@@ -37,7 +37,7 @@ async function call(method: string, path: string, opts: { cookie?: string; body?
   return { status: res.status, json, headers: res.headers };
 }
 
-const OWNER_GETS = ["/api/owner/overview", "/api/owner/usage", "/api/owner/predictions", "/api/owner/flags", "/api/owner/feedback", "/api/owner/errors", "/api/owner/ops", "/api/owner/audit"];
+const OWNER_GETS = ["/api/owner/overview", "/api/owner/users", "/api/owner/users/1", "/api/owner/workspaces", "/api/owner/usage", "/api/owner/predictions", "/api/owner/flags", "/api/owner/feedback", "/api/owner/errors", "/api/owner/ops", "/api/owner/audit"];
 const OWNER_WRITES: [string, string, unknown][] = [
   ["PUT", "/api/owner/flags/offlinePacks", { enabled: false }],
   ["PATCH", "/api/owner/feedback/1", { status: "resolved" }],
