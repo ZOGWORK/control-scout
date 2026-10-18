@@ -80,7 +80,7 @@ export const FAQ: FaqGroup[] = [
         "Your private pick list for alliance selection: add teams, drag them into order, keep a note on each and give them colours, which Compare uses too. [Open the shortlist](/shortlist).",
       ] },
       { id: "notifications", q: "Can I get notified before my team's matches?", a: [
-        "Yes, when you're signed in. Turn on notifications for each device in [Settings](/settings?section=notifications): 15 minutes before a tracked team's match, when an upset finishes at an event you follow, and when a followed event starts. Each kind can be switched off.",
+        "Yes, when you're signed in. Turn on notifications for each device in [Settings](/settings?section=notifications): before a tracked team's match (15 minutes ahead by push, up to 30 in an open tab), when an upset finishes at an event you follow, and when a followed event starts. Each kind can be switched off.",
       ] },
       { id: "rankings", q: "What are world rankings and power rankings?", a: [
         "[World rankings](/rankings) rank every team by rating, with movement since last week, and can be filtered by country, state or your region.",
