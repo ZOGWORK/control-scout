@@ -49,6 +49,9 @@ export default defineConfig({
   plugins: [react(), tailwindcss(), serviceWorker()],
   define: { __APP_VERSION__: JSON.stringify(appVersion()) },
   resolve: { alias: { "@": fileURLToPath(new URL("./src", import.meta.url)) } },
+  // The home atlas's libraries load lazily, so Vite would only find them mid-visit and reload the page
+  // (a fresh dev server's first home load). Pre-bundled up front instead.
+  optimizeDeps: { include: ["d3-geo", "topojson-client"] },
   server: {
     port: 5173,
     // .data holds the database and packs (large, locked while written) — never watch it.
