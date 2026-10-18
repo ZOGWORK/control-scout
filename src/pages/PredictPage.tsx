@@ -189,7 +189,6 @@ function TeamPredictions({ team, onClear }: { team: number; onClear: () => void 
   const upcoming = all.filter((m) => !m.played && (!m.startsAt || Date.parse(m.startsAt) > stale));
   const played = useMemo(() => all.filter((m) => m.played).reverse(), [all]);
   const calls = useMemo(() => callTally(all, team), [all, team]);
-  const shown = calls.live.of ? { ...calls.live, live: true } : calls.backtest.of ? { ...calls.backtest, live: false } : null;
   const p = profile.data?.team.number === team ? profile.data : probed;
   const t = p?.team ?? probe.data?.team;
   const now = iso(new Date());
@@ -240,10 +239,10 @@ function TeamPredictions({ team, onClear }: { team: number; onClear: () => void 
                     : <p className="text-sm text-muted-foreground">This event doesn't advance teams, so there are no advancement odds. Its matches get win odds once it publishes a schedule.</p>}
                 </div>
               )}
-              {played.length > 0 && <PastCalls team={team} season={season} played={played} shown={shown} ev={ev} />}
+              {played.length > 0 && <PastCalls team={team} season={season} played={played} calls={calls} ev={ev} />}
             </>
           ) : (
-            <Async state={matches}>{() => <PastCalls team={team} season={season} played={played} shown={shown} ev={ev} />}</Async>
+            <Async state={matches}>{() => <PastCalls team={team} season={season} played={played} calls={calls} ev={ev} />}</Async>
           )}
         </div>
       )}
@@ -252,14 +251,20 @@ function TeamPredictions({ team, onClear }: { team: number; onClear: () => void 
 }
 
 /** A season's played matches, newest first, each with the call made before it, and how many were right. */
-function PastCalls({ team, season, played, shown, ev }: { team: number; season: number; played: MatchView[]; shown: { right: number; of: number; live: boolean } | null; ev: { names: Record<string, string>; dates: Record<string, string> } }) {
-  const rate = shown && shown.of ? Math.round((shown.right / shown.of) * 100) : null;
+// Live and replayed calls are tallied apart, each named, never added together (the list below can hold both).
+function PastCalls({ team, season, played, calls, ev }: { team: number; season: number; played: MatchView[]; calls: ReturnType<typeof callTally>; ev: { names: Record<string, string>; dates: Record<string, string> } }) {
+  const line = (t: { right: number; of: number }, what: string) => (
+    <li><span className="font-medium text-foreground">{t.right} of {t.of}</span> {what} right ({Math.round((t.right / t.of) * 100)}%)</li>
+  );
   return (
     <div>
       <h3 className="mb-1 text-sm font-semibold text-foreground">How the calls did in {seasonLabel(season)}</h3>
-      <p className="mb-3 text-sm text-muted-foreground">
-        {shown ? <><span className="font-medium text-foreground">{shown.right} of {shown.of}</span> called right{rate != null && ` (${rate}%)`}, {shown.live ? "each logged before the match" : "replayed afterward with only the data from before each match (not live calls)"}.</> : `No called matches for ${team} in ${seasonLabel(season)}.`}
-      </p>
+      {calls.live.of || calls.backtest.of ? (
+        <ul className="mb-3 space-y-0.5 text-sm text-muted-foreground" aria-label="Calls right">
+          {calls.live.of > 0 && line(calls.live, "live calls (logged before the match)")}
+          {calls.backtest.of > 0 && line(calls.backtest, "replayed calls (made afterward from only the data before each match, not live)")}
+        </ul>
+      ) : <p className="mb-3 text-sm text-muted-foreground">No called matches for {team} in {seasonLabel(season)}.</p>}
       <MatchList matches={played.slice(0, 20)} highlight={team} eventNames={ev.names} eventDates={ev.dates} outcomeAccent empty={`No matches played in ${seasonLabel(season)}.`} />
       {played.length > 20 && <p className="mt-2 text-xs text-muted-foreground">Showing the latest 20 of {played.length}. Every match is on the <Link to={`/teams/${team}?season=${season}`} className="underline">team page</Link>.</p>}
     </div>
