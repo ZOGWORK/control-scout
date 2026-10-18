@@ -1,7 +1,7 @@
 // Pick an event by typing its name (or city, or code): one season's events from /api/events?q=, as a
 // combobox. The chosen event shows by name, with a way to change it; the value handed back is its code.
 import { useEffect, useId, useRef, useState } from "react";
-import { CalendarDays, MapPin, Search, X } from "lucide-react";
+import { CalendarDays, MapPin, RotateCw, Search, X } from "lucide-react";
 import { apiFetch, qs } from "../../lib/api";
 import { dateRange, place } from "../../lib/format";
 import { normalEventCode } from "../../shared/assignments";
@@ -12,10 +12,22 @@ import { cn } from "../cn";
 /** How long typing settles before asking (ms), and how many events to offer. */
 export const EVENT_SEARCH_DEBOUNCE = 200;
 const LIMIT = 8;
+/** The most events one search asks for (the server's own cap on /api/events). */
+const SEARCH_CAP = 3000;
+
+/** Names that start with the query (or an exact code) first, then the rest; nearest dates first within each. */
+export function rankEvents(events: EventListItem[], q: string): EventListItem[] {
+  const lower = q.trim().toLowerCase();
+  const starts = (e: EventListItem) => (e.name.toLowerCase().startsWith(lower) || e.code.toLowerCase() === lower ? 0 : 1);
+  return [...events].sort((a, b) => starts(a) - starts(b) || (a.start ?? "").localeCompare(b.start ?? ""));
+}
 
 export function EventPicker({ id, season, code, onChange }: { id: string; season: number; code: string; onChange: (code: string) => void }) {
   const [text, setText] = useState("");
-  const [hits, setHits] = useState<EventListItem[] | null>(null);
+  // Results belong to the query they answered: a pick is only ever made from the current query's results.
+  const [hits, setHits] = useState<{ q: string; events: EventListItem[] } | null>(null);
+  const [failed, setFailed] = useState<string | null>(null);
+  const [retry, setRetry] = useState(0);
   const [active, setActive] = useState(0);
   const [open, setOpen] = useState(false);
   // The chosen event's name and place (looked up when the code came from elsewhere, e.g. the workspace's default).
@@ -35,20 +47,19 @@ export function EventPicker({ id, season, code, onChange }: { id: string; season
 
   useEffect(() => {
     const q = text.trim();
-    if (q.length < 2) { setHits(null); return; }
+    // A new query drops the old results at once: Enter can't pick an event the new text doesn't match.
+    setHits(null); setFailed(null); setActive(0);
+    if (q.length < 2) return;
     let live = true;
     const t = setTimeout(() => {
-      apiFetch<{ events: EventListItem[] }>(`/api/events${qs({ season, q, all: 1, limit: 60 })}`).then((r) => {
+      // Every match in the season (the server's cap), so the ranking below sees them all, not just the earliest.
+      apiFetch<{ events: EventListItem[] }>(`/api/events${qs({ season, q, all: 1, limit: SEARCH_CAP })}`).then((r) => {
         if (!live) return;
-        // Names that start with what's typed first, then the rest; nearest dates first within each.
-        const lower = q.toLowerCase();
-        const starts = (e: EventListItem) => (e.name.toLowerCase().startsWith(lower) || e.code.toLowerCase() === lower ? 0 : 1);
-        setHits([...r.events].sort((a, b) => starts(a) - starts(b) || (a.start ?? "").localeCompare(b.start ?? "")).slice(0, LIMIT));
-        setActive(0);
-      }, () => { if (live) setHits([]); });
+        setHits({ q, events: rankEvents(r.events, q).slice(0, LIMIT) });
+      }, () => { if (live) setFailed(q); });
     }, EVENT_SEARCH_DEBOUNCE);
     return () => { live = false; clearTimeout(t); };
-  }, [text, season]);
+  }, [text, season, retry]);
 
   const pick = (e: EventListItem) => { setChosen(e); onChange(e.code); setText(""); setOpen(false); };
 
@@ -68,7 +79,8 @@ export function EventPicker({ id, season, code, onChange }: { id: string; season
     );
   }
 
-  const options = hits ?? [];
+  const current = hits && hits.q === text.trim() ? hits.events : null;
+  const options = current ?? [];
   return (
     <div className="relative mt-2">
       <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" aria-hidden />
@@ -87,7 +99,13 @@ export function EventPicker({ id, season, code, onChange }: { id: string; season
           } else if (e.key === "Escape") setOpen(false);
         }}
         className="h-11 pl-9" />
-      {open && hits && (
+      {open && failed === text.trim() && (
+        <div role="alert" className="absolute inset-x-0 top-full z-20 mt-1 flex items-center justify-between gap-3 rounded-xl border border-border bg-popover px-3 py-2.5 text-sm shadow-xl">
+          <span className="text-muted-foreground">Couldn’t search events just now.</span>
+          <button type="button" onMouseDown={(e) => { e.preventDefault(); setRetry((n) => n + 1); }} className="inline-flex min-h-9 items-center gap-1 rounded-lg px-2 font-medium text-accent-text hover:bg-accent/10"><RotateCw className="size-3.5" aria-hidden /> Try again</button>
+        </div>
+      )}
+      {open && current && (
         <div className="absolute inset-x-0 top-full z-20 mt-1 overflow-hidden rounded-xl border border-border bg-popover shadow-xl">
           {!options.length ? <p className="px-3 py-3 text-sm text-muted-foreground">No {season} event matches “{text.trim()}”.</p> : (
             <ul id={listId} role="listbox" aria-label="Events" className="max-h-72 overflow-y-auto py-1">
