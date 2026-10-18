@@ -164,6 +164,29 @@ describe("API and CSV links", () => {
   });
 });
 
+describe("country (from the home page's atlas)", () => {
+  it("reads a known country code for team records, normalised, and ignores it elsewhere", () => {
+    expect(parseTableState(new URLSearchParams("country=us"), "teamSeason").country).toBe("US");
+    expect(parseTableState(new URLSearchParams("country=TR"), "teamEvent").country).toBe("TR");
+    expect(parseTableState(new URLSearchParams("country=ZZ"), "teamSeason").country).toBeNull();
+    expect(parseTableState(new URLSearchParams("country=US"), "match").country).toBeNull();
+  });
+  it("round-trips through the URL, counts as a filter, and clears with the rest", () => {
+    const s = parseTableState(new URLSearchParams("country=CA&region=CAAB"), "teamSeason");
+    expect(writeTableState(new URLSearchParams(), s, "teamSeason").get("country")).toBe("CA");
+    expect(hasFilters({ ...s, regions: [] })).toBe(true);
+    const cleared = clearFilters(s);
+    expect(cleared.country).toBeNull();
+    expect(writeTableState(new URLSearchParams("country=CA"), cleared, "teamSeason").has("country")).toBe(false);
+  });
+  it("is sent to the API (and the CSV export) for team records only", () => {
+    const s = parseTableState(new URLSearchParams("country=GB"), "teamSeason");
+    expect(new URL(recordsUrl({ season: 2026, scope: "teamSeason", state: s, fields: [] }), "http://x").searchParams.get("country")).toBe("GB");
+    expect(new URL(recordsUrl({ season: 2026, scope: "teamSeason", state: s, fields: [] }, "csv"), "http://x").searchParams.get("country")).toBe("GB");
+    expect(new URL(recordsUrl({ season: 2026, scope: "match", state: { ...s }, fields: [] }), "http://x").searchParams.has("country")).toBe(false);
+  });
+});
+
 describe("saved filters", () => {
   const mem = () => { const m = new Map<string, string>(); return { getItem: (k: string) => m.get(k) ?? null, setItem: (k: string, v: string) => void m.set(k, v), m }; };
   it("saves, lists, renames and deletes, surviving a reload of storage", () => {
