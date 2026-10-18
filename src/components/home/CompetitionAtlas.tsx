@@ -119,7 +119,7 @@ export function CompetitionAtlas({ overview, currentSeason, compact }: { overvie
           <ul className="max-h-72 space-y-0.5 overflow-y-auto pr-1">
             {byName.map((c) => (
               <li key={c.code}>
-                <button type="button" onClick={() => setWanted(c.code)} aria-pressed={c.code === selected?.code}
+                <button type="button" onClick={() => setWanted(c.code)} aria-pressed={c.code === selected?.code} aria-label={`${c.name}: ${fmt(c.listings)} team listings`}
                   className={cn("flex min-h-9 w-full items-center justify-between gap-3 rounded-md px-2 text-left hover:bg-text-base/[0.05]", c.code === selected?.code && "bg-accent/10 font-semibold")}>
                   <span>{c.name}{drawn && !drawn.has(c.numeric) ? <span className="ml-1.5 text-xs font-normal text-text-muted">not drawn at this scale</span> : null}</span>
                   <span className="tabular-nums text-text-muted">{fmt(c.listings)}</span>
