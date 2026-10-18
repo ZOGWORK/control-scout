@@ -198,7 +198,7 @@ try {
     pages[p] = { jsBytes: r.jsBytes, charts: r.jsFiles.some((f) => /^(vendor-)?charts?-/.test(f)) };
     await fresh.context().close();
   }
-  const api = await apiTimings(["/api/meta", "/api/teams/4215", "/api/teams/18360", "/api/search?q=4215&limit=15", "/api/search?q=X%20Drvie&limit=15", "/api/events?season=2026", "/api/events/2025/AUBRQ2", "/api/teams/18360/matches?season=2025", "/api/predict/accuracy", "/api/records/2025/teams?filter=and-penaltyPointsCommittedTot.lt.2+or-totalPointsOpr.gte.55+autoPointsAvg.gte.30--", "/api/records/2025/matches?sort=winningMargin"]);
+  const api = await apiTimings(["/api/meta", "/api/teams/4215", "/api/teams/18360", "/api/search?q=4215&limit=15", "/api/search?q=X%20Drvie&limit=15", "/api/events?season=2026", "/api/events/2025/AUBRQ2", "/api/teams/18360/matches?season=2025", "/api/predict/accuracy", "/api/records/2025/teams?filter=and-penaltyPointsCommittedTot.lt.2+or-totalPointsOpr.gte.55+autoPointsAvg.gte.30--", "/api/records/2025/matches?sort=winningMargin", "/api/home/overview", "/api/public-usage", "/api/records/2025/teams?scope=season&country=US"]);
   await browser.close();
   const cold = await coldStart();
 
