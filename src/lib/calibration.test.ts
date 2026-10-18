@@ -4,7 +4,7 @@ import { favouriteBin } from "./calibration";
 import type { AccuracyBlock } from "../shared/api";
 
 const block = (bins: [number, number, number][]): AccuracyBlock => ({
-  n: 0, accuracy: 0, brier: 0, logLoss: 0, baselineBrier: 0.25, upsets: 0,
+  n: 0, decided: 0, accuracy: 0, brier: 0, logLoss: 0, baselineBrier: 0.25, upsets: 0,
   byTier: { provisional: { n: 0, accuracy: 0, brier: 0 }, moderate: { n: 0, accuracy: 0, brier: 0 }, confident: { n: 0, accuracy: 0, brier: 0 } },
   byLevel: { qual: { n: 0, accuracy: 0 }, playoff: { n: 0, accuracy: 0 } }, weekly: [],
   reliability: bins.map(([n, predicted, actual], i) => ({ lo: i / 10, hi: (i + 1) / 10, n, predicted, actual })),
