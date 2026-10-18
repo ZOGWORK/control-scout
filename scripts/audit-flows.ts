@@ -49,6 +49,9 @@ const flows: Flow[] = [
       page.on("request", (r) => { if (r.url().includes("/api/search")) searched.push(decodeURIComponent(r.url())); });
       await page.keyboard.press("Control+k");
       await page.getByRole("combobox", { name: "Search teams, events and matches" }).waitFor({ state: "visible" });
+      // The top-bar field takes focus a frame after it opens: type only once it has it (a person can't beat one frame;
+      // typing at once could drop the "1" and search "6").
+      await page.waitForFunction(() => document.activeElement?.getAttribute("role") === "combobox");
       await page.keyboard.type("16", { delay: 40 });
       await page.waitForTimeout(600);
       assert(searched.some((u) => u.includes("prefer=team:16321")), `search didn't send the tracked team: ${searched.at(-1) ?? "no request"}`);
