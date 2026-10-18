@@ -23,6 +23,7 @@ import { Checkbox } from "../ui/controls";
 import { Sheet, SheetContent, SheetDescription, SheetFooter, SheetHeader, SheetTitle } from "../ui/overlay";
 import { toast } from "../ui/sonner";
 import { cn } from "../cn";
+import { EventPicker } from "./EventPicker";
 
 const plural = (n: number, one: string, many = `${one}s`) => `${n} ${n === 1 ? one : many}`;
 
@@ -270,7 +271,7 @@ function AssignSheet({ open, onOpenChange, space, season, defaultEvent, state, m
         <div className="min-h-0 flex-1 space-y-5 overflow-y-auto px-5 py-4">
           <div>
             <Label htmlFor="assign-event">Event · {season}</Label>
-            <Input id="assign-event" value={eventText} onChange={(e) => setEventText(e.target.value)} placeholder="Event code" autoCapitalize="characters" className="mt-2 h-11 font-mono uppercase" />
+            <EventPicker id="assign-event" season={season} code={eventText} onChange={setEventText} />
           </div>
           {loadErr ? <ErrorState error={loadErr} /> : (
             <>
@@ -305,7 +306,7 @@ function AssignSheet({ open, onOpenChange, space, season, defaultEvent, state, m
                     })}>{allShown ? "Clear" : filter ? "Select shown" : "Select all"}</Button>
                   )}
                 </div>
-                {!eventCode ? <p className="mt-2 text-sm text-muted-foreground">Type the event's code to see its teams.</p>
+                {!eventCode ? <p className="mt-2 text-sm text-muted-foreground">Pick the event to see its teams.</p>
                   : teams == null ? <div className="mt-2"><LoadingBlock rows={3} label="Loading teams" /></div>
                     : !teams.length ? <p className="mt-2 text-sm text-muted-foreground">No team list for {eventCode} in {season} yet. It appears once the event's teams are published.</p>
                       : (
