@@ -367,4 +367,28 @@ describe("EntryComments: a post whose answer is lost", () => {
     await waitFor(() => expect(box().value).toBe(""));
     expect(st.posts.at(-1)).toEqual({ body: "Newer words from the other tab", opId: "op-other-tab-01" });
   });
+
+  it("its own comment heard on the stream before the answer comes doesn't end the attempt early: nothing else can be sent meanwhile", async () => {
+    const st = lossyServer();
+    let release: () => void = () => undefined;
+    const real = globalThis.fetch;
+    vi.stubGlobal("fetch", vi.fn(async (url: string, init?: RequestInit) => {
+      if (init?.method === "POST") { const r = await real(url, init); await new Promise<void>((ok) => { release = ok; }); return r; }
+      return real(url, init);
+    }));
+    render(<EntryComments entry={entry()} />);
+    await waitFor(() => expect(items()).toHaveLength(2));
+    type("First");
+    fireEvent.click(screen.getByRole("button", { name: "Comment" }));
+    await waitFor(() => expect(st.posts).toHaveLength(1));
+    const made = thread.at(-1)!;
+    act(() => { announceComment({ action: "created", workspaceId: "41", entryUuid: "aaaaaaaaaaaa", commentId: made.id, count: thread.length, rev: 300, comment: made }); });
+    type("Second");
+    expect(status()).toBe("saving");
+    expect((screen.getByRole("button", { name: "Comment" }) as HTMLButtonElement).disabled).toBe(true);
+    release();
+    await waitFor(() => expect(status()).not.toBe("saving"));
+    expect(st.posts).toHaveLength(1);
+    expect(box().value).toBe("Second");
+  });
 });

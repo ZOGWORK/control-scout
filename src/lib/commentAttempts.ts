@@ -204,7 +204,10 @@ if (typeof window !== "undefined") {
     const e = (ev as CustomEvent<unknown>).detail;
     if (!isCommentEvent(e) || e.action !== "created" || !e.comment?.opId) return;
     const k = keyOf(e.comment.authorAccountId, e.workspaceId, e.entryUuid);
-    if (attempts.get(k)?.opId === e.comment.opId) drop(e.comment.authorAccountId, e.workspaceId, e.entryUuid, e.comment.opId);
+    // Only one waiting on the member: one still on its way settles with its own answer (so nothing else can be
+    // sent from its composer meanwhile).
+    const a = attempts.get(k);
+    if (a?.opId === e.comment.opId && a.state === "attention") drop(e.comment.authorAccountId, e.workspaceId, e.entryUuid, e.comment.opId);
   });
   window.addEventListener(SCOUT_COMMENTS_RESYNC, (ev) => { const s = (ev as CustomEvent<{ space?: string }>).detail?.space; if (s) recheckCommentAttempts(s); });
   window.addEventListener("online", () => recheckCommentAttempts());
