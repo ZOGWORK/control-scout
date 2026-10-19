@@ -2,7 +2,7 @@
 // Audit PRIVATE-F02: an import checks every row before storing anything, counts only what it saved, and says
 // how many rows it left out and why. The audit's own file (object-valued notes) imports nothing and breaks nothing.
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { applyScoutImport, downloadScoutBackup, importMessage, importPlan, importRows, importScoutRows, previewScoutImport, rowName, scoutExportJson } from "./scoutImport";
+import { applyScoutImport, downloadScoutBackup, importMessage, importPlan, importRows, importScoutRows, planKey, previewScoutImport, rowName, scoutExportJson } from "./scoutImport";
 import { localScoutEntries, saveScoutEntry } from "./scouting";
 
 beforeEach(() => { localStorage.clear(); });
@@ -123,6 +123,24 @@ describe("previewing an import", () => {
     const r = applyScoutImport(p, "file");
     expect(localScoutEntries().find((e) => e.uuid === "keepme000001")!.deleted).toBeFalsy();
     expect(importMessage(r)).toEqual({ tone: "success", text: "Nothing new to import. Left out 2 entries marked deleted in the file." });
+  });
+
+  it("a preview and its backup write nothing, even over a damaged stored row a normal read would repair", () => {
+    localStorage.setItem("cs-scout:damaged00001", JSON.stringify({ ...good("damaged00001"), notes: { broken: true }, updatedAt: 1e300 }));
+    const before = snapshot();
+    const p = previewScoutImport([good("damaged00001", { notes: "theirs", updatedAt: Date.now() })]);
+    const backup = JSON.parse(scoutExportJson());
+    expect(snapshot()).toBe(before);
+    expect(p.duplicates.map((d) => d.age)).toEqual(["newer"]); // read as repaired (date 0), so any dated copy is newer
+    expect(backup.entries[0]).toMatchObject({ uuid: "damaged00001", notes: '{"broken":true}' });
+  });
+
+  it("planKey changes when the device gains a copy the file would replace", () => {
+    const rows = [good("planned00001", { notes: "theirs", updatedAt: Date.now() + 60_000 })];
+    const seen = previewScoutImport(rows);
+    expect(planKey(previewScoutImport(rows), "newer")).toBe(planKey(seen, "newer"));
+    saveScoutEntry({ ...good("planned00001"), kind: "match", workspaceId: null });
+    expect(planKey(previewScoutImport(rows), "newer")).not.toBe(planKey(seen, "newer"));
   });
 
   it("a partially invalid file never gets a plain success", () => {

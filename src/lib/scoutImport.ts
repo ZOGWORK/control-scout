@@ -7,7 +7,7 @@
 // newer or older than the one here), which are invalid and why. An import only ever merges into Personal:
 // entries that aren't in the file stay as they are, and workspace entries are never touched.
 import { isEntryTimestamp, problemSummary, validateScoutEntry, type CheckedScoutEntry, type EntryProblem } from "../shared/scoutEntry";
-import { localScoutEntries, saveScoutEntry, ScoutStorageError, storedScoutEntry, type ScoutEntry } from "./scouting";
+import { readScoutEntry, saveScoutEntry, ScoutStorageError, storedScoutEntry, type ScoutEntry } from "./scouting";
 
 export interface ScoutImportResult {
   /** Rows saved to Personal on this device (new and updated). */
@@ -74,6 +74,25 @@ export interface ImportPreview {
   untouched: number;
 }
 
+/**
+ * Personal entries on this device, read without writing anything back. (localScoutEntries stores the repaired copy
+ * of a damaged row as it reads; a preview, and the backup offered from it, must leave the device exactly as it was.)
+ */
+export function peekPersonalEntries(): ScoutEntry[] {
+  const out: ScoutEntry[] = [];
+  try {
+    for (let i = 0; i < localStorage.length; i++) {
+      const k = localStorage.key(i);
+      if (!k?.startsWith("cs-scout:")) continue;
+      let parsed: unknown;
+      try { parsed = JSON.parse(localStorage.getItem(k) ?? ""); } catch { continue; } // unreadable: not an entry here
+      const r = readScoutEntry(parsed, null);
+      if (r) out.push(r.entry);
+    }
+  } catch { /* storage blocked */ }
+  return out;
+}
+
 const str = (v: unknown) => (typeof v === "string" || typeof v === "number" ? String(v).trim() : "");
 
 /** "team 101 · Q1", "team 101 · pit", the id when the row has nothing better, or "" for a row that isn't an object. */
@@ -98,7 +117,7 @@ const sameText = (a: CheckedScoutEntry, b: ScoutEntry) =>
  * were), but it says whether the file's copy is newer or older than the one here.
  */
 export function previewScoutImport(rows: unknown[], now = Date.now()): ImportPreview {
-  const here = new Map(localScoutEntries(null).map((e) => [e.uuid, e]));
+  const here = new Map(peekPersonalEntries().map((e) => [e.uuid, e]));
   const seen = new Map<string, number>();
   const out: ImportPreview = { total: rows.length, fresh: [], duplicates: [], invalid: [], deletedInFile: [], untouched: 0 };
   rows.forEach((raw, i) => {
@@ -126,6 +145,14 @@ export const rowName = (r: RowRef) => `Row ${r.row}${r.label ? ` · ${r.label}` 
 
 /** Does this row replace the copy on this device, under this policy? An identical copy is never rewritten. */
 export const replaces = (d: DuplicateRow, policy: DuplicatePolicy) => d.age !== "same" && (policy === "file" || d.age === "newer");
+
+/**
+ * Which entries Import would add and replace, as one comparable string: if the device changed while the preview was
+ * open and this differs from what the scout saw, Import shows the new preview instead of writing.
+ */
+export function planKey(p: ImportPreview, policy: DuplicatePolicy): string {
+  return JSON.stringify([p.fresh.map((r) => r.entry.uuid), p.duplicates.filter((d) => replaces(d, policy)).map((d) => d.entry.uuid)]);
+}
 
 /** What Import will do: add, update, skip (each row once). */
 export function importPlan(p: ImportPreview, policy: DuplicatePolicy) {
@@ -187,7 +214,7 @@ export function importMessage(r: ScoutImportResult): { tone: "success" | "warnin
 
 /** The Personal entries on this device as an export file (the format Import reads). */
 export function scoutExportJson(now = new Date()): string {
-  const data = localScoutEntries().filter((e) => !e.deleted).map(storedScoutEntry); // the personal set, in its original shape
+  const data = peekPersonalEntries().filter((e) => !e.deleted).map(storedScoutEntry); // the personal set, in its original shape
   return JSON.stringify({ format: IMPORT_FORMAT, version: 1, exportedAt: now.toISOString(), entries: data }, null, 2);
 }
 
