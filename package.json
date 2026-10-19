@@ -34,6 +34,7 @@
     "shots": "tsx scripts/shots.ts",
     "audit": "tsx scripts/audit.ts",
     "audit:flows": "tsx scripts/audit-flows.ts",
+    "a11y": "tsx scripts/a11y.ts",
     "perf": "tsx scripts/perf.ts",
     "query-profile": "tsx scripts/query-profile.ts",
     "power-rankings:new": "tsx scripts/power-rankings-new.ts",
@@ -68,6 +69,7 @@
     "world-atlas": "^2.0.2"
   },
   "devDependencies": {
+    "@axe-core/playwright": "^4.14.0",
     "@tailwindcss/vite": "^4.1.14",
     "@testing-library/react": "^16.3.3",
     "@types/compression": "^1.8.1",
