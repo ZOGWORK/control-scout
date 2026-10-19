@@ -14,6 +14,8 @@ import { dropRestored, exportLostEdits, LOST_PREFIX, lostBackupFailed, mergeLost
 import { READ_ONLY_STATUS } from "../shared/orphaned";
 
 import { builtinTemplate } from "../shared/scoutDefaults";
+import { DEVICE_LATEST, isEntryTimestamp, NOTES_MAX as ENTRY_NOTES_MAX, repairScoutEntry, type Repaired } from "../shared/scoutEntry";
+import { toast } from "../components/ui/sonner";
 
 export type ScoutValue = number | boolean | string;
 export type { FieldType, ScoutField, ScoutTemplate } from "../shared/scoutTemplate";
@@ -144,14 +146,87 @@ function setDirty(d: Set<string>, space: ScoutSpace = null) {
   else localStorage.setItem(dirtyKey(space), JSON.stringify([...d]));
 }
 
-/** An entry as read from the device or the server: entries saved before workspaces lack the newer fields. */
-export function normalizeScoutEntry(raw: any, space: ScoutSpace): ScoutEntry {
+/**
+ * An entry as read from the device or the server: entries saved before workspaces lack the newer fields, and any
+ * field stored with the wrong type (an import before PRIVATE-F02, a timestamp of 1e300) is repaired
+ * (src/shared/scoutEntry.ts), so a list never renders an object as text or breaks on a date. `repaired`: which
+ * fields were; null when the row has no usable identity (uuid, season, team, kind) and can't be shown at all.
+ */
+export function readScoutEntry(raw: unknown, space: ScoutSpace): { entry: ScoutEntry; repaired: Repaired } | null {
+  const fixed = repairScoutEntry<Record<string, unknown>>(raw, DEVICE_LATEST);
+  if (!fixed) return null;
+  const r = fixed.entry;
   return {
+    entry: {
+      ...r,
+      workspaceId: space,
+      authorAccountId: Number.isFinite(r.authorAccountId) ? r.authorAccountId : 0,
+      authorDisplayName: typeof r.authorDisplayName === "string" ? r.authorDisplayName : "",
+    } as unknown as ScoutEntry,
+    repaired: fixed.repaired,
+  };
+}
+
+/** readScoutEntry's entry; a row it can't read keeps the old reading (callers that build an entry themselves). */
+export function normalizeScoutEntry(raw: any, space: ScoutSpace): ScoutEntry {
+  return readScoutEntry(raw, space)?.entry ?? {
     ...raw,
     workspaceId: space,
     authorAccountId: Number.isFinite(raw?.authorAccountId) ? raw.authorAccountId : 0,
     authorDisplayName: typeof raw?.authorDisplayName === "string" ? raw.authorDisplayName : "",
   };
+}
+
+// --- Rows stored with bad values (PRIVATE-F02) ---------------------------------------------------------------
+// A row whose fields were repaired on reading is written back repaired (once: the next read finds it fine), and a
+// row that can't be read at all is hidden but left where it is: nothing a scout wrote is ever deleted here. Either
+// way the scout is told, once per page load, in one message.
+
+const unreadable = new Set<string>();
+const reported = new Set<string>();
+let repairedCount = 0;
+let skippedCount = 0;
+let noticeDue: ReturnType<typeof setTimeout> | null = null;
+
+/** What the notice says (null: nothing to say). */
+export function repairNotice(repaired: number, skipped: number): string | null {
+  const n = (k: number, one: string, many: string) => `${k} ${k === 1 ? one : many}`;
+  const parts = [
+    repaired ? `${n(repaired, "scouting entry", "scouting entries")} on this device had damaged fields and ${repaired === 1 ? "was" : "were"} repaired. The observations were kept.` : "",
+    skipped ? `${n(skipped, "scouting entry", "scouting entries")} on this device couldn't be read and ${skipped === 1 ? "is" : "are"} hidden. Nothing was deleted.` : "",
+  ].filter(Boolean);
+  return parts.length ? parts.join(" ") : null;
+}
+
+function noteRepair(kind: "repaired" | "skipped") {
+  if (kind === "repaired") repairedCount++; else skippedCount++;
+  // After the read (often during a render): one toast for everything found in this pass.
+  noticeDue ??= setTimeout(() => {
+    noticeDue = null;
+    const text = repairNotice(repairedCount, skippedCount);
+    repairedCount = skippedCount = 0;
+    if (text) toast.warning(text, { duration: 15_000 });
+  }, 0);
+}
+
+/** A stored row read: repaired ones written back (best effort), unreadable ones reported once and skipped. */
+function readStored(key: string, raw: string, space: ScoutSpace): ScoutEntry | null {
+  let parsed: unknown;
+  try { parsed = JSON.parse(raw); } catch { parsed = undefined; }
+  const r = readScoutEntry(parsed, space);
+  if (!r) {
+    if (!unreadable.has(key)) { unreadable.add(key); noteRepair("skipped"); }
+    return null;
+  }
+  if (r.repaired.length) {
+    // An edit still waiting to sync keeps winning: a damaged timestamp becomes now (one the server accepts), not
+    // 0, which an older server copy would beat. A synced row's 0 is beaten by the server's copy, as it should be.
+    if (r.repaired.includes("updatedAt") && dirty(space).has(r.entry.uuid)) r.entry = { ...r.entry, updatedAt: Date.now() };
+    try { localStorage.setItem(key, JSON.stringify(storedScoutEntry(r.entry))); } catch { /* storage full: repaired again next read */ }
+    // Told once per row per page load, whether or not the repaired copy could be stored.
+    if (!reported.has(key)) { reported.add(key); noteRepair("repaired"); }
+  }
+  return r.entry;
 }
 
 /** The shape kept on the device (and in exports): a personal entry exactly as before workspaces. */
@@ -162,7 +237,7 @@ export function storedScoutEntry(e: ScoutEntry): Record<string, unknown> {
 }
 
 function readEntry(space: ScoutSpace, uuid: string): ScoutEntry | null {
-  try { const raw = localStorage.getItem(keyFor(space, uuid)); return raw ? normalizeScoutEntry(JSON.parse(raw), space) : null; } catch { return null; }
+  try { const k = keyFor(space, uuid), raw = localStorage.getItem(k); return raw ? readStored(k, raw, space) : null; } catch { return null; }
 }
 const writeEntry = (e: ScoutEntry) => localStorage.setItem(keyFor(e.workspaceId, e.uuid), JSON.stringify(storedScoutEntry(e)));
 
@@ -188,7 +263,8 @@ export function localScoutEntries(space: ScoutSpace = null): ScoutEntry[] {
     for (let i = 0; i < localStorage.length; i++) {
       const k = localStorage.key(i);
       if (!k?.startsWith(prefix)) continue;
-      try { out.push(normalizeScoutEntry(JSON.parse(localStorage.getItem(k)!), space)); } catch { /* skip corrupt */ }
+      const e = readStored(k, localStorage.getItem(k) ?? "", space); // unreadable: skipped (and reported), never removed
+      if (e) out.push(e);
     }
   } catch { /* storage blocked */ }
   return out;
@@ -221,7 +297,10 @@ export function saveScoutEntry(e: NewEntry, opts: { base?: number | null } = {})
   };
   // A workspace edit (a restore, a delete, any change) must win over the version it's made on, even when
   // that version's writer had a clock running ahead of this one: newer wins, so it's stamped after it.
-  const now = space != null ? Math.max(Date.now(), (prior?.updatedAt ?? 0) + 1) : Date.now();
+  // (Not after a version stamped further ahead than any clock could be, stored before the server checked: the
+  // server reads that one as superseded by any edit, and would refuse a stamp after it. PRIVATE-F01.)
+  const priorAt = prior && isEntryTimestamp(prior.updatedAt, Date.now()) ? prior.updatedAt : 0;
+  const now = space != null ? Math.max(Date.now(), priorAt + 1) : Date.now();
   const entry = normalizeScoutEntry({ ...e, ...authorship, updatedAt: now }, space);
   try {
     writeEntry(entry);
@@ -284,12 +363,31 @@ interface SpaceExport { entries: ScoutEntry[]; dirty: string[]; cursor?: number 
 /** Workspace templates kept on the device (scoutTemplates.ts): current ones and the versions entries were made with. */
 const TEMPLATE_KEY = /^cs-scout-tplv?:[A-Za-z0-9_-]{1,64}:\d{4}(:\d+)?$/;
 const LOST_KEY = /^cs-scout-lost:[A-Za-z0-9_-]{1,64}$/;
+/** An entry's own key, Personal or a workspace's. */
+const ENTRY_KEY = /^cs-scout:[^:]{1,64}$|^cs-scout-ws:[A-Za-z0-9_-]{1,64}:[^:]{1,64}$/;
+type ScoutingExport = SpaceExport & { spaces?: Record<string, SpaceExport>; templates?: Record<string, string>; lost?: Record<string, string>; unreadable?: Record<string, string> };
+
+/** Stored entry rows no list can show (PRIVATE-F02), raw by key, so they go aside with the account too. */
+function unreadableRows(): Record<string, string> {
+  const out: Record<string, string> = {};
+  try {
+    for (let i = 0; i < localStorage.length; i++) {
+      const k = localStorage.key(i);
+      if (!k || !ENTRY_KEY.test(k)) continue;
+      const raw = localStorage.getItem(k) ?? "";
+      let parsed: unknown;
+      try { parsed = JSON.parse(raw); } catch { parsed = undefined; }
+      if (!readScoutEntry(parsed, null)) out[k] = raw;
+    }
+  } catch { /* storage blocked */ }
+  return out;
+}
 
 /**
  * Everything scouting-related on this device, including what hasn't synced yet. `spaces`: the workspaces' cached entries and queues.
  * `templates`: the workspace templates kept here, so cached entries still read with their fields offline after an account switch.
  */
-export function exportLocalScouting(): SpaceExport & { spaces?: Record<string, SpaceExport>; templates?: Record<string, string>; lost?: Record<string, string> } {
+export function exportLocalScouting(): ScoutingExport {
   const templates: Record<string, string> = {};
   try {
     for (let i = 0; i < localStorage.length; i++) {
@@ -303,14 +401,16 @@ export function exportLocalScouting(): SpaceExport & { spaces?: Record<string, S
     templates,
     // Edits this device lost to newer ones (lostEdits.ts): they belong to this account, so they go aside with it.
     lost: exportLostEdits(),
+    // Rows that can't be read: kept exactly as they are, never dropped when the device is cleared for another account.
+    unreadable: unreadableRows(),
   };
 }
 
 /** Put back a previously exported set (an account's stashed copy). */
-export function importLocalScouting(data: SpaceExport & { spaces?: Record<string, SpaceExport>; templates?: Record<string, string>; lost?: Record<string, string> }) {
-  // What couldn't be put back (storage full): handed back, in the same shape, so the caller keeps it. Entries and
-  // overwritten edits only: they may exist nowhere else (templates are fetched again online).
-  const failed: SpaceExport & { spaces: Record<string, SpaceExport>; lost: Record<string, string> } = { entries: [], dirty: [], spaces: {}, lost: {} };
+export function importLocalScouting(data: ScoutingExport) {
+  // What couldn't be put back (storage full): handed back, in the same shape, so the caller keeps it. Entries,
+  // overwritten edits and unreadable rows only: they may exist nowhere else (templates are fetched again online).
+  const failed: SpaceExport & { spaces: Record<string, SpaceExport>; lost: Record<string, string>; unreadable: Record<string, string> } = { entries: [], dirty: [], spaces: {}, lost: {}, unreadable: {} };
   const put = (space: ScoutSpace, s: SpaceExport) => {
     const missed: ScoutEntry[] = [];
     for (const e of s.entries ?? []) {
@@ -339,9 +439,14 @@ export function importLocalScouting(data: SpaceExport & { spaces?: Record<string
     if (!LOST_KEY.test(k) || typeof v !== "string") continue;
     try { localStorage.setItem(k, mergeLostLists(localStorage.getItem(k), v)); lostBack = true; } catch { failed.lost[k] = v; }
   }
+  // Rows that couldn't be read go back exactly as they were (a row written to that key since is kept).
+  for (const [k, v] of Object.entries(data.unreadable ?? {})) {
+    if (!ENTRY_KEY.test(k) || typeof v !== "string") continue;
+    try { if (localStorage.getItem(k) == null) localStorage.setItem(k, v); } catch { failed.unreadable[k] = v; }
+  }
   window.dispatchEvent(new Event(EVT));
   if (lostBack) window.dispatchEvent(new Event(SCOUT_OVERWRITTEN)); // open notices show what came back
-  const any = failed.entries.length || Object.keys(failed.spaces).length || Object.keys(failed.lost).length;
+  const any = failed.entries.length || Object.keys(failed.spaces).length || Object.keys(failed.lost).length || Object.keys(failed.unreadable).length;
   return { failed: any ? failed : null };
 }
 
@@ -606,8 +711,8 @@ const asPersonal = (data: Record<string, ScoutValue>, notes: string, fields: { i
   return { data: d, notes: n };
 };
 
-/** How long notes may be (the server keeps 4,000 characters, cleanScoutEntry). */
-export const NOTES_MAX = 4000;
+/** How long notes may be (the server keeps 4,000 characters: src/shared/scoutEntry.ts). */
+export const NOTES_MAX = ENTRY_NOTES_MAX;
 
 /**
  * What an entry from a read-only workspace keeps in Personal (Task 19): Personal entries use the built-in
