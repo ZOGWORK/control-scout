@@ -2,7 +2,7 @@
 // Audit PRIVATE-F02: an import checks every row before storing anything, counts only what it saved, and says
 // how many rows it left out and why. The audit's own file (object-valued notes) imports nothing and breaks nothing.
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { applyScoutImport, downloadScoutBackup, importMessage, importPlan, importRows, importScoutRows, previewScoutImport, scoutExportJson } from "./scoutImport";
+import { applyScoutImport, downloadScoutBackup, importMessage, importPlan, importRows, importScoutRows, previewScoutImport, rowName, scoutExportJson } from "./scoutImport";
 import { localScoutEntries, saveScoutEntry } from "./scouting";
 
 beforeEach(() => { localStorage.clear(); });
@@ -74,10 +74,10 @@ describe("previewing an import", () => {
     expect(p.total).toBe(6);
     expect(p.fresh.map((r) => r.row)).toEqual([1]);
     expect(p.duplicates.map((d) => [d.row, d.age])).toEqual([[2, "newer"]]);
-    expect(p.invalid.map((r) => `Row ${r.row} · ${r.label}: ${r.reason}`)).toEqual([
+    expect(p.invalid.map((r) => `${rowName(r)}: ${r.reason}`)).toEqual([
       "Row 3 · team 101 · Q3: notes not text",
       "Row 4 · team abc · Q1: bad team number",
-      "Row 5 · not an entry: not an entry",
+      "Row 5: not an entry",
       "Row 6 · team 101 · Q9: same id as row 1",
     ]);
     expect(p.untouched).toBe(1); // other0000001 stays as it is
