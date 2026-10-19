@@ -1,7 +1,7 @@
 import { StrictMode, Suspense, lazy, type ComponentType } from "react";
 import { createRoot } from "react-dom/client";
 import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
-import { MotionConfig } from "motion/react";
+import { LazyMotion, MotionConfig } from "motion/react";
 import "./index.css";
 import "./components/arc/arc-theme.css";
 import { PersonalProvider } from "./lib/personal";
@@ -11,18 +11,11 @@ import { SearchProvider } from "./components/layout/Search";
 import { Toaster } from "./components/ui/sonner";
 import { LoadingBlock } from "./components/states";
 import { CanonicalSync, MetaProvider } from "./lib/meta";
-import { AlertsRunner } from "./lib/alerts";
-import { LitePackSync } from "./lib/packSync";
-import { ScoutQueueSync } from "./lib/scoutSpace";
 import { ConsentBanner } from "./components/layout/ConsentBanner";
 import { PageViews } from "./lib/analytics";
 import { installErrorReporting, setReportingPaused } from "./lib/errorReporting";
 import { onFlags, startFlags } from "./lib/flags";
-import { OwnerRoute } from "./pages/OwnerRoute";
 import { RouteErrorBoundary } from "./components/RouteErrorBoundary";
-import { ErrorReportPrompt } from "./components/layout/ErrorReportPrompt";
-import { FirstRunTour } from "./components/layout/FirstRunTour";
-import { InstallNudge } from "./components/layout/InstallNudge";
 import { captureInstallPrompt } from "./lib/installNudge";
 // The landing page is part of the main bundle, not lazy: its API calls then start in
 // the same render as the app's own (/api/meta, /api/auth/me), with no second round.
@@ -40,6 +33,20 @@ function lazyPage(load: () => Promise<{ default: ComponentType<any> }>) {
   const Page = (props: Record<string, unknown>) => (Loaded ? <Loaded {...props} /> : <Lazy {...props} />);
   return Object.assign(Page, { preload });
 }
+
+/** Parts of the app that draw nothing at first paint (background syncs, prompts that wait for a reason to show,
+ *  the owner console): their own chunks, fetched after the page, so a first visit downloads less before it works. */
+const named = <K extends string>(load: () => Promise<Record<K, ComponentType<any>>>, name: K) => lazy(() => load().then((m) => ({ default: m[name] })));
+const AlertsRunner = named(() => import("./lib/alerts"), "AlertsRunner");
+const LitePackSync = named(() => import("./lib/packSync"), "LitePackSync");
+const ScoutQueueSync = named(() => import("./lib/scoutSpace"), "ScoutQueueSync");
+const OwnerRoute = named(() => import("./pages/OwnerRoute"), "OwnerRoute");
+const ErrorReportPrompt = named(() => import("./components/layout/ErrorReportPrompt"), "ErrorReportPrompt");
+const FirstRunTour = named(() => import("./components/layout/FirstRunTour"), "FirstRunTour");
+const InstallNudge = named(() => import("./components/layout/InstallNudge"), "InstallNudge");
+
+/** Motion's animation features, fetched after first paint (see the LazyMotion below). */
+const loadMotionFeatures = () => import("./lib/motionFeatures").then((r) => r.default);
 
 const PAGES = {
   TeamPage: lazyPage(() => import("./pages/TeamPage")),
@@ -112,7 +119,9 @@ function appCss(): Promise<unknown> {
 }
 void ready.catch(() => { /* a failed load is retried (and shown) by the page's own lazy load */ }).then(() => createRoot(document.getElementById("root")!).render(
   <StrictMode>
-    {/* Honour the visitor's reduced-motion setting everywhere (transforms off, fades kept). */}
+    {/* Honour the visitor's reduced-motion setting everywhere (transforms off, fades kept). Animation features load
+        after first paint (src/lib/motionFeatures.ts); strict: a full `motion.` element anywhere is an error. */}
+    <LazyMotion features={loadMotionFeatures} strict>
     <MotionConfig reducedMotion="user">
     <BrowserRouter>
       <PersonalProvider>
@@ -156,19 +165,22 @@ void ready.catch(() => { /* a failed load is retried (and shown) by the page's o
               </RouteErrorBoundary>
             </Shell>
             <Toaster />
-            <ErrorReportPrompt />
-            <AlertsRunner />
-            <LitePackSync />
-            <ScoutQueueSync />
             <CanonicalSync />
             <ConsentBanner />
-            <FirstRunTour />
-            <InstallNudge />
             <PageViews />
+            <Suspense fallback={null}>
+              <ErrorReportPrompt />
+              <AlertsRunner />
+              <LitePackSync />
+              <ScoutQueueSync />
+              <FirstRunTour />
+              <InstallNudge />
+            </Suspense>
           </SearchProvider>
         </MetaProvider>
       </PersonalProvider>
     </BrowserRouter>
     </MotionConfig>
+    </LazyMotion>
   </StrictMode>,
 ));

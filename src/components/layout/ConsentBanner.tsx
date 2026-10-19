@@ -12,7 +12,7 @@
 // inside it means "No thanks".
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
-import { AnimatePresence, motion } from "motion/react";
+import { AnimatePresence, m } from "motion/react";
 import { ShieldCheck } from "lucide-react";
 import { Button } from "../ui/button";
 import { useConsent } from "../../lib/consent";
@@ -51,7 +51,7 @@ export function ConsentBanner() {
   return (
     <AnimatePresence>
       {show && (
-        <motion.section
+        <m.section
           ref={ref}
           role="region"
           aria-label="Privacy choices"
@@ -75,7 +75,7 @@ export function ConsentBanner() {
             <Button variant="secondary" size="sm" onClick={() => setAnalytics(false)}>No thanks</Button>
             <Button variant="secondary" size="sm" onClick={() => setAnalytics(true)}>Allow</Button>
           </div>
-        </motion.section>
+        </m.section>
       )}
     </AnimatePresence>
   );

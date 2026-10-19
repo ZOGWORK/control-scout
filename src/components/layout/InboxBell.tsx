@@ -3,7 +3,7 @@
 // the bell on wider screens, a bottom sheet on phones. Tapping an item marks it read and opens the place
 // it's about: the entry, the workspace's activity, its template, or the owner portal's storage panel.
 import { useEffect, useId, useRef, useState, type ComponentType } from "react";
-import { AnimatePresence, motion } from "motion/react";
+import { AnimatePresence, m } from "motion/react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { Bell, CheckCheck, ClipboardCheck, HardDrive, LayoutList, ListOrdered, Loader2, MessageSquare, PencilLine, Settings, Users } from "lucide-react";
 import { usePersonal } from "../../lib/personal";
@@ -76,11 +76,11 @@ function SignedInBell({ userId }: { userId: number }) {
         <Bell className="size-4" />
         <AnimatePresence>
           {inbox.unread > 0 && (
-            <motion.span key="badge" data-inbox-badge aria-hidden
+            <m.span key="badge" data-inbox-badge aria-hidden
               initial={{ scale: 0.4, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.4, opacity: 0 }} transition={{ duration: 0.16 }}
               className="absolute -right-0.5 -top-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-accent px-1 text-[10px] font-semibold leading-none text-accent-ink tabular-nums ring-2 ring-primary">
               {badgeText(inbox.unread)}
-            </motion.span>
+            </m.span>
           )}
         </AnimatePresence>
       </button>
@@ -93,12 +93,12 @@ function SignedInBell({ userId }: { userId: number }) {
       ) : (
         <AnimatePresence>
           {open && (
-            <motion.div id={panelId} role="dialog" aria-label="Notifications" key="panel"
+            <m.div id={panelId} role="dialog" aria-label="Notifications" key="panel"
               initial={{ opacity: 0, y: -6, scale: 0.98 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={{ opacity: 0, y: -4, scale: 0.98 }}
               transition={{ duration: 0.16, ease: [0.2, 0.8, 0.2, 1] }} style={{ transformOrigin: "top right" }}
               className="absolute right-0 top-full z-50 mt-2 flex max-h-[min(36rem,calc(100dvh-5rem))] w-[24rem] flex-col overflow-hidden rounded-xl border border-border bg-popover text-popover-foreground shadow-[0_18px_40px_-16px_rgba(0,0,0,.55)]">
               <InboxList inbox={inbox} onClose={() => setOpen(false)} titleAs="panel" />
-            </motion.div>
+            </m.div>
           )}
         </AnimatePresence>
       )}

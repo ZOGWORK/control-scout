@@ -2,7 +2,7 @@
 // Motion primitives for Modern pages (motion/react). Reveal on mount, stagger
 // lists, and animate numbers. Everything respects prefers-reduced-motion via
 // the MotionConfig in ModernShell.
-import { motion, type HTMLMotionProps, type Variants } from 'motion/react';
+import { m, type HTMLMotionProps, type Variants } from 'motion/react';
 
 const ease = [0.2, 0.8, 0.2, 1] as const;
 
@@ -15,7 +15,7 @@ const ease = [0.2, 0.8, 0.2, 1] as const;
  */
 export function Reveal({ delay = 0, y = 8, fade = true, ...props }: HTMLMotionProps<'div'> & { delay?: number; y?: number; fade?: boolean }) {
   return (
-    <motion.div
+    <m.div
       initial={{ opacity: fade ? 0 : 1, y }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.36, ease, delay }}
@@ -35,12 +35,12 @@ const item: Variants = {
 
 /** Parent that staggers its <StaggerItem> children in. */
 export function Stagger({ as = 'div', ...props }: HTMLMotionProps<'div'> & { as?: 'div' | 'ul' | 'ol' }) {
-  const C = as === 'ul' ? motion.ul : as === 'ol' ? motion.ol : motion.div;
+  const C = as === 'ul' ? m.ul : as === 'ol' ? m.ol : m.div;
   return <C variants={container} initial="hidden" animate="show" {...(props as any)} />;
 }
 export function StaggerItem({ as = 'div', ...props }: HTMLMotionProps<'div'> & { as?: 'div' | 'li' }) {
-  const C = as === 'li' ? motion.li : motion.div;
+  const C = as === 'li' ? m.li : m.div;
   return <C variants={item} {...(props as any)} />;
 }
 
-export { motion };
+export { m };

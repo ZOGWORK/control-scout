@@ -3,7 +3,7 @@
 // that works by hover, tap and keyboard focus.
 import { createContext, useCallback, useContext, useEffect, useId, useRef, useState, type ReactNode, type PointerEvent as RPointerEvent, type FocusEvent as RFocusEvent, type MouseEvent as RMouseEvent } from "react";
 import { createPortal } from "react-dom";
-import { motion, useInView, useReducedMotion } from "motion/react";
+import { m, useInView, useReducedMotion } from "motion/react";
 import { cn } from "../cn";
 
 /** True when the visitor asked for reduced motion. */
@@ -177,7 +177,7 @@ export function Seg<T extends string>({ value, options, onChange, label, classNa
               on ? "font-semibold text-accent-ink" : "text-muted-foreground hover:text-foreground",
             )}
           >
-            {on && <motion.span layoutId={`seg-${id}`} aria-hidden className="absolute inset-0 rounded-md bg-accent" transition={{ type: "spring", stiffness: 420, damping: 32 }} />}
+            {on && <m.span layoutId={`seg-${id}`} aria-hidden className="absolute inset-0 rounded-md bg-accent" transition={{ type: "spring", stiffness: 420, damping: 32 }} />}
             <span className="relative">{o.label}</span>
           </button>
         );

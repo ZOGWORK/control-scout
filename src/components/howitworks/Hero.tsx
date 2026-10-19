@@ -1,6 +1,6 @@
 // Hero: the headline (word-by-word reveal) and the cycling example match card.
 import { useCallback, useEffect, useRef, useState } from "react";
-import { motion, useInView } from "motion/react";
+import { m, useInView } from "motion/react";
 import { Pause, Play } from "lucide-react";
 import { ENGINE_VERSION } from "@control-scout/predict-engine";
 import { cn } from "../cn";
@@ -30,33 +30,33 @@ export function Hero() {
           {WORDS.map(({ w, gold }, i) => (
             <span key={w}>
               {reduced ? <span className={cn("inline-block", gold && "hiw-gold")}>{w}</span> : (
-                <motion.span
+                <m.span
                   className={cn("inline-block", gold && "hiw-gold")}
                   initial={{ opacity: 0, y: "0.35em", rotate: 2, filter: "blur(8px)" }}
                   animate={{ opacity: 1, y: 0, rotate: 0, filter: "blur(0px)" }}
                   transition={{ duration: 0.8, ease, delay: 0.12 + i * 0.08 }}
-                >{w}</motion.span>
+                >{w}</m.span>
               )}
               {i < WORDS.length - 1 && " "}
             </span>
           ))}
         </h1>
-        <motion.p
+        <m.p
           className="max-w-xl text-lg leading-relaxed text-foreground/85 sm:text-xl"
           initial={reduced ? false : { opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.6, ease, delay: 0.45 }}
         >
           Before a qualifier starts, Control Scout can tell your team who's likely to win each match, where you'll probably rank, who might pick you, and your odds of advancing. Here's what's going on under the hood, in plain language, with the real numbers.
-        </motion.p>
-        <motion.p
+        </m.p>
+        <m.p
           className="font-mono text-xs leading-relaxed text-muted-foreground"
           initial={reduced ? false : { opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.6, delay: 0.6 }}
         >
           Predicts FTC seasons 2023–24 to 2026–27 (results back to 2019–20) · engine v{ENGINE_VERSION}, shared with Control Point · tested on {tested.toLocaleString("en-US")} matches it never saw while tuning
-        </motion.p>
+        </m.p>
       </div>
-      <motion.div initial={reduced ? false : { opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.7, ease, delay: 0.3 }} className="min-w-0">
+      <m.div initial={reduced ? false : { opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.7, ease, delay: 0.3 }} className="min-w-0">
         <MatchCard />
-      </motion.div>
+      </m.div>
     </header>
   );
 }

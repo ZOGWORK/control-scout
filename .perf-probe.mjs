@@ -5,7 +5,7 @@ await cdp.send("Network.enable"); await cdp.send("Network.emulateNetworkConditio
 const rows = new Map(); const t0 = Date.now();
 cdp.on("Network.responseReceived", (e) => rows.set(e.requestId, { url: e.response.url, type: e.type, mime: e.response.mimeType, start: Date.now() - t0 }));
 cdp.on("Network.loadingFinished", (e) => { const r = rows.get(e.requestId); if (r) { r.wire = e.encodedDataLength; r.end = Date.now() - t0; } });
-await p.goto(process.argv[2], { waitUntil: "load" }); await p.waitForTimeout(6000);
+await p.goto(process.argv[2], { waitUntil: "load" }); await p.waitForTimeout(9000);
 const list = [...rows.values()].filter(r => r.wire).sort((a,b)=>a.start-b.start);
 for (const r of list) console.log(String(r.start).padStart(5), String(r.end).padStart(5), (r.wire/1024).toFixed(1).padStart(7)+"KB", r.type.padEnd(10), r.url.replace(/^https?:\/\/[^/]+/, "").slice(0,90));
 console.log("total wire KB", (list.reduce((s,r)=>s+r.wire,0)/1024).toFixed(1));
