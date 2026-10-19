@@ -50,7 +50,7 @@ it("keeps hover off mid-scroll with one shield element, not with a flag every ho
   expect(variant("still-hover") + variant("row-still-hover")).not.toMatch(/data-scroll|:not\(/);
   // The shield is hidden until the page area is scrolling, and only for a mouse or trackpad (never touch).
   expect(css).toMatch(/\.scroll-shield \{ display: none; \}/);
-  expect(css).toMatch(/@media \(hover: hover\) and \(pointer: fine\) \{\s*\[data-scrolling\] > \.scroll-shield \{ display: block; position: absolute; inset: 0;/);
+  expect(css).toMatch(/@media \(hover: hover\) and \(pointer: fine\) \{\s*\[data-scrolling\]:not\(\[data-scrolling="touch"\]\) > \.scroll-shield \{ display: block; position: absolute; inset: 0;/);
   // Not pointer-events on the area itself: that inherits down, so every start and stop restyled the whole page.
   expect(css).not.toMatch(/\[data-scrolling\][^{]*\{[^}]*pointer-events/);
 });

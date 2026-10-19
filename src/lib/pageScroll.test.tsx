@@ -3,7 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { act, cleanup, render } from "@testing-library/react";
 import { BrowserRouter, MemoryRouter, useLocation as useLocationProbe, useNavigate, type NavigateFunction } from "react-router-dom";
 import { StrictMode, useRef } from "react";
-import { chase, entryKey, HEADER_ID, pageScroller, pageTop, planScroll, scrollToElement, restoredSavedPosition, RESTORE_WINDOW_MS, SCROLL_IDLE_MS, ScrollPositions, usePageScroll } from "./pageScroll";
+import { chase, entryKey, HEADER_ID, pageScroller, pageTop, planScroll, scrollToElement, restoredSavedPosition, RESTORE_WINDOW_MS, SCROLL_IDLE_MS, SCROLLING_BY_TOUCH, ScrollPositions, usePageScroll } from "./pageScroll";
 
 describe("planScroll", () => {
   const base = { prevPath: "/events", path: "/teams/4215", hash: "", saved: undefined };
@@ -231,6 +231,29 @@ describe("usePageScroll", () => {
     scrollTo(30);
     unmount();
     expect(area.hasAttribute("data-scrolling")).toBe(false);
+  });
+
+  it("flags a scroll a finger started as touch (no shield), and a mouse or wheel one as plain", () => {
+    height.current = 5000;
+    render(<MemoryRouter initialEntries={["/"]}><Harness /></MemoryRouter>);
+    const area = main.parentElement!;
+    const input = (type: string, pointerType?: string) => act(() => { window.dispatchEvent(Object.assign(new Event(type), pointerType ? { pointerType } : {})); });
+    const settle = () => act(() => { vi.advanceTimersByTime(SCROLL_IDLE_MS + 10); });
+    scrollTo(10);
+    expect(area.getAttribute("data-scrolling")).toBe("");
+    settle();
+    input("pointerdown", "touch");
+    scrollTo(20);
+    expect(area.getAttribute("data-scrolling")).toBe(SCROLLING_BY_TOUCH);
+    settle();
+    input("wheel");
+    scrollTo(30);
+    expect(area.getAttribute("data-scrolling")).toBe("");
+    settle();
+    input("pointermove", "touch");
+    input("pointermove", "mouse");
+    scrollTo(40);
+    expect(area.getAttribute("data-scrolling")).toBe("");
   });
 
   it("restores the first page's position after a reload", () => {

@@ -219,11 +219,12 @@ html.ambient-off .ambient-breath, html.ambient-off .ambient-glow { display: none
    (Shell.tsx): nothing under a resting pointer is hit-tested, hovered or restyled as the rows slide past, which
    on a big event was most of every frame. Showing it changes one element; switching pointer-events off on the
    area instead restyled the whole page at every start and stop. The wheel still scrolls the page, and the
-   pointer reaches the page again 140 ms after the last scroll. Touch screens never get it, so a tap that stops
-   a fling, or a swipe on a sideways table, still lands. */
+   pointer reaches the page again 140 ms after the last scroll. Touch never gets it: not on touch-only screens,
+   and not for a scroll a finger started on a touchscreen laptop ([data-scrolling="touch"]), so a tap that
+   stops a fling, or a swipe on a sideways table, still lands. */
 .scroll-shield { display: none; }
 @media (hover: hover) and (pointer: fine) {
-  [data-scrolling] > .scroll-shield { display: block; position: absolute; inset: 0; z-index: 20; }
+  [data-scrolling]:not([data-scrolling="touch"]) > .scroll-shield { display: block; position: absolute; inset: 0; z-index: 20; }
 }
 @media (prefers-reduced-motion: reduce) {
   .ambient-grid, .ambient-breath { animation: none; }
