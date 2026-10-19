@@ -33,6 +33,9 @@ describe("/api/search limit (PUB-F01)", () => {
     expect((await get("/api/search?q=16&limit=3")).json.hits).toHaveLength(3);
     expect((await get("/api/search?q=16&limit=25")).json.hits).toHaveLength(25);
     expect((await get("/api/search?q=16&limit=500")).json.hits).toHaveLength(25);
+    expect((await get("/api/search?q=16&limit=2147483647")).json.hits).toHaveLength(25);
+    expect((await get(`/api/search?q=16&limit=${"9".repeat(400)}`)).json.hits).toHaveLength(25);
+    expect((await get("/api/search?q=16&limit=007")).json.hits).toHaveLength(7);
   });
 
   it.each(["-1", "0", "1.5", "-0.5", "-Infinity", "Infinity", "1e3", "abc", "0x10"])("answers 400 for limit=%s", async (limit) => {

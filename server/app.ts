@@ -80,7 +80,8 @@ const int = (x: unknown, name: string, { min = 0, max = 1e7 } = {}) => {
  *  capped at `max`, and anything else (negative, fractional, Infinity, repeated) is a 400. */
 const boundedCount = (x: unknown, name: string, def: number, min: number, max: number) => {
   if (x == null || x === "") return def;
-  if (typeof x !== "string" || !/^\d{1,9}$/.test(x.trim())) throw bad(`${name} must be a whole number from ${min} to ${max}`);
+  // Any run of digits is a whole number (a very long one reads as a huge value or Infinity, which the cap brings down).
+  if (typeof x !== "string" || !/^\d+$/.test(x.trim())) throw bad(`${name} must be a whole number from ${min} to ${max}`);
   const n = Number(x.trim());
   if (n < min) throw bad(`${name} must be a whole number from ${min} to ${max}`);
   return Math.min(max, n);
