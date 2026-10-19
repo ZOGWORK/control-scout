@@ -82,7 +82,8 @@ describe("MyTeamsPage", () => {
     h.user = user([{ id: "8", name: "Live Bots", role: "member" }], [{ teamNumber: 4215, name: "Live Bots" }]);
     page();
     const card = within(await screen.findByRole("article", { name: "Team 4215" }));
-    const now = await waitFor(() => card.getByRole("link", { name: /Today Qualifier/ }));
+    // The event list's row (it comes first; an upcoming match row links to the same event, once its matches are in).
+    const now = await waitFor(() => card.getAllByRole("link", { name: /Today Qualifier/ })[0]);
     expect(now.textContent).toContain("3-1-0");
     expect(now.textContent).not.toContain("Upcoming");
     // The team's own header link (a match row's bare "4215" link can be there too, depending on the time of day).

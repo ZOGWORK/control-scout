@@ -5,12 +5,12 @@
 import { Component, lazy, Suspense, useState, type ReactNode } from "react";
 import { Link } from "react-router-dom";
 import { useReducedMotion } from "motion/react";
-import { ArrowRight, Globe2, Map as MapIcon, Pause, Play } from "lucide-react";
-import type { HomeOverview } from "../../shared/home";
+import { ArrowRight, Globe2, Hourglass, Map as MapIcon, Pause, Play, Trophy, Users } from "lucide-react";
+import type { CountryTotal, HomeOverview } from "../../shared/home";
 import { seasonLabel } from "../../lib/format";
 import { ToggleGroup, ToggleGroupItem } from "../ui/controls";
 import { cn } from "../cn";
-import { countryHref, pickCountry, reconcile, unmappedLabel } from "./atlasModel";
+import { countryHref, directoryHref, pickCountry, reconcile, resultsLine, unmappedLabel } from "./atlasModel";
 
 const loadMap = () => import("./AtlasMap");
 const AtlasMap = lazy(loadMap);
@@ -31,6 +31,53 @@ class MapBoundary extends Component<{ fallback: ReactNode; children: ReactNode }
 }
 
 const fmt = (n: number) => n.toLocaleString();
+
+/**
+ * A country's two ways in: every team registered there ("All listed teams", the directory, which
+ * works with no results at all), and the teams with results (their statistics). The second is only
+ * stated as a count, or as nobody having played, when the season's statistics are ready (DATA-F01).
+ */
+function CountryPaths({ country, overview, currentSeason }: { country: CountryTotal; overview: HomeOverview; currentSeason: number }) {
+  const line = resultsLine(country, overview.readiness);
+  const path = "group flex min-h-11 items-center gap-3 rounded-xl border px-3 py-2 text-left focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent";
+  return (
+    <div className="mt-3 grid gap-2 text-sm @lg/home:grid-cols-2">
+      <Link to={countryHref(country.code, overview.season, currentSeason, "listed")} className={cn(path, "border-accent/30 bg-accent/[0.07] hover:bg-accent/[0.12]")}>
+        <Users className="size-4 shrink-0 text-accent" aria-hidden />
+        <span className="min-w-0 flex-1">
+          <span className="block font-semibold text-accent-text">All {fmt(country.listings)} listed {country.listings === 1 ? "team" : "teams"}</span>
+          <span className="block text-xs text-text-muted">Every registration, played or not</span>
+        </span>
+        <ArrowRight className="size-4 shrink-0 text-accent-text transition-transform group-hover:translate-x-0.5 motion-reduce:transition-none" aria-hidden />
+      </Link>
+      {line.kind === "link" ? (
+        <Link to={countryHref(country.code, overview.season, currentSeason)} className={cn(path, "border-success/30 bg-success/[0.07] hover:bg-success/[0.12]")}>
+          <Trophy className="size-4 shrink-0 text-success" aria-hidden />
+          <span className="min-w-0 flex-1">
+            <span className="block font-semibold text-success">{fmt(line.count)} {line.count === 1 ? "team" : "teams"} with results</span>
+            <span className="block text-xs text-text-muted">{line.behind ? "So far: newer results are still being added" : "Ranked by this season’s statistics"}</span>
+          </span>
+          <ArrowRight className="size-4 shrink-0 text-success transition-transform group-hover:translate-x-0.5 motion-reduce:transition-none" aria-hidden />
+        </Link>
+      ) : line.kind === "none" ? (
+        <p className={cn(path, "border-line text-text-muted")}>
+          <Trophy className="size-4 shrink-0" aria-hidden />
+          <span>No {country.name} team has played a match yet this season.</span>
+        </p>
+      ) : (
+        <p className={cn(path, "border-warning/30 bg-warning/[0.06] text-text-muted")}>
+          <Hourglass className="size-4 shrink-0 text-warning" aria-hidden />
+          <span>
+            <span className="block font-semibold text-text-base">Results are still being prepared</span>
+            <span className="block text-xs">{line.kind === "preparing"
+              ? "This season’s statistics aren’t ready yet, so teams with results can’t be counted. Every listed team is browsable now."
+              : `None from ${country.name} in the last statistics; newer results are waiting to be added.`}</span>
+          </span>
+        </p>
+      )}
+    </div>
+  );
+}
 
 export function CompetitionAtlas({ overview, currentSeason, compact }: { overview: HomeOverview; currentSeason: number; compact?: boolean }) {
   const [mode, setMode] = useState<Mode>("globe");
@@ -110,17 +157,9 @@ export function CompetitionAtlas({ overview, currentSeason, compact }: { overvie
         )}
       </div>
 
-      {selected && (
-        <p className="mt-3 text-sm">
-          {selected.withResults > 0 ? (
-            <Link to={countryHref(selected.code, overview.season, currentSeason)} className="inline-flex min-h-11 items-center gap-1 font-semibold text-accent-text hover:underline">
-              {fmt(selected.withResults)} {selected.withResults === 1 ? "team has" : "teams have"} results this season <ArrowRight className="size-4" />
-            </Link>
-          ) : <span className="text-text-muted">No {selected.name} team has played a match yet this season.</span>}
-        </p>
-      )}
+      {selected && <CountryPaths country={selected} overview={overview} currentSeason={currentSeason} />}
       <p className="mt-2 text-xs text-text-muted">
-        Country totals from each team’s reported country, not team locations.{mode === "globe" && !failed ? ` Drag the globe with a mouse or focus it and use the arrow keys to turn it${still ? "" : "; the pause button stops it"}.` : ""}
+        Country totals from each team’s reported country, not team locations. A listing is a registration for the season, not a sign the team has competed.{mode === "globe" && !failed ? ` Drag the globe with a mouse or focus it and use the arrow keys to turn it${still ? "" : "; the pause button stops it"}.` : ""}
       </p>
 
       <details className="group mt-3 rounded-xl border border-line">
@@ -147,6 +186,7 @@ export function CompetitionAtlas({ overview, currentSeason, compact }: { overvie
           </ul>
           <p className="mt-3 border-t border-line pt-3 text-xs text-text-muted">
             {fmt(totals.drawn)} on the map{totals.undrawn ? ` + ${fmt(totals.undrawn)} in countries too small to draw at this scale` : ""}{totals.unmapped ? ` + ${fmt(totals.unmapped)} without a country` : ""} = {fmt(totals.total)} team listings for {season}.
+            {totals.unmapped ? <>{" "}Teams without a country we can place are in the <Link to={directoryHref(overview.season, currentSeason)} className="font-medium text-accent-text hover:underline">directory of every listed team</Link>.</> : null}
             {" "}Boundaries: Natural Earth 4.1.0 (1:110m, public domain).
           </p>
         </div>

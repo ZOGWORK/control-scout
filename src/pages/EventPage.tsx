@@ -32,6 +32,7 @@ import { HeaderActions } from "../components/EventActions";
 import { isLiveMode, useEventPoll } from "../lib/liveMode";
 import { agoSeconds, awardLabel, dateRange, num, place, seasonLabel } from "../lib/format";
 import { scrollToElement } from "../lib/pageScroll";
+import { eventTab } from "../lib/eventTab";
 
 export default function EventPage() {
   const { season, code } = useParams();
@@ -64,8 +65,10 @@ function Event({ d, path }: { d: EventDetail; path: string }) {
   // The records tables follow the live results: fetched again whenever the event's results are checked or the stats are rebuilt.
   const statsAt = useMeta()?.statsAt ?? "";
   const recordsKey = `${d.live?.checkedAt ?? ""}|${statsAt}`;
-  const asked = sp.get("tab") ?? (sp.get("match") ? "matches" : e.status === "upcoming" && !d.matches.length ? (predictable ? "odds" : "teams") : "matches");
-  const tab = !predictable && asked === "odds" ? "matches" : asked;
+  const fallback = sp.get("match") ? "matches" : e.status === "upcoming" && !d.matches.length ? (predictable ? "odds" : "teams") : "matches";
+  const { tab, valid: validTab } = eventTab(sp.get("tab"), { predictable, fallback });
+  // An unknown ?tab= (or Odds on a history season) opens the default tab, and leaves the address without it.
+  useEffect(() => { if (!validTab) setSp((x) => { x.delete("tab"); return x; }, { replace: true }); }, [validTab, setSp]);
   // Rankings and Insights are different tables: a filter, sort or column choice belongs to the one it was made in.
   const setTab = (t: string) => setSp((x) => { if (t !== tab) for (const k of TABLE_PARAMS) x.delete(k); x.set("tab", t); return x; }, { replace: true });
   const setTeam = (t: number | null) => setSp((x) => { if (t) x.set("team", String(t)); else x.delete("team"); return x; }, { replace: true });

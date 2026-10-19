@@ -11,7 +11,7 @@
 // answered is never replaced. The first server answer afterwards (or the
 // browser coming back online) switches back. Downloading the pack in the
 // background (packSync.tsx) is separate: that only stores bytes for later.
-import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from "react";
+import { createContext, useCallback, useContext, useEffect, useRef, useSyncExternalStore } from "react";
 import { offlineSource, savedSeasons } from "./offline/saved";
 import { packStatus } from "./packPolicy";
 
@@ -165,8 +165,12 @@ export async function apiFetch<T>(path: string, init?: RequestInit & { json?: un
   if (res.status < 500) setUsingSaved(false);
   const text = await res.text();
   let body: any = null;
-  try { body = text ? JSON.parse(text) : null; } catch { /* non-JSON */ }
+  let unreadable = false;
+  try { body = text ? JSON.parse(text) : null; } catch { unreadable = true; }
   if (!res.ok) throw new ApiError(res.status, body?.error ?? `Request failed (${res.status})`);
+  // A success whose body can't be read (cut short, or a page from something in between) is a failed
+  // answer, not "no data": an empty body (204) or an explicit JSON null still answer null.
+  if (unreadable) throw new ApiError(res.status, "The server's answer arrived incomplete. Try again.");
   return body as T;
 }
 
@@ -248,25 +252,49 @@ export function invalidate(prefix: string) { for (const k of cache.keys()) if (k
 
 export interface ApiState<T> { data: T | undefined; error: ApiError | undefined; loading: boolean; reload: () => void }
 
+/** The paths read under a route's error boundary (RouteErrorBoundary), so its "Try again" can ask the
+ *  server afresh for them instead of re-rendering the same cached answer. */
+export const ApiReadsContext = createContext<Set<string> | null>(null);
+
+/** Drop these paths' cached answers, so the next look shows loading and fetches them again. A path still
+ *  being asked for keeps that request (its answer is the fresh one: the next look waits for it); one
+ *  still on screen elsewhere is asked for now. */
+export function forget(paths: Iterable<string>) {
+  for (const k of paths) {
+    const pending = cache.get(k)?.promise;
+    if (pending) { cache.set(k, { at: 0, promise: pending }); notify(k); continue; }
+    cache.delete(k);
+    if (listeners.get(k)?.size) load(k, true).catch(() => {});
+  }
+}
+
+const noSubscription = () => () => {};
+
 /** Data for a path (null = don't fetch yet). Keeps showing the last data while refetching. */
 export function useApi<T>(path: string | null): ApiState<T> {
-  const [, bump] = useState(0);
+  const reads = useContext(ApiReadsContext);
+  if (path) reads?.add(path);
   const pathRef = useRef(path);
   pathRef.current = path;
-  useEffect(() => {
-    if (!path) return;
-    const fn = () => bump((x) => x + 1);
+  // Subscribed through useSyncExternalStore: React re-reads the cache right after subscribing, so an
+  // answer (or a prime) that lands between this render and the subscription is never missed.
+  const subscribe = useCallback((fn: () => void) => {
+    if (!path) return noSubscription();
     let set = listeners.get(path);
     if (!set) { set = new Set(); listeners.set(path, set); }
     set.add(fn);
+    return () => { set!.delete(fn); if (probe && !offlineOnScreen().length) stopProbe(); };
+  }, [path]);
+  const read = () => (path ? (cache.get(path) as Entry<T> | undefined) : undefined);
+  const e = useSyncExternalStore(subscribe, read, read);
+  useEffect(() => {
+    if (!path) return;
     load<T>(path).catch(() => {});
     // Back on a view still showing saved data or a no-signal error (even one cached as fresh): keep retrying it.
     const cur = cache.get(path);
     if (cur && (offlineSource(cur.data) || cur.error?.offline)) ensureProbe();
-    return () => { set!.delete(fn); if (probe && !offlineOnScreen().length) stopProbe(); };
   }, [path]);
   const reload = useCallback(() => { if (pathRef.current) load(pathRef.current, true).catch(() => {}); }, []);
-  const e = path ? (cache.get(path) as Entry<T> | undefined) : undefined;
   // Loading until the first answer (data or error) arrives — never a flash of "empty".
   return { data: e?.data, error: e?.data === undefined ? e?.error : undefined, loading: !!path && e?.data === undefined && !e?.error, reload };
 }
