@@ -82,7 +82,8 @@ export function RecordsTable(p: RecordsTableProps) {
   const fields = useMemo(() => [...new Set([...(teamScope ? ["teamName"] : []), ...cols])], [teamScope, cols]);
 
   const req = { season, scope, state, fields, code };
-  const api = useApi<Resp>(state.filterError ? null : recordsUrl(req));
+  // An unreadable filter or unknown country asks nothing: the rows would be broader than the link says.
+  const api = useApi<Resp>(state.filterError || state.countryUnknown ? null : recordsUrl(req));
   const last = useRef<Resp | undefined>(undefined);
   if (api.data) last.current = api.data;
   const data = api.data ?? (api.loading ? last.current : undefined);
@@ -233,7 +234,7 @@ export function RecordsTable(p: RecordsTableProps) {
       {/* What's showing, in words */}
       <div className="flex flex-wrap items-center gap-x-3 gap-y-1 px-1 text-sm">
         <span className="text-text-muted" aria-live="polite">
-          {data ? <><span className="font-semibold tabular-nums text-text-base">{total.toLocaleString()}</span> {p.noun}</> : "Loading…"}
+          {data ? <><span className="font-semibold tabular-nums text-text-base">{total.toLocaleString()}</span> {p.noun}</> : state.filterError || state.countryUnknown ? null : "Loading…"}
           {refreshing && <Loader2 className="ml-1.5 inline size-3.5 animate-spin" />}
         </span>
         {state.filter && state.filter.children.length > 0 && (
@@ -248,6 +249,9 @@ export function RecordsTable(p: RecordsTableProps) {
 
       {state.filterError ? (
         <Problem title="This link's filter couldn't be read" detail={state.filterError} onClear={() => setState(clearFilters(state))} />
+      ) : state.countryUnknown ? (
+        <Problem title={`Unknown country ${state.countryUnknown.slice(0, 40)}`} detail="This link names a country code we don't know, so no teams are shown. Countries use two-letter codes, like US or CA."
+          clearLabel="Show every country" onClear={() => setState({ ...state, countryUnknown: null, page: 1 })} />
       ) : api.error && !data ? (
         (api.error as ApiError).offline && p.offlineFallback ? (
           <div className="space-y-3">
@@ -308,12 +312,12 @@ export function RecordsTable(p: RecordsTableProps) {
 
 const countConds = (g: FilterGroup): number => g.children.reduce((a, c) => a + (c.kind === "cond" ? 1 : countConds(c)), 0);
 
-function Problem({ title, detail, onClear }: { title: string; detail: string; onClear: () => void }) {
+function Problem({ title, detail, onClear, clearLabel = "Clear filters" }: { title: string; detail: string; onClear: () => void; clearLabel?: string }) {
   return (
     <div className="flex flex-col items-center rounded-xl border border-danger/40 bg-danger/[0.05] px-6 py-10 text-center" role="alert">
       <p className="font-medium">{title}</p>
       <p className="mt-1 max-w-lg font-mono text-xs text-text-muted">{detail}</p>
-      <Button className="mt-4" onClick={onClear}><X /> Clear filters</Button>
+      <Button className="mt-4" onClick={onClear}><X /> {clearLabel}</Button>
     </div>
   );
 }
