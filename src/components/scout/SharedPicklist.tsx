@@ -66,7 +66,7 @@ export function SharedPicklist({ workspaceId, workspaceName, season, live, me, s
   shortlist: number[];
 }) {
   const refused = useCallback((m: string) => { toast.error(m); }, []);
-  const pl = usePickList(workspaceId, season, live, me, refused);
+  const pl = usePickList(workspaceId, season, live, me, refused, readOnly);
   const picks = pl.list?.picks ?? [];
   const teams = useMemo(() => picks.map((p) => p.team), [picks]);
   const byPick = new Map(picks.map((p) => [p.team, p]));

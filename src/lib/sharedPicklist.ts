@@ -88,7 +88,9 @@ export interface PickListState {
  * not-yet-saved changes are attributed until the server's answer. `onRefused`: a change the server
  * refused (shown as a notice).
  */
-export function usePickList(space: string | null, season: number, live: LiveMode, me: PickPerson, onRefused: (message: string) => void): PickListState {
+export function usePickList(space: string | null, season: number, live: LiveMode, me: PickPerson, onRefused: (message: string) => void,
+  /** A read-only space (Task 19): kept notes are neither sent nor shown (they wait, untouched, until it can be written again). */
+  readOnly = false): PickListState {
   const [server, setServer] = useState<PickList | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<ApiError | null>(null);
@@ -241,7 +243,7 @@ export function usePickList(space: string | null, season: number, live: LiveMode
   // there instead: shown as not saved yet, for the member to decide.
   const recovered = useRef(new Set<string>());
   useEffect(() => {
-    if (!space || account == null || !server || server.workspaceId !== space || server.season !== season) return;
+    if (readOnly || !space || account == null || !server || server.workspaceId !== space || server.season !== season) return;
     const rk = `${account}:${space}:${season}`;
     if (recovered.current.has(rk)) return;
     recovered.current.add(rk);
@@ -253,7 +255,7 @@ export function usePickList(space: string | null, season: number, live: LiveMode
       if ((now.noteUpdatedAt ?? null) === d.base) change({ op: "note", team: d.team, note: d.note, base: d.base });
       else setUnsaved((u) => ({ ...u, [key]: { note: d.note, conflict: true } }));
     }
-  }, [server, space, season, account, change]);
+  }, [server, space, season, account, change, readOnly]);
 
   const mine = useMemo(() => pending.filter((p) => p.space === space && p.season === season).map((p) => p.op), [pending, space, season]);
   const list = useMemo(() => (server ? withPending(server, mine, me) : null), [server, mine, me]);
