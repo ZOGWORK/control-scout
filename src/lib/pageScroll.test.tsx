@@ -240,15 +240,31 @@ describe("usePageScroll", () => {
     vi.restoreAllMocks();
   });
 
-  it("follows a plain #link on the page (skip link, table of contents) instead of restoring the old place", () => {
+  it("follows a plain #link on the page (skip link, contents), and back/forward still return to where each entry was left", () => {
     height.current = 5000;
     history.replaceState(null, "", "/privacy");
     placeAt("sec", 2000, "72px");
     render(<BrowserRouter><Harness /></BrowserRouter>);
-    scrollTo(1200);
-    // What the browser does for <a href="#sec">: a new entry with no router state, then popstate.
-    act(() => { history.pushState(null, "", "/privacy#sec"); window.dispatchEvent(new PopStateEvent("popstate")); });
+    // The browser reports a #link, and a back/forward, the same way: an entry with no router state, then popstate.
+    const arrive = (url: string) => act(() => { history.replaceState(null, "", url); window.dispatchEvent(new PopStateEvent("popstate")); });
+    const link = document.createElement("a");
+    link.href = "#sec";
+    main.append(link);
+    // Clicked: the browser's own jump is held off here, so only the app's handling is measured.
+    const follow = () => act(() => { link.addEventListener("click", (e) => e.preventDefault(), { once: true, capture: true }); link.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true })); });
+    scrollTo(500);
+    // A link the page itself took over (preventDefault) is left to it: nothing is followed.
+    follow();
+    expect(page.scrollTop).toBe(500);
+    // Followed for real: the click is heard (not cancelled) and the browser adds the #sec entry.
+    act(() => { link.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true })); });
+    arrive("/privacy#sec");
     expect(page.scrollTop).toBe(1928);
+    scrollTo(2600); // read on past the section
+    arrive("/privacy"); // Back
+    expect(page.scrollTop).toBe(500);
+    arrive("/privacy#sec"); // Forward: where the reader had got to, not the section's heading
+    expect(page.scrollTop).toBe(2600);
     history.replaceState(null, "", "/");
   });
 

@@ -137,12 +137,29 @@ export function chase(inputs: EventTarget, content: Element | null, step: () => 
 }
 
 /**
- * The key a history entry's position is kept under. The router gives the entry a page load opened on
- * no key of its own ("default"), so that one is told apart by its address: another address opened
- * later in the same tab must not share it.
+ * The key a history entry's position is kept under. The router gives no key of its own ("default") to
+ * the entry a page load opened, nor to one a plain #link added, so those are told apart by their
+ * address, hash included: another address (or another #section of the page) must not share it.
  */
-export function entryKey(loc: { key: string; pathname: string; search: string }): string {
-  return loc.key === "default" ? `default:${loc.pathname}${loc.search}` : loc.key;
+export function entryKey(loc: { key: string; pathname: string; search: string; hash?: string }): string {
+  return loc.key === "default" ? `default:${loc.pathname}${loc.search}${loc.hash ?? ""}` : loc.key;
+}
+
+/** How long after a click on a plain #link its navigation still counts as that click's. */
+const FOLLOW_MS = 1000;
+
+/**
+ * The #hash a click on this link is about to follow on the current page (the browser does it itself,
+ * and the router hears it as a back/forward), or null: another page, another window, a modified click.
+ */
+export function followedHash(e: MouseEvent, here: { pathname: string; search: string }): string | null {
+  if (e.defaultPrevented || e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return null;
+  const a = (e.target as Element | null)?.closest?.("a[href]") as HTMLAnchorElement | null;
+  if (!a || (a.target && a.target !== "_self") || a.hasAttribute("download")) return null;
+  let url: URL;
+  try { url = new URL(a.href, location.href); } catch { return null; }
+  if (url.origin !== location.origin || !url.hash || url.hash === "#" || url.search !== here.search || !samePath(url.pathname, here.pathname)) return null;
+  return url.hash;
 }
 
 /** How this document was opened: "navigate" (a link, the address bar), "reload" or "back_forward". */
@@ -158,7 +175,7 @@ function documentNavigation(): string {
 // already scrolled on from there.
 let restoredKey: string | null = null;
 /** Whether arriving at this entry restored a saved position (so the page should not scroll itself). */
-export function restoredSavedPosition(loc: { key: string; pathname: string; search: string }): boolean {
+export function restoredSavedPosition(loc: { key: string; pathname: string; search: string; hash?: string }): boolean {
   return restoredKey === entryKey(loc);
 }
 
@@ -173,7 +190,10 @@ export function usePageScroll(content: RefObject<HTMLElement | null>) {
   store.current ??= new ScrollPositions(sessionStore());
   const keyRef = useRef(entryKey(loc));
   const prevPath = useRef<string | null>(null);
-  const prevHash = useRef("");
+  // A plain #link just clicked on this page, until the router reports its navigation (see followedHash).
+  const followed = useRef<{ hash: string; at: number } | null>(null);
+  const locRef = useRef(loc);
+  locRef.current = loc;
   // The plan made for the current location, reused if the effect runs again for the same location
   // (React's StrictMode replays effects in development).
   const last = useRef<{ sig: string; plan: ScrollPlan } | null>(null);
@@ -190,6 +210,20 @@ export function usePageScroll(content: RefObject<HTMLElement | null>) {
     return () => { history.scrollRestoration = was; };
   }, []);
 
+  // Tell a followed #link from a back/forward: both reach the router as "POP". Heard after the page's
+  // own handlers (bubbling to the document), so a link they took over (preventDefault) doesn't count.
+  // The place the reader leaves is kept now, before the browser jumps to the section.
+  useEffect(() => {
+    const onClick = (e: MouseEvent) => {
+      const hash = followedHash(e, locRef.current);
+      if (hash === null || hash === locRef.current.hash) return;
+      store.current!.set(keyRef.current, pageScroller().scrollTop);
+      followed.current = { hash, at: performance.now() };
+    };
+    document.addEventListener("click", onClick);
+    return () => document.removeEventListener("click", onClick);
+  }, []);
+
   // Remember where each entry is, as the reader scrolls. Also flags "scrolling" for CSS.
   useEffect(() => {
     const el = content.current;
@@ -202,7 +236,9 @@ export function usePageScroll(content: RefObject<HTMLElement | null>) {
     root.setAttribute(SCROLL_IDLE_ATTR, "");
     let idle: ReturnType<typeof setTimeout> | undefined;
     const onScroll = () => {
-      if (!restoring.current) store.current!.set(keyRef.current, pageScroller().scrollTop);
+      // Not while a followed #link's jump is on its way: that position is the next entry's, not this one's.
+      if (followed.current && performance.now() - followed.current.at >= FOLLOW_MS) followed.current = null;
+      if (!restoring.current && !followed.current) store.current!.set(keyRef.current, pageScroller().scrollTop);
       if (!flagOn.hasAttribute("data-scrolling")) { flagOn.setAttribute("data-scrolling", ""); root.removeAttribute(SCROLL_IDLE_ATTR); }
       clearTimeout(idle);
       idle = setTimeout(() => { flagOn.removeAttribute("data-scrolling"); root.setAttribute(SCROLL_IDLE_ATTR, ""); }, SCROLL_IDLE_MS);
@@ -235,14 +271,13 @@ export function usePageScroll(content: RefObject<HTMLElement | null>) {
       const fresh = prevPath.current === null && loc.key === "default" && documentNavigation() === "navigate";
       if (fresh) store.current!.set(key, 0);
       const saved = fresh ? undefined : store.current!.get(key);
-      // A plain #link followed on the same page: the history entry it adds carries no router state (key
-      // "default"), the path stays, and only the hash changes.
-      const fragment = action === "POP" && loc.key === "default" && prevPath.current !== null && samePath(prevPath.current, loc.pathname)
-        && !!loc.hash && loc.hash !== prevHash.current;
+      // The #link just clicked on this page, arriving (not a back/forward to an entry with that hash).
+      const f = followed.current;
+      const fragment = action === "POP" && !!f && f.hash === loc.hash && performance.now() - f.at < FOLLOW_MS;
+      followed.current = null;
       plan = planScroll({ action, prevPath: prevPath.current, path: loc.pathname, hash: loc.hash, saved, fragment });
       last.current = { sig, plan };
       prevPath.current = loc.pathname;
-      prevHash.current = loc.hash;
     }
     restoredKey = plan.kind === "restore" ? key : null;
     if (plan.kind === "top") el.scrollTop = 0;
