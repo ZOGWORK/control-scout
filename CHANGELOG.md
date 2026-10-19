@@ -3,9 +3,22 @@
 What changed in Control Scout, newest first. The prediction engine has its own
 changelog in `packages/predict-engine/CHANGELOG.md`.
 
+Each release opens with a `### Highlights` block: 3 to 5 short lines a visitor
+would notice, each starting with a `[tag]` that picks its icon (home, predict,
+teams, scout, offline, speed, live, report, alerts, rankings, share, workspace,
+picklist, history, fixes). What's new shows them first; the groups below are
+the full release notes, one click away.
+
 ## 1.7.0 — 2026-10-18
 
 A new home page, sharper predictions, and Scout pages that are faster to read and quicker to act on.
+
+### Highlights
+- [home] A new home page with a globe of this season's teams
+- [predict] Prediction Engine 2.1 weighs form, momentum and match context
+- [predict] Predict, rebuilt around the Lab and the latest live calls
+- [teams] A My teams page, team colours and an easier Compare
+- [offline] Download every season at once, and smoother scrolling
 
 ### Home
 - **A new home page.** The headline "The whole field. In your corner." sits beside a globe of where this season's teams are from, with search and Predict / Find an event right at the top. Below are the season's totals (team listings, events, match scores), your team's next match, what's on the calendar, the public prediction record (live calls and season replays kept apart) and Control Scout's own opt-in usage. The globe turns slowly, with a pause button, and stays still for reduced motion. (#151, #157)
@@ -41,6 +54,13 @@ A new home page, sharper predictions, and Scout pages that are faster to read an
 
 Shared scouting turns into match-day intelligence, and Scout becomes the app teams keep open at events.
 
+### Highlights
+- [live] Live mode counts down to your team's next match
+- [report] Know your match: a pre-match report for every match
+- [alerts] Push notifications before your tracked teams play
+- [rankings] World rankings and weekly power rankings
+- [share] Matchup cards to share in Discord and group chats
+
 ### Event day
 - **Live mode.** While an event is running, its page shows a big LIVE state and counts down to the next match for your team, your assigned teams or your tracked teams, with the lineups and our call. Scores and rankings refresh on their own every 30 seconds, and the page goes back to normal when the event ends. (#128)
 - **Know your match.** Every match has a pre-match report at `/events/…/match/…`, one tap from any match row or the LIVE panel. For all four robots it shows the call, OPR with its auto/TeleOp/endgame split, ranks, watch flags (your team, assigned, pick list, tracked, high penalties, inconsistent, rising) and your workspace's scouting consensus. With no scouting it falls back to OPR only, so it's never empty. (#131)
@@ -65,6 +85,13 @@ Shared scouting turns into match-day intelligence, and Scout becomes the app tea
 ## 1.5.0 — 2026-10-16
 
 Scouting becomes a shared team workspace, plus a production-readiness and speed pass.
+
+### Highlights
+- [workspace] Team workspaces from Control Point, live like messaging
+- [picklist] A shared pick list, assignments and comments
+- [history] Version history, so an overwritten edit can be restored
+- [offline] Entries saved offline sync when you reconnect
+- [speed] Faster pages, clearer errors and a proper 404 page
 
 ### Team workspaces (with Control Point)
 

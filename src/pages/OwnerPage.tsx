@@ -339,7 +339,7 @@ function WorkspacesSection() {
 function WhatsNewPanel() {
   const v = currentRelease();
   return (
-    <Section title="What's new" description={<>The releases every visitor sees under What's new{v ? <>, currently <span className="font-mono">v{v}</span></> : null}. They come from <span className="font-mono">CHANGELOG.md</span>: a new <span className="font-mono">## x.y.z — date</span> entry (with the app's version in <span className="font-mono">package.json</span> bumped to match) goes live with its PR, and visitors see the dot until they open it.</>}>
+    <Section title="What's new" description={<>The releases every visitor sees under What's new{v ? <>, currently <span className="font-mono">v{v}</span></> : null}. They come from <span className="font-mono">CHANGELOG.md</span>: a new <span className="font-mono">## x.y.z — date</span> entry (with the app's version in <span className="font-mono">package.json</span> bumped to match), opening with a <span className="font-mono">### Highlights</span> block of 3 to 5 one-line <span className="font-mono">- [tag] …</span> bullets, goes live with its PR, and visitors see the dot until they open it.</>}>
       <div className="overflow-hidden rounded-2xl border border-border bg-card">
         <Suspense fallback={<LoadingBlock rows={4} label="Loading releases" />}><WhatsNewContent /></Suspense>
       </div>
