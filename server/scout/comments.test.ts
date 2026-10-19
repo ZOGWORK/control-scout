@@ -372,3 +372,83 @@ describe("comments: deleted entries and counts", () => {
     expect((await admin("GET", "/api/scout/workspaces/1599/comment-counts")).status).toBe(403);
   });
 });
+
+// PRIVATE-F05 (audit 2026-10-18): a post whose answer was lost is retried with the same opId, and must never make a second comment.
+describe("comments: retrying a post (opId)", () => {
+  const postOp = (call: Call, ws: string, uuid: string, body: unknown, opId: unknown) => call("POST", thread(ws, uuid), { body, opId });
+
+  it("the same opId again returns the original comment (200, rev 0) and makes no second one", async () => {
+    const { member, admin, first } = await team("1560");
+    const a = await postOp(member, "1560", first.uuid, "Watch their lift", "op-aaaaaaaa-1");
+    expect(a.status).toBe(201);
+    expect(a.json.comment.opId).toBe("op-aaaaaaaa-1");
+    const again = await postOp(member, "1560", first.uuid, "Watch their lift", "op-aaaaaaaa-1");
+    expect(again.status).toBe(200);
+    expect(again.json).toMatchObject({ action: "created", commentId: a.json.commentId, count: 1, rev: 0, comment: { body: "Watch their lift", opId: "op-aaaaaaaa-1" } });
+    const { comments } = await list(admin, "1560", first.uuid);
+    expect(comments.map((c) => [c.id, c.body])).toEqual([[a.json.commentId, "Watch their lift"]]);
+    // Logged once: the retry adds no second feed line or inbox item.
+    expect((await feed(admin, "1560")).filter((i) => i.type === "comment.created")).toHaveLength(1);
+  });
+
+  it("a retry isn't streamed again and doesn't spend the rate allowance", async () => {
+    const { member, first } = await team("1561");
+    const heard: CommentEvent[] = [];
+    const off = subscribeComments("1561", (c) => heard.push(c));
+    const a = await postOp(member, "1561", first.uuid, "once", "op-bbbbbbbb-1");
+    for (let i = 1; i < COMMENT_RATE.burst; i++) expect((await post(member, "1561", first.uuid, `c${i}`)).status).toBe(201);
+    // The allowance is spent; the retry still gets its comment back.
+    const again = await postOp(member, "1561", first.uuid, "once", "op-bbbbbbbb-1");
+    expect(again.status).toBe(200);
+    expect(again.json.commentId).toBe(a.json.commentId);
+    expect(heard.filter((e) => e.commentId === a.json.commentId)).toHaveLength(1);
+    off();
+  });
+
+  it("two copies of one attempt sent at once make one comment", async () => {
+    const { member, admin, first } = await team("1562");
+    const [x, y] = await Promise.all([postOp(member, "1562", first.uuid, "twice?", "op-cccccccc-1"), postOp(member, "1562", first.uuid, "twice?", "op-cccccccc-1")]);
+    expect([x.status, y.status].sort()).toEqual([200, 201]);
+    expect(x.json.commentId).toBe(y.json.commentId);
+    expect((await list(admin, "1562", first.uuid)).comments).toHaveLength(1);
+  });
+
+  it("two copies of one attempt sent at once with one token left: both get the comment, neither a 429", async () => {
+    const { member, first } = await team("1566");
+    for (let i = 1; i < COMMENT_RATE.burst; i++) expect((await post(member, "1566", first.uuid, `c${i}`)).status).toBe(201);
+    const [x, y] = await Promise.all([postOp(member, "1566", first.uuid, "last one", "op-gggggggg-1"), postOp(member, "1566", first.uuid, "last one", "op-gggggggg-1")]);
+    expect([x.status, y.status].sort()).toEqual([200, 201]);
+    expect(x.json.commentId).toBe(y.json.commentId);
+  });
+
+  it("new opIds (or none) are new comments: the same words posted twice on purpose both stay", async () => {
+    const { member, admin, first } = await team("1563");
+    expect((await postOp(member, "1563", first.uuid, "+1", "op-dddddddd-1")).status).toBe(201);
+    expect((await postOp(member, "1563", first.uuid, "+1", "op-dddddddd-2")).status).toBe(201);
+    expect((await post(member, "1563", first.uuid, "+1")).status).toBe(201);
+    expect((await post(member, "1563", first.uuid, "+1")).status).toBe(201);
+    expect((await list(admin, "1563", first.uuid)).comments.map((c) => c.body)).toEqual(["+1", "+1", "+1", "+1"]);
+  });
+
+  it("an opId is the author's own, on that entry: someone else (or another entry) using it makes a new comment", async () => {
+    const { member, other, admin, first } = await team("1564");
+    const second = entry();
+    await push(member, "1564", second);
+    const a = await postOp(member, "1564", first.uuid, "mine", "op-eeeeeeee-1");
+    const b = await postOp(other, "1564", first.uuid, "his", "op-eeeeeeee-1");
+    const c = await postOp(member, "1564", second.uuid, "elsewhere", "op-eeeeeeee-1");
+    expect([a.status, b.status, c.status]).toEqual([201, 201, 201]);
+    expect(new Set([a.json.commentId, b.json.commentId, c.json.commentId]).size).toBe(3);
+    expect((await list(admin, "1564", first.uuid)).comments.map((x) => x.body)).toEqual(["mine", "his"]);
+  });
+
+  it("a retry after the comment was deleted is refused (409), never posted again; a bad opId is a 400", async () => {
+    const { member, admin, first } = await team("1565");
+    const a = await postOp(member, "1565", first.uuid, "gone soon", "op-ffffffff-1");
+    await member("DELETE", `${thread("1565", first.uuid)}/${a.json.commentId}`);
+    const again = await postOp(member, "1565", first.uuid, "gone soon", "op-ffffffff-1");
+    expect(again.status).toBe(409);
+    expect((await list(admin, "1565", first.uuid)).comments).toHaveLength(0);
+    for (const bad of ["short", "x".repeat(65), "has space!", 12345678]) expect((await postOp(member, "1565", first.uuid, "hi", bad)).status).toBe(400);
+  });
+});

@@ -135,3 +135,97 @@ describe("EntryComments: the composer", () => {
     expect(box.value).toBe("first and more");
   });
 });
+
+// PRIVATE-F05 (audit 2026-10-18): the server took a post but its answer was lost.
+describe("EntryComments: a post whose answer is lost", () => {
+  /** A stand-in server that dedupes on opId, as server/scout/comments.ts does. `lose`: drop the answer to the next N posts (after taking them); `getFails`: the thread can't be read. */
+  function lossyServer() {
+    const st = { lose: 0, getFails: false, posts: [] as { body: string; opId: string }[] };
+    const byOp = new Map<string, EntryComment>();
+    let next = 3;
+    vi.stubGlobal("fetch", vi.fn(async (url: string, init?: RequestInit) => {
+      const method = init?.method ?? "GET";
+      if (method === "GET" && url === THREAD) {
+        if (st.getFails) throw new TypeError("Failed to fetch");
+        return new Response(JSON.stringify({ comments: thread, entryDeleted: false }), { status: 200 });
+      }
+      if (method === "POST" && url === THREAD) {
+        const { body, opId } = JSON.parse(String(init!.body));
+        st.posts.push({ body, opId });
+        let made = byOp.get(opId);
+        const repeat = !!made;
+        if (!made) { made = c(next++, { body, opId, createdAt: Date.now() }); byOp.set(opId, made); thread = [...thread, made]; }
+        if (st.lose > 0) { st.lose--; throw new TypeError("Failed to fetch"); } // taken, answer lost
+        const e: CommentEvent = { action: "created", workspaceId: "41", entryUuid: "aaaaaaaaaaaa", commentId: made.id, count: thread.length, rev: repeat ? 0 : 200 + made.id, comment: made };
+        return new Response(JSON.stringify(e), { status: repeat ? 200 : 201 });
+      }
+      return new Response(JSON.stringify({ error: "Not found" }), { status: 404 });
+    }));
+    return st;
+  }
+  const type = (text: string) => fireEvent.change(screen.getByLabelText("Add a comment"), { target: { value: text } });
+  const box = () => screen.getByLabelText("Add a comment") as HTMLTextAreaElement;
+
+  it("finds its comment in the thread: posted once, the composer clears, no error", async () => {
+    const st = lossyServer();
+    render(<EntryComments entry={entry()} />);
+    await waitFor(() => expect(items()).toHaveLength(2));
+    st.lose = 1;
+    type("Watch their lift");
+    fireEvent.click(screen.getByRole("button", { name: "Comment" }));
+    await waitFor(() => expect(items()).toHaveLength(3));
+    await waitFor(() => expect(box().value).toBe(""));
+    expect(screen.queryByRole("alert")).toBeNull();
+    expect(st.posts).toHaveLength(1);
+  });
+
+  it("can't tell: says it couldn't confirm (not offline), and Retry sends the same attempt, never a second comment", async () => {
+    const st = lossyServer();
+    render(<EntryComments entry={entry()} />);
+    await waitFor(() => expect(items()).toHaveLength(2));
+    st.lose = 1; st.getFails = true;
+    type("Watch their lift");
+    fireEvent.click(screen.getByRole("button", { name: "Comment" }));
+    const alert = await screen.findByRole("alert");
+    expect(alert.textContent).toMatch(/couldn't confirm/i);
+    expect(alert.textContent).not.toMatch(/offline/i);
+    expect(box().value).toBe("Watch their lift"); // kept
+    st.getFails = false;
+    fireEvent.click(within(alert).getByRole("button", { name: "Retry" }));
+    await waitFor(() => expect(box().value).toBe(""));
+    expect(st.posts).toHaveLength(2);
+    expect(st.posts[1].opId).toBe(st.posts[0].opId);
+    expect(st.posts[0].opId).toMatch(/^[A-Za-z0-9_-]{8,64}$/);
+    expect(thread.filter((x) => x.body === "Watch their lift")).toHaveLength(1);
+    await waitFor(() => expect(items()).toHaveLength(3));
+  });
+
+  it("the same words posted again on purpose (after a success) are a new attempt: a new id", async () => {
+    const st = lossyServer();
+    render(<EntryComments entry={entry()} />);
+    await waitFor(() => expect(items()).toHaveLength(2));
+    for (let i = 0; i < 2; i++) {
+      type("+1");
+      fireEvent.click(screen.getByRole("button", { name: "Comment" }));
+      await waitFor(() => expect(box().value).toBe(""));
+    }
+    expect(st.posts).toHaveLength(2);
+    expect(st.posts[0].opId).not.toBe(st.posts[1].opId);
+    await waitFor(() => expect(items()).toHaveLength(4));
+  });
+
+  it("an unconfirmed post that streams in afterwards clears the composer", async () => {
+    const st = lossyServer();
+    render(<EntryComments entry={entry()} />);
+    await waitFor(() => expect(items()).toHaveLength(2));
+    st.lose = 1; st.getFails = true;
+    type("late but there");
+    fireEvent.click(screen.getByRole("button", { name: "Comment" }));
+    await screen.findByRole("alert");
+    const made = thread.at(-1)!;
+    act(() => { announceComment({ action: "created", workspaceId: "41", entryUuid: "aaaaaaaaaaaa", commentId: made.id, count: thread.length, rev: 500, comment: made }); });
+    await waitFor(() => expect(box().value).toBe(""));
+    expect(screen.queryByRole("alert")).toBeNull();
+    expect(st.posts).toHaveLength(1);
+  });
+});

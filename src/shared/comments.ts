@@ -21,7 +21,16 @@ export interface EntryComment {
   createdAt: number;
   /** When its author last changed it; null if never. */
   editedAt: number | null;
+  /**
+   * The id the author's device gave the attempt that posted it (COMMENT_OP_ID), when it sent one: how that
+   * device recognises its own comment in the thread after losing the answer to its post.
+   */
+  opId?: string;
 }
+
+/** A comment post's operation id: one per attempt, kept across its retries (letters, digits, - and _). */
+export const COMMENT_OP_ID = /^[A-Za-z0-9_-]{8,64}$/;
+export const isCommentOpId = (x: unknown): x is string => typeof x === "string" && COMMENT_OP_ID.test(x);
 
 /**
  * A change to a thread, as the workspace's live stream sends it (`event: comment`, no id) and as
@@ -71,7 +80,7 @@ export function isEntryComment(x: unknown): x is EntryComment {
   const c = x as EntryComment;
   return !!c && Number.isSafeInteger(c.id) && typeof c.workspaceId === "string" && typeof c.entryUuid === "string"
     && Number.isSafeInteger(c.authorAccountId) && typeof c.authorName === "string" && typeof c.body === "string"
-    && Number.isFinite(c.createdAt) && (c.editedAt === null || Number.isFinite(c.editedAt));
+    && Number.isFinite(c.createdAt) && (c.editedAt === null || Number.isFinite(c.editedAt)) && (c.opId === undefined || isCommentOpId(c.opId));
 }
 
 export function isCommentEvent(x: unknown): x is CommentEvent {
