@@ -360,6 +360,7 @@ describe("IndexNow", () => {
     await migrate(c);
     process.env.INDEXNOW = "1";
     delete process.env.INDEXNOW_KEY;
+    (await import("./powerRankings/generated")).invalidateGenerated(); // published weeks are cached across databases
   });
   afterAll(() => { delete process.env.INDEXNOW; delete process.env.INDEXNOW_KEY; });
 
@@ -421,6 +422,37 @@ describe("IndexNow", () => {
     // Nothing changed since: nothing sent, and the hour isn't used up.
     expect(await pingIndexNow({ now: T0 + 3 * HOUR, fetchImpl: f.fetchImpl })).toBe("nothing changed");
     expect(f.calls).toHaveLength(2);
+  });
+
+  it("sends each power rankings week once, by its id: one dated the day of an earlier ping still goes", async () => {
+    const { pingIndexNow } = await import("./indexNow");
+    const f = fake();
+    expect(await pingIndexNow({ now: T0, fetchImpl: f.fetchImpl })).toMatch(/^sent 7 URLs/);
+    // Published "2026-10-19", a date that sorts before the ping's own time on that same day.
+    await run("INSERT INTO power_rankings_generated (season, week, published, status, packet, generated_at) VALUES (2026, '2026-w42', '2026-10-19', 'published', ?, ?)",
+      [JSON.stringify({ season: 2026, week: "2026-w42", teams: [], comparedWith: null }), new Date(T0 + 60_000).toISOString()]);
+    (await import("./powerRankings/generated")).invalidateGenerated(); // its 15 s cache (pings are an hour apart)
+    expect(await pingIndexNow({ now: T0 + HOUR + 1, fetchImpl: f.fetchImpl })).toMatch(/^sent 1 URLs/);
+    expect(f.calls[1].body.urlList).toEqual(["https://controlscout.org/power-rankings/2026-w42"]);
+    expect(await pingIndexNow({ now: T0 + 3 * HOUR, fetchImpl: f.fetchImpl })).toBe("nothing changed");
+  });
+
+  it("a batch over the limit goes out across pings, from where the last one stopped: no page is skipped", async () => {
+    const { changedEvents } = await import("./indexNow");
+    const t = "2026-10-19T12:10:00.000Z"; // all re-fetched at the same moment: the cursor still tells them apart
+    await run("INSERT INTO events (season, code, name, start, source, detail_synced_at) VALUES (2025, 'A', 'A', '2025-11-08', 'test', ?), (2025, 'B', 'B', '2025-11-08', 'test', ?), (2025, 'C', 'C', '2025-11-08', 'test', ?)", [t, t, t]);
+    await run("INSERT INTO event_teams (season, code, team) VALUES (2025, 'A', 1), (2025, 'A', 2), (2025, 'B', 3), (2025, 'B', 4), (2025, 'C', 5)");
+    const start = { t: "2026-10-19T12:00:00.000Z", season: 0, code: "" };
+    // Room for 4 URLs: event A and its two teams (3) fit; B and its teams (3 more) wait whole.
+    const first = await changedEvents(start, 4);
+    expect(first.paths).toEqual(["/events/2025/A", "/teams/1", "/teams/2"]);
+    expect(first.more).toBe(true);
+    const second = await changedEvents(first.cursor, 4);
+    expect(second.paths).toEqual(["/events/2025/B", "/teams/3", "/teams/4"]);
+    const third = await changedEvents(second.cursor, 4);
+    expect(third.paths).toEqual(["/events/2025/C", "/teams/5"]);
+    expect(third.more).toBe(false);
+    expect((await changedEvents(third.cursor, 4)).paths).toEqual([]);
   });
 
   it("fails quietly: a refused or broken request resolves, waits an hour, and loses no change", async () => {
