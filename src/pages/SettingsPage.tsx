@@ -21,8 +21,8 @@ import { usePersonal, type AccountUser, type AuthProviders } from "../lib/person
 import { resetConsent, useConsent } from "../lib/consent";
 import { resetTour } from "../lib/tour";
 import { resetInstall } from "../lib/installNudge";
-import { clearLocalScouting, localScoutEntries } from "../lib/scouting";
-import { applyScoutImport, downloadJson, importMessage, importRows, previewScoutImport, scoutExportJson, type DuplicatePolicy, type ImportPreview } from "../lib/scoutImport";
+import { clearLocalScouting, localScoutEntries, SCOUT_CHANGED } from "../lib/scouting";
+import { applyScoutImport, downloadJson, importMessage, importRows, planKey, previewScoutImport, scoutExportJson, type DuplicatePolicy, type ImportPreview } from "../lib/scoutImport";
 import { ImportPreviewDialog } from "../components/settings/ImportPreviewDialog";
 import { isoOrBlank } from "../shared/scoutEntry";
 import { clearRecordings, fmtBytes } from "../lib/recordings";
@@ -482,11 +482,27 @@ function ScoutingData() {
       setPending((p) => ({ key: (p?.key ?? 0) + 1, open: true, name: file.name, rows, preview: previewScoutImport(rows) }));
     }).catch(() => toast.error("Couldn't read that file"));
   };
+  // Keep the preview true to the device while it's open (a sync or another tab can change entries meanwhile).
+  const previewOpen = !!pending?.open;
+  useEffect(() => {
+    if (!previewOpen) return;
+    const refresh = () => setPending((p) => p && p.open ? { ...p, preview: previewScoutImport(p.rows) } : p);
+    window.addEventListener(SCOUT_CHANGED, refresh);
+    window.addEventListener("storage", refresh);
+    return () => { window.removeEventListener(SCOUT_CHANGED, refresh); window.removeEventListener("storage", refresh); };
+  }, [previewOpen]);
   const runImport = (policy: DuplicatePolicy) => {
     if (!pending?.open) return;
-    // Sorted again against the device as it is now (a sync may have landed while the preview was open).
-    const m = importMessage(applyScoutImport(previewScoutImport(pending.rows), policy));
-    closePreview();
+    // Sorted again against the device as it is now. If that would add or replace anything the scout didn't see,
+    // nothing is written: the dialog shows the new preview (with its backup offer) to review again.
+    const now = previewScoutImport(pending.rows);
+    if (planKey(now, policy) !== planKey(pending.preview, policy)) {
+      setPending({ ...pending, preview: now });
+      toast.warning("Entries on this device changed while you were reviewing. Nothing was imported: check the updated preview, then import again.");
+      return;
+    }
+    closePreview(); // first, so the saves below don't refresh a preview that's closing
+    const m = importMessage(applyScoutImport(now, policy));
     toast[m.tone](m.text, m.tone === "success" ? undefined : { duration: 15_000 });
   };
   // Live count: re-read whenever scouting data changes (import, clear, edits elsewhere).

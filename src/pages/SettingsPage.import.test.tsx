@@ -115,6 +115,28 @@ describe("Settings: import preview", () => {
     expect(notes).toEqual({ dupnewer0001: "theirs", dupolder0001: "theirs", fresh0000001: "fast" });
   });
 
+  it("the device changes while the preview is open: the preview follows, and Import never replaces what wasn't shown", async () => {
+    const { choose } = show();
+    const t = Date.now();
+    const dialog = await choose([good("racing000001", { notes: "theirs", updatedAt: t + 60_000 }), good("racing000002", { notes: "theirs", updatedAt: t + 60_000 })]);
+    const plan = () => within(dialog).getByRole("region", { name: "What Import will do" }).textContent;
+    expect(plan()).toContain("Add 2");
+    // A sync lands (with the change event): the preview now shows the replacement and offers a backup.
+    saveScoutEntry({ ...good("racing000001"), kind: "match", workspaceId: null });
+    await waitFor(() => expect(plan()).toContain("Update 1"));
+    expect(within(dialog).getByRole("button", { name: "Download a backup first" })).toBeTruthy();
+    // A change with no event (another writer): Import checks again, writes nothing and shows the new preview.
+    localStorage.setItem("cs-scout:racing000002", JSON.stringify({ ...good("racing000002"), updatedAt: t }));
+    const before = snapshot();
+    fireEvent.click(within(dialog).getByRole("button", { name: /^Import/ }));
+    expect(snapshot()).toBe(before);
+    expect(screen.getByRole("dialog", { name: "Review this import" })).toBeTruthy();
+    expect(plan()).toContain("Update 2");
+    fireEvent.click(within(dialog).getByRole("button", { name: "Import 2 entries" }));
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+    expect(localScoutEntries().map((e) => e.notes)).toEqual(["theirs", "theirs"]);
+  });
+
   it("many invalid rows: the first few show, the rest are behind a keyboard-operable disclosure", async () => {
     const { choose } = show();
     const dialog = await choose(Array.from({ length: 9 }, (_, i) => good(`bad${String(i).padStart(9, "0")}`, { team: "x", matchLabel: `Q${i + 1}` })));
