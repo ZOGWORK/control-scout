@@ -256,11 +256,13 @@ export interface ApiState<T> { data: T | undefined; error: ApiError | undefined;
  *  server afresh for them instead of re-rendering the same cached answer. */
 export const ApiReadsContext = createContext<Set<string> | null>(null);
 
-/** Drop these paths' cached answers (not one still being asked for: that answer is fresh anyway), so the
- *  next look fetches them again and shows loading meanwhile. One still on screen elsewhere is asked for now. */
+/** Drop these paths' cached answers, so the next look shows loading and fetches them again. A path still
+ *  being asked for keeps that request (its answer is the fresh one: the next look waits for it); one
+ *  still on screen elsewhere is asked for now. */
 export function forget(paths: Iterable<string>) {
   for (const k of paths) {
-    if (cache.get(k)?.promise) continue;
+    const pending = cache.get(k)?.promise;
+    if (pending) { cache.set(k, { at: 0, promise: pending }); notify(k); continue; }
     cache.delete(k);
     if (listeners.get(k)?.size) load(k, true).catch(() => {});
   }
