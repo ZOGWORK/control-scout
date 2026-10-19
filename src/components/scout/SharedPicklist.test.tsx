@@ -353,6 +353,19 @@ describe("SharedPicklist: a note on its way when the page reloads", () => {
     expect(server.picks[0].note).toBe("Lift fixed at QF");
   });
 
+  it("one the server took (trimmed) before the reload is dropped too: drafts compare as the server stores notes", async () => {
+    localStorage.setItem("cs-picknote:1:901:2025:102", JSON.stringify({ note: "  Fast cycles  ", base: null, at: Date.now(), wid: "w-old" }));
+    server = { ...server, version: server.version + 1, picks: server.picks.map((p) => (p.team === 102 ? { ...p, note: "Fast cycles", noteBy: { accountId: 1, name: "Priya" }, noteUpdatedAt: Date.now() } : p)) };
+    show();
+    await waitFor(() => expect(drafts()).toEqual([]));
+    expect(notePosts()).toEqual([]);
+    // And a note written with spaces is kept (and sent) trimmed.
+    hangNotes = true;
+    writeNote(101, "  Watch the lift  ");
+    await waitFor(() => expect(notePosts().at(-1)).toMatchObject({ note: "Watch the lift" }));
+    expect(JSON.parse(localStorage.getItem("cs-picknote:1:901:2025:101")!).note).toBe("Watch the lift");
+  });
+
   it("one the server took before the reload (the list says the same) is dropped without sending", async () => {
     await writeThenReload(102, "Fast cycles");
     server = { ...server, version: server.version + 1, picks: server.picks.map((p) => (p.team === 102 ? { ...p, note: "Fast cycles", noteBy: { accountId: 1, name: "Priya" }, noteUpdatedAt: Date.now() } : p)) };

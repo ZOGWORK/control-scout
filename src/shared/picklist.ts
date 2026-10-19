@@ -67,6 +67,9 @@ export const noteConflicts = (pick: Pick, op: { note: string; base?: number | nu
 
 const isTeam = (v: unknown): v is number => typeof v === "number" && Number.isSafeInteger(v) && v > 0 && v < 1_000_000;
 
+/** A note as the server stores it (cleanPickOp): trimmed, at most MAX_PICK_NOTE characters. */
+export const cleanNote = (note: string) => note.trim().slice(0, MAX_PICK_NOTE);
+
 /** An operation from a request body, or the reason it's not one. */
 export function cleanPickOp(x: unknown): PickOp | { error: string } {
   const b = x && typeof x === "object" ? x as Record<string, unknown> : {};
@@ -95,7 +98,7 @@ export function cleanPickOp(x: unknown): PickOp | { error: string } {
     case "note":
       if (typeof b.note !== "string") return { error: "note must be text" };
       if (b.base !== undefined && b.base !== null && !(typeof b.base === "number" && Number.isSafeInteger(b.base) && b.base >= 0)) return { error: "base must be a note time or null" };
-      return { op: "note", team: b.team, note: b.note.trim().slice(0, MAX_PICK_NOTE), ...(b.base !== undefined ? { base: b.base as number | null } : {}) };
+      return { op: "note", team: b.team, note: cleanNote(b.note), ...(b.base !== undefined ? { base: b.base as number | null } : {}) };
     default: return { error: "op must be add, remove, move, note or import" };
   }
 }

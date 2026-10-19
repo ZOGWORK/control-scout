@@ -16,7 +16,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { apiFetch, ApiError } from "./api";
 import type { LiveMode } from "./scoutLive";
-import { applyPickOp, isPickList, NOTE_CHANGED, type PickList, type PickOp, type PickPerson } from "../shared/picklist";
+import { applyPickOp, cleanNote, isPickList, NOTE_CHANGED, type PickList, type PickOp, type PickPerson } from "../shared/picklist";
 import { clearNoteDraft, noteDrafts, readNoteDraft, saveNoteDraft } from "./picklistDrafts";
 
 /** Window event: a workspace's pick list arrived on its stream. detail: PickList. */
@@ -231,6 +231,8 @@ export function usePickList(space: string | null, season: number, live: LiveMode
     let wid: string | undefined;
     let stored = false;
     if (op.op === "note") {
+      // As the server will store it, so the draft (and what's shown meanwhile) compares equal to its answer.
+      op = { ...op, note: cleanNote(op.note) };
       const key = noteKey(acct, space, season, op.team);
       const team = op.team;
       const shown = serverRef.current?.picks.find((x) => x.team === team);
@@ -273,9 +275,10 @@ export function usePickList(space: string | null, season: number, live: LiveMode
       const key = noteKey(account, space, season, d.team);
       if (latestNote.current.has(key)) continue; // written on this page: on its way already
       const now = server.picks.find((x) => x.team === d.team);
-      if (!now || now.note === d.note) { clearNoteDraft(account, space, season, d.team); continue; }
-      if ((now.noteUpdatedAt ?? null) === d.base) change({ op: "note", team: d.team, note: d.note, base: d.base });
-      else setUnsaved((u) => ({ ...u, [key]: { note: d.note, conflict: true } }));
+      const note = cleanNote(d.note);
+      if (!now || now.note === note) { clearNoteDraft(account, space, season, d.team); continue; }
+      if ((now.noteUpdatedAt ?? null) === d.base) change({ op: "note", team: d.team, note, base: d.base });
+      else setUnsaved((u) => ({ ...u, [key]: { note, conflict: true } }));
     }
   }, [server, space, season, account, change, readOnly]);
 
