@@ -338,6 +338,22 @@ describe("SharedPicklist: a note on its way when the page reloads", () => {
 });
 
 describe("SharedPicklist in a read-only space (Task 19)", () => {
+  it("a note kept from before a reload is neither sent nor shown while the space is read-only, and stays kept", async () => {
+    const kept = { note: "Kept draft", base: null, at: Date.now(), wid: "w-1" };
+    localStorage.setItem("cs-picknote:1:901:2025:102", JSON.stringify(kept));
+    render(
+      <MemoryRouter>
+        <SharedPicklist workspaceId="901" workspaceName="Gearheads" season={S} live="off" me={{ accountId: 1, name: "Priya" }} shortlist={[]} readOnly />
+      </MemoryRouter>,
+    );
+    await waitFor(() => expect(rows()).toEqual([101, 102]));
+    await new Promise((r) => setTimeout(r, 30));
+    expect(posts).toEqual([]);
+    expect(screen.queryByText("Kept draft")).toBeNull();
+    expect(screen.queryByText(/Not saved/)).toBeNull();
+    expect(JSON.parse(localStorage.getItem("cs-picknote:1:901:2025:102")!)).toEqual(kept);
+  });
+
   it("reads (picks, stats, notes) but offers nothing that changes the list, and sends nothing", async () => {
     render(
       <MemoryRouter>
