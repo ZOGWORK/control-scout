@@ -13,7 +13,7 @@ vi.mock("../lib/personal", () => ({ usePersonal: () => ({ user: null, providers:
 vi.mock("../lib/scoutLive", () => ({ useScoutLive: () => "off" }));
 vi.mock("../components/MatchVideo", () => ({ Recordings: () => null }));
 
-const { EntryCard } = await import("./ScoutPage");
+const { EntryCard, entryDate } = await import("./ScoutPage");
 
 const entry = {
   uuid: "card00000001", season: 2025, team: 18360, eventCode: "USTST1", matchLabel: "Q12", kind: "match", data: {}, notes: "",
@@ -62,5 +62,30 @@ describe("a shared entry card with two assigned scouts", () => {
     fireEvent.click(within(actions).getByRole("button", { name: "Version history" }));
     expect(onEdit).toHaveBeenCalledOnce();
     expect(onHistory).toHaveBeenCalledOnce();
+  });
+});
+
+describe("a personal entry's date", () => {
+  const personal = (updatedAt: unknown) => ({ ...entry, uuid: "personal0001", workspaceId: null, updatedAt }) as unknown as ScoutEntry;
+  const showPersonal = (e: ScoutEntry) => render(
+    <TooltipProvider><MemoryRouter><ul><EntryCard e={e} assigned={null} canDelete readOnly={false} comments={0} onEdit={() => {}} onHistory={() => {}} /></ul></MemoryRouter></TooltipProvider>,
+  );
+
+  it("an updatedAt repaired to 0 (or missing) reads as unknown, never 1969", () => {
+    for (const at of [0, undefined, null, Number.NaN]) {
+      showPersonal(personal(at));
+      const card = screen.getByRole("listitem");
+      expect(card.textContent).toContain("USTST1 · Date unknown");
+      expect(card.textContent).not.toMatch(/1969|1970/);
+      cleanup();
+    }
+  });
+
+  it("a real time still shows as a date", () => {
+    const at = Date.UTC(2025, 10, 1, 15, 30);
+    showPersonal(personal(at));
+    expect(screen.getByRole("listitem").textContent).toContain(`USTST1 · ${new Date(at).toLocaleString()}`);
+    expect(entryDate(at)).toBe(new Date(at).toLocaleString());
+    expect(entryDate(9e15)).toBe("Date unknown"); // past Date's range
   });
 });
