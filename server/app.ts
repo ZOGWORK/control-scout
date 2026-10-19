@@ -46,6 +46,7 @@ import { packsRouter } from "./packs/routes.js";
 import { cachedPublicUsage, collectRouter, statsRouter } from "./analytics.js";
 import { homeOverview } from "./api/home.js";
 import { listRecords, recordRegions, recordsQuery, RecordsQueryError, streamRecordsCsv } from "./api/records.js";
+import { directoryQuery, DirectoryQueryError, listDirectory } from "./api/directory.js";
 import { FilterError } from "../src/shared/filterDsl.js";
 import { RECORDS_EXPORT_MAX, RECORDS_MAX_PAGE_SIZE } from "../src/shared/statCatalog.js";
 import { manualRefresh, type ManualOutcome } from "./data/live.js";
@@ -385,6 +386,12 @@ export function createApp() {
   /** Team records: ?scope=event (default, one row per team per event) or season. */
   api.get("/records/:season/teams", ...records("teams"));
   api.get("/records/:season/matches", ...records("matches"));
+  /** The team directory: every team registered for a season, results or not (?country=, sort, dir, page). */
+  api.get("/directory/:season", recordsLimit, h(async (req) => {
+    const s = season(req.params.season);
+    try { return await listDirectory(s, directoryQuery(req.query as Record<string, unknown>)); }
+    catch (e) { if (e instanceof DirectoryQueryError) throw bad(e.message); throw e; }
+  }));
   /** The region codes a season's records use, named by their main place (for the Region dropdown). */
   api.get("/records/:season/regions", recordsLimit, h(async (req) => ({ regions: await recordRegions(season(req.params.season)) })));
 
