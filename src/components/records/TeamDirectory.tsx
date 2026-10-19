@@ -5,7 +5,7 @@
 // statistical tables keep their own denominator (teams with results only).
 import { useEffect, useMemo, useRef } from "react";
 import { Link, useLocation, useNavigate, useSearchParams } from "react-router-dom";
-import { ArrowDown, ArrowRight, ArrowUp, ChevronLeft, ChevronRight, Hourglass, MapPin, Star, Trophy, Users, X } from "lucide-react";
+import { ArrowDown, ArrowRight, ArrowUp, ChevronLeft, ChevronRight, Hourglass, MapPin, Star, Trophy, Users } from "lucide-react";
 import { useApi, type ApiError } from "../../lib/api";
 import { place, seasonLabel } from "../../lib/format";
 import { useTeamFlags } from "../../lib/personal";
@@ -66,11 +66,6 @@ export function TeamDirectory({ season, onSeason }: { season: number; onSeason: 
             {BY_NAME.map((c) => <option key={c.code} value={c.code}>{c.name}</option>)}
           </select>
         </label>
-        {state.country && (
-          <Button variant="secondary" size="sm" className="max-sm:h-11" onClick={() => setState({ ...state, country: null, page: 1 })} aria-label={`Teams from ${country?.name ?? state.country}: show every country`}>
-            <MapPin className="text-accent" /> {country?.name ?? state.country} <X className="text-text-muted" />
-          </Button>
-        )}
         <label className="inline-flex items-center gap-2 sm:ml-auto">
           <span className="text-sm text-text-muted">Sort</span>
           <select value={state.sort} onChange={(e) => { const sort = e.target.value as DirectorySort; setState({ ...state, sort, dir: directoryDefaultDir(sort), page: 1 }); }} className={field}>
