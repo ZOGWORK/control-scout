@@ -23,6 +23,25 @@ export interface UnmappedTotal {
   listings: number;
 }
 
+/**
+ * Whether a season's derived statistics (the team records behind "teams with results") are in step
+ * with its source results. Counts drawn from the records are only a fact when this is "ready".
+ * - "ready": the statistics were prepared after the latest synced results (or nothing has been played).
+ * - "preparing": results have been played, but no statistics exist for the season yet (a fresh restore,
+ *   a first run): every results count would read zero, so none is shown.
+ * - "catching-up": statistics exist, but results were synced again after they were prepared: counts
+ *   are from the last preparation and may be behind until the next one finishes.
+ */
+export type ReadinessState = "ready" | "preparing" | "catching-up";
+
+export interface SeasonReadiness {
+  state: ReadinessState;
+  /** When the season's results were last synced from the source (null: never, or unknown). */
+  resultsAt: string | null;
+  /** When the season's statistics were last prepared (null: never, or unknown). */
+  statsAt: string | null;
+}
+
 export interface HomeOverview {
   season: number;
   /** When this response was built (server clock). */
@@ -38,6 +57,8 @@ export interface HomeOverview {
     /** Matches with a recorded score this season. */
     matchScores: number;
   };
+  /** Whether the withResults counts can be read as facts (see SeasonReadiness). */
+  readiness: SeasonReadiness;
   /** Countries with at least one listing, most listings first. */
   countries: CountryTotal[];
   /** Listings no country can be given to: Σ countries + Σ unmapped = coverage.teamListings. */
