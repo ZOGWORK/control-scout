@@ -45,6 +45,7 @@ describe("records table ?country=", () => {
     expect(screen.getByRole("alert").textContent).toContain("Unknown country ZZ");
     expect(asked.every((p) => p === null)).toBe(true);
     expect(search).toContain("country=ZZ");
+    expect(screen.queryByText("Loading…")).toBeNull();
   });
 
   it("clears it with one button, keeping the rest of the address", () => {
