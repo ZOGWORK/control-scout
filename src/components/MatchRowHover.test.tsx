@@ -1,7 +1,8 @@
 // @vitest-environment jsdom
 // Scrolling a long match list under a resting pointer: rows sliding under it must not light up one after
-// another (each one repaints the list). So every hover style in a match row waits for the page to be still
-// (the still-hover variants, keyed off html[data-scroll-idle]), and the row's own fade is background-only.
+// another (each one repaints the list). While the page scrolls a shield over the page area takes the pointer
+// (index.css .scroll-shield, shown under [data-scrolling]); the row's own hover styles use the still-hover
+// variants, which never wrap Tailwind's group form (:is(… *)), and its fade is background-only.
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { cleanup, render } from "@testing-library/react";
@@ -39,11 +40,17 @@ it("has no hover style in a match row that would fire while the page scrolls", (
   expect(row.className).not.toMatch(/(^|\s)transition(-colors|-all)?(\s|$)/);
 });
 
-it("keys the still-hover variants off a present attribute on <html>, the form that restyles only what uses them", () => {
+it("keeps hover off mid-scroll with one shield element, not with a flag every hover style keys off", () => {
   const css = readFileSync(join(process.cwd(), "src", "index.css"), "utf8");
   const variant = (name: string) => css.match(new RegExp(`@custom-variant ${name} \\{[\\s\\S]*?\\n\\}`))?.[0] ?? "";
-  expect(variant("still-hover")).toContain(":where(html[data-scroll-idle]) &:hover");
-  expect(variant("row-still-hover")).toContain(":where(html[data-scroll-idle]) :where(.group\\/row):hover &");
-  // A :not() form (`:not([data-scrolling] *)`) made every flip restyle the whole page (7 s of restyling over one test scroll of a big event).
-  expect(variant("still-hover") + variant("row-still-hover")).not.toContain(":not(");
+  expect(variant("still-hover")).toContain("&:hover");
+  expect(variant("row-still-hover")).toContain(":where(.group\\/row):hover &");
+  // Keyed off html[data-scroll-idle], every element using them restyled at each scroll start and stop (over a
+  // second per flip at 4x CPU on a championship division); a :not() form restyled the whole page.
+  expect(variant("still-hover") + variant("row-still-hover")).not.toMatch(/data-scroll|:not\(/);
+  // The shield is hidden until the page area is scrolling, and only for a mouse or trackpad (never touch).
+  expect(css).toMatch(/\.scroll-shield \{ display: none; \}/);
+  expect(css).toMatch(/@media \(hover: hover\) and \(pointer: fine\) \{\s*\[data-scrolling\]:not\(\[data-scrolling="touch"\]\) > \.scroll-shield \{ display: block; position: absolute; inset: 0;/);
+  // Not pointer-events on the area itself: that inherits down, so every start and stop restyled the whole page.
+  expect(css).not.toMatch(/\[data-scrolling\][^{]*\{[^}]*pointer-events/);
 });

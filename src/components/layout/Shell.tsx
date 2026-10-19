@@ -219,6 +219,8 @@ export function Shell({ children }: { children: ReactNode }) {
                   <SiteFooter />
                 </motion.div>
               </main>
+              {/* Takes the pointer while the page scrolls (index.css .scroll-shield), so rows don't hover mid-scroll. */}
+              <div aria-hidden className="scroll-shield" />
             </div>
           </div>
           <MobileTabs onMore={() => setMore(true)} />
