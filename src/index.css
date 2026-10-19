@@ -16,19 +16,20 @@
 @import "tw-animate-css";
 
 @custom-variant dark (&:where(html:not(.light), html:not(.light) *));
-/* Hover, but not while the page scrolls (html[data-scroll-idle] is there only while it doesn't, src/lib/pageScroll.ts):
-   rows sliding under a resting pointer would each light up and repaint. A present attribute on an ancestor means
-   only the elements using this restyle when scrolling starts and stops; any :not() form restyles the whole page. */
+/* Hover, for the rows that slide under a resting pointer as the page scrolls (match rows, records tables). While
+   it scrolls the page area ignores the mouse ([data-scrolling] below, src/lib/pageScroll.ts), so none of them
+   lights up mid-scroll. Nothing here keys off a scroll attribute: hover styles hung on a flag on <html> restyled
+   every element using them each time scrolling started or stopped (over a second a flip on a big event). */
 @custom-variant still-hover {
   @media (hover: hover) {
-    :where(html[data-scroll-idle]) &:hover { @slot; }
+    &:hover { @slot; }
   }
 }
-/* The same for something inside a hovered `group/row` (a match row's label). Tailwind's group-* form would wrap this
-   in :is(… *), which also restyles the whole page on every flip. */
+/* The same for something inside a hovered `group/row` (a match row's label). Tailwind's group-* form wraps this
+   in :is(… *), which every element on the page has to test whenever a row's hover changes. */
 @custom-variant row-still-hover {
   @media (hover: hover) {
-    :where(html[data-scroll-idle]) :where(.group\/row):hover & { @slot; }
+    :where(.group\/row):hover & { @slot; }
   }
 }
 
@@ -214,6 +215,16 @@ html.ambient-off .ambient-breath, html.ambient-off .ambient-glow { display: none
    ambient drift holds still: every scrolled frame then redraws only what moved, not the animated
    full-screen layers under it as well. It carries on from the same spot once scrolling stops. */
 [data-scrolling] .ambient-grid, [data-scrolling] .ambient-breath { animation-play-state: paused; }
+/* While the page scrolls under a mouse or trackpad, a transparent shield over the page area takes the pointer
+   (Shell.tsx): nothing under a resting pointer is hit-tested, hovered or restyled as the rows slide past, which
+   on a big event was most of every frame. Showing it changes one element; switching pointer-events off on the
+   area instead restyled the whole page at every start and stop. The wheel still scrolls the page, and the
+   pointer reaches the page again 140 ms after the last scroll. Touch screens never get it, so a tap that stops
+   a fling, or a swipe on a sideways table, still lands. */
+.scroll-shield { display: none; }
+@media (hover: hover) and (pointer: fine) {
+  [data-scrolling] > .scroll-shield { display: block; position: absolute; inset: 0; z-index: 20; }
+}
 @media (prefers-reduced-motion: reduce) {
   .ambient-grid, .ambient-breath { animation: none; }
   .ambient-breath, .ambient-glow { display: none; }

@@ -16,7 +16,7 @@ import { Async } from "../components/states";
 import { Reveal } from "../components/motion";
 import { Badge, Input } from "../components/ui/basic";
 import { Button } from "../components/ui/button";
-import { StickyActions, useScrolledPast } from "../components/StickyActions";
+import { StickyActions } from "../components/StickyActions";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "../components/ui/tabs";
 import { ToggleGroup, ToggleGroupItem } from "../components/ui/controls";
 import { MatchList } from "../components/predict";
@@ -73,7 +73,8 @@ function Event({ d, path }: { d: EventDetail; path: string }) {
   const track = { on: tracked, toggle: toggleTrack };
   const labHref = `/predict?mode=advancement&season=${e.season}&code=${e.code}${teamParam ? `&team=${teamParam}` : ""}`;
   const refresh = useRefreshResults(path);
-  const [headerEnd, pastHeader] = useScrolledPast<HTMLDivElement>();
+  // The end of the header: the phone action bar shows once it has scrolled away.
+  const [headerEnd, setHeaderEnd] = useState<HTMLDivElement | null>(null);
   const tabsRef = useRef<HTMLDivElement>(null);
   // The bar's "See odds" opens the tab and brings it into view (the header that held the button is off screen).
   const seeOdds = () => { setTab("odds"); if (tabsRef.current) scrollToElement(tabsRef.current, matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth"); };
@@ -116,10 +117,10 @@ function Event({ d, path }: { d: EventDetail; path: string }) {
         </div>
         <EventGlance d={d} onTab={setTab} live={liveMode ? { match: target.next, mine: !!target.mine, open: toLivePanel } : undefined} />
         </div>
-        <div ref={headerEnd} aria-hidden />
+        <div ref={setHeaderEnd} aria-hidden />
       </Reveal>
       {sticky && (
-        <StickyActions show={pastHeader} label="Event actions">
+        <StickyActions after={headerEnd} label="Event actions">
           {liveMode
             ? <LiveCountdownChip target={target} onClick={toLivePanel} />
             : oddsOpen
