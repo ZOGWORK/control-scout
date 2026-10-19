@@ -59,8 +59,21 @@ describe("rows stored with bad values", () => {
     ]));
   });
 
+  it("a repair that can't be stored (storage full) is still reported only once", async () => {
+    localStorage.setItem("cs-scout:auditfull0001", row("auditfull0001", { notes: { invalid: "object" } }));
+    const { localScoutEntries } = await import("../lib/scouting");
+    const set = vi.spyOn(Storage.prototype, "setItem").mockImplementation(() => { throw new Error("full"); });
+    try {
+      for (let i = 0; i < 3; i++) expect(localScoutEntries()[0].notes).toBe('{"invalid":"object"}');
+      await new Promise((r) => setTimeout(r, 10));
+      for (let i = 0; i < 3; i++) localScoutEntries();
+      await new Promise((r) => setTimeout(r, 10));
+    } finally { set.mockRestore(); }
+    expect(h.warnings).toEqual(["1 scouting entry on this device had damaged fields and was repaired. The observations were kept."]);
+  });
+
   it("stays working after a reload (the repaired rows are stored repaired: nothing more to say)", async () => {
-    localStorage.setItem("cs-scout:auditimport1", row("auditimport1", { notes: { invalid: "object" } }));
+    localStorage.setItem("cs-scout:auditreload01", row("auditreload01", { notes: { invalid: "object" } }));
     show("/scout?season=2025");
     expect(await screen.findByText("101")).toBeTruthy();
     await waitFor(() => expect(h.warnings.length).toBe(1));

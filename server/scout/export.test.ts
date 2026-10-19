@@ -432,6 +432,19 @@ describe("entries with values out of bounds (PRIVATE-F01)", () => {
     expect((await exportOf(member, "513", "season=2025")).rows.find((r) => r["Entry ID"] === "poisoned0001")).toMatchObject({ Notes: "edited" });
   });
 
+  it("a history version with a damaged timestamp reads as 0, and restoring it still names its source version", async () => {
+    const { member } = await team("515");
+    await push(member, "515", [entry({ uuid: "restorepois1", notes: "first", updatedAt: Date.now() - 2000 })]);
+    await push(member, "515", [entry({ uuid: "restorepois1", notes: "second", updatedAt: Date.now() - 1000 })]);
+    await db().execute({ sql: "UPDATE workspace_entry_versions SET updated_at = 1e300 WHERE uuid = ? AND version_no = 1", args: ["restorepois1"] });
+    const history = (await member("GET", "/api/scout/workspaces/515/entries/restorepois1/history")).json.versions;
+    const v1 = history.find((v: { versionNo: number }) => v.versionNo === 1);
+    expect(v1).toMatchObject({ updatedAt: 0, notes: "first" });
+    await push(member, "515", [entry({ uuid: "restorepois1", notes: "first", updatedAt: Date.now(), restoredFrom: v1.updatedAt })]);
+    const after = (await member("GET", "/api/scout/workspaces/515/entries/restorepois1/history")).json.versions;
+    expect(after[0]).toMatchObject({ notes: "first", restored: true, restoredFromVersion: 1 });
+  });
+
   it("personal entries: the sync refuses the same values, and a stored 1e300 row is read as 0 and superseded", async () => {
     const { member } = await team("514");
     const bad = await member("POST", "/api/me/scout/sync", { entries: [entry({ uuid: "personalbad1", updatedAt: 1e300 }), entry({ uuid: "personalbad2", notes: ["x"] })] });

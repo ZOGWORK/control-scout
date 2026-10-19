@@ -183,6 +183,7 @@ export function normalizeScoutEntry(raw: any, space: ScoutSpace): ScoutEntry {
 // way the scout is told, once per page load, in one message.
 
 const unreadable = new Set<string>();
+const reported = new Set<string>();
 let repairedCount = 0;
 let skippedCount = 0;
 let noticeDue: ReturnType<typeof setTimeout> | null = null;
@@ -218,8 +219,12 @@ function readStored(key: string, raw: string, space: ScoutSpace): ScoutEntry | n
     return null;
   }
   if (r.repaired.length) {
+    // An edit still waiting to sync keeps winning: a damaged timestamp becomes now (one the server accepts), not
+    // 0, which an older server copy would beat. A synced row's 0 is beaten by the server's copy, as it should be.
+    if (r.repaired.includes("updatedAt") && dirty(space).has(r.entry.uuid)) r.entry = { ...r.entry, updatedAt: Date.now() };
     try { localStorage.setItem(key, JSON.stringify(storedScoutEntry(r.entry))); } catch { /* storage full: repaired again next read */ }
-    noteRepair("repaired");
+    // Told once per row per page load, whether or not the repaired copy could be stored.
+    if (!reported.has(key)) { reported.add(key); noteRepair("repaired"); }
   }
   return r.entry;
 }
