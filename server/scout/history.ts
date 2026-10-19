@@ -19,7 +19,7 @@ import { all } from "../db.js";
 import { isWorkspaceId } from "../auth/controlPoint.js";
 import { currentUser } from "../auth/session.js";
 import { HISTORY_LIMIT, type EntryVersion } from "../../src/shared/entryHistory.js";
-import { workspaceAccess, workspacePaused } from "./entries.js";
+import { storedEntryFields, workspaceAccess, workspacePaused } from "./entries.js";
 
 const WS = "(SELECT id FROM workspaces WHERE cp_workspace_id = ?)";
 
@@ -60,18 +60,19 @@ export async function versionsAt(workspaceId: string, wanted: { uuid: string; up
   return out;
 }
 
-const parse = (raw: unknown): Record<string, number | boolean | string> => {
-  try { const v = JSON.parse(String(raw)); return v && typeof v === "object" && !Array.isArray(v) ? v : {}; } catch { return {}; }
+// A version's fields are read like the entry's (storedEntryFields): a timestamp or answers an older build stored
+// unreadably are repaired, never a failed history.
+const toVersion = (r: any): EntryVersion => {
+  const e = storedEntryFields(r);
+  return {
+    versionNo: Number(r.version_no), updatedAt: e.updatedAt,
+    writtenBy: { accountId: Number(r.written_by_account_id), name: String(r.written_by_name ?? "") },
+    season: Number(r.season), team: Number(r.team), eventCode: e.eventCode, matchLabel: e.matchLabel, kind: r.kind === "pit" ? "pit" : "match",
+    data: e.data as Record<string, number | boolean | string>, notes: e.notes, deleted: !!Number(r.deleted),
+    ...(r.template_id ? { templateId: String(r.template_id), templateVersion: Number(r.template_version ?? 0) } : {}),
+    restored: !!Number(r.restored), restoredFromVersion: r.restored_from_version == null ? null : Number(r.restored_from_version),
+  };
 };
-
-const toVersion = (r: any): EntryVersion => ({
-  versionNo: Number(r.version_no), updatedAt: Number(r.updated_at),
-  writtenBy: { accountId: Number(r.written_by_account_id), name: String(r.written_by_name ?? "") },
-  season: Number(r.season), team: Number(r.team), eventCode: r.event_code ?? null, matchLabel: r.match_label ?? null, kind: r.kind === "pit" ? "pit" : "match",
-  data: parse(r.data), notes: String(r.notes ?? ""), deleted: !!Number(r.deleted),
-  ...(r.template_id ? { templateId: String(r.template_id), templateVersion: Number(r.template_version ?? 0) } : {}),
-  restored: !!Number(r.restored), restoredFromVersion: r.restored_from_version == null ? null : Number(r.restored_from_version),
-});
 
 /** An entry's kept versions, newest first (null: the workspace has no such entry). */
 export async function entryHistory(workspaceId: string, uuid: string): Promise<EntryVersion[] | null> {

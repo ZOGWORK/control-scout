@@ -10,7 +10,7 @@ import { cleanValue, mergeValue, PERSONAL_KEYS, type PersonalKey, type Stamped }
 import { isOwnerEmail } from "../owner.js";
 import { currentUser, deleteUser, endSession, readCookie, startSession, token, userForIdentity, type User } from "./session.js";
 import { emailEnabled, startEmailSignIn, verifyEmailCode } from "./email.js";
-import { accessError, cleanScoutEntry, pushWorkspaceEntries, workspaceAccess, workspacePaused, type ScoutEntryInput } from "../scout/entries.js";
+import { accessError, checkScoutEntry, cleanScoutEntry, INVALID_ENTRY, pushWorkspaceEntries, storedEntryFields, supersedeBound, supersedes, workspaceAccess, workspacePaused, type ScoutEntryInput } from "../scout/entries.js";
 import { CP_PROVIDER, controlPointEnabled, isWorkspaceId, controlPointInfo, controlPointVia, isCpVia, rememberInfo, linkedAccountId, linkToSharedAccount, logFailure, provenEmailFor, redeemHandoff } from "./controlPoint.js";
 
 export const authProviders = () => ({ email: emailEnabled(), google: !!(env.googleClientId && env.googleClientSecret), controlPoint: controlPointEnabled() });
@@ -189,7 +189,8 @@ async function writeStateIfNewer(userId: number, key: PersonalKey, s: Stamped<un
   return { value: JSON.parse(row.value), updatedAt: Number(row.updated_at) };
 }
 
-const scoutRow = (r: any) => ({ uuid: r.uuid, season: r.season, team: r.team, eventCode: r.event_code, matchLabel: r.match_label, kind: r.kind, data: JSON.parse(r.data), notes: r.notes, updatedAt: Number(r.updated_at), deleted: !!r.deleted });
+/** A stored personal entry, with any field an older build stored unreadably repaired (storedEntryFields). */
+const scoutRow = (r: any) => ({ ...storedEntryFields(r), deleted: !!r.deleted });
 
 export function meRouter(): Router {
   const r = express.Router();
@@ -281,11 +282,12 @@ export function meRouter(): Router {
       if (!access.ok) { res.status(access.status).json(accessError(access)); return; }
       return { results: await pushWorkspaceEntries((req as any).user, access.membership, raw) };
     }
-    const results: { uuid: string; ok: boolean; error?: string }[] = [];
+    const results: { uuid: string; ok: boolean; error?: string; reason?: string }[] = [];
     const good: ScoutEntryInput[] = [];
     for (const x of raw) {
-      const e = cleanScoutEntry(x);
-      if (!e) { results.push({ uuid: String(x?.uuid ?? ""), ok: false, error: "invalid entry" }); continue; }
+      const c = checkScoutEntry(x);
+      if (!c.ok) { results.push({ uuid: c.uuid, ok: false, error: INVALID_ENTRY, reason: c.reason }); continue; }
+      const e = c.entry;
       if (x.workspaceId != null) { results.push({ uuid: e.uuid, ok: false, error: "wrong space" }); continue; }
       const owner = await get<{ user_id: number }>("SELECT user_id FROM scout_entries WHERE uuid = ?", [e.uuid]);
       if (owner && Number(owner.user_id) !== uid(req)) { results.push({ uuid: e.uuid, ok: false, error: "not yours" }); continue; }
@@ -298,11 +300,12 @@ export function meRouter(): Router {
 }
 
 async function upsertScout(userId: number, entries: ScoutEntryInput[]) {
+  const bound = supersedeBound(); // a stored timestamp no write could have had (1e300) is beaten by any valid one
   await writeBatch(entries.map((e) => ({
     sql: `INSERT INTO scout_entries (uuid, user_id, season, team, event_code, match_label, kind, data, notes, updated_at, deleted) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
           ON CONFLICT(uuid) DO UPDATE SET season = excluded.season, team = excluded.team, event_code = excluded.event_code, match_label = excluded.match_label, kind = excluded.kind,
             data = excluded.data, notes = excluded.notes, updated_at = excluded.updated_at, deleted = excluded.deleted
-          WHERE scout_entries.user_id = excluded.user_id AND excluded.updated_at >= scout_entries.updated_at`,
-    args: [e.uuid, userId, e.season, e.team, e.eventCode, e.matchLabel, e.kind, JSON.stringify(e.data), e.notes, e.updatedAt, e.deleted ? 1 : 0],
+          WHERE scout_entries.user_id = excluded.user_id AND excluded.updated_at >= ${supersedes("scout_entries.updated_at")}`,
+    args: [e.uuid, userId, e.season, e.team, e.eventCode, e.matchLabel, e.kind, JSON.stringify(e.data), e.notes, e.updatedAt, e.deleted ? 1 : 0, bound],
   })));
 }
