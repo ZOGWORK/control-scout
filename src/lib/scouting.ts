@@ -546,8 +546,8 @@ export function queuedWorkspaceEntries(): ScoutEntry[] {
 
 /**
  * The member lets a queued workspace change go (the recoverable view's Discard): it leaves the queue and the
- * device. One the workspace has a copy of comes back as the workspace has it with the next pull (the space is
- * pulled from the start, so that copy is fetched again); a new entry that never synced is simply gone.
+ * device. One the workspace has a copy of (even a new entry whose answer was lost) comes back as the workspace has
+ * it with the next pull (the space is pulled from the start, so that copy is fetched again); one it never got is gone.
  */
 export function discardQueuedScoutEntry(space: string, uuid: string): void {
   const e = readEntry(space, uuid);
@@ -556,7 +556,9 @@ export function discardQueuedScoutEntry(space: string, uuid: string): void {
   try {
     setDirty(d, space);
     localStorage.removeItem(keyFor(space, uuid));
-    if (e && (e.baseUpdatedAt != null || e.authorAccountId > 0)) localStorage.removeItem(`${WS_CURSOR}${space}`);
+    // Always from the start: even a "new" entry may have reached the server with its answer lost, and the cursor
+    // may already be past that copy (a live event, a pull), so only a full pull is sure to bring it back.
+    if (e) localStorage.removeItem(`${WS_CURSOR}${space}`);
   } catch { /* blocked */ }
   if (!d.size) syncProblems.delete(space);
   window.dispatchEvent(new Event(EVT));

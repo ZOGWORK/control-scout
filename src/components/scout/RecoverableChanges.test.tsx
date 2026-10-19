@@ -199,6 +199,7 @@ describe("RecoverableChanges: queued entries", () => {
 
   it("Discard lets a never-synced entry go from the queue and the device", async () => {
     saveScoutEntry({ uuid: "dddddddddddd", ...base, workspaceId: "901" });
+    localStorage.setItem("cs-scout-ws-cursor:901", "57");
     syncDown = true;
     await syncScouting("901").catch(() => undefined);
     render(<RecoverableChanges account={1} workspaces={WS} />);
@@ -206,6 +207,8 @@ describe("RecoverableChanges: queued entries", () => {
     fireEvent.click(within(view()!).getByRole("button", { name: /^Discard$/ }));
     await waitFor(() => expect(view()).toBeNull());
     expect(localScoutEntries("901").map((e) => e.uuid)).not.toContain("dddddddddddd");
+    // Pulled again from the start: had it reached the server with its answer lost, its copy comes back.
+    expect(localStorage.getItem("cs-scout-ws-cursor:901")).toBeNull();
   });
 
   it("offline: listed calmly as waiting (it goes up by itself)", async () => {
