@@ -156,9 +156,10 @@ const message = (e: unknown, fallback: string) => (e instanceof ApiError
   : fallback);
 /**
  * No answer, or a server error (a proxy's 5xx when the connection to the server dropped, e.g. 502 or 520-524,
- * or a failure after the write): the request may have been carried out. 503 is a definite answer (paused).
+ * or a failure after the write), a success whose body arrived incomplete (2xx), or the body's read failing
+ * (not an ApiError): the request may have been carried out. 503 is a definite answer (paused).
  */
-const unanswered = (e: unknown) => e instanceof ApiError && (e.status === 0 || (e.status >= 500 && e.status !== 503));
+const unanswered = (e: unknown) => !(e instanceof ApiError) || e.status === 0 || (e.status >= 200 && e.status < 300) || (e.status >= 500 && e.status !== 503);
 
 /** The thread of one workspace entry, live. Null space or uuid: nothing (Personal entries have no comments). */
 export function useEntryComments(space: string | null, uuid: string | null): ThreadState {
@@ -243,6 +244,8 @@ export function useEntryComments(space: string | null, uuid: string | null): Thr
     if (!made) throw new CommentWriteError(COMMENT_NOT_ARRIVED, true);
     // Posted after all: applied like the stream's copy would be (rev 0: only if it isn't shown already).
     announceComment({ action: "created", workspaceId: space, entryUuid: uuid, commentId: made.id, count: thread.comments?.length ?? 0, rev: 0, comment: made });
+    // That event's count is never applied (rev 0), and the stream's may have been missed: the cards' counts refetch.
+    announceCommentsResync(space);
   }, [space, uuid, load]);
 
   return {

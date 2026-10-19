@@ -18,7 +18,7 @@ import { FieldError } from "../ui/basic";
  * read), the last write's result (`onSave` returning false) shows the error instead, and Escape
  * writes nothing: it can't tell what to restore.
  */
-export function NoteField({ team, value, stored, onSave, className, label, placeholder = "Add a pick note…", maxLength = MAX_NOTE, failedText, retry = false }: {
+export function NoteField({ team, value, stored, onSave, className, label, placeholder = "Add a pick note…", maxLength = MAX_NOTE, failedText, retry = false, retryOnLeave = true }: {
   team: number; value: string; stored?: string; onSave: (text: string) => boolean | void; className?: string;
   /** What a screen reader hears for the field (default: "Private note on team <n>"). */
   label?: string;
@@ -28,6 +28,8 @@ export function NoteField({ team, value, stored, onSave, className, label, place
   failedText?: string;
   /** Offer a Retry button beside that message (it sends the text again, as Enter does). */
   retry?: boolean;
+  /** Leaving the field (blur) retries an unsaved note too (default). False: only Enter, Retry or a new edit sends it. */
+  retryOnLeave?: boolean;
 }) {
   const [draft, setDraft] = useState(value);
   /** The last write was refused (what shows the error while `stored` is unknown). */
@@ -91,7 +93,7 @@ export function NoteField({ team, value, stored, onSave, className, label, place
         aria-invalid={failed ? true : undefined} aria-describedby={failed ? errorId : undefined}
         className="min-w-0 flex-1 bg-transparent text-text-base outline-none placeholder:text-text-muted/70"
         onFocus={() => { focused.current = true; edited.current = false; }}
-        onBlur={(e) => { focused.current = false; if (skip.current) { skip.current = false; return; } flush(e.currentTarget.value); }}
+        onBlur={(e) => { focused.current = false; if (skip.current) { skip.current = false; return; } if (!retryOnLeave && !edited.current) return; flush(e.currentTarget.value); }}
         onChange={(e) => {
           const text = e.currentTarget.value;
           edited.current = true;

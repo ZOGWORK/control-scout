@@ -31,7 +31,9 @@ export const PICKLIST_POLL_MS = 30_000;
 const url = (space: string, season?: number) => `/api/scout/workspaces/${encodeURIComponent(space)}/picklist${season ? `?season=${season}` : ""}`;
 
 /** `account`: who wrote it (its note draft is that account's). */
-interface Pending { id: number; op: PickOp; space: string; season: number; account: number | null }
+/** `wid`: the id of the note draft it wrote (drafts are shared by this account's tabs: each answer only clears its own). */
+interface Pending { id: number; op: PickOp; space: string; season: number; account: number | null; wid?: string }
+const newWid = () => `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
 
 /** A note this member wrote that the server hasn't taken. conflict: a teammate's newer note is there instead. */
 interface Unsaved { note: string; conflict: boolean }
@@ -103,6 +105,8 @@ export function usePickList(space: string | null, season: number, live: LiveMode
   // The newest note write per team (same keys): only its failure marks the field unsaved, so an older write
   // failing after a newer one was made never brings its text back.
   const latestNote = useRef(new Map<string, number>());
+  // The draft id of this page's newest note write per team (same keys).
+  const latestWid = useRef(new Map<string, string>());
   const key = space ? `${space}:${season}` : null;
   const keyRef = useRef(key);
   keyRef.current = key;
@@ -173,12 +177,13 @@ export function usePickList(space: string | null, season: number, live: LiveMode
           if (isPickList(r.list)) accept(r.list);
           if (p.op.op === "note" && p.account != null) {
             const team = p.op.team;
-            if (latestNote.current.get(noteKey(p.account, p.space, p.season, team)) === p.id) clearNoteDraft(p.account, p.space, p.season, team);
-            else {
-              // A newer note of this member's is still on its way: it's now written over this one, as the server has it.
-              const d = readNoteDraft(p.account, p.space, p.season, team);
+            // Only the draft this write made: a newer one (this page's, or another tab's) is still to be confirmed.
+            const d = readNoteDraft(p.account, p.space, p.season, team);
+            if (d && d.wid === p.wid) clearNoteDraft(p.account, p.space, p.season, team);
+            else if (d && d.wid === latestWid.current.get(noteKey(p.account, p.space, p.season, team))) {
+              // A newer note of this page's is still on its way: it's now written over this one, as the server has it.
               const now = isPickList(r.list) ? r.list.picks.find((x) => x.team === team) : undefined;
-              if (d && now) saveNoteDraft(p.account, p.space, p.season, { ...d, base: now.noteUpdatedAt ?? null });
+              if (now) saveNoteDraft(p.account, p.space, p.season, { ...d, base: now.noteUpdatedAt ?? null });
             }
           }
         } catch (e) {
@@ -191,7 +196,7 @@ export function usePickList(space: string | null, season: number, live: LiveMode
             if (latestNote.current.get(key) === p.id) {
               // Its text stays (the field shows it unsaved, and its draft is kept), unless its team is gone (409).
               if (err.status !== 409 || conflict) setUnsaved((u) => ({ ...u, [key]: { note, conflict } }));
-              else if (p.account != null) clearNoteDraft(p.account, p.space, p.season, team);
+              else if (p.account != null && readNoteDraft(p.account, p.space, p.season, team)?.wid === p.wid) clearNoteDraft(p.account, p.space, p.season, team);
             }
           }
           if (keyRef.current === k) {
@@ -209,6 +214,7 @@ export function usePickList(space: string | null, season: number, live: LiveMode
   const change = useCallback((op: PickOp) => {
     if (!space) return;
     const acct = accountRef.current;
+    let wid: string | undefined;
     if (op.op === "note") {
       const key = noteKey(acct, space, season, op.team);
       const team = op.team;
@@ -217,9 +223,11 @@ export function usePickList(space: string | null, season: number, live: LiveMode
       // one written after it still isn't replaced.
       if (op.base === undefined && unsavedRef.current[key]?.conflict) op = { ...op, base: shown?.noteUpdatedAt ?? null };
       // Kept on the device until the server confirms it, with the note it's written over.
-      if (acct != null) saveNoteDraft(acct, space, season, { team, note: op.note, base: op.base !== undefined ? op.base : shown?.noteUpdatedAt ?? null, at: Date.now() });
+      wid = newWid();
+      latestWid.current.set(key, wid);
+      if (acct != null) saveNoteDraft(acct, space, season, { team, note: op.note, base: op.base !== undefined ? op.base : shown?.noteUpdatedAt ?? null, at: Date.now(), wid });
     }
-    const p: Pending = { id: nextId.current++, op, space, season, account: acct };
+    const p: Pending = { id: nextId.current++, op, space, season, account: acct, wid };
     // A new write of a note replaces one that failed (a retry, or putting the saved one back).
     if (op.op === "note") { const key = noteKey(acct, space, season, op.team); latestNote.current.set(key, p.id); setUnsaved((u) => { if (!(key in u)) return u; const { [key]: _gone, ...rest } = u; return rest; }); }
     queue.current.push(p);

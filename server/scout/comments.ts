@@ -169,11 +169,12 @@ export async function postComment(user: User, m: Membership, uuid: string, raw: 
   // entry was deleted since, or the allowance is spent: it asks for nothing new).
   if (opId) { const again = await repeatOf(m, e.workspace_id, uuid, opId); if (again) return again; }
   if (Number(e.deleted)) return fail(409, ENTRY_DELETED);
-  const wait = takeCommentToken(m.accountId, now);
-  if (wait != null) return fail(429, TOO_FAST, wait);
   return change(m, async (rev) => {
     // Two copies of one attempt that both got past the check above: the later one (run after the first, here) gets the first's comment.
     if (opId) { const again = await repeatOf(m, e.workspace_id, uuid, opId); if (again) return again; }
+    // Spent here, after that check: a copy of an attempt already made never costs (or is refused for) a token.
+    const wait = takeCommentToken(m.accountId, now);
+    if (wait != null) return fail(429, TOO_FAST, wait);
     // The entry must still be there, and not deleted, when the comment is written: checked in the insert itself.
     const [ins, cnt] = await db().batch([
       {

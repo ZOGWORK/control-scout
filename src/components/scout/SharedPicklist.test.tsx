@@ -28,6 +28,9 @@ let notesDown = false;
 let failNextNoteSlowly = false;
 /** Note posts never answer (a slow server: the page is reloaded while they're on their way). */
 let hangNotes = false;
+/** Note posts wait until releaseNotes() (then answer as usual). */
+let holdNotes = false;
+let releaseNotes: () => void = () => undefined;
 
 const json = (status: number, body: unknown) => new Response(JSON.stringify(body), { status, headers: { "Content-Type": "application/json" } });
 
@@ -35,7 +38,7 @@ beforeEach(() => {
   vi.stubGlobal("ResizeObserver", class { observe() {} unobserve() {} disconnect() {} });
   vi.stubGlobal("matchMedia", (q: string) => ({ matches: false, media: q, addEventListener() {}, removeEventListener() {}, addListener() {}, removeListener() {} }));
   localStorage.clear();
-  posts = []; refuseNext = false; gets = 0; statsDown = false; notesDown = false; failNextNoteSlowly = false; hangNotes = false;
+  posts = []; refuseNext = false; gets = 0; statsDown = false; notesDown = false; failNextNoteSlowly = false; hangNotes = false; holdNotes = false;
   server = {
     workspaceId: "901", season: S, version: 3,
     picks: [pick(101, 1, { note: "Strong auto", noteBy: { accountId: 2, name: "Marcus" }, noteUpdatedAt: Date.now() - 120_000 }), pick(102, 2)],
@@ -46,6 +49,7 @@ beforeEach(() => {
         const body = JSON.parse(String(init.body));
         posts.push(body);
         if (hangNotes && body.op === "note") return new Promise<Response>(() => {});
+        if (holdNotes && body.op === "note") await new Promise<void>((r) => { releaseNotes = r; });
         if (failNextNoteSlowly && body.op === "note") {
           failNextNoteSlowly = false;
           await new Promise((r) => setTimeout(r, 60));
@@ -255,6 +259,34 @@ describe("SharedPicklist: a note on its way when the page reloads", () => {
     await waitFor(() => expect(notePosts()).toEqual([{ season: S, op: "note", team: 101, note: "Old draft", base: marcusAt }]));
     await waitFor(() => expect(drafts()).toEqual([]));
     expect(server.picks[0].note).toBe("Old draft");
+  });
+
+  it("a kept draft over a teammate's note isn't sent by just focusing and leaving the field", async () => {
+    await writeThenReload(101, "Old draft");
+    server = { ...server, version: server.version + 1, picks: server.picks.map((p) => (p.team === 101 ? { ...p, note: "Lift fixed at QF", noteBy: { accountId: 2, name: "Marcus" }, noteUpdatedAt: Date.now() + 5 } : p)) };
+    show();
+    await waitFor(() => expect(noteInput(101)?.value).toBe("Old draft"));
+    fireEvent.focus(noteInput(101));
+    fireEvent.blur(noteInput(101));
+    await new Promise((r) => setTimeout(r, 30));
+    expect(notePosts()).toEqual([]);
+    expect(server.picks[0].note).toBe("Lift fixed at QF");
+    expect(screen.getByText(/Not saved yet: Marcus changed this note/)).toBeTruthy();
+  });
+
+  it("the answer to one tab's note never clears a newer draft another tab of the account kept", async () => {
+    show();
+    await waitFor(() => expect(rows()).toEqual([101, 102]));
+    holdNotes = true;
+    writeNote(102, "From this tab");
+    await waitFor(() => expect(notePosts()).toHaveLength(1));
+    // Meanwhile another tab writes a newer note for the same team (same account, same draft key).
+    const other = { note: "From the other tab", base: null, at: Date.now(), wid: "other-tab-1" };
+    localStorage.setItem("cs-picknote:1:901:2025:102", JSON.stringify(other));
+    releaseNotes();
+    await waitFor(() => expect(server.picks[1].note).toBe("From this tab"));
+    await new Promise((r) => setTimeout(r, 20));
+    expect(JSON.parse(localStorage.getItem("cs-picknote:1:901:2025:102")!)).toEqual(other);
   });
 
   it("Escape on a kept draft keeps the teammate's note and drops the draft", async () => {

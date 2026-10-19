@@ -162,6 +162,31 @@ describe("useEntryComments", () => {
     expect(await result.current.post("x", "op-test-0003").catch((e) => e)).toMatchObject({ uncertain: false, message: expect.stringMatching(/paused/) });
   });
 
+  it("an answer whose body is cut off (or can't be read) is uncertain too; a confirmed post makes the counts refetch", async () => {
+    let thread: EntryComment[] = [];
+    let mode: "cut" | "unreadable" = "cut";
+    vi.stubGlobal("fetch", vi.fn(async (url: string, init?: RequestInit) => {
+      if ((init?.method ?? "GET") === "GET") return new Response(JSON.stringify(url === THREAD ? { comments: thread, entryDeleted: false } : { counts: {} }), { status: 200 });
+      thread = [c(5, { opId: "op-test-0005" })]; // the server took it
+      if (mode === "cut") return new Response('{"action":"crea', { status: 201 });
+      const r = new Response("{}", { status: 201 });
+      Object.defineProperty(r, "text", { value: () => Promise.reject(new TypeError("network error")) });
+      return r;
+    }));
+    const resyncs: unknown[] = [];
+    const on = (e: Event) => resyncs.push((e as CustomEvent).detail);
+    window.addEventListener(SCOUT_COMMENTS_RESYNC, on);
+    const { result } = renderHook(() => useEntryComments("41", "aaaaaaaaaaaa"));
+    await waitFor(() => expect(result.current.loading).toBe(false));
+    for (const m of ["cut", "unreadable"] as const) {
+      mode = m; thread = []; resyncs.length = 0;
+      await act(() => result.current.post("x", "op-test-0005")); // confirmed from the thread: no error
+      expect(result.current.comments.map((x) => x.id)).toEqual([5]);
+      expect(resyncs).toEqual([{ space: "41" }]);
+    }
+    window.removeEventListener(SCOUT_COMMENTS_RESYNC, on);
+  });
+
   it("Personal (no space): nothing is fetched", () => {
     const { result } = renderHook(() => useEntryComments(null, "aaaaaaaaaaaa"));
     expect(result.current.comments).toEqual([]);
