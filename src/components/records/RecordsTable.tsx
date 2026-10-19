@@ -5,7 +5,7 @@
 // Used by the event Rankings and Insights tabs, /teams and /matches.
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode, type RefObject } from "react";
 import { Link, useLocation, useNavigate, useSearchParams } from "react-router-dom";
-import { ArrowDown, ArrowUp, ArrowUpDown, ChevronLeft, ChevronRight, Columns3, Download, ListFilter, Loader2, MapPin, RefreshCw, Scale, SearchX, Sparkles, X } from "lucide-react";
+import { ArrowDown, ArrowUp, ArrowUpDown, ChevronLeft, ChevronRight, Columns3, Download, Info, ListFilter, Loader2, MapPin, RefreshCw, Scale, SearchX, Sparkles, X } from "lucide-react";
 import { apiFetch, useApi, type ApiError } from "../../lib/api";
 import type { FilterGroup } from "../../shared/filterDsl";
 import { STAT_BY_KEY, statFor, type MatchRecordRow, type RecordScope, type RecordsResponse, type TeamEventRecord, type TeamSeasonRecord } from "../../shared/statCatalog";
@@ -56,6 +56,11 @@ export interface RecordsTableProps {
   /** When this changes (e.g. a live event's results were checked again), the rows are fetched again. */
   refreshKey?: string;
 }
+
+/** Compare shows at most this many teams side by side. */
+export const COMPARE_MAX = 4;
+/** How many of the teams on the page are ticked: drives the select-all box in the Team header. */
+export type PageSelection = "none" | "some" | "all";
 
 const COLS_KEY = (k: string) => `cs-records-cols:${k}`;
 const readCols = (k: string): string[] | null => { try { const v = JSON.parse(localStorage.getItem(COLS_KEY(k)) ?? "null"); return Array.isArray(v) ? v.filter((x) => typeof x === "string") : null; } catch { return null; } };
@@ -117,8 +122,12 @@ export function RecordsTable(p: RecordsTableProps) {
 
   const [builder, setBuilder] = useState(false);
   const [columns, setColumns] = useState(false);
+  // Ticked teams, for Compare (nothing else reads them: the CSV export takes the whole filtered table).
+  // Kept through filtering and paging; a new season or event starts over.
   const [selected, setSelected] = useState<number[]>([]);
-  useEffect(() => setSelected([]), [season, code]);
+  // What the last select-all did when Compare's cap stopped it, shown next to Compare until the ticks change.
+  const [capNote, setCapNote] = useState<string | null>(null);
+  useEffect(() => { setSelected([]); setCapNote(null); }, [season, code]);
 
   const countFor = useCallback(async (f: FilterGroup | null) => {
     const r = await apiFetch<Resp>(recordsUrl({ season, scope, code, state: { ...state, filter: f, page: 1 }, fields: [cols[0] ?? (teamScope ? "teamNumber" : "highScore")], pageSize: 1 }));
@@ -172,7 +181,29 @@ export function RecordsTable(p: RecordsTableProps) {
   const pages = Math.max(1, Math.ceil(total / (data?.pageSize ?? 50)));
   const csv = recordsUrl(req, "csv");
   const c = p.controls;
-  const selectedTeams = selected.slice(0, 4);
+  const selectedTeams = selected.slice(0, COMPARE_MAX);
+  const selectable = !!p.selectable && teamScope;
+  // The page's teams in the table's order, each once (a team can have several rows on the team-events table).
+  const pageTeams = useMemo(() => (selectable && data ? [...new Set(data.rows.flatMap((r) => ("team" in r ? [r.team] : [])))] : []), [selectable, data]);
+  const ticked = pageTeams.filter((t) => selected.includes(t)).length;
+  const pageSelection: PageSelection = !ticked ? "none" : ticked === pageTeams.length ? "all" : "some";
+  const toggleTeam = (t: number) => {
+    setCapNote(null);
+    if (selected.includes(t)) setSelected(selected.filter((x) => x !== t));
+    else if (selected.length >= COMPARE_MAX) toast(`Compare takes up to ${COMPARE_MAX} teams`);
+    else setSelected([...selected, t]);
+  };
+  // Select-all: with any of the page ticked it clears the page; with none it ticks the page from the top, up
+  // to Compare's cap (teams ticked on other pages count towards it and stay ticked).
+  const toggleAll = () => {
+    if (pageSelection !== "none") { setCapNote(null); setSelected(selected.filter((t) => !pageTeams.includes(t))); return; }
+    const add = pageTeams.slice(0, Math.max(0, COMPARE_MAX - selected.length));
+    setSelected([...selected, ...add]);
+    setCapNote(add.length === pageTeams.length ? null
+      : !add.length ? `Compare takes up to ${COMPARE_MAX} teams; untick one to add more`
+      : selected.length ? `Compare takes up to ${COMPARE_MAX} teams; added the first ${add.length} on this page`
+      : `Compare takes up to ${COMPARE_MAX} teams; selected the first ${add.length}`);
+  };
   // Matches on a phone: a summary card per match (score, winner, the call, the report) unless the reader
   // asked for the detailed table. Wider screens keep the table.
   const phone = usePhone();
@@ -231,8 +262,13 @@ export function RecordsTable(p: RecordsTableProps) {
             })}
           </div>
         )}
+        {selectable && (
+          <span role="status" className={cn(capNote ? "ml-auto inline-flex min-w-0 items-center gap-1.5 rounded-lg bg-amber-500/10 px-2.5 py-1 text-xs font-medium text-amber-600 dark:text-amber-400 max-sm:order-1 max-sm:ml-0 max-sm:basis-full" : "sr-only")}>
+            {capNote && <><Info className="size-3.5 shrink-0" />{capNote}</>}
+          </span>
+        )}
         <div className={cn("ml-auto flex shrink-0 items-center gap-1.5", !presets.length && "ml-auto")}>
-          {p.selectable && teamScope && selected.length > 0 && (
+          {selectable && selected.length > 0 && (
             <Button size="sm" className="max-sm:h-10" asChild>
               <Link to={`/compare?teams=${selectedTeams.join(",")}&season=${season}`}><Scale /> Compare <span className="tabular-nums">{selectedTeams.length}</span></Link>
             </Button>
@@ -296,7 +332,7 @@ export function RecordsTable(p: RecordsTableProps) {
           )}
           {summary ? <MatchSummaryList rows={data.rows as MatchRecordRow[]} cols={cols} /> : (
             <Table data={data} scope={scope} cols={cols} state={state} sortBy={sortBy} code={code} highlightTeam={p.highlightTeam}
-              selectable={!!p.selectable && teamScope} selected={selected} onSelect={(t) => setSelected((s) => (s.includes(t) ? s.filter((x) => x !== t) : s.length >= 4 ? (toast("Compare takes up to 4 teams"), s) : [...s, t]))} />
+              selectable={selectable} selected={selected} onSelect={toggleTeam} pageSelection={pageSelection} onSelectAll={toggleAll} />
           )}
           <div className="mt-3 flex flex-wrap items-center gap-2 px-1 text-sm text-text-muted">
             <span className="tabular-nums">{((state.page - 1) * data.pageSize + 1).toLocaleString()}–{Math.min(total, state.page * data.pageSize).toLocaleString()} of {total.toLocaleString()}</span>
@@ -357,11 +393,12 @@ const th = "bg-card shadow-[inset_0_-2px_0_color-mix(in_srgb,var(--color-text-ba
 const grid = "border-text-base/15";
 const sticky = "sticky left-0 z-10 bg-card shadow-[1px_0_0_color-mix(in_srgb,var(--color-text-base)_22%,transparent)]";
 
-function SortHead({ k, label, title, state, sortBy, className, tone, align = "right" }: { k: string | null; label: ReactNode; title?: string; state: TableState; sortBy: (k: string) => void; className?: string; tone?: string; align?: "left" | "right" }) {
+function SortHead({ k, label, title, state, sortBy, className, tone, align = "right", lead }: { k: string | null; label: ReactNode; title?: string; state: TableState; sortBy: (k: string) => void; className?: string; tone?: string; align?: "left" | "right"; lead?: ReactNode }) {
   const on = k != null && state.sort === k;
   const Arrow = on ? (state.dir === "asc" ? ArrowUp : ArrowDown) : null;
   return (
     <th scope="col" aria-sort={on ? (state.dir === "asc" ? "ascending" : "descending") : "none"} className={cn(th, align === "right" ? "text-right" : "text-left", className)}>
+      {lead}
       {k ? (
         <button type="button" onClick={() => sortBy(k)} title={title} className={cn("group inline-flex flex-col gap-1 rounded outline-none focus-visible:ring-2 focus-visible:ring-ring/60", align === "right" ? "items-end" : "items-start")}>
           <span className={cn("inline-flex items-center gap-1", tone ?? "text-text-muted", "group-hover:brightness-125", align === "right" && "flex-row-reverse")}>
@@ -373,9 +410,22 @@ function SortHead({ k, label, title, state, sortBy, className, tone, align = "ri
   );
 }
 
-function Table({ data, scope, cols, state, sortBy, code, highlightTeam, selectable, selected, onSelect }: {
+/** The Team header's checkbox: ticks or clears every team on the page; "mixed" when only some are ticked. */
+function SelectAll({ state, onToggle }: { state: PageSelection; onToggle: () => void }) {
+  const ref = useRef<HTMLInputElement>(null);
+  // "indeterminate" is a property only (no attribute): set it after every render, as a click resets it.
+  useEffect(() => { if (ref.current) ref.current.indeterminate = state === "some"; });
+  return (
+    <input ref={ref} type="checkbox" checked={state === "all"} aria-checked={state === "some" ? "mixed" : undefined} onChange={onToggle}
+      aria-label="Select all teams on this page" title={state === "none" ? `Select the teams on this page (Compare takes up to ${COMPARE_MAX})` : "Clear the teams on this page"}
+      className="mr-2.5 size-4 shrink-0 cursor-pointer align-middle accent-[var(--color-accent)] max-sm:size-5" />
+  );
+}
+
+function Table({ data, scope, cols, state, sortBy, code, highlightTeam, selectable, selected, onSelect, pageSelection, onSelectAll }: {
   data: Resp; scope: RecordScope; cols: string[]; state: TableState; sortBy: (k: string) => void; code?: string;
   highlightTeam?: number | null; selectable: boolean; selected: number[]; onSelect: (t: number) => void;
+  pageSelection: PageSelection; onSelectAll: () => void;
 }) {
   const showEvent = scope === "teamEvent" && !code;
   const { ref, more } = useMoreToTheRight();
@@ -390,7 +440,8 @@ function Table({ data, scope, cols, state, sortBy, code, highlightTeam, selectab
               </>
             ) : (
               <>
-                <SortHead k="teamNumber" label="Team" state={state} sortBy={sortBy} align="left" className={sticky} />
+                <SortHead k="teamNumber" label="Team" state={state} sortBy={sortBy} align="left" className={sticky}
+                  lead={selectable && <SelectAll state={pageSelection} onToggle={onSelectAll} />} />
                 {showEvent && <SortHead k="eventName" label="Event" state={state} sortBy={sortBy} align="left" />}
               </>
             )}
@@ -519,8 +570,8 @@ function FloatingHead({ table, scroller, children }: { table: RefObject<HTMLTabl
     return () => { ro.disconnect(); mo.disconnect(); window.removeEventListener("scroll", place); window.removeEventListener("resize", place); sc.removeEventListener("scroll", place); };
   }, [table, scroller]);
   // The copy is for the eye and the mouse: the real header (and its sort buttons) is what keyboards and
-  // screen readers use, so the copy's buttons stay out of the tab order (and it is aria-hidden).
-  useEffect(() => { clip.current?.querySelectorAll("button").forEach((b) => { b.tabIndex = -1; }); });
+  // screen readers use, so the copy's buttons and checkbox stay out of the tab order (and it is aria-hidden).
+  useEffect(() => { clip.current?.querySelectorAll<HTMLElement>("button, input").forEach((b) => { b.tabIndex = -1; }); });
   return (
     <div className="sticky top-(--header-h) z-30 h-0">
       <div ref={clip} aria-hidden className={cn("absolute inset-x-0 top-0 overflow-hidden rounded-t-xl border bg-card shadow-[0_8px_16px_-8px_rgb(0_0_0/0.5)] transition-opacity", grid,
