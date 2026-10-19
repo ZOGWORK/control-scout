@@ -19,7 +19,7 @@ import { all } from "../db.js";
 import { isWorkspaceId } from "../auth/controlPoint.js";
 import { currentUser } from "../auth/session.js";
 import { HISTORY_LIMIT, type EntryVersion } from "../../src/shared/entryHistory.js";
-import { storedEntryFields, workspaceAccess, workspacePaused } from "./entries.js";
+import { storedEntryFields, supersedeBound, supersedes, workspaceAccess, workspacePaused } from "./entries.js";
 
 const WS = "(SELECT id FROM workspaces WHERE cp_workspace_id = ?)";
 
@@ -51,10 +51,13 @@ export function versionStatements(workspaceId: string, uuid: string, beforeSeq: 
 /** The kept version of these entries with these updatedAts (what a restore brings back), by uuid. */
 export async function versionsAt(workspaceId: string, wanted: { uuid: string; updatedAt: number }[]): Promise<Map<string, { versionNo: number; name: string }>> {
   const out = new Map<string, { versionNo: number; name: string }>();
+  const bound = supersedeBound();
   for (const w of wanted) {
+    // Matched on the timestamp as toVersion sends it (a damaged one, such as 1e300, reads as 0), so a restore of
+    // that version still finds its source.
     const r = (await all<any>(
-      `SELECT version_no, written_by_name FROM workspace_entry_versions WHERE workspace_id = ${WS} AND uuid = ? AND updated_at = ? ORDER BY version_no DESC LIMIT 1`,
-      [workspaceId, w.uuid, w.updatedAt]))[0];
+      `SELECT version_no, written_by_name FROM workspace_entry_versions WHERE workspace_id = ${WS} AND uuid = ? AND ${supersedes("updated_at")} = ? ORDER BY version_no DESC LIMIT 1`,
+      [workspaceId, w.uuid, bound, w.updatedAt]))[0];
     if (r) out.set(w.uuid, { versionNo: Number(r.version_no), name: String(r.written_by_name ?? "") });
   }
   return out;

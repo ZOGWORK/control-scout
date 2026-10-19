@@ -227,3 +227,23 @@ describe("stored rows with bad values", () => {
     expect(localStorage.getItem("cs-scout:brokenrow001")).toBe("{");
   });
 });
+
+describe("repairing a row that's waiting to sync", () => {
+  it("a queued edit with a damaged timestamp is stamped now, so the older server copy doesn't beat it", async () => {
+    localStorage.setItem("cs-scout-ws:41:queuedpois01", JSON.stringify({ uuid: "queuedpois01", ...base, notes: "my offline edit", updatedAt: 1e300, workspaceId: "41" }));
+    localStorage.setItem("cs-scout-ws-dirty:41", JSON.stringify(["queuedpois01"]));
+    const before = Date.now();
+    const read = localScoutEntries("41")[0];
+    expect(read.updatedAt).toBeGreaterThanOrEqual(before);
+    // The pull brings an older server copy: the queued edit stays.
+    server(() => ({ entries: [{ uuid: "queuedpois01", ...base, notes: "older server copy", updatedAt: before - 60_000, workspaceId: "41" }], cursor: 1, more: false }));
+    await pullScouting("41");
+    expect(localScoutEntries("41")[0].notes).toBe("my offline edit");
+    expect(pendingScoutCounts().workspaces).toEqual({ 41: 1 });
+  });
+
+  it("a synced row with a damaged timestamp reads as 0 (the server's copy wins)", () => {
+    localStorage.setItem("cs-scout:syncedpois01", JSON.stringify({ uuid: "syncedpois01", ...base, updatedAt: 1e300 }));
+    expect(localScoutEntries()[0].updatedAt).toBe(0);
+  });
+});
