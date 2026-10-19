@@ -268,6 +268,22 @@ describe("usePageScroll", () => {
     history.replaceState(null, "", "/");
   });
 
+  it("restores after a reload when the page changed its #hash in place, without the router (How it works contents)", () => {
+    height.current = 5000;
+    history.replaceState(null, "", "/methodology");
+    const first = render(<BrowserRouter><Harness /></BrowserRouter>);
+    // SectionNav's scrollToId: history.replaceState(history.state, "", "#ratings"), unheard by the router.
+    history.replaceState(history.state, "", "/methodology#ratings");
+    scrollTo(1800);
+    act(() => { window.dispatchEvent(new Event("pagehide")); });
+    first.unmount();
+    page.scrollTop = 0;
+    vi.spyOn(performance, "getEntriesByType").mockReturnValue([{ type: "reload" }] as never);
+    render(<BrowserRouter><Harness /></BrowserRouter>);
+    expect(page.scrollTop).toBe(1800);
+    history.replaceState(null, "", "/");
+  });
+
   it("keeps first pages at different addresses apart", () => {
     expect(entryKey({ key: "default", pathname: "/a", search: "?x=1" })).toBe("default:/a?x=1");
     expect(entryKey({ key: "k1", pathname: "/a", search: "" })).toBe("k1");

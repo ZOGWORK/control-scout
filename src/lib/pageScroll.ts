@@ -194,6 +194,14 @@ export function usePageScroll(content: RefObject<HTMLElement | null>) {
   const followed = useRef<{ hash: string; at: number } | null>(null);
   const locRef = useRef(loc);
   locRef.current = loc;
+  // The key for where the reader is now. An entry without a router key is known by its address, read
+  // from the address bar: a page may change its #hash in place (history.replaceState, the How it works
+  // contents) without the router hearing, and a reload looks the position up under the address it shows.
+  const liveKey = () => {
+    const l = locRef.current;
+    if (!keyRef.current.startsWith("default:") || !samePath(location.pathname, l.pathname) || location.search !== l.search) return keyRef.current;
+    return entryKey({ key: "default", pathname: l.pathname, search: l.search, hash: location.hash });
+  };
   // The plan made for the current location, reused if the effect runs again for the same location
   // (React's StrictMode replays effects in development).
   const last = useRef<{ sig: string; plan: ScrollPlan } | null>(null);
@@ -238,7 +246,7 @@ export function usePageScroll(content: RefObject<HTMLElement | null>) {
     const onScroll = () => {
       // Not while a followed #link's jump is on its way: that position is the next entry's, not this one's.
       if (followed.current && performance.now() - followed.current.at >= FOLLOW_MS) followed.current = null;
-      if (!restoring.current && !followed.current) store.current!.set(keyRef.current, pageScroller().scrollTop);
+      if (!restoring.current && !followed.current) store.current!.set(liveKey(), pageScroller().scrollTop);
       if (!flagOn.hasAttribute("data-scrolling")) { flagOn.setAttribute("data-scrolling", ""); root.removeAttribute(SCROLL_IDLE_ATTR); }
       clearTimeout(idle);
       idle = setTimeout(() => { flagOn.removeAttribute("data-scrolling"); root.setAttribute(SCROLL_IDLE_ATTR, ""); }, SCROLL_IDLE_MS);
