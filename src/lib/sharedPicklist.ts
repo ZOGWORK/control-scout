@@ -8,10 +8,16 @@
 //   way applied on top, by the same function the server uses (src/shared/picklist.ts). Changes go up one at
 //   a time, in order. The server's answer (or a live list that already includes them) takes over; a 409
 //   (a team it names was removed meanwhile) drops that change, says so, and fetches the list again.
+// - A note is kept on the device until the server confirms it (picklistDrafts.ts; audit PRIVATE-F03), per
+//   account, workspace, season and team. After a reload, a kept note goes up again by itself when the note
+//   it was written over is still the one the list has (sent with that base, so the server checks it too).
+//   When a teammate has changed the note since, it isn't sent: the field shows it as not saved yet, and
+//   the member retries (replacing theirs) or presses Escape (keeping theirs). Confirmed: the draft goes.
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { apiFetch, ApiError } from "./api";
 import type { LiveMode } from "./scoutLive";
-import { applyPickOp, isPickList, type PickList, type PickOp, type PickPerson } from "../shared/picklist";
+import { applyPickOp, cleanNote, isPickList, NOTE_CHANGED, type PickList, type PickOp, type PickPerson } from "../shared/picklist";
+import { clearNoteDraft, noteDrafts, readNoteDraft, saveNoteDraft } from "./picklistDrafts";
 
 /** Window event: a workspace's pick list arrived on its stream. detail: PickList. */
 export const SCOUT_PICKLIST = "cs-scout-picklist";
@@ -24,7 +30,20 @@ export const PICKLIST_POLL_MS = 30_000;
 
 const url = (space: string, season?: number) => `/api/scout/workspaces/${encodeURIComponent(space)}/picklist${season ? `?season=${season}` : ""}`;
 
-interface Pending { id: number; op: PickOp; space: string; season: number }
+/** `account`: who wrote it (its note draft is that account's). */
+/** `wid`: the id of the note draft it wrote (drafts are shared by this account's tabs: each answer only clears its own). */
+interface Pending { id: number; op: PickOp; space: string; season: number; account: number | null; wid?: string; /** Its draft was stored on the device. */ kept?: boolean }
+const newWid = () => `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
+
+/** A note this member wrote that the server hasn't taken. conflict: a teammate's newer note is there instead. */
+/**
+ * A note this member wrote that the server hasn't taken. conflict: a teammate's newer note is there instead.
+ * base: the base it was sent with (a kept note) and failed to send: its retry carries the same one, so a
+ * teammate's note written meanwhile still isn't replaced.
+ */
+interface Unsaved { note: string; conflict: boolean; base?: number | null; /** False: this device couldn't store it, so a reload loses it. */ kept?: boolean }
+/** The key of one team's note for one account (drafts are never shown to another account). */
+const noteKey = (account: number | null, space: string, season: number, team: number) => `${account ?? "-"}:${space}:${season}:${team}`;
 
 /** The server's list with changes still on their way applied on top (each one that still applies). */
 export function withPending(list: PickList, pending: readonly PickOp[], me: PickPerson, at = Date.now()): PickList {
@@ -61,6 +80,10 @@ export interface PickListState {
   saving: boolean;
   /** A note this member wrote that the server didn't take (kept so it isn't lost: they retry or put it back). */
   unsavedNote: (team: number) => string | undefined;
+  /** That note wasn't sent because a teammate changed the note since it was written (see the file's notes). */
+  noteConflict: (team: number) => boolean;
+  /** That note is stored on this device (false: only on this page, a reload loses it). */
+  noteKept: (team: number) => boolean;
   /** A team's note as the server has it (what a note that failed to save is compared with). */
   savedNote: (team: number) => string | undefined;
   change: (op: PickOp) => void;
@@ -72,16 +95,29 @@ export interface PickListState {
  * not-yet-saved changes are attributed until the server's answer. `onRefused`: a change the server
  * refused (shown as a notice).
  */
-export function usePickList(space: string | null, season: number, live: LiveMode, me: PickPerson, onRefused: (message: string) => void): PickListState {
+export function usePickList(space: string | null, season: number, live: LiveMode, me: PickPerson, onRefused: (message: string) => void,
+  /** A read-only space (Task 19): kept notes are neither sent nor shown (they wait, untouched, until it can be written again). */
+  readOnly = false): PickListState {
   const [server, setServer] = useState<PickList | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<ApiError | null>(null);
   const [pending, setPending] = useState<Pending[]>([]);
-  // Notes the server didn't take, by `${space}:${season}:${team}`: the text stays in the field, marked unsaved.
-  const [unsaved, setUnsaved] = useState<Record<string, string>>({});
+  // Notes the server didn't take, by noteKey: the text stays in the field, marked unsaved.
+  const [unsaved, setUnsaved] = useState<Record<string, Unsaved>>({});
+  const unsavedRef = useRef(unsaved);
+  unsavedRef.current = unsaved;
+  const serverRef = useRef(server);
+  serverRef.current = server;
+  const account = me.accountId;
+  const accountRef = useRef(account);
+  accountRef.current = account;
   // The newest note write per team (same keys): only its failure marks the field unsaved, so an older write
   // failing after a newer one was made never brings its text back.
   const latestNote = useRef(new Map<string, number>());
+  // The draft id of this page's newest note write per team (same keys).
+  const latestWid = useRef(new Map<string, string>());
+  // Every draft id this page wrote: an older one of its own can be removed when a newer note supersedes it.
+  const pageWids = useRef(new Set<string>());
   const key = space ? `${space}:${season}` : null;
   const keyRef = useRef(key);
   keyRef.current = key;
@@ -150,20 +186,39 @@ export function usePickList(space: string | null, season: number, live: LiveMode
         try {
           const r = await apiFetch<{ list: unknown }>(url(p.space), { method: "POST", json: { season: p.season, ...p.op } });
           if (isPickList(r.list)) accept(r.list);
+          if (p.op.op === "note" && p.account != null) {
+            const team = p.op.team;
+            // Only the draft this write made: a newer one (this page's, or another tab's) is still to be confirmed.
+            const d = readNoteDraft(p.account, p.space, p.season, team);
+            if (d && d.wid === p.wid) clearNoteDraft(p.account, p.space, p.season, team);
+            else if (d && d.wid === latestWid.current.get(noteKey(p.account, p.space, p.season, team))) {
+              // A newer note of this page's is still on its way: it's now written over this one, as the server has it.
+              const now = isPickList(r.list) ? r.list.picks.find((x) => x.team === team) : undefined;
+              if (now) saveNoteDraft(p.account, p.space, p.season, { ...d, base: now.noteUpdatedAt ?? null });
+            }
+          }
         } catch (e) {
           // Refused (409: a team it names is gone, or the list is full) or not sent: say so, show the server's list.
           const err = e instanceof ApiError ? e : new ApiError(0, "Couldn't save the change.");
-          // A note keeps its text (the field shows it unsaved and retries on Enter), unless its team is gone (409).
-          if (p.op.op === "note" && err.status !== 409) {
-            const note = p.op.note, key = `${k}:${p.op.team}`;
-            if (latestNote.current.get(key) === p.id) setUnsaved((u) => ({ ...u, [key]: note }));
+          if (p.op.op === "note") {
+            const note = p.op.note, team = p.op.team, key = noteKey(p.account, p.space, p.season, team);
+            // A note sent with its base and refused because the note changed: a teammate's newer note is there. Kept,
+            // not sent. (Any other 409, e.g. its team was removed, drops it like a note sent without a base.)
+            const conflict = err.status === 409 && p.op.base !== undefined && err.message === NOTE_CHANGED;
+            if (latestNote.current.get(key) === p.id) {
+              // Its text stays (the field shows it unsaved, and its draft is kept), unless its team is gone (409).
+              const base = p.op.base;
+              const kept = p.kept !== false;
+              if (err.status !== 409 || conflict) setUnsaved((u) => ({ ...u, [key]: { note, conflict, kept, ...(!conflict && base !== undefined ? { base } : {}) } }));
+              else if (p.account != null && readNoteDraft(p.account, p.space, p.season, team)?.wid === p.wid) clearNoteDraft(p.account, p.space, p.season, team);
+            }
           }
           if (keyRef.current === k) {
             refused.current(err.status === 409 ? err.message : `Not saved: ${err.message}`);
             void refetch.current();
           }
         }
-        if (p.op.op === "note") { const key = `${k}:${p.op.team}`; if (latestNote.current.get(key) === p.id) latestNote.current.delete(key); }
+        if (p.op.op === "note") { const key = noteKey(p.account, p.space, p.season, p.op.team); if (latestNote.current.get(key) === p.id) latestNote.current.delete(key); }
         if (queue.current[0] === p) queue.current.shift();
         setPending((cur) => cur.filter((x) => x.id !== p.id));
       }
@@ -172,17 +227,66 @@ export function usePickList(space: string | null, season: number, live: LiveMode
 
   const change = useCallback((op: PickOp) => {
     if (!space) return;
-    const p: Pending = { id: nextId.current++, op, space, season };
+    const acct = accountRef.current;
+    let wid: string | undefined;
+    let stored = false;
+    if (op.op === "note") {
+      // As the server will store it, so the draft (and what's shown meanwhile) compares equal to its answer.
+      op = { ...op, note: cleanNote(op.note) };
+      const key = noteKey(acct, space, season, op.team);
+      const team = op.team;
+      const shown = serverRef.current?.picks.find((x) => x.team === team);
+      // A retry (or Escape) of a kept note. Over a teammate's newer one: written over the note shown now, so one
+      // written after it still isn't replaced. One that failed to send: with the base it was sent with.
+      const kept = unsavedRef.current[key];
+      if (op.base === undefined && kept?.conflict) op = { ...op, base: shown?.noteUpdatedAt ?? null };
+      else if (op.base === undefined && kept?.base !== undefined) op = { ...op, base: kept.base };
+      // Kept on the device until the server confirms it, with the note it's written over.
+      wid = newWid();
+      latestWid.current.set(key, wid);
+      pageWids.current.add(wid);
+      stored = acct != null && saveNoteDraft(acct, space, season, { team, note: op.note, base: op.base !== undefined ? op.base : shown?.noteUpdatedAt ?? null, at: Date.now(), wid });
+      // Couldn't store this one: an older draft of this page's for the team is superseded (it would come back
+      // after a reload over this newer note), so it goes. Another tab's is left alone.
+      if (acct != null && !stored) {
+        const old = readNoteDraft(acct, space, season, team);
+        if (old?.wid && pageWids.current.has(old.wid)) clearNoteDraft(acct, space, season, team);
+      }
+    }
+    const p: Pending = { id: nextId.current++, op, space, season, account: acct, wid, kept: stored };
     // A new write of a note replaces one that failed (a retry, or putting the saved one back).
-    if (op.op === "note") { const key = `${space}:${season}:${op.team}`; latestNote.current.set(key, p.id); setUnsaved((u) => { if (!(key in u)) return u; const { [key]: _gone, ...rest } = u; return rest; }); }
+    if (op.op === "note") { const key = noteKey(acct, space, season, op.team); latestNote.current.set(key, p.id); setUnsaved((u) => { if (!(key in u)) return u; const { [key]: _gone, ...rest } = u; return rest; }); }
     queue.current.push(p);
     setPending((cur) => [...cur, p]);
     void drain();
   }, [space, season, drain]);
 
+  // Notes kept from before a reload (or from another tab of this account that closed): once the list is here,
+  // once per account, workspace and season. Confirmed meanwhile (the list says the same) or its team gone:
+  // dropped. Written over the note the list still has: sent again (with that base). A teammate's newer note
+  // there instead: shown as not saved yet, for the member to decide.
+  const recovered = useRef(new Set<string>());
+  useEffect(() => {
+    if (readOnly || !space || account == null || !server || server.workspaceId !== space || server.season !== season) return;
+    const rk = `${account}:${space}:${season}`;
+    if (recovered.current.has(rk)) return;
+    recovered.current.add(rk);
+    for (const d of noteDrafts(account, space, season)) {
+      const key = noteKey(account, space, season, d.team);
+      if (latestNote.current.has(key)) continue; // written on this page: on its way already
+      const now = server.picks.find((x) => x.team === d.team);
+      const note = cleanNote(d.note);
+      if (!now || now.note === note) { clearNoteDraft(account, space, season, d.team); continue; }
+      if ((now.noteUpdatedAt ?? null) === d.base) change({ op: "note", team: d.team, note, base: d.base });
+      else setUnsaved((u) => ({ ...u, [key]: { note, conflict: true } }));
+    }
+  }, [server, space, season, account, change, readOnly]);
+
   const mine = useMemo(() => pending.filter((p) => p.space === space && p.season === season).map((p) => p.op), [pending, space, season]);
   const list = useMemo(() => (server ? withPending(server, mine, me) : null), [server, mine, me]);
   return { list, loading: !server && (loading || !error), error: server ? null : error, saving: mine.length > 0, change,
-    unsavedNote: (team: number) => unsaved[`${space}:${season}:${team}`],
+    unsavedNote: (team: number) => (space ? unsaved[noteKey(account, space, season, team)]?.note : undefined),
+    noteConflict: (team: number) => (space ? !!unsaved[noteKey(account, space, season, team)]?.conflict : false),
+    noteKept: (team: number) => (space ? unsaved[noteKey(account, space, season, team)]?.kept !== false : true),
     savedNote: (team: number) => server?.picks.find((p) => p.team === team)?.note, reload: () => { void fetchList(); } };
 }
