@@ -12,11 +12,11 @@ import { Button } from "../ui/button";
 import { TierMark, WinBar } from "../predict";
 import { ToggleGroup, ToggleGroupItem } from "../ui/controls";
 import { ErrorState } from "../states";
+import { DataStatus } from "../DataStatus";
 import { cn } from "../cn";
 import { defaultEvidence, eventState, recordFor, shortDay, usageView, type Evidence } from "./homeModel";
 
 const fmt = (n: number) => n.toLocaleString();
-const when = (iso: string | null) => (iso ? new Date(iso).toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" }) : "");
 
 /** A heading's small label above it. */
 function Kicker({ children, id }: { children: React.ReactNode; id?: string }) {
@@ -49,9 +49,13 @@ export function SeasonCoverage({ state }: { state: ApiState<HomeOverview> }) {
               </div>
             ))}
           </dl>
-          <p className="mt-3 text-xs text-text-muted">
-            {o ? <>{seasonLabel(o.season)} · FTC data synced <time dateTime={o.dataAsOf ?? undefined} title={when(o.dataAsOf)}>{ago(o.dataAsOf)}</time>{o.statsAt && <> · stats rebuilt <time dateTime={o.statsAt} title={when(o.statsAt)}>{ago(o.statsAt)}</time></>}</> : " "}
-          </p>
+          {o ? (
+            <div className="mt-3 flex flex-wrap items-start gap-x-2 gap-y-1 text-xs text-text-muted">
+              <span className="py-0.5 font-medium">{seasonLabel(o.season)}</span>
+              {/* Source results, prepared statistics, or the two out of step for now (E5). */}
+              <DataStatus readiness={o.readiness} fallbackResultsAt={o.dataAsOf} onRetry={state.reload} className="min-w-0 flex-1" />
+            </div>
+          ) : <p className="mt-3 text-xs"> </p>}
         </>
       )}
     </section>
