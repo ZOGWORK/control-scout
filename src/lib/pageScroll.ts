@@ -107,6 +107,8 @@ export function scrollToElement(el: Element, behavior: ScrollBehavior = "auto") 
 
 /** How long a restore keeps chasing its position while the page's content loads in. */
 export const RESTORE_WINDOW_MS = 2500;
+/** data-scrolling's value for a scroll started by a finger (index.css keeps the scroll shield off for it). */
+export const SCROLLING_BY_TOUCH = "touch";
 /** How long after the last scroll event the page counts as still scrolling. */
 export const SCROLL_IDLE_MS = 140;
 
@@ -239,18 +241,30 @@ export function usePageScroll(content: RefObject<HTMLElement | null>) {
     if (!el) return;
     const flagOn = el.parentElement ?? el;
     let idle: ReturnType<typeof setTimeout> | undefined;
+    // Whether the last pointer input was a finger. A scroll that starts then is flagged "touch", and gets no
+    // shield: on a touchscreen laptop (which still matches pointer: fine) a swipe on a sideways table right
+    // after a touch scroll must reach the table. A mouse moving or a wheel turning switches it back.
+    let touch = false;
+    const onPointer = (e: PointerEvent) => { touch = e.pointerType === "touch"; };
+    const onWheel = () => { touch = false; };
     const onScroll = () => {
       // Not while a followed #link's jump is on its way: that position is the next entry's, not this one's.
       if (followed.current && performance.now() - followed.current.at >= FOLLOW_MS) followed.current = null;
       if (!restoring.current && !followed.current) store.current!.set(liveKey(), pageScroller().scrollTop);
-      if (!flagOn.hasAttribute("data-scrolling")) flagOn.setAttribute("data-scrolling", "");
+      if (!flagOn.hasAttribute("data-scrolling")) flagOn.setAttribute("data-scrolling", touch ? SCROLLING_BY_TOUCH : "");
       clearTimeout(idle);
       idle = setTimeout(() => flagOn.removeAttribute("data-scrolling"), SCROLL_IDLE_MS);
     };
     const persist = () => store.current!.save();
+    window.addEventListener("pointerdown", onPointer, { capture: true, passive: true });
+    window.addEventListener("pointermove", onPointer, { capture: true, passive: true });
+    window.addEventListener("wheel", onWheel, { capture: true, passive: true });
     window.addEventListener("scroll", onScroll, { passive: true });
     window.addEventListener("pagehide", persist);
     return () => {
+      window.removeEventListener("pointerdown", onPointer, { capture: true });
+      window.removeEventListener("pointermove", onPointer, { capture: true });
+      window.removeEventListener("wheel", onWheel, { capture: true });
       window.removeEventListener("scroll", onScroll);
       window.removeEventListener("pagehide", persist);
       clearTimeout(idle);
