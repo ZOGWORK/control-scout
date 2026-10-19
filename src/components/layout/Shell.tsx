@@ -4,7 +4,7 @@
 import { useEffect, useRef, useState, type ComponentType, type ReactNode } from "react";
 import { Ambient } from "./Ambient";
 import { Link, NavLink, useLocation } from "react-router-dom";
-import { motion, MotionConfig } from "motion/react";
+import { m, MotionConfig } from "motion/react";
 import {
   BookOpen, Bookmark, CalendarDays, ClipboardList, DatabaseZap, Download, House, ListOrdered, Menu, PanelLeftClose, PanelLeftOpen, Scale, Search, Settings, ShieldCheck, Sparkles, Star, Trophy, Users,
 } from "lucide-react";
@@ -59,7 +59,7 @@ const rowClass = (on: boolean, collapsed?: boolean) => cn("group relative flex h
 function RowInner({ item, on, collapsed }: { item: NavItem; on: boolean; collapsed?: boolean }) {
   return (
     <>
-      {on && <motion.span layoutId="cs-nav-active" transition={{ type: "spring", stiffness: 500, damping: 38 }} className="absolute inset-0 rounded-lg bg-text-base/[0.08]" />}
+      {on && <m.span layoutId="cs-nav-active" transition={{ type: "spring", stiffness: 500, damping: 38 }} className="absolute inset-0 rounded-lg bg-text-base/[0.08]" />}
       <item.icon className={cn("relative size-5 shrink-0", on && "text-accent")} />
       {!collapsed && <span className="relative truncate">{item.label}</span>}
     </>
@@ -212,12 +212,12 @@ export function Shell({ children }: { children: ReactNode }) {
                 <Ambient target={mainRef} />
               </div>
               <main id="main" ref={mainRef} className="m-canvas relative z-10">
-                <motion.div key={loc.pathname} initial={firstPage.current ? false : { opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.18, ease: "easeOut" }} className="mx-auto flex min-h-[calc(100svh-var(--header-h))] w-full max-w-[1200px] flex-col px-4 pt-8 pb-28 sm:px-6 md:pb-8 max-md:[[data-sticky-actions]_&]:pb-44 lg:px-8 min-[1700px]:max-w-[1600px]">
+                <m.div key={loc.pathname} initial={firstPage.current ? false : { opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.18, ease: "easeOut" }} className="mx-auto flex min-h-[calc(100svh-var(--header-h))] w-full max-w-[1200px] flex-col px-4 pt-8 pb-28 sm:px-6 md:pb-8 max-md:[[data-sticky-actions]_&]:pb-44 lg:px-8 min-[1700px]:max-w-[1600px]">
                   <NoDataNotice />
                   {/* The page grows to fill the screen, so a short page still has its footer at the bottom. */}
                   <div className="min-w-0 flex-1">{children}</div>
                   <SiteFooter />
-                </motion.div>
+                </m.div>
               </main>
               {/* Takes the pointer while the page scrolls (index.css .scroll-shield), so rows don't hover mid-scroll. */}
               <div aria-hidden className="scroll-shield" />

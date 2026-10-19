@@ -2,14 +2,9 @@
    Ported 1:1 from Control Point's modern UI (src/index.css + src/modern/modern.css)
    so the two apps feel like family: dark graphite + volt, Inter / Space Grotesk. */
 
-@font-face { font-family: "Inter"; font-weight: 400; font-style: normal; font-display: swap; src: url("/fonts/Inter-400.woff2") format("woff2"); }
-@font-face { font-family: "Inter"; font-weight: 500; font-style: normal; font-display: swap; src: url("/fonts/Inter-500.woff2") format("woff2"); }
-@font-face { font-family: "Inter"; font-weight: 600; font-style: normal; font-display: swap; src: url("/fonts/Inter-600.woff2") format("woff2"); }
-@font-face { font-family: "Inter"; font-weight: 700; font-style: normal; font-display: swap; src: url("/fonts/Inter-700.woff2") format("woff2"); }
-@font-face { font-family: "Inter"; font-weight: 800; font-style: normal; font-display: swap; src: url("/fonts/Inter-800.woff2") format("woff2"); }
-@font-face { font-family: "Space Grotesk"; font-weight: 500; font-style: normal; font-display: swap; src: url("/fonts/SpaceGrotesk-500.woff2") format("woff2"); }
-@font-face { font-family: "Space Grotesk"; font-weight: 600; font-style: normal; font-display: swap; src: url("/fonts/SpaceGrotesk-600.woff2") format("woff2"); }
-@font-face { font-family: "Space Grotesk"; font-weight: 700; font-style: normal; font-display: swap; src: url("/fonts/SpaceGrotesk-700.woff2") format("woff2"); }
+/* Inter and Space Grotesk are variable fonts: one file each covers every weight (Inter 400–800, Space Grotesk 500–700). */
+@font-face { font-family: "Inter"; font-weight: 400 800; font-style: normal; font-display: swap; src: url("/fonts/Inter.woff2") format("woff2"); }
+@font-face { font-family: "Space Grotesk"; font-weight: 500 700; font-style: normal; font-display: swap; src: url("/fonts/SpaceGrotesk.woff2") format("woff2"); }
 @font-face { font-family: "JetBrains Mono"; font-weight: 400; font-style: normal; font-display: swap; src: url("/fonts/JetBrainsMono-400.woff2") format("woff2"); }
 
 @import "tailwindcss";

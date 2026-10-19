@@ -28,7 +28,7 @@ import { AdvancementView } from "../components/Advancement";
 import { SearchBox } from "../components/search/SearchBox";
 import { SEARCH_HINT, usePageSearch } from "../components/layout/Search";
 import { cn } from "../components/cn";
-import { Reveal, motion } from "../components/motion";
+import { Reveal, m } from "../components/motion";
 import { dateRange, num, oddsPct, place, seasonLabel } from "../lib/format";
 import { copyLink } from "../lib/clipboard";
 import { ShareMatch } from "../components/ShareMatch";
@@ -124,7 +124,7 @@ function PredictSwitch({ value, onChange }: { value: "events" | "lab"; onChange:
           className={cn("relative flex min-h-[4.5rem] items-start gap-3 rounded-xl border border-border bg-card p-3.5 text-left transition-colors",
             value !== v && "hover:border-accent/40 hover:bg-[color-mix(in_srgb,var(--color-text-base)_4%,var(--color-card))]")}>
           {/* The chosen card's highlight: one shape that slides to the other card when the view changes. */}
-          {value === v && <motion.span layoutId="predict-view-active" aria-hidden transition={{ type: "spring", stiffness: 500, damping: 38 }}
+          {value === v && <m.span layoutId="predict-view-active" aria-hidden transition={{ type: "spring", stiffness: 500, damping: 38 }}
             className="absolute -inset-px rounded-xl border border-accent/70 bg-[color-mix(in_srgb,var(--color-accent)_12%,var(--color-card))] shadow-[0_4px_16px_color-mix(in_srgb,var(--color-accent)_18%,transparent)]" />}
           <span className={cn("relative grid size-9 shrink-0 place-items-center rounded-lg transition-colors duration-300", value === v ? "bg-accent text-accent-ink" : "bg-accent/[0.12] text-accent")}><Icon className="size-4" /></span>
           <span className="relative min-w-0">

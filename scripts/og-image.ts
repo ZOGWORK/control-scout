@@ -13,9 +13,9 @@ const font = (f: string) => `data:font/woff2;base64,${readFileSync(join(pub, "fo
 const logo = `<img alt="" src="data:image/png;base64,${readFileSync(join(pub, "logo-512.png")).toString("base64")}" />`;
 
 const html = `<!doctype html><html><head><style>
-@font-face { font-family: SG; src: url(${font("SpaceGrotesk-700.woff2")}); font-weight: 700; }
-@font-face { font-family: Inter; src: url(${font("Inter-500.woff2")}); font-weight: 500; }
-@font-face { font-family: Inter; src: url(${font("Inter-700.woff2")}); font-weight: 700; }
+@font-face { font-family: SG; src: url(${font("SpaceGrotesk.woff2")}); font-weight: 700; }
+@font-face { font-family: Inter; src: url(${font("Inter.woff2")}); font-weight: 500; }
+@font-face { font-family: Inter; src: url(${font("Inter.woff2")}); font-weight: 700; }
 * { margin: 0; box-sizing: border-box; }
 body { width: 1200px; height: 630px; overflow: hidden; background: #0a0a0b; color: #f4f4f5; font-family: Inter, sans-serif; position: relative; }
 .glow { position: absolute; inset: 0; background:

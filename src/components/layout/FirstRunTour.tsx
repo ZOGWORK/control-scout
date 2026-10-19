@@ -16,7 +16,7 @@
 import { useCallback, useEffect, useId, useLayoutEffect, useRef, useState, type KeyboardEvent as ReactKeyboardEvent } from "react";
 import { createPortal } from "react-dom";
 import { useLocation } from "react-router-dom";
-import { motion } from "motion/react";
+import { m } from "motion/react";
 import { X } from "lucide-react";
 import { Button } from "../ui/button";
 import { cn } from "../cn";
@@ -242,7 +242,7 @@ export function TourOverlay({ steps, onEnd }: { steps: TourStep[]; onEnd: (outco
         <div aria-hidden data-tour-spotlight="" className={cn("pointer-events-none absolute rounded-xl", slide)}
           style={{ top: box.top - PAD, left: box.left - PAD, width: box.width + PAD * 2, height: box.height + PAD * 2, boxShadow: SCRIM_SHADOW }} />
       ) : <div aria-hidden className="pointer-events-none absolute inset-0 bg-black/55" />}
-      <motion.div
+      <m.div
         ref={cardRef}
         key={step.id}
         role="dialog" aria-modal="true" aria-labelledby={titleId} aria-describedby={bodyId}
@@ -272,7 +272,7 @@ export function TourOverlay({ steps, onEnd }: { steps: TourStep[]; onEnd: (outco
           <Button ref={primaryRef} size="sm" className="max-sm:h-10" onClick={next}>{last ? "Got it" : i === 0 ? "Show me" : "Next"}</Button>
         </div>
         {!pointing && <p className="sr-only">Use the arrow keys to move between steps, or Escape to close.</p>}
-      </motion.div>
+      </m.div>
     </div>,
     document.body,
   );
