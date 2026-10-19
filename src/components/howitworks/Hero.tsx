@@ -1,6 +1,6 @@
 // Hero: the headline (word-by-word reveal) and the cycling example match card.
 import { useCallback, useEffect, useRef, useState } from "react";
-import { motion } from "motion/react";
+import { motion, useInView } from "motion/react";
 import { Pause, Play } from "lucide-react";
 import { ENGINE_VERSION } from "@control-scout/predict-engine";
 import { cn } from "../cn";
@@ -86,24 +86,28 @@ function MatchCard() {
     return () => cancelAnimationFrame(raf);
   }, [p, reduced]);
 
-  // Cycle examples every 5.2 s (never under reduced motion); a tap restarts the timer.
+  // Cycle examples every 5.2 s (never under reduced motion); a tap restarts the timer. Only while the card
+  // is on screen: off it, each change still re-rendered the card every frame of its tween, mid-scroll.
   const [cycle, setCycle] = useState(0);
   const [paused, setPaused] = useState(false);
+  const card = useRef<HTMLDivElement>(null);
+  const onScreen = useInView(card);
   useEffect(() => {
-    if (reduced || paused) return;
+    if (reduced || paused || !onScreen) return;
     const t = setInterval(() => setIdx((i) => (i + 1) % EXAMPLES.length), 5200);
     return () => clearInterval(t);
-  }, [reduced, paused, cycle]);
+  }, [reduced, paused, cycle, onScreen]);
   const pick = useCallback((i: number) => { setIdx(i); setCycle((c) => c + 1); }, []);
 
   const redPct = Math.round(shown * 100);
   return (
-    <div aria-label="Example match predictions (worked examples, not real matches)" role="group" className="lift overflow-hidden rounded-2xl border border-border bg-card shadow-[0_18px_40px_-24px_rgba(0,0,0,.6)]">
+    <div ref={card} aria-label="Example match predictions (worked examples, not real matches)" role="group" className="lift overflow-hidden rounded-2xl border border-border bg-card shadow-[0_18px_40px_-24px_rgba(0,0,0,.6)]">
       <div className="flex flex-wrap items-center justify-between gap-2 border-b border-border px-4 py-2.5 font-mono text-xs text-muted-foreground">
         <span>{e.label}</span>
         <span className="flex items-center gap-2">
           <span className="rounded-full border border-border px-2 py-0.5 text-[10.5px] uppercase tracking-wider">{e.tier}</span>
-          <span className="hiw-live font-semibold text-success">Example</span>
+          {/* The dot pulses only on screen: off it, the animation can't run on the compositor and ticked the page every frame. */}
+          <span className="font-semibold text-success"><span aria-hidden className={cn("hiw-live", onScreen && "hiw-live-on")} />Example</span>
         </span>
       </div>
       <div className="grid grid-cols-2">

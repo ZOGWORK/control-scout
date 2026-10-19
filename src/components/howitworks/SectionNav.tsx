@@ -18,6 +18,20 @@ export const SECTIONS = [
   { id: "settings", label: "Settings" },
 ] as const;
 
+export interface SectionTop { id: string; top: number }
+
+/**
+ * The section being read: the last one starting above the reading line (`line` px from the top of the
+ * window, at scroll position `y`), or the last section once the page is scrolled to the very bottom (it is
+ * too short to reach the line). "" above the first section.
+ */
+export function activeSection(tops: readonly SectionTop[], y: number, line: number, max: number): string {
+  let cur = "";
+  for (const s of tops) if (s.top - y < line) cur = s.id;
+  if (max > 0 && y >= max - 2) cur = SECTIONS[SECTIONS.length - 1].id;
+  return cur;
+}
+
 export function scrollToId(id: string, reduced: boolean) {
   const el = document.getElementById(id);
   if (!el) return;
@@ -35,28 +49,33 @@ export function SectionNav() {
 
   useEffect(() => {
     const page = pageScroller();
-    let raf = 0;
-    const update = () => {
-      raf = 0;
-      const max = page.scrollHeight - page.clientHeight;
-      if (bar.current) bar.current.style.transform = `scaleX(${max > 0 ? Math.min(1, page.scrollTop / max) : 0})`;
+    // Where each section starts (in page coordinates), the scroll range and the reading line, measured only
+    // when the page's size changes. A scrolled frame then reads just the scroll position: measuring all eight
+    // sections every frame (after writing the progress line) forced a style and layout pass per frame.
+    let tops: SectionTop[] = [], max = 0, line = 0, raf = 0;
+    const measure = () => {
+      const y = page.scrollTop;
+      tops = SECTIONS.flatMap((s) => { const el = document.getElementById(s.id); return el ? [{ id: s.id, top: el.getBoundingClientRect().top + y }] : []; });
+      max = page.scrollHeight - page.clientHeight;
       // The reading line: a third of the way down the visible page, under the top bar.
       const top = pageTop();
-      const line = top + Math.max(0, window.innerHeight - top) * 0.35;
-      let cur = "";
-      for (const s of SECTIONS) {
-        const el = document.getElementById(s.id);
-        if (el && el.getBoundingClientRect().top < line) cur = s.id;
-      }
-      // At the very bottom, the last (short) section counts as active.
-      if (max > 0 && page.scrollTop >= max - 2) cur = SECTIONS[SECTIONS.length - 1].id;
-      setActive(cur);
+      line = top + Math.max(0, window.innerHeight - top) * 0.35;
+    };
+    const update = () => {
+      raf = 0;
+      const y = page.scrollTop;
+      if (bar.current) bar.current.style.transform = `scaleX(${max > 0 ? Math.min(1, y / max) : 0})`;
+      setActive(activeSection(tops, y, line, max));
     };
     const onScroll = () => { if (!raf) raf = requestAnimationFrame(update); };
-    update();
+    const onResize = () => { measure(); onScroll(); };
+    measure(); update();
+    // The page grows as figures and data render in, and sections move with it.
+    const ro = typeof ResizeObserver === "undefined" ? null : new ResizeObserver(onResize);
+    ro?.observe(document.body);
     window.addEventListener("scroll", onScroll, { passive: true });
-    window.addEventListener("resize", onScroll);
-    return () => { window.removeEventListener("scroll", onScroll); window.removeEventListener("resize", onScroll); cancelAnimationFrame(raf); };
+    window.addEventListener("resize", onResize);
+    return () => { ro?.disconnect(); window.removeEventListener("scroll", onScroll); window.removeEventListener("resize", onResize); cancelAnimationFrame(raf); };
   }, []);
 
   // Keep the active link visible in the (horizontally scrolling) nav on phones.
