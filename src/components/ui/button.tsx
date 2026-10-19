@@ -19,7 +19,7 @@ export const buttonVariants = cva(
         secondary: 'bg-elevated text-text-base border border-line hover:bg-text-base/[0.08]',
         outline: 'border border-line bg-transparent text-text-base hover:bg-text-base/[0.06] hover:border-text-base/20',
         ghost: 'text-text-muted hover:text-text-base hover:bg-text-base/[0.06]',
-        destructive: 'bg-rose-500/15 text-rose-500 border border-rose-500/30 hover:bg-rose-500/25',
+        destructive: 'bg-danger/15 text-danger border border-danger/30 hover:bg-danger/25',
         link: 'text-accent underline-offset-4 hover:underline px-0 active:scale-100',
       },
       // default and icon grow to 44px on phones (touch targets), so call

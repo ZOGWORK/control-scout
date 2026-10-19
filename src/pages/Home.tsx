@@ -54,9 +54,9 @@ export default function Home() {
       <footer className="mt-10 flex flex-wrap items-center justify-between gap-3 border-t border-line pt-5 text-sm text-text-muted">
         <span>FTC, with a clearer view.</span>
         <span className="flex flex-wrap gap-x-4 gap-y-1">
-          <Link to="/methodology" className="hover:text-text-base hover:underline">How the numbers work</Link>
-          <Link to="/download" className="hover:text-text-base hover:underline">Offline packs</Link>
-          <Link to="/compare" className="hover:text-text-base hover:underline">Compare teams</Link>
+          <Link to="/methodology" className="inline-flex items-center hover:text-text-base hover:underline max-sm:min-h-11">How the numbers work</Link>
+          <Link to="/download" className="inline-flex items-center hover:text-text-base hover:underline max-sm:min-h-11">Offline packs</Link>
+          <Link to="/compare" className="inline-flex items-center hover:text-text-base hover:underline max-sm:min-h-11">Compare teams</Link>
         </span>
       </footer>
     </div>

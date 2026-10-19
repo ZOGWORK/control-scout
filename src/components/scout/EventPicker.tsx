@@ -34,7 +34,13 @@ export function EventPicker({ id, season, code, onChange }: { id: string; season
   const [chosen, setChosen] = useState<EventListItem | null>(null);
   const listId = useId();
   const input = useRef<HTMLInputElement>(null);
+  const change = useRef<HTMLButtonElement>(null);
+  // Picking replaces the input with the chosen event: focus goes to its Change button, not to the page's top.
+  const refocus = useRef(false);
   const picked = normalEventCode(code);
+  useEffect(() => {
+    if (picked && refocus.current) { refocus.current = false; change.current?.focus(); }
+  }, [picked]);
 
   useEffect(() => {
     if (!picked) { setChosen(null); return; }
@@ -62,7 +68,7 @@ export function EventPicker({ id, season, code, onChange }: { id: string; season
     return () => { live = false; clearTimeout(t); };
   }, [text, season, retry]);
 
-  const pick = (e: EventListItem) => { setChosen(e); onChange(e.code); setText(""); setOpen(false); };
+  const pick = (e: EventListItem) => { refocus.current = true; setChosen(e); onChange(e.code); setText(""); setOpen(false); };
 
   if (picked) {
     return (
@@ -74,8 +80,8 @@ export function EventPicker({ id, season, code, onChange }: { id: string; season
             <span className="font-mono">{picked}</span>{chosen ? ` · ${dateRange(chosen.start, chosen.end)}${place(chosen.city, chosen.state) ? ` · ${place(chosen.city, chosen.state)}` : ""}` : ""}
           </span>
         </span>
-        <button type="button" onClick={() => { onChange(""); setChosen(null); requestAnimationFrame(() => input.current?.focus()); }} aria-label="Change event"
-          className="inline-flex size-9 items-center justify-center rounded-lg text-muted-foreground hover:bg-text-base/[0.06] hover:text-foreground"><X className="size-4" /></button>
+        <button ref={change} type="button" onClick={() => { onChange(""); setChosen(null); requestAnimationFrame(() => input.current?.focus()); }} aria-label={`Change event (${chosen?.name ?? picked})`}
+          className="inline-flex size-9 items-center justify-center rounded-lg text-muted-foreground hover:bg-text-base/[0.06] hover:text-foreground"><X className="size-4" aria-hidden /></button>
       </div>
     );
   }
@@ -101,6 +107,8 @@ export function EventPicker({ id, season, code, onChange }: { id: string; season
           } else if (e.key === "Escape") setOpen(false);
         }}
         className="h-11 pl-9" />
+      {/* Screen readers hear how many events the search found (the list itself isn't announced as it appears). */}
+      <p role="status" className="sr-only">{current ? (options.length ? `${options.length} ${options.length === 1 ? "event" : "events"} found` : "No events found") : ""}</p>
       {open && failed === text.trim() && (
         <div role="alert" className="absolute inset-x-0 top-full z-20 mt-1 flex items-center justify-between gap-3 rounded-xl border border-border bg-popover px-3 py-2.5 text-sm shadow-xl">
           <span className="text-muted-foreground">Couldn’t search events just now.</span>

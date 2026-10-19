@@ -46,5 +46,6 @@ export function TabsTrigger({ className, ...props }: React.ComponentProps<typeof
 }
 
 export function TabsContent({ className, ...props }: React.ComponentProps<typeof TabsPrimitive.Content>) {
-  return <TabsPrimitive.Content data-slot="tabs-content" className={cn('outline-none min-w-0', className)} {...props} />;
+  // No outline-none: Radix makes the panel a tab stop, and a keyboard user reaching it sees the shared :focus-visible ring.
+  return <TabsPrimitive.Content data-slot="tabs-content" className={cn('min-w-0', className)} {...props} />;
 }

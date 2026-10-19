@@ -98,7 +98,7 @@ export default function ComparePage() {
         <>
           {/* Until the comparison loads (or if it fails), the chosen teams can still be removed here. */}
           {!state.data && (
-            <div className="mb-4 flex flex-wrap items-center gap-2" aria-label="Chosen teams">
+            <div className="mb-4 flex flex-wrap items-center gap-2" role="group" aria-label="Chosen teams">
               {teams.map((t, i) => (
                 <span key={t} className="inline-flex h-10 items-center gap-1.5 rounded-xl border border-border bg-card pl-3 pr-1 font-mono text-sm">
                   <span className="size-2 rounded-full" style={{ background: palette[i] }} />{t}
@@ -135,15 +135,17 @@ function SuggestionChip({ s, onPick, big }: { s: Suggestion; onPick: (n: number)
   const name = useTeamName(s.team);
   const color = useTeamColors().colorOf(s.team);
   return (
-    <button type="button" onClick={() => onPick(s.team)} aria-label={`Add ${s.team}${name ? ` ${name}` : ""}`}
+    <button type="button" onClick={() => onPick(s.team)}
       className={cn("lift inline-flex min-w-0 items-center gap-2 rounded-xl border border-border bg-card text-left hover:border-accent/50",
         big ? "w-full px-3.5 py-3" : "h-9 px-3 text-sm max-sm:h-11")}>
-      <Plus className="size-4 shrink-0 text-accent" aria-hidden />
-      {color && <span className="size-2.5 shrink-0 rounded-full" style={{ background: color.css }} title={color.label} />}
-      <span className="font-mono font-semibold tabular-nums">{s.team}</span>
+      {/* The name is the chip's own text with "Add" in front ("Add 18360 Robo Raiders"); the spaces are explicit
+          because a name from content joins inline pieces without them. */}
+      <Plus className="size-4 shrink-0 text-accent" aria-hidden /><span className="sr-only">Add</span>{" "}
+      {color && <span className="size-2.5 shrink-0 rounded-full" style={{ background: color.css }} title={color.label} aria-hidden />}
+      <span className="font-mono font-semibold tabular-nums">{s.team}</span>{" "}
       {big ? (
         <span className="min-w-0 flex-1">
-          <span className="block truncate text-sm">{name || (name === undefined ? "…" : "Unnamed team")}</span>
+          <span className="block truncate text-sm">{name || (name === undefined ? "…" : "Unnamed team")}</span>{" "}
           <span className="block text-xs text-muted-foreground">{s.why}</span>
         </span>
       ) : name ? <span className="max-w-[10rem] truncate text-muted-foreground">{name}</span> : null}
