@@ -179,6 +179,16 @@ describe("country (from the home page's atlas)", () => {
     expect(cleared.country).toBeNull();
     expect(writeTableState(new URLSearchParams("country=CA"), cleared, "teamSeason").has("country")).toBe(false);
   });
+  it("keeps an unknown country as a problem (PUB-F05), in the URL until cleared", () => {
+    const s = parseTableState(new URLSearchParams("country=ZZ&sort=rank"), "teamSeason");
+    expect(s.country).toBeNull();
+    expect(s.countryUnknown).toBe("ZZ");
+    expect(hasFilters(s)).toBe(true);
+    expect(writeTableState(new URLSearchParams(), { ...s, page: 2 }, "teamSeason").get("country")).toBe("ZZ");
+    expect(writeTableState(new URLSearchParams("country=ZZ"), clearFilters(s), "teamSeason").has("country")).toBe(false);
+    expect(parseTableState(new URLSearchParams("country=US"), "teamSeason").countryUnknown).toBeNull();
+    expect(parseTableState(new URLSearchParams("country=ZZ"), "match").countryUnknown).toBeNull();
+  });
   it("is sent to the API (and the CSV export) for team records only", () => {
     const s = parseTableState(new URLSearchParams("country=GB"), "teamSeason");
     expect(new URL(recordsUrl({ season: 2026, scope: "teamSeason", state: s, fields: [] }), "http://x").searchParams.get("country")).toBe("GB");
