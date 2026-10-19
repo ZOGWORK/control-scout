@@ -88,7 +88,11 @@ export async function changePickList(user: User, m: Membership, season: number, 
       const pick = cur.picks.find((p) => p.team === team);
       if (pick && noteConflicts(pick, op)) return { ok: false as const, status: 409 as const, error: NOTE_CHANGED, list: cur };
     }
-    const r = applyPickOp(cur.picks, op, by, now, previous);
+    // A note's time is its version (a based note op is checked against it): strictly increasing per pick, even for
+    // two notes in the same millisecond or a clock that stepped back. (Changes here run one at a time.)
+    const noteTeam = op.op === "note" ? op.team : null;
+    const at = noteTeam != null ? Math.max(now, (cur.picks.find((p) => p.team === noteTeam)?.noteUpdatedAt ?? 0) + 1) : now;
+    const r = applyPickOp(cur.picks, op, by, at, previous);
     if (!r.ok) {
       return r.reason === "full"
         ? { ok: false as const, status: 409 as const, error: "The pick list is full (100 teams). Remove one first.", list: cur }
