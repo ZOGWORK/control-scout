@@ -197,7 +197,9 @@ function Composer({ post, comments, place }: { post: (body: string, opId: string
   const saved = useRef<ReturnType<typeof setTimeout> | null>(null);
   useEffect(() => () => { if (saved.current) clearTimeout(saved.current); }, []);
   /** The attempt went through: clear what was sent (words typed since stay) and start a new attempt next time. */
-  const done = (sent: string) => {
+  const done = (sent: string, opId: string) => {
+    // Only the attempt it completed: a newer one started meanwhile keeps its id (its Retry must never post twice).
+    if (local.current && local.current.opId !== opId) return;
     local.current = null;
     setDraft((d) => (d === sent ? "" : d));
     setJustSaved(true);
@@ -209,7 +211,7 @@ function Composer({ post, comments, place }: { post: (body: string, opId: string
     const a = local.current;
     if (!a || busy || !comments.some((c) => c.opId === a.opId)) return;
     if (place) commentArrived(place.account, place.space, place.uuid, a.opId);
-    done(a.text);
+    done(a.text, a.opId);
   }, [comments, busy]); // eslint-disable-line react-hooks/exhaustive-deps
   // Confirmed or let go elsewhere (the recoverable view's Retry or Discard): the field follows.
   const had = useRef(attempt);
@@ -239,7 +241,7 @@ function Composer({ post, comments, place }: { post: (body: string, opId: string
     let ok: boolean;
     if (place) ok = await sendComment(place, sent, opId, post);
     else ok = await post(sent, opId).then(() => true, () => false);
-    if (ok) { done(sent); ref.current?.focus(); }
+    if (ok) { done(sent, opId); ref.current?.focus(); }
   };
   const discard = () => {
     if (place) discardComment(place.account, place.space, place.uuid);
