@@ -413,6 +413,14 @@ describe("comments: retrying a post (opId)", () => {
     expect((await list(admin, "1562", first.uuid)).comments).toHaveLength(1);
   });
 
+  it("two copies of one attempt sent at once with one token left: both get the comment, neither a 429", async () => {
+    const { member, first } = await team("1566");
+    for (let i = 1; i < COMMENT_RATE.burst; i++) expect((await post(member, "1566", first.uuid, `c${i}`)).status).toBe(201);
+    const [x, y] = await Promise.all([postOp(member, "1566", first.uuid, "last one", "op-gggggggg-1"), postOp(member, "1566", first.uuid, "last one", "op-gggggggg-1")]);
+    expect([x.status, y.status].sort()).toEqual([200, 201]);
+    expect(x.json.commentId).toBe(y.json.commentId);
+  });
+
   it("new opIds (or none) are new comments: the same words posted twice on purpose both stay", async () => {
     const { member, admin, first } = await team("1563");
     expect((await postOp(member, "1563", first.uuid, "+1", "op-dddddddd-1")).status).toBe(201);

@@ -16,6 +16,8 @@ export interface NoteDraft {
   base: number | null;
   /** When it was written (ms). */
   at: number;
+  /** This write's id: the answer to it clears this draft only, never a newer one (another tab's, say). */
+  wid?: string;
 }
 
 const PREFIX = "cs-picknote:";
@@ -30,12 +32,13 @@ function storage(): Storage | null {
 }
 
 const isDraft = (x: unknown): x is Omit<NoteDraft, "team"> => {
+  // (wid is optional and checked where it's read.)
   const d = x as NoteDraft;
   return !!d && typeof d.note === "string" && (d.base === null || Number.isSafeInteger(d.base)) && Number.isFinite(d.at);
 };
 
 export function saveNoteDraft(account: number, space: string, season: number, d: NoteDraft): void {
-  try { storage()?.setItem(keyOf(account, space, season, d.team), JSON.stringify({ note: d.note, base: d.base, at: d.at })); } catch { /* full or blocked */ }
+  try { storage()?.setItem(keyOf(account, space, season, d.team), JSON.stringify({ note: d.note, base: d.base, at: d.at, ...(d.wid ? { wid: d.wid } : {}) })); } catch { /* full or blocked */ }
 }
 
 export function readNoteDraft(account: number, space: string, season: number, team: number): NoteDraft | null {
@@ -43,7 +46,7 @@ export function readNoteDraft(account: number, space: string, season: number, te
     const raw = storage()?.getItem(keyOf(account, space, season, team));
     if (!raw) return null;
     const d: unknown = JSON.parse(raw);
-    return isDraft(d) ? { team, note: d.note, base: d.base, at: d.at } : null;
+    return isDraft(d) ? { team, note: d.note, base: d.base, at: d.at, ...(typeof d.wid === "string" ? { wid: d.wid } : {}) } : null;
   } catch { return null; }
 }
 

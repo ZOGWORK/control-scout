@@ -48,7 +48,7 @@ function SharedNote({ pick, me, onSave, unsaved, saved, conflict = false, readOn
   return (
     <div className="min-w-0">
       {readOnly ? (pick.note ? <p className="whitespace-pre-wrap break-words px-1.5 text-sm">{pick.note}</p> : null) : <NoteField team={pick.team} value={unsaved ?? pick.note} stored={unsaved !== undefined ? saved ?? "" : pick.note} onSave={onSave}
-        failedText={failedText} retry label={`Shared note on team ${pick.team}, seen by the whole workspace`} placeholder="Add a note for the team…" maxLength={MAX_PICK_NOTE} />}
+        failedText={failedText} retry retryOnLeave={!conflict} label={`Shared note on team ${pick.team}, seen by the whole workspace`} placeholder="Add a note for the team…" maxLength={MAX_PICK_NOTE} />}
       <p className="truncate px-1.5 text-[11px] text-text-muted" title={new Date(pick.addedAt).toLocaleString()}>
         Added by {who(pick.addedBy, me)}{noteBy ? ` · ${noteBy}` : ""}
       </p>
