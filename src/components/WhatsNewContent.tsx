@@ -12,7 +12,7 @@ function Line({ text }: { text: string }) {
     <>
       {inlines(text).map((p, i) => p.kind === "bold" ? <strong key={i} className="font-semibold text-foreground">{p.text}</strong>
         : p.kind === "code" ? <code key={i} className="rounded bg-muted px-1 py-0.5 font-mono text-[0.85em]">{p.text}</code>
-        : p.kind === "pr" ? <a key={i} href={`${REPO}${p.number}`} target="_blank" rel="noreferrer noopener" className="text-muted-foreground underline-offset-2 hover:text-foreground hover:underline">{p.text}</a>
+        : p.kind === "pr" ? <a key={i} href={`${REPO}${p.number}`} target="_blank" rel="noreferrer noopener" className="text-muted-foreground underline decoration-muted-foreground/50 underline-offset-2 hover:text-foreground hover:decoration-current">{p.text}</a>
         : <span key={i}>{p.text}</span>)}
     </>
   );
@@ -53,7 +53,8 @@ export default function WhatsNewContent() {
           </button>
         ))}
       </nav>
-      <div className="max-h-[56dvh] overflow-y-auto px-6 py-5 sm:max-h-[64dvh]">{e ? <Release e={e} /> : <p className="text-sm text-muted-foreground">No releases listed yet.</p>}</div>
+      {/* A scrolling region keyboard users can reach (Tab, then the arrow keys) even when a release has no links. */}
+      <div tabIndex={0} role="region" aria-label={e ? `Release v${e.version}` : "Releases"} className="max-h-[56dvh] overflow-y-auto px-6 py-5 outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring/60 sm:max-h-[64dvh]">{e ? <Release e={e} /> : <p className="text-sm text-muted-foreground">No releases listed yet.</p>}</div>
     </div>
   );
 }

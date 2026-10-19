@@ -28,7 +28,7 @@ const touch = "max-sm:h-11 max-sm:min-w-11";
 
 /** Keep a focused field above the on-screen keyboard (it opens after focus, and shrinks the visual viewport). */
 const keepVisible = (el: HTMLElement) => {
-  setTimeout(() => { if (el.isConnected && document.activeElement === el) el.scrollIntoView?.({ block: "nearest", behavior: "smooth" }); }, 300);
+  setTimeout(() => { if (el.isConnected && document.activeElement === el) el.scrollIntoView?.({ block: "nearest", behavior: window.matchMedia?.("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth" }); }, 300);
 };
 
 export function EntryComments({ entry, className }: { entry: ScoutEntry; className?: string }) {

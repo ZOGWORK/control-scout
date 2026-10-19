@@ -22,7 +22,7 @@ export function RankBadge({ rank, className }: { rank: number; className?: strin
     : rank === 2 ? "bg-info/20 text-info ring-1 ring-info/40"
     : rank === 3 ? "bg-success/20 text-success ring-1 ring-success/40"
     : "bg-muted text-text-base/80 ring-1 ring-border";
-  return <span className={cn("inline-flex size-7 shrink-0 items-center justify-center rounded-lg font-mono text-xs font-bold tabular-nums", tone, className)} aria-label={`Pick ${rank}`}>{rank}</span>;
+  return <span className={cn("inline-flex size-7 shrink-0 items-center justify-center rounded-lg font-mono text-xs font-bold tabular-nums", tone, className)} role="img" aria-label={`Pick ${rank}`}>{rank}</span>;
 }
 
 /** Clicks on these don't toggle the row. */

@@ -1,7 +1,7 @@
 // /faq: common questions, from src/shared/faq.ts (the same text the server's first paint and its FAQPage
 // structured data use). Search narrows the questions as you type; the topic chips jump to a group; every
 // question opens in place and has its own link (/faq#offline), which opens it on arrival.
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Link, useLocation } from "react-router-dom";
 import { ArrowRight, ChevronDown, ClipboardList, Database, HardDriveDownload, Info, Link2, MessageSquare, Search, ShieldCheck, Sparkles, Star, X, type LucideIcon } from "lucide-react";
 import { useTitle } from "../lib/meta";
@@ -74,6 +74,7 @@ export default function FaqPage() {
   useTitle("FAQ");
   const { hash } = useLocation();
   const [query, setQuery] = useState("");
+  const search = useRef<HTMLInputElement>(null);
   const [open, setOpen] = useState<Set<string>>(() => new Set());
   // Arriving on /faq#question opens that answer and brings it into view.
   useEffect(() => {
@@ -96,9 +97,9 @@ export default function FaqPage() {
 
       <div className="relative max-w-xl">
         <Search className="pointer-events-none absolute left-3.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" aria-hidden />
-        <Input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search the questions, e.g. offline, OPR, account" aria-label="Search the FAQ" className="h-12 rounded-xl pl-10 pr-10 text-base" />
+        <Input ref={search} value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search the questions, e.g. offline, OPR, account" aria-label="Search the FAQ" className="h-12 rounded-xl pl-10 pr-10 text-base" />
         {searching && (
-          <button type="button" onClick={() => setQuery("")} aria-label="Clear search" className="absolute right-2 top-1/2 inline-flex size-9 -translate-y-1/2 items-center justify-center rounded-lg text-muted-foreground hover:text-foreground"><X className="size-4" /></button>
+          <button type="button" onClick={() => { setQuery(""); search.current?.focus(); }} aria-label="Clear search" className="absolute right-2 top-1/2 inline-flex size-9 -translate-y-1/2 items-center justify-center rounded-lg text-muted-foreground hover:text-foreground"><X className="size-4" /></button>
         )}
       </div>
       <p className="mt-2 text-sm text-muted-foreground" aria-live="polite">{searching ? `${shown} ${shown === 1 ? "question matches" : "questions match"}` : " "}</p>

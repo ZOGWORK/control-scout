@@ -191,8 +191,9 @@ export function RecordsTable(p: RecordsTableProps) {
 
       {/* Toolbar */}
       <div className="flex flex-wrap items-center gap-2 rounded-xl border border-line bg-card p-1.5">
-        <Button variant="secondary" size="sm" className="shrink-0 max-sm:h-10" onClick={() => { setBuilder(false); setColumns(!columns); }} aria-pressed={columns} aria-label={`Statistics: ${cols.length} columns`}>
-          <Columns3 className="text-sky-500" /> <span className="max-sm:hidden">Statistics</span><span className="rounded bg-text-base/10 px-1.5 text-[11px] tabular-nums">{cols.length}</span>
+        <Button variant="secondary" size="sm" className="shrink-0 max-sm:h-10" onClick={() => { setBuilder(false); setColumns(!columns); }} aria-pressed={columns}>
+          {/* The name is the visible text (plus words a phone hides): "Statistics 12 columns". */}
+          <Columns3 className="text-sky-500" /> <span className="max-sm:sr-only">Statistics</span> <span className="rounded bg-text-base/10 px-1.5 text-[11px] tabular-nums">{cols.length}{" "}<span className="sr-only">columns</span></span>
         </Button>
         <Button variant={conditions ? "default" : "secondary"} size="sm" className="shrink-0 max-sm:h-10" onClick={() => { setColumns(false); setBuilder(!builder); }} aria-pressed={builder} aria-label={`Filters${conditions ? `: ${conditions} conditions` : ""}`}>
           <ListFilter className={conditions ? "" : "text-accent"} /> Filters{conditions > 0 && <span className="rounded bg-accent-ink/15 px-1.5 text-[11px] tabular-nums">{conditions}</span>}
@@ -224,7 +225,7 @@ export function RecordsTable(p: RecordsTableProps) {
             </Button>
           )}
           <Button variant="outline" size="sm" className="max-sm:h-10" asChild={total > 0} disabled={!total}>
-            {total > 0 ? <a href={csv} download aria-label={`Export ${total.toLocaleString()} rows as CSV`}><Download /> <span className="max-sm:hidden">Export CSV</span></a> : <span><Download /> <span className="max-sm:hidden">Export CSV</span></span>}
+            {total > 0 ? <a href={csv} download><Download /> <span className="max-sm:sr-only">Export CSV</span>{" "}<span className="sr-only">({total.toLocaleString()} rows)</span></a> : <span><Download /> <span className="max-sm:hidden">Export CSV</span></span>}
           </Button>
         </div>
       </div>

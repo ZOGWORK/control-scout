@@ -41,4 +41,19 @@ describe("Predict's view switch", () => {
     expect(highlights()).toHaveLength(1);
     expect(highlights()[0].closest("[role=tab]")?.textContent).toMatch(/^Lab: any matchup/);
   });
+
+  it("arrow keys move between the views and focus stays on the tab (the Lab's first box doesn't take it)", () => {
+    render(<TooltipProvider><MemoryRouter initialEntries={["/predict"]}><PredictPage /></MemoryRouter></TooltipProvider>);
+    const scheduled = screen.getByRole("tab", { name: /^Scheduled/ });
+    scheduled.focus();
+    fireEvent.keyDown(scheduled, { key: "ArrowRight" });
+    const lab = screen.getByRole("tab", { name: /Lab: any matchup/ });
+    expect(lab.getAttribute("aria-selected")).toBe("true");
+    expect(document.activeElement).toBe(lab);
+  });
+
+  it("arriving on the Lab puts focus in its first empty box", () => {
+    render(<TooltipProvider><MemoryRouter initialEntries={["/predict?view=lab"]}><PredictPage /></MemoryRouter></TooltipProvider>);
+    expect(document.activeElement).toBe(screen.getByRole("textbox", { name: "Red team 1" }));
+  });
 });

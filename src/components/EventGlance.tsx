@@ -48,7 +48,8 @@ export function EventGlance({ d, onTab, live }: { d: EventDetail; onTab: (t: str
   const season = e.season;
   const seed1 = d.field.find((f) => f.rank === 1) ?? null;
   const topOpr = [...d.field].filter((f) => f.opr.np != null).sort((a, b) => b.opr.np! - a.opr.np!)[0] ?? null;
-  const reportLink = (key: string, children: ReactNode) => <Link to={matchReportHref({ season, code: e.code, key })} className="hover:text-accent-text">{children}</Link>;
+  // inline-block with padding offset by negative margin: a 24px-tall target (WCAG 2.5.8) in the same line box.
+  const reportLink = (key: string, children: ReactNode) => <Link to={matchReportHref({ season, code: e.code, key })} className="-my-1 inline-block py-1 hover:text-accent-text">{children}</Link>;
 
   const cells: ReactNode[] = [];
   const next = live ? live.match : s.next;
@@ -116,10 +117,11 @@ export function EventGlance({ d, onTab, live }: { d: EventDetail; onTab: (t: str
         <button type="button" onClick={() => onTab("matches")} className="mt-2 block w-full space-y-1 text-left">
           {s.record.map((x, i) => (
             <span key={x.kind} className="block">
-              <span className={cn("font-display font-semibold tabular-nums", i === 0 ? "text-3xl text-accent" : "text-lg")}>{Math.round((x.right / x.n) * 100)}%</span>
+              <span className={cn("font-display font-semibold tabular-nums", i === 0 ? "text-3xl text-accent-text" : "text-lg")}>{Math.round((x.right / x.n) * 100)}%</span>
               <span className="ml-2 text-sm text-muted-foreground">of {x.n} {x.kind === "live" ? "calls made before the match" : "matches predicted from earlier data (replayed)"}</span>
             </span>
           ))}
+          <span className="sr-only">: see the matches</span>
         </button>
       ) : (
         <p className="mt-2 text-sm text-muted-foreground">

@@ -51,7 +51,7 @@
   --color-info: #38bdf8;
   --color-success: #34d399;
   --color-warning: #fb923c;
-  --color-danger: #f43f5e;
+  --color-danger: #fb7185;
   --color-text-base: var(--sh-foreground);
   --color-text-muted: var(--sh-muted-foreground);
   /* Alliance colours (match cards, bars) */
@@ -89,7 +89,8 @@
   --sh-muted-foreground: #a1a1aa;
   --sh-border: #ffffff14;
   --sh-input: #ffffff1c;
-  --sh-destructive: #f43f5e;
+  /* Rose 400 for text on dark (the tinted chips need it to reach 4.5:1); the red alliance keeps rose 500. */
+  --sh-destructive: #fb7185;
   --sh-chart-2: #38bdf8;
   --sh-chart-3: #34d399;
   --sh-chart-4: #a78bfa;
@@ -110,7 +111,7 @@ html.light {
   --sh-muted-foreground: #52525b;
   --sh-border: #e4e4e7;
   --sh-input: #e4e4e7;
-  --sh-destructive: #e11d48;
+  --sh-destructive: #be123c;
   --sh-chart-2: #0284c7;
   --sh-chart-3: #059669;
   --sh-chart-4: #7c3aed;
@@ -119,13 +120,15 @@ html.light {
   --color-accent: #eab308;
   --color-accent-hover: #ca8a04;
   --color-accent-soft: #eab3081f;
-  --color-accent-text: #a16207;
-  --color-info: #0284c7;
-  --color-success: #059669;
-  --color-warning: #ea580c;
-  --color-danger: #e11d48;
-  --color-red-alliance: #e11d48;
-  --color-blue-alliance: #0284c7;
+  /* Text colours on light are a shade deeper than their dark-theme twins, so small text (and text on the
+     colour's own 15% tint, as in chips) stays at WCAG AA 4.5:1 while still reading as gold, sky, green… */
+  --color-accent-text: #854d0e;
+  --color-info: #0369a1;
+  --color-success: #036b4b;
+  --color-warning: #a8380b;
+  --color-danger: #be123c;
+  --color-red-alliance: #be123c;
+  --color-blue-alliance: #0369a1;
   --grid-rgb: 9 9 11;
   --cp-grid-alpha: 0.05;
   color-scheme: light;
@@ -274,3 +277,15 @@ html.compact .density-card { padding: 0.875rem; }
 
 /* Predict's latest-calls card: each call slides in as the last one leaves (still under reduced motion). */
 @keyframes cs-call-in { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+
+/* Reduced motion, everywhere: a safety net under the per-component rules above, for anything that animates
+   without one (spinners, sheet and dialog slides, chevrons, hover lifts). Animations and transitions finish at
+   once, so every state change still happens, it just doesn't move. Motion's JS animations follow MotionConfig. */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}

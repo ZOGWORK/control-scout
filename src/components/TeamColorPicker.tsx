@@ -47,7 +47,7 @@ export function TeamColorPicker({ team, className }: { team: number; className?:
             : <span className="flex size-4 items-center justify-center rounded-full border border-dashed border-text-muted/60 text-text-muted"><Palette className="size-2.5" aria-hidden /></span>}
         </button>
       </PopoverTrigger>
-      <PopoverContent align="start" className="w-auto p-2">
+      <PopoverContent align="start" className="w-auto p-2" aria-label={`${team}'s colour`}>
         <p className="px-1 pb-2 text-xs font-medium text-text-muted">{team}'s colour</p>
         {/* A radio group: one Tab stop, arrow keys move between colours (Radix ToggleGroup). */}
         <ToggleGroup type="single" value={c?.id ?? ""} onValueChange={(v) => setColor(team, v || null)} aria-label={`${team}'s colour`}
@@ -59,7 +59,8 @@ export function TeamColorPicker({ team, className }: { team: number; className?:
             </ToggleGroupItem>
           ))}
         </ToggleGroup>
-        {c && <button type="button" onClick={() => setColor(team, null)} className="mt-2 w-full rounded-md px-2 py-1.5 text-left text-xs text-text-muted hover:bg-text-base/[0.06] hover:text-text-base">No colour</button>}
+        {/* Clearing removes this button: focus moves to the palette (its first colour) rather than the page. */}
+        {c && <button type="button" onClick={(e) => { const box = e.currentTarget.parentElement; setColor(team, null); requestAnimationFrame(() => box?.querySelector<HTMLElement>("[role=radio]")?.focus()); }} className="mt-2 w-full rounded-md px-2 py-1.5 text-left text-xs text-text-muted hover:bg-text-base/[0.06] hover:text-text-base">No colour</button>}
       </PopoverContent>
     </Popover>
   );
