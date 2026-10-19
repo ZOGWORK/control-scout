@@ -80,7 +80,7 @@ export function AccuracySection() {
           : node(block);
 
   return (
-    <section id="accuracy" className="scroll-mt-20 pt-20">
+    <section id="accuracy" className="scroll-mt-bar-20 pt-20">
       <SectionHead num="05" eyebrow="The scoreboard" title="How good is it, really?" />
       <Prose>
         <p>A prediction model can look brilliant on the data it learned from. So every engine setting was tuned on the <strong>2024–25</strong> season, then locked, and tested on <strong>2025–26</strong>, a season it had never seen. Every prediction was made using only matches that had already happened at that moment, exactly as it would be live.</p>
@@ -89,7 +89,7 @@ export function AccuracySection() {
 
       {/* Control Scout's ledger */}
       <Reveal className="mx-auto my-8 max-w-5xl">
-        <div id="ledger" className="scroll-mt-24 rounded-2xl border border-border bg-card p-4 sm:p-5">
+        <div id="ledger" className="scroll-mt-bar-24 rounded-2xl border border-border bg-card p-4 sm:p-5">
           <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
             <div className="min-w-0">
               <p className="hiw-gold text-[11px] font-bold uppercase tracking-[0.14em]">Control Scout's ledger</p>

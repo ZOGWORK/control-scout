@@ -1,10 +1,11 @@
-// In-page section nav: sticky at the top of the app's scrolling <main>, with
-// a sliding active-section indicator and a reading-progress line. The shell
-// scrolls inside main#main (not the window), so that's what we observe.
+// In-page section nav: sticky just under the shell's top bar, with a sliding
+// active-section indicator and a reading-progress line. The page scrolls the
+// document (src/lib/pageScroll.ts), so that's what we observe.
 import { useEffect, useRef, useState, type MouseEvent } from "react";
 import { motion } from "motion/react";
 import { cn } from "../cn";
 import { useReduced } from "./ui";
+import { pageScroller, pageTop, scrollToElement } from "../../lib/pageScroll";
 
 export const SECTIONS = [
   { id: "overview", label: "Overview" },
@@ -20,7 +21,7 @@ export const SECTIONS = [
 export function scrollToId(id: string, reduced: boolean) {
   const el = document.getElementById(id);
   if (!el) return;
-  el.scrollIntoView({ behavior: reduced ? "auto" : "smooth", block: "start" });
+  scrollToElement(el, reduced ? "auto" : "smooth");
   history.replaceState(history.state, "", `#${id}`);
 }
 
@@ -33,30 +34,29 @@ export function SectionNav() {
   const toc = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    const main = document.getElementById("main");
-    if (!main) return;
+    const page = pageScroller();
     let raf = 0;
     const update = () => {
       raf = 0;
-      const max = main.scrollHeight - main.clientHeight;
-      if (bar.current) bar.current.style.transform = `scaleX(${max > 0 ? Math.min(1, main.scrollTop / max) : 0})`;
-      // The visible part of main (when a tool unrolls the shell, main is taller than the window).
-      const top = Math.max(0, main.getBoundingClientRect().top);
-      const line = top + Math.min(main.clientHeight, window.innerHeight - top) * 0.35;
+      const max = page.scrollHeight - page.clientHeight;
+      if (bar.current) bar.current.style.transform = `scaleX(${max > 0 ? Math.min(1, page.scrollTop / max) : 0})`;
+      // The reading line: a third of the way down the visible page, under the top bar.
+      const top = pageTop();
+      const line = top + Math.max(0, window.innerHeight - top) * 0.35;
       let cur = "";
       for (const s of SECTIONS) {
         const el = document.getElementById(s.id);
         if (el && el.getBoundingClientRect().top < line) cur = s.id;
       }
       // At the very bottom, the last (short) section counts as active.
-      if (max > 0 && main.scrollTop >= max - 2) cur = SECTIONS[SECTIONS.length - 1].id;
+      if (max > 0 && page.scrollTop >= max - 2) cur = SECTIONS[SECTIONS.length - 1].id;
       setActive(cur);
     };
     const onScroll = () => { if (!raf) raf = requestAnimationFrame(update); };
     update();
-    main.addEventListener("scroll", onScroll, { passive: true });
+    window.addEventListener("scroll", onScroll, { passive: true });
     window.addEventListener("resize", onScroll);
-    return () => { main.removeEventListener("scroll", onScroll); window.removeEventListener("resize", onScroll); cancelAnimationFrame(raf); };
+    return () => { window.removeEventListener("scroll", onScroll); window.removeEventListener("resize", onScroll); cancelAnimationFrame(raf); };
   }, []);
 
   // Keep the active link visible in the (horizontally scrolling) nav on phones.
@@ -71,7 +71,7 @@ export function SectionNav() {
   const go = (e: MouseEvent<HTMLAnchorElement>, id: string) => { e.preventDefault(); scrollToId(id, reduced); };
 
   return (
-    <nav aria-label="On this page" className="sticky top-2 z-30 mb-10 mt-2">
+    <nav aria-label="On this page" className="sticky top-[calc(var(--header-h)+0.5rem)] z-30 mb-10 mt-2">
       <div className="relative overflow-hidden rounded-xl border border-border bg-background p-1 shadow-[0_18px_40px_-24px_rgba(0,0,0,.55)]">
         <div ref={toc} className="flex gap-0.5 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
           {SECTIONS.map((s) => {

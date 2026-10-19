@@ -31,6 +31,7 @@ import { LiveCountdownChip, LivePanel, useLiveTarget } from "../components/LiveP
 import { HeaderActions } from "../components/EventActions";
 import { isLiveMode, useEventPoll } from "../lib/liveMode";
 import { agoSeconds, awardLabel, dateRange, num, place, seasonLabel } from "../lib/format";
+import { scrollToElement } from "../lib/pageScroll";
 
 export default function EventPage() {
   const { season, code } = useParams();
@@ -75,7 +76,7 @@ function Event({ d, path }: { d: EventDetail; path: string }) {
   const [headerEnd, pastHeader] = useScrolledPast<HTMLDivElement>();
   const tabsRef = useRef<HTMLDivElement>(null);
   // The bar's "See odds" opens the tab and brings it into view (the header that held the button is off screen).
-  const seeOdds = () => { setTab("odds"); tabsRef.current?.scrollIntoView({ block: "start", behavior: matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth" }); };
+  const seeOdds = () => { setTab("odds"); if (tabsRef.current) scrollToElement(tabsRef.current, matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth"); };
   // Phones get a sticky bar only where one action leads: live (the countdown, back to the LIVE panel) or upcoming with predictions (odds / lab).
   // Finished events and history seasons have no bar.
   const sticky = e.status === "live" || (e.status === "upcoming" && predictable);
@@ -83,7 +84,7 @@ function Event({ d, path }: { d: EventDetail; path: string }) {
   const liveMode = isLiveMode(d);
   const target = useLiveTarget(d, liveMode);
   const livePanel = useRef<HTMLDivElement>(null);
-  const toLivePanel = () => livePanel.current?.scrollIntoView({ block: "start", behavior: matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth" });
+  const toLivePanel = () => { if (livePanel.current) scrollToElement(livePanel.current, matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth"); };
   const oddsOpen = predictable && !d.forecastUnsupported;
   return (
     <div>
@@ -99,7 +100,7 @@ function Event({ d, path }: { d: EventDetail; path: string }) {
           </div>
           <h1 className="mt-3 font-display text-3xl font-semibold tracking-tight sm:text-4xl">{e.name}</h1>
           {/* Right under the name, so the countdown is on a phone's first screen. */}
-          {liveMode && <div ref={livePanel} className="scroll-mt-20"><LivePanel d={d} target={target} refresh={refresh} track={track} /></div>}
+          {liveMode && <div ref={livePanel} className="scroll-mt-bar-20"><LivePanel d={d} target={target} refresh={refresh} track={track} /></div>}
           <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1.5 text-sm text-muted-foreground">
             <span className="flex items-center gap-1.5"><CalendarDays className="size-4" />{dateRange(e.start, e.end)}</span>
             {(e.venue || e.city) && <span className="flex items-center gap-1.5"><MapPin className="size-4" />{place(e.venue, e.city, e.state, e.country)}</span>}
@@ -128,7 +129,7 @@ function Event({ d, path }: { d: EventDetail; path: string }) {
         </StickyActions>
       )}
 
-      <div ref={tabsRef} className="scroll-mt-4" />
+      <div ref={tabsRef} className="scroll-mt-bar-4" />
       <Tabs value={tab} onValueChange={setTab}>
         <TabsList>
           <TabsTrigger value="matches">Matches</TabsTrigger>

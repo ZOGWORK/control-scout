@@ -17,14 +17,17 @@ const esc = (s: string) => s.replace(/&/g, "&amp;").replace(/"/g, "&quot;").repl
 // Mirrors the Shell (src/components/layout/Shell.tsx): sizes, spacing, colours. It paints before the app's
 // stylesheet has loaded (server/seo.ts nonBlockingCss), so the few page-wide rules it relies on from that
 // stylesheet's reset (no body margin, border-box sizing, 1.5 line height, the page colour) are here too.
+// Like the app, the page scrolls the document under a sticky top bar and sidebar, with the scrollbar's gutter
+// kept and the same thin scrollbar (src/index.css), so nothing moves sideways when the app takes over.
 export const BOOT_STYLE = `<style>
-      html{background:#0a0a0b}html.light{background:#fff}body{margin:0}
+      html{background:#0a0a0b;scrollbar-gutter:stable}html.light{background:#fff}body{margin:0}
+      html::-webkit-scrollbar{width:6px;height:6px}html::-webkit-scrollbar-thumb{background:#2e2e35;border-radius:999px}html.light::-webkit-scrollbar-thumb{background:#d4d4d8}
       .csb,.csb *{box-sizing:border-box}
       .csb{line-height:1.5}
-      .csb{--b-bg:#0a0a0b;--b-side:#0c0c0e;--b-fg:#f4f4f5;--b-mut:#a1a1aa;--b-line:#ffffff14;--b-acc:#ffc700;--b-tab:#0e0e10f2;display:flex;height:100vh;height:100dvh;overflow:hidden;background:var(--b-bg);color:var(--b-fg);font-family:Inter,ui-sans-serif,system-ui,sans-serif;-webkit-font-smoothing:antialiased}
+      .csb{--b-bg:#0a0a0b;--b-side:#0c0c0e;--b-fg:#f4f4f5;--b-mut:#a1a1aa;--b-line:#ffffff14;--b-acc:#ffc700;--b-tab:#0e0e10f2;display:flex;min-height:100vh;min-height:100dvh;overflow-x:clip;background:var(--b-bg);color:var(--b-fg);font-family:Inter,ui-sans-serif,system-ui,sans-serif;-webkit-font-smoothing:antialiased}
       html.light .csb{--b-bg:#fff;--b-side:#fcfcfc;--b-fg:#09090b;--b-mut:#52525b;--b-line:#e4e4e7;--b-acc:#eab308;--b-tab:#fafafaf2}
       .csb a{color:inherit;text-decoration:none}
-      .csb-side{display:none;flex-direction:column;flex-shrink:0;width:248px;border-right:1px solid var(--b-line);background:var(--b-side)}
+      .csb-side{display:none;position:sticky;top:0;align-self:flex-start;height:100vh;height:100dvh;flex-direction:column;flex-shrink:0;width:248px;border-right:1px solid var(--b-line);background:var(--b-side)}
       .csb-brand{display:flex;align-items:center;gap:10px;height:48px;padding:0 14px;font:700 17px/1 "Space Grotesk",sans-serif;letter-spacing:-.025em}
       .csb-brand img{width:32px;height:32px}
       .csb-nav{padding:8px}
@@ -39,18 +42,18 @@ export const BOOT_STYLE = `<style>
       html.cs-sb-min .csb-brand span,html.cs-sb-min .csb-grp p,html.cs-sb-min .csb-nav a span{display:none}
       html.cs-sb-min .csb-nav a{justify-content:center;padding:0}
       .csb-col{display:flex;flex:1;min-width:0;flex-direction:column}
-      .csb-top{display:flex;flex-shrink:0;align-items:center;gap:12px;height:48px;padding:0 16px;border-bottom:1px solid var(--b-line)}
+      .csb-top{position:sticky;top:0;z-index:30;display:flex;flex-shrink:0;align-items:center;gap:12px;height:48px;padding:0 16px;border-bottom:1px solid var(--b-line);background:var(--b-bg)}
       .csb-top>a img{display:block;width:24px;height:24px}
       .csb-crumb{margin:0;font-size:14px;color:var(--b-mut);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
       .csb-crumb b{font-weight:400;color:var(--b-fg)}
       .csb-crumb i{display:none;font-style:normal}
       .csb-search{display:flex;flex:1;justify-content:flex-end}
       .csb-search span{display:flex;align-items:center;height:32px;padding:0 10px;border:1px solid var(--b-line);border-radius:8px;font-size:12px;color:var(--b-mut)}
-      .csb-main{flex:1;min-height:0;overflow:hidden;background-image:radial-gradient(1200px 320px at 50% -120px,color-mix(in srgb,var(--b-acc) 7%,transparent),transparent 70%)}
+      .csb-main{flex:1;background-image:radial-gradient(1200px 320px at 50% -120px,color-mix(in srgb,var(--b-acc) 7%,transparent),transparent 70%)}
       .csb-page{max-width:1200px;margin:0 auto;padding:32px 16px 0}
       .csb-page h1{margin:0;font:600 24px/1.25 "Space Grotesk",sans-serif;letter-spacing:-.025em;overflow-wrap:anywhere}
       .csb-page>p{margin:6px 0 0;max-width:42rem;font-size:14px;line-height:1.45;color:var(--b-mut)}
-      .csb-main.csb-scroll{overflow:auto;padding-bottom:96px}
+      .csb-main.csb-scroll{padding-bottom:96px}
       .csb-body{max-width:48rem;margin-top:8px;font-size:14px;line-height:1.55;color:var(--b-mut)}
       .csb-body a{color:var(--b-fg);text-decoration:underline;text-underline-offset:2px}
       .csb-body h2{margin:20px 0 4px;font:600 16px/1.3 "Space Grotesk",sans-serif;color:var(--b-fg)}
@@ -152,7 +155,7 @@ export function bootShell(path: string, meta: PageMeta): string {
     `<div class="csb">`,
     `<aside class="csb-side"><a class="csb-brand" href="/" aria-label="Control Scout home"><img src="/logo.png" alt="" /><span>Control Scout</span></a><nav class="csb-nav" aria-label="Main">${nav}</nav></aside>`,
     `<div class="csb-col"><header class="csb-top"><a href="/" aria-label="Home"><img src="/logo.png" alt="" /></a><p class="csb-crumb"><i>Control Scout / </i><b>${esc(pageTitle(p))}</b></p>${home ? "" : `<div class="csb-search"><span>Search teams, events, matches…</span></div>`}</header>`,
-    // A page with content in full scrolls (before the app loads, or with no JavaScript at all).
+    // A page with content in full scrolls with the document (before the app loads, or with no JavaScript at all).
     `<main class="csb-main${meta.bodyHtml && page ? " csb-scroll" : ""}">${page}${guard}</main></div>`,
     `<nav class="csb-tabs" aria-label="Main">${TABS.map((it) => link(p, it)).join("")}<span><i class="csb-ico"></i><span>More</span></span></nav>`,
     `</div>`,

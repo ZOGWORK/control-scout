@@ -176,11 +176,10 @@ async function capture(browser: Browser, route: string, vp: keyof typeof SIZES, 
     if (errors.length) console.warn(`  ! ${route}: page errors: ${errors.join(" | ")}`);
     return file;
   }
-  // The shell scrolls inside <main> (h-dvh, absolutely positioned over the
-  // ambient layer); unroll it and put <main> back in normal flow so the page
-  // content gives the shell its height and a full-page shot shows everything.
+  // The page scrolls the document, so a full-page shot already shows everything; only the phone's tab bar
+  // (fixed to the screen) is moved to the end of the page, where it belongs in a picture of the whole page.
   const full = !flag("viewport") && !q && !flag("pointer") && !STEPS.length;
-  if (full) await page.addStyleTag({ content: ".h-dvh{height:auto!important;overflow:visible!important} main#main{overflow:visible!important;position:relative!important;inset:auto!important} .h-dvh{position:relative!important} nav.fixed{position:absolute!important;left:0;right:0;bottom:0}" });
+  if (full) await page.addStyleTag({ content: "div.min-h-dvh.overflow-x-clip{position:relative!important} nav.fixed{position:absolute!important;left:0;right:0;bottom:0}" });
   const name = `${vp}${light ? "-light" : ""}${flag("pointer") ? "-pointer" : ""}${q ? `-search-${q.replace(/[^\w]+/g, "_")}` : ""}${LABEL}-${slug(route)}.png`;
   const file = join(out, name);
   await page.screenshot({ path: file, fullPage: full });
