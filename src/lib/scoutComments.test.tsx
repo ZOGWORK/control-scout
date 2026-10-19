@@ -152,6 +152,14 @@ describe("useEntryComments", () => {
     const lost = await result.current.post("x", "op-test-0003").catch((e) => e);
     expect(lost).toMatchObject({ uncertain: true });
     expect(lost.message).not.toMatch(/offline/i);
+    // A proxy's error for a dropped connection to the server (502, Cloudflare's 520-524) is just as uncertain.
+    for (const status of [500, 502, 522]) {
+      routes[`POST ${THREAD}`] = () => ({ status, body: { error: "Bad gateway" } });
+      expect(await result.current.post("x", "op-test-0003").catch((e) => e)).toMatchObject({ uncertain: true });
+    }
+    // A definite refusal is not.
+    routes[`POST ${THREAD}`] = () => ({ status: 503, body: { error: "Workspace scouting is paused right now." } });
+    expect(await result.current.post("x", "op-test-0003").catch((e) => e)).toMatchObject({ uncertain: false, message: expect.stringMatching(/paused/) });
   });
 
   it("Personal (no space): nothing is fetched", () => {

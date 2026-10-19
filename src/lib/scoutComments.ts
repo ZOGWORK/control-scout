@@ -154,8 +154,11 @@ export interface ThreadState {
 const message = (e: unknown, fallback: string) => (e instanceof ApiError
   ? (e.offline ? (typeof navigator !== "undefined" && navigator.onLine === false ? "You're offline. Comments need a connection." : "Couldn't reach the server. Check your connection and try again.") : e.message)
   : fallback);
-/** No answer, or a gateway's instead of the server's: the request may have been carried out. */
-const unanswered = (e: unknown) => e instanceof ApiError && (e.status === 0 || e.status === 502 || e.status === 504);
+/**
+ * No answer, or a server error (a proxy's 5xx when the connection to the server dropped, e.g. 502 or 520-524,
+ * or a failure after the write): the request may have been carried out. 503 is a definite answer (paused).
+ */
+const unanswered = (e: unknown) => e instanceof ApiError && (e.status === 0 || (e.status >= 500 && e.status !== 503));
 
 /** The thread of one workspace entry, live. Null space or uuid: nothing (Personal entries have no comments). */
 export function useEntryComments(space: string | null, uuid: string | null): ThreadState {
