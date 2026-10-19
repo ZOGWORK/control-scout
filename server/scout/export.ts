@@ -26,6 +26,7 @@ import { matchesWords, parseExportFilters, type ExportFilters, type FilterableEn
 import type { ScoutField, TemplateKind } from "../../src/shared/scoutTemplate.js";
 import { currentTemplate } from "./templates.js";
 import { workspaceAccess, workspacePaused } from "./entries.js";
+import { isoOrBlank } from "../../src/shared/scoutEntry.js";
 
 // The filters and their parsing are shared with the Scout page's feed: src/shared/scoutFilter.ts.
 export { parseExportFilters, type ExportFilters };
@@ -115,7 +116,8 @@ export function exportRow(r: any, cols: ExportColumn[]): unknown[] {
   const taken = new Set(cols.filter((c) => c.kind === kind).map((c) => c.id));
   const other = Object.fromEntries(Object.entries(data).filter(([k]) => !taken.has(k)));
   return [
-    r.uuid, Number(r.team), r.event_code ?? "", r.match_label ?? "", kind, r.author_name, new Date(Number(r.updated_at)).toISOString(), r.notes ?? "",
+    // A timestamp no date can show (stored by a build before the checks: 1e300) is a blank cell, never a failed download.
+    r.uuid, Number(r.team), r.event_code ?? "", r.match_label ?? "", kind, r.author_name, isoOrBlank(Number(r.updated_at)), r.notes ?? "",
     ...cols.map((c) => (c.kind === kind ? answerCell(data[c.id]) : "")),
     Object.keys(other).length ? JSON.stringify(other) : "",
   ];
