@@ -8,7 +8,7 @@ import { all, db, get, run, writeBatch } from "../db.js";
 import { env } from "../env.js";
 import { cleanValue, mergeValue, PERSONAL_KEYS, type PersonalKey, type Stamped } from "../../src/shared/personal.js";
 import { isOwnerEmail } from "../owner.js";
-import { currentUser, deleteUser, endSession, readCookie, startSession, token, userForIdentity, type User } from "./session.js";
+import { clearMalformedSession, currentUser, deleteUser, endSession, readCookie, startSession, token, userForIdentity, type User } from "./session.js";
 import { emailEnabled, startEmailSignIn, verifyEmailCode } from "./email.js";
 import { accessError, checkScoutEntry, cleanScoutEntry, INVALID_ENTRY, pushWorkspaceEntries, storedEntryFields, supersedeBound, supersedes, workspaceAccess, workspacePaused, type ScoutEntryInput } from "../scout/entries.js";
 import { CP_PROVIDER, controlPointEnabled, isWorkspaceId, controlPointInfo, controlPointVia, isCpVia, rememberInfo, linkedAccountId, linkToSharedAccount, logFailure, provenEmailFor, redeemHandoff } from "./controlPoint.js";
@@ -56,8 +56,9 @@ export function authRouter(): Router {
   const r = express.Router();
   r.use(jsonOnly);
 
-  r.get("/me", h(async (req) => {
+  r.get("/me", h(async (req, res) => {
     const u = await currentUser(req);
+    if (!u) clearMalformedSession(req, res);
     // Sign-in buttons Control Point runs for us (Google / Discord / GitHub), when it's linked.
     const via = await controlPointVia();
     if (!u) return { user: null, providers: { ...authProviders(), via } };
