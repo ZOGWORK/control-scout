@@ -15,6 +15,7 @@ import { activeFilterCount } from "../shared/scoutFilter";
 import { EntryFilterBar } from "../components/scout/EntryFilterBar";
 import { useEntryFeed, type FeedViewer } from "../lib/scoutFeed";
 import { qs, useApi } from "../lib/api";
+import { isKnownTime } from "../lib/format";
 import type { EventListItem } from "../shared/api";
 import { ScoutFieldInput } from "../components/scout/ScoutFieldInput";
 import { TemplateEditor } from "../components/scout/TemplateEditor";
@@ -323,7 +324,7 @@ function ReadOnlyBanner({ state }: { state: OrphanState }) {
 /** When an entry was saved, for its card. 0 or missing (a repaired impossible timestamp, see
  *  src/shared/scoutEntry.ts) is unknown, never "12/31/1969". */
 export function entryDate(updatedAt: number | null | undefined): string {
-  if (!updatedAt || !Number.isFinite(updatedAt)) return "Date unknown";
+  if (!isKnownTime(updatedAt)) return "Date unknown";
   const d = new Date(updatedAt);
   return Number.isFinite(d.getTime()) ? d.toLocaleString() : "Date unknown";
 }
