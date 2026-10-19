@@ -1,5 +1,7 @@
 // Formatting helpers shared by every page.
 
+import { DEVICE_LATEST } from "../shared/scoutEntry";
+
 export const pct = (p: number | null | undefined, digits = 0) => (p == null || !Number.isFinite(p) ? "—" : `${(p * 100).toFixed(digits)}%`);
 
 // Win odds: one rule for the app and the share cards (src/shared/share.ts).
@@ -61,6 +63,15 @@ export function agoSeconds(iso: string | null | undefined, now = Date.now()): st
   if (s < 60) return `${s} s ago`;
   if (s < 3600) return `${Math.floor(s / 60)} min ago`;
   return ago(iso);
+}
+
+/**
+ * Is this a time an entry can really have been saved at? A whole-millisecond stamp after 1970 and before 2100
+ * (DEVICE_LATEST, src/shared/scoutEntry.ts). 0 is what the stored-row repair writes for an impossible one; missing,
+ * negative and far-future values are unknown too. Shown as "time unknown", never "56 years ago" or a 1970 date.
+ */
+export function isKnownTime(ms: unknown): ms is number {
+  return typeof ms === "number" && Number.isFinite(ms) && ms > 0 && ms <= DEVICE_LATEST;
 }
 
 /** Short relative time for attributions: "just now", "2m ago", "3h ago", "4d ago", then the date. */

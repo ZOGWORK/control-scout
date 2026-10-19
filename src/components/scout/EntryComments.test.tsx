@@ -13,6 +13,7 @@ vi.mock("../../lib/personal", () => ({
 }));
 const { EntryComments } = await import("./EntryComments");
 const { announceComment } = await import("../../lib/scoutComments");
+const { resetCommentAttempts } = await import("../../lib/commentAttempts");
 
 const entry = (over: Partial<ScoutEntry> = {}): ScoutEntry => ({
   uuid: "aaaaaaaaaaaa", workspaceId: "41", season: 2025, team: 18360, eventCode: "USNJQ1", matchLabel: "Q1", kind: "match", data: {}, notes: "",
@@ -27,6 +28,8 @@ let thread: EntryComment[] = [];
 const posted: unknown[] = [];
 beforeEach(() => {
   h.role = "member";
+  localStorage.clear();
+  resetCommentAttempts();
   posted.length = 0;
   thread = [c(1), c(2, { authorAccountId: 9, authorName: "Coach", body: "<b>not bold</b>\nsecond line", editedAt: Date.now() - 60_000 })];
   vi.stubGlobal("fetch", vi.fn(async (url: string, init?: RequestInit) => {
@@ -227,5 +230,165 @@ describe("EntryComments: a post whose answer is lost", () => {
     await waitFor(() => expect(box().value).toBe(""));
     expect(screen.queryByRole("alert")).toBeNull();
     expect(st.posts).toHaveLength(1);
+  });
+
+  // E4: the composer's state, and an attempt kept until the workspace confirms it.
+  const status = () => document.querySelector("[aria-live][data-save-state]")?.getAttribute("data-save-state") ?? null;
+
+  it("goes Draft → Posting → Posted, said politely", async () => {
+    lossyServer();
+    let release: () => void = () => undefined;
+    const real = globalThis.fetch;
+    vi.stubGlobal("fetch", vi.fn(async (url: string, init?: RequestInit) => {
+      if (init?.method === "POST") await new Promise<void>((r) => { release = r; });
+      return real(url, init);
+    }));
+    render(<EntryComments entry={entry()} />);
+    await waitFor(() => expect(items()).toHaveLength(2));
+    expect(status()).toBeNull();
+    type("Watch their lift");
+    expect(status()).toBe("draft");
+    fireEvent.click(screen.getByRole("button", { name: "Comment" }));
+    await waitFor(() => expect(status()).toBe("saving"));
+    expect(document.querySelector("[aria-live][data-save-state]")!.textContent).toBe("Your comment: Posting…");
+    release();
+    await waitFor(() => expect(status()).toBe("saved"));
+    expect(document.querySelector("[aria-live][data-save-state]")!.textContent).toBe("Your comment: Posted");
+    expect(box().value).toBe("");
+  });
+
+  it("Needs attention when unconfirmed; Discard lets it go and forgets it", async () => {
+    const st = lossyServer();
+    render(<EntryComments entry={entry()} />);
+    await waitFor(() => expect(items()).toHaveLength(2));
+    st.lose = 1; st.getFails = true;
+    type("Watch their lift");
+    fireEvent.click(screen.getByRole("button", { name: "Comment" }));
+    const alert = await screen.findByRole("alert");
+    expect(status()).toBe("attention");
+    expect(localStorage.getItem("cs-comment-try:7:41:aaaaaaaaaaaa")).not.toBeNull();
+    fireEvent.click(within(alert).getByRole("button", { name: "Discard" }));
+    expect(box().value).toBe("");
+    expect(screen.queryByRole("alert")).toBeNull();
+    expect(localStorage.getItem("cs-comment-try:7:41:aaaaaaaaaaaa")).toBeNull();
+    expect(st.posts).toHaveLength(1);
+  });
+
+  it("an unconfirmed comment survives closing the entry: it comes back with its message, and Retry is the same attempt", async () => {
+    const st = lossyServer();
+    const view = render(<EntryComments entry={entry()} />);
+    await waitFor(() => expect(items()).toHaveLength(2));
+    st.lose = 1; st.getFails = true;
+    type("Watch their lift");
+    fireEvent.click(screen.getByRole("button", { name: "Comment" }));
+    await screen.findByRole("alert");
+    view.unmount();
+    st.getFails = false;
+    render(<EntryComments entry={entry()} />);
+    expect(box().value).toBe("Watch their lift");
+    fireEvent.click(within(screen.getByRole("alert")).getByRole("button", { name: "Retry" }));
+    await waitFor(() => expect(box().value).toBe(""));
+    expect(st.posts.map((p) => p.opId)).toEqual([st.posts[0].opId, st.posts[0].opId]);
+    expect(thread.filter((x) => x.body === "Watch their lift")).toHaveLength(1);
+  });
+
+  it("another account's kept attempt on this device is never shown or sent", async () => {
+    const st = lossyServer();
+    localStorage.setItem("cs-comment-try:8:41:aaaaaaaaaaaa", JSON.stringify({ body: "Someone else's words", opId: "op-other-acct", at: Date.now() }));
+    render(<EntryComments entry={entry()} />);
+    await waitFor(() => expect(items()).toHaveLength(2));
+    await new Promise((r) => setTimeout(r, 20));
+    expect(box().value).toBe("");
+    expect(screen.queryByRole("alert")).toBeNull();
+    expect(st.posts).toEqual([]);
+    expect(localStorage.getItem("cs-comment-try:8:41:aaaaaaaaaaaa")).not.toBeNull(); // still theirs, for them
+  });
+
+  it("while one is on its way, editing the text never lets a second send start", async () => {
+    lossyServer();
+    let release: () => void = () => undefined;
+    const real = globalThis.fetch;
+    vi.stubGlobal("fetch", vi.fn(async (url: string, init?: RequestInit) => {
+      if (init?.method === "POST") await new Promise<void>((r) => { release = r; });
+      return real(url, init);
+    }));
+    render(<EntryComments entry={entry()} />);
+    await waitFor(() => expect(items()).toHaveLength(2));
+    type("First");
+    fireEvent.click(screen.getByRole("button", { name: "Comment" }));
+    await waitFor(() => expect(status()).toBe("saving"));
+    type("Second");
+    expect((screen.getByRole("button", { name: "Comment" }) as HTMLButtonElement).disabled).toBe(true);
+    fireEvent.keyDown(box(), { key: "Enter", ctrlKey: true });
+    release();
+    await waitFor(() => expect(items()).toHaveLength(3));
+    expect(box().value).toBe("Second"); // typed meanwhile, kept, not sent
+  });
+
+  it("on a fresh page, a kept attempt the thread doesn't have comes back into the field with Retry and Discard", async () => {
+    const st = lossyServer();
+    localStorage.setItem("cs-comment-try:7:41:aaaaaaaaaaaa", JSON.stringify({ body: "Kept before the reload", opId: "op-kept-000001", at: Date.now() }));
+    render(<EntryComments entry={entry()} />);
+    await waitFor(() => expect(box().value).toBe("Kept before the reload"));
+    const alert = await screen.findByRole("alert");
+    expect(alert.textContent).toMatch(/didn't reach the workspace/);
+    fireEvent.click(within(alert).getByRole("button", { name: "Retry" }));
+    await waitFor(() => expect(box().value).toBe(""));
+    expect(st.posts).toEqual([{ body: "Kept before the reload", opId: "op-kept-000001" }]);
+  });
+
+  it("another tab discarding a kept attempt removes it here too", async () => {
+    const st = lossyServer();
+    render(<EntryComments entry={entry()} />);
+    await waitFor(() => expect(items()).toHaveLength(2));
+    st.lose = 1; st.getFails = true;
+    type("Watch their lift");
+    fireEvent.click(screen.getByRole("button", { name: "Comment" }));
+    await screen.findByRole("alert");
+    const k = "cs-comment-try:7:41:aaaaaaaaaaaa";
+    act(() => { localStorage.removeItem(k); window.dispatchEvent(new StorageEvent("storage", { key: k, newValue: null })); });
+    await waitFor(() => expect(screen.queryByRole("alert")).toBeNull());
+  });
+
+  it("another tab replacing a kept attempt brings the newer one into this field", async () => {
+    const st = lossyServer();
+    render(<EntryComments entry={entry()} />);
+    await waitFor(() => expect(items()).toHaveLength(2));
+    st.lose = 1; st.getFails = true;
+    type("Older words");
+    fireEvent.click(screen.getByRole("button", { name: "Comment" }));
+    await screen.findByRole("alert");
+    const k = "cs-comment-try:7:41:aaaaaaaaaaaa";
+    const v = JSON.stringify({ body: "Newer words from the other tab", opId: "op-other-tab-01", at: Date.now() });
+    act(() => { localStorage.setItem(k, v); window.dispatchEvent(new StorageEvent("storage", { key: k, newValue: v })); });
+    await waitFor(() => expect(box().value).toBe("Newer words from the other tab"));
+    st.getFails = false;
+    fireEvent.click(within(screen.getByRole("alert")).getByRole("button", { name: "Retry" }));
+    await waitFor(() => expect(box().value).toBe(""));
+    expect(st.posts.at(-1)).toEqual({ body: "Newer words from the other tab", opId: "op-other-tab-01" });
+  });
+
+  it("its own comment heard on the stream before the answer comes doesn't end the attempt early: nothing else can be sent meanwhile", async () => {
+    const st = lossyServer();
+    let release: () => void = () => undefined;
+    const real = globalThis.fetch;
+    vi.stubGlobal("fetch", vi.fn(async (url: string, init?: RequestInit) => {
+      if (init?.method === "POST") { const r = await real(url, init); await new Promise<void>((ok) => { release = ok; }); return r; }
+      return real(url, init);
+    }));
+    render(<EntryComments entry={entry()} />);
+    await waitFor(() => expect(items()).toHaveLength(2));
+    type("First");
+    fireEvent.click(screen.getByRole("button", { name: "Comment" }));
+    await waitFor(() => expect(st.posts).toHaveLength(1));
+    const made = thread.at(-1)!;
+    act(() => { announceComment({ action: "created", workspaceId: "41", entryUuid: "aaaaaaaaaaaa", commentId: made.id, count: thread.length, rev: 300, comment: made }); });
+    type("Second");
+    expect(status()).toBe("saving");
+    expect((screen.getByRole("button", { name: "Comment" }) as HTMLButtonElement).disabled).toBe(true);
+    release();
+    await waitFor(() => expect(status()).not.toBe("saving"));
+    expect(st.posts).toHaveLength(1);
+    expect(box().value).toBe("Second");
   });
 });
