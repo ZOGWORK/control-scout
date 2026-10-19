@@ -27,6 +27,7 @@ describe("TeamColorPicker", () => {
     colors = { "7": "gold" };
     render(<TeamColorPicker team={7} />);
     fireEvent.click(screen.getByRole("button", { name: "7's colour: Gold. Change it" }));
+    expect(screen.getByRole("dialog", { name: "7's colour" })).toBeTruthy();
     expect(screen.getByRole("radiogroup", { name: "7's colour" })).toBeTruthy();
     expect(screen.getByRole("radio", { name: "Gold" }).getAttribute("aria-checked")).toBe("true");
     fireEvent.click(screen.getByRole("button", { name: "No colour" }));

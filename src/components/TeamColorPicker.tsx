@@ -47,7 +47,7 @@ export function TeamColorPicker({ team, className }: { team: number; className?:
             : <span className="flex size-4 items-center justify-center rounded-full border border-dashed border-text-muted/60 text-text-muted"><Palette className="size-2.5" aria-hidden /></span>}
         </button>
       </PopoverTrigger>
-      <PopoverContent align="start" className="w-auto p-2">
+      <PopoverContent align="start" className="w-auto p-2" aria-label={`${team}'s colour`}>
         <p className="px-1 pb-2 text-xs font-medium text-text-muted">{team}'s colour</p>
         {/* A radio group: one Tab stop, arrow keys move between colours (Radix ToggleGroup). */}
         <ToggleGroup type="single" value={c?.id ?? ""} onValueChange={(v) => setColor(team, v || null)} aria-label={`${team}'s colour`}
