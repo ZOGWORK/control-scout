@@ -32,6 +32,31 @@ function outsideGuards<P extends { onPointerDownOutside?: (e: any) => void; onIn
 }
 const fade = 'data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0';
 
+/**
+ * Focus goes back to whatever opened a dialog or sheet when it closes. Radix only returns it to a
+ * Dialog.Trigger; most of ours open from state (a button's onClick, an app event), and focus then fell to
+ * the page's top. The opener is whatever had focus as the content mounts; if it has left the page by the
+ * time the content closes (a menu item, a sheet that closed first), Radix's own behaviour stands.
+ */
+function useReturnFocus<P extends { onOpenAutoFocus?: (e: Event) => void; onCloseAutoFocus?: (e: Event) => void }>(props: P) {
+  const opener = React.useRef<HTMLElement | null>(null);
+  return {
+    onOpenAutoFocus: (e: Event) => {
+      const a = document.activeElement;
+      opener.current = a instanceof HTMLElement && a !== document.body ? a : null;
+      props.onOpenAutoFocus?.(e);
+    },
+    onCloseAutoFocus: (e: Event) => {
+      props.onCloseAutoFocus?.(e);
+      const el = opener.current;
+      opener.current = null;
+      if (e.defaultPrevented || !el?.isConnected) return;
+      e.preventDefault();
+      el.focus();
+    },
+  };
+}
+
 // --- Dialog -----------------------------------------------------------------
 
 export const Dialog = D.Root;
@@ -43,6 +68,7 @@ function Overlay({ className, ...props }: React.ComponentProps<typeof D.Overlay>
 }
 
 export function DialogContent({ className, children, showClose = true, ...props }: React.ComponentProps<typeof D.Content> & { showClose?: boolean }) {
+  const returnFocus = useReturnFocus(props);
   return (
     <D.Portal>
       <Overlay />
@@ -57,6 +83,7 @@ export function DialogContent({ className, children, showClose = true, ...props 
         )}
         {...props}
         {...outsideGuards(props, 'dialog-content')}
+        {...returnFocus}
       >
         {children}
         {showClose && (
@@ -96,6 +123,7 @@ const sides = {
 } as const;
 
 export function SheetContent({ className, children, side = 'right', ...props }: React.ComponentProps<typeof D.Content> & { side?: keyof typeof sides }) {
+  const returnFocus = useReturnFocus(props);
   return (
     <D.Portal>
       <Overlay />
@@ -105,6 +133,7 @@ export function SheetContent({ className, children, side = 'right', ...props }: 
         className={cn(panel, 'fixed z-[81] flex flex-col gap-4 overflow-y-auto p-6', sides[side], fade, className)}
         {...props}
         {...outsideGuards(props, 'sheet-content')}
+        {...returnFocus}
       >
         {children}
         <D.Close className="absolute right-4 top-4 rounded-full p-1.5 text-text-muted transition-colors hover:bg-text-base/[0.08] hover:text-text-base focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/60">
@@ -164,7 +193,7 @@ export function DropdownMenuRadioItem({ className, children, ...props }: React.C
   );
 }
 export function DropdownMenuLabel({ className, ...props }: React.ComponentProps<typeof DM.Label>) {
-  return <DM.Label data-slot="dropdown-menu-label" className={cn('px-2.5 py-1.5 text-[10px] font-bold uppercase tracking-[0.2em] text-text-muted/70', className)} {...props} />;
+  return <DM.Label data-slot="dropdown-menu-label" className={cn('px-2.5 py-1.5 text-[10px] font-bold uppercase tracking-[0.2em] text-text-muted', className)} {...props} />;
 }
 export function DropdownMenuSeparator({ className, ...props }: React.ComponentProps<typeof DM.Separator>) {
   return <DM.Separator data-slot="dropdown-menu-separator" className={cn('-mx-1 my-1 h-px bg-line', className)} {...props} />;

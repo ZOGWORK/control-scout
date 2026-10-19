@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 // What's new: opening it (from anywhere) shows Scout's own releases from CHANGELOG.md, newest first and
 // marked Latest; picking another version shows that release; PR numbers link to this repo's pull requests.
-import { cleanup, fireEvent, render, screen, act } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, act, waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, it } from "vitest";
 import pkg from "../../package.json";
 import { openWhatsNew, WhatsNewHost, WhatsNewRow } from "./WhatsNew";
@@ -22,11 +22,24 @@ describe("What's new", () => {
     expect(pr.getAttribute("href")).toBe("https://github.com/Control-Point-FTC/control-scout/pull/151");
   });
 
+  it("gives focus back to what opened it when it closes", async () => {
+    render(<><WhatsNewRow /><WhatsNewHost /></>);
+    const row = screen.getByRole("button", { name: /What's new/ });
+    row.focus();
+    fireEvent.click(row);
+    await screen.findByRole("navigation", { name: "Releases" });
+    fireEvent.keyDown(document.activeElement ?? document.body, { key: "Escape" });
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+    expect(document.activeElement).toBe(row);
+  });
+
   it("shows another release when its version is picked", async () => {
     render(<WhatsNewHost />);
     act(() => openWhatsNew());
     fireEvent.click(await screen.findByRole("button", { name: "v1.6.0" }));
     expect(screen.getByText("v1.6.0 · 2026-10-16")).toBeTruthy();
     expect(screen.getByRole("button", { name: "v1.6.0" }).getAttribute("aria-current")).toBe("true");
+    // The release scrolls on its own: a named region in the tab order, so a keyboard can scroll it.
+    expect(screen.getByRole("region", { name: "Release v1.6.0" }).getAttribute("tabindex")).toBe("0");
   });
 });
