@@ -222,13 +222,13 @@ const Weeks = memo(function Weeks({ events, region, type, status, from, to, q, o
   const thisWeek = weekOf(new Date().toISOString().slice(0, 10));
   const weeks = useMemo(() => groupWeeks(list, thisWeek), [list, thisWeek]);
   const { shown, hidden } = useMemo(() => takeBatch(weeks, budget), [weeks, budget]);
-  // Load the next batch while the end of the list is still a screen away (the shell scrolls in <main>).
+  // Load the next batch while the end of the list is still a screen away (the page scrolls the document).
   const sentinel = useRef<HTMLDivElement>(null);
   useEffect(() => {
     const el = sentinel.current;
     if (!el || hidden <= 0 || typeof IntersectionObserver === "undefined") return;
     // Re-observed after every batch: if the end is still near (a tall screen), the next batch follows.
-    const io = new IntersectionObserver((es) => { if (es.some((e) => e.isIntersecting)) more(); }, { root: el.closest("main"), rootMargin: "0px 0px 800px 0px" });
+    const io = new IntersectionObserver((es) => { if (es.some((e) => e.isIntersecting)) more(); }, { rootMargin: "0px 0px 800px 0px" });
     io.observe(el);
     return () => io.disconnect();
   }, [shown, hidden, more]);

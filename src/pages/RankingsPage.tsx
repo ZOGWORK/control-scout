@@ -243,7 +243,7 @@ function PlacePicker({ info, loading, value, onChange }: { info: RankingPlaces |
   );
 }
 
-const th = "sticky top-0 z-10 h-11 whitespace-nowrap bg-card px-2 align-bottom pb-2 text-[11px] font-bold uppercase tracking-wider text-text-muted shadow-[inset_0_-2px_0_color-mix(in_srgb,var(--color-text-base)_20%,transparent)] sm:px-4";
+const th = "sticky top-(--header-h) z-10 h-11 whitespace-nowrap bg-card px-2 align-bottom pb-2 text-[11px] font-bold uppercase tracking-wider text-text-muted shadow-[inset_0_-2px_0_color-mix(in_srgb,var(--color-text-base)_20%,transparent)] sm:px-4";
 const td = "px-2 py-2.5 sm:px-4";
 
 function RankTable({ data, myTeam }: { data: RankingsResponse; myTeam: number | null }) {

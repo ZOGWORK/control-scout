@@ -63,7 +63,7 @@ export function SectionHead({ num, eyebrow, title }: { num?: string; eyebrow: st
 export function Prose({ children, className, id }: { children: ReactNode; className?: string; id?: string }) {
   return (
     <Reveal className={cn("mx-auto max-w-2xl", className)}>
-      <div id={id} className="hiw-prose scroll-mt-24 space-y-4 text-[15px] leading-[1.75] text-foreground/85 sm:text-base [&_a]:text-foreground [&_a]:underline [&_a]:decoration-accent [&_a]:underline-offset-2 [&_code]:rounded [&_code]:border [&_code]:border-border [&_code]:bg-card [&_code]:px-1.5 [&_code]:py-0.5 [&_code]:font-mono [&_code]:text-[0.86em] [&_h3]:mt-8 [&_h3]:font-display [&_h3]:text-lg [&_h3]:font-semibold [&_h3]:text-foreground [&_strong]:font-semibold [&_strong]:text-foreground">
+      <div id={id} className="hiw-prose scroll-mt-bar-24 space-y-4 text-[15px] leading-[1.75] text-foreground/85 sm:text-base [&_a]:text-foreground [&_a]:underline [&_a]:decoration-accent [&_a]:underline-offset-2 [&_code]:rounded [&_code]:border [&_code]:border-border [&_code]:bg-card [&_code]:px-1.5 [&_code]:py-0.5 [&_code]:font-mono [&_code]:text-[0.86em] [&_h3]:mt-8 [&_h3]:font-display [&_h3]:text-lg [&_h3]:font-semibold [&_h3]:text-foreground [&_strong]:font-semibold [&_strong]:text-foreground">
         {children}
       </div>
     </Reveal>
@@ -104,7 +104,7 @@ export function Figure({ label, title, note, actions, caption, narrow, children,
   };
   return (
     <Reveal className={cn("mx-auto my-8", narrow ? "max-w-3xl" : "max-w-5xl", className)}>
-      <figure id={id} className="m-0 scroll-mt-24">
+      <figure id={id} className="m-0 scroll-mt-bar-24">
         <div ref={ref} data-seen={seen ? "" : undefined} onPointerMove={glow} className="hiw-panel overflow-hidden rounded-2xl border border-border bg-card p-4 sm:p-5">
           <div className="mb-3 flex flex-wrap items-start justify-between gap-3">
             <div className="min-w-0">
@@ -238,11 +238,10 @@ export function TipLayer({ children }: { children: ReactNode }) {
     const down = (e: PointerEvent) => { if (!(e.target as Element)?.closest?.("[data-tip]")) setTip(null); };
     const key = (e: KeyboardEvent) => { if (e.key === "Escape") setTip(null); };
     const scroll = () => setTip(null);
-    const main = document.getElementById("main");
     document.addEventListener("pointerdown", down);
     document.addEventListener("keydown", key);
-    main?.addEventListener("scroll", scroll, { passive: true });
-    return () => { document.removeEventListener("pointerdown", down); document.removeEventListener("keydown", key); main?.removeEventListener("scroll", scroll); };
+    window.addEventListener("scroll", scroll, { passive: true });
+    return () => { document.removeEventListener("pointerdown", down); document.removeEventListener("keydown", key); window.removeEventListener("scroll", scroll); };
   }, [tip]);
   const w = typeof window !== "undefined" ? window.innerWidth : 1000;
   return (

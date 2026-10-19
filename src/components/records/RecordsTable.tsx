@@ -24,6 +24,7 @@ import { FilterBuilder } from "./FilterBuilder";
 import { Panel } from "./Panel";
 import { pickableStats, StatPicker } from "./StatPicker";
 import { DateRangePicker, EventTypeSelect, RegionPicker, SeasonSelect } from "./Controls";
+import { pageTop } from "../../lib/pageScroll";
 
 type Row = TeamEventRecord | TeamSeasonRecord | MatchRecordRow;
 type Resp = RecordsResponse<Row>;
@@ -457,7 +458,7 @@ function Table({ data, scope, cols, state, sortBy, code, highlightTeam, selectab
 }
 
 /**
- * A copy of the header row, pinned to the top of the page's scroll area (#main, under the top bar) once the real one has scrolled off it,
+ * A copy of the header row, pinned just under the shell's sticky top bar once the real one has scrolled off it,
  * until the table itself has gone by. Its columns take the real header's measured widths, and it scrolls
  * sideways with the table. Clicking a label sorts, like the real one.
  */
@@ -468,16 +469,14 @@ function FloatingHead({ table, scroller, children }: { table: RefObject<HTMLTabl
   useEffect(() => {
     const t = table.current, sc = scroller.current;
     if (!t || !sc) return;
-    // The page scrolls inside <main id="main"> (Shell), not the window: its top edge is where labels pin.
-    const area = document.getElementById("main");
-    const topOf = () => area?.getBoundingClientRect().top ?? 0;
+    // The page scrolls the document, under the shell's sticky top bar: its bottom edge is where labels pin.
     const measure = () => {
       const cells = [...(t.tHead?.rows[0]?.cells ?? [])];
       setCols({ widths: cells.map((c) => c.getBoundingClientRect().width), width: t.getBoundingClientRect().width });
     };
     const place = () => {
       const head = t.tHead?.getBoundingClientRect(), all = t.getBoundingClientRect();
-      const top = topOf();
+      const top = pageTop();
       setShow(!!head && head.bottom < top && all.bottom > top + head.height * 2);
       if (clip.current) clip.current.scrollLeft = sc.scrollLeft;
     };
@@ -489,17 +488,16 @@ function FloatingHead({ table, scroller, children }: { table: RefObject<HTMLTabl
     watch();
     const mo = new MutationObserver(() => { watch(); measure(); });
     if (t.tHead) mo.observe(t.tHead, { childList: true, subtree: true });
-    const page = area ?? window;
-    page.addEventListener("scroll", place, { passive: true });
+    window.addEventListener("scroll", place, { passive: true });
     window.addEventListener("resize", place);
     sc.addEventListener("scroll", place, { passive: true });
-    return () => { ro.disconnect(); mo.disconnect(); page.removeEventListener("scroll", place); window.removeEventListener("resize", place); sc.removeEventListener("scroll", place); };
+    return () => { ro.disconnect(); mo.disconnect(); window.removeEventListener("scroll", place); window.removeEventListener("resize", place); sc.removeEventListener("scroll", place); };
   }, [table, scroller]);
   // The copy is for the eye and the mouse: the real header (and its sort buttons) is what keyboards and
   // screen readers use, so the copy's buttons stay out of the tab order (and it is aria-hidden).
   useEffect(() => { clip.current?.querySelectorAll("button").forEach((b) => { b.tabIndex = -1; }); });
   return (
-    <div className="sticky top-0 z-30 h-0">
+    <div className="sticky top-(--header-h) z-30 h-0">
       <div ref={clip} aria-hidden className={cn("absolute inset-x-0 top-0 overflow-hidden rounded-t-xl border bg-card shadow-[0_8px_16px_-8px_rgb(0_0_0/0.5)] transition-opacity", grid,
         show && cols ? "opacity-100" : "invisible opacity-0")}>
         {cols && (

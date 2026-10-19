@@ -10,7 +10,7 @@ import { cn } from "./cn";
 import { Tooltip, TooltipContent, TooltipTrigger } from "./ui/overlay";
 import { matchTime, oddsPct } from "../lib/format";
 import { useVideoLinkCount } from "./MatchVideo";
-import { restoredSavedPosition } from "../lib/mainScroll";
+import { restoredSavedPosition, scrollToElement } from "../lib/pageScroll";
 
 const MatchDetails = lazy(() => import("./MatchDetails").then((x) => ({ default: x.MatchDetails })));
 import { useCalibration } from "../lib/calibration";
@@ -296,7 +296,7 @@ export function MatchList({ matches, highlight, empty, eventNames, eventDates, i
   const box = useRef<HTMLDivElement>(null);
   // The match a link asked for is brought into view once per visit (history entry): a live update that
   // adds matches to the list must not pull the page back to it after the reader has scrolled on, and
-  // nor may Back/Forward, which return to where the reader actually was (src/lib/mainScroll.ts).
+  // nor may Back/Forward, which return to where the reader actually was (src/lib/pageScroll.ts).
   const loc = useLocation();
   const shownFor = useRef<string | null>(null);
   useEffect(() => {
@@ -307,7 +307,7 @@ export function MatchList({ matches, highlight, empty, eventNames, eventDates, i
     shownFor.current = visit;
     setOpen((s) => (s.has(id(m)) ? s : new Set(s).add(id(m))));
     if (restoredSavedPosition(loc)) return;
-    requestAnimationFrame(() => box.current?.querySelector(`[data-match="${CSS.escape(m.key)}"]`)?.scrollIntoView({ block: "start", behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth" }));
+    requestAnimationFrame(() => { const row = box.current?.querySelector(`[data-match="${CSS.escape(m.key)}"]`); if (row) scrollToElement(row, window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth"); });
     // Only when the requested match or the visit changes (not on every refresh of the list).
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [initialOpen, loc.key, matches.length]);

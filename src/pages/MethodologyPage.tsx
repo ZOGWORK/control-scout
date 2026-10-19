@@ -28,7 +28,7 @@ const SIM_RUNS = 2000;
 export default function MethodologyPage() {
   useTitle("How it works");
   const reduced = useReduced();
-  // Deep links (/methodology#confidence etc.) are scrolled to by the shell (src/lib/mainScroll.ts),
+  // Deep links (/methodology#confidence etc.) are scrolled to by the shell (src/lib/pageScroll.ts),
   // which also leaves Back alone when it returns to a position saved further down.
 
   return (
@@ -38,7 +38,7 @@ export default function MethodologyPage() {
         <SectionNav />
 
         {/* ================= 01 OVERVIEW ================= */}
-        <section id="overview" className="scroll-mt-20">
+        <section id="overview" className="scroll-mt-bar-20">
           <SectionHead num="01" eyebrow="The big picture" title="Four steps, from match history to advancement odds" />
           <Prose>
             <p>Predictions are a chain. Each link feeds the next, and every number you see in the app comes out the end of it. First the engine learns how strong every robot is from the matches it has already played. Then it turns two alliances' strengths into a win probability and a likely score. Then it plays out a whole event thousands of times. Finally it applies the season's advancement rules to see who qualifies in each of those versions.</p>
@@ -52,7 +52,7 @@ export default function MethodologyPage() {
         </section>
 
         {/* ================= 02 RATINGS ================= */}
-        <section id="ratings" className="scroll-mt-20 pt-20">
+        <section id="ratings" className="scroll-mt-bar-20 pt-20">
           <SectionHead num="02" eyebrow="Step one" title="A rating is a guess at how many points a robot adds" />
           <Prose id="rating">
             <p>FTC has a scoring problem for anyone trying to rate teams: you never see one robot's score, only the alliance's. The engine handles that the way the best FRC rating systems do. Each robot carries an <strong>expected contribution</strong>, in real game points, to whatever alliance it plays on. It's split into four parts, because a robot that's great in auto and weak in endgame is a different partner from one that's the other way around.</p>
@@ -84,8 +84,8 @@ export default function MethodologyPage() {
         </section>
 
         {/* ================= 03 MATCHES ================= */}
-        <section id="matches" className="scroll-mt-20 pt-20">
-          <span id="match" aria-hidden className="block scroll-mt-20" />{/* old links: /methodology#match */}
+        <section id="matches" className="scroll-mt-bar-20 pt-20">
+          <span id="match" aria-hidden className="block scroll-mt-bar-20" />{/* old links: /methodology#match */}
           <SectionHead num="03" eyebrow="Step two" title="From two alliances to one probability" />
           <Prose>
             <p>To predict a match, the engine adds up each alliance's robots, then adds the penalty points the <em>other</em> alliance tends to give away. That's the expected score.</p>
@@ -109,7 +109,7 @@ export default function MethodologyPage() {
         </section>
 
         {/* ================= 04 EVENTS ================= */}
-        <section id="events" className="scroll-mt-20 pt-20">
+        <section id="events" className="scroll-mt-bar-20 pt-20">
           <SectionHead num="04" eyebrow="Step three" title="Playing the whole event thousands of times" />
           <Prose id="advancement">
             <p>Advancing isn't about one match. It depends on your rank, who picks whom, the bracket and the awards. All of those interact, and there's no neat formula for the whole thing. So the engine does what a coach does in their head, only {SIM_RUNS.toLocaleString("en-US")} times over: it imagines the event.</p>
@@ -140,7 +140,7 @@ export default function MethodologyPage() {
         <AccuracySection />
 
         {/* ================= 06 LAB NOTES ================= */}
-        <section id="lab" className="scroll-mt-20 pt-20">
+        <section id="lab" className="scroll-mt-bar-20 pt-20">
           <SectionHead num="06" eyebrow="Lab notes" title="What we tried, and what made the cut" />
           <Prose>
             <p>The engine improves through small experiments, each judged the same way: tune on 2024–25, test on 2025–26, and compare against the baselines on identical matches. An idea ships when it improves the probability scores (Brier and log loss) on identical held-out matches, and any trade-off it brings is written down here. Plenty of good-sounding ideas don't make it. Control Scout and Control Point share these results because they share the engine.</p>
@@ -150,7 +150,7 @@ export default function MethodologyPage() {
         </section>
 
         {/* ================= 07 LIMITS ================= */}
-        <section id="limits" className="scroll-mt-20 pt-20">
+        <section id="limits" className="scroll-mt-bar-20 pt-20">
           <SectionHead num="07" eyebrow="Fine print" title="What the predictions can't know" />
           <Prose>
             <CleanList items={[
@@ -172,7 +172,7 @@ export default function MethodologyPage() {
         </section>
 
         {/* ================= SETTINGS ================= */}
-        <section id="settings" className="scroll-mt-20 pt-20">
+        <section id="settings" className="scroll-mt-bar-20 pt-20">
           <SectionHead eyebrow="For the curious" title="The settings, in one table" />
           <SettingsTable />
           <Prose id="engine" className="mt-8">
