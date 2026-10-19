@@ -4,28 +4,52 @@
 import { APP_VERSION } from "./errorReporting";
 
 export interface ChangelogGroup { heading: string; items: string[] }
-export interface ChangelogEntry { version: string; date: string; summary: string; groups: ChangelogGroup[] }
+/** One line of a release's digest: what a visitor notices, tagged for its icon (`- [home] A new home page`). */
+export interface ChangelogHighlight { tag: string | null; text: string }
+export interface ChangelogEntry { version: string; date: string; summary: string; highlights: ChangelogHighlight[]; groups: ChangelogGroup[] }
 
-/** CHANGELOG.md → releases. `## 1.7.0 — 2026-10-18`, an intro line, `### Group` headings and `- ` bullets. */
+/** The `[tag]`s a highlight can start with; each has its own icon and colour in What's new. */
+export const HIGHLIGHT_TAGS = ["home", "predict", "teams", "scout", "offline", "speed", "live", "report", "alerts", "rankings", "share", "workspace", "picklist", "history", "fixes"] as const;
+export type HighlightTag = (typeof HIGHLIGHT_TAGS)[number];
+
+/** The heading of a release's digest block; its bullets become `highlights`, not a group of the full notes. */
+const HIGHLIGHTS = /^highlights$/i;
+
+/** A highlight bullet: an optional `[tag]` (lower case, picks the icon) and its one line of text. */
+export function parseHighlight(item: string): ChangelogHighlight {
+  const m = /^\[([a-z][a-z-]*)\]\s*(.+)$/.exec(item);
+  return m ? { tag: m[1], text: m[2].trim() } : { tag: null, text: item };
+}
+
+/** CHANGELOG.md → releases. `## 1.7.0 — 2026-10-18`, an intro line, an optional `### Highlights` block of
+ *  short `- [tag] line` bullets (the digest shown first), then `### Group` headings and `- ` bullets (the
+ *  full notes). A release without highlights still parses; the dialog then shows its full notes. */
 export function parseChangelog(md: string): ChangelogEntry[] {
   const out: ChangelogEntry[] = [];
   let entry: ChangelogEntry | null = null;
   let group: ChangelogGroup | null = null;
+  let inHighlights = false;
   for (const raw of md.split(/\r?\n/)) {
     const line = raw.trimEnd();
     const rel = /^##\s+(\d+\.\d+\.\d+)\s*[—–-]\s*(.+)$/.exec(line);
-    if (rel) { entry = { version: rel[1], date: rel[2].trim(), summary: "", groups: [] }; out.push(entry); group = null; continue; }
+    if (rel) { entry = { version: rel[1], date: rel[2].trim(), summary: "", highlights: [], groups: [] }; out.push(entry); group = null; inHighlights = false; continue; }
     if (!entry) continue;
     const head = /^###\s+(.+)$/.exec(line);
-    if (head) { group = { heading: head[1].trim(), items: [] }; entry.groups.push(group); continue; }
+    if (head) {
+      inHighlights = HIGHLIGHTS.test(head[1].trim());
+      group = inHighlights ? null : { heading: head[1].trim(), items: [] };
+      if (group) entry.groups.push(group);
+      continue;
+    }
     const item = /^\s*[-*]\s+(.+)$/.exec(line);
+    if (item && inHighlights) { entry.highlights.push(parseHighlight(item[1].trim())); continue; }
     if (item) {
       if (!group) { group = { heading: "Changes", items: [] }; entry.groups.push(group); }
       group.items.push(item[1].trim());
       continue;
     }
     // Text before the first group is the release's one-line summary.
-    if (line.trim() && !group && !entry.summary) entry.summary = line.trim();
+    if (line.trim() && !group && !inHighlights && !entry.summary) entry.summary = line.trim();
   }
   return out;
 }
