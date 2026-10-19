@@ -3,7 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { act, cleanup, render } from "@testing-library/react";
 import { MemoryRouter, useLocation as useLocationProbe, useNavigate, type NavigateFunction } from "react-router-dom";
 import { StrictMode, useRef } from "react";
-import { chase, entryKey, planScroll, restoredSavedPosition, RESTORE_WINDOW_MS, SCROLL_IDLE_ATTR, SCROLL_IDLE_MS, ScrollPositions, useMainScroll } from "./mainScroll";
+import { chase, entryKey, HEADER_ID, pageScroller, pageTop, planScroll, scrollToElement, restoredSavedPosition, RESTORE_WINDOW_MS, SCROLL_IDLE_ATTR, SCROLL_IDLE_MS, ScrollPositions, usePageScroll } from "./pageScroll";
 
 describe("planScroll", () => {
   const base = { prevPath: "/events", path: "/teams/4215", hash: "", saved: undefined };
@@ -74,7 +74,7 @@ function fakeScroller(el: HTMLElement, height: { current: number }, viewport = 8
 }
 
 beforeEach(() => { vi.useFakeTimers(); vi.stubGlobal("ResizeObserver", FakeResizeObserver); observers.clear(); sessionStorage.clear(); });
-afterEach(() => { cleanup(); vi.useRealTimers(); vi.unstubAllGlobals(); });
+afterEach(() => { cleanup(); vi.useRealTimers(); vi.unstubAllGlobals(); vi.restoreAllMocks(); });
 
 describe("chase", () => {
   it("re-applies on every resize until the window runs out", () => {
@@ -98,17 +98,21 @@ describe("chase", () => {
   });
 });
 
-describe("useMainScroll", () => {
+describe("usePageScroll", () => {
   const height = { current: 5000 };
   let nav: NavigateFunction;
   let main: HTMLElement;
+  // The page scrolls the document: its scroller stands in for a browser's, clamped to the content height.
+  const page = document.documentElement;
+  beforeEach(() => { fakeScroller(page, height); });
+  afterEach(() => { delete (page as { scrollTop?: number }).scrollTop; });
   function Harness() {
     const ref = useRef<HTMLElement>(null);
-    useMainScroll(ref);
+    usePageScroll(ref);
     nav = useNavigate();
-    return <div><main id="main" ref={(n) => { if (n && n !== main) { main = n; fakeScroller(n, height); } (ref as { current: HTMLElement | null }).current = n; }}><div><div id="sec" /></div></main></div>;
+    return <div><main id="main" ref={(n) => { if (n) main = n; (ref as { current: HTMLElement | null }).current = n; }}><div><div id="sec" /></div></main></div>;
   }
-  const scrollTo = (y: number) => act(() => { main.scrollTop = y; main.dispatchEvent(new Event("scroll")); });
+  const scrollTo = (y: number) => act(() => { page.scrollTop = y; window.dispatchEvent(new Event("scroll")); });
   const go = (to: string | number) => act(() => { if (typeof to === "number") nav(to); else nav(to); });
 
   it("starts a new page at the top and restores the old one on back and forward", () => {
@@ -116,12 +120,12 @@ describe("useMainScroll", () => {
     render(<MemoryRouter initialEntries={["/teams/4215"]}><Harness /></MemoryRouter>);
     scrollTo(1200);
     go("/rankings");
-    expect(main.scrollTop).toBe(0);
+    expect(page.scrollTop).toBe(0);
     scrollTo(300);
     go(-1);
-    expect(main.scrollTop).toBe(1200);
+    expect(page.scrollTop).toBe(1200);
     go(1);
-    expect(main.scrollTop).toBe(300);
+    expect(page.scrollTop).toBe(300);
   });
 
   it("waits for a short page to grow back before reaching the saved position", () => {
@@ -131,11 +135,11 @@ describe("useMainScroll", () => {
     go("/events/2025/X");
     height.current = 900; // the list is loading again: the page is short
     go(-1);
-    expect(main.scrollTop).toBe(100);
+    expect(page.scrollTop).toBe(100);
     height.current = 2500; act(resize);
-    expect(main.scrollTop).toBe(1700);
+    expect(page.scrollTop).toBe(1700);
     height.current = 6000; act(resize);
-    expect(main.scrollTop).toBe(3000);
+    expect(page.scrollTop).toBe(3000);
   });
 
   it("gives up on the restore once the reader scrolls themselves", () => {
@@ -145,9 +149,9 @@ describe("useMainScroll", () => {
     go("/teams");
     height.current = 900;
     go(-1);
-    act(() => { main.dispatchEvent(new Event("wheel")); });
+    act(() => { window.dispatchEvent(new Event("wheel")); });
     height.current = 6000; act(resize);
-    expect(main.scrollTop).toBe(100);
+    expect(page.scrollTop).toBe(100);
   });
 
   it("keeps the saved position when the reader leaves again before a restore could reach it", () => {
@@ -157,11 +161,11 @@ describe("useMainScroll", () => {
     go("/events/2025/X");
     height.current = 900; // back to a list that is still loading...
     go(-1);
-    act(() => { main.dispatchEvent(new Event("scroll")); }); // ...clamped at 100
+    act(() => { window.dispatchEvent(new Event("scroll")); }); // ...clamped at 100
     go(1); // forward again before it grew
     height.current = 5000;
     go(-1);
-    expect(main.scrollTop).toBe(3000);
+    expect(page.scrollTop).toBe(3000);
   });
 
   it("says when arriving restored a saved position, so pages don't scroll themselves over it", () => {
@@ -177,13 +181,12 @@ describe("useMainScroll", () => {
     expect(restoredSavedPosition(loc)).toBe(true);
   });
 
-  it("goes to a #hash on a first load, also under StrictMode's replayed effects", () => {
+  it("goes to a #hash on a first load, below the top bar, also under StrictMode's replayed effects", () => {
     height.current = 5000;
-    const into = vi.fn(function (this: HTMLElement) { main.scrollTop = 1700; });
-    Element.prototype.scrollIntoView = into;
+    // #sec starts 1748 px down the page, with the bar's height as its scroll margin.
+    placeAt("sec", 1748, "48px");
     render(<StrictMode><MemoryRouter initialEntries={["/methodology#sec"]}><Harness /></MemoryRouter></StrictMode>);
-    expect(into).toHaveBeenCalled();
-    expect(main.scrollTop).toBe(1700);
+    expect(page.scrollTop).toBe(1700);
   });
 
   it("keeps the position for a query change on the same page", () => {
@@ -191,7 +194,7 @@ describe("useMainScroll", () => {
     render(<MemoryRouter initialEntries={["/events/2025/X"]}><Harness /></MemoryRouter>);
     scrollTo(400);
     go("/events/2025/X?tab=matches");
-    expect(main.scrollTop).toBe(400);
+    expect(page.scrollTop).toBe(400);
   });
 
   it("returns to a tab switched in place (a replaced entry) even if the reader never scrolled on it", () => {
@@ -202,7 +205,7 @@ describe("useMainScroll", () => {
     go("/teams/1");
     scrollTo(2500);
     go(-1);
-    expect(main.scrollTop).toBe(400);
+    expect(page.scrollTop).toBe(400);
   });
 
   it("marks the area as scrolling, and the page as idle (hover on), until the scroll goes quiet", () => {
@@ -231,7 +234,7 @@ describe("useMainScroll", () => {
     vi.spyOn(performance, "getEntriesByType").mockReturnValue([{ type: "reload" }] as never);
     height.current = 5000;
     render(<MemoryRouter initialEntries={["/teams/4215"]}><Harness /></MemoryRouter>);
-    expect(main.scrollTop).toBe(2222);
+    expect(page.scrollTop).toBe(2222);
     vi.restoreAllMocks();
   });
 
@@ -244,9 +247,81 @@ describe("useMainScroll", () => {
     sessionStorage.setItem("cs-scroll", JSON.stringify([["default:/teams/4215", 2222]]));
     height.current = 5000;
     render(<MemoryRouter initialEntries={["/teams/4215"]}><Harness /></MemoryRouter>);
-    expect(main.scrollTop).toBe(0);
+    expect(page.scrollTop).toBe(0);
     go("/rankings");
     go(-1);
+    expect(page.scrollTop).toBe(0);
+  });
+
+  it("takes restoring over from the browser while mounted, and hands it back after", () => {
+    history.scrollRestoration = "auto";
+    const { unmount } = render(<MemoryRouter initialEntries={["/"]}><Harness /></MemoryRouter>);
+    expect(history.scrollRestoration).toBe("manual");
+    unmount();
+    expect(history.scrollRestoration).toBe("auto");
+  });
+
+  it("scrolls the document, never <main>", () => {
+    height.current = 5000;
+    render(<MemoryRouter initialEntries={["/teams/4215"]}><Harness /></MemoryRouter>);
+    expect(pageScroller()).toBe(page);
+    scrollTo(1200);
+    go("/rankings");
+    go(-1);
+    expect(page.scrollTop).toBe(1200);
     expect(main.scrollTop).toBe(0);
+  });
+});
+
+/** Lays the element with this id out `y` px down the page (as the page scrolls), with a scroll-margin-top. */
+function placeAt(id: string, y: number, margin: string) {
+  const rect = Element.prototype.getBoundingClientRect;
+  vi.spyOn(Element.prototype, "getBoundingClientRect").mockImplementation(function (this: Element) {
+    return this.id === id ? ({ top: y - document.documentElement.scrollTop } as DOMRect) : rect.call(this);
+  });
+  const style = window.getComputedStyle;
+  vi.spyOn(window, "getComputedStyle").mockImplementation((el, p) => (el instanceof Element && el.id === id ? ({ scrollMarginTop: margin } as CSSStyleDeclaration) : style(el, p)));
+}
+
+describe("scrollToElement", () => {
+  const height = { current: 5000 };
+  beforeEach(() => { fakeScroller(document.documentElement, height); });
+  afterEach(() => { vi.restoreAllMocks(); delete (document.documentElement as { scrollTop?: number }).scrollTop; document.body.innerHTML = ""; });
+  const target = () => { const el = document.createElement("li"); el.id = "t"; document.body.append(el); return el; };
+
+  it("puts the element its scroll margin below the top of the page, wherever the page is", () => {
+    const el = target();
+    placeAt("t", 2233, "128px");
+    scrollToElement(el);
+    expect(document.documentElement.scrollTop).toBe(2105);
+    scrollToElement(el); // already there: stays
+    expect(document.documentElement.scrollTop).toBe(2105);
+    document.documentElement.scrollTop = 3000;
+    scrollToElement(el);
+    expect(document.documentElement.scrollTop).toBe(2105);
+  });
+
+  it("never goes above the top, and glides when asked to", () => {
+    const el = target();
+    placeAt("t", 40, "48px");
+    scrollToElement(el);
+    expect(document.documentElement.scrollTop).toBe(0);
+    const to = vi.fn();
+    vi.stubGlobal("scrollTo", to);
+    placeAt("t", 900, "48px");
+    scrollToElement(el, "smooth");
+    expect(to).toHaveBeenCalledWith({ top: 852, behavior: "smooth" });
+  });
+});
+
+describe("pageTop", () => {
+  afterEach(() => { document.body.innerHTML = ""; });
+  it("is the bottom edge of the sticky top bar, or the top of the screen without one", () => {
+    expect(pageTop()).toBe(0);
+    const bar = document.createElement("header");
+    bar.id = HEADER_ID;
+    bar.getBoundingClientRect = () => ({ bottom: 48 }) as DOMRect;
+    document.body.append(bar);
+    expect(pageTop()).toBe(48);
   });
 });
