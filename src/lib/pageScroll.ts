@@ -13,8 +13,8 @@
 // - A #hash scrolls to its element once it exists.
 //
 // It also marks the page area while it is scrolling (`data-scrolling` on the content's parent), so CSS
-// can hold the ambient background still meanwhile, and the page while it is not (`data-scroll-idle` on
-// <html>), so rows sliding under a resting pointer don't light up one after another (index.css).
+// can hold the ambient background still meanwhile and put a shield over the page that takes a resting
+// pointer, so rows sliding under it don't light up one after another (index.css .scroll-shield).
 import { useEffect, useLayoutEffect, useRef, type RefObject } from "react";
 import { useLocation, useNavigationType } from "react-router-dom";
 
