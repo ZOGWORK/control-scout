@@ -49,8 +49,18 @@ export type PickOp =
   | { op: "remove"; team: number }
   /** Just before beforeTeam (null: to the end), or just after afterTeam when that's given instead. */
   | { op: "move"; team: number; beforeTeam: number | null; afterTeam?: number }
-  | { op: "note"; team: number; note: string }
+  /**
+   * base: the note's time (noteUpdatedAt; null: never noted) this note was written over. Given (a note
+   * a device kept across a reload, or a retry of one), the server refuses it (409) when the note has
+   * changed since and says something else, so an older note never replaces a teammate's newer one.
+   * Left out: last write wins.
+   */
+  | { op: "note"; team: number; note: string; base?: number | null }
   | { op: "import"; teams: number[] };
+
+/** The note a based note op (see PickOp) would replace has changed since: the server keeps the newer one. */
+export const noteConflicts = (pick: Pick, op: { note: string; base?: number | null }) =>
+  op.base !== undefined && pick.note !== op.note && (pick.noteUpdatedAt ?? null) !== op.base;
 
 const isTeam = (v: unknown): v is number => typeof v === "number" && Number.isSafeInteger(v) && v > 0 && v < 1_000_000;
 
@@ -81,7 +91,8 @@ export function cleanPickOp(x: unknown): PickOp | { error: string } {
     }
     case "note":
       if (typeof b.note !== "string") return { error: "note must be text" };
-      return { op: "note", team: b.team, note: b.note.trim().slice(0, MAX_PICK_NOTE) };
+      if (b.base !== undefined && b.base !== null && !(typeof b.base === "number" && Number.isSafeInteger(b.base) && b.base >= 0)) return { error: "base must be a note time or null" };
+      return { op: "note", team: b.team, note: b.note.trim().slice(0, MAX_PICK_NOTE), ...(b.base !== undefined ? { base: b.base as number | null } : {}) };
     default: return { error: "op must be add, remove, move, note or import" };
   }
 }
