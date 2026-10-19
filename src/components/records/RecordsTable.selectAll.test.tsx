@@ -3,7 +3,7 @@
 // none of the page ticked, mixed with some, checked with all. It ticks the page from the top up to Compare's
 // cap of 4 (and says so next to Compare), clears the page when any of it is ticked, and only ever touches the
 // rows on the page: ticks on other pages survive paging. The phone summary cards (matches) have no ticks.
-import { act, cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { MemoryRouter, useNavigate, type NavigateFunction } from "react-router-dom";
 import type { MatchRecordRow, RecordScope } from "../../shared/statCatalog";
@@ -60,10 +60,12 @@ beforeEach(() => {
 afterEach(() => { cleanup(); vi.unstubAllGlobals(); });
 
 describe("records table select-all", () => {
-  it("is a labelled checkbox in the Team header, in the tab order", () => {
+  it("is a labelled checkbox in the Team header, reading \"Select all\", in the tab order; sorting by team stays beside it", () => {
     mount();
     const box = all();
-    expect(box.closest("th")?.textContent).toContain("Team");
+    const th = box.closest("th")!;
+    expect(box.closest("label")?.textContent).toBe("Select all");
+    expect(within(th).getByRole("button", { name: "Sort by team" })).toBeTruthy();
     expect(box.tabIndex).toBe(0);
     box.focus();
     expect(document.activeElement).toBe(box);
