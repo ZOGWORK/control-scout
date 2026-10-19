@@ -36,7 +36,12 @@ interface Pending { id: number; op: PickOp; space: string; season: number; accou
 const newWid = () => `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
 
 /** A note this member wrote that the server hasn't taken. conflict: a teammate's newer note is there instead. */
-interface Unsaved { note: string; conflict: boolean }
+/**
+ * A note this member wrote that the server hasn't taken. conflict: a teammate's newer note is there instead.
+ * base: the base it was sent with (a kept note) and failed to send: its retry carries the same one, so a
+ * teammate's note written meanwhile still isn't replaced.
+ */
+interface Unsaved { note: string; conflict: boolean; base?: number | null }
 /** The key of one team's note for one account (drafts are never shown to another account). */
 const noteKey = (account: number | null, space: string, season: number, team: number) => `${account ?? "-"}:${space}:${season}:${team}`;
 
@@ -197,7 +202,8 @@ export function usePickList(space: string | null, season: number, live: LiveMode
             const conflict = err.status === 409 && p.op.base !== undefined;
             if (latestNote.current.get(key) === p.id) {
               // Its text stays (the field shows it unsaved, and its draft is kept), unless its team is gone (409).
-              if (err.status !== 409 || conflict) setUnsaved((u) => ({ ...u, [key]: { note, conflict } }));
+              const base = p.op.base;
+              if (err.status !== 409 || conflict) setUnsaved((u) => ({ ...u, [key]: { note, conflict, ...(!conflict && base !== undefined ? { base } : {}) } }));
               else if (p.account != null && readNoteDraft(p.account, p.space, p.season, team)?.wid === p.wid) clearNoteDraft(p.account, p.space, p.season, team);
             }
           }
@@ -221,9 +227,11 @@ export function usePickList(space: string | null, season: number, live: LiveMode
       const key = noteKey(acct, space, season, op.team);
       const team = op.team;
       const shown = serverRef.current?.picks.find((x) => x.team === team);
-      // A retry (or Escape) of a note kept over a teammate's newer one: written over the note shown now, so
-      // one written after it still isn't replaced.
-      if (op.base === undefined && unsavedRef.current[key]?.conflict) op = { ...op, base: shown?.noteUpdatedAt ?? null };
+      // A retry (or Escape) of a kept note. Over a teammate's newer one: written over the note shown now, so one
+      // written after it still isn't replaced. One that failed to send: with the base it was sent with.
+      const kept = unsavedRef.current[key];
+      if (op.base === undefined && kept?.conflict) op = { ...op, base: shown?.noteUpdatedAt ?? null };
+      else if (op.base === undefined && kept?.base !== undefined) op = { ...op, base: kept.base };
       // Kept on the device until the server confirms it, with the note it's written over.
       wid = newWid();
       latestWid.current.set(key, wid);

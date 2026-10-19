@@ -261,6 +261,23 @@ describe("SharedPicklist: a note on its way when the page reloads", () => {
     expect(server.picks[0].note).toBe("Old draft");
   });
 
+  it("a kept note whose resend failed keeps its base on Retry: a teammate's note written meanwhile is still kept", async () => {
+    await writeThenReload(102, "Fast cycles");
+    notesDown = true; // the resend after the reload fails (503)
+    show();
+    await waitFor(() => expect(notePosts()).toEqual([{ season: S, op: "note", team: 102, note: "Fast cycles", base: null }]));
+    const li = () => noteInput(102).closest("li")!;
+    await waitFor(() => expect(within(li()).getByText(/Not saved yet\. Your text is kept/)).toBeTruthy());
+    // Marcus writes a note before the member retries.
+    server = { ...server, version: server.version + 1, picks: server.picks.map((p) => (p.team === 102 ? { ...p, note: "Marcus's note", noteBy: { accountId: 2, name: "Marcus" }, noteUpdatedAt: Date.now() } : p)) };
+    notesDown = false;
+    fireEvent.click(within(li()).getByRole("button", { name: "Retry" }));
+    await waitFor(() => expect(notePosts()).toHaveLength(2));
+    expect(notePosts()[1]).toEqual({ season: S, op: "note", team: 102, note: "Fast cycles", base: null });
+    await waitFor(() => expect(within(li()).getByText(/Not saved yet: Marcus changed this note/)).toBeTruthy());
+    expect(server.picks[1].note).toBe("Marcus's note");
+  });
+
   it("a kept draft over a teammate's note isn't sent by just focusing and leaving the field", async () => {
     await writeThenReload(101, "Old draft");
     server = { ...server, version: server.version + 1, picks: server.picks.map((p) => (p.team === 101 ? { ...p, note: "Lift fixed at QF", noteBy: { accountId: 2, name: "Marcus" }, noteUpdatedAt: Date.now() + 5 } : p)) };
