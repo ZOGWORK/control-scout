@@ -46,6 +46,7 @@ import { packsRouter } from "./packs/routes.js";
 import { cachedPublicUsage, collectRouter, statsRouter } from "./analytics.js";
 import { homeOverview } from "./api/home.js";
 import { listRecords, recordRegions, recordsQuery, RecordsQueryError, streamRecordsCsv } from "./api/records.js";
+import { directoryQuery, DirectoryQueryError, listDirectory } from "./api/directory.js";
 import { FilterError } from "../src/shared/filterDsl.js";
 import { RECORDS_EXPORT_MAX, RECORDS_MAX_PAGE_SIZE } from "../src/shared/statCatalog.js";
 import { manualRefresh, type ManualOutcome } from "./data/live.js";
@@ -76,12 +77,25 @@ const int = (x: unknown, name: string, { min = 0, max = 1e7 } = {}) => {
   if (n < min || n > max) throw bad(`${name} must be between ${min} and ${max}`);
   return n;
 };
+/** An optional count (a page size, a number of days): absent means `def`, a whole number from `min` up is
+ *  capped at `max`, and anything else (negative, fractional, Infinity, repeated) is a 400. */
+const boundedCount = (x: unknown, name: string, def: number, min: number, max: number) => {
+  if (x == null || x === "") return def;
+  // Any run of digits is a whole number (a very long one reads as a huge value or Infinity, which the cap brings down).
+  if (typeof x !== "string" || !/^\d+$/.test(x.trim())) throw bad(`${name} must be a whole number from ${min} to ${max}`);
+  const n = Number(x.trim());
+  if (n < min) throw bad(`${name} must be a whole number from ${min} to ${max}`);
+  return Math.min(max, n);
+};
 const season = (x: unknown) => {
   if (x == null || x === "") return CURRENT_SEASON;
   const s = int(x, "season", { min: 2000, max: 2100 });
   if (!SEASON_NUMBERS.includes(s)) throw new HttpError(404, `Season ${s} isn't covered (we hold ${SEASON_NUMBERS.join(", ")})`);
   return s;
 };
+/** While a season's statistics are behind its results (api/readiness.ts), answers built from them aren't kept
+ *  by browser or shared caches: "Check again" must reach the server. Healthy answers keep the usual caching. */
+const noStoreWhileBehind = (res: Response, state: string) => { if (state !== "ready") res.setHeader("Cache-Control", "no-store"); };
 /** Predictions: 2019–2022 are stored for history but never rated. */
 const predictSeason = (x: unknown) => {
   const s = season(x);
@@ -213,7 +227,11 @@ export function createApp() {
   }));
 
   // The home page's season coverage and teams by country (server/api/home.ts).
-  api.get("/home/overview", h(async (req) => homeOverview(season(req.query.season))));
+  api.get("/home/overview", h(async (req, res) => {
+    const o = await homeOverview(season(req.query.season));
+    noStoreWhileBehind(res, o.readiness.state);
+    return o;
+  }));
 
   // Opt-in page views and sessions started, last 30 days: only when the owner publishes them (PUBLIC_USAGE_ENABLED).
   api.get("/public-usage", h(async (_req, res) => {
@@ -226,7 +244,7 @@ export function createApp() {
   api.get("/search", h(async (req) => {
     await ensureSearchIndex(rebuildSearch);
     const prefer = new Set(String(req.query.prefer ?? "").split(",").filter((k) => /^(team:\d{1,6}|event:\d{4}:[A-Z0-9_-]{2,24})$/i.test(k)).slice(0, 100));
-    return { q: String(req.query.q ?? ""), hits: await search(String(req.query.q ?? "").slice(0, 80), Math.min(25, Number(req.query.limit) || 12), prefer) };
+    return { q: String(req.query.q ?? ""), hits: await search(String(req.query.q ?? "").slice(0, 80), boundedCount(req.query.limit, "limit", 12, 1, 25), prefer) };
   }));
 
   // Weather in a team's home town, for the top bar (shown only when you've set your team).
@@ -294,7 +312,7 @@ export function createApp() {
     events: (await listEvents({
       season: season(req.query.season), from: req.query.from ? String(req.query.from) : undefined, to: req.query.to ? String(req.query.to) : undefined,
       q: req.query.q ? String(req.query.q).slice(0, 60) : undefined, type: req.query.type ? String(req.query.type) : undefined,
-      region: req.query.region ? String(req.query.region) : undefined, hideNoMatch: req.query.all !== "1", limit: Math.min(3000, Number(req.query.limit) || 3000),
+      region: req.query.region ? String(req.query.region) : undefined, hideNoMatch: req.query.all !== "1", limit: boundedCount(req.query.limit, "limit", 3000, 1, 3000),
     })).map(({ venue: _v, divisionCode: _d, region: _r, remote: _m, ...e }) => e),
   })));
 
@@ -385,6 +403,16 @@ export function createApp() {
   /** Team records: ?scope=event (default, one row per team per event) or season. */
   api.get("/records/:season/teams", ...records("teams"));
   api.get("/records/:season/matches", ...records("matches"));
+  /** The team directory: every team registered for a season, results or not (?country=, sort, dir, page). */
+  api.get("/directory/:season", recordsLimit, h(async (req, res) => {
+    const s = season(req.params.season);
+    try {
+      const page = await listDirectory(s, directoryQuery(req.query as Record<string, unknown>));
+      noStoreWhileBehind(res, page.readiness.state);
+      return page;
+    }
+    catch (e) { if (e instanceof DirectoryQueryError) throw bad(e.message); throw e; }
+  }));
   /** The region codes a season's records use, named by their main place (for the Region dropdown). */
   api.get("/records/:season/regions", recordsLimit, h(async (req) => ({ regions: await recordRegions(season(req.params.season)) })));
 
@@ -479,7 +507,7 @@ export function createApp() {
 
   api.get("/predict/upcoming", h(async (req) => {
     const s = predictSeason(req.query.season);
-    const days = Math.min(14, Number(req.query.days) || 7);
+    const days = boundedCount(req.query.days, "days", 7, 1, 14);
     const today = new Date().toISOString().slice(0, 10);
     const until = new Date(Date.now() + days * 864e5).toISOString().slice(0, 10);
     const evs = await all<{ code: string }>("SELECT DISTINCT m.code FROM matches m JOIN events e ON e.season = m.season AND e.code = m.code WHERE m.season = ? AND m.played = 0 AND e.start <= ? AND COALESCE(e.end, e.start) >= ?", [s, until, today]);

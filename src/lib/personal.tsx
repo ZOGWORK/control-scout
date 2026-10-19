@@ -144,6 +144,8 @@ function withLeftovers(now: Stash["scouting"], left: Stash["scouting"] | undefin
     add(cur, s);
   }
   for (const [k, v] of Object.entries(left.lost ?? {})) out.lost[k] = mergeLostLists(out.lost[k], v);
+  // Unreadable rows (scouting.ts) left from before: kept unless the device has that key again.
+  out.unreadable = { ...(left.unreadable ?? {}), ...(now.unreadable ?? {}) };
   return out;
 }
 type ScoutEntryLike = { uuid: string };
