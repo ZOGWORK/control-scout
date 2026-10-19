@@ -5,7 +5,7 @@
 import type { AddressInfo } from "node:net";
 import type { Server } from "node:http";
 import express from "express";
-import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from "vitest";
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { all, get, migrate, openDb, run, setDb } from "../db";
 import { createApp } from "../app";
 import { setMailer } from "../auth/email";
@@ -352,6 +352,15 @@ describe("shared pick list: a note sent with its base", () => {
     expect((await op(priya, "1120", { op: "note", team: 101, note: "again", base: null })).status).toBe(409);
     // Without base: last write wins, as before.
     expect((await op(priya, "1120", { op: "note", team: 101, note: "again" })).status).toBe(200);
+    // Two notes in the same millisecond still get different times, so a note based on the first can't replace the second.
+    const frozen = Date.now() + 10_000;
+    const spy = vi.spyOn(Date, "now").mockReturnValue(frozen);
+    try {
+      const a = (await op(priya, "1120", { op: "note", team: 101, note: "same ms one" })).json.list.picks.find((p: any) => p.team === 101);
+      const b = (await op(marcus, "1120", { op: "note", team: 101, note: "same ms two" })).json.list.picks.find((p: any) => p.team === 101);
+      expect(b.noteUpdatedAt).toBeGreaterThan(a.noteUpdatedAt);
+      expect((await op(priya, "1120", { op: "note", team: 101, note: "based on one", base: a.noteUpdatedAt })).status).toBe(409);
+    } finally { spy.mockRestore(); }
     // A bad base is a 400.
     expect((await op(priya, "1120", { op: "note", team: 101, note: "x", base: "yesterday" })).status).toBe(400);
   });
