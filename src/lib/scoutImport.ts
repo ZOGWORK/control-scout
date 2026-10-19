@@ -76,9 +76,9 @@ export interface ImportPreview {
 
 const str = (v: unknown) => (typeof v === "string" || typeof v === "number" ? String(v).trim() : "");
 
-/** "team 101 · Q1", "team 101 · pit", or the id when the row has nothing better. */
+/** "team 101 · Q1", "team 101 · pit", the id when the row has nothing better, or "" for a row that isn't an object. */
 function rowLabel(x: unknown): string {
-  if (!x || typeof x !== "object" || Array.isArray(x)) return "not an entry";
+  if (!x || typeof x !== "object" || Array.isArray(x)) return "";
   const r = x as Record<string, unknown>;
   const team = str(r.team), match = str(r.matchLabel);
   const parts = [team ? `team ${team.slice(0, 12)}` : "", r.kind === "pit" ? "pit" : match.slice(0, 24)].filter(Boolean);
@@ -120,6 +120,9 @@ export function previewScoutImport(rows: unknown[], now = Date.now()): ImportPre
   for (const e of here.values()) if (!e.deleted && !seen.has(e.uuid)) out.untouched++;
   return out;
 }
+
+/** "Row 3 · team 101 · Q1": a row as a person finds it in the file. */
+export const rowName = (r: RowRef) => `Row ${r.row}${r.label ? ` · ${r.label}` : ""}`;
 
 /** Does this row replace the copy on this device, under this policy? An identical copy is never rewritten. */
 export const replaces = (d: DuplicateRow, policy: DuplicatePolicy) => d.age !== "same" && (policy === "file" || d.age === "newer");

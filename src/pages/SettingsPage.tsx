@@ -21,8 +21,9 @@ import { usePersonal, type AccountUser, type AuthProviders } from "../lib/person
 import { resetConsent, useConsent } from "../lib/consent";
 import { resetTour } from "../lib/tour";
 import { resetInstall } from "../lib/installNudge";
-import { clearLocalScouting, localScoutEntries, storedScoutEntry } from "../lib/scouting";
-import { importMessage, importRows, importScoutRows } from "../lib/scoutImport";
+import { clearLocalScouting, localScoutEntries } from "../lib/scouting";
+import { applyScoutImport, downloadJson, importMessage, importRows, previewScoutImport, scoutExportJson, type DuplicatePolicy, type ImportPreview } from "../lib/scoutImport";
+import { ImportPreviewDialog } from "../components/settings/ImportPreviewDialog";
 import { isoOrBlank } from "../shared/scoutEntry";
 import { clearRecordings, fmtBytes } from "../lib/recordings";
 import { downloadCsv } from "../lib/csv";
@@ -465,20 +466,28 @@ function OfflineData() {
 // --- Scouting data ------------------------------------------------------------------------------
 
 function ScoutingData() {
-  const exportJson = () => {
-    const data = localScoutEntries().filter((e) => !e.deleted).map(storedScoutEntry); // the personal set, in its original shape
-    const blob = new Blob([JSON.stringify({ format: "control-scout-scouting", version: 1, exportedAt: new Date().toISOString(), entries: data }, null, 2)], { type: "application/json" });
-    const a = document.createElement("a"); a.href = URL.createObjectURL(blob); a.download = "control-scout-scouting.json"; a.click();
-  };
+  const exportJson = () => downloadJson("control-scout-scouting.json", scoutExportJson());
   const exportCsv = () => downloadCsv("control-scout-scouting", localScoutEntries().filter((e) => !e.deleted).map((e) => ({ season: e.season, team: e.team, event: e.eventCode, match: e.matchLabel, kind: e.kind, notes: e.notes, updated: isoOrBlank(e.updatedAt), ...e.data })));
-  // Every row is checked before anything is stored (src/lib/scoutImport.ts); the message counts only what was saved.
+  // Every row is checked before anything is stored (src/lib/scoutImport.ts). Audit E3: a chosen file opens a preview
+  // first (ImportPreviewDialog); only Import writes, and the message counts only what was saved.
+  const fileInput = useRef<HTMLInputElement>(null);
+  const [pending, setPending] = useState<{ key: number; open: boolean; name: string; rows: unknown[]; preview: ImportPreview } | null>(null);
+  // Closing keeps the last preview mounted (closed) so the dialog animates out; the next file gets a fresh one (key).
+  const closePreview = () => setPending((p) => p && { ...p, open: false });
   const importJson = (file: File) => {
     file.text().then((t) => {
       const rows = importRows(t);
       if (!rows) { toast.error("That file isn't a Control Scout scouting export"); return; }
-      const m = importMessage(importScoutRows(rows));
-      toast[m.tone](m.text, m.tone === "success" ? undefined : { duration: 15_000 });
+      if (!rows.length) { toast.error("That file has no scouting entries to import."); return; }
+      setPending((p) => ({ key: (p?.key ?? 0) + 1, open: true, name: file.name, rows, preview: previewScoutImport(rows) }));
     }).catch(() => toast.error("Couldn't read that file"));
+  };
+  const runImport = (policy: DuplicatePolicy) => {
+    if (!pending?.open) return;
+    // Sorted again against the device as it is now (a sync may have landed while the preview was open).
+    const m = importMessage(applyScoutImport(previewScoutImport(pending.rows), policy));
+    closePreview();
+    toast[m.tone](m.text, m.tone === "success" ? undefined : { duration: 15_000 });
   };
   // Live count: re-read whenever scouting data changes (import, clear, edits elsewhere).
   const [count, setCount] = useState(() => localScoutEntries().filter((e) => !e.deleted).length);
@@ -498,13 +507,16 @@ function ScoutingData() {
             <Button variant="outline" size="sm" onClick={exportCsv}><Download /> Export CSV</Button>
           </div>
         </Row>
-        <Row label="Import" description="A JSON export from Control Scout, from any device.">
-          <Button variant="outline" size="sm" asChild><label className="cursor-pointer"><Upload /> Import JSON<input type="file" accept="application/json,.json" className="sr-only" onChange={(e) => e.target.files?.[0] && importJson(e.target.files[0])} /></label></Button>
+        <Row label="Import" description="A JSON export from Control Scout, from any device. You'll see what it holds before anything changes.">
+          <Button variant="outline" size="sm" onClick={() => fileInput.current?.click()}><Upload /> Import JSON</Button>
+          <input ref={fileInput} type="file" accept="application/json,.json" hidden data-scout-import=""
+            onChange={(e) => { const f = e.target.files?.[0]; e.target.value = ""; if (f) importJson(f); }} />
         </Row>
         <Row label="Clear on this device" description="Removes the notes stored on this device. Notes synced to your account stay there.">
           <Button variant="outline" size="sm" onClick={() => { clearLocalScouting(); toast("Scouting notes cleared from this device"); }}>Clear</Button>
         </Row>
       </Group>
+      {pending && <ImportPreviewDialog key={pending.key} open={pending.open} fileName={pending.name} preview={pending.preview} onCancel={closePreview} onImport={runImport} />}
     </div>
   );
 }
