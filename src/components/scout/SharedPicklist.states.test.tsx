@@ -9,7 +9,7 @@ import { MemoryRouter } from "react-router-dom";
 import type { PickList } from "../../shared/picklist";
 import type { ShortlistTeam } from "../../shared/api";
 import { announcePicklist, NOTE_UNCONFIRMED, resetFailedChanges } from "../../lib/sharedPicklist";
-import { allPending, SAVED_SHOW_MS } from "../../lib/pendingWork";
+import { allPending, isClaimed, SAVED_SHOW_MS } from "../../lib/pendingWork";
 import { SharedPicklist } from "./SharedPicklist";
 
 const S = 2025;
@@ -327,6 +327,19 @@ describe("an order change", () => {
     await waitFor(() => expect(allPending()).toEqual([]));
     expect(orderState()).toBeNull();
     expect(posts.filter((p) => p.op === "move")).toHaveLength(1);
+  });
+});
+
+describe("kept notes and the recoverable view", () => {
+  it("an open list claims its scope (it handles its kept notes); a read-only one doesn't, so the view keeps them listed", async () => {
+    const view = show();
+    await waitFor(() => expect(rows()).toEqual([101, 102]));
+    expect(isClaimed("1:901:2025")).toBe(true);
+    view.unmount();
+    expect(isClaimed("1:901:2025")).toBe(false);
+    render(<MemoryRouter><SharedPicklist workspaceId="901" workspaceName="Gearheads" season={S} live="off" me={{ accountId: 1, name: "Priya" }} shortlist={[]} readOnly /></MemoryRouter>);
+    await waitFor(() => expect(rows()).toEqual([101, 102]));
+    expect(isClaimed("1:901:2025")).toBe(false);
   });
 });
 

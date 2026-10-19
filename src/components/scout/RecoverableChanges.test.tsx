@@ -6,7 +6,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { claimScope, publishPending } from "../../lib/pendingWork";
 import { resetCommentAttempts } from "../../lib/commentAttempts";
-import { COMMENT_NOT_ARRIVED } from "../../lib/scoutComments";
+import { announceComment, announceCommentsResync, COMMENT_NOT_ARRIVED } from "../../lib/scoutComments";
 import { isScoutQueued, localScoutEntries, saveScoutEntry, syncScouting } from "../../lib/scouting";
 import { RecoverableChanges } from "./RecoverableChanges";
 
@@ -172,6 +172,37 @@ describe("RecoverableChanges: comments", () => {
     fireEvent.click(within(view()!).getByRole("button", { name: "Retry: Comment on 18360 · Match Q1" }));
     await waitFor(() => expect(view()).toBeNull());
     expect(posts.map((p) => p.body)).toEqual([{ body: "Watch their lift", opId: "op-abcdefgh2" }]);
+  });
+});
+
+describe("RecoverableChanges: unconfirmed comments clear themselves once they show up", () => {
+  const keepComment = (opId: string) => localStorage.setItem("cs-comment-try:1:901:aaaaaaaaaaaa",
+    JSON.stringify({ body: "Watch their lift", opId, at: Date.now(), season: 2025, team: 18360, what: "Comment on 18360 · Match Q1" }));
+  const made = (opId: string) => ({ id: 5, workspaceId: "901", entryUuid: "aaaaaaaaaaaa", authorAccountId: 1, authorName: "Priya", body: "Watch their lift", opId, createdAt: Date.now(), editedAt: null });
+
+  it("heard on the workspace's stream (the entry isn't open)", async () => {
+    keepComment("op-stream-0001");
+    const real = globalThis.fetch;
+    vi.stubGlobal("fetch", vi.fn(async (path: string, init?: RequestInit) => (path === THREAD ? Promise.reject(new TypeError("Failed to fetch")) : real(path, init))));
+    render(<RecoverableChanges account={1} workspaces={WS} />);
+    await waitFor(() => expect(view()!.textContent).toMatch(/Couldn't confirm/));
+    act(() => announceComment({ action: "created", workspaceId: "901", entryUuid: "aaaaaaaaaaaa", commentId: 5, count: 1, rev: 7, comment: made("op-stream-0001") }));
+    await waitFor(() => expect(view()).toBeNull());
+    expect(posts).toEqual([]);
+  });
+
+  it("found when the workspace's threads are checked again (a reconnect)", async () => {
+    keepComment("op-resync-0001");
+    const real = globalThis.fetch;
+    let down = true;
+    vi.stubGlobal("fetch", vi.fn(async (path: string, init?: RequestInit) => (path === THREAD && down ? Promise.reject(new TypeError("Failed to fetch")) : real(path, init))));
+    render(<RecoverableChanges account={1} workspaces={WS} />);
+    await waitFor(() => expect(view()!.textContent).toMatch(/Couldn't confirm/));
+    down = false;
+    thread = [made("op-resync-0001")];
+    act(() => announceCommentsResync("901"));
+    await waitFor(() => expect(view()).toBeNull());
+    expect(posts).toEqual([]);
   });
 });
 

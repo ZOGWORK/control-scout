@@ -349,4 +349,22 @@ describe("EntryComments: a post whose answer is lost", () => {
     act(() => { localStorage.removeItem(k); window.dispatchEvent(new StorageEvent("storage", { key: k, newValue: null })); });
     await waitFor(() => expect(screen.queryByRole("alert")).toBeNull());
   });
+
+  it("another tab replacing a kept attempt brings the newer one into this field", async () => {
+    const st = lossyServer();
+    render(<EntryComments entry={entry()} />);
+    await waitFor(() => expect(items()).toHaveLength(2));
+    st.lose = 1; st.getFails = true;
+    type("Older words");
+    fireEvent.click(screen.getByRole("button", { name: "Comment" }));
+    await screen.findByRole("alert");
+    const k = "cs-comment-try:7:41:aaaaaaaaaaaa";
+    const v = JSON.stringify({ body: "Newer words from the other tab", opId: "op-other-tab-01", at: Date.now() });
+    act(() => { localStorage.setItem(k, v); window.dispatchEvent(new StorageEvent("storage", { key: k, newValue: v })); });
+    await waitFor(() => expect(box().value).toBe("Newer words from the other tab"));
+    st.getFails = false;
+    fireEvent.click(within(screen.getByRole("alert")).getByRole("button", { name: "Retry" }));
+    await waitFor(() => expect(box().value).toBe(""));
+    expect(st.posts.at(-1)).toEqual({ body: "Newer words from the other tab", opId: "op-other-tab-01" });
+  });
 });
