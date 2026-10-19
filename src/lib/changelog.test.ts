@@ -2,7 +2,7 @@
 // app's own version), plus inline pieces and the seen rule.
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
-import { currentRelease, hasUnseenRelease, inlines, parseChangelog } from "./changelog";
+import { currentRelease, hasUnseenRelease, HIGHLIGHT_TAGS, inlines, parseChangelog } from "./changelog";
 
 const md = readFileSync(new URL("../../CHANGELOG.md", import.meta.url), "utf8");
 const pkg = JSON.parse(readFileSync(new URL("../../package.json", import.meta.url), "utf8")) as { version: string };
@@ -25,7 +25,29 @@ describe("parseChangelog", () => {
 
   it("keeps groups and their items", () => {
     const e = parseChangelog("# Changelog\n\nintro\n\n## 2.0.0 — 2027-01-02\n\nBig one.\n\n### Home\n- **New.** It works. (#9)\n- Second\n\n### Fixes\n\n- A fix\n")[0];
-    expect(e).toEqual({ version: "2.0.0", date: "2027-01-02", summary: "Big one.", groups: [{ heading: "Home", items: ["**New.** It works. (#9)", "Second"] }, { heading: "Fixes", items: ["A fix"] }] });
+    expect(e).toEqual({ version: "2.0.0", date: "2027-01-02", summary: "Big one.", highlights: [], groups: [{ heading: "Home", items: ["**New.** It works. (#9)", "Second"] }, { heading: "Fixes", items: ["A fix"] }] });
+  });
+
+  it("reads a release's Highlights block into its digest, apart from the full notes", () => {
+    const [e, older] = parseChangelog("## 2.1.0 — 2027-02-01\n\nSmall one.\n\n### Highlights\n- [home] A new home\n- No tag here\n- [Odd tag] Kept as text\n\n### Home\n- The detail (#12)\n\n## 2.0.0 — 2027-01-02\n\nOlder.\n\n### Fixes\n- A fix\n");
+    expect(e.summary).toBe("Small one.");
+    expect(e.highlights).toEqual([{ tag: "home", text: "A new home" }, { tag: null, text: "No tag here" }, { tag: null, text: "[Odd tag] Kept as text" }]);
+    expect(e.groups).toEqual([{ heading: "Home", items: ["The detail (#12)"] }]);
+    // A release without a Highlights block: no digest, full notes intact.
+    expect(older.highlights).toEqual([]);
+    expect(older.groups).toEqual([{ heading: "Fixes", items: ["A fix"] }]);
+  });
+
+  it("gives every release in CHANGELOG.md 3 to 5 short, known-tagged highlights", () => {
+    for (const e of all) {
+      expect(e.highlights.length, `v${e.version}`).toBeGreaterThanOrEqual(3);
+      expect(e.highlights.length, `v${e.version}`).toBeLessThanOrEqual(5);
+      for (const h of e.highlights) {
+        expect(HIGHLIGHT_TAGS as readonly (string | null)[], h.text).toContain(h.tag);
+        expect(h.text.length, h.text).toBeLessThanOrEqual(72);
+      }
+      expect(e.groups.some((g) => /highlights/i.test(g.heading))).toBe(false);
+    }
   });
 });
 
