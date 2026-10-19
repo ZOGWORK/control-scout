@@ -22,7 +22,7 @@ const only = opt("only")?.replace(/\\/g, "/").replace(/^[A-Za-z]:\/.*?\/Git(?=\/
 const BASE = `http://localhost:${WEB_PORT}`;
 
 /** A page, optionally in a state reached by `open` (a dialog, a sheet). */
-type Route = { path: string; name?: string; storage?: Record<string, unknown>; open?: (page: Page) => Promise<void> };
+type Route = { path: string; name?: string; /** Must be visible for the scan to count (beyond the default checks). */ ready?: string; storage?: Record<string, unknown>; open?: (page: Page) => Promise<void> };
 /** A returning scout: a team of their own, tracked teams and a coloured shortlist (personal keys, as synced). */
 const SCOUT: Record<string, unknown> = {
   "cs-personal:myTeam": { value: 18360, updatedAt: 1 },
@@ -47,10 +47,10 @@ const ROUTES: Route[] = [
   { path: "/shortlist", name: "colours", storage: SCOUT, open: async (p) => { await p.getByRole("button", { name: /18360's colour/ }).first().click(); await p.getByRole("radio").first().waitFor({ timeout: 5000 }); } },
   { path: "/download" },
   { path: "/scout" },
-  { path: "/teams" },
-  { path: "/matches" },
+  { path: "/teams", ready: "tbody tr" },
+  { path: "/matches", ready: "tbody tr" },
   { path: "/faq" },
-  { path: "/events/2025/AUBRQ2" },
+  { path: "/events/2025/AUBRQ2", ready: "[data-glance-card]" },
 ];
 const VIEWPORTS = { desktop: { width: 1440, height: 1000 }, phone: { width: 390, height: 844 } } as const;
 const SCHEMES = ["dark", "light"] as const;
@@ -58,7 +58,7 @@ const SCHEMES = ["dark", "light"] as const;
 const TAGS = ["wcag2a", "wcag2aa", "wcag21a", "wcag21aa", "wcag22aa", ...(args.includes("--best-practice") ? ["best-practice"] : [])];
 
 type Violation = { id: string; impact: string | null; help: string; nodes: { target: string; summary: string }[] };
-type Result = { route: string; viewport: string; scheme: string; violations: Violation[] };
+type Result = { route: string; viewport: string; scheme: string; violations: Violation[]; incomplete: string | null };
 
 async function sweep(browser: Browser, r: Route, vp: keyof typeof VIEWPORTS, scheme: (typeof SCHEMES)[number]): Promise<Result> {
   const ctx = await browser.newContext({ viewport: VIEWPORTS[vp], colorScheme: scheme, reducedMotion: "reduce", isMobile: vp === "phone", hasTouch: vp === "phone" });
@@ -72,9 +72,19 @@ async function sweep(browser: Browser, r: Route, vp: keyof typeof VIEWPORTS, sch
   const page = await ctx.newPage();
   await page.goto(BASE + r.path, { waitUntil: "load", timeout: 60_000 });
   await page.waitForLoadState("networkidle", { timeout: 10_000 }).catch(() => {});
-  await page.waitForFunction(() => !document.querySelector(".skeleton, [aria-busy=true]"), null, { timeout: 30_000 }).catch(() => {});
+  // A scan only counts once the page has its content: still loading, a not-found page, an error state or a
+  // missing `ready` element makes it incomplete (reported as such, never as zero violations).
+  const loaded = await page.waitForFunction(() => !document.querySelector(".skeleton, [aria-busy=true]"), null, { timeout: 30_000 }).then(() => true, () => false);
   await page.evaluate(() => document.fonts.ready);
   await page.waitForTimeout(800);
+  const incomplete = !loaded ? "still loading after 30 s"
+    : await page.evaluate(() => {
+      const h1 = document.querySelector("main h1")?.textContent?.trim() ?? "";
+      if (!h1) return "no page heading";
+      if (/off the field|not found/i.test(h1)) return `not-found page ("${h1}")`;
+      if (/couldn.t load|something went wrong/i.test(document.querySelector("main")?.textContent ?? "")) return "an error state on the page";
+      return null;
+    }) ?? (r.ready && !(await page.locator(r.ready).first().isVisible()) ? `${r.ready} never appeared` : null);
   if (r.open) await r.open(page);
   // A page that settles its URL after loading (a redirect, a ?param written back) can navigate mid-scan: scan again.
   let res;
@@ -87,7 +97,7 @@ async function sweep(browser: Browser, r: Route, vp: keyof typeof VIEWPORTS, sch
   }
   await ctx.close();
   return {
-    route: r.path + (r.name ? ` [${r.name}]` : ""), viewport: vp, scheme,
+    route: r.path + (r.name ? ` [${r.name}]` : ""), viewport: vp, scheme, incomplete,
     violations: res.violations.map((v) => ({ id: v.id, impact: v.impact ?? null, help: v.help, nodes: v.nodes.map((n) => ({ target: n.target.join(" "), summary: (n.failureSummary ?? "").split("\n").slice(1, 2).join(" ").trim() })) })),
   };
 }
@@ -102,10 +112,11 @@ try {
     const res = await sweep(browser, r, vp, s);
     results.push(res);
     const n = res.violations.reduce((a, v) => a + v.nodes.length, 0);
+    if (res.incomplete) { console.log(`? ${res.route} ${vp}/${s}: INCOMPLETE, ${res.incomplete}`); continue; }
     console.log(`${n ? "✗" : "✓"} ${res.route} ${vp}/${s}: ${res.violations.length} rules, ${n} nodes${n ? "  " + res.violations.map((v) => `${v.id}(${v.impact}) ×${v.nodes.length}`).join(", ") : ""}`);
   }
   await browser.close();
-  // Summary: per route, the distinct rules (with impact) and the worst node count over the 4 variants.
+  // Summary: per route, the distinct rules (with impact) and the node count summed over its variants.
   console.log("\nRoute | rules | nodes (sum over variants)");
   const byRoute = new Map<string, Result[]>();
   for (const r of results) byRoute.set(r.route, [...(byRoute.get(r.route) ?? []), r]);
@@ -113,11 +124,14 @@ try {
   for (const [route, rs] of byRoute) {
     const rules = new Map<string, string>();
     let nodes = 0;
-    for (const r of rs) for (const v of r.violations) { rules.set(v.id, v.impact ?? "?"); nodes += v.nodes.length; }
+    for (const r of rs) if (!r.incomplete) for (const v of r.violations) { rules.set(v.id, v.impact ?? "?"); nodes += v.nodes.length; }
     total += nodes;
-    console.log(`${route} | ${[...rules].map(([id, imp]) => `${id} (${imp})`).join(", ") || "none"} | ${nodes}`);
+    const missed = rs.filter((r) => r.incomplete).length;
+    console.log(`${route} | ${[...rules].map(([id, imp]) => `${id} (${imp})`).join(", ") || "none"} | ${nodes}${missed ? ` | INCOMPLETE in ${missed} of ${rs.length} variants` : ""}`);
   }
-  console.log(`Total violating nodes: ${total}`);
+  const incomplete = results.filter((r) => r.incomplete).length;
+  console.log(`Total violating nodes: ${total}${incomplete ? ` (INCOMPLETE: ${incomplete} scans didn't reach their content, so this total doesn't cover them)` : ""}`);
+  if (incomplete) process.exitCode = 1;
   const json = opt("json");
   if (json) {
     if (resolve(json).startsWith(resolve(process.cwd()))) console.error("Not writing --json inside the repository.");
