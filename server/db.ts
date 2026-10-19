@@ -948,6 +948,18 @@ CREATE TABLE power_rankings_generated (
 );
 `,
   },
+  {
+    version: 29,
+    name: "comment creation op ids",
+    sql: `
+-- The device's id for one attempt to post a comment (server/scout/comments.ts): a retry of the same
+-- attempt (its answer was lost) sends the same id and gets the comment it already made, never a second
+-- one. Null for comments posted before this column existed, or by a device that sent none. Unique per
+-- workspace, author and entry, so two identical comments posted on purpose (two ids) both stay.
+ALTER TABLE workspace_entry_comments ADD COLUMN client_op_id TEXT;
+CREATE UNIQUE INDEX workspace_entry_comments_op ON workspace_entry_comments (workspace_id, author_account_id, entry_uuid, client_op_id) WHERE client_op_id IS NOT NULL;
+`,
+  },
 ];
 
 export type Db = Client;
