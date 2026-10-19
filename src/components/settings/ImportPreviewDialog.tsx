@@ -75,7 +75,10 @@ export function ImportPreviewDialog({ open, fileName, preview, onCancel, onImpor
   onImport: (policy: DuplicatePolicy) => void;
 }) {
   const [policy, setPolicy] = useState<DuplicatePolicy>("newer");
-  const [backedUp, setBackedUp] = useState(false);
+  // The preview a backup was taken for: when entries here change (the preview is rebuilt), that backup may lack
+  // what Import would now replace, so it no longer counts and the offer comes back.
+  const [backedUpFor, setBackedUpFor] = useState<ImportPreview | null>(null);
+  const backedUp = backedUpFor === preview;
   const plan = importPlan(preview, policy);
   const p = preview;
   const valid = p.fresh.length + p.duplicates.length;
@@ -136,7 +139,7 @@ export function ImportPreviewDialog({ open, fileName, preview, onCancel, onImpor
             <p className="text-sm text-text-base sm:min-w-0 sm:flex-1">
               <b>{n(plan.update, "entry", "entries")}</b> on this device will be replaced. A backup lets you put {plan.update === 1 ? "it" : "them"} back.
             </p>
-            <Button variant="outline" size="sm" className="self-start sm:self-auto" onClick={() => { downloadScoutBackup(); setBackedUp(true); }}>
+            <Button variant="outline" size="sm" className="self-start sm:self-auto" onClick={() => { downloadScoutBackup(); setBackedUpFor(preview); }}>
               {backedUp ? <><Check className="text-success" /> Backup downloaded</> : <><Download /> Download a backup first</>}
             </Button>
           </div>
