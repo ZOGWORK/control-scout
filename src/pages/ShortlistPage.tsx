@@ -3,9 +3,11 @@
 // trend line, and a panel that opens in place with the OPR split, event by
 // event chart, prediction snapshot and last five matches. List or grid view.
 // Order and notes live in personal state (this device, synced when signed in).
+// A returning scout's candidates come first; the instructions show in full on an
+// empty list and wait behind "How it works" once there are picks.
 import { useCallback, useRef, useState, type RefObject } from "react";
 import { Link, useSearchParams } from "react-router-dom";
-import { ArrowDownWideNarrow, Bookmark, CalendarDays, Download, GripVertical, LayoutGrid, List, Scale, Search } from "lucide-react";
+import { ArrowDownWideNarrow, Bookmark, CalendarDays, Download, LayoutGrid, List, Scale, Search } from "lucide-react";
 import { useSearch } from "../components/layout/Search";
 import { useApi, qs } from "../lib/api";
 import { useCurrentSeason, useTitle } from "../lib/meta";
@@ -18,7 +20,6 @@ import { ToggleGroup, ToggleGroupItem } from "../components/ui/controls";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuTrigger } from "../components/ui/overlay";
 import { toast } from "../components/ui/sonner";
 import { SeasonToggle } from "../components/SeasonToggle";
-import { cn } from "../components/cn";
 import { downloadCsv } from "../lib/csv";
 import { applyOrder, compareHref, readView, saveView, setNote, shortlistCsvRows, type ShortlistView } from "../lib/shortlist";
 import { useReorder } from "../components/shortlist/useReorder";
@@ -26,6 +27,7 @@ import { GridCard, ListHeader, ListRow, MAX_COMPARE } from "../components/shortl
 import { TeamColorPicker } from "../components/TeamColorPicker";
 import { NoteField } from "../components/shortlist/NoteField";
 import { TeamDetail } from "../components/shortlist/TeamDetail";
+import { HowItWorks, HowItWorksToggle } from "../components/shortlist/HowItWorks";
 
 const MAX_SHOWN = 100;
 const isPhone = () => typeof window !== "undefined" && !!window.matchMedia?.("(max-width: 639px)").matches;
@@ -57,6 +59,8 @@ export default function ShortlistPage() {
   const [open, setOpen] = useState<Set<number>>(() => new Set());
   const toggle = (t: number) => setOpen((s) => { const n = new Set(s); if (n.has(t)) n.delete(t); else n.add(t); return n; });
   const [picked, setPicked] = useState<number[]>([]);
+  // The instructions, once there are picks: closed until asked for (a returning scout knows them).
+  const [help, setHelp] = useState(false);
   const selected = shown.filter((t) => picked.includes(t)); // pick order, and only teams still listed
   // Only teams still listed count toward the limit (one removed elsewhere frees its slot).
   const pick = (t: number, on: boolean) => setPicked((p) => {
@@ -101,62 +105,74 @@ export default function ShortlistPage() {
     detail: <TeamDetail t={t} season={season} rank={rank} total={shown.length} topPicks={shown.slice(0, MAX_COMPARE)} onMove={(d) => reorder.moveBy(t.team, d)} onRemove={() => remove(t.team)} />,
   });
 
+  const synced = user ? "Synced to your account." : <>Saved on this device; <Link to="/settings?section=profile" className="underline">sign in</Link> to sync.</>;
+  if (!list.length) {
+    // A first visit: what the list is for, how to fill it, and everything it can do once it has picks.
+    return (
+      <div>
+        <PageHeader title="Shortlist" description={<>Your pick list for alliance selection: drag to rank it, open a team for its numbers, keep private notes. {synced}</>} />
+        <EmptyState icon={Bookmark} title="Your shortlist is empty" description="Press Shortlist on any team page to add it here. Building a pick list? An event's Rankings tab is the place to start." action={<div className="flex flex-wrap justify-center gap-2"><Button variant="secondary" onClick={search.open}><Search /> Find a team</Button><Button variant="outline" asChild><Link to="/events"><CalendarDays /> Browse events</Link></Button></div>} />
+        <HowItWorks className="mt-6" />
+      </div>
+    );
+  }
+
+  // A returning scout: candidates first. The title row keeps Compare; the instructions wait behind "How it works".
   return (
     <div>
-      <PageHeader title="Shortlist"
-        description={<>Your pick list for alliance selection: drag to rank it, open a team for its numbers, keep private notes. {user ? "Synced to your account." : <>Saved on this device; <Link to="/settings?section=profile" className="underline">sign in</Link> to sync.</>}</>}
-        actions={shown.length >= 2 ? <Button variant="secondary" asChild><Link to={compareHref(compareTeams, season)}><Scale /> {compareLabel}</Link></Button> : undefined}>
-        {list.length > 0 && (
-          <div className="flex flex-wrap items-center gap-2" data-print-hide>
-            <SeasonToggle predictOnly value={season} onChange={(s) => setSp((x) => { x.set("season", String(s)); return x; }, { replace: true })} />
-            <div className="ml-auto flex flex-wrap items-center gap-2">
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild><Button variant="secondary" size="sm" disabled={!data.data}><ArrowDownWideNarrow /> Order picks</Button></DropdownMenuTrigger>
-                <DropdownMenuContent align="end">
-                  <DropdownMenuLabel>Reorder the whole list by</DropdownMenuLabel>
-                  <DropdownMenuItem onSelect={() => sortBy("OPR", (r) => r.opr)}>OPR (highest first)</DropdownMenuItem>
-                  <DropdownMenuItem onSelect={() => sortBy("rating", (r) => r.rating)}>Rating (highest first)</DropdownMenuItem>
-                  <DropdownMenuItem onSelect={() => sortBy("auto OPR", (r) => r.breakdown.auto)}>Auto OPR</DropdownMenuItem>
-                  <DropdownMenuItem onSelect={() => sortBy("endgame OPR", (r) => r.breakdown.endgame)}>Endgame OPR</DropdownMenuItem>
-                </DropdownMenuContent>
-              </DropdownMenu>
-              <Button variant="secondary" size="sm" disabled={!data.data} onClick={() => data.data && downloadCsv(`shortlist-${season}`, shortlistCsvRows(rowsFor(data.data), notes))}><Download /> CSV</Button>
-              <ToggleGroup type="single" aria-label="View" value={view} onValueChange={(v) => { if (v) setView(v as ShortlistView); }}>
-                <ToggleGroupItem value="list" aria-label="List view"><List /> <span className="max-sm:sr-only">List</span></ToggleGroupItem>
-                <ToggleGroupItem value="grid" aria-label="Grid view"><LayoutGrid /> <span className="max-sm:sr-only">Grid</span></ToggleGroupItem>
-              </ToggleGroup>
-            </div>
+      <header className="mb-4">
+        <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
+          <h1 className="font-display text-2xl font-semibold tracking-tight text-foreground sm:text-[32px] sm:leading-tight">Shortlist</h1>
+          {shown.length >= 2 && <Button variant="secondary" asChild data-print-hide><Link to={compareHref(compareTeams, season)}><Scale /> {compareLabel}</Link></Button>}
+        </div>
+        <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-2 text-sm text-muted-foreground">
+          <p className="min-w-0">{list.length} {list.length === 1 ? "pick" : "picks"} for alliance selection. {synced}</p>
+          <HowItWorksToggle open={help} onToggle={() => setHelp((v) => !v)} className="h-8" />
+        </div>
+        {/* Always in the page (the toggle controls it), shown only when asked for. */}
+        <HowItWorks title={false} hidden={!help} className="mt-3" />
+        {list.length > MAX_SHOWN && <p className="mt-2 text-sm text-warning">Showing the first {MAX_SHOWN} of {list.length}.</p>}
+        <div className="mt-3 flex flex-wrap items-center gap-2" data-print-hide>
+          <SeasonToggle predictOnly value={season} onChange={(s) => setSp((x) => { x.set("season", String(s)); return x; }, { replace: true })} />
+          <div className="flex flex-wrap items-center gap-2 sm:ml-auto">
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild><Button variant="secondary" size="sm" disabled={!data.data}><ArrowDownWideNarrow /> Order picks</Button></DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuLabel>Reorder the whole list by</DropdownMenuLabel>
+                <DropdownMenuItem onSelect={() => sortBy("OPR", (r) => r.opr)}>OPR (highest first)</DropdownMenuItem>
+                <DropdownMenuItem onSelect={() => sortBy("rating", (r) => r.rating)}>Rating (highest first)</DropdownMenuItem>
+                <DropdownMenuItem onSelect={() => sortBy("auto OPR", (r) => r.breakdown.auto)}>Auto OPR</DropdownMenuItem>
+                <DropdownMenuItem onSelect={() => sortBy("endgame OPR", (r) => r.breakdown.endgame)}>Endgame OPR</DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+            <Button variant="secondary" size="sm" disabled={!data.data} onClick={() => data.data && downloadCsv(`shortlist-${season}`, shortlistCsvRows(rowsFor(data.data), notes))}><Download /> CSV</Button>
+            <ToggleGroup type="single" aria-label="View" value={view} onValueChange={(v) => { if (v) setView(v as ShortlistView); }}>
+              <ToggleGroupItem value="list" aria-label="List view"><List /> <span className="max-sm:sr-only">List</span></ToggleGroupItem>
+              <ToggleGroupItem value="grid" aria-label="Grid view"><LayoutGrid /> <span className="max-sm:sr-only">Grid</span></ToggleGroupItem>
+            </ToggleGroup>
           </div>
-        )}
-      </PageHeader>
+        </div>
+      </header>
       <p className="sr-only" aria-live="polite" aria-atomic="true">{reorder.message}</p>
-      {!list.length ? <EmptyState icon={Bookmark} title="Your shortlist is empty" description="Press Shortlist on any team page to add it here. Building a pick list? An event's Rankings tab is the place to start." action={<div className="flex flex-wrap justify-center gap-2"><Button variant="secondary" onClick={search.open}><Search /> Find a team</Button><Button variant="outline" asChild><Link to="/events"><CalendarDays /> Browse events</Link></Button></div>} /> : (
-        <Async state={data}>{(d) => {
-          const rows = rowsFor(d);
-          return (
-            <>
-              <p className="mb-3 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-text-muted">
-                <span><GripVertical className="inline size-3.5 align-[-3px] text-accent" /> Drag the grip (or focus it and use the arrow keys) to rank your picks.</span>
-                <span className={cn(view === "list" && "max-sm:hidden")}>Tick up to {MAX_COMPARE} to compare.</span>
-                {view === "list" && <span className="sm:hidden">Open a pick to tick it for Compare (up to {MAX_COMPARE}).</span>}
-                {list.length > MAX_SHOWN && <span className="text-warning">Showing the first {MAX_SHOWN} of {list.length}.</span>}
-              </p>
-              {view === "list" ? (
-                <div className="overflow-hidden rounded-2xl border border-border bg-card">
-                  <ListHeader />
-                  <ol ref={reorder.container as RefObject<HTMLOListElement>} className="relative" aria-label="Pick list">
-                    {rows.map((t) => <ListRow key={t.team} {...common(t, reorder.rankOf(t.team))} />)}
-                  </ol>
-                </div>
-              ) : (
-                <ol ref={reorder.container as RefObject<HTMLOListElement>} className="relative grid gap-3 sm:grid-cols-2 xl:grid-cols-3" aria-label="Pick list">
-                  {rows.map((t) => <GridCard key={t.team} {...common(t, reorder.rankOf(t.team))} />)}
+      <Async state={data}>{(d) => {
+        const rows = rowsFor(d);
+        return (
+          <>
+            {view === "list" ? (
+              <div className="overflow-hidden rounded-2xl border border-border bg-card">
+                <ListHeader />
+                <ol ref={reorder.container as RefObject<HTMLOListElement>} className="relative" aria-label="Pick list">
+                  {rows.map((t) => <ListRow key={t.team} {...common(t, reorder.rankOf(t.team))} />)}
                 </ol>
-              )}
-            </>
-          );
-        }}</Async>
-      )}
+              </div>
+            ) : (
+              <ol ref={reorder.container as RefObject<HTMLOListElement>} className="relative grid gap-3 sm:grid-cols-2 xl:grid-cols-3" aria-label="Pick list">
+                {rows.map((t) => <GridCard key={t.team} {...common(t, reorder.rankOf(t.team))} />)}
+              </ol>
+            )}
+          </>
+        );
+      }}</Async>
     </div>
   );
 }

@@ -1,6 +1,6 @@
-// Home, the FTC observatory: search and the two main actions first, beside a
-// country atlas of this season's teams; then the season's coverage, your team,
-// what's on the calendar, the public prediction record and Control Scout's own
+// Home, the FTC observatory: search and the two main actions first, with the
+// season's coverage and your team under them, beside a country atlas of this
+// season's teams; then what's on the calendar, the public prediction record and Control Scout's own
 // opt-in usage. On a phone it reads in task order: search, the season, your team
 // and events come before the atlas. The brand lives in the shell's chrome.
 import { useEffect } from "react";
@@ -69,7 +69,7 @@ function Hero() {
   const nav = useNavigate();
   // The page's main content: full opacity on its first frame (no fade from 0).
   return (
-    <Reveal fade={false} className="pt-2 @4xl/home:pt-10">
+    <Reveal fade={false} className="pt-2 @4xl/home:pt-8">
       <h1 className="font-display text-[2.5rem] font-semibold leading-[1.05] tracking-[-0.02em] @lg/home:text-5xl @4xl/home:text-[3.5rem] @6xl/home:text-[4rem]">
         {HOME_HEADLINE[0]} <span className="block text-accent-text">{HOME_HEADLINE[1]}</span>
       </h1>
@@ -94,14 +94,19 @@ function Hero() {
 /** The atlas's place while its numbers load (kept the same size), or a way back if they couldn't. */
 function AtlasPending({ failed, onRetry }: { failed: boolean; onRetry: () => void }) {
   return (
-    <section aria-label="FTC Control Scout: teams by country" className="min-w-0">
+    <section aria-label="FTC Control Scout: teams by country" className="@container/atlas min-w-0">
       <p className="text-xs font-semibold uppercase tracking-[0.18em] text-text-muted">FTC Control Scout</p>
       {failed ? (
         <div className="mt-3 flex flex-col items-start gap-3 rounded-2xl border border-dashed border-line p-5 text-sm text-text-muted">
           Where this season’s teams are from couldn’t load.
           <Button variant="secondary" size="sm" onClick={onRetry}>Try again</Button>
         </div>
-      ) : <div className="mx-auto mt-3 aspect-square max-w-[30rem] rounded-full border border-line @max-xl/home:max-w-[22rem]" aria-hidden />}
+      ) : (
+        // The globe's place, beside its country panel where there's room (as CompetitionAtlas lays it out).
+        <div className="mt-3 @xl/atlas:grid @xl/atlas:grid-cols-[minmax(0,1fr)_15.5rem] @xl/atlas:gap-5" aria-hidden>
+          <div className="mx-auto aspect-square w-full max-w-[30rem] rounded-full border border-line @max-xl/home:max-w-[22rem]" />
+        </div>
+      )}
     </section>
   );
 }

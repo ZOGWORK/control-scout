@@ -37,11 +37,11 @@ const fmt = (n: number) => n.toLocaleString();
  * works with no results at all), and the teams with results (their statistics). The second is only
  * stated as a count, or as nobody having played, when the season's statistics are ready (DATA-F01).
  */
-function CountryPaths({ country, overview, currentSeason }: { country: CountryTotal; overview: HomeOverview; currentSeason: number }) {
+function CountryPaths({ country, overview, currentSeason, side }: { country: CountryTotal; overview: HomeOverview; currentSeason: number; side: boolean }) {
   const line = resultsLine(country, overview.readiness);
-  const path = "group flex min-h-11 items-center gap-3 rounded-xl border px-3 py-2 text-left focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent";
+  const path = "group flex min-h-11 items-center gap-2.5 rounded-xl border px-3 py-2 text-left focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent";
   return (
-    <div className="mt-3 grid gap-2 text-sm @lg/home:grid-cols-2">
+    <div className={cn("mt-3 grid gap-2 text-sm @lg/atlas:grid-cols-2", side && "@xl/atlas:grid-cols-1")}>
       <Link to={countryHref(country.code, overview.season, currentSeason, "listed")} className={cn(path, "border-accent/30 bg-accent/[0.07] hover:bg-accent/[0.12]")}>
         <Users className="size-4 shrink-0 text-accent" aria-hidden />
         <span className="min-w-0 flex-1">
@@ -92,6 +92,8 @@ export function CompetitionAtlas({ overview, currentSeason, compact }: { overvie
   const totals = reconcile(overview, drawn);
   const byName = [...overview.countries].sort((a, b) => a.name.localeCompare(b.name));
   const season = seasonLabel(overview.season);
+  // The globe is square, so its country panel can sit beside it; the flat map is wide and keeps it below.
+  const side = mode === "globe";
 
   const mapFallback = (
     <div className={cn("flex w-full flex-col items-center justify-center gap-2 rounded-2xl border border-dashed border-line px-6 text-center text-sm text-text-muted", mode === "globe" ? "aspect-square" : "aspect-[100/52]")}>
@@ -107,7 +109,7 @@ export function CompetitionAtlas({ overview, currentSeason, compact }: { overvie
   );
 
   return (
-    <section aria-labelledby="atlas-title" className="min-w-0">
+    <section aria-labelledby="atlas-title" className="@container/atlas min-w-0">
       <div className="flex items-center justify-between gap-3">
         <h2 id="atlas-title" className="text-xs font-semibold uppercase tracking-[0.18em] text-text-muted">FTC Control Scout</h2>
         <div className="flex items-center gap-2">
@@ -124,41 +126,47 @@ export function CompetitionAtlas({ overview, currentSeason, compact }: { overvie
         </div>
       </div>
 
-      <div className={cn("mx-auto mt-3", mode === "globe" && (compact ? "max-w-[22rem]" : "max-w-[30rem]"))}>
-        {failed ? mapFallback : (
-          <MapBoundary fallback={mapFallback}>
-            <Suspense fallback={mapLoading}>
-              <AtlasMap mode={mode} spinning={!still} countries={overview.countries} selected={selected?.numeric ?? null}
-                onSelect={setWanted} onLoaded={setDrawn} onError={() => setFailed(true)} />
-            </Suspense>
-          </MapBoundary>
-        )}
-      </div>
-
-      <div className="mt-4 flex flex-wrap items-end justify-between gap-x-6 gap-y-3">
-        <div className="min-w-0" aria-live="polite">
-          <p className="text-xs font-semibold uppercase tracking-[0.16em] text-text-muted">Selected country</p>
-          {selected ? (
-            <>
-              <p className="mt-1 font-display text-lg font-semibold">{selected.name}</p>
-              <p className="font-display text-4xl font-semibold tabular-nums text-accent-text">{fmt(selected.listings)}</p>
-              <p className="text-sm text-text-muted">team listings · {season}</p>
-            </>
-          ) : <p className="mt-1 text-sm text-text-muted">No team listings for {season} yet.</p>}
+      {/* Where there's room, the globe and the selected country sit side by side (the country's details used to
+          stack under it, pushing the rest of the page down); the wide flat map keeps them underneath. */}
+      <div className={cn("mt-3", side && "@xl/atlas:grid @xl/atlas:grid-cols-[minmax(0,1fr)_15.5rem] @xl/atlas:items-center @xl/atlas:gap-5")}>
+        <div className={cn("mx-auto w-full", mode === "globe" && (compact ? "max-w-[22rem]" : "max-w-[30rem]"))}>
+          {failed ? mapFallback : (
+            <MapBoundary fallback={mapFallback}>
+              <Suspense fallback={mapLoading}>
+                <AtlasMap mode={mode} spinning={!still} countries={overview.countries} selected={selected?.numeric ?? null}
+                  onSelect={setWanted} onLoaded={setDrawn} onError={() => setFailed(true)} />
+              </Suspense>
+            </MapBoundary>
+          )}
         </div>
-        {byName.length > 0 && (
-          <label className="flex min-w-[12rem] flex-col gap-1 text-xs font-semibold uppercase tracking-[0.16em] text-text-muted">
-            Explore
-            <select value={selected?.code ?? ""} onChange={(e) => setWanted(e.target.value)}
-              className="h-11 rounded-lg border border-input bg-card px-3 text-sm font-normal normal-case tracking-normal text-text-base focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent">
-              {byName.map((c) => <option key={c.code} value={c.code}>{c.name} ({fmt(c.listings)})</option>)}
-            </select>
-          </label>
-        )}
+
+        <div className={cn("mt-4 min-w-0", side && "@xl/atlas:mt-0")}>
+          <div className={cn("flex flex-wrap items-end justify-between gap-x-6 gap-y-3", side && "@xl/atlas:flex-col @xl/atlas:items-stretch")}>
+            <div className="min-w-0" aria-live="polite">
+              <p className="text-xs font-semibold uppercase tracking-[0.16em] text-text-muted">Selected country</p>
+              {selected ? (
+                <>
+                  <p className="mt-1 font-display text-lg font-semibold leading-snug">{selected.name}</p>
+                  <p className="font-display text-4xl font-semibold tabular-nums text-accent-text">{fmt(selected.listings)}</p>
+                  <p className="text-sm text-text-muted">team listings · {season}</p>
+                </>
+              ) : <p className="mt-1 text-sm text-text-muted">No team listings for {season} yet.</p>}
+            </div>
+            {byName.length > 0 && (
+              <label className="flex min-w-[12rem] flex-col gap-1 text-xs font-semibold uppercase tracking-[0.16em] text-text-muted">
+                Explore
+                <select value={selected?.code ?? ""} onChange={(e) => setWanted(e.target.value)}
+                  className="h-11 w-full rounded-lg border border-input bg-card px-3 text-sm font-normal normal-case tracking-normal text-text-base focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent">
+                  {byName.map((c) => <option key={c.code} value={c.code}>{c.name} ({fmt(c.listings)})</option>)}
+                </select>
+              </label>
+            )}
+          </div>
+          {selected && <CountryPaths country={selected} overview={overview} currentSeason={currentSeason} side={side} />}
+        </div>
       </div>
 
-      {selected && <CountryPaths country={selected} overview={overview} currentSeason={currentSeason} />}
-      <p className="mt-2 text-xs text-text-muted">
+      <p className="mt-3 text-xs text-text-muted">
         Country totals from each team’s reported country, not team locations. A listing is a registration for the season, not a sign the team has competed.{mode === "globe" && !failed ? ` Drag the globe with a mouse or focus it and use the arrow keys to turn it${still ? "" : "; the pause button stops it"}.` : ""}
       </p>
 
