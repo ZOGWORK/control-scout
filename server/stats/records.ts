@@ -13,7 +13,8 @@
 // from the pre-event forecast (ratings frozen the day before the event).
 import type { InStatement } from "@libsql/client";
 import { ADVANCING_TYPES, normType, type EventInput } from "@control-scout/predict-engine";
-import { all, writeBatch } from "../db.js";
+import { all, kvSet, writeBatch } from "../db.js";
+import { recordsAtKey } from "../api/readiness.js";
 import { teleopAsReported } from "../data/seasons.js";
 import { solveLeastSquares } from "./opr.js";
 import { forecasterFor } from "../predict/engine.js";
@@ -60,6 +61,9 @@ interface Ranking { rank: number | null; rp: number | null; tbp: number | null }
 
 /** Rewrite a season's records from its loaded events (after computeSeasonStats). */
 export async function computeRecords(season: number, events: DbEvent[], log: Log = () => {}): Promise<void> {
+  // Stamped once every table is written, with when this build started (its results were read before
+  // that): a sync finishing later shows as results the records haven't caught up with (readiness.ts).
+  const startedAt = new Date().toISOString();
   const [teamRows, rankRows, oldEv, oldSs, oldMr] = await Promise.all([
     all<any>("SELECT number, name, home_region, rookie_year, school FROM teams WHERE number IN (SELECT team FROM event_teams WHERE season = ?)", [season]),
     all<any>("SELECT code, team, rank, rp, tbp FROM event_teams WHERE season = ?", [season]),
@@ -163,6 +167,7 @@ export async function computeRecords(season: number, events: DbEvent[], log: Log
     }
   }
   await writeBatch(mrStmts, 5000);
+  await kvSet(recordsAtKey(season), { at: startedAt });
   log(`${season}: records for ${evStmts.length - 1} team-events, ${seasonAcc.size} team-seasons, ${mrStmts.length - 1} matches`);
 }
 
