@@ -7,18 +7,33 @@
 // turns "Animated background" off in Settings → Appearance (html.ambient-off).
 import { useEffect, useRef, type RefObject } from "react";
 
+/**
+ * How strongly the layer shows at (x, y) in a w × h box: full in the upper middle, fading out towards the
+ * bottom and the lower corners. The same ellipse as the grid's fade (index.css, .ambient-grid): centred at
+ * the top edge, 130% × 95% of the box, solid to 35% of the way out.
+ */
+export function ambientFade(x: number, y: number, w: number, h: number): number {
+  if (w <= 0 || h <= 0) return 1;
+  const d = Math.hypot((x - w / 2) / (1.3 * w), y / (0.95 * h));
+  return d <= 0.35 ? 1 : d >= 1 ? 0 : Math.round((1 - (d - 0.35) / 0.65) * 100) / 100;
+}
+
+/** `target`: where the pointer is followed (the page's content, drawn over this layer). */
 export function Ambient({ target }: { target: RefObject<HTMLElement | null> }) {
+  const box = useRef<HTMLDivElement>(null);
   const glow = useRef<HTMLDivElement>(null);
   useEffect(() => {
-    const el = target.current, g = glow.current;
-    if (!el || !g) return;
+    const el = target.current, g = glow.current, area = box.current;
+    if (!el || !g || !area) return;
     let frame = 0;
-    let x = 0, y = 0;
-    const paint = () => { frame = 0; g.style.transform = `translate3d(${x}px, ${y}px, 0)`; };
+    let x = 0, y = 0, fade = 1;
+    const paint = () => { frame = 0; g.style.transform = `translate3d(${x}px, ${y}px, 0)`; g.style.setProperty("--amb-fade", String(fade)); };
     const move = (e: PointerEvent) => {
       if (e.pointerType === "touch") return; // no hover light on phones
-      const r = el.getBoundingClientRect();
+      // Relative to this layer (it stays on screen while the page scrolls), not to the content scrolling over it.
+      const r = area.getBoundingClientRect();
       x = e.clientX - r.left; y = e.clientY - r.top;
+      fade = ambientFade(x, y, r.width, r.height);
       g.dataset.on = "1";
       if (!frame) frame = requestAnimationFrame(paint);
     };
@@ -55,7 +70,7 @@ export function Ambient({ target }: { target: RefObject<HTMLElement | null> }) {
     };
   }, [target]);
   return (
-    <div className="ambient" aria-hidden>
+    <div ref={box} className="ambient" aria-hidden>
       <div className="ambient-grid" />
       <div className="ambient-breath" />
       <div ref={glow} className="ambient-glow" />

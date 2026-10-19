@@ -22,7 +22,7 @@ import { usePersonal } from "../../lib/personal";
 import { pageTitle } from "../../shared/routes";
 import { SiteFooter } from "./SiteFooter";
 import { useYoursRow, FOLLOWED_TEAM_PATH } from "../../lib/yoursRow";
-import { useMainScroll } from "../../lib/mainScroll";
+import { HEADER_ID, usePageScroll } from "../../lib/pageScroll";
 
 interface NavItem { to: string; label: string; icon: ComponentType<{ className?: string }>; end?: boolean }
 
@@ -97,7 +97,8 @@ function Sidebar({ collapsed, onToggle }: { collapsed: boolean; onToggle: () => 
   const { user, state } = usePersonal();
   const sections = useSections();
   return (
-    <aside className={cn("hidden shrink-0 flex-col border-r border-line bg-secondary/60 transition-[width] duration-150 ease-out md:flex", collapsed ? "w-[60px]" : "w-[248px]")}>
+    // Held in place while the page scrolls under it, with its own scroll for a long list (the nav below).
+    <aside className={cn("sticky top-0 hidden h-dvh shrink-0 flex-col self-start border-r border-line bg-secondary/60 transition-[width] duration-150 ease-out md:flex", collapsed ? "w-[60px]" : "w-[248px]")}>
       <div className={cn("flex h-12 items-center gap-2.5 px-3.5", collapsed && "justify-center px-0")}>
         <Link to="/" className="flex min-w-0 items-center gap-2.5 rounded-lg outline-none focus-visible:ring-2 focus-visible:ring-ring/60" aria-label="Control Scout home">
           <BrandMark className="size-8" />
@@ -171,8 +172,9 @@ export function Shell({ children }: { children: ReactNode }) {
   const [collapsed, setCollapsed] = useState(() => { try { return localStorage.getItem("cs-sidebar") === "1"; } catch { return false; } });
   const [more, setMore] = useState(false);
   const mainRef = useRef<HTMLElement>(null);
-  // Back/forward return to where the page was left; a new page starts at the top (the browser does neither for an element scroller).
-  useMainScroll(mainRef);
+  // The page scrolls the document (so phone browsers fold their toolbars away). Back/forward return to where
+  // the page was left once its data is back, and a new page starts at the top (src/lib/pageScroll.ts).
+  usePageScroll(mainRef);
   const loc = useLocation();
   const { user } = usePersonal();
   const sections = useSections();
@@ -185,11 +187,13 @@ export function Shell({ children }: { children: ReactNode }) {
   return (
     <MotionConfig reducedMotion="user">
       <TooltipProvider delayDuration={250}>
-        <div className="flex h-dvh w-full overflow-hidden bg-primary text-text-base">
+        {/* At least a screen tall; sideways overflow is clipped (clip, not hidden: no scroll box, so the sticky bars still stick). */}
+        <div className="flex min-h-dvh w-full overflow-x-clip bg-primary text-text-base">
           <a href="#main" className="sr-only focus:not-sr-only focus:fixed focus:left-3 focus:top-3 focus:z-[200] focus:rounded-lg focus:bg-accent focus:px-3 focus:py-2 focus:text-accent-ink">Skip to content</a>
           <Sidebar collapsed={collapsed} onToggle={toggle} />
           <div className="flex min-w-0 flex-1 flex-col">
-            <header className="relative z-30 flex h-12 shrink-0 items-center gap-3 border-b border-line px-4 sm:px-6 lg:px-8">
+            {/* Sticky over the scrolling page: opaque, and --header-h tall (index.css: anchors land below it). */}
+            <header id={HEADER_ID} className="sticky top-0 z-30 flex h-(--header-h) shrink-0 items-center gap-3 border-b border-line bg-primary px-4 sm:px-6 lg:px-8">
               <Link to="/" className="md:hidden" aria-label="Home"><BrandMark className="size-6" /></Link>
               <p className="truncate text-sm text-text-muted"><span className="hidden sm:inline">Control Scout / </span><span className="text-text-base">{title}</span></p>
               <div className="flex flex-1 justify-end md:justify-center"><GlobalSearch /></div>
@@ -200,10 +204,15 @@ export function Shell({ children }: { children: ReactNode }) {
               <InboxBell />
               <AccountMenu />
             </header>
-            <div className="relative min-h-0 flex-1">
-              <Ambient target={mainRef} />
-              <main id="main" ref={mainRef} className="m-canvas custom-scrollbar absolute inset-0 z-10 overflow-y-auto">
-                <motion.div key={loc.pathname} initial={firstPage.current ? false : { opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.18, ease: "easeOut" }} className="mx-auto flex min-h-full w-full max-w-[1200px] flex-col px-4 pt-8 pb-28 sm:px-6 md:pb-8 max-md:[[data-sticky-actions]_&]:pb-44 lg:px-8 min-[1700px]:max-w-[1600px]">
+            <div className="relative flex-1">
+              {/* The ambient layer fills the screen under the top bar and stays there while the page scrolls
+                  over it (sticky, and pulled out of the flow by its negative margin). svh, not dvh: a phone's
+                  toolbar folding away must not resize it mid-scroll. */}
+              <div className="pointer-events-none sticky top-(--header-h) -mb-[calc(100svh-var(--header-h))] h-[calc(100svh-var(--header-h))]">
+                <Ambient target={mainRef} />
+              </div>
+              <main id="main" ref={mainRef} className="m-canvas relative z-10">
+                <motion.div key={loc.pathname} initial={firstPage.current ? false : { opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.18, ease: "easeOut" }} className="mx-auto flex min-h-[calc(100svh-var(--header-h))] w-full max-w-[1200px] flex-col px-4 pt-8 pb-28 sm:px-6 md:pb-8 max-md:[[data-sticky-actions]_&]:pb-44 lg:px-8 min-[1700px]:max-w-[1600px]">
                   <NoDataNotice />
                   {/* The page grows to fill the screen, so a short page still has its footer at the bottom. */}
                   <div className="min-w-0 flex-1">{children}</div>
