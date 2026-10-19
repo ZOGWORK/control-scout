@@ -5,7 +5,7 @@
 // statistical tables keep their own denominator (teams with results only).
 import { useEffect, useMemo, useRef } from "react";
 import { Link, useLocation, useNavigate, useSearchParams } from "react-router-dom";
-import { ArrowDown, ArrowRight, ArrowUp, ChevronLeft, ChevronRight, Hourglass, MapPin, Star, Trophy, Users } from "lucide-react";
+import { ArrowDown, ArrowRight, ArrowUp, ChevronLeft, ChevronRight, Hourglass, MapPin, Star, Trophy, Users, X } from "lucide-react";
 import { useApi, type ApiError } from "../../lib/api";
 import { place, seasonLabel } from "../../lib/format";
 import { useTeamFlags } from "../../lib/personal";
@@ -34,14 +34,16 @@ export function TeamDirectory({ season, onSeason }: { season: number; onSeason: 
   const navigate = useNavigate();
   const loc = useLocation();
   const state = useMemo(() => parseDirectoryState(sp), [sp]);
-  const setState = (next: Omit<DirectoryState, "unknownCountry">, replace = false) =>
+  const setState = (next: DirectoryState, replace = false) =>
     navigate({ pathname: loc.pathname, search: searchString(writeDirectoryState(sp, next)), hash: loc.hash }, { replace });
 
   const api = useApi<DirectoryPage>(directoryUrl(season, state));
-  // Keep the last page on screen while the next one loads (no flash of an empty table).
+  // Keep the last page on screen while the next one loads (no flash of an empty table), but only for the
+  // same season and country: another selection's totals must never sit under the new one's labels.
   const last = useRef<DirectoryPage | undefined>(undefined);
   if (api.data) last.current = api.data;
-  const data = api.data ?? (api.loading ? last.current : undefined);
+  const kept = last.current && last.current.season === season && last.current.country === state.country ? last.current : undefined;
+  const data = api.data ?? (api.loading ? kept : undefined);
   // An old link past the last page: go to the last page that has rows.
   const pastEnd = !!api.data && api.data.total > 0 && !api.data.rows.length && state.page > 1;
   useEffect(() => {
@@ -61,7 +63,7 @@ export function TeamDirectory({ season, onSeason }: { season: number; onSeason: 
         <label className="inline-flex items-center gap-2">
           <span className="sr-only">Country</span>
           <MapPin className="size-4 text-accent" aria-hidden />
-          <select value={state.country ?? ""} onChange={(e) => setState({ ...state, country: e.target.value || null, page: 1 })} className={field} aria-label="Country">
+          <select value={state.country ?? ""} onChange={(e) => setState({ ...state, country: e.target.value || null, countryUnknown: null, page: 1 })} className={field} aria-label="Country">
             <option value="">All countries</option>
             {BY_NAME.map((c) => <option key={c.code} value={c.code}>{c.name}</option>)}
           </select>
@@ -74,15 +76,16 @@ export function TeamDirectory({ season, onSeason }: { season: number; onSeason: 
         </label>
       </div>
 
-      {state.unknownCountry && (
-        <p className="mt-3 rounded-lg border border-warning/30 bg-warning/[0.06] px-3 py-2 text-sm" role="status">
-          “{state.unknownCountry}” isn’t a country code we know, so teams from every country are listed.
-        </p>
-      )}
+      {/* An unknown ?country= as the records tables show it (urlState.ts): a problem, not every country. */}
+      {state.countryUnknown ? (
+        <div className="mt-4 flex flex-col items-center rounded-xl border border-danger/40 bg-danger/[0.05] px-6 py-10 text-center" role="alert">
+          <p className="font-medium">Unknown country {state.countryUnknown.slice(0, 40)}</p>
+          <p className="mt-1 max-w-lg text-xs text-text-muted">This link names a country code we don't know, so no teams are shown. Countries use two-letter codes, like US or CA.</p>
+          <Button className="mt-4" onClick={() => setState({ ...state, countryUnknown: null, page: 1 })}><X /> Show every country</Button>
+        </div>
+      ) : <Summary data={data} season={season} where={where} resultsHref={resultsHref} onRetry={api.reload} />}
 
-      <Summary data={data} season={season} where={where} resultsHref={resultsHref} onRetry={api.reload} />
-
-      {api.error && !data ? (
+      {state.countryUnknown ? null : api.error && !data ? (
         <ErrorState className="mt-4" error={api.error as ApiError} onRetry={api.reload} />
       ) : !data ? (
         <div className="mt-4"><LoadingBlock rows={8} label="Loading the team directory" /></div>
@@ -105,7 +108,7 @@ export function TeamDirectory({ season, onSeason }: { season: number; onSeason: 
                 </tr>
               </thead>
               <tbody>
-                {data.rows.map((t) => <Row key={t.team} t={t} readiness={data.readiness} />)}
+                {data.rows.map((t) => <Row key={t.team} t={t} readiness={data.readiness} season={sp.get("season") ? data.season : null} />)}
               </tbody>
             </table>
           </div>
@@ -179,13 +182,13 @@ function SortHead({ label, k, also, state, onSort, className }: { label: string;
   );
 }
 
-function Row({ t, readiness }: { t: DirectoryTeam; readiness: SeasonReadiness }) {
+function Row({ t, readiness, season }: { t: DirectoryTeam; readiness: SeasonReadiness; season: number | null }) {
   const flags = useTeamFlags(t.team);
   const where = place(t.city, t.state, t.country);
   return (
     <tr className="border-t border-line hover:bg-text-base/[0.03]">
       <td className="px-3 py-2">
-        <Link to={`/teams/${t.team}`} className="group inline-flex min-h-9 flex-col justify-center">
+        <Link to={season == null ? `/teams/${t.team}` : `/teams/${t.team}?season=${season}`} className="group inline-flex min-h-9 flex-col justify-center">
           <span><span className="font-semibold tabular-nums text-accent-text">{t.team}</span> <span className="font-medium group-hover:underline">{t.name ?? `Team ${t.team}`}</span></span>
           {where && <span className="text-xs text-text-muted md:hidden">{where}</span>}
         </Link>
