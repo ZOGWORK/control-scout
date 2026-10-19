@@ -37,7 +37,8 @@ export function RatingChips() {
 export function WorkedUpdate() {
   const u = ratingUpdate(145, 165, 2); // the engine counts matches already played: a 3rd match has 2 before it
   return (
-    <div role="group" aria-label="Worked example of a rating update" className="custom-scrollbar overflow-x-auto whitespace-nowrap rounded-xl border border-border bg-card px-4 py-3 font-mono text-[13px] leading-[1.95] text-foreground/90">
+    // A Tab stop (with a name) so a keyboard can scroll it sideways on a phone, where it's wider than the screen.
+    <div role="region" tabIndex={0} aria-label="Worked example of a rating update" className="custom-scrollbar overflow-x-auto whitespace-nowrap rounded-xl border outline-none focus-visible:ring-2 focus-visible:ring-ring/60 border-border bg-card px-4 py-3 font-mono text-[13px] leading-[1.95] text-foreground/90">
       Red expected 145, scored 165 → miss = <b>+{u.miss}</b><br />
       each robot's share = {u.miss} ÷ 2 = <b>+{u.share}</b><br />
       robot on its 3rd match (2 played before): gain = {RATING.k0} ÷ (1 + 2/{RATING.n0}) = <b>{u.gain.toFixed(2)}</b><br />

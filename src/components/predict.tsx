@@ -109,7 +109,7 @@ function TeamChip({ n, season, highlight, sub }: { n: number; season: number; hi
   const me = n === highlight;
   return (
     <Link to={`/teams/${n}?season=${season}`} title={sub ? `${n} (surrogate or didn't play)` : undefined}
-      className={cn("tabular rounded-md px-1.5 py-0.5 font-mono text-[13px] still-hover:underline", me ? "bg-accent/15 font-bold text-accent-text ring-1 ring-accent/60" : "text-text-base", sub && "opacity-55")}>
+      className={cn("tabular rounded-md px-1.5 py-0.5 font-mono text-[13px] still-hover:underline", me ? "bg-accent/15 font-bold text-accent-text ring-1 ring-accent/60" : sub ? "text-text-muted" : "text-text-base")}>
       {n}{sub && <span className="sr-only"> (surrogate)</span>}
     </Link>
   );

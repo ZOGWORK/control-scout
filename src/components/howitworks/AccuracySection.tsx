@@ -186,7 +186,8 @@ export function AccuracySection() {
 }
 
 type Tone = "gold" | "good" | "bad" | "blue";
-const TONE: Record<Tone, string> = { gold: "text-accent", good: "text-success", bad: "text-destructive", blue: "text-blue-alliance" };
+// Gold as text uses the text shade (deep amber in light, where the bright fill fails contrast).
+const TONE: Record<Tone, string> = { gold: "text-accent-text", good: "text-success", bad: "text-destructive", blue: "text-blue-alliance" };
 
 function StatCell({ value, label, tone }: { value: ReactNode; label: string; tone?: Tone }) {
   return (

@@ -226,7 +226,7 @@ export function RecordsTable(p: RecordsTableProps) {
             </Button>
           )}
           <Button variant="outline" size="sm" className="max-sm:h-10" asChild={total > 0} disabled={!total}>
-            {total > 0 ? <a href={csv} download><Download /> <span className="max-sm:sr-only">Export CSV</span>{" "}<span className="sr-only">({total.toLocaleString()} rows)</span></a> : <span><Download /> <span className="max-sm:hidden">Export CSV</span></span>}
+            {total > 0 ? <a href={csv} download><Download /> <span className="max-sm:sr-only">Export CSV</span>{" "}<span className="sr-only">({total.toLocaleString()} rows)</span></a> : <span><Download /> <span className="max-sm:sr-only">Export CSV</span><span className="sr-only"> (no rows to export)</span></span>}
           </Button>
         </div>
       </div>
