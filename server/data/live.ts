@@ -23,6 +23,7 @@ import { firstProbe } from "../sources/first.js";
 import { refreshEventStats, logLivePredictions, scoreLivePredictions } from "../stats/job.js";
 import { computeRecords } from "../stats/records.js";
 import { loadSeason } from "../stats/load.js";
+import { resultsAtKey } from "../api/readiness.js";
 import type { EventRow } from "./bundle.js";
 import { CURRENT_SEASON } from "./seasons.js";
 import { LockBusy, isBusy, withDataLock } from "./lock.js";
@@ -195,6 +196,9 @@ export async function refreshEvents(events: EventRow[], o: { minFullMs?: number;
     const bySeason = new Map<number, string[]>();
     for (const e of due) bySeason.set(e.season, [...(bySeason.get(e.season) ?? []), e.code]);
     for (const [s, codes] of bySeason) {
+      // New results are stored for this season: until its records are rebuilt (below, or by a later tick
+      // when that's throttled) the season reads as catching up (api/readiness.ts).
+      await kvSet(resultsAtKey(s), { at: new Date(now()).toISOString() });
       await refreshEventStats(s, codes, log);
       // The record tables (/api/records, CSV) are season-wide rewrites: at most every 5 minutes while
       // results come in (the 15-minute cycle rewrites them too); the engine's exclusives carry over.
