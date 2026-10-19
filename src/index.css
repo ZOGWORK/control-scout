@@ -148,7 +148,7 @@ html.light {
 :root { --header-h: 3rem; }
 html { scrollbar-gutter: stable; }
 @media (max-width: 767px) { html { scroll-padding-bottom: calc(61px + env(safe-area-inset-bottom)); } }
-@layer base { :where(#main *) { scroll-margin-top: var(--header-h); } } /* in a layer: scroll-mt-bar-N must win */
+@layer base { :where(#main, #main *) { scroll-margin-top: var(--header-h); } } /* in a layer: scroll-mt-bar-N must win */
 @utility scroll-mt-bar-* { scroll-margin-top: calc(var(--header-h) + var(--spacing) * --value(integer)); }
 html::-webkit-scrollbar { width: 6px; height: 6px; }
 html::-webkit-scrollbar-thumb { background: #2e2e35; border-radius: 999px; }

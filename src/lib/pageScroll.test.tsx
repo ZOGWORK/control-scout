@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { act, cleanup, render } from "@testing-library/react";
-import { MemoryRouter, useLocation as useLocationProbe, useNavigate, type NavigateFunction } from "react-router-dom";
+import { BrowserRouter, MemoryRouter, useLocation as useLocationProbe, useNavigate, type NavigateFunction } from "react-router-dom";
 import { StrictMode, useRef } from "react";
 import { chase, entryKey, HEADER_ID, pageScroller, pageTop, planScroll, scrollToElement, restoredSavedPosition, RESTORE_WINDOW_MS, SCROLL_IDLE_ATTR, SCROLL_IDLE_MS, ScrollPositions, usePageScroll } from "./pageScroll";
 
@@ -28,6 +28,8 @@ describe("planScroll", () => {
     expect(planScroll({ ...base, action: "POP", prevPath: null, hash: "#a%20b" })).toEqual({ kind: "hash", id: "a b" });
     // A saved position wins over the hash on back/forward: the reader had scrolled on from it.
     expect(planScroll({ ...base, action: "POP", hash: "#accuracy", saved: 50 })).toEqual({ kind: "restore", y: 50 });
+    // ...unless the browser followed a plain #link itself: that goes to the target.
+    expect(planScroll({ ...base, action: "POP", hash: "#accuracy", saved: 50, fragment: true })).toEqual({ kind: "hash", id: "accuracy" });
   });
 });
 
@@ -236,6 +238,18 @@ describe("usePageScroll", () => {
     render(<MemoryRouter initialEntries={["/teams/4215"]}><Harness /></MemoryRouter>);
     expect(page.scrollTop).toBe(2222);
     vi.restoreAllMocks();
+  });
+
+  it("follows a plain #link on the page (skip link, table of contents) instead of restoring the old place", () => {
+    height.current = 5000;
+    history.replaceState(null, "", "/privacy");
+    placeAt("sec", 2000, "72px");
+    render(<BrowserRouter><Harness /></BrowserRouter>);
+    scrollTo(1200);
+    // What the browser does for <a href="#sec">: a new entry with no router state, then popstate.
+    act(() => { history.pushState(null, "", "/privacy#sec"); window.dispatchEvent(new PopStateEvent("popstate")); });
+    expect(page.scrollTop).toBe(1928);
+    history.replaceState(null, "", "/");
   });
 
   it("keeps first pages at different addresses apart", () => {
