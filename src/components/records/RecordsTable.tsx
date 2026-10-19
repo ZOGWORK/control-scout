@@ -234,7 +234,7 @@ export function RecordsTable(p: RecordsTableProps) {
       {/* What's showing, in words */}
       <div className="flex flex-wrap items-center gap-x-3 gap-y-1 px-1 text-sm">
         <span className="text-text-muted" aria-live="polite">
-          {data ? <><span className="font-semibold tabular-nums text-text-base">{total.toLocaleString()}</span> {p.noun}</> : "Loading…"}
+          {data ? <><span className="font-semibold tabular-nums text-text-base">{total.toLocaleString()}</span> {p.noun}</> : state.filterError || state.countryUnknown ? null : "Loading…"}
           {refreshing && <Loader2 className="ml-1.5 inline size-3.5 animate-spin" />}
         </span>
         {state.filter && state.filter.children.length > 0 && (
