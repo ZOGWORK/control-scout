@@ -223,7 +223,11 @@ function Composer({ post, comments, place }: { post: (body: string, opId: string
       return;
     }
     if (!before || attempt?.opId === before.opId) return;
-    if (local.current?.opId === before.opId) { local.current = null; setDraft((d) => (d === before.body ? "" : d)); }
+    if (local.current?.opId !== before.opId) return;
+    // Another tab replaced it with a newer attempt: that one comes into the field (unless something new was typed here).
+    if (attempt) { local.current = { opId: attempt.opId, text: attempt.body }; setDraft((d) => (d === before.body || !d.trim() ? attempt.body : d)); return; }
+    local.current = null;
+    setDraft((d) => (d === before.body ? "" : d));
   }, [attempt]);
   const send = async () => {
     if (!sendable(draft) || busy) return;

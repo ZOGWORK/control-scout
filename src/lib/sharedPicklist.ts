@@ -534,11 +534,12 @@ export function usePickList(space: string | null, season: number, live: LiveMode
     return () => window.removeEventListener(PICKLIST_CHANGE_SAVED, on);
   }, [space, season, markSaved]);
 
-  // The list open on this page handles its own kept notes: the recoverable view leaves them to it.
+  // The list open on this page handles its own kept notes: the recoverable view leaves them to it. Not a
+  // read-only one: it neither sends nor shows them, so the view keeps listing them (to discard).
   useEffect(() => {
-    if (!space || account == null) return;
+    if (!space || account == null || readOnly) return;
     return claimScope(`${account}:${space}:${season}`);
-  }, [space, season, account]);
+  }, [space, season, account, readOnly]);
 
   const mine = useMemo(() => pending.filter((p) => p.space === space && p.season === season).map((p) => p.op), [pending, space, season]);
   const list = useMemo(() => (server ? withPending(server, mine, me) : null), [server, mine, me]);

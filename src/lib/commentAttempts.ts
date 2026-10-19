@@ -10,9 +10,9 @@
 // gone; not there, it waits for the member. Another account's attempts are never read: the key names the account.
 import { useSyncExternalStore } from "react";
 import { apiFetch } from "./api";
-import { CommentWriteError, COMMENT_NOT_ARRIVED, COMMENT_UNCONFIRMED, postComment } from "./scoutComments";
+import { CommentWriteError, COMMENT_NOT_ARRIVED, COMMENT_UNCONFIRMED, postComment, SCOUT_COMMENT, SCOUT_COMMENTS_RESYNC } from "./scoutComments";
 import { publishPending, type PendingItem } from "./pendingWork";
-import { isEntryComment } from "../shared/comments";
+import { isCommentEvent, isEntryComment } from "../shared/comments";
 
 /** Where a comment belongs, and what to call it ("Comment on 16236 · Match Q12"). */
 export interface CommentPlace { account: number; space: string; uuid: string; season?: number; team?: number; what?: string }
@@ -182,6 +182,32 @@ if (typeof window !== "undefined") {
     else return;
     changed();
   });
+}
+
+/**
+ * Check the kept attempts whose outcome is unknown again (the connection came back, or a workspace's threads were
+ * refetched): one the thread has after all goes, without the member having to press Retry. `space`: only its own.
+ */
+export function recheckCommentAttempts(space?: string): void {
+  for (const a of [...attempts.values()]) {
+    if (a.state !== "attention" || !a.uncertain || (space && a.space !== space)) continue;
+    void posted(a.space, a.uuid, a.opId).then((there) => {
+      const cur = attempts.get(keyOf(a.account, a.space, a.uuid));
+      if (there && cur?.opId === a.opId && cur.state === "attention") drop(a.account, a.space, a.uuid, a.opId);
+    });
+  }
+}
+
+if (typeof window !== "undefined") {
+  // A comment heard on a workspace's stream that is a kept attempt (by its operation id and author): it arrived.
+  window.addEventListener(SCOUT_COMMENT, (ev) => {
+    const e = (ev as CustomEvent<unknown>).detail;
+    if (!isCommentEvent(e) || e.action !== "created" || !e.comment?.opId) return;
+    const k = keyOf(e.comment.authorAccountId, e.workspaceId, e.entryUuid);
+    if (attempts.get(k)?.opId === e.comment.opId) drop(e.comment.authorAccountId, e.workspaceId, e.entryUuid, e.comment.opId);
+  });
+  window.addEventListener(SCOUT_COMMENTS_RESYNC, (ev) => { const s = (ev as CustomEvent<{ space?: string }>).detail?.space; if (s) recheckCommentAttempts(s); });
+  window.addEventListener("online", () => recheckCommentAttempts());
 }
 
 /** Tests: forget everything held in memory (a fresh page). */
