@@ -72,6 +72,10 @@ export const env = {
    *  in place of the real ones (content/power-rankings), to see the pages before any week is published.
    *  Ignored in production, so sample weeks can never show on the live site. */
   get powerRankingsSample() { return !this.production && str("POWER_RANKINGS_SAMPLE") === "1"; },
+  /** IndexNow pings (server/indexNow.ts, docs/deploy.md): off unless "1" or "true". */
+  get indexNowEnabled() { return /^(1|true)$/i.test(str("INDEXNOW") ?? ""); },
+  /** Replaces the built-in IndexNow key (public by design: it's served at /<key>.txt). */
+  get indexNowKey() { return str("INDEXNOW_KEY"); },
   get dataDir() { return str("DATA_DIR") ?? join(process.cwd(), ".data"); },
   /** Where an FTC Scout raw cache can be imported from (seed). */
   get scoutCacheDir() { return str("SCOUT_CACHE_DIR"); },

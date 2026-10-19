@@ -139,7 +139,7 @@ describe("pages (first HTML)", () => {
   it("/power-rankings: its own head, the week's content in the HTML, structured data", async () => {
     const page = await renderPage(index, "/power-rankings");
     expect(page.status).toBe(200);
-    expect(page.html).toContain("<title>FTC power rankings · FTC Control Scout</title>");
+    expect(page.html).toContain("<title>FTC power rankings · Control Scout</title>");
     expect(page.html).toContain('<link rel="canonical" href="https://controlscout.org/power-rankings" />');
     expect(page.html).toContain('<meta name="description" content="The weekly top 25 FTC teams');
     expect(page.html).toContain("#1 5001 Team 5001");
@@ -156,7 +156,7 @@ describe("pages (first HTML)", () => {
   it("/power-rankings/<week>: an article with its own title and canonical; upper case canonicalises to lower", async () => {
     const page = await renderPage(index, "/power-rankings/2026-W41");
     expect(page.status).toBe(200);
-    expect(page.html).toContain("<title>Power rankings, week 41 (2025–26) · FTC Control Scout</title>");
+    expect(page.html).toContain("<title>Power rankings, week 41 (2025–26) · Control Scout</title>");
     expect(page.html).toContain('<link rel="canonical" href="https://controlscout.org/power-rankings/2026-w41" />');
     expect(page.html).toContain('<meta property="og:type" content="article" />');
     expect(page.html).toContain('<meta property="og:url" content="https://controlscout.org/power-rankings/2026-w41" />');

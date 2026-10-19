@@ -20,6 +20,7 @@ import { trackRecord } from "./api/accuracy.js";
 import { currentWeather } from "./weather.js";
 import { MISSING_FILE, canonicalRedirects, renderPage } from "./seo.js";
 import { sitemapChunkRoute, sitemapRoute } from "./sitemap.js";
+import { indexNowKeyRoute } from "./indexNow.js";
 import { latestRankings, rankingsWeek } from "./powerRankings/store.js";
 import { isWeekId } from "../src/shared/powerRankings.js";
 import { liveForecaster, liveVersion, dataVersion } from "./predict/engine.js";
@@ -606,6 +607,8 @@ export function createApp() {
   // The sitemap, from the database (server/sitemap.ts).
   app.get("/sitemap.xml", h(sitemapRoute));
   app.get("/sitemap-:n.xml", h(sitemapChunkRoute));
+  // IndexNow's key file, /<key>.txt (server/indexNow.ts): any other name goes on to the 404.
+  app.get(/^\/[A-Za-z0-9-]{8,128}\.txt$/, indexNowKeyRoute);
 
   // Built web app (production): static files with long cache for hashed assets.
   const dist = join(process.cwd(), "dist");

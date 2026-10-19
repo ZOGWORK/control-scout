@@ -198,6 +198,17 @@ describe("Home", () => {
     expect(path).toBe("/");
   });
 
+  it("opens with a search arriving in the URL (/?q=, the site search search engines know), even for a signed-in scout", () => {
+    personal = { user: { email: "a@b.c" }, state: st(4215) };
+    render(<MemoryRouter initialEntries={["/?q=%20hypnotic%20"]}><Home /><Where /></MemoryRouter>);
+    expect(path).toBe("/");
+    const box = screen.getByLabelText("Search teams, events and matches") as HTMLInputElement;
+    expect(box.value).toBe("hypnotic");
+    expect(box.getAttribute("aria-expanded")).toBe("true");
+    // And says plainly what the site is.
+    expect(screen.getByText(/^Control Scout is free FTC scouting and match predictions/)).toBeTruthy();
+  });
+
   it("opens the atlas on the globe on phones too", async () => {
     phone = true;
     data = { "/api/home/overview": OVERVIEW };
