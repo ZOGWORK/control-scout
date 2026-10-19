@@ -7,7 +7,10 @@
 //
 // Touch: every control is at least 44 px tall on small screens, the composer
 // scrolls itself above the on-screen keyboard when focused, and Ctrl/⌘+Enter posts.
-import { useId, useRef, useState, type KeyboardEvent } from "react";
+//
+// A post the server may have taken without its answer arriving (audit PRIVATE-F05) keeps its text and its
+// operation id: the thread is checked for it, and Retry sends the same attempt, so it never posts twice.
+import { useEffect, useId, useRef, useState, type KeyboardEvent } from "react";
 import { Loader2, MessageSquare, Pencil, Send, Trash2 } from "lucide-react";
 import { Button } from "../ui/button";
 import { Textarea } from "../ui/basic";
@@ -16,7 +19,7 @@ import { cn } from "../cn";
 import { agoShort } from "../../lib/format";
 import { useNow } from "../../lib/useNow";
 import { usePersonal } from "../../lib/personal";
-import { useEntryComments } from "../../lib/scoutComments";
+import { CommentWriteError, newCommentOpId, useEntryComments } from "../../lib/scoutComments";
 import type { ScoutEntry } from "../../lib/scouting";
 import { COMMENT_MAX, commentLength, type EntryComment } from "../../shared/comments";
 
@@ -76,7 +79,7 @@ export function EntryComments({ entry, className }: { entry: ScoutEntry; classNa
             ? <p className="mt-4 text-sm text-muted-foreground">This workspace is read-only: its comments can be read, not added to.</p>
             : thread.closed
             ? <p className="mt-4 text-sm text-muted-foreground">This entry was deleted, so it can't take new comments.</p>
-            : <Composer post={thread.post} />}
+            : <Composer post={thread.post} comments={thread.comments} />}
         </>
       )}
     </section>
@@ -162,20 +165,32 @@ function CharsLeft({ length }: { length: number }) {
   return <span className={cn("ml-auto text-xs tabular-nums", left < 0 ? "text-danger" : "text-muted-foreground")} aria-live="polite">{left < 0 ? `${(-left).toLocaleString()} over the ${COMMENT_MAX.toLocaleString()}-character limit` : `${left.toLocaleString()} characters left`}</span>;
 }
 
-function Composer({ post }: { post: (body: string) => Promise<void> }) {
+function Composer({ post, comments }: { post: (body: string, opId: string) => Promise<void>; comments: EntryComment[] }) {
   const [draft, setDraft] = useState("");
   const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<{ text: string; uncertain: boolean } | null>(null);
+  /** The attempt the text in the field belongs to: the same text sent again is the same attempt (same id). */
+  const attempt = useRef<{ opId: string; text: string } | null>(null);
   const ref = useRef<HTMLTextAreaElement>(null);
   const errId = useId();
   const fieldId = useId();
+  /** The attempt went through: clear what was sent (words typed since stay) and start a new attempt next time. */
+  const done = (sent: string) => { attempt.current = null; setDraft((d) => (d === sent ? "" : d)); setError(null); };
+  // An unconfirmed post that shows up in the thread after all (the stream, or a refetch): it was posted.
+  useEffect(() => {
+    const a = attempt.current;
+    if (a && !busy && comments.some((c) => c.opId === a.opId)) done(a.text);
+  }, [comments, busy]); // eslint-disable-line react-hooks/exhaustive-deps
   const send = async () => {
     if (!sendable(draft) || busy) return;
     const sent = draft;
+    if (attempt.current?.text !== sent) attempt.current = { opId: newCommentOpId(), text: sent };
+    const { opId } = attempt.current;
     setBusy(true); setError(null);
     // Cleared only if it still holds what was sent: words typed while it was sending stay.
-    try { await post(sent); setDraft((d) => (d === sent ? "" : d)); ref.current?.focus(); }
-    catch (e) { setError((e as Error).message); } // the draft stays, to try again
+    try { await post(sent, opId); done(sent); ref.current?.focus(); }
+    // The draft (and its attempt) stays, to try again.
+    catch (e) { setError({ text: (e as Error).message, uncertain: e instanceof CommentWriteError && e.uncertain }); }
     finally { setBusy(false); }
   };
   return (
@@ -191,7 +206,12 @@ function Composer({ post }: { post: (body: string) => Promise<void> }) {
         <span className="hidden text-xs text-muted-foreground sm:inline">Ctrl+Enter to send · everyone in the workspace sees it</span>
         <CharsLeft length={commentLength(draft)} />
       </div>
-      {error && <p id={errId} role="alert" className="mt-1 text-xs text-danger">{error}</p>}
+      {error && (
+        <p id={errId} role="alert" className="mt-1 text-xs text-danger">
+          {error.text}
+          {error.uncertain && <> <button type="button" onClick={send} disabled={busy || !sendable(draft)} className={cn("font-medium underline underline-offset-2", touch)}>Retry</button></>}
+        </p>
+      )}
     </div>
   );
 }
