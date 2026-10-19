@@ -27,6 +27,7 @@ import { photoSchedulerTick } from "./scout/photos.js";
 import { pruneActivity } from "./scout/activityLog.js";
 import { pruneSentLog, pushTick } from "./push/push.js";
 import { autoPowerRankingsTick } from "./powerRankings/auto.js";
+import { pingIndexNow } from "./indexNow.js";
 import type { Server } from "node:http";
 
 const log = (m: string) => console.log(`[${new Date().toISOString()}] ${m}`);
@@ -86,6 +87,14 @@ async function cycle(reason: string) {
   } catch (e) {
     log(`sync failed: ${(e as Error).message}`);
   }
+  indexNow();
+}
+
+// IndexNow (server/indexNow.ts): after each sync, soon after boot (a deploy), and hourly; at most one ping an
+// hour whatever asks. Nothing at all unless INDEXNOW=1.
+function indexNow() {
+  if (!env.indexNowEnabled || process.env.CS_NO_SCHEDULER) return;
+  void pingIndexNow().then((r) => log(`indexnow: ${r}`));
 }
 
 // Request metrics for the owner portal: the counters held in memory go to the database every minute.
@@ -146,6 +155,8 @@ if (!process.env.CS_NO_SCHEDULER) {
   };
   setTimeout(powerRankings, 120_000).unref();
   setInterval(powerRankings, 5 * 60_000).unref();
+  setTimeout(indexNow, 3 * 60_000).unref();
+  setInterval(indexNow, 3600_000).unref();
 }
 // The live fast lane: events on today, every LIVE_SYNC_SECONDS (60), results within about a minute
 // (server/data/live.ts). It shares a writer lease with the cycle above, so the two never write at once.

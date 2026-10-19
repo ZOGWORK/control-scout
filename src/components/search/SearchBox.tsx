@@ -72,11 +72,13 @@ export interface SearchBoxProps {
   hint?: string;
   /** What the first-run tour calls this box (data-tour), e.g. "search". */
   tour?: string;
+  /** Text to start with, its results already open (a search arriving in the URL). Read on mount only. */
+  initialQuery?: string;
 }
 
-export function SearchBox({ onPick, kinds, placeholder, label, size = "md", className, inputRef, emptyHint, autoFocus, onClose, hint, tour }: SearchBoxProps) {
-  const [q, setQ] = useState("");
-  const [open, setOpen] = useState(false);
+export function SearchBox({ onPick, kinds, placeholder, label, size = "md", className, inputRef, emptyHint, autoFocus, onClose, hint, tour, initialQuery }: SearchBoxProps) {
+  const [q, setQ] = useState(initialQuery ?? "");
+  const [open, setOpen] = useState(!!initialQuery);
   const [active, setActive] = useState(0);
   const { hits, busy, error } = useSearchHits(q, kinds);
   const meta = useMeta();

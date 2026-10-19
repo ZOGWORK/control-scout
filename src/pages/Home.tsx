@@ -4,7 +4,7 @@
 // opt-in usage. On a phone it reads in task order: search, the season, your team
 // and events come before the atlas. The brand lives in the shell's chrome.
 import { useEffect } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { ArrowRight, ArrowUpRight, CalendarDays, LockOpen, MapPin, Radio, Sparkles } from "lucide-react";
 import { useApi, qs } from "../lib/api";
 import { useCurrentSeason, useMediaQuery, useTitle } from "../lib/meta";
@@ -18,7 +18,7 @@ import { Button } from "../components/ui/button";
 import { Reveal } from "../components/motion";
 import { CompetitionAtlas, preloadAtlas } from "../components/home/CompetitionAtlas";
 import { FindYourTeam, OnTheCalendar, PredictionRecord, PublicUsagePanel, SeasonCoverage, YourTeam } from "../components/home/HomeSections";
-import { HOME_HEADLINE, HOME_LEAD } from "../shared/boot";
+import { HOME_ABOUT, HOME_HEADLINE, HOME_LEAD } from "../shared/boot";
 import { dateRange, place } from "../lib/format";
 
 export default function Home() {
@@ -26,13 +26,16 @@ export default function Home() {
   const { user, state } = usePersonal();
   const nav = useNavigate();
   const season = useCurrentSeason();
-  // Signed-in users with a team land on their dashboard (once per visit).
+  // A search from outside (/?q=…, the site search named in the home page's structured data).
+  const [sp] = useSearchParams();
+  const query = sp.get("q")?.trim().slice(0, 100) || undefined;
+  // Signed-in users with a team land on their dashboard (once per visit), unless they came to search.
   useEffect(() => {
-    if (user && state.myTeam && !sessionStorage.getItem("cs-landed")) {
+    if (user && state.myTeam && !query && !sessionStorage.getItem("cs-landed")) {
       sessionStorage.setItem("cs-landed", "1");
       nav("/my-team", { replace: true });
     }
-  }, [user, state.myTeam, nav]);
+  }, [user, state.myTeam, query, nav]);
   // The atlas's code and boundaries load beside the page's data, after the hero has painted.
   useEffect(() => { const t = setTimeout(preloadAtlas, 0); return () => clearTimeout(t); }, []);
   const overview = useApi<HomeOverview>(`/api/home/overview${qs({ season })}`);
@@ -41,7 +44,7 @@ export default function Home() {
   return (
     <div className="@container/home">
       <div className="home-grid">
-        <div className="[grid-area:hero]"><Hero /></div>
+        <div className="[grid-area:hero]"><Hero query={query} /></div>
         <div className="[grid-area:strip]"><SeasonCoverage state={overview} /></div>
         <div className="[grid-area:team]">{state.myTeam ? <YourTeam team={state.myTeam} season={season} /> : <FindYourTeam onSearch={search.open} />}</div>
         <div className="[grid-area:events]"><OnTheCalendar season={season} /></div>
@@ -63,7 +66,7 @@ export default function Home() {
   );
 }
 
-function Hero() {
+function Hero({ query }: { query?: string }) {
   // Home's search IS the page's search: the top-bar field steps aside here.
   const searchRef = usePageSearch();
   const nav = useNavigate();
@@ -75,7 +78,7 @@ function Hero() {
       </h1>
       <p className="mt-4 max-w-[30rem] text-base text-text-muted">{HOME_LEAD}</p>
       <SearchBox
-        size="lg" inputRef={searchRef} hint={SEARCH_HINT} tour="search"
+        size="lg" inputRef={searchRef} hint={SEARCH_HINT} tour="search" initialQuery={query}
         label="Search teams, events and matches"
         placeholder="Find a team, event or match…"
         onPick={(h) => nav(hitHref(h))}
@@ -86,7 +89,7 @@ function Hero() {
         <Button size="lg" asChild className="max-sm:flex-1"><Link to="/predict" data-tour="predict"><Sparkles /> Predict a match <ArrowUpRight /></Link></Button>
         <Button size="lg" variant="secondary" asChild className="max-sm:flex-1"><Link to="/events"><CalendarDays /> Find an event <ArrowRight /></Link></Button>
       </div>
-      <p className="mt-3 flex items-center gap-1.5 text-sm text-text-muted"><LockOpen className="size-4" aria-hidden /> Free to explore. No account needed.</p>
+      <p className="mt-3 flex items-start gap-1.5 text-sm text-text-muted"><LockOpen className="mt-0.5 size-4 shrink-0" aria-hidden /> {HOME_ABOUT}</p>
     </Reveal>
   );
 }
