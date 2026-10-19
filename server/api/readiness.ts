@@ -50,7 +50,8 @@ export async function seasonReadiness(season: number): Promise<SeasonReadiness> 
   const state = hasResults && !records ? "preparing"
     : hasResults && resultsAt && at && resultsAt > at ? "catching-up"
     : "ready";
-  return { state, resultsAt, statsAt: at };
+  // Preparing: whatever stamp exists (a restored kv, a run that skipped the season) prepared nothing here.
+  return { state, resultsAt, statsAt: state === "preparing" ? null : at };
 }
 
 /** A season's readiness, reused for half a minute (the directory asks on every page; its scan can
