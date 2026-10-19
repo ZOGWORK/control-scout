@@ -1,7 +1,9 @@
 // A private one-line note on a shortlisted team. Saves as you type (after a
 // short pause), on blur and on Enter; Escape puts the saved note back.
 // If this device can't store it (storage full or blocked), the field says so
-// inline and keeps the text, and the next blur or Enter tries again.
+// inline and keeps the text, and the next blur or Enter (or its Retry, when
+// `retry` is set) tries again. Leaving the page mid-pause (a reload, a closed
+// tab) hands the text to `onSave` first, so a caller that keeps it can.
 import { useEffect, useId, useRef, useState } from "react";
 import { PencilLine } from "lucide-react";
 import { MAX_NOTE } from "../../shared/personal";
@@ -16,7 +18,7 @@ import { FieldError } from "../ui/basic";
  * read), the last write's result (`onSave` returning false) shows the error instead, and Escape
  * writes nothing: it can't tell what to restore.
  */
-export function NoteField({ team, value, stored, onSave, className, label, placeholder = "Add a pick note…", maxLength = MAX_NOTE, failedText }: {
+export function NoteField({ team, value, stored, onSave, className, label, placeholder = "Add a pick note…", maxLength = MAX_NOTE, failedText, retry = false, retryOnLeave = true }: {
   team: number; value: string; stored?: string; onSave: (text: string) => boolean | void; className?: string;
   /** What a screen reader hears for the field (default: "Private note on team <n>"). */
   label?: string;
@@ -24,6 +26,10 @@ export function NoteField({ team, value, stored, onSave, className, label, place
   maxLength?: number;
   /** What the field says when the note isn't stored (default: this device's storage is full or blocked). */
   failedText?: string;
+  /** Offer a Retry button beside that message (it sends the text again, as Enter does). */
+  retry?: boolean;
+  /** Leaving the field (blur) retries an unsaved note too (default). False: only Enter, Retry or a new edit sends it. */
+  retryOnLeave?: boolean;
 }) {
   const [draft, setDraft] = useState(value);
   /** The last write was refused (what shows the error while `stored` is unknown). */
@@ -66,10 +72,16 @@ export function NoteField({ team, value, stored, onSave, className, label, place
   // Leaving the page mid-pause still saves what was typed.
   const latest = useRef({ draft, onSave });
   latest.current = { draft, onSave };
-  useEffect(() => () => {
-    if (!timer.current) return;
-    clearTimeout(timer.current);
-    if (latest.current.draft.trim() !== sent.current.trim()) latest.current.onSave(latest.current.draft);
+  useEffect(() => {
+    const leave = () => {
+      if (!timer.current) return;
+      clearTimeout(timer.current);
+      timer.current = null;
+      if (latest.current.draft.trim() !== sent.current.trim()) { sent.current = latest.current.draft; edited.current = false; latest.current.onSave(latest.current.draft); }
+    };
+    // A reload or a closed tab runs no unmount: the page going away saves the pause's text too.
+    window.addEventListener("pagehide", leave);
+    return () => { window.removeEventListener("pagehide", leave); leave(); };
   }, []);
   return (
     <div className={cn("min-w-0", className)}>
@@ -81,7 +93,7 @@ export function NoteField({ team, value, stored, onSave, className, label, place
         aria-invalid={failed ? true : undefined} aria-describedby={failed ? errorId : undefined}
         className="min-w-0 flex-1 bg-transparent text-text-base outline-none placeholder:text-text-muted/70"
         onFocus={() => { focused.current = true; edited.current = false; }}
-        onBlur={(e) => { focused.current = false; if (skip.current) { skip.current = false; return; } flush(e.currentTarget.value); }}
+        onBlur={(e) => { focused.current = false; if (skip.current) { skip.current = false; return; } if (!retryOnLeave && !edited.current) return; flush(e.currentTarget.value); }}
         onChange={(e) => {
           const text = e.currentTarget.value;
           edited.current = true;
@@ -95,7 +107,10 @@ export function NoteField({ team, value, stored, onSave, className, label, place
         }}
       />
     </label>
-    <FieldError id={errorId} className="mt-0.5 px-1.5">{failed ? failedText ?? "Not saved: this device's storage is full or blocked. Your text is still here; free up space and press Enter to retry." : null}</FieldError>
+    <FieldError id={errorId} className="mt-0.5 px-1.5">{failed ? <>
+      {failedText ?? "Not saved: this device's storage is full or blocked. Your text is still here; free up space and press Enter to retry."}
+      {retry && <> <button type="button" className="font-medium underline underline-offset-2 max-sm:inline-flex max-sm:min-h-11 max-sm:items-center" onClick={() => flush(draft)}>Retry</button></>}
+    </> : null}</FieldError>
     </div>
   );
 }

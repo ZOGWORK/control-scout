@@ -1,7 +1,8 @@
 // Comments on workspace scout entries (Task 15).
 //
 //   GET    /api/scout/workspaces/:workspaceId/entries/:uuid/comments        the thread, oldest first: { comments, entryDeleted }
-//   POST   /api/scout/workspaces/:workspaceId/entries/:uuid/comments        { body } → 201 CommentEvent (action "created")
+//   POST   /api/scout/workspaces/:workspaceId/entries/:uuid/comments        { body, opId? } → 201 CommentEvent (action "created");
+//                                                                            200 the same comment (rev 0) when opId was already used
 //   PATCH  /api/scout/workspaces/:workspaceId/entries/:uuid/comments/:id    { body } → CommentEvent (action "edited")
 //   DELETE /api/scout/workspaces/:workspaceId/entries/:uuid/comments/:id    → CommentEvent (action "deleted")
 //   GET    /api/scout/workspaces/:workspaceId/comment-counts                { counts: { <uuid>: n } }, entries with any
@@ -16,6 +17,11 @@
 // - A comment's author edits it; its author or a workspace admin deletes it (403 otherwise).
 // - Body: plain text, trimmed, 1 to COMMENT_MAX characters (src/shared/comments.ts); never HTML.
 // - Posting and editing are rate limited per account (COMMENT_RATE), 429 with Retry-After.
+// - A post may carry opId (COMMENT_OP_ID): the device's id for that attempt, the same on each retry of it.
+//   The same author posting with the same opId on the same entry again (the answer to the first was lost)
+//   gets the comment the first made, as a 200 with rev 0 (nothing new: not streamed, logged or rate
+//   limited), whatever the body says; never a second comment. A new attempt (a new opId) is a new comment,
+//   so the same words posted twice on purpose both stay. If that comment has been deleted since, 409.
 // - A deleted comment disappears from the thread: its row stays (ids are never reused) with the
 //   body cleared, and it's never sent again.
 //
@@ -39,7 +45,7 @@ import { entryDetails, logActivity } from "./activityLog.js";
 import { accessError, isWrite, workspaceAccess, workspacePaused, writerName } from "./entries.js";
 import { inboxText } from "../../src/shared/inbox.js";
 import { inboxSettled, notifyInboxChanged } from "../inbox/inbox.js";
-import { cleanCommentBody, commentExcerpt, type CommentEvent, type EntryComment } from "../../src/shared/comments.js";
+import { cleanCommentBody, commentExcerpt, isCommentOpId, type CommentEvent, type EntryComment } from "../../src/shared/comments.js";
 
 /** Comments (posts and edits) one account may write: a burst of `burst`, refilling at `perMinute`. */
 export const COMMENT_RATE = { burst: 10, perMinute: 10 };
@@ -65,12 +71,13 @@ export function takeCommentToken(accountId: number, now = Date.now()): number | 
 export const resetCommentRate = () => buckets.clear();
 
 const UUID = /^[A-Za-z0-9_-]{8,64}$/;
-const COLUMNS = "c.id, c.entry_uuid, c.author_account_id, c.author_name, c.body, c.created_at, c.edited_at";
-const RETURNING = "RETURNING id, entry_uuid, author_account_id, author_name, body, created_at, edited_at";
+const COLUMNS = "c.id, c.entry_uuid, c.author_account_id, c.author_name, c.body, c.created_at, c.edited_at, c.client_op_id";
+const RETURNING = "RETURNING id, entry_uuid, author_account_id, author_name, body, created_at, edited_at, client_op_id";
 
 const toComment = (workspaceId: string, r: any): EntryComment => ({
   id: Number(r.id), workspaceId, entryUuid: String(r.entry_uuid), authorAccountId: Number(r.author_account_id), authorName: String(r.author_name ?? ""),
   body: String(r.body ?? ""), createdAt: Number(r.created_at), editedAt: r.edited_at == null ? null : Number(r.edited_at),
+  ...(isCommentOpId(r.client_op_id) ? { opId: r.client_op_id } : {}),
 });
 
 type Fail = { ok: false; status: number; error: string; retryAfter?: number };
@@ -81,6 +88,8 @@ export const ENTRY_DELETED = "This entry was deleted, so it can't take new comme
 export const NOT_YOURS_EDIT = "You can only edit your own comments.";
 export const NOT_YOURS_DELETE = "You can delete your own comments. A workspace admin can delete any comment.";
 export const TOO_FAST = "You're commenting very quickly. Wait a moment and try again.";
+export const BAD_OP_ID = "opId must be 8 to 64 letters, digits, - or _.";
+export const POSTED_THEN_DELETED = "That comment was already posted, and has since been deleted.";
 
 interface EntryRow { workspace_id: number; uuid: string; season: number; team: number; kind: string; event_code: string | null; match_label: string | null; deleted: number }
 async function entryRow(workspaceId: string, uuid: string): Promise<EntryRow | undefined> {
@@ -127,28 +136,51 @@ const nextRev = () => (lastRev = Math.max(lastRev + 1, Date.now() * 1000));
 function change(m: Membership, fn: (rev: number) => Promise<CommentEvent | Fail>, after: (e: CommentEvent) => Promise<void>): Promise<CommentEvent | Fail> {
   return serialized(`comments:${m.workspaceId}`, async () => {
     const out = await fn(nextRev());
-    if ("ok" in out) return out;
+    // Refused, or nothing new (rev 0: a retry of a post already made): nothing to stream or log.
+    if ("ok" in out || out.rev === 0) return out;
     publishComment(m.workspaceId, out);
     await after(out); // never throws (logActivity and followExcerpt catch their own)
     return out;
   });
 }
 
-export async function postComment(user: User, m: Membership, uuid: string, raw: unknown, now = Date.now()): Promise<CommentEvent | Fail> {
+/**
+ * The comment an earlier attempt with this opId made (same workspace, author and entry), as the answer to
+ * a retry of it: rev 0 (nothing new). Undefined when there's none; a Fail when it has been deleted since.
+ */
+async function repeatOf(m: Membership, wsDbId: number, uuid: string, opId: string): Promise<CommentEvent | Fail | undefined> {
+  const row = await get<any>(
+    `SELECT c.*, (SELECT COUNT(*) FROM workspace_entry_comments n WHERE n.workspace_id = c.workspace_id AND n.entry_uuid = c.entry_uuid AND n.deleted_at IS NULL) n
+       FROM workspace_entry_comments c WHERE c.workspace_id = ? AND c.author_account_id = ? AND c.entry_uuid = ? AND c.client_op_id = ?`,
+    [wsDbId, m.accountId, uuid, opId]);
+  if (!row) return undefined;
+  if (row.deleted_at != null) return fail(409, POSTED_THEN_DELETED);
+  return { action: "created", workspaceId: m.workspaceId, entryUuid: uuid, commentId: Number(row.id), count: Number(row.n), rev: 0, comment: toComment(m.workspaceId, row) };
+}
+
+export async function postComment(user: User, m: Membership, uuid: string, raw: unknown, now = Date.now(), rawOpId?: unknown): Promise<CommentEvent | Fail> {
+  if (rawOpId !== undefined && rawOpId !== null && !isCommentOpId(rawOpId)) return fail(400, BAD_OP_ID);
+  const opId = isCommentOpId(rawOpId) ? rawOpId : null;
   const clean = cleanCommentBody(raw);
   if (!clean.ok) return fail(400, clean.error);
   const e = await entryRow(m.workspaceId, uuid);
   if (!e) return fail(404, NOT_SYNCED);
+  // A retry of a post already made: its comment, before anything else is checked or spent (even if the
+  // entry was deleted since, or the allowance is spent: it asks for nothing new).
+  if (opId) { const again = await repeatOf(m, e.workspace_id, uuid, opId); if (again) return again; }
   if (Number(e.deleted)) return fail(409, ENTRY_DELETED);
-  const wait = takeCommentToken(m.accountId, now);
-  if (wait != null) return fail(429, TOO_FAST, wait);
   return change(m, async (rev) => {
+    // Two copies of one attempt that both got past the check above: the later one (run after the first, here) gets the first's comment.
+    if (opId) { const again = await repeatOf(m, e.workspace_id, uuid, opId); if (again) return again; }
+    // Spent here, after that check: a copy of an attempt already made never costs (or is refused for) a token.
+    const wait = takeCommentToken(m.accountId, now);
+    if (wait != null) return fail(429, TOO_FAST, wait);
     // The entry must still be there, and not deleted, when the comment is written: checked in the insert itself.
     const [ins, cnt] = await db().batch([
       {
-        sql: `INSERT INTO workspace_entry_comments (workspace_id, entry_uuid, author_account_id, author_name, body, created_at)
-              SELECT ?, ?, ?, ?, ?, ? WHERE EXISTS (SELECT 1 FROM workspace_scout_entries WHERE workspace_id = ? AND uuid = ? AND deleted = 0) ${RETURNING}`,
-        args: [e.workspace_id, uuid, m.accountId, writerName(user), clean.body, now, e.workspace_id, uuid],
+        sql: `INSERT INTO workspace_entry_comments (workspace_id, entry_uuid, author_account_id, author_name, body, created_at, client_op_id)
+              SELECT ?, ?, ?, ?, ?, ?, ? WHERE EXISTS (SELECT 1 FROM workspace_scout_entries WHERE workspace_id = ? AND uuid = ? AND deleted = 0) ${RETURNING}`,
+        args: [e.workspace_id, uuid, m.accountId, writerName(user), clean.body, now, opId, e.workspace_id, uuid],
       },
       countStatement(e.workspace_id, uuid),
     ], "write");
@@ -309,7 +341,9 @@ export function commentsRouter(): Router {
   r.post(thread, jsonOnly, h(async (req, res) => {
     const who = await member(req, res);
     if (!who) return;
-    return answer(res, await postComment(who.user, who.m, who.uuid, req.body?.body), 201);
+    const out = await postComment(who.user, who.m, who.uuid, req.body?.body, Date.now(), req.body?.opId);
+    // A retry of a post already made (rev 0): 200, the comment it made; a new comment: 201.
+    return answer(res, out, "ok" in out || out.rev !== 0 ? 201 : 200);
   }));
   r.patch(`${thread}/:id`, jsonOnly, h(async (req, res) => {
     const who = await member(req, res);

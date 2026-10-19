@@ -5,7 +5,7 @@
 import type { AddressInfo } from "node:net";
 import type { Server } from "node:http";
 import express from "express";
-import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from "vitest";
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { all, get, migrate, openDb, run, setDb } from "../db";
 import { createApp } from "../app";
 import { setMailer } from "../auth/email";
@@ -324,5 +324,44 @@ describe("shared pick list", () => {
     expect(order(await priya("GET", `${url("1110")}?season=2024`))).toEqual([102]);
     expect((await priya("GET", `${url("1111")}?season=${S}`)).status).toBe(403); // no one joined 1111
     expect((await olly("GET", `${url("1110")}?season=${S}`)).status).toBe(403);
+  });
+});
+
+// PRIVATE-F03 (audit 2026-10-18): a note kept on a device across a reload is sent again with the note time it
+// was written over (base); it must never replace a newer note a teammate wrote meanwhile.
+describe("shared pick list: a note sent with its base", () => {
+  it("applies when the note is still the one it was written over; a newer note is kept (409 with the list)", async () => {
+    const { priya, marcus } = await team("1120");
+    await op(priya, "1120", { op: "add", team: 18360 });
+    const first = (await op(priya, "1120", { op: "note", team: 18360, note: "Strong auto" })).json.list.picks[0];
+    // Base still current: applies.
+    const ok = await op(priya, "1120", { op: "note", team: 18360, note: "Strong auto, weak lift", base: first.noteUpdatedAt });
+    expect(ok.status).toBe(200);
+    expect(ok.json.list.picks[0].note).toBe("Strong auto, weak lift");
+    // Marcus writes after it; Priya's device resends a draft written over the older note: refused, his kept.
+    await new Promise((r) => setTimeout(r, 2));
+    await op(marcus, "1120", { op: "note", team: 18360, note: "Lift fixed at QF" });
+    const stale = await op(priya, "1120", { op: "note", team: 18360, note: "Old draft", base: ok.json.list.picks[0].noteUpdatedAt });
+    expect(stale.status).toBe(409);
+    expect(stale.json.list.picks[0]).toMatchObject({ note: "Lift fixed at QF", noteBy: { name: "Marcus" } });
+    expect((await priya("GET", `${url("1120")}?season=${S}`)).json.list.picks[0].note).toBe("Lift fixed at QF");
+    // The same text as what's there is no conflict (it already says that); base null: never noted.
+    expect((await op(priya, "1120", { op: "note", team: 18360, note: "Lift fixed at QF", base: 1 })).status).toBe(200);
+    await op(priya, "1120", { op: "add", team: 101 });
+    expect((await op(priya, "1120", { op: "note", team: 101, note: "first", base: null })).status).toBe(200);
+    expect((await op(priya, "1120", { op: "note", team: 101, note: "again", base: null })).status).toBe(409);
+    // Without base: last write wins, as before.
+    expect((await op(priya, "1120", { op: "note", team: 101, note: "again" })).status).toBe(200);
+    // Two notes in the same millisecond still get different times, so a note based on the first can't replace the second.
+    const frozen = Date.now() + 10_000;
+    const spy = vi.spyOn(Date, "now").mockReturnValue(frozen);
+    try {
+      const a = (await op(priya, "1120", { op: "note", team: 101, note: "same ms one" })).json.list.picks.find((p: any) => p.team === 101);
+      const b = (await op(marcus, "1120", { op: "note", team: 101, note: "same ms two" })).json.list.picks.find((p: any) => p.team === 101);
+      expect(b.noteUpdatedAt).toBeGreaterThan(a.noteUpdatedAt);
+      expect((await op(priya, "1120", { op: "note", team: 101, note: "based on one", base: a.noteUpdatedAt })).status).toBe(409);
+    } finally { spy.mockRestore(); }
+    // A bad base is a 400.
+    expect((await op(priya, "1120", { op: "note", team: 101, note: "x", base: "yesterday" })).status).toBe(400);
   });
 });
