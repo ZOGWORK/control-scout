@@ -10,7 +10,7 @@
 //
 // A post the server may have taken without its answer arriving (audit PRIVATE-F05) keeps its text and its
 // operation id: the thread is checked for it, and Retry sends the same attempt, so it never posts twice.
-import { useEffect, useId, useRef, useState, type KeyboardEvent } from "react";
+import { useEffect, useId, useMemo, useRef, useState, type KeyboardEvent } from "react";
 import { Loader2, MessageSquare, Pencil, Send, Trash2 } from "lucide-react";
 import { Button } from "../ui/button";
 import { Textarea } from "../ui/basic";
@@ -19,7 +19,10 @@ import { cn } from "../cn";
 import { agoShort } from "../../lib/format";
 import { useNow } from "../../lib/useNow";
 import { usePersonal } from "../../lib/personal";
-import { CommentWriteError, newCommentOpId, useEntryComments } from "../../lib/scoutComments";
+import { newCommentOpId, useEntryComments } from "../../lib/scoutComments";
+import { commentArrived, discardComment, loadCommentAttempts, sendComment, useCommentAttempt, type CommentPlace } from "../../lib/commentAttempts";
+import { SAVED_SHOW_MS, type SaveState } from "../../lib/pendingWork";
+import { SaveStatus } from "../SaveStatus";
 import type { ScoutEntry } from "../../lib/scouting";
 import { COMMENT_MAX, commentLength, type EntryComment } from "../../shared/comments";
 
@@ -45,6 +48,14 @@ export function EntryComments({ entry, className }: { entry: ScoutEntry; classNa
   const readOnly = !!ws?.orphaned;
   const me = { accountId: cp?.accountId, admin: ws?.role === "admin" };
   const headingId = useId();
+  // Where a new comment belongs (kept until the workspace confirms it): this account, workspace and entry.
+  const account = me.accountId;
+  const place = useMemo<CommentPlace | null>(() => (account == null || space == null || !synced ? null : {
+    account, space, uuid: entry.uuid, season: entry.season, team: entry.team,
+    what: `Comment on ${entry.team} · ${entry.kind === "pit" ? "Pit" : `Match ${entry.matchLabel ?? ""}`.trim()}`,
+  }), [account, space, synced, entry.uuid, entry.season, entry.team, entry.kind, entry.matchLabel]);
+  // Attempts kept from before a reload are checked against their threads (once per page).
+  useEffect(() => { loadCommentAttempts(account); }, [account]);
   if (space == null) return null; // Personal entries have no comments
   const n = thread.comments.length;
   return (
@@ -79,7 +90,7 @@ export function EntryComments({ entry, className }: { entry: ScoutEntry; classNa
             ? <p className="mt-4 text-sm text-muted-foreground">This workspace is read-only: its comments can be read, not added to.</p>
             : thread.closed
             ? <p className="mt-4 text-sm text-muted-foreground">This entry was deleted, so it can't take new comments.</p>
-            : <Composer post={thread.post} comments={thread.comments} />}
+            : <Composer key={place ? `${place.account}:${place.uuid}` : "none"} post={thread.post} comments={thread.comments} place={place} />}
         </>
       )}
     </section>
@@ -165,51 +176,101 @@ function CharsLeft({ length }: { length: number }) {
   return <span className={cn("ml-auto text-xs tabular-nums", left < 0 ? "text-danger" : "text-muted-foreground")} aria-live="polite">{left < 0 ? `${(-left).toLocaleString()} over the ${COMMENT_MAX.toLocaleString()}-character limit` : `${left.toLocaleString()} characters left`}</span>;
 }
 
-function Composer({ post, comments }: { post: (body: string, opId: string) => Promise<void>; comments: EntryComment[] }) {
-  const [draft, setDraft] = useState("");
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<{ text: string; uncertain: boolean } | null>(null);
+/**
+ * The new-comment box, with where its comment stands (E4): Draft while typed, Saving while it's on its way, a
+ * moment of Saved, and Needs attention when it didn't go or its outcome is unknown. The attempt is kept
+ * (commentAttempts.ts) until the workspace confirms it, so closing the entry, or a reload, doesn't lose it: it
+ * comes back here, and the recoverable-changes view lists it meanwhile.
+ */
+function Composer({ post, comments, place }: { post: (body: string, opId: string) => Promise<void>; comments: EntryComment[]; place: CommentPlace | null }) {
+  const attempt = useCommentAttempt(place?.account, place?.space ?? null, place?.uuid ?? null);
+  // A kept attempt (one that didn't go, or isn't confirmed) comes back into the field.
+  const [draft, setDraft] = useState(() => attempt?.body ?? "");
+  const [justSaved, setJustSaved] = useState(false);
+  // One attempt per entry at a time: while it's on its way (or being checked), nothing else is sent, even if the text changes.
+  const busy = attempt?.state === "saving";
   /** The attempt the text in the field belongs to: the same text sent again is the same attempt (same id). */
-  const attempt = useRef<{ opId: string; text: string } | null>(null);
+  const local = useRef<{ opId: string; text: string } | null>(attempt ? { opId: attempt.opId, text: attempt.body } : null);
   const ref = useRef<HTMLTextAreaElement>(null);
   const errId = useId();
   const fieldId = useId();
+  const saved = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(() => () => { if (saved.current) clearTimeout(saved.current); }, []);
   /** The attempt went through: clear what was sent (words typed since stay) and start a new attempt next time. */
-  const done = (sent: string) => { attempt.current = null; setDraft((d) => (d === sent ? "" : d)); setError(null); };
+  const done = (sent: string, opId: string) => {
+    // Only the attempt it completed: a newer one started meanwhile keeps its id (its Retry must never post twice).
+    if (local.current && local.current.opId !== opId) return;
+    local.current = null;
+    setDraft((d) => (d === sent ? "" : d));
+    setJustSaved(true);
+    if (saved.current) clearTimeout(saved.current);
+    saved.current = setTimeout(() => setJustSaved(false), SAVED_SHOW_MS);
+  };
   // An unconfirmed post that shows up in the thread after all (the stream, or a refetch): it was posted.
   useEffect(() => {
-    const a = attempt.current;
-    if (a && !busy && comments.some((c) => c.opId === a.opId)) done(a.text);
+    const a = local.current;
+    if (!a || busy || !comments.some((c) => c.opId === a.opId)) return;
+    if (place) commentArrived(place.account, place.space, place.uuid, a.opId);
+    done(a.text, a.opId);
   }, [comments, busy]); // eslint-disable-line react-hooks/exhaustive-deps
+  // Confirmed or let go elsewhere (the recoverable view's Retry or Discard): the field follows.
+  const had = useRef(attempt);
+  useEffect(() => {
+    const before = had.current;
+    had.current = attempt;
+    // Kept from before a reload, read after this field mounted: its text and id come back (never over typing).
+    if (!before && attempt && !local.current) {
+      local.current = { opId: attempt.opId, text: attempt.body };
+      setDraft((d) => (d.trim() ? d : attempt.body));
+      return;
+    }
+    if (!before || attempt?.opId === before.opId) return;
+    if (local.current?.opId !== before.opId) return;
+    // Another tab replaced it with a newer attempt: that one comes into the field (unless something new was typed here).
+    if (attempt) { local.current = { opId: attempt.opId, text: attempt.body }; setDraft((d) => (d === before.body || !d.trim() ? attempt.body : d)); return; }
+    local.current = null;
+    setDraft((d) => (d === before.body ? "" : d));
+  }, [attempt]);
   const send = async () => {
     if (!sendable(draft) || busy) return;
     const sent = draft;
-    if (attempt.current?.text !== sent) attempt.current = { opId: newCommentOpId(), text: sent };
-    const { opId } = attempt.current;
-    setBusy(true); setError(null);
+    if (local.current?.text !== sent) local.current = { opId: newCommentOpId(), text: sent };
+    const { opId } = local.current;
+    setJustSaved(false);
     // Cleared only if it still holds what was sent: words typed while it was sending stay.
-    try { await post(sent, opId); done(sent); ref.current?.focus(); }
-    // The draft (and its attempt) stays, to try again.
-    catch (e) { setError({ text: (e as Error).message, uncertain: e instanceof CommentWriteError && e.uncertain }); }
-    finally { setBusy(false); }
+    let ok: boolean;
+    if (place) ok = await sendComment(place, sent, opId, post);
+    else ok = await post(sent, opId).then(() => true, () => false);
+    if (ok) { done(sent, opId); ref.current?.focus(); }
   };
+  const discard = () => {
+    if (place) discardComment(place.account, place.space, place.uuid);
+    local.current = null;
+    setDraft("");
+    ref.current?.focus();
+  };
+  // The message belongs to the text it was about: once that's edited, it's a new comment.
+  const problem = attempt?.state === "attention" && draft === attempt.body ? attempt : null;
+  const state: SaveState | null = problem ? "attention" : busy ? "saving" : justSaved && !draft.trim() ? "saved" : draft.trim() ? "draft" : null;
   return (
     <div className="mt-5 border-t border-border pt-4">
       <label htmlFor={fieldId} className="sr-only">Add a comment</label>
-      <Textarea id={fieldId} ref={ref} value={draft} onChange={(e) => { setDraft(e.target.value); setError(null); }} rows={2}
-        placeholder="Add a comment for the workspace" enterKeyHint="enter" aria-invalid={!!error} aria-describedby={error ? errId : undefined}
+      <Textarea id={fieldId} ref={ref} value={draft} onChange={(e) => setDraft(e.target.value)} rows={2}
+        placeholder="Add a comment for the workspace" enterKeyHint="enter" aria-invalid={!!problem} aria-describedby={problem ? errId : undefined}
         onFocus={(e) => keepVisible(e.currentTarget)}
         onKeyDown={(e) => { if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) { e.preventDefault(); void send(); } }}
         className="scroll-mb-24 min-h-11 text-base sm:text-sm" />
       <div className="mt-2 flex flex-wrap items-center gap-2">
         <Button type="button" onClick={send} disabled={busy || !sendable(draft)}>{busy ? <Loader2 className="animate-spin" /> : <Send />}Comment</Button>
+        <SaveStatus state={state} what="Your comment" text={state === "saved" ? "Posted" : state === "saving" ? "Posting…" : undefined} />
         <span className="hidden text-xs text-muted-foreground sm:inline">Ctrl+Enter to send · everyone in the workspace sees it</span>
         <CharsLeft length={commentLength(draft)} />
       </div>
-      {error && (
+      {problem && (
         <p id={errId} role="alert" className="mt-1 text-xs text-danger">
-          {error.text}
-          {error.uncertain && <> <button type="button" onClick={send} disabled={busy || !sendable(draft)} className={cn("font-medium underline underline-offset-2", touch)}>Retry</button></>}
+          {problem.message}
+          {" "}<button type="button" onClick={send} disabled={busy || !sendable(draft)} className={cn("font-medium underline underline-offset-2", touch)}>Retry</button>
+          {" "}<button type="button" onClick={discard} className={cn("font-medium underline underline-offset-2", touch)}>Discard</button>
         </p>
       )}
     </div>

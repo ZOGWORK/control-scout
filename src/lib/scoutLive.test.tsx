@@ -251,7 +251,7 @@ describe("useScoutLive", () => {
 });
 
 describe("attribution", () => {
-  const now = 10_000_000;
+  const now = Date.UTC(2025, 9, 1, 12); // a real time: one before 1970 reads "time unknown"
   it("author and relative time; the editor when it's someone else; nothing for Personal", () => {
     expect(attributionText(remote({ updatedAt: now - 2 * 60_000 }), now)).toBe("Priya · 2m ago");
     expect(attributionText(remote({ updatedAt: now - 5_000, editorAccountId: 9, editorDisplayName: "Marcus" }), now)).toBe("Priya · edited by Marcus · just now");

@@ -6,7 +6,7 @@ import { Link, useSearchParams } from "react-router-dom";
 import { ClipboardCheck, ClipboardList, Cloud, CloudOff, Download, History, Info, LayoutList, ListOrdered, Loader2, Lock, MessageSquare, Plus, Save, SearchX, Trash2, X } from "lucide-react";
 import { useCurrentSeason, useTitle } from "../lib/meta";
 import { usePersonal } from "../lib/personal";
-import { canDeleteScoutEntry, deleteScoutEntry, localScoutEntries, newScoutId, personalCopy, scoutDraftBase, refusalMessage, SCOUT_REFUSED, type ScoutRefusal, saveScoutEntry, ScoutStorageError, usePendingScoutCounts, useScouting, type ScoutEntry, type ScoutSpace, type ScoutValue } from "../lib/scouting";
+import { canDeleteScoutEntry, deleteScoutEntry, isScoutQueued, scoutSyncProblem, localScoutEntries, newScoutId, personalCopy, scoutDraftBase, refusalMessage, SCOUT_REFUSED, type ScoutRefusal, saveScoutEntry, ScoutStorageError, usePendingScoutCounts, useScouting, type ScoutEntry, type ScoutSpace, type ScoutValue } from "../lib/scouting";
 import { resolveTemplate, useEntryTemplate, useEntryTemplateState, useWorkspaceTemplate } from "../lib/scoutTemplates";
 import { ALL_PHASES, phaseLabel, type WorkspaceTemplate } from "../shared/scoutTemplate";
 import { orphanBanner, type OrphanState } from "../shared/orphaned";
@@ -15,6 +15,7 @@ import { activeFilterCount } from "../shared/scoutFilter";
 import { EntryFilterBar } from "../components/scout/EntryFilterBar";
 import { useEntryFeed, type FeedViewer } from "../lib/scoutFeed";
 import { qs, useApi } from "../lib/api";
+import { isKnownTime } from "../lib/format";
 import type { EventListItem } from "../shared/api";
 import { ScoutFieldInput } from "../components/scout/ScoutFieldInput";
 import { TemplateEditor } from "../components/scout/TemplateEditor";
@@ -24,11 +25,13 @@ import { ScoutSpaceSwitcher } from "../components/ScoutSpaceSwitcher";
 import { LoadingBlock } from "../components/states";
 import { useScoutLive, type LiveMode } from "../lib/scoutLive";
 import { EntryAttribution } from "../components/EntryAttribution";
+import { SaveStatus } from "../components/SaveStatus";
 import { EntryPhotos } from "../components/scout/EntryPhotos";
 import { ActivityFeed } from "../components/scout/ActivityFeed";
 import { ConflictNotices, HistorySheet } from "../components/scout/EntryHistory";
 import { LOST_UNSAVED_MESSAGE, SCOUT_LOST_UNSAVED } from "../lib/lostEdits";
 import { EntryComments } from "../components/scout/EntryComments";
+import { RecoverableChanges } from "../components/scout/RecoverableChanges";
 import { announceCommentsResync, useCommentCounts } from "../lib/scoutComments";
 import { useWorkspaceActivity } from "../lib/scoutActivity";
 import { SharedPicklist } from "../components/scout/SharedPicklist";
@@ -213,6 +216,8 @@ export default function ScoutPage() {
         {spaces.switchable && <ScoutSpaceSwitcher workspaces={spaces.workspaces} space={space} pending={pending} onSelect={selectSpace} onRefresh={syncReady ? refreshSpace : undefined} className="mb-4" />}
         {/* Edits this device lost to newer ones from other members (Task 16): each until dismissed, with its diff. */}
         {space != null && !spaces.resolving && <ConflictNotices space={space} me={me && { ...me, readOnly: !!readOnly }} />}
+        {/* This account's shared work that hasn't reached its workspace (E4), in any workspace: only while there is some. */}
+        {user?.controlPoint && !spaces.resolving && <RecoverableChanges account={user.controlPoint.accountId} workspaces={user.controlPoint.workspaces ?? []} />}
         {spaces.notice && (
           <div role="status" className="mb-4 flex items-start gap-3 rounded-xl border border-warning/40 bg-warning/10 px-4 py-3 text-sm">
             <Info className="mt-0.5 size-4 shrink-0 text-warning" />
@@ -323,9 +328,23 @@ function ReadOnlyBanner({ state }: { state: OrphanState }) {
 /** When an entry was saved, for its card. 0 or missing (a repaired impossible timestamp, see
  *  src/shared/scoutEntry.ts) is unknown, never "12/31/1969". */
 export function entryDate(updatedAt: number | null | undefined): string {
-  if (!updatedAt || !Number.isFinite(updatedAt)) return "Date unknown";
+  if (!isKnownTime(updatedAt)) return "Date unknown";
   const d = new Date(updatedAt);
   return Number.isFinite(d.getTime()) ? d.toLocaleString() : "Date unknown";
+}
+
+/**
+ * Where a shared entry's latest change stands (E4). Synced: nothing (the calm state). Queued: Syncing…, or
+ * Waiting to sync while offline (kept on this device), or Needs attention when a push didn't go through or its
+ * answer was lost (it goes again by itself; the recoverable-changes view offers Retry and Discard).
+ */
+export function EntrySyncState({ e }: { e: ScoutEntry }) {
+  if (e.workspaceId == null) return null;
+  const queued = isScoutQueued(e);
+  const problem = queued ? scoutSyncProblem(e.workspaceId) : null;
+  const state = !queued ? null : problem?.kind === "offline" ? "draft" : problem ? "attention" : "saving";
+  const text = state === "draft" ? "Waiting to sync" : state === "saving" ? "Syncing…" : state === "attention" ? (problem?.kind === "unconfirmed" ? "Not confirmed yet" : "Not synced") : undefined;
+  return <SaveStatus state={state} text={text} what={`Entry ${e.team} ${e.kind === "pit" ? "pit" : `match ${e.matchLabel ?? ""}`}`.trim()} className="shrink-0" />;
 }
 
 /** One entry in the feed (exported for its tests). */
@@ -344,7 +363,10 @@ export function EntryCard({ e, assigned, canDelete, readOnly, comments, onEdit, 
           {e.workspaceId == null ? <p className="text-xs text-muted-foreground">{e.eventCode ?? "No event"} · {entryDate(e.updatedAt)}</p> : (
             <>
               <p className="text-xs text-muted-foreground">{e.eventCode ?? "No event"}</p>
-              <EntryAttribution e={e} className="mt-0.5" />
+              <div className="mt-0.5 flex min-w-0 items-center gap-2">
+                <EntryAttribution e={e} className="min-w-0" />
+                <EntrySyncState e={e} />
+              </div>
               {assigned && <Badge variant="beta" className="mt-1.5 max-w-full whitespace-normal leading-snug [overflow-wrap:anywhere]"><ClipboardCheck className="shrink-0" /> {assigned}</Badge>}
             </>
           )}

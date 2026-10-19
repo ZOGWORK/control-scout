@@ -7,7 +7,9 @@ import { Link } from "react-router-dom";
 import { Copy, GripVertical, LayoutGrid, List, ListOrdered, Loader2, Plus, Scale } from "lucide-react";
 import { useApi, qs } from "../../lib/api";
 import { compareHref, moveItem, readView, saveView, type ShortlistView } from "../../lib/shortlist";
-import { displayOrder, usePickList } from "../../lib/sharedPicklist";
+import { displayOrder, NOTE_UNCONFIRMED, usePickList } from "../../lib/sharedPicklist";
+import type { SaveState } from "../../lib/pendingWork";
+import { SaveStatus } from "../SaveStatus";
 import type { LiveMode } from "../../lib/scoutLive";
 import { agoShort } from "../../lib/format";
 import { useNow } from "../../lib/useNow";
@@ -32,9 +34,25 @@ const who = (p: PickPerson | null, me: PickPerson) => (!p ? "" : p.accountId != 
 /** A note quoted in a message: on one line, cut short. */
 const quote = (note: string) => { const flat = note.replace(/\s+/g, " ").trim(); return flat.length > 60 ? `${flat.slice(0, 59).trimEnd()}…` : flat; };
 
-/** The shared note, and who added the team and last wrote the note. */
-function SharedNote({ pick, me, onSave, unsaved, saved, conflict = false, kept = true, readOnly = false }: {
-  pick: Pick; me: PickPerson; onSave: (text: string) => void; readOnly?: boolean;
+/**
+ * The shared note, and who added the team and last wrote the note, with where the note stands (E4): Draft while
+ * typed text waits out the save pause, Saving, a moment of Saved, and Needs attention when it didn't go through.
+ */
+function SharedNote({ pick, me, onSave, onDiscard, unsaved, saved, savedAt, conflict = false, kept = true, uncertain = false, state = null, readOnly = false }: {
+  pick: Pick; me: PickPerson; readOnly?: boolean;
+  /**
+   * The server's time of the note (not this device's own note on its way, which shows with a time of its own):
+   * what an edit begun now is written over.
+   */
+  savedAt: number | null;
+  /** `editBase`: the note's server time when this edit began (the note it's written over). */
+  onSave: (text: string, editBase: number | null) => void;
+  /** Drop the unsaved note (nothing is sent; the saved one shows again). */
+  onDiscard: () => void;
+  /** The hook's state for the note (Draft is this field's own). */
+  state?: SaveState | null;
+  /** Sent, but its answer was lost and the list doesn't show it. */
+  uncertain?: boolean;
   /** This member's note the server didn't take, and the note the server has: the field keeps the first, marked unsaved. */
   unsaved?: string; saved?: string;
   /** It wasn't sent because a teammate changed the note since it was written. */
@@ -43,17 +61,26 @@ function SharedNote({ pick, me, onSave, unsaved, saved, conflict = false, kept =
   kept?: boolean;
 }) {
   const now = useNow();
+  // The note this edit is written over: the one the field showed when typing began.
+  const editBase = useRef<number | null>(savedAt);
+  const [drafting, setDrafting] = useState(false);
+  const shownState: SaveState | null = state === "attention" ? state : drafting ? "draft" : state;
   const noteBy = pick.note && pick.noteBy && pick.noteUpdatedAt != null ? `note by ${who(pick.noteBy, me)} · ${agoShort(pick.noteUpdatedAt, now)}` : null;
   const failedText = conflict
     ? `Not saved yet: ${who(pick.noteBy, me) || "a teammate"} changed this note${pick.note ? ` to “${quote(pick.note)}”` : ""} after you wrote yours. Retry to replace it with yours, or press Escape to keep theirs.`
+    : uncertain ? NOTE_UNCONFIRMED
     : kept ? "Not saved yet. Your text is kept on this device: Retry, or press Escape to put back the saved note."
     : "Not saved yet, and this device couldn't keep a copy (its storage is full or blocked): don't reload. Retry, or press Escape to put back the saved note.";
   return (
     <div className="min-w-0">
-      {readOnly ? (pick.note ? <p className="whitespace-pre-wrap break-words px-1.5 text-sm">{pick.note}</p> : null) : <NoteField team={pick.team} value={unsaved ?? pick.note} stored={unsaved !== undefined ? saved ?? "" : pick.note} onSave={onSave}
-        failedText={failedText} retry retryOnLeave={!conflict} label={`Shared note on team ${pick.team}, seen by the whole workspace`} placeholder="Add a note for the team…" maxLength={MAX_PICK_NOTE} />}
-      <p className="truncate px-1.5 text-[11px] text-text-muted" title={new Date(pick.addedAt).toLocaleString()}>
-        Added by {who(pick.addedBy, me)}{noteBy ? ` · ${noteBy}` : ""}
+      {readOnly ? (pick.note ? <p className="whitespace-pre-wrap break-words px-1.5 text-sm">{pick.note}</p> : null) : <NoteField team={pick.team} value={unsaved ?? pick.note} stored={unsaved !== undefined ? saved ?? "" : pick.note} onSave={(text) => onSave(text, editBase.current)}
+        onBegin={() => { editBase.current = savedAt; }} onDraft={setDrafting}
+        discard={unsaved !== undefined ? { label: conflict ? "Keep theirs" : "Discard", onClick: onDiscard } : undefined}
+        // An unsaved note goes again only when asked (Retry, Enter or a new edit): leaving the field, or tabbing to Discard, sends nothing.
+        failedText={failedText} retry retryOnLeave={unsaved === undefined} label={`Shared note on team ${pick.team}, seen by the whole workspace`} placeholder="Add a note for the team…" maxLength={MAX_PICK_NOTE} />}
+      <p className="flex min-w-0 items-center gap-1.5 px-1.5 text-[11px] text-text-muted">
+        <span className="truncate" title={new Date(pick.addedAt).toLocaleString()}>Added by {who(pick.addedBy, me)}{noteBy ? ` · ${noteBy}` : ""}</span>
+        {!readOnly && <SaveStatus state={shownState} what={`Note on ${pick.team}`} className="shrink-0" />}
       </p>
     </div>
   );
@@ -99,9 +126,9 @@ export function SharedPicklist({ workspaceId, workspaceName, season, live, me, s
   });
 
   const describe = useCallback((t: number) => { const n = byTeam.get(t)?.name; return n ? `${t} ${n}` : `Team ${t}`; }, [byTeam]);
-  const change = useCallback((op: Parameters<typeof pl.change>[0]) => {
+  const change = useCallback((op: Parameters<typeof pl.change>[0], opts?: Parameters<typeof pl.change>[1]) => {
     if (readOnly) { toast("This workspace is read-only, so its pick list can't be changed."); return; }
-    pl.change(op);
+    pl.change(op, opts);
   }, [readOnly, pl.change]); // eslint-disable-line react-hooks/exhaustive-deps
   // Only picks with a row on screen take part in a drag (one whose stats are still loading has no row to measure).
   // Moves name teams, so a pick left out keeps its place relative to the others.
@@ -163,7 +190,9 @@ export function SharedPicklist({ workspaceId, workspaceName, season, live, me, s
     const p = byPick.get(t.team)!;
     return {
       t, rank, season, open: open.has(t.team), dragging: reorder.dragging === t.team, idPrefix: "picklist",
-      readOnly, note: <SharedNote pick={p} me={me} readOnly={readOnly} unsaved={pl.unsavedNote(t.team)} saved={pl.savedNote(t.team)} conflict={pl.noteConflict(t.team)} kept={pl.noteKept(t.team)} onSave={(text) => change({ op: "note", team: t.team, note: text })} />,
+      readOnly, note: <SharedNote pick={p} me={me} readOnly={readOnly} unsaved={pl.unsavedNote(t.team)} saved={pl.savedNote(t.team)} conflict={pl.noteConflict(t.team)} kept={pl.noteKept(t.team)}
+        uncertain={pl.noteUncertain(t.team)} savedAt={pl.savedNoteAt(t.team)} state={pl.noteState(t.team)} onDiscard={() => pl.discardNote(t.team)}
+        onSave={(text, editBase) => change({ op: "note", team: t.team, note: text }, { editBase })} />,
       selected: selected.includes(t.team), selectDisabled: !selected.includes(t.team) && selected.length >= MAX_COMPARE, onSelect: (on: boolean) => pick(t.team, on),
       onToggle: () => toggle(t.team), onRemove: () => remove(t.team), handle: handleFor(t.team),
       compareLink: compareHref([t.team, ...teams.filter((x) => x !== t.team).slice(0, MAX_COMPARE - 1)], season),
@@ -209,7 +238,8 @@ export function SharedPicklist({ workspaceId, workspaceName, season, live, me, s
           <>
             <p className="mb-3 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-text-muted">
               {!readOnly && <span><GripVertical className="inline size-3.5 align-[-3px] text-accent" /> Drag the grip (or focus it and use the arrow keys) to rank the picks.</span>}
-              {pl.saving && <span className="inline-flex items-center gap-1"><Loader2 className="size-3 animate-spin" /> Saving</span>}
+              {!readOnly && <SaveStatus state={pl.orderState} what="Pick list order"
+                text={pl.orderState === "attention" ? `${pl.failed.length} change${pl.failed.length === 1 ? "" : "s"} not saved` : undefined} />}
               {live === "live" && <span className="inline-flex items-center gap-1 text-success"><span aria-hidden className="size-1.5 rounded-full bg-success" />Live</span>}
             </p>
             {/* Picks whose stats haven't arrived (one just added by someone): never hidden without saying so. */}
