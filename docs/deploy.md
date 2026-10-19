@@ -135,6 +135,20 @@ https://controlscout.org.
   `openssl rand -hex 32`) in `shared/.env`, restart, then
   `curl -H "Authorization: Bearer $STATS_TOKEN" https://controlscout.org/api/stats/summary?days=30`.
   Without `STATS_TOKEN` that endpoint answers 404.
+- **IndexNow** (server/indexNow.ts): tells Bing and the other [IndexNow](https://www.indexnow.org)
+  engines which pages changed, so they recrawl them within hours. Off by default. Turn it on with
+  `INDEXNOW=1` in `shared/.env` and restart. It then pings `https://api.indexnow.org/indexnow`
+  3 minutes after each start (a deploy), after each sync, and hourly, but **at most once an hour**:
+  the main pages (`/`, `/faq`, `/power-rankings`, `/rankings`, `/teams`, `/events`, `/methodology`)
+  after each new release, plus the event pages re-fetched since the last accepted ping, the teams at
+  those events, and newly published power rankings weeks (never more than 10,000 URLs). A failure is
+  one `indexnow:` line in the log and the same changes go out on the next try; nothing is ever thrown or
+  retried in a loop. Its state is the `indexnow` row in `kv`.
+  The key is public by design: engines fetch `https://controlscout.org/<key>.txt` to check it, and it's
+  served whether or not pings are on. The built-in key is `DEFAULT_KEY` in server/indexNow.ts; to use
+  your own, set `INDEXNOW_KEY` (8–128 of `a-z A-Z 0-9 -`, e.g. `openssl rand -hex 16`) and restart.
+  Don't set `INDEXNOW` on a backup host (Render): one server pinging is enough.
+  Check it: `journalctl -u control-scout | grep indexnow` (e.g. `indexnow: sent 7 URLs (HTTP 200)`).
 - **Public usage on the home page** ([public-usage.md](public-usage.md)): off by default. To publish
   the opt-in page views and sessions started for the last 30 days, add `PUBLIC_USAGE_ENABLED=1` to
   `shared/.env` and restart (`sudo systemctl restart control-scout`). Remove it (or set `0`) and

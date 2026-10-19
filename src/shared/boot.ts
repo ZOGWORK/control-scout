@@ -12,6 +12,9 @@ export const BOOT_CHOICE_GLOBAL = "__csConsent";
  *  later "largest paint". The brand itself stays in the app's chrome (sidebar and top bar). */
 export const HOME_HEADLINE = ["The whole field.", "In your corner."] as const;
 export const HOME_LEAD = "Find your team. Follow the competition. Make your next call with the full picture.";
+/** What the site is, in plain words, under the hero's buttons: in the static first paint too, so a crawler
+ *  that never runs the app still reads it. */
+export const HOME_ABOUT = "Control Scout is free FTC scouting and match predictions for every team and event. No account needed.";
 
 /** The id of the app's stylesheet <link>, which the server makes non-blocking (server/seo.ts nonBlockingCss):
  *  the app waits for it to load before its first render (src/main.tsx), so nothing ever shows unstyled. */
