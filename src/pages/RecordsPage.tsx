@@ -45,10 +45,20 @@ export default function RecordsPage({ matches }: { matches?: boolean }) {
       if (strip.current && el) revealInStrip(strip.current, el);
     };
     reveal();
-    // Again once the web fonts are in: they change the labels' widths.
+    // Again once the web fonts are in (they change the labels' widths), and whenever the strip's width
+    // changes (a phone turned to portrait, a narrowed window) so the current view never ends up clipped.
     let live = true;
     document.fonts?.ready.then(() => { if (live) reveal(); });
-    return () => { live = false; };
+    const widthNow = () => strip.current?.getBoundingClientRect().width;
+    let width = widthNow();
+    const ro = typeof ResizeObserver === "undefined" ? null : new ResizeObserver(() => {
+      const w = widthNow();
+      if (w === width) return;
+      width = w;
+      reveal();
+    });
+    if (strip.current) ro?.observe(strip.current);
+    return () => { live = false; ro?.disconnect(); };
   }, [view]);
   const setSeason = (s: number) => {
     // Keep the filter when only the season changes: the same stats exist every season.

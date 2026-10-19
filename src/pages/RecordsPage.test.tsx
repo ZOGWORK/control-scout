@@ -26,20 +26,26 @@ const strip = () => screen.getByRole("navigation", { name: "Records" });
 const views = () => within(strip()).getAllByRole("link");
 const current = () => within(strip()).getAllByRole("link").filter((a) => a.getAttribute("aria-current") === "page");
 
-/** Lay the strip out like a phone: 250px wide (16–266), three 130px links side by side, moved by scrollLeft. */
+/** Lay the strip out like a phone: `stripWidth` wide from 16 (250: 16–266), three 130px links side by side, moved by scrollLeft. */
+let stripWidth = 250;
 function phoneLayout() {
   const rect = (left: number, width: number) => ({ left, right: left + width, width, top: 0, bottom: 44, height: 44, x: left, y: 0, toJSON() {} }) as DOMRect;
   vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockImplementation(function (this: HTMLElement) {
     const nav = this.closest("nav[aria-label=Records]") as HTMLElement | null;
     if (!nav) return rect(0, 0);
-    if (this === nav) return rect(16, 250);
+    if (this === nav) return rect(16, stripWidth);
     const i = [...nav.querySelectorAll("a")].indexOf(this as HTMLAnchorElement);
     return rect(20 + i * 134 - nav.scrollLeft, 130);
   });
 }
+/** The strip's ResizeObservers, to fire as a browser would when it changes size. */
+let resized: (() => void)[] = [];
 
-beforeEach(() => { where = ""; });
-afterEach(() => { cleanup(); vi.restoreAllMocks(); });
+beforeEach(() => {
+  where = ""; stripWidth = 250; resized = [];
+  vi.stubGlobal("ResizeObserver", class { constructor(cb: () => void) { resized.push(cb); } observe() {} unobserve() {} disconnect() {} });
+});
+afterEach(() => { cleanup(); vi.restoreAllMocks(); vi.unstubAllGlobals(); });
 
 describe("Records views", () => {
   it("are navigation links with the current one marked, never tabs", () => {
@@ -76,6 +82,17 @@ describe("Records views", () => {
     show("/matches?season=2025");
     // Matches spans 288–418 against a strip ending at 266: scrolled so it ends 8px inside the strip.
     expect(strip().scrollLeft).toBe(418 - 266 + 8);
+  });
+
+  it("reveals the current view again when the strip narrows (a phone turned to portrait), without a view change", () => {
+    phoneLayout();
+    stripWidth = 420; // landscape: everything fits (16–436)
+    show("/matches");
+    expect(strip().scrollLeft).toBe(0);
+    stripWidth = 250; // portrait: Matches (288–418) now runs past the strip's end (266)
+    resized.forEach((cb) => cb());
+    expect(strip().scrollLeft).toBe(418 - 266 + 8);
+    expect(where).toBe("/matches");
   });
 
   it("leaves the strip alone while the current view shows, and reveals the next one after a change", () => {
