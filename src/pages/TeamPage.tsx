@@ -33,7 +33,7 @@ import { eventTypeLabel } from "../lib/labels";
 import { copyLink } from "../lib/clipboard";
 import { direction, trendLabel } from "../shared/trend";
 import { OfflineNote } from "../components/OfflineNote";
-import { StickyActions, useScrolledPast } from "../components/StickyActions";
+import { StickyActions } from "../components/StickyActions";
 import { TeamConsensusSection } from "../components/ScoutConsensus";
 
 export default function TeamPage() {
@@ -139,7 +139,8 @@ function Hero({ p, onSeason }: { p: TeamProfile; onSeason: (s: number) => void }
   const top = rankPct(s?.opr.np.rank, s?.opr.np.of, true);
   const predictable = usePredictable(p.season);
   const share = () => copyLink();
-  const [headerEnd, pastHeader] = useScrolledPast<HTMLDivElement>();
+  // The end of the header: the phone action bar shows once it has scrolled away.
+  const [headerEnd, setHeaderEnd] = useState<HTMLDivElement | null>(null);
   const predictHref = `/predict?mode=match&season=${p.season}&red=${t.number},`;
   return (
     <>
@@ -237,10 +238,10 @@ function Hero({ p, onSeason }: { p: TeamProfile; onSeason: (s: number) => void }
           ) : <p className="mt-5 text-xs text-muted-foreground">{seasonLabel(p.season)} is shown for history: results and stats, no predictions (those start with 2023–24).</p>}
         </div>
       </div>
-      <div ref={headerEnd} aria-hidden />
+      <div ref={setHeaderEnd} aria-hidden />
     </Reveal>
     {/* Phones: once the header has scrolled away, its main actions stay in reach (history seasons: Track only, no predictions). */}
-    <StickyActions show={pastHeader} label={`Actions for team ${t.number}`}>
+    <StickyActions after={headerEnd} label={`Actions for team ${t.number}`}>
       {predictable && <Button asChild><Link to={predictHref}><Sparkles /> <span className="truncate">Predict with {t.number}</span></Link></Button>}
       <Button variant={flags.tracked ? "secondary" : "outline"} aria-pressed={flags.tracked} onClick={track} className={cn(predictable && "!flex-none")}>
         <Eye className={cn(flags.tracked && "text-accent")} /> {flags.tracked ? "Tracking" : "Track"}
