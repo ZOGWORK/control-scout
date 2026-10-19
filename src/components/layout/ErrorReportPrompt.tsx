@@ -5,7 +5,7 @@
 // privacy banner or a page's sticky action bar, which all live at the bottom.
 // Esc inside it dismisses.
 import { Component, useEffect, useRef, useState, type ReactNode } from "react";
-import { AnimatePresence, motion } from "motion/react";
+import { AnimatePresence, m } from "motion/react";
 import { Bug, Check, X } from "lucide-react";
 import { Button } from "../ui/button";
 import { clearPrompt, disableReporting, sendReport, usePendingReport, type SendResult } from "../../lib/errorReporting";
@@ -44,7 +44,7 @@ function Prompt() {
   return (
     <AnimatePresence>
       {report && (
-        <motion.section
+        <m.section
           role="region" aria-label="Error report" aria-live="polite"
           initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }} transition={{ duration: 0.18, ease: "easeOut" }}
           onKeyDown={(e) => { if (e.key === "Escape") { e.stopPropagation(); close(); } }}
@@ -73,7 +73,7 @@ function Prompt() {
               <Button size="sm" className="max-sm:h-10" onClick={send} disabled={phase === "sending"}>{phase === "sending" ? "Sending…" : "Report"}</Button>
             </div>
           )}
-        </motion.section>
+        </m.section>
       )}
     </AnimatePresence>
   );

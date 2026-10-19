@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState, type KeyboardEvent, type PointerEvent } from "react";
-import { AnimatePresence, animate, motion, useInView, useMotionValue, useMotionValueEvent, useReducedMotion, useTransform, type Variants } from "motion/react";
+import { AnimatePresence, animate, m, useInView, useMotionValue, useMotionValueEvent, useReducedMotion, useTransform, type Variants } from "motion/react";
 import { motionTokens } from "../lib/motion-tokens";
 import styles from "./sparkline.module.css";
 
@@ -67,17 +67,17 @@ function Roll({ text, direction, whole = false, morph = false, tone }: { text: s
   const numeric = !whole && !/\p{L}/u.test(text);
   const variants = reduceMotion ? fade : rise;
   const anchor = numeric ? "right" : "left";
-  return <motion.span className={styles.roll} data-end={numeric || undefined} data-whole={whole || undefined} style={morph ? { width } : undefined}>
+  return <m.span className={styles.roll} data-end={numeric || undefined} data-whole={whole || undefined} style={morph ? { width } : undefined}>
     {morph && <span ref={sizer} className={styles.sizer} aria-hidden="true">{text}</span>}
     {/* One flex item holds the pieces, so they stay inline and the text reads and copies as one string. */}
     <span className={styles.track}><AnimatePresence mode="popLayout" initial={false} custom={shown.direction} anchorX={anchor}>
-      {chunksOf(text, whole).map(chunk => <motion.span key={chunk.slot} className={styles.slot} custom={shown.direction} variants={variants} initial="hidden" animate="shown" exit="gone">
+      {chunksOf(text, whole).map(chunk => <m.span key={chunk.slot} className={styles.slot} custom={shown.direction} variants={variants} initial="hidden" animate="shown" exit="gone">
         <AnimatePresence mode="popLayout" initial={false} custom={shown.direction} anchorX={anchor}>
-          <motion.span key={`${tone ?? ""}${chunk.key}`} className={tone ? `${styles.glyph} ${tone}` : styles.glyph} custom={shown.direction} variants={variants} initial="hidden" animate="shown" exit="gone">{chunk.text}</motion.span>
+          <m.span key={`${tone ?? ""}${chunk.key}`} className={tone ? `${styles.glyph} ${tone}` : styles.glyph} custom={shown.direction} variants={variants} initial="hidden" animate="shown" exit="gone">{chunk.text}</m.span>
         </AnimatePresence>
-      </motion.span>)}
+      </m.span>)}
     </AnimatePresence></span>
-  </motion.span>;
+  </m.span>;
 }
 
 type Point = [number, number];
@@ -240,18 +240,18 @@ export function Sparkline({ data, label, value, change, tone = "accent", width =
     <div ref={plot} className={styles.plot} data-interactive={interactive || undefined} {...scrub}>
       <svg className={styles.chart} viewBox={`0 0 ${box.w} ${box.h}`} aria-hidden="true" focusable="false">
         <defs>
-          <clipPath id={`${uid}-lit`} clipPathUnits="userSpaceOnUse"><motion.rect x={-16} y={-16} width={lit} height={box.h + 32} /></clipPath>
-          <clipPath id={`${uid}-dim`} clipPathUnits="userSpaceOnUse"><motion.rect x={dim} y={-16} width={box.w + 32} height={box.h + 32} /></clipPath>
-          <clipPath id={`${uid}-fill`} clipPathUnits="userSpaceOnUse"><motion.rect x={-16} y={-16} width={reveal} height={box.h + 32} /></clipPath>
+          <clipPath id={`${uid}-lit`} clipPathUnits="userSpaceOnUse"><m.rect x={-16} y={-16} width={lit} height={box.h + 32} /></clipPath>
+          <clipPath id={`${uid}-dim`} clipPathUnits="userSpaceOnUse"><m.rect x={dim} y={-16} width={box.w + 32} height={box.h + 32} /></clipPath>
+          <clipPath id={`${uid}-fill`} clipPathUnits="userSpaceOnUse"><m.rect x={-16} y={-16} width={reveal} height={box.h + 32} /></clipPath>
         </defs>
-        {area && <motion.path className={`${styles.area} ${styles[tone]}`} d={fill} clipPath={`url(#${uid}-fill)`} />}
+        {area && <m.path className={`${styles.area} ${styles[tone]}`} d={fill} clipPath={`url(#${uid}-fill)`} />}
         <line className={styles.baseline} x1="0" y1={box.h - .5} x2={box.w} y2={box.h - .5} />
         {/* While scrubbing, the stretch after the cursor dims, as if the later points have not happened yet. */}
-        <motion.path className={styles.trail} d={trail} clipPath={`url(#${uid}-dim)`} initial={false} animate={{ opacity: scrubbing && landed ? 1 : 0 }} transition={reduceMotion ? { duration: 0 } : quick} />
-        <motion.polyline className={[styles.line, styles[tone]].join(" ")} points={line} clipPath={`url(#${uid}-lit)`} style={{ pathLength: drawn, opacity: lineOpacity }} />
-        <motion.line className={styles.cursor} x1={cursorX} x2={cursorX} y1={0} y2={box.h} initial={false} animate={{ opacity: scrubbing ? 1 : 0 }} transition={reduceMotion ? { duration: 0 } : quick} />
+        <m.path className={styles.trail} d={trail} clipPath={`url(#${uid}-dim)`} initial={false} animate={{ opacity: scrubbing && landed ? 1 : 0 }} transition={reduceMotion ? { duration: 0 } : quick} />
+        <m.polyline className={[styles.line, styles[tone]].join(" ")} points={line} clipPath={`url(#${uid}-lit)`} style={{ pathLength: drawn, opacity: lineOpacity }} />
+        <m.line className={styles.cursor} x1={cursorX} x2={cursorX} y1={0} y2={box.h} initial={false} animate={{ opacity: scrubbing ? 1 : 0 }} transition={reduceMotion ? { duration: 0 } : quick} />
         {/* A zero-length round-capped stroke is a true circle, and it takes the line's colour. It rests on the latest point and becomes the scrub handle. */}
-        <motion.polyline className={[styles.end, styles[tone]].join(" ")} points={dot} initial={false} animate={{ opacity: landed ? 1 : 0, strokeWidth: landed ? scrubbing ? 10 : 7 : 0 }} transition={reduceMotion ? { duration: 0 } : { opacity: quick, strokeWidth: motionTokens.spring.snappy }} fill="none" strokeLinecap="round" />
+        <m.polyline className={[styles.end, styles[tone]].join(" ")} points={dot} initial={false} animate={{ opacity: landed ? 1 : 0, strokeWidth: landed ? scrubbing ? 10 : 7 : 0 }} transition={reduceMotion ? { duration: 0 } : { opacity: quick, strokeWidth: motionTokens.spring.snappy }} fill="none" strokeLinecap="round" />
       </svg>
     </div>
   </figure>;

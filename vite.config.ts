@@ -76,7 +76,8 @@ export default defineConfig({
           // (home included) preload ~417 KB of charts. Left to Vite, charts
           // load only with the pages that draw them.
           if (/radix-ui|@radix-ui|cmdk|sonner/.test(id)) return "vendor-ui";
-          if (/motion|framer/.test(id)) return "vendor-motion";
+          // No manual chunk for motion either: the app uses its lightweight `m` elements, and the animation
+          // features load later (src/lib/motionFeatures.ts). A named chunk would pull all of motion up front.
           if (/lucide/.test(id)) return "vendor-icons";
           return undefined;
         },
