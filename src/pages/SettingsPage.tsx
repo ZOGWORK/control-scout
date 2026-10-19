@@ -9,7 +9,7 @@
 // workspace, changed by its admins; shown only to its members).
 import { useEffect, useRef, useState, type ComponentType } from "react";
 import { Link, useLocation, useNavigate, useSearchParams } from "react-router-dom";
-import { AnimatePresence, motion } from "motion/react";
+import { AnimatePresence, m } from "motion/react";
 import {
   ArrowDown, ArrowUp, BellRing, Bug, ClipboardList, Download, ExternalLink, HardDriveDownload, Info, KeyRound, Link2, LogOut, Mail, Monitor, Moon, Palette,
   Star, Sun, Upload, UserRound, Users, X,
@@ -125,7 +125,7 @@ export default function SettingsPage() {
                       on ? "text-foreground" : "text-muted-foreground hover:bg-muted/60 hover:text-foreground",
                     )}
                   >
-                    {on && <motion.span layoutId="settings-active" className="absolute inset-0 rounded-lg bg-muted max-lg:rounded-full" transition={{ type: "spring", stiffness: 500, damping: 40 }} />}
+                    {on && <m.span layoutId="settings-active" className="absolute inset-0 rounded-lg bg-muted max-lg:rounded-full" transition={{ type: "spring", stiffness: 500, damping: 40 }} />}
                     <s.icon className={cn("relative size-4 shrink-0", on && "text-accent")} />
                     <span className="relative whitespace-nowrap font-medium">{s.label}</span>
                   </button>
@@ -136,7 +136,7 @@ export default function SettingsPage() {
         </nav>
         <div className="min-w-0">
           <AnimatePresence mode="wait" initial={false}>
-            <motion.div key={active} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -4 }} transition={{ duration: 0.18 }}>
+            <m.div key={active} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -4 }} transition={{ duration: 0.18 }}>
               {active === "profile" && <Profile signinFailed={params.get("signin") === "failed"} />}
               {active === "appearance" && <Appearance />}
               {active === "tracking" && <Tracking />}
@@ -146,7 +146,7 @@ export default function SettingsPage() {
               {active === "privacy" && <Privacy onOpen={go} />}
               {active === "workspace" && <WorkspaceSection />}
               {active === "about" && <About />}
-            </motion.div>
+            </m.div>
           </AnimatePresence>
         </div>
       </div>

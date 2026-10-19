@@ -12,8 +12,8 @@ vi.mock("../components/motion", async (orig) => {
   const Span = forwardRef<HTMLSpanElement, Record<string, unknown> & { children?: ReactNode }>(({ layoutId, transition: _t, initial: _i, animate: _a, ...rest }, ref) => (
     <span ref={ref} data-layout-id={layoutId as string | undefined} {...(rest as object)} />
   ));
-  const motion = new Proxy(real.motion, { get: (t, k) => (k === "span" ? Span : (t as unknown as Record<string | symbol, unknown>)[k]) });
-  return { ...real, motion };
+  const m = new Proxy(real.m, { get: (t, k) => (k === "span" ? Span : (t as unknown as Record<string | symbol, unknown>)[k]) });
+  return { ...real, m };
 });
 vi.mock("../lib/personal", () => ({ usePersonal: () => ({ user: null, providers: {}, state: { myTeam: null, tracked: { teams: [], events: [] }, bookmarks: [], videoLinks: {}, predictionHistory: [] }, update: () => true, syncReady: false }) }));
 vi.mock("../lib/meta", async (orig) => ({ ...(await orig<typeof import("../lib/meta")>()), useMeta: () => null, useCurrentSeason: () => 2026, useTitle: () => {} }));

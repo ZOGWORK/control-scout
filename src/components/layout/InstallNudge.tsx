@@ -16,7 +16,7 @@
 // Leaving the page it opened on hides it (that's ignoring it, not "No thanks").
 import { useEffect, useId, useRef, useState } from "react";
 import { useLocation } from "react-router-dom";
-import { AnimatePresence, motion } from "motion/react";
+import { AnimatePresence, m } from "motion/react";
 import { Share, X } from "lucide-react";
 import { Button } from "../ui/button";
 import { useConsent } from "../../lib/consent";
@@ -125,7 +125,7 @@ export function NudgeCard({ kind, team, signedIn, onAdd, onDismiss }: { kind: Ki
     : signedIn ? `One tap from the stands, and it opens straight to team ${team}.`
     : `One tap from the stands to team ${team} and its next match.`;
   return (
-    <motion.section
+    <m.section
       role="region" aria-labelledby={titleId} aria-describedby={bodyId}
       data-install-nudge={kind}
       initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 12 }} transition={{ duration: 0.2, ease: "easeOut" }}
@@ -153,6 +153,6 @@ export function NudgeCard({ kind, team, signedIn, onAdd, onDismiss }: { kind: Ki
           <Button variant="secondary" size="sm" className="max-sm:h-10" onClick={onDismiss}>Got it</Button>
         </div>
       )}
-    </motion.section>
+    </m.section>
   );
 }

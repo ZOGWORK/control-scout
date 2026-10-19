@@ -2,7 +2,7 @@
 
 import { useEffect, useEffectEvent, useId, useRef, useState } from "react";
 import type { ButtonHTMLAttributes, KeyboardEvent as ReactKeyboardEvent, PointerEvent as ReactPointerEvent, ReactNode } from "react";
-import { AnimatePresence, animate, motion, useMotionValue, useReducedMotion, useTransform } from "motion/react";
+import { AnimatePresence, animate, m, useMotionValue, useReducedMotion, useTransform } from "motion/react";
 import type { AnimationPlaybackControls, MotionValue, TargetAndTransition } from "motion/react";
 import { Trash2 } from "lucide-react";
 import { motionTokens } from "../lib/motion-tokens";
@@ -46,7 +46,7 @@ const iconEnter = { ...motionTokens.spring.snappy, opacity: { duration: motionTo
 /** The tick draws itself from its short stroke, the way a hand would write it. */
 function DrawnCheck({ reduced }: { reduced: boolean }) {
   return <svg width={18} height={18} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-    <motion.path d="M4 12.5l5 5L20 6.5" initial={reduced ? false : { pathLength: 0, opacity: 0 }} animate={{ pathLength: 1, opacity: 1 }} transition={{ pathLength: { duration: .32, ease: enter, delay: .08 }, opacity: { duration: .05, delay: .08 } }} />
+    <m.path d="M4 12.5l5 5L20 6.5" initial={reduced ? false : { pathLength: 0, opacity: 0 }} animate={{ pathLength: 1, opacity: 1 }} transition={{ pathLength: { duration: .32, ease: enter, delay: .08 }, opacity: { duration: .05, delay: .08 } }} />
   </svg>;
 }
 
@@ -57,17 +57,17 @@ function Face({ icon, text, done, width, reduced, measure }: FaceProps) {
   return <span className={styles.face}>
     <span className={styles.iconSlot}>
       <AnimatePresence initial={false}>
-        <motion.span key={done ? "done" : "idle"} className={styles.iconPhase} initial={reduced ? fadeIn : iconIn} animate={rest} exit={reduced ? fadeOut : iconOut} transition={reduced ? { duration: motionTokens.duration.fast } : iconEnter}>
+        <m.span key={done ? "done" : "idle"} className={styles.iconPhase} initial={reduced ? fadeIn : iconIn} animate={rest} exit={reduced ? fadeOut : iconOut} transition={reduced ? { duration: motionTokens.duration.fast } : iconEnter}>
           {done ? <DrawnCheck reduced={reduced} /> : icon}
-        </motion.span>
+        </m.span>
       </AnimatePresence>
     </span>
-    <motion.span className={styles.labelFrame} style={{ width }}>
+    <m.span className={styles.labelFrame} style={{ width }}>
       {measure && <span ref={measure} className={styles.measure}>{text}</span>}
       <AnimatePresence mode="popLayout" initial={false}>
-        <motion.span key={text} className={styles.label} initial={reduced ? fadeIn : textIn} animate={rest} exit={reduced ? fadeOut : textOut} transition={{ duration: reduced ? motionTokens.duration.fast : motionTokens.duration.standard, ease: enter }}>{text}</motion.span>
+        <m.span key={text} className={styles.label} initial={reduced ? fadeIn : textIn} animate={rest} exit={reduced ? fadeOut : textOut} transition={{ duration: reduced ? motionTokens.duration.fast : motionTokens.duration.standard, ease: enter }}>{text}</m.span>
       </AnimatePresence>
-    </motion.span>
+    </m.span>
   </span>;
 }
 
@@ -192,15 +192,15 @@ export function HoldToConfirm({ label, confirmedLabel = "Done", onConfirm, durat
   }
 
   return <>
-    <motion.button {...props} ref={button} type="button" className={[styles.button, className].filter(Boolean).join(" ")} data-tone={tone} data-state={done ? "done" : holding ? "holding" : "idle"}
+    <m.button {...props} ref={button} type="button" className={[styles.button, className].filter(Boolean).join(" ")} data-tone={tone} data-state={done ? "done" : holding ? "holding" : "idle"}
       disabled={disabled} aria-disabled={done || undefined} aria-label={text} aria-describedby={[done ? null : hintId, props["aria-describedby"]].filter(Boolean).join(" ") || undefined} style={{ scale }}
       onPointerDown={onPointerDown} onPointerMove={onPointerMove} onPointerUp={release} onPointerCancel={release} onLostPointerCapture={release}
       onKeyDown={onKeyDown} onKeyUp={onKeyUp} onBlur={release} onContextMenu={event => event.preventDefault()}>
       <Face icon={icon} text={text} done={done} width={width} reduced={reduced} measure={measure} />
-      <motion.span className={styles.fill} style={{ clipPath }} aria-hidden="true">
+      <m.span className={styles.fill} style={{ clipPath }} aria-hidden="true">
         <Face icon={icon} text={text} done={done} width={width} reduced={reduced} />
-      </motion.span>
-    </motion.button>
+      </m.span>
+    </m.button>
     <span id={hintId} className={styles.srOnly}>{`Press and hold for ${seconds} seconds to confirm. With a keyboard, hold Space or Enter.`}</span>
     <span className={styles.srOnly} role="status">{done ? confirmedLabel : ""}</span>
   </>;

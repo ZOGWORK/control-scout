@@ -15,12 +15,10 @@
     <meta property="og:site_name" content="Control Scout" />
     <meta property="og:title" content="Control Scout" />
     <meta property="og:description" content="Free FTC scouting and predictions for every team — with a public track record of how often the predictions come true." />
-    <link rel="preload" href="/fonts/Inter-400.woff2" as="font" type="font/woff2" crossorigin />
-    <link rel="preload" href="/fonts/SpaceGrotesk-700.woff2" as="font" type="font/woff2" crossorigin />
-    <!-- Page titles (h1) are Space Grotesk 600: the largest text above the fold. -->
-    <link rel="preload" href="/fonts/SpaceGrotesk-600.woff2" as="font" type="font/woff2" crossorigin />
-    <!-- Buttons and labels are Inter 600: arriving late, it widened the home page's buttons until they wrapped (a layout shift). -->
-    <link rel="preload" href="/fonts/Inter-600.woff2" as="font" type="font/woff2" crossorigin />
+    <!-- One variable file per family covers every weight: Space Grotesk for titles, Inter for text, buttons and
+         labels (arriving late, Inter widened the home page's buttons until they wrapped, a layout shift). -->
+    <link rel="preload" href="/fonts/Inter.woff2" as="font" type="font/woff2" crossorigin />
+    <link rel="preload" href="/fonts/SpaceGrotesk.woff2" as="font" type="font/woff2" crossorigin />
     <script>
       // Apply the saved theme before anything paints (no flash): here in <head>, ahead of the
       // static first paint the server puts in #root (server/bootShell.ts). Dark graphite is the default.
