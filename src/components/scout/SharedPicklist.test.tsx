@@ -298,6 +298,21 @@ describe("SharedPicklist: a note on its way when the page reloads", () => {
     vi.restoreAllMocks();
   });
 
+  it("a newer note that can't be stored removes this page's older draft, so it never returns after the newer one saves", async () => {
+    show();
+    await waitFor(() => expect(rows()).toEqual([101, 102]));
+    notesDown = true;
+    writeNote(102, "Older");
+    await waitFor(() => expect(within(noteInput(102).closest("li")!).getByText(/Not saved yet/)).toBeTruthy());
+    expect(drafts()).toHaveLength(1);
+    vi.spyOn(Storage.prototype, "setItem").mockImplementation(() => { throw new Error("QuotaExceededError"); });
+    notesDown = false;
+    writeNote(102, "Newer");
+    await waitFor(() => expect(server.picks[1].note).toBe("Newer"));
+    vi.restoreAllMocks();
+    expect(drafts()).toEqual([]);
+  });
+
   it("a kept draft over a teammate's note isn't sent by just focusing and leaving the field", async () => {
     await writeThenReload(101, "Old draft");
     server = { ...server, version: server.version + 1, picks: server.picks.map((p) => (p.team === 101 ? { ...p, note: "Lift fixed at QF", noteBy: { accountId: 2, name: "Marcus" }, noteUpdatedAt: Date.now() + 5 } : p)) };

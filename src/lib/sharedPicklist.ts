@@ -116,6 +116,8 @@ export function usePickList(space: string | null, season: number, live: LiveMode
   const latestNote = useRef(new Map<string, number>());
   // The draft id of this page's newest note write per team (same keys).
   const latestWid = useRef(new Map<string, string>());
+  // Every draft id this page wrote: an older one of its own can be removed when a newer note supersedes it.
+  const pageWids = useRef(new Set<string>());
   const key = space ? `${space}:${season}` : null;
   const keyRef = useRef(key);
   keyRef.current = key;
@@ -240,7 +242,14 @@ export function usePickList(space: string | null, season: number, live: LiveMode
       // Kept on the device until the server confirms it, with the note it's written over.
       wid = newWid();
       latestWid.current.set(key, wid);
+      pageWids.current.add(wid);
       stored = acct != null && saveNoteDraft(acct, space, season, { team, note: op.note, base: op.base !== undefined ? op.base : shown?.noteUpdatedAt ?? null, at: Date.now(), wid });
+      // Couldn't store this one: an older draft of this page's for the team is superseded (it would come back
+      // after a reload over this newer note), so it goes. Another tab's is left alone.
+      if (acct != null && !stored) {
+        const old = readNoteDraft(acct, space, season, team);
+        if (old?.wid && pageWids.current.has(old.wid)) clearNoteDraft(acct, space, season, team);
+      }
     }
     const p: Pending = { id: nextId.current++, op, space, season, account: acct, wid, kept: stored };
     // A new write of a note replaces one that failed (a retry, or putting the saved one back).
