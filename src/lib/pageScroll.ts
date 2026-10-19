@@ -22,10 +22,14 @@ export type ScrollPlan = { kind: "top" } | { kind: "restore"; y: number } | { ki
 
 /**
  * What a navigation should do to the page's scroll position.
- * `prevPath` is null on the first render (a page load or reload).
+ * `prevPath` is null on the first render (a page load or reload). `fragment`: a plain #link on this page
+ * (the skip link, a table of contents) that the browser followed itself, which the router reports as a
+ * back/forward ("POP") to an entry of its own.
  */
-export function planScroll(o: { action: "POP" | "PUSH" | "REPLACE"; prevPath: string | null; path: string; hash: string; saved: number | undefined }): ScrollPlan {
+export function planScroll(o: { action: "POP" | "PUSH" | "REPLACE"; prevPath: string | null; path: string; hash: string; saved: number | undefined; fragment?: boolean }): ScrollPlan {
   const id = hashId(o.hash);
+  // Followed, not returned to: go to the target, not to where an earlier visit to this address was left.
+  if (o.fragment && id) return { kind: "hash", id };
   if (o.action === "POP") {
     if (o.saved !== undefined) return { kind: "restore", y: o.saved };
     return id ? { kind: "hash", id } : { kind: "keep" };
@@ -169,6 +173,7 @@ export function usePageScroll(content: RefObject<HTMLElement | null>) {
   store.current ??= new ScrollPositions(sessionStore());
   const keyRef = useRef(entryKey(loc));
   const prevPath = useRef<string | null>(null);
+  const prevHash = useRef("");
   // The plan made for the current location, reused if the effect runs again for the same location
   // (React's StrictMode replays effects in development).
   const last = useRef<{ sig: string; plan: ScrollPlan } | null>(null);
@@ -230,9 +235,14 @@ export function usePageScroll(content: RefObject<HTMLElement | null>) {
       const fresh = prevPath.current === null && loc.key === "default" && documentNavigation() === "navigate";
       if (fresh) store.current!.set(key, 0);
       const saved = fresh ? undefined : store.current!.get(key);
-      plan = planScroll({ action, prevPath: prevPath.current, path: loc.pathname, hash: loc.hash, saved });
+      // A plain #link followed on the same page: the history entry it adds carries no router state (key
+      // "default"), the path stays, and only the hash changes.
+      const fragment = action === "POP" && loc.key === "default" && prevPath.current !== null && samePath(prevPath.current, loc.pathname)
+        && !!loc.hash && loc.hash !== prevHash.current;
+      plan = planScroll({ action, prevPath: prevPath.current, path: loc.pathname, hash: loc.hash, saved, fragment });
       last.current = { sig, plan };
       prevPath.current = loc.pathname;
+      prevHash.current = loc.hash;
     }
     restoredKey = plan.kind === "restore" ? key : null;
     if (plan.kind === "top") el.scrollTop = 0;
