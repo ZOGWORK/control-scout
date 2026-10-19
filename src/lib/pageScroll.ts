@@ -13,8 +13,8 @@
 // - A #hash scrolls to its element once it exists.
 //
 // It also marks the page area while it is scrolling (`data-scrolling` on the content's parent), so CSS
-// can hold the ambient background still meanwhile, and the page while it is not (`data-scroll-idle` on
-// <html>), so rows sliding under a resting pointer don't light up one after another (index.css).
+// can hold the ambient background still meanwhile and put a shield over the page that takes a resting
+// pointer, so rows sliding under it don't light up one after another (index.css .scroll-shield).
 import { useEffect, useLayoutEffect, useRef, type RefObject } from "react";
 import { useLocation, useNavigationType } from "react-router-dom";
 
@@ -107,8 +107,8 @@ export function scrollToElement(el: Element, behavior: ScrollBehavior = "auto") 
 
 /** How long a restore keeps chasing its position while the page's content loads in. */
 export const RESTORE_WINDOW_MS = 2500;
-/** On <html> while the page is not scrolling (the still-hover variant in index.css keys off it). */
-export const SCROLL_IDLE_ATTR = "data-scroll-idle";
+/** data-scrolling's value for a scroll started by a finger (index.css keeps the scroll shield off for it). */
+export const SCROLLING_BY_TOUCH = "touch";
 /** How long after the last scroll event the page counts as still scrolling. */
 export const SCROLL_IDLE_MS = 140;
 
@@ -232,34 +232,43 @@ export function usePageScroll(content: RefObject<HTMLElement | null>) {
     return () => document.removeEventListener("click", onClick);
   }, []);
 
-  // Remember where each entry is, as the reader scrolls. Also flags "scrolling" for CSS.
+  // Remember where each entry is, as the reader scrolls. Also flags "scrolling" for CSS: while it's set a
+  // shield over the page area takes a resting mouse (index.css .scroll-shield), so rows sliding under it never
+  // light up. The flag restyles only the few elements keyed off it. Hover styles keyed off an attribute on
+  // <html> restyled every element using them at each start and stop (seconds per scroll on a big event).
   useEffect(() => {
     const el = content.current;
     if (!el) return;
     const flagOn = el.parentElement ?? el;
-    // The opposite flag, on <html>: CSS lets rows light up under the pointer only while it is there (the
-    // still-hover variant, index.css). Written as a present attribute on an ancestor, flipping it restyles
-    // just the elements that use it; keyed off [data-scrolling] with :not(), it restyled the whole page.
-    const root = document.documentElement;
-    root.setAttribute(SCROLL_IDLE_ATTR, "");
     let idle: ReturnType<typeof setTimeout> | undefined;
+    // Whether the last pointer input was a finger. A scroll that starts then is flagged "touch", and gets no
+    // shield: on a touchscreen laptop (which still matches pointer: fine) a swipe on a sideways table right
+    // after a touch scroll must reach the table. A mouse moving or a wheel turning switches it back.
+    let touch = false;
+    const onPointer = (e: PointerEvent) => { touch = e.pointerType === "touch"; };
+    const onWheel = () => { touch = false; };
     const onScroll = () => {
       // Not while a followed #link's jump is on its way: that position is the next entry's, not this one's.
       if (followed.current && performance.now() - followed.current.at >= FOLLOW_MS) followed.current = null;
       if (!restoring.current && !followed.current) store.current!.set(liveKey(), pageScroller().scrollTop);
-      if (!flagOn.hasAttribute("data-scrolling")) { flagOn.setAttribute("data-scrolling", ""); root.removeAttribute(SCROLL_IDLE_ATTR); }
+      if (!flagOn.hasAttribute("data-scrolling")) flagOn.setAttribute("data-scrolling", touch ? SCROLLING_BY_TOUCH : "");
       clearTimeout(idle);
-      idle = setTimeout(() => { flagOn.removeAttribute("data-scrolling"); root.setAttribute(SCROLL_IDLE_ATTR, ""); }, SCROLL_IDLE_MS);
+      idle = setTimeout(() => flagOn.removeAttribute("data-scrolling"), SCROLL_IDLE_MS);
     };
     const persist = () => store.current!.save();
+    window.addEventListener("pointerdown", onPointer, { capture: true, passive: true });
+    window.addEventListener("pointermove", onPointer, { capture: true, passive: true });
+    window.addEventListener("wheel", onWheel, { capture: true, passive: true });
     window.addEventListener("scroll", onScroll, { passive: true });
     window.addEventListener("pagehide", persist);
     return () => {
+      window.removeEventListener("pointerdown", onPointer, { capture: true });
+      window.removeEventListener("pointermove", onPointer, { capture: true });
+      window.removeEventListener("wheel", onWheel, { capture: true });
       window.removeEventListener("scroll", onScroll);
       window.removeEventListener("pagehide", persist);
       clearTimeout(idle);
       flagOn.removeAttribute("data-scrolling");
-      root.removeAttribute(SCROLL_IDLE_ATTR);
     };
   }, [content]);
 

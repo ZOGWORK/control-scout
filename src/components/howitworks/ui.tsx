@@ -6,26 +6,36 @@ import { createPortal } from "react-dom";
 import { motion, useInView, useReducedMotion } from "motion/react";
 import { cn } from "../cn";
 
-const ease = [0.2, 0.8, 0.2, 1] as const;
-
 /** True when the visitor asked for reduced motion. */
 export function useReduced(): boolean {
   return !!useReducedMotion();
 }
 
-/** Fades, rises and un-blurs in when scrolled into view (plain under reduced motion). */
+/** Shared by every Reveal on the page: marks each one shown (data-shown) the first time it scrolls into view. */
+let revealObserver: IntersectionObserver | null = null;
+function observeReveal(el: Element): () => void {
+  if (typeof IntersectionObserver === "undefined") { el.setAttribute("data-shown", ""); return () => {}; }
+  revealObserver ??= new IntersectionObserver((entries, io) => {
+    for (const e of entries) if (e.isIntersecting) { e.target.setAttribute("data-shown", ""); io.unobserve(e.target); }
+  }, { threshold: 0.08, rootMargin: "0px 0px -8% 0px" });
+  const io = revealObserver;
+  io.observe(el);
+  return () => io.unobserve(el);
+}
+
+/**
+ * Fades, rises and un-blurs in when scrolled into view (plain under reduced motion). A CSS transition
+ * (.hiw-reveal, howitworks.css) the compositor runs: animated from script, every reveal that started as
+ * the reader scrolled redrew its blurred text on the main thread each frame.
+ */
 export function Reveal({ children, className, delay = 0, as = "div" }: { children: ReactNode; className?: string; delay?: number; as?: "div" | "li" }) {
   const reduced = useReduced();
-  if (reduced) { const C = as; return <C className={className}>{children}</C>; }
-  const C = as === "li" ? motion.li : motion.div;
+  const ref = useRef<HTMLElement>(null);
+  useEffect(() => (reduced || !ref.current ? undefined : observeReveal(ref.current)), [reduced]);
+  const C = as;
+  if (reduced) return <C className={className}>{children}</C>;
   return (
-    <C
-      className={className}
-      initial={{ opacity: 0, y: 16, filter: "blur(6px)" }}
-      whileInView={{ opacity: 1, y: 0, filter: "blur(0px)" }}
-      viewport={{ once: true, amount: 0.08, margin: "0px 0px -8% 0px" }}
-      transition={{ duration: 0.7, ease, delay }}
-    >
+    <C ref={ref as never} className={cn("hiw-reveal", className)} style={delay ? { transitionDelay: `${delay}s` } : undefined}>
       {children}
     </C>
   );

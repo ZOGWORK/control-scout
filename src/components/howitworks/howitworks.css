@@ -35,6 +35,11 @@ html.light .hiw { --hiw-gold: #a16207; --hiw-line: #d4d4d8; }
 .hiw svg [data-tip]:hover, .hiw svg [data-tip]:focus-visible { filter: brightness(1.15); }
 .hiw svg [data-tip]:focus-visible { stroke: var(--hiw-ink); stroke-width: 2; }
 
+/* Reveal on scroll (ui.tsx Reveal): fades, rises and un-blurs once seen ([data-shown]). Transitions of
+   opacity, transform and filter run on the compositor, so a reveal costs the scroll nothing per frame. */
+.hiw-reveal { opacity: 0; transform: translateY(16px); filter: blur(6px); transition: opacity .7s var(--hiw-ease), transform .7s var(--hiw-ease), filter .7s var(--hiw-ease); }
+.hiw-reveal[data-shown] { opacity: 1; transform: none; filter: none; }
+
 /* Pointer glow on figure panels */
 .hiw-panel { position: relative; isolation: isolate; }
 .hiw-panel::before { content: ""; position: absolute; inset: 0; z-index: -1; pointer-events: none; border-radius: inherit; opacity: 0; transition: opacity .4s var(--hiw-ease);
@@ -56,9 +61,14 @@ html.light .hiw { --hiw-gold: #a16207; --hiw-line: #d4d4d8; }
 .hiw .glide { transition: transform .6s var(--hiw-spring); }
 .hiw .fade { transition: opacity .35s var(--hiw-ease); }
 
-/* Live dot on the example card */
-.hiw-live::before { content: ""; display: inline-block; width: 7px; height: 7px; border-radius: 50%; background: var(--hiw-good); margin-right: .4rem; vertical-align: 1px; animation: hiw-pulse 2s infinite; }
-@keyframes hiw-pulse { 0% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--hiw-good) 50%, transparent); } 70% { box-shadow: 0 0 0 8px transparent; } 100% { box-shadow: 0 0 0 0 transparent; } }
+/* Live dot on the example card. Its pulse is a ring scaling out and fading (transform and opacity, which the
+   compositor runs), and only while the card is on screen (.hiw-live-on): an animated box-shadow repainted
+   the page on the main thread every frame, forever, wherever the reader was. */
+.hiw-live { position: relative; display: inline-block; width: 7px; height: 7px; border-radius: 50%; background: var(--hiw-good); margin-right: .4rem; vertical-align: 1px; }
+.hiw-live::after { content: ""; position: absolute; inset: 0; border-radius: 50%; background: color-mix(in srgb, var(--hiw-good) 50%, transparent); opacity: 0; }
+.hiw-live-on::after { animation: hiw-pulse 2s infinite; }
+/* The ring reaches 8 px past the 7 px dot (scale 23 / 7) as it fades, then rests until the next beat. */
+@keyframes hiw-pulse { 0% { transform: scale(1); opacity: 1; } 70% { transform: scale(3.286); opacity: 0; } 100% { transform: scale(1); opacity: 0; } }
 
 /* Expanding detail (pipeline, verdicts) */
 .hiw-expand { display: grid; grid-template-rows: 0fr; transition: grid-template-rows .55s var(--hiw-spring); }
@@ -75,6 +85,7 @@ html.light .hiw { --hiw-gold: #a16207; --hiw-line: #d4d4d8; }
 
 @media (prefers-reduced-motion: reduce) {
   .hiw *, .hiw *::before, .hiw *::after { transition-duration: 0s !important; animation: none !important; }
+  .hiw .hiw-reveal { opacity: 1; transform: none; filter: none; }
   .hiw .bar-h, .hiw .bar-v, .hiw .pop { transform: none !important; }
   .hiw .draw { stroke-dashoffset: 0 !important; }
   .hiw .fade-late { opacity: 1 !important; }
