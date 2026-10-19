@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { AnimatePresence, animate, motion, useInView, useMotionValue, useReducedMotion, useTransform, type MotionValue, type Variants } from "motion/react";
+import { AnimatePresence, animate, m, useInView, useMotionValue, useReducedMotion, useTransform, type MotionValue, type Variants } from "motion/react";
 import { motionTokens } from "../lib/motion-tokens";
 import styles from "./animated-counter.module.css";
 
@@ -40,7 +40,7 @@ function Glyph({ position, digit }: { position: MotionValue<number>; digit: numb
   const opacity = useTransform(offset, current => Math.max(0, 1 - Math.abs(current)));
   const visibility = useTransform(offset, current => Math.abs(current) >= 1 ? "hidden" : "visible");
   const filter = useTransform(offset, current => Math.abs(current) < .02 || Math.abs(current) >= 1 ? "none" : `blur(${(Math.abs(current) * motionTokens.blur.subtle).toFixed(2)}px)`);
-  return <motion.span className={styles.glyph} style={{ y, opacity, filter, visibility }}>{digit}</motion.span>;
+  return <m.span className={styles.glyph} style={{ y, opacity, filter, visibility }}>{digit}</m.span>;
 }
 
 const presence = { initial: { width: 0, opacity: 0 }, animate: { width: "auto", opacity: 1 }, exit: { width: 0, opacity: 0 } };
@@ -58,10 +58,10 @@ function Column({ digit, direction, armed, delay, reduceMotion }: { digit: numbe
     else animate(position, state.target, state.revealed ? motionTokens.spring.smooth : { ...reveal, delay });
     state.revealed = true;
   }, [armed, delay, digit, direction, position, reduceMotion]);
-  return <motion.span className={styles.column} {...presence} transition={reduceMotion ? { duration: 0 } : motionTokens.spring.morph}>
+  return <m.span className={styles.column} {...presence} transition={reduceMotion ? { duration: 0 } : motionTokens.spring.morph}>
     <span className={styles.sizer}>0</span>
     {DIGITS.map(item => <Glyph key={item} position={position} digit={item} />)}
-  </motion.span>;
+  </m.span>;
 }
 
 export function AnimatedCounter({ value, label, prefix = "", suffix = "", decimals = 0, animateOnView = false, locale = "en-US" }: AnimatedCounterProps) {
@@ -75,14 +75,14 @@ export function AnimatedCounter({ value, label, prefix = "", suffix = "", decima
   const text = `${prefix}${parts.map(part => "text" in part ? part.text : part.digit).join("")}${suffix}`;
   const armed = animateOnView && !inView;
   return <span ref={ref} className={styles.counter}>
-    {label && <span className={styles.label}><span className={styles.labelSwap}><AnimatePresence mode="popLayout" initial={false}><motion.span key={label} className={styles.labelText} variants={reduceMotion ? fade : rise} initial="hidden" animate="shown" exit="gone">{label}</motion.span></AnimatePresence></span></span>}
+    {label && <span className={styles.label}><span className={styles.labelSwap}><AnimatePresence mode="popLayout" initial={false}><m.span key={label} className={styles.labelText} variants={reduceMotion ? fade : rise} initial="hidden" animate="shown" exit="gone">{label}</m.span></AnimatePresence></span></span>}
     <span className={styles.srOnly}>{text}</span>
     <span className={styles.value} aria-hidden="true">
       {prefix && <span className={styles.symbol}>{prefix}</span>}
       <AnimatePresence initial={false}>
         {parts.map(part => "digit" in part
           ? <Column key={part.key} digit={part.digit} direction={direction} armed={armed} delay={Math.min(part.order * motionTokens.stagger.item, .25)} reduceMotion={reduceMotion} />
-          : <motion.span key={part.key} className={styles.symbol} {...presence} transition={reduceMotion ? { duration: 0 } : motionTokens.spring.morph}>{part.text}</motion.span>)}
+          : <m.span key={part.key} className={styles.symbol} {...presence} transition={reduceMotion ? { duration: 0 } : motionTokens.spring.morph}>{part.text}</m.span>)}
       </AnimatePresence>
       {suffix && <span className={styles.symbol}>{suffix}</span>}
     </span>

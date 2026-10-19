@@ -14,7 +14,7 @@ import { InstallNudge } from "./InstallNudge";
 vi.mock("motion/react", () => {
   const strip = ({ initial: _i, animate: _a, exit: _e, transition: _t, ...rest }: Record<string, unknown>) => rest;
   const section = forwardRef<HTMLElement, Record<string, unknown>>((props, ref) => createElement("section", { ...strip(props), ref }));
-  return { AnimatePresence: ({ children }: { children: ReactNode }) => children, motion: { section } };
+  return { AnimatePresence: ({ children }: { children: ReactNode }) => children, m: { section } };
 });
 
 const personal = vi.hoisted(() => ({ current: { state: null as unknown as PersonalState, user: null as unknown } }));

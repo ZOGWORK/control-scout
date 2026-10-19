@@ -2,7 +2,7 @@
 // Outlook, Alliance, Field), generalised to ANY team at ANY event.
 import { useMemo, useState } from "react";
 import { Link } from "react-router-dom";
-import { motion } from "motion/react";
+import { m } from "motion/react";
 import { Check, Crown, Gauge, History, Info, RefreshCw, Search, Trophy, Users } from "lucide-react";
 import { useApi, qs, load } from "../lib/api";
 import type { ConfidenceTier, ForecastView, Partners } from "../shared/api";
@@ -22,7 +22,7 @@ const pct = (p: number | null | undefined, decided = false) => oddsPct(p, decide
 const rankRange = (a: number, b: number) => (Math.round(a) === Math.round(b) ? `#${Math.round(a)}` : `#${Math.round(a)}–${Math.round(b)}`);
 
 function GrowBar({ value, className, delay = 0 }: { value: number; className?: string; delay?: number }) {
-  return <motion.div className={cn("h-full rounded-full", className)} initial={{ width: 0 }} animate={{ width: `${Math.max(0, Math.min(1, value)) * 100}%` }} transition={{ duration: 0.6, ease, delay }} />;
+  return <m.div className={cn("h-full rounded-full", className)} initial={{ width: 0 }} animate={{ width: `${Math.max(0, Math.min(1, value)) * 100}%` }} transition={{ duration: 0.6, ease, delay }} />;
 }
 
 const STAGES = [
@@ -102,7 +102,7 @@ function StageStrip({ fc, onRefresh }: { fc: ForecastView; onRefresh: () => void
           return (
             <li key={s.k} aria-current={now ? "step" : undefined} className="min-w-0">
               <div className="relative h-1.5 overflow-hidden rounded-full bg-muted">
-                <motion.div className={cn("absolute inset-y-0 left-0 rounded-full", now ? "bg-accent" : "bg-accent/50")} initial={{ width: 0 }} animate={{ width: done || now ? "100%" : 0 }} transition={{ duration: 0.5, delay: i * 0.08 }} />
+                <m.div className={cn("absolute inset-y-0 left-0 rounded-full", now ? "bg-accent" : "bg-accent/50")} initial={{ width: 0 }} animate={{ width: done || now ? "100%" : 0 }} transition={{ duration: 0.5, delay: i * 0.08 }} />
               </div>
               <p className={cn("mt-2 flex items-center gap-1 truncate text-xs", now ? "font-medium text-foreground" : "text-muted-foreground")}>
                 {done && <Check className="size-3 shrink-0 text-accent" />}
@@ -169,7 +169,7 @@ function Outlook({ fc, team }: { fc: ForecastView; team: number | null }) {
             const seed = i + 1;
             const inRange = seed >= Math.round(me.rank.p10) && seed <= Math.round(me.rank.p90);
             const avg = seed === Math.round(me.rank.mean);
-            return <motion.span key={seed} initial={{ opacity: 0, scaleY: 0.4 }} animate={{ opacity: 1, scaleY: 1 }} transition={{ duration: 0.25, delay: Math.min(0.6, i * 0.012) }} className={cn("h-7 min-w-0 flex-1 rounded-[3px]", avg ? "bg-accent" : inRange ? "bg-accent/40" : "bg-muted")} />;
+            return <m.span key={seed} initial={{ opacity: 0, scaleY: 0.4 }} animate={{ opacity: 1, scaleY: 1 }} transition={{ duration: 0.25, delay: Math.min(0.6, i * 0.012) }} className={cn("h-7 min-w-0 flex-1 rounded-[3px]", avg ? "bg-accent" : inRange ? "bg-accent/40" : "bg-muted")} />;
           })}
         </div>
         <div className="mt-1.5 flex justify-between text-xs text-muted-foreground"><span>1st</span><span>{n}th</span></div>
@@ -180,7 +180,7 @@ function Outlook({ fc, team }: { fc: ForecastView; team: number | null }) {
           <span className="text-sm text-muted-foreground">Total <span className="font-medium tabular-nums text-foreground">{p.total != null ? p.total.toFixed(1) : "—"}</span></span>
         </div>
         <div className="flex h-3 overflow-hidden rounded-full bg-muted">
-          {parts.map((x, i) => <motion.div key={x.k} className={x.cls} title={`${x.k}: ${x.v.toFixed(1)}`} initial={{ width: 0 }} animate={{ width: `${(x.v / sum) * 100}%` }} transition={{ duration: 0.6, ease, delay: 0.1 + i * 0.08 }} />)}
+          {parts.map((x, i) => <m.div key={x.k} className={x.cls} title={`${x.k}: ${x.v.toFixed(1)}`} initial={{ width: 0 }} animate={{ width: `${(x.v / sum) * 100}%` }} transition={{ duration: 0.6, ease, delay: 0.1 + i * 0.08 }} />)}
         </div>
         <dl className="mt-4 grid grid-cols-2 gap-x-6 gap-y-3 sm:grid-cols-4">
           {parts.map((x) => <div key={x.k} className="min-w-0"><dt className="flex items-center gap-1.5 text-xs text-muted-foreground"><span className={cn("size-2 shrink-0 rounded-full", x.cls)} />{x.k}</dt><dd className="mt-0.5 font-display text-xl font-semibold tabular-nums">{x.v.toFixed(1)}</dd></div>)}

@@ -1,7 +1,7 @@
 // Prediction UI shared by every surface. Rule: a prediction is never shown
 // without its confidence tier, and never presented as a fact.
 import { Suspense, lazy, useEffect, useRef, useState } from "react";
-import { AnimatePresence, motion, useReducedMotion } from "motion/react";
+import { AnimatePresence, m as Motion, useReducedMotion } from "motion/react";
 import { Link, useLocation } from "react-router-dom";
 import { Check, ChevronDown, CircleDashed, ClipboardList, Gauge, History, PlayCircle, Radio, ShieldCheck, Video, X } from "lucide-react";
 import type { ConfidenceTier, Factor, MatchPredictionView, MatchView } from "../shared/api";
@@ -282,13 +282,13 @@ export function MatchRow({ m, highlight, showEvent, eventName, open, onToggle, o
     {/* Details unfold under the row (height + fade); instant with "reduce motion". */}
     <AnimatePresence initial={false}>
       {open && (
-        <motion.div id={detailsId} key="details" className="overflow-hidden"
+        <Motion.div id={detailsId} key="details" className="overflow-hidden"
           initial={{ height: 0, opacity: 0 }} animate={{ height: "auto", opacity: 1 }} exit={{ height: 0, opacity: 0 }}
           transition={reduce ? { duration: 0 } : { height: { duration: 0.26, ease: [0.2, 0.8, 0.2, 1] }, opacity: { duration: 0.18 } }}>
           <Suspense fallback={<div className="border-t border-border p-4"><div className="skeleton h-40 rounded-xl" /></div>}>
             <MatchDetails m={m} eventName={eventName ?? showEvent} />
           </Suspense>
-        </motion.div>
+        </Motion.div>
       )}
     </AnimatePresence>
     </div>
