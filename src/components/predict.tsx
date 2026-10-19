@@ -194,9 +194,9 @@ export function MatchRow({ m, highlight, showEvent, eventName, open, onToggle, o
     <div
       // Narrow rows: the label keeps at least its own width (time, the team's won/lost chip), and the call's
       // chips wrap under it instead of pushing into the label.
-      // Hover (here, on the label and on the row's links) waits for the page to stop scrolling (still-hover,
-      // index.css): otherwise every row sliding under a resting pointer lights up and the long list repaints,
-      // which was most of the cost of scrolling an event's matches. The hover fades the background only.
+      // Hover (here, on the label and on the row's links) never fires mid-scroll: a shield takes the pointer
+      // while the page scrolls (index.css .scroll-shield). Otherwise every row sliding under a resting pointer
+      // lights up and the long list repaints. The hover fades the background only.
       className={cn("group/row density-row grid grid-cols-[minmax(min-content,1fr)_auto_auto] items-center gap-x-3 gap-y-1.5 px-3 py-2.5 transition-[background-color]",
         // Wide rows: label | red | blue | the call | report. Fixed tracks either side, so every row lines up.
         "@3xl:grid-cols-[5.5rem_minmax(0,1fr)_minmax(0,1fr)_11.5rem_2rem]",
