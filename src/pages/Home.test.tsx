@@ -14,6 +14,7 @@ import type { MatchView } from "../shared/api";
 const OVERVIEW: HomeOverview = {
   season: 2026, generatedAt: "2026-10-17T12:00:00Z", dataAsOf: "2026-10-17T10:00:00Z", statsAt: null,
   coverage: { teamListings: 23, events: 4, matchScores: 9 },
+  readiness: { state: "ready", resultsAt: "2026-10-17T10:00:00Z", statsAt: "2026-10-17T10:05:00Z" },
   countries: [
     { code: "US", numeric: "840", name: "United States", listings: 15, withResults: 4 },
     { code: "CA", numeric: "124", name: "Canada", listings: 5, withResults: 0 },
@@ -80,13 +81,38 @@ describe("Home", () => {
     expect(screen.getByText("23")).toBeTruthy();
     const readout = () => screen.getByText("Selected country").parentElement!.textContent;
     expect(readout()).toBe("Selected countryUnited States15team listings · 2026–27");
-    expect(screen.getByRole("link", { name: /4 teams have results this season/ }).getAttribute("href")).toBe("/teams?view=season&country=US");
+    // Two ways into a country: every listed team, and the teams with results.
+    expect(screen.getByRole("link", { name: /All 15 listed teams/ }).getAttribute("href")).toBe("/teams?view=listed&country=US");
+    expect(screen.getByRole("link", { name: /4 teams with results/ }).getAttribute("href")).toBe("/teams?view=season&country=US");
     fireEvent.change(screen.getByRole("combobox", { name: /Explore/ }), { target: { value: "CA" } });
     expect(readout()).toBe("Selected countryCanada5team listings · 2026–27");
+    // Statistics ready and nobody played: the true zero, and the country still has its directory.
     expect(screen.getByText("No Canada team has played a match yet this season.")).toBeTruthy();
+    expect(screen.getByRole("link", { name: /All 5 listed teams/ }).getAttribute("href")).toBe("/teams?view=listed&country=CA");
+    // Healthy: a one-line status, no explanation panel and no retry.
+    expect(screen.getByText("Statistics up to date")).toBeTruthy();
+    expect(screen.queryByRole("button", { name: /Check again/ })).toBeNull();
     // The list reconciles every listing, including those without a country.
     expect(screen.getByText("Reported as “Independent”")).toBeTruthy();
     expect(screen.getByText(/= 23 team listings/)).toBeTruthy();
+    await waitFor(() => expect(screen.getByTestId("map")).toBeTruthy());
+  });
+
+  it("never states a factual zero while the season's statistics are still being prepared (DATA-F01)", async () => {
+    // Results have been played but no records are built: every withResults reads 0.
+    data = { "/api/home/overview": {
+      ...OVERVIEW,
+      readiness: { state: "preparing", resultsAt: "2026-10-17T10:00:00Z", statsAt: null },
+      countries: OVERVIEW.countries.map((c) => ({ ...c, withResults: 0 })),
+    } };
+    mount();
+    expect(screen.queryByText(/has played a match yet/)).toBeNull();
+    expect(screen.getByText("Results are still being prepared")).toBeTruthy();
+    // Discovery keeps working: every listed team is one tap away.
+    expect(screen.getByRole("link", { name: /All 15 listed teams/ })).toBeTruthy();
+    // The status says what's happening and offers a retry.
+    expect(screen.getByText("Statistics being prepared")).toBeTruthy();
+    expect(screen.getByRole("button", { name: /Check again/ })).toBeTruthy();
     await waitFor(() => expect(screen.getByTestId("map")).toBeTruthy());
   });
 
