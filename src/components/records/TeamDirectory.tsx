@@ -1,0 +1,213 @@
+// /teams?view=listed: the team directory. Every team registered for the season,
+// results or not, optionally from one country (the home page's atlas links here
+// with "All listed teams"). A listing is a registration, not activity: the page
+// says so, and marks the teams with results instead of hiding the rest. The
+// statistical tables keep their own denominator (teams with results only).
+import { useEffect, useMemo, useRef } from "react";
+import { Link, useLocation, useNavigate, useSearchParams } from "react-router-dom";
+import { ArrowDown, ArrowRight, ArrowUp, ChevronLeft, ChevronRight, Hourglass, MapPin, Star, Trophy, Users, X } from "lucide-react";
+import { useApi, type ApiError } from "../../lib/api";
+import { place, seasonLabel } from "../../lib/format";
+import { useTeamFlags } from "../../lib/personal";
+import { COUNTRIES, countryByCode } from "../../shared/countries";
+import type { DirectoryPage, DirectorySort, DirectoryTeam } from "../../shared/directory";
+import type { SeasonReadiness } from "../../shared/home";
+import { directoryDefaultDir, directoryUrl, parseDirectoryState, writeDirectoryState, type DirectoryState } from "../../lib/records/directoryState";
+import { clampPage, searchString } from "../../lib/records/urlState";
+import { Badge } from "../ui/basic";
+import { Button } from "../ui/button";
+import { ErrorState, LoadingBlock } from "../states";
+import { DataStatus } from "../DataStatus";
+import { SeasonSelect } from "./Controls";
+import { cn } from "../cn";
+
+const fmt = (n: number) => n.toLocaleString();
+const BY_NAME = [...COUNTRIES].sort((a, b) => a.name.localeCompare(b.name));
+const SORTS: { key: DirectorySort; label: string }[] = [
+  { key: "team", label: "Team number" }, { key: "name", label: "Name" }, { key: "location", label: "Location" },
+  { key: "rookie", label: "Rookie year" }, { key: "results", label: "Results first" },
+];
+const field = "h-9 rounded-lg border border-line bg-card px-3 text-sm font-medium text-text-base focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent max-sm:h-11";
+
+export function TeamDirectory({ season, onSeason }: { season: number; onSeason: (s: number) => void }) {
+  const [sp] = useSearchParams();
+  const navigate = useNavigate();
+  const loc = useLocation();
+  const state = useMemo(() => parseDirectoryState(sp), [sp]);
+  const setState = (next: Omit<DirectoryState, "unknownCountry">, replace = false) =>
+    navigate({ pathname: loc.pathname, search: searchString(writeDirectoryState(sp, next)), hash: loc.hash }, { replace });
+
+  const api = useApi<DirectoryPage>(directoryUrl(season, state));
+  // Keep the last page on screen while the next one loads (no flash of an empty table).
+  const last = useRef<DirectoryPage | undefined>(undefined);
+  if (api.data) last.current = api.data;
+  const data = api.data ?? (api.loading ? last.current : undefined);
+  // An old link past the last page: go to the last page that has rows.
+  const pastEnd = !!api.data && api.data.total > 0 && !api.data.rows.length && state.page > 1;
+  useEffect(() => {
+    if (pastEnd && api.data) setState({ ...state, page: clampPage(state.page, api.data.total, api.data.pageSize) }, true);
+  }, [pastEnd]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const country = state.country ? countryByCode(state.country) : null;
+  const where = country ? country.name : "every country";
+  const sortBy = (key: DirectorySort) => setState({ ...state, sort: key, dir: state.sort === key ? (state.dir === "asc" ? "desc" : "asc") : directoryDefaultDir(key), page: 1 });
+  const pages = data ? Math.max(1, Math.ceil(data.total / data.pageSize)) : 1;
+  const resultsHref = `/teams?${new URLSearchParams({ view: "season", ...(sp.get("season") ? { season: sp.get("season")! } : {}), ...(state.country ? { country: state.country } : {}) })}`;
+
+  return (
+    <section aria-label={`Team directory, ${where}, ${seasonLabel(season)}`}>
+      <div className="flex flex-wrap items-center gap-2">
+        <SeasonSelect value={season} onChange={onSeason} />
+        <label className="inline-flex items-center gap-2">
+          <span className="sr-only">Country</span>
+          <MapPin className="size-4 text-accent" aria-hidden />
+          <select value={state.country ?? ""} onChange={(e) => setState({ ...state, country: e.target.value || null, page: 1 })} className={field} aria-label="Country">
+            <option value="">All countries</option>
+            {BY_NAME.map((c) => <option key={c.code} value={c.code}>{c.name}</option>)}
+          </select>
+        </label>
+        {state.country && (
+          <Button variant="secondary" size="sm" className="max-sm:h-11" onClick={() => setState({ ...state, country: null, page: 1 })} aria-label={`Teams from ${country?.name ?? state.country}: show every country`}>
+            <MapPin className="text-accent" /> {country?.name ?? state.country} <X className="text-text-muted" />
+          </Button>
+        )}
+        <label className="inline-flex items-center gap-2 sm:ml-auto">
+          <span className="text-sm text-text-muted">Sort</span>
+          <select value={state.sort} onChange={(e) => { const sort = e.target.value as DirectorySort; setState({ ...state, sort, dir: directoryDefaultDir(sort), page: 1 }); }} className={field}>
+            {SORTS.map((s) => <option key={s.key} value={s.key}>{s.label}</option>)}
+          </select>
+        </label>
+      </div>
+
+      {state.unknownCountry && (
+        <p className="mt-3 rounded-lg border border-warning/30 bg-warning/[0.06] px-3 py-2 text-sm" role="status">
+          “{state.unknownCountry}” isn’t a country code we know, so teams from every country are listed.
+        </p>
+      )}
+
+      <Summary data={data} season={season} where={where} resultsHref={resultsHref} onRetry={api.reload} />
+
+      {api.error && !data ? (
+        <ErrorState className="mt-4" error={api.error as ApiError} onRetry={api.reload} />
+      ) : !data ? (
+        <div className="mt-4"><LoadingBlock rows={8} label="Loading the team directory" /></div>
+      ) : !data.rows.length && data.total === 0 ? (
+        <div className="mt-4 rounded-xl border border-dashed border-line p-6 text-center text-sm text-text-muted">
+          No team from {where} is listed for {seasonLabel(season)}.
+        </div>
+      ) : (
+        <>
+          <div className={cn("mt-4 overflow-hidden rounded-xl border border-line", api.loading && "opacity-70")} aria-busy={api.loading}>
+            <table className="w-full text-sm">
+              <caption className="sr-only">Teams listed for {seasonLabel(season)} from {where}, sorted by {SORTS.find((s) => s.key === state.sort)?.label.toLowerCase()}</caption>
+              <thead className="bg-text-base/[0.03] text-left text-xs uppercase tracking-wide text-text-muted">
+                <tr>
+                  <SortHead label="Team" k="team" also="name" state={state} onSort={sortBy} />
+                  <SortHead label="Location" k="location" state={state} onSort={sortBy} className="max-md:hidden" />
+                  <SortHead label="Rookie" k="rookie" state={state} onSort={sortBy} className="max-sm:hidden" />
+                  <SortHead label="This season" k="results" state={state} onSort={sortBy} />
+                  <th scope="col" className="w-12 px-2"><span className="sr-only">Track</span></th>
+                </tr>
+              </thead>
+              <tbody>
+                {data.rows.map((t) => <Row key={t.team} t={t} readiness={data.readiness} />)}
+              </tbody>
+            </table>
+          </div>
+          <div className="mt-3 flex flex-wrap items-center justify-between gap-3 text-sm text-text-muted">
+            <span className="tabular-nums">{fmt((data.page - 1) * data.pageSize + 1)}–{fmt(Math.min(data.total, data.page * data.pageSize))} of {fmt(data.total)}</span>
+            {pages > 1 && (
+              <span className="flex items-center gap-1">
+                <Button variant="outline" size="sm" className="max-sm:h-11 max-sm:w-11" disabled={state.page <= 1} onClick={() => setState({ ...state, page: state.page - 1 })} aria-label="Previous page"><ChevronLeft /></Button>
+                <span className="px-2 tabular-nums">Page {fmt(state.page)} of {fmt(pages)}</span>
+                <Button variant="outline" size="sm" className="max-sm:h-11 max-sm:w-11" disabled={state.page >= pages} onClick={() => setState({ ...state, page: state.page + 1 })} aria-label="Next page"><ChevronRight /></Button>
+              </span>
+            )}
+          </div>
+        </>
+      )}
+    </section>
+  );
+}
+
+/** The country's totals, what a listing means, and where teams without a country are. */
+function Summary({ data, season, where, resultsHref, onRetry }: { data: DirectoryPage | undefined; season: number; where: string; resultsHref: string; onRetry: () => void }) {
+  const ready = data?.readiness.state === "ready";
+  const preparing = data?.readiness.state === "preparing";
+  return (
+    <div className="mt-4 rounded-2xl border border-accent/25 bg-gradient-to-br from-accent/[0.08] via-transparent to-success/[0.06] p-4 sm:p-5">
+      <div className="flex flex-wrap items-end gap-x-8 gap-y-3">
+        <div>
+          <p className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-[0.16em] text-text-muted"><Users className="size-3.5 text-accent" aria-hidden /> Listed</p>
+          <p className="font-display text-3xl font-semibold tabular-nums text-accent-text">{data ? fmt(data.total) : "—"}</p>
+          <p className="text-xs text-text-muted">registered for {seasonLabel(season)} · {where}</p>
+        </div>
+        <div>
+          <p className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-[0.16em] text-text-muted"><Trophy className="size-3.5 text-success" aria-hidden /> With results</p>
+          {preparing ? (
+            <p className="flex items-center gap-2 py-1.5 text-sm font-semibold text-warning"><Hourglass className="size-4" aria-hidden /> Being prepared</p>
+          ) : (
+            <p className="font-display text-3xl font-semibold tabular-nums text-success">{data ? fmt(data.withResults) : "—"}</p>
+          )}
+          <p className="text-xs text-text-muted">{preparing ? "counted once statistics are ready" : ready ? "played scored qualification matches" : "from the last statistics"}</p>
+        </div>
+        {data && data.withResults > 0 && !preparing && (
+          <Link to={resultsHref} className="inline-flex min-h-11 items-center gap-1 text-sm font-semibold text-success hover:underline">
+            Their statistics <ArrowRight className="size-4" aria-hidden />
+          </Link>
+        )}
+      </div>
+      <p className="mt-3 max-w-prose text-sm text-text-muted">
+        A listing means a team registered for the season. It doesn’t mean the team is active or has competed yet;
+        “Has results” marks the teams that have played.
+      </p>
+      {data && data.unplaced > 0 && (
+        <p className="mt-2 max-w-prose text-xs text-text-muted">
+          {fmt(data.unplaced)} {data.unplaced === 1 ? "listing reports" : "listings report"} no country, or one we can’t place (such as “Independent”).
+          {" "}They’re under All countries, not in any one country’s count.
+        </p>
+      )}
+      {data && !ready && <DataStatus className="mt-3" readiness={data.readiness} onRetry={onRetry} />}
+    </div>
+  );
+}
+
+function SortHead({ label, k, also, state, onSort, className }: { label: string; k: DirectorySort; also?: DirectorySort; state: DirectoryState; onSort: (k: DirectorySort) => void; className?: string }) {
+  const on = state.sort === k || state.sort === also;
+  const Icon = state.dir === "asc" ? ArrowUp : ArrowDown;
+  return (
+    <th scope="col" aria-sort={on ? (state.dir === "asc" ? "ascending" : "descending") : "none"} className={cn("px-3 py-2 font-semibold", className)}>
+      <button type="button" onClick={() => onSort(on ? state.sort : k)} className={cn("inline-flex min-h-8 items-center gap-1 rounded-md uppercase hover:text-text-base focus-visible:outline-2 focus-visible:outline-accent", on && "text-accent-text")}>
+        {label}{on && <Icon className="size-3.5" aria-hidden />}
+      </button>
+    </th>
+  );
+}
+
+function Row({ t, readiness }: { t: DirectoryTeam; readiness: SeasonReadiness }) {
+  const flags = useTeamFlags(t.team);
+  const where = place(t.city, t.state, t.country);
+  return (
+    <tr className="border-t border-line hover:bg-text-base/[0.03]">
+      <td className="px-3 py-2">
+        <Link to={`/teams/${t.team}`} className="group inline-flex min-h-9 flex-col justify-center">
+          <span><span className="font-semibold tabular-nums text-accent-text">{t.team}</span> <span className="font-medium group-hover:underline">{t.name ?? `Team ${t.team}`}</span></span>
+          {where && <span className="text-xs text-text-muted md:hidden">{where}</span>}
+        </Link>
+      </td>
+      <td className="px-3 py-2 text-text-muted max-md:hidden">{where || <span className="italic">Not reported</span>}</td>
+      <td className="px-3 py-2 tabular-nums text-text-muted max-sm:hidden">{t.rookieYear ?? "—"}</td>
+      <td className="px-3 py-2">
+        {t.hasResults ? <Badge variant="success"><Trophy /> Has results</Badge>
+          : readiness.state === "ready" ? <Badge variant="outline">No results yet</Badge>
+          : <Badge variant="outline" className="border-warning/40 text-warning"><Hourglass /> {readiness.state === "preparing" ? "Being prepared" : "None counted yet"}</Badge>}
+      </td>
+      <td className="px-2 py-1 text-right">
+        <button type="button" onClick={flags.toggleTracked} aria-pressed={flags.tracked} aria-label={flags.tracked ? `Stop tracking ${t.team}` : `Track ${t.team}`} title={flags.tracked ? "Tracked" : "Track this team"}
+          className="inline-flex size-9 items-center justify-center rounded-lg text-text-muted hover:bg-text-base/[0.06] hover:text-text-base focus-visible:outline-2 focus-visible:outline-accent max-sm:size-11">
+          <Star className={cn("size-4", flags.tracked && "fill-accent text-accent")} aria-hidden />
+        </button>
+      </td>
+    </tr>
+  );
+}
