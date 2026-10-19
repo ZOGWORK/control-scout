@@ -1,20 +1,19 @@
 // A page's main action, kept in reach on phones: a bar pinned just above the
 // bottom tab bar once the page header (and its own buttons) has scrolled away.
 // Hidden from md up, where the header's buttons and the sidebar are enough.
-import { useCallback, useEffect, useState, type ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { cn } from "./cn";
 import { useConsent } from "../lib/consent";
 import { pageTop } from "../lib/pageScroll";
 
 /**
- * True once the element given to `ref` has scrolled up out of view (above the
- * viewport, or under the shell's sticky top bar), false while it's visible. Put
- * the ref on a marker at the end of the page header: the bar shows only after
- * the header's buttons are gone, so it never repeats what's on screen.
+ * True once `el` has scrolled up out of view (above the viewport, or under the
+ * shell's sticky top bar), false while it's visible. StickyActions watches a
+ * marker at the end of the page header this way: the bar shows only after the
+ * header's buttons are gone, so it never repeats what's on screen.
  */
-export function useScrolledPast<T extends Element>(): [(el: T | null) => void, boolean] {
-  const [el, setEl] = useState<T | null>(null);
+export function useScrolledPast(el: Element | null): boolean {
   const [past, setPast] = useState(false);
   useEffect(() => {
     if (!el || typeof IntersectionObserver === "undefined") return;
@@ -25,7 +24,7 @@ export function useScrolledPast<T extends Element>(): [(el: T | null) => void, b
     io.observe(el);
     return () => { io.disconnect(); setPast(false); };
   }, [el]);
-  return [useCallback((n: T | null) => setEl(n), []), past];
+  return past;
 }
 
 let mounted = 0;
@@ -37,7 +36,10 @@ let mounted = 0;
  * content still scrolls clear of it. Tab bar = 60 px + 1 px border + the
  * safe-area inset; the bar sits right on top of it.
  */
-export function StickyActions({ show, label, children }: { show: boolean; label: string; children: ReactNode }) {
+export function StickyActions({ after, label, children }: { after: Element | null; label: string; children: ReactNode }) {
+  // Watched here, not by the page: the flag flips mid-scroll, and as page state each flip re-rendered the
+  // whole page (on a big event, every match row) in the middle of the scroll.
+  const show = useScrolledPast(after);
   useEffect(() => {
     mounted++;
     document.documentElement.dataset.stickyActions = "";
