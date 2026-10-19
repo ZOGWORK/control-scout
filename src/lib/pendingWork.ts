@@ -39,6 +39,8 @@ export interface PendingItem {
   message: string;
   retry?: () => void;
   discard?: () => void;
+  /** A Retry of it is on its way (Retry and Discard wait). */
+  busy?: boolean;
   /** What Discard does, for its label ("Keep theirs" reads better than "Discard" over a teammate's note). */
   discardLabel?: string;
 }
@@ -51,7 +53,7 @@ const notify = () => { version++; listeners.forEach((f) => f()); };
 
 const sameItems = (a: PendingItem[] | undefined, b: PendingItem[]) => !!a && a.length === b.length
   && a.every((x, i) => x.key === b[i].key && x.status === b[i].status && x.message === b[i].message && x.label === b[i].label
-    && x.retry === b[i].retry && x.discard === b[i].discard && x.discardLabel === b[i].discardLabel);
+    && x.busy === b[i].busy && x.retry === b[i].retry && x.discard === b[i].discard && x.discardLabel === b[i].discardLabel);
 
 /** Replace what one source holds (an empty list removes it). */
 export function publishPending(source: string, items: PendingItem[]): void {

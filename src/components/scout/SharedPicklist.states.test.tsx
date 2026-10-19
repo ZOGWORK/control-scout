@@ -32,6 +32,9 @@ let dropPosts = 0;
 let getsFail = false;
 /** Note posts wait until release() (then answer as usual). */
 let hold = false;
+/** Every post waits until releaseAll() (then goes on as usual). */
+let holdAll = false;
+let releaseAll: () => void = () => undefined;
 /** The time of each note the server wrote, in order. */
 let noteTimes: number[] = [];
 let release: () => void = () => undefined;
@@ -58,7 +61,7 @@ beforeEach(() => {
   vi.stubGlobal("matchMedia", (q: string) => ({ matches: false, media: q, addEventListener() {}, removeEventListener() {}, addListener() {}, removeListener() {} }));
   localStorage.clear();
   resetFailedChanges();
-  posts = []; noteTimes = []; loseAnswers = 0; dropPosts = 0; getsFail = false; hold = false;
+  posts = []; noteTimes = []; holdAll = false; loseAnswers = 0; dropPosts = 0; getsFail = false; hold = false;
   server = { workspaceId: "901", season: S, version: 3, picks: [pick(101, 1, { note: "Strong auto", noteBy: { accountId: 2, name: "Marcus" }, noteUpdatedAt: Date.now() - 120_000 }), pick(102, 2)] };
   vi.stubGlobal("fetch", async (path: string, init?: RequestInit) => {
     if (path.startsWith("/api/scout/workspaces/901/picklist")) {
@@ -66,6 +69,7 @@ beforeEach(() => {
         const body = JSON.parse(String(init.body));
         posts.push(body);
         if (hold && body.op === "note") await new Promise<void>((r) => { release = r; });
+        if (holdAll) await new Promise<void>((r) => { releaseAll = r; });
         if (dropPosts > 0) { dropPosts--; throw new TypeError("Failed to fetch"); }
         const res = applyOnServer(body);
         if (loseAnswers > 0) { loseAnswers--; throw new TypeError("Failed to fetch"); }
@@ -275,6 +279,43 @@ describe("an order change", () => {
     await waitFor(() => expect(allPending()).toEqual([]));
     expect(posts.filter((p) => p.op === "move").at(-1)).toEqual({ season: S, op: "move", team: 102, beforeTeam: 101 });
     expect(server.picks.map((p) => p.team)).toEqual([102, 101]);
+  });
+
+  it("a Retry still on its way never lands after a newer change and undoes it: they go one at a time, in order", async () => {
+    await ready();
+    dropPosts = 1;
+    fireEvent.keyDown(screen.getByRole("button", { name: /Reorder 102/ }), { key: "ArrowUp" }); // [102, 101], not sent
+    await waitFor(() => expect(allPending()).toHaveLength(1));
+    await waitFor(() => expect(rows()).toEqual([101, 102]));
+    holdAll = true;
+    act(() => allPending()[0].retry!()); // 102 before 101, on its way (held)
+    await waitFor(() => expect(posts.filter((p) => p.op === "move")).toHaveLength(2));
+    expect(allPending()[0].busy).toBe(true);
+    // Meanwhile the member makes a newer change: it waits behind the Retry instead of racing it.
+    fireEvent.click(within(row(101)).getByRole("button", { name: "Remove 101" }));
+    await new Promise((r) => setTimeout(r, 30));
+    expect(posts.at(-1)).toMatchObject({ op: "move", team: 102 });
+    holdAll = false;
+    releaseAll();
+    await waitFor(() => expect(posts.at(-1)).toMatchObject({ op: "remove", team: 101 }));
+    releaseAll();
+    expect(posts.map((p) => p.op)).toEqual(["move", "move", "remove"]);
+  });
+
+  it("discarded while its Retry is on its way: a failed Retry doesn't bring it back", async () => {
+    await ready();
+    dropPosts = 1;
+    fireEvent.keyDown(screen.getByRole("button", { name: /Reorder 102/ }), { key: "ArrowUp" });
+    await waitFor(() => expect(allPending()).toHaveLength(1));
+    holdAll = true; dropPosts = 1; getsFail = true;
+    act(() => allPending()[0].retry!());
+    await waitFor(() => expect(allPending()[0]?.busy).toBe(true));
+    act(() => allPending()[0].discard!());
+    expect(allPending()).toEqual([]);
+    holdAll = false;
+    releaseAll();
+    await new Promise((r) => setTimeout(r, 50));
+    expect(allPending()).toEqual([]);
   });
 
   it("Discard lets a kept change go", async () => {

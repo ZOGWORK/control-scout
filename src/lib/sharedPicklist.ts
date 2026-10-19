@@ -119,6 +119,28 @@ export interface PickListState {
 export interface FailedChange { id: number; op: Exclude<PickOp, { op: "note" }>; space: string; season: number; account: number | null; message: string; uncertain: boolean;
   /** A Retry of it is on its way. */ busy?: boolean }
 
+// One write at a time per workspace's list, in the order they were made: a list's own changes and Retries of
+// kept ones join the same line, so an older change sent again can never land after a newer one and undo it.
+// A list that closes (or a page that reloads) gives up its place: a write of its that never answers doesn't hold up
+// the line for the list opened next (as a reload starts with an empty line anyway).
+const writeLines = new Map<string, Promise<unknown>>();
+const leaving = new Map<number, { gone: Promise<void>; leave: () => void }>();
+let ownerSeq = 0;
+const newLineOwner = () => ++ownerSeq;
+function goneOf(owner: number): Promise<void> {
+  let o = leaving.get(owner);
+  if (!o) { let leave = () => {}; const gone = new Promise<void>((r) => { leave = r; }); o = { gone, leave }; leaving.set(owner, o); }
+  return o.gone;
+}
+function leaveLine(owner: number) { goneOf(owner); leaving.get(owner)!.leave(); leaving.delete(owner); }
+function inLine<T>(space: string, send: () => Promise<T>, owner?: number): Promise<T> {
+  const run = (writeLines.get(space) ?? Promise.resolve()).then(send);
+  const settled = owner == null ? run.catch(() => undefined) : Promise.race([run.catch(() => undefined), goneOf(owner)]);
+  writeLines.set(space, settled);
+  void settled.then(() => { if (writeLines.get(space) === settled) writeLines.delete(space); });
+  return run;
+}
+
 /** Window event: a kept order change went through on Retry. detail: { space, season }. */
 const PICKLIST_CHANGE_SAVED = "cs-picklist-change-saved";
 
@@ -133,7 +155,7 @@ function failedChanged() {
   failedListeners.forEach((f) => f());
   publishPending("picklist-changes", [...failedChanges.values()].flatMap((f): PendingItem[] => f.account == null ? [] : [{
     key: `order:${f.account}:${f.space}:${f.season}:${f.id}`, account: f.account, kind: "order", workspaceId: f.space, season: f.season,
-    team: "team" in f.op ? f.op.team : null, label: describeChange(f.op), status: "attention", message: f.message,
+    team: "team" in f.op ? f.op.team : null, label: describeChange(f.op), status: "attention", message: f.message, busy: f.busy,
     retry: () => { void retryFailedChange(f.id); }, discard: () => discardFailedChange(f.id),
   }]));
 }
@@ -157,11 +179,12 @@ export async function retryFailedChange(id: number): Promise<void> {
     if (message == null) failedChanges.delete(id);
     // An open list of that workspace and season shows its moment of Saved.
     if (saved) window.dispatchEvent(new CustomEvent(PICKLIST_CHANGE_SAVED, { detail: { space: f.space, season: f.season } }));
-    if (message != null) failedChanges.set(id, { ...f, busy: false, message, uncertain });
+    // Discarded while its Retry was on its way: it stays discarded.
+    if (message != null && failedChanges.has(id)) failedChanges.set(id, { ...f, busy: false, message, uncertain });
     failedChanged();
   };
   try {
-    const r = await apiFetch<{ list: unknown }>(url(f.space), { method: "POST", json: { season: f.season, ...f.op } });
+    const r = await inLine(f.space, () => apiFetch<{ list: unknown }>(url(f.space), { method: "POST", json: { season: f.season, ...f.op } }));
     if (isPickList(r.list)) announcePicklist(r.list);
     settle(null, false, true);
   } catch (e) {
@@ -272,6 +295,9 @@ export function usePickList(space: string | null, season: number, live: LiveMode
   const keyRef = useRef(key);
   keyRef.current = key;
   const queue = useRef<Pending[]>([]);
+  // This list's place in its workspace's write line (shared with Retries of kept changes).
+  const lineOwner = useRef(0);
+  if (!lineOwner.current) lineOwner.current = newLineOwner();
   const busy = useRef(false);
   const nextId = useRef(1);
   const refused = useRef(onRefused);
@@ -370,7 +396,7 @@ export function usePickList(space: string | null, season: number, live: LiveMode
         const offlineBefore = knownOffline();
         if (p.wid) inflight.add(p.wid);
         try {
-          const r = await apiFetch<{ list: unknown }>(url(p.space), { method: "POST", json: { season: p.season, ...op } });
+          const r = await inLine(p.space, () => apiFetch<{ list: unknown }>(url(p.space), { method: "POST", json: { season: p.season, ...op } }), lineOwner.current);
           if (isPickList(r.list)) accept(r.list);
           if (op.op === "note") noteConfirmed(p, op, r.list);
           else if (keyRef.current === k) markSaved(`order:${k}`);
@@ -498,7 +524,7 @@ export function usePickList(space: string | null, season: number, live: LiveMode
 
   // Gone (a reload, or the list closed): its writes no longer count as on their way. One still answering is
   // safe to send again (it carries its base), and a reload starts with none anyway.
-  useEffect(() => () => { for (const w of pageWids.current) inflight.delete(w); }, []);
+  useEffect(() => () => { for (const w of pageWids.current) inflight.delete(w); leaveLine(lineOwner.current); }, []);
 
   // A kept order change of this list's went through on Retry: Saved, for a moment.
   useEffect(() => {

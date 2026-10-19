@@ -89,7 +89,7 @@ export function RecoverableChanges({ account, workspaces, className }: { account
   }, [account, tick]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const rows: Row[] = [...published, ...kept, ...entries]
-    .map((r) => ({ ...r, busy: local[r.key]?.busy, message: local[r.key]?.message ?? r.message }))
+    .map((r) => ({ ...r, busy: r.busy || local[r.key]?.busy, message: local[r.key]?.message ?? r.message }))
     .sort((a, b) => (a.status === b.status ? 0 : a.status === "attention" ? -1 : 1));
   const attention = rows.filter((r) => r.status === "attention").length;
 
