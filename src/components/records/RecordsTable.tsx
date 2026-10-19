@@ -262,8 +262,9 @@ export function RecordsTable(p: RecordsTableProps) {
             })}
           </div>
         )}
+        {/* The cap note takes its own line (under the toolbar; under Compare on phones), so it never squeezes the quick filters. */}
         {selectable && (
-          <span role="status" className={cn(capNote ? "ml-auto inline-flex min-w-0 items-center gap-1.5 rounded-lg bg-amber-500/10 px-2.5 py-1 text-xs font-medium text-amber-600 dark:text-amber-400 max-sm:order-1 max-sm:ml-0 max-sm:basis-full" : "sr-only")}>
+          <span role="status" className={cn(capNote ? "order-last inline-flex min-w-0 basis-full items-center gap-1.5 rounded-lg bg-amber-500/10 px-2.5 py-1 text-xs font-medium text-amber-600 dark:text-amber-400 max-sm:order-1" : "sr-only")}>
             {capNote && <><Info className="size-3.5 shrink-0" />{capNote}</>}
           </span>
         )}
