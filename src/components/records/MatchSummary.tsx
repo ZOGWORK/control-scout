@@ -166,7 +166,7 @@ function MatchCard({ r, cols, open, onToggle }: { r: MatchRecordRow; cols: strin
         <Button asChild className="h-11 flex-1">
           <Link to={report}><FileText /> Report<span className="sr-only">: {r.label}, {r.eventName}</span></Link>
         </Button>
-        <Button variant="secondary" className="h-11 flex-1" onClick={onToggle} aria-expanded={open} aria-controls={`${id}-d`} disabled={!details.length}>
+        <Button variant="secondary" className="h-11 flex-1" onClick={onToggle} aria-expanded={open} aria-controls={`${id}-d`}>
           <ChevronDown className={cn("transition-transform", open && "rotate-180")} /> {open ? "Fewer stats" : "More stats"}
           <span className="sr-only"> for {r.label}</span>
         </Button>
