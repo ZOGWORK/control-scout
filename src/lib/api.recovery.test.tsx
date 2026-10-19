@@ -10,7 +10,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { useLayoutEffect } from "react";
 import { MemoryRouter } from "react-router-dom";
-import { ApiError, apiFetch, peek, prime, useApi } from "./api";
+import { ApiError, apiFetch, load, peek, prime, useApi } from "./api";
 import { Async } from "../components/states";
 import { RouteErrorBoundary } from "../components/RouteErrorBoundary";
 
@@ -77,6 +77,26 @@ describe("useApi: recovering once the server is fixed", () => {
     fireEvent.click(retry);
     expect(await screen.findByText("Event Fixed")).toBeTruthy();
     expect(asked.filter((p) => p === path).length).toBe(before + 1);
+  });
+});
+
+describe("route boundary: Try again while a refresh is still out", () => {
+  it("drops the answer it crashed on and waits for the pending request instead of crashing again", async () => {
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    const path = "/api/events/2025/OVERLAP";
+    answers.set(path, { body: "{}" });
+    render(<MemoryRouter><RouteErrorBoundary><EventLike path={path} /></RouteErrorBoundary></MemoryRouter>);
+    const retry = await screen.findByRole("button", { name: /try again/i });
+    // A refresh (e.g. a focus reload) is out and hasn't answered yet.
+    let answer!: (r: Response) => void;
+    vi.mocked(fetch).mockImplementationOnce(async () => new Promise<Response>((r) => { answer = r; }));
+    const refresh = load(path, true).catch(() => {});
+    const before = asked.length;
+    fireEvent.click(retry);
+    expect(screen.queryByText("This page hit a problem")).toBeNull(); // loading, not the same crash
+    await act(async () => { answer(new Response(JSON.stringify({ event: { name: "Refreshed" } }), { status: 200 })); await refresh; });
+    expect(await screen.findByText("Event Refreshed")).toBeTruthy();
+    expect(asked.length).toBe(before); // it waited for the request already out
   });
 });
 
