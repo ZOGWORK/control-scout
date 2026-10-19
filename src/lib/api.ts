@@ -165,8 +165,12 @@ export async function apiFetch<T>(path: string, init?: RequestInit & { json?: un
   if (res.status < 500) setUsingSaved(false);
   const text = await res.text();
   let body: any = null;
-  try { body = text ? JSON.parse(text) : null; } catch { /* non-JSON */ }
+  let unreadable = false;
+  try { body = text ? JSON.parse(text) : null; } catch { unreadable = true; }
   if (!res.ok) throw new ApiError(res.status, body?.error ?? `Request failed (${res.status})`);
+  // A success whose body can't be read (cut short, or a page from something in between) is a failed
+  // answer, not "no data": an empty body (204) or an explicit JSON null still answer null.
+  if (unreadable) throw new ApiError(res.status, "The server's answer arrived incomplete. Try again.");
   return body as T;
 }
 
