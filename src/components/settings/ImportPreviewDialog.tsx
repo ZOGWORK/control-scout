@@ -132,11 +132,11 @@ export function ImportPreviewDialog({ open, fileName, preview, onCancel, onImpor
         </section>
 
         {plan.update > 0 && (
-          <div role="note" className="flex flex-wrap items-center gap-3 rounded-xl border border-warning/40 bg-warning/10 p-3">
-            <p className="min-w-0 flex-1 text-sm text-text-base">
-              <b>{n(plan.update, "entry", "entries")}</b> on this device will be replaced. A backup lets you put them back.
+          <div role="note" className="flex flex-col gap-3 rounded-xl border border-warning/40 bg-warning/10 p-3 sm:flex-row sm:items-center">
+            <p className="text-sm text-text-base sm:min-w-0 sm:flex-1">
+              <b>{n(plan.update, "entry", "entries")}</b> on this device will be replaced. A backup lets you put {plan.update === 1 ? "it" : "them"} back.
             </p>
-            <Button variant="outline" size="sm" onClick={() => { downloadScoutBackup(); setBackedUp(true); }}>
+            <Button variant="outline" size="sm" className="self-start sm:self-auto" onClick={() => { downloadScoutBackup(); setBackedUp(true); }}>
               {backedUp ? <><Check className="text-success" /> Backup downloaded</> : <><Download /> Download a backup first</>}
             </Button>
           </div>
