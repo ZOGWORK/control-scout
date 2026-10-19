@@ -77,6 +77,16 @@ const int = (x: unknown, name: string, { min = 0, max = 1e7 } = {}) => {
   if (n < min || n > max) throw bad(`${name} must be between ${min} and ${max}`);
   return n;
 };
+/** An optional count (a page size, a number of days): absent means `def`, a whole number from `min` up is
+ *  capped at `max`, and anything else (negative, fractional, Infinity, repeated) is a 400. */
+const boundedCount = (x: unknown, name: string, def: number, min: number, max: number) => {
+  if (x == null || x === "") return def;
+  // Any run of digits is a whole number (a very long one reads as a huge value or Infinity, which the cap brings down).
+  if (typeof x !== "string" || !/^\d+$/.test(x.trim())) throw bad(`${name} must be a whole number from ${min} to ${max}`);
+  const n = Number(x.trim());
+  if (n < min) throw bad(`${name} must be a whole number from ${min} to ${max}`);
+  return Math.min(max, n);
+};
 const season = (x: unknown) => {
   if (x == null || x === "") return CURRENT_SEASON;
   const s = int(x, "season", { min: 2000, max: 2100 });
@@ -227,7 +237,7 @@ export function createApp() {
   api.get("/search", h(async (req) => {
     await ensureSearchIndex(rebuildSearch);
     const prefer = new Set(String(req.query.prefer ?? "").split(",").filter((k) => /^(team:\d{1,6}|event:\d{4}:[A-Z0-9_-]{2,24})$/i.test(k)).slice(0, 100));
-    return { q: String(req.query.q ?? ""), hits: await search(String(req.query.q ?? "").slice(0, 80), Math.min(25, Number(req.query.limit) || 12), prefer) };
+    return { q: String(req.query.q ?? ""), hits: await search(String(req.query.q ?? "").slice(0, 80), boundedCount(req.query.limit, "limit", 12, 1, 25), prefer) };
   }));
 
   // Weather in a team's home town, for the top bar (shown only when you've set your team).
@@ -295,7 +305,7 @@ export function createApp() {
     events: (await listEvents({
       season: season(req.query.season), from: req.query.from ? String(req.query.from) : undefined, to: req.query.to ? String(req.query.to) : undefined,
       q: req.query.q ? String(req.query.q).slice(0, 60) : undefined, type: req.query.type ? String(req.query.type) : undefined,
-      region: req.query.region ? String(req.query.region) : undefined, hideNoMatch: req.query.all !== "1", limit: Math.min(3000, Number(req.query.limit) || 3000),
+      region: req.query.region ? String(req.query.region) : undefined, hideNoMatch: req.query.all !== "1", limit: boundedCount(req.query.limit, "limit", 3000, 1, 3000),
     })).map(({ venue: _v, divisionCode: _d, region: _r, remote: _m, ...e }) => e),
   })));
 
@@ -486,7 +496,7 @@ export function createApp() {
 
   api.get("/predict/upcoming", h(async (req) => {
     const s = predictSeason(req.query.season);
-    const days = Math.min(14, Number(req.query.days) || 7);
+    const days = boundedCount(req.query.days, "days", 7, 1, 14);
     const today = new Date().toISOString().slice(0, 10);
     const until = new Date(Date.now() + days * 864e5).toISOString().slice(0, 10);
     const evs = await all<{ code: string }>("SELECT DISTINCT m.code FROM matches m JOIN events e ON e.season = m.season AND e.code = m.code WHERE m.season = ? AND m.played = 0 AND e.start <= ? AND COALESCE(e.end, e.start) >= ?", [s, until, today]);
