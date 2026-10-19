@@ -89,3 +89,30 @@ describe("a personal entry's date", () => {
     expect(entryDate(9e15)).toBe("Date unknown"); // past Date's range
   });
 });
+
+// Follow-up from #176: the shared attribution ("Priya · 2m ago") used the raw updatedAt, so an entry repaired to
+// 0 by the stored-row check (src/shared/scoutEntry.ts) read "Jan 1, 1970" or a huge "… ago".
+describe("a shared entry's attribution time", () => {
+  const shared = (updatedAt: unknown) => ({ ...entry, uuid: "shared000001", authorDisplayName: "Priya", updatedAt }) as unknown as ScoutEntry;
+  const showShared = (e: ScoutEntry) => render(
+    <TooltipProvider><MemoryRouter><ul><EntryCard e={e} assigned={null} canDelete readOnly={false} comments={0} onEdit={() => {}} onHistory={() => {}} /></ul></MemoryRouter></TooltipProvider>,
+  );
+
+  it("0, missing or out-of-range reads as time unknown, with no machine date or tooltip", () => {
+    for (const at of [0, undefined, null, Number.NaN, -5, 9e15, Date.UTC(2101, 0, 1)]) {
+      showShared(shared(at));
+      const card = screen.getByRole("listitem");
+      expect(card.textContent).toContain("Priya · time unknown");
+      expect(card.textContent).not.toMatch(/1969|1970|ago/);
+      const time = card.querySelector("time")!;
+      expect(time.getAttribute("datetime")).toBeNull();
+      expect(time.closest("p")!.getAttribute("title")).toBeNull();
+      cleanup();
+    }
+  });
+
+  it("a real time still reads as relative", () => {
+    showShared(shared(Date.now() - 2 * 60_000));
+    expect(screen.getByRole("listitem").textContent).toContain("Priya · 2m ago");
+  });
+});
