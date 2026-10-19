@@ -27,6 +27,7 @@ export function WhatsNewHost() {
     return () => window.removeEventListener(OPEN, on);
   }, []);
   const v = currentRelease();
+  // Opened by an event, not a trigger: DialogContent hands focus back to whatever opened it (ui/overlay).
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogContent className="max-h-[88dvh] overflow-hidden p-0 sm:max-w-3xl">

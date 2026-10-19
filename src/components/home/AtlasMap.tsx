@@ -6,7 +6,7 @@
 // because the data says which country a team reports, not where it is.
 // The globe turns slowly by itself (`spinning`, which the atlas switches off for reduced
 // motion and behind its pause button); it also stops while dragged, off screen or in a
-// hidden tab. A mouse can drag it round; touch never captures the page's scroll, and the
+// hidden tab. A mouse can drag it round, the arrow keys turn it once it has focus; touch never captures the page's scroll, and the
 // country selector beside the map does everything without a pointer.
 import { useEffect, useMemo, useRef, useState } from "react";
 import { geoCentroid, geoGraticule10, geoNaturalEarth1, geoOrthographic, geoPath, type GeoPermissibleObjects } from "d3-geo";
@@ -34,6 +34,24 @@ const SPHERE = { type: "Sphere" } as const;
 /** Degrees the globe turns per second when spinning (one turn a minute). */
 export const SPIN_DEG_PER_S = 6;
 
+/** Degrees one arrow press turns the globe (Shift: three times as far). */
+export const KEY_TURN_DEG = 15;
+
+/** The globe's rotation after an arrow key, or null for any other key. Left/right turn it like a drag that way
+ *  (longitude, wrapping); up/down tilt it, held within ±80° as a drag is. */
+export function turnByKey([lon, lat]: [number, number], key: string, big = false): [number, number] | null {
+  const s = big ? KEY_TURN_DEG * 3 : KEY_TURN_DEG;
+  const wrap = (x: number) => ((x % 360) + 540) % 360 - 180;
+  const tilt = (x: number) => Math.max(-80, Math.min(80, x));
+  switch (key) {
+    case "ArrowLeft": return [wrap(lon - s), lat];
+    case "ArrowRight": return [wrap(lon + s), lat];
+    case "ArrowUp": return [lon, tilt(lat + s)];
+    case "ArrowDown": return [lon, tilt(lat - s)];
+    default: return null;
+  }
+}
+
 export interface AtlasMapProps {
   mode: "globe" | "flat";
   /** Turn the globe slowly on its own (ignored for the flat map). */
@@ -53,6 +71,8 @@ export default function AtlasMap({ mode, spinning = false, countries, selected, 
   const [shapes, setShapes] = useState<Country[] | null>(null);
   const [rotation, setRotation] = useState<[number, number]>([96, -38]);
   const drag = useRef<{ x: number; y: number; r: [number, number] } | null>(null);
+  /** Keyboard focus on the globe: the spin holds still while someone turns it with the arrow keys. */
+  const held = useRef(false);
 
   useEffect(() => {
     let live = true;
@@ -101,7 +121,7 @@ export default function AtlasMap({ mode, spinning = false, countries, selected, 
     const tick = (now: number) => {
       const dt = Math.min(100, now - last);
       last = now;
-      if (!drag.current && !document.hidden) {
+      if (!drag.current && !held.current && !document.hidden) {
         acc += dt;
         if (acc >= 33) { const step = (acc / 1000) * SPIN_DEG_PER_S; acc = 0; setRotation(([lon, lat]) => [(lon + step) % 360, lat]); }
       }
@@ -132,16 +152,28 @@ export default function AtlasMap({ mode, spinning = false, countries, selected, 
     setRotation([d.r[0] + (e.clientX - d.x) * k, Math.max(-80, Math.min(80, d.r[1] - (e.clientY - d.y) * k))]);
   };
   const end = () => { drag.current = null; };
+  // The keyboard's way to turn the globe: focus it, then the arrow keys. It holds still while focused.
+  const onKeyDown = (e: React.KeyboardEvent) => {
+    if (mode !== "globe") return;
+    const next = turnByKey(rotation, e.key, e.shiftKey);
+    if (!next) return;
+    e.preventDefault();
+    setRotation(next);
+  };
 
-  const label = selectedShape
-    ? `${mode === "globe" ? "Globe" : "World map"} with ${byNumeric.get(selected ?? "")?.name ?? selectedShape.properties.name} highlighted. Countries with team listings this season are tinted.`
-    : `${mode === "globe" ? "Globe" : "World map"}: countries with team listings this season are tinted.`;
+  const what = mode === "globe" ? "Globe" : "World map";
+  const label = (selectedShape
+    ? `${what} with ${byNumeric.get(selected ?? "")?.name ?? selectedShape.properties.name} highlighted. Countries with team listings this season are tinted.`
+    : `${what}: countries with team listings this season are tinted.`)
+    + (mode === "globe" ? " Arrow keys turn it." : "") + " Every country's total is in the list below.";
 
   return (
     <div ref={box} className={cn("relative w-full", mode === "globe" ? "aspect-square" : "aspect-[100/52]")}>
       {path && shapes && (
         <svg width={width} height={height} viewBox={`0 0 ${width} ${height}`} role="img" aria-label={label}
-          className={cn("absolute inset-0 size-full select-none", mode === "globe" && "cursor-grab active:cursor-grabbing")}
+          tabIndex={mode === "globe" ? 0 : undefined} aria-keyshortcuts={mode === "globe" ? "ArrowLeft ArrowRight ArrowUp ArrowDown" : undefined}
+          onKeyDown={onKeyDown} onFocus={() => { held.current = true; }} onBlur={() => { held.current = false; }}
+          className={cn("absolute inset-0 size-full select-none outline-none", mode === "globe" && "cursor-grab rounded-full focus-visible:ring-2 focus-visible:ring-ring/60 active:cursor-grabbing")}
           onPointerDown={onPointerDown} onPointerMove={onPointerMove} onPointerUp={end} onPointerCancel={end} onLostPointerCapture={end}>
           <path d={path(SPHERE) ?? undefined} className="fill-[color-mix(in_srgb,var(--color-text-base)_4%,var(--color-card))] stroke-text-base/15" />
           <path d={path(geoGraticule10()) ?? undefined} className="fill-none stroke-text-base/[0.07]" strokeWidth={0.6} />

@@ -36,6 +36,18 @@ describe("FAQ page", () => {
     expect(screen.getByText(/questions? match/)).toBeTruthy();
   });
 
+  it("Clear search empties it and puts focus back in the box (the button itself goes away)", () => {
+    mount();
+    const box = screen.getByLabelText("Search the FAQ");
+    fireEvent.change(box, { target: { value: "wifi" } });
+    const clear = screen.getByRole("button", { name: "Clear search" });
+    clear.focus();
+    fireEvent.click(clear);
+    expect((box as HTMLInputElement).value).toBe("");
+    expect(screen.queryByRole("button", { name: "Clear search" })).toBeNull();
+    expect(document.activeElement).toBe(box);
+  });
+
   it("offers the contact form when nothing matches", () => {
     mount();
     fireEvent.change(screen.getByLabelText("Search the FAQ"), { target: { value: "zebra unicorn" } });

@@ -107,7 +107,7 @@ function Sidebar({ collapsed, onToggle }: { collapsed: boolean; onToggle: () => 
       <nav className="custom-scrollbar flex-1 space-y-5 overflow-y-auto px-2 py-2" aria-label="Main">
         {sections.map((s, i) => (
           <div key={i} className="space-y-0.5">
-            {s.title && !collapsed && <p className="px-3 pb-1.5 text-[11px] font-bold uppercase tracking-[0.2em] text-text-muted/70">{s.title}</p>}
+            {s.title && !collapsed && <p className="px-3 pb-1.5 text-[11px] font-bold uppercase tracking-[0.2em] text-text-muted">{s.title}</p>}
             <SectionRows items={s.items} collapsed={collapsed} />
           </div>
         ))}
@@ -134,7 +134,7 @@ const MOBILE_TABS: NavItem[] = [
   { to: FOLLOWED_TEAM_PATH, label: "My team", icon: Star },
 ];
 
-const tabClass = (on: boolean) => cn("flex min-h-[60px] flex-1 flex-col items-center justify-center gap-1 text-xs font-medium", on ? "text-accent" : "text-text-muted");
+const tabClass = (on: boolean) => cn("flex min-h-[60px] flex-1 flex-col items-center justify-center gap-1 text-xs font-medium", on ? "text-accent-text" : "text-text-muted");
 
 function MobileTabs({ onMore }: { onMore: () => void }) {
   const { row, active } = useYoursRow();
@@ -220,7 +220,7 @@ export function Shell({ children }: { children: ReactNode }) {
               <nav className="space-y-4" aria-label="All pages">
                 {sections.map((s, i) => (
                   <div key={i} className="space-y-0.5">
-                    {s.title && <p className="px-3 pb-1.5 text-[11px] font-bold uppercase tracking-[0.2em] text-text-muted/70">{s.title}</p>}
+                    {s.title && <p className="px-3 pb-1.5 text-[11px] font-bold uppercase tracking-[0.2em] text-text-muted">{s.title}</p>}
                     <SectionRows items={s.items} onNavigate={() => setMore(false)} />
                   </div>
                 ))}
