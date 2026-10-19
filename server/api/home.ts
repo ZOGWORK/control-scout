@@ -7,6 +7,7 @@ import { all, get, kvGet } from "../db.js";
 import { dataVersion } from "../predict/engine.js";
 import { registerCache } from "../caches.js";
 import { NO_MATCH_TYPES } from "./events.js";
+import { readinessKey, seasonReadiness } from "./readiness.js";
 import { countryOf } from "../../src/shared/countries.js";
 import type { CountryTotal, HomeOverview, UnmappedTotal } from "../../src/shared/home.js";
 
@@ -35,7 +36,7 @@ export function groupByCountry(rows: { label: string | null; listings: number; w
 }
 
 export async function buildOverview(season: number, now = new Date()): Promise<HomeOverview> {
-  const [labels, coverage, events, scores, sync, full, live] = await Promise.all([
+  const [labels, coverage, events, scores, sync, full, live, readiness] = await Promise.all([
     // One row per reported label. team_seasons has one row per team per season (its key), and the
     // records table one per team, so neither join can count a team twice.
     all<{ label: string | null; listings: number; withResults: number }>(
@@ -50,11 +51,15 @@ export async function buildOverview(season: number, now = new Date()): Promise<H
     kvGet<{ at: string }>("sync:last"),
     kvGet<{ at: string }>("stats:last"),
     kvGet<{ at: string }>("records:last"),
+    // withResults reads the records: until they're built for the season (or while they're behind its
+    // results) a zero there isn't a fact, and the atlas must say so (DATA-F01).
+    seasonReadiness(season),
   ]);
   const stats = !live ? full : !full || live.at > full.at ? live : full;
   return {
     season, generatedAt: now.toISOString(), dataAsOf: sync?.at ?? null, statsAt: stats?.at ?? null,
     coverage: { teamListings: Number(coverage?.n ?? 0), events: Number(events?.n ?? 0), matchScores: Number(scores?.n ?? 0) },
+    readiness,
     ...groupByCountry(labels.map((r) => ({ label: r.label, listings: Number(r.listings), withResults: Number(r.withResults) }))),
   };
 }
@@ -64,14 +69,15 @@ export const OVERVIEW_TTL_MS = 10 * 60_000;
 const overviews = new Map<number, { key: string; at: number; value: Promise<HomeOverview> }>();
 registerCache("Home overview", () => overviews.clear());
 
-/** The version an overview is built from: synced data, then the stats and live records rebuilt from it. */
-async function overviewKey(): Promise<string> {
-  const [v, full, live] = await Promise.all([dataVersion(), kvGet<{ at: string }>("stats:last"), kvGet<{ at: string }>("records:last")]);
-  return `${v}|${full?.at ?? ""}|${live?.at ?? ""}`;
+/** The version an overview is built from: synced data, then the stats and live records rebuilt from it,
+ *  and the season's own sync and records build (so its readiness moves as soon as either does). */
+async function overviewKey(season: number): Promise<string> {
+  const [v, full, live, own] = await Promise.all([dataVersion(), kvGet<{ at: string }>("stats:last"), kvGet<{ at: string }>("records:last"), readinessKey(season)]);
+  return `${v}|${full?.at ?? ""}|${live?.at ?? ""}|${own}`;
 }
 
 export async function homeOverview(season: number): Promise<HomeOverview> {
-  const key = await overviewKey();
+  const key = await overviewKey(season);
   const hit = overviews.get(season);
   if (hit && hit.key === key && Date.now() - hit.at < OVERVIEW_TTL_MS) return hit.value;
   const value = buildOverview(season);
