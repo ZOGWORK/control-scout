@@ -363,12 +363,31 @@ interface SpaceExport { entries: ScoutEntry[]; dirty: string[]; cursor?: number 
 /** Workspace templates kept on the device (scoutTemplates.ts): current ones and the versions entries were made with. */
 const TEMPLATE_KEY = /^cs-scout-tplv?:[A-Za-z0-9_-]{1,64}:\d{4}(:\d+)?$/;
 const LOST_KEY = /^cs-scout-lost:[A-Za-z0-9_-]{1,64}$/;
+/** An entry's own key, Personal or a workspace's. */
+const ENTRY_KEY = /^cs-scout:[^:]{1,64}$|^cs-scout-ws:[A-Za-z0-9_-]{1,64}:[^:]{1,64}$/;
+type ScoutingExport = SpaceExport & { spaces?: Record<string, SpaceExport>; templates?: Record<string, string>; lost?: Record<string, string>; unreadable?: Record<string, string> };
+
+/** Stored entry rows no list can show (PRIVATE-F02), raw by key, so they go aside with the account too. */
+function unreadableRows(): Record<string, string> {
+  const out: Record<string, string> = {};
+  try {
+    for (let i = 0; i < localStorage.length; i++) {
+      const k = localStorage.key(i);
+      if (!k || !ENTRY_KEY.test(k)) continue;
+      const raw = localStorage.getItem(k) ?? "";
+      let parsed: unknown;
+      try { parsed = JSON.parse(raw); } catch { parsed = undefined; }
+      if (!readScoutEntry(parsed, null)) out[k] = raw;
+    }
+  } catch { /* storage blocked */ }
+  return out;
+}
 
 /**
  * Everything scouting-related on this device, including what hasn't synced yet. `spaces`: the workspaces' cached entries and queues.
  * `templates`: the workspace templates kept here, so cached entries still read with their fields offline after an account switch.
  */
-export function exportLocalScouting(): SpaceExport & { spaces?: Record<string, SpaceExport>; templates?: Record<string, string>; lost?: Record<string, string> } {
+export function exportLocalScouting(): ScoutingExport {
   const templates: Record<string, string> = {};
   try {
     for (let i = 0; i < localStorage.length; i++) {
@@ -382,14 +401,16 @@ export function exportLocalScouting(): SpaceExport & { spaces?: Record<string, S
     templates,
     // Edits this device lost to newer ones (lostEdits.ts): they belong to this account, so they go aside with it.
     lost: exportLostEdits(),
+    // Rows that can't be read: kept exactly as they are, never dropped when the device is cleared for another account.
+    unreadable: unreadableRows(),
   };
 }
 
 /** Put back a previously exported set (an account's stashed copy). */
-export function importLocalScouting(data: SpaceExport & { spaces?: Record<string, SpaceExport>; templates?: Record<string, string>; lost?: Record<string, string> }) {
-  // What couldn't be put back (storage full): handed back, in the same shape, so the caller keeps it. Entries and
-  // overwritten edits only: they may exist nowhere else (templates are fetched again online).
-  const failed: SpaceExport & { spaces: Record<string, SpaceExport>; lost: Record<string, string> } = { entries: [], dirty: [], spaces: {}, lost: {} };
+export function importLocalScouting(data: ScoutingExport) {
+  // What couldn't be put back (storage full): handed back, in the same shape, so the caller keeps it. Entries,
+  // overwritten edits and unreadable rows only: they may exist nowhere else (templates are fetched again online).
+  const failed: SpaceExport & { spaces: Record<string, SpaceExport>; lost: Record<string, string>; unreadable: Record<string, string> } = { entries: [], dirty: [], spaces: {}, lost: {}, unreadable: {} };
   const put = (space: ScoutSpace, s: SpaceExport) => {
     const missed: ScoutEntry[] = [];
     for (const e of s.entries ?? []) {
@@ -418,9 +439,14 @@ export function importLocalScouting(data: SpaceExport & { spaces?: Record<string
     if (!LOST_KEY.test(k) || typeof v !== "string") continue;
     try { localStorage.setItem(k, mergeLostLists(localStorage.getItem(k), v)); lostBack = true; } catch { failed.lost[k] = v; }
   }
+  // Rows that couldn't be read go back exactly as they were (a row written to that key since is kept).
+  for (const [k, v] of Object.entries(data.unreadable ?? {})) {
+    if (!ENTRY_KEY.test(k) || typeof v !== "string") continue;
+    try { if (localStorage.getItem(k) == null) localStorage.setItem(k, v); } catch { failed.unreadable[k] = v; }
+  }
   window.dispatchEvent(new Event(EVT));
   if (lostBack) window.dispatchEvent(new Event(SCOUT_OVERWRITTEN)); // open notices show what came back
-  const any = failed.entries.length || Object.keys(failed.spaces).length || Object.keys(failed.lost).length;
+  const any = failed.entries.length || Object.keys(failed.spaces).length || Object.keys(failed.lost).length || Object.keys(failed.unreadable).length;
   return { failed: any ? failed : null };
 }
 

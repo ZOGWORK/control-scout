@@ -247,3 +247,21 @@ describe("repairing a row that's waiting to sync", () => {
     expect(localScoutEntries()[0].updatedAt).toBe(0);
   });
 });
+
+describe("unreadable rows across an account switch", () => {
+  it("go aside with the account's stash and come back exactly as they were; a full device hands them back", () => {
+    localStorage.setItem("cs-scout:noteamrow002", JSON.stringify({ uuid: "noteamrow002", ...base, team: "abc", notes: "keep me", updatedAt: 1 }));
+    localStorage.setItem("cs-scout-ws:41:brokenrow02", "{");
+    saveScoutEntry({ uuid: "readable0002", ...base });
+    const stash = exportLocalScouting();
+    expect(stash.unreadable).toEqual({ "cs-scout:noteamrow002": localStorage.getItem("cs-scout:noteamrow002"), "cs-scout-ws:41:brokenrow02": "{" });
+    clearLocalScouting();
+    expect(localStorage.getItem("cs-scout:noteamrow002")).toBeNull();
+    expect(importLocalScouting(stash).failed).toBeNull();
+    expect(localStorage.getItem("cs-scout:noteamrow002")).toBe(stash.unreadable!["cs-scout:noteamrow002"]);
+    expect(localStorage.getItem("cs-scout-ws:41:brokenrow02")).toBe("{");
+    clearLocalScouting();
+    const set = vi.spyOn(Storage.prototype, "setItem").mockImplementation(() => { throw new DOMException("full", "QuotaExceededError"); });
+    try { expect(importLocalScouting(stash).failed?.unreadable).toEqual(stash.unreadable); } finally { set.mockRestore(); }
+  });
+});
