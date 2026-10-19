@@ -320,24 +320,36 @@ function ReadOnlyBanner({ state }: { state: OrphanState }) {
   );
 }
 
-function EntryCard({ e, assigned, canDelete, readOnly, comments, onEdit, onHistory }: { e: ScoutEntry; assigned: string | null; canDelete: boolean; readOnly: boolean; comments: number; onEdit: () => void; onHistory: () => void }) {
+/** When an entry was saved, for its card. 0 or missing (a repaired impossible timestamp, see
+ *  src/shared/scoutEntry.ts) is unknown, never "12/31/1969". */
+export function entryDate(updatedAt: number | null | undefined): string {
+  if (!updatedAt || !Number.isFinite(updatedAt)) return "Date unknown";
+  const d = new Date(updatedAt);
+  return Number.isFinite(d.getTime()) ? d.toLocaleString() : "Date unknown";
+}
+
+/** One entry in the feed (exported for its tests). */
+export function EntryCard({ e, assigned, canDelete, readOnly, comments, onEdit, onHistory }: { e: ScoutEntry; assigned: string | null; canDelete: boolean; readOnly: boolean; comments: number; onEdit: () => void; onHistory: () => void }) {
   // The fields it was made with (an older template version stays readable after the admin changes it).
   const t = useEntryTemplate(e);
   const shown = t.fields.filter((f) => e.data[f.id] !== undefined && e.data[f.id] !== false && e.data[f.id] !== 0 && e.data[f.id] !== "").slice(0, 5);
+  const what = `${e.team} · ${e.kind === "pit" ? "Pit" : `Match ${e.matchLabel ?? ""}`}`;
   return (
-    <li className="rounded-xl border border-border bg-card p-4">
-      <div className="flex items-start justify-between gap-2">
-        <div className="min-w-0">
+    // min-w-0: a grid item is otherwise as wide as its longest line that can't break, which pushed the actions
+    // past a phone's edge. The actions wrap under the details when both don't fit (long names, two scouts).
+    <li className="min-w-0 rounded-xl border border-border bg-card p-4">
+      <div className="flex flex-wrap items-start justify-between gap-x-2 gap-y-1">
+        <div className="min-w-0 flex-1 basis-40">
           <p className="font-medium"><Link to={`/teams/${e.team}?season=${e.season}`} className="font-mono hover:underline">{e.team}</Link> · {e.kind === "pit" ? "Pit" : `Match ${e.matchLabel ?? ""}`}</p>
-          {e.workspaceId == null ? <p className="text-xs text-muted-foreground">{e.eventCode ?? "No event"} · {new Date(e.updatedAt).toLocaleString()}</p> : (
+          {e.workspaceId == null ? <p className="text-xs text-muted-foreground">{e.eventCode ?? "No event"} · {entryDate(e.updatedAt)}</p> : (
             <>
               <p className="text-xs text-muted-foreground">{e.eventCode ?? "No event"}</p>
               <EntryAttribution e={e} className="mt-0.5" />
-              {assigned && <Badge variant="beta" className="mt-1.5"><ClipboardCheck /> {assigned}</Badge>}
+              {assigned && <Badge variant="beta" className="mt-1.5 max-w-full whitespace-normal leading-snug [overflow-wrap:anywhere]"><ClipboardCheck className="shrink-0" /> {assigned}</Badge>}
             </>
           )}
         </div>
-        <div className="flex gap-1">
+        <div role="group" aria-label={`Entry ${what}`} className="ml-auto flex shrink-0 gap-1">
           {comments > 0 && (
             <Button variant="ghost" size="sm" onClick={onEdit} className="text-muted-foreground max-sm:h-11" aria-label={`${comments} comment${comments === 1 ? "" : "s"}: open the entry`}>
               <MessageSquare />{comments}

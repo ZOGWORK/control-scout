@@ -232,7 +232,8 @@ export function CountUp({ value, decimals = 0, suffix = "", className }: { value
   }, [inView, reduced, value]);
   // Before it's seen (motion on) show 0 so the count-up has somewhere to start.
   const v = reduced ? value : shown ?? (inView ? value : 0);
-  return <span ref={ref} className={className} aria-label={fmt(value)}><span aria-hidden>{fmt(v)}</span></span>;
+  // The final number for screen readers as text (a plain span can't carry an aria-label), the counting one hidden.
+  return <span ref={ref} className={className}><span className="sr-only">{fmt(value)}</span><span aria-hidden>{fmt(v)}</span></span>;
 }
 
 // ---------- chart tooltip: hover, tap or focus ----------
