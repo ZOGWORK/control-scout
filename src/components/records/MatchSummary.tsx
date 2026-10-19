@@ -138,7 +138,7 @@ function MatchCard({ r, cols, open, onToggle }: { r: MatchRecordRow; cols: strin
           <h3 id={`${id}-t`} className="font-semibold leading-tight">
             {r.label}<span className="sr-only">, {r.eventName}</span>
           </h3>
-          <p aria-hidden className="truncate text-xs text-text-muted">{r.eventName}</p>
+          <p aria-hidden className="line-clamp-2 text-xs text-text-muted">{r.eventName}</p>
         </div>
         <p className={cn("shrink-0 rounded-full px-2.5 py-1 text-xs font-bold",
           o.winner === "red" ? "bg-red-alliance/15 text-red-alliance" : o.winner === "blue" ? "bg-blue-alliance/15 text-blue-alliance" : o.played ? "bg-violet-500/15 text-violet-600 dark:text-violet-400" : "bg-text-base/[0.07] text-text-muted")}>
