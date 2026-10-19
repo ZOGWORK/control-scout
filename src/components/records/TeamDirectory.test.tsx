@@ -56,6 +56,12 @@ describe("TeamDirectory", () => {
     expect(search).toBe("?view=listed&season=2025&country=US&sort=rookie");
   });
 
+  it("opens profiles in the season being browsed", () => {
+    page = base({ season: 2025 });
+    render(<MemoryRouter initialEntries={["/teams?view=listed&season=2025&country=CA"]}><TeamDirectory season={2025} onSeason={() => {}} /></MemoryRouter>);
+    expect(screen.getByRole("link", { name: /Maple/ }).getAttribute("href")).toBe("/teams/30?season=2025");
+  });
+
   it("says when results are still being prepared instead of counting zero", () => {
     page = base({ readiness: { state: "preparing", resultsAt: "2026-10-17T12:00:00Z", statsAt: null } });
     mount("/teams?view=listed&country=CA");
@@ -64,10 +70,13 @@ describe("TeamDirectory", () => {
     expect(screen.getByRole("button", { name: /Check again/ })).toBeTruthy();
   });
 
-  it("shows an unknown country rather than silently listing everyone", () => {
+  it("shows an unknown country as a problem (as the records tables do) rather than silently listing everyone", () => {
     page = base({ country: null });
     mount("/teams?view=listed&country=ZZ");
-    expect(screen.getByText(/“ZZ” isn’t a country code we know/)).toBeTruthy();
+    expect(screen.getByText("Unknown country ZZ")).toBeTruthy();
+    expect(asked).toEqual([]);
+    fireEvent.click(screen.getByRole("button", { name: /Show every country/ }));
+    expect(search).toBe("?view=listed");
     expect(asked.at(-1)).toBe("/api/directory/2026?sort=team&dir=asc&page=1&pageSize=50");
   });
 });

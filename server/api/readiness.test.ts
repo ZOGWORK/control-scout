@@ -7,7 +7,7 @@ import { kvSet, migrate, openDb, run, setDb } from "../db";
 import { clearAllCaches } from "../caches";
 import { CURRENT_SEASON } from "../data/seasons";
 import { buildOverview, homeOverview } from "./home";
-import { recordsAtKey, seasonReadiness } from "./readiness";
+import { recordsAtKey, resultsAtKey, seasonReadiness } from "./readiness";
 import { computeRecords } from "../stats/records";
 import { loadSeason } from "../stats/load";
 
@@ -65,6 +65,24 @@ describe("season readiness (DATA-F01)", () => {
     expect(before.readiness.state).toBe("catching-up");
     await kvSet(recordsAtKey(S), { at: "2026-10-17T12:30:00.000Z" });
     expect((await homeOverview(S)).readiness.state).toBe("ready");
+  });
+
+  it("is catching up when the live lane stores results its throttled records build hasn't taken in", async () => {
+    await computeRecords(S, await loadSeason(S));
+    expect((await seasonReadiness(S)).state).toBe("ready");
+    await kvSet(resultsAtKey(S), { at: new Date(Date.now() + 60_000).toISOString() });
+    expect((await seasonReadiness(S)).state).toBe("catching-up");
+    await computeRecords(S, await loadSeason(S));
+    await kvSet(recordsAtKey(S), { at: new Date(Date.now() + 120_000).toISOString() });
+    expect((await seasonReadiness(S)).state).toBe("ready");
+  });
+
+  it("never borrows the live lane's build time for another season", async () => {
+    await run("INSERT INTO seasons (season, name, last_sync) VALUES (?, 'Past', '2026-01-01T00:00:00.000Z')", [S - 1]);
+    await kvSet("records:last", { at: "2026-10-17T13:00:00.000Z" });
+    expect((await seasonReadiness(S - 1)).statsAt).toBeNull();
+    await run("INSERT INTO team_season_records (season, team, team_name) VALUES (?, 1, 'Team 1')", [S]);
+    expect((await seasonReadiness(S)).statsAt).toBe("2026-10-17T13:00:00.000Z");
   });
 
   it("falls back to the stats job's time when the season has no stamp of its own", async () => {

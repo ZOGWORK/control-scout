@@ -8,24 +8,28 @@ const sp = (s: string) => new URLSearchParams(s);
 
 describe("directory URL state", () => {
   it("reads the defaults from a bare link", () => {
-    expect(parseDirectoryState(sp("view=listed"))).toEqual({ country: null, unknownCountry: null, sort: "team", dir: "asc", page: 1 });
+    expect(parseDirectoryState(sp("view=listed"))).toEqual({ country: null, countryUnknown: null, sort: "team", dir: "asc", page: 1 });
   });
 
   it("round-trips country, sort, direction and page, keeping view and season", () => {
     const s = parseDirectoryState(sp("view=listed&season=2025&country=us&sort=name&dir=desc&page=3"));
-    expect(s).toEqual({ country: "US", unknownCountry: null, sort: "name", dir: "desc", page: 3 });
+    expect(s).toEqual({ country: "US", countryUnknown: null, sort: "name", dir: "desc", page: 3 });
     const out = writeDirectoryState(sp("view=listed&season=2025"), s);
     expect(out.toString()).toBe("view=listed&season=2025&country=US&sort=name&dir=desc&page=3");
     expect(parseDirectoryState(out)).toEqual(s);
   });
 
   it("leaves defaults out of the link", () => {
-    const out = writeDirectoryState(sp("view=listed&country=US&sort=name&page=4"), { country: "US", sort: "results", dir: "desc", page: 1 });
+    const out = writeDirectoryState(sp("view=listed&country=US&sort=name&page=4"), { country: "US", countryUnknown: null, sort: "results", dir: "desc", page: 1 });
     expect(out.toString()).toBe("view=listed&country=US&sort=results");
   });
 
-  it("keeps an unknown country visible instead of dropping it, and ignores junk", () => {
-    expect(parseDirectoryState(sp("country=ZZ&sort=opr&dir=up&page=-2"))).toEqual({ country: null, unknownCountry: "ZZ", sort: "team", dir: "asc", page: 1 });
+  it("keeps an unknown country in the URL until it's cleared, asks for no rows meanwhile, and ignores junk", () => {
+    const s = parseDirectoryState(sp("country=ZZ&sort=opr&dir=up&page=-2"));
+    expect(s).toEqual({ country: null, countryUnknown: "ZZ", sort: "team", dir: "asc", page: 1 });
+    expect(directoryUrl(2026, s)).toBeNull();
+    expect(writeDirectoryState(sp("view=listed&country=ZZ"), { ...s, sort: "name" }).toString()).toBe("view=listed&country=ZZ&sort=name");
+    expect(writeDirectoryState(sp("view=listed&country=ZZ"), { ...s, countryUnknown: null }).toString()).toBe("view=listed");
   });
 
   it("asks the API for the same rows", () => {
