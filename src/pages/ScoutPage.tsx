@@ -207,7 +207,7 @@ export default function ScoutPage() {
     <div>
       <PageHeader title="Scout"
         description={workspace && readOnly ? `Shared with everyone who was in ${workspaceLabel(workspace)}. Read-only: everything here can be read and exported.`
-          : workspace ? `Shared with everyone in ${workspaceLabel(workspace)}. Saved on this device instantly; the workspace sees new entries as they sync.`
+          : workspace ? `Shared with everyone in ${workspaceLabel(workspace)}. New entries are kept on this device right away and reach the workspace when they sync; pick list changes and comments are saved once the workspace confirms them.`
           : "Your own observations — private to you. Saved on this device instantly; synced to your account when you're signed in."}
         actions={spaces.resolving ? undefined : <SyncChip status={offlineAccount ? "offline" : status} pending={pendingCount} onSync={syncNow} signedIn={!!user} live={live} />}>
         {spaces.switchable && <ScoutSpaceSwitcher workspaces={spaces.workspaces} space={space} pending={pending} onSelect={selectSpace} onRefresh={syncReady ? refreshSpace : undefined} className="mb-4" />}
