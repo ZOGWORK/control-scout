@@ -25,7 +25,10 @@ import type { InStatement } from "@libsql/client";
 import { all, db, get } from "../db.js";
 import { isWorkspaceId, type Membership } from "../auth/controlPoint.js";
 import { currentUser, type User } from "../auth/session.js";
-import { applyPickOp, cleanPickOp, type Pick, type PickList, type PickOp, type PickPerson } from "../../src/shared/picklist.js";
+import { applyPickOp, cleanPickOp, noteConflicts, type Pick, type PickList, type PickOp, type PickPerson } from "../../src/shared/picklist.js";
+
+/** A note sent with a base (PickOp) that a newer note has replaced since. */
+export const NOTE_CHANGED = "A teammate changed this note since yours was written, so yours wasn't saved over it.";
 import { publishPicklist, serialized } from "./bus.js";
 import { accessError, workspaceAccess, workspacePaused, writerName } from "./entries.js";
 import { logActivity, type ActivityActor } from "./activityLog.js";
@@ -82,6 +85,12 @@ export async function changePickList(user: User, m: Membership, season: number, 
     const now = Date.now();
     // Undo of a remove: the removed row, as it was.
     const previous = op.op === "add" && op.restore ? await removedPick(m.workspaceId, season, op.team) : null;
+    // A note written over an older one than the list has now (a teammate's newer note): kept, never replaced.
+    if (op.op === "note") {
+      const team = op.team;
+      const pick = cur.picks.find((p) => p.team === team);
+      if (pick && noteConflicts(pick, op)) return { ok: false as const, status: 409 as const, error: NOTE_CHANGED, list: cur };
+    }
     const r = applyPickOp(cur.picks, op, by, now, previous);
     if (!r.ok) {
       return r.reason === "full"
@@ -210,7 +219,7 @@ export async function picklistWriter(req: Request, res: Response): Promise<{ use
  *   POST {season, op: "add", team, beforeTeam?, restore?}    add (at the end, or just before beforeTeam); restore: Undo of a remove
  *        {season, op: "remove", team}
  *        {season, op: "move", team, beforeTeam}     beforeTeam null: to the end
- *        {season, op: "note", team, note}           the shared note ("" clears it)
+ *        {season, op: "note", team, note, base?}    the shared note ("" clears it); base: 409 if a newer note replaced the one it was written over
  *        {season, op: "import", teams: [...]}       copy teams (e.g. a member's shortlist) to the end, skipping ones already on it
  *        any member, JSON only. 200 {changed, list}; 409 {error, list} (a team it names is gone, or the list is full);
  *        400 a bad body or an unknown team.
