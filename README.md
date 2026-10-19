@@ -44,7 +44,7 @@ package, so predictions can never be better in one app than the other.
 - Event pages with rankings, matches and insights
 
 **Analyze**
-- OPR breakdowns (auto, teleop, endgame) with ridge-regularised quals-only stats
+- OPR breakdowns (auto, teleop, endgame) computed by least squares over quals only
 - Season trends and per-event performance charts
 - Stat tables with sorting and CSV export
 
@@ -113,7 +113,7 @@ FTC Scout API (fallback)  ──┴─> sync job ─> SQLite ─> stats job ─�
 
 * **Sync** is idempotent and resumable. Finished seasons are frozen once
   complete; only the current season refreshes (daily, every 15 min on event days on the VM).
-* **Stats** recomputes per-team, per-event OPR (ridge-regularised, quals only,
+* **Stats** recomputes per-team, per-event OPR (least squares, quals only,
   surrogates excluded) and the engine's rating book; it also writes a
   prediction for every not-yet-played match into the **calibration ledger**
   before the match happens, and scores it afterwards.
