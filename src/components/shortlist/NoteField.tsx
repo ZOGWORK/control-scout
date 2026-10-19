@@ -103,7 +103,14 @@ export function NoteField({ team, value, stored, onSave, className, label, place
         aria-invalid={failed ? true : undefined} aria-describedby={failed ? errorId : undefined}
         className="min-w-0 flex-1 bg-transparent text-text-base outline-none placeholder:text-text-muted/70"
         onFocus={() => { focused.current = true; edited.current = false; }}
-        onBlur={(e) => { focused.current = false; if (skip.current) { skip.current = false; return; } if (!retryOnLeave && !edited.current) return; flush(e.currentTarget.value); }}
+        onBlur={(e) => {
+          focused.current = false;
+          if (skip.current) { skip.current = false; return; }
+          // Leaving for this field's Discard (Keep theirs): the member is letting the text go, so nothing is sent.
+          if ((e.relatedTarget as HTMLElement | null)?.dataset?.noteDiscard === String(team)) { if (timer.current) clearTimeout(timer.current); timer.current = null; return; }
+          if (!retryOnLeave && !edited.current) return;
+          flush(e.currentTarget.value);
+        }}
         onChange={(e) => {
           const text = e.currentTarget.value;
           if (!edited.current) onBegin?.();
@@ -122,7 +129,15 @@ export function NoteField({ team, value, stored, onSave, className, label, place
     <FieldError id={errorId} className="mt-0.5 px-1.5">{failed ? <>
       {failedText ?? "Not saved: this device's storage is full or blocked. Your text is still here; free up space and press Enter to retry."}
       {retry && <> <button type="button" className="font-medium underline underline-offset-2 max-sm:inline-flex max-sm:min-h-11 max-sm:items-center" onClick={() => flush(draft)}>Retry</button></>}
-      {discard && <> <button type="button" className="font-medium underline underline-offset-2 max-sm:inline-flex max-sm:min-h-11 max-sm:items-center" onClick={() => { edited.current = false; setDrafting(false); discard.onClick(); }}>{discard.label}</button></>}
+      {discard && <> <button type="button" data-note-discard={team} className="font-medium underline underline-offset-2 max-sm:inline-flex max-sm:min-h-11 max-sm:items-center"
+        // A mouse press doesn't take focus from the field first (so its blur can't send the text being let go).
+        onMouseDown={(e) => { if (focused.current) { e.preventDefault(); skip.current = true; } }}
+        onClick={() => {
+          if (timer.current) clearTimeout(timer.current);
+          timer.current = null;
+          edited.current = false; setDrafting(false); discard.onClick();
+          if (skip.current && focused.current) document.querySelector<HTMLInputElement>(`input[data-note="${team}"]`)?.blur();
+        }}>{discard.label}</button></>}
     </> : null}</FieldError>
     </div>
   );

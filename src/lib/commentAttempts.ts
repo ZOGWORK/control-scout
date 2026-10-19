@@ -168,5 +168,21 @@ function publish() {
   publishPending("comments", items);
 }
 
+// Another tab confirmed, discarded or replaced an attempt this tab holds: follow it, so a Retry here can't post a
+// comment that was let go there (or send an older attempt over a newer one).
+if (typeof window !== "undefined") {
+  window.addEventListener("storage", (e) => {
+    if (e.key === null) { if (attempts.size) { attempts.clear(); changed(); } return; }
+    if (!e.key.startsWith(PREFIX) || !attempts.has(e.key)) return;
+    const cur = attempts.get(e.key)!;
+    let raw: { body?: unknown; opId?: unknown; at?: unknown } | null = null;
+    try { raw = e.newValue ? JSON.parse(e.newValue) : null; } catch { raw = null; }
+    if (!raw || typeof raw.body !== "string" || typeof raw.opId !== "string") attempts.delete(e.key);
+    else if (raw.opId !== cur.opId) attempts.set(e.key, { ...cur, body: raw.body, opId: raw.opId, at: typeof raw.at === "number" ? raw.at : cur.at, state: "attention", message: COMMENT_UNCONFIRMED, uncertain: true });
+    else return;
+    changed();
+  });
+}
+
 /** Tests: forget everything held in memory (a fresh page). */
 export function resetCommentAttempts() { attempts.clear(); loaded.clear(); changed(); }

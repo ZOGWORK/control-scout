@@ -187,7 +187,8 @@ function Composer({ post, comments, place }: { post: (body: string, opId: string
   // A kept attempt (one that didn't go, or isn't confirmed) comes back into the field.
   const [draft, setDraft] = useState(() => attempt?.body ?? "");
   const [justSaved, setJustSaved] = useState(false);
-  const busy = attempt?.state === "saving" && draft === attempt.body;
+  // One attempt per entry at a time: while it's on its way (or being checked), nothing else is sent, even if the text changes.
+  const busy = attempt?.state === "saving";
   /** The attempt the text in the field belongs to: the same text sent again is the same attempt (same id). */
   const local = useRef<{ opId: string; text: string } | null>(attempt ? { opId: attempt.opId, text: attempt.body } : null);
   const ref = useRef<HTMLTextAreaElement>(null);
@@ -215,6 +216,12 @@ function Composer({ post, comments, place }: { post: (body: string, opId: string
   useEffect(() => {
     const before = had.current;
     had.current = attempt;
+    // Kept from before a reload, read after this field mounted: its text and id come back (never over typing).
+    if (!before && attempt && !local.current) {
+      local.current = { opId: attempt.opId, text: attempt.body };
+      setDraft((d) => (d.trim() ? d : attempt.body));
+      return;
+    }
     if (!before || attempt?.opId === before.opId) return;
     if (local.current?.opId === before.opId) { local.current = null; setDraft((d) => (d === before.body ? "" : d)); }
   }, [attempt]);

@@ -8,7 +8,7 @@ import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testi
 import { MemoryRouter } from "react-router-dom";
 import type { PickList } from "../../shared/picklist";
 import type { ShortlistTeam } from "../../shared/api";
-import { announcePicklist, NOTE_UNCONFIRMED } from "../../lib/sharedPicklist";
+import { announcePicklist, NOTE_UNCONFIRMED, resetFailedChanges } from "../../lib/sharedPicklist";
 import { allPending, SAVED_SHOW_MS } from "../../lib/pendingWork";
 import { SharedPicklist } from "./SharedPicklist";
 
@@ -57,6 +57,7 @@ beforeEach(() => {
   vi.stubGlobal("ResizeObserver", class { observe() {} unobserve() {} disconnect() {} });
   vi.stubGlobal("matchMedia", (q: string) => ({ matches: false, media: q, addEventListener() {}, removeEventListener() {}, addListener() {}, removeListener() {} }));
   localStorage.clear();
+  resetFailedChanges();
   posts = []; noteTimes = []; loseAnswers = 0; dropPosts = 0; getsFail = false; hold = false;
   server = { workspaceId: "901", season: S, version: 3, picks: [pick(101, 1, { note: "Strong auto", noteBy: { accountId: 2, name: "Marcus" }, noteUpdatedAt: Date.now() - 120_000 }), pick(102, 2)] };
   vi.stubGlobal("fetch", async (path: string, init?: RequestInit) => {
@@ -158,6 +159,27 @@ describe("a shared note's state", () => {
 });
 
 describe("a teammate's newer note", () => {
+  it("Keep theirs, pressed mid-edit of the unsaved note, sends nothing (the edit is let go with it)", async () => {
+    await ready();
+    fireEvent.focus(noteInput(101));
+    fireEvent.change(noteInput(101), { target: { value: "My older take" } });
+    server = { ...server, version: server.version + 1, picks: server.picks.map((p) => (p.team === 101 ? { ...p, note: "Lift fixed at QF", noteBy: { accountId: 2, name: "Marcus" }, noteUpdatedAt: Date.now() + 10 } : p)) };
+    act(() => announcePicklist(server));
+    fireEvent.keyDown(noteInput(101), { key: "Enter" });
+    await waitFor(() => expect(noteState(101)).toBe("attention"));
+    // The member edits again, then (within the save pause) chooses Keep theirs: by mouse, and by keyboard focus.
+    fireEvent.focus(noteInput(101));
+    fireEvent.change(noteInput(101), { target: { value: "My older take, edited" } });
+    const keep = within(row(101)).getByRole("button", { name: "Keep theirs" });
+    fireEvent.mouseDown(keep);
+    fireEvent.blur(noteInput(101), { relatedTarget: keep });
+    fireEvent.click(keep);
+    await waitFor(() => expect(noteInput(101).value).toBe("Lift fixed at QF"));
+    await new Promise((r) => setTimeout(r, 800)); // past the save pause
+    expect(notePosts()).toHaveLength(1);
+    expect(server.picks[0].note).toBe("Lift fixed at QF");
+  });
+
   it("is never overwritten by an edit begun before it arrived: the note goes up with its base, and the field asks", async () => {
     await ready();
     const before = server.picks[0].noteUpdatedAt;
@@ -239,6 +261,20 @@ describe("an order change", () => {
     await waitFor(() => expect(server.picks.map((p) => p.team)).toEqual([102, 101]));
     await waitFor(() => expect(orderState()).toBe("saved"));
     expect(allPending()).toEqual([]);
+  });
+
+  it("survives closing the list (switching view, workspace or season), and Retry sends it to its own workspace and season", async () => {
+    const view = show();
+    await waitFor(() => expect(rows()).toEqual([101, 102]));
+    dropPosts = 1;
+    fireEvent.keyDown(screen.getByRole("button", { name: /Reorder 102/ }), { key: "ArrowUp" });
+    await waitFor(() => expect(allPending()).toHaveLength(1));
+    view.unmount();
+    expect(allPending()).toHaveLength(1);
+    act(() => allPending()[0].retry!());
+    await waitFor(() => expect(allPending()).toEqual([]));
+    expect(posts.filter((p) => p.op === "move").at(-1)).toEqual({ season: S, op: "move", team: 102, beforeTeam: 101 });
+    expect(server.picks.map((p) => p.team)).toEqual([102, 101]);
   });
 
   it("Discard lets a kept change go", async () => {

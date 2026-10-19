@@ -303,4 +303,50 @@ describe("EntryComments: a post whose answer is lost", () => {
     expect(st.posts).toEqual([]);
     expect(localStorage.getItem("cs-comment-try:8:41:aaaaaaaaaaaa")).not.toBeNull(); // still theirs, for them
   });
+
+  it("while one is on its way, editing the text never lets a second send start", async () => {
+    lossyServer();
+    let release: () => void = () => undefined;
+    const real = globalThis.fetch;
+    vi.stubGlobal("fetch", vi.fn(async (url: string, init?: RequestInit) => {
+      if (init?.method === "POST") await new Promise<void>((r) => { release = r; });
+      return real(url, init);
+    }));
+    render(<EntryComments entry={entry()} />);
+    await waitFor(() => expect(items()).toHaveLength(2));
+    type("First");
+    fireEvent.click(screen.getByRole("button", { name: "Comment" }));
+    await waitFor(() => expect(status()).toBe("saving"));
+    type("Second");
+    expect((screen.getByRole("button", { name: "Comment" }) as HTMLButtonElement).disabled).toBe(true);
+    fireEvent.keyDown(box(), { key: "Enter", ctrlKey: true });
+    release();
+    await waitFor(() => expect(items()).toHaveLength(3));
+    expect(box().value).toBe("Second"); // typed meanwhile, kept, not sent
+  });
+
+  it("on a fresh page, a kept attempt the thread doesn't have comes back into the field with Retry and Discard", async () => {
+    const st = lossyServer();
+    localStorage.setItem("cs-comment-try:7:41:aaaaaaaaaaaa", JSON.stringify({ body: "Kept before the reload", opId: "op-kept-000001", at: Date.now() }));
+    render(<EntryComments entry={entry()} />);
+    await waitFor(() => expect(box().value).toBe("Kept before the reload"));
+    const alert = await screen.findByRole("alert");
+    expect(alert.textContent).toMatch(/didn't reach the workspace/);
+    fireEvent.click(within(alert).getByRole("button", { name: "Retry" }));
+    await waitFor(() => expect(box().value).toBe(""));
+    expect(st.posts).toEqual([{ body: "Kept before the reload", opId: "op-kept-000001" }]);
+  });
+
+  it("another tab discarding a kept attempt removes it here too", async () => {
+    const st = lossyServer();
+    render(<EntryComments entry={entry()} />);
+    await waitFor(() => expect(items()).toHaveLength(2));
+    st.lose = 1; st.getFails = true;
+    type("Watch their lift");
+    fireEvent.click(screen.getByRole("button", { name: "Comment" }));
+    await screen.findByRole("alert");
+    const k = "cs-comment-try:7:41:aaaaaaaaaaaa";
+    act(() => { localStorage.removeItem(k); window.dispatchEvent(new StorageEvent("storage", { key: k, newValue: null })); });
+    await waitFor(() => expect(screen.queryByRole("alert")).toBeNull());
+  });
 });

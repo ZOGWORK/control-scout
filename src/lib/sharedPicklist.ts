@@ -21,7 +21,8 @@
 //   checked first. Taken: saved. Not there: kept, marked as unconfirmed, with Retry (safe: notes carry their
 //   base) or Discard. Order changes that didn't go through stay listed in the recoverable view
 //   (RecoverableChanges.tsx, src/lib/pendingWork.ts) instead of disappearing behind a notice.
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
+import { toast } from "../components/ui/sonner";
 import { apiFetch, ApiError } from "./api";
 import type { LiveMode } from "./scoutLive";
 import { applyPickOp, cleanNote, isPickList, NOTE_CHANGED, type Pick, type PickList, type PickOp, type PickPerson } from "../shared/picklist";
@@ -115,7 +116,71 @@ export interface PickListState {
 }
 
 /** An order change that didn't go through. uncertain: sent, no answer, and the list didn't show it. */
-export interface FailedChange { id: number; op: Exclude<PickOp, { op: "note" }>; space: string; season: number; account: number | null; message: string; uncertain: boolean }
+export interface FailedChange { id: number; op: Exclude<PickOp, { op: "note" }>; space: string; season: number; account: number | null; message: string; uncertain: boolean;
+  /** A Retry of it is on its way. */ busy?: boolean }
+
+/** Window event: a kept order change went through on Retry. detail: { space, season }. */
+const PICKLIST_CHANGE_SAVED = "cs-picklist-change-saved";
+
+// Order changes that didn't go through, for this page (not per mounted list): closing the list, or switching
+// workspace, season or view, never drops one. Each keeps its own workspace and season, and Retry sends it there.
+const failedChanges = new Map<number, FailedChange>();
+const failedListeners = new Set<() => void>();
+let failedVersion = 0;
+let failedSeq = 0;
+function failedChanged() {
+  failedVersion++;
+  failedListeners.forEach((f) => f());
+  publishPending("picklist-changes", [...failedChanges.values()].flatMap((f): PendingItem[] => f.account == null ? [] : [{
+    key: `order:${f.account}:${f.space}:${f.season}:${f.id}`, account: f.account, kind: "order", workspaceId: f.space, season: f.season,
+    team: "team" in f.op ? f.op.team : null, label: describeChange(f.op), status: "attention", message: f.message,
+    retry: () => { void retryFailedChange(f.id); }, discard: () => discardFailedChange(f.id),
+  }]));
+}
+function keepFailed(f: Omit<FailedChange, "id">) { const id = ++failedSeq; failedChanges.set(id, { ...f, id }); failedChanged(); }
+export function discardFailedChange(id: number) { if (failedChanges.delete(id)) failedChanged(); }
+/** Every kept order change (a list filters its own scope). */
+export function useFailedChanges(): FailedChange[] {
+  useSyncExternalStore((f) => { failedListeners.add(f); return () => { failedListeners.delete(f); }; }, () => failedVersion, () => 0);
+  return [...failedChanges.values()];
+}
+/**
+ * Send a kept order change again, to its own workspace and season. Taken: gone (the list updates). Refused (409:
+ * a team it names is gone): gone, with a notice. Answer lost: the list is checked first; there, it's gone.
+ */
+export async function retryFailedChange(id: number): Promise<void> {
+  const f = failedChanges.get(id);
+  if (!f || f.busy) return;
+  failedChanges.set(id, { ...f, busy: true }); failedChanged();
+  const offlineBefore = knownOffline();
+  const settle = (message: string | null, uncertain = false, saved = false) => {
+    if (message == null) failedChanges.delete(id);
+    // An open list of that workspace and season shows its moment of Saved.
+    if (saved) window.dispatchEvent(new CustomEvent(PICKLIST_CHANGE_SAVED, { detail: { space: f.space, season: f.season } }));
+    if (message != null) failedChanges.set(id, { ...f, busy: false, message, uncertain });
+    failedChanged();
+  };
+  try {
+    const r = await apiFetch<{ list: unknown }>(url(f.space), { method: "POST", json: { season: f.season, ...f.op } });
+    if (isPickList(r.list)) announcePicklist(r.list);
+    settle(null, false, true);
+  } catch (e) {
+    const err = e instanceof ApiError ? e : new ApiError(0, "Couldn't save the change.");
+    if (err.status === 409) { toast.error(err.message); settle(null); return; }
+    if (outcomeUnknown(e, offlineBefore)) {
+      const check = await apiFetch<{ list: unknown }>(url(f.space, f.season)).catch(() => null);
+      if (check && isPickList(check.list)) {
+        announcePicklist(check.list);
+        if (changeLanded(check.list.picks, f.op)) { settle(null, false, true); return; }
+      }
+      settle(CHANGE_UNCONFIRMED, true);
+      return;
+    }
+    settle(`Not saved: ${err.message}`);
+  }
+}
+/** Tests: forget every kept order change. */
+export function resetFailedChanges() { failedChanges.clear(); failedChanged(); }
 
 /** Note writes on their way, by draft id (any page of this tab): the recoverable view doesn't offer them as waiting. */
 const inflight = new Set<string>();
@@ -181,8 +246,8 @@ export function usePickList(space: string | null, season: number, live: LiveMode
   const [pending, setPending] = useState<Pending[]>([]);
   // Notes the server didn't take, by noteKey: the text stays in the field, marked unsaved.
   const [unsaved, setUnsaved] = useState<Record<string, Unsaved>>({});
-  // Order changes that didn't go through (not refused): kept for the member to retry or let go.
-  const [failed, setFailed] = useState<FailedChange[]>([]);
+  // Order changes that didn't go through (not refused): kept (for this page, not this list) to retry or let go.
+  const failed = useFailedChanges();
   // When a note (by noteKey) or the order ("order:" + space:season) was last confirmed: "Saved" shows for a moment.
   const [savedAt, setSavedAt] = useState<Record<string, number>>({});
   const unsavedRef = useRef(unsaved);
@@ -344,8 +409,7 @@ export function usePickList(space: string | null, season: number, live: LiveMode
             if (keyRef.current === k) refused.current(err.message);
           } else {
             // Not refused: kept for the member (the recoverable view), never dropped without a word.
-            const f: FailedChange = { id: p.id, op, space: p.space, season: p.season, account: p.account, message: uncertain ? CHANGE_UNCONFIRMED : `Not saved: ${err.message}`, uncertain };
-            setFailed((cur) => [...cur.filter((x) => x.id !== p.id), f]);
+            keepFailed({ op, space: p.space, season: p.season, account: p.account, message: uncertain ? CHANGE_UNCONFIRMED : `Not saved: ${err.message}`, uncertain });
             if (keyRef.current === k && !uncertain) refused.current(`Not saved: ${err.message}`);
           }
           if (keyRef.current === k) void refetch.current();
@@ -408,13 +472,8 @@ export function usePickList(space: string | null, season: number, live: LiveMode
     setUnsaved((u) => { if (!(key in u)) return u; const { [key]: _gone, ...rest } = u; return rest; });
     if (acct != null) clearNoteDraft(acct, space, season, team);
   }, [space, season]);
-  const retryFailed = useCallback((id: number) => {
-    const f = failed.find((x) => x.id === id);
-    if (!f) return;
-    setFailed((cur) => cur.filter((x) => x.id !== id));
-    change(f.op);
-  }, [failed, change]);
-  const discardFailed = useCallback((id: number) => { setFailed((cur) => cur.filter((x) => x.id !== id)); }, []);
+  const retryFailed = useCallback((id: number) => { void retryFailedChange(id); }, []);
+  const discardFailed = useCallback((id: number) => discardFailedChange(id), []);
 
   // Notes kept from before a reload (or from another tab of this account that closed): once the list is here,
   // once per account, workspace and season. Confirmed meanwhile (the list says the same) or its team gone:
@@ -441,6 +500,14 @@ export function usePickList(space: string | null, season: number, live: LiveMode
   // safe to send again (it carries its base), and a reload starts with none anyway.
   useEffect(() => () => { for (const w of pageWids.current) inflight.delete(w); }, []);
 
+  // A kept order change of this list's went through on Retry: Saved, for a moment.
+  useEffect(() => {
+    if (!space) return;
+    const on = (ev: Event) => { const d = (ev as CustomEvent<{ space: string; season: number }>).detail; if (d?.space === space && d.season === season) markSaved(`order:${space}:${season}`); };
+    window.addEventListener(PICKLIST_CHANGE_SAVED, on);
+    return () => window.removeEventListener(PICKLIST_CHANGE_SAVED, on);
+  }, [space, season, markSaved]);
+
   // The list open on this page handles its own kept notes: the recoverable view leaves them to it.
   useEffect(() => {
     if (!space || account == null) return;
@@ -458,7 +525,7 @@ export function usePickList(space: string | null, season: number, live: LiveMode
     if (mine.some((o) => o.op === "note" && o.team === team)) return "saving";
     return recent(k) ? "saved" : null;
   };
-  const orderState: SaveState | null = !space ? null : scopeFailed.length ? "attention" : mine.some((o) => o.op !== "note") ? "saving" : recent(`order:${space}:${season}`) ? "saved" : null;
+  const orderState: SaveState | null = !space ? null : scopeFailed.some((f) => !f.busy) ? "attention" : mine.some((o) => o.op !== "note") || scopeFailed.length ? "saving" : recent(`order:${space}:${season}`) ? "saved" : null;
 
   // What needs the member, for the recoverable view (this account's only; nothing while read-only).
   useEffect(() => {
@@ -477,12 +544,8 @@ export function usePickList(space: string | null, season: number, live: LiveMode
         discard: () => discardNote(team), discardLabel: u.conflict ? "Keep theirs" : "Discard",
       });
     }
-    for (const f of scopeFailed) {
-      items.push({ key: `order:${account}:${space}:${season}:${f.id}`, account, kind: "order", workspaceId: space, season, team: "team" in f.op ? f.op.team : null,
-        label: describeChange(f.op), status: "attention", message: f.message, retry: () => retryFailed(f.id), discard: () => discardFailed(f.id) });
-    }
     publishPending(source, items);
-  }, [unsaved, scopeFailed, space, season, account, readOnly, change, discardNote, retryFailed, discardFailed]);
+  }, [unsaved, space, season, account, readOnly, change, discardNote]);
   useEffect(() => () => publishPending(`picklist:${space ?? ""}:${season}`, []), [space, season]);
 
   return { list, loading: !server && (loading || !error), error: server ? null : error, saving: mine.length > 0, change, discardNote, retryFailed, discardFailed,
