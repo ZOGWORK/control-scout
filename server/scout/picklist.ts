@@ -25,10 +25,7 @@ import type { InStatement } from "@libsql/client";
 import { all, db, get } from "../db.js";
 import { isWorkspaceId, type Membership } from "../auth/controlPoint.js";
 import { currentUser, type User } from "../auth/session.js";
-import { applyPickOp, cleanPickOp, noteConflicts, type Pick, type PickList, type PickOp, type PickPerson } from "../../src/shared/picklist.js";
-
-/** A note sent with a base (PickOp) that a newer note has replaced since. */
-export const NOTE_CHANGED = "A teammate changed this note since yours was written, so yours wasn't saved over it.";
+import { applyPickOp, cleanPickOp, NOTE_CHANGED, noteConflicts, type Pick, type PickList, type PickOp, type PickPerson } from "../../src/shared/picklist.js";
 import { publishPicklist, serialized } from "./bus.js";
 import { accessError, workspaceAccess, workspacePaused, writerName } from "./entries.js";
 import { logActivity, type ActivityActor } from "./activityLog.js";

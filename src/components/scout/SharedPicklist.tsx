@@ -33,18 +33,21 @@ const who = (p: PickPerson | null, me: PickPerson) => (!p ? "" : p.accountId != 
 const quote = (note: string) => { const flat = note.replace(/\s+/g, " ").trim(); return flat.length > 60 ? `${flat.slice(0, 59).trimEnd()}…` : flat; };
 
 /** The shared note, and who added the team and last wrote the note. */
-function SharedNote({ pick, me, onSave, unsaved, saved, conflict = false, readOnly = false }: {
+function SharedNote({ pick, me, onSave, unsaved, saved, conflict = false, kept = true, readOnly = false }: {
   pick: Pick; me: PickPerson; onSave: (text: string) => void; readOnly?: boolean;
   /** This member's note the server didn't take, and the note the server has: the field keeps the first, marked unsaved. */
   unsaved?: string; saved?: string;
   /** It wasn't sent because a teammate changed the note since it was written. */
   conflict?: boolean;
+  /** It is stored on this device (false: a reload loses it). */
+  kept?: boolean;
 }) {
   const now = useNow();
   const noteBy = pick.note && pick.noteBy && pick.noteUpdatedAt != null ? `note by ${who(pick.noteBy, me)} · ${agoShort(pick.noteUpdatedAt, now)}` : null;
   const failedText = conflict
     ? `Not saved yet: ${who(pick.noteBy, me) || "a teammate"} changed this note${pick.note ? ` to “${quote(pick.note)}”` : ""} after you wrote yours. Retry to replace it with yours, or press Escape to keep theirs.`
-    : "Not saved yet. Your text is kept on this device: Retry, or press Escape to put back the saved note.";
+    : kept ? "Not saved yet. Your text is kept on this device: Retry, or press Escape to put back the saved note."
+    : "Not saved yet, and this device couldn't keep a copy (its storage is full or blocked): don't reload. Retry, or press Escape to put back the saved note.";
   return (
     <div className="min-w-0">
       {readOnly ? (pick.note ? <p className="whitespace-pre-wrap break-words px-1.5 text-sm">{pick.note}</p> : null) : <NoteField team={pick.team} value={unsaved ?? pick.note} stored={unsaved !== undefined ? saved ?? "" : pick.note} onSave={onSave}
@@ -160,7 +163,7 @@ export function SharedPicklist({ workspaceId, workspaceName, season, live, me, s
     const p = byPick.get(t.team)!;
     return {
       t, rank, season, open: open.has(t.team), dragging: reorder.dragging === t.team, idPrefix: "picklist",
-      readOnly, note: <SharedNote pick={p} me={me} readOnly={readOnly} unsaved={pl.unsavedNote(t.team)} saved={pl.savedNote(t.team)} conflict={pl.noteConflict(t.team)} onSave={(text) => change({ op: "note", team: t.team, note: text })} />,
+      readOnly, note: <SharedNote pick={p} me={me} readOnly={readOnly} unsaved={pl.unsavedNote(t.team)} saved={pl.savedNote(t.team)} conflict={pl.noteConflict(t.team)} kept={pl.noteKept(t.team)} onSave={(text) => change({ op: "note", team: t.team, note: text })} />,
       selected: selected.includes(t.team), selectDisabled: !selected.includes(t.team) && selected.length >= MAX_COMPARE, onSelect: (on: boolean) => pick(t.team, on),
       onToggle: () => toggle(t.team), onRemove: () => remove(t.team), handle: handleFor(t.team),
       compareLink: compareHref([t.team, ...teams.filter((x) => x !== t.team).slice(0, MAX_COMPARE - 1)], season),

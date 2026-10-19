@@ -31,7 +31,7 @@ describe("pick list note drafts", () => {
   it("blocked storage: nothing kept, nothing thrown", () => {
     vi.spyOn(Storage.prototype, "setItem").mockImplementation(() => { throw new Error("QuotaExceededError"); });
     vi.spyOn(Storage.prototype, "getItem").mockImplementation(() => { throw new Error("SecurityError"); });
-    expect(() => saveNoteDraft(1, "901", 2025, { team: 102, note: "x", base: null, at: 1 })).not.toThrow();
+    expect(saveNoteDraft(1, "901", 2025, { team: 102, note: "x", base: null, at: 1 })).toBe(false); // says so, never throws
     expect(readNoteDraft(1, "901", 2025, 102)).toBeNull();
     expect(noteDrafts(1, "901", 2025)).toEqual([]);
   });

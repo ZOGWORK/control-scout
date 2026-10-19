@@ -58,6 +58,9 @@ export type PickOp =
   | { op: "note"; team: number; note: string; base?: number | null }
   | { op: "import"; teams: number[] };
 
+/** The server's 409 message for a based note op refused because the note changed since (noteConflicts). */
+export const NOTE_CHANGED = "A teammate changed this note since yours was written, so yours wasn't saved over it.";
+
 /** The note a based note op (see PickOp) would replace has changed since: the server keeps the newer one. */
 export const noteConflicts = (pick: Pick, op: { note: string; base?: number | null }) =>
   op.base !== undefined && pick.note !== op.note && (pick.noteUpdatedAt ?? null) !== op.base;

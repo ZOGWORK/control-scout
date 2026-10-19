@@ -278,6 +278,26 @@ describe("SharedPicklist: a note on its way when the page reloads", () => {
     expect(server.picks[1].note).toBe("Marcus's note");
   });
 
+  it("a kept note refused because its team was removed (a 409 that isn't a note conflict) is dropped, not shown as a conflict", async () => {
+    await writeThenReload(102, "Fast cycles");
+    refuseNext = true; // "That team was removed from the pick list meanwhile."
+    show();
+    await waitFor(() => expect(notePosts()).toHaveLength(1));
+    await waitFor(() => expect(drafts()).toEqual([]));
+    expect(screen.queryByText(/Not saved yet/)).toBeNull();
+  });
+
+  it("when this device can't store the note, a failed save says a reload would lose it", async () => {
+    show();
+    await waitFor(() => expect(rows()).toEqual([101, 102]));
+    vi.spyOn(Storage.prototype, "setItem").mockImplementation(() => { throw new Error("QuotaExceededError"); });
+    notesDown = true;
+    writeNote(102, "Fast cycles");
+    await waitFor(() => expect(within(noteInput(102).closest("li")!).getByText(/couldn't keep a copy.*don't reload/)).toBeTruthy());
+    expect(screen.queryByText(/Your text is kept on this device/)).toBeNull();
+    vi.restoreAllMocks();
+  });
+
   it("a kept draft over a teammate's note isn't sent by just focusing and leaving the field", async () => {
     await writeThenReload(101, "Old draft");
     server = { ...server, version: server.version + 1, picks: server.picks.map((p) => (p.team === 101 ? { ...p, note: "Lift fixed at QF", noteBy: { accountId: 2, name: "Marcus" }, noteUpdatedAt: Date.now() + 5 } : p)) };
