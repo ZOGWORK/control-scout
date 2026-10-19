@@ -42,6 +42,7 @@ import { photosByEntry } from "./photoRows.js";
 import { entryChange, logEntryWrites, type EntryBefore } from "./activityLog.js";
 import { versionsAt, versionStatements } from "./history.js";
 import type { EntryPhoto } from "../../src/shared/photos.js";
+import { CLOCK_SKEW_MS, isEntryTimestamp, repairScoutEntry, validateScoutEntry, type EntryProblem } from "../../src/shared/scoutEntry.js";
 
 export interface ScoutEntryInput {
   uuid: string; season: number; team: number; eventCode: string | null; matchLabel: string | null; kind: "match" | "pit"; data: Record<string, unknown>; notes: string; updatedAt: number; deleted?: boolean;
@@ -53,26 +54,51 @@ export interface ScoutEntryInput {
   restoredFrom?: number;
 }
 
-const TEMPLATE_ID = /^[A-Za-z0-9:_-]{1,100}$/;
-
-export function cleanScoutEntry(x: any): ScoutEntryInput | null {
-  if (!x || typeof x !== "object") return null;
-  if (typeof x.uuid !== "string" || !/^[A-Za-z0-9_-]{8,64}$/.test(x.uuid)) return null;
-  const season = Number(x.season), team = Number(x.team), updatedAt = Number(x.updatedAt);
-  if (!Number.isInteger(season) || season < 2000 || !Number.isInteger(team) || team < 1 || team > 999999 || !Number.isFinite(updatedAt)) return null;
-  if (x.kind !== "match" && x.kind !== "pit") return null;
-  const data = x.data && typeof x.data === "object" ? x.data : {};
-  if (JSON.stringify(data).length > 20_000) return null;
-  return {
-    uuid: x.uuid, season, team, eventCode: typeof x.eventCode === "string" ? x.eventCode.slice(0, 24) : null, matchLabel: typeof x.matchLabel === "string" ? x.matchLabel.slice(0, 24) : null,
-    kind: x.kind, data, notes: typeof x.notes === "string" ? x.notes.slice(0, 4000) : "", updatedAt, deleted: !!x.deleted,
-    ...(typeof x.templateId === "string" && TEMPLATE_ID.test(x.templateId)
-      ? { templateId: x.templateId, templateVersion: Number.isSafeInteger(x.templateVersion) && x.templateVersion >= 0 ? x.templateVersion : 0 }
-      : {}),
-    ...(Number.isFinite(x.baseUpdatedAt) ? { baseUpdatedAt: Number(x.baseUpdatedAt) } : {}),
-    ...(Number.isFinite(x.restoredFrom) ? { restoredFrom: Number(x.restoredFrom) } : {}),
-  };
+/**
+ * Check an entry a device sends (src/shared/scoutEntry.ts, the one validator: types, bounds, a timestamp no later
+ * than now plus the allowed clock skew). A refused one comes back with the reason, for the per-entry result.
+ */
+export function checkScoutEntry(x: unknown, now = Date.now()): { ok: true; entry: ScoutEntryInput } | { ok: false; uuid: string; reason: EntryProblem } {
+  const c = validateScoutEntry(x, now);
+  return c.ok ? { ok: true, entry: c.entry } : { ok: false, uuid: c.uuid, reason: c.problem };
 }
+
+/** checkScoutEntry, as the entry or null. */
+export function cleanScoutEntry(x: unknown): ScoutEntryInput | null {
+  const c = checkScoutEntry(x);
+  return c.ok ? c.entry : null;
+}
+
+/** A refused entry's error (its `reason` says what was wrong): the device lets it go rather than retry it. */
+export const INVALID_ENTRY = "invalid entry";
+
+/**
+ * A stored row's entry fields as the API sends them, repaired where a build before the checks stored something
+ * unreadable (repairScoutEntry): answers that aren't JSON read as none, a timestamp past any real edit reads as 0
+ * (so the next ordinary edit supersedes it: see supersedes()), notes that aren't text read as text. Never throws.
+ */
+export function storedEntryFields(r: any, now = Date.now()) {
+  let data: unknown = {};
+  try { data = JSON.parse(String(r.data ?? "{}")); } catch { /* unreadable: no answers */ }
+  const raw = {
+    uuid: String(r.uuid), season: Number(r.season), team: Number(r.team), eventCode: (r.event_code ?? null) as string | null, matchLabel: (r.match_label ?? null) as string | null,
+    kind: r.kind as "match" | "pit", data: data as Record<string, unknown>, notes: (r.notes ?? "") as string, updatedAt: Number(r.updated_at),
+  };
+  // Read against the same bound a write must beat (supersedes()), so what's sent is what the next edit supersedes.
+  const fixed = repairScoutEntry<typeof raw>(raw, supersedeBound(now));
+  if (fixed?.repaired.length) console.warn(`[scout] stored entry ${raw.uuid} read with ${fixed.repaired.join(", ")} repaired`);
+  // (No usable identity can't come from the table's own columns; if it ever does, the timestamp and text are still made safe.)
+  return fixed?.entry ?? { ...raw, updatedAt: isEntryTimestamp(raw.updatedAt, now) ? raw.updatedAt : 0, data: {}, notes: typeof raw.notes === "string" ? raw.notes : "" };
+}
+
+/**
+ * The stored updated_at a write must beat (newer wins), in SQL: the column, unless it's later than any write could
+ * have been accepted at (now + the allowed clock skew: only a build before the checks could store one, 1e300 in the
+ * audit) or not a whole number; then 0, so an ordinary edit supersedes it. Its one `?` is supersedeBound().
+ */
+export const supersedes = (col: string) => `(CASE WHEN ${col} >= 0 AND ${col} <= ? AND ${col} = CAST(${col} AS INTEGER) THEN ${col} ELSE 0 END)`;
+/** The bound for supersedes(), at the time of the write. */
+export const supersedeBound = (now = Date.now()) => now + CLOCK_SKEW_MS;
 
 /** A shared entry as the API sends it (the client's ScoutEntry, plus who last edited it). */
 export interface WorkspaceEntryOut extends Omit<ScoutEntryInput, "restoredFrom"> {
@@ -84,8 +110,7 @@ export interface WorkspaceEntryOut extends Omit<ScoutEntryInput, "restoredFrom">
 }
 
 const workspaceRow = (workspaceId: string, r: any, photos: EntryPhoto[] = []): WorkspaceEntryOut => ({
-  uuid: r.uuid, workspaceId, season: Number(r.season), team: Number(r.team), eventCode: r.event_code, matchLabel: r.match_label, kind: r.kind,
-  data: JSON.parse(r.data), notes: r.notes, updatedAt: Number(r.updated_at), deleted: !!r.deleted,
+  ...storedEntryFields(r), workspaceId, deleted: !!r.deleted,
   authorAccountId: Number(r.author_account_id), authorDisplayName: r.author_name,
   editorAccountId: Number(r.editor_account_id), editorDisplayName: r.editor_name,
   ...(r.template_id ? { templateId: String(r.template_id), templateVersion: Number(r.template_version ?? 0) } : {}),
@@ -214,12 +239,12 @@ const UPSERT = `INSERT INTO workspace_scout_entries
     -- Devices send the template the entry was made with (an edit keeps it); one that sends none (an older build) leaves the stored one.
     template_id = COALESCE(excluded.template_id, workspace_scout_entries.template_id),
     template_version = CASE WHEN excluded.template_id IS NULL THEN workspace_scout_entries.template_version ELSE excluded.template_version END
-  WHERE excluded.updated_at > workspace_scout_entries.updated_at
+  WHERE excluded.updated_at > ${supersedes("workspace_scout_entries.updated_at")}
     AND (? = 1 OR workspace_scout_entries.author_account_id = excluded.editor_account_id
       OR (excluded.deleted = 0 AND workspace_scout_entries.deleted = 0))`; // mayWrite, in the same statement as the write
 
 /** Per entry. ok: the stored copy (ours, or a newer edit that beat it). error "forbidden": refused by mayWrite; `entry` is the server's copy for the device to put back. */
-export interface PushResult { uuid: string; ok: boolean; error?: string; entry?: WorkspaceEntryOut }
+export interface PushResult { uuid: string; ok: boolean; error?: string; reason?: EntryProblem; entry?: WorkspaceEntryOut }
 
 /**
  * Write a batch of entries into a workspace (membership already checked).
@@ -231,9 +256,10 @@ export async function pushWorkspaceEntries(user: User, m: Membership, raw: unkno
   const results: PushResult[] = [];
   const good: ScoutEntryInput[] = [];
   for (const x of raw) {
-    const e = cleanScoutEntry(x);
+    const c = checkScoutEntry(x);
     const space = (x as { workspaceId?: unknown } | null)?.workspaceId;
-    if (!e) { results.push({ uuid: String((x as any)?.uuid ?? ""), ok: false, error: "invalid entry" }); continue; }
+    if (!c.ok) { results.push({ uuid: c.uuid, ok: false, error: INVALID_ENTRY, reason: c.reason }); continue; }
+    const e = c.entry;
     if (space !== undefined && space !== m.workspaceId) { results.push({ uuid: e.uuid, ok: false, error: "wrong space" }); continue; }
     // One version per entry per push (a device sends each queued entry once): a second one would make
     // the per-entry result ambiguous (which version was refused?), so it's refused itself.
@@ -281,7 +307,7 @@ const withoutSeq = ({ seq: _s, ...e }: LiveEntry): WorkspaceEntryOut => e;
  */
 async function writeWorkspaceEntries(user: User, m: Membership, good: ScoutEntryInput[], beforeSeq: number, prior: Map<string, EntryBefore>,
   restored: Map<string, { versionNo: number }>): Promise<Map<string, LiveEntry>> {
-  const now = new Date().toISOString(), name = writerName(user);
+  const now = new Date().toISOString(), name = writerName(user), bound = supersedeBound();
   await writeBatch([
     // Lazily: the workspace's first entry creates its mirror row.
     { sql: "INSERT INTO workspaces (cp_workspace_id, name, created_at, updated_at) VALUES (?, ?, ?, ?) ON CONFLICT(cp_workspace_id) DO NOTHING", args: [m.workspaceId, m.workspaceName, now, now] },
@@ -289,7 +315,7 @@ async function writeWorkspaceEntries(user: User, m: Membership, good: ScoutEntry
       {
         sql: UPSERT,
         args: [m.workspaceId, e.uuid, e.season, e.team, e.eventCode, e.matchLabel, e.kind, JSON.stringify(e.data), e.notes, e.updatedAt, e.deleted ? 1 : 0,
-          m.accountId, name, m.accountId, name, e.templateId ?? null, e.templateId ? e.templateVersion ?? 0 : null, e.baseUpdatedAt ?? null, m.workspaceId, m.role === "admin" ? 1 : 0],
+          m.accountId, name, m.accountId, name, e.templateId ?? null, e.templateId ? e.templateVersion ?? 0 : null, e.baseUpdatedAt ?? null, m.workspaceId, bound, m.role === "admin" ? 1 : 0],
       },
       // A write that changes nothing (or a tombstone for an entry never seen) is no version; a new template for the same answers is one.
       ...(entryChange(prior.get(e.uuid), { ...e, deleted: !!e.deleted }) || templateChanged(prior.get(e.uuid), e)
