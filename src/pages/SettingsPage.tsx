@@ -21,7 +21,9 @@ import { usePersonal, type AccountUser, type AuthProviders } from "../lib/person
 import { resetConsent, useConsent } from "../lib/consent";
 import { resetTour } from "../lib/tour";
 import { resetInstall } from "../lib/installNudge";
-import { clearLocalScouting, localScoutEntries, saveScoutEntry, storedScoutEntry, type ScoutEntry } from "../lib/scouting";
+import { clearLocalScouting, localScoutEntries, storedScoutEntry } from "../lib/scouting";
+import { importMessage, importRows, importScoutRows } from "../lib/scoutImport";
+import { isoOrBlank } from "../shared/scoutEntry";
 import { clearRecordings, fmtBytes } from "../lib/recordings";
 import { downloadCsv } from "../lib/csv";
 import { manualReport, sendReport } from "../lib/errorReporting";
@@ -468,15 +470,15 @@ function ScoutingData() {
     const blob = new Blob([JSON.stringify({ format: "control-scout-scouting", version: 1, exportedAt: new Date().toISOString(), entries: data }, null, 2)], { type: "application/json" });
     const a = document.createElement("a"); a.href = URL.createObjectURL(blob); a.download = "control-scout-scouting.json"; a.click();
   };
-  const exportCsv = () => downloadCsv("control-scout-scouting", localScoutEntries().filter((e) => !e.deleted).map((e) => ({ season: e.season, team: e.team, event: e.eventCode, match: e.matchLabel, kind: e.kind, notes: e.notes, updated: new Date(e.updatedAt).toISOString(), ...e.data })));
+  const exportCsv = () => downloadCsv("control-scout-scouting", localScoutEntries().filter((e) => !e.deleted).map((e) => ({ season: e.season, team: e.team, event: e.eventCode, match: e.matchLabel, kind: e.kind, notes: e.notes, updated: isoOrBlank(e.updatedAt), ...e.data })));
+  // Every row is checked before anything is stored (src/lib/scoutImport.ts); the message counts only what was saved.
   const importJson = (file: File) => {
     file.text().then((t) => {
-      const d = JSON.parse(t);
-      const list: ScoutEntry[] = Array.isArray(d) ? d : d.entries;
-      let n = 0;
-      for (const e of list ?? []) if (e?.uuid && e.team && e.season) { saveScoutEntry({ ...e, workspaceId: null }); n++; } // imports go to Personal
-      toast.success(`Imported ${n} entries`);
-    }).catch(() => toast.error("That file isn't a Control Scout scouting export"));
+      const rows = importRows(t);
+      if (!rows) { toast.error("That file isn't a Control Scout scouting export"); return; }
+      const m = importMessage(importScoutRows(rows));
+      toast[m.tone](m.text, m.tone === "success" ? undefined : { duration: 15_000 });
+    }).catch(() => toast.error("Couldn't read that file"));
   };
   // Live count: re-read whenever scouting data changes (import, clear, edits elsewhere).
   const [count, setCount] = useState(() => localScoutEntries().filter((e) => !e.deleted).length);

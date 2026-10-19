@@ -226,7 +226,7 @@ describe("workspace CSV export", () => {
     await push(admin, "504", [entry({ uuid: "filt00000006", team: 444, notes: "coach note" })]);
     // A deleted entry: created, then deleted by its author.
     await push(member, "504", [entry({ uuid: "filt00000007", team: 111 })]);
-    await push(member, "504", [entry({ uuid: "filt00000007", team: 111, deleted: true, updatedAt: 1_900_000_000_000 })]);
+    await push(member, "504", [entry({ uuid: "filt00000007", team: 111, deleted: true, updatedAt: Date.now() })]);
     const ids = async (q: string) => { const out = await exportOf(member, "504", q); expect(out.status).toBe(200); return out.rows.map((r) => r["Entry ID"]).sort(); };
     const all = ["filt00000001", "filt00000002", "filt00000003", "filt00000005", "filt00000006", "filt00000008"];
     expect(await ids("season=2025")).toEqual(all);
@@ -353,7 +353,7 @@ describe("workspace CSV export", () => {
       entry({ uuid: "parity000005", team: 444, season: 2024, notes: "fast" }),
       entry({ uuid: "parity000006", team: 111, matchLabel: "F1", notes: "deleted" }),
     ]);
-    await push(member, "509", [entry({ uuid: "parity000006", team: 111, matchLabel: "F1", deleted: true, updatedAt: 1_900_000_000_000 })]);
+    await push(member, "509", [entry({ uuid: "parity000006", team: 111, matchLabel: "F1", deleted: true, updatedAt: Date.now() })]);
     await push(admin, "509", [entry({ uuid: "parity000007", team: 222, matchLabel: "M3-2", notes: "coach says fast" })]);
     // What a member's device holds: the workspace pull (tombstones included).
     const pulled = (await member("GET", "/api/scout/sync?workspaceId=509&since=0")).json.entries as Pulled[];
@@ -380,6 +380,81 @@ describe("workspace CSV export", () => {
   it("the Scout page's export link carries only the filters the export knows", () => {
     expect(workspaceExportUrl("w1", new URLSearchParams("season=2025&team=18360&space=w1&view=template&entry=x"))).toBe("/api/scout/workspaces/w1/export.csv?season=2025&team=18360");
     expect(workspaceExportUrl("w1", { season: 2025, kind: "pit", q: "fast  ", author: null })).toBe("/api/scout/workspaces/w1/export.csv?season=2025&kind=pit&q=fast");
+  });
+});
+
+// Audit PRIVATE-F01: an entry's fields are checked at the sync boundary (src/shared/scoutEntry.ts), and rows
+// stored before that (a timestamp of 1e300, unreadable answers) never break the export, a pull, or later edits.
+describe("entries with values out of bounds (PRIVATE-F01)", () => {
+  const poison = async (ws: string, uuid: string, set: string) => {
+    await db().execute({ sql: `UPDATE workspace_scout_entries SET ${set} WHERE uuid = ? AND workspace_id = (SELECT id FROM workspaces WHERE cp_workspace_id = ?)`, args: [uuid, ws] });
+  };
+
+  it("the sync refuses a timestamp nothing could supersede, or one that isn't a whole number; ordinary edits keep working", async () => {
+    const { member } = await team("511");
+    for (const updatedAt of [1e300, Date.now() + 365 * 86_400_000, 1_700_000_000_000.5, -5]) {
+      const r = await member("POST", "/api/me/scout/sync", { workspaceId: "511", entries: [entry({ uuid: "poisonsync01", updatedAt })] });
+      expect(r.status).toBe(200);
+      expect(r.json.results[0]).toMatchObject({ uuid: "poisonsync01", ok: false, error: "invalid entry", reason: "bad timestamp" });
+    }
+    // Nothing was stored: an ordinary edit is the first version.
+    await push(member, "511", [entry({ uuid: "poisonsync01", notes: "fine", updatedAt: Date.now() })]);
+    expect((await exportOf(member, "511", "season=2025")).rows.map((r) => r.Notes)).toEqual(["fine"]);
+  });
+
+  it("the sync refuses notes, answers, event or match of the wrong type, with the reason", async () => {
+    const { member } = await team("512");
+    const r = await member("POST", "/api/me/scout/sync", { workspaceId: "512", entries: [
+      entry({ uuid: "badnotes0001", notes: { invalid: "object" } }),
+      entry({ uuid: "baddata00001", data: { cones: { deep: 1 } } }),
+      entry({ uuid: "baddata00002", data: [1, 2] }),
+      entry({ uuid: "badevent0001", eventCode: 7 }),
+      entry({ uuid: "goodentry001" }),
+    ] });
+    expect(r.json.results.map((x: { reason?: string; ok: boolean }) => x.ok || x.reason)).toEqual(["notes not text", "answers not values", "answers not values", "bad event or match", true]);
+  });
+
+  it("a stored row with a 1e300 timestamp and unreadable answers: the export streams, the pull reads it, and an ordinary edit supersedes it", async () => {
+    const { member } = await team("513");
+    await push(member, "513", [entry({ uuid: "poisoned0001", notes: "keep me", data: { auto: 3 } }), entry({ uuid: "healthy00001", notes: "healthy" })]);
+    // As a build before the checks could have stored it.
+    await poison("513", "poisoned0001", "updated_at = 1e300, data = 'not json'");
+    const out = await exportOf(member, "513", "season=2025");
+    expect(out.status).toBe(200);
+    const byId = Object.fromEntries(out.rows.map((r) => [r["Entry ID"], r]));
+    expect(Object.keys(byId).sort()).toEqual(["healthy00001", "poisoned0001"]);
+    expect(byId.poisoned0001).toMatchObject({ Notes: "keep me", "Updated at": "" }); // the observation is kept; the date it can't show is blank
+    const pulled = (await member("GET", "/api/scout/sync?workspaceId=513&since=0")).json.entries;
+    expect(pulled.find((e: { uuid: string }) => e.uuid === "poisoned0001")).toMatchObject({ notes: "keep me", data: {}, updatedAt: 0 });
+    // The device's next edit, stamped as devices do (after the copy it has: 0 + 1, or now): it wins.
+    const edit = await member("POST", "/api/me/scout/sync", { workspaceId: "513", entries: [entry({ uuid: "poisoned0001", notes: "edited", updatedAt: Date.now() })] });
+    expect(edit.json.results[0]).toMatchObject({ ok: true, entry: { notes: "edited" } });
+    expect((await exportOf(member, "513", "season=2025")).rows.find((r) => r["Entry ID"] === "poisoned0001")).toMatchObject({ Notes: "edited" });
+  });
+
+  it("a history version with a damaged timestamp reads as 0, and restoring it still names its source version", async () => {
+    const { member } = await team("515");
+    await push(member, "515", [entry({ uuid: "restorepois1", notes: "first", updatedAt: Date.now() - 2000 })]);
+    await push(member, "515", [entry({ uuid: "restorepois1", notes: "second", updatedAt: Date.now() - 1000 })]);
+    await db().execute({ sql: "UPDATE workspace_entry_versions SET updated_at = 1e300 WHERE uuid = ? AND version_no = 1", args: ["restorepois1"] });
+    const history = (await member("GET", "/api/scout/workspaces/515/entries/restorepois1/history")).json.versions;
+    const v1 = history.find((v: { versionNo: number }) => v.versionNo === 1);
+    expect(v1).toMatchObject({ updatedAt: 0, notes: "first" });
+    await push(member, "515", [entry({ uuid: "restorepois1", notes: "first", updatedAt: Date.now(), restoredFrom: v1.updatedAt })]);
+    const after = (await member("GET", "/api/scout/workspaces/515/entries/restorepois1/history")).json.versions;
+    expect(after[0]).toMatchObject({ notes: "first", restored: true, restoredFromVersion: 1 });
+  });
+
+  it("personal entries: the sync refuses the same values, and a stored 1e300 row is read as 0 and superseded", async () => {
+    const { member } = await team("514");
+    const bad = await member("POST", "/api/me/scout/sync", { entries: [entry({ uuid: "personalbad1", updatedAt: 1e300 }), entry({ uuid: "personalbad2", notes: ["x"] })] });
+    expect(bad.json.results.map((x: { reason?: string }) => x.reason)).toEqual(["bad timestamp", "notes not text"]);
+    await member("POST", "/api/me/scout/sync", { entries: [entry({ uuid: "personalok01", notes: "mine" })] });
+    await db().execute({ sql: "UPDATE scout_entries SET updated_at = 1e300, data = '{' WHERE uuid = ?", args: ["personalok01"] });
+    const read = (await member("GET", "/api/me/scout")).json.entries.find((e: { uuid: string }) => e.uuid === "personalok01");
+    expect(read).toMatchObject({ notes: "mine", data: {}, updatedAt: 0 });
+    await member("POST", "/api/me/scout/sync", { entries: [entry({ uuid: "personalok01", notes: "mine, edited", updatedAt: Date.now() })] });
+    expect((await member("GET", "/api/me/scout")).json.entries.find((e: { uuid: string }) => e.uuid === "personalok01")).toMatchObject({ notes: "mine, edited" });
   });
 });
 
