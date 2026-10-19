@@ -25,6 +25,8 @@ import { Panel } from "./Panel";
 import { pickableStats, StatPicker } from "./StatPicker";
 import { DateRangePicker, EventTypeSelect, RegionPicker, SeasonSelect } from "./Controls";
 import { pageTop } from "../../lib/pageScroll";
+import { PREDICTION_FIELD, SUMMARY_FIELDS } from "../../lib/records/matchOutcome";
+import { LayoutToggle, MatchSummaryList, SummarySort, useLayout, usePhone } from "./MatchSummary";
 
 type Row = TeamEventRecord | TeamSeasonRecord | MatchRecordRow;
 type Resp = RecordsResponse<Row>;
@@ -82,8 +84,11 @@ export function RecordsTable(p: RecordsTableProps) {
   const fields = useMemo(() => [...new Set([...(teamScope ? ["teamName"] : []), ...cols])], [teamScope, cols]);
 
   const req = { season, scope, state, fields, code };
+  // Match rows also carry the scores and the prediction the phone summary is built from, whatever columns
+  // are picked (the CSV export keeps to the picked columns).
+  const fetchFields = useMemo(() => (scope === "match" ? [...new Set([...fields, ...SUMMARY_FIELDS, ...(predictable ? [PREDICTION_FIELD] : [])])] : fields), [scope, fields, predictable]);
   // An unreadable filter or unknown country asks nothing: the rows would be broader than the link says.
-  const api = useApi<Resp>(state.filterError || state.countryUnknown ? null : recordsUrl(req));
+  const api = useApi<Resp>(state.filterError || state.countryUnknown ? null : recordsUrl({ ...req, fields: fetchFields }));
   const last = useRef<Resp | undefined>(undefined);
   if (api.data) last.current = api.data;
   const data = api.data ?? (api.loading ? last.current : undefined);
@@ -168,6 +173,13 @@ export function RecordsTable(p: RecordsTableProps) {
   const csv = recordsUrl(req, "csv");
   const c = p.controls;
   const selectedTeams = selected.slice(0, 4);
+  // Matches on a phone: a summary card per match (score, winner, the call, the report) unless the reader
+  // asked for the detailed table. Wider screens keep the table.
+  const phone = usePhone();
+  const [layout, setLayout] = useLayout(p.storageKey);
+  const phoneSummary = scope === "match" && phone;
+  const summary = phoneSummary && layout === "summary";
+  const sortOptions = useMemo(() => pickableStats(scope, predictable).map((s) => ({ key: s.key, label: s.label })), [scope, predictable]);
 
   return (
     <div className="min-w-0 space-y-3" data-records-table={scope}>
@@ -276,8 +288,16 @@ export function RecordsTable(p: RecordsTableProps) {
       ) : (
         <div className={cn("relative transition-opacity", refreshing && "opacity-60")}>
           {refreshing && <div className="absolute inset-x-0 top-0 z-20 h-0.5 overflow-hidden rounded-full bg-accent/20"><div className="h-full w-1/3 cs-progress bg-accent" /></div>}
-          <Table data={data} scope={scope} cols={cols} state={state} sortBy={sortBy} code={code} highlightTeam={p.highlightTeam}
-            selectable={!!p.selectable && teamScope} selected={selected} onSelect={(t) => setSelected((s) => (s.includes(t) ? s.filter((x) => x !== t) : s.length >= 4 ? (toast("Compare takes up to 4 teams"), s) : [...s, t]))} />
+          {phoneSummary && (
+            <div className="mb-3 space-y-2">
+              <LayoutToggle layout={layout} onChange={setLayout} />
+              {summary && <SummarySort state={state} options={sortOptions} onSort={(sort, dir) => setState({ ...state, sort, dir, page: 1 }, true)} />}
+            </div>
+          )}
+          {summary ? <MatchSummaryList rows={data.rows as MatchRecordRow[]} cols={cols} /> : (
+            <Table data={data} scope={scope} cols={cols} state={state} sortBy={sortBy} code={code} highlightTeam={p.highlightTeam}
+              selectable={!!p.selectable && teamScope} selected={selected} onSelect={(t) => setSelected((s) => (s.includes(t) ? s.filter((x) => x !== t) : s.length >= 4 ? (toast("Compare takes up to 4 teams"), s) : [...s, t]))} />
+          )}
           <div className="mt-3 flex flex-wrap items-center gap-2 px-1 text-sm text-text-muted">
             <span className="tabular-nums">{((state.page - 1) * data.pageSize + 1).toLocaleString()}–{Math.min(total, state.page * data.pageSize).toLocaleString()} of {total.toLocaleString()}</span>
             {pages > 1 && (
