@@ -16,6 +16,7 @@ import { allNoteDrafts, clearNoteDraft, NOTE_DRAFTS_CHANGED } from "../../lib/pi
 import { noteInFlight, sendKeptNote } from "../../lib/sharedPicklist";
 import { discardQueuedScoutEntry, pullScouting, queuedWorkspaceEntries, SCOUT_CHANGED, scoutSyncProblem, syncScouting } from "../../lib/scouting";
 import { seasonLabel } from "../../lib/format";
+import { loadCommentAttempts } from "../../lib/commentAttempts";
 import { Button } from "../ui/button";
 import { cn } from "../cn";
 
@@ -28,6 +29,8 @@ const KIND_ICON = { note: ListOrdered, order: ListOrdered, comment: MessageSquar
 export function RecoverableChanges({ account, workspaces, className }: { account: number | null | undefined; workspaces: Workspace[]; className?: string }) {
   const published = usePendingWork(account);
   const version = usePendingVersion();
+  // Comment attempts kept from before a reload: checked against their threads (once per page), then listed if still needed.
+  useEffect(() => { loadCommentAttempts(account); }, [account]);
   // Re-read the device's kept notes and queued entries when they change (here or in another tab).
   const [tick, setTick] = useState(0);
   useEffect(() => {

@@ -111,6 +111,19 @@ describe("a shared entry's attribution time", () => {
     }
   });
 
+  it("a queued change says Syncing…; synced, nothing (the calm state)", () => {
+    const e = shared(Date.now() - 60_000);
+    localStorage.setItem("cs-scout-ws-dirty:901", JSON.stringify([e.uuid]));
+    showShared(e);
+    const live = screen.getByRole("listitem").querySelector("[aria-live][data-save-state]")!;
+    expect(live.getAttribute("data-save-state")).toBe("saving");
+    expect(live.textContent).toBe("Entry 18360 match Q12: Syncing…");
+    cleanup();
+    localStorage.clear();
+    showShared(e);
+    expect(screen.getByRole("listitem").querySelector("[data-save-state]")).toBeNull();
+  });
+
   it("a real time still reads as relative", () => {
     showShared(shared(Date.now() - 2 * 60_000));
     expect(screen.getByRole("listitem").textContent).toContain("Priya · 2m ago");
