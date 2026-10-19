@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-// The Records views (Team-events, Team seasons, Matches) are links between addresses, not tabs: a nav with
+// The Records views (Team-events, Team seasons, All listed, Matches) are links between addresses, not tabs: a nav with
 // the current one marked aria-current, each a plain Tab stop (no half-built arrow-key tab model). On a phone
 // the strip scrolls sideways, and the current view is scrolled into it on arrival and on every change.
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -52,13 +52,14 @@ describe("Records views", () => {
     show("/teams?season=2024&country=Canada");
     expect(screen.queryByRole("tablist")).toBeNull();
     expect(screen.queryAllByRole("tab")).toHaveLength(0);
-    expect(views().map((a) => a.textContent)).toEqual(["Team-events", "Team seasons", "Matches"]);
+    expect(views().map((a) => a.textContent)).toEqual(["Team-events", "Team seasons", "All listed", "Matches"]);
     expect(current().map((a) => a.textContent)).toEqual(["Team-events"]);
     // Each a normal Tab stop (links), with no roving tabindex.
     for (const a of views()) expect(a.getAttribute("tabindex")).toBeNull();
     // The other views keep the season (and the atlas's country across the two team views).
     const href = (name: string) => within(strip()).getByRole("link", { name }).getAttribute("href");
     expect(href("Team seasons")).toBe("/teams?season=2024&view=season&country=Canada");
+    expect(href("All listed")).toBe("/teams?season=2024&view=listed&country=Canada");
     expect(href("Matches")).toBe("/matches?season=2024");
   });
 
@@ -80,18 +81,18 @@ describe("Records views", () => {
   it("scrolls the current view into the strip on arrival (a phone)", () => {
     phoneLayout();
     show("/matches?season=2025");
-    // Matches spans 288–418 against a strip ending at 266: scrolled so it ends 8px inside the strip.
-    expect(strip().scrollLeft).toBe(418 - 266 + 8);
+    // Matches spans 422–552 against a strip ending at 266: scrolled so it ends 8px inside the strip.
+    expect(strip().scrollLeft).toBe(552 - 266 + 8);
   });
 
   it("reveals the current view again when the strip narrows (a phone turned to portrait), without a view change", () => {
     phoneLayout();
-    stripWidth = 420; // landscape: everything fits (16–436)
+    stripWidth = 560; // landscape: everything fits (16–576)
     show("/matches");
     expect(strip().scrollLeft).toBe(0);
-    stripWidth = 250; // portrait: Matches (288–418) now runs past the strip's end (266)
+    stripWidth = 250; // portrait: Matches (422–552) now runs past the strip's end (266)
     resized.forEach((cb) => cb());
-    expect(strip().scrollLeft).toBe(418 - 266 + 8);
+    expect(strip().scrollLeft).toBe(552 - 266 + 8);
     expect(where).toBe("/matches");
   });
 
