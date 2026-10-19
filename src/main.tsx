@@ -16,6 +16,7 @@ import { PageViews } from "./lib/analytics";
 import { installErrorReporting, setReportingPaused } from "./lib/errorReporting";
 import { onFlags, startFlags } from "./lib/flags";
 import { RouteErrorBoundary } from "./components/RouteErrorBoundary";
+import { OptionalParts } from "./components/OptionalParts";
 import { captureInstallPrompt } from "./lib/installNudge";
 // The landing page is part of the main bundle, not lazy: its API calls then start in
 // the same render as the app's own (/api/meta, /api/auth/me), with no second round.
@@ -168,14 +169,14 @@ void ready.catch(() => { /* a failed load is retried (and shown) by the page's o
             <CanonicalSync />
             <ConsentBanner />
             <PageViews />
-            <Suspense fallback={null}>
+            <OptionalParts>
               <ErrorReportPrompt />
               <AlertsRunner />
               <LitePackSync />
               <ScoutQueueSync />
               <FirstRunTour />
               <InstallNudge />
-            </Suspense>
+            </OptionalParts>
           </SearchProvider>
         </MetaProvider>
       </PersonalProvider>
