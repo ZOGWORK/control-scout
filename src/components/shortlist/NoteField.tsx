@@ -18,7 +18,7 @@ import { FieldError } from "../ui/basic";
  * read), the last write's result (`onSave` returning false) shows the error instead, and Escape
  * writes nothing: it can't tell what to restore.
  */
-export function NoteField({ team, value, stored, onSave, className, label, placeholder = "Add a pick note…", maxLength = MAX_NOTE, failedText, retry = false, retryOnLeave = true }: {
+export function NoteField({ team, value, stored, onSave, className, label, placeholder = "Add a pick note…", maxLength = MAX_NOTE, failedText, retry = false, retryOnLeave = true, onBegin, onDraft, discard }: {
   team: number; value: string; stored?: string; onSave: (text: string) => boolean | void; className?: string;
   /** What a screen reader hears for the field (default: "Private note on team <n>"). */
   label?: string;
@@ -30,6 +30,12 @@ export function NoteField({ team, value, stored, onSave, className, label, place
   retry?: boolean;
   /** Leaving the field (blur) retries an unsaved note too (default). False: only Enter, Retry or a new edit sends it. */
   retryOnLeave?: boolean;
+  /** An edit begins (the first keystroke since the last save, or since focus): the note it is written over is the one shown now. */
+  onBegin?: () => void;
+  /** True while typed text waits out the save pause (a draft not sent yet); false once it's handed to onSave or dropped. */
+  onDraft?: (draft: boolean) => void;
+  /** Beside Retry: drop the unsaved text (its label and action), e.g. "Keep theirs". */
+  discard?: { label: string; onClick: () => void };
 }) {
   const [draft, setDraft] = useState(value);
   /** The last write was refused (what shows the error while `stored` is unknown). */
@@ -51,8 +57,11 @@ export function NoteField({ team, value, stored, onSave, className, label, place
     sent.current = value;
     if (!focused.current || (!edited.current && value.trim() !== latest.current.draft.trim())) setDraft(value);
   }, [value]); // eslint-disable-line react-hooks/exhaustive-deps
+  const drafting = useRef(false);
+  const setDrafting = (on: boolean) => { if (drafting.current !== on) { drafting.current = on; latest.current.onDraft?.(on); } };
   const flush = (text: string) => {
     if (timer.current) { clearTimeout(timer.current); timer.current = null; }
+    setDrafting(false);
     // Not touched since the last save: nothing to write, unless that save wasn't stored (a retry).
     if (!edited.current && !failed) return;
     // Unchanged, but not stored: send it again (a retry).
@@ -65,13 +74,14 @@ export function NoteField({ team, value, stored, onSave, className, label, place
   /** Escape: back to the stored note, in the store's memory too when that holds a refused edit. */
   const revert = () => {
     edited.current = false;
+    setDrafting(false);
     if (stored === undefined) { setDraft(value); return; }
     setDraft(stored);
     if (failed) { sent.current = stored; onSave(stored); }
   };
   // Leaving the page mid-pause still saves what was typed.
-  const latest = useRef({ draft, onSave });
-  latest.current = { draft, onSave };
+  const latest = useRef({ draft, onSave, onDraft });
+  latest.current = { draft, onSave, onDraft };
   useEffect(() => {
     const leave = () => {
       if (!timer.current) return;
@@ -96,7 +106,9 @@ export function NoteField({ team, value, stored, onSave, className, label, place
         onBlur={(e) => { focused.current = false; if (skip.current) { skip.current = false; return; } if (!retryOnLeave && !edited.current) return; flush(e.currentTarget.value); }}
         onChange={(e) => {
           const text = e.currentTarget.value;
+          if (!edited.current) onBegin?.();
           edited.current = true;
+          setDrafting(true);
           setDraft(text);
           if (timer.current) clearTimeout(timer.current);
           timer.current = setTimeout(() => flush(text), 700);
@@ -110,6 +122,7 @@ export function NoteField({ team, value, stored, onSave, className, label, place
     <FieldError id={errorId} className="mt-0.5 px-1.5">{failed ? <>
       {failedText ?? "Not saved: this device's storage is full or blocked. Your text is still here; free up space and press Enter to retry."}
       {retry && <> <button type="button" className="font-medium underline underline-offset-2 max-sm:inline-flex max-sm:min-h-11 max-sm:items-center" onClick={() => flush(draft)}>Retry</button></>}
+      {discard && <> <button type="button" className="font-medium underline underline-offset-2 max-sm:inline-flex max-sm:min-h-11 max-sm:items-center" onClick={() => { edited.current = false; setDrafting(false); discard.onClick(); }}>{discard.label}</button></>}
     </> : null}</FieldError>
     </div>
   );

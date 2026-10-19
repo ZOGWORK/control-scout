@@ -176,7 +176,7 @@ describe("SharedPicklist", () => {
     fireEvent.focus(input);
     fireEvent.keyDown(input, { key: "Enter" });
     await waitFor(() => expect(posts.filter((p) => p.op === "note")).toHaveLength(2));
-    expect(posts.at(-1)).toEqual({ season: S, op: "note", team: 102, note: "Fast cycles" });
+    expect(posts.at(-1)).toEqual({ season: S, op: "note", team: 102, note: "Fast cycles", base: null });
   });
 
   it("an older note failing after a newer one was written never brings its text back", async () => {

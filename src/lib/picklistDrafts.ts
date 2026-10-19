@@ -21,6 +21,9 @@ export interface NoteDraft {
 }
 
 const PREFIX = "cs-picknote:";
+/** Window event: a note draft was kept or cleared in this tab (the recoverable-changes view reads them again). */
+export const NOTE_DRAFTS_CHANGED = "cs-picknote-changed";
+const changed = () => { try { window.dispatchEvent(new Event(NOTE_DRAFTS_CHANGED)); } catch { /* no window */ } };
 /** A draft older than this is dropped unread: a note that sat unsent for two weeks reads wrong. */
 export const DRAFT_MAX_AGE_MS = 14 * 24 * 60 * 60 * 1000;
 
@@ -41,7 +44,7 @@ const isDraft = (x: unknown): x is Omit<NoteDraft, "team"> => {
 export function saveNoteDraft(account: number, space: string, season: number, d: NoteDraft): boolean {
   const s = storage();
   if (!s) return false;
-  try { s.setItem(keyOf(account, space, season, d.team), JSON.stringify({ note: d.note, base: d.base, at: d.at, ...(d.wid ? { wid: d.wid } : {}) })); return true; } catch { return false; }
+  try { s.setItem(keyOf(account, space, season, d.team), JSON.stringify({ note: d.note, base: d.base, at: d.at, ...(d.wid ? { wid: d.wid } : {}) })); changed(); return true; } catch { return false; }
 }
 
 export function readNoteDraft(account: number, space: string, season: number, team: number): NoteDraft | null {
@@ -54,7 +57,7 @@ export function readNoteDraft(account: number, space: string, season: number, te
 }
 
 export function clearNoteDraft(account: number, space: string, season: number, team: number): void {
-  try { storage()?.removeItem(keyOf(account, space, season, team)); } catch { /* blocked */ }
+  try { storage()?.removeItem(keyOf(account, space, season, team)); changed(); } catch { /* blocked */ }
 }
 
 /** This account's drafts for a workspace's list in a season (expired or unreadable ones are removed). */
@@ -74,4 +77,34 @@ export function noteDrafts(account: number, space: string, season: number, now =
     }
   } catch { /* blocked */ }
   return out;
+}
+
+/** A kept draft with where it belongs. */
+export interface PlacedNoteDraft { space: string; season: number; draft: NoteDraft }
+
+/**
+ * Every draft this account kept on the device, in any workspace and season (the recoverable-changes view).
+ * Only this account's keys are read: another account's drafts on the same device are never listed.
+ */
+export function allNoteDrafts(account: number, now = Date.now()): PlacedNoteDraft[] {
+  const s = storage();
+  if (!s) return [];
+  const prefix = `${PREFIX}${account}:`;
+  const scopes = new Set<string>();
+  try {
+    for (let i = 0; i < s.length; i++) {
+      const k = s.key(i);
+      if (!k?.startsWith(prefix)) continue;
+      const m = /^([^:]+):(\d{4}):\d+$/.exec(k.slice(prefix.length));
+      if (m) scopes.add(`${m[1]}:${m[2]}`);
+    }
+  } catch { return []; }
+  const out: PlacedNoteDraft[] = [];
+  for (const sc of scopes) {
+    const [enc, season] = sc.split(":");
+    let space: string;
+    try { space = decodeURIComponent(enc); } catch { continue; }
+    for (const draft of noteDrafts(account, space, Number(season), now)) out.push({ space, season: Number(season), draft });
+  }
+  return out.sort((a, b) => a.draft.at - b.draft.at);
 }
