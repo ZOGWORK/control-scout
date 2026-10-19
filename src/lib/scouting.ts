@@ -16,6 +16,7 @@ import { READ_ONLY_STATUS } from "../shared/orphaned";
 import { builtinTemplate } from "../shared/scoutDefaults";
 import { DEVICE_LATEST, isEntryTimestamp, NOTES_MAX as ENTRY_NOTES_MAX, repairScoutEntry, type Repaired } from "../shared/scoutEntry";
 import { toast } from "../components/ui/sonner";
+import { knownOffline, outcomeUnknown } from "./pendingWork";
 
 export type ScoutValue = number | boolean | string;
 export type { FieldType, ScoutField, ScoutTemplate } from "../shared/scoutTemplate";
@@ -461,6 +462,7 @@ export function clearLocalScouting() {
     }
     for (const k of keys) localStorage.removeItem(k);
     localStorage.removeItem(DIRTY);
+    syncProblems.clear(); // another account's queue: its problems go with it
   } catch { /* storage blocked */ }
   window.dispatchEvent(new Event(EVT));
 }
@@ -499,13 +501,66 @@ export function syncScouting(space: ScoutSpace = null): Promise<{ sent: number }
   // One push per space at a time: a second call (a reconnect heard by the page and by the
   // background sync at once) waits for the first, then sends only what's still queued.
   const key = space ?? "";
-  const run = (pushing.get(key) ?? Promise.resolve()).then(() => pushQueued(space)).catch((e: unknown) => { deniedBy(space, e); throw e; });
+  const offlineBefore = knownOffline();
+  const run = (pushing.get(key) ?? Promise.resolve()).then(() => pushQueued(space))
+    .then((r) => { setSyncProblem(space, null); return r; })
+    .catch((e: unknown) => { deniedBy(space, e); setSyncProblem(space, problemOf(e, offlineBefore)); throw e; });
   const settled = run.catch(() => undefined);
   pushing.set(key, settled);
   void settled.then(() => { if (pushing.get(key) === settled) pushing.delete(key); });
   return run;
 }
 const pushing = new Map<string, Promise<unknown>>();
+
+// --- Where a workspace's queue stands (audit E4) ----------------------------------
+// A push that didn't go through leaves its entries queued on the device (nothing is lost) and goes again by
+// itself. What happened is kept per workspace, so the cards and the recoverable-changes view can say so:
+// offline (waiting, calm), unconfirmed (sent, no answer: sending the same version again is safe, the server
+// keeps one copy), or refused. A push that goes through clears it.
+
+/** Why a workspace's queued entries haven't gone up. */
+export interface ScoutSyncProblem { kind: "offline" | "unconfirmed" | "failed"; message: string }
+const syncProblems = new Map<string, ScoutSyncProblem>();
+const problemOf = (e: unknown, offlineBefore: boolean): ScoutSyncProblem => {
+  const err = e as { offline?: boolean; message?: string } | null;
+  if (offlineBefore || (err?.offline && knownOffline())) return { kind: "offline", message: "Waiting for a connection. Kept on this device; it goes up by itself." };
+  if (outcomeUnknown(e, offlineBefore)) return { kind: "unconfirmed", message: "Couldn't confirm it reached the workspace. It's kept on this device and goes again by itself (sending it twice is safe)." };
+  return { kind: "failed", message: `Not synced: ${err?.message || "the workspace refused it"}. It's kept on this device.` };
+};
+function setSyncProblem(space: ScoutSpace, p: ScoutSyncProblem | null) {
+  if (space == null) return;
+  const cur = syncProblems.get(space);
+  if (p ? cur?.kind === p.kind && cur.message === p.message : !cur) return;
+  if (p) syncProblems.set(space, p); else syncProblems.delete(space);
+  window.dispatchEvent(new Event(EVT));
+}
+/** Why this workspace's queue hasn't gone up (null: nothing wrong, or nothing queued). */
+export const scoutSyncProblem = (space: ScoutSpace): ScoutSyncProblem | null => (space == null || !dirty(space).size ? null : syncProblems.get(space) ?? null);
+
+/** Every workspace entry waiting on this device (the signed-in account's: another's is set aside at sign-in). */
+export function queuedWorkspaceEntries(): ScoutEntry[] {
+  const out: ScoutEntry[] = [];
+  for (const space of localSpaces()) for (const uuid of dirty(space)) { const e = readEntry(space, uuid); if (e) out.push(e); }
+  return out;
+}
+
+/**
+ * The member lets a queued workspace change go (the recoverable view's Discard): it leaves the queue and the
+ * device. One the workspace has a copy of comes back as the workspace has it with the next pull (the space is
+ * pulled from the start, so that copy is fetched again); a new entry that never synced is simply gone.
+ */
+export function discardQueuedScoutEntry(space: string, uuid: string): void {
+  const e = readEntry(space, uuid);
+  const d = dirty(space);
+  d.delete(uuid);
+  try {
+    setDirty(d, space);
+    localStorage.removeItem(keyFor(space, uuid));
+    if (e && (e.baseUpdatedAt != null || e.authorAccountId > 0)) localStorage.removeItem(`${WS_CURSOR}${space}`);
+  } catch { /* blocked */ }
+  if (!d.size) syncProblems.delete(space);
+  window.dispatchEvent(new Event(EVT));
+}
 
 async function pushQueued(space: ScoutSpace): Promise<{ sent: number }> {
   const d = dirty(space);
