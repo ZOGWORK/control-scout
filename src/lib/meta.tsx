@@ -51,7 +51,7 @@ export function useMediaQuery(query: string): boolean {
 
 export function useTitle(title: string | null | undefined) {
   useEffect(() => {
-    document.title = title ? `${title} · FTC Control Scout` : "FTC Control Scout — free FTC scouting & predictions";
+    document.title = title ? `${title} · Control Scout` : "Control Scout — free FTC scouting & predictions";
   }, [title]);
 }
 

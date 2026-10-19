@@ -95,7 +95,7 @@ describe("page head in the first HTML", () => {
     writeFileSync(file, '<html><head><title>FTC Control Scout — free</title>\n<meta name="description" content="generic" />\n<meta property="og:title" content="generic" />\n</head><body></body></html>');
 
     const team = await renderIndex(file, "/teams/4215");
-    expect(team).toContain("<title>Team 4215 — Hypnotic Robotics · FTC Control Scout</title>");
+    expect(team).toContain("<title>Team 4215 — Hypnotic Robotics · Control Scout</title>");
     expect(team).toContain('<link rel="canonical" href="https://controlscout.org/teams/4215" />');
     expect(team).toContain('<meta property="og:url" content="https://controlscout.org/teams/4215" />');
     expect(team).toContain('<meta name="twitter:card" content="summary_large_image" />');
@@ -109,31 +109,31 @@ describe("page head in the first HTML", () => {
 
     // Event codes are case-insensitive: a lowercase link gets the event's own preview, with the canonical code.
     const lower = await renderIndex(file, "/events/2025/usnjnom3");
-    expect(lower).toContain("<title>P1-4 PM Northern League Meet (2025–26) · FTC Control Scout</title>");
+    expect(lower).toContain("<title>P1-4 PM Northern League Meet (2025–26) · Control Scout</title>");
     expect(lower).toContain('<link rel="canonical" href="https://controlscout.org/events/2025/USNJNOM3" />');
     const ev = await renderIndex(file, "/events/2025/USNJNOM3");
-    expect(ev).toContain("<title>P1-4 PM Northern League Meet (2025–26) · FTC Control Scout</title>");
+    expect(ev).toContain("<title>P1-4 PM Northern League Meet (2025–26) · Control Scout</title>");
     expect(/<meta name="description" content="([^"]*)"/.exec(ev)![1]).toContain("Nov 8, 2025");
 
     const home = await renderIndex(file, "/");
-    expect(home).toContain("<title>FTC Control Scout — free FTC scouting &amp; predictions</title>");
+    expect(home).toContain("<title>Control Scout — free FTC scouting &amp; predictions</title>");
     expect(/<meta name="description" content="([^"]*)"/.exec(home)![1]).not.toBe(desc);
     // Policy pages: their own title and a fitted description, indexable.
     const privacy = await renderIndex(file, "/privacy");
-    expect(privacy).toContain("<title>Privacy policy · FTC Control Scout</title>");
+    expect(privacy).toContain("<title>Privacy policy · Control Scout</title>");
     expect(privacy).toContain('<link rel="canonical" href="https://controlscout.org/privacy" />');
     expect(privacy).not.toContain("noindex");
     const pdesc = /<meta name="description" content="([^"]*)"/.exec(privacy)![1];
     expect(pdesc.length).toBeGreaterThanOrEqual(120);
     expect(pdesc.length).toBeLessThanOrEqual(160);
     const terms = await renderIndex(file, "/terms");
-    expect(terms).toContain("<title>Terms of use · FTC Control Scout</title>");
+    expect(terms).toContain("<title>Terms of use · Control Scout</title>");
     expect(terms).toContain('<link rel="canonical" href="https://controlscout.org/terms" />');
     expect(terms).not.toContain("noindex");
     const tdesc = /<meta name="description" content="([^"]*)"/.exec(terms)![1];
     expect(tdesc.length).toBeGreaterThanOrEqual(120);
     expect(tdesc.length).toBeLessThanOrEqual(160);
-    expect(await renderIndex(file, "/contact")).toContain("<title>Contact · FTC Control Scout</title>");
+    expect(await renderIndex(file, "/contact")).toContain("<title>Contact · Control Scout</title>");
     // Personal pages: noindex.
     expect(await renderIndex(file, "/my-team")).toContain('<meta name="robots" content="noindex" />');
   });
@@ -152,7 +152,7 @@ describe("page head in the first HTML", () => {
     expect(page.status).toBe(200);
     const html = page.html;
     // No rated team yet in the newest season: it opens on the latest season with ratings.
-    expect(html).toContain("<title>FTC world rankings 2025–26 · FTC Control Scout</title>");
+    expect(html).toContain("<title>FTC world rankings 2025–26 · Control Scout</title>");
     const desc = /<meta name="description" content="([^"]*)"/.exec(html)![1];
     expect(desc).toContain("#1: 4215 Hypnotic Robotics (120.4)");
     expect(desc.length).toBeGreaterThanOrEqual(120);
@@ -166,7 +166,7 @@ describe("page head in the first HTML", () => {
 
     // A region, a season, a week and a page are each their own list: kept in the canonical URL.
     const tx = await renderIndex(file, "/rankings", { region: "USA:TX", season: "2025", week: "2026-02-16" });
-    expect(tx).toContain("<title>FTC rankings: Texas 2025–26, week of Feb 16, 2026 · FTC Control Scout</title>");
+    expect(tx).toContain("<title>FTC rankings: Texas 2025–26, week of Feb 16, 2026 · Control Scout</title>");
     expect(tx).toContain('<link rel="canonical" href="https://controlscout.org/rankings?season=2025&amp;region=USA%3ATX&amp;week=2026-02-16" />');
     // Parameters the API would refuse are dropped, never a 404 (the app shows its own message).
     const odd = await renderPage(file, "/rankings", { region: "<x>", season: "1999", week: "2026-02-17", page: "-3" });
@@ -222,7 +222,7 @@ describe("page head in the first HTML", () => {
       // Marked, so the app drops it on moving to a real page.
       expect(page.html, p).toContain('<meta name="robots" content="noindex" data-not-found />');
       expect(page.html, p).not.toContain('rel="canonical"');
-      expect(page.html, p).toContain("<title>Page not found · FTC Control Scout</title>");
+      expect(page.html, p).toContain("<title>Page not found · Control Scout</title>");
     }
     // Every route in the app's router (src/main.tsx) is a 200, in any case; known teams and events too.
     const main = readFileSync(join(process.cwd(), "src/main.tsx"), "utf8");
@@ -232,7 +232,7 @@ describe("page head in the first HTML", () => {
     for (const p of ["/owner", "/Owner", "/owner/"]) {
       const page = await renderPage(file, p);
       expect(page.status, p).toBe(404);
-      expect(page.html, p).toContain("<title>Page not found · FTC Control Scout</title>");
+      expect(page.html, p).toContain("<title>Page not found · Control Scout</title>");
       expect(page.html, p).not.toMatch(/owner portal/i);
     }
     expect(routes.length).toBeGreaterThan(10);
@@ -243,7 +243,7 @@ describe("page head in the first HTML", () => {
     }
     // A match's scouting report: titled for a shared link, not indexed (v1.6 Task 2).
     const rep = (await renderPage(file, "/events/2025/USNJNOM3/match/qual:0:1")).html;
-    expect(rep).toContain("<title>Q1 at P1-4 PM Northern League Meet: know your match · FTC Control Scout</title>");
+    expect(rep).toContain("<title>Q1 at P1-4 PM Northern League Meet: know your match · Control Scout</title>");
     expect(rep).toContain('<meta name="robots" content="noindex" />');
     // Any spelling of the key previews under the one address the app opens.
     expect((await renderPage(file, "/events/2025/usnjnom3/match/QUAL:0:01")).html).toContain('<link rel="canonical" href="https://controlscout.org/events/2025/USNJNOM3/match/qual:0:1" />');
@@ -286,7 +286,7 @@ describe("/faq", () => {
     writeFileSync(file, '<html><head><title>x</title></head><body><div id="root"></div></body></html>');
     const page = await renderPage(file, "/faq");
     expect(page.status).toBe(200);
-    expect(page.html).toContain("<title>FAQ: Control Scout questions answered · FTC Control Scout</title>");
+    expect(page.html).toContain("<title>FAQ: your questions answered · Control Scout</title>");
     const ld = [...page.html.matchAll(/<script type="application\/ld\+json">([\s\S]*?)<\/script>/g)].map((m) => JSON.parse(m[1]));
     const faq = ld.find((x) => x["@type"] === "FAQPage");
     expect(faq.mainEntity).toHaveLength(FAQ_ITEMS.length);
@@ -294,5 +294,142 @@ describe("/faq", () => {
     // The first paint carries the questions themselves (crawlers and previews read them without the app).
     expect(page.html).toContain("<h3>Do I need an account?</h3>");
     expect(page.html).not.toMatch(/\]\(\//);
+  });
+});
+
+describe("the site's name for search engines", () => {
+  const ld = (html: string) => [...html.matchAll(/<script type="application\/ld\+json">([\s\S]*?)<\/script>/g)].map((m) => JSON.parse(m[1]));
+  let file = "";
+  beforeEach(async () => {
+    const c = openDb(":memory:");
+    setDb(c);
+    await migrate(c);
+    await run("INSERT INTO teams (number, name, city, state, country) VALUES (4215, 'Hypnotic Robotics', 'Oradell', 'NJ', 'USA')");
+    await run("INSERT INTO events (season, code, name, type, city, state, country, start, end, remote, hybrid, source) VALUES (2025, 'USNJNOM3', 'Northern League Meet', 'LeagueMeet', 'Ramsey', 'NJ', 'USA', '2025-11-08', '2025-11-08', 0, 0, 'test')");
+    file = join(mkdtempSync(join(tmpdir(), "cs-seo-name-")), "index.html");
+    writeFileSync(file, readFileSync(join(process.cwd(), "index.html"), "utf8"));
+  });
+
+  it("home: WebSite (name, alternate name, a SearchAction the home page answers) and Organization (logo, sameAs)", async () => {
+    const home = ld(await renderIndex(file, "/"));
+    const site = home.find((x) => x["@type"] === "WebSite");
+    expect(site).toMatchObject({ name: "Control Scout", alternateName: "FTC Control Scout", url: "https://controlscout.org/" });
+    expect(site.potentialAction).toEqual({
+      "@type": "SearchAction", target: { "@type": "EntryPoint", urlTemplate: "https://controlscout.org/?q={search_term_string}" }, "query-input": "required name=search_term_string",
+    });
+    const org = home.find((x) => x["@type"] === "Organization");
+    expect(org).toMatchObject({ name: "Control Scout", url: "https://controlscout.org/", logo: "https://controlscout.org/logo-512.png" });
+    expect(org.sameAs).toContain("https://tryctrlpoint.org");
+    expect(site.publisher).toEqual({ "@id": org["@id"] });
+  });
+
+  it("home first paint says plainly what Control Scout is, in crawlable text", async () => {
+    const html = await renderIndex(file, "/");
+    const root = html.slice(html.indexOf('<div id="root">'));
+    expect(root).toMatch(/<p[^>]*>Control Scout is free FTC scouting and match predictions[^<]*<\/p>/);
+    expect(html).not.toMatch(/ftc ?scout(?!ing)/i);
+  });
+
+  it("every page's <title> and og:site_name name the site the same way", async () => {
+    const paths = ["/", "/faq", "/methodology", "/rankings", "/power-rankings", "/teams", "/events", "/predict", "/privacy", "/teams/4215", "/events/2025/USNJNOM3", "/my-team", "/no-such-page"];
+    for (const p of paths) {
+      const html = (await renderPage(file, p)).html;
+      const titles = [...html.matchAll(/<title>([^<]*)<\/title>/g)].map((m) => m[1]);
+      expect(titles, p).toHaveLength(1);
+      expect(titles[0], p).toMatch(p === "/" ? /^Control Scout — / : / · Control Scout$/);
+      expect(titles[0], p).not.toContain("FTC Control Scout");
+      expect([...html.matchAll(/<meta property="og:site_name" content="([^"]*)"/g)].map((m) => m[1]), p).toEqual(["Control Scout"]);
+    }
+    const manifest = JSON.parse(readFileSync(join(process.cwd(), "public/manifest.webmanifest"), "utf8"));
+    expect(manifest.name).toBe("Control Scout");
+  });
+});
+
+describe("IndexNow", () => {
+  type Call = { url: string; body: { host: string; key: string; keyLocation: string; urlList: string[] } };
+  const fake = (status = 200) => {
+    const calls: Call[] = [];
+    const fetchImpl = async (url: string, init: RequestInit) => { calls.push({ url, body: JSON.parse(String(init.body)) }); return { status, ok: status >= 200 && status < 300 }; };
+    return { calls, fetchImpl };
+  };
+  const T0 = Date.parse("2026-10-19T12:00:00Z");
+  const HOUR = 3600_000;
+  beforeEach(async () => {
+    const c = openDb(":memory:");
+    setDb(c);
+    await migrate(c);
+    process.env.INDEXNOW = "1";
+    delete process.env.INDEXNOW_KEY;
+  });
+  afterAll(() => { delete process.env.INDEXNOW; delete process.env.INDEXNOW_KEY; });
+
+  it("serves the key at /<key>.txt as plain text, and nothing at any other .txt name", async () => {
+    const { indexNowKeyRoute, indexNowKey, DEFAULT_KEY } = await import("./indexNow");
+    expect(indexNowKey()).toBe(DEFAULT_KEY);
+    const app = express();
+    app.get(/^\/[A-Za-z0-9-]{8,128}\.txt$/, indexNowKeyRoute);
+    app.use((_q, r) => { r.status(404).send("Not found"); });
+    const s = app.listen(0);
+    await new Promise((r) => s.once("listening", r));
+    const base = `http://127.0.0.1:${(s.address() as AddressInfo).port}`;
+    try {
+      const r = await fetch(`${base}/${DEFAULT_KEY}.txt`);
+      expect(r.status).toBe(200);
+      expect(r.headers.get("content-type")).toMatch(/^text\/plain/);
+      expect(await r.text()).toBe(DEFAULT_KEY);
+      expect((await fetch(`${base}/aaaaaaaaaaaa.txt`)).status).toBe(404);
+      // INDEXNOW_KEY replaces it (a malformed one is ignored).
+      process.env.INDEXNOW_KEY = "my-own-key-123";
+      expect(await (await fetch(`${base}/my-own-key-123.txt`)).text()).toBe("my-own-key-123");
+      expect((await fetch(`${base}/${DEFAULT_KEY}.txt`)).status).toBe(404);
+      process.env.INDEXNOW_KEY = "bad key!";
+      expect(indexNowKey()).toBe(DEFAULT_KEY);
+    } finally { s.close(); }
+  });
+
+  it("off unless INDEXNOW is set; never pings a non-public origin", async () => {
+    const { pingIndexNow } = await import("./indexNow");
+    const f = fake();
+    delete process.env.INDEXNOW;
+    expect(await pingIndexNow({ now: T0, fetchImpl: f.fetchImpl })).toBe("off");
+    process.env.INDEXNOW = "1";
+    process.env.CANONICAL_URL = "http://localhost:5173";
+    try {
+      expect(await pingIndexNow({ now: T0, fetchImpl: f.fetchImpl })).toMatch(/^skipped: not a public origin/);
+    } finally { delete process.env.CANONICAL_URL; }
+    expect(f.calls).toHaveLength(0);
+  });
+
+  it("first ping: the main pages; then at most one an hour, with the events re-fetched since and their teams", async () => {
+    const { pingIndexNow, ENDPOINT, DEFAULT_KEY } = await import("./indexNow");
+    const f = fake();
+    expect(await pingIndexNow({ now: T0, fetchImpl: f.fetchImpl })).toMatch(/^sent 7 URLs/);
+    expect(f.calls[0].url).toBe(ENDPOINT);
+    expect(f.calls[0].body).toMatchObject({ host: "controlscout.org", key: DEFAULT_KEY, keyLocation: `https://controlscout.org/${DEFAULT_KEY}.txt` });
+    expect(f.calls[0].body.urlList).toEqual(expect.arrayContaining([
+      "https://controlscout.org/", "https://controlscout.org/faq", "https://controlscout.org/power-rankings", "https://controlscout.org/rankings",
+      "https://controlscout.org/teams", "https://controlscout.org/methodology",
+    ]));
+    // An event re-fetched after the ping (and one before it, which isn't sent again), with their teams.
+    const at = (ms: number) => new Date(ms).toISOString();
+    await run("INSERT INTO events (season, code, name, start, source, detail_synced_at) VALUES (2025, 'NEW1', 'New', '2025-11-08', 'test', ?), (2025, 'OLD1', 'Old', '2025-10-01', 'test', ?)", [at(T0 + 10 * 60_000), at(T0 - HOUR)]);
+    await run("INSERT INTO event_teams (season, code, team) VALUES (2025, 'NEW1', 4215), (2025, 'NEW1', 18360), (2025, 'OLD1', 999)");
+    expect(await pingIndexNow({ now: T0 + 30 * 60_000, fetchImpl: f.fetchImpl })).toMatch(/^skipped: pinged within the hour/);
+    expect(f.calls).toHaveLength(1);
+    expect(await pingIndexNow({ now: T0 + HOUR + 1, fetchImpl: f.fetchImpl })).toMatch(/^sent 3 URLs/);
+    expect(f.calls[1].body.urlList.sort()).toEqual(["https://controlscout.org/events/2025/NEW1", "https://controlscout.org/teams/18360", "https://controlscout.org/teams/4215"]);
+    // Nothing changed since: nothing sent, and the hour isn't used up.
+    expect(await pingIndexNow({ now: T0 + 3 * HOUR, fetchImpl: f.fetchImpl })).toBe("nothing changed");
+    expect(f.calls).toHaveLength(2);
+  });
+
+  it("fails quietly: a refused or broken request resolves, waits an hour, and loses no change", async () => {
+    const { pingIndexNow } = await import("./indexNow");
+    expect(await pingIndexNow({ now: T0, fetchImpl: fake(500).fetchImpl })).toBe("HTTP 500, 7 URLs not sent");
+    expect(await pingIndexNow({ now: T0 + 60_000, fetchImpl: fake().fetchImpl })).toMatch(/^skipped/);
+    const boom = async () => { throw new Error("network down"); };
+    await expect(pingIndexNow({ now: T0 + HOUR + 1, fetchImpl: boom })).resolves.toBe("failed: network down");
+    // The main pages were never accepted: the next ping still sends them.
+    expect(await pingIndexNow({ now: T0 + 2 * HOUR + 2, fetchImpl: fake().fetchImpl })).toMatch(/^sent 7 URLs/);
   });
 });

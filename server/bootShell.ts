@@ -10,7 +10,7 @@
 // the page block carries the path it was made for and hides itself on another.
 import type { PageMeta } from "./seoMeta.js";
 import { pageTitle } from "../src/shared/routes.js";
-import { BOOT_CHOICE_GLOBAL, BOOT_CONSENT_ID, HOME_HEADLINE, HOME_LEAD } from "../src/shared/boot.js";
+import { BOOT_CHOICE_GLOBAL, BOOT_CONSENT_ID, HOME_ABOUT, HOME_HEADLINE, HOME_LEAD } from "../src/shared/boot.js";
 
 const esc = (s: string) => s.replace(/&/g, "&amp;").replace(/"/g, "&quot;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 
@@ -67,6 +67,7 @@ export const BOOT_STYLE = `<style>
       .csb-home h1 span{display:block;color:var(--b-acc)}
       .csb-home>p{margin:16px 0 0;max-width:30rem;font-size:16px;line-height:1.5}
       .csb-home>div{max-width:36rem;height:52px;margin:24px 0 0;border:1px solid var(--b-line);border-radius:12px}
+      .csb .csb-home>p.csb-about{margin:72px 0 0;font-size:14px;line-height:20px}
       .csb-tabs{position:fixed;left:0;right:0;bottom:0;display:flex;padding-bottom:env(safe-area-inset-bottom);border-top:1px solid var(--b-line);background:var(--b-tab)}
       .csb .csb-tabs>*{display:flex;flex:1;min-height:60px;flex-direction:column;align-items:center;justify-content:center;gap:4px;font-size:12px;font-weight:500;color:var(--b-mut)}
       .csb-tabs a[aria-current]{color:var(--b-acc)}
@@ -145,7 +146,7 @@ export function bootShell(path: string, meta: PageMeta): string {
   const nav = SECTIONS.map((s) => `<div class="csb-grp">${s.title ? `<p>${s.title}</p>` : ""}${s.items.map((it) => link(p, it)).join("")}</div>`).join("");
   // A page with no title of its own (not found) gets the shell alone.
   const page = home
-    ? `<div class="csb-page csb-home" id="cs-boot-page" data-path="/"><h1>${esc(HOME_HEADLINE[0])} <span>${esc(HOME_HEADLINE[1])}</span></h1><p>${esc(HOME_LEAD)}</p><div></div></div>`
+    ? `<div class="csb-page csb-home" id="cs-boot-page" data-path="/"><h1>${esc(HOME_HEADLINE[0])} <span>${esc(HOME_HEADLINE[1])}</span></h1><p>${esc(HOME_LEAD)}</p><div></div><p class="csb-about">${esc(HOME_ABOUT)}</p></div>`
     : meta.title && !meta.notFound
       // A content page (power rankings) puts its words here in full, as already-safe HTML (PageMeta.bodyHtml).
       ? `<div class="csb-page" id="cs-boot-page" data-path="${esc(p)}"><h1>${esc(meta.title)}</h1>${meta.bodyHtml ? `<div class="csb-body">${meta.bodyHtml}</div>` : `<p>${esc(meta.description)}</p>`}</div>` : "";

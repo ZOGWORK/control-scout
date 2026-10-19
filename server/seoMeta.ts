@@ -19,8 +19,11 @@ import { latestRankings, rankingsWeek } from "./powerRankings/store.js";
 import { staticRankingsHtml } from "./powerRankings/static.js";
 import { isWeekId, weekLabel, type PowerRankingsResponse } from "../src/shared/powerRankings.js";
 
-export const SITE = "FTC Control Scout";
-const HOME_TITLE = "FTC Control Scout — free FTC scouting & predictions";
+/** The site's name, the same everywhere a search engine reads one: every <title>, og:site_name, the
+ *  WebSite and Organization data. "FTC Control Scout" is its alternate name (in the structured data). */
+export const SITE = "Control Scout";
+export const SITE_ALT = "FTC Control Scout";
+const HOME_TITLE = "Control Scout — free FTC scouting & predictions";
 const HOME_DESC = "Search any FTC team, event or match. OPR breakdowns, event-by-event trends, match predictions with a public track record, advancement odds for any team at any event — free, no login.";
 // Added in turn to a short description until it reaches 120 characters.
 const TAILS = [" Free FTC scouting and predictions, no login.", " OPR breakdowns, match predictions and advancement odds for every FTC team and event."];
@@ -46,7 +49,7 @@ export interface PageMeta {
 
 
 const NOT_FOUND: PageMeta = {
-  title: "Page not found", description: "This page doesn't exist on FTC Control Scout. Search for any FTC team, event or match instead.",
+  title: "Page not found", description: "This page doesn't exist on Control Scout. Search for any FTC team, event or match instead.",
   type: "website", noindex: true, notFound: true,
 };
 
@@ -59,13 +62,21 @@ const address = (city?: string | null, state?: string | null, country?: string |
   return Object.keys(a).length > 1 ? a : null;
 };
 
-/** Home page: the site and who runs it. */
+/** Control Point, the sister app that shares Control Scout's accounts and engine, and the GitHub home of both. */
+export const SAME_AS = ["https://tryctrlpoint.org", "https://github.com/Control-Point-FTC"];
+
+/** Home page: the site (its name, and a search engines can send a query to) and who runs it. */
 function homeJsonLd(): Record<string, unknown>[] {
   const o = canonicalOrigin();
-  const org = { "@type": "Organization", "@id": `${o}/#organization`, name: SITE, url: `${o}/`, logo: `${o}/logo-512.png` };
+  const org = { "@type": "Organization", "@id": `${o}/#organization`, name: SITE, alternateName: SITE_ALT, url: `${o}/`, logo: `${o}/logo-512.png`, sameAs: SAME_AS };
   return [
     { "@context": "https://schema.org", ...org },
-    { "@context": "https://schema.org", "@type": "WebSite", "@id": `${o}/#website`, name: SITE, url: `${o}/`, description: HOME_DESC, publisher: { "@id": `${o}/#organization` }, inLanguage: "en" },
+    {
+      "@context": "https://schema.org", "@type": "WebSite", "@id": `${o}/#website`, name: SITE, alternateName: SITE_ALT, url: `${o}/`, description: HOME_DESC,
+      publisher: { "@id": `${o}/#organization` }, inLanguage: "en",
+      // The home page's search box opens with ?q= filled in (src/pages/Home.tsx).
+      potentialAction: { "@type": "SearchAction", target: { "@type": "EntryPoint", urlTemplate: `${o}/?q={search_term_string}` }, "query-input": "required name=search_term_string" },
+    },
   ];
 }
 
@@ -88,12 +99,12 @@ const STATIC: Record<string, { title: string; description: string; noindex?: boo
   "/matches": { title: "FTC match records", description: "Every played FTC match of the season: alliance scores by phase, winning margins and high scores. Filter by any score, sort any column and export to CSV." },
   "/predict": { title: "Predict an FTC match", description: "Pick any four FTC teams and get win odds, a predicted score and the three biggest reasons why, from the same engine that powers every Control Scout prediction." },
   "/compare": { title: "Compare FTC teams", description: "Put FTC teams side by side: OPR by game phase, prediction ratings, records and event-by-event trends for up to four teams at once." },
-  "/methodology": { title: "How Control Scout predictions work", description: "How Control Scout computes OPR, rates robots and predicts matches, with a public record of how often the predictions come true." },
-  "/predict/how-it-works": { title: "How Control Scout predictions work", description: "How Control Scout computes OPR, rates robots and predicts matches, with a public record of how often the predictions come true." },
+  "/methodology": { title: "How the predictions work", description: "How Control Scout computes OPR, rates robots and predicts matches, with a public record of how often the predictions come true." },
+  "/predict/how-it-works": { title: "How the predictions work", description: "How Control Scout computes OPR, rates robots and predicts matches, with a public record of how often the predictions come true." },
   "/download": { title: "Download FTC data", description: "Download full FTC seasons as SQLite files: every event, team, match, score breakdown, ranking and award. Offline predictions are saved automatically." },
   "/privacy": { title: "Privacy policy", description: "How Control Scout handles your data: no account needed, only essential sign-in cookies, no ads or third-party trackers, anonymous stats only if you allow them." },
   "/terms": { title: "Terms of use", description: "The terms for using Control Scout: free, predictions are estimates, FTC data can be wrong, rate limits instead of scraping, and your scouting notes stay yours." },
-  "/faq": { title: "FAQ: Control Scout questions answered", description: "Answers about Control Scout: where the FTC data comes from, how predictions and confidence work, scouting with your team, offline use at venues, accounts and privacy." },
+  "/faq": { title: "FAQ: your questions answered", description: "Answers about Control Scout: where the FTC data comes from, how predictions and confidence work, scouting with your team, offline use at venues, accounts and privacy." },
   "/contact": { title: "Contact", description: "Contact the Control Scout team: report a bug, ask for a data correction, suggest a feature or ask a question about your data or the site." },
   "/my-team": { title: "My team", description: "Your team's dashboard on Control Scout.", noindex: true },
   "/my-teams": { title: "My teams", description: "The FTC teams you're on or manage, with their stats.", noindex: true },
@@ -396,7 +407,7 @@ export function headTags(path: string, m: PageMeta): string {
   // A shared matchup previews as its card, and its link (og:url) is the matchup itself; the canonical stays the page's.
   const image = m.share ? `${canonicalOrigin()}${shareImagePath(m.share.query)}` : `${canonicalOrigin()}/og-image.png`;
   const ogUrl = m.share ? `${canonicalOrigin()}${sharePagePath(m.share.query)}` : url;
-  const alt = m.share?.alt ?? "FTC Control Scout";
+  const alt = m.share?.alt ?? SITE;
   const tags = [
     `<title>${esc(title)}</title>`,
     `<meta name="description" content="${esc(m.description)}" />`,
