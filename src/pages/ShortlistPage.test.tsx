@@ -50,4 +50,34 @@ describe("ShortlistPage", () => {
     expect(h.updates).toEqual(["bookmarks"]);
     expect(paths.every((p) => p.startsWith("/api/shortlist"))).toBe(true);
   });
+
+  const mount = () => render(<TooltipProvider><MemoryRouter initialEntries={["/shortlist?season=2025"]}><ShortlistPage /></MemoryRouter></TooltipProvider>);
+
+  it("shows a first visit (an empty list) how it works, with no toggle to find it behind", () => {
+    h.bookmarks = [];
+    mount();
+    expect(screen.getByText("Your shortlist is empty")).toBeTruthy();
+    expect(screen.getByRole("region", { name: "How the shortlist works" }).textContent).toMatch(/Drag the grip to rank your picks, or focus it and use the arrow keys/);
+    expect(screen.queryByRole("button", { name: /How it works/ })).toBeNull();
+  });
+
+  it("puts a returning scout's candidates first, with the instructions behind a How it works button", async () => {
+    mount();
+    await waitFor(() => expect(document.querySelectorAll("[data-reorder-key]")).toHaveLength(2));
+    expect(screen.queryByRole("region", { name: "How the shortlist works" })).toBeNull();
+    // Compare and the other secondary actions stay visible, with their words.
+    expect(screen.getByRole("link", { name: /Compare top 2/ })).toBeTruthy();
+    expect(screen.getByRole("button", { name: /Order picks/ })).toBeTruthy();
+    expect(screen.getByRole("button", { name: /CSV/ })).toBeTruthy();
+    const toggle = screen.getByRole("button", { name: /How it works/ });
+    expect(toggle.getAttribute("aria-expanded")).toBe("false");
+    fireEvent.click(toggle);
+    expect(toggle.getAttribute("aria-expanded")).toBe("true");
+    const help = screen.getByRole("region", { name: "How the shortlist works" });
+    expect(toggle.getAttribute("aria-controls")).toBe(help.id);
+    expect(help.textContent).toMatch(/eight named colours/);
+    expect(help.textContent).toMatch(/Tick up to 4 teams to compare/);
+    fireEvent.click(toggle);
+    expect(screen.queryByRole("region", { name: "How the shortlist works" })).toBeNull();
+  });
 });

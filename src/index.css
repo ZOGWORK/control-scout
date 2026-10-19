@@ -271,7 +271,7 @@ html.compact .density-card { padding: 0.875rem; }
   .home-grid {
     column-gap: 2.5rem;
     row-gap: 1.5rem;
-    grid-template-columns: minmax(0, 40fr) minmax(0, 60fr);
+    grid-template-columns: minmax(0, 42fr) minmax(0, 58fr);
     /* The last left-hand row takes whatever height the atlas has to spare, so the stack stays together at the top. */
     grid-template-rows: auto auto 1fr auto auto;
     grid-template-areas: "hero atlas" "strip atlas" "team atlas" "events record" "usage usage";
