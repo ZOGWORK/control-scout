@@ -11,6 +11,7 @@ import { Button } from "../components/ui/button";
 import { copyLink } from "../lib/clipboard";
 import { cn } from "../components/cn";
 import { FAQ, faqParts, faqText, type FaqItem } from "../shared/faq";
+import { scrollToElement } from "../lib/pageScroll";
 
 /** Each topic's icon and colour (chips and headings). */
 const TOPIC: Record<string, { icon: LucideIcon; tone: string }> = {
@@ -49,7 +50,7 @@ function Question({ item, open, onToggle }: { item: FaqItem; open: boolean; onTo
   // The shared helper: falls back without the Clipboard API (plain HTTP) and says when it can't copy.
   const copy = () => void copyLink(`${location.origin}/faq#${item.id}`);
   return (
-    <li id={item.id} className="scroll-mt-20">
+    <li id={item.id} className="scroll-mt-bar-20">
       <h3>
         <button type="button" onClick={onToggle} aria-expanded={open} aria-controls={`${item.id}-answer`}
           className="flex min-h-14 w-full items-center justify-between gap-4 px-5 py-3 text-left font-medium outline-none hover:bg-text-base/[0.03] focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring/60">
@@ -82,7 +83,7 @@ export default function FaqPage() {
     try { id = decodeURIComponent(hash.slice(1)); } catch { return; }
     if (!id || !FAQ.some((g) => g.items.some((i) => i.id === id))) return;
     setOpen((s) => new Set(s).add(id));
-    requestAnimationFrame(() => document.getElementById(id)?.scrollIntoView({ block: "start" }));
+    requestAnimationFrame(() => { const el = document.getElementById(id); if (el) scrollToElement(el); });
   }, [hash]);
 
   const groups = useMemo(() => FAQ.map((g) => ({ ...g, items: g.items.filter((i) => faqMatches(i, query)) })).filter((g) => g.items.length), [query]);
@@ -124,7 +125,7 @@ export default function FaqPage() {
             <Button className="mt-4" asChild><Link to="/contact"><MessageSquare /> Ask a question</Link></Button>
           </div>
         ) : groups.map((g) => (
-          <section key={g.id} id={`topic-${g.id}`} aria-labelledby={`topic-${g.id}-title`} className="scroll-mt-20">
+          <section key={g.id} id={`topic-${g.id}`} aria-labelledby={`topic-${g.id}-title`} className="scroll-mt-bar-20">
             <h2 id={`topic-${g.id}-title`} className="mb-3 flex items-center gap-2.5 font-display text-lg font-semibold">
               {(() => { const t = topicOf(g.id); return <span className={cn("flex size-8 items-center justify-center rounded-lg", t.tone)}><t.icon className="size-4" aria-hidden /></span>; })()}
               {g.title}

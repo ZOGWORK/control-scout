@@ -5,12 +5,13 @@ import { useCallback, useEffect, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { cn } from "./cn";
 import { useConsent } from "../lib/consent";
+import { pageTop } from "../lib/pageScroll";
 
 /**
  * True once the element given to `ref` has scrolled up out of view (above the
- * viewport or the shell's scroll area), false while it's visible. Put the ref
- * on a marker at the end of the page header: the bar shows only after the
- * header's buttons are gone, so it never repeats what's on screen.
+ * viewport, or under the shell's sticky top bar), false while it's visible. Put
+ * the ref on a marker at the end of the page header: the bar shows only after
+ * the header's buttons are gone, so it never repeats what's on screen.
  */
 export function useScrolledPast<T extends Element>(): [(el: T | null) => void, boolean] {
   const [el, setEl] = useState<T | null>(null);
@@ -20,7 +21,7 @@ export function useScrolledPast<T extends Element>(): [(el: T | null) => void, b
     const io = new IntersectionObserver(([e]) => {
       // Out of view AND above the middle of the screen = scrolled past (not "not reached yet").
       setPast(!e.isIntersecting && e.boundingClientRect.top < window.innerHeight / 2);
-    });
+    }, { rootMargin: `-${Math.round(pageTop())}px 0px 0px 0px` });
     io.observe(el);
     return () => { io.disconnect(); setPast(false); };
   }, [el]);
