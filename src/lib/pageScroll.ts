@@ -107,8 +107,6 @@ export function scrollToElement(el: Element, behavior: ScrollBehavior = "auto") 
 
 /** How long a restore keeps chasing its position while the page's content loads in. */
 export const RESTORE_WINDOW_MS = 2500;
-/** On <html> while the page is not scrolling (the still-hover variant in index.css keys off it). */
-export const SCROLL_IDLE_ATTR = "data-scroll-idle";
 /** How long after the last scroll event the page counts as still scrolling. */
 export const SCROLL_IDLE_MS = 140;
 
@@ -232,24 +230,22 @@ export function usePageScroll(content: RefObject<HTMLElement | null>) {
     return () => document.removeEventListener("click", onClick);
   }, []);
 
-  // Remember where each entry is, as the reader scrolls. Also flags "scrolling" for CSS.
+  // Remember where each entry is, as the reader scrolls. Also flags "scrolling" for CSS: while it's set a
+  // shield over the page area takes a resting mouse (index.css .scroll-shield), so rows sliding under it never
+  // light up. The flag restyles only the few elements keyed off it. Hover styles keyed off an attribute on
+  // <html> restyled every element using them at each start and stop (seconds per scroll on a big event).
   useEffect(() => {
     const el = content.current;
     if (!el) return;
     const flagOn = el.parentElement ?? el;
-    // The opposite flag, on <html>: CSS lets rows light up under the pointer only while it is there (the
-    // still-hover variant, index.css). Written as a present attribute on an ancestor, flipping it restyles
-    // just the elements that use it; keyed off [data-scrolling] with :not(), it restyled the whole page.
-    const root = document.documentElement;
-    root.setAttribute(SCROLL_IDLE_ATTR, "");
     let idle: ReturnType<typeof setTimeout> | undefined;
     const onScroll = () => {
       // Not while a followed #link's jump is on its way: that position is the next entry's, not this one's.
       if (followed.current && performance.now() - followed.current.at >= FOLLOW_MS) followed.current = null;
       if (!restoring.current && !followed.current) store.current!.set(liveKey(), pageScroller().scrollTop);
-      if (!flagOn.hasAttribute("data-scrolling")) { flagOn.setAttribute("data-scrolling", ""); root.removeAttribute(SCROLL_IDLE_ATTR); }
+      if (!flagOn.hasAttribute("data-scrolling")) flagOn.setAttribute("data-scrolling", "");
       clearTimeout(idle);
-      idle = setTimeout(() => { flagOn.removeAttribute("data-scrolling"); root.setAttribute(SCROLL_IDLE_ATTR, ""); }, SCROLL_IDLE_MS);
+      idle = setTimeout(() => flagOn.removeAttribute("data-scrolling"), SCROLL_IDLE_MS);
     };
     const persist = () => store.current!.save();
     window.addEventListener("scroll", onScroll, { passive: true });
@@ -259,7 +255,6 @@ export function usePageScroll(content: RefObject<HTMLElement | null>) {
       window.removeEventListener("pagehide", persist);
       clearTimeout(idle);
       flagOn.removeAttribute("data-scrolling");
-      root.removeAttribute(SCROLL_IDLE_ATTR);
     };
   }, [content]);
 
