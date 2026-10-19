@@ -4,7 +4,7 @@
 // comment events carry no id to catch up from.
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { act, cleanup, renderHook, waitFor } from "@testing-library/react";
-import { announceComment, announceCommentsResync, applyCommentEvent, SCOUT_COMMENT, SCOUT_COMMENTS_RESYNC, Seen, useCommentCounts, useEntryComments } from "./scoutComments";
+import { announceComment, announceCommentsResync, applyCommentEvent, CommentWriteError, SCOUT_COMMENT, SCOUT_COMMENTS_RESYNC, Seen, useCommentCounts, useEntryComments } from "./scoutComments";
 import { followWorkspace } from "./scoutLive";
 import type { CommentEvent, EntryComment } from "../shared/comments";
 
@@ -80,8 +80,8 @@ describe("useEntryComments", () => {
     const { result } = renderHook(() => useEntryComments("41", "aaaaaaaaaaaa"));
     await waitFor(() => expect(result.current.loading).toBe(false));
     routes[`POST ${THREAD}`] = () => ({ status: 201, body: ev("created", c(4, { body: "hi" }), 1) });
-    await act(() => result.current.post("hi"));
-    expect(calls.at(-1)).toEqual({ method: "POST", url: THREAD, body: { body: "hi" } });
+    await act(() => result.current.post("hi", "op-test-0001"));
+    expect(calls.at(-1)).toEqual({ method: "POST", url: THREAD, body: { body: "hi", opId: "op-test-0001" } });
     expect(result.current.comments.map((x) => x.body)).toEqual(["hi"]);
     routes[`PATCH ${THREAD}/4`] = () => ({ body: ev("edited", c(4, { body: "hello", editedAt: 9 }), 1) });
     await act(() => result.current.edit(4, "hello"));
@@ -130,12 +130,28 @@ describe("useEntryComments", () => {
     const { result } = renderHook(() => useEntryComments("41", "aaaaaaaaaaaa"));
     await waitFor(() => expect(result.current.comments).toHaveLength(1));
     routes[`POST ${THREAD}`] = () => ({ status: 429, body: { error: "You're commenting very quickly. Wait a moment and try again." } });
-    await expect(result.current.post("x")).rejects.toThrow(/very quickly/);
+    await expect(result.current.post("x", "op-test-0002")).rejects.toThrow(/very quickly/);
     routes[`POST ${THREAD}`] = () => ({ status: 409, body: { error: "This entry was deleted, so it can't take new comments." } });
     routes[`GET ${THREAD}`] = () => ({ body: { comments: [c(1)], entryDeleted: true } });
-    await expect(result.current.post("x")).rejects.toThrow(/deleted/);
+    await expect(result.current.post("x", "op-test-0002")).rejects.toThrow(/deleted/);
     await waitFor(() => expect(result.current.closed).toBe(true));
     expect(result.current.comments).toHaveLength(1);
+  });
+
+  it("offline only when the device knows it is (nothing sent); a dropped answer is uncertain, never 'offline'", async () => {
+    routes[`GET ${THREAD}`] = () => ({ body: { comments: [], entryDeleted: false } });
+    const { result } = renderHook(() => useEntryComments("41", "aaaaaaaaaaaa"));
+    await waitFor(() => expect(result.current.loading).toBe(false));
+    vi.spyOn(navigator, "onLine", "get").mockReturnValue(false);
+    const offline = await result.current.post("x", "op-test-0003").catch((e) => e);
+    expect(offline).toBeInstanceOf(CommentWriteError);
+    expect(offline).toMatchObject({ uncertain: false, message: expect.stringMatching(/offline/) });
+    expect(calls.filter((x) => x.method === "POST")).toHaveLength(0);
+    vi.restoreAllMocks();
+    routes[`POST ${THREAD}`] = () => { throw new TypeError("Failed to fetch"); };
+    const lost = await result.current.post("x", "op-test-0003").catch((e) => e);
+    expect(lost).toMatchObject({ uncertain: true });
+    expect(lost.message).not.toMatch(/offline/i);
   });
 
   it("Personal (no space): nothing is fetched", () => {
