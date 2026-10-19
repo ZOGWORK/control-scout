@@ -394,7 +394,7 @@ const th = "bg-card shadow-[inset_0_-2px_0_color-mix(in_srgb,var(--color-text-ba
 const grid = "border-text-base/15";
 const sticky = "sticky left-0 z-10 bg-card shadow-[1px_0_0_color-mix(in_srgb,var(--color-text-base)_22%,transparent)]";
 
-function SortHead({ k, label, title, state, sortBy, className, tone, align = "right", lead }: { k: string | null; label: ReactNode; title?: string; state: TableState; sortBy: (k: string) => void; className?: string; tone?: string; align?: "left" | "right"; lead?: ReactNode }) {
+function SortHead({ k, label, title, state, sortBy, className, tone, align = "right", lead, iconOnly }: { k: string | null; label: ReactNode; title?: string; state: TableState; sortBy: (k: string) => void; className?: string; tone?: string; align?: "left" | "right"; lead?: ReactNode; iconOnly?: boolean }) {
   const on = k != null && state.sort === k;
   const Arrow = on ? (state.dir === "asc" ? ArrowUp : ArrowDown) : null;
   return (
@@ -403,7 +403,7 @@ function SortHead({ k, label, title, state, sortBy, className, tone, align = "ri
       {k ? (
         <button type="button" onClick={() => sortBy(k)} title={title} className={cn("group inline-flex flex-col gap-1 rounded outline-none focus-visible:ring-2 focus-visible:ring-ring/60", align === "right" ? "items-end" : "items-start")}>
           <span className={cn("inline-flex items-center gap-1", tone ?? "text-text-muted", "group-hover:brightness-125", align === "right" && "flex-row-reverse")}>
-            {label}{Arrow ? <Arrow className="size-3.5 text-accent" strokeWidth={3} /> : <ArrowUpDown className="size-3 opacity-0 group-hover:opacity-60" />}
+            {iconOnly ? <span className="sr-only">{label}</span> : label}{Arrow ? <Arrow className="size-3.5 text-accent" strokeWidth={3} /> : <ArrowUpDown className={cn("size-3", iconOnly ? "opacity-60 group-hover:opacity-100" : "opacity-0 group-hover:opacity-60")} />}
           </span>
         </button>
       ) : <span className="text-text-muted">{label}</span>}
@@ -411,15 +411,18 @@ function SortHead({ k, label, title, state, sortBy, className, tone, align = "ri
   );
 }
 
-/** The Team header's checkbox: ticks or clears every team on the page; "mixed" when only some are ticked. */
+/** The Team header's checkbox, labelled "Select all": ticks or clears every team on the page; "mixed" when only some are ticked. */
 function SelectAll({ state, onToggle }: { state: PageSelection; onToggle: () => void }) {
   const ref = useRef<HTMLInputElement>(null);
   // "indeterminate" is a property only (no attribute): set it after every render, as a click resets it.
   useEffect(() => { if (ref.current) ref.current.indeterminate = state === "some"; });
   return (
-    <input ref={ref} type="checkbox" checked={state === "all"} aria-checked={state === "some" ? "mixed" : undefined} onChange={onToggle}
-      aria-label="Select all teams on this page" title={state === "none" ? `Select the teams on this page (Compare takes up to ${COMPARE_MAX})` : "Clear the teams on this page"}
-      className="mr-2.5 size-4 shrink-0 cursor-pointer align-middle accent-[var(--color-accent)] max-sm:size-5" />
+    <label className="mr-1.5 inline-flex cursor-pointer items-center gap-2.5 align-middle text-sm font-semibold normal-case tracking-normal text-text-base"
+      title={state === "none" ? `Select the teams on this page (Compare takes up to ${COMPARE_MAX})` : "Clear the teams on this page"}>
+      <input ref={ref} type="checkbox" checked={state === "all"} aria-checked={state === "some" ? "mixed" : undefined} onChange={onToggle}
+        aria-label="Select all teams on this page" className="size-[18px] shrink-0 cursor-pointer accent-[var(--color-accent)] max-sm:size-5" />
+      <span aria-hidden>Select all</span>
+    </label>
   );
 }
 
@@ -441,7 +444,8 @@ function Table({ data, scope, cols, state, sortBy, code, highlightTeam, selectab
               </>
             ) : (
               <>
-                <SortHead k="teamNumber" label="Team" state={state} sortBy={sortBy} align="left" className={sticky}
+                {/* With row checkboxes the Team header reads "Select all"; sorting by team stays on the arrow button beside it. */}
+                <SortHead k="teamNumber" label={selectable ? "Sort by team" : "Team"} iconOnly={!!selectable} state={state} sortBy={sortBy} align="left" className={sticky}
                   lead={selectable && <SelectAll state={pageSelection} onToggle={onSelectAll} />} />
                 {showEvent && <SortHead k="eventName" label="Event" state={state} sortBy={sortBy} align="left" />}
               </>
