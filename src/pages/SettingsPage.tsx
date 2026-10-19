@@ -107,7 +107,7 @@ export default function SettingsPage() {
     <div>
       <PageHeader eyebrow="Settings" title={current.label} description={current.hint} />
       <div className="grid grid-cols-[minmax(0,1fr)] gap-8 lg:grid-cols-[220px_minmax(0,1fr)]">
-        <nav aria-label="Settings sections" className="min-w-0 lg:sticky lg:top-6 lg:self-start">
+        <nav aria-label="Settings sections" className="min-w-0 lg:sticky lg:top-[calc(var(--header-h)+1.5rem)] lg:self-start">
           <ul ref={navRef} className="-mx-4 flex gap-2 overflow-x-auto px-4 pb-1 [scrollbar-width:none] lg:mx-0 lg:block lg:space-y-0.5 lg:overflow-visible lg:px-0 [&::-webkit-scrollbar]:hidden">
             {SECTIONS.map((s, i) => {
               const on = s.id === active;
