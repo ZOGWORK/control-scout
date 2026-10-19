@@ -51,7 +51,7 @@ describe("match row layout", () => {
 
   it("unplayed: the call only (pick + tier), no outcome or ledger chip", () => {
     show(match({ prediction: pred({ kind: "now" }) }));
-    expect(within(call()).getByRole("button", { name: "Predicted blue 53%" }).className).toMatch(/whitespace-nowrap/);
+    expect(within(call()).getByRole("button", { name: "Picked Blue 53%" }).className).toMatch(/whitespace-nowrap/);
     expect(q("[data-outcome]")).toBeNull();
     expect(q("[data-kind]")).toBeNull();
     expect(within(call()).getByText("provisional")).toBeTruthy();

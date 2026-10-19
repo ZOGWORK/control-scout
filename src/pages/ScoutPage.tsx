@@ -241,8 +241,8 @@ export default function ScoutPage() {
           {/* The server applies the URL's filters (src/shared/scoutFilter.ts, the same predicate as the feed) and checks membership. */}
           {workspace && !spaces.resolving && (
             <Button variant="outline" asChild>
-              <a href={workspaceExportUrl(workspace.id, exportParams(sp, season))} download
-                aria-label={filtering ? `Export the ${feed.shown.length} filtered ${season} entries as CSV` : `Export all ${season} entries as CSV`}><Download /> Export CSV</a>
+              <a href={workspaceExportUrl(workspace.id, exportParams(sp, season))} download>
+                <Download /> Export CSV{" "}<span className="sr-only">{filtering ? `(the ${feed.shown.length} filtered ${season} entries)` : `(all ${season} entries)`}</span></a>
             </Button>
           )}
         </div>
