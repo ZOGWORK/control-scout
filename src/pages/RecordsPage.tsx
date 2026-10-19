@@ -3,15 +3,16 @@
 // plus Control Scout's prediction stats, saved filters and preset chips).
 import { useLayoutEffect, useRef } from "react";
 import { Link, useLocation, useNavigate, useSearchParams } from "react-router-dom";
-import { CalendarDays, Swords, Users } from "lucide-react";
+import { BookUser, CalendarDays, Swords, Users } from "lucide-react";
 import { useCurrentSeason, usePredictable, useTitle } from "../lib/meta";
 import { seasonLabel } from "../lib/format";
 import { PageHeader } from "../components/page";
 import { RecordsTable } from "../components/records/RecordsTable";
+import { TeamDirectory } from "../components/records/TeamDirectory";
 import { cn } from "../components/cn";
 import { revealInStrip } from "../lib/revealInStrip";
 
-type View = "events" | "season" | "matches";
+type View = "events" | "season" | "listed" | "matches";
 
 const TEAM_COLS = ["totalPointsNpOpr", "autoPointsOpr", "dcPointsOpr", "endgamePointsOpr", "penaltyPointsCommittedOpr", "totalPointsNpAvg", "totalPointsNpMax", "rank", "rp", "qualMatchesPlayed", "predictedWinPctAvg", "advancementOdds"];
 const SEASON_COLS = ["totalPointsNpOpr", "autoPointsOpr", "dcPointsOpr", "endgamePointsOpr", "penaltyPointsCommittedOpr", "totalPointsNpAvg", "totalPointsNpMax", "events", "qualMatchesPlayed", "wins", "losses", "ties", "predictedWinPctAvg"];
@@ -23,16 +24,17 @@ export default function RecordsPage({ matches }: { matches?: boolean }) {
   const { pathname } = useLocation();
   const current = useCurrentSeason();
   const season = Number(sp.get("season")) || current;
-  const view: View = matches ? "matches" : sp.get("view") === "season" ? "season" : "events";
+  const viewParam = sp.get("view");
+  const view: View = matches ? "matches" : viewParam === "season" ? "season" : viewParam === "listed" ? "listed" : "events";
   const predictable = usePredictable(season);
-  useTitle(matches ? `Match records ${seasonLabel(season)}` : `Team records ${seasonLabel(season)}`);
+  useTitle(matches ? `Match records ${seasonLabel(season)}` : view === "listed" ? `Team directory ${seasonLabel(season)}` : `Team records ${seasonLabel(season)}`);
 
   // Switching view starts the table afresh (a filter's stats differ per table), keeping the season.
   const hrefFor = (v: View) => {
     const q = new URLSearchParams();
     if (season !== current) q.set("season", String(season));
-    if (v === "season") q.set("view", "season");
-    // A country (from the home page's atlas) stays on across the two team views.
+    if (v === "season" || v === "listed") q.set("view", v);
+    // A country (from the home page's atlas) stays on across the team views.
     const country = sp.get("country");
     if (country && v !== "matches") q.set("country", country);
     return { pathname: v === "matches" ? "/matches" : "/teams", search: q.toString() ? `?${q}` : "" };
@@ -73,17 +75,20 @@ export default function RecordsPage({ matches }: { matches?: boolean }) {
   const views: { v: View; label: string; icon: typeof Users; hint: string }[] = [
     { v: "events", label: "Team-events", icon: CalendarDays, hint: "One row per team per event" },
     { v: "season", label: "Team seasons", icon: Users, hint: "One row per team (best event OPR)" },
+    { v: "listed", label: "All listed", icon: BookUser, hint: "Every team registered for the season, results or not" },
     { v: "matches", label: "Matches", icon: Swords, hint: "One row per played match" },
   ];
 
   return (
     <div>
       <PageHeader
-        eyebrow={<span className="text-accent-text">Records · {seasonLabel(season)}</span>}
+        eyebrow={<span className="text-accent-text">{view === "listed" ? "Directory" : "Records"} · {seasonLabel(season)}</span>}
         title={matches ? "Match records" : "Teams"}
         description={matches
           ? "Every played match of the season: filter by score, margin, phase or event, sort any column, export it."
-          : "Every team's numbers for the season. Filter with any stat, sort any column, tick teams to compare, export to CSV."}
+          : view === "listed"
+            ? "Every team registered for the season, whether or not it has played yet. Browse by country, open a profile, track a team."
+            : "Every team's numbers for the season. Filter with any stat, sort any column, tick teams to compare, export to CSV."}
       >
         {/* Each view has its own address, so these are links (the current one aria-current), not tabs. */}
         <nav ref={strip} className="inline-flex max-w-full gap-1 overflow-x-auto rounded-xl border border-line bg-card p-1" aria-label="Records">
@@ -97,7 +102,9 @@ export default function RecordsPage({ matches }: { matches?: boolean }) {
           ))}
         </nav>
       </PageHeader>
-      {view === "matches" ? (
+      {view === "listed" ? (
+        <TeamDirectory season={season} onSeason={setSeason} />
+      ) : view === "matches" ? (
         <RecordsTable key={`m${season}`} scope="match" season={season} predictable={predictable} defaultCols={MATCH_COLS} defaultSort="highScore"
           storageKey="matches" noun="matches" controls={{ onSeason: setSeason, region: true, eventType: true, dates: true }} />
       ) : view === "season" ? (

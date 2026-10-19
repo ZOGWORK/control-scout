@@ -46,6 +46,7 @@ import { packsRouter } from "./packs/routes.js";
 import { cachedPublicUsage, collectRouter, statsRouter } from "./analytics.js";
 import { homeOverview } from "./api/home.js";
 import { listRecords, recordRegions, recordsQuery, RecordsQueryError, streamRecordsCsv } from "./api/records.js";
+import { directoryQuery, DirectoryQueryError, listDirectory } from "./api/directory.js";
 import { FilterError } from "../src/shared/filterDsl.js";
 import { RECORDS_EXPORT_MAX, RECORDS_MAX_PAGE_SIZE } from "../src/shared/statCatalog.js";
 import { manualRefresh, type ManualOutcome } from "./data/live.js";
@@ -92,6 +93,9 @@ const season = (x: unknown) => {
   if (!SEASON_NUMBERS.includes(s)) throw new HttpError(404, `Season ${s} isn't covered (we hold ${SEASON_NUMBERS.join(", ")})`);
   return s;
 };
+/** While a season's statistics are behind its results (api/readiness.ts), answers built from them aren't kept
+ *  by browser or shared caches: "Check again" must reach the server. Healthy answers keep the usual caching. */
+const noStoreWhileBehind = (res: Response, state: string) => { if (state !== "ready") res.setHeader("Cache-Control", "no-store"); };
 /** Predictions: 2019–2022 are stored for history but never rated. */
 const predictSeason = (x: unknown) => {
   const s = season(x);
@@ -223,7 +227,11 @@ export function createApp() {
   }));
 
   // The home page's season coverage and teams by country (server/api/home.ts).
-  api.get("/home/overview", h(async (req) => homeOverview(season(req.query.season))));
+  api.get("/home/overview", h(async (req, res) => {
+    const o = await homeOverview(season(req.query.season));
+    noStoreWhileBehind(res, o.readiness.state);
+    return o;
+  }));
 
   // Opt-in page views and sessions started, last 30 days: only when the owner publishes them (PUBLIC_USAGE_ENABLED).
   api.get("/public-usage", h(async (_req, res) => {
@@ -395,6 +403,16 @@ export function createApp() {
   /** Team records: ?scope=event (default, one row per team per event) or season. */
   api.get("/records/:season/teams", ...records("teams"));
   api.get("/records/:season/matches", ...records("matches"));
+  /** The team directory: every team registered for a season, results or not (?country=, sort, dir, page). */
+  api.get("/directory/:season", recordsLimit, h(async (req, res) => {
+    const s = season(req.params.season);
+    try {
+      const page = await listDirectory(s, directoryQuery(req.query as Record<string, unknown>));
+      noStoreWhileBehind(res, page.readiness.state);
+      return page;
+    }
+    catch (e) { if (e instanceof DirectoryQueryError) throw bad(e.message); throw e; }
+  }));
   /** The region codes a season's records use, named by their main place (for the Region dropdown). */
   api.get("/records/:season/regions", recordsLimit, h(async (req) => ({ regions: await recordRegions(season(req.params.season)) })));
 
