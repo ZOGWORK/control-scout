@@ -37,8 +37,11 @@ const isDraft = (x: unknown): x is Omit<NoteDraft, "team"> => {
   return !!d && typeof d.note === "string" && (d.base === null || Number.isSafeInteger(d.base)) && Number.isFinite(d.at);
 };
 
-export function saveNoteDraft(account: number, space: string, season: number, d: NoteDraft): void {
-  try { storage()?.setItem(keyOf(account, space, season, d.team), JSON.stringify({ note: d.note, base: d.base, at: d.at, ...(d.wid ? { wid: d.wid } : {}) })); } catch { /* full or blocked */ }
+/** Keep a draft. False when this device couldn't (storage full, blocked or missing). */
+export function saveNoteDraft(account: number, space: string, season: number, d: NoteDraft): boolean {
+  const s = storage();
+  if (!s) return false;
+  try { s.setItem(keyOf(account, space, season, d.team), JSON.stringify({ note: d.note, base: d.base, at: d.at, ...(d.wid ? { wid: d.wid } : {}) })); return true; } catch { return false; }
 }
 
 export function readNoteDraft(account: number, space: string, season: number, team: number): NoteDraft | null {
