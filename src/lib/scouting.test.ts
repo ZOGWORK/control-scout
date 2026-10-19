@@ -201,3 +201,29 @@ describe("workspace permissions on the device", () => {
     expect(canDeleteScoutEntry(ws(7), { role: "member" })).toBe(false); // an older server without accountId
   });
 });
+
+// Audit PRIVATE-F01 / PRIVATE-F02: rows stored before the checks (src/shared/scoutEntry.ts) are read repaired.
+describe("stored rows with bad values", () => {
+  it("a workspace copy stamped 1e300 is read as 0, and the next edit is stamped now (a time the server accepts)", () => {
+    localStorage.setItem("cs-scout-ws:41:poisoned0001", JSON.stringify({ uuid: "poisoned0001", ...base, updatedAt: 1e300, workspaceId: "41", authorAccountId: 7, authorDisplayName: "Priya" }));
+    expect(localScoutEntries("41")[0]).toMatchObject({ uuid: "poisoned0001", updatedAt: 0, notes: "fast" });
+    const before = Date.now();
+    const e = saveScoutEntry({ ...localScoutEntries("41")[0], notes: "edited" });
+    expect(e.updatedAt).toBeGreaterThanOrEqual(before);
+    expect(e.updatedAt).toBeLessThanOrEqual(Date.now());
+  });
+
+  it("a copy from the server with notes or answers of the wrong type is stored repaired", async () => {
+    server(() => ({ entries: [{ uuid: "fromserver01", ...base, notes: { invalid: "object" }, data: { auto: { x: 1 } }, updatedAt: 10, workspaceId: "41" }], cursor: 1, more: false }));
+    await pullScouting("41");
+    expect(localScoutEntries("41")[0]).toMatchObject({ notes: '{"invalid":"object"}', data: { auto: '{"x":1}' } });
+  });
+
+  it("a row with no usable identity is hidden, not removed; a JSON-broken one too", () => {
+    localStorage.setItem("cs-scout:noteamrow001", JSON.stringify({ uuid: "noteamrow001", ...base, team: "abc", updatedAt: 1 }));
+    localStorage.setItem("cs-scout:brokenrow001", "{");
+    expect(localScoutEntries()).toEqual([]);
+    expect(localStorage.getItem("cs-scout:noteamrow001")).not.toBeNull();
+    expect(localStorage.getItem("cs-scout:brokenrow001")).toBe("{");
+  });
+});
