@@ -42,13 +42,28 @@ export async function startSession(res: Response, user: User, userAgent?: string
   res.cookie(SESSION_COOKIE, t, { httpOnly: true, sameSite: "lax", secure: env.production, path: "/", expires });
 }
 
-function readCookie(req: Request, name: string): string | null {
+/** The raw (still percent-encoded) value of a cookie, or null. */
+function rawCookie(req: Request, name: string): string | null {
   const raw = req.headers.cookie ?? "";
   for (const part of raw.split(";")) {
     const i = part.indexOf("=");
-    if (i > 0 && part.slice(0, i).trim() === name) return decodeURIComponent(part.slice(i + 1).trim());
+    if (i > 0 && part.slice(0, i).trim() === name) return part.slice(i + 1).trim();
   }
   return null;
+}
+
+/** A cookie's value, or null when it's absent or not valid percent-encoding (a corrupt cookie counts as no cookie). */
+function readCookie(req: Request, name: string): string | null {
+  const v = rawCookie(req, name);
+  if (v == null) return null;
+  try { return decodeURIComponent(v); } catch { return null; }
+}
+
+/** A session cookie is there but can never decode: clear it so the browser stops sending it. A merely
+ *  unknown or expired token isn't cleared here, since a sign-in in another tab may be replacing it. */
+export function clearMalformedSession(req: Request, res: Response): void {
+  const v = rawCookie(req, SESSION_COOKIE);
+  if (v != null && readCookie(req, SESSION_COOKIE) == null) res.clearCookie(SESSION_COOKIE, { path: "/" });
 }
 
 export async function currentUser(req: Request): Promise<User | null> {
