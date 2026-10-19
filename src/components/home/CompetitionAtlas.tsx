@@ -120,7 +120,7 @@ export function CompetitionAtlas({ overview, currentSeason, compact }: { overvie
         </p>
       )}
       <p className="mt-2 text-xs text-text-muted">
-        Country totals from each team’s reported country, not team locations.{mode === "globe" && !failed ? ` Drag the globe with a mouse to turn it${still ? "" : ", or stop it with the pause button"}.` : ""}
+        Country totals from each team’s reported country, not team locations.{mode === "globe" && !failed ? ` Drag the globe with a mouse or focus it and use the arrow keys to turn it${still ? "" : "; the pause button stops it"}.` : ""}
       </p>
 
       <details className="group mt-3 rounded-xl border border-line">

@@ -385,6 +385,9 @@ function Lab() {
 
 function MatchLab() {
   const [sp, setSp] = useSearchParams();
+  // The first empty box takes focus only when nothing else has it (arriving on the Lab); switching to it with the
+  // view tabs' arrow keys leaves focus on the tab, as the tabs pattern expects.
+  const [grab] = useState(() => !document.activeElement || document.activeElement === document.body);
   const current = useCurrentSeason();
   const season = Number(sp.get("season")) || current;
   const init = (k: string) => (sp.get(k) ?? "").split(",").filter(Boolean);
@@ -448,7 +451,7 @@ function MatchLab() {
         <form onSubmit={(e) => { e.preventDefault(); run(); }} noValidate className="grid items-start gap-4 md:grid-cols-[1fr_auto_1fr]">
           <fieldset className="rounded-xl border border-red-alliance/30 bg-red-alliance/[0.04] p-4">
             <legend className="px-1 text-sm font-semibold text-red-alliance">Red alliance</legend>
-            <div className="grid grid-cols-2 gap-3">{red.map((v, i) => <TeamInput key={i} label={`Red team ${i + 1}`} tone="red" value={v} onChange={(x) => { setRed((r) => r.map((y, j) => (j === i ? x : y))); clearError(i); }} autoFocus={!v && i === red.indexOf("")} error={errors[i]} inputRef={(el) => { inputs.current[i] = el; }} />)}</div>
+            <div className="grid grid-cols-2 gap-3">{red.map((v, i) => <TeamInput key={i} label={`Red team ${i + 1}`} tone="red" value={v} onChange={(x) => { setRed((r) => r.map((y, j) => (j === i ? x : y))); clearError(i); }} autoFocus={grab && !v && i === red.indexOf("")} error={errors[i]} inputRef={(el) => { inputs.current[i] = el; }} />)}</div>
           </fieldset>
           <div className="flex justify-center md:pt-8"><Button type="button" variant="ghost" size="icon" onClick={swap} aria-label="Swap alliances"><ArrowLeftRight /></Button></div>
           <fieldset className="rounded-xl border border-blue-alliance/30 bg-blue-alliance/[0.04] p-4">
