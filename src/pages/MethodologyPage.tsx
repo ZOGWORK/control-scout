@@ -212,7 +212,8 @@ function SettingsTable() {
   ];
   return (
     <Reveal className="mx-auto max-w-2xl">
-      <div className="custom-scrollbar overflow-x-auto rounded-2xl border border-border bg-card px-2 py-1 sm:px-3">
+      {/* A Tab stop (with a name) so a keyboard can scroll the table sideways on a phone. */}
+      <div role="region" tabIndex={0} aria-label="Model settings" className="custom-scrollbar overflow-x-auto rounded-2xl border border-border bg-card px-2 py-1 outline-none focus-visible:ring-2 focus-visible:ring-ring/60 sm:px-3">
         <table className="w-full min-w-[480px] border-collapse text-sm tabular-nums">
           <thead>
             <tr className="border-b border-border">

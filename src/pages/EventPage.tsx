@@ -310,6 +310,9 @@ function Matches({ d, team }: { d: EventDetail; team: number | null }) {
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-center gap-3">
+        {/* The tab's heading for screen readers: the list's Qualifications / Playoffs headings (h3) sit under it.
+            In here (absolutely placed) so it adds no space to the stack. */}
+        <h2 className="sr-only">Matches</h2>
         <ToggleGroup type="single" value={level} onValueChange={(v) => { if (v) setLevel(v as typeof level); }} aria-label="Match level">
           <ToggleGroupItem value="all">All</ToggleGroupItem><ToggleGroupItem value="qual">Quals</ToggleGroupItem><ToggleGroupItem value="playoff">Playoffs</ToggleGroupItem>
         </ToggleGroup>
