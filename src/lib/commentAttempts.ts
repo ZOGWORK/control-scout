@@ -84,10 +84,13 @@ export async function sendComment(place: CommentPlace, body: string, opId: strin
   keep({ ...place, body, opId, at: Date.now(), state: "saving", message: "", uncertain: false });
   try {
     await post(body, opId);
+    heard.delete(opId);
     drop(place.account, place.space, place.uuid, opId);
     return true;
   } catch (e) {
     const uncertain = e instanceof CommentWriteError && e.uncertain;
+    // Heard on the stream while it was on its way: it arrived, whatever happened to its answer.
+    if (uncertain && heard.delete(opId)) { drop(place.account, place.space, place.uuid, opId); return true; }
     const cur = attempts.get(keyOf(place.account, place.space, place.uuid));
     if (cur?.opId === opId) keep({ ...cur, state: "attention", message: (e as Error).message, uncertain });
     return false;
@@ -102,6 +105,9 @@ export function commentArrived(account: number, space: string, uuid: string, opI
 
 /** The member lets it go: nothing more is sent (one that did arrive stays in the thread). */
 export function discardComment(account: number, space: string, uuid: string) { drop(account, space, uuid); }
+
+/** Attempts on their way whose comment was already heard on the stream (by operation id). */
+const heard = new Set<string>();
 
 /** Is it in the thread? true/false, or null when the thread can't be read. */
 async function posted(space: string, uuid: string, opId: string): Promise<boolean | null> {
@@ -207,7 +213,10 @@ if (typeof window !== "undefined") {
     // Only one waiting on the member: one still on its way settles with its own answer (so nothing else can be
     // sent from its composer meanwhile).
     const a = attempts.get(k);
-    if (a?.opId === e.comment.opId && a.state === "attention") drop(e.comment.authorAccountId, e.workspaceId, e.entryUuid, e.comment.opId);
+    if (a?.opId !== e.comment.opId) return;
+    // Still on its way: remembered, and used when it settles (the send lock stays until then).
+    if (a.state === "saving") { heard.add(a.opId); if (heard.size > 200) heard.delete(heard.values().next().value!); return; }
+    if (a.state === "attention") drop(e.comment.authorAccountId, e.workspaceId, e.entryUuid, e.comment.opId);
   });
   window.addEventListener(SCOUT_COMMENTS_RESYNC, (ev) => { const s = (ev as CustomEvent<{ space?: string }>).detail?.space; if (s) recheckCommentAttempts(s); });
   window.addEventListener("online", () => recheckCommentAttempts());

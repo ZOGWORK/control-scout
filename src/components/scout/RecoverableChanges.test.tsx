@@ -5,8 +5,8 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { claimScope, publishPending } from "../../lib/pendingWork";
-import { resetCommentAttempts } from "../../lib/commentAttempts";
-import { announceComment, announceCommentsResync, COMMENT_NOT_ARRIVED } from "../../lib/scoutComments";
+import { resetCommentAttempts, sendComment } from "../../lib/commentAttempts";
+import { announceComment, announceCommentsResync, COMMENT_NOT_ARRIVED, COMMENT_UNCONFIRMED, CommentWriteError } from "../../lib/scoutComments";
 import { isScoutQueued, localScoutEntries, saveScoutEntry, syncScouting } from "../../lib/scouting";
 import { RecoverableChanges } from "./RecoverableChanges";
 
@@ -189,6 +189,18 @@ describe("RecoverableChanges: unconfirmed comments clear themselves once they sh
     act(() => announceComment({ action: "created", workspaceId: "901", entryUuid: "aaaaaaaaaaaa", commentId: 5, count: 1, rev: 7, comment: made("op-stream-0001") }));
     await waitFor(() => expect(view()).toBeNull());
     expect(posts).toEqual([]);
+  });
+
+  it("heard on the stream while still on its way (entry closed), then its answer lost: confirmed, never listed", async () => {
+    let fail: () => void = () => undefined;
+    render(<RecoverableChanges account={1} workspaces={WS} />);
+    const sent = sendComment({ account: 1, space: "901", uuid: "aaaaaaaaaaaa", team: 18360, what: "Comment on 18360 · Match Q1" }, "Watch their lift", "op-heard-00001",
+      () => new Promise<void>((_ok, no) => { fail = () => no(new CommentWriteError(COMMENT_UNCONFIRMED, true)); }));
+    act(() => announceComment({ action: "created", workspaceId: "901", entryUuid: "aaaaaaaaaaaa", commentId: 5, count: 1, rev: 8, comment: made("op-heard-00001") }));
+    fail();
+    await expect(sent).resolves.toBe(true);
+    expect(view()).toBeNull();
+    expect(localStorage.getItem("cs-comment-try:1:901:aaaaaaaaaaaa")).toBeNull();
   });
 
   it("found when the workspace's threads are checked again (a reconnect)", async () => {
