@@ -53,7 +53,7 @@ export function LatestCalls({ className }: { className?: string }) {
   }, [still, hover, focus, calls.length]);
   if (state.error || (state.data && !calls.length)) {
     return state.data ? (
-      <aside className={cn("rounded-2xl border border-dashed border-line p-5 text-sm text-text-muted", className)}>
+      <aside aria-label="Latest live calls" className={cn("rounded-2xl border border-dashed border-line p-5 text-sm text-text-muted", className)}>
         No live calls have been scored yet. Each match prediction is logged before the match and scored after it; they'll show here.
       </aside>
     ) : null;
