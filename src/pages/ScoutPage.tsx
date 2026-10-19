@@ -320,6 +320,14 @@ function ReadOnlyBanner({ state }: { state: OrphanState }) {
   );
 }
 
+/** When an entry was saved, for its card. 0 or missing (a repaired impossible timestamp, see
+ *  src/shared/scoutEntry.ts) is unknown, never "12/31/1969". */
+export function entryDate(updatedAt: number | null | undefined): string {
+  if (!updatedAt || !Number.isFinite(updatedAt)) return "Date unknown";
+  const d = new Date(updatedAt);
+  return Number.isFinite(d.getTime()) ? d.toLocaleString() : "Date unknown";
+}
+
 /** One entry in the feed (exported for its tests). */
 export function EntryCard({ e, assigned, canDelete, readOnly, comments, onEdit, onHistory }: { e: ScoutEntry; assigned: string | null; canDelete: boolean; readOnly: boolean; comments: number; onEdit: () => void; onHistory: () => void }) {
   // The fields it was made with (an older template version stays readable after the admin changes it).
@@ -333,7 +341,7 @@ export function EntryCard({ e, assigned, canDelete, readOnly, comments, onEdit, 
       <div className="flex flex-wrap items-start justify-between gap-x-2 gap-y-1">
         <div className="min-w-0 flex-1 basis-40">
           <p className="font-medium"><Link to={`/teams/${e.team}?season=${e.season}`} className="font-mono hover:underline">{e.team}</Link> · {e.kind === "pit" ? "Pit" : `Match ${e.matchLabel ?? ""}`}</p>
-          {e.workspaceId == null ? <p className="text-xs text-muted-foreground">{e.eventCode ?? "No event"} · {new Date(e.updatedAt).toLocaleString()}</p> : (
+          {e.workspaceId == null ? <p className="text-xs text-muted-foreground">{e.eventCode ?? "No event"} · {entryDate(e.updatedAt)}</p> : (
             <>
               <p className="text-xs text-muted-foreground">{e.eventCode ?? "No event"}</p>
               <EntryAttribution e={e} className="mt-0.5" />
