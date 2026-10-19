@@ -124,7 +124,13 @@ describe("Settings: import preview", () => {
     // A sync lands (with the change event): the preview now shows the replacement and offers a backup.
     saveScoutEntry({ ...good("racing000001"), kind: "match", workspaceId: null });
     await waitFor(() => expect(plan()).toContain("Update 1"));
-    expect(within(dialog).getByRole("button", { name: "Download a backup first" })).toBeTruthy();
+    vi.spyOn(URL, "createObjectURL").mockReturnValue("blob:x");
+    vi.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(() => {});
+    fireEvent.click(within(dialog).getByRole("button", { name: "Download a backup first" }));
+    expect(within(dialog).getByRole("button", { name: "Backup downloaded" })).toBeTruthy();
+    // Another change after the backup: that backup may lack what Import now replaces, so it's offered again.
+    saveScoutEntry({ ...good("racing000001", { notes: "edited here" }), kind: "match", workspaceId: null });
+    await waitFor(() => expect(within(dialog).getByRole("button", { name: "Download a backup first" })).toBeTruthy());
     // A change with no event (another writer): Import checks again, writes nothing and shows the new preview.
     localStorage.setItem("cs-scout:racing000002", JSON.stringify({ ...good("racing000002"), updatedAt: t }));
     const before = snapshot();
