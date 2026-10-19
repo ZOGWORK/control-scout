@@ -13,6 +13,7 @@ vi.mock("../../lib/personal", () => ({
 }));
 const { EntryComments } = await import("./EntryComments");
 const { announceComment } = await import("../../lib/scoutComments");
+const { resetCommentAttempts } = await import("../../lib/commentAttempts");
 
 const entry = (over: Partial<ScoutEntry> = {}): ScoutEntry => ({
   uuid: "aaaaaaaaaaaa", workspaceId: "41", season: 2025, team: 18360, eventCode: "USNJQ1", matchLabel: "Q1", kind: "match", data: {}, notes: "",
@@ -27,6 +28,8 @@ let thread: EntryComment[] = [];
 const posted: unknown[] = [];
 beforeEach(() => {
   h.role = "member";
+  localStorage.clear();
+  resetCommentAttempts();
   posted.length = 0;
   thread = [c(1), c(2, { authorAccountId: 9, authorName: "Coach", body: "<b>not bold</b>\nsecond line", editedAt: Date.now() - 60_000 })];
   vi.stubGlobal("fetch", vi.fn(async (url: string, init?: RequestInit) => {

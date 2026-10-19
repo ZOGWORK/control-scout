@@ -13,6 +13,7 @@
 // isn't there says so and offers a retry of the same attempt.
 import { useCallback, useEffect, useRef, useState } from "react";
 import { apiFetch, ApiError } from "./api";
+import { knownOffline, outcomeUnknown } from "./pendingWork";
 import { isCommentEvent, isEntryComment, type CommentEvent, type EntryComment } from "../shared/comments";
 
 /** A new comment post's operation id (one per attempt; the same on its retries). */
@@ -27,7 +28,8 @@ export function newCommentOpId(): string {
  * retry must be the same attempt (the same operation id), and the message says it couldn't be confirmed.
  */
 export class CommentWriteError extends Error {
-  constructor(message: string, readonly uncertain = false) { super(message); }
+  /** `status`: the server's answer (0: none). */
+  constructor(message: string, readonly uncertain = false, readonly status = 0) { super(message); }
 }
 
 export const COMMENT_UNCONFIRMED = "Couldn't confirm your comment was posted: the connection dropped before the server answered. Retry checks again and never posts it twice.";
@@ -154,12 +156,34 @@ export interface ThreadState {
 const message = (e: unknown, fallback: string) => (e instanceof ApiError
   ? (e.offline ? (typeof navigator !== "undefined" && navigator.onLine === false ? "You're offline. Comments need a connection." : "Couldn't reach the server. Check your connection and try again.") : e.message)
   : fallback);
+
 /**
- * No answer, or a server error (a proxy's 5xx when the connection to the server dropped, e.g. 502 or 520-524,
- * or a failure after the write), a success whose body arrived incomplete (2xx), or the body's read failing
- * (not an ApiError): the request may have been carried out. 503 is a definite answer (paused).
+ * Post one attempt (the thread's composer, or the recoverable view for an entry that isn't open). Its answer
+ * lost (the device was online when it went: no answer, a proxy's 5xx other than 503, a cut-off body; see
+ * outcomeUnknown): look for its comment in the thread. There: posted after all (applied like the stream's
+ * copy). Not there, or the thread can't be read: an uncertain failure, to retry with the same opId.
  */
-const unanswered = (e: unknown) => !(e instanceof ApiError) || e.status === 0 || (e.status >= 200 && e.status < 300) || (e.status >= 500 && e.status !== 503);
+export async function postComment(space: string, uuid: string, body: string, opId: string): Promise<void> {
+  const offlineBefore = knownOffline();
+  try {
+    const e = await apiFetch<unknown>(threadUrl(space, uuid), { method: "POST", json: { body, opId } });
+    if (isCommentEvent(e)) announceComment(e);
+    return;
+  } catch (err) {
+    // Never sent (known offline), or the server answered (refused): as it says.
+    if (!outcomeUnknown(err, offlineBefore)) throw new CommentWriteError(message(err, "Couldn't post your comment. Try again."), false, err instanceof ApiError ? err.status : 0);
+  }
+  // Sent, but no answer: did it make the comment? The thread says (by the attempt's id).
+  let thread: { comments?: unknown[] } | null = null;
+  try { thread = await apiFetch<{ comments?: unknown[] }>(threadUrl(space, uuid)); } catch { /* still can't tell */ }
+  if (!thread) throw new CommentWriteError(COMMENT_UNCONFIRMED, true);
+  const made = (thread.comments ?? []).filter(isEntryComment).find((c) => c.opId === opId);
+  if (!made) throw new CommentWriteError(COMMENT_NOT_ARRIVED, true);
+  // Posted after all: applied like the stream's copy would be (rev 0: only if it isn't shown already).
+  announceComment({ action: "created", workspaceId: space, entryUuid: uuid, commentId: made.id, count: thread.comments?.length ?? 0, rev: 0, comment: made });
+  // That event's count is never applied (rev 0), and the stream's may have been missed: the cards' counts refetch.
+  announceCommentsResync(space);
+}
 
 /** The thread of one workspace entry, live. Null space or uuid: nothing (Personal entries have no comments). */
 export function useEntryComments(space: string | null, uuid: string | null): ThreadState {
@@ -219,33 +243,14 @@ export function useEntryComments(space: string | null, uuid: string | null): Thr
     }
   }, [space, uuid, load]);
 
-  /**
-   * Post one attempt. Its answer lost (the device was online when it went): look for its comment in the
-   * thread. There: posted after all (applied like the stream's copy). Not there, or the thread can't be read:
-   * an uncertain failure, to retry with the same opId.
-   */
+  /** Post one attempt (postComment); the comment or its entry gone meanwhile (404, 409): the thread is shown as it is now. */
   const post = useCallback(async (body: string, opId: string) => {
     if (!space || !uuid) return;
-    const offlineBefore = typeof navigator !== "undefined" && navigator.onLine === false;
-    try {
-      const e = await apiFetch<unknown>(threadUrl(space, uuid), { method: "POST", json: { body, opId } });
-      if (isCommentEvent(e)) announceComment(e);
-      return;
-    } catch (err) {
-      if (err instanceof ApiError && (err.status === 404 || err.status === 409)) load();
-      // Never sent (known offline), or the server answered (refused): as it says.
-      if (offlineBefore || !unanswered(err)) throw new CommentWriteError(message(err, "Couldn't post your comment. Try again."));
+    try { await postComment(space, uuid, body, opId); }
+    catch (err) {
+      if (err instanceof CommentWriteError && (err.status === 404 || err.status === 409)) load();
+      throw err;
     }
-    // Sent, but no answer: did it make the comment? The thread says (by the attempt's id).
-    let thread: { comments?: unknown[] } | null = null;
-    try { thread = await apiFetch<{ comments?: unknown[] }>(threadUrl(space, uuid)); } catch { /* still can't tell */ }
-    if (!thread) throw new CommentWriteError(COMMENT_UNCONFIRMED, true);
-    const made = (thread.comments ?? []).filter(isEntryComment).find((c) => c.opId === opId);
-    if (!made) throw new CommentWriteError(COMMENT_NOT_ARRIVED, true);
-    // Posted after all: applied like the stream's copy would be (rev 0: only if it isn't shown already).
-    announceComment({ action: "created", workspaceId: space, entryUuid: uuid, commentId: made.id, count: thread.comments?.length ?? 0, rev: 0, comment: made });
-    // That event's count is never applied (rev 0), and the stream's may have been missed: the cards' counts refetch.
-    announceCommentsResync(space);
   }, [space, uuid, load]);
 
   return {
