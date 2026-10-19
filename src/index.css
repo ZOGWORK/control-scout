@@ -271,7 +271,8 @@ html.compact .density-card { padding: 0.875rem; }
 /* Home (src/pages/Home.tsx), sized by its own content width (the sidebar's room
    isn't the page's): one column in task order (search, the season, your team,
    events, then the atlas) until there's room for the observatory, where the atlas
-   sits beside the hero and events beside the prediction record. */
+   sits beside the hero, with the season and your team stacked under search (so
+   they're in the first view), and events beside the prediction record. */
 .home-grid {
   display: grid;
   gap: 2rem;
@@ -281,10 +282,13 @@ html.compact .density-card { padding: 0.875rem; }
 @container home (min-width: 56rem) {
   .home-grid {
     column-gap: 2.5rem;
-    row-gap: 2rem;
-    grid-template-columns: minmax(0, 45fr) minmax(0, 55fr);
-    grid-template-areas: "hero atlas" "strip strip" "team team" "events record" "usage usage";
+    row-gap: 1.5rem;
+    grid-template-columns: minmax(0, 42fr) minmax(0, 58fr);
+    /* The last left-hand row takes whatever height the atlas has to spare, so the stack stays together at the top. */
+    grid-template-rows: auto auto 1fr auto auto;
+    grid-template-areas: "hero atlas" "strip atlas" "team atlas" "events record" "usage usage";
   }
+  .home-grid > * { align-self: start; }
 }
 
 /* Predict's latest-calls card: each call slides in as the last one leaves (still under reduced motion). */
