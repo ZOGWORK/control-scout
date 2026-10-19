@@ -121,4 +121,16 @@ describe("GET /api/directory/:season", () => {
     expect(r.status).toBe(200);
     expect(r.headers.get("cache-control")).toMatch(/^public/);
   });
+
+  it("isn't cached while the statistics are behind, so Check again reaches the server", async () => {
+    await kvSet(`results:at:${S}`, { at: "2026-10-17T13:00:00.000Z" });
+    await run("INSERT INTO events (season, code, name, type, remote, hybrid, source) VALUES (?, 'Q9', 'Q9', 'Qualifier', 0, 0, 'test')", [S]);
+    await run("INSERT INTO matches (season, code, level, series, number, label, played, red_np, blue_np, source) VALUES (?, 'Q9', 'qual', 0, 1, 'Q1', 1, 10, 20, 'test')", [S]);
+    await run("INSERT INTO match_teams (season, code, level, series, number, team, alliance) VALUES (?, 'Q9', 'qual', 0, 1, 10, 'red')", [S]);
+    clearAllCaches();
+    for (const path of [`/api/directory/${S}`, `/api/home/overview?season=${S}`]) {
+      const r = await fetch(`${base}${path}`);
+      expect(r.headers.get("cache-control"), path).toBe("no-store");
+    }
+  });
 });
