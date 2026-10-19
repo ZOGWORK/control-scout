@@ -27,7 +27,7 @@ import { num, rankPct } from "../lib/format";
 import { CompareConsensus } from "../components/ScoutConsensus";
 import { cn } from "../components/cn";
 import { useTeamColors } from "../components/TeamColorPicker";
-import { Reveal, Stagger, StaggerItem, motion } from "../components/motion";
+import { Reveal, Stagger, StaggerItem, m } from "../components/motion";
 
 const COLORS = ["var(--color-chart-1)", "var(--color-chart-2)", "var(--color-chart-3)", "var(--color-chart-4)"];
 
@@ -241,7 +241,7 @@ function StatsTable({ d, onRemove }: { d: CompareView; onRemove: (n: number) => 
           <tr>
             <th scope="col" className="w-20 p-3 sm:w-24"><span className="sr-only">Stat</span></th>
             {t.map((x, i) => (
-              <motion.th key={x.team.number} scope="col" className="border-l border-border p-3 text-left align-top font-normal" style={{ boxShadow: `inset 0 3px 0 ${COLORS[i]}` }}
+              <m.th key={x.team.number} scope="col" className="border-l border-border p-3 text-left align-top font-normal" style={{ boxShadow: `inset 0 3px 0 ${COLORS[i]}` }}
                 initial={{ opacity: 0, y: -4 }} animate={{ opacity: 1, y: 0 }} transition={CELL}>
                 <div className="flex items-start justify-between gap-1">
                   <Link to={`/teams/${x.team.number}?season=${d.season}`} className="min-w-0 hover:underline">
@@ -251,29 +251,29 @@ function StatsTable({ d, onRemove }: { d: CompareView; onRemove: (n: number) => 
                   <Button variant="ghost" size="icon-sm" className="-mr-1.5 -mt-1 shrink-0 max-sm:size-10" aria-label={`Remove ${x.team.number}`} onClick={() => onRemove(x.team.number)}><X /></Button>
                 </div>
                 {!x.stats && <span className="mt-1 block text-xs text-muted-foreground">No results this season</span>}
-              </motion.th>
+              </m.th>
             ))}
           </tr>
         </thead>
         <tbody>
-          {METRICS.map((m, row) => {
-            const best = leaders(m, t);
+          {METRICS.map((metric, row) => {
+            const best = leaders(metric, t);
             return (
-              <motion.tr key={m.label} className="border-t border-border" initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ ...CELL, delay: 0.05 + row * 0.03 }}>
-                <th scope="row" className="px-3 py-2 text-left font-normal text-muted-foreground">{m.label}</th>
+              <m.tr key={metric.label} className="border-t border-border" initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ ...CELL, delay: 0.05 + row * 0.03 }}>
+                <th scope="row" className="px-3 py-2 text-left font-normal text-muted-foreground">{metric.label}</th>
                 {t.map((x) => {
                   const lead = best.has(x.team.number);
-                  const sub = m.sub?.(x);
+                  const sub = metric.sub?.(x);
                   return (
-                    <motion.td key={x.team.number} className={cn("border-l border-border px-3 py-2 tabular-nums transition-colors duration-300", lead && "bg-accent/[0.08]")}
+                    <m.td key={x.team.number} className={cn("border-l border-border px-3 py-2 tabular-nums transition-colors duration-300", lead && "bg-accent/[0.08]")}
                       initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={CELL}>
-                      <span className={cn("whitespace-nowrap font-medium", lead && "text-accent-text")}>{m.show(x)}</span>
+                      <span className={cn("whitespace-nowrap font-medium", lead && "text-accent-text")}>{metric.show(x)}</span>
                       {lead && <span className="sr-only"> (best)</span>}
                       {sub && <span className="whitespace-nowrap text-xs text-muted-foreground max-sm:block sm:ml-1.5">{sub}</span>}
-                    </motion.td>
+                    </m.td>
                   );
                 })}
-              </motion.tr>
+              </m.tr>
             );
           })}
         </tbody>

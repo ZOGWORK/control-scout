@@ -2,7 +2,7 @@
 // active-section indicator and a reading-progress line. The page scrolls the
 // document (src/lib/pageScroll.ts), so that's what we observe.
 import { useEffect, useRef, useState, type MouseEvent } from "react";
-import { motion } from "motion/react";
+import { m } from "motion/react";
 import { cn } from "../cn";
 import { useReduced } from "./ui";
 import { pageScroller, pageTop, scrollToElement } from "../../lib/pageScroll";
@@ -100,7 +100,7 @@ export function SectionNav() {
                 key={s.id} href={`#${s.id}`} data-id={s.id} onClick={(e) => go(e, s.id)} aria-current={on ? "location" : undefined}
                 className={cn("relative shrink-0 rounded-lg px-3 py-2 font-display text-[13px] font-semibold transition-colors", on ? "text-accent-ink" : "text-muted-foreground hover:text-foreground")}
               >
-                {on && <motion.span layoutId="hiw-toc" aria-hidden className="absolute inset-0 rounded-lg bg-accent" transition={{ type: "spring", stiffness: 380, damping: 30 }} />}
+                {on && <m.span layoutId="hiw-toc" aria-hidden className="absolute inset-0 rounded-lg bg-accent" transition={{ type: "spring", stiffness: 380, damping: 30 }} />}
                 <span className="relative">{s.label}</span>
               </a>
             );

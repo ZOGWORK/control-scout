@@ -3,11 +3,11 @@
 // WOFF2 files (the SVG renderer reads TrueType, not WOFF2). Made once with
 // fontTools:
 //   from fontTools.ttLib import TTFont; from fontTools.varLib import instancer
-//   f = instancer.instantiateVariableFont(TTFont("public/fonts/Inter-700.woff2"), {"wght": 700}, updateFontNames=False)
+//   f = instancer.instantiateVariableFont(TTFont("public/fonts/Inter.woff2"), {"wght": 700}, updateFontNames=False)
 //   (name table: family "Inter" / "Space Grotesk", the typographic names 16–17 removed, so the
 //   renderer finds them by family and weight)
 //   f.flavor = None; f.save("server/share/fonts/Inter-700.ttf")
-// (likewise SpaceGrotesk-700 at 700 and Inter-500 at 500). The fonts carry
+// (likewise public/fonts/SpaceGrotesk.woff2 at 700 and Inter.woff2 at 500). The fonts carry
 // the site's Latin subset, so text is measured here (to fit or cut a line
 // before drawing it) and anything they can't draw is dropped (glyphs()).
 import { readFileSync } from "node:fs";
