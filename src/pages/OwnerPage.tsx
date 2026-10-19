@@ -584,7 +584,8 @@ function Reliability({ bins }: { bins: PredictionHealth["reliability"] }) {
   return (
     <div className="rounded-xl border border-border bg-card p-3 sm:p-4">
       <div className="relative mx-auto max-w-[360px]" ref={box}>
-        <svg viewBox={`0 0 ${S} ${S}`} className="h-auto w-full" role="img" aria-label="Calibration: predicted chance of a red win against how often red won, per probability bin.">
+        {/* A group, not an img: its bins are focusable images, and an img's children are hidden from screen readers. */}
+        <svg viewBox={`0 0 ${S} ${S}`} className="h-auto w-full" role="group" aria-label="Calibration: predicted chance of a red win against how often red won, per probability bin.">
           {[0, 0.25, 0.5, 0.75, 1].map((t) => (
             <g key={t}>
               <line x1={x(t)} x2={x(t)} y1={y(0)} y2={y(1)} className="stroke-border" />

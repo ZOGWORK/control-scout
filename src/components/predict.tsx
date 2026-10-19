@@ -53,10 +53,13 @@ export function TierMark({ tier, className, chip }: { tier: ConfidenceTier; clas
 }
 
 /** Red vs blue win probability bar. */
-export function WinBar({ pRed, className, size = "md" }: { pRed: number; className?: string; size?: "sm" | "md" }) {
+/** `decorative`: the odds are already in words beside it (e.g. inside a button), so the bar stays out of the
+ *  accessibility tree instead of saying them twice. */
+export function WinBar({ pRed, className, size = "md", decorative }: { pRed: number; className?: string; size?: "sm" | "md"; decorative?: boolean }) {
   const r = Math.max(0.02, Math.min(0.98, pRed));
   return (
-    <div className={cn("flex w-full overflow-hidden rounded-full bg-muted", size === "sm" ? "h-1.5" : "h-2.5", className)} role="img" aria-label={`Red ${oddsPct(pRed)} to win, blue ${oddsPct(1 - pRed)}`}>
+    <div className={cn("flex w-full overflow-hidden rounded-full bg-muted", size === "sm" ? "h-1.5" : "h-2.5", className)}
+      {...(decorative ? { "aria-hidden": true } : { role: "img", "aria-label": `Red ${oddsPct(pRed)} to win, blue ${oddsPct(1 - pRed)}` })}>
       <div className="h-full bg-red-alliance transition-[width] duration-500" style={{ width: `${r * 100}%` }} />
       <div className="h-full flex-1 bg-blue-alliance" />
     </div>
@@ -106,7 +109,7 @@ function TeamChip({ n, season, highlight, sub }: { n: number; season: number; hi
   const me = n === highlight;
   return (
     <Link to={`/teams/${n}?season=${season}`} title={sub ? `${n} (surrogate or didn't play)` : undefined}
-      className={cn("tabular rounded-md px-1.5 py-0.5 font-mono text-[13px] still-hover:underline", me ? "bg-accent/15 font-bold text-accent ring-1 ring-accent/60" : "text-text-base", sub && "opacity-55")}>
+      className={cn("tabular rounded-md px-1.5 py-0.5 font-mono text-[13px] still-hover:underline", me ? "bg-accent/15 font-bold text-accent-text ring-1 ring-accent/60" : "text-text-base", sub && "opacity-55")}>
       {n}{sub && <span className="sr-only"> (surrogate)</span>}
     </Link>
   );
@@ -127,6 +130,13 @@ function useChangeCount<T>(value: T): number {
   return n;
 }
 
+/** The loser's score (and a predicted one) fades back: the alliance colour mixed toward muted text rather than
+ *  made transparent, so it still reads at 4.5:1 on the box in both themes. */
+const FADED: Record<Side, string> = {
+  red: "text-[color-mix(in_srgb,var(--color-red-alliance)_55%,var(--color-text-muted))]",
+  blue: "text-[color-mix(in_srgb,var(--color-blue-alliance)_55%,var(--color-text-muted))]",
+};
+
 /** One alliance: its teams and score in one tinted box. The winner's box is stronger; the loser's fades back. */
 function AllianceBox({ side, m, score, forecast, outcome, highlight }: {
   side: Side; m: MatchView; score: number | null; forecast: number | null; outcome: "win" | "loss" | "tie" | null; highlight?: number;
@@ -144,11 +154,11 @@ function AllianceBox({ side, m, score, forecast, outcome, highlight }: {
         {a.teams.map((t) => <TeamChip key={t.number} n={t.number} season={m.season} highlight={highlight} sub={t.surrogate || !t.onField} />)}
       </div>
       {score != null ? (
-        <span key={flash} className={cn("shrink-0 font-display text-lg font-bold tabular-nums", flash > 0 && "cs-score-flash -mx-1 px-1", side === "red" ? "text-red-alliance" : "text-blue-alliance", outcome === "loss" && "opacity-45")}>
+        <span key={flash} className={cn("shrink-0 font-display text-lg font-bold tabular-nums", flash > 0 && "cs-score-flash -mx-1 px-1", outcome === "loss" ? FADED[side] : side === "red" ? "text-red-alliance" : "text-blue-alliance")}>
           {score}{outcome === "win" && <span className="sr-only"> (won)</span>}
         </span>
       ) : forecast != null ? (
-        <span className={cn("shrink-0 font-display text-base font-semibold tabular-nums opacity-60", side === "red" ? "text-red-alliance" : "text-blue-alliance")} title="Predicted score">~{forecast}</span>
+        <span className={cn("shrink-0 font-display text-base font-semibold tabular-nums", FADED[side])} title="Predicted score">~{forecast}</span>
       ) : null}
     </div>
   );
@@ -220,11 +230,12 @@ export function MatchRow({ m, highlight, showEvent, eventName, open, onToggle, o
         {p && fav ? (
           <Tooltip>
             <TooltipTrigger asChild>
-              <button type="button" className="flex items-center gap-1.5 whitespace-nowrap rounded-md text-xs outline-none focus-visible:ring-2 focus-visible:ring-ring/60" aria-label={`Predicted ${fav} ${oddsPct(fav === "red" ? p.pRed : 1 - p.pRed)}`}>
-                {/* Under 20rem of row the word goes (the button's aria-label still says "Predicted …"): the label needs the room. */}
-                <span className="text-text-muted @max-xs:hidden">Picked</span>
+              <button type="button" className="flex items-center gap-1.5 whitespace-nowrap rounded-md text-xs outline-none focus-visible:ring-2 focus-visible:ring-ring/60">
+                {/* The name is the text ("Picked Red 58%"). Under 20rem of row the word is only for screen readers: the
+                    label needs the room. The bar repeats the number, so it's hidden from them here. */}
+                <span className="text-text-muted @max-xs:sr-only">Picked</span>{" "}
                 <span className={cn("font-semibold tabular-nums", fav === "red" ? "text-red-alliance" : "text-blue-alliance")}>{fav === "red" ? "Red" : "Blue"} {oddsPct(fav === "red" ? p.pRed : 1 - p.pRed)}</span>
-                <WinBar pRed={p.pRed} size="sm" className="w-12 shrink-0" />
+                <WinBar pRed={p.pRed} size="sm" className="w-12 shrink-0" decorative />
               </button>
             </TooltipTrigger>
             <TooltipContent className="max-w-72">
@@ -253,7 +264,7 @@ export function MatchRow({ m, highlight, showEvent, eventName, open, onToggle, o
               </span>
             )}
             {m.video && <a href={m.video} target="_blank" rel="noreferrer noopener" className={cn(STATUS_CHIP, "still-hover:text-text-base")} aria-label="Official match video"><PlayCircle className="size-3.5" /></a>}
-            {videos > 0 && <span className={cn(STATUS_CHIP, "text-accent")} title={`${videos} saved video link${videos > 1 ? "s" : ""}`}><Video className="size-3.5" /><span className="text-[10px]">{videos}</span></span>}
+            {videos > 0 && <span className={cn(STATUS_CHIP, "text-accent-text")} title={`${videos} saved video link${videos > 1 ? "s" : ""}`}><Video className="size-3.5" /><span className="text-[10px]">{videos}</span></span>}
           </div>
         )}
       </div>
@@ -328,7 +339,7 @@ export function MatchList({ matches, highlight, empty, eventNames, eventDates, i
     <div ref={box} className="space-y-2">
       {rec && rec.played > 0 && (
         <p className="text-sm text-text-muted">
-          <span className="font-semibold text-accent">{highlight}</span> in these matches: <span className={cn("font-semibold", rec.w ? "text-success" : "text-text-muted")}>{rec.w} won</span> · <span className={cn("font-semibold", rec.l ? "text-destructive" : "text-text-muted")}>{rec.l} lost</span>{rec.t > 0 && <> · {rec.t} tied</>}{rec.upcoming > 0 && <> · {rec.upcoming} to play</>}
+          <span className="font-semibold text-accent-text">{highlight}</span> in these matches: <span className={cn("font-semibold", rec.w ? "text-success" : "text-text-muted")}>{rec.w} won</span> · <span className={cn("font-semibold", rec.l ? "text-destructive" : "text-text-muted")}>{rec.l} lost</span>{rec.t > 0 && <> · {rec.t} tied</>}{rec.upcoming > 0 && <> · {rec.upcoming} to play</>}
         </p>
       )}
       <div className="overflow-hidden rounded-xl border border-border bg-card">

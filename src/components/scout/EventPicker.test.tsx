@@ -51,6 +51,25 @@ describe("EventPicker", () => {
     expect(screen.getByText("Big Apple Qualifier")).toBeTruthy();
   });
 
+  it("announces how many events the search found, and keeps focus after a pick", async () => {
+    render(<Harness />);
+    const box = screen.getByRole("combobox");
+    box.focus();
+    fireEvent.change(box, { target: { value: "qualifier" } });
+    await settle();
+    expect(screen.getByRole("status").textContent).toBe("3 events found");
+    fireEvent.keyDown(box, { key: "Enter" });
+    // The input is gone (the chosen event shows instead): focus lands on its Change button, not the page.
+    expect(document.activeElement).toBe(screen.getByRole("button", { name: "Change event (Bergen Qualifier)" }));
+  });
+
+  it("announces a search that found nothing", async () => {
+    render(<Harness />);
+    fireEvent.change(screen.getByRole("combobox"), { target: { value: "nowhere" } });
+    await settle();
+    expect(screen.getByRole("status").textContent).toBe("No events found");
+  });
+
   it("puts names that start with the text first, and picks with the pointer", async () => {
     render(<Harness />);
     fireEvent.change(screen.getByRole("combobox"), { target: { value: "spring" } });
@@ -73,7 +92,7 @@ describe("EventPicker", () => {
     render(<Harness start="USNJBRQ" />);
     await act(async () => { await Promise.resolve(); await Promise.resolve(); });
     expect(screen.getByText("Bergen Qualifier")).toBeTruthy();
-    fireEvent.click(screen.getByRole("button", { name: "Change event" }));
+    fireEvent.click(screen.getByRole("button", { name: "Change event (Bergen Qualifier)" }));
     expect(value).toBe("");
     expect(screen.getByRole("combobox")).toBeTruthy();
   });

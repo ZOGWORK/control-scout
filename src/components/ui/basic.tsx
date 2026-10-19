@@ -76,14 +76,14 @@ export const badgeVariants = cva(
     variants: {
       variant: {
         default: 'border-transparent bg-accent text-accent-ink',
-        soft: 'border-accent/30 bg-accent/15 text-accent',
+        soft: 'border-accent/30 bg-accent/15 text-accent-text',
         secondary: 'border-line bg-text-base/[0.06] text-text-muted',
         outline: 'border-text-base/20 text-text-muted',
-        beta: 'border-sky-400/50 bg-sky-500/15 text-sky-500',
+        beta: 'border-info/50 bg-info/15 text-info',
         info: 'border-info/30 bg-info/[0.08] text-info',
         new: 'border-transparent bg-red-500 text-white',
-        destructive: 'border-rose-500/30 bg-rose-500/15 text-rose-500',
-        success: 'border-emerald-500/30 bg-emerald-500/15 text-emerald-500',
+        destructive: 'border-danger/30 bg-danger/15 text-danger',
+        success: 'border-success/30 bg-success/15 text-success',
       },
     },
     defaultVariants: { variant: 'default' },

@@ -38,7 +38,7 @@ export const FAQ: FaqGroup[] = [
         "Results and stats go back to 2019–20; predictions cover 2023–24 onward. See [where the data comes from](/methodology#data).",
       ] },
       { id: "fresh", q: "How up to date is it?", a: [
-        "The current season syncs every day, and more often on event days. While an event is on, results reach the site within about a minute of FIRST publishing them, and an event's page refreshes on its own. Past seasons are frozen once they're complete.",
+        "The current season syncs every day, and every 15 minutes on event days. While an event is on, results reach the site within about a minute of FIRST publishing them, and an event's page refreshes on its own. Past seasons are frozen once they're complete.",
       ] },
       { id: "wrong", q: "A score or result looks wrong. What do I do?", a: [
         "Scores come from FIRST. If a result is wrong there too, the event's scorekeeper or FIRST fixes it at the source and Control Scout picks the fix up on its next sync.",

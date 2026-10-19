@@ -136,7 +136,8 @@ describe("Scout feed filters (workspace)", () => {
     const url = exportHref();
     expect(url.pathname).toBe("/api/scout/workspaces/901/export.csv");
     expect(Object.fromEntries(url.searchParams)).toEqual({ season: "2025", team: "111", event: "USCAQ1", kind: "match", author: "9001", match: "Q10", q: "fast" });
-    expect(screen.getByRole("link", { name: /CSV/ }).getAttribute("aria-label")).toBe("Export the 1 filtered 2025 entries as CSV");
+    // The name starts with the visible words (speech input users say what they see), then what's in the file.
+    expect(screen.getByRole("link", { name: /CSV/ }).textContent?.trim()).toBe("Export CSV (the 1 filtered 2025 entries)");
   });
 
   it("a filter the export would refuse is dropped from the URL, so the feed and the export agree", async () => {

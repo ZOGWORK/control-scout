@@ -6,7 +6,7 @@ import { useTitle } from "../lib/meta";
 import { PageHeader } from "../components/page";
 import { Ext, In, LegalSections, ShortVersion, type LegalSectionDef } from "../components/legal";
 
-export const PRIVACY_UPDATED = "15 October 2026";
+export const PRIVACY_UPDATED = "18 October 2026";
 
 const COOKIES: { name: string; what: string; lasts: string }[] = [
   { name: "cs_session", what: "Keeps you signed in. Set only when you sign in; scripts on the page can't read it.", lasts: "30 days, or until you sign out" },
@@ -115,7 +115,7 @@ const SECTIONS: LegalSectionDef[] = [
   },
   {
     id: "hosting", title: "Where data is kept", body: (
-      <p>Control Scout runs on a server we manage at Oracle Cloud, with a backup copy on Render. Data travels over HTTPS. The services that help us run the site (hosting, and Resend for sign-in emails) handle data only to provide that service.</p>
+      <p>Control Scout runs on a server we manage at Oracle Cloud. Data travels over HTTPS. The services that help us run the site (hosting, and Resend for sign-in emails) handle data only to provide that service.</p>
     ),
   },
   {
