@@ -28,23 +28,24 @@ function Kicker({ children, id }: { children: React.ReactNode; id?: string }) {
 export function SeasonCoverage({ state }: { state: ApiState<HomeOverview> }) {
   const o = state.data;
   const items = [
-    { n: o?.coverage.teamListings, label: "team listings this season", hint: "Teams registered for the season, each counted once" },
-    { n: o?.coverage.events, label: "events on the calendar", hint: "Competition events listed for the season (kickoffs and workshops left out)" },
-    { n: o?.coverage.matchScores, label: "match scores recorded", hint: "Matches with a published score this season" },
+    { n: o?.coverage.teamListings, label: "team listings this season", hint: "Teams registered for the season, each counted once", tone: "text-accent-text" },
+    { n: o?.coverage.events, label: "events on the calendar", hint: "Competition events listed for the season (kickoffs and workshops left out)", tone: "text-info" },
+    { n: o?.coverage.matchScores, label: "match scores recorded", hint: "Matches with a published score this season", tone: "text-success" },
   ];
   return (
-    <section aria-label={o ? `${seasonLabel(o.season)} season coverage` : "Season coverage"} className="border-y border-line py-4">
+    // Sized by its own width: on a wide screen it sits under the hero's search, half the page wide.
+    <section aria-label={o ? `${seasonLabel(o.season)} season coverage` : "Season coverage"} className="@container/strip border-y border-line py-4">
       {state.error && !o ? (
         <p className="flex flex-wrap items-center gap-3 text-sm text-text-muted">Season totals couldn’t load. <Button variant="secondary" size="sm" onClick={state.reload}><RefreshCw /> Try again</Button></p>
       ) : (
         <>
-          <dl className="grid grid-cols-3 gap-3 @2xl/home:gap-6">
+          <dl className="grid grid-cols-3 gap-3 @md/strip:gap-5">
             {items.map((x, i) => (
-              <div key={x.label} className={cn("min-w-0", i > 0 && "border-l border-line pl-3 @2xl/home:pl-6")} title={x.hint}>
+              <div key={x.label} className={cn("min-w-0", i > 0 && "border-l border-line pl-3 @md/strip:pl-5")} title={x.hint}>
                 <dt className="sr-only">{x.label}</dt>
-                <dd className="flex flex-col gap-x-3 @2xl/home:flex-row @2xl/home:items-baseline">
-                  <span className="font-display text-2xl font-semibold tabular-nums @2xl/home:text-3xl">{x.n == null ? <span className="text-text-muted">—</span> : fmt(x.n)}</span>
-                  <span aria-hidden className="text-xs leading-snug text-text-muted @2xl/home:text-sm">{x.label}</span>
+                <dd className="flex flex-col gap-x-3 @3xl/strip:flex-row @3xl/strip:items-baseline">
+                  <span className={cn("font-display text-2xl font-semibold tabular-nums @md/strip:text-3xl", x.tone)}>{x.n == null ? <span className="text-text-muted">—</span> : fmt(x.n)}</span>
+                  <span aria-hidden className="text-xs leading-snug text-text-muted @md/strip:text-sm">{x.label}</span>
                 </dd>
               </div>
             ))}
