@@ -139,6 +139,13 @@ describe("Events page on a phone", () => {
     expect(new URLSearchParams(loc).get("region")).toBeNull();
     fireEvent.click(screen.getByRole("button", { name: "Remove filter: Text: austin" }));
     expect(new URLSearchParams(loc).get("q")).toBeNull();
+    // Each chip's removal is a step Back undoes, the text one included.
+    act(() => nav(-1));
+    expect(new URLSearchParams(loc).get("q")).toBe("austin");
+    expect(new URLSearchParams(loc).get("region")).toBeNull(); // one step: the place stays off
+    expect(screen.getByRole("button", { name: "Remove filter: Text: austin" })).toBeTruthy();
+    act(() => nav(1));
+    expect(new URLSearchParams(loc).get("q")).toBeNull();
     fireEvent.click(filtersButton());
     expect(((await screen.findByLabelText("Filter events")) as HTMLInputElement).value).toBe("");
   });
