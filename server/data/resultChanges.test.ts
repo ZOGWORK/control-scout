@@ -8,7 +8,7 @@ import { all, get, migrate, openDb, run, setDb } from "../db";
 import { createApp } from "../app";
 import { CURRENT_SEASON, resultFieldLabels, type ScoreSplit } from "./seasons";
 import type { EventBundle, MatchRow, MatchTeam } from "./bundle";
-import { RESULT_CHANGES_PER_EVENT, diffMatches, readStored, writeEventBundle } from "./resultChanges";
+import { RESULT_CHANGES_PER_EVENT, diffMatches, readStored, resultChangesIo, writeEventBundle } from "./resultChanges";
 import type { ResultChangesView } from "../../src/shared/api";
 import { syncEvent } from "../sync";
 
@@ -48,7 +48,7 @@ describe("migration", () => {
   it("adds the change table, the watch table and the scheduled field", async () => {
     const cols = async (t: string) => (await all<any>(`PRAGMA table_info(${t})`)).map((r) => r.name);
     expect(await cols("result_changes")).toEqual(expect.arrayContaining(["season", "code", "level", "series", "number", "label", "kind", "fields", "before", "after", "source", "prev_source", "checked_at", "diff_key"]));
-    expect(await cols("result_watch")).toEqual(["season", "code", "since", "pruned"]);
+    expect(await cols("result_watch")).toEqual(["season", "code", "since", "pruned", "missing"]);
     expect(await cols("matches")).toContain("field");
     expect(await get("SELECT name FROM schema_version WHERE name = 'official result changes'")).toBeTruthy();
     // Applying again changes nothing.
@@ -152,6 +152,50 @@ describe("recording changes", () => {
     await writeEventBundle(bundle([m(1)]));
     const rows = await changes();
     expect(rows.map((r) => [r.kind, r.number, JSON.parse(r.fields), r.after])).toEqual([["revised", 1, ["result"], null]]);
+  });
+
+  it("compares a match a feed left out with what it was when it comes back", async () => {
+    await writeEventBundle(bundle([m(1, { r: 100, b: 90 }), m(2, { r: 60, b: 50 }), m(3, { r: 40, b: 45 })]));
+    // A fallback feed lists Q1 only: Q2 and Q3 leave the matches table but not the comparison.
+    await writeEventBundle(bundle([m(1, { r: 100, b: 90 })], "ftc-scout"));
+    expect(await all("SELECT number FROM matches WHERE code = 'EV' ORDER BY number")).toEqual([{ number: 1 }]);
+    expect(Object.keys(JSON.parse((await get<any>("SELECT missing FROM result_watch WHERE code = 'EV'"))!.missing))).toEqual(["qual:0:2", "qual:0:3"]);
+    // FIRST lists them again: Q2 unchanged (nothing recorded, not "posted" again), Q3 corrected.
+    await writeEventBundle(bundle([m(1, { r: 100, b: 90 }), m(2, { r: 60, b: 50 }), m(3, { r: 40, b: 47 })]));
+    const rows = await changes();
+    expect(rows.map((r) => [r.kind, r.number, JSON.parse(r.fields)])).toEqual([["revised", 3, ["blue.total", "blue.np", "blue.teleop"]]]);
+    expect([JSON.parse(rows[0].before).blue.total, JSON.parse(rows[0].after).blue.total]).toEqual([45, 47]);
+    expect((await get<any>("SELECT missing FROM result_watch WHERE code = 'EV'"))!.missing).toBe("{}");
+  });
+
+  it("reads and diffs again when another writer stores the event in between, so no change is lost", async () => {
+    await writeEventBundle(bundle([m(1, { r: 100, b: 90 })]), { now: "2026-11-07T15:00:00.000Z" });
+    // Between this write's read and its batch, another writer (say `npm run sync`, which holds no lease) stores 105.
+    let once = true;
+    resultChangesIo.afterRead = async () => {
+      if (!once) return;
+      once = false;
+      await new Promise((r) => setTimeout(r, 5)); // a later detail_synced_at
+      await writeEventBundle(bundle([m(1, { r: 105, b: 90 })]), { now: "2026-11-07T15:01:00.000Z" });
+    };
+    try {
+      await writeEventBundle(bundle([m(1, { r: 110, b: 90 })]), { now: "2026-11-07T15:02:00.000Z" });
+    } finally { resultChangesIo.afterRead = async () => {}; }
+    expect((await changes()).map((r) => [JSON.parse(r.before).red.total, JSON.parse(r.after).red.total])).toEqual([[100, 105], [105, 110]]);
+    expect((await get<any>("SELECT red_total FROM matches WHERE code = 'EV'"))!.red_total).toBe(110);
+    expect(await all("SELECT code FROM result_watch")).toEqual([{ code: "EV" }]);
+  });
+
+  it("gives up after its retries rather than saving a bundle without its changes", async () => {
+    await writeEventBundle(bundle([m(1, { r: 100, b: 90 })]));
+    let n = 0;
+    resultChangesIo.afterRead = async () => { n++; await new Promise((r) => setTimeout(r, 2)); await run("UPDATE events SET detail_synced_at = ? WHERE code = 'EV'", [`x${n}`]); };
+    try {
+      await expect(writeEventBundle(bundle([m(1, { r: 120, b: 90 })]), { attempts: 2 })).rejects.toThrow(/UNIQUE constraint failed: result_watch/);
+    } finally { resultChangesIo.afterRead = async () => {}; }
+    expect(n).toBe(2);
+    expect((await get<any>("SELECT red_total FROM matches WHERE code = 'EV'"))!.red_total).toBe(100);
+    expect(await changes()).toEqual([]);
   });
 
   it("keeps the newest changes per event and counts what it drops", async () => {

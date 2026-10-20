@@ -9,8 +9,10 @@
 //   schedule — an unplayed match's time or field moved, or a lineup changed
 // A repeated poll of the same data compares equal and adds nothing. Each row
 // also carries a diff key (match + kind + the match's previous change + the
-// new value, UNIQUE) as a second guard, and the batch only records changes
-// while the event is still as it was read (see writeEventBundle).
+// new value, UNIQUE) as a second guard, and the batch fails as a whole (then
+// reads and diffs again) if another writer stored the event in between (see
+// writeEventBundle). Matches a write leaves out are remembered as they were
+// (result_watch.missing), so one that comes back is compared, not re-posted.
 //
 // The first detail write of an event after this shipped is its baseline
 // (result_watch.since): earlier history was never tracked and isn't invented.
@@ -162,29 +164,63 @@ export async function readStored(season: number, code: string): Promise<StoredMa
 
 const sha = (s: string) => createHash("sha1").update(s).digest("hex");
 
+/** Left-out matches remembered per event (an event has up to ~150; more is a feed listing almost nothing). */
+export const MISSING_KEPT = 300;
+
+/** The guard's failure: another writer stored this event between this write's read and its batch. */
+const isStale = (e: unknown) => /UNIQUE constraint failed: result_watch/.test(String((e as Error)?.message ?? e));
+
+/** Test seam: runs between the read and the write (to stand in for another writer). */
+export const resultChangesIo = { afterRead: async (): Promise<void> => {} };
+
 /**
  * Write one event bundle and record what changed in its results, atomically
- * (one batch = one transaction). The stored rows are read just before; every
- * change row is guarded by the event's detail_synced_at as read, checked
- * inside the batch before the event row is rewritten, so if another writer
- * stored this event in between (the writer lease normally rules that out)
- * this write records nothing rather than a diff against stale rows.
- * Event-list-only bundles (no detail) write exactly as before.
+ * (one batch = one transaction). The stored rows are read just before
+ * writing; the batch opens with a guard that fails it as a whole when the
+ * event's detail_synced_at is no longer the one read (another writer stored
+ * this event in between: the writer lease normally rules that out, but
+ * `npm run sync` doesn't hold it), and then it reads and diffs again, so a
+ * bundle is never saved without its changes. Event-list-only bundles (no
+ * detail) write exactly as before.
  */
-export async function writeEventBundle(b: EventBundle, o: { now?: string } = {}): Promise<{ changes: number }> {
+export async function writeEventBundle(b: EventBundle, o: { now?: string; attempts?: number } = {}): Promise<{ changes: number }> {
   if (!b.detail) { await writeBatch(bundleStatements(b)); return { changes: 0 }; }
+  const attempts = o.attempts ?? 3;
+  for (let i = 1; ; i++) {
+    try { return await writeOnce(b, o.now ?? new Date().toISOString()); }
+    catch (e) { if (!isStale(e) || i >= attempts) throw e; }
+  }
+}
+
+async function writeOnce(b: EventBundle, at: string): Promise<{ changes: number }> {
   const { season, code, source } = b.event;
-  const at = o.now ?? new Date().toISOString();
+  const matches = b.detail!.matches;
   const k = [season, code];
-  const watch = await get<{ since: string }>("SELECT since FROM result_watch WHERE season = ? AND code = ?", k);
+  const watch = await get<{ since: string; missing: string }>("SELECT since, missing FROM result_watch WHERE season = ? AND code = ?", k);
   if (!watch) {
     // Baseline: this write is the first one watched; nothing before it is known.
     await writeBatch([...bundleStatements(b), { sql: "INSERT OR IGNORE INTO result_watch (season, code, since) VALUES (?, ?, ?)", args: [...k, at] }]);
     return { changes: 0 };
   }
   const token = (await get<{ t: string | null }>("SELECT detail_synced_at t FROM events WHERE season = ? AND code = ?", k))?.t ?? null;
-  const changes = diffMatches(await readStored(season, code), b.detail.matches, source, true);
-  const stmts: InStatement[] = [];
+  const stored = await readStored(season, code);
+  // Matches an earlier write left out still count as stored: one that comes back is compared with what it was.
+  let missing: Record<string, StoredMatch> = {};
+  try { missing = JSON.parse(watch.missing || "{}"); } catch { missing = {}; }
+  const storedKeys = new Set(stored.map((m) => matchKey(m)));
+  const base = [...stored, ...Object.entries(missing).filter(([key]) => !storedKeys.has(key)).map(([, m]) => m)];
+  const changes = diffMatches(base, matches, source, true);
+  const incomingKeys = new Set(matches.map((m) => matchKey(m)));
+  const nextMissing = JSON.stringify(Object.fromEntries(base.filter((m) => !incomingKeys.has(matchKey(m))).slice(0, MISSING_KEPT).map((m) => [matchKey(m), m])));
+  await resultChangesIo.afterRead();
+  // The guard: a second watch row for this event (a primary-key failure, so the whole batch rolls back)
+  // unless the event is still as it was read.
+  const stmts: InStatement[] = [{
+    sql: `INSERT INTO result_watch (season, code, since) SELECT ?, ?, ?
+          WHERE NOT EXISTS (SELECT 1 FROM events WHERE season = ? AND code = ? AND detail_synced_at IS ?)`,
+    args: [...k, at, ...k, token],
+  }];
+  if (nextMissing !== (watch.missing || "{}")) stmts.push({ sql: "UPDATE result_watch SET missing = ? WHERE season = ? AND code = ?", args: [nextMissing, ...k] });
   if (changes.length) {
     // Each match's latest change of each kind is part of the diff key: the same value coming back later
     // (A → B → A) is a new change, a replay of one write is not.
@@ -197,9 +233,8 @@ export async function writeEventBundle(b: EventBundle, o: { now?: string } = {})
       const key = sha([season, code, c.level, c.series, c.number, c.kind, last.get(`${c.level}:${c.series}:${c.number}:${c.kind}`) ?? 0, after ?? "-"].join("|"));
       stmts.push({
         sql: `INSERT OR IGNORE INTO result_changes (season, code, level, series, number, label, kind, fields, before, after, source, prev_source, checked_at, diff_key)
-              SELECT ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
-              WHERE EXISTS (SELECT 1 FROM events WHERE season = ? AND code = ? AND detail_synced_at IS ?)`,
-        args: [...k, c.level, c.series, c.number, c.label, c.kind, JSON.stringify(c.fields), c.before ? JSON.stringify(c.before) : null, after, source, c.prevSource, at, key, ...k, token],
+              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        args: [...k, c.level, c.series, c.number, c.label, c.kind, JSON.stringify(c.fields), c.before ? JSON.stringify(c.before) : null, after, source, c.prevSource, at, key],
       });
     }
     // Retention: the newest RESULT_CHANGES_PER_EVENT stay; the rest are counted, then dropped.
