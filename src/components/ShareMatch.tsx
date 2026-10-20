@@ -4,7 +4,8 @@
 // plus the link, which unfurls into the same picture in Discord and the like.
 import { useEffect, useState } from "react";
 import { Download, Link2, Share2 } from "lucide-react";
-import { shareHeadline, shareImagePath, type ShareCardQuery } from "../shared/share";
+import type { ConfidenceTier } from "../shared/api";
+import { shareHeadline, shareImagePath, tierWords, type ShareCardQuery } from "../shared/share";
 import { canShareFiles, cardFile, downloadFile, shareCard, shareUrl } from "../lib/shareCard";
 import { copyLink } from "../lib/clipboard";
 import { Button } from "./ui/button";
@@ -15,10 +16,12 @@ import { cn } from "./cn";
 
 type Format = "landscape" | "square";
 
-export function ShareMatch({ query, pRed, pBlue, played, className }: {
+export function ShareMatch({ query, pRed, pBlue, tier, played, className }: {
   query: Omit<ShareCardQuery, "format">;
   pRed: number;
   pBlue?: number;
+  /** The call's confidence tier: said in the shared text and the preview's alt, as the picture shows it. */
+  tier: ConfidenceTier;
   played?: boolean;
   className?: string;
 }) {
@@ -30,7 +33,7 @@ export function ShareMatch({ query, pRed, pBlue, played, className }: {
   const [preview, setPreview] = useState<{ path: string; file: File; url: string } | null>(null);
   const [failed, setFailed] = useState<string | null>(null);
   const q: ShareCardQuery = { ...query, format };
-  const text = shareHeadline({ red: query.red, blue: query.blue, pRed, pBlue, played });
+  const text = `${shareHeadline({ red: query.red, blue: query.blue, pRed, pBlue, played })} (${tierWords(tier)})`;
   const sheet = canShareFiles();
   const src = shareImagePath(q);
   // Fetched as soon as the panel opens, so the share sheet opens straight from the tap (Safari needs that).

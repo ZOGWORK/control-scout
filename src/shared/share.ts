@@ -47,6 +47,10 @@ export function shareHeadline(m: ShareMatchup): string {
   return `Our model ${m.played ? "gave" : "gives"} ${allianceText(f.teams)} a ${oddsPct(f.p)} win chance vs ${allianceText(f.other)}`;
 }
 
+/** A confidence tier in words, as the card says it ("high confidence"). */
+const TIER_WORDS: Record<string, string> = { provisional: "provisional confidence", moderate: "moderate confidence", confident: "high confidence" };
+export const tierWords = (t: string): string => TIER_WORDS[t] ?? `${t} confidence`;
+
 export interface ShareCardQuery {
   season: number;
   red: readonly number[];

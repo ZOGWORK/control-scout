@@ -27,6 +27,7 @@ import { pickableStats, StatPicker } from "./StatPicker";
 import { DateRangePicker, EventTypeSelect, RegionPicker, SeasonSelect } from "./Controls";
 import { pageTop } from "../../lib/pageScroll";
 import { PREDICTION_FIELD, SUMMARY_FIELDS } from "../../lib/records/matchOutcome";
+import { PredictionValue } from "./PredictionValue";
 import { LayoutToggle, MatchSummaryList, SummarySort, useLayout, usePhone } from "./MatchSummary";
 
 type Row = TeamEventRecord | TeamSeasonRecord | MatchRecordRow;
@@ -523,7 +524,7 @@ function Table({ data, scope, cols, state, sortBy, code, highlightTeam, selectab
                   return (
                     <td key={k} className={cn("density-row whitespace-nowrap border-l border-text-base/[0.08] px-5 py-3 text-right tabular-nums", d?.type === "text" && "text-left", state.sort === k && "bg-accent/[0.04] font-semibold",
                       tone !== "slate" && v != null && TONE_CLASS[tone].text)}>
-                      {formatStat(d, v)}
+                      {k === PREDICTION_FIELD ? <PredictionValue text={formatStat(d, v)} tier={(r as MatchRecordRow).predictionTier} className="justify-end" /> : formatStat(d, v)}
                     </td>
                   );
                 })}

@@ -57,6 +57,9 @@ describe("MatchReportView", () => {
     show(report(match(), [team(11, { flags: [{ kind: "penalties", label: "High penalties", detail: "x" }] }), team(12), team(13), team(14)]));
     expect(screen.getByText("64%")).toBeTruthy();
     expect(screen.getByText(/Confident/)).toBeTruthy();
+    // Each alliance's chance to win carries the tier too, not only the call card above (audit PUB3-F03 sweep).
+    expect(within(screen.getByRole("region", { name: "Red alliance" })).getByText(/to win/).textContent).toBe("64% to win · ~120 pts confident confidence");
+    expect(within(screen.getByRole("region", { name: "Blue alliance" })).getByText(/to win/).textContent).toBe("36% to win · ~98 pts confident confidence");
     expect(screen.getByText("Red's auto is stronger")).toBeTruthy();
     expect(screen.getByTestId("opr-only")).toBeTruthy();
     const red = screen.getByRole("region", { name: "Red alliance" }), blue = screen.getByRole("region", { name: "Blue alliance" });
