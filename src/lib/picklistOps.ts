@@ -114,6 +114,8 @@ if (typeof window !== "undefined") bus();
 const isObj = (x: unknown): x is Record<string, unknown> => !!x && typeof x === "object" && !Array.isArray(x);
 const optional = (v: unknown, ok: (v: unknown) => boolean) => v === undefined || ok(v);
 const teamOrNull = (v: unknown) => v === null || isTeam(v);
+/** Every position a team number, empty slots of a sparse array included (`every` alone skips them). */
+const allTeams = (a: unknown[]) => Array.from(a).every(isTeam);
 
 /** A well-formed order change (an add, remove, move or copy as the server takes one: every team a team number). */
 export function isOrderOp(x: unknown): x is OrderOp {
@@ -121,13 +123,13 @@ export function isOrderOp(x: unknown): x is OrderOp {
   switch (x.op) {
     case "add": return optional(x.beforeTeam, teamOrNull) && optional(x.restore, (v) => typeof v === "boolean");
     case "move": return optional(x.beforeTeam, teamOrNull) && optional(x.afterTeam, isTeam);
-    case "import": return Array.isArray(x.teams) && new Set(x.teams).size === x.teams.length;
+    case "import": return Array.isArray(x.teams) && allTeams(x.teams) && new Set(x.teams).size === x.teams.length;
     default: return x.op === "remove";
   }
 }
 
 /** An order of teams as the list holds one: team numbers, each once, at most a full list. */
-const isOrder = (x: unknown): x is number[] => Array.isArray(x) && x.length <= MAX_PICKS && x.every(isTeam) && new Set(x).size === x.length;
+const isOrder = (x: unknown): x is number[] => Array.isArray(x) && x.length <= MAX_PICKS && allTeams(x) && new Set(x).size === x.length;
 
 /** A kept change read back whole and well-formed (`now`: a time far in the future is damage, not a clock a little off). */
 export function isKeptPickOp(x: unknown, now = Date.now()): x is KeptPickOp {

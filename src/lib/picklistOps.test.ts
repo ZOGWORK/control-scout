@@ -77,6 +77,8 @@ describe("kept records are checked in full when read (audit V4-PRIVATE-001)", ()
 
   it.each([
     ["a string team", [101, "104"]], ["team 0", [0, 101]], ["a negative team", [101, -5]], ["a fraction", [101, 1.5]], ["null", [101, null]],
+    // eslint-disable-next-line no-sparse-arrays
+    ["an empty slot (a sparse array)", [101, , 104]],
     ["NaN", [101, NaN]], ["an array", [101, [102]]], ["the same team twice", [101, 101]], ["more teams than a list holds", Array.from({ length: 101 }, (_, i) => i + 1)],
   ])("a base order with %s is damaged", async (_what, base) => {
     await raw({ opId: "bad-base-0001", base });
@@ -103,6 +105,8 @@ describe("kept records are checked in full when read (audit V4-PRIVATE-001)", ()
     ["a remove of team 0", { op: "remove", team: 0 }],
     ["a copy with an object in it", { op: "import", teams: [101, { team: 102 }] }],
     ["a copy of nothing", { op: "import", teams: [] }],
+    // eslint-disable-next-line no-sparse-arrays
+    ["a copy with an empty slot (a sparse array)", { op: "import", teams: [101, , 103] }],
     ["a copy naming a team twice", { op: "import", teams: [101, 101] }],
     ["a note (never an order change)", { op: "note", team: 101, note: "x" }],
     ["an unknown kind", { op: "explode", team: 101 }],

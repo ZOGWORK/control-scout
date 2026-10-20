@@ -204,14 +204,17 @@ function failedChanged() {
     ...(f.stored ? {} : { volatile: true }), // not in this device's storage: a reload loses it
   }]).concat([...damagedChanges.values()].map((d): PendingItem => ({
     key: `order-damaged:${d.account}:${d.id}`, account: d.account, kind: "order", workspaceId: d.space ?? "", season: d.season,
-    team: d.op && "team" in d.op ? d.op.team : null, label: damagedLabel(d), status: "attention", message: DAMAGED_MESSAGE,
+    team: d.op && "team" in d.op ? d.op.team : null, label: damagedLabel(d), status: "attention", message: damagedMessage(d), busy: d.busy,
     discard: () => { void discardDamagedChange(d.id); }, discardLabel: "Discard this change",
   }))));
 }
 
 /** A kept record that isn't well-formed (picklistOps.ts): shown so the member can discard it, never sent. */
-export type DamagedChange = DamagedPickOp & { id: number };
+export type DamagedChange = DamagedPickOp & { id: number; /** Its discard is on its way. */ busy?: boolean; /** The last discard couldn't remove it from this device. */ discardFailed?: boolean };
 export const DAMAGED_MESSAGE = "This saved change is damaged and can't be applied. Discard it to clear it: your other changes aren't affected.";
+export const DAMAGED_DISCARD_FAILED = "This device couldn't remove it just now, so it's still saved. Try Discard this change again.";
+/** What a damaged record's row says. */
+export const damagedMessage = (d: DamagedChange) => (d.discardFailed ? `${DAMAGED_MESSAGE} ${DAMAGED_DISCARD_FAILED}` : DAMAGED_MESSAGE);
 /** What a damaged record is called: its change when that part is readable, never a guess. */
 export const damagedLabel = (d: DamagedPickOp) => (d.op ? describeChange(d.op) : "A saved pick-list change");
 const damagedChanges = new Map<number, DamagedChange>();
@@ -230,13 +233,16 @@ function setDamaged(account: number, read: DamagedPickOp[]): boolean {
   }
   return dirty;
 }
-/** Remove one damaged record from this device (that one only). */
+/** Remove one damaged record from this device (that one only). Not removed (storage refused): it stays, and says so. */
 export async function discardDamagedChange(id: number): Promise<void> {
   const d = damagedChanges.get(id);
-  if (!d) return;
-  damagedChanges.delete(id);
+  if (!d || d.busy) return;
+  damagedChanges.set(id, { ...d, busy: true, discardFailed: false });
   failedChanged();
-  await deleteDamagedOp(d);
+  const ok = await deleteDamagedOp(d);
+  if (ok) damagedChanges.delete(id);
+  else if (damagedChanges.has(id)) damagedChanges.set(id, { ...d, busy: false, discardFailed: true });
+  failedChanged();
 }
 /** Every damaged kept record this page knows of (a list filters its own scope). */
 export function useDamagedChanges(): DamagedChange[] {
