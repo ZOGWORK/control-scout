@@ -6,6 +6,7 @@
 // - the open pick list's notes and order changes that need the member (usePickList publishes them);
 // - pick list notes kept on this device for a list that isn't open (picklistDrafts.ts): Retry sends them with
 //   their base, so a teammate's newer note is never replaced;
+// - pick list order changes kept on this device from before this page (picklistOps.ts, via sharedPicklist.ts);
 // - comment attempts not confirmed (commentAttempts.ts);
 // - workspace entries queued on this device whose push didn't go through (scouting.ts).
 // Every source is per account, and only the signed-in account's rows are ever read or shown.
@@ -13,7 +14,7 @@ import { useEffect, useId, useMemo, useRef, useState } from "react";
 import { ChevronDown, CircleAlert, ClipboardList, CloudOff, ListOrdered, Loader2, MessageSquare, RotateCcw, Trash2 } from "lucide-react";
 import { isClaimed, usePendingVersion, usePendingWork, type PendingItem } from "../../lib/pendingWork";
 import { allNoteDrafts, clearNoteDraft, NOTE_DRAFTS_CHANGED } from "../../lib/picklistDrafts";
-import { noteInFlight, sendKeptNote } from "../../lib/sharedPicklist";
+import { loadKeptOrderChanges, noteInFlight, sendKeptNote, setPicklistAccount } from "../../lib/sharedPicklist";
 import { discardQueuedScoutEntry, pullScouting, queuedWorkspaceEntries, SCOUT_CHANGED, scoutSyncProblem, syncScouting } from "../../lib/scouting";
 import { seasonLabel } from "../../lib/format";
 import { loadCommentAttempts } from "../../lib/commentAttempts";
@@ -32,6 +33,9 @@ export function RecoverableChanges({ account, workspaces, className }: { account
   const version = usePendingVersion();
   // Comment attempts kept from before a reload: checked against their threads (once per page), then listed if still needed.
   useEffect(() => { loadCommentAttempts(account); }, [account]);
+  // Pick list order changes kept on the device from before this page: checked with the workspace, then listed if still needed.
+  // Only the signed-in account's are read, and only it may send them.
+  useEffect(() => { setPicklistAccount(account ?? null); void loadKeptOrderChanges(account); }, [account]);
   // Re-read the device's kept notes and queued entries when they change (here or in another tab).
   const [tick, setTick] = useState(0);
   useEffect(() => {
@@ -90,7 +94,9 @@ export function RecoverableChanges({ account, workspaces, className }: { account
     });
   }, [account, tick]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const rows: Row[] = [...published, ...kept, ...entries]
+  // Order changes of a pick list open on this page are in that list's own notice (KeptPickChanges): not listed twice.
+  const listed = published.filter((r) => !(r.kind === "order" && isClaimed(`${r.account}:${r.workspaceId}:${r.season}`)));
+  const rows: Row[] = [...listed, ...kept, ...entries]
     .map((r) => ({ ...r, busy: r.busy || local[r.key]?.busy, message: local[r.key]?.message ?? r.message }))
     .sort((a, b) => (a.status === b.status ? 0 : a.status === "attention" ? -1 : 1));
   const attention = rows.filter((r) => r.status === "attention").length;
