@@ -15,7 +15,7 @@ const COOKIES: { name: string; what: string; lasts: string }[] = [
 ];
 
 const DEVICE: { name: string; what: string }[] = [
-  { name: "Preferences", what: "Theme, background, density, sidebar and alert settings." },
+  { name: "Preferences", what: "Theme, background, density, sidebar, phone tab bar and alert settings." },
   { name: "Your teams and lists", what: "My team, the teams and events you track, your shortlist and its notes." },
   { name: "Scouting", what: "Your scouting entries and notes, plus match-video links you add." },
   { name: "Offline data", what: "Offline packs and saved seasons, so predictions and past data work with no signal." },
