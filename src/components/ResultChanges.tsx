@@ -11,6 +11,7 @@ import { matchTime } from "../lib/format";
 import { Badge } from "./ui/basic";
 import { Button } from "./ui/button";
 import { Async } from "./states";
+import SegmentedControl from "./arc/segmented-control/segmented-control";
 import { cn } from "./cn";
 
 /** Event view: this many first, the rest behind "Show all". */
@@ -67,10 +68,8 @@ function Body({ v, one }: { v: ResultChangesView; one: boolean }) {
       ) : (
         <>
         {!one && fixes.length > 0 && fixes.length < v.changes.length && (
-          <div role="group" aria-label="Which changes" className="mt-3 flex flex-wrap gap-2">
-            <Button variant={only ? "outline" : "secondary"} size="sm" aria-pressed={!only} onClick={() => setOnly(false)}>All changes ({v.changes.length})</Button>
-            <Button variant={only ? "secondary" : "outline"} size="sm" aria-pressed={only} onClick={() => setOnly(true)}>Corrections and moves ({fixes.length})</Button>
-          </div>
+          <SegmentedControl label="Which changes" className="mt-3 max-w-full" value={only ? "fixes" : "all"} onValueChange={(x) => setOnly(x === "fixes")}
+            options={[{ value: "all", label: `All changes (${v.changes.length})` }, { value: "fixes", label: `Corrections and moves (${fixes.length})` }]} />
         )}
         <ol className={cn("mt-3 divide-y divide-border", !one && "rounded-xl border border-border bg-card")}>
           {shown.map((c) => <Item key={c.id} c={c} v={v} one={one} />)}
