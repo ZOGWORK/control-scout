@@ -2,7 +2,7 @@
 // Who gets an item for each kind of activity (never the actor), the per-kind switches, read state
 // shared by every session of an account (and streamed to them), pages, 90-day pruning, and the
 // owner-alert hand-off (one item per owner per alert, however often it runs). Follow-up state: mark unread,
-// the follow-up flag and filter (per account, streamed, kept through mark all read and coalescing); migration 30.
+// the follow-up flag and filter (per account, streamed, kept through mark all read and coalescing); migration 31.
 import type { AddressInfo } from "node:net";
 import type { Server } from "node:http";
 import express from "express";
@@ -599,12 +599,12 @@ describe("inbox: follow-up state (mark unread, follow up)", () => {
   });
 });
 
-describe("migration 30 (inbox follow-up flags)", () => {
+describe("migration 31 (inbox follow-up flags)", () => {
   it("adds follow_up_at to an existing inbox: items keep everything and start unflagged", async () => {
     const c = openDb(":memory:");
-    expect((await migrate(c, 29)).at(-1)).toBe(29);
+    expect((await migrate(c, 30)).at(-1)).toBe(30);
     await c.execute({ sql: "INSERT INTO inbox_items (user_id, at, category, type, title, read_at) VALUES (1, ?, 'edits', 'entry.edited', 'Coach edited your entry', ?)", args: [Date.now(), Date.now()] });
-    expect(await migrate(c)).toEqual([30]);
+    expect(await migrate(c)).toEqual([31]);
     const r = (await c.execute("SELECT title, read_at, follow_up_at FROM inbox_items")).rows[0];
     expect(r.title).toBe("Coach edited your entry");
     expect(r.read_at).not.toBeNull();
