@@ -1,6 +1,7 @@
 // Hero: the headline (word-by-word reveal) and the cycling example match card.
 import { useCallback, useEffect, useRef, useState } from "react";
-import { m, useInView } from "motion/react";
+import { useInView } from "motion/react";
+import { m } from "../motion";
 import { Pause, Play } from "lucide-react";
 import { ENGINE_VERSION } from "@control-scout/predict-engine";
 import { cn } from "../cn";

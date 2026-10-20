@@ -3,7 +3,8 @@
 // that works by hover, tap and keyboard focus.
 import { createContext, useCallback, useContext, useEffect, useId, useRef, useState, type ReactNode, type PointerEvent as RPointerEvent, type FocusEvent as RFocusEvent, type MouseEvent as RMouseEvent } from "react";
 import { createPortal } from "react-dom";
-import { m, useInView, useReducedMotion } from "motion/react";
+import { useInView, useReducedMotion } from "motion/react";
+import { m } from "../motion";
 import { cn } from "../cn";
 
 /** True when the visitor asked for reduced motion. */

@@ -9,7 +9,8 @@
 // only ever said to the signed-in owner, so it can't be used to probe
 // someone else's email. Signed in: who you are, sync, Control Point, sign out.
 import { useEffect, useId, useRef, useState, type Dispatch, type SetStateAction } from "react";
-import { AnimatePresence, m } from "motion/react";
+import { AnimatePresence } from "motion/react";
+import { m } from "../motion";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { CheckCircle2, ExternalLink, KeyRound, LogIn, LogOut, Mail, Settings, UserRound } from "lucide-react";
 import { apiFetch } from "../../lib/api";

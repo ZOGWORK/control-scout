@@ -1,7 +1,8 @@
 // Prediction UI shared by every surface. Rule: a prediction is never shown
 // without its confidence tier, and never presented as a fact.
 import { Suspense, lazy, useEffect, useRef, useState } from "react";
-import { AnimatePresence, m as Motion, useReducedMotion } from "motion/react";
+import { AnimatePresence, useReducedMotion } from "motion/react";
+import { m as Motion } from "./motion";
 import { Link, useLocation } from "react-router-dom";
 import { Check, ChevronDown, CircleDashed, ClipboardList, Gauge, History, PlayCircle, Radio, ShieldCheck, Video, X } from "lucide-react";
 import type { ConfidenceTier, Factor, MatchPredictionView, MatchView } from "../shared/api";

@@ -3,7 +3,8 @@
 // Same as Control Point's top bar: "3:42 PM · 72° · Sunny".
 import { useEffect, useState } from "react";
 import { Moon, Sun } from "lucide-react";
-import { AnimatePresence, m } from "motion/react";
+import { AnimatePresence } from "motion/react";
+import { m } from "../motion";
 import { apiFetch, qs } from "../../lib/api";
 import { usePersonal } from "../../lib/personal";
 import { useTheme } from "../../hooks/useTheme";

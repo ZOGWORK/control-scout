@@ -16,7 +16,7 @@
 import { useCallback, useEffect, useId, useLayoutEffect, useRef, useState, type KeyboardEvent as ReactKeyboardEvent } from "react";
 import { createPortal } from "react-dom";
 import { useLocation } from "react-router-dom";
-import { m } from "motion/react";
+import { m } from "../motion";
 import { X } from "lucide-react";
 import { Button } from "../ui/button";
 import { cn } from "../cn";

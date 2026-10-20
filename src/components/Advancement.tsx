@@ -2,7 +2,7 @@
 // Outlook, Alliance, Field), generalised to ANY team at ANY event.
 import { useMemo, useState } from "react";
 import { Link } from "react-router-dom";
-import { m } from "motion/react";
+import { m } from "./motion";
 import { Check, Crown, Gauge, History, Info, RefreshCw, Search, Trophy, Users } from "lucide-react";
 import { useApi, qs, load } from "../lib/api";
 import type { ConfidenceTier, ForecastView, Partners } from "../shared/api";
