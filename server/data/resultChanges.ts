@@ -170,8 +170,8 @@ export const MISSING_KEPT = 300;
 /** The guard's failure: another writer stored this event between this write's read and its batch. */
 const isStale = (e: unknown) => /UNIQUE constraint failed: result_watch/.test(String((e as Error)?.message ?? e));
 
-/** Test seam: runs between the read and the write (to stand in for another writer). */
-export const resultChangesIo = { afterRead: async (): Promise<void> => {} };
+/** Test seams (to stand in for another writer): right after the first read (the guard's token), and between the reads and the write. */
+export const resultChangesIo = { afterToken: async (): Promise<void> => {}, afterRead: async (): Promise<void> => {} };
 
 /**
  * Write one event bundle and record what changed in its results, atomically
@@ -199,6 +199,7 @@ async function writeOnce(b: EventBundle, at: string): Promise<{ changes: number 
   // The guard's token first: everything read after it (the watch row, its remembered matches, the stored
   // matches) is covered, since every detail write moves it in the same transaction as those rows.
   const token = (await get<{ t: string | null }>("SELECT detail_synced_at t FROM events WHERE season = ? AND code = ?", k))?.t ?? null;
+  await resultChangesIo.afterToken();
   const watch = await get<{ since: string; missing: string }>("SELECT since, missing FROM result_watch WHERE season = ? AND code = ?", k);
   if (!watch) {
     // Baseline: this write is the first one watched; nothing before it is known.

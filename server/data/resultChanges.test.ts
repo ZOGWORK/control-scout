@@ -188,16 +188,17 @@ describe("recording changes", () => {
 
   it("covers the remembered matches with the guard too (read after its token)", async () => {
     await writeEventBundle(bundle([m(1, { r: 100, b: 90 }), m(2, { r: 60, b: 50 })]));
-    // Another writer (a fallback feed listing Q1 only) commits after this write has read everything.
+    // Another writer (a fallback feed listing Q1 only) commits right after this write's first read: with the
+    // remembered matches read before the token, the guard would pass on stale "missing" and Q2 would be re-posted.
     let once = true;
-    resultChangesIo.afterRead = async () => {
+    resultChangesIo.afterToken = async () => {
       if (!once) return;
       once = false;
       await new Promise((r) => setTimeout(r, 5));
       await writeEventBundle(bundle([m(1, { r: 100, b: 90 })], "ftc-scout"));
     };
     try { await writeEventBundle(bundle([m(1, { r: 100, b: 90 }), m(2, { r: 60, b: 50 })])); }
-    finally { resultChangesIo.afterRead = async () => {}; }
+    finally { resultChangesIo.afterToken = async () => {}; }
     // Retried against the new state: Q2 comes back unchanged, so nothing is "posted" again.
     expect(await changes()).toEqual([]);
     expect(await all("SELECT number FROM matches WHERE code = 'EV' ORDER BY number")).toEqual([{ number: 1 }, { number: 2 }]);
