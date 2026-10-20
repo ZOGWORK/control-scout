@@ -187,16 +187,16 @@ export const MISSING_KEPT = 300;
 /** The guard's failure: another writer stored this event between this write's read and its batch. */
 const isStale = (e: unknown) => /UNIQUE constraint failed: result_watch/.test(String((e as Error)?.message ?? e));
 
-/** Test seams (to stand in for another writer): right after the first read (the guard's token), and between the reads and the write. */
-export const resultChangesIo = { afterToken: async (): Promise<void> => {}, afterRead: async (): Promise<void> => {} };
+/** Test seams (to stand in for another writer): right after the first read (the watch row with the guard's rev), and between the reads and the write. */
+export const resultChangesIo = { afterFirstRead: async (): Promise<void> => {}, afterRead: async (): Promise<void> => {} };
 
 /**
  * Write one event bundle and record what changed in its results, atomically
  * (one batch = one transaction). The stored rows are read just before
  * writing; the batch opens with a guard that fails it as a whole when the
- * event's detail_synced_at is no longer the one read (another writer stored
+ * event's result_watch.rev is no longer the one read (another writer stored
  * this event in between: the writer lease normally rules that out, but
- * `npm run sync` doesn't hold it), and then it reads and diffs again, so a
+ * `npm run sync` and `db:push` don't hold it), and then it reads and diffs again, so a
  * bundle is never saved without its changes. Event-list-only bundles (no
  * detail) write exactly as before.
  */
@@ -213,11 +213,11 @@ async function writeOnce(b: EventBundle, at: string): Promise<{ changes: number 
   const { season, code, source } = b.event;
   const matches = b.detail!.matches;
   const k = [season, code];
-  // The guard's token first: everything read after it (the watch row, its remembered matches, the stored
-  // matches) is covered, since every detail write moves it in the same transaction as those rows.
-  const token = (await get<{ t: string | null }>("SELECT detail_synced_at t FROM events WHERE season = ? AND code = ?", k))?.t ?? null;
-  await resultChangesIo.afterToken();
-  const watch = await get<{ since: string; missing: string }>("SELECT since, missing FROM result_watch WHERE season = ? AND code = ?", k);
+  // The watch row first: its rev is the guard (every detail write, and db:push, moves it in the same transaction
+  // as the matches), so everything read after it (the stored matches) is covered, and its held matches are read
+  // in the same row as the rev.
+  const watch = await get<{ since: string; missing: string; rev: number }>("SELECT since, missing, rev FROM result_watch WHERE season = ? AND code = ?", k);
+  await resultChangesIo.afterFirstRead();
   if (!watch) {
     // Baseline: this write is the first one watched; nothing before it is known. The watch row goes in first
     // and plain (no OR IGNORE): if another first write got there meanwhile, this batch fails as a whole and is
@@ -244,13 +244,12 @@ async function writeOnce(b: EventBundle, at: string): Promise<{ changes: number 
   const nextMissing = JSON.stringify(Object.fromEntries(held(base, matches, source).slice(0, MISSING_KEPT).map((m) => [matchKey(m), m])));
   await resultChangesIo.afterRead();
   // The guard: a second watch row for this event (a primary-key failure, so the whole batch rolls back)
-  // unless the event is still as it was read.
+  // unless its rev is still the one read. Then the rev moves on with this write.
   const stmts: InStatement[] = [{
     sql: `INSERT INTO result_watch (season, code, since) SELECT ?, ?, ?
-          WHERE NOT EXISTS (SELECT 1 FROM events WHERE season = ? AND code = ? AND detail_synced_at IS ?)`,
-    args: [...k, at, ...k, token],
-  }];
-  if (nextMissing !== (watch.missing || "{}")) stmts.push({ sql: "UPDATE result_watch SET missing = ? WHERE season = ? AND code = ?", args: [nextMissing, ...k] });
+          WHERE NOT EXISTS (SELECT 1 FROM result_watch WHERE season = ? AND code = ? AND rev = ?)`,
+    args: [...k, at, ...k, Number(watch.rev)],
+  }, { sql: "UPDATE result_watch SET rev = rev + 1, missing = ? WHERE season = ? AND code = ?", args: [nextMissing, ...k] }];
   if (changes.length) {
     // Each match's latest change of each kind (its diff key, which is the same in every copy of the database,
     // unlike its id) is part of the next key: the same value coming back later (A → B → A) is a new change, a
