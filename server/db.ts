@@ -1040,6 +1040,7 @@ CREATE TABLE result_watch (
   since TEXT NOT NULL,
   pruned INTEGER NOT NULL DEFAULT 0,
   missing TEXT NOT NULL DEFAULT '{}',
+  rev INTEGER NOT NULL DEFAULT 0,          -- +1 with every watched detail write (and db:push): the write guard
   PRIMARY KEY (season, code)
 );
 -- FIRST's scheduled field ("1", "2"…), so a field move can be told apart. Null = not reported.

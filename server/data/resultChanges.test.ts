@@ -4,10 +4,10 @@
 import type { AddressInfo } from "node:net";
 import type { Server } from "node:http";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { all, get, migrate, openDb, run, setDb } from "../db";
+import { all, get, migrate, openDb, run, setDb, writeBatch } from "../db";
 import { createApp } from "../app";
 import { CURRENT_SEASON, resultFieldLabels, type ScoreSplit } from "./seasons";
-import type { EventBundle, MatchRow, MatchTeam } from "./bundle";
+import { bundleStatements, type EventBundle, type MatchRow, type MatchTeam } from "./bundle";
 import { RESULT_CHANGES_PER_EVENT, diffMatches, readStored, resultChangesIo, writeEventBundle } from "./resultChanges";
 import type { ResultChangesView } from "../../src/shared/api";
 import { syncEvent } from "../sync";
@@ -48,7 +48,7 @@ describe("migration", () => {
   it("adds the change table, the watch table and the scheduled field", async () => {
     const cols = async (t: string) => (await all<any>(`PRAGMA table_info(${t})`)).map((r) => r.name);
     expect(await cols("result_changes")).toEqual(expect.arrayContaining(["season", "code", "level", "series", "number", "label", "kind", "fields", "before", "after", "source", "prev_source", "checked_at", "diff_key"]));
-    expect(await cols("result_watch")).toEqual(["season", "code", "since", "pruned", "missing"]);
+    expect(await cols("result_watch")).toEqual(["season", "code", "since", "pruned", "missing", "rev"]);
     expect(await cols("matches")).toEqual(expect.arrayContaining(["field", "breakdown"]));
     expect(await get("SELECT name FROM schema_version WHERE name = 'official result changes'")).toBeTruthy();
     // Applying again changes nothing.
@@ -227,28 +227,57 @@ describe("recording changes", () => {
     expect(await all("SELECT code FROM result_watch")).toEqual([{ code: "EV" }]);
   });
 
-  it("covers the remembered matches with the guard too (read after its token)", async () => {
+  it("covers the remembered matches with the guard too (read in the same row as the guard)", async () => {
     await writeEventBundle(bundle([m(1, { r: 100, b: 90 }), m(2, { r: 60, b: 50 })]));
     // Another writer (a fallback feed listing Q1 only) commits right after this write's first read: with the
     // remembered matches read before the token, the guard would pass on stale "missing" and Q2 would be re-posted.
     let once = true;
-    resultChangesIo.afterToken = async () => {
+    resultChangesIo.afterFirstRead = async () => {
       if (!once) return;
       once = false;
       await new Promise((r) => setTimeout(r, 5));
       await writeEventBundle(bundle([m(1, { r: 100, b: 90 })], "ftc-scout"));
     };
     try { await writeEventBundle(bundle([m(1, { r: 100, b: 90 }), m(2, { r: 60, b: 50 })])); }
-    finally { resultChangesIo.afterToken = async () => {}; }
+    finally { resultChangesIo.afterFirstRead = async () => {}; }
     // Retried against the new state: Q2 comes back unchanged, so nothing is "posted" again.
     expect(await changes()).toEqual([]);
     expect(await all("SELECT number FROM matches WHERE code = 'EV' ORDER BY number")).toEqual([{ number: 1 }, { number: 2 }]);
   });
 
+  it("turns the second of two overlapping first writes into a diffed write", async () => {
+    // Both read "no watch row"; the other one commits first (its baseline: Q1 unplayed).
+    let once = true;
+    resultChangesIo.afterRead = async () => {
+      if (!once) return;
+      once = false;
+      await new Promise((r) => setTimeout(r, 5));
+      await writeEventBundle(bundle([m(1)]), { now: "2026-11-07T15:00:00.000Z" });
+    };
+    try { await writeEventBundle(bundle([m(1, { r: 100, b: 90 })]), { now: "2026-11-07T15:01:00.000Z" }); }
+    finally { resultChangesIo.afterRead = async () => {}; }
+    expect((await changes()).map((r) => [r.kind, r.number])).toEqual([["posted", 1]]);
+    expect(await get("SELECT since FROM result_watch WHERE code = 'EV'")).toEqual({ since: "2026-11-07T15:00:00.000Z" });
+  });
+
+  it("treats any other bundle write (say the FTC Scout cache seed) as a writer the guard sees", async () => {
+    await writeEventBundle(bundle([m(1, { r: 100, b: 90 })]));
+    let once = true;
+    resultChangesIo.afterRead = async () => {
+      if (!once) return;
+      once = false;
+      await writeBatch(bundleStatements(bundle([m(1, { r: 105, b: 90 })], "ftc-scout"))); // not through writeEventBundle
+    };
+    try { await writeEventBundle(bundle([m(1, { r: 110, b: 90 })])); }
+    finally { resultChangesIo.afterRead = async () => {}; }
+    // Retried against the seeded 105 (a cross-feed total change), never against the stale 100.
+    expect((await changes()).map((r) => [JSON.parse(r.before).red.total, JSON.parse(r.after).red.total])).toEqual([[105, 110]]);
+  });
+
   it("gives up after its retries rather than saving a bundle without its changes", async () => {
     await writeEventBundle(bundle([m(1, { r: 100, b: 90 })]));
     let n = 0;
-    resultChangesIo.afterRead = async () => { n++; await new Promise((r) => setTimeout(r, 2)); await run("UPDATE events SET detail_synced_at = ? WHERE code = 'EV'", [`x${n}`]); };
+    resultChangesIo.afterRead = async () => { n++; await new Promise((r) => setTimeout(r, 2)); await run("UPDATE result_watch SET rev = rev + 1 WHERE code = 'EV'"); };
     try {
       await expect(writeEventBundle(bundle([m(1, { r: 120, b: 90 })]), { attempts: 2 })).rejects.toThrow(/UNIQUE constraint failed: result_watch/);
     } finally { resultChangesIo.afterRead = async () => {}; }

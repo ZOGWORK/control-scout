@@ -28,7 +28,7 @@ Rules that keep it honest:
 - **Idempotent.** The same data polled again compares equal and adds nothing.
   Each row also has a UNIQUE `diff_key` (match, kind, the previous change's
   key, new value: the same in every copy of the database, unlike ids). The batch opens with a guard that fails it as a whole if
-  the event's `detail_synced_at` is no longer the one read before diffing
+  the event's `result_watch.rev` (bumped by every watched detail write and by `db:push`) is no longer the one read before diffing
   (another writer stored it in between: `npm run sync` holds no writer lease),
   and the write then reads and diffs again (3 attempts, then the event's sync
   fails and the next poll retries). A bundle is never saved without its changes.
