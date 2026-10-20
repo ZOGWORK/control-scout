@@ -25,7 +25,7 @@ import type { InStatement } from "@libsql/client";
 import { all, db, get } from "../db.js";
 import { isWorkspaceId, type Membership } from "../auth/controlPoint.js";
 import { currentUser, type User } from "../auth/session.js";
-import { applyPickOp, cleanPickOp, NOTE_CHANGED, noteConflicts, type Pick, type PickList, type PickOp, type PickPerson } from "../../src/shared/picklist.js";
+import { applyPickOp, cleanPickOp, isPickOpId, MAX_OP_QUERY, NOTE_CHANGED, noteConflicts, WRONG_ACCOUNT, type Pick, type PickList, type PickOp, type PickPerson } from "../../src/shared/picklist.js";
 import { publishPicklist, serialized } from "./bus.js";
 import { accessError, workspaceAccess, workspacePaused, writerName } from "./entries.js";
 import { logActivity, type ActivityActor } from "./activityLog.js";
@@ -51,7 +51,8 @@ export async function readPickList(workspaceId: string, season: number): Promise
 }
 
 export type PickOpResult =
-  | { ok: true; changed: boolean; list: PickList }
+  /** replayed: an op id this author's change was already applied with: nothing applied again. */
+  | { ok: true; changed: boolean; list: PickList; replayed?: boolean }
   | { ok: false; status: 400 | 409; error: string; list?: PickList };
 
 const lock = (workspaceId: string) => `picklist:${workspaceId}`;
@@ -67,7 +68,11 @@ async function knownTeams(teams: number[]): Promise<Set<number>> {
  * Apply one member's change (membership already checked). Runs after every earlier change to the
  * workspace's lists has finished, so the result is the same as applying them one by one in arrival order.
  */
-export async function changePickList(user: User, m: Membership, season: number, op: PickOp): Promise<PickOpResult> {
+export async function changePickList(user: User, m: Membership, season: number, op: PickOp,
+  /** The device's id for this change (isPickOpId): one already applied for this author is not applied again. */
+  opId: string | null = null): Promise<PickOpResult> {
+  // A retry of a change already applied: the list as it is, before anything else is checked.
+  if (opId && (await appliedOps(m, [opId])).size) return { ok: true, changed: false, replayed: true, list: await readPickList(m.workspaceId, season) };
   // Unknown teams are refused (one) or skipped (a copy) before the queue: the teams table isn't ours to lock.
   if (op.op === "add") {
     if (!(await knownTeams([op.team])).has(op.team)) return { ok: false, status: 400, error: `There's no team ${op.team}.` };
@@ -79,6 +84,8 @@ export async function changePickList(user: User, m: Membership, season: number, 
   const by: PickPerson = { accountId: m.accountId, name: writerName(user) };
   return serialized(lock(m.workspaceId), async () => {
     const cur = await readPickList(m.workspaceId, season);
+    // Two copies of one change that both got past the check above: the later one (run after the first, here) applies nothing.
+    if (opId && (await appliedOps(m, [opId])).size) return { ok: true as const, changed: false, replayed: true, list: cur };
     const now = Date.now();
     // Undo of a remove: the removed row, as it was.
     const previous = op.op === "add" && op.restore ? await removedPick(m.workspaceId, season, op.team) : null;
@@ -98,8 +105,9 @@ export async function changePickList(user: User, m: Membership, season: number, 
         ? { ok: false as const, status: 409 as const, error: "The pick list is full (100 teams). Remove one first.", list: cur }
         : { ok: false as const, status: 409 as const, error: "That team was removed from the pick list meanwhile. Here's the list as it is now.", list: cur };
     }
-    if (!r.changed) return { ok: true as const, changed: false, list: cur };
-    await write(m, season, cur, r.picks, now);
+    // Accepted (even when it changed nothing): its id is recorded, so a copy sent later never applies it then.
+    if (!r.changed) { if (opId) await recordOp(m, season, opId, now); return { ok: true as const, changed: false, list: cur }; }
+    await write(m, season, cur, r.picks, now, opId);
     const list = await readPickList(m.workspaceId, season);
     publishPicklist(m.workspaceId, list);
     // In the activity feed (never throws), inside the queue so the feed's order is the list's.
@@ -116,8 +124,33 @@ async function removedPick(workspaceId: string, season: number, team: number): P
   return r ? toPick(r) : null;
 }
 
+/** How long the server remembers a change's op id (a device gives up on a kept change after 14 days). */
+export const OP_ID_KEEP_MS = 30 * 24 * 60 * 60 * 1000;
+
+/** The statements that record an accepted change's op id (and prune this workspace's expired ones). */
+const opStatements = (wsDbId: number, accountId: number, season: number, opId: string, now: number): InStatement[] => [
+  { sql: "INSERT INTO workspace_picklist_ops (workspace_id, account_id, op_id, season, created_at) VALUES (?, ?, ?, ?, ?) ON CONFLICT DO NOTHING", args: [wsDbId, accountId, opId, season, now] },
+  { sql: "DELETE FROM workspace_picklist_ops WHERE workspace_id = ? AND created_at < ?", args: [wsDbId, now - OP_ID_KEEP_MS] },
+];
+
+/** Record a change accepted without writing the list (it changed nothing). No mirror row yet: nothing was ever written, nothing to replay over. */
+async function recordOp(m: Membership, season: number, opId: string, now: number) {
+  const ws = await get<{ id: number }>("SELECT id FROM workspaces WHERE cp_workspace_id = ?", [m.workspaceId]);
+  if (ws) await db().batch(opStatements(Number(ws.id), m.accountId, season, opId, now), "write");
+}
+
+/** Which of these op ids this member's changes to the workspace were applied with (any season). */
+export async function appliedOps(m: Membership, opIds: string[]): Promise<Set<string>> {
+  if (!opIds.length) return new Set();
+  const rows = await all<{ op_id: string }>(
+    `SELECT o.op_id FROM workspace_picklist_ops o JOIN workspaces w ON w.id = o.workspace_id
+      WHERE w.cp_workspace_id = ? AND o.account_id = ? AND o.op_id IN (${opIds.map(() => "?").join(",")})`,
+    [m.workspaceId, m.accountId, ...opIds]);
+  return new Set(rows.map((r) => String(r.op_id)));
+}
+
 /** Write what changed (rows added, removed, moved or re-noted) and bump the version, in one transaction. */
-async function write(m: Membership, season: number, before: PickList, after: Pick[], now: number) {
+async function write(m: Membership, season: number, before: PickList, after: Pick[], now: number, opId: string | null = null) {
   // Lazily: the first change creates the workspace's mirror row (when no entry, template or setting has yet).
   await db().execute({ sql: "INSERT INTO workspaces (cp_workspace_id, name, created_at, updated_at) VALUES (?, ?, ?, ?) ON CONFLICT(cp_workspace_id) DO NOTHING", args: [m.workspaceId, m.workspaceName, new Date(now).toISOString(), new Date(now).toISOString()] });
   const ws = await get<{ id: number }>("SELECT id FROM workspaces WHERE cp_workspace_id = ?", [m.workspaceId]);
@@ -151,6 +184,8 @@ async function write(m: Membership, season: number, before: PickList, after: Pic
           ON CONFLICT(workspace_id, season) DO UPDATE SET version = version + 1, updated_at = excluded.updated_at`,
     args: [id, season, now],
   });
+  // In the same transaction as the change: applied and recorded together, or neither.
+  if (opId) stmts.push(...opStatements(id, m.accountId, season, opId, now));
   await db().batch(stmts, "write");
 }
 
@@ -217,6 +252,10 @@ export async function picklistWriter(req: Request, res: Response): Promise<{ use
 /**
  * /api/scout/workspaces/:workspaceId/picklist
  *   GET  ?season=   any member. {list: {workspaceId, season, version, picks}}
+ *        &ops=a,b   also {appliedOps: [...]}: which of these op ids this member's changes were applied with
+ *   POST any op below, plus opId? (the device's id for the change: a copy of one already applied answers
+ *        {changed: false, replayed: true} and applies nothing) and account? (the Control Point account the change
+ *        was made by: 409 WRONG_ACCOUNT when it isn't the one signed in)
  *   POST {season, op: "add", team, beforeTeam?, restore?}    add (at the end, or just before beforeTeam); restore: Undo of a remove
  *        {season, op: "remove", team}
  *        {season, op: "move", team, beforeTeam}     beforeTeam null: to the end
@@ -232,7 +271,11 @@ export function picklistRouter(): Router {
     const who = await member(req, res);
     if (!who) return;
     if (!isSeason(season)) { res.status(400).json({ error: "season required" }); return; }
-    return { list: await readPickList(who.m.workspaceId, season) };
+    // ?ops=a,b: which of this member's kept changes the server already applied (a device checks before asking them again).
+    const raw = typeof req.query.ops === "string" ? req.query.ops.split(",").filter(Boolean) : [];
+    if (raw.length > MAX_OP_QUERY || !raw.every(isPickOpId)) { res.status(400).json({ error: `ops must be up to ${MAX_OP_QUERY} op ids` }); return; }
+    const list = await readPickList(who.m.workspaceId, season);
+    return raw.length ? { list, appliedOps: [...await appliedOps(who.m, raw)] } : { list };
   }));
   r.post("/workspaces/:workspaceId/picklist", jsonOnly, h(async (req, res) => {
     const who = await picklistWriter(req, res);
@@ -241,9 +284,12 @@ export function picklistRouter(): Router {
     if (!isSeason(body.season)) { res.status(400).json({ error: "season required" }); return; }
     const op = cleanPickOp(body);
     if ("error" in op) { res.status(400).json({ error: op.error }); return; }
-    const out = await changePickList(who.user, who.m, body.season, op);
+    if (body.opId !== undefined && body.opId !== null && !isPickOpId(body.opId)) { res.status(400).json({ error: "opId must be 8 to 64 letters, digits, - or _" }); return; }
+    // A change kept on the device for one account is never applied as another (signed out and back in as someone else).
+    if (body.account !== undefined && body.account !== who.m.accountId) { res.status(409).json({ error: WRONG_ACCOUNT }); return; }
+    const out = await changePickList(who.user, who.m, body.season, op, isPickOpId(body.opId) ? body.opId : null);
     if (!out.ok) { res.status(out.status).json({ error: out.error, list: out.list }); return; }
-    return { changed: out.changed, list: out.list };
+    return { changed: out.changed, list: out.list, ...(out.replayed ? { replayed: true } : {}) };
   }));
   return r;
 }

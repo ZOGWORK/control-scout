@@ -365,3 +365,90 @@ describe("shared pick list: a note sent with its base", () => {
     expect((await op(priya, "1120", { op: "note", team: 101, note: "x", base: "yesterday" })).status).toBe(400);
   });
 });
+
+describe("shared pick list: op ids (a change kept on the device and sent again)", () => {
+  it("the same op id twice is applied once: the copy answers replayed, the list and the feed are untouched", async () => {
+    const { priya } = await team("1130");
+    await op(priya, "1130", { op: "add", team: 101 });
+    await op(priya, "1130", { op: "add", team: 102 });
+    await op(priya, "1130", { op: "add", team: 103 });
+    const first = await op(priya, "1130", { op: "remove", team: 102, opId: "rm-102-aaaa" });
+    expect(first.status).toBe(200);
+    expect(first.json).toMatchObject({ changed: true });
+    expect(first.json.replayed).toBeUndefined();
+    // A teammate puts 102 back; Priya's device, after a reload, sends the kept removal again: nothing happens.
+    await op(priya, "1130", { op: "add", team: 102 });
+    const v = (await priya("GET", `${url("1130")}?season=${S}`)).json.list.version;
+    const again = await op(priya, "1130", { op: "remove", team: 102, opId: "rm-102-aaaa" });
+    expect(again.status).toBe(200);
+    expect(again.json).toMatchObject({ changed: false, replayed: true });
+    expect(order(again)).toEqual([101, 103, 102]);
+    expect(again.json.list.version).toBe(v);
+    expect((await activity("1130")).filter((a) => a.type === "picklist.removed")).toHaveLength(1);
+    // A move: once only, even though moving again would change the list.
+    await op(priya, "1130", { op: "move", team: 102, beforeTeam: 101, opId: "mv-102-bbbb" });
+    await op(priya, "1130", { op: "move", team: 101, beforeTeam: 102 });
+    expect(order(await op(priya, "1130", { op: "move", team: 102, beforeTeam: 101, opId: "mv-102-bbbb" }))).toEqual([101, 102, 103]);
+    expect((await all("SELECT op_id FROM workspace_picklist_ops o JOIN workspaces w ON w.id = o.workspace_id WHERE w.cp_workspace_id = ?", ["1130"])).map((r: any) => r.op_id).sort())
+      .toEqual(["mv-102-bbbb", "rm-102-aaaa"]);
+  });
+
+  it("two copies sent at once apply once; an accepted no-op is remembered too", async () => {
+    const { priya } = await team("1131");
+    await op(priya, "1131", { op: "add", team: 101 });
+    const [a, b] = await Promise.all([op(priya, "1131", { op: "add", team: 104, opId: "add-104-cccc" }), op(priya, "1131", { op: "add", team: 104, opId: "add-104-cccc" })]);
+    expect([a.json.changed, b.json.changed].sort()).toEqual([false, true]);
+    expect([a.json.replayed, b.json.replayed]).toContain(true);
+    // Removing a team that's not there changes nothing, but the id is kept: sent again after 105 is added, it still does nothing.
+    expect((await op(priya, "1131", { op: "remove", team: 105, opId: "rm-105-dddd" })).json.changed).toBe(false);
+    await op(priya, "1131", { op: "add", team: 105 });
+    expect(order(await op(priya, "1131", { op: "remove", team: 105, opId: "rm-105-dddd" }))).toEqual([101, 104, 105]);
+  });
+
+  it("an op id is per author: another member's change with the same id is their own", async () => {
+    const { priya, marcus } = await team("1132");
+    await op(priya, "1132", { op: "add", team: 101, opId: "shared-id-eeee" });
+    const r = await op(marcus, "1132", { op: "add", team: 102, opId: "shared-id-eeee" });
+    expect(r.json).toMatchObject({ changed: true });
+    expect(order(r)).toEqual([101, 102]);
+  });
+
+  it("a refused change (409) isn't remembered: sent again once it can apply, it applies", async () => {
+    const { priya } = await team("1133");
+    await op(priya, "1133", { op: "add", team: 101 });
+    expect((await op(priya, "1133", { op: "move", team: 101, beforeTeam: 102, opId: "mv-101-ffff" })).status).toBe(409);
+    await op(priya, "1133", { op: "add", team: 102 });
+    expect(order(await op(priya, "1133", { op: "move", team: 102, beforeTeam: 101, opId: "mv-101-ffff" }))).toEqual([102, 101]);
+  });
+
+  it("GET ?ops= says which of this member's ids were applied (never another member's)", async () => {
+    const { priya, marcus } = await team("1134");
+    await op(priya, "1134", { op: "add", team: 101, opId: "seen-op-1111" });
+    await op(marcus, "1134", { op: "add", team: 102, opId: "marcus-op-2222" });
+    const r = await priya("GET", `${url("1134")}?season=${S}&ops=seen-op-1111,never-sent-3333,marcus-op-2222`);
+    expect(r.status).toBe(200);
+    expect(r.json.appliedOps).toEqual(["seen-op-1111"]);
+    expect(order(r)).toEqual([101, 102]);
+    expect((await priya("GET", `${url("1134")}?season=${S}`)).json.appliedOps).toBeUndefined();
+    expect((await priya("GET", `${url("1134")}?season=${S}&ops=bad!`)).status).toBe(400);
+    expect((await priya("GET", `${url("1134")}?season=${S}&ops=${Array.from({ length: 51 }, (_, i) => `op-id-${1000 + i}`).join(",")}`)).status).toBe(400);
+  });
+
+  it("a change made by another account is refused (409), never applied as the one signed in; a bad op id is a 400", async () => {
+    const { priya, ids } = await team("1135");
+    const r = await op(priya, "1135", { op: "add", team: 101, opId: "other-acct-4444", account: ids.marcus });
+    expect(r.status).toBe(409);
+    expect(r.json.error).toMatch(/another account/);
+    expect((await priya("GET", `${url("1135")}?season=${S}`)).json.list.picks).toEqual([]);
+    expect((await op(priya, "1135", { op: "add", team: 101, account: ids.priya, opId: "own-acct-5555" })).status).toBe(200);
+    expect((await op(priya, "1135", { op: "add", team: 102, opId: "x" })).status).toBe(400);
+  });
+
+  it("op ids older than 30 days are pruned as new ones arrive", async () => {
+    const { priya } = await team("1136");
+    await op(priya, "1136", { op: "add", team: 101, opId: "old-op-6666" });
+    await run("UPDATE workspace_picklist_ops SET created_at = ? WHERE op_id = ?", [Date.now() - 31 * 24 * 60 * 60 * 1000, "old-op-6666"]);
+    await op(priya, "1136", { op: "add", team: 102, opId: "new-op-7777" });
+    expect((await all("SELECT op_id FROM workspace_picklist_ops o JOIN workspaces w ON w.id = o.workspace_id WHERE w.cp_workspace_id = ?", ["1136"])).map((r: any) => r.op_id)).toEqual(["new-op-7777"]);
+  });
+});
