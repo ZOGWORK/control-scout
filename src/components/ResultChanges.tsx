@@ -23,13 +23,16 @@ const KIND: Record<ResultChange["kind"], { label: string; variant: "success" | "
   schedule: { label: "Schedule changed", variant: "secondary" },
 };
 
+/** An answer of the wrong shape (an old cached copy, a proxy page) shows as an error, never as a crash. */
+const isView = (x: unknown): x is ResultChangesView => !!x && typeof x === "object" && Array.isArray((x as ResultChangesView).changes) && typeof (x as ResultChangesView).labels === "object";
+
 /** "Nov 7, 3:05 PM" in the viewer's zone (when the sync saw it). */
 const seenAt = (iso: string) => new Date(iso).toLocaleString(undefined, { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
 const day = (iso: string) => new Date(iso).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" });
 
 export function ResultChanges({ season, code, matchKey }: { season: number; code: string; matchKey?: string }) {
   const base = `/api/events/${season}/${encodeURIComponent(code)}`;
-  const state = useApi<ResultChangesView>(matchKey ? `${base}/matches/${matchKey}/result-changes` : `${base}/result-changes`);
+  const state = useApi<ResultChangesView>(matchKey ? `${base}/matches/${matchKey}/result-changes` : `${base}/result-changes`, isView);
   const headingId = useId();
   const one = !!matchKey;
   return (
