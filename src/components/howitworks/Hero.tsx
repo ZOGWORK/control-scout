@@ -125,8 +125,9 @@ function MatchCard() {
       </div>
       <p aria-live="polite" className="min-h-[3.6em] border-t border-border px-4 py-2.5 text-sm italic text-muted-foreground">{heroFoot(p)}</p>
       {/* The dots stay 8px; each button around one is a full target: 44px square on a phone, 24px on a desktop
-          (WCAG 2.5.8 wants 24), side by side so no two overlap. The padding keeps the first dot under the text. */}
-      <div role="group" aria-label="Example matches" className="flex items-center pl-1 pr-4 md:gap-1 md:pb-3 md:pl-4">
+          (WCAG 2.5.8 wants 24), side by side so no two overlap. The padding keeps the first dot under the text and room
+          below for the focus ring (the card clips its overflow). */}
+      <div role="group" aria-label="Example matches" className="flex items-center pb-1 pl-1 pr-4 md:gap-1 md:pb-3 md:pl-4">
         {EXAMPLES.map((x, i) => (
           <button
             key={x.label} type="button" aria-label={x.label} aria-pressed={i === idx} onClick={() => pick(i)}
