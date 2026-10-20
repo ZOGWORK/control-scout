@@ -48,7 +48,7 @@ describe("migration", () => {
   it("adds the change table, the watch table and the scheduled field", async () => {
     const cols = async (t: string) => (await all<any>(`PRAGMA table_info(${t})`)).map((r) => r.name);
     expect(await cols("result_changes")).toEqual(expect.arrayContaining(["season", "code", "level", "series", "number", "label", "kind", "fields", "before", "after", "source", "prev_source", "checked_at", "diff_key"]));
-    expect(await cols("result_watch")).toEqual(["season", "code", "since", "pruned", "missing"]);
+    expect(await cols("result_watch")).toEqual(["season", "code", "since", "pruned", "missing", "rev"]);
     expect(await cols("matches")).toEqual(expect.arrayContaining(["field", "breakdown"]));
     expect(await get("SELECT name FROM schema_version WHERE name = 'official result changes'")).toBeTruthy();
     // Applying again changes nothing.
@@ -227,19 +227,19 @@ describe("recording changes", () => {
     expect(await all("SELECT code FROM result_watch")).toEqual([{ code: "EV" }]);
   });
 
-  it("covers the remembered matches with the guard too (read after its token)", async () => {
+  it("covers the remembered matches with the guard too (read in the same row as the guard)", async () => {
     await writeEventBundle(bundle([m(1, { r: 100, b: 90 }), m(2, { r: 60, b: 50 })]));
     // Another writer (a fallback feed listing Q1 only) commits right after this write's first read: with the
     // remembered matches read before the token, the guard would pass on stale "missing" and Q2 would be re-posted.
     let once = true;
-    resultChangesIo.afterToken = async () => {
+    resultChangesIo.afterFirstRead = async () => {
       if (!once) return;
       once = false;
       await new Promise((r) => setTimeout(r, 5));
       await writeEventBundle(bundle([m(1, { r: 100, b: 90 })], "ftc-scout"));
     };
     try { await writeEventBundle(bundle([m(1, { r: 100, b: 90 }), m(2, { r: 60, b: 50 })])); }
-    finally { resultChangesIo.afterToken = async () => {}; }
+    finally { resultChangesIo.afterFirstRead = async () => {}; }
     // Retried against the new state: Q2 comes back unchanged, so nothing is "posted" again.
     expect(await changes()).toEqual([]);
     expect(await all("SELECT number FROM matches WHERE code = 'EV' ORDER BY number")).toEqual([{ number: 1 }, { number: 2 }]);
@@ -263,7 +263,7 @@ describe("recording changes", () => {
   it("gives up after its retries rather than saving a bundle without its changes", async () => {
     await writeEventBundle(bundle([m(1, { r: 100, b: 90 })]));
     let n = 0;
-    resultChangesIo.afterRead = async () => { n++; await new Promise((r) => setTimeout(r, 2)); await run("UPDATE events SET detail_synced_at = ? WHERE code = 'EV'", [`x${n}`]); };
+    resultChangesIo.afterRead = async () => { n++; await new Promise((r) => setTimeout(r, 2)); await run("UPDATE result_watch SET rev = rev + 1 WHERE code = 'EV'"); };
     try {
       await expect(writeEventBundle(bundle([m(1, { r: 120, b: 90 })]), { attempts: 2 })).rejects.toThrow(/UNIQUE constraint failed: result_watch/);
     } finally { resultChangesIo.afterRead = async () => {}; }

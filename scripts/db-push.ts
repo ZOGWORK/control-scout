@@ -94,14 +94,18 @@ if ((await source.execute("SELECT 1 FROM sqlite_master WHERE name = 'result_watc
       for (const t of Object.keys(tables) as (keyof typeof tables)[]) {
         snap[t] = (await read.execute({ sql: `SELECT ${tables[t].join(", ")} FROM ${t} WHERE season = ? AND code = ?${t === "result_changes" ? " ORDER BY id" : ""}`, args: k })).rows as never;
       }
-      // The event's guard token (resultChanges.ts) from the same snapshot: a target sync that read the target's
-      // older matches fails its guard and diffs again against these.
-      snap.token = (await read.execute({ sql: "SELECT detail_synced_at FROM events WHERE season = ? AND code = ?", args: k })).rows as never;
     } finally { read.close(); }
     await to.batch([
-      ...(snap.token.length ? [{ sql: "UPDATE events SET detail_synced_at = ? WHERE season = ? AND code = ?", args: [snap.token[0].detail_synced_at ?? null, ...k] as never[] }] : []),
-      ...(["result_changes", "result_watch", "match_teams", "matches"] as const).map((t) => ({ sql: `DELETE FROM ${t} WHERE season = ? AND code = ?`, args: k })),
-      ...(["matches", "match_teams", "result_watch", "result_changes"] as const).flatMap((t) => snap[t].map((r) => ({ sql: insert(t), args: argsOf(t, r) }))),
+      ...(["result_changes", "match_teams", "matches"] as const).map((t) => ({ sql: `DELETE FROM ${t} WHERE season = ? AND code = ?`, args: k })),
+      ...(["matches", "match_teams", "result_changes"] as const).flatMap((t) => snap[t].map((r) => ({ sql: insert(t), args: argsOf(t, r) }))),
+      // The watch row is upserted with its rev moved on (the write guard, resultChanges.ts): a target sync that
+      // read the older matches fails its guard and diffs again against these. events.detail_synced_at is left
+      // to the generic copy (it plans syncs; it isn't the guard).
+      ...snap.result_watch.map((r) => ({
+        sql: `INSERT INTO result_watch (season, code, since, pruned, missing) VALUES (?, ?, ?, ?, ?)
+              ON CONFLICT(season, code) DO UPDATE SET since = excluded.since, pruned = excluded.pruned, missing = excluded.missing, rev = result_watch.rev + 1`,
+        args: [r.season, r.code, r.since, r.pruned ?? 0, r.missing ?? "{}"] as never[],
+      })),
     ], "write");
     events++; rows += snap.result_changes.length;
   }
