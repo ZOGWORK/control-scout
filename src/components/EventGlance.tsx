@@ -12,6 +12,7 @@ import { usePredictable } from "../lib/meta";
 import { dateRange, matchTime, num } from "../lib/format";
 import { Button } from "./ui/button";
 import { Meter, TONES, type Tone } from "./StatTile";
+import { TierMark } from "./predict";
 import { cn } from "./cn";
 
 const PHASE: Record<Phase, string> = { upcoming: "Not started", quals: "Qualification", playoffs: "Playoffs", done: "Complete" };
@@ -73,7 +74,7 @@ export function EventGlance({ d, onTab, live }: { d: EventDetail; onTab: (t: str
   if (s.upsets) {
     const u = s.upsets;
     cells.push(<Cell key="upsets" testId="upsets" label={u.kind === "live" ? "Upsets (live calls)" : "Upsets (replayed)"}
-      hint={u.biggest ? <>Biggest: {reportLink(u.biggest.key, u.biggest.label)} ({pctCall(u.biggest.pFav)} favourite lost)</> : "Every favourite won"}>
+      hint={u.biggest ? <>Biggest: {reportLink(u.biggest.key, u.biggest.label)} ({pctCall(u.biggest.pFav)} favourite lost, <TierMark tier={u.biggest.tier} />)</> : "Every favourite won"}>
       {u.n} <span className="font-normal text-muted-foreground">of {u.of}</span>
     </Cell>);
   }

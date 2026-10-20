@@ -14,7 +14,7 @@ import { FAQ, faqJsonLd, faqText } from "../src/shared/faq.js";
 import { teamKnown } from "./api/teams.js";
 import { pageModule } from "../src/shared/routes.js";
 import { normalMatchKey } from "../src/shared/matchReport.js";
-import { allianceText, shareHeadline, shareImagePath, sharePagePath, type ShareCardQuery } from "../src/shared/share.js";
+import { allianceText, shareHeadline, shareImagePath, sharePagePath, tierWords, type ShareCardQuery } from "../src/shared/share.js";
 import { latestRankings, rankingsWeek } from "./powerRankings/store.js";
 import { staticRankingsHtml } from "./powerRankings/static.js";
 import { isWeekId, weekLabel, type PowerRankingsResponse } from "../src/shared/powerRankings.js";
@@ -249,9 +249,6 @@ function pair(v: string | null): number[] | null {
   return n.every((x) => x >= 1) && n[0] !== n[1] ? n : null;
 }
 
-/** A confidence tier in words, as the card says it. */
-const TIER_WORDS: Record<string, string> = { provisional: "provisional confidence", moderate: "moderate confidence", confident: "high confidence" };
-const tierWords = (t: string) => TIER_WORDS[t] ?? `${t} confidence`;
 
 /** A matchup's words for its link preview: the card's headline, the predicted score and the confidence
  *  (and, for a backtest, that it was replayed afterward: never passed off as a call made before the match). */

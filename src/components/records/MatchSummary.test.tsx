@@ -10,14 +10,16 @@ import { MemoryRouter, Route, Routes, useLocation, useNavigate, type NavigateFun
 import type { MatchRecordRow } from "../../shared/statCatalog";
 
 const asked: string[] = [];
-const row = (n: number, red: number[], blue: number[], stats: MatchRecordRow["stats"]): MatchRecordRow => ({
+const row = (n: number, red: number[], blue: number[], stats: MatchRecordRow["stats"], predictionTier: MatchRecordRow["predictionTier"] = null): MatchRecordRow => ({
   season: 2025, eventCode: "USMNCMP", eventName: "Minnesota State Championship", eventType: "Championship", eventStart: "2026-03-01",
-  key: `qual:0:${n}`, level: "qual", label: `Q${n}`, time: "2026-03-01T15:00:00Z", red, blue, stats,
+  key: `qual:0:${n}`, level: "qual", label: `Q${n}`, time: "2026-03-01T15:00:00Z", red, blue, stats, predictionTier,
 });
 const ROWS: MatchRecordRow[] = [
-  row(1, [9415, 16917], [4650, 18535], { redTotalPoints: 120, blueTotalPoints: 100, redPredictedWinPct: 70, highScore: 120, winningMargin: 20 }),
-  row(2, [7172, 23778], [20313, 21235], { redTotalPoints: 80, blueTotalPoints: 95, redPredictedWinPct: 64, highScore: 95, winningMargin: 15 }),
+  row(1, [9415, 16917], [4650, 18535], { redTotalPoints: 120, blueTotalPoints: 100, redPredictedWinPct: 70, highScore: 120, winningMargin: 20 }, "confident"),
+  row(2, [7172, 23778], [20313, 21235], { redTotalPoints: 80, blueTotalPoints: 95, redPredictedWinPct: 64, highScore: 95, winningMargin: 15 }, "provisional"),
   row(3, [1, 2], [3, 4], { redTotalPoints: 50, blueTotalPoints: 50, redPredictedWinPct: null, highScore: 50, winningMargin: 0 }),
+  // A replayed call the ledger has no tier for: the verdict stays, the percentage doesn't.
+  row(4, [5, 6], [7, 8], { redTotalPoints: 90, blueTotalPoints: 60, redPredictedWinPct: 81, highScore: 90, winningMargin: 30 }, null),
 ];
 vi.mock("../../lib/api", async (orig) => ({
   ...(await orig<typeof import("../../lib/api")>()),
@@ -36,7 +38,7 @@ const { usePageScroll } = await import("../../lib/pageScroll");
 let search = "";
 let nav: NavigateFunction;
 function Probe() { search = useLocation().search; nav = useNavigate(); return null; }
-const COLS = ["highScore", "winningMargin"];
+const COLS = ["highScore", "winningMargin", "redPredictedWinPct"];
 // The shell's page: its scroll restoration (usePageScroll) around the routes, like Shell.tsx.
 function Page() {
   const main = useRef<HTMLElement>(null);
@@ -73,7 +75,7 @@ describe("match records on a phone", () => {
   it("shows a summary card per match instead of the table", () => {
     mount("/matches?season=2025");
     expect(screen.queryByRole("table")).toBeNull();
-    expect(cards()).toHaveLength(3);
+    expect(cards()).toHaveLength(4);
     const q1 = card("Q1");
     expect(q1.textContent).toContain("Minnesota State Championship");
     expect(q1.textContent).toContain("Red won by 20");
@@ -87,7 +89,35 @@ describe("match records on a phone", () => {
     // The scores and the prediction are always fetched; the export keeps to the picked columns.
     expect(lastParam("fields")!.split(",")).toEqual(expect.arrayContaining(["highScore", "winningMargin", "redTotalPoints", "blueTotalPoints", "redPredictedWinPct"]));
     const csv = new URL(screen.getByRole("link", { name: /Export CSV/ }).getAttribute("href")!, "http://x");
-    expect(csv.searchParams.get("fields")).toBe("highScore,winningMargin");
+    expect(csv.searchParams.get("fields")).toBe("highScore,winningMargin,redPredictedWinPct");
+  });
+
+  it("shows each call's recorded confidence tier beside its percentage, on the card and under More stats (audit PUB3-F03)", () => {
+    mount("/matches?season=2025");
+    const q1 = card("Q1"), q2 = card("Q2");
+    // The tier is the one the server sent (Q1's 70% is confident, Q2's 64% provisional), never worked out from the %.
+    expect(within(q1).getByText("confident").textContent).toBe("confident confidence");
+    expect(q1.textContent).toMatch(/Red favoured \(70%\), Red wonconfident confidence\(replayed call\)/);
+    expect(within(q2).getByText("provisional").textContent).toBe("provisional confidence");
+    expect(within(q2).queryByText("confident")).toBeNull();
+    fireEvent.click(within(q1).getByRole("button", { name: /More stats/ }));
+    const dd = within(q1).getByText("Red pred. win %").nextElementSibling!;
+    expect(dd.textContent).toBe("70%confident confidence");
+    // No prediction at all: no verdict, no tier.
+    expect(card("Q3").textContent).not.toMatch(/favoured|confidence/);
+  });
+
+  it("shows a call with no recorded tier without its percentage, on the card and under More stats", () => {
+    mount("/matches?season=2025");
+    const q4 = card("Q4");
+    expect(q4.textContent).toContain("Called it");
+    expect(q4.textContent).toContain("Red favoured, Red won");
+    expect(q4.textContent).not.toContain("81%");
+    expect(q4.textContent).not.toMatch(/provisional|moderate|confident/);
+    fireEvent.click(within(q4).getByRole("button", { name: /More stats/ }));
+    const dd = within(q4).getByText("Red pred. win %").nextElementSibling!;
+    expect(dd.textContent).not.toContain("%");
+    expect(dd.textContent).toContain("Not shown: no confidence tier was recorded with this call");
   });
 
   it("keeps every team its own link, in its alliance", () => {
@@ -131,7 +161,7 @@ describe("match records on a phone", () => {
     mount("/matches?season=2025");
     expect(screen.getByRole("table")).toBeTruthy();
     fireEvent.click(within(screen.getByRole("group", { name: "Layout" })).getByRole("button", { name: "Summary" }));
-    expect(cards()).toHaveLength(3);
+    expect(cards()).toHaveLength(4);
   });
 
   it("sorts and pages from the summary", () => {
@@ -168,6 +198,11 @@ describe("match records on a wider screen", () => {
     phone = false;
     mount("/matches?season=2025");
     expect(screen.getByRole("table")).toBeTruthy();
+    // The predicted-win column carries each call's recorded tier, and no % where there is none.
+    const cell = (label: string) => within(screen.getByRole("table")).getByText(label).closest("tr")!.lastElementChild!;
+    expect(cell("Q1").textContent).toBe("70%confident confidence");
+    expect(cell("Q2").textContent).toBe("64%provisional confidence");
+    expect(cell("Q4").textContent).not.toContain("%");
     expect(screen.queryByRole("list", { name: "Matches" })).toBeNull();
     expect(screen.queryByRole("group", { name: "Layout" })).toBeNull();
   });

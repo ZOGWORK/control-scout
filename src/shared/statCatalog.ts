@@ -7,6 +7,8 @@
 // keys follow FTC Scout's names (`totalPointsOpr`, `penaltyPointsCommittedTot`)
 // so a filter written for one site reads the same on the other.
 
+import type { ConfidenceTier } from "./api";
+
 /** Which kind of record a stat describes. */
 export type RecordScope = "teamEvent" | "teamSeason" | "match";
 export const RECORD_SCOPES: readonly RecordScope[] = ["teamEvent", "teamSeason", "match"];
@@ -186,6 +188,12 @@ export interface MatchRecordRow {
   red: number[];
   blue: number[];
   stats: StatValues;
+  /**
+   * The confidence tier recorded with the replayed call behind `stats.redPredictedWinPct` (the
+   * walk-forward ledger's own tier, never worked out again from the probability). Sent only when that
+   * stat was asked for; null when the ledger has no tier for the call, and then the percentage isn't shown.
+   */
+  predictionTier?: ConfidenceTier | null;
 }
 
 /** A FIRST region code used by a season's records, with the place most of its events are in. */
