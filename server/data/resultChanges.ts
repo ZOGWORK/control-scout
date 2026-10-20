@@ -219,8 +219,11 @@ async function writeOnce(b: EventBundle, at: string): Promise<{ changes: number 
   await resultChangesIo.afterToken();
   const watch = await get<{ since: string; missing: string }>("SELECT since, missing FROM result_watch WHERE season = ? AND code = ?", k);
   if (!watch) {
-    // Baseline: this write is the first one watched; nothing before it is known.
-    await writeBatch([...bundleStatements(b), { sql: "INSERT OR IGNORE INTO result_watch (season, code, since) VALUES (?, ?, ?)", args: [...k, at] }]);
+    // Baseline: this write is the first one watched; nothing before it is known. The watch row goes in first
+    // and plain (no OR IGNORE): if another first write got there meanwhile, this batch fails as a whole and is
+    // retried as a normal, diffed write against what that one stored.
+    await resultChangesIo.afterRead();
+    await writeBatch([{ sql: "INSERT INTO result_watch (season, code, since) VALUES (?, ?, ?)", args: [...k, at] }, ...bundleStatements(b)]);
     return { changes: 0 };
   }
   const stored = await readStored(season, code);

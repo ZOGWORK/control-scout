@@ -245,6 +245,21 @@ describe("recording changes", () => {
     expect(await all("SELECT number FROM matches WHERE code = 'EV' ORDER BY number")).toEqual([{ number: 1 }, { number: 2 }]);
   });
 
+  it("turns the second of two overlapping first writes into a diffed write", async () => {
+    // Both read "no watch row"; the other one commits first (its baseline: Q1 unplayed).
+    let once = true;
+    resultChangesIo.afterRead = async () => {
+      if (!once) return;
+      once = false;
+      await new Promise((r) => setTimeout(r, 5));
+      await writeEventBundle(bundle([m(1)]), { now: "2026-11-07T15:00:00.000Z" });
+    };
+    try { await writeEventBundle(bundle([m(1, { r: 100, b: 90 })]), { now: "2026-11-07T15:01:00.000Z" }); }
+    finally { resultChangesIo.afterRead = async () => {}; }
+    expect((await changes()).map((r) => [r.kind, r.number])).toEqual([["posted", 1]]);
+    expect(await get("SELECT since FROM result_watch WHERE code = 'EV'")).toEqual({ since: "2026-11-07T15:00:00.000Z" });
+  });
+
   it("gives up after its retries rather than saving a bundle without its changes", async () => {
     await writeEventBundle(bundle([m(1, { r: 100, b: 90 })]));
     let n = 0;
