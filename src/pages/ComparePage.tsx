@@ -4,7 +4,8 @@
 // The team search sits in one place, first under the title, whether no team or three are chosen, so it
 // never moves as teams are added. With none chosen, the page offers the member's own teams (Control
 // Point, followed, shortlist, tracked) as one-click picks. With teams chosen, the stats table and both
-// charts share the first screen; head to head and the workspace's scouting (only when there is some) follow.
+// charts share the first screen; the brief (closed until asked for), head to head and the workspace's scouting
+// (only when there is some) follow.
 import { useMemo, useRef, useState, type ReactNode } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { Bar, BarChart, CartesianGrid, Legend, Line, LineChart, XAxis, YAxis } from "recharts";
@@ -25,6 +26,7 @@ import { teamError } from "../lib/teamCheck";
 import { SeasonToggle } from "../components/SeasonToggle";
 import { num, rankPct } from "../lib/format";
 import { CompareConsensus } from "../components/ScoutConsensus";
+import { CompareBrief } from "../components/CompareBrief";
 import { cn } from "../components/cn";
 import { useTeamColors } from "../components/TeamColorPicker";
 import { Reveal, Stagger, StaggerItem, m } from "../components/motion";
@@ -338,6 +340,8 @@ function Compare({ d, onRemove }: { d: CompareView; onRemove: (n: number) => voi
           </ChartCard>
         </div>
       </div>
+      {/* The brief stays closed until asked for: the table and charts come first. */}
+      <CompareBrief d={d} />
       {lab && <Button asChild variant="secondary"><Link to={lab}><Sparkles /> Predict {t[0].team.number}+{t[1].team.number} vs {t[2].team.number}+{t[3].team.number}</Link></Button>}
       {t.length > 1 && (
         <Section title={`Head to head (${d.meetings.length})`} description={`Matches where ${t[0].team.number} played with or against the others this season`}>

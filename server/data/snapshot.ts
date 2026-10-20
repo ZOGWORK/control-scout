@@ -23,14 +23,14 @@ export const PRIVATE_TABLES = [
   "users", "sessions", "identities", "email_codes", "user_state", "scout_entries", "error_reports", "contact_messages", "analytics_daily",
   "workspace_members", "entry_photos", "workspace_scout_entries", "workspace_template_versions", "workspace_assignments", "workspace_former_members", "workspace_pending_departures", "workspaces",
   "owner_audit", "feature_flags", "request_metrics_daily", "owner_alerts", "workspace_activity", "inbox_items", "workspace_entry_comments",
-  "workspace_picklist", "workspace_picklist_versions", "workspace_entry_versions", "push_subscriptions", "push_sent",
+  "workspace_picklist", "workspace_picklist_versions", "workspace_picklist_ops", "workspace_entry_versions", "push_subscriptions", "push_sent",
 ];
 
 /**
  * Public FTC data the snapshot ships. Every table the migrations create must be
  * in exactly one of these two lists (snapshot.test.ts fails otherwise), so a new
  * table is never shipped by accident: decide which it is when you add it.
- * Full-text search shadow tables (search_*, search_fuzzy_*) follow their parent.
+ * Full-text search shadow tables (search_*, search_fuzzy_*, team_search_*) follow their parent.
  */
 export const PUBLIC_TABLES = [
   "schema_version", "seasons", "teams", "team_seasons", "events", "event_teams", "matches", "match_teams", "alliances", "awards",
@@ -41,6 +41,8 @@ export const PUBLIC_TABLES = [
   // Automatically published power rankings: public pages built from public data (blurbs, ranks, ratings);
   // edited_by is a role, never an email (who edited is in owner_audit, which is private).
   "power_rankings_generated",
+  // The directory's search index (migration 30): words of public team names and towns, kept by triggers on teams.
+  "team_search",
   // Official result changes the sync saw (first postings, score revisions, schedule moves): public match data.
   "result_changes", "result_watch",
 ];

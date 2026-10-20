@@ -9,7 +9,7 @@ so the event page and match details can show it (timeline only: no alerts).
 Every detail write of an event (the background cycle and the live fast lane
 both go through `syncEvent` → `writeEventBundle` in
 `server/data/resultChanges.ts`) compares the stored matches with the incoming
-ones and writes a row per real change into `result_changes` (migration 30), in
+ones and writes a row per real change into `result_changes` (migration 33), in
 the same transaction as the event's rows:
 
 | kind | when | before / after |
@@ -26,8 +26,8 @@ the sync saw it (`checked_at`, not when FIRST changed it).
 Rules that keep it honest:
 
 - **Idempotent.** The same data polled again compares equal and adds nothing.
-  Each row also has a UNIQUE `diff_key` (match, kind, the match's previous
-  change, new value). The batch opens with a guard that fails it as a whole if
+  Each row also has a UNIQUE `diff_key` (match, kind, the previous change's
+  key, new value: the same in every copy of the database, unlike ids). The batch opens with a guard that fails it as a whole if
   the event's `detail_synced_at` is no longer the one read before diffing
   (another writer stored it in between: `npm run sync` holds no writer lease),
   and the write then reads and diffs again (3 attempts, then the event's sync
@@ -68,6 +68,10 @@ up to ~150 matches, so that covers several corrections per match; older rows
 are dropped in the same transaction and counted in `result_watch.pruned`, which
 the API returns so the UI can say so.
 
+`npm run db:push` copies `result_watch` and `result_changes` with the matches;
+for each watched event the target's history is replaced by the source's (so
+the cap and `pruned` stay true there).
+
 ## API
 
 - `GET /api/events/:season/:code/result-changes`
@@ -83,5 +87,5 @@ Measured locally on a 150-match event (file database, 60 writes each): plain
 bundle write median 90.8 ms / p95 144.7 ms; with the diff and no change
 90.3 / 127.2 ms; with a revision every write 62.6 / 94.1 ms — the diff (two
 indexed reads of one event) is within the noise of the write itself. Migration
-30 is metadata-only on `matches` (`ALTER TABLE … ADD COLUMN`): migrations 7–30
-applied to the 119k-match snapshot in 118 ms.
+32 is metadata-only on `matches` (`ALTER TABLE … ADD COLUMN`): migrations 7–33
+applied to the 119k-match snapshot in 178 ms (after syncing with main, which added 30–32).

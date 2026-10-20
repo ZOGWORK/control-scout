@@ -4,12 +4,19 @@ import { toast } from "../components/ui/sonner";
  *  Clipboard API is missing (plain HTTP on a venue network), and says so if
  *  neither works instead of failing silently. */
 export async function copyLink(url = location.href) {
+  return copyText(url, "Link copied", "Couldn't copy the link", url);
+}
+
+/** Copy any text the same way; true when it reached the clipboard. */
+export async function copyText(text: string, done: string, failed: string, description?: string): Promise<boolean> {
   try {
-    if (navigator.clipboard) await navigator.clipboard.writeText(url);
-    else if (!legacyCopy(url)) throw new Error("no clipboard");
-    toast.success("Link copied");
+    if (navigator.clipboard) await navigator.clipboard.writeText(text);
+    else if (!legacyCopy(text)) throw new Error("no clipboard");
+    toast.success(done);
+    return true;
   } catch {
-    toast.error("Couldn't copy the link", { description: url });
+    toast.error(failed, description ? { description } : undefined);
+    return false;
   }
 }
 

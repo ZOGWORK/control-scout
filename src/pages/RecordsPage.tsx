@@ -89,6 +89,7 @@ export default function RecordsPage({ matches }: { matches?: boolean }) {
           : view === "listed"
             ? "Every team registered for the season, whether or not it has played yet. Browse by country, open a profile, track a team."
             : "Every team's numbers for the season. Filter with any stat, sort any column, tick teams to compare, export to CSV."}
+        phoneDescription={matches ? "Every played match of the season." : view === "listed" ? "Every team registered for the season." : "Every team's numbers for the season."}
       >
         {/* Each view has its own address, so these are links (the current one aria-current), not tabs. */}
         <nav ref={strip} className="inline-flex max-w-full gap-1 overflow-x-auto rounded-xl border border-line bg-card p-1" aria-label="Records">

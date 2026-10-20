@@ -61,6 +61,21 @@ export type PickOp =
 /** The server's 409 message for a based note op refused because the note changed since (noteConflicts). */
 export const NOTE_CHANGED = "A teammate changed this note since yours was written, so yours wasn't saved over it.";
 
+/**
+ * A change's operation id (POST body `opId`): one per change the member made, kept with it on the device and
+ * reused by every retry of it, so the server applies it once however often it's sent (letters, digits, - and _).
+ */
+export const PICK_OP_ID = /^[A-Za-z0-9_-]{8,64}$/;
+export const isPickOpId = (x: unknown): x is string => typeof x === "string" && PICK_OP_ID.test(x);
+/** The most op ids one read may ask about (GET ?ops=): which of these did the server apply? */
+export const MAX_OP_QUERY = 50;
+
+/**
+ * The server's 409 message for a change sent (POST body `account`) on behalf of a different account than the one
+ * signed in: a change kept on the device for one account is never applied as another.
+ */
+export const WRONG_ACCOUNT = "This change was made by another account, so it wasn't sent as yours. Sign in as that account to send it, or discard it.";
+
 /** The note a based note op (see PickOp) would replace has changed since: the server keeps the newer one. */
 export const noteConflicts = (pick: Pick, op: { note: string; base?: number | null }) =>
   op.base !== undefined && pick.note !== op.note && (pick.noteUpdatedAt ?? null) !== op.base;

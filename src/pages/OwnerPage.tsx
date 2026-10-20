@@ -19,7 +19,8 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { toast } from "../components/ui/sonner";
 import { cn } from "../components/cn";
 import { apiFetch, ApiError, markStale, prime, useApi } from "../lib/api";
-import { useTitle } from "../lib/meta";
+import { useMediaQuery, useTitle } from "../lib/meta";
+import { ExpandableText } from "../components/ExpandableText";
 import { ago, int, pct, seasonLabel } from "../lib/format";
 import { fmtBytes } from "../lib/recordings";
 import { refreshFlags } from "../lib/flags";
@@ -1029,12 +1030,28 @@ function describe(e: AuditEntry): string {
   }
 }
 
+const failed = (r?: string | null) => !!r && (r.startsWith("failed") || r.startsWith("refused"));
+
 function AuditPanel() {
   const state = useApi<{ entries: AuditEntry[] }>("/api/owner/audit?limit=200");
+  // A phone gets one card per entry: the table's four columns leave What a narrow, very tall column there.
+  const phone = useMediaQuery("(max-width: 639px)");
   return (
     <Section title="Audit log" description="Everything done from this page: who, what and when. Kept for good; nothing here can be edited.">
       <Async state={state} empty={(d) => !d.entries.length && <EmptyState icon={ScrollText} title="Nothing yet" description="Switches, inbox changes and data jobs are recorded here." />}>
-        {({ entries }) => (
+        {({ entries }) => phone ? (
+          <ol aria-label="Audit log entries" className="divide-y divide-border rounded-xl border border-border bg-card">
+            {entries.map((e) => (
+              <li key={e.id} className="space-y-1 px-4 py-3" data-testid="audit-entry">
+                <ExpandableText text={describe(e)} what="summary" className="text-sm font-medium" />
+                <ExpandableText text={e.result ?? "Done"} what="result" className={cn("text-xs", failed(e.result) ? "text-danger" : "text-muted-foreground")} />
+                <p className="text-xs text-muted-foreground [overflow-wrap:anywhere]">
+                  <span className="sr-only">By </span>{e.actor} · <time dateTime={e.at} title={e.at}>{when(e.at)}</time>
+                </p>
+              </li>
+            ))}
+          </ol>
+        ) : (
           <div className="rounded-xl border border-border bg-card">
             <Table>
               <TableHeader><TableRow><TableHead>When</TableHead><TableHead>What</TableHead><TableHead>Result</TableHead><TableHead>Who</TableHead></TableRow></TableHeader>
@@ -1043,7 +1060,7 @@ function AuditPanel() {
                   <TableRow key={e.id}>
                     <TableCell className="whitespace-nowrap text-xs text-muted-foreground" title={e.at}>{when(e.at)}</TableCell>
                     <TableCell className="min-w-[10rem] font-medium">{describe(e)}</TableCell>
-                    <TableCell className={cn("min-w-[10rem] text-xs", e.result?.startsWith("failed") || e.result?.startsWith("refused") ? "text-danger" : "text-muted-foreground")}>{e.result ?? "Done"}</TableCell>
+                    <TableCell className={cn("min-w-[10rem] text-xs", failed(e.result) ? "text-danger" : "text-muted-foreground")}>{e.result ?? "Done"}</TableCell>
                     <TableCell className="whitespace-nowrap text-xs text-muted-foreground">{e.actor}</TableCell>
                   </TableRow>
                 ))}

@@ -68,7 +68,7 @@ describe("followInbox", () => {
 
 describe("useInbox: replies in order", () => {
   const item = (id: number, read = false) => ({ id, at: 1, workspaceId: "1", workspaceName: "", category: "edits", type: "entry.edited", actorName: "", title: `t${id}`, body: "", link: "/", read }) as InboxItem;
-  type Pending = { path: string; resolve: (v: unknown) => void };
+  type Pending = { path: string; resolve: (v: unknown) => void; json?: unknown };
   const pending: Pending[] = [];
   beforeEach(() => { pending.length = 0; vi.useRealTimers(); vi.stubGlobal("EventSource", undefined); });
   afterEach(() => { vi.unstubAllGlobals(); });
@@ -121,6 +121,254 @@ describe("useInbox: replies in order", () => {
     await act(async () => { result.current.loadOlder(); });
     await act(async () => { pending.filter((p) => p.path.includes("before=")).at(-1)!.resolve({ items: [item(0)], more: false, unread: 0 }); });
     expect(result.current.items.map((i) => i.id)).toEqual([4, 3, 2, 1, 0]);
+    vi.doUnmock("./api");
+  });
+
+  // Follow-up state: the Follow up view's paging, write order, and loading while the filter changes.
+  async function harness() {
+    vi.doMock("./api", async (orig) => ({
+      ...(await orig<typeof import("./api")>()),
+      apiFetch: (path: string, init?: { json?: unknown }) => new Promise((resolve) => { pending.push({ path, resolve, json: init?.json }); }),
+    }));
+    vi.resetModules();
+    const { useInbox } = await import("./inbox");
+    const { renderHook, act } = await import("@testing-library/react");
+    const { result } = renderHook(() => useInbox(1));
+    return { result, act };
+  }
+  const flagged = (id: number, followUp = true) => ({ ...item(id, true), followUp });
+  const fpage = (items: InboxItem[], more = false) => ({ items, more, unread: 0, followUp: items.filter((i) => i.followUp).length });
+
+  it("Follow up view: toggled rows come back from the server (keep=), over the whole loaded range, with their real state", async () => {
+    const { result, act } = await harness();
+    await act(async () => { result.current.setFilter("followUp"); });
+    await act(async () => { pending.at(-1)!.resolve(fpage([flagged(90), flagged(61)], true)); });
+    await act(async () => { result.current.loadOlder(); });
+    expect(pending.at(-1)!.path).toContain("filter=followUp");
+    expect(pending.at(-1)!.path).toContain("before=61");
+    await act(async () => { pending.at(-1)!.resolve(fpage([flagged(60), flagged(31)], true)); });
+    expect(result.current.items.map((i) => i.id)).toEqual([90, 61, 60, 31]);
+    // Unflag 31 (the oldest loaded): shown unflagged at once.
+    await act(async () => { result.current.setFollowUp([31], false); });
+    expect(result.current.items.map((i) => [i.id, i.followUp])).toEqual([[90, true], [61, true], [60, true], [31, false]]);
+    await act(async () => { pending.find((p) => p.path === "/api/inbox/follow-up")!.resolve({ unread: 0, followUp: 3 }); });
+    // The refresh asks for everything shown (not just a page) and for 31 by id.
+    const refresh = pending.at(-1)!;
+    expect(refresh.path).toMatch(/limit=30&filter=followUp&keep=31$/);
+    // Flagged again on another device meanwhile: the server's copy is what shows.
+    await act(async () => { refresh.resolve(fpage([flagged(90), flagged(61), flagged(60), flagged(31, true)], true)); });
+    expect(result.current.items.map((i) => [i.id, i.followUp])).toEqual([[90, true], [61, true], [60, true], [31, true]]);
+    // Re-flagged here (after unflagging) it stays kept, so a later refresh can't drop it either.
+    await act(async () => { result.current.setFollowUp([31], false); });
+    await act(async () => { pending.filter((p) => p.path === "/api/inbox/follow-up").at(-1)!.resolve({}); });
+    await act(async () => { pending.at(-1)!.resolve(fpage([flagged(90), flagged(61), flagged(60), flagged(31, false)])); });
+    await act(async () => { result.current.setFollowUp([31], true); });
+    await act(async () => { pending.filter((p) => p.path === "/api/inbox/follow-up").at(-1)!.resolve({}); });
+    expect(pending.at(-1)!.path).toContain("keep=31");
+    vi.doUnmock("./api");
+  });
+
+  it("Follow up view with more than 100 rows shown: the refresh covers them all, in pages", async () => {
+    const { result, act } = await harness();
+    const ids = (from: number, n: number) => Array.from({ length: n }, (_, k) => flagged(from - k));
+    await act(async () => { result.current.setFilter("followUp"); });
+    await act(async () => { pending.at(-1)!.resolve(fpage(ids(200, 30), true)); });
+    for (const from of [170, 140, 110]) {
+      await act(async () => { result.current.loadOlder(); });
+      await act(async () => { pending.at(-1)!.resolve(fpage(ids(from, 30), true)); });
+    }
+    expect(result.current.items).toHaveLength(120);
+    await act(async () => { result.current.setFollowUp([81], false); });
+    await act(async () => { pending.find((p) => p.path === "/api/inbox/follow-up")!.resolve({}); });
+    expect(pending.at(-1)!.path).toBe("/api/inbox?limit=100&filter=followUp&keep=81");
+    await act(async () => { pending.at(-1)!.resolve(fpage(ids(200, 100), true)); });
+    expect(pending.at(-1)!.path).toBe("/api/inbox?limit=30&filter=followUp&keep=81&before=101");
+    await act(async () => { pending.at(-1)!.resolve(fpage([...ids(100, 19), flagged(81, false)], true)); });
+    expect(result.current.items).toHaveLength(120);
+    expect(result.current.items.at(-1)).toMatchObject({ id: 81, followUp: false });
+    vi.doUnmock("./api");
+  });
+
+  it("Load older during a Follow up refresh: the refresh keeps its target, and the older rows stay", async () => {
+    const { result, act } = await harness();
+    const ids = (from: number, n: number) => Array.from({ length: n }, (_, k) => flagged(from - k));
+    await act(async () => { result.current.setFilter("followUp"); });
+    await act(async () => { pending.at(-1)!.resolve(fpage(ids(200, 30), true)); });
+    for (const from of [170, 140, 110]) {
+      await act(async () => { result.current.loadOlder(); });
+      await act(async () => { pending.at(-1)!.resolve(fpage(ids(from, 30), true)); });
+    }
+    await act(async () => { result.current.setFollowUp([150], false); });
+    await act(async () => { pending.find((p) => p.path === "/api/inbox/follow-up")!.resolve({}); });
+    await act(async () => { pending.at(-1)!.resolve(fpage(ids(200, 100), true)); });
+    const second = pending.at(-1)!;
+    expect(second.path).toBe("/api/inbox?limit=30&filter=followUp&keep=150&before=101");
+    // Load older lands while the refresh's second page is out.
+    await act(async () => { result.current.loadOlder(); });
+    expect(pending.at(-1)!.path).toContain("before=81");
+    await act(async () => { pending.at(-1)!.resolve(fpage(ids(80, 30), false)); });
+    expect(result.current.items).toHaveLength(150);
+    const before = pending.length;
+    await act(async () => { second.resolve(fpage(ids(100, 20), true)); });
+    // No third request (the refresh went down to the oldest row shown when it started), and nothing lost.
+    expect(pending.length).toBe(before);
+    expect(result.current.items).toHaveLength(150);
+    expect(result.current.items.at(-1)!.id).toBe(51);
+    expect(result.current.more).toBe(false);
+    vi.doUnmock("./api");
+  });
+
+  it("a Follow up refresh covers down to the oldest row shown and takes the server's more (new flags elsewhere)", async () => {
+    const { result, act } = await harness();
+    const ids = (from: number, n: number) => Array.from({ length: n }, (_, k) => flagged(from - k));
+    await act(async () => { result.current.setFilter("followUp"); });
+    await act(async () => { pending.at(-1)!.resolve(fpage(ids(100, 30), false)); }); // 100..71, nothing more
+    expect(result.current.more).toBe(false);
+    // 101 and 50 are flagged on another device; the stream refreshes this view.
+    await act(async () => { result.current.load(); });
+    expect(pending.at(-1)!.path).toBe("/api/inbox?limit=30&filter=followUp");
+    await act(async () => { pending.at(-1)!.resolve(fpage(ids(101, 30), true)); }); // 101..72
+    // Not down to 71 yet: one more page.
+    expect(pending.at(-1)!.path).toBe("/api/inbox?limit=30&filter=followUp&before=72");
+    await act(async () => { pending.at(-1)!.resolve(fpage(ids(71, 1), true)); });
+    expect(result.current.items.map((i) => i.id)).toEqual(ids(101, 31).map((i) => i.id));
+    // 50 is still on the server: Load older is offered.
+    expect(result.current.more).toBe(true);
+    vi.doUnmock("./api");
+  });
+
+  it("more than 200 rows toggled in the Follow up view: every one is asked for, in batches of 200", async () => {
+    const { result, act } = await harness();
+    const rows = Array.from({ length: 210 }, (_, k) => flagged(1000 - k));
+    await act(async () => { result.current.setFilter("followUp"); });
+    await act(async () => { pending.at(-1)!.resolve(fpage(rows)); });
+    await act(async () => { result.current.setFollowUp(rows.map((i) => i.id), false); });
+    await act(async () => { pending.find((p) => p.path === "/api/inbox/follow-up")!.resolve({}); });
+    const keepOf = (path: string) => (/keep=([0-9,]+)/.exec(path)?.[1] ?? "").split(",").filter(Boolean).map(Number);
+    const first = pending.at(-1)!;
+    expect(keepOf(first.path)).toHaveLength(200);
+    await act(async () => { first.resolve(fpage(rows.filter((i) => keepOf(first.path).includes(i.id)).map((i) => ({ ...i, followUp: false })))); });
+    const second = pending.at(-1)!;
+    expect(keepOf(second.path)).toHaveLength(10);
+    expect(new Set([...keepOf(first.path), ...keepOf(second.path)]).size).toBe(210);
+    await act(async () => { second.resolve(fpage(rows.filter((i) => keepOf(second.path).includes(i.id)).map((i) => ({ ...i, followUp: false })))); });
+    expect(result.current.items).toHaveLength(210);
+    expect(result.current.items.every((i) => !i.followUp)).toBe(true);
+    vi.doUnmock("./api");
+  });
+
+  it("batched Follow up refresh: more comes from the pass that reached the oldest row", async () => {
+    const { result, act } = await harness();
+    const rows = Array.from({ length: 210 }, (_, k) => flagged(1000 - k)); // 1000..791
+    await act(async () => { result.current.setFilter("followUp"); });
+    await act(async () => { pending.at(-1)!.resolve(fpage(rows)); });
+    await act(async () => { result.current.setFollowUp(rows.map((i) => i.id), false); });
+    await act(async () => { pending.find((p) => p.path === "/api/inbox/follow-up")!.resolve({}); });
+    const keepOf = (path: string) => (/keep=([0-9,]+)/.exec(path)?.[1] ?? "").split(",").filter(Boolean).map(Number);
+    const tail = Array.from({ length: 10 }, (_, k) => flagged(790 - k)); // flagged rows below everything kept
+    // First pass stops at its last kept row with more (790..781 lie below); the second reaches the very bottom.
+    const first = pending.at(-1)!;
+    await act(async () => { first.resolve(fpage(rows.filter((i) => keepOf(first.path).includes(i.id)).map((i) => ({ ...i, followUp: false })), true)); });
+    // Its next page passes the oldest row shown (791) and stops there, with more.
+    expect(pending.at(-1)!.path).toContain("before=801");
+    await act(async () => { pending.at(-1)!.resolve(fpage([flagged(790)], true)); });
+    const second = pending.at(-1)!;
+    expect(keepOf(second.path)).toHaveLength(10);
+    await act(async () => { second.resolve(fpage([...rows.filter((i) => keepOf(second.path).includes(i.id)).map((i) => ({ ...i, followUp: false })), ...tail], false)); });
+    expect(result.current.items.at(-1)!.id).toBe(781);
+    expect(result.current.more).toBe(false);
+    vi.doUnmock("./api");
+  });
+
+  it("switching to Follow up starts from one page, not the All view's loaded range", async () => {
+    const { result, act } = await harness();
+    await act(async () => { result.current.load(); });
+    await act(async () => { pending.at(-1)!.resolve(fpage(Array.from({ length: 30 }, (_, k) => flagged(500 - k, false)), true)); });
+    for (const from of [470, 440, 410]) {
+      await act(async () => { result.current.loadOlder(); });
+      await act(async () => { pending.at(-1)!.resolve(fpage(Array.from({ length: 30 }, (_, k) => flagged(from - k, false)), true)); });
+    }
+    expect(result.current.items).toHaveLength(120);
+    await act(async () => { result.current.setFilter("followUp"); });
+    expect(pending.at(-1)!.path).toBe("/api/inbox?limit=30&filter=followUp");
+    const n = pending.length;
+    await act(async () => { pending.at(-1)!.resolve(fpage([flagged(450)], true)); });
+    expect(pending.length).toBe(n); // one page: no walk down to the All view's oldest row
+    expect(result.current.items.map((i) => i.id)).toEqual([450]);
+    vi.doUnmock("./api");
+  });
+
+  it("a live refresh waits while a write is queued (it would bring back the old state)", async () => {
+    const { result, act } = await harness();
+    await act(async () => { result.current.load(); });
+    await act(async () => { pending.at(-1)!.resolve(fpage([flagged(5, false)])); });
+    await act(async () => { result.current.markUnread([5]); });
+    // e.g. the stream's event, or the panel opening, while the write is out: no request yet.
+    const lists = () => pending.filter((p) => p.path.startsWith("/api/inbox?"));
+    await act(async () => { result.current.load(); });
+    expect(lists()).toHaveLength(1);
+    expect(result.current.items[0].read).toBe(false);
+    await act(async () => { pending.find((p) => p.path === "/api/inbox/unread")!.resolve({ unread: 1 }); });
+    expect(lists()).toHaveLength(2);
+    vi.doUnmock("./api");
+  });
+
+  it("writes reach the server one at a time, in order: flag then unflag ends unflagged", async () => {
+    const { result, act } = await harness();
+    await act(async () => { result.current.load(); });
+    await act(async () => { pending.at(-1)!.resolve(fpage([flagged(5, false)])); });
+    await act(async () => { result.current.setFollowUp([5], true); });
+    await act(async () => { result.current.setFollowUp([5], false); });
+    const writes = () => pending.filter((p) => p.path === "/api/inbox/follow-up");
+    // The unflag waits for the flag.
+    expect(writes().map((w) => w.json)).toEqual([{ ids: [5], on: true }]);
+    await act(async () => { writes()[0].resolve({ unread: 0, followUp: 1 }); });
+    expect(writes().map((w) => w.json)).toEqual([{ ids: [5], on: true }, { ids: [5], on: false }]);
+    // No refresh between them (its snapshot would show the flag again); one after the last.
+    expect(pending.filter((p) => p.path.startsWith("/api/inbox?"))).toHaveLength(1);
+    expect(result.current.items[0].followUp).toBe(false);
+    await act(async () => { writes()[1].resolve({ unread: 0, followUp: 0 }); });
+    expect(pending.filter((p) => p.path.startsWith("/api/inbox?"))).toHaveLength(2);
+    vi.doUnmock("./api");
+  });
+
+  it("switching filters while a list is loading stays loading (never a false empty view)", async () => {
+    const { result, act } = await harness();
+    await act(async () => { result.current.load(); });
+    expect(result.current.loading).toBe(true);
+    await act(async () => { result.current.setFilter("followUp"); });
+    // The first (All) reply lands after the switch: dropped, and the Follow up list is still loading.
+    await act(async () => { pending[0].resolve(fpage([flagged(9, false)])); });
+    expect(result.current.loading).toBe(true);
+    expect(result.current.loaded).toBe(false);
+    expect(result.current.items).toEqual([]);
+    await act(async () => { pending.at(-1)!.resolve(fpage([flagged(8)])); });
+    expect(result.current.loading).toBe(false);
+    expect(result.current.items.map((i) => i.id)).toEqual([8]);
+    vi.doUnmock("./api");
+  });
+
+  it("a write still queued when the account changes is never sent (not with the next account's cookie)", async () => {
+    vi.doMock("./api", async (orig) => ({
+      ...(await orig<typeof import("./api")>()),
+      apiFetch: (path: string, init?: { json?: unknown }) => new Promise((resolve) => { pending.push({ path, resolve, json: init?.json }); }),
+    }));
+    vi.resetModules();
+    const { useInbox } = await import("./inbox");
+    const { renderHook, act } = await import("@testing-library/react");
+    const { result, rerender } = renderHook(({ id }) => useInbox(id), { initialProps: { id: 1 as number | null } });
+    await act(async () => { result.current.load(); });
+    await act(async () => { pending.at(-1)!.resolve(fpage([flagged(5, false), item(4)])); });
+    await act(async () => { result.current.setFollowUp([5], true); });
+    await act(async () => { result.current.markAllRead(); });
+    const posts = () => pending.filter((p) => p.path === "/api/inbox/follow-up" || p.path === "/api/inbox/read");
+    expect(posts()).toHaveLength(1);
+    // Signed out, someone else signs in; then the slow first write finishes.
+    rerender({ id: null });
+    rerender({ id: 2 });
+    await act(async () => { posts()[0].resolve({ unread: 1, followUp: 1 }); });
+    expect(posts()).toHaveLength(1);
+    expect(pending.filter((p) => p.path.startsWith("/api/inbox?"))).toHaveLength(1);
     vi.doUnmock("./api");
   });
 });
