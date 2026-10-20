@@ -15,7 +15,7 @@ export const TONES = {
 } as const;
 export type Tone = keyof typeof TONES;
 
-export function StatTile({ tone, icon: Icon, label, value, hint, bar, onClick, selected, ariaLabel, className }: {
+export function StatTile({ tone, icon: Icon, label, value, hint, bar, onClick, selected, action, className }: {
   tone: Tone;
   icon: LucideIcon;
   label: ReactNode;
@@ -26,7 +26,9 @@ export function StatTile({ tone, icon: Icon, label, value, hint, bar, onClick, s
   onClick?: () => void;
   /** With onClick: this tile's details are open (aria-expanded, a ring in its colour). */
   selected?: boolean;
-  ariaLabel?: string;
+  /** With onClick: what pressing does (e.g. "Show event by event"), added for screen readers after the
+   *  visible text, so the button's name keeps everything it shows (WCAG 2.5.3, label in name). */
+  action?: string;
   className?: string;
 }) {
   const t = TONES[tone];
@@ -43,9 +45,10 @@ export function StatTile({ tone, icon: Icon, label, value, hint, bar, onClick, s
   const base = "flex h-full w-full min-w-0 flex-col rounded-xl border p-4 text-left";
   if (!onClick) return <div className={cn(base, t.box, className)}>{body}</div>;
   return (
-    <button type="button" onClick={onClick} aria-expanded={!!selected} aria-label={ariaLabel} data-selected={selected ? "true" : undefined}
+    <button type="button" onClick={onClick} aria-expanded={!!selected} data-selected={selected ? "true" : undefined}
       className={cn(base, "transition-[border-color,transform,box-shadow,background-color] hover:-translate-y-0.5 motion-reduce:hover:translate-y-0", selected ? t.selected : cn(t.box, t.hover), className)}>
       {body}
+      {action && <span className="sr-only">. {action}</span>}
     </button>
   );
 }

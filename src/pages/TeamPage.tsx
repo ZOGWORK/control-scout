@@ -274,7 +274,7 @@ export function OprSection({ p }: { p: TeamProfile }) {
             <StaggerItem key={k}>
               {/* Each stat in its own colour; only the open one gets the ring (data-selected), none at rest. */}
               <StatTile tone={tone} icon={Icon} label={label} value={num(stat?.value)} onClick={() => setOpen(open === k ? null : k)} selected={open === k}
-                ariaLabel={`${label}: ${num(stat?.value)}. Show event by event`}
+                action="Show event by event"
                 hint={<>{stat?.rank ? `Rank #${stat.rank.toLocaleString()} of ${stat.of?.toLocaleString()}` : "Unranked"}{top && ` · ${top}`}</>}
                 bar={<Meter parts={[{ pc: rankPc(stat?.rank, stat?.of), cls: TONES[tone].bar }]} />} />
             </StaggerItem>
