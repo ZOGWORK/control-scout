@@ -194,7 +194,8 @@ export const resultChangesIo = { afterFirstRead: async (): Promise<void> => {}, 
  * Write one event bundle and record what changed in its results, atomically
  * (one batch = one transaction). The stored rows are read just before
  * writing; the batch opens with a guard that fails it as a whole when the
- * event's result_watch.rev is no longer the one read (another writer stored
+ * event's result_watch.rev is no longer the one read (another writer replaced
+ * its matches: every bundleStatements write bumps it, whoever runs it;
  * this event in between: the writer lease normally rules that out, but
  * `npm run sync` and `db:push` don't hold it), and then it reads and diffs again, so a
  * bundle is never saved without its changes. Event-list-only bundles (no
@@ -244,12 +245,12 @@ async function writeOnce(b: EventBundle, at: string): Promise<{ changes: number 
   const nextMissing = JSON.stringify(Object.fromEntries(held(base, matches, source).slice(0, MISSING_KEPT).map((m) => [matchKey(m), m])));
   await resultChangesIo.afterRead();
   // The guard: a second watch row for this event (a primary-key failure, so the whole batch rolls back)
-  // unless its rev is still the one read. Then the rev moves on with this write.
+  // unless its rev is still the one read. The rev moves on with this write (bundleStatements bumps it).
   const stmts: InStatement[] = [{
     sql: `INSERT INTO result_watch (season, code, since) SELECT ?, ?, ?
           WHERE NOT EXISTS (SELECT 1 FROM result_watch WHERE season = ? AND code = ? AND rev = ?)`,
     args: [...k, at, ...k, Number(watch.rev)],
-  }, { sql: "UPDATE result_watch SET rev = rev + 1, missing = ? WHERE season = ? AND code = ?", args: [nextMissing, ...k] }];
+  }, { sql: "UPDATE result_watch SET missing = ? WHERE season = ? AND code = ?", args: [nextMissing, ...k] }];
   if (changes.length) {
     // Each match's latest change of each kind (its diff key, which is the same in every copy of the database,
     // unlike its id) is part of the next key: the same value coming back later (A → B → A) is a new change, a

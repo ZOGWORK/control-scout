@@ -165,6 +165,9 @@ export function bundleStatements(b: EventBundle): InStatement[] {
   if (!b.detail) return s;
   const k = [e.season, e.code];
   for (const t of ["event_teams", "matches", "match_teams", "alliances", "awards"]) s.push({ sql: `DELETE FROM ${t} WHERE season = ? AND code = ?`, args: k });
+  // Every writer that replaces an event's matches moves its result-change guard (data/resultChanges.ts), so a
+  // diff read before this write is never applied after it.
+  s.push({ sql: "UPDATE result_watch SET rev = rev + 1 WHERE season = ? AND code = ?", args: k });
   for (const r of b.detail.entries) {
     s.push({ sql: "INSERT OR REPLACE INTO event_teams (season, code, team, rank, rp, tbp, wins, losses, ties, qual_played, dq) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", args: [...k, r.team, r.rank, r.rp, r.tbp, r.wins, r.losses, r.ties, r.qualPlayed, r.dq] });
     s.push({ sql: "INSERT OR IGNORE INTO team_seasons (season, team) VALUES (?, ?)", args: [e.season, r.team] });
