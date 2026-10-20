@@ -39,7 +39,7 @@ export function MatchReportView({ r, ws, watch }: { r: MatchReport } & ReportWor
   // A refusal (not a member any more, paused) or a failure: OPR-only, as for anyone without a workspace.
   const workspace = ws && !ws.state.error ? ws : null;
   return (
-    <div className="space-y-5">
+    <div className="space-y-5 max-sm:space-y-4">
       <Call m={m} />
       <WorkspaceLine ws={ws} />
       <div className="grid gap-4 lg:grid-cols-2">

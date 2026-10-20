@@ -174,3 +174,23 @@ describe("records table select-all", () => {
     expect(screen.queryAllByRole("checkbox")).toHaveLength(0);
   });
 });
+
+describe("records table on a phone", () => {
+  it("the Team column shows the number only, a tap shows the name and a link to the team, and the ticks stay", async () => {
+    phone = true;
+    mount();
+    const cell = row(101).closest("td")!;
+    expect(within(cell).queryByText("Team 101")).toBeNull();
+    const num = within(cell).getByRole("button", { name: "101 Team 101" });
+    fireEvent.click(num);
+    const pop = await screen.findByRole("dialog");
+    expect(within(pop).getByText("Team 101")).toBeTruthy();
+    expect(within(pop).getByRole("link", { name: /Open team page/ }).getAttribute("href")).toBe("/teams/101?season=2025");
+  });
+
+  it("on a laptop the Team cell is one link with the number and name", () => {
+    mount();
+    const cell = row(101).closest("td")!;
+    expect(within(cell).getByRole("link").textContent).toBe("101Team 101");
+  });
+});

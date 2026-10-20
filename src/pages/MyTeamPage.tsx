@@ -49,8 +49,8 @@ export default function MyTeamPage() {
     return (
       <div>
         <PageHeader title="My team" description="Pick your team to get a personal dashboard: your next matches with predictions, recent results, your next event's odds, and news from teams you track." />
-        <div className="grid items-start gap-6 lg:grid-cols-[minmax(0,28rem)_minmax(0,1fr)]">
-        <div className="rounded-2xl border border-border bg-card p-6">
+        <div className="grid items-start gap-6 max-sm:gap-4 lg:grid-cols-[minmax(0,28rem)_minmax(0,1fr)]">
+        <div className="rounded-2xl border border-border bg-card p-6 max-sm:p-4">
           <form onSubmit={submit} noValidate className="flex items-start gap-2">
             <div className="flex-1"><TeamInput label="Your team number" value={draft} onChange={(v) => { setDraft(v); setError(null); }} autoFocus error={error} inputRef={input} /></div>
             <Button type="submit" className="h-11" disabled={!draft || checking}><Star /> Set</Button>
@@ -73,7 +73,7 @@ export default function MyTeamPage() {
         </ul>
         </div>
         {/* Teams tracked before picking your own still show up here. */}
-        {state.tracked.teams.length + state.tracked.events.length > 0 && <div className="mt-8"><TrackedFeed season={current} /></div>}
+        {state.tracked.teams.length + state.tracked.events.length > 0 && <div className="mt-8 max-sm:mt-5"><TrackedFeed season={current} /></div>}
       </div>
     );
   }
@@ -127,7 +127,7 @@ function Dashboard({ team }: { team: number }) {
       {/* Hero: who this is (big number, gold), and how the season is going. */}
       <Reveal fade={false} className="mb-4 overflow-hidden rounded-2xl border border-border bg-card">
         <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.05fr)]">
-          <div className="relative min-w-0 p-6 sm:p-8">
+          <div className="relative min-w-0 p-4 sm:p-8">
             <div aria-hidden className="pointer-events-none absolute -left-24 -top-24 size-64 rounded-full bg-accent opacity-[0.12] blur-3xl" />
             <div className="relative flex items-center justify-between gap-3">
               <p className="flex items-center gap-1.5 text-xs font-medium uppercase tracking-[0.08em] text-accent-text"><Star className="size-3.5 fill-current" aria-hidden />My team{!deciding && ` · ${seasonLabel(season)}`}</p>
@@ -140,10 +140,10 @@ function Dashboard({ team }: { team: number }) {
               </Link>
             </h1>
             {/* The team's own seasons only: kept from the last load while a new season is fetched. */}
-            <div className="relative mt-5">{knownSeasons ? <SeasonToggle predictOnly seasons={knownSeasons} value={season} onChange={setSeason} /> : <div className="skeleton h-9 w-72 max-w-full rounded-lg" />}</div>
+            <div className="relative mt-5 max-sm:mt-4">{knownSeasons ? <SeasonToggle predictOnly seasons={knownSeasons} value={season} onChange={setSeason} /> : <div className="skeleton h-9 w-72 max-w-full rounded-lg" />}</div>
             <Link to={`/teams/${team}?season=${season}`} className="relative mt-4 inline-flex items-center gap-1 text-xs text-muted-foreground underline-offset-2 hover:text-accent-text hover:underline">Full {team} page for this season <ArrowRight className="size-3" aria-hidden /></Link>
           </div>
-          <div className="min-w-0 border-t border-border bg-secondary/60 p-6 sm:p-8 lg:border-l lg:border-t-0">
+          <div className="min-w-0 border-t border-border bg-secondary/60 p-4 sm:p-8 lg:border-l lg:border-t-0">
             <p className="text-xs font-medium uppercase tracking-[0.08em] text-muted-foreground">Season so far</p>
             <Async state={profile} loading={<div className="skeleton mt-3 h-40 rounded-xl" />}>
               {(d) => <SeasonSoFar p={d} team={team} matches={matches.data?.matches} matchesFailed={!!matches.error} when={when} earlier={earlier} onSeason={setSeason} />}
@@ -151,7 +151,7 @@ function Dashboard({ team }: { team: number }) {
           </div>
         </div>
       </Reveal>
-      <Async state={profile} loading={<div className="skeleton mb-8 h-36 rounded-xl" />}>
+      <Async state={profile} loading={<div className="skeleton mb-8 max-sm:mb-5 h-36 rounded-xl" />}>
         {(p) => {
           const s = p.stats;
           const today = new Date().toISOString().slice(0, 10);
@@ -161,7 +161,7 @@ function Dashboard({ team }: { team: number }) {
           const last = p.events[p.events.length - 1];
           return (
             <>
-              <Stagger className="mb-8 grid grid-cols-2 gap-3 lg:grid-cols-4">
+              <Stagger className="mb-8 max-sm:mb-5 grid grid-cols-2 gap-3 lg:grid-cols-4">
                 <StaggerItem><StatTile tone="accent" icon={Target} label="OPR" value={num(s?.opr.np.value)}
                   hint={s?.opr.np.rank ? `#${s.opr.np.rank.toLocaleString()} of ${s.opr.np.of?.toLocaleString()}${top ? ` · ${top}` : ""}` : isCurrent ? "not ranked yet" : "not ranked"}
                   bar={s?.opr.np.rank ? <Meter parts={[{ pc: rankPc(s.opr.np.rank, s.opr.np.of), cls: TONES.accent.bar }]} /> : null} /></StaggerItem>
@@ -242,7 +242,7 @@ function SeasonSoFar({ p, team, matches, matchesFailed, when, earlier, onSeason 
     <>
       <p className={`mt-3 font-display text-5xl font-semibold tabular-nums ${PROFILE_PERCENTILE_TEXT}`}>{top ?? "Unranked"}</p>
       <p className="text-sm text-muted-foreground">worldwide by OPR{s.opr.np.rank ? ` · #${s.opr.np.rank.toLocaleString()} of ${s.opr.np.of?.toLocaleString()}` : ""}</p>
-      <div className="mt-5 grid gap-3 sm:grid-cols-2">
+      <div className="mt-5 max-sm:mt-4 grid gap-3 sm:grid-cols-2">
         <div className="rounded-xl border border-success/30 bg-success/[0.07] p-3">
           <p className="flex items-center gap-1.5 text-xs text-muted-foreground"><Trophy className="size-3.5 text-success" aria-hidden />Win rate</p>
           <p className="mt-1 font-display text-2xl font-semibold tabular-nums text-success">{winRate}%</p>

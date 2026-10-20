@@ -124,7 +124,7 @@ export function TeamDirectory({ season, onSeason }: { season: number; onSeason: 
 
       {/* An unknown ?country= as the records tables show it (urlState.ts): a problem, not every country. */}
       {state.countryUnknown ? (
-        <div className="mt-4 flex flex-col items-center rounded-xl border border-danger/40 bg-danger/[0.05] px-6 py-10 text-center" role="alert">
+        <div className="mt-4 flex flex-col items-center rounded-xl border border-danger/40 bg-danger/[0.05] px-6 max-sm:px-4 py-10 max-sm:py-6 text-center" role="alert">
           <p className="font-medium">Unknown country {state.countryUnknown.slice(0, 40)}</p>
           <p className="mt-1 max-w-lg text-xs text-text-muted">This link names a country code we don't know, so no teams are shown. Countries use two-letter codes, like US or CA.</p>
           <Button className="mt-4" onClick={() => setState({ ...state, countryUnknown: null, page: 1 })}><X /> Show every country</Button>
@@ -134,7 +134,7 @@ export function TeamDirectory({ season, onSeason }: { season: number; onSeason: 
         : <Summary data={data} season={season} where={where} resultsHref={resultsHref} onRetry={api.reload} />}
 
       {state.countryUnknown ? null : searchIssue ? (
-        <div className="mt-4 flex flex-col items-center rounded-xl border border-danger/40 bg-danger/[0.05] px-6 py-10 text-center" role="alert">
+        <div className="mt-4 flex flex-col items-center rounded-xl border border-danger/40 bg-danger/[0.05] px-6 max-sm:px-4 py-10 max-sm:py-6 text-center" role="alert">
           <p className="font-medium">This search can’t be run</p>
           <p className="mt-1 max-w-lg text-xs text-text-muted">{searchIssue}. Search by a team number, or a few words of a team’s name or town.</p>
           <Button variant="outline" className="mt-4" onClick={() => search(null)}><X /> Clear search</Button>
@@ -144,11 +144,11 @@ export function TeamDirectory({ season, onSeason }: { season: number; onSeason: 
       ) : !data ? (
         <div className="mt-4"><LoadingBlock rows={8} label="Loading the team directory" /></div>
       ) : !data.rows.length && data.total === 0 ? (
-        <div className="mt-4 rounded-xl border border-dashed border-line p-6 text-center text-sm text-text-muted">
+        <div className="mt-4 rounded-xl border border-dashed border-line p-6 max-sm:p-4 text-center text-sm text-text-muted">
           No team from {where} is listed for {seasonLabel(season)}.
         </div>
       ) : data.q && matched === 0 ? (
-        <div className={cn("mt-4 flex flex-col items-center rounded-xl border border-dashed border-line px-6 py-10 text-center", api.loading && "opacity-70")} aria-busy={api.loading}>
+        <div className={cn("mt-4 flex flex-col items-center rounded-xl border border-dashed border-line px-6 max-sm:px-4 py-10 max-sm:py-6 text-center", api.loading && "opacity-70")} aria-busy={api.loading}>
           <p className="font-medium" role="status">No listed team from {where} matches “{data.q}”</p>
           <p className="mt-1 max-w-lg text-xs text-text-muted">
             Searched the {fmt(data.total)} {data.total === 1 ? "team" : "teams"} registered for {seasonLabel(season)}, by number and by the words of their name, city and state.

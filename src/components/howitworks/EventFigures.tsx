@@ -93,7 +93,7 @@ export function QualifierSim() {
     <Figure label="Interactive" title="Run a 24-team qualifier 1,000 times"
       actions={<Button size="sm" onClick={run} disabled={running}>{done ? <RotateCcw /> : <Play />}{done ? "Run again" : running ? "Running…" : "Run 1,000 events"}</Button>}
       caption="The spread is the point. Even a top-3 robot sometimes lands outside the top 4 because of the schedule, its partners and a bad day; an underdog occasionally sneaks in. Control Scout reports exactly these chances instead of a single guess.">
-      <div className="grid items-center gap-6 md:grid-cols-[minmax(0,1fr)_minmax(0,1.15fr)]">
+      <div className="grid items-center gap-6 max-sm:gap-4 md:grid-cols-[minmax(0,1fr)_minmax(0,1.15fr)]">
         <div className="grid min-w-0 gap-4">
           <div className="grid gap-1.5">
             <Note>Your robot</Note>

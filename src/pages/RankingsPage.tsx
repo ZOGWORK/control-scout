@@ -356,7 +356,7 @@ function Pager({ data, sp }: { data: RankingsResponse; sp: URLSearchParams }) {
 
 function Explainer() {
   return (
-    <div className="mt-8 max-w-3xl space-y-2 text-sm text-text-muted">
+    <div className="mt-8 max-sm:mt-5 max-w-3xl space-y-2 text-sm text-text-muted">
       <h2 className="font-display text-base font-semibold text-text-base">How the rankings work</h2>
       <p>The rating is the prediction engine's estimate of the points a team's robot adds to its alliance in a match (auto, TeleOp and endgame, penalties left out). It updates after every rated match, and a team is ranked once it has played three. Equal ratings are ordered by team number.</p>
       <p>Each Monday at 00:00 UTC the ranking is saved. The arrows compare today's ranking with the one saved at least a week ago: ↑3 means three places higher, "New" means the team wasn't ranked then. Rising, Falling and Steady follow the same rule as the trends on team pages: a rating change under 8% is Steady.</p>

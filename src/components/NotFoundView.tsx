@@ -46,7 +46,7 @@ export function NotFoundView({ title = "This page is off the field", description
         onPick={(h) => nav(hitHref(h))}
         className="mt-7 w-full text-left [&>div:first-child]:rounded-2xl [&>div:first-child]:shadow-[0_8px_40px_-12px_color-mix(in_srgb,var(--color-accent)_25%,transparent)]"
       />
-      <nav aria-label="Popular pages" className="mt-6 grid w-full grid-cols-2 gap-3 text-left sm:grid-cols-4">
+      <nav aria-label="Popular pages" className="mt-6 max-sm:mt-4 grid w-full grid-cols-2 gap-3 text-left sm:grid-cols-4">
         {LINKS.map(({ to, label, body, icon: Icon }) => (
           <Link key={to} to={to} className="lift group flex flex-col gap-1 rounded-xl border border-border bg-card/60 px-3.5 py-3">
             <span className="flex items-center gap-2 text-sm font-semibold text-foreground">

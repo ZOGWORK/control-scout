@@ -130,30 +130,30 @@ function Week({ w, archive, onLink }: { w: PowerRankingsWeek; archive: PowerRank
         actions={<Button variant="secondary" onClick={() => void share(w)}><Share2 /> Share</Button>}
       />
       {w.sample && (
-        <div role="note" className="-mt-4 mb-6 flex items-start gap-3 rounded-xl border border-amber-500/40 bg-amber-500/10 p-3 text-sm text-accent-text">
+        <div role="note" className="-mt-4 mb-6 max-sm:mb-4 flex items-start gap-3 rounded-xl border border-amber-500/40 bg-amber-500/10 p-3 text-sm text-accent-text">
           <FlaskConical className="mt-0.5 size-4 shrink-0" aria-hidden />
           <p><strong>Sample week.</strong> Development content to preview this page, not real rankings. It's never shown on the live site.</p>
         </div>
       )}
       {w.generated && (
-        <p role="note" className="-mt-4 mb-6 flex max-w-3xl items-start gap-2 rounded-xl border border-accent/30 bg-accent/[0.07] px-3 py-2 text-sm text-text-base/90">
+        <p role="note" className="-mt-4 mb-6 max-sm:mb-4 flex max-w-3xl items-start gap-2 rounded-xl border border-accent/30 bg-accent/[0.07] px-3 py-2 text-sm text-text-base/90">
           <Sparkles className="mt-0.5 size-4 shrink-0 text-accent-text" aria-hidden />
           <span>{generatedNote(w.generated)}</span>
         </p>
       )}
-      <div className={cn("mb-8 max-w-3xl text-[0.9375rem] leading-relaxed text-text-base/90", PROSE)} onClick={onLink} dangerouslySetInnerHTML={{ __html: w.introHtml }} />
-      <ol className="mb-6 grid gap-3" aria-label={`${w.title}: the top ${w.entries.length}`}>
+      <div className={cn("mb-8 max-sm:mb-5 max-w-3xl text-[0.9375rem] leading-relaxed text-text-base/90", PROSE)} onClick={onLink} dangerouslySetInnerHTML={{ __html: w.introHtml }} />
+      <ol className="mb-6 max-sm:mb-4 grid gap-3" aria-label={`${w.title}: the top ${w.entries.length}`}>
         {w.entries.map((e) => <Entry key={e.team} e={e} comparedWith={w.comparedWith} onLink={onLink} tagTemplate={!!w.generated && w.generated.bruno > 0} />)}
       </ol>
       {w.droppedOut.length > 0 && (
-        <p className="mb-6 text-sm text-text-muted">
+        <p className="mb-6 max-sm:mb-4 text-sm text-text-muted">
           <span className="font-medium text-foreground">Dropped out: </span>
           {w.droppedOut.map((d, i) => (
             <span key={d.team}>{i > 0 && ", "}<Link to={`/teams/${d.team}`} className="underline underline-offset-2">{d.team}{d.name ? ` ${d.name}` : ""}</Link> (was {d.lastRank})</span>
           ))}
         </p>
       )}
-      <nav aria-label="Other weeks" className="mb-10 flex flex-wrap items-center gap-2">
+      <nav aria-label="Other weeks" className="mb-10 max-sm:mb-6 flex flex-wrap items-center gap-2">
         {w.previous && <Button variant="secondary" asChild><Link to={`/power-rankings/${w.previous}`}><ArrowLeft /> Week {Number(w.previous.slice(6))}</Link></Button>}
         {w.next && <Button variant="secondary" asChild><Link to={`/power-rankings/${w.next}`}>Week {Number(w.next.slice(6))} <ArrowRight /></Link></Button>}
         <Button variant="ghost" asChild><Link to={w.worldRankings}><ListOrdered /> Every team in the world rankings</Link></Button>

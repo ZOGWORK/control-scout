@@ -63,7 +63,7 @@ export function Eyebrow({ num, children }: { num?: string; children: ReactNode }
 
 export function SectionHead({ num, eyebrow, title }: { num?: string; eyebrow: string; title: ReactNode }) {
   return (
-    <Reveal className="mx-auto mb-5 grid max-w-2xl gap-3">
+    <Reveal className="mx-auto mb-5 max-sm:mb-4 grid max-w-2xl gap-3">
       <Eyebrow num={num}>{eyebrow}</Eyebrow>
       <h2 className="text-balance font-display text-[1.75rem] font-bold leading-[1.08] tracking-tight text-foreground sm:text-4xl">{title}</h2>
     </Reveal>

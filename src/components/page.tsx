@@ -32,7 +32,7 @@ export function PageHeader({ title, description, phoneDescription, actions, eyeb
   // opacity on the first frame (replacing the static first paint). A page change fades the whole page (Shell).
   const tight = phoneDescription != null;
   return (
-    <div className={cn("mb-8", tight && "max-md:mb-3")}>
+    <div className={cn("mb-8 max-sm:mb-5", tight && "max-md:mb-3")}>
       <div className={cn("flex flex-wrap items-end justify-between gap-4", tight && "max-md:gap-2")}>
         <div className="min-w-0">
           {eyebrow && <p className={cn("mb-2 text-xs font-medium uppercase tracking-[0.08em] text-muted-foreground", tight && "max-md:hidden")}>{eyebrow}</p>}
@@ -42,7 +42,7 @@ export function PageHeader({ title, description, phoneDescription, actions, eyeb
         </div>
         {actions && <div data-print-hide className="flex shrink-0 items-center gap-2">{actions}</div>}
       </div>
-      {children && <div className={cn("mt-6", tight && "max-md:mt-3")}>{children}</div>}
+      {children && <div className={cn("mt-6 max-sm:mt-4", tight && "max-md:mt-3")}>{children}</div>}
     </div>
   );
 }

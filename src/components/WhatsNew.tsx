@@ -34,7 +34,7 @@ export function WhatsNewHost() {
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogContent returnFocus={() => returnTo.current?.()} className="max-h-[88dvh] overflow-hidden p-0 sm:max-w-3xl">
-        <DialogHeader className="border-b border-border px-6 py-4">
+        <DialogHeader className="border-b border-border px-6 max-sm:px-4 py-4">
           <DialogTitle className="flex items-center gap-2">What's new{v && <Badge variant="outline">v{v}</Badge>}</DialogTitle>
           <DialogDescription>Every release of Control Scout, newest first.</DialogDescription>
         </DialogHeader>

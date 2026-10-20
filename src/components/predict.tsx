@@ -323,7 +323,7 @@ export function MatchList({ matches, highlight, empty, eventNames, eventDates, i
     // Only when the requested match or the visit changes (not on every refresh of the list).
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [initialOpen, loc.key, matches.length]);
-  if (!matches.length) return <p className="rounded-xl border border-dashed border-border px-4 py-8 text-center text-sm text-text-muted">{empty ?? "No matches yet."}</p>;
+  if (!matches.length) return <p className="rounded-xl border border-dashed border-border px-4 py-8 max-sm:py-5 text-center text-sm text-text-muted">{empty ?? "No matches yet."}</p>;
   const toggle = (k: string) => setOpen((s) => { const n = new Set(s); if (n.has(k)) n.delete(k); else n.add(k); return n; });
   // An event's own schedule: Qualifications / Playoffs headings. A list across events (the caller passes
   // eventNames: a team's season): a heading per event, in the list's own order, even when only one shows.

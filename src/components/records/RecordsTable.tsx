@@ -17,7 +17,7 @@ import { addPreset, hasPreset, presetGroup, presetsFor, removePreset, type Thres
 import type { FilterPreset } from "../../config/filterPresets";
 import { dateRange } from "../../lib/format";
 import { Button } from "../ui/button";
-import { Tooltip, TooltipContent, TooltipTrigger } from "../ui/overlay";
+import { Popover, PopoverContent, PopoverTrigger, Tooltip, TooltipContent, TooltipTrigger } from "../ui/overlay";
 import { toast } from "../ui/sonner";
 import { ErrorState } from "../states";
 import { cn } from "../cn";
@@ -425,7 +425,7 @@ export function RecordsTable(p: RecordsTableProps) {
         <TableSkeleton />
       ) : !data.rows.length ? (
         !filtered && p.emptyFallback ? p.emptyFallback : (
-          <div className="flex flex-col items-center rounded-xl border border-dashed border-line px-6 py-12 text-center">
+          <div className="flex flex-col items-center rounded-xl border border-dashed border-line px-6 max-sm:px-4 py-12 text-center">
             <span className="mb-3 flex size-11 items-center justify-center rounded-full bg-accent/15"><SearchX className="size-5 text-accent" /></span>
             <p className="font-medium">{filtered ? `No ${p.noun} match these filters` : `No ${p.noun} yet`}</p>
             <p className="mt-1 max-w-md text-sm text-text-muted">{filtered ? (state.filter ? describeFilter(state.filter, scope) : "Try another region, country, event type or date range.") : "Records appear once matches have been played and the stats have been updated."}</p>
@@ -481,7 +481,7 @@ const countConds = (g: FilterGroup): number => g.children.reduce((a, c) => a + (
 
 function Problem({ title, detail, onClear, clearLabel = "Clear filters" }: { title: string; detail: string; onClear: () => void; clearLabel?: string }) {
   return (
-    <div className="flex flex-col items-center rounded-xl border border-danger/40 bg-danger/[0.05] px-6 py-10 text-center" role="alert">
+    <div className="flex flex-col items-center rounded-xl border border-danger/40 bg-danger/[0.05] px-6 max-sm:px-4 py-10 max-sm:py-6 text-center" role="alert">
       <p className="font-medium">{title}</p>
       <p className="mt-1 max-w-lg font-mono text-xs text-text-muted">{detail}</p>
       <Button className="mt-4" onClick={onClear}><X /> {clearLabel}</Button>
@@ -499,7 +499,9 @@ function TableSkeleton() {
 
 // Header cells carry their own background and draw the line under them as a shadow (the floating copy of the
 // header row, FloatingHead, reuses them).
-const th = "bg-card shadow-[inset_0_-2px_0_color-mix(in_srgb,var(--color-text-base)_20%,transparent)] h-12 whitespace-nowrap px-5 pb-2.5 align-bottom text-[11px] font-bold uppercase tracking-wider";
+const th = "bg-card shadow-[inset_0_-2px_0_color-mix(in_srgb,var(--color-text-base)_20%,transparent)] h-12 whitespace-nowrap px-5 pb-2.5 align-bottom text-[11px] font-bold uppercase tracking-wider max-sm:h-10 max-sm:px-2.5 max-sm:pb-2";
+// Body cells: roomy on a laptop, tight on a phone (more columns on screen, less scrolling).
+const td = "density-row px-5 py-3 max-sm:px-2.5 max-sm:py-2";
 // Grid lines a step stronger than the app's hairlines: rows and columns stay easy to follow across a wide table.
 const grid = "border-text-base/15";
 const sticky = "sticky left-0 z-10 bg-card shadow-[1px_0_0_color-mix(in_srgb,var(--color-text-base)_22%,transparent)]";
@@ -521,17 +523,35 @@ function SortHead({ k, label, title, state, sortBy, className, tone, align = "ri
   );
 }
 
+/** A phone's Team cell: just the number (the column stays narrow, so more stats fit), and a tap shows the
+ *  team's name with a link to its page. */
+function TeamNumber({ team, name, href }: { team: number; name: string; href: string }) {
+  return (
+    <Popover>
+      <PopoverTrigger className="rounded font-mono font-semibold tabular-nums outline-none focus-visible:ring-2 focus-visible:ring-ring/60 still-hover:text-accent-text"
+        aria-label={name ? `${team} ${name}` : `Team ${team}`}>
+        {team}
+      </PopoverTrigger>
+      <PopoverContent align="start" className="w-auto max-w-[min(18rem,90vw)] p-3">
+        <p className="font-mono text-xs font-semibold tabular-nums text-text-muted">{team}</p>
+        {name && <p className="font-semibold">{name}</p>}
+        <Link to={href} className="mt-2 inline-flex items-center gap-1 text-sm font-medium text-accent-text hover:underline">Open team page <ChevronRight className="size-3.5" /></Link>
+      </PopoverContent>
+    </Popover>
+  );
+}
+
 /** The Team header's checkbox, labelled "Select all": ticks or clears every team on the page; "mixed" when only some are ticked. */
 function SelectAll({ state, onToggle }: { state: PageSelection; onToggle: () => void }) {
   const ref = useRef<HTMLInputElement>(null);
   // "indeterminate" is a property only (no attribute): set it after every render, as a click resets it.
   useEffect(() => { if (ref.current) ref.current.indeterminate = state === "some"; });
   return (
-    <label className="mr-1.5 inline-flex cursor-pointer items-center gap-2.5 align-middle text-sm font-semibold normal-case tracking-normal text-text-base"
+    <label className="mr-1.5 inline-flex cursor-pointer items-center gap-2.5 max-sm:mr-1 align-middle text-sm font-semibold normal-case tracking-normal text-text-base"
       title={state === "none" ? `Select the teams on this page (Compare takes up to ${COMPARE_MAX})` : "Clear the teams on this page"}>
       <input ref={ref} type="checkbox" checked={state === "all"} aria-checked={state === "some" ? "mixed" : undefined} onChange={onToggle}
         aria-label="Select all teams on this page" className="size-[18px] shrink-0 cursor-pointer accent-[var(--color-accent)] max-sm:size-5" />
-      <span aria-hidden>Select all</span>
+      <span aria-hidden className="max-sm:hidden">Select all</span>
     </label>
   );
 }
@@ -542,6 +562,8 @@ function Table({ data, scope, cols, state, sortBy, code, highlightTeam, selectab
   pageSelection: PageSelection; onSelectAll: () => void;
 }) {
   const showEvent = scope === "teamEvent" && !code;
+  // Phones: the Team column shows the number only, and a tap on it shows the name (TeamNumber).
+  const phone = usePhone();
   const { ref, more } = useMoreToTheRight();
   const tableRef = useRef<HTMLTableElement>(null);
   const headRow = (
@@ -592,32 +614,36 @@ function Table({ data, scope, cols, state, sortBy, code, highlightTeam, selectab
                 className={cn("group/row border-b last:border-b-0", grid, "still-hover:bg-text-base/[0.03]", hl && "bg-accent/[0.07]", sel && "bg-sky-500/[0.07]")}>
                 {"key" in r ? (
                   <>
-                    <td className={cn(sticky, "density-row px-5 py-3 row-still-hover:bg-[color-mix(in_srgb,var(--color-card)_97%,var(--color-text-base))]")}>
-                      <Link to={`/events/${r.season}/${r.eventCode}?match=${encodeURIComponent(r.key)}`} className="block max-w-[13rem] still-hover:text-accent-text">
+                    <td className={cn(sticky, td, "row-still-hover:bg-[color-mix(in_srgb,var(--color-card)_97%,var(--color-text-base))]")}>
+                      <Link to={`/events/${r.season}/${r.eventCode}?match=${encodeURIComponent(r.key)}`} className="block max-w-[13rem] still-hover:text-accent-text max-sm:max-w-[7.5rem]">
                         <span className="font-semibold">{r.label}</span>
                         <span className="block truncate text-xs text-text-muted">{r.eventName}</span>
                       </Link>
                     </td>
-                    <td className="density-row whitespace-nowrap px-5 py-3"><Alliance teams={r.red} season={r.season} side="red" /></td>
-                    <td className="density-row whitespace-nowrap px-5 py-3"><Alliance teams={r.blue} season={r.season} side="blue" /></td>
+                    <td className={cn(td, "whitespace-nowrap")}><Alliance teams={r.red} season={r.season} side="red" /></td>
+                    <td className={cn(td, "whitespace-nowrap")}><Alliance teams={r.blue} season={r.season} side="blue" /></td>
                   </>
                 ) : (
                   <>
-                    <td className={cn(sticky, "density-row px-5 py-3", hl && "bg-[color-mix(in_srgb,var(--color-card)_92%,var(--color-accent))]")}>
-                      <div className="flex items-center gap-2.5">
+                    <td className={cn(sticky, td, hl && "bg-[color-mix(in_srgb,var(--color-card)_92%,var(--color-accent))]")}>
+                      <div className="flex items-center gap-2.5 max-sm:gap-2">
                         {selectable && (
                           <input type="checkbox" checked={sel} onChange={() => onSelect(team!)} aria-label={`Select ${team} to compare`}
                             className="size-4 shrink-0 cursor-pointer accent-[var(--color-accent)] max-sm:size-5" />
                         )}
-                        <Link to={`/teams/${team}?season=${r.season}`} className="flex min-w-0 items-baseline gap-2 still-hover:text-accent-text">
-                          <span className="font-mono font-semibold tabular-nums">{team}</span>
-                          <span className="max-w-[6.5rem] truncate text-text-muted sm:max-w-[13rem]">{String(r.stats.teamName ?? "")}</span>
-                        </Link>
+                        {phone
+                          ? <TeamNumber team={team!} name={String(r.stats.teamName ?? "")} href={`/teams/${team}?season=${r.season}`} />
+                          : (
+                            <Link to={`/teams/${team}?season=${r.season}`} className="flex min-w-0 items-baseline gap-2 still-hover:text-accent-text">
+                              <span className="font-mono font-semibold tabular-nums">{team}</span>
+                              <span className="max-w-[13rem] truncate text-text-muted">{String(r.stats.teamName ?? "")}</span>
+                            </Link>
+                          )}
                       </div>
                     </td>
                     {showEvent && "eventCode" in r && (
-                      <td className="density-row px-5 py-3">
-                        <Link to={`/events/${r.season}/${r.eventCode}`} className="block max-w-[16rem] still-hover:text-accent-text">
+                      <td className={td}>
+                        <Link to={`/events/${r.season}/${r.eventCode}`} className="block max-w-[16rem] still-hover:text-accent-text max-sm:max-w-[9rem]">
                           <span className="block truncate">{r.eventName}</span>
                           <span className="block text-xs text-text-muted">{dateRange(r.eventStart)}</span>
                         </Link>
@@ -630,7 +656,7 @@ function Table({ data, scope, cols, state, sortBy, code, highlightTeam, selectab
                   const v = r.stats[k];
                   const tone = toneOf(d);
                   return (
-                    <td key={k} className={cn("density-row whitespace-nowrap border-l border-text-base/[0.08] px-5 py-3 text-right tabular-nums", d?.type === "text" && "text-left", state.sort === k && "bg-accent/[0.04] font-semibold",
+                    <td key={k} className={cn(td, "whitespace-nowrap border-l border-text-base/[0.08] text-right tabular-nums", d?.type === "text" && "text-left", state.sort === k && "bg-accent/[0.04] font-semibold",
                       tone !== "slate" && v != null && TONE_CLASS[tone].text)}>
                       {k === PREDICTION_FIELD ? <PredictionValue text={formatStat(d, v)} tier={(r as MatchRecordRow).predictionTier} className="justify-end" /> : formatStat(d, v)}
                     </td>

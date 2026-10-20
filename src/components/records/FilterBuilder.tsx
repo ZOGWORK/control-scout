@@ -262,7 +262,7 @@ function SavedList({ scope, saved, current, onApply }: { scope: RecordScope; sav
         <p className="mt-2 text-[11px] text-text-muted">Kept on this device — no account needed.</p>
       </form>
       {!saved.length ? (
-        <p className="rounded-xl border border-dashed border-line px-4 py-8 text-center text-sm text-text-muted">No saved filters yet.</p>
+        <p className="rounded-xl border border-dashed border-line px-4 py-8 max-sm:py-5 text-center text-sm text-text-muted">No saved filters yet.</p>
       ) : (
         <ul className="space-y-2" aria-label="Saved filters">
           {saved.map((s) => {

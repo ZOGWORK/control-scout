@@ -67,7 +67,7 @@ export function Playground() {
   return (
     <Figure label="Interactive" title="Win-probability playground"
       caption={<>This uses the same formula as the app: σ = {NOISE.a} + {NOISE.b} × expected, plus rating uncertainty, then Platt scaling. "Well known" adds {CERTAINTY.well} points² per robot, "First match" {CERTAINTY.new}, and "Before the event" {CERTAINTY.pre - NOISE.preExtra} plus the extra {NOISE.preExtra} that event-start predictions carry, because a team's level moves during an event.</>}>
-      <div className="grid items-center gap-6 md:grid-cols-[minmax(0,1fr)_minmax(0,1.15fr)]">
+      <div className="grid items-center gap-6 max-sm:gap-4 md:grid-cols-[minmax(0,1fr)_minmax(0,1.15fr)]">
         <div className="grid min-w-0 gap-4">
           <Slider id="hiw-red" label="Red expected score" value={red} display={String(red)} min={20} max={300} step={1} onChange={setRed} />
           <Slider id="hiw-blue" label="Blue expected score" value={blue} display={String(blue)} min={20} max={300} step={1} onChange={setBlue} />

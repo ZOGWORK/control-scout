@@ -243,11 +243,11 @@ function UserSheet({ id, onClose }: { id: number | null; onClose: () => void }) 
   return (
     <Sheet open={id != null} onOpenChange={(v) => { if (!v) onClose(); }}>
       <SheetContent side="right" className="w-full gap-0 overflow-y-auto p-0 sm:max-w-md">
-        <SheetHeader className="border-b border-border px-5 py-4">
+        <SheetHeader className="border-b border-border px-5 max-sm:px-4 py-4">
           <SheetTitle className="truncate">{u ? u.displayName || u.email || `Account ${u.id}` : "Account"}</SheetTitle>
           <SheetDescription className="truncate">{u?.email ?? " "}</SheetDescription>
         </SheetHeader>
-        <div className="space-y-5 px-5 py-4 text-sm">
+        <div className="space-y-5 max-sm:space-y-4 px-5 max-sm:px-4 py-4 text-sm">
           <Async state={state} loading={<LoadingBlock rows={4} label="Loading the account" />}>
             {(d) => (
               <>

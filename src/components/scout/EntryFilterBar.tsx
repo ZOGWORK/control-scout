@@ -76,7 +76,7 @@ export function EntryFilterBar(p: EntryFilterBarProps) {
         {active > 0 && <Button variant="link" size="sm" className="h-auto" onClick={p.onClear}>Clear filters</Button>}
       </div>
       <Sheet open={sheet} onOpenChange={setSheet}>
-        <SheetContent side="bottom" className="gap-4 p-5 pt-6">
+        <SheetContent side="bottom" className="gap-4 p-5 max-sm:p-4 pt-6 max-sm:pt-4">
           <SheetHeader className="text-left">
             <SheetTitle>Filter entries</SheetTitle>
             <SheetDescription>{active ? `${p.shown} of ${p.total} entries match.` : `${p.total} entries.`}</SheetDescription>

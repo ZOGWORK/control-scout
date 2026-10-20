@@ -144,7 +144,7 @@ function FilterBar({ season, onSeason, events, region, type, status, from, to, q
     );
   }
   return (
-    <div className="mb-8 space-y-3 rounded-2xl border border-border bg-card p-3 sm:p-4">
+    <div className="mb-8 max-sm:mb-5 space-y-3 rounded-2xl border border-border bg-card p-3 sm:p-4">
       <div className="flex flex-wrap items-center gap-2">
         <SeasonSelect value={season} onChange={onSeason} />
         {place}
@@ -258,7 +258,7 @@ const Weeks = memo(function Weeks({ events, region, type, status, from, to, q, o
   return (
     <div>
       <p className="mb-4 text-sm text-muted-foreground max-md:mb-2"><span className="font-semibold tabular-nums text-foreground">{list.length.toLocaleString()}</span> events in {weeks.length} week{weeks.length === 1 ? "" : "s"}</p>
-      <div className="space-y-8">
+      <div className="space-y-8 max-sm:space-y-5">
         {shown.map(([w, evs, all]) => (
           <section key={w} aria-label={w === "TBA" ? "Date to be announced" : `Week of ${fmtDay(w, true)}`}>
             <div className="mb-3 flex items-baseline gap-3 border-b border-border pb-2">
@@ -271,7 +271,7 @@ const Weeks = memo(function Weeks({ events, region, type, status, from, to, q, o
         ))}
       </div>
       {hidden > 0 && (
-        <div ref={sentinel} className="mt-8 text-center">
+        <div ref={sentinel} className="mt-8 max-sm:mt-5 text-center">
           <Button variant="outline" onClick={more}>Show more events <span className="text-muted-foreground">({hidden.toLocaleString()} more)</span></Button>
         </div>
       )}

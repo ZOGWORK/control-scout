@@ -78,7 +78,7 @@ export function AssignmentsView({ space, workspaceName, season, defaultEvent, st
         {first ? <LoadingBlock rows={3} label="Loading assignments" /> : !list.length ? (
           <EmptyState icon={ClipboardList} title={`No assignments in ${season} yet`} description={isAdmin ? "Tap Assign to pick members and the event's teams." : "Admins assign teams from here."} />
         ) : (
-          <div className="space-y-5">
+          <div className="space-y-5 max-sm:space-y-4">
             {byEvent.map(([event, rows]) => (
               <section key={event} aria-label={event}>
                 <h3 className="mb-2 flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
@@ -275,11 +275,11 @@ function AssignSheet({ open, onOpenChange, space, season, defaultEvent, state, m
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetContent side={phone ? "bottom" : "right"} className={cn("gap-0 p-0", phone ? "h-[90dvh]" : "")} aria-describedby={undefined}>
-        <SheetHeader className="border-b border-border px-5 pb-4 pt-5">
+        <SheetHeader className="border-b border-border px-5 max-sm:px-4 pb-4 pt-5">
           <SheetTitle>Assign teams</SheetTitle>
           <SheetDescription>Pick who scouts and which teams. Assignees get a notification.</SheetDescription>
         </SheetHeader>
-        <div className="min-h-0 flex-1 space-y-5 overflow-y-auto px-5 py-4">
+        <div className="min-h-0 flex-1 space-y-5 max-sm:space-y-4 overflow-y-auto px-5 max-sm:px-4 py-4">
           <div>
             <Label htmlFor="assign-event">Event · {season}</Label>
             <EventPicker id="assign-event" season={season} code={eventText} onChange={setEventText} />
@@ -362,7 +362,7 @@ function AssignSheet({ open, onOpenChange, space, season, defaultEvent, state, m
             </div>
           </div>
         )}
-        <SheetFooter className="mt-3 border-t border-border px-5 py-4">
+        <SheetFooter className="mt-3 border-t border-border px-5 max-sm:px-4 py-4">
           <Button className="w-full sm:w-auto" onClick={submit} disabled={saving || !eventCode || !pickedTeams.size || !pickedMembers.size}>
             {saving ? <Loader2 className="animate-spin" /> : <UserPlus />}
             {pickedTeams.size && pickedMembers.size ? `Assign ${plural(pickedTeams.size, "team")} to ${plural(pickedMembers.size, "member")}` : "Assign"}

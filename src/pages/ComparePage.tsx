@@ -168,7 +168,7 @@ function QuickPicks({ list, onPick }: { list: Suggestion[]; onPick: (n: number) 
 function Start({ suggestions, onPick, onPickAll }: { suggestions: Suggestion[]; onPick: (n: number) => void; onPickAll: (ns: number[]) => void }) {
   const yours = suggestions.filter((s) => s.why === "Your team" || s.why === "Followed").slice(0, MAX);
   return (
-    <Reveal className="rounded-2xl border border-border bg-card p-5 sm:p-6">
+    <Reveal className="rounded-2xl border border-border bg-card p-4 sm:p-6">
       <div className="flex items-start gap-3">
         <span className="flex size-10 shrink-0 items-center justify-center rounded-full bg-accent/15"><Scale className="size-5 text-accent" aria-hidden /></span>
         <div className="min-w-0">
@@ -179,7 +179,7 @@ function Start({ suggestions, onPick, onPickAll }: { suggestions: Suggestion[]; 
         </div>
       </div>
       {suggestions.length > 0 && (
-        <div className="mt-5">
+        <div className="mt-5 max-sm:mt-4">
           <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
             <p className="text-sm font-medium">Start with your teams</p>
             {yours.length >= 2 && <Button size="sm" variant="secondary" onClick={() => onPickAll(yours.map((s) => s.team))}><Scale /> Compare your {yours.length} teams</Button>}
@@ -189,7 +189,7 @@ function Start({ suggestions, onPick, onPickAll }: { suggestions: Suggestion[]; 
           </Stagger>
         </div>
       )}
-      <ul className="mt-5 grid list-disc gap-x-8 gap-y-1.5 border-t border-border pl-4 pt-4 text-sm text-muted-foreground marker:text-accent sm:grid-cols-2 lg:grid-cols-4" aria-label="What you'll see">
+      <ul className="mt-5 max-sm:mt-4 grid list-disc gap-x-8 gap-y-1.5 border-t border-border pl-4 pt-4 text-sm text-muted-foreground marker:text-accent sm:grid-cols-2 lg:grid-cols-4" aria-label="What you'll see">
         <li>Season OPR, rating and record, with the best of each marked</li>
         <li>OPR split into auto, TeleOp and endgame</li>
         <li>Event-by-event OPR, to see who's improving</li>
@@ -308,7 +308,7 @@ function Compare({ d, onRemove }: { d: CompareView; onRemove: (n: number) => voi
   const predictable = usePredictable(d.season);
   const lab = t.length === 4 && predictable ? `/predict?mode=match&season=${d.season}&red=${t[0].team.number},${t[1].team.number}&blue=${t[2].team.number},${t[3].team.number}` : null;
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 max-sm:space-y-4">
       {/* The stats and both charts share the first screen from lg up. */}
       <div className="grid gap-4 lg:grid-cols-2">
         <StatsTable d={d} onRemove={onRemove} />

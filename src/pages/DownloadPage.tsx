@@ -63,7 +63,7 @@ export default function DownloadPage() {
         <>
           <LiteStatus local={local} m={m} syncing={syncing} />
           <SeasonsSection m={m} saved={saved} />
-          <Section title="How offline mode works" className="mt-8">
+          <Section title="How offline mode works" className="mt-8 max-sm:mt-5">
             <ol className="grid gap-3 text-sm text-muted-foreground sm:grid-cols-3">
               <li className="rounded-xl border border-border bg-card p-4"><HardDriveDownload className="mb-2 size-5 text-accent" /><span className="text-foreground">Before the event</span>, on wifi, save the season above. It's checked against its published SHA-256 and kept in this browser. Predictions need nothing: a small lite pack of every team's ratings saves itself whenever you're online.</li>
               <li className="rounded-xl border border-border bg-card p-4"><WifiOff className="mb-2 size-5 text-accent" /><span className="text-foreground">At the venue</span>, with no connection, team pages, event pages (rankings, matches, alliances, awards) and search answer from the saved season, marked "Offline" with the date the data is from. Upcoming matches and the <Link to="/predict?mode=match" className="underline">what-if lab</Link> get win odds from the lite pack: same engine, ratings as of the pack's date.</li>
@@ -123,7 +123,7 @@ function SeasonsSection({ m, saved }: { m: PackManifest; saved: SavedSeason[] })
 
   return (
     <section className="rounded-2xl border border-border bg-card" aria-labelledby="seasons-title">
-      <div className="flex flex-wrap items-start justify-between gap-4 border-b border-border p-5 sm:p-6">
+      <div className="flex flex-wrap items-start justify-between gap-4 border-b border-border p-4 sm:p-6">
         <div className="min-w-0 max-w-2xl">
           <h2 id="seasons-title" className="font-display text-xl font-semibold">Save seasons for offline use</h2>
           <p className="mt-1 text-sm text-muted-foreground">
@@ -150,7 +150,7 @@ function SeasonsSection({ m, saved }: { m: PackManifest; saved: SavedSeason[] })
           )}
         </div>
       </div>
-      {!plan.rows.length ? <p className="p-6 text-sm text-muted-foreground">No full packs in this release.</p> : (
+      {!plan.rows.length ? <p className="p-6 max-sm:p-4 text-sm text-muted-foreground">No full packs in this release.</p> : (
         <ul className="divide-y divide-border" aria-label="Seasons">
           {plan.rows.map((r) => (
             <SeasonRowView key={r.file.name} r={r} builtAt={m.builtAt}
@@ -159,7 +159,7 @@ function SeasonsSection({ m, saved }: { m: PackManifest; saved: SavedSeason[] })
           ))}
         </ul>
       )}
-      <div className="border-t border-border px-5 py-3 sm:px-6"><StorageLine saved={saved} /></div>
+      <div className="border-t border-border px-4 py-3 sm:px-6"><StorageLine saved={saved} /></div>
     </section>
   );
 }
@@ -177,7 +177,7 @@ function SeasonRowView({ r, builtAt, progress, queued, disabled, removing, onSav
   const label = seasonLabel(r.season);
   const chip = STATE_CHIP[r.state];
   return (
-    <li className="grid items-center gap-x-4 gap-y-2 px-5 py-3.5 sm:grid-cols-[8rem_minmax(0,1fr)_auto] sm:px-6">
+    <li className="grid items-center gap-x-4 gap-y-2 px-4 py-3.5 sm:grid-cols-[8rem_minmax(0,1fr)_auto] sm:px-6">
       <div className="flex items-center gap-2 sm:block">
         <p className="font-display text-lg font-semibold tabular-nums">{label}</p>
         <span className={cn("inline-flex items-center rounded-full border px-2 py-0.5 text-[11px] font-medium sm:mt-1", chip.cls)}>{chip.label}</span>
