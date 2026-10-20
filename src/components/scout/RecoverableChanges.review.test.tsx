@@ -11,7 +11,7 @@ import { CommentWriteError } from "../../lib/scoutComments";
 import { announcePicklist } from "../../lib/sharedPicklist";
 import { announceComment } from "../../lib/scoutComments";
 import { RecoverableChanges } from "./RecoverableChanges";
-import { describeDiff } from "./ChangeReview";
+import { describeDiff, directionOf } from "./ChangeReview";
 import { wordDiff } from "../../lib/wordDiff";
 
 vi.mock("../ui/sonner", () => ({ toast: Object.assign(() => undefined, { error: () => undefined, warning: () => undefined }) }));
@@ -158,7 +158,7 @@ describe("Show change", () => {
     expect((window as { pwned?: number }).pwned).toBeUndefined();
     expect(yours.textContent!.replace(/added: | \(end added\)/g, "")).toBe(text);
     // Its own direction, isolated from the page around it.
-    expect(yours.querySelector("p")!.getAttribute("dir")).toBe("auto");
+    expect(yours.querySelector("p")!.getAttribute("dir")).toBe("rtl"); // its first letter is Arabic
     expect([...yours.querySelectorAll("ins")].map((x) => x.textContent!.replace(/added: | \(end added\)/g, ""))).toEqual([`بكم café ‮evil <img src=x onerror="window.pwned=1"> <b>bold</b>`]);
     expect([...within(group).getByRole("region", { name: "Shared now" }).querySelectorAll("del")].map((x) => x.textContent)).toEqual(["removed: café (end removed)"]);
   });
@@ -259,6 +259,28 @@ describe("Show change", () => {
     act(() => announceComment({ action: "edited", workspaceId: "901", entryUuid: "aaaaaaaaaaaa", commentId: 4, count: 1, rev: 3, comment: made } as never));
     await waitFor(() => expect(calls.filter((c) => c.path === THREAD).length).toBe(2));
     expect(writes()).toEqual([]);
+  });
+});
+
+describe("directionOf", () => {
+  it("takes the direction from the text's first letter, never from the hidden markers", () => {
+    expect(directionOf("مرحبا بكم, fast")).toBe("rtl");
+    expect(directionOf("  🏳️‍🌈 שלום")).toBe("rtl");
+    expect(directionOf("12: fast, مرحبا")).toBe("ltr");
+    expect(directionOf("🚀 123 !")).toBeUndefined();
+  });
+
+  it("keeps a right-to-left note right-to-left when its first word changed", async () => {
+    keepNote(1, "901", 102, "سريع جدا في البداية");
+    picks = [pick(102, "بطيء جدا في البداية", 50)];
+    render(<RecoverableChanges account={1} workspaces={WS} />);
+    fireEvent.click(showButton());
+    const group = await comparison();
+    for (const name of ["Your note (not saved)", "Shared now"]) {
+      const p = within(group).getByRole("region", { name }).querySelector("p")!;
+      expect(p.firstElementChild!.tagName).toMatch(/INS|DEL/); // starts with a hidden English marker...
+      expect(p.getAttribute("dir")).toBe("rtl"); // ...and is still right-to-left
+    }
   });
 });
 
