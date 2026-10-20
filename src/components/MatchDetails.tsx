@@ -1,7 +1,8 @@
 // One match, opened in place under its row (never a dialog): both lineups
 // with each robot's standing at the event and this season, the score
 // breakdown side by side, bonus RPs, what OPR expected vs what happened, the
-// prediction against the result with its reasons, and the match's video.
+// prediction against the result with its reasons, official result changes,
+// and the match's video.
 import { useState } from "react";
 import { Link } from "react-router-dom";
 import { ChevronLeft, ChevronRight, ClipboardList, PlayCircle } from "lucide-react";
@@ -13,6 +14,7 @@ import { Async } from "./states";
 import { CalibrationLine, ConfidenceBadge, FactorList, KIND_LABEL, WinBar } from "./predict";
 import { VideoPanel } from "./MatchVideo";
 import { ShareMatch } from "./ShareMatch";
+import { ResultChanges } from "./ResultChanges";
 import { cn } from "./cn";
 
 type Side = "red" | "blue";
@@ -63,6 +65,7 @@ function Body({ d, eventName }: { d: MatchDetail; eventName?: string }) {
         {played ? <Breakdown d={d} /> : <p className="rounded-xl border border-dashed border-border p-4 text-sm text-text-muted">Not played yet — the score breakdown appears once the result is posted.</p>}
         <Prediction d={d} />
       </div>
+      <ResultChanges season={m.season} code={m.code} matchKey={m.key} />
     </div>
   );
 }
