@@ -11,10 +11,10 @@ const S = 2025;
 const side = (total: number, o: Partial<ResultScoreSide> = {}): ResultScoreSide => ({ total, np: total - 5, auto: 20, teleop: total - 40, endgame: 15, pen: 5, tips: null, bonus: { movement: true, goal: false, pattern: false }, ...o });
 const labels = { total: "Total", pen: "Penalty points given away", teleop: "TeleOp (without base)", "bonus.goal": "Goal RP", dq: "Disqualified teams", time: "Scheduled time", field: "Field", red: "Red alliance", blue: "Blue alliance" };
 
-const posted: ResultChange = { id: 3, kind: "posted", match: { key: "qual:0:4", label: "Q4" }, fields: [], before: null, after: { red: side(120), blue: side(98), dq: [] }, source: "first", prevSource: "first", checkedAt: "2026-11-07T15:05:00.000Z" };
+const posted: ResultChange = { id: 3, kind: "posted", match: { key: "qual:0:4", label: "Q4" }, fields: [], before: null, after: { red: side(120), blue: side(98), dq: [], breakdown: true }, source: "first", prevSource: "first", checkedAt: "2026-11-07T15:05:00.000Z" };
 const revised: ResultChange = {
   id: 2, kind: "revised", match: { key: "qual:0:2", label: "Q2" }, fields: ["red.total", "red.pen", "blue.bonus.goal", "dq"],
-  before: { red: side(100), blue: side(90), dq: [] }, after: { red: side(110, { pen: 0 }), blue: side(90, { bonus: { movement: true, goal: true, pattern: false } }), dq: [204] },
+  before: { red: side(100), blue: side(90), dq: [], breakdown: true }, after: { red: side(110, { pen: 0 }), blue: side(90, { bonus: { movement: true, goal: true, pattern: false } }), dq: [204], breakdown: true },
   source: "first", prevSource: "ftc-scout", checkedAt: "2026-11-07T15:04:00.000Z",
 };
 const moved: ResultChange = {
