@@ -4,6 +4,7 @@
 // and Back/Forward step through searches; a search changed from outside (Back, Clear search) replaces
 // what's in the box. Starting or clearing a search adds a history entry; refining one replaces it.
 import { useEffect, useRef, useState } from "react";
+import { useLocation, useNavigationType } from "react-router-dom";
 import { Search, X } from "lucide-react";
 import { Input } from "../ui/basic";
 import { DIRECTORY_QUERY_MAX } from "../../shared/directory";
@@ -34,6 +35,16 @@ export function DirectorySearch({ value, onSearch, where, className }: {
     const v = value ?? "";
     if (v !== written.current) { stop(); written.current = v; setText(v); }
   }, [value]);
+  // Back/Forward drop a search still waiting even when both entries have the same search (a sort changed
+  // between them): run later, it would push a new entry and wipe the Forward history.
+  const loc = useLocation();
+  const nav = useNavigationType();
+  useEffect(() => {
+    if (nav !== "POP" || !timer.current) return;
+    stop();
+    written.current = value ?? "";
+    setText(value ?? "");
+  }, [loc.key]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const commit = (raw: string) => {
     stop();
