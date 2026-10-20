@@ -14,7 +14,8 @@ import { Input } from "../components/ui/basic";
 import { Button } from "../components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "../components/ui/overlay";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../components/ui/controls";
-import { DateRangePicker, SeasonSelect } from "../components/records/Controls";
+import { dateRangeText, DateRangePicker, SeasonSelect } from "../components/records/Controls";
+import { CompactFilters, FilterSection, useCompactFilters, type FilterChip } from "../components/CompactFilters";
 import { cn } from "../components/cn";
 import { EVENT_FILTER_COUNT, EVENT_STATUS_TONE, EVENT_TYPE_TONE } from "../lib/textTones";
 import { dateRange, place, seasonLabel } from "../lib/format";
@@ -59,7 +60,8 @@ export default function EventsPage() {
   const [q, setQ] = useState(urlQ);
   const wrote = useRef(urlQ);
   useEffect(() => { if (urlQ !== wrote.current) { wrote.current = urlQ; setQ(urlQ); } }, [urlQ]); // back/forward, Clear filters
-  const onQ = (v: string) => { setQ(v); wrote.current = v; set({ q: v }); };
+  // Typing refines one history entry; taking the search off as a whole (its chip) is a step Back undoes.
+  const onQ = (v: string, replace = true) => { setQ(v); wrote.current = v; set({ q: v }, replace); };
   const listQ = useDeferredValue(q);
   const clear = useCallback(() => set({ region: null, type: null, status: null, from: null, to: null, q: null }, false), [set]);
   useTitle(`Events ${seasonLabel(season)}`);
@@ -71,6 +73,7 @@ export default function EventsPage() {
         eyebrow={<span className="text-accent-text">{seasonLabel(season)} season</span>}
         title="Events"
         description="Every FTC event — results, rankings, brackets and advancement odds. Filter by place, type and dates."
+        phoneDescription="Every FTC event: results, rankings and odds."
         actions={<Button variant="outline" size="sm" asChild><Link to={`/teams${season !== current ? `?season=${season}` : ""}`}><Users /> Team records <ArrowRight /></Link></Button>}
       />
       {/* The filter bar stays up while loading or on an error, so another season can always be picked. */}
@@ -85,7 +88,7 @@ export default function EventsPage() {
 function FilterBar({ season, onSeason, events, region, type, status, from, to, q, listQ, onQ, set, active, onClear }: Filters & {
   season: number; onSeason: (s: number) => void; events: EventListItem[]; active: boolean;
   /** The text the list is filtered by (deferred behind the box's own `q`). */
-  listQ: string; onQ: (q: string) => void; onClear: () => void;
+  listQ: string; onQ: (q: string, replace?: boolean) => void; onClear: () => void;
   set: (patch: Record<string, string | null>, replace?: boolean) => void;
 }) {
   const types = useMemo(() => {
@@ -97,32 +100,60 @@ function FilterBar({ season, onSeason, events, region, type, status, from, to, q
   const base = useMemo(() => applyFilters(events, { region, type, from, to, q: listQ }), [events, region, type, from, to, listQ]);
   const counts = { all: base.length, live: 0, upcoming: 0, finished: 0 } as Record<Status, number>;
   for (const e of base) counts[e.status]++;
+  const compact = useCompactFilters();
+  const place = <PlacePicker events={events} value={region} onChange={(r) => set({ region: r }, false)} />;
+  const typePicker = (
+    <Select value={type} onValueChange={(v) => set({ type: v }, false)}>
+      <SelectTrigger className={cn("h-9 w-auto gap-2 rounded-lg px-3 font-medium max-sm:h-11", type !== "all" ? "border-accent/60 bg-accent/[0.08]" : "border-line bg-card")} aria-label="Event type"><SelectValue /></SelectTrigger>
+      <SelectContent className="min-w-[14rem]">
+        <SelectItem value="all">All event types</SelectItem>
+        {types.map(([t, n]) => <SelectItem key={t} value={t}><span className="inline-flex items-center gap-2"><span className={cn("size-2 rounded-full", toneOfType(t).bar)} />{eventTypeLabel(t)} <span className="text-muted-foreground">{n}</span></span></SelectItem>)}
+      </SelectContent>
+    </Select>
+  );
+  const dates = <DateRangePicker from={from} to={to} onChange={(a, b) => set({ from: a, to: b }, false)} />;
+  const search = (
+    <div className="relative min-w-[12rem] flex-1">
+      <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+      <Input value={q} onChange={(e) => onQ(e.target.value)} placeholder="Name, code, city or state" className="h-9 pl-9 max-sm:h-11" aria-label="Filter events" />
+    </div>
+  );
+  const statusChips = STATUS.map((s) => (
+    <button key={s.v} type="button" aria-pressed={status === s.v} onClick={() => set({ status: s.v }, false)}
+      className={cn("inline-flex h-8 items-center gap-2 rounded-full border px-3 text-xs font-semibold transition-colors max-sm:h-10",
+        status === s.v ? "border-accent bg-accent text-accent-ink" : "border-line text-muted-foreground hover:border-text-base/25 hover:text-foreground")}>
+      <span className={cn("size-1.5 rounded-full", status === s.v ? "bg-accent-ink" : s.dot)} />{s.label}<span className={EVENT_FILTER_COUNT}>{counts[s.v]}</span>
+    </button>
+  ));
+
+  if (compact) {
+    const chips: FilterChip[] = [];
+    if (region) chips.push({ id: "region", label: <><MapPin className="inline size-3.5 text-sky-500" aria-hidden /> {placeName(region)}</>, name: `Place: ${placeName(region)}`, onRemove: () => set({ region: null }, false) });
+    if (type !== "all") chips.push({ id: "type", label: eventTypeLabel(type), name: `Event type: ${eventTypeLabel(type)}`, onRemove: () => set({ type: null }, false) });
+    if (from || to) chips.push({ id: "dates", label: dateRangeText(from, to), name: `Dates: ${dateRangeText(from, to)}`, onRemove: () => set({ from: null, to: null }, false) });
+    if (status !== "all") { const s = STATUS.find((x) => x.v === status)!; chips.push({ id: "status", label: s.label, name: `Status: ${s.label}`, onRemove: () => set({ status: null }, false) }); }
+    if (q.trim()) chips.push({ id: "q", label: <><Search className="inline size-3.5" aria-hidden /> {q.trim()}</>, name: `Text: ${q.trim()}`, onRemove: () => onQ("", false) });
+    const n = counts[status];
+    return (
+      <CompactFilters className="mb-4" lead={<SeasonSelect value={season} onChange={onSeason} />} chips={chips}
+        summary={`${n.toLocaleString()} ${n === 1 ? "event" : "events"}`} doneLabel={`Show ${n.toLocaleString()} ${n === 1 ? "event" : "events"}`} onClearAll={onClear}>
+        <FilterSection label="Search">{search}</FilterSection>
+        <FilterSection label="Status">{statusChips}</FilterSection>
+        <FilterSection label="Where, what and when">{place}{typePicker}{dates}</FilterSection>
+      </CompactFilters>
+    );
+  }
   return (
     <div className="mb-8 space-y-3 rounded-2xl border border-border bg-card p-3 sm:p-4">
       <div className="flex flex-wrap items-center gap-2">
         <SeasonSelect value={season} onChange={onSeason} />
-        <PlacePicker events={events} value={region} onChange={(r) => set({ region: r }, false)} />
-        <Select value={type} onValueChange={(v) => set({ type: v }, false)}>
-          <SelectTrigger className={cn("h-9 w-auto gap-2 rounded-lg px-3 font-medium max-sm:h-11", type !== "all" ? "border-accent/60 bg-accent/[0.08]" : "border-line bg-card")} aria-label="Event type"><SelectValue /></SelectTrigger>
-          <SelectContent className="min-w-[14rem]">
-            <SelectItem value="all">All event types</SelectItem>
-            {types.map(([t, n]) => <SelectItem key={t} value={t}><span className="inline-flex items-center gap-2"><span className={cn("size-2 rounded-full", toneOfType(t).bar)} />{eventTypeLabel(t)} <span className="text-muted-foreground">{n}</span></span></SelectItem>)}
-          </SelectContent>
-        </Select>
-        <DateRangePicker from={from} to={to} onChange={(a, b) => set({ from: a, to: b }, false)} />
-        <div className="relative min-w-[12rem] flex-1">
-          <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
-          <Input value={q} onChange={(e) => onQ(e.target.value)} placeholder="Name, code, city or state" className="h-9 pl-9 max-sm:h-11" aria-label="Filter events" />
-        </div>
+        {place}
+        {typePicker}
+        {dates}
+        {search}
       </div>
       <div className="flex flex-wrap items-center gap-1.5">
-        {STATUS.map((s) => (
-          <button key={s.v} type="button" aria-pressed={status === s.v} onClick={() => set({ status: s.v }, false)}
-            className={cn("inline-flex h-8 items-center gap-2 rounded-full border px-3 text-xs font-semibold transition-colors max-sm:h-10",
-              status === s.v ? "border-accent bg-accent text-accent-ink" : "border-line text-muted-foreground hover:border-text-base/25 hover:text-foreground")}>
-            <span className={cn("size-1.5 rounded-full", status === s.v ? "bg-accent-ink" : s.dot)} />{s.label}<span className={EVENT_FILTER_COUNT}>{counts[s.v]}</span>
-          </button>
-        ))}
+        {statusChips}
         {active && (
           <Button variant="ghost" size="sm" className="ml-auto text-danger hover:text-danger max-sm:h-10" onClick={onClear}><X /> Clear filters</Button>
         )}
@@ -226,7 +257,7 @@ const Weeks = memo(function Weeks({ events, region, type, status, from, to, q, o
   if (!weeks.length) return <EmptyState icon={Search} title="No events match" description="Try another place, type or date range." action={<Button onClick={onClear}><X /> Clear filters</Button>} />;
   return (
     <div>
-      <p className="mb-4 text-sm text-muted-foreground"><span className="font-semibold tabular-nums text-foreground">{list.length.toLocaleString()}</span> events in {weeks.length} week{weeks.length === 1 ? "" : "s"}</p>
+      <p className="mb-4 text-sm text-muted-foreground max-md:mb-2"><span className="font-semibold tabular-nums text-foreground">{list.length.toLocaleString()}</span> events in {weeks.length} week{weeks.length === 1 ? "" : "s"}</p>
       <div className="space-y-8">
         {shown.map(([w, evs, all]) => (
           <section key={w} aria-label={w === "TBA" ? "Date to be announced" : `Week of ${fmtDay(w, true)}`}>

@@ -10,6 +10,7 @@ import { compareHref, moveItem, readView, saveView, type ShortlistView } from ".
 import { displayOrder, NOTE_UNCONFIRMED, usePickList } from "../../lib/sharedPicklist";
 import type { SaveState } from "../../lib/pendingWork";
 import { SaveStatus } from "../SaveStatus";
+import { KeptPickChanges } from "./KeptPickChanges";
 import type { LiveMode } from "../../lib/scoutLive";
 import { agoShort } from "../../lib/format";
 import { useNow } from "../../lib/useNow";
@@ -227,6 +228,9 @@ export function SharedPicklist({ workspaceId, workspaceName, season, live, me, s
           )}
         </div>
       </div>
+      {/* Order changes that didn't reach the workspace (kept on this device, through a reload): the member decides. */}
+      <KeptPickChanges changes={pl.failed} readOnly={readOnly} onRetryAll={(force) => pl.retryAll({ force })} onDiscardAll={pl.discardAll}
+        onRetry={(id, force) => pl.retryFailed(id, { force })} onDiscard={pl.discardFailed} />
       {pl.loading ? <LoadingBlock rows={4} label="Loading the pick list" />
         : pl.error ? <ErrorState error={pl.error} onRetry={pl.reload} />
         : !teams.length ? (
