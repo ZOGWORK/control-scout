@@ -96,6 +96,16 @@ describe("ResultChanges", () => {
     expect(screen.getByText(/3 older ones were dropped/)).toBeTruthy();
   });
 
+  it("filters to corrections and moves when first postings bury them", async () => {
+    answers[`/api/events/${S}/EVG/result-changes`] = view("EVG", [posted, revised, moved]);
+    show("EVG");
+    const fixesOnly = await screen.findByRole("button", { name: "Corrections and moves (2)" });
+    expect(screen.getByRole("button", { name: "All changes (3)" }).getAttribute("aria-pressed")).toBe("true");
+    fireEvent.click(fixesOnly);
+    expect(fixesOnly.getAttribute("aria-pressed")).toBe("true");
+    expect(screen.getAllByRole("listitem").map((li) => li.querySelector("a")?.textContent)).toEqual(["Q2", "Q9"]);
+  });
+
   it("asks for one match's changes in match details, without linking to itself", async () => {
     answers[`/api/events/${S}/EVE/matches/qual:0:2/result-changes`] = view("EVE", [revised], { match: "qual:0:2" });
     show("EVE", "qual:0:2");

@@ -49,7 +49,11 @@ export function ResultChanges({ season, code, matchKey }: { season: number; code
 
 function Body({ v, one }: { v: ResultChangesView; one: boolean }) {
   const [all, setAll] = useState(false);
-  const shown = one || all ? v.changes : v.changes.slice(0, FIRST_SHOWN);
+  // A whole event's first postings can bury a correction: offer corrections and moves on their own.
+  const fixes = v.changes.filter((c) => c.kind !== "posted");
+  const [only, setOnly] = useState(false);
+  const list = only ? fixes : v.changes;
+  const shown = one || all ? list : list.slice(0, FIRST_SHOWN);
   const since = v.trackedSince
     ? <>Tracked since {day(v.trackedSince)}; not tracked before then.</>
     : <>Not tracked yet: changes are recorded from this event's next results check.</>;
@@ -61,13 +65,21 @@ function Body({ v, one }: { v: ResultChangesView; one: boolean }) {
       {!v.changes.length ? (
         <p className="mt-3 rounded-xl border border-dashed border-border px-4 py-3 text-sm text-text-muted">No changes recorded{v.trackedSince ? ` since ${day(v.trackedSince)}` : ""}.</p>
       ) : (
+        <>
+        {!one && fixes.length > 0 && fixes.length < v.changes.length && (
+          <div role="group" aria-label="Which changes" className="mt-3 flex flex-wrap gap-2">
+            <Button variant={only ? "outline" : "secondary"} size="sm" aria-pressed={!only} onClick={() => setOnly(false)}>All changes ({v.changes.length})</Button>
+            <Button variant={only ? "secondary" : "outline"} size="sm" aria-pressed={only} onClick={() => setOnly(true)}>Corrections and moves ({fixes.length})</Button>
+          </div>
+        )}
         <ol className={cn("mt-3 divide-y divide-border", !one && "rounded-xl border border-border bg-card")}>
           {shown.map((c) => <Item key={c.id} c={c} v={v} one={one} />)}
         </ol>
+        </>
       )}
-      {!one && v.changes.length > FIRST_SHOWN && (
+      {!one && list.length > FIRST_SHOWN && (
         <Button variant="outline" size="sm" className="mt-3" onClick={() => setAll((x) => !x)} aria-expanded={all}>
-          {all ? "Show fewer" : `Show all ${v.changes.length} changes`}
+          {all ? "Show fewer" : `Show all ${list.length} ${only ? "corrections and moves" : "changes"}`}
         </Button>
       )}
       {v.pruned > 0 && <p className="mt-2 text-xs text-text-muted">The newest {v.cap} changes per event are kept; {v.pruned} older {v.pruned === 1 ? "one was" : "ones were"} dropped.</p>}
