@@ -33,7 +33,7 @@ export function ScoutFieldInput({ f, value, onChange, idPrefix = "f" }: { f: Sco
         <span className="text-sm">{f.label}</span>
         <div className="flex flex-wrap gap-1" role="radiogroup" aria-label={f.label}>
           {Array.from({ length: f.max ?? 5 }, (_, i) => i + 1).map((k) => (
-            <button key={k} type="button" role="radio" aria-checked={n === k} onClick={() => onChange(n === k ? 0 : k)} className={cn("size-8 rounded-lg border text-sm font-semibold max-sm:size-10", k <= n ? "border-accent/60 bg-accent/15 text-accent" : "border-border text-muted-foreground")}>{k}</button>
+            <button key={k} type="button" role="radio" aria-checked={n === k} onClick={() => onChange(n === k ? 0 : k)} className={cn("size-8 rounded-lg border text-sm font-semibold max-sm:size-10", k <= n ? "border-accent/60 bg-accent/15 text-accent-text" : "border-border text-muted-foreground")}>{k}</button>
           ))}
         </div>
       </div>

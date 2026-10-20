@@ -182,7 +182,7 @@ export function SearchBox({ onPick, kinds, placeholder, label, size = "md", clas
           // The cue: results continue below. Fades the last row and offers a one-tap scroll.
           <div className="pointer-events-none absolute inset-x-0 bottom-0 flex h-14 items-end justify-center bg-gradient-to-t from-popover via-popover/85 to-transparent pb-2">
             <button type="button" tabIndex={-1} onPointerDown={(e) => e.preventDefault()} onClick={() => list.current?.scrollBy({ top: list.current.clientHeight * 0.8, behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth" })}
-              className="pointer-events-auto inline-flex items-center gap-1 rounded-full border border-accent/40 bg-popover px-3 py-1 text-xs font-medium text-accent shadow-sm hover:border-accent">
+              className="pointer-events-auto inline-flex items-center gap-1 rounded-full border border-accent/40 bg-popover px-3 py-1 text-xs font-medium text-accent-text shadow-sm hover:border-accent">
               {below} more below <ChevronDown className="size-3.5 motion-safe:animate-bounce" />
             </button>
           </div>
