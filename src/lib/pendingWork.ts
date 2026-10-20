@@ -43,6 +43,8 @@ export interface PendingItem {
   busy?: boolean;
   /** What Discard does, for its label ("Keep theirs" reads better than "Discard" over a teammate's note). */
   discardLabel?: string;
+  /** Only on this page (not kept in this device's storage): a reload loses it (src/lib/chunkError.ts asks first). */
+  volatile?: boolean;
 }
 
 const sources = new Map<string, PendingItem[]>();
@@ -53,7 +55,7 @@ const notify = () => { version++; listeners.forEach((f) => f()); };
 
 const sameItems = (a: PendingItem[] | undefined, b: PendingItem[]) => !!a && a.length === b.length
   && a.every((x, i) => x.key === b[i].key && x.status === b[i].status && x.message === b[i].message && x.label === b[i].label
-    && x.busy === b[i].busy && x.retry === b[i].retry && x.discard === b[i].discard && x.discardLabel === b[i].discardLabel);
+    && x.busy === b[i].busy && x.retry === b[i].retry && x.discard === b[i].discard && x.discardLabel === b[i].discardLabel && x.volatile === b[i].volatile);
 
 /** Replace what one source holds (an empty list removes it). */
 export function publishPending(source: string, items: PendingItem[]): void {

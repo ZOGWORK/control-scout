@@ -157,6 +157,7 @@ function failedChanged() {
     key: `order:${f.account}:${f.space}:${f.season}:${f.id}`, account: f.account, kind: "order", workspaceId: f.space, season: f.season,
     team: "team" in f.op ? f.op.team : null, label: describeChange(f.op), status: "attention", message: f.message, busy: f.busy,
     retry: () => { void retryFailedChange(f.id); }, discard: () => discardFailedChange(f.id),
+    volatile: true, // kept for this page only: a reload loses it
   }]));
 }
 function keepFailed(f: Omit<FailedChange, "id">) { const id = ++failedSeq; failedChanges.set(id, { ...f, id }); failedChanged(); }
@@ -569,6 +570,7 @@ export function usePickList(space: string | null, season: number, live: LiveMode
           : u.uncertain ? NOTE_UNCONFIRMED : u.kept === false ? "Not saved yet, and this device couldn't keep a copy." : "Not saved yet. Your text is kept on this device.",
         retry: () => change({ op: "note", team, note: u.note }),
         discard: () => discardNote(team), discardLabel: u.conflict ? "Keep theirs" : "Discard",
+        ...(u.kept === false ? { volatile: true } : {}),
       });
     }
     publishPending(source, items);

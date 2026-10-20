@@ -48,10 +48,15 @@ function changed() {
   publish();
 }
 
+/** Attempts this device couldn't store (full or blocked): kept in memory only, so a reload loses them. */
+const unstored = new Set<string>();
+
 function keep(a: CommentAttempt) {
   const k = keyOf(a.account, a.space, a.uuid);
   attempts.set(k, a);
-  try { storage()?.setItem(k, JSON.stringify({ body: a.body, opId: a.opId, at: a.at, season: a.season, team: a.team, what: a.what })); } catch { /* full or blocked: kept in memory */ }
+  const s = storage();
+  try { if (!s) throw new Error("no storage"); s.setItem(k, JSON.stringify({ body: a.body, opId: a.opId, at: a.at, season: a.season, team: a.team, what: a.what })); unstored.delete(k); }
+  catch { unstored.add(k); /* full or blocked: kept in memory */ }
   changed();
 }
 
@@ -60,6 +65,7 @@ function drop(account: number, space: string, uuid: string, opId?: string) {
   const a = attempts.get(k);
   if (opId && a && a.opId !== opId) return; // a newer attempt took its place
   attempts.delete(k);
+  unstored.delete(k);
   try { storage()?.removeItem(k); } catch { /* blocked */ }
   changed();
 }
@@ -169,6 +175,7 @@ function publish() {
       label: a.what ?? (a.team ? `Comment on ${a.team}` : "Comment"), status: "attention", message: a.message,
       retry: () => { void sendComment(place, a.body, a.opId); },
       discard: () => discardComment(a.account, a.space, a.uuid),
+      ...(unstored.has(keyOf(a.account, a.space, a.uuid)) ? { volatile: true } : {}),
     });
   }
   publishPending("comments", items);
@@ -223,4 +230,4 @@ if (typeof window !== "undefined") {
 }
 
 /** Tests: forget everything held in memory (a fresh page). */
-export function resetCommentAttempts() { attempts.clear(); loaded.clear(); changed(); }
+export function resetCommentAttempts() { attempts.clear(); unstored.clear(); loaded.clear(); changed(); }

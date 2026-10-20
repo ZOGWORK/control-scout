@@ -183,6 +183,15 @@ const FRESH_MS = 60_000;
 
 function notify(key: string) { listeners.get(key)?.forEach((f) => f()); }
 
+/** The reads this cache holds are all objects (or lists): a page that gets anything else (a 200 with a JSON null, a
+ *  number, a string) would wait for its data forever. Such an answer is a failed one the page can try again
+ *  (audit PUB3-F04), like a body that arrived cut short. */
+export const UNUSABLE_ANSWER = "The server's answer was empty or not in the expected form. Try again.";
+function expectObject<T>(data: T): T {
+  if (data === null || typeof data !== "object") throw new ApiError(200, UNUSABLE_ANSWER);
+  return data;
+}
+
 /** Load (deduped). Fresh cached data is returned as-is; stale data revalidates. `quiet`: a background
  *  retry, which keeps an error on screen (e.g. the Predict page's offline fallback) until it's answered. */
 export function load<T>(path: string, force = false, quiet = false): Promise<T> {
@@ -192,7 +201,7 @@ export function load<T>(path: string, force = false, quiet = false): Promise<T> 
   const my = ++seq;
   // Another request for this path still out (not this one) stays the one callers wait on.
   const pending = (cur: Entry<T> | undefined) => (cur?.promise !== promise ? cur?.promise : undefined);
-  const promise: Promise<T> = apiFetch<T>(path).then(
+  const promise: Promise<T> = apiFetch<T>(path).then(expectObject).then(
     (data) => {
       const cur = cache.get(path) as Entry<T> | undefined;
       // Newer data arrived while this request was out (a later request, or "Refresh results" priming): keep it.
@@ -270,8 +279,17 @@ export function forget(paths: Iterable<string>) {
 
 const noSubscription = () => () => {};
 
-/** Data for a path (null = don't fetch yet). Keeps showing the last data while refetching. */
-export function useApi<T>(path: string | null): ApiState<T> {
+/** One error per cached answer of the wrong shape (the same object on every render). */
+const misshapenErrors = new WeakMap<object, ApiError>();
+function misshapen(e: Entry<unknown>): ApiError {
+  let err = misshapenErrors.get(e);
+  if (!err) { err = new ApiError(200, UNUSABLE_ANSWER); misshapenErrors.set(e, err); }
+  return err;
+}
+
+/** Data for a path (null = don't fetch yet). Keeps showing the last data while refetching. `valid`: the answer's
+ *  shape check; an answer that fails it shows as an error (with Try again), never as data or endless loading. */
+export function useApi<T>(path: string | null, valid?: (data: unknown) => data is T): ApiState<T> {
   const reads = useContext(ApiReadsContext);
   if (path) reads?.add(path);
   const pathRef = useRef(path);
@@ -295,6 +313,10 @@ export function useApi<T>(path: string | null): ApiState<T> {
     if (cur && (offlineSource(cur.data) || cur.error?.offline)) ensureProbe();
   }, [path]);
   const reload = useCallback(() => { if (pathRef.current) load(pathRef.current, true).catch(() => {}); }, []);
+  // An answer of the wrong shape: an error, or loading again while Try again's request is out.
+  if (e?.data !== undefined && valid && !valid(e.data)) {
+    return { data: undefined, error: e.promise ? undefined : e.error ?? misshapen(e), loading: !!e.promise, reload };
+  }
   // Loading until the first answer (data or error) arrives — never a flash of "empty".
   return { data: e?.data, error: e?.data === undefined ? e?.error : undefined, loading: !!path && e?.data === undefined && !e?.error, reload };
 }
