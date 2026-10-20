@@ -106,6 +106,9 @@ export function describeConflict(c: PickConflict): string {
       return `${c.anchor}, which it was placed next to, was removed. Applied now, it goes ${where}.`;
     }
     case "changed": {
+      // Team numbers only: anything else (damaged storage) never reaches the sentence.
+      const teams = (t: readonly unknown[]) => t.filter((x): x is number => typeof x === "number" && Number.isFinite(x));
+      c = { ...c, added: teams(c.added), removed: teams(c.removed), moved: teams(c.moved) };
       const parts = [
         c.added.length ? `${c.added.length === 1 ? "1 team" : `${c.added.length} teams`} added (${list(c.added)})` : "",
         c.removed.length ? `${c.removed.length === 1 ? "1 team" : `${c.removed.length} teams`} removed (${list(c.removed)})` : "",
