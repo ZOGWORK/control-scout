@@ -57,7 +57,7 @@ describe("compareBrief: two teams", () => {
       { label: "24089 at USTXQ1 Qualifier", href: "/events/2025/USTXQ1" }]);
   });
   it("gives the latest results and the trend", () => {
-    expect(one(s, "Recency").text).toBe("Latest results: 18360 at USCAQ2 Qualifier on Jan 10, 2026 (event OPR 130.2, up 35.2 on its first event) and 24089 at USTXQ1 Qualifier on Dec 6, 2025 (event OPR 84).");
+    expect(one(s, "Recency").text).toBe("Latest events with an OPR: 18360 at USCAQ2 Qualifier on Jan 10, 2026 (event OPR 130.2, up 35.2 on its first event) and 24089 at USTXQ1 Qualifier on Dec 6, 2025 (event OPR 84).");
   });
   it("says plainly when they haven't met", () => {
     expect(one(s, "Head to head")).toMatchObject({ kind: "missing", text: "18360 hasn't played with or against 24089 in 2025–26." });
@@ -108,7 +108,7 @@ describe("compareBrief: missing and thin data", () => {
   it("no data at all: only missing sentences", () => {
     const s = compareBrief(view([team(1, 0, []), team(2, 0, [])]));
     expect(s.every((x) => x.kind === "missing")).toBe(true);
-    expect(one(s, "Recency").text).toBe("None of these teams has an event with results in 2025–26 yet.");
+    expect(one(s, "Recency").text).toBe("None of these teams has an event with an OPR in 2025–26 yet.");
     expect(one(s, "Consistency").text).toMatch(/^Can't be judged yet/);
   });
   it("a missing phase value is not compared", () => {
@@ -122,6 +122,7 @@ describe("compareBrief: missing and thin data", () => {
     expect(topic(s, "Head to head")).toHaveLength(0);
     expect(one(s, "Overall").kind).toBe("missing");
     expect(topic(s, "Auto")).toHaveLength(0);
+    expect(one(s, "Recency").text).toMatch(/^Latest event with an OPR: 18360 at USCAQ2 Qualifier/);
   });
 });
 
