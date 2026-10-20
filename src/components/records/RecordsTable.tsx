@@ -327,7 +327,7 @@ export function RecordsTable(p: RecordsTableProps) {
                     <Columns3 className="text-sky-500" /> Statistics <span className="rounded bg-text-base/10 px-1.5 text-[11px] tabular-nums">{cols.length}{" "}<span className="sr-only">columns</span></span>
                   </Button>
                   <Button variant="outline" className="h-11" asChild={total > 0} disabled={!total}>
-                    {total > 0 ? <a href={csv} download><Download /> Export CSV <span className="sr-only">({total.toLocaleString()} rows)</span></a> : <span><Download /> Export CSV<span className="sr-only"> (no rows to export)</span></span>}
+                    {total > 0 ? <a href={csv} download><Download /> Export CSV <span className="sr-only">({total.toLocaleString()} rows)</span></a> : <span className="inline-flex items-center gap-2"><Download /> Export CSV<span className="sr-only"> (no rows to export)</span></span>}
                   </Button>
                 </FilterSection>
               </>
