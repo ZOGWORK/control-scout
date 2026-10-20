@@ -18,6 +18,8 @@ export const INBOX_BACKOFF_MS = [2_000, 5_000, 15_000];
 export const INBOX_POLL_MS = 45_000;
 export const INBOX_STREAM_RETRY_MS = 120_000;
 export const INBOX_HIDDEN_CLOSE_MS = 60_000;
+/** Kept row ids per Follow up request (the server takes up to 200). */
+const KEEP_BATCH = 200;
 
 export interface InboxNotice { unread: number; latest: number | null; followUp?: number | null }
 
@@ -189,8 +191,13 @@ export function useInbox(userId: number | null): InboxState {
   const pendingWrites = useRef(0);
   const shown = useRef<InboxItem[]>([]);
   shown.current = items;
-  // The Follow up view's extra query: the toggled rows it keeps (the account's own, checked on the server).
-  const keepQuery = () => (kept.current.size ? `&keep=${[...kept.current].slice(-200).join(",")}` : "");
+  // The Follow up view's extra queries: the toggled rows it keeps (the account's own, checked on the server), in
+  // batches of 200 (the server's limit per request); none: one pass without.
+  const keepBatches = (): string[] => {
+    const ids = [...kept.current], out: string[] = [];
+    for (let i = 0; i < ids.length; i += KEEP_BATCH) out.push(`&keep=${ids.slice(i, i + KEEP_BATCH).join(",")}`);
+    return out.length ? out : [""];
+  };
 
   const load = useCallback(() => {
     if (userId == null) return;
@@ -201,9 +208,9 @@ export function useInbox(userId: number | null): InboxState {
     // The Follow up view refreshes everything it shows (kept rows included): pages of up to 100, down to the oldest
     // row on screen when it starts; All, the newest page.
     const start = shown.current, startIds = new Set(start.map((i) => i.id)), floor = start.at(-1)?.id ?? null;
-    const range = async (): Promise<InboxPage> => {
-      if (f !== "followUp") return apiFetch<InboxPage>(`/api/inbox?limit=${INBOX_PAGE}`);
-      const keep = keepQuery();
+    // One pass over the range per batch of kept ids; the passes differ only in which kept rows they add, so their
+    // union (by id) is the flagged rows plus every kept row.
+    const pass = async (keep: string): Promise<InboxPage> => {
       const got: unknown[] = [];
       let before: number | null = null;
       for (;;) {
@@ -215,6 +222,18 @@ export function useInbox(userId: number | null): InboxState {
         // More pages only until the oldest row that was on screen is covered (a first load is one page).
         if (!r?.more || !before || floor == null || before <= floor || !current()) return { ...r, items: got as InboxItem[] };
       }
+    };
+    const range = async (): Promise<InboxPage> => {
+      if (f !== "followUp") return apiFetch<InboxPage>(`/api/inbox?limit=${INBOX_PAGE}`);
+      const byId = new Map<number, InboxItem>();
+      let r: InboxPage | null = null, more = false;
+      for (const keep of keepBatches()) {
+        r = await pass(keep);
+        more ||= !!r.more;
+        for (const i of cleanItems(r.items)) byId.set(i.id, i);
+        if (!current()) break;
+      }
+      return { ...r!, more, items: [...byId.values()].sort((a, b) => b.id - a.id) };
     };
     range()
       .then((r) => {
@@ -275,7 +294,7 @@ export function useInbox(userId: number | null): InboxState {
     if (userId == null || !oldest) return;
     const g = gen.current, s = seq.current, v = listVersion.current, o = ++olderSeq.current, f = filterRef.current;
     setLoadingOlder(true);
-    apiFetch<InboxPage>(`/api/inbox?limit=${INBOX_PAGE}&before=${oldest}${f === "all" ? "" : `&filter=${f}${keepQuery()}`}`)
+    apiFetch<InboxPage>(`/api/inbox?limit=${INBOX_PAGE}&before=${oldest}${f === "all" ? "" : `&filter=${f}`}`)
       .then((r) => {
         if (gen.current !== g || seq.current !== s || listVersion.current !== v || olderSeq.current !== o || filterRef.current !== f) return; // the list changed meanwhile: this page may not fit it
         const page = cleanItems(r.items);
