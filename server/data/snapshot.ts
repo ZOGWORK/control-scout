@@ -30,7 +30,7 @@ export const PRIVATE_TABLES = [
  * Public FTC data the snapshot ships. Every table the migrations create must be
  * in exactly one of these two lists (snapshot.test.ts fails otherwise), so a new
  * table is never shipped by accident: decide which it is when you add it.
- * Full-text search shadow tables (search_*, search_fuzzy_*) follow their parent.
+ * Full-text search shadow tables (search_*, search_fuzzy_*, team_search_*) follow their parent.
  */
 export const PUBLIC_TABLES = [
   "schema_version", "seasons", "teams", "team_seasons", "events", "event_teams", "matches", "match_teams", "alliances", "awards",
@@ -41,6 +41,8 @@ export const PUBLIC_TABLES = [
   // Automatically published power rankings: public pages built from public data (blurbs, ranks, ratings);
   // edited_by is a role, never an email (who edited is in owner_audit, which is private).
   "power_rankings_generated",
+  // The directory's search index (migration 30): words of public team names and towns, kept by triggers on teams.
+  "team_search",
 ];
 
 /** True only when replacing the file can't lose anything: it's missing or zero
