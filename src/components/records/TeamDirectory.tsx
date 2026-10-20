@@ -89,6 +89,14 @@ export function TeamDirectory({ season, onSeason }: { season: number; onSeason: 
   );
   const sortLabel = SORTS.find((s) => s.key === state.sort)?.label ?? "Team number";
   const chips: FilterChip[] = country ? [{ id: "country", label: <><MapPin className="inline size-3.5 text-accent" aria-hidden /> {country.name}</>, name: `Country: ${country.name}`, onRemove: () => setState({ ...state, country: null, countryUnknown: null, page: 1 }) }] : [];
+  // A sort other than the default shows as a chip too (removing it goes back to team number); the default
+  // shows in the Team column's header.
+  const defaultOrder = state.sort === "team" && state.dir === directoryDefaultDir("team");
+  if (!defaultOrder) {
+    const dirWords = state.dir === "asc" ? "low → high" : "high → low";
+    chips.push({ id: "sort", label: <>{state.dir === "asc" ? <ArrowUp className="inline size-3.5 text-accent" aria-hidden /> : <ArrowDown className="inline size-3.5 text-accent" aria-hidden />} {sortLabel}</>,
+      name: `Sorted by ${sortLabel.toLowerCase()}, ${dirWords}`, onRemove: () => setState({ ...state, sort: "team", dir: directoryDefaultDir("team"), page: 1 }) });
+  }
 
   return (
     <section aria-label={`Team directory, ${where}, ${seasonLabel(season)}`}>
@@ -119,7 +127,7 @@ export function TeamDirectory({ season, onSeason }: { season: number; onSeason: 
           <Button className="mt-4" onClick={() => setState({ ...state, countryUnknown: null, page: 1 })}><X /> Show every country</Button>
         </div>
       ) : compact
-        ? <CompactSummary data={data} season={season} where={where} sort={sortLabel} dir={state.dir} resultsHref={resultsHref} onRetry={api.reload} />
+        ? <CompactSummary data={data} season={season} where={where} resultsHref={resultsHref} onRetry={api.reload} />
         : <Summary data={data} season={season} where={where} resultsHref={resultsHref} onRetry={api.reload} />}
 
       {state.countryUnknown ? null : searchIssue ? (
@@ -227,34 +235,33 @@ function Summary({ data, season, where, resultsHref, onRetry }: { data: Director
 }
 
 /**
- * Phones: the totals on one line, with the sort beside them; what a listing means opens on request
- * (the same words as the wide layout's panel).
+ * Phones: the totals on one line (with results links to their statistics); what a listing means opens on
+ * request (the same words as the wide layout's panel). The sort is a chip in the row above unless it's the
+ * default, which the Team column's header shows.
  */
-function CompactSummary({ data, season, where, sort, dir, resultsHref, onRetry }: { data: DirectoryPage | undefined; season: number; where: string; sort: string; dir: "asc" | "desc"; resultsHref: string; onRetry: () => void }) {
+function CompactSummary({ data, season, where, resultsHref, onRetry }: { data: DirectoryPage | undefined; season: number; where: string; resultsHref: string; onRetry: () => void }) {
   const ready = data?.readiness.state === "ready";
   const preparing = data?.readiness.state === "preparing";
   const [about, setAbout] = useState(false);
   const id = useId();
+  const withResults = <span><Trophy className="mr-1 inline size-3.5 text-success" aria-hidden /><span className="font-semibold tabular-nums text-success">{data ? fmt(data.withResults) : "—"}</span> with results</span>;
   return (
-    <div className="mt-2">
-      <div className="flex flex-wrap items-center gap-x-3 gap-y-1 px-1 text-sm text-text-muted" aria-live="polite">
+    <div className="mt-1">
+      <div className="flex items-start gap-2 px-1 text-sm text-text-muted">
+      <div className="flex min-h-11 min-w-0 flex-1 flex-wrap items-center gap-x-3" aria-live="polite">
         <span><Users className="mr-1 inline size-3.5 text-accent" aria-hidden /><span className="font-semibold tabular-nums text-accent-text">{data ? fmt(data.total) : "—"}</span> listed<span className="sr-only"> for {seasonLabel(season)} from {where}</span></span>
-        <span>
-          <Trophy className="mr-1 inline size-3.5 text-success" aria-hidden />
-          {preparing ? <span className="font-semibold text-warning">Being prepared</span> : <><span className="font-semibold tabular-nums text-success">{data ? fmt(data.withResults) : "—"}</span> with results</>}
-        </span>
-        <span className="ml-auto text-xs">Sorted by <span className="font-medium text-text-base">{sort.toLowerCase()}</span> {dir === "asc" ? "(low → high)" : "(high → low)"}</span>
-      </div>
-      <div className="flex flex-wrap items-center justify-between gap-x-3 px-1 text-sm">
-        <button type="button" onClick={() => setAbout(!about)} aria-expanded={about} aria-controls={id}
-          className="inline-flex min-h-11 items-center gap-1.5 rounded-md font-medium text-text-base outline-none focus-visible:ring-2 focus-visible:ring-accent/60">
-          <Info className="size-4 text-accent" aria-hidden /> What a listing means
-        </button>
-        {data && data.withResults > 0 && !preparing && (
-          <Link to={resultsHref} className="inline-flex min-h-11 items-center gap-1 font-semibold text-success hover:underline">
-            Their statistics <ArrowRight className="size-4" aria-hidden />
+        {preparing ? (
+          <span><Trophy className="mr-1 inline size-3.5 text-success" aria-hidden /><span className="font-semibold text-warning">Being prepared</span></span>
+        ) : data && data.withResults > 0 ? (
+          <Link to={resultsHref} className="inline-flex min-h-11 items-center hover:underline">
+            {withResults}<span className="sr-only">: their statistics</span><ArrowRight className="ml-1 size-4 text-success" aria-hidden />
           </Link>
-        )}
+        ) : withResults}
+      </div>
+        <button type="button" onClick={() => setAbout(!about)} aria-expanded={about} aria-controls={id} aria-label="What a listing means" title="What a listing means"
+          className="inline-flex size-11 shrink-0 items-center justify-center rounded-md text-accent outline-none hover:bg-text-base/[0.06] focus-visible:ring-2 focus-visible:ring-accent/60">
+          <Info className="size-4" aria-hidden />
+        </button>
       </div>
       <div id={id} hidden={!about} className="space-y-1 px-1 pb-1 text-sm text-text-muted">
         <p className="max-w-prose">

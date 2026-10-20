@@ -176,12 +176,14 @@ describe("TeamDirectory on a phone", () => {
   beforeEach(() => vi.stubGlobal("matchMedia", (query: string) => ({ matches: true, media: query, addEventListener() {}, removeEventListener() {} })));
   const filtersButton = () => screen.getByRole("button", { name: /^Filters/, hidden: true });
 
-  it("shows the country as a chip, the totals and the sort on short lines, the listing note on request", () => {
+  it("shows the country and a non-default sort as chips, the totals on one line, the listing note on request", () => {
     mount("/teams?view=listed&country=CA&sort=rookie");
     expect(screen.getByRole("button", { name: "Remove filter: Country: Canada" })).toBeTruthy();
     expect(screen.queryByRole("combobox", { name: "Country" })).toBeNull();
     expect(screen.getByText("120")).toBeTruthy();
-    expect(screen.getByText(/Sorted by/).textContent).toContain("rookie year");
+    fireEvent.click(screen.getByRole("button", { name: /^Remove filter: Sorted by rookie year/ }));
+    expect(search).toBe("?view=listed&country=CA");
+    expect(screen.queryByRole("button", { name: /^Remove filter: Sorted by/ })).toBeNull();
     const about = screen.getByRole("button", { name: "What a listing means" });
     const note = document.getElementById(about.getAttribute("aria-controls")!)!;
     expect(note.hidden).toBe(true);
