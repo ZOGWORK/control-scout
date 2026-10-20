@@ -177,22 +177,15 @@ export function topByOpr(field: FieldRow[]): { rows: { team: number; name: strin
 }
 
 /**
- * Who won: the Winner award's teams; until FIRST posts awards (they can come after the last match), the
- * winner of the last playoff match played (the final decides the event), with its alliance's members.
+ * Who won: the Winner award's teams, as the event page says it. Nothing until FIRST posts awards: a
+ * finished status alone doesn't prove the final was decided (it can mean every posted match is scored,
+ * or the end date passed), so the last playoff match is never taken for the championship.
  */
-export function winningAlliance(d: Pick<EventDetail, "awards" | "alliances" | "matches">): { alliance: number | null; teams: number[] } | null {
-  const allianceOf = (teams: number[]) => d.alliances.find((a) => [a.captain, a.pick1, a.pick2].some((t) => t != null && teams.includes(t)));
+export function winningAlliance(d: Pick<EventDetail, "awards" | "alliances">): { alliance: number | null; teams: number[] } | null {
   const awarded = d.awards.filter((a) => a.type === "Winner").map((a) => a.team);
-  if (awarded.length) return { alliance: allianceOf(awarded)?.number ?? null, teams: awarded };
-  const finals = d.matches.filter((m) => m.level === "playoff" && m.played && m.red.score && m.blue.score && m.red.score.total !== m.blue.score.total)
-    .sort((a, b) => a.series - b.series || a.number - b.number);
-  const last = finals.at(-1);
-  if (!last) return null;
-  const side = last.red.score!.total > last.blue.score!.total ? last.red : last.blue;
-  const played = teamsOf(side, true);
-  const a = allianceOf(played);
-  const members = a ? [a.captain, a.pick1, a.pick2].filter((t): t is number => t != null) : played;
-  return { alliance: a?.number ?? null, teams: members };
+  if (!awarded.length) return null;
+  const alliance = d.alliances.find((a) => [a.captain, a.pick1, a.pick2].some((t) => t != null && awarded.includes(t)));
+  return { alliance: alliance?.number ?? null, teams: awarded };
 }
 
 export function eventEmbed(d: EventDetail, site: string): APIEmbed {
@@ -211,7 +204,7 @@ export function eventEmbed(d: EventDetail, site: string): APIEmbed {
   }
   if (e.status === "finished") {
     const w = winningAlliance(d);
-    if (w) fields.push({ name: "Winning alliance", value: `${w.alliance ? `Alliance ${w.alliance}: ` : ""}${allianceText(w.teams)}` });
+    fields.push({ name: "Winning alliance", value: w ? `${w.alliance ? `Alliance ${w.alliance}: ` : ""}${allianceText(w.teams)}` : "Not posted yet (it comes with the awards)" });
   }
   return {
     title: clip(e.name, 256),
