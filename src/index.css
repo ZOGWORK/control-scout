@@ -43,6 +43,8 @@
   --color-accent-soft: #ffc7001f;
   /* Gold for small text and icons: the accent itself on dark; darker on light, where #eab308 is too faint to read. */
   --color-accent-text: #ffc700;
+  /* Gold for large display text only (the profile's "Top 8%", Home's headline): the accent itself in both themes. */
+  --color-accent-display: #ffc700;
   --color-line: var(--sh-border);
   --color-info: #38bdf8;
   --color-success: #34d399;
@@ -116,11 +118,13 @@ html.light {
   --color-accent: #eab308;
   --color-accent-hover: #ca8a04;
   --color-accent-soft: #eab3081f;
-  /* Gold text on light is the accent itself, the same yellow as bars and fills (the owner's call, Oct 20 2026,
-     over a deeper brown that read as "off"). It's under WCAG AA on white, so textTones.test.ts lists it as a
-     known exception. Green, red, blue and orange are the most vivid shades that still reach 4.5:1, on white
-     and on their own chip tints (a true green, red and blue, not the teal, crimson and steel they replaced). */
-  --color-accent-text: #eab308;
+  /* Gold on light, the owner's calls (Oct 20 2026). Large display text (the profile's "Top 8%", Home's headline)
+     is the accent itself, #eab308, knowingly under 3:1 on white; textTones.test.ts lists it as the one exception.
+     Small gold text (best values, the chosen season, links, chips) is a deep amber that reaches 4.5:1 on white and
+     on the accent's own tints up to 25% (V4-A11Y-003: #eab308 measured 1.8:1 there). Green, red, blue and orange
+     are the most vivid shades that still reach 4.5:1, on white and on their own chip tints. */
+  --color-accent-display: #eab308;
+  --color-accent-text: #875200;
   --color-info: #2152e0;
   --color-success: #147238;
   --color-warning: #b23a0a;

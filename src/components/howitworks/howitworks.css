@@ -3,8 +3,10 @@
    light and dark both follow the theme toggle. */
 
 .hiw {
-  /* Gold that reads as text: volt on dark, a deeper amber on white. */
+  /* Gold for large text, numbers and strokes: the accent in both themes. Small gold text (11px labels, chips, chart
+     labels) takes --hiw-gold-text: the accent on dark, the app's deep amber on light (4.5:1; V4-A11Y-003). */
   --hiw-gold: var(--color-accent);
+  --hiw-gold-text: var(--color-accent-text);
   --hiw-red: var(--color-red-alliance);
   --hiw-blue: var(--color-blue-alliance);
   --hiw-good: var(--color-success);
@@ -19,6 +21,7 @@
 html.light .hiw { --hiw-gold: #eab308; --hiw-line: #d4d4d8; }
 
 .hiw-gold { color: var(--hiw-gold); }
+.hiw-gold-text { color: var(--hiw-gold-text); }
 
 /* SVG charts */
 .hiw svg.hiw-chart { display: block; width: 100%; height: auto; overflow: visible; }
@@ -26,7 +29,7 @@ html.light .hiw { --hiw-gold: #eab308; --hiw-line: #d4d4d8; }
 .hiw svg .t-ink { fill: var(--hiw-ink); }
 .hiw svg .t-red { fill: var(--hiw-red); }
 .hiw svg .t-blue { fill: var(--hiw-blue); }
-.hiw svg .t-gold { fill: var(--hiw-gold); }
+.hiw svg .t-gold { fill: var(--hiw-gold-text); }
 .hiw svg .t-big { font-family: var(--font-display); font-weight: 700; font-size: 15px; }
 .hiw svg .t-disp { font-family: var(--font-display); font-weight: 700; font-size: 14px; }
 .hiw svg .grid { stroke: var(--hiw-line); stroke-width: 1; }
