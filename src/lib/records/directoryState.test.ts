@@ -1,6 +1,7 @@
 // The directory's URL state: country, sort, direction and page round-trip through a
 // link (so paging, sorting, back/forward and copied URLs keep them), the page's own
-// params (view, season) are left alone, and an unknown country is kept visible.
+// params (view, season) are left alone, an unknown country is kept visible, and so is
+// a search the server would refuse.
 import { describe, expect, it } from "vitest";
 import { directoryUrl, parseDirectoryState, writeDirectoryState } from "./directoryState";
 
@@ -8,25 +9,25 @@ const sp = (s: string) => new URLSearchParams(s);
 
 describe("directory URL state", () => {
   it("reads the defaults from a bare link", () => {
-    expect(parseDirectoryState(sp("view=listed"))).toEqual({ country: null, countryUnknown: null, sort: "team", dir: "asc", page: 1 });
+    expect(parseDirectoryState(sp("view=listed"))).toEqual({ country: null, countryUnknown: null, q: null, sort: "team", dir: "asc", page: 1 });
   });
 
   it("round-trips country, sort, direction and page, keeping view and season", () => {
     const s = parseDirectoryState(sp("view=listed&season=2025&country=us&sort=name&dir=desc&page=3"));
-    expect(s).toEqual({ country: "US", countryUnknown: null, sort: "name", dir: "desc", page: 3 });
+    expect(s).toEqual({ country: "US", countryUnknown: null, q: null, sort: "name", dir: "desc", page: 3 });
     const out = writeDirectoryState(sp("view=listed&season=2025"), s);
     expect(out.toString()).toBe("view=listed&season=2025&country=US&sort=name&dir=desc&page=3");
     expect(parseDirectoryState(out)).toEqual(s);
   });
 
   it("leaves defaults out of the link", () => {
-    const out = writeDirectoryState(sp("view=listed&country=US&sort=name&page=4"), { country: "US", countryUnknown: null, sort: "results", dir: "desc", page: 1 });
+    const out = writeDirectoryState(sp("view=listed&country=US&sort=name&page=4"), { country: "US", countryUnknown: null, q: null, sort: "results", dir: "desc", page: 1 });
     expect(out.toString()).toBe("view=listed&country=US&sort=results");
   });
 
   it("keeps an unknown country in the URL until it's cleared, asks for no rows meanwhile, and ignores junk", () => {
     const s = parseDirectoryState(sp("country=ZZ&sort=opr&dir=up&page=-2"));
-    expect(s).toEqual({ country: null, countryUnknown: "ZZ", sort: "team", dir: "asc", page: 1 });
+    expect(s).toEqual({ country: null, countryUnknown: "ZZ", q: null, sort: "team", dir: "asc", page: 1 });
     expect(directoryUrl(2026, s)).toBeNull();
     expect(writeDirectoryState(sp("view=listed&country=ZZ"), { ...s, sort: "name" }).toString()).toBe("view=listed&country=ZZ&sort=name");
     expect(writeDirectoryState(sp("view=listed&country=ZZ"), { ...s, countryUnknown: null }).toString()).toBe("view=listed");
@@ -35,5 +36,20 @@ describe("directory URL state", () => {
   it("asks the API for the same rows", () => {
     expect(directoryUrl(2026, parseDirectoryState(sp("country=CA&sort=rookie&page=2"))))
       .toBe("/api/directory/2026?country=CA&sort=rookie&dir=asc&page=2&pageSize=50");
+  });
+
+  it("keeps the search in the link and asks for it within the season and country", () => {
+    const s = parseDirectoryState(sp("view=listed&season=2025&country=US&q=%20robo%20raiders%20&page=2"));
+    expect(s).toMatchObject({ country: "US", q: "robo raiders", page: 2 });
+    expect(writeDirectoryState(sp("view=listed&season=2025"), s).toString()).toBe("view=listed&season=2025&country=US&q=robo+raiders&page=2");
+    expect(directoryUrl(2025, s)).toBe("/api/directory/2025?country=US&q=robo+raiders&sort=team&dir=asc&page=2&pageSize=50");
+    expect(writeDirectoryState(sp("view=listed&q=robo"), { ...s, q: "  " }).toString()).toBe("view=listed&country=US&page=2");
+    expect(parseDirectoryState(sp("q=%20%20")).q).toBeNull();
+  });
+
+  it("asks for no rows while the search is one the server would refuse", () => {
+    expect(directoryUrl(2025, parseDirectoryState(sp(`q=${"a".repeat(65)}`)))).toBeNull();
+    expect(directoryUrl(2025, parseDirectoryState(sp("q=a+b+c+d+e+f+g")))).toBeNull();
+    expect(directoryUrl(2025, parseDirectoryState(sp("q=a+b+c+d+e+f")))).not.toBeNull();
   });
 });
