@@ -282,6 +282,7 @@ export function useInbox(userId: number | null): InboxState {
     setFilterState(f);
     olderSeq.current++; setLoadingOlder(false);
     loadedRef.current = false; setLoaded(false); setItems([]); setMore(false); cursor.current = null;
+    shown.current = []; // the new view starts from one page, not the old view's loaded range
     load();
   }, [load]);
 

@@ -280,6 +280,24 @@ describe("useInbox: replies in order", () => {
     vi.doUnmock("./api");
   });
 
+  it("switching to Follow up starts from one page, not the All view's loaded range", async () => {
+    const { result, act } = await harness();
+    await act(async () => { result.current.load(); });
+    await act(async () => { pending.at(-1)!.resolve(fpage(Array.from({ length: 30 }, (_, k) => flagged(500 - k, false)), true)); });
+    for (const from of [470, 440, 410]) {
+      await act(async () => { result.current.loadOlder(); });
+      await act(async () => { pending.at(-1)!.resolve(fpage(Array.from({ length: 30 }, (_, k) => flagged(from - k, false)), true)); });
+    }
+    expect(result.current.items).toHaveLength(120);
+    await act(async () => { result.current.setFilter("followUp"); });
+    expect(pending.at(-1)!.path).toBe("/api/inbox?limit=30&filter=followUp");
+    const n = pending.length;
+    await act(async () => { pending.at(-1)!.resolve(fpage([flagged(450)], true)); });
+    expect(pending.length).toBe(n); // one page: no walk down to the All view's oldest row
+    expect(result.current.items.map((i) => i.id)).toEqual([450]);
+    vi.doUnmock("./api");
+  });
+
   it("a live refresh waits while a write is queued (it would bring back the old state)", async () => {
     const { result, act } = await harness();
     await act(async () => { result.current.load(); });
