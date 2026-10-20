@@ -56,6 +56,17 @@ describe("compareBrief: two teams", () => {
       { label: "18360 at USCAQ1 Qualifier", href: "/events/2025/USCAQ1" }, { label: "18360 at USCAQ2 Qualifier", href: "/events/2025/USCAQ2" },
       { label: "24089 at USTXQ1 Qualifier", href: "/events/2025/USTXQ1" }]);
   });
+  it("an undated event is never the first or latest of a trend", () => {
+    // The server sorts undated events first; the trend starts at the first dated one.
+    const undated = { ...ev("USCAQ0", "2025-10-01", 10), start: null };
+    const x = team(18360, 24, [undated, ...A.events]);
+    const r = one(compareBrief(view([x, B])), "Recency");
+    expect(r.text).toContain("18360 at USCAQ2 Qualifier on Jan 10, 2026 (event OPR 130.2, up 35.2 on its first event)");
+    expect(r.sources.map((e) => e.href)).not.toContain("/events/2025/USCAQ0");
+    // With one dated event and one undated, there's no trend to describe.
+    const y = team(18360, 24, [undated, A.events[1]]);
+    expect(one(compareBrief(view([y, B])), "Recency").text).toContain("18360 at USCAQ2 Qualifier on Jan 10, 2026 (event OPR 130.2)");
+  });
   it("gives the latest results and the trend", () => {
     expect(one(s, "Recency").text).toBe("Latest events with an OPR: 18360 at USCAQ2 Qualifier on Jan 10, 2026 (event OPR 130.2, up 35.2 on its first event) and 24089 at USTXQ1 Qualifier on Dec 6, 2025 (event OPR 84).");
   });

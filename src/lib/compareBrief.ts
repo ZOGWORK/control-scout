@@ -182,18 +182,24 @@ export function compareBrief(d: CompareView, label = seasonLabel(d.season)): Bri
 
   // Recency: each team's latest event with an OPR, and how its OPR moved since its first. Said as "with an OPR":
   // an event with results but no OPR (playoffs only, say) isn't in it, so this is not always the latest event played.
-  const latest = t.map((x) => ({ x, evs: rated(x) })).filter((r) => r.evs.length);
+  // Order comes from dates only: an undated event can't be called first or latest, so with any dated events the
+  // latest and the trend use those alone (the server sorts undated events first, which says nothing about when).
+  const latest = t.map((x) => {
+    const all = rated(x), dated = all.filter((e) => e.start);
+    const order = dated.length ? dated : all;
+    const trend = dated.length >= BRIEF.minEvents && matches(x) >= BRIEF.minMatches;
+    return { x, last: order[order.length - 1], first: trend ? dated[0] : null };
+  }).filter((r) => r.last);
   if (!latest.length) {
     out.push({ topic: "Recency", kind: "missing", text: `None of these teams has an event with an OPR in ${label} yet.`, sources: [] });
   } else {
-    const parts = latest.map(({ x, evs }) => {
-      const last = evs[evs.length - 1];
+    const parts = latest.map(({ x, last, first }) => {
       const when = last.start ? ` on ${shortDate(last.start)}` : "";
       // Below the sample threshold the event is named but its OPR isn't quoted.
       if (matches(x) < BRIEF.minMatches) return `${n(x)} at ${last.name}${when} (${plural(matches(x), "match", "matches")}, too few to quote its OPR)`;
       let s = `${n(x)} at ${last.name}${when} (event OPR ${shown(last.opr!)}`;
-      if (evs.length >= BRIEF.minEvents) {
-        const g = gap(last.opr!, evs[0].opr!);
+      if (first) {
+        const g = gap(last.opr!, first.opr!);
         s += Math.abs(g) < BRIEF.levelPoints ? `, level with its first event` : `, ${g > 0 ? "up" : "down"} ${shown(Math.abs(g))} on its first event`;
       }
       return `${s})`;
@@ -201,10 +207,7 @@ export function compareBrief(d: CompareView, label = seasonLabel(d.season)): Bri
     out.push({
       topic: "Recency", kind: "fact", text: `${latest.length === 1 ? "Latest event with an OPR" : "Latest events with an OPR"}: ${list(parts)}.`,
       // The latest event, and the first too when the sentence quotes the change since it.
-      sources: latest.flatMap(({ x, evs }) => {
-        const trend = matches(x) >= BRIEF.minMatches && evs.length >= BRIEF.minEvents;
-        return (trend ? [evs[0], evs[evs.length - 1]] : [evs[evs.length - 1]]).map((e) => ({ label: `${n(x)} at ${e.name}`, href: eventHref(season, e.code) }));
-      }),
+      sources: latest.flatMap(({ x, last, first }) => (first ? [first, last] : [last]).map((e) => ({ label: `${n(x)} at ${e.name}`, href: eventHref(season, e.code) }))),
     });
   }
 
