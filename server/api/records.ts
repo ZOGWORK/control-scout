@@ -472,7 +472,9 @@ export async function streamRecordsCsv(season: number, q: RecordsQuery, res: Res
       let out = "";
       const raw = await rowsByKeys(src, q, keys.slice(i, i + CSV_CHUNK));
       for (const r of rowsOf(q.scope, raw, q.fields, await predictionTiers(q.scope, raw, q.fields))) {
-        out += line([...ids.map(([, f]) => f(r)), ...q.fields.map((k) => r.stats[k]), ...(tiered ? [(r as MatchRecordRow).predictionTier] : [])]);
+        // No recorded tier, no percentage (as on the page): the cell is left blank.
+        const tier = tiered ? (r as MatchRecordRow).predictionTier ?? null : null;
+        out += line([...ids.map(([, f]) => f(r)), ...q.fields.map((k) => (tiered && k === PREDICTION_STAT && !tier ? null : r.stats[k])), ...(tiered ? [tier] : [])]);
       }
       if (out && !(await body.send(out))) return;
     }
