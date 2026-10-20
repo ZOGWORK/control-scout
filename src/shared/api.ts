@@ -343,3 +343,68 @@ export interface MatchDetail {
   prev: { key: string; label: string } | null;
   next: { key: string; label: string } | null;
 }
+
+// ---------------------------------------------------------------------------
+// Official result changes (/api/events/:season/:code/result-changes)
+// ---------------------------------------------------------------------------
+
+/** posted: a result appeared; revised: a posted result's values changed; schedule: time, field or lineup moved. */
+export type ResultChangeKind = "posted" | "revised" | "schedule";
+
+/** One alliance's official score as stored (null components: not reported by the source). */
+export interface ResultScoreSide {
+  total: number | null;
+  np: number | null;
+  auto: number | null;
+  teleop: number | null;
+  endgame: number | null;
+  pen: number | null;
+  tips: number | null;
+  bonus: { movement: boolean; goal: boolean; pattern: boolean } | null;
+}
+
+export interface ResultSnapshot {
+  red: ResultScoreSide;
+  blue: ResultScoreSide;
+  /** Disqualified teams, ascending. */
+  dq: number[];
+  /** False: totals only (the source hadn't reported a breakdown; the components are estimates). */
+  breakdown: boolean;
+}
+export interface ScheduleSnapshot { time: string | null; field: string | null; /** Team numbers, ascending. */ red: number[]; blue: number[] }
+
+interface ResultChangeBase {
+  id: number;
+  /** "qual:0:12": the match's key on /events/:season/:code. */
+  match: { key: string; label: string };
+  /** Changed values: "red.total", "blue.bonus.goal", "dq", "time", "field", "red", "blue" (labels has their names). */
+  fields: string[];
+  /** The feed the new value came from, and the one the stored value came from. */
+  source: "first" | "ftc-scout";
+  prevSource: "first" | "ftc-scout" | null;
+  /** When the sync saw the change (not when FIRST made it). */
+  checkedAt: string;
+}
+
+export type ResultChange = ResultChangeBase & (
+  | { kind: "posted"; before: null; after: ResultSnapshot }
+  | { kind: "revised"; before: ResultSnapshot; after: ResultSnapshot | null }
+  | { kind: "schedule"; before: ScheduleSnapshot; after: ScheduleSnapshot }
+);
+
+export interface ResultChangesView {
+  season: number;
+  code: string;
+  /** Set when the list is for one match. */
+  match: string | null;
+  /** When this event's results started being watched; null = not yet (nothing before it is known). */
+  trackedSince: string | null;
+  /** The last time the sync stored this event's results. */
+  lastChecked: string | null;
+  /** The season's names for the changed values (season-specific bonus RPs and endgame). */
+  labels: Record<string, string>;
+  /** Newest first. At most `cap` per event are kept; `pruned` older ones were dropped. */
+  changes: ResultChange[];
+  cap: number;
+  pruned: number;
+}

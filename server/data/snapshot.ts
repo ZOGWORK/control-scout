@@ -43,6 +43,8 @@ export const PUBLIC_TABLES = [
   "power_rankings_generated",
   // The directory's search index (migration 30): words of public team names and towns, kept by triggers on teams.
   "team_search",
+  // Official result changes the sync saw (first postings, score revisions, schedule moves): public match data.
+  "result_changes", "result_watch",
 ];
 
 /** True only when replacing the file can't lose anything: it's missing or zero

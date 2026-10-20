@@ -15,6 +15,7 @@ import { teamProfile, compareTeams, teamSummaries, shortlistTeams } from "./api/
 import { cachedEventDetail, eventDetail, listEvents, toEventInput } from "./api/events.js";
 import { matchDetail, matchViews } from "./api/matches.js";
 import { matchReport } from "./api/matchReport.js";
+import { resultChanges } from "./api/resultChanges.js";
 import { MATCH_KEY as REPORT_KEY } from "../src/shared/matchReport.js";
 import { trackRecord } from "./api/accuracy.js";
 import { currentWeather } from "./weather.js";
@@ -343,6 +344,23 @@ export function createApp() {
     const d = await matchDetail(season(req.params.season), code(req.params.code), key);
     if (!d) throw new HttpError(404, `No match ${key} at ${req.params.code}`);
     return d;
+  }));
+
+  // Official result changes the sync saw (first postings, score revisions, schedule moves): public data only.
+  // Revalidated every time (a result can be corrected any minute; the ETag keeps it a cheap 304).
+  api.get("/events/:season/:code/result-changes", h(async (req, res) => {
+    const r = await resultChanges(season(req.params.season), code(req.params.code));
+    if (!r) throw new HttpError(404, `No event ${req.params.code} in ${req.params.season}`);
+    res.setHeader("Cache-Control", "no-cache");
+    return r;
+  }));
+  api.get("/events/:season/:code/matches/:key/result-changes", h(async (req, res) => {
+    const key = String(req.params.key);
+    if (!/^(qual|playoff):\d{1,3}:\d{1,4}$/.test(key)) throw new HttpError(400, "Match key looks like qual:0:12");
+    const r = await resultChanges(season(req.params.season), code(req.params.code), key);
+    if (!r) throw new HttpError(404, `No match ${key} at ${req.params.code}`);
+    res.setHeader("Cache-Control", "no-cache");
+    return r;
   }));
 
   // "Know your match" (v1.6 Task 2): the lineup's OPR, trend and data flags in one request (the

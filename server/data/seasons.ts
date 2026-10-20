@@ -138,6 +138,26 @@ export function teleopAsReported(season: number, s: { teleop: number; endgame: n
   return reportedTeleopIncludesEndgame(season) ? s.teleop + s.endgame : s.teleop;
 }
 
+/**
+ * Names for the stored score components of a season, for the result-change
+ * timeline (server/data/resultChanges.ts): the engine's season-blind slots
+ * (endgame, the three bonus RPs, tips) in the game's own words. The stored
+ * TeleOp never includes the endgame (splitFirstScore).
+ */
+export function resultFieldLabels(season: number): Record<string, string> {
+  const endgame = season === 2024 ? "Ascent and park" : season === 2025 ? "Base" : season === 2026 ? "Park" : "Endgame";
+  const out: Record<string, string> = {
+    total: "Total", np: "Non-penalty points", auto: "Auto",
+    teleop: reportedTeleopIncludesEndgame(season) ? `TeleOp (without ${endgame.toLowerCase()})` : "TeleOp",
+    endgame, pen: ownScorePenalties(season) ? "Own penalties" : "Penalty points given away",
+    dq: "Disqualified teams", result: "Result",
+    time: "Scheduled time", field: "Field", red: "Red alliance", blue: "Blue alliance",
+  };
+  if (season === 2025) Object.assign(out, { "bonus.movement": "Movement RP", "bonus.goal": "Goal RP", "bonus.pattern": "Pattern RP" });
+  if (season === 2026) Object.assign(out, { "bonus.movement": "Swarm RP", "bonus.goal": "Pollinator 1 RP", "bonus.pattern": "Pollinator 2 RP", tips: "HIVE TIPs" });
+  return out;
+}
+
 /** Whether FIRST's reported TeleOp includes the endgame (see teleopAsReported). */
 export function reportedTeleopIncludesEndgame(season: number): boolean {
   return season >= 2024;
