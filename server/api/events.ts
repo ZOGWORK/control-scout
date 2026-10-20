@@ -7,22 +7,14 @@ import { matchViews } from "./matches.js";
 import { dataVersion, liveForecaster, liveVersion } from "../predict/engine.js";
 import { registerCache } from "../caches.js";
 import { FULL_EVERY_MS, isEventDay, liveIo, liveSyncOn, liveSyncSeconds } from "../data/live.js";
-
-const today = () => new Date().toISOString().slice(0, 10);
-
-function statusOf(start: string | null, end: string | null, played: number, total: number): EventSummary["status"] {
-  const t = today();
-  if (start && start > t) return "upcoming";
-  if ((end ?? start ?? "") < t) return "finished";
-  return played && played >= total && total > 0 ? "finished" : "live";
-}
+import { eventStatus } from "../../src/shared/eventDay.js";
 
 function summary(r: any): EventSummary {
   const played = Number(r.played ?? 0), total = Number(r.total ?? 0);
   return {
     season: Number(r.season), code: r.code, name: r.name, type: r.type, typeLabel: eventTypeLabel(r.type), divisionCode: r.division_code ?? null,
     region: r.region, city: r.city, state: r.state, country: r.country, venue: r.venue ?? null, start: r.start, end: r.end, remote: !!r.remote,
-    teams: Number(r.teams ?? 0), matchesPlayed: played, matchesTotal: total, status: statusOf(r.start, r.end, played, total),
+    teams: Number(r.teams ?? 0), matchesPlayed: played, matchesTotal: total, status: eventStatus(r, played, total),
   };
 }
 
@@ -63,8 +55,8 @@ registerCache("Event details", () => details.clear());
 
 /**
  * eventDetail for pages (the event page and match reports), cached by what it's built from: the data
- * version (moves on with every sync and every live result), the ratings in use (liveVersion) and the
- * day (an event's status follows the date). A big event's detail takes tens of milliseconds to build
+ * version (moves on with every sync and every live result) and the ratings in use (liveVersion); a
+ * cached one whose status the venue's calendar has since moved on (eventStatus) is rebuilt. A big event's detail takes tens of milliseconds to build
  * (every match, its prediction, the field), so a repeat visit or a match report reuses it. An event
  * that's on today isn't cached: its live check times move without a new data version. Callers must
  * not change the object they get back (it's shared).
@@ -72,9 +64,13 @@ registerCache("Event details", () => details.clear());
 export async function cachedEventDetail(season: number, code: string): Promise<EventDetail | null> {
   // data:settled moves once a sync's or live result's writes are all done: a detail built in between (new
   // version, half-written stats) isn't kept past them.
-  const key = `${await dataVersion()}|${(await kvGet<string>("data:settled")) ?? ""}|${await liveVersion(season)}|${today()}|${season}|${code}`;
+  const key = `${await dataVersion()}|${(await kvGet<string>("data:settled")) ?? ""}|${await liveVersion(season)}|${season}|${code}`;
   const hit = details.get(key);
-  if (hit && Date.now() - hit.at < DETAIL_TTL_MS) return hit.value;
+  if (hit && Date.now() - hit.at < DETAIL_TTL_MS) {
+    // The venue's date turns over at its own midnight, not UTC's: upcoming → live → finished without a new version.
+    const d = await hit.value.catch(() => null);
+    if (!d || d.event.status === eventStatus(d.event, d.event.matchesPlayed, d.event.matchesTotal)) return hit.value;
+  }
   const value = eventDetail(season, code);
   details.set(key, { at: Date.now(), value });
   value.then((d) => { if (!d || d.live) details.delete(key); }, () => details.delete(key));
