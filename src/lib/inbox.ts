@@ -226,14 +226,20 @@ export function useInbox(userId: number | null): InboxState {
     const range = async (): Promise<InboxPage> => {
       if (f !== "followUp") return apiFetch<InboxPage>(`/api/inbox?limit=${INBOX_PAGE}`);
       const byId = new Map<number, InboxItem>();
-      let r: InboxPage | null = null, more = false;
+      const ends: { last: number | null; more: boolean }[] = [];
+      let r: InboxPage | null = null;
       for (const keep of keepBatches()) {
         r = await pass(keep);
-        more ||= !!r.more;
-        for (const i of cleanItems(r.items)) byId.set(i.id, i);
+        const rows = cleanItems(r.items);
+        ends.push({ last: rows.at(-1)?.id ?? null, more: !!r.more });
+        for (const i of rows) byId.set(i.id, i);
         if (!current()) break;
       }
-      return { ...r!, more, items: [...byId.values()].sort((a, b) => b.id - a.id) };
+      const items = [...byId.values()].sort((a, b) => b.id - a.id);
+      // Passes can stop at different rows: whether there's more is up to the one that reached the oldest row shown.
+      const oldest = items.at(-1)?.id ?? null;
+      const more = ends.some((e) => e.last === oldest && e.more);
+      return { ...r!, more, items };
     };
     range()
       .then((r) => {
