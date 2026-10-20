@@ -15,6 +15,7 @@ import { EmptyState } from "../components/page";
 import { Async } from "../components/states";
 import { Reveal } from "../components/motion";
 import { Badge, Input } from "../components/ui/basic";
+import { ResultChanges } from "../components/ResultChanges";
 import { Button } from "../components/ui/button";
 import { StickyActions } from "../components/StickyActions";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "../components/ui/tabs";
@@ -186,7 +187,11 @@ function Event({ d, path }: { d: EventDetail; path: string }) {
           <TabsTrigger value="awards">Awards</TabsTrigger>
           {predictable && <TabsTrigger value="odds">Odds</TabsTrigger>}
         </TabsList>
-        <TabsContent value="matches" className="mt-5"><Matches d={d} team={teamParam} /></TabsContent>
+        <TabsContent value="matches" className="mt-5">
+          <Matches d={d} team={teamParam} />
+          {/* Official results first posted, corrected or rescheduled (self-contained: its own route). */}
+          <ResultChanges season={e.season} code={e.code} refreshKey={recordsKey} />
+        </TabsContent>
         <TabsContent value="rankings" className="mt-5">
           {tab === "rankings" && (
             <>
