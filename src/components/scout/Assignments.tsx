@@ -57,7 +57,7 @@ export function AssignmentsView({ space, workspaceName, season, defaultEvent, st
   const first = loading && !list.length;
   return (
     <>
-      <Section title="My assignments" description={`Teams you've been asked to scout in ${season}. Tap Done when you've finished one.`}
+      <Section stackAction title="My assignments" description={`Teams you've been asked to scout in ${season}. Tap Done when you've finished one.`}
         action={isAdmin ? <Button onClick={() => setAssignOpen(true)}><UserPlus /> Assign</Button> : undefined}>
         {first ? <LoadingBlock rows={2} label="Loading assignments" />
           : error && !list.length ? <ErrorState error={error} onRetry={reload} />
