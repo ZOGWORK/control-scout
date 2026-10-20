@@ -7,6 +7,7 @@
 // often on event days — the scheduler in server/index.ts decides cadence).
 import { all, get, kvGet, kvSet, run, writeBatch } from "./db.js";
 import { bundleStatements, teamStatements, type EventBundle, type EventRow } from "./data/bundle.js";
+import { writeEventBundle } from "./data/resultChanges.js";
 import { CURRENT_SEASON, SEASON_NUMBERS, isLegacy, seasonInfo } from "./data/seasons.js";
 import { FirstError, firstEventBundle, firstEvents, firstTeams } from "./sources/first.js";
 import { bundleFromScout, fetchScoutEvent } from "./sources/ftcScout.js";
@@ -95,7 +96,8 @@ export async function syncEvent(meta: EventRow, log: SyncLog = () => {}): Promis
     bundle = { ...sb, event: { ...sb.event, ...pickDefined(meta), source: "ftc-scout" } };
     if (firstError) log(`  ${meta.season} ${meta.code}: FIRST failed (${(firstError as Error).message.slice(0, 80)}), used FTC Scout`);
   }
-  await writeBatch(bundleStatements(bundle));
+  // Records first postings, score revisions and schedule moves in the same transaction (data/resultChanges.ts).
+  await writeEventBundle(bundle);
   return bundle.event.source;
 }
 
