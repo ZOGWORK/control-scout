@@ -68,18 +68,14 @@ function seasonValue(x: CompareTeam, k: Phase): number | null {
   return v == null || !Number.isFinite(v) ? null : v;
 }
 
-/** The event a season OPR part came from: the season part is the best event's, so the event matching it. */
+/** The event a season OPR part came from: the season part is the best event's, so the listed event showing the
+ *  same value. None when no listed event shows it (the season can count an event the list leaves out), and the
+ *  sentence links the team's season instead of an event whose number wouldn't back it up. */
 function sourceEvent(x: CompareTeam, k: Phase): CompareTeam["events"][number] | null {
   const v = seasonValue(x, k);
   if (v == null) return null;
   const key = k === "np" ? "opr" : k;
-  let best: CompareTeam["events"][number] | null = null;
-  for (const e of x.events) {
-    const ev = e[key];
-    if (ev == null) continue;
-    if (!best || Math.abs(ev - v) < Math.abs((best[key] as number) - v)) best = e;
-  }
-  return best;
+  return x.events.find((e) => e[key] != null && shown(e[key]!) === shown(v)) ?? null;
 }
 
 /** Events with an OPR, oldest first (the server sends them in date order). */
@@ -203,7 +199,11 @@ export function compareBrief(d: CompareView, label = seasonLabel(d.season)): Bri
     });
     out.push({
       topic: "Recency", kind: "fact", text: `Latest results: ${list(parts)}.`,
-      sources: latest.map(({ x, evs }) => ({ label: `${n(x)} at ${evs[evs.length - 1].name}`, href: eventHref(season, evs[evs.length - 1].code) })),
+      // The latest event, and the first too when the sentence quotes the change since it.
+      sources: latest.flatMap(({ x, evs }) => {
+        const trend = matches(x) >= BRIEF.minMatches && evs.length >= BRIEF.minEvents;
+        return (trend ? [evs[0], evs[evs.length - 1]] : [evs[evs.length - 1]]).map((e) => ({ label: `${n(x)} at ${e.name}`, href: eventHref(season, e.code) }));
+      }),
     });
   }
 
@@ -214,8 +214,16 @@ export function compareBrief(d: CompareView, label = seasonLabel(d.season)): Bri
     const met = d.meetings.filter((m) => m.played);
     if (!met.length) out.push({ topic: "Head to head", kind: "missing", text: `${first} hasn't played with or against ${others} in ${label}.`, sources: [] });
     else {
-      const against = met.filter((m) => m.relation === "opponents");
-      const together = met.length - against.length;
+      // From the lineups, not the server's one label per match: with three or four teams, one match can have a
+      // compared team as a partner and another as an opponent, and it counts toward both.
+      const compared = new Set(t.slice(1).map((x) => x.team.number));
+      const sides = (m: MatchView) => {
+        const red = m.red.teams.some((x) => x.number === first);
+        const own = (red ? m.red : m.blue).teams, opp = (red ? m.blue : m.red).teams;
+        return { partner: own.some((x) => compared.has(x.number)), opponent: opp.some((x) => compared.has(x.number)) };
+      };
+      const against = met.filter((m) => sides(m).opponent);
+      const together = met.filter((m) => sides(m).partner).length;
       let w = 0, l = 0, tie = 0;
       for (const m of against) {
         const red = m.red.teams.some((x) => x.number === first);
@@ -228,7 +236,7 @@ export function compareBrief(d: CompareView, label = seasonLabel(d.season)): Bri
       const record = scored ? `; in the ${plural(scored, "scored match", "scored matches")} against, ${first}'s alliance went ${w}-${l}-${tie}` : "";
       out.push({
         topic: "Head to head", kind: "fact",
-        text: `${first} met ${others} in ${plural(met.length, "played match", "played matches")} (${against.length} as opponents, ${together} as partners)${record}.`,
+        text: `${first} met ${others} in ${plural(met.length, "played match", "played matches")} (opponents in ${against.length}, partners in ${together}${against.length + together > met.length ? "; a match can be both" : ""})${record}.`,
         sources: met.slice(0, BRIEF.maxMatchLinks).map((m) => ({ label: `${m.code} ${m.label}`, href: matchHref(m) })),
       });
     }
