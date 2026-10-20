@@ -184,7 +184,7 @@ function Prediction({ d }: { d: MatchDetail }) {
         <div className="flex items-center gap-2">
           <ConfidenceBadge tier={p.tier} />
           {red.length > 0 && blue.length > 0 && (
-            <ShareMatch query={{ season: m.season, red, blue, event: m.code, match: m.key }} pRed={p.pRed} played={!!played} />
+            <ShareMatch query={{ season: m.season, red, blue, event: m.code, match: m.key }} pRed={p.pRed} tier={p.tier} played={!!played} />
           )}
         </div>
       </div>

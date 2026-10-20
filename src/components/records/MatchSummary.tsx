@@ -1,18 +1,20 @@
 // /matches on a phone: one card per match instead of a table wider than the screen. Each card says
 // which match it is, both alliances (every team its own link), the score or that it isn't played yet,
-// who won, how that compares with the prediction, and opens the match report. The chosen columns sit
+// who won, how that compares with the prediction (with the confidence tier it was recorded with), and opens the match report. The chosen columns sit
 // behind "More stats", and "Detailed table" brings the full table back (RecordsTable).
 import { useCallback, useEffect, useId, useState } from "react";
 import { Link, useLocation } from "react-router-dom";
 import { ArrowDownWideNarrow, ArrowUpNarrowWide, ChevronDown, FileText, LayoutList, Sparkles, Table2, Trophy } from "lucide-react";
 import { STAT_BY_KEY, statFor, type MatchRecordRow } from "../../shared/statCatalog";
 import { formatStat, headerOf, TONE_CLASS, toneOf } from "../../lib/records/describe";
-import { matchOutcome, VERDICT_LABEL, type Side } from "../../lib/records/matchOutcome";
+import { matchOutcome, PREDICTION_FIELD, VERDICT_LABEL, type Side } from "../../lib/records/matchOutcome";
 import type { TableState } from "../../lib/records/urlState";
 import { entryKey } from "../../lib/pageScroll";
 import { matchTime } from "../../lib/format";
 import { Button } from "../ui/button";
+import { TierMark } from "../predict";
 import { cn } from "../cn";
+import { PredictionValue } from "./PredictionValue";
 
 /** Phones (below Tailwind's sm): where the summary replaces the table. */
 export const PHONE_QUERY = "(max-width: 639px)";
@@ -110,10 +112,19 @@ function useOpenRows() {
 const rowKey = (r: MatchRecordRow) => `${r.eventCode}:${r.key}`;
 const NAME: Record<Side, string> = { red: "Red", blue: "Blue" };
 
+/**
+ * The red alliance's text colour on these cards (this component's own token; the shared alliance colour
+ * stays as it is for fills and bars). On dark, #f43f5e on its own 15% tint is 4.43:1, under WCAG AA's 4.5:1
+ * for the 12px verdict and 14px team numbers, so dark text takes the lighter #fb7185 (6.05:1). Light
+ * (#be123c, 4.82:1 on the tint) passes as it is. Blue reads at 4.7:1 or more in both themes.
+ */
+export const RED_INK_TOKEN = "[--summary-red-ink:var(--color-red-alliance)] dark:[--summary-red-ink:#fb7185]";
+const RED_INK = "text-[var(--summary-red-ink)]";
+
 export function MatchSummaryList({ rows, cols }: { rows: MatchRecordRow[]; cols: string[] }) {
   const { rows: open, toggle } = useOpenRows();
   return (
-    <ul className="space-y-2.5" aria-label="Matches" data-records-summary="">
+    <ul className={cn("space-y-2.5", RED_INK_TOKEN)} aria-label="Matches" data-records-summary="">
       {rows.map((r) => (
         <li key={rowKey(r)}>
           <MatchCard r={r} cols={cols} open={open.includes(rowKey(r))} onToggle={() => toggle(rowKey(r))} />
@@ -141,7 +152,7 @@ function MatchCard({ r, cols, open, onToggle }: { r: MatchRecordRow; cols: strin
           <p aria-hidden className="line-clamp-2 text-xs text-text-muted">{r.eventName}</p>
         </div>
         <p className={cn("shrink-0 rounded-full px-2.5 py-1 text-xs font-bold",
-          o.winner === "red" ? "bg-red-alliance/15 text-red-alliance" : o.winner === "blue" ? "bg-blue-alliance/15 text-blue-alliance" : o.played ? "bg-violet-500/15 text-violet-600 dark:text-violet-400" : "bg-text-base/[0.07] text-text-muted")}>
+          o.winner === "red" ? cn("bg-red-alliance/15", RED_INK) : o.winner === "blue" ? "bg-blue-alliance/15 text-blue-alliance" : o.played ? "bg-violet-500/15 text-violet-600 dark:text-violet-400" : "bg-text-base/[0.07] text-text-muted")}>
           {o.headline}{when && <span className="font-medium">, {when}</span>}
         </p>
       </header>
@@ -158,6 +169,7 @@ function MatchCard({ r, cols, open, onToggle }: { r: MatchRecordRow; cols: strin
             <Sparkles className="size-3" aria-hidden />{VERDICT_LABEL[p.verdict]}
           </span>
           <span className="text-text-base"><span className="sr-only">Result versus prediction: </span>{p.text}</span>
+          {p.tier && <TierMark tier={p.tier} chip />}
           <span className="text-text-muted">(replayed call)</span>
         </p>
       )}
@@ -181,7 +193,7 @@ function MatchCard({ r, cols, open, onToggle }: { r: MatchRecordRow; cols: strin
               return (
                 <div key={k} className="min-w-0">
                   <dt className={cn("truncate text-[11px] font-bold uppercase tracking-wider", TONE_CLASS[tone].text)} title={d?.label}>{headerOf(d, k)}</dt>
-                  <dd className="font-semibold tabular-nums">{formatStat(d, v)}</dd>
+                  <dd className="font-semibold tabular-nums">{k === PREDICTION_FIELD ? <PredictionValue text={formatStat(d, v)} tier={r.predictionTier} /> : formatStat(d, v)}</dd>
                 </div>
               );
             })}
@@ -208,12 +220,12 @@ function AllianceLine({ side, teams, season, score, won, played }: { side: Side;
           <li key={t}>
             <Link to={`/teams/${t}?season=${season}`} aria-label={`Team ${t}`}
               className={cn("inline-flex h-11 min-w-11 items-center justify-center rounded-md px-1.5 font-mono text-sm font-semibold tabular-nums outline-none still-hover:underline focus-visible:ring-2 focus-visible:ring-ring/60",
-                red ? "text-red-alliance" : "text-blue-alliance")}>{t}</Link>
+                red ? RED_INK : "text-blue-alliance")}>{t}</Link>
           </li>
         ))}
       </ul>
       <span className="ml-auto flex shrink-0 items-center gap-1.5">
-        {won && <span className={cn("inline-flex items-center gap-0.5 text-[11px] font-bold uppercase", red ? "text-red-alliance" : "text-blue-alliance")}><Trophy className="size-3.5" aria-hidden />Won</span>}
+        {won && <span className={cn("inline-flex items-center gap-0.5 text-[11px] font-bold uppercase", red ? RED_INK : "text-blue-alliance")}><Trophy className="size-3.5" aria-hidden />Won</span>}
         <span className={cn("text-xl tabular-nums", won ? "font-extrabold text-text-base" : "font-semibold text-text-muted")}>
           {played ? score : "–"}
           <span className="sr-only"> points, {NAME[side]}</span>
