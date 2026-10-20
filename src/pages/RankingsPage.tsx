@@ -266,13 +266,13 @@ function RankTable({ data, myTeam }: { data: RankingsResponse; myTeam: number | 
             const me = r.team === myTeam;
             return (
               <tr key={r.team} className={cn("border-t border-text-base/10 hover:bg-text-base/[0.03]", me && "bg-accent/[0.07]")}>
-                <td className={cn(td, "text-right font-display text-base font-semibold tabular-nums", r.rank <= 3 && "text-accent")}>{r.rank.toLocaleString()}</td>
+                <td className={cn(td, "text-right font-display text-base font-semibold tabular-nums", r.rank <= 3 && "text-accent-text")}>{r.rank.toLocaleString()}</td>
                 {moves && <td className={td}><Move row={r} /></td>}
                 <td className={cn(td, "max-w-0 w-full")}>
                   <Link to={`/teams/${r.team}?season=${data.season}`} className="group block min-w-0">
                     <span className="flex items-baseline gap-2">
-                      <span className="font-mono font-semibold tabular-nums group-hover:text-accent">{r.team}</span>
-                      <span className="truncate group-hover:text-accent">{r.name ?? ""}</span>
+                      <span className="font-mono font-semibold tabular-nums group-hover:text-accent-text">{r.team}</span>
+                      <span className="truncate group-hover:text-accent-text">{r.name ?? ""}</span>
                     </span>
                     <span className="block truncate text-xs text-text-muted md:hidden">{homeOf(r)}</span>
                   </Link>
@@ -280,7 +280,7 @@ function RankTable({ data, myTeam }: { data: RankingsResponse; myTeam: number | 
                 <td className={cn(td, "max-w-[14rem] truncate text-text-muted max-md:hidden")}>{homeOf(r)}</td>
                 <td className={cn(td, "text-right tabular-nums")}>
                   <span className="font-semibold">{r.rating.toFixed(1)}</span>
-                  {r.dRating != null && r.dRating !== 0 && <span className={cn("block text-[11px]", r.dRating > 0 ? "text-emerald-500" : "text-rose-500")}>{r.dRating > 0 ? "+" : ""}{r.dRating.toFixed(1)}</span>}
+                  {r.dRating != null && r.dRating !== 0 && <span className={cn("block text-[11px]", r.dRating > 0 ? "text-success" : "text-danger")}>{r.dRating > 0 ? "+" : ""}{r.dRating.toFixed(1)}</span>}
                 </td>
                 {moves && <td className={cn(td, "max-sm:hidden")}><TrendBadge row={r} /></td>}
               </tr>
@@ -299,7 +299,7 @@ function Move({ row }: { row: RankingRow }) {
   const up = row.move > 0;
   const Icon = up ? ArrowUp : ArrowDown;
   return (
-    <span className={cn("inline-flex items-center gap-0.5 font-semibold tabular-nums", up ? "text-emerald-500" : "text-rose-500")} title={`${up ? "Up" : "Down"} ${Math.abs(row.move)} since last week`}>
+    <span className={cn("inline-flex items-center gap-0.5 font-semibold tabular-nums", up ? "text-success" : "text-danger")} title={`${up ? "Up" : "Down"} ${Math.abs(row.move)} since last week`}>
       <Icon className="size-3.5" strokeWidth={2.5} />{Math.abs(row.move).toLocaleString()}<span className="sr-only"> {up ? "up" : "down"}</span>
     </span>
   );
@@ -338,7 +338,7 @@ function Explainer() {
       <h2 className="font-display text-base font-semibold text-text-base">How the rankings work</h2>
       <p>The rating is the prediction engine's estimate of the points a team's robot adds to its alliance in a match (auto, TeleOp and endgame, penalties left out). It updates after every rated match, and a team is ranked once it has played three. Equal ratings are ordered by team number.</p>
       <p>Each Monday at 00:00 UTC the ranking is saved. The arrows compare today's ranking with the one saved at least a week ago: ↑3 means three places higher, "New" means the team wasn't ranked then. Rising, Falling and Steady follow the same rule as the trends on team pages: a rating change under 8% is Steady.</p>
-      <p>The rating is the same one behind every match prediction. <Link to="/methodology" className="text-accent hover:underline">How predictions work</Link>.</p>
+      <p>The rating is the same one behind every match prediction. <Link to="/methodology" className="text-accent-text hover:underline">How predictions work</Link>.</p>
     </div>
   );
 }
