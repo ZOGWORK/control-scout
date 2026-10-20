@@ -2,8 +2,8 @@
 // (records tables with filters, sorting, compare and CSV), the teams, playoff
 // bracket, awards + advancement, and advancement odds for any team there.
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
-import { Link, useParams, useSearchParams } from "react-router-dom";
-import { Award, CalendarDays, Clock, ExternalLink, Loader2, MapPin, Radio, RefreshCw, Search, Sparkles, Swords, Trophy, Users } from "lucide-react";
+import { Link, useLocation, useNavigationType, useParams, useSearchParams } from "react-router-dom";
+import { Award, CalendarDays, ChevronDown, Clock, ExternalLink, Loader2, MapPin, Radio, RefreshCw, Search, Sparkles, Swords, Trophy, Users } from "lucide-react";
 import { BRACKETS, type Slot } from "@control-scout/predict-engine";
 import { ApiError, apiFetch, load, prime, useApi } from "../lib/api";
 import { useMeta, usePredictable, useTitle } from "../lib/meta";
@@ -91,38 +91,79 @@ function Event({ d, path }: { d: EventDetail; path: string }) {
   const livePanel = useRef<HTMLDivElement>(null);
   const toLivePanel = () => { if (livePanel.current) scrollToElement(livePanel.current, matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth"); };
   const oddsOpen = predictable && !d.forecastUnsupported;
+  // Opened on a panel (?tab= in the address it arrived at): a slim bar, with the summary behind "Event details".
+  const slim = useArrivedOnTab(sp.has("tab") && validTab);
+  const [detailsOpen, setDetailsOpen] = useDetailsOpen();
+  const statusBadge = e.status === "live" ? <Badge variant="destructive"><Radio /> Live</Badge> : e.status === "upcoming" ? <Badge variant="secondary">Upcoming</Badge> : <Badge variant="outline">Finished</Badge>;
+  // Right under the name, so the countdown is on a phone's first screen (in the slim bar too).
+  const live = liveMode && <div ref={livePanel} className="scroll-mt-bar-20"><LivePanel d={d} target={target} refresh={refresh} track={track} /></div>;
+  // The summary: everything about the event but its name, status and dates (the slim bar's).
+  const facts = (full: boolean) => (
+    <>
+      <div className={cn("flex flex-wrap items-center gap-x-4 gap-y-1.5 text-sm text-muted-foreground", full && "mt-3")}>
+        {full && <span className="flex items-center gap-1.5"><CalendarDays className="size-4" />{dateRange(e.start, e.end)}</span>}
+        {!full && <span className="flex items-center gap-2"><Badge variant="outline">{e.typeLabel}</Badge><span className="font-mono text-xs">{e.code} · {seasonLabel(e.season)}</span></span>}
+        {(e.venue || e.city) && <span className="flex items-center gap-1.5"><MapPin className="size-4" />{place(e.venue, e.city, e.state, e.country)}</span>}
+        <span>{e.teams} teams · {e.matchesPlayed}/{e.matchesTotal} matches played</span>
+        {e.website && <a href={e.website} target="_blank" rel="noreferrer noopener" className="inline-flex items-center gap-1 hover:text-foreground">Website <ExternalLink className="size-3" /></a>}
+      </div>
+      {d.live && !liveMode && <LiveBar live={d.live} r={refresh} />}
+      <HeaderActions liveMode={liveMode} livestream={e.livestream} track={track}>
+        {predictable && <Button variant="outline" size="sm" asChild><Link to={labHref}>Open in what-if lab</Link></Button>}
+      </HeaderActions>
+      {!predictable && <p className="mt-3 text-xs text-muted-foreground">{seasonLabel(e.season)} is shown for history: results, rankings and awards, no predictions (those start with 2023–24).</p>}
+      <p className="mt-3 text-[11px] text-muted-foreground">Source: {e.source === "first" ? "FIRST Events API" : "FTC Scout"}</p>
+    </>
+  );
+  const glance = <EventGlance d={d} onTab={setTab} live={liveMode ? { match: target.next, mine: !!target.mine, open: toLivePanel } : undefined} />;
   return (
     <div>
       <OfflineNote data={d} />
-      <Reveal fade={false} className="relative mb-6 overflow-hidden rounded-2xl border border-border bg-card p-6 sm:p-8">
-        <div aria-hidden className="pointer-events-none absolute -right-20 -top-24 size-72 rounded-full bg-accent opacity-15 blur-3xl" />
-        <div className="relative grid gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(0,28rem)] lg:gap-10">
-        <div className="min-w-0">
-          <div className="flex flex-wrap items-center gap-2">
-            {e.status === "live" ? <Badge variant="destructive"><Radio /> Live</Badge> : e.status === "upcoming" ? <Badge variant="secondary">Upcoming</Badge> : <Badge variant="outline">Finished</Badge>}
-            <Badge variant="outline">{e.typeLabel}</Badge>
-            <span className="font-mono text-xs text-muted-foreground">{e.code} · {seasonLabel(e.season)}</span>
+      {slim ? (
+        <Reveal fade={false} className="relative mb-4 overflow-hidden rounded-2xl border border-border bg-card px-4 py-3.5 sm:px-6 sm:py-4" data-event-header="slim">
+          <div aria-hidden className="pointer-events-none absolute -right-16 -top-20 size-56 rounded-full bg-accent opacity-15 blur-3xl" />
+          <div className="relative flex items-start gap-3">
+            <div className="min-w-0 flex-1">
+              <h1 className="font-display text-xl font-semibold tracking-tight sm:text-2xl">{e.name}</h1>
+              <div className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-muted-foreground">
+                {statusBadge}
+                <span className="flex items-center gap-1.5"><CalendarDays className="size-4" />{dateRange(e.start, e.end)}</span>
+              </div>
+            </div>
+            <Button variant="outline" size="sm" className="shrink-0" aria-expanded={detailsOpen} aria-controls="event-details" onClick={() => setDetailsOpen(!detailsOpen)}>
+              Event details <ChevronDown className={cn("transition-transform motion-reduce:transition-none", detailsOpen && "rotate-180")} />
+            </Button>
           </div>
-          <h1 className="mt-3 font-display text-3xl font-semibold tracking-tight sm:text-4xl">{e.name}</h1>
-          {/* Right under the name, so the countdown is on a phone's first screen. */}
-          {liveMode && <div ref={livePanel} className="scroll-mt-bar-20"><LivePanel d={d} target={target} refresh={refresh} track={track} /></div>}
-          <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1.5 text-sm text-muted-foreground">
-            <span className="flex items-center gap-1.5"><CalendarDays className="size-4" />{dateRange(e.start, e.end)}</span>
-            {(e.venue || e.city) && <span className="flex items-center gap-1.5"><MapPin className="size-4" />{place(e.venue, e.city, e.state, e.country)}</span>}
-            <span>{e.teams} teams · {e.matchesPlayed}/{e.matchesTotal} matches played</span>
-            {e.website && <a href={e.website} target="_blank" rel="noreferrer noopener" className="inline-flex items-center gap-1 hover:text-foreground">Website <ExternalLink className="size-3" /></a>}
+          <div className="relative">{live}</div>
+          <div id="event-details" hidden={!detailsOpen} className="relative mt-4 border-t border-border pt-4">
+            {detailsOpen && (
+              <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(0,28rem)] lg:gap-10">
+                <div className="min-w-0">{facts(false)}</div>
+                {glance}
+              </div>
+            )}
           </div>
-          {d.live && !liveMode && <LiveBar live={d.live} r={refresh} />}
-          <HeaderActions liveMode={liveMode} livestream={e.livestream} track={track}>
-            {predictable && <Button variant="outline" size="sm" asChild><Link to={labHref}>Open in what-if lab</Link></Button>}
-          </HeaderActions>
-          {!predictable && <p className="mt-3 text-xs text-muted-foreground">{seasonLabel(e.season)} is shown for history: results, rankings and awards, no predictions (those start with 2023–24).</p>}
-          <p className="mt-3 text-[11px] text-muted-foreground">Source: {e.source === "first" ? "FIRST Events API" : "FTC Scout"}</p>
-        </div>
-        <EventGlance d={d} onTab={setTab} live={liveMode ? { match: target.next, mine: !!target.mine, open: toLivePanel } : undefined} />
-        </div>
-        <div ref={setHeaderEnd} aria-hidden />
-      </Reveal>
+          <div ref={setHeaderEnd} aria-hidden />
+        </Reveal>
+      ) : (
+        <Reveal fade={false} className="relative mb-6 overflow-hidden rounded-2xl border border-border bg-card p-6 sm:p-8" data-event-header="full">
+          <div aria-hidden className="pointer-events-none absolute -right-20 -top-24 size-72 rounded-full bg-accent opacity-15 blur-3xl" />
+          <div className="relative grid gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(0,28rem)] lg:gap-10">
+          <div className="min-w-0">
+            <div className="flex flex-wrap items-center gap-2">
+              {statusBadge}
+              <Badge variant="outline">{e.typeLabel}</Badge>
+              <span className="font-mono text-xs text-muted-foreground">{e.code} · {seasonLabel(e.season)}</span>
+            </div>
+            <h1 className="mt-3 font-display text-3xl font-semibold tracking-tight sm:text-4xl">{e.name}</h1>
+            {live}
+            {facts(true)}
+          </div>
+          {glance}
+          </div>
+          <div ref={setHeaderEnd} aria-hidden />
+        </Reveal>
+      )}
       {sticky && (
         <StickyActions after={headerEnd} label="Event actions">
           {liveMode
@@ -191,6 +232,29 @@ function Event({ d, path }: { d: EventDetail; path: string }) {
       </Tabs>
     </div>
   );
+}
+
+/**
+ * True when the page was opened on a panel: `now` (a valid ?tab=) for the entry it arrived at. A tab click
+ * or a table filter replaces the entry, so it keeps the header as it was; a new visit or Back/Forward
+ * reads the address again.
+ */
+function useArrivedOnTab(now: boolean): boolean {
+  const { key } = useLocation();
+  const nav = useNavigationType();
+  const [s, setS] = useState({ key, on: now });
+  if (s.key === key) return s.on;
+  const on = nav === "REPLACE" ? s.on : now;
+  setS({ key, on });
+  return on;
+}
+
+const DETAILS_KEY = "cs-event-details";
+/** "Event details" open or closed in the slim bar: remembered for the browser session (sessionStorage). */
+function useDetailsOpen(): [boolean, (open: boolean) => void] {
+  const [open, setOpen] = useState(() => { try { return sessionStorage.getItem(DETAILS_KEY) === "1"; } catch { return false; } });
+  const set = (v: boolean) => { setOpen(v); try { sessionStorage.setItem(DETAILS_KEY, v ? "1" : "0"); } catch { /* storage blocked: this page only */ } };
+  return [open, set];
 }
 
 /** "Refresh results" for a live event: shared by the header's live bar and the phone's sticky bar. */
