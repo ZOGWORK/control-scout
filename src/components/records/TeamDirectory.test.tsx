@@ -194,6 +194,22 @@ describe("TeamDirectory on a phone", () => {
     expect(note.textContent).toMatch(/7 listings report no country/);
   });
 
+  it("text typed just before the layout changes carries over to the other layout's box and still runs", async () => {
+    vi.useFakeTimers();
+    let listener: (() => void) | null = null;
+    const m = { matches: true, media: "", addEventListener: (_: string, fn: () => void) => { listener = fn; }, removeEventListener: () => {} };
+    vi.stubGlobal("matchMedia", () => m);
+    mount("/teams?view=listed&country=CA");
+    fireEvent.change(screen.getByRole("searchbox"), { target: { value: "map" } });
+    m.matches = false; // turned to landscape before the pause ran out
+    act(() => listener!());
+    const box = screen.getByRole("searchbox") as HTMLInputElement;
+    expect(box.closest("[data-compact-filters]")).toBeNull();
+    expect(box.value).toBe("map");
+    act(() => { vi.advanceTimersByTime(400); });
+    expect(search).toBe("?view=listed&country=CA&q=map");
+  });
+
   it("Clear filters takes off every chip, the sort included", async () => {
     mount("/teams?view=listed&season=2025&country=CA&sort=rookie&q=maple");
     fireEvent.click(filtersButton());
