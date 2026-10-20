@@ -33,7 +33,7 @@ const server = createApp().listen(0);
 await new Promise((r) => server.once("listening", r));
 const base = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
 
-const routes = ["/api/teams/4215", "/api/teams/18360", "/api/search?q=4215&limit=15", "/api/search?q=X%20Drvie&limit=15", "/api/events?season=2026", "/api/events/2025/AUBRQ2", "/api/teams/18360/matches?season=2025"];
+const routes = ["/api/teams/4215", "/api/teams/18360", "/api/search?q=4215&limit=15", "/api/search?q=X%20Drvie&limit=15", "/api/events?season=2026", "/api/events/2025/AUBRQ2", "/api/teams/18360/matches?season=2025", "/api/directory/2025?country=US&q=r", "/api/directory/2025?country=US&q=1", "/api/directory/2025?q=robotics%20tx"];
 const plans = new Map<string, string>(); // shortened text → full SQL
 let failed = 0;
 const get = async (r: string) => {
