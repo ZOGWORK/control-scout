@@ -81,7 +81,7 @@ export const badgeVariants = cva(
         outline: 'border-text-base/20 text-text-muted',
         beta: 'border-info/50 bg-info/15 text-info',
         info: 'border-info/30 bg-info/[0.08] text-info',
-        new: 'border-transparent bg-red-500 text-white',
+        new: 'border-transparent bg-red-600 text-white',
         destructive: 'border-danger/30 bg-danger/15 text-danger',
         success: 'border-success/30 bg-success/15 text-success',
       },

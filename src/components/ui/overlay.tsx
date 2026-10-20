@@ -36,9 +36,12 @@ const fade = 'data-[state=open]:animate-in data-[state=closed]:animate-out data-
  * Focus goes back to whatever opened a dialog or sheet when it closes. Radix only returns it to a
  * Dialog.Trigger; most of ours open from state (a button's onClick, an app event), and focus then fell to
  * the page's top. The opener is whatever had focus as the content mounts; if it has left the page by the
- * time the content closes (a menu item, a sheet that closed first), Radix's own behaviour stands.
+ * time the content closes (a menu item, a sheet that closed first), or nothing had focus as it opened (Safari
+ * doesn't focus a tapped button), `returnFocus` names the place to go instead; failing that, Radix's own
+ * behaviour stands.
  */
-function useReturnFocus<P extends { onOpenAutoFocus?: (e: Event) => void; onCloseAutoFocus?: (e: Event) => void }>(props: P) {
+type ReturnFocus = { /** Where focus goes on close when the opener is gone or unknown (e.g. the button that opened a sheet the opener lived in). */ returnFocus?: () => HTMLElement | null | undefined };
+function useReturnFocus<P extends { onOpenAutoFocus?: (e: Event) => void; onCloseAutoFocus?: (e: Event) => void }>(props: P, fallback?: ReturnFocus['returnFocus']) {
   const opener = React.useRef<HTMLElement | null>(null);
   return {
     onOpenAutoFocus: (e: Event) => {
@@ -48,7 +51,7 @@ function useReturnFocus<P extends { onOpenAutoFocus?: (e: Event) => void; onClos
     },
     onCloseAutoFocus: (e: Event) => {
       props.onCloseAutoFocus?.(e);
-      const el = opener.current;
+      const el = opener.current?.isConnected ? opener.current : fallback?.();
       opener.current = null;
       if (e.defaultPrevented || !el?.isConnected) return;
       e.preventDefault();
@@ -67,8 +70,8 @@ function Overlay({ className, ...props }: React.ComponentProps<typeof D.Overlay>
   return <D.Overlay data-slot="dialog-overlay" className={cn('fixed inset-0 z-[80] bg-black/60 backdrop-blur-sm', fade, className)} {...props} />;
 }
 
-export function DialogContent({ className, children, showClose = true, ...props }: React.ComponentProps<typeof D.Content> & { showClose?: boolean }) {
-  const returnFocus = useReturnFocus(props);
+export function DialogContent({ className, children, showClose = true, returnFocus: fallback, ...props }: React.ComponentProps<typeof D.Content> & { showClose?: boolean } & ReturnFocus) {
+  const returnFocus = useReturnFocus(props, fallback);
   return (
     <D.Portal>
       <Overlay />
@@ -122,8 +125,8 @@ const sides = {
   top: 'inset-x-0 top-0 max-h-[90dvh] border-b rounded-b-2xl',
 } as const;
 
-export function SheetContent({ className, children, side = 'right', ...props }: React.ComponentProps<typeof D.Content> & { side?: keyof typeof sides }) {
-  const returnFocus = useReturnFocus(props);
+export function SheetContent({ className, children, side = 'right', returnFocus: fallback, ...props }: React.ComponentProps<typeof D.Content> & { side?: keyof typeof sides } & ReturnFocus) {
+  const returnFocus = useReturnFocus(props, fallback);
   return (
     <D.Portal>
       <Overlay />
@@ -170,7 +173,7 @@ export function DropdownMenuContent({ className, sideOffset = 6, ...props }: Rea
   );
 }
 export function DropdownMenuItem({ className, variant, ...props }: React.ComponentProps<typeof DM.Item> & { variant?: 'default' | 'destructive' }) {
-  return <DM.Item data-slot="dropdown-menu-item" className={cn(menuItem, variant === 'destructive' && 'text-rose-500 focus:bg-rose-500/10', className)} {...props} />;
+  return <DM.Item data-slot="dropdown-menu-item" className={cn(menuItem, variant === 'destructive' && 'text-danger focus:bg-rose-500/10', className)} {...props} />;
 }
 export function DropdownMenuCheckboxItem({ className, children, ...props }: React.ComponentProps<typeof DM.CheckboxItem>) {
   return (

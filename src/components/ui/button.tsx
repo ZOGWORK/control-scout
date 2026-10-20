@@ -20,7 +20,7 @@ export const buttonVariants = cva(
         outline: 'border border-line bg-transparent text-text-base hover:bg-text-base/[0.06] hover:border-text-base/20',
         ghost: 'text-text-muted hover:text-text-base hover:bg-text-base/[0.06]',
         destructive: 'bg-danger/15 text-danger border border-danger/30 hover:bg-danger/25',
-        link: 'text-accent underline-offset-4 hover:underline px-0 active:scale-100',
+        link: 'text-accent-text underline-offset-4 hover:underline px-0 active:scale-100',
       },
       // default and icon grow to 44px on phones (touch targets), so call
       // sites don't each add max-sm:h-11 / max-sm:size-11.
