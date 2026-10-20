@@ -154,7 +154,7 @@ export function OnTheCalendar({ season }: { season: number }) {
         {state.error && !state.data ? <ErrorState error={state.error} onRetry={state.reload} /> : !state.data ? (
           <ul aria-busy="true" className="divide-y divide-line border-y border-line">{[0, 1, 2].map((i) => <li key={i} className="h-[4.5rem]" />)}</ul>
         ) : !evs.length ? (
-          <p className="rounded-xl border border-dashed border-line px-4 py-6 text-sm text-text-muted">No events on now or starting between {shortDay(win.today)} and {shortDay(win.to)}. <Link to="/events" className="font-medium text-accent-text underline">Browse the season calendar</Link>.</p>
+          <p className="rounded-xl border border-dashed border-line px-4 py-6 max-sm:py-4 text-sm text-text-muted">No events on now or starting between {shortDay(win.today)} and {shortDay(win.to)}. <Link to="/events" className="font-medium text-accent-text underline">Browse the season calendar</Link>.</p>
         ) : (
           <ul className="divide-y divide-line border-y border-line">
             {shown.map((e) => <CalendarRow key={e.code} e={e} />)}
@@ -207,7 +207,7 @@ export function PredictionRecord() {
   const sizes = t ? { live: recordFor(t, "live")?.block.n, backtest: recordFor(t, "backtest")?.block.n } : null;
   const tabs: Evidence[] = ["live", "backtest"];
   return (
-    <section aria-labelledby="record-title" className="min-w-0 rounded-2xl border border-line bg-card p-5 @2xl/home:p-6">
+    <section aria-labelledby="record-title" className="min-w-0 rounded-2xl border border-line bg-card p-5 max-sm:p-4 @2xl/home:p-6">
       <Kicker>The public track record</Kicker>
       <h2 id="record-title" className="mt-2 font-display text-2xl font-semibold leading-tight">Odds that answer<br className="max-sm:hidden" /> for themselves.</h2>
       {state.error && !t ? <div className="mt-4"><ErrorState error={state.error} onRetry={state.reload} /></div> : !t ? (
@@ -227,7 +227,7 @@ export function PredictionRecord() {
           </ToggleGroup>
           <div id="record-evidence" role="region" aria-live="polite" aria-label={LEDGER_MODE[kind].tab} className="mt-4">
             {!view ? (
-              <p className="rounded-xl border border-dashed border-line px-4 py-6 text-sm text-text-muted">
+              <p className="rounded-xl border border-dashed border-line px-4 py-6 max-sm:py-4 text-sm text-text-muted">
                 {kind === "live" ? "No live calls have been scored yet: every match prediction is logged before the match and scored after it." : "No replayed season is on record yet."}
               </p>
             ) : (
@@ -274,7 +274,7 @@ export function PublicUsagePanel() {
   const v = state.data ? usageView(state.data) : state.error ? usageView(null) : null;
   const max = v?.kind === "available" ? Math.max(1, ...v.daily.map((d) => d.pageViews)) : 1;
   return (
-    <section aria-labelledby="usage-title" className="min-w-0 border-t border-line pt-8">
+    <section aria-labelledby="usage-title" className="min-w-0 border-t border-line pt-8 max-sm:pt-5">
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
           <h2 id="usage-title" className="font-display text-2xl font-semibold">Control Scout, in use.</h2>
@@ -285,22 +285,22 @@ export function PublicUsagePanel() {
         )}
       </div>
       {!v ? <div aria-busy="true" className="mt-4 h-32 rounded-2xl border border-line" /> : v.kind === "unavailable" ? (
-        <div className="mt-4 flex flex-wrap items-center gap-3 rounded-2xl border border-line px-5 py-5 text-sm text-text-muted">
+        <div className="mt-4 flex flex-wrap items-center gap-3 rounded-2xl border border-line px-5 max-sm:px-4 py-5 max-sm:py-4 text-sm text-text-muted">
           {v.message}{v.reason === "not-published" && " Page views and sessions started will show here once they are."}
           {(v.reason === "error" || v.reason === "unreachable") && <Button variant="secondary" size="sm" onClick={state.reload}><RefreshCw /> Try again</Button>}
         </div>
       ) : (
         <>
           <dl className="mt-4 grid rounded-2xl border border-line @2xl/home:grid-cols-[1fr_1fr_1.6fr]">
-            <div className="px-5 py-4">
+            <div className="px-5 max-sm:px-4 py-4">
               <dt className="text-sm font-medium">Page views</dt>
               <dd className="mt-1 font-display text-3xl font-semibold tabular-nums">{fmt(v.totals.pageViews)}</dd>
             </div>
-            <div className="border-line px-5 py-4 @max-2xl/home:border-t @2xl/home:border-l">
+            <div className="border-line px-5 max-sm:px-4 py-4 @max-2xl/home:border-t @2xl/home:border-l">
               <dt className="text-sm font-medium">Sessions started</dt>
               <dd className="mt-1 font-display text-3xl font-semibold tabular-nums">{fmt(v.totals.sessionStarts)}</dd>
             </div>
-            <div className="border-line px-5 py-4 @max-2xl/home:border-t @2xl/home:border-l">
+            <div className="border-line px-5 max-sm:px-4 py-4 @max-2xl/home:border-t @2xl/home:border-l">
               <dt className="text-sm font-medium">Daily page views</dt>
               <dd className="mt-2">
                 <svg viewBox={`0 0 ${v.daily.length * 6} 40`} preserveAspectRatio="none" className="h-12 w-full" role="img"

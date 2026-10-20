@@ -112,7 +112,7 @@ export default function ShortlistPage() {
       <div>
         <PageHeader title="Shortlist" description={<>Your pick list for alliance selection: drag to rank it, open a team for its numbers, keep private notes. {synced}</>} />
         <EmptyState icon={Bookmark} title="Your shortlist is empty" description="Press Shortlist on any team page to add it here. Building a pick list? An event's Rankings tab is the place to start." action={<div className="flex flex-wrap justify-center gap-2"><Button variant="secondary" onClick={search.open}><Search /> Find a team</Button><Button variant="outline" asChild><Link to="/events"><CalendarDays /> Browse events</Link></Button></div>} />
-        <HowItWorks className="mt-6" />
+        <HowItWorks className="mt-6 max-sm:mt-4" />
       </div>
     );
   }

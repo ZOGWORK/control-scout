@@ -112,7 +112,7 @@ export default function SettingsPage() {
   return (
     <div>
       <PageHeader eyebrow="Settings" title={current.label} description={current.hint} />
-      <div className="grid grid-cols-[minmax(0,1fr)] gap-8 lg:grid-cols-[220px_minmax(0,1fr)]">
+      <div className="grid grid-cols-[minmax(0,1fr)] gap-8 max-sm:gap-5 lg:grid-cols-[220px_minmax(0,1fr)]">
         <nav aria-label="Settings sections" className="min-w-0 lg:sticky lg:top-[calc(var(--header-h)+1.5rem)] lg:self-start">
           <ul ref={navRef} className="-mx-4 flex gap-2 overflow-x-auto px-4 pb-1 [scrollbar-width:none] lg:mx-0 lg:block lg:space-y-0.5 lg:overflow-visible lg:px-0 [&::-webkit-scrollbar]:hidden">
             {SECTIONS.map((s, i) => {
@@ -120,7 +120,7 @@ export default function SettingsPage() {
               const showGroup = i === 0 || SECTIONS[i - 1].group !== s.group;
               return (
                 <li key={s.id} className="shrink-0">
-                  {showGroup && <p className={cn("mb-1 hidden px-3 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground lg:block", i === 0 ? "mt-0" : "mt-5")}>{s.group}</p>}
+                  {showGroup && <p className={cn("mb-1 hidden px-3 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground lg:block", i === 0 ? "mt-0" : "mt-5 max-sm:mt-4")}>{s.group}</p>}
                   <button
                     type="button" onClick={() => go(s.id)} aria-current={on ? "page" : undefined}
                     className={cn(
@@ -167,7 +167,7 @@ function Profile({ signinFailed }: { signinFailed: boolean }) {
   if (!providers) return <div className="skeleton h-48 rounded-xl" />;
   return (
     <div>
-      {signinFailed && !user && <p className="mb-6 rounded-xl border border-destructive/40 bg-destructive/10 px-4 py-3 text-sm text-foreground">That sign-in didn't go through. Try again, or use your email.</p>}
+      {signinFailed && !user && <p className="mb-6 max-sm:mb-4 rounded-xl border border-destructive/40 bg-destructive/10 px-4 py-3 text-sm text-foreground">That sign-in didn't go through. Try again, or use your email.</p>}
       {user ? <SignedIn user={user} sync={sync} onSignOut={signOut} /> : <SignIn providers={providers} onSignedIn={signedIn} />}
     </div>
   );
@@ -196,7 +196,7 @@ function SignIn({ providers, onSignedIn }: { providers: AuthProviders; onSignedI
   };
   return (
     <div>
-      <div className="relative mb-8 overflow-hidden rounded-2xl border border-accent/30 bg-card p-6">
+      <div className="relative mb-8 max-sm:mb-5 overflow-hidden rounded-2xl border border-accent/30 bg-card p-6 max-sm:p-4">
         <div aria-hidden className="pointer-events-none absolute -right-16 -top-20 size-56 rounded-full bg-accent opacity-15 blur-3xl" />
         <p className="relative font-display text-xl font-semibold text-foreground">Keep your scouting everywhere</p>
         <p className="relative mt-1 max-w-xl text-sm text-muted-foreground">Browsing, search and predictions never need an account. Sign in only to keep these in sync across your devices:</p>

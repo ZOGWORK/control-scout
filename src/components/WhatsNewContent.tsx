@@ -66,7 +66,7 @@ function Notes({ e }: { e: ChangelogEntry }) {
   return (
     <>
       {e.groups.map((g) => (
-        <section key={g.heading} className="mt-5 first:mt-0">
+        <section key={g.heading} className="mt-5 max-sm:mt-4 first:mt-0">
           <h4 className="text-xs font-semibold uppercase tracking-[0.08em] text-accent-text">{g.heading}</h4>
           <ul className="mt-2 grid gap-2">
             {g.items.map((item, i) => (
@@ -93,17 +93,17 @@ function Release({ e }: { e: ChangelogEntry }) {
           {e.groups.length > 0 && (
             <>
               <button type="button" aria-expanded={full} aria-controls={notesId} onClick={() => setFull((f) => !f)}
-                className="mt-5 inline-flex min-h-11 items-center gap-1.5 rounded-lg border border-border bg-muted/40 px-3 text-sm font-medium text-foreground outline-none transition-colors hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring/60">
+                className="mt-5 max-sm:mt-4 inline-flex min-h-11 items-center gap-1.5 rounded-lg border border-border bg-muted/40 px-3 text-sm font-medium text-foreground outline-none transition-colors hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring/60">
                 Full release notes
                 <ChevronDown className={cn("size-4 transition-transform motion-reduce:transition-none", full && "rotate-180")} aria-hidden />
               </button>
-              <div id={notesId} hidden={!full} className="mt-5 border-t border-border pt-5">{full && <Notes e={e} />}</div>
+              <div id={notesId} hidden={!full} className="mt-5 max-sm:mt-4 border-t border-border pt-5">{full && <Notes e={e} />}</div>
             </>
           )}
         </>
       ) : (
         // No highlights written for this release: its full notes, as before.
-        <div className="mt-5"><Notes e={e} /></div>
+        <div className="mt-5 max-sm:mt-4"><Notes e={e} /></div>
       )}
     </article>
   );
@@ -126,7 +126,7 @@ export default function WhatsNewContent() {
         ))}
       </nav>
       {/* A scrolling region keyboard users can reach (Tab, then the arrow keys) even when a release has no links. */}
-      <div tabIndex={0} role="region" aria-label={e ? `Release v${e.version}` : "Releases"} className="max-h-[56dvh] overflow-y-auto px-6 py-5 outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring/60 sm:max-h-[64dvh]">{e ? <Release key={e.version} e={e} /> : <p className="text-sm text-muted-foreground">No releases listed yet.</p>}</div>
+      <div tabIndex={0} role="region" aria-label={e ? `Release v${e.version}` : "Releases"} className="max-h-[56dvh] overflow-y-auto px-6 max-sm:px-4 py-5 max-sm:py-4 outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring/60 sm:max-h-[64dvh]">{e ? <Release key={e.version} e={e} /> : <p className="text-sm text-muted-foreground">No releases listed yet.</p>}</div>
     </div>
   );
 }

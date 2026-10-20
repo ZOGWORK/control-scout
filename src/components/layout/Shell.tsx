@@ -107,7 +107,7 @@ function Sidebar({ collapsed, onToggle }: { collapsed: boolean; onToggle: () => 
           {!collapsed && <span className="truncate font-display text-[1.0625rem] font-bold tracking-tight">Control Scout</span>}
         </Link>
       </div>
-      <nav className="custom-scrollbar flex-1 space-y-5 overflow-y-auto px-2 py-2" aria-label="Main">
+      <nav className="custom-scrollbar flex-1 space-y-5 max-sm:space-y-4 overflow-y-auto px-2 py-2" aria-label="Main">
         {sections.map((s, i) => (
           <div key={i} className="space-y-0.5">
             {s.title && !collapsed && <p className="px-3 pb-1.5 text-[11px] font-bold uppercase tracking-[0.2em] text-text-muted">{s.title}</p>}
@@ -163,7 +163,7 @@ function NoDataNotice() {
   const meta = useMeta();
   if (!meta || meta.dataLoaded) return null;
   return (
-    <div role="status" className="mb-6 flex items-start gap-3 rounded-xl border border-warning/40 bg-warning/10 px-4 py-3 text-sm">
+    <div role="status" className="mb-6 max-sm:mb-4 flex items-start gap-3 rounded-xl border border-warning/40 bg-warning/10 px-4 py-3 text-sm">
       <DatabaseZap className="mt-0.5 size-4 shrink-0 text-warning" aria-hidden />
       <p><span className="font-semibold">No FTC team data has been loaded on this server yet.</span> <span className="text-text-muted">Search, teams, events and predictions stay empty until it is. This page checks again every 30 seconds.</span></p>
     </div>
@@ -227,7 +227,7 @@ export function Shell({ children }: { children: ReactNode }) {
                 <Ambient target={mainRef} />
               </div>
               <main id="main" ref={mainRef} className="m-canvas relative z-10">
-                <m.div key={loc.pathname} initial={firstPage.current ? false : { opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.18, ease: "easeOut" }} className="mx-auto flex min-h-[calc(100svh-var(--header-h))] w-full max-w-[1200px] flex-col px-4 pt-8 pb-28 sm:px-6 md:pb-8 max-md:[[data-sticky-actions]_&]:pb-44 lg:px-8 min-[1700px]:max-w-[1600px]">
+                <m.div key={loc.pathname} initial={firstPage.current ? false : { opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.18, ease: "easeOut" }} className="mx-auto flex min-h-[calc(100svh-var(--header-h))] w-full max-w-[1200px] flex-col px-4 pt-8 max-sm:pt-5 pb-28 sm:px-6 md:pb-8 max-md:[[data-sticky-actions]_&]:pb-44 lg:px-8 min-[1700px]:max-w-[1600px]">
                   <NoDataNotice />
                   {/* The page grows to fill the screen, so a short page still has its footer at the bottom. */}
                   <div className="min-w-0 flex-1">{children}</div>

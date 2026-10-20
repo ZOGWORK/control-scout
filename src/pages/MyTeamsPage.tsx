@@ -74,11 +74,11 @@ export default function MyTeamsPage() {
   return (
     <div>
       {header}
-      <div className="space-y-6">
+      <div className="space-y-6 max-sm:space-y-4">
         {mine.teams.map((t, i) => <TeamCard key={t.teamNumber} mine={t} delay={Math.min(i, 4) * 0.08} />)}
         {mine.unnumbered.map((w) => <UnnumberedCard key={w.id} w={w} cpUrl={cpUrl} />)}
       </div>
-      <p className="mt-8 text-sm text-muted-foreground">
+      <p className="mt-8 max-sm:mt-5 text-sm text-muted-foreground">
         Missing a team? Teams come from your Control Point workspaces.{" "}
         <a href={cpUrl} target="_blank" rel="noreferrer noopener" className="underline underline-offset-2 hover:text-accent-text">Join or create one there</a>, or{" "}
         <Link to={FOLLOWED_TEAM_PATH} className="underline underline-offset-2 hover:text-accent-text">follow any team on this device</Link>.
@@ -118,7 +118,7 @@ function TeamCard({ mine, delay = 0 }: { mine: MyTeam; delay?: number }) {
   return (
     <Reveal fade={false} delay={delay} className="overflow-hidden rounded-2xl border border-border bg-card">
       <article aria-label={`Team ${team}`}>
-        <header className="flex flex-wrap items-start justify-between gap-4 border-b border-border p-5 sm:p-6">
+        <header className="flex flex-wrap items-start justify-between gap-4 border-b border-border p-4 sm:p-6">
           <div className="min-w-0">
             <Link to={season != null ? `/teams/${team}?season=${season}` : `/teams/${team}`} className="group block">
               <span className="font-display text-4xl font-semibold leading-none tracking-tight transition-colors group-hover:text-accent-text">{team}</span>
@@ -135,12 +135,12 @@ function TeamCard({ mine, delay = 0 }: { mine: MyTeam; delay?: number }) {
             </Button>
           </div>
         </header>
-        <div className="p-5 sm:p-6">
+        <div className="p-4 sm:p-6">
           <Async state={profile} loading={<div className="skeleton h-28 rounded-xl" />}>
             {() => (p ? <Season p={p} isCurrent={isCurrent} current={current} /> : <div className="skeleton h-28 rounded-xl" />)}
           </Async>
           {season != null && (
-            <Async state={matches} loading={<div className="skeleton mt-6 h-32 rounded-xl" />}>
+            <Async state={matches} loading={<div className="skeleton mt-6 max-sm:mt-4 h-32 rounded-xl" />}>
               {(d) => <Matches team={team} matches={d.matches} events={p?.events ?? []} isCurrent={isCurrent} />}
             </Async>
           )}
@@ -225,7 +225,7 @@ function Matches({ team, matches, events, isCurrent }: { team: number; matches: 
   const upcoming = isCurrent ? matches.filter((m) => !m.played && !ended.has(m.code)).slice(0, 3) : [];
   const recent = matches.filter((m) => m.played).reverse().slice(0, 3);
   return (
-    <div className={isCurrent ? "mt-6 grid gap-6 lg:grid-cols-2" : "mt-6"}>
+    <div className={isCurrent ? "mt-6 max-sm:mt-4 grid gap-6 max-sm:gap-4 lg:grid-cols-2" : "mt-6 max-sm:mt-4"}>
       {isCurrent && (
         <div className="min-w-0">
           <h3 className="mb-2 text-sm font-semibold">Upcoming matches</h3>
@@ -244,7 +244,7 @@ function Matches({ team, matches, events, isCurrent }: { team: number; matches: 
 function UnnumberedCard({ w, cpUrl }: { w: WorkspaceSpace; cpUrl: string }) {
   const scouting = useFlag("workspaceScouting");
   return (
-    <section aria-label={workspaceLabel(w)} className="flex flex-wrap items-center justify-between gap-4 rounded-2xl border border-dashed border-border p-5 sm:p-6">
+    <section aria-label={workspaceLabel(w)} className="flex flex-wrap items-center justify-between gap-4 rounded-2xl border border-dashed border-border p-4 sm:p-6">
       <div className="min-w-0">
         <p className="font-display text-lg font-semibold">{workspaceLabel(w)} <span className="ml-1 text-sm font-normal text-muted-foreground">{w.role === "admin" ? "Admin" : "Member"}</span></p>
         <p className="mt-1 text-sm text-muted-foreground">No FTC team number is set for this team in Control Point, so there are no stats to show. {w.role === "admin" ? "Add the number in Control Point's team settings." : "An admin can add it in Control Point's team settings."}</p>

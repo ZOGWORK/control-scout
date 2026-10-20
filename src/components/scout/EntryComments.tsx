@@ -59,7 +59,7 @@ export function EntryComments({ entry, className }: { entry: ScoutEntry; classNa
   if (space == null) return null; // Personal entries have no comments
   const n = thread.comments.length;
   return (
-    <section aria-labelledby={headingId} className={cn("rounded-2xl border border-border bg-card p-5 sm:p-6", className)}>
+    <section aria-labelledby={headingId} className={cn("rounded-2xl border border-border bg-card p-4 sm:p-6", className)}>
       <h2 id={headingId} className="flex items-center gap-2 font-medium">
         <MessageSquare className="size-4 text-muted-foreground" aria-hidden />
         <span>Comments{n > 0 && <span className="text-muted-foreground"> ({n})</span>}</span>
@@ -253,7 +253,7 @@ function Composer({ post, comments, place }: { post: (body: string, opId: string
   const problem = attempt?.state === "attention" && draft === attempt.body ? attempt : null;
   const state: SaveState | null = problem ? "attention" : busy ? "saving" : justSaved && !draft.trim() ? "saved" : draft.trim() ? "draft" : null;
   return (
-    <div className="mt-5 border-t border-border pt-4">
+    <div className="mt-5 max-sm:mt-4 border-t border-border pt-4">
       <label htmlFor={fieldId} className="sr-only">Add a comment</label>
       <Textarea id={fieldId} ref={ref} value={draft} onChange={(e) => setDraft(e.target.value)} rows={2}
         placeholder="Add a comment for the workspace" enterKeyHint="enter" aria-invalid={!!problem} aria-describedby={problem ? errId : undefined}

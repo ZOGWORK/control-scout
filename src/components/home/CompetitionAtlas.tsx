@@ -96,7 +96,7 @@ export function CompetitionAtlas({ overview, currentSeason, compact }: { overvie
   const side = mode === "globe";
 
   const mapFallback = (
-    <div className={cn("flex w-full flex-col items-center justify-center gap-2 rounded-2xl border border-dashed border-line px-6 text-center text-sm text-text-muted", mode === "globe" ? "aspect-square" : "aspect-[100/52]")}>
+    <div className={cn("flex w-full flex-col items-center justify-center gap-2 rounded-2xl border border-dashed border-line px-6 max-sm:px-4 text-center text-sm text-text-muted", mode === "globe" ? "aspect-square" : "aspect-[100/52]")}>
       <MapIcon className="size-5" aria-hidden />
       The map couldn’t load. Every country is in the selector and the list below.
     </div>

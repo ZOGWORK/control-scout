@@ -148,7 +148,7 @@ export function LearnSim() {
         <Button size="sm" variant="secondary" onClick={newLuck}><Shuffle /> New luck</Button>
       </>}
       caption="Fast at first, steady later. A high early gain gets a new team close to its real level within a handful of matches. The floor keeps the rating moving if the robot really does change.">
-      <div className="grid items-center gap-6 md:grid-cols-[minmax(0,1fr)_minmax(0,1.15fr)]">
+      <div className="grid items-center gap-6 max-sm:gap-4 md:grid-cols-[minmax(0,1fr)_minmax(0,1.15fr)]">
         <div className="grid min-w-0 gap-4">
           <Slider id="hiw-learn-real" label="The robot's real strength" value={real} display={`${real} pts`} min={30} max={130} step={1} onChange={setReal} />
           <div className="grid gap-1.5">

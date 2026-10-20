@@ -90,7 +90,7 @@ export function SectionNav() {
   const go = (e: MouseEvent<HTMLAnchorElement>, id: string) => { e.preventDefault(); scrollToId(id, reduced); };
 
   return (
-    <nav aria-label="On this page" className="sticky top-[calc(var(--header-h)+0.5rem)] z-30 mb-10 mt-2">
+    <nav aria-label="On this page" className="sticky top-[calc(var(--header-h)+0.5rem)] z-30 mb-10 max-sm:mb-6 mt-2">
       <div className="relative overflow-hidden rounded-xl border border-border bg-background p-1 shadow-[0_18px_40px_-24px_rgba(0,0,0,.55)]">
         <div ref={toc} className="flex gap-0.5 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
           {SECTIONS.map((s) => {
