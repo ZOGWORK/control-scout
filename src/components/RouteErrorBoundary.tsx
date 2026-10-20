@@ -53,7 +53,7 @@ function ReloadNeeded() {
   // Shared work only on this page, found when the button was pressed: named, and the reload waits for a second press.
   const [unsaved, setUnsaved] = useState(0);
   const reload = () => {
-    const only = workOnlyOnThisPage().length;
+    const only = workOnlyOnThisPage();
     if (only && !unsaved) { setUnsaved(only); return; }
     appReload.run();
   };
@@ -67,7 +67,7 @@ function ReloadNeeded() {
         <div className="flex flex-col items-center gap-3">
           {unsaved > 0 && (
             <p role="alert" className="max-w-md text-sm text-warning">
-              {unsaved === 1 ? "1 change" : `${unsaved} changes`} to a shared pick list or comment couldn't be stored on this device, so a reload loses {unsaved === 1 ? "it" : "them"}. Retry {unsaved === 1 ? "it" : "them"} from Scout first, or reload anyway.
+              {unsaved === 1 ? "1 change" : `${unsaved} changes`} to a shared pick list or comment couldn't be stored on this device, so a reload now loses {unsaved === 1 ? "it" : "them"}. Give {unsaved === 1 ? "it" : "them"} a moment to send or retry from Scout first, or reload anyway.
             </p>
           )}
           <div className="flex flex-wrap justify-center gap-2">

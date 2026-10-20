@@ -49,7 +49,7 @@ describe("RouteErrorBoundary: a page chunk that didn't download", () => {
     mount(lazy(() => Promise.reject(new TypeError("Importing a module script failed."))));
     fireEvent.click(await screen.findByRole("button", { name: /Reload Control Scout/ }));
     expect(reloads).toBe(0);
-    expect(screen.getByRole("alert").textContent).toMatch(/1 change .* a reload loses it/);
+    expect(screen.getByRole("alert").textContent).toMatch(/1 change .* a reload now loses it/);
     fireEvent.click(screen.getByRole("button", { name: /Reload anyway/ }));
     expect(reloads).toBe(1);
   });
@@ -95,5 +95,23 @@ describe("unsent work and a reload", () => {
     fireEvent.click(await screen.findByRole("button", { name: /Reload Control Scout/ }));
     expect(reloads).toBe(0);
     expect(screen.getByRole("alert")).toBeTruthy();
+  });
+
+  it("one still on its way that this device couldn't store counts too (its answer hasn't come)", async () => {
+    vi.spyOn(Storage.prototype, "setItem").mockImplementation(() => { throw new Error("QuotaExceededError"); });
+    let answer!: () => void;
+    const sent = sendComment(place, "Fast intake", "op-3", () => new Promise<void>((r) => { answer = r; }));
+    vi.mocked(Storage.prototype.setItem).mockRestore();
+    mount(lazy(() => Promise.reject(new TypeError("Failed to fetch dynamically imported module: /assets/x.js"))));
+    fireEvent.click(await screen.findByRole("button", { name: /Reload Control Scout/ }));
+    expect(reloads).toBe(0);
+    expect(screen.getByRole("alert").textContent).toMatch(/1 change/);
+    answer();
+    await sent;
+    cleanup();
+    // Confirmed: nothing is left that a reload could lose.
+    mount(lazy(() => Promise.reject(new TypeError("Failed to fetch dynamically imported module: /assets/x.js"))));
+    fireEvent.click(await screen.findByRole("button", { name: /Reload Control Scout/ }));
+    expect(reloads).toBe(1);
   });
 });

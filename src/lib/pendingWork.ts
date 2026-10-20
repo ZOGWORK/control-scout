@@ -67,6 +67,20 @@ export function publishPending(source: string, items: PendingItem[]): void {
 
 const subscribe = (f: () => void) => { listeners.add(f); return () => { listeners.delete(f); }; };
 
+// Work still on its way that this device couldn't store (a comment sent while storage is full or blocked): not
+// pending work the member acts on, but a reload before its answer loses it (src/lib/chunkError.ts asks first).
+const sendingUnstored = new Map<string, number>();
+/** How many of one source's writes on their way exist only in memory (0 removes it). */
+export function noteUnstoredSending(source: string, count: number): void {
+  if (count > 0) sendingUnstored.set(source, count); else sendingUnstored.delete(source);
+}
+/** Shared work a reload would lose: published items only on this page, and unstored writes still on their way. */
+export function volatileWorkCount(): number {
+  let n = snapshot.filter((x) => x.volatile).length;
+  for (const c of sendingUnstored.values()) n += c;
+  return n;
+}
+
 /** Everything published, for every account (tests; the view filters by account with usePendingWork). */
 export const allPending = () => snapshot;
 
