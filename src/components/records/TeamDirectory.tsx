@@ -31,7 +31,7 @@ const SORTS: { key: DirectorySort; label: string }[] = [
   { key: "team", label: "Team number" }, { key: "name", label: "Name" }, { key: "location", label: "Location" },
   { key: "rookie", label: "Rookie year" }, { key: "results", label: "Results first" },
 ];
-const field = "h-9 rounded-lg border border-line bg-card px-3 text-sm font-medium text-text-base focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent max-sm:h-11";
+const field = "h-9 rounded-lg border border-line bg-card px-3 text-sm font-medium text-text-base focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent max-sm:h-10";
 
 export function TeamDirectory({ season, onSeason }: { season: number; onSeason: (s: number) => void }) {
   const [sp] = useSearchParams();
@@ -183,9 +183,9 @@ export function TeamDirectory({ season, onSeason }: { season: number; onSeason: 
             <span className="tabular-nums">{fmt((data.page - 1) * data.pageSize + 1)}–{fmt(Math.min(matched, data.page * data.pageSize))} of {fmt(matched)}</span>
             {pages > 1 && (
               <span className="flex items-center gap-1">
-                <Button variant="outline" size="sm" className="max-sm:h-11 max-sm:w-11" disabled={state.page <= 1} onClick={() => setState({ ...state, page: state.page - 1 })} aria-label="Previous page"><ChevronLeft /></Button>
+                <Button variant="outline" size="sm" className="max-sm:h-10 max-sm:w-11" disabled={state.page <= 1} onClick={() => setState({ ...state, page: state.page - 1 })} aria-label="Previous page"><ChevronLeft /></Button>
                 <span className="px-2 tabular-nums">Page {fmt(state.page)} of {fmt(pages)}</span>
-                <Button variant="outline" size="sm" className="max-sm:h-11 max-sm:w-11" disabled={state.page >= pages} onClick={() => setState({ ...state, page: state.page + 1 })} aria-label="Next page"><ChevronRight /></Button>
+                <Button variant="outline" size="sm" className="max-sm:h-10 max-sm:w-11" disabled={state.page >= pages} onClick={() => setState({ ...state, page: state.page + 1 })} aria-label="Next page"><ChevronRight /></Button>
               </span>
             )}
           </div>
@@ -315,7 +315,7 @@ function Row({ t, readiness, season }: { t: DirectoryTeam; readiness: SeasonRead
       </td>
       <td className="px-2 py-1 text-right">
         <button type="button" onClick={flags.toggleTracked} aria-pressed={flags.tracked} aria-label={flags.tracked ? `Stop tracking ${t.team}` : `Track ${t.team}`} title={flags.tracked ? "Tracked" : "Track this team"}
-          className="inline-flex size-9 items-center justify-center rounded-lg text-text-muted hover:bg-text-base/[0.06] hover:text-text-base focus-visible:outline-2 focus-visible:outline-accent max-sm:size-11">
+          className="inline-flex size-9 items-center justify-center rounded-lg text-text-muted hover:bg-text-base/[0.06] hover:text-text-base focus-visible:outline-2 focus-visible:outline-accent max-sm:size-10">
           <Star className={cn("size-4", flags.tracked && "fill-accent text-accent")} aria-hidden />
         </button>
       </td>

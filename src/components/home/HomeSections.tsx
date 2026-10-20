@@ -124,7 +124,7 @@ export function FindYourTeam({ onSearch }: { onSearch: () => void }) {
     <section aria-label="Your team" className="flex flex-wrap items-center gap-x-4 gap-y-2 rounded-2xl border border-dashed border-line px-4 py-3.5 text-sm @2xl/home:px-5">
       <Star className="size-5 shrink-0 text-text-muted" aria-hidden />
       <span className="min-w-[14rem] flex-1 text-text-muted">Pick your team to see its next match and odds here. It stays on this device; no account needed.</span>
-      <Button variant="secondary" size="sm" onClick={onSearch} className="max-sm:h-11"><Search /> Find your team</Button>
+      <Button variant="secondary" size="sm" onClick={onSearch} className="max-sm:h-10"><Search /> Find your team</Button>
     </section>
   );
 }
@@ -218,7 +218,7 @@ export function PredictionRecord() {
           <ToggleGroup type="single" value={kind} onValueChange={(v) => v && setChosen(v as Evidence)} aria-label="Evidence" aria-controls="record-evidence"
             className="mt-4 rounded-xl border border-line p-1">
             {tabs.map((k) => (
-              <ToggleGroupItem key={k} value={k} size="lg" className="gap-1.5 rounded-lg px-3 text-sm max-sm:h-11"
+              <ToggleGroupItem key={k} value={k} size="lg" className="gap-1.5 rounded-lg px-3 text-sm max-sm:h-10"
                 aria-label={sizes?.[k] != null ? `${LEDGER_MODE[k].tab}, ${fmt(sizes[k]!)} scored` : LEDGER_MODE[k].tab}>
                 {LEDGER_MODE[k].tab}
                 {sizes?.[k] != null && <span aria-hidden className="font-mono text-xs tabular-nums text-text-muted">{fmt(sizes[k]!)}</span>}

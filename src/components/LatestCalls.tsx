@@ -68,7 +68,7 @@ export function LatestCalls({ className }: { className?: string }) {
         <p className="text-xs font-semibold uppercase tracking-[0.16em] text-text-muted">Latest live calls</p>
         {calls.length > 1 && !(reduced && paused === null) && (
           <button type="button" onClick={() => setPaused(!still)} aria-label={still ? "Turn through the calls" : "Stop turning through the calls"}
-            className="inline-flex size-8 items-center justify-center rounded-lg border border-line text-text-muted hover:bg-text-base/[0.06] hover:text-text-base focus-visible:outline-2 focus-visible:outline-accent max-sm:size-11">
+            className="inline-flex size-8 items-center justify-center rounded-lg border border-line text-text-muted hover:bg-text-base/[0.06] hover:text-text-base focus-visible:outline-2 focus-visible:outline-accent max-sm:size-10">
             {still ? <Play className="size-3.5" aria-hidden /> : <Pause className="size-3.5" aria-hidden />}
           </button>
         )}

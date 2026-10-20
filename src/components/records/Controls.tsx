@@ -14,7 +14,7 @@ import { Button } from "../ui/button";
 import { Input } from "../ui/basic";
 import { cn } from "../cn";
 
-const trigger = "inline-flex h-9 max-w-full items-center gap-2 rounded-lg border px-3 text-sm font-medium transition-colors max-sm:h-11";
+const trigger = "inline-flex h-9 max-w-full items-center gap-2 rounded-lg border px-3 text-sm font-medium transition-colors max-sm:h-10";
 const idle = "border-line bg-card text-text-base hover:border-text-base/25";
 const active = "border-accent/60 bg-accent/[0.08] text-text-base";
 
@@ -88,7 +88,7 @@ export function RegionPicker({ season, value, onChange }: { season: number; valu
       <PopoverContent align="start" className="flex max-h-[min(28rem,70dvh)] w-[min(92vw,20rem)] flex-col gap-2 p-2">
         <div className="relative">
           <Search className="pointer-events-none absolute left-2.5 top-1/2 size-4 -translate-y-1/2 text-text-muted" />
-          <Input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Texas, Ontario, GB…" aria-label="Search regions" className="h-9 pl-8 max-sm:h-11" autoFocus />
+          <Input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Texas, Ontario, GB…" aria-label="Search regions" className="h-9 pl-8 max-sm:h-10" autoFocus />
         </div>
         <div className="custom-scrollbar min-h-0 flex-1 overflow-y-auto" role="listbox" aria-multiselectable aria-label="Regions">
           {loading && !named.length && <p className="px-2 py-4 text-center text-sm text-text-muted">Loading regions…</p>}
@@ -146,8 +146,8 @@ export function DateRangePicker({ from, to, onChange }: { from: string | null; t
         </button>
       </PopoverTrigger>
       <PopoverContent align="start" className="w-[min(92vw,18rem)] space-y-3">
-        <label className="block text-xs font-medium text-text-muted">From<Input type="date" value={a} onChange={(e) => setA(e.target.value)} className="mt-1 h-9 max-sm:h-11" /></label>
-        <label className="block text-xs font-medium text-text-muted">To<Input type="date" value={b} onChange={(e) => setB(e.target.value)} min={a || undefined} className="mt-1 h-9 max-sm:h-11" /></label>
+        <label className="block text-xs font-medium text-text-muted">From<Input type="date" value={a} onChange={(e) => setA(e.target.value)} className="mt-1 h-9 max-sm:h-10" /></label>
+        <label className="block text-xs font-medium text-text-muted">To<Input type="date" value={b} onChange={(e) => setB(e.target.value)} min={a || undefined} className="mt-1 h-9 max-sm:h-10" /></label>
         <div className="flex gap-2">
           <Button size="sm" className="flex-1" onClick={() => onChange(a || null, b || null)}>Apply</Button>
           <Button size="sm" variant="ghost" onClick={() => { setA(""); setB(""); onChange(null, null); }}>Any dates</Button>

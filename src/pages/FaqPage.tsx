@@ -109,7 +109,7 @@ export default function FaqPage() {
           {FAQ.map((g) => {
             const t = topicOf(g.id);
             return (
-              <a key={g.id} href={`#topic-${g.id}`} className="inline-flex min-h-9 items-center gap-2 rounded-full border border-border bg-card py-1 pl-1.5 pr-3.5 text-sm text-muted-foreground hover:border-accent/50 hover:text-foreground max-sm:min-h-11">
+              <a key={g.id} href={`#topic-${g.id}`} className="inline-flex min-h-9 items-center gap-2 rounded-full border border-border bg-card py-1 pl-1.5 pr-3.5 text-sm text-muted-foreground hover:border-accent/50 hover:text-foreground max-sm:min-h-10">
                 <span className={cn("flex size-6 items-center justify-center rounded-full", t.tone)}><t.icon className="size-3.5" aria-hidden /></span>{g.title}
               </a>
             );

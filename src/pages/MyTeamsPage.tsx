@@ -130,7 +130,7 @@ function TeamCard({ mine, delay = 0 }: { mine: MyTeam; delay?: number }) {
           </div>
           <div className="flex flex-col items-end gap-2">
             {season != null && <Badge variant={isCurrent ? "secondary" : "outline"}>{seasonLabel(season)}{!isCurrent && " · latest played"}</Badge>}
-            <Button variant="secondary" size="sm" asChild className="max-sm:h-11">
+            <Button variant="secondary" size="sm" asChild className="max-sm:h-10">
               <Link to={season != null ? `/teams/${team}?season=${season}` : `/teams/${team}`}>Full team page <ArrowRight /></Link>
             </Button>
           </div>

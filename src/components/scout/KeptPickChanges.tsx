@@ -56,12 +56,12 @@ function Row({ f, readOnly, onRetry, onDiscard }: { f: FailedChange; readOnly: b
       </div>
       <div className="ml-auto flex shrink-0 flex-wrap items-center justify-end gap-2">
         {canApply && (
-          <Button variant="secondary" size="sm" className="max-sm:h-11" disabled={f.busy} onClick={() => onRetry(!!c)}
+          <Button variant="secondary" size="sm" className="max-sm:h-10" disabled={f.busy} onClick={() => onRetry(!!c)}
             aria-label={`${label}: ${describeChange(f.op)}`}>
             {f.busy ? <Loader2 className="animate-spin" /> : <RotateCcw />} {label}
           </Button>
         )}
-        <Button variant="outline" size="sm" className="max-sm:h-11" disabled={f.busy} onClick={onDiscard} aria-label={`Discard: ${describeChange(f.op)}`}>
+        <Button variant="outline" size="sm" className="max-sm:h-10" disabled={f.busy} onClick={onDiscard} aria-label={`Discard: ${describeChange(f.op)}`}>
           <Trash2 /> Discard
         </Button>
       </div>
@@ -80,7 +80,7 @@ function DamagedRow({ d, onDiscard }: { d: DamagedChange; onDiscard: () => void 
         <p className="text-xs text-text-muted">{damagedMessage(d)}</p>
       </div>
       <div className="ml-auto flex shrink-0 flex-wrap items-center justify-end gap-2">
-        <Button variant="outline" size="sm" className="max-sm:h-11" disabled={d.busy} onClick={onDiscard} aria-label={`Discard this change: ${label}`}>
+        <Button variant="outline" size="sm" className="max-sm:h-10" disabled={d.busy} onClick={onDiscard} aria-label={`Discard this change: ${label}`}>
           <Trash2 /> Discard this change
         </Button>
       </div>
@@ -122,11 +122,11 @@ export function KeptPickChanges({ changes, damaged = [], readOnly = false, onRet
         </div>
         <div className="flex shrink-0 flex-wrap items-center gap-2">
           {!readOnly && sendable.length > 0 && (
-            <Button size="sm" className="max-sm:h-11" disabled={busy} onClick={() => onRetryAll(reviewing)}>
+            <Button size="sm" className="max-sm:h-10" disabled={busy} onClick={() => onRetryAll(reviewing)}>
               {busy ? <Loader2 className="animate-spin" /> : <RotateCcw />} {reviewing ? "Apply mine anyway" : blocked && sendable.every((f) => f.blocked) ? "Check again" : "Retry"}
             </Button>
           )}
-          <Button variant="outline" size="sm" className="max-sm:h-11" disabled={busy} onClick={onDiscardAll}>
+          <Button variant="outline" size="sm" className="max-sm:h-10" disabled={busy} onClick={onDiscardAll}>
             <Trash2 /> {reviewing ? "Discard mine" : n === 1 ? "Discard" : "Discard all"}
           </Button>
         </div>
