@@ -10,7 +10,11 @@
 // - Time: the season's newest source results (its last completed sync,
 //   seasons.last_sync, or the live fast lane's last stored results, kv
 //   results:at:<season>) are newer than its last records build (kv
-//   records:at:<season>, written by computeRecords) → "catching-up".
+//   records:at:<season>, written by computeRecords) → "catching-up". So are records
+//   with no build time that applies to the season at all (built before the stamp
+//   existed, or restored without it): nothing shows they include the latest
+//   results, so they aren't claimed up to date. The data cycle rebuilds such a
+//   season (unprovenSeasons, server/data/cycle.ts), which stamps it.
 import { all, get, kvGet } from "../db.js";
 import { registerCache } from "../caches.js";
 import { CURRENT_SEASON } from "../data/seasons.js";
@@ -62,10 +66,21 @@ export async function seasonReadiness(season: number): Promise<SeasonReadiness> 
   ]);
   const hasResults = played.length > 0;
   const state = hasResults && !records ? "preparing"
-    : hasResults && source && at && source > at ? "catching-up"
+    : hasResults && (!at || (source && source > at)) ? "catching-up"
     : "ready";
   // Preparing: whatever stamp exists (a restored kv, a run that skipped the season) prepared nothing here.
   return { state, resultsAt: source, statsAt: state === "preparing" ? null : at };
+}
+
+/** Seasons whose records have no build time that applies to them (catching up with statsAt null), newest first. */
+export async function unprovenSeasons(): Promise<number[]> {
+  const seasons = await all<{ season: number }>("SELECT season FROM seasons ORDER BY season DESC");
+  const out: number[] = [];
+  for (const { season } of seasons) {
+    const r = await seasonReadiness(Number(season));
+    if (r.state === "catching-up" && r.statsAt == null) out.push(Number(season));
+  }
+  return out;
 }
 
 /** A season's readiness, reused for half a minute (the directory asks on every page; its scan can
