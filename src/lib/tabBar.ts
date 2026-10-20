@@ -6,7 +6,8 @@ import { BookOpen, Bookmark, CalendarDays, ClipboardList, House, ListOrdered, Sc
 
 export type TabId = "home" | "events" | "teams" | "rankings" | "powerRankings" | "predict" | "compare" | "myTeam" | "shortlist" | "scout" | "methodology" | "settings";
 
-export interface TabDef { id: TabId; to: string; label: string; icon: LucideIcon; end?: boolean }
+/** `label` fits under a tab; `name` (when it differs) is the page's full name, for Settings. */
+export interface TabDef { id: TabId; to: string; label: string; name?: string; icon: LucideIcon; end?: boolean }
 
 /** Every page that can sit in the bar, in the menu's order. "myTeam" opens My team / My teams (src/lib/yoursRow.ts). */
 export const TAB_OPTIONS: TabDef[] = [
@@ -14,7 +15,7 @@ export const TAB_OPTIONS: TabDef[] = [
   { id: "events", to: "/events", label: "Events", icon: CalendarDays },
   { id: "teams", to: "/teams", label: "Teams", icon: Users },
   { id: "rankings", to: "/rankings", label: "Rankings", icon: ListOrdered },
-  { id: "powerRankings", to: "/power-rankings", label: "Power", icon: Trophy },
+  { id: "powerRankings", to: "/power-rankings", label: "Power", name: "Power rankings", icon: Trophy },
   { id: "predict", to: "/predict", label: "Predict", icon: Sparkles, end: true },
   { id: "compare", to: "/compare", label: "Compare", icon: Scale },
   { id: "myTeam", to: "/my-team", label: "My team", icon: Star },

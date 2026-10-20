@@ -48,6 +48,7 @@ import { useSavedSeasons } from "../lib/offline/saved";
 import { workspacesOf } from "../lib/scoutSpace";
 import { Group, Row } from "../components/settings/rows";
 import { WorkspaceSection } from "../components/settings/WorkspaceSection";
+import { TabBarSettings } from "../components/settings/TabBarSettings";
 import { openWhatsNew } from "../components/WhatsNew";
 import { currentRelease } from "../lib/changelog";
 
@@ -57,7 +58,7 @@ interface SectionDef { id: SectionId; label: string; hint: string; icon: Compone
 
 const ALL_SECTIONS: SectionDef[] = [
   { id: "profile", label: "Profile", hint: "Sign in to sync, your name, your account", icon: UserRound, group: "Personal" },
-  { id: "appearance", label: "Appearance", hint: "Theme, background, density", icon: Palette, group: "Personal" },
+  { id: "appearance", label: "Appearance", hint: "Theme, background, density, phone tab bar", icon: Palette, group: "Personal" },
   { id: "tracking", label: "My team & tracking", hint: "Your team, and the teams and events you follow", icon: Star, group: "Personal" },
   { id: "notifications", label: "Notifications", hint: "Push and match alerts for your teams", icon: BellRing, group: "Personal" },
   { id: "offline", label: "Offline data", hint: "Packs, cache and recordings on this device", icon: HardDriveDownload, group: "Personal" },
@@ -321,6 +322,7 @@ function Appearance() {
           <Switch id="ambient" checked={s.ambient !== false} onCheckedChange={(v) => update("settings", (x) => ({ ...x, ambient: v }))} />
         </Row>
       </Group>
+      <TabBarSettings />
     </div>
   );
 }

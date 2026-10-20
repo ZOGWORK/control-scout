@@ -68,17 +68,20 @@ export function SearchProvider({ children }: { children: ReactNode }) {
 const isMac = typeof navigator !== "undefined" && /Mac|iPhone|iPad/.test(navigator.platform);
 export const SEARCH_HINT = isMac ? "⌘K" : "Ctrl K";
 
-/** The top-bar search. Inline from md up; on phones a button that expands a full-width field under the header. Hidden on pages with their own search box. */
-export function GlobalSearch() {
+/** The top-bar search. Inline from md up; on phones a button that expands a full-width field under the header. Hidden on pages with their own search box.
+ *  `part`: the phone's button and the field can sit in different places in the top bar (the button by the menu button, the field centred). */
+export function GlobalSearch({ part }: { part?: "button" | "field" }) {
   const { open, inputRef, expanded, setExpanded, pageClaimed } = useSearch();
   const nav = useNavigate();
   if (pageClaimed) return null;
   return (
     <>
-      <button type="button" onClick={open} className={cn("flex h-8 items-center gap-2 rounded-lg border border-line px-2.5 text-xs text-text-muted hover:text-text-base md:hidden", expanded && "hidden")} aria-label="Search" data-tour="search">
-        <Search className="size-3.5" /> Search
-      </button>
-      <SearchBox
+      {part !== "field" && (
+        <button type="button" onClick={open} className={cn("flex size-8 shrink-0 items-center justify-center rounded-lg text-text-muted outline-none transition-colors hover:bg-text-base/[0.06] hover:text-text-base focus-visible:ring-2 focus-visible:ring-ring/60 md:hidden", expanded && "invisible")} aria-label="Search" data-tour="search">
+          <Search className="size-5" />
+        </button>
+      )}
+      {part !== "button" && <SearchBox
         inputRef={inputRef}
         label="Search teams, events and matches"
         placeholder="Search teams, events, matches…"
@@ -90,7 +93,7 @@ export function GlobalSearch() {
           "w-full md:block md:max-w-md",
           expanded ? "absolute inset-x-0 top-full z-50 border-b border-line bg-primary p-2 md:relative md:inset-auto md:top-auto md:border-0 md:bg-transparent md:p-0" : "hidden",
         )}
-      />
+      />}
     </>
   );
 }
