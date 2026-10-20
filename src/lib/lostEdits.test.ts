@@ -276,9 +276,12 @@ describe("field-level diffs", () => {
     // A deleted side reads empty, so the live side's answers and notes still show (what a restore brings back).
     expect(entryDiff(base, { ...base, deleted: true, data: {}, notes: "" }, fields)).toEqual([
       { key: "deleted", label: "Status", before: "Live", after: "Deleted" },
-      { key: "f:autoHive", label: "autoHive", before: "2", after: "—" },
-      { key: "notes", label: "Notes", before: "steady", after: "—" },
+      { key: "f:autoHive", label: "autoHive", before: "2", after: "—", afterEmpty: true },
+      { key: "notes", label: "Notes", before: "steady", after: "—", afterEmpty: true },
     ]);
+    // A value saved as a literal dash is a value, not an empty side, and differs from no value at all.
+    expect(entryDiff({ ...base, notes: "—" }, { ...base, notes: "Fast intake" }, fields)).toEqual([{ key: "notes", label: "Notes", before: "—", after: "Fast intake" }]);
+    expect(entryDiff({ ...base, notes: "" }, { ...base, notes: "—" }, fields)).toEqual([{ key: "notes", label: "Notes", before: "—", after: "—", beforeEmpty: true }]);
     expect(formatAnswer(undefined, { type: "counter", min: 1 })).toBe("1");
     expect(formatAnswer(4, { type: "rating", max: 5 })).toBe("4 / 5");
   });

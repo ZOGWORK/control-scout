@@ -76,7 +76,7 @@ export function StoragePanel() {
                 R2 isn't configured on this server, so photos are off and hidden everywhere. Setup: docs/r2-photos.md.
               </div>
             )}
-            <Section title="Photo storage" description="Entry photos in Cloudflare R2. The free tier is 10 GB; new uploads stop at the soft cap, so storage never grows into paid usage."
+            <Section stackAction title="Photo storage" description="Entry photos in Cloudflare R2. The free tier is 10 GB; new uploads stop at the soft cap, so storage never grows into paid usage."
               action={s.configured ? <Button variant="secondary" size="sm" onClick={() => setCleaning(true)}><Brush /> Run cleanup now</Button> : undefined}>
               <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
                 <StatTile tone={s.level === "ok" ? "emerald" : s.level === "notice" ? "sky" : "amber"} icon={HardDrive} label="Used" value={s.usedBytes < 1e8 ? mb(s.usedBytes) : gb(s.usedBytes)}
@@ -93,7 +93,7 @@ export function StoragePanel() {
               {!s.events.length ? <EmptyState icon={ImageOff} title="No photos stored" description="Photos members add to workspace entries show up here by event." /> : (
                 <div className="rounded-xl border border-border bg-card">
                   <Table>
-                    <TableHeader><TableRow><TableHead>Event</TableHead><TableHead className="text-right">Photos</TableHead><TableHead className="text-right">Size</TableHead><TableHead>Event ends</TableHead><TableHead>Deleted from</TableHead><TableHead /></TableRow></TableHeader>
+                    <TableHeader><TableRow><TableHead>Event</TableHead><TableHead className="text-right">Photos</TableHead><TableHead className="text-right">Size</TableHead><TableHead>Event ends</TableHead><TableHead>Deleted from</TableHead><TableHead><span className="sr-only">Actions</span></TableHead></TableRow></TableHeader>
                     <TableBody>
                       {s.events.map((e) => (
                         <TableRow key={`${e.season}:${e.eventCode}`}>
