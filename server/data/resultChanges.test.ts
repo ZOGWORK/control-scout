@@ -199,6 +199,16 @@ describe("recording changes", () => {
     expect((await get<any>("SELECT missing FROM result_watch WHERE code = 'EV'"))!.missing).toBe("{}");
   });
 
+  it("records a lineup change from a lagging feed once, however often it's polled", async () => {
+    await writeEventBundle(bundle([m(1, { r: 100, b: 90 })]));
+    const lagging = () => bundle([m(1, { red: [team(201), team(205)] })], "ftc-scout");
+    for (let i = 0; i < 3; i++) await writeEventBundle(lagging());
+    expect((await changes()).map((r) => [r.kind, JSON.parse(r.fields)])).toEqual([["schedule", ["red"]]]);
+    // FIRST again with the same lineup and result: nothing more.
+    await writeEventBundle(bundle([m(1, { r: 100, b: 90, red: [team(201), team(205)] })]));
+    expect(await changes()).toHaveLength(1);
+  });
+
   it("reads and diffs again when another writer stores the event in between, so no change is lost", async () => {
     await writeEventBundle(bundle([m(1, { r: 100, b: 90 })]), { now: "2026-11-07T15:00:00.000Z" });
     // Between this write's read and its batch, another writer (say `npm run sync`, which holds no lease) stores 105.

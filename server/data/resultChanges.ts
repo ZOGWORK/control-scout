@@ -231,7 +231,10 @@ async function writeOnce(b: EventBundle, at: string): Promise<{ changes: number 
   const byKey = new Map(stored.map((m) => [matchKey(m), m]));
   for (const [key, m] of Object.entries(missing)) {
     const cur = byKey.get(key);
-    if (!cur || (!cur.result && m.result)) byKey.set(key, m);
+    if (!cur) byKey.set(key, m);
+    // A held result with the latest stored schedule: the lineup the lagging feed listed is the one to compare
+    // against (the held copy's would report the same lineup change on every poll).
+    else if (!cur.result && m.result) byKey.set(key, { ...cur, played: m.played, source: m.source, result: m.result });
   }
   const base = [...byKey.values()];
   const changes = diffMatches(base, matches, source, true);
