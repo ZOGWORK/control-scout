@@ -46,6 +46,15 @@ export function matchTime(t: string | null | undefined): string {
   return d.toLocaleString(undefined, opts);
 }
 
+/** matchTime with the calendar date: "Sat, Nov 7, 9:30 AM" (a rescheduled match may move days, not just hours). */
+export function matchDateTime(t: string | null | undefined): string {
+  if (!t) return "";
+  const hasZone = /(Z|[+-]\d\d:?\d\d)$/.test(t);
+  const d = new Date(hasZone ? t : `${t}Z`);
+  if (Number.isNaN(d.getTime())) return "";
+  return d.toLocaleString(undefined, { weekday: "short", month: "short", day: "numeric", hour: "numeric", minute: "2-digit", ...(hasZone ? {} : { timeZone: "UTC" }) });
+}
+
 export function ago(iso: string | null | undefined): string {
   if (!iso) return "never";
   const s = (Date.now() - Date.parse(iso)) / 1000;

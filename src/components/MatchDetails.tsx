@@ -65,7 +65,9 @@ function Body({ d, eventName }: { d: MatchDetail; eventName?: string }) {
         {played ? <Breakdown d={d} /> : <p className="rounded-xl border border-dashed border-border p-4 text-sm text-text-muted">Not played yet — the score breakdown appears once the result is posted.</p>}
         <Prediction d={d} />
       </div>
-      <ResultChanges season={m.season} code={m.code} matchKey={m.key} />
+      {/* Asks again whenever this match's result or schedule on screen changes (live checks, refreshes). */}
+      <ResultChanges season={m.season} code={m.code} matchKey={m.key}
+        refreshKey={JSON.stringify([m.time, m.played, m.red.score, m.blue.score, m.red.teams.map((t) => t.number), m.blue.teams.map((t) => t.number)])} />
     </div>
   );
 }
