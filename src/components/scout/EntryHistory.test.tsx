@@ -110,7 +110,7 @@ describe("restoreBlock", () => {
 describe("DiffTable on phones", () => {
   const LONG = "Fast cycler on the near side. Drove defence for the last 30 seconds of TeleOp and still parked; intake jammed once in Auto.";
   const rows = [
-    { key: "notes", label: "Notes", before: NONE, after: LONG },
+    { key: "notes", label: "Notes", before: NONE, after: LONG, beforeEmpty: true as const },
     { key: "match", label: "Match", before: "Q3", after: "Q4" },
   ];
 
@@ -129,11 +129,21 @@ describe("DiffTable on phones", () => {
     expect(match.querySelector('[data-side="after"]')!.textContent).toBe("After (v2)Q4");
   });
 
+  it("shows a value saved as a literal dash, rather than calling it empty", () => {
+    phone = true;
+    render(<DiffTable rows={[{ key: "notes", label: "Notes", before: NONE, after: "Fast intake" }]} beforeLabel="v1" afterLabel="v2" caption="Changes" />);
+    expect(document.querySelector('[data-side="before"]')!.textContent).toBe(`Before (v1)${NONE}`);
+  });
+
   it("keeps the side-by-side table on wider screens", () => {
     render(<DiffTable rows={rows} beforeLabel="v1" afterLabel="v2" caption="Changes in version 2" />);
     const table = screen.getByRole("table", { name: "Changes in version 2" });
     expect(within(table).getByRole("columnheader", { name: "v1" })).toBeTruthy();
     expect(within(table).getByText(LONG)).toBeTruthy();
     expect(screen.queryByText(/^Before/)).toBeNull();
+    // The empty side is a plain dash read as "empty", not a struck-through value.
+    const notes = within(table).getByRole("row", { name: /Notes/ });
+    expect(notes.querySelectorAll("td")[0].textContent).toBe("—empty");
+    expect(notes.querySelectorAll("td")[0].querySelector(".line-through")).toBeNull();
   });
 });
