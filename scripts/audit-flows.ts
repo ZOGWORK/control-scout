@@ -415,8 +415,14 @@ const flows: Flow[] = [
             if (mode === "fail") {
               // Parts that come and go inside an AnimatePresence: a settings section switch (mode="wait") and a top-bar panel.
               await p.locator("aside").getByRole("link", { name: /^Settings$/ }).first().click();
+              // Profile first (its body: the Sign in group, or the note that sign-in isn't set up here), then Appearance.
+              const profileBody = p.getByRole("heading", { name: "Sign in", level: 2, exact: true }).or(p.getByText("Sign-in isn't set up on this server"));
+              await opaque(profileBody.first(), "Settings → Profile body");
               await p.getByRole("navigation", { name: "Settings sections" }).getByRole("button", { name: "Appearance", exact: true }).click();
               await shown(/^Appearance$/, "Settings → Appearance");
+              // The section body switches inside the AnimatePresence (the heading is outside it): the new body shows, the old one is gone.
+              await opaque(p.getByRole("heading", { name: "Display", level: 2, exact: true }), "Settings → Appearance body");
+              assert(!(await profileBody.count()), `${label}: the Profile body is still there after switching to Appearance`);
               await p.getByRole("banner").getByRole("button", { name: "Sign in", exact: true }).click();
               await opaque(p.getByRole("region", { name: "Sign in" }), "the top-bar sign-in panel");
             }
