@@ -3,6 +3,8 @@
 // with "All listed teams"). A listing is a registration, not activity: the page
 // says so, and marks the teams with results instead of hiding the rest. The
 // statistical tables keep their own denominator (teams with results only).
+// A search (DirectorySearch, ?q=) narrows the rows inside the season and country; the totals stay
+// the whole selection's, and the page says how many of them match.
 import { useEffect, useMemo, useRef } from "react";
 import { Link, useLocation, useNavigate, useSearchParams } from "react-router-dom";
 import { ArrowDown, ArrowRight, ArrowUp, ChevronLeft, ChevronRight, Hourglass, MapPin, Star, Trophy, Users, X } from "lucide-react";
@@ -12,13 +14,14 @@ import { useTeamFlags } from "../../lib/personal";
 import { COUNTRIES, countryByCode } from "../../shared/countries";
 import { isDirectoryPage, type DirectoryPage, type DirectorySort, type DirectoryTeam } from "../../shared/directory";
 import type { SeasonReadiness } from "../../shared/home";
-import { directoryDefaultDir, directoryUrl, parseDirectoryState, writeDirectoryState, type DirectoryState } from "../../lib/records/directoryState";
+import { directoryDefaultDir, directorySearchIssue, directoryUrl, parseDirectoryState, writeDirectoryState, type DirectoryState } from "../../lib/records/directoryState";
 import { clampPage, searchString } from "../../lib/records/urlState";
 import { Badge } from "../ui/basic";
 import { Button } from "../ui/button";
 import { ErrorState, LoadingBlock } from "../states";
 import { DataStatus } from "../DataStatus";
 import { SeasonSelect } from "./Controls";
+import { DirectorySearch } from "./DirectorySearch";
 import { cn } from "../cn";
 
 const fmt = (n: number) => n.toLocaleString();
@@ -37,23 +40,30 @@ export function TeamDirectory({ season, onSeason }: { season: number; onSeason: 
   const setState = (next: DirectoryState, replace = false) =>
     navigate({ pathname: loc.pathname, search: searchString(writeDirectoryState(sp, next)), hash: loc.hash }, { replace });
 
+  // Answers are cached and read by their own URL (useApi), so an older search's answer arriving late can
+  // never stand in for the current one: only the current URL's answer is ever api.data.
   const api = useApi<DirectoryPage>(directoryUrl(season, state), isDirectoryPage);
   // Keep the last page on screen while the next one loads (no flash of an empty table), but only for the
-  // same season and country: another selection's totals must never sit under the new one's labels.
+  // same season and country: another selection's totals must never sit under the new one's labels. A kept page
+  // from an earlier search says which search it answers (data.q), so its count is never shown as the new one's.
   const last = useRef<DirectoryPage | undefined>(undefined);
   if (api.data) last.current = api.data;
   const kept = last.current && last.current.season === season && last.current.country === state.country ? last.current : undefined;
   const data = api.data ?? (api.loading ? kept : undefined);
   // An old link past the last page: go to the last page that has rows.
-  const pastEnd = !!api.data && api.data.total > 0 && !api.data.rows.length && state.page > 1;
+  const matchedOf = (d: DirectoryPage) => d.matched ?? d.total;
+  const pastEnd = !!api.data && matchedOf(api.data) > 0 && !api.data.rows.length && state.page > 1;
   useEffect(() => {
-    if (pastEnd && api.data) setState({ ...state, page: clampPage(state.page, api.data.total, api.data.pageSize) }, true);
+    if (pastEnd && api.data) setState({ ...state, page: clampPage(state.page, matchedOf(api.data), api.data.pageSize) }, true);
   }, [pastEnd]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const country = state.country ? countryByCode(state.country) : null;
   const where = country ? country.name : "every country";
   const sortBy = (key: DirectorySort) => setState({ ...state, sort: key, dir: state.sort === key ? (state.dir === "asc" ? "desc" : "asc") : directoryDefaultDir(key), page: 1 });
-  const pages = data ? Math.max(1, Math.ceil(data.total / data.pageSize)) : 1;
+  const matched = data ? matchedOf(data) : 0;
+  const pages = data ? Math.max(1, Math.ceil(matched / data.pageSize)) : 1;
+  const searchIssue = directorySearchIssue(state);
+  const search = (q: string | null, replace = false) => setState({ ...state, q, page: 1 }, replace);
   const resultsHref = `/teams?${new URLSearchParams({ view: "season", ...(sp.get("season") ? { season: sp.get("season")! } : {}), ...(state.country ? { country: state.country } : {}) })}`;
 
   return (
@@ -68,6 +78,7 @@ export function TeamDirectory({ season, onSeason }: { season: number; onSeason: 
             {BY_NAME.map((c) => <option key={c.code} value={c.code}>{c.name}</option>)}
           </select>
         </label>
+        <DirectorySearch value={state.q} onSearch={search} where={where} className="w-full sm:w-64" />
         <label className="inline-flex items-center gap-2 sm:ml-auto">
           <span className="text-sm text-text-muted">Sort</span>
           <select value={state.sort} onChange={(e) => { const sort = e.target.value as DirectorySort; setState({ ...state, sort, dir: directoryDefaultDir(sort), page: 1 }); }} className={field}>
@@ -85,7 +96,13 @@ export function TeamDirectory({ season, onSeason }: { season: number; onSeason: 
         </div>
       ) : <Summary data={data} season={season} where={where} resultsHref={resultsHref} onRetry={api.reload} />}
 
-      {state.countryUnknown ? null : api.error && !data ? (
+      {state.countryUnknown ? null : searchIssue ? (
+        <div className="mt-4 flex flex-col items-center rounded-xl border border-danger/40 bg-danger/[0.05] px-6 py-10 text-center" role="alert">
+          <p className="font-medium">This search can’t be run</p>
+          <p className="mt-1 max-w-lg text-xs text-text-muted">{searchIssue}. Search by a team number, or a few words of a team’s name or town.</p>
+          <Button variant="outline" className="mt-4" onClick={() => search(null)}><X /> Clear search</Button>
+        </div>
+      ) : api.error && !data ? (
         <ErrorState className="mt-4" error={api.error as ApiError} onRetry={api.reload} />
       ) : !data ? (
         <div className="mt-4"><LoadingBlock rows={8} label="Loading the team directory" /></div>
@@ -93,11 +110,24 @@ export function TeamDirectory({ season, onSeason }: { season: number; onSeason: 
         <div className="mt-4 rounded-xl border border-dashed border-line p-6 text-center text-sm text-text-muted">
           No team from {where} is listed for {seasonLabel(season)}.
         </div>
+      ) : data.q && matched === 0 ? (
+        <div className={cn("mt-4 flex flex-col items-center rounded-xl border border-dashed border-line px-6 py-10 text-center", api.loading && "opacity-70")} aria-busy={api.loading}>
+          <p className="font-medium" role="status">No listed team from {where} matches “{data.q}”</p>
+          <p className="mt-1 max-w-lg text-xs text-text-muted">
+            Searched the {fmt(data.total)} {data.total === 1 ? "team" : "teams"} registered for {seasonLabel(season)}, by number and by the words of their name, city and state.
+          </p>
+          <Button variant="outline" className="mt-4" onClick={() => search(null)}><X /> Clear search</Button>
+        </div>
       ) : (
         <>
-          <div className={cn("mt-4 overflow-hidden rounded-xl border border-line", api.loading && "opacity-70")} aria-busy={api.loading}>
+          {data.q && (
+            <p className="mt-4 text-sm text-text-muted" role="status">
+              <span className="font-semibold tabular-nums text-text-base">{fmt(matched)}</span> of {fmt(data.total)} {data.total === 1 ? "team" : "teams"} match “<span className="font-medium text-text-base">{data.q}</span>”
+            </p>
+          )}
+          <div className={cn("overflow-hidden rounded-xl border border-line", data.q ? "mt-2" : "mt-4", api.loading && "opacity-70")} aria-busy={api.loading}>
             <table className="w-full text-sm">
-              <caption className="sr-only">Teams listed for {seasonLabel(season)} from {where}, sorted by {SORTS.find((s) => s.key === state.sort)?.label.toLowerCase()}</caption>
+              <caption className="sr-only">Teams listed for {seasonLabel(season)} from {where}{data.q ? `, matching “${data.q}”` : ""}, sorted by {SORTS.find((s) => s.key === state.sort)?.label.toLowerCase()}</caption>
               <thead className="bg-text-base/[0.03] text-left text-xs uppercase tracking-wide text-text-muted">
                 <tr>
                   <SortHead label="Team" k="team" also="name" state={state} onSort={sortBy} />
@@ -113,7 +143,7 @@ export function TeamDirectory({ season, onSeason }: { season: number; onSeason: 
             </table>
           </div>
           <div className="mt-3 flex flex-wrap items-center justify-between gap-3 text-sm text-text-muted">
-            <span className="tabular-nums">{fmt((data.page - 1) * data.pageSize + 1)}–{fmt(Math.min(data.total, data.page * data.pageSize))} of {fmt(data.total)}</span>
+            <span className="tabular-nums">{fmt((data.page - 1) * data.pageSize + 1)}–{fmt(Math.min(matched, data.page * data.pageSize))} of {fmt(matched)}</span>
             {pages > 1 && (
               <span className="flex items-center gap-1">
                 <Button variant="outline" size="sm" className="max-sm:h-11 max-sm:w-11" disabled={state.page <= 1} onClick={() => setState({ ...state, page: state.page - 1 })} aria-label="Previous page"><ChevronLeft /></Button>
