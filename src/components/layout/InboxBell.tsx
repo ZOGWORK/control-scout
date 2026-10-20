@@ -41,11 +41,14 @@ const ICON: Record<InboxCategory, { icon: ComponentType<{ className?: string }>;
 
 const badgeText = (n: number) => (n > 99 ? "99+" : String(n));
 
-/** Once the next render is on screen: if the control that had focus went away with it, focus `to` instead of the page. */
+/**
+ * Once the next render is on screen: if the control that had focus went away with it, focus `to` instead. Focus is then
+ * on the page, or (in the phone sheet) on the sheet itself, which its focus trap picks when the focused control goes.
+ */
 function refocus(to: () => HTMLElement | null | undefined) {
   requestAnimationFrame(() => {
     const at = document.activeElement;
-    if (!at || at === document.body || !at.isConnected) to()?.focus();
+    if (!at || at === document.body || !at.isConnected || !at.matches("button, a[href], input, select, textarea, [tabindex]:not([tabindex='-1'])")) to()?.focus();
   });
 }
 
