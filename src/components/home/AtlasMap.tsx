@@ -8,7 +8,7 @@
 // motion and behind its pause button); it also stops while dragged, off screen or in a
 // hidden tab. A mouse can drag it round, the arrow keys turn it once it has focus; touch never captures the page's scroll, and the
 // country selector beside the map does everything without a pointer.
-import { useEffect, useMemo, useRef, useState } from "react";
+import { startTransition, useEffect, useMemo, useRef, useState } from "react";
 import { geoCentroid, geoGraticule10, geoNaturalEarth1, geoOrthographic, geoPath, type GeoPermissibleObjects } from "d3-geo";
 import { feature } from "topojson-client";
 import type { Feature, FeatureCollection, Geometry } from "geojson";
@@ -105,7 +105,11 @@ export default function AtlasMap({ mode, spinning = false, countries, selected, 
     setRotation([-lon, Math.max(-60, Math.min(60, -lat))]);
   }, [selectedShape]);
 
-  // The spin: ~30 frames a second, only while it can be seen and isn't being dragged.
+  // The spin: ~30 frames a second, only while it can be seen and isn't being dragged. Each frame is a transition:
+  // background work that never holds up anything else. An update from requestAnimationFrame is otherwise urgent
+  // (React's default priority), above a page change (React Router navigates in a transition): on a slow device, or
+  // the dev build, where redrawing the globe takes about a frame, a new frame was always waiting, so the page change
+  // never got its turn and Home stayed on screen under the new URL. The pointer and the arrow keys stay urgent.
   const [visible, setVisible] = useState(true);
   useEffect(() => {
     const el = box.current;
@@ -123,7 +127,7 @@ export default function AtlasMap({ mode, spinning = false, countries, selected, 
       last = now;
       if (!drag.current && !held.current && !document.hidden) {
         acc += dt;
-        if (acc >= 33) { const step = (acc / 1000) * SPIN_DEG_PER_S; acc = 0; setRotation(([lon, lat]) => [(lon + step) % 360, lat]); }
+        if (acc >= 33) { const step = (acc / 1000) * SPIN_DEG_PER_S; acc = 0; startTransition(() => setRotation(([lon, lat]) => [(lon + step) % 360, lat])); }
       }
       raf = requestAnimationFrame(tick);
     };
