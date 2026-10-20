@@ -166,16 +166,24 @@ function Picker({ onPick }: { onPick: (v: string) => void }) {
   );
 }
 
-function PickedHeader({ icon: Icon, title, sub, to, onClear }: { icon: typeof Users; title: string; sub?: string; to: string; onClear: () => void }) {
+/** The picked team or event. Its identity gets the width: the team number never breaks, a long name or date
+ *  wraps rather than truncating, Open page drops under it on a phone, and Close keeps a 44px target. */
+function PickedHeader({ icon: Icon, number, title, sub, to, openLabel, onClear }: { icon: typeof Users; number?: number; title: string; sub?: string; to: string; openLabel: string; onClear: () => void }) {
   return (
-    <div className="mb-4 flex flex-wrap items-center gap-3">
-      <span className="grid size-10 shrink-0 place-items-center rounded-xl bg-accent/[0.12] text-accent"><Icon className="size-5" /></span>
-      <div className="min-w-0 flex-1">
-        <h2 className="truncate font-display text-xl font-semibold text-foreground">{title}</h2>
-        {sub && <p className="truncate text-sm text-muted-foreground">{sub}</p>}
+    <div className="mb-4 grid grid-cols-[auto_minmax(0,1fr)_auto] items-start gap-x-3 gap-y-2 sm:grid-cols-[auto_minmax(0,1fr)_auto_auto]">
+      <span className="col-start-1 row-start-1 grid size-10 shrink-0 place-items-center rounded-xl bg-accent/[0.12] text-accent"><Icon className="size-5" /></span>
+      <div className="col-start-2 row-start-1 min-w-0 self-center">
+        <h2 className="font-display text-xl font-semibold leading-snug text-foreground [overflow-wrap:anywhere]">
+          {number != null && <span className="whitespace-nowrap font-mono tabular-nums">{number}</span>}
+          {number != null && title && " "}{title}
+        </h2>
+        {sub && <p className="mt-0.5 text-sm text-muted-foreground [overflow-wrap:anywhere]">{sub}</p>}
       </div>
-      <Button variant="secondary" size="sm" asChild><Link to={to}>Open page <ArrowRight /></Link></Button>
-      <Button variant="ghost" size="icon" onClick={onClear} aria-label="Clear selection"><X /></Button>
+      {/* Before Close in the DOM, so Tab goes identity → Open page → Close wherever the grid draws them. */}
+      <Button variant="secondary" size="sm" asChild className="col-start-2 row-start-2 justify-self-start max-sm:h-10 sm:col-start-3 sm:row-start-1 sm:self-center">
+        <Link to={to}>{openLabel} <ArrowRight /></Link>
+      </Button>
+      <Button variant="ghost" size="icon" onClick={onClear} aria-label="Clear selection" className="col-start-3 row-start-1 -mr-1.5 size-11 sm:col-start-4"><X /></Button>
     </div>
   );
 }
@@ -218,7 +226,7 @@ function TeamPredictions({ team, onClear }: { team: number; onClear: () => void 
   }, [profile.data, team]);
   return (
     <section aria-label={`Predictions for team ${team}`} className="rounded-2xl border border-border bg-card/60 p-4 sm:p-6">
-      <PickedHeader icon={Users} title={t ? `${t.number} ${t.name ?? ""}`.trim() : `Team ${team}`} sub={t ? place(t.city, t.state, t.country) : undefined} to={`/teams/${team}?season=${s}`} onClear={onClear} />
+      <PickedHeader icon={Users} number={team} title={t?.name ?? ""} sub={t ? place(t.city, t.state, t.country) : undefined} to={`/teams/${team}?season=${s}`} openLabel="Open team page" onClear={onClear} />
       {probe.error?.status === 404 ? <EmptyState icon={Users} title={`No team ${team}`} description="No FTC team with that number in the seasons we hold." /> : (
         <div className="space-y-8">
           <div className="flex flex-wrap items-center gap-3">
@@ -296,7 +304,7 @@ function EventPredictions({ season, code, onClear }: { season: number; code: str
   const played = (state.data?.matches ?? []).filter((m) => m.played);
   return (
     <section aria-label={`Predictions for ${e?.name ?? code}`} className="rounded-2xl border border-border bg-card/60 p-4 sm:p-6">
-      <PickedHeader icon={CalendarDays} title={e?.name ?? code} sub={e ? `${dateRange(e.start, e.end)} · ${place(e.city, e.state, e.country)}` : undefined} to={`/events/${season}/${code}`} onClear={onClear} />
+      <PickedHeader icon={CalendarDays} title={e?.name ?? code} sub={e ? `${dateRange(e.start, e.end)} · ${place(e.city, e.state, e.country)}` : undefined} to={`/events/${season}/${code}`} openLabel="Open event page" onClear={onClear} />
       <Async state={state}>{(d) => (
         <div className="space-y-8">
           <div>
