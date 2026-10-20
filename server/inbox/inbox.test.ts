@@ -604,14 +604,14 @@ describe("migration 32 (inbox follow-up flags)", () => {
     const c = openDb(":memory:");
     expect((await migrate(c, 31)).at(-1)).toBe(31);
     await c.execute({ sql: "INSERT INTO inbox_items (user_id, at, category, type, title, read_at) VALUES (1, ?, 'edits', 'entry.edited', 'Coach edited your entry', ?)", args: [Date.now(), Date.now()] });
-    expect(await migrate(c)).toEqual([32]);
+    expect(await migrate(c, 32)).toEqual([32]);
     const r = (await c.execute("SELECT title, read_at, follow_up_at FROM inbox_items")).rows[0];
     expect(r.title).toBe("Coach edited your entry");
     expect(r.read_at).not.toBeNull();
     expect(r.follow_up_at).toBeNull();
     const idx = (await c.execute("SELECT name FROM sqlite_master WHERE type = 'index' AND name = 'inbox_items_follow_up'")).rows;
     expect(idx).toHaveLength(1);
-    expect(await migrate(c)).toEqual([]);
+    expect(await migrate(c, 32)).toEqual([]);
   });
 });
 

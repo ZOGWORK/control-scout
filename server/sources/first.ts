@@ -225,6 +225,7 @@ export async function firstEventBundle(meta: EventRow): Promise<EventBundle> {
     const row: MatchRow = {
       level, series, number: m.matchNumber, label: matchLabel(level, series, m.matchNumber), description: str(m.description),
       time: str(m.startTime), played: false, red: teamsOf(m.teams, "red"), blue: teamsOf(m.teams, "blue"), redScore: null, blueScore: null,
+      field: str(m.field == null ? null : String(m.field)),
     };
     byKey.set(matchKey(row), row);
   }
@@ -252,6 +253,10 @@ export async function firstEventBundle(meta: EventRow): Promise<EventBundle> {
       time: str(m.actualStartTime) ?? prev?.time ?? null, played,
       red: fixField(keepSur(red.length ? red : prev?.red ?? [], prev?.red)), blue: fixField(keepSur(blue.length ? blue : prev?.blue ?? [], prev?.blue)),
       redScore: played ? redScore : null, blueScore: played ? blueScore : null, video: str(m.videoURL),
+      // The field is only on the schedule (the results feed has none).
+      field: prev?.field ?? null,
+      // Totals only until FIRST publishes the breakdown: that split is an estimate, not reported values.
+      breakdown: !!bd,
     });
   }
   // A best-of-3 final between two alliances: FIRST numbers it series 1,

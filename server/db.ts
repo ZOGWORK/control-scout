@@ -1006,6 +1006,50 @@ ALTER TABLE inbox_items ADD COLUMN follow_up_at INTEGER;
 CREATE INDEX inbox_items_follow_up ON inbox_items (user_id, id) WHERE follow_up_at IS NOT NULL;
 `,
   },
+  {
+    version: 33,
+    name: "official result changes",
+    sql: `
+-- What changed in an event's official results, as the sync saw it (server/data/resultChanges.ts):
+-- a result first posted, a posted score revised (real before and after values), or a scheduled
+-- match moved (time, field, lineup). Written in the same transaction as the event's rows, only
+-- when a stored value really changed, so a repeated poll of the same data adds nothing. Public
+-- FTC data only: never scouting, never accounts.
+CREATE TABLE result_changes (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  season INTEGER NOT NULL, code TEXT NOT NULL,
+  level TEXT NOT NULL, series INTEGER NOT NULL, number INTEGER NOT NULL,
+  label TEXT NOT NULL,
+  kind TEXT NOT NULL,          -- posted | revised | schedule
+  fields TEXT NOT NULL,        -- JSON: the values that changed, e.g. ["red.total","red.pen"]
+  before TEXT,                 -- JSON snapshot before (null when first posted)
+  after TEXT,                  -- JSON snapshot after (null when a result was withdrawn)
+  source TEXT NOT NULL,        -- the feed that delivered the new value: first | ftc-scout
+  prev_source TEXT,            -- the feed the stored value came from
+  checked_at TEXT NOT NULL,    -- when the sync saw it (not when FIRST changed it)
+  diff_key TEXT NOT NULL UNIQUE -- match + kind + previous change's key + new value: a replay can't add a second row
+);
+CREATE INDEX result_changes_event ON result_changes (season, code, id);
+CREATE INDEX result_changes_match ON result_changes (season, code, level, series, number, id);
+-- Events whose results are being watched, and since when: the first detail write after this
+-- migration is the baseline (nothing before it was tracked). pruned: rows dropped by the
+-- per-event retention cap. missing: the last stored state of matches a write left out (a
+-- fallback feed may list fewer), so one that comes back is compared, not posted again.
+CREATE TABLE result_watch (
+  season INTEGER NOT NULL, code TEXT NOT NULL,
+  since TEXT NOT NULL,
+  pruned INTEGER NOT NULL DEFAULT 0,
+  missing TEXT NOT NULL DEFAULT '{}',
+  rev INTEGER NOT NULL DEFAULT 0,          -- +1 with every watched detail write (and db:push): the write guard
+  PRIMARY KEY (season, code)
+);
+-- FIRST's scheduled field ("1", "2"…), so a field move can be told apart. Null = not reported.
+ALTER TABLE matches ADD COLUMN field TEXT;
+-- 1 = the score's components come from a reported breakdown, 0 = totals only (FIRST posted the
+-- result before its breakdown: the split is an estimate). Null = unplayed, or written before this.
+ALTER TABLE matches ADD COLUMN breakdown INTEGER;
+`,
+  },
 ];
 
 export type Db = Client;

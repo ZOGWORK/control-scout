@@ -75,6 +75,10 @@ export interface MatchRow {
   blueScore: ScoreSplit | null;
   /** Official match video (FIRST's videoURL), when published. */
   video?: string | null;
+  /** Field the match is scheduled on (FIRST's schedule "field"), when the source says. */
+  field?: string | null;
+  /** False when the scores are totals only (no breakdown reported yet: the split is an estimate). Default true. */
+  breakdown?: boolean;
 }
 
 export interface AllianceRow { number: number; name: string | null; captain: number | null; pick1: number | null; pick2: number | null; backup: number | null }
@@ -161,6 +165,9 @@ export function bundleStatements(b: EventBundle): InStatement[] {
   if (!b.detail) return s;
   const k = [e.season, e.code];
   for (const t of ["event_teams", "matches", "match_teams", "alliances", "awards"]) s.push({ sql: `DELETE FROM ${t} WHERE season = ? AND code = ?`, args: k });
+  // Every writer that replaces an event's matches moves its result-change guard (data/resultChanges.ts), so a
+  // diff read before this write is never applied after it.
+  s.push({ sql: "UPDATE result_watch SET rev = rev + 1 WHERE season = ? AND code = ?", args: k });
   for (const r of b.detail.entries) {
     s.push({ sql: "INSERT OR REPLACE INTO event_teams (season, code, team, rank, rp, tbp, wins, losses, ties, qual_played, dq) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", args: [...k, r.team, r.rank, r.rp, r.tbp, r.wins, r.losses, r.ties, r.qualPlayed, r.dq] });
     s.push({ sql: "INSERT OR IGNORE INTO team_seasons (season, team) VALUES (?, ?)", args: [e.season, r.team] });
@@ -170,9 +177,9 @@ export function bundleStatements(b: EventBundle): InStatement[] {
     s.push({
       sql: `INSERT OR REPLACE INTO matches (season, code, level, series, number, label, description, time, played,
               red_total, red_np, red_auto, red_teleop, red_endgame, red_pen, red_bonus, red_tips,
-              blue_total, blue_np, blue_auto, blue_teleop, blue_endgame, blue_pen, blue_bonus, blue_tips, video, source)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      args: [...k, m.level, m.series, m.number, m.label, m.description, m.time, m.played ? 1 : 0, ...sc(m.redScore), ...sc(m.blueScore), m.video ?? null, e.source],
+              blue_total, blue_np, blue_auto, blue_teleop, blue_endgame, blue_pen, blue_bonus, blue_tips, video, source, field, breakdown)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      args: [...k, m.level, m.series, m.number, m.label, m.description, m.time, m.played ? 1 : 0, ...sc(m.redScore), ...sc(m.blueScore), m.video ?? null, e.source, m.field ?? null, m.played ? (m.breakdown === false ? 0 : 1) : null],
     });
     for (const [alliance, ts] of [["red", m.red], ["blue", m.blue]] as const) {
       for (const t of ts) {
