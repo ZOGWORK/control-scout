@@ -52,7 +52,7 @@ function Highlights({ items }: { items: ChangelogHighlight[] }) {
       {items.map((h, i) => {
         const { icon: Icon, tone } = toneOf(h.tag);
         return (
-          <li key={i} className="flex items-center gap-3 text-[15px] leading-snug text-foreground">
+          <li key={i} className="flex items-center gap-3 text-[0.9375rem] leading-snug text-foreground">
             <span className={cn("grid size-8 shrink-0 place-items-center rounded-lg", tone)} aria-hidden><Icon className="size-4" /></span>
             <span><Line text={h.text} /></span>
           </li>

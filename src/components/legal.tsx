@@ -72,7 +72,7 @@ export function LegalSections({ sections }: { sections: LegalSectionDef[] }) {
 export function Prose({ children, className }: { children: ReactNode; className?: string }) {
   return (
     <div className={cn(
-      "space-y-3 text-[15px] leading-relaxed text-text-muted",
+      "space-y-3 text-[0.9375rem] leading-relaxed text-text-muted",
       "[&_strong]:font-semibold [&_strong]:text-foreground [&_ul]:list-disc [&_ul]:space-y-1.5 [&_ul]:pl-5 [&_li]:marker:text-text-muted/50",
       "[&_a]:font-medium [&_a]:text-foreground [&_a]:underline [&_a]:decoration-accent/60 [&_a]:underline-offset-2 hover:[&_a]:decoration-accent",
       className,

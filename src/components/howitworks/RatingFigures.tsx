@@ -24,7 +24,7 @@ export function RatingChips() {
           <div key={c.k} className="min-w-0 rounded-xl border border-border bg-muted/50 p-3 transition-transform duration-500 ease-[cubic-bezier(.34,1.56,.64,1)] hover:-translate-y-0.5 hover:-rotate-[.4deg] motion-reduce:transform-none">
             <div className="font-mono text-[11px] uppercase tracking-[0.08em] text-muted-foreground">{c.k}</div>
             <div className={`font-display text-3xl font-bold leading-tight tabular-nums ${c.pen ? "text-red-alliance" : "text-foreground"}`}><CountUp value={c.v} decimals={1} /></div>
-            <div className="text-[13px] leading-snug text-muted-foreground">{c.d}</div>
+            <div className="text-[0.8125rem] leading-snug text-muted-foreground">{c.d}</div>
           </div>
         ))}
       </div>
@@ -38,7 +38,7 @@ export function WorkedUpdate() {
   const u = ratingUpdate(145, 165, 2); // the engine counts matches already played: a 3rd match has 2 before it
   return (
     // A Tab stop (with a name) so a keyboard can scroll it sideways on a phone, where it's wider than the screen.
-    <div role="region" tabIndex={0} aria-label="Worked example of a rating update" className="custom-scrollbar overflow-x-auto whitespace-nowrap rounded-xl border outline-none focus-visible:ring-2 focus-visible:ring-ring/60 border-border bg-card px-4 py-3 font-mono text-[13px] leading-[1.95] text-foreground/90">
+    <div role="region" tabIndex={0} aria-label="Worked example of a rating update" className="custom-scrollbar overflow-x-auto whitespace-nowrap rounded-xl border outline-none focus-visible:ring-2 focus-visible:ring-ring/60 border-border bg-card px-4 py-3 font-mono text-[0.8125rem] leading-[1.95] text-foreground/90">
       Red expected 145, scored 165 → miss = <b>+{u.miss}</b><br />
       each robot's share = {u.miss} ÷ 2 = <b>+{u.share}</b><br />
       robot on its 3rd match (2 played before): gain = {RATING.k0} ÷ (1 + 2/{RATING.n0}) = <b>{u.gain.toFixed(2)}</b><br />

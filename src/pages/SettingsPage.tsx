@@ -49,6 +49,7 @@ import { workspacesOf } from "../lib/scoutSpace";
 import { Group, Row } from "../components/settings/rows";
 import { WorkspaceSection } from "../components/settings/WorkspaceSection";
 import { openWhatsNew } from "../components/WhatsNew";
+import { TEXT_SIZES, isTextSize, setTextSize, useTextSize } from "../lib/textSize";
 import { currentRelease } from "../lib/changelog";
 
 type SectionId = "profile" | "appearance" | "tracking" | "notifications" | "offline" | "scouting" | "privacy" | "workspace" | "about";
@@ -57,7 +58,7 @@ interface SectionDef { id: SectionId; label: string; hint: string; icon: Compone
 
 const ALL_SECTIONS: SectionDef[] = [
   { id: "profile", label: "Profile", hint: "Sign in to sync, your name, your account", icon: UserRound, group: "Personal" },
-  { id: "appearance", label: "Appearance", hint: "Theme, background, density", icon: Palette, group: "Personal" },
+  { id: "appearance", label: "Appearance", hint: "Theme, text size, background", icon: Palette, group: "Personal" },
   { id: "tracking", label: "My team & tracking", hint: "Your team, and the teams and events you follow", icon: Star, group: "Personal" },
   { id: "notifications", label: "Notifications", hint: "Push and match alerts for your teams", icon: BellRing, group: "Personal" },
   { id: "offline", label: "Offline data", hint: "Packs, cache and recordings on this device", icon: HardDriveDownload, group: "Personal" },
@@ -299,6 +300,7 @@ function SignedIn({ user, sync, onSignOut }: { user: AccountUser; sync: string; 
 function Appearance() {
   const { state, update } = usePersonal();
   const s = state.settings;
+  const textSize = useTextSize();
   return (
     <div>
       <Group title="Display" description="Yours alone, on every device, inside a workspace's scout space too.">
@@ -313,6 +315,11 @@ function Appearance() {
           <ToggleGroup type="single" value={s.density} onValueChange={(v) => { if (v) update("settings", (x) => ({ ...x, density: v as typeof s.density })); }} aria-label="Density">
             <ToggleGroupItem value="comfortable">Comfortable</ToggleGroupItem>
             <ToggleGroupItem value="compact">Compact</ToggleGroupItem>
+          </ToggleGroup>
+        </Row>
+        <Row label="Text size" description="Everything scales together: text, boxes and buttons. Kept on this device, so your phone and laptop can differ.">
+          <ToggleGroup type="single" value={textSize} onValueChange={(v) => { if (isTextSize(v)) setTextSize(v); }} aria-label="Text size">
+            {TEXT_SIZES.map((t) => <ToggleGroupItem key={t.id} value={t.id}>{t.label}</ToggleGroupItem>)}
           </ToggleGroup>
         </Row>
       </Group>

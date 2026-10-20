@@ -98,7 +98,7 @@ export function SectionNav() {
             return (
               <a
                 key={s.id} href={`#${s.id}`} data-id={s.id} onClick={(e) => go(e, s.id)} aria-current={on ? "location" : undefined}
-                className={cn("relative shrink-0 rounded-lg px-3 py-2 font-display text-[13px] font-semibold transition-colors", on ? "text-accent-ink" : "text-muted-foreground hover:text-foreground")}
+                className={cn("relative shrink-0 rounded-lg px-3 py-2 font-display text-[0.8125rem] font-semibold transition-colors", on ? "text-accent-ink" : "text-muted-foreground hover:text-foreground")}
               >
                 {on && <m.span layoutId="hiw-toc" aria-hidden className="absolute inset-0 rounded-lg bg-accent" transition={{ type: "spring", stiffness: 380, damping: 30 }} />}
                 <span className="relative">{s.label}</span>

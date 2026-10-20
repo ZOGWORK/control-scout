@@ -36,7 +36,7 @@ export function PageHeader({ title, description, phoneDescription, actions, eyeb
       <div className={cn("flex flex-wrap items-end justify-between gap-4", tight && "max-md:gap-2")}>
         <div className="min-w-0">
           {eyebrow && <p className={cn("mb-2 text-xs font-medium uppercase tracking-[0.08em] text-muted-foreground", tight && "max-md:hidden")}>{eyebrow}</p>}
-          <h1 className="font-display text-2xl font-semibold tracking-tight text-foreground sm:text-[32px] sm:leading-tight">{title}</h1>
+          <h1 className="font-display text-2xl font-semibold tracking-tight text-foreground sm:text-[2rem] sm:leading-tight">{title}</h1>
           {description && <p className={cn("mt-1.5 max-w-2xl text-sm text-muted-foreground", tight && "max-md:hidden")}>{description}</p>}
           {tight && <p className="mt-0.5 truncate text-sm text-muted-foreground md:hidden">{phoneDescription}</p>}
         </div>
