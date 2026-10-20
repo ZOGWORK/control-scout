@@ -26,7 +26,7 @@ const view = (code: string, changes: ResultChange[], o: Partial<ResultChangesVie
   season: S, code, match: null, trackedSince: "2026-11-07T14:00:00.000Z", lastChecked: "2026-11-07T15:05:00.000Z", labels, changes, cap: 500, pruned: 0, ...o,
 });
 
-let answers: Record<string, ResultChangesView>;
+let answers: Record<string, unknown>;
 let asked: string[];
 beforeEach(() => {
   answers = {}; asked = [];
@@ -38,7 +38,7 @@ beforeEach(() => {
 });
 afterEach(() => { cleanup(); vi.unstubAllGlobals(); });
 
-const show = (code: string, matchKey?: string) => render(<MemoryRouter><ResultChanges season={S} code={code} matchKey={matchKey} /></MemoryRouter>);
+const show = (code: string, matchKey?: string, refreshKey?: string) => render(<MemoryRouter><ResultChanges season={S} code={code} matchKey={matchKey} refreshKey={refreshKey} /></MemoryRouter>);
 
 describe("ResultChanges", () => {
   it("lists an event's changes with old → new values, source, time seen and a link to the exact match", async () => {
@@ -113,6 +113,45 @@ describe("ResultChanges", () => {
     expect(asked).toEqual([`/api/events/${S}/EVE/matches/qual:0:2/result-changes`]);
     expect(screen.queryByRole("link")).toBeNull();
     expect(screen.getByText("Q2")).toBeTruthy();
+  });
+
+  it("shows a moved match's dates, not only its weekday and time", async () => {
+    const lineup = { field: "1", red: [201, 202], blue: [203, 204] };
+    const week: ResultChange = { ...moved, kind: "schedule", fields: ["time"], before: { ...lineup, time: "2026-11-07T10:00:00" }, after: { ...lineup, time: "2026-11-14T10:00:00" } };
+    answers[`/api/events/${S}/EVH/result-changes`] = view("EVH", [week]);
+    show("EVH");
+    const row = (await screen.findByText("Scheduled time")).nextElementSibling!.textContent!;
+    const [before, after] = row.split("changed to");
+    expect(before).not.toBe(after);
+    expect(before).toMatch(/7/);
+    expect(after).toMatch(/14/);
+  });
+
+  it("asks again in place when its refresh key changes (a live check, a refresh)", async () => {
+    const path = `/api/events/${S}/EVI/result-changes`;
+    answers[path] = view("EVI", []);
+    const r = render(<MemoryRouter><ResultChanges season={S} code="EVI" refreshKey="a" /></MemoryRouter>);
+    await screen.findByText(/^No changes recorded/);
+    expect(asked.filter((p) => p === path)).toHaveLength(1);
+    answers[path] = view("EVI", [posted]);
+    r.rerender(<MemoryRouter><ResultChanges season={S} code="EVI" refreshKey="b" /></MemoryRouter>);
+    expect(await screen.findByText("Result posted")).toBeTruthy();
+    expect(asked.filter((p) => p === path)).toHaveLength(2);
+  });
+
+  it.each([
+    ["a null entry", { changes: [null] }],
+    ["an entry of an unknown kind", { changes: [{ ...posted, kind: "other" }] }],
+    ["a revision without values", { changes: [{ ...revised, before: null }] }],
+    ["a schedule change without lineups", { changes: [{ ...moved, after: { time: null, field: null } }] }],
+    ["no labels", { labels: null }],
+  ])("shows an error, not a broken page, for an answer with %s", async (_, bad) => {
+    const code = `BAD${Math.random().toString(36).slice(2, 7).toUpperCase()}`;
+    answers[`/api/events/${S}/${code}/result-changes`] = { ...view(code, [posted]), ...bad };
+    show(code);
+    expect(await screen.findByText("Couldn't load this")).toBeTruthy();
+    expect(screen.getByText(/not in the expected form/)).toBeTruthy();
+    expect(screen.queryByRole("listitem")).toBeNull();
   });
 
   it("shows a withdrawn result with what it was", async () => {

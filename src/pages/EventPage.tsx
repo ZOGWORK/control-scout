@@ -190,7 +190,7 @@ function Event({ d, path }: { d: EventDetail; path: string }) {
         <TabsContent value="matches" className="mt-5">
           <Matches d={d} team={teamParam} />
           {/* Official results first posted, corrected or rescheduled (self-contained: its own route). */}
-          <ResultChanges season={e.season} code={e.code} />
+          <ResultChanges season={e.season} code={e.code} refreshKey={recordsKey} />
         </TabsContent>
         <TabsContent value="rankings" className="mt-5">
           {tab === "rankings" && (
