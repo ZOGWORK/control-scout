@@ -9,7 +9,7 @@ type Verdict = "ship" | "no" | "off";
 const TAG: Record<Verdict, { text: string; cls: string }> = {
   ship: { text: "Shipped", cls: "text-success" },
   no: { text: "Rejected", cls: "text-red-alliance" },
-  off: { text: "Built, switched off", cls: "hiw-gold" },
+  off: { text: "Built, switched off", cls: "hiw-gold-text" },
 };
 
 const NOTES: { v: Verdict; title: string; body: string; more: string; wide?: boolean }[] = [

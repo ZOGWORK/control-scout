@@ -298,6 +298,95 @@ const flows: Flow[] = [
     },
   },
   {
+    // V4-A11Y-003: on light, Compare's best values were #eab308 on their own gold tint, 1.8:1. Measured as rendered:
+    // each gold text's colour against its real background (semi-transparent tints blended down to the page).
+    // The profile's large "Top 8%" stays the accent itself, the owner's large-text exception (Oct 20 2026).
+    name: "Light-mode gold text: small gold text reaches 4.5:1 on its real background; large Top 8% keeps the accent",
+    async run(page, ctx) {
+      await ctx.addInitScript(() => {
+        localStorage.setItem("cs-consent", JSON.stringify({ analytics: false, at: "2026-01-01T00:00:00.000Z", v: 1 }));
+        localStorage.setItem("cs-personal:settings", JSON.stringify({ value: { theme: "light", density: "comfortable", notify: {} }, updatedAt: 1 }));
+      });
+      await page.emulateMedia({ colorScheme: "light", reducedMotion: "reduce" });
+      const seen: string[] = [];
+      for (const [vp, width, height] of [["desktop", 1440, 900], ["phone", 390, 844]] as const) {
+        await page.setViewportSize({ width, height });
+        await page.goto(`${BASE}/compare?teams=18360,24089&season=2025`, { waitUntil: "networkidle" });
+        await page.locator("td:has(> .sr-only) > span.font-medium").first().waitFor({ timeout: 30_000 });
+        await page.waitForFunction(() => !document.querySelector(".skeleton, [aria-busy=true]"), null, { timeout: 30_000 });
+        await page.waitForTimeout(500);
+        assert(await page.evaluate(() => document.documentElement.classList.contains("light")), `${vp}: the page isn't in the light theme`);
+        const texts = await page.evaluate(() => {
+          type C = [number, number, number, number];
+          // Computed colours come back as rgb()/rgba(), color(srgb …) for Tailwind's alpha tints (bg-accent/[0.08]), or
+          // oklch()/oklab() for its palette (text-amber-700): those go through a canvas, opaque, with the alpha read off.
+          const paint = document.createElement("canvas").getContext("2d", { willReadFrequently: true })!;
+          const parse = (s: string): C => {
+            if (s === "transparent") return [0, 0, 0, 0];
+            let m = /^rgba?\(([\d.]+),\s*([\d.]+),\s*([\d.]+)(?:,\s*([\d.]+))?\)$/.exec(s);
+            if (m) return [+m[1], +m[2], +m[3], m[4] == null ? 1 : +m[4]];
+            m = /^color\(srgb ([\d.e-]+) ([\d.e-]+) ([\d.e-]+)(?: \/ ([\d.e-]+))?\)$/.exec(s);
+            if (m) return [+m[1] * 255, +m[2] * 255, +m[3] * 255, m[4] == null ? 1 : +m[4]];
+            m = /^(\w+\([^/)]*?)\s*(?:\/\s*([\d.]+)(%?))?\)$/.exec(s);
+            if (!m) throw new Error(`can't read the colour ${s}`);
+            paint.clearRect(0, 0, 1, 1);
+            paint.fillStyle = "#000";
+            paint.fillStyle = `${m[1]})`;
+            paint.fillRect(0, 0, 1, 1);
+            const [r, g, b] = paint.getImageData(0, 0, 1, 1).data;
+            return [r, g, b, m[2] == null ? 1 : m[3] ? +m[2] / 100 : +m[2]];
+          };
+          const over = (t: C, u: C): C => [t[0] * t[3] + u[0] * (1 - t[3]), t[1] * t[3] + u[1] * (1 - t[3]), t[2] * t[3] + u[2] * (1 - t[3]), 1];
+          const lum = (c: C) => { const f = (v: number) => { const x = v / 255; return x <= 0.04045 ? x / 12.92 : ((x + 0.055) / 1.055) ** 2.4; }; return 0.2126 * f(c[0]) + 0.7152 * f(c[1]) + 0.0722 * f(c[2]); };
+          const ratio = (a: C, b: C) => { const [hi, lo] = [lum(a), lum(b)].sort((x, y) => y - x); return (hi + 0.05) / (lo + 0.05); };
+          // The background a text sits on: every ancestor's background colour, blended from the page up.
+          const backdrop = (el: Element): C => {
+            const layers: C[] = [];
+            for (let n: Element | null = el; n; n = n.parentElement) {
+              const c = parse(getComputedStyle(n).backgroundColor);
+              if (c[3] > 0) { layers.push(c); if (c[3] >= 1) break; }
+            }
+            let bg: C = [255, 255, 255, 1];
+            for (const l of layers.reverse()) bg = over(l, bg);
+            return bg;
+          };
+          // Gold: a warm, saturated hue (amber through yellow), whatever shade.
+          const gold = (c: C) => { const [r, g, b] = c, max = Math.max(r, g, b), min = Math.min(r, g, b); if (max - min < 60 || max !== r || b > g) return false; const h = 60 * ((g - b) / (max - min)); return h >= 25 && h <= 60; };
+          const out: { text: string; kind: string; fg: string; bg: string; px: number; weight: number; ratio: number }[] = [];
+          const hex = (c: C) => "#" + c.slice(0, 3).map((v) => Math.round(v).toString(16).padStart(2, "0")).join("");
+          for (const el of document.querySelectorAll<HTMLElement>("main *")) {
+            const own = [...el.childNodes].filter((n) => n.nodeType === 3).map((n) => n.textContent ?? "").join("").trim();
+            if (!own || el.closest(".recharts-wrapper, .sr-only, [aria-hidden=true]") || !el.getClientRects().length) continue;
+            const cs = getComputedStyle(el), fg = parse(cs.color);
+            if (!gold(fg)) continue;
+            const bg = backdrop(el), shown = over([fg[0], fg[1], fg[2], fg[3] * +cs.opacity], bg);
+            const best = el.matches("td:has(> .sr-only) > span.font-medium");
+            out.push({ text: own.slice(0, 30), kind: best ? "best value" : el.closest("[role=radio]") ? "season" : "other", fg: hex(shown), bg: hex(bg), px: parseFloat(cs.fontSize), weight: +cs.fontWeight, ratio: ratio(shown, bg) });
+          }
+          return out;
+        });
+        const best = texts.filter((t) => t.kind === "best value");
+        assert(best.length >= 4, `${vp}: found ${best.length} gold best values on Compare (expected at least 4, e.g. 149.9, 55.1, 11.9, 23-5-0)`);
+        assert(texts.some((t) => t.kind === "season"), `${vp}: the chosen season isn't gold`);
+        // Small text: under 24px, or under 18.66px when bold (WCAG's large-text line).
+        const small = texts.filter((t) => t.px < 24 && !(t.px >= 18.66 && t.weight >= 700));
+        const bad = small.filter((t) => t.ratio < 4.5);
+        assert(!bad.length, `${vp}: small gold text under 4.5:1: ${bad.map((t) => `"${t.text}" (${t.kind}) ${t.fg} on ${t.bg} ${t.px}px ${t.ratio.toFixed(2)}:1`).join("; ")}`);
+        seen.push(`${vp} ${small.length} small gold texts, lowest ${Math.min(...small.map((t) => t.ratio)).toFixed(2)}:1 (best ${best[0].text} ${best[0].fg} on ${best[0].bg} ${best[0].ratio.toFixed(2)}:1)`);
+      }
+      // The owner's exception: the profile's 48px percentile stays the accent itself.
+      await page.setViewportSize({ width: 1440, height: 900 });
+      await page.goto(`${BASE}/teams/18360?season=2025`, { waitUntil: "networkidle" });
+      const top = page.locator("main p.font-display.text-5xl").first();
+      await top.waitFor({ timeout: 30_000 });
+      const pct = await top.evaluate((el) => ({ text: el.textContent ?? "", color: getComputedStyle(el).color, px: parseFloat(getComputedStyle(el).fontSize) }));
+      assert(/^Top \d+%$/.test(pct.text.trim()), `profile percentile reads "${pct.text}"`);
+      assert(pct.color === "rgb(234, 179, 8)", `"${pct.text}" is ${pct.color}, expected the accent #eab308 (owner's large-text exception)`);
+      assert(pct.px >= 24, `"${pct.text}" is ${pct.px}px, no longer large text`);
+      return `${seen.join("; ")}; "${pct.text}" stays #eab308 at ${pct.px}px`;
+    },
+  },
+  {
     name: "Venue with no signal: the production app opens offline and still predicts",
     prod: true,
     async run(page, ctx) {
