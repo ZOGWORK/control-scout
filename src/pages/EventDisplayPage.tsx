@@ -71,7 +71,7 @@ function Display({ d, reconnecting }: { d: EventDetail; reconnecting: boolean })
           {reconnecting && <p className="flex items-center justify-end gap-2 text-amber-400" style={u(1.6)} role="status"><span className="inline-block size-[calc(var(--u)*1)] rounded-full bg-amber-400" aria-hidden /> Reconnecting…</p>}
         </div>
       </header>
-      <main className="grid min-h-0 flex-1 gap-[calc(var(--u)*1.6)] lg:grid-cols-12">
+      <div className="grid min-h-0 flex-1 gap-[calc(var(--u)*1.6)] lg:grid-cols-12">
         <section className="flex min-h-0 flex-col gap-[calc(var(--u)*1.6)] lg:col-span-5">
           <NowPanel d={d} m={m} mine={mine} />
           <Countdown m={m} />
@@ -81,7 +81,7 @@ function Display({ d, reconnecting }: { d: EventDetail; reconnecting: boolean })
           <Rankings m={m} mine={mine} />
           <Corner href={eventHref} />
         </section>
-      </main>
+      </div>
     </div>
   );
 }
@@ -225,7 +225,7 @@ function UpNext({ d, m, mine }: { d: EventDetail; m: DisplayModel; mine: Readonl
       {rows.length ? (
         <ol className="flex min-h-0 flex-col gap-[calc(var(--u)*1)]">{rows.map((x) => <MatchRow key={x.key} m={x} d={d} mine={mine} pin={x === m.mine} />)}</ol>
       ) : (
-        <p className="text-zinc-400" style={u(2.2)}>{m.noSchedule ? "The schedule isn't posted yet." : m.unreported ? `The event is over. ${m.unreported} scheduled match${m.unreported === 1 ? " has" : "es have"} no posted result.` : "Every scheduled match has been played."}</p>
+        <p className="text-zinc-400" style={u(2.2)}>{m.noSchedule ? "The schedule isn't posted yet." : m.unreported ? `The event is over. ${m.unreported} scheduled match${m.unreported === 1 ? " has" : "es have"} no posted result.` : m.rankings.final ? "Every scheduled match has been played." : "Every posted match is played. The next ones show here as soon as they're posted."}</p>
       )}
     </section>
   );

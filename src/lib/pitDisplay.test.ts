@@ -74,6 +74,15 @@ describe("displayModel", () => {
     expect(m).toMatchObject({ now: { kind: "result", match: { number: 1 } }, upNext: [], countdown: null, unreported: 1, progress: "Event finished" });
   });
 
+  it("every posted match played while the event is still on (alliance selection): not finished", () => {
+    const m = displayModel(detail([q(1, -20, [120, 80]), q(2, -10, [70, 90])], { status: "live" }), T0);
+    expect(m).toMatchObject({ rankings: { final: false }, winners: null, upNext: [], countdown: null, progress: "Qual 2 of 2" });
+  });
+
+  it("a finished event never pins an unreported match as your next one", () => {
+    expect(displayModel(detail([q(1, -20, [120, 80]), q(2, -10)], { status: "finished" }), T0, new Set([21])).mine).toBeNull();
+  });
+
   it("your next match is pinned when it isn't already first up; highlight only, the same data otherwise", () => {
     const plain = displayModel(detail(matches()), T0);
     const mine = displayModel(detail(matches()), T0, new Set([51]));

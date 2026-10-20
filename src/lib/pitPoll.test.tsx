@@ -40,6 +40,15 @@ describe("useDisplayPoll", () => {
   });
 });
 
+describe("before anything loaded", () => {
+  it("a failed first load is retried within seconds, not after the 5-minute idle cadence", async () => {
+    load.mockResolvedValue({});
+    renderHook(() => useDisplayPoll(undefined, "/p"));
+    await act(async () => { await vi.advanceTimersByTimeAsync(5_000); });
+    expect(load).toHaveBeenCalledTimes(1);
+  });
+});
+
 describe("qrPath", () => {
   it("a square of modules for the address", () => {
     const q = qrPath("https://controlscout.org/events/2026/USMNMAN");

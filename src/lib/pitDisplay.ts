@@ -82,7 +82,9 @@ export interface DisplayModel {
 
 export function displayModel(d: EventDetail, now: number, highlight: ReadonlySet<number> = new Set()): DisplayModel {
   const all = unplayed(d.matches);
-  const finished = d.event.status === "finished" || (d.matches.length > 0 && !all.length);
+  // Only the event's own status says it's over: every posted match being played can just mean alliance
+  // selection, or the next playoff round not posted yet.
+  const finished = d.event.status === "finished";
   // Once the event is over (its last day has passed), a match without a result is one that was never reported,
   // not one still to come: nothing is up now or next, and no countdown.
   const left = finished ? [] : all;
@@ -92,7 +94,7 @@ export function displayModel(d: EventDetail, now: number, highlight: ReadonlySet
   const nowPanel = onField ? { match: onField, kind: "on-field" as const } : last ? { match: last, kind: "result" as const } : null;
   const queue = onField ? left.slice(1) : left;
   const upNext = queue.slice(0, UP_NEXT);
-  const mineMatch = highlight.size ? nextMatch(d.matches, highlight) : null;
+  const mineMatch = highlight.size ? nextMatch(left, highlight) : null;
   const mine = mineMatch && mineMatch.key !== onField?.key && mineMatch.key !== upNext[0]?.key ? mineMatch : null;
   // Behind schedule: an unplayed match more than LATE_MS past its start. Then no timer at all.
   const behind = left.some((m) => Number.isFinite(at(m)) && now - at(m) > LATE_MS);
