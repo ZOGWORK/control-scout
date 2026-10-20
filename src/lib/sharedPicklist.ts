@@ -582,6 +582,7 @@ export function usePickList(space: string | null, season: number, live: LiveMode
           : u.uncertain ? NOTE_UNCONFIRMED : u.kept === false ? "Not saved yet, and this device couldn't keep a copy." : "Not saved yet. Your text is kept on this device.",
         retry: () => change({ op: "note", team, note: u.note }),
         discard: () => discardNote(team), discardLabel: u.conflict ? "Keep theirs" : "Discard",
+        text: u.note, ...(u.base !== undefined ? { base: u.base } : {}),
         ...(u.kept === false ? { volatile: true } : {}),
       });
     }
