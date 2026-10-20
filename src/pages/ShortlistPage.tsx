@@ -122,7 +122,7 @@ export default function ShortlistPage() {
     <div>
       <header className="mb-4">
         <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
-          <h1 className="font-display text-2xl font-semibold tracking-tight text-foreground sm:text-[32px] sm:leading-tight">Shortlist</h1>
+          <h1 className="font-display text-2xl font-semibold tracking-tight text-foreground sm:text-[2rem] sm:leading-tight">Shortlist</h1>
           {shown.length >= 2 && <Button variant="secondary" asChild data-print-hide><Link to={compareHref(compareTeams, season)}><Scale /> {compareLabel}</Link></Button>}
         </div>
         <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-2 text-sm text-muted-foreground">

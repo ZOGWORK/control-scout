@@ -91,14 +91,14 @@ function Card({ note, delay }: { note: (typeof NOTES)[number]; delay: number }) 
     <Reveal delay={delay} className={cn("min-w-0", note.wide && "md:col-span-2")}>
       <article className="grid h-full content-start gap-2 rounded-2xl border border-border bg-card p-4 transition-transform duration-500 ease-[cubic-bezier(.34,1.56,.64,1)] hover:-translate-y-0.5 motion-reduce:transform-none sm:p-5">
         <span className={cn("w-fit rounded-full border border-current px-2 py-0.5 font-mono text-[10.5px] font-semibold uppercase tracking-[0.08em]", tag.cls)}>{tag.text}</span>
-        <h3 className="font-display text-[17px] font-semibold text-foreground">{note.title}</h3>
+        <h3 className="font-display text-[1.0625rem] font-semibold text-foreground">{note.title}</h3>
         <p className="text-sm leading-relaxed text-muted-foreground">{note.body}</p>
         <button type="button" aria-expanded={open} aria-controls={id} onClick={() => setOpen((o) => !o)}
           className="inline-flex min-h-9 w-fit items-center gap-1 rounded-lg border border-border bg-muted/60 px-3 font-mono text-xs font-semibold text-foreground transition-colors hover:bg-muted">
           {open ? "Hide details" : "Details"} <ChevronRight className={cn("size-3.5 transition-transform duration-300", open && "rotate-90")} />
         </button>
         <div id={id} className="hiw-expand" data-open={open ? "" : undefined} aria-hidden={!open}>
-          <div><p className="pt-1 text-[13.5px] leading-relaxed text-muted-foreground">{note.more}</p></div>
+          <div><p className="pt-1 text-[0.8438rem] leading-relaxed text-muted-foreground">{note.more}</p></div>
         </div>
       </article>
     </Reveal>
