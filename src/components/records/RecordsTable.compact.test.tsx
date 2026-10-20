@@ -105,6 +105,21 @@ describe("records table on a phone", () => {
     expect(screen.getByText("No saved filters yet.")).toBeTruthy();
   });
 
+  it("asking for the other side while the builder is open turns it there", async () => {
+    mount("/teams?view=season&season=2025");
+    fireEvent.click(filtersButton());
+    fireEvent.click(await screen.findByRole("button", { name: /Saved filters/ }));
+    await waitFor(() => expect(screen.getByRole("tab", { name: /Saved filters/, selected: true })).toBeTruthy());
+    // The builder panel stays open (it isn't modal); the sheet opens again over it.
+    fireEvent.click(filtersButton());
+    fireEvent.click(await screen.findByRole("button", { name: /Add a condition/ }));
+    await waitFor(() => expect(screen.queryByRole("dialog", { name: "Filters" })).toBeNull());
+    await waitFor(() => expect(screen.getByRole("tab", { name: /Build/, selected: true, hidden: true })).toBeTruthy());
+    fireEvent.click(filtersButton());
+    fireEvent.click(await screen.findByRole("button", { name: /Saved filters/ }));
+    await waitFor(() => expect(screen.getByRole("tab", { name: /Saved filters/, selected: true, hidden: true })).toBeTruthy());
+  });
+
   it("wider screens keep the inline controls and toolbar", () => {
     phone(false);
     mount("/teams?view=season&season=2025&region=USTX");
