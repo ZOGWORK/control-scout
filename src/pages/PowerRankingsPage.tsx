@@ -130,7 +130,7 @@ function Week({ w, archive, onLink }: { w: PowerRankingsWeek; archive: PowerRank
         actions={<Button variant="secondary" onClick={() => void share(w)}><Share2 /> Share</Button>}
       />
       {w.sample && (
-        <div role="note" className="-mt-4 mb-6 flex items-start gap-3 rounded-xl border border-amber-500/40 bg-amber-500/10 p-3 text-sm text-amber-700 dark:text-amber-300">
+        <div role="note" className="-mt-4 mb-6 flex items-start gap-3 rounded-xl border border-amber-500/40 bg-amber-500/10 p-3 text-sm text-accent-text">
           <FlaskConical className="mt-0.5 size-4 shrink-0" aria-hidden />
           <p><strong>Sample week.</strong> Development content to preview this page, not real rankings. It's never shown on the live site.</p>
         </div>

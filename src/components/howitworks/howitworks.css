@@ -16,7 +16,7 @@
   --hiw-spring: cubic-bezier(.34, 1.56, .64, 1);
   --hiw-ease: cubic-bezier(.2, .8, .2, 1);
 }
-html.light .hiw { --hiw-gold: #a16207; --hiw-line: #d4d4d8; }
+html.light .hiw { --hiw-gold: #eab308; --hiw-line: #d4d4d8; }
 
 .hiw-gold { color: var(--hiw-gold); }
 

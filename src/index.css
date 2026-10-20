@@ -107,7 +107,7 @@ html.light {
   --sh-muted-foreground: #52525b;
   --sh-border: #e4e4e7;
   --sh-input: #e4e4e7;
-  --sh-destructive: #be123c;
+  --sh-destructive: #b91c1c;
   --sh-chart-2: #0284c7;
   --sh-chart-3: #059669;
   --sh-chart-4: #7c3aed;
@@ -116,15 +116,17 @@ html.light {
   --color-accent: #eab308;
   --color-accent-hover: #ca8a04;
   --color-accent-soft: #eab3081f;
-  /* Text colours on light are a shade deeper than their dark-theme twins, so small text (and text on the
-     colour's own 15% tint, as in chips) stays at WCAG AA 4.5:1 while still reading as gold, sky, green… */
-  --color-accent-text: #854d0e;
-  --color-info: #0369a1;
-  --color-success: #036b4b;
-  --color-warning: #a8380b;
-  --color-danger: #be123c;
-  --color-red-alliance: #be123c;
-  --color-blue-alliance: #0369a1;
+  /* Gold text on light is the accent itself, the same yellow as bars and fills (the owner's call, Oct 20 2026,
+     over a deeper brown that read as "off"). It's under WCAG AA on white, so textTones.test.ts lists it as a
+     known exception. Green, red, blue and orange are the most vivid shades that still reach 4.5:1, on white
+     and on their own chip tints (a true green, red and blue, not the teal, crimson and steel they replaced). */
+  --color-accent-text: #eab308;
+  --color-info: #2152e0;
+  --color-success: #147238;
+  --color-warning: #c2410c;
+  --color-danger: #b91c1c;
+  --color-red-alliance: #b91c1c;
+  --color-blue-alliance: #2152e0;
   --grid-rgb: 9 9 11;
   --cp-grid-alpha: 0.05;
   color-scheme: light;

@@ -68,7 +68,11 @@ function measure(theme: Theme, classes: string, { surface = "--color-card", inhe
   const fade = /(?:^|\s)opacity-(\d+)(?:\s|$)/.exec(classes);
   if (fade) fg = [fg[0], fg[1], fg[2], fg[3] * (+fade[1] / 100)];
   const ratio = contrast(over(fg, bg), bg);
-  return { ratio, pair: `${toHex(over(fg, bg))} on ${toHex(bg)} = ${ratio.toFixed(2)}` };
+  const pair = `${toHex(over(fg, bg))} on ${toHex(bg)} = ${ratio.toFixed(2)}`;
+  // Known exception, the owner's call (Oct 20 2026): gold text on light is the accent itself (#eab308, the
+  // bars' and buttons' yellow), knowingly under AA. Only that exact colour, only on light; see the test below.
+  if (theme === "light" && !fade && toHex(fg) === toHex(value("light", "--color-accent"))) return { ratio: Infinity, pair: `${pair} (owner's gold exception)` };
+  return { ratio, pair };
 }
 
 const THEMES: Theme[] = ["light", "dark"];
@@ -122,6 +126,12 @@ describe("text tones reach WCAG AA in both themes", () => {
     });
   }
 
+  it("the light gold exception covers only the accent yellow itself, and dark gold still reaches AA", () => {
+    expect(toHex(value("light", "--color-accent-text"))).toBe(toHex(value("light", "--color-accent")));
+    expect(toHex(value("light", "--color-accent"))).toBe("#eab308");
+    expect(contrast(value("dark", "--color-accent-text"), value("dark", "--color-card"))).toBeGreaterThanOrEqual(AA);
+  });
+
   it("reads tints with arbitrary alpha, so a chip is measured on its real background", () => {
     // bg-info/[0.08] over the light card is a pale sky, not the card's white.
     expect(toHex(over(utility("light", "bg-info/[0.08]", "bg")!, value("light", "--color-card")))).not.toBe("#ffffff");
@@ -134,7 +144,7 @@ describe("text tones reach WCAG AA in both themes", () => {
     expect(measure("light", "bg-sky-400/15 text-sky-600 dark:text-sky-400").ratio).toBeLessThan(AA); // 3.53
     expect(measure("light", "bg-emerald-400/15 text-emerald-600 dark:text-emerald-400").ratio).toBeLessThan(AA); // 3.26
     expect(measure("light", "bg-green-500/12 text-green-600 dark:text-green-400").ratio).toBeLessThan(AA); // 2.87
-    expect(measure("light", "text-accent", { surface: "--color-secondary" }).ratio).toBeLessThan(LARGE); // 1.9
+    // Gold (text-accent on light, 1.9) is no longer here: it is the owner's deliberate exception (see measure()).
     expect(measure("dark", "tabular-nums opacity-70", { inherit: "--color-muted-foreground" }).ratio).toBeLessThan(AA); // 4.18
     expect(measure("light", "tabular-nums opacity-70", { inherit: "--color-muted-foreground" }).ratio).toBeLessThan(AA); // 3.61
   });
