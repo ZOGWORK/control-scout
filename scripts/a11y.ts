@@ -69,6 +69,9 @@ const ROUTES: Route[] = [
   { path: "/events?season=2025&status=finished&q=Brisbane", ready: "a[href^='/events/2025/']" },
   // A deep-linked tab opens under the slim bar (the glance summary is behind Event details): wait for the roster itself.
   { path: "/events/2025/AUBRQ2?tab=teams", ready: "[role=tabpanel] a[href^='/teams/']" },
+  // V4-A11Y-001: the bracket's and Advancement's h3 under the tab's own h2 (run with --best-practice for heading-order).
+  { path: "/events/2025/AUBRQ2?tab=playoffs", ready: "[role=tabpanel] h3" },
+  { path: "/events/2025/AUBRQ2?tab=awards", ready: "[role=tabpanel] li" },
   { path: "/compare?teams=18360,24089&season=2025", ready: ".recharts-legend-item-text" },
   // The brief open: its sentences and source links.
   { path: "/compare?teams=18360,24089&season=2025&brief=1", ready: "[data-kind]" },
