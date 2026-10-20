@@ -44,6 +44,36 @@ const selected = () => screen.getAllByRole("tab").filter((t) => t.getAttribute("
 beforeEach(() => { vi.stubGlobal("fetch", vi.fn(async () => new Response(JSON.stringify({ user: null }), { headers: { "Content-Type": "application/json" } }))); });
 afterEach(() => { cleanup(); vi.unstubAllGlobals(); current = detail(2025); });
 
+/** Each heading that's more than one level below the one before it (axe's heading-order). */
+const headingSkips = () => {
+  const out: string[] = [];
+  let prev = 0;
+  for (const h of document.querySelectorAll("h1, h2, h3, h4, h5, h6")) {
+    const level = Number(h.tagName[1]);
+    if (prev && level > prev + 1) out.push(`h${prev} → ${h.tagName.toLowerCase()} "${h.textContent}"`);
+    prev = level;
+  }
+  return out;
+};
+
+describe("event page heading order (V4-A11Y-001)", () => {
+  const alliance = (number: number, captain: number, pick1: number) => ({ number, name: null, captain, pick1, pick2: null, backup: null });
+  it("Playoffs: the bracket's heading sits under the tab's h2, not straight under the page's h1", () => {
+    current = { ...detail(2025), alliances: [alliance(1, 11, 12), alliance(2, 21, 22), alliance(3, 31, 32), alliance(4, 41, 42)] };
+    mount("/events/2025/AUBRQ2?tab=playoffs");
+    expect(screen.getByRole("heading", { level: 3, name: "Double-elimination bracket" })).toBeTruthy();
+    expect(screen.getByRole("heading", { level: 2, name: "Playoffs" })).toBeTruthy();
+    expect(headingSkips()).toEqual([]);
+  });
+
+  it("Awards: Advancement sits under the tab's h2", () => {
+    current = { ...detail(2025), awards: [{ type: "INSPIRE", placement: 1, team: 11, name: null }], advancement: { slots: 2, advancesTo: "AUCMP", rows: [{ team: 11, status: "FIRST", declined: false }] } };
+    mount("/events/2025/AUBRQ2?tab=awards");
+    expect(screen.getByRole("heading", { level: 3, name: /^Advancement/ })).toBeTruthy();
+    expect(headingSkips()).toEqual([]);
+  });
+});
+
 describe("event page ?tab=", () => {
   it("opens a real tab and keeps it in the address", () => {
     mount("/events/2025/AUBRQ2?tab=awards");
