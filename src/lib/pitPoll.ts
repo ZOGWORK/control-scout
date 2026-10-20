@@ -9,7 +9,8 @@ import type { EventDetail } from "../shared/api";
  *  after a failure, sooner (5, 10, 20, 30 s) until a fetch works again. True while it's failing. */
 export function useDisplayPoll(d: Pick<EventDetail, "event" | "live"> | undefined, path: string): boolean {
   const [failing, setFailing] = useState(false);
-  const every = (d ? pollInterval(d) : 0) || 5 * 60_000;
+  // Nothing loaded yet (the first request failed): try again soon, on the failure schedule, not in 5 minutes.
+  const every = !d ? 5000 : pollInterval(d) || 5 * 60_000;
   const fails = useRef(0);
   useEffect(() => {
     let stop = false;

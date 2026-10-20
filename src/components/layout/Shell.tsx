@@ -190,17 +190,18 @@ export function Shell({ children }: { children: ReactNode }) {
   useEffect(() => { firstPage.current = false; }, []);
   const toggle = () => setCollapsed((c) => { try { localStorage.setItem("cs-sidebar", c ? "0" : "1"); } catch { /* ignore */ } return !c; });
   // The pit display is the whole screen: no sidebar, top bar, tab bar or footer (src/shared/routes.ts isBareRoute).
-  if (isBareRoute(loc.pathname)) return <MotionConfig reducedMotion="user"><main id="main" ref={mainRef}>{children}</main></MotionConfig>;
+  // Only the chrome is left out: the same <main> stays, so the page scroll's hold on it (usePageScroll) stays good.
+  const bare = isBareRoute(loc.pathname);
   return (
     <MotionConfig reducedMotion="user">
       <TooltipProvider delayDuration={250}>
         {/* At least a screen tall; sideways overflow is clipped (clip, not hidden: no scroll box, so the sticky bars still stick). */}
         <div className="flex min-h-dvh w-full overflow-x-clip bg-primary text-text-base">
           <a href="#main" className="sr-only focus:not-sr-only focus:fixed focus:left-3 focus:top-3 focus:z-[200] focus:rounded-lg focus:bg-accent focus:px-3 focus:py-2 focus:text-accent-ink">Skip to content</a>
-          <Sidebar collapsed={collapsed} onToggle={toggle} />
+          {!bare && <Sidebar collapsed={collapsed} onToggle={toggle} />}
           <div className="flex min-w-0 flex-1 flex-col">
             {/* Sticky over the scrolling page: opaque, and --header-h tall (index.css: anchors land below it). */}
-            <header id={HEADER_ID} className="sticky top-0 z-30 flex h-(--header-h) shrink-0 items-center gap-3 border-b border-line bg-primary px-4 sm:px-6 lg:px-8">
+            {!bare && <header id={HEADER_ID} className="sticky top-0 z-30 flex h-(--header-h) shrink-0 items-center gap-3 border-b border-line bg-primary px-4 sm:px-6 lg:px-8">
               <Link to="/" className="md:hidden" aria-label="Home"><BrandMark className="size-6" /></Link>
               <p className="truncate text-sm text-text-muted"><span className="hidden sm:inline">Control Scout / </span><span className="text-text-base">{title}</span></p>
               <div className="flex flex-1 justify-end md:justify-center"><GlobalSearch /></div>
@@ -210,27 +211,29 @@ export function Shell({ children }: { children: ReactNode }) {
               {/* The notification inbox: top right, in the header only (never the sidebar). */}
               <InboxBell />
               <AccountMenu />
-            </header>
+            </header>}
             <div className="relative flex-1">
               {/* The ambient layer fills the screen under the top bar and stays there while the page scrolls
                   over it (sticky, and pulled out of the flow by its negative margin). svh, not dvh: a phone's
                   toolbar folding away must not resize it mid-scroll. */}
-              <div className="pointer-events-none sticky top-(--header-h) -mb-[calc(100svh-var(--header-h))] h-[calc(100svh-var(--header-h))]">
+              {!bare && <div className="pointer-events-none sticky top-(--header-h) -mb-[calc(100svh-var(--header-h))] h-[calc(100svh-var(--header-h))]">
                 <Ambient target={mainRef} />
-              </div>
-              <main id="main" ref={mainRef} className="m-canvas relative z-10">
+              </div>}
+              <main id="main" ref={mainRef} className={bare ? "relative" : "m-canvas relative z-10"}>
+                {bare ? children : (
                 <m.div key={loc.pathname} initial={firstPage.current ? false : { opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.18, ease: "easeOut" }} className="mx-auto flex min-h-[calc(100svh-var(--header-h))] w-full max-w-[1200px] flex-col px-4 pt-8 pb-28 sm:px-6 md:pb-8 max-md:[[data-sticky-actions]_&]:pb-44 lg:px-8 min-[1700px]:max-w-[1600px]">
                   <NoDataNotice />
                   {/* The page grows to fill the screen, so a short page still has its footer at the bottom. */}
                   <div className="min-w-0 flex-1">{children}</div>
                   <SiteFooter />
                 </m.div>
+                )}
               </main>
               {/* Takes the pointer while the page scrolls (index.css .scroll-shield), so rows don't hover mid-scroll. */}
               <div aria-hidden className="scroll-shield" />
             </div>
           </div>
-          <MobileTabs onMore={() => setMore(true)} moreRef={moreRef} />
+          {!bare && <MobileTabs onMore={() => setMore(true)} moreRef={moreRef} />}
           <WhatsNewHost />
           <Sheet open={more} onOpenChange={setMore}>
             <SheetContent side="left" returnFocus={toMore} className="w-[85vw] max-w-[320px] p-3">
