@@ -66,4 +66,34 @@ describe("the More sheet's focus", () => {
     expect(where).toBe("/rankings");
     expect(document.activeElement).toBe(more);
   });
+
+  it("opened by a tap that leaves focus on the page (Safari), Escape still lands on More", async () => {
+    shell();
+    const more = screen.getByRole("button", { name: "More" });
+    (document.activeElement as HTMLElement | null)?.blur();
+    fireEvent.click(more);
+    const sheet = await screen.findByRole("dialog");
+    await waitFor(() => expect(sheet.contains(document.activeElement)).toBe(true));
+    fireEvent.keyDown(document.activeElement!, { key: "Escape" });
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+    expect(document.activeElement).toBe(more);
+  });
+
+  // The sheet closes as What's new opens, taking the row that opened it along: closing What's new lands on More.
+  it.each(["keyboard", "tap"])("What's new from the sheet (%s) returns focus to More when it closes", async (how) => {
+    shell();
+    const more = screen.getByRole("button", { name: "More" });
+    if (how === "keyboard") act(() => more.focus()); else (document.activeElement as HTMLElement | null)?.blur();
+    fireEvent.click(more);
+    const sheet = await screen.findByRole("dialog");
+    const row = within(sheet).getByRole("button", { name: /What's new/ });
+    if (how === "keyboard") act(() => row.focus());
+    fireEvent.click(row);
+    const dialog = await screen.findByRole("dialog", { name: /What's new/ });
+    await waitFor(() => expect(screen.getAllByRole("dialog")).toHaveLength(1));
+    await waitFor(() => expect(dialog.contains(document.activeElement)).toBe(true));
+    fireEvent.keyDown(document.activeElement!, { key: "Escape" });
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+    await waitFor(() => expect(document.activeElement).toBe(more));
+  });
 });
