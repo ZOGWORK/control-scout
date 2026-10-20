@@ -19,7 +19,7 @@
 //   (server/inbox/inbox.ts).
 // - A removed team's row is kept (removed_at) so Undo ({op: "add", restore: true}) brings it back as it was:
 //   who added it, its note and who wrote it. Adding it again any other way starts it afresh.
-// - The workspace mirror row is created by the first change, not by a read.
+// - The workspace mirror row is created by the first change (or the first op id recorded), never by a read.
 import express, { type NextFunction, type Request, type Response, type Router } from "express";
 import type { InStatement } from "@libsql/client";
 import { all, db, get } from "../db.js";
@@ -133,10 +133,21 @@ const opStatements = (wsDbId: number, accountId: number, season: number, opId: s
   { sql: "DELETE FROM workspace_picklist_ops WHERE workspace_id = ? AND created_at < ?", args: [wsDbId, now - OP_ID_KEEP_MS] },
 ];
 
-/** Record a change accepted without writing the list (it changed nothing). No mirror row yet: nothing was ever written, nothing to replay over. */
+/**
+ * Record a change accepted without writing the list (it changed nothing). Its id is kept even so: removing a team
+ * that isn't there is accepted, and a copy sent after the team is added must still apply nothing. So the workspace's
+ * mirror row is created here when no change has made it yet.
+ */
 async function recordOp(m: Membership, season: number, opId: string, now: number) {
+  await db().batch(opStatements(await mirrorRow(m, now), m.accountId, season, opId, now), "write");
+}
+
+/** The workspace's mirror row id, created when nothing has yet (the first change to its list, or a recorded op id). */
+async function mirrorRow(m: Membership, now: number): Promise<number> {
+  await db().execute({ sql: "INSERT INTO workspaces (cp_workspace_id, name, created_at, updated_at) VALUES (?, ?, ?, ?) ON CONFLICT(cp_workspace_id) DO NOTHING", args: [m.workspaceId, m.workspaceName, new Date(now).toISOString(), new Date(now).toISOString()] });
   const ws = await get<{ id: number }>("SELECT id FROM workspaces WHERE cp_workspace_id = ?", [m.workspaceId]);
-  if (ws) await db().batch(opStatements(Number(ws.id), m.accountId, season, opId, now), "write");
+  if (!ws) throw new Error("workspace row missing after insert");
+  return Number(ws.id);
 }
 
 /** Which of these op ids this member's changes to the workspace were applied with (any season). */
@@ -152,10 +163,7 @@ export async function appliedOps(m: Membership, opIds: string[]): Promise<Set<st
 /** Write what changed (rows added, removed, moved or re-noted) and bump the version, in one transaction. */
 async function write(m: Membership, season: number, before: PickList, after: Pick[], now: number, opId: string | null = null) {
   // Lazily: the first change creates the workspace's mirror row (when no entry, template or setting has yet).
-  await db().execute({ sql: "INSERT INTO workspaces (cp_workspace_id, name, created_at, updated_at) VALUES (?, ?, ?, ?) ON CONFLICT(cp_workspace_id) DO NOTHING", args: [m.workspaceId, m.workspaceName, new Date(now).toISOString(), new Date(now).toISOString()] });
-  const ws = await get<{ id: number }>("SELECT id FROM workspaces WHERE cp_workspace_id = ?", [m.workspaceId]);
-  if (!ws) throw new Error("workspace row missing after insert");
-  const id = Number(ws.id);
+  const id = await mirrorRow(m, now);
   const old = new Map(before.picks.map((p) => [p.team, p]));
   const keep = new Set(after.map((p) => p.team));
   const stmts: InStatement[] = [];

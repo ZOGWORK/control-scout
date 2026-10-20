@@ -405,6 +405,16 @@ describe("shared pick list: op ids (a change kept on the device and sent again)"
     expect(order(await op(priya, "1131", { op: "remove", team: 105, opId: "rm-105-dddd" }))).toEqual([101, 104, 105]);
   });
 
+  it("a no-op removal is remembered even before the workspace's list was ever written", async () => {
+    const { priya } = await team("1137");
+    expect(await get("SELECT 1 FROM workspaces WHERE cp_workspace_id = ?", ["1137"])).toBeUndefined();
+    expect((await op(priya, "1137", { op: "remove", team: 101, opId: "first-rm-8888" })).json).toMatchObject({ changed: false });
+    await op(priya, "1137", { op: "add", team: 101 });
+    const again = await op(priya, "1137", { op: "remove", team: 101, opId: "first-rm-8888" });
+    expect(again.json).toMatchObject({ changed: false, replayed: true });
+    expect(order(again)).toEqual([101]);
+  });
+
   it("an op id is per author: another member's change with the same id is their own", async () => {
     const { priya, marcus } = await team("1132");
     await op(priya, "1132", { op: "add", team: 101, opId: "shared-id-eeee" });

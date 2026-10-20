@@ -11,7 +11,7 @@ import { MemoryRouter } from "react-router-dom";
 import type { PickList } from "../../shared/picklist";
 import type { ShortlistTeam } from "../../shared/api";
 import { resetFailedChanges, retryFailedChange, setPicklistAccount, useFailedChanges } from "../../lib/sharedPicklist";
-import { keptOps, putKeptOp, resetKeptOps, type KeptPickOp } from "../../lib/picklistOps";
+import { deleteKeptOp, keptOps, putKeptOp, resetKeptOps, type KeptPickOp } from "../../lib/picklistOps";
 import { SharedPicklist } from "./SharedPicklist";
 import { RecoverableChanges } from "./RecoverableChanges";
 
@@ -153,6 +153,21 @@ describe("a pick list order change kept through a reload", () => {
     await waitFor(async () => expect((await keptOps(1)).map((r) => r.opId)).toEqual(["missed-op-0002"]));
   });
 
+  it("one discarded in another tab while this page was checking it doesn't come back", async () => {
+    await putKeptOp(kept());
+    const real = globalThis.fetch;
+    vi.stubGlobal("fetch", async (path: string, init?: RequestInit) => {
+      // The check of it with the server: meanwhile, another tab discards it.
+      if (path.includes("&ops=")) await deleteKeptOp(1, "901", S, "kept-op-0001");
+      return real(path, init);
+    });
+    show();
+    await waitFor(() => expect(rows()).toEqual([101, 102, 103]));
+    await new Promise((r) => setTimeout(r, 100));
+    expect(notice()).toBeNull();
+    expect(posts).toEqual([]);
+  });
+
   it("a retry whose answer is lost, sent again: applied once (same op id)", async () => {
     await putKeptOp(kept());
     show();
@@ -220,10 +235,25 @@ describe("a pick list order change kept through a reload", () => {
     await waitFor(() => expect(screen.getByText(/can't reach that workspace any more/)).toBeTruthy());
     expect(screen.getByText("That workspace is out of reach: not sent.")).toBeTruthy();
     expect(screen.queryByRole("button", { name: /Retry/ })).toBeNull();
+    // Check again: still out of reach, still nothing sent.
+    fireEvent.click(screen.getByRole("button", { name: /^Check again: Move 103/ }));
+    await waitFor(() => expect(screen.getByRole("button", { name: /^Check again: Move 103/ }).hasAttribute("disabled")).toBe(false));
     expect(posts).toEqual([]);
     expect(await keptOps(1)).toHaveLength(1);
     fireEvent.click(screen.getByRole("button", { name: "Discard" }));
     await waitFor(async () => expect(await keptOps(1)).toEqual([]));
+  });
+
+  it("blocked, then the workspace can be reached again: Check again sends it (once)", async () => {
+    await putKeptOp(kept());
+    denied = 423;
+    show();
+    await waitFor(() => expect(screen.getAllByText(/read-only now, so nothing is sent/).length).toBeGreaterThan(0));
+    denied = null;
+    fireEvent.click(screen.getByRole("button", { name: /^Check again$/ }));
+    await waitFor(() => expect(notice()).toBeNull());
+    expect(moves()).toEqual([expect.objectContaining({ opId: "kept-op-0001", team: 103 })]);
+    expect(applied).toBe(1);
   });
 
   it("read-only after the reload: the Retry finds it so and keeps it", async () => {

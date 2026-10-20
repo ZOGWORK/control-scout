@@ -420,12 +420,15 @@ async function syncKept(account: number, reconcile: boolean): Promise<void> {
         const check = await checkList(chunk[0].space, chunk[0].season, chunk.map((r) => r.opId));
         if ("error" in check) {
           const b = STATUS_BLOCK[check.error.status];
-          chunk.forEach((r) => add(r, b ? { blocked: b, message: BLOCKED_MESSAGE[b] } : {}));
+          const still = new Set((await keptOps(account)).map((x) => x.opId));
+          chunk.filter((r) => still.has(r.opId)).forEach((r) => add(r, b ? { blocked: b, message: BLOCKED_MESSAGE[b] } : {}));
           continue;
         }
+        // Still kept after the check? (Another tab may have confirmed or discarded one meanwhile: it stays gone.)
+        const still = new Set((await keptOps(account)).map((x) => x.opId));
         for (const r of chunk) {
           if (check.applied.has(r.opId)) void persist(r.opId, () => deleteKeptOp(account, r.space, r.season, r.opId));
-          else add(r);
+          else if (still.has(r.opId)) add(r);
         }
       }
     }
