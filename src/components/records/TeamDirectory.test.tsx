@@ -4,7 +4,7 @@
 // never presented as activity, and statistics still being prepared aren't shown as zero.
 // The search box: debounced into the URL (?q=, a link; Back/Forward), the matched count beside
 // the full total, a no-match state with Clear search, and a refused search shown as a problem.
-import { act, cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { MemoryRouter, useLocation, useNavigate } from "react-router-dom";
 import type { DirectoryPage } from "../../shared/directory";
@@ -35,7 +35,7 @@ const { TeamDirectory } = await import("./TeamDirectory");
 const mount = (url: string) => render(<MemoryRouter initialEntries={[url]}><TeamDirectory season={2026} onSeason={() => {}} /><Where /></MemoryRouter>);
 
 beforeEach(() => { asked = []; page = base(); });
-afterEach(() => { cleanup(); vi.useRealTimers(); });
+afterEach(() => { cleanup(); vi.useRealTimers(); vi.unstubAllGlobals(); });
 
 describe("TeamDirectory", () => {
   it("asks for the URL's country and shows its counts, without implying every listing is active", () => {
@@ -169,5 +169,78 @@ describe("TeamDirectory", () => {
       expect(screen.getByText(/limited to 6 words/)).toBeTruthy();
       expect(asked).toEqual([]);
     });
+  });
+});
+
+describe("TeamDirectory on a phone", () => {
+  beforeEach(() => vi.stubGlobal("matchMedia", (query: string) => ({ matches: true, media: query, addEventListener() {}, removeEventListener() {} })));
+  const filtersButton = () => screen.getByRole("button", { name: /^Filters/, hidden: true });
+
+  it("shows the country and a non-default sort as chips, the totals on one line, the listing note on request", () => {
+    mount("/teams?view=listed&country=CA&sort=rookie");
+    expect(screen.getByRole("button", { name: "Remove filter: Country: Canada" })).toBeTruthy();
+    expect(screen.queryByRole("combobox", { name: "Country" })).toBeNull();
+    expect(screen.getByText("120")).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: /^Remove filter: Sorted by rookie year/ }));
+    expect(search).toBe("?view=listed&country=CA");
+    expect(screen.queryByRole("button", { name: /^Remove filter: Sorted by/ })).toBeNull();
+    const about = screen.getByRole("button", { name: "What a listing means" });
+    const note = document.getElementById(about.getAttribute("aria-controls")!)!;
+    expect(note.hidden).toBe(true);
+    fireEvent.click(about);
+    expect(about.getAttribute("aria-expanded")).toBe("true");
+    expect(note.hidden).toBe(false);
+    expect(note.textContent).toMatch(/doesn’t mean the team is active/);
+    expect(note.textContent).toMatch(/7 listings report no country/);
+  });
+
+  it("text typed just before the layout changes carries over to the other layout's box and still runs", async () => {
+    vi.useFakeTimers();
+    let listener: (() => void) | null = null;
+    const m = { matches: true, media: "", addEventListener: (_: string, fn: () => void) => { listener = fn; }, removeEventListener: () => {} };
+    vi.stubGlobal("matchMedia", () => m);
+    mount("/teams?view=listed&country=CA");
+    fireEvent.change(screen.getByRole("searchbox"), { target: { value: "map" } });
+    m.matches = false; // turned to landscape before the pause ran out
+    act(() => listener!());
+    const box = screen.getByRole("searchbox") as HTMLInputElement;
+    expect(box.closest("[data-compact-filters]")).toBeNull();
+    expect(box.value).toBe("map");
+    act(() => { vi.advanceTimersByTime(400); });
+    expect(search).toBe("?view=listed&country=CA&q=map");
+  });
+
+  it("Clear filters takes off every chip, the sort included", async () => {
+    mount("/teams?view=listed&season=2025&country=CA&sort=rookie&q=maple");
+    fireEvent.click(filtersButton());
+    fireEvent.click(await screen.findByRole("button", { name: "Clear filters" }));
+    expect(search).toBe("?view=listed&season=2025&q=maple");
+    expect(screen.queryByRole("button", { name: /^Remove filter/, hidden: true })).toBeNull();
+  });
+
+  it("keeps the search box on the page, under the row, and says the matched count in the sheet", async () => {
+    page = base({ q: "maple", matched: 1 } as Partial<DirectoryPage>);
+    mount("/teams?view=listed&country=CA&q=maple");
+    const box = screen.getByRole("searchbox");
+    expect(box.closest("[data-compact-filters]")).toBeTruthy();
+    expect(box.closest("[role=dialog]")).toBeNull();
+    fireEvent.click(filtersButton());
+    const dialog = await screen.findByRole("dialog", { name: "Filters" });
+    expect(dialog.textContent).toContain("1 of 120 listed teams from Canada");
+    expect(screen.getByRole("button", { name: "Show 1 teams" })).toBeTruthy();
+  });
+
+  it("removing the country chip lists every country; the sheet holds the country and the sort", async () => {
+    mount("/teams?view=listed&season=2025&country=CA&page=2");
+    fireEvent.click(screen.getByRole("button", { name: "Remove filter: Country: Canada" }));
+    expect(search).toBe("?view=listed&season=2025");
+    fireEvent.click(filtersButton());
+    await screen.findByRole("dialog", { name: "Filters" });
+    fireEvent.change(screen.getByRole("combobox", { name: "Country" }), { target: { value: "US" } });
+    expect(search).toBe("?view=listed&season=2025&country=US");
+    fireEvent.change(screen.getByRole("combobox", { name: "Sort" }), { target: { value: "name" } });
+    expect(search).toBe("?view=listed&season=2025&country=US&sort=name");
+    fireEvent.click(screen.getByRole("button", { name: "Show 120 teams" }));
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
   });
 });
