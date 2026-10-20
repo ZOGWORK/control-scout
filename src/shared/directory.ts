@@ -39,3 +39,18 @@ export interface DirectoryPage {
   readiness: SeasonReadiness;
   rows: DirectoryTeam[];
 }
+
+const isInt = (x: unknown): x is number => Number.isSafeInteger(x);
+const isNullableString = (x: unknown) => x === null || typeof x === "string";
+
+/** Is this a directory page the table can draw? Checked by the web app before it uses an answer (audit PUB3-F04):
+ *  anything else (a null, a proxy's page, a cut-down object) shows as an error with Try again. */
+export function isDirectoryPage(x: unknown): x is DirectoryPage {
+  const d = x as DirectoryPage;
+  return !!d && typeof d === "object"
+    && isInt(d.season) && isNullableString(d.country)
+    && isInt(d.total) && isInt(d.withResults) && isInt(d.unplaced) && isInt(d.page) && isInt(d.pageSize) && d.pageSize > 0
+    && (DIRECTORY_SORTS as readonly string[]).includes(d.sort) && (d.dir === "asc" || d.dir === "desc")
+    && !!d.readiness && typeof d.readiness === "object" && typeof d.readiness.state === "string"
+    && Array.isArray(d.rows) && d.rows.every((r) => !!r && typeof r === "object" && isInt(r.team) && typeof r.hasResults === "boolean");
+}
