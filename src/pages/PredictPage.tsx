@@ -233,12 +233,12 @@ function TeamPredictions({ team, onClear }: { team: number; onClear: () => void 
             {seasons ? <SeasonToggle predictOnly seasons={seasons} value={s} onChange={setSeason} /> : <div className="skeleton h-9 w-72 max-w-full rounded-lg" />}
             {season != null && !isCurrent && <span className="text-xs text-muted-foreground">{asked ? `Predictions from ${seasonLabel(season)}` : `No results in ${seasonLabel(current)} yet, so this is ${seasonLabel(season)}`}</span>}
           </div>
-          {/* People pick one team expecting a matchup: the Lab, with this team already in. */}
+          {/* People pick one team expecting a matchup: the Lab, with this team already in. Both ways in carry the same weight. */}
           <Reveal className="flex flex-wrap items-center gap-3 rounded-xl border border-accent/30 bg-accent/[0.06] p-3.5">
             <FlaskConical className="size-5 shrink-0 text-accent" aria-hidden />
             <p className="min-w-0 flex-1 text-sm"><span className="font-medium">Predict a matchup with {team}.</span> <span className="text-muted-foreground">Pick its partner and two opponents in the Lab for win odds and a predicted score.</span></p>
             <div className="flex flex-wrap gap-2">
-              <Button size="sm" asChild><Link to={labMatchHref(team, s)}><Swords /> Predict a matchup</Link></Button>
+              <Button size="sm" variant="secondary" asChild><Link to={labMatchHref(team, s)}><Swords /> Predict a matchup</Link></Button>
               <Button size="sm" variant="secondary" asChild><Link to={labAdvancementHref(team, s)}><Trophy /> Odds at an event</Link></Button>
             </div>
           </Reveal>

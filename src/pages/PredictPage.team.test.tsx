@@ -65,6 +65,15 @@ describe("Predict, a team picked", () => {
     expect(box.getByRole("link", { name: /Predict a matchup/ }).getAttribute("href")).toBe("/predict?view=lab&mode=match&season=2025&red=4215");
   });
 
+  it("the two ways into the Lab carry the same weight: neither is the glowing primary", async () => {
+    page("/predict?for=team:4215");
+    const box = within(await screen.findByRole("region", { name: "Predictions for team 4215" }));
+    const match = await box.findByRole("link", { name: /Predict a matchup/ });
+    const odds = box.getByRole("link", { name: /Odds at an event/ });
+    expect(match.className).toBe(odds.className);
+    expect(match.className).not.toMatch(/bg-accent/);
+  });
+
   it("live and replayed calls are tallied apart, each named", async () => {
     page("/predict?for=team:4215&season=2024");
     const box = within(await screen.findByRole("region", { name: "Predictions for team 4215" }));
