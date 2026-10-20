@@ -245,9 +245,26 @@ export interface AccuracyBlock {
 
 export interface ShadowScore { accuracy: number; brier: number; logLoss: number }
 
+export interface ReplayCoverage {
+  /** Matches with a final score this season. */
+  scored: number;
+  /** Of those, matches with a replayed call. */
+  replayed: number;
+  /** Skipped: played at a remote or hybrid event, which the replay leaves out. */
+  eventSkipped: number;
+  /** Skipped: an alliance didn't have exactly two robots on the field (a no-show, or a one-robot alliance). */
+  shortHanded: number;
+  /** Not replayed for another reason: normally, scored since the replay was last rebuilt. */
+  other: number;
+}
+
 export interface TrackRecord {
   seasons: {
     season: number; label: string; live: AccuracyBlock | null; backtest: AccuracyBlock | null;
+    /** How much of the season the replay covers: every match with a final score, and why the rest has no
+     *  replayed call. The replay predicts only 2-on-2 matches from the robots that actually played, so a
+     *  no-show (or a one-robot alliance) is skipped; a live call, logged from the schedule beforehand, isn't. */
+    replay?: ReplayCoverage;
     /** Live calls split by the engine version that made them (versions are never compared on mixed cohorts). */
     liveByEngine?: { engine: string; n: number; accuracy: number; brier: number; logLoss: number }[];
     /** Side by side on the same live calls: the served model vs the shadow (previous) model,
