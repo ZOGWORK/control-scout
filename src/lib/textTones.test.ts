@@ -71,7 +71,7 @@ function measure(theme: Theme, classes: string, { surface = "--color-card", inhe
   const pair = `${toHex(over(fg, bg))} on ${toHex(bg)} = ${ratio.toFixed(2)}`;
   // Known exception, the owner's call (Oct 20 2026): gold text on light is the accent itself (#eab308, the
   // bars' and buttons' yellow), knowingly under AA. Only that exact colour, only on light; see the test below.
-  if (theme === "light" && !fade && toHex(fg) === toHex(value("light", "--color-accent"))) return { ratio: Infinity, pair: `${pair} (owner's gold exception)` };
+  if (theme === "light" && !fade && fg[3] === 1 && toHex(fg) === toHex(value("light", "--color-accent"))) return { ratio: Infinity, pair: `${pair} (owner's gold exception)` };
   return { ratio, pair };
 }
 
@@ -93,6 +93,12 @@ describe("text tones reach WCAG AA in both themes", () => {
       for (const variant of ["default", "soft", "secondary", "outline", "beta", "info", "new", "destructive", "success"] as const) {
         const m = measure(theme, badgeVariants({ variant }));
         expect(m.ratio, `${variant}: ${m.pair}`).toBeGreaterThanOrEqual(AA);
+      }
+    });
+    it(`semantic chips on their own tints, e.g. "Upset", "Called it", status pills (${theme})`, () => {
+      for (const tone of ["success", "warning", "danger", "info", "destructive"]) for (const a of [12, 15]) {
+        const m = measure(theme, `bg-${tone}/${a} text-${tone}`);
+        expect(m.ratio, `${tone}/${a}: ${m.pair}`).toBeGreaterThanOrEqual(AA);
       }
     });
     it(`link buttons (${theme})`, () => {
@@ -129,6 +135,8 @@ describe("text tones reach WCAG AA in both themes", () => {
   it("the light gold exception covers only the accent yellow itself, and dark gold still reaches AA", () => {
     expect(toHex(value("light", "--color-accent-text"))).toBe(toHex(value("light", "--color-accent")));
     expect(toHex(value("light", "--color-accent"))).toBe("#eab308");
+    // Faded gold is not the exception: it is measured like any other colour.
+    expect(measure("light", "text-accent-text/25").ratio).toBeLessThan(AA);
     expect(contrast(value("dark", "--color-accent-text"), value("dark", "--color-card"))).toBeGreaterThanOrEqual(AA);
   });
 
