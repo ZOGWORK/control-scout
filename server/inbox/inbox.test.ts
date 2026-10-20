@@ -148,7 +148,7 @@ const inbox = async (call: Call, q = "") => {
   await inboxSettled();
   const r = await call("GET", `/api/inbox${q}`);
   expect(r.status).toBe(200);
-  return r.json as { items: InboxItem[]; more: boolean; unread: number };
+  return r.json as { items: InboxItem[]; more: boolean; unread: number; followUp: number };
 };
 const titles = async (call: Call) => (await inbox(call)).items.map((i) => i.title);
 const unread = async (call: Call) => { await inboxSettled(); return (await call("GET", "/api/inbox/unread-count")).json.unread as number; };
