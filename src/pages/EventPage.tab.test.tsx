@@ -19,7 +19,7 @@ const detail = (season: number): EventDetail => ({
 let current: EventDetail = detail(2025);
 vi.mock("../lib/api", async (orig) => ({
   ...(await orig<typeof import("../lib/api")>()),
-  useApi: (path: string | null) => ({ data: path && /^\/api\/events\/\d+\/[^/]+$/.test(path) ? current : undefined, error: undefined, loading: false, reload: () => {} }),
+  useApi: (path: string | null) => ({ data: path?.startsWith("/api/events/") ? current : undefined, error: undefined, loading: false, reload: () => {} }),
 }));
 vi.mock("../lib/meta", async (orig) => ({
   ...(await orig<typeof import("../lib/meta")>()),
