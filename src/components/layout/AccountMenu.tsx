@@ -87,7 +87,7 @@ export function AccountMenu() {
       <button
         type="button" data-account-toggle onClick={() => setOpen((o) => !o)} aria-expanded={open} aria-controls={panelId}
         className={cn("flex h-8 items-center gap-1.5 rounded-lg text-xs font-medium outline-none focus-visible:ring-2 focus-visible:ring-ring/60",
-          user ? "w-8 justify-center rounded-full bg-accent/15 text-accent hover:bg-accent/25" : "border border-line px-2.5 text-text-base hover:bg-text-base/[0.05]")}
+          user ? "w-8 justify-center rounded-full bg-accent/15 text-accent-text hover:bg-accent/25" : "border border-line px-2.5 text-text-base hover:bg-text-base/[0.05]")}
         aria-label={user ? `Account: ${user.displayName || user.email}` : "Sign in"}
       >
         {user ? initial : <><LogIn className="size-3.5" /><span className="hidden sm:inline">Sign in</span></>}
