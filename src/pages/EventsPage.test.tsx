@@ -3,7 +3,7 @@
 // writes ?q=, Clear filters and back/forward bring the box along, and the list
 // renders a first batch then more through the observer or the button, starting
 // over when the filters change.
-import { act, cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { MemoryRouter, useLocation, useNavigate, type NavigateFunction } from "react-router-dom";
 import type { EventListItem } from "../shared/api";
@@ -111,5 +111,53 @@ describe("Events page batches", () => {
     scrollToEnd();
     expect(cards()).toBe(100);
     expect(screen.queryByRole("button", { name: /Show more events/ })).toBeNull();
+  });
+});
+
+describe("Events page on a phone", () => {
+  const phone = () => vi.stubGlobal("matchMedia", (query: string) => ({ matches: true, media: query, addEventListener() {}, removeEventListener() {} }));
+  const filtersButton = () => screen.getByRole("button", { name: /^Filters/, hidden: true });
+
+  it("shows one row of chips for what's on, and the list right under it", () => {
+    phone();
+    mount("/events?region=USA:TX&status=upcoming&q=austin");
+    const chips = screen.getByRole("list", { name: "Filters on" });
+    expect([...chips.querySelectorAll("button")].map((b) => b.getAttribute("aria-label"))).toEqual([
+      "Remove filter: Place: Texas", "Remove filter: Status: Upcoming", "Remove filter: Text: austin",
+    ]);
+    expect(filtersButton().getAttribute("aria-label")).toBe("Filters, 3 on");
+    // The text box and status chips live in the sheet; the count and the events are on the page.
+    expect(screen.queryByLabelText("Filter events")).toBeNull();
+    expect(screen.getByText(`${TEXAS}`)).toBeTruthy();
+    expect(cards()).toBeGreaterThan(0);
+  });
+
+  it("removing a chip updates the URL, and the text chip empties the box too", async () => {
+    phone();
+    mount("/events?region=USA:TX&q=austin");
+    fireEvent.click(screen.getByRole("button", { name: "Remove filter: Place: Texas" }));
+    expect(new URLSearchParams(loc).get("region")).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Remove filter: Text: austin" }));
+    expect(new URLSearchParams(loc).get("q")).toBeNull();
+    fireEvent.click(filtersButton());
+    expect(((await screen.findByLabelText("Filter events")) as HTMLInputElement).value).toBe("");
+  });
+
+  it("the sheet has the search box, status, place, type and dates; Escape closes it", async () => {
+    phone();
+    mount();
+    const button = filtersButton();
+    button.focus();
+    fireEvent.click(button);
+    const dialog = await screen.findByRole("dialog", { name: "Filters" });
+    type("edison");
+    expect(new URLSearchParams(loc).get("q")).toBe("edison");
+    for (const name of [/^Place:/, /^Date range:/, /^Live now/]) expect(screen.getByRole("button", { name })).toBeTruthy();
+    expect(screen.getByRole("combobox", { name: "Event type" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Show 100 events" })).toBeTruthy();
+    fireEvent.keyDown(dialog, { key: "Escape" });
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+    await waitFor(() => expect(document.activeElement).toBe(button));
+    expect(screen.getByRole("button", { name: "Remove filter: Text: edison" })).toBeTruthy();
   });
 });

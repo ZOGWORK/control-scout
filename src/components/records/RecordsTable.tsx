@@ -91,6 +91,10 @@ export function RecordsTable(p: RecordsTableProps) {
   const teamScope = scope !== "match";
   const fields = useMemo(() => [...new Set([...(teamScope ? ["teamName"] : []), ...cols])], [teamScope, cols]);
 
+  // Phones: the controls above the table fold into one row (season, what's on, Filters) and a sheet. The
+  // region chip names its regions (asked before the table's own rows).
+  const compact = useCompactFilters() && !!p.controls;
+  const regionNames = useRecordRegions(season, compact && !!p.controls?.region && state.regions.length > 0);
   const req = { season, scope, state, fields, code };
   // Match rows also carry the scores and the prediction the phone summary is built from, whatever columns
   // are picked (the CSV export keeps to the picked columns).
@@ -216,9 +220,6 @@ export function RecordsTable(p: RecordsTableProps) {
   const phoneSummary = scope === "match" && phone;
   const summary = phoneSummary && layout === "summary";
   const sortOptions = useMemo(() => pickableStats(scope, predictable).map((s) => ({ key: s.key, label: s.label })), [scope, predictable]);
-  // Phones: the controls above the table fold into one row (season, what's on, Filters) and a sheet.
-  const compact = useCompactFilters() && !!c;
-  const regionNames = useRecordRegions(season, compact && !!c?.region && state.regions.length > 0);
   const saved = useSavedFilters(scope);
   const countryName = state.country ? countryByCode(state.country)?.name ?? state.country : null;
   const chips: FilterChip[] = [];
