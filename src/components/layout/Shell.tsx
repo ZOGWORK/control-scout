@@ -20,7 +20,7 @@ import { ClockWeather, ThemeToggle } from "./TopBarExtras";
 import { OfflineStatus } from "../OfflineNote";
 import { InboxBell } from "./InboxBell";
 import { usePersonal } from "../../lib/personal";
-import { pageTitle } from "../../shared/routes";
+import { isBareRoute, pageTitle } from "../../shared/routes";
 import { SiteFooter } from "./SiteFooter";
 import { useYoursRow, FOLLOWED_TEAM_PATH } from "../../lib/yoursRow";
 import { HEADER_ID, usePageScroll } from "../../lib/pageScroll";
@@ -189,6 +189,8 @@ export function Shell({ children }: { children: ReactNode }) {
   const firstPage = useRef(true);
   useEffect(() => { firstPage.current = false; }, []);
   const toggle = () => setCollapsed((c) => { try { localStorage.setItem("cs-sidebar", c ? "0" : "1"); } catch { /* ignore */ } return !c; });
+  // The pit display is the whole screen: no sidebar, top bar, tab bar or footer (src/shared/routes.ts isBareRoute).
+  if (isBareRoute(loc.pathname)) return <MotionConfig reducedMotion="user"><main id="main" ref={mainRef}>{children}</main></MotionConfig>;
   return (
     <MotionConfig reducedMotion="user">
       <TooltipProvider delayDuration={250}>
