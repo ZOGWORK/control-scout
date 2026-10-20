@@ -4,7 +4,8 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { db, kvSet, migrate, openDb, run, setDb } from "../db";
 import { PREDICT_SEASONS } from "../data/seasons";
-import { resetTrackRecord, trackRecord, warmTrackRecord } from "./accuracy";
+import { block, isoWeek, replayCoverage, resetTrackRecord, trackRecord, warmTrackRecord } from "./accuracy";
+import { LIVE_THRESHOLD, REPLAY_HEADLINE_MIN, brierSkill, ledgerSplit } from "../../src/shared/ledger";
 
 const S = Math.max(...PREDICT_SEASONS);
 let builds = 0;
@@ -103,6 +104,20 @@ describe("track record cache", () => {
     expect(n(await trackRecord())).toBe(5);
   });
 
+  it("doesn't keep the old replay cached when the stats run rewrites it after bumping the data version", async () => {
+    // Regression: a stats run moves data:version first and rewrites the replay later. The 15 s warm-up
+    // built the record in between (old replay, new version) and kept it until the next run.
+    await kvSet("data:settled", "s1");
+    await trackRecord();
+    await kvSet("data:version", "v-run"); // the run starts
+    await warmTrackRecord(); // warm-up mid-run: still the old replay
+    expect(n(await trackRecord())).toBe(4);
+    await backtestCall(7, 0.8, 1); // the run rewrites the replay…
+    await kvSet("data:settled", "s2"); // …and finishes
+    await warmTrackRecord();
+    expect(n(await trackRecord())).toBe(5);
+  });
+
   it("rebuilds when a live call is scored", async () => {
     await trackRecord();
     await run(
@@ -113,5 +128,75 @@ describe("track record cache", () => {
     await warmTrackRecord();
     expect(builds).toBe(2);
     expect((await trackRecord()).seasons.find((s) => s.season === S)?.live?.n).toBe(1);
+  });
+});
+
+describe("replay coverage", () => {
+  const match = async (code: string, number: number, red: [number, number][], blue: [number, number][], played = 1) => {
+    await run(`INSERT INTO matches (season, code, level, series, number, label, played, red_total, blue_total, source) VALUES (?, ?, 'qual', 0, ?, ?, ?, ?, ?, 'test')`,
+      [S, code, number, `Q${number}`, played, played ? 20 : null, played ? 10 : null]);
+    for (const [alliance, ts] of [["red", red], ["blue", blue]] as const)
+      for (const [team, onField] of ts) await run(`INSERT INTO match_teams (season, code, level, series, number, team, alliance, on_field) VALUES (?, ?, 'qual', 0, ?, ?, ?, ?)`, [S, code, number, team, alliance, onField]);
+  };
+  beforeEach(async () => { await run("DELETE FROM matches"); await run("DELETE FROM match_teams"); await run("DELETE FROM events"); });
+
+  it("counts every scored match and says why the replay skipped the rest", async () => {
+    // USTST 1–4 have replayed calls (beforeEach); 1–3 full 2-on-2, 4 too.
+    for (let i = 1; i <= 4; i++) await match("USTST", i, [[1, 1], [2, 1]], [[3, 1], [4, 1]]);
+    await match("USTST", 5, [[1, 1], [2, 0]], [[3, 1], [4, 1]]); // a no-show: one robot on red
+    await match("USTST", 6, [[1, 1]], [[3, 1]]); // one-robot alliances
+    await match("USTST", 7, [[1, 1], [2, 1]], [[3, 1], [4, 1]]); // 2-on-2, not replayed yet
+    await match("USTST", 8, [[1, 1], [2, 1]], [[3, 1], [4, 1]], 0); // not played: not in the denominator
+    await run("INSERT INTO events (season, code, name, type, hybrid, source) VALUES (?, 'USHYB', 'Hybrid', 'Qualifier', 1, 'test')", [S]);
+    await match("USHYB", 1, [[5, 1], [6, 1]], [[7, 1], [8, 1]]); // a hybrid event: the replay leaves it out
+    const c = (await replayCoverage([S])).get(S)!;
+    expect(c).toEqual({ scored: 8, replayed: 4, eventSkipped: 1, shortHanded: 2, other: 1 });
+    expect(c.replayed + c.eventSkipped + c.shortHanded + c.other).toBe(c.scored);
+    // And it reaches the track record, next to a replay of the same size.
+    await kvSet("data:version", "v-cov");
+    const s = (await trackRecord()).seasons.find((x) => x.season === S)!;
+    expect(s.replay).toEqual(c);
+    expect(s.backtest!.n).toBe(c.replayed);
+  });
+});
+
+describe("ledger numbers agree with each other", () => {
+  const row = (p: number, y: number, level = "qual", tier: "provisional" | "moderate" | "confident" = "moderate", time: string | null = "2026-10-17T10:00:00") => ({ p, y, level, tier, time });
+  const rows = [row(0.8, 1), row(0.7, 0), row(0.3, 0, "playoff", "confident"), row(0.6, 0.5), row(0.5, 1), row(0.9, 1, "qual", "provisional", "2026-10-18T23:30:00")];
+  const b = block(rows)!;
+
+  it("correct + missed = decided, upsets = decided − correct, every share in [0, 1]", () => {
+    const split = ledgerSplit(b)!;
+    expect(split.correct + split.missed).toBe(b.decided);
+    expect(b.decided).toBe(4); // the tie and the 50:50 call are neither right nor wrong
+    expect(split.correct).toBe(3);
+    expect(b.upsets).toBe(b.decided - split.correct);
+    expect(b.accuracy).toBeCloseTo(split.correct / b.decided, 12);
+    for (const x of [b.accuracy, b.byLevel.qual.accuracy, b.byLevel.playoff.accuracy, ...Object.values(b.byTier).map((t) => t.accuracy)]) {
+      expect(x).toBeGreaterThanOrEqual(0); expect(x).toBeLessThanOrEqual(1);
+    }
+    expect(b.byLevel.qual.n + b.byLevel.playoff.n).toBe(b.n);
+    expect(Object.values(b.byTier).reduce((a, t) => a + t.n, 0)).toBe(b.n);
+  });
+
+  it("Brier, the coin-flip line and skill are one formula", () => {
+    const brier = rows.reduce((a, r) => a + (r.p - r.y) ** 2, 0) / rows.length;
+    const coin = rows.reduce((a, r) => a + (0.5 - r.y) ** 2, 0) / rows.length;
+    expect(b.brier).toBeCloseTo(brier, 12);
+    expect(b.baselineBrier).toBeCloseTo(coin, 12);
+    expect(brierSkill(b)).toBeCloseTo(1 - brier / coin, 12);
+    expect(brierSkill({ brier: 0.1, baselineBrier: 0 })).toBeNull(); // only ties: no skill to state
+  });
+
+  it("buckets a late-evening match by the venue's day, the same for live and replay times", () => {
+    // Live calls keep the venue's wall-clock time (no zone); replayed calls store the same clock with a Z.
+    expect(isoWeek("2026-10-18T23:30:00")).toBe("2026-10-12");
+    expect(isoWeek("2026-10-18T23:30:00.000Z")).toBe("2026-10-12");
+    expect(b.weekly).toEqual([{ week: "2026-10-12", n: 6, accuracy: b.accuracy }]);
+  });
+
+  it("the headline waits for a real sample of each kind", () => {
+    expect(LIVE_THRESHOLD).toBe(300);
+    expect(REPLAY_HEADLINE_MIN).toBe(1000);
   });
 });
