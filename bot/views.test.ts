@@ -101,18 +101,13 @@ describe("eventEmbed", () => {
 
 describe("winningAlliance", () => {
   const alliances = [{ number: 1, name: null, captain: 10, pick1: 11, pick2: null, backup: null }, { number: 4, name: null, captain: 40, pick1: 41, pick2: 42, backup: null }];
-  const t = (n: number, onField = true) => ({ number: n, surrogate: false, dq: false, onField });
-  const po = (series: number, number: number, red: number[], blue: number[], r: number, b: number) =>
-    m({ level: "playoff", series, number, played: true, red: { teams: red.map((x) => t(x)), score: scored(r, r) }, blue: { teams: blue.map((x) => t(x)), score: scored(b, b) } });
 
-  it("before the Winner award is posted: the winner of the last playoff match, with its whole alliance", () => {
-    const matches = [po(1, 1, [10, 11], [40, 41], 120, 80), po(6, 1, [10, 11], [40, 42], 90, 100), po(6, 2, [10, 11], [40, 42], 70, 110)];
-    expect(winningAlliance({ awards: [], alliances, matches })).toEqual({ alliance: 4, teams: [40, 41, 42] });
+  it("the Winner award's teams and their alliance", () => {
+    expect(winningAlliance({ awards: [{ type: "Winner", placement: 1, team: 40, name: null }, { type: "Winner", placement: 1, team: 41, name: null }], alliances })).toEqual({ alliance: 4, teams: [40, 41] });
   });
 
-  it("the award wins over the matches; nothing when neither says", () => {
-    expect(winningAlliance({ awards: [{ type: "Winner", placement: 1, team: 10, name: null }], alliances, matches: [po(6, 1, [10, 11], [40, 42], 1, 2)] })).toEqual({ alliance: 1, teams: [10] });
-    expect(winningAlliance({ awards: [], alliances, matches: [] })).toBeNull();
+  it("nothing before the awards are posted: a scored playoff match never stands in for the championship", () => {
+    expect(winningAlliance({ awards: [{ type: "Inspire", placement: 1, team: 10, name: null }], alliances })).toBeNull();
   });
 });
 
