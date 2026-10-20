@@ -122,7 +122,7 @@ export default function RankingsPage() {
         eyebrow={<span className="text-accent-text">World rankings{data || seasonParam ? ` · ${seasonLabel(season)}` : ""}</span>}
         title={regionText ? `Rankings: ${regionText}` : "World rankings"}
         description="Every rated FTC team by prediction rating, with each team's move since last week."
-        phoneDescription="Every rated team, with its move since last week."
+        phoneDescription="Rated teams and their weekly moves."
       >
         {compact ? (
           // Phones: one row that wraps (every chip and its × in view, nothing hidden off to the side).
