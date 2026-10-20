@@ -29,10 +29,18 @@ describe("headline", () => {
 
 describe("the rule in words", () => {
   const seasons = [season(2026, 33, 207), season(2025, null, 41743)] as TrackRecord["seasons"];
-  it("names the mode that leads and the live progress", () => {
+  it("names the replay that leads, why that season, and the live progress", () => {
     const t = { seasons, liveThreshold: 300, headline: pickHeadline(seasons) };
     expect(liveProgress(t)).toEqual({ season: 2026, label: "2026–27", n: 33 });
-    expect(headlineRule(t)).toBe("The season replay leads until a season has 300 scored live calls (2026–27: 33 so far), then live does.");
+    expect(headlineRule(t)).toBe("The headline is the 2025–26 replay, the newest with at least 1,000 replayed matches. Live calls take over once a season has 300 scored (2026–27: 33 so far).");
+  });
+  it("says there is no headline (rather than that the replay leads) when neither sample is big enough", () => {
+    const small = [season(2026, 33, 207)] as TrackRecord["seasons"];
+    const t = { seasons: small, liveThreshold: 300, headline: pickHeadline(small) };
+    expect(t.headline).toBeNull();
+    expect(headlineRule(t)).toBe("No headline yet: a replay needs 1,000 matches and live calls 300 scored (2026–27: 33 so far), so this opens on the newest season's replay.");
+  });
+  it("names live when it leads", () => {
     const lived = [season(2026, 450, 2000)] as TrackRecord["seasons"];
     expect(headlineRule({ seasons: lived, liveThreshold: 300, headline: pickHeadline(lived) })).toMatch(/^Live calls lead: 2026–27 has 450 scored/);
   });
