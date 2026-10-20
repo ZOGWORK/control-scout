@@ -24,6 +24,9 @@ export function DirectorySearch({ value, onSearch, where, className }: {
   const [text, setText] = useState(value ?? "");
   const written = useRef(value ?? "");
   const timer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  // The latest onSearch, for a search that runs after a pause: a sort or country picked meanwhile must stay.
+  const latest = useRef(onSearch);
+  latest.current = onSearch;
   const stop = () => { if (timer.current) clearTimeout(timer.current); timer.current = undefined; };
   useEffect(() => stop, []);
   // Changed from outside (Back/Forward, Clear search, a link): show it, and drop any search still waiting.
@@ -38,7 +41,7 @@ export function DirectorySearch({ value, onSearch, where, className }: {
     if (q === written.current) return;
     const replace = !!q && !!written.current;
     written.current = q;
-    onSearch(q || null, replace);
+    latest.current(q || null, replace);
   };
   const change = (v: string) => {
     setText(v);
