@@ -60,7 +60,8 @@ export default function EventsPage() {
   const [q, setQ] = useState(urlQ);
   const wrote = useRef(urlQ);
   useEffect(() => { if (urlQ !== wrote.current) { wrote.current = urlQ; setQ(urlQ); } }, [urlQ]); // back/forward, Clear filters
-  const onQ = (v: string) => { setQ(v); wrote.current = v; set({ q: v }); };
+  // Typing refines one history entry; taking the search off as a whole (its chip) is a step Back undoes.
+  const onQ = (v: string, replace = true) => { setQ(v); wrote.current = v; set({ q: v }, replace); };
   const listQ = useDeferredValue(q);
   const clear = useCallback(() => set({ region: null, type: null, status: null, from: null, to: null, q: null }, false), [set]);
   useTitle(`Events ${seasonLabel(season)}`);
@@ -87,7 +88,7 @@ export default function EventsPage() {
 function FilterBar({ season, onSeason, events, region, type, status, from, to, q, listQ, onQ, set, active, onClear }: Filters & {
   season: number; onSeason: (s: number) => void; events: EventListItem[]; active: boolean;
   /** The text the list is filtered by (deferred behind the box's own `q`). */
-  listQ: string; onQ: (q: string) => void; onClear: () => void;
+  listQ: string; onQ: (q: string, replace?: boolean) => void; onClear: () => void;
   set: (patch: Record<string, string | null>, replace?: boolean) => void;
 }) {
   const types = useMemo(() => {
@@ -131,7 +132,7 @@ function FilterBar({ season, onSeason, events, region, type, status, from, to, q
     if (type !== "all") chips.push({ id: "type", label: eventTypeLabel(type), name: `Event type: ${eventTypeLabel(type)}`, onRemove: () => set({ type: null }, false) });
     if (from || to) chips.push({ id: "dates", label: dateRangeText(from, to), name: `Dates: ${dateRangeText(from, to)}`, onRemove: () => set({ from: null, to: null }, false) });
     if (status !== "all") { const s = STATUS.find((x) => x.v === status)!; chips.push({ id: "status", label: s.label, name: `Status: ${s.label}`, onRemove: () => set({ status: null }, false) }); }
-    if (q.trim()) chips.push({ id: "q", label: <><Search className="inline size-3.5" aria-hidden /> {q.trim()}</>, name: `Text: ${q.trim()}`, onRemove: () => onQ("") });
+    if (q.trim()) chips.push({ id: "q", label: <><Search className="inline size-3.5" aria-hidden /> {q.trim()}</>, name: `Text: ${q.trim()}`, onRemove: () => onQ("", false) });
     const n = counts[status];
     return (
       <CompactFilters className="mb-4" lead={<SeasonSelect value={season} onChange={onSeason} />} chips={chips}
