@@ -20,10 +20,10 @@ Phones get a menu button at the top left, and a bottom bar you pick yourself.
 - [fixes] iPhones no longer zoom in when you tap into a text box
 
 ### Phones
-- **A menu button, top left.** The sidebar-style button at the left of the top bar opens the menu with every page (what the More tab used to open). Search sits beside it as an icon, the logo is centred, and the theme switch, notifications and your account stay on the right; it all fits a 320 px screen. Desktop is unchanged. (#PR)
-- **Scout in the tab bar.** The bottom bar is Home, Events, Predict, My team and Scout by default. (#PR)
-- **Your own tab bar.** Settings › Appearance › Phone tab bar: turn pages on or off (2 to 5), move them left or right, see a preview, or reset to the default. The choice is kept on this device; every page is always in the menu too. (#PR)
-- **No more zooming in on a field.** Text boxes use 16 px text on touch screens, so iPhones stop zooming the page in (and leaving it zoomed) when the keyboard opens. Pinch-zoom still works. (#PR)
+- **A menu button, top left.** The sidebar-style button at the left of the top bar opens the menu with every page (what the More tab used to open). Search sits beside it as an icon, the logo is centred, and the theme switch, notifications and your account stay on the right; it all fits a 320 px screen. Desktop is unchanged. (#220)
+- **Scout in the tab bar.** The bottom bar is Home, Events, Predict, My team and Scout by default.
+- **Your own tab bar.** Settings › Appearance › Phone tab bar: turn pages on or off (2 to 5), move them left or right, see a preview, or reset to the default. The choice is kept on this device; every page is always in the menu too.
+- **No more zooming in on a field.** Text boxes use 16 px text on touch screens, so iPhones stop zooming the page in (and leaving it zoomed) when the keyboard opens. Pinch-zoom still works.
 
 ## 1.7.0 — 2026-10-18
 
