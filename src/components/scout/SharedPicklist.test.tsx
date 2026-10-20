@@ -21,6 +21,8 @@ const pick = (n: number, rank: number, over: Partial<PickList["picks"][number]> 
 
 let server: PickList;
 let posts: Record<string, unknown>[] = [];
+/** Each post's op id and account (left out of `posts`, so the ops read as the member made them). */
+let ids: { opId?: unknown; account?: unknown }[] = [];
 let refuseNext = false;
 let gets = 0;
 let statsDown = false;
@@ -38,7 +40,7 @@ beforeEach(() => {
   vi.stubGlobal("ResizeObserver", class { observe() {} unobserve() {} disconnect() {} });
   vi.stubGlobal("matchMedia", (q: string) => ({ matches: false, media: q, addEventListener() {}, removeEventListener() {}, addListener() {}, removeListener() {} }));
   localStorage.clear();
-  posts = []; refuseNext = false; gets = 0; statsDown = false; notesDown = false; failNextNoteSlowly = false; hangNotes = false; holdNotes = false;
+  posts = []; ids = []; refuseNext = false; gets = 0; statsDown = false; notesDown = false; failNextNoteSlowly = false; hangNotes = false; holdNotes = false;
   server = {
     workspaceId: "901", season: S, version: 3,
     picks: [pick(101, 1, { note: "Strong auto", noteBy: { accountId: 2, name: "Marcus" }, noteUpdatedAt: Date.now() - 120_000 }), pick(102, 2)],
@@ -46,8 +48,8 @@ beforeEach(() => {
   vi.stubGlobal("fetch", async (path: string, init?: RequestInit) => {
     if (path.startsWith("/api/scout/workspaces/901/picklist")) {
       if (init?.method === "POST") {
-        const body = JSON.parse(String(init.body));
-        posts.push(body);
+        const { opId, account, ...body } = JSON.parse(String(init.body));
+        posts.push(body); ids.push({ opId, account });
         if (hangNotes && body.op === "note") return new Promise<Response>(() => {});
         if (holdNotes && body.op === "note") await new Promise<void>((r) => { releaseNotes = r; });
         if (failNextNoteSlowly && body.op === "note") {
@@ -109,6 +111,8 @@ describe("SharedPicklist", () => {
     fireEvent.keyDown(screen.getByRole("button", { name: /Reorder 102/ }), { key: "ArrowUp" });
     await waitFor(() => expect(rows()).toEqual([102, 101]));
     await waitFor(() => expect(posts).toEqual([{ season: S, op: "move", team: 102, beforeTeam: 101 }]));
+    // With its op id (a copy of it is never applied twice) and the account that made it.
+    expect(ids[0]).toEqual({ opId: expect.stringMatching(/^[A-Za-z0-9_-]{8,64}$/), account: 1 });
   });
 
   it("another member's change arrives live and replaces the list (an older version never does)", async () => {

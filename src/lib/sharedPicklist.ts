@@ -21,11 +21,24 @@
 //   checked first. Taken: saved. Not there: kept, marked as unconfirmed, with Retry (safe: notes carry their
 //   base) or Discard. Order changes that didn't go through stay listed in the recoverable view
 //   (RecoverableChanges.tsx, src/lib/pendingWork.ts) instead of disappearing behind a notice.
+// - Every order change (add, remove, move, copy) has an op id, and is kept in this device's IndexedDB
+//   (picklistOps.ts) from the moment it's made until the workspace confirms it or the member discards it, with
+//   the account, workspace and season it belongs to and the order the member saw then. The server applies one id
+//   once, so a change sent again (Retry, or after a lost answer) never lands twice. After a reload, kept changes
+//   are checked against the server first (GET ?ops=): applied meanwhile, they simply go; the rest wait, with
+//   Retry and Discard, on the pick list and in the recoverable view. Nothing is sent again by itself.
+// - Retry checks first (picklistConflict.ts): the team it moves is gone (only Discard), the team it was placed
+//   beside is gone (applied next to the nearest one still there), or someone changed the list since (what
+//   changed is shown; the member applies theirs anyway or discards). A change is only ever sent as the account
+//   that made it (the server refuses another, WRONG_ACCOUNT), and only to its own workspace and season; a
+//   workspace this account can no longer reach (403/404) or that is read-only (423) is never sent to: the change
+//   is kept until the member discards it.
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
-import { toast } from "../components/ui/sonner";
 import { apiFetch, ApiError } from "./api";
 import type { LiveMode } from "./scoutLive";
-import { applyPickOp, cleanNote, isPickList, NOTE_CHANGED, type Pick, type PickList, type PickOp, type PickPerson } from "../shared/picklist";
+import { applyPickOp, cleanNote, isPickList, MAX_OP_QUERY, NOTE_CHANGED, WRONG_ACCOUNT, type Pick, type PickList, type PickOp, type PickPerson } from "../shared/picklist";
+import { deleteKeptOp, KEPT_OPS_CHANGED, keptOps, newPageForTests, putKeptOp, TAB_ID, type KeptPickOp } from "./picklistOps";
+import { conflictOf, describeConflict, teamsOf, type PickConflict } from "./picklistConflict";
 import { clearNoteDraft, noteDrafts, readNoteDraft, saveNoteDraft, type NoteDraft } from "./picklistDrafts";
 import { claimScope, knownOffline, noteUnstoredSending, outcomeUnknown, publishPending, SAVED_SHOW_MS, type PendingItem, type SaveState } from "./pendingWork";
 
@@ -42,8 +55,11 @@ const url = (space: string, season?: number) => `/api/scout/workspaces/${encodeU
 
 /** `account`: who wrote it (its note draft is that account's). */
 /** `wid`: the id of the note draft it wrote (drafts are shared by this account's tabs: each answer only clears its own). */
-interface Pending { id: number; op: PickOp; space: string; season: number; account: number | null; wid?: string; /** Its draft was stored on the device. */ kept?: boolean }
+interface Pending { id: number; op: PickOp; space: string; season: number; account: number | null; wid?: string; /** Its draft was stored on the device. */ kept?: boolean;
+  /** An order change's op id, and the order (and version) the member saw just before it. */ opId?: string; base?: number[]; baseVersion?: number; at?: number }
 const newWid = () => `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
+/** A new order change's op id (isPickOpId). */
+export const newOpId = () => (typeof crypto !== "undefined" && "randomUUID" in crypto ? crypto.randomUUID() : `${newWid()}-${Math.random().toString(36).slice(2, 10)}`);
 
 /**
  * A note this member wrote that the server hasn't taken. conflict: a teammate's newer note is there instead.
@@ -106,18 +122,30 @@ export interface PickListState {
   orderState: SaveState | null;
   /** Order changes that didn't go through (not refused: not sent, or unconfirmed). */
   failed: FailedChange[];
+  /** Send every kept order change of this list again, oldest first (force: apply them over what changed since). */
+  retryAll: (opts?: { force?: boolean }) => void;
+  /** Let go of every kept order change of this list. */
+  discardAll: () => void;
   /** `editBase`: the server's time of the note when this edit began (savedNoteAt then). */
   change: (op: PickOp, opts?: { editBase?: number | null }) => void;
   /** Drop a note the server didn't take (the saved one shows again; nothing is sent). */
   discardNote: (team: number) => void;
-  retryFailed: (id: number) => void;
+  retryFailed: (id: number, opts?: { force?: boolean }) => void;
   discardFailed: (id: number) => void;
   reload: () => void;
 }
 
 /** An order change that didn't go through. uncertain: sent, no answer, and the list didn't show it. */
 export interface FailedChange { id: number; op: Exclude<PickOp, { op: "note" }>; space: string; season: number; account: number | null; message: string; uncertain: boolean;
-  /** A Retry of it is on its way. */ busy?: boolean }
+  /** A Retry of it is on its way. */ busy?: boolean;
+  /** Its op id (every retry sends the same one, so it's applied once). */ opId?: string;
+  /** The order (and the server's version) the member saw just before making it: what a retry compares with. */ base?: number[]; baseVersion?: number;
+  /** When it was made (ms). */ at?: number;
+  /** Kept in this device's storage (a reload doesn't lose it). */ stored?: boolean;
+  /** Kept from before this page (a reload, or another tab). */ restored?: boolean;
+  /** What a Retry found that the member decides (see picklistConflict.ts). */ conflict?: PickConflict;
+  /** Never sent as things are: another account is signed in, the workspace can't be reached as this one, or it's read-only. */
+  blocked?: "account" | "revoked" | "readonly" }
 
 // One write at a time per workspace's list, in the order they were made: a list's own changes and Retries of
 // kept ones join the same line, so an older change sent again can never land after a newer one and undo it.
@@ -165,56 +193,254 @@ function failedChanged() {
   failedListeners.forEach((f) => f());
   publishPending("picklist-changes", [...failedChanges.values()].flatMap((f): PendingItem[] => f.account == null ? [] : [{
     key: `order:${f.account}:${f.space}:${f.season}:${f.id}`, account: f.account, kind: "order", workspaceId: f.space, season: f.season,
-    team: "team" in f.op ? f.op.team : null, label: describeChange(f.op), status: "attention", message: f.message, busy: f.busy,
+    team: "team" in f.op ? f.op.team : null, label: describeChange(f.op), status: "attention", message: failedMessage(f), busy: f.busy,
     retry: () => { void retryFailedChange(f.id); }, discard: () => discardFailedChange(f.id),
-    volatile: true, // kept for this page only: a reload loses it
+    ...(f.stored ? {} : { volatile: true }), // not in this device's storage: a reload loses it
   }]));
 }
-function keepFailed(f: Omit<FailedChange, "id">) { const id = ++failedSeq; failedChanges.set(id, { ...f, id }); failedChanged(); }
-export function discardFailedChange(id: number) { if (failedChanges.delete(id)) failedChanged(); }
+/** What a kept change's row says: what a Retry found, else why it's kept. */
+export function failedMessage(f: FailedChange): string {
+  if (f.conflict?.kind === "gone") return describeConflict(f.conflict);
+  if (f.conflict) return `${describeConflict(f.conflict)} Open the pick list to apply yours anyway or discard it.`;
+  return f.message;
+}
+
+// Writes to the device's kept changes, one at a time per op id (keeping one, then forgetting it once it's confirmed,
+// always in that order).
+const storeLines = new Map<string, Promise<unknown>>();
+function persist<T>(opId: string, fn: () => Promise<T>): Promise<T> {
+  const run = (storeLines.get(opId) ?? Promise.resolve()).then(fn, fn);
+  const settled = run.catch(() => undefined);
+  storeLines.set(opId, settled);
+  void settled.then(() => { if (storeLines.get(opId) === settled) storeLines.delete(opId); });
+  return run;
+}
+interface Recordable { op: FailedChange["op"]; space: string; season: number; message: string; uncertain: boolean; base?: number[]; baseVersion?: number; at?: number; account: number; opId: string }
+const recordOf = (f: Recordable, state: KeptPickOp["state"]): KeptPickOp => ({
+  account: f.account, space: f.space, season: f.season, opId: f.opId, op: f.op, at: f.at ?? Date.now(), base: f.base ?? [], baseVersion: f.baseVersion ?? 0,
+  state, tab: TAB_ID, ...(state === "kept" ? { message: f.message, uncertain: f.uncertain } : {}),
+});
+const forget = (account: number | null, space: string, season: number, opId: string | undefined) => {
+  if (account != null && opId) void persist(opId, () => deleteKeptOp(account, space, season, opId));
+};
+function keepFailed(f: Omit<FailedChange, "id">) {
+  const id = ++failedSeq;
+  failedChanges.set(id, { ...f, id });
+  failedChanged();
+  const { account, opId } = f;
+  if (account != null && opId) {
+    void persist(opId, () => putKeptOp(recordOf({ ...f, account, opId }, "kept"))).then((ok) => {
+      const cur = failedChanges.get(id);
+      if (cur && !!cur.stored !== ok) { failedChanges.set(id, { ...cur, stored: ok }); failedChanged(); }
+    });
+  }
+}
+export function discardFailedChange(id: number) {
+  const f = failedChanges.get(id);
+  if (!f) return;
+  failedChanges.delete(id);
+  failedChanged();
+  forget(f.account, f.space, f.season, f.opId);
+}
+
+// The account signed in on this page (set by the open pick list and the recoverable view): a kept change of another
+// account's is never sent (the server checks too: WRONG_ACCOUNT). Undefined: not known yet.
+let signedInAccount: number | null | undefined;
+export function setPicklistAccount(account: number | null | undefined) { signedInAccount = account; }
+
+const STATUS_BLOCK: Record<number, FailedChange["blocked"]> = { 401: "account", 403: "revoked", 404: "revoked", 423: "readonly" };
+export const BLOCKED_MESSAGE: Record<NonNullable<FailedChange["blocked"]>, string> = {
+  account: "Made by an account that isn't signed in here, so it isn't sent. Sign in as that account to send it, or discard it.",
+  revoked: "This account can't reach that workspace any more (removed from it, or it was deleted), so nothing is sent. It's kept on this device until you discard it.",
+  readonly: "That workspace is read-only now, so nothing is sent. It's kept on this device until the workspace can be written again, or you discard it.",
+};
+/** Kept from before this page, and not sent yet. */
+export const NOT_SENT_BEFORE_RELOAD = "Not saved before the page closed or reloaded. Kept on this device: Retry checks the list first and sends it once.";
+
+/** Change a kept change in place (gone meanwhile, discarded: nothing). */
+function updateFailed(id: number, patch: Partial<FailedChange>) {
+  const cur = failedChanges.get(id);
+  if (!cur) return;
+  const next = { ...cur, ...patch };
+  failedChanges.set(id, next);
+  failedChanged();
+  // What the device keeps says the same (a reload shows the same message).
+  const { account, opId } = next;
+  if (account != null && opId && next.stored && (patch.message !== undefined || patch.uncertain !== undefined)) void persist(opId, () => putKeptOp(recordOf({ ...next, account, opId }, "kept")));
+}
+
+/** The list (and which of these op ids it already took) as the server has it now, or why it couldn't say. */
+async function checkList(space: string, season: number, opIds: string[]): Promise<{ list: PickList | null; applied: Set<string> } | { error: ApiError }> {
+  try {
+    const r = await apiFetch<{ list: unknown; appliedOps?: unknown }>(`${url(space, season)}${opIds.length ? `&ops=${opIds.map(encodeURIComponent).join(",")}` : ""}`);
+    const list = isPickList(r.list) ? r.list : null;
+    if (list) announcePicklist(list);
+    return { list, applied: new Set(Array.isArray(r.appliedOps) ? r.appliedOps.filter((x): x is string => typeof x === "string") : []) };
+  } catch (e) { return { error: e instanceof ApiError ? e : new ApiError(0, "Couldn't reach the workspace.") }; }
+}
+
+/** Teams this account's other kept changes for the same list name (their effects aren't someone else's change). */
+const ownTeams = (f: FailedChange) => [...failedChanges.values()]
+  .filter((x) => x.id !== f.id && x.account === f.account && x.space === f.space && x.season === f.season).flatMap((x) => teamsOf(x.op));
 /** Every kept order change (a list filters its own scope). */
 export function useFailedChanges(): FailedChange[] {
   useSyncExternalStore((f) => { failedListeners.add(f); return () => { failedListeners.delete(f); }; }, () => failedVersion, () => 0);
   return [...failedChanges.values()];
 }
 /**
- * Send a kept order change again, to its own workspace and season. Taken: gone (the list updates). Refused (409:
- * a team it names is gone): gone, with a notice. Answer lost: the list is checked first; there, it's gone.
+ * Send a kept order change again, to its own workspace and season, as its own account, with its own op id. The
+ * list is checked first: taken already (its op id), it goes with nothing sent; a conflict (picklistConflict.ts) is
+ * kept for the member to decide (force: they did, so it goes over what changed since; a move whose team is gone
+ * never goes). Taken: gone (the list updates). Refused: kept, with what the list says now. Answer lost: checked.
  */
-export async function retryFailedChange(id: number): Promise<void> {
+export async function retryFailedChange(id: number, opts: { force?: boolean } = {}): Promise<void> {
   const f = failedChanges.get(id);
   if (!f || f.busy) return;
-  failedChanges.set(id, { ...f, busy: true }); failedChanged();
+  if (signedInAccount !== undefined && f.account !== signedInAccount) { updateFailed(id, { blocked: "account", message: BLOCKED_MESSAGE.account }); return; }
+  updateFailed(id, { busy: true });
   const offlineBefore = knownOffline();
-  const settle = (message: string | null, uncertain = false, saved = false) => {
-    if (message == null) failedChanges.delete(id);
+  const settle = (message: string | null, more: Partial<FailedChange> = {}, saved = false) => {
+    if (message == null) {
+      if (failedChanges.delete(id)) failedChanged();
+      forget(f.account, f.space, f.season, f.opId);
+    }
     // An open list of that workspace and season shows its moment of Saved.
     if (saved) window.dispatchEvent(new CustomEvent(PICKLIST_CHANGE_SAVED, { detail: { space: f.space, season: f.season } }));
-    // Discarded while its Retry was on its way: it stays discarded.
-    if (message != null && failedChanges.has(id)) failedChanges.set(id, { ...f, busy: false, message, uncertain });
-    failedChanged();
+    // Discarded while its Retry was on its way: it stays discarded (updateFailed does nothing).
+    if (message != null) updateFailed(id, { busy: false, message, uncertain: false, conflict: undefined, blocked: undefined, ...more });
   };
+  const blockedBy = (err: ApiError) => {
+    const b = STATUS_BLOCK[err.status] ?? (err.status === 409 && err.message === WRONG_ACCOUNT ? "account" : undefined);
+    if (b) settle(BLOCKED_MESSAGE[b], { blocked: b });
+    return !!b;
+  };
+  let op = f.op;
+  // What the list is now, and whether this change already went (an earlier send whose answer was lost, or another tab).
+  const check = await checkList(f.space, f.season, f.opId ? [f.opId] : []);
+  if ("error" in check) {
+    if (!blockedBy(check.error)) settle(`Not saved: ${check.error.message}`);
+    return;
+  }
+  if (f.opId && check.applied.has(f.opId)) { settle(null, {}, true); return; }
+  if (check.list && f.base) {
+    const c = conflictOf(f.op, f.base, check.list.picks.map((p) => p.team), ownTeams(f));
+    if (c && (c.kind === "gone" || !opts.force)) { settle(f.message, { conflict: c }); return; }
+    if (c?.kind === "anchor") op = c.rebased;
+  }
   try {
-    const r = await inLine(f.space, () => apiFetch<{ list: unknown }>(url(f.space), { method: "POST", json: { season: f.season, ...f.op } }));
+    const r = await inLine(f.space, () => apiFetch<{ list: unknown }>(url(f.space), {
+      method: "POST", json: { season: f.season, ...op, ...(f.opId ? { opId: f.opId } : {}), ...(f.account != null ? { account: f.account } : {}) },
+    }));
     if (isPickList(r.list)) announcePicklist(r.list);
-    settle(null, false, true);
+    settle(null, {}, true);
   } catch (e) {
     const err = e instanceof ApiError ? e : new ApiError(0, "Couldn't save the change.");
-    if (err.status === 409) { toast.error(err.message); settle(null); return; }
+    if (blockedBy(err)) return;
+    if (err.status === 409) {
+      // Refused (a team it names went meanwhile, or the list is full): kept, with what the list says now.
+      const again = await checkList(f.space, f.season, []);
+      const c = !("error" in again) && again.list && f.base ? conflictOf(f.op, f.base, again.list.picks.map((p) => p.team), ownTeams(f)) : null;
+      settle(err.message, c ? { conflict: c } : {});
+      return;
+    }
     if (outcomeUnknown(e, offlineBefore)) {
-      const check = await apiFetch<{ list: unknown }>(url(f.space, f.season)).catch(() => null);
-      if (check && isPickList(check.list)) {
-        announcePicklist(check.list);
-        if (changeLanded(check.list.picks, f.op)) { settle(null, false, true); return; }
-      }
-      settle(CHANGE_UNCONFIRMED, true);
+      const again = await checkList(f.space, f.season, f.opId ? [f.opId] : []);
+      if (!("error" in again) && (f.opId ? again.applied.has(f.opId) : !!again.list && changeLanded(again.list.picks, f.op))) { settle(null, {}, true); return; }
+      settle(CHANGE_UNCONFIRMED, { uncertain: true });
       return;
     }
     settle(`Not saved: ${err.message}`);
   }
 }
-/** Tests: forget every kept order change. */
-export function resetFailedChanges() { failedChanges.clear(); failedChanged(); }
+
+/**
+ * Send every kept change of one list again, oldest first, one at a time. A conflict stops the rest (the member
+ * decides first) unless `force`; a move whose team is gone is skipped (it stays, to discard).
+ */
+export async function retryKeptChanges(account: number | null, space: string, season: number, opts: { force?: boolean } = {}): Promise<void> {
+  const scope = () => [...failedChanges.values()].filter((f) => f.account === account && f.space === space && f.season === season)
+    .sort((a, b) => (a.at ?? 0) - (b.at ?? 0) || a.id - b.id);
+  const tried = new Set<number>();
+  for (;;) {
+    const next = scope().find((f) => !tried.has(f.id) && !f.busy && f.conflict?.kind !== "gone");
+    if (!next) return;
+    tried.add(next.id);
+    await retryFailedChange(next.id, opts);
+    const after = failedChanges.get(next.id);
+    if (after && (after.blocked || (after.conflict && after.conflict.kind !== "gone" && !opts.force))) return;
+  }
+}
+/** Let go of every kept change of one list. */
+export function discardKeptChanges(account: number | null, space: string, season: number) {
+  for (const f of [...failedChanges.values()]) if (f.account === account && f.space === space && f.season === season && !f.busy) discardFailedChange(f.id);
+}
+
+// Order changes this page is sending (made here, not answered yet): what this device keeps of them isn't a kept change to offer.
+const pageOps = new Set<string>();
+const restoredFor = new Set<number>();
+
+/**
+ * Bring back this account's kept changes from before this page (a reload, a closed tab), once per page. Each is
+ * checked with the server first: one it already took (its op id) simply goes; the rest wait for the member.
+ * Another account's are never read.
+ */
+export async function loadKeptOrderChanges(account: number | null | undefined): Promise<void> {
+  if (account == null || restoredFor.has(account)) return;
+  restoredFor.add(account);
+  await syncKept(account, true);
+}
+
+/** Add kept changes this page doesn't hold yet (reconcile: check them with the server first); drop ones another tab let go of. */
+async function syncKept(account: number, reconcile: boolean): Promise<void> {
+  const recs = await keptOps(account);
+  const have = new Set(recs.map((r) => r.opId));
+  let dirty = false;
+  // Confirmed or discarded in another tab: gone here too.
+  for (const f of [...failedChanges.values()]) {
+    if (f.account === account && f.stored && f.opId && !f.busy && !have.has(f.opId)) { failedChanges.delete(f.id); dirty = true; }
+  }
+  const known = () => new Set([...failedChanges.values()].map((f) => f.opId).filter(Boolean));
+  // This page's own changes on their way are its own; another open tab's on their way are left to it until they settle.
+  const fresh = recs.filter((r) => !known().has(r.opId) && !pageOps.has(r.opId) && !(r.state === "sending" && r.tab === TAB_ID) && (reconcile || r.state === "kept"));
+  const add = (r: KeptPickOp, more: Partial<FailedChange> = {}) => {
+    if (known().has(r.opId) || pageOps.has(r.opId)) return;
+    const id = ++failedSeq;
+    failedChanges.set(id, {
+      id, op: r.op, space: r.space, season: r.season, account: r.account, opId: r.opId, base: r.base, baseVersion: r.baseVersion, at: r.at,
+      message: r.state === "kept" && r.message ? r.message : NOT_SENT_BEFORE_RELOAD, uncertain: !!r.uncertain, stored: true, restored: true, ...more,
+    });
+    dirty = true;
+  };
+  if (reconcile) {
+    const groups = new Map<string, KeptPickOp[]>();
+    for (const r of fresh) { const k = `${r.space}\n${r.season}`; groups.set(k, [...(groups.get(k) ?? []), r]); }
+    for (const rs of groups.values()) {
+      for (let i = 0; i < rs.length; i += MAX_OP_QUERY) {
+        const chunk = rs.slice(i, i + MAX_OP_QUERY);
+        const check = await checkList(chunk[0].space, chunk[0].season, chunk.map((r) => r.opId));
+        if ("error" in check) {
+          const b = STATUS_BLOCK[check.error.status];
+          chunk.forEach((r) => add(r, b ? { blocked: b, message: BLOCKED_MESSAGE[b] } : {}));
+          continue;
+        }
+        for (const r of chunk) {
+          if (check.applied.has(r.opId)) void persist(r.opId, () => deleteKeptOp(account, r.space, r.season, r.opId));
+          else add(r);
+        }
+      }
+    }
+  } else fresh.forEach((r) => add(r));
+  if (dirty) failedChanged();
+}
+// Another tab kept, confirmed or discarded a change: catch up (no server check: that tab did it).
+if (typeof window !== "undefined") {
+  window.addEventListener(KEPT_OPS_CHANGED, (ev) => {
+    const a = (ev as CustomEvent<{ account?: number }>).detail?.account;
+    if (typeof a === "number" && restoredFor.has(a)) void syncKept(a, false);
+  });
+}
+/** Tests: forget every kept order change this page holds (what the device keeps stays: as after a reload). */
+export function resetFailedChanges() { failedChanges.clear(); pageOps.clear(); restoredFor.clear(); signedInAccount = undefined; newPageForTests(); failedChanged(); }
 
 /** Note writes on their way, by draft id (any page of this tab): the recoverable view doesn't offer them as waiting. */
 const inflight = new Set<string>();
@@ -407,22 +633,24 @@ export function usePickList(space: string | null, season: number, live: LiveMode
         const offlineBefore = knownOffline();
         if (p.wid) inflight.add(p.wid);
         try {
-          const r = await inLine(p.space, () => apiFetch<{ list: unknown }>(url(p.space), { method: "POST", json: { season: p.season, ...op } }), lineOwner.current);
+          const ids = p.opId ? { opId: p.opId, ...(p.account != null ? { account: p.account } : {}) } : {};
+          const r = await inLine(p.space, () => apiFetch<{ list: unknown }>(url(p.space), { method: "POST", json: { season: p.season, ...op, ...ids } }), lineOwner.current);
           if (isPickList(r.list)) accept(r.list);
           if (op.op === "note") noteConfirmed(p, op, r.list);
-          else if (keyRef.current === k) markSaved(`order:${k}`);
+          else { forget(p.account, p.space, p.season, p.opId); if (keyRef.current === k) markSaved(`order:${k}`); }
         } catch (e) {
           // Refused (409: a team it names is gone, or the list is full) or not sent: say so, show the server's list.
           const err = e instanceof ApiError ? e : new ApiError(0, "Couldn't save the change.");
           // Sent but unanswered: what does the list say? Taken after all: saved, nothing to ask.
           let uncertain = false;
           if (err.status !== 409 && outcomeUnknown(e, offlineBefore)) {
-            const check = await apiFetch<{ list: unknown }>(url(p.space, p.season)).catch(() => null);
-            const l = check && isPickList(check.list) ? check.list : null;
+            // An order change asks by its op id (exact); a note, by its text.
+            const check = await checkList(p.space, p.season, p.opId ? [p.opId] : []);
+            const l = "error" in check ? null : check.list;
             if (l) accept(l);
-            if (l && changeLanded(l.picks, op)) {
+            if (!("error" in check) && (p.opId ? check.applied.has(p.opId) : !!l && changeLanded(l.picks, op))) {
               if (op.op === "note") noteConfirmed(p, op, l);
-              else if (keyRef.current === k) markSaved(`order:${k}`);
+              else { forget(p.account, p.space, p.season, p.opId); if (keyRef.current === k) markSaved(`order:${k}`); }
               finish(p);
               continue;
             }
@@ -442,11 +670,16 @@ export function usePickList(space: string | null, season: number, live: LiveMode
             }
             // A conflict says so in the field itself: no notice on top of it.
             if (keyRef.current === k && !conflict && !uncertain) refused.current(err.status === 409 ? err.message : `Not saved: ${err.message}`);
-          } else if (err.status === 409) {
+          } else if (err.status === 409 && err.message !== WRONG_ACCOUNT) {
+            // Refused (a team it names was removed meanwhile, or the list is full): said at once, and let go.
+            forget(p.account, p.space, p.season, p.opId);
             if (keyRef.current === k) refused.current(err.message);
           } else {
-            // Not refused: kept for the member (the recoverable view), never dropped without a word.
-            keepFailed({ op, space: p.space, season: p.season, account: p.account, message: uncertain ? CHANGE_UNCONFIRMED : `Not saved: ${err.message}`, uncertain });
+            // Not refused: kept for the member (the pick list's notice, the recoverable view), never dropped without a word.
+            const blocked = STATUS_BLOCK[err.status] ?? (err.status === 409 ? "account" : undefined);
+            const message = blocked ? BLOCKED_MESSAGE[blocked] : uncertain ? CHANGE_UNCONFIRMED : `Not saved: ${err.message}`;
+            keepFailed({ op, space: p.space, season: p.season, account: p.account, message, uncertain, opId: p.opId, base: p.base, baseVersion: p.baseVersion, at: p.at,
+              ...(blocked ? { blocked } : {}) });
             if (keyRef.current === k && !uncertain) refused.current(`Not saved: ${err.message}`);
           }
           if (keyRef.current === k) void refetch.current();
@@ -457,6 +690,7 @@ export function usePickList(space: string | null, season: number, live: LiveMode
 
     function finish(p: Pending) {
       if (p.wid) inflight.delete(p.wid);
+      if (p.opId) pageOps.delete(p.opId);
       if (p.op.op === "note") { const key = noteKey(p.account, p.space, p.season, p.op.team); if (latestNote.current.get(key) === p.id) latestNote.current.delete(key); }
       trackMemoryOnly(p, false);
       if (queue.current[0] === p) queue.current.shift();
@@ -498,8 +732,22 @@ export function usePickList(space: string | null, season: number, live: LiveMode
     const p: Pending = { id: nextId.current++, op, space, season, account: acct, wid, kept: stored };
     // A new write of a note replaces one that failed (a retry, or putting the saved one back).
     if (op.op === "note") { const key = noteKey(acct, space, season, op.team); latestNote.current.set(key, p.id); setUnsaved((u) => { if (!(key in u)) return u; const { [key]: _gone, ...rest } = u; return rest; }); }
+    else {
+      // An order change: its op id, and the order the member is looking at (the server's, with their changes on their way).
+      const srv = serverRef.current;
+      const ahead = queue.current.filter((q) => q.space === space && q.season === season).map((q) => q.op);
+      Object.assign(p, { opId: newOpId(), at: Date.now(), baseVersion: srv?.version ?? 0, base: srv ? withPending(srv, ahead, { accountId: acct, name: "" }).picks.map((x) => x.team) : [] });
+      pageOps.add(p.opId!);
+      const opId = p.opId!;
+      // Kept on the device until the workspace confirms it: a reload before then doesn't lose it.
+      if (acct != null) {
+        const orderOp = op;
+        void persist(opId, () => putKeptOp(recordOf({ op: orderOp, space, season, account: acct, opId, message: "", uncertain: false, base: p.base, baseVersion: p.baseVersion, at: p.at }, "sending")))
+          .then((ok) => { if (ok && pageOps.has(opId)) trackMemoryOnly(p, false); });
+      }
+    }
     queue.current.push(p);
-    if (op.op !== "note" || !stored) trackMemoryOnly(p, true);
+    trackMemoryOnly(p, op.op !== "note" || !stored);
     setPending((cur) => [...cur, p]);
     void drain();
   }, [space, season, drain]);
@@ -511,8 +759,17 @@ export function usePickList(space: string | null, season: number, live: LiveMode
     setUnsaved((u) => { if (!(key in u)) return u; const { [key]: _gone, ...rest } = u; return rest; });
     if (acct != null) clearNoteDraft(acct, space, season, team);
   }, [space, season]);
-  const retryFailed = useCallback((id: number) => { void retryFailedChange(id); }, []);
+  const retryFailed = useCallback((id: number, opts?: { force?: boolean }) => { void retryFailedChange(id, opts); }, []);
   const discardFailed = useCallback((id: number) => discardFailedChange(id), []);
+  const retryAll = useCallback((opts?: { force?: boolean }) => { if (space) void retryKeptChanges(accountRef.current, space, season, opts); }, [space, season]);
+  const discardAll = useCallback(() => { if (space) discardKeptChanges(accountRef.current, space, season); }, [space, season]);
+
+  // Order changes this account kept on the device from before this page (a reload): back, checked with the server first.
+  // Only the signed-in account's are read, and only it can send them.
+  useEffect(() => {
+    setPicklistAccount(account);
+    void loadKeptOrderChanges(account);
+  }, [account]);
 
   // Notes kept from before a reload (or from another tab of this account that closed): once the list is here,
   // once per account, workspace and season. Confirmed meanwhile (the list says the same) or its team gone:
@@ -589,7 +846,7 @@ export function usePickList(space: string | null, season: number, live: LiveMode
   }, [unsaved, space, season, account, readOnly, change, discardNote]);
   useEffect(() => () => publishPending(`picklist:${space ?? ""}:${season}`, []), [space, season]);
 
-  return { list, loading: !server && (loading || !error), error: server ? null : error, saving: mine.length > 0, change, discardNote, retryFailed, discardFailed,
+  return { list, loading: !server && (loading || !error), error: server ? null : error, saving: mine.length > 0, change, discardNote, retryFailed, discardFailed, retryAll, discardAll,
     failed: scopeFailed, noteState, orderState,
     unsavedNote: (team: number) => (space ? unsaved[noteKey(account, space, season, team)]?.note : undefined),
     noteConflict: (team: number) => (space ? !!unsaved[noteKey(account, space, season, team)]?.conflict : false),
