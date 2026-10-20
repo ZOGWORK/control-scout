@@ -69,9 +69,10 @@ function measure(theme: Theme, classes: string, { surface = "--color-card", inhe
   if (fade) fg = [fg[0], fg[1], fg[2], fg[3] * (+fade[1] / 100)];
   const ratio = contrast(over(fg, bg), bg);
   const pair = `${toHex(over(fg, bg))} on ${toHex(bg)} = ${ratio.toFixed(2)}`;
-  // Known exception, the owner's call (Oct 20 2026): gold text on light is the accent itself (#eab308, the
-  // bars' and buttons' yellow), knowingly under AA. Only that exact colour, only on light; see the test below.
-  if (theme === "light" && !fade && fg[3] === 1 && toHex(fg) === toHex(value("light", "--color-accent"))) return { ratio: Infinity, pair: `${pair} (owner's gold exception)` };
+  // Known exception, the owner's call (Oct 20 2026): LARGE display gold on light (text-accent-display, the profile's
+  // "Top 8%", Home's headline) is the accent itself, #eab308, knowingly under 3:1. Only that class, at full opacity,
+  // only on light; small gold text (text-accent-text, or text-accent used as text) is measured like any colour.
+  if (theme === "light" && !fade && fg[3] === 1 && /(?:^|\s)text-accent-display(?:\s|$)/.test(classes)) return { ratio: Infinity, pair: `${pair} (owner's large-text gold exception)` };
   return { ratio, pair };
 }
 
@@ -132,12 +133,21 @@ describe("text tones reach WCAG AA in both themes", () => {
     });
   }
 
-  it("the light gold exception covers only the accent yellow itself, and dark gold still reaches AA", () => {
-    expect(toHex(value("light", "--color-accent-text"))).toBe(toHex(value("light", "--color-accent")));
+  it("the light gold exception covers only large display gold, the accent yellow itself, and dark gold still reaches AA", () => {
+    expect(toHex(value("light", "--color-accent-display"))).toBe(toHex(value("light", "--color-accent")));
     expect(toHex(value("light", "--color-accent"))).toBe("#eab308");
     // Faded gold is not the exception: it is measured like any other colour.
+    expect(measure("light", "text-accent-display/25").ratio).toBeLessThan(AA);
     expect(measure("light", "text-accent-text/25").ratio).toBeLessThan(AA);
     expect(contrast(value("dark", "--color-accent-text"), value("dark", "--color-card"))).toBeGreaterThanOrEqual(AA);
+    expect(contrast(value("dark", "--color-accent-display"), value("dark", "--color-secondary"))).toBeGreaterThanOrEqual(AA);
+  });
+
+  for (const theme of THEMES) it(`small gold text on the accent's own tints, e.g. Compare's best values, the chosen season (${theme}) [V4-A11Y-003]`, () => {
+    for (const surface of ["--color-card", "--color-secondary", "--color-muted"]) for (const tint of ["", "bg-accent/[0.08] ", "bg-accent/15 ", "bg-accent/20 ", "bg-accent/25 ", "bg-amber-500/15 ", "bg-yellow-500/15 "]) {
+      const m = measure(theme, `${tint}text-accent-text`, { surface });
+      expect(m.ratio, `${tint}on ${surface}: ${m.pair}`).toBeGreaterThanOrEqual(AA);
+    }
   });
 
   it("reads tints with arbitrary alpha, so a chip is measured on its real background", () => {
@@ -152,7 +162,9 @@ describe("text tones reach WCAG AA in both themes", () => {
     expect(measure("light", "bg-sky-400/15 text-sky-600 dark:text-sky-400").ratio).toBeLessThan(AA); // 3.53
     expect(measure("light", "bg-emerald-400/15 text-emerald-600 dark:text-emerald-400").ratio).toBeLessThan(AA); // 3.26
     expect(measure("light", "bg-green-500/12 text-green-600 dark:text-green-400").ratio).toBeLessThan(AA); // 2.87
-    // Gold (text-accent on light, 1.9) is no longer here: it is the owner's deliberate exception (see measure()).
+    // Gold as small text on light: the accent (#eab308) itself, 1.9 on the secondary panel, 1.8 on Compare's best-value tint.
+    expect(measure("light", "text-accent", { surface: "--color-secondary" }).ratio).toBeLessThan(LARGE);
+    expect(measure("light", "bg-accent/[0.08] text-accent").ratio).toBeLessThan(LARGE);
     expect(measure("dark", "tabular-nums opacity-70", { inherit: "--color-muted-foreground" }).ratio).toBeLessThan(AA); // 4.18
     expect(measure("light", "tabular-nums opacity-70", { inherit: "--color-muted-foreground" }).ratio).toBeLessThan(AA); // 3.61
   });
