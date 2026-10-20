@@ -283,7 +283,9 @@ export interface TrackRecord {
 export interface CompareTeam {
   team: TeamInfo;
   stats: TeamSeasonStats | null;
-  events: { code: string; name: string; start: string | null; opr: number | null; rank: number | null }[];
+  /** Events this season, oldest first. OPR parts are that event's (season OPR parts are each the best event's,
+   *  so the brief can link every number to the event it came from). */
+  events: { code: string; name: string; start: string | null; opr: number | null; auto: number | null; teleop: number | null; endgame: number | null; rank: number | null }[];
 }
 
 export interface CompareView {
