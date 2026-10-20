@@ -40,10 +40,12 @@ export function PageHeader({ title, description, actions, eyebrow, children }: {
   );
 }
 
-export function Section({ title, description, action, children, className, delay = 0 }: {
+export function Section({ title, description, action, stackAction = false, children, className, delay = 0 }: {
   title?: ReactNode;
   description?: ReactNode;
   action?: ReactNode;
+  /** Below the sm breakpoint, put the action under the title and description instead of beside them (a long description would otherwise be squeezed into a narrow column). */
+  stackAction?: boolean;
   children: ReactNode;
   className?: string;
   delay?: number;
@@ -52,7 +54,7 @@ export function Section({ title, description, action, children, className, delay
     <Reveal delay={delay} className={cn('mb-8', className)}>
       <section>
         {(title || action) && (
-          <div className="mb-4 flex items-end justify-between gap-3 border-b border-border pb-3">
+          <div className={cn('mb-4 flex items-end justify-between gap-3 border-b border-border pb-3', stackAction && 'max-sm:flex-col max-sm:items-start')}>
             <div className="min-w-0">
               {title && <h2 className="text-base font-semibold text-foreground">{title}</h2>}
               {description && <p className="mt-0.5 text-sm text-muted-foreground">{description}</p>}
