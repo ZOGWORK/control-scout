@@ -1,7 +1,8 @@
 // Task 14: the notification inbox, against a stub Control Point and the in-process R2 stand-in.
 // Who gets an item for each kind of activity (never the actor), the per-kind switches, read state
 // shared by every session of an account (and streamed to them), pages, 90-day pruning, and the
-// owner-alert hand-off (one item per owner per alert, however often it runs).
+// owner-alert hand-off (one item per owner per alert, however often it runs). Follow-up state: mark unread,
+// the follow-up flag and filter (per account, streamed, kept through mark all read and coalescing); migration 32.
 import type { AddressInfo } from "node:net";
 import type { Server } from "node:http";
 import express from "express";
@@ -147,7 +148,7 @@ const inbox = async (call: Call, q = "") => {
   await inboxSettled();
   const r = await call("GET", `/api/inbox${q}`);
   expect(r.status).toBe(200);
-  return r.json as { items: InboxItem[]; more: boolean; unread: number };
+  return r.json as { items: InboxItem[]; more: boolean; unread: number; followUp: number };
 };
 const titles = async (call: Call) => (await inbox(call)).items.map((i) => i.title);
 const unread = async (call: Call) => { await inboxSettled(); return (await call("GET", "/api/inbox/unread-count")).json.unread as number; };
@@ -431,5 +432,210 @@ describe("inbox: owner alerts", () => {
     expect(await deliverOwnerAlerts()).toBeGreaterThanOrEqual(1);
     expect((await inbox(later)).items.map((i) => i.title)).toContain("Waiting");
     await resolveAlert("inbox-test-3");
+  });
+});
+
+describe("inbox: follow-up state (mark unread, follow up)", () => {
+  /** A live stream of this session's inbox events. */
+  async function listen(call: Call) {
+    const ctl = new AbortController();
+    const res = await fetch(`${base}/api/inbox/stream`, { headers: { Cookie: call.cookie() }, signal: ctl.signal });
+    const reader = res.body!.getReader();
+    let buf = "";
+    const next = async (): Promise<{ unread: number; latest: number | null; followUp: number }> => {
+      while (true) {
+        const m = /event: inbox\ndata: (.*)\n\n/.exec(buf);
+        if (m) { buf = buf.slice(m.index + m[0].length); return JSON.parse(m[1]); }
+        const { value, done } = await reader.read();
+        if (done) throw new Error("stream ended");
+        buf += new TextDecoder().decode(value);
+      }
+    };
+    return { next, stop: () => ctl.abort() };
+  }
+  const assign = async (ws: string, coach: number, email: string, count: number) => {
+    for (let i = 0; i < count; i++) await logActivity(ws, { accountId: coach, name: "Coach" }, "assignment.created", `assignment:${i}`, { team: 100 + i, assigneeAccountId: accountFor(email).id });
+  };
+
+  it("mark unread puts a read item back in the count; follow up never changes it; both are the account's on every session", async () => {
+    const { member, coach } = await team("1430");
+    const phone = await secondSession(member);
+    await assign("1430", coach, "priya-1430@example.com", 2);
+    const [newer, older] = (await inbox(member)).items;
+    expect(newer.followUp).toBe(false);
+    expect((await member("POST", "/api/inbox/read", { all: true })).json.unread).toBe(0);
+
+    expect((await member("POST", "/api/inbox/unread", { ids: [older.id] })).json).toEqual({ unread: 1 });
+    expect(await unread(phone)).toBe(1);
+    // Already unread: no change, no double count.
+    expect((await member("POST", "/api/inbox/unread", { ids: [older.id, older.id] })).json).toEqual({ unread: 1 });
+
+    expect((await member("POST", "/api/inbox/follow-up", { ids: [newer.id], on: true })).json).toEqual({ unread: 1, followUp: 1 });
+    const p = await inbox(phone);
+    expect(p.items.map((i) => [i.id, i.read, i.followUp])).toEqual([[newer.id, true, true], [older.id, false, false]]);
+    expect(p).toMatchObject({ unread: 1, followUp: 1 });
+    // A read item can be flagged; flagging an unread one leaves it unread.
+    expect((await phone("POST", "/api/inbox/follow-up", { ids: [older.id], on: true })).json).toEqual({ unread: 1, followUp: 2 });
+    expect((await phone("POST", "/api/inbox/follow-up", { ids: [newer.id], on: false })).json).toEqual({ unread: 1, followUp: 1 });
+    expect((await inbox(member)).items.map((i) => [i.read, i.followUp])).toEqual([[true, false], [false, true]]);
+  });
+
+  it("mark all read keeps follow-up flags", async () => {
+    const { member, coach } = await team("1431");
+    await assign("1431", coach, "priya-1431@example.com", 3);
+    const ids = (await inbox(member)).items.map((i) => i.id);
+    await member("POST", "/api/inbox/follow-up", { ids: [ids[0], ids[2]], on: true });
+    expect((await member("POST", "/api/inbox/read", { all: true })).json.unread).toBe(0);
+    const after = await inbox(member);
+    expect(after.items.map((i) => [i.read, i.followUp])).toEqual([[true, true], [true, false], [true, true]]);
+    expect(after.followUp).toBe(2);
+  });
+
+  it("is never visible to or changeable by another account", async () => {
+    const { admin, member, coach } = await team("1432");
+    await assign("1432", coach, "priya-1432@example.com", 1);
+    const [mine] = (await inbox(member)).items;
+    await member("POST", "/api/inbox/read", { ids: [mine.id] });
+    // Someone else's ids change nothing (and say nothing about whether they exist).
+    expect((await admin("POST", "/api/inbox/unread", { ids: [mine.id] })).json).toEqual({ unread: 0 });
+    expect((await admin("POST", "/api/inbox/follow-up", { ids: [mine.id], on: true })).json).toEqual({ unread: 0, followUp: 0 });
+    expect((await inbox(member)).items[0]).toMatchObject({ read: true, followUp: false });
+    // My flag isn't in their filter or counts, and they can't clear it.
+    await member("POST", "/api/inbox/follow-up", { ids: [mine.id], on: true });
+    expect(await inbox(admin, "?filter=followUp")).toEqual({ items: [], more: false, unread: 0, followUp: 0 });
+    expect((await admin("POST", "/api/inbox/follow-up", { ids: [mine.id], on: false })).json.followUp).toBe(0);
+    expect((await inbox(member)).items[0].followUp).toBe(true);
+  });
+
+  it("the Follow up filter pages newest first with before/limit; the counts are the whole inbox's", async () => {
+    const { member, coach } = await team("1433");
+    await assign("1433", coach, "priya-1433@example.com", 6);
+    const ids = (await inbox(member)).items.map((i) => i.id); // newest first: teams 105..100
+    await member("POST", "/api/inbox/follow-up", { ids: [ids[0], ids[2], ids[3], ids[5]], on: true });
+    const p1 = await inbox(member, "?filter=followUp&limit=2");
+    expect(p1.items.map((i) => i.id)).toEqual([ids[0], ids[2]]);
+    expect(p1).toMatchObject({ more: true, unread: 6, followUp: 4 });
+    const p2 = await inbox(member, `?filter=followUp&limit=2&before=${p1.items[1].id}`);
+    expect(p2.items.map((i) => i.id)).toEqual([ids[3], ids[5]]);
+    expect(p2.more).toBe(false);
+    expect((await inbox(member, "?filter=all&limit=2")).items.map((i) => i.id)).toEqual([ids[0], ids[1]]);
+  });
+
+  it("bad requests: 400; signed out: 401; writes must be JSON", async () => {
+    const anon = client();
+    expect((await anon("POST", "/api/inbox/unread", { ids: [1] })).status).toBe(401);
+    expect((await anon("POST", "/api/inbox/follow-up", { ids: [1], on: true })).status).toBe(401);
+    const { member } = await team("1434");
+    expect((await member("GET", "/api/inbox?filter=starred")).status).toBe(400);
+    expect((await member("POST", "/api/inbox/unread", { ids: [] })).status).toBe(400);
+    expect((await member("POST", "/api/inbox/unread", { all: true })).status).toBe(400);
+    expect((await member("POST", "/api/inbox/follow-up", { ids: [1] })).status).toBe(400);
+    expect((await member("POST", "/api/inbox/follow-up", { ids: [1], on: "yes" })).status).toBe(400);
+    expect((await member("POST", "/api/inbox/follow-up", { ids: [0], on: true })).status).toBe(400);
+    expect((await member("POST", "/api/inbox/follow-up", { ids: Array.from({ length: 201 }, (_, i) => i + 1), on: true })).status).toBe(400);
+    const form = await fetch(`${base}/api/inbox/follow-up`, { method: "POST", headers: { Cookie: member.cookie(), "Content-Type": "application/x-www-form-urlencoded" }, body: "ids=1&on=true" });
+    expect(form.status).toBe(415);
+  });
+
+  it("every open stream of the account hears it (unread and follow-up counts); another account's doesn't", async () => {
+    const { admin, member, coach } = await team("1435");
+    await assign("1435", coach, "priya-1435@example.com", 1);
+    const phone = await secondSession(member);
+    const [it1] = (await inbox(member)).items;
+    const mine = await listen(phone);
+    const theirs = await listen(admin);
+    expect(await mine.next()).toMatchObject({ unread: 1, followUp: 0 });
+    expect(await theirs.next()).toMatchObject({ unread: 0, followUp: 0 });
+    await member("POST", "/api/inbox/follow-up", { ids: [it1.id], on: true });
+    expect(await mine.next()).toMatchObject({ unread: 1, followUp: 1 });
+    await member("POST", "/api/inbox/read", { ids: [it1.id] });
+    expect(await mine.next()).toMatchObject({ unread: 0, followUp: 1 });
+    await member("POST", "/api/inbox/unread", { ids: [it1.id] });
+    expect(await mine.next()).toMatchObject({ unread: 1, followUp: 1 });
+    // Nothing changed: nothing sent. The admin's stream stays quiet throughout.
+    await member("POST", "/api/inbox/follow-up", { ids: [it1.id], on: true });
+    await admin("POST", "/api/inbox/follow-up", { ids: [it1.id], on: false });
+    await member("POST", "/api/inbox/follow-up", { ids: [it1.id], on: false });
+    expect(await mine.next()).toMatchObject({ unread: 1, followUp: 0 });
+    const quiet = await Promise.race([theirs.next().then(() => "event"), new Promise((r) => setTimeout(() => r("quiet"), 150))]);
+    expect(quiet).toBe("quiet");
+    mine.stop(); theirs.stop();
+  });
+
+  it("a coalesced item that replaces a flagged one keeps the flag (edits and the pick list)", async () => {
+    const { admin, member, first, coach } = await team("1436");
+    await push(admin, "1436", { ...first, notes: "one", updatedAt: first.updatedAt + 1 });
+    const [edit] = (await inbox(member)).items;
+    await member("POST", "/api/inbox/follow-up", { ids: [edit.id], on: true });
+    await push(admin, "1436", { ...first, notes: "two", updatedAt: first.updatedAt + 2 });
+    let items = (await inbox(member)).items;
+    expect(items).toHaveLength(1);
+    expect(items[0]).toMatchObject({ body: "team 18360 · match Q1 · USNJQ1 · 2 edits", followUp: true, read: false });
+    expect(items[0].id).not.toBe(edit.id);
+
+    await logActivity("1436", { accountId: coach, name: "Coach" }, "picklist.changed", "picklist:2025", { season: 2025 });
+    const pick = (await inbox(member)).items.find((i) => i.category === "picklist")!;
+    await member("POST", "/api/inbox/follow-up", { ids: [pick.id], on: true });
+    await logActivity("1436", { accountId: coach, name: "Coach" }, "picklist.changed", "picklist:2025", { season: 2025 });
+    items = (await inbox(member)).items.filter((i) => i.category === "picklist");
+    expect(items).toHaveLength(1);
+    expect(items[0].id).not.toBe(pick.id);
+    expect(items[0].followUp).toBe(true);
+    // An unflagged one replaced: still unflagged.
+    await member("POST", "/api/inbox/follow-up", { ids: [items[0].id], on: false });
+    await logActivity("1436", { accountId: coach, name: "Coach" }, "picklist.changed", "picklist:2025", { season: 2025 });
+    expect((await inbox(member)).items.filter((i) => i.category === "picklist").map((i) => i.followUp)).toEqual([false]);
+  });
+
+  it("resolving an owner alert marks its items read but keeps a follow-up flag", async () => {
+    process.env.OWNER_EMAILS = "owner-1437@example.com";
+    const owner = await signIn("owner-1437@example.com", "Owner");
+    await raiseAlert("inbox-test-1437", "warning", "Photo storage approaching the 10 GB free tier limit", "Purge an event or uploads will pause.");
+    await deliverOwnerAlerts();
+    const alert = (await inbox(owner)).items.find((i) => i.category === "ownerAlerts")!;
+    await owner("POST", "/api/inbox/follow-up", { ids: [alert.id], on: true });
+    await resolveAlert("inbox-test-1437");
+    expect((await inbox(owner)).items.find((i) => i.id === alert.id)).toMatchObject({ read: true, followUp: true });
+  });
+});
+
+describe("migration 32 (inbox follow-up flags)", () => {
+  it("adds follow_up_at to an existing inbox: items keep everything and start unflagged", async () => {
+    const c = openDb(":memory:");
+    expect((await migrate(c, 31)).at(-1)).toBe(31);
+    await c.execute({ sql: "INSERT INTO inbox_items (user_id, at, category, type, title, read_at) VALUES (1, ?, 'edits', 'entry.edited', 'Coach edited your entry', ?)", args: [Date.now(), Date.now()] });
+    expect(await migrate(c)).toEqual([32]);
+    const r = (await c.execute("SELECT title, read_at, follow_up_at FROM inbox_items")).rows[0];
+    expect(r.title).toBe("Coach edited your entry");
+    expect(r.read_at).not.toBeNull();
+    expect(r.follow_up_at).toBeNull();
+    const idx = (await c.execute("SELECT name FROM sqlite_master WHERE type = 'index' AND name = 'inbox_items_follow_up'")).rows;
+    expect(idx).toHaveLength(1);
+    expect(await migrate(c)).toEqual([]);
+  });
+});
+
+describe("inbox: the Follow up view's kept rows (keep=)", () => {
+  it("lists the account's own kept items with their real state alongside flagged ones; never another account's", async () => {
+    const { admin, member, coach } = await team("1438");
+    for (let i = 0; i < 4; i++) await logActivity("1438", { accountId: coach, name: "Coach" }, "assignment.created", `assignment:${i}`, { team: 100 + i, assigneeAccountId: accountFor("priya-1438@example.com").id });
+    const ids = (await inbox(member)).items.map((i) => i.id); // newest first
+    await member("POST", "/api/inbox/follow-up", { ids: [ids[0], ids[3]], on: true });
+    await member("POST", "/api/inbox/read", { ids: [ids[2]] });
+    // ids[2] was unflagged in the view: it comes back, read and unflagged, in id order.
+    const p = await inbox(member, `?filter=followUp&keep=${ids[2]}`);
+    expect(p.items.map((i) => [i.id, i.followUp, i.read])).toEqual([[ids[0], true, false], [ids[2], false, true], [ids[3], true, false]]);
+    expect(p.followUp).toBe(2);
+    // Paging covers the same set.
+    const p1 = await inbox(member, `?filter=followUp&keep=${ids[2]}&limit=2`);
+    expect(p1.items.map((i) => i.id)).toEqual([ids[0], ids[2]]);
+    expect((await inbox(member, `?filter=followUp&keep=${ids[2]}&limit=2&before=${ids[2]}`)).items.map((i) => i.id)).toEqual([ids[3]]);
+    // keep only applies to the Follow up view.
+    expect((await inbox(member, `?keep=${ids[2]}`)).items).toHaveLength(4);
+    // Another account can't pull someone's items in by id.
+    expect((await inbox(admin, `?filter=followUp&keep=${ids.join(",")}`)).items).toEqual([]);
+    expect((await member("GET", "/api/inbox?filter=followUp&keep=abc")).status).toBe(400);
+    expect((await member("GET", "/api/inbox?filter=followUp&keep=0")).status).toBe(400);
+    expect((await member("GET", `/api/inbox?filter=followUp&keep=${Array.from({ length: 201 }, (_, i) => i + 1).join(",")}`)).status).toBe(400);
   });
 });
