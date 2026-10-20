@@ -2,10 +2,11 @@
 // The conflict notice (Task 16): "Your edit was overwritten by <name>", shown per lost edit until dismissed, with a
 // field-level diff labelled from the template, and Restore my version queueing a restore.
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { act, cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import { applyLiveEntries, localScoutEntries, pendingScoutCounts, saveScoutEntry, setScoutViewer, syncScouting, type ScoutEntry } from "../../lib/scouting";
 import { builtinTemplate } from "../../shared/scoutDefaults";
-import { ConflictNotices, HistorySheet, restoreBlock } from "./EntryHistory";
+import { ConflictNotices, DiffTable, HistorySheet, restoreBlock } from "./EntryHistory";
+import { NONE } from "../../lib/entryDiff";
 
 const counter = builtinTemplate(2025, "match").fields.find((f) => f.type === "counter")!;
 const server = (over: Partial<ScoutEntry> & { updatedAt: number }): ScoutEntry => ({
@@ -14,7 +15,12 @@ const server = (over: Partial<ScoutEntry> & { updatedAt: number }): ScoutEntry =
 });
 const me = { accountId: 8, role: "member" as const };
 
-beforeEach(() => { localStorage.clear(); setScoutViewer(8); });
+// Phone width or not, for the stacked diff (useMediaQuery("(max-width: 639px)")).
+let phone = false;
+beforeEach(() => {
+  localStorage.clear(); setScoutViewer(8); phone = false;
+  vi.stubGlobal("matchMedia", (q: string) => ({ matches: q.includes("max-width") ? phone : false, media: q, addEventListener() {}, removeEventListener() {} }));
+});
 afterEach(() => { cleanup(); setScoutViewer(null); });
 
 describe("ConflictNotices", () => {
@@ -98,5 +104,36 @@ describe("restoreBlock", () => {
     expect(restoreBlock(live, 7, { accountId: 9, role: "admin" })).toBeNull();
     expect(restoreBlock(gone, null, me)).toMatch(/deleted/);
     expect(restoreBlock(gone, null, { accountId: 7, role: "member" })).toBeNull();
+  });
+});
+
+describe("DiffTable on phones", () => {
+  const LONG = "Fast cycler on the near side. Drove defence for the last 30 seconds of TeleOp and still parked; intake jammed once in Auto.";
+  const rows = [
+    { key: "notes", label: "Notes", before: NONE, after: LONG },
+    { key: "match", label: "Match", before: "Q3", after: "Q4" },
+  ];
+
+  it("stacks Before above After for each field, full width, with an empty side said in one line", () => {
+    phone = true;
+    render(<DiffTable rows={rows} beforeLabel="v1" afterLabel="v2" caption="Changes in version 2" />);
+    expect(screen.queryByRole("table")).toBeNull();
+    const list = screen.getByRole("list", { name: "Changes in version 2" });
+    const [notes, match] = within(list).getAllByRole("listitem");
+    expect(notes.querySelector("p")!.textContent).toBe("Notes");
+    const before = notes.querySelector('[data-side="before"]')!, after = notes.querySelector('[data-side="after"]')!;
+    expect(before.textContent).toBe("Before (v1): empty");
+    expect(after.textContent).toBe(`After (v2)${LONG}`);
+    expect(before.compareDocumentPosition(after) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(match.querySelector('[data-side="before"]')!.textContent).toBe("Before (v1)Q3");
+    expect(match.querySelector('[data-side="after"]')!.textContent).toBe("After (v2)Q4");
+  });
+
+  it("keeps the side-by-side table on wider screens", () => {
+    render(<DiffTable rows={rows} beforeLabel="v1" afterLabel="v2" caption="Changes in version 2" />);
+    const table = screen.getByRole("table", { name: "Changes in version 2" });
+    expect(within(table).getByRole("columnheader", { name: "v1" })).toBeTruthy();
+    expect(within(table).getByText(LONG)).toBeTruthy();
+    expect(screen.queryByText(/^Before/)).toBeNull();
   });
 });
