@@ -55,8 +55,8 @@ describe("every table is classified", () => {
     const c = createClient({ url: `file:${p}` });
     const names = (await c.execute("SELECT name FROM sqlite_master WHERE type = 'table' AND name NOT LIKE 'sqlite_%'")).rows.map((r) => String(r.name));
     c.close();
-    // FTS5 shadow tables (search_data, search_fuzzy_idx, …) belong to their virtual table.
-    const own = names.filter((n) => !/^(search|search_fuzzy)_(data|idx|content|docsize|config)$/.test(n));
+    // FTS5 shadow tables (search_data, search_fuzzy_idx, team_search_idx, …) belong to their virtual table.
+    const own = names.filter((n) => !/^(search|search_fuzzy|team_search)_(data|idx|content|docsize|config)$/.test(n));
     const unclassified = own.filter((n) => !PUBLIC_TABLES.includes(n) && !PRIVATE_TABLES.includes(n));
     expect(unclassified, "add each new table to PUBLIC_TABLES or PRIVATE_TABLES in server/data/snapshot.ts").toEqual([]);
     expect(PUBLIC_TABLES.filter((t) => PRIVATE_TABLES.includes(t))).toEqual([]);
