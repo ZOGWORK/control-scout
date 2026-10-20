@@ -128,9 +128,10 @@ export function RecordsTable(p: RecordsTableProps) {
   }, [offline, api.reload]);
 
   const [builder, setBuilder] = useState(false);
-  const [builderView, setBuilderView] = useState<"build" | "saved">("build");
+  // Which side of the builder was asked for, and a count of the asks (so asking again while it's open turns it).
+  const [builderView, setBuilderView] = useState<{ view: "build" | "saved"; n: number }>({ view: "build", n: 0 });
   const [columns, setColumns] = useState(false);
-  const openBuilder = (v: "build" | "saved" = "build") => { setBuilderView(v); setColumns(false); setBuilder(true); };
+  const openBuilder = (view: "build" | "saved" = "build") => { setBuilderView((b) => ({ view, n: b.n + 1 })); setColumns(false); setBuilder(true); };
   // Ticked teams, for Compare (nothing else reads them: the CSV export takes the whole filtered table).
   // Kept through filtering and paging; a new season or event starts over.
   const [selected, setSelected] = useState<number[]>([]);
@@ -457,7 +458,7 @@ export function RecordsTable(p: RecordsTableProps) {
         </div>
       )}
 
-      <FilterBuilder open={builder} onOpenChange={setBuilder} scope={scope} predictable={predictable} value={state.filter} noun={p.noun} initialView={builderView}
+      <FilterBuilder open={builder} onOpenChange={setBuilder} scope={scope} predictable={predictable} value={state.filter} noun={p.noun} initialView={builderView.view} viewRequest={builderView.n}
         onApply={(filter) => setState({ ...state, filter, filterError: null, filterRaw: null, page: 1 })} countFor={countFor} />
       <Panel open={columns} onOpenChange={setColumns}
         title={<span className="flex items-center gap-2"><Columns3 className="size-5 text-sky-500" /> Choose statistics</span>}
