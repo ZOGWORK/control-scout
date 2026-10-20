@@ -114,7 +114,7 @@ async function normal(browser: Browser, r: (typeof ROUTES)[number], vp: Viewport
     return { overflow, wide, text, mock };
   });
   // Controls with no accessible name: rendered ones, then those inside closed <details>, checked opened (scripts/lib/unnamed.ts).
-  const unnamed = await page.evaluate(findUnnamed);
+  const unnamed = await page.evaluate(findUnnamed, 5);
   for (const o of checks.overflow) f("h-overflow", o);
   for (const w of checks.wide) f("wider-than-viewport", w);
   for (const u of unnamed) f("unnamed-control", u);

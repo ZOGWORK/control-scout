@@ -7,7 +7,7 @@
 // still fails, and says it was found inside a <details>.
 
 /** Each unnamed control (at most `limit`) as "tag[role] <outerHTML…>". */
-export function findUnnamed(limit = 5): string[] {
+export function findUnnamed(limit: number): string[] {
   const CONTROLS = "button, a[href], input:not([type=hidden]), select, textarea, [role=button], [role=tab], [role=switch], [role=combobox]";
   const accName = (e: Element) => (e.getAttribute("aria-label") || e.getAttribute("aria-labelledby") || e.getAttribute("title") || (e as HTMLElement).innerText || "").trim()
     || (e.id && document.querySelector(`label[for="${CSS.escape(e.id)}"]`)?.textContent?.trim()) || e.closest("label")?.textContent?.trim() || (e as HTMLInputElement).placeholder || "";
