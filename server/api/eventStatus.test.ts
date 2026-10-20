@@ -141,10 +141,13 @@ describe("event status by the venue's calendar (PUB3-F01)", () => {
 
   it("a cached detail is rebuilt when the venue's date turns over, though UTC's hasn't", async () => {
     await event("BNE", "2026-10-19", "Australia/Brisbane");
-    vi.setSystemTime(Date.parse("2026-10-18T13:50:00Z")); // 23:50 on the 18th in Brisbane
+    vi.setSystemTime(Date.parse("2026-10-18T13:59:00Z")); // 23:59 on the 18th in Brisbane
     const before = await cachedEventDetail(S, "BNE");
     expect(before!.event.status).toBe("upcoming");
-    vi.setSystemTime(Date.parse("2026-10-18T14:01:00Z")); // 00:01 on the 19th there, same UTC day, same data version
+    vi.setSystemTime(Date.parse("2026-10-18T13:59:30Z")); // still the 18th there: the cached one is reused
+    expect(await cachedEventDetail(S, "BNE")).toBe(before);
+    // 00:01 on the 19th there: same UTC day, same data version, well inside the cache's 5-minute life.
+    vi.setSystemTime(Date.parse("2026-10-18T14:01:00Z"));
     const after = await cachedEventDetail(S, "BNE");
     expect(after).not.toBe(before);
     expect(after!.event.status).toBe("live");
