@@ -36,7 +36,7 @@ function value(theme: Theme, name: string, depth = 0): RGBA {
   return c;
 }
 
-/** The colour a utility like `text-sky-700`, `bg-green-500/12` or `!text-foreground` paints in this theme. */
+/** The colour a utility like `text-sky-700`, `bg-green-500/12`, `bg-info/[0.08]` or `!text-foreground` paints in this theme. */
 function utility(theme: Theme, classes: string, prop: "text" | "bg"): RGBA | null {
   let found: RGBA | null = null;
   for (const cls of classes.split(/\s+/)) {
@@ -44,10 +44,14 @@ function utility(theme: Theme, classes: string, prop: "text" | "bg"): RGBA | nul
     // Only the resting, theme-matching state: `dark:` applies on dark, hover/focus never.
     if (variant && variant !== "dark" && !variant.startsWith("[&")) continue;
     if (variant === "dark" && theme !== "dark") continue;
-    const m = new RegExp(`^!?${prop}-([a-z]+(?:-[a-z]+)*(?:-\\d{2,3})?)(?:/(\\d+))?$`).exec(util);
-    if (!m || !vars[theme][`--color-${m[1]}`]) continue;
+    // Alpha as a step (`/12`) or arbitrary (`/[0.08]`, `/[8%]`).
+    const m = new RegExp(`^!?${prop}-([a-z]+(?:-[a-z]+)*(?:-\\d{2,3})?)(?:/(\\d+)|/\\[([\\d.]+)(%?)\\])?$`).exec(util);
+    const known = m && vars[theme][`--color-${m[1]}`];
+    // A colour class with an alpha this can't read would be measured against the wrong background: fail loudly.
+    if (!known && new RegExp(`^!?${prop}-.*/`).test(util)) throw new Error(`can't read the alpha in ${cls}`);
+    if (!m || !known) continue;
     const c = value(theme, `--color-${m[1]}`);
-    const alpha = m[2] ? +m[2] / 100 : c[3];
+    const alpha = m[2] ? +m[2] / 100 : m[3] ? (m[4] ? +m[3] / 100 : +m[3]) : c[3];
     // A plain class sets the colour unless a `dark:` one already did for dark.
     if (variant === "dark" || !found || theme === "light") found = [c[0], c[1], c[2], alpha];
     if (variant === "dark") break;
@@ -117,6 +121,14 @@ describe("text tones reach WCAG AA in both themes", () => {
       }
     });
   }
+
+  it("reads tints with arbitrary alpha, so a chip is measured on its real background", () => {
+    // bg-info/[0.08] over the light card is a pale sky, not the card's white.
+    expect(toHex(over(utility("light", "bg-info/[0.08]", "bg")!, value("light", "--color-card")))).not.toBe("#ffffff");
+    expect(utility("light", "bg-info/[0.08]", "bg")![3]).toBeCloseTo(0.08);
+    expect(utility("dark", "bg-text-base/[6%]", "bg")![3]).toBeCloseTo(0.06);
+    expect(() => utility("light", "bg-info/[calc(1/2)]", "bg")).toThrow(/alpha/);
+  });
 
   it("the old classes fail, so this test would catch them coming back", () => {
     expect(measure("light", "bg-sky-400/15 text-sky-600 dark:text-sky-400").ratio).toBeLessThan(AA); // 3.53
