@@ -1,5 +1,6 @@
 // The notification inbox on the device (docs/inbox.md): the bell's unread count and the list behind it.
-// Read state lives on the server, so marking an item read on one device clears it on the others.
+// Read and follow-up state live on the server, so marking an item read (or unread, or flagging it to follow
+// up) on one device changes it on the others: the stream tells every tab, and an open list refetches.
 //
 // Live: an EventSource on /api/inbox/stream (one per signed-in tab, across every workspace, open whether
 // or not a scout space is) sends the unread count on connect and whenever an item arrives or read state
@@ -9,7 +10,7 @@
 // stream lets go after the tab has been hidden for a minute.
 import { useCallback, useEffect, useRef, useState } from "react";
 import { apiFetch, ApiError } from "./api";
-import { INBOX_PAGE, type InboxItem, type InboxPage } from "../shared/inbox";
+import { INBOX_PAGE, type InboxFilter, type InboxItem, type InboxPage } from "../shared/inbox";
 
 export type InboxMode = "off" | "connecting" | "live" | "polling";
 
@@ -18,7 +19,7 @@ export const INBOX_POLL_MS = 45_000;
 export const INBOX_STREAM_RETRY_MS = 120_000;
 export const INBOX_HIDDEN_CLOSE_MS = 60_000;
 
-export interface InboxNotice { unread: number; latest: number | null }
+export interface InboxNotice { unread: number; latest: number | null; followUp?: number | null }
 
 interface Deps {
   EventSource?: typeof EventSource;
@@ -84,7 +85,7 @@ export function followInbox(onNotice: (n: InboxNotice) => void, onMode: (m: Inbo
       failures = 0;
       stopPolling(); clearRetry();
       setMode("live");
-      onNotice({ unread: n.unread!, latest: Number.isSafeInteger(n.latest) ? n.latest! : null });
+      onNotice({ unread: n.unread!, latest: Number.isSafeInteger(n.latest) ? n.latest! : null, followUp: Number.isSafeInteger(n.followUp) ? n.followUp! : null });
     });
     s.onerror = () => { if (es === s) failed(); };
   }
@@ -123,14 +124,22 @@ export function isInboxItem(x: unknown): x is InboxItem {
   const i = x as InboxItem;
   return !!i && Number.isSafeInteger(i.id) && Number.isFinite(i.at) && typeof i.title === "string" && typeof i.link === "string" && typeof i.read === "boolean";
 }
+/** The valid items of a reply (followUp missing, e.g. from a server mid-deploy: not flagged). */
+const cleanItems = (xs: unknown): InboxItem[] => (Array.isArray(xs) ? xs.filter(isInboxItem).map((i) => ({ ...i, followUp: i.followUp === true })) : []);
 
 
 export interface InboxState {
   unread: number; mode: InboxMode;
+  /** How many items are flagged to follow up (the whole inbox, whatever the filter). */ followUp: number;
+  filter: InboxFilter;
   items: InboxItem[]; loaded: boolean; loading: boolean; error: ApiError | null; more: boolean; loadingOlder: boolean;
-  /** Fetch the newest page (the panel opening). */ load: () => void;
+  /** Fetch the newest page. */ load: () => void;
+  /** The panel opening: the newest page, and items unflagged in the Follow up view are let go. */ open: () => void;
+  setFilter: (f: InboxFilter) => void;
   loadOlder: () => void;
   markRead: (ids: number[]) => void;
+  markUnread: (ids: number[]) => void;
+  setFollowUp: (ids: number[], on: boolean) => void;
   markAllRead: () => void;
 }
 
@@ -142,10 +151,15 @@ export interface InboxState {
  * and a refresh's reply is used only when no newer one of those started after it, so a slow snapshot can never
  * bring back items or unread state a later one replaced. An older page never cancels a refresh: its reply is
  * dropped instead when the list changed after it was asked for.
+ *
+ * Filter "followUp" lists flagged items only. An item unflagged in that view stays on screen (shown unflagged,
+ * so it can be flagged again and focus isn't lost) until the filter changes or the panel opens again.
  */
 export function useInbox(userId: number | null): InboxState {
   const visible = useVisible();
   const [unread, setUnread] = useState(0);
+  const [followUp, setFollowUpCount] = useState(0);
+  const [filter, setFilterState] = useState<InboxFilter>("all");
   const [mode, setMode] = useState<InboxMode>("off");
   const [items, setItems] = useState<InboxItem[]>([]);
   const [loaded, setLoaded] = useState(false);
@@ -161,19 +175,29 @@ export function useInbox(userId: number | null): InboxState {
   // Bumped whenever a refresh's page replaces the list: an older page asked for before that doesn't fit it.
   const listVersion = useRef(0);
   const loadedRef = useRef(false);
+  const filterRef = useRef<InboxFilter>("all");
+  // Unflagged in the Follow up view: kept on screen (see above).
+  const kept = useRef(new Set<number>());
 
   const load = useCallback(() => {
     if (userId == null) return;
-    const g = gen.current, s = ++seq.current;
-    const current = () => gen.current === g && seq.current === s;
+    const g = gen.current, s = ++seq.current, f = filterRef.current;
+    const current = () => gen.current === g && seq.current === s && filterRef.current === f;
     if (!loadedRef.current) setLoading(true);
-    apiFetch<InboxPage>(`/api/inbox?limit=${INBOX_PAGE}`)
+    apiFetch<InboxPage>(`/api/inbox?limit=${INBOX_PAGE}${f === "all" ? "" : `&filter=${f}`}`)
       .then((r) => {
         if (!current()) return;
         listVersion.current++;
-        setItems((r.items ?? []).filter(isInboxItem));
+        const page = cleanItems(r.items);
+        setItems((cur) => {
+          if (f !== "followUp" || !kept.current.size) return page;
+          const ids = new Set(page.map((i) => i.id));
+          const stay = cur.filter((i) => kept.current.has(i.id) && !ids.has(i.id));
+          return [...page, ...stay].sort((a, b) => b.id - a.id);
+        });
         setMore(!!r.more);
         if (Number.isFinite(r.unread)) setUnread(r.unread);
+        if (Number.isFinite(r.followUp)) setFollowUpCount(r.followUp);
         loadedRef.current = true; setLoaded(true); setError(null);
       })
       .catch((e) => { if (current()) setError(e instanceof ApiError ? e : new ApiError(0, "Couldn't load your notifications.")); })
@@ -183,14 +207,28 @@ export function useInbox(userId: number | null): InboxState {
   // A new account (or signed out): start clean.
   useEffect(() => {
     gen.current++;
-    setUnread(0); setItems([]); setLoaded(false); setLoading(false); setError(null); setMore(false); setLoadingOlder(false);
+    setUnread(0); setFollowUpCount(0); setItems([]); setLoaded(false); setLoading(false); setError(null); setMore(false); setLoadingOlder(false);
+    setFilterState("all"); filterRef.current = "all"; kept.current.clear();
     loadedRef.current = false;
   }, [userId]);
+
+  const open = useCallback(() => { kept.current.clear(); load(); }, [load]);
+
+  // Another filter: a new list (the old one's items don't belong in it).
+  const setFilter = useCallback((f: InboxFilter) => {
+    if (f === filterRef.current) return;
+    filterRef.current = f; kept.current.clear();
+    setFilterState(f);
+    olderSeq.current++; setLoadingOlder(false);
+    loadedRef.current = false; setLoaded(false); setItems([]); setMore(false);
+    load();
+  }, [load]);
 
   useEffect(() => {
     if (userId == null || !visible) { setMode("off"); return; }
     return followInbox((n) => {
       setUnread(n.unread);
+      if (n.followUp != null) setFollowUpCount(n.followUp);
       // Something newer than the list has arrived, or read state changed elsewhere: the list follows (once it's been opened).
       if (loadedRef.current) load();
     }, setMode);
@@ -199,12 +237,12 @@ export function useInbox(userId: number | null): InboxState {
   const oldest = items.at(-1)?.id;
   const loadOlder = useCallback(() => {
     if (userId == null || !oldest) return;
-    const g = gen.current, s = seq.current, v = listVersion.current, o = ++olderSeq.current;
+    const g = gen.current, s = seq.current, v = listVersion.current, o = ++olderSeq.current, f = filterRef.current;
     setLoadingOlder(true);
-    apiFetch<InboxPage>(`/api/inbox?limit=${INBOX_PAGE}&before=${oldest}`)
+    apiFetch<InboxPage>(`/api/inbox?limit=${INBOX_PAGE}&before=${oldest}${f === "all" ? "" : `&filter=${f}`}`)
       .then((r) => {
-        if (gen.current !== g || seq.current !== s || listVersion.current !== v || olderSeq.current !== o) return; // the list changed meanwhile: this page may not fit it
-        const page = (r.items ?? []).filter(isInboxItem);
+        if (gen.current !== g || seq.current !== s || listVersion.current !== v || olderSeq.current !== o || filterRef.current !== f) return; // the list changed meanwhile: this page may not fit it
+        const page = cleanItems(r.items);
         setItems((cur) => { const ids = new Set(cur.map((i) => i.id)); return [...cur, ...page.filter((i) => !ids.has(i.id))]; });
         setMore(!!r.more);
       })
@@ -212,12 +250,12 @@ export function useInbox(userId: number | null): InboxState {
       .finally(() => { if (gen.current === g && olderSeq.current === o) setLoadingOlder(false); });
   }, [userId, oldest]);
 
-  // A read change: shown at once; any reply to a request started before it is ignored, and once the server has
-  // it the list is fetched again (the server's state, with this change in it).
-  const send = useCallback((body: unknown) => {
+  // A read or follow-up change: shown at once; any reply to a request started before it is ignored, and once the
+  // server has it the list is fetched again (the server's state, with this change in it).
+  const send = useCallback((path: string, body: unknown) => {
     const g = gen.current;
     seq.current++;
-    apiFetch<{ unread: number }>("/api/inbox/read", { method: "POST", json: body })
+    apiFetch<{ unread: number }>(path, { method: "POST", json: body })
       .catch(() => undefined)
       .then(() => { if (gen.current === g) load(); });
   }, [load]);
@@ -227,14 +265,32 @@ export function useInbox(userId: number | null): InboxState {
     if (!fresh.length) return;
     setItems((cur) => cur.map((i) => (fresh.includes(i.id) ? { ...i, read: true } : i)));
     setUnread((u) => Math.max(0, u - fresh.length));
-    send({ ids: fresh });
+    send("/api/inbox/read", { ids: fresh });
   }, [items, send]);
 
+  const markUnread = useCallback((ids: number[]) => {
+    const was = items.filter((i) => ids.includes(i.id) && i.read).map((i) => i.id);
+    if (!was.length) return;
+    setItems((cur) => cur.map((i) => (was.includes(i.id) ? { ...i, read: false } : i)));
+    setUnread((u) => u + was.length);
+    send("/api/inbox/unread", { ids: was });
+  }, [items, send]);
+
+  const setFollowUp = useCallback((ids: number[], on: boolean) => {
+    const change = items.filter((i) => ids.includes(i.id) && i.followUp !== on).map((i) => i.id);
+    if (!change.length) return;
+    if (filterRef.current === "followUp") for (const id of change) { if (on) kept.current.delete(id); else kept.current.add(id); }
+    setItems((cur) => cur.map((i) => (change.includes(i.id) ? { ...i, followUp: on } : i)));
+    setFollowUpCount((n) => Math.max(0, n + (on ? change.length : -change.length)));
+    send("/api/inbox/follow-up", { ids: change, on });
+  }, [items, send]);
+
+  // Every item, up to the newest seen (only offered on the All view: the Follow up view's newest isn't the inbox's).
   const markAllRead = useCallback(() => {
     setItems((cur) => cur.map((i) => (i.read ? i : { ...i, read: true })));
     setUnread(0);
-    send({ all: true, ...(items[0] ? { upTo: items[0].id } : {}) });
+    send("/api/inbox/read", { all: true, ...(items[0] ? { upTo: items[0].id } : {}) });
   }, [items, send]);
 
-  return { unread, mode, items, loaded, loading, error, more, loadingOlder, load, loadOlder, markRead, markAllRead };
+  return { unread, followUp, filter, mode, items, loaded, loading, error, more, loadingOlder, load, open, setFilter, loadOlder, markRead, markUnread, setFollowUp, markAllRead };
 }
