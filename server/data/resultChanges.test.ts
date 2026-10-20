@@ -49,7 +49,7 @@ describe("migration", () => {
     const cols = async (t: string) => (await all<any>(`PRAGMA table_info(${t})`)).map((r) => r.name);
     expect(await cols("result_changes")).toEqual(expect.arrayContaining(["season", "code", "level", "series", "number", "label", "kind", "fields", "before", "after", "source", "prev_source", "checked_at", "diff_key"]));
     expect(await cols("result_watch")).toEqual(["season", "code", "since", "pruned", "missing"]);
-    expect(await cols("matches")).toContain("field");
+    expect(await cols("matches")).toEqual(expect.arrayContaining(["field", "breakdown"]));
     expect(await get("SELECT name FROM schema_version WHERE name = 'official result changes'")).toBeTruthy();
     // Applying again changes nothing.
     expect(await migrate()).toEqual([]);
@@ -168,6 +168,37 @@ describe("recording changes", () => {
     expect((await get<any>("SELECT missing FROM result_watch WHERE code = 'EV'"))!.missing).toBe("{}");
   });
 
+  it("doesn't call a totals-only split a correction when the breakdown arrives", async () => {
+    // FIRST posts totals first: all non-auto points land in TeleOp, endgame 0 (an estimate).
+    const totals = (r: number) => m(1, { r, b: 90, redScore: score(r, { teleop: r - 25, endgame: 0 }), breakdown: false });
+    await writeEventBundle(bundle([m(1)]));
+    await writeEventBundle(bundle([totals(100)]));
+    await writeEventBundle(bundle([m(1, { r: 100, b: 90 })])); // the breakdown: same total, real split
+    expect((await changes()).map((r) => [r.kind, JSON.parse(r.fields)])).toEqual([["posted", []]]);
+    // A total that really changed between the two still counts (and only the total).
+    await writeEventBundle(bundle([m(2)], "first", "EV3"));
+    await writeEventBundle(bundle([{ ...totals(100), number: 2, label: "Q2" }], "first", "EV3"));
+    await writeEventBundle(bundle([m(2, { r: 104, b: 90 })], "first", "EV3"));
+    expect((await all<any>("SELECT kind, fields FROM result_changes WHERE code = 'EV3' ORDER BY id")).map((r) => [r.kind, JSON.parse(r.fields)])).toEqual([["posted", []], ["revised", ["red.total"]]]);
+  });
+
+  it("holds a result a lagging feed lists as unplayed, so it isn't re-posted when FIRST is back", async () => {
+    await writeEventBundle(bundle([m(1, { r: 100, b: 90 }), m(2, { r: 60, b: 50 })]));
+    // The fallback hasn't caught up: both scored matches come back unplayed. No withdrawal across feeds.
+    await writeEventBundle(bundle([m(1), m(2)], "ftc-scout"));
+    expect(await changes()).toEqual([]);
+    expect(Object.keys(JSON.parse((await get<any>("SELECT missing FROM result_watch WHERE code = 'EV'"))!.missing))).toEqual(["qual:0:1", "qual:0:2"]);
+    // Still lagging on the next poll: still held, still nothing recorded.
+    await writeEventBundle(bundle([m(1), m(2)], "ftc-scout"));
+    expect(await changes()).toEqual([]);
+    // FIRST again: Q1 unchanged (nothing), Q2 corrected meanwhile (a revision from the held value).
+    await writeEventBundle(bundle([m(1, { r: 100, b: 90 }), m(2, { r: 66, b: 50 })]));
+    const rows = await changes();
+    expect(rows.map((r) => [r.kind, r.number])).toEqual([["revised", 2]]);
+    expect([JSON.parse(rows[0].before).red.total, JSON.parse(rows[0].after).red.total]).toEqual([60, 66]);
+    expect((await get<any>("SELECT missing FROM result_watch WHERE code = 'EV'"))!.missing).toBe("{}");
+  });
+
   it("reads and diffs again when another writer stores the event in between, so no change is lost", async () => {
     await writeEventBundle(bundle([m(1, { r: 100, b: 90 })]), { now: "2026-11-07T15:00:00.000Z" });
     // Between this write's read and its batch, another writer (say `npm run sync`, which holds no lease) stores 105.
@@ -273,14 +304,14 @@ describe("through the sync (FIRST feed stubbed)", () => {
     const meta = bundle([]).event;
     feed({ red: 100, q2Field: "2" });
     expect(await syncEvent(meta)).toBe("first");
-    expect(await all("SELECT number, field FROM matches WHERE code = 'EV' ORDER BY number")).toEqual([{ number: 1, field: "1" }, { number: 2, field: "2" }]);
+    expect(await all("SELECT number, field, breakdown FROM matches WHERE code = 'EV' ORDER BY number")).toEqual([{ number: 1, field: "1", breakdown: 0 }, { number: 2, field: "2", breakdown: null }]);
     await syncEvent(meta); // same answers
     expect(await changes()).toEqual([]);
     feed({ red: 95, q2Field: "1" });
     await syncEvent(meta);
     await syncEvent(meta);
     const rows = await changes();
-    expect(rows.map((r) => [r.kind, r.label, JSON.parse(r.fields)])).toEqual([["revised", "Q1", ["red.total", "red.np", "red.teleop"]], ["schedule", "Q2", ["field"]]]);
+    expect(rows.map((r) => [r.kind, r.label, JSON.parse(r.fields)])).toEqual([["revised", "Q1", ["red.total"]], ["schedule", "Q2", ["field"]]]); // totals only (no breakdown stubbed): the split is an estimate
     expect([JSON.parse(rows[0].before).red.total, JSON.parse(rows[0].after).red.total]).toEqual([100, 95]);
   });
 });

@@ -38,6 +38,13 @@ Rules that keep it honest:
 - **Feed switches aren't revisions.** When the stored value came from the
   other feed, only totals and lineups are compared (the two split breakdowns
   differently). A value one side doesn't report (null) is never a revision.
+- **Estimates aren't revisions.** FIRST can post totals before the breakdown;
+  that split is an estimate (`matches.breakdown = 0`), so until both sides
+  have a reported breakdown only totals are compared.
+- **A lagging feed doesn't erase history.** When the other feed lists a scored
+  match as unplayed, no withdrawal is recorded and the result is held in
+  `result_watch.missing`; when a feed reports it again it's compared with the
+  held result (not posted again).
 - **Actual start isn't a reschedule.** FIRST replaces the scheduled time with
   the actual start once a match is played, so time is only compared while the
   match is unplayed.
