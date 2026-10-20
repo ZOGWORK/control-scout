@@ -29,7 +29,7 @@ export const ROSTER_CHIP_TONE = {
 } as const;
 
 /** The Records table's Compare-cap note (amber 600 on its own tint was 3:1 on light). */
-export const RECORDS_CAP_NOTE_TONE = "bg-amber-500/10 text-amber-800 dark:text-amber-400";
+export const RECORDS_CAP_NOTE_TONE = "bg-amber-500/10 text-accent-text";
 
 /** The count on each Events status filter chip: the chip's own muted text, no extra fade (opacity 70 took it under 4.5:1). */
 export const EVENT_FILTER_COUNT = "font-normal tabular-nums";
