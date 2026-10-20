@@ -27,6 +27,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "../components/ui/overla
 import { MatchList } from "../components/predict";
 import { SeasonToggle } from "../components/SeasonToggle";
 import { cn } from "../components/cn";
+import { PROFILE_PERCENTILE_TEXT } from "../lib/textTones";
 import { Meter, StatTile, TONES, rankPc, type Tone } from "../components/StatTile";
 import { awardLabel, dateRange, int, num, place, seasonLabel, rankPct } from "../lib/format";
 import { eventTypeLabel } from "../lib/labels";
@@ -182,11 +183,11 @@ function Hero({ p, onSeason }: { p: TeamProfile; onSeason: (s: number) => void }
             <Button variant="outline" size="sm" asChild className="max-sm:h-11"><Link to={`/compare?teams=${t.number}`}><Scale /> Compare</Link></Button>
             <Button variant="outline" size="sm" onClick={share} className="max-sm:h-11"><Link2 /> Share</Button>
           </div>
-          <a href="https://tryctrlpoint.org" target="_blank" rel="noreferrer noopener" className="relative mt-4 inline-flex items-center gap-1.5 text-xs text-muted-foreground hover:text-accent">
+          <a href="https://tryctrlpoint.org" target="_blank" rel="noreferrer noopener" className="relative mt-4 inline-flex items-center gap-1.5 text-xs text-muted-foreground hover:text-accent-text">
             Manage this team in Control Point <ExternalLink className="size-3" />
           </a>
           {workspaceUser && flags.isMine && (
-            <Link to={FOLLOWED_TEAM_PATH} className="relative ml-4 mt-4 inline-flex items-center gap-1.5 text-xs text-muted-foreground hover:text-accent">
+            <Link to={FOLLOWED_TEAM_PATH} className="relative ml-4 mt-4 inline-flex items-center gap-1.5 text-xs text-muted-foreground hover:text-accent-text">
               <Star className="size-3" aria-hidden /> My followed team dashboard
             </Link>
           )}
@@ -199,13 +200,13 @@ function Hero({ p, onSeason }: { p: TeamProfile; onSeason: (s: number) => void }
               <p className="text-muted-foreground">No results this season yet.</p>
               {p.seasons.filter((x) => x < p.season).slice(0, 1).map((prev) => (
                 <button key={prev} onClick={() => onSeason(prev)} className="lift flex w-full items-center justify-between gap-3 rounded-xl border border-border bg-card px-3 py-2 text-left">
-                  <span>See how {t.number} did in {seasonLabel(prev)}</span><span className="text-accent">→</span>
+                  <span>See how {t.number} did in {seasonLabel(prev)}</span><span className="text-accent-text">→</span>
                 </button>
               ))}
             </div>
           ) : (
             <>
-              <p className="mt-3 font-display text-5xl font-semibold tabular-nums text-accent">{top ?? "Unranked"}</p>
+              <p className={cn("mt-3 font-display text-5xl font-semibold tabular-nums", PROFILE_PERCENTILE_TEXT)}>{top ?? "Unranked"}</p>
               <p className="text-sm text-muted-foreground">worldwide by OPR{s.opr.np.rank ? ` · #${s.opr.np.rank.toLocaleString()} of ${s.opr.np.of?.toLocaleString()}` : ""}</p>
               <dl className="mt-5 grid grid-cols-3 gap-3">
                 <div><dt className="text-xs text-muted-foreground">OPR</dt><dd className="font-display text-2xl font-semibold tabular-nums">{num(s.opr.np.value)}</dd></div>
@@ -226,7 +227,7 @@ function Hero({ p, onSeason }: { p: TeamProfile; onSeason: (s: number) => void }
             {next && (
               <Link to={ADVANCING.has(next.type ?? "") ? `/events/${next.season}/${next.code}?tab=odds&team=${t.number}` : `/events/${next.season}/${next.code}?team=${t.number}`} className="lift flex items-center justify-between gap-3 rounded-xl border border-accent/30 bg-accent/[0.05] px-3 py-2">
                 <span className="min-w-0 truncate"><span className="text-muted-foreground">Next · </span>{next.name}</span>
-                <span className="shrink-0 font-medium text-accent">{ADVANCING.has(next.type ?? "") ? "Odds to advance →" : "Schedule →"}</span>
+                <span className="shrink-0 font-medium text-accent-text">{ADVANCING.has(next.type ?? "") ? "Odds to advance →" : "Schedule →"}</span>
               </Link>
             )}
           </div>
@@ -381,7 +382,7 @@ function TrendChart({ events, season }: { events: TeamEventRow[]; season: number
 
 function RankMedal({ rank }: { rank: number | null }) {
   if (!rank) return <span className="flex size-10 shrink-0 items-center justify-center rounded-xl border border-border text-xs text-muted-foreground">—</span>;
-  return <span className={cn("flex size-10 shrink-0 flex-col items-center justify-center rounded-xl border font-display text-sm font-bold tabular-nums", rank === 1 ? "border-accent/50 bg-accent/15 text-accent" : rank <= 4 ? "border-border bg-muted" : "border-border")}>
+  return <span className={cn("flex size-10 shrink-0 flex-col items-center justify-center rounded-xl border font-display text-sm font-bold tabular-nums", rank === 1 ? "border-accent/50 bg-accent/15 text-accent-text" : rank <= 4 ? "border-border bg-muted" : "border-border")}>
     <span className="text-[9px] font-medium uppercase leading-none text-muted-foreground">rank</span>{rank}
   </span>;
 }

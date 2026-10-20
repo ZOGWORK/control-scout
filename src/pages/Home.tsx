@@ -123,7 +123,7 @@ export function EventCard({ e }: { e: EventListItem }) {
         <span className="truncate text-xs text-muted-foreground">{e.typeLabel}</span>
         {e.matchesTotal > 0 && <span className="ml-auto text-[11px] tabular-nums text-muted-foreground">{e.matchesPlayed}/{e.matchesTotal}</span>}
       </div>
-      <p className="mt-2 line-clamp-2 font-medium leading-snug group-hover:text-accent">{e.name}</p>
+      <p className="mt-2 line-clamp-2 font-medium leading-snug group-hover:text-accent-text">{e.name}</p>
       <p className="mt-auto flex items-center gap-1.5 pt-3 text-xs text-muted-foreground"><CalendarDays className="size-3.5" />{dateRange(e.start, e.end)}</p>
       <p className="mt-1 flex items-center gap-1.5 truncate text-xs text-muted-foreground"><MapPin className="size-3.5 shrink-0" />{place(e.city, e.state, e.country) || "Location TBA"}{e.teams ? ` · ${e.teams} teams` : ""}</p>
     </Link>
