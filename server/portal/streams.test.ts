@@ -53,7 +53,8 @@ describe("event streams", () => {
     const r = await call("PUT", `/api/owner/streams/${S}/uscaq1`, owner, { url: `https://youtu.be/${ID}` });
     expect(r.status).toBe(200);
     expect(r.json.stream).toEqual({ videoId: ID, streamUrl: `https://www.youtube-nocookie.com/embed/${ID}` });
-    expect(r.json.streams).toMatchObject([{ season: S, code: "USCAQ1", name: "California Qualifier", url: `https://youtu.be/${ID}` }]);
+    // Stored as a full link to the video, whatever form was pasted.
+    expect(r.json.streams).toMatchObject([{ season: S, code: "USCAQ1", name: "California Qualifier", url: `https://www.youtube.com/watch?v=${ID}` }]);
     expect((await detail()).stream).toEqual({ videoId: ID, streamUrl: `https://www.youtube-nocookie.com/embed/${ID}` });
     expect((await row()).stream).toBe(true);
     expect(await all("SELECT action FROM owner_audit WHERE action LIKE 'stream.%'")).toEqual([{ action: "stream.set" }]);

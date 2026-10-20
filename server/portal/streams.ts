@@ -1,6 +1,7 @@
 // Event live streams (migration 34, src/shared/stream.ts): the owner sets one per event in the owner portal;
 // the event page plays it and the events list marks a live event that has one. Reads are one indexed row
-// (or one small season list), cached briefly; a save or removal drops the cache at once.
+// (or one small season list), cached for 30 s; a save or removal drops this server's cache at once (another
+// server, or a browser holding a non-live event's page, catches up within its own cache time).
 import { all, get, run } from "../db.js";
 import { registerCache } from "../caches.js";
 import { parseStreamUrl, embedUrl } from "../../src/shared/stream.js";
@@ -41,7 +42,8 @@ export async function setEventStream(season: number, code: string, url: string, 
   await run(
     `INSERT INTO event_streams (season, code, url, video_id, updated_at, updated_by) VALUES (?, ?, ?, ?, ?, ?)
      ON CONFLICT(season, code) DO UPDATE SET url = excluded.url, video_id = excluded.video_id, updated_at = excluded.updated_at, updated_by = excluded.updated_by`,
-    [season, code, url.trim(), p.videoId, new Date().toISOString(), by]);
+    // Stored as a full link to the video (what was pasted may lack its https://), so the owner's list links to YouTube.
+    [season, code, `https://www.youtube.com/watch?v=${p.videoId}`, p.videoId, new Date().toISOString(), by]);
   bySeason.delete(season);
   return { videoId: p.videoId, streamUrl: p.embedUrl };
 }
