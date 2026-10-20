@@ -22,8 +22,6 @@ const PUBLIC_TABLES = [
   "seasons", "teams", "team_seasons", "events", "event_teams", "matches", "match_teams",
   "alliances", "awards", "advancement", "team_event_stats", "team_season_stats", "predictions", "kv",
   "team_event_records", "team_season_records", "match_records",
-  // Official result changes (server/data/resultChanges.ts) travel with the matches they describe.
-  "result_watch", "result_changes",
 ];
 /** WITHOUT ROWID tables (no rowid to page by): their primary key order instead. */
 const KEY_ORDER: Record<string, string> = {
@@ -50,22 +48,13 @@ for (const table of PUBLIC_TABLES) {
   // without ids and keep any call the target already logged for the same match
   // (UNIQUE kind+match). Everything else is plain data: newest copy wins.
   const ledger = table === "predictions";
-  // Result history mirrors the source per watched event (result_watch is copied first): the target's rows for
-  // those events are replaced, so the per-event cap and result_watch.pruned stay true there.
-  if (table === "result_changes") {
-    for (const w of (await source.execute("SELECT season, code FROM result_watch")).rows) {
-      await to.execute({ sql: "DELETE FROM result_changes WHERE season = ? AND code = ?", args: [w.season, w.code] });
-    }
-  }
-  // Result changes: ids are local too (diff keys aren't: they chain on the previous change's key).
-  const changes = table === "result_changes";
-  if (ledger || changes) cols = cols.filter((c) => c !== "id");
+  if (ledger) cols = cols.filter((c) => c !== "id");
   const values = cols.map(() => "?").join(", ");
   // A live call can later be reclassified late, so live/late are one call per
   // match: if the target has either, it keeps its own and the copy is skipped.
   const sql = ledger
     ? `INSERT OR IGNORE INTO predictions (${cols.join(", ")}) SELECT ${values} WHERE NOT EXISTS (SELECT 1 FROM predictions WHERE season = ? AND code = ? AND level = ? AND series = ? AND number = ? AND kind IN (?, ?))`
-    : `INSERT OR ${changes ? "IGNORE" : "REPLACE"} INTO ${table} (${cols.join(", ")}) VALUES (${values})`;
+    : `INSERT OR REPLACE INTO ${table} (${cols.join(", ")}) VALUES (${values})`;
   const argsFor = (r: Record<string, unknown>) => {
     const base = cols.map((c) => (r[c] ?? null) as never);
     if (!ledger) return base;
@@ -84,6 +73,27 @@ for (const table of PUBLIC_TABLES) {
     copied += rows.length;
   }
   console.log(`  ${table}: ${copied.toLocaleString()} rows`);
+}
+// Official result changes (server/data/resultChanges.ts) travel with the matches they describe. Per watched
+// event, the source's watch row and history replace the target's in one transaction (an interrupted push
+// leaves each event's timeline either as it was or fully copied), so the per-event cap and pruned stay true.
+// Ids are local and dropped; diff keys aren't (they chain on the previous change's key).
+if ((await source.execute("SELECT 1 FROM sqlite_master WHERE name = 'result_watch'")).rows.length) {
+  const changeCols = (await source.execute("PRAGMA table_info(result_changes)")).rows.map((r) => String(r.name)).filter((c) => c !== "id");
+  const watchCols = (await source.execute("PRAGMA table_info(result_watch)")).rows.map((r) => String(r.name));
+  const insert = (t: string, cols: string[]) => `INSERT INTO ${t} (${cols.join(", ")}) VALUES (${cols.map(() => "?").join(", ")})`;
+  let events = 0, rows = 0;
+  for (const w of (await source.execute(`SELECT ${watchCols.join(", ")} FROM result_watch`)).rows) {
+    const history = (await source.execute({ sql: `SELECT ${changeCols.join(", ")} FROM result_changes WHERE season = ? AND code = ? ORDER BY id`, args: [w.season, w.code] })).rows;
+    await to.batch([
+      { sql: "DELETE FROM result_changes WHERE season = ? AND code = ?", args: [w.season, w.code] },
+      { sql: "DELETE FROM result_watch WHERE season = ? AND code = ?", args: [w.season, w.code] },
+      { sql: insert("result_watch", watchCols), args: watchCols.map((c) => (w[c] ?? null) as never) },
+      ...history.map((r) => ({ sql: insert("result_changes", changeCols), args: changeCols.map((c) => (r[c] ?? null) as never) })),
+    ], "write");
+    events++; rows += history.length;
+  }
+  console.log(`  result changes: ${rows.toLocaleString()} rows for ${events.toLocaleString()} watched events`);
 }
 console.log("Rebuilding search…");
 await rebuildSearch((m) => console.log(`  ${m}`));
