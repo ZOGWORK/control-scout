@@ -229,7 +229,7 @@ export function SharedPicklist({ workspaceId, workspaceName, season, live, me, s
         </div>
       </div>
       {/* Order changes that didn't reach the workspace (kept on this device, through a reload): the member decides. */}
-      <KeptPickChanges changes={pl.failed} readOnly={readOnly} onRetryAll={(force) => pl.retryAll({ force })} onDiscardAll={pl.discardAll}
+      <KeptPickChanges changes={pl.failed} damaged={pl.damaged} onDiscardDamaged={pl.discardDamaged} readOnly={readOnly} onRetryAll={(force) => pl.retryAll({ force })} onDiscardAll={pl.discardAll}
         onRetry={(id, force) => pl.retryFailed(id, { force })} onDiscard={pl.discardFailed} />
       {pl.loading ? <LoadingBlock rows={4} label="Loading the pick list" />
         : pl.error ? <ErrorState error={pl.error} onRetry={pl.reload} />
@@ -243,7 +243,7 @@ export function SharedPicklist({ workspaceId, workspaceName, season, live, me, s
             <p className="mb-3 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-text-muted">
               {!readOnly && <span><GripVertical className="inline size-3.5 align-[-3px] text-accent" /> Drag the grip (or focus it and use the arrow keys) to rank the picks.</span>}
               {!readOnly && <SaveStatus state={pl.orderState} what="Pick list order"
-                text={pl.orderState === "attention" ? `${pl.failed.length} change${pl.failed.length === 1 ? "" : "s"} not saved` : undefined} />}
+                text={pl.orderState === "attention" ? `${pl.failed.length + pl.damaged.length} change${pl.failed.length + pl.damaged.length === 1 ? "" : "s"} not saved` : undefined} />}
               {live === "live" && <span className="inline-flex items-center gap-1 text-success"><span aria-hidden className="size-1.5 rounded-full bg-success" />Live</span>}
             </p>
             {/* Picks whose stats haven't arrived (one just added by someone): never hidden without saying so. */}
