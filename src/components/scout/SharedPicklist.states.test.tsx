@@ -24,6 +24,10 @@ const json = (status: number, body: unknown) => new Response(JSON.stringify(body
 
 let server: PickList;
 let posts: Record<string, unknown>[];
+/** Op ids the server applied (as server/scout/picklist.ts keeps them): a copy applies nothing. */
+let appliedIds: Set<string>;
+/** Each post's op id and account (left out of `posts`). */
+let ids: { opId?: unknown; account?: unknown }[];
 /** The next N posts are applied, then their answer is lost (a dropped connection). */
 let loseAnswers = 0;
 /** The next N posts are lost before they arrive (never applied, no answer). */
@@ -61,22 +65,25 @@ beforeEach(() => {
   vi.stubGlobal("matchMedia", (q: string) => ({ matches: false, media: q, addEventListener() {}, removeEventListener() {}, addListener() {}, removeListener() {} }));
   localStorage.clear();
   resetFailedChanges();
-  posts = []; noteTimes = []; holdAll = false; loseAnswers = 0; dropPosts = 0; getsFail = false; hold = false;
+  posts = []; ids = []; appliedIds = new Set(); noteTimes = []; holdAll = false; loseAnswers = 0; dropPosts = 0; getsFail = false; hold = false;
   server = { workspaceId: "901", season: S, version: 3, picks: [pick(101, 1, { note: "Strong auto", noteBy: { accountId: 2, name: "Marcus" }, noteUpdatedAt: Date.now() - 120_000 }), pick(102, 2)] };
   vi.stubGlobal("fetch", async (path: string, init?: RequestInit) => {
     if (path.startsWith("/api/scout/workspaces/901/picklist")) {
       if (init?.method === "POST") {
-        const body = JSON.parse(String(init.body));
-        posts.push(body);
+        const { opId, account, ...body } = JSON.parse(String(init.body));
+        posts.push(body); ids.push({ opId, account });
         if (hold && body.op === "note") await new Promise<void>((r) => { release = r; });
         if (holdAll) await new Promise<void>((r) => { releaseAll = r; });
         if (dropPosts > 0) { dropPosts--; throw new TypeError("Failed to fetch"); }
+        if (typeof opId === "string" && appliedIds.has(opId)) return json(200, { changed: false, replayed: true, list: server });
         const res = applyOnServer(body);
+        if (typeof opId === "string" && res.status === 200) appliedIds.add(opId);
         if (loseAnswers > 0) { loseAnswers--; throw new TypeError("Failed to fetch"); }
         return res;
       }
       if (getsFail) throw new TypeError("Failed to fetch");
-      return json(200, { list: server });
+      const asked = new URLSearchParams(path.split("?")[1] ?? "").get("ops");
+      return json(200, asked ? { list: server, appliedOps: asked.split(",").filter((x) => appliedIds.has(x)) } : { list: server });
     }
     if (path.startsWith("/api/shortlist")) return json(200, { season: S, teams: [team(101), team(102)] });
     throw new Error(`unexpected ${path}`);
