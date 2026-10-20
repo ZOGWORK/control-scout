@@ -33,6 +33,8 @@ export interface FilterBuilderProps {
   countFor: (f: FilterGroup | null) => Promise<number>;
   /** "team-events", "teams", "matches". */
   noun: string;
+  /** Which side opens: the builder (default) or the saved filters. */
+  initialView?: "build" | "saved";
 }
 
 /** Saved filters of a kind, kept in step with other tabs / tables. */
@@ -48,11 +50,11 @@ export function useSavedFilters(scope: RecordScope): SavedFilter[] {
   return useMemo(() => list.filter((s) => s.kind === kind), [list, kind]);
 }
 
-export function FilterBuilder({ open, onOpenChange, scope, predictable, value, onApply, countFor, noun }: FilterBuilderProps) {
+export function FilterBuilder({ open, onOpenChange, scope, predictable, value, onApply, countFor, noun, initialView = "build" }: FilterBuilderProps) {
   const [root, setRoot] = useState<BGroup>(() => toBuilder(value));
-  const [view, setView] = useState<"build" | "saved">("build");
+  const [view, setView] = useState<"build" | "saved">(initialView);
   // Fresh from the table's filter every time the builder opens.
-  useEffect(() => { if (open) { setRoot(toBuilder(value)); setView("build"); } }, [open]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { if (open) { setRoot(toBuilder(value)); setView(initialView); } }, [open]); // eslint-disable-line react-hooks/exhaustive-deps
   const { filter, errors } = useMemo(() => fromBuilder(root, scope), [root, scope]);
   const conds = useMemo(() => { let n = 0; const walk = (g: BGroup) => g.children.forEach((c) => (c.kind === "cond" ? n++ : walk(c))); walk(root); return n; }, [root]);
   const key = filter ? serializeFilter(filter) : "";

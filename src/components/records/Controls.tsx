@@ -50,19 +50,33 @@ export function recordRegionName(r: RecordRegion): string {
   return r.country ?? r.code;
 }
 
+/** The season's record regions by name; `label` says a code's region in words (the code itself until they load). */
+export function useRecordRegions(season: number, on = true) {
+  const state = useApi<{ regions: RecordRegion[] }>(on ? `/api/records/${season}/regions` : null);
+  const regions = state.data?.regions;
+  return useMemo(() => {
+    const named = (regions ?? []).map((r) => ({ ...r, name: recordRegionName(r) }));
+    // Codes sharing a name (USCANO, USCALA, USCASD → California) say which part they are.
+    const dup = new Map<string, number>();
+    for (const r of named) dup.set(r.name, (dup.get(r.name) ?? 0) + 1);
+    const byCode = new Map(named.map((r) => [r.code, r]));
+    const nameOf = (r: (typeof named)[number]) => (dup.get(r.name)! > 1 ? `${r.name} (${r.code})` : r.name);
+    const label = (code: string) => { const r = byCode.get(code); return r ? nameOf(r) : code; };
+    return { loading: state.loading, named, nameOf, label };
+  }, [regions, state.loading]);
+}
+
+/** The region choice in a few words: "All regions", "Texas", "3 regions". */
+export const regionsText = (value: string[], label: (code: string) => string) =>
+  !value.length ? "All regions" : value.length === 1 ? label(value[0]) : `${value.length} regions`;
+
 /** Region dropdown (multi-select, searchable), from the region codes the season's records use. */
 export function RegionPicker({ season, value, onChange }: { season: number; value: string[]; onChange: (codes: string[]) => void }) {
-  const state = useApi<{ regions: RecordRegion[] }>(`/api/records/${season}/regions`);
+  const { loading, named, nameOf: label, label: codeLabel } = useRecordRegions(season);
   const [q, setQ] = useState("");
-  const regions = state.data?.regions ?? [];
-  const named = useMemo(() => regions.map((r) => ({ ...r, name: recordRegionName(r) })), [regions]);
-  // Codes sharing a name (USCANO, USCALA, USCASD → California) say which part they are.
-  const dup = useMemo(() => { const m = new Map<string, number>(); for (const r of named) m.set(r.name, (m.get(r.name) ?? 0) + 1); return m; }, [named]);
-  const label = (r: (typeof named)[number]) => (dup.get(r.name)! > 1 ? `${r.name} (${r.code})` : r.name);
   const f = q.trim().toLowerCase();
   const shown = named.filter((r) => !f || `${r.name} ${r.code} ${r.country ?? ""}`.toLowerCase().includes(f)).sort((a, b) => a.name.localeCompare(b.name) || a.code.localeCompare(b.code));
-  const byCode = new Map(named.map((r) => [r.code, r]));
-  const text = !value.length ? "All regions" : value.length === 1 ? (byCode.get(value[0]) ? label(byCode.get(value[0])!) : value[0]) : `${value.length} regions`;
+  const text = regionsText(value, codeLabel);
   const toggle = (c: string) => onChange(value.includes(c) ? value.filter((x) => x !== c) : [...value, c].slice(0, 30));
   return (
     <Popover>
@@ -77,8 +91,8 @@ export function RegionPicker({ season, value, onChange }: { season: number; valu
           <Input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Texas, Ontario, GB…" aria-label="Search regions" className="h-9 pl-8 max-sm:h-11" autoFocus />
         </div>
         <div className="custom-scrollbar min-h-0 flex-1 overflow-y-auto" role="listbox" aria-multiselectable aria-label="Regions">
-          {state.loading && !regions.length && <p className="px-2 py-4 text-center text-sm text-text-muted">Loading regions…</p>}
-          {!state.loading && !shown.length && <p className="px-2 py-4 text-center text-sm text-text-muted">No region matches.</p>}
+          {loading && !named.length && <p className="px-2 py-4 text-center text-sm text-text-muted">Loading regions…</p>}
+          {!loading && !shown.length && <p className="px-2 py-4 text-center text-sm text-text-muted">No region matches.</p>}
           {shown.map((r) => {
             const on = value.includes(r.code);
             return (
@@ -105,7 +119,7 @@ export function EventTypeSelect({ value, onChange }: { value: string | null; onC
       </SelectTrigger>
       <SelectContent className="min-w-[13rem]">
         <SelectItem value="All">All event types</SelectItem>
-        {RECORD_EVENT_TYPES.map((t) => <SelectItem key={t} value={t}>{t === "Official" ? "Official events only" : eventTypeLabel(t)}</SelectItem>)}
+        {RECORD_EVENT_TYPES.map((t) => <SelectItem key={t} value={t}>{eventTypeText(t)}</SelectItem>)}
       </SelectContent>
     </Select>
   );
@@ -113,10 +127,17 @@ export function EventTypeSelect({ value, onChange }: { value: string | null; onC
 
 const short = (d: string) => new Date(`${d}T12:00:00Z`).toLocaleDateString(undefined, { month: "short", day: "numeric", timeZone: "UTC" });
 
+/** A date range in a few words: "Oct 4 – Nov 2", "From Oct 4", "Any dates". */
+export const dateRangeText = (from: string | null, to: string | null) =>
+  from && to ? `${short(from)} – ${short(to)}` : from ? `From ${short(from)}` : to ? `Until ${short(to)}` : "Any dates";
+
+/** "Official events only", "Qualifier"… (null: every type). */
+export const eventTypeText = (t: string) => (t === "Official" ? "Official events only" : eventTypeLabel(t));
+
 /** Date range: from / to (inclusive), applied to event dates. */
 export function DateRangePicker({ from, to, onChange }: { from: string | null; to: string | null; onChange: (from: string | null, to: string | null) => void }) {
   const [a, setA] = useState(from ?? ""), [b, setB] = useState(to ?? "");
-  const text = from && to ? `${short(from)} – ${short(to)}` : from ? `From ${short(from)}` : to ? `Until ${short(to)}` : "Any dates";
+  const text = dateRangeText(from, to);
   return (
     <Popover onOpenChange={(o) => { if (o) { setA(from ?? ""); setB(to ?? ""); } }}>
       <PopoverTrigger asChild>
