@@ -4,10 +4,10 @@
 import type { AddressInfo } from "node:net";
 import type { Server } from "node:http";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { all, get, migrate, openDb, run, setDb } from "../db";
+import { all, get, migrate, openDb, run, setDb, writeBatch } from "../db";
 import { createApp } from "../app";
 import { CURRENT_SEASON, resultFieldLabels, type ScoreSplit } from "./seasons";
-import type { EventBundle, MatchRow, MatchTeam } from "./bundle";
+import { bundleStatements, type EventBundle, type MatchRow, type MatchTeam } from "./bundle";
 import { RESULT_CHANGES_PER_EVENT, diffMatches, readStored, resultChangesIo, writeEventBundle } from "./resultChanges";
 import type { ResultChangesView } from "../../src/shared/api";
 import { syncEvent } from "../sync";
@@ -258,6 +258,20 @@ describe("recording changes", () => {
     finally { resultChangesIo.afterRead = async () => {}; }
     expect((await changes()).map((r) => [r.kind, r.number])).toEqual([["posted", 1]]);
     expect(await get("SELECT since FROM result_watch WHERE code = 'EV'")).toEqual({ since: "2026-11-07T15:00:00.000Z" });
+  });
+
+  it("treats any other bundle write (say the FTC Scout cache seed) as a writer the guard sees", async () => {
+    await writeEventBundle(bundle([m(1, { r: 100, b: 90 })]));
+    let once = true;
+    resultChangesIo.afterRead = async () => {
+      if (!once) return;
+      once = false;
+      await writeBatch(bundleStatements(bundle([m(1, { r: 105, b: 90 })], "ftc-scout"))); // not through writeEventBundle
+    };
+    try { await writeEventBundle(bundle([m(1, { r: 110, b: 90 })])); }
+    finally { resultChangesIo.afterRead = async () => {}; }
+    // Retried against the seeded 105 (a cross-feed total change), never against the stale 100.
+    expect((await changes()).map((r) => [JSON.parse(r.before).red.total, JSON.parse(r.after).red.total])).toEqual([[105, 110]]);
   });
 
   it("gives up after its retries rather than saving a bundle without its changes", async () => {
