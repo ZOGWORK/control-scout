@@ -22,6 +22,8 @@ const PUBLIC_TABLES = [
   "seasons", "teams", "team_seasons", "events", "event_teams", "matches", "match_teams",
   "alliances", "awards", "advancement", "team_event_stats", "team_season_stats", "predictions", "kv",
   "team_event_records", "team_season_records", "match_records",
+  // Official result changes (server/data/resultChanges.ts) travel with the matches they describe.
+  "result_watch", "result_changes",
 ];
 /** WITHOUT ROWID tables (no rowid to page by): their primary key order instead. */
 const KEY_ORDER: Record<string, string> = {
@@ -48,13 +50,15 @@ for (const table of PUBLIC_TABLES) {
   // without ids and keep any call the target already logged for the same match
   // (UNIQUE kind+match). Everything else is plain data: newest copy wins.
   const ledger = table === "predictions";
-  if (ledger) cols = cols.filter((c) => c !== "id");
+  // Result changes: ids are local too; the UNIQUE diff_key keeps a change the target already has from doubling.
+  const changes = table === "result_changes";
+  if (ledger || changes) cols = cols.filter((c) => c !== "id");
   const values = cols.map(() => "?").join(", ");
   // A live call can later be reclassified late, so live/late are one call per
   // match: if the target has either, it keeps its own and the copy is skipped.
   const sql = ledger
     ? `INSERT OR IGNORE INTO predictions (${cols.join(", ")}) SELECT ${values} WHERE NOT EXISTS (SELECT 1 FROM predictions WHERE season = ? AND code = ? AND level = ? AND series = ? AND number = ? AND kind IN (?, ?))`
-    : `INSERT OR REPLACE INTO ${table} (${cols.join(", ")}) VALUES (${values})`;
+    : `INSERT OR ${changes ? "IGNORE" : "REPLACE"} INTO ${table} (${cols.join(", ")}) VALUES (${values})`;
   const argsFor = (r: Record<string, unknown>) => {
     const base = cols.map((c) => (r[c] ?? null) as never);
     if (!ledger) return base;
