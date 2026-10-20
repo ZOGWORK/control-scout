@@ -55,6 +55,7 @@ const ROUTES: Route[] = [
   { path: "/teams", ready: "tbody tr" },
   { path: "/matches", ready: "tbody tr" },
   { path: "/faq" },
+  { path: "/methodology" },
   { path: "/events/2025/AUBRQ2", ready: "[data-glance-card]" },
   // The pages behind the V3 contrast finding: profile hero, event cards and filter chips, roster record chips, Compare's legend.
   { path: "/teams/18360?season=2025" },
