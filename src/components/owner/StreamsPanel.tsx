@@ -65,7 +65,7 @@ export function StreamsPanel() {
         <p id={`${id}-help`} className="text-xs text-muted-foreground sm:col-span-4">{STREAM_HELP}</p>
         {error && <p id={`${id}-err`} role="alert" className="text-sm text-danger sm:col-span-4">{error}</p>}
       </form>
-      <Async state={state} empty={(d) => !d.streams.length && <EmptyState icon={MonitorPlay} title="No streams set" description="Add one above: it shows on the event page right away." />}>
+      <Async state={state} empty={(d) => !d.streams.length && <EmptyState icon={MonitorPlay} title="No streams set" description="Add one above: it shows on the event page within a minute or so." />}>
         {({ streams }) => (
           <Table>
             <TableHeader><TableRow><TableHead>Event</TableHead><TableHead>Dates</TableHead><TableHead>Stream</TableHead><TableHead className="w-0" /></TableRow></TableHeader>

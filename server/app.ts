@@ -14,6 +14,14 @@ import { rebuildSearch } from "./stats/job.js";
 import { teamProfile, compareTeams, teamSummaries, shortlistTeams } from "./api/teams.js";
 import { cachedEventDetail, eventDetail, listEvents, toEventInput } from "./api/events.js";
 import { eventStream, seasonStreams } from "./portal/streams.js";
+
+/** An event's detail with its owner-set stream (server/portal/streams.ts), for every route that answers with one
+ *  (the page and "Refresh results" alike, or a refresh would take the Watch live section away). The stream rides
+ *  along outside the cached detail (it changes without a data version); the shared object is never changed. */
+async function withStream<T extends { event: { season: number; code: string } }>(d: T): Promise<T> {
+  const stream = await eventStream(d.event.season, d.event.code).catch(() => null);
+  return stream ? { ...d, event: { ...d.event, stream } } : d;
+}
 import { matchDetail, matchViews } from "./api/matches.js";
 import { matchReport } from "./api/matchReport.js";
 import { resultChanges } from "./api/resultChanges.js";
@@ -326,9 +334,7 @@ export function createApp() {
   api.get("/events/:season/:code", h(async (req, res) => {
     const cached = await cachedEventDetail(season(req.params.season), code(req.params.code));
     if (!cached) throw new HttpError(404, `No event ${req.params.code} in ${req.params.season}`);
-    // The owner-set stream rides along outside the cached detail (it changes without a data version); the shared object is never changed.
-    const stream = await eventStream(cached.event.season, cached.event.code).catch(() => null);
-    const d = stream ? { ...cached, event: { ...cached.event, stream } } : cached;
+    const d = await withStream(cached);
     // On an event day results move every minute: revalidate every time (the ETag keeps that a cheap 304).
     if (d.live) res.setHeader("Cache-Control", "no-cache");
     return d;
@@ -343,7 +349,7 @@ export function createApp() {
     if (out.status === "not-live") throw new HttpError(409, "Only events that are on today (in their time zone) can be refreshed. Other events update with the regular sync.");
     const detail = await eventDetail(s, c);
     if (!detail) throw new HttpError(404, `No event ${c} in ${s}`);
-    return { outcome: out.status, message: refreshMessage(out), detail };
+    return { outcome: out.status, message: refreshMessage(out), detail: await withStream(detail) };
   }));
 
   api.get("/events/:season/:code/matches/:key", h(async (req) => {
