@@ -45,6 +45,13 @@ export interface PendingItem {
   discardLabel?: string;
   /** Only on this page (not kept in this device's storage): a reload loses it (src/lib/chunkError.ts asks first). */
   volatile?: boolean;
+  /** The member's unsent wording (a note or a comment): the view's "Show change" compares it with what's shared now. */
+  text?: string;
+  /** A note: the note it was written over (its noteUpdatedAt; null: there was none), when known. */
+  base?: number | null;
+  /** A comment: its entry, and its operation id (to tell whether it's in the thread already). */
+  entry?: string;
+  opId?: string;
 }
 
 const sources = new Map<string, PendingItem[]>();
@@ -55,7 +62,8 @@ const notify = () => { version++; listeners.forEach((f) => f()); };
 
 const sameItems = (a: PendingItem[] | undefined, b: PendingItem[]) => !!a && a.length === b.length
   && a.every((x, i) => x.key === b[i].key && x.status === b[i].status && x.message === b[i].message && x.label === b[i].label
-    && x.busy === b[i].busy && x.retry === b[i].retry && x.discard === b[i].discard && x.discardLabel === b[i].discardLabel && x.volatile === b[i].volatile);
+    && x.busy === b[i].busy && x.retry === b[i].retry && x.discard === b[i].discard && x.discardLabel === b[i].discardLabel && x.volatile === b[i].volatile
+    && x.text === b[i].text && x.base === b[i].base && x.entry === b[i].entry && x.opId === b[i].opId);
 
 /** Replace what one source holds (an empty list removes it). */
 export function publishPending(source: string, items: PendingItem[]): void {
