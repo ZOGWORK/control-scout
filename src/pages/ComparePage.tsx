@@ -139,7 +139,7 @@ function SuggestionChip({ s, onPick, big }: { s: Suggestion; onPick: (n: number)
   return (
     <button type="button" onClick={() => onPick(s.team)}
       className={cn("lift inline-flex min-w-0 items-center gap-2 rounded-xl border border-border bg-card text-left hover:border-accent/50",
-        big ? "w-full px-3.5 py-3" : "h-9 px-3 text-sm max-sm:h-11")}>
+        big ? "w-full px-3.5 py-3" : "h-9 px-3 text-sm max-sm:h-10")}>
       {/* The name is the chip's own text with "Add" in front ("Add 18360 Robo Raiders"); the spaces are explicit
           because a name from content joins inline pieces without them. */}
       <Plus className="size-4 shrink-0 text-accent" aria-hidden /><span className="sr-only">Add</span>{" "}

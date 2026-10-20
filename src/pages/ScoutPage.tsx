@@ -373,7 +373,7 @@ export function EntryCard({ e, assigned, canDelete, readOnly, comments, onEdit, 
         </div>
         <div role="group" aria-label={`Entry ${what}`} className="ml-auto flex shrink-0 gap-1">
           {comments > 0 && (
-            <Button variant="ghost" size="sm" onClick={onEdit} className="text-muted-foreground max-sm:h-11" aria-label={`${comments} comment${comments === 1 ? "" : "s"}: open the entry`}>
+            <Button variant="ghost" size="sm" onClick={onEdit} className="text-muted-foreground max-sm:h-10" aria-label={`${comments} comment${comments === 1 ? "" : "s"}: open the entry`}>
               <MessageSquare />{comments}
             </Button>
           )}

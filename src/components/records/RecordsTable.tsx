@@ -292,7 +292,7 @@ export function RecordsTable(p: RecordsTableProps) {
                     {c.extra}
                     {c.region && <RegionPicker season={season} value={state.regions} onChange={(regions) => setState({ ...state, regions, page: 1 })} />}
                     {teamScope && countryName && (
-                      <Button variant="secondary" size="sm" className="max-sm:h-11" onClick={() => setState({ ...state, country: null, page: 1 })}
+                      <Button variant="secondary" size="sm" className="max-sm:h-10" onClick={() => setState({ ...state, country: null, page: 1 })}
                         aria-label={`Teams from ${countryName}: show every country`}>
                         <MapPin className="text-accent" /> Teams from {countryName} <X className="text-text-muted" />
                       </Button>
@@ -353,7 +353,7 @@ export function RecordsTable(p: RecordsTableProps) {
           {c.extra}
           {c.region && <RegionPicker season={season} value={state.regions} onChange={(regions) => setState({ ...state, regions, page: 1 })} />}
           {teamScope && state.country && (
-            <Button variant="secondary" size="sm" className="max-sm:h-11" onClick={() => setState({ ...state, country: null, page: 1 })}
+            <Button variant="secondary" size="sm" className="max-sm:h-10" onClick={() => setState({ ...state, country: null, page: 1 })}
               aria-label={`Teams from ${countryByCode(state.country)?.name ?? state.country}: show every country`}>
               <MapPin className="text-accent" /> Teams from {countryByCode(state.country)?.name ?? state.country} <X className="text-text-muted" />
             </Button>
@@ -361,7 +361,7 @@ export function RecordsTable(p: RecordsTableProps) {
           {c.eventType && <EventTypeSelect value={state.eventType} onChange={(eventType) => setState({ ...state, eventType, page: 1 })} />}
           {c.dates && <DateRangePicker from={state.from} to={state.to} onChange={(from, to) => setState({ ...state, from, to, page: 1 })} />}
           {filtered && (
-            <Button variant="ghost" size="sm" className="text-danger hover:text-danger max-sm:h-11" onClick={() => setState(clearFilters(state))}><X /> Clear filters</Button>
+            <Button variant="ghost" size="sm" className="text-danger hover:text-danger max-sm:h-10" onClick={() => setState(clearFilters(state))}><X /> Clear filters</Button>
           )}
         </div>
       )}

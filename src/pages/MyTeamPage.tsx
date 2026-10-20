@@ -131,7 +131,7 @@ function Dashboard({ team }: { team: number }) {
             <div aria-hidden className="pointer-events-none absolute -left-24 -top-24 size-64 rounded-full bg-accent opacity-[0.12] blur-3xl" />
             <div className="relative flex items-center justify-between gap-3">
               <p className="flex items-center gap-1.5 text-xs font-medium uppercase tracking-[0.08em] text-accent-text"><Star className="size-3.5 fill-current" aria-hidden />My team{!deciding && ` · ${seasonLabel(season)}`}</p>
-              <Button variant="ghost" size="sm" onClick={() => set("myTeam", null)} className="-mr-2 max-sm:h-11"><X /> Change team</Button>
+              <Button variant="ghost" size="sm" onClick={() => set("myTeam", null)} className="-mr-2 max-sm:h-10"><X /> Change team</Button>
             </div>
             <h1 className="relative mt-1">
               <Link to={`/teams/${team}`} className="group block">

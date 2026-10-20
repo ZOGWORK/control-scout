@@ -81,12 +81,12 @@ export default function OwnerPage() {
   return (
     <div className={CHART_VARS}>
       <PageHeader eyebrow="Owner" title="Owner console" description="Every account, workspace, switch and report: how Control Scout is doing, and the controls to run it. Only you can see this page."
-        actions={<Button variant="outline" onClick={refresh} disabled={refreshing} className="max-sm:h-11"><RefreshCw className={cn(refreshing && "animate-spin")} /> Refresh</Button>} />
+        actions={<Button variant="outline" onClick={refresh} disabled={refreshing} className="max-sm:h-10"><RefreshCw className={cn(refreshing && "animate-spin")} /> Refresh</Button>} />
       {panel !== "storage" && <StorageBanner onOpen={() => go("storage")} />}
       <Tabs value={panel} onValueChange={go}>
         <TabsList aria-label="Owner sections" className="max-w-full justify-start overflow-x-auto">
           {PANELS.map((p) => (
-            <TabsTrigger key={p.id} value={p.id} className="shrink-0 max-sm:h-11">
+            <TabsTrigger key={p.id} value={p.id} className="shrink-0 max-sm:h-10">
               <p.icon aria-hidden />{p.label}
               {!!badge[p.id] && <Badge variant={p.id === "errors" ? "destructive" : "secondary"} className="ml-1 tabular-nums" aria-label={`${badge[p.id]} waiting`}>{badge[p.id]}</Badge>}
             </TabsTrigger>
@@ -200,7 +200,7 @@ function UsersPanel() {
     <Section title={`Users${state.data ? ` (${state.data.total.toLocaleString()})` : ""}`} description="Every account, most recently seen first. Open one for its sign-ins, devices, saved data, scouting and workspaces. Read-only: nothing here changes an account.">
       <div className="relative mb-4 max-w-sm">
         <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" aria-hidden />
-        <Input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search email or name" aria-label="Search accounts" className="pl-9 max-sm:h-11" />
+        <Input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search email or name" aria-label="Search accounts" className="pl-9 max-sm:h-10" />
       </div>
       <Async state={state} empty={(d) => !d.users.length && <EmptyState icon={UserRound} title={query ? `No account matches “${query}”` : "No accounts yet"} description={query ? "Try part of the email or the name." : "Accounts appear here once someone signs in."} />}>
         {(d) => (
@@ -309,7 +309,7 @@ function WorkspacesSection() {
               {all.length > 8 && (
                 <div className="relative mb-4 max-w-sm">
                   <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" aria-hidden />
-                  <Input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search workspaces" aria-label="Search workspaces" className="pl-9 max-sm:h-11" />
+                  <Input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search workspaces" aria-label="Search workspaces" className="pl-9 max-sm:h-10" />
                 </div>
               )}
               <div className="overflow-x-auto rounded-xl border border-border">

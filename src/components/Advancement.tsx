@@ -115,7 +115,7 @@ function StageStrip({ fc, onRefresh }: { fc: ForecastView; onRefresh: () => void
       <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1 border-t border-border pt-3 text-xs text-muted-foreground">
         <span><span className="font-medium text-foreground">{fc.slots}</span> advancement slot{fc.slots === 1 ? "" : "s"}{fc.slotsSource !== "official" ? " (estimated)" : " (official)"}</span>
         <span>Updated {ago(fc.generatedAt)}</span>
-        <Button variant="ghost" size="sm" onClick={onRefresh} className="ml-auto max-sm:h-11"><RefreshCw /> Refresh</Button>
+        <Button variant="ghost" size="sm" onClick={onRefresh} className="ml-auto max-sm:h-10"><RefreshCw /> Refresh</Button>
       </div>
     </div>
   );
@@ -246,7 +246,7 @@ function Field({ fc, team, nameOf, onPick }: { fc: ForecastView; team: number | 
     <div>
       <div className="relative mb-4 max-w-sm">
         <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
-        <Input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Find a team" aria-label="Find a team" className="pl-9 max-sm:h-11" />
+        <Input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Find a team" aria-label="Find a team" className="pl-9 max-sm:h-10" />
       </div>
       <ul className="divide-y divide-border overflow-hidden rounded-xl border border-border bg-card">
         {rows.map((t) => (

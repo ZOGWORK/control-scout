@@ -30,7 +30,7 @@ import { COMMENT_MAX, commentLength, type EntryComment } from "../../shared/comm
 const COUNTER_FROM = COMMENT_MAX - 200;
 /** Something to send, within the limit (counted like the server: characters after trimming, not UTF-16 units). */
 const sendable = (text: string) => { const n = commentLength(text); return n > 0 && n <= COMMENT_MAX; };
-const touch = "max-sm:h-11 max-sm:min-w-11";
+const touch = "max-sm:h-10 max-sm:min-w-11";
 
 /** Keep a focused field above the on-screen keyboard (it opens after focus, and shrinks the visual viewport). */
 const keepVisible = (el: HTMLElement) => {

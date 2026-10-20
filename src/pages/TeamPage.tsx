@@ -161,7 +161,7 @@ function Hero({ p, onSeason }: { p: TeamProfile; onSeason: (s: number) => void }
           </div>
           {t.sponsors.length > 0 && (
             <Collapsible className="relative mt-3">
-              <CollapsibleTrigger className="group inline-flex min-h-8 max-w-full items-center gap-1.5 rounded text-left text-sm text-muted-foreground hover:text-foreground max-sm:min-h-11">
+              <CollapsibleTrigger className="group inline-flex min-h-8 max-w-full items-center gap-1.5 rounded text-left text-sm text-muted-foreground hover:text-foreground max-sm:min-h-10">
                 <span className="font-medium text-foreground">Sponsors ({t.sponsors.length})</span>
                 <span className="truncate group-data-[state=open]:hidden">{t.sponsors.slice(0, 2).join(" · ")}{t.sponsors.length > 2 ? " …" : ""}</span>
                 <ChevronDown className="size-4 shrink-0 transition-transform group-data-[state=open]:rotate-180" />
@@ -171,17 +171,17 @@ function Hero({ p, onSeason }: { p: TeamProfile; onSeason: (s: number) => void }
           )}
           <div className="relative mt-5 max-sm:mt-4"><SeasonToggle seasons={p.seasons} value={p.season} onChange={onSeason} /></div>
           <div className="relative mt-4 flex flex-wrap gap-2">
-            <Button variant={flags.isMine ? "secondary" : "outline"} size="sm" aria-pressed={flags.isMine} onClick={() => flags.setMine(!flags.isMine)} className="max-sm:h-11">
+            <Button variant={flags.isMine ? "secondary" : "outline"} size="sm" aria-pressed={flags.isMine} onClick={() => flags.setMine(!flags.isMine)} className="max-sm:h-10">
               <Star className={cn(flags.isMine && "fill-accent text-accent")} /> {flags.isMine ? "My team" : "Mark as my team"}
             </Button>
-            <Button variant={flags.tracked ? "secondary" : "outline"} size="sm" aria-pressed={flags.tracked} onClick={track} className="max-sm:h-11" data-tour="track" title={flags.tracked ? "Tracked: on My team, first in search. Click to stop." : "Follow this team: it goes on My team and comes first in search"}>
+            <Button variant={flags.tracked ? "secondary" : "outline"} size="sm" aria-pressed={flags.tracked} onClick={track} className="max-sm:h-10" data-tour="track" title={flags.tracked ? "Tracked: on My team, first in search. Click to stop." : "Follow this team: it goes on My team and comes first in search"}>
               <Eye className={cn(flags.tracked && "text-accent")} /> {flags.tracked ? "Tracking" : "Track"}
             </Button>
-            <Button variant={flags.bookmarked ? "secondary" : "outline"} size="sm" aria-pressed={flags.bookmarked} onClick={shortlist} className="max-sm:h-11">
+            <Button variant={flags.bookmarked ? "secondary" : "outline"} size="sm" aria-pressed={flags.bookmarked} onClick={shortlist} className="max-sm:h-10">
               {flags.bookmarked ? <BookmarkCheck /> : <Bookmark />} {flags.bookmarked ? "Shortlisted" : "Shortlist"}
             </Button>
-            <Button variant="outline" size="sm" asChild className="max-sm:h-11"><Link to={`/compare?teams=${t.number}`}><Scale /> Compare</Link></Button>
-            <Button variant="outline" size="sm" onClick={share} className="max-sm:h-11"><Link2 /> Share</Button>
+            <Button variant="outline" size="sm" asChild className="max-sm:h-10"><Link to={`/compare?teams=${t.number}`}><Scale /> Compare</Link></Button>
+            <Button variant="outline" size="sm" onClick={share} className="max-sm:h-10"><Link2 /> Share</Button>
           </div>
           <a href="https://tryctrlpoint.org" target="_blank" rel="noreferrer noopener" className="relative mt-4 inline-flex items-center gap-1.5 text-xs text-muted-foreground hover:text-accent-text">
             Manage this team in Control Point <ExternalLink className="size-3" />

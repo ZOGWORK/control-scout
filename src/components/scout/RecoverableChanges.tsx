@@ -166,7 +166,7 @@ export function RecoverableChanges({ account, workspaces, className }: { account
                       {r.message}{readOnly && " The workspace is read-only now, so it can't be sent."}
                     </p>
                     {reviewable && (
-                      <Button size="sm" variant="outline" className="mt-1.5 max-sm:h-11" aria-expanded={open} aria-controls={open ? reviewId : undefined}
+                      <Button size="sm" variant="outline" className="mt-1.5 max-sm:h-10" aria-expanded={open} aria-controls={open ? reviewId : undefined}
                         aria-label={`${open ? "Hide" : "Show"} change: ${r.label}`} onClick={() => toggleShown(r.key)}>
                         <ChevronDown className={cn("transition-transform motion-reduce:transition-none", open && "rotate-180")} /> {open ? "Hide change" : "Show change"}
                       </Button>
@@ -182,18 +182,18 @@ export function RecoverableChanges({ account, workspaces, className }: { account
                     {confirming === r.key ? (
                       <>
                         <span className="text-xs text-muted-foreground">Discard this change?</span>
-                        <Button size="sm" variant="destructive" className="max-sm:h-11" onClick={() => { setConfirming(null); afterAction(r.key); r.discard?.(); }}><Trash2 /> {r.discardLabel ?? "Discard"}</Button>
-                        <Button size="sm" variant="secondary" className="max-sm:h-11" onClick={() => setConfirming(null)}>Keep it</Button>
+                        <Button size="sm" variant="destructive" className="max-sm:h-10" onClick={() => { setConfirming(null); afterAction(r.key); r.discard?.(); }}><Trash2 /> {r.discardLabel ?? "Discard"}</Button>
+                        <Button size="sm" variant="secondary" className="max-sm:h-10" onClick={() => setConfirming(null)}>Keep it</Button>
                       </>
                     ) : (
                       <>
                         {r.retry && !readOnly && (
-                          <Button size="sm" variant="secondary" className="max-sm:h-11" disabled={r.busy} aria-label={`Retry: ${r.label}`} onClick={() => { afterAction(r.key); r.retry!(); }}>
+                          <Button size="sm" variant="secondary" className="max-sm:h-10" disabled={r.busy} aria-label={`Retry: ${r.label}`} onClick={() => { afterAction(r.key); r.retry!(); }}>
                             {r.busy ? <Loader2 className="animate-spin" /> : <RotateCcw />} Retry
                           </Button>
                         )}
                         {r.discard && (
-                          <Button size="sm" variant="outline" className="max-sm:h-11" disabled={r.busy} aria-label={`${r.discardLabel ?? "Discard"}: ${r.label}`} onClick={() => setConfirming(r.key)}>
+                          <Button size="sm" variant="outline" className="max-sm:h-10" disabled={r.busy} aria-label={`${r.discardLabel ?? "Discard"}: ${r.label}`} onClick={() => setConfirming(r.key)}>
                             <Trash2 /> {r.discardLabel ?? "Discard"}
                           </Button>
                         )}

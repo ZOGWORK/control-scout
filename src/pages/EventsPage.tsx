@@ -104,7 +104,7 @@ function FilterBar({ season, onSeason, events, region, type, status, from, to, q
   const place = <PlacePicker events={events} value={region} onChange={(r) => set({ region: r }, false)} />;
   const typePicker = (
     <Select value={type} onValueChange={(v) => set({ type: v }, false)}>
-      <SelectTrigger className={cn("h-9 w-auto gap-2 rounded-lg px-3 font-medium max-sm:h-11", type !== "all" ? "border-accent/60 bg-accent/[0.08]" : "border-line bg-card")} aria-label="Event type"><SelectValue /></SelectTrigger>
+      <SelectTrigger className={cn("h-9 w-auto gap-2 rounded-lg px-3 font-medium max-sm:h-10", type !== "all" ? "border-accent/60 bg-accent/[0.08]" : "border-line bg-card")} aria-label="Event type"><SelectValue /></SelectTrigger>
       <SelectContent className="min-w-[14rem]">
         <SelectItem value="all">All event types</SelectItem>
         {types.map(([t, n]) => <SelectItem key={t} value={t}><span className="inline-flex items-center gap-2"><span className={cn("size-2 rounded-full", toneOfType(t).bar)} />{eventTypeLabel(t)} <span className="text-muted-foreground">{n}</span></span></SelectItem>)}
@@ -115,7 +115,7 @@ function FilterBar({ season, onSeason, events, region, type, status, from, to, q
   const search = (
     <div className="relative min-w-[12rem] flex-1">
       <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
-      <Input value={q} onChange={(e) => onQ(e.target.value)} placeholder="Name, code, city or state" className="h-9 pl-9 max-sm:h-11" aria-label="Filter events" />
+      <Input value={q} onChange={(e) => onQ(e.target.value)} placeholder="Name, code, city or state" className="h-9 pl-9 max-sm:h-10" aria-label="Filter events" />
     </div>
   );
   const statusChips = STATUS.map((s) => (
@@ -184,7 +184,7 @@ function PlacePicker({ events, value, onChange }: { events: EventListItem[]; val
   let lastCountry = "";
   return (
     <Popover open={open} onOpenChange={(o) => { setOpen(o); if (!o) setQ(""); }}>
-      <span className={cn("inline-flex h-9 max-w-full items-center rounded-lg border text-sm font-medium max-sm:h-11", value ? "border-accent/60 bg-accent/[0.08]" : "border-line bg-card hover:border-text-base/25")}>
+      <span className={cn("inline-flex h-9 max-w-full items-center rounded-lg border text-sm font-medium max-sm:h-10", value ? "border-accent/60 bg-accent/[0.08]" : "border-line bg-card hover:border-text-base/25")}>
         <PopoverTrigger asChild>
           <button type="button" aria-label={`Place: ${label}`} className="inline-flex h-full min-w-0 items-center gap-2 rounded-lg px-3">
             <MapPin className="size-4 text-sky-500" /><span className="max-w-[12rem] truncate">{label}</span>
@@ -200,7 +200,7 @@ function PlacePicker({ events, value, onChange }: { events: EventListItem[]; val
       <PopoverContent align="start" className="flex max-h-[min(28rem,70dvh)] w-[min(92vw,20rem)] flex-col gap-2 p-2">
         <div className="relative">
           <Search className="pointer-events-none absolute left-2.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
-          <Input value={q} onChange={(e) => setQ(e.target.value)} placeholder="New Jersey, Ontario, Mexico…" aria-label="Search places" className="h-9 pl-8 max-sm:h-11" autoFocus />
+          <Input value={q} onChange={(e) => setQ(e.target.value)} placeholder="New Jersey, Ontario, Mexico…" aria-label="Search places" className="h-9 pl-8 max-sm:h-10" autoFocus />
         </div>
         <div className="custom-scrollbar min-h-0 flex-1 overflow-y-auto" role="listbox" aria-label="Places">
           <PlaceRow on={!value} name="Everywhere" n={events.length} onClick={() => { onChange(null); setOpen(false); }} />
