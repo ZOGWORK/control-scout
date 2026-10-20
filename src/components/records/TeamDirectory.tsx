@@ -106,7 +106,8 @@ export function TeamDirectory({ season, onSeason }: { season: number; onSeason: 
           search={<DirectorySearch value={state.q} onSearch={search} where={where} className="w-full" />}
           summary={data ? (data.q ? `${fmt(matched)} of ${fmt(data.total)} listed teams from ${where}` : `${fmt(data.total)} listed teams from ${where}`) : undefined}
           doneLabel={data ? `Show ${fmt(matched)} teams` : "Done"}
-          onClearAll={() => setState({ ...state, country: null, countryUnknown: null, page: 1 })}>
+          // Clears what the chips show: the country and a non-default sort (the search has its own ×).
+          onClearAll={() => setState({ ...state, country: null, countryUnknown: null, sort: "team", dir: directoryDefaultDir("team"), page: 1 })}>
           <FilterSection label="Country">{countryPicker}</FilterSection>
           <FilterSection label="Order">{sortPicker}</FilterSection>
         </CompactFilters>

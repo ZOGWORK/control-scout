@@ -194,6 +194,14 @@ describe("TeamDirectory on a phone", () => {
     expect(note.textContent).toMatch(/7 listings report no country/);
   });
 
+  it("Clear filters takes off every chip, the sort included", async () => {
+    mount("/teams?view=listed&season=2025&country=CA&sort=rookie&q=maple");
+    fireEvent.click(filtersButton());
+    fireEvent.click(await screen.findByRole("button", { name: "Clear filters" }));
+    expect(search).toBe("?view=listed&season=2025&q=maple");
+    expect(screen.queryByRole("button", { name: /^Remove filter/, hidden: true })).toBeNull();
+  });
+
   it("keeps the search box on the page, under the row, and says the matched count in the sheet", async () => {
     page = base({ q: "maple", matched: 1 } as Partial<DirectoryPage>);
     mount("/teams?view=listed&country=CA&q=maple");
