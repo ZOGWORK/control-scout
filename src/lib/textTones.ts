@@ -34,8 +34,8 @@ export const RECORDS_CAP_NOTE_TONE = "bg-amber-500/10 text-accent-text";
 /** The count on each Events status filter chip: the chip's own muted text, no extra fade (opacity 70 took it under 4.5:1). */
 export const EVENT_FILTER_COUNT = "font-normal tabular-nums";
 
-/** A team's worldwide percentile ("Top 8%") in its profile hero, on the hero's secondary panel. */
-export const PROFILE_PERCENTILE_TEXT = "text-accent-text";
+/** A team's worldwide percentile ("Top 8%"), 48px display text: the accent itself, the owner's large-text exception on light. */
+export const PROFILE_PERCENTILE_TEXT = "text-accent-display";
 
 /** Chart legends (ChartContainer): each label in the foreground colour, its swatch keeping the series colour. */
 export const CHART_LEGEND_TEXT = "[&_.recharts-legend-item-text]:!text-foreground";
