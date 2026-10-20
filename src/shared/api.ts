@@ -344,7 +344,14 @@ export interface ResultScoreSide {
   bonus: { movement: boolean; goal: boolean; pattern: boolean } | null;
 }
 
-export interface ResultSnapshot { red: ResultScoreSide; blue: ResultScoreSide; /** Disqualified teams, ascending. */ dq: number[] }
+export interface ResultSnapshot {
+  red: ResultScoreSide;
+  blue: ResultScoreSide;
+  /** Disqualified teams, ascending. */
+  dq: number[];
+  /** False: totals only (the source hadn't reported a breakdown; the components are estimates). */
+  breakdown: boolean;
+}
 export interface ScheduleSnapshot { time: string | null; field: string | null; /** Team numbers, ascending. */ red: number[]; blue: number[] }
 
 interface ResultChangeBase {
