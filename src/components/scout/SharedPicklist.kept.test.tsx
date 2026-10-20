@@ -10,10 +10,11 @@ import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testi
 import { MemoryRouter } from "react-router-dom";
 import type { PickList } from "../../shared/picklist";
 import type { ShortlistTeam } from "../../shared/api";
-import { resetFailedChanges, retryFailedChange, setPicklistAccount, useFailedChanges } from "../../lib/sharedPicklist";
-import { deleteKeptOp, keptOps, putKeptOp, resetKeptOps, type KeptPickOp } from "../../lib/picklistOps";
+import { resetFailedChanges, retryFailedChange, setPicklistAccount, useFailedChanges, type FailedChange } from "../../lib/sharedPicklist";
+import { deleteKeptOp, keptOps, putKeptOp, readKeptOps, resetKeptOps, type KeptPickOp } from "../../lib/picklistOps";
 import { SharedPicklist } from "./SharedPicklist";
 import { RecoverableChanges } from "./RecoverableChanges";
+import { KeptPickChanges } from "./KeptPickChanges";
 
 const S = 2025;
 const team = (n: number): ShortlistTeam => ({
@@ -349,5 +350,107 @@ describe("kept pick list changes and accounts", () => {
     expect(applied).toBe(0);
     expect(failed[0]).toMatchObject({ blocked: "account" });
     expect(await keptOps(1)).toHaveLength(1);
+  });
+});
+
+describe("a damaged kept change (audit V4-PRIVATE-001)", () => {
+  /** The audit's exact row, for this test's account and workspace. */
+  const damagedRow = (o: Record<string, unknown> = {}) => putKeptOp({
+    ...kept({ opId: "v4-corrupt-stored-base", op: { op: "move", team: 104, beforeTeam: 101 }, baseVersion: 7, tab: "oldclosedtab", message: "AUDIT malformed persisted base" }),
+    base: [101, { legacy: "malformed team object" }, 104], ...o,
+  } as unknown as KeptPickOp);
+  const DAMAGED = /This saved change is damaged and can't be applied/;
+  beforeEach(() => { server = listOf([101, 102, 103, 104], 7); });
+
+  it("Retry never reaches it (the page doesn't crash), and Discard this change removes only that row", async () => {
+    await damagedRow();
+    await putKeptOp(kept({ opId: "good-op-0001", op: { op: "move", team: 103, beforeTeam: 101 }, base: [101, 102, 103, 104], baseVersion: 7 }));
+    show();
+    await waitFor(() => expect(screen.getByRole("heading", { name: "2 unsaved pick-list changes" })).toBeTruthy());
+    // On main this row offered Retry, which compared the damaged order and crashed the page.
+    const retry = screen.queryByRole("button", { name: "Retry: Move 104 in the pick list" });
+    if (retry) { fireEvent.click(retry); await new Promise((r) => setTimeout(r, 50)); }
+    expect(retry).toBeNull();
+    const row = screen.getByText(DAMAGED).closest("li")!;
+    expect(within(row).getByText("Move 104 in the pick list")).toBeTruthy();
+    expect(within(row).queryByRole("button", { name: /Retry|Apply/ })).toBeNull();
+    expect(rows()).toEqual([101, 102, 103, 104]);
+
+    fireEvent.click(within(row).getByRole("button", { name: "Discard this change: Move 104 in the pick list" }));
+    await waitFor(() => expect(screen.queryByText(DAMAGED)).toBeNull());
+    expect(screen.getByRole("heading", { name: "1 unsaved pick-list change" })).toBeTruthy();
+    await waitFor(async () => expect(await readKeptOps(1)).toMatchObject({ damaged: [], ops: [{ opId: "good-op-0001" }] }));
+    expect(posts).toEqual([]);
+
+    // The good one is untouched: Retry sends it, once.
+    fireEvent.click(screen.getByRole("button", { name: "Retry" }));
+    await waitFor(() => expect(notice()).toBeNull());
+    expect(moves()).toHaveLength(1);
+    expect(moves()[0]).toMatchObject({ opId: "good-op-0001", team: 103, beforeTeam: 101 });
+    expect(await keptOps(1)).toEqual([]);
+  });
+
+  it("Retry for the whole list sends the good changes only; the damaged one stays, to discard", async () => {
+    await damagedRow();
+    await putKeptOp(kept({ opId: "good-op-0001", op: { op: "move", team: 103, beforeTeam: 101 }, base: [101, 102, 103, 104], baseVersion: 7 }));
+    show();
+    await waitFor(() => expect(screen.getByRole("heading", { name: "2 unsaved pick-list changes" })).toBeTruthy());
+    fireEvent.click(screen.getByRole("button", { name: "Retry" }));
+    await waitFor(() => expect(screen.getByRole("heading", { name: "1 unsaved pick-list change" })).toBeTruthy());
+    expect(posts.map((p) => p.opId)).toEqual(["good-op-0001"]);
+    expect(screen.getByText(DAMAGED)).toBeTruthy();
+    expect(screen.getByText(/A change saved on this device is damaged/)).toBeTruthy();
+    expect((await readKeptOps(1)).damaged.map((d) => d.opId)).toEqual(["v4-corrupt-stored-base"]);
+  });
+
+  it("an accepted change whose answer was lost still reconciles once beside a damaged row", async () => {
+    await damagedRow();
+    appliedIds.add("landed-op-0001");
+    await putKeptOp(kept({ opId: "landed-op-0001", state: "sending", uncertain: true, base: [101, 102, 103, 104] }));
+    await putKeptOp(kept({ opId: "lost-ack-00001", op: { op: "move", team: 104, beforeTeam: 102 }, base: [101, 102, 103, 104], at: Date.now() - 1000 }));
+    show();
+    await waitFor(() => expect(screen.getByRole("heading", { name: "2 unsaved pick-list changes" })).toBeTruthy());
+    await waitFor(async () => expect((await keptOps(1)).map((r) => r.opId)).toEqual(["lost-ack-00001"]));
+    expect(posts).toEqual([]);
+    // Retry: applied, answer lost; the check finds its op id applied, so it's saved, and nothing is applied twice.
+    loseAnswers = 1;
+    fireEvent.click(screen.getByRole("button", { name: "Retry" }));
+    await waitFor(() => expect(screen.getByRole("heading", { name: "1 unsaved pick-list change" })).toBeTruthy());
+    expect(applied).toBe(1);
+    expect(moves().map((p) => p.opId)).toEqual(["lost-ack-00001"]);
+    expect(server.picks.map((p) => p.team)).toEqual([101, 104, 102, 103]);
+    expect(await keptOps(1)).toEqual([]);
+    expect(screen.getByText(DAMAGED)).toBeTruthy();
+  });
+
+  it("the recoverable view lists it with only Discard this change, which removes that row alone", async () => {
+    await damagedRow();
+    await putKeptOp(kept({ opId: "good-op-0001", base: [101, 102, 103, 104] }));
+    const view = render(<MemoryRouter><RecoverableChanges account={1} workspaces={[{ id: "901", name: "Gearheads" }]} /></MemoryRouter>);
+    await waitFor(() => expect(within(view.container).getByText(DAMAGED)).toBeTruthy());
+    const row = within(view.container).getByText(DAMAGED).closest("li")!;
+    expect(within(row).queryByRole("button", { name: /Retry/ })).toBeNull();
+    fireEvent.click(within(row).getByRole("button", { name: "Discard this change: Move 104 in the pick list" }));
+    fireEvent.click(within(row).getByRole("button", { name: "Discard this change" }));
+    await waitFor(() => expect(within(view.container).queryByText(DAMAGED)).toBeNull());
+    expect(within(view.container).getByText("Move 103 in the pick list")).toBeTruthy();
+    expect(await readKeptOps(1)).toMatchObject({ damaged: [], ops: [{ opId: "good-op-0001" }] });
+  });
+
+  it("another account's damaged row is never shown", async () => {
+    await damagedRow({ account: 2 });
+    show();
+    await waitFor(() => expect(rows()).toEqual([101, 102, 103, 104]));
+    await new Promise((r) => setTimeout(r, 50));
+    expect(notice()).toBeNull();
+    expect((await readKeptOps(2)).damaged).toHaveLength(1);
+  });
+
+  it("whatever reaches the conflict chips, only team numbers render (never an object as text)", () => {
+    const f = { id: 1, op: { op: "move", team: 104, beforeTeam: 101 }, space: "901", season: S, account: 1, message: "Not saved", uncertain: false,
+      conflict: { kind: "changed", added: [], removed: [{ legacy: "malformed team object" }, 102], moved: [] } } as unknown as FailedChange;
+    render(<KeptPickChanges changes={[f]} onRetryAll={() => {}} onDiscardAll={() => {}} onRetry={() => {}} onDiscard={() => {}} />);
+    expect(screen.getByText("102")).toBeTruthy();
+    expect(screen.queryByText(/legacy|object Object/)).toBeNull();
   });
 });
