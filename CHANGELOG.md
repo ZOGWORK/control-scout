@@ -9,6 +9,18 @@ teams, scout, offline, speed, live, report, alerts, rankings, share, workspace,
 picklist, history, fixes). What's new shows them first; the groups below are
 the full release notes, one click away.
 
+## 1.8.0 — 2026-10-20
+
+Control Scout comes to your team's Discord server.
+
+### Highlights
+- [share] A Control Scout bot for your team's Discord server
+- [predict] /predict: win odds for any qual match, and how played calls turned out
+- [teams] /team, /event and /rankings answer right in the chat
+
+### Discord
+- **The Control Scout bot.** Add it to your team's server and anyone there can ask `/team` (record, OPR, world ranking, next event), `/predict` (win odds as bars, predicted score and confidence for a qualification match; once it's played, the final score, what was predicted and whether the call was right), `/event` (status, progress, top 5 by OPR, the winning alliance) and `/rankings` (the world top 10 with movement). Every answer links back to the page it came from, and the numbers are the site's own. Event names and codes autocomplete. The invite link goes in the FAQ and footer once the bot is live.
+
 ## 1.7.0 — 2026-10-18
 
 A new home page, sharper predictions, and Scout pages that are faster to read and quicker to act on.

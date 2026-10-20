@@ -5,7 +5,12 @@
 import { cleanup, fireEvent, render, screen, act, waitFor, within } from "@testing-library/react";
 import { afterEach, describe, expect, it } from "vitest";
 import pkg from "../../package.json";
-import { currentRelease } from "../lib/changelog";
+import md from "../../CHANGELOG.md?raw";
+import { currentRelease, parseChangelog } from "../lib/changelog";
+
+// The newest release, as CHANGELOG.md has it (so a new release doesn't need this test rewritten).
+const latest = parseChangelog(md)[0];
+const latestPr = latest.groups.flatMap((g) => g.items).join(" ").match(/#(d+)/)?.[1] ?? null;
 import { openWhatsNew, WhatsNewHost, WhatsNewRow } from "./WhatsNew";
 
 afterEach(() => { cleanup(); localStorage.clear(); });
@@ -18,7 +23,7 @@ describe("What's new", () => {
     const versions = [...rail.querySelectorAll("button")].map((b) => b.textContent);
     expect(versions[0]).toBe(`v${pkg.version}Latest`);
     expect(versions).toContain("v1.6.0");
-    expect(screen.getByText(`v${pkg.version} · 2026-10-18`)).toBeTruthy();
+    expect(screen.getByText(`v${pkg.version} · ${latest.date}`)).toBeTruthy();
   });
 
   it("is a named dialog that opens on the release's highlights, with the full notes one click away", async () => {
@@ -27,18 +32,18 @@ describe("What's new", () => {
     const dialog = await screen.findByRole("dialog", { name: /^What's new/ });
     const highlights = await within(dialog).findByRole("list", { name: "Highlights" });
     expect(within(highlights).getAllByRole("listitem").length).toBeGreaterThanOrEqual(3);
-    expect(within(highlights).getByText("A new home page with a globe of this season's teams")).toBeTruthy();
+    expect(within(highlights).getByText(latest.highlights[0].text)).toBeTruthy();
     // The long detail waits behind the expansion.
     const more = within(dialog).getByRole("button", { name: "Full release notes" });
     expect(more.getAttribute("aria-expanded")).toBe("false");
-    expect(within(dialog).queryByRole("link", { name: "#151" })).toBeNull();
+    if (latestPr) expect(within(dialog).queryByRole("link", { name: `#${latestPr}` })).toBeNull();
     fireEvent.click(more);
     expect(more.getAttribute("aria-expanded")).toBe("true");
     const notes = document.getElementById(more.getAttribute("aria-controls")!)!;
     expect(notes.hidden).toBe(false);
-    expect(within(notes).getByText("Home")).toBeTruthy();
+    expect(within(notes).getByText(latest.groups[0].heading)).toBeTruthy();
     // Its PRs link to this repository.
-    expect(within(notes).getByRole("link", { name: "#151" }).getAttribute("href")).toBe("https://github.com/Control-Point-FTC/control-scout/pull/151");
+    if (latestPr) expect(within(notes).getByRole("link", { name: `#${latestPr}` }).getAttribute("href")).toBe(`https://github.com/Control-Point-FTC/control-scout/pull/${latestPr}`);
     fireEvent.click(more);
     expect(more.getAttribute("aria-expanded")).toBe("false");
     expect(notes.hidden).toBe(true);
