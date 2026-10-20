@@ -31,6 +31,8 @@ let appliedIds: Set<string>;
 let applied: number;
 /** The next N posts are lost before they arrive (never applied, no answer). */
 let dropPosts: number;
+/** The next N posts answer 500 without being applied. */
+let failPosts: number;
 /** The next N posts are applied, then their answer is lost. */
 let loseAnswers: number;
 /** Every request for workspace 901's list answers this status (403: removed from the workspace; 423: read-only). */
@@ -67,7 +69,7 @@ beforeEach(async () => {
   localStorage.clear();
   await resetKeptOps();
   resetFailedChanges();
-  posts = []; appliedIds = new Set(); applied = 0; dropPosts = 0; loseAnswers = 0; denied = null; signedIn = 1;
+  posts = []; appliedIds = new Set(); applied = 0; dropPosts = 0; failPosts = 0; loseAnswers = 0; denied = null; signedIn = 1;
   server = listOf([101, 102, 103], 3);
   vi.stubGlobal("fetch", async (path: string, init?: RequestInit) => {
     if (path.startsWith("/api/scout/workspaces/901/picklist")) {
@@ -76,6 +78,7 @@ beforeEach(async () => {
         const body = JSON.parse(String(init.body));
         posts.push(body);
         if (dropPosts > 0) { dropPosts--; throw new TypeError("Failed to fetch"); }
+        if (failPosts > 0) { failPosts--; return json(500, { error: "Something went wrong." }); }
         if (body.account !== undefined && body.account !== signedIn) return json(409, { error: "This change was made by another account, so it wasn't sent as yours. Sign in as that account to send it, or discard it." });
         if (typeof body.opId === "string" && appliedIds.has(body.opId)) return json(200, { changed: false, replayed: true, list: server });
         const { opId: _o, account: _a, season: _s, ...op } = body;
@@ -151,6 +154,38 @@ describe("a pick list order change kept through a reload", () => {
     expect(screen.getByRole("heading", { name: "1 unsaved pick-list change" })).toBeTruthy();
     expect(posts).toEqual([]);
     await waitFor(async () => expect((await keptOps(1)).map((r) => r.opId)).toEqual(["missed-op-0002"]));
+  });
+
+  it("Retry stops at the first change still unsaved: an older move is never applied after a newer one", async () => {
+    await putKeptOp(kept({ opId: "older-op-0001", at: Date.now() - 9000, op: { op: "move", team: 103, beforeTeam: 101 } }));
+    await putKeptOp(kept({ opId: "newer-op-0002", at: Date.now() - 8000, op: { op: "move", team: 103, beforeTeam: 102 }, base: [103, 101, 102] }));
+    show();
+    await waitFor(() => expect(screen.getByRole("heading", { name: "2 unsaved pick-list changes" })).toBeTruthy());
+    failPosts = 1;
+    fireEvent.click(screen.getByRole("button", { name: "Retry" }));
+    await waitFor(() => expect(within(notice()!).getAllByText(/Not saved: Something went wrong|Couldn't confirm/).length).toBeGreaterThan(0));
+    // The newer one waited: nothing of it was sent.
+    expect(moves().map((m) => m.opId)).toEqual(["older-op-0001"]);
+    expect(applied).toBe(0);
+  });
+
+  it("Apply mine anyway approves only the conflicts shown: a newly found placement waits to be seen", async () => {
+    // Older: a removal over a list that changed since (18360 added). Newer: a move placed next to 102, deleted since.
+    await putKeptOp(kept({ opId: "rm-op-0001", at: Date.now() - 9000, op: { op: "remove", team: 101 } }));
+    await putKeptOp(kept({ opId: "mv-op-0002", at: Date.now() - 8000, op: { op: "move", team: 103, beforeTeam: 102 }, base: [102, 103] }));
+    server = listOf([101, 103, 18360], 7);
+    show();
+    await waitFor(() => expect(notice()).toBeTruthy());
+    fireEvent.click(screen.getByRole("button", { name: "Retry" }));
+    await waitFor(() => expect(screen.getByRole("button", { name: "Apply mine anyway" })).toBeTruthy());
+    expect(posts).toEqual([]);
+    fireEvent.click(screen.getByRole("button", { name: "Apply mine anyway" }));
+    // The removal goes; the move's new placement is shown, not sent.
+    await waitFor(() => expect(screen.getByText(/102, which it was placed next to, was removed/)).toBeTruthy());
+    expect(posts.map((p) => p.opId)).toEqual(["rm-op-0001"]);
+    fireEvent.click(screen.getByRole("button", { name: "Apply mine anyway" }));
+    await waitFor(() => expect(notice()).toBeNull());
+    expect(posts.map((p) => p.opId)).toEqual(["rm-op-0001", "mv-op-0002"]);
   });
 
   it("one discarded in another tab while this page was checking it doesn't come back", async () => {
