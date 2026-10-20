@@ -427,6 +427,118 @@ const flows: Flow[] = [
     },
   },
   {
+    // Audit V4-RUNTIME-001: the animation features are an optional download (src/lib/motionSupport.ts). When that
+    // one file fails, pages must still draw, visibly and static, with no unhandled rejection and no reload prompt;
+    // a page's own code that fails must still offer "Reload Control Scout" (src/lib/chunkError.ts).
+    name: "Animation download fails: pages still show, static, no reload prompt",
+    prod: true,
+    async run(page) {
+      const server = spawn("npx", ["tsx", "server/index.ts"], { env: { ...process.env, NODE_ENV: "production", PORT: String(PROD_PORT), CS_NO_SCHEDULER: "1" }, shell: true, stdio: "ignore" });
+      const browser = page.context().browser()!;
+      const seen: string[] = [];
+      try {
+        assert(await waitUp(`${PROD}/api/health`, 120), "production server didn't become ready");
+        type Mode = "fail" | "late-fail-then-repaired" | "slow" | "page-chunk-fails";
+        const visit = async (mode: Mode, reducedMotion: "reduce" | "no-preference") => {
+          // A fresh visitor each time, service workers blocked so every request reaches the routes below.
+          const ctx = await browser.newContext({ viewport: { width: 1440, height: 900 }, serviceWorkers: "block", reducedMotion });
+          await ctx.addInitScript(SHIM);
+          await ctx.addInitScript(() => {
+            const w = window as unknown as { __rejections: string[]; __loaded: number };
+            w.__rejections = []; w.__loaded = Date.now(); // __loaded survives only if the page never reloads
+            window.addEventListener("unhandledrejection", (e) => { w.__rejections.push(String((e as PromiseRejectionEvent).reason)); });
+          });
+          let motionRequests = 0, firstSettled = false;
+          await ctx.route(/\/assets\/motionFeatures-[\w-]+\.js$/, async (route) => {
+            motionRequests++;
+            if (mode === "fail") return route.abort();
+            // late-fail-then-repaired: the first download fails after 3.5 s, and the file is fine from then on. slow: 3.5 s, then fine.
+            if ((mode === "late-fail-then-repaired" || mode === "slow") && motionRequests === 1) {
+              await new Promise((r) => setTimeout(r, 3500));
+              await (mode === "slow" ? route.continue() : route.abort());
+              firstSettled = true;
+              return;
+            }
+            return route.continue();
+          });
+          if (mode === "page-chunk-fails") await ctx.route(/\/assets\/EventsPage-[\w-]+\.js$/, (route) => route.abort());
+          const p = await ctx.newPage();
+          const errors: string[] = [];
+          p.on("pageerror", (e) => errors.push(`pageerror: ${e.message.slice(0, 160)}`));
+          // The failed downloads themselves are expected (and logged by the browser): anything else is not.
+          p.on("console", (m) => { if (m.type() === "error" && !/Failed to load resource/.test(m.text())) errors.push(`console: ${m.text().slice(0, 160)}`); });
+          const label = `${mode}/${reducedMotion}`;
+          /** The heading is really on screen: rendered, and every element from it up to the root fully opaque. */
+          const shown = async (heading: RegExp, where: string) => {
+            const h1 = p.locator("main h1").filter({ hasText: heading }).first();
+            await h1.waitFor({ state: "visible", timeout: 20_000 });
+            await p.waitForTimeout(1500); // past any fade (0.18 s)
+            const o = await h1.evaluate((el) => {
+              const chain = (from: Element | null) => { let x = 1; for (let e = from; e; e = e.parentElement) x *= Number(getComputedStyle(e).opacity); return x; };
+              return { h1: chain(el), main: chain(document.querySelector("main")) };
+            });
+            assert(o.main >= 0.99 && o.h1 >= 0.99, `${label} ${where}: page not visible (opacity: main ${o.main.toFixed(2)}, heading ${o.h1.toFixed(2)})`);
+          };
+          /** Something that appears later inside an AnimatePresence (not a page) is fully opaque too. */
+          const opaque = async (what: ReturnType<Page["locator"]>, where: string) => {
+            await what.waitFor({ state: "visible", timeout: 10_000 });
+            await p.waitForTimeout(800);
+            const o = await what.evaluate((el) => { let x = 1; for (let e: Element | null = el; e; e = e.parentElement) x *= Number(getComputedStyle(e).opacity); return x; });
+            assert(o >= 0.99, `${label} ${where}: not visible (opacity ${o.toFixed(2)})`);
+          };
+          try {
+            // The delayed modes move on while the first download is still pending.
+            const delayed = mode === "late-fail-then-repaired" || mode === "slow";
+            await p.goto(`${PROD}/`, { waitUntil: delayed ? "domcontentloaded" : "networkidle" });
+            const loaded = await p.evaluate(() => (window as unknown as { __loaded: number }).__loaded);
+            await p.getByRole("link", { name: /Find an event/ }).click();
+            if (mode === "page-chunk-fails") {
+              await p.getByRole("button", { name: /Reload Control Scout/ }).waitFor({ timeout: 20_000 });
+              return `${label}: reload offered`;
+            }
+            await shown(/^Events$/, "Home → Events");
+            // A later page change, once the delayed download has settled (failed, or arrived).
+            for (let t = 0; delayed && !firstSettled && t < 100; t++) await p.waitForTimeout(100);
+            await p.locator("aside").getByRole("link", { name: /^Rankings$/ }).first().click();
+            await shown(/rankings/i, "Events → Rankings");
+            if (mode === "fail") {
+              // Parts that come and go inside an AnimatePresence: a settings section switch (mode="wait") and a top-bar panel.
+              await p.locator("aside").getByRole("link", { name: /^Settings$/ }).first().click();
+              // Profile first (its body: the Sign in group, or the note that sign-in isn't set up here), then Appearance.
+              const profileBody = p.getByRole("heading", { name: "Sign in", level: 2, exact: true }).or(p.getByText("Sign-in isn't set up on this server"));
+              await opaque(profileBody.first(), "Settings → Profile body");
+              await p.getByRole("navigation", { name: "Settings sections" }).getByRole("button", { name: "Appearance", exact: true }).click();
+              await shown(/^Appearance$/, "Settings → Appearance");
+              // The section body switches inside the AnimatePresence (the heading is outside it): the new body shows, the old one is gone.
+              await opaque(p.getByRole("heading", { name: "Display", level: 2, exact: true }), "Settings → Appearance body");
+              assert(!(await profileBody.count()), `${label}: the Profile body is still there after switching to Appearance`);
+              await p.getByRole("banner").getByRole("button", { name: "Sign in", exact: true }).click();
+              await opaque(p.getByRole("region", { name: "Sign in" }), "the top-bar sign-in panel");
+            }
+            assert(!(await p.getByRole("button", { name: /Reload Control Scout/ }).count()), `${label}: the optional animation download offered a page reload`);
+            const state = await p.evaluate(() => { const w = window as unknown as { __rejections: string[]; __loaded: number }; return { rejections: w.__rejections, loaded: w.__loaded }; });
+            assert(!state.rejections.length, `${label}: unhandled rejection: ${state.rejections[0]}`);
+            assert(state.loaded === loaded, `${label}: the page reloaded (unsaved work would be lost)`);
+            assert(!errors.length, `${label}: ${errors[0]}`);
+            assert(motionRequests >= 1, `${label}: the animation features were never requested (the route pattern is stale)`);
+            return label;
+          } finally {
+            await ctx.close();
+          }
+        };
+        for (const rm of ["no-preference", "reduce"] as const) {
+          seen.push(await visit("fail", rm));
+          seen.push(await visit("late-fail-then-repaired", rm));
+          seen.push(await visit("slow", rm));
+        }
+        seen.push(await visit("page-chunk-fails", "no-preference"));
+        return `Home → Events → Rankings (and, failing, a settings section switch and the sign-in panel) fully opaque with the animation features failing, failing late (then fine), and slow, in both motion settings; no unhandled rejection, no reload, no reload prompt; a failed page chunk still offers the reload (${seen.join(", ")})`;
+      } finally {
+        if (process.platform === "win32" && server.pid) spawnSync("taskkill", ["/pid", String(server.pid), "/T", "/F"], { stdio: "ignore" }); else server.kill();
+      }
+    },
+  },
+  {
     name: "Service worker upgrade: a new build reaches existing visitors, old caches kept",
     prod: true,
     async run(page, ctx) {

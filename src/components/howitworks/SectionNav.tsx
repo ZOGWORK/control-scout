@@ -2,7 +2,7 @@
 // active-section indicator and a reading-progress line. The page scrolls the
 // document (src/lib/pageScroll.ts), so that's what we observe.
 import { useEffect, useRef, useState, type MouseEvent } from "react";
-import { m } from "motion/react";
+import { m } from "../motion";
 import { cn } from "../cn";
 import { useReduced } from "./ui";
 import { pageScroller, pageTop, scrollToElement } from "../../lib/pageScroll";

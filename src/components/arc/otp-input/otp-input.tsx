@@ -2,7 +2,8 @@
 
 import { useEffect, useId, useRef, useState } from "react";
 import type { ClipboardEvent, KeyboardEvent, ChangeEvent, FocusEvent } from "react";
-import { AnimatePresence, m, useAnimate, useReducedMotion } from "motion/react";
+import { AnimatePresence, useAnimate, useReducedMotion } from "motion/react";
+import { m } from "../../motion";
 import type { Transition } from "motion/react";
 import { motionTokens } from "../lib/motion-tokens";
 import styles from "./otp-input.module.css";
