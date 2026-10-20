@@ -437,6 +437,20 @@ describe("a damaged kept change (audit V4-PRIVATE-001)", () => {
     expect(await readKeptOps(1)).toMatchObject({ damaged: [], ops: [{ opId: "good-op-0001" }] });
   });
 
+  it("a discard this device couldn't carry out keeps the row and says so; trying again removes it", async () => {
+    await damagedRow();
+    show();
+    await waitFor(() => expect(screen.getByText(DAMAGED)).toBeTruthy());
+    const del = vi.spyOn(IDBObjectStore.prototype, "delete").mockImplementation(() => { throw new DOMException("blocked", "InvalidStateError"); });
+    fireEvent.click(screen.getByRole("button", { name: "Discard this change: Move 104 in the pick list" }));
+    await waitFor(() => expect(screen.getByText(/couldn't remove it just now, so it's still saved/)).toBeTruthy());
+    expect((await readKeptOps(1)).damaged).toHaveLength(1);
+    del.mockRestore();
+    fireEvent.click(screen.getByRole("button", { name: "Discard this change: Move 104 in the pick list" }));
+    await waitFor(() => expect(screen.queryByText(DAMAGED)).toBeNull());
+    expect((await readKeptOps(1)).damaged).toEqual([]);
+  });
+
   it("another account's damaged row is never shown", async () => {
     await damagedRow({ account: 2 });
     show();

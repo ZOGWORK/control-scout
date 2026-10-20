@@ -5,7 +5,7 @@
 // chooses: Retry (or Apply mine anyway after reviewing a conflict) and Discard are both explicit.
 import { useId } from "react";
 import { ArrowUpDown, CircleAlert, Copy, FileWarning, Loader2, Plus, RotateCcw, Trash2 } from "lucide-react";
-import { DAMAGED_MESSAGE, damagedLabel, describeChange, failedMessage, NOT_SENT_BEFORE_RELOAD, type DamagedChange, type FailedChange } from "../../lib/sharedPicklist";
+import { damagedLabel, damagedMessage, describeChange, failedMessage, NOT_SENT_BEFORE_RELOAD, type DamagedChange, type FailedChange } from "../../lib/sharedPicklist";
 import { describeConflict } from "../../lib/picklistConflict";
 import { Button } from "../ui/button";
 import { cn } from "../cn";
@@ -77,10 +77,10 @@ function DamagedRow({ d, onDiscard }: { d: DamagedChange; onDiscard: () => void 
       <span className="mt-0.5 grid size-7 shrink-0 place-items-center rounded-lg bg-destructive/15 text-destructive" aria-hidden><FileWarning className="size-4" /></span>
       <div className="min-w-0 flex-1 basis-48">
         <p className="text-sm font-medium">{label}</p>
-        <p className="text-xs text-text-muted">{DAMAGED_MESSAGE}</p>
+        <p className="text-xs text-text-muted">{damagedMessage(d)}</p>
       </div>
       <div className="ml-auto flex shrink-0 flex-wrap items-center justify-end gap-2">
-        <Button variant="outline" size="sm" className="max-sm:h-11" onClick={onDiscard} aria-label={`Discard this change: ${label}`}>
+        <Button variant="outline" size="sm" className="max-sm:h-11" disabled={d.busy} onClick={onDiscard} aria-label={`Discard this change: ${label}`}>
           <Trash2 /> Discard this change
         </Button>
       </div>
