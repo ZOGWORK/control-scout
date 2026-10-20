@@ -7,6 +7,7 @@
 // Each flow prints ✓/✗ with what it checked; any console error/warning or page
 // error during a flow fails it. Exit code 1 if anything failed.
 import { chromium, type Browser, type BrowserContext, type Page } from "playwright";
+import { AxeBuilder } from "@axe-core/playwright";
 import { createHash } from "node:crypto";
 import { spawn, spawnSync } from "node:child_process";
 import { readFileSync, writeFileSync, mkdtempSync } from "node:fs";
@@ -271,6 +272,29 @@ const flows: Flow[] = [
       await page.locator('iframe[src*="youtube"]').first().waitFor({ timeout: 10_000 });
       assert(!uploads.length, `requests that could carry video: ${uploads.join(", ")}`);
       return `recorded 2.5 s with a fake camera → saved locally (IndexedDB: ${stored.join(", ")}); zero uploads; YouTube link embedded`;
+    },
+  },
+  {
+    name: "Methodology example pips: 44px targets on a phone, 24px on a desktop, none overlapping",
+    async run(page) {
+      const seen: string[] = [];
+      for (const [vp, width, height, min] of [["phone", 390, 844, 44], ["desktop", 1440, 900, 24]] as const) {
+        await page.setViewportSize({ width, height });
+        await page.goto(`${BASE}/methodology`, { waitUntil: "networkidle" });
+        const group = page.getByRole("group", { name: "Example matches" });
+        const pips = group.getByRole("button", { name: /^(Q|SF)-\d/ });
+        await pips.first().waitFor({ timeout: 15_000 });
+        const boxes = await pips.evaluateAll((els) => els.map((e) => { const r = e.getBoundingClientRect(); return { x: r.x, w: r.width, h: r.height }; }));
+        assert(boxes.length === 4, `${vp}: ${boxes.length} example buttons, expected 4`);
+        for (const [i, b] of boxes.entries()) {
+          assert(b.w >= min - 0.5 && b.h >= min - 0.5, `${vp}: example ${i + 1} is ${b.w.toFixed(1)}×${b.h.toFixed(1)} px, under ${min}×${min}`);
+          if (i) assert(boxes[i - 1].x + boxes[i - 1].w <= b.x + 0.5, `${vp}: examples ${i} and ${i + 1} overlap`);
+        }
+        const axe = await new AxeBuilder({ page }).include('[role="group"][aria-label="Example matches"]').withRules(["target-size"]).analyze();
+        assert(!axe.violations.length, `${vp}: axe target-size: ${axe.violations.flatMap((v) => v.nodes.map((n) => n.target.join(" "))).join(", ")}`);
+        seen.push(`${vp} ${boxes.map((b) => `${Math.round(b.w)}×${Math.round(b.h)}`).join(" ")}`);
+      }
+      return `example buttons: ${seen.join("; ")}; axe target-size clean at both sizes`;
     },
   },
   {

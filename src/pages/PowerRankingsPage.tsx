@@ -45,7 +45,7 @@ function MovementBadge({ m, comparedWith }: { m: Movement | null; comparedWith: 
   const Icon = up ? ArrowUp : ArrowDown;
   const label = `${up ? "Up" : "Down"} ${m.by} ${m.by === 1 ? "place" : "places"}${since}`;
   return (
-    <span className={cn("inline-flex items-center gap-0.5 text-xs font-semibold tabular-nums", up ? "text-emerald-600 dark:text-emerald-400" : "text-rose-600 dark:text-rose-400")} aria-label={label} title={label}>
+    <span className={cn("inline-flex items-center gap-0.5 text-xs font-semibold tabular-nums", up ? "text-success" : "text-danger")} aria-label={label} title={label}>
       <Icon className="size-3.5" aria-hidden />{m.by}
     </span>
   );
