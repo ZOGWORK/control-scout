@@ -1,7 +1,8 @@
 // @vitest-environment jsdom
 // The notification inbox's bell: top right of the header and nowhere else (never the sidebar, the
 // tab bar or the More sheet), only when signed in; the unread badge; the list (a panel, or a sheet on
-// phones); tapping an item marks it read and opens its link; "Mark all read".
+// phones); tapping an item marks it read and opens its link; "Mark all read"; per-item Mark unread and
+// Follow up toggles (accessible names, pressed state, the badge) and the Follow up filter.
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { MemoryRouter, Route, Routes, useLocation } from "react-router-dom";
@@ -17,10 +18,25 @@ const h = vi.hoisted(() => ({
 vi.mock("../../lib/personal", () => ({ usePersonal: () => ({ user: h.user, providers: {}, state: { myTeam: null }, syncReady: false }) }));
 vi.mock("../../lib/api", async (orig) => ({
   ...(await orig<typeof import("../../lib/api")>()),
-  apiFetch: async (path: string, init?: { method?: string; json?: { ids?: number[]; all?: boolean } }) => {
+  apiFetch: async (path: string, init?: { method?: string; json?: { ids?: number[]; all?: boolean; on?: boolean } }) => {
     h.calls.push({ path, init });
+    const followUp = () => h.items.filter((i) => i.followUp).length;
     if (path === "/api/inbox/unread-count") return { unread: h.unread };
-    if (path.startsWith("/api/inbox?")) return { items: h.items, more: false, unread: h.unread };
+    if (path.startsWith("/api/inbox?")) {
+      const items = path.includes("filter=followUp") ? h.items.filter((i) => i.followUp) : h.items;
+      return { items, more: false, unread: h.unread, followUp: followUp() };
+    }
+    if (path === "/api/inbox/unread") {
+      const ids = init!.json!.ids!;
+      h.items = h.items.map((i) => (ids.includes(i.id) ? { ...i, read: false } : i));
+      h.unread = h.items.filter((i) => !i.read).length;
+      return { unread: h.unread };
+    }
+    if (path === "/api/inbox/follow-up") {
+      const ids = init!.json!.ids!;
+      h.items = h.items.map((i) => (ids.includes(i.id) ? { ...i, followUp: !!init!.json!.on } : i));
+      return { unread: h.unread, followUp: followUp() };
+    }
     if (path === "/api/inbox/read") {
       const ids = init?.json?.ids ?? h.items.map((i) => i.id);
       h.items = h.items.map((i) => (ids.includes(i.id) ? { ...i, read: true } : i));
@@ -43,7 +59,7 @@ const { InboxBell } = await import("./InboxBell");
 const user: AccountUser = { id: 7, email: "priya@scout.test", displayName: "Priya", createdAt: "", controlPointLinked: true, controlPoint: { accountId: 9, member: true, teams: [], url: "", workspaces: [{ id: "901", name: "Gearheads", role: "member" }] } };
 const item = (id: number, over: Partial<InboxItem> = {}): InboxItem => ({
   id, at: Date.now() - 120_000, workspaceId: "901", workspaceName: "Gearheads", category: "edits", type: "entry.edited", actorName: "Coach",
-  title: "Coach edited your entry", body: "team 18360 · match Q1", link: `/scout?space=901&entry=e${id}`, read: false, ...over,
+  title: "Coach edited your entry", body: "team 18360 · match Q1", link: `/scout?space=901&entry=e${id}`, read: false, followUp: false, ...over,
 });
 
 let where = "";
@@ -103,7 +119,7 @@ describe("the bell", () => {
     h.user = user; h.unread = 1; h.items = [item(5)];
     bell();
     fireEvent.click(await screen.findByRole("button", { name: "Notifications, 1 unread" }));
-    fireEvent.click(await screen.findByRole("button", { name: /Coach edited your entry/ }));
+    fireEvent.click(await screen.findByRole("button", { name: /^Coach edited your entry/ }));
     expect(where).toBe("/scout?space=901&entry=e5");
     await waitFor(() => expect(h.calls.some((c) => c.path === "/api/inbox/read" && JSON.stringify(c.init?.json) === JSON.stringify({ ids: [5] }))).toBe(true));
     await waitFor(() => expect(screen.getByRole("button", { name: "Notifications" })).toBeTruthy());
@@ -135,5 +151,85 @@ describe("the bell", () => {
     fireEvent.click(await screen.findByRole("button", { name: "Notifications" }));
     expect(await screen.findByText("You're all caught up")).toBeTruthy();
     await act(async () => {});
+  });
+});
+
+describe("follow-up state", () => {
+  const bell = () => render(<MemoryRouter initialEntries={["/"]}><InboxBell /><Routes><Route path="*" element={<Where />} /></Routes></MemoryRouter>);
+  const openPanel = async (unread: number) => {
+    bell();
+    fireEvent.click(await screen.findByRole("button", { name: unread ? `Notifications, ${unread} unread` : "Notifications" }));
+    return screen.findByRole("dialog", { name: "Notifications" });
+  };
+
+  it("each item has Mark unread and Follow up toggles with clear names and pressed state", async () => {
+    h.user = user; h.unread = 1; h.items = [item(2), item(1, { title: "You were added to Gearheads", category: "membership", read: true, followUp: true })];
+    const panel = await openPanel(1);
+    const unread2 = await within(panel).findByRole("button", { name: "Mark 'Coach edited your entry' unread" });
+    expect(unread2.getAttribute("aria-pressed")).toBe("true");
+    expect(within(panel).getByRole("button", { name: "Mark 'You were added to Gearheads' unread" }).getAttribute("aria-pressed")).toBe("false");
+    expect(within(panel).getByRole("button", { name: "Follow up on 'Coach edited your entry'" }).getAttribute("aria-pressed")).toBe("false");
+    expect(within(panel).getByRole("button", { name: "Follow up on 'You were added to Gearheads'" }).getAttribute("aria-pressed")).toBe("true");
+    // Real buttons (keyboard reachable), never nested in the row's open button.
+    for (const b of within(panel).getAllByRole("button", { name: /^(Mark|Follow up on) / })) {
+      expect(b.tagName).toBe("BUTTON");
+      expect(b.parentElement?.closest("button")).toBeNull();
+    }
+  });
+
+  it("mark unread: the badge goes up, the server hears it, and the item isn't opened", async () => {
+    h.user = user; h.unread = 0; h.items = [item(4, { read: true })];
+    const panel = await openPanel(0);
+    const toggle = await within(panel).findByRole("button", { name: "Mark 'Coach edited your entry' unread" });
+    fireEvent.click(toggle);
+    expect(toggle.getAttribute("aria-pressed")).toBe("true");
+    await waitFor(() => expect(document.querySelector("[data-inbox-badge]")?.textContent).toBe("1"));
+    expect(screen.getByRole("button", { name: "Notifications, 1 unread" })).toBeTruthy();
+    await waitFor(() => expect(h.calls.find((c) => c.path === "/api/inbox/unread")?.init?.json).toEqual({ ids: [4] }));
+    expect(where).toBe("/");
+    // Pressed again: read.
+    fireEvent.click(toggle);
+    await waitFor(() => expect(h.calls.find((c) => c.path === "/api/inbox/read")?.init?.json).toEqual({ ids: [4] }));
+    await waitFor(() => expect(document.querySelector("[data-inbox-badge]")).toBeNull());
+  });
+
+  it("follow up: flags the item without changing the badge; the filter lists flagged items with their count", async () => {
+    h.user = user; h.unread = 1; h.items = [item(7), item(6, { title: "Coach assigned you to scout team 18360", category: "assignments", read: true })];
+    const panel = await openPanel(1);
+    const all = within(panel).getByRole("button", { name: "All" });
+    const filter = within(panel).getByRole("button", { name: /^Follow up(, [0-9]+ flagged)?$/ });
+    expect(all.getAttribute("aria-pressed")).toBe("true");
+    expect(filter.getAttribute("aria-pressed")).toBe("false");
+    fireEvent.click(await within(panel).findByRole("button", { name: "Follow up on 'Coach assigned you to scout team 18360'" }));
+    await waitFor(() => expect(h.calls.find((c) => c.path === "/api/inbox/follow-up")?.init?.json).toEqual({ ids: [6], on: true }));
+    expect(document.querySelector("[data-inbox-badge]")?.textContent).toBe("1");
+    await waitFor(() => expect(within(panel).getByRole("button", { name: "Follow up, 1 flagged" })).toBeTruthy());
+
+    fireEvent.click(within(panel).getByRole("button", { name: "Follow up, 1 flagged" }));
+    await waitFor(() => expect(h.calls.some((c) => c.path.includes("filter=followUp"))).toBe(true));
+    await waitFor(() => expect(within(panel).getAllByRole("listitem")).toHaveLength(1));
+    expect(within(panel).getByText("Coach assigned you to scout team 18360")).toBeTruthy();
+    expect(within(panel).getByRole("button", { name: "Follow up, 1 flagged" }).getAttribute("aria-pressed")).toBe("true");
+    // Mark all read belongs to the whole inbox, not this view.
+    expect(within(panel).queryByRole("button", { name: /Mark all read/ })).toBeNull();
+
+    // Unflagged here: it stays on screen (unpressed) so focus isn't lost; it's gone the next time the view opens.
+    const flag = within(panel).getByRole("button", { name: "Follow up on 'Coach assigned you to scout team 18360'" });
+    fireEvent.click(flag);
+    await waitFor(() => expect(h.calls.filter((c) => c.path === "/api/inbox/follow-up").at(-1)?.init?.json).toEqual({ ids: [6], on: false }));
+    await waitFor(() => expect(h.calls.filter((c) => c.path.includes("filter=followUp")).length).toBeGreaterThan(1));
+    expect(within(panel).getByRole("button", { name: "Follow up on 'Coach assigned you to scout team 18360'" }).getAttribute("aria-pressed")).toBe("false");
+    fireEvent.click(within(panel).getByRole("button", { name: "All" }));
+    fireEvent.click(within(panel).getByRole("button", { name: /^Follow up(, [0-9]+ flagged)?$/ }));
+    expect(await within(panel).findByText("Nothing to follow up")).toBeTruthy();
+  });
+
+  it("mark all read leaves follow-up flags alone", async () => {
+    h.user = user; h.unread = 2; h.items = [item(9, { followUp: true }), item(8)];
+    const panel = await openPanel(2);
+    fireEvent.click(await within(panel).findByRole("button", { name: /Mark all read/ }));
+    await waitFor(() => expect(screen.getByRole("button", { name: "Notifications" })).toBeTruthy());
+    await waitFor(() => expect(within(panel).getByRole("button", { name: "Follow up on 'Coach edited your entry'", pressed: true })).toBeTruthy());
+    expect(h.calls.some((c) => c.path === "/api/inbox/follow-up")).toBe(false);
   });
 });

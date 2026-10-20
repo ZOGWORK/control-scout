@@ -1,11 +1,18 @@
 // /api/inbox: the signed-in account's notification inbox (inbox.ts, docs/inbox.md).
 //
-//   GET  /api/inbox?before=<id>&limit=30   a page, newest first: { items, more, unread }
+//   GET  /api/inbox?before=<id>&limit=30&filter=all|followUp
+//                                          a page, newest first: { items, more, unread, followUp } (filter followUp:
+//                                          flagged items only; the counts are the whole inbox's either way)
 //   GET  /api/inbox/unread-count           { unread }
 //   POST /api/inbox/read                   { ids: [1, 2] } or { all: true, upTo?: <newest id seen> } → { unread }
+//                                          (follow-up flags stay)
+//   POST /api/inbox/unread                 { ids: [1, 2] } → { unread }: back in the count
+//   POST /api/inbox/follow-up              { ids: [1, 2], on: true|false } → { unread, followUp }: flag or unflag;
+//                                          read state is unchanged
 //   GET  /api/inbox/stream                 server-sent events for this account, across every workspace:
-//        event: inbox   data {"unread": n, "latest": id|null}   on connect, then whenever an item arrives or
-//                                                                read state changes (on any device)
+//        event: inbox   data {"unread": n, "latest": id|null, "followUp": n}
+//                                                                on connect, then whenever an item arrives or its
+//                                                                read or follow-up state changes (on any device)
 //        : ping         every 25 s
 //        503 while the owner has live updates switched off (realtime): the app polls unread-count instead.
 //
@@ -14,8 +21,8 @@
 import express, { type NextFunction, type Request, type Response, type Router } from "express";
 import { currentUser, type User } from "../auth/session.js";
 import { openLiveConnection } from "../liveConnections.js";
-import { INBOX_PAGE, INBOX_PAGE_MAX } from "../../src/shared/inbox.js";
-import { inboxCounts, listInbox, markRead, subscribeInbox, unreadCount, type InboxNotice } from "./inbox.js";
+import { INBOX_FILTERS, INBOX_PAGE, INBOX_PAGE_MAX, type InboxFilter } from "../../src/shared/inbox.js";
+import { inboxCounts, listInbox, markRead, markUnread, setFollowUp, subscribeInbox, unreadCount, type InboxNotice } from "./inbox.js";
 
 /** Streams per account (tabs and devices) and per server, the heartbeat, and how often a stream re-checks its session. */
 export const INBOX_LIMITS = { perAccount: 8, total: 2000, heartbeatMs: 25_000, recheckMs: 5 * 60_000, maxBufferedBytes: 64 * 1024 };
@@ -38,6 +45,9 @@ const h = (fn: (req: Request, res: Response, user: User) => Promise<unknown>) =>
 };
 
 const positiveId = (v: unknown) => (typeof v === "number" && Number.isSafeInteger(v) && v > 0 ? v : null);
+/** 1 to MAX_IDS item ids, deduplicated; null when that isn't what was sent. */
+const idList = (v: unknown): number[] | null =>
+  Array.isArray(v) && v.length && v.length <= MAX_IDS && v.every((x) => positiveId(x) != null) ? [...new Set(v as number[])] : null;
 
 export function inboxRouter(opts: { streamEnabled?: () => Promise<boolean> } = {}): Router {
   const r = express.Router();
@@ -54,7 +64,9 @@ export function inboxRouter(opts: { streamEnabled?: () => Promise<boolean> } = {
     }
     const limit = req.query.limit === undefined ? INBOX_PAGE : Number(req.query.limit);
     if (!Number.isInteger(limit) || limit < 1 || limit > INBOX_PAGE_MAX) { res.status(400).json({ error: `limit must be 1 to ${INBOX_PAGE_MAX}` }); return; }
-    return listInbox(user.id, before, limit);
+    const filter = (req.query.filter === undefined || req.query.filter === "" ? "all" : String(req.query.filter)) as InboxFilter;
+    if (!INBOX_FILTERS.includes(filter)) { res.status(400).json({ error: `filter must be one of ${INBOX_FILTERS.join(", ")}` }); return; }
+    return listInbox(user.id, before, limit, filter);
   }));
 
   r.get("/unread-count", h(async (_req, _res, user) => ({ unread: await unreadCount(user.id) })));
@@ -71,6 +83,19 @@ export function inboxRouter(opts: { streamEnabled?: () => Promise<boolean> } = {
       return;
     }
     return { unread: await markRead(user.id, { ids: [...new Set(b.ids as number[])] }) };
+  }));
+
+  r.post("/unread", h(async (req, res, user) => {
+    const ids = idList(req.body?.ids);
+    if (!ids) { res.status(400).json({ error: `Send { ids: [...] } (1 to ${MAX_IDS} item ids)` }); return; }
+    return { unread: await markUnread(user.id, ids) };
+  }));
+
+  r.post("/follow-up", h(async (req, res, user) => {
+    const ids = idList(req.body?.ids);
+    if (!ids || typeof req.body?.on !== "boolean") { res.status(400).json({ error: `Send { ids: [...] (1 to ${MAX_IDS} item ids), on: true or false }` }); return; }
+    const n = await setFollowUp(user.id, ids, req.body.on);
+    return { unread: n.unread, followUp: n.followUp };
   }));
 
   r.get("/stream", (req, res, next) => { openStream(req, res, opts).catch(next); });

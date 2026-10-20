@@ -6,6 +6,24 @@ alerts there. The bell is in the header only, never in the sidebar, the phone ta
 the More sheet, and it's hidden when you're signed out. The unread badge and read state
 are kept on the server, so they're the same on every device.
 
+## Read and follow up
+
+Reading an item and finishing what it's about are separate. Opening an item marks it read.
+Each item also has two toggles, synced to the account and the same on every device:
+
+- **Mark unread** (`aria-pressed` while the item is unread). Pressed on a read item, it
+  goes back in the unread badge; pressed again, it's read.
+- **Follow up**, a flag for work still to do. It never changes the unread count: a flagged
+  item can be read or unread.
+
+The **Follow up** filter above the list shows flagged items only, with how many there
+are. Mark all read is offered on the All view only and never clears a flag. An item
+unflagged inside the Follow up view stays on screen, unflagged, until the view changes
+or the panel opens again, so focus isn't lost. When a coalesced edit or a newer pick list
+line replaces an item, a flag on the replaced item moves to the new one. Resolving an
+owner alert marks its items read and keeps their flags. Flagged items are still pruned
+after 90 days.
+
 ## Where items come from
 
 ### Workspace activity
@@ -93,8 +111,11 @@ The table is `inbox_items`, from migration 17:
 
 ```
 id, user_id, at, workspace_id, workspace_name, category, type, subject,
-actor_account_id, actor_name, title, body, link, read_at, source_activity_id, source_alert_id
+actor_account_id, actor_name, title, body, link, read_at, source_activity_id, source_alert_id,
+follow_up_at
 ```
+
+`follow_up_at` (ms, NULL when not flagged) is from migration 30.
 
 - `user_id` is the Scout account (`users.id`). Sessions and synced settings belong to that
   account, and owners are recognised by its email. A Control Point account maps to it
@@ -113,11 +134,18 @@ snapshot. Deleting an account deletes its items.
 All routes are signed-in only (401 otherwise), `no-store`. Writes accept JSON only (CSRF
 protection, as for `/api/me`).
 
-- `GET /api/inbox?before=<id>&limit=30` returns `{ items, more, unread }`, newest first.
+- `GET /api/inbox?before=<id>&limit=30&filter=all|followUp` returns
+  `{ items, more, unread, followUp }`, newest first. Each item has `read` and `followUp`.
+  `filter=followUp` lists flagged items only (paged the same way); `unread` and `followUp`
+  are always the whole inbox's counts.
 - `GET /api/inbox/unread-count` returns `{ unread }`.
 - `POST /api/inbox/read` takes `{ ids: [...] }` or `{ all: true, upTo?: <newest id seen> }`
   and returns `{ unread }`. It only touches the caller's own items. With `upTo`, an item
-  that arrived after the reader last looked stays unread.
+  that arrived after the reader last looked stays unread. Follow-up flags stay.
+- `POST /api/inbox/unread` takes `{ ids: [...] }` and returns `{ unread }`.
+- `POST /api/inbox/follow-up` takes `{ ids: [...], on: true | false }` and returns
+  `{ unread, followUp }`. Read state is unchanged.
+- Both only touch the caller's own items: another account's ids change nothing.
 - `GET /api/inbox/stream` is a server-sent event stream (see below).
 
 ## Live updates
@@ -126,9 +154,10 @@ The app uses a lightweight per-account SSE stream. The workspace stream
 (`/api/scout/stream`) is per workspace and only open while a scout space is on screen, so
 it can't carry an inbox that spans every workspace and must work on every page.
 
-- **`GET /api/inbox/stream`** sends `event: inbox` with `data {"unread": n, "latest": id}`.
-  It sends one event on connect, then another whenever an item arrives or read state
-  changes on any device.
+- **`GET /api/inbox/stream`** sends `event: inbox` with
+  `data {"unread": n, "latest": id, "followUp": n}`. It sends one event on connect, then
+  another whenever an item arrives or its read or follow-up state changes on any device.
+  An open list refetches on each event, so a toggle on one device shows on the others.
 - It sends a `: ping` every 25 s and checks the session every 5 minutes.
 - Limits: 8 streams per account and 2000 per server. Each open stream counts in the owner
   portal's live connections as `inbox-stream`.

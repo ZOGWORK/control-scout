@@ -24,12 +24,16 @@
 //      picklist.*          (picklist)          every cached member of the workspace; an unread pick list
 //                                              item is replaced by the newer one, so a busy list makes one line
 //
-//    A coalesced edit (details.firstId) replaces the recipient's item for the edits it stands for.
+//    A coalesced edit (details.firstId) replaces the recipient's item for the edits it stands for. An item
+//    replaced this way (or a replaced unread pick list line) hands its follow-up flag to the one replacing it.
 //
 // 2. Owner alerts (server/portal/alerts.ts): deliverOwnerAlerts makes one item per owner account
 //    (OWNER_EMAILS) for each open alert not yet delivered, and stores the first item's id in
 //    owner_alerts.inbox_item_id (0 when every owner has the switch off), so each alert notifies once.
 //    Resolving the alert marks its items read.
+//
+// Read and follow-up are separate (docs/inbox.md): read_at is "seen", follow_up_at is "still to do". Mark
+// unread puts an item back in the count; the follow-up flag never changes the count; mark all read keeps flags.
 //
 // Per-kind switches: settings.notify.inbox* (src/shared/inbox.ts), read here from the account's synced
 // settings (user_state) when the item would be made. A switched-off kind makes no item at all; switching it
@@ -43,7 +47,7 @@ import { env } from "../env.js";
 import { cleanValue } from "../../src/shared/personal.js";
 import {
   INBOX_PAGE, INBOX_PAGE_MAX, INBOX_RETENTION_MS, inboxCategory, inboxCategoryOn, inboxLink, inboxText,
-  type InboxCategory, type InboxItem, type InboxPage,
+  type InboxCategory, type InboxFilter, type InboxItem, type InboxPage,
 } from "../../src/shared/inbox.js";
 import type { ActivityNotice } from "../scout/bus.js";
 
@@ -51,7 +55,7 @@ const CP_PROVIDER = "control-point";
 
 // --- Live: who's listening -------------------------------------------------------------------
 
-export interface InboxNotice { unread: number; latest: number | null }
+export interface InboxNotice { unread: number; latest: number | null; followUp: number }
 type Listener = (n: InboxNotice) => void;
 const listeners = new Map<number, Set<Listener>>();
 
@@ -68,7 +72,6 @@ export function subscribeInbox(userId: number, fn: Listener): () => void {
   };
 }
 
-/** Tell each account's open streams its unread count now. Never throws. */
 /** Items of these accounts changed in place (e.g. a comment's text in its notification, comments.ts): their open inboxes refetch. */
 export const notifyInboxChanged = (userIds: Iterable<number>): Promise<void> => notifyUsers(userIds);
 
@@ -84,10 +87,12 @@ async function notifyUsers(userIds: Iterable<number>): Promise<void> {
 }
 
 export async function inboxCounts(userId: number): Promise<InboxNotice> {
-  const r = await get<{ unread: number; latest: number | null }>(
-    "SELECT (SELECT COUNT(*) FROM inbox_items WHERE user_id = ? AND read_at IS NULL AND at >= ?) unread, (SELECT MAX(id) FROM inbox_items WHERE user_id = ?) latest",
-    [userId, Date.now() - INBOX_RETENTION_MS, userId]);
-  return { unread: Number(r?.unread ?? 0), latest: r?.latest == null ? null : Number(r.latest) };
+  const since = Date.now() - INBOX_RETENTION_MS;
+  const r = await get<{ unread: number; latest: number | null; follow_up: number }>(
+    `SELECT (SELECT COUNT(*) FROM inbox_items WHERE user_id = ? AND read_at IS NULL AND at >= ?) unread, (SELECT MAX(id) FROM inbox_items WHERE user_id = ?) latest,
+            (SELECT COUNT(*) FROM inbox_items WHERE user_id = ? AND follow_up_at IS NOT NULL AND at >= ?) follow_up`,
+    [userId, since, userId, userId, since]);
+  return { unread: Number(r?.unread ?? 0), latest: r?.latest == null ? null : Number(r.latest), followUp: Number(r?.follow_up ?? 0) };
 }
 
 // --- Reading and marking read ----------------------------------------------------------------
@@ -95,16 +100,17 @@ export async function inboxCounts(userId: number): Promise<InboxNotice> {
 const toItem = (r: any): InboxItem => ({
   id: Number(r.id), at: Number(r.at), workspaceId: r.workspace_id == null ? null : String(r.workspace_id), workspaceName: String(r.workspace_name ?? ""),
   category: r.category as InboxCategory, type: String(r.type), actorName: String(r.actor_name ?? ""),
-  title: String(r.title), body: String(r.body ?? ""), link: String(r.link ?? ""), read: r.read_at != null,
+  title: String(r.title), body: String(r.body ?? ""), link: String(r.link ?? ""), read: r.read_at != null, followUp: r.follow_up_at != null,
 });
 
-/** A page of an account's inbox, newest first: items with id < before (null: from the newest). */
-export async function listInbox(userId: number, before: number | null, limit = INBOX_PAGE): Promise<InboxPage> {
+/** A page of an account's inbox, newest first: items with id < before (null: from the newest); `filter` "followUp": flagged items only. */
+export async function listInbox(userId: number, before: number | null, limit = INBOX_PAGE, filter: InboxFilter = "all"): Promise<InboxPage> {
   const n = Math.max(1, Math.min(INBOX_PAGE_MAX, Math.floor(limit)));
   const rows = await all<any>(
-    `SELECT * FROM inbox_items WHERE user_id = ? AND at >= ? ${before != null ? "AND id < ?" : ""} ORDER BY id DESC LIMIT ?`,
+    `SELECT * FROM inbox_items WHERE user_id = ? AND at >= ? ${filter === "followUp" ? "AND follow_up_at IS NOT NULL" : ""} ${before != null ? "AND id < ?" : ""} ORDER BY id DESC LIMIT ?`,
     [userId, Date.now() - INBOX_RETENTION_MS, ...(before != null ? [before] : []), n + 1]);
-  return { items: rows.slice(0, n).map(toItem), more: rows.length > n, unread: (await inboxCounts(userId)).unread };
+  const c = await inboxCounts(userId);
+  return { items: rows.slice(0, n).map(toItem), more: rows.length > n, unread: c.unread, followUp: c.followUp };
 }
 
 export async function unreadCount(userId: number): Promise<number> {
@@ -125,6 +131,26 @@ export async function markRead(userId: number, what: { ids: number[] } | { all: 
   }
   if (changed) await notifyUsers([userId]);
   return unreadCount(userId);
+}
+
+/** Mark the account's own items unread again (they count in the badge). Returns the unread count after. */
+export async function markUnread(userId: number, ids: number[]): Promise<number> {
+  if (!ids.length) return unreadCount(userId);
+  const changed = await run(`UPDATE inbox_items SET read_at = NULL WHERE user_id = ? AND read_at IS NOT NULL AND id IN (${ids.map(() => "?").join(", ")})`, [userId, ...ids]);
+  if (changed) await notifyUsers([userId]);
+  return unreadCount(userId);
+}
+
+/** Flag (on) or unflag the account's own items for follow-up. Read state and the unread count stay as they are. */
+export async function setFollowUp(userId: number, ids: number[], on: boolean): Promise<InboxNotice> {
+  if (ids.length) {
+    const ph = ids.map(() => "?").join(", ");
+    const changed = on
+      ? await run(`UPDATE inbox_items SET follow_up_at = ? WHERE user_id = ? AND follow_up_at IS NULL AND id IN (${ph})`, [Date.now(), userId, ...ids])
+      : await run(`UPDATE inbox_items SET follow_up_at = NULL WHERE user_id = ? AND follow_up_at IS NOT NULL AND id IN (${ph})`, [userId, ...ids]);
+    if (changed) await notifyUsers([userId]);
+  }
+  return inboxCounts(userId);
 }
 
 /** Delete items older than 90 days (the scheduler). Returns how many went. */
@@ -223,28 +249,32 @@ export async function fanOut(item: ActivityNotice): Promise<number[]> {
   const firstId = int(item.details.firstId);
   const stmts: InStatement[] = [];
   for (const r of recipients) {
-    // A coalesced edit stands for the earlier ones: their items go, this one (unread, newest) takes their place.
+    // What this item replaces: a coalesced edit stands for the earlier ones (their items go, this one, unread and
+    // newest, takes their place), and the pick list changes in bursts (one unread line per workspace, the latest).
+    const replaced: { where: string; args: (string | number | null)[] }[] = [];
     if (firstId != null && firstId < item.id) {
-      stmts.push({
-        sql: "DELETE FROM inbox_items WHERE user_id = ? AND source_activity_id >= ? AND source_activity_id < ? AND type = ? AND subject = ? AND actor_account_id IS ?",
-        args: [r.userId, firstId, item.id, item.type, item.subject, actor],
-      });
+      replaced.push({ where: "user_id = ? AND source_activity_id >= ? AND source_activity_id < ? AND type = ? AND subject = ? AND actor_account_id IS ?", args: [r.userId, firstId, item.id, item.type, item.subject, actor] });
     }
-    // The pick list changes in bursts: one unread line per workspace, the latest.
     if (category === "picklist") {
-      stmts.push({ sql: "DELETE FROM inbox_items WHERE user_id = ? AND workspace_id = ? AND category = 'picklist' AND read_at IS NULL", args: [r.userId, item.workspaceId] });
+      replaced.push({ where: "user_id = ? AND workspace_id = ? AND category = 'picklist' AND read_at IS NULL AND source_activity_id IS NOT ?", args: [r.userId, item.workspaceId, item.id] });
     }
+    // A follow-up flag on a replaced item carries over to the one replacing it (the work it stands for isn't done).
+    const flag = replaced.length
+      ? { sql: `(SELECT MAX(follow_up_at) FROM inbox_items WHERE ${replaced.map((x) => `(${x.where})`).join(" OR ")})`, args: replaced.flatMap((x) => x.args) }
+      : { sql: "NULL", args: [] as (string | number | null)[] };
     // Checked in the insert itself, so nothing slips in between: the account still exists (one deleted meanwhile
     // gets nothing), and it's still a member of the workspace (the cached membership, as every read checks), except
     // for the membership items themselves (being removed is news to someone who's no longer a member).
     const member = category === "membership" ? "" : " AND EXISTS (SELECT 1 FROM workspace_members WHERE account_id = ? AND cp_workspace_id = ?)";
     stmts.push({
-      sql: `INSERT OR IGNORE INTO inbox_items (user_id, at, workspace_id, workspace_name, category, type, subject, actor_account_id, actor_name, title, body, link, source_activity_id)
-            SELECT ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ? WHERE EXISTS (SELECT 1 FROM users WHERE id = ?)${member}`,
+      sql: `INSERT OR IGNORE INTO inbox_items (user_id, at, workspace_id, workspace_name, category, type, subject, actor_account_id, actor_name, title, body, link, source_activity_id, follow_up_at)
+            SELECT ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ${flag.sql} WHERE EXISTS (SELECT 1 FROM users WHERE id = ?)${member}`,
       args: [r.userId, item.at, item.workspaceId, workspaceName.slice(0, 120), category, item.type, item.subject.slice(0, 120), actor, item.actor.name.slice(0, 80),
-        title.slice(0, 200), body.slice(0, 400), inboxLink(item.workspaceId, item.type, item.details, { admin: r.admin }), item.id,
+        title.slice(0, 200), body.slice(0, 400), inboxLink(item.workspaceId, item.type, item.details, { admin: r.admin }), item.id, ...flag.args,
         r.userId, ...(member ? [r.accountId, item.workspaceId] : [])],
     });
+    // Then the replaced items go (the insert has read their flag).
+    for (const x of replaced) stmts.push({ sql: `DELETE FROM inbox_items WHERE ${x.where}`, args: x.args });
   }
   await db().batch(stmts, "write");
   const users = recipients.map((r) => r.userId);
