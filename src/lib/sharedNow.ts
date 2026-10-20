@@ -19,12 +19,13 @@ export interface ReviewTarget {
   opId?: string;
 }
 
-export type SharedNow =
+/** version: the pick list version it was read from (a note), so an older answer never replaces a newer one. */
+export type SharedNow = { version?: number } & (
   /** text: what's shared now ("" for none). hint: one sentence of context (a teammate's newer note, a new comment). */
   | { state: "ok"; text: string; hint?: string; posted?: boolean }
   | { state: "gone"; message: string }
   | { state: "denied"; message: string }
-  | { state: "unavailable"; message: string };
+  | { state: "unavailable"; message: string });
 
 export const NO_ACCESS = "You're no longer a member of this workspace, so what's shared there can't be shown. Your text is still kept on this device.";
 const SIGNED_OUT = "Sign in again to see what's shared now. Your text is still kept on this device.";
@@ -35,9 +36,9 @@ const base = (space: string) => `/api/scout/workspaces/${encodeURIComponent(spac
 /** What a pick list (fetched, or heard on the workspace's stream) holds for a note's team. */
 export function noteIn(list: PickList, t: ReviewTarget): SharedNow {
   const pick = list.picks.find((p) => p.team === t.team);
-  if (!pick) return { state: "gone", message: `Team ${t.team} is no longer on the pick list, so this note has nowhere to go.` };
+  if (!pick) return { state: "gone", version: list.version, message: `Team ${t.team} is no longer on the pick list, so this note has nowhere to go.` };
   const newer = t.base !== undefined && pick.noteUpdatedAt !== t.base;
-  return { state: "ok", text: pick.note, ...(newer ? { hint: "A teammate changed this note after you wrote yours." } : {}) };
+  return { state: "ok", version: list.version, text: pick.note, ...(newer ? { hint: "A teammate changed this note after you wrote yours." } : {}) };
 }
 
 /** Read what `t`'s destination holds now. Never throws (an abort aside). */

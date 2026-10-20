@@ -24,6 +24,7 @@ const pick = (team: number, note: string, noteUpdatedAt: number | null = null) =
 
 let picks: ReturnType<typeof pick>[];
 let picklistStatus: number;
+let listVersion: number;
 let thread: unknown[];
 let entryDeleted: boolean;
 let calls: { method: string; path: string }[];
@@ -32,14 +33,14 @@ beforeEach(() => {
   localStorage.clear();
   resetCommentAttempts();
   picks = [pick(102, "Fast cycles in auto", 50)];
-  picklistStatus = 200; thread = []; entryDeleted = false; calls = [];
+  picklistStatus = 200; listVersion = 4; thread = []; entryDeleted = false; calls = [];
   vi.stubGlobal("fetch", vi.fn(async (path: string, init?: RequestInit) => {
     const method = init?.method ?? "GET";
     calls.push({ method, path });
     if (method !== "GET") throw new Error(`unexpected ${method} ${path}`);
     if (path.startsWith("/api/scout/workspaces/901/picklist")) {
       if (picklistStatus !== 200) return json(picklistStatus, { error: "You're not a member of this workspace in Control Point." });
-      return json(200, { list: { workspaceId: "901", season: 2025, version: 4, picks } });
+      return json(200, { list: { workspaceId: "901", season: 2025, version: listVersion, picks } });
     }
     if (path === THREAD) return json(200, { comments: thread, entryDeleted });
     throw new Error(`unexpected ${method} ${path}`);
@@ -223,10 +224,27 @@ describe("Show change", () => {
     expect(shared()).toContain("parks every match");
     expect(calls.length).toBe(before);
     // Read again reads (only reads) once more.
-    picks = [pick(102, "Read fresh", 70)];
+    picks = [pick(102, "Read fresh", 70)]; listVersion = 10;
     fireEvent.click(screen.getByRole("button", { name: "Read again" }));
     await waitFor(() => expect(shared()).toContain("Read fresh"));
     expect(writes()).toEqual([]);
+  });
+
+  it("never lets a slower read replace a newer note heard on the stream", async () => {
+    keepNote(1, "901", 102, "Slow cycles in auto");
+    let release!: () => void;
+    const gate = new Promise<void>((r) => { release = r; });
+    const real = fetch as unknown as (p: string, i?: RequestInit) => Promise<Response>;
+    vi.stubGlobal("fetch", vi.fn(async (p: string, i?: RequestInit) => { await gate; return real(p, i); }));
+    render(<RecoverableChanges account={1} workspaces={WS} />);
+    fireEvent.click(showButton());
+    // The stream brings version 9 while the read (of version 4) is still on its way.
+    act(() => announcePicklist({ workspaceId: "901", season: 2025, version: 9, picks: [pick(102, "Newest note", 90)] }));
+    const shared = () => screen.getByRole("region", { name: "Shared now" }).textContent;
+    expect(shared()).toContain("Newest note");
+    await act(async () => { release(); await new Promise((r) => setTimeout(r, 20)); });
+    expect(calls.length).toBe(1); // the read came back...
+    expect(shared()).toContain("Newest note"); // ...and was older, so it was dropped
   });
 
   it("reads a comment's thread again when it changes on the stream", async () => {

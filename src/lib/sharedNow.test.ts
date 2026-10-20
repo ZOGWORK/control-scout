@@ -17,7 +17,7 @@ const answer = (status: number, body: unknown = { error: "x" }) => {
 describe("readSharedNow", () => {
   it("reads the note with a GET, and nothing else", async () => {
     const f = answer(200, { list: { workspaceId: "901", season: 2025, version: 1, picks: [{ team: 102, rank: 1, note: "Fast", noteUpdatedAt: 5, addedBy: { accountId: 1, name: "P" }, addedAt: 1, noteBy: null }] } });
-    expect(await readSharedNow({ ...note, base: 5 })).toEqual({ state: "ok", text: "Fast" });
+    expect(await readSharedNow({ ...note, base: 5 })).toEqual({ state: "ok", version: 1, text: "Fast" });
     expect(f).toHaveBeenCalledTimes(1);
     expect((f.mock.calls[0] as unknown[])[1]).not.toHaveProperty("method", "POST");
   });
