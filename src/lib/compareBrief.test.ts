@@ -47,6 +47,15 @@ describe("compareBrief: two teams", () => {
   it("judges consistency only with two events and says who has too few", () => {
     expect(one(s, "Consistency").text).toBe("Event OPR ranged 18360 95 to 130.2 over 2 events. 24089 has fewer than 2 events with an OPR, too few to judge.");
   });
+  it("links a season value to the team's season when no listed event shows it", () => {
+    const hidden = { ...B, stats: { ...B.stats!, opr: { ...B.stats!.opr, auto: { value: 33.3, rank: 1, of: 100 } } } };
+    expect(one(compareBrief(view([A, hidden])), "Auto").sources[1]).toEqual({ label: "24089's season", href: "/teams/24089?season=2025" });
+  });
+  it("links the first event too when the recency sentence quotes a change since it", () => {
+    expect(one(s, "Recency").sources).toEqual([
+      { label: "18360 at USCAQ1 Qualifier", href: "/events/2025/USCAQ1" }, { label: "18360 at USCAQ2 Qualifier", href: "/events/2025/USCAQ2" },
+      { label: "24089 at USTXQ1 Qualifier", href: "/events/2025/USTXQ1" }]);
+  });
   it("gives the latest results and the trend", () => {
     expect(one(s, "Recency").text).toBe("Latest results: 18360 at USCAQ2 Qualifier on Jan 10, 2026 (event OPR 130.2, up 35.2 on its first event) and 24089 at USTXQ1 Qualifier on Dec 6, 2025 (event OPR 84).");
   });
@@ -139,8 +148,11 @@ describe("compareBrief: three and four teams", () => {
       match("qual:0:4", [1234, 7], [18360, 8], null, null, "opponents"),
     ]));
     const h = one(s, "Head to head");
-    expect(h.text).toBe("18360 met 24089 and 1234 in 4 played matches (3 as opponents, 1 as partners); in the 2 scored matches against, 18360's alliance went 1-1-0.");
+    expect(h.text).toBe("18360 met 24089 and 1234 in 4 played matches (opponents in 3, partners in 1); in the 2 scored matches against, 18360's alliance went 1-1-0.");
     expect(h.sources[0]).toEqual({ label: "USCAQ2 Q1", href: "/events/2025/USCAQ2/match/qual%3A0%3A1" });
+    // One match with a compared partner and a compared opponent counts toward both, whatever the server labelled it.
+    const mixed = compareBrief(view([A, B, C], [match("qual:0:5", [18360, 24089], [1234, 9], 90, 80, "opponents")]));
+    expect(one(mixed, "Head to head").text).toBe("18360 met 24089 and 1234 in 1 played match (opponents in 1, partners in 1; a match can be both); in the 1 scored match against, 18360's alliance went 1-0-0.");
   });
 });
 
@@ -185,7 +197,7 @@ describe("compareBrief: rules that hold for every brief", () => {
       video: null, prediction: null, relation: "opponents" as const }) as CompareView["meetings"][number];
     const h = one(compareBrief(view([A, B], Array.from({ length: BRIEF.maxMatchLinks + 3 }, (_, i) => m(i + 1)))), "Head to head");
     expect(h.sources).toHaveLength(BRIEF.maxMatchLinks);
-    expect(h.text).toBe(`18360 met 24089 in ${BRIEF.maxMatchLinks + 3} played matches (${BRIEF.maxMatchLinks + 3} as opponents, 0 as partners).`);
+    expect(h.text).toBe(`18360 met 24089 in ${BRIEF.maxMatchLinks + 3} played matches (opponents in ${BRIEF.maxMatchLinks + 3}, partners in 0).`);
   });
 });
 
