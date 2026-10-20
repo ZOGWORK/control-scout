@@ -130,6 +130,15 @@ export function isInboxItem(x: unknown): x is InboxItem {
 const cleanItems = (xs: unknown): InboxItem[] => (Array.isArray(xs) ? xs.filter(isInboxItem).map((i) => ({ ...i, followUp: i.followUp === true })) : []);
 
 
+/** Which of an item's two synced states a write changes. */
+export type InboxField = "read" | "followUp";
+/**
+ * A read or follow-up change the server didn't take (a 503, offline): the row is back to the state the server
+ * confirmed, and this says so until it's retried, changed again, or a refresh shows the change made elsewhere.
+ * `on` is the value the person asked for (read: true is "mark read"; followUp: true is "flag").
+ */
+export interface InboxFailure { id: number; field: InboxField; on: boolean }
+
 export interface InboxState {
   unread: number; mode: InboxMode;
   /** How many items are flagged to follow up (the whole inbox, whatever the filter). */ followUp: number;
@@ -143,6 +152,10 @@ export interface InboxState {
   markUnread: (ids: number[]) => void;
   setFollowUp: (ids: number[], on: boolean) => void;
   markAllRead: () => void;
+  /** Changes that weren't saved (see InboxFailure), one per row and field at most. */ failures: InboxFailure[];
+  /** Mark all read wasn't saved: what it covered (the newest id seen then, if any). */ allReadFailed: { upTo: number | null } | null;
+  /** Send the failed change again, once, exactly as it was asked for. */ retry: (f: InboxFailure) => void;
+  retryAllRead: () => void;
 }
 
 /**
@@ -160,6 +173,11 @@ export interface InboxState {
  *
  * While a read or follow-up write is queued, refreshes wait (a snapshot from before it would undo it on screen, and
  * the next toggle would be decided from that stale state); the list is fetched once the last write is in.
+ *
+ * A write the server refuses (or that never arrives) isn't left looking saved, nor undone silently: per row and field,
+ * the newest change decides. When it fails, the row goes back to the last state the server confirmed for it (an
+ * earlier change that did go through, or the state before any), and `failures` says so, with `retry` to send that
+ * same change again. An older change failing after a newer one was made touches nothing: the newer one stands.
  */
 export function useInbox(userId: number | null): InboxState {
   const visible = useVisible();
@@ -191,6 +209,12 @@ export function useInbox(userId: number | null): InboxState {
   const pendingWrites = useRef(0);
   const shown = useRef<InboxItem[]>([]);
   shown.current = items;
+  const [failures, setFailures] = useState<InboxFailure[]>([]);
+  const [allReadFailed, setAllReadFailed] = useState<{ upTo: number | null } | null>(null);
+  // Per row and field ("read:12", "followUp:12") while a change to it is queued or in flight: the newest change's
+  // number, and the value the server last confirmed (before the first queued change, then each one that succeeds).
+  const rowWrites = useRef(new Map<string, { token: number; confirmed: boolean }>());
+  const writeToken = useRef(0);
   // The Follow up view's extra queries: the toggled rows it keeps (the account's own, checked on the server), in
   // batches of 200 (the server's limit per request); none: one pass without.
   const keepBatches = (): string[] => {
@@ -253,6 +277,10 @@ export function useInbox(userId: number | null): InboxState {
         const next = [...page, ...below];
         cursor.current = next.at(-1)?.id ?? null;
         setItems(next);
+        // A failed change the server now shows anyway (made again on another device) needs no warning.
+        const byId = new Map(next.map((i) => [i.id, i]));
+        const done = (x: InboxFailure) => byId.get(x.id)?.[x.field] === x.on;
+        setFailures((fs) => (fs.some(done) ? fs.filter((x) => !done(x)) : fs));
         if (!below.length) setMore(!!r.more);
         if (Number.isFinite(r.unread)) setUnread(r.unread);
         if (Number.isFinite(r.followUp)) setFollowUpCount(r.followUp);
@@ -268,6 +296,7 @@ export function useInbox(userId: number | null): InboxState {
     setUnread(0); setFollowUpCount(0); setItems([]); setLoaded(false); setLoading(false); setError(null); setMore(false); setLoadingOlder(false);
     setFilterState("all"); filterRef.current = "all"; kept.current.clear(); cursor.current = null;
     writes.current = Promise.resolve(); pendingWrites.current = 0;
+    rowWrites.current.clear(); setFailures([]); setAllReadFailed(null);
     loadedRef.current = false;
     // Unmounting, or the account changing: anything still queued or in flight belongs to the old one.
     return () => { gen.current++; };
@@ -316,8 +345,8 @@ export function useInbox(userId: number | null): InboxState {
 
   // A read or follow-up change: shown at once; any reply to a request started before it is ignored, and once the
   // server has it the list is fetched again (the server's state, with this change in it). Each write waits for the
-  // one before it, so the server applies them in the order they were made.
-  const send = useCallback((path: string, body: unknown) => {
+  // one before it, so the server applies them in the order they were made. `done` hears whether the server took it.
+  const send = useCallback((path: string, body: unknown, done: (ok: boolean) => void) => {
     const g = gen.current;
     seq.current++;
     pendingWrites.current++;
@@ -325,44 +354,97 @@ export function useInbox(userId: number | null): InboxState {
     // account's cookie.
     const w = writes.current
       .then(() => (gen.current === g ? apiFetch<{ unread: number }>(path, { method: "POST", json: body }) : undefined))
-      .catch(() => undefined)
-      .then(() => { if (gen.current === g) pendingWrites.current = Math.max(0, pendingWrites.current - 1); })
+      .then(() => true, () => false)
+      .then((ok) => {
+        if (gen.current !== g) return;
+        pendingWrites.current = Math.max(0, pendingWrites.current - 1);
+        done(ok);
+      })
       // The list is fetched once the last queued write is in (an earlier one's snapshot would undo the later change on screen).
       .then(() => { if (gen.current === g && writes.current === w) load(); });
     writes.current = w;
   }, [load]);
 
+  const dropFailures = (field: InboxField, ids: number[], on?: boolean) => setFailures((fs) => {
+    const hit = (x: InboxFailure) => x.field === field && ids.includes(x.id) && (on === undefined || x.on === on);
+    return fs.some(hit) ? fs.filter((x) => !hit(x)) : fs;
+  });
+
+  // One change to `field` on rows `ids` (each currently `!on`): shown at once and sent. If the server doesn't take it,
+  // each row whose newest change it still is goes back to what the server last confirmed for it, and says so (`quiet`:
+  // no per-row warning; Mark all read has its own). `failed` hears that it failed.
+  const change = useCallback((field: InboxField, ids: number[], on: boolean, path: string, body: unknown, quiet = false, failed?: () => void) => {
+    const t = ++writeToken.current;
+    for (const id of ids) {
+      const k = `${field}:${id}`;
+      rowWrites.current.set(k, { token: t, confirmed: rowWrites.current.get(k)?.confirmed ?? !on });
+    }
+    dropFailures(field, ids);
+    setItems((cur) => cur.map((i) => (ids.includes(i.id) ? { ...i, [field]: on } : i)));
+    send(path, body, (ok) => {
+      const back = new Map<number, boolean>();
+      for (const id of ids) {
+        const k = `${field}:${id}`, r = rowWrites.current.get(k);
+        if (!r) continue;
+        if (ok) r.confirmed = on;
+        if (r.token !== t) continue; // a newer change to this row decides
+        rowWrites.current.delete(k);
+        if (!ok && r.confirmed !== on) back.set(id, r.confirmed);
+      }
+      if (ok) return;
+      if (back.size) {
+        setItems((cur) => cur.map((i) => (back.has(i.id) ? { ...i, [field]: back.get(i.id)! } : i)));
+        if (field === "read") setUnread((u) => Math.max(0, u + (on ? back.size : -back.size)));
+        else setFollowUpCount((n) => Math.max(0, n + (on ? -back.size : back.size)));
+        if (!quiet) setFailures((fs) => [...fs.filter((x) => !(x.field === field && back.has(x.id))), ...[...back.keys()].map((id) => ({ id, field, on }))]);
+      }
+      failed?.();
+    });
+  }, [send]);
+
   const markRead = useCallback((ids: number[]) => {
     const fresh = items.filter((i) => ids.includes(i.id) && !i.read).map((i) => i.id);
-    if (!fresh.length) return;
-    setItems((cur) => cur.map((i) => (fresh.includes(i.id) ? { ...i, read: true } : i)));
+    if (!fresh.length) { dropFailures("read", ids, true); return; }
     setUnread((u) => Math.max(0, u - fresh.length));
-    send("/api/inbox/read", { ids: fresh });
-  }, [items, send]);
+    change("read", fresh, true, "/api/inbox/read", { ids: fresh });
+  }, [items, change]);
 
   const markUnread = useCallback((ids: number[]) => {
     const was = items.filter((i) => ids.includes(i.id) && i.read).map((i) => i.id);
-    if (!was.length) return;
-    setItems((cur) => cur.map((i) => (was.includes(i.id) ? { ...i, read: false } : i)));
+    if (!was.length) { dropFailures("read", ids, false); return; }
     setUnread((u) => u + was.length);
-    send("/api/inbox/unread", { ids: was });
-  }, [items, send]);
+    change("read", was, false, "/api/inbox/unread", { ids: was });
+  }, [items, change]);
 
   const setFollowUp = useCallback((ids: number[], on: boolean) => {
-    const change = items.filter((i) => ids.includes(i.id) && i.followUp !== on).map((i) => i.id);
-    if (!change.length) return;
-    if (filterRef.current === "followUp") for (const id of change) kept.current.add(id);
-    setItems((cur) => cur.map((i) => (change.includes(i.id) ? { ...i, followUp: on } : i)));
-    setFollowUpCount((n) => Math.max(0, n + (on ? change.length : -change.length)));
-    send("/api/inbox/follow-up", { ids: change, on });
-  }, [items, send]);
+    const moved = items.filter((i) => ids.includes(i.id) && i.followUp !== on).map((i) => i.id);
+    if (!moved.length) { dropFailures("followUp", ids, on); return; }
+    if (filterRef.current === "followUp") for (const id of moved) kept.current.add(id);
+    setFollowUpCount((n) => Math.max(0, n + (on ? moved.length : -moved.length)));
+    change("followUp", moved, on, "/api/inbox/follow-up", { ids: moved, on });
+  }, [items, change]);
 
   // Every item, up to the newest seen (only offered on the All view: the Follow up view's newest isn't the inbox's).
-  const markAllRead = useCallback(() => {
-    setItems((cur) => cur.map((i) => (i.read ? i : { ...i, read: true })));
+  const markAllReadUpTo = useCallback((upTo: number | null) => {
+    const fresh = items.filter((i) => !i.read && (upTo == null || i.id <= upTo)).map((i) => i.id);
+    const before = unread;
+    setAllReadFailed(null);
     setUnread(0);
-    send("/api/inbox/read", { all: true, ...(items[0] ? { upTo: items[0].id } : {}) });
-  }, [items, send]);
+    change("read", fresh, true, "/api/inbox/read", { all: true, ...(upTo != null ? { upTo } : {}) }, true, () => {
+      // Unread items not on screen left the badge too: it goes back (the refresh that follows has the exact count).
+      setUnread((u) => Math.max(u, before));
+      setAllReadFailed({ upTo });
+    });
+  }, [items, unread, change]);
+  const markAllRead = useCallback(() => markAllReadUpTo(items[0]?.id ?? null), [items, markAllReadUpTo]);
+  const retryAllRead = useCallback(() => { if (allReadFailed) markAllReadUpTo(allReadFailed.upTo); }, [allReadFailed, markAllReadUpTo]);
 
-  return { unread, followUp, filter, mode, items, loaded, loading, error, more, loadingOlder, load, open, setFilter, loadOlder, markRead, markUnread, setFollowUp, markAllRead };
+  // The failed change again, as it was asked for (not a toggle of what's on screen); already so: nothing to send.
+  const retry = useCallback((f: InboxFailure) => {
+    if (f.field === "followUp") setFollowUp([f.id], f.on);
+    else if (f.on) markRead([f.id]);
+    else markUnread([f.id]);
+  }, [setFollowUp, markRead, markUnread]);
+
+  return { unread, followUp, filter, mode, items, loaded, loading, error, more, loadingOlder, load, open, setFilter, loadOlder, markRead, markUnread, setFollowUp, markAllRead, failures, allReadFailed, retry, retryAllRead };
 }
