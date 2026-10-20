@@ -17,7 +17,7 @@ describe.skipIf(!haveBrowser)("audit sweep: controls with no accessible name (ne
   const check = async (html: string) => {
     await page.setContent(`<!doctype html><body><main>${html}</main></body>`);
     await page.evaluate("globalThis.__name = (f) => f"); // a transpiler's helper the browser lacks
-    return page.evaluate(findUnnamed);
+    return page.evaluate(findUnnamed, 20);
   };
 
   it("a named link inside a closed <details> isn't flagged (it's read once opened)", async () => {
