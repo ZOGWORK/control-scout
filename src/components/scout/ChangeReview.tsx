@@ -6,7 +6,7 @@
 // right-to-left text, stray direction marks, emoji and combining marks can't disturb the page around it. Changes
 // are marked by more than colour: removed words are struck through and added ones underlined, and a screen reader
 // hears "removed:" / "added:" around each, plus a one-line description of the whole comparison.
-import { useEffect, useId, useMemo, useState } from "react";
+import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
 import { Loader2, RefreshCw } from "lucide-react";
 import { SCOUT_PICKLIST } from "../../lib/sharedPicklist";
 import { SCOUT_COMMENT } from "../../lib/scoutComments";
@@ -63,20 +63,28 @@ export function ChangeReview({ id, target, text, reachable }: {
   const [now, setNow] = useState<SharedNow | null>(null);
   const [attempt, setAttempt] = useState(0);
   const { kind, workspaceId, season, team, base, entry, opId } = target;
+  // The newest pick list version shown: an answer older than it (a read that was slower than the stream) is
+  // dropped, so what's shown never goes back in time.
+  const seen = useRef(-1);
+  const accept = useCallback((s: SharedNow) => {
+    if (s.version != null) { if (s.version < seen.current) return; seen.current = s.version; }
+    setNow(s);
+  }, []);
+  // A different destination starts over (Read again keeps what's shown until its answer).
+  useEffect(() => { seen.current = -1; setNow(null); }, [kind, workspaceId, season, team, entry]);
   useEffect(() => {
     if (!reachable) return;
     const ctrl = new AbortController();
-    setNow(null);
-    readSharedNow({ kind, workspaceId, season, team, base, entry, opId }, ctrl.signal).then(setNow, () => undefined);
+    readSharedNow({ kind, workspaceId, season, team, base, entry, opId }, ctrl.signal).then(accept, () => undefined);
     return () => ctrl.abort();
-  }, [reachable, kind, workspaceId, season, team, base, entry, opId, attempt]);
+  }, [reachable, kind, workspaceId, season, team, base, entry, opId, attempt, accept]);
   // Kept current while open: the workspace's stream brings a new pick list (used as is) or a change to the thread
   // (read again). Still reading only.
   useEffect(() => {
     if (!reachable) return;
     const onList = (ev: Event) => {
       const l = (ev as CustomEvent<unknown>).detail;
-      if (kind === "note" && isPickList(l) && l.workspaceId === workspaceId && l.season === season) setNow(noteIn(l, { kind, workspaceId, season, team, base }));
+      if (kind === "note" && isPickList(l) && l.workspaceId === workspaceId && l.season === season) accept(noteIn(l, { kind, workspaceId, season, team, base }));
     };
     const onComment = (ev: Event) => {
       const e = (ev as CustomEvent<unknown>).detail;
@@ -85,7 +93,7 @@ export function ChangeReview({ id, target, text, reachable }: {
     window.addEventListener(SCOUT_PICKLIST, onList);
     window.addEventListener(SCOUT_COMMENT, onComment);
     return () => { window.removeEventListener(SCOUT_PICKLIST, onList); window.removeEventListener(SCOUT_COMMENT, onComment); };
-  }, [reachable, kind, workspaceId, season, team, base, entry]);
+  }, [reachable, kind, workspaceId, season, team, base, entry, accept]);
 
   const shared = now?.state === "ok" ? now.text : null;
   const parts = useMemo(() => (shared == null ? null : wordDiff(shared, text)), [shared, text]);
