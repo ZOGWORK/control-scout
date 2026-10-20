@@ -42,7 +42,7 @@ describe("glanceStats: live event", () => {
   });
   it("calls: live and backtest kept apart; upsets from the live calls", () => {
     expect(s.record).toEqual([{ kind: "live", n: 2, right: 1 }, { kind: "backtest", n: 1, right: 1 }]);
-    expect(s.upsets).toEqual({ kind: "live", n: 1, of: 2, biggest: { key: "qual:0:2", label: "Q2", pFav: 0.8 } });
+    expect(s.upsets).toEqual({ kind: "live", n: 1, of: 2, biggest: { key: "qual:0:2", label: "Q2", pFav: 0.8, tier: "moderate" } });
   });
   it("category leaders by OPR", () => {
     expect(s.leaders.auto).toMatchObject({ team: 2, value: 30 });
