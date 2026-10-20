@@ -35,7 +35,9 @@ function Chips({ teams, sign, tone, what }: { teams: number[]; sign: string; ton
 function Row({ f, readOnly, onRetry, onDiscard }: { f: FailedChange; readOnly: boolean; onRetry: (force: boolean) => void; onDiscard: () => void }) {
   const Icon = OP_ICON[f.op.op];
   const c = f.conflict;
-  const canApply = !readOnly && !f.blocked && c?.kind !== "gone";
+  // Blocked (no access, read-only, another account) may have changed since: Check again asks the workspace, and sends only if it can.
+  const canApply = !readOnly && c?.kind !== "gone";
+  const label = f.blocked ? "Check again" : c ? "Apply anyway" : "Retry";
   return (
     <li className="flex flex-wrap items-start gap-x-3 gap-y-2 px-3 py-2.5" data-kept-change={f.opId ?? f.id}>
       <span className={cn("mt-0.5 grid size-7 shrink-0 place-items-center rounded-lg", c || f.blocked ? "bg-warning/15 text-warning" : "bg-accent/15 text-accent-text")} aria-hidden><Icon className="size-4" /></span>
@@ -53,8 +55,8 @@ function Row({ f, readOnly, onRetry, onDiscard }: { f: FailedChange; readOnly: b
       <div className="ml-auto flex shrink-0 flex-wrap items-center justify-end gap-2">
         {canApply && (
           <Button variant="secondary" size="sm" className="max-sm:h-11" disabled={f.busy} onClick={() => onRetry(!!c)}
-            aria-label={`${c ? "Apply anyway" : "Retry"}: ${describeChange(f.op)}`}>
-            {f.busy ? <Loader2 className="animate-spin" /> : <RotateCcw />} {c ? "Apply anyway" : "Retry"}
+            aria-label={`${label}: ${describeChange(f.op)}`}>
+            {f.busy ? <Loader2 className="animate-spin" /> : <RotateCcw />} {label}
           </Button>
         )}
         <Button variant="outline" size="sm" className="max-sm:h-11" disabled={f.busy} onClick={onDiscard} aria-label={`Discard: ${describeChange(f.op)}`}>
@@ -76,7 +78,7 @@ export function KeptPickChanges({ changes, readOnly = false, onRetryAll, onDisca
   const sorted = [...changes].sort((a, b) => (a.at ?? 0) - (b.at ?? 0) || a.id - b.id);
   const busy = changes.some((f) => f.busy);
   const reviewing = changes.some((f) => f.conflict && f.conflict.kind !== "gone");
-  const sendable = changes.filter((f) => !f.blocked && f.conflict?.kind !== "gone");
+  const sendable = changes.filter((f) => f.conflict?.kind !== "gone");
   const blocked = changes.find((f) => f.blocked);
   const allStored = changes.every((f) => f.stored);
   const summary = readOnly
@@ -85,7 +87,7 @@ export function KeptPickChanges({ changes, readOnly = false, onRetryAll, onDisca
     : reviewing ? (changes.some((f) => f.conflict?.kind === "changed")
       ? "The pick list changed since you made these. Review what changed, then apply yours to the list as it is now, or discard them."
       : "A team one of these was placed next to has been removed. Applied now, it goes next to the nearest team that's still there.")
-    : blocked && !sendable.length ? failedMessage(blocked)
+    : blocked && sendable.every((f) => f.blocked) ? failedMessage(blocked)
     : `${changes.some((f) => f.restored) ? "Kept on this device from before the page reloaded." : "These didn't reach the workspace."} Nothing is sent until you choose: Retry checks the list first and sends each change once.${allStored ? "" : " This device couldn't keep a copy of some, so a reload loses them."}`;
   return (
     <section aria-labelledby={headingId} className="mb-3 rounded-2xl border border-warning/40 bg-warning/[0.08] p-3 sm:p-4">
@@ -98,7 +100,7 @@ export function KeptPickChanges({ changes, readOnly = false, onRetryAll, onDisca
         <div className="flex shrink-0 flex-wrap items-center gap-2">
           {!readOnly && sendable.length > 0 && (
             <Button size="sm" className="max-sm:h-11" disabled={busy} onClick={() => onRetryAll(reviewing)}>
-              {busy ? <Loader2 className="animate-spin" /> : <RotateCcw />} {reviewing ? "Apply mine anyway" : "Retry"}
+              {busy ? <Loader2 className="animate-spin" /> : <RotateCcw />} {reviewing ? "Apply mine anyway" : blocked && sendable.every((f) => f.blocked) ? "Check again" : "Retry"}
             </Button>
           )}
           <Button variant="outline" size="sm" className="max-sm:h-11" disabled={busy} onClick={onDiscardAll}>
