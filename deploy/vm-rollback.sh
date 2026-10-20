@@ -65,6 +65,14 @@ else
   systemctl start control-scout
 fi
 
+# The Discord bot (control-scout-bot) runs from current too: restart it on the release it now points at,
+# or stop it if that release predates the bot (or there's no token). Never fails the rollback.
+if [ -f "$REL_DIR/bot/index.ts" ] && grep -Eq '^DISCORD_BOT_TOKEN=.+' "$SHARED/.env" && [ -f /etc/systemd/system/control-scout-bot.service ]; then
+  systemctl restart control-scout-bot || echo ">>> bot: failed to restart (journalctl -u control-scout-bot)"
+else
+  systemctl stop control-scout-bot >/dev/null 2>&1 || true
+fi
+
 PORT="$(sed -n 's/^PORT=//p' "$SHARED/.env" | tail -n1)"
 for _ in $(seq 1 60); do
   curl -fsS --max-time 5 "http://127.0.0.1:${PORT:-3100}/api/health" 2>/dev/null | grep -q '"ready":true' && { echo "Rolled back to $TARGET; it's up on :${PORT:-3100}"; exit 0; }

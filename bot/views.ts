@@ -176,6 +176,25 @@ export function topByOpr(field: FieldRow[]): { rows: { team: number; name: strin
   return event.length ? { rows: event, season: false } : { rows: pick((f) => f.seasonOpr), season: true };
 }
 
+/**
+ * Who won: the Winner award's teams; until FIRST posts awards (they can come after the last match), the
+ * winner of the last playoff match played (the final decides the event), with its alliance's members.
+ */
+export function winningAlliance(d: Pick<EventDetail, "awards" | "alliances" | "matches">): { alliance: number | null; teams: number[] } | null {
+  const allianceOf = (teams: number[]) => d.alliances.find((a) => [a.captain, a.pick1, a.pick2].some((t) => t != null && teams.includes(t)));
+  const awarded = d.awards.filter((a) => a.type === "Winner").map((a) => a.team);
+  if (awarded.length) return { alliance: allianceOf(awarded)?.number ?? null, teams: awarded };
+  const finals = d.matches.filter((m) => m.level === "playoff" && m.played && m.red.score && m.blue.score && m.red.score.total !== m.blue.score.total)
+    .sort((a, b) => a.series - b.series || a.number - b.number);
+  const last = finals.at(-1);
+  if (!last) return null;
+  const side = last.red.score!.total > last.blue.score!.total ? last.red : last.blue;
+  const played = teamsOf(side, true);
+  const a = allianceOf(played);
+  const members = a ? [a.captain, a.pick1, a.pick2].filter((t): t is number => t != null) : played;
+  return { alliance: a?.number ?? null, teams: members };
+}
+
 export function eventEmbed(d: EventDetail, site: string): APIEmbed {
   const e = d.event;
   const fields: APIEmbedField[] = [
@@ -191,11 +210,8 @@ export function eventEmbed(d: EventDetail, site: string): APIEmbed {
     });
   }
   if (e.status === "finished") {
-    const winners = d.awards.filter((a) => a.type === "Winner").map((a) => a.team);
-    if (winners.length) {
-      const alliance = d.alliances.find((a) => [a.captain, a.pick1, a.pick2].some((t) => t != null && winners.includes(t)));
-      fields.push({ name: "Winning alliance", value: `${alliance ? `Alliance ${alliance.number}: ` : ""}${allianceText(winners)}` });
-    }
+    const w = winningAlliance(d);
+    if (w) fields.push({ name: "Winning alliance", value: `${w.alliance ? `Alliance ${w.alliance}: ` : ""}${allianceText(w.teams)}` });
   }
   return {
     title: clip(e.name, 256),

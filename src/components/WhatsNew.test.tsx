@@ -10,7 +10,7 @@ import { currentRelease, parseChangelog } from "../lib/changelog";
 
 // The newest release, as CHANGELOG.md has it (so a new release doesn't need this test rewritten).
 const latest = parseChangelog(md)[0];
-const latestPr = latest.groups.flatMap((g) => g.items).join(" ").match(/#(d+)/)?.[1] ?? null;
+const latestPr = latest.groups.flatMap((g) => g.items).join(" ").match(/#(\d+)/)?.[1] ?? null;
 import { openWhatsNew, WhatsNewHost, WhatsNewRow } from "./WhatsNew";
 
 afterEach(() => { cleanup(); localStorage.clear(); });
@@ -22,6 +22,8 @@ describe("What's new", () => {
     const rail = await screen.findByRole("navigation", { name: "Releases" });
     const versions = [...rail.querySelectorAll("button")].map((b) => b.textContent);
     expect(versions[0]).toBe(`v${pkg.version}Latest`);
+    // Every release links its PRs: the checks below rely on the latest naming one.
+    expect(latestPr).not.toBeNull();
     expect(versions).toContain("v1.6.0");
     expect(screen.getByText(`v${pkg.version} · ${latest.date}`)).toBeTruthy();
   });
