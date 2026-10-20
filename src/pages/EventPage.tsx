@@ -518,6 +518,9 @@ function Playoffs({ d }: { d: EventDetail }) {
   const allianceOf = (teams: number[]) => al.find((a) => [a.captain, a.pick1, a.pick2, a.backup].some((t) => t && teams.includes(t)))?.number;
   return (
     <div className="space-y-6">
+      {/* The tab's heading for screen readers (named like the tab): the bracket's h3 and the match list's sit under it.
+          Absolutely placed, so the stack's spacing doesn't change. */}
+      <h2 className="sr-only">Playoffs</h2>
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
         {al.map((a) => (
           <div key={a.number} className="rounded-xl border border-border bg-card p-4">
@@ -562,7 +565,9 @@ function Awards({ d, nameOf }: { d: EventDetail; nameOf: (t: number) => string }
   const s = d.event.season;
   return (
     <div className="space-y-6">
-      {!d.awards.length ? <EmptyState icon={Award} title="No awards published yet" description="Awards appear after the closing ceremony." /> : (
+      {/* The tab's heading for screen readers: Advancement (h3) sits under it. */}
+      <h2 className="sr-only">Awards</h2>
+      {!d.awards.length ?<EmptyState icon={Award} title="No awards published yet" description="Awards appear after the closing ceremony." /> : (
         <ul className="grid gap-2 sm:grid-cols-2">
           {d.awards.map((a) => (
             <li key={`${a.type}${a.placement}${a.team}`} className="flex items-center gap-3 rounded-xl border border-border bg-card p-3">

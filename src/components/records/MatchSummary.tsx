@@ -124,13 +124,18 @@ const RED_INK = "text-[var(--summary-red-ink)]";
 export function MatchSummaryList({ rows, cols }: { rows: MatchRecordRow[]; cols: string[] }) {
   const { rows: open, toggle } = useOpenRows();
   return (
-    <ul className={cn("space-y-2.5", RED_INK_TOKEN)} aria-label="Matches" data-records-summary="">
-      {rows.map((r) => (
-        <li key={rowKey(r)}>
-          <MatchCard r={r} cols={cols} open={open.includes(rowKey(r))} onToggle={() => toggle(rowKey(r))} />
-        </li>
-      ))}
-    </ul>
+    <>
+      {/* The list's heading for screen readers (named like the Matches tab), so the cards' h3 titles don't follow
+          the page's h1 directly. Visually hidden: the cards look exactly as before. */}
+      <h2 className="sr-only">Matches</h2>
+      <ul className={cn("space-y-2.5", RED_INK_TOKEN)} aria-label="Matches" data-records-summary="">
+        {rows.map((r) => (
+          <li key={rowKey(r)}>
+            <MatchCard r={r} cols={cols} open={open.includes(rowKey(r))} onToggle={() => toggle(rowKey(r))} />
+          </li>
+        ))}
+      </ul>
+    </>
   );
 }
 
