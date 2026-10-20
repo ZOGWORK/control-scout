@@ -207,21 +207,24 @@ export function compareBrief(d: CompareView, label = seasonLabel(d.season)): Bri
     });
   }
 
-  // Head to head: the meetings the page lists, all from the first team's side.
+  // Head to head: the meetings the page lists, all from the first team's side, counted from the lineups rather than
+  // the server's one label per match: with three or four teams, one match can have a compared team as a partner and
+  // another as an opponent, and it counts toward both. Only teams on the field count, so a listed no-show never
+  // makes a meeting or a result.
   if (t.length > 1) {
     const first = t[0].team.number;
     const others = list(t.slice(1).map(n));
-    const met = d.meetings.filter((m) => m.played);
+    const compared = new Set(t.slice(1).map((x) => x.team.number));
+    const sides = (m: MatchView) => {
+      const red = m.red.teams.some((x) => x.number === first && x.onField);
+      const blue = m.blue.teams.some((x) => x.number === first && x.onField);
+      if (!red && !blue) return { partner: false, opponent: false };
+      const on = (a: MatchView["red"]) => a.teams.some((x) => x.onField && compared.has(x.number));
+      return { partner: on(red ? m.red : m.blue), opponent: on(red ? m.blue : m.red) };
+    };
+    const met = d.meetings.filter((m) => m.played && (sides(m).partner || sides(m).opponent));
     if (!met.length) out.push({ topic: "Head to head", kind: "missing", text: `${first} hasn't played with or against ${others} in ${label}.`, sources: [] });
     else {
-      // From the lineups, not the server's one label per match: with three or four teams, one match can have a
-      // compared team as a partner and another as an opponent, and it counts toward both.
-      const compared = new Set(t.slice(1).map((x) => x.team.number));
-      const sides = (m: MatchView) => {
-        const red = m.red.teams.some((x) => x.number === first);
-        const own = (red ? m.red : m.blue).teams, opp = (red ? m.blue : m.red).teams;
-        return { partner: own.some((x) => compared.has(x.number)), opponent: opp.some((x) => compared.has(x.number)) };
-      };
       const against = met.filter((m) => sides(m).opponent);
       const together = met.filter((m) => sides(m).partner).length;
       let w = 0, l = 0, tie = 0;

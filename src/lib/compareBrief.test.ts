@@ -153,6 +153,12 @@ describe("compareBrief: three and four teams", () => {
     // One match with a compared partner and a compared opponent counts toward both, whatever the server labelled it.
     const mixed = compareBrief(view([A, B, C], [match("qual:0:5", [18360, 24089], [1234, 9], 90, 80, "opponents")]));
     expect(one(mixed, "Head to head").text).toBe("18360 met 24089 and 1234 in 1 played match (opponents in 1, partners in 1; a match can be both); in the 1 scored match against, 18360's alliance went 1-0-0.");
+    // A listed no-show is no meeting: neither a compared team off the field nor the first team off the field counts.
+    const noShow = match("qual:0:6", [18360, 1], [24089, 2], 100, 50, "opponents");
+    noShow.blue.teams[0].onField = false;
+    const firstOff = match("qual:0:7", [18360, 1], [1234, 2], 100, 50, "opponents");
+    firstOff.red.teams[0].onField = false;
+    expect(one(compareBrief(view([A, B, C], [noShow, firstOff])), "Head to head")).toMatchObject({ kind: "missing" });
   });
 });
 
