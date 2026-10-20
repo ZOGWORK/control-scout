@@ -71,7 +71,26 @@ beforeEach(() => {
 });
 afterEach(() => { cleanup(); vi.unstubAllGlobals(); delete (doc as { scrollTop?: number }).scrollTop; });
 
+/** Each heading that's more than one level below the one before it (axe's heading-order). */
+const headingSkips = () => {
+  const out: string[] = [];
+  let prev = 0;
+  for (const h of document.querySelectorAll("h1, h2, h3, h4, h5, h6")) {
+    const level = Number(h.tagName[1]);
+    if (prev && level > prev + 1) out.push(`h${prev} → ${h.tagName.toLowerCase()} "${h.textContent}"`);
+    prev = level;
+  }
+  return out;
+};
+
 describe("match records on a phone", () => {
+  it("the cards' headings sit under a Matches section heading, never straight under the page's h1 (V4-A11Y-001)", () => {
+    render(<MemoryRouter initialEntries={["/matches?season=2025"]}><TooltipProvider><h1>Match records</h1><Page /></TooltipProvider></MemoryRouter>);
+    expect(cards()).toHaveLength(4);
+    expect(screen.getByRole("heading", { level: 2, name: "Matches" })).toBeTruthy();
+    expect(headingSkips()).toEqual([]);
+  });
+
   it("shows a summary card per match instead of the table", () => {
     mount("/matches?season=2025");
     expect(screen.queryByRole("table")).toBeNull();
