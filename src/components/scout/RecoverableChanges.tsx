@@ -10,7 +10,7 @@
 // - workspace entries queued on this device whose push didn't go through (scouting.ts).
 // Every source is per account, and only the signed-in account's rows are ever read or shown.
 import { useEffect, useId, useMemo, useRef, useState } from "react";
-import { CircleAlert, ClipboardList, CloudOff, ListOrdered, Loader2, MessageSquare, RotateCcw, Trash2 } from "lucide-react";
+import { ChevronDown, CircleAlert, ClipboardList, CloudOff, ListOrdered, Loader2, MessageSquare, RotateCcw, Trash2 } from "lucide-react";
 import { isClaimed, usePendingVersion, usePendingWork, type PendingItem } from "../../lib/pendingWork";
 import { allNoteDrafts, clearNoteDraft, NOTE_DRAFTS_CHANGED } from "../../lib/picklistDrafts";
 import { noteInFlight, sendKeptNote } from "../../lib/sharedPicklist";
@@ -18,6 +18,7 @@ import { discardQueuedScoutEntry, pullScouting, queuedWorkspaceEntries, SCOUT_CH
 import { seasonLabel } from "../../lib/format";
 import { loadCommentAttempts } from "../../lib/commentAttempts";
 import { Button } from "../ui/button";
+import { ChangeReview } from "./ChangeReview";
 import { cn } from "../cn";
 
 interface Workspace { id: string; name: string; orphaned?: unknown }
@@ -55,6 +56,7 @@ export function RecoverableChanges({ account, workspaces, className }: { account
         const key = `kept:${account}:${space}:${season}:${draft.team}`;
         return {
           key, account, kind: "note", workspaceId: space, season, team: draft.team, label: `Note on ${draft.team}`, status: "attention",
+          text: draft.note, base: draft.base,
           message: "Kept on this device; the workspace hasn't confirmed it. Retry sends it, and never over a teammate's newer note.",
           retry: () => {
             setRow(key, { busy: true });
@@ -117,6 +119,10 @@ export function RecoverableChanges({ account, workspaces, className }: { account
     heading.current?.focus();
   }, [keys]); // eslint-disable-line react-hooks/exhaustive-deps
   const [confirming, setConfirming] = useState<string | null>(null);
+  // Rows whose "Show change" is open (reading only: nothing is sent until Retry).
+  const [shown, setShown] = useState<Record<string, true>>({});
+  const toggleShown = (key: string) => setShown((cur) => { if (cur[key]) { const { [key]: _gone, ...rest } = cur; return rest; } return { ...cur, [key]: true }; });
+  const reviewBase = useId();
   const nameOf = (id: string) => workspaces.find((w) => w.id === id);
 
   return (
@@ -137,6 +143,10 @@ export function RecoverableChanges({ account, workspaces, className }: { account
               const Icon = KIND_ICON[r.kind];
               const ws = nameOf(r.workspaceId);
               const readOnly = !!ws?.orphaned;
+              // Only the signed-in account's own wording, for a note or a comment (rows are this account's already).
+              const reviewable = r.text !== undefined && r.account === account && (r.kind === "note" || r.kind === "comment");
+              const open = reviewable && !!shown[r.key];
+              const reviewId = `${reviewBase}-${r.key.replace(/[^\w-]/g, "_")}`;
               return (
                 <li key={r.key} className="flex flex-wrap items-start gap-x-3 gap-y-2 py-2.5" data-pending={r.key}>
                   <Icon className={cn("mt-0.5 size-4 shrink-0", r.status === "attention" ? "text-warning" : "text-muted-foreground")} aria-hidden />
@@ -149,8 +159,20 @@ export function RecoverableChanges({ account, workspaces, className }: { account
                     <p className={cn("mt-0.5 text-xs", r.status === "attention" ? "text-foreground" : "text-muted-foreground")}>
                       {r.message}{readOnly && " The workspace is read-only now, so it can't be sent."}
                     </p>
+                    {reviewable && (
+                      <Button size="sm" variant="outline" className="mt-1.5 max-sm:h-11" aria-expanded={open} aria-controls={open ? reviewId : undefined}
+                        aria-label={`${open ? "Hide" : "Show"} change: ${r.label}`} onClick={() => toggleShown(r.key)}>
+                        <ChevronDown className={cn("transition-transform motion-reduce:transition-none", open && "rotate-180")} /> {open ? "Hide change" : "Show change"}
+                      </Button>
+                    )}
                   </div>
-                  <div role="group" aria-label={`${r.label}: actions`} className="ml-auto flex shrink-0 flex-wrap items-center gap-2">
+                  {open && (
+                    <div className="min-w-0 basis-full sm:pl-7">
+                      <ChangeReview id={reviewId} text={r.text!} reachable={!!ws}
+                        target={{ kind: r.kind as "note" | "comment", workspaceId: r.workspaceId, season: r.season, team: r.team, base: r.base, entry: r.entry, opId: r.opId }} />
+                    </div>
+                  )}
+                  <div role="group" aria-label={`${r.label}: actions`} className={cn("flex shrink-0 flex-wrap items-center gap-2", open ? "basis-full sm:pl-7" : "ml-auto")}>
                     {confirming === r.key ? (
                       <>
                         <span className="text-xs text-muted-foreground">Discard this change?</span>

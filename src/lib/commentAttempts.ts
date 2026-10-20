@@ -173,6 +173,7 @@ function publish() {
     items.push({
       key: `comment:${a.account}:${a.space}:${a.uuid}`, account: a.account, kind: "comment", workspaceId: a.space, season: a.season ?? null, team: a.team ?? null,
       label: a.what ?? (a.team ? `Comment on ${a.team}` : "Comment"), status: "attention", message: a.message,
+      text: a.body, entry: a.uuid, opId: a.opId,
       retry: () => { void sendComment(place, a.body, a.opId); },
       discard: () => discardComment(a.account, a.space, a.uuid),
       ...(unstored.has(keyOf(a.account, a.space, a.uuid)) ? { volatile: true } : {}),
