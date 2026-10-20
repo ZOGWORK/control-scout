@@ -19,6 +19,7 @@ import { syncAll } from "../sync.js";
 import { runStats, statsRulesStale } from "../stats/job.js";
 import { CURRENT_SEASON, isLegacy } from "./seasons.js";
 import { withDataLock } from "./lock.js";
+import { unprovenSeasons } from "../api/readiness.js";
 
 type Log = (m: string) => void;
 
@@ -40,10 +41,14 @@ export async function runCycle(log: Log) {
       await syncAll({ seasons: [backfill], log: (m) => log(`  ${m}`) });
     }
     const pending = await statsPending();
-    // Every season once after the stats rules change; otherwise just the current one (and a backfilled one).
+    // A past season whose records carry no build time reads as catching up (api/readiness.ts) until it's
+    // rebuilt: one per cycle, in the quiet hours (a past season's stats hold the lease for a while).
+    const unproven = quietHours() ? (await unprovenSeasons()).find((s) => s !== CURRENT_SEASON) : undefined;
+    if (unproven) log(`  ${unproven}: records have no build time, rebuilding`);
+    // Every season once after the stats rules change; otherwise just the current one (and a backfilled or unproven one).
     const every = await statsRulesStale();
     if (every) log("  stats rules changed: recomputing every season");
-    await runStats({ seasons: every ? undefined : [...new Set([CURRENT_SEASON, ...pending])], log: (m) => log(`  ${m}`) });
+    await runStats({ seasons: every ? undefined : [...new Set([CURRENT_SEASON, ...pending, ...(unproven ? [unproven] : [])])], log: (m) => log(`  ${m}`) });
     if (pending.length) await kvSet(STATS_PENDING, (await statsPending()).filter((s) => !pending.includes(s)));
   }, { ttlMs: 5 * 60_000, waitMs: 5 * 60_000, pollMs: 2000 });
   // Offline packs: rebuilt at most daily (they're versioned; devices see "new data available").
