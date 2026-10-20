@@ -19,7 +19,7 @@ import { agoShort } from "../../lib/format";
 import { useNow } from "../../lib/useNow";
 import { canDeleteScoutEntry, isScoutQueued, localScoutEntries, restoreScoutVersion, sameScoutText, type ScoutEntry } from "../../lib/scouting";
 import { dropLostEdit, markLostSeen, useLostEdits, type LostEdit } from "../../lib/lostEdits";
-import { entryDiff, entrySummary, NONE, type DiffRow, type EntryText } from "../../lib/entryDiff";
+import { entryDiff, entrySummary, type DiffRow, type EntryText } from "../../lib/entryDiff";
 import { useMediaQuery } from "../../lib/meta";
 import { useEntryTemplate } from "../../lib/scoutTemplates";
 import { entrySubject } from "../../lib/scoutActivity";
@@ -73,8 +73,8 @@ export function DiffTable({ rows, beforeLabel, afterLabel, caption }: { rows: Di
           {rows.map((r) => (
             <tr key={r.key} className="align-top">
               <th scope="row" className="break-words px-3 py-2 text-left font-medium">{r.label}</th>
-              <td className="break-words px-3 py-2 text-muted-foreground"><span className="rounded bg-destructive/10 px-1 line-through decoration-destructive/50">{r.before}</span></td>
-              <td className="break-words px-3 py-2"><span className="rounded bg-success/15 px-1">{r.after}</span></td>
+              <td className="break-words px-3 py-2 text-muted-foreground">{r.beforeEmpty ? <EmptySide /> : <span className="rounded bg-destructive/10 px-1 line-through decoration-destructive/50">{r.before}</span>}</td>
+              <td className="break-words px-3 py-2">{r.afterEmpty ? <EmptySide /> : <span className="rounded bg-success/15 px-1">{r.after}</span>}</td>
             </tr>
           ))}
         </tbody>
@@ -82,6 +82,9 @@ export function DiffTable({ rows, beforeLabel, afterLabel, caption }: { rows: Di
     </div>
   );
 }
+
+/** A side with nothing in it: a plain dash (no strike or highlight, so a value saved as "—" still looks like a value). */
+const EmptySide = () => <span className="text-muted-foreground"><span aria-hidden>—</span><span className="sr-only">empty</span></span>;
 
 /**
  * The same differences on a phone: each field with its Before above its After, both full width, so a long note
@@ -93,16 +96,15 @@ function StackedDiff({ rows, beforeLabel, afterLabel, caption }: { rows: DiffRow
       {rows.map((r) => (
         <li key={r.key} className="space-y-1.5 px-3 py-2">
           <p className="break-words font-medium">{r.label}</p>
-          <DiffSide side="Before" version={beforeLabel} value={r.before} />
-          <DiffSide side="After" version={afterLabel} value={r.after} />
+          <DiffSide side="Before" version={beforeLabel} value={r.before} empty={!!r.beforeEmpty} />
+          <DiffSide side="After" version={afterLabel} value={r.after} empty={!!r.afterEmpty} />
         </li>
       ))}
     </ul>
   );
 }
 
-function DiffSide({ side, version, value }: { side: "Before" | "After"; version: string; value: string }) {
-  const empty = value === NONE;
+function DiffSide({ side, version, value, empty }: { side: "Before" | "After"; version: string; value: string; empty: boolean }) {
   const before = side === "Before";
   return (
     <div data-side={side.toLowerCase()} className={cn("rounded-md border-l-2 py-1 pl-2.5", before ? "border-destructive/50" : "border-success/60")}>
