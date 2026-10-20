@@ -27,8 +27,11 @@ Rules that keep it honest:
 
 - **Idempotent.** The same data polled again compares equal and adds nothing.
   Each row also has a UNIQUE `diff_key` (match, kind, the match's previous
-  change, new value), and the batch only records changes while the event's
-  `detail_synced_at` is still the one read before diffing.
+  change, new value). The batch opens with a guard that fails it as a whole if
+  the event's `detail_synced_at` is no longer the one read before diffing
+  (another writer stored it in between: `npm run sync` holds no writer lease),
+  and the write then reads and diffs again (3 attempts, then the event's sync
+  fails and the next poll retries). A bundle is never saved without its changes.
 - **No invented history.** The first detail write of an event after deploy is
   its baseline (`result_watch.since`); the UI says changes weren't tracked
   before then. No backfill.
@@ -39,7 +42,9 @@ Rules that keep it honest:
   the actual start once a match is played, so time is only compared while the
   match is unplayed.
 - **Matches missing from a write are left alone** (a fallback feed may list
-  fewer); nothing is recorded for them.
+  fewer); nothing is recorded for them, but their last stored state is kept in
+  `result_watch.missing` (up to 300 per event), so when one comes back it is
+  compared with what it was rather than shown as newly posted.
 - **The prediction ledger is never touched.** Calls logged before a match keep
   their values (`resultChanges.test.ts` checks the `predictions` rows are
   byte-identical after revisions).
