@@ -68,6 +68,8 @@ const ROUTES: Route[] = [
   { path: "/events?season=2025&status=finished&q=Brisbane", ready: "a[href^='/events/2025/']" },
   { path: "/events/2025/AUBRQ2?tab=teams", ready: "[data-glance-card]" },
   { path: "/compare?teams=18360,24089&season=2025", ready: ".recharts-legend-item-text" },
+  // The brief open: its sentences and source links.
+  { path: "/compare?teams=18360,24089&season=2025&brief=1", ready: "[data-kind]" },
   { path: "/rankings", ready: "tbody tr" },
   { path: "/power-rankings" },
 ];
