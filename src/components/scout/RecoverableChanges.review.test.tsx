@@ -4,11 +4,15 @@
 // destination that's gone or out of reach says so; text is plain (never markup), whatever its script; and another
 // account's retained work on the same device is never shown, opened or read.
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { publishPending } from "../../lib/pendingWork";
 import { resetCommentAttempts, sendComment } from "../../lib/commentAttempts";
 import { CommentWriteError } from "../../lib/scoutComments";
+import { announcePicklist } from "../../lib/sharedPicklist";
+import { announceComment } from "../../lib/scoutComments";
 import { RecoverableChanges } from "./RecoverableChanges";
+import { describeDiff } from "./ChangeReview";
+import { wordDiff } from "../../lib/wordDiff";
 
 vi.mock("../ui/sonner", () => ({ toast: Object.assign(() => undefined, { error: () => undefined, warning: () => undefined }) }));
 
@@ -165,7 +169,8 @@ describe("Show change", () => {
     const { unmount } = render(<RecoverableChanges account={1} workspaces={WS} />);
     fireEvent.click(showButton(/Comment on 18360 · Match Q1/));
     const group = await comparison();
-    expect(group.textContent).toContain("Not in the thread yet: this would be a new comment after the 1 already there.");
+    // Not found isn't called "never posted" (a deleted one isn't listed either): Retry checks first.
+    expect(group.textContent).toContain("It isn't in the thread as this device sees it. Retry checks with the workspace first and never posts it twice.");
     expect(within(group).getByRole("region", { name: "Your comment (not sent)" }).textContent).toBe("added: Watch their lift (end added)");
     expect(calls).toEqual([{ method: "GET", path: THREAD }]);
     unmount();
@@ -198,5 +203,54 @@ describe("Show change", () => {
     await comparison();
     expect(document.body.textContent).not.toContain("Priya's note");
     await waitFor(() => expect(screen.getByRole("region", { name: "Your note (not saved)" }).textContent).toContain("Marcus's secret wording"));
+  });
+
+  it("keeps what's shared now current while open: the stream's pick list, a thread change, and Read again", async () => {
+    keepNote(1, "901", 102, "Slow cycles in auto");
+    render(<RecoverableChanges account={1} workspaces={WS} />);
+    fireEvent.click(showButton());
+    await comparison();
+    const shared = () => screen.getByRole("region", { name: "Shared now" }).textContent;
+    expect(shared()).toContain("Fast");
+    // A teammate's newer note arrives on the stream: shown at once, no request.
+    const before = calls.length;
+    act(() => announcePicklist({ workspaceId: "901", season: 2025, version: 9, picks: [pick(102, "Fast cycles, parks every match", 60)] }));
+    expect(shared()).toContain("parks every match");
+    expect(screen.getByRole("group", { name: /compared with/ }).textContent).toContain("A teammate changed this note after you wrote yours.");
+    // Another workspace's or season's list changes nothing.
+    act(() => announcePicklist({ workspaceId: "902", season: 2025, version: 1, picks: [pick(102, "Other space", 1)] }));
+    act(() => announcePicklist({ workspaceId: "901", season: 2024, version: 1, picks: [pick(102, "Other season", 1)] }));
+    expect(shared()).toContain("parks every match");
+    expect(calls.length).toBe(before);
+    // Read again reads (only reads) once more.
+    picks = [pick(102, "Read fresh", 70)];
+    fireEvent.click(screen.getByRole("button", { name: "Read again" }));
+    await waitFor(() => expect(shared()).toContain("Read fresh"));
+    expect(writes()).toEqual([]);
+  });
+
+  it("reads a comment's thread again when it changes on the stream", async () => {
+    await sendComment({ account: 1, space: "901", uuid: "aaaaaaaaaaaa", team: 18360, what: "Comment on 18360" }, "Watch their lift", "op-review-0002",
+      async () => { throw new CommentWriteError("Couldn't post your comment.", true); });
+    render(<RecoverableChanges account={1} workspaces={WS} />);
+    fireEvent.click(showButton(/Comment on 18360/));
+    await comparison();
+    const made = { id: 4, workspaceId: "901", entryUuid: "aaaaaaaaaaaa", authorAccountId: 1, authorName: "Priya", body: "Watch their lift", opId: "op-review-0002", createdAt: 2, editedAt: null };
+    thread = [made];
+    // Edited by its author elsewhere: still the member's own attempt here, so it's checked again.
+    act(() => announceComment({ action: "edited", workspaceId: "901", entryUuid: "aaaaaaaaaaaa", commentId: 4, count: 1, rev: 3, comment: made } as never));
+    await waitFor(() => expect(calls.filter((c) => c.path === THREAD).length).toBe(2));
+    expect(writes()).toEqual([]);
+  });
+});
+
+describe("describeDiff", () => {
+  const say = (shared: string, yours: string) => describeDiff(wordDiff(shared, yours), shared, yours);
+  it("never calls a punctuation or spacing change the same", () => {
+    expect(say("Ready?", "Ready!")).toBe("Only punctuation or spacing differs from what's shared now.");
+    expect(say("Ready", "Ready")).toBe("Your text is the same as what's shared now.");
+    expect(say("", "!!")).toBe("Nothing is shared there now; yours adds only punctuation or spacing.");
+    expect(say("Ready", "")).toBe("Your text is empty: it would clear what's shared now.");
+    expect(say("", "Fast auto")).toBe("Nothing is shared there now; all 2 words of yours would be added.");
   });
 });
