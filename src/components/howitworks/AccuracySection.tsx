@@ -11,7 +11,8 @@ import { Link } from "react-router-dom";
 import { FlaskConical, History, Radio } from "lucide-react";
 import { CONFIDENCE_RULE } from "@control-scout/predict-engine";
 import { useApi } from "../../lib/api";
-import type { AccuracyBlock, TrackRecord } from "../../shared/api";
+import type { AccuracyBlock, ReplayCoverage, TrackRecord } from "../../shared/api";
+import { brierSkill, headlineRule, LEDGER_MODE, ledgerDefault, type LedgerKind } from "../../shared/ledger";
 import { pct } from "../../lib/format";
 import { cn } from "../cn";
 import { Badge } from "../ui/basic";
@@ -41,20 +42,21 @@ function EngineTag() {
   return <Badge variant="secondary" className="w-fit"><FlaskConical /> Engine held-out test · tuned 2024–25, tested 2025–26</Badge>;
 }
 
-type Kind = "live" | "backtest";
+type Kind = LedgerKind;
 interface Sel { season: number; kind: Kind }
 
 export function AccuracySection() {
   const state = useApi<TrackRecord>("/api/predict/accuracy");
   const t = state.data;
   const withData = t?.seasons.filter((s) => s.live || s.backtest) ?? [];
-  const fallback: Sel | null = t?.headline ? { season: t.headline.season, kind: t.headline.kind }
-    : withData[0] ? { season: withData[0].season, kind: withData[0].backtest ? "backtest" : "live" } : null;
+  // The same opening rule as the home page's track record (src/shared/ledger.ts).
+  const fallback: Sel | null = t ? ledgerDefault(t) : null;
   const [picked, setPicked] = useState<Sel | null>(null);
   const sel = picked ?? fallback;
   const season = t?.seasons.find((s) => s.season === sel?.season);
   const block = sel && season ? season[sel.kind] : null;
-  const desc = sel && season ? `${season.label} · ${sel.kind}` : "";
+  const desc = sel && season ? `${season.label} · ${sel.kind === "live" ? "logged live" : "season replay"}` : "";
+  const isHeadline = !!sel && t?.headline?.kind === sel.kind && t.headline.season === sel.season;
 
   const pickSeason = (v: string) => {
     const s = t?.seasons.find((x) => x.season === Number(v));
@@ -67,8 +69,8 @@ export function AccuracySection() {
       <Seg label="Season" value={String(sel.season)} onChange={pickSeason} options={withData.map((s) => ({ value: String(s.season), label: s.label.split(" ")[0] }))} />
       <Seg label="Record type" value={sel.kind} onChange={(k) => setPicked({ season: sel.season, kind: k })}
         options={[
-          { value: "live", label: <span className="inline-flex items-center gap-1"><Radio className="size-3" />Live</span>, disabled: !season?.live },
-          { value: "backtest", label: <span className="inline-flex items-center gap-1"><History className="size-3" />Backtest</span>, disabled: !season?.backtest },
+          { value: "live", label: <ModeTab icon={<Radio className="size-3" />} label={LEDGER_MODE.live.tab} n={season?.live?.n} />, disabled: !season?.live },
+          { value: "backtest", label: <ModeTab icon={<History className="size-3" />} label={LEDGER_MODE.backtest.tab} n={season?.backtest?.n} />, disabled: !season?.backtest },
         ]} />
     </div>
   ) : null;
@@ -76,7 +78,7 @@ export function AccuracySection() {
   const apiState = (node: (b: AccuracyBlock) => ReactNode, skeleton: ReactNode) =>
     state.error ? <ErrorState error={state.error} onRetry={state.reload} />
       : !t ? skeleton
-        : !block ? <EmptyState icon={Radio} title={withData.length ? `No ${sel?.kind ?? ""} calls scored for this season yet` : "No scored predictions yet"} description="Predictions are scored as soon as match results arrive. Live calls are logged before each match; backtests replay finished seasons." />
+        : !block ? <EmptyState icon={Radio} title={withData.length ? (sel?.kind === "live" ? "No live calls scored for this season yet" : "No replayed matches for this season yet") : "No scored predictions yet"} description="Predictions are scored as soon as match results arrive. Live calls are logged before each match; the season replay predicts each played match again using only earlier matches." />
           : node(block);
 
   return (
@@ -84,7 +86,7 @@ export function AccuracySection() {
       <SectionHead num="05" eyebrow="The scoreboard" title="How good is it, really?" />
       <Prose>
         <p>A prediction model can look brilliant on the data it learned from. So every engine setting was tuned on the <strong>2024–25</strong> season, then locked, and tested on <strong>2025–26</strong>, a season it had never seen. Every prediction was made using only matches that had already happened at that moment, exactly as it would be live.</p>
-        <p>There are two scoreboards on this page, and they're never mixed. <strong>Control Scout's own ledger</strong> scores the predictions this site made: <em>live</em> calls written down before each match, and <em>backtests</em> that replay a finished season in order. <strong>The engine's held-out test</strong> is the published result of tuning and testing the shared engine, the same numbers Control Point reports.</p>
+        <p>There are two scoreboards on this page, and they're never mixed. <strong>Control Scout's own ledger</strong> scores this site's predictions two ways, never mixed: <em>live</em> calls written down before each match, and a <em>season replay</em> (a backtest) that predicts every played match again in order, using only the matches before it. <strong>The engine's held-out test</strong> is the published result of tuning and testing the shared engine, the same numbers Control Point reports.</p>
       </Prose>
 
       {/* Control Scout's ledger */}
@@ -93,20 +95,22 @@ export function AccuracySection() {
           <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
             <div className="min-w-0">
               <p className="hiw-gold text-[11px] font-bold uppercase tracking-[0.14em]">Control Scout's ledger</p>
-              <p className="mt-0.5 font-display text-base font-semibold text-foreground sm:text-lg">Every match prediction this site made, scored{desc && <span className="ml-1.5 font-mono text-xs font-normal text-muted-foreground">· {desc}</span>}</p>
-              {sel && block && <Badge variant={sel.kind === "live" ? "success" : "secondary"} className="mt-2 w-fit">{sel.kind === "live" ? <><Radio /> Live record · called before each match</> : <><History /> Backtest · replayed with only earlier matches</>}</Badge>}
+              <p className="mt-0.5 font-display text-base font-semibold text-foreground sm:text-lg">{sel ? LEDGER_MODE[sel.kind].title : "Every scored prediction"}{season && <span className="ml-1.5 font-mono text-xs font-normal text-muted-foreground">· {season.label}</span>}</p>
+              {sel && block && <Badge variant={sel.kind === "live" ? "success" : "secondary"} className="mt-2 w-fit">{sel.kind === "live" ? <><Radio /> Logged live · called before each match</> : <><History /> Season replay · not calls made in advance</>}{isHeadline && " · the headline"}</Badge>}
             </div>
             {selectors}
           </div>
           {apiState((b) => (
             <div className="grid grid-cols-2 gap-px overflow-hidden rounded-xl border border-border bg-border lg:grid-cols-4" role="list">
-              <StatCell tone="gold" value={<CountUp value={b.accuracy * 100} decimals={1} suffix="%" />} label={`of decided matches called right (${sel?.kind === "live" ? "called before each match" : "replayed with only earlier matches"})`} />
+              <StatCell tone="gold" value={b.decided > 0 ? <CountUp value={b.accuracy * 100} decimals={1} suffix="%" /> : "—"}
+                label={b.decided > 0 ? `of ${b.decided.toLocaleString("en-US")} decided matches called right (${LEDGER_MODE[sel?.kind ?? "backtest"].detail})` : "no decided match yet: every scored call was a tie or a 50:50 call"} />
               <StatCell tone="blue" value={<CountUp value={b.brier} decimals={3} />} label={`Brier score (lower is better; a coin flip scores ${b.baselineBrier.toFixed(3)})`} />
-              <StatCell tone={b.brier < b.baselineBrier ? "good" : "bad"} value={<CountUp value={(1 - b.brier / b.baselineBrier) * 100} decimals={0} suffix="%" />} label="skill: Brier improvement over always saying 50%" />
-              <StatCell value={<CountUp value={b.n} />} label={`matches scored · ${b.upsets.toLocaleString("en-US")} upsets`} />
+              <SkillCell block={b} />
+              <StatCell value={<CountUp value={b.n} />} label={`${sel?.kind === "live" ? "live calls scored" : "matches replayed"} · ${(b.decided - b.upsets).toLocaleString("en-US")} right, ${b.upsets.toLocaleString("en-US")} missed`} />
               <p role="listitem" className="col-span-full bg-card px-4 py-2.5 font-mono text-xs text-muted-foreground">
                 Log loss {b.logLoss.toFixed(3)} (lower is better; a coin flip scores 0.693) · qualifiers {b.byLevel.qual.n ? `${pct(b.byLevel.qual.accuracy, 1)} right (${b.byLevel.qual.n.toLocaleString("en-US")})` : "none scored"} · playoffs {b.byLevel.playoff.n ? `${pct(b.byLevel.playoff.accuracy, 1)} right (${b.byLevel.playoff.n.toLocaleString("en-US")})` : "none scored"}
               </p>
+              {sel?.kind === "backtest" && season?.replay && <CoverageLine c={season.replay} />}
               {sel?.kind === "live" && (season?.liveByEngine?.length ?? 0) > 1 && (
                 // Each engine version's own pre-match calls, so a new version is never judged on an old one's record.
                 <p role="listitem" className="col-span-full bg-card px-4 py-2.5 font-mono text-xs text-muted-foreground">
@@ -115,7 +119,7 @@ export function AccuracySection() {
               )}
             </div>
           ),<div className="grid grid-cols-2 gap-3 lg:grid-cols-4" role="status" aria-label="Loading the track record">{[0, 1, 2, 3].map((i) => <Skeleton key={i} className="h-24 rounded-xl" />)}</div>)}
-          <p className="mt-3 text-sm text-muted-foreground">Live and backtest numbers are reported separately and never blended. The headline switches to live once a season has {t?.liveThreshold ?? 300} scored pre-match calls.</p>
+          <p className="mt-3 text-sm text-muted-foreground">Live calls and the season replay are reported separately and never blended.{t && ` ${headlineRule(t)}`}</p>
         </div>
       </Reveal>
 
@@ -182,6 +186,32 @@ export function AccuracySection() {
         </>
       )}
     </section>
+  );
+}
+
+function ModeTab({ icon, label, n }: { icon: ReactNode; label: string; n: number | undefined }) {
+  return <span className="inline-flex items-center gap-1">{icon}{label}{n != null && <span className="font-mono text-[11px] font-normal tabular-nums opacity-75">{n.toLocaleString("en-US")}</span>}</span>;
+}
+
+/** Brier skill: the same formula as everywhere else (src/shared/ledger.ts); no number when only ties were scored. */
+function SkillCell({ block }: { block: AccuracyBlock }) {
+  const skill = brierSkill(block);
+  return <StatCell tone={skill == null ? undefined : skill > 0 ? "good" : "bad"} value={skill == null ? "—" : <CountUp value={skill * 100} decimals={0} suffix="%" />} label="skill: Brier improvement over always saying 50%" />;
+}
+
+/** How much of the season the replay covers, and why the rest isn't in it. */
+export function CoverageLine({ c }: { c: ReplayCoverage }) {
+  const n = (x: number) => x.toLocaleString("en-US");
+  const skipped = c.scored - c.replayed;
+  return (
+    <p role="listitem" className="col-span-full bg-card px-4 py-2.5 text-xs text-muted-foreground">
+      <b className="font-semibold text-foreground">{n(c.replayed)} of {n(c.scored)} scored matches replayed.</b>
+      {skipped > 0 ? <>
+        {c.shortHanded > 0 && ` ${n(c.shortHanded)} skipped because an alliance didn't have two robots on the field (a no-show or a one-robot alliance), so there's no 2-on-2 call to replay. Live calls are logged from the schedule beforehand, so they can include these matches.`}
+        {(c.eventSkipped ?? 0) > 0 && ` ${n(c.eventSkipped)} were at remote or hybrid events, which the replay leaves out.`}
+        {c.other > 0 && ` ${n(c.other)} not replayed yet: scored since the replay was last rebuilt.`}
+      </> : " Every scored match is in the replay."}
+    </p>
   );
 }
 
