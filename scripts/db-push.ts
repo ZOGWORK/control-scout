@@ -75,25 +75,33 @@ for (const table of PUBLIC_TABLES) {
   console.log(`  ${table}: ${copied.toLocaleString()} rows`);
 }
 // Official result changes (server/data/resultChanges.ts) travel with the matches they describe. Per watched
-// event, the source's watch row and history replace the target's in one transaction (an interrupted push
-// leaves each event's timeline either as it was or fully copied), so the per-event cap and pruned stay true.
-// Ids are local and dropped; diff keys aren't (they chain on the previous change's key).
+// event, its watch row, history, matches and lineups are read in one read transaction (one snapshot of the
+// source, even if a sync is writing meanwhile) and replace the target's in one write transaction: an
+// interrupted push leaves each event either as it was or fully copied, and the target's next poll diffs
+// against exactly the state its history ends with. Ids are local and dropped; diff keys aren't (they chain
+// on the previous change's key). The per-event cap and pruned stay true on the target.
 if ((await source.execute("SELECT 1 FROM sqlite_master WHERE name = 'result_watch'")).rows.length) {
-  const changeCols = (await source.execute("PRAGMA table_info(result_changes)")).rows.map((r) => String(r.name)).filter((c) => c !== "id");
-  const watchCols = (await source.execute("PRAGMA table_info(result_watch)")).rows.map((r) => String(r.name));
-  const insert = (t: string, cols: string[]) => `INSERT INTO ${t} (${cols.join(", ")}) VALUES (${cols.map(() => "?").join(", ")})`;
+  const colsOf = async (t: string) => (await source.execute(`PRAGMA table_info(${t})`)).rows.map((r) => String(r.name));
+  const tables = { result_watch: await colsOf("result_watch"), result_changes: (await colsOf("result_changes")).filter((c) => c !== "id"), matches: await colsOf("matches"), match_teams: await colsOf("match_teams") };
+  const insert = (t: keyof typeof tables) => `INSERT INTO ${t} (${tables[t].join(", ")}) VALUES (${tables[t].map(() => "?").join(", ")})`;
+  const argsOf = (t: keyof typeof tables, r: Record<string, unknown>) => tables[t].map((c) => (r[c] ?? null) as never);
   let events = 0, rows = 0;
-  for (const w of (await source.execute(`SELECT ${watchCols.join(", ")} FROM result_watch`)).rows) {
-    const history = (await source.execute({ sql: `SELECT ${changeCols.join(", ")} FROM result_changes WHERE season = ? AND code = ? ORDER BY id`, args: [w.season, w.code] })).rows;
+  for (const w of (await source.execute("SELECT season, code FROM result_watch")).rows) {
+    const k = [w.season, w.code] as never[];
+    const read = await source.transaction("read");
+    const snap: Record<string, Record<string, unknown>[]> = {};
+    try {
+      for (const t of Object.keys(tables) as (keyof typeof tables)[]) {
+        snap[t] = (await read.execute({ sql: `SELECT ${tables[t].join(", ")} FROM ${t} WHERE season = ? AND code = ?${t === "result_changes" ? " ORDER BY id" : ""}`, args: k })).rows as never;
+      }
+    } finally { read.close(); }
     await to.batch([
-      { sql: "DELETE FROM result_changes WHERE season = ? AND code = ?", args: [w.season, w.code] },
-      { sql: "DELETE FROM result_watch WHERE season = ? AND code = ?", args: [w.season, w.code] },
-      { sql: insert("result_watch", watchCols), args: watchCols.map((c) => (w[c] ?? null) as never) },
-      ...history.map((r) => ({ sql: insert("result_changes", changeCols), args: changeCols.map((c) => (r[c] ?? null) as never) })),
+      ...(["result_changes", "result_watch", "match_teams", "matches"] as const).map((t) => ({ sql: `DELETE FROM ${t} WHERE season = ? AND code = ?`, args: k })),
+      ...(["matches", "match_teams", "result_watch", "result_changes"] as const).flatMap((t) => snap[t].map((r) => ({ sql: insert(t), args: argsOf(t, r) }))),
     ], "write");
-    events++; rows += history.length;
+    events++; rows += snap.result_changes.length;
   }
-  console.log(`  result changes: ${rows.toLocaleString()} rows for ${events.toLocaleString()} watched events`);
+  console.log(`  result changes: ${rows.toLocaleString()} rows for ${events.toLocaleString()} watched events (with their matches, from one snapshot each)`);
 }
 console.log("Rebuilding search…");
 await rebuildSearch((m) => console.log(`  ${m}`));
