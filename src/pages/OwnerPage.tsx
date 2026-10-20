@@ -141,7 +141,7 @@ function OverviewPanel({ onOpen }: { onOpen: (id: string) => void }) {
           <Section title="People and data">
             <TileGrid cols={3}>
               <StatTile tone="accent" icon={Users} label="Accounts" value={int(o.accounts.total)} hint={`${int(o.accounts.active30d)} active in the last 30 days · ${int(o.accounts.new7d)} new this week`}
-                onClick={() => onOpen("users")} ariaLabel={`Accounts: ${o.accounts.total}. Show them`} />
+                onClick={() => onOpen("users")} action="Show them" />
               <StatTile tone="violet" icon={Link2} label="Linked to Control Point" value={int(o.controlPointLinked)}
                 hint={o.accounts.total ? `${pct(o.controlPointLinked / o.accounts.total)} of accounts` : "No accounts yet"}
                 bar={o.accounts.total ? <Meter parts={[{ pc: (o.controlPointLinked / o.accounts.total) * 100, cls: "bg-violet-500" }]} /> : undefined} />
@@ -156,12 +156,12 @@ function OverviewPanel({ onOpen }: { onOpen: (id: string) => void }) {
           </Section>
           <Section title="Waiting for you">
             <TileGrid cols={o.orphanedWorkspaces != null ? 4 : 3}>
-              <StatTile tone="accent" icon={Inbox} label="Open feedback" value={int(o.inbox.openFeedback)} hint="Messages from the contact form" onClick={() => onOpen("feedback")} ariaLabel={`Open feedback: ${o.inbox.openFeedback}. Show the inbox`} />
-              <StatTile tone="amber" icon={Bug} label="Error reports" value={int(o.inbox.errorReports)} hint={o.inbox.unfiledErrors ? `${int(o.inbox.unfiledErrors)} not on GitHub yet` : "All filed on GitHub"} onClick={() => onOpen("errors")} ariaLabel={`Error reports: ${o.inbox.errorReports}. Show them`} />
+              <StatTile tone="accent" icon={Inbox} label="Open feedback" value={int(o.inbox.openFeedback)} hint="Messages from the contact form" onClick={() => onOpen("feedback")} action="Show the inbox" />
+              <StatTile tone="amber" icon={Bug} label="Error reports" value={int(o.inbox.errorReports)} hint={o.inbox.unfiledErrors ? `${int(o.inbox.unfiledErrors)} not on GitHub yet` : "All filed on GitHub"} onClick={() => onOpen("errors")} action="Show them" />
               {o.orphanedWorkspaces != null && (
                 <StatTile tone="violet" icon={Unlink} label="Orphaned spaces" value={int(o.orphanedWorkspaces)}
                   hint={o.orphanedWorkspaces ? "Read-only: deleted in Control Point, or no admin left" : "Every scout space has its workspace"}
-                  onClick={() => onOpen("orphaned")} ariaLabel={`Orphaned spaces: ${o.orphanedWorkspaces}. Show them`} />
+                  onClick={() => onOpen("orphaned")} action="Show them" />
               )}
               <StatTile tone="emerald" icon={ServerCog} label="Up for" value={uptime(o.health.uptimeSeconds)} hint={`Since ${when(o.health.startedAt)}`} />
             </TileGrid>

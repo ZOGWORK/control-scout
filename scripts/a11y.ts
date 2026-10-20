@@ -56,9 +56,10 @@ const ROUTES: Route[] = [
   { path: "/shortlist", name: "colours", storage: SCOUT, open: async (p) => { await p.getByRole("button", { name: /18360's colour/ }).first().click(); await p.getByRole("radio").first().waitFor({ timeout: 5000 }); } },
   { path: "/download" },
   { path: "/scout" },
-  { path: "/teams", ready: "tbody tr" },
+  // A past season, so the scan has rows however early the current season is (a fresh local database needs `npm run stats` first).
+  { path: "/teams?season=2025", ready: "tbody tr" },
   // Phones show a summary card per match by default (the detailed table is opt-in there); wider screens the table.
-  { path: "/matches", ready: "tbody tr", phoneReady: "[data-records-summary] > li article" },
+  { path: "/matches?season=2025", ready: "tbody tr", phoneReady: "[data-records-summary] > li article" },
   { path: "/faq" },
   { path: "/methodology" },
   { path: "/events/2025/AUBRQ2", ready: "[data-glance-card]" },
@@ -66,7 +67,8 @@ const ROUTES: Route[] = [
   { path: "/teams/18360?season=2025" },
   { path: "/events", ready: "a[href^='/events/']" },
   { path: "/events?season=2025&status=finished&q=Brisbane", ready: "a[href^='/events/2025/']" },
-  { path: "/events/2025/AUBRQ2?tab=teams", ready: "[data-glance-card]" },
+  // A deep-linked tab opens under the slim bar (the glance summary is behind Event details): wait for the roster itself.
+  { path: "/events/2025/AUBRQ2?tab=teams", ready: "[role=tabpanel] a[href^='/teams/']" },
   { path: "/compare?teams=18360,24089&season=2025", ready: ".recharts-legend-item-text" },
   // The brief open: its sentences and source links.
   { path: "/compare?teams=18360,24089&season=2025&brief=1", ready: "[data-kind]" },

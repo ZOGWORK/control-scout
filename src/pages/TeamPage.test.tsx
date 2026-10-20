@@ -22,7 +22,7 @@ const tile = (name: RegExp) => screen.getByRole("button", { name });
 describe("OprSection tiles", () => {
   it("shows no tile as selected at rest, and opening TeleOp selects only TeleOp (not Total OPR)", () => {
     render(<MemoryRouter><OprSection p={profile} /></MemoryRouter>);
-    const total = tile(/^Total OPR:/), teleop = tile(/^TeleOp:/);
+    const total = tile(/^Total OPR/), teleop = tile(/^TeleOp/);
     for (const b of screen.getAllByRole("button", { expanded: false })) expect(b.hasAttribute("data-selected")).toBe(false);
     expect(total.className).not.toContain("ring-2");
 
@@ -37,5 +37,14 @@ describe("OprSection tiles", () => {
 
     fireEvent.click(teleop); // closes again: nothing selected
     expect(document.querySelectorAll("[data-selected]")).toHaveLength(0);
+  });
+
+  it("names each tile from everything it shows, then what pressing does (label in name, WCAG 2.5.3)", () => {
+    render(<MemoryRouter><OprSection p={profile} /></MemoryRouter>);
+    const auto = tile(/^Autonomous/);
+    // No aria-label override: the visible rank line is part of the name, the action follows it.
+    expect(auto.hasAttribute("aria-label")).toBe(false);
+    // The computed accessible name (not textContent): hiding the rank or the action from assistive tech would fail this.
+    expect(tile(/^Autonomous.*28\.3.*Rank #883 of 8,000.*Show event by event$/)).toBe(auto);
   });
 });
