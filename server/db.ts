@@ -960,6 +960,44 @@ ALTER TABLE workspace_entry_comments ADD COLUMN client_op_id TEXT;
 CREATE UNIQUE INDEX workspace_entry_comments_op ON workspace_entry_comments (workspace_id, author_account_id, entry_uuid, client_op_id) WHERE client_op_id IS NOT NULL;
 `,
   },
+  {
+    version: 30,
+    name: "official result changes",
+    sql: `
+-- What changed in an event's official results, as the sync saw it (server/data/resultChanges.ts):
+-- a result first posted, a posted score revised (real before and after values), or a scheduled
+-- match moved (time, field, lineup). Written in the same transaction as the event's rows, only
+-- when a stored value really changed, so a repeated poll of the same data adds nothing. Public
+-- FTC data only: never scouting, never accounts.
+CREATE TABLE result_changes (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  season INTEGER NOT NULL, code TEXT NOT NULL,
+  level TEXT NOT NULL, series INTEGER NOT NULL, number INTEGER NOT NULL,
+  label TEXT NOT NULL,
+  kind TEXT NOT NULL,          -- posted | revised | schedule
+  fields TEXT NOT NULL,        -- JSON: the values that changed, e.g. ["red.total","red.pen"]
+  before TEXT,                 -- JSON snapshot before (null when first posted)
+  after TEXT,                  -- JSON snapshot after (null when a result was withdrawn)
+  source TEXT NOT NULL,        -- the feed that delivered the new value: first | ftc-scout
+  prev_source TEXT,            -- the feed the stored value came from
+  checked_at TEXT NOT NULL,    -- when the sync saw it (not when FIRST changed it)
+  diff_key TEXT NOT NULL UNIQUE -- match + kind + previous change + new value: a replay can't add a second row
+);
+CREATE INDEX result_changes_event ON result_changes (season, code, id);
+CREATE INDEX result_changes_match ON result_changes (season, code, level, series, number, id);
+-- Events whose results are being watched, and since when: the first detail write after this
+-- migration is the baseline (nothing before it was tracked). pruned: rows dropped by the
+-- per-event retention cap.
+CREATE TABLE result_watch (
+  season INTEGER NOT NULL, code TEXT NOT NULL,
+  since TEXT NOT NULL,
+  pruned INTEGER NOT NULL DEFAULT 0,
+  PRIMARY KEY (season, code)
+);
+-- FIRST's scheduled field ("1", "2"…), so a field move can be told apart. Null = not reported.
+ALTER TABLE matches ADD COLUMN field TEXT;
+`,
+  },
 ];
 
 export type Db = Client;

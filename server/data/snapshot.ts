@@ -41,6 +41,8 @@ export const PUBLIC_TABLES = [
   // Automatically published power rankings: public pages built from public data (blurbs, ranks, ratings);
   // edited_by is a role, never an email (who edited is in owner_audit, which is private).
   "power_rankings_generated",
+  // Official result changes the sync saw (first postings, score revisions, schedule moves): public match data.
+  "result_changes", "result_watch",
 ];
 
 /** True only when replacing the file can't lose anything: it's missing or zero
