@@ -5,7 +5,8 @@
 // privacy banner or a page's sticky action bar, which all live at the bottom.
 // Esc inside it dismisses.
 import { Component, useEffect, useRef, useState, type ReactNode } from "react";
-import { AnimatePresence, m } from "motion/react";
+import { AnimatePresence } from "motion/react";
+import { m } from "../motion";
 import { Bug, Check, X } from "lucide-react";
 import { Button } from "../ui/button";
 import { clearPrompt, disableReporting, sendReport, usePendingReport, type SendResult } from "../../lib/errorReporting";

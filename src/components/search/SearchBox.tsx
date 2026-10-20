@@ -3,7 +3,7 @@
 // and matches — navigation lives in the nav.
 import { useEffect, useId, useMemo, useRef, useState, type ReactNode, type Ref } from "react";
 import { CalendarDays, ChevronDown, Loader2, MapPin, Search, Swords, Users, X } from "lucide-react";
-import { m } from "motion/react";
+import { m } from "../motion";
 import { apiFetch } from "../../lib/api";
 import { usePersonal } from "../../lib/personal";
 import { useMeta } from "../../lib/meta";

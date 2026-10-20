@@ -2,7 +2,8 @@
 
 import { useEffect, useEffectEvent, useId, useRef, useState } from "react";
 import type { ButtonHTMLAttributes, KeyboardEvent as ReactKeyboardEvent, PointerEvent as ReactPointerEvent, ReactNode } from "react";
-import { AnimatePresence, animate, m, useMotionValue, useReducedMotion, useTransform } from "motion/react";
+import { AnimatePresence, animate, useMotionValue, useReducedMotion, useTransform } from "motion/react";
+import { m } from "../../motion";
 import type { AnimationPlaybackControls, MotionValue, TargetAndTransition } from "motion/react";
 import { Trash2 } from "lucide-react";
 import { motionTokens } from "../lib/motion-tokens";

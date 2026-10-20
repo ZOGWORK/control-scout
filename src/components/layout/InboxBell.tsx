@@ -5,7 +5,8 @@
 // Each item also has two toggles, synced to the account: Mark unread (back in the badge) and Follow up (a flag
 // for work still to do, separate from read), and the Follow up filter lists the flagged ones.
 import { useEffect, useId, useRef, useState, type ComponentType } from "react";
-import { AnimatePresence, m } from "motion/react";
+import { AnimatePresence } from "motion/react";
+import { m } from "../motion";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { Bell, CheckCheck, ClipboardCheck, Flag, HardDrive, LayoutList, ListOrdered, Loader2, Mail, MailOpen, MessageSquare, PencilLine, Settings, Users } from "lucide-react";
 import { usePersonal } from "../../lib/personal";

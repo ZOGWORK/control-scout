@@ -12,7 +12,8 @@
 // inside it means "No thanks".
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
-import { AnimatePresence, m } from "motion/react";
+import { AnimatePresence } from "motion/react";
+import { m } from "../motion";
 import { ShieldCheck } from "lucide-react";
 import { Button } from "../ui/button";
 import { useConsent } from "../../lib/consent";
