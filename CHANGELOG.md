@@ -19,7 +19,7 @@ Control Scout comes to your team's Discord server.
 - [teams] /team, /event and /rankings answer right in the chat
 
 ### Discord
-- **The Control Scout bot.** Add it to your team's server and anyone there can ask `/team` (record, OPR, world ranking, next event), `/predict` (win odds as bars, predicted score and confidence for a qualification match; once it's played, the final score, what was predicted and whether the call was right), `/event` (status, progress, top 5 by OPR, the winning alliance) and `/rankings` (the world top 10 with movement). Every answer links back to the page it came from, and the numbers are the site's own. Event names and codes autocomplete. The invite link goes in the FAQ and footer once the bot is live.
+- **The Control Scout bot.** Add it to your team's server and anyone there can ask `/team` (record, OPR, world ranking, next event), `/predict` (win odds as bars, predicted score and confidence for a qualification match; once it's played, the final score, what was predicted and whether the call was right), `/event` (status, progress, top 5 by OPR, the winning alliance) and `/rankings` (the world top 10 with movement). Every answer links back to the page it came from, and the numbers are the site's own. Event names and codes autocomplete. The invite link goes in the FAQ and footer once the bot is live. (#216)
 
 ## 1.7.0 — 2026-10-18
 
