@@ -65,7 +65,7 @@ function Entry({ e, comparedWith, onLink, tagTemplate }: { e: PowerRankingsEntry
   return (
     <li className="flex gap-3 rounded-2xl border border-line bg-elevated/60 p-4 sm:gap-5 sm:p-5">
       <div className="flex w-9 shrink-0 flex-col items-center gap-1 pt-0.5 sm:w-11">
-        <span className={cn("font-display text-2xl font-semibold leading-none tabular-nums sm:text-[28px]", e.rank <= 3 ? "text-accent-text" : "text-foreground")}>{e.rank}</span>
+        <span className={cn("font-display text-2xl font-semibold leading-none tabular-nums sm:text-[1.75rem]", e.rank <= 3 ? "text-accent-text" : "text-foreground")}>{e.rank}</span>
         <MovementBadge m={e.movement} comparedWith={comparedWith} />
       </div>
       <div className="min-w-0 flex-1">
@@ -141,7 +141,7 @@ function Week({ w, archive, onLink }: { w: PowerRankingsWeek; archive: PowerRank
           <span>{generatedNote(w.generated)}</span>
         </p>
       )}
-      <div className={cn("mb-8 max-w-3xl text-[15px] leading-relaxed text-text-base/90", PROSE)} onClick={onLink} dangerouslySetInnerHTML={{ __html: w.introHtml }} />
+      <div className={cn("mb-8 max-w-3xl text-[0.9375rem] leading-relaxed text-text-base/90", PROSE)} onClick={onLink} dangerouslySetInnerHTML={{ __html: w.introHtml }} />
       <ol className="mb-6 grid gap-3" aria-label={`${w.title}: the top ${w.entries.length}`}>
         {w.entries.map((e) => <Entry key={e.team} e={e} comparedWith={w.comparedWith} onLink={onLink} tagTemplate={!!w.generated && w.generated.bruno > 0} />)}
       </ol>

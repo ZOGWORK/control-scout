@@ -38,7 +38,7 @@ export function Pipeline() {
             )}
           >
             <span className="hiw-gold font-display text-3xl font-bold leading-none">{i + 1}</span>
-            <b className="font-display text-[15px] font-semibold text-foreground">{s.title}</b>
+            <b className="font-display text-[0.9375rem] font-semibold text-foreground">{s.title}</b>
             <span className="text-sm leading-snug text-muted-foreground">{s.body}</span>
             <span className="mt-1 border-t border-dashed border-border pt-2 font-mono text-[11.5px] text-foreground">{s.out}</span>
           </button>
@@ -46,7 +46,7 @@ export function Pipeline() {
       </div>
       <div id="hiw-pipe-detail" className="hiw-expand mt-3" data-open={open >= 0 ? "" : undefined} aria-live="polite">
         <div>
-          {open >= 0 && <p className="border-t border-border pt-3 text-[15px] leading-relaxed text-foreground/85 [&_b]:font-display [&_b]:text-foreground">{STAGES[open].detail}</p>}
+          {open >= 0 && <p className="border-t border-border pt-3 text-[0.9375rem] leading-relaxed text-foreground/85 [&_b]:font-display [&_b]:text-foreground">{STAGES[open].detail}</p>}
         </div>
       </div>
     </Figure>

@@ -77,7 +77,7 @@ export function Playground() {
           </div>
           <div className="flex flex-wrap items-baseline gap-2.5" aria-live="polite">
             <span className={cn("font-display text-5xl font-bold leading-none tabular-nums transition-colors", p >= 0.5 ? "text-red-alliance" : "text-blue-alliance")}>{p >= 0.5 ? pc : 100 - pc}%</span>
-            <span className="font-display text-[15px] font-semibold text-muted-foreground">chance {p >= 0.5 ? "red" : "blue"} wins</span>
+            <span className="font-display text-[0.9375rem] font-semibold text-muted-foreground">chance {p >= 0.5 ? "red" : "blue"} wins</span>
           </div>
           <Note>σ red {target.sR.toFixed(1)} · σ blue {target.sB.toFixed(1)} · calibrated</Note>
         </div>
