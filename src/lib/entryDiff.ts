@@ -12,11 +12,19 @@ export interface EntryText {
   data: Record<string, ScoutValue>; notes: string; deleted?: boolean;
 }
 
-export interface DiffRow { key: string; label: string; before: string; after: string }
+/**
+ * `beforeEmpty` / `afterEmpty`: that side has nothing (shown as NONE). Set only when true, and kept apart from the
+ * text so a value someone actually saved as "—" is never mistaken for an empty one.
+ */
+export interface DiffRow { key: string; label: string; before: string; after: string; beforeEmpty?: true; afterEmpty?: true }
 
 export const NONE = "—";
 
 /** One answer as the form shows it. */
+/** True when formatAnswer would show NONE because there's no answer (not because the answer is a literal "—"). */
+const noAnswer = (v: ScoutValue | undefined, f?: Pick<ScoutField, "type">) =>
+  f?.type !== "toggle" && !(f?.type === "counter" && v === undefined) && (v === undefined || v === null || v === "");
+
 export function formatAnswer(v: ScoutValue | undefined, f?: Pick<ScoutField, "type" | "min" | "max">): string {
   if (f?.type === "toggle") return v === true ? "Yes" : "No";
   if (f?.type === "counter" && v === undefined) return String(f.min ?? 0);
@@ -27,7 +35,8 @@ export function formatAnswer(v: ScoutValue | undefined, f?: Pick<ScoutField, "ty
   return String(v);
 }
 
-const text = (v: string | null | undefined) => (v && v.trim() ? v : NONE);
+const blank = (v: string | null | undefined) => !(v && v.trim());
+const text = (v: string | null | undefined) => (blank(v) ? NONE : v!);
 
 /**
  * Rows for every part that differs, `before` → `after`: whether it's deleted, team, kind, event, match,
@@ -38,12 +47,14 @@ const text = (v: string | null | undefined) => (v && v.trim() ? v : NONE);
  */
 export function entryDiff(before: EntryText, after: EntryText, beforeFields: ScoutField[], afterFields: ScoutField[] = beforeFields): DiffRow[] {
   const rows: DiffRow[] = [];
-  const add = (key: string, label: string, b: string, a: string) => { if (b !== a) rows.push({ key, label, before: b, after: a }); };
+  const add = (key: string, label: string, b: string, a: string, bEmpty = false, aEmpty = false) => {
+    if (b !== a || bEmpty !== aEmpty) rows.push({ key, label, before: b, after: a, ...(bEmpty && { beforeEmpty: true as const }), ...(aEmpty && { afterEmpty: true as const }) });
+  };
   add("deleted", "Status", before.deleted ? "Deleted" : "Live", after.deleted ? "Deleted" : "Live");
   add("team", "Team", String(before.team), String(after.team));
   add("kind", "Type", before.kind === "pit" ? "Pit" : "Match", after.kind === "pit" ? "Pit" : "Match");
-  add("event", "Event", text(before.eventCode), text(after.eventCode));
-  add("match", "Match", text(before.matchLabel), text(after.matchLabel));
+  add("event", "Event", text(before.eventCode), text(after.eventCode), blank(before.eventCode), blank(after.eventCode));
+  add("match", "Match", text(before.matchLabel), text(after.matchLabel), blank(before.matchLabel), blank(after.matchLabel));
   const oldDefs = new Map(beforeFields.map((f) => [f.id, f])), newDefs = new Map(afterFields.map((f) => [f.id, f]));
   const known = [...new Set([...newDefs.keys(), ...oldDefs.keys()])];
   const answered = new Set([...Object.keys(before.data ?? {}), ...Object.keys(after.data ?? {})]);
@@ -53,14 +64,15 @@ export function entryDiff(before: EntryText, after: EntryText, beforeFields: Sco
   for (const id of ids) {
     const fb = oldDefs.get(id) ?? newDefs.get(id), fa = newDefs.get(id) ?? oldDefs.get(id);
     // A field neither version answered (and the form shows the same for both) isn't a difference.
-    add(`f:${id}`, fa?.label ?? id, formatAnswer(bData[id], fb), formatAnswer(aData[id], fa));
+    add(`f:${id}`, fa?.label ?? id, formatAnswer(bData[id], fb), formatAnswer(aData[id], fa), noAnswer(bData[id], fb), noAnswer(aData[id], fa));
   }
-  add("notes", "Notes", text(before.deleted ? "" : before.notes), text(after.deleted ? "" : after.notes));
+  const bNotes = before.deleted ? "" : before.notes, aNotes = after.deleted ? "" : after.notes;
+  add("notes", "Notes", text(bNotes), text(aNotes), blank(bNotes), blank(aNotes));
   return rows;
 }
 
 /** Every answered part of one version (the oldest kept version has nothing before it to compare with). */
 export function entrySummary(v: EntryText, fields: ScoutField[]): DiffRow[] {
-  const blank: EntryText = { team: v.team, eventCode: v.eventCode, matchLabel: v.matchLabel, kind: v.kind, data: {}, notes: "", deleted: v.deleted };
-  return entryDiff(blank, v, fields).filter((r) => r.after !== NONE);
+  const empty: EntryText = { team: v.team, eventCode: v.eventCode, matchLabel: v.matchLabel, kind: v.kind, data: {}, notes: "", deleted: v.deleted };
+  return entryDiff(empty, v, fields).filter((r) => !r.afterEmpty);
 }

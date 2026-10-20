@@ -962,6 +962,22 @@ CREATE UNIQUE INDEX workspace_entry_comments_op ON workspace_entry_comments (wor
   },
   {
     version: 30,
+    name: "team directory search",
+    sql: `
+-- Words of every team's name, city and state for the directory's ?q= search (server/api/directory.ts):
+-- case- and accent-folded by the tokenizer, prefix-indexed, rowid = team number. Kept in step with
+-- teams by triggers, so every writer (sync, bundles, tests) is covered. The update trigger fires only
+-- when a searched field changes: the sync's upserts rewrite every team without touching most of them.
+-- Trigger bodies stay on one line: migrations are split into statements at a semicolon ending a line.
+CREATE VIRTUAL TABLE team_search USING fts5(name, city, state, tokenize = 'unicode61 remove_diacritics 2', prefix = '1 2');
+INSERT INTO team_search (rowid, name, city, state) SELECT number, name, city, state FROM teams;
+CREATE TRIGGER team_search_ai AFTER INSERT ON teams BEGIN DELETE FROM team_search WHERE rowid = new.number; INSERT INTO team_search (rowid, name, city, state) VALUES (new.number, new.name, new.city, new.state); END;
+CREATE TRIGGER team_search_au AFTER UPDATE OF number, name, city, state ON teams WHEN old.number IS NOT new.number OR old.name IS NOT new.name OR old.city IS NOT new.city OR old.state IS NOT new.state BEGIN DELETE FROM team_search WHERE rowid = old.number; INSERT INTO team_search (rowid, name, city, state) VALUES (new.number, new.name, new.city, new.state); END;
+CREATE TRIGGER team_search_ad AFTER DELETE ON teams BEGIN DELETE FROM team_search WHERE rowid = old.number; END;
+`,
+  },
+  {
+    version: 31,
     name: "pick list op ids",
     sql: `
 -- The device's id for one pick list change (server/scout/picklist.ts): a change kept on the device and sent

@@ -8,6 +8,26 @@ export const DIRECTORY_SORTS = ["team", "name", "rookie", "location", "results"]
 export type DirectorySort = (typeof DIRECTORY_SORTS)[number];
 export const DIRECTORY_PAGE_SIZE = 50;
 export const DIRECTORY_MAX_PAGE_SIZE = 100;
+/** The longest ?q= the directory takes, and the most words in one. */
+export const DIRECTORY_QUERY_MAX = 64;
+export const DIRECTORY_QUERY_MAX_WORDS = 6;
+
+/** A search's words, split at anything that isn't a letter, digit or accent mark (as the server's index
+ *  splits names), so "  Équipe-Robo! " is ["Équipe", "Robo"]. Composed (NFC) like stored names, but not
+ *  folded here: the index's own tokenizer folds case and accents on both sides, so every script matches
+ *  as stored (a decomposing fold would split Korean syllables into letters the index never holds).
+ *  Only letters, digits and marks survive, so a word can never carry SQL or full-text syntax. */
+export function directorySearchWords(q: string): string[] {
+  return q.normalize("NFC").split(/[^\p{L}\p{N}\p{M}]+/u).filter((w) => /[\p{L}\p{N}]/u.test(w));
+}
+
+/** Why a ?q= can't be searched (null when it can): too long, a control character, or too many words. */
+export function directorySearchProblem(q: string): string | null {
+  if (q.length > DIRECTORY_QUERY_MAX) return `Search is limited to ${DIRECTORY_QUERY_MAX} characters`;
+  if (/\p{Cc}/u.test(q)) return "Search can't contain control characters";
+  if (directorySearchWords(q).length > DIRECTORY_QUERY_MAX_WORDS) return `Search is limited to ${DIRECTORY_QUERY_MAX_WORDS} words`;
+  return null;
+}
 
 export interface DirectoryTeam {
   team: number;
@@ -30,6 +50,12 @@ export interface DirectoryPage {
   total: number;
   /** Of those, teams with results: the same count as the atlas's withResults. */
   withResults: number;
+  /** The search these rows answer (trimmed), or null for no search. Matches a team's number (exact or
+   *  starting with a number typed) or words of its name, city and state; always inside the season and country. */
+  q?: string | null;
+  /** Teams in the season and country that match q: what the rows and pages are counted from (total without q).
+   *  Optional so an answer from before search existed still draws (as matched = total). */
+  matched?: number;
   /** Registered teams whose reported country can't be placed (blank, "Independent", unknown labels); season-wide. */
   unplaced: number;
   page: number;
@@ -49,7 +75,9 @@ export function isDirectoryPage(x: unknown): x is DirectoryPage {
   const d = x as DirectoryPage;
   return !!d && typeof d === "object"
     && isInt(d.season) && isNullableString(d.country)
-    && isInt(d.total) && isInt(d.withResults) && isInt(d.unplaced) && isInt(d.page) && isInt(d.pageSize) && d.pageSize > 0
+    && isInt(d.total) && isInt(d.withResults)
+    && (d.q === undefined || isNullableString(d.q)) && (d.matched === undefined || isInt(d.matched))
+    && isInt(d.unplaced) && isInt(d.page) && isInt(d.pageSize) && d.pageSize > 0
     && (DIRECTORY_SORTS as readonly string[]).includes(d.sort) && (d.dir === "asc" || d.dir === "desc")
     && !!d.readiness && typeof d.readiness === "object" && typeof d.readiness.state === "string"
     && Array.isArray(d.rows) && d.rows.every((r) => !!r && typeof r === "object" && isInt(r.team) && typeof r.hasResults === "boolean");

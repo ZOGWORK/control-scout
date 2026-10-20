@@ -114,6 +114,6 @@ team again any other way starts it afresh.
 
 Migration 20 adds `workspace_picklist` (one row per team: rank, who added it and when, the
 note and who last wrote it and when, and `removed_at` while it's off the list) and `workspace_picklist_versions` (the version per
-workspace and season). Migration 30 adds `workspace_picklist_ops` (one row per accepted change
+workspace and season). Migration 31 adds `workspace_picklist_ops` (one row per accepted change
 that carried an op id: workspace, author, op id, season, time). All three are private tables and
 never ship in the public snapshot.
