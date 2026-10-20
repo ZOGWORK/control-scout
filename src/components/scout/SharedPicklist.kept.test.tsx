@@ -13,6 +13,7 @@ import type { ShortlistTeam } from "../../shared/api";
 import { resetFailedChanges, retryFailedChange, setPicklistAccount, useFailedChanges } from "../../lib/sharedPicklist";
 import { keptOps, putKeptOp, resetKeptOps, type KeptPickOp } from "../../lib/picklistOps";
 import { SharedPicklist } from "./SharedPicklist";
+import { RecoverableChanges } from "./RecoverableChanges";
 
 const S = 2025;
 const team = (n: number): ShortlistTeam => ({
@@ -234,6 +235,18 @@ describe("a pick list order change kept through a reload", () => {
     await waitFor(() => expect(screen.getAllByText(/read-only now, so nothing is sent/).length).toBeGreaterThan(0));
     expect(posts).toEqual([]);
     expect(await keptOps(1)).toHaveLength(1);
+  });
+});
+
+describe("kept pick list changes elsewhere on the page", () => {
+  it("the recoverable view lists them while the list is closed, and leaves them to the list's own notice while it's open", async () => {
+    await putKeptOp(kept());
+    const view = render(<MemoryRouter><RecoverableChanges account={1} workspaces={[{ id: "901", name: "Gearheads" }]} /></MemoryRouter>);
+    await waitFor(() => expect(within(view.container).getByText("Move 103 in the pick list")).toBeTruthy());
+    show();
+    await waitFor(() => expect(notice()).toBeTruthy());
+    await waitFor(() => expect(within(view.container).queryByText("Move 103 in the pick list")).toBeNull());
+    expect(within(notice()!).getByText("Move 103 in the pick list")).toBeTruthy();
   });
 });
 
