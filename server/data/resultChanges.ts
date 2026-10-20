@@ -196,13 +196,15 @@ async function writeOnce(b: EventBundle, at: string): Promise<{ changes: number 
   const { season, code, source } = b.event;
   const matches = b.detail!.matches;
   const k = [season, code];
+  // The guard's token first: everything read after it (the watch row, its remembered matches, the stored
+  // matches) is covered, since every detail write moves it in the same transaction as those rows.
+  const token = (await get<{ t: string | null }>("SELECT detail_synced_at t FROM events WHERE season = ? AND code = ?", k))?.t ?? null;
   const watch = await get<{ since: string; missing: string }>("SELECT since, missing FROM result_watch WHERE season = ? AND code = ?", k);
   if (!watch) {
     // Baseline: this write is the first one watched; nothing before it is known.
     await writeBatch([...bundleStatements(b), { sql: "INSERT OR IGNORE INTO result_watch (season, code, since) VALUES (?, ?, ?)", args: [...k, at] }]);
     return { changes: 0 };
   }
-  const token = (await get<{ t: string | null }>("SELECT detail_synced_at t FROM events WHERE season = ? AND code = ?", k))?.t ?? null;
   const stored = await readStored(season, code);
   // Matches an earlier write left out still count as stored: one that comes back is compared with what it was.
   let missing: Record<string, StoredMatch> = {};

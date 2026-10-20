@@ -186,6 +186,23 @@ describe("recording changes", () => {
     expect(await all("SELECT code FROM result_watch")).toEqual([{ code: "EV" }]);
   });
 
+  it("covers the remembered matches with the guard too (read after its token)", async () => {
+    await writeEventBundle(bundle([m(1, { r: 100, b: 90 }), m(2, { r: 60, b: 50 })]));
+    // Another writer (a fallback feed listing Q1 only) commits after this write has read everything.
+    let once = true;
+    resultChangesIo.afterRead = async () => {
+      if (!once) return;
+      once = false;
+      await new Promise((r) => setTimeout(r, 5));
+      await writeEventBundle(bundle([m(1, { r: 100, b: 90 })], "ftc-scout"));
+    };
+    try { await writeEventBundle(bundle([m(1, { r: 100, b: 90 }), m(2, { r: 60, b: 50 })])); }
+    finally { resultChangesIo.afterRead = async () => {}; }
+    // Retried against the new state: Q2 comes back unchanged, so nothing is "posted" again.
+    expect(await changes()).toEqual([]);
+    expect(await all("SELECT number FROM matches WHERE code = 'EV' ORDER BY number")).toEqual([{ number: 1 }, { number: 2 }]);
+  });
+
   it("gives up after its retries rather than saving a bundle without its changes", async () => {
     await writeEventBundle(bundle([m(1, { r: 100, b: 90 })]));
     let n = 0;
