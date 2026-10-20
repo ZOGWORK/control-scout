@@ -6,6 +6,10 @@
 //   npm run a11y -- --only /predict    # routes containing "/predict" (a state too: --only "[scout]")
 //   npm run a11y -- --json C:/tmp/a11y.json   # also write every violation (outside the repo)
 //   npm run a11y -- --best-practice           # also axe's best-practice rules (heading order, landmarks)
+//   npm run a11y -- --rules color-contrast    # only these axe rules (comma-separated)
+//
+// Chart legends get a contrast check of their own (legend-contrast below): axe skips text it can't place
+// over a single background, and Recharts writes each legend label in its series' colour.
 //
 // Reuses the API + Vite servers on the tool ports (scripts/lib/servers.ts) or
 // starts them (AUDIT_WEB_PORT / AUDIT_API_PORT move them when taken).
@@ -14,6 +18,7 @@ import { AxeBuilder } from "@axe-core/playwright";
 import { writeFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { WEB_PORT, ensureServers, stopServers } from "./lib/servers.js";
+import { contrast, over, parseColor, toHex } from "../src/lib/contrast.js";
 
 const args = process.argv.slice(2);
 const opt = (f: string) => { const i = args.indexOf(`--${f}`); return i >= 0 ? args[i + 1] : undefined; };
@@ -22,7 +27,11 @@ const only = opt("only")?.replace(/\\/g, "/").replace(/^[A-Za-z]:\/.*?\/Git(?=\/
 const BASE = `http://localhost:${WEB_PORT}`;
 
 /** A page, optionally in a state reached by `open` (a dialog, a sheet). */
-type Route = { path: string; name?: string; /** Must be visible for the scan to count (beyond the default checks). */ ready?: string; storage?: Record<string, unknown>; open?: (page: Page) => Promise<void> };
+type Route = {
+  path: string; name?: string;
+  /** Must be visible for the scan to count (beyond the default checks). `phoneReady` replaces it at phone size, for pages laid out differently there. */
+  ready?: string; phoneReady?: string;
+  storage?: Record<string, unknown>; open?: (page: Page) => Promise<void> };
 /** A returning scout: a team of their own, tracked teams and a coloured shortlist (personal keys, as synced). */
 const SCOUT: Record<string, unknown> = {
   "cs-personal:myTeam": { value: 18360, updatedAt: 1 },
@@ -48,14 +57,24 @@ const ROUTES: Route[] = [
   { path: "/download" },
   { path: "/scout" },
   { path: "/teams", ready: "tbody tr" },
-  { path: "/matches", ready: "tbody tr" },
+  // Phones show a summary card per match by default (the detailed table is opt-in there); wider screens the table.
+  { path: "/matches", ready: "tbody tr", phoneReady: "[data-records-summary] > li article" },
   { path: "/faq" },
   { path: "/methodology" },
   { path: "/events/2025/AUBRQ2", ready: "[data-glance-card]" },
+  // The pages behind the V3 contrast finding: profile hero, event cards and filter chips, roster record chips, Compare's legend.
+  { path: "/teams/18360?season=2025" },
+  { path: "/events", ready: "a[href^='/events/']" },
+  { path: "/events?season=2025&status=finished&q=Brisbane", ready: "a[href^='/events/2025/']" },
+  { path: "/events/2025/AUBRQ2?tab=teams", ready: "[data-glance-card]" },
+  { path: "/compare?teams=18360,24089&season=2025", ready: ".recharts-legend-item-text" },
+  { path: "/rankings", ready: "tbody tr" },
+  { path: "/power-rankings" },
 ];
 const VIEWPORTS = { desktop: { width: 1440, height: 1000 }, phone: { width: 390, height: 844 } } as const;
 const SCHEMES = ["dark", "light"] as const;
 // --best-practice adds axe's best-practice rules (heading order, landmarks, regions): advice, not WCAG failures.
+const RULES = opt("rules")?.split(",").map((r) => r.trim()).filter(Boolean);
 const TAGS = ["wcag2a", "wcag2aa", "wcag21a", "wcag21aa", "wcag22aa", ...(args.includes("--best-practice") ? ["best-practice"] : [])];
 
 type Violation = { id: string; impact: string | null; help: string; nodes: { target: string; summary: string }[] };
@@ -85,22 +104,45 @@ async function sweep(browser: Browser, r: Route, vp: keyof typeof VIEWPORTS, sch
       if (/off the field|not found/i.test(h1)) return `not-found page ("${h1}")`;
       if (/couldn.t load|something went wrong/i.test(document.querySelector("main")?.textContent ?? "")) return "an error state on the page";
       return null;
-    }) ?? (r.ready && !(await page.locator(r.ready).first().isVisible()) ? `${r.ready} never appeared` : null);
+    }) ?? await (async () => {
+      const ready = vp === "phone" ? r.phoneReady ?? r.ready : r.ready;
+      return ready && !(await page.locator(ready).first().isVisible()) ? `${ready} never appeared` : null;
+    })();
   if (r.open) await r.open(page);
   // A page that settles its URL after loading (a redirect, a ?param written back) can navigate mid-scan: scan again.
   let res;
   for (let tries = 0; ; tries++) {
-    try { res = await new AxeBuilder({ page }).withTags(TAGS).analyze(); break; } catch (e) {
+    try { const axe = new AxeBuilder({ page }); res = await (RULES ? axe.withRules(RULES) : axe.withTags(TAGS)).analyze(); break; } catch (e) {
       if (tries >= 2 || !/context was destroyed|navigation/i.test(String(e))) throw e;
       await page.waitForLoadState("networkidle", { timeout: 10_000 }).catch(() => {});
       await page.waitForTimeout(1000);
     }
   }
+  const legend = !RULES || RULES.includes("color-contrast") ? await legendContrast(page) : [];
   await ctx.close();
-  return {
-    route: r.path + (r.name ? ` [${r.name}]` : ""), viewport: vp, scheme, incomplete,
-    violations: res.violations.map((v) => ({ id: v.id, impact: v.impact ?? null, help: v.help, nodes: v.nodes.map((n) => ({ target: n.target.join(" "), summary: (n.failureSummary ?? "").split("\n").slice(1, 2).join(" ").trim() })) })),
-  };
+  const violations: Violation[] = res.violations.map((v) => ({ id: v.id, impact: v.impact ?? null, help: v.help, nodes: v.nodes.map((n) => ({ target: n.target.join(" "), summary: (n.failureSummary ?? "").split("\n").slice(1, 2).join(" ").trim() })) }));
+  if (legend.length) violations.push({ id: "legend-contrast", impact: "serious", help: "Chart legend text must reach 4.5:1 against the card", nodes: legend });
+  return { route: r.path + (r.name ? ` [${r.name}]` : ""), viewport: vp, scheme, incomplete, violations };
+}
+
+/** Recharts legend labels under 4.5:1: the text's computed colour against the first opaque background behind it. */
+async function legendContrast(page: Page): Promise<Violation["nodes"]> {
+  const pairs = await page.evaluate(() => [...document.querySelectorAll<HTMLElement>(".recharts-legend-item-text")].map((el) => {
+    let bg = "rgb(255, 255, 255)";
+    for (let n: HTMLElement | null = el; n; n = n.parentElement) {
+      const c = getComputedStyle(n).backgroundColor;
+      if (c && c !== "transparent" && !/rgba\(.*,\s*0\)$/.test(c)) { bg = c; break; }
+    }
+    return { text: el.textContent ?? "", fg: getComputedStyle(el).color, bg };
+  }));
+  const out: Violation["nodes"] = [];
+  for (const p of pairs) {
+    const fg = parseColor(p.fg), bg = parseColor(p.bg);
+    if (!fg || !bg) continue;
+    const ratio = contrast(over(fg, bg), bg);
+    if (ratio < 4.5) out.push({ target: `.recharts-legend-item-text "${p.text}"`, summary: `${ratio.toFixed(2)}:1 (foreground ${toHex(fg)}, background ${toHex(bg)})` });
+  }
+  return out;
 }
 
 try {
