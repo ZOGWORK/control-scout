@@ -372,6 +372,11 @@ export async function pageMeta(path: string, query: Record<string, unknown> = {}
       const key = normalMatchKey(m[3]);
       return (key && (await matchReportMeta(Number(m[1]), m[2].toUpperCase(), key))) || NOT_FOUND;
     }
+    // The pit display: the event must exist. Not indexed (the event page is the one to find).
+    if ((m = p.match(/^\/events\/(\d+)\/([A-Za-z0-9_-]{1,40})\/display$/i))) {
+      const ev = await eventMeta(Number(m[1]), m[2].toUpperCase());
+      return ev ? { ...ev, title: `Pit display: ${ev.title}`, path: `/events/${Number(m[1])}/${m[2].toUpperCase()}/display`, noindex: true, jsonLd: undefined, bodyHtml: undefined } : NOT_FOUND;
+    }
     if (/^\/rankings$/i.test(p)) return await rankingsMeta(query);
     if ((m = p.match(/^\/power-rankings(?:\/([^/]+))?$/i))) return await powerRankingsMeta(m[1] ?? null);
   } catch {
@@ -379,7 +384,7 @@ export async function pageMeta(path: string, query: Record<string, unknown> = {}
     return { title: "", description: HOME_DESC, type: "website" };
   }
   // A team or event address that can't be one (/teams/abc, /teams/1234567, /events/2025/a%20b): the app says not found too.
-  if (/^\/teams\/[^/]+$/i.test(p) || /^\/events\/[^/]+\/[^/]+$/i.test(p) || /^\/events\/[^/]+\/[^/]+\/match\/[^/]+$/i.test(p)) return NOT_FOUND;
+  if (/^\/teams\/[^/]+$/i.test(p) || /^\/events\/[^/]+\/[^/]+$/i.test(p) || /^\/events\/[^/]+\/[^/]+\/match\/[^/]+$/i.test(p) || /^\/events\/[^/]+\/[^/]+\/display$/i.test(p)) return NOT_FOUND;
   if (p === "/predict" && (sp.has("red") || sp.has("blue"))) {
     // A shared matchup; the Predict page's own values when it isn't one (or ratings aren't ready).
     const mm = await matchupMeta(sp).catch(() => null);
