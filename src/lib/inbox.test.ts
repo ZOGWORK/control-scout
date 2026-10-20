@@ -372,3 +372,125 @@ describe("useInbox: replies in order", () => {
     vi.doUnmock("./api");
   });
 });
+
+// A write the server refuses (V4-PRIVATE-002): the row goes back to what the server confirmed, the failure is
+// reported (never silent), Retry sends the same change once, and an older failure never undoes a newer change.
+describe("useInbox: failed writes", () => {
+  const item = (id: number, over: Partial<InboxItem> = {}) => ({ id, at: 1, workspaceId: "1", workspaceName: "", category: "edits", type: "entry.edited", actorName: "", title: `t${id}`, body: "", link: "/", read: true, followUp: false, ...over }) as InboxItem;
+  type Pending = { path: string; resolve: (v: unknown) => void; reject: (e: unknown) => void; json?: unknown };
+  const pending: Pending[] = [];
+  beforeEach(() => { pending.length = 0; vi.useRealTimers(); vi.stubGlobal("EventSource", undefined); });
+  afterEach(() => { vi.unstubAllGlobals(); vi.doUnmock("./api"); });
+
+  async function harness(rows: InboxItem[]) {
+    vi.doMock("./api", async (orig) => ({
+      ...(await orig<typeof import("./api")>()),
+      apiFetch: (path: string, init?: { json?: unknown }) => new Promise((resolve, reject) => { pending.push({ path, resolve, reject, json: init?.json }); }),
+    }));
+    vi.resetModules();
+    const { useInbox } = await import("./inbox");
+    const { ApiError } = await import("./api");
+    const { renderHook, act } = await import("@testing-library/react");
+    const hook = renderHook(({ id }) => useInbox(id), { initialProps: { id: 1 as number | null } });
+    const page = (items: InboxItem[]) => ({ items, more: false, unread: items.filter((i) => !i.read).length, followUp: items.filter((i) => i.followUp).length });
+    await act(async () => { hook.result.current.load(); });
+    await act(async () => { pending.at(-1)!.resolve(page(rows)); });
+    const posts = (path: string) => pending.filter((p) => p.path === path);
+    const unavailable = () => new ApiError(503, "Service unavailable");
+    return { ...hook, act, page, posts, unavailable };
+  }
+  const state = (r: { current: { items: InboxItem[] } }) => r.current.items.map((i) => [i.id, i.read, i.followUp]);
+
+  it("flag refused (503): back to unflagged, reported; Retry sends the same change once and clears it", async () => {
+    const { result, act, page, posts, unavailable } = await harness([item(2), item(1)]);
+    await act(async () => { result.current.setFollowUp([2], true); });
+    expect(result.current.followUp).toBe(1);
+    await act(async () => { posts("/api/inbox/follow-up")[0].reject(unavailable()); });
+    expect(state(result)).toEqual([[2, true, false], [1, true, false]]);
+    expect(result.current.followUp).toBe(0);
+    expect(result.current.failures).toEqual([{ id: 2, field: "followUp", on: true }]);
+    // The confirmed state is fetched again; it doesn't clear the warning (the change still isn't saved).
+    await act(async () => { pending.at(-1)!.resolve(page([item(2), item(1)])); });
+    expect(result.current.failures).toHaveLength(1);
+    await act(async () => { result.current.retry(result.current.failures[0]); });
+    expect(posts("/api/inbox/follow-up")).toHaveLength(2);
+    expect(posts("/api/inbox/follow-up")[1].json).toEqual({ ids: [2], on: true });
+    expect(result.current.failures).toEqual([]);
+    await act(async () => { posts("/api/inbox/follow-up")[1].resolve({ unread: 0, followUp: 1 }); });
+    await act(async () => { pending.at(-1)!.resolve(page([item(2, { followUp: true }), item(1)])); });
+    expect(state(result)).toEqual([[2, true, true], [1, true, false]]);
+    expect(result.current.failures).toEqual([]);
+    expect(posts("/api/inbox/follow-up")).toHaveLength(2);
+  });
+
+  it("unflag refused: the flag comes back, reported as not removed; other rows untouched", async () => {
+    const { result, act, posts, unavailable } = await harness([item(2, { followUp: true }), item(1, { read: false })]);
+    await act(async () => { result.current.setFollowUp([2], false); });
+    await act(async () => { posts("/api/inbox/follow-up")[0].reject(unavailable()); });
+    expect(state(result)).toEqual([[2, true, true], [1, false, false]]);
+    expect(result.current.failures).toEqual([{ id: 2, field: "followUp", on: false }]);
+    expect(result.current.unread).toBe(1);
+  });
+
+  it("an older write failing after a newer change was made leaves the newer change standing", async () => {
+    const { result, act, posts, unavailable } = await harness([item(2)]);
+    // Flag, then unflag quickly: the first is refused, the second goes through. Ends unflagged, nothing reported.
+    await act(async () => { result.current.setFollowUp([2], true); });
+    await act(async () => { result.current.setFollowUp([2], false); });
+    await act(async () => { posts("/api/inbox/follow-up")[0].reject(unavailable()); });
+    expect(state(result)).toEqual([[2, true, false]]);
+    expect(result.current.failures).toEqual([]);
+    await act(async () => { posts("/api/inbox/follow-up")[1].resolve({}); });
+    expect(result.current.failures).toEqual([]);
+    await act(async () => { pending.at(-1)!.resolve({ items: [item(2)], more: false, unread: 0, followUp: 0 }); });
+
+    // Flag (saved), then unflag (refused): back to flagged, the state the server confirmed last.
+    await act(async () => { result.current.setFollowUp([2], true); });
+    await act(async () => { result.current.setFollowUp([2], false); });
+    await act(async () => { posts("/api/inbox/follow-up")[2].resolve({}); });
+    expect(state(result)).toEqual([[2, true, false]]);
+    await act(async () => { posts("/api/inbox/follow-up")[3].reject(unavailable()); });
+    expect(state(result)).toEqual([[2, true, true]]);
+    expect(result.current.failures).toEqual([{ id: 2, field: "followUp", on: false }]);
+  });
+
+  it("mark unread and mark read refused: the read state and the badge go back, and it's reported", async () => {
+    const { result, act, posts, unavailable } = await harness([item(2), item(1, { read: false })]);
+    await act(async () => { result.current.markUnread([2]); });
+    expect(result.current.unread).toBe(2);
+    await act(async () => { posts("/api/inbox/unread")[0].reject(unavailable()); });
+    expect(state(result)).toEqual([[2, true, false], [1, false, false]]);
+    expect(result.current.unread).toBe(1);
+    expect(result.current.failures).toEqual([{ id: 2, field: "read", on: false }]);
+    await act(async () => { result.current.markRead([1]); });
+    await act(async () => { posts("/api/inbox/read")[0].reject(unavailable()); });
+    expect(state(result)).toEqual([[2, true, false], [1, false, false]]);
+    expect(result.current.unread).toBe(1);
+    expect(result.current.failures).toEqual([{ id: 2, field: "read", on: false }, { id: 1, field: "read", on: true }]);
+  });
+
+  it("mark all read refused: every row is unread again and the failure is reported once, with a retry of the same range", async () => {
+    const { result, act, posts, unavailable } = await harness([item(3, { read: false }), item(2, { read: false, followUp: true })]);
+    await act(async () => { result.current.markAllRead(); });
+    expect(result.current.unread).toBe(0);
+    await act(async () => { posts("/api/inbox/read")[0].reject(unavailable()); });
+    expect(state(result)).toEqual([[3, false, false], [2, false, true]]);
+    expect(result.current.unread).toBe(2);
+    expect(result.current.allReadFailed).toEqual({ upTo: 3 });
+    expect(result.current.failures).toEqual([]);
+    await act(async () => { result.current.retryAllRead(); });
+    expect(posts("/api/inbox/read")[1].json).toEqual({ all: true, upTo: 3 });
+    expect(result.current.allReadFailed).toBeNull();
+  });
+
+  it("a write refused after the account changed reports nothing to the next account and is never retried there", async () => {
+    const { result, rerender, act, posts, unavailable } = await harness([item(2)]);
+    await act(async () => { result.current.setFollowUp([2], true); });
+    rerender({ id: null });
+    rerender({ id: 2 });
+    await act(async () => { posts("/api/inbox/follow-up")[0].reject(unavailable()); });
+    expect(result.current.failures).toEqual([]);
+    expect(result.current.items).toEqual([]);
+    expect(posts("/api/inbox/follow-up")).toHaveLength(1);
+  });
+});

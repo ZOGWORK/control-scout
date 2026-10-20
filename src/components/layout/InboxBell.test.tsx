@@ -14,12 +14,15 @@ const h = vi.hoisted(() => ({
   unread: 0,
   items: [] as InboxItem[],
   calls: [] as { path: string; init?: { method?: string; json?: unknown } }[],
+  failNext: {} as Record<string, number>,
 }));
 vi.mock("../../lib/personal", () => ({ usePersonal: () => ({ user: h.user, providers: {}, state: { myTeam: null }, syncReady: false }) }));
-vi.mock("../../lib/api", async (orig) => ({
-  ...(await orig<typeof import("../../lib/api")>()),
+vi.mock("../../lib/api", async (orig) => { const real = await orig<typeof import("../../lib/api")>(); return {
+  ...real,
   apiFetch: async (path: string, init?: { method?: string; json?: { ids?: number[]; all?: boolean; on?: boolean } }) => {
     h.calls.push({ path, init });
+    // A write the server refuses this many more times (V4-PRIVATE-002: 503 while it's away).
+    if (h.failNext[path] > 0) { h.failNext[path]--; throw new real.ApiError(503, "Service unavailable"); }
     const followUp = () => h.items.filter((i) => i.followUp).length;
     if (path === "/api/inbox/unread-count") return { unread: h.unread };
     if (path.startsWith("/api/inbox?")) {
@@ -46,7 +49,7 @@ vi.mock("../../lib/api", async (orig) => ({
     }
     throw new Error(`unexpected ${path}`);
   },
-}));
+}; });
 vi.mock("./Search", () => ({ GlobalSearch: () => null }));
 vi.mock("./AccountMenu", () => ({ AccountMenu: () => null }));
 vi.mock("./TopBarExtras", () => ({ ClockWeather: () => null, ThemeToggle: () => null }));
@@ -72,7 +75,7 @@ beforeEach(() => {
   vi.stubGlobal("matchMedia", (q: string) => ({ matches: q.includes("max-width") ? phone : false, media: q, addEventListener() {}, removeEventListener() {}, addListener() {}, removeListener() {} }));
   vi.stubGlobal("EventSource", undefined); // no stream here: the bell polls the count
   localStorage.clear();
-  h.user = null; h.unread = 0; h.items = []; h.calls = []; phone = false; where = "";
+  h.user = null; h.unread = 0; h.items = []; h.calls = []; h.failNext = {}; phone = false; where = "";
 });
 afterEach(() => { cleanup(); vi.unstubAllGlobals(); });
 
@@ -232,5 +235,93 @@ describe("follow-up state", () => {
     await waitFor(() => expect(screen.getByRole("button", { name: "Notifications" })).toBeTruthy());
     await waitFor(() => expect(within(panel).getByRole("button", { name: "Follow up on 'Coach edited your entry'", pressed: true })).toBeTruthy());
     expect(h.calls.some((c) => c.path === "/api/inbox/follow-up")).toBe(false);
+  });
+});
+
+// V4-PRIVATE-002: a toggle the server refuses (503) is reported on its row, with a Retry, never rolled back silently.
+describe("a change that isn't saved", () => {
+  const bell = () => render(<MemoryRouter initialEntries={["/"]}><InboxBell /><Routes><Route path="*" element={<Where />} /></Routes></MemoryRouter>);
+  const openPanel = async (unread: number) => {
+    bell();
+    fireEvent.click(await screen.findByRole("button", { name: unread ? `Notifications, ${unread} unread` : "Notifications" }));
+    return screen.findByRole("dialog", { name: "Notifications" });
+  };
+  const posts = (path: string) => h.calls.filter((c) => c.path === path);
+  const title = "Coach assigned you to scout team 18360";
+
+  it("flag refused: back to unflagged with an alert on that row; Retry sends it once more and focus returns to the flag", async () => {
+    h.user = user; h.items = [item(7, { read: true }), item(6, { title, category: "assignments", read: true })];
+    h.failNext["/api/inbox/follow-up"] = 1;
+    const panel = await openPanel(0);
+    const flag = await within(panel).findByRole("button", { name: `Follow up on '${title}'` });
+    flag.focus();
+    fireEvent.click(flag);
+    const alert = await within(panel).findByRole("alert");
+    expect(alert.textContent).toContain("Couldn't save the follow-up flag.");
+    expect(alert.closest("li")).toBe(flag.closest("li"));
+    expect(flag.getAttribute("aria-pressed")).toBe("false");
+    expect(flag.getAttribute("aria-describedby")).toBe(alert.id);
+    expect(document.activeElement).toBe(flag);
+    expect(where).toBe("/");
+    // The other row is untouched.
+    expect(within(panel).getByRole("button", { name: "Follow up on 'Coach edited your entry'" }).getAttribute("aria-pressed")).toBe("false");
+
+    const retry = within(alert).getByRole("button", { name: `Retry: follow up on '${title}'` });
+    retry.focus();
+    fireEvent.click(retry);
+    await waitFor(() => expect(posts("/api/inbox/follow-up")).toHaveLength(2));
+    expect(posts("/api/inbox/follow-up")[1].init?.json).toEqual({ ids: [6], on: true });
+    await waitFor(() => expect(flag.getAttribute("aria-pressed")).toBe("true"));
+    expect(within(panel).queryByRole("alert")).toBeNull();
+    await waitFor(() => expect(document.activeElement).toBe(flag));
+    await waitFor(() => expect(within(panel).getByRole("button", { name: "Follow up, 1 flagged" })).toBeTruthy());
+    expect(posts("/api/inbox/follow-up")).toHaveLength(2);
+  });
+
+  it("unflag refused in the Follow up view: the row stays flagged and on screen, focus stays on its flag", async () => {
+    h.user = user; h.items = [item(6, { title, category: "assignments", read: true, followUp: true })];
+    const panel = await openPanel(0);
+    fireEvent.click(await within(panel).findByRole("button", { name: "Follow up, 1 flagged" }));
+    const flag = await within(panel).findByRole("button", { name: `Follow up on '${title}'`, pressed: true });
+    h.failNext["/api/inbox/follow-up"] = 1;
+    flag.focus();
+    fireEvent.click(flag);
+    const alert = await within(panel).findByRole("alert");
+    expect(alert.textContent).toContain("Couldn't remove the follow-up flag.");
+    await waitFor(() => expect(h.calls.filter((c) => c.path.includes("filter=followUp")).at(-1)?.path).toContain("keep=6"));
+    const now = within(panel).getByRole("button", { name: `Follow up on '${title}'` });
+    expect(now.getAttribute("aria-pressed")).toBe("true");
+    expect(document.activeElement).toBe(now);
+    expect(document.activeElement).not.toBe(document.body);
+    expect(h.items[0].followUp).toBe(true);
+  });
+
+  it("mark unread refused: the item is read again, the badge with it, and the row says so", async () => {
+    h.user = user; h.items = [item(4, { read: true })];
+    h.failNext["/api/inbox/unread"] = 1;
+    const panel = await openPanel(0);
+    const toggle = await within(panel).findByRole("button", { name: "Mark 'Coach edited your entry' unread" });
+    fireEvent.click(toggle);
+    const alert = await within(panel).findByRole("alert");
+    expect(alert.textContent).toContain("Couldn't mark this unread.");
+    expect(toggle.getAttribute("aria-pressed")).toBe("false");
+    expect(document.querySelector("[data-inbox-badge]")).toBeNull();
+    fireEvent.click(within(alert).getByRole("button", { name: "Retry: mark unread 'Coach edited your entry'" }));
+    await waitFor(() => expect(document.querySelector("[data-inbox-badge]")?.textContent).toBe("1"));
+    expect(within(panel).queryByRole("alert")).toBeNull();
+  });
+
+  it("mark all read refused: everything is unread again, with one alert and a Retry", async () => {
+    h.user = user; h.unread = 2; h.items = [item(9), item(8)];
+    h.failNext["/api/inbox/read"] = 1;
+    const panel = await openPanel(2);
+    fireEvent.click(await within(panel).findByRole("button", { name: /Mark all read/ }));
+    const alert = await within(panel).findByRole("alert");
+    expect(alert.textContent).toContain("Couldn't mark everything read.");
+    await waitFor(() => expect(document.querySelector("[data-inbox-badge]")?.textContent).toBe("2"));
+    fireEvent.click(within(alert).getByRole("button", { name: "Retry" }));
+    await waitFor(() => expect(document.querySelector("[data-inbox-badge]")).toBeNull());
+    expect(posts("/api/inbox/read").map((c) => c.init?.json)).toEqual([{ all: true, upTo: 9 }, { all: true, upTo: 9 }]);
+    expect(within(panel).queryByRole("alert")).toBeNull();
   });
 });
