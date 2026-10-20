@@ -3,6 +3,8 @@
 //   GET  /api/inbox?before=<id>&limit=30&filter=all|followUp
 //                                          a page, newest first: { items, more, unread, followUp } (filter followUp:
 //                                          flagged items only; the counts are the whole inbox's either way)
+//                                          &keep=1,2 (with filter followUp): also these of the account's own items,
+//                                          flagged or not (rows the view still shows after unflagging)
 //   GET  /api/inbox/unread-count           { unread }
 //   POST /api/inbox/read                   { ids: [1, 2] } or { all: true, upTo?: <newest id seen> } → { unread }
 //                                          (follow-up flags stay)
@@ -66,7 +68,14 @@ export function inboxRouter(opts: { streamEnabled?: () => Promise<boolean> } = {
     if (!Number.isInteger(limit) || limit < 1 || limit > INBOX_PAGE_MAX) { res.status(400).json({ error: `limit must be 1 to ${INBOX_PAGE_MAX}` }); return; }
     const filter = (req.query.filter === undefined || req.query.filter === "" ? "all" : String(req.query.filter)) as InboxFilter;
     if (!INBOX_FILTERS.includes(filter)) { res.status(400).json({ error: `filter must be one of ${INBOX_FILTERS.join(", ")}` }); return; }
-    return listInbox(user.id, before, limit, filter);
+    let keep: number[] = [];
+    if (req.query.keep !== undefined && req.query.keep !== "") {
+      const parts = String(req.query.keep).split(",");
+      const ids = parts.every((x) => /^[0-9]{1,15}$/.test(x)) ? idList(parts.map(Number)) : null;
+      if (!ids) { res.status(400).json({ error: `keep must be 1 to ${MAX_IDS} inbox item ids, comma separated` }); return; }
+      keep = ids;
+    }
+    return listInbox(user.id, before, limit, filter, keep);
   }));
 
   r.get("/unread-count", h(async (_req, _res, user) => ({ unread: await unreadCount(user.id) })));

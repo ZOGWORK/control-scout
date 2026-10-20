@@ -614,3 +614,28 @@ describe("migration 30 (inbox follow-up flags)", () => {
     expect(await migrate(c)).toEqual([]);
   });
 });
+
+describe("inbox: the Follow up view's kept rows (keep=)", () => {
+  it("lists the account's own kept items with their real state alongside flagged ones; never another account's", async () => {
+    const { admin, member, coach } = await team("1438");
+    for (let i = 0; i < 4; i++) await logActivity("1438", { accountId: coach, name: "Coach" }, "assignment.created", `assignment:${i}`, { team: 100 + i, assigneeAccountId: accountFor("priya-1438@example.com").id });
+    const ids = (await inbox(member)).items.map((i) => i.id); // newest first
+    await member("POST", "/api/inbox/follow-up", { ids: [ids[0], ids[3]], on: true });
+    await member("POST", "/api/inbox/read", { ids: [ids[2]] });
+    // ids[2] was unflagged in the view: it comes back, read and unflagged, in id order.
+    const p = await inbox(member, `?filter=followUp&keep=${ids[2]}`);
+    expect(p.items.map((i) => [i.id, i.followUp, i.read])).toEqual([[ids[0], true, false], [ids[2], false, true], [ids[3], true, false]]);
+    expect(p.followUp).toBe(2);
+    // Paging covers the same set.
+    const p1 = await inbox(member, `?filter=followUp&keep=${ids[2]}&limit=2`);
+    expect(p1.items.map((i) => i.id)).toEqual([ids[0], ids[2]]);
+    expect((await inbox(member, `?filter=followUp&keep=${ids[2]}&limit=2&before=${ids[2]}`)).items.map((i) => i.id)).toEqual([ids[3]]);
+    // keep only applies to the Follow up view.
+    expect((await inbox(member, `?keep=${ids[2]}`)).items).toHaveLength(4);
+    // Another account can't pull someone's items in by id.
+    expect((await inbox(admin, `?filter=followUp&keep=${ids.join(",")}`)).items).toEqual([]);
+    expect((await member("GET", "/api/inbox?filter=followUp&keep=abc")).status).toBe(400);
+    expect((await member("GET", "/api/inbox?filter=followUp&keep=0")).status).toBe(400);
+    expect((await member("GET", `/api/inbox?filter=followUp&keep=${Array.from({ length: 201 }, (_, i) => i + 1).join(",")}`)).status).toBe(400);
+  });
+});

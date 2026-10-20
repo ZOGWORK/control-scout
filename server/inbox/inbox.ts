@@ -103,12 +103,17 @@ const toItem = (r: any): InboxItem => ({
   title: String(r.title), body: String(r.body ?? ""), link: String(r.link ?? ""), read: r.read_at != null, followUp: r.follow_up_at != null,
 });
 
-/** A page of an account's inbox, newest first: items with id < before (null: from the newest); `filter` "followUp": flagged items only. */
-export async function listInbox(userId: number, before: number | null, limit = INBOX_PAGE, filter: InboxFilter = "all"): Promise<InboxPage> {
+/**
+ * A page of an account's inbox, newest first: items with id < before (null: from the newest). `filter` "followUp":
+ * flagged items only, plus the account's own items in `keep` whatever their flag (rows the Follow up view still shows
+ * after they were unflagged, so they come back with their real state).
+ */
+export async function listInbox(userId: number, before: number | null, limit = INBOX_PAGE, filter: InboxFilter = "all", keep: number[] = []): Promise<InboxPage> {
   const n = Math.max(1, Math.min(INBOX_PAGE_MAX, Math.floor(limit)));
+  const which = filter !== "followUp" ? "" : keep.length ? `AND (follow_up_at IS NOT NULL OR id IN (${keep.map(() => "?").join(", ")}))` : "AND follow_up_at IS NOT NULL";
   const rows = await all<any>(
-    `SELECT * FROM inbox_items WHERE user_id = ? AND at >= ? ${filter === "followUp" ? "AND follow_up_at IS NOT NULL" : ""} ${before != null ? "AND id < ?" : ""} ORDER BY id DESC LIMIT ?`,
-    [userId, Date.now() - INBOX_RETENTION_MS, ...(before != null ? [before] : []), n + 1]);
+    `SELECT * FROM inbox_items WHERE user_id = ? AND at >= ? ${which} ${before != null ? "AND id < ?" : ""} ORDER BY id DESC LIMIT ?`,
+    [userId, Date.now() - INBOX_RETENTION_MS, ...(filter === "followUp" ? keep : []), ...(before != null ? [before] : []), n + 1]);
   const c = await inboxCounts(userId);
   return { items: rows.slice(0, n).map(toItem), more: rows.length > n, unread: c.unread, followUp: c.followUp };
 }

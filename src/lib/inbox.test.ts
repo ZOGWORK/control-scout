@@ -139,7 +139,7 @@ describe("useInbox: replies in order", () => {
   const flagged = (id: number, followUp = true) => ({ ...item(id, true), followUp });
   const fpage = (items: InboxItem[], more = false) => ({ items, more, unread: 0, followUp: items.filter((i) => i.followUp).length });
 
-  it("Follow up view: an unflagged row kept on screen never becomes the Load older cursor", async () => {
+  it("Follow up view: toggled rows come back from the server (keep=), over the whole loaded range, with their real state", async () => {
     const { result, act } = await harness();
     await act(async () => { result.current.setFilter("followUp"); });
     await act(async () => { pending.at(-1)!.resolve(fpage([flagged(90), flagged(61)], true)); });
@@ -148,16 +148,38 @@ describe("useInbox: replies in order", () => {
     expect(pending.at(-1)!.path).toContain("before=61");
     await act(async () => { pending.at(-1)!.resolve(fpage([flagged(60), flagged(31)], true)); });
     expect(result.current.items.map((i) => i.id)).toEqual([90, 61, 60, 31]);
-    // Unflag 31 (the oldest loaded): it stays on screen; the refresh brings the newest page back.
+    // Unflag 31 (the oldest loaded): shown unflagged at once.
     await act(async () => { result.current.setFollowUp([31], false); });
+    expect(result.current.items.map((i) => [i.id, i.followUp])).toEqual([[90, true], [61, true], [60, true], [31, false]]);
     await act(async () => { pending.find((p) => p.path === "/api/inbox/follow-up")!.resolve({ unread: 0, followUp: 3 }); });
-    await act(async () => { pending.at(-1)!.resolve(fpage([flagged(90), flagged(61)], true)); });
-    expect(result.current.items.map((i) => [i.id, i.followUp])).toEqual([[90, true], [61, true], [31, false]]);
-    // Load older carries on after 61 (the server's oldest), not after the kept 31, so 60 isn't skipped.
-    await act(async () => { result.current.loadOlder(); });
-    expect(pending.at(-1)!.path).toContain("before=61");
-    await act(async () => { pending.at(-1)!.resolve(fpage([flagged(60)])); });
-    expect(result.current.items.map((i) => i.id)).toEqual([90, 61, 60, 31]);
+    // The refresh asks for everything shown (not just a page) and for 31 by id.
+    const refresh = pending.at(-1)!;
+    expect(refresh.path).toMatch(/limit=30&filter=followUp&keep=31$/);
+    // Flagged again on another device meanwhile: the server's copy is what shows.
+    await act(async () => { refresh.resolve(fpage([flagged(90), flagged(61), flagged(60), flagged(31, true)], true)); });
+    expect(result.current.items.map((i) => [i.id, i.followUp])).toEqual([[90, true], [61, true], [60, true], [31, true]]);
+    // Re-flagged here (after unflagging) it stays kept, so a later refresh can't drop it either.
+    await act(async () => { result.current.setFollowUp([31], false); });
+    await act(async () => { pending.filter((p) => p.path === "/api/inbox/follow-up").at(-1)!.resolve({}); });
+    await act(async () => { pending.at(-1)!.resolve(fpage([flagged(90), flagged(61), flagged(60), flagged(31, false)])); });
+    await act(async () => { result.current.setFollowUp([31], true); });
+    await act(async () => { pending.filter((p) => p.path === "/api/inbox/follow-up").at(-1)!.resolve({}); });
+    expect(pending.at(-1)!.path).toContain("keep=31");
+    vi.doUnmock("./api");
+  });
+
+  it("a live refresh waits while a write is queued (it would bring back the old state)", async () => {
+    const { result, act } = await harness();
+    await act(async () => { result.current.load(); });
+    await act(async () => { pending.at(-1)!.resolve(fpage([flagged(5, false)])); });
+    await act(async () => { result.current.markUnread([5]); });
+    // e.g. the stream's event, or the panel opening, while the write is out: no request yet.
+    const lists = () => pending.filter((p) => p.path.startsWith("/api/inbox?"));
+    await act(async () => { result.current.load(); });
+    expect(lists()).toHaveLength(1);
+    expect(result.current.items[0].read).toBe(false);
+    await act(async () => { pending.find((p) => p.path === "/api/inbox/unread")!.resolve({ unread: 1 }); });
+    expect(lists()).toHaveLength(2);
     vi.doUnmock("./api");
   });
 
