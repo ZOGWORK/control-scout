@@ -29,6 +29,17 @@ export function describeDiff(parts: DiffPart[], shared: string, yours: string): 
   return `Compared with what's shared now: ${[added && plural(added, "added"), removed && plural(removed, "removed")].filter(Boolean).join(", ")}.`;
 }
 
+const RTL = /[\p{Script=Hebrew}\p{Script=Arabic}\p{Script=Syriac}\p{Script=Thaana}\p{Script=Nko}\p{Script=Adlam}\p{Script=Hanifi_Rohingya}\p{Script=Mandaic}\p{Script=Samaritan}]/u;
+/**
+ * The text's own direction, from its first letter (what dir="auto" would pick from the text alone). Set
+ * explicitly: dir="auto" on the paragraph would also see the hidden "added:" / "removed:" words read to screen
+ * readers, and an Arabic or Hebrew note that starts with a change would turn left-to-right.
+ */
+export function directionOf(text: string): "rtl" | "ltr" | undefined {
+  const first = /\p{L}/u.exec(text)?.[0];
+  return first ? (RTL.test(first) ? "rtl" : "ltr") : undefined;
+}
+
 function Side({ parts, label, empty }: { parts: DiffPart[]; label: string; empty: string }) {
   return (
     <div className="min-w-0">
@@ -37,7 +48,7 @@ function Side({ parts, label, empty }: { parts: DiffPart[]; label: string; empty
       <div role="region" aria-label={label} tabIndex={0}
         className="max-h-60 overflow-auto rounded-md border border-border bg-background px-3 py-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring">
         {parts.length === 0 ? <p className="text-muted-foreground">{empty}</p> : (
-          <p dir="auto" className="whitespace-pre-wrap [overflow-wrap:anywhere] [unicode-bidi:isolate]">
+          <p dir={directionOf(parts.map((p) => p.text).join("")) ?? "auto"} className="whitespace-pre-wrap [overflow-wrap:anywhere] [unicode-bidi:isolate]">
             {parts.map((p, i) => p.type === "same" ? <span key={i}>{p.text}</span>
               : p.type === "added" ? (
                 <ins key={i} className="rounded-sm bg-success/15 text-foreground decoration-success decoration-2 underline-offset-2 [text-decoration-line:underline]">
