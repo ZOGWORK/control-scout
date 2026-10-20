@@ -13,9 +13,14 @@ export function Page({ children, className, fullBleed }: { children: ReactNode; 
   );
 }
 
-export function PageHeader({ title, description, actions, eyebrow, children }: {
+export function PageHeader({ title, description, phoneDescription, actions, eyebrow, children }: {
   title: ReactNode;
   description?: ReactNode;
+  /**
+   * A one-line intro for phones (under 768px), in place of `description`. Giving one also tightens the header
+   * there (no eyebrow, smaller gaps), so a list page's first results fit in the first view.
+   */
+  phoneDescription?: ReactNode;
   /** Primary action (+ overflow) on the right. */
   actions?: ReactNode;
   /** Small line above the title (e.g. a date). */
@@ -25,17 +30,19 @@ export function PageHeader({ title, description, actions, eyebrow, children }: {
 }) {
   // No fade-in: the title and description are the page's main content, so they paint at full
   // opacity on the first frame (replacing the static first paint). A page change fades the whole page (Shell).
+  const tight = phoneDescription != null;
   return (
-    <div className="mb-8">
-      <div className="flex flex-wrap items-end justify-between gap-4">
+    <div className={cn("mb-8", tight && "max-md:mb-3")}>
+      <div className={cn("flex flex-wrap items-end justify-between gap-4", tight && "max-md:gap-2")}>
         <div className="min-w-0">
-          {eyebrow && <p className="mb-2 text-xs font-medium uppercase tracking-[0.08em] text-muted-foreground">{eyebrow}</p>}
+          {eyebrow && <p className={cn("mb-2 text-xs font-medium uppercase tracking-[0.08em] text-muted-foreground", tight && "max-md:hidden")}>{eyebrow}</p>}
           <h1 className="font-display text-2xl font-semibold tracking-tight text-foreground sm:text-[32px] sm:leading-tight">{title}</h1>
-          {description && <p className="mt-1.5 max-w-2xl text-sm text-muted-foreground">{description}</p>}
+          {description && <p className={cn("mt-1.5 max-w-2xl text-sm text-muted-foreground", tight && "max-md:hidden")}>{description}</p>}
+          {tight && <p className="mt-0.5 truncate text-sm text-muted-foreground md:hidden">{phoneDescription}</p>}
         </div>
         {actions && <div data-print-hide className="flex shrink-0 items-center gap-2">{actions}</div>}
       </div>
-      {children && <div className="mt-6">{children}</div>}
+      {children && <div className={cn("mt-6", tight && "max-md:mt-3")}>{children}</div>}
     </div>
   );
 }
