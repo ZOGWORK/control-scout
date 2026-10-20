@@ -115,8 +115,11 @@ export function compareBrief(d: CompareView, label = seasonLabel(d.season)): Bri
     }
   }
 
-  // OPR by phase: overall, then auto, TeleOp and endgame.
-  for (const p of PHASES) {
+  // OPR by phase: overall, then auto, TeleOp and endgame. With fewer than two teams to compare at all, one
+  // sentence says so instead of four.
+  if (enough.filter((x) => PHASES.some((p) => seasonValue(x, p.key) != null)).length < 2) {
+    out.push({ topic: "Overall", kind: "missing", text: `Not enough data to compare OPR, auto, TeleOp or endgame: it needs two teams with ${BRIEF.minMatches} or more matches and an OPR.`, sources: [] });
+  } else for (const p of PHASES) {
     const ok = enough.filter((x) => seasonValue(x, p.key) != null);
     if (ok.length < 2) {
       out.push({ topic: p.topic, kind: "missing", text: `Not enough data to compare: it needs two teams with ${BRIEF.minMatches} or more matches and an OPR.`, sources: [] });
@@ -189,6 +192,8 @@ export function compareBrief(d: CompareView, label = seasonLabel(d.season)): Bri
     const parts = latest.map(({ x, evs }) => {
       const last = evs[evs.length - 1];
       const when = last.start ? ` on ${shortDate(last.start)}` : "";
+      // Below the sample threshold the event is named but its OPR isn't quoted.
+      if (matches(x) < BRIEF.minMatches) return `${n(x)} at ${last.name}${when} (${plural(matches(x), "match", "matches")}, too few to quote its OPR)`;
       let s = `${n(x)} at ${last.name}${when} (event OPR ${shown(last.opr!)}`;
       if (evs.length >= BRIEF.minEvents) {
         const g = gap(last.opr!, evs[0].opr!);

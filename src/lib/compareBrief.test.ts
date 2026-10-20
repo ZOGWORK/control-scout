@@ -79,10 +79,11 @@ describe("compareBrief: missing and thin data", () => {
     const thin = team(24089, 2, [ev("USTXQ1", "2025-12-06", 84, { auto: 27.7 })]);
     const s = compareBrief(view([A, thin]));
     expect(topic(s, "Sample size")[1]).toMatchObject({ kind: "thin", text: "Only 2 matches for 24089 in 2025–26, fewer than the 5 needed, so its OPR isn't compared." });
-    for (const p of ["Overall", "Auto", "TeleOp", "Endgame"] as const) {
-      expect(one(s, p)).toMatchObject({ kind: "missing", sources: [] });
-      expect(one(s, p).text).not.toMatch(/\d+\.\d/);
-    }
+    // One sentence for all four phases, and no thin number quoted anywhere.
+    expect(one(s, "Overall")).toMatchObject({ kind: "missing", sources: [], text: "Not enough data to compare OPR, auto, TeleOp or endgame: it needs two teams with 5 or more matches and an OPR." });
+    for (const p of ["Auto", "TeleOp", "Endgame"] as const) expect(topic(s, p)).toHaveLength(0);
+    for (const x of s) expect(x.text).not.toMatch(/\b84\b|27\.7/);
+    expect(one(s, "Recency").text).toContain("24089 at USTXQ1 Qualifier on Dec 6, 2025 (2 matches, too few to quote its OPR)");
   });
   it("a thin team drops out of a three-team comparison but the other two are compared", () => {
     const s = compareBrief(view([A, B, team(7, BRIEF.minMatches - 1, [ev("X", "2026-01-01", 200)])]));
@@ -111,6 +112,7 @@ describe("compareBrief: missing and thin data", () => {
     const s = compareBrief(view([A]));
     expect(topic(s, "Head to head")).toHaveLength(0);
     expect(one(s, "Overall").kind).toBe("missing");
+    expect(topic(s, "Auto")).toHaveLength(0);
   });
 });
 
