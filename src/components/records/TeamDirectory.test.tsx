@@ -101,6 +101,15 @@ describe("TeamDirectory", () => {
       expect(asked.some((a) => a.includes("q=ma&"))).toBe(false);
     });
 
+    it("keeps a sort picked while the search was waiting to run", () => {
+      vi.useFakeTimers();
+      mount("/teams?view=listed&country=CA");
+      type("maple");
+      fireEvent.change(screen.getByRole("combobox", { name: /Sort/ }), { target: { value: "name" } });
+      act(() => { vi.advanceTimersByTime(300); });
+      expect(search).toBe("?view=listed&country=CA&sort=name&q=maple");
+    });
+
     it("steps back through searches: starting one adds a history entry, refining replaces it", () => {
       vi.useFakeTimers();
       mount("/teams?view=listed&country=CA");
