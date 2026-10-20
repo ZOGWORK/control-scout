@@ -54,7 +54,7 @@ const PANELS = [
 type PanelId = (typeof PANELS)[number]["id"];
 
 /** Chart colours, validated as a pair for each theme (gold, then blue). */
-const CHART_VARS = "[--ow-a:#a16207] [--ow-b:#0284c7] dark:[--ow-a:#b88a00] dark:[--ow-b:#0284c7]";
+const CHART_VARS = "[--ow-a:#eab308] [--ow-b:#0284c7] dark:[--ow-a:#b88a00] dark:[--ow-b:#0284c7]";
 
 const when = (iso: string | null | undefined) => (iso ? new Date(iso).toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" }) : "—");
 const ms = (x: number | null | undefined) => (x == null ? "—" : x < 10 ? `${x.toFixed(1)} ms` : x < 1000 ? `${Math.round(x)} ms` : `${(x / 1000).toFixed(1)} s`);

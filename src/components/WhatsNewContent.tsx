@@ -15,16 +15,16 @@ const REPO = "https://github.com/Control-Point-FTC/control-scout/pull/";
 type Tone = { icon: ComponentType<{ className?: string }>; tone: string };
 /** A highlight's `[tag]` → its icon and colour (the tags CHANGELOG.md documents). Unknown or missing: a sparkle. */
 const TAGS: Record<HighlightTag, Tone> = {
-  home: { icon: House, tone: "bg-amber-500/15 text-amber-700 dark:text-amber-300" },
+  home: { icon: House, tone: "bg-amber-500/15 text-accent-text" },
   predict: { icon: Target, tone: "bg-violet-500/15 text-violet-600 dark:text-violet-300" },
   teams: { icon: Users, tone: "bg-emerald-500/15 text-emerald-700 dark:text-emerald-300" },
   scout: { icon: ClipboardList, tone: "bg-sky-500/15 text-sky-700 dark:text-sky-300" },
   offline: { icon: CloudDownload, tone: "bg-teal-500/15 text-teal-700 dark:text-teal-300" },
-  speed: { icon: Zap, tone: "bg-yellow-500/15 text-yellow-700 dark:text-yellow-300" },
+  speed: { icon: Zap, tone: "bg-yellow-500/15 text-accent-text" },
   live: { icon: Radio, tone: "bg-rose-500/15 text-rose-700 dark:text-rose-300" },
   report: { icon: FileText, tone: "bg-sky-500/15 text-sky-700 dark:text-sky-300" },
   alerts: { icon: Bell, tone: "bg-orange-500/15 text-orange-700 dark:text-orange-300" },
-  rankings: { icon: Trophy, tone: "bg-yellow-500/15 text-yellow-700 dark:text-yellow-300" },
+  rankings: { icon: Trophy, tone: "bg-yellow-500/15 text-accent-text" },
   share: { icon: Share2, tone: "bg-pink-500/15 text-pink-700 dark:text-pink-300" },
   workspace: { icon: UsersRound, tone: "bg-indigo-500/15 text-indigo-700 dark:text-indigo-300" },
   picklist: { icon: ListOrdered, tone: "bg-violet-500/15 text-violet-600 dark:text-violet-300" },
