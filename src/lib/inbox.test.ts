@@ -257,6 +257,29 @@ describe("useInbox: replies in order", () => {
     vi.doUnmock("./api");
   });
 
+  it("batched Follow up refresh: more comes from the pass that reached the oldest row", async () => {
+    const { result, act } = await harness();
+    const rows = Array.from({ length: 210 }, (_, k) => flagged(1000 - k)); // 1000..791
+    await act(async () => { result.current.setFilter("followUp"); });
+    await act(async () => { pending.at(-1)!.resolve(fpage(rows)); });
+    await act(async () => { result.current.setFollowUp(rows.map((i) => i.id), false); });
+    await act(async () => { pending.find((p) => p.path === "/api/inbox/follow-up")!.resolve({}); });
+    const keepOf = (path: string) => (/keep=([0-9,]+)/.exec(path)?.[1] ?? "").split(",").filter(Boolean).map(Number);
+    const tail = Array.from({ length: 10 }, (_, k) => flagged(790 - k)); // flagged rows below everything kept
+    // First pass stops at its last kept row with more (790..781 lie below); the second reaches the very bottom.
+    const first = pending.at(-1)!;
+    await act(async () => { first.resolve(fpage(rows.filter((i) => keepOf(first.path).includes(i.id)).map((i) => ({ ...i, followUp: false })), true)); });
+    // Its next page passes the oldest row shown (791) and stops there, with more.
+    expect(pending.at(-1)!.path).toContain("before=801");
+    await act(async () => { pending.at(-1)!.resolve(fpage([flagged(790)], true)); });
+    const second = pending.at(-1)!;
+    expect(keepOf(second.path)).toHaveLength(10);
+    await act(async () => { second.resolve(fpage([...rows.filter((i) => keepOf(second.path).includes(i.id)).map((i) => ({ ...i, followUp: false })), ...tail], false)); });
+    expect(result.current.items.at(-1)!.id).toBe(781);
+    expect(result.current.more).toBe(false);
+    vi.doUnmock("./api");
+  });
+
   it("a live refresh waits while a write is queued (it would bring back the old state)", async () => {
     const { result, act } = await harness();
     await act(async () => { result.current.load(); });
