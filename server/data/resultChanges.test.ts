@@ -257,6 +257,38 @@ describe("recording changes", () => {
     expect(await changes()).toEqual([]);
   });
 
+  it("builds the same diff key in a copy of the database whose ids differ (so a copy merges, not doubles)", async () => {
+    await writeEventBundle(bundle([m(1, { r: 100, b: 90 })]));
+    await writeEventBundle(bundle([m(1, { r: 101, b: 90 })]));
+    const copy = async () => {
+      // The same history in another database, under different local ids (as db:push copies it).
+      const rows = await all<any>("SELECT * FROM result_changes ORDER BY id");
+      const watch = await all<any>("SELECT * FROM result_watch");
+      const matchRows = await all<any>("SELECT * FROM matches");
+      const teamRows = await all<any>("SELECT * FROM match_teams");
+      const ev = await all<any>("SELECT * FROM events");
+      const c = openDb(":memory:"); setDb(c); await migrate(c);
+      const put = async (t: string, rs: any[], skip: string[] = []) => { for (const r of rs) { const cols = Object.keys(r).filter((x) => !skip.includes(x)); await run(`INSERT INTO ${t} (${cols.join(", ")}) VALUES (${cols.map(() => "?").join(", ")})`, cols.map((x) => r[x])); } };
+      await put("events", ev); await put("matches", matchRows); await put("match_teams", teamRows); await put("result_watch", watch);
+      await run("INSERT INTO result_changes (season, code, level, series, number, label, kind, fields, source, checked_at, diff_key) VALUES (?, 'X', 'qual', 0, 1, 'Q1', 'posted', '[]', 'first', 'x', 'x')", [S]);
+      await put("result_changes", rows, ["id"]);
+    };
+    const keyAfterCorrection = async () => {
+      await writeEventBundle(bundle([m(1, { r: 102, b: 90 })]), { now: "2026-11-07T16:00:00.000Z" });
+      return (await get<any>("SELECT id, diff_key FROM result_changes WHERE code = 'EV' ORDER BY id DESC LIMIT 1"))!;
+    };
+    const before = { setDb };
+    await copy();
+    const there = await keyAfterCorrection();
+    // Back on a fresh copy without the offset row: different ids, same key.
+    const c = openDb(":memory:"); before.setDb(c); await migrate(c);
+    await writeEventBundle(bundle([m(1, { r: 100, b: 90 })]));
+    await writeEventBundle(bundle([m(1, { r: 101, b: 90 })]));
+    const here = await keyAfterCorrection();
+    expect(here.id).not.toBe(there.id);
+    expect(here.diff_key).toBe(there.diff_key);
+  });
+
   it("keeps the newest changes per event and counts what it drops", async () => {
     await writeEventBundle(bundle([m(1, { r: 0, b: 0 })]));
     for (let i = 1; i <= RESULT_CHANGES_PER_EVENT + 3; i++) await writeEventBundle(bundle([m(1, { r: i, b: 0 })]));

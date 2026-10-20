@@ -26,8 +26,8 @@ the sync saw it (`checked_at`, not when FIRST changed it).
 Rules that keep it honest:
 
 - **Idempotent.** The same data polled again compares equal and adds nothing.
-  Each row also has a UNIQUE `diff_key` (match, kind, the match's previous
-  change, new value). The batch opens with a guard that fails it as a whole if
+  Each row also has a UNIQUE `diff_key` (match, kind, the previous change's
+  key, new value: the same in every copy of the database, unlike ids). The batch opens with a guard that fails it as a whole if
   the event's `detail_synced_at` is no longer the one read before diffing
   (another writer stored it in between: `npm run sync` holds no writer lease),
   and the write then reads and diffs again (3 attempts, then the event's sync
@@ -67,6 +67,10 @@ The newest **500 changes per event** (`RESULT_CHANGES_PER_EVENT`). An event has
 up to ~150 matches, so that covers several corrections per match; older rows
 are dropped in the same transaction and counted in `result_watch.pruned`, which
 the API returns so the UI can say so.
+
+`npm run db:push` copies `result_watch` and `result_changes` with the matches;
+for each watched event the target's history is replaced by the source's (so
+the cap and `pruned` stay true there).
 
 ## API
 
