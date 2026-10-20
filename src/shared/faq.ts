@@ -3,8 +3,18 @@
 // pages (Methodology, Privacy, Terms, Download): when a fact changes there, change it here too.
 // Answers are plain text with [label](/path) links; faqText() strips them for structured data.
 
+import { discordInviteUrl } from "./discord";
+
 export interface FaqItem { id: string; q: string; a: string[] }
 export interface FaqGroup { id: string; title: string; items: FaqItem[] }
+
+/** The Discord bot's answer, with its invite link; none until the link exists. */
+export function discordFaq(invite: string | null): FaqItem[] {
+  return invite ? [{ id: "discord", q: "Is there a Discord bot?", a: [
+    `Yes. [Add Control Scout to your server](${invite}) and anyone there can use /team, /predict, /event and /rankings. Every answer links back to the page it came from.`,
+    "The bot reads the same data as the site, so its numbers match what you see here. It needs only Send Messages, Embed Links and Use Slash Commands.",
+  ] }] : [];
+}
 
 export const FAQ: FaqGroup[] = [
   {
@@ -86,6 +96,8 @@ export const FAQ: FaqGroup[] = [
         "[World rankings](/rankings) rank every team by rating, with movement since last week, and can be filtered by country, state or your region.",
         "[Power rankings](/power-rankings) are a weekly top 25 with a short write-up for each team, published every Friday.",
       ] },
+      // Only once the bot's invite link exists (src/shared/discord.ts).
+      ...discordFaq(discordInviteUrl()),
     ],
   },
   {

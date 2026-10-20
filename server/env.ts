@@ -76,6 +76,11 @@ export const env = {
   get indexNowEnabled() { return /^(1|true)$/i.test(str("INDEXNOW") ?? ""); },
   /** Replaces the built-in IndexNow key (public by design: it's served at /<key>.txt). */
   get indexNowKey() { return str("INDEXNOW_KEY"); },
+  /** The Discord bot (bot/, docs in bot/README.md): its token from the developer portal. Unset: the bot
+   *  refuses to start (the site never reads it). Never logged. */
+  get discordBotToken() { return str("DISCORD_BOT_TOKEN"); },
+  /** A test server's ID: slash commands register there (instantly) instead of globally. */
+  get discordDevGuildId() { return str("DISCORD_DEV_GUILD_ID"); },
   get dataDir() { return str("DATA_DIR") ?? join(process.cwd(), ".data"); },
   /** Where an FTC Scout raw cache can be imported from (seed). */
   get scoutCacheDir() { return str("SCOUT_CACHE_DIR"); },
