@@ -182,7 +182,7 @@ describe("useInbox: replies in order", () => {
     await act(async () => { pending.find((p) => p.path === "/api/inbox/follow-up")!.resolve({}); });
     expect(pending.at(-1)!.path).toBe("/api/inbox?limit=100&filter=followUp&keep=81");
     await act(async () => { pending.at(-1)!.resolve(fpage(ids(200, 100), true)); });
-    expect(pending.at(-1)!.path).toBe("/api/inbox?limit=20&filter=followUp&keep=81&before=101");
+    expect(pending.at(-1)!.path).toBe("/api/inbox?limit=30&filter=followUp&keep=81&before=101");
     await act(async () => { pending.at(-1)!.resolve(fpage([...ids(100, 19), flagged(81, false)], true)); });
     expect(result.current.items).toHaveLength(120);
     expect(result.current.items.at(-1)).toMatchObject({ id: 81, followUp: false });
@@ -202,7 +202,7 @@ describe("useInbox: replies in order", () => {
     await act(async () => { pending.find((p) => p.path === "/api/inbox/follow-up")!.resolve({}); });
     await act(async () => { pending.at(-1)!.resolve(fpage(ids(200, 100), true)); });
     const second = pending.at(-1)!;
-    expect(second.path).toBe("/api/inbox?limit=20&filter=followUp&keep=150&before=101");
+    expect(second.path).toBe("/api/inbox?limit=30&filter=followUp&keep=150&before=101");
     // Load older lands while the refresh's second page is out.
     await act(async () => { result.current.loadOlder(); });
     expect(pending.at(-1)!.path).toContain("before=81");
@@ -210,11 +210,30 @@ describe("useInbox: replies in order", () => {
     expect(result.current.items).toHaveLength(150);
     const before = pending.length;
     await act(async () => { second.resolve(fpage(ids(100, 20), true)); });
-    // No third request (the target was the 120 rows shown when it started), and nothing lost.
+    // No third request (the refresh went down to the oldest row shown when it started), and nothing lost.
     expect(pending.length).toBe(before);
     expect(result.current.items).toHaveLength(150);
     expect(result.current.items.at(-1)!.id).toBe(51);
     expect(result.current.more).toBe(false);
+    vi.doUnmock("./api");
+  });
+
+  it("a Follow up refresh covers down to the oldest row shown and takes the server's more (new flags elsewhere)", async () => {
+    const { result, act } = await harness();
+    const ids = (from: number, n: number) => Array.from({ length: n }, (_, k) => flagged(from - k));
+    await act(async () => { result.current.setFilter("followUp"); });
+    await act(async () => { pending.at(-1)!.resolve(fpage(ids(100, 30), false)); }); // 100..71, nothing more
+    expect(result.current.more).toBe(false);
+    // 101 and 50 are flagged on another device; the stream refreshes this view.
+    await act(async () => { result.current.load(); });
+    expect(pending.at(-1)!.path).toBe("/api/inbox?limit=30&filter=followUp");
+    await act(async () => { pending.at(-1)!.resolve(fpage(ids(101, 30), true)); }); // 101..72
+    // Not down to 71 yet: one more page.
+    expect(pending.at(-1)!.path).toBe("/api/inbox?limit=30&filter=followUp&before=72");
+    await act(async () => { pending.at(-1)!.resolve(fpage(ids(71, 1), true)); });
+    expect(result.current.items.map((i) => i.id)).toEqual(ids(101, 31).map((i) => i.id));
+    // 50 is still on the server: Load older is offered.
+    expect(result.current.more).toBe(true);
     vi.doUnmock("./api");
   });
 
