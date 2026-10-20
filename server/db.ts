@@ -995,6 +995,17 @@ CREATE TABLE IF NOT EXISTS workspace_picklist_ops (
 CREATE INDEX IF NOT EXISTS workspace_picklist_ops_age ON workspace_picklist_ops (workspace_id, created_at);
 `,
   },
+  {
+    version: 32,
+    name: "inbox follow-up flags",
+    sql: `
+-- Inbox follow-up (server/inbox/inbox.ts, docs/inbox.md): the account flagged this item to come back to.
+-- ms, NULL when not flagged. Separate from read_at: an item can be read and still need doing. Mark all
+-- read never touches it; a coalesced item that replaces a flagged one keeps the flag.
+ALTER TABLE inbox_items ADD COLUMN follow_up_at INTEGER;
+CREATE INDEX inbox_items_follow_up ON inbox_items (user_id, id) WHERE follow_up_at IS NOT NULL;
+`,
+  },
 ];
 
 export type Db = Client;
@@ -1073,13 +1084,14 @@ export async function configure(c: Client = db()): Promise<void> {
   await c.execute("PRAGMA foreign_keys = ON");
 }
 
-export async function migrate(c: Client = db()): Promise<number[]> {
+/** Apply every migration not applied yet (`upTo`: only those up to that version; tests of a later migration). */
+export async function migrate(c: Client = db(), upTo = Infinity): Promise<number[]> {
   await configure(c);
   await c.execute("CREATE TABLE IF NOT EXISTS schema_version (version INTEGER PRIMARY KEY, name TEXT, applied_at TEXT NOT NULL)");
   const done = new Set((await c.execute("SELECT version FROM schema_version")).rows.map((r) => Number(r.version)));
   const applied: number[] = [];
   for (const m of MIGRATIONS) {
-    if (done.has(m.version)) continue;
+    if (done.has(m.version) || m.version > upTo) continue;
     const stmts = splitSql(m.sql);
     await c.batch([...stmts, { sql: "INSERT INTO schema_version (version, name, applied_at) VALUES (?, ?, ?)", args: [m.version, m.name, new Date().toISOString()] }], "write");
     applied.push(m.version);
