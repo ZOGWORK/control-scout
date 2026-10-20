@@ -95,8 +95,8 @@ export function RecoverableChanges({ account, workspaces, className }: { account
   }, [account, tick]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Order changes of a pick list open on this page are in that list's own notice (KeptPickChanges): not listed twice.
-  const shown = published.filter((r) => !(r.kind === "order" && isClaimed(`${r.account}:${r.workspaceId}:${r.season}`)));
-  const rows: Row[] = [...shown, ...kept, ...entries]
+  const listed = published.filter((r) => !(r.kind === "order" && isClaimed(`${r.account}:${r.workspaceId}:${r.season}`)));
+  const rows: Row[] = [...listed, ...kept, ...entries]
     .map((r) => ({ ...r, busy: r.busy || local[r.key]?.busy, message: local[r.key]?.message ?? r.message }))
     .sort((a, b) => (a.status === b.status ? 0 : a.status === "attention" ? -1 : 1));
   const attention = rows.filter((r) => r.status === "attention").length;
