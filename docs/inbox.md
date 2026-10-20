@@ -21,7 +21,16 @@ are. Mark all read is offered on the All view only and never clears a flag. An i
 toggled inside the Follow up view stays on screen until the view changes or the panel
 opens again, so focus isn't lost: the view asks for those rows by id (`keep=`) and
 refreshes its whole loaded range, so each row shows the server's state. While a toggle is
-still being saved, refreshes wait, and toggles reach the server one at a time, in order. When a coalesced edit or a newer pick list
+still being saved, refreshes wait, and toggles reach the server one at a time, in order.
+
+A toggle the server doesn't take (a 503, a dropped connection) is never undone silently. The
+row goes back to the state the server last confirmed for it, and an alert on that row says
+what wasn't saved ("Couldn't save the follow-up flag. Nothing changed.") with a Retry that
+sends the same change once more. Mark read, Mark unread and Mark all read report in the same
+way (Mark all read with one alert above the list). Per row, the newest change decides: an
+older change failing after a newer one was made leaves the newer one alone. Focus stays on
+the toggle, and returns to it after Retry. A failure belongs to its account: switching
+account clears it and nothing is retried there. When a coalesced edit or a newer pick list
 line replaces an item, a flag on the replaced item moves to the new one. Resolving an
 owner alert marks its items read and keeps their flags. Flagged items are still pruned
 after 90 days.
