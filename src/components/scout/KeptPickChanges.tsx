@@ -39,7 +39,7 @@ function Row({ f, readOnly, onRetry, onDiscard }: { f: FailedChange; readOnly: b
   return (
     <li className="flex flex-wrap items-start gap-x-3 gap-y-2 px-3 py-2.5" data-kept-change={f.opId ?? f.id}>
       <span className={cn("mt-0.5 grid size-7 shrink-0 place-items-center rounded-lg", c || f.blocked ? "bg-warning/15 text-warning" : "bg-accent/15 text-accent-text")} aria-hidden><Icon className="size-4" /></span>
-      <div className="min-w-0 flex-1">
+      <div className="min-w-0 flex-1 basis-48">
         <p className="text-sm font-medium">{describeChange(f.op)}</p>
         <p className="text-xs text-text-muted">{rowNote(f)}</p>
         {c?.kind === "changed" && (
@@ -50,7 +50,7 @@ function Row({ f, readOnly, onRetry, onDiscard }: { f: FailedChange; readOnly: b
           </p>
         )}
       </div>
-      <div className="ml-auto flex shrink-0 items-center gap-2">
+      <div className="ml-auto flex shrink-0 flex-wrap items-center justify-end gap-2">
         {canApply && (
           <Button variant="secondary" size="sm" className="max-sm:h-11" disabled={f.busy} onClick={() => onRetry(!!c)}
             aria-label={`${c ? "Apply anyway" : "Retry"}: ${describeChange(f.op)}`}>
