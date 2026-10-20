@@ -63,7 +63,8 @@ async function runSteps(page: Page, slow: boolean) {
     else if (s.type != null) await page.keyboard.type(s.type, { delay: slow ? 90 : 20 });
     else if (s.press) await page.keyboard.press(s.press);
     else if (s.waitFor) await page.locator(s.waitFor).first().waitFor({ state: "visible", timeout: 20_000 });
-    else if (s.reload) { await page.reload({ waitUntil: "networkidle" }); await page.waitForTimeout(800); }
+    // A page with a live stream (the workspace's) never goes network-idle: loaded, then idle if it gets there.
+    else if (s.reload) { await page.reload({ waitUntil: "load" }); await page.waitForLoadState("networkidle", { timeout: 5_000 }).catch(() => {}); await page.waitForTimeout(800); }
     if (s.wait) await page.waitForTimeout(s.wait);
     await page.waitForTimeout(slow ? 450 : 150);
   }
