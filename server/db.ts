@@ -998,6 +998,9 @@ CREATE TABLE result_watch (
 );
 -- FIRST's scheduled field ("1", "2"…), so a field move can be told apart. Null = not reported.
 ALTER TABLE matches ADD COLUMN field TEXT;
+-- 1 = the score's components come from a reported breakdown, 0 = totals only (FIRST posted the
+-- result before its breakdown: the split is an estimate). Null = unplayed, or written before this.
+ALTER TABLE matches ADD COLUMN breakdown INTEGER;
 `,
   },
 ];

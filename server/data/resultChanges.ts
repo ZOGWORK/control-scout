@@ -75,21 +75,26 @@ function sideFromRow(r: any, p: "red" | "blue"): ResultScoreSide {
 /** The incoming match as snapshots (same normalisation as the stored side). */
 export function incoming(m: MatchRow): { result: ResultSnapshot | null; schedule: ScheduleSnapshot } {
   const result = m.played && m.redScore && m.blueScore
-    ? { red: sideFromSplit(m.redScore), blue: sideFromSplit(m.blueScore), dq: asc([...m.red, ...m.blue].filter((t) => t.dq).map((t) => t.team)) }
+    ? { red: sideFromSplit(m.redScore), blue: sideFromSplit(m.blueScore), dq: asc([...m.red, ...m.blue].filter((t) => t.dq).map((t) => t.team)), breakdown: m.breakdown !== false }
     : null;
   return { result, schedule: { time: m.time, field: m.field ?? null, red: asc(m.red.map((t) => t.team)), blue: asc(m.blue.map((t) => t.team)) } };
 }
 
-/** Values that differ between two results. Across sources only totals compare (their breakdowns are split differently). */
+/**
+ * Values that differ between two results. Components compare only when both come from a reported breakdown
+ * of the same feed: across feeds they're split differently, and a totals-only result's split is an estimate.
+ * Otherwise only totals compare.
+ */
 export function resultFields(a: ResultSnapshot, b: ResultSnapshot, sameSource: boolean): string[] {
   const out: string[] = [];
+  const full = sameSource && a.breakdown !== false && b.breakdown !== false;
   for (const p of ["red", "blue"] as const) {
-    for (const c of sameSource ? COMPONENTS : (["total"] as const)) {
+    for (const c of full ? COMPONENTS : (["total"] as const)) {
       const x = a[p][c], y = b[p][c];
       // A value one side doesn't report (null) isn't a revision: the source added or dropped detail.
       if (x != null && y != null && x !== y) out.push(`${p}.${c}`);
     }
-    if (sameSource && a[p].bonus && b[p].bonus) for (const k of BONUS) if (a[p].bonus![k] !== b[p].bonus![k]) out.push(`${p}.bonus.${k}`);
+    if (full && a[p].bonus && b[p].bonus) for (const k of BONUS) if (a[p].bonus![k] !== b[p].bonus![k]) out.push(`${p}.bonus.${k}`);
   }
   if (sameSource && a.dq.join(",") !== b.dq.join(",")) out.push("dq");
   return out;
@@ -137,6 +142,18 @@ export function diffMatches(stored: StoredMatch[], matches: MatchRow[], source: 
   return out;
 }
 
+/**
+ * Matches to hold after this write: those it leaves out, and those with a result that another feed now lists
+ * as unplayed (no change is recorded for that, and the row loses its result, so the result is kept here).
+ */
+export function held(base: StoredMatch[], matches: MatchRow[], source: Source): StoredMatch[] {
+  const now = new Map(matches.map((m) => [matchKey(m), m]));
+  return base.filter((m) => {
+    const n = now.get(matchKey(m));
+    return !n || (!!m.result && !incoming(n).result && m.source !== source);
+  });
+}
+
 /** Stored matches of one event. */
 export async function readStored(season: number, code: string): Promise<StoredMatch[]> {
   const rows = await all<any>("SELECT * FROM matches WHERE season = ? AND code = ?", [season, code]);
@@ -155,7 +172,7 @@ export async function readStored(season: number, code: string): Promise<StoredMa
     return {
       ...key, label: String(r.label), time, field, played, source: String(r.source),
       result: played && r.red_total != null && r.blue_total != null
-        ? { red: sideFromRow(r, "red"), blue: sideFromRow(r, "blue"), dq: asc(ts.filter((t) => Number(t.dq) === 1).map((t) => Number(t.team))) }
+        ? { red: sideFromRow(r, "red"), blue: sideFromRow(r, "blue"), dq: asc(ts.filter((t) => Number(t.dq) === 1).map((t) => Number(t.team))), breakdown: Number(r.breakdown) === 1 }
         : null,
       schedule: { time, field, red: side("red"), blue: side("blue") },
     };
@@ -207,14 +224,18 @@ async function writeOnce(b: EventBundle, at: string): Promise<{ changes: number 
     return { changes: 0 };
   }
   const stored = await readStored(season, code);
-  // Matches an earlier write left out still count as stored: one that comes back is compared with what it was.
+  // Held matches (result_watch.missing) still count as stored: one an earlier write left out, or whose result
+  // a feed that hadn't caught up wrote over as unplayed, is compared with what it was when it comes back.
   let missing: Record<string, StoredMatch> = {};
   try { missing = JSON.parse(watch.missing || "{}"); } catch { missing = {}; }
-  const storedKeys = new Set(stored.map((m) => matchKey(m)));
-  const base = [...stored, ...Object.entries(missing).filter(([key]) => !storedKeys.has(key)).map(([, m]) => m)];
+  const byKey = new Map(stored.map((m) => [matchKey(m), m]));
+  for (const [key, m] of Object.entries(missing)) {
+    const cur = byKey.get(key);
+    if (!cur || (!cur.result && m.result)) byKey.set(key, m);
+  }
+  const base = [...byKey.values()];
   const changes = diffMatches(base, matches, source, true);
-  const incomingKeys = new Set(matches.map((m) => matchKey(m)));
-  const nextMissing = JSON.stringify(Object.fromEntries(base.filter((m) => !incomingKeys.has(matchKey(m))).slice(0, MISSING_KEPT).map((m) => [matchKey(m), m])));
+  const nextMissing = JSON.stringify(Object.fromEntries(held(base, matches, source).slice(0, MISSING_KEPT).map((m) => [matchKey(m), m])));
   await resultChangesIo.afterRead();
   // The guard: a second watch row for this event (a primary-key failure, so the whole batch rolls back)
   // unless the event is still as it was read.
