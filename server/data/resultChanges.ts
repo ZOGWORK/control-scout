@@ -8,7 +8,7 @@
 //   revised  — a posted result's values changed (before and after kept)
 //   schedule — an unplayed match's time or field moved, or a lineup changed
 // A repeated poll of the same data compares equal and adds nothing. Each row
-// also carries a diff key (match + kind + the match's previous change + the
+// also carries a diff key (match + kind + the key of the match's previous change + the
 // new value, UNIQUE) as a second guard, and the batch fails as a whole (then
 // reads and diffs again) if another writer stored the event in between (see
 // writeEventBundle). Matches a write leaves out are remembered as they were
@@ -249,15 +249,16 @@ async function writeOnce(b: EventBundle, at: string): Promise<{ changes: number 
   }];
   if (nextMissing !== (watch.missing || "{}")) stmts.push({ sql: "UPDATE result_watch SET missing = ? WHERE season = ? AND code = ?", args: [nextMissing, ...k] });
   if (changes.length) {
-    // Each match's latest change of each kind is part of the diff key: the same value coming back later
-    // (A → B → A) is a new change, a replay of one write is not.
-    const last = new Map<string, number>();
-    for (const r of await all<any>("SELECT level, series, number, kind, MAX(id) id FROM result_changes WHERE season = ? AND code = ? GROUP BY level, series, number, kind", k)) {
-      last.set(`${r.level}:${r.series}:${r.number}:${r.kind}`, Number(r.id));
+    // Each match's latest change of each kind (its diff key, which is the same in every copy of the database,
+    // unlike its id) is part of the next key: the same value coming back later (A → B → A) is a new change, a
+    // replay of one write is not. SQLite takes the bare diff_key from the row with MAX(id).
+    const last = new Map<string, string>();
+    for (const r of await all<any>("SELECT level, series, number, kind, MAX(id) id, diff_key FROM result_changes WHERE season = ? AND code = ? GROUP BY level, series, number, kind", k)) {
+      last.set(`${r.level}:${r.series}:${r.number}:${r.kind}`, String(r.diff_key));
     }
     for (const c of changes) {
       const after = c.after ? JSON.stringify(c.after) : null;
-      const key = sha([season, code, c.level, c.series, c.number, c.kind, last.get(`${c.level}:${c.series}:${c.number}:${c.kind}`) ?? 0, after ?? "-"].join("|"));
+      const key = sha([season, code, c.level, c.series, c.number, c.kind, last.get(`${c.level}:${c.series}:${c.number}:${c.kind}`) ?? "", after ?? "-"].join("|"));
       stmts.push({
         sql: `INSERT OR IGNORE INTO result_changes (season, code, level, series, number, label, kind, fields, before, after, source, prev_source, checked_at, diff_key)
               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,

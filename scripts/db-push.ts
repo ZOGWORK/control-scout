@@ -50,7 +50,14 @@ for (const table of PUBLIC_TABLES) {
   // without ids and keep any call the target already logged for the same match
   // (UNIQUE kind+match). Everything else is plain data: newest copy wins.
   const ledger = table === "predictions";
-  // Result changes: ids are local too; the UNIQUE diff_key keeps a change the target already has from doubling.
+  // Result history mirrors the source per watched event (result_watch is copied first): the target's rows for
+  // those events are replaced, so the per-event cap and result_watch.pruned stay true there.
+  if (table === "result_changes") {
+    for (const w of (await source.execute("SELECT season, code FROM result_watch")).rows) {
+      await to.execute({ sql: "DELETE FROM result_changes WHERE season = ? AND code = ?", args: [w.season, w.code] });
+    }
+  }
+  // Result changes: ids are local too (diff keys aren't: they chain on the previous change's key).
   const changes = table === "result_changes";
   if (ledger || changes) cols = cols.filter((c) => c !== "id");
   const values = cols.map(() => "?").join(", ");

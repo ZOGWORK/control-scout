@@ -981,7 +981,7 @@ CREATE TABLE result_changes (
   source TEXT NOT NULL,        -- the feed that delivered the new value: first | ftc-scout
   prev_source TEXT,            -- the feed the stored value came from
   checked_at TEXT NOT NULL,    -- when the sync saw it (not when FIRST changed it)
-  diff_key TEXT NOT NULL UNIQUE -- match + kind + previous change + new value: a replay can't add a second row
+  diff_key TEXT NOT NULL UNIQUE -- match + kind + previous change's key + new value: a replay can't add a second row
 );
 CREATE INDEX result_changes_event ON result_changes (season, code, id);
 CREATE INDEX result_changes_match ON result_changes (season, code, level, series, number, id);
