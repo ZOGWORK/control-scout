@@ -3,16 +3,16 @@
 //
 // Live and backtest are always separate blocks — never blended. "Live" counts
 // only predictions written down before the match was played.
-import { all } from "../db.js";
-import { PREDICT_SEASONS, SEASONS } from "../data/seasons.js";
+import { all, kvGet } from "../db.js";
+import { CURRENT_SEASON, PREDICT_SEASONS, SEASONS } from "../data/seasons.js";
 import { ENGINE_VERSION, type ConfidenceTier } from "@control-scout/predict-engine";
-import type { AccuracyBlock, ShadowScore, TrackRecord } from "../../src/shared/api.js";
+import type { AccuracyBlock, ReplayCoverage, ShadowScore, TrackRecord } from "../../src/shared/api.js";
+import { LIVE_THRESHOLD, pickHeadline } from "../../src/shared/ledger.js";
 import { matchViews } from "./matches.js";
 import { dataVersion } from "../predict/engine.js";
 import { registerCache } from "../caches.js";
 
-/** Live matches needed before the headline switches from backtest to live. */
-export const LIVE_THRESHOLD = 300;
+export { LIVE_THRESHOLD };
 
 interface Row { p: number; y: number; tier: ConfidenceTier; level: string; time: string | null }
 
@@ -59,10 +59,15 @@ export function block(rows: Row[]): AccuracyBlock | null {
 let cached: { key: string; value: TrackRecord } | null = null;
 let building: { key: string; value: Promise<TrackRecord> } | null = null;
 
-/** What the track record depends on: the data version and the scored live calls. */
+/**
+ * What the track record depends on: the data version, when the stats run that wrote the replay finished
+ * (data:settled), and the scored live calls. The data version moves at the START of a stats run, before the
+ * replay is rewritten: keyed on it alone, the warm-up (every 15 s) cached the old replay under the new
+ * version and kept it until the next run, so the replay lagged the scores by a whole cycle.
+ */
 async function trackRecordKey(): Promise<string> {
   const live = await all<{ c: number; s: string | null }>("SELECT COUNT(*) c, MAX(scored_at) s FROM predictions WHERE kind = 'live' AND outcome IS NOT NULL");
-  return `${await dataVersion()}|${live[0]?.c}|${live[0]?.s}`;
+  return `${await dataVersion()}|${(await kvGet<string>("data:settled")) ?? ""}|${live[0]?.c}|${live[0]?.s}`;
 }
 
 function build(key: string): Promise<TrackRecord> {
@@ -98,11 +103,62 @@ export async function warmTrackRecord(): Promise<void> {
 }
 
 /** Forget the cached track record (tests). */
-export function resetTrackRecord(): void { cached = null; building = null; }
+export function resetTrackRecord(): void { cached = null; building = null; pastCoverage = null; }
 registerCache("Track record", resetTrackRecord);
+
+/**
+ * Per season: every match with a final score, how many have a replayed call, and why the rest don't. The
+ * replay (stats/job.ts backtest) leaves out remote and hybrid events, and predicts 2-on-2 from the robots that
+ * actually played, so a match where an alliance had a no-show (or a single robot) is skipped. Anything else
+ * missing is "other" (normally: scored since the replay was last rebuilt). The lineup is read only for
+ * matches without a replayed call, so this stays a scan of the season's matches.
+ */
+export async function replayCoverage(seasons: number[]): Promise<Map<number, ReplayCoverage>> {
+  const out = new Map<number, ReplayCoverage>();
+  if (!seasons.length) return out;
+  const rows = await all<{ season: number; scored: number; replayed: number; event_skipped: number; short_handed: number }>(
+    `SELECT m.season,
+            COUNT(*) scored,
+            SUM(CASE WHEN p.id IS NOT NULL THEN 1 ELSE 0 END) replayed,
+            SUM(CASE WHEN p.id IS NULL AND (COALESCE(e.remote, 0) = 1 OR COALESCE(e.hybrid, 0) = 1) THEN 1 ELSE 0 END) event_skipped,
+            SUM(CASE WHEN p.id IS NOT NULL OR COALESCE(e.remote, 0) = 1 OR COALESCE(e.hybrid, 0) = 1 THEN 0
+                     WHEN (SELECT COALESCE(SUM(CASE WHEN t.alliance = 'red' AND t.on_field = 1 THEN 1 ELSE 0 END), 0) = 2
+                              AND COALESCE(SUM(CASE WHEN t.alliance = 'blue' AND t.on_field = 1 THEN 1 ELSE 0 END), 0) = 2
+                           FROM match_teams t
+                           WHERE t.season = m.season AND t.code = m.code AND t.level = m.level AND t.series = m.series AND t.number = m.number) THEN 0
+                     ELSE 1 END) short_handed
+     FROM matches m
+     LEFT JOIN events e ON e.season = m.season AND e.code = m.code
+     LEFT JOIN predictions p ON p.kind = 'backtest' AND p.season = m.season AND p.code = m.code AND p.level = m.level AND p.series = m.series AND p.number = m.number
+     WHERE m.season IN (${seasons.map(() => "?").join(",")}) AND m.played = 1 AND m.red_total IS NOT NULL AND m.blue_total IS NOT NULL
+     GROUP BY m.season`,
+    seasons,
+  );
+  for (const r of rows) {
+    const scored = Number(r.scored), replayed = Number(r.replayed), eventSkipped = Number(r.event_skipped), shortHanded = Number(r.short_handed);
+    out.set(Number(r.season), { scored, replayed, eventSkipped, shortHanded, other: Math.max(0, scored - replayed - eventSkipped - shortHanded) });
+  }
+  return out;
+}
+
+/**
+ * Past seasons' coverage, kept until a full stats run finishes (stats:last): only that run rewrites their
+ * replay or results. Counting them reads ~120k matches (about a second), while the track record is rebuilt
+ * every time a live call is scored; the current season is small and counted on every build.
+ */
+let pastCoverage: { key: string; value: Map<number, ReplayCoverage> } | null = null;
+
+async function seasonCoverage(): Promise<Map<number, ReplayCoverage>> {
+  const key = JSON.stringify((await kvGet<unknown>("stats:last")) ?? null);
+  const past = PREDICT_SEASONS.filter((s) => s !== CURRENT_SEASON);
+  if (pastCoverage?.key !== key) pastCoverage = { key, value: await replayCoverage(past) };
+  const current = PREDICT_SEASONS.includes(CURRENT_SEASON) ? await replayCoverage([CURRENT_SEASON]) : new Map<number, ReplayCoverage>();
+  return new Map([...pastCoverage.value, ...current]);
+}
 
 async function computeTrackRecord(): Promise<TrackRecord> {
   const rows = await all<any>("SELECT kind, season, p_red p, outcome y, tier, level, match_time time, engine_version engine, model_id model, p_red_shadow ps, shadow_model_id sm FROM predictions WHERE outcome IS NOT NULL");
+  const coverage = await seasonCoverage();
   const seasons = SEASONS.filter((s) => PREDICT_SEASONS.includes(s.season)).map((s) => {
     const of = (kind: string, engine?: string) => rows.filter((r) => r.kind === kind && Number(r.season) === s.season && (engine == null || r.engine === engine))
       .map((r) => ({ p: Number(r.p), y: Number(r.y), tier: r.tier, level: r.level, time: r.time }));
@@ -127,16 +183,10 @@ async function computeTrackRecord(): Promise<TrackRecord> {
       const [servedModel, shadowModel] = k.split("|");
       return { servedModel, shadowModel, n: xs.length, served: score(xs), shadow: score(xs.map((x) => ({ y: x.y, p: x.ps }))) };
     });
-    return { season: s.season, label: `${s.label} ${s.game}`, live: block(of("live")), backtest: block(of("backtest")), liveByEngine, liveShadow };
+    return { season: s.season, label: `${s.label} ${s.game}`, live: block(of("live")), backtest: block(of("backtest")), replay: coverage.get(s.season), liveByEngine, liveShadow };
   }).reverse();
-  // Headline: live once it has a real sample, otherwise the latest backtest — always labelled.
-  let headline: TrackRecord["headline"] = null;
-  const liveBest = seasons.find((s) => s.live && s.live.n >= LIVE_THRESHOLD);
-  if (liveBest?.live) headline = { kind: "live", season: liveBest.season, accuracy: liveBest.live.accuracy, n: liveBest.live.n };
-  else {
-    const bt = seasons.find((s) => s.backtest && s.backtest.n >= 1000);
-    if (bt?.backtest) headline = { kind: "backtest", season: bt.season, accuracy: bt.backtest.accuracy, n: bt.backtest.n };
-  }
+  // Headline: the one rule every ledger card reads (src/shared/ledger.ts), always labelled with its kind.
+  const headline = pickHeadline(seasons);
   // The most recent scored live calls (or none yet).
   const recent = await all<any>("SELECT season, code, level, series, number FROM predictions WHERE kind = 'live' AND outcome IS NOT NULL ORDER BY match_time DESC LIMIT 12");
   const recentCalls: TrackRecord["recentCalls"] = [];

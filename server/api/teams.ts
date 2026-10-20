@@ -116,7 +116,7 @@ export async function compareTeams(numbers: number[], season: number): Promise<C
     return {
       team: info ?? { number: n, name: null, fullName: null, school: null, sponsors: [], city: null, state: null, country: null, rookieYear: null, website: null, homeRegion: null },
       stats,
-      events: events.map((e) => ({ code: e.code, name: e.name, start: e.start, opr: e.opr.np, rank: e.rank })),
+      events: events.map((e) => ({ code: e.code, name: e.name, start: e.start, opr: e.opr.np, auto: e.opr.auto, teleop: e.opr.teleop, endgame: e.opr.endgame, rank: e.rank })),
     };
   }));
   // Matches where at least two of the compared teams both played.
