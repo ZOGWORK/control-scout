@@ -10,7 +10,7 @@
 // stream lets go after the tab has been hidden for a minute.
 import { useCallback, useEffect, useRef, useState } from "react";
 import { apiFetch, ApiError } from "./api";
-import { INBOX_PAGE, type InboxFilter, type InboxItem, type InboxPage } from "../shared/inbox";
+import { INBOX_PAGE, INBOX_PAGE_MAX, type InboxFilter, type InboxItem, type InboxPage } from "../shared/inbox";
 
 export type InboxMode = "off" | "connecting" | "live" | "polling";
 
@@ -152,8 +152,12 @@ export interface InboxState {
  * bring back items or unread state a later one replaced. An older page never cancels a refresh: its reply is
  * dropped instead when the list changed after it was asked for.
  *
- * Filter "followUp" lists flagged items only. An item unflagged in that view stays on screen (shown unflagged,
- * so it can be flagged again and focus isn't lost) until the filter changes or the panel opens again.
+ * Filter "followUp" lists flagged items only. An item toggled in that view stays on screen (so it can be flagged
+ * again and focus isn't lost) until the filter changes or the panel opens again: the view asks the server for those
+ * rows too (keep=), and refreshes the whole range it has loaded, so every row it shows has the server's state.
+ *
+ * While a read or follow-up write is queued, refreshes wait (a snapshot from before it would undo it on screen, and
+ * the next toggle would be decided from that stale state); the list is fetched once the last write is in.
  */
 export function useInbox(userId: number | null): InboxState {
   const visible = useVisible();
@@ -176,31 +180,33 @@ export function useInbox(userId: number | null): InboxState {
   const listVersion = useRef(0);
   const loadedRef = useRef(false);
   const filterRef = useRef<InboxFilter>("all");
-  // Unflagged in the Follow up view: kept on screen (see above).
+  // Toggled in the Follow up view: kept on screen (see above).
   const kept = useRef(new Set<number>());
-  // Where "Load older" carries on from: the oldest id the server sent for this list (never a kept row, which may be
-  // older than the rows fetched with it, so paging from it would skip flagged items in between).
+  // Where "Load older" carries on from: the oldest id the server sent for this list.
   const cursor = useRef<number | null>(null);
   // Writes go one at a time, in the order they were made, so a quick flag then unflag ends unflagged.
   const writes = useRef<Promise<unknown>>(Promise.resolve());
+  const pendingWrites = useRef(0);
+  const shown = useRef(0);
+  shown.current = items.length;
+  // The Follow up view's extra query: the toggled rows it keeps (the account's own, checked on the server).
+  const keepQuery = () => (kept.current.size ? `&keep=${[...kept.current].slice(-200).join(",")}` : "");
 
   const load = useCallback(() => {
     if (userId == null) return;
+    if (!loadedRef.current) setLoading(true);
+    if (pendingWrites.current > 0) return; // the last queued write refreshes once it's in
     const g = gen.current, s = ++seq.current, f = filterRef.current;
     const current = () => gen.current === g && seq.current === s && filterRef.current === f;
-    if (!loadedRef.current) setLoading(true);
-    apiFetch<InboxPage>(`/api/inbox?limit=${INBOX_PAGE}${f === "all" ? "" : `&filter=${f}`}`)
+    // The Follow up view refreshes everything it shows (kept rows included); All, the newest page.
+    const q = f === "followUp" ? `&limit=${Math.min(INBOX_PAGE_MAX, Math.max(INBOX_PAGE, shown.current))}&filter=followUp${keepQuery()}` : `&limit=${INBOX_PAGE}`;
+    apiFetch<InboxPage>(`/api/inbox?${q.slice(1)}`)
       .then((r) => {
         if (!current()) return;
         listVersion.current++;
         const page = cleanItems(r.items);
         cursor.current = page.at(-1)?.id ?? null;
-        setItems((cur) => {
-          if (f !== "followUp" || !kept.current.size) return page;
-          const ids = new Set(page.map((i) => i.id));
-          const stay = cur.filter((i) => kept.current.has(i.id) && !ids.has(i.id));
-          return [...page, ...stay].sort((a, b) => b.id - a.id);
-        });
+        setItems(page);
         setMore(!!r.more);
         if (Number.isFinite(r.unread)) setUnread(r.unread);
         if (Number.isFinite(r.followUp)) setFollowUpCount(r.followUp);
@@ -215,7 +221,7 @@ export function useInbox(userId: number | null): InboxState {
     gen.current++;
     setUnread(0); setFollowUpCount(0); setItems([]); setLoaded(false); setLoading(false); setError(null); setMore(false); setLoadingOlder(false);
     setFilterState("all"); filterRef.current = "all"; kept.current.clear(); cursor.current = null;
-    writes.current = Promise.resolve();
+    writes.current = Promise.resolve(); pendingWrites.current = 0;
     loadedRef.current = false;
     // Unmounting, or the account changing: anything still queued or in flight belongs to the old one.
     return () => { gen.current++; };
@@ -248,12 +254,13 @@ export function useInbox(userId: number | null): InboxState {
     if (userId == null || !oldest) return;
     const g = gen.current, s = seq.current, v = listVersion.current, o = ++olderSeq.current, f = filterRef.current;
     setLoadingOlder(true);
-    apiFetch<InboxPage>(`/api/inbox?limit=${INBOX_PAGE}&before=${oldest}${f === "all" ? "" : `&filter=${f}`}`)
+    apiFetch<InboxPage>(`/api/inbox?limit=${INBOX_PAGE}&before=${oldest}${f === "all" ? "" : `&filter=${f}${keepQuery()}`}`)
       .then((r) => {
         if (gen.current !== g || seq.current !== s || listVersion.current !== v || olderSeq.current !== o || filterRef.current !== f) return; // the list changed meanwhile: this page may not fit it
         const page = cleanItems(r.items);
         if (page.length) cursor.current = page.at(-1)!.id;
-        setItems((cur) => { const ids = new Set(cur.map((i) => i.id)); return [...cur, ...page.filter((i) => !ids.has(i.id))].sort((a, b) => b.id - a.id); });
+        // The server's copy wins for a row already shown.
+        setItems((cur) => { const ids = new Set(page.map((i) => i.id)); return [...cur.filter((i) => !ids.has(i.id)), ...page].sort((a, b) => b.id - a.id); });
         setMore(!!r.more);
       })
       .catch((e) => { if (gen.current === g) setError(e instanceof ApiError ? e : new ApiError(0, "Couldn't load older notifications.")); })
@@ -266,11 +273,13 @@ export function useInbox(userId: number | null): InboxState {
   const send = useCallback((path: string, body: unknown) => {
     const g = gen.current;
     seq.current++;
+    pendingWrites.current++;
     // A write still waiting when the account changes (or the bell goes away) is dropped, never sent with the next
     // account's cookie.
     const w = writes.current
       .then(() => (gen.current === g ? apiFetch<{ unread: number }>(path, { method: "POST", json: body }) : undefined))
       .catch(() => undefined)
+      .then(() => { if (gen.current === g) pendingWrites.current = Math.max(0, pendingWrites.current - 1); })
       // The list is fetched once the last queued write is in (an earlier one's snapshot would undo the later change on screen).
       .then(() => { if (gen.current === g && writes.current === w) load(); });
     writes.current = w;
@@ -295,7 +304,7 @@ export function useInbox(userId: number | null): InboxState {
   const setFollowUp = useCallback((ids: number[], on: boolean) => {
     const change = items.filter((i) => ids.includes(i.id) && i.followUp !== on).map((i) => i.id);
     if (!change.length) return;
-    if (filterRef.current === "followUp") for (const id of change) { if (on) kept.current.delete(id); else kept.current.add(id); }
+    if (filterRef.current === "followUp") for (const id of change) kept.current.add(id);
     setItems((cur) => cur.map((i) => (change.includes(i.id) ? { ...i, followUp: on } : i)));
     setFollowUpCount((n) => Math.max(0, n + (on ? change.length : -change.length)));
     send("/api/inbox/follow-up", { ids: change, on });

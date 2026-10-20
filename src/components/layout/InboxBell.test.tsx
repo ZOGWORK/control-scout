@@ -23,7 +23,8 @@ vi.mock("../../lib/api", async (orig) => ({
     const followUp = () => h.items.filter((i) => i.followUp).length;
     if (path === "/api/inbox/unread-count") return { unread: h.unread };
     if (path.startsWith("/api/inbox?")) {
-      const items = path.includes("filter=followUp") ? h.items.filter((i) => i.followUp) : h.items;
+      const keep = (/keep=([0-9,]+)/.exec(path)?.[1] ?? "").split(",").map(Number);
+      const items = path.includes("filter=followUp") ? h.items.filter((i) => i.followUp || keep.includes(i.id)) : h.items;
       return { items, more: false, unread: h.unread, followUp: followUp() };
     }
     if (path === "/api/inbox/unread") {
@@ -217,7 +218,7 @@ describe("follow-up state", () => {
     const flag = within(panel).getByRole("button", { name: "Follow up on 'Coach assigned you to scout team 18360'" });
     fireEvent.click(flag);
     await waitFor(() => expect(h.calls.filter((c) => c.path === "/api/inbox/follow-up").at(-1)?.init?.json).toEqual({ ids: [6], on: false }));
-    await waitFor(() => expect(h.calls.filter((c) => c.path.includes("filter=followUp")).length).toBeGreaterThan(1));
+    await waitFor(() => expect(h.calls.some((c) => c.path.includes("filter=followUp") && c.path.includes("keep=6"))).toBe(true));
     expect(within(panel).getByRole("button", { name: "Follow up on 'Coach assigned you to scout team 18360'" }).getAttribute("aria-pressed")).toBe("false");
     fireEvent.click(within(panel).getByRole("button", { name: "All" }));
     fireEvent.click(within(panel).getByRole("button", { name: /^Follow up(, [0-9]+ flagged)?$/ }));

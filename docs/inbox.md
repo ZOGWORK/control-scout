@@ -18,8 +18,10 @@ Each item also has two toggles, synced to the account and the same on every devi
 
 The **Follow up** filter above the list shows flagged items only, with how many there
 are. Mark all read is offered on the All view only and never clears a flag. An item
-unflagged inside the Follow up view stays on screen, unflagged, until the view changes
-or the panel opens again, so focus isn't lost. When a coalesced edit or a newer pick list
+toggled inside the Follow up view stays on screen until the view changes or the panel
+opens again, so focus isn't lost: the view asks for those rows by id (`keep=`) and
+refreshes its whole loaded range, so each row shows the server's state. While a toggle is
+still being saved, refreshes wait, and toggles reach the server one at a time, in order. When a coalesced edit or a newer pick list
 line replaces an item, a flag on the replaced item moves to the new one. Resolving an
 owner alert marks its items read and keeps their flags. Flagged items are still pruned
 after 90 days.
@@ -137,7 +139,8 @@ protection, as for `/api/me`).
 - `GET /api/inbox?before=<id>&limit=30&filter=all|followUp` returns
   `{ items, more, unread, followUp }`, newest first. Each item has `read` and `followUp`.
   `filter=followUp` lists flagged items only (paged the same way); `unread` and `followUp`
-  are always the whole inbox's counts.
+  are always the whole inbox's counts. With `filter=followUp`, `keep=1,2` (up to 200 ids)
+  also lists those of the caller's own items, flagged or not.
 - `GET /api/inbox/unread-count` returns `{ unread }`.
 - `POST /api/inbox/read` takes `{ ids: [...] }` or `{ all: true, upTo?: <newest id seen> }`
   and returns `{ unread }`. It only touches the caller's own items. With `upTo`, an item
