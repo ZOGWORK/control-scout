@@ -12,6 +12,7 @@ import { STAT_BY_KEY, statFor, type MatchRecordRow, type RecordScope, type Recor
 import { countryByCode } from "../../shared/countries";
 import { clampPage, clearFilters, defaultDir, hasFilters, parseTableState, recordsUrl, searchString, writeTableState, type TableState } from "../../lib/records/urlState";
 import { describeFilter, formatStat, headerOf, TONE_CLASS, toneOf } from "../../lib/records/describe";
+import { RECORDS_CAP_NOTE_TONE } from "../../lib/textTones";
 import { addPreset, hasPreset, presetGroup, presetsFor, removePreset, type ThresholdLookup } from "../../lib/records/presets";
 import type { FilterPreset } from "../../config/filterPresets";
 import { dateRange } from "../../lib/format";
@@ -26,6 +27,7 @@ import { pickableStats, StatPicker } from "./StatPicker";
 import { DateRangePicker, EventTypeSelect, RegionPicker, SeasonSelect } from "./Controls";
 import { pageTop } from "../../lib/pageScroll";
 import { PREDICTION_FIELD, SUMMARY_FIELDS } from "../../lib/records/matchOutcome";
+import { PredictionValue } from "./PredictionValue";
 import { LayoutToggle, MatchSummaryList, SummarySort, useLayout, usePhone } from "./MatchSummary";
 
 type Row = TeamEventRecord | TeamSeasonRecord | MatchRecordRow;
@@ -264,7 +266,7 @@ export function RecordsTable(p: RecordsTableProps) {
         )}
         {/* The cap note takes its own line (under the toolbar; under Compare on phones), so it never squeezes the quick filters. */}
         {selectable && (
-          <span role="status" className={cn(capNote ? "order-last inline-flex min-w-0 basis-full items-center gap-1.5 rounded-lg bg-amber-500/10 px-2.5 py-1 text-xs font-medium text-amber-600 dark:text-amber-400 max-sm:order-1" : "sr-only")}>
+          <span role="status" className={cn(capNote ? ["order-last inline-flex min-w-0 basis-full items-center gap-1.5 rounded-lg px-2.5 py-1 text-xs font-medium max-sm:order-1", RECORDS_CAP_NOTE_TONE] : "sr-only")}>
             {capNote && <><Info className="size-3.5 shrink-0" />{capNote}</>}
           </span>
         )}
@@ -483,7 +485,7 @@ function Table({ data, scope, cols, state, sortBy, code, highlightTeam, selectab
                 {"key" in r ? (
                   <>
                     <td className={cn(sticky, "density-row px-5 py-3 row-still-hover:bg-[color-mix(in_srgb,var(--color-card)_97%,var(--color-text-base))]")}>
-                      <Link to={`/events/${r.season}/${r.eventCode}?match=${encodeURIComponent(r.key)}`} className="block max-w-[13rem] still-hover:text-accent">
+                      <Link to={`/events/${r.season}/${r.eventCode}?match=${encodeURIComponent(r.key)}`} className="block max-w-[13rem] still-hover:text-accent-text">
                         <span className="font-semibold">{r.label}</span>
                         <span className="block truncate text-xs text-text-muted">{r.eventName}</span>
                       </Link>
@@ -499,7 +501,7 @@ function Table({ data, scope, cols, state, sortBy, code, highlightTeam, selectab
                           <input type="checkbox" checked={sel} onChange={() => onSelect(team!)} aria-label={`Select ${team} to compare`}
                             className="size-4 shrink-0 cursor-pointer accent-[var(--color-accent)] max-sm:size-5" />
                         )}
-                        <Link to={`/teams/${team}?season=${r.season}`} className="flex min-w-0 items-baseline gap-2 still-hover:text-accent">
+                        <Link to={`/teams/${team}?season=${r.season}`} className="flex min-w-0 items-baseline gap-2 still-hover:text-accent-text">
                           <span className="font-mono font-semibold tabular-nums">{team}</span>
                           <span className="max-w-[6.5rem] truncate text-text-muted sm:max-w-[13rem]">{String(r.stats.teamName ?? "")}</span>
                         </Link>
@@ -507,7 +509,7 @@ function Table({ data, scope, cols, state, sortBy, code, highlightTeam, selectab
                     </td>
                     {showEvent && "eventCode" in r && (
                       <td className="density-row px-5 py-3">
-                        <Link to={`/events/${r.season}/${r.eventCode}`} className="block max-w-[16rem] still-hover:text-accent">
+                        <Link to={`/events/${r.season}/${r.eventCode}`} className="block max-w-[16rem] still-hover:text-accent-text">
                           <span className="block truncate">{r.eventName}</span>
                           <span className="block text-xs text-text-muted">{dateRange(r.eventStart)}</span>
                         </Link>
@@ -522,7 +524,7 @@ function Table({ data, scope, cols, state, sortBy, code, highlightTeam, selectab
                   return (
                     <td key={k} className={cn("density-row whitespace-nowrap border-l border-text-base/[0.08] px-5 py-3 text-right tabular-nums", d?.type === "text" && "text-left", state.sort === k && "bg-accent/[0.04] font-semibold",
                       tone !== "slate" && v != null && TONE_CLASS[tone].text)}>
-                      {formatStat(d, v)}
+                      {k === PREDICTION_FIELD ? <PredictionValue text={formatStat(d, v)} tier={(r as MatchRecordRow).predictionTier} className="justify-end" /> : formatStat(d, v)}
                     </td>
                   );
                 })}

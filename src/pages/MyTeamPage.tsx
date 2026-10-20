@@ -285,7 +285,7 @@ function TrackedFeed({ season }: { season: number }) {
                       <p className="truncate font-medium"><span className="font-mono">{t.team}</span> <span className="text-muted-foreground">{t.name}</span></p>
                       <p className="mt-0.5 text-xs text-muted-foreground">OPR {num(t.opr)}{t.oprRank ? ` (#${t.oprRank})` : ""} · rating {num(t.rating)} · {t.record ?? "no record"}</p>
                       {t.lastEvent && <p className="mt-1 truncate text-xs">Last: {t.lastEvent.name}{t.lastEvent.rank ? ` — ranked #${t.lastEvent.rank}` : ""}</p>}
-                      {t.nextEvent && <p className="truncate text-xs text-accent">Next: {t.nextEvent.name} · {dateRange(t.nextEvent.start, t.nextEvent.end)}</p>}
+                      {t.nextEvent && <p className="truncate text-xs text-accent-text">Next: {t.nextEvent.name} · {dateRange(t.nextEvent.start, t.nextEvent.end)}</p>}
                     </Link>
                     <Button variant="ghost" size="icon-sm" aria-label={`Stop tracking ${t.team}`} onClick={() => update("tracked", (x) => ({ ...x, teams: x.teams.filter((n) => n !== t.team) }))}><X /></Button>
                   </li>

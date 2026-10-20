@@ -9,7 +9,7 @@ import { MemoryRouter } from "react-router-dom";
 import type { PickList } from "../../shared/picklist";
 import type { ShortlistTeam } from "../../shared/api";
 import { announcePicklist, NOTE_UNCONFIRMED, resetFailedChanges } from "../../lib/sharedPicklist";
-import { allPending, isClaimed, SAVED_SHOW_MS } from "../../lib/pendingWork";
+import { allPending, isClaimed, SAVED_SHOW_MS, volatileWorkCount } from "../../lib/pendingWork";
 import { SharedPicklist } from "./SharedPicklist";
 
 const S = 2025;
@@ -353,5 +353,44 @@ describe("account isolation", () => {
     fireEvent.keyDown(noteInput(102), { key: "Enter" });
     await waitFor(() => expect(allPending()).toHaveLength(1));
     expect(allPending().every((x) => x.account === 2)).toBe(true);
+  });
+});
+
+describe("changes on their way, before a reload (audit PUB3-F02)", () => {
+  it("an order change queued or sending counts as work a reload would lose, even after the list closes, until its answer", async () => {
+    const view = show();
+    await waitFor(() => expect(rows()).toEqual([101, 102]));
+    holdAll = true;
+    fireEvent.click(within(row(101)).getByRole("button", { name: "Remove 101" }));
+    await waitFor(() => expect(posts.filter((p) => p.op === "remove")).toHaveLength(1));
+    view.unmount(); // the member left Scout; the write keeps going
+    expect(volatileWorkCount()).toBe(1);
+    holdAll = false;
+    releaseAll();
+    await waitFor(() => expect(volatileWorkCount()).toBe(0));
+  });
+
+  it("a note kept on this device doesn't count; one this device couldn't store does", async () => {
+    await ready();
+    holdAll = true;
+    fireEvent.focus(noteInput(102));
+    fireEvent.change(noteInput(102), { target: { value: "Fast cycles" } });
+    fireEvent.keyDown(noteInput(102), { key: "Enter" });
+    await waitFor(() => expect(notePosts()).toHaveLength(1));
+    expect(volatileWorkCount()).toBe(0); // its draft is in storage: it comes back after a reload
+    holdAll = false;
+    releaseAll();
+    await waitFor(() => expect(noteState(102)).toBe("saved"));
+    const blocked = vi.spyOn(Storage.prototype, "setItem").mockImplementation(() => { throw new Error("QuotaExceededError"); });
+    holdAll = true;
+    fireEvent.focus(noteInput(101));
+    fireEvent.change(noteInput(101), { target: { value: "Slow" } });
+    fireEvent.keyDown(noteInput(101), { key: "Enter" });
+    await waitFor(() => expect(notePosts()).toHaveLength(2));
+    blocked.mockRestore();
+    expect(volatileWorkCount()).toBe(1);
+    holdAll = false;
+    releaseAll();
+    await waitFor(() => expect(volatileWorkCount()).toBe(0));
   });
 });

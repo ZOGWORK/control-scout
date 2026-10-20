@@ -43,6 +43,8 @@ export interface PendingItem {
   busy?: boolean;
   /** What Discard does, for its label ("Keep theirs" reads better than "Discard" over a teammate's note). */
   discardLabel?: string;
+  /** Only on this page (not kept in this device's storage): a reload loses it (src/lib/chunkError.ts asks first). */
+  volatile?: boolean;
 }
 
 const sources = new Map<string, PendingItem[]>();
@@ -53,7 +55,7 @@ const notify = () => { version++; listeners.forEach((f) => f()); };
 
 const sameItems = (a: PendingItem[] | undefined, b: PendingItem[]) => !!a && a.length === b.length
   && a.every((x, i) => x.key === b[i].key && x.status === b[i].status && x.message === b[i].message && x.label === b[i].label
-    && x.busy === b[i].busy && x.retry === b[i].retry && x.discard === b[i].discard && x.discardLabel === b[i].discardLabel);
+    && x.busy === b[i].busy && x.retry === b[i].retry && x.discard === b[i].discard && x.discardLabel === b[i].discardLabel && x.volatile === b[i].volatile);
 
 /** Replace what one source holds (an empty list removes it). */
 export function publishPending(source: string, items: PendingItem[]): void {
@@ -64,6 +66,20 @@ export function publishPending(source: string, items: PendingItem[]): void {
 }
 
 const subscribe = (f: () => void) => { listeners.add(f); return () => { listeners.delete(f); }; };
+
+// Work still on its way that this device couldn't store (a comment sent while storage is full or blocked): not
+// pending work the member acts on, but a reload before its answer loses it (src/lib/chunkError.ts asks first).
+const sendingUnstored = new Map<string, number>();
+/** How many of one source's writes on their way exist only in memory (0 removes it). */
+export function noteUnstoredSending(source: string, count: number): void {
+  if (count > 0) sendingUnstored.set(source, count); else sendingUnstored.delete(source);
+}
+/** Shared work a reload would lose: published items only on this page, and unstored writes still on their way. */
+export function volatileWorkCount(): number {
+  let n = snapshot.filter((x) => x.volatile).length;
+  for (const c of sendingUnstored.values()) n += c;
+  return n;
+}
 
 /** Everything published, for every account (tests; the view filters by account with usePendingWork). */
 export const allPending = () => snapshot;

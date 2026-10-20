@@ -10,7 +10,7 @@ import { useApi, type ApiError } from "../../lib/api";
 import { place, seasonLabel } from "../../lib/format";
 import { useTeamFlags } from "../../lib/personal";
 import { COUNTRIES, countryByCode } from "../../shared/countries";
-import type { DirectoryPage, DirectorySort, DirectoryTeam } from "../../shared/directory";
+import { isDirectoryPage, type DirectoryPage, type DirectorySort, type DirectoryTeam } from "../../shared/directory";
 import type { SeasonReadiness } from "../../shared/home";
 import { directoryDefaultDir, directoryUrl, parseDirectoryState, writeDirectoryState, type DirectoryState } from "../../lib/records/directoryState";
 import { clampPage, searchString } from "../../lib/records/urlState";
@@ -37,7 +37,7 @@ export function TeamDirectory({ season, onSeason }: { season: number; onSeason: 
   const setState = (next: DirectoryState, replace = false) =>
     navigate({ pathname: loc.pathname, search: searchString(writeDirectoryState(sp, next)), hash: loc.hash }, { replace });
 
-  const api = useApi<DirectoryPage>(directoryUrl(season, state));
+  const api = useApi<DirectoryPage>(directoryUrl(season, state), isDirectoryPage);
   // Keep the last page on screen while the next one loads (no flash of an empty table), but only for the
   // same season and country: another selection's totals must never sit under the new one's labels.
   const last = useRef<DirectoryPage | undefined>(undefined);
