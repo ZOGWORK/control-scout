@@ -33,11 +33,13 @@
 //   that made it (the server refuses another, WRONG_ACCOUNT), and only to its own workspace and season; a
 //   workspace this account can no longer reach (403/404) or that is read-only (423) is never sent to: the change
 //   is kept until the member discards it.
+// - A kept record that isn't well-formed (picklistOps.ts: damaged storage) is never retried, sent or compared: it is
+//   listed on its own as damaged, with only Discard, which removes that one record (audit V4-PRIVATE-001).
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { apiFetch, ApiError } from "./api";
 import type { LiveMode } from "./scoutLive";
 import { applyPickOp, cleanNote, isPickList, MAX_OP_QUERY, NOTE_CHANGED, WRONG_ACCOUNT, type Pick, type PickList, type PickOp, type PickPerson } from "../shared/picklist";
-import { deleteKeptOp, KEPT_OPS_CHANGED, keptOps, newPageForTests, putKeptOp, TAB_ID, type KeptPickOp } from "./picklistOps";
+import { deleteDamagedOp, deleteKeptOp, KEPT_OPS_CHANGED, keptOps, newPageForTests, putKeptOp, readKeptOps, TAB_ID, type DamagedPickOp, type KeptPickOp } from "./picklistOps";
 import { conflictOf, describeConflict, teamsOf, type PickConflict } from "./picklistConflict";
 import { clearNoteDraft, noteDrafts, readNoteDraft, saveNoteDraft, type NoteDraft } from "./picklistDrafts";
 import { claimScope, knownOffline, noteUnstoredSending, outcomeUnknown, publishPending, SAVED_SHOW_MS, type PendingItem, type SaveState } from "./pendingWork";
@@ -122,6 +124,10 @@ export interface PickListState {
   orderState: SaveState | null;
   /** Order changes that didn't go through (not refused: not sent, or unconfirmed). */
   failed: FailedChange[];
+  /** Kept records of this list that are damaged (never sent): only Discard. */
+  damaged: DamagedChange[];
+  /** Remove one damaged record from this device. */
+  discardDamaged: (id: number) => void;
   /** Send every kept order change of this list again, oldest first (force: apply them over what changed since). */
   retryAll: (opts?: { force?: boolean }) => void;
   /** Let go of every kept order change of this list. */
@@ -196,7 +202,46 @@ function failedChanged() {
     team: "team" in f.op ? f.op.team : null, label: describeChange(f.op), status: "attention", message: failedMessage(f), busy: f.busy,
     retry: () => { void retryFailedChange(f.id); }, discard: () => discardFailedChange(f.id),
     ...(f.stored ? {} : { volatile: true }), // not in this device's storage: a reload loses it
-  }]));
+  }]).concat([...damagedChanges.values()].map((d): PendingItem => ({
+    key: `order-damaged:${d.account}:${d.id}`, account: d.account, kind: "order", workspaceId: d.space ?? "", season: d.season,
+    team: d.op && "team" in d.op ? d.op.team : null, label: damagedLabel(d), status: "attention", message: DAMAGED_MESSAGE,
+    discard: () => { void discardDamagedChange(d.id); }, discardLabel: "Discard this change",
+  }))));
+}
+
+/** A kept record that isn't well-formed (picklistOps.ts): shown so the member can discard it, never sent. */
+export type DamagedChange = DamagedPickOp & { id: number };
+export const DAMAGED_MESSAGE = "This saved change is damaged and can't be applied. Discard it to clear it: your other changes aren't affected.";
+/** What a damaged record is called: its change when that part is readable, never a guess. */
+export const damagedLabel = (d: DamagedPickOp) => (d.op ? describeChange(d.op) : "A saved pick-list change");
+const damagedChanges = new Map<number, DamagedChange>();
+const sameKey = (a: IDBValidKey, b: IDBValidKey) => { try { return indexedDB.cmp(a, b) === 0; } catch { return false; } };
+/** This account's damaged records are now `read` (what the device holds): new ones added, gone ones dropped. True: something changed. */
+function setDamaged(account: number, read: DamagedPickOp[]): boolean {
+  let dirty = false;
+  for (const d of [...damagedChanges.values()]) {
+    if (d.account === account && !read.some((r) => sameKey(r.key, d.key))) { damagedChanges.delete(d.id); dirty = true; }
+  }
+  for (const r of read) {
+    if ([...damagedChanges.values()].some((d) => d.account === account && sameKey(d.key, r.key))) continue;
+    const id = ++failedSeq;
+    damagedChanges.set(id, { ...r, id });
+    dirty = true;
+  }
+  return dirty;
+}
+/** Remove one damaged record from this device (that one only). */
+export async function discardDamagedChange(id: number): Promise<void> {
+  const d = damagedChanges.get(id);
+  if (!d) return;
+  damagedChanges.delete(id);
+  failedChanged();
+  await deleteDamagedOp(d);
+}
+/** Every damaged kept record this page knows of (a list filters its own scope). */
+export function useDamagedChanges(): DamagedChange[] {
+  useSyncExternalStore((f) => { failedListeners.add(f); return () => { failedListeners.delete(f); }; }, () => failedVersion, () => 0);
+  return [...damagedChanges.values()];
 }
 /** What a kept change's row says: what a Retry found, else why it's kept. */
 export function failedMessage(f: FailedChange): string {
@@ -374,9 +419,10 @@ export async function retryKeptChanges(account: number | null, space: string, se
   }
 }
 
-/** Let go of every kept change of one list. */
+/** Let go of every kept change of one list (damaged ones of it included). */
 export function discardKeptChanges(account: number | null, space: string, season: number) {
   for (const f of [...failedChanges.values()]) if (f.account === account && f.space === space && f.season === season && !f.busy) discardFailedChange(f.id);
+  for (const d of [...damagedChanges.values()]) if (d.account === account && d.space === space && d.season === season) void discardDamagedChange(d.id);
 }
 
 // Order changes this page is sending (made here, not answered yet): what this device keeps of them isn't a kept change to offer.
@@ -396,9 +442,10 @@ export async function loadKeptOrderChanges(account: number | null | undefined): 
 
 /** Add kept changes this page doesn't hold yet (reconcile: check them with the server first); drop ones another tab let go of. */
 async function syncKept(account: number, reconcile: boolean): Promise<void> {
-  const recs = await keptOps(account);
+  const { ops: recs, damaged } = await readKeptOps(account);
   const have = new Set(recs.map((r) => r.opId));
-  let dirty = false;
+  // Damaged records: listed as they are on the device (never checked, sent or compared).
+  let dirty = setDamaged(account, damaged);
   // Confirmed or discarded in another tab: gone here too.
   for (const f of [...failedChanges.values()]) {
     if (f.account === account && f.stored && f.opId && !f.busy && !have.has(f.opId)) { failedChanges.delete(f.id); dirty = true; }
@@ -447,7 +494,7 @@ if (typeof window !== "undefined") {
   });
 }
 /** Tests: forget every kept order change this page holds (what the device keeps stays: as after a reload). */
-export function resetFailedChanges() { failedChanges.clear(); pageOps.clear(); restoredFor.clear(); signedInAccount = undefined; newPageForTests(); failedChanged(); }
+export function resetFailedChanges() { failedChanges.clear(); damagedChanges.clear(); pageOps.clear(); restoredFor.clear(); signedInAccount = undefined; newPageForTests(); failedChanged(); }
 
 /** Note writes on their way, by draft id (any page of this tab): the recoverable view doesn't offer them as waiting. */
 const inflight = new Set<string>();
@@ -515,6 +562,7 @@ export function usePickList(space: string | null, season: number, live: LiveMode
   const [unsaved, setUnsaved] = useState<Record<string, Unsaved>>({});
   // Order changes that didn't go through (not refused): kept (for this page, not this list) to retry or let go.
   const failed = useFailedChanges();
+  const damaged = useDamagedChanges();
   // When a note (by noteKey) or the order ("order:" + space:season) was last confirmed: "Saved" shows for a moment.
   const [savedAt, setSavedAt] = useState<Record<string, number>>({});
   const unsavedRef = useRef(unsaved);
@@ -821,6 +869,8 @@ export function usePickList(space: string | null, season: number, live: LiveMode
   const mine = useMemo(() => pending.filter((p) => p.space === space && p.season === season).map((p) => p.op), [pending, space, season]);
   const list = useMemo(() => (server ? withPending(server, mine, me) : null), [server, mine, me]);
   const scopeFailed = useMemo(() => failed.filter((f) => f.space === space && f.season === season && f.account === account), [failed, space, season, account]);
+  const scopeDamaged = useMemo(() => damaged.filter((d) => d.space === space && d.season === season && d.account === account), [damaged, space, season, account]);
+  const discardDamaged = useCallback((id: number) => { void discardDamagedChange(id); }, []);
   const recent = (k: string) => savedAt[k] !== undefined && Date.now() - savedAt[k] < SAVED_SHOW_MS;
   const noteState = (team: number): SaveState | null => {
     if (!space) return null;
@@ -829,7 +879,7 @@ export function usePickList(space: string | null, season: number, live: LiveMode
     if (mine.some((o) => o.op === "note" && o.team === team)) return "saving";
     return recent(k) ? "saved" : null;
   };
-  const orderState: SaveState | null = !space ? null : scopeFailed.some((f) => !f.busy) ? "attention" : mine.some((o) => o.op !== "note") || scopeFailed.length ? "saving" : recent(`order:${space}:${season}`) ? "saved" : null;
+  const orderState: SaveState | null = !space ? null : scopeFailed.some((f) => !f.busy) || scopeDamaged.length ? "attention" : mine.some((o) => o.op !== "note") || scopeFailed.length ? "saving" : recent(`order:${space}:${season}`) ? "saved" : null;
 
   // What needs the member, for the recoverable view (this account's only; nothing while read-only).
   useEffect(() => {
@@ -855,7 +905,7 @@ export function usePickList(space: string | null, season: number, live: LiveMode
   useEffect(() => () => publishPending(`picklist:${space ?? ""}:${season}`, []), [space, season]);
 
   return { list, loading: !server && (loading || !error), error: server ? null : error, saving: mine.length > 0, change, discardNote, retryFailed, discardFailed, retryAll, discardAll,
-    failed: scopeFailed, noteState, orderState,
+    failed: scopeFailed, damaged: scopeDamaged, discardDamaged, noteState, orderState,
     unsavedNote: (team: number) => (space ? unsaved[noteKey(account, space, season, team)]?.note : undefined),
     noteConflict: (team: number) => (space ? !!unsaved[noteKey(account, space, season, team)]?.conflict : false),
     noteKept: (team: number) => (space ? unsaved[noteKey(account, space, season, team)]?.kept !== false : true),

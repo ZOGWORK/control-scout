@@ -4,8 +4,8 @@
 // can't be sent as things are (another account, no access, read-only). Nothing is sent or dropped until the member
 // chooses: Retry (or Apply mine anyway after reviewing a conflict) and Discard are both explicit.
 import { useId } from "react";
-import { ArrowUpDown, CircleAlert, Copy, Loader2, Plus, RotateCcw, Trash2 } from "lucide-react";
-import { describeChange, failedMessage, NOT_SENT_BEFORE_RELOAD, type FailedChange } from "../../lib/sharedPicklist";
+import { ArrowUpDown, CircleAlert, Copy, FileWarning, Loader2, Plus, RotateCcw, Trash2 } from "lucide-react";
+import { DAMAGED_MESSAGE, damagedLabel, describeChange, failedMessage, NOT_SENT_BEFORE_RELOAD, type DamagedChange, type FailedChange } from "../../lib/sharedPicklist";
 import { describeConflict } from "../../lib/picklistConflict";
 import { Button } from "../ui/button";
 import { cn } from "../cn";
@@ -21,7 +21,9 @@ function rowNote(f: FailedChange): string {
 }
 
 /** Colour-coded team chips: what someone else changed. */
-function Chips({ teams, sign, tone, what }: { teams: number[]; sign: string; tone: string; what: string }) {
+function Chips({ teams: given, sign, tone, what }: { teams: number[]; sign: string; tone: string; what: string }) {
+  // Team numbers only: whatever else reached here (damaged storage) is never rendered as text.
+  const teams = given.filter((t): t is number => typeof t === "number" && Number.isFinite(t));
   if (!teams.length) return null;
   return (
     <span className="inline-flex flex-wrap items-center gap-1">
@@ -67,21 +69,42 @@ function Row({ f, readOnly, onRetry, onDiscard }: { f: FailedChange; readOnly: b
   );
 }
 
-export function KeptPickChanges({ changes, readOnly = false, onRetryAll, onDiscardAll, onRetry, onDiscard }: {
-  changes: FailedChange[]; readOnly?: boolean;
+/** A kept record that's damaged (picklistOps.ts): it can't be applied, so only Discard, for that one record. */
+function DamagedRow({ d, onDiscard }: { d: DamagedChange; onDiscard: () => void }) {
+  const label = damagedLabel(d);
+  return (
+    <li className="flex flex-wrap items-start gap-x-3 gap-y-2 px-3 py-2.5" data-damaged-change={d.id}>
+      <span className="mt-0.5 grid size-7 shrink-0 place-items-center rounded-lg bg-destructive/15 text-destructive" aria-hidden><FileWarning className="size-4" /></span>
+      <div className="min-w-0 flex-1 basis-48">
+        <p className="text-sm font-medium">{label}</p>
+        <p className="text-xs text-text-muted">{DAMAGED_MESSAGE}</p>
+      </div>
+      <div className="ml-auto flex shrink-0 flex-wrap items-center justify-end gap-2">
+        <Button variant="outline" size="sm" className="max-sm:h-11" onClick={onDiscard} aria-label={`Discard this change: ${label}`}>
+          <Trash2 /> Discard this change
+        </Button>
+      </div>
+    </li>
+  );
+}
+
+export function KeptPickChanges({ changes, damaged = [], readOnly = false, onRetryAll, onDiscardAll, onRetry, onDiscard, onDiscardDamaged }: {
+  changes: FailedChange[]; damaged?: DamagedChange[]; readOnly?: boolean;
   onRetryAll: (force: boolean) => void; onDiscardAll: () => void;
-  onRetry: (id: number, force: boolean) => void; onDiscard: (id: number) => void;
+  onRetry: (id: number, force: boolean) => void; onDiscard: (id: number) => void; onDiscardDamaged?: (id: number) => void;
 }) {
   const headingId = useId();
-  if (!changes.length) return null;
-  const n = changes.length;
+  if (!changes.length && !damaged.length) return null;
+  const n = changes.length + damaged.length;
   const sorted = [...changes].sort((a, b) => (a.at ?? 0) - (b.at ?? 0) || a.id - b.id);
   const busy = changes.some((f) => f.busy);
   const reviewing = changes.some((f) => f.conflict && f.conflict.kind !== "gone");
   const sendable = changes.filter((f) => f.conflict?.kind !== "gone");
   const blocked = changes.find((f) => f.blocked);
   const allStored = changes.every((f) => f.stored);
-  const summary = readOnly
+  const summary = !changes.length
+    ? (damaged.length === 1 ? "A change saved on this device is damaged and can't be applied. Discard it to clear it." : "Changes saved on this device are damaged and can't be applied. Discard them to clear them.")
+    : readOnly
     ? "This workspace is read-only now, so nothing is sent. They're kept on this device until it can be written again, or you discard them."
     : busy ? "Checking the pick list and sending…"
     : reviewing ? (changes.some((f) => f.conflict?.kind === "changed")
@@ -110,6 +133,7 @@ export function KeptPickChanges({ changes, readOnly = false, onRetryAll, onDisca
       </div>
       <ul className="mt-3 divide-y divide-border overflow-hidden rounded-xl border border-border bg-card" aria-label="Unsaved changes">
         {sorted.map((f) => <Row key={f.id} f={f} readOnly={readOnly} onRetry={(force) => onRetry(f.id, force)} onDiscard={() => onDiscard(f.id)} />)}
+        {damaged.map((d) => <DamagedRow key={`damaged-${d.id}`} d={d} onDiscard={() => onDiscardDamaged?.(d.id)} />)}
       </ul>
     </section>
   );
