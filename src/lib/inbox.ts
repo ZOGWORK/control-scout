@@ -178,6 +178,11 @@ export function useInbox(userId: number | null): InboxState {
   const filterRef = useRef<InboxFilter>("all");
   // Unflagged in the Follow up view: kept on screen (see above).
   const kept = useRef(new Set<number>());
+  // Where "Load older" carries on from: the oldest id the server sent for this list (never a kept row, which may be
+  // older than the rows fetched with it, so paging from it would skip flagged items in between).
+  const cursor = useRef<number | null>(null);
+  // Writes go one at a time, in the order they were made, so a quick flag then unflag ends unflagged.
+  const writes = useRef<Promise<unknown>>(Promise.resolve());
 
   const load = useCallback(() => {
     if (userId == null) return;
@@ -189,6 +194,7 @@ export function useInbox(userId: number | null): InboxState {
         if (!current()) return;
         listVersion.current++;
         const page = cleanItems(r.items);
+        cursor.current = page.at(-1)?.id ?? null;
         setItems((cur) => {
           if (f !== "followUp" || !kept.current.size) return page;
           const ids = new Set(page.map((i) => i.id));
@@ -201,14 +207,14 @@ export function useInbox(userId: number | null): InboxState {
         loadedRef.current = true; setLoaded(true); setError(null);
       })
       .catch((e) => { if (current()) setError(e instanceof ApiError ? e : new ApiError(0, "Couldn't load your notifications.")); })
-      .finally(() => { if (gen.current === g) setLoading(false); });
+      .finally(() => { if (current()) setLoading(false); });
   }, [userId]);
 
   // A new account (or signed out): start clean.
   useEffect(() => {
     gen.current++;
     setUnread(0); setFollowUpCount(0); setItems([]); setLoaded(false); setLoading(false); setError(null); setMore(false); setLoadingOlder(false);
-    setFilterState("all"); filterRef.current = "all"; kept.current.clear();
+    setFilterState("all"); filterRef.current = "all"; kept.current.clear(); cursor.current = null;
     loadedRef.current = false;
   }, [userId]);
 
@@ -220,7 +226,7 @@ export function useInbox(userId: number | null): InboxState {
     filterRef.current = f; kept.current.clear();
     setFilterState(f);
     olderSeq.current++; setLoadingOlder(false);
-    loadedRef.current = false; setLoaded(false); setItems([]); setMore(false);
+    loadedRef.current = false; setLoaded(false); setItems([]); setMore(false); cursor.current = null;
     load();
   }, [load]);
 
@@ -234,8 +240,8 @@ export function useInbox(userId: number | null): InboxState {
     }, setMode);
   }, [userId, visible, load]);
 
-  const oldest = items.at(-1)?.id;
   const loadOlder = useCallback(() => {
+    const oldest = cursor.current;
     if (userId == null || !oldest) return;
     const g = gen.current, s = seq.current, v = listVersion.current, o = ++olderSeq.current, f = filterRef.current;
     setLoadingOlder(true);
@@ -243,21 +249,26 @@ export function useInbox(userId: number | null): InboxState {
       .then((r) => {
         if (gen.current !== g || seq.current !== s || listVersion.current !== v || olderSeq.current !== o || filterRef.current !== f) return; // the list changed meanwhile: this page may not fit it
         const page = cleanItems(r.items);
-        setItems((cur) => { const ids = new Set(cur.map((i) => i.id)); return [...cur, ...page.filter((i) => !ids.has(i.id))]; });
+        if (page.length) cursor.current = page.at(-1)!.id;
+        setItems((cur) => { const ids = new Set(cur.map((i) => i.id)); return [...cur, ...page.filter((i) => !ids.has(i.id))].sort((a, b) => b.id - a.id); });
         setMore(!!r.more);
       })
       .catch((e) => { if (gen.current === g) setError(e instanceof ApiError ? e : new ApiError(0, "Couldn't load older notifications.")); })
       .finally(() => { if (gen.current === g && olderSeq.current === o) setLoadingOlder(false); });
-  }, [userId, oldest]);
+  }, [userId]);
 
   // A read or follow-up change: shown at once; any reply to a request started before it is ignored, and once the
-  // server has it the list is fetched again (the server's state, with this change in it).
+  // server has it the list is fetched again (the server's state, with this change in it). Each write waits for the
+  // one before it, so the server applies them in the order they were made.
   const send = useCallback((path: string, body: unknown) => {
     const g = gen.current;
     seq.current++;
-    apiFetch<{ unread: number }>(path, { method: "POST", json: body })
+    const w = writes.current
+      .then(() => apiFetch<{ unread: number }>(path, { method: "POST", json: body }))
       .catch(() => undefined)
-      .then(() => { if (gen.current === g) load(); });
+      // The list is fetched once the last queued write is in (an earlier one's snapshot would undo the later change on screen).
+      .then(() => { if (gen.current === g && writes.current === w) load(); });
+    writes.current = w;
   }, [load]);
 
   const markRead = useCallback((ids: number[]) => {
