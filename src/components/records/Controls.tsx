@@ -25,11 +25,11 @@ export function SeasonSelect({ value, onChange, className }: { value: number; on
   const list = seasons.some((s) => s.season === value) ? seasons : [{ season: value, game: "" }, ...seasons];
   const predictable = (s: { season: number }) => (s as { predictable?: boolean }).predictable ?? s.season >= 2023;
   const recent = list.filter(predictable), earlier = list.filter((s) => !predictable(s));
-  const item = (s: { season: number; game: string }) => <SelectItem key={s.season} value={String(s.season)}><span className="font-semibold tabular-nums">{seasonLabel(s.season)}</span>{s.game && <span className="text-text-muted"> · {s.game}</span>}</SelectItem>;
+  const item = (s: { season: number; game: string }) => <SelectItem key={s.season} value={String(s.season)}><span className="font-semibold tabular-nums">{seasonLabel(s.season)}</span>{s.game && <span data-game="" className="text-text-muted"> · {s.game}</span>}</SelectItem>;
   return (
     <Select value={String(value)} onValueChange={(v) => onChange(Number(v))}>
       <SelectTrigger className={cn(trigger, idle, "w-auto", className)} aria-label="Season">
-        <Trophy className="size-4 text-accent" /><SelectValue />
+        <Trophy data-season-icon="" className="size-4 text-accent" /><SelectValue />
       </SelectTrigger>
       <SelectContent className="min-w-[15rem]">
         {earlier.length ? (

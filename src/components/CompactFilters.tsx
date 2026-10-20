@@ -4,18 +4,26 @@
 // components either way, so the URL state, Back / Forward and the saved filters behave alike. The sheet is
 // the ui-kit's: focus stays inside it, Escape closes it and focus goes back to the Filters button.
 // Used by /teams (every view), /matches, /events and /rankings.
-import { useRef, useState, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { SlidersHorizontal, X } from "lucide-react";
-import { useMediaQuery } from "../lib/meta";
 import { Button } from "./ui/button";
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "./ui/overlay";
 import { cn } from "./cn";
 
 export const COMPACT_FILTERS_QUERY = "(max-width: 767px)";
 
-/** True on phones, where list pages use the compact row and sheet. */
+/** True on phones, where list pages use the compact row and sheet (false where there's no matchMedia). */
 export function useCompactFilters(): boolean {
-  return useMediaQuery(COMPACT_FILTERS_QUERY);
+  const [on, setOn] = useState(() => typeof window !== "undefined" && !!window.matchMedia?.(COMPACT_FILTERS_QUERY).matches);
+  useEffect(() => {
+    const m = window.matchMedia?.(COMPACT_FILTERS_QUERY);
+    if (!m) return;
+    const fn = () => setOn(m.matches);
+    fn();
+    m.addEventListener?.("change", fn);
+    return () => m.removeEventListener?.("change", fn);
+  }, []);
+  return on;
 }
 
 export interface FilterChip {
@@ -70,24 +78,29 @@ export function CompactFilters({ lead, chips, search, title = "Filters", summary
 
   return (
     <div className={cn("space-y-2", className)} data-compact-filters="">
-      {/* Wraps rather than scrolling sideways, so every chip and its × stays in view. */}
-      <div ref={row} className="flex flex-wrap items-center gap-2">
-        {lead}
-        {chips.length > 0 && (
-          <ul role="list" className="contents" aria-label="Filters on">
-            {chips.map((c, i) => (
-              <li key={c.id} className="min-w-0 max-w-full">
-                <button type="button" data-chip={c.id} onClick={() => remove(i)} aria-label={`Remove filter: ${c.name}`}
-                  className="inline-flex h-11 max-w-full items-center gap-1.5 rounded-full border border-accent/50 bg-accent/10 pl-3 pr-2.5 text-sm font-medium text-text-base outline-none transition-colors hover:bg-accent/[0.16] focus-visible:ring-2 focus-visible:ring-accent/60">
-                  <span className="min-w-0 truncate">{c.label}</span><X className="size-4 shrink-0 text-text-muted" aria-hidden />
-                </button>
-              </li>
-            ))}
-          </ul>
-        )}
-        <Button ref={button} variant="outline" className="ml-auto h-11 shrink-0 px-3.5" onClick={() => setOpen(true)} aria-haspopup="dialog"
+      {/* The Filters button holds the row's right end; the season and the chips share the rest and wrap (never
+          scroll sideways), so every chip and its × stays in view. The season names only its years here (the
+          game's name is in its list), leaving the chips room. */}
+      <div ref={row} className="flex items-start gap-2 [&_[data-game]]:hidden [&_[data-season-icon]]:hidden">
+        <div className="flex min-w-0 flex-1 flex-wrap items-center gap-2">
+          {lead}
+          {chips.length > 0 && (
+            <ul role="list" className="contents" aria-label="Filters on">
+              {chips.map((c, i) => (
+                <li key={c.id} className="min-w-0 max-w-full">
+                  <button type="button" data-chip={c.id} onClick={() => remove(i)} aria-label={`Remove filter: ${c.name}`}
+                    className="inline-flex h-11 max-w-full items-center gap-1.5 rounded-full border border-accent/50 bg-accent/10 pl-3 pr-2.5 text-sm font-medium text-text-base outline-none transition-colors hover:bg-accent/[0.16] focus-visible:ring-2 focus-visible:ring-accent/60">
+                    <span className="min-w-0 truncate">{c.label}</span><X className="size-4 shrink-0 text-text-muted" aria-hidden />
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+        {/* With chips on, the button is its icon and count (its name stays "Filters, n on"). */}
+        <Button ref={button} variant="outline" className={cn("h-11 shrink-0", n ? "px-3" : "px-3.5")} onClick={() => setOpen(true)} aria-haspopup="dialog"
           aria-label={n ? `Filters, ${n} on` : "Filters"}>
-          <SlidersHorizontal className="text-accent" /> Filters
+          <SlidersHorizontal className="text-accent" /><span className={cn(n > 0 && "sr-only")}>Filters</span>
           {n > 0 && <span aria-hidden className="grid min-w-5 place-items-center rounded-full bg-accent px-1 text-[11px] font-bold tabular-nums text-accent-ink">{n}</span>}
         </Button>
       </div>

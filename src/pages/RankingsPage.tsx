@@ -19,6 +19,7 @@ import { Button } from "../components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "../components/ui/overlay";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../components/ui/controls";
 import { cn } from "../components/cn";
+import { CompactFilters, FilterSection, useCompactFilters, type FilterChip } from "../components/CompactFilters";
 
 const trigger = "inline-flex h-9 max-w-full items-center gap-2 rounded-lg border px-3 text-sm font-medium transition-colors max-sm:h-11";
 const idle = "border-line bg-card text-text-base hover:border-text-base/25";
@@ -98,6 +99,22 @@ export default function RankingsPage() {
   const [mineCountry, mineState] = (mineRaw ?? "").split(":");
   const mine = !mineRaw ? null : mineState && !stateName(mineCountry, mineState) ? mineCountry : mineRaw;
   const mineOn = !!mine && places.length === 1 && placeKey(places[0]) === mine;
+  const compact = useCompactFilters();
+  const seasonPick = data || seasonParam ? <SeasonPick value={season} onChange={(s) => go({ season: String(s), week: null })} /> : <div className="skeleton h-9 w-36 rounded-lg max-sm:h-11" aria-hidden />;
+  const placePick = <PlacePicker info={placesInfo.data} loading={placesInfo.loading} value={places.map(placeKey)} onChange={setPlaces} />;
+  const mineButton = mine && (
+    <button type="button" onClick={() => setPlaces(mineOn ? [] : [mine])} aria-pressed={mineOn}
+      className={cn(trigger, mineOn ? active : idle)} title={`Teams from ${placeName(mine)}, where team ${myTeam} is from`}>
+      <Star className="size-4 text-accent" />My region<span className="text-text-muted max-sm:hidden">· {placeName(mine)}</span>
+    </button>
+  );
+  const liveLabel = season === current ? "This week" : "Season end";
+  const weekPick = data && data.weeks.length > 0 && <WeekPick weeks={data.weeks} value={week} liveLabel={liveLabel} onChange={(w) => go({ week: w })} />;
+  const keys = places.map(placeKey);
+  const chips: FilterChip[] = [
+    ...keys.map((k) => ({ id: `place:${k}`, label: <><MapPin className="inline size-3.5 text-sky-500" aria-hidden /> {placeName(k)}</>, name: `Place: ${placeName(k)}`, onRemove: () => setPlaces(keys.filter((x) => x !== k)) })),
+    ...(week ? [{ id: "week", label: `Week of ${weekLabel(week, false)}`, name: `Week of ${weekLabel(week)}`, onRemove: () => go({ week: null }) }] : []),
+  ];
 
   return (
     <div>
@@ -105,22 +122,27 @@ export default function RankingsPage() {
         eyebrow={<span className="text-accent-text">World rankings{data || seasonParam ? ` · ${seasonLabel(season)}` : ""}</span>}
         title={regionText ? `Rankings: ${regionText}` : "World rankings"}
         description="Every rated FTC team by prediction rating, with each team's move since last week."
+        phoneDescription="Every rated team, with its move since last week."
       >
-        {/* One row, its height fixed (sideways scroll on a phone): nothing below moves as the choices fill in. */}
-        <div className="flex h-11 items-center gap-2 overflow-x-auto [scrollbar-width:none] max-sm:-mx-4 max-sm:px-4 sm:h-9 sm:overflow-visible [&>*]:shrink-0">
-          {data || seasonParam ? <SeasonPick value={season} onChange={(s) => go({ season: String(s), week: null })} /> : <div className="skeleton h-9 w-36 rounded-lg max-sm:h-11" aria-hidden />}
-          <PlacePicker info={placesInfo.data} loading={placesInfo.loading} value={places.map(placeKey)} onChange={setPlaces} />
-          {mine && (
-            <button type="button" onClick={() => setPlaces(mineOn ? [] : [mine])} aria-pressed={mineOn}
-              className={cn(trigger, mineOn ? active : idle)} title={`Teams from ${placeName(mine)}, where team ${myTeam} is from`}>
-              <Star className="size-4 text-accent" />My region<span className="text-text-muted max-sm:hidden">· {placeName(mine)}</span>
-            </button>
-          )}
-          {data && data.weeks.length > 0 && (
-            <WeekPick weeks={data.weeks} value={week} liveLabel={season === current ? "This week" : "Season end"} onChange={(w) => go({ week: w })} />
-          )}
-          {places.length > 0 && <Button variant="ghost" size="sm" onClick={() => setPlaces([])} className="max-sm:h-11"><X />Clear</Button>}
-        </div>
+        {compact ? (
+          // Phones: one row that wraps (every chip and its × in view, nothing hidden off to the side).
+          <CompactFilters lead={seasonPick} chips={chips}
+            summary={data ? `${data.total.toLocaleString()} rated teams` : undefined}
+            doneLabel={data ? `Show ${data.total.toLocaleString()} teams` : "Done"}
+            onClearAll={() => go({ region: null, week: null })}>
+            <FilterSection label="Where">{placePick}{mineButton}</FilterSection>
+            {weekPick && <FilterSection label="Week">{weekPick}</FilterSection>}
+          </CompactFilters>
+        ) : (
+          // One row, its height fixed: nothing below moves as the choices fill in.
+          <div className="flex h-11 items-center gap-2 overflow-x-auto [scrollbar-width:none] max-sm:-mx-4 max-sm:px-4 sm:h-9 sm:overflow-visible [&>*]:shrink-0">
+            {seasonPick}
+            {placePick}
+            {mineButton}
+            {weekPick}
+            {places.length > 0 && <Button variant="ghost" size="sm" onClick={() => setPlaces([])} className="max-sm:h-11"><X />Clear</Button>}
+          </div>
+        )}
       </PageHeader>
 
       {res.error && !data ? <ErrorState error={res.error} onRetry={res.reload} /> : !data ? <TableSkeleton /> : (
@@ -161,9 +183,9 @@ function SeasonPick({ value, onChange }: { value: number; onChange: (s: number) 
   const list = seasons.some((s) => s.season === value) ? seasons : [{ season: value, game: "" }, ...seasons];
   return (
     <Select value={String(value)} onValueChange={(v) => onChange(Number(v))}>
-      <SelectTrigger className={cn(trigger, idle, "w-auto")} aria-label="Season"><Trophy className="size-4 text-accent" /><SelectValue /></SelectTrigger>
+      <SelectTrigger className={cn(trigger, idle, "w-auto")} aria-label="Season"><Trophy data-season-icon="" className="size-4 text-accent" /><SelectValue /></SelectTrigger>
       <SelectContent className="min-w-[14rem]">
-        {list.map((s) => <SelectItem key={s.season} value={String(s.season)}><span className="font-semibold tabular-nums">{seasonLabel(s.season)}</span>{s.game && <span className="text-text-muted"> · {s.game}</span>}</SelectItem>)}
+        {list.map((s) => <SelectItem key={s.season} value={String(s.season)}><span className="font-semibold tabular-nums">{seasonLabel(s.season)}</span>{s.game && <span data-game="" className="text-text-muted"> · {s.game}</span>}</SelectItem>)}
       </SelectContent>
     </Select>
   );

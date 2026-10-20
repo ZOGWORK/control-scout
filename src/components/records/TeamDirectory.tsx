@@ -3,9 +3,9 @@
 // with "All listed teams"). A listing is a registration, not activity: the page
 // says so, and marks the teams with results instead of hiding the rest. The
 // statistical tables keep their own denominator (teams with results only).
-import { useEffect, useMemo, useRef } from "react";
+import { useEffect, useId, useMemo, useRef, useState } from "react";
 import { Link, useLocation, useNavigate, useSearchParams } from "react-router-dom";
-import { ArrowDown, ArrowRight, ArrowUp, ChevronLeft, ChevronRight, Hourglass, MapPin, Star, Trophy, Users, X } from "lucide-react";
+import { ArrowDown, ArrowRight, ArrowUp, ChevronLeft, ChevronRight, Hourglass, Info, MapPin, Star, Trophy, Users, X } from "lucide-react";
 import { useApi, type ApiError } from "../../lib/api";
 import { place, seasonLabel } from "../../lib/format";
 import { useTeamFlags } from "../../lib/personal";
@@ -19,6 +19,7 @@ import { Button } from "../ui/button";
 import { ErrorState, LoadingBlock } from "../states";
 import { DataStatus } from "../DataStatus";
 import { SeasonSelect } from "./Controls";
+import { CompactFilters, FilterSection, useCompactFilters, type FilterChip } from "../CompactFilters";
 import { cn } from "../cn";
 
 const fmt = (n: number) => n.toLocaleString();
@@ -56,25 +57,48 @@ export function TeamDirectory({ season, onSeason }: { season: number; onSeason: 
   const pages = data ? Math.max(1, Math.ceil(data.total / data.pageSize)) : 1;
   const resultsHref = `/teams?${new URLSearchParams({ view: "season", ...(sp.get("season") ? { season: sp.get("season")! } : {}), ...(state.country ? { country: state.country } : {}) })}`;
 
+  // Phones: one row (season, the country chip, Filters) and a sheet with the country and the sort.
+  const compact = useCompactFilters();
+  const countryPicker = (
+    <label className="inline-flex items-center gap-2">
+      <span className="sr-only">Country</span>
+      <MapPin className="size-4 text-accent" aria-hidden />
+      <select value={state.country ?? ""} onChange={(e) => setState({ ...state, country: e.target.value || null, countryUnknown: null, page: 1 })} className={field} aria-label="Country">
+        <option value="">All countries</option>
+        {BY_NAME.map((c) => <option key={c.code} value={c.code}>{c.name}</option>)}
+      </select>
+    </label>
+  );
+  const sortPicker = (
+    <label className="inline-flex items-center gap-2 sm:ml-auto">
+      <span className="text-sm text-text-muted">Sort</span>
+      <select value={state.sort} onChange={(e) => { const sort = e.target.value as DirectorySort; setState({ ...state, sort, dir: directoryDefaultDir(sort), page: 1 }); }} className={field}>
+        {SORTS.map((s) => <option key={s.key} value={s.key}>{s.label}</option>)}
+      </select>
+    </label>
+  );
+  const sortLabel = SORTS.find((s) => s.key === state.sort)?.label ?? "Team number";
+  const chips: FilterChip[] = country ? [{ id: "country", label: <><MapPin className="inline size-3.5 text-accent" aria-hidden /> {country.name}</>, name: `Country: ${country.name}`, onRemove: () => setState({ ...state, country: null, countryUnknown: null, page: 1 }) }] : [];
+
   return (
     <section aria-label={`Team directory, ${where}, ${seasonLabel(season)}`}>
+      {compact ? (
+        <CompactFilters lead={<SeasonSelect value={season} onChange={onSeason} />} chips={chips}
+          // The directory's own search box (q=) sits here, under the row, when it's added.
+          search={null}
+          summary={data ? `${fmt(data.total)} listed teams from ${where}` : undefined}
+          doneLabel={data ? `Show ${fmt(data.total)} teams` : "Done"}
+          onClearAll={() => setState({ ...state, country: null, countryUnknown: null, page: 1 })}>
+          <FilterSection label="Country">{countryPicker}</FilterSection>
+          <FilterSection label="Order">{sortPicker}</FilterSection>
+        </CompactFilters>
+      ) : (
       <div className="flex flex-wrap items-center gap-2">
         <SeasonSelect value={season} onChange={onSeason} />
-        <label className="inline-flex items-center gap-2">
-          <span className="sr-only">Country</span>
-          <MapPin className="size-4 text-accent" aria-hidden />
-          <select value={state.country ?? ""} onChange={(e) => setState({ ...state, country: e.target.value || null, countryUnknown: null, page: 1 })} className={field} aria-label="Country">
-            <option value="">All countries</option>
-            {BY_NAME.map((c) => <option key={c.code} value={c.code}>{c.name}</option>)}
-          </select>
-        </label>
-        <label className="inline-flex items-center gap-2 sm:ml-auto">
-          <span className="text-sm text-text-muted">Sort</span>
-          <select value={state.sort} onChange={(e) => { const sort = e.target.value as DirectorySort; setState({ ...state, sort, dir: directoryDefaultDir(sort), page: 1 }); }} className={field}>
-            {SORTS.map((s) => <option key={s.key} value={s.key}>{s.label}</option>)}
-          </select>
-        </label>
+        {countryPicker}
+        {sortPicker}
       </div>
+      )}
 
       {/* An unknown ?country= as the records tables show it (urlState.ts): a problem, not every country. */}
       {state.countryUnknown ? (
@@ -83,7 +107,9 @@ export function TeamDirectory({ season, onSeason }: { season: number; onSeason: 
           <p className="mt-1 max-w-lg text-xs text-text-muted">This link names a country code we don't know, so no teams are shown. Countries use two-letter codes, like US or CA.</p>
           <Button className="mt-4" onClick={() => setState({ ...state, countryUnknown: null, page: 1 })}><X /> Show every country</Button>
         </div>
-      ) : <Summary data={data} season={season} where={where} resultsHref={resultsHref} onRetry={api.reload} />}
+      ) : compact
+        ? <CompactSummary data={data} season={season} where={where} sort={sortLabel} dir={state.dir} resultsHref={resultsHref} onRetry={api.reload} />
+        : <Summary data={data} season={season} where={where} resultsHref={resultsHref} onRetry={api.reload} />}
 
       {state.countryUnknown ? null : api.error && !data ? (
         <ErrorState className="mt-4" error={api.error as ApiError} onRetry={api.reload} />
@@ -95,7 +121,7 @@ export function TeamDirectory({ season, onSeason }: { season: number; onSeason: 
         </div>
       ) : (
         <>
-          <div className={cn("mt-4 overflow-hidden rounded-xl border border-line", api.loading && "opacity-70")} aria-busy={api.loading}>
+          <div className={cn("mt-4 overflow-hidden rounded-xl border border-line max-md:mt-2", api.loading && "opacity-70")} aria-busy={api.loading}>
             <table className="w-full text-sm">
               <caption className="sr-only">Teams listed for {seasonLabel(season)} from {where}, sorted by {SORTS.find((s) => s.key === state.sort)?.label.toLowerCase()}</caption>
               <thead className="bg-text-base/[0.03] text-left text-xs uppercase tracking-wide text-text-muted">
@@ -166,6 +192,53 @@ function Summary({ data, season, where, resultsHref, onRetry }: { data: Director
         </p>
       )}
       {data && !ready && <DataStatus className="mt-3" readiness={data.readiness} onRetry={onRetry} />}
+    </div>
+  );
+}
+
+/**
+ * Phones: the totals on one line, with the sort beside them; what a listing means opens on request
+ * (the same words as the wide layout's panel).
+ */
+function CompactSummary({ data, season, where, sort, dir, resultsHref, onRetry }: { data: DirectoryPage | undefined; season: number; where: string; sort: string; dir: "asc" | "desc"; resultsHref: string; onRetry: () => void }) {
+  const ready = data?.readiness.state === "ready";
+  const preparing = data?.readiness.state === "preparing";
+  const [about, setAbout] = useState(false);
+  const id = useId();
+  return (
+    <div className="mt-2">
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-1 px-1 text-sm text-text-muted" aria-live="polite">
+        <span><Users className="mr-1 inline size-3.5 text-accent" aria-hidden /><span className="font-semibold tabular-nums text-accent-text">{data ? fmt(data.total) : "—"}</span> listed<span className="sr-only"> for {seasonLabel(season)} from {where}</span></span>
+        <span>
+          <Trophy className="mr-1 inline size-3.5 text-success" aria-hidden />
+          {preparing ? <span className="font-semibold text-warning">Being prepared</span> : <><span className="font-semibold tabular-nums text-success">{data ? fmt(data.withResults) : "—"}</span> with results</>}
+        </span>
+        <span className="ml-auto text-xs">Sorted by <span className="font-medium text-text-base">{sort.toLowerCase()}</span> {dir === "asc" ? "(low → high)" : "(high → low)"}</span>
+      </div>
+      <div className="flex flex-wrap items-center justify-between gap-x-3 px-1 text-sm">
+        <button type="button" onClick={() => setAbout(!about)} aria-expanded={about} aria-controls={id}
+          className="inline-flex min-h-11 items-center gap-1.5 rounded-md font-medium text-text-base outline-none focus-visible:ring-2 focus-visible:ring-accent/60">
+          <Info className="size-4 text-accent" aria-hidden /> What a listing means
+        </button>
+        {data && data.withResults > 0 && !preparing && (
+          <Link to={resultsHref} className="inline-flex min-h-11 items-center gap-1 font-semibold text-success hover:underline">
+            Their statistics <ArrowRight className="size-4" aria-hidden />
+          </Link>
+        )}
+      </div>
+      <div id={id} hidden={!about} className="space-y-1 px-1 pb-1 text-sm text-text-muted">
+        <p className="max-w-prose">
+          A listing means a team registered for the season. It doesn’t mean the team is active or has competed yet;
+          “Has results” marks the teams that have played{preparing ? " (counted once statistics are ready)" : ready ? " scored qualification matches" : ", from the last statistics"}.
+        </p>
+        {data && data.unplaced > 0 && (
+          <p className="max-w-prose text-xs">
+            {fmt(data.unplaced)} {data.unplaced === 1 ? "listing reports" : "listings report"} no country, or one we can’t place (such as “Independent”).
+            {" "}They’re under All countries, not in any one country’s count.
+          </p>
+        )}
+      </div>
+      {data && !ready && <DataStatus className="mt-1" readiness={data.readiness} onRetry={onRetry} />}
     </div>
   );
 }
