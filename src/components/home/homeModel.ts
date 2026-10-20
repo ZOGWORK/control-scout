@@ -1,10 +1,11 @@
 // What the home page's prediction record and usage panel show, worked out apart
 // from their markup so the rules can be tested: live calls and replays never mix,
 // correct and missed share one denominator, and an unavailable feed is never a zero.
-import type { AccuracyBlock, TrackRecord } from "../../shared/api";
+import type { AccuracyBlock, ReplayCoverage, TrackRecord } from "../../shared/api";
 import type { PublicUsage } from "../../shared/home";
+import { ledgerDefault, ledgerSplit, type LedgerKind } from "../../shared/ledger";
 
-export type Evidence = "live" | "backtest";
+export type Evidence = LedgerKind;
 
 export interface RecordView {
   kind: Evidence;
@@ -17,6 +18,10 @@ export interface RecordView {
   early: boolean;
   /** Every scored call so far was a tie or a 50:50 call: there's no percentage to show yet (accuracy is a stand-in 0). */
   noneDecided: boolean;
+  /** This is the number the headline rule picks (src/shared/ledger.ts). */
+  isHeadline: boolean;
+  /** For a replay: how many of the season's scored matches it covers (absent in older responses). */
+  coverage: ReplayCoverage | null;
 }
 
 /** The newest season with this kind of evidence (the headline's own season first, when it's that kind). */
@@ -25,17 +30,18 @@ export function recordFor(t: TrackRecord, kind: Evidence): RecordView | null {
     ?? [...t.seasons].sort((a, b) => b.season - a.season).find((s) => s[kind] && s[kind]!.n > 0);
   const block = pick?.[kind];
   if (!pick || !block) return null;
-  const decided = typeof block.decided === "number" ? block.decided : null;
   return {
     kind, season: pick.season, seasonLabel: pick.label, block,
-    split: decided != null && decided > 0 ? { correct: decided - block.upsets, missed: block.upsets, decided } : null,
+    split: ledgerSplit(block),
     early: kind === "live" && block.n < t.liveThreshold,
-    noneDecided: decided === 0,
+    noneDecided: block.decided === 0,
+    isHeadline: t.headline?.kind === kind && t.headline.season === pick.season,
+    coverage: kind === "backtest" ? pick.replay ?? null : null,
   };
 }
 
-/** Which evidence opens first: the headline's (it already applies the live threshold). */
-export const defaultEvidence = (t: TrackRecord): Evidence => t.headline?.kind ?? (recordFor(t, "live") ? "live" : "backtest");
+/** Which evidence opens first: the same rule as every ledger card (the replay until a season has enough live calls). */
+export const defaultEvidence = (t: TrackRecord): Evidence => ledgerDefault(t)?.kind ?? "backtest";
 
 export type UsageView =
   | { kind: "available"; totals: NonNullable<PublicUsage["totals"]>; daily: PublicUsage["daily"]; from: string; to: string; partialDay: string; measuredFrom: string | null; generatedAt: string }
