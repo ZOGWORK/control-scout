@@ -281,6 +281,11 @@ export function useInbox(userId: number | null): InboxState {
         const byId = new Map(next.map((i) => [i.id, i]));
         const done = (x: InboxFailure) => byId.get(x.id)?.[x.field] === x.on;
         setFailures((fs) => (fs.some(done) ? fs.filter((x) => !done(x)) : fs));
+        // A failed Mark all read the server shows done anyway (its reply was lost, or another device did it): every
+        // unread item left in the whole inbox is newer than the range it covered.
+        if (Number.isFinite(r.unread)) {
+          setAllReadFailed((a) => (a && r.unread <= next.filter((i) => !i.read && a.upTo != null && i.id > a.upTo).length ? null : a));
+        }
         if (!below.length) setMore(!!r.more);
         if (Number.isFinite(r.unread)) setUnread(r.unread);
         if (Number.isFinite(r.followUp)) setFollowUpCount(r.followUp);
@@ -429,7 +434,8 @@ export function useInbox(userId: number | null): InboxState {
     const fresh = items.filter((i) => !i.read && (upTo == null || i.id <= upTo)).map((i) => i.id);
     const before = unread;
     setAllReadFailed(null);
-    setUnread(0);
+    // Everything up to `upTo` leaves the badge; unread items newer than it (arrived before a Retry) stay in it.
+    setUnread(upTo == null ? 0 : items.filter((i) => !i.read && i.id > upTo).length);
     change("read", fresh, true, "/api/inbox/read", { all: true, ...(upTo != null ? { upTo } : {}) }, true, () => {
       // Unread items not on screen left the badge too: it goes back (the refresh that follows has the exact count).
       setUnread((u) => Math.max(u, before));

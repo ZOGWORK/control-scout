@@ -305,7 +305,8 @@ describe("a change that isn't saved", () => {
     const alert = await within(panel).findByRole("alert");
     expect(alert.textContent).toContain("Couldn't mark this unread.");
     expect(toggle.getAttribute("aria-pressed")).toBe("false");
-    expect(document.querySelector("[data-inbox-badge]")).toBeNull();
+    // The badge animates out.
+    await waitFor(() => expect(document.querySelector("[data-inbox-badge]")).toBeNull());
     fireEvent.click(within(alert).getByRole("button", { name: "Retry: mark unread 'Coach edited your entry'" }));
     await waitFor(() => expect(document.querySelector("[data-inbox-badge]")?.textContent).toBe("1"));
     expect(within(panel).queryByRole("alert")).toBeNull();
