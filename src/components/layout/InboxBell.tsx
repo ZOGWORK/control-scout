@@ -31,7 +31,7 @@ function usePhone(): boolean {
 
 const ICON: Record<InboxCategory, { icon: ComponentType<{ className?: string }>; tone: string }> = {
   assignments: { icon: ClipboardCheck, tone: "bg-sky-500/15 text-sky-600 dark:text-sky-400" },
-  edits: { icon: PencilLine, tone: "bg-amber-500/15 text-amber-700 dark:text-amber-400" },
+  edits: { icon: PencilLine, tone: "bg-amber-500/15 text-accent-text" },
   template: { icon: LayoutList, tone: "bg-violet-500/15 text-violet-600 dark:text-violet-400" },
   membership: { icon: Users, tone: "bg-emerald-500/15 text-emerald-700 dark:text-emerald-400" },
   picklist: { icon: ListOrdered, tone: "bg-orange-500/15 text-orange-700 dark:text-orange-400" },
