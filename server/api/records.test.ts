@@ -346,6 +346,14 @@ describe("GET /api/records/:season/matches", () => {
       // The tier is a stored fact, not worked out again: changing it in the ledger changes it here.
       await run("UPDATE predictions SET tier = 'provisional' WHERE kind = 'backtest' AND season = ? AND number = 1", [S]);
       expect((await get(`/api/records/${S}/matches?sort=redPredictedWinPct&fields=redPredictedWinPct`)).body.rows[0].predictionTier).toBe("provisional");
+      // Mid-rebuild, the ledger already holds a new replay while the row still has the old percentage:
+      // the new tier is never paired with the old number (no tier, so the percentage isn't shown).
+      await run("UPDATE predictions SET p_red = 0.88, tier = 'moderate' WHERE kind = 'backtest' AND season = ? AND number = 1", [S]);
+      expect((await get(`/api/records/${S}/matches?sort=redPredictedWinPct&fields=redPredictedWinPct`)).body.rows[0]).toMatchObject({ label: "Q1", predictionTier: null });
+      await fillRecordPredictions(S); // the fill step catches up: percentage and tier from the same replay again
+      expect((await get(`/api/records/${S}/matches?sort=redPredictedWinPct&fields=redPredictedWinPct`)).body.rows[0]).toMatchObject({ label: "Q1", stats: { redPredictedWinPct: 88 }, predictionTier: "moderate" });
+      await run("UPDATE predictions SET p_red = 0.93, tier = 'provisional' WHERE kind = 'backtest' AND season = ? AND number = 1", [S]);
+      await run("UPDATE match_records SET red_pred_win = CASE number WHEN 1 THEN 93 WHEN 2 THEN 60 END WHERE season = ?", [S]);
       // Not asked for the probability: no tier either.
       expect((await get(`/api/records/${S}/matches?fields=highScore`)).body.rows[0]).not.toHaveProperty("predictionTier");
       // The CSV carries it in its own column after the fields.

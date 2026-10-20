@@ -344,6 +344,9 @@ const matchKeyOf = (r: any) => `${r._eventCode}|${r._level}:${r._series}:${r._nu
  * The confidence tier recorded with each match row's replayed call (the walk-forward ledger row its
  * redPredictedWinPct was copied from), read for just these rows: one primary-key lookup each. Never
  * worked out again from the probability. Null when no fields need it (the percentage wasn't asked for).
+ * The percentage is a copy made by the stats job's fill step, and the ledger is rewritten before it, so
+ * a tier is only paired with the percentage of the same replay: when the ledger's probability no longer
+ * matches the row's (mid-rebuild), the row gets no tier, and the percentage isn't shown until both agree.
  */
 async function predictionTiers(scope: RecordScope, raw: any[], fields: string[]): Promise<Map<string, ConfidenceTier> | null> {
   if (scope !== "match" || !fields.includes(PREDICTION_STAT)) return null;
@@ -352,11 +355,16 @@ async function predictionTiers(scope: RecordScope, raw: any[], fields: string[])
   if (!rows.length) return out;
   const found = await all<any>(
     `WITH wanted(season, code, level, series, number) AS (VALUES ${rows.map(() => "(?, ?, ?, ?, ?)").join(", ")}) ` +
-      "SELECT p.code, p.level, p.series, p.number, p.tier FROM wanted CROSS JOIN predictions p " +
+      "SELECT p.code, p.level, p.series, p.number, p.p_red, p.tier FROM wanted CROSS JOIN predictions p " +
       "ON p.kind = 'backtest' AND p.season = wanted.season AND p.code = wanted.code AND p.level = wanted.level AND p.series = wanted.series AND p.number = wanted.number",
     rows.flatMap((r) => [Number(r._season), r._eventCode, r._level, Number(r._series), Number(r._number)]),
   );
-  for (const p of found) if (TIERS.has(p.tier)) out.set(`${p.code}|${p.level}:${p.series}:${p.number}`, p.tier);
+  const pct = new Map(rows.map((r) => [matchKeyOf(r), Number(r[PREDICTION_STAT])]));
+  for (const p of found) {
+    const key = `${p.code}|${p.level}:${p.series}:${p.number}`;
+    // Same replay: the row's percentage is this ledger row's p_red × 100 (as the fill step wrote it).
+    if (TIERS.has(p.tier) && Math.abs(Number(p.p_red) * 100 - (pct.get(key) ?? NaN)) < 1e-6) out.set(key, p.tier);
+  }
   return out;
 }
 
