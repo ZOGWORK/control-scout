@@ -12,6 +12,7 @@ vi.mock("../lib/personal", () => ({ usePersonal: () => ({ user: h.user, provider
 vi.mock("../lib/meta", async (orig) => ({ ...(await orig<typeof import("../lib/meta")>()), useMeta: () => null, useCurrentSeason: () => 2025, useTitle: () => {}, usePredictable: () => true }));
 
 const { default: ComparePage, leaders } = await import("./ComparePage");
+const { compareBrief } = await import("../lib/compareBrief");
 const { TooltipProvider } = await import("../components/ui/overlay");
 
 const stat = (value: number) => ({ value, rank: 10, of: 100 });
@@ -136,5 +137,38 @@ describe("ComparePage", () => {
     const box = screen.getByRole("combobox", { name: "Add a team to compare" });
     expect(box.hasAttribute("disabled")).toBe(true);
     expect(box.getAttribute("placeholder")).toMatch(/remove one/);
+  });
+
+  it("the brief is closed until asked for, opens into ?brief=1 and shows the generator's sentences with their sources", async () => {
+    page("/compare?teams=4215,6980");
+    const toggle = await screen.findByRole("button", { name: "Show brief" });
+    expect(toggle.getAttribute("aria-expanded")).toBe("false");
+    expect(screen.queryByText(/^Sample size:/)).toBeNull();
+    fireEvent.click(toggle);
+    expect(where).toBe("/compare?teams=4215%2C6980&brief=1");
+    const hide = screen.getByRole("button", { name: "Hide brief" });
+    expect(hide.getAttribute("aria-expanded")).toBe("true");
+    const panel = within(document.getElementById(hide.getAttribute("aria-controls")!)!);
+    // Each sentence on the page is exactly the generator's, from the same Compare data.
+    const expected = compareBrief(view([team(4215, 100, 8), team(6980, 90, 9)]));
+    const items = panel.getAllByRole("listitem");
+    expect(items).toHaveLength(expected.length);
+    expected.forEach((s, i) => expect(items[i].textContent).toContain(`${s.topic}: ${s.text}`));
+    for (const s of expected) for (const x of s.sources) expect(panel.getAllByRole("link", { name: x.label }).some((a) => a.getAttribute("href") === x.href)).toBe(true);
+    expect(panel.getByText(/fewer than 5 matches aren't compared/)).toBeTruthy();
+    fireEvent.click(hide);
+    expect(where).toBe("/compare?teams=4215%2C6980");
+  });
+
+  it("Copy brief puts plain text with full source links on the clipboard", async () => {
+    const writeText = vi.fn(async () => {});
+    vi.stubGlobal("navigator", { ...navigator, clipboard: { writeText } });
+    page("/compare?teams=4215,6980&brief=1");
+    fireEvent.click(await screen.findByRole("button", { name: "Copy brief" }));
+    await waitFor(() => expect(writeText).toHaveBeenCalledTimes(1));
+    const text = (writeText.mock.calls[0] as unknown as [string])[0];
+    expect(text).toMatch(/^Comparison brief: 4215 and 6980, 2025–26\n\nSample size: In 2025–26, 4215 played 10 matches/);
+    expect(text).toContain(`${location.origin}/teams/4215?season=2025`);
+    expect(text).not.toMatch(/<[a-z]/);
   });
 });
