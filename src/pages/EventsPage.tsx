@@ -16,6 +16,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "../components/ui/overla
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../components/ui/controls";
 import { DateRangePicker, SeasonSelect } from "../components/records/Controls";
 import { cn } from "../components/cn";
+import { EVENT_FILTER_COUNT, EVENT_STATUS_TONE, EVENT_TYPE_TONE } from "../lib/textTones";
 import { dateRange, place, seasonLabel } from "../lib/format";
 import { eventTypeLabel } from "../shared/labels";
 import { regionLabel, regionNames } from "../shared/regions";
@@ -29,17 +30,7 @@ const fmtDay = (d: string, year = false) => (year ? DAY_YEAR : DAY).format(new D
 
 const placeName = (key: string) => (key.includes(":") ? regionLabel(key) : key);
 
-/** Colour per event type: the stripe on each card and the type label. */
-const TYPE_TONE: Record<string, { bar: string; text: string }> = {
-  Qualifier: { bar: "bg-violet-500", text: "text-violet-600 dark:text-violet-400" },
-  LeagueMeet: { bar: "bg-sky-400", text: "text-sky-600 dark:text-sky-400" },
-  LeagueTournament: { bar: "bg-blue-500", text: "text-blue-600 dark:text-blue-400" },
-  SuperQualifier: { bar: "bg-orange-400", text: "text-orange-600 dark:text-orange-400" },
-  Championship: { bar: "bg-accent", text: "text-accent-text" },
-  FIRSTChampionship: { bar: "bg-accent", text: "text-accent-text" },
-  Premier: { bar: "bg-pink-400", text: "text-pink-600 dark:text-pink-400" },
-};
-const toneOfType = (t: string | null) => TYPE_TONE[t ?? ""] ?? { bar: "bg-text-base/25", text: "text-muted-foreground" };
+const toneOfType = (t: string | null) => EVENT_TYPE_TONE[t ?? ""] ?? { bar: "bg-text-base/25", text: "text-muted-foreground" };
 
 const STATUS: { v: Status; label: string; dot: string }[] = [
   { v: "all", label: "All", dot: "bg-text-base/40" },
@@ -129,7 +120,7 @@ function FilterBar({ season, onSeason, events, region, type, status, from, to, q
           <button key={s.v} type="button" aria-pressed={status === s.v} onClick={() => set({ status: s.v }, false)}
             className={cn("inline-flex h-8 items-center gap-2 rounded-full border px-3 text-xs font-semibold transition-colors max-sm:h-10",
               status === s.v ? "border-accent bg-accent text-accent-ink" : "border-line text-muted-foreground hover:border-text-base/25 hover:text-foreground")}>
-            <span className={cn("size-1.5 rounded-full", status === s.v ? "bg-accent-ink" : s.dot)} />{s.label}<span className="tabular-nums opacity-70">{counts[s.v]}</span>
+            <span className={cn("size-1.5 rounded-full", status === s.v ? "bg-accent-ink" : s.dot)} />{s.label}<span className={EVENT_FILTER_COUNT}>{counts[s.v]}</span>
           </button>
         ))}
         {active && (
@@ -265,14 +256,14 @@ const EventTile = memo(function EventTile({ e }: { e: EventListItem }) {
       <span aria-hidden className={cn("absolute inset-y-0 left-0 w-1", tone.bar)} />
       <div className="flex items-center gap-2 text-xs">
         {e.status === "live"
-          ? <span className="inline-flex items-center gap-1 rounded-full bg-red-500/15 px-2 py-0.5 font-bold text-red-500"><Radio className="size-3" /> Live</span>
+          ? <span className={cn("inline-flex items-center gap-1 rounded-full px-2 py-0.5 font-bold", EVENT_STATUS_TONE.live)}><Radio className="size-3" /> Live</span>
           : e.status === "upcoming"
-            ? <span className="rounded-full bg-sky-400/15 px-2 py-0.5 font-semibold text-sky-600 dark:text-sky-400">Upcoming</span>
-            : <span className="rounded-full bg-emerald-400/15 px-2 py-0.5 font-semibold text-emerald-600 dark:text-emerald-400">Finished</span>}
+            ? <span className={cn("rounded-full px-2 py-0.5 font-semibold", EVENT_STATUS_TONE.upcoming)}>Upcoming</span>
+            : <span className={cn("rounded-full px-2 py-0.5 font-semibold", EVENT_STATUS_TONE.finished)}>Finished</span>}
         <span className={cn("truncate font-semibold", tone.text)}>{e.typeLabel}</span>
         {e.teams > 0 && <span className="ml-auto inline-flex shrink-0 items-center gap-1 tabular-nums text-muted-foreground"><Users className="size-3.5" />{e.teams}</span>}
       </div>
-      <p className="mt-2 line-clamp-2 font-medium leading-snug group-hover:text-accent">{e.name}</p>
+      <p className="mt-2 line-clamp-2 font-medium leading-snug group-hover:text-accent-text">{e.name}</p>
       <div className="mt-auto space-y-1 pt-3 text-xs text-muted-foreground">
         <p className="flex items-center gap-1.5"><CalendarDays className="size-3.5 shrink-0" />{dateRange(e.start, e.end)}</p>
         <p className="flex items-center gap-1.5 truncate"><MapPin className="size-3.5 shrink-0" />{place(e.city, e.state ? regionLabel(`${e.country}:${e.state}`) : null, e.country === "USA" ? null : e.country) || "Location TBA"}</p>

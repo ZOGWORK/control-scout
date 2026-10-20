@@ -23,6 +23,7 @@ import { MatchList } from "../components/predict";
 import { SortTable, type Col } from "../components/SortTable";
 import { AdvancementView } from "../components/Advancement";
 import { cn } from "../components/cn";
+import { ROSTER_CHIP_TONE } from "../lib/textTones";
 import { OfflineNote } from "../components/OfflineNote";
 import { EventGlance } from "../components/EventGlance";
 import { callRecord } from "../lib/eventGlance";
@@ -412,14 +413,14 @@ function TeamsGrid({ field, season, team, predictable }: { field: FieldRow[]; se
               <Link to={`/teams/${t.team}?season=${season}`} className={cn("lift flex h-full items-center gap-3 rounded-xl border border-border bg-card p-3", t.team === team && "border-accent/60 bg-accent/[0.06]")}>
                 <span className="flex size-12 shrink-0 flex-col items-center justify-center rounded-lg bg-muted text-center">
                   <span className="text-[9px] font-bold uppercase tracking-wider text-muted-foreground">Rank</span>
-                  <span className={cn("font-display text-lg font-semibold leading-none tabular-nums", t.rank != null && t.rank <= 4 && "text-accent")}>{t.rank ?? "–"}</span>
+                  <span className={cn("font-display text-lg font-semibold leading-none tabular-nums", t.rank != null && t.rank <= 4 && "text-accent-text")}>{t.rank ?? "–"}</span>
                 </span>
                 <span className="min-w-0 flex-1">
                   <span className="flex items-baseline gap-2"><span className="font-mono font-semibold">{t.team}</span><span className="truncate text-sm">{t.name}</span></span>
                   <span className="block truncate text-xs text-muted-foreground">{place(t.city, t.state) || "—"}</span>
                   <span className="mt-1.5 flex flex-wrap gap-1.5 text-[11px] tabular-nums">
-                    {t.opr.np != null && <span className="rounded-md bg-violet-500/12 px-1.5 py-0.5 text-violet-600 dark:text-violet-400">npOPR {num(t.opr.np)}</span>}
-                    {t.wins != null && <span className="rounded-md bg-green-500/12 px-1.5 py-0.5 text-green-600 dark:text-green-400">{t.wins}-{t.losses ?? 0}-{t.ties ?? 0}</span>}
+                    {t.opr.np != null && <span className={cn("rounded-md px-1.5 py-0.5", ROSTER_CHIP_TONE.npOpr)}>npOPR {num(t.opr.np)}</span>}
+                    {t.wins != null && <span className={cn("rounded-md px-1.5 py-0.5", ROSTER_CHIP_TONE.record)}>{t.wins}-{t.losses ?? 0}-{t.ties ?? 0}</span>}
                     {predictable && t.rating && <span className="rounded-md bg-accent/15 px-1.5 py-0.5 text-accent-text">Rating {num(t.rating.np)} ±{num(t.rating.sd, 0)}</span>}
                   </span>
                 </span>
