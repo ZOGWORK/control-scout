@@ -1,0 +1,129 @@
+// Coloured text reaches WCAG AA in both themes: each tone's Tailwind classes are resolved against the real
+// tokens (src/index.css, Tailwind's palette), tints blended over the card, then measured. Catches a raw
+// decorative colour (#eab308 gold, sky 600) used as small text on light, the V3 contrast finding.
+import { readFileSync } from "node:fs";
+import { createRequire } from "node:module";
+import { describe, expect, it } from "vitest";
+import { contrast, over, parseColor, toHex, type RGBA } from "./contrast";
+import { CHART_LEGEND_TEXT, EVENT_FILTER_COUNT, EVENT_STATUS_TONE, EVENT_TYPE_TONE, PROFILE_PERCENTILE_TEXT, RECORDS_CAP_NOTE_TONE, ROSTER_CHIP_TONE } from "./textTones";
+import { TONE_CLASS } from "./records/describe";
+import { badgeVariants } from "../components/ui/basic";
+import { buttonVariants } from "../components/ui/button";
+
+type Theme = "dark" | "light";
+
+const css = readFileSync(new URL("../index.css", import.meta.url), "utf8");
+const twTheme = readFileSync(createRequire(import.meta.url).resolve("tailwindcss/theme.css"), "utf8");
+
+/** Custom properties declared in the first block after `selector` (e.g. "@theme {", ":root {", "html.light {"). */
+function block(src: string, selector: string) {
+  const i = src.indexOf(selector);
+  if (i < 0) throw new Error(`no ${selector} block`);
+  const body = src.slice(i + selector.length, src.indexOf("\n}", i));
+  return Object.fromEntries([...body.matchAll(/(--[\w-]+):\s*([^;]+);/g)].map((m) => [m[1], m[2].trim()]));
+}
+const palette = block(twTheme, "@theme default {");
+const dark = { ...palette, ...block(css, "@theme {"), ...block(css, ":root {\n  --sh-background") };
+const vars: Record<Theme, Record<string, string>> = { dark, light: { ...dark, ...block(css, "html.light {") } };
+
+function value(theme: Theme, name: string, depth = 0): RGBA {
+  const raw = vars[theme][name];
+  if (raw == null || depth > 8) throw new Error(`unknown colour ${name}`);
+  const ref = /^var\((--[\w-]+)\)$/.exec(raw);
+  if (ref) return value(theme, ref[1], depth + 1);
+  const c = parseColor(raw);
+  if (!c) throw new Error(`can't read ${name}: ${raw}`);
+  return c;
+}
+
+/** The colour a utility like `text-sky-700`, `bg-green-500/12` or `!text-foreground` paints in this theme. */
+function utility(theme: Theme, classes: string, prop: "text" | "bg"): RGBA | null {
+  let found: RGBA | null = null;
+  for (const cls of classes.split(/\s+/)) {
+    const [variant, util] = cls.includes(":") ? [cls.slice(0, cls.lastIndexOf(":")), cls.slice(cls.lastIndexOf(":") + 1)] : ["", cls];
+    // Only the resting, theme-matching state: `dark:` applies on dark, hover/focus never.
+    if (variant && variant !== "dark" && !variant.startsWith("[&")) continue;
+    if (variant === "dark" && theme !== "dark") continue;
+    const m = new RegExp(`^!?${prop}-([a-z]+(?:-[a-z]+)*(?:-\\d{2,3})?)(?:/(\\d+))?$`).exec(util);
+    if (!m || !vars[theme][`--color-${m[1]}`]) continue;
+    const c = value(theme, `--color-${m[1]}`);
+    const alpha = m[2] ? +m[2] / 100 : c[3];
+    // A plain class sets the colour unless a `dark:` one already did for dark.
+    if (variant === "dark" || !found || theme === "light") found = [c[0], c[1], c[2], alpha];
+    if (variant === "dark") break;
+  }
+  return found;
+}
+
+/** Text colour of `classes` (inheriting `inherit` when it sets none) on its own tint over `surface`. */
+function measure(theme: Theme, classes: string, { surface = "--color-card", inherit = "--color-foreground" } = {}) {
+  const base = value(theme, surface);
+  const tint = utility(theme, classes, "bg");
+  const bg = tint ? over(tint, base) : base;
+  let fg = utility(theme, classes, "text") ?? value(theme, inherit);
+  const fade = /(?:^|\s)opacity-(\d+)(?:\s|$)/.exec(classes);
+  if (fade) fg = [fg[0], fg[1], fg[2], fg[3] * (+fade[1] / 100)];
+  const ratio = contrast(over(fg, bg), bg);
+  return { ratio, pair: `${toHex(over(fg, bg))} on ${toHex(bg)} = ${ratio.toFixed(2)}` };
+}
+
+const THEMES: Theme[] = ["light", "dark"];
+const AA = 4.5, LARGE = 3;
+
+describe("text tones reach WCAG AA in both themes", () => {
+  for (const theme of THEMES) {
+    it(`event status chips (${theme})`, () => {
+      for (const [k, cls] of Object.entries(EVENT_STATUS_TONE)) expect(measure(theme, cls).ratio, `${k}: ${measure(theme, cls).pair}`).toBeGreaterThanOrEqual(AA);
+    });
+    it(`event type labels on the card (${theme})`, () => {
+      for (const [k, t] of Object.entries(EVENT_TYPE_TONE)) expect(measure(theme, t.text).ratio, `${k}: ${measure(theme, t.text).pair}`).toBeGreaterThanOrEqual(AA);
+    });
+    it(`roster chips on an event's Teams tab (${theme})`, () => {
+      for (const [k, cls] of Object.entries(ROSTER_CHIP_TONE)) expect(measure(theme, cls).ratio, `${k}: ${measure(theme, cls).pair}`).toBeGreaterThanOrEqual(AA);
+    });
+    it(`every Badge variant, e.g. an event's Live / Upcoming / Finished badge (${theme})`, () => {
+      for (const variant of ["default", "soft", "secondary", "outline", "beta", "info", "new", "destructive", "success"] as const) {
+        const m = measure(theme, badgeVariants({ variant }));
+        expect(m.ratio, `${variant}: ${m.pair}`).toBeGreaterThanOrEqual(AA);
+      }
+    });
+    it(`link buttons (${theme})`, () => {
+      const m = measure(theme, buttonVariants({ variant: "link" }));
+      expect(m.ratio, m.pair).toBeGreaterThanOrEqual(AA);
+    });
+    it(`Records Compare-cap note (${theme})`, () => {
+      const m = measure(theme, RECORDS_CAP_NOTE_TONE);
+      expect(m.ratio, m.pair).toBeGreaterThanOrEqual(AA);
+    });
+    it(`Events filter counts in the chip's muted text (${theme})`, () => {
+      const m = measure(theme, EVENT_FILTER_COUNT, { inherit: "--color-muted-foreground" });
+      expect(m.ratio, m.pair).toBeGreaterThanOrEqual(AA);
+    });
+    it(`profile hero percentile, large text on the secondary panel (${theme})`, () => {
+      const m = measure(theme, PROFILE_PERCENTILE_TEXT, { surface: "--color-secondary" });
+      expect(m.ratio, m.pair).toBeGreaterThanOrEqual(LARGE);
+      expect(m.ratio, `small-text margin too: ${m.pair}`).toBeGreaterThanOrEqual(AA);
+    });
+    it(`chart legend labels, whatever the series colour (${theme})`, () => {
+      // Recharts writes the label in the series colour (chart-1 is the accent gold); the legend class overrides it.
+      const m = measure(theme, CHART_LEGEND_TEXT, { inherit: "--color-chart-1" });
+      expect(m.ratio, m.pair).toBeGreaterThanOrEqual(AA);
+    });
+    it(`records column tones, header text and chips (${theme})`, () => {
+      for (const [k, t] of Object.entries(TONE_CLASS)) {
+        // The alliance tones belong to the match cards' own contrast work (red/blue alliance tokens).
+        if (k === "redAlliance" || k === "blueAlliance") continue;
+        for (const cls of [t.text, t.chip]) expect(measure(theme, cls).ratio, `${k} "${cls}": ${measure(theme, cls).pair}`).toBeGreaterThanOrEqual(AA);
+      }
+    });
+  }
+
+  it("the old classes fail, so this test would catch them coming back", () => {
+    expect(measure("light", "bg-sky-400/15 text-sky-600 dark:text-sky-400").ratio).toBeLessThan(AA); // 3.53
+    expect(measure("light", "bg-emerald-400/15 text-emerald-600 dark:text-emerald-400").ratio).toBeLessThan(AA); // 3.26
+    expect(measure("light", "bg-green-500/12 text-green-600 dark:text-green-400").ratio).toBeLessThan(AA); // 2.87
+    expect(measure("light", "text-accent", { surface: "--color-secondary" }).ratio).toBeLessThan(LARGE); // 1.9
+    expect(measure("dark", "tabular-nums opacity-70", { inherit: "--color-muted-foreground" }).ratio).toBeLessThan(AA); // 4.18
+    expect(measure("light", "tabular-nums opacity-70", { inherit: "--color-muted-foreground" }).ratio).toBeLessThan(AA); // 3.61
+  });
+});
