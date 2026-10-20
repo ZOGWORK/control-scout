@@ -4,7 +4,8 @@
 import { useEffect, useRef, useState, type ComponentType, type ReactNode, type Ref } from "react";
 import { Ambient } from "./Ambient";
 import { Link, NavLink, useLocation } from "react-router-dom";
-import { m, MotionConfig } from "motion/react";
+import { MotionConfig } from "motion/react";
+import { m } from "../motion";
 import {
   BookOpen, Bookmark, CalendarDays, ClipboardList, DatabaseZap, Download, House, ListOrdered, Menu, PanelLeftClose, PanelLeftOpen, Scale, Search, Settings, ShieldCheck, Sparkles, Star, Trophy, Users,
 } from "lucide-react";

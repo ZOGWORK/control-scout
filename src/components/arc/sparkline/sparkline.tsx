@@ -1,7 +1,8 @@
 "use client";
 
 import { useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState, type KeyboardEvent, type PointerEvent } from "react";
-import { AnimatePresence, animate, m, useInView, useMotionValue, useMotionValueEvent, useReducedMotion, useTransform, type Variants } from "motion/react";
+import { AnimatePresence, animate, useInView, useMotionValue, useMotionValueEvent, useReducedMotion, useTransform, type Variants } from "motion/react";
+import { m } from "../../motion";
 import { motionTokens } from "../lib/motion-tokens";
 import styles from "./sparkline.module.css";
 

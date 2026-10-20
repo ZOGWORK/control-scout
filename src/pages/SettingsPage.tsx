@@ -9,7 +9,8 @@
 // workspace, changed by its admins; shown only to its members).
 import { useEffect, useRef, useState, type ComponentType } from "react";
 import { Link, useLocation, useNavigate, useSearchParams } from "react-router-dom";
-import { AnimatePresence, m } from "motion/react";
+import { AnimatePresence } from "motion/react";
+import { m } from "../components/motion";
 import {
   ArrowDown, ArrowUp, BellRing, Bug, ClipboardList, Download, ExternalLink, HardDriveDownload, Info, KeyRound, Link2, LogOut, Mail, Monitor, Moon, Palette,
   Star, Sun, Upload, UserRound, Users, X,

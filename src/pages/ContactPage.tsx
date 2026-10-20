@@ -4,7 +4,7 @@
 // errors (limit reached, offline, down) show inline too.
 import { useEffect, useId, useState, type FormEvent, type ReactNode } from "react";
 import { Link, useSearchParams } from "react-router-dom";
-import { m } from "motion/react";
+import { m } from "../components/motion";
 import { AlertCircle, Bug, CheckCircle2, DatabaseZap, ExternalLink, Lightbulb, Loader2, MessageCircle, Send } from "lucide-react";
 import { useTitle } from "../lib/meta";
 import { usePersonal } from "../lib/personal";
