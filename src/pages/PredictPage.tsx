@@ -514,7 +514,7 @@ function MatchResult({ x, offlineAsOf }: { x: MatchExplanationView; offlineAsOf?
           <div className="flex gap-2">
             {/* Offline there's no server to draw the card: just the link. */}
             {offlineAsOf ? <Button variant="outline" size="sm" onClick={share}><Link2 /> Share</Button>
-              : <ShareMatch query={{ season: x.season, red: x.red, blue: x.blue }} pRed={x.winProbRed} pBlue={x.winProbBlue} />}
+              : <ShareMatch query={{ season: x.season, red: x.red, blue: x.blue }} pRed={x.winProbRed} pBlue={x.winProbBlue} tier={x.confidence.tier} />}
             <Button variant="secondary" size="sm" onClick={save}><BookmarkPlus /> Save</Button>
           </div>
         </div>

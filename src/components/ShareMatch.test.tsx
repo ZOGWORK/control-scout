@@ -90,12 +90,12 @@ describe("shareCard", () => {
 
 describe("ShareMatch", () => {
   it("without a share sheet the panel offers a download and the link, and the download works", async () => {
-    render(<ShareMatch query={q()} pRed={0.73} />);
+    render(<ShareMatch query={q()} pRed={0.73} tier="moderate" />);
     fireEvent.click(screen.getByRole("button", { name: /share/i }));
     const download = await screen.findByRole("button", { name: /download image/i });
     expect(screen.getByRole("button", { name: /copy link/i })).toBeTruthy();
     expect(screen.queryByRole("button", { name: /share image/i })).toBeNull();
-    const img = await screen.findByRole("img", { name: /Our model gives 4215 & \d+ a 73% win chance vs 33950 & 21058/ });
+    const img = await screen.findByRole("img", { name: /Our model gives 4215 & \d+ a 73% win chance vs 33950 & 21058 \(moderate confidence\)/ });
     fireEvent.click(download);
     await waitFor(() => expect(clicked).toHaveLength(1));
     // The download is the very file the preview shows.
@@ -105,7 +105,7 @@ describe("ShareMatch", () => {
   it("previews the same fetched file it shares (never the address, which the browser may hold an older copy of), and frees it on change and close", async () => {
     nav.share = vi.fn(async () => {});
     nav.canShare = vi.fn(() => true);
-    const { unmount } = render(<ShareMatch query={q()} pRed={0.73} />);
+    const { unmount } = render(<ShareMatch query={q()} pRed={0.73} tier="moderate" />);
     fireEvent.click(screen.getByRole("button", { name: /share/i }));
     const img = await screen.findByRole("img");
     const wide = img.getAttribute("src")!;
@@ -113,7 +113,9 @@ describe("ShareMatch", () => {
     expect(fetch).toHaveBeenCalledTimes(1);
     fireEvent.click(screen.getByRole("button", { name: /share image/i }));
     await waitFor(() => expect(nav.share).toHaveBeenCalled());
-    const shared = vi.mocked(nav.share as (d: ShareData) => Promise<void>).mock.calls[0][0].files![0];
+    const sent = vi.mocked(nav.share as (d: ShareData) => Promise<void>).mock.calls[0][0];
+    expect(sent.text).toContain("win chance vs 33950 & 21058 (moderate confidence)"); // the tier travels with the %
+    const shared = sent.files![0];
     expect(shared).toBe(blobs.get(wide));
     expect(fetch).toHaveBeenCalledTimes(1); // shared from memory, no second fetch
     // Another shape: a new preview, the old one released.
@@ -128,7 +130,7 @@ describe("ShareMatch", () => {
 
   it("says so in the preview when the image can't be made", async () => {
     vi.stubGlobal("fetch", vi.fn(async () => new Response(JSON.stringify({ error: "Ratings for this season aren't ready yet." }), { status: 503, headers: { "content-type": "application/json" } })));
-    render(<ShareMatch query={q()} pRed={0.73} />);
+    render(<ShareMatch query={q()} pRed={0.73} tier="moderate" />);
     fireEvent.click(screen.getByRole("button", { name: /share/i }));
     expect(await screen.findByText("Ratings for this season aren't ready yet.")).toBeTruthy();
     expect(screen.queryByRole("img")).toBeNull();
@@ -137,7 +139,7 @@ describe("ShareMatch", () => {
   it("with a share sheet that takes files the panel offers it, and a square option for Instagram", async () => {
     nav.share = vi.fn(async () => {});
     nav.canShare = vi.fn(() => true);
-    render(<ShareMatch query={q()} pRed={0.3} />);
+    render(<ShareMatch query={q()} pRed={0.3} tier="moderate" />);
     fireEvent.click(screen.getByRole("button", { name: /share/i }));
     expect(await screen.findByRole("button", { name: /share image/i })).toBeTruthy();
     fireEvent.click(screen.getByRole("radio", { name: /square/i }));
