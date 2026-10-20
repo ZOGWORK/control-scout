@@ -1,9 +1,10 @@
 // What a match record says in words (the /matches phone summary): the winner and margin, and the result
 // against the prediction, never a flat 0% or 100%.
 import { describe, expect, it } from "vitest";
+import type { ConfidenceTier } from "../../shared/api";
 import { matchOutcome } from "./matchOutcome";
 
-const o = (stats: Record<string, number | null>) => matchOutcome({ stats });
+const o = (stats: Record<string, number | null>, predictionTier: ConfidenceTier | null = "confident") => matchOutcome({ stats, predictionTier });
 
 describe("matchOutcome", () => {
   it("names the winner and the margin", () => {
@@ -14,7 +15,7 @@ describe("matchOutcome", () => {
 
   it("says when a match has no scores yet", () => {
     expect(o({ redTotalPoints: null, blueTotalPoints: null, redPredictedWinPct: 60 })).toMatchObject({
-      played: false, winner: null, headline: "Not played yet", prediction: { verdict: "pending", favourite: "red", text: "Red favoured (60%), not played yet" },
+      played: false, winner: null, headline: "Not played yet", prediction: { verdict: "pending", favourite: "red", tier: "confident", text: "Red favoured (60%), not played yet" },
     });
   });
 
@@ -28,5 +29,18 @@ describe("matchOutcome", () => {
   it("never shows a flat 0% or 100% chance", () => {
     expect(o({ redTotalPoints: 1, blueTotalPoints: 0, redPredictedWinPct: 99.99 }).prediction!.chance).not.toBe("100%");
     expect(o({ redTotalPoints: 1, blueTotalPoints: 0, redPredictedWinPct: 0.01 }).prediction!.chance).not.toBe("100%");
+  });
+
+  it("carries the call's recorded tier, as given", () => {
+    expect(o({ redTotalPoints: 120, blueTotalPoints: 100, redPredictedWinPct: 93 }, "provisional").prediction).toMatchObject({ tier: "provisional", chance: "93%" });
+  });
+
+  it("shows no percentage for a call with no recorded tier, only the verdict", () => {
+    for (const tier of [null, undefined]) {
+      const p = matchOutcome({ stats: { redTotalPoints: 120, blueTotalPoints: 100, redPredictedWinPct: 93 }, predictionTier: tier }).prediction!;
+      expect(p).toMatchObject({ verdict: "called", tier: null, chance: null, text: "Red favoured, Red won" });
+      expect(p.text).not.toMatch(/%/);
+    }
+    expect(o({ redTotalPoints: 90, blueTotalPoints: 80, redPredictedWinPct: 50 }, null).prediction!.text).toBe("Even call, Red won");
   });
 });

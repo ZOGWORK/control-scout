@@ -14,7 +14,7 @@ import type { WorkspaceAnswer } from "../lib/consensus";
 import { scoutTeamHref } from "../lib/consensus";
 import { workspaceLabel } from "../lib/scoutSpace";
 import { agoShort, int, num, oddsPct } from "../lib/format";
-import { ConfidenceBadge, FactorList, KIND_LABEL, WinBar } from "./predict";
+import { ConfidenceBadge, FactorList, KIND_LABEL, TierMark, WinBar } from "./predict";
 import { OprSpark, PARTS } from "./shortlist/charts";
 import { Popover, PopoverContent, PopoverTrigger } from "./ui/overlay";
 import { Skeleton } from "./ui/basic";
@@ -141,7 +141,7 @@ function Alliance({ side, m, remote, byTeam, ws, watch }: {
         <h2 className={cn("font-display text-lg font-semibold", s.text)}>{s.name} alliance</h2>
         <p className="text-sm tabular-nums text-muted-foreground">
           {score != null ? <>Scored <span className={cn("font-semibold", s.text)}>{score}</span></>
-            : p ? <>{oddsPct(side === "red" ? p.pRed : 1 - p.pRed)} to win{!p.noScoreBasis && <> · ~{Math.round(side === "red" ? p.redMean : p.blueMean)} pts</>}</> : null}
+            : p ? <>{oddsPct(side === "red" ? p.pRed : 1 - p.pRed)} to win{!p.noScoreBasis && <> · ~{Math.round(side === "red" ? p.redMean : p.blueMean)} pts</>} <TierMark tier={p.tier} className="align-middle" /></> : null}
         </p>
       </div>
       <ul className="space-y-3">

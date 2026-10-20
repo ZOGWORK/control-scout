@@ -27,7 +27,7 @@ import { apiFetch, ApiError } from "./api";
 import type { LiveMode } from "./scoutLive";
 import { applyPickOp, cleanNote, isPickList, NOTE_CHANGED, type Pick, type PickList, type PickOp, type PickPerson } from "../shared/picklist";
 import { clearNoteDraft, noteDrafts, readNoteDraft, saveNoteDraft, type NoteDraft } from "./picklistDrafts";
-import { claimScope, knownOffline, outcomeUnknown, publishPending, SAVED_SHOW_MS, type PendingItem, type SaveState } from "./pendingWork";
+import { claimScope, knownOffline, noteUnstoredSending, outcomeUnknown, publishPending, SAVED_SHOW_MS, type PendingItem, type SaveState } from "./pendingWork";
 
 /** Window event: a workspace's pick list arrived on its stream. detail: PickList. */
 export const SCOUT_PICKLIST = "cs-scout-picklist";
@@ -141,6 +141,16 @@ function inLine<T>(space: string, send: () => Promise<T>, owner?: number): Promi
   return run;
 }
 
+// Changes queued or on their way that exist only in memory (order changes, and notes this device couldn't store).
+// A list's queue keeps sending after the list closes, so these count for every list on the page: a reload before
+// their answers would lose them (src/lib/chunkError.ts asks first).
+const memoryOnly = new Set<Pending>();
+function trackMemoryOnly(p: Pending, on: boolean) {
+  if (on ? memoryOnly.has(p) : !memoryOnly.has(p)) return;
+  if (on) memoryOnly.add(p); else memoryOnly.delete(p);
+  noteUnstoredSending("picklist-queue", memoryOnly.size);
+}
+
 /** Window event: a kept order change went through on Retry. detail: { space, season }. */
 const PICKLIST_CHANGE_SAVED = "cs-picklist-change-saved";
 
@@ -157,6 +167,7 @@ function failedChanged() {
     key: `order:${f.account}:${f.space}:${f.season}:${f.id}`, account: f.account, kind: "order", workspaceId: f.space, season: f.season,
     team: "team" in f.op ? f.op.team : null, label: describeChange(f.op), status: "attention", message: f.message, busy: f.busy,
     retry: () => { void retryFailedChange(f.id); }, discard: () => discardFailedChange(f.id),
+    volatile: true, // kept for this page only: a reload loses it
   }]));
 }
 function keepFailed(f: Omit<FailedChange, "id">) { const id = ++failedSeq; failedChanges.set(id, { ...f, id }); failedChanged(); }
@@ -447,6 +458,7 @@ export function usePickList(space: string | null, season: number, live: LiveMode
     function finish(p: Pending) {
       if (p.wid) inflight.delete(p.wid);
       if (p.op.op === "note") { const key = noteKey(p.account, p.space, p.season, p.op.team); if (latestNote.current.get(key) === p.id) latestNote.current.delete(key); }
+      trackMemoryOnly(p, false);
       if (queue.current[0] === p) queue.current.shift();
       setPending((cur) => cur.filter((x) => x.id !== p.id));
     }
@@ -487,6 +499,7 @@ export function usePickList(space: string | null, season: number, live: LiveMode
     // A new write of a note replaces one that failed (a retry, or putting the saved one back).
     if (op.op === "note") { const key = noteKey(acct, space, season, op.team); latestNote.current.set(key, p.id); setUnsaved((u) => { if (!(key in u)) return u; const { [key]: _gone, ...rest } = u; return rest; }); }
     queue.current.push(p);
+    if (op.op !== "note" || !stored) trackMemoryOnly(p, true);
     setPending((cur) => [...cur, p]);
     void drain();
   }, [space, season, drain]);
@@ -569,6 +582,7 @@ export function usePickList(space: string | null, season: number, live: LiveMode
           : u.uncertain ? NOTE_UNCONFIRMED : u.kept === false ? "Not saved yet, and this device couldn't keep a copy." : "Not saved yet. Your text is kept on this device.",
         retry: () => change({ op: "note", team, note: u.note }),
         discard: () => discardNote(team), discardLabel: u.conflict ? "Keep theirs" : "Discard",
+        ...(u.kept === false ? { volatile: true } : {}),
       });
     }
     publishPending(source, items);

@@ -7,7 +7,7 @@
 //   - Calls: live (logged before the match) and backtest (replayed) are never blended (AGENTS.md rule 9).
 //   - Category leaders come from this event's OPR, so they appear once matches have been played.
 //   - Before an event starts: the strongest teams by rating and the field's average season OPR.
-import type { EventDetail, MatchView } from "../shared/api";
+import type { ConfidenceTier, EventDetail, MatchView } from "../shared/api";
 import { nextMatch } from "./liveMode";
 
 export type Phase = "upcoming" | "quals" | "playoffs" | "done";
@@ -32,7 +32,7 @@ export interface GlanceStats {
   avgPenalty: number | null;
   record: CallRecord[];
   /** Favourites that lost, in the headline kind of call (live first). */
-  upsets: { kind: "live" | "backtest"; n: number; of: number; biggest: (MatchRef & { pFav: number }) | null } | null;
+  upsets: { kind: "live" | "backtest"; n: number; of: number; biggest: (MatchRef & { pFav: number; tier: ConfidenceTier }) | null } | null;
   leaders: { auto: TeamValue | null; teleop: TeamValue | null; endgame: TeamValue | null };
   /** Live only: the next match to be played (by schedule order). */
   next: (MatchRef & { startsAt: string | null; time: string | null }) | null;
@@ -121,7 +121,7 @@ export function glanceStats(d: EventDetail): GlanceStats {
     let biggest: NonNullable<GlanceStats["upsets"]>["biggest"] = null;
     for (const m of lost) {
       const pFav = Math.max(m.prediction!.pRed, 1 - m.prediction!.pRed);
-      if (!biggest || pFav > biggest.pFav) biggest = { ...ref(m), pFav };
+      if (!biggest || pFav > biggest.pFav) biggest = { ...ref(m), pFav, tier: m.prediction!.tier };
     }
     upsets = called.length ? { kind, n: lost.length, of: called.length, biggest } : null;
   }

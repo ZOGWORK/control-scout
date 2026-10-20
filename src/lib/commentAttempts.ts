@@ -11,7 +11,7 @@
 import { useSyncExternalStore } from "react";
 import { apiFetch } from "./api";
 import { CommentWriteError, COMMENT_NOT_ARRIVED, COMMENT_UNCONFIRMED, postComment, SCOUT_COMMENT, SCOUT_COMMENTS_RESYNC } from "./scoutComments";
-import { publishPending, type PendingItem } from "./pendingWork";
+import { noteUnstoredSending, publishPending, type PendingItem } from "./pendingWork";
 import { isCommentEvent, isEntryComment } from "../shared/comments";
 
 /** Where a comment belongs, and what to call it ("Comment on 16236 · Match Q12"). */
@@ -48,10 +48,15 @@ function changed() {
   publish();
 }
 
+/** Attempts this device couldn't store (full or blocked): kept in memory only, so a reload loses them. */
+const unstored = new Set<string>();
+
 function keep(a: CommentAttempt) {
   const k = keyOf(a.account, a.space, a.uuid);
   attempts.set(k, a);
-  try { storage()?.setItem(k, JSON.stringify({ body: a.body, opId: a.opId, at: a.at, season: a.season, team: a.team, what: a.what })); } catch { /* full or blocked: kept in memory */ }
+  const s = storage();
+  try { if (!s) throw new Error("no storage"); s.setItem(k, JSON.stringify({ body: a.body, opId: a.opId, at: a.at, season: a.season, team: a.team, what: a.what })); unstored.delete(k); }
+  catch { unstored.add(k); /* full or blocked: kept in memory */ }
   changed();
 }
 
@@ -60,6 +65,7 @@ function drop(account: number, space: string, uuid: string, opId?: string) {
   const a = attempts.get(k);
   if (opId && a && a.opId !== opId) return; // a newer attempt took its place
   attempts.delete(k);
+  unstored.delete(k);
   try { storage()?.removeItem(k); } catch { /* blocked */ }
   changed();
 }
@@ -169,22 +175,28 @@ function publish() {
       label: a.what ?? (a.team ? `Comment on ${a.team}` : "Comment"), status: "attention", message: a.message,
       retry: () => { void sendComment(place, a.body, a.opId); },
       discard: () => discardComment(a.account, a.space, a.uuid),
+      ...(unstored.has(keyOf(a.account, a.space, a.uuid)) ? { volatile: true } : {}),
     });
   }
   publishPending("comments", items);
+  // Still on its way and not stored: nothing for the member to do yet, but a reload now would lose it.
+  let sending = 0;
+  for (const [k, a] of attempts) if (a.state === "saving" && unstored.has(k)) sending++;
+  noteUnstoredSending("comments", sending);
 }
 
 // Another tab confirmed, discarded or replaced an attempt this tab holds: follow it, so a Retry here can't post a
 // comment that was let go there (or send an older attempt over a newer one).
 if (typeof window !== "undefined") {
   window.addEventListener("storage", (e) => {
-    if (e.key === null) { if (attempts.size) { attempts.clear(); changed(); } return; }
+    if (e.key === null) { if (attempts.size) { attempts.clear(); unstored.clear(); changed(); } return; }
     if (!e.key.startsWith(PREFIX) || !attempts.has(e.key)) return;
     const cur = attempts.get(e.key)!;
     let raw: { body?: unknown; opId?: unknown; at?: unknown } | null = null;
     try { raw = e.newValue ? JSON.parse(e.newValue) : null; } catch { raw = null; }
-    if (!raw || typeof raw.body !== "string" || typeof raw.opId !== "string") attempts.delete(e.key);
-    else if (raw.opId !== cur.opId) attempts.set(e.key, { ...cur, body: raw.body, opId: raw.opId, at: typeof raw.at === "number" ? raw.at : cur.at, state: "attention", message: COMMENT_UNCONFIRMED, uncertain: true });
+    // Removed or replaced by another tab's stored copy: this tab's unstored one is gone either way.
+    if (!raw || typeof raw.body !== "string" || typeof raw.opId !== "string") { attempts.delete(e.key); unstored.delete(e.key); }
+    else if (raw.opId !== cur.opId) { unstored.delete(e.key); attempts.set(e.key, { ...cur, body: raw.body, opId: raw.opId, at: typeof raw.at === "number" ? raw.at : cur.at, state: "attention", message: COMMENT_UNCONFIRMED, uncertain: true }); }
     else return;
     changed();
   });
@@ -223,4 +235,4 @@ if (typeof window !== "undefined") {
 }
 
 /** Tests: forget everything held in memory (a fresh page). */
-export function resetCommentAttempts() { attempts.clear(); loaded.clear(); changed(); }
+export function resetCommentAttempts() { attempts.clear(); unstored.clear(); loaded.clear(); changed(); }

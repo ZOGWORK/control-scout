@@ -1,6 +1,7 @@
 // What a match record says in words: who won and by how much, and how that compares with the
 // prediction made before it (the replayed walk-forward call in the records). Used by the phone
 // summary of /matches. Pure, unit tested.
+import type { ConfidenceTier } from "../../shared/api";
 import type { MatchRecordRow } from "../../shared/statCatalog";
 import { oddsPct } from "../format";
 
@@ -23,8 +24,10 @@ export interface MatchOutcome {
   prediction: {
     /** Null when the call was an even split. */
     favourite: Side | null;
-    /** The favourite's chance, as shown (never a flat 0% or 100%). */
-    chance: string;
+    /** The favourite's chance, as shown (never a flat 0% or 100%); null when the call has no recorded tier (then no % is shown). */
+    chance: string | null;
+    /** The confidence tier recorded with the call (never worked out from the probability); null when there is none. */
+    tier: ConfidenceTier | null;
     /** "called" (the favourite won), "upset", "tie", "even" (no favourite), "pending" (not played). */
     verdict: "called" | "upset" | "tie" | "even" | "pending";
     /** The comparison in one sentence. */
@@ -35,7 +38,7 @@ export interface MatchOutcome {
 const NAME: Record<Side, string> = { red: "Red", blue: "Blue" };
 const score = (v: unknown) => (typeof v === "number" && Number.isFinite(v) ? v : null);
 
-export function matchOutcome(r: Pick<MatchRecordRow, "stats">): MatchOutcome {
+export function matchOutcome(r: Pick<MatchRecordRow, "stats" | "predictionTier">): MatchOutcome {
   const red = score(r.stats.redTotalPoints), blue = score(r.stats.blueTotalPoints);
   const played = red != null && blue != null;
   const winner: Side | null = !played || red === blue ? null : red! > blue! ? "red" : "blue";
@@ -47,13 +50,16 @@ export function matchOutcome(r: Pick<MatchRecordRow, "stats">): MatchOutcome {
   if (pct != null) {
     const pRed = pct / 100;
     const favourite: Side | null = pRed > 0.5 ? "red" : pRed < 0.5 ? "blue" : null;
-    const chance = oddsPct(favourite === "blue" ? 1 - pRed : pRed);
-    const called = favourite ? `${NAME[favourite]} favoured (${chance})` : `Even call (${chance} each)`;
-    if (!played) prediction = { favourite, chance, verdict: "pending", text: `${called}, not played yet` };
-    else if (!winner) prediction = { favourite, chance, verdict: "tie", text: `${called}, ended in a tie` };
-    else if (!favourite) prediction = { favourite, chance, verdict: "even", text: `${called}, ${NAME[winner]} won` };
-    else if (favourite === winner) prediction = { favourite, chance, verdict: "called", text: `${called}, ${NAME[winner]} won` };
-    else prediction = { favourite, chance, verdict: "upset", text: `${called}, ${NAME[winner]} won` };
+    // A probability is only shown with the confidence it was recorded with: without a tier, the verdict alone.
+    const tier = r.predictionTier ?? null;
+    const chance = tier ? oddsPct(favourite === "blue" ? 1 - pRed : pRed) : null;
+    const called = favourite ? `${NAME[favourite]} favoured${chance ? ` (${chance})` : ""}` : `Even call${chance ? ` (${chance} each)` : ""}`;
+    const p = { favourite, chance, tier };
+    if (!played) prediction = { ...p, verdict: "pending", text: `${called}, not played yet` };
+    else if (!winner) prediction = { ...p, verdict: "tie", text: `${called}, ended in a tie` };
+    else if (!favourite) prediction = { ...p, verdict: "even", text: `${called}, ${NAME[winner]} won` };
+    else if (favourite === winner) prediction = { ...p, verdict: "called", text: `${called}, ${NAME[winner]} won` };
+    else prediction = { ...p, verdict: "upset", text: `${called}, ${NAME[winner]} won` };
   }
   return { red, blue, played, winner, margin, headline, prediction };
 }

@@ -6,7 +6,7 @@
 // (catalog key → column expression); every value is a bound parameter.
 import type { Response } from "express";
 import { createGzip } from "node:zlib";
-import { EXCLUDED_TYPES } from "@control-scout/predict-engine";
+import { EXCLUDED_TYPES, type ConfidenceTier } from "@control-scout/predict-engine";
 import { all } from "../db.js";
 import { registerCache } from "../caches.js";
 import { countryByCode, countryOf } from "../../src/shared/countries.js";
@@ -310,6 +310,9 @@ function orderOf(src: Source, q: RecordsQuery): string {
   return `(${col}) IS NULL, ${by} ${q.dir === "asc" ? "ASC" : "DESC"}, ${src.tiebreak}`;
 }
 
+/** The match stat that is a replayed call's probability (its row also carries the call's recorded tier). */
+const PREDICTION_STAT = "redPredictedWinPct";
+
 /** Stats are stored at full precision (filters compare exact values); responses carry two decimals. */
 const statsOf = (r: any, fields: string[]): StatValues => {
   const s: StatValues = {};
@@ -324,13 +327,45 @@ type AnyRow = TeamEventRecord | TeamSeasonRecord | MatchRecordRow;
 
 const teamsOf = (s: unknown) => (typeof s === "string" && s ? s.split(" ").map(Number) : []);
 
-function rowsOf(scope: RecordScope, raw: any[], fields: string[]): AnyRow[] {
+function rowsOf(scope: RecordScope, raw: any[], fields: string[], tiers: Map<string, ConfidenceTier> | null = null): AnyRow[] {
   if (scope === "teamEvent") return raw.map((r): TeamEventRecord => ({ season: Number(r._season), team: Number(r._team), eventCode: r._eventCode, eventName: r._eventName, eventType: r._eventType ?? null, eventStart: r._eventStart ?? null, stats: statsOf(r, fields) }));
   if (scope === "teamSeason") return raw.map((r): TeamSeasonRecord => ({ season: Number(r._season), team: Number(r._team), stats: statsOf(r, fields) }));
   return raw.map((r): MatchRecordRow => ({
     season: Number(r._season), eventCode: r._eventCode, eventName: r._eventName, eventType: r._eventType ?? null, eventStart: r._eventStart ?? null,
     key: `${r._level}:${r._series}:${r._number}`, level: r._level, label: r._label, time: r._time ?? null, red: teamsOf(r._red), blue: teamsOf(r._blue), stats: statsOf(r, fields),
+    ...(tiers && { predictionTier: tiers.get(matchKeyOf(r)) ?? null }),
   }));
+}
+
+const TIERS: ReadonlySet<string> = new Set<ConfidenceTier>(["provisional", "moderate", "confident"]);
+const matchKeyOf = (r: any) => `${r._eventCode}|${r._level}:${r._series}:${r._number}`;
+
+/**
+ * The confidence tier recorded with each match row's replayed call (the walk-forward ledger row its
+ * redPredictedWinPct was copied from), read for just these rows: one primary-key lookup each. Never
+ * worked out again from the probability. Null when no fields need it (the percentage wasn't asked for).
+ * The percentage is a copy made by the stats job's fill step, and the ledger is rewritten before it, so
+ * a tier is only paired with the percentage of the same replay: when the ledger's probability no longer
+ * matches the row's (mid-rebuild), the row gets no tier, and the percentage isn't shown until both agree.
+ */
+async function predictionTiers(scope: RecordScope, raw: any[], fields: string[]): Promise<Map<string, ConfidenceTier> | null> {
+  if (scope !== "match" || !fields.includes(PREDICTION_STAT)) return null;
+  const out = new Map<string, ConfidenceTier>();
+  const rows = raw.filter((r) => r[PREDICTION_STAT] != null);
+  if (!rows.length) return out;
+  const found = await all<any>(
+    `WITH wanted(season, code, level, series, number) AS (VALUES ${rows.map(() => "(?, ?, ?, ?, ?)").join(", ")}) ` +
+      "SELECT p.code, p.level, p.series, p.number, p.p_red, p.tier FROM wanted CROSS JOIN predictions p " +
+      "ON p.kind = 'backtest' AND p.season = wanted.season AND p.code = wanted.code AND p.level = wanted.level AND p.series = wanted.series AND p.number = wanted.number",
+    rows.flatMap((r) => [Number(r._season), r._eventCode, r._level, Number(r._series), Number(r._number)]),
+  );
+  const pct = new Map(rows.map((r) => [matchKeyOf(r), Number(r[PREDICTION_STAT])]));
+  for (const p of found) {
+    const key = `${p.code}|${p.level}:${p.series}:${p.number}`;
+    // Same replay: the row's percentage is this ledger row's p_red × 100 (as the fill step wrote it).
+    if (TIERS.has(p.tier) && Math.abs(Number(p.p_red) * 100 - (pct.get(key) ?? NaN)) < 1e-6) out.set(key, p.tier);
+  }
+  return out;
 }
 
 /**
@@ -378,7 +413,7 @@ export async function listRecords(season: number, q: RecordsQuery): Promise<Reco
   ]);
   return {
     season, scope: q.scope, filter: q.filter ? serializeFilter(q.filter) : null, sort: q.sort, dir: q.dir, page: q.page, pageSize: q.pageSize,
-    total: Number(count[0]?.n ?? 0), columns: q.fields, rows: rowsOf(q.scope, raw, q.fields),
+    total: Number(count[0]?.n ?? 0), columns: q.fields, rows: rowsOf(q.scope, raw, q.fields, await predictionTiers(q.scope, raw, q.fields)),
   };
 }
 
@@ -409,6 +444,9 @@ const ID_HEADERS: Record<RecordScope, [string, (r: any) => unknown][]> = {
  * read and streamed out in chunks, dropping them as they are written.
  * Columns: identity columns, then `fields` in order.
  */
+/** The CSV column after the fields when the replayed call's probability is exported. */
+export const PREDICTION_TIER_HEADER = "Red Predicted Win % Confidence";
+
 /** Rows per CSV read (inside the export's one read transaction). */
 export const CSV_CHUNK = 500;
 
@@ -425,12 +463,19 @@ export async function streamRecordsCsv(season: number, q: RecordsQuery, res: Res
   res.setHeader("Content-Type", "text/csv; charset=utf-8");
   res.setHeader("Content-Disposition", `attachment; filename="${filename}"`);
   const body = streamedBody(res);
-  if (!(await body.send(line([...ids.map(([h]) => h), ...q.fields.map((k) => STAT_BY_KEY.get(k)!.label)])))) return;
+  // A replayed call's probability goes out with its recorded confidence tier, as on every other prediction surface.
+  const tiered = q.scope === "match" && q.fields.includes(PREDICTION_STAT);
+  if (!(await body.send(line([...ids.map(([h]) => h), ...q.fields.map((k) => STAT_BY_KEY.get(k)!.label), ...(tiered ? [PREDICTION_TIER_HEADER] : [])])))) return;
   try {
     const keys = await sortedKeys(src, q, w, RECORDS_EXPORT_MAX, 0);
     for (let i = 0; i < keys.length; i += CSV_CHUNK) {
       let out = "";
-      for (const r of rowsOf(q.scope, await rowsByKeys(src, q, keys.slice(i, i + CSV_CHUNK)), q.fields)) out += line([...ids.map(([, f]) => f(r)), ...q.fields.map((k) => r.stats[k])]);
+      const raw = await rowsByKeys(src, q, keys.slice(i, i + CSV_CHUNK));
+      for (const r of rowsOf(q.scope, raw, q.fields, await predictionTiers(q.scope, raw, q.fields))) {
+        // No recorded tier, no percentage (as on the page): the cell is left blank.
+        const tier = tiered ? (r as MatchRecordRow).predictionTier ?? null : null;
+        out += line([...ids.map(([, f]) => f(r)), ...q.fields.map((k) => (tiered && k === PREDICTION_STAT && !tier ? null : r.stats[k])), ...(tiered ? [tier] : [])]);
+      }
       if (out && !(await body.send(out))) return;
     }
     body.end();
