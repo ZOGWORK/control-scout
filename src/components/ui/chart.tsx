@@ -4,6 +4,7 @@
 import * as React from 'react';
 import { ResponsiveContainer, Tooltip } from 'recharts';
 import { cn } from '../cn';
+import { CHART_LEGEND_TEXT } from '../../lib/textTones';
 
 export type ChartConfig = Record<string, { label: string; color: string }>;
 
@@ -21,6 +22,9 @@ export function ChartContainer({ config, className, children, ...props }: React.
         style={style}
         className={cn(
           'w-full text-xs [&_.recharts-cartesian-axis-tick_text]:fill-muted-foreground [&_.recharts-cartesian-grid_line]:stroke-border',
+          // Legend labels read in the foreground colour; the swatch beside each keeps the series colour (Recharts
+          // writes the label in the series colour too, which light gold or sky can't carry as text on a card).
+          CHART_LEGEND_TEXT,
           '[&_.recharts-curve.recharts-tooltip-cursor]:stroke-border [&_.recharts-rectangle.recharts-tooltip-cursor]:fill-muted [&_.recharts-surface:not(:focus-visible)]:outline-none',
           className,
         )}
