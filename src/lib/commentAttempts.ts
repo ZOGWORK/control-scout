@@ -11,7 +11,7 @@
 import { useSyncExternalStore } from "react";
 import { apiFetch } from "./api";
 import { CommentWriteError, COMMENT_NOT_ARRIVED, COMMENT_UNCONFIRMED, postComment, SCOUT_COMMENT, SCOUT_COMMENTS_RESYNC } from "./scoutComments";
-import { publishPending, type PendingItem } from "./pendingWork";
+import { noteUnstoredSending, publishPending, type PendingItem } from "./pendingWork";
 import { isCommentEvent, isEntryComment } from "../shared/comments";
 
 /** Where a comment belongs, and what to call it ("Comment on 16236 · Match Q12"). */
@@ -179,6 +179,10 @@ function publish() {
     });
   }
   publishPending("comments", items);
+  // Still on its way and not stored: nothing for the member to do yet, but a reload now would lose it.
+  let sending = 0;
+  for (const [k, a] of attempts) if (a.state === "saving" && unstored.has(k)) sending++;
+  noteUnstoredSending("comments", sending);
 }
 
 // Another tab confirmed, discarded or replaced an attempt this tab holds: follow it, so a Retry here can't post a

@@ -3,10 +3,10 @@
 // re-rendering can only fail again; only a full reload fetches the code afresh. RouteErrorBoundary tells these apart
 // from a page that threw while rendering, and offers that reload (never automatically).
 //
-// Before it reloads, it checks for shared work that exists only on this page (src/lib/pendingWork.ts, items marked
-// `volatile`): everything else unsent (scout entries, personal edits, pick list note drafts, comment attempts) is
+// Before it reloads, it checks for shared work that exists only on this page (src/lib/pendingWork.ts: items marked
+// `volatile`, and unstored writes still on their way): everything else unsent (scout entries, personal edits, pick list note drafts, comment attempts) is
 // already kept in this device's storage and picked up again after the reload.
-import { allPending, type PendingItem } from "./pendingWork";
+import { volatileWorkCount } from "./pendingWork";
 
 /** Errors Vite reported through its vite:preloadError event (a page chunk's CSS or JS that didn't preload). */
 const preloadErrors = new WeakSet<object>();
@@ -38,8 +38,8 @@ if (typeof window !== "undefined") {
   });
 }
 
-/** Shared work a reload would lose: only on this page, not kept in this device's storage. */
-export const workOnlyOnThisPage = (): PendingItem[] => allPending().filter((x) => x.volatile);
+/** How much shared work a reload would lose: only on this page, not kept in this device's storage. */
+export const workOnlyOnThisPage = (): number => volatileWorkCount();
 
 /** The full reload (replaceable in tests: jsdom can't reload). */
 export const appReload = { run: () => { window.location.reload(); } };
