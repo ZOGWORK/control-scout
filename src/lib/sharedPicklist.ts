@@ -354,8 +354,10 @@ export async function retryFailedChange(id: number, opts: { force?: boolean } = 
 }
 
 /**
- * Send every kept change of one list again, oldest first, one at a time. A conflict stops the rest (the member
- * decides first) unless `force`; a move whose team is gone is skipped (it stays, to discard).
+ * Send every kept change of one list again, oldest first, one at a time. Order matters (an older move sent after a
+ * newer one would undo it), so the first one that stays unsaved, for whatever reason, stops the rest. `force` (the
+ * member pressed Apply mine anyway) applies only to changes whose conflict the notice already showed: one that finds
+ * a conflict now stops the batch and waits to be seen. A move whose team is gone is skipped (it stays, to discard).
  */
 export async function retryKeptChanges(account: number | null, space: string, season: number, opts: { force?: boolean } = {}): Promise<void> {
   const scope = () => [...failedChanges.values()].filter((f) => f.account === account && f.space === space && f.season === season)
@@ -365,11 +367,13 @@ export async function retryKeptChanges(account: number | null, space: string, se
     const next = scope().find((f) => !tried.has(f.id) && !f.busy && f.conflict?.kind !== "gone");
     if (!next) return;
     tried.add(next.id);
-    await retryFailedChange(next.id, opts);
+    // Approved only if the member has seen this change's conflict.
+    await retryFailedChange(next.id, { force: !!opts.force && !!next.conflict && next.conflict.kind !== "gone" });
     const after = failedChanges.get(next.id);
-    if (after && (after.blocked || (after.conflict && after.conflict.kind !== "gone" && !opts.force))) return;
+    if (after && after.conflict?.kind !== "gone") return;
   }
 }
+
 /** Let go of every kept change of one list. */
 export function discardKeptChanges(account: number | null, space: string, season: number) {
   for (const f of [...failedChanges.values()]) if (f.account === account && f.space === space && f.season === season && !f.busy) discardFailedChange(f.id);
