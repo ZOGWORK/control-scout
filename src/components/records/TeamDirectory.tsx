@@ -69,6 +69,8 @@ export function TeamDirectory({ season, onSeason }: { season: number; onSeason: 
 
   // Phones: one row (season, the country chip, Filters) and a sheet with the country and the sort.
   const compact = useCompactFilters();
+  // The search box differs per layout; text typed just before the layout changes (a phone turned) carries over.
+  const searchDraft = useRef<string | null>(null);
   const countryPicker = (
     <label className="inline-flex items-center gap-2">
       <span className="sr-only">Country</span>
@@ -103,7 +105,7 @@ export function TeamDirectory({ season, onSeason }: { season: number; onSeason: 
       {compact ? (
         <CompactFilters lead={<SeasonSelect value={season} onChange={onSeason} />} chips={chips}
           // The search box stays out of the sheet, under the row: searching is the page's main way in.
-          search={<DirectorySearch value={state.q} onSearch={search} where={where} className="w-full" />}
+          search={<DirectorySearch value={state.q} onSearch={search} where={where} draft={searchDraft} className="w-full" />}
           summary={data ? (data.q ? `${fmt(matched)} of ${fmt(data.total)} listed teams from ${where}` : `${fmt(data.total)} listed teams from ${where}`) : undefined}
           doneLabel={data ? `Show ${fmt(matched)} teams` : "Done"}
           // Clears what the chips show: the country and a non-default sort (the search has its own ×).
@@ -115,7 +117,7 @@ export function TeamDirectory({ season, onSeason }: { season: number; onSeason: 
       <div className="flex flex-wrap items-center gap-2">
         <SeasonSelect value={season} onChange={onSeason} />
         {countryPicker}
-        <DirectorySearch value={state.q} onSearch={search} where={where} className="w-full sm:w-64" />
+        <DirectorySearch value={state.q} onSearch={search} where={where} draft={searchDraft} className="w-full sm:w-64" />
         {sortPicker}
       </div>
       )}
