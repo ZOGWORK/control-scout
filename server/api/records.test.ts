@@ -361,7 +361,7 @@ describe("GET /api/records/:season/matches", () => {
       const lines = csv.trim().split("\r\n");
       expect(lines[0].split(",").slice(-2)).toEqual(["Red Predicted Win %", "Red Predicted Win % Confidence"]);
       expect(lines[1].split(",").slice(-2)).toEqual(["93", "provisional"]);
-      expect(lines[2].split(",").slice(-2)).toEqual(["60", ""]);
+      expect(lines[2].split(",").slice(-2)).toEqual(["", ""]); // no recorded tier: no percentage in the download either
     } finally {
       await run("DELETE FROM predictions WHERE season = ?", [S]);
       await run("UPDATE match_records SET red_pred_win = NULL WHERE season = ?", [S]);
