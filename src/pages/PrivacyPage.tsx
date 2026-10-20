@@ -34,7 +34,7 @@ function StorageTable({ caption, head, rows, mono }: { caption: string; head: [s
           {rows.map((r) => (
             // Phones: each row stacks (name, then what it does, then how long).
             <tr key={r.name} className="flex flex-col gap-1 px-4 py-3 sm:table-row sm:p-0">
-              <th scope="row" className={`${mono ? "font-mono text-[13px]" : ""} font-medium text-foreground sm:w-[30%] sm:px-4 sm:py-3 sm:align-top`}>{r.name}</th>
+              <th scope="row" className={`${mono ? "font-mono text-[0.8125rem]" : ""} font-medium text-foreground sm:w-[30%] sm:px-4 sm:py-3 sm:align-top`}>{r.name}</th>
               <td className="text-text-muted sm:px-4 sm:py-3 sm:align-top">{r.what}</td>
               {head[2] && <td className="text-xs text-text-muted/80 sm:w-[22%] sm:px-4 sm:py-3 sm:align-top sm:text-sm"><span className="sm:hidden">Lasts: </span>{r.lasts}</td>}
             </tr>
@@ -88,7 +88,7 @@ const SECTIONS: LegalSectionDef[] = [
       <>
         <p>We'd like to know which pages are useful, so Control Scout may ask whether you allow <strong>anonymous usage statistics</strong>. It's your choice, and the site works exactly the same either way.</p>
         <ul>
-          <li><strong>If you allow them,</strong> each page view sends Control Scout's own server: the page's path (like <span className="font-mono text-[13px]">/events</span>), the domain of the site that linked you here, and a rough screen-size group (phone, tablet or desktop).</li>
+          <li><strong>If you allow them,</strong> each page view sends Control Scout's own server: the page's path (like <span className="font-mono text-[0.8125rem]">/events</span>), the domain of the site that linked you here, and a rough screen-size group (phone, tablet or desktop).</li>
           <li><strong>Nothing that identifies you:</strong> no cookies, no IP address stored, no ID that follows you between visits or sites. The statistics go to our server only, never to an analytics company or advertiser.</li>
           <li><strong>If you decline,</strong> nothing is sent.</li>
         </ul>
@@ -102,7 +102,7 @@ const SECTIONS: LegalSectionDef[] = [
         <p>You can sign in with a <strong>code sent to your email</strong>, or with <strong>Google, Discord or GitHub through Control Point</strong>, our sister app for FTC team workspaces (<Ext href="https://tryctrlpoint.org">tryctrlpoint.org</Ext>).</p>
         <ul>
           <li>One account works on both apps. Your email address and display name are kept in a shared account record run by Control Point. Each app keeps its own sign-in: choose "Continue with Control Point" to sign in to Control Scout with your Control Point account.</li>
-          <li>Sign-in codes are emailed by our email provider, Resend, from <span className="font-mono text-[13px]">verify@tryctrlpoint.org</span>. A code is stored only in scrambled (hashed) form and expires after 10 minutes.</li>
+          <li>Sign-in codes are emailed by our email provider, Resend, from <span className="font-mono text-[0.8125rem]">verify@tryctrlpoint.org</span>. A code is stored only in scrambled (hashed) form and expires after 10 minutes.</li>
           <li>When you sign in with Google, Discord or GitHub, we receive your email address from that service, and nothing from your account there beyond what's needed to sign you in.</li>
         </ul>
       </>

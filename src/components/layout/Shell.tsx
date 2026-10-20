@@ -55,7 +55,7 @@ export function BrandMark({ className }: { className?: string }) {
   return <img src="/logo.png" alt="" aria-hidden className={cn("size-7 shrink-0", className)} />;
 }
 
-const rowClass = (on: boolean, collapsed?: boolean) => cn("group relative flex h-10 w-full items-center gap-3 rounded-lg px-3 text-[15px] font-medium outline-none focus-visible:ring-2 focus-visible:ring-ring/60",
+const rowClass = (on: boolean, collapsed?: boolean) => cn("group relative flex h-10 w-full items-center gap-3 rounded-lg px-3 text-[0.9375rem] font-medium outline-none focus-visible:ring-2 focus-visible:ring-ring/60",
   on ? "text-text-base" : "text-text-muted hover:bg-text-base/[0.05] hover:text-text-base", collapsed && "justify-center px-0");
 
 function RowInner({ item, on, collapsed }: { item: NavItem; on: boolean; collapsed?: boolean }) {
@@ -104,7 +104,7 @@ function Sidebar({ collapsed, onToggle }: { collapsed: boolean; onToggle: () => 
       <div className={cn("flex h-12 items-center gap-2.5 px-3.5", collapsed && "justify-center px-0")}>
         <Link to="/" className="flex min-w-0 items-center gap-2.5 rounded-lg outline-none focus-visible:ring-2 focus-visible:ring-ring/60" aria-label="Control Scout home">
           <BrandMark className="size-8" />
-          {!collapsed && <span className="truncate font-display text-[17px] font-bold tracking-tight">Control Scout</span>}
+          {!collapsed && <span className="truncate font-display text-[1.0625rem] font-bold tracking-tight">Control Scout</span>}
         </Link>
       </div>
       <nav className="custom-scrollbar flex-1 space-y-5 overflow-y-auto px-2 py-2" aria-label="Main">
