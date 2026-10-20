@@ -57,7 +57,7 @@ export function AssignmentsView({ space, workspaceName, season, defaultEvent, st
   const first = loading && !list.length;
   return (
     <>
-      <Section title="My assignments" description={`Teams you've been asked to scout in ${season}. Tap Done when you've finished one.`}
+      <Section stackAction title="My assignments" description={`Teams you've been asked to scout in ${season}. Tap Done when you've finished one.`}
         action={isAdmin ? <Button onClick={() => setAssignOpen(true)}><UserPlus /> Assign</Button> : undefined}>
         {first ? <LoadingBlock rows={2} label="Loading assignments" />
           : error && !list.length ? <ErrorState error={error} onRetry={reload} />
@@ -167,25 +167,36 @@ function AssignmentRow({ a, progress, mine, isAdmin, busy, onDone, onReopen, onD
   a: Assignment; progress: number; mine: boolean; isAdmin: boolean; busy: boolean;
   onDone: () => void; onReopen: () => void; onDelete: () => void;
 }) {
+  const who = mine ? "You" : a.assigneeName || "A member";
+  const canDone = a.status === "open" && (mine || isAdmin), canReopen = a.status === "done" && isAdmin;
+  // Who and what first, in full: two members named alike ("Alexandra Whitfield-Montgomery", "Alexandra
+  // Whitfield-Morales") must never be cut down to the same prefix. Names wrap rather than truncate; on a phone
+  // the actions take their own row below, on wider screens they sit at the end of the line.
   return (
-    <li className="flex flex-wrap items-center gap-x-3 gap-y-2 px-4 py-3">
-      <Link to={`/teams/${a.team}?season=${a.season}`} className="w-16 shrink-0 font-mono font-medium hover:underline">{a.team}</Link>
-      <div className="min-w-0 flex-1">
-        <p className="truncate text-sm font-medium">{mine ? "You" : a.assigneeName || "A member"}</p>
-        <p className="text-xs text-muted-foreground">{plural(progress, "entry", "entries")}{a.status === "done" && a.doneByName ? ` · done by ${mine && a.doneByAccountId === a.assigneeAccountId ? "you" : a.doneByName}` : ""}</p>
+    <li className="flex flex-col gap-2 px-4 py-3 sm:flex-row sm:items-center sm:gap-3" data-testid="assignment-row">
+      <div className="flex min-w-0 flex-1 items-start gap-3">
+        <Link to={`/teams/${a.team}?season=${a.season}`} className="w-16 shrink-0 font-mono font-medium leading-5 hover:underline">{a.team}</Link>
+        <div className="min-w-0 flex-1">
+          <p className="text-sm font-medium leading-5 [overflow-wrap:anywhere]">{who}</p>
+          {/* Entries observed for this team (progress) and who completed it are separate facts: one never stands for the other. */}
+          <p className="text-xs text-muted-foreground [overflow-wrap:anywhere]">{plural(progress, "entry", "entries")}{a.status === "done" && a.doneByName ? ` · done by ${mine && a.doneByAccountId === a.assigneeAccountId ? "you" : a.doneByName}` : ""}</p>
+        </div>
+        <span className="shrink-0"><StatusBadge a={a} /></span>
       </div>
-      <StatusBadge a={a} />
-      <div className="flex gap-1">
-        {a.status === "open" && (mine || isAdmin) && (
-          <Button variant="outline" size="sm" onClick={onDone} disabled={busy} aria-label={`Mark team ${a.team} done`}>{busy ? <Loader2 className="animate-spin" /> : <CircleCheck />} Done</Button>
-        )}
-        {a.status === "done" && isAdmin && (
-          <Button variant="outline" size="sm" onClick={onReopen} disabled={busy} aria-label={`Reopen team ${a.team}`}><RotateCcw /> Reopen</Button>
-        )}
-        {isAdmin && (
-          <Button variant="ghost" size="icon-sm" onClick={onDelete} disabled={busy} aria-label={`Remove ${a.assigneeName}'s assignment for team ${a.team}`}><Trash2 /></Button>
-        )}
-      </div>
+      {(canDone || canReopen || isAdmin) && (
+        <div className="flex items-center gap-2 pl-[4.75rem] sm:pl-0">
+          {canDone && (
+            <Button variant="outline" size="sm" onClick={onDone} disabled={busy} aria-label={`Mark team ${a.team} done for ${who === "You" ? "you" : who}`}>{busy ? <Loader2 className="animate-spin" /> : <CircleCheck />} Done</Button>
+          )}
+          {canReopen && (
+            <Button variant="outline" size="sm" onClick={onReopen} disabled={busy} aria-label={`Reopen team ${a.team} for ${who === "You" ? "you" : who}`}><RotateCcw /> Reopen</Button>
+          )}
+          {/* Removing sits apart from the frequent Done/Reopen, at the far end of the row. */}
+          {isAdmin && (
+            <Button variant="ghost" size="icon-sm" className="ml-auto sm:ml-1" onClick={onDelete} disabled={busy} aria-label={`Remove ${a.assigneeName || "a member"}'s assignment for team ${a.team}`}><Trash2 /></Button>
+          )}
+        </div>
+      )}
     </li>
   );
 }
