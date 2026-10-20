@@ -198,9 +198,23 @@ export function useInbox(userId: number | null): InboxState {
     if (pendingWrites.current > 0) return; // the last queued write refreshes once it's in
     const g = gen.current, s = ++seq.current, f = filterRef.current;
     const current = () => gen.current === g && seq.current === s && filterRef.current === f;
-    // The Follow up view refreshes everything it shows (kept rows included); All, the newest page.
-    const q = f === "followUp" ? `&limit=${Math.min(INBOX_PAGE_MAX, Math.max(INBOX_PAGE, shown.current))}&filter=followUp${keepQuery()}` : `&limit=${INBOX_PAGE}`;
-    apiFetch<InboxPage>(`/api/inbox?${q.slice(1)}`)
+    // The Follow up view refreshes everything it shows (kept rows included), in pages of up to 100 until it has
+    // covered as many rows as are on screen; All, the newest page.
+    const range = async (): Promise<InboxPage> => {
+      if (f !== "followUp") return apiFetch<InboxPage>(`/api/inbox?limit=${INBOX_PAGE}`);
+      const want = Math.max(INBOX_PAGE, shown.current), keep = keepQuery();
+      const got: unknown[] = [];
+      let before: number | null = null;
+      for (;;) {
+        const r: InboxPage = await apiFetch<InboxPage>(`/api/inbox?limit=${Math.min(INBOX_PAGE_MAX, want - got.length)}&filter=followUp${keep}${before ? `&before=${before}` : ""}`);
+        const page = Array.isArray(r?.items) ? r.items : [];
+        got.push(...page);
+        before = cleanItems(page).at(-1)?.id ?? null;
+        // More pages only while fewer rows came back than are on screen (a first load is one page).
+        if (!r?.more || !before || got.length >= shown.current || !current()) return { ...r, items: got as InboxItem[] };
+      }
+    };
+    range()
       .then((r) => {
         if (!current()) return;
         listVersion.current++;
