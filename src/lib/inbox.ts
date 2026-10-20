@@ -187,8 +187,8 @@ export function useInbox(userId: number | null): InboxState {
   // Writes go one at a time, in the order they were made, so a quick flag then unflag ends unflagged.
   const writes = useRef<Promise<unknown>>(Promise.resolve());
   const pendingWrites = useRef(0);
-  const shown = useRef(0);
-  shown.current = items.length;
+  const shown = useRef<InboxItem[]>([]);
+  shown.current = items;
   // The Follow up view's extra query: the toggled rows it keeps (the account's own, checked on the server).
   const keepQuery = () => (kept.current.size ? `&keep=${[...kept.current].slice(-200).join(",")}` : "");
 
@@ -202,7 +202,9 @@ export function useInbox(userId: number | null): InboxState {
     // covered as many rows as are on screen; All, the newest page.
     const range = async (): Promise<InboxPage> => {
       if (f !== "followUp") return apiFetch<InboxPage>(`/api/inbox?limit=${INBOX_PAGE}`);
-      const want = Math.max(INBOX_PAGE, shown.current), keep = keepQuery();
+      // One target, fixed when the refresh starts (rows an older page adds meanwhile are kept below; see then()).
+      const target = shown.current.length, keep = keepQuery();
+      const want = Math.max(INBOX_PAGE, target);
       const got: unknown[] = [];
       let before: number | null = null;
       for (;;) {
@@ -210,8 +212,8 @@ export function useInbox(userId: number | null): InboxState {
         const page = Array.isArray(r?.items) ? r.items : [];
         got.push(...page);
         before = cleanItems(page).at(-1)?.id ?? null;
-        // More pages only while fewer rows came back than are on screen (a first load is one page).
-        if (!r?.more || !before || got.length >= shown.current || !current()) return { ...r, items: got as InboxItem[] };
+        // More pages only while fewer rows came back than were on screen (a first load is one page).
+        if (!r?.more || !before || got.length >= target || !current()) return { ...r, items: got as InboxItem[] };
       }
     };
     range()
@@ -219,9 +221,14 @@ export function useInbox(userId: number | null): InboxState {
         if (!current()) return;
         listVersion.current++;
         const page = cleanItems(r.items);
-        cursor.current = page.at(-1)?.id ?? null;
-        setItems(page);
-        setMore(!!r.more);
+        // An older page that landed while this refresh ran (Load older) is fresher than the refresh and below its
+        // range: its rows stay, and paging carries on after them.
+        const last = page.at(-1)?.id;
+        const below = f === "followUp" && r.more && last ? shown.current.filter((i) => i.id < last) : [];
+        const next = [...page, ...below];
+        cursor.current = next.at(-1)?.id ?? null;
+        setItems(next);
+        if (!below.length) setMore(!!r.more);
         if (Number.isFinite(r.unread)) setUnread(r.unread);
         if (Number.isFinite(r.followUp)) setFollowUpCount(r.followUp);
         loadedRef.current = true; setLoaded(true); setError(null);

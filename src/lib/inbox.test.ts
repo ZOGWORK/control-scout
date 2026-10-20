@@ -189,6 +189,35 @@ describe("useInbox: replies in order", () => {
     vi.doUnmock("./api");
   });
 
+  it("Load older during a Follow up refresh: the refresh keeps its target, and the older rows stay", async () => {
+    const { result, act } = await harness();
+    const ids = (from: number, n: number) => Array.from({ length: n }, (_, k) => flagged(from - k));
+    await act(async () => { result.current.setFilter("followUp"); });
+    await act(async () => { pending.at(-1)!.resolve(fpage(ids(200, 30), true)); });
+    for (const from of [170, 140, 110]) {
+      await act(async () => { result.current.loadOlder(); });
+      await act(async () => { pending.at(-1)!.resolve(fpage(ids(from, 30), true)); });
+    }
+    await act(async () => { result.current.setFollowUp([150], false); });
+    await act(async () => { pending.find((p) => p.path === "/api/inbox/follow-up")!.resolve({}); });
+    await act(async () => { pending.at(-1)!.resolve(fpage(ids(200, 100), true)); });
+    const second = pending.at(-1)!;
+    expect(second.path).toBe("/api/inbox?limit=20&filter=followUp&keep=150&before=101");
+    // Load older lands while the refresh's second page is out.
+    await act(async () => { result.current.loadOlder(); });
+    expect(pending.at(-1)!.path).toContain("before=81");
+    await act(async () => { pending.at(-1)!.resolve(fpage(ids(80, 30), false)); });
+    expect(result.current.items).toHaveLength(150);
+    const before = pending.length;
+    await act(async () => { second.resolve(fpage(ids(100, 20), true)); });
+    // No third request (the target was the 120 rows shown when it started), and nothing lost.
+    expect(pending.length).toBe(before);
+    expect(result.current.items).toHaveLength(150);
+    expect(result.current.items.at(-1)!.id).toBe(51);
+    expect(result.current.more).toBe(false);
+    vi.doUnmock("./api");
+  });
+
   it("a live refresh waits while a write is queued (it would bring back the old state)", async () => {
     const { result, act } = await harness();
     await act(async () => { result.current.load(); });
