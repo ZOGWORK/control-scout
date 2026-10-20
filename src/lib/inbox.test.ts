@@ -168,6 +168,27 @@ describe("useInbox: replies in order", () => {
     vi.doUnmock("./api");
   });
 
+  it("Follow up view with more than 100 rows shown: the refresh covers them all, in pages", async () => {
+    const { result, act } = await harness();
+    const ids = (from: number, n: number) => Array.from({ length: n }, (_, k) => flagged(from - k));
+    await act(async () => { result.current.setFilter("followUp"); });
+    await act(async () => { pending.at(-1)!.resolve(fpage(ids(200, 30), true)); });
+    for (const from of [170, 140, 110]) {
+      await act(async () => { result.current.loadOlder(); });
+      await act(async () => { pending.at(-1)!.resolve(fpage(ids(from, 30), true)); });
+    }
+    expect(result.current.items).toHaveLength(120);
+    await act(async () => { result.current.setFollowUp([81], false); });
+    await act(async () => { pending.find((p) => p.path === "/api/inbox/follow-up")!.resolve({}); });
+    expect(pending.at(-1)!.path).toBe("/api/inbox?limit=100&filter=followUp&keep=81");
+    await act(async () => { pending.at(-1)!.resolve(fpage(ids(200, 100), true)); });
+    expect(pending.at(-1)!.path).toBe("/api/inbox?limit=20&filter=followUp&keep=81&before=101");
+    await act(async () => { pending.at(-1)!.resolve(fpage([...ids(100, 19), flagged(81, false)], true)); });
+    expect(result.current.items).toHaveLength(120);
+    expect(result.current.items.at(-1)).toMatchObject({ id: 81, followUp: false });
+    vi.doUnmock("./api");
+  });
+
   it("a live refresh waits while a write is queued (it would bring back the old state)", async () => {
     const { result, act } = await harness();
     await act(async () => { result.current.load(); });
