@@ -180,10 +180,11 @@ export function compareBrief(d: CompareView, label = seasonLabel(d.season)): Bri
     });
   }
 
-  // Recency: each team's latest event with results, and how its OPR moved since its first.
+  // Recency: each team's latest event with an OPR, and how its OPR moved since its first. Said as "with an OPR":
+  // an event with results but no OPR (playoffs only, say) isn't in it, so this is not always the latest event played.
   const latest = t.map((x) => ({ x, evs: rated(x) })).filter((r) => r.evs.length);
   if (!latest.length) {
-    out.push({ topic: "Recency", kind: "missing", text: `None of these teams has an event with results in ${label} yet.`, sources: [] });
+    out.push({ topic: "Recency", kind: "missing", text: `None of these teams has an event with an OPR in ${label} yet.`, sources: [] });
   } else {
     const parts = latest.map(({ x, evs }) => {
       const last = evs[evs.length - 1];
@@ -198,7 +199,7 @@ export function compareBrief(d: CompareView, label = seasonLabel(d.season)): Bri
       return `${s})`;
     });
     out.push({
-      topic: "Recency", kind: "fact", text: `Latest results: ${list(parts)}.`,
+      topic: "Recency", kind: "fact", text: `${latest.length === 1 ? "Latest event with an OPR" : "Latest events with an OPR"}: ${list(parts)}.`,
       // The latest event, and the first too when the sentence quotes the change since it.
       sources: latest.flatMap(({ x, evs }) => {
         const trend = matches(x) >= BRIEF.minMatches && evs.length >= BRIEF.minEvents;
