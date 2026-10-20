@@ -146,7 +146,7 @@ export function RecoverableChanges({ account, workspaces, className }: { account
               // Only the signed-in account's own wording, for a note or a comment (rows are this account's already).
               const reviewable = r.text !== undefined && r.account === account && (r.kind === "note" || r.kind === "comment");
               const open = reviewable && !!shown[r.key];
-              const reviewId = `${reviewBase}-${rows.indexOf(r)}`;
+              const reviewId = `${reviewBase}-${r.key.replace(/[^\w-]/g, "_")}`;
               return (
                 <li key={r.key} className="flex flex-wrap items-start gap-x-3 gap-y-2 py-2.5" data-pending={r.key}>
                   <Icon className={cn("mt-0.5 size-4 shrink-0", r.status === "attention" ? "text-warning" : "text-muted-foreground")} aria-hidden />

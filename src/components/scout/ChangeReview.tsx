@@ -7,18 +7,25 @@
 // are marked by more than colour: removed words are struck through and added ones underlined, and a screen reader
 // hears "removed:" / "added:" around each, plus a one-line description of the whole comparison.
 import { useEffect, useId, useMemo, useState } from "react";
-import { Loader2 } from "lucide-react";
-import { NO_ACCESS, readSharedNow, type ReviewTarget, type SharedNow } from "../../lib/sharedNow";
+import { Loader2, RefreshCw } from "lucide-react";
+import { SCOUT_PICKLIST } from "../../lib/sharedPicklist";
+import { SCOUT_COMMENT } from "../../lib/scoutComments";
+import { isPickList } from "../../shared/picklist";
+import { isCommentEvent } from "../../shared/comments";
+import { NO_ACCESS, noteIn, readSharedNow, type ReviewTarget, type SharedNow } from "../../lib/sharedNow";
 import { diffCounts, sideOf, wordDiff, type DiffPart } from "../../lib/wordDiff";
 import { Button } from "../ui/button";
 
 const plural = (n: number, w: string) => `${n} word${n === 1 ? "" : "s"} ${w}`;
 
 /** What a screen reader hears for the whole comparison. */
-export function describeDiff(parts: DiffPart[], hasShared: boolean): string {
+export function describeDiff(parts: DiffPart[], shared: string, yours: string): string {
   const { added, removed } = diffCounts(parts);
-  if (!hasShared) return added ? `Nothing is shared there now; all ${plural(added, "of yours would be added")}.` : "Nothing is shared there now, and your text is empty.";
-  if (!added && !removed) return "Your text is the same as what's shared now.";
+  if (shared === yours) return "Your text is the same as what's shared now.";
+  if (!shared) return added ? `Nothing is shared there now; all ${plural(added, "of yours would be added")}.` : "Nothing is shared there now; yours adds only punctuation or spacing.";
+  if (!yours) return "Your text is empty: it would clear what's shared now.";
+  // Counted words only (punctuation isn't): a change of punctuation or spacing alone still says it changed.
+  if (!added && !removed) return "Only punctuation or spacing differs from what's shared now.";
   return `Compared with what's shared now: ${[added && plural(added, "added"), removed && plural(removed, "removed")].filter(Boolean).join(", ")}.`;
 }
 
@@ -63,6 +70,22 @@ export function ChangeReview({ id, target, text, reachable }: {
     readSharedNow({ kind, workspaceId, season, team, base, entry, opId }, ctrl.signal).then(setNow, () => undefined);
     return () => ctrl.abort();
   }, [reachable, kind, workspaceId, season, team, base, entry, opId, attempt]);
+  // Kept current while open: the workspace's stream brings a new pick list (used as is) or a change to the thread
+  // (read again). Still reading only.
+  useEffect(() => {
+    if (!reachable) return;
+    const onList = (ev: Event) => {
+      const l = (ev as CustomEvent<unknown>).detail;
+      if (kind === "note" && isPickList(l) && l.workspaceId === workspaceId && l.season === season) setNow(noteIn(l, { kind, workspaceId, season, team, base }));
+    };
+    const onComment = (ev: Event) => {
+      const e = (ev as CustomEvent<unknown>).detail;
+      if (kind === "comment" && isCommentEvent(e) && e.workspaceId === workspaceId && e.entryUuid === entry) setAttempt((a) => a + 1);
+    };
+    window.addEventListener(SCOUT_PICKLIST, onList);
+    window.addEventListener(SCOUT_COMMENT, onComment);
+    return () => { window.removeEventListener(SCOUT_PICKLIST, onList); window.removeEventListener(SCOUT_COMMENT, onComment); };
+  }, [reachable, kind, workspaceId, season, team, base, entry]);
 
   const shared = now?.state === "ok" ? now.text : null;
   const parts = useMemo(() => (shared == null ? null : wordDiff(shared, text)), [shared, text]);
@@ -84,12 +107,15 @@ export function ChangeReview({ id, target, text, reachable }: {
   const posted = !!now.posted;
   return (
     <div id={id} role="group" aria-label="Your change compared with what's shared now" aria-describedby={descId} className="mt-2 space-y-2">
-      <p id={descId} className="text-xs text-muted-foreground">
-        {posted ? now.hint : <>{describeDiff(parts, shared !== "")}{now.hint && <> {now.hint}</>}</>}
-      </p>
+      <div className="flex flex-wrap items-start justify-between gap-2">
+        <p id={descId} className="min-w-0 flex-1 basis-60 text-xs text-muted-foreground">
+        {posted ? now.hint : <>{describeDiff(parts, shared ?? "", text)}{now.hint && <> {now.hint}</>}</>}
+        </p>
+        <Button size="sm" variant="secondary" className="h-7 max-sm:h-11" onClick={() => setAttempt((a) => a + 1)}><RefreshCw /> Read again</Button>
+      </div>
       <div className="grid gap-3 sm:grid-cols-2">
         <Side parts={sideOf(parts, "after")} label={yours} empty="Empty: it clears what's shared now." />
-        <Side parts={sideOf(parts, "before")} label="Shared now" empty={kind === "comment" ? "Not in the thread yet." : "No note yet."} />
+        <Side parts={sideOf(parts, "before")} label="Shared now" empty={kind === "comment" ? "Not in the thread." : "No note yet."} />
       </div>
     </div>
   );

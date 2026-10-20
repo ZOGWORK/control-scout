@@ -4,7 +4,7 @@
 // The destination may be gone (the team was taken off the pick list, the entry was deleted) or out of reach
 // (the member was removed from the workspace, signed out): each says so plainly instead of comparing with nothing.
 import { apiFetch, ApiError } from "./api";
-import { isPickList } from "../shared/picklist";
+import { isPickList, type PickList } from "../shared/picklist";
 import { isEntryComment } from "../shared/comments";
 
 export interface ReviewTarget {
@@ -32,17 +32,21 @@ const UNREACHABLE = "Couldn't read what's shared now: the workspace couldn't be 
 
 const base = (space: string) => `/api/scout/workspaces/${encodeURIComponent(space)}`;
 
+/** What a pick list (fetched, or heard on the workspace's stream) holds for a note's team. */
+export function noteIn(list: PickList, t: ReviewTarget): SharedNow {
+  const pick = list.picks.find((p) => p.team === t.team);
+  if (!pick) return { state: "gone", message: `Team ${t.team} is no longer on the pick list, so this note has nowhere to go.` };
+  const newer = t.base !== undefined && pick.noteUpdatedAt !== t.base;
+  return { state: "ok", text: pick.note, ...(newer ? { hint: "A teammate changed this note after you wrote yours." } : {}) };
+}
+
 /** Read what `t`'s destination holds now. Never throws (an abort aside). */
 export async function readSharedNow(t: ReviewTarget, signal?: AbortSignal): Promise<SharedNow> {
   try {
     if (t.kind === "note") {
       if (t.season == null || t.team == null) return { state: "unavailable", message: UNREACHABLE };
       const r = await apiFetch<{ list?: unknown }>(`${base(t.workspaceId)}/picklist?season=${t.season}`, { signal });
-      if (!isPickList(r?.list)) return { state: "unavailable", message: UNREACHABLE };
-      const pick = r.list.picks.find((p) => p.team === t.team);
-      if (!pick) return { state: "gone", message: `Team ${t.team} is no longer on the pick list, so this note has nowhere to go.` };
-      const newer = t.base !== undefined && pick.noteUpdatedAt !== t.base;
-      return { state: "ok", text: pick.note, ...(newer ? { hint: "A teammate changed this note after you wrote yours." } : {}) };
+      return isPickList(r?.list) ? noteIn(r.list, t) : { state: "unavailable", message: UNREACHABLE };
     }
     if (!t.entry) return { state: "unavailable", message: UNREACHABLE };
     const r = await apiFetch<{ comments?: unknown[]; entryDeleted?: boolean }>(`${base(t.workspaceId)}/entries/${encodeURIComponent(t.entry)}/comments`, { signal });
@@ -50,7 +54,9 @@ export async function readSharedNow(t: ReviewTarget, signal?: AbortSignal): Prom
     const thread = (r?.comments ?? []).filter(isEntryComment);
     const mine = t.opId ? thread.find((c) => c.opId === t.opId) : undefined;
     if (mine) return { state: "ok", text: mine.body, posted: true, hint: "It's in the thread already: Retry won't post it twice." };
-    return { state: "ok", text: "", hint: `Not in the thread yet: this would be a new comment${thread.length ? ` after the ${thread.length} already there` : ""}.` };
+    // Not found isn't proof it was never posted (a deleted comment, or one past the newest the thread lists, isn't
+    // there either): Retry checks with the workspace first and never posts it twice.
+    return { state: "ok", text: "", hint: "It isn't in the thread as this device sees it. Retry checks with the workspace first and never posts it twice." };
   } catch (e) {
     if (signal?.aborted) throw e;
     if (!(e instanceof ApiError)) return { state: "unavailable", message: UNREACHABLE };
