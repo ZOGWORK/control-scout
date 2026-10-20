@@ -171,11 +171,36 @@ const flows: Flow[] = [
       await page.getByRole("button", { name: /Delete entry/ }).first().click();
       await page.getByText("Audit entry: edited").waitFor({ state: "detached" });
       await page.goto(`${BASE}/settings#scouting`, { waitUntil: "networkidle" });
-      await page.locator('input[type=file][accept*="json"]').setInputFiles(file);
-      await page.getByText(/Imported 1 entr/).waitFor(); // the file is read asynchronously
+      // Choosing a file opens a preview and writes nothing; only Import writes (audit E3).
+      const scoutKeys = () => page.evaluate(() => JSON.stringify(Object.keys(localStorage).filter((k) => k.startsWith("cs-scout")).sort().map((k) => [k, localStorage.getItem(k)])));
+      const preview = page.getByRole("dialog", { name: "Review this import" });
+      const choose = async () => {
+        await page.locator('input[type=file][accept*="json"]').setInputFiles(file);
+        await preview.waitFor({ timeout: 10_000 }); // the file is read asynchronously
+      };
+      const beforeImport = await scoutKeys();
+      await choose();
+      assert(/Nothing on this device has changed yet/.test(await preview.innerText()), "the preview doesn't say nothing changed yet");
+      // Cancel: the dialog closes and the device is exactly as it was.
+      await preview.getByRole("button", { name: "Cancel" }).click();
+      await preview.waitFor({ state: "detached", timeout: 5000 }).catch(() => {});
+      assert(!(await preview.isVisible()), "Cancel didn't close the import preview");
+      assert((await scoutKeys()) === beforeImport, "Cancel changed scouting data on this device");
+      // Choose it again and import. The entry was deleted here after the export, so the file's copy is the older
+      // one: the preview lists it as already here (deleted here) and "Use the file's copy" brings it back.
+      await choose();
+      const text = await preview.innerText();
+      assert(/deleted here/.test(text) && /Already here/.test(text), `the preview doesn't list the deleted entry as already here: ${text.replace(/\s+/g, " ").slice(0, 200)}`);
+      await preview.getByRole("radio", { name: /Use the file's copy/ }).click();
+      assert(/Update 1/.test(await preview.getByRole("region", { name: "What Import will do" }).innerText()), "with the file's copy chosen, Import doesn't plan to update 1 entry");
+      assert((await scoutKeys()) === beforeImport, "the preview wrote scouting data before Import");
+      await preview.getByRole("button", { name: "Import 1 entry", exact: true }).click();
+      await page.getByText("Imported 1 entry (0 new, 1 updated).").waitFor();
+      await preview.waitFor({ state: "detached", timeout: 5000 }).catch(() => {});
+      assert(!(await preview.isVisible()), "the import preview stayed open after Import");
       await page.goto(`${BASE}/scout`, { waitUntil: "networkidle" });
       await page.getByText("Audit entry: edited").waitFor({ timeout: 10_000 });
-      return `created offline, edited, exported (${n} entr${n === 1 ? "y" : "ies"} + CSV), deleted, re-imported → entry back`;
+      return `created offline, edited, exported (${n} entr${n === 1 ? "y" : "ies"} + CSV), deleted; import preview: Cancel wrote nothing, then "Use the file's copy" → Import 1 entry → entry back`;
     },
   },
   {
