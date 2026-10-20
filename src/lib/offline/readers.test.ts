@@ -1,6 +1,6 @@
-import { beforeAll, describe, expect, it } from "vitest";
-import { OFFLINE_FORECAST, readEventDetail, readMatchViews, readSearch, readTeamProfile, type SeasonDb } from "./readers";
-import { season2024, season2025 } from "./testFixture";
+import { beforeAll, describe, expect, it, vi } from "vitest";
+import { OFFLINE_FORECAST, readEventDetail, readMatchViews, readSearch, readTeamProfile, wrap, type SeasonDb } from "./readers";
+import { packDb, season2024, season2025 } from "./testFixture";
 import { eventTypeLabel } from "../../shared/labels";
 
 let s25: SeasonDb, s24: SeasonDb;
@@ -164,5 +164,35 @@ describe("offline search (same hits as /api/search)", () => {
   it("ignores short numbers that aren't teams, and caps the list", () => {
     expect(readSearch(dbs(), "16")).toEqual([]);
     expect(readSearch(dbs(), "new jersey", 2)).toHaveLength(2);
+  });
+});
+
+// PUB3-F01: offline, an event's status goes by its venue's calendar too, the same rule as the server's.
+describe("offline event status (same as the server's, by the venue's date)", () => {
+  const ev = (code: string, start: string, timezone: string | null) => ({ season: 2026, code, name: code, type: "Qualifier", start, end: start, timezone, remote: 0, source: "first" });
+  const unplayed = (code: string) => ({ season: 2026, code, level: "qual", series: 0, number: 1, label: "Q1", played: 0, source: "first" });
+  let pack: SeasonDb;
+  beforeAll(async () => {
+    pack = { season: 2026, db: wrap(await packDb(2026, {
+      events: [ev("LA", "2026-10-18", "America/Los_Angeles"), ev("BNE", "2026-10-19", "Australia/Brisbane"), ev("BAD", "2026-10-18", "Not/AZone")],
+      matches: [unplayed("LA"), unplayed("BNE"), unplayed("BAD")],
+    })) };
+  });
+  const statusAt = (iso: string, code: string) => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(Date.parse(iso));
+    try { return readEventDetail(pack, code)!.event.status; } finally { vi.useRealTimers(); }
+  };
+
+  it("an Oct 18 Los Angeles event is live at 02:00 UTC on the 19th, an Oct 19 Brisbane one at 16:00 UTC on the 18th", () => {
+    expect(statusAt("2026-10-19T02:00:00Z", "LA")).toBe("live");
+    expect(statusAt("2026-10-19T07:00:00Z", "LA")).toBe("finished");
+    expect(statusAt("2026-10-18T16:00:00Z", "BNE")).toBe("live");
+    expect(statusAt("2026-10-18T13:59:59Z", "BNE")).toBe("upcoming");
+  });
+
+  it("an invalid zone uses the anywhere-on-Earth window", () => {
+    expect(statusAt("2026-10-19T11:59:59Z", "BAD")).toBe("live");
+    expect(statusAt("2026-10-19T12:00:00Z", "BAD")).toBe("finished");
   });
 });
