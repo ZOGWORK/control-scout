@@ -5,7 +5,7 @@
 // Used by the event Rankings and Insights tabs, /teams and /matches.
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode, type RefObject } from "react";
 import { Link, useLocation, useNavigate, useSearchParams } from "react-router-dom";
-import { ArrowDown, ArrowUp, ArrowUpDown, ChevronLeft, ChevronRight, Columns3, Download, Info, ListFilter, Loader2, MapPin, RefreshCw, Scale, SearchX, Sparkles, X } from "lucide-react";
+import { ArrowDown, ArrowUp, ArrowUpDown, Bookmark, ChevronLeft, ChevronRight, Columns3, Download, Info, ListFilter, Loader2, MapPin, RefreshCw, Scale, SearchX, Sparkles, X } from "lucide-react";
 import { apiFetch, useApi, type ApiError } from "../../lib/api";
 import type { FilterGroup } from "../../shared/filterDsl";
 import { STAT_BY_KEY, statFor, type MatchRecordRow, type RecordScope, type RecordsResponse, type TeamEventRecord, type TeamSeasonRecord } from "../../shared/statCatalog";
@@ -21,10 +21,11 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "../ui/overlay";
 import { toast } from "../ui/sonner";
 import { ErrorState } from "../states";
 import { cn } from "../cn";
-import { FilterBuilder } from "./FilterBuilder";
+import { FilterBuilder, useSavedFilters } from "./FilterBuilder";
 import { Panel } from "./Panel";
 import { pickableStats, StatPicker } from "./StatPicker";
-import { DateRangePicker, EventTypeSelect, RegionPicker, SeasonSelect } from "./Controls";
+import { dateRangeText, DateRangePicker, eventTypeText, EventTypeSelect, RegionPicker, regionsText, SeasonSelect, useRecordRegions } from "./Controls";
+import { CompactFilters, FilterSection, useCompactFilters, type FilterChip } from "../CompactFilters";
 import { pageTop } from "../../lib/pageScroll";
 import { PREDICTION_FIELD, SUMMARY_FIELDS } from "../../lib/records/matchOutcome";
 import { PredictionValue } from "./PredictionValue";
@@ -90,6 +91,10 @@ export function RecordsTable(p: RecordsTableProps) {
   const teamScope = scope !== "match";
   const fields = useMemo(() => [...new Set([...(teamScope ? ["teamName"] : []), ...cols])], [teamScope, cols]);
 
+  // Phones: the controls above the table fold into one row (season, what's on, Filters) and a sheet. The
+  // region chip names its regions (asked before the table's own rows).
+  const compact = useCompactFilters() && !!p.controls;
+  const regionNames = useRecordRegions(season, compact && !!p.controls?.region && state.regions.length > 0);
   const req = { season, scope, state, fields, code };
   // Match rows also carry the scores and the prediction the phone summary is built from, whatever columns
   // are picked (the CSV export keeps to the picked columns).
@@ -123,7 +128,10 @@ export function RecordsTable(p: RecordsTableProps) {
   }, [offline, api.reload]);
 
   const [builder, setBuilder] = useState(false);
+  // Which side of the builder was asked for, and a count of the asks (so asking again while it's open turns it).
+  const [builderView, setBuilderView] = useState<{ view: "build" | "saved"; n: number }>({ view: "build", n: 0 });
   const [columns, setColumns] = useState(false);
+  const openBuilder = (view: "build" | "saved" = "build") => { setBuilderView((b) => ({ view, n: b.n + 1 })); setColumns(false); setBuilder(true); };
   // Ticked teams, for Compare (nothing else reads them: the CSV export takes the whole filtered table).
   // Kept through filtering and paging; a new season or event starts over.
   const [selected, setSelected] = useState<number[]>([]);
@@ -213,9 +221,132 @@ export function RecordsTable(p: RecordsTableProps) {
   const phoneSummary = scope === "match" && phone;
   const summary = phoneSummary && layout === "summary";
   const sortOptions = useMemo(() => pickableStats(scope, predictable).map((s) => ({ key: s.key, label: s.label })), [scope, predictable]);
+  const saved = useSavedFilters(scope);
+  const countryName = state.country ? countryByCode(state.country)?.name ?? state.country : null;
+  const chips: FilterChip[] = [];
+  if (compact) {
+    if (c?.region && state.regions.length) {
+      const text = regionsText(state.regions, regionNames.label);
+      chips.push({ id: "region", label: text, name: `Region: ${text}`, onRemove: () => setState({ ...state, regions: [], page: 1 }) });
+    }
+    if (teamScope && countryName) chips.push({ id: "country", label: <><MapPin className="inline size-3.5 text-accent" aria-hidden /> {countryName}</>, name: `Teams from ${countryName}`, onRemove: () => setState({ ...state, country: null, page: 1 }) });
+    if (c?.eventType && state.eventType) chips.push({ id: "type", label: eventTypeText(state.eventType), name: `Event type: ${eventTypeText(state.eventType)}`, onRemove: () => setState({ ...state, eventType: null, page: 1 }) });
+    if (c?.dates && (state.from || state.to)) chips.push({ id: "dates", label: dateRangeText(state.from, state.to), name: `Dates: ${dateRangeText(state.from, state.to)}`, onRemove: () => setState({ ...state, from: null, to: null, page: 1 }) });
+    // The stat filter: a chip per quick filter when it's made of them alone, else one chip for the whole of it.
+    if (state.filter?.children.length) {
+      const on = presets.filter((pr) => hasPreset(state.filter, pr));
+      const rest = on.reduce<FilterGroup | null>((f, pr) => (f ? removePreset(f, pr) : f), state.filter);
+      if (on.length && !rest?.children.length) {
+        for (const pr of on) chips.push({ id: `preset:${pr.id}`, label: pr.label, name: pr.label, onRemove: () => setState({ ...state, filter: removePreset(state.filter!, pr), page: 1 }) });
+      } else {
+        const text = describeFilter(state.filter, scope);
+        chips.push({ id: "filter", label: text, name: text, onRemove: () => setState({ ...state, filter: null, page: 1 }) });
+      }
+    }
+  }
+  const presetChips = presets.map((pr) => {
+    const on = hasPreset(state.filter, pr);
+    const tone = TONE_CLASS[pr.tone];
+    return (
+      <Tooltip key={pr.id}>
+        <TooltipTrigger asChild>
+          <button type="button" aria-pressed={on} onClick={() => void toggleChip(pr)} disabled={chipBusy === pr.id}
+            className={cn("inline-flex h-8 shrink-0 items-center gap-1.5 rounded-full border px-3 text-xs font-semibold transition-all max-sm:h-10", on ? cn(tone.chip, "ring-1 ring-current") : "border-line text-text-muted hover:border-text-base/25 hover:text-text-base")}>
+            {chipBusy === pr.id ? <Loader2 className="size-3 animate-spin" /> : <span className={cn("size-1.5 rounded-full", tone.bar)} />}
+            {pr.label}{on && <X className="size-3" />}
+          </button>
+        </TooltipTrigger>
+        <TooltipContent>{pr.description}</TooltipContent>
+      </Tooltip>
+    );
+  });
+  const countLine = data ? <><span className="font-semibold tabular-nums text-text-base">{total.toLocaleString()}</span> {p.noun}</> : state.filterError || state.countryUnknown ? null : "Loading…";
+  // The cap note takes its own line (under the toolbar; under Compare on phones), so it never squeezes the quick filters.
+  const capStatus = selectable && (
+    <span role="status" className={cn(capNote ? ["order-last inline-flex min-w-0 basis-full items-center gap-1.5 rounded-lg px-2.5 py-1 text-xs font-medium max-sm:order-1", RECORDS_CAP_NOTE_TONE] : "sr-only")}>
+      {capNote && <><Info className="size-3.5 shrink-0" />{capNote}</>}
+    </span>
+  );
+  const compareButton = selectable && selected.length > 0 && (
+    <Button size="sm" className="max-sm:h-10" asChild>
+      <Link to={`/compare?teams=${selectedTeams.join(",")}&season=${season}`}><Scale /> Compare <span className="tabular-nums">{selectedTeams.length}</span></Link>
+    </Button>
+  );
+  const sortedBy = (
+    <span className="ml-auto inline-flex items-center gap-1 text-xs text-text-muted">
+      <ArrowUpDown className="size-3.5" /> Sorted by <span className="font-medium text-text-base">{STAT_BY_KEY.get(state.sort)?.label}</span> {state.dir === "asc" ? "(low → high)" : "(high → low)"}
+    </span>
+  );
 
   return (
     <div className="min-w-0 space-y-3" data-records-table={scope}>
+      {compact && c ? (
+        <>
+          <CompactFilters lead={c.onSeason && <SeasonSelect value={season} onChange={c.onSeason} />} chips={chips}
+            summary={countLine} doneLabel={data ? `Show ${total.toLocaleString()} ${p.noun}` : "Done"}
+            onClearAll={() => setState(clearFilters(state))}>
+            {(close) => (
+              <>
+                {(c.region || c.eventType || c.dates || c.extra || (teamScope && countryName)) && (
+                  <FilterSection label="Where and when">
+                    {c.extra}
+                    {c.region && <RegionPicker season={season} value={state.regions} onChange={(regions) => setState({ ...state, regions, page: 1 })} />}
+                    {teamScope && countryName && (
+                      <Button variant="secondary" size="sm" className="max-sm:h-11" onClick={() => setState({ ...state, country: null, page: 1 })}
+                        aria-label={`Teams from ${countryName}: show every country`}>
+                        <MapPin className="text-accent" /> Teams from {countryName} <X className="text-text-muted" />
+                      </Button>
+                    )}
+                    {c.eventType && <EventTypeSelect value={state.eventType} onChange={(eventType) => setState({ ...state, eventType, page: 1 })} />}
+                    {c.dates && <DateRangePicker from={state.from} to={state.to} onChange={(from, to) => setState({ ...state, from, to, page: 1 })} />}
+                  </FilterSection>
+                )}
+                <FilterSection label="Stat filters">
+                  {presetChips.length > 0 && <div className="flex w-full flex-wrap gap-1.5" role="group" aria-label="Quick filters">{presetChips}</div>}
+                  {state.filter && state.filter.children.length > 0 && (
+                    <button type="button" onClick={() => close(() => openBuilder())} className="w-full rounded-md border-l-2 border-accent bg-accent/[0.07] px-2 py-1.5 text-left text-sm text-text-base hover:bg-accent/[0.12]" title="Edit filters">
+                      {describeFilter(state.filter, scope)}
+                    </button>
+                  )}
+                  <Button variant="secondary" className="h-11" onClick={() => close(() => openBuilder())}>
+                    <ListFilter className="text-accent" /> {conditions ? `Edit conditions (${conditions})` : "Add a condition"}
+                  </Button>
+                  <Button variant="secondary" className="h-11" onClick={() => close(() => openBuilder("saved"))}>
+                    <Bookmark className="text-violet-500" /> Saved filters{saved.length > 0 && <span className="tabular-nums text-text-muted">{saved.length}</span>}
+                  </Button>
+                </FilterSection>
+                {phoneSummary && (
+                  <FilterSection label="Layout">
+                    <div className="w-full space-y-2">
+                      <LayoutToggle layout={layout} onChange={setLayout} />
+                      {summary && <SummarySort state={state} options={sortOptions} onSort={(sort, dir) => setState({ ...state, sort, dir, page: 1 }, true)} />}
+                    </div>
+                  </FilterSection>
+                )}
+                <FilterSection label="Table">
+                  <Button variant="secondary" className="h-11" onClick={() => close(() => { setBuilder(false); setColumns(true); })}>
+                    <Columns3 className="text-sky-500" /> Statistics <span className="rounded bg-text-base/10 px-1.5 text-[11px] tabular-nums">{cols.length}{" "}<span className="sr-only">columns</span></span>
+                  </Button>
+                  <Button variant="outline" className="h-11" asChild={total > 0} disabled={!total}>
+                    {total > 0 ? <a href={csv} download><Download /> Export CSV <span className="sr-only">({total.toLocaleString()} rows)</span></a> : <span className="inline-flex items-center gap-2"><Download /> Export CSV<span className="sr-only"> (no rows to export)</span></span>}
+                  </Button>
+                </FilterSection>
+              </>
+            )}
+          </CompactFilters>
+          {/* What's showing: the count and the sort stay in view; the filter itself is in the chips above. */}
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-1 px-1 text-sm">
+            <span className="text-text-muted" aria-live="polite">
+              {countLine}
+              {refreshing && <Loader2 className="ml-1.5 inline size-3.5 animate-spin" />}
+            </span>
+            {compareButton}
+            {capStatus}
+            {sortedBy}
+          </div>
+        </>
+      ) : (
+        <>
       {c && (
         <div className="flex flex-wrap items-center gap-2">
           {c.onSeason && <SeasonSelect value={season} onChange={c.onSeason} />}
@@ -241,41 +372,17 @@ export function RecordsTable(p: RecordsTableProps) {
           {/* The name is the visible text (plus words a phone hides): "Statistics 12 columns". */}
           <Columns3 className="text-sky-500" /> <span className="max-sm:sr-only">Statistics</span> <span className="rounded bg-text-base/10 px-1.5 text-[11px] tabular-nums">{cols.length}{" "}<span className="sr-only">columns</span></span>
         </Button>
-        <Button variant={conditions ? "default" : "secondary"} size="sm" className="shrink-0 max-sm:h-10" onClick={() => { setColumns(false); setBuilder(!builder); }} aria-pressed={builder} aria-label={`Filters${conditions ? `: ${conditions} conditions` : ""}`}>
+        <Button variant={conditions ? "default" : "secondary"} size="sm" className="shrink-0 max-sm:h-10" onClick={() => { if (builder) setBuilder(false); else openBuilder(); }} aria-pressed={builder} aria-label={`Filters${conditions ? `: ${conditions} conditions` : ""}`}>
           <ListFilter className={conditions ? "" : "text-accent"} /> Filters{conditions > 0 && <span className="rounded bg-accent-ink/15 px-1.5 text-[11px] tabular-nums">{conditions}</span>}
         </Button>
         {presets.length > 0 && (
           <div className="no-scrollbar flex min-w-0 flex-1 items-center gap-1.5 overflow-x-auto border-l border-line pl-2 max-sm:order-last max-sm:basis-full max-sm:border-l-0 max-sm:border-t max-sm:pl-0 max-sm:pt-1.5" aria-label="Quick filters">
-            {presets.map((pr) => {
-              const on = hasPreset(state.filter, pr);
-              const tone = TONE_CLASS[pr.tone];
-              return (
-                <Tooltip key={pr.id}>
-                  <TooltipTrigger asChild>
-                    <button type="button" aria-pressed={on} onClick={() => void toggleChip(pr)} disabled={chipBusy === pr.id}
-                      className={cn("inline-flex h-8 shrink-0 items-center gap-1.5 rounded-full border px-3 text-xs font-semibold transition-all max-sm:h-10", on ? cn(tone.chip, "ring-1 ring-current") : "border-line text-text-muted hover:border-text-base/25 hover:text-text-base")}>
-                      {chipBusy === pr.id ? <Loader2 className="size-3 animate-spin" /> : <span className={cn("size-1.5 rounded-full", tone.bar)} />}
-                      {pr.label}{on && <X className="size-3" />}
-                    </button>
-                  </TooltipTrigger>
-                  <TooltipContent>{pr.description}</TooltipContent>
-                </Tooltip>
-              );
-            })}
+            {presetChips}
           </div>
         )}
-        {/* The cap note takes its own line (under the toolbar; under Compare on phones), so it never squeezes the quick filters. */}
-        {selectable && (
-          <span role="status" className={cn(capNote ? ["order-last inline-flex min-w-0 basis-full items-center gap-1.5 rounded-lg px-2.5 py-1 text-xs font-medium max-sm:order-1", RECORDS_CAP_NOTE_TONE] : "sr-only")}>
-            {capNote && <><Info className="size-3.5 shrink-0" />{capNote}</>}
-          </span>
-        )}
+        {capStatus}
         <div className={cn("ml-auto flex shrink-0 items-center gap-1.5", !presets.length && "ml-auto")}>
-          {selectable && selected.length > 0 && (
-            <Button size="sm" className="max-sm:h-10" asChild>
-              <Link to={`/compare?teams=${selectedTeams.join(",")}&season=${season}`}><Scale /> Compare <span className="tabular-nums">{selectedTeams.length}</span></Link>
-            </Button>
-          )}
+          {compareButton}
           <Button variant="outline" size="sm" className="max-sm:h-10" asChild={total > 0} disabled={!total}>
             {total > 0 ? <a href={csv} download><Download /> <span className="max-sm:sr-only">Export CSV</span>{" "}<span className="sr-only">({total.toLocaleString()} rows)</span></a> : <span><Download /> <span className="max-sm:sr-only">Export CSV</span><span className="sr-only"> (no rows to export)</span></span>}
           </Button>
@@ -285,18 +392,19 @@ export function RecordsTable(p: RecordsTableProps) {
       {/* What's showing, in words */}
       <div className="flex flex-wrap items-center gap-x-3 gap-y-1 px-1 text-sm">
         <span className="text-text-muted" aria-live="polite">
-          {data ? <><span className="font-semibold tabular-nums text-text-base">{total.toLocaleString()}</span> {p.noun}</> : state.filterError || state.countryUnknown ? null : "Loading…"}
+          {countLine}
           {refreshing && <Loader2 className="ml-1.5 inline size-3.5 animate-spin" />}
         </span>
         {state.filter && state.filter.children.length > 0 && (
-          <button type="button" onClick={() => { setColumns(false); setBuilder(true); }} className="min-w-0 max-w-full truncate rounded-md border-l-2 border-accent max-sm:whitespace-normal max-sm:line-clamp-3 bg-accent/[0.07] px-2 py-0.5 text-left text-text-base hover:bg-accent/[0.12]" title="Edit filters">
+          <button type="button" onClick={() => openBuilder()} className="min-w-0 max-w-full truncate rounded-md border-l-2 border-accent max-sm:whitespace-normal max-sm:line-clamp-3 bg-accent/[0.07] px-2 py-0.5 text-left text-text-base hover:bg-accent/[0.12]" title="Edit filters">
             {describeFilter(state.filter, scope)}
           </button>
         )}
-        <span className="ml-auto inline-flex items-center gap-1 text-xs text-text-muted">
-          <ArrowUpDown className="size-3.5" /> Sorted by <span className="font-medium text-text-base">{STAT_BY_KEY.get(state.sort)?.label}</span> {state.dir === "asc" ? "(low → high)" : "(high → low)"}
-        </span>
+        {sortedBy}
       </div>
+
+        </>
+      )}
 
       {state.filterError ? (
         <Problem title="This link's filter couldn't be read" detail={state.filterError} onClear={() => setState(clearFilters(state))} />
@@ -327,7 +435,7 @@ export function RecordsTable(p: RecordsTableProps) {
       ) : (
         <div className={cn("relative transition-opacity", refreshing && "opacity-60")}>
           {refreshing && <div className="absolute inset-x-0 top-0 z-20 h-0.5 overflow-hidden rounded-full bg-accent/20"><div className="h-full w-1/3 cs-progress bg-accent" /></div>}
-          {phoneSummary && (
+          {phoneSummary && !compact && (
             <div className="mb-3 space-y-2">
               <LayoutToggle layout={layout} onChange={setLayout} />
               {summary && <SummarySort state={state} options={sortOptions} onSort={(sort, dir) => setState({ ...state, sort, dir, page: 1 }, true)} />}
@@ -350,7 +458,7 @@ export function RecordsTable(p: RecordsTableProps) {
         </div>
       )}
 
-      <FilterBuilder open={builder} onOpenChange={setBuilder} scope={scope} predictable={predictable} value={state.filter} noun={p.noun}
+      <FilterBuilder open={builder} onOpenChange={setBuilder} scope={scope} predictable={predictable} value={state.filter} noun={p.noun} initialView={builderView.view} viewRequest={builderView.n}
         onApply={(filter) => setState({ ...state, filter, filterError: null, filterRaw: null, page: 1 })} countFor={countFor} />
       <Panel open={columns} onOpenChange={setColumns}
         title={<span className="flex items-center gap-2"><Columns3 className="size-5 text-sky-500" /> Choose statistics</span>}

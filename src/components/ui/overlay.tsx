@@ -114,6 +114,13 @@ export function DialogDescription({ className, ...props }: React.ComponentProps<
 
 // --- Sheet (side panel built on Dialog) -----------------------------------------
 
+/**
+ * Where a popover opened inside a sheet renders: inside the sheet. A sheet is modal, so it locks scrolling
+ * and keeps focus everywhere outside itself; a popover portalled to the body (a searchable region list)
+ * couldn't scroll there.
+ */
+const PortalContainer = React.createContext<HTMLElement | null>(null);
+
 export const Sheet = D.Root;
 export const SheetTrigger = D.Trigger;
 export const SheetClose = D.Close;
@@ -127,10 +134,12 @@ const sides = {
 
 export function SheetContent({ className, children, side = 'right', returnFocus: fallback, ...props }: React.ComponentProps<typeof D.Content> & { side?: keyof typeof sides } & ReturnFocus) {
   const returnFocus = useReturnFocus(props, fallback);
+  const [el, setEl] = React.useState<HTMLDivElement | null>(null);
   return (
     <D.Portal>
       <Overlay />
       <D.Content
+        ref={setEl}
         data-slot="sheet-content"
         data-esc-owner=""
         className={cn(panel, 'fixed z-[81] flex flex-col gap-4 overflow-y-auto p-6', sides[side], fade, className)}
@@ -138,7 +147,7 @@ export function SheetContent({ className, children, side = 'right', returnFocus:
         {...outsideGuards(props, 'sheet-content')}
         {...returnFocus}
       >
-        {children}
+        <PortalContainer.Provider value={el}>{children}</PortalContainer.Provider>
         <D.Close className="absolute right-4 top-4 rounded-full p-1.5 text-text-muted transition-colors hover:bg-text-base/[0.08] hover:text-text-base focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/60">
           <X className="size-4" />
           <span className="sr-only">Close</span>
@@ -229,8 +238,9 @@ export function PopoverContent({ className, align = 'center', sideOffset = 6, co
   /** Portal target (e.g. a fullscreen element, so the popover stays visible inside it). */
   container?: HTMLElement | null;
 }) {
+  const inSheet = React.useContext(PortalContainer);
   return (
-    <P.Portal container={container ?? undefined}>
+    <P.Portal container={container ?? inSheet ?? undefined}>
       <P.Content
         data-slot="popover-content"
         data-esc-owner=""

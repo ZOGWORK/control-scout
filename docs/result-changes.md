@@ -9,7 +9,7 @@ so the event page and match details can show it (timeline only: no alerts).
 Every detail write of an event (the background cycle and the live fast lane
 both go through `syncEvent` → `writeEventBundle` in
 `server/data/resultChanges.ts`) compares the stored matches with the incoming
-ones and writes a row per real change into `result_changes` (migration 32), in
+ones and writes a row per real change into `result_changes` (migration 33), in
 the same transaction as the event's rows:
 
 | kind | when | before / after |
@@ -87,5 +87,5 @@ Measured locally on a 150-match event (file database, 60 writes each): plain
 bundle write median 90.8 ms / p95 144.7 ms; with the diff and no change
 90.3 / 127.2 ms; with a revision every write 62.6 / 94.1 ms — the diff (two
 indexed reads of one event) is within the noise of the write itself. Migration
-32 is metadata-only on `matches` (`ALTER TABLE … ADD COLUMN`): migrations 7–32
-applied to the 119k-match snapshot in 173 ms (after syncing with main, which added 30 and 31).
+32 is metadata-only on `matches` (`ALTER TABLE … ADD COLUMN`): migrations 7–33
+applied to the 119k-match snapshot in 178 ms (after syncing with main, which added 30–32).

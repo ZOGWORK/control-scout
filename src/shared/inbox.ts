@@ -53,9 +53,16 @@ export interface InboxItem {
   /** A path in the app to open on tap. */
   link: string;
   read: boolean;
+  /** Flagged to come back to (Follow up). Separate from read: a read item can still need doing. */
+  followUp: boolean;
 }
 
-export interface InboxPage { items: InboxItem[]; more: boolean; unread: number }
+/** GET /api/inbox?filter=: every item, or the ones flagged for follow-up. */
+export const INBOX_FILTERS = ["all", "followUp"] as const;
+export type InboxFilter = (typeof INBOX_FILTERS)[number];
+
+/** A page; unread and followUp are the account's whole counts, whatever the filter. */
+export interface InboxPage { items: InboxItem[]; more: boolean; unread: number; followUp: number }
 
 export const INBOX_PAGE = 30, INBOX_PAGE_MAX = 100;
 /** Items older than this are deleted (the scheduler). */
