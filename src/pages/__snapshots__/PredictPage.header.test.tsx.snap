@@ -1,0 +1,5 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`Predict, the picked event's header > predictions are unchanged by the header 1`] = `"Upcoming matches (2)Q11836024089~1121438023636~98Picked Red 71%confident confidenceQ21836024089~1121438023636~98Picked Blue 62%moderate confidence"`;
+
+exports[`Predict, the picked team's header > predictions are unchanged by the header (same numbers, tiers and probabilities) 1`] = `"26–272026–2725–262025–26Predict a matchup with 18360. Pick its partner and two opponents in the Lab for win odds and a predicted score. Predict a matchup Odds at an eventNext matchesQuébec QualifierJan 10–11, 20992 matchesQ11836024089~1121438023636~98Picked Red 62%moderate confidenceQ21836024089~1121438023636~98Picked Blue 73%provisional confidenceNext event: Québec QualifierJan 10–11, 2099This event doesn't advance teams, so there are no advancement odds. Its matches get win odds once it publishes a schedule."`;
