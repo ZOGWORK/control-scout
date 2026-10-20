@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { EventDetail, FieldRow, MatchView } from "../src/shared/api";
-import { dates, eventEmbed, movement, predictEmbed, rankingsEmbed, topByOpr, verdict, winBar } from "./views";
+import { dates, eventEmbed, movement, predictEmbed, rankingsEmbed, topByOpr, verdict, winBar, winningAlliance } from "./views";
 
 const SITE = "https://controlscout.org";
 
@@ -96,6 +96,23 @@ describe("eventEmbed", () => {
     expect(e.fields?.find((f) => f.name === "Winning alliance")?.value).toBe("Alliance 2: 3 & 1");
     expect(e.description).toBe("Mar 1–2 · Austin, TX, USA · X");
     expect(e.fields?.find((f) => f.name === "Matches played")?.value).toBe("40 of 40");
+  });
+});
+
+describe("winningAlliance", () => {
+  const alliances = [{ number: 1, name: null, captain: 10, pick1: 11, pick2: null, backup: null }, { number: 4, name: null, captain: 40, pick1: 41, pick2: 42, backup: null }];
+  const t = (n: number, onField = true) => ({ number: n, surrogate: false, dq: false, onField });
+  const po = (series: number, number: number, red: number[], blue: number[], r: number, b: number) =>
+    m({ level: "playoff", series, number, played: true, red: { teams: red.map((x) => t(x)), score: scored(r, r) }, blue: { teams: blue.map((x) => t(x)), score: scored(b, b) } });
+
+  it("before the Winner award is posted: the winner of the last playoff match, with its whole alliance", () => {
+    const matches = [po(1, 1, [10, 11], [40, 41], 120, 80), po(6, 1, [10, 11], [40, 42], 90, 100), po(6, 2, [10, 11], [40, 42], 70, 110)];
+    expect(winningAlliance({ awards: [], alliances, matches })).toEqual({ alliance: 4, teams: [40, 41, 42] });
+  });
+
+  it("the award wins over the matches; nothing when neither says", () => {
+    expect(winningAlliance({ awards: [{ type: "Winner", placement: 1, team: 10, name: null }], alliances, matches: [po(6, 1, [10, 11], [40, 42], 1, 2)] })).toEqual({ alliance: 1, teams: [10] });
+    expect(winningAlliance({ awards: [], alliances, matches: [] })).toBeNull();
   });
 });
 
