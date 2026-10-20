@@ -978,6 +978,25 @@ CREATE TRIGGER team_search_ad AFTER DELETE ON teams BEGIN DELETE FROM team_searc
   },
   {
     version: 31,
+    name: "pick list op ids",
+    sql: `
+-- The device's id for one pick list change (server/scout/picklist.ts): a change kept on the device and sent
+-- again (after a reload, or a lost answer) carries the same id, and the server applies it once only. One row
+-- per change the server accepted, per workspace and author; rows older than 30 days are pruned as new ones
+-- arrive (a device gives up on a kept change after 14).
+CREATE TABLE IF NOT EXISTS workspace_picklist_ops (
+  workspace_id INTEGER NOT NULL REFERENCES workspaces(id) ON DELETE CASCADE,
+  account_id INTEGER NOT NULL,
+  op_id TEXT NOT NULL,
+  season INTEGER NOT NULL,
+  created_at INTEGER NOT NULL,
+  PRIMARY KEY (workspace_id, account_id, op_id)
+);
+CREATE INDEX IF NOT EXISTS workspace_picklist_ops_age ON workspace_picklist_ops (workspace_id, created_at);
+`,
+  },
+  {
+    version: 32,
     name: "inbox follow-up flags",
     sql: `
 -- Inbox follow-up (server/inbox/inbox.ts, docs/inbox.md): the account flagged this item to come back to.

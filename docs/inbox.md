@@ -117,7 +117,7 @@ actor_account_id, actor_name, title, body, link, read_at, source_activity_id, so
 follow_up_at
 ```
 
-`follow_up_at` (ms, NULL when not flagged) is from migration 31.
+`follow_up_at` (ms, NULL when not flagged) is from migration 32.
 
 - `user_id` is the Scout account (`users.id`). Sessions and synced settings belong to that
   account, and owners are recognised by its email. A Control Point account maps to it
