@@ -80,7 +80,7 @@ describe("GET /api/directory/:season?q=", () => {
     expect(await teams("q=montreal")).toEqual([5000]);
     expect(await teams(`q=${enc("sao paulo")}`)).toEqual([7000]);
     expect(await teams(`q=${enc("SÃO")}`)).toEqual([7000]);
-    expect(await teams(`q=${enc("équipe")}`)).toEqual([5000]); // typed decomposed (e + combining accent)
+    expect(await teams(`q=${enc("e\u0301quipe")}`)).toEqual([5000]); // typed decomposed (e + combining accent)
   });
 
   it("matches other scripts as stored", async () => {
@@ -88,7 +88,7 @@ describe("GET /api/directory/:season?q=", () => {
     expect(await teams(`q=${enc("로봇")}`)).toEqual([8000]);
     expect(await teams(`q=${enc("東京")}`)).toEqual([8001]);
     expect(await teams(`q=${enc("ガンダム")}`)).toEqual([8001]);
-    expect(await teams(`q=${enc("́")}`)).toEqual([]); // a lone accent mark is no word
+    expect(await teams(`q=${enc("\u0301")}`)).toEqual([]); // a lone accent mark is no word
   });
 
   it("stays inside the season and country, and keeps teams without results", async () => {
