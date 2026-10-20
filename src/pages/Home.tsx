@@ -74,7 +74,7 @@ function Hero({ query }: { query?: string }) {
   return (
     <Reveal fade={false} className="pt-2 @4xl/home:pt-8">
       <h1 className="font-display text-[2.5rem] font-semibold leading-[1.05] tracking-[-0.02em] @lg/home:text-5xl @4xl/home:text-[3.5rem] @6xl/home:text-[4rem]">
-        {HOME_HEADLINE[0]} <span className="block text-accent-text">{HOME_HEADLINE[1]}</span>
+        {HOME_HEADLINE[0]} <span className="block text-accent-display">{HOME_HEADLINE[1]}</span>
       </h1>
       <p className="mt-4 max-w-[30rem] text-base text-text-muted">{HOME_LEAD}</p>
       <SearchBox

@@ -118,7 +118,7 @@ export function Figure({ label, title, note, actions, caption, narrow, children,
         <div ref={ref} data-seen={seen ? "" : undefined} onPointerMove={glow} className="hiw-panel overflow-hidden rounded-2xl border border-border bg-card p-4 sm:p-5">
           <div className="mb-3 flex flex-wrap items-start justify-between gap-3">
             <div className="min-w-0">
-              <p className="hiw-gold text-[11px] font-bold uppercase tracking-[0.14em]">{label}</p>
+              <p className="hiw-gold-text text-[11px] font-bold uppercase tracking-[0.14em]">{label}</p>
               <p className="mt-0.5 font-display text-base font-semibold text-foreground sm:text-lg">
                 {title}{note && <span className="ml-1.5 font-mono text-xs font-normal text-muted-foreground">· {note}</span>}
               </p>

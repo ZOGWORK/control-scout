@@ -22,6 +22,7 @@ import { EventCard } from "./Home";
 import { dateRange, num, seasonLabel, rankPct } from "../lib/format";
 import { callTally, pct } from "../lib/seasonSoFar";
 import { defaultSeason } from "../lib/myTeamSeason";
+import { PROFILE_PERCENTILE_TEXT } from "../lib/textTones";
 
 export default function MyTeamPage() {
   useTitle("My team");
@@ -239,7 +240,7 @@ function SeasonSoFar({ p, team, matches, matchesFailed, when, earlier, onSeason 
   const shown = calls ? (calls.live.of ? { ...calls.live, live: true } : calls.backtest.of ? { ...calls.backtest, live: false } : null) : null;
   return (
     <>
-      <p className="mt-3 font-display text-5xl font-semibold tabular-nums text-accent-text">{top ?? "Unranked"}</p>
+      <p className={`mt-3 font-display text-5xl font-semibold tabular-nums ${PROFILE_PERCENTILE_TEXT}`}>{top ?? "Unranked"}</p>
       <p className="text-sm text-muted-foreground">worldwide by OPR{s.opr.np.rank ? ` · #${s.opr.np.rank.toLocaleString()} of ${s.opr.np.of?.toLocaleString()}` : ""}</p>
       <div className="mt-5 grid gap-3 sm:grid-cols-2">
         <div className="rounded-xl border border-success/30 bg-success/[0.07] p-3">
