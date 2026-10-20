@@ -42,7 +42,7 @@ export function ResultChanges({ season, code, matchKey }: { season: number; code
         <History className="size-4 text-text-muted" aria-hidden /> Result changes
       </h2>
       <Async state={state} loading={<div className="skeleton mt-3 h-16 rounded-xl" />}>
-        {(v) => <Body v={v} one={one} />}
+        {(v) => (isView(v) ? <Body v={v} one={one} /> : null)}
       </Async>
     </section>
   );
