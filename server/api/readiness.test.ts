@@ -7,7 +7,7 @@ import { kvSet, migrate, openDb, run, setDb } from "../db";
 import { clearAllCaches } from "../caches";
 import { CURRENT_SEASON } from "../data/seasons";
 import { buildOverview, homeOverview } from "./home";
-import { recordsAtKey, resultsAtKey, seasonReadiness } from "./readiness";
+import { recordsAtKey, resultsAtKey, seasonReadiness, unprovenSeasons } from "./readiness";
 import { computeRecords } from "../stats/records";
 import { loadSeason } from "../stats/load";
 
@@ -92,6 +92,70 @@ describe("season readiness (DATA-F01)", () => {
     // A stats run that didn't cover this season says nothing about it.
     await kvSet("stats:last", { at: "2026-10-17T13:00:00.000Z", seasons: [S - 1] });
     expect((await seasonReadiness(S)).statsAt).toBeNull();
+  });
+
+  // PUB3-F05: records exist, but nothing says when they were built (no per-season stamp, and no stats
+  // run or live build that covers the season), so nothing shows they include the latest results.
+  it("is catching up, not up to date, when the records have no build time at all (PUB3-F05)", async () => {
+    await run("INSERT INTO team_season_records (season, team, team_name) VALUES (?, 1, 'Team 1')", [S]);
+    expect(await seasonReadiness(S)).toEqual({ state: "catching-up", resultsAt: "2026-10-17T12:00:00.000Z", statsAt: null });
+    expect((await buildOverview(S)).readiness.state).toBe("catching-up");
+  });
+
+  it("is catching up when the only stats run on record covered another season (PUB3-F05)", async () => {
+    await run("INSERT INTO team_season_records (season, team, team_name) VALUES (?, 1, 'Team 1')", [S]);
+    await kvSet("stats:last", { at: "2026-10-17T13:00:00.000Z", seasons: [S - 1] });
+    expect(await seasonReadiness(S)).toEqual({ state: "catching-up", resultsAt: "2026-10-17T12:00:00.000Z", statsAt: null });
+    // A past season never borrows the live lane's build time either.
+    await run("INSERT INTO seasons (season, name, last_sync) VALUES (?, 'Past', '2026-01-01T00:00:00.000Z')", [S - 1]);
+    await run("INSERT INTO events (season, code, name, type, remote, hybrid, source, start, end) VALUES (?, 'P1', 'P1', 'Qualifier', 0, 0, 'test', '2025-11-01', '2025-11-01')", [S - 1]);
+    await run("INSERT INTO matches (season, code, level, series, number, label, played, red_total, red_np, blue_total, blue_np, source) VALUES (?, 'P1', 'qual', 0, 1, 'Q1', 1, 50, 50, 40, 40, 'test')", [S - 1]);
+    await run("INSERT INTO match_teams (season, code, level, series, number, team, alliance) VALUES (?, 'P1', 'qual', 0, 1, 1, 'red')", [S - 1]);
+    await run("INSERT INTO team_season_records (season, team, team_name) VALUES (?, 1, 'Team 1')", [S - 1]);
+    await kvSet("stats:last", { at: "2026-10-17T13:00:00.000Z", seasons: [S - 2] });
+    // Both are what the data cycle rebuilds, newest first.
+    expect(await unprovenSeasons()).toEqual([S, S - 1]);
+    // The live lane's build (current season only) proves the current season, never the past one.
+    await kvSet("records:last", { at: "2026-10-17T13:00:00.000Z" });
+    expect((await seasonReadiness(S)).state).toBe("ready");
+    expect(await seasonReadiness(S - 1)).toEqual({ state: "catching-up", resultsAt: "2026-01-01T00:00:00.000Z", statsAt: null });
+    expect(await unprovenSeasons()).toEqual([S - 1]);
+    // A records build stamps it ready.
+    await kvSet(recordsAtKey(S - 1), { at: "2026-10-17T14:00:00.000Z" });
+    expect((await seasonReadiness(S - 1)).state).toBe("ready");
+    expect(await unprovenSeasons()).toEqual([]);
+  });
+
+  it("is catching up with no build time even when the season's sync time is unknown too (PUB3-F05)", async () => {
+    await run("UPDATE seasons SET last_sync = NULL WHERE season = ?", [S]);
+    await run("INSERT INTO team_season_records (season, team, team_name) VALUES (?, 1, 'Team 1')", [S]);
+    expect(await seasonReadiness(S)).toEqual({ state: "catching-up", resultsAt: null, statsAt: null });
+  });
+
+  it("keeps a stamped build that took in the latest results ready (PUB3-F05 doesn't over-reach)", async () => {
+    await run("INSERT INTO team_season_records (season, team, team_name) VALUES (?, 1, 'Team 1')", [S]);
+    await kvSet(recordsAtKey(S), { at: "2026-10-17T12:00:00.000Z" }); // built from exactly the latest sync
+    expect((await seasonReadiness(S)).state).toBe("ready");
+    expect(await unprovenSeasons()).toEqual([]);
+  });
+
+  it("still says preparing, not catching up, when results have no records at all (with or without a stamp)", async () => {
+    expect(await seasonReadiness(S)).toEqual({ state: "preparing", resultsAt: "2026-10-17T12:00:00.000Z", statsAt: null });
+    await kvSet(recordsAtKey(S), { at: "2026-10-17T13:00:00.000Z" });
+    expect(await seasonReadiness(S)).toEqual({ state: "preparing", resultsAt: "2026-10-17T12:00:00.000Z", statsAt: null });
+    expect(await unprovenSeasons()).toEqual([]);
+  });
+
+  it("a genuine zero (nothing played) with no build time is still ready", async () => {
+    await run("UPDATE matches SET played = 0 WHERE season = ?", [S]);
+    expect(await seasonReadiness(S)).toEqual({ state: "ready", resultsAt: "2026-10-17T12:00:00.000Z", statsAt: null });
+  });
+
+  it("remote-only results with no build time are still ready (they never get qualification records)", async () => {
+    await fixture({ remote: true });
+    expect(await seasonReadiness(S)).toEqual({ state: "ready", resultsAt: "2026-10-17T12:00:00.000Z", statsAt: null });
+    await run("INSERT INTO team_season_records (season, team, team_name) VALUES (?, 1, 'Team 1')", [S]);
+    expect((await seasonReadiness(S)).state).toBe("ready");
   });
 
   it("is ready with a true zero when nothing the records count has been played", async () => {
