@@ -987,11 +987,13 @@ CREATE INDEX result_changes_event ON result_changes (season, code, id);
 CREATE INDEX result_changes_match ON result_changes (season, code, level, series, number, id);
 -- Events whose results are being watched, and since when: the first detail write after this
 -- migration is the baseline (nothing before it was tracked). pruned: rows dropped by the
--- per-event retention cap.
+-- per-event retention cap. missing: the last stored state of matches a write left out (a
+-- fallback feed may list fewer), so one that comes back is compared, not posted again.
 CREATE TABLE result_watch (
   season INTEGER NOT NULL, code TEXT NOT NULL,
   since TEXT NOT NULL,
   pruned INTEGER NOT NULL DEFAULT 0,
+  missing TEXT NOT NULL DEFAULT '{}',
   PRIMARY KEY (season, code)
 );
 -- FIRST's scheduled field ("1", "2"…), so a field move can be told apart. Null = not reported.
