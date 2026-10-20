@@ -9,6 +9,20 @@ teams, scout, offline, speed, live, report, alerts, rankings, share, workspace,
 picklist, history, fixes). What's new shows them first; the groups below are
 the full release notes, one click away.
 
+## 1.8.0 — 2026-10-20
+
+Watch an event's stream with the model calling every match beside it.
+
+### Highlights
+- [live] Watch live: the event's stream with live predictions beside it
+- [predict] See each call, then whether it was right, the moment a match ends
+- [live] A LIVE dot on events you can watch right now
+
+### Events
+- **Watch live.** When an event has a stream, its page gets a "Watch live" button and a section above the matches: the YouTube stream (it loads only when you press play, from YouTube's privacy-enhanced player) and, beside it, the match the model is calling now, with its win odds, predicted score and confidence. The moment a match finishes it shows the result and whether the call was right, then moves to the next one, with the three after it below. After the event the stream stays as the recording. On phones the stream comes first and the calls below it. (#219)
+- **LIVE dot.** Events that are on now and have a stream show a red LIVE dot in the events list.
+- **Owner portal › Streams.** The owner sets an event's stream from a YouTube link (watch, youtu.be or /live/ links); anything else is refused with the reason, and nothing is saved.
+
 ## 1.7.0 — 2026-10-18
 
 A new home page, sharper predictions, and Scout pages that are faster to read and quicker to act on.

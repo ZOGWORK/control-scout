@@ -3,7 +3,7 @@
 // bracket, awards + advancement, and advancement odds for any team there.
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { Link, useLocation, useNavigationType, useParams, useSearchParams } from "react-router-dom";
-import { Award, CalendarDays, ChevronDown, Clock, ExternalLink, Loader2, MapPin, Radio, RefreshCw, Search, Sparkles, Swords, Trophy, Users } from "lucide-react";
+import { Award, CalendarDays, ChevronDown, Clock, ExternalLink, Loader2, MapPin, Play, Radio, RefreshCw, Search, Sparkles, Swords, Trophy, Users } from "lucide-react";
 import { BRACKETS, type Slot } from "@control-scout/predict-engine";
 import { ApiError, apiFetch, load, prime, useApi } from "../lib/api";
 import { useMeta, usePredictable, useTitle } from "../lib/meta";
@@ -31,6 +31,7 @@ import { callRecord } from "../lib/eventGlance";
 import { NotFoundView } from "../components/NotFoundView";
 import { LiveCountdownChip, LivePanel, useLiveTarget } from "../components/LivePanel";
 import { HeaderActions } from "../components/EventActions";
+import { WATCH_ID, WatchLive } from "../components/WatchLive";
 import { isLiveMode, useEventPoll } from "../lib/liveMode";
 import { agoSeconds, awardLabel, dateRange, num, place, seasonLabel } from "../lib/format";
 import { scrollToElement } from "../lib/pageScroll";
@@ -92,6 +93,7 @@ function Event({ d, path }: { d: EventDetail; path: string }) {
   const livePanel = useRef<HTMLDivElement>(null);
   const toLivePanel = () => { if (livePanel.current) scrollToElement(livePanel.current, matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth"); };
   const oddsOpen = predictable && !d.forecastUnsupported;
+  const toWatch = () => { const el = document.getElementById(WATCH_ID); if (el) scrollToElement(el, matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth"); };
   // Opened on a panel (?tab= in the address it arrived at): a slim bar, with the summary behind "Event details".
   const slim = useArrivedOnTab(sp.has("tab") && validTab);
   const [detailsOpen, setDetailsOpen] = useDetailsOpen();
@@ -110,6 +112,7 @@ function Event({ d, path }: { d: EventDetail; path: string }) {
       </div>
       {d.live && !liveMode && <LiveBar live={d.live} r={refresh} />}
       <HeaderActions liveMode={liveMode} livestream={e.livestream} track={track}>
+        {e.stream && <Button size="sm" onClick={toWatch} data-watch-button><Play /> {e.status === "finished" ? "Watch the stream" : "Watch live"}</Button>}
         {predictable && <Button variant="outline" size="sm" asChild><Link to={labHref}>Open in what-if lab</Link></Button>}
       </HeaderActions>
       {!predictable && <p className="mt-3 text-xs text-muted-foreground">{seasonLabel(e.season)} is shown for history: results, rankings and awards, no predictions (those start with 2023–24).</p>}
@@ -176,6 +179,8 @@ function Event({ d, path }: { d: EventDetail; path: string }) {
         </StickyActions>
       )}
 
+      {/* The owner-set stream with the model's calls beside it, above the matches (components/WatchLive.tsx). */}
+      {e.stream && <WatchLive d={d} stream={e.stream} />}
       <div ref={tabsRef} className="scroll-mt-bar-4" />
       <Tabs value={tab} onValueChange={setTab}>
         <TabsList>

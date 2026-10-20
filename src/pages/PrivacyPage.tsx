@@ -79,7 +79,7 @@ const SECTIONS: LegalSectionDef[] = [
         <StorageTable caption="Cookies" head={["Cookie", "What it's for", "How long"]} rows={COOKIES} mono />
         <p className="pt-2">Everything else stays in your browser's own storage (local storage and IndexedDB) on this device. We can't see it unless you sign in and sync it, and recordings are never uploaded at all.</p>
         <StorageTable caption="Data stored on your device" head={["On your device", "What it holds"]} rows={DEVICE} />
-        <p className="pt-2">Your answer to the usage-statistics question is kept on your device too. Match videos play from <strong>youtube-nocookie.com</strong>, YouTube's privacy-enhanced mode, only when you open one.</p>
+        <p className="pt-2">Your answer to the usage-statistics question is kept on your device too. Match videos play from <strong>youtube-nocookie.com</strong>, YouTube's privacy-enhanced mode, only when you open one. An event page with a live stream shows the stream's preview image from YouTube's image server (i.ytimg.com); the player itself loads only when you press play.</p>
       </>
     ),
   },

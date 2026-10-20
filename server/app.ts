@@ -13,6 +13,7 @@ import { ensureSearchIndex, search } from "./api/search.js";
 import { rebuildSearch } from "./stats/job.js";
 import { teamProfile, compareTeams, teamSummaries, shortlistTeams } from "./api/teams.js";
 import { cachedEventDetail, eventDetail, listEvents, toEventInput } from "./api/events.js";
+import { eventStream, seasonStreams } from "./portal/streams.js";
 import { matchDetail, matchViews } from "./api/matches.js";
 import { matchReport } from "./api/matchReport.js";
 import { resultChanges } from "./api/resultChanges.js";
@@ -308,19 +309,26 @@ export function createApp() {
     return { season: s, matches: out };
   }));
 
-  api.get("/events", h(async (req) => ({
+  api.get("/events", h(async (req) => {
+    // Events with a stream set (a few per season): their rows get stream: true, for the LIVE dot.
+    const streams = await seasonStreams(season(req.query.season)).catch(() => new Map());
+    return {
     // The list view's fields only (detail pages use /events/:season/:code):
     // venue, division, region and remote aren't shown in lists.
     events: (await listEvents({
       season: season(req.query.season), from: req.query.from ? String(req.query.from) : undefined, to: req.query.to ? String(req.query.to) : undefined,
       q: req.query.q ? String(req.query.q).slice(0, 60) : undefined, type: req.query.type ? String(req.query.type) : undefined,
       region: req.query.region ? String(req.query.region) : undefined, hideNoMatch: req.query.all !== "1", limit: boundedCount(req.query.limit, "limit", 3000, 1, 3000),
-    })).map(({ venue: _v, divisionCode: _d, region: _r, remote: _m, ...e }) => e),
-  })));
+    })).map(({ venue: _v, divisionCode: _d, region: _r, remote: _m, ...e }) => (streams.has(e.code) ? { ...e, stream: true as const } : e)),
+    };
+  }));
 
   api.get("/events/:season/:code", h(async (req, res) => {
-    const d = await cachedEventDetail(season(req.params.season), code(req.params.code));
-    if (!d) throw new HttpError(404, `No event ${req.params.code} in ${req.params.season}`);
+    const cached = await cachedEventDetail(season(req.params.season), code(req.params.code));
+    if (!cached) throw new HttpError(404, `No event ${req.params.code} in ${req.params.season}`);
+    // The owner-set stream rides along outside the cached detail (it changes without a data version); the shared object is never changed.
+    const stream = await eventStream(cached.event.season, cached.event.code).catch(() => null);
+    const d = stream ? { ...cached, event: { ...cached.event, stream } } : cached;
     // On an event day results move every minute: revalidate every time (the ETag keeps that a cheap 304).
     if (d.live) res.setHeader("Cache-Control", "no-cache");
     return d;
