@@ -20,11 +20,18 @@ workspace scouting is paused in the owner portal. Writes must be JSON (CSRF).
 | Request | Body | Answer |
 | --- | --- | --- |
 | `GET /api/scout/workspaces/:id/picklist?season=` | | `{ list: { workspaceId, season, version, picks } }` |
+| `GET /api/scout/workspaces/:id/picklist?season=&ops=a,b` | (up to 50 op ids) | `{ list, appliedOps }`: which of this member's op ids the server applied |
 | `POST /api/scout/workspaces/:id/picklist` | `{ season, op: "add", team, beforeTeam?, restore? }` (`restore`: Undo of a remove) | `{ changed, list }` |
 | | `{ season, op: "remove", team }` | |
 | | `{ season, op: "move", team, beforeTeam }` (`null`: to the end), or `{ season, op: "move", team, afterTeam }` | |
 | | `{ season, op: "note", team, note }` (`""` clears it) | |
 | | `{ season, op: "import", teams }` (copy from my shortlist) | |
+
+Any `POST` may also carry `opId` (8 to 64 letters, digits, `-` or `_`: the device's id for
+the change) and `account` (the Control Point account that made it). A change whose `opId`
+this member's changes were already applied with applies nothing and answers
+`{ changed: false, replayed: true, list }`, so a change sent again is applied once. An
+`account` that isn't the one signed in is a 409 (`WRONG_ACCOUNT`), never applied as them.
 
 A pick is `{ team, rank, addedBy, addedAt, note, noteBy, noteUpdatedAt }`. The server sets
 `addedBy` and `noteBy` (`{ accountId, name }`) and the times (ms). It never takes them from
@@ -52,6 +59,32 @@ On the device, a change shows at once. The view applies it on top of the server'
 the same function the server uses, then sends it. Changes go up one at a time, in order. A
 newer list from the server (by version), whether in an answer or from the stream, replaces
 the one shown.
+
+## Changes kept through a reload
+
+Every order change (add, remove, move, copy) gets an op id on the device and is kept in its
+IndexedDB (`src/lib/picklistOps.ts`, database `control-scout-picklist`) from the moment it's
+made until the workspace confirms it or the member discards it. A record names the account,
+workspace, season and op id, and keeps the order the member saw just before the change.
+Records are only ever read for the signed-in account, and are dropped after 14 days.
+
+After a reload, kept changes are checked with `?ops=` first: one the server already applied
+simply goes. The rest show on the pick list as "N unsaved pick-list changes", and in the
+recoverable view, with Retry and Discard. Nothing is sent again by itself.
+
+Retry reads the list first (`src/lib/picklistConflict.ts`):
+
+- the team a move names is gone: it can't apply, so only Discard is offered;
+- the team it was placed next to was removed: the notice says where it goes instead (next to
+  the nearest team that was beside it and is still there), and **Apply anyway** sends that;
+- someone changed the list since (teams added, removed or moved that the member's own kept
+  changes don't name): the notice lists them, colour-coded, and nothing is sent until
+  **Apply mine anyway** or **Discard mine**;
+- the workspace answers 403/404 (removed from it, or deleted), 423 (read-only), 401 or
+  `WRONG_ACCOUNT` (another account signed in): nothing is sent, and the change is kept until
+  the member discards it.
+
+The server remembers op ids for 30 days (`workspace_picklist_ops`).
 
 ## Notes
 
@@ -81,4 +114,6 @@ team again any other way starts it afresh.
 
 Migration 20 adds `workspace_picklist` (one row per team: rank, who added it and when, the
 note and who last wrote it and when, and `removed_at` while it's off the list) and `workspace_picklist_versions` (the version per
-workspace and season). Both are private tables and never ship in the public snapshot.
+workspace and season). Migration 31 adds `workspace_picklist_ops` (one row per accepted change
+that carried an op id: workspace, author, op id, season, time). All three are private tables and
+never ship in the public snapshot.
