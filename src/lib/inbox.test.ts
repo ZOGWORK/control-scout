@@ -195,4 +195,28 @@ describe("useInbox: replies in order", () => {
     expect(result.current.items.map((i) => i.id)).toEqual([8]);
     vi.doUnmock("./api");
   });
+
+  it("a write still queued when the account changes is never sent (not with the next account's cookie)", async () => {
+    vi.doMock("./api", async (orig) => ({
+      ...(await orig<typeof import("./api")>()),
+      apiFetch: (path: string, init?: { json?: unknown }) => new Promise((resolve) => { pending.push({ path, resolve, json: init?.json }); }),
+    }));
+    vi.resetModules();
+    const { useInbox } = await import("./inbox");
+    const { renderHook, act } = await import("@testing-library/react");
+    const { result, rerender } = renderHook(({ id }) => useInbox(id), { initialProps: { id: 1 as number | null } });
+    await act(async () => { result.current.load(); });
+    await act(async () => { pending.at(-1)!.resolve(fpage([flagged(5, false), item(4)])); });
+    await act(async () => { result.current.setFollowUp([5], true); });
+    await act(async () => { result.current.markAllRead(); });
+    const posts = () => pending.filter((p) => p.path === "/api/inbox/follow-up" || p.path === "/api/inbox/read");
+    expect(posts()).toHaveLength(1);
+    // Signed out, someone else signs in; then the slow first write finishes.
+    rerender({ id: null });
+    rerender({ id: 2 });
+    await act(async () => { posts()[0].resolve({ unread: 1, followUp: 1 }); });
+    expect(posts()).toHaveLength(1);
+    expect(pending.filter((p) => p.path.startsWith("/api/inbox?"))).toHaveLength(1);
+    vi.doUnmock("./api");
+  });
 });

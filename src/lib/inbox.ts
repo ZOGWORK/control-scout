@@ -215,7 +215,10 @@ export function useInbox(userId: number | null): InboxState {
     gen.current++;
     setUnread(0); setFollowUpCount(0); setItems([]); setLoaded(false); setLoading(false); setError(null); setMore(false); setLoadingOlder(false);
     setFilterState("all"); filterRef.current = "all"; kept.current.clear(); cursor.current = null;
+    writes.current = Promise.resolve();
     loadedRef.current = false;
+    // Unmounting, or the account changing: anything still queued or in flight belongs to the old one.
+    return () => { gen.current++; };
   }, [userId]);
 
   const open = useCallback(() => { kept.current.clear(); load(); }, [load]);
@@ -263,8 +266,10 @@ export function useInbox(userId: number | null): InboxState {
   const send = useCallback((path: string, body: unknown) => {
     const g = gen.current;
     seq.current++;
+    // A write still waiting when the account changes (or the bell goes away) is dropped, never sent with the next
+    // account's cookie.
     const w = writes.current
-      .then(() => apiFetch<{ unread: number }>(path, { method: "POST", json: body }))
+      .then(() => (gen.current === g ? apiFetch<{ unread: number }>(path, { method: "POST", json: body }) : undefined))
       .catch(() => undefined)
       // The list is fetched once the last queued write is in (an earlier one's snapshot would undo the later change on screen).
       .then(() => { if (gen.current === g && writes.current === w) load(); });
