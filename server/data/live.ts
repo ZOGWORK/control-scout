@@ -26,6 +26,7 @@ import { loadSeason } from "../stats/load.js";
 import { resultsAtKey } from "../api/readiness.js";
 import type { EventRow } from "./bundle.js";
 import { CURRENT_SEASON } from "./seasons.js";
+import { localDate, onEventDates } from "../../src/shared/eventDay.js";
 import { LockBusy, isBusy, withDataLock } from "./lock.js";
 
 type Log = (m: string) => void;
@@ -45,29 +46,20 @@ export const MANUAL_REFRESH_MS = 20_000;
 // Which events are live
 // ---------------------------------------------------------------------------
 
-/** The calendar date (YYYY-MM-DD) at `now` in an IANA zone; null for an unknown zone. */
-export function localDate(now: number, zone: string): string | null {
-  try {
-    // en-CA formats as YYYY-MM-DD.
-    return new Intl.DateTimeFormat("en-CA", { timeZone: zone, year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date(now));
-  } catch { return null; }
-}
+export { localDate };
 
 export interface EventDates { type: string | null; start: string | null; end: string | null; timezone: string | null }
 
 /**
  * Is today (in the event's own time zone) one of the event's days? An event
  * without a known zone counts while its dates are today anywhere on Earth
- * (UTC−12 … UTC+14). Event types that never have matches never count.
+ * (UTC−12 … UTC+14). Event types that never have matches never count. The
+ * same calendar as the event's status (src/shared/eventDay.ts), so a "live"
+ * event and its live panel always agree.
  */
 export function isEventDay(e: EventDates, now = Date.now()): boolean {
-  if (!e.start || (e.type && NO_MATCH_TYPES.has(e.type))) return false;
-  const end = e.end ?? e.start;
-  const d = e.timezone ? localDate(now, e.timezone) : null;
-  if (d) return e.start <= d && d <= end;
-  const earliest = new Date(now - 12 * 3600_000).toISOString().slice(0, 10);
-  const latest = new Date(now + 14 * 3600_000).toISOString().slice(0, 10);
-  return e.start <= latest && end >= earliest;
+  if (e.type && NO_MATCH_TYPES.has(e.type)) return false;
+  return onEventDates(e, now);
 }
 
 export interface LiveEvent extends EventRow { total: number; played: number; awards: number }
