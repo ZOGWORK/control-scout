@@ -22,7 +22,11 @@ const only = opt("only")?.replace(/\\/g, "/").replace(/^[A-Za-z]:\/.*?\/Git(?=\/
 const BASE = `http://localhost:${WEB_PORT}`;
 
 /** A page, optionally in a state reached by `open` (a dialog, a sheet). */
-type Route = { path: string; name?: string; /** Must be visible for the scan to count (beyond the default checks). */ ready?: string; storage?: Record<string, unknown>; open?: (page: Page) => Promise<void> };
+type Route = {
+  path: string; name?: string;
+  /** Must be visible for the scan to count (beyond the default checks). `phoneReady` replaces it at phone size, for pages laid out differently there. */
+  ready?: string; phoneReady?: string;
+  storage?: Record<string, unknown>; open?: (page: Page) => Promise<void> };
 /** A returning scout: a team of their own, tracked teams and a coloured shortlist (personal keys, as synced). */
 const SCOUT: Record<string, unknown> = {
   "cs-personal:myTeam": { value: 18360, updatedAt: 1 },
@@ -48,7 +52,8 @@ const ROUTES: Route[] = [
   { path: "/download" },
   { path: "/scout" },
   { path: "/teams", ready: "tbody tr" },
-  { path: "/matches", ready: "tbody tr" },
+  // Phones show a summary card per match by default (the detailed table is opt-in there); wider screens the table.
+  { path: "/matches", ready: "tbody tr", phoneReady: "[data-records-summary] > li article" },
   { path: "/faq" },
   { path: "/events/2025/AUBRQ2", ready: "[data-glance-card]" },
 ];
@@ -84,7 +89,10 @@ async function sweep(browser: Browser, r: Route, vp: keyof typeof VIEWPORTS, sch
       if (/off the field|not found/i.test(h1)) return `not-found page ("${h1}")`;
       if (/couldn.t load|something went wrong/i.test(document.querySelector("main")?.textContent ?? "")) return "an error state on the page";
       return null;
-    }) ?? (r.ready && !(await page.locator(r.ready).first().isVisible()) ? `${r.ready} never appeared` : null);
+    }) ?? await (async () => {
+      const ready = vp === "phone" ? r.phoneReady ?? r.ready : r.ready;
+      return ready && !(await page.locator(ready).first().isVisible()) ? `${ready} never appeared` : null;
+    })();
   if (r.open) await r.open(page);
   // A page that settles its URL after loading (a redirect, a ?param written back) can navigate mid-scan: scan again.
   let res;

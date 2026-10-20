@@ -17,6 +17,7 @@ import { mkdirSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { WEB_PORT, ensureServers, stopServers } from "./lib/servers.js";
+import { findUnnamed } from "./lib/unnamed.js";
 
 const args = process.argv.slice(2);
 const opt = (f: string) => { const i = args.indexOf(`--${f}`); return i >= 0 ? args[i + 1] : undefined; };
@@ -108,18 +109,15 @@ async function normal(browser: Browser, r: (typeof ROUTES)[number], vp: Viewport
       const b = e.getBoundingClientRect();
       return b.width > 0 && b.right > vw + 1 && getComputedStyle(e).position !== "fixed" && !e.closest("[data-scroll-x], .overflow-x-auto, .overflow-auto, .overflow-x-scroll, .overflow-hidden");
     }).slice(0, 3).map((e) => `${e.tagName.toLowerCase()}.${String(e.className).split(" ").slice(0, 3).join(".")} right=${Math.round(e.getBoundingClientRect().right)}`);
-    const accName = (e: Element) => (e.getAttribute("aria-label") || e.getAttribute("aria-labelledby") || e.getAttribute("title") || (e as HTMLElement).innerText || "").trim()
-      || (e.id && document.querySelector(`label[for="${CSS.escape(e.id)}"]`)?.textContent?.trim()) || e.closest("label")?.textContent?.trim() || (e as HTMLInputElement).placeholder || "";
-    const unnamed = [...document.querySelectorAll("button, a[href], input:not([type=hidden]), select, textarea, [role=button], [role=tab], [role=switch], [role=combobox]")]
-      .filter((e) => { const s = getComputedStyle(e); return s.display !== "none" && s.visibility !== "hidden" && (e as HTMLElement).offsetParent !== null; })
-      .filter((e) => !accName(e)).slice(0, 5).map((e) => `${e.tagName.toLowerCase()}${e.getAttribute("role") ? `[role=${e.getAttribute("role")}]` : ""} ${(e as HTMLElement).outerHTML.slice(0, 120)}`);
     const text = (document.querySelector("main")?.textContent ?? "").trim().length;
     const mock = /lorem ipsum|placeholder data|sample data|mock|dummy/i.test(document.body.innerText) ? document.body.innerText.match(/.{0,40}(lorem ipsum|placeholder data|sample data|mock|dummy).{0,40}/i)?.[0] ?? "" : "";
-    return { overflow, wide, unnamed, text, mock };
+    return { overflow, wide, text, mock };
   });
+  // Controls with no accessible name: rendered ones, then those inside closed <details>, checked opened (scripts/lib/unnamed.ts).
+  const unnamed = await page.evaluate(findUnnamed);
   for (const o of checks.overflow) f("h-overflow", o);
   for (const w of checks.wide) f("wider-than-viewport", w);
-  for (const u of checks.unnamed) f("unnamed-control", u);
+  for (const u of unnamed) f("unnamed-control", u);
   if (checks.text < 40) f("blank", `main has ${checks.text} chars of text`);
   if (checks.mock) f("mock-text", checks.mock);
   await page.screenshot({ path: join(out, `${vp}-${name(r.path)}.png`), fullPage: false });
