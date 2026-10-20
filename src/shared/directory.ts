@@ -12,11 +12,13 @@ export const DIRECTORY_MAX_PAGE_SIZE = 100;
 export const DIRECTORY_QUERY_MAX = 64;
 export const DIRECTORY_QUERY_MAX_WORDS = 6;
 
-/** A search's words: case- and accent-folded, split at anything that isn't a letter or digit (as the
- *  server's index splits names), so "  Équipe-Robo! " is ["equipe", "robo"]. Only letters and digits
- *  survive, so a word can never carry SQL or full-text syntax. */
+/** A search's words, split at anything that isn't a letter, digit or accent mark (as the server's index
+ *  splits names), so "  Équipe-Robo! " is ["Équipe", "Robo"]. Composed (NFC) like stored names, but not
+ *  folded here: the index's own tokenizer folds case and accents on both sides, so every script matches
+ *  as stored (a decomposing fold would split Korean syllables into letters the index never holds).
+ *  Only letters, digits and marks survive, so a word can never carry SQL or full-text syntax. */
 export function directorySearchWords(q: string): string[] {
-  return q.normalize("NFKD").replace(/\p{M}+/gu, "").toLowerCase().split(/[^\p{L}\p{N}]+/u).filter(Boolean);
+  return q.normalize("NFC").split(/[^\p{L}\p{N}\p{M}]+/u).filter((w) => /[\p{L}\p{N}]/u.test(w));
 }
 
 /** Why a ?q= can't be searched (null when it can): too long, a control character, or too many words. */

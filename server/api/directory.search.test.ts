@@ -32,6 +32,8 @@ const TEAMS: [number, string | null, string | null, string | null, string | null
   [5001, "Robo Moose", "Toronto", "ON", "Canada"],
   [7000, "São Paulo Bots", "São Paulo", "SP", "Brazil"],
   [254, "Team 254 Fans", "San Jose", "CA", "USA"],
+  [8000, "로봇 전사", "서울", null, "South Korea"],
+  [8001, "ガンダム工房", "東京", null, "Japan"],
 ];
 
 beforeAll(async () => {
@@ -78,6 +80,15 @@ describe("GET /api/directory/:season?q=", () => {
     expect(await teams("q=montreal")).toEqual([5000]);
     expect(await teams(`q=${enc("sao paulo")}`)).toEqual([7000]);
     expect(await teams(`q=${enc("SÃO")}`)).toEqual([7000]);
+    expect(await teams(`q=${enc("équipe")}`)).toEqual([5000]); // typed decomposed (e + combining accent)
+  });
+
+  it("matches other scripts as stored", async () => {
+    expect(await teams(`q=${enc("서울")}`)).toEqual([8000]);
+    expect(await teams(`q=${enc("로봇")}`)).toEqual([8000]);
+    expect(await teams(`q=${enc("東京")}`)).toEqual([8001]);
+    expect(await teams(`q=${enc("ガンダム")}`)).toEqual([8001]);
+    expect(await teams(`q=${enc("́")}`)).toEqual([]); // a lone accent mark is no word
   });
 
   it("stays inside the season and country, and keeps teams without results", async () => {
