@@ -237,6 +237,26 @@ describe("useInbox: replies in order", () => {
     vi.doUnmock("./api");
   });
 
+  it("more than 200 rows toggled in the Follow up view: every one is asked for, in batches of 200", async () => {
+    const { result, act } = await harness();
+    const rows = Array.from({ length: 210 }, (_, k) => flagged(1000 - k));
+    await act(async () => { result.current.setFilter("followUp"); });
+    await act(async () => { pending.at(-1)!.resolve(fpage(rows)); });
+    await act(async () => { result.current.setFollowUp(rows.map((i) => i.id), false); });
+    await act(async () => { pending.find((p) => p.path === "/api/inbox/follow-up")!.resolve({}); });
+    const keepOf = (path: string) => (/keep=([0-9,]+)/.exec(path)?.[1] ?? "").split(",").filter(Boolean).map(Number);
+    const first = pending.at(-1)!;
+    expect(keepOf(first.path)).toHaveLength(200);
+    await act(async () => { first.resolve(fpage(rows.filter((i) => keepOf(first.path).includes(i.id)).map((i) => ({ ...i, followUp: false })))); });
+    const second = pending.at(-1)!;
+    expect(keepOf(second.path)).toHaveLength(10);
+    expect(new Set([...keepOf(first.path), ...keepOf(second.path)]).size).toBe(210);
+    await act(async () => { second.resolve(fpage(rows.filter((i) => keepOf(second.path).includes(i.id)).map((i) => ({ ...i, followUp: false })))); });
+    expect(result.current.items).toHaveLength(210);
+    expect(result.current.items.every((i) => !i.followUp)).toBe(true);
+    vi.doUnmock("./api");
+  });
+
   it("a live refresh waits while a write is queued (it would bring back the old state)", async () => {
     const { result, act } = await harness();
     await act(async () => { result.current.load(); });
