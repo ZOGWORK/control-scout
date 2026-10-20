@@ -173,7 +173,7 @@ function PickedHeader({ icon: Icon, number, title, sub, to, openLabel, onClear }
     <div className="mb-4 grid grid-cols-[auto_minmax(0,1fr)_auto] items-start gap-x-3 gap-y-2 sm:grid-cols-[auto_minmax(0,1fr)_auto_auto]">
       <span className="col-start-1 row-start-1 grid size-10 shrink-0 place-items-center rounded-xl bg-accent/[0.12] text-accent"><Icon className="size-5" /></span>
       <div className="col-start-2 row-start-1 min-w-0 self-center">
-        <h2 className="font-display text-xl font-semibold leading-snug text-foreground [overflow-wrap:anywhere]">
+        <h2 className="font-display text-lg font-semibold leading-snug text-foreground sm:text-xl [overflow-wrap:anywhere]">
           {number != null && <span className="whitespace-nowrap font-mono tabular-nums">{number}</span>}
           {number != null && title && " "}{title}
         </h2>
