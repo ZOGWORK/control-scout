@@ -9,6 +9,7 @@ import type { Database, SqlValue } from "sql.js";
 import type { EventDetail, EventSummary, FieldRow, MatchPredictionView, MatchView, SearchHit, TeamEventRow, TeamInfo, TeamProfile, TeamSeasonStats } from "../../shared/api";
 import { eventTypeLabel } from "../../shared/labels";
 import { localToUtcMs } from "../../shared/time";
+import { eventStatus } from "../../shared/eventDay";
 import { normalize, scoreWords, words } from "../../shared/fuzzy";
 import { regionNames } from "../../shared/regions";
 
@@ -189,19 +190,12 @@ export function readMatchViews(sdb: SeasonDb, f: { code?: string; team?: number 
 
 // --- Events (server/api/events.ts) ------------------------------------------------
 
-function statusOf(start: string | null, end: string | null, played: number, total: number): EventSummary["status"] {
-  const t = new Date().toISOString().slice(0, 10);
-  if (start && start > t) return "upcoming";
-  if ((end ?? start ?? "") < t) return "finished";
-  return played && played >= total && total > 0 ? "finished" : "live";
-}
-
 function summary(r: any): EventSummary {
   const played = Number(r.played ?? 0), total = Number(r.total ?? 0);
   return {
     season: Number(r.season), code: r.code, name: r.name, type: r.type, typeLabel: eventTypeLabel(r.type), divisionCode: r.division_code ?? null,
     region: r.region, city: r.city, state: r.state, country: r.country, venue: r.venue ?? null, start: r.start, end: r.end, remote: !!r.remote,
-    teams: Number(r.teams ?? 0), matchesPlayed: played, matchesTotal: total, status: statusOf(r.start, r.end, played, total),
+    teams: Number(r.teams ?? 0), matchesPlayed: played, matchesTotal: total, status: eventStatus(r, played, total),
   };
 }
 
