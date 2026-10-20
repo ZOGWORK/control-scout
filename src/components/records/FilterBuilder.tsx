@@ -3,7 +3,7 @@
 // preview of the filter, a live count of matching rows while editing, inline
 // validation per condition, a searchable stat picker with descriptions, and
 // saved filters (this device, no login).
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { ArrowLeft, Bookmark, CornerDownRight, ListFilter, Loader2, Pencil, Plus, Save, Trash2, X } from "lucide-react";
 import { OP_LABELS, parseFilter, serializeFilter, type FilterGroup, type FilterOp } from "../../shared/filterDsl";
 import { STAT_BY_KEY, statFor, type RecordScope } from "../../shared/statCatalog";
@@ -33,6 +33,10 @@ export interface FilterBuilderProps {
   countFor: (f: FilterGroup | null) => Promise<number>;
   /** "team-events", "teams", "matches". */
   noun: string;
+  /** Which side opens: the builder (default) or the saved filters. */
+  initialView?: "build" | "saved";
+  /** Changes on every request for `initialView`: asked again while open, the builder turns to that side (edits kept). */
+  viewRequest?: number;
 }
 
 /** Saved filters of a kind, kept in step with other tabs / tables. */
@@ -48,11 +52,18 @@ export function useSavedFilters(scope: RecordScope): SavedFilter[] {
   return useMemo(() => list.filter((s) => s.kind === kind), [list, kind]);
 }
 
-export function FilterBuilder({ open, onOpenChange, scope, predictable, value, onApply, countFor, noun }: FilterBuilderProps) {
+export function FilterBuilder({ open, onOpenChange, scope, predictable, value, onApply, countFor, noun, initialView = "build", viewRequest }: FilterBuilderProps) {
   const [root, setRoot] = useState<BGroup>(() => toBuilder(value));
-  const [view, setView] = useState<"build" | "saved">("build");
+  const [view, setView] = useState<"build" | "saved">(initialView);
   // Fresh from the table's filter every time the builder opens.
-  useEffect(() => { if (open) { setRoot(toBuilder(value)); setView("build"); } }, [open]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { if (open) { setRoot(toBuilder(value)); setView(initialView); } }, [open]); // eslint-disable-line react-hooks/exhaustive-deps
+  // A side asked for while the builder is already open (the phone sheet's Saved filters / Add a condition).
+  const seenRequest = useRef(viewRequest);
+  useEffect(() => {
+    if (viewRequest === seenRequest.current) return;
+    seenRequest.current = viewRequest;
+    if (open) setView(initialView);
+  }, [viewRequest]); // eslint-disable-line react-hooks/exhaustive-deps
   const { filter, errors } = useMemo(() => fromBuilder(root, scope), [root, scope]);
   const conds = useMemo(() => { let n = 0; const walk = (g: BGroup) => g.children.forEach((c) => (c.kind === "cond" ? n++ : walk(c))); walk(root); return n; }, [root]);
   const key = filter ? serializeFilter(filter) : "";

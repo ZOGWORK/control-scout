@@ -13,16 +13,21 @@ import { cn } from "../cn";
 /** How long typing pauses before the search runs. */
 export const DIRECTORY_SEARCH_DEBOUNCE_MS = 300;
 
-export function DirectorySearch({ value, onSearch, where, className }: {
+export function DirectorySearch({ value, onSearch, where, draft, className }: {
   /** The URL's search (null for none). */
   value: string | null;
   /** Put a search in the URL (null clears it); `replace` refines the current history entry. */
   onSearch: (q: string | null, replace: boolean) => void;
   /** "Canada", "every country": said in the box's label. */
   where: string;
+  /**
+   * Typed text not yet in the URL, kept by the page: when the box is swapped for another (the phone and wide
+   * layouts each have their own), the new one carries on with it instead of dropping it.
+   */
+  draft?: { current: string | null };
   className?: string;
 }) {
-  const [text, setText] = useState(value ?? "");
+  const [text, setText] = useState(() => draft?.current ?? value ?? "");
   const written = useRef(value ?? "");
   const timer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   // The latest onSearch, for a search that runs after a pause: a sort or country picked meanwhile must stay.
@@ -33,7 +38,7 @@ export function DirectorySearch({ value, onSearch, where, className }: {
   // Changed from outside (Back/Forward, Clear search, a link): show it, and drop any search still waiting.
   useEffect(() => {
     const v = value ?? "";
-    if (v !== written.current) { stop(); written.current = v; setText(v); }
+    if (v !== written.current) { stop(); written.current = v; setText(v); if (draft) draft.current = null; }
   }, [value]);
   // Back/Forward drop a search still waiting even when both entries have the same search (a sort changed
   // between them): run later, it would push a new entry and wipe the Forward history.
@@ -44,10 +49,18 @@ export function DirectorySearch({ value, onSearch, where, className }: {
     stop();
     written.current = value ?? "";
     setText(value ?? "");
+    if (draft) draft.current = null;
   }, [loc.key]); // eslint-disable-line react-hooks/exhaustive-deps
+  // A draft from the box this one replaced: its search runs after the usual pause. (After the effect above,
+  // which on mount would take the waiting search for one left over from a Back.)
+  useEffect(() => {
+    const d = draft?.current;
+    if (d != null && d.trim() !== (value ?? "")) timer.current = setTimeout(() => commit(d), DIRECTORY_SEARCH_DEBOUNCE_MS);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const commit = (raw: string) => {
     stop();
+    if (draft) draft.current = null;
     const q = raw.trim();
     if (q === written.current) return;
     const replace = !!q && !!written.current;
@@ -56,6 +69,7 @@ export function DirectorySearch({ value, onSearch, where, className }: {
   };
   const change = (v: string) => {
     setText(v);
+    if (draft) draft.current = v;
     stop();
     timer.current = setTimeout(() => commit(v), DIRECTORY_SEARCH_DEBOUNCE_MS);
   };
