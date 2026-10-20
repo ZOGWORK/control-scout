@@ -470,7 +470,7 @@ describe("useInbox: failed writes", () => {
   });
 
   it("mark all read refused: every row is unread again and the failure is reported once, with a retry of the same range", async () => {
-    const { result, act, posts, unavailable } = await harness([item(3, { read: false }), item(2, { read: false, followUp: true })]);
+    const { result, act, page, posts, unavailable } = await harness([item(3, { read: false }), item(2, { read: false, followUp: true })]);
     await act(async () => { result.current.markAllRead(); });
     expect(result.current.unread).toBe(0);
     await act(async () => { posts("/api/inbox/read")[0].reject(unavailable()); });
@@ -478,9 +478,20 @@ describe("useInbox: failed writes", () => {
     expect(result.current.unread).toBe(2);
     expect(result.current.allReadFailed).toEqual({ upTo: 3 });
     expect(result.current.failures).toEqual([]);
+    // Item 4 arrives before Retry; the refresh still shows 3 and 2 unread, so the alert stays.
+    await act(async () => { pending.at(-1)!.resolve(page([item(4, { read: false }), item(3, { read: false }), item(2, { read: false, followUp: true })])); });
+    expect(result.current.allReadFailed).toEqual({ upTo: 3 });
+    // Retry covers the same range: 4 (newer) stays in the badge.
     await act(async () => { result.current.retryAllRead(); });
     expect(posts("/api/inbox/read")[1].json).toEqual({ all: true, upTo: 3 });
     expect(result.current.allReadFailed).toBeNull();
+    expect(result.current.unread).toBe(1);
+    // Saved, but the reply is lost: the alert comes back, then goes once a refresh shows the range read.
+    await act(async () => { posts("/api/inbox/read")[1].reject(unavailable()); });
+    expect(result.current.allReadFailed).toEqual({ upTo: 3 });
+    await act(async () => { pending.at(-1)!.resolve(page([item(4, { read: false }), item(3), item(2, { followUp: true })])); });
+    expect(result.current.allReadFailed).toBeNull();
+    expect(result.current.unread).toBe(1);
   });
 
   it("a write refused after the account changed reports nothing to the next account and is never retried there", async () => {
