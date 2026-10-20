@@ -50,6 +50,7 @@ const ROUTES: Route[] = [
   { path: "/teams", ready: "tbody tr" },
   { path: "/matches", ready: "tbody tr" },
   { path: "/faq" },
+  { path: "/methodology" },
   { path: "/events/2025/AUBRQ2", ready: "[data-glance-card]" },
 ];
 const VIEWPORTS = { desktop: { width: 1440, height: 1000 }, phone: { width: 390, height: 844 } } as const;
