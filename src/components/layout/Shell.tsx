@@ -1,7 +1,7 @@
 // App shell — Control Point's modern layout: a collapsible left sidebar with
 // an animated active pill, a slim top bar with the search pill, and a bottom
 // tab bar on phones.
-import { useEffect, useRef, useState, type ComponentType, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ComponentType, type ReactNode, type Ref } from "react";
 import { Ambient } from "./Ambient";
 import { Link, NavLink, useLocation } from "react-router-dom";
 import { m, MotionConfig } from "motion/react";
@@ -137,7 +137,7 @@ const MOBILE_TABS: NavItem[] = [
 
 const tabClass = (on: boolean) => cn("flex min-h-[60px] flex-1 flex-col items-center justify-center gap-1 text-xs font-medium", on ? "text-accent-text" : "text-text-muted");
 
-function MobileTabs({ onMore }: { onMore: () => void }) {
+function MobileTabs({ onMore, moreRef }: { onMore: () => void; moreRef: Ref<HTMLButtonElement> }) {
   const { row, active } = useYoursRow();
   return (
     <nav className="fixed inset-x-0 bottom-0 z-40 flex border-t border-line bg-secondary pb-[env(safe-area-inset-bottom)] md:hidden" aria-label="Main">
@@ -150,7 +150,7 @@ function MobileTabs({ onMore }: { onMore: () => void }) {
           <t.icon className="size-5" />{row.label}
         </NavLink>
       ))}
-      <button onClick={onMore} className="flex min-h-[60px] flex-1 flex-col items-center justify-center gap-1 text-xs font-medium text-text-muted"><Menu className="size-5" />More</button>
+      <button ref={moreRef} onClick={onMore} className="flex min-h-[60px] flex-1 flex-col items-center justify-center gap-1 text-xs font-medium text-text-muted"><Menu className="size-5" />More</button>
     </nav>
   );
 }
@@ -171,6 +171,10 @@ function NoDataNotice() {
 export function Shell({ children }: { children: ReactNode }) {
   const [collapsed, setCollapsed] = useState(() => { try { return localStorage.getItem("cs-sidebar") === "1"; } catch { return false; } });
   const [more, setMore] = useState(false);
+  // The More sheet and anything opened from it (What's new) hand focus back to More when they close, even when
+  // their own opener has gone (a row in the closed sheet) or never had focus (Safari doesn't focus a tapped button).
+  const moreRef = useRef<HTMLButtonElement>(null);
+  const toMore = () => moreRef.current;
   const mainRef = useRef<HTMLElement>(null);
   // The page scrolls the document (so phone browsers fold their toolbars away). Back/forward return to where
   // the page was left once its data is back, and a new page starts at the top (src/lib/pageScroll.ts).
@@ -223,10 +227,10 @@ export function Shell({ children }: { children: ReactNode }) {
               <div aria-hidden className="scroll-shield" />
             </div>
           </div>
-          <MobileTabs onMore={() => setMore(true)} />
+          <MobileTabs onMore={() => setMore(true)} moreRef={moreRef} />
           <WhatsNewHost />
           <Sheet open={more} onOpenChange={setMore}>
-            <SheetContent side="left" className="w-[85vw] max-w-[320px] p-3">
+            <SheetContent side="left" returnFocus={toMore} className="w-[85vw] max-w-[320px] p-3">
               <SheetTitle className="px-2 pb-2 pt-1 font-display text-base">Control Scout</SheetTitle>
               <nav className="space-y-4" aria-label="All pages">
                 {sections.map((s, i) => (
@@ -235,7 +239,7 @@ export function Shell({ children }: { children: ReactNode }) {
                     <SectionRows items={s.items} onNavigate={() => setMore(false)} />
                   </div>
                 ))}
-                <WhatsNewRow onOpen={() => setMore(false)} />
+                <WhatsNewRow onOpen={() => setMore(false)} returnTo={toMore} />
               </nav>
             </SheetContent>
           </Sheet>
