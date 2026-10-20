@@ -9,7 +9,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { MemoryRouter } from "react-router-dom";
 import { RouteErrorBoundary } from "./RouteErrorBoundary";
 import { appReload, isChunkLoadError } from "../lib/chunkError";
-import { publishPending, type PendingItem } from "../lib/pendingWork";
+import { publishPending, volatileWorkCount, type PendingItem } from "../lib/pendingWork";
 import { commentAttempt, loadCommentAttempts, resetCommentAttempts, sendComment } from "../lib/commentAttempts";
 
 let reloads = 0;
@@ -95,6 +95,17 @@ describe("unsent work and a reload", () => {
     fireEvent.click(await screen.findByRole("button", { name: /Reload Control Scout/ }));
     expect(reloads).toBe(0);
     expect(screen.getByRole("alert")).toBeTruthy();
+  });
+
+  it("an unstored one that another tab replaced with a stored copy no longer counts", async () => {
+    vi.spyOn(Storage.prototype, "setItem").mockImplementation(() => { throw new Error("QuotaExceededError"); });
+    await sendComment(place, "Fast intake", "op-4", refuse);
+    vi.mocked(Storage.prototype.setItem).mockRestore();
+    expect(volatileWorkCount()).toBe(1);
+    const key = "cs-comment-try:1:901:e-1";
+    window.dispatchEvent(new StorageEvent("storage", { key, newValue: JSON.stringify({ body: "Fast intake (other tab)", opId: "op-5", at: Date.now() }) }));
+    expect(commentAttempt(1, "901", "e-1")?.opId).toBe("op-5");
+    expect(volatileWorkCount()).toBe(0);
   });
 
   it("one still on its way that this device couldn't store counts too (its answer hasn't come)", async () => {
