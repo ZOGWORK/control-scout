@@ -49,7 +49,7 @@ describe("methodology ledger", () => {
     expect(card.getByText("Season replay, scored")).toBeTruthy();
     expect(card.queryByText(/Every match prediction this site made/)).toBeNull();
     expect(card.getByText(/Season replay · not calls made in advance · the headline/)).toBeTruthy();
-    expect(card.getByText("The season replay leads until a season has 300 scored live calls (2026–27 BIOBUZZ: 33 so far), then live does.", { exact: false })).toBeTruthy();
+    expect(card.getByText("The headline is the 2025–26 DECODE replay, the newest with at least 1,000 replayed matches. Live calls take over once a season has 300 scored (2026–27 BIOBUZZ: 33 so far).", { exact: false })).toBeTruthy();
   });
 
   it("titles live numbers as live calls, shows each mode's sample size, and the replay's coverage", async () => {

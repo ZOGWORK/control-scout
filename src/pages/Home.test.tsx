@@ -155,7 +155,7 @@ describe("Home", () => {
     expect(screen.getByText("Season replay · the headline")).toBeTruthy();
     expect(screen.getByText("63 correct")).toBeTruthy();
     expect(screen.getByText("27 missed")).toBeTruthy();
-    expect(screen.getByText(/The season replay leads until a season has 200 scored live calls \(2026–27: 2 so far\), then live does\./)).toBeTruthy();
+    expect(screen.getByText(/The headline is the 2025–26 replay, the newest with at least 1,000 replayed matches\. Live calls take over once a season has 200 scored \(2026–27: 2 so far\)\./)).toBeTruthy();
     fireEvent.click(screen.getByRole("radio", { name: "Logged live, 2 scored" }));
     expect(screen.getByText("Logged live · early sample")).toBeTruthy();
     expect(screen.getByLabelText("No percentage yet")).toBeTruthy();
@@ -177,6 +177,7 @@ describe("Home", () => {
     mount();
     expect(screen.getByRole("radio", { name: "Season replay, 207 scored" }).getAttribute("aria-checked")).toBe("true");
     expect(screen.getByText("Season replay", { selector: "p" })).toBeTruthy(); // not "the headline": nothing leads yet
+    expect(screen.getByText(/No headline yet: a replay needs 1,000 matches and live calls 300 scored/)).toBeTruthy();
     expect(screen.getByText("126 correct")).toBeTruthy();
     expect(screen.getByText("72 missed")).toBeTruthy();
     expect(screen.getByText(/207 of 231 scored matches replayed; 24 had a robot missing/)).toBeTruthy();

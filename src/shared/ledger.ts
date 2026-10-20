@@ -51,16 +51,19 @@ export function brierSkill(b: Pick<AccuracyBlock, "brier" | "baselineBrier">): n
   return b.baselineBrier > 0 ? 1 - b.brier / b.baselineBrier : null;
 }
 
-/** The headline rule in one sentence, saying which mode leads now and how far the newest live season has got. */
+/**
+ * The headline rule in words: which mode leads now (or that nothing does yet, and what the card opens on
+ * instead), both minimums, and how far the newest live season has got.
+ */
 export function headlineRule(t: Pick<TrackRecord, "headline" | "seasons" | "liveThreshold">): string {
   const n = (x: number) => x.toLocaleString("en-US");
+  const label = (season: number) => t.seasons.find((s) => s.season === season)?.label ?? String(season);
   const h = t.headline;
-  if (h?.kind === "live") {
-    const label = t.seasons.find((s) => s.season === h.season)?.label ?? String(h.season);
-    return `Live calls lead: ${label} has ${n(h.n)} scored (the season replay leads until a season has ${n(t.liveThreshold)}).`;
-  }
   const p = liveProgress(t);
-  return `The season replay leads until a season has ${n(t.liveThreshold)} scored live calls${p ? ` (${p.label}: ${n(p.n)} so far)` : ""}, then live does.`;
+  const so = p ? ` (${p.label}: ${n(p.n)} so far)` : "";
+  if (h?.kind === "live") return `Live calls lead: ${label(h.season)} has ${n(h.n)} scored, past the ${n(t.liveThreshold)} a season needs before live replaces the replay.`;
+  if (h) return `The headline is the ${label(h.season)} replay, the newest with at least ${n(REPLAY_HEADLINE_MIN)} replayed matches. Live calls take over once a season has ${n(t.liveThreshold)} scored${so}.`;
+  return `No headline yet: a replay needs ${n(REPLAY_HEADLINE_MIN)} matches and live calls ${n(t.liveThreshold)} scored${so}, so this opens on the newest season's replay.`;
 }
 
 /** Which mode a number is, in words every ledger surface uses. */
