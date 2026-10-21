@@ -20,6 +20,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "./ui/overlay";
 import { Skeleton } from "./ui/basic";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "./ui/controls";
 import { cn } from "./cn";
+import { blendedIndex, type Reliability } from "../shared/reliability";
 
 type Side = "red" | "blue";
 const SIDE: Record<Side, { name: string; text: string; card: string; edge: string }> = {
@@ -89,7 +90,7 @@ function Call({ m }: { m: MatchView }) {
           {p.factors?.length ? (
             <details className="group mt-2" open>
               <summary className="cursor-pointer select-none text-xs font-medium text-muted-foreground">Why</summary>
-              <FactorList factors={p.factors.slice(0, 3)} className="mt-1.5" />
+              <FactorList factors={p.factors.slice(0, 3)} reasons={p.reasons} className="mt-1.5" />
             </details>
           ) : null}
         </>
@@ -237,6 +238,7 @@ function TeamCard({ side, season, t, info, ws, watch }: {
         {/* Penalty OPR can come out below zero (a team that draws fewer than average): only a real giveaway is worth a line. */}
         {opr?.pen != null && opr.pen >= 0.5 && <> · gives away <span className="text-foreground">{num(opr.pen)}</span> pen. pts a match</>}
       </p>
+      {info?.reliability && <ReliabilityLine r={info.reliability} />}
       {info && info.trend.length >= 2 && (
         <div className="mt-2 flex items-center gap-2">
           <span className="text-[11px] text-muted-foreground">OPR by event</span>
@@ -244,7 +246,7 @@ function TeamCard({ side, season, t, info, ws, watch }: {
           <span className="text-[11px] tabular-nums text-muted-foreground">{num(info.trend[0].opr)} → {num(info.trend[info.trend.length - 1].opr)}</span>
         </div>
       )}
-      <TeamTake team={t.number} season={season} ws={ws} />
+      <TeamTake team={t.number} season={season} ws={ws} reliability={info?.reliability ?? null} />
     </article>
   );
 }
@@ -271,7 +273,17 @@ function OprSplitBar({ opr }: { opr: OprSplit | null }) {
 const avg = (x: { avg: number }) => (Number.isInteger(x.avg) ? String(x.avg) : x.avg.toFixed(1));
 
 /** The workspace's take on one team: nothing without a workspace (OPR-only), else consensus or a way to start. */
-function TeamTake({ team, season, ws }: { team: number; season: number; ws: ReportWorkspaceProps["ws"] }) {
+/** The public reliability estimate (match data only), with what it rests on. */
+function ReliabilityLine({ r }: { r: Reliability }) {
+  return (
+    <p className="mt-1 text-xs text-muted-foreground" data-testid="report-reliability">
+      Reliability (est.) <span className="font-medium text-foreground">{r.index}/100</span>{r.fieldIndex != null && <> · field {r.fieldIndex}</>}
+      {" "}· last {r.recent.matches}: {r.recent.noShows} no-show{r.recent.noShows === 1 ? "" : "s"}, {r.recent.nearZero} near-zero
+    </p>
+  );
+}
+
+function TeamTake({ team, season, ws, reliability }: { team: number; season: number; ws: ReportWorkspaceProps["ws"]; reliability: Reliability | null }) {
   if (!ws) return null;
   const d: TeamConsensus | undefined = ws.state.data?.teams.find((x) => x.team === team);
   const scout = (
@@ -292,6 +304,11 @@ function TeamTake({ team, season, ws }: { team: number; season: number; ws: Repo
       <p className="text-[11px] text-muted-foreground">
         Your scouts: {int(d.entries)} {d.entries === 1 ? "entry" : "entries"} by {int(d.scouts)} {d.scouts === 1 ? "scout" : "scouts"}{d.lastUpdated ? ` · ${agoShort(d.lastUpdated)}` : ""}
       </p>
+      {reliability && d.reliabilityNotes && (
+        <p className="text-[11px] text-muted-foreground" data-testid="report-reliability-blended">
+          Reliability with your notes <span className="font-medium text-foreground">{blendedIndex(reliability, d.reliabilityNotes)}/100</span> · {d.reliabilityNotes.flagged} of {d.reliabilityNotes.matchEntries} match entries marked broken or disabled (only your workspace sees this)
+        </p>
+      )}
       {d.ratings.length > 0 && (
         <dl className="grid grid-cols-2 gap-x-3 gap-y-0.5 text-xs sm:grid-cols-3">
           {d.ratings.slice(0, 3).map((x) => (

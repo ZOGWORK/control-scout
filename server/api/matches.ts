@@ -8,7 +8,8 @@
 import { all, get } from "../db.js";
 import type { EventDetail, MatchDetail, MatchPredictionView, MatchView } from "../../src/shared/api.js";
 import { eventDetail } from "./events.js";
-import { liveForecaster } from "../predict/engine.js";
+import { liveForecaster, recentRecords } from "../predict/engine.js";
+import type { RecentRecord } from "@control-scout/predict-engine";
 import { localToUtcMs } from "../data/time.js";
 import { isLegacy } from "../data/seasons.js";
 
@@ -55,6 +56,7 @@ export async function matchViews(f: MatchFilter, opts: { predictUnplayed?: boole
   // ratings are carried over without a scoring baseline, so win odds stand but point predictions don't.
   const noScoreBasis = !!forecaster && !forecaster.seasonEvents(f.season).length;
   const out: MatchView[] = [];
+  let recent: Map<number, RecentRecord> | undefined;
   for (const r of rows) {
     const key = `${r.level}:${r.series}:${r.number}`;
     const l = lu.get(`${r.code}|${key}`) ?? { red: [], blue: [] };
@@ -70,11 +72,12 @@ export async function matchViews(f: MatchFilter, opts: { predictUnplayed?: boole
     else if (!r.played && forecaster) {
       const red = l.red.filter((t) => t.onField).map((t) => t.number), blue = l.blue.filter((t) => t.onField).map((t) => t.number);
       if (red.length === 2 && blue.length === 2) {
-        const x = forecaster.explain(f.season, red, blue, r.level, r.code);
+        recent ??= await recentRecords(f.season, rows.flatMap((x: any) => { const ll = lu.get(`${x.code}|${x.level}:${x.series}:${x.number}`); return ll ? [...ll.red, ...ll.blue].map((t) => t.number) : []; }));
+        const x = forecaster.explain(f.season, red, blue, r.level, r.code, recent);
         // A live event's page polls this every 30 s and should mostly get a 304, so the body must not
         // change unless the data did: no predictedAt (a call from today's ratings isn't logged at a
         // moment), and pRed to 4 places (the ratings decay with the clock, moving it ~1e-9 per read).
-        if (x) prediction = { pRed: stableP(x.winProbA), redMean: x.predictedScoreA, blueMean: x.predictedScoreB, tier: x.confidence.tier, kind: "now", predictedAt: null, factors: x.factors, ...(noScoreBasis ? { noScoreBasis: true } : {}) };
+        if (x) prediction = { pRed: stableP(x.winProbA), redMean: x.predictedScoreA, blueMean: x.predictedScoreB, tier: x.confidence.tier, kind: "now", predictedAt: null, factors: x.factors, ...(x.reasons.length ? { reasons: x.reasons } : {}), ...(noScoreBasis ? { noScoreBasis: true } : {}) };
       }
     }
     out.push({

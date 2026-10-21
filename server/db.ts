@@ -1120,6 +1120,27 @@ CREATE TABLE team_report_cards (
 CREATE INDEX team_report_cards_team ON team_report_cards (team, season);
 `,
   },
+  {
+    version: 37,
+    name: "reliability index",
+    sql: `
+-- Per team, how dependable its robot has been (rules: src/shared/reliability.ts, job: server/stats/reliability.ts):
+-- qualification no-shows, DQs, estimated near-zero matches, the swing of its estimated contribution, penalties
+-- and the report card's miss spread. Public match data only: workspace scouting never gets here. code '' = the
+-- whole season, else one event; team 0 with code '' = the season's field (its idx: the field-average index).
+-- Rates and ratios are stored shrunk toward the field; counts raw. Rewritten whole per season by the stats job.
+CREATE TABLE team_reliability (
+  season INTEGER NOT NULL, code TEXT NOT NULL, team INTEGER NOT NULL,
+  matches INTEGER NOT NULL, no_shows INTEGER NOT NULL, dqs INTEGER NOT NULL, near_zero INTEGER NOT NULL, contrib_n INTEGER NOT NULL,
+  recent_matches INTEGER NOT NULL, recent_no_shows INTEGER NOT NULL, recent_near_zero INTEGER NOT NULL,
+  no_show_rate REAL, dq_rate REAL, near_zero_rate REAL, swing REAL, penalty_ratio REAL, predictability_ratio REAL,
+  idx INTEGER NOT NULL,
+  computed_at TEXT NOT NULL,
+  PRIMARY KEY (season, code, team)
+);
+CREATE INDEX team_reliability_team ON team_reliability (team, season);
+`,
+  },
 ];
 
 export type Db = Client;

@@ -26,6 +26,7 @@
 // A cutoff the season can't give (too few teams with enough matches yet) raises no flag.
 import type { EventDetail, MatchView } from "./api";
 import type { TeamConsensus } from "./consensus";
+import type { Reliability } from "./reliability";
 
 export const FLAG_TOP_SHARE = 0.15;
 export const MIN_SEASON_MATCHES = 5;
@@ -59,6 +60,8 @@ export interface ReportTeam {
   /** Event OPR by event this season, oldest first (events with MIN_EVENT_MATCHES played). */
   trend: TrendPoint[];
   flags: DataFlag[];
+  /** This season's reliability index (public match data only; null: not computed). */
+  reliability?: Reliability | null;
 }
 
 /** GET /api/events/:season/:code/matches/:key/report: public, the same for everyone. */

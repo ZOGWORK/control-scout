@@ -15,6 +15,7 @@ import { regionNames } from "../../src/shared/regions.js";
 import { computeRecords, fillAdvancementOdds, fillRecordPredictions } from "./records.js";
 import { snapshotRankings } from "./rankings.js";
 import { computeReportCards } from "./reportCards.js";
+import { computeReliability } from "./reliability.js";
 
 type Log = (m: string) => void;
 const r1 = (x: number | null | undefined) => (x == null || !Number.isFinite(x) ? null : Math.round(x * 100) / 100);
@@ -420,6 +421,8 @@ export async function runStats(o: StatsOptions = {}): Promise<void> {
     if (!events.length) { log(`${s}: no data`); continue; }
     await computeSeasonStats(s, events, log);
     await computeRecords(s, events, log);
+    // After the event OPRs (just written); reads the report cards as the last run left them.
+    await computeReliability(s, events, log);
     withData.push(s);
   }
   // Every season when the ledger is empty or holds another engine version's calls.

@@ -67,7 +67,8 @@ export function WinBar({ pRed, className, size = "md", decorative }: { pRed: num
   );
 }
 
-export function FactorList({ factors, className }: { factors: Factor[]; className?: string }) {
+/** The top factors, then any notable reasons from the engine (recent no-shows…), which never move the odds. */
+export function FactorList({ factors, reasons, className }: { factors: Factor[]; reasons?: string[]; className?: string }) {
   return (
     <ol className={cn("space-y-1.5", className)}>
       {factors.map((f, i) => (
@@ -75,6 +76,12 @@ export function FactorList({ factors, className }: { factors: Factor[]; classNam
           <span className={cn("mt-0.5 flex size-5 shrink-0 items-center justify-center rounded-full text-[11px] font-bold",
             f.favors === "A" ? "bg-red-alliance/15 text-red-alliance" : f.favors === "B" ? "bg-blue-alliance/15 text-blue-alliance" : "bg-muted text-text-muted")}>{i + 1}</span>
           <span className="text-text-base">{f.label}</span>
+        </li>
+      ))}
+      {reasons?.map((r) => (
+        <li key={r} className="flex gap-2 text-sm" data-testid="reason">
+          <span className="mt-0.5 flex size-5 shrink-0 items-center justify-center rounded-full bg-warning/15 text-[11px] font-bold text-warning" aria-hidden>!</span>
+          <span className="text-text-base">{r}</span>
         </li>
       ))}
     </ol>

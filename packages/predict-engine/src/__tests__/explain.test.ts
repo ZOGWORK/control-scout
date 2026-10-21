@@ -100,3 +100,21 @@ describe("package metadata", () => {
     expect(ENGINE_VERSION).toBe(pkg.version);
   });
 });
+
+describe("reasons (2.2.0)", () => {
+  it("are words only: every number is identical with or without a recent record", () => {
+    const book = seasonBook(4);
+    const opts = { noise: FITTED_MODEL.noise, calibration: FITTED_MODEL.calibration, contextual: FITTED_MODEL.contextual, context: { level: "qual" as const } };
+    const plain = explainMatch(book, [1, 2], [3, 4], opts);
+    const recent = new Map([[1, { matches: 10, noShows: 2, nearZero: 0 }], [3, { matches: 10, noShows: 0, nearZero: 4 }], [4, { matches: 10, noShows: 1, nearZero: 1 }]]);
+    const withR = explainMatch(book, [1, 2], [3, 4], { ...opts, recent: (t) => recent.get(t) ?? null });
+    const { reasons: a, ...restPlain } = plain;
+    const { reasons: b, ...restWith } = withR;
+    expect(restWith).toEqual(restPlain);
+    expect(a).toEqual([]);
+    expect(b).toEqual([
+      "Team 1 was a no-show in 2 of its last 10 matches",
+      "Team 3's alliance scored about what its partner alone would in 4 of its last 10 matches (an estimate: defense or a carry looks the same)",
+    ]);
+  });
+});

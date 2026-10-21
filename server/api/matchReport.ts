@@ -6,6 +6,7 @@
 // Cost: the event detail (cached), plus four small queries for the whole lineup, however many teams, and
 // the season's flag cutoffs (two scans of one season, rebuilt at most every CUTOFF_TTL_MS and then in the
 // background, so after the first build no visitor waits for them).
+import { reliabilityFromRow } from "../../src/shared/reliability.js";
 import { all } from "../db.js";
 import { cachedEventDetail } from "./events.js";
 import { matchDetail } from "./matches.js";
@@ -75,14 +76,17 @@ export async function matchReport(season: number, code: string, key: string): Pr
   const numbers = [...new Set([...m.red.teams, ...m.blue.teams].map((t) => t.number))];
   if (!numbers.length) return { event: ev.event, live: ev.live, match: m, description: d.description, teams: [], prev: d.prev, next: d.next };
   const ph = numbers.map(() => "?").join(",");
-  const [stats, records, events, cut] = await Promise.all([
+  const [stats, records, events, cut, rel] = await Promise.all([
     all<any>(`SELECT team, opr_np, opr_pen, rank_np, ranked_teams, matches, wins, losses, ties FROM team_season_stats WHERE season = ? AND team IN (${ph})`, [season, ...numbers]),
     all<any>(`SELECT team, played, np_dev, np_avg FROM team_season_records WHERE season = ? AND team IN (${ph})`, [season, ...numbers]),
     all<any>(
       `SELECT s.team, e.code, e.name, e.start, s.opr_np, s.opr_auto, s.opr_teleop, s.opr_endgame, s.matches FROM team_event_stats s JOIN events e ON e.season = s.season AND e.code = s.code
         WHERE s.season = ? AND s.team IN (${ph}) AND s.opr_np IS NOT NULL ORDER BY e.start, e.code`, [season, ...numbers]),
     seasonCutoffs(season),
+    all<any>(`SELECT * FROM team_reliability WHERE season = ? AND code = '' AND team IN (0, ${ph})`, [season, ...numbers]),
   ]);
+  const relField = rel.find((r) => Number(r.team) === 0);
+  const relBy = new Map(rel.filter((r) => Number(r.team) !== 0).map((r) => [Number(r.team), reliabilityFromRow(r, relField ? Number(relField.idx) : null)]));
   const statBy = new Map(stats.map((s) => [Number(s.team), s]));
   const recBy = new Map(records.map((r) => [Number(r.team), r]));
   const fieldBy = new Map(ev.field.map((f) => [f.team, f]));
@@ -103,6 +107,7 @@ export async function matchReport(season: number, code: string, key: string): Pr
         rank: n(s.rank_np), of: n(s.ranked_teams), matches: Number(s.matches ?? 0), wins: Number(s.wins ?? 0), losses: Number(s.losses ?? 0), ties: Number(s.ties ?? 0),
       } : null,
       trend,
+      reliability: relBy.get(team) ?? null,
       flags: dataFlags({
         penOpr: s ? n(s.opr_pen) : null, seasonMatches: Number(s?.matches ?? 0),
         npDev: r ? n(r.np_dev) : null, npAvg: r ? n(r.np_avg) : null, qualPlayed: Number(r?.played ?? 0), trend,
