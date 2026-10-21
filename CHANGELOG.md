@@ -9,6 +9,18 @@ teams, scout, offline, speed, live, report, alerts, rankings, share, workspace,
 picklist, history, fixes). What's new shows them first; the groups below are
 the full release notes, one click away.
 
+## 1.13.0 — 2026-10-21
+
+Today's coin flips: the closest calls at every event on today, on the home page.
+
+### Highlights
+- [home] Today's coin flips: the matches the model calls 45% to 55%
+- [predict] Every event that's on today, at its own venue's date
+- [history] Played ones stay, with the result beside the call made before
+
+### Home
+- **Today's coin flips.** A new section on the home page gathers the matches on today's schedules, across every event that's on today at its venue, where the model gives either side between 45% and 55%. Those still to play come first, soonest first, each with both alliances, the odds on a close-up scale, the time at the venue, how long until it starts and its confidence tier; the closest call is marked. Played ones follow with their score and the call made before the match. Calls on thin data (a robot with fewer than 3 matches this season) are left out, and an empty day says why. Each opens its match page. Refreshed after every sync and live result, and every few minutes.
+
 ## 1.12.0 — 2026-10-21
 
 Follow your team in Discord for the whole event, not just its matches.
