@@ -19,7 +19,7 @@ Smooth scrolling across the site: jumps within a page glide there instead of cut
 - [speed] Reduce motion on your device and every jump stays instant
 
 ### Scrolling
-- **Smooth jumps.** Every jump within a page now glides: contents and section links (How it works, Privacy, Terms, FAQ topics), the skip link, buttons that take you to a part of the page (an event's odds, live panel or stream, a linked match), the search palette bringing the page's search field into view, and the selected tab or chip in a sideways row. Scrolling with a wheel, trackpad or finger is unchanged: it stays the browser's own. (#PR)
+- **Smooth jumps.** Every jump within a page now glides: contents and section links (How it works, Privacy, Terms, FAQ topics), the skip link, buttons that take you to a part of the page (an event's odds, live panel or stream, a linked match), the search palette bringing the page's search field into view, and the selected tab or chip in a sideways row. Scrolling with a wheel, trackpad or finger is unchanged: it stays the browser's own. (#233)
 - **Pages still open instantly.** A new page starts at the top, and back or forward returns to exactly where you were, without sliding there from the old position. Dragging a pick to the screen's edge scrolls the page as before.
 - **Reduced motion.** With reduce motion turned on in your device's settings, every jump is instant.
 - **Sideways rows.** Swiping to the end of a sideways row (tabs, chips, a wide table) no longer turns into the back gesture, and scouting photo strips settle on a photo.
