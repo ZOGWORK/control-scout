@@ -1,11 +1,11 @@
 // The Control Scout Discord bot's invite link (bot/README.md), for the FAQ and the site footer.
 
 /**
- * PLACEHOLDER: the bot's application (client) ID from the Discord developer portal (General
- * Information → Application ID). Not public until the application exists; while it's null the FAQ
- * answer and the footer link stay hidden, so nobody sees an invite that doesn't work.
+ * The bot's application (client) ID from the Discord developer portal (General Information →
+ * Application ID). Public by design: it's in every invite link. Set to null to hide the FAQ answer and
+ * the footer link (e.g. while the bot is offline), so nobody sees an invite that doesn't work.
  */
-export const DISCORD_CLIENT_ID: string | null = null;
+export const DISCORD_CLIENT_ID: string | null = "1562258217873047562";
 
 /** The bot's only permissions: Send Messages (2048) + Embed Links (16384) + Use Application Commands (2^31). */
 export const DISCORD_PERMISSIONS = 2048 + 16384 + 2 ** 31;
