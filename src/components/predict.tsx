@@ -13,7 +13,7 @@ import { levelPct, predictedText } from "../shared/scoreRange";
 import { Tooltip, TooltipContent, TooltipTrigger } from "./ui/overlay";
 import { matchTime, oddsPct } from "../lib/format";
 import { useVideoLinkCount } from "./MatchVideo";
-import { restoredSavedPosition, scrollToElement } from "../lib/pageScroll";
+import { restoredSavedPosition, scrollToElement, smoothBehavior } from "../lib/pageScroll";
 
 const MatchDetails = lazy(() => import("./MatchDetails").then((x) => ({ default: x.MatchDetails })));
 import { useCalibration } from "../lib/calibration";
@@ -84,7 +84,7 @@ export function FactorList({ factors, className }: { factors: Factor[]; classNam
 }
 
 /**
- * Earlier matches between these robots (engine 2.2 partnership memory): a real
+ * Earlier matches between these robots (engine 2.4 partnership memory): a real
  * result, shown as a reason next to the factors. It isn't one of them (the
  * factors split the predicted margin exactly; this history doesn't move it).
  */
@@ -340,7 +340,7 @@ export function MatchList({ matches, highlight, empty, eventNames, eventDates, i
     shownFor.current = visit;
     setOpen((s) => (s.has(id(m)) ? s : new Set(s).add(id(m))));
     if (restoredSavedPosition(loc)) return;
-    requestAnimationFrame(() => { const row = box.current?.querySelector(`[data-match="${CSS.escape(m.key)}"]`); if (row) scrollToElement(row, window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth"); });
+    requestAnimationFrame(() => { const row = box.current?.querySelector(`[data-match="${CSS.escape(m.key)}"]`); if (row) scrollToElement(row, smoothBehavior()); });
     // Only when the requested match or the visit changes (not on every refresh of the list).
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [initialOpen, loc.key, matches.length]);

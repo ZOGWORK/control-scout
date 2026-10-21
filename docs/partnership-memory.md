@@ -1,9 +1,9 @@
-# Partnership memory (engine 2.2)
+# Partnership memory (engine 2.4)
 
 When two robots in a lineup have really played together, or against each other, the
 prediction says so. For example: "1234 and 5678 have played 6 matches together (5–1);
 best 212 at NJ Championship (2024–25)". This page says how the history is built, what we
-tested, and why 2.2 shows it as a reason without moving the odds.
+tested, and why 2.4 shows it as a reason without moving the odds.
 
 ## The pair table
 
@@ -68,7 +68,7 @@ The likely reason is that the ratings already absorb a pair's shared results. Wi
 season, both robots' ratings learned from every match they played together, so the
 leftover pair effect is mostly noise. Across seasons, robots are rebuilt.
 
-**Decision.** 2.2 ships **reasons only**: `betaTogether = betaAgainst = 0`, and no served
+**Decision.** 2.4 ships **reasons only**: `betaTogether = betaAgainst = 0`, and no served
 number changes. The full backtest ledger replayed under 2.2.0 matches 2.1.1 bit for bit on
 all 109,002 replayed matches from 2023–24 to 2025–26. With β = 0, k and
 decay only rank and word the fact. We use `k = 4`, which ties the fitted 64 on the select

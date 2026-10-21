@@ -119,11 +119,11 @@ export interface MatchPrediction {
   pShadow?: number;
   /** The shadow model's parameter set id ("legacy" if it couldn't run on this book). */
   shadowModelId?: string;
-  /** Logit shift the partnership history applied to pRedWin (engine 2.2; absent = none). */
+  /** Logit shift the partnership history applied to pRedWin (engine 2.4; absent = none). */
   partnershipShift?: number;
 }
 
-/** Partnership memory for a prediction (engine 2.2): the pair table and the season predicted. */
+/** Partnership memory for a prediction (engine 2.4): the pair table and the season predicted. */
 export interface PartnershipInput {
   table: PairLookup;
   season: number;

@@ -5,6 +5,7 @@ import { LayoutGroup, useReducedMotion } from "motion/react";
 import { m } from "../../motion";
 import { motionTokens } from "../lib/motion-tokens";
 import styles from "./segmented-control.module.css";
+import { scrollStripTo, stopStripGlide } from "../../../lib/revealInStrip";
 
 export interface Segment { value: string; label: string; /** Optional content after the label, such as a badge. */ accessory?: ReactNode; }
 export interface SegmentedControlProps {
@@ -46,7 +47,9 @@ export default function SegmentedControl({ options, value, onValueChange, label,
     if (!node || !button || node.scrollWidth <= node.clientWidth) { first.current = false; return; }
     const room = 20, start = button.offsetLeft - room, end = button.offsetLeft + button.offsetWidth + room - node.clientWidth;
     const left = node.scrollLeft > start ? start : node.scrollLeft < end ? end : node.scrollLeft;
-    if (left !== node.scrollLeft) node.scrollTo({ left: Math.max(0, left), behavior: first.current || reduced ? "auto" : "smooth" });
+    // Already showing: a glide still heading for the option just left stops here (src/lib/revealInStrip.ts).
+    if (left !== node.scrollLeft) scrollStripTo(node, left, first.current || reduced ? "auto" : "smooth");
+    else stopStripGlide(node);
     first.current = false;
   }, [value, reduced]);
 

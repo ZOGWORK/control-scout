@@ -10,6 +10,7 @@ import { backfillDue } from "./data/cycle.js";
 import { childCycle, cycleRunning, runDataCycle } from "./data/jobs.js";
 import { flushMetrics } from "./metrics.js";
 import { startLiveSync } from "./data/live.js";
+import { REFRESH_EVERY_MS, refreshCoinFlips } from "./api/coinFlips.js";
 import express from "express";
 import { ENGINE_VERSION } from "@control-scout/predict-engine";
 import { createApp } from "./app.js";
@@ -22,6 +23,8 @@ import { installShippedPacks, restoreSnapshotIfEmpty } from "./data/snapshot.js"
 import { drainOnSigterm, systemdSocket } from "./listen.js";
 import { closeAllStreams } from "./scout/stream.js";
 import { closeInboxStreams } from "./inbox/routes.js";
+import { closeProjectionStreams } from "./projections/routes.js";
+import { startProjections } from "./projections/job.js";
 import { deliverOwnerAlerts, inboxSettled, pruneInbox } from "./inbox/inbox.js";
 import { photoSchedulerTick } from "./scout/photos.js";
 import { pruneActivity } from "./scout/activityLog.js";
@@ -43,7 +46,7 @@ const socket = systemdSocket();
 for (const k of ["LISTEN_FDS", "LISTEN_PID", "LISTEN_FDNAMES"]) delete process.env[k]; // not for child processes
 let http: Server | null = null;
 // Live scout streams end first, so their connections don't hold the drain (clients reconnect to the next server).
-process.once("SIGTERM", () => { closeAllStreams(); closeInboxStreams(); });
+process.once("SIGTERM", () => { closeAllStreams(); closeInboxStreams(); closeProjectionStreams(); });
 // Queued inbox fan-outs (activity already written) finish before the process exits.
 drainOnSigterm(() => http, log, 10_000, inboxSettled);
 let ready = false;
@@ -157,9 +160,21 @@ if (!process.env.CS_NO_SCHEDULER) {
   setInterval(powerRankings, 5 * 60_000).unref();
   setTimeout(indexNow, 3 * 60_000).unref();
   setInterval(indexNow, 3600_000).unref();
+  // The home page's coin-flip radar (server/api/coinFlips.ts): gathered again after every sync and live result,
+  // and every 5 minutes here too, so a venue's own midnight and the matches the clock moves past show within minutes.
+  let radarBusy = false;
+  const radar = () => {
+    if (radarBusy) return;
+    radarBusy = true;
+    void refreshCoinFlips(log).finally(() => { radarBusy = false; });
+  };
+  setTimeout(radar, 75_000).unref();
+  setInterval(radar, REFRESH_EVERY_MS).unref();
 }
 // The live fast lane: events on today, every LIVE_SYNC_SECONDS (60), results within about a minute
 // (server/data/live.ts). It shares a writer lease with the cycle above, so the two never write at once.
 startLiveSync(log);
+// Monte Carlo projections of live and upcoming events, re-run when their results move (server/projections/job.ts).
+startProjections(log);
 // First cycle shortly after boot (not at boot: let the server answer first).
 setTimeout(() => { last = Date.now(); cycle("startup"); }, 60_000).unref();

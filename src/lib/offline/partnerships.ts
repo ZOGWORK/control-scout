@@ -1,4 +1,4 @@
-// The lite pack's pair history (engine 2.2), loaded once per pack. Only for the
+// The lite pack's pair history (engine 2.4), loaded once per pack. Only for the
 // season it was built through: an older season's call mustn't read later pairs
 // (the server applies the same rule, server/predict/engine.ts explain).
 import { PartnershipTable, type PartnershipInput } from "@control-scout/predict-engine";

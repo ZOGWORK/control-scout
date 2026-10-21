@@ -6,13 +6,14 @@
 // its build), like the what-if lab offline; played ones show none.
 import { FITTED_MODEL, RatingBook, explainMatch } from "@control-scout/predict-engine";
 import type { EventDetail, MatchView, SearchHit, TeamProfile } from "../../shared/api";
+import type { ProjectionsView } from "../../shared/projections";
 import { loadLite, type LitePack } from "../packs";
 import { partnershipFor } from "./partnerships";
 import { pairHistory } from "../../shared/pairHistory";
 import { rangesOf } from "../../shared/scoreRange";
 import { markOffline, savedSeasons, type OfflineSource } from "./saved";
 import { readSaved } from "./seasons";
-import { readEventDetail, readMatchViews, readSearch, readTeamProfile, type ReadOpts } from "./readers";
+import { readEventDetail, readMatchViews, readProjections, readSearch, readTeamProfile, type ReadOpts } from "./readers";
 
 let books: { pack: LitePack | null; bySeason: Map<number, RatingBook | null> } | null = null;
 
@@ -78,6 +79,14 @@ export async function offlineEventDetail(season: number, code: string): Promise<
   return d ? markOffline(d, src) : null;
 }
 
+/** An event's stored projections from its saved season pack (they're as of the pack's build). */
+export async function offlineProjections(season: number, code: string): Promise<ProjectionsView | null> {
+  const src = source(season);
+  if (!src) return null;
+  const v = await readSaved(season, ([sdb]) => (sdb ? readProjections(sdb, code.toUpperCase()) : null));
+  return v ? markOffline(v, src) : null;
+}
+
 export async function offlineSearch(q: string, limit = 15, prefer: ReadonlySet<string> = new Set()): Promise<{ q: string; hits: SearchHit[] } | null> {
   return readSaved(undefined, (dbs) => {
     const src = dbs[0] && source(dbs[0].season);
@@ -95,6 +104,7 @@ export async function offlineAnswer(path: string): Promise<unknown | null> {
   if ((m = /^\/api\/teams\/(\d{1,6})$/.exec(url.pathname))) return offlineTeamProfile(Number(m[1]), season);
   if ((m = /^\/api\/teams\/(\d{1,6})\/matches$/.exec(url.pathname))) return offlineTeamMatches(Number(m[1]), season);
   if ((m = /^\/api\/events\/(\d{4})\/([^/]+)$/.exec(url.pathname))) return offlineEventDetail(Number(m[1]), decodeURIComponent(m[2]));
+  if ((m = /^\/api\/projections\/(\d{4})\/([^/]+)$/.exec(url.pathname))) return offlineProjections(Number(m[1]), decodeURIComponent(m[2]));
   if (url.pathname === "/api/search") {
     const prefer = new Set((url.searchParams.get("prefer") ?? "").split(",").filter(Boolean));
     return offlineSearch(url.searchParams.get("q") ?? "", Math.min(25, int(url.searchParams.get("limit")) || 12), prefer);

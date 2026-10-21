@@ -1,4 +1,4 @@
-// Partnership memory (engine 2.2): the pair table behind "1234 and 5678 have
+// Partnership memory (engine 2.4): the pair table behind "1234 and 5678 have
 // played 6 matches together …", from every season we hold (2019–20 onward).
 //
 // The seasons before a forecaster's window (legacy ones included) are frozen,

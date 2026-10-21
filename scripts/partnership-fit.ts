@@ -1,4 +1,4 @@
-// Partnership memory (engine 2.2): fit and judge the shrinkage on held-out seasons.
+// Partnership memory (engine 2.4): fit and judge the shrinkage on held-out seasons.
 //
 //   npx tsx scripts/partnership-fit.ts            fit + report (reads the local database)
 //

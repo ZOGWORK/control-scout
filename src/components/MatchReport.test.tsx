@@ -32,7 +32,7 @@ const team = (n: number, o: Partial<ReportTeam> = {}): ReportTeam => ({
   trend: [], flags: [], ...o,
 });
 function report(m = match(), teams = [11, 12, 13, 14].map((n) => team(n))): MatchReport {
-  return { event: { season: 2025, code: "RPTQ1", name: "Report Qualifier", remote: false } as MatchReport["event"], live: null, match: m, description: null, teams, prev: null, next: null };
+  return { event: { season: 2025, code: "RPTQ1", name: "Report Qualifier", remote: false } as MatchReport["event"], live: null, match: m, description: null, bonus: null, teams, prev: null, next: null };
 }
 const empty = (n: number): TeamConsensus => ({ team: n, entries: 0, matchEntries: 0, pitEntries: 0, scouts: 0, lastUpdated: null, ratings: [], counters: [], strengths: [], weaknesses: [], tags: [] });
 const scouted = (n: number): TeamConsensus => ({ ...empty(n), entries: 3, matchEntries: 3, scouts: 2, lastUpdated: Date.now() - 60_000,
@@ -133,6 +133,21 @@ describe("MatchReportView", () => {
     expect(res.textContent).toMatch(/Called it/);
     expect(screen.getByText("Called before the match")).toBeTruthy();
     expect(within(screen.getByRole("region", { name: "Red alliance" })).getByText("130")).toBeTruthy();
+  });
+
+  it("bonus RP odds: before the match the call alone; once played, each bonus earned ✓ or missed ✗ beside it", () => {
+    const bonus = { red: [0.7, 0.2, 0.4], blue: [0.5, 0.1, 0.3], rpRed: 3.2, rpBlue: 1.9, tier: "moderate" } as const;
+    const pred = { pRed: 0.64, redMean: 120, blueMean: 98, tier: "moderate" as const, kind: "live" as const, predictedAt: null, bonus: { ...bonus, red: [...bonus.red], blue: [...bonus.blue] } as never };
+    const earned = { labels: ["Movement", "Goal", "Pattern"] as [string, string, string], red: [true, false, true] as [boolean, boolean, boolean], blue: [false, false, true] as [boolean, boolean, boolean] };
+    show({ ...report(match({ prediction: pred })), bonus: null });
+    const before = screen.getByTestId("bonus-odds");
+    expect(within(before).getByText("Movement")).toBeTruthy();
+    expect(within(before).queryByLabelText("earned")).toBeNull();
+    cleanup();
+    show({ ...report(match({ played: true, red: side([11, 12], 130), blue: side([13, 14], 90), prediction: pred })), bonus: earned });
+    const after = screen.getByTestId("bonus-odds");
+    expect(within(after).getAllByLabelText("earned")).toHaveLength(3);
+    expect(within(after).getAllByLabelText("missed")).toHaveLength(3);
   });
 
   it("a short-handed lineup (1v1) says so instead of showing an empty slot", () => {
