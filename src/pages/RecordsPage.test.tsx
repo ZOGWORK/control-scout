@@ -3,7 +3,7 @@
 // the current one marked aria-current, each a plain Tab stop (no half-built arrow-key tab model). On a phone
 // the strip scrolls sideways, and the current view is scrolled into it on arrival and on every change.
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import { MemoryRouter, Route, Routes, useLocation } from "react-router-dom";
 
 vi.mock("../components/records/RecordsTable", () => ({ RecordsTable: () => null }));
@@ -106,5 +106,61 @@ describe("Records views", () => {
     expect(strip()).toBe(nav); // the same page, a new view
     // Team seasons spans 154–284: scrolled to end 8px inside the strip.
     expect(strip().scrollLeft).toBe(284 - 266 + 8);
+  });
+  it("glides to the next view after a change, and the web-fonts correction doesn't turn that into a jump", async () => {
+    phoneLayout();
+    // Fonts long loaded: document.fonts.ready has already resolved.
+    Object.defineProperty(document, "fonts", { configurable: true, value: { ready: Promise.resolve() } });
+    // A glide is on its way: the strip hasn't moved yet when the next task runs.
+    const glide = vi.fn();
+    Object.defineProperty(HTMLElement.prototype, "scrollTo", { configurable: true, writable: true, value: glide });
+    try {
+      show("/teams");
+      await act(async () => { await Promise.resolve(); });
+      fireEvent.click(within(strip()).getByRole("link", { name: "Team seasons" }));
+      await act(async () => { await Promise.resolve(); await Promise.resolve(); });
+      expect(glide).toHaveBeenCalledWith({ left: 284 - 266 + 8, behavior: "smooth" });
+      // No instant scrollLeft write cut the glide short.
+      expect(strip().scrollLeft).toBe(0);
+    } finally {
+      delete (HTMLElement.prototype as { scrollTo?: unknown }).scrollTo;
+      delete (document as { fonts?: unknown }).fonts;
+    }
+  });
+  it("still corrects for the web fonts after a view change made before they loaded, gliding (never a jump)", async () => {
+    phoneLayout();
+    let loaded!: () => void;
+    Object.defineProperty(document, "fonts", { configurable: true, value: { ready: new Promise<void>((r) => { loaded = r; }) } });
+    const glide = vi.fn();
+    Object.defineProperty(HTMLElement.prototype, "scrollTo", { configurable: true, writable: true, value: glide });
+    try {
+      show("/teams");
+      fireEvent.click(within(strip()).getByRole("link", { name: "Team seasons" }));
+      expect(glide).toHaveBeenCalledTimes(1);
+      // The fonts arrive mid-glide (the strip hasn't moved yet): the new view is revealed again, gliding.
+      await act(async () => { loaded(); await Promise.resolve(); await Promise.resolve(); });
+      expect(glide).toHaveBeenCalledTimes(2);
+      for (const call of glide.mock.calls) expect(call[0]).toEqual({ left: 284 - 266 + 8, behavior: "smooth" });
+      expect(strip().scrollLeft).toBe(0);
+    } finally {
+      delete (HTMLElement.prototype as { scrollTo?: unknown }).scrollTo;
+      delete (document as { fonts?: unknown }).fonts;
+    }
+  });
+  it("going back to the view just left, mid-glide, stops the strip instead of letting it slide on", async () => {
+    phoneLayout();
+    const glide = vi.fn();
+    Object.defineProperty(HTMLElement.prototype, "scrollTo", { configurable: true, writable: true, value: glide });
+    try {
+      show("/teams");
+      fireEvent.click(within(strip()).getByRole("link", { name: "Team seasons" }));
+      expect(glide).toHaveBeenLastCalledWith({ left: 284 - 266 + 8, behavior: "smooth" });
+      // The glide is still on its way (the strip hasn't moved) when Team-events, which shows, is picked again.
+      fireEvent.click(within(strip()).getByRole("link", { name: "Team-events" }));
+      expect(where).toBe("/teams");
+      expect(glide).toHaveBeenLastCalledWith({ left: 0, behavior: "auto" });
+    } finally {
+      delete (HTMLElement.prototype as { scrollTo?: unknown }).scrollTo;
+    }
   });
 });

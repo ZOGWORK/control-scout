@@ -6,6 +6,7 @@ import { m } from "../motion";
 import { cn } from "../cn";
 import { useReduced } from "./ui";
 import { pageScroller, pageTop, scrollToElement } from "../../lib/pageScroll";
+import { scrollStripTo, stopStripGlide } from "../../lib/revealInStrip";
 
 export const SECTIONS = [
   { id: "overview", label: "Overview" },
@@ -84,7 +85,9 @@ export function SectionNav() {
     const a = box?.querySelector<HTMLElement>(`[data-id="${active}"]`);
     if (!box || !a) return;
     const l = a.offsetLeft, r = l + a.offsetWidth;
-    if (l < box.scrollLeft || r > box.scrollLeft + box.clientWidth) box.scrollTo({ left: l - 12, behavior: reduced ? "auto" : "smooth" });
+    // Already showing: a glide still heading for the section just left stops here (src/lib/revealInStrip.ts).
+    if (l < box.scrollLeft || r > box.scrollLeft + box.clientWidth) scrollStripTo(box, l - 12, reduced ? "auto" : "smooth");
+    else stopStripGlide(box);
   }, [active, reduced]);
 
   const go = (e: MouseEvent<HTMLAnchorElement>, id: string) => { e.preventDefault(); scrollToId(id, reduced); };

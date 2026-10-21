@@ -24,6 +24,21 @@ Bonus ranking point odds next to every qualification win %.
 - **A bonus curve that keeps up with the season.** The chance of each bonus at a given score is fitted to the season's latest 2,000 recorded qualification alliances (from 200 on; provisional below 600, at most moderate below 2,000). On the 2025–26 replay that scored a Brier of 0.147 per bonus call, against 0.178 for the whole-season curve the engine shipped with.
 - **Scored in the track record.** Bonus calls are written to the ledger with each pre-match call and scored by Brier per bonus, live and season replay kept apart. The replay fits the bonus model only on results before each match. See How it works › Bonus ranking points. (#228)
 
+## 1.16.1 — 2026-10-21
+
+Smooth scrolling across the site: jumps within a page glide there instead of cutting.
+
+### Highlights
+- [speed] Contents links, "see the odds" and match jumps glide to their spot
+- [speed] Opening a page, or going back, still lands instantly where it should
+- [speed] Reduce motion on your device and every jump stays instant
+
+### Scrolling
+- **Smooth jumps.** Every jump within a page now glides: contents and section links (How it works, Privacy, Terms, FAQ topics), the skip link, buttons that take you to a part of the page (an event's odds, live panel or stream, a linked match), the search palette bringing the page's search field into view, and the selected tab or chip in a sideways row. Scrolling with a wheel, trackpad or finger is unchanged: it stays the browser's own. (#233)
+- **Pages still open instantly.** A new page starts at the top, and back or forward returns to exactly where you were, without sliding there from the old position. Dragging a pick to the screen's edge scrolls the page as before.
+- **Reduced motion.** With reduce motion turned on in your device's settings, every jump is instant.
+- **Sideways rows.** Swiping to the end of a sideways row (tabs, chips, a wide table) no longer turns into the back gesture, and scouting photo strips settle on a photo.
+
 ## 1.16.0 — 2026-10-21
 
 Live projections: every live or upcoming event simulated 10,000 times, again after each new result.
