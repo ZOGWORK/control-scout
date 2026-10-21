@@ -42,13 +42,15 @@ export const BOOT_STYLE = `<style>
       html.cs-sb-min .csb-brand span,html.cs-sb-min .csb-grp p,html.cs-sb-min .csb-nav a span{display:none}
       html.cs-sb-min .csb-nav a{justify-content:center;padding:0}
       .csb-col{display:flex;flex:1;min-width:0;flex-direction:column}
-      .csb-top{position:sticky;top:0;z-index:30;display:flex;flex-shrink:0;align-items:center;gap:12px;height:48px;padding:0 16px;border-bottom:1px solid var(--b-line);background:var(--b-bg)}
+      .csb-top{position:sticky;top:0;z-index:30;display:flex;flex-shrink:0;align-items:center;gap:4px;height:42px;padding:0 12px;border-bottom:1px solid var(--b-line);background:var(--b-bg)}
+      .csb-top>a{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%)}
       .csb-top>a img{display:block;width:24px;height:24px}
-      .csb-crumb{margin:0;font-size:14px;color:var(--b-mut);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+      .csb-menu{width:18px;height:18px;margin:0 5px 0 -1px;border:2px solid var(--b-mut);border-radius:4px;box-sizing:border-box;opacity:.8}
+      .csb-crumb{display:none;margin:0;font-size:14px;color:var(--b-mut);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
       .csb-crumb b{font-weight:400;color:var(--b-fg)}
       .csb-crumb i{display:none;font-style:normal}
-      .csb-search{display:flex;flex:1;justify-content:flex-end}
-      .csb-search span{display:flex;align-items:center;height:32px;padding:0 10px;border:1px solid var(--b-line);border-radius:8px;font-size:12px;color:var(--b-mut)}
+      .csb-search{display:flex}
+      .csb-search span{display:block;width:16px;height:16px;margin:0 6px;border:2px solid var(--b-mut);border-radius:50%;box-sizing:border-box;font-size:0;overflow:hidden;opacity:.8}
       .csb-main{flex:1;background-image:radial-gradient(1200px 320px at 50% -120px,color-mix(in srgb,var(--b-acc) 7%,transparent),transparent 70%)}
       .csb-page{max-width:1200px;margin:0 auto;padding:32px 16px 0}
       .csb-page h1{margin:0;font:600 24px/1.25 "Space Grotesk",sans-serif;letter-spacing:-.025em;overflow-wrap:anywhere}
@@ -69,14 +71,14 @@ export const BOOT_STYLE = `<style>
       .csb-home>div{max-width:36rem;height:52px;margin:24px 0 0;border:1px solid var(--b-line);border-radius:12px}
       .csb .csb-home>p.csb-about{margin:72px 0 0;font-size:14px;line-height:20px}
       .csb-tabs{position:fixed;left:0;right:0;bottom:0;display:flex;padding-bottom:env(safe-area-inset-bottom);border-top:1px solid var(--b-line);background:var(--b-tab)}
-      .csb .csb-tabs>*{display:flex;flex:1;min-height:60px;flex-direction:column;align-items:center;justify-content:center;gap:4px;font-size:12px;font-weight:500;color:var(--b-mut)}
+      .csb .csb-tabs>*{display:flex;flex:1;min-height:52px;flex-direction:column;align-items:center;justify-content:center;gap:2px;font-size:10.5px;font-weight:500;color:var(--b-mut)}
       .csb-tabs a[aria-current]{color:var(--b-acc)}
       .csb-tabs a[aria-current] .csb-ico{background:var(--b-acc);opacity:.9}
       @media (min-width:640px){.csb-top{padding:0 24px}.csb-crumb i{display:inline}.csb-page{padding:32px 24px 0}.csb-page h1{font-size:32px}.csb-home{padding-top:24px}.csb .csb-home h1{font-size:56px}}
-      @media (min-width:768px){.csb-side{display:flex}.csb-top>a,.csb-tabs{display:none}.csb-search{justify-content:center}.csb-search span{width:100%;max-width:28rem;height:36px;padding:0 12px;font-size:14px}}
+      @media (min-width:768px){.csb-side{display:flex}.csb-top{gap:12px;height:48px;padding:0 24px}.csb-top>a,.csb-menu,.csb-tabs{display:none}.csb-crumb{display:block}.csb-search{flex:1;justify-content:center}.csb-search span{display:flex;align-items:center;width:100%;max-width:28rem;height:36px;margin:0;padding:0 12px;border:1px solid var(--b-line);border-radius:8px;font-size:14px;color:var(--b-mut);opacity:1}}
       @media (min-width:1024px){.csb-top{padding:0 32px}.csb-page{padding:32px 32px 0}}
       @media (min-width:1700px){.csb-page{max-width:1600px}}
-      .csbc{--b-pop:#141416;--b-fg:#f4f4f5;--b-mut:#a1a1aa;--b-line:#ffffff14;--b-acc:#ffc700;--b-soft:#ffc7001f;position:fixed;left:12px;right:12px;bottom:calc(60px + env(safe-area-inset-bottom) + .75rem);z-index:60;box-sizing:border-box;padding:16px;border:1px solid var(--b-line);border-radius:12px;background:var(--b-pop);color:var(--b-fg);box-shadow:0 18px 40px -16px rgba(0,0,0,.55);font-family:Inter,ui-sans-serif,system-ui,sans-serif;-webkit-font-smoothing:antialiased}
+      .csbc{--b-pop:#141416;--b-fg:#f4f4f5;--b-mut:#a1a1aa;--b-line:#ffffff14;--b-acc:#ffc700;--b-soft:#ffc7001f;position:fixed;left:12px;right:12px;bottom:calc(53px + env(safe-area-inset-bottom) + .75rem);z-index:60;box-sizing:border-box;padding:16px;border:1px solid var(--b-line);border-radius:12px;background:var(--b-pop);color:var(--b-fg);box-shadow:0 18px 40px -16px rgba(0,0,0,.55);font-family:Inter,ui-sans-serif,system-ui,sans-serif;-webkit-font-smoothing:antialiased}
       html.light .csbc{--b-pop:#fff;--b-fg:#09090b;--b-mut:#52525b;--b-line:#e4e4e7;--b-acc:#a16207;--b-soft:#eab3081f}
       .csbc *{box-sizing:border-box}
       .csbc-row{display:flex;align-items:flex-start;gap:12px}
@@ -129,7 +131,8 @@ const SECTIONS: { title: string | null; items: Item[] }[] = [
   { title: "Yours", items: [{ to: "/my-team", label: "My team" }, { to: "/shortlist", label: "Shortlist" }, { to: "/scout", label: "Scout" }] },
   { title: null, items: [{ to: "/download", label: "Download" }, { to: "/methodology", label: "How it works" }, { to: "/settings", label: "Settings" }] },
 ];
-const TABS: Item[] = [{ to: "/", label: "Home", end: true }, { to: "/events", label: "Events" }, { to: "/predict", label: "Predict" }, { to: "/my-team", label: "My team" }];
+// The phone tab bar's default (src/lib/tabBar.ts DEFAULT_TABS); a device with its own choice gets it once the app loads.
+const TABS: Item[] = [{ to: "/", label: "Home", end: true }, { to: "/events", label: "Events" }, { to: "/predict", label: "Predict", end: true }, { to: "/my-team", label: "My team" }, { to: "/scout", label: "Scout" }];
 
 // Like react-router's NavLink: case-insensitive, a prefix at a segment boundary unless `end`.
 const active = (path: string, it: Item) => {
@@ -155,10 +158,10 @@ export function bootShell(path: string, meta: PageMeta): string {
   return [
     `<div class="csb">`,
     `<aside class="csb-side"><a class="csb-brand" href="/" aria-label="Control Scout home"><img src="/logo.png" alt="" /><span>Control Scout</span></a><nav class="csb-nav" aria-label="Main">${nav}</nav></aside>`,
-    `<div class="csb-col"><header class="csb-top"><a href="/" aria-label="Home"><img src="/logo.png" alt="" /></a><p class="csb-crumb"><i>Control Scout / </i><b>${esc(pageTitle(p))}</b></p>${home ? "" : `<div class="csb-search"><span>Search teams, events, matches…</span></div>`}</header>`,
+    `<div class="csb-col"><header class="csb-top"><span class="csb-menu" aria-hidden="true"></span><a href="/" aria-label="Control Scout home"><img src="/logo.png" alt="" /></a><p class="csb-crumb"><i>Control Scout / </i><b>${esc(pageTitle(p))}</b></p>${home ? "" : `<div class="csb-search"><span>Search teams, events, matches…</span></div>`}</header>`,
     // A page with content in full scrolls with the document (before the app loads, or with no JavaScript at all).
     `<main class="csb-main${meta.bodyHtml && page ? " csb-scroll" : ""}">${page}${guard}</main></div>`,
-    `<nav class="csb-tabs" aria-label="Main">${TABS.map((it) => link(p, it)).join("")}<span><i class="csb-ico"></i><span>More</span></span></nav>`,
+    `<nav class="csb-tabs" aria-label="Main">${TABS.map((it) => link(p, it)).join("")}</nav>`,
     `</div>`,
   ].join("");
 }
