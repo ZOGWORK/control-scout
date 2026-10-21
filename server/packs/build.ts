@@ -21,6 +21,7 @@ import { all, kvGet } from "../db.js";
 import { CURRENT_SEASON, PREDICT_SEASONS, SEASON_NUMBERS, seasonInfo } from "../data/seasons.js";
 import { ScoutForecaster, forecasterFor } from "../predict/engine.js";
 import { partnershipPrefix } from "../predict/partnerships.js";
+import { encodeLitePairs } from "../../src/shared/litePairs.js";
 import { packsDir } from "./routes.js";
 import { PACK_INDEXES, PACK_TABLES as FULL_TABLES, PACK_TEAMS_DDL } from "../../src/shared/packSchema.js";
 
@@ -49,15 +50,16 @@ export async function buildLite(version: string, dir: string, log: (m: string) =
   // Pair history (engine 2.2) through the newest season, the finished seasons' part included.
   let pf = await forecasterFor(CURRENT_SEASON);
   if (!pf.partnershipComplete && (await partnershipPrefix(pf.seasons[0] ?? pf.anchor, { wait: true }))) { pf = new ScoutForecaster(pf.anchor); await pf.rebuild(); }
-  const partnerships = pf.partnershipData;
+  // Only a small cut ships (src/shared/litePairs.ts): the pack is downloaded at venues, and the history is a reason only.
+  const pairs = pf.partnershipData ? encodeLitePairs(pf.partnershipData) : null;
   const teams = (await all<any>("SELECT number, name, city, state, country FROM teams ORDER BY number"))
     .map((t) => [Number(t.number), t.name ?? null, [t.city, t.state, t.country].filter(Boolean).join(", ") || null]);
-  const json = JSON.stringify({ format: PACK_FORMAT, version, builtAt: new Date().toISOString(), engineVersion: ENGINE_VERSION, books, teams, partnerships });
+  const json = JSON.stringify({ format: PACK_FORMAT, version, builtAt: new Date().toISOString(), engineVersion: ENGINE_VERSION, books, teams, pairs });
   const gz = gzipSync(Buffer.from(json), { level: 9 });
   const name = `scout-pack-${version.replace(/\./g, "-")}-lite.json.gz`;
   writeFileSync(join(dir, name), gz);
-  const pairBytes = partnerships ? gzipSync(Buffer.from(JSON.stringify(partnerships)), { level: 9 }).length : 0;
-  log(`lite: ${(json.length / 1e6).toFixed(1)} MB raw → ${(gz.length / 1e6).toFixed(2)} MB gz (${Object.keys(books).length} seasons, ${teams.length} teams; pair history ${partnerships ? `${partnerships.together.length} + ${partnerships.against.length} pairs, ~${(pairBytes / 1e3).toFixed(0)} KB gz` : "none"})`);
+  const pairBytes = pairs ? gzipSync(Buffer.from(JSON.stringify(pairs)), { level: 9 }).length : 0;
+  log(`lite: ${(json.length / 1e6).toFixed(1)} MB raw → ${(gz.length / 1e6).toFixed(2)} MB gz (${Object.keys(books).length} seasons, ${teams.length} teams; pair history ${pairs ? `${pairs.rows.length} pairs, ~${(pairBytes / 1e3).toFixed(0)} KB gz` : "none"})`);
   return { name, url: `/packs/${name}`, bytes: gz.length, sha256: sha256(gz), seasons: Object.keys(books).map(Number), kind: "lite",
     contents: `Every team's prediction rating for ${Object.keys(books).length} seasons plus team names — enough to predict any match on this device with no connection.` };
 }
