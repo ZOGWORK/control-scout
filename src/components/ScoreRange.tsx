@@ -12,7 +12,7 @@ import { levelPct, plusMinus, predictedText, rangeSentence } from "../shared/sco
  */
 export function PredictedPair({ p, className }: { p: Pick<MatchPredictionView, "redMean" | "blueMean" | "redRange" | "blueRange" | "rangeLevel">; className?: string }) {
   if (!p.redRange || !p.blueRange) return <span className={cn("tabular-nums", className)}>{predictedText(p)}</span>;
-  const full = `Predicted red ${rangeSentence(p.redRange, p.rangeLevel)}; blue ${rangeSentence(p.blueRange, p.rangeLevel)}`;
+  const full = `Predicted red ${Math.round(p.redMean)}, ${rangeSentence(p.redRange, p.rangeLevel)}; blue ${Math.round(p.blueMean)}, ${rangeSentence(p.blueRange, p.rangeLevel)}`;
   return (
     <span className={cn("tabular-nums", className)} title={full}>
       <span aria-hidden>{predictedText(p)} <span className="text-[0.85em] opacity-80">({levelPct(p.rangeLevel)} range)</span></span>
