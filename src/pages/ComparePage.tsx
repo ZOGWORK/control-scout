@@ -210,7 +210,7 @@ const winRate = (x: CompareTeam) => {
 const METRICS: Metric[] = [
   { label: "OPR", better: "high", value: (x) => x.stats?.opr.np.value ?? null, show: (x) => num(x.stats?.opr.np.value), sub: (x) => rankPct(x.stats?.opr.np.rank, x.stats?.opr.np.of) },
   // An estimate from match results (src/shared/reliability.ts), right under OPR: captains pick on both.
-  { label: "Reliability (est.)", better: "high", value: (x) => x.stats?.reliability?.index ?? null, show: (x) => (x.stats?.reliability ? `${x.stats.reliability.index}/100` : "—"), sub: (x) => (x.stats?.reliability ? `${x.stats.reliability.matches} quals · ${x.stats.reliability.noShows} no-show${x.stats.reliability.noShows === 1 ? "" : "s"}` : null) },
+  { label: "Reliability (est.)", better: "high", value: (x) => x.stats?.reliability?.index ?? null, show: (x) => (x.stats?.reliability ? String(x.stats.reliability.index) : "—"), sub: (x) => (x.stats?.reliability ? `${x.stats.reliability.matches} quals` : null) },
   { label: "Auto", better: "high", value: (x) => x.stats?.opr.auto.value ?? null, show: (x) => num(x.stats?.opr.auto.value) },
   { label: "TeleOp", better: "high", value: (x) => x.stats?.opr.teleop.value ?? null, show: (x) => num(x.stats?.opr.teleop.value) },
   { label: "Endgame", better: "high", value: (x) => x.stats?.opr.endgame.value ?? null, show: (x) => num(x.stats?.opr.endgame.value) },

@@ -9,6 +9,23 @@ teams, scout, offline, speed, live, report, alerts, rankings, share, workspace,
 picklist, history, fixes). What's new shows them first; the groups below are
 the full release notes, one click away.
 
+## 1.17.0 — 2026-10-21
+
+Pick on reliability, not just peak scoring: a dependability estimate next to OPR.
+
+### Highlights
+- [picklist] Reliability next to OPR on pick lists, Compare and team pages
+- [teams] Its parts in plain view: no-shows, DQs, near-zero matches, swing
+- [workspace] Workspace members also see it with their own scouts' notes
+- [predict] Predictions mention recent no-shows when they matter
+
+### Teams and picks
+- **Reliability index.** A 0–100 estimate of how dependable a robot has been, from qualification match results only. It counts no-shows, disqualifications, near-zero matches (the alliance scored about what the partner's OPR alone would), how much its estimated contribution swings, the penalties it gives away and how predictable its matches have been (from the report cards, #232). A near-zero match isn't proof of a dead robot: defense or a partner carrying the alliance looks the same, and the page says so. Every part is pulled toward the season average as if the team had 10 more matches, and the sample size is always shown. It's on team pages, in Compare, on your shortlist and your workspace's pick list, in pre-match reports and in offline packs. How it works lists the rule.
+- **With your workspace's notes.** Members of a scouting workspace whose match entries mark a robot broken, disabled or a no-show also see a second number that folds those notes in, clearly marked. Only that workspace's members see it: never other users, the public API, shared caches, page previews or offline packs.
+
+### Predictions
+- **Reasons beyond the factors.** A prediction now mentions a robot with 2 or more no-shows (or 3 or more near-zero matches) in its last 10, under the top factors. Words only: no odds, score or range changes.
+
 ## 1.16.2 — 2026-10-21
 
 Today's coin flips: the closest calls at every event on today, on the home page.

@@ -73,10 +73,16 @@ export interface Reliability {
 /** How many of the latest matches "recent" covers. */
 export const RECENT = 10;
 
+/**
+ * A ratio part's share of its weight: nothing at half the field's level or below, half at the field's level,
+ * all of it at RATIO_CAP × the field's. So a clean team isn't marked down for being merely average elsewhere.
+ */
+export const excess = (ratio: number) => Math.max(0, Math.min(RATIO_CAP - 0.5, ratio - 0.5));
+
 export function reliabilityIndex(p: ReliabilityParts, workspaceRate?: number): number {
   const w = RELIABILITY_WEIGHTS;
   const loss = w.noShow * p.noShowRate + w.dq * p.dqRate + w.nearZero * p.nearZeroRate
-    + w.swing * Math.min(SWING_CAP, p.swing) + w.penalties * Math.min(RATIO_CAP, p.penaltyRatio) + w.predictability * Math.min(RATIO_CAP, p.predictabilityRatio)
+    + w.swing * Math.min(SWING_CAP, p.swing) + w.penalties * excess(p.penaltyRatio) + w.predictability * excess(p.predictabilityRatio)
     + (workspaceRate != null ? w.workspace * workspaceRate : 0);
   return Math.max(0, Math.min(100, Math.round(100 - loss)));
 }
