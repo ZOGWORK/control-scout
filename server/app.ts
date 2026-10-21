@@ -58,6 +58,7 @@ import { reportsRouter } from "./errorReports.js";
 import { packsRouter } from "./packs/routes.js";
 import { cachedPublicUsage, collectRouter, statsRouter } from "./analytics.js";
 import { homeOverview } from "./api/home.js";
+import { coinFlips, radarEtag } from "./api/coinFlips.js";
 import { listRecords, recordRegions, recordsQuery, RecordsQueryError, streamRecordsCsv } from "./api/records.js";
 import { directoryQuery, DirectoryQueryError, listDirectory } from "./api/directory.js";
 import { FilterError } from "../src/shared/filterDsl.js";
@@ -246,6 +247,18 @@ export function createApp() {
     const o = await homeOverview(season(req.query.season));
     noStoreWhileBehind(res, o.readiness.state);
     return o;
+  }));
+
+  // Today's coin flips: the closest calls on today's schedules, every event at its own venue date (server/api/coinFlips.ts).
+  // Revalidated every time, by browsers and shared caches alike: the open page polls it each minute and rows
+  // drop at each venue's midnight, so a cached copy must never be served without asking. The ETag (the stored
+  // radar and the venue dates still today) keeps that a cheap 304.
+  api.get("/home/coin-flips", h(async (req, res) => {
+    const r = await coinFlips();
+    res.setHeader("Cache-Control", "no-cache");
+    res.setHeader("ETag", radarEtag(r));
+    if (req.fresh) { res.status(304).end(); return undefined; }
+    return r;
   }));
 
   // Opt-in page views and sessions started, last 30 days: only when the owner publishes them (PUBLIC_USAGE_ENABLED).

@@ -24,6 +24,18 @@ Bonus ranking point odds next to every qualification win %.
 - **A bonus curve that keeps up with the season.** The chance of each bonus at a given score is fitted to the season's latest 2,000 recorded qualification alliances (from 200 on; provisional below 600, at most moderate below 2,000). On the 2025–26 replay that scored a Brier of 0.147 per bonus call, against 0.178 for the whole-season curve the engine shipped with.
 - **Scored in the track record.** Bonus calls are written to the ledger with each pre-match call and scored by Brier per bonus, live and season replay kept apart. The replay fits the bonus model only on results before each match. See How it works › Bonus ranking points. (#228)
 
+## 1.16.2 — 2026-10-21
+
+Today's coin flips: the closest calls at every event on today, on the home page.
+
+### Highlights
+- [home] Today's coin flips: the matches the model calls 45% to 55%
+- [predict] Every event that's on today, at its own venue's date
+- [history] Played ones stay, with the result beside the call made before
+
+### Home
+- **Today's coin flips.** A new section on the home page gathers the matches on today's schedules, across every event that's on today at its venue, where the model gives either side between 45% and 55%. Those still to play come first, soonest first, each with both alliances, the odds on a close-up scale, the time at the venue, how long until it starts and its confidence tier; the closest call is marked. Played ones follow with their score and the call made before the match. Calls on thin data (a robot with fewer than 3 matches this season) are left out, and an empty day says why. Each opens its match page. Refreshed after every sync and live result, and every few minutes; an open home page keeps up by itself. (#226)
+
 ## 1.16.1 — 2026-10-21
 
 Smooth scrolling across the site: jumps within a page glide there instead of cutting.
