@@ -20,4 +20,4 @@ export * from "./bonus.js";
 export { FITTED_MODEL } from "./model.js";
 
 /** Package version (kept in step with package.json by a test). */
-export const ENGINE_VERSION = "2.2.0";
+export const ENGINE_VERSION = "2.3.0";
