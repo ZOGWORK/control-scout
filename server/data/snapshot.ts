@@ -26,6 +26,8 @@ export const PRIVATE_TABLES = [
   "workspace_picklist", "workspace_picklist_versions", "workspace_picklist_ops", "workspace_entry_versions", "push_subscriptions", "push_sent",
   // Owner-set event streams (migration 34): updated_by is the owner's email.
   "event_streams",
+  // The Discord bot's follows and its post log (migration 35): Discord server, channel and user ids.
+  "discord_follows", "discord_posts",
 ];
 
 /**
