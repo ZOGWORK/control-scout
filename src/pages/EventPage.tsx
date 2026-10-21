@@ -27,6 +27,7 @@ import { cn } from "../components/cn";
 import { ROSTER_CHIP_TONE } from "../lib/textTones";
 import { OfflineNote } from "../components/OfflineNote";
 import { EventGlance } from "../components/EventGlance";
+import { ModelVsField } from "../components/ModelVsField";
 import { callRecord } from "../lib/eventGlance";
 import { NotFoundView } from "../components/NotFoundView";
 import { LiveCountdownChip, LivePanel, useLiveTarget } from "../components/LivePanel";
@@ -207,6 +208,8 @@ function Event({ d, path }: { d: EventDetail; path: string }) {
                   the records table below is rebuilt by the stats cycle, so it says how old it is. */}
               {e.status === "live" && <LiveStandings field={d.field} season={e.season} team={teamParam} code={e.code} />}
               {e.status === "live" && <StatsAsOf />}
+              {/* Model vs field: the biggest gaps between the model's rating order and the seeding (components/ModelVsField.tsx). */}
+              {predictable && <ModelVsField season={e.season} code={e.code} refreshKey={d.live?.checkedAt ?? undefined} />}
               <RecordsTable scope="teamEvent" season={e.season} code={e.code} predictable={predictable} refreshKey={recordsKey} defaultSort="rank" storageKey="event-rankings" noun="teams"
                 defaultCols={RANKING_COLS.filter((k) => k !== "advancementOdds" || !d.forecastUnsupported)} selectable highlightTeam={teamParam}
                 emptyFallback={e.status === "live" ? <EmptyState icon={Swords} title="Full stats arrive with the next stats update" description="The live standings above are current." /> : <Rankings field={d.field} season={e.season} team={teamParam} code={e.code} note={NOTE_NO_RECORDS} />}
