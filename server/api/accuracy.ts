@@ -6,7 +6,7 @@
 import { all, kvGet } from "../db.js";
 import { CURRENT_SEASON, PREDICT_SEASONS, SEASONS } from "../data/seasons.js";
 import { ENGINE_VERSION, type ConfidenceTier } from "@control-scout/predict-engine";
-import type { AccuracyBlock, ReplayCoverage, ShadowScore, TrackRecord } from "../../src/shared/api.js";
+import type { AccuracyBlock, RangeCoverage, ReplayCoverage, ShadowScore, TrackRecord } from "../../src/shared/api.js";
 import { LIVE_THRESHOLD, pickHeadline } from "../../src/shared/ledger.js";
 import { matchViews } from "./matches.js";
 import { dataVersion } from "../predict/engine.js";
@@ -14,7 +14,9 @@ import { registerCache } from "../caches.js";
 
 export { LIVE_THRESHOLD };
 
-interface Row { p: number; y: number; tier: ConfidenceTier; level: string; time: string | null }
+interface Row { p: number; y: number; tier: ConfidenceTier; level: string; time: string | null; ranges?: StatedRanges | null }
+/** A call's stated score ranges (engine 2.2+) and the real scores. */
+export interface StatedRanges { level: number; red: [number, number]; blue: [number, number]; redScore: number; blueScore: number }
 
 const EPS = 1e-6;
 export const isoWeek = (t: string) => {
@@ -52,7 +54,44 @@ export function block(rows: Row[]): AccuracyBlock | null {
     byLevel: { qual: { n: q.length, accuracy: acc(q) }, playoff: { n: pl.length, accuracy: acc(pl) } },
     weekly: [...weeks.entries()].sort(([a], [b]) => a.localeCompare(b)).map(([week, xs]) => ({ week, n: xs.length, accuracy: acc(xs) })),
     upsets: decided.filter((r) => !right(r)).length,
+    ranges: rangeCoverage(rows),
   };
+}
+
+/**
+ * Score ranges, scored like the win calls: of the alliance scores whose call stated a range, the share that
+ * landed inside it (and which way the misses went). An honest 80% range holds about 80%; more means the ranges
+ * are wider than they need to be, less means they are overconfident. Null when no call stated a range.
+ */
+export function rangeCoverage(rows: Row[]): RangeCoverage | null {
+  const tiers = ["provisional", "moderate", "confident"] as const;
+  const acc = { n: 0, inside: 0, below: 0, above: 0, width: 0 };
+  const byTier = Object.fromEntries(tiers.map((t) => [t, { n: 0, inside: 0 }])) as Record<ConfidenceTier, { n: number; inside: number }>;
+  let level: number | null = null;
+  for (const r of rows) {
+    const g = r.ranges;
+    if (!g) continue;
+    level ??= g.level;
+    const t = byTier[r.tier];
+    for (const [[lo, hi], y] of [[g.red, g.redScore], [g.blue, g.blueScore]] as const) {
+      acc.n++; acc.width += hi - lo;
+      if (t) t.n++;
+      if (y < lo) acc.below++;
+      else if (y > hi) acc.above++;
+      else { acc.inside++; if (t) t.inside++; }
+    }
+  }
+  if (!acc.n || level == null) return null;
+  return {
+    level, n: acc.n, inside: acc.inside, coverage: acc.inside / acc.n, below: acc.below / acc.n, above: acc.above / acc.n, width: acc.width / acc.n,
+    byTier: Object.fromEntries(tiers.map((t) => [t, { n: byTier[t].n, coverage: byTier[t].n ? byTier[t].inside / byTier[t].n : 0 }])) as RangeCoverage["byTier"],
+  };
+}
+
+/** The stated ranges of a ledger row, when it has them, with its real scores. */
+export function statedRanges(r: any): StatedRanges | null {
+  if (r.red_lo == null || r.red_hi == null || r.blue_lo == null || r.blue_hi == null || r.red_score == null || r.blue_score == null) return null;
+  return { level: Number(r.range_level ?? 0.8), red: [Number(r.red_lo), Number(r.red_hi)], blue: [Number(r.blue_lo), Number(r.blue_hi)], redScore: Number(r.red_score), blueScore: Number(r.blue_score) };
 }
 
 /** The last track record built, and the build under way (one at a time, shared by every caller). */
@@ -157,11 +196,11 @@ async function seasonCoverage(): Promise<Map<number, ReplayCoverage>> {
 }
 
 async function computeTrackRecord(): Promise<TrackRecord> {
-  const rows = await all<any>("SELECT kind, season, p_red p, outcome y, tier, level, match_time time, engine_version engine, model_id model, p_red_shadow ps, shadow_model_id sm FROM predictions WHERE outcome IS NOT NULL");
+  const rows = await all<any>("SELECT kind, season, p_red p, outcome y, tier, level, match_time time, engine_version engine, model_id model, p_red_shadow ps, shadow_model_id sm, red_lo, red_hi, blue_lo, blue_hi, range_level, red_score, blue_score FROM predictions WHERE outcome IS NOT NULL");
   const coverage = await seasonCoverage();
   const seasons = SEASONS.filter((s) => PREDICT_SEASONS.includes(s.season)).map((s) => {
     const of = (kind: string, engine?: string) => rows.filter((r) => r.kind === kind && Number(r.season) === s.season && (engine == null || r.engine === engine))
-      .map((r) => ({ p: Number(r.p), y: Number(r.y), tier: r.tier, level: r.level, time: r.time }));
+      .map((r) => ({ p: Number(r.p), y: Number(r.y), tier: r.tier, level: r.level, time: r.time, ranges: statedRanges(r) }));
     // Prospective evidence per engine version: each version's own calls only.
     const engines = [...new Set(rows.filter((r) => r.kind === "live" && Number(r.season) === s.season).map((r) => String(r.engine)))].sort();
     const liveByEngine = engines.map((engine) => { const b = block(of("live", engine))!; return { engine, n: b.n, accuracy: b.accuracy, brier: b.brier, logLoss: b.logLoss }; });
