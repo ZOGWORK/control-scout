@@ -1050,6 +1050,34 @@ ALTER TABLE matches ADD COLUMN field TEXT;
 ALTER TABLE matches ADD COLUMN breakdown INTEGER;
 `,
   },
+  {
+    version: 35,
+    name: "discord follows",
+    sql: `
+-- The Discord bot's automatic posts (bot/follows.ts): a server follows a team in one of its channels
+-- (/follow), and the bot posts there 15 minutes before each of the team's matches and once each has a
+-- result. Written only by the bot. created_by is a Discord user id. Version 35: 34 is taken by another
+-- open change (event streams); migrations apply by version, so the order they land in doesn't matter.
+CREATE TABLE discord_follows (
+  guild_id TEXT NOT NULL,
+  channel_id TEXT NOT NULL,
+  team INTEGER NOT NULL,
+  created_at TEXT NOT NULL,
+  created_by TEXT,
+  failures INTEGER NOT NULL DEFAULT 0,
+  PRIMARY KEY (guild_id, channel_id, team)
+);
+CREATE INDEX discord_follows_team ON discord_follows (team);
+-- One post per channel, match and kind (reminder | result), so a restart or two teams in one match never post twice.
+CREATE TABLE discord_posts (
+  channel_id TEXT NOT NULL,
+  season INTEGER NOT NULL, code TEXT NOT NULL, match_key TEXT NOT NULL,
+  kind TEXT NOT NULL,
+  posted_at TEXT NOT NULL,
+  PRIMARY KEY (channel_id, season, code, match_key, kind)
+);
+`,
+  },
 ];
 
 export type Db = Client;

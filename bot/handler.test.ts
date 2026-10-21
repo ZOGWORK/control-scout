@@ -6,6 +6,7 @@ import { createHandler, type Lookups } from "./handler";
 import { Friendly } from "./views";
 import { AnswerCache, Cooldown } from "./guard";
 import { COMMANDS, sameCommands } from "./commands";
+import { BOT_COMMANDS } from "../src/shared/discord";
 
 function command(name: string, options: Record<string, string | number>, user = "u1") {
   const calls: { kind: string; payload?: any }[] = [];
@@ -34,6 +35,9 @@ function lookups(over: Partial<Lookups> = {}): Lookups {
     event: vi.fn(async (c: string) => ok(c)),
     rankings: vi.fn(async () => ok("rankings")),
     choices: vi.fn(async () => [{ name: "A (A)", value: "A" }]),
+    follow: vi.fn(async () => "added" as const),
+    unfollow: vi.fn(async () => 1),
+    following: vi.fn(async () => ok("following")),
     ...over,
   };
 }
@@ -149,8 +153,14 @@ describe("Cooldown", () => {
 });
 
 describe("registration", () => {
-  it("exactly four commands", () => {
-    expect(COMMANDS.map((c) => c.name)).toEqual(["team", "predict", "event", "rankings"]);
+  it("the commands, each one on the site's list; follow and unfollow need Manage Server, in servers only", () => {
+    expect(COMMANDS.map((c) => c.name)).toEqual(["team", "predict", "event", "rankings", "follow", "unfollow", "following", "help"]);
+    for (const c of COMMANDS) expect(BOT_COMMANDS.some((b) => b.usage.startsWith(`/${c.name}`)), c.name).toBe(true);
+    for (const name of ["follow", "unfollow"]) {
+      const c = COMMANDS.find((x) => x.name === name)!;
+      expect(c.default_member_permissions).toBe("32"); // Manage Server
+      expect(c.contexts).toEqual([0]); // guild only
+    }
   });
 
   it("what Discord sends back for unchanged commands (ids, versions, defaults, any order) counts as the same", () => {
@@ -165,5 +175,48 @@ describe("registration", () => {
     expect(sameCommands(COMMANDS.map((c) => (c.name === "team" ? { ...c, description: "old" } : c)))).toBe(false);
     expect(sameCommands(COMMANDS.slice(1))).toBe(false);
     expect(sameCommands([...COMMANDS, { name: "x", description: "y" }])).toBe(false);
+  });
+});
+
+describe("follows", () => {
+  function inGuild(name: string, options: Record<string, string | number>, channelOpt?: string) {
+    const c = command(name, options);
+    Object.assign(c.i, { guildId: "g1", channelId: "here", guild: undefined, options: { ...c.i.options, getChannel: () => (channelOpt ? { id: channelOpt } : null) } });
+    return c;
+  }
+
+  it("/follow posts in this channel by default, or the one picked; /unfollow says what stopped", async () => {
+    const l = lookups();
+    const h = createHandler(() => {}, l, { cooldownMs: 0 });
+    const a = inGuild("follow", { team: 18360 });
+    await h(a.i);
+    expect(l.follow).toHaveBeenCalledWith("g1", "here", 18360, "u1");
+    expect(a.calls[1].payload.embeds[0].title).toBe("Following 18360");
+    await h(inGuild("follow", { team: 4215 }, "c9").i);
+    expect(l.follow).toHaveBeenLastCalledWith("g1", "c9", 4215, "u1");
+    const u = inGuild("unfollow", { team: 18360 });
+    await h(u.i);
+    expect(u.calls[1].payload.embeds[0].title).toBe("Stopped following 18360");
+  });
+
+  it("never cached: a second /following reads again", async () => {
+    const l = lookups();
+    const h = createHandler(() => {}, l, { cooldownMs: 0 });
+    await h(inGuild("following", {}).i);
+    await h(inGuild("following", {}).i);
+    expect(l.following).toHaveBeenCalledTimes(2);
+  });
+
+  it("outside a server (a DM): a friendly error", async () => {
+    const { i, calls } = command("follow", { team: 1 });
+    await createHandler(() => {}, lookups(), { cooldownMs: 0 })(i);
+    expect(calls[1].payload.embeds[0].title).toBe("Servers only");
+  });
+
+  it("/help lists every command", async () => {
+    const { i, calls } = command("help", {});
+    await createHandler(() => {}, lookups(), { cooldownMs: 0 })(i);
+    const text = calls[1].payload.embeds[0].description as string;
+    for (const c of BOT_COMMANDS) expect(text).toContain(c.usage);
   });
 });

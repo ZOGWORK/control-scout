@@ -9,6 +9,10 @@ an embed that links back to controlscout.org:
 | `/predict event: match:` | Win odds as bars, predicted score and confidence for a qualification match. Once it's played: the final score, what was predicted, and ✅ / ❌ for whether the call was right |
 | `/event code:` | Dates, place, status, matches played, top 5 by OPR, and the winning alliance once it's over |
 | `/rankings` | The world top 10 by rating, with movement since last week |
+| `/follow team: channel:` | Automatic posts in a channel: 15 minutes before each of the team's matches, and its result. Manage Server only |
+| `/unfollow team: channel:` | Stop them (every channel if none is given). Manage Server only |
+| `/following` | The server's followed teams and where each posts (up to 10 per server) |
+| `/help` | Every command, from the same list the site shows (`BOT_COMMANDS` in `src/shared/discord.ts`) |
 
 `event` and `code` autocomplete over events on now, coming up, or finished in the last 3 days (name or
 code; you can also type a code yourself).
@@ -19,7 +23,12 @@ code; you can also type a code yourself).
   restart or deploy never touches the site, and the other way round.
 - **Same data, no API.** It imports the site's own modules (`server/api/teams.ts`, `events.ts`,
   `rankings.ts`, the prediction engine) and reads the same database, so its numbers are the site's. It
-  never calls the site over HTTP, never writes to the database and never runs migrations.
+  never calls the site over HTTP and never runs migrations; it writes only its own tables
+  (`discord_follows`, `discord_posts`, migration 35, created by the site's deploy).
+- **Automatic posts** (`bot/follows.ts`): every minute it reads the follows, the followed teams' matches at
+  events on today, and posts what's due: a reminder within 15 minutes of a start, a result within 6 hours of
+  it. Only matches starting after the follow (no backlog). Each post is claimed in `discord_posts` before it's
+  sent, so nothing posts twice; a passing failure retries, a channel that's gone is dropped after 5 failures.
 - **Load protection.** One answer per command and arguments for 60 seconds (`bot/guard.ts`): fifty people
   asking for the same match cost one lookup. One command per person every 3 seconds (a private "Slow
   down" reply). Autocomplete reads the event list once a minute and returns at most 25 choices.
