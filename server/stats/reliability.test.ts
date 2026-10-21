@@ -4,7 +4,7 @@ import { beforeEach, describe, expect, it } from "vitest";
 import { all, migrate, openDb, run, setDb } from "../db";
 import { computeReliability, partsOf, fieldOf, tallyReliability } from "./reliability";
 import { loadSeason, type DbEvent, type DbMatch } from "./load";
-import { teamReliability, seasonStats } from "../api/teams";
+import { teamReliability, seasonStats, reliabilityMany } from "../api/teams";
 import { blendedIndex, reliabilityIndex, RELIABILITY_PRIOR, type ReliabilityParts } from "../../src/shared/reliability";
 import { PACK_TABLES } from "../../src/shared/packSchema";
 import { PUBLIC_TABLES } from "../data/snapshot";
@@ -79,6 +79,10 @@ describe("stored rows", () => {
     expect(r1!.recent).toMatchObject({ matches: 6, noShows: 2 });
     expect(r1!.fieldIndex).not.toBeNull();
     expect(await teamReliability(2025, 0)).toBeNull();
+    // The public batch answer (also Control Point's source): in the order asked, null where none.
+    const many = await reliabilityMany(2025, [2, 999, 1]);
+    expect(many.teams.map((x) => [x.team, x.reliability?.index ?? null])).toEqual([[2, r2!.index], [999, null], [1, r1!.index]]);
+    expect(many.fieldIndex).toBe(r1!.fieldIndex);
     // The profile carries it with its season stats.
     await run("INSERT INTO team_season_stats (season, team, matches) VALUES (2025, 1, 6)");
     expect((await seasonStats(2025, 1))?.reliability?.index).toBe(r1!.index);
