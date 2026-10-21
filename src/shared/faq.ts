@@ -11,7 +11,8 @@ export interface FaqGroup { id: string; title: string; items: FaqItem[] }
 /** The Discord bot's answer, with its invite link; none until the link exists. */
 export function discordFaq(invite: string | null): FaqItem[] {
   return invite ? [{ id: "discord", q: "Is there a Discord bot?", a: [
-    `Yes. [Add Control Scout to your server](${invite}) and anyone there can use /team, /predict, /event and /rankings. Every answer links back to the page it came from.`,
+    `Yes. [Add Control Scout to your server](${invite}) and anyone there can use /team, /predict, /event and /rankings; every answer links back to the page it came from. /help lists everything.`,
+    "To get posts automatically, someone who can manage the server types /follow team: (your number) in a channel: the bot posts there 15 minutes before each of the team's matches and again with the result. [My teams](/my-teams) has the commands ready to copy.",
     "The bot reads the same data as the site, so its numbers match what you see here. It needs only Send Messages, Embed Links and Use Slash Commands.",
   ] }] : [];
 }

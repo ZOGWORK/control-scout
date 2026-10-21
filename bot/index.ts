@@ -1,6 +1,7 @@
 // The Control Scout Discord bot: its own process (systemd unit control-scout-bot on the VM), so a bot
 // crash, restart or deploy never touches the site, and the other way round. It reads the site's
-// database through the site's own modules (bot/lookups.ts) and never writes to it.
+// database through the site's own modules (bot/lookups.ts). It writes only its own two tables: the teams
+// servers follow and the log of what it posted for them (bot/follows.ts, migration 35).
 //
 //   DISCORD_BOT_TOKEN      required (bot/README.md: developer portal → Bot → Reset Token)
 //   DISCORD_DEV_GUILD_ID   optional: register the commands in that one server (instant) instead of globally
@@ -12,6 +13,8 @@ import { CURRENT_SEASON } from "../server/data/seasons.js";
 import { liveForecaster, refreshForecasters } from "../server/predict/engine.js";
 import { COMMANDS, sameCommands } from "./commands.js";
 import { createHandler } from "./handler.js";
+import { notifyTick, type Send } from "./follows.js";
+import { site } from "./lookups.js";
 
 const log = (m: string) => console.log(`[${new Date().toISOString()}] [bot] ${m}`);
 
@@ -64,6 +67,29 @@ async function registerUntilDone(appId: string): Promise<void> {
 // As the site does (server/index.ts): after a sync the data version moves, so rebuild the ratings in the
 // background right away, and no /predict is the one that finds the old ones (or waits for new ones).
 setInterval(() => { refreshForecasters().catch(() => {}); }, 15_000).unref();
+
+// Automatic posts for followed teams (bot/follows.ts): every minute once connected, one tick at a time.
+const send: Send = async (channelId, embed) => {
+  try {
+    const ch = await client.channels.fetch(channelId);
+    if (!ch || !ch.isSendable()) return "gone";
+    await ch.send({ embeds: [embed] });
+    return "ok";
+  } catch (e) {
+    // 10003 unknown channel, 50001 missing access, 50013 missing permissions: the channel is gone or closed to the bot.
+    const code = (e as { code?: number }).code;
+    return code === 10003 || code === 50001 || code === 50013 ? "gone" : "error";
+  }
+};
+let ticking = false;
+setInterval(() => {
+  if (ticking || !client.isReady()) return;
+  ticking = true;
+  notifyTick(send, site(), log)
+    .then((n) => { if (n) log(`follows: posted ${n}`); })
+    .catch((e) => log(`follows: tick failed: ${(e as Error).message}`))
+    .finally(() => { ticking = false; });
+}, 60_000).unref();
 client.on(Events.InteractionCreate, (i) => { void handle(i); });
 client.on(Events.GuildCreate, (g) => log(`added to a server (${client.guilds.cache.size} now): ${g.id}`));
 client.on(Events.GuildDelete, (g) => log(`removed from a server (${client.guilds.cache.size} now): ${g.id}`));

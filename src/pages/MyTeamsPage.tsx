@@ -20,6 +20,7 @@ import { Async } from "../components/states";
 import { Button } from "../components/ui/button";
 import { Badge } from "../components/ui/basic";
 import { MatchList } from "../components/predict";
+import { DiscordCard } from "../components/DiscordCard";
 import { dateRange, num, rankPct, seasonLabel } from "../lib/format";
 
 const CP_FALLBACK = "https://tryctrlpoint.org";
@@ -77,6 +78,8 @@ export default function MyTeamsPage() {
       <div className="space-y-6">
         {mine.teams.map((t, i) => <TeamCard key={t.teamNumber} mine={t} delay={Math.min(i, 4) * 0.08} />)}
         {mine.unnumbered.map((w) => <UnnumberedCard key={w.id} w={w} cpUrl={cpUrl} />)}
+        {/* The Discord bot: add it to your team's server and follow your teams there (components/DiscordCard.tsx). */}
+        <DiscordCard teams={mine.teams.map((t) => t.teamNumber)} />
       </div>
       <p className="mt-8 text-sm text-muted-foreground">
         Missing a team? Teams come from your Control Point workspaces.{" "}
