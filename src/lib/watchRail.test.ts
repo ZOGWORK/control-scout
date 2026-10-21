@@ -27,14 +27,27 @@ describe("railModel", () => {
   it("when the match being called gets its result: the result for a minute, then the next match", () => {
     const before = [q(1, [100, 90]), q(2), q(3), q(4)];
     const after = [q(1, [100, 90]), q(2, [80, 110]), q(3), q(4)];
-    const flip = nextFlip("qual:0:2", after, T0, null);
-    expect(flip).toEqual({ key: "qual:0:2", until: T0 + RESULT_MS });
+    const shown = q(2).prediction;
+    const flip = nextFlip({ key: "qual:0:2", prediction: shown }, after, T0, null);
+    expect(flip).toEqual({ key: "qual:0:2", until: T0 + RESULT_MS, shown });
     const showing = railModel(ev(after), T0 + 1000, flip);
     expect(showing.result?.number).toBe(2);
     expect(showing.current?.number).toBe(3);
     expect(railModel(ev(after), T0 + RESULT_MS + 1, flip).result).toBeNull();
     // A refresh that changes nothing keeps the flip that's there.
-    expect(nextFlip("qual:0:2", before, T0, null)).toBeNull();
+    expect(nextFlip({ key: "qual:0:2", prediction: shown }, before, T0, null)).toBeNull();
+  });
+
+  it("the result is judged against the call the viewer saw, even if the scored match's prediction changed", () => {
+    // Called red 60% from today's ratings (not loggable); once scored the match carries the backtest's blue call.
+    const after = [q(1, [100, 90]), { ...q(2, [110, 80]), prediction: { ...q(2).prediction!, pRed: 0.3, kind: "backtest" as const } }, q(3)];
+    const flip = nextFlip({ key: "qual:0:2", prediction: { ...q(2).prediction!, pRed: 0.6, kind: "now" } }, after, T0, null);
+    const r = railModel(ev(after), T0 + 1000, flip).result!;
+    expect(r.prediction?.pRed).toBe(0.6);
+    expect(verdict(r)).toBe("called");
+    // Nothing was shown (no call): the result says so rather than judging a call nobody saw.
+    const none = railModel(ev(after), T0 + 1000, nextFlip({ key: "qual:0:2", prediction: null }, after, T0, null)).result!;
+    expect(none.prediction).toBeNull();
   });
 
   it("hides once the event is finished", () => {

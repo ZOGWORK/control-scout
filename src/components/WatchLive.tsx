@@ -9,7 +9,7 @@ import { Check, Play, X } from "lucide-react";
 import type { EventDetail, EventStream, MatchView } from "../shared/api";
 import { thumbnailUrl } from "../shared/stream";
 import { oddsPct } from "../shared/share";
-import { nextFlip, railModel, verdict, type Flip } from "../lib/watchRail";
+import { nextFlip, railModel, verdict, type Calling, type Flip } from "../lib/watchRail";
 import { venueClock } from "../lib/liveMode";
 import { TierMark, WinBar } from "./predict";
 import { cn } from "./cn";
@@ -54,7 +54,7 @@ function Player({ stream, title }: { stream: EventStream; title: string }) {
 function useRail(d: EventDetail) {
   const [flip, setFlip] = useState<Flip | null>(null);
   const [now, setNow] = useState(() => Date.now());
-  const calling = useRef<string | null>(null);
+  const calling = useRef<Calling | null>(null);
   const rail = railModel(d, now, flip);
   // New data: did the match being called just get its result? Then show it before moving on.
   useEffect(() => {
@@ -64,7 +64,8 @@ function useRail(d: EventDetail) {
     setFlip((f) => nextFlip(key, d.matches, t, f));
     setNow(t);
   }, [d.matches]);
-  useEffect(() => { calling.current = rail.current?.key ?? null; }, [rail.current?.key]);
+  // After every render (and after the effect above, which reads the previous one): the match being called and the call on screen.
+  useEffect(() => { calling.current = rail.current ? { key: rail.current.key, prediction: rail.current.prediction } : null; });
   // Wake once when a shown result is due to give way.
   useEffect(() => {
     if (!flip || flip.until <= now) return;
