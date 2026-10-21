@@ -77,7 +77,11 @@ describe("before anything loaded", () => {
 describe("qrPath", () => {
   it("a square of modules for the address", () => {
     const q = qrPath("https://controlscout.org/events/2026/USMNMAN");
-    expect(q.size).toBeGreaterThanOrEqual(21);
+    expect(q.size).toBeGreaterThanOrEqual(21 + 8);
+    // The four-module quiet zone is part of the code: no dark module in the outer four rows or columns.
+    const at = [...q.d.matchAll(/M(\d+) (\d+)/g)].map((m) => [Number(m[1]), Number(m[2])]);
+    expect(at.length).toBeGreaterThan(0);
+    expect(at.every(([x, y]) => x >= 4 && y >= 4 && x < q.size - 4 && y < q.size - 4)).toBe(true);
     expect(q.d).toMatch(/^M\d+ \d+h1v1h-1z/);
   });
 });
