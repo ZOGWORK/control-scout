@@ -151,6 +151,26 @@ describe("refreshing report cards across seasons", () => {
     expect(await refreshReportCards(() => {}, nextDay + 24 * 3600_000)).toEqual([]); // now final too
   });
 
+  it("an event marked final that gains an unplayed match is rebuilt and drops back out of the finished ones", async () => {
+    await refreshReportCards(() => {}, T);
+    expect((await teamReportCards(PAST, 1))?.events.map((e) => e.code)).toEqual(["OLD"]);
+    await run("INSERT INTO matches (season, code, level, series, number, label, played, source) VALUES (?, 'OLD', 'playoff', 1, 1, 'F1', 0, 'test')", [PAST]);
+    expect(await refreshReportCards(() => {}, T)).toEqual([PAST]);
+    expect((await teamReportCards(PAST, 1))?.events).toEqual([]);
+    expect(await refreshReportCards(() => {}, T)).toEqual([]);
+    // Played (the sync brings the result): final again.
+    await run("UPDATE matches SET played = 1 WHERE season = ? AND code = 'OLD'", [PAST]);
+    expect(await refreshReportCards(() => {}, T)).toEqual([PAST]);
+    expect((await teamReportCards(PAST, 1))?.events.map((e) => e.code)).toEqual(["OLD"]);
+  });
+
+  it("an event marked final whose end date moves to the future is rebuilt", async () => {
+    await refreshReportCards(() => {}, T);
+    await run("UPDATE events SET end = '2026-12-01' WHERE season = ? AND code = 'OLD'", [PAST]);
+    expect(await refreshReportCards(() => {}, T)).toEqual([PAST]);
+    expect((await all<any>("SELECT final FROM team_report_cards WHERE season = ? AND code = 'OLD' AND team = 1", [PAST]))[0].final).toBe(0);
+  });
+
   it("never reads the backtest replay", async () => {
     await refreshReportCards(() => {}, T);
     for (let i = 0; i < 20; i++) await run(
