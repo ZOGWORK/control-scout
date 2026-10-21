@@ -23,6 +23,8 @@ import { ToggleGroup, ToggleGroupItem } from "../components/ui/controls";
 import { MatchList } from "../components/predict";
 import { SortTable, type Col } from "../components/SortTable";
 import { AdvancementView } from "../components/Advancement";
+import { Projections } from "../components/Projections";
+import { OFFLINE_FORECAST } from "../lib/offline/readers";
 import { cn } from "../components/cn";
 import { ROSTER_CHIP_TONE } from "../lib/textTones";
 import { OfflineNote } from "../components/OfflineNote";
@@ -229,16 +231,22 @@ function Event({ d, path }: { d: EventDetail; path: string }) {
         {predictable && <TabsContent value="odds" className="mt-5 max-sm:mt-4">
           {/* Every event with a schedule gets match predictions; advancement odds only where teams advance. */}
           <TeamPicker field={d.field} value={teamParam} onChange={setTeam} />
+          {/* Offline: the simulator needs a connection, but a saved pack carries the event's stored projections. */}
+          {d.forecastUnsupported === OFFLINE_FORECAST && <div className="mb-6 max-sm:mb-4"><Projections d={d} team={teamParam} /></div>}
           {d.forecastUnsupported ? (
             <p className="mb-6 max-sm:mb-4 flex items-start gap-2 rounded-xl border border-border bg-card px-4 py-3 text-sm text-muted-foreground">
               <Trophy className="mt-0.5 size-4 shrink-0" />
               <span>{d.forecastUnsupported} Every scheduled match below still gets win odds and a predicted score.</span>
             </p>
           ) : (
+            <>
+            {/* The stored Monte Carlo projection of the rest of the event (server/projections), live as results land. */}
+            <div className="mb-10 max-sm:mb-6"><Projections d={d} team={teamParam} /></div>
             <section aria-label="Advancement odds" className="mb-10 max-sm:mb-6">
               <h2 className="mb-3 font-display text-lg font-semibold text-foreground">Advancement odds</h2>
               <AdvancementView season={e.season} code={e.code} team={teamParam} nameOf={nameOf} onPickTeam={setTeam} />
             </section>
+            </>
           )}
           <MatchOdds d={d} team={teamParam} onTab={setTab} />
         </TabsContent>}
