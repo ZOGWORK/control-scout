@@ -3,6 +3,7 @@
 // couldn't be reached (lib/api.ts): an online visit never loads the engine
 // code here, nor opens the pack.
 import { RatingBook, explainMatch, FITTED_MODEL, type MatchExplanation } from "@control-scout/predict-engine";
+import { partnershipFor } from "./partnerships";
 import { loadLite } from "../packs";
 
 /**
@@ -16,5 +17,5 @@ export async function offlineExplain(season: number, red: number[], blue: number
   if (!p || !data) return null;
   const book = RatingBook.fromData(data);
   book.setTime(Date.now());
-  return { ...explainMatch(book, red, blue, { noise: FITTED_MODEL.noise, calibration: FITTED_MODEL.calibration, contextual: FITTED_MODEL.contextual, context: { level } }), asOf: p.builtAt };
+  return { ...explainMatch(book, red, blue, { noise: FITTED_MODEL.noise, calibration: FITTED_MODEL.calibration, contextual: FITTED_MODEL.contextual, context: { level }, partnership: partnershipFor(p, season) }), asOf: p.builtAt };
 }

@@ -3,6 +3,17 @@ import type { ConfidenceTier, Factor, Forecast, Partners, TeamStrength } from "@
 
 export type { ConfidenceTier, Factor, Forecast, Partners, TeamStrength };
 
+/** The strongest real history between a lineup's robots (engine 2.2 partnership memory):
+ *  two of them played together, or met as opponents, in an earlier match. A reason shown
+ *  with the prediction; it doesn't move the odds in 2.2. */
+export interface PairHistory {
+  kind: "together" | "against";
+  teams: [number, number];
+  /** "Red"/"A" side the fact is about (together), or "A" for a red-vs-blue meeting. */
+  side: "A" | "B";
+  label: string;
+}
+
 export interface SeasonMeta { season: number; game: string; label: string; frozen: boolean; lastSync: string | null; /** False for 2019–2022: history only, no ratings or predictions. */ predictable: boolean }
 
 export interface Meta {
@@ -98,6 +109,8 @@ export interface MatchPredictionView {
   kind: "live" | "backtest" | "now";
   predictedAt: string | null;
   factors?: Factor[];
+  /** Earlier matches these robots played together or against each other (unplayed matches only). */
+  history?: PairHistory;
   /** The season has no rated matches yet: win odds only, the predicted score means nothing. */
   noScoreBasis?: true;
 }
@@ -203,6 +216,8 @@ export interface MatchExplanationView {
   rangeRed: [number, number];
   rangeBlue: [number, number];
   factors: Factor[];
+  /** Earlier matches these robots played together or against each other, if any. */
+  history?: PairHistory | null;
   confidence: { tier: ConfidenceTier; reason: string; minMatches: number; ratingShare: number };
   teamsRed: (TeamStrength & { name: string | null })[];
   teamsBlue: (TeamStrength & { name: string | null })[];

@@ -11,7 +11,7 @@ import { matchReportHref } from "../shared/matchReport";
 import { useApi } from "../lib/api";
 import { matchTime, oddsPct } from "../lib/format";
 import { Async } from "./states";
-import { CalibrationLine, ConfidenceBadge, FactorList, KIND_LABEL, WinBar } from "./predict";
+import { CalibrationLine, ConfidenceBadge, FactorList, KIND_LABEL, PairHistoryLine, WinBar } from "./predict";
 import { VideoPanel } from "./MatchVideo";
 import { ShareMatch } from "./ShareMatch";
 import { ResultChanges } from "./ResultChanges";
@@ -205,6 +205,7 @@ function Prediction({ d }: { d: MatchDetail }) {
         {called != null && <><dt className="text-text-muted">Call</dt><dd className={called ? "text-success" : "text-warning"}>{called ? "Called it" : "Upset"}</dd></>}
       </dl>
       {p.factors?.length ? <><p className="mt-3 text-xs font-medium text-text-muted">Why</p><FactorList factors={p.factors} className="mt-1.5" /></> : null}
+      {p.history ? <PairHistoryLine history={p.history} className="mt-1.5" /> : null}
       <CalibrationLine pRed={p.pRed} compact className="mt-3" />
     </section>
   );

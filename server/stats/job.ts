@@ -14,6 +14,7 @@ import { forecasterFor } from "../predict/engine.js";
 import { regionNames } from "../../src/shared/regions.js";
 import { computeRecords, fillAdvancementOdds, fillRecordPredictions } from "./records.js";
 import { snapshotRankings } from "./rankings.js";
+import { partnershipPrefix } from "../predict/partnerships.js";
 
 type Log = (m: string) => void;
 const r1 = (x: number | null | undefined) => (x == null || !Number.isFinite(x) ? null : Math.round(x * 100) / 100);
@@ -412,6 +413,9 @@ export async function runStats(o: StatsOptions = {}): Promise<void> {
   // New data → new version: forecasters rebuild (they're keyed by it). No reset: pages keep the
   // last finished ratings until the new ones are built, and frozen seasons stay read (engine.ts).
   await kvSet("data:version", new Date().toISOString());
+  // The finished seasons' pair history (engine 2.2), so the forecasters rebuilt from this version have all of it.
+  // Built once per set of frozen seasons (kv); a failure only leaves predictions without the older pairs.
+  await partnershipPrefix(PREDICT_SEASONS.filter((s) => s >= CURRENT_SEASON - 2)[0] ?? CURRENT_SEASON, { wait: true }).catch((e) => log(`pair history failed: ${(e as Error).message}`));
   const seasons = o.seasons ?? SEASON_NUMBERS;
   const withData: number[] = [];
   for (const s of seasons) {

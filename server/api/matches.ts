@@ -11,6 +11,7 @@ import { eventDetail } from "./events.js";
 import { liveForecaster } from "../predict/engine.js";
 import { localToUtcMs } from "../data/time.js";
 import { isLegacy } from "../data/seasons.js";
+import { pairHistory } from "../../src/shared/pairHistory.js";
 
 const score = (r: any, p: "red" | "blue") => r[`${p}_np`] == null ? null : {
   total: Number(r[`${p}_total`]), np: Number(r[`${p}_np`]), auto: Number(r[`${p}_auto`] ?? 0),
@@ -74,7 +75,7 @@ export async function matchViews(f: MatchFilter, opts: { predictUnplayed?: boole
         // A live event's page polls this every 30 s and should mostly get a 304, so the body must not
         // change unless the data did: no predictedAt (a call from today's ratings isn't logged at a
         // moment), and pRed to 4 places (the ratings decay with the clock, moving it ~1e-9 per read).
-        if (x) prediction = { pRed: stableP(x.winProbA), redMean: x.predictedScoreA, blueMean: x.predictedScoreB, tier: x.confidence.tier, kind: "now", predictedAt: null, factors: x.factors, ...(noScoreBasis ? { noScoreBasis: true } : {}) };
+        if (x) prediction = { pRed: stableP(x.winProbA), redMean: x.predictedScoreA, blueMean: x.predictedScoreB, tier: x.confidence.tier, kind: "now", predictedAt: null, factors: x.factors, ...(x.partnership ? { history: pairHistory(x.partnership) } : {}), ...(noScoreBasis ? { noScoreBasis: true } : {}) };
       }
     }
     out.push({

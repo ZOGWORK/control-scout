@@ -14,7 +14,7 @@ import type { WorkspaceAnswer } from "../lib/consensus";
 import { scoutTeamHref } from "../lib/consensus";
 import { workspaceLabel } from "../lib/scoutSpace";
 import { agoShort, int, num, oddsPct } from "../lib/format";
-import { ConfidenceBadge, FactorList, KIND_LABEL, TierMark, WinBar } from "./predict";
+import { ConfidenceBadge, FactorList, KIND_LABEL, PairHistoryLine, TierMark, WinBar } from "./predict";
 import { OprSpark, PARTS } from "./shortlist/charts";
 import { Popover, PopoverContent, PopoverTrigger } from "./ui/overlay";
 import { Skeleton } from "./ui/basic";
@@ -90,6 +90,7 @@ function Call({ m }: { m: MatchView }) {
             <details className="group mt-2" open>
               <summary className="cursor-pointer select-none text-xs font-medium text-muted-foreground">Why</summary>
               <FactorList factors={p.factors.slice(0, 3)} className="mt-1.5" />
+              {p.history ? <PairHistoryLine history={p.history} className="mt-1.5" /> : null}
             </details>
           ) : null}
         </>
