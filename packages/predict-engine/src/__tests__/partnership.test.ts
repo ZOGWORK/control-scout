@@ -145,6 +145,16 @@ describe("partnership memory", () => {
     expect(partnershipFact(o, [1, 7], [30, 31], 2024)!.label).toMatch(/^1 and 7 have played 2 matches together \(1–0–1\)/);
   });
 
+  it("an overlay names the event its fresh results come from (the base table only keeps names its facts use)", () => {
+    const base = new PartnershipTable(history().toData());
+    expect(base.eventName(2024, "STATE")).toBeNull();
+    const o = new PartnershipOverlay(base);
+    o.nameEvent(2024, "STATE", "State Championship");
+    o.observe(match(2024, "STATE", [[1, 2], 250], [[30, 31], 80]), new RatingBook(FITTED_MODEL.rating)); // a new best at an event with no stored results
+    expect(partnershipFact(o, [1, 2], [40, 41], 2024)!.label).toMatch(/best 250 at State Championship$/);
+    expect(partnershipFact(new PartnershipOverlay(base), [1, 2], [40, 41], 2024)!.label).toContain("NJ Championship"); // the base is untouched
+  });
+
   it("reports head-to-head records from the right side", () => {
     const b = new PartnershipBook(FITTED_MODEL.rating);
     for (let i = 0; i < 3; i++) b.observe(match(2024, "X", [[40, 41], 120], [[12, 13], 80]));

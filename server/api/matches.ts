@@ -69,6 +69,8 @@ export async function matchViews(f: MatchFilter, opts: { predictUnplayed?: boole
         ? { redRange: [Number(x.red_lo), Number(x.red_hi)] as [number, number], blueRange: [Number(x.blue_lo), Number(x.blue_hi)] as [number, number], rangeLevel: Number(x.range_level ?? 0.8) }
         : {}),
       ...(x.factors ? { factors: JSON.parse(x.factors) } : {}),
+      // The partnership line logged with the call (engine 2.4), so a logged call keeps it.
+      ...(x.history ? { history: JSON.parse(x.history) } : {}),
       ...(x.no_score_basis ? { noScoreBasis: true as const } : {}),
       ...((b) => (b ? { bonus: b } : {}))(bonusFromRow(f.season, x)),
     });

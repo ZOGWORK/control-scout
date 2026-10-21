@@ -84,7 +84,9 @@ robots on the same alliance that played together before.
 
 - **Control Scout.** Upcoming match details (event pages), the match report, and the
   Predict lab show one line below the factors. The table only appears with the season it
-  was built through, so a call never reads pairs from later matches.
+  was built through, so a call never reads pairs from later matches. A live call logged
+  before its match stores the line with it (`predictions.history`, migration 40), so the
+  logged call keeps the line it was shown with. The logged odds never depend on it.
 - **Offline (Control Scout lite pack).** Phones download the lite pack at venues, and the
   history is a reason only, so the pack carries a small cut (`src/shared/litePairs.ts`):
   same-alliance pairs that played together at least 3 times this season or last. Each is
