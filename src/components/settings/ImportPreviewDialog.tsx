@@ -89,7 +89,7 @@ export function ImportPreviewDialog({ open, fileName, preview, onCancel, onImpor
 
   return (
     <Dialog open={open} onOpenChange={(o) => { if (!o) onCancel(); }}>
-      <DialogContent className="max-w-xl gap-5" data-import-preview="">
+      <DialogContent className="max-w-xl gap-5 max-sm:gap-4" data-import-preview="">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2"><FileJson className="size-5 text-accent" aria-hidden /> Review this import</DialogTitle>
           <DialogDescription>

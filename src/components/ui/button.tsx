@@ -22,13 +22,13 @@ export const buttonVariants = cva(
         destructive: 'bg-danger/15 text-danger border border-danger/30 hover:bg-danger/25',
         link: 'text-accent-text underline-offset-4 hover:underline px-0 active:scale-100',
       },
-      // default and icon grow to 44px on phones (touch targets), so call
-      // sites don't each add max-sm:h-11 / max-sm:size-11.
+      // Sizes are rem: on a phone (14px base, src/index.css) default is 35px
+      // and icon 35px, still well past the 24px minimum touch target.
       size: {
-        default: 'h-10 px-4 max-sm:h-11',
+        default: 'h-10 px-4',
         sm: 'h-8 rounded-lg px-3 text-xs',
         lg: 'h-11 px-6 text-base',
-        icon: 'size-10 max-sm:size-11',
+        icon: 'size-10',
         'icon-sm': 'size-8 rounded-lg',
       },
     },

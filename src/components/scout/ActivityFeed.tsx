@@ -45,7 +45,7 @@ export function ActivityFeed({ state, workspaceName, onOpenEntry }: {
         : error && !items.length ? <ErrorState error={error} onRetry={reload} />
           : !items.length ? <EmptyState icon={History} title="Nothing here yet" description="New entries, edits, template changes and members joining show up here as they happen." />
             : (
-              <div className="space-y-6">
+              <div className="space-y-6 max-sm:space-y-4">
                 {groupByDay(items, now).map((g) => (
                   <section key={g.key} aria-label={g.label}>
                     <h3 className="mb-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">{g.label}</h3>

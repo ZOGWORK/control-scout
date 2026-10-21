@@ -81,7 +81,7 @@ export function DirectorySearch({ value, onSearch, where, draft, className }: {
         placeholder="Number, name or town" aria-label={`Search teams listed from ${where}`}
         onChange={(e) => change(e.target.value)}
         onKeyDown={(e) => { if (e.key === "Escape" && text) { e.preventDefault(); setText(""); commit(""); } }}
-        className="h-9 w-full pl-9 pr-10 max-sm:h-11 [&::-webkit-search-cancel-button]:hidden" />
+        className="h-9 w-full pl-9 pr-10 max-sm:h-10 [&::-webkit-search-cancel-button]:hidden" />
       {text && (
         <button type="button" onClick={() => { setText(""); commit(""); }} aria-label="Clear search"
           className="absolute right-1 top-1/2 inline-flex size-8 -translate-y-1/2 items-center justify-center rounded-md text-text-muted hover:bg-text-base/[0.06] hover:text-text-base focus-visible:outline-2 focus-visible:outline-accent max-sm:size-10">

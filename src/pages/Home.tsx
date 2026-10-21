@@ -54,12 +54,12 @@ export default function Home() {
         <div className="[grid-area:record]"><PredictionRecord /></div>
         <div className="[grid-area:usage]"><PublicUsagePanel /></div>
       </div>
-      <footer className="mt-10 flex flex-wrap items-center justify-between gap-3 border-t border-line pt-5 text-sm text-text-muted">
+      <footer className="mt-10 max-sm:mt-6 flex flex-wrap items-center justify-between gap-3 border-t border-line pt-5 text-sm text-text-muted">
         <span>FTC, with a clearer view.</span>
         <span className="flex flex-wrap gap-x-4 gap-y-1">
-          <Link to="/methodology" className="inline-flex items-center hover:text-text-base hover:underline max-sm:min-h-11">How the numbers work</Link>
-          <Link to="/download" className="inline-flex items-center hover:text-text-base hover:underline max-sm:min-h-11">Offline packs</Link>
-          <Link to="/compare" className="inline-flex items-center hover:text-text-base hover:underline max-sm:min-h-11">Compare teams</Link>
+          <Link to="/methodology" className="inline-flex items-center hover:text-text-base hover:underline max-sm:min-h-10">How the numbers work</Link>
+          <Link to="/download" className="inline-flex items-center hover:text-text-base hover:underline max-sm:min-h-10">Offline packs</Link>
+          <Link to="/compare" className="inline-flex items-center hover:text-text-base hover:underline max-sm:min-h-10">Compare teams</Link>
         </span>
       </footer>
     </div>
@@ -82,7 +82,7 @@ function Hero({ query }: { query?: string }) {
         label="Search teams, events and matches"
         placeholder="Find a team, event or match…"
         onPick={(h) => nav(hitHref(h))}
-        className="mt-6 w-full max-w-[36rem] [&>div:first-child]:rounded-xl"
+        className="mt-6 max-sm:mt-4 w-full max-w-[36rem] [&>div:first-child]:rounded-xl"
       />
       {/* The page's main actions, above the fold at every size; they paint with the rest of the hero. */}
       <div className="mt-4 flex max-w-[36rem] flex-wrap gap-3">
@@ -100,7 +100,7 @@ function AtlasPending({ failed, onRetry }: { failed: boolean; onRetry: () => voi
     <section aria-label="FTC Control Scout: teams by country" className="@container/atlas min-w-0">
       <p className="text-xs font-semibold uppercase tracking-[0.18em] text-text-muted">FTC Control Scout</p>
       {failed ? (
-        <div className="mt-3 flex flex-col items-start gap-3 rounded-2xl border border-dashed border-line p-5 text-sm text-text-muted">
+        <div className="mt-3 flex flex-col items-start gap-3 rounded-2xl border border-dashed border-line p-5 max-sm:p-4 text-sm text-text-muted">
           Where this season’s teams are from couldn’t load.
           <Button variant="secondary" size="sm" onClick={onRetry}>Try again</Button>
         </div>
