@@ -217,14 +217,17 @@ export class PartnershipBook implements PairLookup {
   }
 
   /**
-   * The pruned table as data (what predictions read). Predictions ignore pairs
-   * under minMatches / minMeetings and beyond maxSeasonsAgo, so dropping them here changes
-   * no answer. `teams`, when given, keeps only pairs whose both teams are in it.
+   * The table as data (what predictions read). Predictions ignore pairs under minMatches /
+   * minMeetings and beyond maxSeasonsAgo, so dropping the weak ones here changes no answer
+   * on its own. `keepWeak` keeps the weak pairs the book still remembers: a table that will
+   * fold in fresh results (PartnershipOverlay, during an event) needs them, or a pair with one
+   * stored match and one fresh one would show 1 match, not 2. `teams`, when given, keeps only
+   * pairs whose both teams are in it.
    */
-  toData(opts: { teams?: Set<number> } = {}): PartnershipData {
+  toData(opts: { teams?: Set<number>; keepWeak?: boolean } = {}): PartnershipData {
     const p = this.params, season = this.season ?? 0;
     const keep = (a: number, b: number, n: number, s: number, min: number) =>
-      (!opts.teams || (opts.teams.has(a) && opts.teams.has(b))) && season - s <= p.maxSeasonsAgo && n >= min;
+      (!opts.teams || (opts.teams.has(a) && opts.teams.has(b))) && season - s <= p.maxSeasonsAgo && (opts.keepWeak || n >= min);
     const events: [number, string, string][] = [];
     const evIndex = new Map<string, number>();
     const together: number[][] = [];
