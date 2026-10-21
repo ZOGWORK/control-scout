@@ -134,7 +134,9 @@ function DecidedRow({ r }: { r: CoinFlipRow }) {
           <span className="text-text-muted">–</span>
           <span className={cn("text-blue-alliance", winner === "red" && "opacity-60")}>{res.blue}</span>
         </span>
-        <span className="text-xs text-text-muted">called {call} before the match · {verdict}</span>
+        <span className="inline-flex flex-wrap items-center gap-x-1.5 text-xs text-text-muted">
+          called {call} before the match <TierMark tier={r.tier} /> · {verdict}
+        </span>
         <ArrowUpRight className="size-4 shrink-0 text-text-muted group-hover:text-accent-text" aria-hidden />
       </Link>
     </li>

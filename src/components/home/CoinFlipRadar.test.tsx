@@ -39,10 +39,12 @@ describe("CoinFlipRadarSection", () => {
   });
 
   it("lists decided ones with the result and the call made before the match", () => {
-    data = radar({ events: 1, calls: 4, decided: [row(3, { played: true, kind: "live", pRed: 0.54, result: { red: 98, blue: 120 } })] });
+    data = radar({ events: 1, calls: 4, decided: [row(3, { played: true, kind: "live", pRed: 0.54, tier: "confident", result: { red: 98, blue: 120 } })] });
     show();
     expect(screen.getByText(/Every coin flip on today’s schedules has been played/)).toBeTruthy();
-    expect(screen.getByText(/called Red 54% before the match · the other side won/)).toBeTruthy();
+    const line = screen.getByText(/called Red 54% before the match/);
+    // The saved call keeps its confidence tier beside it.
+    expect(line.textContent).toMatch(/called Red 54% before the match\s*confident confidence · the other side won/);
   });
 
   it("shows six cards, then all on request", () => {

@@ -9,7 +9,7 @@ teams, scout, offline, speed, live, report, alerts, rankings, share, workspace,
 picklist, history, fixes). What's new shows them first; the groups below are
 the full release notes, one click away.
 
-## 1.17.0 — 2026-10-21
+## 1.15.1 — 2026-10-21
 
 Today's coin flips: the closest calls at every event on today, on the home page.
 
