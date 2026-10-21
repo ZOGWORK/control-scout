@@ -1,5 +1,42 @@
 # Changelog
 
+## 2.6.0 — 2026-10-21 · Event simulator follow-ups
+
+Simulator only: every match prediction (win probability, scores, ranges, factors, tiers, bonus odds)
+is bit-identical to 2.5.0. Event simulations (advancement odds, partner what-ifs, projections) move.
+- **Per-team score variance in `simulateEvent`.** `SimInput.variance` (per robot: the variance
+  factor and matches played, as `teamScoreVariance` reads them) and `SimInput.band`. With them, each
+  simulated alliance score's game noise is `gameVariance(mean, consistency, fewest matches, noise,
+  band, context)`: the game-noise part of the 2.2 score ranges (scale, per-team consistency,
+  small-sample and playoff factors), now exported from `matchModel.ts` and shared by both. Rating
+  uncertainty is still drawn once per run per robot, so it isn't counted twice. Without `variance`
+  the simulator draws σ = a + b·mean exactly as before. `Forecaster` fills both from its book and
+  `model.band`.
+- **No hindsight in bonus draws.** `Forecaster` simulations take the bonus model from
+  `bonusModel(season)` instead of the shipped `model.bonus`, so a forecaster that overrides it for
+  a past moment with `bonusModelBefore` (Control Scout's "Before the event" and its projections'
+  pre-event baseline) draws bonus RPs only from a fit on qualification results played strictly
+  before the event start, with no shipped-fit fallback. When that is null, a pre-event simulation
+  earns no bonus RPs and adds an assumption saying so. An app that serves its own season fit
+  (both apps do) now simulates with the same curve its match cards show; the default `bonusModel`
+  is still the shipped fit.
+
+**Evidence** (Control Scout snapshot, 2025–26):
+- Midpoint replay (`npm run projections:replay`, 40 finished events, 2,000 sims, ratings frozen at
+  the start plus the first half): actual final ranks inside the projected P10–P90 band
+  941 / 1,098 = 85.7% on 2.5.0, 949 (86.4%) with the bonus fix only, **951 (86.6%)** with both.
+  Mean band width 12.14 → 12.28 ranks, mean |actual − median| 3.59 → 3.60.
+- Test fixture (4 championships, 10,000 sims): 128 / 156 (82.1%) on 2.5.0, 134 with the bonus fix
+  only, **133 / 156 (85.3%)** with both.
+- Timing, 10,000 sims through the projections core (median of 5, interleaved): 36-team events
+  1.8–3.5 s with per-team variance against 2.1–4.6 s without, the 48-team BRCMP 3.6 s against
+  3.3 s: within machine noise, far under the 10 s budget.
+- Held-out backtest (`npm run stats -- --backtest`, same snapshot copy for 2.5.0 and 2.6.0): all
+  109,182 replayed match calls are bit-identical in every column but engine_version (p_red, means,
+  tier, factors, ranges, shadow, bonus, history). Only the records' pre-event advancement odds move.
+  Their Brier against who actually advanced: 2023–24 0.13302 → 0.13299, 2024–25 0.13385 → 0.13356,
+  2025–26 0.12916 → 0.12919 (log loss 0.40782 → 0.40780); all three seasons 0.13174 → 0.13165.
+
 ## 2.5.0 — 2026-10-21 · Reasons
 
 Reasons only: no probability, score, range, factor or tier changes (every number is bit-identical to 2.4.0).
