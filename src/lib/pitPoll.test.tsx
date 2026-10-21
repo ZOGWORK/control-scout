@@ -52,6 +52,19 @@ describe("offline", () => {
   });
 });
 
+describe("an event that doesn't exist", () => {
+  it("a 404 stops the poll (no flicker between Not found and Loading), and no address polls nothing", async () => {
+    load.mockRejectedValue(Object.assign(new Error("No event"), { status: 404 }));
+    renderHook(() => useDisplayPoll(undefined, "/p"));
+    await act(async () => { await vi.advanceTimersByTimeAsync(60_000); });
+    expect(load).toHaveBeenCalledTimes(1);
+    load.mockReset();
+    renderHook(() => useDisplayPoll(undefined, null));
+    await act(async () => { await vi.advanceTimersByTimeAsync(60_000); });
+    expect(load).not.toHaveBeenCalled();
+  });
+});
+
 describe("before anything loaded", () => {
   it("a failed first load is retried within seconds, not after the 5-minute idle cadence", async () => {
     load.mockResolvedValue({});
