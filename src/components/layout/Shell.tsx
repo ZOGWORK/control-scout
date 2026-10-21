@@ -131,7 +131,7 @@ function Sidebar({ collapsed, onToggle }: { collapsed: boolean; onToggle: () => 
   );
 }
 
-const tabClass = (on: boolean) => cn("flex min-h-[60px] min-w-0 flex-1 flex-col items-center justify-center gap-1 px-0.5 text-xs font-medium", on ? "text-accent-text" : "text-text-muted");
+const tabClass = (on: boolean) => cn("flex min-h-[52px] min-w-0 flex-1 flex-col items-center justify-center gap-0.5 px-0.5 text-xs font-medium", on ? "text-accent-text" : "text-text-muted");
 
 /** The phone's bottom bar: the pages this device picked (Settings › Appearance, src/lib/tabBar.ts). Every page,
  *  these included, is also in the menu the top-left button opens. */

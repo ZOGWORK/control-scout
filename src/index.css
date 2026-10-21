@@ -157,7 +157,9 @@ html { --ui-base: 1; --ui-scale: 1; font-size: calc(100% * var(--ui-base) * var(
 html[data-text-size="s"] { --ui-scale: 0.9; }
 html[data-text-size="l"] { --ui-scale: 1.125; }
 html[data-text-size="xl"] { --ui-scale: 1.25; }
-@media (max-width: 767px) { html { scroll-padding-bottom: calc(61px + env(safe-area-inset-bottom)); } }
+/* The phone tab bar's height, border included (Shell MobileTabs); fixed things on phones sit above it. */
+:root { --tabbar-h: 53px; }
+@media (max-width: 767px) { html { scroll-padding-bottom: calc(var(--tabbar-h) + env(safe-area-inset-bottom)); } }
 @layer base { :where(#main, #main *) { scroll-margin-top: var(--header-h); } } /* in a layer: scroll-mt-bar-N must win */
 @utility scroll-mt-bar-* { scroll-margin-top: calc(var(--header-h) + var(--spacing) * --value(integer)); }
 html::-webkit-scrollbar { width: 6px; height: 6px; }
