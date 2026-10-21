@@ -22,6 +22,14 @@
   "b": 0.2,
   "preExtra": 500
  },
+ "band": {
+  "level": 0.8,
+  "scale": 1.1,
+  "consistencyPower": 0.3,
+  "smallSample": 0.7,
+  "playoff": 0.6,
+  "rating": 0.75
+ },
  "pick": {
   "tau": 18,
   "rankWeight": 3
@@ -68,7 +76,7 @@
    "preEventAccuracy": 0.6878,
    "oprAccuracy": 0.6565,
    "oprBrier": 0.208,
-   "scoreRange80Coverage": 0.82
+   "scoreRange80Coverage": 0.8237
   },
   "advancement": {
    "events": 508,
@@ -187,6 +195,22 @@
    "baselineScoreMae": 27.873933259113603,
    "scoreRange80Coverage": 0.8204682739081627,
    "baselineScoreRange80Coverage": 0.8202277222430107
+  },
+  "ranges22": {
+   "note": "Engine 2.2 score ranges: band fitted on 2024-25 by the 80% interval score, tested on 2025-26 (walk-forward, 2-on-2 alliance scores, whole-point ranges, inside = lo <= score <= hi). Win probabilities are unchanged.",
+   "testAllianceScores": 82532,
+   "coverage": 0.8237,
+   "baselineCoverage": 0.8076,
+   "intervalScore": 145.95,
+   "baselineIntervalScore": 147.91,
+   "width": 96.9,
+   "baselineWidth": 94.4,
+   "coverageNoPriorMatches": 0.799,
+   "baselineCoverageNoPriorMatches": 0.694,
+   "coverageErratic": 0.798,
+   "baselineCoverageErratic": 0.744,
+   "coveragePlayoff": 0.784,
+   "baselineCoveragePlayoff": 0.866
   },
   "engine21": {
    "note": "Development comparison (superseded by `clean`): the select-block figures used a final calibration fitted on later (Mar-May 2025) outcomes, and 2025-26 results were used to veto candidates. Not forward-only evidence.",

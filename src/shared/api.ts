@@ -97,6 +97,11 @@ export interface MatchPredictionView {
   /** live = logged before the match; backtest = walk-forward replay; now = computed from today's ratings (unplayed). */
   kind: "live" | "backtest" | "now";
   predictedAt: string | null;
+  /** Stated range of each final score, [lo, hi], holding rangeLevel (0.8) of real scores. Absent on calls
+   *  logged before engine 2.2 (they stated none) and with noScoreBasis. */
+  redRange?: [number, number];
+  blueRange?: [number, number];
+  rangeLevel?: number;
   factors?: Factor[];
   /** The season has no rated matches yet: win odds only, the predicted score means nothing. */
   noScoreBasis?: true;
@@ -216,6 +221,8 @@ export interface MatchExplanationView {
   predictedBlue: number;
   rangeRed: [number, number];
   rangeBlue: [number, number];
+  /** The ranges' level (0.8 = 80%). Optional: offline answers from an older pack may lack it. */
+  rangeLevel?: number;
   factors: Factor[];
   confidence: { tier: ConfidenceTier; reason: string; minMatches: number; ratingShare: number };
   teamsRed: (TeamStrength & { name: string | null })[];
@@ -263,6 +270,25 @@ export interface AccuracyBlock {
   weekly: { week: string; n: number; accuracy: number }[];
   /** Decided calls the favourite lost (missed calls): decided − upsets were called correctly. */
   upsets: number;
+  /** Score ranges (engine 2.2+): how often real alliance scores landed inside the stated range. Null when no
+   *  call in the block stated one (calls logged before 2.2). Scored the same way as the win calls. */
+  ranges?: RangeCoverage | null;
+}
+
+export interface RangeCoverage {
+  /** The range's stated level (0.8: 8 in 10 real scores should land inside). */
+  level: number;
+  /** Alliance scores checked (two per call). */
+  n: number;
+  /** How many landed inside, and that share. */
+  inside: number;
+  coverage: number;
+  /** Below the range / above it (share of n): which way the misses go. */
+  below: number;
+  above: number;
+  /** Mean width of the stated ranges (points). */
+  width: number;
+  byTier: Record<ConfidenceTier, { n: number; coverage: number }>;
 }
 
 export interface ShadowScore { accuracy: number; brier: number; logLoss: number }

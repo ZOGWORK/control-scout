@@ -215,7 +215,7 @@ export class ScoutForecaster extends Forecaster {
     // Bonus ranking points count in qualification matches only.
     const bonus = level === "qual" ? this.bonusModel(season) : null;
     return explainMatch(b, red, blue, {
-      noise: FITTED_MODEL.noise, calibration: FITTED_MODEL.calibration, contextual: FITTED_MODEL.contextual, context: { level, event }, shadow: FITTED_MODEL.contextual?.fallback,
+      noise: FITTED_MODEL.noise, calibration: FITTED_MODEL.calibration, contextual: FITTED_MODEL.contextual, context: { level, event }, shadow: FITTED_MODEL.contextual?.fallback, band: FITTED_MODEL.band,
       ...(bonus ? { bonus: { season, model: bonus } } : {}),
     });
   }

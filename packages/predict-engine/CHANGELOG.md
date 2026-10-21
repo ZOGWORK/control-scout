@@ -1,11 +1,11 @@
 # Changelog
 
-## 2.2.0 — 2026-10-21 · Bonus ranking point odds per match
+## 2.3.0 — 2026-10-21 · Bonus ranking point odds per match
 
 **New output; no existing number changes.** Win probabilities, scores, ranges, factors,
-confidence and event simulations are bit-identical to 2.1.1 (the new code only runs when a
-caller passes `ExplainOptions.bonus`; replayed win calls: 2025–26 Brier 0.17314 on 41,743
-matches before and after).
+confidence and event simulations are bit-identical to 2.2.0 (the new code only runs when a
+caller passes `ExplainOptions.bonus`, or adds `ForecastMatch.bonus` beside the existing
+fields; replayed win calls identical to the 2.2.0 ledger, see below).
 
 - `bonus.ts`: `bonusProbability(coef, mean, sd)` is the event simulator's bonus draw
   (logistic of the alliance's non-penalty score, score ~ Normal floored at 0) integrated
@@ -30,6 +30,36 @@ matches before and after).
   whole-season `FITTED_MODEL.bonus["2025"]` 0.1781; always saying each bonus's realised
   rate (hindsight) 0.1680. Integrating over the score spread beat the point estimate
   (0.1597 vs 0.1653 on the all-so-far fit). Not yet measured live.
+## 2.2.0 — 2026-10-21 · Score ranges
+
+**Score ranges (changes numbers: the ranges only).** Win probabilities and expected scores
+are bit-identical to 2.1.1; only the stated range around each expected score changes.
+- Each alliance's range now comes from its own predictive distribution,
+  Normal(mean, bandSd²), with
+  `bandSd² = (a + b·mean)² · scale · consistency^power · (1 + smallSample / (n + 1)) · [playoff] + rating · Σ rating uncertainty`.
+  `consistency` is the alliance's average **per-team variance factor**: each robot's EMA
+  of squared standardized residuals, already kept in the reliability state (1 = as variable
+  as the model assumes). `n` is the fewest matches any of its robots has played this
+  season, so ranges widen for small samples and for erratic robots.
+- New `FITTED_MODEL.band` / `DEFAULT_BAND`: level 0.8, scale 1.1, consistencyPower 0.3,
+  smallSample 0.7, playoff 0.6, rating 0.75. Fitted on 2024–25 by the 80% interval
+  score (a proper scoring rule for ranges), tested on 2025–26.
+- New API for consumers that sample scores (e.g. a Monte Carlo simulator):
+  `allianceScoreDistribution(book, own, opp, noise, band, context)` →
+  `{ mean, sd, gameVar, ratingVar, consistency, minMatches }`; `teamScoreVariance(book, team)`;
+  `scoreBand(mean, sd, level)`; `zFor(level)`. `AlliancePrediction.band`,
+  `ForecastMatch.redBand`/`blueBand`, `MatchExplanation.scoreBandA/B` and
+  `scorePlusMinusA/B` ("118 ± 14"), `TeamStrength.consistency`. `PredictOptions.band` /
+  `ExplainOptions.band` override the band; `AlliancePrediction.sd` (behind the win
+  probability) is unchanged.
+- **Evidence (walk-forward replay, 2025–26 held out, 82,532 alliance scores):**
+  - 80% interval score 147.91 → 145.95 (lower is better); also better on 2023–24
+    (122.02 → 121.20);
+  - coverage 80.8% → 82.4% overall, and far more even across groups: robots with no
+    prior match this season 69.4% → 79.9%, erratic alliances (variance factor ≥ 1.3)
+    74.4% → 79.8%, playoffs 86.6% → 78.4%;
+  - mean width 94.4 → 96.9 points;
+  - win accuracy, Brier and log loss unchanged (identical probabilities).
 
 ## 2.1.1 — 2026-10-17
 
