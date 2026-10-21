@@ -2,11 +2,11 @@
 // The phone tab bar's rules (src/lib/tabBar.ts): what a stored choice turns into, the 2–5 limits, moving, and
 // what happens when this device's storage can't be used.
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { act, renderHook } from "@testing-library/react";
+import { act, cleanup, renderHook } from "@testing-library/react";
 import { DEFAULT_TABS, MAX_TABS, MIN_TABS, moveTab, normalizeTabs, saveTabs, TAB_KEY, TAB_OPTIONS, toggleTab, useTabBar, type TabId } from "./tabBar";
 
 beforeEach(() => localStorage.clear());
-afterEach(() => vi.restoreAllMocks());
+afterEach(() => { cleanup(); vi.restoreAllMocks(); });
 
 describe("normalizeTabs", () => {
   it("keeps a good choice as it is", () => {
@@ -80,6 +80,21 @@ describe("this device's choice", () => {
       window.dispatchEvent(new StorageEvent("storage", { key: TAB_KEY }));
     });
     expect(result.current).toEqual(["rankings", "compare"]);
+  });
+
+  it("with storage full (readable, but writes fail), the new choice holds over the old saved one", () => {
+    localStorage.setItem(TAB_KEY, JSON.stringify(["teams", "rankings"]));
+    const set = vi.spyOn(Storage.prototype, "setItem").mockImplementation(() => { throw new Error("quota"); });
+    const { result } = renderHook(() => useTabBar());
+    expect(result.current).toEqual(["teams", "rankings"]);
+    act(() => saveTabs(["scout", "home"]));
+    expect(result.current).toEqual(["scout", "home"]);
+    set.mockRestore();
+    act(() => {
+      localStorage.setItem(TAB_KEY, JSON.stringify(["compare", "settings"]));
+      window.dispatchEvent(new StorageEvent("storage", { key: TAB_KEY }));
+    });
+    expect(result.current).toEqual(["compare", "settings"]);
   });
 
   it("with storage blocked (a private window), still works for this visit", () => {

@@ -23,21 +23,26 @@ export function applyTextSize(size: TextSize, root: HTMLElement = document.docum
   else root.setAttribute("data-text-size", size);
 }
 
-// With storage blocked (a private window), a choice still holds for this visit.
+// A choice storage wouldn't take (blocked in a private window, or full) still holds for this visit, ahead of
+// whatever storage has. A change from another tab replaces it.
 let visitOnly: TextSize | null = null;
 
 function read(): TextSize {
-  try { const v = localStorage.getItem(TEXT_SIZE_KEY); return isTextSize(v) ? v : "m"; } catch { return visitOnly ?? "m"; }
+  if (visitOnly) return visitOnly;
+  try { const v = localStorage.getItem(TEXT_SIZE_KEY); return isTextSize(v) ? v : "m"; } catch { return "m"; }
 }
 
 export function setTextSize(size: TextSize): void {
-  try { if (size === "m") localStorage.removeItem(TEXT_SIZE_KEY); else localStorage.setItem(TEXT_SIZE_KEY, size); } catch { /* storage blocked: this visit only */ visitOnly = size; }
+  try {
+    if (size === "m") localStorage.removeItem(TEXT_SIZE_KEY); else localStorage.setItem(TEXT_SIZE_KEY, size);
+    visitOnly = null;
+  } catch { /* storage blocked or full: this visit only */ visitOnly = size; }
   applyTextSize(size);
   window.dispatchEvent(new Event(CHANGED));
 }
 
 function subscribe(fn: () => void): () => void {
-  const onStorage = (e: StorageEvent) => { if (e.key === TEXT_SIZE_KEY || e.key === null) { applyTextSize(read()); fn(); } };
+  const onStorage = (e: StorageEvent) => { if (e.key === TEXT_SIZE_KEY || e.key === null) { visitOnly = null; applyTextSize(read()); fn(); } };
   window.addEventListener(CHANGED, fn);
   window.addEventListener("storage", onStorage);
   return () => { window.removeEventListener(CHANGED, fn); window.removeEventListener("storage", onStorage); };
@@ -45,4 +50,11 @@ function subscribe(fn: () => void): () => void {
 
 export function useTextSize(): TextSize {
   return useSyncExternalStore(subscribe, read, () => "m");
+}
+
+/** Keep the page's size in step with this device's choice for as long as the app runs (Shell mounts it): applies
+ *  it now, and again whenever another tab changes it, whichever page this tab is on. Returns the cleanup. */
+export function watchTextSize(): () => void {
+  applyTextSize(read());
+  return subscribe(() => {});
 }

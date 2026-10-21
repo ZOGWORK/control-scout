@@ -35,9 +35,10 @@ export function OfflineStatus() {
     <span role="status" className="shrink-0 empty:hidden">
       {on && (
         <Link to="/download" title="No signal: this is the data saved on this device. It switches back when the server answers." className="rounded-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
-          <Badge variant="info" className="gap-1.5 py-1">
+          {/* Phones: the icon alone, so the top bar's right side stays clear of the centred logo (Shell). */}
+          <Badge variant="info" className="gap-1.5 py-1 max-md:px-1.5">
             <WifiOff aria-hidden="true" />
-            <span>Offline<span className="max-sm:sr-only">, showing saved data</span></span>
+            <span className="max-md:sr-only">Offline<span className="max-sm:sr-only">, showing saved data</span></span>
           </Badge>
         </Link>
       )}

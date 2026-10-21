@@ -25,6 +25,7 @@ import { SiteFooter } from "./SiteFooter";
 import { useYoursRow, FOLLOWED_TEAM_PATH } from "../../lib/yoursRow";
 import { HEADER_ID, usePageScroll } from "../../lib/pageScroll";
 import { tabDef, useTabBar } from "../../lib/tabBar";
+import { watchTextSize } from "../../lib/textSize";
 
 interface NavItem { to: string; label: string; icon: ComponentType<{ className?: string }>; end?: boolean }
 
@@ -190,6 +191,8 @@ export function Shell({ children }: { children: ReactNode }) {
   // The first page is drawn at full opacity (it replaces the static first paint, see server/bootShell.ts); later page changes fade in.
   const firstPage = useRef(true);
   useEffect(() => { firstPage.current = false; }, []);
+  // This device's text size follows a change made in another tab, whichever page this one is on.
+  useEffect(() => watchTextSize(), []);
   const toggle = () => setCollapsed((c) => { try { localStorage.setItem("cs-sidebar", c ? "0" : "1"); } catch { /* ignore */ } return !c; });
   return (
     <MotionConfig reducedMotion="user">
