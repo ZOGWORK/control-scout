@@ -11,7 +11,7 @@ import { eventDetail } from "./events.js";
 import { liveForecaster } from "../predict/engine.js";
 import { localToUtcMs } from "../data/time.js";
 import { bonusLabels, isLegacy } from "../data/seasons.js";
-import { bonusFromRow, bonusView } from "../predict/bonus.js";
+import { bonusFromRow, bonusView } from "../../src/shared/bonusOdds.js";
 
 const score = (r: any, p: "red" | "blue") => r[`${p}_np`] == null ? null : {
   total: Number(r[`${p}_total`]), np: Number(r[`${p}_np`]), auto: Number(r[`${p}_auto`] ?? 0),

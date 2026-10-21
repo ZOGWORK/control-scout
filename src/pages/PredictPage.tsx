@@ -33,6 +33,7 @@ import { dateRange, num, oddsPct, place, seasonLabel } from "../lib/format";
 import { copyLink } from "../lib/clipboard";
 import { ShareMatch } from "../components/ShareMatch";
 import { BonusOdds } from "../components/BonusOdds";
+import { bonusView } from "../shared/bonusOdds";
 
 type LabMode = "match" | "advancement";
 const ADVANCING = new Set(["LeagueTournament", "Qualifier", "Championship", "SuperQualifier", "Premier", "FIRSTChampionship"]);
@@ -497,7 +498,7 @@ function useOfflineFallback(q: { season: number; red: number[]; blue: number[] }
         data: {
           season: q.season, red: q.red, blue: q.blue, winProbRed: x.winProbA, winProbBlue: x.winProbB, predictedRed: x.predictedScoreA, predictedBlue: x.predictedScoreB,
           rangeRed: x.scoreRangeA, rangeBlue: x.scoreRangeB, factors: x.factors, confidence: x.confidence,
-          teamsRed: x.teamsA.map((t) => ({ ...t, name: null })), teamsBlue: x.teamsB.map((t) => ({ ...t, name: null })), engineVersion: ENGINE_VERSION,
+          teamsRed: x.teamsA.map((t) => ({ ...t, name: null })), teamsBlue: x.teamsB.map((t) => ({ ...t, name: null })), bonus: bonusView(q.season, x) ?? null, engineVersion: ENGINE_VERSION,
         },
       });
     }, () => live && setOut({ data: null, asOf: null, loading: false }));
