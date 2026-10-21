@@ -7,6 +7,7 @@ import { kvGet, migrate, openDb, run, setDb } from "../db";
 import { createApp } from "../app";
 import { partnershipPrefix, resetPartnerships } from "./partnerships";
 import { forecasterFor, resetForecasters } from "./engine";
+import { CURRENT_SEASON } from "../data/seasons";
 
 let server: Server;
 let base = "";
@@ -88,5 +89,43 @@ describe("partnership memory (server)", () => {
     for (let i = 0; i < 200 && !f.partnershipComplete; i++) { await new Promise((r) => setTimeout(r, 25)); f = await forecasterFor(2023); }
     expect(f.partnershipComplete).toBe(true);
     expect(f.explain(2023, [11, 12], [15, 16])?.partnership?.matches).toBe(3);
+  });
+});
+
+describe("partnership memory on an earlier season of the window", () => {
+  const now = CURRENT_SEASON, last = CURRENT_SEASON - 1;
+  beforeAll(async () => {
+    for (const x of [last, now]) await run("INSERT OR REPLACE INTO seasons (season, name, frozen, last_complete) VALUES (?, 'G', 0, NULL)", [x]);
+    // Last season: 21 and 22 play together twice. This season: twice more, scoring higher.
+    await event(last, "USP1", "Past Qualifier", `${last}-11-07`, [[[21, 22], 100, [23, 24], 50], [[21, 22], 110, [25, 26], 40], [[23, 25], 60, [24, 26], 60]]);
+    await event(now, "USN1", "New Qualifier", `${now}-11-06`, [[[21, 22], 130, [23, 24], 60], [[21, 22], 140, [25, 26], 70], [[23, 25], 60, [24, 26], 60]]);
+    await partnershipPrefix(now - 2, { wait: true });
+    resetForecasters();
+  });
+
+  it("reads the pairs as they stood at that season's end (a later match never counts)", async () => {
+    const r = await (await fetch(`${base}/api/predict/match?season=${last}&red=21,22&blue=23,24`)).json();
+    expect(r.history?.kind).toBe("together");
+    expect(r.history?.label).toMatch(/^21 and 22 have played 2 matches together \(2–0\).*best 110 at Past Qualifier$/);
+  });
+
+  it("leaves the current season's history as it was", async () => {
+    const r = await (await fetch(`${base}/api/predict/match?season=${now}&red=21,22&blue=23,24`)).json();
+    expect(r.history?.label).toMatch(/^21 and 22 have played 4 matches together \(4–0\).*best 140 at New Qualifier$/);
+  });
+
+  it("changes no served number (a reason only)", async () => {
+    const f = await forecasterFor(last);
+    const withHistory = f.explain(last, [21, 22], [23, 24]);
+    expect(withHistory?.partnership?.matches).toBe(2);
+    const tables = (f as any).pastPairTables;
+    (f as any).pastPairTables = new Map();
+    try {
+      const without = f.explain(last, [21, 22], [23, 24]);
+      expect(without?.partnership ?? null).toBeNull();
+      const { partnership: _a, ...a } = withHistory!;
+      const { partnership: _b, ...b } = without!;
+      expect(a).toEqual(b);
+    } finally { (f as any).pastPairTables = tables; }
   });
 });
