@@ -11,6 +11,9 @@ export const REPLAY_HEADLINE_MIN = 1000;
 
 export type LedgerKind = "live" | "backtest";
 
+/** Report cards (server/stats/reportCards.ts): prior weight, in calls, pulling every team toward the field average. A stated rule, not fitted. */
+export const REPORT_PRIOR = 10;
+
 type Season = Pick<TrackRecord["seasons"][number], "season" | "live" | "backtest">;
 
 /**

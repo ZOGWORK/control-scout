@@ -83,12 +83,63 @@ export interface TeamSeasonStats {
   avg: { np: number | null; score: number | null; pen: number | null };
 }
 
+/** The season's field average over every team's scored live calls (server/stats/reportCards.ts). */
+export interface ReportCardField {
+  calls: number;
+  decided: number;
+  scored: number;
+  hitRate: number | null;
+  errMean: number | null;
+  errAbs: number | null;
+  errSd: number | null;
+}
+
+export interface ReportCardNumbers {
+  /** Share of decided calls the model got right. */
+  hitRate: number | null;
+  /** Mean (actual − predicted) alliance score per robot: above 0 = scored more than predicted. */
+  errMean: number | null;
+  /** Mean absolute miss, points per robot. */
+  errAbs: number | null;
+  /** Spread (sd) of the misses, points per robot. */
+  errSd: number | null;
+}
+
+/** How the engine's live calls on one team's matches turned out: one event, or the whole season (code null). */
+export interface ReportCard {
+  code: string | null;
+  name: string | null;
+  start: string | null;
+  /** The event is over and every match is played (always false for the season row). */
+  final: boolean;
+  /** Scored live calls the team was in. */
+  calls: number;
+  /** Calls that weren't a tie or an exact 50/50. */
+  decided: number;
+  hits: number;
+  /** Calls with a predicted score (the miss numbers use only these). */
+  scored: number;
+  raw: ReportCardNumbers;
+  /** Pulled toward the field average with a prior worth `prior` calls. */
+  shrunk: ReportCardNumbers;
+}
+
+export interface TeamReportCards {
+  season: ReportCard | null;
+  /** Finished events only, oldest first. */
+  events: ReportCard[];
+  field: ReportCardField | null;
+  prior: number;
+}
+
 export interface TeamProfile {
   team: TeamInfo;
   season: number;
   /** Seasons this team has data for (newest first). */
   seasons: number[];
   stats: TeamSeasonStats | null;
+  /** Predictability report card from live calls (null: no scored live call for this team this season). */
+  reportCards?: TeamReportCards | null;
   events: TeamEventRow[];
   /** Awards across all seasons we hold (newest first). */
   awardsAllTime: { season: number; code: string; event: string; type: string; placement: number; name: string | null }[];
