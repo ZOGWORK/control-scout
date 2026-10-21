@@ -1174,7 +1174,32 @@ CREATE TABLE event_projection_odds (
 `,
   },
   {
+    version: 39,
+    name: "bonus ranking point calls in the ledger",
+    sql: `
+-- Bonus ranking point odds logged with each call (engine 2.3: explainMatch bonus), qualification matches of
+-- 2025+ seasons with a bonus model only (else null): JSON [p1, p2, p3] per alliance in the engine's slot
+-- order, their confidence tier, and the model they came from ("fitted:2025", or "season:<n>" for a fit to
+-- the season's latest n alliance results). Scored against matches.red_bonus / blue_bonus once played.
+ALTER TABLE predictions ADD COLUMN bonus_red TEXT;
+ALTER TABLE predictions ADD COLUMN bonus_blue TEXT;
+ALTER TABLE predictions ADD COLUMN bonus_tier TEXT;
+ALTER TABLE predictions ADD COLUMN bonus_model TEXT;
+`,
+  },
+  {
     version: 40,
+    name: "partnership fact with logged calls",
+    sql: `
+-- The strongest partnership fact shown with a live call when it was logged (engine 2.4: explainMatch
+-- partnership, as src/shared/pairHistory.ts PairHistory JSON), so match details and reports keep the line
+-- once the call is logged. A reason only: it never changes the logged odds. Null for the backtest replay
+-- and for calls with no pair history.
+ALTER TABLE predictions ADD COLUMN history TEXT;
+`,
+  },
+  {
+    version: 41,
     name: "reliability index",
     sql: `
 -- Per team, how dependable its robot has been (rules: src/shared/reliability.ts, job: server/stats/reliability.ts):

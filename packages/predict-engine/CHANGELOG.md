@@ -1,8 +1,8 @@
 # Changelog
 
-## Unreleased (2.5.0, after 2.4.0)
+## 2.5.0 — 2026-10-21 · Reasons
 
-Reasons only: no probability, score, range, factor or tier changes (every number is bit-identical to the release before).
+Reasons only: no probability, score, range, factor or tier changes (every number is bit-identical to 2.4.0).
 - `ExplainOptions.recent(team)` takes a robot's recent record as the app measured it
   (`RecentRecord`: latest matches, no-shows, near-zero matches). Control Scout feeds it from its
   reliability index (public match data only).
@@ -13,6 +13,89 @@ Reasons only: no probability, score, range, factor or tier changes (every number
 - `recentReasons(teams, recent)`: the same sentences for a lineup on their own, for apps that build their
   own match rows (Control Point's forecast matches) and want the reasons without an explanation.
 
+
+## 2.4.0 — 2026-10-21 · Partnership memory
+
+**No served number changes** (the numeric blend is off: see "Evidence"). New:
+- `partnership` module: a pair table of real results from 2019–20 on. For two robots on the
+  same alliance it keeps matches, W–L–T, and the best final score together in their latest
+  season together (scores of different games never compare) and where. For two
+  opponents it keeps the meetings and the record. Each alliance result is turned into a
+  standardized residual against a rating book that has seen only earlier matches, so
+  seasons with different games share one scale. A pair's effect is shrunk toward zero
+  (Σ w·z / (Σ w + k)) and older seasons are down-weighted (decay^seasons ago).
+  - `PartnershipBook` accumulates the table walk-forward and carries its own rating book.
+    It serializes with `toState`/`fromState` (resume after the finished seasons) and
+    `toData` (the compact, pruned table for offline packs).
+  - `PartnershipTable` reads that data. It holds pairs with at least `minMatches` (2
+    together) or `minMeetings` (3 against), seen within `maxSeasonsAgo` (6); predictions
+    ignore every other pair. The book keeps a weak pair through the next season, so a
+    later meeting counts every match, and forgets it after a whole season idle. `toData({ keepWeak })`
+    keeps those weak pairs for a table that folds in fresh results (the server's).
+  - `partnershipFact` gives the strongest fact for a lineup in words, for example
+    "1234 and 5678 have played 6 matches together (5–1); best 212 at NJ Championship (2024–25)".
+- `explainMatch(..., { partnership })` returns `partnership` (the fact, or null).
+  `predictMatch(..., { partnership })` applies `partnershipShift`, which is 0 under
+  `PARTNERSHIP_PARAMS` (β = 0).
+- `Forecaster.partnerships(season)` is a hook apps override. When it returns a table,
+  `ForecastMatch.history` carries the fact for unplayed matches. The event's fresh results (the
+  ones the forecaster folds into its ratings) are folded in too, through `PartnershipOverlay`, so a
+  rematch shows its record as of now. `EventInput.name` (optional) names that event when a fresh
+  result becomes a pair's best.
+
+**Evidence (walk-forward, Control Scout `scripts/partnership-fit.ts`, report in
+`docs/partnership-memory.md`).** Pairs from 2019–20 on; predictions from 2023–24. β was
+fitted on 2023–24, (decay, k) chosen on 2024–25 by log loss, and β refitted on both.
+On held-out 2025–26 (36,572 non-tied 2v2 matches, 1,219 events, never used for any
+choice), the blend made the odds slightly worse:
+- Brier 0.16911 → 0.16916 (+0.000058, 95% event-bootstrap interval [+0.000004, +0.000127]);
+- log loss 0.50742 → 0.50750;
+- accuracy 74.83% → 74.77%.
+
+2.2 therefore ships the history as a reason only (`betaTogether = betaAgainst = 0`). The
+selected shrinkage was k = 64 with decay 1, but k is not identified: once β rescales, k from
+4 to 64 tie within 0.00001 on the select block. The shipped k = 4 and decay 0.5 only rank
+and word the fact. In the walk-forward, 64.5% of held-out matches have some pair history
+and 24.6% have a same-alliance pair.
+
+## 2.3.0 — 2026-10-21 · Bonus ranking point odds per match
+
+**New output; no existing number changes.** Win probabilities, scores, ranges, factors,
+confidence and event simulations are bit-identical to 2.2.0 (the new code only runs when a
+caller passes `ExplainOptions.bonus`, or adds `ForecastMatch.bonus` beside the existing
+fields). Replayed 2023–24 to 2026–27 with 2.2.0 and 2.3.0, all 109,182 calls match exactly:
+win probability, shadow probability, expected scores, tier and score ranges.
+
+- `bonus.ts`: `bonusProbability(coef, mean, sd)` is the event simulator's bonus draw
+  (logistic of the alliance's non-penalty score, score ~ Normal floored at 0) integrated
+  exactly instead of sampled; `allianceBonusOdds` adds the season's win RPs
+  (`winRankingPoints`, as `rankingPoints` counts them) for expected ranking points.
+- `fitBonusModel(samples)`: per-bonus logistic regression on non-penalty score (the form of
+  `FITTED_MODEL.bonus`), Newton's method with one pseudo-success/failure and a unit ridge on
+  the standardised slope, so a bonus every alliance (or none) earns stays finite.
+- `recentBonusModel` / `seasonBonusModel`: fit to the season's latest `BONUS_WINDOW` (2,000)
+  qualification alliances once there are `BONUS_MIN_SAMPLES` (200); before that, the shipped
+  fit if the season has one. Bonus difficulty drifts through a season.
+- `explainMatch(..., { bonus: { season, model } })` returns `bonus: { A, B, confidence,
+  source, samples }`: per-alliance odds and expected RPs, with the match's tier capped by
+  `BONUS_CONFIDENCE_RULE` (provisional under 600 alliances, at most moderate under 2,000).
+- `Forecaster.bonusModel(season)` (apps override it with their stored season results; the
+  default uses the shipped fit) and `ForecastMatch.bonus` (`MatchBonusSummary`): every
+  unplayed 2-against-2 qualification match of an event forecast carries its bonus odds,
+  expected RPs and tier, so each app's match list shares the one implementation.
+- `bonusModelBefore(matches, beforeMs)`: the bonus model as it stood at a past moment (only
+  qualification results before it, never the shipped whole-season fit). A forecast of a
+  past moment ("before the event") overrides `bonusModel` with it, so its bonus odds carry no
+  hindsight.
+- `BonusHistory`: a season's results in time order, answering "the model as it stood at t"
+  with one rule (only matches that started strictly before t; a same-time result wasn't
+  known yet). `bonusModelBefore` and walk-forward replays both use it.
+- **Evidence (2025–26 season replay, walk-forward: each call fitted only on earlier
+  results; 212,496 alliance-bonus calls on 35,416 qualification matches).** Brier per bonus
+  call: latest-2,000 window **0.1448**; every alliance so far 0.1597; the shipped
+  whole-season `FITTED_MODEL.bonus["2025"]` 0.1781; always saying each bonus's realised
+  rate (hindsight) 0.1680. Integrating over the score spread beat the point estimate
+  (0.1597 vs 0.1653 on the all-so-far fit). Not yet measured live.
 ## 2.2.0 — 2026-10-21 · Score ranges
 
 **Score ranges (changes numbers: the ranges only).** Win probabilities and expected scores

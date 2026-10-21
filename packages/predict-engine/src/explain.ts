@@ -12,11 +12,13 @@
 // The confidence tier says how much of the call rests on real matches rather
 // than priors. Its thresholds are a stated rule, not a fitted value — see
 // CONFIDENCE_RULE — and are checked against the calibration ledger.
-import { predictMatch, type BandParams, type NoiseParams, type ScoreBand } from "./matchModel.js";
+import { predictMatch, type BandParams, type NoiseParams, type PartnershipInput, type ScoreBand } from "./matchModel.js";
+import { PARTNERSHIP_PARAMS, partnershipFact, type PartnershipFact } from "./partnership.js";
 import type { CalibrationParams } from "./calibration.js";
 import type { ContextualModel, MatchContext, ProbabilityModel } from "./contextual.js";
 import type { RatingBook } from "./rating.js";
 import type { Component, TeamRating } from "./types.js";
+import { allianceBonusOdds, BONUS_CONFIDENCE_RULE, type AllianceBonusOdds, type BonusModelSource } from "./bonus.js";
 
 export type ConfidenceTier = "provisional" | "moderate" | "confident";
 
@@ -110,6 +112,9 @@ export interface MatchExplanation {
   probabilityModelId: string | null;
   /** opts.shadow: the shadow model's P(A wins) on the same inputs, and its id (else null). */
   shadow: { winProbA: number; modelId: string } | null;
+  /** The strongest real history between these robots (played together or against each
+   *  other, any season since 2019–20), when opts.partnership is given and a pair has met. */
+  partnership: PartnershipFact | null;
   teamsA: TeamStrength[];
   teamsB: TeamStrength[];
   /**
@@ -117,6 +122,18 @@ export interface MatchExplanation {
    * opts.recent; empty when nothing is notable. Words only: no probability or score depends on them.
    */
   reasons: string[];
+  /** opts.bonus (a qualification match of a 2025+ season with a bonus model): each alliance's
+   *  bonus-RP odds and expected ranking points (bonus.ts), with their own confidence. Else null. */
+  bonus: MatchBonusOdds | null;
+}
+
+export interface MatchBonusOdds {
+  A: AllianceBonusOdds;
+  B: AllianceBonusOdds;
+  /** The match's tier, capped by how much the bonus model has learned from (BONUS_CONFIDENCE_RULE). */
+  confidence: { tier: ConfidenceTier; reason: string };
+  source: BonusModelSource["source"];
+  samples: number | null;
 }
 
 export interface ExplainOptions {
@@ -129,11 +146,35 @@ export interface ExplainOptions {
   shadow?: ContextualModel;
   /** A robot's recent record (no-shows, near-zero matches), for reasons only; null when unknown. */
   recent?: (team: number) => RecentRecord | null;
+  /** Pair history (engine 2.4): adds the partnership fact, and its shift on the odds (none at β = 0). */
+  partnership?: PartnershipInput;
   /** How score ranges are drawn (FITTED_MODEL.band; the default holds the same values). */
   band?: BandParams;
   /** Names used in factor sentences (default "Red" / "Blue"). */
   nameA?: string;
   nameB?: string;
+  /** Bonus ranking points (2025+ qualification matches): the season and its bonus model. */
+  bonus?: { season: number; model: BonusModelSource };
+}
+
+const TIER_ORDER: ConfidenceTier[] = ["provisional", "moderate", "confident"];
+
+function bonusOdds(season: number, src: BonusModelSource, p: { red: { np: number; sd: number }; blue: { np: number; sd: number } }, pA: number, match: { tier: ConfidenceTier; reason: string }): MatchBonusOdds | null {
+  // A bonus is earned on the alliance's own non-penalty points: their mean is the lineup's np, their spread
+  // the score's game noise + rating uncertainty (the event simulator draws them the same way).
+  const A = allianceBonusOdds(season, src.model, { mean: p.red.np, sd: p.red.sd }, pA);
+  const B = allianceBonusOdds(season, src.model, { mean: p.blue.np, sd: p.blue.sd }, 1 - pA);
+  if (!A || !B) return null;
+  const R = BONUS_CONFIDENCE_RULE;
+  const n = src.samples;
+  const cap: ConfidenceTier = src.source === "fitted" || n == null ? "confident" : n < R.provisionalBelow ? "provisional" : n < R.confidentMin ? "moderate" : "confident";
+  const capped = TIER_ORDER.indexOf(cap) < TIER_ORDER.indexOf(match.tier);
+  const reason = capped
+    ? `This season's bonus model has learned from only ${n!.toLocaleString("en-US")} alliance results so far.`
+    : src.source === "season" && n != null
+      ? `${match.reason} Bonus odds learn from ${n.toLocaleString("en-US")} of this season's alliance results.`
+      : match.reason;
+  return { A, B, confidence: { tier: capped ? cap : match.tier, reason }, source: src.source, samples: n };
 }
 
 const COMPONENT_WORDS: Record<Component, string> = {
@@ -167,7 +208,7 @@ function carrier(side: TeamStrength[], c: Exclude<Component, "pen">, base: numbe
  */
 export function explainMatch(book: RatingBook, teamsA: number[], teamsB: number[], opts: ExplainOptions = {}): MatchExplanation {
   const nameA = opts.nameA ?? "Red", nameB = opts.nameB ?? "Blue";
-  const p = predictMatch(book, teamsA, teamsB, opts.noise, opts.calibration, { contextual: opts.contextual, context: opts.context, shadow: opts.shadow, band: opts.band });
+  const p = predictMatch(book, teamsA, teamsB, opts.noise, opts.calibration, { contextual: opts.contextual, context: opts.context, shadow: opts.shadow, band: opts.band, partnership: opts.partnership });
   const A = teamsA.map((t) => strength(book, t));
   const B = teamsB.map((t) => strength(book, t));
   const sum = (xs: TeamStrength[], k: keyof TeamStrength) => xs.reduce((s, x) => s + (x[k] as number), 0);
@@ -240,8 +281,12 @@ export function explainMatch(book: RatingBook, teamsA: number[], teamsB: number[
     probabilityModel: p.model ?? "legacy",
     probabilityModelId: p.modelId ?? null,
     shadow: p.pShadow != null ? { winProbA: p.pShadow, modelId: p.shadowModelId! } : null,
+    partnership: opts.partnership
+      ? partnershipFact(opts.partnership.table, teamsA, teamsB, opts.partnership.season, opts.partnership.params ?? PARTNERSHIP_PARAMS, p.partnershipShift ?? 0)
+      : null,
     teamsA: A,
     teamsB: B,
     reasons,
+    bonus: opts.bonus ? bonusOdds(opts.bonus.season, opts.bonus.model, p, p.pRedWin, { tier, reason }) : null,
   };
 }

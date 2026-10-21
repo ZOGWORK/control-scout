@@ -74,7 +74,7 @@ export async function matchReport(season: number, code: string, key: string): Pr
   if (!d || !ev) return null;
   const m = d.match;
   const numbers = [...new Set([...m.red.teams, ...m.blue.teams].map((t) => t.number))];
-  if (!numbers.length) return { event: ev.event, live: ev.live, match: m, description: d.description, teams: [], prev: d.prev, next: d.next };
+  if (!numbers.length) return { event: ev.event, live: ev.live, match: m, description: d.description, bonus: d.bonus, teams: [], prev: d.prev, next: d.next };
   const ph = numbers.map(() => "?").join(",");
   const [stats, records, events, cut, rel] = await Promise.all([
     all<any>(`SELECT team, opr_np, opr_pen, rank_np, ranked_teams, matches, wins, losses, ties FROM team_season_stats WHERE season = ? AND team IN (${ph})`, [season, ...numbers]),
@@ -114,5 +114,5 @@ export async function matchReport(season: number, code: string, key: string): Pr
       }, cut),
     };
   });
-  return { event: ev.event, live: ev.live, match: m, description: d.description, teams, prev: d.prev, next: d.next };
+  return { event: ev.event, live: ev.live, match: m, description: d.description, bonus: d.bonus, teams, prev: d.prev, next: d.next };
 }

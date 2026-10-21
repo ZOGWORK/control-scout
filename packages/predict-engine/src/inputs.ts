@@ -64,6 +64,8 @@ export interface AllianceSelectionInput {
 export interface EventInput {
   season: number;
   code: string;
+  /** Display name ("Arkansas Championship"), so a partnership fact made from this event's fresh results names it. */
+  name?: string | null;
   type: string | null;
   /** YYYY-MM-DD */
   start: string | null;

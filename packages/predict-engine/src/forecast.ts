@@ -11,8 +11,11 @@ import { bonusCount } from "./rules.js";
 import { rng, simulateEvent, type AwardInput, type BonusModel, type PickModel, type QualMatch, type SimInput, type TeamOutcome } from "./sim.js";
 import { awardFeatures, sampleAwards, type AwardModel, type AwardRecord } from "./awards.js";
 import { ADVANCING_TYPES } from "./scoutData.js";
+import { PartnershipOverlay, partnershipFact, type PairLookup, type PartnershipFact } from "./partnership.js";
 import type { AllianceResult, MatchRecord } from "./types.js";
 import type { AllianceInput, BonusFlags, EventInput, FirstAdvancement, MatchInput } from "./inputs.js";
+import { explainMatch, type ConfidenceTier } from "./explain.js";
+import { BONUS_SLOTS, seasonBonusModel, type BonusModelSource } from "./bonus.js";
 
 /** The fitted model (server/predict/model.json, from scripts/predict/export-model.mts). */
 export interface PredictModel {
@@ -83,6 +86,10 @@ export interface ForecastMatch {
   blueBand?: ScoreBand | null;
   /** Real final scores once played. */
   played: { red: number; blue: number } | null;
+  /** Unplayed 2-against-2 qualification matches of 2025+ seasons with a bonus model
+   *  (Forecaster.bonusModel): each alliance's bonus-RP odds (BONUS_SLOTS order) and
+   *  expected ranking points, from the same call as pRedWin. Null otherwise. */
+  bonus?: MatchBonusSummary | null;
   /** Played matches only: red's win odds as recorded *before* the match was
    *  played (live monitoring), or null if no forecast was made in time. */
   pre?: number | null;
@@ -92,6 +99,18 @@ export interface ForecastMatch {
    *  fallback, e.g. 2.0 under 2.1), for side-by-side ledgers; null when there is none. */
   pShadow?: number | null;
   shadowModelId?: string | null;
+  /** Unplayed matches (engine 2.4): the strongest real history between these robots (played
+   *  together or against each other before), when the app supplies a pair table. A reason only. */
+  history?: PartnershipFact | null;
+}
+
+export interface MatchBonusSummary {
+  red: [number, number, number];
+  blue: [number, number, number];
+  expectedRpRed: number;
+  expectedRpBlue: number;
+  tier: ConfidenceTier;
+  reason: string;
 }
 
 export interface PartnerOption { team: number; pAdvance: number; pWin: number }
@@ -132,6 +151,38 @@ export abstract class Forecaster {
     return null;
   }
 
+  /**
+   * Pair history for a season's predictions (partnership.ts, engine 2.4): a table
+   * built from matches before now. Apps override this; the default has none, and
+   * then no prediction carries a partnership fact.
+   */
+  protected partnerships(_season: number): PairLookup | null {
+    return null;
+  }
+
+  /**
+   * The season's bonus-RP model (bonus.ts). Apps override it with their stored
+   * season results (seasonBonusModel with samples, oldest first); the default
+   * knows none, so it uses the shipped fit when the season has one. A forecast
+   * of a past moment must override it with bonusModelBefore (no hindsight).
+   */
+  bonusModel(season: number): BonusModelSource | null {
+    return seasonBonusModel(this.model.bonus, season, () => []);
+  }
+
+  /** Bonus-RP odds for an unplayed qualification lineup (explainMatch's bonus), or null. */
+  protected bonusSummary(book: RatingBook, season: number, red: number[], blue: number[], event: string): MatchBonusSummary | null {
+    const src = this.bonusModel(season);
+    if (!src) return null;
+    const x = explainMatch(book, red, blue, { noise: this.model.noise, calibration: this.model.calibration, contextual: this.model.contextual, context: { level: "qual", event }, bonus: { season, model: src } }).bonus;
+    if (!x) return null;
+    const r4 = (p: number) => Math.round(p * 1e4) / 1e4;
+    return {
+      red: BONUS_SLOTS.map((s) => r4(x.A.p[s])) as [number, number, number], blue: BONUS_SLOTS.map((s) => r4(x.B.p[s])) as [number, number, number],
+      expectedRpRed: Math.round(x.A.expectedRp * 100) / 100, expectedRpBlue: Math.round(x.B.expectedRp * 100) / 100, tier: x.confidence.tier, reason: x.confidence.reason,
+    };
+  }
+
   /** One match's prediction. `ctx.level` defaults to "qual" for generic what-ifs. */
   match(season: number, red: number[], blue: number[], ctx: MatchContext = {}) {
     const book = this.book(season);
@@ -141,7 +192,11 @@ export abstract class Forecaster {
 
   /** The engine's prediction for a lineup on a given book (score model + win probability). */
   protected predict(book: RatingBook, red: number[], blue: number[], ctx: MatchContext = {}) {
-    return predictMatch(book, red, blue, this.model.noise, this.model.calibration, { context: ctx, contextual: this.model.contextual, shadow: this.model.contextual?.fallback, band: this.model.band });
+    const pairs = book.season != null ? this.partnerships(book.season) : null;
+    return predictMatch(book, red, blue, this.model.noise, this.model.calibration, {
+      context: ctx, contextual: this.model.contextual, shadow: this.model.contextual?.fallback, band: this.model.band,
+      ...(pairs ? { partnership: { table: pairs, season: book.season! } } : {}),
+    });
   }
 
   /** A played alliance's recorded bonus RPs: from the payload, else the app's store. */
@@ -198,7 +253,7 @@ export abstract class Forecaster {
    * Ratings for an event right now: the season book plus this event's played
    * matches that the last background sync hasn't folded in yet.
    */
-  private eventBook(ev: EventInput, book: RatingBook): RatingBook {
+  private eventBook(ev: EventInput, book: RatingBook, pairs?: PartnershipOverlay | null): RatingBook {
     const have = this.storedPlayedKeys(ev.season, ev.code);
     const fresh: MatchRecord[] = [];
     const base = Date.parse(`${ev.start ?? "1970-01-01"}T00:00:00Z`);
@@ -224,7 +279,8 @@ export abstract class Forecaster {
     }
     if (!fresh.length) return book;
     const b = book.clone();
-    for (const m of fresh.sort((x, y) => x.time - y.time)) b.update(m);
+    // The pair history learns the same fresh results (residuals against the ratings before each one).
+    for (const m of fresh.sort((x, y) => x.time - y.time)) { pairs?.observe(m, b); b.update(m); }
     b.setTime(Date.now());
     return b;
   }
@@ -339,7 +395,11 @@ export abstract class Forecaster {
   forecast(ev: EventInput, myTeam: number | null, runs = 2000): Forecast | null {
     const seasonBook = this.book(ev.season);
     if (!seasonBook || this.unsupportedReason(ev)) return null;
-    const book = this.eventBook(ev, seasonBook);
+    const base = this.partnerships(ev.season);
+    const pairs = base ? new PartnershipOverlay(base) : null;
+    // A fresh result can become a pair's best: the fact then names this event.
+    if (pairs && ev.name) pairs.nameEvent(ev.season, ev.code, ev.name);
+    const book = this.eventBook(ev, seasonBook, pairs);
     const stage = this.stageOf(ev);
     const { input, assumptions, adv } = this.simInput(ev, stage, book, runs);
     if (normType(ev.type) === "Championship" && adv.source !== "official") {
@@ -360,7 +420,9 @@ export abstract class Forecaster {
         redBand: p?.red.band ?? null, blueBand: p?.blue.band ?? null,
         modelId: p ? p.modelId ?? "legacy" : null,
         pShadow: p?.pShadow ?? null, shadowModelId: p?.shadowModelId ?? null,
+        ...(pairs ? { history: p ? partnershipFact(pairs, red, blue, ev.season) : null } : {}),
         played: m.played && m.red.score?.total != null && m.blue.score?.total != null ? { red: m.red.score.total, blue: m.blue.score.total } : null,
+        bonus: p && m.level === "qual" && red.length === 2 && blue.length === 2 ? this.bonusSummary(book, ev.season, red, blue, ev.code) : null,
       };
     });
     teams.sort((a, b) => b.pAdvance - a.pAdvance || a.rank.mean - b.rank.mean);

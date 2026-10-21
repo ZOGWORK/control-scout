@@ -11,7 +11,9 @@ import { eventDetail } from "./events.js";
 import { liveForecaster, recentRecords } from "../predict/engine.js";
 import { recentReasons, type RecentRecord } from "@control-scout/predict-engine";
 import { localToUtcMs } from "../data/time.js";
-import { isLegacy } from "../data/seasons.js";
+import { bonusLabels, isLegacy } from "../data/seasons.js";
+import { bonusFromRow, bonusView } from "../../src/shared/bonusOdds.js";
+import { pairHistory } from "../../src/shared/pairHistory.js";
 import { rangesOf } from "../../src/shared/scoreRange.js";
 
 const score = (r: any, p: "red" | "blue") => r[`${p}_np`] == null ? null : {
@@ -69,7 +71,10 @@ export async function matchViews(f: MatchFilter, opts: { predictUnplayed?: boole
         ? { redRange: [Number(x.red_lo), Number(x.red_hi)] as [number, number], blueRange: [Number(x.blue_lo), Number(x.blue_hi)] as [number, number], rangeLevel: Number(x.range_level ?? 0.8) }
         : {}),
       ...(x.factors ? { factors: JSON.parse(x.factors) } : {}),
+      // The partnership line logged with the call (engine 2.4), so a logged call keeps it.
+      ...(x.history ? { history: JSON.parse(x.history) } : {}),
       ...(x.no_score_basis ? { noScoreBasis: true as const } : {}),
+      ...((b) => (b ? { bonus: b } : {}))(bonusFromRow(f.season, x)),
     });
     if (p?.live) prediction = fromRow(p.live, "live");
     else if (r.played && p?.backtest) prediction = fromRow(p.backtest, "backtest");
@@ -80,7 +85,10 @@ export async function matchViews(f: MatchFilter, opts: { predictUnplayed?: boole
         // A live event's page polls this every 30 s and should mostly get a 304, so the body must not
         // change unless the data did: no predictedAt (a call from today's ratings isn't logged at a
         // moment), and pRed to 4 places (the ratings decay with the clock, moving it ~1e-9 per read).
-        if (x) prediction = { pRed: stableP(x.winProbA), redMean: x.predictedScoreA, blueMean: x.predictedScoreB, tier: x.confidence.tier, kind: "now", predictedAt: null, factors: x.factors, ...(noScoreBasis ? { noScoreBasis: true } : rangesOf(x)) };
+        if (x) {
+          const pRed = stableP(x.winProbA), bonus = bonusView(f.season, x, pRed);
+          prediction = { pRed, redMean: x.predictedScoreA, blueMean: x.predictedScoreB, tier: x.confidence.tier, kind: "now", predictedAt: null, factors: x.factors, ...(x.partnership ? { history: pairHistory(x.partnership) } : {}), ...(noScoreBasis ? { noScoreBasis: true } : rangesOf(x)), ...(bonus ? { bonus } : {}) };
+        }
       }
     }
     // Recent-record reasons (engine recentReasons: no-shows, near-zero matches in the robots' last 10) describe
@@ -102,11 +110,6 @@ export async function matchViews(f: MatchFilter, opts: { predictUnplayed?: boole
   }
   return out;
 }
-
-const BONUS_LABELS: Record<number, [string, string, string]> = {
-  2025: ["Movement", "Goal", "Pattern"],
-  2026: ["Swarm", "Pollinator 1", "Pollinator 2"],
-};
 
 /** One match and its context: names, event standing and OPR, season OPR rank, bonus RPs, stations. */
 /** `event`: the event's detail when the caller already has it (it isn't cached: never build it twice). */
@@ -130,7 +133,7 @@ export async function matchDetail(season: number, code: string, key: string, eve
     const b = JSON.parse(s) as { movement: boolean; goal: boolean; pattern: boolean };
     return [!!b.movement, !!b.goal, !!b.pattern];
   };
-  const labels = BONUS_LABELS[season];
+  const labels = bonusLabels(season);
   const fieldBy = new Map(d.field.map((f) => [f.team, f]));
   const seasonBy = new Map(seasonStats.map((s) => [Number(s.team), s]));
   const infoBy = new Map(teamRows.map((t) => [Number(t.number), t]));
