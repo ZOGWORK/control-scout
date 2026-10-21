@@ -17,6 +17,8 @@ describe("offline team profile (same shape as /api/teams/:n)", () => {
       rating: { np: 50, auto: 9, teleop: 28, endgame: 13, pen: 2, sd: 6, matches: 3, rank: 8 },
       record: { wins: 2, losses: 1, ties: 0, matches: 3, events: 1 },
       avg: { np: 100, score: 105, pen: 5 },
+      // The fixture pack predates the reliability table: read as not computed, never an error.
+      reliability: null,
     });
     expect(p.events.map((e) => e.code)).toEqual(["USNJQ1", "USNJQ9"]); // by start date
     expect(p.events[0]).toEqual({

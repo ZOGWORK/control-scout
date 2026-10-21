@@ -33,7 +33,7 @@ import { sitemapChunkRoute, sitemapRoute } from "./sitemap.js";
 import { indexNowKeyRoute } from "./indexNow.js";
 import { latestRankings, rankingsWeek } from "./powerRankings/store.js";
 import { isWeekId } from "../src/shared/powerRankings.js";
-import { liveForecaster, liveVersion, dataVersion } from "./predict/engine.js";
+import { liveForecaster, liveVersion, dataVersion, recentRecords } from "./predict/engine.js";
 import { authRouter, meRouter, authProviders } from "./auth/routes.js";
 import { contactRouter } from "./contact.js";
 import { scoutRouter } from "./scout/entries.js";
@@ -493,12 +493,12 @@ export function createApp() {
     if (lv != null && lv !== "qual" && lv !== "playoff") throw bad("level must be qual or playoff");
     const level = lv === "playoff" ? "playoff" : "qual";
     const f = await liveForecaster(s);
-    const x = f.explain(s, red, blue, level);
+    const x = f.explain(s, red, blue, level, undefined, await recentRecords(s, [...red, ...blue]));
     if (!x) throw new HttpError(503, "Ratings for this season aren't ready yet.");
     const names = new Map((await all<any>(`SELECT number, name FROM teams WHERE number IN (${[...red, ...blue].map(() => "?").join(",")})`, [...red, ...blue])).map((r) => [Number(r.number), r.name]));
     return {
       season: s, red, blue, winProbRed: x.winProbA, winProbBlue: x.winProbB, predictedRed: x.predictedScoreA, predictedBlue: x.predictedScoreB,
-      rangeRed: x.scoreRangeA, rangeBlue: x.scoreRangeB, factors: x.factors, confidence: x.confidence,
+      rangeRed: x.scoreRangeA, rangeBlue: x.scoreRangeB, factors: x.factors, confidence: x.confidence, reasons: x.reasons,
       teamsRed: x.teamsA.map((t) => ({ ...t, name: names.get(t.team) ?? null })), teamsBlue: x.teamsB.map((t) => ({ ...t, name: names.get(t.team) ?? null })),
       level, probabilityModel: x.probabilityModel, engineVersion: ENGINE_VERSION,
     };

@@ -547,7 +547,7 @@ function MatchResult({ x, offlineAsOf }: { x: MatchExplanationView; offlineAsOf?
       <div className="grid gap-4 md:grid-cols-2">
         <div className="rounded-2xl border border-border bg-card p-5 max-sm:p-4">
           <h3 className="mb-3 text-base font-semibold">Why — the top 3 factors</h3>
-          <FactorList factors={x.factors} />
+          <FactorList factors={x.factors} reasons={x.reasons} />
           <p className="mt-3 text-xs text-muted-foreground">Factors are an exact split of the predicted margin by game phase. <Link to="/methodology#factors" className="underline">More</Link></p>
         </div>
         <div className="rounded-2xl border border-border bg-card p-5 max-sm:p-4">

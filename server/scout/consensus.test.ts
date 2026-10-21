@@ -270,4 +270,26 @@ describe("scout consensus", () => {
       expect(r.json.paused).toBe(true);
     } finally { await setFlag("workspaceScouting", true, "owner@test"); }
   });
+
+  it("reliability notes: entries marked broken count for that workspace only, and never reach a public answer", async () => {
+    const { priya, olly } = await team("2110", "2910");
+    await push(priya, "2110", [entry({ data: { broke: true } }), entry({ data: { broke: false } }), entry({ data: {} }), entry({ kind: "pit", data: {} })]);
+    await push(olly, "2910", [entry({ data: { broke: true } })]);
+    expect((await one(priya, "2110")).reliabilityNotes).toEqual({ matchEntries: 3, flagged: 1 });
+    expect((await one(olly, "2910")).reliabilityNotes).toEqual({ matchEntries: 1, flagged: 1 });
+    // Another workspace's member is refused, and gets none of it.
+    const out = await olly("GET", `/api/scout/workspaces/2110/consensus?season=${S}&teams=18360`);
+    expect(out.status).toBe(403);
+    expect(JSON.stringify(out.json)).not.toMatch(/reliabilityNotes|flagged/);
+    // Public answers (signed in as a member, or not at all) carry no workspace notes: they're built from public tables only.
+    for (const call of [priya, client()]) {
+      for (const path of PUBLIC_PATHS) {
+        const r = await call("GET", path);
+        expect(r.status, path).not.toBe(500); // (the prediction answers 503 here: no ratings in this test database)
+        expect(JSON.stringify(r.json ?? ""), path).not.toMatch(/reliabilityNotes|flagged|"broke"/);
+      }
+    }
+  });
 });
+
+const PUBLIC_PATHS = [`/api/teams/18360?season=${S}`, `/api/compare?teams=18360,101&season=${S}`, `/api/shortlist?teams=18360,101&season=${S}`, `/api/predict/match?season=${S}&red=18360,101&blue=102,103`];

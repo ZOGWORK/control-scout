@@ -37,6 +37,7 @@ import { OfflineNote } from "../components/OfflineNote";
 import { StickyActions } from "../components/StickyActions";
 import { TeamConsensusSection } from "../components/ScoutConsensus";
 import { ReportCardSection } from "../components/ReportCard";
+import { ReliabilitySection } from "../components/Reliability";
 
 export default function TeamPage() {
   const { number } = useParams();
@@ -83,6 +84,7 @@ function Profile({ p, onSeason }: { p: TeamProfile; onSeason: (s: number) => voi
             <OprSection p={p} />
             <TrendChart events={p.events} season={p.season} />
           </div>
+          {p.stats?.reliability !== undefined && <ReliabilitySection r={p.stats.reliability} />}
           {predictable && <ReportCardSection team={p.team.number} season={p.season} data={p.reportCards} />}
           <div className="min-[1700px]:grid min-[1700px]:grid-cols-2 min-[1700px]:items-start min-[1700px]:gap-x-8">
             <Section title={`Event history (${p.events.length})`} description={`${seasonLabel(p.season)}, newest first`}>
@@ -99,7 +101,7 @@ function Profile({ p, onSeason }: { p: TeamProfile; onSeason: (s: number) => voi
       {rest && !hasResults && <><AwardsAllTime p={p} />{predictable && <ScoutNotes team={p.team.number} season={p.season} />}</>}
       {/* Workspace members only: their workspace's scouting on this team (nothing for anyone else). Last, after
           the team's own numbers and matches: it's the members' take, not the first thing a search opens on. */}
-      {rest && predictable && <TeamConsensusSection team={p.team.number} season={p.season} />}
+      {rest && predictable && <TeamConsensusSection team={p.team.number} season={p.season} reliability={p.stats?.reliability} />}
     </div>
   );
 }
@@ -210,12 +212,13 @@ function Hero({ p, onSeason }: { p: TeamProfile; onSeason: (s: number) => void }
             <>
               <p className={cn("mt-3 font-display text-5xl font-semibold tabular-nums", PROFILE_PERCENTILE_TEXT)}>{top ?? "Unranked"}</p>
               <p className="text-sm text-muted-foreground">worldwide by OPR{s.opr.np.rank ? ` · #${s.opr.np.rank.toLocaleString()} of ${s.opr.np.of?.toLocaleString()}` : ""}</p>
-              <dl className="mt-5 max-sm:mt-4 grid grid-cols-3 gap-3">
+              <dl className={cn("mt-5 max-sm:mt-4 grid gap-3", s.reliability ? "grid-cols-2 sm:grid-cols-4" : "grid-cols-3")}>
                 <div><dt className="text-xs text-muted-foreground">OPR</dt><dd className="font-display text-2xl font-semibold tabular-nums">{num(s.opr.np.value)}</dd></div>
                 {predictable
                   ? <div><dt className="text-xs text-muted-foreground">Rating</dt><dd className="font-display text-2xl font-semibold tabular-nums">{s.rating ? num(s.rating.np) : "—"}{s.rating && <span className="text-sm font-normal text-muted-foreground"> ±{num(s.rating.sd, 0)}</span>}</dd></div>
                   : <div><dt className="text-xs text-muted-foreground">Avg score</dt><dd className="font-display text-2xl font-semibold tabular-nums">{num(s.avg.np)}</dd></div>}
                 <div><dt className="text-xs text-muted-foreground">Record</dt><dd className="font-display text-2xl font-semibold tabular-nums">{s.record.wins}-{s.record.losses}-{s.record.ties}</dd></div>
+                {s.reliability && <div><dt className="text-xs text-muted-foreground" title="An estimate from match results: no-shows, DQs, near-zero matches, swing, penalties">Reliability</dt><dd className="font-display text-2xl font-semibold tabular-nums">{s.reliability.index}<span className="text-sm font-normal text-muted-foreground"> /100</span></dd></div>}
               </dl>
             </>
           )}
