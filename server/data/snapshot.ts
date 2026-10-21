@@ -51,6 +51,8 @@ export const PUBLIC_TABLES = [
   "result_changes", "result_watch",
   // Predictability report cards (migration 37): aggregates of the public live prediction ledger.
   "team_report_cards",
+  // Monte Carlo event projections (migration 38): simulations of public results with public ratings.
+  "event_projections", "event_projection_odds",
 ];
 
 /** True only when replacing the file can't lose anything: it's missing or zero
