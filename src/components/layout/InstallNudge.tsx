@@ -131,7 +131,7 @@ export function NudgeCard({ kind, team, signedIn, onAdd, onDismiss }: { kind: Ki
       data-install-nudge={kind}
       initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 12 }} transition={{ duration: 0.2, ease: "easeOut" }}
       onKeyDown={(e) => { if (e.key === "Escape") { e.stopPropagation(); onDismiss(); } }}
-      className="fixed inset-x-3 bottom-[calc(61px+env(safe-area-inset-bottom)+0.75rem)] z-[45] rounded-xl border border-border bg-popover p-3 text-popover-foreground shadow-[0_18px_40px_-16px_rgba(0,0,0,.55)] max-md:[[data-sticky-actions]_&]:bottom-[calc(61px+4rem+env(safe-area-inset-bottom)+0.75rem)] md:inset-x-auto md:bottom-4 md:left-4 md:w-[22rem]"
+      className="fixed inset-x-3 bottom-[calc(var(--tabbar-h)+env(safe-area-inset-bottom)+0.75rem)] z-[45] rounded-xl border border-border bg-popover p-3 text-popover-foreground shadow-[0_18px_40px_-16px_rgba(0,0,0,.55)] max-md:[[data-sticky-actions]_&]:bottom-[calc(var(--tabbar-h)+4rem+env(safe-area-inset-bottom)+0.75rem)] md:inset-x-auto md:bottom-4 md:left-4 md:w-[22rem]"
     >
       <div className="flex items-start gap-3">
         <img src="/icon-192.png" alt="" width={36} height={36} className="mt-0.5 size-9 shrink-0 rounded-lg" />
