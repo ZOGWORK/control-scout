@@ -9,6 +9,18 @@ teams, scout, offline, speed, live, report, alerts, rankings, share, workspace,
 picklist, history, fixes). What's new shows them first; the groups below are
 the full release notes, one click away.
 
+## 1.12.0 — 2026-10-21
+
+A pit display for the TV in your pit.
+
+### Highlights
+- [live] Pit display: the whole event on the pit TV, no sign-in needed
+- [predict] Up next with win odds, a countdown and the current rankings
+- [teams] Your tracked teams in gold when you're signed in
+
+### Events
+- **Pit display.** A "Pit display" button on every event page opens a fullscreen screen for a pit TV or laptop: the event and the venue's clock, the match up now (or the last result, with whether the call was right), the next three matches with their win odds, a countdown to the next one (left out when the event runs behind, rather than showing a wrong time), the top 8 and a QR code to the event page. It updates by itself, shows "Reconnecting…" if the connection drops, keeps the screen awake where the browser allows it, and fits 1920×1080 and 1366×768 with no scrolling. Signed in, your tracked teams show in gold and your next match is pinned. (#218)
+
 ## 1.11.0 — 2026-10-21
 
 Watch an event's stream with the model calling every match beside it.

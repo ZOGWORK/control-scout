@@ -87,7 +87,8 @@ const out = resolve(opt("out") ?? join(tmpdir(), "control-scout-shots", new Date
 if (out.startsWith(resolve(process.cwd()))) { console.error("Refusing to write screenshots inside the repository — use --out outside it."); process.exit(1); }
 // Default desktop; --mobile = phone only; --both = desktop + phone.
 // --narrow: a 320 px phone (the smallest supported width; also how a 390 px phone looks with enlarged text).
-const viewports: ("desktop" | "mobile" | "wide" | "narrow")[] = flag("wide") ? ["wide"] : flag("narrow") ? ["narrow"] : flag("both") ? ["desktop", "mobile"] : flag("mobile") ? ["mobile"] : ["desktop"];
+// --tv (1920×1080) and --laptop (1366×768): 16:9 screens, e.g. the pit display.
+const viewports: (keyof typeof SIZES)[] = flag("tv") ? ["tv", ...(flag("laptop") ? ["laptop" as const] : [])] : flag("laptop") ? ["laptop"] : flag("wide") ? ["wide"] : flag("narrow") ? ["narrow"] : flag("both") ? ["desktop", "mobile"] : flag("mobile") ? ["mobile"] : ["desktop"];
 // --storage file.json: localStorage to seed before the page loads ({ key: value }; non-string values are
 // JSON-encoded), e.g. a populated shortlist: { "cs-personal:bookmarks": { "value": [18360], "updatedAt": 1 } }.
 const STORAGE: Record<string, string> = (() => {
@@ -96,7 +97,7 @@ const STORAGE: Record<string, string> = (() => {
   const raw = JSON.parse(readFileSync(f, "utf8")) as Record<string, unknown>;
   return Object.fromEntries(Object.entries(raw).map(([k, v]) => [k, typeof v === "string" ? v : JSON.stringify(v)]));
 })();
-const SIZES = { desktop: { width: 1440, height: 900 }, wide: { width: 2200, height: 1240 }, mobile: { width: 390, height: 844 }, narrow: { width: 320, height: 700 } } as const;
+const SIZES = { desktop: { width: 1440, height: 900 }, wide: { width: 2200, height: 1240 }, mobile: { width: 390, height: 844 }, narrow: { width: 320, height: 700 }, tv: { width: 1920, height: 1080 }, laptop: { width: 1366, height: 768 } } as const;
 
 
 async function capture(browser: Browser, route: string, vp: keyof typeof SIZES, light: boolean): Promise<string> {

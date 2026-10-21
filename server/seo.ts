@@ -13,7 +13,7 @@ import { readFileSync, statSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { env } from "./env.js";
 import { BOOT_STYLE, bootConsent, bootShell } from "./bootShell.js";
-import { pageModule } from "../src/shared/routes.js";
+import { isBareRoute, pageModule } from "../src/shared/routes.js";
 import { APP_CSS_ID } from "../src/shared/boot.js";
 
 /** The canonical origin, e.g. "https://controlscout.org" (no trailing slash). */
@@ -135,7 +135,8 @@ export async function renderPage(file: string, path: string, query: Record<strin
   // Callbacks, so $', $`, $& in a team or event name are inserted literally (a replacement string would expand them).
   const html = afterFirstPaint(nonBlockingCss(indexHtml(file).replace("</head>", () => `    ${head}\n  </head>`)))
     // The privacy banner goes after #root, not in it: React's first render replaces #root, and the app's banner takes over from this one.
-    .replace(/<div id="root">(?:<!--cs-boot-->)?<\/div>/, () => `<div id="root">${bootShell(path, meta)}</div>${bootConsent()}`);
+    // Not on a bare page (the pit display): nobody answers it on a pit TV, and the app shows no banner there to take it over.
+    .replace(/<div id="root">(?:<!--cs-boot-->)?<\/div>/, () => `<div id="root">${bootShell(path, meta)}</div>${isBareRoute(path) ? "" : bootConsent()}`);
   return { status: meta.notFound ? 404 : 200, html };
 }
 

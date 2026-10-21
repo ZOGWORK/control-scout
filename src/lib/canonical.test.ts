@@ -16,6 +16,13 @@ describe("canonicalPath (client) matches the server's canonical URLs", () => {
   });
 });
 
+describe("canonicalPath: the pit display", () => {
+  it("is canonical to its event page, as the server says", () => {
+    expect(canonicalPath("/events/2025/usnjnom3/display")).toBe("/events/2025/USNJNOM3");
+    expect(canonicalPath("/events/2025/USNJNOM3/Display/")).toBe("/events/2025/USNJNOM3");
+  });
+});
+
 describe("canonicalQuery (client) keeps /rankings' view, like the server", () => {
   it("season, region, week and a page past the first, in a fixed order; nothing for other pages", () => {
     expect(canonicalQuery("/rankings", "?page=2&region=USA:TX&utm_source=x&season=2025")).toBe("?season=2025&region=USA%3ATX&page=2");
