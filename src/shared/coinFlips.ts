@@ -46,6 +46,8 @@ export interface CoinFlipRow {
   result: { red: number; blue: number } | null;
 }
 
+export interface CoinFlipTally { timezone: string; day: string; calls: number; thin: number }
+
 export interface CoinFlipRadar {
   /** When the radar was gathered (server clock). */
   generatedAt: string;
@@ -56,6 +58,9 @@ export interface CoinFlipRadar {
   calls: number;
   /** Close calls left out because a robot in them has too few matches this season. */
   thin: number;
+  /** Per event with a schedule today: its venue date and its counts, so the totals above can follow the rows
+   *  across a venue's midnight (see current() in server/api/coinFlips.ts). */
+  tallies: CoinFlipTally[];
   /** Coin flips still to play (soonest first, at most MAX_UPCOMING) and decided ones with a pre-match call (latest first). */
   upcoming: CoinFlipRow[];
   decided: CoinFlipRow[];

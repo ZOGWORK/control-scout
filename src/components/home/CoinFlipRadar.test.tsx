@@ -8,9 +8,11 @@ import { MemoryRouter } from "react-router-dom";
 import type { CoinFlipRadar, CoinFlipRow } from "../../shared/coinFlips";
 
 let data: CoinFlipRadar | undefined;
+let reloads = 0;
+const reload = () => { reloads++; };
 vi.mock("../../lib/api", async (orig) => ({
   ...(await orig<typeof import("../../lib/api")>()),
-  useApi: () => ({ data, error: undefined, loading: !data, reload: () => {} }),
+  useApi: () => ({ data, error: undefined, loading: !data, reload }),
 }));
 vi.mock("../../lib/meta", async (orig) => ({ ...(await orig<typeof import("../../lib/meta")>()), useMediaQuery: () => false }));
 const { CoinFlipRadarSection, dueIn, emptyLine, venueClock } = await import("./CoinFlipRadar");
@@ -20,7 +22,7 @@ const row = (n: number, o: Partial<CoinFlipRow> = {}): CoinFlipRow => ({
   day: "2026-10-17", time: "2026-10-17T14:05:00", startsAt: null, red: [n * 10 + 1, n * 10 + 2], blue: [n * 10 + 3, n * 10 + 4], pRed: 0.53, tier: "moderate",
   kind: "now", played: false, result: null, ...o,
 });
-const radar = (o: Partial<CoinFlipRadar>): CoinFlipRadar => ({ generatedAt: new Date().toISOString(), band: { lo: 0.45, hi: 0.55 }, events: 0, calls: 0, thin: 0, upcoming: [], decided: [], ...o });
+const radar = (o: Partial<CoinFlipRadar>): CoinFlipRadar => ({ generatedAt: new Date().toISOString(), band: { lo: 0.45, hi: 0.55 }, events: 0, calls: 0, thin: 0, tallies: [], upcoming: [], decided: [], ...o });
 const show = () => render(<MemoryRouter><CoinFlipRadarSection /></MemoryRouter>);
 afterEach(() => { cleanup(); data = undefined; });
 
@@ -52,11 +54,31 @@ describe("CoinFlipRadarSection", () => {
   });
 });
 
+describe("refresh", () => {
+  it("reloads every minute while the tab is showing, not while it's hidden", () => {
+    vi.useFakeTimers();
+    try {
+      data = radar({});
+      show();
+      reloads = 0;
+      vi.advanceTimersByTime(60_000);
+      expect(reloads).toBe(1);
+      Object.defineProperty(document, "visibilityState", { value: "hidden", configurable: true });
+      vi.advanceTimersByTime(120_000);
+      expect(reloads).toBe(1);
+      Object.defineProperty(document, "visibilityState", { value: "visible", configurable: true });
+      document.dispatchEvent(new Event("visibilitychange"));
+      expect(reloads).toBe(2);
+    } finally { vi.useRealTimers(); }
+  });
+});
+
 describe("emptyLine", () => {
   it("says there are no events today, or no close calls with the thin-data ones counted", () => {
     expect(emptyLine(radar({}))).toMatch(/No event has matches scheduled for today/);
+    expect(emptyLine(radar({ events: 2, calls: 40 }))).toBe("None of the 40 calls on today’s schedules at 2 events is between 45% and 55%.");
     expect(emptyLine(radar({ events: 2, calls: 40, thin: 3 }))).toBe(
-      "None of the 40 calls on today’s schedules at 2 events is between 45% and 55%. 3 more are that close but left out: a robot in them has played fewer than 3 matches this season.");
+      "Of the 40 calls on today’s schedules at 2 events, 3 are between 45% and 55% but left out: a robot in them has played fewer than 3 matches this season, so the call rests on thin data.");
     expect(emptyLine(radar({ upcoming: [row(1)] }))).toBeNull();
   });
 });

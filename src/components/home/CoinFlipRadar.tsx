@@ -1,7 +1,7 @@
 // The home page's coin-flip radar: today's closest calls across every event on today at its venue
 // (server/api/coinFlips.ts). Still to play first, as cards with a zoomed 40–60% meter so a 52:48 call
 // reads at a glance; then the ones already decided, with their results. Each opens its match page.
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { ArrowUpRight, Coins, RefreshCw } from "lucide-react";
 import { useApi } from "../../lib/api";
@@ -49,8 +49,9 @@ export function emptyLine(r: CoinFlipRadar): string | null {
   if (r.upcoming.length) return null;
   if (r.decided.length) return "Every coin flip on today’s schedules has been played. The results are below.";
   if (!r.events) return "No event has matches scheduled for today at its venue, so there are no coin flips to watch. They show here on event days, once a schedule is out.";
-  const thin = r.thin ? ` ${r.thin} more ${r.thin === 1 ? "is" : "are"} that close but left out: a robot in ${r.thin === 1 ? "it has" : "them has"} played fewer than 3 matches this season.` : "";
-  return `None of the ${r.calls.toLocaleString()} ${r.calls === 1 ? "call" : "calls"} on today’s schedules at ${r.events} ${r.events === 1 ? "event" : "events"} is between ${pctBand(r)}.${thin}`;
+  const pool = `${r.calls.toLocaleString()} ${r.calls === 1 ? "call" : "calls"} on today’s schedules at ${r.events} ${r.events === 1 ? "event" : "events"}`;
+  if (!r.thin) return `None of the ${pool} is between ${pctBand(r)}.`;
+  return `Of the ${pool}, ${r.thin} ${r.thin === 1 ? "is" : "are"} between ${pctBand(r)} but left out: a robot in ${r.thin === 1 ? "it has" : "them has"} played fewer than 3 matches this season, so the call rests on thin data.`;
 }
 
 const pctBand = (r: CoinFlipRadar) => `${Math.round(r.band.lo * 100)}% and ${Math.round(r.band.hi * 100)}%`;
@@ -134,8 +135,24 @@ function DecidedRow({ r }: { r: CoinFlipRow }) {
   );
 }
 
+/** An open home page keeps up: results come in and the next match moves up while someone watches. */
+export const REFRESH_MS = 60_000;
+
+/** Reload every REFRESH_MS while the tab is showing, and at once when it comes back after a while away. */
+function useRadarRefresh(reload: () => void) {
+  useEffect(() => {
+    let last = Date.now();
+    const again = () => { last = Date.now(); reload(); };
+    const every = setInterval(() => { if (document.visibilityState === "visible") again(); }, REFRESH_MS);
+    const onShow = () => { if (document.visibilityState === "visible" && Date.now() - last >= REFRESH_MS) again(); };
+    document.addEventListener("visibilitychange", onShow);
+    return () => { clearInterval(every); document.removeEventListener("visibilitychange", onShow); };
+  }, [reload]);
+}
+
 export function CoinFlipRadarSection() {
   const state = useApi<CoinFlipRadar>("/api/home/coin-flips");
+  useRadarRefresh(state.reload);
   const [allUp, setAllUp] = useState(false);
   const [allDone, setAllDone] = useState(false);
   const first = useMediaQuery("(max-width: 639px)") ? FIRST_UPCOMING_PHONE : FIRST_UPCOMING;
