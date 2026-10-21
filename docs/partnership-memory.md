@@ -18,7 +18,8 @@ Code: `packages/predict-engine/src/partnership.ts`. Fit and evaluation:
   z = (actual − expected) / σ, clipped to ±4. A DECODE point is never compared with a
   CENTERSTAGE point; only how far a result ran from expectations is.
 - **Per pair:**
-  - Together: matches, W–L–T, the best final score together and where, and Σz.
+  - Together: matches, W–L–T, the best final score together in their latest season
+    together (scores of different games never compare) and where, and Σz.
   - Against: meetings, the lower number's W–L–T, and Σ of the margin residual
     (z_red − z_blue)/√2 from that side.
 - **Shrinkage.** effect = Σ w·z / (Σ w + k), with w = decay^(seasons ago). With k = 4,

@@ -70,7 +70,7 @@ describe("partnership memory (server)", () => {
     const r =await (await fetch(`${base}/api/predict/match?season=2023&red=11,12&blue=15,16`)).json();
     expect(r.history?.kind).toBe("together");
     expect(r.history?.teams).toEqual([11, 12]);
-    expect(r.history?.label).toMatch(/^11 and 12 have played 3 matches together \(3–0\).*best 150 at NJ Championship \(2022–23\)$/);
+    expect(r.history?.label).toMatch(/^11 and 12 have played 3 matches together \(3–0\).*best 120 at Qualifier One$/); // the latest season's best (different games never compare)
     expect(r.winProbRed).toBeGreaterThan(0);
     expect(r.winProbRed).toBeLessThan(1);
     const none = await (await fetch(`${base}/api/predict/match?season=2023&red=11,15&blue=13,99`)).json();
