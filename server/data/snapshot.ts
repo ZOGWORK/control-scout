@@ -49,7 +49,7 @@ export const PUBLIC_TABLES = [
   "team_search",
   // Official result changes the sync saw (first postings, score revisions, schedule moves): public match data.
   "result_changes", "result_watch",
-  // Monte Carlo event projections (migration 36): simulations of public results with public ratings.
+  // Monte Carlo event projections (migration 37): simulations of public results with public ratings.
   "event_projections", "event_projection_odds",
 ];
 

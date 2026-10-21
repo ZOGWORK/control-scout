@@ -1,4 +1,4 @@
-// Stored projections (migration 36): written by the job, read by pages. Reading never simulates.
+// Stored projections (migration 37): written by the job, read by pages. Reading never simulates.
 import type { InStatement } from "@libsql/client";
 import { all, writeBatch } from "../db.js";
 import { projectionRunFromRow, type ProjectionKind, type ProjectionRun, type ProjectionsView } from "../../src/shared/projections.js";

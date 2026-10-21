@@ -15,6 +15,8 @@ import { CalibrationLine, ConfidenceBadge, FactorList, KIND_LABEL, WinBar } from
 import { VideoPanel } from "./MatchVideo";
 import { ShareMatch } from "./ShareMatch";
 import { ResultChanges } from "./ResultChanges";
+import { ScoreRange } from "./ScoreRange";
+import { levelPct } from "../shared/scoreRange";
 import { cn } from "./cn";
 
 type Side = "red" | "blue";
@@ -25,6 +27,7 @@ const TONE: Record<Side, { text: string; bar: string; card: string }> = {
 };
 const r1 = (x: number) => Math.round(x * 10) / 10;
 const signed = (x: number) => `${x > 0 ? "+" : x < 0 ? "−" : "±"}${Math.abs(r1(x))}`;
+const inside = (score: number, [lo, hi]: [number, number]) => (score < lo ? "below" : score > hi ? "above" : "yes");
 
 export const matchRef = (m: MatchView) => `${m.season}:${m.code}:${m.level}:${m.series}:${m.number}`;
 
@@ -199,9 +202,10 @@ function Prediction({ d }: { d: MatchDetail }) {
         <span className="w-10 text-sm font-semibold tabular-nums text-blue-alliance">{oddsPct(1 - p.pRed)}</span>
       </div>
       <dl className="mt-3 grid grid-cols-2 gap-x-4 gap-y-1 text-sm">
-        {!p.noScoreBasis && <><dt className="text-text-muted">Predicted</dt><dd className="tabular-nums"><span className="text-red-alliance">{Math.round(p.redMean)}</span> – <span className="text-blue-alliance">{Math.round(p.blueMean)}</span></dd></>}
+        {!p.noScoreBasis && <><dt className="text-text-muted">Predicted{p.redRange && <span className="text-[11px]"> (± {levelPct(p.rangeLevel)} range)</span>}</dt><dd className="tabular-nums"><ScoreRange mean={p.redMean} range={p.redRange} level={p.rangeLevel} className="text-red-alliance" /> – <ScoreRange mean={p.blueMean} range={p.blueRange} level={p.rangeLevel} className="text-blue-alliance" /></dd></>}
         {played && <><dt className="text-text-muted">Actual</dt><dd className="tabular-nums"><span className="text-red-alliance">{m.red.score!.total}</span> – <span className="text-blue-alliance">{m.blue.score!.total}</span></dd></>}
         {played && !p.noScoreBasis && <><dt className="text-text-muted">Off by</dt><dd className="tabular-nums">red {signed(m.red.score!.total - p.redMean)}, blue {signed(m.blue.score!.total - p.blueMean)}</dd></>}
+        {played && !p.noScoreBasis && p.redRange && p.blueRange && <><dt className="text-text-muted">Inside the range</dt><dd>red {inside(m.red.score!.total, p.redRange)}, blue {inside(m.blue.score!.total, p.blueRange)}</dd></>}
         {called != null && <><dt className="text-text-muted">Call</dt><dd className={called ? "text-success" : "text-warning"}>{called ? "Called it" : "Upset"}</dd></>}
       </dl>
       {p.factors?.length ? <><p className="mt-3 text-xs font-medium text-text-muted">Why</p><FactorList factors={p.factors} className="mt-1.5" /></> : null}
