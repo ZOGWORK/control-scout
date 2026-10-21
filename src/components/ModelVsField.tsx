@@ -40,9 +40,13 @@ const SIDE = {
   "seed-higher": { title: "Seeded higher than the model rates them", icon: ArrowDownRight, chip: "bg-info/15 text-info", bar: "bg-info", box: "border-info/30 bg-info/[0.05]" },
 } as const;
 
+/** An answer of the right shape (an older server, or a stale cache, answers something else). */
+const isView = (x: unknown): x is DisagreementsView =>
+  !!x && typeof x === "object" && Array.isArray((x as DisagreementsView).rows) && typeof (x as DisagreementsView).compared === "number" && !!(x as DisagreementsView).rules;
+
 export function ModelVsField({ season, code, refreshKey }: { season: number; code: string; refreshKey?: string }) {
-  const { data } = useApi<DisagreementsView>(`/api/events/${season}/${encodeURIComponent(code)}/disagreements${refreshKey ? `?v=${encodeURIComponent(refreshKey)}` : ""}`);
-  if (!data) return null; // loading or unavailable: the rankings below stand on their own
+  const { data } = useApi<DisagreementsView>(`/api/events/${season}/${encodeURIComponent(code)}/disagreements${refreshKey ? `?v=${encodeURIComponent(refreshKey)}` : ""}`, isView);
+  if (!isView(data)) return null; // loading, unavailable or misshapen: the rankings below stand on their own
   if (data.hidden) {
     return (
       <section aria-labelledby="model-vs-field" data-model-vs-field="hidden" className="mb-6 max-sm:mb-4 flex items-start gap-3 rounded-xl border border-border bg-card px-4 py-3">
@@ -172,12 +176,12 @@ function Footer({ v }: { v: DisagreementsView }) {
   const block = live ?? s?.backtest ?? null;
   return (
     <div className="mt-4 flex flex-col gap-2 border-t border-border/60 pt-3 text-xs text-muted-foreground">
-      <Link to="/methodology#accuracy" className="group inline-flex flex-wrap items-center gap-1.5 hover:text-foreground" data-mvf-track-record>
-        <span className="size-1.5 shrink-0 rounded-full bg-success" aria-hidden />
+      <Link to="/methodology#accuracy" className="group hover:text-foreground" data-mvf-track-record>
+        <span className="mr-1.5 inline-block size-1.5 rounded-full bg-success align-middle" aria-hidden />
         {block
           ? <>The same ratings called the winner of {Math.round(block.accuracy * 100)}% of {block.decided.toLocaleString()} {live ? "matches before they were played" : "matches replayed from earlier data (not live calls)"} this season.</>
           : <>Every call the model makes is scored afterwards in public.</>}
-        <span className="underline decoration-dotted underline-offset-2 group-hover:decoration-solid">Track record</span>
+        {" "}<span className="underline decoration-dotted underline-offset-2 group-hover:decoration-solid">Track record</span>
       </Link>
       <button type="button" className="inline-flex w-fit items-center gap-1 hover:text-foreground" aria-expanded={open} onClick={() => setOpen(!open)}>
         How these are picked <ChevronDown className={cn("size-3.5 transition-transform motion-reduce:transition-none", open && "rotate-180")} aria-hidden />
