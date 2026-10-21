@@ -170,6 +170,16 @@ export function seasonBonusModel(fitted: Record<string, BonusModel> | undefined,
   return f ? { model: f, source: "fitted", samples: null } : null;
 }
 
+/**
+ * The season's bonus model as it stood at `beforeMs`, for forecasts of a past
+ * moment ("before the event"): fitted only to the qualification results played
+ * before then (`matches`: the season's played matches, any order). Never the
+ * shipped fit, which learned from the whole season. Null with too few results.
+ */
+export function bonusModelBefore(matches: { time: number; level: string; red: { np: number; bonusRp?: BonusFlags }; blue: { np: number; bonusRp?: BonusFlags } }[], beforeMs: number): BonusModelSource | null {
+  return recentBonusModel(bonusSamples(matches.filter((m) => m.time < beforeMs).sort((a, b) => a.time - b.time)));
+}
+
 /** Bonus samples from played qualification matches (2-robot alliances with recorded bonus RPs). */
 export function bonusSamples(matches: { level: string; red: { np: number; bonusRp?: BonusFlags }; blue: { np: number; bonusRp?: BonusFlags } }[]): BonusSample[] {
   const out: BonusSample[] = [];

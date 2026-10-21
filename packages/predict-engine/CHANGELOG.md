@@ -25,6 +25,10 @@ win probability, shadow probability, expected scores, tier and score ranges.
   default uses the shipped fit) and `ForecastMatch.bonus` (`MatchBonusSummary`): every
   unplayed 2-against-2 qualification match of an event forecast carries its bonus odds,
   expected RPs and tier, so each app's match list shares the one implementation.
+- `bonusModelBefore(matches, beforeMs)`: the bonus model as it stood at a past moment (only
+  qualification results before it, never the shipped whole-season fit). A forecast of a
+  past moment ("before the event") overrides `bonusModel` with it, so its bonus odds carry no
+  hindsight.
 - **Evidence (2025–26 season replay, walk-forward: each call fitted only on earlier
   results; 212,496 alliance-bonus calls on 35,416 qualification matches).** Brier per bonus
   call: latest-2,000 window **0.1448**; every alliance so far 0.1597; the shipped

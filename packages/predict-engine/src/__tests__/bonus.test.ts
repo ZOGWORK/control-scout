@@ -4,7 +4,7 @@ import { explainMatch } from "../explain";
 import { predictMatch } from "../matchModel";
 import { FITTED_MODEL } from "../model";
 import { rng } from "../sim";
-import { BONUS_CONFIDENCE_RULE, BONUS_MIN_SAMPLES, BONUS_WINDOW, allianceBonusOdds, recentBonusModel, bonusProbability, bonusSamples, fitBonusModel, seasonBonusModel, winRankingPoints, type BonusSample } from "../bonus";
+import { BONUS_CONFIDENCE_RULE, BONUS_MIN_SAMPLES, BONUS_WINDOW, allianceBonusOdds, bonusModelBefore, recentBonusModel, bonusProbability, bonusSamples, fitBonusModel, seasonBonusModel, winRankingPoints, type BonusSample } from "../bonus";
 import { rankingPoints } from "../rules";
 import type { MatchRecord } from "../types";
 
@@ -98,6 +98,17 @@ describe("fitBonusModel", () => {
     expect(seasonBonusModel(FITTED_MODEL.bonus, 2026, () => xs)).toMatchObject({ source: "season", samples: 500 });
     expect(seasonBonusModel(FITTED_MODEL.bonus, 2026, () => xs.slice(0, 10))).toBeNull();
     expect(seasonBonusModel(FITTED_MODEL.bonus, 2024, () => xs)).toBeNull();
+  });
+
+  it("bonusModelBefore ignores results from the moment on, and never falls back to the shipped fit", () => {
+    const f = (b: boolean) => ({ movement: b, goal: !b, pattern: b });
+    const m = (time: number, np: number, b: boolean) => ({ time, level: "qual", red: { np, bonusRp: f(b) }, blue: { np: np + 10, bonusRp: f(!b) } });
+    const early = Array.from({ length: 150 }, (_, i) => m(1000 + i, 50 + i, i % 3 === 0));
+    const late = Array.from({ length: 300 }, (_, i) => m(5000 + i, 200 + i, true));
+    const before = bonusModelBefore([...late, ...early], 3000)!;
+    expect(before.samples).toBe(300);
+    expect(before.model).toEqual(recentBonusModel(bonusSamples(early))!.model);
+    expect(bonusModelBefore([...early, ...late], 1050)).toBeNull(); // 50 matches = 100 alliances: too few, and no shipped fit
   });
 
   it("learns from the latest BONUS_WINDOW alliances only", () => {
