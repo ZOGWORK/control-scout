@@ -2,7 +2,7 @@
 // public tables only (packs ship only public tables; the job never touches workspace scouting).
 import { beforeEach, describe, expect, it } from "vitest";
 import { all, migrate, openDb, run, setDb } from "../db";
-import { computeReliability, partsOf, fieldOf, fieldParts, tallyReliability } from "./reliability";
+import { computeReliability, partsOf, fieldOf, fieldParts, playOrder, tallyReliability } from "./reliability";
 import { loadSeason, type DbEvent, type DbMatch } from "./load";
 import { teamReliability, seasonStats, reliabilityMany } from "../api/teams";
 import { blendedIndex, isFailureField, reliabilityIndex, RELIABILITY_PRIOR, type ReliabilityParts } from "../../src/shared/reliability";
@@ -30,6 +30,17 @@ describe("tallies", () => {
     expect(x.get(4)).toMatchObject({ dqs: 1, noShows: 0 });
     expect(x.has(5)).toBe(false); // sitting out a playoff isn't a no-show
     expect(x.get(1)!.seq).toEqual(["ok", "noShow", "nearZero"]);
+  });
+
+  it("the recent window follows play order: a postponed match replayed last counts among the latest", () => {
+    // Q1 was postponed and played after Q11 (its recorded start is the latest); team 1 didn't show for it.
+    const ms = [m([t(1, { onField: false }), t(2)], [t(3), t(4)], 50, 50, { time: "2025-11-01T19:30:00" })];
+    for (let i = 0; i < 10; i++) ms.push(m([t(1), t(2)], [t(3), t(4)], 100, 100, { time: `2025-11-01T${String(9 + i).padStart(2, "0")}:00:00` }));
+    const x = tallyReliability([ev(ms)], () => 50).get("E")!.get(1)!;
+    expect(x.seq.at(-1)).toBe("noShow");
+    expect(x.seq.slice(-10).filter((s) => s === "noShow")).toHaveLength(1);
+    // Untimed matches keep series/number order, after timed ones.
+    expect([{ time: null, series: 0, number: 2 }, { time: null, series: 0, number: 1 }, { time: "2025-11-01T09:00:00", series: 0, number: 9 }].sort(playOrder).map((q) => q.number)).toEqual([9, 1, 2]);
   });
 
   it("shrinks small samples toward the field", () => {
