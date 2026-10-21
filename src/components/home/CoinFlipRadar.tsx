@@ -6,7 +6,7 @@ import { Link } from "react-router-dom";
 import { ArrowUpRight, Coins, RefreshCw } from "lucide-react";
 import { useApi } from "../../lib/api";
 import { useMediaQuery } from "../../lib/meta";
-import { ago, oddsPct } from "../../lib/format";
+import { ago } from "../../lib/format";
 import { coinFlipHref, type CoinFlipRadar, type CoinFlipRow } from "../../shared/coinFlips";
 import { Button } from "../ui/button";
 import { TierMark } from "../predict";
@@ -48,7 +48,7 @@ export function closestKey(rows: CoinFlipRow[]): string | null {
   let best: CoinFlipRow | null = null;
   // By the printed odds, so of two cards that both read 51% the mark goes to the sooner, never to the one
   // whose hidden decimals happen to be nearer 50.
-  const gap = (p: number) => Math.abs(Math.round(p * 100) - 50);
+  const gap = (p: number) => Math.abs(printedOdds(p).red - 50);
   for (const r of rows) if (!best || gap(r.pRed) < gap(best.pRed)) best = r;
   return best ? `${best.code}|${best.key}` : null;
 }
@@ -68,14 +68,22 @@ const pctBand = (r: CoinFlipRadar) => `${Math.round(r.band.lo * 100)}% and ${Mat
 /** Where the meter's marker sits, as % from the left: red's half is drawn on the left (as red's teams and odds
  *  are), so the marker leans into the favourite's half: red 55% → 25%, 50:50 → 50%, red 45% → 75%. Scaled
  *  from 40% to 60%, so the difference between 52 and 48 is plain to see. */
-export const meterAt = (pRed: number) => Math.max(0, Math.min(1, (0.6 - pRed) / 0.2)) * 100;
+export const meterAt = (pRed: number) => Math.max(0, Math.min(1, (60 - printedOdds(pRed).red) / 20)) * 100;
 
 /** The side the printed odds favour: none when both read 50% (a 50.3% call prints "50% · 50%", so nothing
  *  else on the card may call it red's). Every visual takes its side from this, so none can disagree with the numbers. */
 export const favourite = (pRed: number): "red" | "blue" | null => {
-  const red = Math.round(pRed * 100);
+  const { red } = printedOdds(pRed);
   return red > 50 ? "red" : red < 50 ? "blue" : null;
 };
+
+/** The pair of whole percentages a card prints, from one rounding so they always add up to 100 (rounding each
+ *  side on its own can print 50 · 51 for 0.495). Kept off a flat 0 or 100 like oddsPct, though the band never
+ *  comes near. Every number and visual on a card, and the closest-call mark, reads this pair. */
+export function printedOdds(pRed: number): { red: number; blue: number } {
+  const red = Math.min(99, Math.max(1, Math.round(pRed * 100)));
+  return { red, blue: 100 - red };
+}
 
 function CoinMeter({ pRed }: { pRed: number }) {
   const at = meterAt(pRed), fav = favourite(pRed);
@@ -101,7 +109,8 @@ function Teams({ teams, side }: { teams: number[]; side: "red" | "blue" }) {
 
 function FlipCard({ r, closest }: { r: CoinFlipRow; closest: boolean }) {
   const clock = venueClock(r.time, r.timezone), due = dueIn(r.startsAt);
-  const label = `${r.label} at ${r.eventName}${clock ? `, ${clock} at the venue` : ""}: red ${r.red.join(" and ")} ${oddsPct(r.pRed)} to win, blue ${r.blue.join(" and ")} ${oddsPct(1 - r.pRed)}, ${r.tier} confidence`;
+  const odds = printedOdds(r.pRed);
+  const label = `${r.label} at ${r.eventName}${clock ? `, ${clock} at the venue` : ""}: red ${r.red.join(" and ")} ${odds.red}% to win, blue ${r.blue.join(" and ")} ${odds.blue}%, ${r.tier} confidence`;
   return (
     <li className="min-w-0">
       <Link to={coinFlipHref(r)} aria-label={label}
@@ -120,8 +129,8 @@ function FlipCard({ r, closest }: { r: CoinFlipRow; closest: boolean }) {
           <Teams teams={r.red} side="red" />
           <span className="flex min-w-0 flex-col gap-1.5">
             <span className="flex items-baseline justify-between font-display text-lg font-semibold tabular-nums leading-none">
-              <span className="text-red-alliance">{oddsPct(r.pRed)}</span>
-              <span className="text-blue-alliance">{oddsPct(1 - r.pRed)}</span>
+              <span className="text-red-alliance">{odds.red}%</span>
+              <span className="text-blue-alliance">{odds.blue}%</span>
             </span>
             <CoinMeter pRed={r.pRed} />
           </span>
@@ -135,8 +144,8 @@ function FlipCard({ r, closest }: { r: CoinFlipRow; closest: boolean }) {
 function DecidedRow({ r }: { r: CoinFlipRow }) {
   const res = r.result!;
   const winner = res.red > res.blue ? "red" : res.blue > res.red ? "blue" : null;
-  const fav = favourite(r.pRed);
-  const call = fav ? `${fav === "red" ? "Red" : "Blue"} ${oddsPct(fav === "red" ? r.pRed : 1 - r.pRed)}` : "50:50";
+  const fav = favourite(r.pRed), odds = printedOdds(r.pRed);
+  const call = fav ? `${fav === "red" ? "Red" : "Blue"} ${odds[fav]}%` : "50:50";
   const verdict = !winner ? "a tie" : !fav ? "a true coin flip" : winner === fav ? "the call held" : "the other side won";
   return (
     <li>

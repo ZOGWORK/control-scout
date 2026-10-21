@@ -15,7 +15,7 @@ vi.mock("../../lib/api", async (orig) => ({
   useApi: () => ({ data, error: undefined, loading: !data, reload }),
 }));
 vi.mock("../../lib/meta", async (orig) => ({ ...(await orig<typeof import("../../lib/meta")>()), useMediaQuery: () => false }));
-const { CoinFlipRadarSection, closestKey, dueIn, emptyLine, favourite, meterAt, venueClock } = await import("./CoinFlipRadar");
+const { CoinFlipRadarSection, closestKey, dueIn, emptyLine, favourite, meterAt, printedOdds, venueClock } = await import("./CoinFlipRadar");
 
 const row = (n: number, o: Partial<CoinFlipRow> = {}): CoinFlipRow => ({
   season: 2026, code: "USCAQ1", key: `qual:0:${n}`, label: `Q${n}`, eventName: "Los Angeles Qualifier", place: "Los Angeles, CA", timezone: "America/Los_Angeles",
@@ -97,6 +97,27 @@ describe("the card's visuals agree with its printed odds", () => {
     expect(red.dataset.side).toBe("red");
     expect(parseFloat(blue.style.left)).toBeGreaterThan(50);
     expect(blue.dataset.side).toBe("blue");
+  });
+
+  it("prints both sides from one rounding, so they add up to 100 and the marker, colour and call follow them", () => {
+    // 0.495 rounded side by side would print 50 · 51: from one rounding it's 50 · 50, an even call everywhere.
+    expect(printedOdds(0.495)).toEqual({ red: 50, blue: 50 });
+    expect(printedOdds(0.505)).toEqual({ red: 51, blue: 49 });
+    expect(printedOdds(0.5)).toEqual({ red: 50, blue: 50 });
+    expect([favourite(0.495), favourite(0.5), favourite(0.505)]).toEqual([null, null, "red"]);
+    expect([meterAt(0.495), meterAt(0.5), meterAt(0.505)].map((x) => Math.round(x))).toEqual([50, 50, 45]);
+    data = radar({ events: 1, calls: 2, upcoming: [row(1, { pRed: 0.495 }), row(2, { pRed: 0.505 })],
+      decided: [row(3, { played: true, kind: "live", pRed: 0.495, result: { red: 70, blue: 60 } })] });
+    show();
+    const links = screen.getAllByRole("link");
+    expect(links[0].textContent).toMatch(/50%50%/);
+    expect(links[0].getAttribute("aria-label")).toMatch(/red 11 and 12 50% to win, blue 13 and 14 50%/);
+    expect(links[1].textContent).toMatch(/51%49%/);
+    const [even, red] = screen.getAllByTestId("coin-marker");
+    expect([even.dataset.side, red.dataset.side]).toEqual(["even", "red"]);
+    expect(screen.getByText(/called 50:50 before the match/).textContent).toMatch(/a true coin flip/);
+    // The even card is the closest call.
+    expect(screen.getByText("Closest call").closest("a")).toBe(links[0]);
   });
 
   it("calls nobody the favourite when both sides print 50%", () => {
