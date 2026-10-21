@@ -19,17 +19,21 @@ export const RESULT_WINDOW_MS = 6 * 3600_000;
 export const MAX_FOLLOWS_PER_SERVER = 10;
 /** Failed sends in a row (channel deleted, access removed) before a follow is dropped. */
 export const MAX_FAILURES = 5;
+/** A claim this old that was never marked sent (the bot stopped mid-send) may be taken again. */
+export const CLAIM_STALE_MS = 2 * 60_000;
 
 export interface Follow { guild_id: string; channel_id: string; team: number; created_at: string; failures: number }
 
 export async function addFollow(guild: string, channel: string, team: number, by: string, now = Date.now()): Promise<"added" | "already"> {
   if (!(await teamKnown(team))) throw new Friendly("Team not found", `There's no FTC team ${team} in Control Scout's data.`);
-  const n = await get<{ n: number }>("SELECT COUNT(*) n FROM discord_follows WHERE guild_id = ?", [guild]);
-  const exists = await get("SELECT 1 FROM discord_follows WHERE guild_id = ? AND channel_id = ? AND team = ?", [guild, channel, team]);
-  if (exists) return "already";
-  if (Number(n?.n ?? 0) >= MAX_FOLLOWS_PER_SERVER) throw new Friendly("Too many teams", `A server can follow up to ${MAX_FOLLOWS_PER_SERVER} teams. Remove one with /unfollow first.`);
-  await run("INSERT INTO discord_follows (guild_id, channel_id, team, created_at, created_by) VALUES (?, ?, ?, ?, ?)", [guild, channel, team, new Date(now).toISOString(), by]);
-  return "added";
+  // The limit check and the insert are one statement, so two managers following at once can't pass it together.
+  const added = await run(
+    `INSERT OR IGNORE INTO discord_follows (guild_id, channel_id, team, created_at, created_by)
+     SELECT ?, ?, ?, ?, ? WHERE (SELECT COUNT(*) FROM discord_follows WHERE guild_id = ?) < ?`,
+    [guild, channel, team, new Date(now).toISOString(), by, guild, MAX_FOLLOWS_PER_SERVER]);
+  if (added) return "added";
+  if (await get("SELECT 1 FROM discord_follows WHERE guild_id = ? AND channel_id = ? AND team = ?", [guild, channel, team])) return "already";
+  throw new Friendly("Too many teams", `A server can follow up to ${MAX_FOLLOWS_PER_SERVER} teams. Remove one with /unfollow first.`);
 }
 
 /** Stop following a team (in one channel, or every channel of the server); how many follows went. */
@@ -65,7 +69,11 @@ export type Kind = "reminder" | "result";
 export interface Due { channel: string; follows: Follow[]; match: MatchView; kind: Kind; teams: number[] }
 
 const startOf = (m: MatchView) => (m.startsAt ? Date.parse(m.startsAt) : NaN);
-const inMatch = (m: MatchView) => new Set([...m.red.teams, ...m.blue.teams].map((t) => t.number));
+/** The match's teams: for a played one, only the robots that were on the field (a playoff alliance lists a third who may sit out). */
+const inMatch = (m: MatchView) => {
+  const side = (s: MatchView["red"]) => (m.played && s.teams.some((t) => t.onField) ? s.teams.filter((t) => t.onField) : s.teams);
+  return new Set([...side(m.red), ...side(m.blue)].map((t) => t.number));
+};
 
 /**
  * What to post now, by channel (pure, tested): a reminder when a followed team's unplayed match starts within
@@ -127,18 +135,25 @@ export async function notifyTick(send: Send, site: string, log: (m: string) => v
   for (const ev of events) {
     const matches = await matchViews({ season: CURRENT_SEASON, code: ev.code }, { predictUnplayed: true });
     for (const d of dueNow(follows, matches, now)) {
-      // Claim the post first: only the tick that inserts the row sends it.
-      const claimed = await run(
-        "INSERT OR IGNORE INTO discord_posts (channel_id, season, code, match_key, kind, posted_at) VALUES (?, ?, ?, ?, ?, ?)",
-        [d.channel, CURRENT_SEASON, ev.code, d.match.key, d.kind, new Date(now).toISOString()]);
+      // Claim the post first: only the tick that claims it sends it. A claim left unsent by a stopped bot is
+      // taken again once it's stale (while the post is still due, which dueNow decides).
+      const key = [d.channel, CURRENT_SEASON, ev.code, d.match.key, d.kind];
+      const at = new Date(now).toISOString();
+      const claimed = (await run(
+        "INSERT OR IGNORE INTO discord_posts (channel_id, season, code, match_key, kind, claimed_at) VALUES (?, ?, ?, ?, ?, ?)", [...key, at]))
+        || (await run(
+          "UPDATE discord_posts SET claimed_at = ? WHERE channel_id = ? AND season = ? AND code = ? AND match_key = ? AND kind = ? AND sent_at IS NULL AND claimed_at < ?",
+          [at, ...key, new Date(now - CLAIM_STALE_MS).toISOString()]));
       if (!claimed) continue;
       const r = await send(d.channel, postEmbed(d, ev.name, site));
       if (r === "ok") {
         posted++;
+        await run("UPDATE discord_posts SET sent_at = ? WHERE channel_id = ? AND season = ? AND code = ? AND match_key = ? AND kind = ?", [new Date().toISOString(), ...key]);
         await run("UPDATE discord_follows SET failures = 0 WHERE channel_id = ? AND failures > 0", [d.channel]);
       } else {
-        // A passing failure: let the next tick try again. A channel that's gone or closed to the bot counts toward dropping it.
-        if (r === "error") await run("DELETE FROM discord_posts WHERE channel_id = ? AND season = ? AND code = ? AND match_key = ? AND kind = ?", [d.channel, CURRENT_SEASON, ev.code, d.match.key, d.kind]);
+        // Not delivered: give the claim back, so the next tick tries again while the post is still due (a channel
+        // whose access comes back gets it). A channel that's gone or closed to the bot counts toward dropping it.
+        await run("DELETE FROM discord_posts WHERE channel_id = ? AND season = ? AND code = ? AND match_key = ? AND kind = ? AND sent_at IS NULL", key);
         if (r === "gone") {
           await run("UPDATE discord_follows SET failures = failures + 1 WHERE channel_id = ?", [d.channel]);
           const dropped = await run("DELETE FROM discord_follows WHERE channel_id = ? AND failures >= ?", [d.channel, MAX_FAILURES]);
@@ -148,6 +163,6 @@ export async function notifyTick(send: Send, site: string, log: (m: string) => v
     }
   }
   // The post log only needs to outlive a match's windows.
-  await run("DELETE FROM discord_posts WHERE posted_at < ?", [new Date(now - 7 * 864e5).toISOString()]);
+  await run("DELETE FROM discord_posts WHERE claimed_at < ?", [new Date(now - 7 * 864e5).toISOString()]);
   return posted;
 }
