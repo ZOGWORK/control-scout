@@ -24,7 +24,7 @@ export function reliabilityParts(r: Reliability): { label: string; value: string
     { label: "Near-zero matches", value: `${r.nearZero}`, note: "Estimated: alliance score minus the partner's OPR came to almost nothing. Defense or a partner carrying the alliance can look the same, so this is a hint, not proof of a dead robot." },
     { label: "Swing", value: `±${num(r.parts.swing, 2)}`, note: "How much its estimated contribution moves from match to match, in average-robot units." },
     { label: "Penalties", value: `${num(r.parts.penaltyRatio, 2)}×`, note: "Penalty points its alliances gave away per robot, against the season average (1× = average)." },
-    { label: "Predictability", value: `${num(r.parts.predictabilityRatio, 2)}×`, note: "Spread of the engine's live-call misses on its matches, against the field (1× = average or no live calls yet)." },
+    { label: "Predictability", value: r.parts.predictabilityRatio > 0 ? `${num(r.parts.predictabilityRatio, 2)}×` : "Not counted", note: "Spread of the engine's live-call misses on its matches, against the field (1× = average; a team with no live calls yet reads as average). Not counted in a season with no scored live calls." },
   ];
 }
 
