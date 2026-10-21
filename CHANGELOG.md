@@ -9,7 +9,7 @@ teams, scout, offline, speed, live, report, alerts, rankings, share, workspace,
 picklist, history, fixes). What's new shows them first; the groups below are
 the full release notes, one click away.
 
-## 1.16.0 — 2026-10-21
+## 1.18.0 — 2026-10-21
 
 Predictions now say when the robots have met before.
 
@@ -24,6 +24,64 @@ Predictions now say when the robots have met before.
 
 ### Offline
 - The offline pack carries a small cut of the history: same-alliance pairs with 3+ matches together this season or last (about 140 KB more). Head-to-head records and older pairs show online only.
+
+## 1.17.0 — 2026-10-21
+
+Bonus ranking point odds next to every qualification win %.
+
+### Highlights
+- [predict] Each alliance's chance at every bonus RP, next to the win odds
+- [predict] Expected ranking points from the match, red and blue
+- [report] On match pages, pre-match reports and the match lab
+- [history] Bonus calls are logged and scored like win calls
+
+### Predictions
+- **Bonus ranking points per match.** A qualification match of 2025–26 or 2026–27 now shows, under its win odds, the chance each alliance earns each of the season's bonus RPs (Movement, Goal and Pattern; Swarm, Pollinator 1 and Pollinator 2) and the ranking points each side can expect from the match (3 × win chance + bonus chances), with its own confidence tier. It's the same math the event simulator uses, from prediction engine 2.3. On match pages (opened from any match list), the pre-match report and the match lab, online and offline from a pack saved after this release. Once a match is played, the call sits next to the bonuses actually earned.
+- **A bonus curve that keeps up with the season.** The chance of each bonus at a given score is fitted to the season's latest 2,000 recorded qualification alliances (from 200 on; provisional below 600, at most moderate below 2,000). On the 2025–26 replay that scored a Brier of 0.147 per bonus call, against 0.178 for the whole-season curve the engine shipped with.
+- **Scored in the track record.** Bonus calls are written to the ledger with each pre-match call and scored by Brier per bonus, live and season replay kept apart. The replay fits the bonus model only on results before each match. See How it works › Bonus ranking points. (#228)
+
+## 1.16.2 — 2026-10-21
+
+Today's coin flips: the closest calls at every event on today, on the home page.
+
+### Highlights
+- [home] Today's coin flips: the matches the model calls 45% to 55%
+- [predict] Every event that's on today, at its own venue's date
+- [history] Played ones stay, with the result beside the call made before
+
+### Home
+- **Today's coin flips.** A new section on the home page gathers the matches on today's schedules, across every event that's on today at its venue, where the model gives either side between 45% and 55%. Those still to play come first, soonest first, each with both alliances, the odds on a close-up scale, the time at the venue, how long until it starts and its confidence tier; the closest call is marked. Played ones follow with their score and the call made before the match. Calls on thin data (a robot with fewer than 3 matches this season) are left out, and an empty day says why. Each opens its match page. Refreshed after every sync and live result, and every few minutes; an open home page keeps up by itself. (#226)
+
+## 1.16.1 — 2026-10-21
+
+Smooth scrolling across the site: jumps within a page glide there instead of cutting.
+
+### Highlights
+- [speed] Contents links, "see the odds" and match jumps glide to their spot
+- [speed] Opening a page, or going back, still lands instantly where it should
+- [speed] Reduce motion on your device and every jump stays instant
+
+### Scrolling
+- **Smooth jumps.** Every jump within a page now glides: contents and section links (How it works, Privacy, Terms, FAQ topics), the skip link, buttons that take you to a part of the page (an event's odds, live panel or stream, a linked match), the search palette bringing the page's search field into view, and the selected tab or chip in a sideways row. Scrolling with a wheel, trackpad or finger is unchanged: it stays the browser's own. (#233)
+- **Pages still open instantly.** A new page starts at the top, and back or forward returns to exactly where you were, without sliding there from the old position. Dragging a pick to the screen's edge scrolls the page as before.
+- **Reduced motion.** With reduce motion turned on in your device's settings, every jump is instant.
+- **Sideways rows.** Swiping to the end of a sideways row (tabs, chips, a wide table) no longer turns into the back gesture, and scouting photo strips settle on a photo.
+
+## 1.16.0 — 2026-10-21
+
+Live projections: every live or upcoming event simulated 10,000 times, again after each new result.
+
+### Highlights
+- [predict] Projections: each team's likely final rank, with the range it lands in
+- [live] Updated a few seconds after new results land, without reloading the page
+- [predict] Playoff and advancement odds that move as the event unfolds
+- [history] Once it's over: final seeds against the ranges they were projected in
+
+### Predictions
+- **Projections on the event page.** The Odds tab opens with a projection of the rest of the event: each team's median final quals rank with its 80% range (10th–90th percentile) as a whisker, today's rank, how far it has moved since the projection made before the first match, its chance to play in the playoffs (captain or picked) and its chance to advance, labelled "performance-based — awards can also advance teams". Sortable, your team and tracked teams pinned to the top, and headed with how many simulations it ran and after which match. Once the event is over it becomes "Final results vs projections": each team's actual seed against the range it was last projected in while quals were still open, and how many landed inside.
+- **Simulated in the background, never on a visit.** A server job re-runs an event a few seconds after new results land (a burst of results is one run), stores the result, and tells open pages over a live connection; pages only read what's stored. The same results always give the same numbers. A very large event that would take over 10 seconds runs 5,000 simulations instead, and says so.
+- **One advancement number.** The projection's odds are now the advancement odds everywhere they show: the event's rankings table and the records tables, the advancement simulator's team list and headline (with its award-inclusive figure alongside), the shortlist, and saved offline packs. Events never projected keep the forecast made the day before they started. (#229)
+- **Checked on real events.** Replaying 40 finished 2025–26 events from their midpoint, about 86% of teams finished inside their projected 80% range (How it works → Live projections).
 
 ## 1.15.0 — 2026-10-21
 

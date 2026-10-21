@@ -53,9 +53,9 @@ export function EntryPhotos({ entry, editable = false, className }: { entry: Sco
 
   return (
     <div className={cn("min-w-0", className)}>
-      <ul className="flex gap-2 overflow-x-auto pb-1" aria-label="Photos">
+      <ul className="flex snap-x snap-proximity gap-2 overflow-x-auto pb-1" aria-label="Photos">
         {photos.map((p, i) => (
-          <li key={p.id} className="shrink-0">
+          <li key={p.id} className="shrink-0 snap-start">
             <button type="button" onClick={() => setOpen(i)} aria-label={`Open photo ${i + 1} of ${photos.length}, added by ${p.addedByName || "a member"}`}
               className="block size-16 overflow-hidden rounded-lg border border-border bg-muted sm:size-20">
               <Thumb space={entry.workspaceId!} photo={p} />

@@ -3,7 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { act, cleanup, render } from "@testing-library/react";
 import { BrowserRouter, MemoryRouter, useLocation as useLocationProbe, useNavigate, type NavigateFunction } from "react-router-dom";
 import { StrictMode, useRef } from "react";
-import { chase, entryKey, HEADER_ID, pageScroller, pageTop, planScroll, scrollToElement, restoredSavedPosition, RESTORE_WINDOW_MS, SCROLL_IDLE_MS, SCROLLING_BY_TOUCH, ScrollPositions, usePageScroll } from "./pageScroll";
+import { chase, entryKey, HEADER_ID, jumpPageTo, pageScroller, pageTop, planScroll, scrollToElement, smoothBehavior, restoredSavedPosition, RESTORE_WINDOW_MS, SCROLL_IDLE_MS, SCROLLING_BY_TOUCH, ScrollPositions, usePageScroll } from "./pageScroll";
 
 describe("planScroll", () => {
   const base = { prevPath: "/events", path: "/teams/4215", hash: "", saved: undefined };
@@ -29,7 +29,7 @@ describe("planScroll", () => {
     // A saved position wins over the hash on back/forward: the reader had scrolled on from it.
     expect(planScroll({ ...base, action: "POP", hash: "#accuracy", saved: 50 })).toEqual({ kind: "restore", y: 50 });
     // ...unless the browser followed a plain #link itself: that goes to the target.
-    expect(planScroll({ ...base, action: "POP", hash: "#accuracy", saved: 50, fragment: true })).toEqual({ kind: "hash", id: "accuracy" });
+    expect(planScroll({ ...base, action: "POP", hash: "#accuracy", saved: 50, fragment: true })).toEqual({ kind: "hash", id: "accuracy", followed: true });
   });
 });
 
@@ -128,6 +128,27 @@ describe("usePageScroll", () => {
     expect(page.scrollTop).toBe(1200);
     go(1);
     expect(page.scrollTop).toBe(300);
+  });
+
+  it("jumps on a route change and a back/forward, though the page glides to in-page targets (scroll-behavior: smooth)", () => {
+    height.current = 5000;
+    // Each write to the page's scroll position, with the scroll-behavior in force on the root as it happens.
+    const writes: string[] = [];
+    let top = 0;
+    Object.defineProperty(page, "scrollTop", { configurable: true, get: () => top, set: (v: number) => { writes.push(page.style.scrollBehavior); top = Math.max(0, Math.min(v, height.current - 800)); } });
+    page.style.scrollBehavior = "smooth";
+    render(<MemoryRouter initialEntries={["/teams/4215"]}><Harness /></MemoryRouter>);
+    scrollTo(1200);
+    writes.length = 0;
+    go("/rankings");
+    expect(page.scrollTop).toBe(0);
+    go(-1);
+    expect(page.scrollTop).toBe(1200);
+    expect(writes.length).toBeGreaterThan(0);
+    expect(writes.every((b) => b === "auto")).toBe(true);
+    // The root's own setting is left as it was.
+    expect(page.style.scrollBehavior).toBe("smooth");
+    page.style.scrollBehavior = "";
   });
 
   it("waits for a short page to grow back before reaching the saved position", () => {
@@ -281,13 +302,18 @@ describe("usePageScroll", () => {
     // A link the page itself took over (preventDefault) is left to it: nothing is followed.
     follow();
     expect(page.scrollTop).toBe(500);
-    // Followed for real: the click is heard (not cancelled) and the browser adds the #sec entry.
+    // Followed for real: the click is heard (not cancelled) and the browser adds the #sec entry. It glides there.
+    const glide = vi.fn((o: ScrollToOptions) => { page.scrollTop = o.top ?? 0; });
+    vi.stubGlobal("scrollTo", glide);
     act(() => { link.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true })); });
     arrive("/privacy#sec");
     expect(page.scrollTop).toBe(1928);
+    expect(glide).toHaveBeenCalledWith({ top: 1928, behavior: "smooth" });
+    glide.mockClear();
     scrollTo(2600); // read on past the section
-    arrive("/privacy"); // Back
+    arrive("/privacy"); // Back: restored at once, never glided
     expect(page.scrollTop).toBe(500);
+    expect(glide).not.toHaveBeenCalled();
     arrive("/privacy#sec"); // Forward: where the reader had got to, not the section's heading
     expect(page.scrollTop).toBe(2600);
     history.replaceState(null, "", "/");
@@ -382,6 +408,38 @@ describe("scrollToElement", () => {
     placeAt("t", 900, "48px");
     scrollToElement(el, "smooth");
     expect(to).toHaveBeenCalledWith({ top: 852, behavior: "smooth" });
+  });
+
+  it("jumps instead of gliding under reduced motion", () => {
+    const el = target();
+    const to = vi.fn();
+    vi.stubGlobal("scrollTo", to);
+    vi.stubGlobal("matchMedia", (q: string) => ({ matches: q.includes("reduce") }));
+    placeAt("t", 900, "48px");
+    scrollToElement(el, "smooth");
+    expect(to).not.toHaveBeenCalled();
+    expect(document.documentElement.scrollTop).toBe(852);
+    expect(smoothBehavior()).toBe("auto");
+    vi.stubGlobal("matchMedia", () => ({ matches: false }));
+    expect(smoothBehavior()).toBe("smooth");
+  });
+});
+
+describe("jumpPageTo", () => {
+  it("writes with scroll-behavior auto on the root, then puts the root's own setting back", () => {
+    const page = document.documentElement;
+    const seen: string[] = [];
+    let top = 100;
+    Object.defineProperty(page, "scrollTop", { configurable: true, get: () => top, set: (v: number) => { seen.push(page.style.scrollBehavior); top = v; } });
+    page.style.scrollBehavior = "smooth";
+    jumpPageTo(400);
+    expect(top).toBe(400);
+    jumpPageTo(-50, true);
+    expect(top).toBe(350);
+    expect(seen).toEqual(["auto", "auto"]);
+    expect(page.style.scrollBehavior).toBe("smooth");
+    page.style.scrollBehavior = "";
+    delete (page as { scrollTop?: number }).scrollTop;
   });
 });
 

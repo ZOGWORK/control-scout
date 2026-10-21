@@ -42,19 +42,23 @@ async function nextVersion(dir: string): Promise<string> {
 
 export async function buildLite(version: string, dir: string, log: (m: string) => void): Promise<BuiltFile> {
   const books: Record<string, unknown> = {};
+  // Each season's bonus-RP model as the server serves it, so offline qualification predictions show the same bonus odds.
+  const bonus: Record<string, unknown> = {};
   for (const s of PREDICT_SEASONS) { // legacy seasons have no ratings
     const f = await forecasterFor(s);
     const b = f.book(s);
     if (b) books[String(s)] = b.toData();
+    const bm = f.bonusModel(s);
+    if (bm) bonus[String(s)] = bm;
   }
-  // Pair history (engine 2.2) through the newest season, the finished seasons' part included.
+  // Pair history (engine 2.4) through the newest season, the finished seasons' part included.
   let pf = await forecasterFor(CURRENT_SEASON);
   if (!pf.partnershipComplete && (await partnershipPrefix(pf.seasons[0] ?? pf.anchor, { wait: true }))) { pf = new ScoutForecaster(pf.anchor); await pf.rebuild(); }
   // Only a small cut ships (src/shared/litePairs.ts): the pack is downloaded at venues, and the history is a reason only.
   const pairs = pf.partnershipData ? encodeLitePairs(pf.partnershipData) : null;
   const teams = (await all<any>("SELECT number, name, city, state, country FROM teams ORDER BY number"))
     .map((t) => [Number(t.number), t.name ?? null, [t.city, t.state, t.country].filter(Boolean).join(", ") || null]);
-  const json = JSON.stringify({ format: PACK_FORMAT, version, builtAt: new Date().toISOString(), engineVersion: ENGINE_VERSION, books, teams, pairs });
+  const json = JSON.stringify({ format: PACK_FORMAT, version, builtAt: new Date().toISOString(), engineVersion: ENGINE_VERSION, books, bonus, teams, pairs });
   const gz = gzipSync(Buffer.from(json), { level: 9 });
   const name = `scout-pack-${version.replace(/\./g, "-")}-lite.json.gz`;
   writeFileSync(join(dir, name), gz);

@@ -1,4 +1,4 @@
-// Predict — partnership memory (engine 2.2): what two teams have actually
+// Predict — partnership memory (engine 2.4): what two teams have actually
 // done together (same alliance) and against each other, across seasons.
 //
 // For every played match, each alliance's standardized residual is measured
@@ -39,10 +39,10 @@ export interface PartnershipParams {
   maxSeasonsAgo: number;
 }
 
-/** Frozen 2.2 settings (Control Scout docs/partnership-memory.md, scripts/partnership-fit.ts):
+/** Frozen 2.4 settings (Control Scout docs/partnership-memory.md, scripts/partnership-fit.ts):
  *  β fitted on 2023–24, decay and k chosen on 2024–25 (decay 1, k 64), then judged on held-out
  *  2025–26. There the fitted shift made the odds slightly WORSE (Brier +0.000058, 95% interval
- *  [+0.000004, +0.000127]), so both β are 0: 2.2 shows the history as a reason and never moves
+ *  [+0.000004, +0.000127]), so both β are 0: 2.4 shows the history as a reason and never moves
  *  the odds. k is not identified (4 to 64 tie once β rescales); with β = 0, k = 4 and decay
  *  0.5 only rank and word the fact, favouring recent seasons and real samples. */
 export const PARTNERSHIP_PARAMS: PartnershipParams = {

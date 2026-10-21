@@ -36,6 +36,7 @@ import { latestRankings, rankingsWeek } from "./powerRankings/store.js";
 import { isWeekId } from "../src/shared/powerRankings.js";
 import { pairHistory } from "../src/shared/pairHistory.js";
 import { liveForecaster, liveVersion, dataVersion } from "./predict/engine.js";
+import { bonusView } from "../src/shared/bonusOdds.js";
 import { authRouter, meRouter, authProviders } from "./auth/routes.js";
 import { contactRouter } from "./contact.js";
 import { scoutRouter } from "./scout/entries.js";
@@ -58,6 +59,7 @@ import { reportsRouter } from "./errorReports.js";
 import { packsRouter } from "./packs/routes.js";
 import { cachedPublicUsage, collectRouter, statsRouter } from "./analytics.js";
 import { homeOverview } from "./api/home.js";
+import { coinFlips, radarEtag } from "./api/coinFlips.js";
 import { listRecords, recordRegions, recordsQuery, RecordsQueryError, streamRecordsCsv } from "./api/records.js";
 import { directoryQuery, DirectoryQueryError, listDirectory } from "./api/directory.js";
 import { FilterError } from "../src/shared/filterDsl.js";
@@ -68,6 +70,8 @@ import { MAX_REGIONS, isWeek, parsePlaces } from "../src/shared/rankings.js";
 import { registerCache } from "./caches.js";
 import { requestMetrics } from "./metrics.js";
 import { allFlags, isEnabled } from "./flags.js";
+import { readProjections } from "./projections/store.js";
+import { projectionStream } from "./projections/routes.js";
 import { ownerRouter } from "./portal/routes.js";
 import { photosRouter } from "./scout/photos.js";
 import { MATCH_KEY, ShareError, cachedCard, cardKey, matchCard } from "./share/match.js";
@@ -244,6 +248,18 @@ export function createApp() {
     const o = await homeOverview(season(req.query.season));
     noStoreWhileBehind(res, o.readiness.state);
     return o;
+  }));
+
+  // Today's coin flips: the closest calls on today's schedules, every event at its own venue date (server/api/coinFlips.ts).
+  // Revalidated every time, by browsers and shared caches alike: the open page polls it each minute and rows
+  // drop at each venue's midnight, so a cached copy must never be served without asking. The ETag (the stored
+  // radar and the venue dates still today) keeps that a cheap 304.
+  api.get("/home/coin-flips", h(async (req, res) => {
+    const r = await coinFlips();
+    res.setHeader("Cache-Control", "no-cache");
+    res.setHeader("ETag", radarEtag(r));
+    if (req.fresh) { res.status(304).end(); return undefined; }
+    return r;
   }));
 
   // Opt-in page views and sessions started, last 30 days: only when the owner publishes them (PUBLIC_USAGE_ENABLED).
@@ -511,7 +527,7 @@ export function createApp() {
       season: s, red, blue, winProbRed: x.winProbA, winProbBlue: x.winProbB, predictedRed: x.predictedScoreA, predictedBlue: x.predictedScoreB,
       rangeRed: x.scoreRangeA, rangeBlue: x.scoreRangeB, rangeLevel: x.scoreBandA.level, factors: x.factors, history: x.partnership ? pairHistory(x.partnership) : null, confidence: x.confidence,
       teamsRed: x.teamsA.map((t) => ({ ...t, name: names.get(t.team) ?? null })), teamsBlue: x.teamsB.map((t) => ({ ...t, name: names.get(t.team) ?? null })),
-      level, probabilityModel: x.probabilityModel, engineVersion: ENGINE_VERSION,
+      level, probabilityModel: x.probabilityModel, bonus: bonusView(s, x) ?? null, engineVersion: ENGINE_VERSION,
     };
   }));
 
@@ -609,6 +625,20 @@ export function createApp() {
   }));
 
   api.get("/predict/accuracy", h(async () => trackRecord()));
+
+  // Monte Carlo projections (server/projections): stored by the background job, only read here.
+  api.get("/projections/:season/:code", h(async (req, res) => {
+    const v = await readProjections(predictSeason(req.params.season), code(req.params.code));
+    // A new run can land any minute while the event is on: revalidate every time (the ETag keeps it a 304).
+    res.setHeader("Cache-Control", "no-cache");
+    return v;
+  }));
+  api.get("/projections/:season/:code/stream", h(async (req, res) => {
+    const s = predictSeason(req.params.season), c = code(req.params.code);
+    if (!(await isEnabled("realtime"))) { res.setHeader("Cache-Control", "no-store"); throw new HttpError(503, "Live updates are switched off; the page refreshes on its own instead."); }
+    projectionStream(s, c, req, res);
+    return undefined;
+  }));
 
   api.use("/auth", authRouter());
   api.use("/me", meRouter());

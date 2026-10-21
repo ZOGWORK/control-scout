@@ -7,8 +7,8 @@
 // current window use the current anchor exactly like Control Point; an older
 // season (browsing 2023) gets its own window ending at that season.
 import {
-  Forecaster, FITTED_MODEL, RatingBook, PartnershipBook, PartnershipTable, indexAwards, MODELLED_AWARDS, normType, explainMatch,
-  type AdvancementRecord, type PartnershipData, type AwardRecord, type BonusFlags, type EventInput, type EventRecord, type Forecast, type MatchRecord, type PredictModel,
+  Forecaster, FITTED_MODEL, RatingBook, indexAwards, MODELLED_AWARDS, normType, explainMatch, bonusModelBefore, PartnershipBook, PartnershipTable, bonusSamples, seasonBonusModel,
+  type AdvancementRecord, type BonusModelSource, type PartnershipData, type AwardRecord, type BonusFlags, type EventInput, type EventRecord, type Forecast, type MatchRecord, type PredictModel,
 } from "@control-scout/predict-engine";
 import { all, kvGet } from "../db.js";
 import { CURRENT_SEASON, PREDICT_SEASONS } from "../data/seasons.js";
@@ -29,7 +29,7 @@ export class ScoutForecaster extends Forecaster {
   private regionByCode = new Map<string, string>();
   private regions = new Set<string>();
   builtAt: string | null = null;
-  /** Pair history through the anchor season (engine 2.2), pruned as the offline pack ships it. */
+  /** Pair history through the anchor season (engine 2.4), pruned as the offline pack ships it. */
   partnershipData: PartnershipData | null = null;
   private pairTable: PartnershipTable | null = null;
   /** False when the rebuild ran before the finished seasons' pair history was ready (window pairs only). */
@@ -147,13 +147,23 @@ export class ScoutForecaster extends Forecaster {
    * Walk-forward, like the backtest ledger — no hindsight.
    */
   preEventForecast(ev: EventInput, myTeam: number | null, runs = 2000): Forecast | null {
+    const view = this.preEventView(ev);
+    return view ? view.f.forecast(view.ev, myTeam, runs) : null;
+  }
+
+  /**
+   * The event as it stood the day before it started: a forecaster on ratings from earlier matches
+   * only, and the event with its results, ranks and alliances stripped (preEventForecast's inputs;
+   * the projections job simulates its pre-event baseline from the same). Null without a start date.
+   */
+  preEventView(ev: EventInput): { f: Forecaster; ev: EventInput; book: RatingBook } | null {
     if (!ev.start) return null;
     const startMs = Date.parse(`${ev.start}T00:00:00Z`);
     const prevSeason = this.books.get(ev.season - 1);
     const book = prevSeason ? prevSeason.clone() : new RatingBook(FITTED_MODEL.rating);
     book.startSeason(ev.season);
     for (const m of this.seasonEvents(ev.season).flatMap((e) => e.matches).filter((m) => m.time < startMs).sort((x, y) => x.time - y.time)) book.update(m);
-    return this.forecastFrozen(ev, myTeam, runs, book, startMs);
+    return this.frozenView(ev, book, startMs);
   }
 
   /**
@@ -197,6 +207,12 @@ export class ScoutForecaster extends Forecaster {
 
   /** Forecast an event from a book frozen at its start, with its results stripped. */
   private forecastFrozen(ev: EventInput, myTeam: number | null, runs: number, book: RatingBook, startMs: number): Forecast | null {
+    const view = this.frozenView(ev, book, startMs);
+    return view.f.forecast(view.ev, myTeam, runs);
+  }
+
+  /** A one-off forecaster on a book frozen at the event's start, and the event with its results stripped. */
+  private frozenView(ev: EventInput, book: RatingBook, startMs: number): { f: Forecaster; ev: EventInput; book: RatingBook } {
     book.setTime(startMs);
     const stripped: EventInput = {
       ...ev,
@@ -225,8 +241,16 @@ export class ScoutForecaster extends Forecaster {
       }
       protected regionOf(code: string) { return parent.regionOf(code); }
       protected awardSlots(season: number, type: string | null) { return parent.awardSlotsBefore(season, type, startMs); }
+      // Bonus odds as they stood at the start: fitted only to the season's results before it, never the
+      // shipped fit or anything later (once per forecast; every upcoming match asks).
+      private bonus: BonusModelSource | null | undefined;
+      bonusModel(season: number): BonusModelSource | null {
+        if (season !== ev.season) return null;
+        if (this.bonus === undefined) this.bonus = bonusModelBefore(parent.seasonEvents(season).flatMap((e) => e.matches), startMs);
+        return this.bonus;
+      }
     }
-    return new Before().forecast(stripped, myTeam, runs);
+    return { f: new Before(), ev: stripped, book };
   }
 
   /**
@@ -239,7 +263,23 @@ export class ScoutForecaster extends Forecaster {
     if (!b) return null;
     const table = this.partnerships(season);
     const partnership = table ? { table, season } : undefined;
-    return explainMatch(b, red, blue, { noise: FITTED_MODEL.noise, calibration: FITTED_MODEL.calibration, contextual: FITTED_MODEL.contextual, context: { level, event }, shadow: FITTED_MODEL.contextual?.fallback, band: FITTED_MODEL.band, partnership });
+    // Bonus ranking points count in qualification matches only.
+    const bonus = level === "qual" ? this.bonusModel(season) : null;
+    return explainMatch(b, red, blue, {
+      noise: FITTED_MODEL.noise, calibration: FITTED_MODEL.calibration, contextual: FITTED_MODEL.contextual, context: { level, event }, shadow: FITTED_MODEL.contextual?.fallback, band: FITTED_MODEL.band, partnership,
+      ...(bonus ? { bonus: { season, model: bonus } } : {}),
+    });
+  }
+
+  private bonusModels = new Map<number, BonusModelSource | null>();
+  /** The season's bonus-RP model (the shipped fit, else one fitted to this season's recorded results), once per build. */
+  bonusModel(season: number): BonusModelSource | null {
+    if (!this.bonusModels.has(season)) {
+      // Oldest first: the fit keeps the season's latest results (BONUS_WINDOW).
+      const matches = () => this.seasonEvents(season).flatMap((e) => e.matches).sort((x, y) => x.time - y.time);
+      this.bonusModels.set(season, seasonBonusModel(FITTED_MODEL.bonus, season, () => bonusSamples(matches())));
+    }
+    return this.bonusModels.get(season)!;
   }
 
   /** Start time (ISO) of the latest stored result of a season the ratings have learned, or null. */

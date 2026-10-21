@@ -155,7 +155,7 @@ describe("partnership memory", () => {
     expect(f.label).toBe("40 leads 12 3–1 in 4 earlier meetings");
   });
 
-  it("with the 2.2 settings (β = 0) never moves a number", () => {
+  it("with the 2.4 settings (β = 0) never moves a number", () => {
     const book = new RatingBook(FITTED_MODEL.rating);
     const b = history();
     for (let i = 0; i < 6; i++) book.update(match(2024, "NJCMP", [[1, 2], 150], [[3, 4], 90]));
