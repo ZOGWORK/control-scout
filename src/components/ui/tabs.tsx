@@ -3,6 +3,7 @@
 // filled with the team accent, matching the existing segmented controls.
 import * as React from 'react';
 import { smoothBehavior } from '../../lib/pageScroll';
+import { scrollStripTo, stopStripGlide } from '../../lib/revealInStrip';
 import { Tabs as TabsPrimitive } from 'radix-ui';
 import { cn } from '../cn';
 
@@ -32,9 +33,10 @@ export function TabsTrigger({ className, ...props }: React.ComponentProps<typeof
     shown.current = true;
     if (!el || !list || el.dataset.state !== 'active' || list.scrollWidth <= list.clientWidth) return;
     if (el.offsetLeft < list.scrollLeft || el.offsetLeft + el.offsetWidth > list.scrollLeft + list.clientWidth) {
-      const left = el.offsetLeft - (list.clientWidth - el.offsetWidth) / 2;
-      if (first || typeof list.scrollTo !== 'function') list.scrollLeft = left;
-      else list.scrollTo({ left, behavior: smoothBehavior() });
+      scrollStripTo(list, el.offsetLeft - (list.clientWidth - el.offsetWidth) / 2, first ? 'auto' : smoothBehavior());
+    } else {
+      // Already showing: a glide still heading for the tab just left stops here (src/lib/revealInStrip.ts).
+      stopStripGlide(list);
     }
   });
   return (

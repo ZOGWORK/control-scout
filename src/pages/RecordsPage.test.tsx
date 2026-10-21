@@ -147,4 +147,20 @@ describe("Records views", () => {
       delete (document as { fonts?: unknown }).fonts;
     }
   });
+  it("going back to the view just left, mid-glide, stops the strip instead of letting it slide on", async () => {
+    phoneLayout();
+    const glide = vi.fn();
+    Object.defineProperty(HTMLElement.prototype, "scrollTo", { configurable: true, writable: true, value: glide });
+    try {
+      show("/teams");
+      fireEvent.click(within(strip()).getByRole("link", { name: "Team seasons" }));
+      expect(glide).toHaveBeenLastCalledWith({ left: 284 - 266 + 8, behavior: "smooth" });
+      // The glide is still on its way (the strip hasn't moved) when Team-events, which shows, is picked again.
+      fireEvent.click(within(strip()).getByRole("link", { name: "Team-events" }));
+      expect(where).toBe("/teams");
+      expect(glide).toHaveBeenLastCalledWith({ left: 0, behavior: "auto" });
+    } finally {
+      delete (HTMLElement.prototype as { scrollTo?: unknown }).scrollTo;
+    }
+  });
 });
