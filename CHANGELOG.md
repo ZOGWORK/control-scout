@@ -9,7 +9,7 @@ teams, scout, offline, speed, live, report, alerts, rankings, share, workspace,
 picklist, history, fixes). What's new shows them first; the groups below are
 the full release notes, one click away.
 
-## 1.13.0 — 2026-10-21
+## 1.14.0 — 2026-10-21
 
 Today's coin flips: the closest calls at every event on today, on the home page.
 
@@ -19,7 +19,19 @@ Today's coin flips: the closest calls at every event on today, on the home page.
 - [history] Played ones stay, with the result beside the call made before
 
 ### Home
-- **Today's coin flips.** A new section on the home page gathers the matches on today's schedules, across every event that's on today at its venue, where the model gives either side between 45% and 55%. Those still to play come first, soonest first, each with both alliances, the odds on a close-up scale, the time at the venue, how long until it starts and its confidence tier; the closest call is marked. Played ones follow with their score and the call made before the match. Calls on thin data (a robot with fewer than 3 matches this season) are left out, and an empty day says why. Each opens its match page. Refreshed after every sync and live result, and every few minutes.
+- **Today's coin flips.** A new section on the home page gathers the matches on today's schedules, across every event that's on today at its venue, where the model gives either side between 45% and 55%. Those still to play come first, soonest first, each with both alliances, the odds on a close-up scale, the time at the venue, how long until it starts and its confidence tier; the closest call is marked. Played ones follow with their score and the call made before the match. Calls on thin data (a robot with fewer than 3 matches this season) are left out, and an empty day says why. Each opens its match page. Refreshed after every sync and live result, and every few minutes; an open home page keeps up by itself. (#226)
+
+## 1.13.0 — 2026-10-21
+
+Model vs field: where the model's ratings and the seeding disagree most at an event.
+
+### Highlights
+- [rankings] Model vs field: teams the model rates well above or below their seed
+- [predict] Every call with its numbers: rating, matches, OPR, record and confidence
+- [rankings] Before quals, against each team's seed at its last event
+
+### Events
+- **Model vs field.** An event's Rankings tab now opens with the biggest gaps between the model's rating order and the official seeding: "the model rates them #3 of 28; they're seeded 18th". Each call shows the rating and its uncertainty, how far it is from the team the model places at that seed, the matches behind it, OPR, record, ranking points and a confidence tier, with the model's track record linked under it. Before qualification matches, ratings from earlier events are compared with each team's seed at its last event (and the label says so); a finished event uses the ratings as they stood at its last match. Small fields, ratings on few matches, and gaps the model can't tell from its own uncertainty are left out, and the section says why when nothing shows.
 
 ## 1.12.0 — 2026-10-21
 
