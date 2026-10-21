@@ -5,7 +5,8 @@
 **New output; no existing number changes.** Win probabilities, scores, ranges, factors,
 confidence and event simulations are bit-identical to 2.2.0 (the new code only runs when a
 caller passes `ExplainOptions.bonus`, or adds `ForecastMatch.bonus` beside the existing
-fields; replayed win calls identical to the 2.2.0 ledger, see below).
+fields). Replayed 2023–24 to 2026–27 with 2.2.0 and 2.3.0, all 109,182 calls match exactly:
+win probability, shadow probability, expected scores, tier and score ranges.
 
 - `bonus.ts`: `bonusProbability(coef, mean, sd)` is the event simulator's bonus draw
   (logistic of the alliance's non-penalty score, score ~ Normal floored at 0) integrated
