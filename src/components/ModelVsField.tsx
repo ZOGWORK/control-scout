@@ -30,7 +30,7 @@ const MODE_LABEL: Record<DisagreementsView["mode"], string> = {
 
 /** The basis in a sentence, said plainly (what the ratings are as of, what the seed is). */
 function basis(v: DisagreementsView): string {
-  if (v.mode === "pre-quals") return "Ratings from earlier events this season, against each team's seed at its last event (scaled to this field). Seeding here replaces it once qualification matches are played.";
+  if (v.mode === "pre-quals") return "Today's ratings (from earlier events this season, plus any matches already played here), against each team's seed at its last event (scaled to this field). Seeding here replaces it once most teams have played 3 qualification matches.";
   if (v.ratingsAsOf === "event-end") return "Ratings as they stood at this event's last match, against its final qualification seeding.";
   return "Today's ratings, against the seeding here so far. Both move with every match.";
 }
