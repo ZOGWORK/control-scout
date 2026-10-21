@@ -20,7 +20,7 @@ export class ApiError extends Error {
 }
 
 /** The reads a saved season can answer (see lib/offline). */
-const OFFLINE_PATHS = /^\/api\/(teams\/\d+(\/matches)?|events\/\d{4}\/[^/?]+|search)(\?|$)/;
+const OFFLINE_PATHS = /^\/api\/(teams\/\d+(\/matches)?|events\/\d{4}\/[^/?]+|projections\/\d{4}\/[^/?]+|search)(\?|$)/;
 /** The read the lite pack can answer (the Predict page runs the engine on it: PredictPage's useOfflineFallback). */
 const PACK_PREDICT_PATH = /^\/api\/predict\/match(\?|$)/;
 /** No answer in this long, for a read this device could answer itself: treat it as no signal. */
@@ -38,7 +38,7 @@ function offlineKind(path: string, method: string | undefined): "saved" | "lite"
   const asked = Number(url.searchParams.get("season")) || null;
   if (OFFLINE_PATHS.test(path)) {
     const saved = savedSeasons();
-    const season = Number(/^\/api\/events\/(\d{4})\//.exec(url.pathname)?.[1]) || asked;
+    const season = Number(/^\/api\/(?:events|projections)\/(\d{4})\//.exec(url.pathname)?.[1]) || asked;
     return saved.length && (season == null || saved.some((s) => s.season === season)) ? "saved" : null;
   }
   if (!PACK_PREDICT_PATH.test(path)) return null;
