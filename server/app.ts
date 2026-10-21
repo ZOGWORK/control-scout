@@ -68,6 +68,8 @@ import { MAX_REGIONS, isWeek, parsePlaces } from "../src/shared/rankings.js";
 import { registerCache } from "./caches.js";
 import { requestMetrics } from "./metrics.js";
 import { allFlags, isEnabled } from "./flags.js";
+import { readProjections } from "./projections/store.js";
+import { projectionStream } from "./projections/routes.js";
 import { ownerRouter } from "./portal/routes.js";
 import { photosRouter } from "./scout/photos.js";
 import { MATCH_KEY, ShareError, cachedCard, cardKey, matchCard } from "./share/match.js";
@@ -612,6 +614,20 @@ export function createApp() {
   }));
 
   api.get("/predict/accuracy", h(async () => trackRecord()));
+
+  // Monte Carlo projections (server/projections): stored by the background job, only read here.
+  api.get("/projections/:season/:code", h(async (req, res) => {
+    const v = await readProjections(predictSeason(req.params.season), code(req.params.code));
+    // A new run can land any minute while the event is on: revalidate every time (the ETag keeps it a 304).
+    res.setHeader("Cache-Control", "no-cache");
+    return v;
+  }));
+  api.get("/projections/:season/:code/stream", h(async (req, res) => {
+    const s = predictSeason(req.params.season), c = code(req.params.code);
+    if (!(await isEnabled("realtime"))) { res.setHeader("Cache-Control", "no-store"); throw new HttpError(503, "Live updates are switched off; the page refreshes on its own instead."); }
+    projectionStream(s, c, req, res);
+    return undefined;
+  }));
 
   api.use("/auth", authRouter());
   api.use("/me", meRouter());

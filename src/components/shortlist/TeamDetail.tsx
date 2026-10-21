@@ -10,6 +10,8 @@ import { compareHref, lastPlayed, predictionSnapshot } from "../../lib/shortlist
 import { Button } from "../ui/button";
 import { MatchRow, TierMark } from "../predict";
 import { forecastTier } from "../Advancement";
+import { projectionTier, projectionsPath } from "../../lib/projections";
+import { ADVANCE_LABEL, advanceStatus, advanceText, type ProjectionsView } from "../../shared/projections";
 import { BreakdownBar, EventPointsChart } from "./charts";
 import { cn } from "../cn";
 
@@ -38,8 +40,23 @@ function Advance({ t, season }: { t: ShortlistTeam; season: number }) {
   const today = new Date().toISOString().slice(0, 10);
   const live = t.lastEvent && (t.lastEvent.end ?? t.lastEvent.start ?? "") >= today ? t.lastEvent : null;
   const ev = live ?? t.nextEvent;
-  const fc = useApi<ForecastView>(ev ? `/api/predict/event${qs({ season, code: ev.code })}` : null);
+  // The stored Monte Carlo projection first (a read, nothing simulated); the simulator only when there's none yet.
+  const proj = useApi<ProjectionsView>(ev ? projectionsPath(season, ev.code) : null);
+  const run = proj.data?.current;
+  const mine = run?.teams.find((x) => x.team === t.team);
+  const fallback = ev && (proj.error || (proj.data && !mine));
+  const fc = useApi<ForecastView>(fallback ? `/api/predict/event${qs({ season, code: ev.code })}` : null);
   if (!ev) return null;
+  if (run && mine) {
+    const conf = projectionTier(run);
+    const s = advanceStatus(mine);
+    const value = advanceText(mine, (p) => oddsPct(p));
+    return (
+      <Tile label={`Advance from ${ev.name}`} value={value} tone={s === "odds" || s === "qualified" ? "text-success" : "text-text-muted"}
+        hint={<><span title={ADVANCE_LABEL}>performance-based</span><span>· playoffs {oddsPct(mine.pPlayoff, run.stage === "selected")}</span><TierMark tier={conf.tier} /><Link to={`/events/${season}/${ev.code}?tab=odds`} className="underline hover:text-text-base">odds</Link></>} />
+    );
+  }
+  if (!fallback && !proj.error) return <Tile label={`Advance from ${ev.name}`} value="…" tone="text-text-muted" hint="Reading the projection" />;
   const me = fc.data?.teams.find((x) => x.team === t.team);
   if (fc.loading) return <Tile label={`Advance from ${ev.name}`} value="…" tone="text-text-muted" hint="Simulating the event" />;
   if (!fc.data || !me) return <Tile label={`Advance from ${ev.name}`} value="—" tone="text-text-muted" hint={fc.error ? fc.error.message : "No forecast for this event yet"} />;
