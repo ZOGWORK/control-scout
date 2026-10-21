@@ -36,6 +36,24 @@ describe("report card", () => {
     expect(screen.getByText(/Estimate from 40 live calls/).textContent).not.toMatch(/small sample/i);
   });
 
+  it("event rows show their basis: scored count, raw values, a small-sample mark, and no miss numbers without a scored call", () => {
+    show(data(card({ calls: 40, decided: 40, hits: 30, scored: 40 }), [
+      card({ code: "NOSCORE", name: "Early meet", final: true, calls: 3, decided: 3, hits: 2, scored: 0, raw: { hitRate: 2 / 3, errMean: null, errAbs: null, errSd: null }, shrunk: { hitRate: 0.7, errMean: -0.9, errAbs: 14, errSd: 19.8 } }),
+      card({ code: "FULL", name: "Big qualifier", final: true, calls: 12, decided: 12, hits: 9, scored: 12, raw: { hitRate: 0.75, errMean: 4.2, errAbs: 10, errSd: 8 } }),
+    ]));
+    const rows = screen.getAllByRole("row").slice(1);
+    const early = rows.find((r) => r.textContent?.includes("Early meet"))!;
+    // No scored call: the field average would be all it shows, so no miss numbers at all.
+    expect(early.textContent).toContain("0 scored");
+    expect(early.textContent).not.toContain("−0.9");
+    expect(early.textContent).not.toContain("±19.8");
+    expect(early.querySelector("[data-testid=thin]")).toBeTruthy();
+    const full = rows.find((r) => r.textContent?.includes("Big qualifier"))!;
+    expect(full.textContent).toContain("raw +4.2");
+    expect(full.textContent).toContain("raw ±8");
+    expect(full.querySelector("[data-testid=thin]")).toBeNull();
+  });
+
   it("says when there are no live calls yet", () => {
     show(null);
     expect(screen.getByText(/No scored live calls/)).toBeTruthy();

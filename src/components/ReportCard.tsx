@@ -30,6 +30,17 @@ export function ReportCardSection({ team, season, data }: { team: number; season
   );
 }
 
+/** An event's miss number: none at all without a scored call (it would be the field average alone), else shrunk with the raw value under it. */
+function MissCell({ e, shrunk, raw }: { e: ReportCard; shrunk: string; raw: string }) {
+  if (!e.scored) return <td className="px-3 text-right text-muted-foreground" title="No call at this event had a predicted score">—</td>;
+  return (
+    <td className="px-3 text-right tabular-nums">
+      {shrunk}
+      <span className="block text-xs text-muted-foreground">raw {raw}</span>
+    </td>
+  );
+}
+
 function Card({ s, data, season }: { s: ReportCard; data: TeamReportCards; season: number }) {
   const f = data.field;
   const small = s.calls < SMALL_SAMPLE;
@@ -60,14 +71,21 @@ function Card({ s, data, season }: { s: ReportCard; data: TeamReportCards; seaso
               {[...data.events].reverse().map((e) => (
                 <tr key={e.code} className="border-t border-border">
                   <td className="px-3 py-2"><Link to={`/events/${season}/${e.code}`} className="hover:underline">{e.name ?? e.code}</Link></td>
-                  <td className="px-3 text-right tabular-nums">{e.calls}</td>
+                  <td className="px-3 text-right tabular-nums">
+                    {e.calls}
+                    {e.scored < e.calls && <span className="block text-xs text-muted-foreground">{e.scored} scored</span>}
+                    {e.calls < SMALL_SAMPLE && <span className="block text-xs text-warning" data-testid="thin">small sample</span>}
+                  </td>
                   <td className="px-3 text-right tabular-nums">{pct(e.shrunk.hitRate)} <span className="text-xs text-muted-foreground">({e.hits}/{e.decided})</span></td>
-                  <td className="px-3 text-right tabular-nums">{signed(e.shrunk.errMean)}</td>
-                  <td className="px-3 text-right tabular-nums">±{num(e.shrunk.errSd)}</td>
+                  <MissCell e={e} shrunk={signed(e.shrunk.errMean)} raw={signed(e.raw.errMean)} />
+                  <MissCell e={e} shrunk={`±${num(e.shrunk.errSd)}`} raw={`±${num(e.raw.errSd)}`} />
                 </tr>
               ))}
             </tbody>
           </table>
+          <p className="border-t border-border px-3 py-2 text-xs text-muted-foreground">
+            Like the season card, each event's numbers are pulled toward the field average; the raw value is under each one. Misses use only calls that had a predicted score ("scored"): an event with none shows no miss numbers.
+          </p>
         </div>
       )}
     </div>
