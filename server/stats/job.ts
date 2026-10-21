@@ -410,12 +410,13 @@ export async function statsRulesStale(): Promise<boolean> {
 
 export async function runStats(o: StatsOptions = {}): Promise<void> {
   const log = o.log ?? (() => {});
+  // The finished seasons' pair history (engine 2.2), ready before the new data version is published, so
+  // the forecasters rebuilt from it have all of it. Built once per set of frozen seasons (kv); a failure
+  // only leaves predictions without the older pairs (and engine.ts rebuilds them once it's ready).
+  await partnershipPrefix(PREDICT_SEASONS.filter((s) => s >= CURRENT_SEASON - 2)[0] ?? CURRENT_SEASON, { wait: true }).catch((e) => log(`pair history failed: ${(e as Error).message}`));
   // New data → new version: forecasters rebuild (they're keyed by it). No reset: pages keep the
   // last finished ratings until the new ones are built, and frozen seasons stay read (engine.ts).
   await kvSet("data:version", new Date().toISOString());
-  // The finished seasons' pair history (engine 2.2), so the forecasters rebuilt from this version have all of it.
-  // Built once per set of frozen seasons (kv); a failure only leaves predictions without the older pairs.
-  await partnershipPrefix(PREDICT_SEASONS.filter((s) => s >= CURRENT_SEASON - 2)[0] ?? CURRENT_SEASON, { wait: true }).catch((e) => log(`pair history failed: ${(e as Error).message}`));
   const seasons = o.seasons ?? SEASON_NUMBERS;
   const withData: number[] = [];
   for (const s of seasons) {

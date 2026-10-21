@@ -6,7 +6,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { kvGet, migrate, openDb, run, setDb } from "../db";
 import { createApp } from "../app";
 import { partnershipPrefix, resetPartnerships } from "./partnerships";
-import { resetForecasters } from "./engine";
+import { forecasterFor, resetForecasters } from "./engine";
 
 let server: Server;
 let base = "";
@@ -76,5 +76,17 @@ describe("partnership memory (server)", () => {
     expect(r.winProbRed).toBeLessThan(1);
     const none = await (await fetch(`${base}/api/predict/match?season=2023&red=11,15&blue=13,99`)).json();
     expect(none.history?.kind ?? null).not.toBe("together");
+  });
+
+  it("rebuilds a forecaster that went without the older history once that history is ready", async () => {
+    resetPartnerships();
+    resetForecasters();
+    await run("DELETE FROM kv WHERE key LIKE 'partnership:prefix:%'");
+    const first = await forecasterFor(2023); // the prefix starts building in the background; no page waits for it
+    expect(first.partnershipComplete).toBe(false);
+    let f = first;
+    for (let i = 0; i < 200 && !f.partnershipComplete; i++) { await new Promise((r) => setTimeout(r, 25)); f = await forecasterFor(2023); }
+    expect(f.partnershipComplete).toBe(true);
+    expect(f.explain(2023, [11, 12], [15, 16])?.partnership?.matches).toBe(3);
   });
 });

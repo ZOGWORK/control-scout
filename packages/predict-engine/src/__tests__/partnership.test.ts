@@ -111,6 +111,15 @@ describe("partnership memory", () => {
     expect([t.n, t.best, t.bestSeason, t.bestEvent]).toEqual([4, 90, 2025, "TXCMP"]);
   });
 
+  it("ranks by recent matches: one new meeting doesn't make old ones count as recent", () => {
+    const b = new PartnershipBook(FITTED_MODEL.rating);
+    for (let i = 0; i < 4; i++) b.observe(match(2022, "OLD", [[1, 2], 100], [[90, 91], 100]));
+    b.observe(match(2025, "NEW", [[1, 2], 100], [[92, 93], 100]));
+    for (let i = 0; i < 3; i++) b.observe(match(2025, "NEW", [[3, 4], 100], [[94, 95], 100]));
+    expect(b.together(1, 2)!.n).toBe(5);
+    expect(partnershipFact(b, [1, 2], [3, 4], 2025)!.teams).toEqual([3, 4]);
+  });
+
   it("reports head-to-head records from the right side", () => {
     const b = new PartnershipBook(FITTED_MODEL.rating);
     for (let i = 0; i < 3; i++) b.observe(match(2024, "X", [[40, 41], 120], [[12, 13], 80]));
