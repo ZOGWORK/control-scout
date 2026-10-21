@@ -16,6 +16,6 @@
     "types": ["node", "vite/client"],
     "paths": { "@/*": ["./src/*"] }
   },
-  "include": ["src", "server", "scripts", "deploy", "vite.config.ts", "vitest.config.ts"],
+  "include": ["src", "server", "bot", "scripts", "deploy", "vite.config.ts", "vitest.config.ts"],
   "exclude": ["node_modules", "dist", "packages/*/dist"]
 }

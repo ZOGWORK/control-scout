@@ -24,6 +24,8 @@ export const PRIVATE_TABLES = [
   "workspace_members", "entry_photos", "workspace_scout_entries", "workspace_template_versions", "workspace_assignments", "workspace_former_members", "workspace_pending_departures", "workspaces",
   "owner_audit", "feature_flags", "request_metrics_daily", "owner_alerts", "workspace_activity", "inbox_items", "workspace_entry_comments",
   "workspace_picklist", "workspace_picklist_versions", "workspace_picklist_ops", "workspace_entry_versions", "push_subscriptions", "push_sent",
+  // The Discord bot's follows and its post log (migration 35): Discord server, channel and user ids.
+  "discord_follows", "discord_posts",
 ];
 
 /**
