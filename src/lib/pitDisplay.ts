@@ -11,6 +11,14 @@
 //   Rankings    the top 8 by event rank (W–L–T, event OPR); "Final rankings" once the event is over.
 import type { EventDetail, FieldRow, MatchView } from "../shared/api";
 import { nextMatch } from "./liveMode";
+import { eventToday } from "../shared/eventDay";
+
+/** Is the event really over: its last day past (in its own time zone), or its Winner award posted? */
+export function isOver(d: Pick<EventDetail, "event" | "awards">, now: number): boolean {
+  if (d.event.status !== "finished") return false;
+  const last = d.event.end ?? d.event.start;
+  return (!!last && last < eventToday(now, d.event.timezone).from) || d.awards.some((a) => a.type === "Winner");
+}
 
 /** A match this far past its scheduled start without a result means the event runs behind. */
 export const LATE_MS = 5 * 60_000;
@@ -82,9 +90,10 @@ export interface DisplayModel {
 
 export function displayModel(d: EventDetail, now: number, highlight: ReadonlySet<number> = new Set()): DisplayModel {
   const all = unplayed(d.matches);
-  // Only the event's own status says it's over: every posted match being played can just mean alliance
-  // selection, or the next playoff round not posted yet.
-  const finished = d.event.status === "finished";
+  // Over only when its last day has passed at the venue, or the Winner award is posted. The API's "finished"
+  // also means every posted match is played, which is true during alliance selection or before the next
+  // playoff round is posted: more matches are coming then.
+  const finished = isOver(d, now);
   // Once the event is over (its last day has passed), a match without a result is one that was never reported,
   // not one still to come: nothing is up now or next, and no countdown.
   const left = finished ? [] : all;

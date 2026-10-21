@@ -2,13 +2,16 @@
 import { useEffect, useRef, useState } from "react";
 import { encode } from "uqr";
 import { load } from "./api";
+import { offlineSource } from "./offline/saved";
 import { pollInterval } from "./liveMode";
 import type { EventDetail } from "../shared/api";
 
 /** The poll behind the display: the live cadence (20–30 s) while the event is live, else every 5 minutes;
- *  after a failure, sooner (5, 10, 20, 30 s) until a fetch works again. True while it's failing. */
-export function useDisplayPoll(d: Pick<EventDetail, "event" | "live"> | undefined, path: string): boolean {
-  const [failing, setFailing] = useState(false);
+ *  after a failure, sooner (5, 10, 20, 30 s) until a fetch works again. "reconnecting" while fetches fail,
+ *  "saved" while the only answer is this device's saved season (offline: those aren't fresh scores). */
+export type PollState = "ok" | "reconnecting" | "saved";
+export function useDisplayPoll(d: Pick<EventDetail, "event" | "live"> | undefined, path: string): PollState {
+  const [state, setState] = useState<PollState>("ok");
   // Nothing loaded yet (the first request failed): try again soon, on the failure schedule, not in 5 minutes.
   const every = !d ? 5000 : pollInterval(d) || 5 * 60_000;
   const fails = useRef(0);
@@ -18,19 +21,20 @@ export function useDisplayPoll(d: Pick<EventDetail, "event" | "live"> | undefine
     const next = (ms: number) => { id = setTimeout(tick, ms); };
     async function tick() {
       try {
-        await load(path, true);
-        fails.current = 0;
-        if (!stop) setFailing(false);
+        // Offline, the request can answer with the saved season instead of failing: still not live, so keep retrying soon.
+        const saved = !!offlineSource(await load(path, true));
+        fails.current = saved ? fails.current + 1 : 0;
+        if (!stop) setState(saved ? "saved" : "ok");
       } catch {
         fails.current++;
-        if (!stop) setFailing(true);
+        if (!stop) setState("reconnecting");
       }
       if (!stop) next(fails.current ? Math.min(30_000, 5000 * 2 ** (fails.current - 1)) : every);
     }
     next(every);
     return () => { stop = true; clearTimeout(id); };
   }, [path, every]);
-  return failing;
+  return state;
 }
 
 /** The QR code's dark modules as one SVG path (no quiet zone: the white padding around it is one). */
