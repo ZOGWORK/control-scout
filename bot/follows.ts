@@ -1,13 +1,15 @@
 // Automatic posts: a server follows a team in one of its channels (/follow), and the bot posts there
 // 15 minutes before each of that team's matches (lineups, win odds, predicted score) and again once the
-// match has a result (the score and whether the call was right). Built on the site's own match views, read
+// match has a result (the score and whether the call was right); plus, per event, the evening before, when
+// its schedule is posted, and a recap at the end of each day (bot/eventAlerts.ts). Built on the site's own match views, read
 // from the same database the live lane keeps fresh every minute. Each post is written to discord_posts
 // before it's sent, so a restart, a second bot tick or two followed teams in one match never post twice.
 import type { APIEmbed } from "discord.js";
 import { all, get, run } from "../server/db.js";
 import { CURRENT_SEASON } from "../server/data/seasons.js";
-import { matchViews } from "../server/api/matches.js";
-import { teamKnown } from "../server/api/teams.js";
+import { cachedEventDetail } from "../server/api/events.js";
+import { seasonStats, teamKnown } from "../server/api/teams.js";
+import { eventDue, eveEmbed, recapEmbed, scheduleEmbed, venueClock } from "./eventAlerts.js";
 import type { MatchView } from "../src/shared/api.js";
 import { Friendly, VOLT, predictEmbed } from "./views.js";
 
@@ -120,49 +122,66 @@ export function postEmbed(d: Due, eventName: string, site: string): APIEmbed {
 
 export type Send = (channel: string, embed: APIEmbed) => Promise<"ok" | "gone" | "error">;
 
-/** One tick: read the follows, the matches of followed teams at events on today (±1 day), post what's due. */
+/**
+ * One tick: read the follows, the followed teams' events on around today (entered, or with matches, from
+ * yesterday to tomorrow), and post what's due: per match (a reminder, a result) and per event (the evening
+ * before, the schedule, the day's recap; bot/eventAlerts.ts).
+ */
 export async function notifyTick(send: Send, site: string, log: (m: string) => void, now = Date.now()): Promise<number> {
   const follows = (await all<any>("SELECT guild_id, channel_id, team, created_at, failures FROM discord_follows"))
     .map((r) => ({ guild_id: String(r.guild_id), channel_id: String(r.channel_id), team: Number(r.team), created_at: String(r.created_at), failures: Number(r.failures) }));
   if (!follows.length) return 0;
   const teams = [...new Set(follows.map((f) => f.team))];
+  const ph = teams.map(() => "?").join(",");
   const day = (n: number) => new Date(now + n * 864e5).toISOString().slice(0, 10);
-  const events = await all<{ code: string; name: string }>(
-    `SELECT DISTINCT e.code, e.name FROM match_teams mt JOIN events e ON e.season = mt.season AND e.code = mt.code
-     WHERE mt.season = ? AND mt.team IN (${teams.map(() => "?").join(",")}) AND e.start <= ? AND COALESCE(e.end, e.start) >= ?`,
-    [CURRENT_SEASON, ...teams, day(1), day(-1)]);
+  const events = await all<{ code: string }>(
+    `SELECT e.code FROM events e WHERE e.season = ? AND e.start <= ? AND COALESCE(e.end, e.start) >= ?
+       AND (EXISTS (SELECT 1 FROM event_teams et WHERE et.season = e.season AND et.code = e.code AND et.team IN (${ph}))
+         OR EXISTS (SELECT 1 FROM match_teams mt WHERE mt.season = e.season AND mt.code = e.code AND mt.team IN (${ph})))`,
+    [CURRENT_SEASON, day(2), day(-1), ...teams, ...teams]);
   let posted = 0;
+  // Claim, send, mark sent; a failure gives the claim back (and counts toward dropping a channel that's gone).
+  const deliver = async (channel: string, code: string, key: string, kind: string, embed: () => Promise<APIEmbed> | APIEmbed) => {
+    const k = [channel, CURRENT_SEASON, code, key, kind];
+    const t = new Date(now).toISOString();
+    const claimed = (await run(
+      "INSERT OR IGNORE INTO discord_posts (channel_id, season, code, match_key, kind, claimed_at) VALUES (?, ?, ?, ?, ?, ?)", [...k, t]))
+      || (await run(
+        "UPDATE discord_posts SET claimed_at = ? WHERE channel_id = ? AND season = ? AND code = ? AND match_key = ? AND kind = ? AND sent_at IS NULL AND claimed_at < ?",
+        [t, ...k, new Date(now - CLAIM_STALE_MS).toISOString()]));
+    if (!claimed) return;
+    const r = await send(channel, await embed());
+    if (r === "ok") {
+      posted++;
+      await run("UPDATE discord_posts SET sent_at = ? WHERE channel_id = ? AND season = ? AND code = ? AND match_key = ? AND kind = ?", [new Date().toISOString(), ...k]);
+      await run("UPDATE discord_follows SET failures = 0 WHERE channel_id = ? AND failures > 0", [channel]);
+      return;
+    }
+    await run("DELETE FROM discord_posts WHERE channel_id = ? AND season = ? AND code = ? AND match_key = ? AND kind = ? AND sent_at IS NULL", k);
+    if (r === "gone") {
+      await run("UPDATE discord_follows SET failures = failures + 1 WHERE channel_id = ?", [channel]);
+      const dropped = await run("DELETE FROM discord_follows WHERE channel_id = ? AND failures >= ?", [channel, MAX_FAILURES]);
+      if (dropped) log(`follows: dropped ${dropped} in channel ${channel} after ${MAX_FAILURES} failed posts`);
+    }
+  };
   for (const ev of events) {
-    const matches = await matchViews({ season: CURRENT_SEASON, code: ev.code }, { predictUnplayed: true });
-    for (const d of dueNow(follows, matches, now)) {
-      // Claim the post first: only the tick that claims it sends it. A claim left unsent by a stopped bot is
-      // taken again once it's stale (while the post is still due, which dueNow decides).
-      const key = [d.channel, CURRENT_SEASON, ev.code, d.match.key, d.kind];
-      const at = new Date(now).toISOString();
-      const claimed = (await run(
-        "INSERT OR IGNORE INTO discord_posts (channel_id, season, code, match_key, kind, claimed_at) VALUES (?, ?, ?, ?, ?, ?)", [...key, at]))
-        || (await run(
-          "UPDATE discord_posts SET claimed_at = ? WHERE channel_id = ? AND season = ? AND code = ? AND match_key = ? AND kind = ? AND sent_at IS NULL AND claimed_at < ?",
-          [at, ...key, new Date(now - CLAIM_STALE_MS).toISOString()]));
-      if (!claimed) continue;
-      const r = await send(d.channel, postEmbed(d, ev.name, site));
-      if (r === "ok") {
-        posted++;
-        await run("UPDATE discord_posts SET sent_at = ? WHERE channel_id = ? AND season = ? AND code = ? AND match_key = ? AND kind = ?", [new Date().toISOString(), ...key]);
-        await run("UPDATE discord_follows SET failures = 0 WHERE channel_id = ? AND failures > 0", [d.channel]);
-      } else {
-        // Not delivered: give the claim back, so the next tick tries again while the post is still due (a channel
-        // whose access comes back gets it). A channel that's gone or closed to the bot counts toward dropping it.
-        await run("DELETE FROM discord_posts WHERE channel_id = ? AND season = ? AND code = ? AND match_key = ? AND kind = ? AND sent_at IS NULL", key);
-        if (r === "gone") {
-          await run("UPDATE discord_follows SET failures = failures + 1 WHERE channel_id = ?", [d.channel]);
-          const dropped = await run("DELETE FROM discord_follows WHERE channel_id = ? AND failures >= ?", [d.channel, MAX_FAILURES]);
-          if (dropped) log(`follows: dropped ${dropped} in channel ${d.channel} after ${MAX_FAILURES} failed posts`);
-        }
-      }
+    const d = await cachedEventDetail(CURRENT_SEASON, ev.code);
+    if (!d) continue;
+    for (const due of dueNow(follows, d.matches, now)) await deliver(due.channel, ev.code, due.match.key, due.kind, () => postEmbed(due, d.event.name, site));
+    const today = venueClock(now, d.event.timezone ?? null).date;
+    for (const due of eventDue(follows, d, now)) {
+      await deliver(due.channel, ev.code, due.key, due.kind, async () => {
+        if (due.kind === "schedule") return scheduleEmbed(due, d, site);
+        if (due.kind === "recap") return recapEmbed(due, d, today, site);
+        const seasons = await Promise.all(due.teams.map(async (t) => {
+          const s = await seasonStats(CURRENT_SEASON, t).catch(() => null);
+          return { team: t, name: d.field.find((f) => f.team === t)?.name ?? null, opr: s?.opr.np.value ?? null, worldRank: s?.rating?.rank ?? null };
+        }));
+        return eveEmbed(due, d, seasons, site);
+      });
     }
   }
-  // The post log only needs to outlive a match's windows.
-  await run("DELETE FROM discord_posts WHERE claimed_at < ?", [new Date(now - 7 * 864e5).toISOString()]);
+  // The post log only needs to outlive an event's windows.
+  await run("DELETE FROM discord_posts WHERE claimed_at < ?", [new Date(now - 14 * 864e5).toISOString()]);
   return posted;
 }
