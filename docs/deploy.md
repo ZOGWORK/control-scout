@@ -90,6 +90,12 @@ them. Without all three, push stays dormant and Settings › Notifications says
 it's unavailable. The owner portal's **Push notifications** switch stops all
 sending without a deploy. What is sent and when: [push.md](push.md).
 
+**Discord bot.** Put the bot's token in the same file as `DISCORD_BOT_TOKEN`
+(optionally `DISCORD_DEV_GUILD_ID` for a test server) and redeploy: the
+installer then enables and restarts its own unit, `control-scout-bot`, next to
+the site. Without a token the unit stays off and the site is unaffected either
+way. Setup steps and the invite link: [bot/README.md](../bot/README.md).
+
 ## 4. Data — pick one (before the service first starts)
 
 **Fast (recommended): copy tonight's synced database** (4 seasons, ~120k
