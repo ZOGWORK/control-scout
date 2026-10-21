@@ -77,6 +77,8 @@ export class ScoutForecaster extends Forecaster {
       for (const m of d.matches) { pairs.observe(m); book.update(m); if (++n % 4000 === 0) await yieldLoop(); }
       books.set(s, book.clone());
       // An earlier season's calls read the pairs through its own end only, never a later season's matches.
+      // Without the weak pairs (about a quarter of the rows): those only matter when an event's unsynced
+      // results fold in (PartnershipOverlay), and a finished season's results are all stored.
       if (s < this.anchor && pairs.season === s) {
         const table = PartnershipTable.fromData({ ...pairs.toData({ teams: activeTeams(books, s) }), season: s });
         if (table) pastTables.set(s, table);
