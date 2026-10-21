@@ -239,7 +239,7 @@ export class ScoutForecaster extends Forecaster {
     if (!b) return null;
     const table = this.partnerships(season);
     const partnership = table ? { table, season } : undefined;
-    return explainMatch(b, red, blue, { noise: FITTED_MODEL.noise, calibration: FITTED_MODEL.calibration, contextual: FITTED_MODEL.contextual, context: { level, event }, shadow: FITTED_MODEL.contextual?.fallback, partnership });
+    return explainMatch(b, red, blue, { noise: FITTED_MODEL.noise, calibration: FITTED_MODEL.calibration, contextual: FITTED_MODEL.contextual, context: { level, event }, shadow: FITTED_MODEL.contextual?.fallback, band: FITTED_MODEL.band, partnership });
   }
 
   /** Start time (ISO) of the latest stored result of a season the ratings have learned, or null. */

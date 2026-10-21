@@ -8,6 +8,8 @@ import { Check, ChevronDown, CircleDashed, ClipboardList, Gauge, Handshake, Hist
 import type { ConfidenceTier, Factor, MatchPredictionView, MatchView, PairHistory } from "../shared/api";
 import { matchReportHref } from "../shared/matchReport";
 import { cn } from "./cn";
+import { ScoreRange } from "./ScoreRange";
+import { levelPct, predictedText } from "../shared/scoreRange";
 import { Tooltip, TooltipContent, TooltipTrigger } from "./ui/overlay";
 import { matchTime, oddsPct } from "../lib/format";
 import { useVideoLinkCount } from "./MatchVideo";
@@ -155,7 +157,7 @@ const FADED: Record<Side, string> = {
 
 /** One alliance: its teams and score in one tinted box. The winner's box is stronger; the loser's fades back. */
 function AllianceBox({ side, m, score, forecast, outcome, highlight }: {
-  side: Side; m: MatchView; score: number | null; forecast: number | null; outcome: "win" | "loss" | "tie" | null; highlight?: number;
+  side: Side; m: MatchView; score: number | null; forecast: { mean: number; range?: [number, number]; level?: number } | null; outcome: "win" | "loss" | "tie" | null; highlight?: number;
 }) {
   const a = m[side];
   const flash = useChangeCount(score);
@@ -174,7 +176,9 @@ function AllianceBox({ side, m, score, forecast, outcome, highlight }: {
           {score}{outcome === "win" && <span className="sr-only"> (won)</span>}
         </span>
       ) : forecast != null ? (
-        <span className={cn("shrink-0 font-display text-base font-semibold tabular-nums", FADED[side])} title="Predicted score">~{forecast}</span>
+        forecast.range
+          ? <span className={cn("shrink-0 whitespace-nowrap font-display text-base font-semibold", FADED[side])}><span className="sr-only">Predicted score </span><ScoreRange mean={forecast.mean} range={forecast.range} level={forecast.level} pmClassName="text-[11px] font-medium" /></span>
+          : <span className={cn("shrink-0 font-display text-base font-semibold tabular-nums", FADED[side])} title="Predicted score">~{Math.round(forecast.mean)}</span>
       ) : null}
     </div>
   );
@@ -198,7 +202,9 @@ export function MatchRow({ m, highlight, showEvent, eventName, open, onToggle, o
   const called = p && scored && !tie ? (p.pRed > 0.5) === (winner === "red") : null;
   const mySide: Side | null = highlight ? (m.red.teams.some((t) => t.number === highlight) ? "red" : m.blue.teams.some((t) => t.number === highlight) ? "blue" : null) : null;
   const mine = mySide ? outcome(mySide) : null;
-  const forecast = !scored && p && !p.noScoreBasis ? { red: Math.round(p.redMean), blue: Math.round(p.blueMean) } : null;
+  const forecast = !scored && p && !p.noScoreBasis
+    ? { red: { mean: p.redMean, range: p.redRange, level: p.rangeLevel }, blue: { mean: p.blueMean, range: p.blueRange, level: p.rangeLevel } }
+    : null;
   const fav: Side | null = p ? (p.pRed >= 0.5 ? "red" : "blue") : null;
   const missing = [m.red, m.blue].some((a) => a.teams.filter((t) => t.onField).length !== 2);
   const when = showEvent ?? matchTime(m.time);
@@ -255,7 +261,7 @@ export function MatchRow({ m, highlight, showEvent, eventName, open, onToggle, o
               </button>
             </TooltipTrigger>
             <TooltipContent className="max-w-72">
-              {KIND_LABEL[p.kind]} · {p.noScoreBasis ? "no predicted score: when this call was made, the season had no rated matches yet" : `predicted ${p.redMean}–${p.blueMean}`} · {p.tier} confidence
+              {KIND_LABEL[p.kind]} · {p.noScoreBasis ? "no predicted score: when this call was made, the season had no rated matches yet" : `predicted ${predictedText(p)}${p.redRange ? ` (± is the ${levelPct(p.rangeLevel)} range)` : ""}`} · {p.tier} confidence
               {p.factors?.length ? <span className="mt-1 block opacity-80">{p.factors[0].label}</span> : null}
               <CalibrationTip pRed={p.pRed} />
             </TooltipContent>

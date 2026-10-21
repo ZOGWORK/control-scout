@@ -13,6 +13,7 @@ import { nextFlip, railModel, verdict, type Calling, type Flip } from "../lib/wa
 import { venueClock } from "../lib/liveMode";
 import { TierMark, WinBar } from "./predict";
 import { cn } from "./cn";
+import { PredictedPair } from "./ScoreRange";
 
 export const WATCH_ID = "watch-live";
 
@@ -128,7 +129,7 @@ function Call({ m }: { m: MatchView }) {
       <WinBar pRed={p.pRed} />
       <div className="mt-1.5 flex items-center justify-between gap-2 text-sm">
         <span className="font-semibold text-red-alliance">{oddsPct(p.pRed)}</span>
-        <span className="flex items-center gap-2 text-muted-foreground">{!p.noScoreBasis && <span className="tabular-nums">{Math.round(p.redMean)}–{Math.round(p.blueMean)}</span>}<TierMark tier={p.tier} chip /></span>
+        <span className="flex items-center gap-2 text-muted-foreground">{!p.noScoreBasis && <PredictedPair p={p} />}<TierMark tier={p.tier} chip /></span>
         <span className="font-semibold text-blue-alliance">{oddsPct(1 - p.pRed)}</span>
       </div>
     </div>
@@ -167,7 +168,7 @@ function Compact({ m, tz }: { m: MatchView; tz: string | null }) {
           <span className="w-8 text-red-alliance">{oddsPct(p.pRed)}</span>
           <WinBar pRed={p.pRed} size="sm" decorative />
           <span className="w-8 text-right text-blue-alliance">{oddsPct(1 - p.pRed)}</span>
-          {!p.noScoreBasis && <span className="whitespace-nowrap text-muted-foreground tabular-nums">{Math.round(p.redMean)}–{Math.round(p.blueMean)}</span>}
+          {!p.noScoreBasis && <PredictedPair p={p} className="whitespace-nowrap text-muted-foreground" />}
           <TierMark tier={p.tier} />
         </div>
       )}

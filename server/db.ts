@@ -1099,6 +1099,20 @@ CREATE TABLE discord_posts (
 );
 `,
   },
+  {
+    version: 36,
+    name: "prediction score ranges",
+    sql: `
+-- Engine 2.2: every call states an 80% range for each alliance's final score (range_level = 0.8), so the
+-- ledger can score how often real scores land inside it. NULL on calls logged before 2.2: they stated no
+-- range, and none is invented for them afterwards.
+ALTER TABLE predictions ADD COLUMN red_lo REAL;
+ALTER TABLE predictions ADD COLUMN red_hi REAL;
+ALTER TABLE predictions ADD COLUMN blue_lo REAL;
+ALTER TABLE predictions ADD COLUMN blue_hi REAL;
+ALTER TABLE predictions ADD COLUMN range_level REAL;
+`,
+  },
 ];
 
 export type Db = Client;
