@@ -13,7 +13,7 @@ import { ErrorState } from "./states";
 import { oddsPct } from "../lib/format";
 import { bandHits, projectionTier, rankMovement, useProjections } from "../lib/projections";
 import { usePersonal } from "../lib/personal";
-import { ADVANCE_LABEL, throughText, type ProjectionRun, type ProjectionTeam } from "../shared/projections";
+import { ADVANCE_LABEL, advanceStatus, throughText, type ProjectionRun, type ProjectionTeam } from "../shared/projections";
 import type { EventDetail } from "../shared/api";
 
 type SortKey = "team" | "now" | "proj" | "playoff" | "advance";
@@ -136,7 +136,7 @@ function LiveView({ run, baseline, rankNow, names, pinned }: { run: ProjectionRu
                     </div>
                   </td>
                   <td className="density-row px-3 py-2 text-right max-sm:px-2"><Odds p={t.pPlayoff} decided={decidedPlayoffs} tone="bg-info" /></td>
-                  <td className="density-row px-3 py-2 text-right max-sm:px-2">{t.pAdvance == null ? <Badge variant="success">Qualified</Badge> : <Odds p={t.pAdvance} tone="bg-success" />}</td>
+                  <td className="density-row px-3 py-2 text-right max-sm:px-2"><AdvanceCell t={t} /></td>
                 </tr>
               );
             })}
@@ -201,6 +201,15 @@ function Whisker({ t, n, now, ghost, actual }: { t: ProjectionTeam; n: number; n
       {actual && <span className={cn("absolute top-1/2 size-3 -translate-x-1/2 -translate-y-1/2 rotate-45 ring-2 ring-card", actual.inside ? "bg-success" : "bg-warning")} style={{ left: `${x(actual.rank)}%` }} />}
     </span>
   );
+}
+
+/** Advance column: odds, "Qualified" only for a team that already qualified, a neutral "Not eligible" otherwise. */
+export function AdvanceCell({ t }: { t: ProjectionTeam }) {
+  const s = advanceStatus(t);
+  if (s === "odds" && t.pAdvance != null) return <Odds p={t.pAdvance} tone="bg-success" />;
+  if (s === "qualified") return <Badge variant="success" title="Already qualified at an earlier event">Qualified</Badge>;
+  if (s === "ineligible") return <Badge variant="outline" title="FIRST lists this team as not eligible to advance from this event">Not eligible</Badge>;
+  return <span className="text-muted-foreground" title="No advancement odds for this team">—</span>;
 }
 
 function Odds({ p, decided, tone }: { p: number; decided?: boolean; tone: string }) {

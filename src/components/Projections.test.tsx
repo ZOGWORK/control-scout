@@ -16,7 +16,7 @@ vi.mock("../lib/personal", () => ({ usePersonal: () => ({ state: { myTeam: null,
 const { Projections, projectionHeadline } = await import("./Projections");
 const { TooltipProvider } = await import("./ui/overlay");
 
-const t = (team: number, p10: number, p50: number, p90: number, pAdvance: number | null = 0.3): ProjectionTeam => ({ team, rank: { p10, p50, p90, mean: p50 }, pPlayoff: 0.6, pCaptain: 0.3, pPicked: 0.3, pAdvance, pWin: 0.1, pFinalist: 0.1 });
+const t = (team: number, p10: number, p50: number, p90: number, pAdvance: number | null = 0.3, advance: ProjectionTeam["advance"] = pAdvance == null ? "qualified" : "odds"): ProjectionTeam => ({ team, rank: { p10, p50, p90, mean: p50 }, pPlayoff: 0.6, pCaptain: 0.3, pPicked: 0.3, pAdvance, advance, pWin: 0.1, pFinalist: 0.1 });
 const run = (o: Partial<ProjectionRun> = {}): ProjectionRun => ({
   kind: "current", runs: 10000, target: 10000, stage: "live", played: 24, scheduled: 48, through: "Q24", slots: 4, slotsSource: "official", seed: 1, engineVersion: "2.1.1", ms: 3000, computedAt: "2026-10-21T15:00:00Z",
   teams: [t(101, 1, 2, 4), t(102, 2, 4, 6), t(103, 1, 1, 3, null), t(104, 3, 3, 4)], ...o,
@@ -48,6 +48,19 @@ describe("Projections (live)", () => {
     for (const r of rows) expect(within(r).getByRole("img").getAttribute("aria-label")).toMatch(/80% range/);
     expect(within(rows[0]).getByText("#1–3")).toBeTruthy(); // 103: median 1, sorted first
     expect(within(rows[0]).getByText("Qualified")).toBeTruthy();
+  });
+
+  it("an ineligible team reads 'Not eligible', never 'Qualified'; a row without a status stays neutral", () => {
+    view = { season: 2026, code: "TQ1", current: run({ teams: [t(101, 1, 1, 2, null, "qualified"), t(102, 2, 2, 3, null, "ineligible"), { ...t(103, 3, 3, 4, null), advance: undefined }, t(104, 4, 4, 4)] }), baseline: null, lastOpen: null };
+    mount(detail("live"));
+    const rows = screen.getAllByRole("row").slice(1);
+    const cell = (i: number) => rows[i].lastElementChild!;
+    expect(within(cell(0) as HTMLElement).getByText("Qualified")).toBeTruthy();
+    expect(within(cell(1) as HTMLElement).getByText("Not eligible")).toBeTruthy();
+    expect(within(cell(1) as HTMLElement).queryByText("Qualified")).toBeNull();
+    expect(cell(2).textContent).toBe("—");
+    expect(cell(3).textContent).toMatch(/30%/);
+    expect(screen.getAllByText("Qualified")).toHaveLength(1);
   });
 
   it("pins tracked teams first and sorts by a column", () => {

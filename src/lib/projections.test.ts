@@ -2,7 +2,7 @@
 // stored runs (no reload); a broken stream retries a few times, then leaves it to the results refresh.
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { STREAM_BACKOFF_MS, bandHits, followProjections, projectionTier, rankMovement } from "./projections";
-import type { ProjectionRun, ProjectionTeam } from "../shared/projections";
+import { advanceStatus, advanceText, type ProjectionRun, type ProjectionTeam } from "../shared/projections";
 
 class FakeES {
   static all: FakeES[] = [];
@@ -53,6 +53,21 @@ describe("followProjections", () => {
 
 const team = (t: number, p10: number, p50: number, p90: number): ProjectionTeam => ({ team: t, rank: { p10, p50, p90, mean: p50 }, pPlayoff: 0.5, pCaptain: 0.2, pPicked: 0.3, pAdvance: 0.1, pWin: 0.05, pFinalist: 0.05 });
 const run = (o: Partial<ProjectionRun>): ProjectionRun => ({ kind: "current", runs: 10000, target: 10000, stage: "live", played: 10, scheduled: 40, through: "Q10", slots: 4, slotsSource: "official", seed: 1, engineVersion: "x", ms: 1, computedAt: "", teams: [], ...o });
+
+describe("advancement status", () => {
+  const pct = (p: number) => `${Math.round(p * 100)}%`;
+  it("only an explicit 'qualified' reads as qualified; no odds without a status is neutral", () => {
+    expect(advanceStatus({ pAdvance: 0.4, advance: "odds" })).toBe("odds");
+    expect(advanceStatus({ pAdvance: null, advance: "qualified" })).toBe("qualified");
+    expect(advanceStatus({ pAdvance: null, advance: "ineligible" })).toBe("ineligible");
+    expect(advanceStatus({ pAdvance: null })).toBe("unknown");
+    expect(advanceStatus({ pAdvance: 0.2 })).toBe("odds");
+    expect(advanceText({ pAdvance: 0.4, advance: "odds" }, pct)).toBe("40%");
+    expect(advanceText({ pAdvance: null, advance: "qualified" }, pct)).toBe("Qualified");
+    expect(advanceText({ pAdvance: null, advance: "ineligible" }, pct)).toBe("Not eligible");
+    expect(advanceText({ pAdvance: null }, pct)).toBe("—");
+  });
+});
 
 describe("projection helpers", () => {
   it("movement: up is positive", () => {

@@ -177,14 +177,16 @@ describe("projections job", () => {
     const afterBonus = (await readProjections(S, CODE)).current!;
     expect(afterBonus.seed).not.toBe(before.seed);
     // FIRST publishes the official slot count and an already-qualified team.
-    await run("INSERT INTO advancement (season, code, slots, advances_to, rows) VALUES (?, ?, 2, 'STATE', ?)", [S, CODE, JSON.stringify([{ team: 112, status: "ALREADY_ADVANCING", declined: false }])]);
+    await run("INSERT INTO advancement (season, code, slots, advances_to, rows) VALUES (?, ?, 2, 'STATE', ?)", [S, CODE, JSON.stringify([{ team: 112, status: "ALREADY_ADVANCING", declined: false }, { team: 111, status: "INELIGIBLE", declined: false }])]);
     await kvSet("data:version", "adv");
     expect(await projectionTick(t0 + 100_000, () => {}, st)).toEqual([]);
     expect(await projectionTick(t0 + 100_000 + DEBOUNCE_MS, () => {}, st)).toEqual([`${S}|${CODE}`]);
     const afterSlots = (await readProjections(S, CODE)).current!;
     expect(afterSlots.slots).toBe(2);
     expect(afterSlots.slotsSource).toBe("official");
-    expect(afterSlots.teams.find((t) => t.team === 112)!.pAdvance).toBeNull();
+    expect(afterSlots.teams.find((t) => t.team === 112)).toMatchObject({ pAdvance: null, advance: "qualified" });
+    expect(afterSlots.teams.find((t) => t.team === 111)).toMatchObject({ pAdvance: null, advance: "ineligible" }); // not eligible is never "qualified"
+    expect(afterSlots.teams.find((t) => t.team === 110)!.advance).toBe("odds");
   });
 
   it("never invents a projection for an event that finished before it was ever projected", async () => {
@@ -223,6 +225,12 @@ describe("projections job", () => {
     expect(after.find((r: any[]) => r[0] === CODE && r[1] === 101)[2]).toBeCloseTo(p.get(101)!, 1);
     expect(after.find((r: any[]) => r[0] === CODE && r[1] === 102)[2]).toBeCloseTo(p.get(102)!, 1);
     expect(after.find((r: any[]) => r[0] === "OTHER")[2]).toBe(33); // never projected: the static estimate stays
+    // A team FIRST lists as not eligible: no odds in the records (empty, not 0% and not "qualified").
+    await run("INSERT INTO team_event_records (season, code, team, event_name, adv_odds) VALUES (?, ?, 103, 'Test Qualifier', 12.5)", [S, CODE]);
+    await run("INSERT INTO advancement (season, code, slots, advances_to, rows) VALUES (?, ?, 2, 'STATE', ?)", [S, CODE, JSON.stringify([{ team: 103, status: "INELIGIBLE", declined: false }])]);
+    await kvSet("data:version", "adv-ineligible");
+    await projectEvent(S, CODE, { runs: 300, floor: 300 });
+    expect((await odds()).find((r: any[]) => r[0] === CODE && r[1] === 103)[2]).toBeNull();
     await new Promise((r) => server.close(r));
   });
 });

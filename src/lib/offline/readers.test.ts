@@ -201,12 +201,12 @@ describe("offline projections (same shape as /api/projections/:season/:code)", (
   const row = (kind: string) => ({
     season: 2025, code: "USNJQ1", kind, state_key: "k", seed: 7, runs: 10000, target_runs: 10000, stage: "live", played: 12, scheduled: 24, through: "Q12",
     slots: 4, slots_source: "official", engine_version: "2.1.1", ms: 3000, computed_at: "2025-11-01T15:00:00Z",
-    teams: JSON.stringify([{ team: 100, rank: { p10: 1, p50: 2, p90: 4, mean: 2.2 }, pPlayoff: 0.9, pCaptain: 0.6, pPicked: 0.3, pAdvance: 0.7, pWin: 0.3, pFinalist: 0.2 }]),
+    teams: JSON.stringify([{ team: 100, rank: { p10: 1, p50: 2, p90: 4, mean: 2.2 }, pPlayoff: 0.9, pCaptain: 0.6, pPicked: 0.3, pAdvance: 0.7, advance: "odds", pWin: 0.3, pFinalist: 0.2 }, { team: 200, rank: null, pPlayoff: 0.1, pCaptain: 0, pPicked: 0.1, pAdvance: null, advance: "ineligible", pWin: 0, pFinalist: 0 }]),
   });
   it("reads the saved runs", async () => {
     const sdb: SeasonDb = { season: 2025, db: wrap(await packDb(2025, { event_projections: [row("current"), row("baseline")] })) };
     const v = readProjections(sdb, "USNJQ1");
-    expect(v.current).toMatchObject({ kind: "current", runs: 10000, through: "Q12", slots: 4, teams: [{ team: 100, pAdvance: 0.7 }] });
+    expect(v.current).toMatchObject({ kind: "current", runs: 10000, through: "Q12", slots: 4, teams: [{ team: 100, pAdvance: 0.7, advance: "odds" }, { team: 200, pAdvance: null, advance: "ineligible" }] });
     expect(v.baseline?.kind).toBe("baseline");
     expect(v.lastOpen).toBeNull();
     expect(JSON.stringify(v)).not.toContain("state_key");

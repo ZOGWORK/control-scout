@@ -11,7 +11,7 @@ import { Button } from "../ui/button";
 import { MatchRow, TierMark } from "../predict";
 import { forecastTier } from "../Advancement";
 import { projectionTier, projectionsPath } from "../../lib/projections";
-import { ADVANCE_LABEL, type ProjectionsView } from "../../shared/projections";
+import { ADVANCE_LABEL, advanceStatus, advanceText, type ProjectionsView } from "../../shared/projections";
 import { BreakdownBar, EventPointsChart } from "./charts";
 import { cn } from "../cn";
 
@@ -49,8 +49,10 @@ function Advance({ t, season }: { t: ShortlistTeam; season: number }) {
   if (!ev) return null;
   if (run && mine) {
     const conf = projectionTier(run);
+    const s = advanceStatus(mine);
+    const value = advanceText(mine, (p) => oddsPct(p));
     return (
-      <Tile label={`Advance from ${ev.name}`} value={mine.pAdvance == null ? "Qualified" : oddsPct(mine.pAdvance)} tone="text-success"
+      <Tile label={`Advance from ${ev.name}`} value={value} tone={s === "odds" || s === "qualified" ? "text-success" : "text-text-muted"}
         hint={<><span title={ADVANCE_LABEL}>performance-based</span><span>· playoffs {oddsPct(mine.pPlayoff, run.stage === "selected")}</span><TierMark tier={conf.tier} /><Link to={`/events/${season}/${ev.code}?tab=odds`} className="underline hover:text-text-base">odds</Link></>} />
     );
   }

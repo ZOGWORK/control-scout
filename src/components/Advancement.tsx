@@ -18,7 +18,7 @@ import { ConfidenceBadge } from "./predict";
 import { ago, oddsPct } from "../lib/format";
 import { projectionsPath } from "../lib/projections";
 import { projectionHeadline } from "./Projections";
-import { ADVANCE_LABEL, type ProjectionRun, type ProjectionsView } from "../shared/projections";
+import { ADVANCE_LABEL, advanceStatus, type ProjectionRun, type ProjectionsView } from "../shared/projections";
 
 const ease = [0.2, 0.8, 0.2, 1] as const;
 const pct = (p: number | null | undefined, decided = false) => oddsPct(p, decided);
@@ -52,7 +52,7 @@ function forecastTierBase(fc: ForecastView, team: number | null): { tier: Confid
 }
 
 /** The simulator's forecast with a stored projection's odds and ranks laid over it (awards and points stay the simulator's). */
-export type Shown = ForecastView & { projection?: ProjectionRun; awardOdds?: Map<number, number> };
+export type Shown = ForecastView & { projection?: ProjectionRun; awardOdds?: Map<number, number>; ineligible?: Set<number> };
 
 export function withProjection(fc: ForecastView, run: ProjectionRun): Shown {
   const by = new Map(run.teams.map((t) => [t.team, t]));
@@ -64,7 +64,9 @@ export function withProjection(fc: ForecastView, run: ProjectionRun): Shown {
       rank: s.rank ? { mean: s.rank.mean, p10: s.rank.p10, p90: s.rank.p90 } : t.rank,
     };
   }).sort((a, b) => b.pAdvance - a.pAdvance || a.rank.mean - b.rank.mean);
-  return { ...fc, teams, runs: run.runs, projection: run, awardOdds: new Map(fc.teams.map((t) => [t.team, t.pAdvance])) };
+  // Not eligible to advance here is its own status: never "Qualified", never odds.
+  const ineligible = new Set(run.teams.filter((t) => advanceStatus(t) === "ineligible").map((t) => t.team));
+  return { ...fc, teams, runs: run.runs, projection: run, awardOdds: new Map(fc.teams.map((t) => [t.team, t.pAdvance])), ineligible };
 }
 
 export function AdvancementView({ season, code, team, nameOf, onPickTeam }: { season: number; code: string; team: number | null; nameOf: (t: number) => string; onPickTeam?: (t: number) => void }) {
@@ -170,6 +172,8 @@ function Outlook({ fc, team }: { fc: Shown; team: number | null }) {
           <div aria-hidden className="pointer-events-none absolute -right-16 -top-16 size-56 rounded-full bg-accent/10 blur-3xl" />
           {pre ? (
             <><Badge variant="success">Already qualified</Badge><p className="mt-3 font-display text-2xl font-semibold">Team {me.team} has already qualified for the next level.</p></>
+          ) : fc.ineligible?.has(me.team) ? (
+            <><Badge variant="outline">Not eligible</Badge><p className="mt-3 font-display text-2xl font-semibold">Team {me.team} isn't eligible to advance from this event.</p></>
           ) : (
             <>
               <p className="text-sm text-muted-foreground">Team {me.team}'s chance to advance</p>
@@ -270,7 +274,7 @@ function AlliancePanel({ season, code, fc, team, nameOf }: { season: number; cod
   );
 }
 
-function Field({ fc, team, nameOf, onPick }: { fc: ForecastView; team: number | null; nameOf: (t: number) => string; onPick?: (t: number) => void }) {
+function Field({ fc, team, nameOf, onPick }: { fc: Shown; team: number | null; nameOf: (t: number) => string; onPick?: (t: number) => void }) {
   const [q, setQ] = useState("");
   const pre = new Set(fc.prequalified);
   const rows = useMemo(() => { const s = q.trim().toLowerCase(); return s ? fc.teams.filter((t) => String(t.team).includes(s) || nameOf(t.team).toLowerCase().includes(s)) : fc.teams; }, [fc.teams, q, nameOf]);
@@ -288,9 +292,11 @@ function Field({ fc, team, nameOf, onPick }: { fc: ForecastView; team: number | 
                 <p className="truncate text-sm font-medium">{t.team} <span className="text-muted-foreground">{nameOf(t.team)}</span>{t.team === team && <Badge variant="soft" className="ml-1.5">Selected</Badge>}</p>
                 <p className="text-xs text-muted-foreground">Rank {rankRange(t.rank.p10, t.rank.p90)} · captain {pct(t.pCaptain)} · picked {pct(t.pPicked)} · win {pct(t.pWin)} · rating {t.strength.np.toFixed(0)} ± {t.strength.sd.toFixed(0)}</p>
               </button>
-              {pre.has(t.team) ? <Badge variant="success">Qualified</Badge> : <span className="w-14 text-right font-medium tabular-nums">{pct(t.pAdvance)}</span>}
+              {pre.has(t.team) ? <Badge variant="success">Qualified</Badge>
+                : fc.ineligible?.has(t.team) ? <Badge variant="outline">Not eligible</Badge>
+                : <span className="w-14 text-right font-medium tabular-nums">{pct(t.pAdvance)}</span>}
             </div>
-            {!pre.has(t.team) && <div className="mt-2 h-1 overflow-hidden rounded-full bg-muted"><GrowBar value={t.pAdvance} className="bg-accent" /></div>}
+            {!pre.has(t.team) && !fc.ineligible?.has(t.team) && <div className="mt-2 h-1 overflow-hidden rounded-full bg-muted"><GrowBar value={t.pAdvance} className="bg-accent" /></div>}
           </li>
         ))}
       </ul>
