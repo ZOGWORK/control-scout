@@ -196,8 +196,9 @@ function MatchRow({ m, d, mine, pin }: { m: MatchView; d: EventDetail; mine: Rea
   const clock = venueClock(m, d.event.timezone);
   const p = m.prediction;
   const group = (c: "red" | "blue") => (
-    <div className="flex flex-1 justify-center gap-[calc(var(--u)*1.6)] rounded-[calc(var(--u)*0.8)] py-[calc(var(--u)*0.6)]" style={{ background: `color-mix(in srgb, ${c === "red" ? RED : BLUE} 16%, transparent)` }}>
-      {teamsOf(m[c], false).map((t) => <Team key={t} n={t} mine={mine} size={3.4} />)}
+    <div className="flex min-w-0 flex-1 flex-wrap justify-center gap-x-[calc(var(--u)*1.2)] gap-y-[calc(var(--u)*0.3)] rounded-[calc(var(--u)*0.8)] py-[calc(var(--u)*0.6)]" style={{ background: `color-mix(in srgb, ${c === "red" ? RED : BLUE} 16%, transparent)` }}>
+      {/* A playoff alliance can list three: smaller numbers then, and they wrap rather than spill into the other group. */}
+      {teamsOf(m[c], false).map((t, _i, all) => <Team key={t} n={t} mine={mine} size={all.length > 2 ? 2.5 : 3.4} />)}
     </div>
   );
   return (
