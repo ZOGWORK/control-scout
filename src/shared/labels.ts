@@ -10,3 +10,13 @@ export function eventTypeLabel(type: string | null | undefined): string {
   };
   return (type && map[type]) ?? type ?? "Event";
 }
+
+/**
+ * Each season's names for its three bonus ranking points, in the engine's slot order (movement, goal,
+ * pattern: server/data/seasons.ts splitFirstScore maps them; re-exported there). Null without bonus RPs.
+ */
+export function bonusLabels(season: number): [string, string, string] | null {
+  if (season === 2025) return ["Movement", "Goal", "Pattern"];
+  if (season === 2026) return ["Swarm", "Pollinator 1", "Pollinator 2"];
+  return null;
+}

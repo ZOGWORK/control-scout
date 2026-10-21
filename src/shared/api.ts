@@ -4,6 +4,17 @@ import type { ConfidenceTier, Factor, Forecast, Partners, TeamStrength } from "@
 
 export type { ConfidenceTier, Factor, Forecast, Partners, TeamStrength };
 
+/** The strongest real history between a lineup's robots (engine 2.4 partnership memory):
+ *  two of them played together, or met as opponents, in an earlier match. A reason shown
+ *  with the prediction; it doesn't move the odds in 2.4. */
+export interface PairHistory {
+  kind: "together" | "against";
+  teams: [number, number];
+  /** "Red"/"A" side the fact is about (together), or "A" for a red-vs-blue meeting. */
+  side: "A" | "B";
+  label: string;
+}
+
 export interface SeasonMeta { season: number; game: string; label: string; frozen: boolean; lastSync: string | null; /** False for 2019–2022: history only, no ratings or predictions. */ predictable: boolean }
 
 export interface Meta {
@@ -159,8 +170,24 @@ export interface MatchPredictionView {
   factors?: Factor[];
   /** Notable reasons beyond the factors (unplayed matches from today's ratings only). */
   reasons?: string[];
+  /** Earlier matches these robots played together or against each other (unplayed matches only). */
+  history?: PairHistory;
   /** The season has no rated matches yet: win odds only, the predicted score means nothing. */
   noScoreBasis?: true;
+  /** Bonus ranking point odds (2025+ qualification matches), made with the same call (same kind and moment). */
+  bonus?: BonusOddsView;
+}
+
+/** P(each bonus RP) per alliance, in the season's label order (src/shared/labels.ts bonusLabels), and the
+ *  expected ranking points from the match (win RPs × P(win) + expected bonus RPs). */
+export interface BonusOddsView {
+  red: [number, number, number];
+  blue: [number, number, number];
+  rpRed: number;
+  rpBlue: number;
+  /** The match's tier, capped by how much the season's bonus model has learned from. */
+  tier: ConfidenceTier;
+  reason?: string;
 }
 
 export interface MatchView {
@@ -266,6 +293,8 @@ export interface MatchExplanationView {
   /** The ranges' level (0.8 = 80%). Optional: offline answers from an older pack may lack it. */
   rangeLevel?: number;
   factors: Factor[];
+  /** Earlier matches these robots played together or against each other, if any. */
+  history?: PairHistory | null;
   confidence: { tier: ConfidenceTier; reason: string; minMatches: number; ratingShare: number };
   /** Notable reasons beyond the factors (engine explain: recent no-shows, near-zero matches). Never change the odds. */
   reasons?: string[];
@@ -275,6 +304,8 @@ export interface MatchExplanationView {
   level?: "qual" | "playoff";
   /** "contextual" (engine 2.0's win-probability model) or "legacy" (no reliability state yet). */
   probabilityModel?: "contextual" | "legacy";
+  /** Bonus ranking point odds (qualification what-ifs of 2025+ seasons with a bonus model). */
+  bonus?: BonusOddsView | null;
   engineVersion: string;
 }
 
@@ -348,6 +379,20 @@ export interface ReplayCoverage {
   other: number;
 }
 
+/** Bonus RP calls scored: one call per alliance per bonus RP (so 6 per match). */
+export interface BonusAccuracy {
+  /** Alliance-bonus calls scored. */
+  n: number;
+  /** Matches they came from. */
+  matches: number;
+  brier: number;
+  /** Brier of always saying the rate those same calls came true at (hindsight reference, not a model). */
+  baseRateBrier: number;
+  /** Per bonus RP, in the season's label order. */
+  bySlot: { label: string; n: number; brier: number; predicted: number; actual: number }[];
+  reliability: ReliabilityBin[];
+}
+
 export interface TrackRecord {
   seasons: {
     season: number; label: string; live: AccuracyBlock | null; backtest: AccuracyBlock | null;
@@ -361,6 +406,8 @@ export interface TrackRecord {
      *  both computed from the same ratings at the same moment. Paired, so it compares models,
      *  not match difficulty. One entry per served/shadow model pair. */
     liveShadow?: { servedModel: string; shadowModel: string; n: number; served: ShadowScore; shadow: ShadowScore }[];
+    /** Bonus ranking point calls (2025+ qualification matches), scored like win calls; live and replay never blended. */
+    bonus?: { live: BonusAccuracy | null; backtest: BonusAccuracy | null };
   }[];
   engineVersion: string;
   /** Minimum live sample before the headline switches from backtest to live. */

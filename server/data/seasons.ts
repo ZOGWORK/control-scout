@@ -5,7 +5,7 @@
 // Field names verified against live FIRST Events API responses (2026-10-12)
 // and cross-checked with FTC Scout's normalised fields for the same matches.
 
-export { eventTypeLabel } from "../../src/shared/labels.js";
+export { bonusLabels, eventTypeLabel } from "../../src/shared/labels.js";
 
 export interface SeasonInfo {
   season: number;

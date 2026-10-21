@@ -9,7 +9,7 @@ teams, scout, offline, speed, live, report, alerts, rankings, share, workspace,
 picklist, history, fixes). What's new shows them first; the groups below are
 the full release notes, one click away.
 
-## 1.17.0 — 2026-10-21
+## 1.19.0 — 2026-10-21
 
 Pick on reliability, not just peak scoring: a dependability estimate next to OPR.
 
@@ -24,7 +24,38 @@ Pick on reliability, not just peak scoring: a dependability estimate next to OPR
 - **With your workspace's notes.** Members of a scouting workspace whose match entries mark a robot broken, disabled or a no-show also see a second number that folds those notes in, clearly marked. Only that workspace's members see it: never other users, the public API, shared caches, page previews or offline packs.
 
 ### Predictions
-- **Reasons beyond the factors.** A prediction now mentions a robot with 2 or more no-shows (or 3 or more near-zero matches) in its last 10, under the top factors. Words only: no odds, score or range changes.
+- **Reasons beyond the factors.** A prediction now mentions a robot with 2 or more no-shows (or 3 or more near-zero matches) in its last 10, under the top factors, on saved and fresh calls alike. Words only: no odds, score or range changes. Prediction engine 2.5.0.
+
+## 1.18.0 — 2026-10-21
+
+Predictions now say when the robots have met before.
+
+### Highlights
+- [predict] "Played 24 matches together (16–8)" right under the factors
+- [predict] Head-to-head records too: "9617 leads 13546 10–3 in 13 earlier meetings"
+- [history] History back to 2019–20; recent partnerships offline too
+- [predict] A reason only: on a season it had never seen, it didn't help the odds
+
+### Predictions
+- **Partnership memory.** When two robots in a match have played together or against each other, the prediction shows the strongest real fact under the top 3 factors: in match details, the match report and the Predict lab. Every result since 2019–20 is compared with what both teams' ratings expected at the time, so seasons with different games compare fairly. Pairs with only a few matches are pulled hard toward "no effect". We tested blending the history into the win odds: fitted on 2023–24 and checked on all of 2025–26, it made them slightly worse, so it doesn't change any number. The methodology page explains it, and `docs/partnership-memory.md` has the full test. (#231)
+
+### Offline
+- The offline pack carries a small cut of the history: same-alliance pairs with 3+ matches together this season or last (about 140 KB more). Head-to-head records and older pairs show online only.
+
+## 1.17.0 — 2026-10-21
+
+Bonus ranking point odds next to every qualification win %.
+
+### Highlights
+- [predict] Each alliance's chance at every bonus RP, next to the win odds
+- [predict] Expected ranking points from the match, red and blue
+- [report] On match pages, pre-match reports and the match lab
+- [history] Bonus calls are logged and scored like win calls
+
+### Predictions
+- **Bonus ranking points per match.** A qualification match of 2025–26 or 2026–27 now shows, under its win odds, the chance each alliance earns each of the season's bonus RPs (Movement, Goal and Pattern; Swarm, Pollinator 1 and Pollinator 2) and the ranking points each side can expect from the match (3 × win chance + bonus chances), with its own confidence tier. It's the same math the event simulator uses, from prediction engine 2.3. On match pages (opened from any match list), the pre-match report and the match lab, online and offline from a pack saved after this release. Once a match is played, the call sits next to the bonuses actually earned.
+- **A bonus curve that keeps up with the season.** The chance of each bonus at a given score is fitted to the season's latest 2,000 recorded qualification alliances (from 200 on; provisional below 600, at most moderate below 2,000). On the 2025–26 replay that scored a Brier of 0.147 per bonus call, against 0.178 for the whole-season curve the engine shipped with.
+- **Scored in the track record.** Bonus calls are written to the ledger with each pre-match call and scored by Brier per bonus, live and season replay kept apart. The replay fits the bonus model only on results before each match. See How it works › Bonus ranking points. (#228)
 
 ## 1.16.2 — 2026-10-21
 

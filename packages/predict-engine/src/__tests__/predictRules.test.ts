@@ -164,6 +164,18 @@ describe("Forecaster keeps recorded bonus RPs of played matches", () => {
     expect(q.result!.blue.tips).toBeUndefined();
   });
 
+  it("gives unplayed qualification matches bonus odds from the season's bonus model, with the same win odds", async () => {
+    const f = new FixtureForecaster();
+    const fc = (await f.forecast(event({ movement: true, goal: false, pattern: false }), null, 50))!;
+    const [played, next] = fc.matches;
+    expect(played.bonus ?? null).toBeNull();
+    const b = next.bonus!;
+    expect(b.red.every((p) => p > 0 && p < 1)).toBe(true);
+    expect(b.expectedRpRed).toBeCloseTo(3 * next.pRedWin! + b.red.reduce((s, p) => s + p, 0), 2);
+    expect(f.bonusModel(2025)?.source).toBe("fitted"); // no stored season results here: the shipped fit
+    expect(f.bonusModel(2024)).toBeNull();
+  });
+
   it("leaves genuinely unknown flags missing and says they're sampled", () => {
     const { input, assumptions } = new FixtureForecaster().inputFor(event(undefined));
     expect(input.quals[0].result!.red.bonus).toBeUndefined();
