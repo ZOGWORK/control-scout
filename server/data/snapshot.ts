@@ -49,7 +49,7 @@ export const PUBLIC_TABLES = [
   "team_search",
   // Official result changes the sync saw (first postings, score revisions, schedule moves): public match data.
   "result_changes", "result_watch",
-  // Predictability report cards (migration 36): aggregates of the public live prediction ledger.
+  // Predictability report cards (migration 37): aggregates of the public live prediction ledger.
   "team_report_cards",
 ];
 
