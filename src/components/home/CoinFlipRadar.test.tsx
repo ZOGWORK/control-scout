@@ -15,7 +15,7 @@ vi.mock("../../lib/api", async (orig) => ({
   useApi: () => ({ data, error: undefined, loading: !data, reload }),
 }));
 vi.mock("../../lib/meta", async (orig) => ({ ...(await orig<typeof import("../../lib/meta")>()), useMediaQuery: () => false }));
-const { CoinFlipRadarSection, dueIn, emptyLine, venueClock } = await import("./CoinFlipRadar");
+const { CoinFlipRadarSection, closestKey, dueIn, emptyLine, favourite, meterAt, venueClock } = await import("./CoinFlipRadar");
 
 const row = (n: number, o: Partial<CoinFlipRow> = {}): CoinFlipRow => ({
   season: 2026, code: "USCAQ1", key: `qual:0:${n}`, label: `Q${n}`, eventName: "Los Angeles Qualifier", place: "Los Angeles, CA", timezone: "America/Los_Angeles",
@@ -82,6 +82,36 @@ describe("emptyLine", () => {
     expect(emptyLine(radar({ events: 2, calls: 40, thin: 3 }))).toBe(
       "Of the 40 calls on today’s schedules at 2 events, 3 are between 45% and 55% but left out: a robot in them has played fewer than 3 matches this season, so the call rests on thin data.");
     expect(emptyLine(radar({ upcoming: [row(1)] }))).toBeNull();
+  });
+});
+
+describe("the card's visuals agree with its printed odds", () => {
+  it("puts the meter's marker in the favourite's half (red is drawn on the left)", () => {
+    expect(meterAt(0.55)).toBeCloseTo(25);
+    expect(meterAt(0.45)).toBeCloseTo(75);
+    expect(meterAt(0.5)).toBeCloseTo(50);
+    data = radar({ events: 1, calls: 2, upcoming: [row(1, { pRed: 0.55 }), row(2, { pRed: 0.45 })] });
+    show();
+    const [red, blue] = screen.getAllByTestId("coin-marker");
+    expect(parseFloat(red.style.left)).toBeLessThan(50);
+    expect(red.dataset.side).toBe("red");
+    expect(parseFloat(blue.style.left)).toBeGreaterThan(50);
+    expect(blue.dataset.side).toBe("blue");
+  });
+
+  it("calls nobody the favourite when both sides print 50%", () => {
+    expect(favourite(0.503)).toBeNull();
+    expect(favourite(0.506)).toBe("red");
+    expect(favourite(0.494)).toBe("blue");
+    data = radar({ events: 1, calls: 1, decided: [row(4, { played: true, kind: "live", pRed: 0.503, result: { red: 80, blue: 90 } })] });
+    show();
+    expect(screen.getByText(/called 50:50 before the match/).textContent).toMatch(/a true coin flip/);
+  });
+
+  it("marks the closest call by the printed odds, the sooner on a tie", () => {
+    // 0.509 and 0.511 both print 51%: the first (sooner) one gets the mark, not the one with nearer decimals.
+    expect(closestKey([row(1, { pRed: 0.511 }), row(2, { pRed: 0.509 })])).toBe("USCAQ1|qual:0:1");
+    expect(closestKey([row(1, { pRed: 0.53 }), row(2, { pRed: 0.49 })])).toBe("USCAQ1|qual:0:2");
   });
 });
 
