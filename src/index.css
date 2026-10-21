@@ -149,6 +149,14 @@ html.light {
    move the page 6 px). */
 :root { --header-h: 3rem; }
 html { scrollbar-gutter: stable; }
+/* Smooth scrolling: every jump within the page glides (a #link, the skip link, a "see the odds" button, a
+   scrollIntoView). Wheel, trackpad and touch scrolling stay the browser's own (this only changes jumps).
+   A route change and a back/forward restore still jump at once (src/lib/pageScroll.ts jumpPageTo), and under
+   reduced motion everything is instant (the prefers-reduced-motion block at the end of this file). */
+html { scroll-behavior: smooth; }
+/* Sideways strips (tab bars, chips, wide tables) keep a swipe that reaches their end to themselves: it never
+   turns into the trackpad's or phone's back/forward gesture. Vertical scrolling still passes to the page. */
+@layer base { :where(.overflow-x-auto) { overscroll-behavior-x: contain; } }
 /* Text size (src/lib/textSize.ts). Sizes are in rem, so the root size scales text, spacing, boxes and buttons
    together. Phones start at 14 px (desktop 16): more on screen before scrolling, nothing hidden. Each device's
    own choice (Settings › Appearance) multiplies that. */

@@ -10,7 +10,13 @@
 // - Back and forward return to where that history entry was left, waiting for the page's data to
 //   render (and the Events list to load enough batches) before giving up.
 // - A change of query or hash on the same page (a tab, a filter, a sort) leaves the scroll alone.
-// - A #hash scrolls to its element once it exists.
+// - A #hash scrolls to its element once it exists: gliding there for a #link followed on this page, at once
+//   on arrival from another page.
+//
+// The page glides to whatever it's sent to on the page itself (html's scroll-behavior: smooth, index.css), so a
+// jump this module makes on a route change, a restore or a drag's edge scroll goes through jumpPageTo, which is
+// always instant: a new page never slides up from the old page's position. Under prefers-reduced-motion every
+// jump is instant (index.css, smoothBehavior).
 //
 // It also marks the page area while it is scrolling (`data-scrolling` on the content's parent), so CSS
 // can hold the ambient background still meanwhile and put a shield over the page that takes a resting
@@ -18,7 +24,8 @@
 import { useEffect, useLayoutEffect, useRef, type RefObject } from "react";
 import { useLocation, useNavigationType } from "react-router-dom";
 
-export type ScrollPlan = { kind: "top" } | { kind: "restore"; y: number } | { kind: "hash"; id: string } | { kind: "keep" };
+/** `followed` on a hash plan: a #link on this page was just followed (it glides there; anything else jumps). */
+export type ScrollPlan = { kind: "top" } | { kind: "restore"; y: number } | { kind: "hash"; id: string; followed?: boolean } | { kind: "keep" };
 
 /**
  * What a navigation should do to the page's scroll position.
@@ -29,7 +36,7 @@ export type ScrollPlan = { kind: "top" } | { kind: "restore"; y: number } | { ki
 export function planScroll(o: { action: "POP" | "PUSH" | "REPLACE"; prevPath: string | null; path: string; hash: string; saved: number | undefined; fragment?: boolean }): ScrollPlan {
   const id = hashId(o.hash);
   // Followed, not returned to: go to the target, not to where an earlier visit to this address was left.
-  if (o.fragment && id) return { kind: "hash", id };
+  if (o.fragment && id) return { kind: "hash", id, followed: true };
   if (o.action === "POP") {
     if (o.saved !== undefined) return { kind: "restore", y: o.saved };
     return id ? { kind: "hash", id } : { kind: "keep" };
@@ -101,8 +108,34 @@ export function scrollToElement(el: Element, behavior: ScrollBehavior = "auto") 
   const margin = parseFloat(getComputedStyle(el).scrollMarginTop) || 0;
   const page = pageScroller();
   const y = Math.max(0, Math.round(el.getBoundingClientRect().top + page.scrollTop - margin));
-  if (behavior === "smooth") window.scrollTo({ top: y, behavior });
+  if (behavior === "smooth" && !prefersReducedMotion()) window.scrollTo({ top: y, behavior });
+  else jumpPageTo(y);
+}
+
+/** Whether the reader asked for reduced motion (then every scroll the app makes is instant). */
+export function prefersReducedMotion(): boolean {
+  try { return typeof window !== "undefined" && window.matchMedia?.("(prefers-reduced-motion: reduce)").matches === true; } catch { return false; }
+}
+
+/** The behavior for a jump the reader asked for (a link, a button, a tab): smooth, or instant under reduced motion. */
+export function smoothBehavior(): ScrollBehavior {
+  return prefersReducedMotion() ? "auto" : "smooth";
+}
+
+/**
+ * Puts the page at `y` (or moves it by `by`) at once. html's scroll-behavior: smooth (index.css) would make a
+ * plain scrollTop write glide, so the root's own style says "auto" for the write: the browser reads the
+ * behavior when the write happens, and putting the style back afterwards doesn't animate it. (Not
+ * window.scrollTo({ behavior: "instant" }): older Safari rejects that value outright.) It also stops a glide
+ * still on its way.
+ */
+export function jumpPageTo(y: number, by = false) {
+  const page = pageScroller();
+  const was = page.style.scrollBehavior;
+  page.style.scrollBehavior = "auto";
+  if (by) page.scrollTop += y;
   else page.scrollTop = y;
+  page.style.scrollBehavior = was;
 }
 
 /** How long a restore keeps chasing its position while the page's content loads in. */
@@ -297,7 +330,7 @@ export function usePageScroll(content: RefObject<HTMLElement | null>) {
       prevPath.current = loc.pathname;
     }
     restoredKey = plan.kind === "restore" ? key : null;
-    if (plan.kind === "top") el.scrollTop = 0;
+    if (plan.kind === "top") jumpPageTo(0);
     // The entry has a position from the start (a tab switch replaces the entry, and the reader may
     // never scroll on it): coming back to it must not keep whatever the page left behind.
     if (plan.kind === "keep" || plan.kind === "top") store.current!.set(key, el.scrollTop);
@@ -308,7 +341,7 @@ export function usePageScroll(content: RefObject<HTMLElement | null>) {
       const y = plan.y;
       let leaving = false;
       restoring.current = true;
-      const stop = chase(window, main, () => { el.scrollTop = y; }, RESTORE_WINDOW_MS, () => {
+      const stop = chase(window, main, () => { jumpPageTo(y); }, RESTORE_WINDOW_MS, () => {
         restoring.current = false;
         // Ended here (the window ran out, or the reader took over): where it stands is now the entry's.
         // Left for another entry mid-restore: the saved place stays, for the next time back.
@@ -317,9 +350,12 @@ export function usePageScroll(content: RefObject<HTMLElement | null>) {
       return () => { leaving = true; stop(); };
     }
     const id = plan.id;
+    // A #link followed on this page glides to its section (the browser has already set off, by index.css's
+    // scroll-behavior, and this keeps it on course as the page grows); arriving from elsewhere jumps.
+    const how: ScrollBehavior = plan.followed ? smoothBehavior() : "auto";
     return chase(window, main, () => {
       const target = document.getElementById(id);
-      if (target && main.contains(target)) scrollToElement(target);
+      if (target && main.contains(target)) scrollToElement(target, how);
     });
   }, [loc.key, loc.pathname, loc.search, loc.hash, action, content]);
 }
