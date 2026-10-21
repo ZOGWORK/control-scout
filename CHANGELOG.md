@@ -16,10 +16,10 @@ Follow your team in Discord for the whole event, not just its matches.
 ### Highlights
 - [alerts] The evening before an event: who's there and your team's season
 - [alerts] Your schedule, with win odds for every match, the moment it's out
-- [alerts] A recap at the end of each day: record, rank and calls right
+- [alerts] A recap at the end of each day: record, rank and live calls right
 
 ### Discord
-- **More from /follow.** Besides the post before each match and its result, a followed team's channel now gets: the evening before the team's event (from 4 pm at the venue), where and when, how many teams, the team's season OPR and world rank, and the strongest teams there; the team's qualification schedule once FIRST posts it, each match with its time at the venue, side, partner and win odds; and, at the end of each event day, the team's rank and record there, its matches that day, and how many calls were right. Each one posts once per channel. (#224)
+- **More from /follow.** Besides the post before each match and its result, a followed team's channel now gets: the evening before the team's event (from 4 pm at the venue), where and when, how many teams, the team's season OPR and world rank, and the strongest teams there; the team's qualification schedule once FIRST posts it, each match with its time at the venue, side, partner and win odds; and, at the end of each event day, the team's rank and record there, its matches that day, and how many of its live calls were right. Each team gets its own schedule and recap post. (#224)
 
 ## 1.12.0 — 2026-10-21
 

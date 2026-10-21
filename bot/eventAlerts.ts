@@ -57,12 +57,14 @@ export function eventDue(follows: Follow[], d: EventDetail, now: number): EventD
     const mine = d.matches.filter((m) => teamsOf(m).includes(f.team));
     // The evening before its first day.
     if (e.start && addDays(e.start, -1) === today && hour >= EVE_HOUR) add(f, "eve", "eve");
-    // Its quals are posted (and the event isn't over).
-    if (e.status !== "finished" && mine.some((m) => m.level === "qual")) add(f, "schedule", "schedule");
+    // Its quals are posted (and the event isn't over). One post per team, so a channel following many teams
+    // never builds one message past Discord's 6,000-character limit.
+    if (e.status !== "finished" && mine.some((m) => m.level === "qual")) add(f, "schedule", `schedule:${f.team}`);
     // The end of an event day: it played today, nothing of its today is left, and its last match was a while ago.
     const todays = mine.filter((m) => dayOf(m, zone) === today);
     const last = Math.max(...todays.filter((m) => m.played).map(at));
-    if (todays.length && todays.every((m) => m.played) && Number.isFinite(last) && now - last >= RECAP_AFTER_MS) add(f, "recap", `recap:${today}`);
+    // One per team: teams in one channel finish their days at different times, and each gets its own.
+    if (todays.length && todays.every((m) => m.played) && Number.isFinite(last) && now - last >= RECAP_AFTER_MS) add(f, "recap", `recap:${today}:${f.team}`);
   }
   return [...out.values()];
 }
@@ -131,13 +133,15 @@ export function recapEmbed(due: EventDue, d: EventDetail, today: string, site: s
   const fields = due.teams.map((t) => {
     const row = d.field.find((f) => f.team === t);
     const todays = d.matches.filter((m) => m.played && teamsOf(m).includes(t) && dayOf(m, zone) === today);
-    const calls = todays.filter((m) => m.prediction && m.prediction.pRed !== 0.5 && m.red.score && m.blue.score && m.red.score.total !== m.blue.score.total);
+    // Only calls logged before the match count: a replayed (backtest) one wasn't made beforehand.
+    const calls = todays.filter((m) => m.prediction?.kind === "live" && m.prediction.pRed !== 0.5 && m.red.score && m.blue.score && m.red.score.total !== m.blue.score.total);
     const right = calls.filter((m) => (m.prediction!.pRed > 0.5) === (m.red.score!.total > m.blue.score!.total)).length;
     const parts = [
       row?.rank != null ? `Rank **${row.rank}** of ${d.field.length}` : null,
-      row ? `${row.wins ?? 0}–${row.losses ?? 0}–${row.ties ?? 0}` : null,
+      // A record the source hasn't reported is left out, never shown as 0–0–0.
+      row && row.wins != null && row.losses != null ? `${row.wins}–${row.losses}–${row.ties ?? 0}` : null,
       `${todays.length} match${todays.length === 1 ? "" : "es"} today`,
-      calls.length ? `calls right: ${right} of ${calls.length}` : null,
+      calls.length ? `live calls right: ${right} of ${calls.length}` : null,
     ].filter(Boolean);
     return { name: `${t}${row?.name ? ` ${row.name}` : ""}`, value: parts.join(" · ") };
   });

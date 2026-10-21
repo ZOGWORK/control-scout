@@ -57,7 +57,7 @@ describe("eventDue", () => {
     const done = [q(1, local("2026-10-24", "10:00"), [1, 2], [3, 4], [100, 80]), q(2, last, [1, 3], [2, 4], [70, 90])];
     const d = detail(done, { status: "live" });
     expect(eventDue([f(1)], d, last + RECAP_AFTER_MS - 1).map((x) => x.kind)).not.toContain("recap");
-    expect(eventDue([f(1)], d, last + RECAP_AFTER_MS)).toContainEqual({ channel: "c1", teams: [1], kind: "recap", key: "recap:2026-10-24" });
+    expect(eventDue([f(1)], d, last + RECAP_AFTER_MS)).toContainEqual({ channel: "c1", teams: [1], kind: "recap", key: "recap:2026-10-24:1" });
     const pending = detail([...done, q(3, local("2026-10-24", "16:00"), [1, 4], [2, 3])], { status: "live" });
     expect(eventDue([f(1)], pending, last + RECAP_AFTER_MS).map((x) => x.kind)).not.toContain("recap");
   });
@@ -65,6 +65,22 @@ describe("eventDue", () => {
   it("two followed teams in one channel: one post naming both", () => {
     const due = eventDue([f(1), f(3)], detail([]), local("2026-10-23", "18:00"));
     expect(due).toEqual([{ channel: "c1", teams: [1, 3], kind: "eve", key: "eve" }]);
+  });
+});
+
+describe("one post per team where it matters", () => {
+  it("each followed team in a channel gets its own recap, whenever its day ends", () => {
+    const d = detail([
+      q(1, local("2026-10-24", "10:00"), [1, 2], [5, 6], [100, 80]),
+      q(2, local("2026-10-24", "15:00"), [3, 4], [5, 6]), // team 3's day isn't over
+    ], { status: "live" });
+    const now = local("2026-10-24", "11:00");
+    expect(eventDue([f(1), f(3)], d, now).filter((x) => x.kind === "recap")).toEqual([{ channel: "c1", teams: [1], kind: "recap", key: "recap:2026-10-24:1" }]);
+  });
+
+  it("each team's schedule is its own post (no single message past Discord's size limit)", () => {
+    const d = detail([q(1, local("2026-10-24", "10:00"), [1, 2], [3, 4])]);
+    expect(eventDue([f(1), f(3)], d, local("2026-10-23", "09:00")).map((x) => x.key).sort()).toEqual(["schedule:1", "schedule:3"]);
   });
 });
 
@@ -93,6 +109,14 @@ describe("the posts", () => {
       q(2, local("2026-10-24", "11:00"), [1, 3], [2, 4], [70, 90], 0.6), // upset
     ], { status: "live" }, [row(1, { rank: 3, wins: 1, losses: 1, ties: 0 }), row(2), row(3), row(4)]);
     const e = recapEmbed({ channel: "c1", teams: [1], kind: "recap", key: "recap:2026-10-24" }, d, "2026-10-24", SITE);
-    expect(e.fields![0]).toEqual({ name: "1 Team 1", value: "Rank **3** of 4 · 1–1–0 · 2 matches today · calls right: 1 of 2" });
+    expect(e.fields![0]).toEqual({ name: "1 Team 1", value: "Rank **3** of 4 · 1–1–0 · 2 matches today · live calls right: 1 of 2" });
+  });
+
+  it("a record the source hasn't reported is left out, and replayed (backtest) calls don't count as calls right", () => {
+    const replayed = { ...q(1, local("2026-10-24", "10:00"), [1, 2], [3, 4], [100, 80], 0.7) };
+    replayed.prediction = { ...replayed.prediction!, kind: "backtest" };
+    const d = detail([replayed], { status: "live" }, [row(1, { rank: 2 }), row(2), row(3), row(4)]);
+    const e = recapEmbed({ channel: "c1", teams: [1], kind: "recap", key: "recap:2026-10-24:1" }, d, "2026-10-24", SITE);
+    expect(e.fields![0].value).toBe("Rank **2** of 4 · 1 match today");
   });
 });
