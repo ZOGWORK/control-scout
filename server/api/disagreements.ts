@@ -6,11 +6,12 @@
 // whenever the rankings change); this is worked out again with it. A finished event's comparison needs a
 // replay of the season (ratings as they were at its last match), so that one is stored (kv) until the
 // event's own results or ranks change, or the engine does.
-import { ENGINE_VERSION } from "@control-scout/predict-engine";
+import { ENGINE_VERSION, type EventRecord } from "@control-scout/predict-engine";
 import { all, kvGet, kvSet } from "../db.js";
 import { isLegacy } from "../data/seasons.js";
 import { cachedEventDetail } from "./events.js";
-import { liveForecaster } from "../predict/engine.js";
+import { dataVersion, liveForecaster, liveVersion } from "../predict/engine.js";
+import { matchTimeMs } from "../stats/load.js";
 import type { EventDetail } from "../../src/shared/api.js";
 import { disagreementMode, findDisagreements, RULES, type DisagreementInput, type DisagreementsView } from "../../src/shared/disagreements.js";
 
@@ -54,26 +55,51 @@ async function build(d: EventDetail): Promise<DisagreementsView> {
 async function finalView(d: EventDetail, field: DisagreementInput[]): Promise<DisagreementsView> {
   const e = d.event;
   const opts = { season: e.season, code: e.code, finished: true };
-  const times = d.matches.filter((m) => m.played && m.time).map((m) => Date.parse(m.time!)).filter(Number.isFinite);
+  if (field.length < RULES.minTeams) return findDisagreements(field, { ...opts, ratingsAsOf: "now" });
+  const f = await liveForecaster(e.season).catch(() => null);
+  if (!f) return findDisagreements(field, { ...opts, ratingsAsOf: "now" });
+  // The cutoff on the engine's own clock: its record of this event's matches (FIRST's zoneless times read as
+  // UTC, whatever the server's zone), else the detail's times read the same way.
+  const own = f.seasonEvents(e.season).find((x) => x.code === e.code)?.matches.map((m) => m.time) ?? [];
+  const times = own.length ? own : d.matches.filter((m) => m.played && m.time).map((m) => matchTimeMs(m.time)).filter(Number.isFinite);
   const lastPlayed = times.length ? Math.max(...times) : NaN;
-  if (!Number.isFinite(lastPlayed) || field.length < RULES.minTeams) return findDisagreements(field, { ...opts, ratingsAsOf: "now" });
-  const fp = fingerprint(d, lastPlayed);
+  if (!Number.isFinite(lastPlayed)) return findDisagreements(field, { ...opts, ratingsAsOf: "now" });
+  // Kept by what the replay reads (every rated match up to the cutoff, earlier events' corrections included)
+  // as well as the event's own seeding, so newer ratings or a corrected result anywhere before it rebuild it.
+  const fp = `${fingerprint(d, lastPlayed)}|${replayInput(f.seasonEvents(e.season), lastPlayed)}`;
   const key = `disagreements:${e.season}:${e.code}`;
   const kept = await kvGet<{ fp: string; view: DisagreementsView }>(key).catch(() => null);
   if (kept?.fp === fp) return kept.view;
-  const f = await liveForecaster(e.season).catch(() => null);
-  if (!f) return findDisagreements(field, { ...opts, ratingsAsOf: "now" });
   const at = new Map<number, NonNullable<DisagreementInput["rating"]>>();
   f.replayTo(e.season, [lastPlayed + 1], (_ms, book) => {
     for (const x of field) if (book.ratings.has(x.team)) at.set(x.team, rating(book.get(x.team)));
   });
   const view = findDisagreements(field.map((x) => ({ ...x, rating: at.get(x.team) ?? null })), { ...opts, ratingsAsOf: "event-end" });
-  await kvSet(key, { fp, view }).catch(() => {}); // a read-only database still answers, just without keeping it
+  // Kept only from a build of the current data: while a newer build runs, pages answer from the previous one,
+  // and that answer isn't stored.
+  const fresh = (await liveVersion(e.season)) === (await dataVersion());
+  if (fresh) await kvSet(key, { fp, view }).catch(() => {}); // a read-only database still answers, just without keeping it
   return view;
 }
 
+/** A digest of the rated matches up to `until` (what a replay to then reads): their count, times, lineups and scores. */
+export function replayInput(events: EventRecord[], until: number): string {
+  let n = 0, h = 0;
+  const mix = (x: number) => { h = (Math.imul(h, 31) + (x | 0)) | 0; };
+  for (const ev of events) {
+    for (const m of ev.matches) {
+      if (m.time > until) continue;
+      n++;
+      for (const ch of `${ev.code}:${m.level}:${m.series}:${m.number}`) mix(ch.charCodeAt(0));
+      mix(m.time % 1e9);
+      for (const a of [m.red, m.blue]) { for (const t of a.teams) mix(t); mix(a.auto); mix(a.teleop); mix(a.endgame); mix(a.penCommitted); }
+    }
+  }
+  return `${n}:${(h >>> 0).toString(36)}`;
+}
+
 /** Bump when the stored view's shape or the rules change, so kept answers are rebuilt. */
-const FORMAT = 1;
+const FORMAT = 2;
 
 /** What a finished event's comparison is built from: the engine, its last match, and its seeding, records and OPR. */
 export function fingerprint(d: Pick<EventDetail, "field" | "matches">, lastPlayed: number): string {

@@ -1,6 +1,6 @@
 import { beforeAll, describe, expect, it } from "vitest";
 import { migrate, openDb, run, setDb } from "../db";
-import { fingerprint, priorSeeds } from "./disagreements";
+import { fingerprint, priorSeeds, replayInput } from "./disagreements";
 
 const S = 2025;
 
@@ -31,6 +31,18 @@ describe("priorSeeds", () => {
     // 8's only earlier events: a 3-team one and one where it played too few matches.
     expect(p.has(8)).toBe(false);
     expect(p.has(600)).toBe(false);
+  });
+});
+
+describe("replayInput", () => {
+  const side = (np: number) => ({ teams: [1, 2], auto: 10, teleop: np - 20, endgame: 10, np, penCommitted: 0, total: np });
+  const ev = (code: string, times: number[], np = 50) => ({ season: S, code, matches: times.map((time, i) => ({ season: S, eventCode: code, level: "qual", series: 0, number: i + 1, time, red: side(np), blue: side(40) })) }) as any;
+  it("covers the matches up to the cutoff, earlier events' corrections included, and nothing after it", () => {
+    const base = replayInput([ev("A", [1, 2]), ev("B", [5])], 3);
+    expect(base.startsWith("2:")).toBe(true);
+    expect(replayInput([ev("A", [1, 2]), ev("B", [5], 99)], 3)).toBe(base); // after the cutoff
+    expect(replayInput([ev("A", [1, 2], 60), ev("B", [5])], 3)).not.toBe(base); // a corrected earlier result
+    expect(replayInput([ev("A", [1, 2, 3]), ev("B", [5])], 3)).not.toBe(base); // a match added
   });
 });
 
