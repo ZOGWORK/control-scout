@@ -1134,6 +1134,45 @@ CREATE TABLE team_report_cards (
 CREATE INDEX team_report_cards_team ON team_report_cards (team, season);
 `,
   },
+  {
+    version: 38,
+    name: "event projections",
+    sql: `
+-- Monte Carlo projections of live and upcoming events (server/projections/job.ts): each run simulates
+-- the rest of the event (10,000 times, 5,000 when an event blows the time budget) and stores per-team
+-- distributions; pages only read them. kind: current (the latest), baseline (before any match was
+-- played; movement is measured against it), last_open (the last run made while quals were still open:
+-- what a finished event's seeds are judged by). state_key: the event's results state the run was made
+-- from (projections/state.ts); seed comes from it. teams: JSON array of src/shared/projections.ts
+-- ProjectionTeam.
+CREATE TABLE event_projections (
+  season INTEGER NOT NULL, code TEXT NOT NULL,
+  kind TEXT NOT NULL,
+  state_key TEXT NOT NULL,
+  seed INTEGER NOT NULL,
+  runs INTEGER NOT NULL,
+  target_runs INTEGER NOT NULL,
+  stage TEXT NOT NULL,
+  played INTEGER NOT NULL,
+  scheduled INTEGER NOT NULL,
+  through TEXT,
+  slots INTEGER,
+  slots_source TEXT,
+  engine_version TEXT NOT NULL,
+  ms INTEGER NOT NULL,
+  computed_at TEXT NOT NULL,
+  teams TEXT NOT NULL,
+  PRIMARY KEY (season, code, kind)
+);
+-- The current run's advancement odds per team (0–1; null = already qualified elsewhere or ineligible), for
+-- the records tables' Advancement Odds column, which reads them ahead of the static pre-event estimate.
+CREATE TABLE event_projection_odds (
+  season INTEGER NOT NULL, code TEXT NOT NULL, team INTEGER NOT NULL,
+  p_advance REAL,
+  PRIMARY KEY (season, code, team)
+);
+`,
+  },
 ];
 
 export type Db = Client;

@@ -23,6 +23,8 @@ import { installShippedPacks, restoreSnapshotIfEmpty } from "./data/snapshot.js"
 import { drainOnSigterm, systemdSocket } from "./listen.js";
 import { closeAllStreams } from "./scout/stream.js";
 import { closeInboxStreams } from "./inbox/routes.js";
+import { closeProjectionStreams } from "./projections/routes.js";
+import { startProjections } from "./projections/job.js";
 import { deliverOwnerAlerts, inboxSettled, pruneInbox } from "./inbox/inbox.js";
 import { photoSchedulerTick } from "./scout/photos.js";
 import { pruneActivity } from "./scout/activityLog.js";
@@ -44,7 +46,7 @@ const socket = systemdSocket();
 for (const k of ["LISTEN_FDS", "LISTEN_PID", "LISTEN_FDNAMES"]) delete process.env[k]; // not for child processes
 let http: Server | null = null;
 // Live scout streams end first, so their connections don't hold the drain (clients reconnect to the next server).
-process.once("SIGTERM", () => { closeAllStreams(); closeInboxStreams(); });
+process.once("SIGTERM", () => { closeAllStreams(); closeInboxStreams(); closeProjectionStreams(); });
 // Queued inbox fan-outs (activity already written) finish before the process exits.
 drainOnSigterm(() => http, log, 10_000, inboxSettled);
 let ready = false;
@@ -172,5 +174,7 @@ if (!process.env.CS_NO_SCHEDULER) {
 // The live fast lane: events on today, every LIVE_SYNC_SECONDS (60), results within about a minute
 // (server/data/live.ts). It shares a writer lease with the cycle above, so the two never write at once.
 startLiveSync(log);
+// Monte Carlo projections of live and upcoming events, re-run when their results move (server/projections/job.ts).
+startProjections(log);
 // First cycle shortly after boot (not at boot: let the server answer first).
 setTimeout(() => { last = Date.now(); cycle("startup"); }, 60_000).unref();
