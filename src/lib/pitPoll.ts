@@ -42,9 +42,9 @@ export function useDisplayPoll(d: Pick<EventDetail, "event" | "live"> | undefine
   return state;
 }
 
-/** The QR code's dark modules as one SVG path (no quiet zone: the white padding around it is one). */
+/** The QR code as one SVG path over a white square, with the standard four-module quiet zone encoded in (scanners need it). */
 export function qrPath(text: string): { size: number; d: string } {
-  const { size, data } = encode(text, { border: 0 });
+  const { size, data } = encode(text, { border: 4 });
   let d = "";
   for (let y = 0; y < size; y++) for (let x = 0; x < size; x++) if (data[y][x]) d += `M${x} ${y}h1v1h-1z`;
   return { size, d };

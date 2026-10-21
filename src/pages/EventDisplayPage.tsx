@@ -264,7 +264,7 @@ function Corner({ href }: { href: string }) {
   const qr = useMemo(() => qrPath(url), [url]);
   return (
     <div className="flex items-center gap-[calc(var(--u)*1.6)]">
-      <svg viewBox={`0 0 ${qr.size} ${qr.size}`} className="shrink-0 rounded-[calc(var(--u)*0.6)] bg-white p-[calc(var(--u)*0.6)]" style={{ width: "calc(var(--u) * 13)", height: "calc(var(--u) * 13)" }} role="img" aria-label="QR code: open this event on your phone">
+      <svg viewBox={`0 0 ${qr.size} ${qr.size}`} className="shrink-0 rounded-[calc(var(--u)*0.6)] bg-white" style={{ width: "calc(var(--u) * 13)", height: "calc(var(--u) * 13)" }} role="img" aria-label="QR code: open this event on your phone">
         <path d={qr.d} fill="#0a0a0b" shapeRendering="crispEdges" />
       </svg>
       <div style={u(1.7)}>
