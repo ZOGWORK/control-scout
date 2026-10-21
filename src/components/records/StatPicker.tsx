@@ -91,12 +91,12 @@ export function StatPicker({ scope, predictable, mode, selected, onPick, autoFoc
         <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-text-muted" />
         <input
           value={q} onChange={(e) => setQ(e.target.value)} autoFocus={autoFocus} placeholder="Search stats: auto avg, penalties, win %…" aria-label="Search statistics"
-          className="h-10 w-full rounded-lg border border-input bg-transparent pl-9 pr-3 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring/50 max-sm:h-11"
+          className="h-10 w-full rounded-lg border border-input bg-transparent pl-9 pr-3 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring/50 max-sm:h-10"
         />
       </div>
       <div className="custom-scrollbar -mr-1 min-h-0 flex-1 space-y-2 overflow-y-auto pr-1">
         {sections}
-        {!shown && <p className="px-2 py-6 text-center text-sm text-text-muted">No stat matches “{q}”.</p>}
+        {!shown && <p className="px-2 py-6 max-sm:py-4 text-center text-sm text-text-muted">No stat matches “{q}”.</p>}
       </div>
     </div>
   );

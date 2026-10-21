@@ -261,7 +261,7 @@ export default function ScoutPage() {
           defaultEvent={(space != null && formEvent?.space === space && formEvent.season === season && formEvent.code) || newEntryEventCode(space, wss.defaults, season)}
           onDone={() => { setFormOpen(false); setFormEvent(null); setSp((x) => { x.delete("entry"); x.delete("new"); return x; }); }} />
       )}
-      {formOpen && !spaces.resolving && editEntry?.workspaceId != null && <EntryComments key={`comments-${editEntry.uuid}`} entry={editEntry} className="-mt-4 mb-8" />}
+      {formOpen && !spaces.resolving && editEntry?.workspaceId != null && <EntryComments key={`comments-${editEntry.uuid}`} entry={editEntry} className="-mt-4 mb-8 max-sm:mb-5" />}
       {showAssignments && workspace && space != null ? (
         <AssignmentsView space={space} workspaceName={workspaceLabel(workspace)} season={season} defaultEvent={newEntryEventCode(space, wss.defaults, season)}
           state={assignments} myAccountId={me?.accountId ?? null} isAdmin={isAdmin} localEntries={entries} onScout={scoutAssigned} readOnly={!!readOnly} />
@@ -373,7 +373,7 @@ export function EntryCard({ e, assigned, canDelete, readOnly, comments, onEdit, 
         </div>
         <div role="group" aria-label={`Entry ${what}`} className="ml-auto flex shrink-0 gap-1">
           {comments > 0 && (
-            <Button variant="ghost" size="sm" onClick={onEdit} className="text-muted-foreground max-sm:h-11" aria-label={`${comments} comment${comments === 1 ? "" : "s"}: open the entry`}>
+            <Button variant="ghost" size="sm" onClick={onEdit} className="text-muted-foreground max-sm:h-10" aria-label={`${comments} comment${comments === 1 ? "" : "s"}: open the entry`}>
               <MessageSquare />{comments}
             </Button>
           )}
@@ -498,7 +498,7 @@ function EntryForm({ season, initial, team, space, spaceName, workspaceTemplate,
     }
   };
   return (
-    <form onSubmit={(e) => { e.preventDefault(); if (!viewOnly) save(); }} noValidate className="mb-8 rounded-2xl border border-border bg-card p-5 sm:p-6">
+    <form onSubmit={(e) => { e.preventDefault(); if (!viewOnly) save(); }} noValidate className="mb-8 max-sm:mb-5 rounded-2xl border border-border bg-card p-4 sm:p-6">
       <fieldset disabled={viewOnly} className="m-0 min-w-0 border-0 p-0">
       <div className="flex flex-wrap items-start gap-4">
         <ToggleGroup type="single" value={kind} onValueChange={(v) => { if (v) setKind(v as typeof kind); }} aria-label="Entry type">
@@ -508,11 +508,11 @@ function EntryForm({ season, initial, team, space, spaceName, workspaceTemplate,
         <div className="w-36"><Input value={eventCode} onChange={(e) => { eventTouched.current = true; setEventCode(e.target.value); }} placeholder="Event code" aria-label="Event code" className="h-11 font-mono uppercase" /></div>
         {kind === "match" && <div className="w-24"><Input value={matchLabel} onChange={(e) => setMatchLabel(e.target.value)} placeholder="Q12" aria-label="Match" className="h-11 font-mono uppercase" /></div>}
       </div>
-      {fieldsPending ? <div className="mt-5"><LoadingBlock rows={2} label="Loading the workspace's fields" /></div> : fieldsLocked ? (
-        <p role="status" className="mt-5 rounded-lg border border-warning/40 bg-warning/10 px-3 py-2 text-sm">
+      {fieldsPending ? <div className="mt-5 max-sm:mt-4"><LoadingBlock rows={2} label="Loading the workspace's fields" /></div> : fieldsLocked ? (
+        <p role="status" className="mt-5 max-sm:mt-4 rounded-lg border border-warning/40 bg-warning/10 px-3 py-2 text-sm">
           This entry was made with an earlier version of the workspace's fields, which this device hasn't loaded yet. Its answers are kept as they are; you can still change the notes.
         </p>
-      ) : <div className="mt-5 grid gap-5 md:grid-cols-2">
+      ) : <div className="mt-5 max-sm:mt-4 grid gap-5 max-sm:gap-4 md:grid-cols-2">
         {phases.map((ph) => {
           const fields = template.fields.filter((f) => f.phase === ph);
           if (!fields.length) return null;
@@ -524,18 +524,18 @@ function EntryForm({ season, initial, team, space, spaceName, workspaceTemplate,
           );
         })}
       </div>}
-      <div className="mt-5">
+      <div className="mt-5 max-sm:mt-4">
         <Label htmlFor="notes">Notes</Label>
         <Textarea id="notes" value={notes} onChange={(e) => setNotes(e.target.value)} maxLength={4000} placeholder="What stood out? Strategy, reliability, driver habits…" className="mt-2" />
       </div>
       </fieldset>
-      {initial && <EntryPhotos entry={initial} editable={!readOnly} className="mt-5" />}
+      {initial && <EntryPhotos entry={initial} editable={!readOnly} className="mt-5 max-sm:mt-4" />}
       {toPersonal && (
-        <p role="status" className="mt-5 rounded-lg border border-warning/40 bg-warning/10 px-3 py-2 text-sm">
+        <p role="status" className="mt-5 max-sm:mt-4 rounded-lg border border-warning/40 bg-warning/10 px-3 py-2 text-sm">
           This workspace is read-only now, so this entry can't be saved to it. Save keeps what you typed in Personal{initial ? ", as a new entry of your own" : ""}.
         </p>
       )}
-      <div className="mt-5 flex flex-wrap gap-2">
+      <div className="mt-5 max-sm:mt-4 flex flex-wrap gap-2">
         {!viewOnly && <Button ref={saveRef} type="submit" disabled={checking || fieldsPending} aria-describedby={saveErr ? saveErrId : undefined}><Save /> {toPersonal ? "Save to Personal" : "Save"}</Button>}
         <Button type="button" variant={viewOnly ? "outline" : "ghost"} onClick={onDone}>{viewOnly ? "Close" : "Cancel"}</Button>
         <p className="ml-auto self-center text-xs text-muted-foreground">{viewOnly ? <>This workspace is read-only, so this entry can be read but not changed.</>

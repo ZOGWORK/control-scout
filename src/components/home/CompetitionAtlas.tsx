@@ -96,7 +96,7 @@ export function CompetitionAtlas({ overview, currentSeason, compact }: { overvie
   const side = mode === "globe";
 
   const mapFallback = (
-    <div className={cn("flex w-full flex-col items-center justify-center gap-2 rounded-2xl border border-dashed border-line px-6 text-center text-sm text-text-muted", mode === "globe" ? "aspect-square" : "aspect-[100/52]")}>
+    <div className={cn("flex w-full flex-col items-center justify-center gap-2 rounded-2xl border border-dashed border-line px-6 max-sm:px-4 text-center text-sm text-text-muted", mode === "globe" ? "aspect-square" : "aspect-[100/52]")}>
       <MapIcon className="size-5" aria-hidden />
       The map couldn’t load. Every country is in the selector and the list below.
     </div>
@@ -115,13 +115,13 @@ export function CompetitionAtlas({ overview, currentSeason, compact }: { overvie
         <div className="flex items-center gap-2">
         {mode === "globe" && !failed && drawn && (
           <button type="button" onClick={() => setPaused(!still)} aria-label={still ? "Turn the globe" : "Stop the globe turning"}
-            className="inline-flex size-9 items-center justify-center rounded-lg border border-line text-text-muted hover:bg-text-base/[0.06] hover:text-text-base focus-visible:outline-2 focus-visible:outline-accent max-sm:size-11">
+            className="inline-flex size-9 items-center justify-center rounded-lg border border-line text-text-muted hover:bg-text-base/[0.06] hover:text-text-base focus-visible:outline-2 focus-visible:outline-accent max-sm:size-10">
             {still ? <Play className="size-4" aria-hidden /> : <Pause className="size-4" aria-hidden />}
           </button>
         )}
         <ToggleGroup type="single" value={mode} onValueChange={(v) => v && setMode(v as Mode)} aria-label="Map projection">
-          <ToggleGroupItem value="globe" aria-label="Globe" className="max-sm:h-11"><Globe2 /> Globe</ToggleGroupItem>
-          <ToggleGroupItem value="flat" aria-label="Flat atlas" className="max-sm:h-11"><MapIcon /> Atlas</ToggleGroupItem>
+          <ToggleGroupItem value="globe" aria-label="Globe" className="max-sm:h-10"><Globe2 /> Globe</ToggleGroupItem>
+          <ToggleGroupItem value="flat" aria-label="Flat atlas" className="max-sm:h-10"><MapIcon /> Atlas</ToggleGroupItem>
         </ToggleGroup>
         </div>
       </div>

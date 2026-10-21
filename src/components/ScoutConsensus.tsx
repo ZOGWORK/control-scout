@@ -45,7 +45,7 @@ function Chips({ tags, tone, label }: { tags: ConsensusTag[]; tone: "good" | "ba
 
 function NoScouting({ c, team, season, compact }: { c: Consensus; team: number; season: number; compact?: boolean }) {
   return (
-    <div className={cn("rounded-xl border border-dashed border-border text-sm text-muted-foreground", compact ? "px-3 py-3" : "px-4 py-6 text-center")}>
+    <div className={cn("rounded-xl border border-dashed border-border text-sm text-muted-foreground", compact ? "px-3 py-3" : "px-4 py-6 max-sm:py-4 text-center")}>
       <p>No scouting on {team} in {workspaceLabel(c.workspace)} yet.</p>
       <Link to={scoutTeamHref(c.workspace.id, team, season)} className="mt-1 inline-flex min-h-8 items-center gap-1 font-medium text-accent-text underline-offset-4 hover:underline">Scout this team <span aria-hidden>→</span></Link>
     </div>

@@ -6,7 +6,7 @@ import { cn } from "../cn";
 /** A titled group of settings rows. */
 export function Group({ title, description, children, className }: { title: string; description?: ReactNode; children: ReactNode; className?: string }) {
   return (
-    <section className={cn("mb-8", className)}>
+    <section className={cn("mb-8 max-sm:mb-5", className)}>
       <div className="mb-3">
         <h2 className="text-sm font-semibold text-foreground">{title}</h2>
         {description && <p className="mt-0.5 text-sm text-muted-foreground">{description}</p>}

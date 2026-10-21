@@ -27,6 +27,9 @@
         var t = s && s.value && s.value.theme;
         if (t === 'light' || (t === 'system' && window.matchMedia && window.matchMedia('(prefers-color-scheme: light)').matches)) document.documentElement.classList.add('light');
         if (s && s.value && s.value.density === 'compact') document.documentElement.classList.add('compact');
+        // This device's text size (src/lib/textSize.ts), before anything paints.
+        var ts = localStorage.getItem('cs-text-size');
+        if (ts === 's' || ts === 'l' || ts === 'xl') document.documentElement.setAttribute('data-text-size', ts);
         // The static first paint's sidebar matches a collapsed one.
         if (localStorage.getItem('cs-sidebar') === '1') document.documentElement.classList.add('cs-sb-min');
       } catch (e) {}

@@ -175,7 +175,7 @@ export default function MethodologyPage() {
         <section id="settings" className="scroll-mt-bar-20 pt-20">
           <SectionHead eyebrow="For the curious" title="The settings, in one table" />
           <SettingsTable />
-          <Prose id="engine" className="mt-8">
+          <Prose id="engine" className="mt-8 max-sm:mt-5">
             <h3>One engine, two apps</h3>
             <p>Predictions come from <strong>Prediction Engine 2.1</strong> (<code>@control-scout/predict-engine</code> v{ENGINE_VERSION}). Control Point runs the exact same package and version, so the numbers you see here are the numbers Control Point shows for the same teams. Any change that could move a number needs a version bump and a held-out backtest showing it's at least as good.</p>
           </Prose>

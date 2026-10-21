@@ -161,13 +161,13 @@ function InboxList({ inbox, onClose, titleAs }: { inbox: InboxState; onClose: ()
         ) : inbox.error && !inbox.items.length ? (
           <p role="alert" className="p-4 text-sm text-muted-foreground">{inbox.error.message || "Couldn't load your notifications."} <button type="button" onClick={inbox.load} className="underline">Try again</button></p>
         ) : !inbox.items.length && following ? (
-          <div className="px-4 py-8 text-center">
+          <div className="px-4 py-8 max-sm:py-5 text-center">
             <Flag className="mx-auto size-6 text-orange-700 dark:text-orange-400" aria-hidden />
             <p className="mt-2 text-sm font-medium">Nothing to follow up</p>
             <p className="mt-1 text-sm text-muted-foreground">Flag a notification with Follow up to keep it here until the work is done.</p>
           </div>
         ) : !inbox.items.length ? (
-          <div className="px-4 py-8 text-center">
+          <div className="px-4 py-8 max-sm:py-5 text-center">
             <Bell className="mx-auto size-6 text-text-muted" aria-hidden />
             <p className="mt-2 text-sm font-medium">You're all caught up</p>
             <p className="mt-1 text-sm text-muted-foreground">Assignments, changes to your entries and news from your workspaces show up here.</p>
