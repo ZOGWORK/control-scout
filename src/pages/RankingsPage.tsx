@@ -21,7 +21,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from ".
 import { cn } from "../components/cn";
 import { CompactFilters, FilterSection, useCompactFilters, type FilterChip } from "../components/CompactFilters";
 
-const trigger = "inline-flex h-9 max-w-full items-center gap-2 rounded-lg border px-3 text-sm font-medium transition-colors max-sm:h-11";
+const trigger = "inline-flex h-9 max-w-full items-center gap-2 rounded-lg border px-3 text-sm font-medium transition-colors max-sm:h-10";
 const idle = "border-line bg-card text-text-base hover:border-text-base/25";
 const active = "border-accent/60 bg-accent/[0.08] text-text-base";
 
@@ -100,7 +100,7 @@ export default function RankingsPage() {
   const mine = !mineRaw ? null : mineState && !stateName(mineCountry, mineState) ? mineCountry : mineRaw;
   const mineOn = !!mine && places.length === 1 && placeKey(places[0]) === mine;
   const compact = useCompactFilters();
-  const seasonPick = data || seasonParam ? <SeasonPick value={season} onChange={(s) => go({ season: String(s), week: null })} /> : <div className="skeleton h-9 w-36 rounded-lg max-sm:h-11" aria-hidden />;
+  const seasonPick = data || seasonParam ? <SeasonPick value={season} onChange={(s) => go({ season: String(s), week: null })} /> : <div className="skeleton h-9 w-36 rounded-lg max-sm:h-10" aria-hidden />;
   const placePick = <PlacePicker info={placesInfo.data} loading={placesInfo.loading} value={places.map(placeKey)} onChange={setPlaces} />;
   const mineButton = mine && (
     <button type="button" onClick={() => setPlaces(mineOn ? [] : [mine])} aria-pressed={mineOn}
@@ -140,7 +140,7 @@ export default function RankingsPage() {
             {placePick}
             {mineButton}
             {weekPick}
-            {places.length > 0 && <Button variant="ghost" size="sm" onClick={() => setPlaces([])} className="max-sm:h-11"><X />Clear</Button>}
+            {places.length > 0 && <Button variant="ghost" size="sm" onClick={() => setPlaces([])} className="max-sm:h-10"><X />Clear</Button>}
           </div>
         )}
       </PageHeader>
@@ -232,7 +232,7 @@ function PlacePicker({ info, loading, value, onChange }: { info: RankingPlaces |
       <PopoverContent align="start" className="flex max-h-[min(28rem,70dvh)] w-[min(92vw,20rem)] flex-col gap-2 p-2">
         <div className="relative">
           <Search className="pointer-events-none absolute left-2.5 top-1/2 size-4 -translate-y-1/2 text-text-muted" />
-          <Input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Texas, Canada, Romania…" aria-label="Search places" className="h-9 pl-8 max-sm:h-11" />
+          <Input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Texas, Canada, Romania…" aria-label="Search places" className="h-9 pl-8 max-sm:h-10" />
         </div>
         <div className="custom-scrollbar min-h-0 flex-1 overflow-y-auto" role="listbox" aria-multiselectable aria-label="Places">
           {loading && !countries.length && <p className="px-2 py-4 text-center text-sm text-text-muted">Loading places…</p>}
@@ -249,7 +249,7 @@ function PlacePicker({ info, loading, value, onChange }: { info: RankingPlaces |
                   <Row k={c.country} label={c.country} teams={c.teams} />
                   {states.length > 1 && !f && (
                     <button type="button" onClick={() => setOpen(open === c.country ? null : c.country)} aria-expanded={open === c.country}
-                      aria-label={`${open === c.country ? "Hide" : "Show"} ${c.country}'s states`} className="ml-1 flex size-8 shrink-0 items-center justify-center rounded-md text-text-muted hover:bg-text-base/[0.06] max-sm:size-11">
+                      aria-label={`${open === c.country ? "Hide" : "Show"} ${c.country}'s states`} className="ml-1 flex size-8 shrink-0 items-center justify-center rounded-md text-text-muted hover:bg-text-base/[0.06] max-sm:size-10">
                       <ChevronDown className={cn("size-4 transition-transform", open === c.country && "rotate-180")} />
                     </button>
                   )}
@@ -340,7 +340,7 @@ function Pager({ data, sp }: { data: RankingsResponse; sp: URLSearchParams }) {
   if (data.pages <= 1) return null;
   const href = (p: number) => { const q = new URLSearchParams(sp); if (p > 1) q.set("page", String(p)); else q.delete("page"); const s = q.toString(); return s ? `?${s}` : "?"; };
   const from = (data.page - 1) * data.pageSize + 1, to = Math.min(data.total, data.page * data.pageSize);
-  const nav = "inline-flex h-9 items-center gap-1 rounded-lg border border-line bg-card px-3 text-sm font-medium hover:border-text-base/25 max-sm:h-11";
+  const nav = "inline-flex h-9 items-center gap-1 rounded-lg border border-line bg-card px-3 text-sm font-medium hover:border-text-base/25 max-sm:h-10";
   const off = "pointer-events-none opacity-40";
   return (
     <nav className="mt-4 flex flex-wrap items-center justify-between gap-3" aria-label="Pages">
@@ -356,7 +356,7 @@ function Pager({ data, sp }: { data: RankingsResponse; sp: URLSearchParams }) {
 
 function Explainer() {
   return (
-    <div className="mt-8 max-w-3xl space-y-2 text-sm text-text-muted">
+    <div className="mt-8 max-sm:mt-5 max-w-3xl space-y-2 text-sm text-text-muted">
       <h2 className="font-display text-base font-semibold text-text-base">How the rankings work</h2>
       <p>The rating is the prediction engine's estimate of the points a team's robot adds to its alliance in a match (auto, TeleOp and endgame, penalties left out). It updates after every rated match, and a team is ranked once it has played three. Equal ratings are ordered by team number.</p>
       <p>Each Monday at 00:00 UTC the ranking is saved. The arrows compare today's ranking with the one saved at least a week ago: ↑3 means three places higher, "New" means the team wasn't ranked then. Rising, Falling and Steady follow the same rule as the trends on team pages: a rating change under 8% is Steady.</p>

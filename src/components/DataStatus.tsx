@@ -40,7 +40,7 @@ export function DataStatus({ readiness, fallbackResultsAt, onRetry, className }:
         {statsAt && <span>statistics prepared <Stamp iso={statsAt} /></span>}
         {v.retry && onRetry && (
           <button type="button" onClick={onRetry}
-            className="inline-flex min-h-8 items-center gap-1 rounded-md px-1.5 font-semibold text-accent-text hover:bg-accent/10 focus-visible:outline-2 focus-visible:outline-accent max-sm:min-h-11">
+            className="inline-flex min-h-8 items-center gap-1 rounded-md px-1.5 font-semibold text-accent-text hover:bg-accent/10 focus-visible:outline-2 focus-visible:outline-accent max-sm:min-h-10">
             <RefreshCw className="size-3.5" aria-hidden /> Check again
           </button>
         )}

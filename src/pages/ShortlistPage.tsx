@@ -112,7 +112,7 @@ export default function ShortlistPage() {
       <div>
         <PageHeader title="Shortlist" description={<>Your pick list for alliance selection: drag to rank it, open a team for its numbers, keep private notes. {synced}</>} />
         <EmptyState icon={Bookmark} title="Your shortlist is empty" description="Press Shortlist on any team page to add it here. Building a pick list? An event's Rankings tab is the place to start." action={<div className="flex flex-wrap justify-center gap-2"><Button variant="secondary" onClick={search.open}><Search /> Find a team</Button><Button variant="outline" asChild><Link to="/events"><CalendarDays /> Browse events</Link></Button></div>} />
-        <HowItWorks className="mt-6" />
+        <HowItWorks className="mt-6 max-sm:mt-4" />
       </div>
     );
   }
@@ -122,7 +122,7 @@ export default function ShortlistPage() {
     <div>
       <header className="mb-4">
         <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
-          <h1 className="font-display text-2xl font-semibold tracking-tight text-foreground sm:text-[32px] sm:leading-tight">Shortlist</h1>
+          <h1 className="font-display text-2xl font-semibold tracking-tight text-foreground sm:text-[2rem] sm:leading-tight">Shortlist</h1>
           {shown.length >= 2 && <Button variant="secondary" asChild data-print-hide><Link to={compareHref(compareTeams, season)}><Scale /> {compareLabel}</Link></Button>}
         </div>
         <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-2 text-sm text-muted-foreground">

@@ -46,7 +46,7 @@ export function WorkspaceSection() {
   return (
     <div>
       {list.length > 1 && (
-        <div className="mb-6 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+        <div className="mb-6 max-sm:mb-4 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
           <label htmlFor="settings-workspace" className="text-sm text-muted-foreground">You're in {list.length} workspaces. Showing:</label>
           <Select value={ws.id} onValueChange={select}>
             <SelectTrigger id="settings-workspace" className="h-11 w-full sm:w-64" aria-label="Workspace"><SelectValue /></SelectTrigger>
@@ -57,7 +57,7 @@ export function WorkspaceSection() {
         </div>
       )}
       {ws.orphaned && (
-        <p role="status" className="mb-6 flex items-start gap-3 rounded-xl border border-warning/40 bg-warning/10 px-4 py-3 text-sm">
+        <p role="status" className="mb-6 max-sm:mb-4 flex items-start gap-3 rounded-xl border border-warning/40 bg-warning/10 px-4 py-3 text-sm">
           <Lock className="mt-0.5 size-4 shrink-0 text-warning" aria-hidden />
           <span className="min-w-0 flex-1">{orphanBanner(ws.orphaned.reason)}</span>
         </p>
@@ -93,8 +93,8 @@ function WorkspaceShared({ workspace, isAdmin }: { workspace: WorkspaceSpace; is
     <>
       {!settings ? (
         status === "offline"
-          ? <p className="mb-8 rounded-xl border border-border bg-card px-4 py-3 text-sm text-muted-foreground">Couldn't load this workspace's settings. Check your connection and open this page again.</p>
-          : <div className="skeleton mb-8 h-40 rounded-xl" aria-label="Loading workspace settings" />
+          ? <p className="mb-8 max-sm:mb-5 rounded-xl border border-border bg-card px-4 py-3 text-sm text-muted-foreground">Couldn't load this workspace's settings. Check your connection and open this page again.</p>
+          : <div className="skeleton mb-8 max-sm:mb-5 h-40 rounded-xl" aria-label="Loading workspace settings" />
       ) : (
         // Remounted on each new version: a change from another admin replaces the form's values.
         <Defaults key={settings.settingsVersion} workspace={workspace} settings={settings} isAdmin={isAdmin} onConflict={refresh} />

@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 // The notification inbox's bell: top right of the header and nowhere else (never the sidebar, the
-// tab bar or the More sheet), only when signed in; the unread badge; the list (a panel, or a sheet on
+// tab bar or the menu sheet), only when signed in; the unread badge; the list (a panel, or a sheet on
 // phones); tapping an item marks it read and opens its link; "Mark all read"; per-item Mark unread and
 // Follow up toggles (accessible names, pressed state, the badge) and the Follow up filter.
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -82,7 +82,7 @@ afterEach(() => { cleanup(); vi.unstubAllGlobals(); });
 const shell = () => render(<MemoryRouter initialEntries={["/"]}><Shell><Routes><Route path="*" element={<Where />} /></Routes></Shell></MemoryRouter>);
 
 describe("the bell's place", () => {
-  it("signed in: in the header (top right, before the account button), never in the sidebar, the tab bar or the More sheet", async () => {
+  it("signed in: in the header (top right, before the account button), never in the sidebar, the tab bar or the menu sheet", async () => {
     h.user = user;
     shell();
     const bell = await screen.findByRole("button", { name: /^Notifications/ });
@@ -90,8 +90,8 @@ describe("the bell's place", () => {
     expect(bell.closest("header")).toBe(screen.getByRole("banner"));
     expect(bell.closest("aside")).toBeNull();
     for (const nav of screen.getAllByRole("navigation")) expect(within(nav).queryByRole("button", { name: /^Notifications/ })).toBeNull();
-    // The More sheet (phones' full menu) doesn't carry it either.
-    fireEvent.click(screen.getByRole("button", { name: "More" }));
+    // The menu sheet (phones' full menu) doesn't carry it either.
+    fireEvent.click(screen.getByRole("button", { name: "Open menu" }));
     const more = screen.getByRole("dialog");
     expect(within(more).queryByRole("button", { name: /^Notifications/ })).toBeNull();
     expect(within(more).queryByText("Notifications")).toBeNull();

@@ -63,7 +63,7 @@ function Report({ r }: { r: MatchReport }) {
         </Link>
         <span className="ml-auto flex gap-1.5">{step(r.prev, "prev")}{step(r.next, "next")}</span>
       </div>
-      <header className="mb-5">
+      <header className="mb-5 max-sm:mb-4">
         <p className="text-xs text-muted-foreground">Know your match · {seasonLabel(m.season)}</p>
         <h1 className="mt-1 font-display text-2xl font-semibold tracking-tight sm:text-3xl">
           {r.description ?? m.label}
