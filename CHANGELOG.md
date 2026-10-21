@@ -9,7 +9,7 @@ teams, scout, offline, speed, live, report, alerts, rankings, share, workspace,
 picklist, history, fixes). What's new shows them first; the groups below are
 the full release notes, one click away.
 
-## 1.18.0 — 2026-10-21
+## 1.16.0 — 2026-10-21
 
 Bonus ranking point odds next to every qualification win %.
 
