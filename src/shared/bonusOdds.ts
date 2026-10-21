@@ -2,7 +2,7 @@
 // the view every match surface shows. Probabilities are kept to 4 places and never a flat 0 or 1
 // (they're calls, not results); expected RPs are derived from them and the call's win probability.
 import { BONUS_SLOTS, winRankingPoints, type MatchExplanation, type AllianceBonusOdds } from "@control-scout/predict-engine";
-import type { BonusOddsView, ConfidenceTier } from "../../src/shared/api.js";
+import type { BonusOddsView, ConfidenceTier } from "./api.js";
 
 const stable = (p: number) => Math.min(0.9999, Math.max(0.0001, Math.round(p * 1e4) / 1e4));
 const triple = (a: AllianceBonusOdds) => BONUS_SLOTS.map((s) => stable(a.p[s])) as [number, number, number];

@@ -7,7 +7,7 @@ import {
   RatingBook, FITTED_MODEL, explainMatch, ENGINE_VERSION, BONUS_MIN_SAMPLES, bonusSamples, recentBonusModel,
   type BonusModelSource, type BonusSample, type EventRecord,
 } from "@control-scout/predict-engine";
-import { bonusArgs } from "../predict/bonus.js";
+import { bonusArgs } from "../../src/shared/bonusOdds.js";
 import { all, get, kvGet, kvSet, run, writeBatch } from "../db.js";
 import { CURRENT_SEASON, PREDICT_SEASONS, SEASON_NUMBERS, isLegacy } from "../data/seasons.js";
 import { loadSeason, toEventRecord, type DbEvent } from "./load.js";

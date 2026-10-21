@@ -34,7 +34,7 @@ import { indexNowKeyRoute } from "./indexNow.js";
 import { latestRankings, rankingsWeek } from "./powerRankings/store.js";
 import { isWeekId } from "../src/shared/powerRankings.js";
 import { liveForecaster, liveVersion, dataVersion } from "./predict/engine.js";
-import { bonusView } from "./predict/bonus.js";
+import { bonusView } from "../src/shared/bonusOdds.js";
 import { authRouter, meRouter, authProviders } from "./auth/routes.js";
 import { contactRouter } from "./contact.js";
 import { scoutRouter } from "./scout/entries.js";

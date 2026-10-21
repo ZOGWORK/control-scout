@@ -8,7 +8,7 @@
 // decodes or reads it while the server answers (lib/api.ts). Download and
 // storage only: running the engine on it lives in lib/offline (predict.ts,
 // answer.ts), loaded lazily with no signal.
-import type { RatingBookData } from "@control-scout/predict-engine";
+import type { BonusModelSource, RatingBookData } from "@control-scout/predict-engine";
 import { PACK_META_KEY, packStatus, type PackMeta } from "./packPolicy";
 
 export { packStatus, type PackMeta } from "./packPolicy";
@@ -23,6 +23,8 @@ export interface LitePack {
   engineVersion: string;
   /** Season → ratings (as of the build), ready for RatingBook.fromData. */
   books: Record<string, RatingBookData>;
+  /** Season → bonus-RP model as the server serves it (packs from engine 2.3 on; older packs have none). */
+  bonus?: Record<string, BonusModelSource>;
   /** [number, name, city/state/country] */
   teams: [number, string | null, string | null][];
 }
