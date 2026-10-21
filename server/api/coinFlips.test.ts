@@ -4,16 +4,29 @@
 // drops rows once their venue's midnight passes. Then end to end: logged calls in the database → the
 // job → kv → GET /api/home/coin-flips.
 import type { AddressInfo } from "node:net";
-import type { Server } from "node:http";
+import { get as httpGet, type Server } from "node:http";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { kvGet, migrate, openDb, run, setDb } from "../db";
 import { createApp } from "../app";
 import { CURRENT_SEASON } from "../data/seasons";
-import { STALE_MS, arrange, buildCoinFlips, coinFlips, current, eventCoinFlips, gatherForRead, KV_KEY, refreshCoinFlips, resetCoinFlips, storeRadar } from "./coinFlips";
+import { STALE_MS, arrange, buildCoinFlips, coinFlips, current, eventCoinFlips, gatherForRead, KV_KEY, radarEtag, refreshCoinFlips, resetCoinFlips, storeRadar } from "./coinFlips";
 import { matchDay, type CoinFlipRadar, type CoinFlipRow } from "../../src/shared/coinFlips";
 import type { MatchView } from "../../src/shared/api";
 
 const S = CURRENT_SEASON;
+
+// A browser revalidating its copy, over node:http: fetch adds "Cache-Control: no-cache" to any request with
+// If-None-Match (the Fetch standard), which never gets a 304.
+const revalidate = (url: string, etag: string) => new Promise<{ status: number; headers: Headers }>((resolve, reject) => {
+  httpGet(url, { headers: { "If-None-Match": etag } }, (res) => {
+    res.resume();
+    res.on("end", () => {
+      const h = new Headers();
+      for (const [k, v] of Object.entries(res.headers)) if (typeof v === "string") h.set(k, v);
+      resolve({ status: res.statusCode ?? 0, headers: h });
+    });
+  }).on("error", reject);
+});
 const LA = { code: "LAQ", name: "LA Qualifier", city: "Los Angeles", state: "CA", country: "USA", timezone: "America/Los_Angeles", start: "2026-10-17", end: "2026-10-17", type: "Qualifier" };
 
 function mv(n: number, time: string, pRed: number | null, o: { tier?: "provisional" | "moderate" | "confident"; kind?: "live" | "now" | "backtest"; played?: boolean; scores?: [number, number] } = {}): MatchView {
@@ -115,6 +128,12 @@ describe("arrange and current", () => {
     // Past every venue's midnight: nothing of yesterday's is left to describe.
     const next = current(r, Date.parse("2026-10-19T15:00:00Z"));
     expect([next.events, next.calls, next.thin, next.upcoming.length]).toEqual([0, 0, 0, 0]);
+    // The ETag moves at each venue's midnight too (same stored radar, fewer venue dates still today), so a
+    // revalidating browser never keeps yesterday's cards.
+    const before = radarEtag(current(r, Date.parse("2026-10-18T05:00:00Z")));
+    expect(radarEtag(current(r, Date.parse("2026-10-18T06:00:00Z")))).toBe(before);
+    expect(radarEtag(later)).not.toBe(before);
+    expect(radarEtag(next)).not.toBe(radarEtag(later));
   });
 });
 
@@ -168,7 +187,18 @@ describe("the job and GET /api/home/coin-flips", () => {
     const body = (await res.json()) as CoinFlipRadar;
     expect(body.generatedAt).toBe(stored!.generatedAt);
     expect(body.upcoming[0].pRed).toBe(0.49);
-    expect(res.headers.get("cache-control")).toMatch(/public/);
+    // Never served from a cache without asking: revalidated by ETag every time, and a repeat is a 304.
+    expect(res.headers.get("cache-control")).toBe("no-cache");
+    const etag = res.headers.get("etag");
+    expect(etag).toMatch(/^"cf-/);
+    const again = await revalidate(`${base}/api/home/coin-flips`, etag!);
+    expect(again.status).toBe(304);
+    expect(again.headers.get("cache-control")).toBe("no-cache");
+    // A newer radar moves the ETag, so the same request gets the new body.
+    await refreshCoinFlips(() => {}, Date.now() + 1000);
+    const moved = await revalidate(`${base}/api/home/coin-flips`, etag!);
+    expect(moved.status).toBe(200);
+    expect(moved.headers.get("etag")).not.toBe(etag);
   });
 
   it("never lets an older gather replace a newer stored radar", async () => {
