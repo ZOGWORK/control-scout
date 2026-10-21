@@ -4,9 +4,9 @@
 // Live and backtest are always separate blocks — never blended. "Live" counts
 // only predictions written down before the match was played.
 import { all, kvGet } from "../db.js";
-import { CURRENT_SEASON, PREDICT_SEASONS, SEASONS } from "../data/seasons.js";
+import { CURRENT_SEASON, PREDICT_SEASONS, SEASONS, bonusLabels } from "../data/seasons.js";
 import { ENGINE_VERSION, type ConfidenceTier } from "@control-scout/predict-engine";
-import type { AccuracyBlock, ReplayCoverage, ShadowScore, TrackRecord } from "../../src/shared/api.js";
+import type { AccuracyBlock, BonusAccuracy, ReplayCoverage, ShadowScore, TrackRecord } from "../../src/shared/api.js";
 import { LIVE_THRESHOLD, pickHeadline } from "../../src/shared/ledger.js";
 import { matchViews } from "./matches.js";
 import { dataVersion } from "../predict/engine.js";
@@ -53,6 +53,57 @@ export function block(rows: Row[]): AccuracyBlock | null {
     weekly: [...weeks.entries()].sort(([a], [b]) => a.localeCompare(b)).map(([week, xs]) => ({ week, n: xs.length, accuracy: acc(xs) })),
     upsets: decided.filter((r) => !right(r)).length,
   };
+}
+
+/** One alliance's bonus RP calls (engine slot order) and what it earned. */
+export interface BonusCall { p: [number, number, number]; y: [boolean, boolean, boolean] }
+
+/** Bonus RP calls scored like win calls: Brier per alliance-bonus call, per bonus RP, and reliability. */
+export function bonusBlock(calls: BonusCall[], labels: [string, string, string], matches: number): BonusAccuracy | null {
+  if (!calls.length) return null;
+  const flat = calls.flatMap((c) => c.p.map((p, i) => ({ p, y: c.y[i] ? 1 : 0, i })));
+  const brier = (xs: typeof flat) => xs.reduce((s, x) => s + (x.p - x.y) ** 2, 0) / Math.max(1, xs.length);
+  const baseRate = (xs: typeof flat) => { const r = xs.reduce((s, x) => s + x.y, 0) / Math.max(1, xs.length); return xs.reduce((s, x) => s + (r - x.y) ** 2, 0) / Math.max(1, xs.length); };
+  const bySlot = labels.map((label, i) => {
+    const xs = flat.filter((x) => x.i === i);
+    return { label, n: xs.length, brier: brier(xs), predicted: xs.reduce((s, x) => s + x.p, 0) / xs.length, actual: xs.reduce((s, x) => s + x.y, 0) / xs.length };
+  });
+  const reliability = Array.from({ length: 10 }, (_, i) => ({ lo: i / 10, hi: (i + 1) / 10, n: 0, predicted: 0, actual: 0 }));
+  for (const x of flat) { const b = reliability[Math.min(9, Math.floor(x.p * 10))]; b.n++; b.predicted += x.p; b.actual += x.y; }
+  for (const b of reliability) if (b.n) { b.predicted /= b.n; b.actual /= b.n; }
+  // Base rate per bonus RP (they differ a lot), summed back over every call.
+  const baseRateBrier = bySlot.reduce((s, _, i) => { const xs = flat.filter((x) => x.i === i); return s + baseRate(xs) * xs.length; }, 0) / flat.length;
+  return { n: flat.length, matches, brier: brier(flat), baseRateBrier, bySlot, reliability };
+}
+
+const bonusTriple = (s: unknown): [number, number, number] | null => {
+  if (typeof s !== "string") return null;
+  try { const v = JSON.parse(s); return Array.isArray(v) && v.length === 3 && v.every((x) => typeof x === "number") ? v as [number, number, number] : null; } catch { return null; }
+};
+const bonusFlags = (s: unknown): [boolean, boolean, boolean] | null => {
+  if (typeof s !== "string") return null;
+  try { const v = JSON.parse(s); return v && typeof v === "object" ? [!!v.movement, !!v.goal, !!v.pattern] : null; } catch { return null; }
+};
+
+/** Every scored bonus RP call, by kind and season (calls whose match has recorded bonus RPs only). */
+async function bonusCalls(): Promise<Map<string, { calls: BonusCall[]; matches: number }>> {
+  const rows = await all<any>(
+    `SELECT p.kind, p.season, p.bonus_red, p.bonus_blue, m.red_bonus, m.blue_bonus FROM predictions p
+       JOIN matches m ON m.season = p.season AND m.code = p.code AND m.level = p.level AND m.series = p.series AND m.number = p.number
+      WHERE p.bonus_red IS NOT NULL AND p.outcome IS NOT NULL AND p.kind IN ('live', 'backtest') AND m.played = 1`,
+  );
+  const out = new Map<string, { calls: BonusCall[]; matches: number }>();
+  for (const r of rows) {
+    const k = `${r.kind}|${r.season}`;
+    let e = out.get(k);
+    if (!e) { e = { calls: [], matches: 0 }; out.set(k, e); }
+    let any = false;
+    for (const [p, y] of [[bonusTriple(r.bonus_red), bonusFlags(r.red_bonus)], [bonusTriple(r.bonus_blue), bonusFlags(r.blue_bonus)]] as const) {
+      if (p && y) { e.calls.push({ p, y }); any = true; }
+    }
+    if (any) e.matches++;
+  }
+  return out;
 }
 
 /** The last track record built, and the build under way (one at a time, shared by every caller). */
@@ -159,6 +210,7 @@ async function seasonCoverage(): Promise<Map<number, ReplayCoverage>> {
 async function computeTrackRecord(): Promise<TrackRecord> {
   const rows = await all<any>("SELECT kind, season, p_red p, outcome y, tier, level, match_time time, engine_version engine, model_id model, p_red_shadow ps, shadow_model_id sm FROM predictions WHERE outcome IS NOT NULL");
   const coverage = await seasonCoverage();
+  const bonus = await bonusCalls();
   const seasons = SEASONS.filter((s) => PREDICT_SEASONS.includes(s.season)).map((s) => {
     const of = (kind: string, engine?: string) => rows.filter((r) => r.kind === kind && Number(r.season) === s.season && (engine == null || r.engine === engine))
       .map((r) => ({ p: Number(r.p), y: Number(r.y), tier: r.tier, level: r.level, time: r.time }));
@@ -183,7 +235,12 @@ async function computeTrackRecord(): Promise<TrackRecord> {
       const [servedModel, shadowModel] = k.split("|");
       return { servedModel, shadowModel, n: xs.length, served: score(xs), shadow: score(xs.map((x) => ({ y: x.y, p: x.ps }))) };
     });
-    return { season: s.season, label: `${s.label} ${s.game}`, live: block(of("live")), backtest: block(of("backtest")), replay: coverage.get(s.season), liveByEngine, liveShadow };
+    const labels = bonusLabels(s.season);
+    const bonusOf = (kind: string) => { const e = bonus.get(`${kind}|${s.season}`); return e && labels ? bonusBlock(e.calls, labels, e.matches) : null; };
+    return {
+      season: s.season, label: `${s.label} ${s.game}`, live: block(of("live")), backtest: block(of("backtest")), replay: coverage.get(s.season), liveByEngine, liveShadow,
+      ...(labels ? { bonus: { live: bonusOf("live"), backtest: bonusOf("backtest") } } : {}),
+    };
   }).reverse();
   // Headline: the one rule every ledger card reads (src/shared/ledger.ts), always labelled with its kind.
   const headline = pickHeadline(seasons);

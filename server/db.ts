@@ -1099,6 +1099,20 @@ CREATE TABLE discord_posts (
 );
 `,
   },
+  {
+    version: 36,
+    name: "bonus ranking point calls in the ledger",
+    sql: `
+-- Bonus ranking point odds logged with each call (engine 2.2: explainMatch bonus), qualification matches of
+-- 2025+ seasons with a bonus model only (else null): JSON [p1, p2, p3] per alliance in the engine's slot
+-- order, their confidence tier, and the model they came from ("fitted:2025", or "season:<n>" for a fit to
+-- n of the season's alliance results). Scored against matches.red_bonus / blue_bonus once played.
+ALTER TABLE predictions ADD COLUMN bonus_red TEXT;
+ALTER TABLE predictions ADD COLUMN bonus_blue TEXT;
+ALTER TABLE predictions ADD COLUMN bonus_tier TEXT;
+ALTER TABLE predictions ADD COLUMN bonus_model TEXT;
+`,
+  },
 ];
 
 export type Db = Client;

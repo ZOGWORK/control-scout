@@ -20,6 +20,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "./ui/overlay";
 import { Skeleton } from "./ui/basic";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "./ui/controls";
 import { cn } from "./cn";
+import { BonusOdds } from "./BonusOdds";
 
 type Side = "red" | "blue";
 const SIDE: Record<Side, { name: string; text: string; card: string; edge: string }> = {
@@ -86,6 +87,7 @@ function Call({ m }: { m: MatchView }) {
           {!p.noScoreBasis && (
             <p className="mt-2 text-sm text-muted-foreground">Predicted score <span className="tabular-nums text-red-alliance">{Math.round(p.redMean)}</span> – <span className="tabular-nums text-blue-alliance">{Math.round(p.blueMean)}</span></p>
           )}
+          {p.bonus && <BonusOdds season={m.season} bonus={p.bonus} className="mt-3 bg-text-base/[0.02]" />}
           {p.factors?.length ? (
             <details className="group mt-2" open>
               <summary className="cursor-pointer select-none text-xs font-medium text-muted-foreground">Why</summary>

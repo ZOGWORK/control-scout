@@ -9,9 +9,9 @@
 import { useState, type ReactNode } from "react";
 import { Link } from "react-router-dom";
 import { FlaskConical, History, Radio } from "lucide-react";
-import { CONFIDENCE_RULE } from "@control-scout/predict-engine";
+import { BONUS_CONFIDENCE_RULE, BONUS_MIN_SAMPLES, BONUS_WINDOW, CONFIDENCE_RULE } from "@control-scout/predict-engine";
 import { useApi } from "../../lib/api";
-import type { AccuracyBlock, ReplayCoverage, TrackRecord } from "../../shared/api";
+import type { AccuracyBlock, BonusAccuracy, ReplayCoverage, TrackRecord } from "../../shared/api";
 import { brierSkill, headlineRule, LEDGER_MODE, ledgerDefault, type LedgerKind } from "../../shared/ledger";
 import { pct } from "../../lib/format";
 import { cn } from "../cn";
@@ -174,6 +174,15 @@ export function AccuracySection() {
         {apiState((b) => <Tiers block={b} />, <Skeleton className="h-32 rounded-xl" />)}
       </Reveal>
 
+      <Prose id="bonus" className="mt-12">
+        <h3>Bonus ranking points</h3>
+        <p>Next to the win odds of a qualification match, each alliance gets its chance of earning each of the season's bonus ranking points. It's the same math the event simulator uses: an alliance's chance at a bonus rises with its non-penalty score, and the engine averages that over the whole spread of scores the alliance could put up (game noise plus how well its robots are known). <strong>Expected RP</strong> is 3 × the win chance plus the bonus chances. Ties are left out (they're rare, and the score model gives them no weight).</p>
+        <p>How much score a bonus takes drifts during a season, so the chance curve is fitted to the season's latest {BONUS_WINDOW.toLocaleString("en-US")} recorded qualification alliances, once there are at least {BONUS_MIN_SAMPLES}. The tier stays provisional below {BONUS_CONFIDENCE_RULE.provisionalBelow.toLocaleString("en-US")} alliances and at most moderate below {BONUS_CONFIDENCE_RULE.confidentMin.toLocaleString("en-US")}. Bonus calls are logged and scored like win calls, one call per alliance per bonus. The season replay fits the curve only on results from before each match.</p>
+      </Prose>
+      <Reveal className="mx-auto mt-4 max-w-3xl">
+        {t && sel && season?.bonus ? <BonusLedger b={season.bonus[sel.kind]} kind={sel.kind} desc={desc} /> : t && sel ? <p className="text-center text-sm text-muted-foreground">No bonus ranking points in {season?.label ?? "this season"}.</p> : <Skeleton className="h-32 rounded-xl" />}
+      </Reveal>
+
       {t && t.recentCalls.length > 0 && (
         <>
           <Prose id="recent" className="mt-12">
@@ -186,6 +195,33 @@ export function AccuracySection() {
         </>
       )}
     </section>
+  );
+}
+
+/** Bonus RP calls of the selected season and record type (live and replay never blended). */
+function BonusLedger({ b, kind, desc }: { b: BonusAccuracy | null; kind: Kind; desc: string }) {
+  if (!b) return <p className="rounded-xl border border-dashed border-border p-4 text-center text-sm text-muted-foreground">{kind === "live" ? "No live bonus calls scored for this season yet." : "No replayed bonus calls for this season yet."}</p>;
+  const skill = b.baseRateBrier > 0 ? 1 - b.brier / b.baseRateBrier : null;
+  return (
+    <div className="overflow-hidden rounded-xl border border-border bg-card" data-testid="bonus-ledger">
+      <div className="grid grid-cols-3 gap-px bg-border" role="list">
+        <StatCell tone="blue" value={<CountUp value={b.brier} decimals={3} />} label="Brier per bonus call (lower is better)" />
+        <StatCell tone={skill == null ? undefined : skill > 0 ? "good" : "bad"} value={skill == null ? "—" : <CountUp value={skill * 100} decimals={0} suffix="%" />} label={`better than always saying each bonus's rate (Brier ${b.baseRateBrier.toFixed(3)})`} />
+        <StatCell value={<CountUp value={b.n} />} label={`bonus calls · ${b.matches.toLocaleString("en-US")} matches`} />
+      </div>
+      <ul className="divide-y divide-border border-t border-border text-sm">
+        {b.bySlot.map((s) => (
+          <li key={s.label} className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3 px-4 py-2">
+            <span className="min-w-0">
+              <span className="font-medium">{s.label}</span>
+              <span className="mt-1 flex h-1.5 overflow-hidden rounded-full bg-muted" aria-hidden><span className="h-full rounded-full bg-primary/70" style={{ width: `${Math.max(2, s.actual * 100)}%` }} /></span>
+            </span>
+            <span className="text-right font-mono text-xs tabular-nums text-muted-foreground">said {pct(s.predicted, 0)} · earned {pct(s.actual, 0)} · Brier {s.brier.toFixed(3)}</span>
+          </li>
+        ))}
+      </ul>
+      <p className="border-t border-border px-4 py-2 text-xs text-muted-foreground">{desc} · {kind === "live" ? "logged before each match" : "season replay, not calls made in advance"}</p>
+    </div>
   );
 }
 
