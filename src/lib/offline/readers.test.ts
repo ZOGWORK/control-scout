@@ -1,5 +1,5 @@
 import { beforeAll, describe, expect, it, vi } from "vitest";
-import { OFFLINE_FORECAST, readEventDetail, readMatchViews, readSearch, readTeamProfile, wrap, type SeasonDb } from "./readers";
+import { OFFLINE_FORECAST, readEventDetail, readMatchViews, readProjections, readSearch, readTeamProfile, wrap, type SeasonDb } from "./readers";
 import { packDb, season2024, season2025 } from "./testFixture";
 import { eventTypeLabel } from "../../shared/labels";
 
@@ -194,5 +194,26 @@ describe("offline event status (same as the server's, by the venue's date)", () 
   it("an invalid zone uses the anywhere-on-Earth window", () => {
     expect(statusAt("2026-10-19T11:59:59Z", "BAD")).toBe("live");
     expect(statusAt("2026-10-19T12:00:00Z", "BAD")).toBe("finished");
+  });
+});
+
+describe("offline projections (same shape as /api/projections/:season/:code)", () => {
+  const row = (kind: string) => ({
+    season: 2025, code: "USNJQ1", kind, state_key: "k", seed: 7, runs: 10000, target_runs: 10000, stage: "live", played: 12, scheduled: 24, through: "Q12",
+    slots: 4, slots_source: "official", engine_version: "2.1.1", ms: 3000, computed_at: "2025-11-01T15:00:00Z",
+    teams: JSON.stringify([{ team: 100, rank: { p10: 1, p50: 2, p90: 4, mean: 2.2 }, pPlayoff: 0.9, pCaptain: 0.6, pPicked: 0.3, pAdvance: 0.7, pWin: 0.3, pFinalist: 0.2 }]),
+  });
+  it("reads the saved runs", async () => {
+    const sdb: SeasonDb = { season: 2025, db: wrap(await packDb(2025, { event_projections: [row("current"), row("baseline")] })) };
+    const v = readProjections(sdb, "USNJQ1");
+    expect(v.current).toMatchObject({ kind: "current", runs: 10000, through: "Q12", slots: 4, teams: [{ team: 100, pAdvance: 0.7 }] });
+    expect(v.baseline?.kind).toBe("baseline");
+    expect(v.lastOpen).toBeNull();
+    expect(JSON.stringify(v)).not.toContain("state_key");
+  });
+  it("answers none from a pack built before projections were saved", async () => {
+    const db = await packDb(2025, {});
+    db.run("DROP TABLE event_projections");
+    expect(readProjections({ season: 2025, db: wrap(db) }, "USNJQ1")).toEqual({ season: 2025, code: "USNJQ1", current: null, baseline: null, lastOpen: null });
   });
 });
