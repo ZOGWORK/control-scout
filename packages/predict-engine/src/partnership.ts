@@ -307,6 +307,7 @@ export class PartnershipOverlay implements PairLookup {
   private tog = new Map<number, TogetherStat>();
   private ag = new Map<number, AgainstStat>();
   private readonly seed: { together(k: number): TogetherStat | undefined; against(k: number): AgainstStat | undefined };
+  private names = new Map<string, string>();
 
   constructor(private base: PairLookup, private decayRate = PARTNERSHIP_PARAMS.seasonDecay) {
     const pair = (k: number): [number, number] => [Math.floor(k / 1e6), k % 1e6];
@@ -317,7 +318,9 @@ export class PartnershipOverlay implements PairLookup {
   observe(m: MatchRecord, book: RatingBook): void { foldMatch(m, book, this.decayRate, this.tog, this.ag, this.seed); }
   together(a: number, b: number): TogetherStat | undefined { return this.tog.get(key(a, b)) ?? this.base.together(a, b); }
   against(a: number, b: number): AgainstStat | undefined { return this.ag.get(key(a, b)) ?? this.base.against(a, b); }
-  eventName(season: number, code: string): string | null { return this.base.eventName(season, code); }
+  /** Name an event the fresh results come from (the base table only keeps names its facts use). */
+  nameEvent(season: number, code: string, name: string): void { this.names.set(`${season}|${code}`, name); }
+  eventName(season: number, code: string): string | null { return this.names.get(`${season}|${code}`) ?? this.base.eventName(season, code); }
 }
 
 /** Bring a stat's decayed sums forward to `season`. */

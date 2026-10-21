@@ -397,6 +397,8 @@ export abstract class Forecaster {
     if (!seasonBook || this.unsupportedReason(ev)) return null;
     const base = this.partnerships(ev.season);
     const pairs = base ? new PartnershipOverlay(base) : null;
+    // A fresh result can become a pair's best: the fact then names this event.
+    if (pairs && ev.name) pairs.nameEvent(ev.season, ev.code, ev.name);
     const book = this.eventBook(ev, seasonBook, pairs);
     const stage = this.stageOf(ev);
     const { input, assumptions, adv } = this.simInput(ev, stage, book, runs);

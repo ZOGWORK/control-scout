@@ -1187,6 +1187,17 @@ ALTER TABLE predictions ADD COLUMN bonus_tier TEXT;
 ALTER TABLE predictions ADD COLUMN bonus_model TEXT;
 `,
   },
+  {
+    version: 40,
+    name: "partnership fact with logged calls",
+    sql: `
+-- The strongest partnership fact shown with a live call when it was logged (engine 2.4: explainMatch
+-- partnership, as src/shared/pairHistory.ts PairHistory JSON), so match details and reports keep the line
+-- once the call is logged. A reason only: it never changes the logged odds. Null for the backtest replay
+-- and for calls with no pair history.
+ALTER TABLE predictions ADD COLUMN history TEXT;
+`,
+  },
 ];
 
 export type Db = Client;

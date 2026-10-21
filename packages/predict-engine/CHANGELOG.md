@@ -26,7 +26,8 @@
 - `Forecaster.partnerships(season)` is a hook apps override. When it returns a table,
   `ForecastMatch.history` carries the fact for unplayed matches. The event's fresh results (the
   ones the forecaster folds into its ratings) are folded in too, through `PartnershipOverlay`, so a
-  rematch shows its record as of now.
+  rematch shows its record as of now. `EventInput.name` (optional) names that event when a fresh
+  result becomes a pair's best.
 
 **Evidence (walk-forward, Control Scout `scripts/partnership-fit.ts`, report in
 `docs/partnership-memory.md`).** Pairs from 2019–20 on; predictions from 2023–24. β was
