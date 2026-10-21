@@ -19,7 +19,7 @@ export function DiscordCard({ teams }: { teams: number[] }) {
             Match alerts in your Discord
           </h2>
           <p className="mt-2 text-sm text-muted-foreground">
-            Add Control Scout to your team's server, then follow your team in a channel: it posts 15 minutes before each match (lineups, win odds, predicted score) and again with the result and whether the call was right.
+            Add Control Scout to your team's server, then follow your team in a channel. It posts the evening before each event, the team's schedule with win odds once it's out, 15 minutes before each match, every result with whether the call was right, and a recap at the end of each day.
           </p>
         </div>
         <Button asChild className="shrink-0">

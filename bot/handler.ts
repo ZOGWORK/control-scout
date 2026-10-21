@@ -96,7 +96,7 @@ export function createHandler(log: Log, lookups: Lookups = realLookups, opts: { 
     const r = await lookups.follow(guild, channel, team, i.user.id);
     return {
       title: r === "added" ? `Following ${team}` : `Already following ${team}`,
-      description: `<#${channel}> gets a post 15 minutes before each of **${team}**'s matches (lineups, win odds, predicted score) and another with the result and whether the call was right. Stop with /unfollow team:${team}.`,
+      description: `<#${channel}> gets posts for **${team}**: the evening before each event, its schedule with win odds once posted, 15 minutes before each match, each result and whether the call was right, and a recap at the end of each day. Stop with /unfollow team:${team}.`,
       color: VOLT,
       footer: FOOTER,
     };
