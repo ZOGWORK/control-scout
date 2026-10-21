@@ -13,6 +13,9 @@ export const PACK_TABLES: { name: string; ddl: string; teamsJoin?: boolean }[] =
   { name: "advancement", ddl: "CREATE TABLE advancement (season INTEGER, code TEXT, slots INTEGER, advances_to TEXT, rows TEXT, PRIMARY KEY (season, code))" },
   { name: "team_event_stats", ddl: "CREATE TABLE team_event_stats (season INTEGER, code TEXT, team INTEGER, opr_np REAL, opr_auto REAL, opr_teleop REAL, opr_endgame REAL, opr_pen REAL, avg_score REAL, avg_np REAL, avg_pen REAL, matches INTEGER, wins INTEGER, losses INTEGER, ties INTEGER, PRIMARY KEY (season, code, team))" },
   { name: "team_season_stats", ddl: "CREATE TABLE team_season_stats (season INTEGER, team INTEGER, opr_np REAL, opr_auto REAL, opr_teleop REAL, opr_endgame REAL, opr_pen REAL, rank_np INTEGER, rank_auto INTEGER, rank_teleop INTEGER, rank_endgame INTEGER, ranked_teams INTEGER, rating_np REAL, rating_auto REAL, rating_teleop REAL, rating_endgame REAL, rating_pen REAL, rating_sd REAL, rating_matches INTEGER, rating_rank INTEGER, events INTEGER, matches INTEGER, wins INTEGER, losses INTEGER, ties INTEGER, avg_np REAL, avg_score REAL, avg_pen REAL, PRIMARY KEY (season, team))" },
+  // Stored Monte Carlo projections (server/projections), so a saved event shows them offline. Packs built before
+  // this table existed don't have it: the offline reader then answers that there are none.
+  { name: "event_projections", ddl: "CREATE TABLE event_projections (season INTEGER, code TEXT, kind TEXT, state_key TEXT, seed INTEGER, runs INTEGER, target_runs INTEGER, stage TEXT, played INTEGER, scheduled INTEGER, through TEXT, slots INTEGER, slots_source TEXT, engine_version TEXT, ms INTEGER, computed_at TEXT, teams TEXT, PRIMARY KEY (season, code, kind))" },
 ];
 
 export const PACK_TEAMS_DDL = "CREATE TABLE teams (number INTEGER PRIMARY KEY, name TEXT, full_name TEXT, school TEXT, sponsors TEXT, city TEXT, state TEXT, country TEXT, rookie_year INTEGER, website TEXT, home_region TEXT)";

@@ -21,6 +21,7 @@ import { AccuracySection } from "../components/howitworks/AccuracySection";
 import { BreakChart, Verdicts } from "../components/howitworks/LabNotes";
 import { CleanList, Prose, Reveal, SectionHead, TipLayer, useReduced } from "../components/howitworks/ui";
 import { CAL, E2, E21, MODEL, NOISE, RATING } from "../components/howitworks/math";
+import { PROJECTION_FLOOR, PROJECTION_RUNS } from "../shared/projections";
 
 /** Event simulations per forecast (server/app.ts → forecast(…, 2000)). */
 const SIM_RUNS = 2000;
@@ -133,6 +134,16 @@ export default function MethodologyPage() {
             <h3>"What if we pick them?"</h3>
             <p>Because the simulator can force any pairing, the advancement tab answers partner questions. If you're likely to captain: "if we pick team X, our odds become…". If you're likely to be picked: "if captain Y picks us…". When this was tested on real alliances, knowing the actual partner cut the error on "this alliance wins the event" by about 16% compared with general after-quals odds (Brier 0.072 vs 0.086, in the engine's held-out test).</p>
             <p>For an event that has already happened, "Before the event" replays the ratings to the day before it started and hides its results. That's the forecast without hindsight.</p>
+          </Prose>
+          <Prose id="projections">
+            <h3>Live projections</h3>
+            <p>Every live or upcoming event that advances teams is simulated {PROJECTION_RUNS.toLocaleString("en-US")} times in the background, once its qualification schedule is out, and again a few seconds after each new batch of results. Pages only read the stored result; nobody's visit starts a simulation. Each run samples every unplayed match's score from the engine's score model (never a coin flip), adds bonus ranking points, and seeds teams with the official tiebreakers. The table shows each team's median final rank and the range it lands in 80% of runs (10th–90th percentile), plus how far it has moved since the projection made before the first match.</p>
+            <CleanList items={[
+              <><strong>Pick model.</strong> Captains come straight from the simulated seeds; who gets picked follows the fitted pick model, a softmax over each robot's rating with a small weight on its seed.</>,
+              <><strong>Advancement odds are performance-based — awards can also advance teams.</strong> They count quals rank, alliance and playoff points only; the simulator above adds award odds.</>,
+              <><strong>Same results, same numbers.</strong> The random numbers are seeded by the event and its results so far. A very large event that would take over 10 seconds runs {PROJECTION_FLOOR.toLocaleString("en-US")} simulations instead, and the page says so.</>,
+              <><strong>Checked on real events.</strong> Replaying 40 finished 2025–26 events from their midpoint, about 86% of teams (941 of 1,098) finished inside their projected 80% range.</>,
+            ]} />
           </Prose>
         </section>
 
