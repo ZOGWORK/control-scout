@@ -1,6 +1,6 @@
 // Home, the FTC observatory: search and the two main actions first, with the
 // season's coverage and your team under them, beside a country atlas of this
-// season's teams; then what's on the calendar, the public prediction record and Control Scout's own
+// season's teams; then today's coin flips (the closest calls at every event on today), what's on the calendar, the public prediction record and Control Scout's own
 // opt-in usage. On a phone it reads in task order: search, the season, your team
 // and events come before the atlas. The brand lives in the shell's chrome.
 import { useEffect } from "react";
@@ -18,6 +18,7 @@ import { Button } from "../components/ui/button";
 import { Reveal } from "../components/motion";
 import { CompetitionAtlas, preloadAtlas } from "../components/home/CompetitionAtlas";
 import { FindYourTeam, OnTheCalendar, PredictionRecord, PublicUsagePanel, SeasonCoverage, YourTeam } from "../components/home/HomeSections";
+import { CoinFlipRadarSection } from "../components/home/CoinFlipRadar";
 import { HOME_ABOUT, HOME_HEADLINE, HOME_LEAD } from "../shared/boot";
 import { dateRange, place } from "../lib/format";
 
@@ -40,6 +41,7 @@ export default function Home() {
         <div className="[grid-area:hero]"><Hero query={query} /></div>
         <div className="[grid-area:strip]"><SeasonCoverage state={overview} /></div>
         <div className="[grid-area:team]">{state.myTeam ? <YourTeam team={state.myTeam} season={season} /> : <FindYourTeam onSearch={search.open} />}</div>
+        <div className="[grid-area:radar]"><CoinFlipRadarSection /></div>
         <div className="[grid-area:events]"><OnTheCalendar season={season} /></div>
         <div className="[grid-area:atlas]">
           {overview.data ? <CompetitionAtlas overview={overview.data} currentSeason={season} compact={phone} /> : <AtlasPending failed={!!overview.error} onRetry={overview.reload} />}
