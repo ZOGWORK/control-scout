@@ -11,6 +11,7 @@ import { eventDetail } from "./events.js";
 import { liveForecaster } from "../predict/engine.js";
 import { localToUtcMs } from "../data/time.js";
 import { isLegacy } from "../data/seasons.js";
+import { rangesOf } from "../../src/shared/scoreRange.js";
 
 const score = (r: any, p: "red" | "blue") => r[`${p}_np`] == null ? null : {
   total: Number(r[`${p}_total`]), np: Number(r[`${p}_np`]), auto: Number(r[`${p}_auto`] ?? 0),
@@ -62,6 +63,9 @@ export async function matchViews(f: MatchFilter, opts: { predictUnplayed?: boole
     let prediction: MatchPredictionView | null = null;
     const fromRow = (x: any, kind: "live" | "backtest"): MatchPredictionView => ({
       pRed: x.p_red, redMean: x.red_mean, blueMean: x.blue_mean, tier: x.tier, kind, predictedAt: kind === "live" ? x.predicted_at : null,
+      ...(x.red_lo != null && x.red_hi != null && x.blue_lo != null && x.blue_hi != null && !x.no_score_basis
+        ? { redRange: [Number(x.red_lo), Number(x.red_hi)] as [number, number], blueRange: [Number(x.blue_lo), Number(x.blue_hi)] as [number, number], rangeLevel: Number(x.range_level ?? 0.8) }
+        : {}),
       ...(x.factors ? { factors: JSON.parse(x.factors) } : {}),
       ...(x.no_score_basis ? { noScoreBasis: true as const } : {}),
     });
@@ -74,7 +78,7 @@ export async function matchViews(f: MatchFilter, opts: { predictUnplayed?: boole
         // A live event's page polls this every 30 s and should mostly get a 304, so the body must not
         // change unless the data did: no predictedAt (a call from today's ratings isn't logged at a
         // moment), and pRed to 4 places (the ratings decay with the clock, moving it ~1e-9 per read).
-        if (x) prediction = { pRed: stableP(x.winProbA), redMean: x.predictedScoreA, blueMean: x.predictedScoreB, tier: x.confidence.tier, kind: "now", predictedAt: null, factors: x.factors, ...(noScoreBasis ? { noScoreBasis: true } : {}) };
+        if (x) prediction = { pRed: stableP(x.winProbA), redMean: x.predictedScoreA, blueMean: x.predictedScoreB, tier: x.confidence.tier, kind: "now", predictedAt: null, factors: x.factors, ...(noScoreBasis ? { noScoreBasis: true } : rangesOf(x)) };
       }
     }
     out.push({

@@ -76,6 +76,14 @@ describe("MatchReportView", () => {
     expect(screen.queryByTestId("report-result")).toBeNull();
   });
 
+  it("a call with stated ranges reads 120 ±14 and says what the ± means", () => {
+    const base = match().prediction!;
+    show(report(match({ prediction: { ...base, redRange: [106, 134], blueRange: [86, 112], rangeLevel: 0.8 } })));
+    expect(within(screen.getByRole("region", { name: "Red alliance" })).getByText(/to win/).textContent)
+      .toBe("64% to win · 120 ±14 (80% range 106–134: about 8 in 10 real scores land inside) pts confident confidence");
+    expect(screen.getByText(/± is the 80% range: red 106–134, blue 86–112/)).toBeTruthy();
+  });
+
   it("the event's OPR leads once a team has played a few matches here", () => {
     show(report(match(), [team(11, { event: { rank: 1, wins: 4, losses: 0, ties: 0, qualPlayed: 5, opr: { np: 70, auto: 20, teleop: 30, endgame: 20, pen: 0 } } }), team(12), team(13), team(14)]));
     expect(within(cards()[0]).getByText("OPR here")).toBeTruthy();

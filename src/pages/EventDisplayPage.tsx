@@ -20,6 +20,7 @@ import { NotFoundView } from "../components/NotFoundView";
 import { cn } from "../components/cn";
 import { oddsPct, tierWords } from "../shared/share";
 import type { EventDetail, MatchView } from "../shared/api";
+import { PredictedPair } from "../components/ScoreRange";
 
 const VOLT = "text-[#ffc700]";
 const RED = "#f43f5e", BLUE = "#38bdf8";
@@ -148,7 +149,7 @@ function NowPanel({ d, m, mine }: { d: EventDetail; m: DisplayModel; mine: Reado
           <div className="w-full">
             <WinBar pRed={p.pRed} height={1.4} />
             <p className="mt-[calc(var(--u)*0.6)] flex justify-between text-zinc-300">
-              <span><b className="text-[#f43f5e]">Red {oddsPct(p.pRed)}</b>{!p.noScoreBasis && <> · {Math.round(p.redMean)}–{Math.round(p.blueMean)}</>}</span>
+              <span><b className="text-[#f43f5e]">Red {oddsPct(p.pRed)}</b>{!p.noScoreBasis && <> · <PredictedPair p={p} /></>}</span>
               <span className="text-zinc-500">{tierWords(p.tier)}</span>
               <b className="text-[#38bdf8]">Blue {oddsPct(1 - p.pRed)}</b>
             </p>
