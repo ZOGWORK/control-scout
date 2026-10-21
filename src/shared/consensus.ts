@@ -23,7 +23,7 @@
 // - entries: live entries counted (match + pit); scouts: distinct authors; lastUpdated: the newest
 //   live entry's updatedAt (ms), null with no entries.
 import type { ScoutField, TemplateKind } from "./scoutTemplate";
-import { FAILURE_LABEL, type ReliabilityNotes } from "./reliability";
+import { isFailureField, type ReliabilityNotes } from "./reliability";
 
 export const CONSENSUS_TOP_TAGS = 5;
 /** Teams per consensus request (compare shows 4, a match report 4: room to spare, never a whole event). */
@@ -98,7 +98,7 @@ export function aggregateConsensus(team: number, entries: ConsensusEntry[], top 
   let flagged = 0;
   for (const e of sorted) {
     out.entries++;
-    if (e.kind === "match" && e.fields.some((f) => f.type === "toggle" && (f.id === "broke" || FAILURE_LABEL.test(f.label)) && e.data[f.id] === true)) flagged++;
+    if (e.kind === "match" && e.fields.some((f) => isFailureField(f) && e.data[f.id] === true)) flagged++;
     if (e.kind === "pit") out.pitEntries++; else out.matchEntries++;
     authors.add(e.authorAccountId);
     out.lastUpdated = Math.max(out.lastUpdated ?? 0, e.updatedAt);
