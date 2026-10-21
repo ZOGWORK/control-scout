@@ -4,8 +4,8 @@ import { Suspense, lazy, useEffect, useRef, useState } from "react";
 import { AnimatePresence, useReducedMotion } from "motion/react";
 import { m as Motion } from "./motion";
 import { Link, useLocation } from "react-router-dom";
-import { Check, ChevronDown, CircleDashed, ClipboardList, Gauge, History, PlayCircle, Radio, ShieldCheck, Video, X } from "lucide-react";
-import type { ConfidenceTier, Factor, MatchPredictionView, MatchView } from "../shared/api";
+import { Check, ChevronDown, CircleDashed, ClipboardList, Gauge, Handshake, History, PlayCircle, Radio, ShieldCheck, Video, X } from "lucide-react";
+import type { ConfidenceTier, Factor, MatchPredictionView, MatchView, PairHistory } from "../shared/api";
 import { matchReportHref } from "../shared/matchReport";
 import { cn } from "./cn";
 import { Tooltip, TooltipContent, TooltipTrigger } from "./ui/overlay";
@@ -78,6 +78,21 @@ export function FactorList({ factors, className }: { factors: Factor[]; classNam
         </li>
       ))}
     </ol>
+  );
+}
+
+/**
+ * Earlier matches between these robots (engine 2.2 partnership memory): a real
+ * result, shown as a reason next to the factors. It isn't one of them (the
+ * factors split the predicted margin exactly; this history doesn't move it).
+ */
+export function PairHistoryLine({ history, className }: { history: PairHistory; className?: string }) {
+  const tone = history.kind === "against" ? "bg-muted text-text-muted" : history.side === "A" ? "bg-red-alliance/15 text-red-alliance" : "bg-blue-alliance/15 text-blue-alliance";
+  return (
+    <p className={cn("flex gap-2 text-sm", className)}>
+      <span className={cn("mt-0.5 flex size-5 shrink-0 items-center justify-center rounded-full", tone)} aria-hidden="true"><Handshake className="size-3" /></span>
+      <span className="text-text-base"><span className="sr-only">Earlier matches: </span>{history.label}</span>
+    </p>
   );
 }
 

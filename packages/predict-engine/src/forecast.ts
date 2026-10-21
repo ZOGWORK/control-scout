@@ -11,6 +11,7 @@ import { bonusCount } from "./rules.js";
 import { rng, simulateEvent, type AwardInput, type BonusModel, type PickModel, type QualMatch, type SimInput, type TeamOutcome } from "./sim.js";
 import { awardFeatures, sampleAwards, type AwardModel, type AwardRecord } from "./awards.js";
 import { ADVANCING_TYPES } from "./scoutData.js";
+import { partnershipFact, type PairLookup, type PartnershipFact } from "./partnership.js";
 import type { AllianceResult, MatchRecord } from "./types.js";
 import type { AllianceInput, BonusFlags, EventInput, FirstAdvancement, MatchInput } from "./inputs.js";
 
@@ -87,6 +88,9 @@ export interface ForecastMatch {
    *  fallback, e.g. 2.0 under 2.1), for side-by-side ledgers; null when there is none. */
   pShadow?: number | null;
   shadowModelId?: string | null;
+  /** Unplayed matches (engine 2.2): the strongest real history between these robots (played
+   *  together or against each other before), when the app supplies a pair table. A reason only. */
+  history?: PartnershipFact | null;
 }
 
 export interface PartnerOption { team: number; pAdvance: number; pWin: number }
@@ -127,6 +131,15 @@ export abstract class Forecaster {
     return null;
   }
 
+  /**
+   * Pair history for a season's predictions (partnership.ts, engine 2.2): a table
+   * built from matches before now. Apps override this; the default has none, and
+   * then no prediction carries a partnership fact.
+   */
+  protected partnerships(_season: number): PairLookup | null {
+    return null;
+  }
+
   /** One match's prediction. `ctx.level` defaults to "qual" for generic what-ifs. */
   match(season: number, red: number[], blue: number[], ctx: MatchContext = {}) {
     const book = this.book(season);
@@ -136,7 +149,11 @@ export abstract class Forecaster {
 
   /** The engine's prediction for a lineup on a given book (score model + win probability). */
   protected predict(book: RatingBook, red: number[], blue: number[], ctx: MatchContext = {}) {
-    return predictMatch(book, red, blue, this.model.noise, this.model.calibration, { context: ctx, contextual: this.model.contextual, shadow: this.model.contextual?.fallback });
+    const pairs = book.season != null ? this.partnerships(book.season) : null;
+    return predictMatch(book, red, blue, this.model.noise, this.model.calibration, {
+      context: ctx, contextual: this.model.contextual, shadow: this.model.contextual?.fallback,
+      ...(pairs ? { partnership: { table: pairs, season: book.season! } } : {}),
+    });
   }
 
   /** A played alliance's recorded bonus RPs: from the payload, else the app's store. */
@@ -347,6 +364,7 @@ export abstract class Forecaster {
       matchesOnly = { team: myTeam, pAdvance: mo.get(myTeam)?.pAdvance ?? 0 };
     }
     const teams: ForecastTeam[] = [...res.values()].map((o) => this.teamView(o, book, o.team === myTeam));
+    const pairs = this.partnerships(ev.season);
     const matches: ForecastMatch[] = ev.matches.filter((m) => m.red.teams.length && m.blue.teams.length).slice(0, 400).map((m) => {
       const red = m.red.teams.map((t) => t.number), blue = m.blue.teams.map((t) => t.number);
       const p = !m.played && red.length <= 2 && blue.length <= 2 ? this.predict(book, red, blue, { level: m.level, event: ev.code }) : null;
@@ -354,6 +372,7 @@ export abstract class Forecaster {
         key: m.key, label: m.label, level: m.level, red, blue, pRedWin: p?.pRedWin ?? null, redMean: p?.red.mean ?? null, blueMean: p?.blue.mean ?? null,
         modelId: p ? p.modelId ?? "legacy" : null,
         pShadow: p?.pShadow ?? null, shadowModelId: p?.shadowModelId ?? null,
+        ...(pairs ? { history: p ? partnershipFact(pairs, red, blue, ev.season) : null } : {}),
         played: m.played && m.red.score?.total != null && m.blue.score?.total != null ? { red: m.red.score.total, blue: m.blue.score.total } : null,
       };
     });

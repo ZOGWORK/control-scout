@@ -106,6 +106,10 @@ export default function MethodologyPage() {
             <h3>The top 3 factors</h3>
             <p>On a prediction, the predicted margin splits <strong>exactly</strong> into four parts: the auto gap, the TeleOp gap, the endgame gap, and the difference in penalties each side gives away. The factors are the <strong>three largest</strong> of those four parts, so they explain most of the margin; the fourth (smallest) part makes up the rest. Each one is a piece of the actual prediction shown, never a separate story.</p>
           </Prose>
+          <Prose id="history">
+            <h3>Earlier matches together</h3>
+            <p>When two of the robots have really played on the same alliance, or against each other, the prediction says so, for example "1234 and 5678 have played 6 matches together (5–1); best 212 at the state championship". The history goes back to 2019–20. Each result is compared with what both teams' ratings expected at the time, so seasons with very different scores can be compared fairly. The line is a <strong>reason only</strong>: it doesn't change the odds. We tested blending it into the odds, with a heavy pull toward "no effect" for pairs that have played only a few matches. Fitted on 2023–24 and checked on the 2025–26 season it had never seen, the blend made the odds slightly worse. So the history is shown, not counted.</p>
+          </Prose>
         </section>
 
         {/* ================= 04 EVENTS ================= */}
