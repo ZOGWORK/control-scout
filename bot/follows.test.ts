@@ -98,3 +98,46 @@ describe("follows and the tick, on a database", () => {
     expect(await all("SELECT * FROM discord_follows")).toEqual([]);
   });
 });
+
+describe("review fixes", () => {
+  const t = (n: number, onField = true) => ({ number: n, surrogate: false, dq: false, onField });
+  const f = (team: number): Follow => ({ guild_id: "g", channel_id: "c1", team, created_at: iso(NOW - 864e5), failures: 0 });
+
+  it("a followed team that sat out a played playoff match isn't named in its result", () => {
+    const m: MatchView = {
+      season: S, code: "X", key: "playoff:1:1", level: "playoff", series: 1, number: 1, label: "M1", time: null, startsAt: iso(NOW - 600_000), played: true,
+      red: { teams: [t(1), t(2), t(5, false)], score: { total: 50, np: 50, auto: 0, teleop: 0, endgame: 0, pen: 0 } },
+      blue: { teams: [t(3), t(4)], score: { total: 40, np: 40, auto: 0, teleop: 0, endgame: 0, pen: 0 } },
+      video: null, prediction: null,
+    };
+    expect(dueNow([f(5)], [m], NOW)).toEqual([]);
+    expect(dueNow([f(1)], [m], NOW)).toHaveLength(1);
+  });
+});
+
+describe("review fixes, on a database", () => {
+  beforeEach(async () => { await run("DELETE FROM discord_follows"); await run("DELETE FROM discord_posts"); clearAllCaches(); });
+
+  it("the 10-team limit holds, even when follows land at the same moment", async () => {
+    await run("INSERT INTO teams (number, name) SELECT 100 + value, 'T' FROM json_each('[0,1,2,3,4,5,6,7,8,9,10]') WHERE 1 ON CONFLICT DO NOTHING");
+    const tries = Array.from({ length: 11 }, (_, i) => addFollow("g2", `c${i}`, 4215, "u").catch((e) => e));
+    const results = await Promise.all(tries);
+    expect(results.filter((r) => r === "added")).toHaveLength(10);
+    expect(results.filter((r) => r instanceof Friendly)).toHaveLength(1);
+    expect((await all("SELECT * FROM discord_follows WHERE guild_id = 'g2'")).length).toBe(10);
+  });
+
+  it("a claim the bot never sent (it stopped mid-send) is posted once it's stale; a channel that was gone gets it once it's back", async () => {
+    await addFollow("g", "c1", 18360, "u", NOW - 864e5);
+    // A stopped bot left a claim without sent_at.
+    await run("INSERT INTO discord_posts (channel_id, season, code, match_key, kind, claimed_at) VALUES ('c1', ?, 'USTXAUQ', 'qual:0:7', 'reminder', ?)", [S, iso(NOW - 5 * 60_000)]);
+    const ok = vi.fn(async () => "ok" as const);
+    expect(await notifyTick(ok, "s", () => {}, NOW)).toBe(1);
+    expect(await notifyTick(ok, "s", () => {}, NOW + 30_000)).toBe(0); // now marked sent
+
+    await run("DELETE FROM discord_posts");
+    const gone = vi.fn(async () => "gone" as const);
+    await notifyTick(gone, "s", () => {}, NOW);
+    expect(await notifyTick(ok, "s", () => {}, NOW + 60_000)).toBe(1); // access restored: retried while still due
+  });
+});

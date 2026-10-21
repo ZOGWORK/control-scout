@@ -1068,12 +1068,15 @@ CREATE TABLE discord_follows (
   PRIMARY KEY (guild_id, channel_id, team)
 );
 CREATE INDEX discord_follows_team ON discord_follows (team);
--- One post per channel, match and kind (reminder | result), so a restart or two teams in one match never post twice.
+-- One post per channel, match and kind (reminder | result), so a restart or two teams in one match never post
+-- twice. A tick claims a row (claimed_at) before sending and marks it sent (sent_at) after; a claim that never
+-- got sent (the bot stopped mid-send) can be taken again once it's stale, while the post is still due.
 CREATE TABLE discord_posts (
   channel_id TEXT NOT NULL,
   season INTEGER NOT NULL, code TEXT NOT NULL, match_key TEXT NOT NULL,
   kind TEXT NOT NULL,
-  posted_at TEXT NOT NULL,
+  claimed_at TEXT NOT NULL,
+  sent_at TEXT,
   PRIMARY KEY (channel_id, season, code, match_key, kind)
 );
 `,
