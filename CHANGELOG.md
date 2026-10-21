@@ -23,7 +23,7 @@ Predictions now say when the robots have met before.
 - **Partnership memory (engine 2.2).** When two robots in a match have played together or against each other, the prediction shows the strongest real fact under the top 3 factors: in match details, the match report and the Predict lab. Every result since 2019–20 is compared with what both teams' ratings expected at the time, so seasons with different games compare fairly. Pairs with only a few matches are pulled hard toward "no effect". We tested blending the history into the win odds: fitted on 2023–24 and checked on all of 2025–26, it made them slightly worse, so it doesn't change any number. The methodology page explains it, and `docs/partnership-memory.md` has the full test. (#231)
 
 ### Offline
-- The offline pack carries the pair history (about 690 KB more), so offline predictions show the same line. (#231)
+- The offline pack carries the pair history (about 690 KB more), so offline predictions show the same line.
 
 ## 1.12.0 — 2026-10-21
 
