@@ -121,7 +121,7 @@ export function ChangeReview({ id, target, text, reachable }: {
         <p id={descId} className="min-w-0 flex-1 basis-60 text-xs text-muted-foreground">
         {posted ? now.hint : <>{describeDiff(parts, shared ?? "", text)}{now.hint && <> {now.hint}</>}</>}
         </p>
-        <Button size="sm" variant="secondary" className="h-7 max-sm:h-11" onClick={() => setAttempt((a) => a + 1)}><RefreshCw /> Read again</Button>
+        <Button size="sm" variant="secondary" className="h-7 max-sm:h-10" onClick={() => setAttempt((a) => a + 1)}><RefreshCw /> Read again</Button>
       </div>
       <div className="grid gap-3 sm:grid-cols-2">
         <Side parts={sideOf(parts, "after")} label={yours} empty="Empty: it clears what's shared now." />
@@ -138,7 +138,7 @@ function Notice({ id, message, text, yours, retry }: { id: string; message: stri
     <div id={id} className="mt-2 space-y-2">
       <p className="flex flex-wrap items-center gap-2 text-xs text-foreground" role="status">
         {message}
-        {retry && <Button size="sm" variant="secondary" className="h-7 max-sm:h-11" onClick={retry}>Check again</Button>}
+        {retry && <Button size="sm" variant="secondary" className="h-7 max-sm:h-10" onClick={retry}>Check again</Button>}
       </p>
       <Side parts={parts} label={yours} empty="Empty." />
     </div>

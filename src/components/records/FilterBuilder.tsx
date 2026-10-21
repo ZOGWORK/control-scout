@@ -213,7 +213,7 @@ function ConditionRow({ c, scope, predictable, error, ops }: { c: BCond; scope: 
   return (
     <div className={cn("rounded-lg border bg-card p-2", shown ? "border-danger/50" : "border-line")} data-condition>
       <div className="grid grid-cols-[minmax(0,1fr)_auto] gap-2 @min-[27rem]:grid-cols-[minmax(0,1fr)_8.5rem_9rem_auto]">
-        <button type="button" onClick={() => ops.pick(c.id)} className={cn("flex h-9 min-w-0 items-center gap-2 rounded-lg border px-2.5 text-left text-sm max-sm:h-11", def ? "border-line hover:border-text-base/30" : "border-dashed border-accent/60 text-accent-text")} aria-label={def ? `Statistic: ${def.label}. Change` : "Choose a statistic"}>
+        <button type="button" onClick={() => ops.pick(c.id)} className={cn("flex h-9 min-w-0 items-center gap-2 rounded-lg border px-2.5 text-left text-sm max-sm:h-10", def ? "border-line hover:border-text-base/30" : "border-dashed border-accent/60 text-accent-text")} aria-label={def ? `Statistic: ${def.label}. Change` : "Choose a statistic"}>
           {def ? <span className={cn("size-2 shrink-0 rounded-full", tone.bar)} /> : <Plus className="size-4 shrink-0" />}
           <span className="min-w-0 flex-1 truncate font-medium">{def?.label ?? "Choose a statistic"}</span>
           <Pencil className="size-3.5 shrink-0 text-text-muted" />
@@ -221,7 +221,7 @@ function ConditionRow({ c, scope, predictable, error, ops }: { c: BCond; scope: 
         <Button variant="ghost" size="icon" className="@min-[27rem]:order-last" onClick={() => ops.remove(c.id)} aria-label="Remove condition"><X /></Button>
         <div className="col-span-2 grid grid-cols-[8.5rem_minmax(0,1fr)] gap-2 @min-[27rem]:col-span-2 @min-[27rem]:contents">
           <Select value={c.op} onValueChange={(v) => ops.patch(c.id, { op: v as FilterOp })} disabled={!def}>
-            <SelectTrigger className="h-9 max-sm:h-11" aria-label="Comparison"><SelectValue /></SelectTrigger>
+            <SelectTrigger className="h-9 max-sm:h-10" aria-label="Comparison"><SelectValue /></SelectTrigger>
             <SelectContent>
               {allowed.map((o) => <SelectItem key={o} value={o}><span className="inline-block w-5 font-semibold">{OP_LABELS[o].length <= 2 ? OP_LABELS[o] : ""}</span>{OP_WORDS[o]}</SelectItem>)}
             </SelectContent>
@@ -230,7 +230,7 @@ function ConditionRow({ c, scope, predictable, error, ops }: { c: BCond; scope: 
             <Input
               id={`cond-value-${c.id}`} value={c.value} onChange={(e) => ops.patch(c.id, { value: e.target.value })} disabled={!def}
               inputMode={def?.type === "text" ? "text" : "decimal"} placeholder={def?.type === "text" ? "text" : "number"} aria-label="Value" aria-invalid={!!error && shown}
-              className={cn("h-9 max-sm:h-11", def?.percent && "pr-7")}
+              className={cn("h-9 max-sm:h-10", def?.percent && "pr-7")}
             />
             {def?.percent && <span className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 text-sm text-text-muted">%</span>}
           </div>
@@ -256,13 +256,13 @@ function SavedList({ scope, saved, current, onApply }: { scope: RecordScope; sav
         <p className="text-sm font-medium">Save the current filter</p>
         <p className="mt-0.5 text-xs text-text-muted">{current ? describeFilter(current, scope) : "Build a filter first, then name it here."}</p>
         <div className="mt-2 flex gap-2">
-          <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="Name, e.g. Alliance picks" aria-label="Filter name" maxLength={60} disabled={!current} className="h-9 max-sm:h-11" />
-          <Button type="submit" size="sm" className="h-9 max-sm:h-11" disabled={!current || !name.trim()}><Save /> Save</Button>
+          <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="Name, e.g. Alliance picks" aria-label="Filter name" maxLength={60} disabled={!current} className="h-9 max-sm:h-10" />
+          <Button type="submit" size="sm" className="h-9 max-sm:h-10" disabled={!current || !name.trim()}><Save /> Save</Button>
         </div>
         <p className="mt-2 text-[11px] text-text-muted">Kept on this device — no account needed.</p>
       </form>
       {!saved.length ? (
-        <p className="rounded-xl border border-dashed border-line px-4 py-8 text-center text-sm text-text-muted">No saved filters yet.</p>
+        <p className="rounded-xl border border-dashed border-line px-4 py-8 max-sm:py-5 text-center text-sm text-text-muted">No saved filters yet.</p>
       ) : (
         <ul className="space-y-2" aria-label="Saved filters">
           {saved.map((s) => {
@@ -272,9 +272,9 @@ function SavedList({ scope, saved, current, onApply }: { scope: RecordScope; sav
               <li key={s.id} className="rounded-xl border border-line bg-card p-3">
                 {editing?.id === s.id ? (
                   <form className="flex gap-2" onSubmit={(e) => { e.preventDefault(); try { renameSaved(s.id, editing.name); setEditing(null); } catch (err) { toast.error((err as Error).message); } }}>
-                    <Input value={editing.name} onChange={(e) => setEditing({ id: s.id, name: e.target.value })} autoFocus aria-label="New name" maxLength={60} className="h-9 max-sm:h-11" />
-                    <Button type="submit" size="sm" className="h-9 max-sm:h-11">Rename</Button>
-                    <Button type="button" variant="ghost" size="sm" className="h-9 max-sm:h-11" onClick={() => setEditing(null)}>Cancel</Button>
+                    <Input value={editing.name} onChange={(e) => setEditing({ id: s.id, name: e.target.value })} autoFocus aria-label="New name" maxLength={60} className="h-9 max-sm:h-10" />
+                    <Button type="submit" size="sm" className="h-9 max-sm:h-10">Rename</Button>
+                    <Button type="button" variant="ghost" size="sm" className="h-9 max-sm:h-10" onClick={() => setEditing(null)}>Cancel</Button>
                   </form>
                 ) : (
                   <div className="flex items-start gap-2">

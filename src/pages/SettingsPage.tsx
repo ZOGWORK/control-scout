@@ -9,7 +9,8 @@
 // workspace, changed by its admins; shown only to its members).
 import { useEffect, useRef, useState, type ComponentType } from "react";
 import { Link, useLocation, useNavigate, useSearchParams } from "react-router-dom";
-import { AnimatePresence, m } from "motion/react";
+import { AnimatePresence } from "motion/react";
+import { m } from "../components/motion";
 import {
   ArrowDown, ArrowUp, BellRing, Bug, ClipboardList, Download, ExternalLink, HardDriveDownload, Info, KeyRound, Link2, LogOut, Mail, Monitor, Moon, Palette,
   Star, Sun, Upload, UserRound, Users, X,
@@ -47,7 +48,9 @@ import { useSavedSeasons } from "../lib/offline/saved";
 import { workspacesOf } from "../lib/scoutSpace";
 import { Group, Row } from "../components/settings/rows";
 import { WorkspaceSection } from "../components/settings/WorkspaceSection";
+import { TabBarSettings } from "../components/settings/TabBarSettings";
 import { openWhatsNew } from "../components/WhatsNew";
+import { TEXT_SIZES, isTextSize, setTextSize, useTextSize } from "../lib/textSize";
 import { currentRelease } from "../lib/changelog";
 
 type SectionId = "profile" | "appearance" | "tracking" | "notifications" | "offline" | "scouting" | "privacy" | "workspace" | "about";
@@ -56,7 +59,7 @@ interface SectionDef { id: SectionId; label: string; hint: string; icon: Compone
 
 const ALL_SECTIONS: SectionDef[] = [
   { id: "profile", label: "Profile", hint: "Sign in to sync, your name, your account", icon: UserRound, group: "Personal" },
-  { id: "appearance", label: "Appearance", hint: "Theme, background, density", icon: Palette, group: "Personal" },
+  { id: "appearance", label: "Appearance", hint: "Theme, text size, background, phone tab bar", icon: Palette, group: "Personal" },
   { id: "tracking", label: "My team & tracking", hint: "Your team, and the teams and events you follow", icon: Star, group: "Personal" },
   { id: "notifications", label: "Notifications", hint: "Push and match alerts for your teams", icon: BellRing, group: "Personal" },
   { id: "offline", label: "Offline data", hint: "Packs, cache and recordings on this device", icon: HardDriveDownload, group: "Personal" },
@@ -109,7 +112,7 @@ export default function SettingsPage() {
   return (
     <div>
       <PageHeader eyebrow="Settings" title={current.label} description={current.hint} />
-      <div className="grid grid-cols-[minmax(0,1fr)] gap-8 lg:grid-cols-[220px_minmax(0,1fr)]">
+      <div className="grid grid-cols-[minmax(0,1fr)] gap-8 max-sm:gap-5 lg:grid-cols-[220px_minmax(0,1fr)]">
         <nav aria-label="Settings sections" className="min-w-0 lg:sticky lg:top-[calc(var(--header-h)+1.5rem)] lg:self-start">
           <ul ref={navRef} className="-mx-4 flex gap-2 overflow-x-auto px-4 pb-1 [scrollbar-width:none] lg:mx-0 lg:block lg:space-y-0.5 lg:overflow-visible lg:px-0 [&::-webkit-scrollbar]:hidden">
             {SECTIONS.map((s, i) => {
@@ -117,7 +120,7 @@ export default function SettingsPage() {
               const showGroup = i === 0 || SECTIONS[i - 1].group !== s.group;
               return (
                 <li key={s.id} className="shrink-0">
-                  {showGroup && <p className={cn("mb-1 hidden px-3 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground lg:block", i === 0 ? "mt-0" : "mt-5")}>{s.group}</p>}
+                  {showGroup && <p className={cn("mb-1 hidden px-3 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground lg:block", i === 0 ? "mt-0" : "mt-5 max-sm:mt-4")}>{s.group}</p>}
                   <button
                     type="button" onClick={() => go(s.id)} aria-current={on ? "page" : undefined}
                     className={cn(
@@ -164,7 +167,7 @@ function Profile({ signinFailed }: { signinFailed: boolean }) {
   if (!providers) return <div className="skeleton h-48 rounded-xl" />;
   return (
     <div>
-      {signinFailed && !user && <p className="mb-6 rounded-xl border border-destructive/40 bg-destructive/10 px-4 py-3 text-sm text-foreground">That sign-in didn't go through. Try again, or use your email.</p>}
+      {signinFailed && !user && <p className="mb-6 max-sm:mb-4 rounded-xl border border-destructive/40 bg-destructive/10 px-4 py-3 text-sm text-foreground">That sign-in didn't go through. Try again, or use your email.</p>}
       {user ? <SignedIn user={user} sync={sync} onSignOut={signOut} /> : <SignIn providers={providers} onSignedIn={signedIn} />}
     </div>
   );
@@ -193,7 +196,7 @@ function SignIn({ providers, onSignedIn }: { providers: AuthProviders; onSignedI
   };
   return (
     <div>
-      <div className="relative mb-8 overflow-hidden rounded-2xl border border-accent/30 bg-card p-6">
+      <div className="relative mb-8 max-sm:mb-5 overflow-hidden rounded-2xl border border-accent/30 bg-card p-6 max-sm:p-4">
         <div aria-hidden className="pointer-events-none absolute -right-16 -top-20 size-56 rounded-full bg-accent opacity-15 blur-3xl" />
         <p className="relative font-display text-xl font-semibold text-foreground">Keep your scouting everywhere</p>
         <p className="relative mt-1 max-w-xl text-sm text-muted-foreground">Browsing, search and predictions never need an account. Sign in only to keep these in sync across your devices:</p>
@@ -298,6 +301,7 @@ function SignedIn({ user, sync, onSignOut }: { user: AccountUser; sync: string; 
 function Appearance() {
   const { state, update } = usePersonal();
   const s = state.settings;
+  const textSize = useTextSize();
   return (
     <div>
       <Group title="Display" description="Yours alone, on every device, inside a workspace's scout space too.">
@@ -314,12 +318,18 @@ function Appearance() {
             <ToggleGroupItem value="compact">Compact</ToggleGroupItem>
           </ToggleGroup>
         </Row>
+        <Row label="Text size" description="Everything scales together: text, boxes and buttons. Kept on this device, so your phone and laptop can differ.">
+          <ToggleGroup type="single" value={textSize} onValueChange={(v) => { if (isTextSize(v)) setTextSize(v); }} aria-label="Text size">
+            {TEXT_SIZES.map((t) => <ToggleGroupItem key={t.id} value={t.id}>{t.label}</ToggleGroupItem>)}
+          </ToggleGroup>
+        </Row>
       </Group>
       <Group title="Background" description="This page's own background is the preview.">
         <Row label="Animated background" htmlFor="ambient" description="A slowly drifting grid and a light that follows your pointer. Always still if your device asks for reduced motion.">
           <Switch id="ambient" checked={s.ambient !== false} onCheckedChange={(v) => update("settings", (x) => ({ ...x, ambient: v }))} />
         </Row>
       </Group>
+      <TabBarSettings />
     </div>
   );
 }

@@ -94,7 +94,7 @@ export function AccuracySection() {
         <div id="ledger" className="scroll-mt-bar-24 rounded-2xl border border-border bg-card p-4 sm:p-5">
           <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
             <div className="min-w-0">
-              <p className="hiw-gold text-[11px] font-bold uppercase tracking-[0.14em]">Control Scout's ledger</p>
+              <p className="hiw-gold-text text-[11px] font-bold uppercase tracking-[0.14em]">Control Scout's ledger</p>
               <p className="mt-0.5 font-display text-base font-semibold text-foreground sm:text-lg">{sel ? LEDGER_MODE[sel.kind].title : "Every scored prediction"}{season && <span className="ml-1.5 font-mono text-xs font-normal text-muted-foreground">· {season.label}</span>}</p>
               {sel && block && <Badge variant={sel.kind === "live" ? "success" : "secondary"} className="mt-2 w-fit">{sel.kind === "live" ? <><Radio /> Logged live · called before each match</> : <><History /> Season replay · not calls made in advance</>}{isHeadline && " · the headline"}</Badge>}
             </div>
@@ -223,7 +223,7 @@ function StatCell({ value, label, tone }: { value: ReactNode; label: string; ton
   return (
     <div role="listitem" className="grid min-w-0 content-start gap-1 bg-card p-4">
       <b className={cn("font-display text-3xl font-bold leading-none tabular-nums sm:text-4xl", tone ? TONE[tone] : "text-foreground")}>{value}</b>
-      <span className="text-[13px] leading-snug text-muted-foreground">{label}</span>
+      <span className="text-[0.8125rem] leading-snug text-muted-foreground">{label}</span>
     </div>
   );
 }

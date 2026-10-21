@@ -68,6 +68,14 @@ made until the workspace confirms it or the member discards it. A record names t
 workspace, season and op id, and keeps the order the member saw just before the change.
 Records are only ever read for the signed-in account, and are dropped after 14 days.
 
+Each record is checked in full when it's read: its change as the server would take it, every
+team in its base order a team number (each once, at most a full list), its op id, time, version
+and state. A record that fails (damaged storage) is never applied, compared or sent, and is never
+dropped silently. It shows on its own, on the pick list and in the recoverable view, as "This
+saved change is damaged and can't be applied", named by its change when that part is readable,
+with only **Discard this change**, which removes that one record. The account's other kept
+changes carry on as usual.
+
 After a reload, kept changes are checked with `?ops=` first: one the server already applied
 simply goes. The rest show on the pick list as "N unsaved pick-list changes", and in the
 recoverable view, with Retry and Discard. Nothing is sent again by itself.

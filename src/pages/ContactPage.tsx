@@ -4,7 +4,7 @@
 // errors (limit reached, offline, down) show inline too.
 import { useEffect, useId, useState, type FormEvent, type ReactNode } from "react";
 import { Link, useSearchParams } from "react-router-dom";
-import { m } from "motion/react";
+import { m } from "../components/motion";
 import { AlertCircle, Bug, CheckCircle2, DatabaseZap, ExternalLink, Lightbulb, Loader2, MessageCircle, Send } from "lucide-react";
 import { useTitle } from "../lib/meta";
 import { usePersonal } from "../lib/personal";
@@ -103,20 +103,20 @@ export default function ContactPage() {
   return (
     <div>
       <PageHeader title="Contact us" description="Found a bug, spotted wrong data, or have an idea? Tell us here." />
-      <div className="grid grid-cols-[minmax(0,1fr)] gap-8 lg:grid-cols-[minmax(0,1fr)_320px]">
+      <div className="grid grid-cols-[minmax(0,1fr)] gap-8 max-sm:gap-5 lg:grid-cols-[minmax(0,1fr)_320px]">
         <div className="self-start rounded-2xl border border-line bg-card/70 p-4 sm:p-6">
           {status === "sent" ? (
-            <m.div role="status" initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} className="flex flex-col items-center py-8 text-center">
+            <m.div role="status" initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} className="flex flex-col items-center py-8 max-sm:py-5 text-center">
               <span className="mb-4 flex size-14 items-center justify-center rounded-full bg-success/12 text-success"><CheckCircle2 className="size-7" aria-hidden /></span>
               <h2 className="font-display text-xl font-semibold text-foreground">Message sent. Thank you!</h2>
               <p className="mt-2 max-w-md text-sm text-text-muted">We've got it. If it needs an answer, we'll reply to <strong className="text-foreground">{sentTo}</strong>.</p>
-              <div className="mt-6 flex flex-wrap justify-center gap-2">
+              <div className="mt-6 max-sm:mt-4 flex flex-wrap justify-center gap-2">
                 <Button variant="outline" onClick={reset}>Send another</Button>
                 <Button variant="secondary" asChild><Link to="/">Back to home</Link></Button>
               </div>
             </m.div>
           ) : (
-            <form noValidate onSubmit={submit} className="space-y-5" aria-describedby={failure ? "contact-failure" : undefined}>
+            <form noValidate onSubmit={submit} className="space-y-5 max-sm:space-y-4" aria-describedby={failure ? "contact-failure" : undefined}>
               <fieldset>
                 <legend className="mb-2 flex items-center gap-1 text-sm font-medium text-foreground" id={ids.topic}>What's it about? <RequiredMark /></legend>
                 <div role="radiogroup" aria-labelledby={ids.topic} aria-invalid={!!shown("topic")} aria-describedby={shown("topic") ? `${ids.topic}-err` : undefined} className="grid grid-cols-2 gap-2 sm:grid-cols-4">
@@ -138,7 +138,7 @@ export default function ContactPage() {
                 <FieldError id={`${ids.topic}-err`} msg={shown("topic")} />
               </fieldset>
 
-              <div className="grid gap-5 sm:grid-cols-2">
+              <div className="grid gap-5 max-sm:gap-4 sm:grid-cols-2">
                 <FieldWrap label={<>Name <span className="font-normal text-text-muted">(optional)</span></>} htmlFor={ids.name} error={shown("name")}>
                   <Input id={ids.name} autoComplete="name" value={form.name} onChange={(e) => set("name", e.target.value)} onBlur={() => leave("name")}
                     aria-invalid={!!shown("name")} aria-describedby={shown("name") ? `${ids.name}-err` : undefined} />

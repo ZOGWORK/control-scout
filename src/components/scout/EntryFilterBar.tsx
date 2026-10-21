@@ -76,7 +76,7 @@ export function EntryFilterBar(p: EntryFilterBarProps) {
         {active > 0 && <Button variant="link" size="sm" className="h-auto" onClick={p.onClear}>Clear filters</Button>}
       </div>
       <Sheet open={sheet} onOpenChange={setSheet}>
-        <SheetContent side="bottom" className="gap-4 p-5 pt-6">
+        <SheetContent side="bottom" className="gap-4 p-5 max-sm:p-4 pt-6 max-sm:pt-4">
           <SheetHeader className="text-left">
             <SheetTitle>Filter entries</SheetTitle>
             <SheetDescription>{active ? `${p.shown} of ${p.total} entries match.` : `${p.total} entries.`}</SheetDescription>
@@ -106,7 +106,7 @@ function SearchBox({ query, onChange }: { query: string; onChange: (v: string) =
       <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
       <Input type="search" value={text} maxLength={MAX_QUERY} placeholder="Search notes, answers, names…" aria-label="Search entries"
         onChange={(e) => { setText(e.target.value); written.current = e.target.value; onChange(e.target.value); }}
-        className="h-10 pl-9 max-sm:h-11" />
+        className="h-10 pl-9 max-sm:h-10" />
     </div>
   );
 }
@@ -114,7 +114,7 @@ function SearchBox({ query, onChange }: { query: string; onChange: (v: string) =
 function SortPicker({ sort, onSort }: { sort: EntrySort; onSort: (s: EntrySort) => void }) {
   return (
     <Select value={sort} onValueChange={(v) => onSort(v as EntrySort)}>
-      <SelectTrigger aria-label="Sort entries" className="h-10 max-sm:h-11"><SelectValue /></SelectTrigger>
+      <SelectTrigger aria-label="Sort entries" className="h-10 max-sm:h-10"><SelectValue /></SelectTrigger>
       <SelectContent>{(Object.keys(SORT_LABELS) as EntrySort[]).map((s) => <SelectItem key={s} value={s}>{SORT_LABELS[s]}</SelectItem>)}</SelectContent>
     </Select>
   );
@@ -123,7 +123,7 @@ function SortPicker({ sort, onSort }: { sort: EntrySort; onSort: (s: EntrySort) 
 /** Team, event, author, match and kind: inline on wider screens (compact), stacked with labels in the sheet. */
 function Pickers({ filters: f, options: o, onFilter, onWantEvents, compact }: EntryFilterBarProps & { compact?: boolean }) {
   const field = (label: string, node: React.ReactNode) => compact ? node : <div className="grid gap-1.5"><Label>{label}</Label>{node}</div>;
-  const trigger = cn("h-10 max-sm:h-11", compact && "w-auto min-w-32 max-w-56");
+  const trigger = cn("h-10 max-sm:h-10", compact && "w-auto min-w-32 max-w-56");
   const list = (param: EntryFilterParam, label: string, anyLabel: string, values: (string | number)[] | undefined,
     items: { value: string; label: string }[], onOpen?: () => void) => {
     const v = pick(values);

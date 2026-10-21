@@ -43,6 +43,8 @@
   --color-accent-soft: #ffc7001f;
   /* Gold for small text and icons: the accent itself on dark; darker on light, where #eab308 is too faint to read. */
   --color-accent-text: #ffc700;
+  /* Gold for large display text only (the profile's "Top 8%", Home's headline): the accent itself in both themes. */
+  --color-accent-display: #ffc700;
   --color-line: var(--sh-border);
   --color-info: #38bdf8;
   --color-success: #34d399;
@@ -116,11 +118,13 @@ html.light {
   --color-accent: #eab308;
   --color-accent-hover: #ca8a04;
   --color-accent-soft: #eab3081f;
-  /* Gold text on light is the accent itself, the same yellow as bars and fills (the owner's call, Oct 20 2026,
-     over a deeper brown that read as "off"). It's under WCAG AA on white, so textTones.test.ts lists it as a
-     known exception. Green, red, blue and orange are the most vivid shades that still reach 4.5:1, on white
-     and on their own chip tints (a true green, red and blue, not the teal, crimson and steel they replaced). */
-  --color-accent-text: #eab308;
+  /* Gold on light, the owner's calls (Oct 20 2026). Large display text (the profile's "Top 8%", Home's headline)
+     is the accent itself, #eab308, knowingly under 3:1 on white; textTones.test.ts lists it as the one exception.
+     Small gold text (best values, the chosen season, links, chips) is a deep amber that reaches 4.5:1 on white and
+     on the accent's own tints up to 25% (V4-A11Y-003: #eab308 measured 1.8:1 there). Green, red, blue and orange
+     are the most vivid shades that still reach 4.5:1, on white and on their own chip tints. */
+  --color-accent-display: #eab308;
+  --color-accent-text: #875200;
   --color-info: #2152e0;
   --color-success: #147238;
   --color-warning: #b23a0a;
@@ -145,6 +149,14 @@ html.light {
    move the page 6 px). */
 :root { --header-h: 3rem; }
 html { scrollbar-gutter: stable; }
+/* Text size (src/lib/textSize.ts). Sizes are in rem, so the root size scales text, spacing, boxes and buttons
+   together. Phones start at 14 px (desktop 16): more on screen before scrolling, nothing hidden. Each device's
+   own choice (Settings › Appearance) multiplies that. */
+html { --ui-base: 1; --ui-scale: 1; font-size: calc(100% * var(--ui-base) * var(--ui-scale)); }
+@media (max-width: 767px) { html { --ui-base: 0.875; } }
+html[data-text-size="s"] { --ui-scale: 0.9; }
+html[data-text-size="l"] { --ui-scale: 1.125; }
+html[data-text-size="xl"] { --ui-scale: 1.25; }
 @media (max-width: 767px) { html { scroll-padding-bottom: calc(61px + env(safe-area-inset-bottom)); } }
 @layer base { :where(#main, #main *) { scroll-margin-top: var(--header-h); } } /* in a layer: scroll-mt-bar-N must win */
 @utility scroll-mt-bar-* { scroll-margin-top: calc(var(--header-h) + var(--spacing) * --value(integer)); }
@@ -153,6 +165,12 @@ html::-webkit-scrollbar-thumb { background: #2e2e35; border-radius: 999px; }
 html::-webkit-scrollbar-thumb:hover { background: #3f3f47; }
 html.light::-webkit-scrollbar-thumb { background: #d4d4d8; }
 html body[data-scroll-locked] { margin-right: 0 !important; }
+/* iPhones zoom the whole page into a field whose text is under 16px when it's focused (the keyboard opens and
+   the page stays zoomed). Touch screens get 16px text in every field instead; pinch-zoom stays on. Unlayered
+   and !important so it beats the text-sm/text-xs utilities on the fields themselves. */
+@media (pointer: coarse) {
+  input:not([type="checkbox"], [type="radio"], [type="range"], [type="color"], [type="file"]), select, textarea { font-size: 16px !important; }
+}
 
 @layer base {
   html { -webkit-text-size-adjust: 100%; }

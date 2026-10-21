@@ -15,7 +15,7 @@ const LINK = "rounded py-1 font-medium hover:text-text-base focus-visible:outlin
 
 export function SiteFooter({ discordInvite = discordInviteUrl() }: { discordInvite?: string | null } = {}) {
   return (
-    <footer className="mt-16 flex flex-col gap-3 border-t border-line pt-6 text-xs text-text-muted sm:flex-row sm:items-center sm:justify-between">
+    <footer className="mt-16 flex flex-col gap-3 border-t border-line pt-6 max-sm:pt-4 text-xs text-text-muted sm:flex-row sm:items-center sm:justify-between">
       <nav aria-label="Site" className="flex flex-wrap gap-x-5 gap-y-2">
         {FOOTER_LINKS.map((l) => (
           <Link key={l.to} to={l.to} className={LINK}>{l.label}</Link>

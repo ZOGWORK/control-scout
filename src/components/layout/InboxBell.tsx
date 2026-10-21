@@ -5,11 +5,12 @@
 // Each item also has two toggles, synced to the account: Mark unread (back in the badge) and Follow up (a flag
 // for work still to do, separate from read), and the Follow up filter lists the flagged ones.
 import { useEffect, useId, useRef, useState, type ComponentType } from "react";
-import { AnimatePresence, m } from "motion/react";
+import { AnimatePresence } from "motion/react";
+import { m } from "../motion";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { Bell, CheckCheck, ClipboardCheck, Flag, HardDrive, LayoutList, ListOrdered, Loader2, Mail, MailOpen, MessageSquare, PencilLine, Settings, Users } from "lucide-react";
 import { usePersonal } from "../../lib/personal";
-import { useInbox, type InboxState } from "../../lib/inbox";
+import { useInbox, type InboxFailure, type InboxState } from "../../lib/inbox";
 import { agoShort } from "../../lib/format";
 import type { InboxCategory, InboxFilter, InboxItem } from "../../shared/inbox";
 import { Sheet, SheetContent, SheetDescription, SheetTitle } from "../ui/overlay";
@@ -40,6 +41,17 @@ const ICON: Record<InboxCategory, { icon: ComponentType<{ className?: string }>;
 };
 
 const badgeText = (n: number) => (n > 99 ? "99+" : String(n));
+
+/**
+ * Once the next render is on screen: if the control that had focus went away with it, focus `to` instead. Focus is then
+ * on the page, or (in the phone sheet) on the sheet itself, which its focus trap picks when the focused control goes.
+ */
+function refocus(to: () => HTMLElement | null | undefined) {
+  requestAnimationFrame(() => {
+    const at = document.activeElement;
+    if (!at || at === document.body || !at.isConnected || !at.matches("button, a[href], input, select, textarea, [tabindex]:not([tabindex='-1'])")) to()?.focus();
+  });
+}
 
 /** The bell (nothing at all when signed out). */
 export function InboxBell() {
@@ -119,6 +131,11 @@ function InboxList({ inbox, onClose, titleAs }: { inbox: InboxState; onClose: ()
   };
   const anyUnread = inbox.items.some((i) => !i.read) || inbox.unread > 0;
   const following = inbox.filter === "followUp";
+  // Mark all read (and its Retry) goes away once pressed: focus moves to the current view's filter button, not the page.
+  const filters = useRef<HTMLDivElement>(null);
+  const focusFilter = () => refocus(() => filters.current?.querySelector<HTMLButtonElement>("[aria-pressed='true']"));
+  const allRead = () => { inbox.markAllRead(); focusFilter(); };
+  const retryAllRead = () => { inbox.retryAllRead(); focusFilter(); };
   return (
     <>
       <div className={cn("flex items-center gap-2 border-b border-border px-4 py-3", titleAs === "sheet" && "pr-12")}>
@@ -128,23 +145,29 @@ function InboxList({ inbox, onClose, titleAs }: { inbox: InboxState; onClose: ()
             : <p className="font-display text-base font-semibold">Notifications</p>}
         </div>
         {anyUnread && inbox.items.length > 0 && !following && (
-          <Button variant="outline" size="sm" onClick={inbox.markAllRead}><CheckCheck /> Mark all read</Button>
+          <Button variant="outline" size="sm" onClick={allRead}><CheckCheck /> Mark all read</Button>
         )}
       </div>
-      <FilterBar filter={inbox.filter} followUp={inbox.followUp} onChange={inbox.setFilter} />
+      {inbox.allReadFailed && (
+        <p role="alert" data-inbox-error="all" className="flex flex-wrap items-center gap-x-2 gap-y-1 border-b border-border px-4 py-2 text-xs text-danger">
+          <span>Couldn't mark everything read. Your notifications are as they were.</span>
+          <button type="button" onClick={retryAllRead} className="min-h-8 rounded-md px-1 font-medium underline outline-none focus-visible:ring-2 focus-visible:ring-ring/60">Retry</button>
+        </p>
+      )}
+      <div ref={filters}><FilterBar filter={inbox.filter} followUp={inbox.followUp} onChange={inbox.setFilter} /></div>
       <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
         {!inbox.loaded && inbox.loading ? (
           <div className="space-y-2 p-4" aria-busy="true">{[0, 1, 2].map((k) => <div key={k} className="skeleton h-14 rounded-lg" />)}</div>
         ) : inbox.error && !inbox.items.length ? (
           <p role="alert" className="p-4 text-sm text-muted-foreground">{inbox.error.message || "Couldn't load your notifications."} <button type="button" onClick={inbox.load} className="underline">Try again</button></p>
         ) : !inbox.items.length && following ? (
-          <div className="px-4 py-8 text-center">
+          <div className="px-4 py-8 max-sm:py-5 text-center">
             <Flag className="mx-auto size-6 text-orange-700 dark:text-orange-400" aria-hidden />
             <p className="mt-2 text-sm font-medium">Nothing to follow up</p>
             <p className="mt-1 text-sm text-muted-foreground">Flag a notification with Follow up to keep it here until the work is done.</p>
           </div>
         ) : !inbox.items.length ? (
-          <div className="px-4 py-8 text-center">
+          <div className="px-4 py-8 max-sm:py-5 text-center">
             <Bell className="mx-auto size-6 text-text-muted" aria-hidden />
             <p className="mt-2 text-sm font-medium">You're all caught up</p>
             <p className="mt-1 text-sm text-muted-foreground">Assignments, changes to your entries and news from your workspaces show up here.</p>
@@ -154,7 +177,8 @@ function InboxList({ inbox, onClose, titleAs }: { inbox: InboxState; onClose: ()
             {inbox.items.map((i) => (
               <Row key={i.id} item={i} now={now} onOpen={() => open(i)}
                 onToggleRead={() => (i.read ? inbox.markUnread([i.id]) : inbox.markRead([i.id]))}
-                onToggleFollowUp={() => inbox.setFollowUp([i.id], !i.followUp)} />
+                onToggleFollowUp={() => inbox.setFollowUp([i.id], !i.followUp)}
+                failures={inbox.failures.filter((f) => f.id === i.id)} onRetry={inbox.retry} />
             ))}
           </ul>
         )}
@@ -199,40 +223,68 @@ function FilterBar({ filter, followUp, onChange }: { filter: InboxFilter; follow
   );
 }
 
-function Row({ item, now, onOpen, onToggleRead, onToggleFollowUp }: { item: InboxItem; now: number; onOpen: () => void; onToggleRead: () => void; onToggleFollowUp: () => void }) {
+/** What a failed change says (the row is already back as the server has it). */
+const failText = (f: InboxFailure) => f.field === "followUp"
+  ? (f.on ? "Couldn't save the follow-up flag." : "Couldn't remove the follow-up flag.")
+  : (f.on ? "Couldn't mark this read." : "Couldn't mark this unread.");
+const retryName = (f: InboxFailure, title: string) => `Retry: ${f.field === "followUp" ? (f.on ? "follow up on" : "remove the follow-up flag from") : (f.on ? "mark read" : "mark unread")} '${title}'`;
+
+function Row({ item, now, onOpen, onToggleRead, onToggleFollowUp, failures = [], onRetry }: {
+  item: InboxItem; now: number; onOpen: () => void; onToggleRead: () => void; onToggleFollowUp: () => void;
+  failures?: InboxFailure[]; onRetry?: (f: InboxFailure) => void;
+}) {
   const { icon: Icon, tone } = ICON[item.category] ?? ICON.edits;
   const meta = [item.workspaceName || (item.category === "ownerAlerts" ? "Owner" : null), agoShort(item.at, now)].filter(Boolean).join(" · ");
   const action = "grid size-8 shrink-0 place-items-center rounded-md border outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring/60";
   const idle = "border-transparent text-text-muted hover:border-border hover:bg-text-base/[0.06] hover:text-text-base";
+  const errId = useId();
+  const readRef = useRef<HTMLButtonElement>(null);
+  const flagRef = useRef<HTMLButtonElement>(null);
+  const failedRead = failures.find((f) => f.field === "read");
+  const failedFlag = failures.find((f) => f.field === "followUp");
+  // Retry goes away once pressed: focus returns to the toggle it was about.
+  const retry = (f: InboxFailure) => { onRetry?.(f); refocus(() => (f.field === "followUp" ? flagRef : readRef).current); };
   return (
-    <li data-follow-up={item.followUp ? "" : undefined} className={cn("flex items-start transition-colors", !item.read && "bg-accent/[0.06]")}>
-      <button type="button" onClick={onOpen} data-unread={item.read ? undefined : ""}
-        className="flex min-w-0 flex-1 items-start gap-3 py-3 pl-4 pr-2 text-left outline-none transition-colors hover:bg-text-base/[0.04] focus-visible:bg-text-base/[0.06]">
-        <span className={cn("mt-0.5 grid size-8 shrink-0 place-items-center rounded-full", tone)} aria-hidden><Icon className="size-4" /></span>
-        <span className="min-w-0 flex-1">
-          <span className={cn("block text-sm leading-snug", item.read ? "text-text-base/85" : "font-medium text-text-base")}>{item.title}</span>
-          {item.body && <span className="mt-0.5 block truncate text-xs text-muted-foreground">{item.body}</span>}
-          <span className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-[11px] text-text-muted">
-            <span>{meta}</span>
-            {item.followUp && (
-              <span className="inline-flex items-center gap-1 rounded-full bg-orange-500/15 px-1.5 font-medium text-orange-800 dark:text-orange-300">
-                <Flag className="size-3" aria-hidden /> Follow up
-              </span>
-            )}
+    <li data-follow-up={item.followUp ? "" : undefined} className={cn("transition-colors", !item.read && "bg-accent/[0.06]")}>
+      <div className="flex items-start">
+        <button type="button" onClick={onOpen} data-unread={item.read ? undefined : ""}
+          className="flex min-w-0 flex-1 items-start gap-3 py-3 pl-4 pr-2 text-left outline-none transition-colors hover:bg-text-base/[0.04] focus-visible:bg-text-base/[0.06]">
+          <span className={cn("mt-0.5 grid size-8 shrink-0 place-items-center rounded-full", tone)} aria-hidden><Icon className="size-4" /></span>
+          <span className="min-w-0 flex-1">
+            <span className={cn("block text-sm leading-snug", item.read ? "text-text-base/85" : "font-medium text-text-base")}>{item.title}</span>
+            {item.body && <span className="mt-0.5 block truncate text-xs text-muted-foreground">{item.body}</span>}
+            <span className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-[11px] text-text-muted">
+              <span>{meta}</span>
+              {item.followUp && (
+                <span className="inline-flex items-center gap-1 rounded-full bg-orange-500/15 px-1.5 font-medium text-orange-800 dark:text-orange-300">
+                  <Flag className="size-3" aria-hidden /> Follow up
+                </span>
+              )}
+            </span>
           </span>
-        </span>
-        {!item.read && <span className="mt-2 size-2 shrink-0 rounded-full bg-accent" aria-label="Unread" role="img" />}
-      </button>
-      <div className="flex shrink-0 items-center gap-1 py-2.5 pr-3">
-        <button type="button" onClick={onToggleRead} aria-pressed={!item.read} aria-label={`Mark '${item.title}' unread`} title={item.read ? "Mark unread" : "Mark read"} data-inbox-unread
-          className={cn(action, !item.read ? "border-sky-500/40 bg-sky-500/15 text-sky-700 dark:text-sky-300" : idle)}>
-          {item.read ? <Mail className="size-4" aria-hidden /> : <MailOpen className="size-4" aria-hidden />}
+          {!item.read && <span className="mt-2 size-2 shrink-0 rounded-full bg-accent" aria-label="Unread" role="img" />}
         </button>
-        <button type="button" onClick={onToggleFollowUp} aria-pressed={item.followUp} aria-label={`Follow up on '${item.title}'`} title={item.followUp ? "Remove follow-up flag" : "Follow up"} data-inbox-follow-up
-          className={cn(action, item.followUp ? "border-orange-500/40 bg-orange-500/15 text-orange-700 dark:text-orange-400" : idle)}>
-          <Flag className={cn("size-4", item.followUp && "fill-current")} aria-hidden />
-        </button>
+        <div className="flex shrink-0 items-center gap-1 py-2.5 pr-3">
+          <button ref={readRef} type="button" onClick={onToggleRead} aria-pressed={!item.read} aria-label={`Mark '${item.title}' unread`} title={item.read ? "Mark unread" : "Mark read"} data-inbox-unread
+            aria-describedby={failedRead ? `${errId}-read` : undefined}
+            className={cn(action, !item.read ? "border-sky-500/40 bg-sky-500/15 text-sky-700 dark:text-sky-300" : idle)}>
+            {item.read ? <Mail className="size-4" aria-hidden /> : <MailOpen className="size-4" aria-hidden />}
+          </button>
+          <button ref={flagRef} type="button" onClick={onToggleFollowUp} aria-pressed={item.followUp} aria-label={`Follow up on '${item.title}'`} title={item.followUp ? "Remove follow-up flag" : "Follow up"} data-inbox-follow-up
+            aria-describedby={failedFlag ? `${errId}-followUp` : undefined}
+            className={cn(action, item.followUp ? "border-orange-500/40 bg-orange-500/15 text-orange-700 dark:text-orange-400" : idle)}>
+            <Flag className={cn("size-4", item.followUp && "fill-current")} aria-hidden />
+          </button>
+        </div>
       </div>
+      {failures.map((f) => (
+        <p key={f.field} role="alert" id={`${errId}-${f.field}`} data-inbox-error={f.field}
+          className="flex flex-wrap items-center gap-x-2 gap-y-1 px-4 pb-2.5 pl-15 text-xs text-danger">
+          <span>{failText(f)} Nothing changed.</span>
+          <button type="button" onClick={() => retry(f)} aria-label={retryName(f, item.title)}
+            className="min-h-8 rounded-md px-1 font-medium underline outline-none focus-visible:ring-2 focus-visible:ring-ring/60">Retry</button>
+        </p>
+      ))}
     </li>
   );
 }

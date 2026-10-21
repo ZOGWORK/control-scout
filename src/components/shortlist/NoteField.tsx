@@ -128,8 +128,8 @@ export function NoteField({ team, value, stored, onSave, className, label, place
     </label>
     <FieldError id={errorId} className="mt-0.5 px-1.5">{failed ? <>
       {failedText ?? "Not saved: this device's storage is full or blocked. Your text is still here; free up space and press Enter to retry."}
-      {retry && <> <button type="button" className="font-medium underline underline-offset-2 max-sm:inline-flex max-sm:min-h-11 max-sm:items-center" onClick={() => flush(draft)}>Retry</button></>}
-      {discard && <> <button type="button" data-note-discard={team} className="font-medium underline underline-offset-2 max-sm:inline-flex max-sm:min-h-11 max-sm:items-center"
+      {retry && <> <button type="button" className="font-medium underline underline-offset-2 max-sm:inline-flex max-sm:min-h-10 max-sm:items-center" onClick={() => flush(draft)}>Retry</button></>}
+      {discard && <> <button type="button" data-note-discard={team} className="font-medium underline underline-offset-2 max-sm:inline-flex max-sm:min-h-10 max-sm:items-center"
         // A mouse press doesn't take focus from the field first (so its blur can't send the text being let go).
         onMouseDown={(e) => { if (focused.current) { e.preventDefault(); skip.current = true; } }}
         onClick={() => {

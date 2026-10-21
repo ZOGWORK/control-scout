@@ -1,6 +1,7 @@
 // Hero: the headline (word-by-word reveal) and the cycling example match card.
 import { useCallback, useEffect, useRef, useState } from "react";
-import { m, useInView } from "motion/react";
+import { useInView } from "motion/react";
+import { m } from "../motion";
 import { Pause, Play } from "lucide-react";
 import { ENGINE_VERSION } from "@control-scout/predict-engine";
 import { cn } from "../cn";
@@ -23,8 +24,8 @@ export function Hero() {
   const reduced = useReduced();
   const tested = (MODEL.accuracy as { matches: { count: number } }).matches.count;
   return (
-    <header className="grid items-end gap-8 pb-4 lg:grid-cols-[minmax(0,1.2fr)_minmax(0,1fr)] lg:gap-10">
-      <div className="grid min-w-0 gap-5">
+    <header className="grid items-end gap-8 max-sm:gap-5 pb-4 lg:grid-cols-[minmax(0,1.2fr)_minmax(0,1fr)] lg:gap-10">
+      <div className="grid min-w-0 gap-5 max-sm:gap-4">
         <Eyebrow>Control Scout · Predictions, explained</Eyebrow>
         <h1 className="text-balance font-display text-[2.4rem] font-bold leading-[0.98] tracking-tight text-foreground sm:text-6xl xl:text-7xl">
           {WORDS.map(({ w, gold }, i) => (
