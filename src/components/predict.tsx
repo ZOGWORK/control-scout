@@ -148,10 +148,10 @@ function AllianceBox({ side, m, score, forecast, outcome, highlight }: {
     <div className={cn(
       // Narrow rows: one line per alliance, teams then score. Wider rows (the row's own width): the two boxes face each other, scores in the middle.
       "flex min-w-0 items-center justify-between gap-2 rounded-lg border-l-[3px] px-2.5 py-1.5",
-      side === "red" ? "border-red-alliance bg-red-alliance/[0.06]" : "border-blue-alliance bg-blue-alliance/[0.06] @lg:flex-row-reverse @lg:border-l-0 @lg:border-r-[3px]",
+      side === "red" ? "border-red-alliance bg-red-alliance/[0.06]" : "border-blue-alliance bg-blue-alliance/[0.06] @min-[330px]:flex-row-reverse @min-[330px]:border-l-0 @min-[330px]:border-r-[3px]",
       outcome === "win" && (side === "red" ? "bg-red-alliance/[0.14]" : "bg-blue-alliance/[0.14]"),
     )}>
-      <div className={cn("flex min-w-0 flex-wrap gap-x-0.5", side === "blue" && "@lg:justify-end")}>
+      <div className={cn("flex min-w-0 flex-wrap gap-x-0.5", side === "blue" && "@min-[330px]:justify-end")}>
         {a.teams.map((t) => <TeamChip key={t.number} n={t.number} season={m.season} highlight={highlight} sub={t.surrogate || !t.onField} />)}
       </div>
       {score != null ? (
@@ -221,8 +221,8 @@ export function MatchRow({ m, highlight, showEvent, eventName, open, onToggle, o
           </span>
         )}
       </div>
-      {/* Narrow rows: the alliances sit under the label line (stacked, then facing each other once there's room). */}
-      <div className="col-span-3 row-start-2 grid gap-1 @lg:grid-cols-2 @lg:gap-1.5 @3xl:col-span-2 @3xl:col-start-2 @3xl:row-start-1" data-alliances>
+      {/* Narrow rows: the alliances sit under the label line (stacked, then facing each other from a 390 px phone up (a 330 px row)). */}
+      <div className="col-span-3 row-start-2 grid gap-1 @min-[330px]:grid-cols-2 @min-[330px]:gap-1.5 @3xl:col-span-2 @3xl:col-start-2 @3xl:row-start-1" data-alliances>
         <AllianceBox side="red" m={m} score={red} forecast={forecast?.red ?? null} outcome={outcome("red")} highlight={highlight} />
         <AllianceBox side="blue" m={m} score={blue} forecast={forecast?.blue ?? null} outcome={outcome("blue")} highlight={highlight} />
       </div>
