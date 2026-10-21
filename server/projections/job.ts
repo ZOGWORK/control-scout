@@ -23,7 +23,7 @@ import { dataVersion, forecasterFor } from "../predict/engine.js";
 import { PROJECTION_FLOOR, PROJECTION_RUNS, type ProjectionKind } from "../../src/shared/projections.js";
 import { simulateProjection, textSeed } from "./core.js";
 import { projectionInput, type ProjectionInput } from "./input.js";
-import { eventState } from "./state.js";
+import { eventState, inputKey } from "./state.js";
 import { saveRuns, storedRuns, type StoredRun } from "./store.js";
 import { publishProjections } from "./bus.js";
 
@@ -44,19 +44,24 @@ export interface Candidate { season: number; code: string; signature: string }
 export async function candidates(now = Date.now(), season = CURRENT_SEASON): Promise<Candidate[]> {
   const rows = await all<any>(
     `SELECT e.season, e.code, e.type,
-       (SELECT COUNT(*) || ':' || COALESCE(SUM(m.played), 0) || ':' || COALESCE(SUM(COALESCE(m.red_total, -1) * 1009 + COALESCE(m.blue_total, -1)), 0) || ':' || COALESCE(SUM(COALESCE(m.red_np, 0) * 7 + COALESCE(m.blue_np, 0) * 13 + COALESCE(m.red_auto, 0) * 3 + COALESCE(m.blue_auto, 0) * 5), 0) || ':' || COALESCE(SUM(LENGTH(COALESCE(m.red_bonus, '')) + LENGTH(COALESCE(m.blue_bonus, '')) * 3), 0)
+       (SELECT COUNT(*) || ':' || COALESCE(SUM(m.played), 0) || ':' || COALESCE(SUM(COALESCE(m.red_total, -1) * 1009 + COALESCE(m.blue_total, -1)), 0) || ':' || COALESCE(SUM(COALESCE(m.red_np, 0) * 7 + COALESCE(m.blue_np, 0) * 13 + COALESCE(m.red_auto, 0) * 3 + COALESCE(m.blue_auto, 0) * 5), 0) || ':' || COALESCE(SUM((m.number + 7 * m.series + 1) * (INSTR(COALESCE(m.red_bonus, ''), 'true') + 3 * LENGTH(COALESCE(m.red_bonus, '')) + 101 * INSTR(COALESCE(m.blue_bonus, ''), 'true') + 307 * LENGTH(COALESCE(m.blue_bonus, '')) + 11 * COALESCE(m.red_tips, 0) + 13 * COALESCE(m.blue_tips, 0) + 17 * COALESCE(m.red_endgame, 0) + 19 * COALESCE(m.blue_endgame, 0))), 0)
           FROM matches m WHERE m.season = e.season AND m.code = e.code) ms,
        (SELECT COUNT(*) FROM matches m WHERE m.season = e.season AND m.code = e.code AND m.level = 'qual') quals,
        (SELECT COUNT(*) || ':' || COALESCE(SUM(mt.team * (mt.number + 7 * mt.series + 1) * (CASE mt.alliance WHEN 'red' THEN 1 ELSE 2 END) + COALESCE(mt.dq, 0) * 17 + COALESCE(mt.surrogate, 0) * 31), 0)
           FROM match_teams mt WHERE mt.season = e.season AND mt.code = e.code) mt,
        (SELECT COUNT(*) || ':' || COALESCE(SUM(t.team * (COALESCE(t.rank, 0) + 1)), 0) FROM event_teams t WHERE t.season = e.season AND t.code = e.code) ts,
-       (SELECT COUNT(*) || ':' || COALESCE(SUM(COALESCE(a.captain, 0) + COALESCE(a.pick1, 0) * 3 + COALESCE(a.pick2, 0) * 7), 0) FROM alliances a WHERE a.season = e.season AND a.code = e.code) al
+       (SELECT COUNT(*) || ':' || COALESCE(SUM(COALESCE(a.captain, 0) + COALESCE(a.pick1, 0) * 3 + COALESCE(a.pick2, 0) * 7), 0) FROM alliances a WHERE a.season = e.season AND a.code = e.code) al,
+       (SELECT ad.slots || ':' || COALESCE(ad.advances_to, '') || ':' || ad.rows FROM advancement ad WHERE ad.season = e.season AND ad.code = e.code) adv
      FROM events e WHERE e.season = ? AND e.start <= ? AND COALESCE(e.end, e.start) >= ?`,
     [season, today(now, 3), today(now, -2)],
   );
+  // Slots and already-qualified teams can also come from other events' advancement lists (estimated
+  // slots, teams that qualified elsewhere): one season-wide marker for those.
+  const seasonAdv = await all<any>("SELECT COUNT(*) n, COALESCE(SUM(slots), 0) s, COALESCE(SUM(LENGTH(rows)), 0) l FROM advancement WHERE season = ?", [season]);
+  const others = seasonAdv[0] ? `${seasonAdv[0].n}:${seasonAdv[0].s}:${seasonAdv[0].l}` : "";
   return rows
     .filter((r) => ADVANCING_TYPES.has(normType(r.type)) && Number(r.quals) > 0)
-    .map((r) => ({ season: Number(r.season), code: String(r.code), signature: [r.ms, r.mt, r.ts, r.al].join("|") }));
+    .map((r) => ({ season: Number(r.season), code: String(r.code), signature: [r.ms, r.mt, r.ts, r.al, r.adv ?? "", others].join("|") }));
 }
 
 // ---------------------------------------------------------------------------
@@ -117,25 +122,33 @@ export async function projectEvent(season: number, code: string, o: RunOptions =
   const st = eventState(ev);
   if (!st.scheduled) return { status: "skipped", reason: "no qualification schedule yet" };
   const stored = await storedRuns(season, code);
+  // An event that was over before it was ever projected gets no projections: a "before the event" run made
+  // afterwards would be history that was never recorded. Events already tracked keep updating to the end.
+  if (!stored.size && d.event.status === "finished") return { status: "skipped", reason: "finished before it was projected" };
   const cur = stored.get("current"), base = stored.get("baseline");
   const fresh = (r: StoredRun | undefined, key: string) => !!r && r.stateKey === key && r.engineVersion === ENGINE_VERSION;
-  if (fresh(cur, st.key) && fresh(base, st.scheduleKey)) return { status: "unchanged" };
   const f = await forecasterFor(season);
+  // The state key is taken from the simulation's resolved input (recorded bonus RPs from the synced matches,
+  // official or estimated slots, already-qualified and ineligible teams, ranks, alliances, playoff results),
+  // not only the event payload, so any new fact the simulation reads triggers a run.
+  const pi = projectionInput(f, ev);
+  if (!pi) return { status: "skipped", reason: "no ratings for this season yet" };
+  const key = inputKey(pi);
   const out: StoredRun[] = [];
-  // Pre-event baseline: ratings frozen at the event's start, results stripped (what the event looked like before it began).
+  // Pre-event baseline: ratings frozen at the event's start, results stripped (what the event looked like before
+  // it began). Made once, and remade only while nothing has been played (a new schedule, slots or eligibility).
   let baseline = base;
-  if (!fresh(base, st.scheduleKey) && (!base || st.played === 0 || base.engineVersion !== ENGINE_VERSION)) {
+  if (!base || base.engineVersion !== ENGINE_VERSION || st.played === 0) {
     const view = f.preEventView(ev);
-    const pi = view && projectionInput(view.f, view.ev);
-    if (pi) { baseline = await simulateKind("baseline", season, code, st.scheduleKey, pi, { played: 0, scheduled: st.scheduled, through: null }, o); out.push(baseline); }
+    const bpi = view && projectionInput(view.f, view.ev);
+    const bkey = bpi ? inputKey(bpi) : null;
+    if (bpi && bkey && !fresh(base, bkey)) { baseline = await simulateKind("baseline", season, code, bkey, bpi, { played: 0, scheduled: st.scheduled, through: null }, o); out.push(baseline); }
   }
-  if (!fresh(cur, st.key)) {
-    const pi = projectionInput(f, ev);
-    if (!pi) return { status: "skipped", reason: "no ratings for this season yet" };
+  if (!fresh(cur, key)) {
     // Nothing played or ranked yet: the current projection is the baseline.
-    const current: StoredRun = pi.stage === "pre" && baseline && baseline.stateKey === st.scheduleKey
-      ? { ...baseline, kind: "current", stateKey: st.key }
-      : await simulateKind("current", season, code, st.key, pi, st, o);
+    const current: StoredRun = pi.stage === "pre" && baseline && baseline.engineVersion === ENGINE_VERSION && st.played === 0
+      ? { ...baseline, kind: "current", stateKey: key }
+      : await simulateKind("current", season, code, key, pi, st, o);
     out.push(current);
     // While quals are still open, this is also what a finished event will be judged against.
     if (st.played < st.scheduled) out.push({ ...current, kind: "last_open" });

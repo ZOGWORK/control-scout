@@ -160,6 +160,52 @@ describe("projections job", () => {
     expect(again.current!.seed).toBe(before.current!.seed);
   });
 
+  it("re-runs for facts the simulation reads that the event payload doesn't carry: recorded bonus RPs, official slots", async () => {
+    expect((await projectEvent(S, CODE, { runs: 200, floor: 200 })).status).toBe("ran");
+    const before = (await readProjections(S, CODE)).current!;
+    expect(await projectEvent(S, CODE, { runs: 200, floor: 200 })).toEqual({ status: "unchanged" });
+    // The sync records bonus RPs for a played match (scores and ranks unchanged).
+    await run("UPDATE matches SET red_bonus = ? WHERE season = ? AND code = ? AND level = 'qual' AND number = 1", [JSON.stringify({ movement: true, goal: true, pattern: false }), S, CODE]);
+    await kvSet("data:version", "bonus");
+    const st = newJobState(); const t0 = Date.now();
+    jobIo.run = fast;
+    await projectionTick(t0, () => {}, st);
+    await run("UPDATE matches SET blue_bonus = ? WHERE season = ? AND code = ? AND level = 'qual' AND number = 2", [JSON.stringify({ movement: true, goal: false, pattern: false }), S, CODE]);
+    await kvSet("data:version", "bonus2");
+    expect(await projectionTick(t0 + 1_000, () => {}, st)).toEqual([]);
+    expect(await projectionTick(t0 + 1_000 + DEBOUNCE_MS, () => {}, st)).toEqual([`${S}|${CODE}`]); // the scan saw it
+    const afterBonus = (await readProjections(S, CODE)).current!;
+    expect(afterBonus.seed).not.toBe(before.seed);
+    // FIRST publishes the official slot count and an already-qualified team.
+    await run("INSERT INTO advancement (season, code, slots, advances_to, rows) VALUES (?, ?, 2, 'STATE', ?)", [S, CODE, JSON.stringify([{ team: 112, status: "ALREADY_ADVANCING", declined: false }])]);
+    await kvSet("data:version", "adv");
+    expect(await projectionTick(t0 + 100_000, () => {}, st)).toEqual([]);
+    expect(await projectionTick(t0 + 100_000 + DEBOUNCE_MS, () => {}, st)).toEqual([`${S}|${CODE}`]);
+    const afterSlots = (await readProjections(S, CODE)).current!;
+    expect(afterSlots.slots).toBe(2);
+    expect(afterSlots.slotsSource).toBe("official");
+    expect(afterSlots.teams.find((t) => t.team === 112)!.pAdvance).toBeNull();
+  });
+
+  it("never invents a projection for an event that finished before it was ever projected", async () => {
+    const old = "2026-01-10";
+    await run("UPDATE events SET start = ?, end = ? WHERE season = ? AND code = ?", [old, old, S, CODE]);
+    for (let n = 7; n <= 18; n++) await post(n);
+    expect(await projectEvent(S, CODE, { runs: 200, floor: 200 })).toEqual({ status: "skipped", reason: "finished before it was projected" });
+    expect((await readProjections(S, CODE)).baseline).toBeNull();
+  });
+
+  it("an event already tracked keeps updating after it finishes", async () => {
+    await projectEvent(S, CODE, { runs: 200, floor: 200 });
+    const old = "2026-01-10";
+    await run("UPDATE events SET start = ?, end = ? WHERE season = ? AND code = ?", [old, old, S, CODE]);
+    for (let n = 7; n <= 18; n++) await post(n);
+    expect((await projectEvent(S, CODE, { runs: 200, floor: 200 })).status).toBe("ran");
+    const v = await readProjections(S, CODE);
+    expect(v.current!.played).toBe(18);
+    expect(v.lastOpen!.played).toBe(6); // judged by the last run while quals were open
+  });
+
   it("the records' Advancement Odds read the projection once there is one", async () => {
     const server: Server = createApp().listen(0);
     await new Promise((r) => server.once("listening", r));

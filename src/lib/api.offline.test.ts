@@ -143,6 +143,26 @@ describe("online: the packs never run", () => {
 });
 
 describe("no signal: the packs answer", () => {
+  it("answers an event's stored projections from its saved season", async () => {
+    writeSaved([saved]);
+    networkDown();
+    expect(await apiFetch("/api/projections/2025/USNJQ1")).toEqual({ path: "/api/projections/2025/USNJQ1" });
+    expect(offlineAnswer).toHaveBeenCalledWith("/api/projections/2025/USNJQ1");
+  });
+
+  it("a slow server: the saved season's projections answer after the timeout; another season's keep waiting", async () => {
+    writeSaved([saved]);
+    vi.useFakeTimers();
+    vi.stubGlobal("fetch", hanging());
+    const p = apiFetch("/api/projections/2025/USNJQ1");
+    await vi.advanceTimersByTimeAsync(OFFLINE_TIMEOUT_MS);
+    expect(await p).toEqual({ path: "/api/projections/2025/USNJQ1" });
+    let settled = false;
+    void apiFetch("/api/projections/2024/USNJQ1").then(() => { settled = true; }, () => { settled = true; });
+    await vi.advanceTimersByTimeAsync(OFFLINE_TIMEOUT_MS * 2);
+    expect(settled).toBe(false);
+  });
+
   it("answers a failed GET from a saved season, marked as offline", async () => {
     writeSaved([saved]);
     networkDown();
