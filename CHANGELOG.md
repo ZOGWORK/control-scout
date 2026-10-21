@@ -9,7 +9,7 @@ teams, scout, offline, speed, live, report, alerts, rankings, share, workspace,
 picklist, history, fixes). What's new shows them first; the groups below are
 the full release notes, one click away.
 
-## 1.14.1 — 2026-10-21
+## 1.15.1 — 2026-10-21
 
 Smooth scrolling across the site: jumps within a page glide there instead of cutting.
 
@@ -23,6 +23,18 @@ Smooth scrolling across the site: jumps within a page glide there instead of cut
 - **Pages still open instantly.** A new page starts at the top, and back or forward returns to exactly where you were, without sliding there from the old position. Dragging a pick to the screen's edge scrolls the page as before.
 - **Reduced motion.** With reduce motion turned on in your device's settings, every jump is instant.
 - **Sideways rows.** Swiping to the end of a sideways row (tabs, chips, a wide table) no longer turns into the back gesture, and scouting photo strips settle on a photo.
+
+## 1.15.0 — 2026-10-21
+
+How predictable each team has been, from the engine's own live calls.
+
+### Highlights
+- [teams] A prediction report card on team pages: how often calls were right
+- [teams] How far its alliances landed from the predicted score
+- [teams] Live calls only, with sample size, raw numbers and a warning
+
+### Teams
+- **Prediction report card.** Team pages show how the engine's pre-match calls on that team's matches turned out this season: the share called right, points vs prediction per robot (the alliance's miss split evenly between its robots) and the swing of those misses, with the field average beside each. Finished events get a row each, with how many calls had a predicted score and the raw numbers. Only calls logged before each match count, never the replayed history. Few calls say little, so every number is pulled toward the field average as if the team had 10 more calls, and the card says so. How it works explains the rules. (#232)
 
 ## 1.14.0 — 2026-10-21
 
