@@ -13,7 +13,8 @@ import { cn } from "./cn";
 /** Under this many matches the index leans on the field average, and says so. */
 export const RELIABILITY_SMALL = 10;
 
-const plural = (n: number, w: string) => `${n} ${w}${n === 1 ? "" : "s"}`;
+/** "1 match", "3 matches", "2 entries". */
+export const plural = (n: number, w: string) => `${n} ${n === 1 ? w : /(ch|sh|s|x)$/.test(w) ? `${w}es` : /[^aeiou]y$/.test(w) ? `${w.slice(0, -1)}ies` : `${w}s`}`;
 
 /** Plain-language parts, each with its raw count. */
 export function reliabilityParts(r: Reliability): { label: string; value: string; note: string }[] {
@@ -44,7 +45,7 @@ export function ReliabilitySection({ r, notes, workspaceName }: { r: Reliability
         <p className="rounded-xl border border-dashed border-border px-4 py-6 text-center text-sm text-muted-foreground max-sm:py-4">No qualification matches to estimate reliability from this season yet.</p>
       ) : (
         <div data-testid="reliability" className="grid gap-3 sm:grid-cols-[1fr_2fr]">
-          <div className="space-y-3">
+          <div className="space-y-3 self-start">
             <ReliabilityTile r={r} />
             {notes && notes.matchEntries > 0 && <BlendedTile r={r} notes={notes} workspaceName={workspaceName ?? null} />}
           </div>

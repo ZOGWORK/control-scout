@@ -15,6 +15,13 @@ import { closeAllStreams } from "./stream";
 import { CACHE_TTL_MS, clearConsensusCache, consensusFor, setConsensusClock } from "./consensus";
 import { workspaceTemplateId } from "../../src/shared/scoutTemplate";
 import type { TeamConsensus } from "../../src/shared/consensus";
+import { mkdtempSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { pageMeta, headTags } from "../seoMeta";
+import { bootShell } from "../bootShell";
+import { renderPage } from "../seo";
+import { cardModel } from "../share/match";
 
 const KEY = "k".repeat(40);
 const S = 2025;
@@ -289,6 +296,33 @@ describe("scout consensus", () => {
         expect(JSON.stringify(r.json ?? ""), path).not.toMatch(/reliabilityNotes|flagged|"broke"/);
       }
     }
+  });
+});
+
+describe("reliability notes never reach server-rendered pages or share cards", () => {
+  it("page HTML, head tags, the boot shell and share card text for the team carry none of a workspace's notes", async () => {
+    const { coach, priya } = await team("2111", "2911");
+    // A distinctive custom failure field, so any leak of its label or count is easy to spot.
+    const put = await coach("PUT", "/api/scout/workspaces/2111/template", { season: S, match: [{ id: "wsdied", label: "Robot died zz9plural", type: "toggle", phase: "overall" }] });
+    expect(put.status).toBe(200);
+    await push(priya, "2111", [entry({ templateId: workspaceTemplateId("2111", S, "match"), templateVersion: 1, data: { wsdied: true } })]);
+    expect((await one(priya, "2111")).reliabilityNotes).toEqual({ matchEntries: 1, flagged: 1 });
+    const leak = /zz9plural|reliabilityNotes|flagged|Robot died/;
+    // These take a path (and query) only: no request, cookie or account reaches them, signed in or not.
+    const dir = mkdtempSync(join(tmpdir(), "cs-rel-ssr-"));
+    const file = join(dir, "index.html");
+    writeFileSync(file, "<html><head></head><body><div id=\"root\"></div></body></html>");
+    for (const path of ["/teams/18360", `/teams/18360?season=${S}`, `/compare?teams=18360,101&season=${S}`, "/shortlist"]) {
+      const [p, q] = path.split("?");
+      const query = Object.fromEntries(new URLSearchParams(q ?? ""));
+      const meta = await pageMeta(p, query);
+      expect(JSON.stringify(meta), path).not.toMatch(leak);
+      expect(headTags(p, meta), path).not.toMatch(leak);
+      expect(bootShell(p, meta), path).not.toMatch(leak);
+      expect((await renderPage(file, p, query)).html, path).not.toMatch(leak);
+    }
+    const card = await cardModel({ season: S, red: [18360, 101], blue: [102, 103] }).catch(() => null);
+    expect(JSON.stringify(card ?? {})).not.toMatch(leak);
   });
 });
 
