@@ -9,7 +9,7 @@ teams, scout, offline, speed, live, report, alerts, rankings, share, workspace,
 picklist, history, fixes). What's new shows them first; the groups below are
 the full release notes, one click away.
 
-## 1.16.1 — 2026-10-21
+## 1.16.2 — 2026-10-21
 
 Today's coin flips: the closest calls at every event on today, on the home page.
 
@@ -20,6 +20,21 @@ Today's coin flips: the closest calls at every event on today, on the home page.
 
 ### Home
 - **Today's coin flips.** A new section on the home page gathers the matches on today's schedules, across every event that's on today at its venue, where the model gives either side between 45% and 55%. Those still to play come first, soonest first, each with both alliances, the odds on a close-up scale, the time at the venue, how long until it starts and its confidence tier; the closest call is marked. Played ones follow with their score and the call made before the match. Calls on thin data (a robot with fewer than 3 matches this season) are left out, and an empty day says why. Each opens its match page. Refreshed after every sync and live result, and every few minutes; an open home page keeps up by itself. (#226)
+
+## 1.16.1 — 2026-10-21
+
+Smooth scrolling across the site: jumps within a page glide there instead of cutting.
+
+### Highlights
+- [speed] Contents links, "see the odds" and match jumps glide to their spot
+- [speed] Opening a page, or going back, still lands instantly where it should
+- [speed] Reduce motion on your device and every jump stays instant
+
+### Scrolling
+- **Smooth jumps.** Every jump within a page now glides: contents and section links (How it works, Privacy, Terms, FAQ topics), the skip link, buttons that take you to a part of the page (an event's odds, live panel or stream, a linked match), the search palette bringing the page's search field into view, and the selected tab or chip in a sideways row. Scrolling with a wheel, trackpad or finger is unchanged: it stays the browser's own. (#233)
+- **Pages still open instantly.** A new page starts at the top, and back or forward returns to exactly where you were, without sliding there from the old position. Dragging a pick to the screen's edge scrolls the page as before.
+- **Reduced motion.** With reduce motion turned on in your device's settings, every jump is instant.
+- **Sideways rows.** Swiping to the end of a sideways row (tabs, chips, a wide table) no longer turns into the back gesture, and scouting photo strips settle on a photo.
 
 ## 1.16.0 — 2026-10-21
 

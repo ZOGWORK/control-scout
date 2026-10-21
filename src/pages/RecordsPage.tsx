@@ -11,6 +11,7 @@ import { RecordsTable } from "../components/records/RecordsTable";
 import { TeamDirectory } from "../components/records/TeamDirectory";
 import { cn } from "../components/cn";
 import { revealInStrip } from "../lib/revealInStrip";
+import { smoothBehavior } from "../lib/pageScroll";
 
 type View = "events" | "season" | "listed" | "matches";
 
@@ -40,17 +41,25 @@ export default function RecordsPage({ matches }: { matches?: boolean }) {
     return { pathname: v === "matches" ? "/matches" : "/teams", search: q.toString() ? `?${q}` : "" };
   };
   // On a phone the strip scrolls sideways: the current view is brought into it on arrival and on every change.
+  // It jumps there on arrival and glides on a change the reader made.
   const strip = useRef<HTMLElement>(null);
+  // The view the strip last showed (undefined before the first): the same view again (a replayed effect) is an arrival.
+  const stripView = useRef<string | undefined>(undefined);
   useLayoutEffect(() => {
-    const reveal = () => {
+    const reveal = (behavior: ScrollBehavior = "auto") => {
       const el = strip.current?.querySelector<HTMLElement>("[aria-current=page]");
-      if (strip.current && el) revealInStrip(strip.current, el);
+      if (strip.current && el) revealInStrip(strip.current, el, 8, behavior);
     };
-    reveal();
-    // Again once the web fonts are in (they change the labels' widths), and whenever the strip's width
-    // changes (a phone turned to portrait, a narrowed window) so the current view never ends up clipped.
+    const arriving = stripView.current === undefined || stripView.current === view;
+    stripView.current = view;
+    const how: ScrollBehavior = arriving ? "auto" : smoothBehavior();
+    reveal(how);
+    // Again once the web fonts are in (they change the labels' widths; a view changed before they load cancels
+    // the earlier wait, so each view keeps its own), the same way: after a view change it glides on towards the
+    // view, never cutting that glide short with a jump. And whenever the strip's width changes (a phone turned
+    // to portrait, a narrowed window) so the current view never ends up clipped.
     let live = true;
-    document.fonts?.ready.then(() => { if (live) reveal(); });
+    document.fonts?.ready.then(() => { if (live) reveal(how); });
     const widthNow = () => strip.current?.getBoundingClientRect().width;
     let width = widthNow();
     const ro = typeof ResizeObserver === "undefined" ? null : new ResizeObserver(() => {
