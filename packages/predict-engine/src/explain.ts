@@ -1,4 +1,5 @@
-// Predict — the public match contract: win odds, expected scores with ranges,
+// Predict — the public match contract: win odds, expected scores with 80%
+// ranges (drawn from matchModel's per-alliance score distribution),
 // the top 3 factors behind the call, and a confidence tier.
 //
 // Built on predictMatch (no second model): the factors are an exact split of
@@ -11,7 +12,7 @@
 // The confidence tier says how much of the call rests on real matches rather
 // than priors. Its thresholds are a stated rule, not a fitted value — see
 // CONFIDENCE_RULE — and are checked against the calibration ledger.
-import { predictMatch, type NoiseParams } from "./matchModel.js";
+import { predictMatch, zFor, type BandParams, type NoiseParams, type ScoreBand } from "./matchModel.js";
 import type { CalibrationParams } from "./calibration.js";
 import type { ContextualModel, MatchContext, ProbabilityModel } from "./contextual.js";
 import type { RatingBook } from "./rating.js";
@@ -28,9 +29,6 @@ export const CONFIDENCE_RULE = {
   /** …and rating uncertainty must be under this share of the outcome variance. */
   confidentMaxRatingShare: 0.15,
 } as const;
-
-/** z for a central 80% interval. */
-const Z80 = 1.2815515655446004;
 
 export interface Factor {
   id: Component;
@@ -54,6 +52,8 @@ export interface TeamStrength {
   matches: number;
   /** ± points (1 sd) of rating uncertainty. */
   sd: number;
+  /** Per-team variance factor (1 = as variable match to match as the model assumes); widens score ranges. */
+  consistency: number;
 }
 
 export interface MatchExplanation {
@@ -61,9 +61,15 @@ export interface MatchExplanation {
   winProbB: number;
   predictedScoreA: number;
   predictedScoreB: number;
-  /** Central 80% range of each final score. */
+  /** Central range of each final score: scoreBandA.level (80%) of real scores should land inside. */
   scoreRangeA: [number, number];
   scoreRangeB: [number, number];
+  /** The full stated ranges: level, bounds and the sd they are drawn from (engine 2.2+). */
+  scoreBandA: ScoreBand;
+  scoreBandB: ScoreBand;
+  /** Half-width of each range in whole points, for "118 ± 14". */
+  scorePlusMinusA: number;
+  scorePlusMinusB: number;
   factors: Factor[];
   confidence: { tier: ConfidenceTier; reason: string; minMatches: number; ratingShare: number };
   /** Which model produced the win odds ("legacy" when the book has no reliability state). */
@@ -84,6 +90,8 @@ export interface ExplainOptions {
   context?: MatchContext;
   /** A second model evaluated on the same inputs, for side-by-side logging. */
   shadow?: ContextualModel;
+  /** How score ranges are drawn (FITTED_MODEL.band; the default holds the same values). */
+  band?: BandParams;
   /** Names used in factor sentences (default "Red" / "Blue"). */
   nameA?: string;
   nameB?: string;
@@ -101,7 +109,7 @@ const round1 = (x: number) => Math.round(x * 10) / 10;
 
 function strength(book: RatingBook, team: number): TeamStrength {
   const r = book.get(team);
-  return { team, np: npOf(r), auto: r.auto, teleop: r.teleop, endgame: r.endgame, pen: r.pen, matches: r.n, sd: Math.sqrt(r.uncertainty) };
+  return { team, np: npOf(r), auto: r.auto, teleop: r.teleop, endgame: r.endgame, pen: r.pen, matches: r.n, sd: Math.sqrt(r.uncertainty), consistency: book.reliabilityOf(team).variance };
 }
 
 /** The robot carrying a component for its side, and how far above the season average it is. */
@@ -120,7 +128,7 @@ function carrier(side: TeamStrength[], c: Exclude<Component, "pen">, base: numbe
  */
 export function explainMatch(book: RatingBook, teamsA: number[], teamsB: number[], opts: ExplainOptions = {}): MatchExplanation {
   const nameA = opts.nameA ?? "Red", nameB = opts.nameB ?? "Blue";
-  const p = predictMatch(book, teamsA, teamsB, opts.noise, opts.calibration, { contextual: opts.contextual, context: opts.context, shadow: opts.shadow });
+  const p = predictMatch(book, teamsA, teamsB, opts.noise, opts.calibration, { contextual: opts.contextual, context: opts.context, shadow: opts.shadow, band: opts.band });
   const A = teamsA.map((t) => strength(book, t));
   const B = teamsB.map((t) => strength(book, t));
   const sum = (xs: TeamStrength[], k: keyof TeamStrength) => xs.reduce((s, x) => s + (x[k] as number), 0);
@@ -172,14 +180,18 @@ export function explainMatch(book: RatingBook, teamsA: number[], teamsB: number[
       : "Ratings still carry noticeable uncertainty relative to match variance.";
   }
 
-  const range = (mean: number, sd: number): [number, number] => [Math.max(0, Math.round(mean - Z80 * sd)), Math.round(mean + Z80 * sd)];
+  const pm = (b: ScoreBand) => Math.round(zFor(b.level) * b.sd);
   return {
     winProbA: p.pRedWin,
     winProbB: 1 - p.pRedWin,
     predictedScoreA: Math.round(p.red.mean),
     predictedScoreB: Math.round(p.blue.mean),
-    scoreRangeA: range(p.red.mean, p.red.sd),
-    scoreRangeB: range(p.blue.mean, p.blue.sd),
+    scoreRangeA: [p.red.band.lo, p.red.band.hi],
+    scoreRangeB: [p.blue.band.lo, p.blue.band.hi],
+    scoreBandA: p.red.band,
+    scoreBandB: p.blue.band,
+    scorePlusMinusA: pm(p.red.band),
+    scorePlusMinusB: pm(p.blue.band),
     factors,
     confidence: { tier, reason, minMatches, ratingShare: Math.round(ratingShare * 1000) / 1000 },
     probabilityModel: p.model ?? "legacy",
