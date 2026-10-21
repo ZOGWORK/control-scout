@@ -10,6 +10,7 @@
 // (FLIP). Escape (or a cancelled touch) slides everything back. The handle also
 // takes the keyboard: arrows move one place, Home/End to the top/bottom.
 import { useCallback, useEffect, useLayoutEffect, useRef, useState, type KeyboardEvent, type PointerEvent } from "react";
+import { jumpPageTo } from "../../lib/pageScroll";
 import { moveItem, nearestSlot } from "../../lib/shortlist";
 
 export type Box = { left: number; top: number; width: number; height: number };
@@ -154,7 +155,7 @@ export function useReorder({ items, onCommit, describe }: {
     const d = drag.current; if (!d) return;
     const edge = 72, h = window.innerHeight;
     const speed = d.y < edge ? -Math.ceil((edge - d.y) / 6) : d.y > h - edge ? Math.ceil((d.y - (h - edge)) / 6) : 0;
-    if (speed) { if (d.scroller) d.scroller.scrollTop += speed; else window.scrollBy(0, speed); }
+    if (speed) { if (d.scroller) d.scroller.scrollTop += speed; else jumpPageTo(speed, true); }
     const s = scrollOf(d.scroller);
     const b = d.boxes[d.from];
     const at = dragPosition({ left: d.x + s.x - d.grabX, top: d.y + s.y - d.grabY }, b, d.bounds, d.column);
