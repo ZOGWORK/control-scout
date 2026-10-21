@@ -7,8 +7,8 @@
 // current window use the current anchor exactly like Control Point; an older
 // season (browsing 2023) gets its own window ending at that season.
 import {
-  Forecaster, FITTED_MODEL, RatingBook, indexAwards, MODELLED_AWARDS, normType, explainMatch,
-  type AdvancementRecord, type AwardRecord, type BonusFlags, type EventInput, type EventRecord, type Forecast, type MatchRecord, type PredictModel,
+  Forecaster, FITTED_MODEL, RatingBook, indexAwards, MODELLED_AWARDS, normType, explainMatch, bonusSamples, seasonBonusModel,
+  type AdvancementRecord, type BonusModelSource, type AwardRecord, type BonusFlags, type EventInput, type EventRecord, type Forecast, type MatchRecord, type PredictModel,
 } from "@control-scout/predict-engine";
 import { all, kvGet } from "../db.js";
 import { CURRENT_SEASON, PREDICT_SEASONS } from "../data/seasons.js";
@@ -212,7 +212,23 @@ export class ScoutForecaster extends Forecaster {
   explain(season: number, red: number[], blue: number[], level: "qual" | "playoff" = "qual", event?: string) {
     const b = this.book(season);
     if (!b) return null;
-    return explainMatch(b, red, blue, { noise: FITTED_MODEL.noise, calibration: FITTED_MODEL.calibration, contextual: FITTED_MODEL.contextual, context: { level, event }, shadow: FITTED_MODEL.contextual?.fallback });
+    // Bonus ranking points count in qualification matches only.
+    const bonus = level === "qual" ? this.bonusModel(season) : null;
+    return explainMatch(b, red, blue, {
+      noise: FITTED_MODEL.noise, calibration: FITTED_MODEL.calibration, contextual: FITTED_MODEL.contextual, context: { level, event }, shadow: FITTED_MODEL.contextual?.fallback,
+      ...(bonus ? { bonus: { season, model: bonus } } : {}),
+    });
+  }
+
+  private bonusModels = new Map<number, BonusModelSource | null>();
+  /** The season's bonus-RP model (the shipped fit, else one fitted to this season's recorded results), once per build. */
+  bonusModel(season: number): BonusModelSource | null {
+    if (!this.bonusModels.has(season)) {
+      // Oldest first: the fit keeps the season's latest results (BONUS_WINDOW).
+      const matches = () => this.seasonEvents(season).flatMap((e) => e.matches).sort((x, y) => x.time - y.time);
+      this.bonusModels.set(season, seasonBonusModel(FITTED_MODEL.bonus, season, () => bonusSamples(matches())));
+    }
+    return this.bonusModels.get(season)!;
   }
 
   /** Start time (ISO) of the latest stored result of a season the ratings have learned, or null. */

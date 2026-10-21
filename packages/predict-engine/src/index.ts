@@ -16,7 +16,8 @@ export * from "./metrics.js";
 export * from "./forecast.js";
 export * from "./scoutData.js";
 export * from "./explain.js";
+export * from "./bonus.js";
 export { FITTED_MODEL } from "./model.js";
 
 /** Package version (kept in step with package.json by a test). */
-export const ENGINE_VERSION = "2.1.1";
+export const ENGINE_VERSION = "2.2.0";
