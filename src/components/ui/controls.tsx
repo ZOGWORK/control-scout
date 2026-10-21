@@ -203,15 +203,15 @@ const toggleItem = cva(
         // sets and nothing else touches. data-state can be replaced when a
         // Tooltip wraps the item (its data-state is "closed"/"delayed-open").
         segment: 'rounded-md px-3 aria-checked:bg-background aria-checked:text-foreground aria-checked:shadow-sm aria-pressed:bg-background aria-pressed:text-foreground aria-pressed:shadow-sm',
-        chips: 'h-8 shrink-0 rounded-full border border-border px-3 max-sm:h-10 aria-checked:border-accent/50 aria-checked:bg-accent/10 aria-checked:text-foreground aria-pressed:border-accent/50 aria-pressed:bg-accent/10 aria-pressed:text-foreground',
+        chips: 'h-8 shrink-0 rounded-full border border-border px-3 max-sm:h-9 aria-checked:border-accent/50 aria-checked:bg-accent/10 aria-checked:text-foreground aria-pressed:border-accent/50 aria-pressed:bg-accent/10 aria-pressed:text-foreground',
         cards: 'h-auto min-h-12 shrink-0 flex-col items-start gap-0.5 rounded-xl border border-border bg-background px-3 py-2 text-left aria-checked:border-accent/60 aria-checked:bg-accent/10 aria-checked:text-foreground aria-pressed:border-accent/60 aria-pressed:bg-accent/10 aria-pressed:text-foreground',
       },
       size: { default: '', sm: '', lg: '' },
     },
     compoundVariants: [
-      { variant: 'segment', size: 'default', className: 'h-7 max-sm:h-10' },
-      { variant: 'segment', size: 'sm', className: 'h-6 px-2 text-xs max-sm:h-9' },
-      { variant: 'segment', size: 'lg', className: 'h-9 max-sm:h-10' },
+      { variant: 'segment', size: 'default', className: 'h-7 max-sm:h-9' },
+      { variant: 'segment', size: 'sm', className: 'h-6 px-2 text-xs max-sm:h-8' },
+      { variant: 'segment', size: 'lg', className: 'h-9' },
     ],
     defaultVariants: { variant: 'segment', size: 'default' },
   },

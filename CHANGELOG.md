@@ -21,6 +21,20 @@ A pit display for the TV in your pit.
 ### Events
 - **Pit display.** A "Pit display" button on every event page opens a fullscreen screen for a pit TV or laptop: the event and the venue's clock, the match up now (or the last result, with whether the call was right), the next three matches with their win odds, a countdown to the next one (left out when the event runs behind, rather than showing a wrong time), the top 8 and a QR code to the event page. It updates by itself, shows "Reconnecting…" if the connection drops, keeps the screen awake where the browser allows it, and fits 1920×1080 and 1366×768 with no scrolling. Signed in, your tracked teams show in gold and your next match is pinned. (#218)
 
+## 1.8.1 — 2026-10-21
+
+More of each page on a phone screen: match lists, tabs and the bottom bar take less room.
+
+### Highlights
+- [live] Phone match lists show both alliances side by side
+- [speed] A slimmer bottom bar on phones, so more of each page shows
+- [rankings] Page tabs and toggles take less room on phones
+
+### Phones
+- **Match lists.** On a phone 390 px wide or more, the red and blue alliances of each match sit side by side, facing each other with the scores in the middle (as on a laptop), instead of stacked. About five matches fit on screen instead of three and a half. The narrowest phones (320 px) keep them stacked. Event Matches tabs and team pages both get this. (#221)
+- **Bottom bar.** 52 px tall instead of 60, and everything that sits above it (sticky buttons, the cookie and install notes) follows one shared height.
+- **Tabs and toggles.** Page tabs (an event's Matches / Rankings / Insights…) and segment toggles (All / Quals / Playoffs) are tighter on phones, so more tabs show before the row scrolls.
+
 ## 1.8.0 — 2026-10-20
 
 Phones fit more on screen, get a menu button at the top left, and a bottom bar you pick yourself.
