@@ -343,14 +343,16 @@ const rec = (x: { wins: number; losses: number; ties: number }) => `${x.wins}–
 export function partnershipFact(t: PairLookup, teamsA: number[], teamsB: number[], season: number, p: PartnershipParams = PARTNERSHIP_PARAMS, shift = 0): PartnershipFact | null {
   type Cand = { score: number; fact: Omit<PartnershipFact, "label" | "shift"> };
   const cands: Cand[] = [];
-  const weight = (n: number, s: number) => n * p.seasonDecay ** Math.max(0, season - s);
+  // Recency-weighted matches: the stored decayed weight, brought forward to the predicted season (one recent
+  // meeting doesn't make years of older ones count as recent).
+  const weight = (st: { w: number; season: number }) => st.w * p.seasonDecay ** Math.max(0, season - st.season);
   for (const [side, xs] of [["A", teamsA], ["B", teamsB]] as const) {
     for (let i = 0; i < xs.length; i++) for (let j = i + 1; j < xs.length; j++) {
       const st = t.together(xs[i], xs[j]);
       if (!st || st.n < p.minMatches || season - st.season > p.maxSeasonsAgo) continue;
       const e = shrunkEffect(st, season, p);
       cands.push({
-        score: 2 * weight(st.n, st.season) + Math.abs(e),
+        score: 2 * weight(st) + Math.abs(e),
         fact: { kind: "together", teams: [xs[i], xs[j]], side, matches: st.n, record: { wins: st.wins, losses: st.losses, ties: st.ties },
           best: { score: st.best, season: st.bestSeason, event: st.bestEvent, eventName: t.eventName(st.bestSeason, st.bestEvent) }, effect: e },
       });
@@ -362,7 +364,7 @@ export function partnershipFact(t: PairLookup, teamsA: number[], teamsB: number[
     const flip = a > b; // stored from the lower number's side
     const e = shrunkEffect(st, season, p, p.minMeetings) * (flip ? -1 : 1);
     const record = flip ? { wins: st.losses, losses: st.wins, ties: st.ties } : { wins: st.wins, losses: st.losses, ties: st.ties };
-    cands.push({ score: weight(st.n, st.season) + Math.abs(e), fact: { kind: "against", teams: [a, b], side: "A", matches: st.n, record, effect: e } });
+    cands.push({ score: weight(st) + Math.abs(e), fact: { kind: "against", teams: [a, b], side: "A", matches: st.n, record, effect: e } });
   }
   if (!cands.length) return null;
   cands.sort((x, y) => y.score - x.score || x.fact.teams[0] - y.fact.teams[0] || x.fact.teams[1] - y.fact.teams[1]);

@@ -14,7 +14,7 @@ import { all, kvGet } from "../db.js";
 import { CURRENT_SEASON, PREDICT_SEASONS } from "../data/seasons.js";
 import { loadSeason, toEventRecord } from "../stats/load.js";
 import { registerCache } from "../caches.js";
-import { partnershipPrefix } from "./partnerships.js";
+import { onPartnershipPrefixReady, partnershipPrefix } from "./partnerships.js";
 
 const yieldLoop = () => new Promise<void>((r) => setImmediate(r));
 
@@ -345,3 +345,16 @@ export async function refreshForecasters(): Promise<void> {
 /** Drop cached forecasters and season data (tests, or after a manual data change). Not for syncs: a new data version already rebuilds, without making pages wait. */
 export function resetForecasters(): void { cache.clear(); built.clear(); seasonCache.clear(); }
 registerCache("Prediction ratings", resetForecasters);
+
+// A forecaster built while the finished seasons' pair history was still building went ahead with its
+// window's pairs only. Once that history is ready, rebuild it in the background (pages keep answering
+// with it meanwhile, through `built`), so its facts don't stay incomplete until the next data version.
+onPartnershipPrefixReady((before) => {
+  for (const [anchor, hit] of [...cache]) {
+    hit.f.then((f) => {
+      if (f.partnershipComplete || (f.seasons[0] ?? f.anchor) !== before || cache.get(anchor) !== hit) return;
+      cache.delete(anchor);
+      forecasterFor(anchor).catch(() => {});
+    }, () => {});
+  }
+});

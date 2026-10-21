@@ -58,6 +58,10 @@ async function buildPrefix(before: number, key: string): Promise<PartnershipBook
 
 const building = new Map<number, Promise<PartnershipBook | null>>();
 const cached = new Map<number, { key: string; book: PartnershipBook }>();
+const readyListeners: ((before: number) => void)[] = [];
+
+/** Called when a prefix that wasn't ready finishes building (engine.ts rebuilds the forecasters that went without it). */
+export function onPartnershipPrefixReady(fn: (before: number) => void): void { readyListeners.push(fn); }
 
 /**
  * The pair book through the seasons before `before` (a copy, free to extend), or
@@ -77,6 +81,7 @@ export async function partnershipPrefix(before: number, opts: { wait?: boolean }
   let job = building.get(before);
   if (!job) {
     job = buildPrefix(before, key).then((book) => { cached.set(before, { key, book }); return book; }, () => null).finally(() => building.delete(before));
+    void job.then((book) => { if (book) for (const fn of readyListeners) fn(before); });
     building.set(before, job);
   }
   if (!opts.wait) return null;
