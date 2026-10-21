@@ -29,8 +29,27 @@ if (!token) {
 // WAL and a busy wait on the local database, as the site sets them; no migrations (the site owns the
 // schema). A remote database (Turso) is read directly: the embedded replica file belongs to the site.
 // The busy wait goes first: setting WAL needs a moment's lock, which the site's sync may be holding.
+// Wait for the site to say its data is ready before opening the database: on a fresh install it restores the
+// shipped snapshot by replacing the file, and a connection opened before that would stay on the old, empty one.
+// On the VM the site answers on its own port (loopback); after 3 minutes the bot goes on regardless (and says so).
+await waitForSite();
 await db().execute("PRAGMA busy_timeout = 5000").catch(() => {});
 await configure(db()).catch((e) => log(`database not ready yet (${(e as Error).message}); lookups will say so until it is`));
+
+async function waitForSite(timeoutMs = 180_000): Promise<void> {
+  const url = `http://127.0.0.1:${env.port}/api/health`;
+  const until = Date.now() + timeoutMs;
+  let said = false;
+  while (Date.now() < until) {
+    try {
+      const r = await fetch(url, { signal: AbortSignal.timeout(3000) });
+      if (r.ok && (await r.json() as { ready?: boolean }).ready) return;
+    } catch { /* not up yet */ }
+    if (!said) { log(`waiting for the site's data to be ready (${url})`); said = true; }
+    await new Promise((r) => setTimeout(r, 2000));
+  }
+  log("the site didn't report ready in 3 minutes; starting anyway (lookups say so if the data isn't there)");
+}
 
 const client = new Client({ intents: [GatewayIntentBits.Guilds] });
 const handle = createHandler(log);
