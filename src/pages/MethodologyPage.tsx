@@ -8,6 +8,7 @@ import { Link } from "react-router-dom";
 import { ArrowRight, FlaskConical } from "lucide-react";
 import { ENGINE_VERSION } from "@control-scout/predict-engine";
 import { useTitle } from "../lib/meta";
+import { REPORT_PRIOR } from "../shared/ledger";
 import { Button } from "../components/ui/button";
 import { cn } from "../components/cn";
 import "../components/howitworks/howitworks.css";
@@ -105,6 +106,11 @@ export default function MethodologyPage() {
           <Prose id="factors">
             <h3>The top 3 factors</h3>
             <p>On a prediction, the predicted margin splits <strong>exactly</strong> into four parts: the auto gap, the TeleOp gap, the endgame gap, and the difference in penalties each side gives away. The factors are the <strong>three largest</strong> of those four parts, so they explain most of the margin; the fourth (smallest) part makes up the rest. Each one is a piece of the actual prediction shown, never a separate story.</p>
+          </Prose>
+          <Prose id="report-cards">
+            <h3>Report cards: how predictable a team has been</h3>
+            <p>Each team page has a <strong>prediction report card</strong>: how the engine's calls on that team's matches turned out. It uses <strong>live calls only</strong>, the predictions written down before each match was played, never the replayed history. Three numbers: <strong>called right</strong> (the share of matches where the favoured side won; ties and exact 50/50 calls don't count), <strong>points vs prediction</strong> (the alliance's actual score minus its predicted score, split evenly between its robots, averaged: above zero means the team's alliances scored more than expected) and <strong>swing</strong> (the spread of those misses: a high swing means the team's matches are hard to call either way).</p>
+            <p>A few matches say little, so every number is pulled toward the season's average over all teams, as if the team had {REPORT_PRIOR} more calls at that average. The card shows how many calls it rests on and the raw numbers beside it. Calls made before a season's first match have no predicted score: they count for called right only. Per-event cards appear once the event is over.</p>
           </Prose>
         </section>
 

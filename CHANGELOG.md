@@ -23,6 +23,19 @@ Bonus ranking point odds next to every qualification win %.
 - **Bonus ranking points per match.** A qualification match of 2025–26 or 2026–27 now shows, under its win odds, the chance each alliance earns each of the season's bonus RPs (Movement, Goal and Pattern; Swarm, Pollinator 1 and Pollinator 2) and the ranking points each side can expect from the match (3 × win chance + bonus chances), with its own confidence tier. It's the same math the event simulator uses, from prediction engine 2.2. On match pages (opened from any match list), the pre-match report and the match lab. Once a match is played, the call sits next to the bonuses actually earned.
 - **A bonus curve that keeps up with the season.** The chance of each bonus at a given score is fitted to the season's latest 2,000 recorded qualification alliances (from 200 on; provisional below 600, at most moderate below 2,000). On the 2025–26 replay that scored a Brier of 0.147 per bonus call, against 0.178 for the whole-season curve the engine shipped with.
 - **Scored in the track record.** Bonus calls are written to the ledger with each pre-match call and scored by Brier per bonus, live and season replay kept apart. The replay fits the bonus model only on results before each match. See How it works › Bonus ranking points. (#228)
+
+## 1.15.0 — 2026-10-21
+
+How predictable each team has been, from the engine's own live calls.
+
+### Highlights
+- [teams] A prediction report card on team pages: how often calls were right
+- [teams] How far its alliances landed from the predicted score
+- [teams] Live calls only, with sample size, raw numbers and a warning
+
+### Teams
+- **Prediction report card.** Team pages show how the engine's pre-match calls on that team's matches turned out this season: the share called right, points vs prediction per robot (the alliance's miss split evenly between its robots) and the swing of those misses, with the field average beside each. Finished events get a row each, with how many calls had a predicted score and the raw numbers. Only calls logged before each match count, never the replayed history. Few calls say little, so every number is pulled toward the field average as if the team had 10 more calls, and the card says so. How it works explains the rules. (#232)
+
 ## 1.14.0 — 2026-10-21
 
 Predicted scores come with a range now, and the range is scored in public.
