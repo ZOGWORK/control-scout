@@ -19,7 +19,7 @@
 // average with a prior worth REPORT_PRIOR calls, so a team with three calls
 // isn't shown as 100% predictable.
 import type { InStatement } from "@libsql/client";
-import { all, kvSet, writeBatch } from "../db.js";
+import { all, kvGet, kvSet, writeBatch } from "../db.js";
 import type { ReportCardField } from "../../src/shared/api.js";
 import { REPORT_PRIOR } from "../../src/shared/ledger.js";
 
@@ -157,8 +157,8 @@ const ids = (s: string): number[] => { try { const v = JSON.parse(s); return Arr
  */
 export async function computeReportCards(season: number, log: Log = () => {}, now = Date.now()): Promise<number> {
   const rows = await all<any>(
-    `SELECT code, red, blue, p_red, red_mean, blue_mean, red_score, blue_score, outcome, no_score_basis FROM predictions
-     WHERE kind = 'live' AND season = ? AND outcome IS NOT NULL AND red_score IS NOT NULL AND blue_score IS NOT NULL`,
+    `SELECT id, scored_at, code, red, blue, p_red, red_mean, blue_mean, red_score, blue_score, outcome, no_score_basis FROM predictions
+     WHERE kind = 'live' AND season = ? AND scored_at IS NOT NULL AND outcome IS NOT NULL AND red_score IS NOT NULL AND blue_score IS NOT NULL`,
     [season],
   );
   const today = new Date(now).toISOString().slice(0, 10);
@@ -179,6 +179,46 @@ export async function computeReportCards(season: number, log: Log = () => {}, no
   const { stmts, field, teams } = reportCardStatements(season, ledger, finals, new Date(now).toISOString());
   await writeBatch(stmts, 5000);
   await kvSet(`reportCards:field:${season}`, field);
+  // What these cards were built from (refreshReportCards): the rows just read, and whether any event is still open.
+  let maxId = 0, lastScored = "";
+  for (const r of rows) { maxId = Math.max(maxId, Number(r.id)); if (r.scored_at && String(r.scored_at) > lastScored) lastScored = String(r.scored_at); }
+  const built: CardsBuilt = { fp: fingerprintOf(rows.length, maxId, lastScored), open: codes.length > finals.size, day: today };
+  await kvSet(builtKey(season), built);
   if (teams) log(`${season}: report cards for ${teams} teams from ${rows.length} live calls`);
   return teams;
+}
+
+/** Bump when the card rules above change: every season's cards are rebuilt once on the next refresh. */
+export const REPORT_CARD_RULES = 1;
+
+interface CardsBuilt { fp: string; open: boolean; day: string }
+const builtKey = (season: number) => `reportCards:built:${season}`;
+const fingerprintOf = (n: number, maxId: number, lastScored: string) => `${REPORT_CARD_RULES}:${n}:${maxId}:${lastScored}`;
+
+/**
+ * Rebuild the report cards of every season whose scored live calls changed since its cards were built
+ * (any season, not just the ones the stats run covered: a call is scored whenever its match's result
+ * arrives). One grouped query over the live ledger decides; an unchanged season costs nothing more.
+ * A season whose cards still had an open event is rebuilt once a day too, since an event turns final
+ * when its last day passes, not only when a call is scored. Returns the seasons rebuilt.
+ */
+export async function refreshReportCards(log: Log = () => {}, now = Date.now()): Promise<number[]> {
+  const today = new Date(now).toISOString().slice(0, 10);
+  // Read from the (kind, season, scored_at) index alone. Scoring sets the scores and scored_at in one statement
+  // and the outcome right after, so the only difference from the cards' own filter is a call caught between
+  // the two: its season then reads as changed until the outcome is in, and the rebuild after that matches.
+  const seasons = await all<{ season: number; n: number; max_id: number; last: string | null }>(
+    `SELECT season, COUNT(*) n, MAX(id) max_id, MAX(scored_at) last FROM predictions
+     WHERE kind = 'live' AND scored_at IS NOT NULL GROUP BY season ORDER BY season DESC`,
+  );
+  const rebuilt: number[] = [];
+  for (const r of seasons) {
+    const season = Number(r.season);
+    const prev = await kvGet<CardsBuilt>(builtKey(season));
+    const fp = fingerprintOf(Number(r.n), Number(r.max_id), r.last ?? "");
+    if (prev && prev.fp === fp && !(prev.open && prev.day !== today)) continue;
+    await computeReportCards(season, log, now);
+    rebuilt.push(season);
+  }
+  return rebuilt;
 }
