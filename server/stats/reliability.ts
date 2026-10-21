@@ -7,7 +7,7 @@ import type { InStatement } from "@libsql/client";
 import { all, kvGet, writeBatch } from "../db.js";
 import type { DbEvent } from "./load.js";
 import type { ReportCardField } from "../../src/shared/api.js";
-import { NEAR_ZERO_SHARE, RECENT, reliabilityIndex, shrinkTo, type ReliabilityParts } from "../../src/shared/reliability.js";
+import { NEAR_ZERO_SHARE, RATIO_CAP, RECENT, reliabilityIndex, shrinkTo, type ReliabilityParts } from "../../src/shared/reliability.js";
 
 type Log = (m: string) => void;
 
@@ -101,7 +101,18 @@ export function fieldOf(all: Tally[]): Field {
   };
 }
 
-/** Shrunk parts of one tally. `missSd`: the team's report-card miss spread (shrunk), null without live calls. */
+/**
+ * x against the field's average. A field average of 0 is a known zero (e.g. a season where nobody gave away a
+ * penalty), not missing data: a team at 0 then costs nothing, one above it the most.
+ */
+export const ratioTo = (x: number, field: number) => (field > 0 ? x / field : x > 0 ? RATIO_CAP : 0);
+
+/**
+ * Shrunk parts of one tally. `missSd`: the team's report-card miss spread (shrunk), null without live calls;
+ * `fieldMissSd` null: the season has no scored live calls at all, so predictability doesn't apply to anyone
+ * (ratio 0, no cost). A team with no live calls in a season that has them reads at the field's level (1), as
+ * shrinkage with no data of its own would put it.
+ */
 export function partsOf(a: Tally, f: Field, missSd: number | null, fieldMissSd: number | null): ReliabilityParts {
   const n = a.contribs.length;
   const pen = shrinkTo(a.onField ? a.penSum / a.onField : null, a.onField, f.penPerRobot);
@@ -110,13 +121,15 @@ export function partsOf(a: Tally, f: Field, missSd: number | null, fieldMissSd: 
     dqRate: shrinkTo(a.onField ? a.dqs / a.onField : null, a.onField, f.dqRate),
     nearZeroRate: shrinkTo(n ? a.nearZero / n : null, n, f.nearZeroRate),
     swing: Math.sqrt(Math.max(0, shrinkTo(n ? a.ss / n : null, n, f.swingVar))),
-    penaltyRatio: f.penPerRobot > 0 ? pen / f.penPerRobot : 1,
-    predictabilityRatio: missSd != null && fieldMissSd ? missSd / fieldMissSd : 1,
+    penaltyRatio: ratioTo(pen, f.penPerRobot),
+    predictabilityRatio: fieldMissSd == null ? 0 : missSd == null ? (fieldMissSd > 0 ? 1 : 0) : ratioTo(missSd, fieldMissSd),
   };
 }
 
-export const fieldParts = (f: Field): ReliabilityParts => ({
-  noShowRate: f.noShowRate, dqRate: f.dqRate, nearZeroRate: f.nearZeroRate, swing: Math.sqrt(f.swingVar), penaltyRatio: 1, predictabilityRatio: 1,
+/** The field's own parts: ratios of 1 (the average against itself), or 0 where the average is a known zero / doesn't apply. */
+export const fieldParts = (f: Field, fieldMissSd: number | null): ReliabilityParts => ({
+  noShowRate: f.noShowRate, dqRate: f.dqRate, nearZeroRate: f.nearZeroRate, swing: Math.sqrt(f.swingVar),
+  penaltyRatio: f.penPerRobot > 0 ? 1 : 0, predictabilityRatio: fieldMissSd != null && fieldMissSd > 0 ? 1 : 0,
 });
 
 const r4 = (x: number) => (Number.isFinite(x) ? Math.round(x * 10000) / 10000 : null);
@@ -138,7 +151,7 @@ export function reliabilityStatements(season: number, byEvent: Map<string, Map<n
   const perTeam = new Map<number, Tally[]>();
   for (const teams of byEvent.values()) for (const [t, a] of teams) { const xs = perTeam.get(t); if (xs) xs.push(a); else perTeam.set(t, [a]); }
   const f = fieldOf([...perTeam.values()].flat());
-  const fp = fieldParts(f);
+  const fp = fieldParts(f, miss.field);
   const fieldTally = pool([...perTeam.values()].flat());
   stmts.push({ sql: INSERT, args: rowArgs(season, "", 0, { ...fieldTally, seq: [] }, fp, at) });
   for (const [code, teams] of byEvent) for (const [t, a] of teams) stmts.push({ sql: INSERT, args: rowArgs(season, code, t, a, partsOf(a, f, miss.event.get(`${code}|${t}`) ?? null, miss.field), at) });

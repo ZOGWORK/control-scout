@@ -2,10 +2,10 @@
 // public tables only (packs ship only public tables; the job never touches workspace scouting).
 import { beforeEach, describe, expect, it } from "vitest";
 import { all, migrate, openDb, run, setDb } from "../db";
-import { computeReliability, partsOf, fieldOf, tallyReliability } from "./reliability";
+import { computeReliability, partsOf, fieldOf, fieldParts, tallyReliability } from "./reliability";
 import { loadSeason, type DbEvent, type DbMatch } from "./load";
 import { teamReliability, seasonStats, reliabilityMany } from "../api/teams";
-import { blendedIndex, reliabilityIndex, RELIABILITY_PRIOR, type ReliabilityParts } from "../../src/shared/reliability";
+import { blendedIndex, isFailureField, reliabilityIndex, RELIABILITY_PRIOR, type ReliabilityParts } from "../../src/shared/reliability";
 import { PACK_TABLES } from "../../src/shared/packSchema";
 import { PUBLIC_TABLES } from "../data/snapshot";
 
@@ -38,8 +38,34 @@ describe("tallies", () => {
     const p = partsOf(one, f, null, null);
     expect(p.noShowRate).toBeCloseTo((1 + RELIABILITY_PRIOR * 0.01) / (1 + RELIABILITY_PRIOR));
     expect(p.penaltyRatio).toBe(1);
-    expect(p.predictabilityRatio).toBe(1);
+    expect(p.predictabilityRatio).toBe(0); // no live calls this season: predictability doesn't apply
     expect(fieldOf([one]).noShowRate).toBe(1);
+  });
+
+  it("a field average of zero is a known zero: a penalty-free team pays nothing, and predictability without live calls costs no one", () => {
+    const clean = { listed: 10, onField: 10, noShows: 0, dqs: 0, contribs: [1, 1], ss: 0, nearZero: 0, penSum: 0, seq: [] };
+    const noPens = { noShowRate: 0, dqRate: 0, nearZeroRate: 0, swingVar: 0, penPerRobot: 0 };
+    const p = partsOf(clean, noPens, null, null);
+    expect(p.penaltyRatio).toBe(0);
+    expect(p.predictabilityRatio).toBe(0);
+    expect(reliabilityIndex(p)).toBe(100);
+    // A team that did give some away, in a season where nobody else did, is at the cap.
+    expect(partsOf({ ...clean, penSum: 20 }, noPens, null, null).penaltyRatio).toBe(2);
+    // The field itself: nothing charged for a part that's zero or doesn't apply.
+    expect(fieldParts(noPens, null)).toMatchObject({ penaltyRatio: 0, predictabilityRatio: 0 });
+    expect(fieldParts({ ...noPens, penPerRobot: 3 }, 10)).toMatchObject({ penaltyRatio: 1, predictabilityRatio: 1 });
+    // Live calls exist this season: a team with none reads at the field's level; a perfectly predicted field is a known zero too.
+    expect(partsOf(clean, noPens, null, 10).predictabilityRatio).toBe(1);
+    expect(partsOf(clean, noPens, 0, 0).predictabilityRatio).toBe(0);
+  });
+
+  it("failure fields: the built-in, a workspace's own failure labels, never a negated one", () => {
+    const t = (label: string, id = "x") => isFailureField({ id, label, type: "toggle" });
+    expect(t("Broke down / disabled", "broke")).toBe(true);
+    for (const yes of ["Robot died", "No-show", "Didn't show up", "Disconnected mid-match", "Tipped over"]) expect(t(yes), yes).toBe(true);
+    for (const no of ["Never disabled", "Not tipped", "Was not a no-show", "Didn't break down", "No disconnects ever disconnected", "Without a breakdown, disabled never"]) expect(t(no), no).toBe(false);
+    expect(t("Played defense")).toBe(false);
+    expect(isFailureField({ id: "d", label: "Robot died", type: "text" })).toBe(false);
   });
 
   it("index: 100 minus stated weights, clamped; a workspace's failure notes only lower the blended one", () => {

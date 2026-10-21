@@ -108,8 +108,24 @@ export function reliabilityFromRow(r: Record<string, unknown>, fieldIndex: numbe
 // Workspace notes (members of that workspace only)
 // ---------------------------------------------------------------------------
 
-/** A yes/no field that marks a robot as broken, disabled, dead or absent (the built-in "Broke down / disabled", or a workspace's own). */
+/** Words that mark a robot as broken, disabled, dead or absent. */
 export const FAILURE_LABEL = /\b(broke|broken|break(s|ing)? down|disabled|dead|died|no[- ]?show|did ?n[o']t (show|move|run)|disconnect(ed)?|tipped)\b/i;
+
+/** A negation before the failure words ("Never disabled", "Not tipped", "Was not a no-show", "Didn't break down"). */
+const NEGATED = /\b(never|not|no|without|didn'?t|did not|isn'?t|is not|wasn'?t|was not|non)\b/i;
+
+/**
+ * Whether a yes/no field, answered yes, marks a failure: the built-in "Broke down / disabled" (id "broke"), or a
+ * workspace's own field whose label names a failure with no negation before it. Scout templates carry no explicit
+ * failure marker, so the label is all there is; "Never disabled" or "Not tipped" answered yes is good news, not a
+ * failure. ("No-show" itself names the failure: the "no" there is part of the word, not a negation of it.)
+ */
+export function isFailureField(f: { id: string; label: string; type: string }): boolean {
+  if (f.type !== "toggle") return false;
+  if (f.id === "broke") return true;
+  const m = FAILURE_LABEL.exec(f.label);
+  return !!m && !NEGATED.test(f.label.slice(0, m.index));
+}
 
 /** One workspace's match entries on a team: how many, and how many were marked as a failure. */
 export interface ReliabilityNotes { matchEntries: number; flagged: number }
