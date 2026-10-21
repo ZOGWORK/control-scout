@@ -5,6 +5,7 @@
 // honestly: no logged predictions (played matches show none), no advancement
 // odds. Pure functions over a small database interface, so tests run them on
 // a fixture.
+import { reliabilityFromRow, type Reliability } from "../../shared/reliability";
 import type { Database, SqlValue } from "sql.js";
 import type { EventDetail, EventSummary, FieldRow, MatchPredictionView, MatchView, SearchHit, TeamEventRow, TeamInfo, TeamProfile, TeamSeasonStats } from "../../shared/api";
 import { eventTypeLabel } from "../../shared/labels";
@@ -71,7 +72,18 @@ function seasonStats(db: Db, season: number, team: number): TeamSeasonStats | nu
     rating: s.rating_np == null ? null : { np: s.rating_np, auto: s.rating_auto, teleop: s.rating_teleop, endgame: s.rating_endgame, pen: s.rating_pen, sd: s.rating_sd, matches: s.rating_matches, rank: s.rating_rank },
     record: { wins: s.wins, losses: s.losses, ties: s.ties, matches: s.matches, events: s.events },
     avg: { np: s.avg_np, score: s.avg_score, pen: s.avg_pen },
+    reliability: packReliability(db, season, team),
   };
+}
+
+/** The pack's reliability row (packs built before the index have no table: null). */
+function packReliability(db: Db, season: number, team: number): Reliability | null {
+  try {
+    const own = one(db, "SELECT * FROM team_reliability WHERE season = ? AND code = '' AND team = ?", [season, team]);
+    if (!own || team === 0) return null;
+    const field = one(db, "SELECT idx FROM team_reliability WHERE season = ? AND code = '' AND team = 0", [season]);
+    return reliabilityFromRow(own, field ? Number(field.idx) : null);
+  } catch { return null; }
 }
 
 function teamEvents(db: Db, season: number, team: number): TeamEventRow[] {

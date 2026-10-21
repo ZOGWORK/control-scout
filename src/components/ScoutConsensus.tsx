@@ -13,6 +13,8 @@ import { scoutTeamHref, useConsensus, type Consensus } from "../lib/consensus";
 import { workspaceLabel } from "../lib/scoutSpace";
 import { agoShort, int } from "../lib/format";
 import type { ConsensusNumber, ConsensusTag, TeamConsensus } from "../shared/consensus";
+import type { Reliability } from "../shared/reliability";
+import { BlendedTile } from "./Reliability";
 
 const avg = (x: ConsensusNumber) => (Number.isInteger(x.avg) ? String(x.avg) : x.avg.toFixed(1));
 const entriesLine = (c: TeamConsensus) =>
@@ -53,7 +55,7 @@ function NoScouting({ c, team, season, compact }: { c: Consensus; team: number; 
 }
 
 /** The team page's block. */
-export function TeamConsensusSection({ team, season }: { team: number; season: number }) {
+export function TeamConsensusSection({ team, season, reliability }: { team: number; season: number; reliability?: Reliability | null }) {
   const c = useConsensus([team], season);
   if (!c || c.state.error) return null; // not a member (403), paused (503) or unreachable: say nothing
   const d = c.state.data?.teams[0];
@@ -65,6 +67,7 @@ export function TeamConsensusSection({ team, season }: { team: number; season: n
         <Button variant="secondary" size="sm" asChild className="max-sm:h-10"><Link to={scoutTeamHref(c.workspace.id, team, season)}><ClipboardList /> Scout</Link></Button></div>}>
       {!d ? <Skeleton className="h-28 w-full rounded-xl" /> : !d.entries ? <NoScouting c={c} team={team} season={season} /> : (
         <div className="space-y-4" data-testid="consensus">
+          {reliability && d.reliabilityNotes && <BlendedTile r={reliability} notes={d.reliabilityNotes} workspaceName={name} />}
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
             <StatTile tone="accent" icon={Users} label="Entries" value={int(d.entries)}
               hint={`${int(d.matchEntries)} match · ${int(d.pitEntries)} pit · ${int(d.scouts)} ${d.scouts === 1 ? "scout" : "scouts"}${d.lastUpdated ? ` · ${agoShort(d.lastUpdated)}` : ""}`} />

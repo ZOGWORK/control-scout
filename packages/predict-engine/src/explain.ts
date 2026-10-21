@@ -58,6 +58,38 @@ export interface TeamStrength {
   consistency: number;
 }
 
+/**
+ * A robot's recent record as the app measured it (Control Scout: its reliability index, from public match
+ * data). Read only to write reasons: it never changes a probability or a score.
+ */
+export interface RecentRecord {
+  /** Latest listed qualification matches looked at (usually 10). */
+  matches: number;
+  /** Of those: listed but not on the field. */
+  noShows: number;
+  /** Of those: estimated near-zero contribution (alliance score minus the partner's OPR came to almost nothing). */
+  nearZero: number;
+}
+
+/** A reason is notable from this many no-shows / near-zero matches in the recent window. */
+export const REASON_RULE = { noShows: 2, nearZero: 3 } as const;
+
+/**
+ * The notable recent-record reasons for a lineup, in lineup order (at most one per robot: no-shows first).
+ * The same sentences explainMatch returns; exported for apps that build their own match rows (a forecast's
+ * matches) and want the reasons without a second explanation.
+ */
+export function recentReasons(teams: number[], recent: (team: number) => RecentRecord | null): string[] {
+  const out: string[] = [];
+  for (const t of teams) {
+    const r = recent(t);
+    if (!r || !r.matches) continue;
+    if (r.noShows >= REASON_RULE.noShows) out.push(`Team ${t} was a no-show in ${r.noShows} of its last ${r.matches} matches`);
+    else if (r.nearZero >= REASON_RULE.nearZero) out.push(`Team ${t}'s alliance scored about what its partner alone would in ${r.nearZero} of its last ${r.matches} matches (an estimate: defense or a carry looks the same)`);
+  }
+  return out;
+}
+
 export interface MatchExplanation {
   winProbA: number;
   winProbB: number;
@@ -85,6 +117,11 @@ export interface MatchExplanation {
   partnership: PartnershipFact | null;
   teamsA: TeamStrength[];
   teamsB: TeamStrength[];
+  /**
+   * Notable reasons beyond the factors, e.g. "Team 1234 was a no-show in 2 of its last 10 matches". Only with
+   * opts.recent; empty when nothing is notable. Words only: no probability or score depends on them.
+   */
+  reasons: string[];
   /** opts.bonus (a qualification match of a 2025+ season with a bonus model): each alliance's
    *  bonus-RP odds and expected ranking points (bonus.ts), with their own confidence. Else null. */
   bonus: MatchBonusOdds | null;
@@ -107,6 +144,8 @@ export interface ExplainOptions {
   context?: MatchContext;
   /** A second model evaluated on the same inputs, for side-by-side logging. */
   shadow?: ContextualModel;
+  /** A robot's recent record (no-shows, near-zero matches), for reasons only; null when unknown. */
+  recent?: (team: number) => RecentRecord | null;
   /** Pair history (engine 2.4): adds the partnership fact, and its shift on the odds (none at β = 0). */
   partnership?: PartnershipInput;
   /** How score ranges are drawn (FITTED_MODEL.band; the default holds the same values). */
@@ -221,6 +260,8 @@ export function explainMatch(book: RatingBook, teamsA: number[], teamsB: number[
       : "Ratings still carry noticeable uncertainty relative to match variance.";
   }
 
+  const reasons = opts.recent ? recentReasons([...teamsA, ...teamsB], opts.recent) : [];
+
   // From the displayed (rounded) score to the stored whole-point bounds, the larger side: "score ± pm" always
   // reaches both ends of the range (rounding the score and the bounds separately could fall a point short).
   const pm = (mean: number, b: ScoreBand) => { const m = Math.round(mean); return Math.max(0, b.hi - m, m - b.lo); };
@@ -245,6 +286,7 @@ export function explainMatch(book: RatingBook, teamsA: number[], teamsB: number[
       : null,
     teamsA: A,
     teamsB: B,
+    reasons,
     bonus: opts.bonus ? bonusOdds(opts.bonus.season, opts.bonus.model, p, p.pRedWin, { tier, reason }) : null,
   };
 }
