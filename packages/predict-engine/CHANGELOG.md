@@ -20,6 +20,10 @@ matches before and after).
 - `explainMatch(..., { bonus: { season, model } })` returns `bonus: { A, B, confidence,
   source, samples }`: per-alliance odds and expected RPs, with the match's tier capped by
   `BONUS_CONFIDENCE_RULE` (provisional under 600 alliances, at most moderate under 2,000).
+- `Forecaster.bonusModel(season)` (apps override it with their stored season results; the
+  default uses the shipped fit) and `ForecastMatch.bonus` (`MatchBonusSummary`): every
+  unplayed 2-against-2 qualification match of an event forecast carries its bonus odds,
+  expected RPs and tier, so each app's match list shares the one implementation.
 - **Evidence (2025–26 season replay, walk-forward: each call fitted only on earlier
   results; 212,496 alliance-bonus calls on 35,416 qualification matches).** Brier per bonus
   call: latest-2,000 window **0.1448**; every alliance so far 0.1597; the shipped
