@@ -9,6 +9,7 @@ import type { EventDetail, MatchView, SearchHit, TeamProfile } from "../../share
 import { loadLite, type LitePack } from "../packs";
 import { partnershipFor } from "./partnerships";
 import { pairHistory } from "../../shared/pairHistory";
+import { rangesOf } from "../../shared/scoreRange";
 import { markOffline, savedSeasons, type OfflineSource } from "./saved";
 import { readSaved } from "./seasons";
 import { readEventDetail, readMatchViews, readSearch, readTeamProfile, type ReadOpts } from "./readers";
@@ -39,11 +40,11 @@ async function liteOpts(): Promise<ReadOpts> {
     predict: (season, red, blue, level, event) => {
       const b = book(season);
       if (!b) return null;
-      const x = explainMatch(b, red, blue, { noise: FITTED_MODEL.noise, calibration: FITTED_MODEL.calibration, contextual: FITTED_MODEL.contextual, context: { level, event }, partnership: partnershipFor(pack, season) });
+      const x = explainMatch(b, red, blue, { noise: FITTED_MODEL.noise, calibration: FITTED_MODEL.calibration, contextual: FITTED_MODEL.contextual, context: { level, event }, band: FITTED_MODEL.band, partnership: partnershipFor(pack, season) });
       return {
         pRed: x.winProbA, redMean: x.predictedScoreA, blueMean: x.predictedScoreB, tier: x.confidence.tier, kind: "now", predictedAt: new Date().toISOString(), factors: x.factors, ...(x.partnership ? { history: pairHistory(x.partnership) } : {}),
         // No rated match this season yet (the server's noScoreBasis): win odds stand, the predicted score doesn't.
-        ...(b.baseline() ? {} : { noScoreBasis: true as const }),
+        ...(b.baseline() ? rangesOf(x) : { noScoreBasis: true as const }),
       };
     },
   };
