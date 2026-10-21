@@ -36,6 +36,7 @@ import { direction, trendLabel } from "../shared/trend";
 import { OfflineNote } from "../components/OfflineNote";
 import { StickyActions } from "../components/StickyActions";
 import { TeamConsensusSection } from "../components/ScoutConsensus";
+import { ReportCardSection } from "../components/ReportCard";
 
 export default function TeamPage() {
   const { number } = useParams();
@@ -82,6 +83,7 @@ function Profile({ p, onSeason }: { p: TeamProfile; onSeason: (s: number) => voi
             <OprSection p={p} />
             <TrendChart events={p.events} season={p.season} />
           </div>
+          {predictable && <ReportCardSection team={p.team.number} season={p.season} data={p.reportCards} />}
           <div className="min-[1700px]:grid min-[1700px]:grid-cols-2 min-[1700px]:items-start min-[1700px]:gap-x-8">
             <Section title={`Event history (${p.events.length})`} description={`${seasonLabel(p.season)}, newest first`}>
               <EventHistory events={p.events} team={p.team.number} />
