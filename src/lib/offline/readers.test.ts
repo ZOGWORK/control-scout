@@ -6,6 +6,33 @@ import { eventTypeLabel } from "../../shared/labels";
 let s25: SeasonDb, s24: SeasonDb;
 beforeAll(async () => { [s25, s24] = await Promise.all([season2025(), season2024()]); });
 
+describe("offline reliability (packs with and without the table)", () => {
+  const rel = (team: number, idx: number) => ({
+    season: 2025, code: "", team, matches: 12, no_shows: 1, dqs: 0, near_zero: 2, contrib_n: 11, recent_matches: 10, recent_no_shows: 1, recent_near_zero: 2,
+    no_show_rate: 0.05, dq_rate: 0.001, near_zero_rate: 0.12, swing: 0.4, penalty_ratio: 0.9, predictability_ratio: 1, idx, computed_at: "x",
+  });
+  const pack = () => packDb(2025, {
+    teams: [{ number: 100, name: "Gearheads" }],
+    team_season_stats: [{ season: 2025, team: 100, opr_np: 50, matches: 12, wins: 8, losses: 4, ties: 0, events: 1 }],
+    team_reliability: [rel(0, 75), rel(100, 68)],
+  });
+
+  it("reads the season row and the field index from a pack that has them", async () => {
+    const p = readTeamProfile([{ season: 2025, db: wrap(await pack()) }], 100)!;
+    expect(p.stats?.reliability).toMatchObject({ index: 68, matches: 12, noShows: 1, fieldIndex: 75, recent: { matches: 10, noShows: 1, nearZero: 2 } });
+  });
+
+  it("an older pack without the table reads as not computed, and the rest of the profile is unchanged", async () => {
+    const db = await pack();
+    const before = readTeamProfile([{ season: 2025, db: wrap(db) }], 100)!;
+    db.run("DROP TABLE team_reliability");
+    const after = readTeamProfile([{ season: 2025, db: wrap(db) }], 100)!;
+    expect(after.stats?.reliability).toBeNull();
+    expect({ ...after.stats, reliability: undefined }).toEqual({ ...before.stats, reliability: undefined });
+    expect(after.events).toEqual(before.events);
+  });
+});
+
 describe("offline team profile (same shape as /api/teams/:n)", () => {
   it("defaults to the newest saved season the team entered, with stats, events, alliance seats and awards", () => {
     const p = readTeamProfile([s24, s25], 100)!;
