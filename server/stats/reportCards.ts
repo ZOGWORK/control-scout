@@ -148,6 +148,25 @@ export function reportCardStatements(season: number, rows: LedgerRow[], finalEve
   return { stmts, field, teams: byTeam.size };
 }
 
+/**
+ * The events (of those given) that are final today: ended (last day before today, UTC) with no match left
+ * unplayed. Only an ended event's matches are looked at, and only until an unplayed one turns up.
+ */
+async function finalEvents(season: number, codes: string[], today: string): Promise<Set<string>> {
+  const finals = new Set<string>();
+  for (let i = 0; i < codes.length; i += 500) {
+    const chunk = codes.slice(i, i + 500);
+    const evs = await all<{ code: string }>(
+      `SELECT e.code FROM events e WHERE e.season = ? AND e.code IN (${chunk.map(() => "?").join(",")})
+         AND COALESCE(e.end, e.start, '9999') < ?
+         AND NOT EXISTS (SELECT 1 FROM matches m WHERE m.season = e.season AND m.code = e.code AND m.played = 0)`,
+      [season, ...chunk, today],
+    );
+    for (const e of evs) finals.add(String(e.code));
+  }
+  return finals;
+}
+
 const ids = (s: string): number[] => { try { const v = JSON.parse(s); return Array.isArray(v) ? v.map(Number).filter(Number.isFinite) : []; } catch { return []; } };
 
 /**
@@ -163,15 +182,7 @@ export async function computeReportCards(season: number, log: Log = () => {}, no
   );
   const today = new Date(now).toISOString().slice(0, 10);
   const codes = [...new Set(rows.map((r) => String(r.code)))];
-  const finals = new Set<string>();
-  if (codes.length) {
-    const ph = codes.map(() => "?").join(",");
-    const evs = await all<{ code: string; end: string | null; start: string | null; open: number }>(
-      `SELECT e.code, e.end, e.start, (SELECT COUNT(*) FROM matches m WHERE m.season = e.season AND m.code = e.code AND m.played = 0) open
-       FROM events e WHERE e.season = ? AND e.code IN (${ph})`, [season, ...codes],
-    );
-    for (const e of evs) if ((e.end ?? e.start ?? "9999") < today && !Number(e.open)) finals.add(e.code);
-  }
+  const finals = await finalEvents(season, codes, today);
   const ledger: LedgerRow[] = rows.map((r) => ({
     code: String(r.code), red: ids(r.red), blue: ids(r.blue), pRed: Number(r.p_red), redMean: Number(r.red_mean), blueMean: Number(r.blue_mean),
     redScore: Number(r.red_score), blueScore: Number(r.blue_score), outcome: Number(r.outcome), scoreBasis: !Number(r.no_score_basis),
@@ -179,10 +190,10 @@ export async function computeReportCards(season: number, log: Log = () => {}, no
   const { stmts, field, teams } = reportCardStatements(season, ledger, finals, new Date(now).toISOString());
   await writeBatch(stmts, 5000);
   await kvSet(`reportCards:field:${season}`, field);
-  // What these cards were built from (refreshReportCards): the rows just read, and whether any event is still open.
+  // What these cards were built from (refreshReportCards): the rows just read, their events and which of them were final.
   let maxId = 0, lastScored = "";
   for (const r of rows) { maxId = Math.max(maxId, Number(r.id)); if (r.scored_at && String(r.scored_at) > lastScored) lastScored = String(r.scored_at); }
-  const built: CardsBuilt = { fp: fingerprintOf(rows.length, maxId, lastScored), open: codes.length > finals.size, day: today };
+  const built: CardsBuilt = { fp: fingerprintOf(rows.length, maxId, lastScored), codes: codes.sort(), finals: [...finals].sort() };
   await kvSet(builtKey(season), built);
   if (teams) log(`${season}: report cards for ${teams} teams from ${rows.length} live calls`);
   return teams;
@@ -191,16 +202,17 @@ export async function computeReportCards(season: number, log: Log = () => {}, no
 /** Bump when the card rules above change: every season's cards are rebuilt once on the next refresh. */
 export const REPORT_CARD_RULES = 1;
 
-interface CardsBuilt { fp: string; open: boolean; day: string }
+interface CardsBuilt { fp: string; codes: string[]; finals: string[] }
 const builtKey = (season: number) => `reportCards:built:${season}`;
 const fingerprintOf = (n: number, maxId: number, lastScored: string) => `${REPORT_CARD_RULES}:${n}:${maxId}:${lastScored}`;
 
 /**
  * Rebuild the report cards of every season whose scored live calls changed since its cards were built
  * (any season, not just the ones the stats run covered: a call is scored whenever its match's result
- * arrives). One grouped query over the live ledger decides; an unchanged season costs nothing more.
- * A season whose cards still had an open event is rebuilt once a day too, since an event turns final
- * when its last day passes, not only when a call is scored. Returns the seasons rebuilt.
+ * arrives), or whose events' final marks would now differ: an event turns final when its last day
+ * passes, and stops being final when a sync adds a match or moves its dates, neither of which touches a
+ * call. One grouped query over the live ledger plus one finality check per season decide. Returns the
+ * seasons rebuilt.
  */
 export async function refreshReportCards(log: Log = () => {}, now = Date.now()): Promise<number[]> {
   const today = new Date(now).toISOString().slice(0, 10);
@@ -216,7 +228,10 @@ export async function refreshReportCards(log: Log = () => {}, now = Date.now()):
     const season = Number(r.season);
     const prev = await kvGet<CardsBuilt>(builtKey(season));
     const fp = fingerprintOf(Number(r.n), Number(r.max_id), r.last ?? "");
-    if (prev && prev.fp === fp && !(prev.open && prev.day !== today)) continue;
+    // Same calls: the cards change only if one of their events turned final or stopped being final (it ended,
+    // a sync added a match or moved its dates). Checked for the cards' own events only.
+    if (prev && prev.fp === fp && Array.isArray(prev.codes) && Array.isArray(prev.finals)
+      && [...await finalEvents(season, prev.codes, today)].sort().join(",") === prev.finals.join(",")) continue;
     await computeReportCards(season, log, now);
     rebuilt.push(season);
   }
