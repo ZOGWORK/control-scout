@@ -9,7 +9,7 @@ an embed that links back to controlscout.org:
 | `/predict event: match:` | Win odds as bars, predicted score and confidence for a qualification match. Once it's played: the final score, what was predicted, and ✅ / ❌ for whether the call was right |
 | `/event code:` | Dates, place, status, matches played, top 5 by OPR, and the winning alliance once it's over |
 | `/rankings` | The world top 10 by rating, with movement since last week |
-| `/follow team: channel:` | Automatic posts in a channel: 15 minutes before each of the team's matches, and its result. Manage Server only |
+| `/follow team: channel:` | Automatic posts in a channel: the evening before each event, the schedule once posted, 15 minutes before each match, each result, and a recap at the end of each day. Manage Server only |
 | `/unfollow team: channel:` | Stop them (every channel if none is given). Manage Server only |
 | `/following` | The server's followed teams and where each posts (up to 10 per server) |
 | `/help` | Every command, from the same list the site shows (`BOT_COMMANDS` in `src/shared/discord.ts`) |
