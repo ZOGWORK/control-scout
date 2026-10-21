@@ -25,6 +25,7 @@ async function withStream<T extends { event: { season: number; code: string } }>
 import { matchDetail, matchViews } from "./api/matches.js";
 import { matchReport } from "./api/matchReport.js";
 import { resultChanges } from "./api/resultChanges.js";
+import { eventDisagreements } from "./api/disagreements.js";
 import { MATCH_KEY as REPORT_KEY } from "../src/shared/matchReport.js";
 import { trackRecord } from "./api/accuracy.js";
 import { currentWeather } from "./weather.js";
@@ -359,6 +360,15 @@ export function createApp() {
     const d = await matchDetail(season(req.params.season), code(req.params.code), key);
     if (!d) throw new HttpError(404, `No match ${key} at ${req.params.code}`);
     return d;
+  }));
+
+  // Model vs field: where the model's rating order and the official seeding disagree most (api/disagreements.ts).
+  // Rebuilt with the event detail, so it moves with every ranking change; revalidated on event days.
+  api.get("/events/:season/:code/disagreements", h(async (req, res) => {
+    const r = await eventDisagreements(season(req.params.season), code(req.params.code));
+    if (!r) throw new HttpError(404, `No event ${req.params.code} in ${req.params.season}`);
+    res.setHeader("Cache-Control", "no-cache");
+    return r;
   }));
 
   // Official result changes the sync saw (first postings, score revisions, schedule moves): public data only.

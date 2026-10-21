@@ -9,7 +9,7 @@ teams, scout, offline, speed, live, report, alerts, rankings, share, workspace,
 picklist, history, fixes). What's new shows them first; the groups below are
 the full release notes, one click away.
 
-## 1.13.0 — 2026-10-21
+## 1.14.0 — 2026-10-21
 
 Predictions now say when the robots have met before.
 
@@ -20,10 +20,22 @@ Predictions now say when the robots have met before.
 - [predict] A reason only: on a season it had never seen, it didn't help the odds
 
 ### Predictions
-- **Partnership memory (engine 2.2).** When two robots in a match have played together or against each other, the prediction shows the strongest real fact under the top 3 factors: in match details, the match report and the Predict lab. Every result since 2019–20 is compared with what both teams' ratings expected at the time, so seasons with different games compare fairly. Pairs with only a few matches are pulled hard toward "no effect". We tested blending the history into the win odds: fitted on 2023–24 and checked on all of 2025–26, it made them slightly worse, so it doesn't change any number. The methodology page explains it, and `docs/partnership-memory.md` has the full test. (#231)
+- **Partnership memory.** When two robots in a match have played together or against each other, the prediction shows the strongest real fact under the top 3 factors: in match details, the match report and the Predict lab. Every result since 2019–20 is compared with what both teams' ratings expected at the time, so seasons with different games compare fairly. Pairs with only a few matches are pulled hard toward "no effect". We tested blending the history into the win odds: fitted on 2023–24 and checked on all of 2025–26, it made them slightly worse, so it doesn't change any number. The methodology page explains it, and `docs/partnership-memory.md` has the full test. (#231)
 
 ### Offline
 - The offline pack carries the pair history (about 960 KB more), so offline predictions show the same line.
+
+## 1.13.0 — 2026-10-21
+
+Model vs field: where the model's ratings and the seeding disagree most at an event.
+
+### Highlights
+- [rankings] Model vs field: teams the model rates well above or below their seed
+- [predict] Every call with its numbers: rating, matches, OPR, record and confidence
+- [rankings] Before quals, against each team's seed at its last event
+
+### Events
+- **Model vs field.** An event's Rankings tab now opens with the biggest gaps between the model's rating order and the official seeding: "the model rates them #3 of 28; they're seeded 18th". Each call shows the rating and its uncertainty, how far it is from the team the model places at that seed, the matches behind it, OPR, record, ranking points and a confidence tier, with the model's track record linked under it. Before qualification matches, ratings from earlier events are compared with each team's seed at its last event (and the label says so); a finished event uses the ratings as they stood at its last match. Small fields, ratings on few matches, and gaps the model can't tell from its own uncertainty are left out, and the section says why when nothing shows.
 
 ## 1.12.0 — 2026-10-21
 
