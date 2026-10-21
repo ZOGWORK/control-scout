@@ -8,7 +8,8 @@
 // decodes or reads it while the server answers (lib/api.ts). Download and
 // storage only: running the engine on it lives in lib/offline (predict.ts,
 // answer.ts), loaded lazily with no signal.
-import type { PartnershipData, RatingBookData } from "@control-scout/predict-engine";
+import type { RatingBookData } from "@control-scout/predict-engine";
+import type { LitePairs } from "../shared/litePairs";
 import { PACK_META_KEY, packStatus, type PackMeta } from "./packPolicy";
 
 export { packStatus, type PackMeta } from "./packPolicy";
@@ -25,8 +26,8 @@ export interface LitePack {
   books: Record<string, RatingBookData>;
   /** [number, name, city/state/country] */
   teams: [number, string | null, string | null][];
-  /** Pair history through the newest season (engine 2.2+; absent in older packs). */
-  partnerships?: PartnershipData | null;
+  /** Pair history for the newest season, cut down for the device (src/shared/litePairs.ts; absent in older packs). */
+  pairs?: LitePairs | null;
 }
 
 const DB = "control-scout-packs";
