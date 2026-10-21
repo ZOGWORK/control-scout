@@ -294,7 +294,7 @@ html.compact .density-card { padding: 0.875rem; }
   display: grid;
   gap: 2rem;
   grid-template-columns: minmax(0, 1fr);
-  grid-template-areas: "hero" "strip" "team" "events" "atlas" "record" "usage";
+  grid-template-areas: "hero" "strip" "team" "radar" "events" "atlas" "record" "usage";
 }
 @container home (min-width: 56rem) {
   .home-grid {
@@ -302,8 +302,9 @@ html.compact .density-card { padding: 0.875rem; }
     row-gap: 1.5rem;
     grid-template-columns: minmax(0, 42fr) minmax(0, 58fr);
     /* The last left-hand row takes whatever height the atlas has to spare, so the stack stays together at the top. */
-    grid-template-rows: auto auto 1fr auto auto;
-    grid-template-areas: "hero atlas" "strip atlas" "team atlas" "events record" "usage usage";
+    grid-template-rows: auto auto 1fr auto auto auto;
+    /* Today's coin flips run the page's full width under the hero and atlas: the event-day hook. */
+    grid-template-areas: "hero atlas" "strip atlas" "team atlas" "radar radar" "events record" "usage usage";
   }
   .home-grid > * { align-self: start; }
 }

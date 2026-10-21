@@ -10,6 +10,7 @@ import { backfillDue } from "./data/cycle.js";
 import { childCycle, cycleRunning, runDataCycle } from "./data/jobs.js";
 import { flushMetrics } from "./metrics.js";
 import { startLiveSync } from "./data/live.js";
+import { REFRESH_EVERY_MS, refreshCoinFlips } from "./api/coinFlips.js";
 import express from "express";
 import { ENGINE_VERSION } from "@control-scout/predict-engine";
 import { createApp } from "./app.js";
@@ -157,6 +158,16 @@ if (!process.env.CS_NO_SCHEDULER) {
   setInterval(powerRankings, 5 * 60_000).unref();
   setTimeout(indexNow, 3 * 60_000).unref();
   setInterval(indexNow, 3600_000).unref();
+  // The home page's coin-flip radar (server/api/coinFlips.ts): gathered again after every sync and live result,
+  // and every 5 minutes here too, so a venue's own midnight and the matches the clock moves past show within minutes.
+  let radarBusy = false;
+  const radar = () => {
+    if (radarBusy) return;
+    radarBusy = true;
+    void refreshCoinFlips(log).finally(() => { radarBusy = false; });
+  };
+  setTimeout(radar, 75_000).unref();
+  setInterval(radar, REFRESH_EVERY_MS).unref();
 }
 // The live fast lane: events on today, every LIVE_SYNC_SECONDS (60), results within about a minute
 // (server/data/live.ts). It shares a writer lease with the cycle above, so the two never write at once.

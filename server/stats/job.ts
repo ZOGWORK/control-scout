@@ -435,6 +435,8 @@ export async function runStats(o: StatsOptions = {}): Promise<void> {
   }
   await scoreLivePredictions(log);
   await logLivePredictions(log);
+  // Today's coin flips on the home page, from the schedules and calls just written (never fails the stats).
+  await (await import("../api/coinFlips.js")).refreshCoinFlips(log);
   // Weekly world-rankings snapshots (/rankings movement): any Monday not written yet. A failure here
   // never fails the stats; the next run writes the week.
   await snapshotRankings({ log }).catch((e) => log(`rankings snapshots failed: ${(e as Error).message}`));
