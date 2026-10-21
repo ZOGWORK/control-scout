@@ -18,6 +18,10 @@ import { onPartnershipPrefixReady, partnershipPrefix } from "./partnerships.js";
 
 const yieldLoop = () => new Promise<void>((r) => setImmediate(r));
 
+/** Teams a season's call can be about: rated that season or the one before (keeps the pair tables small). */
+const activeTeams = (books: Map<number, RatingBook>, season: number) =>
+  new Set([...(books.get(season)?.ratings.keys() ?? []), ...(books.get(season - 1)?.ratings.keys() ?? [])]);
+
 export class ScoutForecaster extends Forecaster {
   protected readonly model: PredictModel = FITTED_MODEL;
   protected awardHistory = new Map<number, AwardRecord[]>();
@@ -32,6 +36,8 @@ export class ScoutForecaster extends Forecaster {
   /** Pair history through the anchor season (engine 2.4), pruned as the offline pack ships it. */
   partnershipData: PartnershipData | null = null;
   private pairTable: PartnershipTable | null = null;
+  /** The window's earlier seasons' pair tables, each as it stood at that season's end (like their ratings). */
+  private pastPairTables = new Map<number, PartnershipTable>();
   /** False when the rebuild ran before the finished seasons' pair history was ready (window pairs only). */
   partnershipComplete = false;
 
@@ -52,6 +58,7 @@ export class ScoutForecaster extends Forecaster {
   async rebuild(): Promise<void> {
     const book = new RatingBook(FITTED_MODEL.rating);
     const records: AwardRecord[] = [];
+    const pastTables = new Map<number, PartnershipTable>();
     const books = new Map<number, RatingBook>(), events = new Map<number, EventRecord[]>(), advancement = new Map<number, AdvancementRecord[]>();
     // Pair history: the finished seasons before the window from kv (null while it builds), then the window as it replays.
     const prefix = await partnershipPrefix(this.seasons[0] ?? this.anchor);
@@ -69,6 +76,11 @@ export class ScoutForecaster extends Forecaster {
       for (const [code, name] of d.names) pairs.nameEvent(s, code, name);
       for (const m of d.matches) { pairs.observe(m); book.update(m); if (++n % 4000 === 0) await yieldLoop(); }
       books.set(s, book.clone());
+      // An earlier season's calls read the pairs through its own end only, never a later season's matches.
+      if (s < this.anchor && pairs.season === s) {
+        const table = PartnershipTable.fromData({ ...pairs.toData({ teams: activeTeams(books, s) }), season: s });
+        if (table) pastTables.set(s, table);
+      }
       await yieldLoop();
     }
     this.books = books;
@@ -78,12 +90,13 @@ export class ScoutForecaster extends Forecaster {
     this.awardHistory = indexAwards(records);
     // Valid for the anchor season, even before its first match (the history is all earlier seasons then).
     // Only pairs of teams active in the anchor season or the one before (the ones a call can be about): keeps the pack small.
-    const active = new Set([...(books.get(this.anchor)?.ratings.keys() ?? []), ...(books.get(this.anchor - 1)?.ratings.keys() ?? [])]);
+    const active = activeTeams(books, this.anchor);
     // The server's table keeps the weak pairs too: an event's fresh results fold into it (PartnershipOverlay) and
     // must count a pair's one earlier match. The offline pack's copy (explanations only, no overlay) leaves them out.
     const ready = pairs.season != null && pairs.season <= this.anchor;
     this.partnershipData = ready ? { ...pairs.toData({ teams: active }), season: this.anchor } : null;
     this.pairTable = ready ? PartnershipTable.fromData({ ...pairs.toData({ teams: active, keepWeak: true }), season: this.anchor }) : null;
+    this.pastPairTables = pastTables;
     this.partnershipComplete = !!prefix;
     this.builtAt = new Date().toISOString();
   }
@@ -105,10 +118,11 @@ export class ScoutForecaster extends Forecaster {
     return b;
   }
 
-  /** Pair history, only for the season the table was built through (an older season's call
-   *  mustn't read pairs from matches after it). */
+  /** Pair history for a season's calls: the anchor's live table, or an earlier window season's table
+   *  as it stood at that season's end (an older season's call mustn't read pairs from matches after it). */
   protected partnerships(season: number): PartnershipTable | null {
-    return this.pairTable && this.pairTable.season === season ? this.pairTable : null;
+    if (this.pairTable && this.pairTable.season === season) return this.pairTable;
+    return this.pastPairTables.get(season) ?? null;
   }
 
   /** Recorded bonus RPs of a synced match, for live payloads that omit them. */
