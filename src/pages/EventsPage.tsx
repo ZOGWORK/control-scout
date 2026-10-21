@@ -292,6 +292,8 @@ const EventTile = memo(function EventTile({ e }: { e: EventListItem }) {
             ? <span className={cn("rounded-full px-2 py-0.5 font-semibold", EVENT_STATUS_TONE.upcoming)}>Upcoming</span>
             : <span className={cn("rounded-full px-2 py-0.5 font-semibold", EVENT_STATUS_TONE.finished)}>Finished</span>}
         <span className={cn("truncate font-semibold", tone.text)}>{e.typeLabel}</span>
+        {/* On now with a stream to watch on its page (Watch live). */}
+        {e.status === "live" && e.stream && <span className="inline-flex shrink-0 items-center gap-1 font-bold text-red-500" title="Live stream on the event page" data-stream-live><span aria-hidden className="size-2 rounded-full bg-red-500" />LIVE<span className="sr-only"> stream</span></span>}
         {e.teams > 0 && <span className="ml-auto inline-flex shrink-0 items-center gap-1 tabular-nums text-muted-foreground"><Users className="size-3.5" />{e.teams}</span>}
       </div>
       <p className="mt-2 line-clamp-2 font-medium leading-snug group-hover:text-accent-text">{e.name}</p>

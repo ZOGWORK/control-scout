@@ -1051,6 +1051,24 @@ ALTER TABLE matches ADD COLUMN breakdown INTEGER;
 `,
   },
   {
+    version: 34,
+    name: "event streams",
+    sql: `
+-- An event's live stream, set by the owner in the owner portal (server/portal/streams.ts) and played in the
+-- event page's Watch live section. Its own table, not a column on events: data copies (db:push, the
+-- shipped snapshot) replace whole events rows and would erase an owner's setting. YouTube only: url is
+-- what was pasted, video_id what plays (src/shared/stream.ts).
+CREATE TABLE event_streams (
+  season INTEGER NOT NULL, code TEXT NOT NULL,
+  url TEXT NOT NULL,
+  video_id TEXT NOT NULL,
+  updated_at TEXT NOT NULL,
+  updated_by TEXT,
+  PRIMARY KEY (season, code)
+);
+`,
+  },
+  {
     version: 35,
     name: "discord follows",
     sql: `

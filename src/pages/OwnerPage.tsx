@@ -6,7 +6,7 @@ import { lazy, Suspense, useEffect, useLayoutEffect, useMemo, useRef, useState, 
 import { useSearchParams } from "react-router-dom";
 import {
   Activity, AlertTriangle, Archive, Bug, Building2, CheckCircle2, ClipboardList, Database, DatabaseZap, ExternalLink, Gauge, HardDrive, HardDriveDownload,
-  Inbox, LayoutDashboard, Link2, Mail, PackageOpen, Radio, Megaphone, RefreshCw, RotateCcw, ScrollText, Search, ServerCog, Target, Timer, ToggleRight, Trash2, Trophy, Unlink, UserRound, Users,
+  Inbox, LayoutDashboard, Link2, Mail, MonitorPlay, PackageOpen, Radio, Megaphone, RefreshCw, RotateCcw, ScrollText, Search, ServerCog, Target, Timer, ToggleRight, Trash2, Trophy, Unlink, UserRound, Users,
 } from "lucide-react";
 import { PageHeader, Section, EmptyState } from "../components/page";
 import { StatTile, Meter } from "../components/StatTile";
@@ -34,6 +34,8 @@ import { StorageBanner, StoragePanel } from "../components/owner/StoragePanel";
 import { PowerRankingsPanel } from "../components/owner/PowerRankingsPanel";
 import { currentRelease } from "../lib/changelog";
 
+import { StreamsPanel } from "../components/owner/StreamsPanel";
+
 const WhatsNewContent = lazy(() => import("../components/WhatsNewContent"));
 
 const PANELS = [
@@ -47,6 +49,7 @@ const PANELS = [
   { id: "ops", label: "Data jobs", icon: DatabaseZap },
   { id: "storage", label: "Storage", icon: HardDrive },
   { id: "powerRankings", label: "Power rankings", icon: Trophy },
+  { id: "streams", label: "Streams", icon: MonitorPlay },
   { id: "orphaned", label: "Orphaned spaces", icon: Unlink },
   { id: "audit", label: "Audit log", icon: ScrollText },
   { id: "whatsNew", label: "What's new", icon: Megaphone },
@@ -103,6 +106,7 @@ export default function OwnerPage() {
           <TabsContent value="ops"><OpsPanel /></TabsContent>
           <TabsContent value="storage"><StoragePanel /></TabsContent>
           <TabsContent value="powerRankings"><PowerRankingsPanel onOpenSwitches={() => go("flags")} /></TabsContent>
+          <TabsContent value="streams"><StreamsPanel /></TabsContent>
           <TabsContent value="orphaned"><OrphanedPanel /></TabsContent>
           <TabsContent value="audit"><AuditPanel /></TabsContent>
           <TabsContent value="whatsNew"><WhatsNewPanel /></TabsContent>

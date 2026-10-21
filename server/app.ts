@@ -13,6 +13,15 @@ import { ensureSearchIndex, search } from "./api/search.js";
 import { rebuildSearch } from "./stats/job.js";
 import { teamProfile, compareTeams, teamSummaries, shortlistTeams } from "./api/teams.js";
 import { cachedEventDetail, eventDetail, listEvents, toEventInput } from "./api/events.js";
+import { eventStream, seasonStreams } from "./portal/streams.js";
+
+/** An event's detail with its owner-set stream (server/portal/streams.ts), for every route that answers with one
+ *  (the page and "Refresh results" alike, or a refresh would take the Watch live section away). The stream rides
+ *  along outside the cached detail (it changes without a data version); the shared object is never changed. */
+async function withStream<T extends { event: { season: number; code: string } }>(d: T): Promise<T> {
+  const stream = await eventStream(d.event.season, d.event.code).catch(() => null);
+  return stream ? { ...d, event: { ...d.event, stream } } : d;
+}
 import { matchDetail, matchViews } from "./api/matches.js";
 import { matchReport } from "./api/matchReport.js";
 import { resultChanges } from "./api/resultChanges.js";
@@ -308,19 +317,24 @@ export function createApp() {
     return { season: s, matches: out };
   }));
 
-  api.get("/events", h(async (req) => ({
+  api.get("/events", h(async (req) => {
+    // Events with a stream set (a few per season): their rows get stream: true, for the LIVE dot.
+    const streams = await seasonStreams(season(req.query.season)).catch(() => new Map());
+    return {
     // The list view's fields only (detail pages use /events/:season/:code):
     // venue, division, region and remote aren't shown in lists.
     events: (await listEvents({
       season: season(req.query.season), from: req.query.from ? String(req.query.from) : undefined, to: req.query.to ? String(req.query.to) : undefined,
       q: req.query.q ? String(req.query.q).slice(0, 60) : undefined, type: req.query.type ? String(req.query.type) : undefined,
       region: req.query.region ? String(req.query.region) : undefined, hideNoMatch: req.query.all !== "1", limit: boundedCount(req.query.limit, "limit", 3000, 1, 3000),
-    })).map(({ venue: _v, divisionCode: _d, region: _r, remote: _m, ...e }) => e),
-  })));
+    })).map(({ venue: _v, divisionCode: _d, region: _r, remote: _m, ...e }) => (streams.has(e.code) ? { ...e, stream: true as const } : e)),
+    };
+  }));
 
   api.get("/events/:season/:code", h(async (req, res) => {
-    const d = await cachedEventDetail(season(req.params.season), code(req.params.code));
-    if (!d) throw new HttpError(404, `No event ${req.params.code} in ${req.params.season}`);
+    const cached = await cachedEventDetail(season(req.params.season), code(req.params.code));
+    if (!cached) throw new HttpError(404, `No event ${req.params.code} in ${req.params.season}`);
+    const d = await withStream(cached);
     // On an event day results move every minute: revalidate every time (the ETag keeps that a cheap 304).
     if (d.live) res.setHeader("Cache-Control", "no-cache");
     return d;
@@ -335,7 +349,7 @@ export function createApp() {
     if (out.status === "not-live") throw new HttpError(409, "Only events that are on today (in their time zone) can be refreshed. Other events update with the regular sync.");
     const detail = await eventDetail(s, c);
     if (!detail) throw new HttpError(404, `No event ${c} in ${s}`);
-    return { outcome: out.status, message: refreshMessage(out), detail };
+    return { outcome: out.status, message: refreshMessage(out), detail: await withStream(detail) };
   }));
 
   api.get("/events/:season/:code/matches/:key", h(async (req) => {
