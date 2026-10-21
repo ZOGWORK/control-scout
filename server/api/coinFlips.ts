@@ -8,6 +8,7 @@
 // kv so the server answers from it whichever process gathered it. The home page reads it through
 // coinFlips(), which drops rows whose venue has since moved to another day and gathers afresh when the
 // stored radar is missing or old.
+import { createHash } from "node:crypto";
 import { all, kvGet, run } from "../db.js";
 import { CURRENT_SEASON, isLegacy } from "../data/seasons.js";
 import { localDate } from "../../src/shared/eventDay.js";
@@ -152,6 +153,15 @@ export async function gatherForRead(now = Date.now()): Promise<CoinFlipRadar> {
   const r = await buildCoinFlips(now);
   if (await storeRadar(r).catch(() => true)) return r;
   return (await kvGet<CoinFlipRadar>(KV_KEY).catch(() => null)) ?? r;
+}
+
+/**
+ * The ETag of an answer: what it's built from, the stored radar (its generatedAt) and which venue dates are
+ * still today (current() keeps rows by them), so it moves when either does, a venue's midnight included.
+ */
+export function radarEtag(r: CoinFlipRadar): string {
+  const days = [...new Set([...(r.tallies ?? []), ...r.upcoming, ...r.decided].map((x) => `${x.timezone}:${x.day}`))].sort();
+  return `"cf-${createHash("sha1").update(`${r.generatedAt}|${days.join(",")}`).digest("base64url").slice(0, 20)}"`;
 }
 
 /** What GET /api/home/coin-flips answers. */
