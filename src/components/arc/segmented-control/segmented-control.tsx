@@ -1,7 +1,8 @@
 "use client";
 
 import { useEffect, useId, useLayoutEffect, useRef, type KeyboardEvent, type ReactNode } from "react";
-import { LayoutGroup, m, useReducedMotion } from "motion/react";
+import { LayoutGroup, useReducedMotion } from "motion/react";
+import { m } from "../../motion";
 import { motionTokens } from "../lib/motion-tokens";
 import styles from "./segmented-control.module.css";
 

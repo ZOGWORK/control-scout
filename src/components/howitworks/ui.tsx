@@ -3,7 +3,8 @@
 // that works by hover, tap and keyboard focus.
 import { createContext, useCallback, useContext, useEffect, useId, useRef, useState, type ReactNode, type PointerEvent as RPointerEvent, type FocusEvent as RFocusEvent, type MouseEvent as RMouseEvent } from "react";
 import { createPortal } from "react-dom";
-import { m, useInView, useReducedMotion } from "motion/react";
+import { useInView, useReducedMotion } from "motion/react";
+import { m } from "../motion";
 import { cn } from "../cn";
 
 /** True when the visitor asked for reduced motion. */
@@ -62,7 +63,7 @@ export function Eyebrow({ num, children }: { num?: string; children: ReactNode }
 
 export function SectionHead({ num, eyebrow, title }: { num?: string; eyebrow: string; title: ReactNode }) {
   return (
-    <Reveal className="mx-auto mb-5 grid max-w-2xl gap-3">
+    <Reveal className="mx-auto mb-5 max-sm:mb-4 grid max-w-2xl gap-3">
       <Eyebrow num={num}>{eyebrow}</Eyebrow>
       <h2 className="text-balance font-display text-[1.75rem] font-bold leading-[1.08] tracking-tight text-foreground sm:text-4xl">{title}</h2>
     </Reveal>
@@ -73,7 +74,7 @@ export function SectionHead({ num, eyebrow, title }: { num?: string; eyebrow: st
 export function Prose({ children, className, id }: { children: ReactNode; className?: string; id?: string }) {
   return (
     <Reveal className={cn("mx-auto max-w-2xl", className)}>
-      <div id={id} className="hiw-prose scroll-mt-bar-24 space-y-4 text-[15px] leading-[1.75] text-foreground/85 sm:text-base [&_a]:text-foreground [&_a]:underline [&_a]:decoration-accent [&_a]:underline-offset-2 [&_code]:rounded [&_code]:border [&_code]:border-border [&_code]:bg-card [&_code]:px-1.5 [&_code]:py-0.5 [&_code]:font-mono [&_code]:text-[0.86em] [&_h3]:mt-8 [&_h3]:font-display [&_h3]:text-lg [&_h3]:font-semibold [&_h3]:text-foreground [&_strong]:font-semibold [&_strong]:text-foreground">
+      <div id={id} className="hiw-prose scroll-mt-bar-24 space-y-4 text-[0.9375rem] leading-[1.75] text-foreground/85 sm:text-base [&_a]:text-foreground [&_a]:underline [&_a]:decoration-accent [&_a]:underline-offset-2 [&_code]:rounded [&_code]:border [&_code]:border-border [&_code]:bg-card [&_code]:px-1.5 [&_code]:py-0.5 [&_code]:font-mono [&_code]:text-[0.86em] [&_h3]:mt-8 [&_h3]:font-display [&_h3]:text-lg [&_h3]:font-semibold [&_h3]:text-foreground [&_strong]:font-semibold [&_strong]:text-foreground">
         {children}
       </div>
     </Reveal>
@@ -118,7 +119,7 @@ export function Figure({ label, title, note, actions, caption, narrow, children,
         <div ref={ref} data-seen={seen ? "" : undefined} onPointerMove={glow} className="hiw-panel overflow-hidden rounded-2xl border border-border bg-card p-4 sm:p-5">
           <div className="mb-3 flex flex-wrap items-start justify-between gap-3">
             <div className="min-w-0">
-              <p className="hiw-gold text-[11px] font-bold uppercase tracking-[0.14em]">{label}</p>
+              <p className="hiw-gold-text text-[11px] font-bold uppercase tracking-[0.14em]">{label}</p>
               <p className="mt-0.5 font-display text-base font-semibold text-foreground sm:text-lg">
                 {title}{note && <span className="ml-1.5 font-mono text-xs font-normal text-muted-foreground">· {note}</span>}
               </p>

@@ -2,7 +2,7 @@
 // active-section indicator and a reading-progress line. The page scrolls the
 // document (src/lib/pageScroll.ts), so that's what we observe.
 import { useEffect, useRef, useState, type MouseEvent } from "react";
-import { m } from "motion/react";
+import { m } from "../motion";
 import { cn } from "../cn";
 import { useReduced } from "./ui";
 import { pageScroller, pageTop, scrollToElement } from "../../lib/pageScroll";
@@ -90,7 +90,7 @@ export function SectionNav() {
   const go = (e: MouseEvent<HTMLAnchorElement>, id: string) => { e.preventDefault(); scrollToId(id, reduced); };
 
   return (
-    <nav aria-label="On this page" className="sticky top-[calc(var(--header-h)+0.5rem)] z-30 mb-10 mt-2">
+    <nav aria-label="On this page" className="sticky top-[calc(var(--header-h)+0.5rem)] z-30 mb-10 max-sm:mb-6 mt-2">
       <div className="relative overflow-hidden rounded-xl border border-border bg-background p-1 shadow-[0_18px_40px_-24px_rgba(0,0,0,.55)]">
         <div ref={toc} className="flex gap-0.5 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
           {SECTIONS.map((s) => {
@@ -98,7 +98,7 @@ export function SectionNav() {
             return (
               <a
                 key={s.id} href={`#${s.id}`} data-id={s.id} onClick={(e) => go(e, s.id)} aria-current={on ? "location" : undefined}
-                className={cn("relative shrink-0 rounded-lg px-3 py-2 font-display text-[13px] font-semibold transition-colors", on ? "text-accent-ink" : "text-muted-foreground hover:text-foreground")}
+                className={cn("relative shrink-0 rounded-lg px-3 py-2 font-display text-[0.8125rem] font-semibold transition-colors", on ? "text-accent-ink" : "text-muted-foreground hover:text-foreground")}
               >
                 {on && <m.span layoutId="hiw-toc" aria-hidden className="absolute inset-0 rounded-lg bg-accent" transition={{ type: "spring", stiffness: 380, damping: 30 }} />}
                 <span className="relative">{s.label}</span>

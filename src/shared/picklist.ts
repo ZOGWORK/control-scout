@@ -80,7 +80,8 @@ export const WRONG_ACCOUNT = "This change was made by another account, so it was
 export const noteConflicts = (pick: Pick, op: { note: string; base?: number | null }) =>
   op.base !== undefined && pick.note !== op.note && (pick.noteUpdatedAt ?? null) !== op.base;
 
-const isTeam = (v: unknown): v is number => typeof v === "number" && Number.isSafeInteger(v) && v > 0 && v < 1_000_000;
+/** A team number as the server takes one (a positive whole number). */
+export const isTeam = (v: unknown): v is number => typeof v === "number" && Number.isSafeInteger(v) && v > 0 && v < 1_000_000;
 
 /** A note as the server stores it (cleanPickOp): trimmed, at most MAX_PICK_NOTE characters. */
 export const cleanNote = (note: string) => note.trim().slice(0, MAX_PICK_NOTE);

@@ -114,14 +114,14 @@ export function CompactFilters({ lead, chips, search, title = "Filters", summary
             if (then) requestAnimationFrame(then);
           }}>
           <div aria-hidden className="mx-auto mt-2 h-1 w-10 shrink-0 rounded-full bg-text-base/20" />
-          <SheetHeader className="px-5 pb-3 pt-3 text-left">
+          <SheetHeader className="px-5 max-sm:px-4 pb-3 pt-3 text-left">
             <SheetTitle>{title}</SheetTitle>
             {summary != null ? <SheetDescription aria-live="polite">{summary}</SheetDescription> : <SheetDescription className="sr-only">Every filter for this list.</SheetDescription>}
           </SheetHeader>
-          <div className="min-h-0 flex-1 space-y-5 overflow-y-auto px-5 pb-4">
+          <div className="min-h-0 flex-1 space-y-5 max-sm:space-y-4 overflow-y-auto px-5 max-sm:px-4 pb-4">
             {typeof children === "function" ? children(close) : children}
           </div>
-          <div className="flex shrink-0 gap-2 border-t border-line px-5 py-3">
+          <div className="flex shrink-0 gap-2 border-t border-line px-5 max-sm:px-4 py-3">
             {onClearAll && <Button variant="outline" className="flex-1" onClick={onClearAll} disabled={!n}><X /> Clear filters</Button>}
             <Button className="flex-1" onClick={() => close()}>{doneLabel}</Button>
           </div>

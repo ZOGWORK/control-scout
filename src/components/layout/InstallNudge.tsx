@@ -16,7 +16,8 @@
 // Leaving the page it opened on hides it (that's ignoring it, not "No thanks").
 import { useEffect, useId, useRef, useState } from "react";
 import { useLocation } from "react-router-dom";
-import { AnimatePresence, m } from "motion/react";
+import { AnimatePresence } from "motion/react";
+import { m } from "../motion";
 import { Share, X } from "lucide-react";
 import { Button } from "../ui/button";
 import { useConsent } from "../../lib/consent";

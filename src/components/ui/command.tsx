@@ -44,7 +44,7 @@ export function CommandList({ className, ...props }: React.ComponentProps<typeof
   return <CommandP.List data-slot="command-list" className={cn('max-h-[min(60vh,420px)] overflow-y-auto overflow-x-hidden p-2', className)} {...props} />;
 }
 export function CommandEmpty(props: React.ComponentProps<typeof CommandP.Empty>) {
-  return <CommandP.Empty data-slot="command-empty" className="py-10 text-center text-sm text-muted-foreground" {...props} />;
+  return <CommandP.Empty data-slot="command-empty" className="py-10 max-sm:py-6 text-center text-sm text-muted-foreground" {...props} />;
 }
 export function CommandGroup({ className, ...props }: React.ComponentProps<typeof CommandP.Group>) {
   return <CommandP.Group data-slot="command-group" className={cn('overflow-hidden text-foreground', className)} {...props} />;

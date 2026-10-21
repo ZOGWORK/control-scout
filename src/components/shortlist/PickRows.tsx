@@ -76,7 +76,7 @@ function SelectBox({ t, selected, selectDisabled, onSelect }: Pick<RowProps, "t"
 /** The compare tick with its words, the whole label tappable (a 16 px box alone is too small a target on a phone). */
 function SelectLabel({ text, className, ...p }: Pick<RowProps, "t" | "selected" | "selectDisabled" | "onSelect"> & { text: string; className?: string }) {
   return (
-    <label className={cn("inline-flex min-h-8 cursor-pointer items-center gap-2 rounded-lg px-2 text-xs text-text-muted hover:text-text-base max-sm:min-h-11", p.selectDisabled && !p.selected && "cursor-not-allowed opacity-60", className)}>
+    <label className={cn("inline-flex min-h-8 cursor-pointer items-center gap-2 rounded-lg px-2 text-xs text-text-muted hover:text-text-base max-sm:min-h-10", p.selectDisabled && !p.selected && "cursor-not-allowed opacity-60", className)}>
       <SelectBox {...p} /><span>{text}</span>
     </label>
   );

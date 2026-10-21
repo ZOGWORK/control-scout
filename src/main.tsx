@@ -1,7 +1,7 @@
 import { StrictMode, Suspense, lazy, type ComponentType } from "react";
 import { createRoot } from "react-dom/client";
 import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
-import { LazyMotion, MotionConfig } from "motion/react";
+import { MotionConfig } from "motion/react";
 import "./index.css";
 import "./components/arc/arc-theme.css";
 import { PersonalProvider } from "./lib/personal";
@@ -24,6 +24,7 @@ import Home from "./pages/Home";
 import { pageModule, type PageModule } from "./shared/routes";
 import { APP_CSS_ID } from "./shared/boot";
 import { installPrefetch } from "./lib/prefetch";
+import { MotionFeatures } from "./components/motion";
 
 /** A lazily loaded page that can also be loaded ahead of its first render: once loaded,
  *  it renders straight away (React.lazy would still suspend for one round). */
@@ -45,9 +46,6 @@ const OwnerRoute = named(() => import("./pages/OwnerRoute"), "OwnerRoute");
 const ErrorReportPrompt = named(() => import("./components/layout/ErrorReportPrompt"), "ErrorReportPrompt");
 const FirstRunTour = named(() => import("./components/layout/FirstRunTour"), "FirstRunTour");
 const InstallNudge = named(() => import("./components/layout/InstallNudge"), "InstallNudge");
-
-/** Motion's animation features, fetched after first paint (see the LazyMotion below). */
-const loadMotionFeatures = () => import("./lib/motionFeatures").then((r) => r.default);
 
 const PAGES = {
   TeamPage: lazyPage(() => import("./pages/TeamPage")),
@@ -121,8 +119,9 @@ function appCss(): Promise<unknown> {
 void ready.catch(() => { /* a failed load is retried (and shown) by the page's own lazy load */ }).then(() => createRoot(document.getElementById("root")!).render(
   <StrictMode>
     {/* Honour the visitor's reduced-motion setting everywhere (transforms off, fades kept). Animation features load
-        after first paint (src/lib/motionFeatures.ts); strict: a full `motion.` element anywhere is an error. */}
-    <LazyMotion features={loadMotionFeatures} strict>
+        after first paint and are optional: until they're here (or if they never come) everything draws at rest
+        (src/lib/motionSupport.ts). strict: a full `motion.` element anywhere is an error. */}
+    <MotionFeatures>
     <MotionConfig reducedMotion="user">
     <BrowserRouter>
       <PersonalProvider>
@@ -182,6 +181,6 @@ void ready.catch(() => { /* a failed load is retried (and shown) by the page's o
       </PersonalProvider>
     </BrowserRouter>
     </MotionConfig>
-    </LazyMotion>
+    </MotionFeatures>
   </StrictMode>,
 ));

@@ -298,6 +298,95 @@ const flows: Flow[] = [
     },
   },
   {
+    // V4-A11Y-003: on light, Compare's best values were #eab308 on their own gold tint, 1.8:1. Measured as rendered:
+    // each gold text's colour against its real background (semi-transparent tints blended down to the page).
+    // The profile's large "Top 8%" stays the accent itself, the owner's large-text exception (Oct 20 2026).
+    name: "Light-mode gold text: small gold text reaches 4.5:1 on its real background; large Top 8% keeps the accent",
+    async run(page, ctx) {
+      await ctx.addInitScript(() => {
+        localStorage.setItem("cs-consent", JSON.stringify({ analytics: false, at: "2026-01-01T00:00:00.000Z", v: 1 }));
+        localStorage.setItem("cs-personal:settings", JSON.stringify({ value: { theme: "light", density: "comfortable", notify: {} }, updatedAt: 1 }));
+      });
+      await page.emulateMedia({ colorScheme: "light", reducedMotion: "reduce" });
+      const seen: string[] = [];
+      for (const [vp, width, height] of [["desktop", 1440, 900], ["phone", 390, 844]] as const) {
+        await page.setViewportSize({ width, height });
+        await page.goto(`${BASE}/compare?teams=18360,24089&season=2025`, { waitUntil: "networkidle" });
+        await page.locator("td:has(> .sr-only) > span.font-medium").first().waitFor({ timeout: 30_000 });
+        await page.waitForFunction(() => !document.querySelector(".skeleton, [aria-busy=true]"), null, { timeout: 30_000 });
+        await page.waitForTimeout(500);
+        assert(await page.evaluate(() => document.documentElement.classList.contains("light")), `${vp}: the page isn't in the light theme`);
+        const texts = await page.evaluate(() => {
+          type C = [number, number, number, number];
+          // Computed colours come back as rgb()/rgba(), color(srgb …) for Tailwind's alpha tints (bg-accent/[0.08]), or
+          // oklch()/oklab() for its palette (text-amber-700): those go through a canvas, opaque, with the alpha read off.
+          const paint = document.createElement("canvas").getContext("2d", { willReadFrequently: true })!;
+          const parse = (s: string): C => {
+            if (s === "transparent") return [0, 0, 0, 0];
+            let m = /^rgba?\(([\d.]+),\s*([\d.]+),\s*([\d.]+)(?:,\s*([\d.]+))?\)$/.exec(s);
+            if (m) return [+m[1], +m[2], +m[3], m[4] == null ? 1 : +m[4]];
+            m = /^color\(srgb ([\d.e-]+) ([\d.e-]+) ([\d.e-]+)(?: \/ ([\d.e-]+))?\)$/.exec(s);
+            if (m) return [+m[1] * 255, +m[2] * 255, +m[3] * 255, m[4] == null ? 1 : +m[4]];
+            m = /^(\w+\([^/)]*?)\s*(?:\/\s*([\d.]+)(%?))?\)$/.exec(s);
+            if (!m) throw new Error(`can't read the colour ${s}`);
+            paint.clearRect(0, 0, 1, 1);
+            paint.fillStyle = "#000";
+            paint.fillStyle = `${m[1]})`;
+            paint.fillRect(0, 0, 1, 1);
+            const [r, g, b] = paint.getImageData(0, 0, 1, 1).data;
+            return [r, g, b, m[2] == null ? 1 : m[3] ? +m[2] / 100 : +m[2]];
+          };
+          const over = (t: C, u: C): C => [t[0] * t[3] + u[0] * (1 - t[3]), t[1] * t[3] + u[1] * (1 - t[3]), t[2] * t[3] + u[2] * (1 - t[3]), 1];
+          const lum = (c: C) => { const f = (v: number) => { const x = v / 255; return x <= 0.04045 ? x / 12.92 : ((x + 0.055) / 1.055) ** 2.4; }; return 0.2126 * f(c[0]) + 0.7152 * f(c[1]) + 0.0722 * f(c[2]); };
+          const ratio = (a: C, b: C) => { const [hi, lo] = [lum(a), lum(b)].sort((x, y) => y - x); return (hi + 0.05) / (lo + 0.05); };
+          // The background a text sits on: every ancestor's background colour, blended from the page up.
+          const backdrop = (el: Element): C => {
+            const layers: C[] = [];
+            for (let n: Element | null = el; n; n = n.parentElement) {
+              const c = parse(getComputedStyle(n).backgroundColor);
+              if (c[3] > 0) { layers.push(c); if (c[3] >= 1) break; }
+            }
+            let bg: C = [255, 255, 255, 1];
+            for (const l of layers.reverse()) bg = over(l, bg);
+            return bg;
+          };
+          // Gold: a warm, saturated hue (amber through yellow), whatever shade.
+          const gold = (c: C) => { const [r, g, b] = c, max = Math.max(r, g, b), min = Math.min(r, g, b); if (max - min < 60 || max !== r || b > g) return false; const h = 60 * ((g - b) / (max - min)); return h >= 25 && h <= 60; };
+          const out: { text: string; kind: string; fg: string; bg: string; px: number; weight: number; ratio: number }[] = [];
+          const hex = (c: C) => "#" + c.slice(0, 3).map((v) => Math.round(v).toString(16).padStart(2, "0")).join("");
+          for (const el of document.querySelectorAll<HTMLElement>("main *")) {
+            const own = [...el.childNodes].filter((n) => n.nodeType === 3).map((n) => n.textContent ?? "").join("").trim();
+            if (!own || el.closest(".recharts-wrapper, .sr-only, [aria-hidden=true]") || !el.getClientRects().length) continue;
+            const cs = getComputedStyle(el), fg = parse(cs.color);
+            if (!gold(fg)) continue;
+            const bg = backdrop(el), shown = over([fg[0], fg[1], fg[2], fg[3] * +cs.opacity], bg);
+            const best = el.matches("td:has(> .sr-only) > span.font-medium");
+            out.push({ text: own.slice(0, 30), kind: best ? "best value" : el.closest("[role=radio]") ? "season" : "other", fg: hex(shown), bg: hex(bg), px: parseFloat(cs.fontSize), weight: +cs.fontWeight, ratio: ratio(shown, bg) });
+          }
+          return out;
+        });
+        const best = texts.filter((t) => t.kind === "best value");
+        assert(best.length >= 4, `${vp}: found ${best.length} gold best values on Compare (expected at least 4, e.g. 149.9, 55.1, 11.9, 23-5-0)`);
+        assert(texts.some((t) => t.kind === "season"), `${vp}: the chosen season isn't gold`);
+        // Small text: under 24px, or under 18.66px when bold (WCAG's large-text line).
+        const small = texts.filter((t) => t.px < 24 && !(t.px >= 18.66 && t.weight >= 700));
+        const bad = small.filter((t) => t.ratio < 4.5);
+        assert(!bad.length, `${vp}: small gold text under 4.5:1: ${bad.map((t) => `"${t.text}" (${t.kind}) ${t.fg} on ${t.bg} ${t.px}px ${t.ratio.toFixed(2)}:1`).join("; ")}`);
+        seen.push(`${vp} ${small.length} small gold texts, lowest ${Math.min(...small.map((t) => t.ratio)).toFixed(2)}:1 (best ${best[0].text} ${best[0].fg} on ${best[0].bg} ${best[0].ratio.toFixed(2)}:1)`);
+      }
+      // The owner's exception: the profile's 48px percentile stays the accent itself.
+      await page.setViewportSize({ width: 1440, height: 900 });
+      await page.goto(`${BASE}/teams/18360?season=2025`, { waitUntil: "networkidle" });
+      const top = page.locator("main p.font-display.text-5xl").first();
+      await top.waitFor({ timeout: 30_000 });
+      const pct = await top.evaluate((el) => ({ text: el.textContent ?? "", color: getComputedStyle(el).color, px: parseFloat(getComputedStyle(el).fontSize) }));
+      assert(/^Top \d+%$/.test(pct.text.trim()), `profile percentile reads "${pct.text}"`);
+      assert(pct.color === "rgb(234, 179, 8)", `"${pct.text}" is ${pct.color}, expected the accent #eab308 (owner's large-text exception)`);
+      assert(pct.px >= 24, `"${pct.text}" is ${pct.px}px, no longer large text`);
+      return `${seen.join("; ")}; "${pct.text}" stays #eab308 at ${pct.px}px`;
+    },
+  },
+  {
     name: "Venue with no signal: the production app opens offline and still predicts",
     prod: true,
     async run(page, ctx) {
@@ -333,6 +422,118 @@ const flows: Flow[] = [
         return "first visit: no lite pack; returning visit: lite pack saved automatically; offline reload opens the app; an unvisited page loads from the precache; a match prediction runs from the lite pack, labelled offline, with a tier";
       } finally {
         await ctx.setOffline(false);
+        if (process.platform === "win32" && server.pid) spawnSync("taskkill", ["/pid", String(server.pid), "/T", "/F"], { stdio: "ignore" }); else server.kill();
+      }
+    },
+  },
+  {
+    // Audit V4-RUNTIME-001: the animation features are an optional download (src/lib/motionSupport.ts). When that
+    // one file fails, pages must still draw, visibly and static, with no unhandled rejection and no reload prompt;
+    // a page's own code that fails must still offer "Reload Control Scout" (src/lib/chunkError.ts).
+    name: "Animation download fails: pages still show, static, no reload prompt",
+    prod: true,
+    async run(page) {
+      const server = spawn("npx", ["tsx", "server/index.ts"], { env: { ...process.env, NODE_ENV: "production", PORT: String(PROD_PORT), CS_NO_SCHEDULER: "1" }, shell: true, stdio: "ignore" });
+      const browser = page.context().browser()!;
+      const seen: string[] = [];
+      try {
+        assert(await waitUp(`${PROD}/api/health`, 120), "production server didn't become ready");
+        type Mode = "fail" | "late-fail-then-repaired" | "slow" | "page-chunk-fails";
+        const visit = async (mode: Mode, reducedMotion: "reduce" | "no-preference") => {
+          // A fresh visitor each time, service workers blocked so every request reaches the routes below.
+          const ctx = await browser.newContext({ viewport: { width: 1440, height: 900 }, serviceWorkers: "block", reducedMotion });
+          await ctx.addInitScript(SHIM);
+          await ctx.addInitScript(() => {
+            const w = window as unknown as { __rejections: string[]; __loaded: number };
+            w.__rejections = []; w.__loaded = Date.now(); // __loaded survives only if the page never reloads
+            window.addEventListener("unhandledrejection", (e) => { w.__rejections.push(String((e as PromiseRejectionEvent).reason)); });
+          });
+          let motionRequests = 0, firstSettled = false;
+          await ctx.route(/\/assets\/motionFeatures-[\w-]+\.js$/, async (route) => {
+            motionRequests++;
+            if (mode === "fail") return route.abort();
+            // late-fail-then-repaired: the first download fails after 3.5 s, and the file is fine from then on. slow: 3.5 s, then fine.
+            if ((mode === "late-fail-then-repaired" || mode === "slow") && motionRequests === 1) {
+              await new Promise((r) => setTimeout(r, 3500));
+              await (mode === "slow" ? route.continue() : route.abort());
+              firstSettled = true;
+              return;
+            }
+            return route.continue();
+          });
+          if (mode === "page-chunk-fails") await ctx.route(/\/assets\/EventsPage-[\w-]+\.js$/, (route) => route.abort());
+          const p = await ctx.newPage();
+          const errors: string[] = [];
+          p.on("pageerror", (e) => errors.push(`pageerror: ${e.message.slice(0, 160)}`));
+          // The failed downloads themselves are expected (and logged by the browser): anything else is not.
+          p.on("console", (m) => { if (m.type() === "error" && !/Failed to load resource/.test(m.text())) errors.push(`console: ${m.text().slice(0, 160)}`); });
+          const label = `${mode}/${reducedMotion}`;
+          /** The heading is really on screen: rendered, and every element from it up to the root fully opaque. */
+          const shown = async (heading: RegExp, where: string) => {
+            const h1 = p.locator("main h1").filter({ hasText: heading }).first();
+            await h1.waitFor({ state: "visible", timeout: 20_000 });
+            await p.waitForTimeout(1500); // past any fade (0.18 s)
+            const o = await h1.evaluate((el) => {
+              const chain = (from: Element | null) => { let x = 1; for (let e = from; e; e = e.parentElement) x *= Number(getComputedStyle(e).opacity); return x; };
+              return { h1: chain(el), main: chain(document.querySelector("main")) };
+            });
+            assert(o.main >= 0.99 && o.h1 >= 0.99, `${label} ${where}: page not visible (opacity: main ${o.main.toFixed(2)}, heading ${o.h1.toFixed(2)})`);
+          };
+          /** Something that appears later inside an AnimatePresence (not a page) is fully opaque too. */
+          const opaque = async (what: ReturnType<Page["locator"]>, where: string) => {
+            await what.waitFor({ state: "visible", timeout: 10_000 });
+            await p.waitForTimeout(800);
+            const o = await what.evaluate((el) => { let x = 1; for (let e: Element | null = el; e; e = e.parentElement) x *= Number(getComputedStyle(e).opacity); return x; });
+            assert(o >= 0.99, `${label} ${where}: not visible (opacity ${o.toFixed(2)})`);
+          };
+          try {
+            // The delayed modes move on while the first download is still pending.
+            const delayed = mode === "late-fail-then-repaired" || mode === "slow";
+            await p.goto(`${PROD}/`, { waitUntil: delayed ? "domcontentloaded" : "networkidle" });
+            const loaded = await p.evaluate(() => (window as unknown as { __loaded: number }).__loaded);
+            await p.getByRole("link", { name: /Find an event/ }).click();
+            if (mode === "page-chunk-fails") {
+              await p.getByRole("button", { name: /Reload Control Scout/ }).waitFor({ timeout: 20_000 });
+              return `${label}: reload offered`;
+            }
+            await shown(/^Events$/, "Home → Events");
+            // A later page change, once the delayed download has settled (failed, or arrived).
+            for (let t = 0; delayed && !firstSettled && t < 100; t++) await p.waitForTimeout(100);
+            await p.locator("aside").getByRole("link", { name: /^Rankings$/ }).first().click();
+            await shown(/rankings/i, "Events → Rankings");
+            if (mode === "fail") {
+              // Parts that come and go inside an AnimatePresence: a settings section switch (mode="wait") and a top-bar panel.
+              await p.locator("aside").getByRole("link", { name: /^Settings$/ }).first().click();
+              // Profile first (its body: the Sign in group, or the note that sign-in isn't set up here), then Appearance.
+              const profileBody = p.getByRole("heading", { name: "Sign in", level: 2, exact: true }).or(p.getByText("Sign-in isn't set up on this server"));
+              await opaque(profileBody.first(), "Settings → Profile body");
+              await p.getByRole("navigation", { name: "Settings sections" }).getByRole("button", { name: "Appearance", exact: true }).click();
+              await shown(/^Appearance$/, "Settings → Appearance");
+              // The section body switches inside the AnimatePresence (the heading is outside it): the new body shows, the old one is gone.
+              await opaque(p.getByRole("heading", { name: "Display", level: 2, exact: true }), "Settings → Appearance body");
+              assert(!(await profileBody.count()), `${label}: the Profile body is still there after switching to Appearance`);
+              await p.getByRole("banner").getByRole("button", { name: "Sign in", exact: true }).click();
+              await opaque(p.getByRole("region", { name: "Sign in" }), "the top-bar sign-in panel");
+            }
+            assert(!(await p.getByRole("button", { name: /Reload Control Scout/ }).count()), `${label}: the optional animation download offered a page reload`);
+            const state = await p.evaluate(() => { const w = window as unknown as { __rejections: string[]; __loaded: number }; return { rejections: w.__rejections, loaded: w.__loaded }; });
+            assert(!state.rejections.length, `${label}: unhandled rejection: ${state.rejections[0]}`);
+            assert(state.loaded === loaded, `${label}: the page reloaded (unsaved work would be lost)`);
+            assert(!errors.length, `${label}: ${errors[0]}`);
+            assert(motionRequests >= 1, `${label}: the animation features were never requested (the route pattern is stale)`);
+            return label;
+          } finally {
+            await ctx.close();
+          }
+        };
+        for (const rm of ["no-preference", "reduce"] as const) {
+          seen.push(await visit("fail", rm));
+          seen.push(await visit("late-fail-then-repaired", rm));
+          seen.push(await visit("slow", rm));
+        }
+        seen.push(await visit("page-chunk-fails", "no-preference"));
+        return `Home → Events → Rankings (and, failing, a settings section switch and the sign-in panel) fully opaque with the animation features failing, failing late (then fine), and slow, in both motion settings; no unhandled rejection, no reload, no reload prompt; a failed page chunk still offers the reload (${seen.join(", ")})`;
+      } finally {
         if (process.platform === "win32" && server.pid) spawnSync("taskkill", ["/pid", String(server.pid), "/T", "/F"], { stdio: "ignore" }); else server.kill();
       }
     },
