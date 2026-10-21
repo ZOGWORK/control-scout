@@ -23,6 +23,17 @@ describe("parseChangelog", () => {
     }
   });
 
+  it("numbers releases in the order they shipped: no skipped version, no date going backwards", () => {
+    // Parallel PRs each claim a number and renumber when they merge; a claim that never shipped left a hole
+    // (1.9.0 then 1.11.0). Each release is the next patch, minor or major after the one below it.
+    for (let i = 1; i < all.length; i++) {
+      const [a, b, c] = all[i].version.split(".").map(Number);
+      const next = [`${a}.${b}.${c + 1}`, `${a}.${b + 1}.0`, `${a + 1}.0.0`];
+      expect(next, `${all[i - 1].version} follows ${all[i].version}`).toContain(all[i - 1].version);
+      expect(all[i - 1].date >= all[i].date, `${all[i - 1].version} is dated before ${all[i].version}`).toBe(true);
+    }
+  });
+
   it("keeps groups and their items", () => {
     const e = parseChangelog("# Changelog\n\nintro\n\n## 2.0.0 — 2027-01-02\n\nBig one.\n\n### Home\n- **New.** It works. (#9)\n- Second\n\n### Fixes\n\n- A fix\n")[0];
     expect(e).toEqual({ version: "2.0.0", date: "2027-01-02", summary: "Big one.", highlights: [], groups: [{ heading: "Home", items: ["**New.** It works. (#9)", "Second"] }, { heading: "Fixes", items: ["A fix"] }] });
