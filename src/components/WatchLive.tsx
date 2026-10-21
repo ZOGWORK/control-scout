@@ -59,7 +59,9 @@ function useRail(d: EventDetail) {
   // New data: did the match being called just get its result? Then show it before moving on.
   useEffect(() => {
     const t = Date.now();
-    setFlip((f) => nextFlip(calling.current, d.matches, t, f));
+    // The match the rail was calling, read now: the effect below moves the ref on before a deferred updater would run.
+    const key = calling.current;
+    setFlip((f) => nextFlip(key, d.matches, t, f));
     setNow(t);
   }, [d.matches]);
   useEffect(() => { calling.current = rail.current?.key ?? null; }, [rail.current?.key]);
