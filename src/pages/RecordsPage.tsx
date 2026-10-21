@@ -52,12 +52,14 @@ export default function RecordsPage({ matches }: { matches?: boolean }) {
     };
     const arriving = stripView.current === undefined || stripView.current === view;
     stripView.current = view;
-    reveal(arriving ? "auto" : smoothBehavior());
-    // Again once the web fonts are in (they change the labels' widths), on arrival only: after a view change the
-    // fonts are long in, and an instant correction there would cut the glide short. And whenever the strip's
-    // width changes (a phone turned to portrait, a narrowed window) so the current view never ends up clipped.
+    const how: ScrollBehavior = arriving ? "auto" : smoothBehavior();
+    reveal(how);
+    // Again once the web fonts are in (they change the labels' widths; a view changed before they load cancels
+    // the earlier wait, so each view keeps its own), the same way: after a view change it glides on towards the
+    // view, never cutting that glide short with a jump. And whenever the strip's width changes (a phone turned
+    // to portrait, a narrowed window) so the current view never ends up clipped.
     let live = true;
-    if (arriving) document.fonts?.ready.then(() => { if (live) reveal(); });
+    document.fonts?.ready.then(() => { if (live) reveal(how); });
     const widthNow = () => strip.current?.getBoundingClientRect().width;
     let width = widthNow();
     const ro = typeof ResizeObserver === "undefined" ? null : new ResizeObserver(() => {
