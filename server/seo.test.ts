@@ -247,6 +247,14 @@ describe("page head in the first HTML", () => {
     expect(rep).toContain('<meta name="robots" content="noindex" />');
     // Any spelling of the key previews under the one address the app opens.
     expect((await renderPage(file, "/events/2025/usnjnom3/match/QUAL:0:01")).html).toContain('<link rel="canonical" href="https://controlscout.org/events/2025/USNJNOM3/match/qual:0:1" />');
+    // The pit display: titled for the event, its canonical the event page, and no noindex (it would stick to
+    // the event page after "Back to event": the app keeps no per-page robots tag in step). Unknown event: 404.
+    const pit = await renderPage(file, "/events/2025/usnjnom3/display");
+    expect(pit.status).toBe(200);
+    expect(pit.html).toContain("<title>Pit display: ");
+    expect(pit.html).toContain('<link rel="canonical" href="https://controlscout.org/events/2025/USNJNOM3" />');
+    expect(pit.html).not.toContain('name="robots"');
+    expect((await renderPage(file, "/events/2025/NOPE/display")).status).toBe(404);
     // The legal and contact pages are never a 404.
     for (const p of ["/privacy", "/terms", "/contact", "/Privacy"]) {
       const page = await renderPage(file, p);

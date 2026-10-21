@@ -33,7 +33,9 @@ export default function EventDisplayPage() {
   const state = useApi<EventDetail>(valid ? path : null);
   const status = valid ? (state.error as ApiError | undefined)?.status : 400;
   useTitle(state.data ? `Pit display: ${state.data.event.name}` : "Pit display");
-  const poll = useDisplayPoll(state.data, path);
+  // No polling for an address that can't be an event, or one the server says doesn't exist.
+  const gone = !valid || (state.error as ApiError | undefined)?.status === 404;
+  const poll = useDisplayPoll(state.data, gone ? null : path);
   useWakeLock();
   if (status === 404 || status === 400) return <div className="p-6"><NotFoundView title={`No event ${code} in ${season}`} description="The event code may be mistyped or from another season." /></div>;
   return (

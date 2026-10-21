@@ -372,10 +372,12 @@ export async function pageMeta(path: string, query: Record<string, unknown> = {}
       const key = normalMatchKey(m[3]);
       return (key && (await matchReportMeta(Number(m[1]), m[2].toUpperCase(), key))) || NOT_FOUND;
     }
-    // The pit display: the event must exist. Not indexed (the event page is the one to find).
+    // The pit display: the event must exist. Its canonical is the event page (the one to find), so search engines
+    // fold it in there. No noindex: the app keeps no per-page robots tag in step on navigation, so it would
+    // follow the visitor back to the event page (as powerRankingsMeta notes).
     if ((m = p.match(/^\/events\/(\d+)\/([A-Za-z0-9_-]{1,40})\/display$/i))) {
       const ev = await eventMeta(Number(m[1]), m[2].toUpperCase());
-      return ev ? { ...ev, title: `Pit display: ${ev.title}`, path: `/events/${Number(m[1])}/${m[2].toUpperCase()}/display`, noindex: true, jsonLd: undefined, bodyHtml: undefined } : NOT_FOUND;
+      return ev ? { ...ev, title: `Pit display: ${ev.title}`, path: `/events/${Number(m[1])}/${m[2].toUpperCase()}`, jsonLd: undefined, bodyHtml: undefined } : NOT_FOUND;
     }
     if (/^\/rankings$/i.test(p)) return await rankingsMeta(query);
     if ((m = p.match(/^\/power-rankings(?:\/([^/]+))?$/i))) return await powerRankingsMeta(m[1] ?? null);

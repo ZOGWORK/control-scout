@@ -10,22 +10,27 @@ import type { EventDetail } from "../shared/api";
  *  after a failure, sooner (5, 10, 20, 30 s) until a fetch works again. "reconnecting" while fetches fail,
  *  "saved" while the only answer is this device's saved season (offline: those aren't fresh scores). */
 export type PollState = "ok" | "reconnecting" | "saved";
-export function useDisplayPoll(d: Pick<EventDetail, "event" | "live"> | undefined, path: string): PollState {
+export function useDisplayPoll(d: Pick<EventDetail, "event" | "live"> | undefined, path: string | null): PollState {
   const [state, setState] = useState<PollState>("ok");
   // Nothing loaded yet (the first request failed): try again soon, on the failure schedule, not in 5 minutes.
   const every = !d ? 5000 : pollInterval(d) || 5 * 60_000;
   const fails = useRef(0);
   useEffect(() => {
+    if (!path) return;
+    const url = path;
     let stop = false;
     let id: ReturnType<typeof setTimeout>;
     const next = (ms: number) => { id = setTimeout(tick, ms); };
     async function tick() {
       try {
         // Offline, the request can answer with the saved season instead of failing: still not live, so keep retrying soon.
-        const saved = !!offlineSource(await load(path, true));
+        const saved = !!offlineSource(await load(url, true));
         fails.current = saved ? fails.current + 1 : 0;
         if (!stop) setState(saved ? "saved" : "ok");
-      } catch {
+      } catch (e) {
+        // No such event (404) or an address that can't be one (400): that's the answer, not a dropped connection. Stop.
+        const status = (e as { status?: number })?.status;
+        if (status === 404 || status === 400) return;
         fails.current++;
         if (!stop) setState("reconnecting");
       }
