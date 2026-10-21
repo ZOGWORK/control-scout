@@ -56,6 +56,7 @@ import { reportsRouter } from "./errorReports.js";
 import { packsRouter } from "./packs/routes.js";
 import { cachedPublicUsage, collectRouter, statsRouter } from "./analytics.js";
 import { homeOverview } from "./api/home.js";
+import { coinFlips } from "./api/coinFlips.js";
 import { listRecords, recordRegions, recordsQuery, RecordsQueryError, streamRecordsCsv } from "./api/records.js";
 import { directoryQuery, DirectoryQueryError, listDirectory } from "./api/directory.js";
 import { FilterError } from "../src/shared/filterDsl.js";
@@ -243,6 +244,9 @@ export function createApp() {
     noStoreWhileBehind(res, o.readiness.state);
     return o;
   }));
+
+  // Today's coin flips: the closest calls on today's schedules, every event at its own venue date (server/api/coinFlips.ts).
+  api.get("/home/coin-flips", h(async () => coinFlips()));
 
   // Opt-in page views and sessions started, last 30 days: only when the owner publishes them (PUBLIC_USAGE_ENABLED).
   api.get("/public-usage", h(async (_req, res) => {

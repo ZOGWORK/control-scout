@@ -198,6 +198,8 @@ export async function refreshEvents(events: EventRow[], o: { minFullMs?: number;
     }
     report.scored = await scoreLivePredictions(log);
     report.logged = await logLivePredictions(log);
+    // New results (and any schedule changes) at today's events: the home page's coin flips follow.
+    await (await import("../api/coinFlips.js")).refreshCoinFlips(log);
     // The follow-up's writes are done (see runStats: caches keyed by the data version are keyed by this too).
     await kvSet("data:settled", new Date(now()).toISOString());
     for (const e of due) followUp.delete(keyOf(e));
