@@ -180,7 +180,8 @@ function Event({ d, path }: { d: EventDetail; path: string }) {
       )}
 
       {/* The owner-set stream with the model's calls beside it, above the matches (components/WatchLive.tsx). */}
-      {e.stream && <WatchLive d={d} stream={e.stream} />}
+      {/* Keyed by event and video: moving to another event, or a new stream, starts the player and the rail afresh. */}
+      {e.stream && <WatchLive key={`${e.season}:${e.code}:${e.stream.videoId}`} d={d} stream={e.stream} />}
       <div ref={tabsRef} className="scroll-mt-bar-4" />
       <Tabs value={tab} onValueChange={setTab}>
         <TabsList>
