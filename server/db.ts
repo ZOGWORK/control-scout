@@ -1101,12 +1101,26 @@ CREATE TABLE discord_posts (
   },
   {
     version: 36,
+    name: "prediction score ranges",
+    sql: `
+-- Engine 2.2: every call states an 80% range for each alliance's final score (range_level = 0.8), so the
+-- ledger can score how often real scores land inside it. NULL on calls logged before 2.2: they stated no
+-- range, and none is invented for them afterwards.
+ALTER TABLE predictions ADD COLUMN red_lo REAL;
+ALTER TABLE predictions ADD COLUMN red_hi REAL;
+ALTER TABLE predictions ADD COLUMN blue_lo REAL;
+ALTER TABLE predictions ADD COLUMN blue_hi REAL;
+ALTER TABLE predictions ADD COLUMN range_level REAL;
+`,
+  },
+  {
+    version: 37,
     name: "bonus ranking point calls in the ledger",
     sql: `
--- Bonus ranking point odds logged with each call (engine 2.2: explainMatch bonus), qualification matches of
+-- Bonus ranking point odds logged with each call (engine 2.3: explainMatch bonus), qualification matches of
 -- 2025+ seasons with a bonus model only (else null): JSON [p1, p2, p3] per alliance in the engine's slot
 -- order, their confidence tier, and the model they came from ("fitted:2025", or "season:<n>" for a fit to
--- n of the season's alliance results). Scored against matches.red_bonus / blue_bonus once played.
+-- the season's latest n alliance results). Scored against matches.red_bonus / blue_bonus once played.
 ALTER TABLE predictions ADD COLUMN bonus_red TEXT;
 ALTER TABLE predictions ADD COLUMN bonus_blue TEXT;
 ALTER TABLE predictions ADD COLUMN bonus_tier TEXT;

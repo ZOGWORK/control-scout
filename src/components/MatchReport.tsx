@@ -21,6 +21,8 @@ import { Skeleton } from "./ui/basic";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "./ui/controls";
 import { cn } from "./cn";
 import { BonusOdds } from "./BonusOdds";
+import { ScoreRange } from "./ScoreRange";
+import { levelPct } from "../shared/scoreRange";
 
 type Side = "red" | "blue";
 const SIDE: Record<Side, { name: string; text: string; card: string; edge: string }> = {
@@ -85,7 +87,8 @@ function Call({ m }: { m: MatchView }) {
             <span className="w-11 text-base font-semibold tabular-nums text-blue-alliance">{oddsPct(1 - p.pRed)}</span>
           </div>
           {!p.noScoreBasis && (
-            <p className="mt-2 text-sm text-muted-foreground">Predicted score <span className="tabular-nums text-red-alliance">{Math.round(p.redMean)}</span> – <span className="tabular-nums text-blue-alliance">{Math.round(p.blueMean)}</span></p>
+            <p className="mt-2 text-sm text-muted-foreground">Predicted score <ScoreRange mean={p.redMean} range={p.redRange} level={p.rangeLevel} className="text-red-alliance" /> – <ScoreRange mean={p.blueMean} range={p.blueRange} level={p.rangeLevel} className="text-blue-alliance" />
+              {p.redRange && p.blueRange && <span className="block text-xs">± is the {levelPct(p.rangeLevel)} range: red {p.redRange[0]}–{p.redRange[1]}, blue {p.blueRange[0]}–{p.blueRange[1]}. About {Math.round((p.rangeLevel ?? 0.8) * 10)} in 10 real scores land inside.</span>}</p>
           )}
           {p.bonus && <BonusOdds season={m.season} bonus={p.bonus} className="mt-3 bg-text-base/[0.02]" />}
           {p.factors?.length ? (
@@ -143,7 +146,7 @@ function Alliance({ side, m, remote, byTeam, ws, watch }: {
         <h2 className={cn("font-display text-lg font-semibold", s.text)}>{s.name} alliance</h2>
         <p className="text-sm tabular-nums text-muted-foreground">
           {score != null ? <>Scored <span className={cn("font-semibold", s.text)}>{score}</span></>
-            : p ? <>{oddsPct(side === "red" ? p.pRed : 1 - p.pRed)} to win{!p.noScoreBasis && <> · ~{Math.round(side === "red" ? p.redMean : p.blueMean)} pts</>} <TierMark tier={p.tier} className="align-middle" /></> : null}
+            : p ? <>{oddsPct(side === "red" ? p.pRed : 1 - p.pRed)} to win{!p.noScoreBasis && <> · <ScoreRange mean={side === "red" ? p.redMean : p.blueMean} range={side === "red" ? p.redRange : p.blueRange} level={p.rangeLevel} approx /> pts</>} <TierMark tier={p.tier} className="align-middle" /></> : null}
         </p>
       </div>
       <ul className="space-y-3">
