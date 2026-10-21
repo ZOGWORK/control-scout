@@ -176,8 +176,45 @@ export function seasonBonusModel(fitted: Record<string, BonusModel> | undefined,
  * before then (`matches`: the season's played matches, any order). Never the
  * shipped fit, which learned from the whole season. Null with too few results.
  */
-export function bonusModelBefore(matches: { time: number; level: string; red: { np: number; bonusRp?: BonusFlags }; blue: { np: number; bonusRp?: BonusFlags } }[], beforeMs: number): BonusModelSource | null {
-  return recentBonusModel(bonusSamples(matches.filter((m) => m.time < beforeMs).sort((a, b) => a.time - b.time)));
+export function bonusModelBefore(matches: BonusMatch[], beforeMs: number): BonusModelSource | null {
+  const h = new BonusHistory();
+  for (const m of [...matches].sort((a, b) => a.time - b.time)) h.add(m);
+  return h.modelBefore(beforeMs);
+}
+
+type BonusMatch = { time: number; level: string; red: { np: number; bonusRp?: BonusFlags }; blue: { np: number; bonusRp?: BonusFlags } };
+
+/**
+ * A season's played qualification results in time order, answering "the bonus
+ * model as it stood at time t" with one rule: only results whose match started
+ * strictly before t count. A result at the same time as the match being
+ * predicted (another field, a shared schedule slot) was not known yet, even if
+ * it was added first. Shared by bonusModelBefore and walk-forward replays, so
+ * the two can't disagree.
+ */
+export class BonusHistory {
+  private readonly times: number[] = [];
+  private readonly samples: BonusSample[] = [];
+
+  /** Add a played match (in nondecreasing time order). */
+  add(m: BonusMatch): void {
+    const last = this.times.length ? this.times[this.times.length - 1] : -Infinity;
+    if (m.time < last) throw new Error("BonusHistory.add: matches must be added in time order");
+    for (const s of bonusSamples([m])) { this.times.push(m.time); this.samples.push(s); }
+  }
+
+  /** Alliances recorded strictly before `t`. */
+  countBefore(t: number): number {
+    let lo = 0, hi = this.times.length;
+    while (lo < hi) { const mid = (lo + hi) >> 1; if (this.times[mid] < t) lo = mid + 1; else hi = mid; }
+    return lo;
+  }
+
+  /** recentBonusModel of the alliances recorded strictly before `t`. */
+  modelBefore(t: number): BonusModelSource | null {
+    const n = this.countBefore(t);
+    return recentBonusModel(this.samples.slice(Math.max(0, n - BONUS_WINDOW), n));
+  }
 }
 
 /** Bonus samples from played qualification matches (2-robot alliances with recorded bonus RPs). */
