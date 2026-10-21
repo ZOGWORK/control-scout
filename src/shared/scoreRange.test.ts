@@ -5,6 +5,8 @@ describe("score ranges", () => {
   it("± is the half-width, the larger side when the range is cut off at 0", () => {
     expect(plusMinus(118, [104, 132])).toBe(14);
     expect(plusMinus(10, [0, 30])).toBe(20);
+    // Score and bounds rounded separately: 100.4 shows as 100, and ±13 still reaches 113.
+    expect(plusMinus(100.4, [88, 113])).toBe(13);
   });
 
   it("reads the same everywhere", () => {
