@@ -8,6 +8,7 @@
 // ones that set your view, inside a workspace too) and Workspace (shared by a Control Point
 // workspace, changed by its admins; shown only to its members).
 import { useEffect, useRef, useState, type ComponentType } from "react";
+import { smoothBehavior } from "../lib/pageScroll";
 import { Link, useLocation, useNavigate, useSearchParams } from "react-router-dom";
 import { AnimatePresence } from "motion/react";
 import { m } from "../components/motion";
@@ -106,7 +107,7 @@ export default function SettingsPage() {
   const navRef = useRef<HTMLUListElement>(null);
   useEffect(() => {
     const el = navRef.current?.querySelector<HTMLElement>("[aria-current=page]");
-    if (el && window.matchMedia?.("(max-width: 1023px)").matches) el.scrollIntoView({ block: "nearest", inline: "center", behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth" });
+    if (el && window.matchMedia?.("(max-width: 1023px)").matches) el.scrollIntoView({ block: "nearest", inline: "center", behavior: smoothBehavior() });
   }, [active]);
 
   return (
