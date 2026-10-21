@@ -14,11 +14,13 @@ export function rangesOf(x: Banded): Pick<MatchPredictionView, "redRange" | "blu
 }
 
 /**
- * Half-width of a range around its predicted score, in whole points ("± 14"). A range cut off at 0 is
- * lopsided; the larger side is quoted so the ± never claims more certainty than the range does.
+ * Half-width of a range around its predicted score as displayed, in whole points ("± 14"). Measured from the
+ * rounded score to the stored (whole-point) bounds, and the larger side when a range is lopsided (cut off at
+ * 0, or rounding), so "score ± x" always reaches both ends of the stated range.
  */
 export function plusMinus(mean: number, range: [number, number]): number {
-  return Math.max(0, Math.round(Math.max(range[1] - mean, mean - range[0])));
+  const m = Math.round(mean);
+  return Math.max(0, range[1] - m, m - range[0]);
 }
 
 /** "118 ±14 – 96 ±12" (or "118–96" for a call that stated no range), for one-line summaries. */

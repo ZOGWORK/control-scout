@@ -2,7 +2,24 @@
 // the same everywhere; hovering (or a screen reader) gets the plain meaning: "80% range 104–132: about 8 in
 // 10 real scores land inside". Calls logged before engine 2.2 stated no range and show the score alone.
 import { cn } from "./cn";
-import { plusMinus, rangeSentence } from "../shared/scoreRange";
+import type { MatchPredictionView } from "../shared/api";
+import { levelPct, plusMinus, predictedText, rangeSentence } from "../shared/scoreRange";
+
+/**
+ * Both predicted scores on one line, for tight live surfaces (live panel, Watch live, pit display):
+ * "118 ±14 – 96 ±12 (80% range)". The label stays visible, so the ± is explained without hovering;
+ * the full ranges are in the title and for screen readers.
+ */
+export function PredictedPair({ p, className }: { p: Pick<MatchPredictionView, "redMean" | "blueMean" | "redRange" | "blueRange" | "rangeLevel">; className?: string }) {
+  if (!p.redRange || !p.blueRange) return <span className={cn("tabular-nums", className)}>{predictedText(p)}</span>;
+  const full = `Predicted red ${rangeSentence(p.redRange, p.rangeLevel)}; blue ${rangeSentence(p.blueRange, p.rangeLevel)}`;
+  return (
+    <span className={cn("tabular-nums", className)} title={full}>
+      <span aria-hidden>{predictedText(p)} <span className="text-[0.85em] opacity-80">({levelPct(p.rangeLevel)} range)</span></span>
+      <span className="sr-only">{full}</span>
+    </span>
+  );
+}
 
 export function ScoreRange({ mean, range, level, className, pmClassName, approx }: {
   mean: number;

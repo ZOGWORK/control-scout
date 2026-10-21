@@ -16,7 +16,7 @@ import { agoSeconds, oddsPct } from "../lib/format";
 import { Button } from "./ui/button";
 import { TierMark, WinBar } from "./predict";
 import { cn } from "./cn";
-import { predictedText } from "../shared/scoreRange";
+import { PredictedPair } from "./ScoreRange";
 import { LivestreamButton, TrackEventButton, type TrackControl } from "./EventActions";
 
 export interface RefreshControl { busy: boolean; note: string | null; at: number; run: () => Promise<unknown> }
@@ -191,7 +191,7 @@ function Call({ m }: { m: MatchView }) {
       <span className="text-muted-foreground">Predicted</span>
       <span className={cn("font-semibold tabular-nums", fav === "red" ? "text-red-alliance" : "text-blue-alliance")}>{fav === "red" ? "Red" : "Blue"} {oddsPct(fav === "red" ? p.pRed : 1 - p.pRed)} to win</span>
       <WinBar pRed={p.pRed} size="sm" className="w-24" />
-      {!p.noScoreBasis && <span className="text-xs tabular-nums text-muted-foreground" title={p.redRange ? "± is the 80% range of each score" : undefined}>{predictedText(p)}</span>}
+      {!p.noScoreBasis && <PredictedPair p={p} className="text-xs text-muted-foreground" />}
       <TierMark tier={p.tier} className="text-xs" />
     </div>
   );

@@ -12,7 +12,7 @@
 // The confidence tier says how much of the call rests on real matches rather
 // than priors. Its thresholds are a stated rule, not a fitted value — see
 // CONFIDENCE_RULE — and are checked against the calibration ledger.
-import { predictMatch, zFor, type BandParams, type NoiseParams, type ScoreBand } from "./matchModel.js";
+import { predictMatch, type BandParams, type NoiseParams, type ScoreBand } from "./matchModel.js";
 import type { CalibrationParams } from "./calibration.js";
 import type { ContextualModel, MatchContext, ProbabilityModel } from "./contextual.js";
 import type { RatingBook } from "./rating.js";
@@ -180,7 +180,9 @@ export function explainMatch(book: RatingBook, teamsA: number[], teamsB: number[
       : "Ratings still carry noticeable uncertainty relative to match variance.";
   }
 
-  const pm = (b: ScoreBand) => Math.round(zFor(b.level) * b.sd);
+  // From the displayed (rounded) score to the stored whole-point bounds, the larger side: "score ± pm" always
+  // reaches both ends of the range (rounding the score and the bounds separately could fall a point short).
+  const pm = (mean: number, b: ScoreBand) => { const m = Math.round(mean); return Math.max(0, b.hi - m, m - b.lo); };
   return {
     winProbA: p.pRedWin,
     winProbB: 1 - p.pRedWin,
@@ -190,8 +192,8 @@ export function explainMatch(book: RatingBook, teamsA: number[], teamsB: number[
     scoreRangeB: [p.blue.band.lo, p.blue.band.hi],
     scoreBandA: p.red.band,
     scoreBandB: p.blue.band,
-    scorePlusMinusA: pm(p.red.band),
-    scorePlusMinusB: pm(p.blue.band),
+    scorePlusMinusA: pm(p.red.mean, p.red.band),
+    scorePlusMinusB: pm(p.blue.mean, p.blue.band),
     factors,
     confidence: { tier, reason, minMatches, ratingShare: Math.round(ratingShare * 1000) / 1000 },
     probabilityModel: p.model ?? "legacy",

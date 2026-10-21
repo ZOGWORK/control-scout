@@ -111,7 +111,10 @@ describe("score ranges (2.2)", () => {
     const p = predictMatch(book, [1, 2], [3, 4]);
     expect(e.scoreRangeA).toEqual([p.red.band.lo, p.red.band.hi]);
     expect(e.scoreBandA.level).toBe(0.8);
-    expect(e.scorePlusMinusA).toBe(Math.round(zFor(0.8) * p.red.band.sd));
+    const m = Math.round(p.red.mean);
+    expect(e.scorePlusMinusA).toBe(Math.max(p.red.band.hi - m, m - p.red.band.lo));
+    expect(m - e.scorePlusMinusA).toBeLessThanOrEqual(p.red.band.lo);
+    expect(m + e.scorePlusMinusA).toBeGreaterThanOrEqual(p.red.band.hi);
     expect(e.teamsA[0].consistency).toBeGreaterThan(0);
   });
 
