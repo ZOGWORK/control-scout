@@ -9,7 +9,7 @@ import { all, get } from "../db.js";
 import type { EventDetail, MatchDetail, MatchPredictionView, MatchView } from "../../src/shared/api.js";
 import { eventDetail } from "./events.js";
 import { liveForecaster, recentRecords } from "../predict/engine.js";
-import type { RecentRecord } from "@control-scout/predict-engine";
+import { recentReasons, type RecentRecord } from "@control-scout/predict-engine";
 import { localToUtcMs } from "../data/time.js";
 import { isLegacy } from "../data/seasons.js";
 import { rangesOf } from "../../src/shared/scoreRange.js";
@@ -76,13 +76,20 @@ export async function matchViews(f: MatchFilter, opts: { predictUnplayed?: boole
     else if (!r.played && forecaster) {
       const red = l.red.filter((t) => t.onField).map((t) => t.number), blue = l.blue.filter((t) => t.onField).map((t) => t.number);
       if (red.length === 2 && blue.length === 2) {
-        recent ??= await recentRecords(f.season, rows.flatMap((x: any) => { const ll = lu.get(`${x.code}|${x.level}:${x.series}:${x.number}`); return ll ? [...ll.red, ...ll.blue].map((t) => t.number) : []; }));
-        const x = forecaster.explain(f.season, red, blue, r.level, r.code, recent);
+        const x = forecaster.explain(f.season, red, blue, r.level, r.code);
         // A live event's page polls this every 30 s and should mostly get a 304, so the body must not
         // change unless the data did: no predictedAt (a call from today's ratings isn't logged at a
         // moment), and pRed to 4 places (the ratings decay with the clock, moving it ~1e-9 per read).
-        if (x) prediction = { pRed: stableP(x.winProbA), redMean: x.predictedScoreA, blueMean: x.predictedScoreB, tier: x.confidence.tier, kind: "now", predictedAt: null, factors: x.factors, ...(x.reasons.length ? { reasons: x.reasons } : {}), ...(noScoreBasis ? { noScoreBasis: true } : rangesOf(x)) };
+        if (x) prediction = { pRed: stableP(x.winProbA), redMean: x.predictedScoreA, blueMean: x.predictedScoreB, tier: x.confidence.tier, kind: "now", predictedAt: null, factors: x.factors, ...(noScoreBasis ? { noScoreBasis: true } : rangesOf(x)) };
       }
+    }
+    // Recent-record reasons (engine recentReasons: no-shows, near-zero matches in the robots' last 10) describe
+    // the teams' form now, not the call: added at read time to any unplayed match's prediction, saved or fresh,
+    // and never stored in the ledger.
+    if (prediction && !r.played) {
+      recent ??= await recentRecords(f.season, rows.flatMap((x: any) => { const ll = lu.get(`${x.code}|${x.level}:${x.series}:${x.number}`); return ll ? [...ll.red, ...ll.blue].map((t) => t.number) : []; }));
+      const why = recentReasons([...l.red, ...l.blue].filter((t) => t.onField).map((t) => t.number), (t) => recent!.get(t) ?? null);
+      if (why.length) prediction = { ...prediction, reasons: why };
     }
     out.push({
       season: f.season, code: r.code, key, level: r.level, series: Number(r.series), number: Number(r.number), label: r.label, time: r.time,
