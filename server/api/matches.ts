@@ -8,7 +8,8 @@
 import { all, get } from "../db.js";
 import type { EventDetail, MatchDetail, MatchPredictionView, MatchView } from "../../src/shared/api.js";
 import { eventDetail } from "./events.js";
-import { liveForecaster } from "../predict/engine.js";
+import { liveForecaster, recentRecords } from "../predict/engine.js";
+import { recentReasons, type RecentRecord } from "@control-scout/predict-engine";
 import { localToUtcMs } from "../data/time.js";
 import { bonusLabels, isLegacy } from "../data/seasons.js";
 import { bonusFromRow, bonusView } from "../../src/shared/bonusOdds.js";
@@ -58,6 +59,7 @@ export async function matchViews(f: MatchFilter, opts: { predictUnplayed?: boole
   // ratings are carried over without a scoring baseline, so win odds stand but point predictions don't.
   const noScoreBasis = !!forecaster && !forecaster.seasonEvents(f.season).length;
   const out: MatchView[] = [];
+  let recent: Map<number, RecentRecord> | undefined;
   for (const r of rows) {
     const key = `${r.level}:${r.series}:${r.number}`;
     const l = lu.get(`${r.code}|${key}`) ?? { red: [], blue: [] };
@@ -88,6 +90,14 @@ export async function matchViews(f: MatchFilter, opts: { predictUnplayed?: boole
           prediction = { pRed, redMean: x.predictedScoreA, blueMean: x.predictedScoreB, tier: x.confidence.tier, kind: "now", predictedAt: null, factors: x.factors, ...(x.partnership ? { history: pairHistory(x.partnership) } : {}), ...(noScoreBasis ? { noScoreBasis: true } : rangesOf(x)), ...(bonus ? { bonus } : {}) };
         }
       }
+    }
+    // Recent-record reasons (engine recentReasons: no-shows, near-zero matches in the robots' last 10) describe
+    // the teams' form now, not the call: added at read time to any unplayed match's prediction, saved or fresh,
+    // and never stored in the ledger.
+    if (prediction && !r.played) {
+      recent ??= await recentRecords(f.season, rows.flatMap((x: any) => { const ll = lu.get(`${x.code}|${x.level}:${x.series}:${x.number}`); return ll ? [...ll.red, ...ll.blue].map((t) => t.number) : []; }));
+      const why = recentReasons([...l.red, ...l.blue].filter((t) => t.onField).map((t) => t.number), (t) => recent!.get(t) ?? null);
+      if (why.length) prediction = { ...prediction, reasons: why };
     }
     out.push({
       season: f.season, code: r.code, key, level: r.level, series: Number(r.series), number: Number(r.number), label: r.label, time: r.time,

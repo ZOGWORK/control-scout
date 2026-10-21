@@ -1,4 +1,5 @@
 // API contract shared by the server and the web app (types only).
+import type { Reliability } from "./reliability";
 import type { ConfidenceTier, Factor, Forecast, Partners, TeamStrength } from "@control-scout/predict-engine";
 
 export type { ConfidenceTier, Factor, Forecast, Partners, TeamStrength };
@@ -81,6 +82,8 @@ export interface TeamSeasonStats {
   rating: { np: number; auto: number; teleop: number; endgame: number; pen: number; sd: number; matches: number; rank: number | null } | null;
   record: { wins: number; losses: number; ties: number; matches: number; events: number };
   avg: { np: number | null; score: number | null; pen: number | null };
+  /** Reliability index (src/shared/reliability.ts), public match data only. Absent/null: not computed (e.g. an older offline pack). */
+  reliability?: Reliability | null;
 }
 
 /** The season's field average over every team's scored live calls (server/stats/reportCards.ts). */
@@ -165,6 +168,8 @@ export interface MatchPredictionView {
   blueRange?: [number, number];
   rangeLevel?: number;
   factors?: Factor[];
+  /** Notable reasons beyond the factors (unplayed matches from today's ratings only). */
+  reasons?: string[];
   /** Earlier matches these robots played together or against each other (unplayed matches only). */
   history?: PairHistory;
   /** The season has no rated matches yet: win odds only, the predicted score means nothing. */
@@ -291,6 +296,8 @@ export interface MatchExplanationView {
   /** Earlier matches these robots played together or against each other, if any. */
   history?: PairHistory | null;
   confidence: { tier: ConfidenceTier; reason: string; minMatches: number; ratingShare: number };
+  /** Notable reasons beyond the factors (engine explain: recent no-shows, near-zero matches). Never change the odds. */
+  reasons?: string[];
   teamsRed: (TeamStrength & { name: string | null })[];
   teamsBlue: (TeamStrength & { name: string | null })[];
   /** The match level the odds assume (a what-if with no level is a qualification match). */
@@ -431,6 +438,8 @@ export interface TeamSummary {
   team: number; name: string | null; place: string;
   opr: number | null; oprRank: number | null; of: number | null;
   rating: number | null; ratingSd: number | null; record: string | null;
+  /** Reliability index 0–100 (public match data only) and the qualification matches it rests on. */
+  reliability?: number | null; reliabilityMatches?: number | null;
   lastEvent: { code: string; name: string; start: string | null; end: string | null; rank: number | null; record: string | null } | null;
   nextEvent: { code: string; name: string; start: string | null; end: string | null; rank: number | null; record: string | null } | null;
 }

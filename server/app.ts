@@ -11,7 +11,7 @@ import { hasFirst } from "./env.js";
 import { CURRENT_SEASON, SEASONS, SEASON_NUMBERS, isLegacy, seasonInfo } from "./data/seasons.js";
 import { ensureSearchIndex, search } from "./api/search.js";
 import { rebuildSearch } from "./stats/job.js";
-import { teamProfile, compareTeams, teamSummaries, shortlistTeams } from "./api/teams.js";
+import { teamProfile, compareTeams, teamSummaries, shortlistTeams, reliabilityMany } from "./api/teams.js";
 import { cachedEventDetail, eventDetail, listEvents, toEventInput } from "./api/events.js";
 import { eventStream, seasonStreams } from "./portal/streams.js";
 
@@ -35,7 +35,7 @@ import { indexNowKeyRoute } from "./indexNow.js";
 import { latestRankings, rankingsWeek } from "./powerRankings/store.js";
 import { isWeekId } from "../src/shared/powerRankings.js";
 import { pairHistory } from "../src/shared/pairHistory.js";
-import { liveForecaster, liveVersion, dataVersion } from "./predict/engine.js";
+import { liveForecaster, liveVersion, dataVersion, recentRecords } from "./predict/engine.js";
 import { bonusView } from "../src/shared/bonusOdds.js";
 import { authRouter, meRouter, authProviders } from "./auth/routes.js";
 import { contactRouter } from "./contact.js";
@@ -433,6 +433,8 @@ export function createApp() {
   api.get("/teams-summary", h(async (req) => ({ season: season(req.query.season), teams: await teamSummaries(teamList(req.query.teams, "teams", 100), season(req.query.season)) })));
 
   /** The shortlist page in one request: summaries plus each team's OPR split and event-by-event trend. */
+  // Reliability index (src/shared/reliability.ts): public match data only, also read by Control Point.
+  api.get("/reliability", h(async (req) => reliabilityMany(season(req.query.season), teamList(req.query.teams, "teams", 100))));
   api.get("/shortlist", h(async (req) => ({ season: season(req.query.season), teams: await shortlistTeams(teamList(req.query.teams, "teams", 100), season(req.query.season)) })));
 
   // --- Records: season stat tables with filters (src/shared/filterDsl.ts) --
@@ -520,12 +522,12 @@ export function createApp() {
     if (lv != null && lv !== "qual" && lv !== "playoff") throw bad("level must be qual or playoff");
     const level = lv === "playoff" ? "playoff" : "qual";
     const f = await liveForecaster(s);
-    const x = f.explain(s, red, blue, level);
+    const x = f.explain(s, red, blue, level, undefined, await recentRecords(s, [...red, ...blue]));
     if (!x) throw new HttpError(503, "Ratings for this season aren't ready yet.");
     const names = new Map((await all<any>(`SELECT number, name FROM teams WHERE number IN (${[...red, ...blue].map(() => "?").join(",")})`, [...red, ...blue])).map((r) => [Number(r.number), r.name]));
     return {
       season: s, red, blue, winProbRed: x.winProbA, winProbBlue: x.winProbB, predictedRed: x.predictedScoreA, predictedBlue: x.predictedScoreB,
-      rangeRed: x.scoreRangeA, rangeBlue: x.scoreRangeB, rangeLevel: x.scoreBandA.level, factors: x.factors, history: x.partnership ? pairHistory(x.partnership) : null, confidence: x.confidence,
+      rangeRed: x.scoreRangeA, rangeBlue: x.scoreRangeB, rangeLevel: x.scoreBandA.level, factors: x.factors, history: x.partnership ? pairHistory(x.partnership) : null, confidence: x.confidence, reasons: x.reasons,
       teamsRed: x.teamsA.map((t) => ({ ...t, name: names.get(t.team) ?? null })), teamsBlue: x.teamsB.map((t) => ({ ...t, name: names.get(t.team) ?? null })),
       level, probabilityModel: x.probabilityModel, bonus: bonusView(s, x) ?? null, engineVersion: ENGINE_VERSION,
     };

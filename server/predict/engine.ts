@@ -7,7 +7,7 @@
 // current window use the current anchor exactly like Control Point; an older
 // season (browsing 2023) gets its own window ending at that season.
 import {
-  Forecaster, FITTED_MODEL, RatingBook, indexAwards, MODELLED_AWARDS, normType, explainMatch, bonusModelBefore, PartnershipBook, PartnershipTable, bonusSamples, seasonBonusModel,
+  Forecaster, FITTED_MODEL, RatingBook, indexAwards, MODELLED_AWARDS, normType, explainMatch, type RecentRecord, bonusModelBefore, PartnershipBook, PartnershipTable, bonusSamples, seasonBonusModel,
   type AdvancementRecord, type BonusModelSource, type PartnershipData, type AwardRecord, type BonusFlags, type EventInput, type EventRecord, type Forecast, type MatchRecord, type PredictModel,
 } from "@control-scout/predict-engine";
 import { all, kvGet } from "../db.js";
@@ -258,7 +258,7 @@ export class ScoutForecaster extends Forecaster {
    * ratings. `level` and `event` feed the contextual win probability; generic
    * what-ifs with no known match default to a qualification match at no event.
    */
-  explain(season: number, red: number[], blue: number[], level: "qual" | "playoff" = "qual", event?: string) {
+  explain(season: number, red: number[], blue: number[], level: "qual" | "playoff" = "qual", event?: string, recent?: Map<number, RecentRecord>) {
     const b = this.book(season);
     if (!b) return null;
     const table = this.partnerships(season);
@@ -267,6 +267,7 @@ export class ScoutForecaster extends Forecaster {
     const bonus = level === "qual" ? this.bonusModel(season) : null;
     return explainMatch(b, red, blue, {
       noise: FITTED_MODEL.noise, calibration: FITTED_MODEL.calibration, contextual: FITTED_MODEL.contextual, context: { level, event }, shadow: FITTED_MODEL.contextual?.fallback, band: FITTED_MODEL.band, partnership,
+      ...(recent ? { recent: (t: number) => recent.get(t) ?? null } : {}),
       ...(bonus ? { bonus: { season, model: bonus } } : {}),
     });
   }
@@ -401,3 +402,14 @@ onPartnershipPrefixReady((before) => {
     }, () => {});
   }
 });
+
+/**
+ * Teams' recent records (latest RECENT qualification matches) from the stored reliability index, for the
+ * explanation's reasons. Public match data only. Words only: no probability depends on it.
+ */
+export async function recentRecords(season: number, teams: number[]): Promise<Map<number, RecentRecord>> {
+  const ts = [...new Set(teams)].filter((t) => t > 0);
+  if (!ts.length) return new Map();
+  const rows = await all<any>(`SELECT team, recent_matches, recent_no_shows, recent_near_zero FROM team_reliability WHERE season = ? AND code = '' AND team IN (${ts.map(() => "?").join(",")})`, [season, ...ts]).catch(() => []);
+  return new Map(rows.map((r) => [Number(r.team), { matches: Number(r.recent_matches), noShows: Number(r.recent_no_shows), nearZero: Number(r.recent_near_zero) }]));
+}

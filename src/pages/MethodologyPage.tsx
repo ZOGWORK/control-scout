@@ -9,6 +9,7 @@ import { ArrowRight, FlaskConical } from "lucide-react";
 import { ENGINE_VERSION } from "@control-scout/predict-engine";
 import { useTitle } from "../lib/meta";
 import { REPORT_PRIOR } from "../shared/ledger";
+import { RELIABILITY_PRIOR, RELIABILITY_WEIGHTS } from "../shared/reliability";
 import { Button } from "../components/ui/button";
 import { cn } from "../components/cn";
 import "../components/howitworks/howitworks.css";
@@ -116,6 +117,11 @@ export default function MethodologyPage() {
             <h3>Report cards: how predictable a team has been</h3>
             <p>Each team page has a <strong>prediction report card</strong>: how the engine's calls on that team's matches turned out. It uses <strong>live calls only</strong>, the predictions written down before each match was played, never the replayed history. Three numbers: <strong>called right</strong> (the share of matches where the favoured side won; ties and exact 50/50 calls don't count), <strong>points vs prediction</strong> (the alliance's actual score minus its predicted score, split evenly between its robots, averaged: above zero means the team's alliances scored more than expected) and <strong>swing</strong> (the spread of those misses: a high swing means the team's matches are hard to call either way).</p>
             <p>A few matches say little, so every number is pulled toward the season's average over all teams, as if the team had {REPORT_PRIOR} more calls at that average. The card shows how many calls it rests on and the raw numbers beside it. Calls made before a season's first match have no predicted score: they count for called right only. Per-event cards appear once the event is over.</p>
+          </Prose>
+          <Prose id="reliability">
+            <h3>Reliability: how dependable a robot has been</h3>
+            <p>Next to OPR, team pages, Compare, pick lists and match reports show a <strong>reliability index</strong> from 0 to 100. It is an estimate made from qualification match results only, and its parts are always shown: <strong>no-shows</strong> (listed but not on the field), <strong>disqualifications</strong>, <strong>near-zero matches</strong>, <strong>swing</strong> (how much that estimated contribution moves from match to match), <strong>penalties</strong> given away against the season average, and how predictable its matches have been (the report card's miss spread). A near-zero match is when the alliance scored about what the partner's OPR alone would give. A robot playing defense, or a partner carrying the alliance, looks the same, so this is a hint and not proof of a dead robot.</p>
+            <p>The index starts at 100 and loses {RELIABILITY_WEIGHTS.noShow} × the no-show rate, {RELIABILITY_WEIGHTS.dq} × the DQ rate, {RELIABILITY_WEIGHTS.nearZero} × the near-zero rate, {RELIABILITY_WEIGHTS.swing} × the swing, and up to {RELIABILITY_WEIGHTS.penalties * 1.5} each for penalties and predictability: nothing at half the season average or better, {RELIABILITY_WEIGHTS.penalties / 2} at the average, the full amount at twice it. Every part is pulled toward the season average as if the team had {RELIABILITY_PRIOR} more matches at it, so a few matches can't make a team look perfect or broken. These weights are a stated rule, not fitted. Members of a scouting workspace also see a second number that adds their own match notes (entries marked broken, disabled or no-show), clearly marked. Nobody outside that workspace ever sees it.</p>
           </Prose>
         </section>
 

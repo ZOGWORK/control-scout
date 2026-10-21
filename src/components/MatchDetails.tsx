@@ -210,7 +210,7 @@ function Prediction({ d }: { d: MatchDetail }) {
         {called != null && <><dt className="text-text-muted">Call</dt><dd className={called ? "text-success" : "text-warning"}>{called ? "Called it" : "Upset"}</dd></>}
       </dl>
       {p.bonus && <BonusOdds season={m.season} bonus={p.bonus} actual={played ? d.bonus : null} className="mt-3 bg-text-base/[0.02]" />}
-      {p.factors?.length ? <><p className="mt-3 text-xs font-medium text-text-muted">Why</p><FactorList factors={p.factors} className="mt-1.5" /></> : null}
+      {p.factors?.length ? <><p className="mt-3 text-xs font-medium text-text-muted">Why</p><FactorList factors={p.factors} reasons={p.reasons} className="mt-1.5" /></> : null}
       {p.history ? <PairHistoryLine history={p.history} className="mt-1.5" /> : null}
       <CalibrationLine pRed={p.pRed} compact className="mt-3" />
     </section>

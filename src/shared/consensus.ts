@@ -23,6 +23,7 @@
 // - entries: live entries counted (match + pit); scouts: distinct authors; lastUpdated: the newest
 //   live entry's updatedAt (ms), null with no entries.
 import type { ScoutField, TemplateKind } from "./scoutTemplate";
+import { isFailureField, type ReliabilityNotes } from "./reliability";
 
 export const CONSENSUS_TOP_TAGS = 5;
 /** Teams per consensus request (compare shows 4, a match report 4: room to spare, never a whole event). */
@@ -50,6 +51,12 @@ export interface TeamConsensus {
   strengths: ConsensusTag[];
   weaknesses: ConsensusTag[];
   tags: ConsensusTag[];
+  /**
+   * Reliability notes: match entries, and how many marked the robot broken / disabled / no-show (a yes/no field
+   * whose label says so, like the built-in "Broke down / disabled"). Feeds the blended reliability index this
+   * workspace's members see. Present only when the workspace has match entries on the team.
+   */
+  reliabilityNotes?: ReliabilityNotes;
 }
 
 /** GET /api/scout/workspaces/:id/consensus: one per team asked for, in the order asked. */
@@ -88,8 +95,10 @@ export function aggregateConsensus(team: number, entries: ConsensusEntry[], top 
   };
   const strengths = new Map<string, Tag>(), weaknesses = new Map<string, Tag>(), tags = new Map<string, Tag>();
   const authors = new Set<number>();
+  let flagged = 0;
   for (const e of sorted) {
     out.entries++;
+    if (e.kind === "match" && e.fields.some((f) => isFailureField(f) && e.data[f.id] === true)) flagged++;
     if (e.kind === "pit") out.pitEntries++; else out.matchEntries++;
     authors.add(e.authorAccountId);
     out.lastUpdated = Math.max(out.lastUpdated ?? 0, e.updatedAt);
@@ -137,5 +146,6 @@ export function aggregateConsensus(team: number, entries: ConsensusEntry[], top 
   out.strengths = ranked(strengths);
   out.weaknesses = ranked(weaknesses);
   out.tags = ranked(tags);
+  if (out.matchEntries) out.reliabilityNotes = { matchEntries: out.matchEntries, flagged };
   return out;
 }

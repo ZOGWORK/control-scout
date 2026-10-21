@@ -1,5 +1,19 @@
 # Changelog
 
+## 2.5.0 — 2026-10-21 · Reasons
+
+Reasons only: no probability, score, range, factor or tier changes (every number is bit-identical to 2.4.0).
+- `ExplainOptions.recent(team)` takes a robot's recent record as the app measured it
+  (`RecentRecord`: latest matches, no-shows, near-zero matches). Control Scout feeds it from its
+  reliability index (public match data only).
+- `MatchExplanation.reasons`: notable sentences beyond the factors, by `REASON_RULE`:
+  2+ no-shows in the window ("Team 1234 was a no-show in 2 of its last 10 matches"), else
+  3+ near-zero matches, worded as an estimate (defense or a partner's carry looks the same).
+  Empty without `recent`, or when nothing is notable.
+- `recentReasons(teams, recent)`: the same sentences for a lineup on their own, for apps that build their
+  own match rows (Control Point's forecast matches) and want the reasons without an explanation.
+
+
 ## 2.4.0 — 2026-10-21 · Partnership memory
 
 **No served number changes** (the numeric blend is off: see "Evidence"). New:

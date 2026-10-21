@@ -53,6 +53,8 @@ export const PUBLIC_TABLES = [
   "team_report_cards",
   // Monte Carlo event projections (migration 38): simulations of public results with public ratings.
   "event_projections", "event_projection_odds",
+  // Reliability index (migration 41): from public match results only (never workspace scouting).
+  "team_reliability",
 ];
 
 /** True only when replacing the file can't lose anything: it's missing or zero
