@@ -13,7 +13,7 @@ import { useApi, type ApiError } from "../lib/api";
 import { useTitle } from "../lib/meta";
 import { usePersonal } from "../lib/personal";
 import { formatCountdown, venueClock } from "../lib/liveMode";
-import { qrPath, useDisplayPoll } from "../lib/pitPoll";
+import { qrPath, useDisplayPoll, type PollState } from "../lib/pitPoll";
 import { displayModel, verdict, type DisplayModel } from "../lib/pitDisplay";
 import { useLiveTarget } from "../components/LivePanel";
 import { NotFoundView } from "../components/NotFoundView";
@@ -33,19 +33,19 @@ export default function EventDisplayPage() {
   const state = useApi<EventDetail>(valid ? path : null);
   const status = valid ? (state.error as ApiError | undefined)?.status : 400;
   useTitle(state.data ? `Pit display: ${state.data.event.name}` : "Pit display");
-  const reconnecting = useDisplayPoll(state.data, path);
+  const poll = useDisplayPoll(state.data, path);
   useWakeLock();
   if (status === 404 || status === 400) return <div className="p-6"><NotFoundView title={`No event ${code} in ${season}`} description="The event code may be mistyped or from another season." /></div>;
   return (
     <div className="min-h-dvh bg-[#0a0a0b] text-zinc-100 [--u:7px] lg:fixed lg:inset-0 lg:overflow-hidden lg:[--u:min(1vh,0.5625vw)]" data-pit-display>
-      {state.data ? <Display d={state.data} reconnecting={reconnecting} /> : (
+      {state.data ? <Display d={state.data} poll={poll} /> : (
         <div className="grid min-h-dvh place-items-center text-zinc-400" style={u(3)} role="status">{state.error ? "Can't reach Control Scout. Retrying…" : "Loading the event…"}</div>
       )}
     </div>
   );
 }
 
-function Display({ d, reconnecting }: { d: EventDetail; reconnecting: boolean }) {
+function Display({ d, poll }: { d: EventDetail; poll: PollState }) {
   const e = d.event;
   const { user } = usePersonal();
   // Personal highlights only when signed in: my team, assigned and tracked teams at this event. Highlight only, never other data.
@@ -63,12 +63,12 @@ function Display({ d, reconnecting }: { d: EventDetail; reconnecting: boolean })
           <p className="text-zinc-400" style={u(2.2)}>
             <span className="font-mono">{e.code}</span>
             {m.progress && <> · <span className="text-zinc-100">{m.progress}</span></>}
-            {e.status === "live" && <> · <span className="font-semibold text-[#f43f5e]">● Live</span></>}
+            {e.status === "live" && poll === "ok" && <> · <span className="font-semibold text-[#f43f5e]">● Live</span></>}
           </p>
         </div>
         <div className="text-right">
           <Clock timezone={e.timezone} />
-          {reconnecting && <p className="flex items-center justify-end gap-2 text-amber-400" style={u(1.6)} role="status"><span className="inline-block size-[calc(var(--u)*1)] rounded-full bg-amber-400" aria-hidden /> Reconnecting…</p>}
+          {poll !== "ok" && <p className="flex items-center justify-end gap-2 text-amber-400" style={u(1.6)} role="status"><span className="inline-block size-[calc(var(--u)*1)] rounded-full bg-amber-400" aria-hidden /> {poll === "saved" ? "Offline: showing saved results" : "Reconnecting…"}</p>}
         </div>
       </header>
       <div className="grid min-h-0 flex-1 gap-[calc(var(--u)*1.6)] lg:grid-cols-12">

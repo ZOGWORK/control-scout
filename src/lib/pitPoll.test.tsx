@@ -19,15 +19,15 @@ describe("useDisplayPoll", () => {
     const { result } = renderHook(() => useDisplayPoll(live, "/api/events/2026/X"));
     await act(async () => { await vi.advanceTimersByTimeAsync(30_000); });
     expect(load).toHaveBeenCalledWith("/api/events/2026/X", true);
-    expect(result.current).toBe(false);
+    expect(result.current).toBe("ok");
 
     load.mockRejectedValueOnce(new Error("offline"));
     await act(async () => { await vi.advanceTimersByTimeAsync(30_000); });
-    expect(result.current).toBe(true);
+    expect(result.current).toBe("reconnecting");
     // Retried after 5 s, not 30.
     await act(async () => { await vi.advanceTimersByTimeAsync(5_000); });
     expect(load).toHaveBeenCalledTimes(3);
-    expect(result.current).toBe(false);
+    expect(result.current).toBe("ok");
   });
 
   it("an event that isn't live still refreshes, every 5 minutes", async () => {
@@ -37,6 +37,18 @@ describe("useDisplayPoll", () => {
     expect(load).not.toHaveBeenCalled();
     await act(async () => { await vi.advanceTimersByTimeAsync(1_000); });
     expect(load).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("offline", () => {
+  it("saved data from this device (no connection) is shown as saved, never as live, and retried soon", async () => {
+    const { markOffline } = await import("./offline/saved");
+    load.mockResolvedValue(markOffline({}, { season: 2026, savedAt: 1, dataAsOf: null }));
+    const { result } = renderHook(() => useDisplayPoll(live, "/p"));
+    await act(async () => { await vi.advanceTimersByTimeAsync(30_000); });
+    expect(result.current).toBe("saved");
+    await act(async () => { await vi.advanceTimersByTimeAsync(5_000); });
+    expect(load).toHaveBeenCalledTimes(2);
   });
 });
 
