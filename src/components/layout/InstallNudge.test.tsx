@@ -163,17 +163,17 @@ describe("Add-to-home-screen nudge: when it shows", () => {
     mount();
     offerInstall();
     await settle();
-    // Signed out, the installed app opens on Home, which leads with the team's next match.
+    // The installed app opens on Home, which leads with the team's next match.
     expect(nudge()?.textContent).toContain("One tap from the stands to team 18360 and its next match.");
     expect(nudge()?.textContent).not.toMatch(/offline|FTC Scout/i);
   });
 
-  it("signed in with a team, promises what Home does: straight to the team", async () => {
+  it("signed in with a team, promises what Home does: the team's next match, no redirect", async () => {
     personal.current = { state: { ...EMPTY_STATE, myTeam: 18360 }, user: { id: 1 } };
     mount();
     offerInstall();
     await settle();
-    expect(nudge()?.textContent).toContain("One tap from the stands, and it opens straight to team 18360.");
+    expect(nudge()?.textContent).toContain("One tap from the stands to team 18360 and its next match.");
   });
 
   it("leaving the page while waiting for the cross-tab lock leaves today's showing unused", async () => {
