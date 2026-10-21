@@ -59,7 +59,7 @@ export function AdvancementView({ season, code, team, nameOf, onPickTeam }: { se
   return (
     <div>
       <StageStrip fc={fc} onRefresh={() => load(path, true).catch(() => {})} />
-      <div className="mb-5 flex flex-wrap items-center gap-3">
+      <div className="mb-5 max-sm:mb-4 flex flex-wrap items-center gap-3">
         <ConfidenceBadge tier={conf.tier} reason={conf.reason} />
         {(fc.stage !== "pre" || mode === "pre-event") && (
           <ToggleGroup type="single" value={mode} onValueChange={(v) => { if (v) setMode(v as typeof mode); }} aria-label="Forecast as of">
@@ -72,7 +72,7 @@ export function AdvancementView({ season, code, team, nameOf, onPickTeam }: { se
       {fc.hindsightNote && <p className="mb-4 flex gap-2 rounded-xl border border-warning/30 bg-warning/[0.06] px-4 py-3 text-sm"><Info className="mt-0.5 size-4 shrink-0 text-warning" />{fc.hindsightNote}</p>}
       {mode === "pre-event" && <p className="mb-4 flex gap-2 rounded-xl border border-info/30 bg-info/[0.06] px-4 py-3 text-sm"><History className="mt-0.5 size-4 shrink-0 text-info" />These are the odds as they stood the day before the event: ratings from earlier matches only, and none of this event's results.</p>}
       {fc.assumptions.length > 0 && (
-        <ul className="mb-5 space-y-1 text-xs text-muted-foreground">{fc.assumptions.map((a) => <li key={a} className="flex gap-1.5"><Info className="mt-0.5 size-3 shrink-0" />{a}</li>)}</ul>
+        <ul className="mb-5 max-sm:mb-4 space-y-1 text-xs text-muted-foreground">{fc.assumptions.map((a) => <li key={a} className="flex gap-1.5"><Info className="mt-0.5 size-3 shrink-0" />{a}</li>)}</ul>
       )}
       <Tabs defaultValue={team ? "outlook" : "field"}>
         <TabsList>
@@ -80,13 +80,13 @@ export function AdvancementView({ season, code, team, nameOf, onPickTeam }: { se
           <TabsTrigger value="alliance">Alliance</TabsTrigger>
           <TabsTrigger value="field">Field</TabsTrigger>
         </TabsList>
-        <TabsContent value="outlook" className="mt-5"><Outlook fc={fc} team={team} /></TabsContent>
-        <TabsContent value="alliance" className="mt-5">
+        <TabsContent value="outlook" className="mt-5 max-sm:mt-4"><Outlook fc={fc} team={team} /></TabsContent>
+        <TabsContent value="alliance" className="mt-5 max-sm:mt-4">
           {mode === "pre-event"
             ? <EmptyState icon={Users} title="Partner scenarios use the current forecast" description="Switch to “Now” to compare partners — there's no hindsight-free version of this yet, so it isn't shown next to the pre-event odds." />
             : <AlliancePanel season={season} code={code} fc={fc} team={team} nameOf={nameOf} />}
         </TabsContent>
-        <TabsContent value="field" className="mt-5"><Field fc={fc} team={team} nameOf={nameOf} onPick={onPickTeam} /></TabsContent>
+        <TabsContent value="field" className="mt-5 max-sm:mt-4"><Field fc={fc} team={team} nameOf={nameOf} onPick={onPickTeam} /></TabsContent>
       </Tabs>
     </div>
   );
@@ -95,7 +95,7 @@ export function AdvancementView({ season, code, team, nameOf, onPickTeam }: { se
 function StageStrip({ fc, onRefresh }: { fc: ForecastView; onRefresh: () => void }) {
   const at = STAGES.findIndex((s) => s.k === fc.stage);
   return (
-    <div className="mb-5 rounded-xl border border-border bg-card p-4">
+    <div className="mb-5 max-sm:mb-4 rounded-xl border border-border bg-card p-4">
       <ol className="grid grid-cols-4 gap-2" aria-label="Event stage">
         {STAGES.map((s, i) => {
           const done = i < at, now = i === at;
@@ -115,7 +115,7 @@ function StageStrip({ fc, onRefresh }: { fc: ForecastView; onRefresh: () => void
       <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1 border-t border-border pt-3 text-xs text-muted-foreground">
         <span><span className="font-medium text-foreground">{fc.slots}</span> advancement slot{fc.slots === 1 ? "" : "s"}{fc.slotsSource !== "official" ? " (estimated)" : " (official)"}</span>
         <span>Updated {ago(fc.generatedAt)}</span>
-        <Button variant="ghost" size="sm" onClick={onRefresh} className="ml-auto max-sm:h-11"><RefreshCw /> Refresh</Button>
+        <Button variant="ghost" size="sm" onClick={onRefresh} className="ml-auto max-sm:h-10"><RefreshCw /> Refresh</Button>
       </div>
     </div>
   );
@@ -137,9 +137,9 @@ function Outlook({ fc, team }: { fc: ForecastView; team: number | null }) {
   // Playoffs are over once a played final exists and the event has finished.
   const playoffsOver = fc.stage === "selected" && fc.matches.some((m) => m.level === "playoff" && m.played) && !fc.matches.some((m) => m.level === "playoff" && !m.played);
   return (
-    <div className="space-y-6">
-      <div className="grid gap-6 lg:grid-cols-[minmax(0,1.1fr)_minmax(0,1fr)]">
-        <section className="relative overflow-hidden rounded-2xl border border-border bg-card p-6" aria-label="Chance to advance">
+    <div className="space-y-6 max-sm:space-y-4">
+      <div className="grid gap-6 max-sm:gap-4 lg:grid-cols-[minmax(0,1.1fr)_minmax(0,1fr)]">
+        <section className="relative overflow-hidden rounded-2xl border border-border bg-card p-6 max-sm:p-4" aria-label="Chance to advance">
           <div aria-hidden className="pointer-events-none absolute -right-16 -top-16 size-56 rounded-full bg-accent/10 blur-3xl" />
           {pre ? (
             <><Badge variant="success">Already qualified</Badge><p className="mt-3 font-display text-2xl font-semibold">Team {me.team} has already qualified for the next level.</p></>
@@ -152,7 +152,7 @@ function Outlook({ fc, team }: { fc: ForecastView; team: number | null }) {
             </>
           )}
         </section>
-        <Stagger className="grid grid-cols-2 gap-x-6 gap-y-5 rounded-2xl border border-border p-6">
+        <Stagger className="grid grid-cols-2 gap-x-6 gap-y-5 max-sm:gap-y-4 rounded-2xl border border-border p-6 max-sm:p-4">
           <StaggerItem><Stat icon={Crown} label="Captain" value={pct(me.pCaptain, fc.stage === "selected")} hint={fc.stage === "selected" ? "alliances are set" : "top seed picks"} /></StaggerItem>
           <StaggerItem><Stat icon={Users} label="Picked" value={pct(me.pPicked, fc.stage === "selected")} hint={fc.stage === "selected" ? "alliances are set" : "chosen as partner"} /></StaggerItem>
           <StaggerItem><Stat icon={Trophy} label="Win event" value={pct(me.pWin, playoffsOver)} /></StaggerItem>
@@ -246,7 +246,7 @@ function Field({ fc, team, nameOf, onPick }: { fc: ForecastView; team: number | 
     <div>
       <div className="relative mb-4 max-w-sm">
         <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
-        <Input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Find a team" aria-label="Find a team" className="pl-9 max-sm:h-11" />
+        <Input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Find a team" aria-label="Find a team" className="pl-9 max-sm:h-10" />
       </div>
       <ul className="divide-y divide-border overflow-hidden rounded-xl border border-border bg-card">
         {rows.map((t) => (
@@ -262,7 +262,7 @@ function Field({ fc, team, nameOf, onPick }: { fc: ForecastView; team: number | 
           </li>
         ))}
       </ul>
-      {!rows.length && <p className="py-6 text-center text-sm text-muted-foreground">No team matches “{q}”.</p>}
+      {!rows.length && <p className="py-6 max-sm:py-4 text-center text-sm text-muted-foreground">No team matches “{q}”.</p>}
     </div>
   );
 }

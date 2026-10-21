@@ -110,7 +110,7 @@ function TeamChip({ n, season, highlight, sub }: { n: number; season: number; hi
   const me = n === highlight;
   return (
     <Link to={`/teams/${n}?season=${season}`} title={sub ? `${n} (surrogate or didn't play)` : undefined}
-      className={cn("tabular rounded-md px-1.5 py-0.5 font-mono text-[13px] still-hover:underline", me ? "bg-accent/15 font-bold text-accent-text ring-1 ring-accent/60" : sub ? "text-text-muted" : "text-text-base")}>
+      className={cn("tabular rounded-md px-1.5 py-0.5 font-mono text-[0.8125rem] still-hover:underline", me ? "bg-accent/15 font-bold text-accent-text ring-1 ring-accent/60" : sub ? "text-text-muted" : "text-text-base")}>
       {n}{sub && <span className="sr-only"> (surrogate)</span>}
     </Link>
   );
@@ -323,7 +323,7 @@ export function MatchList({ matches, highlight, empty, eventNames, eventDates, i
     // Only when the requested match or the visit changes (not on every refresh of the list).
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [initialOpen, loc.key, matches.length]);
-  if (!matches.length) return <p className="rounded-xl border border-dashed border-border px-4 py-8 text-center text-sm text-text-muted">{empty ?? "No matches yet."}</p>;
+  if (!matches.length) return <p className="rounded-xl border border-dashed border-border px-4 py-8 max-sm:py-5 text-center text-sm text-text-muted">{empty ?? "No matches yet."}</p>;
   const toggle = (k: string) => setOpen((s) => { const n = new Set(s); if (n.has(k)) n.delete(k); else n.add(k); return n; });
   // An event's own schedule: Qualifications / Playoffs headings. A list across events (the caller passes
   // eventNames: a team's season): a heading per event, in the list's own order, even when only one shows.
@@ -357,7 +357,7 @@ export function MatchList({ matches, highlight, empty, eventNames, eventDates, i
               </h3>
             ) : (
               <h3 className="flex items-center gap-2 border-b border-border bg-muted/40 px-3 py-1.5 text-[11px] font-semibold uppercase tracking-wider text-text-muted">
-                {g.href ? <Link to={g.href} className="truncate normal-case tracking-normal text-[13px] text-text-base hover:text-accent-text hover:underline">{g.title}</Link> : g.title}
+                {g.href ? <Link to={g.href} className="truncate normal-case tracking-normal text-[0.8125rem] text-text-base hover:text-accent-text hover:underline">{g.title}</Link> : g.title}
                 <span className="shrink-0 rounded-full bg-muted px-1.5 py-px text-[10px] tabular-nums text-text-base/80">{g.ms.length}</span>
               </h3>
             ))}

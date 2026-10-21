@@ -41,7 +41,7 @@ export function SortTable<T>({ rows, cols, initial, csvName, rowKey, highlight, 
     });
   }, [rows, cols, sort]);
   const click = (c: Col<T>) => setSort((s) => (s.key === c.key ? { key: c.key, dir: s.dir === "asc" ? "desc" : "asc" } : { key: c.key, dir: c.asc || c.align !== "right" ? "asc" : "desc" }));
-  if (!rows.length) return <p className="rounded-xl border border-dashed border-border px-4 py-8 text-center text-sm text-muted-foreground">{empty ?? "Nothing here yet."}</p>;
+  if (!rows.length) return <p className="rounded-xl border border-dashed border-border px-4 py-8 max-sm:py-5 text-center text-sm text-muted-foreground">{empty ?? "Nothing here yet."}</p>;
   return (
     <div>
       {csvName && (

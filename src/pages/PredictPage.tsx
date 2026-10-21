@@ -60,7 +60,7 @@ export default function PredictPage() {
   const headerBox = useRef<HTMLDivElement>(null);
   const wide = useWiderThan(headerBox, 64);
   return (
-    <div className="space-y-10">
+    <div className="space-y-10 max-sm:space-y-6">
       {/* Wide content: the latest live calls fill the header's right side (none on narrower screens: search comes first). */}
       <div ref={headerBox} className="@container/predict">
       <div className="grid items-start gap-x-10 @5xl/predict:grid-cols-[minmax(0,1fr)_minmax(18rem,22rem)]">
@@ -73,7 +73,7 @@ export default function PredictPage() {
       {wide && <LatestCalls />}
       </div>
       </div>
-      <div role="tabpanel" id={`predict-panel-${view}`} aria-labelledby={`predict-tab-${view}`} className="space-y-10">
+      <div role="tabpanel" id={`predict-panel-${view}`} aria-labelledby={`predict-tab-${view}`} className="space-y-10 max-sm:space-y-6">
         {view === "lab" ? <Lab /> : (
           <>
             {pick?.kind === "team" && <TeamPredictions team={pick.team} onClear={() => setPick(null)} />}
@@ -117,7 +117,7 @@ function PredictSwitch({ value, onChange }: { value: "events" | "lab"; onChange:
     document.getElementById(`predict-tab-${views[next].v}`)?.focus();
   };
   return (
-    <div className="mt-5 grid max-w-2xl gap-2 sm:grid-cols-2" role="tablist" aria-label="Predict">
+    <div className="mt-5 max-sm:mt-4 grid max-w-2xl gap-2 sm:grid-cols-2" role="tablist" aria-label="Predict">
       {views.map(({ v, label, icon: Icon, hint }) => (
         <button key={v} id={`predict-tab-${v}`} type="button" role="tab" aria-selected={value === v} aria-controls={`predict-panel-${v}`} tabIndex={value === v ? 0 : -1}
           onKeyDown={onKey} onClick={() => value !== v && onChange(v)}
@@ -228,7 +228,7 @@ function TeamPredictions({ team, onClear }: { team: number; onClear: () => void 
     <section aria-label={`Predictions for team ${team}`} className="rounded-2xl border border-border bg-card/60 p-4 sm:p-6">
       <PickedHeader icon={Users} number={team} title={t?.name ?? ""} sub={t ? place(t.city, t.state, t.country) : undefined} to={`/teams/${team}?season=${s}`} openLabel="Open team page" onClear={onClear} />
       {probe.error?.status === 404 ? <EmptyState icon={Users} title={`No team ${team}`} description="No FTC team with that number in the seasons we hold." /> : (
-        <div className="space-y-8">
+        <div className="space-y-8 max-sm:space-y-5">
           <div className="flex flex-wrap items-center gap-3">
             {seasons ? <SeasonToggle predictOnly seasons={seasons} value={s} onChange={setSeason} /> : <div className="skeleton h-9 w-72 max-w-full rounded-lg" />}
             {season != null && !isCurrent && <span className="text-xs text-muted-foreground">{asked ? `Predictions from ${seasonLabel(season)}` : `No results in ${seasonLabel(current)} yet, so this is ${seasonLabel(season)}`}</span>}
@@ -306,7 +306,7 @@ function EventPredictions({ season, code, onClear }: { season: number; code: str
     <section aria-label={`Predictions for ${e?.name ?? code}`} className="rounded-2xl border border-border bg-card/60 p-4 sm:p-6">
       <PickedHeader icon={CalendarDays} title={e?.name ?? code} sub={e ? `${dateRange(e.start, e.end)} · ${place(e.city, e.state, e.country)}` : undefined} to={`/events/${season}/${code}`} openLabel="Open event page" onClear={onClear} />
       <Async state={state}>{(d) => (
-        <div className="space-y-8">
+        <div className="space-y-8 max-sm:space-y-5">
           <div>
             <h3 className="mb-2 text-sm font-semibold text-foreground">{upcoming.length ? `Upcoming matches (${upcoming.length})` : over ? "This event is over" : played.length ? "All matches have been played" : "Matches"}</h3>
             {over && unplayed.length > 0 && <p className="mb-3 text-sm text-muted-foreground">{unplayed.length} scheduled {unplayed.length === 1 ? "match has" : "matches have"} no result from FIRST, so {unplayed.length === 1 ? "it isn't" : "they aren't"} shown as upcoming.</p>}
@@ -367,7 +367,7 @@ function Lab() {
   const mode: LabMode = labLink(sp) === "advancement" ? "advancement" : "match";
   const setMode = (m: string) => setSp((x) => { x.set("mode", m); return x; }, { replace: true });
   return (
-    <section aria-label="Predict Lab" className="rounded-2xl border border-border px-4 pb-6 pt-5 sm:px-6">
+    <section aria-label="Predict Lab" className="rounded-2xl border border-border px-4 pb-6 max-sm:pb-4 pt-5 sm:px-6">
       <div className="mb-4 flex items-start gap-3">
         <FlaskConical className="mt-0.5 size-5 shrink-0 text-accent" />
         <div>
@@ -380,8 +380,8 @@ function Lab() {
           <TabsTrigger value="match"><Swords className="size-4" /> Match</TabsTrigger>
           <TabsTrigger value="advancement"><Trophy className="size-4" /> Advancement</TabsTrigger>
         </TabsList>
-        <TabsContent value="match" className="mt-6"><MatchLab /></TabsContent>
-        <TabsContent value="advancement" className="mt-6"><AdvancementLab /></TabsContent>
+        <TabsContent value="match" className="mt-6 max-sm:mt-4"><MatchLab /></TabsContent>
+        <TabsContent value="advancement" className="mt-6 max-sm:mt-4"><AdvancementLab /></TabsContent>
       </Tabs>
     </section>
   );
@@ -450,8 +450,8 @@ function MatchLab() {
   };
   const swap = () => { edits.current++; setRed(blue); setBlue(red); setErrors((e) => [e[2], e[3], e[0], e[1]]); };
   return (
-    <div className="space-y-6">
-      <div className="rounded-2xl border border-border bg-card p-5 sm:p-6">
+    <div className="space-y-6 max-sm:space-y-4">
+      <div className="rounded-2xl border border-border bg-card p-4 sm:p-6">
         <div className="mb-4 flex flex-wrap items-center gap-3">
           <SeasonToggle predictOnly value={season} onChange={(s) => setSp((x) => { x.set("season", String(s)); return x; }, { replace: true })} />
           <span className="text-xs text-muted-foreground">Ratings as of now for {seasonLabel(season)}</span>
@@ -515,7 +515,7 @@ function MatchResult({ x, offlineAsOf }: { x: MatchExplanationView; offlineAsOf?
   const share = () => copyLink();
   return (
     <div className="space-y-4">
-      <div className="relative overflow-hidden rounded-2xl border border-border bg-card p-6">
+      <div className="relative overflow-hidden rounded-2xl border border-border bg-card p-6 max-sm:p-4">
         {offlineAsOf && <p className="mb-3 flex items-center gap-2 rounded-lg border border-info/30 bg-info/[0.06] px-3 py-2 text-xs"><WifiOff className="size-3.5 text-info" />Offline — predicted on this device from your lite pack (ratings as of {new Date(offlineAsOf).toLocaleDateString()}).</p>}
         <div className="flex flex-wrap items-center justify-between gap-3">
           <ConfidenceBadge tier={x.confidence.tier} reason={x.confidence.reason} />
@@ -526,31 +526,31 @@ function MatchResult({ x, offlineAsOf }: { x: MatchExplanationView; offlineAsOf?
             <Button variant="secondary" size="sm" onClick={save}><BookmarkPlus /> Save</Button>
           </div>
         </div>
-        <div className="mt-5 grid grid-cols-[1fr_auto_1fr] items-end gap-4">
+        <div className="mt-5 max-sm:mt-4 grid grid-cols-[1fr_auto_1fr] items-end gap-4">
           <div><p className="text-sm font-medium text-red-alliance">Red {x.red.join(" + ")}</p><p className="font-display text-5xl font-semibold tabular-nums text-red-alliance sm:text-6xl">{oddsPct(x.winProbRed)}</p></div>
           <p className="pb-3 text-sm text-muted-foreground">to win</p>
           <div className="text-right"><p className="text-sm font-medium text-blue-alliance">Blue {x.blue.join(" + ")}</p><p className="font-display text-5xl font-semibold tabular-nums text-blue-alliance sm:text-6xl">{oddsPct(x.winProbBlue)}</p></div>
         </div>
         <WinBar pRed={x.winProbRed} className="mt-4" />
-        <div className="mt-5 grid grid-cols-2 gap-4 text-sm">
+        <div className="mt-5 max-sm:mt-4 grid grid-cols-2 gap-4 text-sm">
           <div><p className="text-muted-foreground">Predicted score</p><p className="font-display text-2xl font-semibold tabular-nums">{x.predictedRed}</p><p className="text-xs text-muted-foreground">80% of the time between {x.rangeRed[0]} and {x.rangeRed[1]}</p></div>
           <div className="text-right"><p className="text-muted-foreground">Predicted score</p><p className="font-display text-2xl font-semibold tabular-nums">{x.predictedBlue}</p><p className="text-xs text-muted-foreground">80% of the time between {x.rangeBlue[0]} and {x.rangeBlue[1]}</p></div>
         </div>
         <p className="mt-4 text-xs text-muted-foreground">{fav} is favoured — not certain. This is a probability from current ratings, including penalties each side tends to give away.</p>
         <CalibrationLine pRed={x.winProbRed} className="mt-2" />
         {/* Made to be screenshotted: the card says where it came from. */}
-        <div className="mt-5 flex items-center justify-between border-t border-border pt-3 text-[11px] text-muted-foreground">
+        <div className="mt-5 max-sm:mt-4 flex items-center justify-between border-t border-border pt-3 text-[11px] text-muted-foreground">
           <span className="flex items-center gap-1.5"><img src="/logo.png" alt="" className="size-4" /> FTC Control Scout · prediction lab</span>
           <span>{seasonLabel(x.season)} · engine v{x.engineVersion}</span>
         </div>
       </div>
       <div className="grid gap-4 md:grid-cols-2">
-        <div className="rounded-2xl border border-border bg-card p-5">
+        <div className="rounded-2xl border border-border bg-card p-5 max-sm:p-4">
           <h3 className="mb-3 text-base font-semibold">Why — the top 3 factors</h3>
           <FactorList factors={x.factors} />
           <p className="mt-3 text-xs text-muted-foreground">Factors are an exact split of the predicted margin by game phase. <Link to="/methodology#factors" className="underline">More</Link></p>
         </div>
-        <div className="rounded-2xl border border-border bg-card p-5">
+        <div className="rounded-2xl border border-border bg-card p-5 max-sm:p-4">
           <h3 className="mb-3 text-base font-semibold">The robots</h3>
           <table className="w-full text-sm">
             <thead><tr className="text-left text-[10px] font-bold uppercase tracking-wider text-muted-foreground"><th className="pb-2">Team</th><th className="pb-2 text-right">Adds</th><th className="pb-2 text-right">Auto</th><th className="pb-2 text-right">Tele</th><th className="pb-2 text-right">End</th><th className="pb-2 text-right">Matches</th></tr></thead>
@@ -618,8 +618,8 @@ function AdvancementLab() {
   }, [events.data, teamEvents.data, q]);
   const myCodes = new Set((teamEvents.data?.events ?? []).map((e) => e.code));
   return (
-    <div className="space-y-6">
-      <div className="rounded-2xl border border-border bg-card p-5 sm:p-6">
+    <div className="space-y-6 max-sm:space-y-4">
+      <div className="rounded-2xl border border-border bg-card p-4 sm:p-6">
         <div className="mb-4 flex flex-wrap items-center gap-3"><SeasonToggle predictOnly value={season} onChange={(s) => { set("season", String(s)); set("code", null); }} /></div>
         <div className="grid gap-4 md:grid-cols-[12rem_minmax(0,1fr)]">
           <div className="min-w-0">

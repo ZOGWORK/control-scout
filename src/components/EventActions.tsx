@@ -25,7 +25,7 @@ export function LivestreamButton({ url, className }: { url: string | null | unde
  */
 export function HeaderActions({ liveMode, livestream, track, children }: { liveMode: boolean; livestream: string | null | undefined; track: TrackControl; children?: ReactNode }) {
   return (
-    <div className="mt-5 flex flex-wrap gap-2 empty:hidden" data-header-actions>
+    <div className="mt-5 max-sm:mt-4 flex flex-wrap gap-2 empty:hidden" data-header-actions>
       {!liveMode && <LivestreamButton url={livestream} />}
       {!liveMode && <TrackEventButton track={track} label={{ on: "Tracking this event", off: "Track event" }} />}
       {children}

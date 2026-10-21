@@ -140,7 +140,7 @@ function Event({ d, path }: { d: EventDetail; path: string }) {
           <div className="relative">{live}</div>
           <div id="event-details" hidden={!detailsOpen} className="relative mt-4 border-t border-border pt-4">
             {detailsOpen && (
-              <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(0,28rem)] lg:gap-10">
+              <div className="grid gap-6 max-sm:gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,28rem)] lg:gap-10">
                 <div className="min-w-0">{facts(false)}</div>
                 {glance}
               </div>
@@ -149,9 +149,9 @@ function Event({ d, path }: { d: EventDetail; path: string }) {
           <div ref={setHeaderEnd} aria-hidden />
         </Reveal>
       ) : (
-        <Reveal fade={false} className="relative mb-6 overflow-hidden rounded-2xl border border-border bg-card p-6 sm:p-8" data-event-header="full">
+        <Reveal fade={false} className="relative mb-6 max-sm:mb-4 overflow-hidden rounded-2xl border border-border bg-card p-4 sm:p-8" data-event-header="full">
           <div aria-hidden className="pointer-events-none absolute -right-20 -top-24 size-72 rounded-full bg-accent opacity-15 blur-3xl" />
-          <div className="relative grid gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(0,28rem)] lg:gap-10">
+          <div className="relative grid gap-6 max-sm:gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,28rem)] lg:gap-10">
           <div className="min-w-0">
             <div className="flex flex-wrap items-center gap-2">
               {statusBadge}
@@ -189,12 +189,12 @@ function Event({ d, path }: { d: EventDetail; path: string }) {
           <TabsTrigger value="awards">Awards</TabsTrigger>
           {predictable && <TabsTrigger value="odds">Odds</TabsTrigger>}
         </TabsList>
-        <TabsContent value="matches" className="mt-5">
+        <TabsContent value="matches" className="mt-5 max-sm:mt-4">
           <Matches d={d} team={teamParam} />
           {/* Official results first posted, corrected or rescheduled (self-contained: its own route). */}
           <ResultChanges season={e.season} code={e.code} refreshKey={recordsKey} />
         </TabsContent>
-        <TabsContent value="rankings" className="mt-5">
+        <TabsContent value="rankings" className="mt-5 max-sm:mt-4">
           {tab === "rankings" && (
             <>
               {/* While the event is on, the ranking comes from the event itself (refreshed every minute or so);
@@ -208,7 +208,7 @@ function Event({ d, path }: { d: EventDetail; path: string }) {
             </>
           )}
         </TabsContent>
-        <TabsContent value="insights" className="mt-5">
+        <TabsContent value="insights" className="mt-5 max-sm:mt-4">
           {tab === "insights" && e.status === "live" && <StatsAsOf />}
           {tab === "insights" && (
             <RecordsTable scope="teamEvent" season={e.season} code={e.code} predictable={predictable} refreshKey={recordsKey} defaultSort="totalPointsNpOpr" storageKey="event-insights" noun="teams"
@@ -217,19 +217,19 @@ function Event({ d, path }: { d: EventDetail; path: string }) {
               offlineFallback={<Rankings field={d.field} season={e.season} team={teamParam} code={e.code} note={NOTE_OFFLINE} />} />
           )}
         </TabsContent>
-        <TabsContent value="teams" className="mt-5"><TeamsGrid field={d.field} season={e.season} team={teamParam} predictable={predictable} /></TabsContent>
-        <TabsContent value="playoffs" className="mt-5"><Playoffs d={d} /></TabsContent>
-        <TabsContent value="awards" className="mt-5"><Awards d={d} nameOf={nameOf} /></TabsContent>
-        {predictable && <TabsContent value="odds" className="mt-5">
+        <TabsContent value="teams" className="mt-5 max-sm:mt-4"><TeamsGrid field={d.field} season={e.season} team={teamParam} predictable={predictable} /></TabsContent>
+        <TabsContent value="playoffs" className="mt-5 max-sm:mt-4"><Playoffs d={d} /></TabsContent>
+        <TabsContent value="awards" className="mt-5 max-sm:mt-4"><Awards d={d} nameOf={nameOf} /></TabsContent>
+        {predictable && <TabsContent value="odds" className="mt-5 max-sm:mt-4">
           {/* Every event with a schedule gets match predictions; advancement odds only where teams advance. */}
           <TeamPicker field={d.field} value={teamParam} onChange={setTeam} />
           {d.forecastUnsupported ? (
-            <p className="mb-6 flex items-start gap-2 rounded-xl border border-border bg-card px-4 py-3 text-sm text-muted-foreground">
+            <p className="mb-6 max-sm:mb-4 flex items-start gap-2 rounded-xl border border-border bg-card px-4 py-3 text-sm text-muted-foreground">
               <Trophy className="mt-0.5 size-4 shrink-0" />
               <span>{d.forecastUnsupported} Every scheduled match below still gets win odds and a predicted score.</span>
             </p>
           ) : (
-            <section aria-label="Advancement odds" className="mb-10">
+            <section aria-label="Advancement odds" className="mb-10 max-sm:mb-6">
               <h2 className="mb-3 font-display text-lg font-semibold text-foreground">Advancement odds</h2>
               <AdvancementView season={e.season} code={e.code} team={teamParam} nameOf={nameOf} onPickTeam={setTeam} />
             </section>
@@ -357,7 +357,7 @@ function TeamPicker({ field, value, onChange }: { field: FieldRow[]; value: numb
   const [q, setQ] = useState("");
   const options = field.filter((f) => !q || String(f.team).includes(q) || (f.name ?? "").toLowerCase().includes(q.toLowerCase())).slice(0, 8);
   return (
-    <div className="mb-5 flex flex-wrap items-center gap-2">
+    <div className="mb-5 max-sm:mb-4 flex flex-wrap items-center gap-2">
       <span className="text-sm text-muted-foreground">Odds for team</span>
       <Input value={q} onChange={(e) => setQ(e.target.value)} placeholder={value ? String(value) : "type a number or name"} className="h-9 w-48" aria-label="Pick a team at this event" />
       {q && options.map((f) => <Button key={f.team} size="sm" variant="secondary" onClick={() => { onChange(f.team); setQ(""); }}>{f.team} {f.name && <span className="max-w-32 truncate text-muted-foreground">{f.name}</span>}</Button>)}
@@ -417,7 +417,7 @@ const INSIGHT_COLS = ["totalPointsNpOpr", "autoPointsOpr", "dcPointsOpr", "endga
  */
 function LiveStandings({ field, season, team, code }: { field: FieldRow[]; season: number; team: number | null; code: string }) {
   return (
-    <section aria-label="Live standings" className="mb-8 rounded-xl border border-red-500/30 bg-red-500/[0.04] p-3 sm:p-4">
+    <section aria-label="Live standings" className="mb-8 max-sm:mb-5 rounded-xl border border-red-500/30 bg-red-500/[0.04] p-3 sm:p-4">
       <h2 className="mb-3 flex flex-wrap items-center gap-2 text-sm font-semibold">
         <Radio className="size-4 text-red-500" /> Live standings
         <span className="font-normal text-muted-foreground">· the official ranking, updated as matches are scored</span>
@@ -519,7 +519,7 @@ function Playoffs({ d }: { d: EventDetail }) {
   for (const m of playoff) bySeries.set(m.series, [...(bySeries.get(m.series) ?? []), m]);
   const allianceOf = (teams: number[]) => al.find((a) => [a.captain, a.pick1, a.pick2, a.backup].some((t) => t && teams.includes(t)))?.number;
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 max-sm:space-y-4">
       {/* The tab's heading for screen readers (named like the tab): the bracket's h3 and the match list's sit under it.
           Absolutely placed, so the stack's spacing doesn't change. */}
       <h2 className="sr-only">Playoffs</h2>
@@ -566,7 +566,7 @@ function Playoffs({ d }: { d: EventDetail }) {
 function Awards({ d, nameOf }: { d: EventDetail; nameOf: (t: number) => string }) {
   const s = d.event.season;
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 max-sm:space-y-4">
       {/* The tab's heading for screen readers: Advancement (h3) sits under it. */}
       <h2 className="sr-only">Awards</h2>
       {!d.awards.length ?<EmptyState icon={Award} title="No awards published yet" description="Awards appear after the closing ceremony." /> : (

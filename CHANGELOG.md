@@ -9,7 +9,7 @@ teams, scout, offline, speed, live, report, alerts, rankings, share, workspace,
 picklist, history, fixes). What's new shows them first; the groups below are
 the full release notes, one click away.
 
-## 1.8.0 — 2026-10-20
+## 1.9.0 — 2026-10-21
 
 A pit display for the TV in your pit.
 
@@ -20,6 +20,26 @@ A pit display for the TV in your pit.
 
 ### Events
 - **Pit display.** A "Pit display" button on every event page opens a fullscreen screen for a pit TV or laptop: the event and the venue's clock, the match up now (or the last result, with whether the call was right), the next three matches with their win odds, a countdown to the next one (left out when the event runs behind, rather than showing a wrong time), the top 8 and a QR code to the event page. It updates by itself, shows "Reconnecting…" if the connection drops, keeps the screen awake where the browser allows it, and fits 1920×1080 and 1366×768 with no scrolling. Signed in, your tracked teams show in gold and your next match is pinned. (#218)
+
+## 1.8.0 — 2026-10-20
+
+Phones fit more on screen, get a menu button at the top left, and a bottom bar you pick yourself.
+
+### Highlights
+- [home] Phones: the menu sits top left, with the logo in the middle
+- [scout] Scout takes the bottom-right tab on phones, where More was
+- [home] Pick your phone's bottom tabs in Settings › Appearance
+- [rankings] Phones fit more on screen, with a text size you can change
+- [fixes] iPhones no longer zoom in when you tap into a text box
+
+### Phones
+- **A menu button, top left.** The sidebar-style button at the left of the top bar opens the menu with every page (what the More tab used to open). Search sits beside it as an icon, the logo is centred, and the theme switch, notifications and your account stay on the right; it all fits a 320 px screen. Desktop is unchanged. (#220)
+- **Scout in the tab bar.** The bottom bar is Home, Events, Predict, My team and Scout by default.
+- **Your own tab bar.** Settings › Appearance › Phone tab bar: turn pages on or off (2 to 5), move them left or right, see a preview, or reset to the default. The choice is kept on this device; every page is always in the menu too.
+- **More on screen.** Phones draw everything a step smaller (14 px text instead of 16), with tighter padding, gaps and buttons, so there's less scrolling and nothing is hidden or reworded. Desktop looks the same.
+- **Text size.** Settings › Appearance › Text size: Smaller, Default, Larger or Largest. Text, boxes and buttons scale together, and the choice is kept on this device, so a phone and a laptop can differ.
+- **Tables on phones.** Records tables (an event's Rankings and Insights, the Records page) show the team number only in a narrow first column, and a tap on it shows the team's name with a link to its page. Tighter cells fit about four stat columns on a 390 px phone instead of less than one.
+- **No more zooming in on a field.** Text boxes use 16 px text on touch screens, so iPhones stop zooming the page in (and leaving it zoomed) when the keyboard opens. Pinch-zoom still works.
 
 ## 1.7.0 — 2026-10-18
 
