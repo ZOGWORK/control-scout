@@ -12,7 +12,7 @@ const NOW = Date.parse("2026-10-24T15:00:00Z");
 /** These tests are about the per-match posts: the event's schedule post (bot/eventAlerts.ts) counts as already sent. */
 async function clearPosts() {
   await run("DELETE FROM discord_posts");
-  await run("INSERT INTO discord_posts (channel_id, season, code, match_key, kind, claimed_at, sent_at) VALUES ('c1', ?, 'USTXAUQ', 'schedule', 'schedule', ?, ?)", [S, iso(NOW), iso(NOW)]);
+  for (const team of [18360, 4215]) await run("INSERT INTO discord_posts (channel_id, season, code, match_key, kind, claimed_at, sent_at) VALUES ('c1', ?, 'USTXAUQ', ?, 'schedule', ?, ?)", [S, `schedule:${team}`, iso(NOW), iso(NOW)]);
 }
 const iso = (ms: number) => new Date(ms).toISOString();
 
