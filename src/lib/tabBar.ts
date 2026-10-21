@@ -64,8 +64,12 @@ export function moveTab(tabs: TabId[], id: TabId, by: -1 | 1): TabId[] {
 
 const CHANGED = "cs-tab-bar-changed";
 let cached: { raw: string | null; tabs: TabId[] } | null = null;
+// A choice storage wouldn't take (blocked in a private window, or full) holds for this visit, ahead of whatever
+// storage has. A change from another tab replaces it.
+let visitOnly: TabId[] | null = null;
 
 function read(): TabId[] {
+  if (visitOnly) return visitOnly;
   let raw: string | null = null;
   try { raw = localStorage.getItem(TAB_KEY); } catch { /* storage blocked */ }
   if (cached && cached.raw === raw) return cached.tabs;
@@ -80,12 +84,13 @@ export function saveTabs(tabs: TabId[]): void {
   try {
     if (v.join() === DEFAULT_TABS.join()) localStorage.removeItem(TAB_KEY);
     else localStorage.setItem(TAB_KEY, JSON.stringify(v));
-  } catch { /* storage blocked: this visit only */ cached = { raw: null, tabs: v }; }
+    visitOnly = null;
+  } catch { /* storage blocked or full: this visit only */ visitOnly = v; }
   window.dispatchEvent(new Event(CHANGED));
 }
 
 function subscribe(fn: () => void): () => void {
-  const onStorage = (e: StorageEvent) => { if (e.key === TAB_KEY || e.key === null) fn(); };
+  const onStorage = (e: StorageEvent) => { if (e.key === TAB_KEY || e.key === null) { visitOnly = null; fn(); } };
   window.addEventListener(CHANGED, fn);
   window.addEventListener("storage", onStorage);
   return () => { window.removeEventListener(CHANGED, fn); window.removeEventListener("storage", onStorage); };
