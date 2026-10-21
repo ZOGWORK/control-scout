@@ -183,39 +183,7 @@ export class PartnershipBook implements PairLookup {
   /** Fold one played match in (call in time order). Scrimmages should not be passed. */
   observe(m: MatchRecord): void {
     if (this.season !== m.season) this.startSeason(m.season);
-    const s = m.season;
-    // Expectations at the match's time (rating growth since each robot's last match), exactly as update() reads them.
-    this.book.setTime(m.time);
-    const red = this.book.allianceExpectation(m.red.teams), blue = this.book.allianceExpectation(m.blue.teams);
-    const zr = allianceResidual(red, m.red.np).z, zb = allianceResidual(blue, m.blue.np).z;
-    const clip = (z: number) => Math.max(-4, Math.min(4, z));
-    const cr = clip(zr), cb = clip(zb);
-    const res = m.red.total > m.blue.total ? 1 : m.red.total < m.blue.total ? -1 : 0;
-    for (const [side, z, total, won] of [[m.red, cr, m.red.total, res], [m.blue, cb, m.blue.total, -res]] as const) {
-      const ts = side.teams;
-      for (let i = 0; i < ts.length; i++) for (let j = i + 1; j < ts.length; j++) {
-        const k = key(ts[i], ts[j]);
-        let t = this.tog.get(k);
-        if (!t) { t = { n: 0, wins: 0, losses: 0, ties: 0, w: 0, z: 0, season: s, best: -Infinity, bestSeason: s, bestEvent: m.eventCode }; this.tog.set(k, t); }
-        decay(t, s, this.params.seasonDecay);
-        t.n++; t.w += 1; t.z += z;
-        if (won > 0) t.wins++; else if (won < 0) t.losses++; else t.ties++;
-        // Best score of the latest season they played together: scores of different games don't compare.
-        if (s > t.bestSeason || total > t.best) { t.best = total; t.bestSeason = s; t.bestEvent = m.eventCode; }
-      }
-    }
-    // Head to head: the margin residual (red − blue) / √2, from the lower number's side.
-    const zm = clip((zr - zb) / Math.SQRT2);
-    for (const r of m.red.teams) for (const b of m.blue.teams) {
-      if (r === b) continue;
-      const k = key(r, b), sign = r < b ? 1 : -1;
-      let a = this.ag.get(k);
-      if (!a) { a = { n: 0, wins: 0, losses: 0, ties: 0, w: 0, z: 0, season: s }; this.ag.set(k, a); }
-      decay(a, s, this.params.seasonDecay);
-      a.n++; a.w += 1; a.z += sign * zm;
-      const lowWon = res * sign;
-      if (lowWon > 0) a.wins++; else if (lowWon < 0) a.losses++; else a.ties++;
-    }
+    foldMatch(m, this.book, this.params.seasonDecay, this.tog, this.ag);
     this.book.update(m);
   }
 
@@ -276,6 +244,77 @@ export class PartnershipBook implements PairLookup {
     }
     return { version: 1, season: this.season, together, against, events };
   }
+}
+
+/**
+ * Fold one played match into pair stats. Each alliance's residual is measured against `book`
+ * as it stands before the match (the caller updates the book afterwards). A pair missing from
+ * the maps starts from `seed` (an overlay's base table), else from nothing.
+ */
+function foldMatch(m: MatchRecord, book: RatingBook, d: number, tog: Map<number, TogetherStat>, ag: Map<number, AgainstStat>,
+  seed?: { together(k: number): TogetherStat | undefined; against(k: number): AgainstStat | undefined }): void {
+  const s = m.season;
+  // Expectations at the match's time (rating growth since each robot's last match), exactly as update() reads them.
+  book.setTime(m.time);
+  const red = book.allianceExpectation(m.red.teams), blue = book.allianceExpectation(m.blue.teams);
+  const zr = allianceResidual(red, m.red.np).z, zb = allianceResidual(blue, m.blue.np).z;
+  const clip = (z: number) => Math.max(-4, Math.min(4, z));
+  const res = m.red.total > m.blue.total ? 1 : m.red.total < m.blue.total ? -1 : 0;
+  for (const [side, z, total, won] of [[m.red, clip(zr), m.red.total, res], [m.blue, clip(zb), m.blue.total, -res]] as const) {
+    const ts = side.teams;
+    for (let i = 0; i < ts.length; i++) for (let j = i + 1; j < ts.length; j++) {
+      const k = key(ts[i], ts[j]);
+      let t = tog.get(k);
+      if (!t) {
+        const from = seed?.together(k);
+        t = from ? { ...from } : { n: 0, wins: 0, losses: 0, ties: 0, w: 0, z: 0, season: s, best: -Infinity, bestSeason: s, bestEvent: m.eventCode };
+        tog.set(k, t);
+      }
+      decay(t, s, d);
+      t.n++; t.w += 1; t.z += z;
+      if (won > 0) t.wins++; else if (won < 0) t.losses++; else t.ties++;
+      // Best score of the latest season they played together: scores of different games don't compare.
+      if (s > t.bestSeason || total > t.best) { t.best = total; t.bestSeason = s; t.bestEvent = m.eventCode; }
+    }
+  }
+  // Head to head: the margin residual (red − blue) / √2, from the lower number's side.
+  const zm = clip((zr - zb) / Math.SQRT2);
+  for (const r of m.red.teams) for (const b of m.blue.teams) {
+    if (r === b) continue;
+    const k = key(r, b), sign = r < b ? 1 : -1;
+    let a = ag.get(k);
+    if (!a) {
+      const from = seed?.against(k);
+      a = from ? { ...from } : { n: 0, wins: 0, losses: 0, ties: 0, w: 0, z: 0, season: s };
+      ag.set(k, a);
+    }
+    decay(a, s, d);
+    a.n++; a.w += 1; a.z += sign * zm;
+    const lowWon = res * sign;
+    if (lowWon > 0) a.wins++; else if (lowWon < 0) a.losses++; else a.ties++;
+  }
+}
+
+/**
+ * A pair table plus results it hasn't learned yet (an event's fresh results, folded in on the
+ * fly the way the forecaster folds them into its ratings), so a fact shows a rematch's record
+ * as of now. The base is never changed.
+ */
+export class PartnershipOverlay implements PairLookup {
+  private tog = new Map<number, TogetherStat>();
+  private ag = new Map<number, AgainstStat>();
+  private readonly seed: { together(k: number): TogetherStat | undefined; against(k: number): AgainstStat | undefined };
+
+  constructor(private base: PairLookup, private decayRate = PARTNERSHIP_PARAMS.seasonDecay) {
+    const pair = (k: number): [number, number] => [Math.floor(k / 1e6), k % 1e6];
+    this.seed = { together: (k) => base.together(...pair(k)), against: (k) => base.against(...pair(k)) };
+  }
+
+  /** Fold in a played match; `book` must not have learned it yet (update it afterwards). */
+  observe(m: MatchRecord, book: RatingBook): void { foldMatch(m, book, this.decayRate, this.tog, this.ag, this.seed); }
+  together(a: number, b: number): TogetherStat | undefined { return this.tog.get(key(a, b)) ?? this.base.together(a, b); }
+  against(a: number, b: number): AgainstStat | undefined { return this.ag.get(key(a, b)) ?? this.base.against(a, b); }
+  eventName(season: number, code: string): string | null { return this.base.eventName(season, code); }
 }
 
 /** Bring a stat's decayed sums forward to `season`. */

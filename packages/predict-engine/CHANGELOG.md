@@ -23,7 +23,9 @@
   `predictMatch(..., { partnership })` applies `partnershipShift`, which is 0 under
   `PARTNERSHIP_PARAMS` (β = 0).
 - `Forecaster.partnerships(season)` is a hook apps override. When it returns a table,
-  `ForecastMatch.history` carries the fact for unplayed matches.
+  `ForecastMatch.history` carries the fact for unplayed matches. The event's fresh results (the
+  ones the forecaster folds into its ratings) are folded in too, through `PartnershipOverlay`, so a
+  rematch shows its record as of now.
 
 **Evidence (walk-forward, Control Scout `scripts/partnership-fit.ts`, report in
 `docs/partnership-memory.md`).** Pairs from 2019–20 on; predictions from 2023–24. β was
