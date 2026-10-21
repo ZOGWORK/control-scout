@@ -4,7 +4,7 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { db, kvSet, migrate, openDb, run, setDb } from "../db";
 import { PREDICT_SEASONS } from "../data/seasons";
-import { block, isoWeek, replayCoverage, resetTrackRecord, trackRecord, warmTrackRecord } from "./accuracy";
+import { block, isoWeek, rangeCoverage, replayCoverage, resetTrackRecord, statedRanges, trackRecord, warmTrackRecord } from "./accuracy";
 import { LIVE_THRESHOLD, REPLAY_HEADLINE_MIN, brierSkill, ledgerSplit } from "../../src/shared/ledger";
 
 const S = Math.max(...PREDICT_SEASONS);
@@ -198,5 +198,28 @@ describe("ledger numbers agree with each other", () => {
   it("the headline waits for a real sample of each kind", () => {
     expect(LIVE_THRESHOLD).toBe(300);
     expect(REPLAY_HEADLINE_MIN).toBe(1000);
+  });
+});
+
+describe("score ranges are scored like the win calls", () => {
+  const row = (tier: "provisional" | "moderate" | "confident", red: [number, number], blue: [number, number], redScore: number, blueScore: number) =>
+    ({ p: 0.6, y: 1, tier, level: "qual", time: null, ranges: { level: 0.8, red, blue, redScore, blueScore } });
+
+  it("counts every alliance score inside, below or above its stated range, overall and by tier", () => {
+    const b = block([
+      row("confident", [80, 120], [60, 100], 100, 101), // red inside, blue above
+      row("provisional", [50, 150], [40, 140], 49, 90), // red below, blue inside
+      { p: 0.4, y: 0, tier: "moderate", level: "qual", time: null }, // a pre-2.2 call: no stated range
+    ])!;
+    expect(b.ranges).toMatchObject({ level: 0.8, n: 4, inside: 2, coverage: 0.5, below: 0.25, above: 0.25, width: (40 + 40 + 100 + 100) / 4 });
+    expect(b.ranges!.byTier.confident).toEqual({ n: 2, coverage: 0.5 });
+    expect(b.ranges!.byTier.moderate).toEqual({ n: 0, coverage: 0 });
+  });
+
+  it("is null when no call stated a range (never invented for old calls)", () => {
+    expect(rangeCoverage([{ p: 0.6, y: 1, tier: "confident", level: "qual", time: null }])).toBeNull();
+    expect(statedRanges({ red_lo: null, red_hi: 1, blue_lo: 1, blue_hi: 2, red_score: 1, blue_score: 1 })).toBeNull();
+    expect(statedRanges({ red_lo: 1, red_hi: 9, blue_lo: 2, blue_hi: 8, range_level: 0.8, red_score: 5, blue_score: 3 }))
+      .toEqual({ level: 0.8, red: [1, 9], blue: [2, 8], redScore: 5, blueScore: 3 });
   });
 });
