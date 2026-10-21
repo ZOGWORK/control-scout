@@ -9,7 +9,7 @@ teams, scout, offline, speed, live, report, alerts, rankings, share, workspace,
 picklist, history, fixes). What's new shows them first; the groups below are
 the full release notes, one click away.
 
-## 1.15.0 — 2026-10-21
+## 1.16.0 — 2026-10-21
 
 Live projections: every live or upcoming event simulated 10,000 times, again after each new result.
 
@@ -24,6 +24,18 @@ Live projections: every live or upcoming event simulated 10,000 times, again aft
 - **Simulated in the background, never on a visit.** A server job re-runs an event a few seconds after new results land (a burst of results is one run), stores the result, and tells open pages over a live connection; pages only read what's stored. The same results always give the same numbers. A very large event that would take over 10 seconds runs 5,000 simulations instead, and says so.
 - **One advancement number.** The projection's odds are now the advancement odds everywhere they show: the event's rankings table and the records tables, the advancement simulator's team list and headline (with its award-inclusive figure alongside), the shortlist, and saved offline packs. Events never projected keep the forecast made the day before they started. (#229)
 - **Checked on real events.** Replaying 40 finished 2025–26 events from their midpoint, about 86% of teams finished inside their projected 80% range (How it works → Live projections).
+
+## 1.15.0 — 2026-10-21
+
+How predictable each team has been, from the engine's own live calls.
+
+### Highlights
+- [teams] A prediction report card on team pages: how often calls were right
+- [teams] How far its alliances landed from the predicted score
+- [teams] Live calls only, with sample size, raw numbers and a warning
+
+### Teams
+- **Prediction report card.** Team pages show how the engine's pre-match calls on that team's matches turned out this season: the share called right, points vs prediction per robot (the alliance's miss split evenly between its robots) and the swing of those misses, with the field average beside each. Finished events get a row each, with how many calls had a predicted score and the raw numbers. Only calls logged before each match count, never the replayed history. Few calls say little, so every number is pulled toward the field average as if the team had 10 more calls, and the card says so. How it works explains the rules. (#232)
 
 ## 1.14.0 — 2026-10-21
 
