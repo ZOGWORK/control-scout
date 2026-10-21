@@ -19,7 +19,7 @@ Report cards stay up to date for every season, not just the current one.
 - [speed] Unchanged seasons are skipped: a quick check, not a rebuild
 
 ### Predictions
-- **Report cards for every season.** A season's predictability report cards are rebuilt whenever its scored live calls change, after every stats run and every live result, whichever season the call belongs to. Before, only the current season was rebuilt between full recomputes, so a past season could show cards that missed its last scored calls. Seasons whose calls haven't changed are skipped after one quick look at the ledger, and a season with an event still open is rebuilt once a day so the event turns final on time. Live calls only, as always.
+- **Report cards for every season.** A season's predictability report cards are rebuilt whenever its scored live calls change, after every stats run and every live result, whichever season the call belongs to. Before, only the current season was rebuilt between full recomputes, so a past season could show cards that missed its last scored calls. Seasons whose calls haven't changed are skipped after one quick look at the ledger, and a season with an event still open is rebuilt once a day so the event turns final on time. Live calls only, as always. (#235)
 
 ## 1.19.0 — 2026-10-21
 
