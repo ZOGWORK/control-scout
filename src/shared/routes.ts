@@ -7,7 +7,7 @@
 /** A lazily loaded page module under src/pages (the file name without .tsx). */
 export type PageModule =
   | "TeamPage" | "EventsPage" | "RecordsPage" | "RankingsPage" | "EventPage" | "PredictPage" | "ComparePage" | "MyTeamPage" | "MyTeamsPage"
-  | "ShortlistPage" | "ScoutPage" | "DownloadPage" | "SettingsPage" | "MethodologyPage" | "PrivacyPage" | "TermsPage" | "ContactPage" | "FaqPage" | "MatchReportPage" | "PowerRankingsPage" | "NotFound";
+  | "ShortlistPage" | "ScoutPage" | "DownloadPage" | "SettingsPage" | "MethodologyPage" | "PrivacyPage" | "TermsPage" | "ContactPage" | "FaqPage" | "MatchReportPage" | "PowerRankingsPage" | "EventDisplayPage" | "NotFound";
 
 // React Router matches case-insensitively, a trailing slash included: so do these.
 const ROUTES: [RegExp, PageModule | null][] = [
@@ -18,6 +18,7 @@ const ROUTES: [RegExp, PageModule | null][] = [
   [/^\/events\/?$/i, "EventsPage"],
   [/^\/events\/[^/]+\/[^/]+\/?$/i, "EventPage"],
   [/^\/events\/[^/]+\/[^/]+\/match\/[^/]+\/?$/i, "MatchReportPage"],
+  [/^\/events\/[^/]+\/[^/]+\/display\/?$/i, "EventDisplayPage"],
   [/^\/predict\/?$/i, "PredictPage"],
   [/^\/predict\/accuracy\/?$/i, null], // a redirect to /methodology
   [/^\/compare\/?$/i, "ComparePage"],
@@ -44,6 +45,7 @@ export function pageModule(path: string): PageModule | null {
 // Whole routes, so an unknown path under a real one (/teams/4215/extra) reads "Not found".
 const TITLES: [RegExp, string][] = [
   [/^\/events\/[^/]+\/[^/]+\/match\/[^/]+$/, "Match report"],
+  [/^\/events\/[^/]+\/[^/]+\/display$/, "Pit display"],
   [/^\/teams\/[^/]+$/, "Team"], [/^\/teams$/, "Teams"], [/^\/rankings$/, "Rankings"], [/^\/matches$/, "Match records"], [/^\/events\/[^/]+\/[^/]+$/, "Event"], [/^\/events$/, "Events"], [/^\/predict\/how-it-works$/, "How it works"], [/^\/predict(\/accuracy)?$/, "Predict"],
   [/^\/compare$/, "Compare"], [/^\/my-team$/, "My team"], [/^\/my-teams$/, "My teams"], [/^\/shortlist$/, "Shortlist"], [/^\/scout$/, "Scout"], [/^\/download$/, "Download"],
   [/^\/settings$/, "Settings"], [/^\/methodology$/, "How it works"], [/^\/privacy$/, "Privacy"], [/^\/terms$/, "Terms"], [/^\/contact$/, "Contact"], [/^\/faq$/, "FAQ"],
@@ -56,3 +58,7 @@ export const pageTitle = (path: string) => {
   const p = path.toLowerCase().replace(/(.)\/+$/, "$1");
   return TITLES.find(([re]) => re.test(p))?.[1] ?? (p === "/" ? "Home" : "Not found");
 };
+
+/** Pages drawn without the site's chrome (no sidebar, top bar, footer or prompts): the pit display, a
+ *  fullscreen screen for a pit TV. Matched as React Router does (any case, a trailing slash allowed). */
+export const isBareRoute = (path: string) => /^\/events\/[^/]+\/[^/]+\/display\/?$/i.test(path);
