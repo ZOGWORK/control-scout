@@ -3,7 +3,7 @@ import { RatingBook } from "../rating";
 import { explainMatch } from "../explain";
 import { predictMatch } from "../matchModel";
 import { FITTED_MODEL } from "../model";
-import { PARTNERSHIP_PARAMS, PartnershipBook, PartnershipTable, partnershipFact, partnershipFeatures, partnershipShift, shrunkEffect } from "../partnership";
+import { PARTNERSHIP_PARAMS, PartnershipBook, PartnershipOverlay, PartnershipTable, partnershipFact, partnershipFeatures, partnershipShift, shrunkEffect } from "../partnership";
 import type { MatchRecord } from "../types";
 
 const al = (teams: number[], np: number) => ({ teams, auto: Math.round(np / 4), teleop: np - Math.round(np / 4) - 10, endgame: 10, np, penCommitted: 0, total: np });
@@ -118,6 +118,20 @@ describe("partnership memory", () => {
     for (let i = 0; i < 3; i++) b.observe(match(2025, "NEW", [[3, 4], 100], [[94, 95], 100]));
     expect(b.together(1, 2)!.n).toBe(5);
     expect(partnershipFact(b, [1, 2], [3, 4], 2025)!.teams).toEqual([3, 4]);
+  });
+
+  it("an overlay folds in fresh results without touching its base", () => {
+    const base = new PartnershipTable(history().toData());
+    const o = new PartnershipOverlay(base);
+    const book = new RatingBook(FITTED_MODEL.rating);
+    const m = match(2024, "NJCMP", [[3, 4], 150], [[1, 2], 90]); // a rematch: 1 + 2 lose to 3 + 4
+    o.observe(m, book);
+    expect([o.together(1, 2)!.n, o.together(1, 2)!.losses]).toEqual([4, 1]);
+    expect(o.against(1, 3)!.n).toBe(1); // the table leaves out their 2 earlier meetings (under minMeetings)
+    expect(o.together(3, 4)!.n).toBe(1);
+    expect([base.together(1, 2)!.n, base.together(1, 2)!.losses]).toEqual([3, 0]);
+    expect(base.together(3, 4)).toBeUndefined();
+    expect(partnershipFact(o, [1, 2], [30, 31], 2024)!.label).toMatch(/^1 and 2 have played 4 matches together \(3–1\)/);
   });
 
   it("reports head-to-head records from the right side", () => {

@@ -11,7 +11,7 @@ import { bonusCount } from "./rules.js";
 import { rng, simulateEvent, type AwardInput, type BonusModel, type PickModel, type QualMatch, type SimInput, type TeamOutcome } from "./sim.js";
 import { awardFeatures, sampleAwards, type AwardModel, type AwardRecord } from "./awards.js";
 import { ADVANCING_TYPES } from "./scoutData.js";
-import { partnershipFact, type PairLookup, type PartnershipFact } from "./partnership.js";
+import { PartnershipOverlay, partnershipFact, type PairLookup, type PartnershipFact } from "./partnership.js";
 import type { AllianceResult, MatchRecord } from "./types.js";
 import type { AllianceInput, BonusFlags, EventInput, FirstAdvancement, MatchInput } from "./inputs.js";
 
@@ -210,7 +210,7 @@ export abstract class Forecaster {
    * Ratings for an event right now: the season book plus this event's played
    * matches that the last background sync hasn't folded in yet.
    */
-  private eventBook(ev: EventInput, book: RatingBook): RatingBook {
+  private eventBook(ev: EventInput, book: RatingBook, pairs?: PartnershipOverlay | null): RatingBook {
     const have = this.storedPlayedKeys(ev.season, ev.code);
     const fresh: MatchRecord[] = [];
     const base = Date.parse(`${ev.start ?? "1970-01-01"}T00:00:00Z`);
@@ -236,7 +236,8 @@ export abstract class Forecaster {
     }
     if (!fresh.length) return book;
     const b = book.clone();
-    for (const m of fresh.sort((x, y) => x.time - y.time)) b.update(m);
+    // The pair history learns the same fresh results (residuals against the ratings before each one).
+    for (const m of fresh.sort((x, y) => x.time - y.time)) { pairs?.observe(m, b); b.update(m); }
     b.setTime(Date.now());
     return b;
   }
@@ -351,7 +352,9 @@ export abstract class Forecaster {
   forecast(ev: EventInput, myTeam: number | null, runs = 2000): Forecast | null {
     const seasonBook = this.book(ev.season);
     if (!seasonBook || this.unsupportedReason(ev)) return null;
-    const book = this.eventBook(ev, seasonBook);
+    const base = this.partnerships(ev.season);
+    const pairs = base ? new PartnershipOverlay(base) : null;
+    const book = this.eventBook(ev, seasonBook, pairs);
     const stage = this.stageOf(ev);
     const { input, assumptions, adv } = this.simInput(ev, stage, book, runs);
     if (normType(ev.type) === "Championship" && adv.source !== "official") {
@@ -364,7 +367,6 @@ export abstract class Forecaster {
       matchesOnly = { team: myTeam, pAdvance: mo.get(myTeam)?.pAdvance ?? 0 };
     }
     const teams: ForecastTeam[] = [...res.values()].map((o) => this.teamView(o, book, o.team === myTeam));
-    const pairs = this.partnerships(ev.season);
     const matches: ForecastMatch[] = ev.matches.filter((m) => m.red.teams.length && m.blue.teams.length).slice(0, 400).map((m) => {
       const red = m.red.teams.map((t) => t.number), blue = m.blue.teams.map((t) => t.number);
       const p = !m.played && red.length <= 2 && blue.length <= 2 ? this.predict(book, red, blue, { level: m.level, event: ev.code }) : null;
