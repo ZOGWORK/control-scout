@@ -12,6 +12,7 @@ import { liveForecaster } from "../predict/engine.js";
 import { localToUtcMs } from "../data/time.js";
 import { bonusLabels, isLegacy } from "../data/seasons.js";
 import { bonusFromRow, bonusView } from "../../src/shared/bonusOdds.js";
+import { pairHistory } from "../../src/shared/pairHistory.js";
 import { rangesOf } from "../../src/shared/scoreRange.js";
 
 const score = (r: any, p: "red" | "blue") => r[`${p}_np`] == null ? null : {
@@ -68,6 +69,8 @@ export async function matchViews(f: MatchFilter, opts: { predictUnplayed?: boole
         ? { redRange: [Number(x.red_lo), Number(x.red_hi)] as [number, number], blueRange: [Number(x.blue_lo), Number(x.blue_hi)] as [number, number], rangeLevel: Number(x.range_level ?? 0.8) }
         : {}),
       ...(x.factors ? { factors: JSON.parse(x.factors) } : {}),
+      // The partnership line logged with the call (engine 2.4), so a logged call keeps it.
+      ...(x.history ? { history: JSON.parse(x.history) } : {}),
       ...(x.no_score_basis ? { noScoreBasis: true as const } : {}),
       ...((b) => (b ? { bonus: b } : {}))(bonusFromRow(f.season, x)),
     });
@@ -82,7 +85,7 @@ export async function matchViews(f: MatchFilter, opts: { predictUnplayed?: boole
         // moment), and pRed to 4 places (the ratings decay with the clock, moving it ~1e-9 per read).
         if (x) {
           const pRed = stableP(x.winProbA), bonus = bonusView(f.season, x, pRed);
-          prediction = { pRed, redMean: x.predictedScoreA, blueMean: x.predictedScoreB, tier: x.confidence.tier, kind: "now", predictedAt: null, factors: x.factors, ...(noScoreBasis ? { noScoreBasis: true } : rangesOf(x)), ...(bonus ? { bonus } : {}) };
+          prediction = { pRed, redMean: x.predictedScoreA, blueMean: x.predictedScoreB, tier: x.confidence.tier, kind: "now", predictedAt: null, factors: x.factors, ...(x.partnership ? { history: pairHistory(x.partnership) } : {}), ...(noScoreBasis ? { noScoreBasis: true } : rangesOf(x)), ...(bonus ? { bonus } : {}) };
         }
       }
     }

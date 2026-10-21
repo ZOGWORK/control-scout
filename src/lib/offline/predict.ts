@@ -3,6 +3,7 @@
 // couldn't be reached (lib/api.ts): an online visit never loads the engine
 // code here, nor opens the pack.
 import { RatingBook, explainMatch, FITTED_MODEL, type MatchExplanation } from "@control-scout/predict-engine";
+import { partnershipFor } from "./partnerships";
 import { loadLite } from "../packs";
 
 /**
@@ -19,7 +20,7 @@ export async function offlineExplain(season: number, red: number[], blue: number
   // Bonus RPs count in qualification matches only; packs built before engine 2.3 carry no bonus model.
   const bonus = level === "qual" ? p.bonus?.[String(season)] : undefined;
   return {
-    ...explainMatch(book, red, blue, { noise: FITTED_MODEL.noise, calibration: FITTED_MODEL.calibration, contextual: FITTED_MODEL.contextual, context: { level }, band: FITTED_MODEL.band, ...(bonus ? { bonus: { season, model: bonus } } : {}) }),
+    ...explainMatch(book, red, blue, { noise: FITTED_MODEL.noise, calibration: FITTED_MODEL.calibration, contextual: FITTED_MODEL.contextual, context: { level }, band: FITTED_MODEL.band, partnership: partnershipFor(p, season), ...(bonus ? { bonus: { season, model: bonus } } : {}) }),
     asOf: p.builtAt,
   };
 }

@@ -12,7 +12,8 @@
 // The confidence tier says how much of the call rests on real matches rather
 // than priors. Its thresholds are a stated rule, not a fitted value — see
 // CONFIDENCE_RULE — and are checked against the calibration ledger.
-import { predictMatch, type BandParams, type NoiseParams, type ScoreBand } from "./matchModel.js";
+import { predictMatch, type BandParams, type NoiseParams, type PartnershipInput, type ScoreBand } from "./matchModel.js";
+import { PARTNERSHIP_PARAMS, partnershipFact, type PartnershipFact } from "./partnership.js";
 import type { CalibrationParams } from "./calibration.js";
 import type { ContextualModel, MatchContext, ProbabilityModel } from "./contextual.js";
 import type { RatingBook } from "./rating.js";
@@ -79,6 +80,9 @@ export interface MatchExplanation {
   probabilityModelId: string | null;
   /** opts.shadow: the shadow model's P(A wins) on the same inputs, and its id (else null). */
   shadow: { winProbA: number; modelId: string } | null;
+  /** The strongest real history between these robots (played together or against each
+   *  other, any season since 2019–20), when opts.partnership is given and a pair has met. */
+  partnership: PartnershipFact | null;
   teamsA: TeamStrength[];
   teamsB: TeamStrength[];
   /** opts.bonus (a qualification match of a 2025+ season with a bonus model): each alliance's
@@ -103,6 +107,8 @@ export interface ExplainOptions {
   context?: MatchContext;
   /** A second model evaluated on the same inputs, for side-by-side logging. */
   shadow?: ContextualModel;
+  /** Pair history (engine 2.4): adds the partnership fact, and its shift on the odds (none at β = 0). */
+  partnership?: PartnershipInput;
   /** How score ranges are drawn (FITTED_MODEL.band; the default holds the same values). */
   band?: BandParams;
   /** Names used in factor sentences (default "Red" / "Blue"). */
@@ -163,7 +169,7 @@ function carrier(side: TeamStrength[], c: Exclude<Component, "pen">, base: numbe
  */
 export function explainMatch(book: RatingBook, teamsA: number[], teamsB: number[], opts: ExplainOptions = {}): MatchExplanation {
   const nameA = opts.nameA ?? "Red", nameB = opts.nameB ?? "Blue";
-  const p = predictMatch(book, teamsA, teamsB, opts.noise, opts.calibration, { contextual: opts.contextual, context: opts.context, shadow: opts.shadow, band: opts.band });
+  const p = predictMatch(book, teamsA, teamsB, opts.noise, opts.calibration, { contextual: opts.contextual, context: opts.context, shadow: opts.shadow, band: opts.band, partnership: opts.partnership });
   const A = teamsA.map((t) => strength(book, t));
   const B = teamsB.map((t) => strength(book, t));
   const sum = (xs: TeamStrength[], k: keyof TeamStrength) => xs.reduce((s, x) => s + (x[k] as number), 0);
@@ -234,6 +240,9 @@ export function explainMatch(book: RatingBook, teamsA: number[], teamsB: number[
     probabilityModel: p.model ?? "legacy",
     probabilityModelId: p.modelId ?? null,
     shadow: p.pShadow != null ? { winProbA: p.pShadow, modelId: p.shadowModelId! } : null,
+    partnership: opts.partnership
+      ? partnershipFact(opts.partnership.table, teamsA, teamsB, opts.partnership.season, opts.partnership.params ?? PARTNERSHIP_PARAMS, p.partnershipShift ?? 0)
+      : null,
     teamsA: A,
     teamsB: B,
     bonus: opts.bonus ? bonusOdds(opts.bonus.season, opts.bonus.model, p, p.pRedWin, { tier, reason }) : null,

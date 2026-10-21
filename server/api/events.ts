@@ -129,7 +129,7 @@ const latest = (a: string | null, b: string | null) => (!a ? b ?? null : !b ? a 
 /** The engine's view of an event (same fields Control Point passes from FtcEventFull). */
 export function toEventInput(ev: EventSummary, field: FieldRow[], matches: EventDetail["matches"], alliances: any[]): EventInput {
   return {
-    season: ev.season, code: ev.code, type: ev.type, start: ev.start, end: ev.end,
+    season: ev.season, code: ev.code, name: ev.name, type: ev.type, start: ev.start, end: ev.end,
     field: field.map((f) => ({ teamNumber: f.team, rank: f.rank })),
     matches: matches.map((m) => ({
       key: m.key, label: m.label, level: m.level, series: m.series, number: m.number, time: m.time, played: m.played,

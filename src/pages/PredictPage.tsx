@@ -13,6 +13,7 @@ import { defaultSeason } from "../lib/myTeamSeason";
 import { callTally } from "../lib/seasonSoFar";
 import { usePersonal } from "../lib/personal";
 import type { EventDetail, EventSummary, EventListItem, MatchExplanationView, MatchView, TeamProfile } from "../shared/api";
+import { pairHistory } from "../shared/pairHistory";
 import { PageHeader, Section, EmptyState } from "../components/page";
 import { LatestCalls } from "../components/LatestCalls";
 import { Async, ErrorState } from "../components/states";
@@ -20,7 +21,7 @@ import { Button } from "../components/ui/button";
 import { Badge, Input } from "../components/ui/basic";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "../components/ui/tabs";
 import { toast } from "../components/ui/sonner";
-import { CalibrationLine, ConfidenceBadge, FactorList, MatchList, WinBar } from "../components/predict";
+import { CalibrationLine, ConfidenceBadge, FactorList, MatchList, PairHistoryLine, WinBar } from "../components/predict";
 import { TeamInput, lookupTeamName } from "../components/TeamInput";
 import { teamsErrors } from "../lib/teamCheck";
 import { SeasonToggle } from "../components/SeasonToggle";
@@ -499,7 +500,7 @@ function useOfflineFallback(q: { season: number; red: number[]; blue: number[] }
         loading: false, asOf: x.asOf,
         data: {
           season: q.season, red: q.red, blue: q.blue, winProbRed: x.winProbA, winProbBlue: x.winProbB, predictedRed: x.predictedScoreA, predictedBlue: x.predictedScoreB,
-          rangeRed: x.scoreRangeA, rangeBlue: x.scoreRangeB, rangeLevel: x.scoreBandA.level, factors: x.factors, confidence: x.confidence,
+          rangeRed: x.scoreRangeA, rangeBlue: x.scoreRangeB, rangeLevel: x.scoreBandA.level, factors: x.factors, history: x.partnership ? pairHistory(x.partnership) : null, confidence: x.confidence,
           teamsRed: x.teamsA.map((t) => ({ ...t, name: null })), teamsBlue: x.teamsB.map((t) => ({ ...t, name: null })), bonus: bonusView(q.season, x) ?? null, engineVersion: ENGINE_VERSION,
         },
       });
@@ -554,7 +555,8 @@ function MatchResult({ x, offlineAsOf }: { x: MatchExplanationView; offlineAsOf?
         <div className="rounded-2xl border border-border bg-card p-5 max-sm:p-4">
           <h3 className="mb-3 text-base font-semibold">Why — the top 3 factors</h3>
           <FactorList factors={x.factors} />
-          <p className="mt-3 text-xs text-muted-foreground">Factors are an exact split of the predicted margin by game phase. <Link to="/methodology#factors" className="underline">More</Link></p>
+          {x.history ? <PairHistoryLine history={x.history} className="mt-1.5" /> : null}
+          <p className="mt-3 text-xs text-muted-foreground">Factors are an exact split of the predicted margin by game phase{x.history ? "; the last line is these robots' real history together or against each other" : ""}. <Link to="/methodology#factors" className="underline">More</Link></p>
         </div>
         <div className="rounded-2xl border border-border bg-card p-5 max-sm:p-4">
           <h3 className="mb-3 text-base font-semibold">The robots</h3>

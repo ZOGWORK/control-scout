@@ -9,6 +9,7 @@
 // storage only: running the engine on it lives in lib/offline (predict.ts,
 // answer.ts), loaded lazily with no signal.
 import type { BonusModelSource, RatingBookData } from "@control-scout/predict-engine";
+import type { LitePairs } from "../shared/litePairs";
 import { PACK_META_KEY, packStatus, type PackMeta } from "./packPolicy";
 
 export { packStatus, type PackMeta } from "./packPolicy";
@@ -27,6 +28,8 @@ export interface LitePack {
   bonus?: Record<string, BonusModelSource>;
   /** [number, name, city/state/country] */
   teams: [number, string | null, string | null][];
+  /** Pair history for the newest season, cut down for the device (src/shared/litePairs.ts; absent in older packs). */
+  pairs?: LitePairs | null;
 }
 
 const DB = "control-scout-packs";
