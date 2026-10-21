@@ -4,7 +4,7 @@
 // extend Forecaster and supply the data — ratings, stored results,
 // advancement records and award history.
 import { npOf, type RatingBook, type RatingParams } from "./rating.js";
-import { predictMatch, type NoiseParams } from "./matchModel.js";
+import { predictMatch, type BandParams, type NoiseParams, type ScoreBand } from "./matchModel.js";
 import type { CalibrationParams } from "./calibration.js";
 import type { ContextualModel, MatchContext } from "./contextual.js";
 import { bonusCount } from "./rules.js";
@@ -18,6 +18,8 @@ import type { AllianceInput, BonusFlags, EventInput, FirstAdvancement, MatchInpu
 export interface PredictModel {
   version?: number; fittedOn?: string;
   rating: RatingParams; noise: Required<NoiseParams>; pick: PickModel;
+  /** How stated score ranges are drawn (2.2+; absent = DEFAULT_BAND). */
+  band?: BandParams;
   bonus: Record<string, BonusModel>; awards: AwardModel; accuracy?: unknown;
   calibration?: CalibrationParams;
   /** Contextual win-probability model (2.0+); absent = legacy calibrated Gaussian. */
@@ -76,6 +78,9 @@ export interface ForecastMatch {
   pRedWin: number | null;
   redMean: number | null;
   blueMean: number | null;
+  /** Stated score ranges (80%) around redMean / blueMean, engine 2.2+; null when there is no prediction. */
+  redBand?: ScoreBand | null;
+  blueBand?: ScoreBand | null;
   /** Real final scores once played. */
   played: { red: number; blue: number } | null;
   /** Played matches only: red's win odds as recorded *before* the match was
@@ -136,7 +141,7 @@ export abstract class Forecaster {
 
   /** The engine's prediction for a lineup on a given book (score model + win probability). */
   protected predict(book: RatingBook, red: number[], blue: number[], ctx: MatchContext = {}) {
-    return predictMatch(book, red, blue, this.model.noise, this.model.calibration, { context: ctx, contextual: this.model.contextual, shadow: this.model.contextual?.fallback });
+    return predictMatch(book, red, blue, this.model.noise, this.model.calibration, { context: ctx, contextual: this.model.contextual, shadow: this.model.contextual?.fallback, band: this.model.band });
   }
 
   /** A played alliance's recorded bonus RPs: from the payload, else the app's store. */
@@ -352,6 +357,7 @@ export abstract class Forecaster {
       const p = !m.played && red.length <= 2 && blue.length <= 2 ? this.predict(book, red, blue, { level: m.level, event: ev.code }) : null;
       return {
         key: m.key, label: m.label, level: m.level, red, blue, pRedWin: p?.pRedWin ?? null, redMean: p?.red.mean ?? null, blueMean: p?.blue.mean ?? null,
+        redBand: p?.red.band ?? null, blueBand: p?.blue.band ?? null,
         modelId: p ? p.modelId ?? "legacy" : null,
         pShadow: p?.pShadow ?? null, shadowModelId: p?.shadowModelId ?? null,
         played: m.played && m.red.score?.total != null && m.blue.score?.total != null ? { red: m.red.score.total, blue: m.blue.score.total } : null,

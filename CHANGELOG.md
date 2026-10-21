@@ -9,7 +9,7 @@ teams, scout, offline, speed, live, report, alerts, rankings, share, workspace,
 picklist, history, fixes). What's new shows them first; the groups below are
 the full release notes, one click away.
 
-## 1.14.0 — 2026-10-21
+## 1.15.0 — 2026-10-21
 
 Live projections: every live or upcoming event simulated 10,000 times, again after each new result.
 
@@ -24,6 +24,19 @@ Live projections: every live or upcoming event simulated 10,000 times, again aft
 - **Simulated in the background, never on a visit.** A server job re-runs an event a few seconds after new results land (a burst of results is one run), stores the result, and tells open pages over a live connection; pages only read what's stored. The same results always give the same numbers. A very large event that would take over 10 seconds runs 5,000 simulations instead, and says so.
 - **One advancement number.** The projection's odds are now the advancement odds everywhere they show: the event's rankings table and the records tables, the advancement simulator's team list and headline (with its award-inclusive figure alongside), the shortlist, and saved offline packs. Events never projected keep the forecast made the day before they started. (#229)
 - **Checked on real events.** Replaying 40 finished 2025–26 events from their midpoint, about 86% of teams finished inside their projected 80% range (How it works → Live projections).
+
+## 1.14.0 — 2026-10-21
+
+Predicted scores come with a range now, and the range is scored in public.
+
+### Highlights
+- [predict] Every predicted score reads like 118 ±14: an 80% range
+- [predict] Ranges widen for robots with few matches or up-and-down results
+- [history] How it works shows how often real scores land inside the range
+
+### Predictions
+- **Score ranges.** Every predicted score now comes with its 80% range, written 118 ±14 (hover or tap for the range itself and what it means: about 8 in 10 real scores land inside). It's on match rows, match details, match reports, the Predict lab, the live panel, Watch live and the pit display, and offline from your saved pack. A range is wider when a robot has played only a few matches this season or its results swing from match to match, and narrower in playoffs. Prediction engine 2.2.0; win odds are unchanged.
+- **Ranges are on the record.** Every call is logged with the range it stated, and How it works scores them like the win calls: the share of real scores inside the range, which way the misses went, the average width and each confidence tier. Calls made before this release stated no range and none is added afterwards. (#230)
 
 ## 1.13.0 — 2026-10-21
 

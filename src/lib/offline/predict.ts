@@ -16,5 +16,5 @@ export async function offlineExplain(season: number, red: number[], blue: number
   if (!p || !data) return null;
   const book = RatingBook.fromData(data);
   book.setTime(Date.now());
-  return { ...explainMatch(book, red, blue, { noise: FITTED_MODEL.noise, calibration: FITTED_MODEL.calibration, contextual: FITTED_MODEL.contextual, context: { level } }), asOf: p.builtAt };
+  return { ...explainMatch(book, red, blue, { noise: FITTED_MODEL.noise, calibration: FITTED_MODEL.calibration, contextual: FITTED_MODEL.contextual, context: { level }, band: FITTED_MODEL.band }), asOf: p.builtAt };
 }
