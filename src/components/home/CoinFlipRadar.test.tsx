@@ -85,8 +85,11 @@ describe("emptyLine", () => {
 
 describe("times", () => {
   it("reads the venue's wall clock and how long until the start", () => {
-    expect(venueClock("2026-10-17T14:05:00")).toMatch(/2:05/);
-    expect(venueClock(null)).toBeNull();
+    expect(venueClock("2026-10-17T14:05:00", "America/Los_Angeles")).toMatch(/2:05/);
+    // A zoned timestamp is read in the venue's zone: 21:05 UTC is 2:05 PM in Los Angeles (PDT), 8:05 AM in Sydney.
+    expect(venueClock("2026-10-17T21:05:00Z", "America/Los_Angeles")).toMatch(/2:05/);
+    expect(venueClock("2026-10-17T21:05:00.000+00:00", "Australia/Sydney")).toMatch(/8:05/);
+    expect(venueClock(null, "America/Los_Angeles")).toBeNull();
     const now = Date.parse("2026-10-17T20:00:00Z");
     expect(dueIn("2026-10-17T20:25:00Z", now)).toBe("in 25 min");
     expect(dueIn("2026-10-17T22:10:00Z", now)).toBe("in 2 h 10 min");

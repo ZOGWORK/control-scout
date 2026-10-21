@@ -17,9 +17,15 @@ const FIRST_UPCOMING = 6;
 const FIRST_UPCOMING_PHONE = 3;
 const FIRST_DECIDED = 3;
 
-/** "10:05 AM" at the venue, from the event-local wall time FIRST reports. */
-export function venueClock(time: string | null): string | null {
+/** "10:05 AM" at the venue: FIRST's event-local wall time as it reads; a zoned timestamp (as the fallback
+ *  source stores them) is read in the venue's zone. */
+export function venueClock(time: string | null, zone: string): string | null {
   if (!time) return null;
+  if (/(Z|[+-]\d\d:?\d\d)$/.test(time)) {
+    const at = Date.parse(time);
+    if (!Number.isFinite(at)) return null;
+    try { return new Date(at).toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit", timeZone: zone }); } catch { return null; }
+  }
   const m = /T(\d\d):(\d\d)/.exec(time);
   if (!m) return null;
   return new Date(Date.UTC(2000, 0, 1, Number(m[1]), Number(m[2]))).toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit", timeZone: "UTC" });
@@ -80,7 +86,7 @@ function Teams({ teams, side }: { teams: number[]; side: "red" | "blue" }) {
 }
 
 function FlipCard({ r, closest }: { r: CoinFlipRow; closest: boolean }) {
-  const clock = venueClock(r.time), due = dueIn(r.startsAt);
+  const clock = venueClock(r.time, r.timezone), due = dueIn(r.startsAt);
   const label = `${r.label} at ${r.eventName}${clock ? `, ${clock} at the venue` : ""}: red ${r.red.join(" and ")} ${oddsPct(r.pRed)} to win, blue ${r.blue.join(" and ")} ${oddsPct(1 - r.pRed)}, ${r.tier} confidence`;
   return (
     <li className="min-w-0">
