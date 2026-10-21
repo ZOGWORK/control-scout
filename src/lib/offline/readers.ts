@@ -13,6 +13,7 @@ import { localToUtcMs } from "../../shared/time";
 import { eventStatus } from "../../shared/eventDay";
 import { normalize, scoreWords, words } from "../../shared/fuzzy";
 import { regionNames } from "../../shared/regions";
+import { projectionsViewFromRows, type ProjectionsView } from "../../shared/projections";
 
 /** Rows as plain objects (column → value), like the server's `all`. */
 export interface Db { all<T = any>(sql: string, params?: SqlValue[]): T[] }
@@ -216,6 +217,14 @@ const SUMMARY_SQL = `SELECT e.*,
   (SELECT COUNT(*) FROM matches m WHERE m.season = e.season AND m.code = e.code AND m.played = 1) played,
   (SELECT COUNT(*) FROM matches m WHERE m.season = e.season AND m.code = e.code) total
   FROM events e`;
+
+/** An event's stored Monte Carlo projections (server/projections/store.ts readProjections). Packs built before they
+ *  were included have no such table: then there are none, said as plainly as online. */
+export function readProjections(sdb: SeasonDb, code: string): ProjectionsView {
+  const has = one(sdb.db, "SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'event_projections'");
+  const rows = has ? sdb.db.all("SELECT * FROM event_projections WHERE season = ? AND code = ?", [sdb.season, code]) : [];
+  return projectionsViewFromRows(sdb.season, code, rows);
+}
 
 export function readEventDetail(sdb: SeasonDb, code: string, opts: ReadOpts = {}): EventDetail | null {
   const { season, db } = sdb;

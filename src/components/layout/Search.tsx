@@ -6,6 +6,7 @@
 // top-bar field steps aside. ⌘K / Ctrl+K / "/" focus whichever box is showing;
 // on phones the header's search button expands the top-bar field.
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { smoothBehavior } from "../../lib/pageScroll";
 import { useNavigate } from "react-router-dom";
 import { Search } from "lucide-react";
 import { SearchBox, hitHref } from "../search/SearchBox";
@@ -44,7 +45,7 @@ export function SearchProvider({ children }: { children: ReactNode }) {
   const pageClaimed = claims > 0;
   const open = useCallback(() => {
     if (pageClaimed && pageRef.current) {
-      pageRef.current.scrollIntoView({ block: "center", behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth" });
+      pageRef.current.scrollIntoView({ block: "center", behavior: smoothBehavior() });
       pageRef.current.focus({ preventScroll: true });
       pageRef.current.select();
       return;

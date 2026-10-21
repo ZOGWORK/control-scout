@@ -9,7 +9,87 @@ teams, scout, offline, speed, live, report, alerts, rankings, share, workspace,
 picklist, history, fixes). What's new shows them first; the groups below are
 the full release notes, one click away.
 
+## 1.16.2 — 2026-10-21
+
+Today's coin flips: the closest calls at every event on today, on the home page.
+
+### Highlights
+- [home] Today's coin flips: the matches the model calls 45% to 55%
+- [predict] Every event that's on today, at its own venue's date
+- [history] Played ones stay, with the result beside the call made before
+
+### Home
+- **Today's coin flips.** A new section on the home page gathers the matches on today's schedules, across every event that's on today at its venue, where the model gives either side between 45% and 55%. Those still to play come first, soonest first, each with both alliances, the odds on a close-up scale, the time at the venue, how long until it starts and its confidence tier; the closest call is marked. Played ones follow with their score and the call made before the match. Calls on thin data (a robot with fewer than 3 matches this season) are left out, and an empty day says why. Each opens its match page. Refreshed after every sync and live result, and every few minutes; an open home page keeps up by itself. (#226)
+
+## 1.16.1 — 2026-10-21
+
+Smooth scrolling across the site: jumps within a page glide there instead of cutting.
+
+### Highlights
+- [speed] Contents links, "see the odds" and match jumps glide to their spot
+- [speed] Opening a page, or going back, still lands instantly where it should
+- [speed] Reduce motion on your device and every jump stays instant
+
+### Scrolling
+- **Smooth jumps.** Every jump within a page now glides: contents and section links (How it works, Privacy, Terms, FAQ topics), the skip link, buttons that take you to a part of the page (an event's odds, live panel or stream, a linked match), the search palette bringing the page's search field into view, and the selected tab or chip in a sideways row. Scrolling with a wheel, trackpad or finger is unchanged: it stays the browser's own. (#233)
+- **Pages still open instantly.** A new page starts at the top, and back or forward returns to exactly where you were, without sliding there from the old position. Dragging a pick to the screen's edge scrolls the page as before.
+- **Reduced motion.** With reduce motion turned on in your device's settings, every jump is instant.
+- **Sideways rows.** Swiping to the end of a sideways row (tabs, chips, a wide table) no longer turns into the back gesture, and scouting photo strips settle on a photo.
+
+## 1.16.0 — 2026-10-21
+
+Live projections: every live or upcoming event simulated 10,000 times, again after each new result.
+
+### Highlights
+- [predict] Projections: each team's likely final rank, with the range it lands in
+- [live] Updated a few seconds after new results land, without reloading the page
+- [predict] Playoff and advancement odds that move as the event unfolds
+- [history] Once it's over: final seeds against the ranges they were projected in
+
+### Predictions
+- **Projections on the event page.** The Odds tab opens with a projection of the rest of the event: each team's median final quals rank with its 80% range (10th–90th percentile) as a whisker, today's rank, how far it has moved since the projection made before the first match, its chance to play in the playoffs (captain or picked) and its chance to advance, labelled "performance-based — awards can also advance teams". Sortable, your team and tracked teams pinned to the top, and headed with how many simulations it ran and after which match. Once the event is over it becomes "Final results vs projections": each team's actual seed against the range it was last projected in while quals were still open, and how many landed inside.
+- **Simulated in the background, never on a visit.** A server job re-runs an event a few seconds after new results land (a burst of results is one run), stores the result, and tells open pages over a live connection; pages only read what's stored. The same results always give the same numbers. A very large event that would take over 10 seconds runs 5,000 simulations instead, and says so.
+- **One advancement number.** The projection's odds are now the advancement odds everywhere they show: the event's rankings table and the records tables, the advancement simulator's team list and headline (with its award-inclusive figure alongside), the shortlist, and saved offline packs. Events never projected keep the forecast made the day before they started. (#229)
+- **Checked on real events.** Replaying 40 finished 2025–26 events from their midpoint, about 86% of teams finished inside their projected 80% range (How it works → Live projections).
+
+## 1.15.0 — 2026-10-21
+
+How predictable each team has been, from the engine's own live calls.
+
+### Highlights
+- [teams] A prediction report card on team pages: how often calls were right
+- [teams] How far its alliances landed from the predicted score
+- [teams] Live calls only, with sample size, raw numbers and a warning
+
+### Teams
+- **Prediction report card.** Team pages show how the engine's pre-match calls on that team's matches turned out this season: the share called right, points vs prediction per robot (the alliance's miss split evenly between its robots) and the swing of those misses, with the field average beside each. Finished events get a row each, with how many calls had a predicted score and the raw numbers. Only calls logged before each match count, never the replayed history. Few calls say little, so every number is pulled toward the field average as if the team had 10 more calls, and the card says so. How it works explains the rules. (#232)
+
+## 1.14.0 — 2026-10-21
+
+Predicted scores come with a range now, and the range is scored in public.
+
+### Highlights
+- [predict] Every predicted score reads like 118 ±14: an 80% range
+- [predict] Ranges widen for robots with few matches or up-and-down results
+- [history] How it works shows how often real scores land inside the range
+
+### Predictions
+- **Score ranges.** Every predicted score now comes with its 80% range, written 118 ±14 (hover or tap for the range itself and what it means: about 8 in 10 real scores land inside). It's on match rows, match details, match reports, the Predict lab, the live panel, Watch live and the pit display, and offline from your saved pack. A range is wider when a robot has played only a few matches this season or its results swing from match to match, and narrower in playoffs. Prediction engine 2.2.0; win odds are unchanged.
+- **Ranges are on the record.** Every call is logged with the range it stated, and How it works scores them like the win calls: the share of real scores inside the range, which way the misses went, the average width and each confidence tier. Calls made before this release stated no range and none is added afterwards. (#230)
+
 ## 1.13.0 — 2026-10-21
+
+Model vs field: where the model's ratings and the seeding disagree most at an event.
+
+### Highlights
+- [rankings] Model vs field: teams the model rates well above or below their seed
+- [predict] Every call with its numbers: rating, matches, OPR, record and confidence
+- [rankings] Before quals, against each team's seed at its last event
+
+### Events
+- **Model vs field.** An event's Rankings tab now opens with the biggest gaps between the model's rating order and the official seeding: "the model rates them #3 of 28; they're seeded 18th". Each call shows the rating and its uncertainty, how far it is from the team the model places at that seed, the matches behind it, OPR, record, ranking points and a confidence tier, with the model's track record linked under it. Before qualification matches, ratings from earlier events are compared with each team's seed at its last event (and the label says so); a finished event uses the ratings as they stood at its last match. Small fields, ratings on few matches, and gaps the model can't tell from its own uncertainty are left out, and the section says why when nothing shows.
+
+## 1.12.0 — 2026-10-21
 
 Follow your team in Discord for the whole event, not just its matches.
 
@@ -21,7 +101,7 @@ Follow your team in Discord for the whole event, not just its matches.
 ### Discord
 - **More from /follow.** Besides the post before each match and its result, a followed team's channel now gets: the evening before the team's event (from 4 pm at the venue), where and when, how many teams, the team's season OPR and world rank, and the strongest teams there; the team's qualification schedule once FIRST posts it, each match with its time at the venue, side, partner and win odds; and, at the end of each event day, the team's rank and record there, its matches that day, and how many of its live calls were right. Each team gets its own schedule and recap post. (#224)
 
-## 1.12.0 — 2026-10-21
+## 1.11.0 — 2026-10-21
 
 A pit display for the TV in your pit.
 
@@ -33,7 +113,7 @@ A pit display for the TV in your pit.
 ### Events
 - **Pit display.** A "Pit display" button on every event page opens a fullscreen screen for a pit TV or laptop: the event and the venue's clock, the match up now (or the last result, with whether the call was right), the next three matches with their win odds, a countdown to the next one (left out when the event runs behind, rather than showing a wrong time), the top 8 and a QR code to the event page. It updates by itself, shows "Reconnecting…" if the connection drops, keeps the screen awake where the browser allows it, and fits 1920×1080 and 1366×768 with no scrolling. Signed in, your tracked teams show in gold and your next match is pinned. (#218)
 
-## 1.11.0 — 2026-10-21
+## 1.10.0 — 2026-10-21
 
 Watch an event's stream with the model calling every match beside it.
 
@@ -61,7 +141,7 @@ Control Scout comes to your team's Discord server.
 - **The Control Scout bot.** Add it to your team's server and anyone there can ask `/team` (record, OPR, world ranking, next event), `/predict` (win odds as bars, predicted score and confidence for a qualification match; once it's played, the final score, what was predicted and whether the call was right), `/event` (status, progress, top 5 by OPR, the winning alliance) and `/rankings` (the world top 10 with movement). Every answer links back to the page it came from, and the numbers are the site's own. Event names and codes autocomplete. The invite link is in the FAQ and footer. (#216)
 - **Match alerts in your server.** Someone who can manage the server types `/follow team:18360` in a channel, and the bot posts there 15 minutes before each of that team's matches (lineups, win odds, predicted score) and again with the result and whether the call was right. `/unfollow` stops it, `/following` lists a server's teams (up to 10), and `/help` lists every command. My teams and My team have an "Add to a Discord server" button with the `/follow` command ready to copy.
 
-## 1.8.1 — 2026-10-21
+## 1.8.1 — 2026-10-20
 
 More of each page on a phone screen: match lists, tabs and the bottom bar take less room.
 

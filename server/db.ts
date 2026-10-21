@@ -1101,6 +1101,20 @@ CREATE TABLE discord_posts (
   },
   {
     version: 36,
+    name: "prediction score ranges",
+    sql: `
+-- Engine 2.2: every call states an 80% range for each alliance's final score (range_level = 0.8), so the
+-- ledger can score how often real scores land inside it. NULL on calls logged before 2.2: they stated no
+-- range, and none is invented for them afterwards.
+ALTER TABLE predictions ADD COLUMN red_lo REAL;
+ALTER TABLE predictions ADD COLUMN red_hi REAL;
+ALTER TABLE predictions ADD COLUMN blue_lo REAL;
+ALTER TABLE predictions ADD COLUMN blue_hi REAL;
+ALTER TABLE predictions ADD COLUMN range_level REAL;
+`,
+  },
+  {
+    version: 37,
     name: "predictability report cards",
     sql: `
 -- Per team, how the engine's LIVE calls on its matches turned out (server/stats/reportCards.ts): never
@@ -1121,7 +1135,46 @@ CREATE INDEX team_report_cards_team ON team_report_cards (team, season);
 `,
   },
   {
-    version: 37,
+    version: 38,
+    name: "event projections",
+    sql: `
+-- Monte Carlo projections of live and upcoming events (server/projections/job.ts): each run simulates
+-- the rest of the event (10,000 times, 5,000 when an event blows the time budget) and stores per-team
+-- distributions; pages only read them. kind: current (the latest), baseline (before any match was
+-- played; movement is measured against it), last_open (the last run made while quals were still open:
+-- what a finished event's seeds are judged by). state_key: the event's results state the run was made
+-- from (projections/state.ts); seed comes from it. teams: JSON array of src/shared/projections.ts
+-- ProjectionTeam.
+CREATE TABLE event_projections (
+  season INTEGER NOT NULL, code TEXT NOT NULL,
+  kind TEXT NOT NULL,
+  state_key TEXT NOT NULL,
+  seed INTEGER NOT NULL,
+  runs INTEGER NOT NULL,
+  target_runs INTEGER NOT NULL,
+  stage TEXT NOT NULL,
+  played INTEGER NOT NULL,
+  scheduled INTEGER NOT NULL,
+  through TEXT,
+  slots INTEGER,
+  slots_source TEXT,
+  engine_version TEXT NOT NULL,
+  ms INTEGER NOT NULL,
+  computed_at TEXT NOT NULL,
+  teams TEXT NOT NULL,
+  PRIMARY KEY (season, code, kind)
+);
+-- The current run's advancement odds per team (0–1; null = already qualified elsewhere or ineligible), for
+-- the records tables' Advancement Odds column, which reads them ahead of the static pre-event estimate.
+CREATE TABLE event_projection_odds (
+  season INTEGER NOT NULL, code TEXT NOT NULL, team INTEGER NOT NULL,
+  p_advance REAL,
+  PRIMARY KEY (season, code, team)
+);
+`,
+  },
+  {
+    version: 40,
     name: "reliability index",
     sql: `
 -- Per team, how dependable its robot has been (rules: src/shared/reliability.ts, job: server/stats/reliability.ts):

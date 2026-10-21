@@ -55,6 +55,14 @@ function scoreCols(r: string): Record<string, string> {
   return out;
 }
 
+/**
+ * Advancement odds: the event's latest stored Monte Carlo projection (server/projections) once one
+ * exists, otherwise the static pre-event estimate (stats/records.ts fillAdvancementOdds). A projection
+ * that lists the team without odds (already qualified elsewhere) stays empty, as the estimate does.
+ */
+const ADVANCEMENT_ODDS = `(CASE WHEN EXISTS (SELECT 1 FROM event_projection_odds pj WHERE pj.season = r.season AND pj.code = r.code AND pj.team = r.team)
+  THEN (SELECT pj.p_advance * 100 FROM event_projection_odds pj WHERE pj.season = r.season AND pj.code = r.code AND pj.team = r.team) ELSE r.adv_odds END)`;
+
 function teamEventSource(): Source {
   return {
     from: "team_event_records r",
@@ -64,7 +72,7 @@ function teamEventSource(): Source {
       ...teamCols("r"), eventCode: "r.code", eventName: "r.event_name", eventRegion: "r.event_region",
       rank: "r.rank", rp: "r.rp", tb1: "r.tb1", qualMatchesPlayed: "r.played", wins: "r.wins", losses: "r.losses", ties: "r.ties",
       ...scoreCols("r"),
-      predictedWinPctAvg: "r.pred_win_avg", predictedScoreAvg: "r.pred_score_avg", advancementOdds: "r.adv_odds",
+      predictedWinPctAvg: "r.pred_win_avg", predictedScoreAvg: "r.pred_score_avg", advancementOdds: ADVANCEMENT_ODDS,
     },
     identity: { season: "r.season", team: "r.team", eventCode: "r.code", eventName: "r.event_name", eventType: "r.event_type", eventStart: "r.event_start" },
     tiebreak: "r.team, r.code",
