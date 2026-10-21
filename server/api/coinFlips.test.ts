@@ -52,12 +52,12 @@ describe("eventCoinFlips", () => {
 
   it("keeps a decided match only with a call logged before it, and adds its result", () => {
     const r = eventCoinFlips(LA, [
-      mv(1, "2026-10-17T10:00:00", 0.52, { kind: "live", played: true, scores: [120, 118] }),
+      mv(1, "2026-10-17T10:00:00", 0.52, { kind: "live", tier: "confident", played: true, scores: [120, 118] }),
       mv(2, "2026-10-17T10:10:00", 0.5, { kind: "backtest", played: true, scores: [90, 95] }),
       mv(3, "2026-10-17T10:20:00", null),
     ], NOW);
     expect(r.rows).toHaveLength(1);
-    expect(r.rows[0]).toMatchObject({ label: "Q1", played: true, kind: "live", result: { red: 120, blue: 118 } });
+    expect(r.rows[0]).toMatchObject({ label: "Q1", played: true, kind: "live", tier: "confident", result: { red: 120, blue: 118 } });
     expect(r.calls).toBe(1);
   });
 
