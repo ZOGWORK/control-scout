@@ -69,8 +69,9 @@ season, both robots' ratings learned from every match they played together, so t
 leftover pair effect is mostly noise. Across seasons, robots are rebuilt.
 
 **Decision.** 2.4 ships **reasons only**: `betaTogether = betaAgainst = 0`, and no served
-number changes. The full backtest ledger replayed under 2.2.0 matches 2.1.1 bit for bit on
-all 109,002 replayed matches from 2023–24 to 2025–26. With β = 0, k and
+number changes. The full backtest ledger replayed under 2.4.0 matches 2.3.0's bit for bit on
+all 109,182 replayed matches, 2023–24 to 2026–27. That covers every served column: win %,
+predicted scores, score ranges, bonus odds, tiers and factors. With β = 0, k and
 decay only rank and word the fact. We use `k = 4`, which ties the fitted 64 on the select
 block but keeps "above/below what their ratings expected" for pairs with a real sample,
 and `decay = 0.5` (0.5 and 1 differ by 0.00002), which favours recent seasons in what is
