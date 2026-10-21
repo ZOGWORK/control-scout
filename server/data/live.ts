@@ -201,6 +201,8 @@ export async function refreshEvents(events: EventRow[], o: { minFullMs?: number;
     // Newly scored live calls: the seasons' report cards (a per-season rewrite of a few thousand rows at most).
     if (report.scored) for (const s of bySeason.keys()) await computeReportCards(s, log);
     report.logged = await logLivePredictions(log);
+    // New results (and any schedule changes) at today's events: the home page's coin flips follow.
+    await (await import("../api/coinFlips.js")).refreshCoinFlips(log);
     // The follow-up's writes are done (see runStats: caches keyed by the data version are keyed by this too).
     await kvSet("data:settled", new Date(now()).toISOString());
     for (const e of due) followUp.delete(keyOf(e));

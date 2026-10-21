@@ -1,8 +1,8 @@
 # Changelog
 
-## 2.2.0 — 2026-10-21
+## Unreleased (2.5.0, after 2.4.0)
 
-Reasons only: no probability, score, range, factor or tier changes (every number is bit-identical to 2.1.1).
+Reasons only: no probability, score, range, factor or tier changes (every number is bit-identical to the release before).
 - `ExplainOptions.recent(team)` takes a robot's recent record as the app measured it
   (`RecentRecord`: latest matches, no-shows, near-zero matches). Control Scout feeds it from its
   reliability index (public match data only).
@@ -10,6 +10,37 @@ Reasons only: no probability, score, range, factor or tier changes (every number
   2+ no-shows in the window ("Team 1234 was a no-show in 2 of its last 10 matches"), else
   3+ near-zero matches, worded as an estimate (defense or a partner's carry looks the same).
   Empty without `recent`, or when nothing is notable.
+
+## 2.2.0 — 2026-10-21 · Score ranges
+
+**Score ranges (changes numbers: the ranges only).** Win probabilities and expected scores
+are bit-identical to 2.1.1; only the stated range around each expected score changes.
+- Each alliance's range now comes from its own predictive distribution,
+  Normal(mean, bandSd²), with
+  `bandSd² = (a + b·mean)² · scale · consistency^power · (1 + smallSample / (n + 1)) · [playoff] + rating · Σ rating uncertainty`.
+  `consistency` is the alliance's average **per-team variance factor**: each robot's EMA
+  of squared standardized residuals, already kept in the reliability state (1 = as variable
+  as the model assumes). `n` is the fewest matches any of its robots has played this
+  season, so ranges widen for small samples and for erratic robots.
+- New `FITTED_MODEL.band` / `DEFAULT_BAND`: level 0.8, scale 1.1, consistencyPower 0.3,
+  smallSample 0.7, playoff 0.6, rating 0.75. Fitted on 2024–25 by the 80% interval
+  score (a proper scoring rule for ranges), tested on 2025–26.
+- New API for consumers that sample scores (e.g. a Monte Carlo simulator):
+  `allianceScoreDistribution(book, own, opp, noise, band, context)` →
+  `{ mean, sd, gameVar, ratingVar, consistency, minMatches }`; `teamScoreVariance(book, team)`;
+  `scoreBand(mean, sd, level)`; `zFor(level)`. `AlliancePrediction.band`,
+  `ForecastMatch.redBand`/`blueBand`, `MatchExplanation.scoreBandA/B` and
+  `scorePlusMinusA/B` ("118 ± 14"), `TeamStrength.consistency`. `PredictOptions.band` /
+  `ExplainOptions.band` override the band; `AlliancePrediction.sd` (behind the win
+  probability) is unchanged.
+- **Evidence (walk-forward replay, 2025–26 held out, 82,532 alliance scores):**
+  - 80% interval score 147.91 → 145.95 (lower is better); also better on 2023–24
+    (122.02 → 121.20);
+  - coverage 80.8% → 82.4% overall, and far more even across groups: robots with no
+    prior match this season 69.4% → 79.9%, erratic alliances (variance factor ≥ 1.3)
+    74.4% → 79.8%, playoffs 86.6% → 78.4%;
+  - mean width 94.4 → 96.9 points;
+  - win accuracy, Brier and log loss unchanged (identical probabilities).
 
 ## 2.1.1 — 2026-10-17
 

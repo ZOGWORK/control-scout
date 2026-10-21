@@ -122,13 +122,23 @@ export class ScoutForecaster extends Forecaster {
    * Walk-forward, like the backtest ledger — no hindsight.
    */
   preEventForecast(ev: EventInput, myTeam: number | null, runs = 2000): Forecast | null {
+    const view = this.preEventView(ev);
+    return view ? view.f.forecast(view.ev, myTeam, runs) : null;
+  }
+
+  /**
+   * The event as it stood the day before it started: a forecaster on ratings from earlier matches
+   * only, and the event with its results, ranks and alliances stripped (preEventForecast's inputs;
+   * the projections job simulates its pre-event baseline from the same). Null without a start date.
+   */
+  preEventView(ev: EventInput): { f: Forecaster; ev: EventInput; book: RatingBook } | null {
     if (!ev.start) return null;
     const startMs = Date.parse(`${ev.start}T00:00:00Z`);
     const prevSeason = this.books.get(ev.season - 1);
     const book = prevSeason ? prevSeason.clone() : new RatingBook(FITTED_MODEL.rating);
     book.startSeason(ev.season);
     for (const m of this.seasonEvents(ev.season).flatMap((e) => e.matches).filter((m) => m.time < startMs).sort((x, y) => x.time - y.time)) book.update(m);
-    return this.forecastFrozen(ev, myTeam, runs, book, startMs);
+    return this.frozenView(ev, book, startMs);
   }
 
   /**
@@ -172,6 +182,12 @@ export class ScoutForecaster extends Forecaster {
 
   /** Forecast an event from a book frozen at its start, with its results stripped. */
   private forecastFrozen(ev: EventInput, myTeam: number | null, runs: number, book: RatingBook, startMs: number): Forecast | null {
+    const view = this.frozenView(ev, book, startMs);
+    return view.f.forecast(view.ev, myTeam, runs);
+  }
+
+  /** A one-off forecaster on a book frozen at the event's start, and the event with its results stripped. */
+  private frozenView(ev: EventInput, book: RatingBook, startMs: number): { f: Forecaster; ev: EventInput; book: RatingBook } {
     book.setTime(startMs);
     const stripped: EventInput = {
       ...ev,
@@ -201,7 +217,7 @@ export class ScoutForecaster extends Forecaster {
       protected regionOf(code: string) { return parent.regionOf(code); }
       protected awardSlots(season: number, type: string | null) { return parent.awardSlotsBefore(season, type, startMs); }
     }
-    return new Before().forecast(stripped, myTeam, runs);
+    return { f: new Before(), ev: stripped, book };
   }
 
   /**
@@ -213,7 +229,7 @@ export class ScoutForecaster extends Forecaster {
     const b = this.book(season);
     if (!b) return null;
     return explainMatch(b, red, blue, {
-      noise: FITTED_MODEL.noise, calibration: FITTED_MODEL.calibration, contextual: FITTED_MODEL.contextual, context: { level, event }, shadow: FITTED_MODEL.contextual?.fallback,
+      noise: FITTED_MODEL.noise, calibration: FITTED_MODEL.calibration, contextual: FITTED_MODEL.contextual, context: { level, event }, shadow: FITTED_MODEL.contextual?.fallback, band: FITTED_MODEL.band,
       ...(recent ? { recent: (t: number) => recent.get(t) ?? null } : {}),
     });
   }

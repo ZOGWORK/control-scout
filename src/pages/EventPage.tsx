@@ -23,10 +23,13 @@ import { ToggleGroup, ToggleGroupItem } from "../components/ui/controls";
 import { MatchList } from "../components/predict";
 import { SortTable, type Col } from "../components/SortTable";
 import { AdvancementView } from "../components/Advancement";
+import { Projections } from "../components/Projections";
+import { OFFLINE_FORECAST } from "../lib/offline/readers";
 import { cn } from "../components/cn";
 import { ROSTER_CHIP_TONE } from "../lib/textTones";
 import { OfflineNote } from "../components/OfflineNote";
 import { EventGlance } from "../components/EventGlance";
+import { ModelVsField } from "../components/ModelVsField";
 import { callRecord } from "../lib/eventGlance";
 import { NotFoundView } from "../components/NotFoundView";
 import { LiveCountdownChip, LivePanel, useLiveTarget } from "../components/LivePanel";
@@ -34,7 +37,7 @@ import { HeaderActions } from "../components/EventActions";
 import { WATCH_ID, WatchLive } from "../components/WatchLive";
 import { isLiveMode, useEventPoll } from "../lib/liveMode";
 import { agoSeconds, awardLabel, dateRange, num, place, seasonLabel } from "../lib/format";
-import { scrollToElement } from "../lib/pageScroll";
+import { scrollToElement, smoothBehavior } from "../lib/pageScroll";
 import { eventTab } from "../lib/eventTab";
 
 export default function EventPage() {
@@ -83,7 +86,7 @@ function Event({ d, path }: { d: EventDetail; path: string }) {
   const [headerEnd, setHeaderEnd] = useState<HTMLDivElement | null>(null);
   const tabsRef = useRef<HTMLDivElement>(null);
   // The bar's "See odds" opens the tab and brings it into view (the header that held the button is off screen).
-  const seeOdds = () => { setTab("odds"); if (tabsRef.current) scrollToElement(tabsRef.current, matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth"); };
+  const seeOdds = () => { setTab("odds"); if (tabsRef.current) scrollToElement(tabsRef.current, smoothBehavior()); };
   // Phones get a sticky bar only where one action leads: live (the countdown, back to the LIVE panel) or upcoming with predictions (odds / lab).
   // Finished events and history seasons have no bar.
   const sticky = e.status === "live" || (e.status === "upcoming" && predictable);
@@ -91,9 +94,9 @@ function Event({ d, path }: { d: EventDetail; path: string }) {
   const liveMode = isLiveMode(d);
   const target = useLiveTarget(d, liveMode);
   const livePanel = useRef<HTMLDivElement>(null);
-  const toLivePanel = () => { if (livePanel.current) scrollToElement(livePanel.current, matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth"); };
+  const toLivePanel = () => { if (livePanel.current) scrollToElement(livePanel.current, smoothBehavior()); };
   const oddsOpen = predictable && !d.forecastUnsupported;
-  const toWatch = () => { const el = document.getElementById(WATCH_ID); if (el) scrollToElement(el, matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth"); };
+  const toWatch = () => { const el = document.getElementById(WATCH_ID); if (el) scrollToElement(el, smoothBehavior()); };
   // Opened on a panel (?tab= in the address it arrived at): a slim bar, with the summary behind "Event details".
   const slim = useArrivedOnTab(sp.has("tab") && validTab);
   const [detailsOpen, setDetailsOpen] = useDetailsOpen();
@@ -207,6 +210,8 @@ function Event({ d, path }: { d: EventDetail; path: string }) {
                   the records table below is rebuilt by the stats cycle, so it says how old it is. */}
               {e.status === "live" && <LiveStandings field={d.field} season={e.season} team={teamParam} code={e.code} />}
               {e.status === "live" && <StatsAsOf />}
+              {/* Model vs field: the biggest gaps between the model's rating order and the seeding (components/ModelVsField.tsx). */}
+              {predictable && <ModelVsField season={e.season} code={e.code} refreshKey={d.live?.checkedAt ?? undefined} />}
               <RecordsTable scope="teamEvent" season={e.season} code={e.code} predictable={predictable} refreshKey={recordsKey} defaultSort="rank" storageKey="event-rankings" noun="teams"
                 defaultCols={RANKING_COLS.filter((k) => k !== "advancementOdds" || !d.forecastUnsupported)} selectable highlightTeam={teamParam}
                 emptyFallback={e.status === "live" ? <EmptyState icon={Swords} title="Full stats arrive with the next stats update" description="The live standings above are current." /> : <Rankings field={d.field} season={e.season} team={teamParam} code={e.code} note={NOTE_NO_RECORDS} />}
@@ -229,16 +234,22 @@ function Event({ d, path }: { d: EventDetail; path: string }) {
         {predictable && <TabsContent value="odds" className="mt-5 max-sm:mt-4">
           {/* Every event with a schedule gets match predictions; advancement odds only where teams advance. */}
           <TeamPicker field={d.field} value={teamParam} onChange={setTeam} />
+          {/* Offline: the simulator needs a connection, but a saved pack carries the event's stored projections. */}
+          {d.forecastUnsupported === OFFLINE_FORECAST && <div className="mb-6 max-sm:mb-4"><Projections d={d} team={teamParam} /></div>}
           {d.forecastUnsupported ? (
             <p className="mb-6 max-sm:mb-4 flex items-start gap-2 rounded-xl border border-border bg-card px-4 py-3 text-sm text-muted-foreground">
               <Trophy className="mt-0.5 size-4 shrink-0" />
               <span>{d.forecastUnsupported} Every scheduled match below still gets win odds and a predicted score.</span>
             </p>
           ) : (
+            <>
+            {/* The stored Monte Carlo projection of the rest of the event (server/projections), live as results land. */}
+            <div className="mb-10 max-sm:mb-6"><Projections d={d} team={teamParam} /></div>
             <section aria-label="Advancement odds" className="mb-10 max-sm:mb-6">
               <h2 className="mb-3 font-display text-lg font-semibold text-foreground">Advancement odds</h2>
               <AdvancementView season={e.season} code={e.code} team={teamParam} nameOf={nameOf} onPickTeam={setTeam} />
             </section>
+            </>
           )}
           <MatchOdds d={d} team={teamParam} onTab={setTab} />
         </TabsContent>}

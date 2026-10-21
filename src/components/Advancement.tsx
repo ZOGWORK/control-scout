@@ -16,6 +16,9 @@ import { Stagger, StaggerItem } from "./motion";
 import { ErrorState } from "./states";
 import { ConfidenceBadge } from "./predict";
 import { ago, oddsPct } from "../lib/format";
+import { projectionsPath } from "../lib/projections";
+import { projectionHeadline } from "./Projections";
+import { ADVANCE_LABEL, advanceStatus, type ProjectionRun, type ProjectionsView } from "../shared/projections";
 
 const ease = [0.2, 0.8, 0.2, 1] as const;
 const pct = (p: number | null | undefined, decided = false) => oddsPct(p, decided);
@@ -48,13 +51,35 @@ function forecastTierBase(fc: ForecastView, team: number | null): { tier: Confid
   return { tier: fc.stage === "live" ? "moderate" : n >= 8 ? "moderate" : "provisional", reason: fc.stage === "live" ? "Quals are under way; most of the event is still simulated." : `Before the event, every match is simulated (${n} matches on record for the team).` };
 }
 
+/** The simulator's forecast with a stored projection's odds and ranks laid over it (awards and points stay the simulator's). */
+export type Shown = ForecastView & { projection?: ProjectionRun; awardOdds?: Map<number, number>; ineligible?: Set<number> };
+
+export function withProjection(fc: ForecastView, run: ProjectionRun): Shown {
+  const by = new Map(run.teams.map((t) => [t.team, t]));
+  const teams = fc.teams.map((t) => {
+    const s = by.get(t.team);
+    if (!s) return t;
+    return {
+      ...t, pAdvance: s.pAdvance ?? t.pAdvance, pCaptain: s.pCaptain, pPicked: s.pPicked, pWin: s.pWin, pFinalist: s.pFinalist,
+      rank: s.rank ? { mean: s.rank.mean, p10: s.rank.p10, p90: s.rank.p90 } : t.rank,
+    };
+  }).sort((a, b) => b.pAdvance - a.pAdvance || a.rank.mean - b.rank.mean);
+  // Not eligible to advance here is its own status: never "Qualified", never odds.
+  const ineligible = new Set(run.teams.filter((t) => advanceStatus(t) === "ineligible").map((t) => t.team));
+  return { ...fc, teams, runs: run.runs, projection: run, awardOdds: new Map(fc.teams.map((t) => [t.team, t.pAdvance])), ineligible };
+}
+
 export function AdvancementView({ season, code, team, nameOf, onPickTeam }: { season: number; code: string; team: number | null; nameOf: (t: number) => string; onPickTeam?: (t: number) => void }) {
   const [mode, setMode] = useState<"current" | "pre-event">("current");
   const path = `/api/predict/event${qs({ season, code, team, mode })}`;
   const state = useApi<ForecastView>(path);
+  // The stored Monte Carlo projection (server/projections) is the advancement number wherever one exists;
+  // this simulator's own odds stay the fallback, and its award-inclusive figure a second opinion.
+  const proj = useApi<ProjectionsView>(projectionsPath(season, code));
   if (state.error) return <ErrorState error={state.error} onRetry={state.reload} />;
   if (!state.data) return <div className="space-y-3" aria-busy="true"><p className="text-sm text-muted-foreground">Simulating the event 2,000 times…</p><div className="skeleton h-24 rounded-xl" /><div className="skeleton h-56 rounded-xl" /></div>;
-  const fc = state.data;
+  const stored = mode === "pre-event" ? proj.data?.baseline : proj.data?.current;
+  const fc: Shown = stored ? withProjection(state.data, stored) : state.data;
   const conf = forecastTier(fc, team);
   return (
     <div>
@@ -67,7 +92,11 @@ export function AdvancementView({ season, code, team, nameOf, onPickTeam }: { se
             <ToggleGroupItem value="pre-event"><History className="size-3.5" /> Before the event</ToggleGroupItem>
           </ToggleGroup>
         )}
-        <span className="text-xs text-muted-foreground">{fc.runs.toLocaleString()} simulated events · engine v{fc.engineVersion}</span>
+        <span className="text-xs text-muted-foreground">
+          {fc.projection
+            ? <>Odds and ranks: {projectionHeadline(fc.projection)} · award odds and points: {state.data.runs.toLocaleString("en-US")} simulated events · engine v{fc.engineVersion}</>
+            : <>{fc.runs.toLocaleString()} simulated events · engine v{fc.engineVersion}</>}
+        </span>
       </div>
       {fc.hindsightNote && <p className="mb-4 flex gap-2 rounded-xl border border-warning/30 bg-warning/[0.06] px-4 py-3 text-sm"><Info className="mt-0.5 size-4 shrink-0 text-warning" />{fc.hindsightNote}</p>}
       {mode === "pre-event" && <p className="mb-4 flex gap-2 rounded-xl border border-info/30 bg-info/[0.06] px-4 py-3 text-sm"><History className="mt-0.5 size-4 shrink-0 text-info" />These are the odds as they stood the day before the event: ratings from earlier matches only, and none of this event's results.</p>}
@@ -121,7 +150,7 @@ function StageStrip({ fc, onRefresh }: { fc: ForecastView; onRefresh: () => void
   );
 }
 
-function Outlook({ fc, team }: { fc: ForecastView; team: number | null }) {
+function Outlook({ fc, team }: { fc: Shown; team: number | null }) {
   const me = team ? fc.teams.find((t) => t.team === team) : undefined;
   if (!me) return <EmptyState icon={Users} title={team ? `Team ${team} isn't at this event` : "Pick a team"} description="Choose a team above (or click one in the Field tab) to see its outlook." />;
   const pre = fc.prequalified.includes(me.team);
@@ -143,12 +172,19 @@ function Outlook({ fc, team }: { fc: ForecastView; team: number | null }) {
           <div aria-hidden className="pointer-events-none absolute -right-16 -top-16 size-56 rounded-full bg-accent/10 blur-3xl" />
           {pre ? (
             <><Badge variant="success">Already qualified</Badge><p className="mt-3 font-display text-2xl font-semibold">Team {me.team} has already qualified for the next level.</p></>
+          ) : fc.ineligible?.has(me.team) ? (
+            <><Badge variant="outline">Not eligible</Badge><p className="mt-3 font-display text-2xl font-semibold">Team {me.team} isn't eligible to advance from this event.</p></>
           ) : (
             <>
               <p className="text-sm text-muted-foreground">Team {me.team}'s chance to advance</p>
               <p className="mt-1 font-display text-6xl font-semibold tabular-nums tracking-tight sm:text-7xl">{pct(me.pAdvance)}</p>
               <div className="mt-4 h-2 overflow-hidden rounded-full bg-muted"><GrowBar value={me.pAdvance} className="bg-accent" /></div>
-              {fc.matchesOnly && <p className="mt-3 text-sm text-muted-foreground"><span className="font-medium text-foreground">{pct(fc.matchesOnly.pAdvance)}</span> from match results alone · <span className="font-medium text-foreground">{pct(me.pAdvance)}</span> with award history</p>}
+              {fc.projection ? (
+                <p className="mt-3 text-sm text-muted-foreground">
+                  Live projection, {ADVANCE_LABEL}
+                  {fc.awardOdds?.has(me.team) && <> · <span className="font-medium text-foreground">{pct(fc.awardOdds.get(me.team))}</span> with award history (simulator)</>}
+                </p>
+              ) : fc.matchesOnly && <p className="mt-3 text-sm text-muted-foreground"><span className="font-medium text-foreground">{pct(fc.matchesOnly.pAdvance)}</span> from match results alone · <span className="font-medium text-foreground">{pct(me.pAdvance)}</span> with award history</p>}
             </>
           )}
         </section>
@@ -238,7 +274,7 @@ function AlliancePanel({ season, code, fc, team, nameOf }: { season: number; cod
   );
 }
 
-function Field({ fc, team, nameOf, onPick }: { fc: ForecastView; team: number | null; nameOf: (t: number) => string; onPick?: (t: number) => void }) {
+function Field({ fc, team, nameOf, onPick }: { fc: Shown; team: number | null; nameOf: (t: number) => string; onPick?: (t: number) => void }) {
   const [q, setQ] = useState("");
   const pre = new Set(fc.prequalified);
   const rows = useMemo(() => { const s = q.trim().toLowerCase(); return s ? fc.teams.filter((t) => String(t.team).includes(s) || nameOf(t.team).toLowerCase().includes(s)) : fc.teams; }, [fc.teams, q, nameOf]);
@@ -256,9 +292,11 @@ function Field({ fc, team, nameOf, onPick }: { fc: ForecastView; team: number | 
                 <p className="truncate text-sm font-medium">{t.team} <span className="text-muted-foreground">{nameOf(t.team)}</span>{t.team === team && <Badge variant="soft" className="ml-1.5">Selected</Badge>}</p>
                 <p className="text-xs text-muted-foreground">Rank {rankRange(t.rank.p10, t.rank.p90)} · captain {pct(t.pCaptain)} · picked {pct(t.pPicked)} · win {pct(t.pWin)} · rating {t.strength.np.toFixed(0)} ± {t.strength.sd.toFixed(0)}</p>
               </button>
-              {pre.has(t.team) ? <Badge variant="success">Qualified</Badge> : <span className="w-14 text-right font-medium tabular-nums">{pct(t.pAdvance)}</span>}
+              {pre.has(t.team) ? <Badge variant="success">Qualified</Badge>
+                : fc.ineligible?.has(t.team) ? <Badge variant="outline">Not eligible</Badge>
+                : <span className="w-14 text-right font-medium tabular-nums">{pct(t.pAdvance)}</span>}
             </div>
-            {!pre.has(t.team) && <div className="mt-2 h-1 overflow-hidden rounded-full bg-muted"><GrowBar value={t.pAdvance} className="bg-accent" /></div>}
+            {!pre.has(t.team) && !fc.ineligible?.has(t.team) && <div className="mt-2 h-1 overflow-hidden rounded-full bg-muted"><GrowBar value={t.pAdvance} className="bg-accent" /></div>}
           </li>
         ))}
       </ul>

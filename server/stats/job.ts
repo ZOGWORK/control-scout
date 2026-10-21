@@ -3,7 +3,7 @@
 // Everything here is recomputed from match data — no stored number is ever
 // hand-entered or estimated without saying so.
 import type { InStatement } from "@libsql/client";
-import { RatingBook, FITTED_MODEL, explainMatch, ENGINE_VERSION, type EventRecord } from "@control-scout/predict-engine";
+import { RatingBook, FITTED_MODEL, explainMatch, ENGINE_VERSION, type EventRecord, type MatchExplanation } from "@control-scout/predict-engine";
 import { all, get, kvGet, kvSet, run, writeBatch } from "../db.js";
 import { CURRENT_SEASON, PREDICT_SEASONS, SEASON_NUMBERS, isLegacy } from "../data/seasons.js";
 import { loadSeason, toEventRecord, type DbEvent } from "./load.js";
@@ -199,6 +199,14 @@ export async function refreshEventStats(season: number, codes: string[], log: Lo
 
 const outcome = (red: number, blue: number) => (red > blue ? 1 : red < blue ? 0 : 0.5);
 
+/** The stated score ranges a call is logged with (migration 36). */
+const RANGE_COLUMNS = "red_lo, red_hi, blue_lo, blue_hi, range_level";
+/** A call with no score basis (no rated match this season yet) states no range: its predicted score means nothing. */
+export function rangeArgs(x: Pick<MatchExplanation, "scoreBandA" | "scoreBandB">, noScoreBasis: boolean): (number | null)[] {
+  if (noScoreBasis) return [null, null, null, null, null];
+  return [x.scoreBandA.lo, x.scoreBandA.hi, x.scoreBandB.lo, x.scoreBandB.hi, x.scoreBandA.level];
+}
+
 /**
  * Backtest ("walk-forward"): replay seasons in order; before each match,
  * predict it from ratings that include only earlier matches; record the call
@@ -226,13 +234,14 @@ export async function backtest(seasons: number[], log: Log = () => {}, opts: { w
     for (const m of matches) {
       if (write.has(s) && m.red.teams.length === 2 && m.blue.teams.length === 2) {
         book.setTime(m.time);
-        const x = explainMatch(book, m.red.teams, m.blue.teams, { noise: FITTED_MODEL.noise, calibration: FITTED_MODEL.calibration, contextual: FITTED_MODEL.contextual, context: { level: m.level, event: m.eventCode }, shadow: FITTED_MODEL.contextual?.fallback });
+        const x = explainMatch(book, m.red.teams, m.blue.teams, { noise: FITTED_MODEL.noise, calibration: FITTED_MODEL.calibration, contextual: FITTED_MODEL.contextual, context: { level: m.level, event: m.eventCode }, shadow: FITTED_MODEL.contextual?.fallback, band: FITTED_MODEL.band });
         stmts.push({
-          sql: `INSERT INTO predictions (kind, season, code, level, series, number, red, blue, p_red, red_mean, blue_mean, tier, factors, engine_version, predicted_at, match_time, red_score, blue_score, outcome, scored_at, no_score_basis, model_id, data_version, ratings_through, p_red_shadow, shadow_model_id)
-                VALUES ('backtest', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          sql: `INSERT INTO predictions (kind, season, code, level, series, number, red, blue, p_red, red_mean, blue_mean, tier, factors, engine_version, predicted_at, match_time, red_score, blue_score, outcome, scored_at, no_score_basis, model_id, data_version, ratings_through, p_red_shadow, shadow_model_id, ${RANGE_COLUMNS})
+                VALUES ('backtest', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
           args: [s, m.eventCode, m.level, m.series, m.number, JSON.stringify(m.red.teams), JSON.stringify(m.blue.teams), x.winProbA, x.predictedScoreA, x.predictedScoreB,
             x.confidence.tier, ENGINE_VERSION, at, new Date(m.time).toISOString(), m.red.total, m.blue.total, outcome(m.red.total, m.blue.total), at, rated ? 0 : 1,
-            x.probabilityModelId ?? "legacy", dataVersion, lastRated != null ? new Date(lastRated).toISOString() : null, x.shadow?.winProbA ?? null, x.shadow?.modelId ?? null],
+            x.probabilityModelId ?? "legacy", dataVersion, lastRated != null ? new Date(lastRated).toISOString() : null, x.shadow?.winProbA ?? null, x.shadow?.modelId ?? null,
+            ...rangeArgs(x, !rated)],
         });
       }
       if (!unrated.has(m.eventCode)) { book.update(m); rated++; lastRated = m.time; }
@@ -318,10 +327,11 @@ export async function logLivePredictions(log: Log = () => {}): Promise<number> {
     const x = f.explain(season, m.red, m.blue, m.level === "playoff" ? "playoff" : "qual", m.code);
     if (!x) continue;
     stmts.push({
-      sql: `INSERT OR IGNORE INTO predictions (kind, season, code, level, series, number, red, blue, p_red, red_mean, blue_mean, tier, factors, engine_version, predicted_at, match_time, no_score_basis, model_id, data_version, ratings_through, p_red_shadow, shadow_model_id)
-            VALUES ('live', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      sql: `INSERT OR IGNORE INTO predictions (kind, season, code, level, series, number, red, blue, p_red, red_mean, blue_mean, tier, factors, engine_version, predicted_at, match_time, no_score_basis, model_id, data_version, ratings_through, p_red_shadow, shadow_model_id, ${RANGE_COLUMNS})
+            VALUES ('live', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       args: [season, m.code, m.level, m.series, m.number, JSON.stringify(m.red), JSON.stringify(m.blue), x.winProbA, x.predictedScoreA, x.predictedScoreB,
-        x.confidence.tier, JSON.stringify(x.factors), ENGINE_VERSION, at, m.time, noScoreBasis, x.probabilityModelId ?? "legacy", dataVersion, ratingsThrough, x.shadow?.winProbA ?? null, x.shadow?.modelId ?? null],
+        x.confidence.tier, JSON.stringify(x.factors), ENGINE_VERSION, at, m.time, noScoreBasis, x.probabilityModelId ?? "legacy", dataVersion, ratingsThrough, x.shadow?.winProbA ?? null, x.shadow?.modelId ?? null,
+        ...rangeArgs(x, !!noScoreBasis)],
     });
   }
   await writeBatch(stmts);
@@ -441,6 +451,8 @@ export async function runStats(o: StatsOptions = {}): Promise<void> {
   // Report cards read the scored live calls: right after they're scored. Seasons with live calls only.
   for (const s of withData) if (!isLegacy(s) && (await get("SELECT 1 FROM predictions WHERE kind = 'live' AND season = ? LIMIT 1", [s]))) await computeReportCards(s, log);
   await logLivePredictions(log);
+  // Today's coin flips on the home page, from the schedules and calls just written (never fails the stats).
+  await (await import("../api/coinFlips.js")).refreshCoinFlips(log);
   // Weekly world-rankings snapshots (/rankings movement): any Monday not written yet. A failure here
   // never fails the stats; the next run writes the week.
   await snapshotRankings({ log }).catch((e) => log(`rankings snapshots failed: ${(e as Error).message}`));
