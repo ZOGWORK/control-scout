@@ -1,0 +1,14 @@
+{
+  "name": "@control-scout/bot",
+  "private": true,
+  "version": "1.0.0",
+  "description": "The Control Scout Discord bot: /team, /predict, /event, /rankings. Its own process; reads the site's database directly.",
+  "license": "GPL-3.0-only",
+  "type": "module",
+  "scripts": {
+    "start": "node --import tsx index.ts"
+  },
+  "dependencies": {
+    "discord.js": "^14.26.5"
+  }
+}
