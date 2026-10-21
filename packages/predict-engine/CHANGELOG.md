@@ -13,9 +13,10 @@
   - `PartnershipBook` accumulates the table walk-forward and carries its own rating book.
     It serializes with `toState`/`fromState` (resume after the finished seasons) and
     `toData` (the compact, pruned table for offline packs).
-  - `PartnershipTable` reads that data. Pruning: pairs under `minMatches` (2 together) or
-    `minMeetings` (3 against), or older than `maxSeasonsAgo` (6), are dropped. Predictions
-    ignore the same pairs, so pruning changes no answer.
+  - `PartnershipTable` reads that data. It holds pairs with at least `minMatches` (2
+    together) or `minMeetings` (3 against), seen within `maxSeasonsAgo` (6); predictions
+    ignore every other pair. The book keeps a weak pair through the next season, so a
+    later meeting counts every match, and forgets it after a whole season idle.
   - `partnershipFact` gives the strongest fact for a lineup in words, for example
     "1234 and 5678 have played 6 matches together (5–1); best 212 at NJ Championship (2024–25)".
 - `explainMatch(..., { partnership })` returns `partnership` (the fact, or null).
@@ -29,14 +30,15 @@
 fitted on 2023–24, (decay, k) chosen on 2024–25 by log loss, and β refitted on both.
 On held-out 2025–26 (36,572 non-tied 2v2 matches, 1,219 events, never used for any
 choice), the blend made the odds slightly worse:
-- Brier 0.16911 → 0.16919 (+0.000083, 95% event-bootstrap interval [+0.00002, +0.00016]);
-- log loss 0.50742 → 0.50757;
-- accuracy 74.83% → 74.78%.
+- Brier 0.16911 → 0.16916 (+0.000058, 95% event-bootstrap interval [+0.000004, +0.000127]);
+- log loss 0.50742 → 0.50750;
+- accuracy 74.83% → 74.77%.
 
 2.2 therefore ships the history as a reason only (`betaTogether = betaAgainst = 0`). The
-fitted shrinkage was k = 4, but k is weakly identified: k from 4 to 64 tie on the select
-block once β rescales. In the walk-forward, 69% of held-out matches have some pair history
-and 21% have a same-alliance pair.
+selected shrinkage was k = 64 with decay 1, but k is not identified: once β rescales, k from
+4 to 64 tie within 0.00001 on the select block. The shipped k = 4 and decay 0.5 only rank
+and word the fact. In the walk-forward, 64.5% of held-out matches have some pair history
+and 24.6% have a same-alliance pair.
 
 ## 2.1.1 — 2026-10-17
 

@@ -52,7 +52,8 @@ describe("partnership memory (server)", () => {
   it("builds the finished seasons once into kv", async () => {
     const book = await partnershipPrefix(2023, { wait: true });
     expect(book?.together(11, 12)?.n).toBe(2);
-    expect(book?.together(13, 15)).toBeUndefined(); // one match together: pruned at the season's end
+    expect(book?.together(13, 15)?.n).toBe(1); // one match together: kept a season in case they meet again…
+    expect(book?.toData().together.some((r) => r[0] === 13 && r[1] === 15)).toBe(false); // …but never shown
     const stored = await kvGet<{ key: string }>("partnership:prefix:2023");
     expect(stored?.key).toContain("2022:2026-01-01");
   });

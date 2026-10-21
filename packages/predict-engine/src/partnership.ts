@@ -40,11 +40,11 @@ export interface PartnershipParams {
 }
 
 /** Frozen 2.2 settings (Control Scout docs/partnership-memory.md, scripts/partnership-fit.ts):
- *  β fitted on 2023–24, decay and k chosen on 2024–25 (decay 1, k 4), then judged on held-out
- *  2025–26. There the fitted shift made the odds slightly WORSE (Brier +0.000083, 95% interval
- *  [+0.00002, +0.00016]), so both β are 0: 2.2 shows the history as a reason and never moves
- *  the odds. k = 4 is the fitted shrinkage; decay 0.5 (the fitted 1 tied it on the select
- *  block) only ranks and words the fact, favouring recent seasons. */
+ *  β fitted on 2023–24, decay and k chosen on 2024–25 (decay 1, k 64), then judged on held-out
+ *  2025–26. There the fitted shift made the odds slightly WORSE (Brier +0.000058, 95% interval
+ *  [+0.000004, +0.000127]), so both β are 0: 2.2 shows the history as a reason and never moves
+ *  the odds. k is not identified (4 to 64 tie once β rescales); with β = 0, k = 4 and decay
+ *  0.5 only rank and word the fact, favouring recent seasons and real samples. */
 export const PARTNERSHIP_PARAMS: PartnershipParams = {
   k: 4,
   seasonDecay: 0.5,
@@ -184,6 +184,8 @@ export class PartnershipBook implements PairLookup {
   observe(m: MatchRecord): void {
     if (this.season !== m.season) this.startSeason(m.season);
     const s = m.season;
+    // Expectations at the match's time (rating growth since each robot's last match), exactly as update() reads them.
+    this.book.setTime(m.time);
     const red = this.book.allianceExpectation(m.red.teams), blue = this.book.allianceExpectation(m.blue.teams);
     const zr = allianceResidual(red, m.red.np).z, zb = allianceResidual(blue, m.blue.np).z;
     const clip = (z: number) => Math.max(-4, Math.min(4, z));
@@ -229,11 +231,18 @@ export class PartnershipBook implements PairLookup {
     this.season = season;
   }
 
-  /** Drop weak pairs (fewer than minMatches / minMeetings) and old ones (beyond maxSeasonsAgo of `season`). */
+  /**
+   * Drop old pairs (beyond maxSeasonsAgo of `season`) and weak ones (fewer than minMatches /
+   * minMeetings) once a whole season has passed without them reaching it: a pair that met once
+   * last season keeps that match, so meeting again this season counts both. Only a weak pair
+   * idle for a full season is forgotten (keeping every single meeting since 2019 would make the
+   * state ~10× larger).
+   */
   private prune(season: number): void {
     const p = this.params;
-    for (const [k, t] of this.tog) if (t.n < p.minMatches || season - t.season > p.maxSeasonsAgo) this.tog.delete(k);
-    for (const [k, a] of this.ag) if (a.n < p.minMeetings || season - a.season > p.maxSeasonsAgo) this.ag.delete(k);
+    const drop = (x: { n: number; season: number }, min: number) => season - x.season > p.maxSeasonsAgo || (x.n < min && season - x.season >= 2);
+    for (const [k, t] of this.tog) if (drop(t, p.minMatches)) this.tog.delete(k);
+    for (const [k, a] of this.ag) if (drop(a, p.minMeetings)) this.ag.delete(k);
     const used = new Set([...this.tog.values()].map((t) => `${t.bestSeason}|${t.bestEvent}`));
     // Names of the season starting now (registered before its first match) always stay.
     for (const k of this.names.keys()) if (!used.has(k) && Number(k.split("|")[0]) < season) this.names.delete(k);

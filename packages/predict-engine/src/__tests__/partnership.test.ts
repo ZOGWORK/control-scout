@@ -53,10 +53,21 @@ describe("partnership memory", () => {
     expect(old).toBeCloseTo((4 * p.seasonDecay ** 2) / (4 * p.seasonDecay ** 2 + p.k), 12);
   });
 
-  it("prunes single meetings at the season's end, and the table answers exactly like the book", () => {
+  it("keeps a single meeting for one more season, so a later meeting counts both", () => {
+    const b = history();
+    b.observe(match(2025, "OPEN", [[1, 7], 90], [[22, 23], 60])); // 1 + 7 met once in 2024
+    const t = b.together(1, 7)!;
+    expect([t.n, t.wins, t.ties]).toEqual([2, 1, 1]);
+    expect(partnershipFact(b, [1, 7], [22, 23], 2025)!.label).toMatch(/^1 and 7 have played 2 matches together \(1–0–1\)/);
+  });
+
+  it("forgets a weak pair idle for a whole season, and the table answers exactly like the book", () => {
     const b = history();
     b.observe(match(2025, "OPEN", [[20, 21], 50], [[22, 23], 60]));
-    expect(b.together(1, 7)).toBeUndefined();
+    expect(b.together(1, 7)!.n).toBe(1); // kept through the next season…
+    expect(new PartnershipTable(b.toData()).together(1, 7)).toBeUndefined(); // …but never shown
+    b.observe(match(2026, "OPEN", [[20, 21], 50], [[22, 23], 60]));
+    expect(b.together(1, 7)).toBeUndefined(); // a whole season without a second match
     expect(b.together(1, 2)!.n).toBe(3);
     const table = new PartnershipTable(b.toData());
     // Same facts; the stored sums are rounded to 4 places (the pack stays small), so effects agree to ~1e-5.

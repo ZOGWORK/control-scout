@@ -24,14 +24,14 @@ Code: `packages/predict-engine/src/partnership.ts`. Fit and evaluation:
     (z_red − z_blue)/√2 from that side.
 - **Shrinkage.** effect = Σ w·z / (Σ w + k), with w = decay^(seasons ago). With k = 4,
   two matches together at +1σ give an effect of 0.33. Ten matches give 0.71.
-- **Pruning** (applied at each season's end and when serializing):
-  - same-alliance pairs with fewer than 2 matches together are dropped;
-  - opponent pairs with fewer than 3 meetings are dropped;
-  - pairs last seen more than 6 seasons ago are dropped;
-  - the shipped table keeps only pairs whose teams both played in the newest season or
-    the one before.
-
-  Predictions ignore exactly the dropped pairs, so pruning changes no answer.
+- **What is shown and shipped:** same-alliance pairs with at least 2 matches together,
+  opponent pairs with at least 3 meetings, last seen within 6 seasons, whose teams both
+  played in the newest season or the one before. Predictions ignore every other pair, so
+  leaving them out of the table changes no answer.
+- **What is remembered:** a weak pair (under those counts) is kept through the next
+  season, so meeting again then counts every match. It is forgotten only after a whole
+  season without reaching the count. Keeping every single meeting since 2019 would make
+  the state about ten times larger.
 
 ## Held-out test
 
@@ -45,7 +45,7 @@ only earlier matches) and the pair inputs (from every earlier match back to 2019
 |---|---|---|
 | Fit β | 2023–24 (27,861 matches) | βT, βA for each (decay, k) |
 | Select | 2024–25 (33,017) | decay ∈ {0, 0.25, 0.5, 1} × k ∈ {1 … 64} by log loss |
-| Refit β | 2023–24 + 2024–25 | decay 1, k 4 → βT 0.223, βA 0.122 |
+| Refit β | 2023–24 + 2024–25 | decay 1, k 64 → βT 1.557, βA 0.822 |
 | **Held out** | **2025–26 (36,572 matches, 1,219 events)** | nothing |
 
 2025–26 played no part in any partnership choice. The served 2.1 model it is compared
@@ -55,26 +55,29 @@ against is described in `prediction-engine-2.1-report.md`.
 
 | | Served engine | + partnership | Change |
 |---|---|---|---|
-| Brier | 0.16911 | 0.16919 | **+0.000083 [+0.00002, +0.00016]** (worse) |
-| Log loss | 0.50742 | 0.50757 | +0.000155 [−0.000002, +0.00036] |
-| Accuracy | 74.83% | 74.78% | −0.05 pp [−0.09, +0.01] |
+| Brier | 0.16911 | 0.16916 | **+0.000058 [+0.000004, +0.000127]** (worse) |
+| Log loss | 0.50742 | 0.50750 | +0.000078 [−0.000051, +0.000256] |
+| Accuracy | 74.83% | 74.77% | −0.055 pp [−0.097, 0.000] |
 
-On the 25,202 held-out matches with any pair history, Brier went from 0.16779 to 0.16791.
+On the 23,575 held-out matches with any pair history, Brier went from 0.16642 to 0.16651.
 
-On the select block, the best blend improved log loss by only 0.00024. Shrinkage
-strength is weakly identified: once β rescales, every k from 4 to 64 ties within 0.00001.
+On the select block, the best blend improved log loss by only 0.00018. Shrinkage
+strength is not identified: once β rescales, every k from 4 to 64 ties within 0.00001
+(the grid's largest k won by 0.00001).
 The likely reason is that the ratings already absorb a pair's shared results. Within a
 season, both robots' ratings learned from every match they played together, so the
 leftover pair effect is mostly noise. Across seasons, robots are rebuilt.
 
 **Decision.** 2.2 ships **reasons only**: `betaTogether = betaAgainst = 0`, and no served
 number changes. The full backtest ledger replayed under 2.2.0 matches 2.1.1 bit for bit on
-all 109,002 replayed matches from 2023–24 to 2025–26. `k = 4` (fitted) and
-`decay = 0.5` only rank and word the fact. The fitted decay (1) tied 0.5 on the select
-block; 0.5 favours recent seasons in what is shown.
+all 109,002 replayed matches from 2023–24 to 2025–26. With β = 0, k and
+decay only rank and word the fact. We use `k = 4`, which ties the fitted 64 on the select
+block but keeps "above/below what their ratings expected" for pairs with a real sample,
+and `decay = 0.5` (0.5 and 1 differ by 0.00002), which favours recent seasons in what is
+shown.
 
-**Coverage.** 69% of held-out matches have some pair history, and 21% have two robots on
-the same alliance that played together before.
+**Coverage.** 64.5% of held-out matches have some pair history, and 24.6% have two
+robots on the same alliance that played together before.
 
 ## Where it shows
 
