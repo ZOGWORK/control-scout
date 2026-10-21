@@ -4,7 +4,8 @@
 
 **No served number changes** (the numeric blend is off: see "Evidence"). New:
 - `partnership` module: a pair table of real results from 2019–20 on. For two robots on the
-  same alliance it keeps matches, W–L–T, the best final score together and where. For two
+  same alliance it keeps matches, W–L–T, and the best final score together in their latest
+  season together (scores of different games never compare) and where. For two
   opponents it keeps the meetings and the record. Each alliance result is turned into a
   standardized residual against a rating book that has seen only earlier matches, so
   seasons with different games share one scale. A pair's effect is shrunk toward zero

@@ -198,7 +198,8 @@ export class PartnershipBook implements PairLookup {
         decay(t, s, this.params.seasonDecay);
         t.n++; t.w += 1; t.z += z;
         if (won > 0) t.wins++; else if (won < 0) t.losses++; else t.ties++;
-        if (total > t.best) { t.best = total; t.bestSeason = s; t.bestEvent = m.eventCode; }
+        // Best score of the latest season they played together: scores of different games don't compare.
+        if (s > t.bestSeason || total > t.best) { t.best = total; t.bestSeason = s; t.bestEvent = m.eventCode; }
       }
     }
     // Head to head: the margin residual (red − blue) / √2, from the lower number's side.
@@ -234,7 +235,8 @@ export class PartnershipBook implements PairLookup {
     for (const [k, t] of this.tog) if (t.n < p.minMatches || season - t.season > p.maxSeasonsAgo) this.tog.delete(k);
     for (const [k, a] of this.ag) if (a.n < p.minMeetings || season - a.season > p.maxSeasonsAgo) this.ag.delete(k);
     const used = new Set([...this.tog.values()].map((t) => `${t.bestSeason}|${t.bestEvent}`));
-    for (const k of this.names.keys()) if (!used.has(k)) this.names.delete(k);
+    // Names of the season starting now (registered before its first match) always stay.
+    for (const k of this.names.keys()) if (!used.has(k) && Number(k.split("|")[0]) < season) this.names.delete(k);
   }
 
   /**

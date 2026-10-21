@@ -87,6 +87,19 @@ describe("partnership memory", () => {
     expect(partnershipFact(b, [30, 31], [32, 33], 2024)).toBeNull();
   });
 
+  it("keeps the names of a new season's events, named before its first match", () => {
+    const b = history();
+    b.nameEvent(2025, "TXCMP", "Texas Championship");
+    b.observe(match(2025, "TXCMP", [[60, 61], 150], [[62, 63], 90]));
+    b.observe(match(2025, "TXCMP", [[60, 61], 170], [[64, 65], 90]));
+    expect(partnershipFact(b, [60, 61], [70, 71], 2025)!.label).toContain("best 170 at Texas Championship");
+    expect(b.eventName(2024, "NJCMP")).toBe("NJ Championship"); // still used by 1 + 2's best
+    // A new season's game: the best is that season's, even when lower than an older game's score.
+    b.observe(match(2025, "TXCMP", [[1, 2], 90], [[64, 65], 80]));
+    const t = b.together(1, 2)!;
+    expect([t.n, t.best, t.bestSeason, t.bestEvent]).toEqual([4, 90, 2025, "TXCMP"]);
+  });
+
   it("reports head-to-head records from the right side", () => {
     const b = new PartnershipBook(FITTED_MODEL.rating);
     for (let i = 0; i < 3; i++) b.observe(match(2024, "X", [[40, 41], 120], [[12, 13], 80]));
