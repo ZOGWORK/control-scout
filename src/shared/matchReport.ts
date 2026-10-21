@@ -24,7 +24,7 @@
 //                        RISE_SHARE (15%) and RISE_POINTS (5) points. (Most teams improve over a season: only
 //                        the steepest climbs are worth a flag.)
 // A cutoff the season can't give (too few teams with enough matches yet) raises no flag.
-import type { EventDetail, MatchView } from "./api";
+import type { EventDetail, MatchDetail, MatchView } from "./api";
 import type { TeamConsensus } from "./consensus";
 
 export const FLAG_TOP_SHARE = 0.15;
@@ -68,6 +68,8 @@ export interface MatchReport {
   live: EventDetail["live"];
   match: MatchView;
   description: string | null;
+  /** Bonus ranking points earned once played (2025+), as on the match page; null when none are recorded. */
+  bonus: MatchDetail["bonus"];
   /** Every team in the lineup, red then blue. */
   teams: ReportTeam[];
   prev: { key: string; label: string } | null;

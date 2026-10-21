@@ -17,6 +17,7 @@ import type { CalibrationParams } from "./calibration.js";
 import type { ContextualModel, MatchContext, ProbabilityModel } from "./contextual.js";
 import type { RatingBook } from "./rating.js";
 import type { Component, TeamRating } from "./types.js";
+import { allianceBonusOdds, BONUS_CONFIDENCE_RULE, type AllianceBonusOdds, type BonusModelSource } from "./bonus.js";
 
 export type ConfidenceTier = "provisional" | "moderate" | "confident";
 
@@ -80,6 +81,18 @@ export interface MatchExplanation {
   shadow: { winProbA: number; modelId: string } | null;
   teamsA: TeamStrength[];
   teamsB: TeamStrength[];
+  /** opts.bonus (a qualification match of a 2025+ season with a bonus model): each alliance's
+   *  bonus-RP odds and expected ranking points (bonus.ts), with their own confidence. Else null. */
+  bonus: MatchBonusOdds | null;
+}
+
+export interface MatchBonusOdds {
+  A: AllianceBonusOdds;
+  B: AllianceBonusOdds;
+  /** The match's tier, capped by how much the bonus model has learned from (BONUS_CONFIDENCE_RULE). */
+  confidence: { tier: ConfidenceTier; reason: string };
+  source: BonusModelSource["source"];
+  samples: number | null;
 }
 
 export interface ExplainOptions {
@@ -95,6 +108,28 @@ export interface ExplainOptions {
   /** Names used in factor sentences (default "Red" / "Blue"). */
   nameA?: string;
   nameB?: string;
+  /** Bonus ranking points (2025+ qualification matches): the season and its bonus model. */
+  bonus?: { season: number; model: BonusModelSource };
+}
+
+const TIER_ORDER: ConfidenceTier[] = ["provisional", "moderate", "confident"];
+
+function bonusOdds(season: number, src: BonusModelSource, p: { red: { np: number; sd: number }; blue: { np: number; sd: number } }, pA: number, match: { tier: ConfidenceTier; reason: string }): MatchBonusOdds | null {
+  // A bonus is earned on the alliance's own non-penalty points: their mean is the lineup's np, their spread
+  // the score's game noise + rating uncertainty (the event simulator draws them the same way).
+  const A = allianceBonusOdds(season, src.model, { mean: p.red.np, sd: p.red.sd }, pA);
+  const B = allianceBonusOdds(season, src.model, { mean: p.blue.np, sd: p.blue.sd }, 1 - pA);
+  if (!A || !B) return null;
+  const R = BONUS_CONFIDENCE_RULE;
+  const n = src.samples;
+  const cap: ConfidenceTier = src.source === "fitted" || n == null ? "confident" : n < R.provisionalBelow ? "provisional" : n < R.confidentMin ? "moderate" : "confident";
+  const capped = TIER_ORDER.indexOf(cap) < TIER_ORDER.indexOf(match.tier);
+  const reason = capped
+    ? `This season's bonus model has learned from only ${n!.toLocaleString("en-US")} alliance results so far.`
+    : src.source === "season" && n != null
+      ? `${match.reason} Bonus odds learn from ${n.toLocaleString("en-US")} of this season's alliance results.`
+      : match.reason;
+  return { A, B, confidence: { tier: capped ? cap : match.tier, reason }, source: src.source, samples: n };
 }
 
 const COMPONENT_WORDS: Record<Component, string> = {
@@ -201,5 +236,6 @@ export function explainMatch(book: RatingBook, teamsA: number[], teamsB: number[
     shadow: p.pShadow != null ? { winProbA: p.pShadow, modelId: p.shadowModelId! } : null,
     teamsA: A,
     teamsB: B,
+    bonus: opts.bonus ? bonusOdds(opts.bonus.season, opts.bonus.model, p, p.pRedWin, { tier, reason }) : null,
   };
 }

@@ -15,6 +15,7 @@ import { CalibrationLine, ConfidenceBadge, FactorList, KIND_LABEL, WinBar } from
 import { VideoPanel } from "./MatchVideo";
 import { ShareMatch } from "./ShareMatch";
 import { ResultChanges } from "./ResultChanges";
+import { BonusOdds } from "./BonusOdds";
 import { ScoreRange } from "./ScoreRange";
 import { levelPct } from "../shared/scoreRange";
 import { cn } from "./cn";
@@ -208,6 +209,7 @@ function Prediction({ d }: { d: MatchDetail }) {
         {played && !p.noScoreBasis && p.redRange && p.blueRange && <><dt className="text-text-muted">Inside the range</dt><dd>red {inside(m.red.score!.total, p.redRange)}, blue {inside(m.blue.score!.total, p.blueRange)}</dd></>}
         {called != null && <><dt className="text-text-muted">Call</dt><dd className={called ? "text-success" : "text-warning"}>{called ? "Called it" : "Upset"}</dd></>}
       </dl>
+      {p.bonus && <BonusOdds season={m.season} bonus={p.bonus} actual={played ? d.bonus : null} className="mt-3 bg-text-base/[0.02]" />}
       {p.factors?.length ? <><p className="mt-3 text-xs font-medium text-text-muted">Why</p><FactorList factors={p.factors} className="mt-1.5" /></> : null}
       <CalibrationLine pRed={p.pRed} compact className="mt-3" />
     </section>

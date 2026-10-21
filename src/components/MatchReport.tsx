@@ -20,6 +20,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "./ui/overlay";
 import { Skeleton } from "./ui/basic";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "./ui/controls";
 import { cn } from "./cn";
+import { BonusOdds } from "./BonusOdds";
 import { ScoreRange } from "./ScoreRange";
 import { levelPct } from "../shared/scoreRange";
 
@@ -42,7 +43,7 @@ export function MatchReportView({ r, ws, watch }: { r: MatchReport } & ReportWor
   const workspace = ws && !ws.state.error ? ws : null;
   return (
     <div className="space-y-5 max-sm:space-y-4">
-      <Call m={m} />
+      <Call m={m} earned={r.bonus} />
       <WorkspaceLine ws={ws} />
       <div className="grid gap-4 lg:grid-cols-2">
         {(["red", "blue"] as const).map((side) => (
@@ -58,7 +59,7 @@ export function MatchReportView({ r, ws, watch }: { r: MatchReport } & ReportWor
 }
 
 /** The prediction (or, once played, the result next to the call made before it). */
-function Call({ m }: { m: MatchView }) {
+function Call({ m, earned }: { m: MatchView; earned?: MatchReport["bonus"] }) {
   const p = m.prediction;
   const scored = m.played && m.red.score && m.blue.score ? { red: m.red.score.total, blue: m.blue.score.total } : null;
   const winner: Side | "tie" | null = scored ? (scored.red === scored.blue ? "tie" : scored.red > scored.blue ? "red" : "blue") : null;
@@ -89,6 +90,8 @@ function Call({ m }: { m: MatchView }) {
             <p className="mt-2 text-sm text-muted-foreground">Predicted score <ScoreRange mean={p.redMean} range={p.redRange} level={p.rangeLevel} className="text-red-alliance" /> – <ScoreRange mean={p.blueMean} range={p.blueRange} level={p.rangeLevel} className="text-blue-alliance" />
               {p.redRange && p.blueRange && <span className="block text-xs">± is the {levelPct(p.rangeLevel)} range: red {p.redRange[0]}–{p.redRange[1]}, blue {p.blueRange[0]}–{p.blueRange[1]}. About {Math.round((p.rangeLevel ?? 0.8) * 10)} in 10 real scores land inside.</span>}</p>
           )}
+          {/* Once played, the call sits next to the bonuses actually earned (as on the match page). */}
+          {p.bonus && <BonusOdds season={m.season} bonus={p.bonus} actual={scored ? earned : null} className="mt-3 bg-text-base/[0.02]" />}
           {p.factors?.length ? (
             <details className="group mt-2" open>
               <summary className="cursor-pointer select-none text-xs font-medium text-muted-foreground">Why</summary>
