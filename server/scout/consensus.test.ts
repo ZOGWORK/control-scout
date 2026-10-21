@@ -326,4 +326,4 @@ describe("reliability notes never reach server-rendered pages or share cards", (
   });
 });
 
-const PUBLIC_PATHS = [`/api/teams/18360?season=${S}`, `/api/compare?teams=18360,101&season=${S}`, `/api/shortlist?teams=18360,101&season=${S}`, `/api/predict/match?season=${S}&red=18360,101&blue=102,103`];
+const PUBLIC_PATHS = [`/api/teams/18360?season=${S}`, `/api/compare?teams=18360,101&season=${S}`, `/api/shortlist?teams=18360,101&season=${S}`, `/api/reliability?teams=18360,101&season=${S}`, `/api/predict/match?season=${S}&red=18360,101&blue=102,103`];

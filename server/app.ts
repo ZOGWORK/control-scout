@@ -11,7 +11,7 @@ import { hasFirst } from "./env.js";
 import { CURRENT_SEASON, SEASONS, SEASON_NUMBERS, isLegacy, seasonInfo } from "./data/seasons.js";
 import { ensureSearchIndex, search } from "./api/search.js";
 import { rebuildSearch } from "./stats/job.js";
-import { teamProfile, compareTeams, teamSummaries, shortlistTeams } from "./api/teams.js";
+import { teamProfile, compareTeams, teamSummaries, shortlistTeams, reliabilityMany } from "./api/teams.js";
 import { cachedEventDetail, eventDetail, listEvents, toEventInput } from "./api/events.js";
 import { eventStream, seasonStreams } from "./portal/streams.js";
 
@@ -431,6 +431,8 @@ export function createApp() {
   api.get("/teams-summary", h(async (req) => ({ season: season(req.query.season), teams: await teamSummaries(teamList(req.query.teams, "teams", 100), season(req.query.season)) })));
 
   /** The shortlist page in one request: summaries plus each team's OPR split and event-by-event trend. */
+  // Reliability index (src/shared/reliability.ts): public match data only, also read by Control Point.
+  api.get("/reliability", h(async (req) => reliabilityMany(season(req.query.season), teamList(req.query.teams, "teams", 100))));
   api.get("/shortlist", h(async (req) => ({ season: season(req.query.season), teams: await shortlistTeams(teamList(req.query.teams, "teams", 100), season(req.query.season)) })));
 
   // --- Records: season stat tables with filters (src/shared/filterDsl.ts) --

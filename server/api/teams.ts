@@ -4,7 +4,20 @@ import { CURRENT_SEASON } from "../data/seasons.js";
 import type { CompareView, ReportCard, ReportCardField, ShortlistTeam, TeamReportCards, TeamEventRow, TeamInfo, TeamProfile, TeamSeasonStats, TeamSummary } from "../../src/shared/api.js";
 import { matchViews } from "./matches.js";
 import { REPORT_PRIOR } from "../stats/reportCards.js";
-import { reliabilityFromRow, type Reliability } from "../../src/shared/reliability.js";
+import { reliabilityFromRow, type Reliability, type ReliabilityResponse } from "../../src/shared/reliability.js";
+
+/**
+ * Many teams' stored season reliability, in the order asked (null: none stored). Public match data only; also
+ * what Control Point shows next to OPR (GET /api/reliability).
+ */
+export async function reliabilityMany(season: number, teams: number[]): Promise<ReliabilityResponse> {
+  const ts = [...new Set(teams)];
+  const rows = ts.length ? await all<any>(`SELECT * FROM team_reliability WHERE season = ? AND code = '' AND team IN (0, ${ts.map(() => "?").join(",")})`, [season, ...ts]) : [];
+  const field = rows.find((r) => Number(r.team) === 0);
+  const fieldIndex = field ? Number(field.idx) : null;
+  const by = new Map(rows.filter((r) => Number(r.team) !== 0).map((r) => [Number(r.team), reliabilityFromRow(r, fieldIndex)]));
+  return { season, fieldIndex, teams: teams.map((team) => ({ team, reliability: by.get(team) ?? null })) };
+}
 
 /** A team's stored season reliability (team 0 = the field, for its average index). Null when not computed. */
 export async function teamReliability(season: number, team: number): Promise<Reliability | null> {

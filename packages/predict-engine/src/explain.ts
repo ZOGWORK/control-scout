@@ -72,6 +72,22 @@ export interface RecentRecord {
 /** A reason is notable from this many no-shows / near-zero matches in the recent window. */
 export const REASON_RULE = { noShows: 2, nearZero: 3 } as const;
 
+/**
+ * The notable recent-record reasons for a lineup, in lineup order (at most one per robot: no-shows first).
+ * The same sentences explainMatch returns; exported for apps that build their own match rows (a forecast's
+ * matches) and want the reasons without a second explanation.
+ */
+export function recentReasons(teams: number[], recent: (team: number) => RecentRecord | null): string[] {
+  const out: string[] = [];
+  for (const t of teams) {
+    const r = recent(t);
+    if (!r || !r.matches) continue;
+    if (r.noShows >= REASON_RULE.noShows) out.push(`Team ${t} was a no-show in ${r.noShows} of its last ${r.matches} matches`);
+    else if (r.nearZero >= REASON_RULE.nearZero) out.push(`Team ${t}'s alliance scored about what its partner alone would in ${r.nearZero} of its last ${r.matches} matches (an estimate: defense or a carry looks the same)`);
+  }
+  return out;
+}
+
 export interface MatchExplanation {
   winProbA: number;
   winProbB: number;
@@ -203,15 +219,7 @@ export function explainMatch(book: RatingBook, teamsA: number[], teamsB: number[
       : "Ratings still carry noticeable uncertainty relative to match variance.";
   }
 
-  const reasons: string[] = [];
-  if (opts.recent) {
-    for (const t of [...teamsA, ...teamsB]) {
-      const r = opts.recent(t);
-      if (!r || !r.matches) continue;
-      if (r.noShows >= REASON_RULE.noShows) reasons.push(`Team ${t} was a no-show in ${r.noShows} of its last ${r.matches} matches`);
-      else if (r.nearZero >= REASON_RULE.nearZero) reasons.push(`Team ${t}'s alliance scored about what its partner alone would in ${r.nearZero} of its last ${r.matches} matches (an estimate: defense or a carry looks the same)`);
-    }
-  }
+  const reasons = opts.recent ? recentReasons([...teamsA, ...teamsB], opts.recent) : [];
 
   // From the displayed (rounded) score to the stored whole-point bounds, the larger side: "score ± pm" always
   // reaches both ends of the range (rounding the score and the bounds separately could fall a point short).

@@ -10,6 +10,8 @@ Reasons only: no probability, score, range, factor or tier changes (every number
   2+ no-shows in the window ("Team 1234 was a no-show in 2 of its last 10 matches"), else
   3+ near-zero matches, worded as an estimate (defense or a partner's carry looks the same).
   Empty without `recent`, or when nothing is notable.
+- `recentReasons(teams, recent)`: the same sentences for a lineup on their own, for apps that build their
+  own match rows (Control Point's forecast matches) and want the reasons without an explanation.
 
 ## 2.2.0 — 2026-10-21 · Score ranges
 

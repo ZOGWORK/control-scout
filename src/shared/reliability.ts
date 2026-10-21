@@ -70,6 +70,9 @@ export interface Reliability {
   fieldIndex: number | null;
 }
 
+/** GET /api/reliability?season=&teams=: public, match data only (never any workspace's notes). */
+export interface ReliabilityResponse { season: number; fieldIndex: number | null; teams: { team: number; reliability: Reliability | null }[] }
+
 /** How many of the latest matches "recent" covers. */
 export const RECENT = 10;
 
