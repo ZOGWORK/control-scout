@@ -2,6 +2,7 @@
 // shadcn/ui Tabs on Radix, mapped to Control Point tokens. The active tab is
 // filled with the team accent, matching the existing segmented controls.
 import * as React from 'react';
+import { smoothBehavior } from '../../lib/pageScroll';
 import { Tabs as TabsPrimitive } from 'radix-ui';
 import { cn } from '../cn';
 
@@ -22,12 +23,18 @@ export function TabsList({ className, ...props }: React.ComponentProps<typeof Ta
 export function TabsTrigger({ className, ...props }: React.ComponentProps<typeof TabsPrimitive.Trigger>) {
   // When the list scrolls sideways (phones), keep the selected tab in view —
   // e.g. an upcoming event that opens on its last tab.
+  // It jumps there on arrival and glides when the reader picks another tab (instant under reduced motion).
   const ref = React.useRef<HTMLButtonElement>(null);
+  const shown = React.useRef(false);
   React.useEffect(() => {
     const el = ref.current, list = el?.parentElement;
+    const first = !shown.current;
+    shown.current = true;
     if (!el || !list || el.dataset.state !== 'active' || list.scrollWidth <= list.clientWidth) return;
     if (el.offsetLeft < list.scrollLeft || el.offsetLeft + el.offsetWidth > list.scrollLeft + list.clientWidth) {
-      list.scrollLeft = el.offsetLeft - (list.clientWidth - el.offsetWidth) / 2;
+      const left = el.offsetLeft - (list.clientWidth - el.offsetWidth) / 2;
+      if (first || typeof list.scrollTo !== 'function') list.scrollLeft = left;
+      else list.scrollTo({ left, behavior: smoothBehavior() });
     }
   });
   return (

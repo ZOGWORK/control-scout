@@ -11,6 +11,7 @@ import { RecordsTable } from "../components/records/RecordsTable";
 import { TeamDirectory } from "../components/records/TeamDirectory";
 import { cn } from "../components/cn";
 import { revealInStrip } from "../lib/revealInStrip";
+import { smoothBehavior } from "../lib/pageScroll";
 
 type View = "events" | "season" | "listed" | "matches";
 
@@ -40,13 +41,16 @@ export default function RecordsPage({ matches }: { matches?: boolean }) {
     return { pathname: v === "matches" ? "/matches" : "/teams", search: q.toString() ? `?${q}` : "" };
   };
   // On a phone the strip scrolls sideways: the current view is brought into it on arrival and on every change.
+  // It jumps there on arrival and glides on a change the reader made.
   const strip = useRef<HTMLElement>(null);
+  const stripShown = useRef(false);
   useLayoutEffect(() => {
-    const reveal = () => {
+    const reveal = (behavior: ScrollBehavior = "auto") => {
       const el = strip.current?.querySelector<HTMLElement>("[aria-current=page]");
-      if (strip.current && el) revealInStrip(strip.current, el);
+      if (strip.current && el) revealInStrip(strip.current, el, 8, behavior);
     };
-    reveal();
+    reveal(stripShown.current ? smoothBehavior() : "auto");
+    stripShown.current = true;
     // Again once the web fonts are in (they change the labels' widths), and whenever the strip's width
     // changes (a phone turned to portrait, a narrowed window) so the current view never ends up clipped.
     let live = true;
