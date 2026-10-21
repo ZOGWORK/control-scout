@@ -150,7 +150,7 @@ itself, the space and the view are never sent: not in a personal sync
 | `cs-scout-space`, `cs-shortlist-view`, `cs-account-cache`, `cs-tour`, `cs-tour-demo`, `cs-install`, `cs-install-demo` | 3 | No |
 | `cs-sidebar`, `cs-records-cols:<table>`, `cs-saved-filters:v1` | local UI state | No |
 | `cs-consent`, `cs-alerts-sent`, `cs-offline-seasons`, `cs-pack-meta`, `cs-seen` | device state | No |
-| sessionStorage `cs-session`, `cs-stats-session`, `cs-landed` | this tab only | `cs-stats-session` only as the analytics "new session" bit (no ID) |
+| sessionStorage `cs-session`, `cs-stats-session` | this tab only | `cs-stats-session` only as the analytics "new session" bit (no ID) |
 
 ### First-run tour: device-only on purpose
 
@@ -169,9 +169,8 @@ tour once more on a new device.
 A small card (`src/components/layout/InstallNudge.tsx`) offering to put the
 app on the home screen: "One tap from the stands". With a team of your own
 it names the team, promising only what the installed app (`start_url` "/")
-does: signed in, Home goes straight to My team ("opens straight to team
-N"); signed out, Home leads with the team's next match ("to team N and its
-next match"). It sells speed, never offline use. The rules:
+does: Home, signed in or out, leads with the team's next match ("to team N
+and its next match"). Home never redirects to My team. It sells speed, never offline use. The rules:
 
 - **When the browser offers an install.** Chrome, Edge and Samsung Internet
   fire `beforeinstallprompt`; it's caught from page start (`preventDefault`,
