@@ -3,7 +3,7 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { RatingBook } from "../rating";
 import { explainMatch, CONFIDENCE_RULE } from "../explain";
-import { predictMatch } from "../matchModel";
+import { DEFAULT_BAND, allianceScoreDistribution, predictMatch, scoreBand, zFor } from "../matchModel";
 import { FITTED_MODEL } from "../model";
 import { ENGINE_VERSION } from "../index";
 import type { MatchRecord } from "../types";
@@ -86,6 +86,65 @@ describe("explainMatch", () => {
     expect(e.scoreRangeA[0]).toBeLessThanOrEqual(e.predictedScoreA);
     expect(e.scoreRangeA[1]).toBeGreaterThanOrEqual(e.predictedScoreA);
     expect(e.scoreRangeB[0]).toBeGreaterThanOrEqual(0);
+  });
+});
+
+describe("score ranges (2.2)", () => {
+  it("FITTED_MODEL.band is the default band", () => {
+    expect(FITTED_MODEL.band).toEqual(DEFAULT_BAND);
+  });
+
+  it("never move the win probability or the expected scores", () => {
+    const book = seasonBook(4);
+    const opts = { contextual: FITTED_MODEL.contextual };
+    const a = predictMatch(book, [1, 2], [3, 4], FITTED_MODEL.noise, FITTED_MODEL.calibration, opts);
+    const wide = predictMatch(book, [1, 2], [3, 4], FITTED_MODEL.noise, FITTED_MODEL.calibration, { ...opts, band: { ...DEFAULT_BAND, scale: 3, rating: 3 } });
+    expect(wide.pRedWin).toBe(a.pRedWin);
+    expect(wide.red.mean).toBe(a.red.mean);
+    expect(wide.red.sd).toBe(a.red.sd);
+    expect(wide.red.band.hi - wide.red.band.lo).toBeGreaterThan(a.red.band.hi - a.red.band.lo);
+  });
+
+  it("the explanation's range is the prediction's band, with a ± half-width", () => {
+    const book = seasonBook(4);
+    const e = explainMatch(book, [1, 2], [3, 4]);
+    const p = predictMatch(book, [1, 2], [3, 4]);
+    expect(e.scoreRangeA).toEqual([p.red.band.lo, p.red.band.hi]);
+    expect(e.scoreBandA.level).toBe(0.8);
+    expect(e.scorePlusMinusA).toBe(Math.round(zFor(0.8) * p.red.band.sd));
+    expect(e.teamsA[0].consistency).toBeGreaterThan(0);
+  });
+
+  it("widens for small samples and for erratic robots", () => {
+    const early = seasonBook(1), late = seasonBook(8);
+    const w = (b: RatingBook) => allianceScoreDistribution(b, [1, 2], [3, 4]).sd;
+    // Same distribution with fewer matches is wider (small-sample term), all else equal.
+    const d = allianceScoreDistribution(late, [1, 2], [3, 4]);
+    const noSmall = allianceScoreDistribution(late, [1, 2], [3, 4], undefined, { ...DEFAULT_BAND, smallSample: 0 });
+    expect(d.sd).toBeGreaterThan(noSmall.sd);
+    expect(d.minMatches).toBeGreaterThan(allianceScoreDistribution(early, [1, 2], [3, 4]).minMatches);
+    expect(w(early)).toBeGreaterThan(0);
+    // An erratic robot (variance factor 3) widens the range; consistencyPower 0 ignores it.
+    const steady = allianceScoreDistribution(late, [1, 2], [3, 4]);
+    const v = late.reliabilityOf(1).variance;
+    const erraticBook = late.clone();
+    (erraticBook as unknown as { reliability: Map<number, { variance: number }> }).reliability.get(1)!.variance = v * 3;
+    expect(allianceScoreDistribution(erraticBook, [1, 2], [3, 4]).sd).toBeGreaterThan(steady.sd);
+    expect(allianceScoreDistribution(erraticBook, [1, 2], [3, 4], undefined, { ...DEFAULT_BAND, consistencyPower: 0 }).sd).toBeCloseTo(
+      allianceScoreDistribution(late, [1, 2], [3, 4], undefined, { ...DEFAULT_BAND, consistencyPower: 0 }).sd, 12);
+  });
+
+  it("playoff ranges are narrower (scores are steadier there)", () => {
+    const book = seasonBook(4);
+    const q = predictMatch(book, [1, 2], [3, 4], FITTED_MODEL.noise, undefined, { context: { level: "qual" } });
+    const p = predictMatch(book, [1, 2], [3, 4], FITTED_MODEL.noise, undefined, { context: { level: "playoff" } });
+    expect(p.red.band.sd).toBeLessThan(q.red.band.sd);
+  });
+
+  it("scoreBand: central interval, whole points, clipped at 0; zFor matches phi", () => {
+    expect(scoreBand(100, 10)).toEqual({ level: 0.8, lo: 87, hi: 113, sd: 10 });
+    expect(scoreBand(5, 20).lo).toBe(0);
+    expect(zFor(0.9)).toBeCloseTo(1.6448536, 5);
   });
 });
 
