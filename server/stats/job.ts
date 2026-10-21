@@ -4,8 +4,8 @@
 // hand-entered or estimated without saying so.
 import type { InStatement } from "@libsql/client";
 import {
-  RatingBook, FITTED_MODEL, explainMatch, ENGINE_VERSION, BONUS_MIN_SAMPLES, bonusSamples, recentBonusModel,
-  type BonusModelSource, type BonusSample, type EventRecord, type MatchExplanation,
+  RatingBook, FITTED_MODEL, explainMatch, ENGINE_VERSION, BONUS_MIN_SAMPLES, BonusHistory,
+  type BonusModelSource, type EventRecord, type MatchExplanation,
 } from "@control-scout/predict-engine";
 import { bonusArgs } from "../../src/shared/bonusOdds.js";
 import { all, get, kvGet, kvSet, run, writeBatch } from "../db.js";
@@ -237,16 +237,19 @@ export async function backtest(seasons: number[], log: Log = () => {}, opts: { w
     let rated = 0;
     let lastRated: number | null = null;
     // Bonus RP calls, walk-forward like the win calls: the bonus model is fitted only to this season's
-    // latest qualification alliances played before the match (refitted every 50 new ones), never the
-    // shipped fit, which learned from the whole season.
-    const samples: BonusSample[] = [];
+    // latest qualification alliances from matches that started strictly before this one (BonusHistory:
+    // a result at the same time wasn't known yet, even if it comes first in this order; the same rule as
+    // "before the event" forecasts), refitted every 50 new ones, never the shipped fit, which learned
+    // from the whole season.
+    const history = new BonusHistory();
     let bonus: BonusModelSource | null = null, fittedAt = 0;
     for (const m of matches) {
       if (write.has(s) && m.red.teams.length === 2 && m.blue.teams.length === 2) {
         book.setTime(m.time);
-        if (s >= 2025 && m.level === "qual" && samples.length >= Math.max(BONUS_MIN_SAMPLES, fittedAt + 50)) {
-          bonus = recentBonusModel(samples);
-          fittedAt = samples.length;
+        const known = history.countBefore(m.time);
+        if (s >= 2025 && m.level === "qual" && known >= Math.max(BONUS_MIN_SAMPLES, fittedAt + 50)) {
+          bonus = history.modelBefore(m.time);
+          fittedAt = known;
         }
         const x = explainMatch(book, m.red.teams, m.blue.teams, {
           noise: FITTED_MODEL.noise, calibration: FITTED_MODEL.calibration, contextual: FITTED_MODEL.contextual, context: { level: m.level, event: m.eventCode }, shadow: FITTED_MODEL.contextual?.fallback, band: FITTED_MODEL.band,
@@ -263,7 +266,7 @@ export async function backtest(seasons: number[], log: Log = () => {}, opts: { w
       }
       if (!unrated.has(m.eventCode)) {
         book.update(m); rated++; lastRated = m.time;
-        if (s >= 2025) samples.push(...bonusSamples([m]));
+        if (s >= 2025) history.add(m);
       }
     }
     if (write.has(s)) {

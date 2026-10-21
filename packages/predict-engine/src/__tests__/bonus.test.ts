@@ -4,7 +4,7 @@ import { explainMatch } from "../explain";
 import { predictMatch } from "../matchModel";
 import { FITTED_MODEL } from "../model";
 import { rng } from "../sim";
-import { BONUS_CONFIDENCE_RULE, BONUS_MIN_SAMPLES, BONUS_WINDOW, allianceBonusOdds, bonusModelBefore, recentBonusModel, bonusProbability, bonusSamples, fitBonusModel, seasonBonusModel, winRankingPoints, type BonusSample } from "../bonus";
+import { BONUS_CONFIDENCE_RULE, BONUS_MIN_SAMPLES, BONUS_WINDOW, allianceBonusOdds, BonusHistory, bonusModelBefore, recentBonusModel, bonusProbability, bonusSamples, fitBonusModel, seasonBonusModel, winRankingPoints, type BonusSample } from "../bonus";
 import { rankingPoints } from "../rules";
 import type { MatchRecord } from "../types";
 
@@ -109,6 +109,23 @@ describe("fitBonusModel", () => {
     expect(before.samples).toBe(300);
     expect(before.model).toEqual(recentBonusModel(bonusSamples(early))!.model);
     expect(bonusModelBefore([...early, ...late], 1050)).toBeNull(); // 50 matches = 100 alliances: too few, and no shipped fit
+  });
+
+  it("BonusHistory counts only results that started strictly before, so same-time results stay out", () => {
+    const f = { movement: true, goal: false, pattern: true };
+    const m = (time: number) => ({ time, level: "qual", red: { np: 100 + time, bonusRp: f }, blue: { np: 90 + time, bonusRp: { ...f, goal: true } } });
+    const h = new BonusHistory();
+    for (let i = 0; i < 99; i++) h.add(m(i)); // 198 alliances
+    h.add(m(99)); h.add(m(99)); // two matches at the same time: 202
+    expect(h.countBefore(99)).toBe(198);
+    expect(h.modelBefore(99)).toBeNull(); // the threshold (200) is crossed only by results at t = 99 itself
+    expect(h.countBefore(100)).toBe(202);
+    expect(h.modelBefore(100)?.samples).toBe(202);
+    expect(() => h.add(m(50))).toThrow();
+    // bonusModelBefore applies the same rule.
+    const ms = [...Array.from({ length: 99 }, (_, i) => m(i)), m(99), m(99)];
+    expect(bonusModelBefore(ms, 99)).toBeNull();
+    expect(bonusModelBefore(ms, 100)).toEqual(h.modelBefore(100));
   });
 
   it("learns from the latest BONUS_WINDOW alliances only", () => {
