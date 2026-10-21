@@ -156,6 +156,20 @@ export interface MatchPredictionView {
   factors?: Factor[];
   /** The season has no rated matches yet: win odds only, the predicted score means nothing. */
   noScoreBasis?: true;
+  /** Bonus ranking point odds (2025+ qualification matches), made with the same call (same kind and moment). */
+  bonus?: BonusOddsView;
+}
+
+/** P(each bonus RP) per alliance, in the season's label order (src/shared/labels.ts bonusLabels), and the
+ *  expected ranking points from the match (win RPs × P(win) + expected bonus RPs). */
+export interface BonusOddsView {
+  red: [number, number, number];
+  blue: [number, number, number];
+  rpRed: number;
+  rpBlue: number;
+  /** The match's tier, capped by how much the season's bonus model has learned from. */
+  tier: ConfidenceTier;
+  reason?: string;
 }
 
 export interface MatchView {
@@ -268,6 +282,8 @@ export interface MatchExplanationView {
   level?: "qual" | "playoff";
   /** "contextual" (engine 2.0's win-probability model) or "legacy" (no reliability state yet). */
   probabilityModel?: "contextual" | "legacy";
+  /** Bonus ranking point odds (qualification what-ifs of 2025+ seasons with a bonus model). */
+  bonus?: BonusOddsView | null;
   engineVersion: string;
 }
 
@@ -341,6 +357,20 @@ export interface ReplayCoverage {
   other: number;
 }
 
+/** Bonus RP calls scored: one call per alliance per bonus RP (so 6 per match). */
+export interface BonusAccuracy {
+  /** Alliance-bonus calls scored. */
+  n: number;
+  /** Matches they came from. */
+  matches: number;
+  brier: number;
+  /** Brier of always saying the rate those same calls came true at (hindsight reference, not a model). */
+  baseRateBrier: number;
+  /** Per bonus RP, in the season's label order. */
+  bySlot: { label: string; n: number; brier: number; predicted: number; actual: number }[];
+  reliability: ReliabilityBin[];
+}
+
 export interface TrackRecord {
   seasons: {
     season: number; label: string; live: AccuracyBlock | null; backtest: AccuracyBlock | null;
@@ -354,6 +384,8 @@ export interface TrackRecord {
      *  both computed from the same ratings at the same moment. Paired, so it compares models,
      *  not match difficulty. One entry per served/shadow model pair. */
     liveShadow?: { servedModel: string; shadowModel: string; n: number; served: ShadowScore; shadow: ShadowScore }[];
+    /** Bonus ranking point calls (2025+ qualification matches), scored like win calls; live and replay never blended. */
+    bonus?: { live: BonusAccuracy | null; backtest: BonusAccuracy | null };
   }[];
   engineVersion: string;
   /** Minimum live sample before the headline switches from backtest to live. */

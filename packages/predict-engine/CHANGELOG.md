@@ -1,5 +1,43 @@
 # Changelog
 
+## 2.3.0 — 2026-10-21 · Bonus ranking point odds per match
+
+**New output; no existing number changes.** Win probabilities, scores, ranges, factors,
+confidence and event simulations are bit-identical to 2.2.0 (the new code only runs when a
+caller passes `ExplainOptions.bonus`, or adds `ForecastMatch.bonus` beside the existing
+fields). Replayed 2023–24 to 2026–27 with 2.2.0 and 2.3.0, all 109,182 calls match exactly:
+win probability, shadow probability, expected scores, tier and score ranges.
+
+- `bonus.ts`: `bonusProbability(coef, mean, sd)` is the event simulator's bonus draw
+  (logistic of the alliance's non-penalty score, score ~ Normal floored at 0) integrated
+  exactly instead of sampled; `allianceBonusOdds` adds the season's win RPs
+  (`winRankingPoints`, as `rankingPoints` counts them) for expected ranking points.
+- `fitBonusModel(samples)`: per-bonus logistic regression on non-penalty score (the form of
+  `FITTED_MODEL.bonus`), Newton's method with one pseudo-success/failure and a unit ridge on
+  the standardised slope, so a bonus every alliance (or none) earns stays finite.
+- `recentBonusModel` / `seasonBonusModel`: fit to the season's latest `BONUS_WINDOW` (2,000)
+  qualification alliances once there are `BONUS_MIN_SAMPLES` (200); before that, the shipped
+  fit if the season has one. Bonus difficulty drifts through a season.
+- `explainMatch(..., { bonus: { season, model } })` returns `bonus: { A, B, confidence,
+  source, samples }`: per-alliance odds and expected RPs, with the match's tier capped by
+  `BONUS_CONFIDENCE_RULE` (provisional under 600 alliances, at most moderate under 2,000).
+- `Forecaster.bonusModel(season)` (apps override it with their stored season results; the
+  default uses the shipped fit) and `ForecastMatch.bonus` (`MatchBonusSummary`): every
+  unplayed 2-against-2 qualification match of an event forecast carries its bonus odds,
+  expected RPs and tier, so each app's match list shares the one implementation.
+- `bonusModelBefore(matches, beforeMs)`: the bonus model as it stood at a past moment (only
+  qualification results before it, never the shipped whole-season fit). A forecast of a
+  past moment ("before the event") overrides `bonusModel` with it, so its bonus odds carry no
+  hindsight.
+- `BonusHistory`: a season's results in time order, answering "the model as it stood at t"
+  with one rule (only matches that started strictly before t; a same-time result wasn't
+  known yet). `bonusModelBefore` and walk-forward replays both use it.
+- **Evidence (2025–26 season replay, walk-forward: each call fitted only on earlier
+  results; 212,496 alliance-bonus calls on 35,416 qualification matches).** Brier per bonus
+  call: latest-2,000 window **0.1448**; every alliance so far 0.1597; the shipped
+  whole-season `FITTED_MODEL.bonus["2025"]` 0.1781; always saying each bonus's realised
+  rate (hindsight) 0.1680. Integrating over the score spread beat the point estimate
+  (0.1597 vs 0.1653 on the all-so-far fit). Not yet measured live.
 ## 2.2.0 — 2026-10-21 · Score ranges
 
 **Score ranges (changes numbers: the ranges only).** Win probabilities and expected scores

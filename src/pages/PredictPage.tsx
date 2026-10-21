@@ -32,6 +32,8 @@ import { Reveal, m } from "../components/motion";
 import { dateRange, num, oddsPct, place, seasonLabel } from "../lib/format";
 import { copyLink } from "../lib/clipboard";
 import { ShareMatch } from "../components/ShareMatch";
+import { BonusOdds } from "../components/BonusOdds";
+import { bonusView } from "../shared/bonusOdds";
 import { ScoreRange } from "../components/ScoreRange";
 import { levelPct } from "../shared/scoreRange";
 
@@ -498,7 +500,7 @@ function useOfflineFallback(q: { season: number; red: number[]; blue: number[] }
         data: {
           season: q.season, red: q.red, blue: q.blue, winProbRed: x.winProbA, winProbBlue: x.winProbB, predictedRed: x.predictedScoreA, predictedBlue: x.predictedScoreB,
           rangeRed: x.scoreRangeA, rangeBlue: x.scoreRangeB, rangeLevel: x.scoreBandA.level, factors: x.factors, confidence: x.confidence,
-          teamsRed: x.teamsA.map((t) => ({ ...t, name: null })), teamsBlue: x.teamsB.map((t) => ({ ...t, name: null })), engineVersion: ENGINE_VERSION,
+          teamsRed: x.teamsA.map((t) => ({ ...t, name: null })), teamsBlue: x.teamsB.map((t) => ({ ...t, name: null })), bonus: bonusView(q.season, x) ?? null, engineVersion: ENGINE_VERSION,
         },
       });
     }, () => live && setOut({ data: null, asOf: null, loading: false }));
@@ -539,6 +541,7 @@ function MatchResult({ x, offlineAsOf }: { x: MatchExplanationView; offlineAsOf?
           <div className="text-right"><p className="text-muted-foreground">Predicted score</p><p className="font-display text-2xl font-semibold"><ScoreRange mean={x.predictedBlue} range={x.rangeBlue} level={x.rangeLevel} pmClassName="text-base font-medium text-muted-foreground" /></p><p className="text-xs text-muted-foreground">{levelPct(x.rangeLevel)} range {x.rangeBlue[0]}–{x.rangeBlue[1]}</p></div>
         </div>
         <p className="mt-2 text-xs text-muted-foreground">± is the {levelPct(x.rangeLevel)} range: about {Math.round((x.rangeLevel ?? 0.8) * 10)} in 10 real scores land inside it. It's wider for robots with few matches or up-and-down results. <Link to="/methodology#ranges" className="underline">How often it holds</Link></p>
+        {x.bonus && <BonusOdds season={x.season} bonus={x.bonus} className="mt-4 bg-text-base/[0.02]" />}
         <p className="mt-4 text-xs text-muted-foreground">{fav} is favoured — not certain. This is a probability from current ratings, including penalties each side tends to give away.</p>
         <CalibrationLine pRed={x.winProbRed} className="mt-2" />
         {/* Made to be screenshotted: the card says where it came from. */}
