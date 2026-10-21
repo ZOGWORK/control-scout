@@ -9,7 +9,7 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { kvGet, migrate, openDb, run, setDb } from "../db";
 import { createApp } from "../app";
 import { CURRENT_SEASON } from "../data/seasons";
-import { arrange, buildCoinFlips, current, eventCoinFlips, KV_KEY, refreshCoinFlips, resetCoinFlips } from "./coinFlips";
+import { STALE_MS, arrange, buildCoinFlips, coinFlips, current, eventCoinFlips, gatherForRead, KV_KEY, refreshCoinFlips, resetCoinFlips, storeRadar } from "./coinFlips";
 import { matchDay, type CoinFlipRadar, type CoinFlipRow } from "../../src/shared/coinFlips";
 import type { MatchView } from "../../src/shared/api";
 
@@ -169,6 +169,33 @@ describe("the job and GET /api/home/coin-flips", () => {
     expect(body.generatedAt).toBe(stored!.generatedAt);
     expect(body.upcoming[0].pRed).toBe(0.49);
     expect(res.headers.get("cache-control")).toMatch(/public/);
+  });
+
+  it("never lets an older gather replace a newer stored radar", async () => {
+    await run("DELETE FROM kv WHERE key = ?", [KV_KEY]);
+    const newer = await buildCoinFlips(now);
+    const older = { ...(await buildCoinFlips(now - 60_000)), upcoming: [] };
+    expect(await storeRadar(newer)).toBe(true);
+    expect(await storeRadar(older)).toBe(false);
+    expect((await kvGet<CoinFlipRadar>(KV_KEY))?.generatedAt).toBe(newer.generatedAt);
+    // A job that started earlier and finishes last keeps nothing.
+    expect(await refreshCoinFlips(() => {}, now - 120_000)).toBeNull();
+    expect((await kvGet<CoinFlipRadar>(KV_KEY))?.upcoming).toHaveLength(1);
+  });
+
+  it("a read's fallback answers the newer radar another process stored, not its own older gather", async () => {
+    // Another process stored a radar it started gathering after this read began.
+    const newest = { ...(await buildCoinFlips(now)), upcoming: [], generatedAt: new Date(now + 5000).toISOString() };
+    await storeRadar(newest);
+    const body = await gatherForRead(now);
+    expect(body.generatedAt).toBe(newest.generatedAt);
+    expect(body.upcoming).toEqual([]);
+    expect((await kvGet<CoinFlipRadar>(KV_KEY))?.generatedAt).toBe(newest.generatedAt);
+    // And with only an older one stored, the read's gather replaces it and is answered.
+    await run("UPDATE kv SET value = json_set(value, '$.generatedAt', ?) WHERE key = ?", [new Date(now - STALE_MS - 1000).toISOString(), KV_KEY]);
+    const own = await coinFlips(now);
+    expect(own.upcoming.map((x) => x.label)).toEqual(["Q2"]);
+    expect((await kvGet<CoinFlipRadar>(KV_KEY))?.generatedAt).toBe(own.generatedAt);
   });
 
   it("gathers afresh when nothing is stored yet", async () => {

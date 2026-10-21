@@ -8,7 +8,7 @@
 // kv so the server answers from it whichever process gathered it. The home page reads it through
 // coinFlips(), which drops rows whose venue has since moved to another day and gathers afresh when the
 // stored radar is missing or old.
-import { all, kvGet, kvSet } from "../db.js";
+import { all, kvGet, run } from "../db.js";
 import { CURRENT_SEASON, isLegacy } from "../data/seasons.js";
 import { localDate } from "../../src/shared/eventDay.js";
 import {
@@ -94,11 +94,28 @@ export async function buildCoinFlips(now = Date.now(), season = CURRENT_SEASON):
   return totals({ ...empty, tallies, ...arrange(rows) });
 }
 
-/** The job: gather and store. Never throws (a failure leaves the stored radar as it was). */
+/**
+ * Store a gathered radar unless a newer one is already stored. Gathers overlap (the server's timer, a live
+ * result, the stats job in another process, a read's fallback): one that started earlier read older data, so
+ * if it finishes last it must not put finished matches back on the list. generatedAt is when the gather
+ * started; the check and the write are one statement, so it holds across processes. True when stored.
+ */
+export async function storeRadar(r: CoinFlipRadar): Promise<boolean> {
+  const n = await run(
+    `INSERT INTO kv (key, value, updated_at) VALUES (?, ?, ?)
+     ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at
+     WHERE COALESCE(json_extract(kv.value, '$.generatedAt'), '') < json_extract(excluded.value, '$.generatedAt')`,
+    [KV_KEY, JSON.stringify(r), new Date().toISOString()],
+  );
+  return n > 0;
+}
+
+/** The job: gather and store. Never throws (a failure leaves the stored radar as it was). Null when nothing
+ *  was stored (a failure, or a newer radar already stored). */
 export async function refreshCoinFlips(log: (m: string) => void = () => {}, now = Date.now()): Promise<CoinFlipRadar | null> {
   try {
     const r = await buildCoinFlips(now);
-    await kvSet(KV_KEY, r);
+    if (!(await storeRadar(r))) return null;
     memo = { at: Date.now(), value: Promise.resolve(r) };
     if (r.upcoming.length || r.decided.length) log(`coin flips: ${r.upcoming.length} to play, ${r.decided.length} decided, across ${r.events} events`);
     return r;
@@ -128,6 +145,15 @@ export function current(r: CoinFlipRadar, now = Date.now()): CoinFlipRadar {
   });
 }
 
+/** A read's own gathering (nothing fresh stored): stored like the job's, so later reads in any process reuse
+ *  it; when a newer radar was stored meanwhile (by the job, maybe in another process), that one is answered
+ *  instead. A failed write never fails the read. */
+export async function gatherForRead(now = Date.now()): Promise<CoinFlipRadar> {
+  const r = await buildCoinFlips(now);
+  if (await storeRadar(r).catch(() => true)) return r;
+  return (await kvGet<CoinFlipRadar>(KV_KEY).catch(() => null)) ?? r;
+}
+
 /** What GET /api/home/coin-flips answers. */
 export async function coinFlips(now = Date.now()): Promise<CoinFlipRadar> {
   const fresh = (r: CoinFlipRadar | null): r is CoinFlipRadar => !!r && now - Date.parse(r.generatedAt) < STALE_MS;
@@ -135,7 +161,7 @@ export async function coinFlips(now = Date.now()): Promise<CoinFlipRadar> {
   if (fresh(stored)) return current(stored, now);
   if (!memo || Date.now() - memo.at >= 60_000) {
     // Stored like the job's, so later reads (in any process) reuse it for STALE_MS; a failed write never fails the read.
-    const value = buildCoinFlips(now).then(async (r) => { await kvSet(KV_KEY, r).catch(() => {}); return r; });
+    const value = gatherForRead(now);
     memo = { at: Date.now(), value };
     value.catch(() => { if (memo?.value === value) memo = null; });
   }
