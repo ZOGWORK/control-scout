@@ -11,6 +11,7 @@ import express from "express";
 import { canonicalRedirects, canonicalUrl, renderIndex, renderPage } from "./seo";
 import { fitDescription } from "./seoMeta";
 import { migrate, openDb, run, setDb } from "./db";
+import { BOOT_CONSENT_ID } from "../src/shared/boot";
 import { clearAllCaches } from "./caches";
 
 let server: Server;
@@ -254,6 +255,7 @@ describe("page head in the first HTML", () => {
     expect(pit.html).toContain("<title>Pit display: ");
     expect(pit.html).toContain('<link rel="canonical" href="https://controlscout.org/events/2025/USNJNOM3" />');
     expect(pit.html).not.toContain('name="robots"');
+    expect(pit.html).not.toContain(`id="${BOOT_CONSENT_ID}"`); // no privacy banner over a pit TV
     expect((await renderPage(file, "/events/2025/NOPE/display")).status).toBe(404);
     // The legal and contact pages are never a 404.
     for (const p of ["/privacy", "/terms", "/contact", "/Privacy"]) {
