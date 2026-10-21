@@ -5,7 +5,7 @@
 // workspace's consensus answer). Rewritten whole per season by the stats job.
 import type { InStatement } from "@libsql/client";
 import { all, kvGet, writeBatch } from "../db.js";
-import type { DbEvent } from "./load.js";
+import { matchTimeMs, type DbEvent, type DbMatch } from "./load.js";
 import type { ReportCardField } from "../../src/shared/api.js";
 import { NEAR_ZERO_SHARE, RATIO_CAP, RECENT, reliabilityIndex, shrinkTo, type ReliabilityParts } from "../../src/shared/reliability.js";
 
@@ -27,6 +27,13 @@ export interface Tally {
   seq: ("noShow" | "nearZero" | "ok")[];
 }
 
+/** Played order: recorded start time (actual, else scheduled), then series and number. A match with no time goes after timed ones. */
+export function playOrder(a: Pick<DbMatch, "time" | "series" | "number">, b: Pick<DbMatch, "time" | "series" | "number">): number {
+  const ta = matchTimeMs(a.time), tb = matchTimeMs(b.time);
+  const ka = Number.isFinite(ta) ? ta : Infinity, kb = Number.isFinite(tb) ? tb : Infinity;
+  return (ka === kb ? 0 : ka < kb ? -1 : 1) || a.series - b.series || a.number - b.number;
+}
+
 const tally = (): Tally => ({ listed: 0, onField: 0, noShows: 0, dqs: 0, contribs: [], ss: 0, nearZero: 0, penSum: 0, seq: [] });
 
 /**
@@ -38,7 +45,9 @@ export function tallyReliability(events: DbEvent[], opr: (code: string, team: nu
   const ordered = [...events].sort((a, b) => (a.start ?? "").localeCompare(b.start ?? "") || a.code.localeCompare(b.code));
   for (const e of ordered) {
     if (e.remote) continue;
-    const quals = e.matches.filter((m) => m.level === "qual" && m.played && m.redScore && m.blueScore).sort((a, b) => a.series - b.series || a.number - b.number);
+    // In the order they were played (matches.time: the actual start, else the scheduled one), so "the latest
+    // RECENT" really are the latest: a postponed match replayed at the end counts as played at the end.
+    const quals = e.matches.filter((m) => m.level === "qual" && m.played && m.redScore && m.blueScore).sort(playOrder);
     if (!quals.length) continue;
     // An average robot's share of an alliance's non-penalty score at this event.
     let np = 0, robots = 0;
