@@ -64,6 +64,16 @@ describe("simulateProjection", () => {
     expect(fast.runs).toBe(400);
   });
 
+  it("keeps 'already qualified' and 'not eligible' apart: neither gets odds, only the first reads as qualified", async () => {
+    const [a, b, c] = [...input.ratings.keys()];
+    const r = await simulateProjection({ ...input, prequalified: new Set([a]), ineligible: new Set([b]) }, { runs: 50, floor: 50, budgetMs: Infinity, seed: 3 });
+    const by = new Map(r.teams.map((t) => [t.team, t]));
+    expect(by.get(a)).toMatchObject({ pAdvance: null, advance: "qualified" });
+    expect(by.get(b)).toMatchObject({ pAdvance: null, advance: "ineligible" });
+    expect(by.get(c)!.advance).toBe("odds");
+    expect(typeof by.get(c)!.pAdvance).toBe("number");
+  });
+
   it("seeds from text are stable", () => {
     expect(textSeed("2025|USMOKSCMP|current|abc")).toBe(textSeed("2025|USMOKSCMP|current|abc"));
     expect(textSeed("a")).not.toBe(textSeed("b"));

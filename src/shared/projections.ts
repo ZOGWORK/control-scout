@@ -13,6 +13,24 @@ export const ADVANCE_LABEL = "performance-based — awards can also advance team
 /** Event stage as the engine names it: before quals, quals under way, quals over, alliances set. */
 export type ProjectionStage = "pre" | "live" | "quals" | "selected";
 
+export type AdvanceStatus = "odds" | "qualified" | "ineligible";
+
+/**
+ * A team's advancement status. Only an explicit "qualified" says qualified: a row without odds and
+ * without a status (stored before the status existed) is "unknown", shown neutrally, never as qualified.
+ */
+export function advanceStatus(t: Pick<ProjectionTeam, "pAdvance" | "advance">): AdvanceStatus | "unknown" {
+  if (t.advance) return t.advance;
+  return t.pAdvance == null ? "unknown" : "odds";
+}
+
+/** The advancement value as short text (shortlist tile): odds, "Qualified", "Not eligible" or "—". */
+export function advanceText(t: Pick<ProjectionTeam, "pAdvance" | "advance">, pct: (p: number) => string): string {
+  const s = advanceStatus(t);
+  if (s === "odds" && t.pAdvance != null) return pct(t.pAdvance);
+  return s === "qualified" ? "Qualified" : s === "ineligible" ? "Not eligible" : "—";
+}
+
 /** Which stored run: the latest, the pre-event baseline, or the last one made while quals were still open. */
 export type ProjectionKind = "current" | "baseline" | "last_open";
 
@@ -24,8 +42,14 @@ export interface ProjectionTeam {
   pPlayoff: number;
   pCaptain: number;
   pPicked: number;
-  /** Advances through competition-performance slots (no award points). Null = already qualified elsewhere or ineligible. */
+  /** Advances through competition-performance slots (no award points). Null when `advance` isn't "odds". */
   pAdvance: number | null;
+  /**
+   * Why there are or aren't odds: "odds" (pAdvance holds them), "qualified" (already advanced from an
+   * earlier event: its slot passes down) or "ineligible" (FIRST lists it as not eligible to advance here).
+   * Missing on rows stored before it existed: read it with advanceStatus().
+   */
+  advance?: AdvanceStatus;
   pWin: number;
   pFinalist: number;
 }

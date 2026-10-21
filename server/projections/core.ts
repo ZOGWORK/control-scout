@@ -10,7 +10,7 @@
 // Deterministic: run i is seeded from (seed, i), so the same input and seed give the same result,
 // however the work is sliced. Pure (no Node APIs, no database): tests and, later, the browser run it.
 import { simulateEvent, type SimInput } from "@control-scout/predict-engine";
-import type { ProjectionTeam } from "../../src/shared/projections.js";
+import type { AdvanceStatus, ProjectionTeam } from "../../src/shared/projections.js";
 
 export interface CoreOptions {
   /** Simulations wanted. */
@@ -96,12 +96,14 @@ export async function simulateProjection(input: SimInput, o: CoreOptions): Promi
     if (target > o.floor && done >= Math.min(PROBE_RUNS, target) && (compute / done) * target > o.budgetMs) target = Math.max(o.floor, done);
     if (done < target) await pause();
   }
-  const skip = new Set([...input.prequalified, ...(input.ineligible ?? [])]);
+  // Already qualified elsewhere and not eligible are different facts, kept apart: only the first is "qualified".
+  const status = (team: number): AdvanceStatus => (input.prequalified.has(team) ? "qualified" : input.ineligible?.has(team) ? "ineligible" : "odds");
   const teams: ProjectionTeam[] = [...acc.entries()].map(([team, a]) => ({
     team,
     rank: a.ranked ? { p10: quantile(a.counts, a.ranked, 0.1), p50: quantile(a.counts, a.ranked, 0.5), p90: quantile(a.counts, a.ranked, 0.9), mean: a.sum / a.ranked } : null,
     pPlayoff: (a.cap + a.picked) / done, pCaptain: a.cap / done, pPicked: a.picked / done,
-    pAdvance: skip.has(team) ? null : a.adv / done,
+    pAdvance: status(team) === "odds" ? a.adv / done : null,
+    advance: status(team),
     pWin: a.win / done, pFinalist: a.fin / done,
   })).sort((x, y) => (x.rank?.mean ?? Infinity) - (y.rank?.mean ?? Infinity) || x.team - y.team);
   return { runs: done, computeMs: compute, wallMs: clock() - started, teams };
