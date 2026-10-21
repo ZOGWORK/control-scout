@@ -43,7 +43,7 @@ export function SeasonToggle({ seasons, value, onChange, predictOnly }: { season
         <Select value={olderOn ? String(value) : ""} onValueChange={(v) => onChange(Number(v))}>
           <SelectTrigger
             size="sm" aria-label={olderOn ? `Season ${seasonLabel(value)} ${game(value)}` : "Earlier seasons"}
-            className={cn("h-7 w-auto shrink-0 gap-1 rounded-md border-0 px-2.5 font-medium max-sm:h-10 [&>span]:overflow-visible",
+            className={cn("h-7 w-auto shrink-0 gap-1 rounded-md border-0 px-2.5 font-medium max-sm:h-9 [&>span]:overflow-visible",
               olderOn ? "bg-accent/20 text-accent-text ring-1 ring-inset ring-accent/50" : "text-muted-foreground hover:text-foreground")}
           >
             <span>{olderOn ? seasonLabel(value) : "Earlier"}</span>
