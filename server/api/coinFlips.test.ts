@@ -63,7 +63,7 @@ describe("eventCoinFlips", () => {
 
   it("leaves out an event whose zone isn't known", () => {
     const r = eventCoinFlips({ ...LA, timezone: null }, [mv(1, "2026-10-17T21:30:00", 0.5)], NOW);
-    expect(r).toEqual({ rows: [], calls: 0, thin: 0, scheduled: false });
+    expect(r).toEqual({ rows: [], calls: 0, thin: 0, scheduled: false, day: null });
   });
 
   it("leaves a robot that wasn't on the field out of a decided lineup", () => {
@@ -98,11 +98,17 @@ describe("arrange and current", () => {
   });
 
   it("drops rows once their venue has moved to another day", () => {
-    const r: CoinFlipRadar = { generatedAt: "", band: { lo: 0.45, hi: 0.55 }, events: 2, calls: 2, thin: 0, decided: [],
+    const r: CoinFlipRadar = { generatedAt: "", band: { lo: 0.45, hi: 0.55 }, events: 2, calls: 30, thin: 4, decided: [],
+      tallies: [{ timezone: "America/Los_Angeles", day: "2026-10-17", calls: 20, thin: 3 }, { timezone: "Australia/Sydney", day: "2026-10-18", calls: 10, thin: 1 }],
       upcoming: [row({ key: "la" }), row({ key: "syd", timezone: "Australia/Sydney", day: "2026-10-18" })] };
     // 08:00 UTC on the 18th: 01:00 on the 18th in Los Angeles, 19:00 on the 18th in Sydney.
-    expect(current(r, Date.parse("2026-10-18T08:00:00Z")).upcoming.map((x) => x.key)).toEqual(["syd"]);
+    const later = current(r, Date.parse("2026-10-18T08:00:00Z"));
+    expect(later.upcoming.map((x) => x.key)).toEqual(["syd"]);
+    expect([later.events, later.calls, later.thin]).toEqual([1, 10, 1]);
     expect(current(r, Date.parse("2026-10-18T05:00:00Z")).upcoming.map((x) => x.key)).toEqual(["la", "syd"]);
+    // Past every venue's midnight: nothing of yesterday's is left to describe.
+    const next = current(r, Date.parse("2026-10-19T15:00:00Z"));
+    expect([next.events, next.calls, next.thin, next.upcoming.length]).toEqual([0, 0, 0, 0]);
   });
 });
 

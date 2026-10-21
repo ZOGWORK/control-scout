@@ -13,7 +13,7 @@ import { CURRENT_SEASON, isLegacy } from "../data/seasons.js";
 import { localDate } from "../../src/shared/eventDay.js";
 import {
   COIN_FLIP_BAND, MAX_DECIDED, MAX_UPCOMING, inBand, matchDay, stillToday,
-  type CoinFlipRadar, type CoinFlipRow,
+  type CoinFlipRadar, type CoinFlipRow, type CoinFlipTally,
 } from "../../src/shared/coinFlips.js";
 import type { MatchView } from "../../src/shared/api.js";
 import { matchViews } from "./matches.js";
@@ -34,10 +34,10 @@ const placeOf = (e: EventRow) => {
 };
 
 /** One event's coin flips from its match views (pure: the rules, tested on their own). */
-export function eventCoinFlips(e: EventRow, matches: MatchView[], now: number): { rows: CoinFlipRow[]; calls: number; thin: number; scheduled: boolean } {
+export function eventCoinFlips(e: EventRow, matches: MatchView[], now: number): { rows: CoinFlipRow[]; calls: number; thin: number; scheduled: boolean; day: string | null } {
   const zone = e.timezone;
   const today = zone ? localDate(now, zone) : null;
-  const out = { rows: [] as CoinFlipRow[], calls: 0, thin: 0, scheduled: false };
+  const out = { rows: [] as CoinFlipRow[], calls: 0, thin: 0, scheduled: false, day: today };
   // Without a known zone "today at the venue" can't be told: the event is left out rather than guessed.
   if (!zone || !today) return out;
   for (const m of matches) {
@@ -75,7 +75,7 @@ export function arrange(rows: CoinFlipRow[]): Pick<CoinFlipRadar, "upcoming" | "
 
 /** Gather today's radar from the database (read-only). */
 export async function buildCoinFlips(now = Date.now(), season = CURRENT_SEASON): Promise<CoinFlipRadar> {
-  const empty: CoinFlipRadar = { generatedAt: new Date(now).toISOString(), band: { ...COIN_FLIP_BAND }, events: 0, calls: 0, thin: 0, upcoming: [], decided: [] };
+  const empty: CoinFlipRadar = { generatedAt: new Date(now).toISOString(), band: { ...COIN_FLIP_BAND }, events: 0, calls: 0, thin: 0, tallies: [], upcoming: [], decided: [] };
   if (isLegacy(season)) return empty;
   const day = (n: number) => new Date(now + n * 864e5).toISOString().slice(0, 10);
   // Cheap pre-filter in SQL (±1 day covers every zone); the exact check is each venue's own date.
@@ -84,13 +84,13 @@ export async function buildCoinFlips(now = Date.now(), season = CURRENT_SEASON):
     [season, day(1), day(-1)],
   )).filter((e) => isEventDay(e, now));
   const rows: CoinFlipRow[] = [];
-  let events_ = 0, calls = 0, thin = 0;
+  const tallies: CoinFlipTally[] = [];
   await pool(events, 3, async (e) => {
     const r = eventCoinFlips(e, await matchViews({ season, code: e.code }, { predictUnplayed: true }), now);
-    if (r.scheduled) events_++;
-    calls += r.calls; thin += r.thin; rows.push(...r.rows);
+    if (r.scheduled && e.timezone && r.day) tallies.push({ timezone: e.timezone, day: r.day, calls: r.calls, thin: r.thin });
+    rows.push(...r.rows);
   });
-  return { ...empty, events: events_, calls, thin, ...arrange(rows) };
+  return totals({ ...empty, tallies, ...arrange(rows) });
 }
 
 /** The job: gather and store. Never throws (a failure leaves the stored radar as it was). */
@@ -112,9 +112,19 @@ let memo: { at: number; value: Promise<CoinFlipRadar> } | null = null;
 /** Tests: forget the in-memory radar. */
 export function resetCoinFlips() { memo = null; }
 
-/** Only the rows still on today at their venue (a stored radar outlives a venue's midnight until the next refresh). */
+/** The events, calls and thin-data counts, from the tallies. */
+function totals(r: CoinFlipRadar): CoinFlipRadar {
+  const t = r.tallies ?? [];
+  return { ...r, events: t.length, calls: t.reduce((s, x) => s + x.calls, 0), thin: t.reduce((s, x) => s + x.thin, 0) };
+}
+
+/** Only what's still on today at its venue, rows and counts alike (a stored radar outlives a venue's midnight
+ *  until the next refresh: yesterday's calls must never be described as today's). */
 export function current(r: CoinFlipRadar, now = Date.now()): CoinFlipRadar {
-  return { ...r, upcoming: r.upcoming.filter((x) => stillToday(x, now)), decided: r.decided.filter((x) => stillToday(x, now)) };
+  return totals({
+    ...r, tallies: (r.tallies ?? []).filter((x) => stillToday(x, now)),
+    upcoming: r.upcoming.filter((x) => stillToday(x, now)), decided: r.decided.filter((x) => stillToday(x, now)),
+  });
 }
 
 /** What GET /api/home/coin-flips answers. */
