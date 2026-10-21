@@ -9,6 +9,11 @@ import { MAX_FAILURES, REMIND_MS, addFollow, dueNow, listFollows, notifyTick, po
 import { Friendly } from "./views";
 
 const NOW = Date.parse("2026-10-24T15:00:00Z");
+/** These tests are about the per-match posts: the event's schedule post (bot/eventAlerts.ts) counts as already sent. */
+async function clearPosts() {
+  await run("DELETE FROM discord_posts");
+  await run("INSERT INTO discord_posts (channel_id, season, code, match_key, kind, claimed_at, sent_at) VALUES ('c1', ?, 'USTXAUQ', 'schedule', 'schedule', ?, ?)", [S, iso(NOW), iso(NOW)]);
+}
 const iso = (ms: number) => new Date(ms).toISOString();
 
 describe("dueNow", () => {
@@ -62,7 +67,7 @@ describe("follows and the tick, on a database", () => {
     for (const [i, t] of [18360, 4215, 16379, 21058].entries()) await run("INSERT INTO match_teams (season, code, level, series, number, team, alliance, station) VALUES (?, 'USTXAUQ', 'qual', 0, 7, ?, ?, ?)", [S, t, i < 2 ? "red" : "blue", (i % 2) + 1]);
     await kvSet("data:version", "v1");
   });
-  beforeEach(async () => { await run("DELETE FROM discord_follows"); await run("DELETE FROM discord_posts"); clearAllCaches(); });
+  beforeEach(async () => { await run("DELETE FROM discord_follows"); await clearPosts(); clearAllCaches(); });
 
   it("follow, list, unfollow; unknown teams and a full server are friendly errors", async () => {
     expect(await addFollow("g", "c1", 18360, "u", NOW - 864e5)).toBe("added");
@@ -92,9 +97,9 @@ describe("follows and the tick, on a database", () => {
     await notifyTick(flaky, "s", () => {}, NOW);
     expect(await notifyTick(flaky, "s", () => {}, NOW + 60_000)).toBe(1);
 
-    await run("DELETE FROM discord_posts");
+    await clearPosts();
     const gone = vi.fn(async () => "gone" as const);
-    for (let i = 0; i < MAX_FAILURES; i++) { await run("DELETE FROM discord_posts"); await notifyTick(gone, "s", () => {}, NOW); }
+    for (let i = 0; i < MAX_FAILURES; i++) { await clearPosts(); await notifyTick(gone, "s", () => {}, NOW); }
     expect(await all("SELECT * FROM discord_follows")).toEqual([]);
   });
 });
@@ -116,7 +121,7 @@ describe("review fixes", () => {
 });
 
 describe("review fixes, on a database", () => {
-  beforeEach(async () => { await run("DELETE FROM discord_follows"); await run("DELETE FROM discord_posts"); clearAllCaches(); });
+  beforeEach(async () => { await run("DELETE FROM discord_follows"); await clearPosts(); clearAllCaches(); });
 
   it("the 10-team limit holds, even when follows land at the same moment", async () => {
     await run("INSERT INTO teams (number, name) SELECT 100 + value, 'T' FROM json_each('[0,1,2,3,4,5,6,7,8,9,10]') WHERE 1 ON CONFLICT DO NOTHING");
@@ -135,7 +140,7 @@ describe("review fixes, on a database", () => {
     expect(await notifyTick(ok, "s", () => {}, NOW)).toBe(1);
     expect(await notifyTick(ok, "s", () => {}, NOW + 30_000)).toBe(0); // now marked sent
 
-    await run("DELETE FROM discord_posts");
+    await clearPosts();
     const gone = vi.fn(async () => "gone" as const);
     await notifyTick(gone, "s", () => {}, NOW);
     expect(await notifyTick(ok, "s", () => {}, NOW + 60_000)).toBe(1); // access restored: retried while still due
