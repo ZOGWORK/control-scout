@@ -217,13 +217,12 @@ describe("Home", () => {
     expect(path).toBe("/"); // not signed in: no redirect
   });
 
-  it("sends a signed-in scout with a team to their dashboard once per visit", () => {
+  it("stays on Home for a signed-in scout with a team: their team shows here, no redirect to My team", () => {
     personal = { user: { email: "a@b.c" }, state: st(4215) };
-    mount();
-    expect(path).toBe("/my-team");
-    cleanup();
+    data = { "/api/teams/4215/matches": { matches: [NEXT] }, "/api/teams-summary": { teams: [{ team: 4215, name: "Hypnotic Robotics", place: "Oradell, NJ" }] } };
     mount();
     expect(path).toBe("/");
+    expect(screen.getByText("Hypnotic Robotics")).toBeTruthy();
   });
 
   it("opens with a search arriving in the URL (/?q=, the site search search engines know), even for a signed-in scout", () => {

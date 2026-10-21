@@ -23,19 +23,12 @@ import { dateRange, place } from "../lib/format";
 
 export default function Home() {
   useTitle(null);
-  const { user, state } = usePersonal();
-  const nav = useNavigate();
+  // Home stays Home for everyone: your team shows here, it never redirects to My team.
+  const { state } = usePersonal();
   const season = useCurrentSeason();
   // A search from outside (/?q=…, the site search named in the home page's structured data).
   const [sp] = useSearchParams();
   const query = sp.get("q")?.trim().slice(0, 100) || undefined;
-  // Signed-in users with a team land on their dashboard (once per visit), unless they came to search.
-  useEffect(() => {
-    if (user && state.myTeam && !query && !sessionStorage.getItem("cs-landed")) {
-      sessionStorage.setItem("cs-landed", "1");
-      nav("/my-team", { replace: true });
-    }
-  }, [user, state.myTeam, query, nav]);
   // The atlas's code and boundaries load beside the page's data, after the hero has painted.
   useEffect(() => { const t = setTimeout(preloadAtlas, 0); return () => clearTimeout(t); }, []);
   const overview = useApi<HomeOverview>(`/api/home/overview${qs({ season })}`);
