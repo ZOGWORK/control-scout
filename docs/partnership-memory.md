@@ -82,9 +82,19 @@ robots on the same alliance that played together before.
 ## Where it shows
 
 - **Control Scout.** Upcoming match details (event pages), the match report, and the
-  Predict lab show one line below the factors. The offline lite pack ships the table
-  (`partnerships`), so offline calls carry the same line. The table only appears with the
-  season it was built through, so a call never reads pairs from later matches.
+  Predict lab show one line below the factors. The table only appears with the season it
+  was built through, so a call never reads pairs from later matches.
+- **Offline (Control Scout lite pack).** Phones download the lite pack at venues, and the
+  history is a reason only, so the pack carries a small cut (`src/shared/litePairs.ts`):
+  same-alliance pairs that played together at least 3 times this season or last. Each is
+  pre-computed (record, best score and where, effect and ranking weight as of the pack's
+  season) and delta-coded. The cut is 12,487 pairs, 142 KB gzipped; the full table would be
+  961 KB. The lite pack goes from 2.86 MB without history to 3.00 MB.
+
+  Offline loses head-to-head records, pairs with only 2 matches together, and pairs last
+  together before last season. On real lineups (2025–26 matches asked as 2026–27 what-ifs)
+  the server shows a fact on 83% of them and the device on 53%; 39% are word for word the
+  same. Elsewhere the device shows its best kept fact, or none.
 - **Control Point.** Predict → Matches shows the line under upcoming matches, from the
   same engine (`ForecastMatch.history`). The region offline pack carries the pairs between
   its teams.
