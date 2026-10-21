@@ -186,6 +186,12 @@ describe("replayed calls for the current season", () => {
     // The 300–5 blowout taught the book nothing: SCRIM Q2 starts from the same ratings as Q1.
     // Once rated matches exist, calls carry predicted scores again.
     expect(rows.filter((r) => r.code === "PRIOR").at(-1)!.no_score_basis).toBe(0);
+    // Stated score ranges (engine 2.2) go with every call that has a score basis, and with none of the others.
+    const ranged = await all<any>("SELECT no_score_basis, red_mean, red_lo, red_hi, blue_lo, blue_hi, range_level FROM predictions WHERE kind = 'backtest'");
+    for (const r of ranged) {
+      if (r.no_score_basis) expect([r.red_lo, r.red_hi, r.blue_lo, r.blue_hi, r.range_level]).toEqual([null, null, null, null, null]);
+      else { expect(r.range_level).toBe(0.8); expect(r.red_lo).toBeLessThanOrEqual(Math.round(r.red_mean)); expect(r.red_hi).toBeGreaterThanOrEqual(Math.round(r.red_mean)); expect(r.blue_hi).toBeGreaterThan(r.blue_lo); }
+    }
     const again = await all<any>("SELECT p_red FROM predictions WHERE kind = 'backtest' AND code = 'PRIOR' ORDER BY match_time");
     await run("DELETE FROM matches WHERE code = 'SCRIM'");
     await backtest(SEASON_NUMBERS, () => {}, { write: [S] });

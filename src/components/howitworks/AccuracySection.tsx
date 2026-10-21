@@ -174,6 +174,15 @@ export function AccuracySection() {
         {apiState((b) => <Tiers block={b} />, <Skeleton className="h-32 rounded-xl" />)}
       </Reveal>
 
+      <Prose id="ranges" className="mt-12 scroll-mt-bar-20">
+        <h3>Score ranges</h3>
+        <p>Every predicted score comes with a range, written <strong>118 ±14</strong>. It's an <strong>80% range</strong>: about 8 in 10 real scores should land inside it. It widens when a robot has played only a few matches this season or its results swing a lot from match to match, and it narrows in playoffs, where scores are steadier.</p>
+        <p>The ranges are scored the same way as the win calls. If far more than 80% of scores land inside, the ranges are wider than they need to be; if far fewer do, they're overconfident. Here's how they've done in Control Scout's ledger{desc ? ` (${desc})` : ""}:</p>
+      </Prose>
+      <Reveal className="mx-auto mt-4 max-w-2xl">
+        {apiState((b) => <Ranges block={b} />, <Skeleton className="h-32 rounded-xl" />)}
+      </Reveal>
+
       {t && t.recentCalls.length > 0 && (
         <>
           <Prose id="recent" className="mt-12">
@@ -246,6 +255,26 @@ function Tiers({ block }: { block: AccuracyBlock }) {
         </div>
       ))}
       <p className="font-mono text-xs text-muted-foreground">{rows.map((r) => `${r.k}: ${r.n.toLocaleString("en-US")} matches`).join(" · ")}</p>
+    </div>
+  );
+}
+
+/** Interval coverage: how many real scores landed inside the stated range, overall and by tier. */
+function Ranges({ block }: { block: AccuracyBlock }) {
+  const g = block.ranges;
+  if (!g) return <p className="rounded-2xl border border-border bg-card p-4 text-sm text-muted-foreground">No call in this block stated a score range yet. Ranges are logged with every call from engine 2.2 on; earlier calls stated none, and none is added to them afterwards.</p>;
+  const target = pct(g.level, 0);
+  const off = g.coverage - g.level;
+  const verdict = Math.abs(off) <= 0.03 ? "on target" : off > 0 ? "wider than needed" : "overconfident";
+  const tiers = (["provisional", "moderate", "confident"] as const).map((k) => ({ k, ...g.byTier[k] })).filter((r) => r.n > 0);
+  return (
+    <div className="grid gap-3 rounded-2xl border border-border bg-card p-4" data-ranges>
+      <div className="grid grid-cols-2 gap-px overflow-hidden rounded-xl border border-border bg-border sm:grid-cols-3" role="list">
+        <StatCell tone={verdict === "on target" ? "good" : "bad"} value={<CountUp value={g.coverage * 100} decimals={1} suffix="%" />} label={`of real scores inside the stated ${target} range (${verdict})`} />
+        <StatCell value={`${pct(g.below, 0)} / ${pct(g.above, 0)}`} label="landed below / above the range" />
+        <StatCell value={<CountUp value={g.width} decimals={0} />} label={`average range width in points, over ${g.n.toLocaleString("en-US")} alliance scores`} />
+      </div>
+      {tiers.length > 0 && <p className="font-mono text-xs text-muted-foreground">By confidence tier (target {target}): {tiers.map((r) => `${r.k} ${pct(r.coverage, 1)} (${r.n.toLocaleString("en-US")})`).join(" · ")}</p>}
     </div>
   );
 }

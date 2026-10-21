@@ -9,7 +9,44 @@ teams, scout, offline, speed, live, report, alerts, rankings, share, workspace,
 picklist, history, fixes). What's new shows them first; the groups below are
 the full release notes, one click away.
 
+## 1.15.0 — 2026-10-21
+
+How predictable each team has been, from the engine's own live calls.
+
+### Highlights
+- [teams] A prediction report card on team pages: how often calls were right
+- [teams] How far its alliances landed from the predicted score
+- [teams] Live calls only, with sample size, raw numbers and a warning
+
+### Teams
+- **Prediction report card.** Team pages show how the engine's pre-match calls on that team's matches turned out this season: the share called right, points vs prediction per robot (the alliance's miss split evenly between its robots) and the swing of those misses, with the field average beside each. Finished events get a row each, with how many calls had a predicted score and the raw numbers. Only calls logged before each match count, never the replayed history. Few calls say little, so every number is pulled toward the field average as if the team had 10 more calls, and the card says so. How it works explains the rules. (#232)
+
+## 1.14.0 — 2026-10-21
+
+Predicted scores come with a range now, and the range is scored in public.
+
+### Highlights
+- [predict] Every predicted score reads like 118 ±14: an 80% range
+- [predict] Ranges widen for robots with few matches or up-and-down results
+- [history] How it works shows how often real scores land inside the range
+
+### Predictions
+- **Score ranges.** Every predicted score now comes with its 80% range, written 118 ±14 (hover or tap for the range itself and what it means: about 8 in 10 real scores land inside). It's on match rows, match details, match reports, the Predict lab, the live panel, Watch live and the pit display, and offline from your saved pack. A range is wider when a robot has played only a few matches this season or its results swing from match to match, and narrower in playoffs. Prediction engine 2.2.0; win odds are unchanged.
+- **Ranges are on the record.** Every call is logged with the range it stated, and How it works scores them like the win calls: the share of real scores inside the range, which way the misses went, the average width and each confidence tier. Calls made before this release stated no range and none is added afterwards. (#230)
+
 ## 1.13.0 — 2026-10-21
+
+Model vs field: where the model's ratings and the seeding disagree most at an event.
+
+### Highlights
+- [rankings] Model vs field: teams the model rates well above or below their seed
+- [predict] Every call with its numbers: rating, matches, OPR, record and confidence
+- [rankings] Before quals, against each team's seed at its last event
+
+### Events
+- **Model vs field.** An event's Rankings tab now opens with the biggest gaps between the model's rating order and the official seeding: "the model rates them #3 of 28; they're seeded 18th". Each call shows the rating and its uncertainty, how far it is from the team the model places at that seed, the matches behind it, OPR, record, ranking points and a confidence tier, with the model's track record linked under it. Before qualification matches, ratings from earlier events are compared with each team's seed at its last event (and the label says so); a finished event uses the ratings as they stood at its last match. Small fields, ratings on few matches, and gaps the model can't tell from its own uncertainty are left out, and the section says why when nothing shows.
+
+## 1.12.0 — 2026-10-21
 
 Follow your team in Discord for the whole event, not just its matches.
 
@@ -21,7 +58,7 @@ Follow your team in Discord for the whole event, not just its matches.
 ### Discord
 - **More from /follow.** Besides the post before each match and its result, a followed team's channel now gets: the evening before the team's event (from 4 pm at the venue), where and when, how many teams, the team's season OPR and world rank, and the strongest teams there; the team's qualification schedule once FIRST posts it, each match with its time at the venue, side, partner and win odds; and, at the end of each event day, the team's rank and record there, its matches that day, and how many of its live calls were right. Each team gets its own schedule and recap post. (#224)
 
-## 1.12.0 — 2026-10-21
+## 1.11.0 — 2026-10-21
 
 A pit display for the TV in your pit.
 
@@ -33,7 +70,7 @@ A pit display for the TV in your pit.
 ### Events
 - **Pit display.** A "Pit display" button on every event page opens a fullscreen screen for a pit TV or laptop: the event and the venue's clock, the match up now (or the last result, with whether the call was right), the next three matches with their win odds, a countdown to the next one (left out when the event runs behind, rather than showing a wrong time), the top 8 and a QR code to the event page. It updates by itself, shows "Reconnecting…" if the connection drops, keeps the screen awake where the browser allows it, and fits 1920×1080 and 1366×768 with no scrolling. Signed in, your tracked teams show in gold and your next match is pinned. (#218)
 
-## 1.11.0 — 2026-10-21
+## 1.10.0 — 2026-10-21
 
 Watch an event's stream with the model calling every match beside it.
 
@@ -61,7 +98,7 @@ Control Scout comes to your team's Discord server.
 - **The Control Scout bot.** Add it to your team's server and anyone there can ask `/team` (record, OPR, world ranking, next event), `/predict` (win odds as bars, predicted score and confidence for a qualification match; once it's played, the final score, what was predicted and whether the call was right), `/event` (status, progress, top 5 by OPR, the winning alliance) and `/rankings` (the world top 10 with movement). Every answer links back to the page it came from, and the numbers are the site's own. Event names and codes autocomplete. The invite link is in the FAQ and footer. (#216)
 - **Match alerts in your server.** Someone who can manage the server types `/follow team:18360` in a channel, and the bot posts there 15 minutes before each of that team's matches (lineups, win odds, predicted score) and again with the result and whether the call was right. `/unfollow` stops it, `/following` lists a server's teams (up to 10), and `/help` lists every command. My teams and My team have an "Add to a Discord server" button with the `/follow` command ready to copy.
 
-## 1.8.1 — 2026-10-21
+## 1.8.1 — 2026-10-20
 
 More of each page on a phone screen: match lists, tabs and the bottom bar take less room.
 
