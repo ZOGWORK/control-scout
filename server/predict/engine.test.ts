@@ -6,6 +6,8 @@ import { kvSet, migrate, openDb, run, setDb } from "../db";
 import { CURRENT_SEASON } from "../data/seasons";
 import { forecasterFor, liveForecaster, liveVersion, refreshForecasters, resetForecasters } from "./engine";
 import { runStats, statsRulesStale, STATS_RULES } from "../stats/job";
+import { FITTED_MODEL, bonusModelBefore, bonusSamples, recentBonusModel } from "@control-scout/predict-engine";
+import { projectionInput } from "../projections/input";
 
 const S = CURRENT_SEASON;
 
@@ -112,6 +114,37 @@ describe("bonus odds before an event (no hindsight)", () => {
     expect(pre.matches[0].bonus?.reason).toMatch(/only 220 alliance results/);
     // The current view learns from everything played.
     expect(f.bonusModel(S)?.samples).toBe(110 * 2 + 150 * 2); // NEWQ1 recorded no bonus RPs
+  });
+
+  it("the simulator's bonus draws before the event (and the projections' pre-event baseline) learn only from earlier results", async () => {
+    await playedEvent(S, "EARLY", `${S}-11-20`, 110);
+    await playedEvent(S, "LATE", `${S}-12-20`, 150);
+    await kvSet("data:version", "vs1");
+    const f = await forecasterFor(S);
+    // What the projections job's baseline simulates: preEventView, then projectionInput.
+    const before = (g: typeof f) => { const v = g.preEventView(target(S) as never)!; return projectionInput(v.f, v.ev)!.input.bonus; };
+    const early = f.seasonEvents(S).find((e) => e.code === "EARLY")!.matches;
+    const startMs = Date.parse(`${S}-12-01T00:00:00Z`);
+    expect(before(f)).toEqual(recentBonusModel(bonusSamples(early))!.model);
+    expect(before(f)).toEqual(bonusModelBefore(f.seasonEvents(S).flatMap((e) => e.matches), startMs)!.model);
+    expect(before(f)).not.toEqual(f.bonusModel(S)!.model); // the current view also learned LATE
+    // More results after the start never reach it.
+    await playedEvent(S, "LATER", `${S}-12-27`, 120);
+    await kvSet("data:version", "vs2");
+    const g = await forecasterFor(S);
+    expect(g.bonusModel(S)!.samples).toBeGreaterThan(f.bonusModel(S)!.samples!);
+    expect(before(g)).toEqual(recentBonusModel(bonusSamples(early))!.model);
+  });
+
+  it("the simulator before the event draws no bonus RPs, rather than the shipped whole-season fit, when too little was played before", async () => {
+    await playedEvent(2025, "LATE25", "2025-12-20", 150);
+    await kvSet("data:version", "vs3");
+    const f = await forecasterFor(2025);
+    const v = f.preEventView(target(2025) as never)!;
+    const pi = projectionInput(v.f, v.ev)!;
+    expect(FITTED_MODEL.bonus["2025"]).toBeDefined();
+    expect(pi.input.bonus).toBeUndefined();
+    expect(pi.assumptions.join(" ")).toMatch(/No bonus ranking point model is available/);
   });
 
   it("shows none, rather than the shipped whole-season fit, when too little was played before", async () => {

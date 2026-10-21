@@ -1,7 +1,9 @@
 // Acceptance: four finished 2025–26 championships replayed from their midpoint (ratings frozen at the
 // event's start plus the first half's results; the rest, every rank and the alliances stripped —
-// scripts/projections-replay.ts built the fixture). The actual final quals rank must land inside the
-// projected P10–P90 band for at least 80% of teams. Same seed as the script: 128 of 156 (82.1%).
+// scripts/projections-replay.ts built the fixture; rebuilt for engine 2.6, so it carries the per-team
+// score variance and the bonus model fitted only on results before each event). The actual final
+// quals rank must land inside the projected P10–P90 band for at least 80% of teams. Same seed as the
+// script: 133 of 156 (85.3%; 128 with engine 2.5's inputs).
 import { describe, expect, it } from "vitest";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
@@ -26,6 +28,6 @@ describe("midpoint replay of finished events", () => {
     }
     expect(total).toBe(156);
     expect(inside / total).toBeGreaterThanOrEqual(0.8);
-    expect(inside).toBe(128);
+    expect(inside).toBe(133);
   }, 180_000);
 });

@@ -4,7 +4,7 @@
 // extend Forecaster and supply the data — ratings, stored results,
 // advancement records and award history.
 import { npOf, type RatingBook, type RatingParams } from "./rating.js";
-import { predictMatch, type BandParams, type NoiseParams, type ScoreBand } from "./matchModel.js";
+import { predictMatch, teamScoreVariance, type BandParams, type NoiseParams, type ScoreBand } from "./matchModel.js";
 import type { CalibrationParams } from "./calibration.js";
 import type { ContextualModel, MatchContext } from "./contextual.js";
 import { bonusCount } from "./rules.js";
@@ -339,8 +339,15 @@ export abstract class Forecaster {
         for (let i = 0; i + 3 < order.length; i += 4) quals.push({ red: [order[i], order[i + 1]], blue: [order[i + 2], order[i + 3]] });
       }
     }
-    const bonus = this.model.bonus[String(ev.season)];
+    // Bonus RPs of simulated matches come from the season's bonus model as this forecaster serves it
+    // (bonusModel: the shipped fit by default, an app's own season fit, and for a forecast of a past
+    // moment bonusModelBefore), so a "before the event" run never learns from results played after it
+    // began, and never falls back to the shipped whole-season fit (engine 2.6).
+    const bonus = ev.season >= 2025 ? this.bonusModel(ev.season)?.model : undefined;
     let bonusSamples: number[] | undefined;
+    if (stage === "pre" && ev.season >= 2025 && !bonus) {
+      assumptions.push("No bonus ranking point model is available from results before this point, so simulated matches earn no bonus RPs.");
+    }
     if (stage === "live" && ev.season >= 2025) {
       const sides = quals.flatMap((q) => (q.result ? [q.result.red, q.result.blue] : []));
       const unreported = sides.filter((s) => !s.bonus).length;
@@ -370,7 +377,10 @@ export abstract class Forecaster {
     const playoffPlayed = stage === "selected" ? this.playoffResults(ev) : undefined;
     if (playoffPlayed) assumptions.push("Playoff matches already played keep their real results.");
     const input: SimInput = {
-      season: ev.season, ratings, quals, noise: this.model.noise, bonus, bonusSamples, pick: this.model.pick, ranks, alliances, awards, playoffPlayed,
+      season: ev.season, ratings, quals, noise: this.model.noise,
+      // Per-team score spread (engine 2.6): the same inputs the stated score ranges use.
+      variance: new Map(teams.map((t) => { const v = teamScoreVariance(book, t); return [t, { consistency: v.consistency, matches: v.matches }]; })), band: this.model.band,
+      bonus, bonusSamples, pick: this.model.pick, ranks, alliances, awards, playoffPlayed,
       prequalified: new Set(adv.prequalified), ineligible: new Set(adv.ineligible), slots: adv.slots, runs, seed: 1,
     };
     return { input, assumptions, adv };

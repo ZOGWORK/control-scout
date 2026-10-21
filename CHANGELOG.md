@@ -9,6 +9,19 @@ teams, scout, offline, speed, live, report, alerts, rankings, share, workspace,
 picklist, history, fixes). What's new shows them first; the groups below are
 the full release notes, one click away.
 
+## 1.19.1 — 2026-10-21
+
+Event simulations spread erratic robots wider and no longer peek at later results.
+
+### Highlights
+- [predict] Erratic or new robots spread wider in event simulations
+- [history] "Before the event" bonus RPs learn from earlier results only
+- [live] Live projections use the same per-robot spread as score ranges
+
+### Predictions
+- **Per-robot spread in the event simulator.** Every simulated match score now gets match-to-match noise sized for its alliance the way the score ranges already were: wider when a robot's results swing more than the model expects, or when it has played only a few matches this season. It reaches the advancement odds, the partner what-ifs and the live projections. On 40 finished 2025–26 events cut at their midpoint, 86.6% of teams finished inside their projected 10th–90th percentile rank band (85.7% before). Prediction engine 2.6.0. (#237)
+- **No hindsight before the event.** A "Before the event" simulation, and the pre-event projection that live projections compare against, now draws bonus ranking points from a bonus model fitted only on qualification results played before the event started. It used the curve fitted on the whole season. With too few earlier results it simulates no bonus RPs and says so. Live simulations use the same season curve as the match cards' bonus odds.
+
 ## 1.19.0 — 2026-10-21
 
 Pick on reliability, not just peak scoring: a dependability estimate next to OPR.
