@@ -150,7 +150,8 @@ export abstract class Forecaster {
   /**
    * The season's bonus-RP model (bonus.ts). Apps override it with their stored
    * season results (seasonBonusModel with samples, oldest first); the default
-   * knows none, so it uses the shipped fit when the season has one.
+   * knows none, so it uses the shipped fit when the season has one. A forecast
+   * of a past moment must override it with bonusModelBefore (no hindsight).
    */
   bonusModel(season: number): BonusModelSource | null {
     return seasonBonusModel(this.model.bonus, season, () => []);

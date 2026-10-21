@@ -7,7 +7,7 @@
 // current window use the current anchor exactly like Control Point; an older
 // season (browsing 2023) gets its own window ending at that season.
 import {
-  Forecaster, FITTED_MODEL, RatingBook, indexAwards, MODELLED_AWARDS, normType, explainMatch, bonusSamples, seasonBonusModel,
+  Forecaster, FITTED_MODEL, RatingBook, indexAwards, MODELLED_AWARDS, normType, explainMatch, bonusModelBefore, bonusSamples, seasonBonusModel,
   type AdvancementRecord, type BonusModelSource, type AwardRecord, type BonusFlags, type EventInput, type EventRecord, type Forecast, type MatchRecord, type PredictModel,
 } from "@control-scout/predict-engine";
 import { all, kvGet } from "../db.js";
@@ -200,6 +200,14 @@ export class ScoutForecaster extends Forecaster {
       }
       protected regionOf(code: string) { return parent.regionOf(code); }
       protected awardSlots(season: number, type: string | null) { return parent.awardSlotsBefore(season, type, startMs); }
+      // Bonus odds as they stood at the start: fitted only to the season's results before it, never the
+      // shipped fit or anything later (once per forecast; every upcoming match asks).
+      private bonus: BonusModelSource | null | undefined;
+      bonusModel(season: number): BonusModelSource | null {
+        if (season !== ev.season) return null;
+        if (this.bonus === undefined) this.bonus = bonusModelBefore(parent.seasonEvents(season).flatMap((e) => e.matches), startMs);
+        return this.bonus;
+      }
     }
     return new Before().forecast(stripped, myTeam, runs);
   }
