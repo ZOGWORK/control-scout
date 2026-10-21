@@ -1,8 +1,9 @@
 // Team profile + compare.
-import { all, get } from "../db.js";
+import { all, get, kvGet } from "../db.js";
 import { CURRENT_SEASON } from "../data/seasons.js";
-import type { CompareView, ShortlistTeam, TeamEventRow, TeamInfo, TeamProfile, TeamSeasonStats, TeamSummary } from "../../src/shared/api.js";
+import type { CompareView, ReportCard, ReportCardField, ShortlistTeam, TeamReportCards, TeamEventRow, TeamInfo, TeamProfile, TeamSeasonStats, TeamSummary } from "../../src/shared/api.js";
 import { matchViews } from "./matches.js";
+import { REPORT_PRIOR } from "../stats/reportCards.js";
 
 export async function teamInfo(number: number): Promise<TeamInfo | null> {
   const t = await get<any>("SELECT * FROM teams WHERE number = ?", [number]);
@@ -85,6 +86,36 @@ export async function teamEvents(season: number, team: number): Promise<TeamEven
   });
 }
 
+const nOrNull = (x: unknown) => (x == null ? null : Number(x));
+const sdOf = (v: unknown) => (v == null ? null : Math.sqrt(Math.max(0, Number(v))));
+
+function reportCard(r: any, ev?: { name: string | null; start: string | null }): ReportCard {
+  const decided = Number(r.decided), hits = Number(r.hits);
+  return {
+    code: r.code ? String(r.code) : null, name: ev?.name ?? null, start: ev?.start ?? null, final: !!Number(r.final),
+    calls: Number(r.calls), decided, hits, scored: Number(r.scored),
+    raw: { hitRate: decided ? hits / decided : null, errMean: nOrNull(r.err_mean), errAbs: nOrNull(r.err_abs), errSd: sdOf(r.err_var) },
+    shrunk: { hitRate: nOrNull(r.hit_shrunk), errMean: nOrNull(r.err_mean_shrunk), errAbs: nOrNull(r.err_abs_shrunk), errSd: sdOf(r.err_var_shrunk) },
+  };
+}
+
+/** Stored report cards (server/stats/reportCards.ts): the season row and finished events. Null when there's none. */
+export async function teamReportCards(season: number, team: number): Promise<TeamReportCards | null> {
+  const rows = await all<any>(
+    `SELECT r.*, e.name, e.start FROM team_report_cards r LEFT JOIN events e ON e.season = r.season AND e.code = r.code
+     WHERE r.season = ? AND r.team = ? AND (r.code = '' OR r.final = 1) ORDER BY e.start, r.code`,
+    [season, team],
+  );
+  const whole = rows.find((r) => r.code === "");
+  if (!whole) return null;
+  return {
+    season: reportCard(whole),
+    events: rows.filter((r) => r.code !== "").map((r) => reportCard(r, { name: r.name ?? null, start: r.start ?? null })),
+    field: await kvGet<ReportCardField>(`reportCards:field:${season}`),
+    prior: REPORT_PRIOR,
+  };
+}
+
 export async function teamProfile(number: number, season?: number): Promise<TeamProfile | null> {
   const team = await teamInfo(number);
   if (!team && !(await teamKnown(number))) return null;
@@ -98,14 +129,15 @@ export async function teamProfile(number: number, season?: number): Promise<Team
     const entered = !!(await get("SELECT 1 FROM event_teams WHERE season = ? AND team = ? LIMIT 1", [CURRENT_SEASON, number]));
     s = entered || withResults?.season === CURRENT_SEASON ? CURRENT_SEASON : seasons.find((x) => x !== CURRENT_SEASON) ?? CURRENT_SEASON;
   }
-  const [stats, events, awardsAllTime] = await Promise.all([
+  const [stats, events, awardsAllTime, reportCards] = await Promise.all([
     seasonStats(s, number),
     teamEvents(s, number),
     all<any>("SELECT a.season, a.code, e.name event, a.type, a.placement, a.name FROM awards a JOIN events e ON e.season = a.season AND e.code = a.code WHERE a.team = ? ORDER BY a.season DESC, e.start DESC", [number]),
+    teamReportCards(s, number),
   ]);
   return {
     team: team ?? { number, name: null, fullName: null, school: null, sponsors: [], city: null, state: null, country: null, rookieYear: null, website: null, homeRegion: null },
-    season: s, seasons, stats, events,
+    season: s, seasons, stats, events, reportCards,
     awardsAllTime: awardsAllTime.map((a) => ({ season: a.season, code: a.code, event: a.event, type: a.type, placement: a.placement, name: a.name })),
   };
 }

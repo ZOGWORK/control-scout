@@ -1113,6 +1113,27 @@ ALTER TABLE predictions ADD COLUMN blue_hi REAL;
 ALTER TABLE predictions ADD COLUMN range_level REAL;
 `,
   },
+  {
+    version: 37,
+    name: "predictability report cards",
+    sql: `
+-- Per team, how the engine's LIVE calls on its matches turned out (server/stats/reportCards.ts): never
+-- the backtest replay. code '' = the whole season, else one event (final = the event is over and every
+-- match played). Raw numbers and the same shrunk toward the season's field average (prior worth
+-- REPORT_PRIOR calls). Misses are per robot: (alliance actual − predicted) ÷ robots on the alliance.
+-- Rewritten whole per season by the stats job and the live fast lane. Public: derived from public results.
+CREATE TABLE team_report_cards (
+  season INTEGER NOT NULL, code TEXT NOT NULL, team INTEGER NOT NULL,
+  final INTEGER NOT NULL DEFAULT 0,
+  calls INTEGER NOT NULL, decided INTEGER NOT NULL, hits INTEGER NOT NULL, scored INTEGER NOT NULL,
+  err_mean REAL, err_abs REAL, err_var REAL,
+  hit_shrunk REAL, err_mean_shrunk REAL, err_abs_shrunk REAL, err_var_shrunk REAL,
+  computed_at TEXT NOT NULL,
+  PRIMARY KEY (season, code, team)
+);
+CREATE INDEX team_report_cards_team ON team_report_cards (team, season);
+`,
+  },
 ];
 
 export type Db = Client;
