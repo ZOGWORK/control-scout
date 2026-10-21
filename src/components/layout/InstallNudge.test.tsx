@@ -207,8 +207,8 @@ describe("Add-to-home-screen nudge: when it shows", () => {
     offerInstall();
     await settle();
     const cls = nudge()!.className;
-    expect(cls).toContain("bottom-[calc(61px+env(safe-area-inset-bottom)+0.75rem)]");
-    expect(cls).toContain("max-md:[[data-sticky-actions]_&]:bottom-[calc(61px+4rem+env(safe-area-inset-bottom)+0.75rem)]");
+    expect(cls).toContain("bottom-[calc(var(--tabbar-h)+env(safe-area-inset-bottom)+0.75rem)]");
+    expect(cls).toContain("max-md:[[data-sticky-actions]_&]:bottom-[calc(var(--tabbar-h)+4rem+env(safe-area-inset-bottom)+0.75rem)]");
     expect(cls).toContain("z-[45]"); // over the tab bar (z-40) and sticky bar (z-30), under dialogs
   });
 });

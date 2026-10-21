@@ -13,7 +13,7 @@ export function TabsList({ className, ...props }: React.ComponentProps<typeof Ta
   return (
     <TabsPrimitive.List
       data-slot="tabs-list"
-      className={cn('inline-flex w-full sm:w-fit items-center gap-1 rounded-2xl border border-line bg-secondary p-1 overflow-x-auto custom-scrollbar', className)}
+      className={cn('inline-flex w-full sm:w-fit items-center gap-1 max-sm:gap-0.5 rounded-2xl max-sm:rounded-xl border border-line bg-secondary p-1 max-sm:p-0.5 overflow-x-auto custom-scrollbar', className)}
       {...props}
     />
   );
@@ -35,7 +35,7 @@ export function TabsTrigger({ className, ...props }: React.ComponentProps<typeof
       ref={ref}
       data-slot="tabs-trigger"
       className={cn(
-        'inline-flex flex-1 sm:flex-none items-center justify-center gap-1.5 whitespace-nowrap rounded-xl px-3 sm:px-4 py-2 text-sm font-bold',
+        'inline-flex flex-1 sm:flex-none items-center justify-center gap-1.5 whitespace-nowrap rounded-xl max-sm:rounded-lg px-2.5 sm:px-4 py-1.5 sm:py-2 text-sm font-bold',
         'text-text-muted transition-colors hover:text-text-base outline-none focus-visible:ring-2 focus-visible:ring-accent/60',
         'data-[state=active]:bg-accent data-[state=active]:text-accent-ink disabled:pointer-events-none disabled:opacity-50 [&_svg]:size-4 [&_svg]:shrink-0',
         className,
