@@ -37,7 +37,7 @@ import { HeaderActions } from "../components/EventActions";
 import { WATCH_ID, WatchLive } from "../components/WatchLive";
 import { isLiveMode, useEventPoll } from "../lib/liveMode";
 import { agoSeconds, awardLabel, dateRange, num, place, seasonLabel } from "../lib/format";
-import { scrollToElement } from "../lib/pageScroll";
+import { scrollToElement, smoothBehavior } from "../lib/pageScroll";
 import { eventTab } from "../lib/eventTab";
 
 export default function EventPage() {
@@ -86,7 +86,7 @@ function Event({ d, path }: { d: EventDetail; path: string }) {
   const [headerEnd, setHeaderEnd] = useState<HTMLDivElement | null>(null);
   const tabsRef = useRef<HTMLDivElement>(null);
   // The bar's "See odds" opens the tab and brings it into view (the header that held the button is off screen).
-  const seeOdds = () => { setTab("odds"); if (tabsRef.current) scrollToElement(tabsRef.current, matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth"); };
+  const seeOdds = () => { setTab("odds"); if (tabsRef.current) scrollToElement(tabsRef.current, smoothBehavior()); };
   // Phones get a sticky bar only where one action leads: live (the countdown, back to the LIVE panel) or upcoming with predictions (odds / lab).
   // Finished events and history seasons have no bar.
   const sticky = e.status === "live" || (e.status === "upcoming" && predictable);
@@ -94,9 +94,9 @@ function Event({ d, path }: { d: EventDetail; path: string }) {
   const liveMode = isLiveMode(d);
   const target = useLiveTarget(d, liveMode);
   const livePanel = useRef<HTMLDivElement>(null);
-  const toLivePanel = () => { if (livePanel.current) scrollToElement(livePanel.current, matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth"); };
+  const toLivePanel = () => { if (livePanel.current) scrollToElement(livePanel.current, smoothBehavior()); };
   const oddsOpen = predictable && !d.forecastUnsupported;
-  const toWatch = () => { const el = document.getElementById(WATCH_ID); if (el) scrollToElement(el, matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth"); };
+  const toWatch = () => { const el = document.getElementById(WATCH_ID); if (el) scrollToElement(el, smoothBehavior()); };
   // Opened on a panel (?tab= in the address it arrived at): a slim bar, with the summary behind "Event details".
   const slim = useArrivedOnTab(sp.has("tab") && validTab);
   const [detailsOpen, setDetailsOpen] = useDetailsOpen();
