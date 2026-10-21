@@ -16,7 +16,8 @@
   - `PartnershipTable` reads that data. It holds pairs with at least `minMatches` (2
     together) or `minMeetings` (3 against), seen within `maxSeasonsAgo` (6); predictions
     ignore every other pair. The book keeps a weak pair through the next season, so a
-    later meeting counts every match, and forgets it after a whole season idle.
+    later meeting counts every match, and forgets it after a whole season idle. `toData({ keepWeak })`
+    keeps those weak pairs for a table that folds in fresh results (the server's).
   - `partnershipFact` gives the strongest fact for a lineup in words, for example
     "1234 and 5678 have played 6 matches together (5–1); best 212 at NJ Championship (2024–25)".
 - `explainMatch(..., { partnership })` returns `partnership` (the fact, or null).

@@ -134,6 +134,17 @@ describe("partnership memory", () => {
     expect(partnershipFact(o, [1, 2], [30, 31], 2024)!.label).toMatch(/^1 and 2 have played 4 matches together \(3–1\)/);
   });
 
+  it("an overlay on a table that keeps weak pairs counts a pair's one earlier match", () => {
+    const b = history(); // 1 + 7 played once together (a tie)
+    const weak = new PartnershipTable(b.toData({ keepWeak: true }));
+    expect(weak.together(1, 7)!.n).toBe(1);
+    expect(partnershipFact(weak, [1, 7], [30, 31], 2024)).toBeNull(); // still never shown on its own
+    expect(partnershipFact(weak, [1, 2], [3, 4], 2024)).toEqual(partnershipFact(new PartnershipTable(b.toData()), [1, 2], [3, 4], 2024));
+    const o = new PartnershipOverlay(weak);
+    o.observe(match(2024, "NJCMP", [[1, 7], 120], [[8, 9], 80]), new RatingBook(FITTED_MODEL.rating));
+    expect(partnershipFact(o, [1, 7], [30, 31], 2024)!.label).toMatch(/^1 and 7 have played 2 matches together \(1–0–1\)/);
+  });
+
   it("reports head-to-head records from the right side", () => {
     const b = new PartnershipBook(FITTED_MODEL.rating);
     for (let i = 0; i < 3; i++) b.observe(match(2024, "X", [[40, 41], 120], [[12, 13], 80]));

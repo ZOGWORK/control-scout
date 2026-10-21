@@ -79,8 +79,11 @@ export class ScoutForecaster extends Forecaster {
     // Valid for the anchor season, even before its first match (the history is all earlier seasons then).
     // Only pairs of teams active in the anchor season or the one before (the ones a call can be about): keeps the pack small.
     const active = new Set([...(books.get(this.anchor)?.ratings.keys() ?? []), ...(books.get(this.anchor - 1)?.ratings.keys() ?? [])]);
-    this.partnershipData = pairs.season != null && pairs.season <= this.anchor ? { ...pairs.toData({ teams: active }), season: this.anchor } : null;
-    this.pairTable = PartnershipTable.fromData(this.partnershipData);
+    // The server's table keeps the weak pairs too: an event's fresh results fold into it (PartnershipOverlay) and
+    // must count a pair's one earlier match. The offline pack's copy (explanations only, no overlay) leaves them out.
+    const ready = pairs.season != null && pairs.season <= this.anchor;
+    this.partnershipData = ready ? { ...pairs.toData({ teams: active }), season: this.anchor } : null;
+    this.pairTable = ready ? PartnershipTable.fromData({ ...pairs.toData({ teams: active, keepWeak: true }), season: this.anchor }) : null;
     this.partnershipComplete = !!prefix;
     this.builtAt = new Date().toISOString();
   }
