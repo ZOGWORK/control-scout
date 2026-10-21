@@ -43,18 +43,21 @@ export default function RecordsPage({ matches }: { matches?: boolean }) {
   // On a phone the strip scrolls sideways: the current view is brought into it on arrival and on every change.
   // It jumps there on arrival and glides on a change the reader made.
   const strip = useRef<HTMLElement>(null);
-  const stripShown = useRef(false);
+  // The view the strip last showed (undefined before the first): the same view again (a replayed effect) is an arrival.
+  const stripView = useRef<string | undefined>(undefined);
   useLayoutEffect(() => {
     const reveal = (behavior: ScrollBehavior = "auto") => {
       const el = strip.current?.querySelector<HTMLElement>("[aria-current=page]");
       if (strip.current && el) revealInStrip(strip.current, el, 8, behavior);
     };
-    reveal(stripShown.current ? smoothBehavior() : "auto");
-    stripShown.current = true;
-    // Again once the web fonts are in (they change the labels' widths), and whenever the strip's width
-    // changes (a phone turned to portrait, a narrowed window) so the current view never ends up clipped.
+    const arriving = stripView.current === undefined || stripView.current === view;
+    stripView.current = view;
+    reveal(arriving ? "auto" : smoothBehavior());
+    // Again once the web fonts are in (they change the labels' widths), on arrival only: after a view change the
+    // fonts are long in, and an instant correction there would cut the glide short. And whenever the strip's
+    // width changes (a phone turned to portrait, a narrowed window) so the current view never ends up clipped.
     let live = true;
-    document.fonts?.ready.then(() => { if (live) reveal(); });
+    if (arriving) document.fonts?.ready.then(() => { if (live) reveal(); });
     const widthNow = () => strip.current?.getBoundingClientRect().width;
     let width = widthNow();
     const ro = typeof ResizeObserver === "undefined" ? null : new ResizeObserver(() => {
