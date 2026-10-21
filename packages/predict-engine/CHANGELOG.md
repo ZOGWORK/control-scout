@@ -29,6 +29,9 @@ win probability, shadow probability, expected scores, tier and score ranges.
   qualification results before it, never the shipped whole-season fit). A forecast of a
   past moment ("before the event") overrides `bonusModel` with it, so its bonus odds carry no
   hindsight.
+- `BonusHistory`: a season's results in time order, answering "the model as it stood at t"
+  with one rule (only matches that started strictly before t; a same-time result wasn't
+  known yet). `bonusModelBefore` and walk-forward replays both use it.
 - **Evidence (2025–26 season replay, walk-forward: each call fitted only on earlier
   results; 212,496 alliance-bonus calls on 35,416 qualification matches).** Brier per bonus
   call: latest-2,000 window **0.1448**; every alliance so far 0.1597; the shipped
