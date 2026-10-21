@@ -12,7 +12,7 @@ export const FOOTER_LINKS: { to: string; label: string }[] = [
 
 export function SiteFooter() {
   return (
-    <footer className="mt-16 flex flex-col gap-3 border-t border-line pt-6 text-xs text-text-muted sm:flex-row sm:items-center sm:justify-between">
+    <footer className="mt-16 flex flex-col gap-3 border-t border-line pt-6 max-sm:pt-4 text-xs text-text-muted sm:flex-row sm:items-center sm:justify-between">
       <nav aria-label="Site" className="flex flex-wrap gap-x-5 gap-y-2">
         {FOOTER_LINKS.map((l) => (
           <Link key={l.to} to={l.to} className="rounded py-1 font-medium hover:text-text-base focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60">{l.label}</Link>

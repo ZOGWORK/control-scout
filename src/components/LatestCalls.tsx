@@ -53,7 +53,7 @@ export function LatestCalls({ className }: { className?: string }) {
   }, [still, hover, focus, calls.length]);
   if (state.error || (state.data && !calls.length)) {
     return state.data ? (
-      <aside aria-label="Latest live calls" className={cn("rounded-2xl border border-dashed border-line p-5 text-sm text-text-muted", className)}>
+      <aside aria-label="Latest live calls" className={cn("rounded-2xl border border-dashed border-line p-5 max-sm:p-4 text-sm text-text-muted", className)}>
         No live calls have been scored yet. Each match prediction is logged before the match and scored after it; they'll show here.
       </aside>
     ) : null;
@@ -62,13 +62,13 @@ export function LatestCalls({ className }: { className?: string }) {
   return (
     <aside aria-label="Latest live calls" onMouseEnter={() => setHover(true)} onMouseLeave={() => setHover(false)}
       onFocus={() => setFocus(true)} onBlur={(e) => { if (!e.currentTarget.contains(e.relatedTarget as Node | null)) setFocus(false); }}
-      className={cn("relative overflow-hidden rounded-2xl border border-line bg-card p-5", className)}>
+      className={cn("relative overflow-hidden rounded-2xl border border-line bg-card p-5 max-sm:p-4", className)}>
       <div aria-hidden className="pointer-events-none absolute -right-16 -top-16 size-48 rounded-full bg-accent/10 blur-3xl" />
       <div className="relative flex items-center justify-between gap-3">
         <p className="text-xs font-semibold uppercase tracking-[0.16em] text-text-muted">Latest live calls</p>
         {calls.length > 1 && !(reduced && paused === null) && (
           <button type="button" onClick={() => setPaused(!still)} aria-label={still ? "Turn through the calls" : "Stop turning through the calls"}
-            className="inline-flex size-8 items-center justify-center rounded-lg border border-line text-text-muted hover:bg-text-base/[0.06] hover:text-text-base focus-visible:outline-2 focus-visible:outline-accent max-sm:size-11">
+            className="inline-flex size-8 items-center justify-center rounded-lg border border-line text-text-muted hover:bg-text-base/[0.06] hover:text-text-base focus-visible:outline-2 focus-visible:outline-accent max-sm:size-10">
             {still ? <Play className="size-3.5" aria-hidden /> : <Pause className="size-3.5" aria-hidden />}
           </button>
         )}

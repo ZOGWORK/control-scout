@@ -66,7 +66,7 @@ export function ResultChanges({ season, code, matchKey, refreshKey }: { season: 
   const headingId = useId();
   const one = !!matchKey;
   return (
-    <section aria-labelledby={headingId} className={cn(one ? "rounded-xl border border-border bg-card p-4" : "mt-10")}>
+    <section aria-labelledby={headingId} className={cn(one ? "rounded-xl border border-border bg-card p-4" : "mt-10 max-sm:mt-6")}>
       <h2 id={headingId} className={cn("flex items-center gap-2 font-display font-semibold text-foreground", one ? "text-sm" : "text-lg")}>
         <History className="size-4 text-text-muted" aria-hidden /> Result changes
       </h2>

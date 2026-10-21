@@ -149,6 +149,14 @@ html.light {
    move the page 6 px). */
 :root { --header-h: 3rem; }
 html { scrollbar-gutter: stable; }
+/* Text size (src/lib/textSize.ts). Sizes are in rem, so the root size scales text, spacing, boxes and buttons
+   together. Phones start at 14 px (desktop 16): more on screen before scrolling, nothing hidden. Each device's
+   own choice (Settings › Appearance) multiplies that. */
+html { --ui-base: 1; --ui-scale: 1; font-size: calc(100% * var(--ui-base) * var(--ui-scale)); }
+@media (max-width: 767px) { html { --ui-base: 0.875; } }
+html[data-text-size="s"] { --ui-scale: 0.9; }
+html[data-text-size="l"] { --ui-scale: 1.125; }
+html[data-text-size="xl"] { --ui-scale: 1.25; }
 @media (max-width: 767px) { html { scroll-padding-bottom: calc(61px + env(safe-area-inset-bottom)); } }
 @layer base { :where(#main, #main *) { scroll-margin-top: var(--header-h); } } /* in a layer: scroll-mt-bar-N must win */
 @utility scroll-mt-bar-* { scroll-margin-top: calc(var(--header-h) + var(--spacing) * --value(integer)); }
@@ -157,6 +165,12 @@ html::-webkit-scrollbar-thumb { background: #2e2e35; border-radius: 999px; }
 html::-webkit-scrollbar-thumb:hover { background: #3f3f47; }
 html.light::-webkit-scrollbar-thumb { background: #d4d4d8; }
 html body[data-scroll-locked] { margin-right: 0 !important; }
+/* iPhones zoom the whole page into a field whose text is under 16px when it's focused (the keyboard opens and
+   the page stays zoomed). Touch screens get 16px text in every field instead; pinch-zoom stays on. Unlayered
+   and !important so it beats the text-sm/text-xs utilities on the fields themselves. */
+@media (pointer: coarse) {
+  input:not([type="checkbox"], [type="radio"], [type="range"], [type="color"], [type="file"]), select, textarea { font-size: 16px !important; }
+}
 
 @layer base {
   html { -webkit-text-size-adjust: 100%; }

@@ -53,13 +53,13 @@ function Question({ item, open, onToggle }: { item: FaqItem; open: boolean; onTo
     <li id={item.id} className="scroll-mt-bar-20">
       <h3>
         <button type="button" onClick={onToggle} aria-expanded={open} aria-controls={`${item.id}-answer`}
-          className="flex min-h-14 w-full items-center justify-between gap-4 px-5 py-3 text-left font-medium outline-none hover:bg-text-base/[0.03] focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring/60">
+          className="flex min-h-14 w-full items-center justify-between gap-4 px-5 max-sm:px-4 py-3 text-left font-medium outline-none hover:bg-text-base/[0.03] focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring/60">
           <span>{item.q}</span>
           <ChevronDown className={cn("size-4 shrink-0 text-muted-foreground transition-transform motion-reduce:transition-none", open && "rotate-180 text-accent")} aria-hidden />
         </button>
       </h3>
       {open && (
-        <div id={`${item.id}-answer`} className="space-y-3 px-5 pb-5 text-sm leading-relaxed text-muted-foreground">
+        <div id={`${item.id}-answer`} className="space-y-3 px-5 max-sm:px-4 pb-5 text-sm leading-relaxed text-muted-foreground">
           {item.a.map((t, i) => <Answer key={i} text={t} />)}
           <button type="button" onClick={copy} className="inline-flex min-h-9 items-center gap-1.5 rounded-lg text-xs text-muted-foreground hover:text-foreground">
             <Link2 className="size-3.5" aria-hidden /> Copy link to this answer
@@ -109,7 +109,7 @@ export default function FaqPage() {
           {FAQ.map((g) => {
             const t = topicOf(g.id);
             return (
-              <a key={g.id} href={`#topic-${g.id}`} className="inline-flex min-h-9 items-center gap-2 rounded-full border border-border bg-card py-1 pl-1.5 pr-3.5 text-sm text-muted-foreground hover:border-accent/50 hover:text-foreground max-sm:min-h-11">
+              <a key={g.id} href={`#topic-${g.id}`} className="inline-flex min-h-9 items-center gap-2 rounded-full border border-border bg-card py-1 pl-1.5 pr-3.5 text-sm text-muted-foreground hover:border-accent/50 hover:text-foreground max-sm:min-h-10">
                 <span className={cn("flex size-6 items-center justify-center rounded-full", t.tone)}><t.icon className="size-3.5" aria-hidden /></span>{g.title}
               </a>
             );
@@ -117,9 +117,9 @@ export default function FaqPage() {
         </nav>
       )}
 
-      <div className="mt-8 space-y-10">
+      <div className="mt-8 max-sm:mt-5 space-y-10 max-sm:space-y-6">
         {!groups.length ? (
-          <div className="rounded-2xl border border-dashed border-border px-6 py-10 text-center">
+          <div className="rounded-2xl border border-dashed border-border px-6 max-sm:px-4 py-10 max-sm:py-6 text-center">
             <p className="font-medium">No question matches “{query.trim()}”</p>
             <p className="mt-1 text-sm text-muted-foreground">Try another word, or ask us directly.</p>
             <Button className="mt-4" asChild><Link to="/contact"><MessageSquare /> Ask a question</Link></Button>
@@ -138,7 +138,7 @@ export default function FaqPage() {
         ))}
       </div>
 
-      <section className="mt-12 flex flex-wrap items-center justify-between gap-4 rounded-2xl border border-accent/30 bg-accent/[0.06] p-6">
+      <section className="mt-12 flex flex-wrap items-center justify-between gap-4 rounded-2xl border border-accent/30 bg-accent/[0.06] p-6 max-sm:p-4">
         <div>
           <h2 className="font-display text-lg font-semibold">Still stuck?</h2>
           <p className="mt-1 text-sm text-muted-foreground">Ask us anything, report a bug or wrong data, or suggest a feature. We reply by email.</p>

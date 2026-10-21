@@ -1,13 +1,13 @@
 // App shell — Control Point's modern layout: a collapsible left sidebar with
 // an animated active pill, a slim top bar with the search pill, and a bottom
 // tab bar on phones.
-import { useEffect, useRef, useState, type ComponentType, type ReactNode, type Ref } from "react";
+import { useEffect, useRef, useState, type ComponentType, type ReactNode } from "react";
 import { Ambient } from "./Ambient";
 import { Link, NavLink, useLocation } from "react-router-dom";
 import { MotionConfig } from "motion/react";
 import { m } from "../motion";
 import {
-  BookOpen, Bookmark, CalendarDays, ClipboardList, DatabaseZap, Download, House, ListOrdered, Menu, PanelLeftClose, PanelLeftOpen, Scale, Search, Settings, ShieldCheck, Sparkles, Star, Trophy, Users,
+  BookOpen, Bookmark, CalendarDays, ClipboardList, DatabaseZap, Download, House, ListOrdered, PanelLeft, PanelLeftClose, PanelLeftOpen, Scale, Search, Settings, ShieldCheck, Sparkles, Star, Trophy, Users,
 } from "lucide-react";
 import { cn } from "../cn";
 import { useMeta } from "../../lib/meta";
@@ -24,6 +24,8 @@ import { pageTitle } from "../../shared/routes";
 import { SiteFooter } from "./SiteFooter";
 import { useYoursRow, FOLLOWED_TEAM_PATH } from "../../lib/yoursRow";
 import { HEADER_ID, usePageScroll } from "../../lib/pageScroll";
+import { tabDef, useTabBar } from "../../lib/tabBar";
+import { watchTextSize } from "../../lib/textSize";
 
 interface NavItem { to: string; label: string; icon: ComponentType<{ className?: string }>; end?: boolean }
 
@@ -54,7 +56,7 @@ export function BrandMark({ className }: { className?: string }) {
   return <img src="/logo.png" alt="" aria-hidden className={cn("size-7 shrink-0", className)} />;
 }
 
-const rowClass = (on: boolean, collapsed?: boolean) => cn("group relative flex h-10 w-full items-center gap-3 rounded-lg px-3 text-[15px] font-medium outline-none focus-visible:ring-2 focus-visible:ring-ring/60",
+const rowClass = (on: boolean, collapsed?: boolean) => cn("group relative flex h-10 w-full items-center gap-3 rounded-lg px-3 text-[0.9375rem] font-medium outline-none focus-visible:ring-2 focus-visible:ring-ring/60",
   on ? "text-text-base" : "text-text-muted hover:bg-text-base/[0.05] hover:text-text-base", collapsed && "justify-center px-0");
 
 function RowInner({ item, on, collapsed }: { item: NavItem; on: boolean; collapsed?: boolean }) {
@@ -103,10 +105,10 @@ function Sidebar({ collapsed, onToggle }: { collapsed: boolean; onToggle: () => 
       <div className={cn("flex h-12 items-center gap-2.5 px-3.5", collapsed && "justify-center px-0")}>
         <Link to="/" className="flex min-w-0 items-center gap-2.5 rounded-lg outline-none focus-visible:ring-2 focus-visible:ring-ring/60" aria-label="Control Scout home">
           <BrandMark className="size-8" />
-          {!collapsed && <span className="truncate font-display text-[17px] font-bold tracking-tight">Control Scout</span>}
+          {!collapsed && <span className="truncate font-display text-[1.0625rem] font-bold tracking-tight">Control Scout</span>}
         </Link>
       </div>
-      <nav className="custom-scrollbar flex-1 space-y-5 overflow-y-auto px-2 py-2" aria-label="Main">
+      <nav className="custom-scrollbar flex-1 space-y-5 max-sm:space-y-4 overflow-y-auto px-2 py-2" aria-label="Main">
         {sections.map((s, i) => (
           <div key={i} className="space-y-0.5">
             {s.title && !collapsed && <p className="px-3 pb-1.5 text-[11px] font-bold uppercase tracking-[0.2em] text-text-muted">{s.title}</p>}
@@ -129,29 +131,29 @@ function Sidebar({ collapsed, onToggle }: { collapsed: boolean; onToggle: () => 
   );
 }
 
-const MOBILE_TABS: NavItem[] = [
-  { to: "/", label: "Home", icon: House, end: true },
-  { to: "/events", label: "Events", icon: CalendarDays },
-  { to: "/predict", label: "Predict", icon: Sparkles },
-  { to: FOLLOWED_TEAM_PATH, label: "My team", icon: Star },
-];
+const tabClass = (on: boolean) => cn("flex min-h-[60px] min-w-0 flex-1 flex-col items-center justify-center gap-1 px-0.5 text-xs font-medium", on ? "text-accent-text" : "text-text-muted");
 
-const tabClass = (on: boolean) => cn("flex min-h-[60px] flex-1 flex-col items-center justify-center gap-1 text-xs font-medium", on ? "text-accent-text" : "text-text-muted");
-
-function MobileTabs({ onMore, moreRef }: { onMore: () => void; moreRef: Ref<HTMLButtonElement> }) {
+/** The phone's bottom bar: the pages this device picked (Settings › Appearance, src/lib/tabBar.ts). Every page,
+ *  these included, is also in the menu the top-left button opens. */
+function MobileTabs() {
+  const tabs = useTabBar();
   const { row, active } = useYoursRow();
   return (
     <nav className="fixed inset-x-0 bottom-0 z-40 flex border-t border-line bg-secondary pb-[env(safe-area-inset-bottom)] md:hidden" aria-label="Main">
-      {MOBILE_TABS.map((t) => t.to !== FOLLOWED_TEAM_PATH ? (
-        <NavLink key={t.to} to={t.to} end={t.end} className={({ isActive }) => tabClass(isActive)}>
-          <t.icon className="size-5" />{t.label}
-        </NavLink>
-      ) : (
-        <NavLink key={t.to} to={row.to} aria-current={active ? "page" : undefined} className={tabClass(active)}>
-          <t.icon className="size-5" />{row.label}
-        </NavLink>
-      ))}
-      <button ref={moreRef} onClick={onMore} className="flex min-h-[60px] flex-1 flex-col items-center justify-center gap-1 text-xs font-medium text-text-muted"><Menu className="size-5" />More</button>
+      {tabs.map((id) => {
+        const t = tabDef(id);
+        // My team / My teams: the YOURS row decides the label, where it goes and when it's lit (src/lib/yoursRow.ts).
+        if (id === "myTeam") return (
+          <NavLink key={id} to={row.to} aria-current={active ? "page" : undefined} className={tabClass(active)}>
+            <t.icon className="size-5 shrink-0" /><span className="max-w-full truncate">{row.label}</span>
+          </NavLink>
+        );
+        return (
+          <NavLink key={id} to={t.to} end={t.end} className={({ isActive }) => tabClass(isActive)}>
+            <t.icon className="size-5 shrink-0" /><span className="max-w-full truncate">{t.label}</span>
+          </NavLink>
+        );
+      })}
     </nav>
   );
 }
@@ -162,7 +164,7 @@ function NoDataNotice() {
   const meta = useMeta();
   if (!meta || meta.dataLoaded) return null;
   return (
-    <div role="status" className="mb-6 flex items-start gap-3 rounded-xl border border-warning/40 bg-warning/10 px-4 py-3 text-sm">
+    <div role="status" className="mb-6 max-sm:mb-4 flex items-start gap-3 rounded-xl border border-warning/40 bg-warning/10 px-4 py-3 text-sm">
       <DatabaseZap className="mt-0.5 size-4 shrink-0 text-warning" aria-hidden />
       <p><span className="font-semibold">No FTC team data has been loaded on this server yet.</span> <span className="text-text-muted">Search, teams, events and predictions stay empty until it is. This page checks again every 30 seconds.</span></p>
     </div>
@@ -171,11 +173,12 @@ function NoDataNotice() {
 
 export function Shell({ children }: { children: ReactNode }) {
   const [collapsed, setCollapsed] = useState(() => { try { return localStorage.getItem("cs-sidebar") === "1"; } catch { return false; } });
-  const [more, setMore] = useState(false);
-  // The More sheet and anything opened from it (What's new) hand focus back to More when they close, even when
-  // their own opener has gone (a row in the closed sheet) or never had focus (Safari doesn't focus a tapped button).
-  const moreRef = useRef<HTMLButtonElement>(null);
-  const toMore = () => moreRef.current;
+  const [menu, setMenu] = useState(false);
+  // The phone's menu sheet and anything opened from it (What's new) hand focus back to the menu button when they
+  // close, even when their own opener has gone (a row in the closed sheet) or never had focus (Safari doesn't
+  // focus a tapped button).
+  const menuRef = useRef<HTMLButtonElement>(null);
+  const toMenu = () => menuRef.current;
   const mainRef = useRef<HTMLElement>(null);
   // The page scrolls the document (so phone browsers fold their toolbars away). Back/forward return to where
   // the page was left once its data is back, and a new page starts at the top (src/lib/pageScroll.ts).
@@ -188,6 +191,8 @@ export function Shell({ children }: { children: ReactNode }) {
   // The first page is drawn at full opacity (it replaces the static first paint, see server/bootShell.ts); later page changes fade in.
   const firstPage = useRef(true);
   useEffect(() => { firstPage.current = false; }, []);
+  // This device's text size follows a change made in another tab, whichever page this one is on.
+  useEffect(() => watchTextSize(), []);
   const toggle = () => setCollapsed((c) => { try { localStorage.setItem("cs-sidebar", c ? "0" : "1"); } catch { /* ignore */ } return !c; });
   return (
     <MotionConfig reducedMotion="user">
@@ -198,10 +203,18 @@ export function Shell({ children }: { children: ReactNode }) {
           <Sidebar collapsed={collapsed} onToggle={toggle} />
           <div className="flex min-w-0 flex-1 flex-col">
             {/* Sticky over the scrolling page: opaque, and --header-h tall (index.css: anchors land below it). */}
-            <header id={HEADER_ID} className="sticky top-0 z-30 flex h-(--header-h) shrink-0 items-center gap-3 border-b border-line bg-primary px-4 sm:px-6 lg:px-8">
-              <Link to="/" className="md:hidden" aria-label="Home"><BrandMark className="size-6" /></Link>
-              <p className="truncate text-sm text-text-muted"><span className="hidden sm:inline">Control Scout / </span><span className="text-text-base">{title}</span></p>
-              <div className="flex flex-1 justify-end md:justify-center"><GlobalSearch /></div>
+            <header id={HEADER_ID} className="sticky top-0 z-30 flex h-(--header-h) shrink-0 items-center gap-1 border-b border-line bg-primary px-3 sm:px-6 md:gap-3 lg:px-8">
+              {/* Phones: the menu (every page) top left with search beside it, the logo centred, and the account side right. */}
+              <div className="flex items-center gap-0.5 md:hidden">
+                <button ref={menuRef} type="button" onClick={() => setMenu(true)} aria-label="Open menu" aria-expanded={menu}
+                  className="-ml-1.5 flex size-8 shrink-0 items-center justify-center rounded-lg text-text-muted outline-none transition-colors hover:bg-text-base/[0.06] hover:text-text-base focus-visible:ring-2 focus-visible:ring-ring/60">
+                  <PanelLeft className="size-5" />
+                </button>
+                <GlobalSearch part="button" />
+              </div>
+              <Link to="/" className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 rounded-lg outline-none focus-visible:ring-2 focus-visible:ring-ring/60 md:hidden" aria-label="Control Scout home"><BrandMark /></Link>
+              <p className="hidden truncate text-sm text-text-muted md:block"><span>Control Scout / </span><span className="text-text-base">{title}</span></p>
+              <div className="flex flex-1 justify-end md:justify-center"><GlobalSearch part="field" /></div>
               <OfflineStatus />
               <ClockWeather />
               <ThemeToggle />
@@ -217,7 +230,7 @@ export function Shell({ children }: { children: ReactNode }) {
                 <Ambient target={mainRef} />
               </div>
               <main id="main" ref={mainRef} className="m-canvas relative z-10">
-                <m.div key={loc.pathname} initial={firstPage.current ? false : { opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.18, ease: "easeOut" }} className="mx-auto flex min-h-[calc(100svh-var(--header-h))] w-full max-w-[1200px] flex-col px-4 pt-8 pb-28 sm:px-6 md:pb-8 max-md:[[data-sticky-actions]_&]:pb-44 lg:px-8 min-[1700px]:max-w-[1600px]">
+                <m.div key={loc.pathname} initial={firstPage.current ? false : { opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.18, ease: "easeOut" }} className="mx-auto flex min-h-[calc(100svh-var(--header-h))] w-full max-w-[1200px] flex-col px-4 pt-8 max-sm:pt-5 pb-28 sm:px-6 md:pb-8 max-md:[[data-sticky-actions]_&]:pb-44 lg:px-8 min-[1700px]:max-w-[1600px]">
                   <NoDataNotice />
                   {/* The page grows to fill the screen, so a short page still has its footer at the bottom. */}
                   <div className="min-w-0 flex-1">{children}</div>
@@ -228,19 +241,19 @@ export function Shell({ children }: { children: ReactNode }) {
               <div aria-hidden className="scroll-shield" />
             </div>
           </div>
-          <MobileTabs onMore={() => setMore(true)} moreRef={moreRef} />
+          <MobileTabs />
           <WhatsNewHost />
-          <Sheet open={more} onOpenChange={setMore}>
-            <SheetContent side="left" returnFocus={toMore} className="w-[85vw] max-w-[320px] p-3">
+          <Sheet open={menu} onOpenChange={setMenu}>
+            <SheetContent side="left" returnFocus={toMenu} className="w-[85vw] max-w-[320px] p-3">
               <SheetTitle className="px-2 pb-2 pt-1 font-display text-base">Control Scout</SheetTitle>
               <nav className="space-y-4" aria-label="All pages">
                 {sections.map((s, i) => (
                   <div key={i} className="space-y-0.5">
                     {s.title && <p className="px-3 pb-1.5 text-[11px] font-bold uppercase tracking-[0.2em] text-text-muted">{s.title}</p>}
-                    <SectionRows items={s.items} onNavigate={() => setMore(false)} />
+                    <SectionRows items={s.items} onNavigate={() => setMenu(false)} />
                   </div>
                 ))}
-                <WhatsNewRow onOpen={() => setMore(false)} returnTo={toMore} />
+                <WhatsNewRow onOpen={() => setMenu(false)} returnTo={toMenu} />
               </nav>
             </SheetContent>
           </Sheet>

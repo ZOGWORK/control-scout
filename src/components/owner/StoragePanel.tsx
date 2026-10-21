@@ -31,7 +31,7 @@ export function StorageBanner({ onOpen }: { onOpen: () => void }) {
 function StorageWarning({ s, onOpen }: { s: OwnerStorage; onOpen?: () => void }) {
   const full = s.level === "full";
   return (
-    <div role="alert" className={cn("mb-5 flex flex-wrap items-start gap-3 rounded-xl border p-4", full ? "border-danger/50 bg-danger/[0.08]" : "border-warning/50 bg-warning/[0.10]")}>
+    <div role="alert" className={cn("mb-5 max-sm:mb-4 flex flex-wrap items-start gap-3 rounded-xl border p-4", full ? "border-danger/50 bg-danger/[0.08]" : "border-warning/50 bg-warning/[0.10]")}>
       <AlertTriangle className={cn("mt-0.5 size-5 shrink-0", full ? "text-danger" : "text-warning")} aria-hidden />
       <div className="min-w-0 flex-1">
         <p className="font-medium text-foreground">{full ? "Photo storage is full: new uploads are refused" : "Photo storage approaching the 10 GB free tier limit"}</p>
@@ -66,13 +66,13 @@ export function StoragePanel() {
           <>
             {(s.level === "warning" || s.level === "full") && <StorageWarning s={s} />}
             {s.level === "notice" && (
-              <div role="status" className="mb-5 flex items-start gap-3 rounded-xl border border-info/40 bg-info/[0.06] p-4">
+              <div role="status" className="mb-5 max-sm:mb-4 flex items-start gap-3 rounded-xl border border-info/40 bg-info/[0.06] p-4">
                 <Info className="mt-0.5 size-5 shrink-0 text-info" aria-hidden />
                 <p className="text-sm text-muted-foreground"><span className="font-medium text-foreground">Over 7 GB of photos stored.</span> Nothing to do yet: photos clear themselves 2 days after each event. The warning comes at 9 GB.</p>
               </div>
             )}
             {!s.configured && (
-              <div role="status" className="mb-5 rounded-xl border border-border bg-card p-4 text-sm text-muted-foreground">
+              <div role="status" className="mb-5 max-sm:mb-4 rounded-xl border border-border bg-card p-4 text-sm text-muted-foreground">
                 R2 isn't configured on this server, so photos are off and hidden everywhere. Setup: docs/r2-photos.md.
               </div>
             )}
