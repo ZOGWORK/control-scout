@@ -111,19 +111,17 @@ export function InstallNudge() {
 
   return (
     <AnimatePresence>
-      {open && <NudgeCard kind={open} team={state.myTeam} signedIn={!!user} onAdd={add} onDismiss={dismiss} />}
+      {open && <NudgeCard kind={open} team={state.myTeam} onAdd={add} onDismiss={dismiss} />}
     </AnimatePresence>
   );
 }
 
 /** The card itself. */
-export function NudgeCard({ kind, team, signedIn, onAdd, onDismiss }: { kind: Kind; team: number | null; signedIn: boolean; onAdd: () => void; onDismiss: () => void }) {
+export function NudgeCard({ kind, team, onAdd, onDismiss }: { kind: Kind; team: number | null; onAdd: () => void; onDismiss: () => void }) {
   const titleId = useId();
   const bodyId = useId();
-  // What the installed app opens to (start_url "/"): signed in with a team, Home goes straight to My team;
-  // signed out, Home leads with the team's next match.
+  // What the installed app opens to (start_url "/"): Home, which leads with your team's next match.
   const body = team == null ? "One tap from the stands to any team's stats and match odds."
-    : signedIn ? `One tap from the stands, and it opens straight to team ${team}.`
     : `One tap from the stands to team ${team} and its next match.`;
   return (
     <m.section
