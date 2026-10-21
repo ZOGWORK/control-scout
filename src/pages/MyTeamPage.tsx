@@ -21,6 +21,7 @@ import { SeasonToggle } from "../components/SeasonToggle";
 import { EventCard } from "./Home";
 import { dateRange, num, seasonLabel, rankPct } from "../lib/format";
 import { callTally, pct } from "../lib/seasonSoFar";
+import { DiscordCard } from "../components/DiscordCard";
 import { defaultSeason } from "../lib/myTeamSeason";
 import { PROFILE_PERCENTILE_TEXT } from "../lib/textTones";
 
@@ -208,6 +209,8 @@ function Dashboard({ team }: { team: number }) {
         }}
       </Async>
       {!deciding && <TrackedFeed season={season} />}
+      {/* Your team's match alerts in your Discord server (components/DiscordCard.tsx). */}
+      <div className="mt-10"><DiscordCard teams={[team]} /></div>
     </div>
   );
 }

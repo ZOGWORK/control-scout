@@ -2,7 +2,7 @@
 # Control Scout — install / update on the Oracle VM next to Control Point.
 #
 # Touches ONLY Control Scout: user `controlscout`, /opt/control-scout, the
-# systemd unit `control-scout`, and the nginx site `control-scout`. Control
+# systemd units `control-scout` and `control-scout-bot`, and the nginx site `control-scout`. Control
 # Point's files, .env, database, service and nginx site are never read or
 # changed. Safe to re-run (idempotent).
 #
@@ -34,6 +34,7 @@ CERTBOT_EMAIL="${CERTBOT_EMAIL:-}"
 SITE_CONF="/etc/nginx/sites-available/control-scout"
 UNIT="/etc/systemd/system/control-scout.service"
 SOCKET_UNIT="/etc/systemd/system/control-scout.socket"
+BOT_UNIT="/etc/systemd/system/control-scout-bot.service"
 
 [ "$(id -u)" = 0 ] || { echo "Run with sudo"; exit 1; }
 [ -f "$REL_DIR/package.json" ] || { echo "No release at $REL_DIR — run deploy/deploy.sh from your machine"; exit 1; }
@@ -148,6 +149,44 @@ fi
 ln -sfn "releases/$RELEASE" "$APP_DIR/current.new"
 mv -Tf "$APP_DIR/current.new" "$APP_DIR/current"
 systemctl restart control-scout
+
+# The Discord bot (bot/README.md): its own unit, so a bot crash or restart never touches the site. It
+# reads the site's database (WAL needs its -shm file writable, hence the data directory) and never
+# migrates or writes. Capped and niced below the site. Exit 78 (token missing or wrong) is final, not
+# a restart loop. Runs only once DISCORD_BOT_TOKEN is in shared/.env, and nothing here can fail a deploy.
+cat > "$BOT_UNIT" <<EOF
+[Unit]
+Description=FTC Control Scout Discord bot
+After=network-online.target control-scout.service
+Wants=network-online.target
+
+[Service]
+User=$APP_USER
+WorkingDirectory=$APP_DIR/current
+EnvironmentFile=$SHARED/.env
+ExecStart=$(command -v node) --import tsx bot/index.ts
+Restart=always
+RestartSec=10
+RestartPreventExitStatus=78
+TimeoutStopSec=15
+Nice=5
+MemoryMax=768M
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=$SHARED/data
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target
+EOF
+systemctl daemon-reload
+if grep -Eq '^DISCORD_BOT_TOKEN=.+' "$SHARED/.env"; then
+  { systemctl enable control-scout-bot >/dev/null && systemctl restart control-scout-bot && echo "bot: restarted"; } || echo ">>> bot: failed to start (journalctl -u control-scout-bot); the site is unaffected"
+else
+  systemctl disable --now control-scout-bot >/dev/null 2>&1 || true
+  echo "bot: DISCORD_BOT_TOKEN not set in $SHARED/.env, not running"
+fi
 
 # Auto-deploy (deploy/vm-update.sh): published only now that this release built
 # and went live, so a failed build never changes the saved domains or the updater.

@@ -9,7 +9,7 @@ teams, scout, offline, speed, live, report, alerts, rankings, share, workspace,
 picklist, history, fixes). What's new shows them first; the groups below are
 the full release notes, one click away.
 
-## 1.9.0 — 2026-10-21
+## 1.11.0 — 2026-10-21
 
 Watch an event's stream with the model calling every match beside it.
 
@@ -22,6 +22,20 @@ Watch an event's stream with the model calling every match beside it.
 - **Watch live.** When an event has a stream, its page gets a "Watch live" button and a section above the matches: the YouTube stream (it loads only when you press play, from YouTube's privacy-enhanced player) and, beside it, the match the model is calling now, with its win odds, predicted score and confidence. The moment a match finishes it shows the result and whether the call was right, then moves to the next one, with the three after it below. After the event the stream stays as the recording. On phones the stream comes first and the calls below it. (#219)
 - **LIVE dot.** Events that are on now and have a stream show a red LIVE dot in the events list.
 - **Owner portal › Streams.** The owner sets an event's stream from a YouTube link (watch, youtu.be or /live/ links); anything else is refused with the reason, and nothing is saved.
+
+## 1.9.0 — 2026-10-21
+
+Control Scout comes to your team's Discord server.
+
+### Highlights
+- [share] A Control Scout bot for your team's Discord server
+- [predict] /predict: win odds for any qual match, and how played calls turned out
+- [teams] /team, /event and /rankings answer right in the chat
+- [alerts] Follow your team: a post before each match, and its result
+
+### Discord
+- **The Control Scout bot.** Add it to your team's server and anyone there can ask `/team` (record, OPR, world ranking, next event), `/predict` (win odds as bars, predicted score and confidence for a qualification match; once it's played, the final score, what was predicted and whether the call was right), `/event` (status, progress, top 5 by OPR, the winning alliance) and `/rankings` (the world top 10 with movement). Every answer links back to the page it came from, and the numbers are the site's own. Event names and codes autocomplete. The invite link is in the FAQ and footer. (#216)
+- **Match alerts in your server.** Someone who can manage the server types `/follow team:18360` in a channel, and the bot posts there 15 minutes before each of that team's matches (lineups, win odds, predicted score) and again with the result and whether the call was right. `/unfollow` stops it, `/following` lists a server's teams (up to 10), and `/help` lists every command. My teams and My team have an "Add to a Discord server" button with the `/follow` command ready to copy.
 
 ## 1.8.1 — 2026-10-21
 

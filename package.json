@@ -1,12 +1,13 @@
 {
   "name": "control-scout",
   "private": true,
-  "version": "1.9.0",
+  "version": "1.11.0",
   "description": "FTC Control Scout — free FTC scouting and prediction for every team.",
   "license": "GPL-3.0-only",
   "type": "module",
   "workspaces": [
-    "packages/*"
+    "packages/*",
+    "bot"
   ],
   "engines": {
     "node": ">=22"
@@ -16,6 +17,7 @@
     "dev": "concurrently -k -n api,web -c yellow,cyan \"tsx watch server/index.ts\" \"vite\"",
     "dev:api": "tsx watch server/index.ts",
     "dev:web": "vite",
+    "bot": "tsx bot/index.ts",
     "build": "npm run build -w @control-scout/predict-engine && vite build",
     "start": "NODE_ENV=production tsx server/index.ts",
     "lint": "tsc --noEmit -p tsconfig.json",
