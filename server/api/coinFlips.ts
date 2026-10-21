@@ -51,7 +51,8 @@ export function eventCoinFlips(e: EventRow, matches: MatchView[], now: number): 
     out.calls++;
     if (!inBand(p.pRed)) continue;
     if (p.tier === "provisional") { out.thin++; continue; }
-    const onField = (s: "red" | "blue") => m[s].teams.filter((t) => !m.played || t.onField).map((t) => t.number);
+    // The robots the call is for: on the field (a listed substitute in a playoff alliance isn't in it).
+    const onField = (s: "red" | "blue") => m[s].teams.filter((t) => t.onField).map((t) => t.number);
     out.rows.push({
       season: m.season, code: m.code, key: m.key, label: m.label, eventName: e.name, place: placeOf(e), timezone: zone, day: today,
       time: m.time, startsAt: m.startsAt, red: onField("red"), blue: onField("blue"),
@@ -133,7 +134,8 @@ export async function coinFlips(now = Date.now()): Promise<CoinFlipRadar> {
   const stored = await kvGet<CoinFlipRadar>(KV_KEY).catch(() => null);
   if (fresh(stored)) return current(stored, now);
   if (!memo || Date.now() - memo.at >= 60_000) {
-    const value = buildCoinFlips(now);
+    // Stored like the job's, so later reads (in any process) reuse it for STALE_MS; a failed write never fails the read.
+    const value = buildCoinFlips(now).then(async (r) => { await kvSet(KV_KEY, r).catch(() => {}); return r; });
     memo = { at: Date.now(), value };
     value.catch(() => { if (memo?.value === value) memo = null; });
   }

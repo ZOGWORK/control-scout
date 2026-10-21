@@ -71,6 +71,12 @@ describe("eventCoinFlips", () => {
     m.red.teams.push({ number: 999, surrogate: false, dq: false, onField: false });
     expect(eventCoinFlips(LA, [m], NOW).rows[0].red).toEqual([11, 12]);
   });
+
+  it("shows the robots a match still to play is called for, not a listed substitute", () => {
+    const m = mv(1, "2026-10-17T10:00:00", 0.5);
+    m.blue.teams.push({ number: 999, surrogate: false, dq: false, onField: false });
+    expect(eventCoinFlips(LA, [m], NOW).rows[0].blue).toEqual([13, 14]);
+  });
 });
 
 describe("matchDay", () => {
@@ -169,5 +175,7 @@ describe("the job and GET /api/home/coin-flips", () => {
     await run("DELETE FROM kv WHERE key = ?", [KV_KEY]);
     const body = (await (await fetch(`${base}/api/home/coin-flips`)).json()) as CoinFlipRadar;
     expect(body.upcoming.map((x) => x.label)).toEqual(["Q2"]);
+    // …and stores what it gathered, so the next reads reuse it instead of gathering again.
+    expect((await kvGet<CoinFlipRadar>(KV_KEY))?.generatedAt).toBe(body.generatedAt);
   });
 });
