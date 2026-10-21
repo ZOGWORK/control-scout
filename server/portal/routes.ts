@@ -23,6 +23,7 @@ import { ownerStorage, purgeEvent, runPhotoMaintenance } from "../scout/photos.j
 import { r2 } from "../scout/r2.js";
 import { listOrphaned } from "../scout/orphans.js";
 import { powerRankingsOwnerRoutes } from "../powerRankings/ownerRoutes.js";
+import { StreamError, listStreams, setEventStream } from "./streams.js";
 
 const h = (fn: (req: Request, res: Response) => Promise<unknown>) => (req: Request, res: Response, next: NextFunction) => {
   fn(req, res).then((b) => { if (!res.headersSent && b !== undefined) res.json(b); }).catch(next);
@@ -83,6 +84,23 @@ export function ownerRouter(): Router {
     await setFlag(name, req.body.enabled, actor(req));
     await recordAudit(actor(req), "flag.set", { flag: name, enabled: req.body.enabled });
     return { flags: await flagDetails() };
+  }));
+
+  // Event live streams (server/portal/streams.ts): the list, and set / remove one (an empty url removes it).
+  r.get("/streams", h(async () => ({ streams: await listStreams() })));
+  r.put("/streams/:season/:code", h(async (req, res) => {
+    const season = num(req.params.season, 0, 2000, 2100);
+    const code = String(req.params.code).toUpperCase();
+    if (!/^[A-Z0-9_-]{1,40}$/.test(code)) { res.status(400).json({ error: "Not an event code" }); return; }
+    if (typeof req.body?.url !== "string") { res.status(400).json({ error: "Send {\"url\": \"https://youtube.com/…\"} (empty to remove)" }); return; }
+    try {
+      const stream = await setEventStream(season, code, req.body.url, actor(req));
+      await recordAudit(actor(req), stream ? "stream.set" : "stream.remove", { season, code, ...(stream ? { videoId: stream.videoId } : {}) });
+      return { stream, streams: await listStreams() };
+    } catch (e) {
+      if (e instanceof StreamError) { res.status(e.message.startsWith("No event") ? 404 : 400).json({ error: e.message }); return; }
+      throw e;
+    }
   }));
 
   r.get("/feedback", h(async (req) => {

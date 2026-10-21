@@ -143,7 +143,7 @@ export interface EventSummary {
 }
 
 /** A row of /api/events (the list): the detail-only fields are left out. */
-export type EventListItem = Omit<EventSummary, "venue" | "divisionCode" | "region" | "remote">;
+export type EventListItem = Omit<EventSummary, "venue" | "divisionCode" | "region" | "remote"> & { /** A stream is set (the LIVE dot while it's on). */ stream?: true };
 
 export interface FieldRow {
   team: number;
@@ -164,8 +164,14 @@ export interface FieldRow {
   seasonOpr?: number | null;
 }
 
+/** An event's live stream as the owner set it (server/portal/streams.ts): YouTube, played from youtube-nocookie.com. */
+export interface EventStream { videoId: string; streamUrl: string }
+
+/** A row of the owner portal's stream list. */
+export interface OwnerStreamRow { season: number; code: string; name: string | null; start: string | null; end: string | null; url: string; videoId: string; updatedAt: string }
+
 export interface EventDetail {
-  event: EventSummary & { website: string | null; livestream: string | null; timezone: string | null; source: string };
+  event: EventSummary & { website: string | null; livestream: string | null; timezone: string | null; source: string; /** The Watch live section's stream; absent or null: no section. */ stream?: EventStream | null };
   field: FieldRow[];
   matches: MatchView[];
   alliances: { number: number; name: string | null; captain: number | null; pick1: number | null; pick2: number | null; backup: number | null }[];
