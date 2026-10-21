@@ -96,7 +96,7 @@ export default function RecordsPage({ matches }: { matches?: boolean }) {
           {views.map(({ v, label, icon: Icon, hint }) => (
             // The current view links to itself as it stands (its filters kept), like the button it replaced.
             <Link key={v} to={view === v ? { pathname, search: sp.toString() ? `?${sp}` : "" } : hrefFor(v)} aria-current={view === v ? "page" : undefined} title={hint}
-              className={cn("inline-flex h-9 shrink-0 items-center gap-2 rounded-lg px-3.5 text-sm font-semibold outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring/60 max-sm:h-11",
+              className={cn("inline-flex h-9 shrink-0 items-center gap-2 rounded-lg px-3.5 text-sm font-semibold outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring/60 max-sm:h-10",
                 view === v ? "bg-accent text-accent-ink shadow-[0_4px_16px_color-mix(in_srgb,var(--color-accent)_25%,transparent)]" : "text-text-muted hover:bg-text-base/[0.06] hover:text-text-base")}>
               <Icon className="size-4" aria-hidden />{label}
             </Link>

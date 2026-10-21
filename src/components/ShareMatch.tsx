@@ -82,11 +82,11 @@ export function ShareMatch({ query, pRed, pBlue, tier, played, className }: {
           <ToggleGroupItem value="square" className="flex-1">Square</ToggleGroupItem>
         </ToggleGroup>
         <div className="flex flex-wrap gap-2">
-          <Button size="sm" className="flex-1 max-sm:h-11" disabled={busy} onClick={() => run(sheet ? "share" : "download")}>
+          <Button size="sm" className="flex-1 max-sm:h-10" disabled={busy} onClick={() => run(sheet ? "share" : "download")}>
             {sheet ? <><Share2 /> Share image</> : <><Download /> Download image</>}
           </Button>
-          {sheet && <Button size="sm" variant="secondary" className="max-sm:h-11" disabled={busy} onClick={() => run("download")} aria-label="Download image"><Download /></Button>}
-          <Button size="sm" variant="secondary" className="flex-1 max-sm:h-11" onClick={() => copyLink(shareUrl(q))}><Link2 /> Copy link</Button>
+          {sheet && <Button size="sm" variant="secondary" className="max-sm:h-10" disabled={busy} onClick={() => run("download")} aria-label="Download image"><Download /></Button>}
+          <Button size="sm" variant="secondary" className="flex-1 max-sm:h-10" onClick={() => copyLink(shareUrl(q))}><Link2 /> Copy link</Button>
         </div>
         <p className="text-xs text-text-muted">Wide suits chats and stories, square suits Instagram posts. The link shows the wide picture when posted in Discord and other chats.</p>
       </PopoverContent>

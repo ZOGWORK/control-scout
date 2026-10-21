@@ -121,7 +121,7 @@ export function TemplateEditor({ workspaceId, workspaceName, season, template, o
   const isDefault = same(fields, templateFor(season, kind).fields);
 
   return (
-    <section aria-labelledby="tpl-title" className="mb-8 rounded-2xl border border-border bg-card p-4 sm:p-6">
+    <section aria-labelledby="tpl-title" className="mb-8 max-sm:mb-5 rounded-2xl border border-border bg-card p-4 sm:p-6">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="min-w-0">
           <h2 id="tpl-title" className="font-display text-lg font-semibold">Scout template · {seasonLabel(season)}</h2>
@@ -195,7 +195,7 @@ export function TemplateEditor({ workspaceId, workspaceName, season, template, o
         </fieldset>
       )}
 
-      <div className="mt-5 flex flex-wrap items-center gap-2">
+      <div className="mt-5 max-sm:mt-4 flex flex-wrap items-center gap-2">
         <Button type="button" onClick={save} disabled={!dirty || busy || problems.length > 0 || tooMany}><Save /> {busy ? "Saving…" : "Save template"}</Button>
         <Button type="button" variant="outline" onClick={discard} disabled={!dirty || busy}>Discard changes</Button>
         <Button type="button" variant="ghost" onClick={resetKind} disabled={isDefault || busy}><RotateCcw /> Use built-in {kind} fields</Button>

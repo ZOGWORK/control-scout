@@ -223,7 +223,7 @@ function StatCell({ value, label, tone }: { value: ReactNode; label: string; ton
   return (
     <div role="listitem" className="grid min-w-0 content-start gap-1 bg-card p-4">
       <b className={cn("font-display text-3xl font-bold leading-none tabular-nums sm:text-4xl", tone ? TONE[tone] : "text-foreground")}>{value}</b>
-      <span className="text-[13px] leading-snug text-muted-foreground">{label}</span>
+      <span className="text-[0.8125rem] leading-snug text-muted-foreground">{label}</span>
     </div>
   );
 }
