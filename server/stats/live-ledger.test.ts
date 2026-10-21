@@ -8,6 +8,7 @@ import { CURRENT_SEASON, SEASON_NUMBERS } from "../data/seasons";
 import { localToUtcMs } from "../data/time";
 import { resetForecasters } from "../predict/engine";
 import { FITTED_MODEL } from "@control-scout/predict-engine";
+import { matchViews } from "../api/matches";
 import { backtest, liveLoggable, runStats, logLivePredictions, scoreLivePredictions, unloggedLiveMatches } from "./job";
 
 const S = CURRENT_SEASON;
@@ -102,6 +103,20 @@ describe("live prediction ledger", () => {
     expect(row.p_red_shadow).toBeGreaterThan(0);
     expect(row.p_red_shadow).toBeLessThan(1);
     expect(row.p_red_shadow).not.toBe(row.p_red);
+  });
+
+  it("logs the partnership line with the call, and a logged call keeps it (the odds are the call's own)", async () => {
+    await logLivePredictions();
+    const [row] = (await ledger()).filter((r) => r.kind === "live");
+    const history = JSON.parse(row.history); // 201 + 202 played together at PRIOR
+    expect(history.kind).toBe("together");
+    expect(history.teams).toEqual([201, 202]);
+    expect(history.label).toMatch(/^201 and 202 have played \d+ matches together/);
+    const views = await matchViews({ season: S, code: "LIVE" });
+    const q1 = views.find((m) => m.key === "qual:0:1")!;
+    expect(q1.prediction?.kind).toBe("live");
+    expect(q1.prediction?.pRed).toBe(row.p_red);
+    expect(q1.prediction?.history).toEqual(history);
   });
 
   it("skips matches that started, are under a minute away, or have no provable start", async () => {

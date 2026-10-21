@@ -18,6 +18,8 @@ import { forecasterFor } from "../predict/engine.js";
 import { regionNames } from "../../src/shared/regions.js";
 import { computeRecords, fillAdvancementOdds, fillRecordPredictions } from "./records.js";
 import { snapshotRankings } from "./rankings.js";
+import { partnershipPrefix } from "../predict/partnerships.js";
+import { pairHistory } from "../../src/shared/pairHistory.js";
 import { computeReportCards } from "./reportCards.js";
 
 type Log = (m: string) => void;
@@ -350,11 +352,13 @@ export async function logLivePredictions(log: Log = () => {}): Promise<number> {
     const x = f.explain(season, m.red, m.blue, m.level === "playoff" ? "playoff" : "qual", m.code);
     if (!x) continue;
     stmts.push({
-      sql: `INSERT OR IGNORE INTO predictions (kind, season, code, level, series, number, red, blue, p_red, red_mean, blue_mean, tier, factors, engine_version, predicted_at, match_time, no_score_basis, model_id, data_version, ratings_through, p_red_shadow, shadow_model_id, ${RANGE_COLUMNS}, ${BONUS_COLUMNS})
-            VALUES ('live', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      sql: `INSERT OR IGNORE INTO predictions (kind, season, code, level, series, number, red, blue, p_red, red_mean, blue_mean, tier, factors, engine_version, predicted_at, match_time, no_score_basis, model_id, data_version, ratings_through, p_red_shadow, shadow_model_id, ${RANGE_COLUMNS}, ${BONUS_COLUMNS}, history)
+            VALUES ('live', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       args: [season, m.code, m.level, m.series, m.number, JSON.stringify(m.red), JSON.stringify(m.blue), x.winProbA, x.predictedScoreA, x.predictedScoreB,
         x.confidence.tier, JSON.stringify(x.factors), ENGINE_VERSION, at, m.time, noScoreBasis, x.probabilityModelId ?? "legacy", dataVersion, ratingsThrough, x.shadow?.winProbA ?? null, x.shadow?.modelId ?? null,
-        ...rangeArgs(x, !!noScoreBasis), ...bonusArgs(season, x)],
+        ...rangeArgs(x, !!noScoreBasis), ...bonusArgs(season, x),
+        // The partnership line shown with the call (a reason only; the logged odds don't depend on it).
+        x.partnership ? JSON.stringify(pairHistory(x.partnership)) : null],
     });
   }
   await writeBatch(stmts);
@@ -444,6 +448,10 @@ export async function statsRulesStale(): Promise<boolean> {
 
 export async function runStats(o: StatsOptions = {}): Promise<void> {
   const log = o.log ?? (() => {});
+  // The finished seasons' pair history (engine 2.4), ready before the new data version is published, so
+  // the forecasters rebuilt from it have all of it. Built once per set of frozen seasons (kv); a failure
+  // only leaves predictions without the older pairs (and engine.ts rebuilds them once it's ready).
+  await partnershipPrefix(PREDICT_SEASONS.filter((s) => s >= CURRENT_SEASON - 2)[0] ?? CURRENT_SEASON, { wait: true }).catch((e) => log(`pair history failed: ${(e as Error).message}`));
   // New data → new version: forecasters rebuild (they're keyed by it). No reset: pages keep the
   // last finished ratings until the new ones are built, and frozen seasons stay read (engine.ts).
   await kvSet("data:version", new Date().toISOString());

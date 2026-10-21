@@ -7,13 +7,14 @@
 // current window use the current anchor exactly like Control Point; an older
 // season (browsing 2023) gets its own window ending at that season.
 import {
-  Forecaster, FITTED_MODEL, RatingBook, indexAwards, MODELLED_AWARDS, normType, explainMatch, bonusModelBefore, bonusSamples, seasonBonusModel,
-  type AdvancementRecord, type BonusModelSource, type AwardRecord, type BonusFlags, type EventInput, type EventRecord, type Forecast, type MatchRecord, type PredictModel,
+  Forecaster, FITTED_MODEL, RatingBook, indexAwards, MODELLED_AWARDS, normType, explainMatch, bonusModelBefore, PartnershipBook, PartnershipTable, bonusSamples, seasonBonusModel,
+  type AdvancementRecord, type BonusModelSource, type PartnershipData, type AwardRecord, type BonusFlags, type EventInput, type EventRecord, type Forecast, type MatchRecord, type PredictModel,
 } from "@control-scout/predict-engine";
 import { all, kvGet } from "../db.js";
 import { CURRENT_SEASON, PREDICT_SEASONS } from "../data/seasons.js";
 import { loadSeason, toEventRecord } from "../stats/load.js";
 import { registerCache } from "../caches.js";
+import { onPartnershipPrefixReady, partnershipPrefix } from "./partnerships.js";
 
 const yieldLoop = () => new Promise<void>((r) => setImmediate(r));
 
@@ -28,6 +29,11 @@ export class ScoutForecaster extends Forecaster {
   private regionByCode = new Map<string, string>();
   private regions = new Set<string>();
   builtAt: string | null = null;
+  /** Pair history through the anchor season (engine 2.4), pruned as the offline pack ships it. */
+  partnershipData: PartnershipData | null = null;
+  private pairTable: PartnershipTable | null = null;
+  /** False when the rebuild ran before the finished seasons' pair history was ready (window pairs only). */
+  partnershipComplete = false;
 
   constructor(readonly anchor: number) { super(); }
 
@@ -47,6 +53,9 @@ export class ScoutForecaster extends Forecaster {
     const book = new RatingBook(FITTED_MODEL.rating);
     const records: AwardRecord[] = [];
     const books = new Map<number, RatingBook>(), events = new Map<number, EventRecord[]>(), advancement = new Map<number, AdvancementRecord[]>();
+    // Pair history: the finished seasons before the window from kv (null while it builds), then the window as it replays.
+    const prefix = await partnershipPrefix(this.seasons[0] ?? this.anchor);
+    const pairs = prefix ?? new PartnershipBook(FITTED_MODEL.rating);
     for (const s of this.seasons) {
       const d = await seasonData(s);
       if (!d) continue;
@@ -57,7 +66,8 @@ export class ScoutForecaster extends Forecaster {
       book.startSeason(s);
       // Yield every few thousand matches so pages keep answering during a rebuild.
       let n = 0;
-      for (const m of d.matches) { book.update(m); if (++n % 4000 === 0) await yieldLoop(); }
+      for (const [code, name] of d.names) pairs.nameEvent(s, code, name);
+      for (const m of d.matches) { pairs.observe(m); book.update(m); if (++n % 4000 === 0) await yieldLoop(); }
       books.set(s, book.clone());
       await yieldLoop();
     }
@@ -66,6 +76,15 @@ export class ScoutForecaster extends Forecaster {
     this.stored = new Map([...events.values()].flat().flatMap((e) => e.matches.map((m) => [`${m.season}|${m.eventCode}|${m.level}:${m.series}:${m.number}`, m] as [string, MatchRecord])));
     this.advancement = advancement;
     this.awardHistory = indexAwards(records);
+    // Valid for the anchor season, even before its first match (the history is all earlier seasons then).
+    // Only pairs of teams active in the anchor season or the one before (the ones a call can be about): keeps the pack small.
+    const active = new Set([...(books.get(this.anchor)?.ratings.keys() ?? []), ...(books.get(this.anchor - 1)?.ratings.keys() ?? [])]);
+    // The server's table keeps the weak pairs too: an event's fresh results fold into it (PartnershipOverlay) and
+    // must count a pair's one earlier match. The offline pack's copy (explanations only, no overlay) leaves them out.
+    const ready = pairs.season != null && pairs.season <= this.anchor;
+    this.partnershipData = ready ? { ...pairs.toData({ teams: active }), season: this.anchor } : null;
+    this.pairTable = ready ? PartnershipTable.fromData({ ...pairs.toData({ teams: active, keepWeak: true }), season: this.anchor }) : null;
+    this.partnershipComplete = !!prefix;
     this.builtAt = new Date().toISOString();
   }
 
@@ -84,6 +103,12 @@ export class ScoutForecaster extends Forecaster {
     b.startSeason(season);
     this.books.set(season, b);
     return b;
+  }
+
+  /** Pair history, only for the season the table was built through (an older season's call
+   *  mustn't read pairs from matches after it). */
+  protected partnerships(season: number): PartnershipTable | null {
+    return this.pairTable && this.pairTable.season === season ? this.pairTable : null;
   }
 
   /** Recorded bonus RPs of a synced match, for live payloads that omit them. */
@@ -236,10 +261,12 @@ export class ScoutForecaster extends Forecaster {
   explain(season: number, red: number[], blue: number[], level: "qual" | "playoff" = "qual", event?: string) {
     const b = this.book(season);
     if (!b) return null;
+    const table = this.partnerships(season);
+    const partnership = table ? { table, season } : undefined;
     // Bonus ranking points count in qualification matches only.
     const bonus = level === "qual" ? this.bonusModel(season) : null;
     return explainMatch(b, red, blue, {
-      noise: FITTED_MODEL.noise, calibration: FITTED_MODEL.calibration, contextual: FITTED_MODEL.contextual, context: { level, event }, shadow: FITTED_MODEL.contextual?.fallback, band: FITTED_MODEL.band,
+      noise: FITTED_MODEL.noise, calibration: FITTED_MODEL.calibration, contextual: FITTED_MODEL.contextual, context: { level, event }, shadow: FITTED_MODEL.contextual?.fallback, band: FITTED_MODEL.band, partnership,
       ...(bonus ? { bonus: { season, model: bonus } } : {}),
     });
   }
@@ -270,7 +297,7 @@ export class ScoutForecaster extends Forecaster {
 // ~70 ms instead of ~6 s of reads for the finished seasons in the window.
 // ---------------------------------------------------------------------------
 
-interface SeasonData { events: EventRecord[]; matches: EventRecord["matches"]; advancement: AdvancementRecord[]; regions: [string, string][] }
+interface SeasonData { events: EventRecord[]; matches: EventRecord["matches"]; advancement: AdvancementRecord[]; regions: [string, string][]; names: [string, string][] }
 const seasonCache = new Map<number, { key: string; d: Promise<SeasonData | null> }>();
 
 async function seasonData(season: number): Promise<SeasonData | null> {
@@ -286,6 +313,7 @@ async function seasonData(season: number): Promise<SeasonData | null> {
       events, matches: events.flatMap((e) => e.matches).sort((x, y) => x.time - y.time),
       advancement: await loadAdvancement(season),
       regions: dbEvents.filter((e) => e.region).map((e) => [e.code, e.region!] as [string, string]),
+      names: dbEvents.map((e) => [e.code, e.name] as [string, string]),
     };
   })();
   if (key) { seasonCache.set(season, { key, d }); d.catch(() => seasonCache.delete(season)); } else seasonCache.delete(season);
@@ -360,3 +388,16 @@ export async function refreshForecasters(): Promise<void> {
 /** Drop cached forecasters and season data (tests, or after a manual data change). Not for syncs: a new data version already rebuilds, without making pages wait. */
 export function resetForecasters(): void { cache.clear(); built.clear(); seasonCache.clear(); }
 registerCache("Prediction ratings", resetForecasters);
+
+// A forecaster built while the finished seasons' pair history was still building went ahead with its
+// window's pairs only. Once that history is ready, rebuild it in the background (pages keep answering
+// with it meanwhile, through `built`), so its facts don't stay incomplete until the next data version.
+onPartnershipPrefixReady((before) => {
+  for (const [anchor, hit] of [...cache]) {
+    hit.f.then((f) => {
+      if (f.partnershipComplete || (f.seasons[0] ?? f.anchor) !== before || cache.get(anchor) !== hit) return;
+      cache.delete(anchor);
+      forecasterFor(anchor).catch(() => {});
+    }, () => {});
+  }
+});

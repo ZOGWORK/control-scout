@@ -21,7 +21,8 @@
 // that still uses `sd`, so win odds are unchanged.
 import type { RatingBook } from "./rating.js";
 import { calibrateProb, type CalibrationParams } from "./calibration.js";
-import { contextualWinProbWith, type ContextualModel, type MatchContext, type ProbabilityModel } from "./contextual.js";
+import { contextualWinProbWith, sigmoid, type ContextualModel, type MatchContext, type ProbabilityModel } from "./contextual.js";
+import { PARTNERSHIP_PARAMS, partnershipShift, type PairLookup, type PartnershipParams } from "./partnership.js";
 
 export interface NoiseParams {
   /** Score noise: σ = a + b·mean (fitted by likelihood on the tuning season). */
@@ -118,6 +119,16 @@ export interface MatchPrediction {
   pShadow?: number;
   /** The shadow model's parameter set id ("legacy" if it couldn't run on this book). */
   shadowModelId?: string;
+  /** Logit shift the partnership history applied to pRedWin (engine 2.4; absent = none). */
+  partnershipShift?: number;
+}
+
+/** Partnership memory for a prediction (engine 2.4): the pair table and the season predicted. */
+export interface PartnershipInput {
+  table: PairLookup;
+  season: number;
+  /** Defaults to PARTNERSHIP_PARAMS. */
+  params?: PartnershipParams;
 }
 
 export interface PredictOptions {
@@ -129,6 +140,8 @@ export interface PredictOptions {
   contextual?: ContextualModel;
   /** A second contextual model to evaluate on the same inputs (see MatchPrediction.pShadow). */
   shadow?: ContextualModel;
+  /** Pair history (partnership.ts). With β = 0 (the 2.2 settings) it never moves pRedWin. */
+  partnership?: PartnershipInput;
   /** How score ranges are drawn (default DEFAULT_BAND, the same as FITTED_MODEL.band). */
   band?: BandParams;
 }
@@ -199,6 +212,14 @@ export function predictMatch(book: RatingBook, red: number[], blue: number[], no
   // it), never the Platt-calibrated one: it carries its own calibration.
   const pc = contextualWinProbWith(opts.contextual, book, red, blue, { ...out, pRedWin: raw }, opts.context);
   if (pc != null) { out.pRedWin = pc.p; out.model = "contextual"; out.modelId = pc.model.id; }
+  if (opts.partnership) {
+    const shift = partnershipShift(opts.partnership.table, red, blue, opts.partnership.season, opts.partnership.params ?? PARTNERSHIP_PARAMS);
+    if (shift) {
+      const p = Math.max(1e-8, Math.min(1 - 1e-8, out.pRedWin));
+      out.pRedWin = sigmoid(Math.log(p / (1 - p)) + shift);
+      out.partnershipShift = shift;
+    }
+  }
   if (opts.shadow) {
     const ps = contextualWinProbWith(opts.shadow, book, red, blue, { ...out, pRedWin: raw }, opts.context);
     out.pShadow = ps ? ps.p : (cal ? calibrateProb(raw, cal) : raw);

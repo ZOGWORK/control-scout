@@ -9,6 +9,22 @@ teams, scout, offline, speed, live, report, alerts, rankings, share, workspace,
 picklist, history, fixes). What's new shows them first; the groups below are
 the full release notes, one click away.
 
+## 1.18.0 — 2026-10-21
+
+Predictions now say when the robots have met before.
+
+### Highlights
+- [predict] "Played 24 matches together (16–8)" right under the factors
+- [predict] Head-to-head records too: "9617 leads 13546 10–3 in 13 earlier meetings"
+- [history] History back to 2019–20; recent partnerships offline too
+- [predict] A reason only: on a season it had never seen, it didn't help the odds
+
+### Predictions
+- **Partnership memory.** When two robots in a match have played together or against each other, the prediction shows the strongest real fact under the top 3 factors: in match details, the match report and the Predict lab. Every result since 2019–20 is compared with what both teams' ratings expected at the time, so seasons with different games compare fairly. Pairs with only a few matches are pulled hard toward "no effect". We tested blending the history into the win odds: fitted on 2023–24 and checked on all of 2025–26, it made them slightly worse, so it doesn't change any number. The methodology page explains it, and `docs/partnership-memory.md` has the full test. (#231)
+
+### Offline
+- The offline pack carries a small cut of the history: same-alliance pairs with 3+ matches together this season or last (about 140 KB more). Head-to-head records and older pairs show online only.
+
 ## 1.17.0 — 2026-10-21
 
 Bonus ranking point odds next to every qualification win %.
