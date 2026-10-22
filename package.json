@@ -33,6 +33,7 @@
     "replica:check": "tsx scripts/replica-check.ts",
     "live:check": "tsx scripts/live-check.ts",
     "equivalence": "tsx scripts/engine-equivalence.ts",
+    "slices": "tsx scripts/engine-slices.ts",
     "projections": "tsx scripts/projections.ts",
     "projections:replay": "tsx scripts/projections-replay.ts",
     "shots": "tsx scripts/shots.ts",
