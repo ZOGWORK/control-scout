@@ -7,8 +7,9 @@
 //
 // --steps <file.json> runs interactions after the page loads (open a dialog,
 // build a filter…) before the shot, or while a --video records. The file is
-// an array of { click | hold(+ms) | fill+value | upload+files | type | press | wait | waitFor | reload } steps
-// (hold: press the pointer on an element for ms, default 1600, e.g. a hold-to-confirm button;
+// an array of { click | hold(+ms) | fill+value | upload+files | type | press | wait | waitFor | reload | goto } steps
+// (goto: open another route of the same app in the same tab, e.g. after saving a season on /download;
+// hold: press the pointer on an element for ms, default 1600, e.g. a hold-to-confirm button;
 // upload: put local files into a file input, e.g. a photo to attach);
 // selectors are Playwright's (role=button[name="Filters"], text=Apply, css).
 // --name <label> goes in the file name, to tell several states of one route apart.
@@ -42,7 +43,7 @@ const COOKIE = (() => {
   if (!name || !rest.length) { console.error("--cookie-file: the file must hold name=value"); process.exit(1); }
   return { name, value: rest.join("=") };
 })();
-type Step = { click?: string; hold?: string; ms?: number; fill?: string; value?: string; type?: string; press?: string; wait?: number; waitFor?: string; reload?: boolean; upload?: string; files?: string[] };
+type Step = { click?: string; hold?: string; ms?: number; fill?: string; value?: string; type?: string; press?: string; wait?: number; waitFor?: string; reload?: boolean; upload?: string; files?: string[]; goto?: string };
 const STEPS: Step[] = (() => {
   const f = opt("steps");
   if (!f) return [];
@@ -64,6 +65,7 @@ async function runSteps(page: Page, slow: boolean) {
     else if (s.press) await page.keyboard.press(s.press);
     else if (s.waitFor) await page.locator(s.waitFor).first().waitFor({ state: "visible", timeout: 20_000 });
     // A page with a live stream (the workspace's) never goes network-idle: loaded, then idle if it gets there.
+    else if (s.goto) { await page.goto(new URL(s.goto, page.url()).href, { waitUntil: "load" }); await page.waitForLoadState("networkidle", { timeout: 10_000 }).catch(() => {}); }
     else if (s.reload) { await page.reload({ waitUntil: "load" }); await page.waitForLoadState("networkidle", { timeout: 5_000 }).catch(() => {}); await page.waitForTimeout(800); }
     if (s.wait) await page.waitForTimeout(s.wait);
     await page.waitForTimeout(slow ? 450 : 150);
