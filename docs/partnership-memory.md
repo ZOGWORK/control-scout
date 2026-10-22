@@ -83,8 +83,18 @@ robots on the same alliance that played together before.
 ## Where it shows
 
 - **Control Scout.** Upcoming match details (event pages), the match report, and the
-  Predict lab show one line below the factors. The table only appears with the season it
-  was built through, so a call never reads pairs from later matches. A live call logged
+  Predict lab show one line below the factors. A call reads the table of its own season, so it
+  never reads pairs from later matches: the current season's table is kept up to date, and
+  each earlier season of the forecaster's window (a 2025–26 call while 2026–27 is current)
+  has its own table, snapshotted at that season's end while the window replays, just as
+  that season's ratings are its end-of-season ratings. Each snapshot keeps the pairs of teams
+  rated that season or the one before; for the window's oldest season the season before isn't
+  replayed, so its teams come from the database, and the snapshot matches what a forecaster
+  anchored on that season builds. A season before the window gets its
+  own forecaster, whose table ends with it. An earlier season that can still receive results
+  (not yet frozen by the sync) keeps its weak pairs, so a fresh result at one of its events
+  still counts a pair's one stored match; a frozen season leaves them out (about 3.5x fewer
+  rows). A live call logged
   before its match stores the line with it (`predictions.history`, migration 40), so the
   logged call keeps the line it was shown with. The logged odds never depend on it.
 - **Offline (Control Scout lite pack).** Phones download the lite pack at venues, and the

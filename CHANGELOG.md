@@ -22,6 +22,18 @@ Event simulations spread erratic robots wider and no longer peek at later result
 - **Per-robot spread in the event simulator.** Every simulated match score now gets match-to-match noise sized for its alliance the way the score ranges already were: wider when a robot's results swing more than the model expects, or when it has played only a few matches this season. It reaches the advancement odds, the partner what-ifs and the live projections. On 40 finished 2025–26 events cut at their midpoint, 86.6% of teams finished inside their projected 10th–90th percentile rank band (85.7% before). Prediction engine 2.6.0. (#237)
 - **No hindsight before the event.** A "Before the event" simulation, and the pre-event projection that live projections compare against, now draws bonus ranking points from a bonus model fitted only on qualification results played before the event started. It used the curve fitted on the whole season. With too few earlier results it simulates no bonus RPs and says so. Live simulations use the same season curve as the match cards' bonus odds, and the note that bonus RPs aren't modelled now shows exactly when a simulation drew none.
 
+## 1.19.2 — 2026-10-21
+
+Partnership history on last season's predictions too.
+
+### Highlights
+- [predict] "Played 24 matches together" now shows on 2025–26 calls as well
+- [history] Counted only through that season's end, never a later match
+- [predict] On 2024–25 events and lab calls as well; the odds don't change
+
+### Predictions
+- **Partnership memory on earlier seasons.** A prediction for an earlier season (the Predict lab or an event of 2025–26 or 2024–25) now shows the same pair history line as this season's calls. It reads the pairs as they stood at that season's end, the way that season's ratings are its end-of-season ratings, so a later match never counts. Still a reason only: no odds, score or range changes, and no engine change. (#236)
+
 ## 1.19.1 — 2026-10-21
 
 Report cards stay up to date for every season, not just the current one.
