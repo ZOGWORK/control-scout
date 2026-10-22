@@ -1,7 +1,7 @@
 {
   "name": "control-scout",
   "private": true,
-  "version": "1.19.0",
+  "version": "1.20.0",
   "description": "FTC Control Scout — free FTC scouting and prediction for every team.",
   "license": "GPL-3.0-only",
   "type": "module",

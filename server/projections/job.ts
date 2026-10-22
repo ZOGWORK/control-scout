@@ -21,7 +21,7 @@ import { CURRENT_SEASON } from "../data/seasons.js";
 import { eventDetail, toEventInput } from "../api/events.js";
 import { dataVersion, forecasterFor } from "../predict/engine.js";
 import { PROJECTION_FLOOR, PROJECTION_RUNS, type ProjectionKind } from "../../src/shared/projections.js";
-import { simulateProjection, textSeed } from "./core.js";
+import { projectionSeed, simulateProjection } from "./core.js";
 import { projectionInput, type ProjectionInput } from "./input.js";
 import { eventState, inputKey } from "./state.js";
 import { saveRuns, storedRuns, type StoredRun } from "./store.js";
@@ -104,7 +104,7 @@ export interface RunOptions { budgetMs?: number; runs?: number; floor?: number; 
 export type RunOutcome = { status: "ran"; runs: StoredRun[] } | { status: "unchanged" } | { status: "skipped"; reason: string };
 
 async function simulateKind(kind: ProjectionKind, season: number, code: string, stateKey: string, pi: ProjectionInput, st: { played: number; scheduled: number; through: string | null }, o: RunOptions): Promise<StoredRun> {
-  const seed = textSeed(`${season}|${code}|${kind}|${stateKey}`);
+  const seed = projectionSeed(season, code, kind, stateKey);
   const target = o.runs ?? PROJECTION_RUNS;
   const r = await simulateProjection(pi.input, { runs: target, floor: Math.min(target, o.floor ?? PROJECTION_FLOOR), budgetMs: o.budgetMs ?? BUDGET_MS, seed });
   return {

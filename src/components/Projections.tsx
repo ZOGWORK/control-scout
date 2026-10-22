@@ -4,16 +4,17 @@
 // over: "Final results vs projections", each actual seed against the band it was last projected in.
 import { useMemo, useState, type ReactNode } from "react";
 import { Link } from "react-router-dom";
-import { ArrowDown, ArrowUp, ChartNoAxesGantt, Info, Pin, Radio, Target } from "lucide-react";
+import { ArrowDown, ArrowUp, ChartNoAxesGantt, Cpu, Info, Pin, Radio, Target } from "lucide-react";
 import { cn } from "./cn";
 import { Badge } from "./ui/basic";
 import { EmptyState } from "./page";
 import { ConfidenceBadge } from "./predict";
 import { ErrorState } from "./states";
 import { oddsPct } from "../lib/format";
-import { bandHits, projectionTier, rankMovement, useProjections } from "../lib/projections";
+import { bandHits, canRunLocal, localLabel, localTier, projectionSource, projectionTier, rankMovement, useLocalProjection, useProjections, type LocalProjection } from "../lib/projections";
+import { offlineSource } from "../lib/offline/saved";
 import { usePersonal } from "../lib/personal";
-import { ADVANCE_LABEL, advanceStatus, throughText, type ProjectionRun, type ProjectionTeam } from "../shared/projections";
+import { ADVANCE_LABEL, LOCAL_STOP_MS, PROJECTION_RUNS, advanceStatus, throughText, type ProjectionRun, type ProjectionTeam } from "../shared/projections";
 import type { EventDetail } from "../shared/api";
 
 type SortKey = "team" | "now" | "proj" | "playoff" | "advance";
@@ -26,6 +27,46 @@ export function projectionHeadline(run: ProjectionRun): string {
   return `${runsText(run.runs)} • ${through ? `updated after ${through}` : "before the first match"}`;
 }
 
+/** "Local estimate · 1,500 simulations on this device • after Match 24": never mistakable for the server's run. */
+export function localHeadline(run: ProjectionRun): string {
+  const through = throughText(run.through);
+  return `${localLabel(run.runs)} • ${through ? `after ${through}` : "before the first match"}`;
+}
+
+const shortDate = (iso: string) => { const t = new Date(iso); return Number.isNaN(t.getTime()) ? null : t.toLocaleDateString("en-US", { month: "short", day: "numeric" }); };
+
+/** Why the page shows a local estimate, what it's made from, and that the server's run replaces it. */
+function LocalNote({ value, why }: { value: LocalProjection; why: string }) {
+  const asOf = shortDate(value.ratingsAsOf);
+  return (
+    <div className="relative flex gap-2.5 border-b border-border bg-info/[0.06] px-4 py-3 text-sm sm:px-5">
+      <Cpu className="mt-0.5 size-4 shrink-0 text-info" aria-hidden />
+      <p className="text-muted-foreground">
+        The server's {PROJECTION_RUNS.toLocaleString("en-US")}-simulation projection {why}, so this one was simulated on this device from your offline pack{asOf ? ` (ratings as of ${asOf})` : ""}.
+        {value.stopped && <> It stopped after {LOCAL_STOP_MS / 1000} seconds to save battery: <span className="font-medium text-foreground">{value.run.runs.toLocaleString("en-US")} of {value.run.target.toLocaleString("en-US")}</span> simulations ran.</>}
+        {" "}Fewer simulations means rougher ranges; the server's projection takes over as soon as it can be read.
+      </p>
+    </div>
+  );
+}
+
+/** While the device simulates: progress, never a frozen page (the work runs in a Web Worker). */
+function LocalProgress({ done, target }: { done: number; target: number }) {
+  const pct = target ? Math.min(100, Math.round((done / target) * 100)) : 0;
+  return (
+    <section aria-labelledby="proj-h" aria-busy="true" className="relative overflow-hidden rounded-2xl border border-info/40 bg-card p-4 sm:p-5">
+      <div aria-hidden className="pointer-events-none absolute -left-16 -top-24 size-64 rounded-full bg-info/10 blur-3xl" />
+      <h2 id="proj-h" className="relative flex flex-wrap items-center gap-2 font-display text-lg font-semibold"><ChartNoAxesGantt className="size-5 text-accent-text" /> Projections<Badge variant="info" className="font-sans"><Cpu aria-hidden /> Local estimate</Badge></h2>
+      <p className="relative mt-1 text-sm text-muted-foreground" aria-live="polite">
+        {target ? `Simulating the rest of the event on this device: ${done.toLocaleString("en-US")} of ${target.toLocaleString("en-US")}` : "Getting a local estimate ready from your offline pack"}
+      </p>
+      <div className="relative mt-3 h-2 overflow-hidden rounded-full bg-muted" role="progressbar" aria-label="Local simulations done" aria-valuemin={0} aria-valuemax={100} aria-valuenow={pct}>
+        <div className="h-full rounded-full bg-info transition-[width] duration-150" style={{ width: `${Math.max(3, pct)}%` }} />
+      </div>
+    </section>
+  );
+}
+
 export function Projections({ d, team }: { d: EventDetail; team: number | null }) {
   const e = d.event;
   const finished = e.status === "finished";
@@ -35,7 +76,15 @@ export function Projections({ d, team }: { d: EventDetail; team: number | null }
   const names = useMemo(() => new Map(d.field.map((f) => [f.team, f.name ?? ""])), [d.field]);
   const rankNow = useMemo(() => new Map(d.field.filter((f) => f.rank != null).map((f) => [f.team, f.rank!])), [d.field]);
   const hasSchedule = d.matches.some((m) => m.level === "qual");
+  // The server's stored run whenever there is one; a local estimate only when there's none to be had.
+  const source = projectionSource({ finished, hasCurrent: !!state.data?.current, loaded: !!state.data, failed: !!state.error, hasSchedule, canRunLocal: canRunLocal(e.season) });
+  const local = useLocalProjection(d, source === "local");
 
+  if (source === "local" && (local.status === "running" || local.status === "idle")) return <LocalProgress done={local.status === "running" ? local.done : 0} target={local.status === "running" ? local.target : 0} />;
+  if (source === "local" && local.status === "done") {
+    const why = state.error ? "can't be reached right now" : offlineSource(state.data) ? "isn't in your saved season" : "hasn't been made yet";
+    return <LiveView run={local.value.run} baseline={null} rankNow={rankNow} names={names} pinned={pinned} local={{ value: local.value, why }} />;
+  }
   if (state.error) return <ErrorState error={state.error} onRetry={state.reload} />;
   if (!state.data) return <div className="skeleton h-64 rounded-2xl" aria-busy="true" />;
   const v = state.data;
@@ -58,9 +107,9 @@ export function Projections({ d, team }: { d: EventDetail; team: number | null }
 // While the event runs
 // ---------------------------------------------------------------------------
 
-function LiveView({ run, baseline, rankNow, names, pinned }: { run: ProjectionRun; baseline: ProjectionRun | null; rankNow: Map<number, number>; names: Map<number, string>; pinned: Set<number> }) {
+function LiveView({ run, baseline, rankNow, names, pinned, local }: { run: ProjectionRun; baseline: ProjectionRun | null; rankNow: Map<number, number>; names: Map<number, string>; pinned: Set<number>; local?: { value: LocalProjection; why: string } }) {
   const [sort, setSort] = useState<{ key: SortKey; asc: boolean }>({ key: "proj", asc: true });
-  const conf = projectionTier(run);
+  const conf = local ? localTier(local.value) : projectionTier(run);
   const n = Math.max(run.teams.length, ...run.teams.map((t) => t.rank?.p90 ?? 0));
   const before = useMemo(() => new Map((baseline?.teams ?? []).map((t) => [t.team, t])), [baseline]);
   const showMove = !!baseline && baseline.computedAt !== run.computedAt && run.played > 0;
@@ -89,19 +138,22 @@ function LiveView({ run, baseline, rankNow, names, pinned }: { run: ProjectionRu
   const slotsNote = run.slots ? `${run.slots} advancement slot${run.slots === 1 ? "" : "s"}${run.slotsSource === "official" ? " (official)" : " (estimated)"}` : null;
 
   return (
-    <section aria-labelledby="proj-h" className="relative overflow-hidden rounded-2xl border border-border bg-card">
+    <section aria-labelledby="proj-h" className={cn("relative overflow-hidden rounded-2xl border bg-card", local ? "border-info/40" : "border-border")} data-local-estimate={local ? "" : undefined}>
       <div aria-hidden className="pointer-events-none absolute -left-16 -top-24 size-64 rounded-full bg-info/10 blur-3xl" />
-      <div aria-hidden className="pointer-events-none absolute -right-16 -top-20 size-56 rounded-full bg-accent/10 blur-3xl" />
+      <div aria-hidden className={cn("pointer-events-none absolute -right-16 -top-20 size-56 rounded-full blur-3xl", local ? "bg-warning/10" : "bg-accent/10")} />
       <header className="relative flex flex-wrap items-start justify-between gap-3 border-b border-border p-4 sm:p-5">
         <div className="min-w-0">
-          <h2 id="proj-h" className="flex items-center gap-2 font-display text-lg font-semibold"><ChartNoAxesGantt className="size-5 text-accent-text" /> Projections</h2>
+          <h2 id="proj-h" className="flex flex-wrap items-center gap-2 font-display text-lg font-semibold"><ChartNoAxesGantt className="size-5 text-accent-text" /> Projections{local && <Badge variant="info" className="font-sans"><Cpu aria-hidden /> Local estimate</Badge>}</h2>
           <p className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-muted-foreground" aria-live="polite">
-            <span className="inline-flex items-center gap-1.5 font-medium text-foreground"><Radio className="size-3.5 text-success" aria-hidden />{projectionHeadline(run)}</span>
-            {run.runs < run.target && <span className="text-xs">(of {run.target.toLocaleString("en-US")}: this event is big, so it's simulated fewer times to stay quick)</span>}
+            {local
+              ? <span className="inline-flex items-center gap-1.5 font-medium text-foreground"><Cpu className="size-3.5 text-info" aria-hidden />{localHeadline(run)}</span>
+              : <span className="inline-flex items-center gap-1.5 font-medium text-foreground"><Radio className="size-3.5 text-success" aria-hidden />{projectionHeadline(run)}</span>}
+            {!local && run.runs < run.target && <span className="text-xs">(of {run.target.toLocaleString("en-US")}: this event is big, so it's simulated fewer times to stay quick)</span>}
           </p>
         </div>
         <ConfidenceBadge tier={conf.tier} reason={conf.reason} />
       </header>
+      {local && <LocalNote value={local.value} why={local.why} />}
       <div className="relative custom-scrollbar overflow-x-auto">
         <table className="w-full text-sm">
           <caption className="sr-only">Projected final quals rank (median and 10th–90th percentile range), playoff odds and advancement odds for each team</caption>
@@ -145,6 +197,7 @@ function LiveView({ run, baseline, rankNow, names, pinned }: { run: ProjectionRu
       </div>
       <footer className="relative space-y-1.5 border-t border-border px-4 py-3 text-xs text-muted-foreground sm:px-5">
         <p className="flex gap-1.5"><Info className="mt-0.5 size-3 shrink-0" /><span><span className="font-medium text-foreground">Advance</span>: {ADVANCE_LABEL}.{slotsNote ? ` ${slotsNote}.` : ""} <span className="font-medium text-foreground">Playoffs</span>: captain or picked; picks follow the fitted pick model (seed and rating).</span></p>
+        {local && <p className="flex gap-1.5"><Cpu className="mt-0.5 size-3 shrink-0" /><span>{localLabel(run.runs)}: same engine and method as the server, kept on this device only and never mixed with the server's projections.</span></p>}
         <p className="flex flex-wrap gap-x-3 gap-y-1">
           <span className="inline-flex items-center gap-1.5"><span className="inline-block h-2 w-5 rounded-full bg-accent/35" /> 80% range</span>
           <span className="inline-flex items-center gap-1.5"><span className="inline-block size-2.5 rounded-full bg-accent" /> median</span>
