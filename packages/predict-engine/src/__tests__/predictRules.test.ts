@@ -131,7 +131,7 @@ class FixtureForecaster extends Forecaster {
   protected awardSlots() { return []; }
   protected recordedBonus() { return this.stored; }
   bonusModel(season: number): BonusModelSource | null { return this.bonusSource === undefined ? super.bonusModel(season) : this.bonusSource; }
-  inputFor(ev: EventInput, stage = "live") { return (this as unknown as { simInput(e: EventInput, s: string, b: RatingBook, r: number): { input: SimInput; assumptions: string[] } }).simInput(ev, stage, this.b, 50); }
+  inputFor(ev: EventInput, stage = "live") { return (this as unknown as { simInput(e: EventInput, s: string, b: RatingBook, r: number): { input: SimInput; assumptions: string[]; bonusDraws: string | null } }).simInput(ev, stage, this.b, 50); }
 }
 
 describe("Forecaster keeps recorded bonus RPs of played matches", () => {
@@ -211,6 +211,24 @@ describe("Forecaster simulation inputs (engine 2.6)", () => {
     expect(assumptions.join(" ")).toMatch(/No bonus ranking point model is available from results before this point/);
     // Without an override the default forecaster still serves the shipped fit, as before.
     expect(new FixtureForecaster().inputFor(ev(), "pre").input.bonus).toEqual(FITTED_MODEL.bonus["2025"]);
+  });
+
+  it("reports which bonus draws the forecast used, in both directions", async () => {
+    // A season with no shipped fit but a model of the app's own: modelled.
+    const learned = new FixtureForecaster();
+    learned.bonusSource = own;
+    expect(FITTED_MODEL.bonus["2026"]).toBeUndefined();
+    expect((await learned.forecast({ ...ev(), season: 2026 }, null, 20))!.bonusDraws).toBe("model");
+    // A season with a shipped fit, but a forecaster (a past moment) with no model: none.
+    const frozen = new FixtureForecaster();
+    frozen.bonusSource = null;
+    expect((await frozen.forecast(ev(), null, 20))!.bonusDraws).toBe("none");
+    // Live with no model: this event's recorded bonus RPs, if any; seasons without bonus RPs: null.
+    expect(frozen.inputFor(ev(), "live").bonusDraws).toBe("none");
+    const played = ev();
+    played.matches[0] = { ...played.matches[0], played: true, red: { ...played.matches[0].red, score: { total: 90, totalNp: 90, auto: 20, teleop: 60, endgame: 10, penaltiesCommitted: 0, bonusRp: { movement: true, goal: false, pattern: false } } }, blue: { ...played.matches[0].blue, score: { total: 70, totalNp: 70, auto: 20, teleop: 40, endgame: 10, penaltiesCommitted: 0, bonusRp: { movement: false, goal: false, pattern: false } } } };
+    expect(frozen.inputFor(played, "live").bonusDraws).toBe("event");
+    expect((await new FixtureForecaster().forecast({ ...ev(), season: 2024 }, null, 20))!.bonusDraws).toBeNull();
   });
 
   it("passes each robot's score-variance inputs (the score ranges' own) and the fitted band", () => {
