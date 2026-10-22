@@ -99,6 +99,8 @@ describe("partnership memory on an earlier season of the window", () => {
     // Last season: 21 and 22 play together twice. This season: twice more, scoring higher.
     await event(last, "USP1", "Past Qualifier", `${last}-11-07`, [[[21, 22], 100, [23, 24], 50], [[21, 22], 110, [25, 26], 40], [[23, 25], 60, [24, 26], 60]]);
     await event(now, "USN1", "New Qualifier", `${now}-11-06`, [[[21, 22], 130, [23, 24], 60], [[21, 22], 140, [25, 26], 70], [[23, 25], 60, [24, 26], 60]]);
+    // Last season, still open: 31 and 32 together once (a weak pair, too few matches to show on its own).
+    await event(last, "USP2", "Past Meet", `${last}-12-05`, [[[31, 32], 90, [33, 34], 50]]);
     await partnershipPrefix(now - 2, { wait: true });
     resetForecasters();
   });
@@ -127,5 +129,33 @@ describe("partnership memory on an earlier season of the window", () => {
       const { partnership: _b, ...b } = without!;
       expect(a).toEqual(b);
     } finally { (f as any).pastPairTables = tables; }
+  });
+
+  it("counts a stored match plus a fresh one in a past season that can still receive results", async () => {
+    const f = await forecasterFor(last);
+    const score = (total: number) => ({ total, totalNp: total, auto: 10, teleop: total - 20, endgame: 10, penaltiesCommitted: 0 }) as any;
+    const side = (teams: number[], total: number | null) => ({ teams: teams.map((number) => ({ number })), score: total == null ? null : score(total) });
+    const ev = {
+      season: last, code: "USP3", name: "Late Meet", type: "Qualifier", start: `${last}-12-12`, end: `${last}-12-12`, alliances: [],
+      field: [31, 32, 33, 34, 35, 36].map((teamNumber) => ({ teamNumber, rank: null })),
+      matches: [
+        // Played at the event, not yet synced: folds into the pair table through the overlay.
+        { key: "qual:0:1", label: "Q1", level: "qual" as const, series: 0, number: 1, time: `${last}-12-12T10:00:00Z`, played: true, red: side([31, 32], 95), blue: side([35, 36], 40) },
+        { key: "qual:0:2", label: "Q2", level: "qual" as const, series: 0, number: 2, time: `${last}-12-12T10:10:00Z`, played: false, red: side([31, 32], null), blue: side([33, 34], null) },
+      ],
+    };
+    const q2 = f.forecast(ev, null, 50)?.matches.find((m) => m.key === "qual:0:2");
+    expect(q2?.history?.label).toMatch(/^31 and 32 have played 2 matches together \(2–0\)/);
+    // Once the season is closed (frozen), its snapshot leaves the weak pairs out.
+    await run("UPDATE seasons SET frozen = 1 WHERE season = ?", [last]);
+    try {
+      resetForecasters();
+      const closed = await forecasterFor(last);
+      expect((closed as any).partnerships(last).together(31, 32)).toBeUndefined();
+      expect((closed as any).partnerships(last).together(21, 22)?.n).toBe(2);
+    } finally {
+      await run("UPDATE seasons SET frozen = 0 WHERE season = ?", [last]);
+      resetForecasters();
+    }
   });
 });

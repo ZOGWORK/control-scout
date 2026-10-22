@@ -59,6 +59,8 @@ export class ScoutForecaster extends Forecaster {
     const book = new RatingBook(FITTED_MODEL.rating);
     const records: AwardRecord[] = [];
     const pastTables = new Map<number, PartnershipTable>();
+    // Seasons whose every event is fetched and final (sync freezes them): no result can still arrive.
+    const closed = new Set((await all<{ season: number }>("SELECT season FROM seasons WHERE frozen = 1").catch(() => [])).map((r) => Number(r.season)));
     const books = new Map<number, RatingBook>(), events = new Map<number, EventRecord[]>(), advancement = new Map<number, AdvancementRecord[]>();
     // Pair history: the finished seasons before the window from kv (null while it builds), then the window as it replays.
     const prefix = await partnershipPrefix(this.seasons[0] ?? this.anchor);
@@ -77,10 +79,10 @@ export class ScoutForecaster extends Forecaster {
       for (const m of d.matches) { pairs.observe(m); book.update(m); if (++n % 4000 === 0) await yieldLoop(); }
       books.set(s, book.clone());
       // An earlier season's calls read the pairs through its own end only, never a later season's matches.
-      // Without the weak pairs (about a quarter of the rows): those only matter when an event's unsynced
-      // results fold in (PartnershipOverlay), and a finished season's results are all stored.
+      // The weak pairs only matter when an event's unsynced results fold in (PartnershipOverlay): a season
+      // that can still receive results keeps them, a closed (frozen) one leaves them out (about 3.5x the rows).
       if (s < this.anchor && pairs.season === s) {
-        const table = PartnershipTable.fromData({ ...pairs.toData({ teams: activeTeams(books, s) }), season: s });
+        const table = PartnershipTable.fromData({ ...pairs.toData({ teams: activeTeams(books, s), keepWeak: !closed.has(s) }), season: s });
         if (table) pastTables.set(s, table);
       }
       await yieldLoop();
