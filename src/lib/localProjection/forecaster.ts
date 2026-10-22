@@ -10,7 +10,7 @@
 //   advancement facts        → the season pack's advancement lists (+ the season before, when saved)
 //   event regions            → the season pack's events
 // Award history isn't needed: projections leave award points out (the advancement label says so).
-import { FITTED_MODEL, Forecaster, type AdvancementRecord, type AwardRecord, type BonusFlags, type PredictModel, type RatingBook } from "@control-scout/predict-engine";
+import { FITTED_MODEL, Forecaster, type AdvancementRecord, type AwardRecord, type BonusFlags, type BonusModelSource, type PredictModel, type RatingBook } from "@control-scout/predict-engine";
 import type { Db } from "../offline/readers";
 
 /** Everything the forecaster needs from saved season packs, as plain data. */
@@ -28,7 +28,15 @@ export interface PackFacts {
 export class PackForecaster extends Forecaster {
   protected readonly model: PredictModel = FITTED_MODEL;
   protected readonly awardHistory = new Map<number, AwardRecord[]>();
-  constructor(private readonly season: number, private readonly seasonBook: RatingBook, private readonly facts: PackFacts, private readonly now = Date.now()) { super(); }
+  /** `bonus`: the season's bonus-RP model exactly as the server's forecaster serves it (the lite pack ships it);
+   *  undefined (a pack from before engine 2.3) falls back to the engine's default, the shipped fit. */
+  constructor(private readonly season: number, private readonly seasonBook: RatingBook, private readonly facts: PackFacts, private readonly now = Date.now(), private readonly bonus?: BonusModelSource | null) { super(); }
+
+  /** Engine 2.6 simulates bonus RPs from bonusModel(): the server's season model, from the lite pack. */
+  bonusModel(season: number): BonusModelSource | null {
+    if (season === this.season && this.bonus !== undefined) return this.bonus;
+    return super.bonusModel(season);
+  }
 
   protected book(season: number): RatingBook | null {
     if (season !== this.season) return null;

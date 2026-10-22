@@ -68,6 +68,18 @@ describe("the local estimate's input", () => {
     expect(((await prepareLocal(d, deps())) as Prepared).seed).not.toBe(a.seed);
   });
 
+  it("simulates bonus RPs from the server's season bonus model (shipped in the lite pack) and the per-team spread (engine 2.6)", async () => {
+    const model = { movement: [0.1, 0.2], goal: [0.3, 0.4], pattern: [0.5, 0.6] } as never;
+    const withBonus = async () => ({ ...lite(), bonus: { [S]: { model, source: "season" as const, samples: 400 } } });
+    const p = (await prepareLocal(detail(), { ...deps(), lite: withBonus })) as Prepared;
+    expect(p.input.bonus).toEqual(model);
+    expect(p.input.variance?.size).toBe(8);
+    expect(p.input.band).toBeTruthy();
+    // A pack whose server had no model for the season: none, as on the server (event samples instead).
+    const without = (await prepareLocal(detail(), { ...deps(), lite: async () => ({ ...lite(), bonus: {} }) })) as Prepared;
+    expect(without.input.bonus).toBeUndefined();
+  });
+
   it("says why there's no estimate instead of guessing", async () => {
     expect(await prepareLocal(detail(), { ...deps(), lite: async () => null })).toEqual({ unavailable: expect.stringMatching(/offline ratings/) });
     expect(await prepareLocal(detail(), { ...deps(), facts: async () => null })).toEqual({ unavailable: expect.stringMatching(/Save this season/) });
