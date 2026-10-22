@@ -38,7 +38,7 @@ const STAGES = [
 /** How sure an advancement forecast is (a stated rule, shown on the page). */
 export function forecastTier(fc: ForecastView, team: number | null): { tier: ConfidenceTier; reason: string } {
   const base = forecastTierBase(fc, team);
-  if (!fc.bonusModelled && fc.stage !== "selected" && base.tier === "confident") return { tier: "moderate", reason: `${base.reason} Bonus ranking points aren't modelled for this season yet.` };
+  if (!fc.bonusModelled && fc.stage !== "selected" && base.tier === "confident") return { tier: "moderate", reason: `${base.reason} Bonus ranking points aren't modelled for this forecast.` };
   return base;
 }
 

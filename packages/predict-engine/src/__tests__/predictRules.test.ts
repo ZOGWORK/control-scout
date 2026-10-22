@@ -10,6 +10,8 @@ import { RatingBook } from "../rating";
 import { Forecaster, type PredictModel, type AdvancementRecord } from "../forecast";
 import { FITTED_MODEL } from "../model";
 import type { EventInput, BonusFlags } from "../inputs";
+import { teamScoreVariance } from "../matchModel";
+import type { BonusModelSource } from "../bonus";
 import type { TeamRating } from "../types";
 
 const rt = (np: number): TeamRating => ({ auto: np * 0.2, teleop: np * 0.7, endgame: np * 0.1, pen: 0, n: 20, uncertainty: 0 });
@@ -118,6 +120,8 @@ class FixtureForecaster extends Forecaster {
   protected readonly awardHistory = new Map();
   readonly b: RatingBook;
   stored: BonusFlags | null = null;
+  /** Set to replace the bonus model (undefined = the default: the shipped fit). */
+  bonusSource: BonusModelSource | null | undefined = undefined;
   constructor() { super(); this.b = new RatingBook(FITTED_MODEL.rating); this.b.startSeason(2025); }
   protected book() { return this.b; }
   protected hasRatings() { return true; }
@@ -126,7 +130,8 @@ class FixtureForecaster extends Forecaster {
   protected regionOf() { return null; }
   protected awardSlots() { return []; }
   protected recordedBonus() { return this.stored; }
-  inputFor(ev: EventInput) { return (this as unknown as { simInput(e: EventInput, s: string, b: RatingBook, r: number): { input: SimInput; assumptions: string[] } }).simInput(ev, "live", this.b, 50); }
+  bonusModel(season: number): BonusModelSource | null { return this.bonusSource === undefined ? super.bonusModel(season) : this.bonusSource; }
+  inputFor(ev: EventInput, stage = "live") { return (this as unknown as { simInput(e: EventInput, s: string, b: RatingBook, r: number): { input: SimInput; assumptions: string[]; bonusDraws: string | null } }).simInput(ev, stage, this.b, 50); }
 }
 
 describe("Forecaster keeps recorded bonus RPs of played matches", () => {
@@ -180,6 +185,60 @@ describe("Forecaster keeps recorded bonus RPs of played matches", () => {
     const { input, assumptions } = new FixtureForecaster().inputFor(event(undefined));
     expect(input.quals[0].result!.red.bonus).toBeUndefined();
     expect(assumptions.join(" ")).toMatch(/weren't reported for 2 played alliance results/);
+  });
+});
+
+describe("Forecaster simulation inputs (engine 2.6)", () => {
+  const ev = (): EventInput => ({
+    season: 2025, code: "FIX", type: "Qualifier", start: "2025-11-01", end: "2025-11-01",
+    field: [1, 2, 3, 4].map((t) => ({ teamNumber: t, rank: null })), alliances: [],
+    matches: [{ key: "qual:0:1", label: "Q1", level: "qual", series: 0, number: 1, time: "2025-11-01T10:00:00Z", played: false, red: { teams: [{ number: 1 }, { number: 2 }], score: null }, blue: { teams: [{ number: 3 }, { number: 4 }], score: null } }],
+  });
+  const own: BonusModelSource = { model: { movement: [-1, 0.01], goal: [-2, 0.02], pattern: [-3, 0.03] }, source: "season", samples: 400 };
+
+  it("draws simulated bonus RPs from the forecaster's own bonus model, not the shipped fit", () => {
+    const f = new FixtureForecaster();
+    f.bonusSource = own;
+    for (const stage of ["pre", "live"]) expect(f.inputFor(ev(), stage).input.bonus).toEqual(own.model);
+  });
+
+  it("a forecast of a past moment with no model simulates no bonus RPs (never the shipped whole-season fit), and says so", () => {
+    const f = new FixtureForecaster();
+    f.bonusSource = null; // what bonusModelBefore returns with too few earlier results
+    const { input, assumptions } = f.inputFor(ev(), "pre");
+    expect(input.bonus).toBeUndefined();
+    expect(FITTED_MODEL.bonus["2025"]).toBeDefined();
+    expect(assumptions.join(" ")).toMatch(/No bonus ranking point model is available from results before this point/);
+    // Without an override the default forecaster still serves the shipped fit, as before.
+    expect(new FixtureForecaster().inputFor(ev(), "pre").input.bonus).toEqual(FITTED_MODEL.bonus["2025"]);
+  });
+
+  it("reports which bonus draws the forecast used, in both directions", async () => {
+    // A season with no shipped fit but a model of the app's own: modelled.
+    const learned = new FixtureForecaster();
+    learned.bonusSource = own;
+    expect(FITTED_MODEL.bonus["2026"]).toBeUndefined();
+    expect((await learned.forecast({ ...ev(), season: 2026 }, null, 20))!.bonusDraws).toBe("model");
+    // A season with a shipped fit, but a forecaster (a past moment) with no model: none.
+    const frozen = new FixtureForecaster();
+    frozen.bonusSource = null;
+    expect((await frozen.forecast(ev(), null, 20))!.bonusDraws).toBe("none");
+    // Live with no model: this event's recorded bonus RPs, if any; seasons without bonus RPs: null.
+    expect(frozen.inputFor(ev(), "live").bonusDraws).toBe("none");
+    const played = ev();
+    played.matches[0] = { ...played.matches[0], played: true, red: { ...played.matches[0].red, score: { total: 90, totalNp: 90, auto: 20, teleop: 60, endgame: 10, penaltiesCommitted: 0, bonusRp: { movement: true, goal: false, pattern: false } } }, blue: { ...played.matches[0].blue, score: { total: 70, totalNp: 70, auto: 20, teleop: 40, endgame: 10, penaltiesCommitted: 0, bonusRp: { movement: false, goal: false, pattern: false } } } };
+    expect(frozen.inputFor(played, "live").bonusDraws).toBe("event");
+    expect((await new FixtureForecaster().forecast({ ...ev(), season: 2024 }, null, 20))!.bonusDraws).toBeNull();
+  });
+
+  it("passes each robot's score-variance inputs (the score ranges' own) and the fitted band", () => {
+    const f = new FixtureForecaster();
+    const { input } = f.inputFor(ev(), "pre");
+    for (const t of [1, 2, 3, 4]) {
+      const v = teamScoreVariance(f.b, t);
+      expect(input.variance!.get(t)).toEqual({ consistency: v.consistency, matches: v.matches });
+    }
+    expect(input.band).toEqual(FITTED_MODEL.band);
   });
 });
 

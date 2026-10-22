@@ -3,6 +3,8 @@
 // One run = one plausible version of the event:
 //   1. each robot's true strength for the day ~ N(rating, rating uncertainty)
 //      (drawn once per run — uncertainty about a team persists across matches);
+//      each alliance score then adds game noise, spread per team (engine 2.6:
+//      the score ranges' gameVariance, so erratic or low-sample robots spread wider);
 //   2. unplayed qualification matches are simulated (played ones keep their
 //      real results); ranking points + tiebreakers per season rules;
 //   3. alliance selection: captains in rank order pick by a softmax over
@@ -12,7 +14,8 @@
 //   5. advancement: 2025+ points (quals + alliance + playoffs + awards) or the
 //      2024 fixed order, then slots, skipping teams that already qualified.
 import type { TeamRating } from "./types.js";
-import type { NoiseParams } from "./matchModel.js";
+import { DEFAULT_BAND, gameVariance, type BandParams, type NoiseParams } from "./matchModel.js";
+import type { MatchContext } from "./contextual.js";
 import {
   BRACKETS, ORDER_2024, allianceCount, allianceSelectionPoints, awardPoints, compareAdvancement, playoffPoints, qualPoints, rankingPoints, tiebreakKeys,
   type AdvancementEntry, type Slot,
@@ -95,6 +98,18 @@ export interface SimInput {
   ratings: Map<number, TeamRating>;
   quals: QualMatch[];
   noise: NoiseParams;
+  /**
+   * Per-robot score variance inputs (engine 2.6), read from the rating book
+   * (teamScoreVariance): the per-team variance factor and matches played.
+   * With it, every simulated alliance score's game noise is gameVariance —
+   * the spread the stated score ranges are drawn from (per-team consistency,
+   * small samples, playoffs) — so an alliance of erratic or new robots spreads
+   * wider. Without it, the plain σ = a + b·mean of engine 2.5 and earlier.
+   * A robot missing from the map counts as consistency 1 with 0 matches.
+   */
+  variance?: Map<number, { consistency: number; matches: number }>;
+  /** Band parameters for `variance` (default DEFAULT_BAND, the same as FITTED_MODEL.band). */
+  band?: BandParams;
   bonus?: BonusModel;
   /**
    * Seasons without a fitted bonus model: recorded bonus-RP counts of this
@@ -144,6 +159,8 @@ export interface TeamOutcome {
 // ---------------------------------------------------------------------------
 
 const logistic = (x: number) => 1 / (1 + Math.exp(-x));
+const QUAL: MatchContext = { level: "qual" };
+const PLAYOFF: MatchContext = { level: "playoff" };
 
 export function simulateEvent(input: SimInput): Map<number, TeamOutcome> {
   const r = rng(input.seed ?? 1);
@@ -154,6 +171,7 @@ export function simulateEvent(input: SimInput): Map<number, TeamOutcome> {
     ...(input.alliances ?? []).flat(),
   ])];
   const pick = input.pick ?? DEFAULT_PICK;
+  const vr = input.variance, band = input.band ?? DEFAULT_BAND;
   const acc = new Map(teams.map((t) => [t, { adv: 0, cap: 0, picked: 0, win: 0, fin: 0, ranks: [] as number[], q: 0, a: 0, p: 0, w: 0 }]));
   const rating = (t: number): TeamRating => input.ratings.get(t) ?? { auto: 0, teleop: 0, endgame: 0, pen: 0, n: 0, uncertainty: 400 };
   // Bonus RPs for an alliance whose achievements aren't known: the season's
@@ -168,18 +186,21 @@ export function simulateEvent(input: SimInput): Map<number, TeamOutcome> {
 
   for (let run = 0; run < input.runs; run++) {
     // 1. True strength for this run.
-    const str = new Map<number, { np: number; autoShare: number; egShare: number; pen: number }>();
+    const str = new Map<number, { np: number; autoShare: number; egShare: number; pen: number; cons: number; games: number }>();
     for (const t of teams) {
       const rt = rating(t);
       const np = Math.max(0, npOf(rt) + normal(r) * Math.sqrt(rt.uncertainty));
       const base = Math.max(1e-6, npOf(rt));
-      str.set(t, { np, autoShare: rt.auto / base, egShare: rt.endgame / base, pen: rt.pen });
+      const v = vr?.get(t);
+      str.set(t, { np, autoShare: rt.auto / base, egShare: rt.endgame / base, pen: rt.pen, cons: v ? v.consistency : 1, games: v ? v.matches : 0 });
     }
-    const playScore = (own: number[], opp: number[]) => {
-      let mean = 0, pen = 0, auto = 0, eg = 0;
-      for (const t of own) { const s = str.get(t)!; mean += s.np; auto += s.np * s.autoShare; eg += s.np * s.egShare; }
+    const playScore = (own: number[], opp: number[], playoff = false) => {
+      let mean = 0, pen = 0, auto = 0, eg = 0, cons = 0, fewest = Infinity;
+      for (const t of own) { const s = str.get(t)!; mean += s.np; auto += s.np * s.autoShare; eg += s.np * s.egShare; cons += s.cons; if (s.games < fewest) fewest = s.games; }
       for (const t of opp) pen += str.get(t)!.pen;
-      const sd = input.noise.a + input.noise.b * Math.max(0, mean + pen);
+      const sd = vr
+        ? Math.sqrt(gameVariance(mean + pen, own.length ? cons / own.length : 1, own.length ? fewest : 0, input.noise, band, playoff ? PLAYOFF : QUAL))
+        : input.noise.a + input.noise.b * Math.max(0, mean + pen);
       const np = Math.max(0, mean + normal(r) * sd);
       const f = mean > 0 ? np / mean : 1;
       return { np, total: np + Math.max(0, pen + normal(r) * Math.sqrt(Math.max(pen, 1))), auto: auto * f, endgame: eg * f };
@@ -284,7 +305,7 @@ export function simulateEvent(input: SimInput): Map<number, TeamOutcome> {
     const lineups = alliances.map((al) => (al.length <= 2 ? al : [...al].sort((x, y) => (str.get(y)?.np ?? 0) - (str.get(x)?.np ?? 0)).slice(0, 2)));
     const strengthOf = (k: number) => lineups[k - 1];
     const playMatch = (a: number, b: number) => {
-      const sa = playScore(strengthOf(a), strengthOf(b)), sb = playScore(strengthOf(b), strengthOf(a));
+      const sa = playScore(strengthOf(a), strengthOf(b), true), sb = playScore(strengthOf(b), strengthOf(a), true);
       return sa.total === sb.total ? (r() < 0.5 ? a : b) : sa.total > sb.total ? a : b;
     };
     const played = input.playoffPlayed;
