@@ -7,7 +7,7 @@
 // current window use the current anchor exactly like Control Point; an older
 // season (browsing 2023) gets its own window ending at that season.
 import {
-  Forecaster, FITTED_MODEL, RatingBook, indexAwards, MODELLED_AWARDS, normType, explainMatch, type RecentRecord, bonusModelBefore, PartnershipBook, PartnershipTable, bonusSamples, seasonBonusModel,
+  Forecaster, FITTED_MODEL, RatingBook, indexAwards, MODELLED_AWARDS, normType, explainMatch, type RecentRecord, bonusModelBefore, PartnershipBook, PartnershipTable, bonusSamples, seasonBonusModel, EXCLUDED_TYPES,
   type AdvancementRecord, type BonusModelSource, type PartnershipData, type AwardRecord, type BonusFlags, type EventInput, type EventRecord, type Forecast, type MatchRecord, type PredictModel,
 } from "@control-scout/predict-engine";
 import { all, kvGet } from "../db.js";
@@ -18,9 +18,38 @@ import { onPartnershipPrefixReady, partnershipPrefix } from "./partnerships.js";
 
 const yieldLoop = () => new Promise<void>((r) => setImmediate(r));
 
-/** Teams a season's call can be about: rated that season or the one before (keeps the pair tables small). */
-const activeTeams = (books: Map<number, RatingBook>, season: number) =>
-  new Set([...(books.get(season)?.ratings.keys() ?? []), ...(books.get(season - 1)?.ratings.keys() ?? [])]);
+/** Teams a season's call can be about: rated that season or the one before (keeps the pair tables small).
+ *  `before`: the season before's rated teams when the window doesn't replay it (its oldest season). */
+const activeTeams = (books: Map<number, RatingBook>, season: number, before: Iterable<number> = []) =>
+  new Set([...(books.get(season)?.ratings.keys() ?? []), ...(books.get(season - 1)?.ratings.keys() ?? []), ...before]);
+
+/**
+ * The teams a season's rating book holds (on the field in a played, scored match of a rated event, as
+ * toEventRecord keeps them), straight from the database: the window's oldest season needs the season
+ * before it for its pair table, the same filter a forecaster anchored on that season uses, without
+ * replaying that season.
+ */
+async function ratedTeams(season: number): Promise<number[]> {
+  // About 1–2 s on a full season, so a frozen season's answer is kept (it never changes); an open one is asked again.
+  const row = await all<{ frozen: number; last_complete: string | null }>("SELECT frozen, last_complete FROM seasons WHERE season = ?", [season]);
+  const key = Number(row[0]?.frozen) === 1 ? `frozen:${row[0].last_complete ?? ""}` : null;
+  const hit = ratedTeamsCache.get(season);
+  if (key && hit?.key === key) return hit.teams;
+  const excluded = [...EXCLUDED_TYPES];
+  const rows = await all<{ team: number }>(
+    `SELECT DISTINCT t.team FROM match_teams t
+     JOIN matches m ON m.season = t.season AND m.code = t.code AND m.level = t.level AND m.series = t.series AND m.number = t.number
+     JOIN events e ON e.season = t.season AND e.code = t.code
+     WHERE t.season = ? AND t.on_field = 1 AND m.played = 1 AND m.red_np IS NOT NULL AND m.blue_np IS NOT NULL
+       AND COALESCE(e.remote, 0) = 0 AND COALESCE(e.hybrid, 0) = 0 AND e.start IS NOT NULL AND e.start != ''
+       AND (e.type IS NULL OR e.type NOT IN (${excluded.map(() => "?").join(", ")}))`,
+    [season, ...excluded],
+  );
+  const teams = rows.map((r) => Number(r.team));
+  if (key) ratedTeamsCache.set(season, { key, teams }); else ratedTeamsCache.delete(season);
+  return teams;
+}
+const ratedTeamsCache = new Map<number, { key: string; teams: number[] }>();
 
 export class ScoutForecaster extends Forecaster {
   protected readonly model: PredictModel = FITTED_MODEL;
@@ -82,7 +111,9 @@ export class ScoutForecaster extends Forecaster {
       // The weak pairs only matter when an event's unsynced results fold in (PartnershipOverlay): a season
       // that can still receive results keeps them, a closed (frozen) one leaves them out (about 3.5x the rows).
       if (s < this.anchor && pairs.season === s) {
-        const table = PartnershipTable.fromData({ ...pairs.toData({ teams: activeTeams(books, s), keepWeak: !closed.has(s) }), season: s });
+        // The oldest window season's "season before" isn't replayed here; a forecaster anchored on it would rate it.
+        const before = !books.has(s - 1) && PREDICT_SEASONS.includes(s - 1) ? await ratedTeams(s - 1) : [];
+        const table = PartnershipTable.fromData({ ...pairs.toData({ teams: activeTeams(books, s, before), keepWeak: !closed.has(s) }), season: s });
         if (table) pastTables.set(s, table);
       }
       await yieldLoop();
@@ -405,7 +436,7 @@ export async function refreshForecasters(): Promise<void> {
 }
 
 /** Drop cached forecasters and season data (tests, or after a manual data change). Not for syncs: a new data version already rebuilds, without making pages wait. */
-export function resetForecasters(): void { cache.clear(); built.clear(); seasonCache.clear(); }
+export function resetForecasters(): void { cache.clear(); built.clear(); seasonCache.clear(); ratedTeamsCache.clear(); }
 registerCache("Prediction ratings", resetForecasters);
 
 // A forecaster built while the finished seasons' pair history was still building went ahead with its
