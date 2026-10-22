@@ -9,6 +9,18 @@ teams, scout, offline, speed, live, report, alerts, rankings, share, workspace,
 picklist, history, fixes). What's new shows them first; the groups below are
 the full release notes, one click away.
 
+## 1.21.0 — 2026-10-21
+
+Projections even with no signal: a local estimate simulated on your device.
+
+### Highlights
+- [offline] Event projections with no signal, simulated on your device
+- [predict] Labelled "Local estimate" with the real count, one tier lower
+- [speed] Runs in the background with progress; never freezes the page
+
+### Offline
+- **Local estimate of an event's projections.** When the stored 10,000-simulation projection can't be had (no signal and your saved season doesn't carry one, or none has been made yet) and the season is saved for offline use, the Odds tab simulates the rest of the event on your device instead: 1,500 runs of the same engine, built with the same steps and the same seed the server uses for those results, in a background worker with a progress bar. It stops after 2 seconds of work on a slow phone and says how many runs it managed. It's labelled "Local estimate · 1,500 simulations on this device" wherever it shows, sits one confidence tier below the server's projection, never shows movement against the server's pre-event projection, and gives way to the stored projection as soon as that can be read. Each results state is simulated once per device and kept, so opening the event again doesn't run it again. On four replayed championships, its median ranks were within one place of the server's 10,000-run projection for every team. (#238)
+
 ## 1.20.0 — 2026-10-21
 
 Event simulations spread erratic robots wider and no longer peek at later results.

@@ -22,6 +22,7 @@ import { CURRENT_SEASON, PREDICT_SEASONS, SEASON_NUMBERS, seasonInfo } from "../
 import { ScoutForecaster, forecasterFor } from "../predict/engine.js";
 import { partnershipPrefix } from "../predict/partnerships.js";
 import { encodeLitePairs } from "../../src/shared/litePairs.js";
+import { LEARNED_DAYS, type LiteLearned } from "../../src/shared/liteLearned.js";
 import { packsDir } from "./routes.js";
 import { PACK_INDEXES, PACK_TABLES as FULL_TABLES, PACK_TEAMS_DDL } from "../../src/shared/packSchema.js";
 
@@ -40,14 +41,27 @@ async function nextVersion(dir: string): Promise<string> {
   return `${day}.${n}`;
 }
 
+/** A season's events that ended on or after `since`, each with the match keys the forecaster folded into its ratings. */
+export function learnedEvents(f: Pick<ScoutForecaster, "seasonEvents" | "storedPlayedKeys">, season: number, since: string): Record<string, string[]> {
+  const out: Record<string, string[]> = {};
+  for (const e of f.seasonEvents(season)) if ((e.end || e.start) >= since) out[e.code] = [...f.storedPlayedKeys(season, e.code)].sort();
+  return out;
+}
+
 export async function buildLite(version: string, dir: string, log: (m: string) => void): Promise<BuiltFile> {
   const books: Record<string, unknown> = {};
   // Each season's bonus-RP model as the server serves it, so offline qualification predictions show the same bonus odds.
   const bonus: Record<string, unknown> = {};
+  // Which results those ratings learned, per recent event (src/shared/liteLearned.ts): the device's local
+  // estimate folds in exactly the others, as the server's forecaster does.
+  const builtAt = new Date();
+  const learned: LiteLearned = { since: new Date(builtAt.getTime() - LEARNED_DAYS * 864e5).toISOString().slice(0, 10), events: {} };
   for (const s of PREDICT_SEASONS) { // legacy seasons have no ratings
     const f = await forecasterFor(s);
     const b = f.book(s);
     if (b) books[String(s)] = b.toData();
+    const recent = learnedEvents(f, s, learned.since);
+    if (Object.keys(recent).length) learned.events[String(s)] = recent;
     const bm = f.bonusModel(s);
     if (bm) bonus[String(s)] = bm;
   }
@@ -58,7 +72,7 @@ export async function buildLite(version: string, dir: string, log: (m: string) =
   const pairs = pf.partnershipData ? encodeLitePairs(pf.partnershipData) : null;
   const teams = (await all<any>("SELECT number, name, city, state, country FROM teams ORDER BY number"))
     .map((t) => [Number(t.number), t.name ?? null, [t.city, t.state, t.country].filter(Boolean).join(", ") || null]);
-  const json = JSON.stringify({ format: PACK_FORMAT, version, builtAt: new Date().toISOString(), engineVersion: ENGINE_VERSION, books, bonus, teams, pairs });
+  const json = JSON.stringify({ format: PACK_FORMAT, version, builtAt: builtAt.toISOString(), engineVersion: ENGINE_VERSION, books, bonus, teams, pairs, learned });
   const gz = gzipSync(Buffer.from(json), { level: 9 });
   const name = `scout-pack-${version.replace(/\./g, "-")}-lite.json.gz`;
   writeFileSync(join(dir, name), gz);

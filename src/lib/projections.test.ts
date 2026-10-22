@@ -1,7 +1,7 @@
 // The event page follows new projection runs live: each `projections` event on the stream re-reads the
 // stored runs (no reload); a broken stream retries a few times, then leaves it to the results refresh.
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { STREAM_BACKOFF_MS, bandHits, followProjections, projectionTier, rankMovement } from "./projections";
+import { STREAM_BACKOFF_MS, bandHits, canRunLocal, followProjections, localLabel, localTier, projectionSource, projectionTier, rankMovement } from "./projections";
 import { advanceStatus, advanceText, type ProjectionRun, type ProjectionTeam } from "../shared/projections";
 
 class FakeES {
@@ -84,5 +84,44 @@ describe("projection helpers", () => {
     expect(projectionTier(run({ played: 10 })).tier).toBe("provisional");
     expect(projectionTier(run({ played: 30 })).tier).toBe("moderate");
     expect(projectionTier(run({ stage: "quals", played: 40 })).tier).toBe("confident");
+  });
+});
+
+describe("local estimate: which projection shows", () => {
+  const base = { finished: false, hasCurrent: false, loaded: true, failed: false, hasSchedule: true, canRunLocal: true };
+  it("prefers the server's stored run whenever there is one (online or in a saved pack)", () => {
+    expect(projectionSource({ ...base, hasCurrent: true })).toBe("server");
+  });
+  it("estimates locally only when no stored run can be had and the device can", () => {
+    expect(projectionSource(base)).toBe("local"); // read, but nothing stored for this open event
+    expect(projectionSource({ ...base, loaded: false, failed: true })).toBe("local"); // couldn't be read at all
+    expect(projectionSource({ ...base, loaded: false })).toBe("server"); // still loading: wait for the server's answer first
+    expect(projectionSource({ ...base, canRunLocal: false })).toBe("server");
+    expect(projectionSource({ ...base, hasSchedule: false })).toBe("server");
+    expect(projectionSource({ ...base, finished: true })).toBe("server"); // history is never re-estimated
+  });
+  it("needs a saved season pack for the season, the lite pack and Web Workers", () => {
+    const saved = () => [{ season: 2025 }];
+    expect(canRunLocal(2025, { saved, lite: () => ({}), worker: true })).toBe(true);
+    expect(canRunLocal(2026, { saved, lite: () => ({}), worker: true })).toBe(false);
+    expect(canRunLocal(2025, { saved, lite: () => null, worker: true })).toBe(false);
+    expect(canRunLocal(2025, { saved, lite: () => ({}), worker: false })).toBe(false);
+  });
+});
+
+describe("local estimate: label and tier", () => {
+  const lrun = (o: Partial<ProjectionRun> = {}): ProjectionRun => ({ kind: "current", runs: 1500, target: 1500, stage: "live", played: 30, scheduled: 48, through: "Q30", slots: 4, slotsSource: "official", seed: 1, engineVersion: "2.5.0", ms: 900, computedAt: "x", teams: [], ...o });
+  const l = (r: ProjectionRun) => localTier({ run: r, ratingsAsOf: "2026-10-17T12:00:00Z" });
+  it("says it's a local estimate and how many simulations ran", () => {
+    expect(localLabel(1500)).toBe("Local estimate · 1,500 simulations on this device");
+    expect(localLabel(1)).toBe("Local estimate · 1 simulation on this device");
+  });
+  it("sits one tier below the server's run of the same state, provisional under 1,000 simulations", () => {
+    expect(projectionTier(lrun()).tier).toBe("moderate");
+    expect(l(lrun()).tier).toBe("provisional");
+    expect(projectionTier(lrun({ stage: "quals" })).tier).toBe("confident");
+    expect(l(lrun({ stage: "quals" })).tier).toBe("moderate");
+    expect(l(lrun({ stage: "quals", runs: 640 })).tier).toBe("provisional");
+    expect(l(lrun()).reason).toMatch(/^Estimated on this device: 1,500 simulations from your offline pack \(ratings as of Oct 17\)/);
   });
 });
