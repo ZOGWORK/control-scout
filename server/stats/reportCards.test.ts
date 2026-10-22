@@ -1,7 +1,7 @@
 // Report cards: live calls only, per team per event and per season, shrunk toward the field average.
 import { beforeEach, describe, expect, it } from "vitest";
 import { all, migrate, openDb, run, setDb } from "../db";
-import { aggregate, computeReportCards, REPORT_PRIOR, shrink, teamCalls, type LedgerRow } from "./reportCards";
+import { aggregate, computeReportCards, refreshReportCards, REPORT_PRIOR, shrink, teamCalls, type LedgerRow } from "./reportCards";
 import { teamReportCards } from "../api/teams";
 
 const row = (o: Partial<LedgerRow>): LedgerRow => ({
@@ -86,5 +86,97 @@ describe("stored report cards", () => {
     await run("DELETE FROM predictions WHERE kind = 'live' AND code = 'NOW'");
     await computeReportCards(S, () => {}, Date.parse("2026-10-21T12:00:00Z"));
     expect((await all<any>("SELECT code FROM team_report_cards WHERE team = 1 ORDER BY code")).map((r) => r.code)).toEqual(["", "DONE"]);
+  });
+});
+
+describe("refreshing report cards across seasons", () => {
+  const PAST = 2024, NOW_S = 2026;
+  const T = Date.parse("2026-10-21T12:00:00Z");
+  let id = 0;
+  const live = (season: number, code: string, red: number, blue: number, scored = true) => run(
+    `INSERT INTO predictions (kind, season, code, level, series, number, red, blue, p_red, red_mean, blue_mean, tier, engine_version, predicted_at, red_score, blue_score, outcome, scored_at)
+     VALUES ('live', ?, ?, 'qual', 0, ?, '[1,2]', '[3,4]', 0.7, 100, 80, 'moderate', 'x', '2026-01-01T00:00:00Z', ?, ?, ?, ?)`,
+    [season, code, ++id, scored ? red : null, scored ? blue : null, scored ? (red > blue ? 1 : red < blue ? 0 : 0.5) : null, scored ? `2026-01-01T00:00:${String(id % 60).padStart(2, "0")}Z` : null],
+  );
+  const seasonCalls = async (season: number) => (await all<any>("SELECT calls FROM team_report_cards WHERE season = ? AND team = 1 AND code = ''", [season]))[0]?.calls ?? 0;
+
+  beforeEach(async () => {
+    const c = openDb(":memory:");
+    setDb(c);
+    await migrate(c);
+    id = 0;
+    await run("INSERT INTO events (season, code, name, type, start, end, timezone, remote, hybrid, source) VALUES (?, 'OLD', 'Old', 'Qualifier', '2025-02-01', '2025-02-01', 'UTC', 0, 0, 'test')", [PAST]);
+    await run("INSERT INTO events (season, code, name, type, start, end, timezone, remote, hybrid, source) VALUES (?, 'NOW', 'Today', 'Qualifier', '2026-10-21', '2026-10-21', 'UTC', 0, 0, 'test')", [NOW_S]);
+    await live(PAST, "OLD", 110, 70);
+    await live(NOW_S, "NOW", 104, 80);
+    await live(NOW_S, "NOW", 0, 0, false); // logged, not played yet: not part of any card
+  });
+
+  it("builds every season with scored live calls the first time, then skips the unchanged ones", async () => {
+    expect(await refreshReportCards(() => {}, T)).toEqual([NOW_S, PAST]);
+    expect(await refreshReportCards(() => {}, T)).toEqual([]);
+  });
+
+  it("rebuilds a past season that gains a scored live call, and only that season", async () => {
+    await refreshReportCards(() => {}, T);
+    expect(await seasonCalls(PAST)).toBe(1);
+    await live(PAST, "OLD", 60, 90);
+    expect(await refreshReportCards(() => {}, T)).toEqual([PAST]);
+    expect(await seasonCalls(PAST)).toBe(2);
+  });
+
+  it("rebuilds when a logged call is scored", async () => {
+    await refreshReportCards(() => {}, T);
+    await run("UPDATE predictions SET red_score = 90, blue_score = 95, outcome = 0, scored_at = '2026-10-21T13:00:00Z' WHERE outcome IS NULL");
+    expect(await refreshReportCards(() => {}, T)).toEqual([NOW_S]);
+    expect(await seasonCalls(NOW_S)).toBe(2);
+  });
+
+  it("a call caught between its scores and its outcome is picked up once the outcome is in", async () => {
+    await refreshReportCards(() => {}, T);
+    await run("UPDATE predictions SET red_score = 90, blue_score = 95, scored_at = '2026-10-21T13:00:00Z' WHERE outcome IS NULL");
+    expect(await refreshReportCards(() => {}, T)).toEqual([NOW_S]);
+    expect(await seasonCalls(NOW_S)).toBe(1);
+    await run("UPDATE predictions SET outcome = 0 WHERE outcome IS NULL");
+    expect(await refreshReportCards(() => {}, T)).toEqual([NOW_S]);
+    expect(await seasonCalls(NOW_S)).toBe(2);
+    expect(await refreshReportCards(() => {}, T)).toEqual([]);
+  });
+
+  it("rebuilds a season with an open event once a day (events turn final as their last day passes)", async () => {
+    await refreshReportCards(() => {}, T);
+    const nextDay = T + 24 * 3600_000;
+    expect(await refreshReportCards(() => {}, nextDay)).toEqual([NOW_S]); // PAST: every event final, skipped
+    expect((await all<any>("SELECT final FROM team_report_cards WHERE season = ? AND code = 'NOW' AND team = 1", [NOW_S]))[0].final).toBe(1);
+    expect(await refreshReportCards(() => {}, nextDay + 24 * 3600_000)).toEqual([]); // now final too
+  });
+
+  it("an event marked final that gains an unplayed match is rebuilt and drops back out of the finished ones", async () => {
+    await refreshReportCards(() => {}, T);
+    expect((await teamReportCards(PAST, 1))?.events.map((e) => e.code)).toEqual(["OLD"]);
+    await run("INSERT INTO matches (season, code, level, series, number, label, played, source) VALUES (?, 'OLD', 'playoff', 1, 1, 'F1', 0, 'test')", [PAST]);
+    expect(await refreshReportCards(() => {}, T)).toEqual([PAST]);
+    expect((await teamReportCards(PAST, 1))?.events).toEqual([]);
+    expect(await refreshReportCards(() => {}, T)).toEqual([]);
+    // Played (the sync brings the result): final again.
+    await run("UPDATE matches SET played = 1 WHERE season = ? AND code = 'OLD'", [PAST]);
+    expect(await refreshReportCards(() => {}, T)).toEqual([PAST]);
+    expect((await teamReportCards(PAST, 1))?.events.map((e) => e.code)).toEqual(["OLD"]);
+  });
+
+  it("an event marked final whose end date moves to the future is rebuilt", async () => {
+    await refreshReportCards(() => {}, T);
+    await run("UPDATE events SET end = '2026-12-01' WHERE season = ? AND code = 'OLD'", [PAST]);
+    expect(await refreshReportCards(() => {}, T)).toEqual([PAST]);
+    expect((await all<any>("SELECT final FROM team_report_cards WHERE season = ? AND code = 'OLD' AND team = 1", [PAST]))[0].final).toBe(0);
+  });
+
+  it("never reads the backtest replay", async () => {
+    await refreshReportCards(() => {}, T);
+    for (let i = 0; i < 20; i++) await run(
+      `INSERT INTO predictions (kind, season, code, level, series, number, red, blue, p_red, red_mean, blue_mean, tier, engine_version, predicted_at, red_score, blue_score, outcome, scored_at)
+       VALUES ('backtest', ?, 'OLD', 'qual', 0, ?, '[1,2]', '[3,4]', 0.9, 100, 80, 'moderate', 'x', '2026-01-01T00:00:00Z', 0, 200, 0, '2026-10-21T13:00:00Z')`, [PAST, 1000 + i]);
+    expect(await refreshReportCards(() => {}, T)).toEqual([]);
+    expect(await seasonCalls(PAST)).toBe(1);
   });
 });
