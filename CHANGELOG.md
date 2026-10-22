@@ -9,7 +9,7 @@ teams, scout, offline, speed, live, report, alerts, rankings, share, workspace,
 picklist, history, fixes). What's new shows them first; the groups below are
 the full release notes, one click away.
 
-## 1.19.1 — 2026-10-21
+## 1.19.2 — 2026-10-21
 
 Partnership history on last season's predictions too.
 
@@ -20,6 +20,18 @@ Partnership history on last season's predictions too.
 
 ### Predictions
 - **Partnership memory on earlier seasons.** A prediction for an earlier season (the Predict lab or an event of 2025–26 or 2024–25) now shows the same pair history line as this season's calls. It reads the pairs as they stood at that season's end, the way that season's ratings are its end-of-season ratings, so a later match never counts. Still a reason only: no odds, score or range changes, and no engine change. (#236)
+
+## 1.19.1 — 2026-10-21
+
+Report cards stay up to date for every season, not just the current one.
+
+### Highlights
+- [report] Report cards for past seasons catch up when a late result is scored
+- [report] Live calls only, as always: the replay never counts
+- [speed] Unchanged seasons are skipped: a quick check, not a rebuild
+
+### Predictions
+- **Report cards for every season.** A season's predictability report cards are rebuilt whenever its scored live calls change, after every stats run and every live result, whichever season the call belongs to. Before, only the current season was rebuilt between full recomputes, so a past season could show cards that missed its last scored calls. Seasons whose calls haven't changed are skipped after a quick check. A season is still rebuilt when one of its events turns final, or stops being final because a sync added a match or moved its dates. Live calls only, as always. (#235)
 
 ## 1.19.0 — 2026-10-21
 

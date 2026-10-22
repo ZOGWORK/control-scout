@@ -226,4 +226,18 @@ describe("replayed calls for the current season", () => {
     expect(await all("SELECT 1 FROM predictions WHERE kind = 'backtest' AND code = 'NEW'")).toHaveLength(1);
     expect(await all("SELECT 1 FROM predictions WHERE kind = 'backtest' AND code = 'OLD' AND season = ?", [earlier])).toHaveLength(1);
   });
+
+  it("runStats rebuilds a past season's report cards when it gains a scored live call, and skips it while unchanged", async () => {
+    const past = S - 1;
+    let id = 0;
+    const scoredLive = () => run(`INSERT INTO predictions (kind, season, code, level, series, number, red, blue, p_red, red_mean, blue_mean, tier, engine_version, predicted_at, red_score, blue_score, outcome, scored_at)
+      VALUES ('live', ?, 'PAST', 'qual', 0, ?, '[201,202]', '[203,204]', 0.6, 80, 70, 'moderate', 'x', '2025-12-01T00:00:00Z', 90, 60, 1, ?)`, [past, ++id, `2025-12-01T01:00:0${id}Z`]);
+    await run("INSERT INTO events (season, code, name, type, start, end, timezone, remote, hybrid, source) VALUES (?, 'PAST', 'Past', 'Qualifier', '2025-12-01', '2025-12-01', 'UTC', 0, 0, 'test')", [past]);
+    await scoredLive();
+    const cycle = async () => { const lines: string[] = []; await runStats({ seasons: [S], log: (m) => lines.push(m) }); return lines.filter((l) => l.startsWith(`${past}: report cards`)); };
+    expect(await cycle()).toHaveLength(1); // first sight: built though the run covered the current season only
+    expect(await cycle()).toHaveLength(0); // unchanged: skipped
+    await scoredLive();
+    expect(await cycle()).toEqual([`${past}: report cards for 4 teams from 2 live calls`]);
+  });
 });
