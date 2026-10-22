@@ -38,5 +38,5 @@ Options:
   - The first ten qualification matches of an event: 31.5% of matches, 34.3% of Brier.
   - Robots with 0–5 rated matches this season.
 - **Late-event matches are not a weak slice.** Qualification match 26+ beats the average, so the within-event layer's premise (stale data late in the day) doesn't show in Brier.
-- **The model is under-confident almost everywhere.** Favourites win 1.5 to 2.8 points more often than stated across the 50–90% bands. Every data slice has negative surprise.
+- **The model is under-confident almost everywhere.** Favourites win 1.5 to 2.8 points more often than stated across the 50–90% bands. Surprise (ties left out) is negative in every data slice except world-championship matches (943), where favourites win 74.0% against a stated 75.0%.
 - **These are not weak slices:** rookies (about average), playoffs (better than quals) and high-volatility robots (about average).
