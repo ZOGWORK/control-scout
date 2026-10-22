@@ -9,6 +9,18 @@ teams, scout, offline, speed, live, report, alerts, rankings, share, workspace,
 picklist, history, fixes). What's new shows them first; the groups below are
 the full release notes, one click away.
 
+## 1.19.1 — 2026-10-21
+
+Report cards stay up to date for every season, not just the current one.
+
+### Highlights
+- [report] Report cards for past seasons catch up when a late result is scored
+- [report] Live calls only, as always: the replay never counts
+- [speed] Unchanged seasons are skipped: a quick check, not a rebuild
+
+### Predictions
+- **Report cards for every season.** A season's predictability report cards are rebuilt whenever its scored live calls change, after every stats run and every live result, whichever season the call belongs to. Before, only the current season was rebuilt between full recomputes, so a past season could show cards that missed its last scored calls. Seasons whose calls haven't changed are skipped after a quick check. A season is still rebuilt when one of its events turns final, or stops being final because a sync added a match or moved its dates. Live calls only, as always. (#235)
+
 ## 1.19.0 — 2026-10-21
 
 Pick on reliability, not just peak scoring: a dependability estimate next to OPR.

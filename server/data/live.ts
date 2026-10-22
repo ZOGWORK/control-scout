@@ -21,7 +21,7 @@ import { hasFirst } from "../env.js";
 import { NO_MATCH_TYPES, pool, syncEvent } from "../sync.js";
 import { firstProbe } from "../sources/first.js";
 import { refreshEventStats, logLivePredictions, scoreLivePredictions } from "../stats/job.js";
-import { computeReportCards } from "../stats/reportCards.js";
+import { refreshReportCards } from "../stats/reportCards.js";
 import { computeRecords } from "../stats/records.js";
 import { loadSeason } from "../stats/load.js";
 import { resultsAtKey } from "../api/readiness.js";
@@ -198,8 +198,8 @@ export async function refreshEvents(events: EventRow[], o: { minFullMs?: number;
       if (now() - (recordsAt.get(s) ?? 0) >= RECORDS_EVERY_MS) { recordsAt.set(s, now()); await computeRecords(s, await loadSeason(s), log); await kvSet("records:last", { at: new Date(now()).toISOString() }); }
     }
     report.scored = await scoreLivePredictions(log);
-    // Newly scored live calls: the seasons' report cards (a per-season rewrite of a few thousand rows at most).
-    if (report.scored) for (const s of bySeason.keys()) await computeReportCards(s, log);
+    // Newly scored live calls: the report cards of every season they changed (a per-season rewrite of a few thousand rows at most).
+    if (report.scored) await refreshReportCards(log);
     report.logged = await logLivePredictions(log);
     // New results (and any schedule changes) at today's events: the home page's coin flips follow.
     await (await import("../api/coinFlips.js")).refreshCoinFlips(log);
