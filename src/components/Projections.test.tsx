@@ -7,14 +7,16 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { MemoryRouter } from "react-router-dom";
 import type { EventDetail } from "../shared/api";
 import type { ProjectionRun, ProjectionsView, ProjectionTeam } from "../shared/projections";
+import { markOffline } from "../lib/offline/saved";
 
 let view: ProjectionsView | undefined;
 vi.mock("../lib/api", async (orig) => ({ ...(await orig<typeof import("../lib/api")>()), useApi: () => ({ data: view, error: undefined, loading: false, reload: () => {} }), load: () => Promise.resolve() }));
 let localResult: unknown = null;
+let localUnavailable: string | null = null, localError: string | null = null;
 vi.mock("../lib/localProjection/run", () => ({
-  prepareLocal: async () => (localResult ? { key: "k" } : { unavailable: "none" }),
+  prepareLocal: async () => (localUnavailable ? { unavailable: localUnavailable } : localResult || localError ? { key: "k" } : { unavailable: "none" }),
   cacheKey: () => "k",
-  localProjectionFor: async () => localResult,
+  localProjectionFor: async () => { if (localError) throw new Error(localError); return localResult; },
 }));
 let tracked: number[] = [];
 vi.mock("../lib/personal", () => ({ usePersonal: () => ({ state: { myTeam: null, tracked: { teams: tracked, events: [] } } }) }));
@@ -95,7 +97,39 @@ describe("Projections (local estimate)", () => {
     localStorage.setItem("cs-offline-seasons", JSON.stringify([{ season: 2026, version: "v1", sha256: "x", bytes: 1, savedAt: 1, dataAsOf: null, builtAt: "x" }]));
     vi.stubGlobal("Worker", class {});
   };
-  afterEach(() => { localStorage.clear(); vi.unstubAllGlobals(); localResult = null; });
+  afterEach(() => { localStorage.clear(); vi.unstubAllGlobals(); localResult = null; localUnavailable = null; localError = null; });
+
+  const offlineView = () => markOffline({ season: 2026, code: "TQ1", current: null, baseline: null, lastOpen: null }, { season: 2026, savedAt: 1, dataAsOf: null });
+
+  it("offline, says why the device can't estimate and what to do, never promising a server run soon", async () => {
+    can();
+    localUnavailable = "Your offline ratings and your saved season are from different releases, so this device can't tell which results the ratings already include.";
+    view = offlineView();
+    mount(detail("live"));
+    expect(await screen.findByText("No local estimate on this device")).toBeTruthy();
+    expect(screen.getByText(/different releases/)).toBeTruthy();
+    expect(screen.getByText(/once you're back online/)).toBeTruthy();
+    expect(screen.getByRole("link", { name: /Update your offline packs on Download/ }).getAttribute("href")).toBe("/download");
+    expect(screen.queryByText(/within a minute or two/)).toBeNull();
+    expect(screen.queryByText("The first projection is on its way")).toBeNull();
+  });
+
+  it("shows the failure when the device's run fails", async () => {
+    can();
+    localError = "Worker crashed";
+    view = offlineView();
+    mount(detail("live"));
+    expect(await screen.findByText(/The estimate on this device failed: Worker crashed/)).toBeTruthy();
+    expect(screen.getByRole("link", { name: /Update your offline packs on Download/ })).toBeTruthy();
+    expect(screen.queryByText(/within a minute or two/)).toBeNull();
+  });
+
+  it("offline with no packs: no promise of a server run either", () => {
+    view = offlineView();
+    mount(detail("live"));
+    expect(screen.getByText("No projection saved for this event")).toBeTruthy();
+    expect(screen.queryByText(/within a minute or two/)).toBeNull();
+  });
 
   it("labels it as a local estimate, one tier lower, with no pre-event movement mixed in", async () => {
     can();

@@ -4,10 +4,11 @@
 // over: "Final results vs projections", each actual seed against the band it was last projected in.
 import { useMemo, useState, type ReactNode } from "react";
 import { Link } from "react-router-dom";
-import { ArrowDown, ArrowUp, ChartNoAxesGantt, HardDrive, Info, Pin, Radio, Target } from "lucide-react";
+import { ArrowDown, ArrowUp, ChartNoAxesGantt, HardDrive, HardDriveDownload, Info, Pin, Radio, Target } from "lucide-react";
 import { cn } from "./cn";
 import { Badge } from "./ui/basic";
 import { EmptyState } from "./page";
+import { Button } from "./ui/button";
 import { ConfidenceBadge } from "./predict";
 import { ErrorState } from "./states";
 import { oddsPct } from "../lib/format";
@@ -50,6 +51,15 @@ function LocalNote({ value, why }: { value: LocalProjection; why: string }) {
   );
 }
 
+/** The device couldn't make a local estimate: its reason, the next step, and (offline) no promise of a server run. */
+function LocalUnavailable({ reason, offline }: { reason: string; offline: boolean }) {
+  return (
+    <EmptyState icon={HardDrive} title="No local estimate on this device"
+      description={<>{reason} {offline ? "The server's projection shows here once you're back online." : "The server's projection shows here as soon as it's made."}</>}
+      action={<Button asChild variant="secondary" size="sm"><Link to="/download"><HardDriveDownload /> Update your offline packs on Download</Link></Button>} />
+  );
+}
+
 /** While the device simulates: progress, never a frozen page (the work runs in a Web Worker). */
 function LocalProgress({ done, target }: { done: number; target: number }) {
   const pct = target ? Math.min(100, Math.round((done / target) * 100)) : 0;
@@ -85,6 +95,10 @@ export function Projections({ d, team }: { d: EventDetail; team: number | null }
     const why = state.error ? "can't be reached right now" : offlineSource(state.data) ? "isn't in your saved season" : "hasn't been made yet";
     return <LiveView run={local.value.run} baseline={null} rankNow={rankNow} names={names} pinned={pinned} local={{ value: local.value, why }} />;
   }
+  // No local estimate after all: say why and what to do, never a promise the server can't keep offline.
+  if (source === "local" && (local.status === "unavailable" || local.status === "error")) {
+    return <LocalUnavailable reason={local.status === "unavailable" ? local.reason : `The estimate on this device failed: ${local.message}`} offline={!!offlineSource(state.data) || !!state.error?.offline} />;
+  }
   if (state.error) return <ErrorState error={state.error} onRetry={state.reload} />;
   if (!state.data) return <div className="skeleton h-64 rounded-2xl" aria-busy="true" />;
   const v = state.data;
@@ -95,6 +109,10 @@ export function Projections({ d, team }: { d: EventDetail; team: number | null }
     return <FinalView run={judged} baseline={v.baseline} isLastOpen={!!v.lastOpen} actual={rankNow} names={names} pinned={pinned} />;
   }
   if (!v.current) {
+    // From a saved season with no signal: nothing will arrive until the device is back online.
+    if (hasSchedule && offlineSource(v)) {
+      return <EmptyState icon={ChartNoAxesGantt} title="No projection saved for this event" description="Your saved season doesn't carry a projection for this event, and the server's can't be read with no signal. It shows here once you're back online." />;
+    }
     return (
       <EmptyState icon={ChartNoAxesGantt} title={hasSchedule ? "The first projection is on its way" : "No qualification schedule yet"}
         description={hasSchedule ? "The event is simulated 10,000 times in the background; the projection shows here within a minute or two." : "Projections start once the qualification schedule is published: every remaining match is simulated from current ratings."} />
