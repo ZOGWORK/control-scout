@@ -10,6 +10,8 @@ import type { ProjectionRun, ProjectionsView, ProjectionTeam } from "../shared/p
 
 let view: ProjectionsView | undefined;
 vi.mock("../lib/api", async (orig) => ({ ...(await orig<typeof import("../lib/api")>()), useApi: () => ({ data: view, error: undefined, loading: false, reload: () => {} }), load: () => Promise.resolve() }));
+let localResult: unknown = null;
+vi.mock("../lib/localProjection/run", () => ({ localProjection: async () => localResult ?? { unavailable: "none" } }));
 let tracked: number[] = [];
 vi.mock("../lib/personal", () => ({ usePersonal: () => ({ state: { myTeam: null, tracked: { teams: tracked, events: [] } } }) }));
 
@@ -79,6 +81,54 @@ describe("Projections (live)", () => {
     mount(detail("live"));
     expect(screen.getByText("5,000 simulations • updated after Match 24")).toBeTruthy();
     expect(screen.getByText(/of 10,000/)).toBeTruthy();
+  });
+});
+
+describe("Projections (local estimate)", () => {
+  const local = (o: Partial<ProjectionRun> = {}) => ({ local: true as const, packVersion: "v1", ratingsAsOf: "2026-10-17T12:00:00Z", computeMs: 800, stopped: false, cacheKey: "k", run: run({ runs: 1500, target: 1500, ...o }) });
+  const can = () => {
+    localStorage.setItem("cs-pack-meta", JSON.stringify({ version: "v1", bytes: 1, savedAt: 1, builtAt: "x", engineVersion: "x" }));
+    localStorage.setItem("cs-offline-seasons", JSON.stringify([{ season: 2026, version: "v1", sha256: "x", bytes: 1, savedAt: 1, dataAsOf: null, builtAt: "x" }]));
+    vi.stubGlobal("Worker", class {});
+  };
+  afterEach(() => { localStorage.clear(); vi.unstubAllGlobals(); localResult = null; });
+
+  it("labels it as a local estimate, one tier lower, with no pre-event movement mixed in", async () => {
+    can();
+    localResult = local();
+    view = { season: 2026, code: "TQ1", current: null, baseline: run({ kind: "baseline", played: 0, through: null, computedAt: "x" }), lastOpen: null };
+    mount(detail("live"));
+    expect(await screen.findByText("Local estimate · 1,500 simulations on this device • after Match 24")).toBeTruthy();
+    expect(screen.getAllByText("Local estimate").length).toBeGreaterThan(0);
+    expect(screen.getByText(/simulated on this device from your offline pack \(ratings as of Oct 17\)/)).toBeTruthy();
+    expect(screen.getByText("Provisional")).toBeTruthy(); // the server's run of this state would be Moderate
+    expect(screen.queryByText("before the event")).toBeNull(); // the server's baseline isn't compared against
+    expect(screen.queryByText(/^10,000 simulations/)).toBeNull();
+  });
+
+  it("says when the time cap stopped it, with the real count", async () => {
+    can();
+    localResult = { ...local({ runs: 912 }), stopped: true };
+    view = { season: 2026, code: "TQ1", current: null, baseline: null, lastOpen: null };
+    mount(detail("live"));
+    expect(await screen.findByText("Local estimate · 912 simulations on this device • after Match 24")).toBeTruthy();
+    expect(screen.getByText("912 of 1,500")).toBeTruthy();
+  });
+
+  it("never replaces a stored server run", async () => {
+    can();
+    localResult = local();
+    view = { season: 2026, code: "TQ1", current: run(), baseline: null, lastOpen: null };
+    mount(detail("live"));
+    expect(screen.getByText("10,000 simulations • updated after Match 24")).toBeTruthy();
+    expect(screen.queryByText(/Local estimate/)).toBeNull();
+  });
+
+  it("without the offline packs, stays the server's empty state", () => {
+    localResult = local();
+    view = { season: 2026, code: "TQ1", current: null, baseline: null, lastOpen: null };
+    mount(detail("live"));
+    expect(screen.getByText("The first projection is on its way")).toBeTruthy();
   });
 });
 

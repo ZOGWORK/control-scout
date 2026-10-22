@@ -3,10 +3,12 @@
 // page re-reads the stored runs at once (no reload). When the stream can't be had (the owner's realtime
 // switch is off, too many open, no EventSource, a proxy cut it), the page re-reads them whenever the
 // event's own results refresh (`refreshKey`, the live poll's check time), so it still keeps up.
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { load, useApi, type ApiState } from "./api";
-import type { ConfidenceTier } from "../shared/api";
-import type { ProjectionRun, ProjectionsView, ProjectionTeam } from "../shared/projections";
+import { packStatus } from "./packPolicy";
+import { savedSeasons } from "./offline/saved";
+import type { ConfidenceTier, EventDetail } from "../shared/api";
+import { PROJECTION_RUNS, type ProjectionRun, type ProjectionsView, type ProjectionTeam } from "../shared/projections";
 
 export const projectionsPath = (season: number, code: string) => `/api/projections/${season}/${encodeURIComponent(code)}`;
 
@@ -64,6 +66,103 @@ export function projectionTier(run: ProjectionRun): { tier: ConfidenceTier; reas
   if (run.played === 0) return { tier: "provisional", reason: "Before the first match every result is simulated from ratings." };
   if (left > 0.5) return { tier: "provisional", reason: `${run.played} of ${run.scheduled} qualification matches played: most of the event is still simulated.` };
   return { tier: "moderate", reason: `${run.played} of ${run.scheduled} qualification matches played; the rest are simulated.` };
+}
+
+// ---------------------------------------------------------------------------
+// Local estimate: the fallback simulated on this device (src/lib/localProjection)
+// ---------------------------------------------------------------------------
+
+/** A projection simulated on this device from the offline packs. Never stored with, or shown as, a server run. */
+export interface LocalProjection {
+  local: true;
+  run: ProjectionRun;
+  /** The lite pack the ratings came from, and when it was built (the ratings are as of then). */
+  packVersion: string;
+  ratingsAsOf: string;
+  computeMs: number;
+  /** The time cap ended it before its target: run.runs is the real count. */
+  stopped: boolean;
+  cacheKey: string;
+}
+
+/** "Local estimate · 1,500 simulations on this device": the label a local estimate carries wherever it shows. */
+export function localLabel(runs: number): string {
+  return `Local estimate · ${runs.toLocaleString("en-US")} simulation${runs === 1 ? "" : "s"} on this device`;
+}
+
+const STEP_DOWN: Record<ConfidenceTier, ConfidenceTier> = { confident: "moderate", moderate: "provisional", provisional: "provisional" };
+
+/** A local estimate's tier: one step below what the server's run of the same state would get (fewer simulations,
+ *  ratings as of the offline pack), and provisional when it managed under 1,000 simulations. */
+export function localTier(l: Pick<LocalProjection, "run" | "ratingsAsOf">): { tier: ConfidenceTier; reason: string } {
+  const server = projectionTier(l.run);
+  const tier = l.run.runs < 1000 ? "provisional" : STEP_DOWN[server.tier];
+  const asOf = new Date(l.ratingsAsOf);
+  const when = Number.isNaN(asOf.getTime()) ? "" : ` (ratings as of ${asOf.toLocaleDateString("en-US", { month: "short", day: "numeric" })})`;
+  return { tier, reason: `Estimated on this device: ${l.run.runs.toLocaleString("en-US")} simulations from your offline pack${when}, one tier below the server's ${PROJECTION_RUNS.toLocaleString("en-US")}-simulation projection. ${server.reason}` };
+}
+
+export type ProjectionSource = "server" | "local";
+
+/**
+ * Which projection the page shows. The server's stored run whenever there is one (online, or in a saved pack);
+ * a local estimate only when there's none to be had (no stored run for an open event, or the projections
+ * couldn't be read) and this device can make one. A finished event is never estimated locally: its stored
+ * runs are history, and there's nothing left to simulate.
+ */
+export function projectionSource(o: { finished: boolean; hasCurrent: boolean; loaded: boolean; failed: boolean; hasSchedule: boolean; canRunLocal: boolean }): ProjectionSource {
+  if (o.finished || o.hasCurrent || !o.hasSchedule || !o.canRunLocal) return "server";
+  return o.failed || o.loaded ? "local" : "server";
+}
+
+/** Can this device make a local estimate for the season: a saved season pack, the lite pack and Web Workers. */
+export function canRunLocal(season: number, deps: { saved?: () => { season: number }[]; lite?: () => unknown; worker?: boolean } = {}): boolean {
+  const worker = deps.worker ?? typeof Worker !== "undefined";
+  return worker && !!(deps.lite ?? packStatus)() && (deps.saved ?? savedSeasons)().some((s) => s.season === season);
+}
+
+export type LocalState =
+  | { status: "idle" }
+  | { status: "running"; done: number; target: number }
+  | { status: "done"; value: LocalProjection }
+  | { status: "unavailable"; reason: string }
+  | { status: "error"; message: string };
+
+/** The local estimate while `enabled`: loads the simulator lazily, runs it once per results state (cached), reports progress. */
+export function useLocalProjection(d: EventDetail, enabled: boolean): LocalState {
+  const [state, setState] = useState<LocalState>({ status: "idle" });
+  const latest = useRef(d);
+  latest.current = d;
+  // The payload is a new object on every refresh; only a change in its results asks for another look
+  // (and the results-state key then decides whether anything is simulated again).
+  const results = enabled ? resultsFingerprint(d) : "";
+  useEffect(() => {
+    if (!enabled) { setState({ status: "idle" }); return; }
+    const ctrl = new AbortController();
+    let last = 0;
+    import("./localProjection/run")
+      .then((m) => m.localProjection(latest.current, (done, target) => {
+        // A few updates a second are plenty for a progress bar.
+        const now = performance.now();
+        if (now - last < 120 || ctrl.signal.aborted) return;
+        last = now;
+        setState({ status: "running", done, target });
+      }, ctrl.signal))
+      .then((r) => { if (!ctrl.signal.aborted) setState("unavailable" in r ? { status: "unavailable", reason: r.unavailable } : { status: "done", value: r }); })
+      .catch((e) => { if (!ctrl.signal.aborted) setState({ status: "error", message: e instanceof Error ? e.message : String(e) }); });
+    setState((s) => (s.status === "done" ? s : { status: "running", done: 0, target: 0 }));
+    return () => ctrl.abort();
+  }, [enabled, results]);
+  return state;
+}
+
+/** What of an event payload a simulation reads, cheaply: schedule, results, ranks and alliances. */
+export function resultsFingerprint(d: EventDetail): string {
+  const played = d.matches.filter((m) => m.played);
+  const scores = played.reduce((s, m) => s + (m.red.score?.total ?? 0) * 3 + (m.blue.score?.total ?? 0) * 7, 0);
+  const ranks = d.field.reduce((s, f) => s + (f.rank ?? 0) * f.team, 0);
+  const alliances = (d.alliances ?? []).reduce((s, a) => s + (a.captain ?? 0) + (a.pick1 ?? 0) * 3 + (a.pick2 ?? 0) * 7, 0);
+  return [d.event.season, d.event.code, d.matches.length, played.length, scores, d.field.length, ranks, alliances].join("|");
 }
 
 /** Projected median rank movement since the pre-event baseline: positive = moved up (a better rank). */
