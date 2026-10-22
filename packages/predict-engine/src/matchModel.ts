@@ -168,13 +168,24 @@ export function teamScoreVariance(book: RatingBook, team: number): TeamScoreVari
   return { team, rating: r.uncertainty, consistency: book.reliabilityOf(team).variance, matches: r.n };
 }
 
+/**
+ * Game-noise variance (points²) of an alliance's score at expected level `mean`: (a + b·mean)² times
+ * the band's scale, per-team consistency, small-sample and playoff factors (see the header).
+ * `consistency` is the alliance's average per-team variance factor, `minMatches` the fewest matches
+ * any of its robots has played. Shared by the score ranges and the event simulator (engine 2.6), so
+ * both spread an alliance's score the same way.
+ */
+export function gameVariance(mean: number, consistency: number, minMatches: number, noise: NoiseParams = DEFAULT_NOISE, band: BandParams = DEFAULT_BAND, context: MatchContext = {}): number {
+  const game = noise.a + noise.b * Math.max(0, mean);
+  return game * game * band.scale * Math.max(1e-6, consistency) ** band.consistencyPower
+    * (1 + band.smallSample / (minMatches + 1)) * (context.level === "playoff" ? band.playoff : 1);
+}
+
 function distributionOf(book: RatingBook, teams: number[], mean: number, uncertainty: number, noise: NoiseParams, band: BandParams, context: MatchContext): ScoreDistribution {
   const vs = teams.map((t) => teamScoreVariance(book, t));
   const consistency = vs.length ? vs.reduce((s, v) => s + v.consistency, 0) / vs.length : 1;
   const minMatches = vs.length ? Math.min(...vs.map((v) => v.matches)) : 0;
-  const game = noise.a + noise.b * Math.max(0, mean);
-  const gameVar = game * game * band.scale * Math.max(1e-6, consistency) ** band.consistencyPower
-    * (1 + band.smallSample / (minMatches + 1)) * (context.level === "playoff" ? band.playoff : 1);
+  const gameVar = gameVariance(mean, consistency, minMatches, noise, band, context);
   const ratingVar = band.rating * uncertainty;
   return { mean, sd: Math.sqrt(gameVar + ratingVar), gameVar, ratingVar, consistency, minMatches };
 }
