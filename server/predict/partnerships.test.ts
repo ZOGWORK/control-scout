@@ -93,8 +93,11 @@ describe("partnership memory (server)", () => {
 });
 
 describe("partnership memory on an earlier season of the window", () => {
-  const now = CURRENT_SEASON, last = CURRENT_SEASON - 1;
+  const now = CURRENT_SEASON, last = CURRENT_SEASON - 1, oldest = CURRENT_SEASON - 2;
   beforeAll(async () => {
+    // The window's oldest season: other teams play (11 and 12, who played 2022 and 2023, don't).
+    await run("INSERT OR REPLACE INTO seasons (season, name, frozen, last_complete) VALUES (?, 'G', 1, '2026-01-01')", [oldest]);
+    await event(oldest, "USO1", "Old Qualifier", `${oldest}-11-02`, [[[41, 42], 80, [43, 44], 70], [[41, 43], 75, [42, 44], 65]]);
     for (const x of [last, now]) await run("INSERT OR REPLACE INTO seasons (season, name, frozen, last_complete) VALUES (?, 'G', 0, NULL)", [x]);
     // Last season: 21 and 22 play together twice. This season: twice more, scoring higher.
     await event(last, "USP1", "Past Qualifier", `${last}-11-07`, [[[21, 22], 100, [23, 24], 50], [[21, 22], 110, [25, 26], 40], [[23, 25], 60, [24, 26], 60]]);
@@ -157,5 +160,12 @@ describe("partnership memory on an earlier season of the window", () => {
       await run("UPDATE seasons SET frozen = 0 WHERE season = ?", [last]);
       resetForecasters();
     }
+  });
+
+  it("counts the teams of the season before the window's oldest season, as a forecaster anchored there would", async () => {
+    // 11 and 12 were rated in 2023 only (not in the window): a 2024 call about them keeps their history.
+    expect(oldest - 1).toBe(2023);
+    const r = await (await fetch(`${base}/api/predict/match?season=${oldest}&red=11,12&blue=41,42`)).json();
+    expect(r.history?.label).toMatch(/^11 and 12 have played 3 matches together \(3–0\)/);
   });
 });

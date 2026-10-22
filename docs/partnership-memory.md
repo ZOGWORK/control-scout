@@ -87,7 +87,10 @@ robots on the same alliance that played together before.
   never reads pairs from later matches: the current season's table is kept up to date, and
   each earlier season of the forecaster's window (a 2025–26 call while 2026–27 is current)
   has its own table, snapshotted at that season's end while the window replays, just as
-  that season's ratings are its end-of-season ratings. A season before the window gets its
+  that season's ratings are its end-of-season ratings. Each snapshot keeps the pairs of teams
+  rated that season or the one before; for the window's oldest season the season before isn't
+  replayed, so its teams come from the database, and the snapshot matches what a forecaster
+  anchored on that season builds. A season before the window gets its
   own forecaster, whose table ends with it. An earlier season that can still receive results
   (not yet frozen by the sync) keeps its weak pairs, so a fresh result at one of its events
   still counts a pair's one stored match; a frozen season leaves them out (about 3.5x fewer
