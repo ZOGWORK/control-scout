@@ -32,7 +32,7 @@ export interface SliceMetrics {
   shareBrier: number;
   /** Σ (Brier − corpus mean Brier) over the slice: how much more error than an average match it carries. */
   excessBrier: number;
-  /** Mean of (p − y)² − p(1 − p): Brier above what the model's own probabilities expected (> 0 = overconfident). */
+  /** Mean of (p − y)² − p(1 − p) over decided matches: Brier above what the model's own probabilities expected (> 0 = overconfident). */
   surprise: number;
   /** Fewer than LOW_CONFIDENCE_N matches: shown, never trusted. */
   lowConfidence: boolean;
@@ -64,8 +64,9 @@ function metricsOf(rows: ScoredRow[], total: { n: number; brierSum: number; mean
     const p = clip(r.p), b = (p - r.y) ** 2;
     brierSum += b;
     ll += -(r.y * Math.log(p) + (1 - r.y) * Math.log(1 - p));
-    surprise += b - p * (1 - p);
-    if (r.y !== 0.5) { decided++; correct += r.p === 0.5 ? 0.5 : (r.p > 0.5) === (r.y === 1) ? 1 : 0; }
+    // Surprise compares against the binary-outcome expectation p(1 − p); a half-scored tie lands 0.25 below
+    // half a win plus half a loss and would read as timidity, so ties are left out.
+    if (r.y !== 0.5) { surprise += b - p * (1 - p); decided++; correct += r.p === 0.5 ? 0.5 : (r.p > 0.5) === (r.y === 1) ? 1 : 0; }
     const fav = Math.max(p, 1 - p);
     favP += fav;
     favW += r.y === 0.5 ? 0.5 : (p >= 0.5) === (r.y === 1) ? 1 : 0;
@@ -86,7 +87,7 @@ function metricsOf(rows: ScoredRow[], total: { n: number; brierSum: number; mean
     shareMatches: total.n ? n / total.n : NaN,
     shareBrier: total.brierSum ? brierSum / total.brierSum : NaN,
     excessBrier: brierSum - n * total.meanBrier,
-    surprise: n ? surprise / n : NaN,
+    surprise: decided ? surprise / decided : NaN,
     lowConfidence: n < LOW_CONFIDENCE_N,
   };
 }

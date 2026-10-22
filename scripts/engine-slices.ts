@@ -36,8 +36,10 @@ const SEASONS = flag("--seasons")?.split(",").map(Number) ?? PREDICT_SEASONS;
 const OUT = flag("--out") ?? join("docs", "engine", "slices");
 const ROWS = flag("--rows");
 const LIVE = args.includes("--live");
-/** The champion's own out-of-sample season, which sets the priority order (fit + calibration used 2023–24). */
-const PRIMARY = 2025;
+/** The champion's own out-of-sample season, which sets the priority order (fit + calibration used 2023–24);
+ *  the latest requested season when 2025–26 isn't replayed. */
+const PRIMARY = SEASONS.includes(2025) ? 2025 : Math.max(...SEASONS);
+const primaryLabel = `${seasonInfo(PRIMARY).label}${PRIMARY === 2025 ? " (reused)" : ""}`;
 
 await migrate();
 const M = FITTED_MODEL;
@@ -145,7 +147,7 @@ for (const model of MODELS) {
 }
 /** The program's baseline check: Engine 1.x on 2025–26 must reproduce the published 72.7% / Brier 0.179 (to the rounding shown). */
 const baselineCheck = (() => {
-  const a = reports.legacy[String(PRIMARY)]?.all;
+  const a = reports.legacy["2025"]?.all;
   if (!a?.n) return null;
   return { matches: a.n, accuracy: a.accuracy, brier: a.brier, published: { accuracy: 0.727, brier: 0.179 }, pass: Math.abs(a.accuracy - 0.727) <= 0.0005 && Math.abs(a.brier - 0.179) <= 0.0005 };
 })();
@@ -162,7 +164,9 @@ if (LIVE) {
     if (!r) continue;
     const p = Number(x.p_red);
     const list = byEngine.get(x.engine_version) ?? [];
-    list.push({ p, y: Number(x.outcome), tags: tagsOf(r, { ...r.pred.champion, p }) });
+    // The live call stored its probability but not its score spread: no margin band (the replay's would be another call's).
+    const { margin: _replayMargin, ...tags } = tagsOf(r, { ...r.pred.champion, p });
+    list.push({ p, y: Number(x.outcome), tags });
     byEngine.set(x.engine_version, list);
   }
   live = [...byEngine].sort().map(([engine, xs]) => ({ engine, report: sliceReport(xs, DATA_DIMS) }));
@@ -189,7 +193,7 @@ function markdown(): string {
   const seasonsTable = ["| Season | Model | Matches | Accuracy | Brier | Log loss | ECE |", "|---|---|---|---|---|---|---|"];
   for (const [name] of blocks) for (const model of MODELS) {
     const a = reports[model][name].all;
-    seasonsTable.push(`| ${seasonInfo(Number(name)).label}${Number(name) === PRIMARY ? " (reused)" : ""} | ${model} | ${a.n.toLocaleString("en-US")} | ${f(a.accuracy)} | ${b(a.brier)} | ${a.logLoss.toFixed(4)} | ${f(a.ece10)} |`);
+    seasonsTable.push(`| ${seasonInfo(Number(name)).label}${Number(name) === 2025 ? " (reused)" : ""} | ${model} | ${a.n.toLocaleString("en-US")} | ${f(a.accuracy)} | ${b(a.brier)} | ${a.logLoss.toFixed(4)} | ${f(a.ece10)} |`);
   }
   const unratedTable = ["| Season | Model | Matches | Accuracy | Brier | Log loss |", "|---|---|---|---|---|---|"];
   for (const [name] of unratedBlocks) for (const model of MODELS) {
@@ -223,7 +227,7 @@ function markdown(): string {
     "",
     ...unratedTable,
     "",
-    `## Where the champion loses most (${seasonInfo(PRIMARY).label})`,
+    `## Where the champion loses most (${primaryLabel})`,
     "",
     "Ranked by **excess Brier**: the Brier a slice carries above an average match, summed over its matches (Σ(Brier − corpus mean)). Only data slices compete, at most one per dimension: the dimensions overlap (thin data shows up as few matches, thin density and unmeasured volatility), and three views of one weakness would hide the next. Probability and margin bands are calibration diagnostics: a coin-flip band carries more Brier by construction.",
     "",
@@ -231,22 +235,22 @@ function markdown(): string {
     "|---|---|---|---|---|",
     ...P.top.map((t, i) => `| ${i + 1} | ${LABELS[t.dim]}: **${t.value}** | +${t.excessBrier.toFixed(1)} | ${f(t.shareBrier, 1)} | ${f(t.shareMatches, 1)} |`),
     "",
-    "**Surprise** is the mean of (p − y)² − p(1 − p): the Brier above what the model's own probabilities expected. Above zero means the model is too sure in that slice; below zero means too timid. **Fav. stated → won** compares the favourite's mean stated chance with how often it won.",
+    "**Surprise** is the mean of (p − y)² − p(1 − p) over decided matches (ties left out): the Brier above what the model's own probabilities expected. Above zero means the model is too sure in that slice; below zero means too timid. **Fav. stated → won** compares the favourite's mean stated chance with how often it won.",
     "",
-    `### Calibration by stated chance (champion, ${seasonInfo(PRIMARY).label})`,
+    `### Calibration by stated chance (champion, ${primaryLabel})`,
     "",
     calibrationMarkdown(P.calibration),
     "",
-    `### All slices (champion, ${seasonInfo(PRIMARY).label})`,
+    `### All slices (champion, ${primaryLabel})`,
     "",
     sliceTable(P.dims, ORDER, LABELS),
   ];
   for (const s of SEASONS.filter((x) => x !== PRIMARY)) {
     const R = reports.champion[String(s)];
     if (!R.all.n) continue;
-    out.push(`## Champion, ${seasonInfo(s).label}${s < PRIMARY ? " (in-sample for the champion)" : " (season in progress)"}`, "", "Top excess-Brier slices: " + (R.top.map((t) => `${LABELS[t.dim]} **${t.value}** (+${t.excessBrier.toFixed(1)})`).join("; ") || "none"), "", calibrationMarkdown(R.calibration), "", sliceTable(R.dims, ORDER, LABELS));
+    out.push(`## Champion, ${seasonInfo(s).label}${s < 2025 ? " (in-sample for the champion)" : s > 2025 ? " (season in progress)" : " (reused)"}`, "", "Top excess-Brier slices: " + (R.top.map((t) => `${LABELS[t.dim]} **${t.value}** (+${t.excessBrier.toFixed(1)})`).join("; ") || "none"), "", calibrationMarkdown(R.calibration), "", sliceTable(R.dims, ORDER, LABELS));
   }
-  out.push(`## Baselines on ${seasonInfo(PRIMARY).label}`, "");
+  out.push(`## Baselines on ${primaryLabel}`, "");
   for (const model of ["v2.0", "legacy"] as const) {
     const R = reports[model][String(PRIMARY)];
     out.push(`### ${model}`, "", "Top excess-Brier slices: " + R.top.map((t) => `${LABELS[t.dim]} **${t.value}** (+${t.excessBrier.toFixed(1)})`).join("; "), "", calibrationMarkdown(R.calibration), "", sliceTable(R.dims, ORDER, LABELS));

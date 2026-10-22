@@ -46,6 +46,13 @@ describe("sliceReport", () => {
     expect(sliceReport(overconfident, []).all.surprise).toBeGreaterThan(0.1);
     expect(sliceReport(overconfident, []).all.calGap).toBeCloseTo(0.7 - 0.95, 12);
   });
+
+  it("leaves ties out of surprise", () => {
+    const calibrated: ScoredRow[] = [];
+    for (let i = 0; i < 1000; i++) calibrated.push(row(0.7, i % 10 < 7 ? 1 : 0));
+    const withTies = [...calibrated, ...Array.from({ length: 300 }, () => row(0.7, 0.5))];
+    expect(Math.abs(sliceReport(withTies, []).all.surprise)).toBeLessThan(1e-12);
+  });
 });
 
 describe("calibrationTable", () => {
