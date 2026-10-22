@@ -20,7 +20,7 @@ import { computeRecords, fillAdvancementOdds, fillRecordPredictions } from "./re
 import { snapshotRankings } from "./rankings.js";
 import { partnershipPrefix } from "../predict/partnerships.js";
 import { pairHistory } from "../../src/shared/pairHistory.js";
-import { computeReportCards } from "./reportCards.js";
+import { refreshReportCards } from "./reportCards.js";
 import { computeReliability } from "./reliability.js";
 
 type Log = (m: string) => void;
@@ -480,8 +480,9 @@ export async function runStats(o: StatsOptions = {}): Promise<void> {
     await fillAdvancementOdds(s, log);
   }
   await scoreLivePredictions(log);
-  // Report cards read the scored live calls: right after they're scored. Seasons with live calls only.
-  for (const s of withData) if (!isLegacy(s) && (await get("SELECT 1 FROM predictions WHERE kind = 'live' AND season = ? LIMIT 1", [s]))) await computeReportCards(s, log);
+  // Report cards read the scored live calls: right after they're scored. Every season whose scored live
+  // calls changed since its cards were built, not just the seasons this run covered.
+  await refreshReportCards(log);
   await logLivePredictions(log);
   // Today's coin flips on the home page, from the schedules and calls just written (never fails the stats).
   await (await import("../api/coinFlips.js")).refreshCoinFlips(log);

@@ -21,6 +21,30 @@ Projections even with no signal: a local estimate simulated on your device.
 ### Offline
 - **Local estimate of an event's projections.** When the stored 10,000-simulation projection can't be had (no signal and your saved season doesn't carry one, or none has been made yet) and the season is saved for offline use, the Odds tab simulates the rest of the event on your device instead: 1,500 runs of the same engine, built with the same steps and the same seed the server uses for those results, in a background worker with a progress bar. It stops after 2 seconds of work on a slow phone and says how many runs it managed. It's labelled "Local estimate · 1,500 simulations on this device" wherever it shows, sits one confidence tier below the server's projection, never shows movement against the server's pre-event projection, and gives way to the stored projection as soon as that can be read. Each results state is simulated once per device and kept, so opening the event again doesn't run it again. On four replayed championships, its median ranks were within one place of the server's 10,000-run projection for every team. (#238)
 
+## 1.19.2 — 2026-10-21
+
+Partnership history on last season's predictions too.
+
+### Highlights
+- [predict] "Played 24 matches together" now shows on 2025–26 calls as well
+- [history] Counted only through that season's end, never a later match
+- [predict] On 2024–25 events and lab calls as well; the odds don't change
+
+### Predictions
+- **Partnership memory on earlier seasons.** A prediction for an earlier season (the Predict lab or an event of 2025–26 or 2024–25) now shows the same pair history line as this season's calls. It reads the pairs as they stood at that season's end, the way that season's ratings are its end-of-season ratings, so a later match never counts. Still a reason only: no odds, score or range changes, and no engine change. (#236)
+
+## 1.19.1 — 2026-10-21
+
+Report cards stay up to date for every season, not just the current one.
+
+### Highlights
+- [report] Report cards for past seasons catch up when a late result is scored
+- [report] Live calls only, as always: the replay never counts
+- [speed] Unchanged seasons are skipped: a quick check, not a rebuild
+
+### Predictions
+- **Report cards for every season.** A season's predictability report cards are rebuilt whenever its scored live calls change, after every stats run and every live result, whichever season the call belongs to. Before, only the current season was rebuilt between full recomputes, so a past season could show cards that missed its last scored calls. Seasons whose calls haven't changed are skipped after a quick check. A season is still rebuilt when one of its events turns final, or stops being final because a sync added a match or moved its dates. Live calls only, as always. (#235)
+
 ## 1.19.0 — 2026-10-21
 
 Pick on reliability, not just peak scoring: a dependability estimate next to OPR.
