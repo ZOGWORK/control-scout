@@ -2,51 +2,21 @@
 // (official slots, already-qualified teams, recorded bonus RPs, no result learned twice), its seed is the
 // server's for the same results state, the same state never simulates twice, and leaving cancels the worker.
 import { beforeAll, beforeEach, describe, expect, it } from "vitest";
-import { FITTED_MODEL, RatingBook, type BonusFlags } from "@control-scout/predict-engine";
-import type { EventDetail } from "../../shared/api";
 import { projectionSeed } from "../../shared/projectionCore";
 import { inputKey } from "../../../server/projections/state";
 import { projectionInput } from "../../shared/projectionInput";
 import { toEventInput } from "../../shared/eventInput";
-import { readEventDetail, wrap, type SeasonDb } from "../offline/readers";
-import { packDb } from "../offline/testFixture";
-import type { LitePack } from "../packs";
+import type { SeasonDb } from "../offline/readers";
+import type { LiteLearned } from "../../shared/liteLearned";
 import { PackForecaster, readPackFacts } from "./forecaster";
 import { LOCAL_RUNS, workerHandler, type FromWorker, type ToWorker } from "./protocol";
-import { localProjection, prepareLocal, resetLocalCache, runInWorker, withNewerRatings, type Prepared } from "./run";
-
-const S = 2025, CODE = "USNJQ5";
-const TEAMS = [101, 102, 103, 104, 105, 106, 107, 108];
-const bonus = (movement: boolean, goal: boolean, pattern: boolean): string => JSON.stringify({ movement, goal, pattern } satisfies BonusFlags);
-const matchRow = (n: number, played: boolean, red: number, blue: number, redBonus: string | null = null) => ({
-  season: S, code: CODE, level: "qual", series: 0, number: n, label: `Q${n}`, description: `Q${n}`, time: `2025-11-08T09:${String(n * 7).padStart(2, "0")}:00`, played: played ? 1 : 0,
-  ...(played ? { red_total: red, red_np: red, red_auto: 20, red_teleop: red - 40, red_endgame: 20, red_pen: 0, red_bonus: redBonus, blue_total: blue, blue_np: blue, blue_auto: 15, blue_teleop: blue - 35, blue_endgame: 20, blue_pen: 0, blue_bonus: null } : {}),
-  source: "first",
-});
-const lineup = (n: number, red: number[], blue: number[]) => [...red.map((t, i) => ({ t, a: "red", s: i + 1 })), ...blue.map((t, i) => ({ t, a: "blue", s: i + 1 }))]
-  .map(({ t, a, s }) => ({ season: S, code: CODE, level: "qual", series: 0, number: n, team: t, alliance: a, station: s, surrogate: 0, dq: 0, on_field: 1 }));
+import { cacheKey, localProjection, prepareLocal, ratingsLearned, resetLocalCache, runInWorker, type Prepared } from "./run";
+import { CODE, S, book, deps as packDeps, detail as packDetail, lite, seasonPack } from "./testPack";
 
 let sdb: SeasonDb;
-beforeAll(async () => {
-  const db = await packDb(S, {
-    teams: TEAMS.map((n) => ({ number: n, name: `Team ${n}` })),
-    events: [{ season: S, code: CODE, name: "NJ Qualifier 5", type: "Qualifier", region: "USNJ", city: "Edison", state: "NJ", country: "USA", start: "2025-11-08", end: "2025-11-08", timezone: "America/New_York", remote: 0, source: "first" }],
-    event_teams: TEAMS.map((t) => ({ season: S, code: CODE, team: t })),
-    matches: [matchRow(1, true, 120, 80, bonus(true, false, true)), matchRow(2, true, 90, 110), matchRow(3, false, 0, 0), matchRow(4, false, 0, 0)],
-    match_teams: [...lineup(1, [101, 102], [103, 104]), ...lineup(2, [105, 106], [107, 108]), ...lineup(3, [101, 103], [105, 107]), ...lineup(4, [102, 104], [106, 108])],
-    advancement: [{ season: S, code: CODE, slots: 3, advances_to: "USNJCMP", rows: JSON.stringify([{ team: 104, status: "ALREADY_ADVANCING", declined: false }, { team: 108, status: "INELIGIBLE", declined: false }]) }],
-  });
-  sdb = { season: S, db: wrap(db) };
-});
-
-const book = () => { const b = new RatingBook(FITTED_MODEL.rating); b.startSeason(S); return b; };
-const lite = (version = "v1", builtAt = "2025-11-07T00:00:00Z"): LitePack => ({ format: 1, version, builtAt, engineVersion: "x", books: { [S]: book().toData() }, teams: [] });
-const detail = () => readEventDetail(sdb, CODE)!;
-const deps = (o: { version?: string; packVersion?: string } = {}) => ({
-  lite: async () => lite(o.version),
-  facts: async () => ({ facts: readPackFacts(sdb.db, S, CODE), version: o.packVersion ?? "v1" }),
-  now: Date.parse("2025-11-08T12:00:00Z"),
-});
+beforeAll(async () => { sdb = await seasonPack(); });
+const detail = () => packDetail(sdb);
+const deps = (o: Parameters<typeof packDeps>[1] = {}) => packDeps(sdb, o);
 
 /** A stand-in Worker that runs the real message handler in this thread. */
 function fakeWorker(log: ToWorker[] = []) {
@@ -105,11 +75,47 @@ describe("the local estimate's input", () => {
     expect(await prepareLocal(noSchedule, deps())).toEqual({ unavailable: expect.stringMatching(/No qualification schedule/) });
   });
 
-  it("a newer lite pack learned what the saved season pack hasn't: no result is folded in twice", () => {
-    const facts = { ...readPackFacts(sdb.db, S, CODE), storedKeys: new Set<string>() };
-    const ev = toEventInput(detail().event, detail().field, detail().matches, detail().alliances);
-    expect([...withNewerRatings(facts, ev, "2025-11-08T09:10:00Z").storedKeys]).toEqual(["qual:0:1"]);
-    expect([...withNewerRatings(facts, ev, "2025-11-09T00:00:00Z").storedKeys].sort()).toEqual(["qual:0:1", "qual:0:2"]);
+  // The lite pack's record says which results its ratings learned; every other played result is folded in.
+  const record = (keys: string[]): LiteLearned => ({ since: "2025-11-01", events: { [S]: { [CODE]: keys } } });
+  const n = async (o: Parameters<typeof deps>[0], team: number) => ((await prepareLocal(detail(), deps(o))) as Prepared).input.ratings.get(team)!.n;
+
+  it("folds in a result the lite pack's ratings didn't learn, even one scheduled before the pack was built", async () => {
+    // Q2 (09:14, before the 09:30 build) arrived after the build: the record lists only Q1.
+    const late = await n({ learned: record(["qual:0:1"]), packVersion: "v2" }, 105);
+    const both = await n({ learned: record(["qual:0:1", "qual:0:2"]), packVersion: "v2" }, 105);
+    expect(late).toBe(both + 1); // learned once from this event's Q2, not skipped
+    expect(ratingsLearned(lite("v1", record(["qual:0:1"])), { facts: readPackFacts(sdb.db, S, CODE), version: "v2" }, S, CODE, "2025-11-08")).toEqual(new Set(["qual:0:1"]));
+  });
+
+  it("a newer season pack with an older lite pack never counts results the ratings didn't learn", async () => {
+    // The record covers the event: a newer season pack's stored Q1–Q2 don't matter.
+    expect(ratingsLearned(lite("v1", record([])), { facts: readPackFacts(sdb.db, S, CODE), version: "v2" }, S, CODE, "2025-11-08")).toEqual(new Set());
+    // Covered by the window but not listed: none learned.
+    expect(ratingsLearned(lite("v1", { since: "2025-11-01", events: {} }), { facts: readPackFacts(sdb.db, S, CODE), version: "v2" }, S, CODE, "2025-11-08")).toEqual(new Set());
+    // No record (an older lite pack) and another release: can't know, so no estimate, and the page says why.
+    expect(await prepareLocal(detail(), deps({ version: "v1", packVersion: "v2" }))).toEqual({ unavailable: expect.stringMatching(/different releases/) });
+    // An event older than the record's window, other release: same.
+    expect(ratingsLearned(lite("v1", { since: "2025-12-01", events: {} }), { facts: readPackFacts(sdb.db, S, CODE), version: "v2" }, S, CODE, "2025-11-08")).toBeNull();
+  });
+
+  it("an older lite pack from the same release as the season pack: the pack's stored results are what it learned", async () => {
+    expect(ratingsLearned(lite("v1"), { facts: readPackFacts(sdb.db, S, CODE), version: "v1" }, S, CODE, "2025-11-08")).toEqual(new Set(["qual:0:1", "qual:0:2"]));
+    expect("unavailable" in (await prepareLocal(detail(), deps()))).toBe(false);
+  });
+
+  it("a schedule correction or a DQ is a new results state (new key, so a new run)", async () => {
+    const key = async (d: ReturnType<typeof detail>) => cacheKey((await prepareLocal(d, deps())) as Prepared);
+    const base = await key(detail());
+    expect(await key(detail())).toBe(base);
+    // Team swap in an unplayed match: same totals, same played count.
+    const swap = detail();
+    const q3 = swap.matches.find((m) => m.label === "Q3")!;
+    [q3.red.teams[0], q3.blue.teams[0]] = [q3.blue.teams[0], q3.red.teams[0]];
+    expect(await key(swap)).not.toBe(base);
+    // A DQ on a played match: scores unchanged.
+    const dq = detail();
+    dq.matches.find((m) => m.label === "Q1")!.red.teams[0].dq = true;
+    expect(await key(dq)).not.toBe(base);
   });
 });
 

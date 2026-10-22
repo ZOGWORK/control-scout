@@ -10,6 +10,7 @@
 // answer.ts), loaded lazily with no signal.
 import type { BonusModelSource, RatingBookData } from "@control-scout/predict-engine";
 import type { LitePairs } from "../shared/litePairs";
+import type { LiteLearned } from "../shared/liteLearned";
 import { PACK_META_KEY, packStatus, type PackMeta } from "./packPolicy";
 
 export { packStatus, type PackMeta } from "./packPolicy";
@@ -30,6 +31,8 @@ export interface LitePack {
   teams: [number, string | null, string | null][];
   /** Pair history for the newest season, cut down for the device (src/shared/litePairs.ts; absent in older packs). */
   pairs?: LitePairs | null;
+  /** Which results the ratings learned, per recent event (src/shared/liteLearned.ts; absent in older packs). */
+  learned?: LiteLearned;
 }
 
 const DB = "control-scout-packs";
