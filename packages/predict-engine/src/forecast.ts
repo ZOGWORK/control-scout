@@ -4,7 +4,7 @@
 // extend Forecaster and supply the data — ratings, stored results,
 // advancement records and award history.
 import { npOf, type RatingBook, type RatingParams } from "./rating.js";
-import { predictMatch, type BandParams, type NoiseParams, type ScoreBand } from "./matchModel.js";
+import { predictMatch, teamScoreVariance, type BandParams, type NoiseParams, type ScoreBand } from "./matchModel.js";
 import type { CalibrationParams } from "./calibration.js";
 import type { ContextualModel, MatchContext } from "./contextual.js";
 import { bonusCount } from "./rules.js";
@@ -66,8 +66,19 @@ export interface Forecast {
   matchesOnly: { team: number; pAdvance: number } | null;
   /** Every scheduled/played match at the event with its prediction (from current ratings). */
   matches: ForecastMatch[];
+  /** How this forecast's simulated qualification matches earned bonus RPs (engine 2.6; see BonusDraws). */
+  bonusDraws: BonusDraws;
   generatedAt: string;
 }
+
+/**
+ * Where a forecast's simulated bonus ranking points came from: "model" (a bonus model, as the
+ * forecaster's bonusModel() served it), "event" (drawn from this event's recorded results), "none"
+ * (no bonus RPs simulated: simulated ranks count win/tie points only), or null when bonus RPs don't
+ * matter (a season without them, or quals over and official ranks known). Apps drive any "not
+ * modelled" warning from this one value, not from which shipped fits exist.
+ */
+export type BonusDraws = "model" | "event" | "none" | null;
 
 export interface ForecastMatch {
   key: string;
@@ -301,7 +312,7 @@ export abstract class Forecaster {
     return out.size ? out : undefined;
   }
 
-  private simInput(ev: EventInput, stage: Stage, book: RatingBook, runs: number): { input: SimInput; assumptions: string[]; adv: ReturnType<Forecaster["advancementFor"]> } {
+  private simInput(ev: EventInput, stage: Stage, book: RatingBook, runs: number): { input: SimInput; assumptions: string[]; adv: ReturnType<Forecaster["advancementFor"]>; bonusDraws: BonusDraws } {
     const assumptions: string[] = [];
     const startTime = ev.start ? Date.parse(`${ev.start}T00:00:00Z`) : Date.now();
     const teams = ev.field.map((t) => t.teamNumber);
@@ -339,8 +350,15 @@ export abstract class Forecaster {
         for (let i = 0; i + 3 < order.length; i += 4) quals.push({ red: [order[i], order[i + 1]], blue: [order[i + 2], order[i + 3]] });
       }
     }
-    const bonus = this.model.bonus[String(ev.season)];
+    // Bonus RPs of simulated matches come from the season's bonus model as this forecaster serves it
+    // (bonusModel: the shipped fit by default, an app's own season fit, and for a forecast of a past
+    // moment bonusModelBefore), so a "before the event" run never learns from results played after it
+    // began, and never falls back to the shipped whole-season fit (engine 2.6).
+    const bonus = ev.season >= 2025 ? this.bonusModel(ev.season)?.model : undefined;
     let bonusSamples: number[] | undefined;
+    if (stage === "pre" && ev.season >= 2025 && !bonus) {
+      assumptions.push("No bonus ranking point model is available from results before this point, so simulated matches earn no bonus RPs.");
+    }
     if (stage === "live" && ev.season >= 2025) {
       const sides = quals.flatMap((q) => (q.result ? [q.result.red, q.result.blue] : []));
       const unreported = sides.filter((s) => !s.bonus).length;
@@ -370,10 +388,14 @@ export abstract class Forecaster {
     const playoffPlayed = stage === "selected" ? this.playoffResults(ev) : undefined;
     if (playoffPlayed) assumptions.push("Playoff matches already played keep their real results.");
     const input: SimInput = {
-      season: ev.season, ratings, quals, noise: this.model.noise, bonus, bonusSamples, pick: this.model.pick, ranks, alliances, awards, playoffPlayed,
+      season: ev.season, ratings, quals, noise: this.model.noise,
+      // Per-team score spread (engine 2.6): the same inputs the stated score ranges use.
+      variance: new Map(teams.map((t) => { const v = teamScoreVariance(book, t); return [t, { consistency: v.consistency, matches: v.matches }]; })), band: this.model.band,
+      bonus, bonusSamples, pick: this.model.pick, ranks, alliances, awards, playoffPlayed,
       prequalified: new Set(adv.prequalified), ineligible: new Set(adv.ineligible), slots: adv.slots, runs, seed: 1,
     };
-    return { input, assumptions, adv };
+    const bonusDraws: BonusDraws = ev.season < 2025 || stage === "quals" || stage === "selected" ? null : bonus ? "model" : bonusSamples?.length ? "event" : "none";
+    return { input, assumptions, adv, bonusDraws };
   }
 
   // -------------------------------------------------------------------------
@@ -401,7 +423,7 @@ export abstract class Forecaster {
     if (pairs && ev.name) pairs.nameEvent(ev.season, ev.code, ev.name);
     const book = this.eventBook(ev, seasonBook, pairs);
     const stage = this.stageOf(ev);
-    const { input, assumptions, adv } = this.simInput(ev, stage, book, runs);
+    const { input, assumptions, adv, bonusDraws } = this.simInput(ev, stage, book, runs);
     if (normType(ev.type) === "Championship" && adv.source !== "official") {
       assumptions.push("Championship divisions are treated as their own event; the real slots are shared across divisions.");
     }
@@ -428,7 +450,7 @@ export abstract class Forecaster {
     teams.sort((a, b) => b.pAdvance - a.pAdvance || a.rank.mean - b.rank.mean);
     return {
       season: ev.season, event: ev.code, stage, runs, slots: adv.slots, slotsSource: adv.source,
-      prequalified: adv.prequalified.filter((t) => res.has(t)), assumptions, teams, matchesOnly, matches,
+      prequalified: adv.prequalified.filter((t) => res.has(t)), assumptions, teams, matchesOnly, matches, bonusDraws,
       generatedAt: new Date().toISOString(),
     };
   }

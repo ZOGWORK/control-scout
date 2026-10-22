@@ -137,6 +137,7 @@ export default function MethodologyPage() {
             <h3>The details that make it realistic</h3>
             <CleanList items={[
               <><strong>A robot's day is drawn once per run.</strong> If a team is having a great day in one simulated event, it's great all day long, not great in one match and awful in the next. That's how real events feel.</>,
+              <><strong>Erratic robots spread wider.</strong> Each simulated score also gets match-to-match noise, sized for the alliance the same way the score ranges are: wider when its robots' results swing more than the model expects, or when one of them has played only a few matches this season.</>,
               <><strong>Played matches stay played.</strong> Halfway through quals, the engine keeps the real results and only simulates what's left. The same goes for real alliances and real playoff results once they happen.</>,
               <><strong>Ranking points follow the real rules.</strong> 2025–26 gives 3 for a win and 1 for a tie, plus movement, goal and pattern bonus RPs, whose odds rise with an alliance's score. The tiebreaker is average non-penalty score. Checked against official data, the rules match 99.7% of real rankings.</>,
               <><strong>Captains pick like real captains.</strong> Fitted on 2,072 real picks, captains favour strong robots and, a bit, high-ranked ones. The real first pick was in the model's top three about {Math.round(((MODEL.accuracy as { pickTop3: number }).pickTop3) * 100)}% of the time.</>,
@@ -149,7 +150,7 @@ export default function MethodologyPage() {
           <Prose>
             <h3>"What if we pick them?"</h3>
             <p>Because the simulator can force any pairing, the advancement tab answers partner questions. If you're likely to captain: "if we pick team X, our odds become…". If you're likely to be picked: "if captain Y picks us…". When this was tested on real alliances, knowing the actual partner cut the error on "this alliance wins the event" by about 16% compared with general after-quals odds (Brier 0.072 vs 0.086, in the engine's held-out test).</p>
-            <p>For an event that has already happened, "Before the event" replays the ratings to the day before it started and hides its results. That's the forecast without hindsight.</p>
+            <p>For an event that has already happened, "Before the event" replays the ratings to the day before it started and hides its results. Its bonus ranking point odds learn only from results played before the event started. That's the forecast without hindsight.</p>
           </Prose>
           <Prose id="projections">
             <h3>Live projections</h3>
@@ -184,7 +185,7 @@ export default function MethodologyPage() {
             <CleanList items={[
               <><strong>A new robot until it plays.</strong> If you rebuilt over the break, the engine still thinks you're the old robot until your first match.</>,
               <><strong>What a scout would see.</strong> Drivers having a bad day, how well two robots actually work together, field faults, and anything you'd notice in the pits.</>,
-              <><strong>2026–27 BIOBUZZ bonus RPs</strong> (swarm and the two pollinator RPs) aren't modelled yet: the engine has no fitted bonus-RP model for this season, so simulated BIOBUZZ events count only win and tie ranking points. Rank estimates can run a little off until it's fitted.</>,
+              <><strong>2026–27 BIOBUZZ bonus RPs</strong> (swarm and the two pollinator RPs) have no model shipped with the engine. Once about 100 of the season's qualification matches are recorded, simulations follow a curve fitted to its latest results. Before that, an event in progress draws them from its own recorded results, and otherwise simulated events count only win and tie ranking points; the forecast says which. Rank estimates can run a little off early in the season.</>,
               <><strong>The 2025–26 bonus RPs</strong> were fitted on the season's earliest matches, because the bonuses didn't exist before.</>,
               <><strong>Three-team championship alliances</strong> aren't modelled yet.</>,
               <><strong>Which awards exist</strong> at an event is taken as known; who wins them is predicted.</>,
