@@ -7,9 +7,17 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { MemoryRouter } from "react-router-dom";
 import type { EventDetail } from "../shared/api";
 import type { ProjectionRun, ProjectionsView, ProjectionTeam } from "../shared/projections";
+import { markOffline } from "../lib/offline/saved";
 
 let view: ProjectionsView | undefined;
 vi.mock("../lib/api", async (orig) => ({ ...(await orig<typeof import("../lib/api")>()), useApi: () => ({ data: view, error: undefined, loading: false, reload: () => {} }), load: () => Promise.resolve() }));
+let localResult: unknown = null;
+let localUnavailable: string | null = null, localError: string | null = null;
+vi.mock("../lib/localProjection/run", () => ({
+  prepareLocal: async () => (localUnavailable ? { unavailable: localUnavailable } : localResult || localError ? { key: "k" } : { unavailable: "none" }),
+  cacheKey: () => "k",
+  localProjectionFor: async () => { if (localError) throw new Error(localError); return localResult; },
+}));
 let tracked: number[] = [];
 vi.mock("../lib/personal", () => ({ usePersonal: () => ({ state: { myTeam: null, tracked: { teams: tracked, events: [] } } }) }));
 
@@ -79,6 +87,86 @@ describe("Projections (live)", () => {
     mount(detail("live"));
     expect(screen.getByText("5,000 simulations • updated after Match 24")).toBeTruthy();
     expect(screen.getByText(/of 10,000/)).toBeTruthy();
+  });
+});
+
+describe("Projections (local estimate)", () => {
+  const local = (o: Partial<ProjectionRun> = {}) => ({ local: true as const, packVersion: "v1", ratingsAsOf: "2026-10-17T12:00:00Z", computeMs: 800, stopped: false, cacheKey: "k", run: run({ runs: 1500, target: 1500, ...o }) });
+  const can = () => {
+    localStorage.setItem("cs-pack-meta", JSON.stringify({ version: "v1", bytes: 1, savedAt: 1, builtAt: "x", engineVersion: "x" }));
+    localStorage.setItem("cs-offline-seasons", JSON.stringify([{ season: 2026, version: "v1", sha256: "x", bytes: 1, savedAt: 1, dataAsOf: null, builtAt: "x" }]));
+    vi.stubGlobal("Worker", class {});
+  };
+  afterEach(() => { localStorage.clear(); vi.unstubAllGlobals(); localResult = null; localUnavailable = null; localError = null; });
+
+  const offlineView = () => markOffline({ season: 2026, code: "TQ1", current: null, baseline: null, lastOpen: null }, { season: 2026, savedAt: 1, dataAsOf: null });
+
+  it("offline, says why the device can't estimate and what to do, never promising a server run soon", async () => {
+    can();
+    localUnavailable = "Your offline ratings and your saved season are from different releases, so this device can't tell which results the ratings already include.";
+    view = offlineView();
+    mount(detail("live"));
+    expect(await screen.findByText("No local estimate on this device")).toBeTruthy();
+    expect(screen.getByText(/different releases/)).toBeTruthy();
+    expect(screen.getByText(/once you're back online/)).toBeTruthy();
+    expect(screen.getByRole("link", { name: /Update your offline packs on Download/ }).getAttribute("href")).toBe("/download");
+    expect(screen.queryByText(/within a minute or two/)).toBeNull();
+    expect(screen.queryByText("The first projection is on its way")).toBeNull();
+  });
+
+  it("shows the failure when the device's run fails", async () => {
+    can();
+    localError = "Worker crashed";
+    view = offlineView();
+    mount(detail("live"));
+    expect(await screen.findByText(/The estimate on this device failed: Worker crashed/)).toBeTruthy();
+    expect(screen.getByRole("link", { name: /Update your offline packs on Download/ })).toBeTruthy();
+    expect(screen.queryByText(/within a minute or two/)).toBeNull();
+  });
+
+  it("offline with no packs: no promise of a server run either", () => {
+    view = offlineView();
+    mount(detail("live"));
+    expect(screen.getByText("No projection saved for this event")).toBeTruthy();
+    expect(screen.queryByText(/within a minute or two/)).toBeNull();
+  });
+
+  it("labels it as a local estimate, one tier lower, with no pre-event movement mixed in", async () => {
+    can();
+    localResult = local();
+    view = { season: 2026, code: "TQ1", current: null, baseline: run({ kind: "baseline", played: 0, through: null, computedAt: "x" }), lastOpen: null };
+    mount(detail("live"));
+    expect(await screen.findByText("Local estimate · 1,500 simulations on this device • after Match 24")).toBeTruthy();
+    expect(screen.getAllByText("Local estimate").length).toBeGreaterThan(0);
+    expect(screen.getByText(/simulated on this device from your offline pack \(ratings as of Oct 17\)/)).toBeTruthy();
+    expect(screen.getByText("Provisional")).toBeTruthy(); // the server's run of this state would be Moderate
+    expect(screen.queryByText("before the event")).toBeNull(); // the server's baseline isn't compared against
+    expect(screen.queryByText(/^10,000 simulations/)).toBeNull();
+  });
+
+  it("says when the time cap stopped it, with the real count", async () => {
+    can();
+    localResult = { ...local({ runs: 912 }), stopped: true };
+    view = { season: 2026, code: "TQ1", current: null, baseline: null, lastOpen: null };
+    mount(detail("live"));
+    expect(await screen.findByText("Local estimate · 912 simulations on this device • after Match 24")).toBeTruthy();
+    expect(screen.getByText("912 of 1,500")).toBeTruthy();
+  });
+
+  it("never replaces a stored server run", async () => {
+    can();
+    localResult = local();
+    view = { season: 2026, code: "TQ1", current: run(), baseline: null, lastOpen: null };
+    mount(detail("live"));
+    expect(screen.getByText("10,000 simulations • updated after Match 24")).toBeTruthy();
+    expect(screen.queryByText(/Local estimate/)).toBeNull();
+  });
+
+  it("without the offline packs, stays the server's empty state", () => {
+    localResult = local();
+    view = { season: 2026, code: "TQ1", current: null, baseline: null, lastOpen: null };
+    mount(detail("live"));
+    expect(screen.getByText("The first projection is on its way")).toBeTruthy();
   });
 });
 

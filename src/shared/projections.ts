@@ -7,6 +7,11 @@
 export const PROJECTION_RUNS = 10_000;
 export const PROJECTION_FLOOR = 5_000;
 
+/** The device's local estimate (src/lib/localProjection), only when no stored run can be had: simulations it aims
+ *  for, and the compute time it stops at (a slow phone reports the count it managed). */
+export const LOCAL_RUNS = 1_500;
+export const LOCAL_STOP_MS = 2_000;
+
 /** The one label advancement odds carry wherever they show. */
 export const ADVANCE_LABEL = "performance-based — awards can also advance teams";
 

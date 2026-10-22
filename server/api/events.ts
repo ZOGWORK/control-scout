@@ -8,6 +8,7 @@ import { dataVersion, liveForecaster, liveVersion } from "../predict/engine.js";
 import { registerCache } from "../caches.js";
 import { FULL_EVERY_MS, isEventDay, liveIo, liveSyncOn, liveSyncSeconds } from "../data/live.js";
 import { eventStatus } from "../../src/shared/eventDay.js";
+import { toEventInput } from "../../src/shared/eventInput.js";
 
 function summary(r: any): EventSummary {
   const played = Number(r.played ?? 0), total = Number(r.total ?? 0);
@@ -126,17 +127,5 @@ export async function eventDetail(season: number, code: string): Promise<EventDe
 /** The later of two ISO timestamps (either may be missing). */
 const latest = (a: string | null, b: string | null) => (!a ? b ?? null : !b ? a : a > b ? a : b);
 
-/** The engine's view of an event (same fields Control Point passes from FtcEventFull). */
-export function toEventInput(ev: EventSummary, field: FieldRow[], matches: EventDetail["matches"], alliances: any[]): EventInput {
-  return {
-    season: ev.season, code: ev.code, name: ev.name, type: ev.type, start: ev.start, end: ev.end,
-    field: field.map((f) => ({ teamNumber: f.team, rank: f.rank })),
-    matches: matches.map((m) => ({
-      key: m.key, label: m.label, level: m.level, series: m.series, number: m.number, time: m.time, played: m.played,
-      // Played matches: robots that were on the field (playoff alliances list 3).
-      red: { teams: (m.played ? m.red.teams.filter((t) => t.onField) : m.red.teams).map((t) => ({ number: t.number, surrogate: t.surrogate, dq: t.dq })), score: m.red.score ? { total: m.red.score.total, totalNp: m.red.score.np, auto: m.red.score.auto, teleop: m.red.score.teleop, endgame: m.red.score.endgame, penaltiesCommitted: m.red.score.pen, tips: m.red.score.tips ?? null } : null },
-      blue: { teams: (m.played ? m.blue.teams.filter((t) => t.onField) : m.blue.teams).map((t) => ({ number: t.number, surrogate: t.surrogate, dq: t.dq })), score: m.blue.score ? { total: m.blue.score.total, totalNp: m.blue.score.np, auto: m.blue.score.auto, teleop: m.blue.score.teleop, endgame: m.blue.score.endgame, penaltiesCommitted: m.blue.score.pen, tips: m.blue.score.tips ?? null } : null },
-    })),
-    alliances: alliances.filter((a) => a.captain).map((a) => ({ number: a.number, captain: a.captain, picks: [a.pick1, a.pick2].filter((x): x is number => x != null) })),
-  };
-}
+/** The engine's view of an event: shared with the device's local estimate (src/shared/eventInput.ts). */
+export { toEventInput };
