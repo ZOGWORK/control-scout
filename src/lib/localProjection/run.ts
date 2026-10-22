@@ -58,7 +58,7 @@ export async function prepareLocal(d: EventDetail, deps: { lite?: () => Promise<
   if (!learned) return { unavailable: "Your offline ratings and your saved season are from different releases, so this device can't tell which results the ratings already include. Update the saved season (or the offline pack) on the Download page to get a local estimate." };
   const facts: PackFacts = { ...got.facts, storedKeys: learned };
   const now = deps.now ?? Date.now();
-  const f = new PackForecaster(season, RatingBook.fromData(data), facts, now);
+  const f = new PackForecaster(season, RatingBook.fromData(data), facts, now, lite.bonus ? lite.bonus[String(season)] ?? null : undefined);
   const pi = projectionInput(f, ev);
   if (!pi) return { unavailable: "This event can't be simulated." };
   const stateKey = await inputKeyAsync(pi);
