@@ -7,6 +7,7 @@ import { kvGet, migrate, openDb, run, setDb } from "../db";
 import { createApp } from "../app";
 import { partnershipPrefix, resetPartnerships } from "./partnerships";
 import { forecasterFor, resetForecasters } from "./engine";
+import { CURRENT_SEASON } from "../data/seasons";
 
 let server: Server;
 let base = "";
@@ -88,5 +89,83 @@ describe("partnership memory (server)", () => {
     for (let i = 0; i < 200 && !f.partnershipComplete; i++) { await new Promise((r) => setTimeout(r, 25)); f = await forecasterFor(2023); }
     expect(f.partnershipComplete).toBe(true);
     expect(f.explain(2023, [11, 12], [15, 16])?.partnership?.matches).toBe(3);
+  });
+});
+
+describe("partnership memory on an earlier season of the window", () => {
+  const now = CURRENT_SEASON, last = CURRENT_SEASON - 1, oldest = CURRENT_SEASON - 2;
+  beforeAll(async () => {
+    // The window's oldest season: other teams play (11 and 12, who played 2022 and 2023, don't).
+    await run("INSERT OR REPLACE INTO seasons (season, name, frozen, last_complete) VALUES (?, 'G', 1, '2026-01-01')", [oldest]);
+    await event(oldest, "USO1", "Old Qualifier", `${oldest}-11-02`, [[[41, 42], 80, [43, 44], 70], [[41, 43], 75, [42, 44], 65]]);
+    for (const x of [last, now]) await run("INSERT OR REPLACE INTO seasons (season, name, frozen, last_complete) VALUES (?, 'G', 0, NULL)", [x]);
+    // Last season: 21 and 22 play together twice. This season: twice more, scoring higher.
+    await event(last, "USP1", "Past Qualifier", `${last}-11-07`, [[[21, 22], 100, [23, 24], 50], [[21, 22], 110, [25, 26], 40], [[23, 25], 60, [24, 26], 60]]);
+    await event(now, "USN1", "New Qualifier", `${now}-11-06`, [[[21, 22], 130, [23, 24], 60], [[21, 22], 140, [25, 26], 70], [[23, 25], 60, [24, 26], 60]]);
+    // Last season, still open: 31 and 32 together once (a weak pair, too few matches to show on its own).
+    await event(last, "USP2", "Past Meet", `${last}-12-05`, [[[31, 32], 90, [33, 34], 50]]);
+    await partnershipPrefix(now - 2, { wait: true });
+    resetForecasters();
+  });
+
+  it("reads the pairs as they stood at that season's end (a later match never counts)", async () => {
+    const r = await (await fetch(`${base}/api/predict/match?season=${last}&red=21,22&blue=23,24`)).json();
+    expect(r.history?.kind).toBe("together");
+    expect(r.history?.label).toMatch(/^21 and 22 have played 2 matches together \(2–0\).*best 110 at Past Qualifier$/);
+  });
+
+  it("leaves the current season's history as it was", async () => {
+    const r = await (await fetch(`${base}/api/predict/match?season=${now}&red=21,22&blue=23,24`)).json();
+    expect(r.history?.label).toMatch(/^21 and 22 have played 4 matches together \(4–0\).*best 140 at New Qualifier$/);
+  });
+
+  it("changes no served number (a reason only)", async () => {
+    const f = await forecasterFor(last);
+    const withHistory = f.explain(last, [21, 22], [23, 24]);
+    expect(withHistory?.partnership?.matches).toBe(2);
+    const tables = (f as any).pastPairTables;
+    (f as any).pastPairTables = new Map();
+    try {
+      const without = f.explain(last, [21, 22], [23, 24]);
+      expect(without?.partnership ?? null).toBeNull();
+      const { partnership: _a, ...a } = withHistory!;
+      const { partnership: _b, ...b } = without!;
+      expect(a).toEqual(b);
+    } finally { (f as any).pastPairTables = tables; }
+  });
+
+  it("counts a stored match plus a fresh one in a past season that can still receive results", async () => {
+    const f = await forecasterFor(last);
+    const score = (total: number) => ({ total, totalNp: total, auto: 10, teleop: total - 20, endgame: 10, penaltiesCommitted: 0 }) as any;
+    const side = (teams: number[], total: number | null) => ({ teams: teams.map((number) => ({ number })), score: total == null ? null : score(total) });
+    const ev = {
+      season: last, code: "USP3", name: "Late Meet", type: "Qualifier", start: `${last}-12-12`, end: `${last}-12-12`, alliances: [],
+      field: [31, 32, 33, 34, 35, 36].map((teamNumber) => ({ teamNumber, rank: null })),
+      matches: [
+        // Played at the event, not yet synced: folds into the pair table through the overlay.
+        { key: "qual:0:1", label: "Q1", level: "qual" as const, series: 0, number: 1, time: `${last}-12-12T10:00:00Z`, played: true, red: side([31, 32], 95), blue: side([35, 36], 40) },
+        { key: "qual:0:2", label: "Q2", level: "qual" as const, series: 0, number: 2, time: `${last}-12-12T10:10:00Z`, played: false, red: side([31, 32], null), blue: side([33, 34], null) },
+      ],
+    };
+    const q2 = f.forecast(ev, null, 50)?.matches.find((m) => m.key === "qual:0:2");
+    expect(q2?.history?.label).toMatch(/^31 and 32 have played 2 matches together \(2–0\)/);
+    // Once the season is closed (frozen), its snapshot leaves the weak pairs out.
+    await run("UPDATE seasons SET frozen = 1 WHERE season = ?", [last]);
+    try {
+      resetForecasters();
+      const closed = await forecasterFor(last);
+      expect((closed as any).partnerships(last).together(31, 32)).toBeUndefined();
+      expect((closed as any).partnerships(last).together(21, 22)?.n).toBe(2);
+    } finally {
+      await run("UPDATE seasons SET frozen = 0 WHERE season = ?", [last]);
+      resetForecasters();
+    }
+  });
+
+  it("counts the teams of the season before the window's oldest season, as a forecaster anchored there would", async () => {
+    // 11 and 12 were rated in 2023 only (not in the window): a 2024 call about them keeps their history.
+    expect(oldest - 1).toBe(2023);
+    const r = await (await fetch(`${base}/api/predict/match?season=${oldest}&red=11,12&blue=41,42`)).json();
+    expect(r.history?.label).toMatch(/^11 and 12 have played 3 matches together \(3–0\)/);
   });
 });

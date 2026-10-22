@@ -9,6 +9,18 @@ teams, scout, offline, speed, live, report, alerts, rankings, share, workspace,
 picklist, history, fixes). What's new shows them first; the groups below are
 the full release notes, one click away.
 
+## 1.19.2 — 2026-10-21
+
+Partnership history on last season's predictions too.
+
+### Highlights
+- [predict] "Played 24 matches together" now shows on 2025–26 calls as well
+- [history] Counted only through that season's end, never a later match
+- [predict] On 2024–25 events and lab calls as well; the odds don't change
+
+### Predictions
+- **Partnership memory on earlier seasons.** A prediction for an earlier season (the Predict lab or an event of 2025–26 or 2024–25) now shows the same pair history line as this season's calls. It reads the pairs as they stood at that season's end, the way that season's ratings are its end-of-season ratings, so a later match never counts. Still a reason only: no odds, score or range changes, and no engine change. (#236)
+
 ## 1.19.1 — 2026-10-21
 
 Report cards stay up to date for every season, not just the current one.
