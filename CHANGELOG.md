@@ -9,7 +9,7 @@ teams, scout, offline, speed, live, report, alerts, rankings, share, workspace,
 picklist, history, fixes). What's new shows them first; the groups below are
 the full release notes, one click away.
 
-## 1.19.1 — 2026-10-21
+## 1.20.0 — 2026-10-21
 
 Event simulations spread erratic robots wider and no longer peek at later results.
 
@@ -20,7 +20,19 @@ Event simulations spread erratic robots wider and no longer peek at later result
 
 ### Predictions
 - **Per-robot spread in the event simulator.** Every simulated match score now gets match-to-match noise sized for its alliance the way the score ranges already were: wider when a robot's results swing more than the model expects, or when it has played only a few matches this season. It reaches the advancement odds, the partner what-ifs and the live projections. On 40 finished 2025–26 events cut at their midpoint, 86.6% of teams finished inside their projected 10th–90th percentile rank band (85.7% before). Prediction engine 2.6.0. (#237)
-- **No hindsight before the event.** A "Before the event" simulation, and the pre-event projection that live projections compare against, now draws bonus ranking points from a bonus model fitted only on qualification results played before the event started. It used the curve fitted on the whole season. With too few earlier results it simulates no bonus RPs and says so. Live simulations use the same season curve as the match cards' bonus odds.
+- **No hindsight before the event.** A "Before the event" simulation, and the pre-event projection that live projections compare against, now draws bonus ranking points from a bonus model fitted only on qualification results played before the event started. It used the curve fitted on the whole season. With too few earlier results it simulates no bonus RPs and says so. Live simulations use the same season curve as the match cards' bonus odds, and the note that bonus RPs aren't modelled now shows exactly when a simulation drew none.
+
+## 1.19.1 — 2026-10-21
+
+Report cards stay up to date for every season, not just the current one.
+
+### Highlights
+- [report] Report cards for past seasons catch up when a late result is scored
+- [report] Live calls only, as always: the replay never counts
+- [speed] Unchanged seasons are skipped: a quick check, not a rebuild
+
+### Predictions
+- **Report cards for every season.** A season's predictability report cards are rebuilt whenever its scored live calls change, after every stats run and every live result, whichever season the call belongs to. Before, only the current season was rebuilt between full recomputes, so a past season could show cards that missed its last scored calls. Seasons whose calls haven't changed are skipped after a quick check. A season is still rebuilt when one of its events turns final, or stops being final because a sync added a match or moved its dates. Live calls only, as always. (#235)
 
 ## 1.19.0 — 2026-10-21
 

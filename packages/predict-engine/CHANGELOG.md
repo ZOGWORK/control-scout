@@ -20,6 +20,10 @@ is bit-identical to 2.5.0. Event simulations (advancement odds, partner what-ifs
   earns no bonus RPs and adds an assumption saying so. An app that serves its own season fit
   (both apps do) now simulates with the same curve its match cards show; the default `bonusModel`
   is still the shipped fit.
+- **`Forecast.bonusDraws`** (`BonusDraws`): how the forecast's simulation drew bonus RPs:
+  `"model"`, `"event"` (this event's recorded results), `"none"`, or null when they don't matter
+  (no bonus RPs that season, or quals over). Apps drive any "bonus RPs aren't modelled" flag from
+  it instead of from which shipped fits exist.
 
 **Evidence** (Control Scout snapshot, 2025–26):
 - Midpoint replay (`npm run projections:replay`, 40 finished events, 2,000 sims, ratings frozen at
