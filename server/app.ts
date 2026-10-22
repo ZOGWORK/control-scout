@@ -4,7 +4,7 @@ import express, { type NextFunction, type Request, type Response } from "express
 import compression from "compression";
 import { existsSync } from "node:fs";
 import { join } from "node:path";
-import { ENGINE_VERSION, FITTED_MODEL } from "@control-scout/predict-engine";
+import { ENGINE_VERSION } from "@control-scout/predict-engine";
 import { RELEASE } from "./release.js";
 import { all, get, kvGet } from "./db.js";
 import { hasFirst } from "./env.js";
@@ -589,15 +589,15 @@ export function createApp() {
       const fc = mode === "pre-event" ? f.preEventForecast(ev, team, 2000) : f.forecast(ev, team, 2000);
       if (!fc) throw new HttpError(503, "Ratings for this season aren't ready yet.");
       const finished = d.event.status === "finished";
-      // 2025+ games award bonus ranking points. Without a fitted model for this
-      // season, a live event draws them from its own recorded results (the
-      // engine says so in its assumptions); before any match is played none are
-      // simulated, so say that instead of hiding it. Official ranks (after
-      // quals) already include them.
-      const bonusModelled = s < 2025 || !!FITTED_MODEL.bonus[String(s)];
+      // 2025+ games award bonus ranking points. The forecast says how its simulation drew them
+      // (fc.bonusDraws: the bonus model it actually used, this event's recorded results, or none),
+      // and the flag and any warning follow that one value, so they can't contradict the numbers
+      // (a learned season model counts; a frozen "before the event" view with too little earlier
+      // data doesn't). Official ranks (after quals) already include them.
+      const bonusModelled = fc.bonusDraws !== "none";
       const explained = fc.assumptions.some((a) => /bonus ranking point/i.test(a));
-      const assumptions = bonusModelled || explained || fc.stage !== "pre" ? fc.assumptions
-        : [...fc.assumptions, `Bonus ranking points for ${seasonInfo(s).game} aren't modelled yet (no fitted model for this season and no results yet), so simulated ranks count win/tie points only — real ranks and the odds that depend on them may differ.`];
+      const assumptions = bonusModelled || explained ? fc.assumptions
+        : [...fc.assumptions, `Bonus ranking points for ${seasonInfo(s).game} aren't modelled for this forecast (no bonus model from results so far), so simulated ranks count win/tie points only — real ranks and the odds that depend on them may differ.`];
       return {
         ...fc, assumptions, bonusModelled, eventName: d.event.name, eventStart: d.event.start, eventEnd: d.event.end, myTeam: team, engineVersion: ENGINE_VERSION, mode,
         hindsightNote: mode === "current" && finished ? "This event is over: these odds use ratings that already include its results. Switch to “Before the event” for the forecast made without hindsight." : null,

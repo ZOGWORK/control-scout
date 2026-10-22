@@ -8,6 +8,8 @@ import { forecasterFor, liveForecaster, liveVersion, refreshForecasters, resetFo
 import { runStats, statsRulesStale, STATS_RULES } from "../stats/job";
 import { FITTED_MODEL, bonusModelBefore, bonusSamples, recentBonusModel } from "@control-scout/predict-engine";
 import { projectionInput } from "../projections/input";
+import type { AddressInfo } from "node:net";
+import { createApp } from "../app";
 
 const S = CURRENT_SEASON;
 
@@ -134,6 +136,52 @@ describe("bonus odds before an event (no hindsight)", () => {
     const g = await forecasterFor(S);
     expect(g.bonusModel(S)!.samples).toBeGreaterThan(f.bonusModel(S)!.samples!);
     expect(before(g)).toEqual(recentBonusModel(bonusSamples(early))!.model);
+  });
+
+  /** TARGET stored in the database (unplayed), so the event API can forecast it. */
+  async function storedTarget(season: number) {
+    await run("INSERT INTO events (season, code, name, type, start, end, remote, hybrid, source) VALUES (?, 'TARGET', 'Target', 'Qualifier', ?, ?, 0, 0, 'test')", [season, `${season}-12-01`, `${season}-12-01`]);
+    for (const t of [1, 2, 3, 4]) await run("INSERT INTO event_teams (season, code, team) VALUES (?, 'TARGET', ?)", [season, t]);
+    await run("INSERT INTO matches (season, code, level, series, number, label, time, played, source) VALUES (?, 'TARGET', 'qual', 0, 1, 'Q1', ?, 0, 'test')", [season, `${season}-12-01T10:00:00`]);
+    for (const [alliance, ts] of [["red", [1, 2]], ["blue", [3, 4]]] as const) for (const t of ts)
+      await run("INSERT INTO match_teams (season, code, level, series, number, team, alliance, on_field) VALUES (?, 'TARGET', 'qual', 0, 1, ?, ?, 1)", [season, t, alliance]);
+  }
+  async function eventApi(season: number, mode: "current" | "pre-event") {
+    const server = createApp().listen(0);
+    await new Promise((r) => server.once("listening", r));
+    try {
+      const r = await fetch(`http://127.0.0.1:${(server.address() as AddressInfo).port}/api/predict/event?season=${season}&code=TARGET&mode=${mode}`);
+      expect(r.status).toBe(200);
+      return (await r.json()) as { bonusModelled: boolean; bonusDraws: string | null; assumptions: string[] };
+    } finally { await new Promise((r) => server.close(r)); }
+  }
+  const winTieOnly = (a: string[]) => a.some((x) => /count win\/tie points only/.test(x));
+
+  it("the event API's bonus flag follows the model the simulation used: a learned season model counts without a shipped fit", async () => {
+    expect(FITTED_MODEL.bonus[String(S)]).toBeUndefined();
+    await playedEvent(S, "EARLY", `${S}-11-20`, 110);
+    await playedEvent(S, "LATE", `${S}-12-20`, 150);
+    await storedTarget(S);
+    await kvSet("data:version", "va1");
+    const fc = await eventApi(S, "current");
+    expect(fc.bonusDraws).toBe("model");
+    expect(fc.bonusModelled).toBe(true);
+    expect(winTieOnly(fc.assumptions)).toBe(false);
+  });
+
+  it("…and a frozen forecast with too little earlier data is flagged, though the season has a shipped fit", async () => {
+    expect(FITTED_MODEL.bonus["2025"]).toBeDefined();
+    await playedEvent(2025, "LATE25", "2025-12-20", 150);
+    await storedTarget(2025);
+    await kvSet("data:version", "va2");
+    const fc = await eventApi(2025, "pre-event");
+    expect(fc.bonusDraws).toBe("none");
+    expect(fc.bonusModelled).toBe(false);
+    expect(fc.assumptions.some((a) => /No bonus ranking point model is available/.test(a))).toBe(true);
+    // The current view (the shipped fit until the season has enough results) is modelled.
+    const now = await eventApi(2025, "current");
+    expect(now.bonusDraws).toBe("model");
+    expect(now.bonusModelled).toBe(true);
   });
 
   it("the simulator before the event draws no bonus RPs, rather than the shipped whole-season fit, when too little was played before", async () => {

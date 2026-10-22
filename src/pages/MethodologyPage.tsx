@@ -184,7 +184,7 @@ export default function MethodologyPage() {
             <CleanList items={[
               <><strong>A new robot until it plays.</strong> If you rebuilt over the break, the engine still thinks you're the old robot until your first match.</>,
               <><strong>What a scout would see.</strong> Drivers having a bad day, how well two robots actually work together, field faults, and anything you'd notice in the pits.</>,
-              <><strong>2026–27 BIOBUZZ bonus RPs</strong> (swarm and the two pollinator RPs) aren't modelled yet: the engine has no fitted bonus-RP model for this season, so simulated BIOBUZZ events count only win and tie ranking points. Rank estimates can run a little off until it's fitted.</>,
+              <><strong>2026–27 BIOBUZZ bonus RPs</strong> (swarm and the two pollinator RPs) have no model shipped with the engine. Once about 100 of the season's qualification matches are recorded, simulations follow a curve fitted to its latest results. Before that, an event in progress draws them from its own recorded results, and otherwise simulated events count only win and tie ranking points; the forecast says which. Rank estimates can run a little off early in the season.</>,
               <><strong>The 2025–26 bonus RPs</strong> were fitted on the season's earliest matches, because the bonuses didn't exist before.</>,
               <><strong>Three-team championship alliances</strong> aren't modelled yet.</>,
               <><strong>Which awards exist</strong> at an event is taken as known; who wins them is predicted.</>,
