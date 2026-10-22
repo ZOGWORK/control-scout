@@ -319,7 +319,7 @@ export interface ForecastView extends Forecast {
   mode: "current" | "pre-event";
   /** Set when a current-mode forecast of a finished event uses ratings that already include its results. */
   hindsightNote: string | null;
-  /** False when the season's bonus ranking points have no fitted model yet (ranks then count win/tie RPs only). */
+  /** False when this forecast simulated no bonus ranking points (Forecast.bonusDraws "none": ranks then count win/tie RPs only). */
   bonusModelled: boolean;
 }
 
