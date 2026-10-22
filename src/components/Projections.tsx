@@ -4,7 +4,7 @@
 // over: "Final results vs projections", each actual seed against the band it was last projected in.
 import { useMemo, useState, type ReactNode } from "react";
 import { Link } from "react-router-dom";
-import { ArrowDown, ArrowUp, ChartNoAxesGantt, Cpu, Info, Pin, Radio, Target } from "lucide-react";
+import { ArrowDown, ArrowUp, ChartNoAxesGantt, HardDrive, Info, Pin, Radio, Target } from "lucide-react";
 import { cn } from "./cn";
 import { Badge } from "./ui/basic";
 import { EmptyState } from "./page";
@@ -40,7 +40,7 @@ function LocalNote({ value, why }: { value: LocalProjection; why: string }) {
   const asOf = shortDate(value.ratingsAsOf);
   return (
     <div className="relative flex gap-2.5 border-b border-border bg-info/[0.06] px-4 py-3 text-sm sm:px-5">
-      <Cpu className="mt-0.5 size-4 shrink-0 text-info" aria-hidden />
+      <HardDrive className="mt-0.5 size-4 shrink-0 text-info" aria-hidden />
       <p className="text-muted-foreground">
         The server's {PROJECTION_RUNS.toLocaleString("en-US")}-simulation projection {why}, so this one was simulated on this device from your offline pack{asOf ? ` (ratings as of ${asOf})` : ""}.
         {value.stopped && <> It stopped after {LOCAL_STOP_MS / 1000} seconds to save battery: <span className="font-medium text-foreground">{value.run.runs.toLocaleString("en-US")} of {value.run.target.toLocaleString("en-US")}</span> simulations ran.</>}
@@ -56,7 +56,7 @@ function LocalProgress({ done, target }: { done: number; target: number }) {
   return (
     <section aria-labelledby="proj-h" aria-busy="true" className="relative overflow-hidden rounded-2xl border border-info/40 bg-card p-4 sm:p-5">
       <div aria-hidden className="pointer-events-none absolute -left-16 -top-24 size-64 rounded-full bg-info/10 blur-3xl" />
-      <h2 id="proj-h" className="relative flex flex-wrap items-center gap-2 font-display text-lg font-semibold"><ChartNoAxesGantt className="size-5 text-accent-text" /> Projections<Badge variant="info" className="font-sans"><Cpu aria-hidden /> Local estimate</Badge></h2>
+      <h2 id="proj-h" className="relative flex flex-wrap items-center gap-2 font-display text-lg font-semibold"><ChartNoAxesGantt className="size-5 text-accent-text" /> Projections<Badge variant="info" className="font-sans"><HardDrive aria-hidden /> Local estimate</Badge></h2>
       <p className="relative mt-1 text-sm text-muted-foreground" aria-live="polite">
         {target ? `Simulating the rest of the event on this device: ${done.toLocaleString("en-US")} of ${target.toLocaleString("en-US")}` : "Getting a local estimate ready from your offline pack"}
       </p>
@@ -143,10 +143,10 @@ function LiveView({ run, baseline, rankNow, names, pinned, local }: { run: Proje
       <div aria-hidden className={cn("pointer-events-none absolute -right-16 -top-20 size-56 rounded-full blur-3xl", local ? "bg-warning/10" : "bg-accent/10")} />
       <header className="relative flex flex-wrap items-start justify-between gap-3 border-b border-border p-4 sm:p-5">
         <div className="min-w-0">
-          <h2 id="proj-h" className="flex flex-wrap items-center gap-2 font-display text-lg font-semibold"><ChartNoAxesGantt className="size-5 text-accent-text" /> Projections{local && <Badge variant="info" className="font-sans"><Cpu aria-hidden /> Local estimate</Badge>}</h2>
+          <h2 id="proj-h" className="flex flex-wrap items-center gap-2 font-display text-lg font-semibold"><ChartNoAxesGantt className="size-5 text-accent-text" /> Projections{local && <Badge variant="info" className="font-sans"><HardDrive aria-hidden /> Local estimate</Badge>}</h2>
           <p className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-muted-foreground" aria-live="polite">
             {local
-              ? <span className="inline-flex items-center gap-1.5 font-medium text-foreground"><Cpu className="size-3.5 text-info" aria-hidden />{localHeadline(run)}</span>
+              ? <span className="inline-flex items-center gap-1.5 font-medium text-foreground"><HardDrive className="size-3.5 text-info" aria-hidden />{localHeadline(run)}</span>
               : <span className="inline-flex items-center gap-1.5 font-medium text-foreground"><Radio className="size-3.5 text-success" aria-hidden />{projectionHeadline(run)}</span>}
             {!local && run.runs < run.target && <span className="text-xs">(of {run.target.toLocaleString("en-US")}: this event is big, so it's simulated fewer times to stay quick)</span>}
           </p>
@@ -197,7 +197,7 @@ function LiveView({ run, baseline, rankNow, names, pinned, local }: { run: Proje
       </div>
       <footer className="relative space-y-1.5 border-t border-border px-4 py-3 text-xs text-muted-foreground sm:px-5">
         <p className="flex gap-1.5"><Info className="mt-0.5 size-3 shrink-0" /><span><span className="font-medium text-foreground">Advance</span>: {ADVANCE_LABEL}.{slotsNote ? ` ${slotsNote}.` : ""} <span className="font-medium text-foreground">Playoffs</span>: captain or picked; picks follow the fitted pick model (seed and rating).</span></p>
-        {local && <p className="flex gap-1.5"><Cpu className="mt-0.5 size-3 shrink-0" /><span>{localLabel(run.runs)}: same engine and method as the server, kept on this device only and never mixed with the server's projections.</span></p>}
+        {local && <p className="flex gap-1.5"><HardDrive className="mt-0.5 size-3 shrink-0" /><span>{localLabel(run.runs)}: same engine and method as the server, kept on this device only and never mixed with the server's projections.</span></p>}
         <p className="flex flex-wrap gap-x-3 gap-y-1">
           <span className="inline-flex items-center gap-1.5"><span className="inline-block h-2 w-5 rounded-full bg-accent/35" /> 80% range</span>
           <span className="inline-flex items-center gap-1.5"><span className="inline-block size-2.5 rounded-full bg-accent" /> median</span>
