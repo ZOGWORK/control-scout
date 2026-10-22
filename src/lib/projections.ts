@@ -128,41 +128,49 @@ export type LocalState =
   | { status: "unavailable"; reason: string }
   | { status: "error"; message: string };
 
-/** The local estimate while `enabled`: loads the simulator lazily, runs it once per results state (cached), reports progress. */
+/**
+ * The local estimate while `enabled`: loads the simulator lazily and, on every new payload, rebuilds the
+ * simulation input and its results-state key (the server's SHA-256 of everything the simulation reads:
+ * lineups, surrogates, DQs, scores, bonus RPs, ranks, alliances, playoff results, advancement facts).
+ * A new key (with the pack and engine) starts a new run and cancels the old one; the same key leaves the
+ * run going, or the result standing. Each key simulates once (run.ts caches it).
+ */
 export function useLocalProjection(d: EventDetail, enabled: boolean): LocalState {
   const [state, setState] = useState<LocalState>({ status: "idle" });
-  const latest = useRef(d);
-  latest.current = d;
-  // The payload is a new object on every refresh; only a change in its results asks for another look
-  // (and the results-state key then decides whether anything is simulated again).
-  const results = enabled ? resultsFingerprint(d) : "";
+  const current = useRef<{ key: string; ctrl: AbortController } | null>(null);
   useEffect(() => {
-    if (!enabled) { setState({ status: "idle" }); return; }
-    const ctrl = new AbortController();
-    let last = 0;
-    import("./localProjection/run")
-      .then((m) => m.localProjection(latest.current, (done, target) => {
-        // A few updates a second are plenty for a progress bar.
-        const now = performance.now();
-        if (now - last < 120 || ctrl.signal.aborted) return;
-        last = now;
-        setState({ status: "running", done, target });
-      }, ctrl.signal))
-      .then((r) => { if (!ctrl.signal.aborted) setState("unavailable" in r ? { status: "unavailable", reason: r.unavailable } : { status: "done", value: r }); })
-      .catch((e) => { if (!ctrl.signal.aborted) setState({ status: "error", message: e instanceof Error ? e.message : String(e) }); });
-    setState((s) => (s.status === "done" ? s : { status: "running", done: 0, target: 0 }));
-    return () => ctrl.abort();
-  }, [enabled, results]);
+    const stop = () => { current.current?.ctrl.abort(); current.current = null; };
+    if (!enabled) { stop(); setState({ status: "idle" }); return; }
+    let stale = false;
+    setState((s) => (s.status === "idle" ? { status: "running", done: 0, target: 0 } : s));
+    import("./localProjection/run").then(async (m) => {
+      const p = await m.prepareLocal(d);
+      if (stale) return;
+      if ("unavailable" in p) { stop(); setState({ status: "unavailable", reason: p.unavailable }); return; }
+      const key = m.cacheKey(p);
+      if (current.current?.key === key) return; // same results state: nothing to redo
+      stop();
+      const ctrl = new AbortController();
+      current.current = { key, ctrl };
+      let last = 0;
+      try {
+        const r = await m.localProjectionFor(p, (done, target) => {
+          // A few updates a second are plenty for a progress bar.
+          const now = performance.now();
+          if (now - last < 120 || ctrl.signal.aborted) return;
+          last = now;
+          setState({ status: "running", done, target });
+        }, ctrl.signal);
+        if (!ctrl.signal.aborted) setState({ status: "done", value: r });
+      } catch (e) {
+        if (!ctrl.signal.aborted) { current.current = null; setState({ status: "error", message: e instanceof Error ? e.message : String(e) }); }
+      }
+    }).catch((e) => { if (!stale) setState({ status: "error", message: e instanceof Error ? e.message : String(e) }); });
+    return () => { stale = true; };
+  }, [enabled, d]);
+  // Leaving the page cancels a run still going.
+  useEffect(() => () => { current.current?.ctrl.abort(); current.current = null; }, []);
   return state;
-}
-
-/** What of an event payload a simulation reads, cheaply: schedule, results, ranks and alliances. */
-export function resultsFingerprint(d: EventDetail): string {
-  const played = d.matches.filter((m) => m.played);
-  const scores = played.reduce((s, m) => s + (m.red.score?.total ?? 0) * 3 + (m.blue.score?.total ?? 0) * 7, 0);
-  const ranks = d.field.reduce((s, f) => s + (f.rank ?? 0) * f.team, 0);
-  const alliances = (d.alliances ?? []).reduce((s, a) => s + (a.captain ?? 0) + (a.pick1 ?? 0) * 3 + (a.pick2 ?? 0) * 7, 0);
-  return [d.event.season, d.event.code, d.matches.length, played.length, scores, d.field.length, ranks, alliances].join("|");
 }
 
 /** Projected median rank movement since the pre-event baseline: positive = moved up (a better rank). */

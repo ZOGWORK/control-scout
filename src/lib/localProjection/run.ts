@@ -18,6 +18,7 @@ import { eventState, inputKeyAsync } from "../../shared/projectionState";
 import { projectionSeed } from "../../shared/projectionCore";
 import type { CoreResult } from "../../shared/projectionCore";
 import type { ProjectionRun } from "../../shared/projections";
+import { learnedKeys } from "../../shared/liteLearned";
 import { loadLite, type LitePack } from "../packs";
 import { readSaved, savedSeasons } from "../offline/seasons";
 import { PackForecaster, readAdvancement, readPackFacts, type PackFacts } from "./forecaster";
@@ -53,7 +54,9 @@ export async function prepareLocal(d: EventDetail, deps: { lite?: () => Promise<
   if (!got) return { unavailable: "Save this season for offline use to get a local estimate." };
   const ev = toEventInput(d.event, d.field, d.matches, d.alliances);
   if (!ev.matches.some((m) => m.level === "qual")) return { unavailable: "No qualification schedule yet." };
-  const facts = got.version === lite.version ? got.facts : withNewerRatings(got.facts, ev, lite.builtAt);
+  const learned = ratingsLearned(lite, got, season, code, d.event.end ?? d.event.start);
+  if (!learned) return { unavailable: "Your offline ratings and your saved season are from different releases, so this device can't tell which results the ratings already include. Update the saved season (or the offline pack) on the Download page to get a local estimate." };
+  const facts: PackFacts = { ...got.facts, storedKeys: learned };
   const now = deps.now ?? Date.now();
   const f = new PackForecaster(season, RatingBook.fromData(data), facts, now);
   const pi = projectionInput(f, ev);
@@ -68,19 +71,18 @@ export async function prepareLocal(d: EventDetail, deps: { lite?: () => Promise<
 }
 
 /**
- * The season pack and the lite pack come from one build, so the pack's played matches are exactly the ones
- * the ratings learned. When the lite pack is a newer build, it learned more: every played match of the event
- * from before it was built counts as learned too (match times read as the server reads them), so no result
- * is folded into the ratings twice.
+ * The event's results the lite pack's ratings already learned (null when that can't be known). Every other
+ * played result is folded into the ratings, as the server's forecaster does, so this must be exact:
+ *   - the lite pack's own record (src/shared/liteLearned.ts) when it covers the event: what its ratings learned;
+ *   - else, a season pack from the same release: built from the same data at the same moment, so its stored
+ *     matches are exactly what the ratings learned;
+ *   - else nothing can be known (older lite pack with a season pack of another release): no estimate.
+ * Never by match time: a result scheduled before the build may have arrived after it.
  */
-/** Match time → epoch ms as the server reads it (server/stats/load.ts matchTimeMs): zone-less FIRST times as UTC. */
-const matchTimeMs = (t: string | null | undefined) => (t ? Date.parse(/(Z|[+-]\d\d:?\d\d)$/.test(t) ? t : `${t}Z`) : NaN);
-
-export function withNewerRatings(facts: PackFacts, ev: ReturnType<typeof toEventInput>, builtAt: string): PackFacts {
-  const built = Date.parse(builtAt);
-  const storedKeys = new Set(facts.storedKeys);
-  for (const m of ev.matches) if (m.played && matchTimeMs(m.time) < built) storedKeys.add(m.key);
-  return { ...facts, storedKeys };
+export function ratingsLearned(lite: Pick<LitePack, "learned" | "version">, pack: { facts: PackFacts; version: string }, season: number, code: string, end: string | null): Set<string> | null {
+  const own = learnedKeys(lite.learned, season, code, end);
+  if (own) return own;
+  return pack.version === lite.version ? pack.facts.storedKeys : null;
 }
 
 /** The projected event's facts from the saved season pack (and the season before, when saved). */
@@ -199,6 +201,11 @@ export function resetLocalCache(): void { memory.clear(); for (const f of inflig
 export async function localProjection(d: EventDetail, onProgress: (done: number, target: number) => void, signal?: AbortSignal, deps: RunDeps & Parameters<typeof prepareLocal>[1] = {}): Promise<LocalProjection | Unavailable> {
   const p = await prepareLocal(d, deps);
   if ("unavailable" in p) return p;
+  return localProjectionFor(p, onProgress, signal, deps);
+}
+
+/** The estimate for a prepared input (its cache key is the results-state key): cached, joined, or simulated once. */
+export async function localProjectionFor(p: Prepared, onProgress: (done: number, target: number) => void, signal?: AbortSignal, deps: RunDeps = {}): Promise<LocalProjection> {
   const key = cacheKey(p);
   const hit = memory.get(key) ?? (await idbGet(key));
   if (hit) { memory.set(key, hit); return hit; }

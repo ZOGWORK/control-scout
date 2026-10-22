@@ -11,7 +11,11 @@ import type { ProjectionRun, ProjectionsView, ProjectionTeam } from "../shared/p
 let view: ProjectionsView | undefined;
 vi.mock("../lib/api", async (orig) => ({ ...(await orig<typeof import("../lib/api")>()), useApi: () => ({ data: view, error: undefined, loading: false, reload: () => {} }), load: () => Promise.resolve() }));
 let localResult: unknown = null;
-vi.mock("../lib/localProjection/run", () => ({ localProjection: async () => localResult ?? { unavailable: "none" } }));
+vi.mock("../lib/localProjection/run", () => ({
+  prepareLocal: async () => (localResult ? { key: "k" } : { unavailable: "none" }),
+  cacheKey: () => "k",
+  localProjectionFor: async () => localResult,
+}));
 let tracked: number[] = [];
 vi.mock("../lib/personal", () => ({ usePersonal: () => ({ state: { myTeam: null, tracked: { teams: tracked, events: [] } } }) }));
 
