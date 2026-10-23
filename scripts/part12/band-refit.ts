@@ -5,6 +5,9 @@
 // Each alliance's band inputs are read exactly as predictMatch reads them (regional start, event form, overlap),
 // and checked against the served range on every row.
 //
+// "live" is whatever band the built engine ships: docs/engine/part12/bands-2026-10-23.json was produced on engine
+// 3.1.0 (the 2.2 band); on 3.2.0+ the live and candidate columns describe the refitted band.
+//
 //   DATABASE_URL=file:<copy.db> npx tsx scripts/part12/band-refit.ts [--candidate '{"playoff":0.72}'] [--json out.json]
 import "../../server/env.js";
 import { writeFileSync } from "node:fs";
