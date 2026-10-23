@@ -38,9 +38,9 @@ describe("phone match card red text contrast", () => {
     expect(ratio(darkInk!, card)).toBeGreaterThanOrEqual(4.5); // a losing alliance's lighter 6% tint is closer to the card
   });
 
-  it("light: the alliance red (the token's light value) reads at 4.5:1 or more on its tint", () => {
-    expect(RED_INK_TOKEN).toContain("[--summary-red-ink:var(--color-red-alliance)]");
-    const card = token("html.light", "sh-card"), red = token("html.light", "color-red-alliance");
-    expect(ratio(red, over(red, 0.15, card))).toBeGreaterThanOrEqual(4.5);
+  it("light: the alliance's text red (the -text token's light value) reads at 4.5:1 or more on the bright red's tint", () => {
+    expect(RED_INK_TOKEN).toContain("[--summary-red-ink:var(--color-red-alliance-text)]");
+    const card = token("html.light", "sh-card"), red = token("html.light", "color-red-alliance"), ink = token("html.light", "color-red-alliance-text");
+    expect(ratio(ink, over(red, 0.15, card))).toBeGreaterThanOrEqual(4.5);
   });
 });

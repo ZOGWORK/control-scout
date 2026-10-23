@@ -158,8 +158,8 @@ function useChangeCount<T>(value: T): number {
 /** The loser's score (and a predicted one) fades back: the alliance colour mixed toward muted text rather than
  *  made transparent, so it still reads at 4.5:1 on the box in both themes. */
 const FADED: Record<Side, string> = {
-  red: "text-[color-mix(in_srgb,var(--color-red-alliance)_55%,var(--color-text-muted))]",
-  blue: "text-[color-mix(in_srgb,var(--color-blue-alliance)_55%,var(--color-text-muted))]",
+  red: "text-[color-mix(in_srgb,var(--color-red-alliance-text)_55%,var(--color-text-muted))]",
+  blue: "text-[color-mix(in_srgb,var(--color-blue-alliance-text)_55%,var(--color-text-muted))]",
 };
 
 /** One alliance: its teams and score in one tinted box. The winner's box is stronger; the loser's fades back. */
