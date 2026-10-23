@@ -1,7 +1,7 @@
 // Engine program Part 12.3, step 1 (measure; it may close the item): do young teams improve during a season
 // faster than the engine already allows? For every predicted, rated match, each alliance's miss per phase
-// (actual − the live engine's expectation, read exactly as a prediction reads it: regional start, event form,
-// the between-event growth factor all included) is split evenly between its two robots and bucketed by each
+// (actual − the live engine's alliance expectation, read exactly as a prediction reads it: regional start,
+// event form, the between-event growth factor and the quals overlap deduction all included) is split evenly between its two robots and bucketed by each
 // robot's experience band (rookie / year 2 / veteran) and its rated matches so far this season. A trajectory the
 // engine misses shows up as misses that grow with matches played for rookies and year-2 teams.
 // Per band, the slope of the miss on matches played (n ≤ 48) is reported with a 95% interval; robots in the
@@ -32,9 +32,8 @@ for (const s of [2022, 2023, 2024, 2025]) {
     if (unrated.has(m.eventCode)) continue;
     book.setTime(m.time);
     if (s >= 2023 && predictable(m)) {
-      const r = book.withRegion(m.region, () => book.withEvent(m.eventCode, () => [...m.red.teams, ...m.blue.teams].map((t) => book.get(t))));
-      for (const [al, idx] of [[m.red, [0, 1]], [m.blue, [2, 3]]] as const) {
-        const e = { auto: r[idx[0]].auto + r[idx[1]].auto, teleop: r[idx[0]].teleop + r[idx[1]].teleop, endgame: r[idx[0]].endgame + r[idx[1]].endgame };
+      const [r, exp] = book.withRegion(m.region, () => book.withEvent(m.eventCode, () => [[...m.red.teams, ...m.blue.teams].map((t) => book.get(t)), [m.red, m.blue].map((al) => book.allianceExpectation(al.teams, m.level))] as const));
+      for (const [al, idx, e] of [[m.red, [0, 1], exp[0]], [m.blue, [2, 3], exp[1]]] as const) {
         const miss = { auto: al.auto - e.auto, teleop: al.teleop - e.teleop, endgame: al.endgame - e.endgame, np: al.np - (e.auto + e.teleop + e.endgame) };
         for (const i of idx) {
           const band = experienceOf(rookie.get([...m.red.teams, ...m.blue.teams][i]), s);
