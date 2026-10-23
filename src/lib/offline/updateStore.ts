@@ -117,10 +117,14 @@ export async function updateNow(s: UpdateSnapshot = updateSnapshot()): Promise<v
   try {
     for (;;) {
       await whenIdle();
-      const now = updateSnapshot(); // that run may have updated some (or all) already
-      ran = now.manifest === s.manifest ? now.rows : s.rows.filter((x) => now.rows.some((y) => y.season === x.season));
+      // The seasons the person said yes to, at the newest release known now: that run may have updated some
+      // (or all) of them, and a check may have found a newer release meanwhile. pendingUpdates never picks a
+      // release older than what's saved.
+      const now = updateSnapshot();
+      const base = now.manifest ? now : s;
+      ran = pendingUpdates(base.manifest, savedSeasons()).filter((x) => s.rows.some((y) => y.season === x.season));
       if (!ran.length) break;
-      r = await applyUpdate(now.manifest === s.manifest ? now : s, ran);
+      r = await applyUpdate(base, ran);
       if (r) break; // null: another run started first; wait for that one too
       toast.loading(`Waiting for the seasons already saving, then updating ${seasonList(ran)}…`, { id });
     }
