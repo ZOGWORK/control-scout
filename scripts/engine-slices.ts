@@ -6,6 +6,7 @@
 //
 //   DATABASE_URL=file:<copy-of-snapshot.db> npx tsx scripts/engine-slices.ts [--seasons 2023,2024,2025,2026] [--out docs/engine/slices] [--rows <file.json.gz>] [--live]
 //     [--challenger '{"name":"priors","rating":{...}}'] [--gate-out docs/engine/gates]
+//     [--champion '{"rating":{...},"recalibration":false}']  (replay an earlier release as the champion)
 //
 // Models replayed side by side on identical matches:
 //   champion  the live engine (contextual model on the symmetric book)
@@ -45,7 +46,7 @@ const LIVE = args.includes("--live");
 const FEATURES = args.includes("--features");
 /** --champion overrides the champion's rating settings, to gate a release after model.json already carries it
  *  (e.g. '{"rating":{"rho1":0.6,"regionKappa":0}}' replays 2.6.0 as the champion). */
-const CHAMPION = flag("--champion") ? (JSON.parse(flag("--champion")!) as { rating?: Partial<RatingParams> }) : null;
+const CHAMPION = flag("--champion") ? (JSON.parse(flag("--champion")!) as { rating?: Partial<RatingParams>; recalibration?: false }) : null;
 const CHALLENGER = flag("--challenger") ? (JSON.parse(flag("--challenger")!) as { name: string; rating?: Partial<RatingParams> }) : null;
 /** The champion's own out-of-sample season, which sets the priority order (fit + calibration used 2023–24);
  *  the latest requested season when 2025–26 isn't replayed. */
@@ -64,6 +65,8 @@ const rookie = await rookieYears();
 const dataVersion = (await kvGet<string>("data:version")) ?? null;
 
 const champion = new RatingBook({ ...M.rating, ...CHAMPION?.rating });
+// "recalibration": false replays a release from before 2.8 (the final stretch lives in the contextual model).
+const championModel = CHAMPION?.recalibration === false && M.contextual?.recalibration ? (({ recalibration: _r, ...rest }) => rest)(M.contextual) : M.contextual;
 /** Engine 1.x's rating settings, frozen: later model changes must never move the historical baseline. */
 const LEGACY_RATING: Partial<RatingParams> = {
   k0: 0.65, n0: 10, kMin: 0.33, playoffWeight: 0.5, rho1: 0.6, rho2: 0.2, rookieZ: -0.7, uncKnown: 150, uncRookie: 350, uncDecay: 0.45, uncMin: 10,
@@ -91,7 +94,7 @@ for (const s of [...SEASONS].sort((a, b) => a - b)) {
       const ev = byCode.get(m.eventCode)!;
       const teams = [...m.red.teams, ...m.blue.teams];
       const ctx = { level: m.level, event: m.eventCode, ...(m.region ? { region: m.region } : {}) };
-      const pc = predictMatch(champion, m.red.teams, m.blue.teams, M.noise, M.calibration, { contextual: M.contextual, context: ctx, shadow: M.contextual.fallback });
+      const pc = predictMatch(champion, m.red.teams, m.blue.teams, M.noise, M.calibration, { contextual: championModel, context: ctx, shadow: M.contextual.fallback });
       // The served number is explainMatch's: prove this replay matches it (every 250th match; it is the same call underneath).
       if (rows.length % 250 === 0 && !CHAMPION) {
         const x = explainMatch(champion, m.red.teams, m.blue.teams, { noise: M.noise, calibration: M.calibration, contextual: M.contextual, context: ctx, shadow: M.contextual.fallback, band: M.band });
@@ -227,8 +230,8 @@ if (CHALLENGER && gate) {
 function gateMarkdown(): string {
   const out = [
     `# Gate: ${CHALLENGER!.name} vs engine ${ENGINE_VERSION} on ${corpusId}`, "",
-    `Generated ${meta.generated} by \`scripts/engine-slices.ts --challenger\`. Both use the contextual model \`${M.contextual!.id}\`. The champion's rating settings are the shipped ones${CHAMPION ? " with these overrides (the previous release)" : ""}:`, "",
-    "```json", JSON.stringify(CHAMPION?.rating ?? {}, null, 1), "```", "", "The challenger's changes:", "",
+    `Generated ${meta.generated} by \`scripts/engine-slices.ts --challenger\`. The challenger uses the contextual model \`${M.contextual!.id}\`${M.contextual!.recalibration ? ` (with its final recalibration, slope ${M.contextual!.recalibration.slope})` : ""}. The champion uses the same model${CHAMPION?.recalibration === false ? " **with the final recalibration removed**" : ""}, and the shipped rating settings${CHAMPION ? " with these overrides (an earlier release); reproduce it with exactly this --champion value" : ""}:`, "",
+    "```json", JSON.stringify(CHAMPION ?? {}, null, 1), "```", "", "The challenger's changes:", "",
     "```json", JSON.stringify(CHALLENGER!.rating ?? {}, null, 1), "```", "",
     "Both replay the same matches in the same order. Changes are challenger minus champion (negative Brier and log loss = challenger better) with 95% intervals from resampling whole events. A slice is a **regression** when its whole Brier interval lies above zero. 2024–25 is the tuning season; 2025–26 is **reused** and reported, not proof.", "",
   ];
@@ -304,7 +307,7 @@ function markdown(): string {
   for (const s of SEASONS.filter((x) => x !== PRIMARY)) {
     const R = reports.champion[String(s)];
     if (!R.all.n) continue;
-    out.push(`## Champion, ${seasonInfo(s).label}${s < 2025 ? " (in-sample for the champion)" : s > 2025 ? " (season in progress)" : " (reused)"}`, "", "Top excess-Brier slices: " + (R.top.map((t) => `${LABELS[t.dim]} **${t.value}** (+${t.excessBrier.toFixed(1)})`).join("; ") || "none"), "", calibrationMarkdown(R.calibration), "", sliceTable(R.dims, ORDER, LABELS));
+    out.push(`## Champion, ${seasonInfo(s).label}${s === 2023 || s === 2024 ? " (in-sample: the contextual model was fitted on 2023–24 and early 2024–25)" : s < 2023 ? " (older season: used to choose no setting)" : s > 2025 ? " (season in progress)" : " (reused)"}`, "", "Top excess-Brier slices: " + (R.top.map((t) => `${LABELS[t.dim]} **${t.value}** (+${t.excessBrier.toFixed(1)})`).join("; ") || "none"), "", calibrationMarkdown(R.calibration), "", sliceTable(R.dims, ORDER, LABELS));
   }
   out.push(`## Baselines on ${primaryLabel}`, "");
   for (const model of ["v2.0", "legacy"] as const) {

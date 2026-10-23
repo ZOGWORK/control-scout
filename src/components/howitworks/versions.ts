@@ -13,6 +13,7 @@ export interface EngineVersionNote {
 }
 
 export const ENGINE_VERSIONS: EngineVersionNote[] = [
+  { version: "3.0.0", date: "2026-10-23", numbers: false, line: "Prediction Engine 3.0: the 2.7–2.11 changes, re-checked on every season since 2019–20 (truer chances in six of seven). Same numbers as 2.11." },
   { version: "2.11.0", date: "2026-10-23", numbers: true, line: "Two robots strong at the same thing score a bit less together in quals (overlap in auto and TeleOp); first-event calls improved most." },
   { version: "2.10.0", date: "2026-10-23", numbers: true, line: "A robot's foul rating learns slowly: fouls are mostly luck, so foul-prone teams are no longer charged for huge penalty totals." },
   { version: "2.9.0", date: "2026-10-23", numbers: true, line: "The model watches today's matches too: a robot beating its rating at an event leans its next odds there." },
