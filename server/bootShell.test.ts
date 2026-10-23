@@ -57,7 +57,7 @@ describe("static first paint", () => {
   it("puts the shell and the page's own title and description inside #root, escaped", async () => {
     const html = await renderIndex(file, "/teams/4215");
     const r = root(html);
-    expect(r).toContain('<h1>Team 4215 — Hypnotic &lt;Robotics&gt; &amp; $&amp;</h1>');
+    expect(r).toContain('<h1>4215 Hypnotic &lt;Robotics&gt; &amp; $&amp;</h1>'); // the number and name, as people search for them
     expect(r).toMatch(/<p>FTC team 4215 Hypnotic &lt;Robotics&gt; &amp; \$&amp; from Oradell, NJ\./);
     expect(r).toContain('<b>Team</b>'); // the top bar's page name
     expect(r).toContain('<a href="/teams" aria-current="page">'); // the sidebar marks the section

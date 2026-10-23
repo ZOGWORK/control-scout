@@ -21,6 +21,21 @@ Power rankings stay current all week: the top 25 is checked against the latest r
 ### Power rankings
 - **Checked every day.** The current week's top 25 is compared with the latest data every day at midnight New York time. If nothing changed, the week stays exactly as it was and only its date moves ("Published Friday, Oct 23 · Updated Sunday, Oct 25"). If something did, the changed entries are updated, and Bruno rewrites only the blurbs of teams whose place changed; the rest stay word for word. Past weeks and hand-written weeks never change. The owner portal lists each day's check and can switch the refresh off (#255).
 
+## 1.35.0 — 2026-10-23
+
+Team pages tell search engines exactly who the team is, so a search for a team's number and name finds its page.
+
+### Highlights
+- [teams] Team pages are titled with number and name: "4215 Hypnotic Robotics"
+- [teams] Team pages name the town, rookie year, record and events at once
+- [fixes] Search engines see each team page as fresh when the team has played
+
+### Teams
+- **Found by number and name.** A team page's title now leads with what people search for: "4215 Hypnotic Robotics — FTC team stats, OPR & predictions · Control Scout", and its main heading is the number and name together (it looks the same as before). Its description is built from the team's own data: town, rookie year, latest season's record and OPR rank.
+- **Readable before the app loads.** The first response for a team page carries a short summary and its most recent events as links, so search engines and slow connections read who the team is without running any script. The app takes over as before.
+- **Clearer to search engines.** Each team page describes itself as the team's profile page, with the team's own website and its FIRST page listed as the same team, and a Home › Teams › team trail. A link with ?season= still names the one team address as its canonical.
+- **Fresh in the sitemap.** A team's last-changed date in the sitemap is now the last day it played (or a later correction to those results), instead of the date of the last data sync, which was the same for every team. (#256)
+
 ## 1.34.0 — 2026-10-23
 
 The Predict Lab opens on advancement odds, bigger and easier to use, and its season switch works again.

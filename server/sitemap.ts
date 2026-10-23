@@ -18,8 +18,23 @@ const xmlEsc = (s: string) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").rep
 
 /** Every URL for the sitemap, in a stable order. */
 export async function sitemapEntries(): Promise<Entry[]> {
+  const today = new Date().toISOString().slice(0, 10);
   const [teams, events] = await Promise.all([
-    all<{ number: number; updated_at: string | null }>("SELECT number, updated_at FROM teams ORDER BY number"),
+    // A team page changes when the team plays: its lastmod is the last day of its latest event that has started (today
+    // while one is on), or a later change the source marked on one. Not teams.updated_at: every sync stamps that on
+    // every team, so it said nothing about the page. Only events it took part in (a league roster lists teams that never
+    // played): the rule of api/teams.ts ATTENDED (on the field in a played match of any level, or the event has no played
+    // matches yet, as a remote one), read set-wise: the per-row EXISTS took seconds over every team, this about one.
+    all<{ number: number; lastmod: string | null }>(
+      `WITH took AS (
+         SELECT x.season, x.code, x.team FROM matches m JOIN match_teams x
+           ON x.season = m.season AND x.code = m.code AND x.level = m.level AND x.series = m.series AND x.number = m.number
+           WHERE m.played = 1 AND x.on_field = 1
+         UNION SELECT et.season, et.code, et.team FROM event_teams et JOIN events e ON e.season = et.season AND e.code = et.code
+           WHERE e.start <= ? AND NOT EXISTS (SELECT 1 FROM matches m WHERE m.season = et.season AND m.code = et.code AND m.played = 1))
+       SELECT t.number, MAX(CASE WHEN e.start <= ? THEN MAX(MIN(COALESCE(e.end, e.start), ?), COALESCE(substr(e.upstream_updated, 1, 10), '')) END) lastmod
+       FROM teams t LEFT JOIN took k ON k.team = t.number LEFT JOIN events e ON e.season = k.season AND e.code = k.code
+       GROUP BY t.number ORDER BY t.number`, [today, today, today]),
     all<{ season: number; code: string; upstream_updated: string | null }>("SELECT season, code, upstream_updated FROM events ORDER BY season DESC, code"),
   ]);
   // Power rankings: the hub and every published week, newest first (none until the first is; never sample weeks).
@@ -30,7 +45,7 @@ export async function sitemapEntries(): Promise<Entry[]> {
     ...weeks.map((w) => ({ loc: canonicalUrl(`/power-rankings/${w.week}`), lastmod: lastmodOf(w) })),
     // lastmod: the source's own change marker (late results, awards and advancement move it); none when unknown.
     ...events.map((e) => ({ loc: canonicalUrl(`/events/${e.season}/${encodeURIComponent(e.code)}`), lastmod: day(e.upstream_updated) })),
-    ...teams.map((t) => ({ loc: canonicalUrl(`/teams/${t.number}`), lastmod: day(t.updated_at) })),
+    ...teams.map((t) => ({ loc: canonicalUrl(`/teams/${t.number}`), lastmod: day(t.lastmod) })),
   ];
 }
 
