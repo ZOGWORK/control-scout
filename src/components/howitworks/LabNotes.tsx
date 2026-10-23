@@ -40,8 +40,8 @@ const NOTES: { v: Verdict; title: string; body: string; more: string; wide?: boo
   },
   {
     v: "no", title: "A blend with a second and third opinion",
-    body: "Mixing the engine's win odds with a win/loss-only skill rating and a margin model. On seasons the blend never saw it barely moved anything: the typical call changed by under 1%, winner accuracy didn't change, and the small gain in probability quality wasn't clearly real. One model stays.",
-    more: "Blend minus engine, Brier ×10⁻⁴, fit on the season before: 2023–24 −0.62 [−0.97, −0.20]; 2024–25 −0.98 [−1.77, +0.45]; 2025–26 −0.66 [−1.79, +0.25]. Median change to a call 0.3–0.7%. The skill rating alone was much worse (Brier about 0.20 against 0.17), and the margin model, built from the engine's own ratings, got no weight. Details in docs/engine/part12/ensemble.md.",
+    body: "Mixing the engine's win odds with a win/loss-only skill rating and a margin model. On the one season none of the models had learned from, the blend was slightly worse than the engine alone; on later seasons it was a hair better, but only where the engine had already seen the matches. Winner accuracy didn't change. One model stays.",
+    more: "Blend minus engine, Brier ×10⁻⁴, blend fit on the season before: 2022–23 (fully held out) +1.61 [−0.54, +3.48]; 2023–24 −0.62 [−1.06, −0.12], 2024–25 −0.98 [−2.06, +0.16], 2025–26 −0.66 [−1.77, +0.41], where the engine's learned weights had seen part of the data. Typical change to a call 0.3–1.0%. The skill rating alone was much worse (Brier about 0.20 against 0.17), and the margin model, built from the engine's own ratings, got a small, unstable weight (+0.18 once, then −0.01 to −0.09). Details in docs/engine/part12/ensemble.md.",
   },
   {
     v: "ship", wide: true, title: "Prediction Engine 2.1: form at this event, momentum, collapses",
