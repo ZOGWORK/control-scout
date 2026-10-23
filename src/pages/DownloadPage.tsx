@@ -4,12 +4,15 @@
 // plain file for analysts). The lite pack that runs predictions offline isn't
 // offered here: it downloads itself in the background for returning visitors
 // (LitePackSync, packPolicy.ts), and opening this page fetches it at once; this
-// page only shows its status.
-import { useEffect, useState } from "react";
+// page only shows its status. Updates to saved seasons are found in the background (lib/offline/updateWatcher)
+// and follow the two settings at the bottom of the seasons list: ask or download automatically, Wi-Fi only or
+// any connection.
+import { useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
-import { CheckCircle2, Database, HardDriveDownload, Loader2, RefreshCw, Trash2, WifiOff } from "lucide-react";
+import { BellRing, CheckCircle2, Database, HardDriveDownload, Loader2, RefreshCw, Trash2, WifiOff } from "lucide-react";
 import { useTitle } from "../lib/meta";
 import { ManifestError, PACK_EVENT, fetchManifest, packStatus, syncLite, type PackManifest, type PackMeta } from "../lib/packs";
+import type { ConnectionInfo } from "../lib/packPolicy";
 import { removeSeason, useSavedSeasons, type SavedSeason } from "../lib/offline/seasons";
 import { runSeasonBatch, useSeasonBatch } from "../lib/offline/seasonBatch";
 import { bytesOf, planSeasons, type SeasonRow } from "../lib/offline/seasonPlan";
@@ -20,6 +23,8 @@ import { Progress } from "../components/ui/controls";
 import { toast } from "../components/ui/sonner";
 import { ago, seasonLabel } from "../lib/format";
 import { cn } from "../components/cn";
+import { netKind, updateStatus } from "../lib/offline/updatePolicy";
+import { UpdateModeToggle, UpdateNetworkToggle, connectionNote, useConnection, useUpdatePrefs } from "../components/offline/UpdateSettings";
 
 export default function DownloadPage() {
   useTitle("Download");
@@ -29,6 +34,11 @@ export default function DownloadPage() {
   const [local, setLocal] = useState<PackMeta | null>(packStatus());
   const [syncing, setSyncing] = useState(false);
   const saved = useSavedSeasons();
+  const { network } = useUpdatePrefs();
+  const connection = useConnection();
+  // Wi-Fi only on mobile data: opening the page doesn't fetch the lite pack either (Get it now does). Only
+  // that: Data Saver or a slow link still fetches here, as before (the visit asks for it).
+  const liteOk = !(network === "wifi" && netKind(connection) === "cellular");
   useEffect(() => {
     setErr(null);
     fetchManifest().then(setM, (e) => setErr(e instanceof ManifestError ? e : new ManifestError("failed", e.message)));
@@ -40,11 +50,14 @@ export default function DownloadPage() {
     window.addEventListener(PACK_EVENT, onChange);
     return () => window.removeEventListener(PACK_EVENT, onChange);
   }, []);
+  // Get it now: no check, it's the person's own say-so. Opening the page: re-checked right before the download.
+  const getLite = (allowed?: () => boolean) => { setSyncing(true); syncLite({ allowed }).then((meta) => { setLocal(meta); setSyncing(false); }); };
+  const netRef = useRef(network);
+  netRef.current = network;
   useEffect(() => {
-    if (!m?.lite || local?.version === m.version) return;
-    setSyncing(true);
-    syncLite().then((meta) => { setLocal(meta); setSyncing(false); });
-  }, [m, local?.version]);
+    if (!m?.lite || local?.version === m.version || !liteOk) return;
+    getLite(() => !(netRef.current === "wifi" && netKind((navigator as Navigator & { connection?: ConnectionInfo }).connection) === "cellular"));
+  }, [m, local?.version, liteOk]);
   return (
     <div>
       <PageHeader title="Download" description="Save a season on this device and its team pages, event pages and search work with no wifi. Offline predictions are automatic." />
@@ -61,13 +74,13 @@ export default function DownloadPage() {
         />
       ) : !m ? <div className="skeleton h-48 rounded-2xl" /> : (
         <>
-          <LiteStatus local={local} m={m} syncing={syncing} />
+          <LiteStatus local={local} m={m} syncing={syncing} waiting={!liteOk} onGet={() => getLite()} />
           <SeasonsSection m={m} saved={saved} />
           <Section title="How offline mode works" className="mt-8 max-sm:mt-5">
             <ol className="grid gap-3 text-sm text-muted-foreground sm:grid-cols-3">
               <li className="rounded-xl border border-border bg-card p-4"><HardDriveDownload className="mb-2 size-5 text-accent" /><span className="text-foreground">Before the event</span>, on wifi, save the season above. It's checked against its published SHA-256 and kept in this browser. Predictions need nothing: a small lite pack of every team's ratings saves itself whenever you're online.</li>
               <li className="rounded-xl border border-border bg-card p-4"><WifiOff className="mb-2 size-5 text-accent" /><span className="text-foreground">At the venue</span>, with no connection, team pages, event pages (rankings, matches, alliances, awards) and search answer from the saved season, marked "Offline" with the date the data is from. Upcoming matches and the <Link to="/predict?mode=match" className="underline">what-if lab</Link> get win odds from the lite pack: same engine, ratings as of the pack's date.</li>
-              <li className="rounded-xl border border-border bg-card p-4"><CheckCircle2 className="mb-2 size-5 text-accent" /><span className="text-foreground">Updates</span>: the lite pack updates on its own. A saved season shows <span className="text-foreground">Update</span> here when a newer release is out. Remove seasons here or in Settings › Offline data. Scouting notes keep working offline too and sync when you're back online.</li>
+              <li className="rounded-xl border border-border bg-card p-4"><CheckCircle2 className="mb-2 size-5 text-accent" /><span className="text-foreground">Updates</span>: the lite pack updates on its own. Saved seasons are checked for a newer release in the background: you're asked once per release, or it downloads by itself if you choose, on Wi-Fi only unless you say otherwise. Until the new copy is verified, the saved one keeps working. Remove seasons here or in Settings › Offline data. Scouting notes keep working offline too and sync when you're back online.</li>
             </ol>
           </Section>
           <p className="mt-4 font-mono text-[11px] text-muted-foreground">Manifest: <a href="/packs/latest.json" className="underline">/packs/latest.json</a> · engine v{m.engineVersion} · data as of {m.dataAsOf ? new Date(m.dataAsOf).toLocaleString() : "—"}</p>
@@ -77,7 +90,7 @@ export default function DownloadPage() {
   );
 }
 
-function LiteStatus({ local, m, syncing }: { local: PackMeta | null; m: PackManifest; syncing: boolean }) {
+function LiteStatus({ local, m, syncing, waiting, onGet }: { local: PackMeta | null; m: PackManifest; syncing: boolean; waiting: boolean; onGet: () => void }) {
   if (!m.lite) return null;
   const current = local?.version === m.version;
   return (
@@ -87,9 +100,14 @@ function LiteStatus({ local, m, syncing }: { local: PackMeta | null; m: PackMani
         ? <span>Offline predictions are ready on this device: lite pack {local!.version}, saved automatically {ago(new Date(local!.savedAt).toISOString())}.</span>
         : syncing
           ? <span>Getting offline predictions ready on this device ({local ? `updating ${local.version} → ${m.version}` : fmtBytes(m.lite.bytes)})…</span>
-          : local
-            ? <span>Offline predictions work on this device from lite pack {local.version}. Version {m.version} downloads on its own next time you're online.</span>
-            : <span>Offline predictions aren't on this device yet. They download on their own next time you're online.</span>}
+          : waiting
+            ? <>
+                <span>{local ? `Offline predictions work on this device from lite pack ${local.version}. Version ${m.version}` : "Offline predictions"} ({fmtBytes(m.lite.bytes)}) {local ? "waits" : "wait"} for Wi-Fi: you're on mobile data, and updates are set to Wi-Fi only.</span>
+                <Button size="sm" variant="secondary" onClick={onGet}><HardDriveDownload /> Get it now</Button>
+              </>
+            : local
+              ? <span>Offline predictions work on this device from lite pack {local.version}. Version {m.version} downloads on its own next time you're online.</span>
+              : <span>Offline predictions aren't on this device yet. They download on their own next time you're online.</span>}
     </p>
   );
 }
@@ -100,6 +118,8 @@ function LiteStatus({ local, m, syncing }: { local: PackMeta | null; m: PackMani
  */
 function SeasonsSection({ m, saved }: { m: PackManifest; saved: SavedSeason[] }) {
   const plan = planSeasons(m.full, saved);
+  const { mode, network } = useUpdatePrefs();
+  const connection = useConnection();
   // The save run is the app's, not this page's (lib/offline/seasonBatch): its progress survives leaving and
   // coming back, and a second run can't start beside it.
   const { busy, queue } = useSeasonBatch();
@@ -133,6 +153,7 @@ function SeasonsSection({ m, saved }: { m: PackManifest; saved: SavedSeason[] })
             <span><span className="font-semibold tabular-nums">{plan.savedCount}</span> of {plan.rows.length} saved</span>
             {plan.toUpdate.length > 0 && <span className="inline-flex items-center gap-1 text-warning"><RefreshCw className="size-3.5" />{plan.toUpdate.length} {plan.toUpdate.length === 1 ? "update" : "updates"} available</span>}
           </p>
+          {plan.savedCount > 0 && <p className="mt-1.5 flex items-start gap-1.5 text-xs text-muted-foreground" data-update-status><BellRing className="mt-px size-3.5 shrink-0 text-accent" />{updateStatus(mode, network, connection)}</p>}
         </div>
         <div className="flex flex-wrap gap-2">
           {plan.toUpdate.length > 0 && (
@@ -159,6 +180,7 @@ function SeasonsSection({ m, saved }: { m: PackManifest; saved: SavedSeason[] })
           ))}
         </ul>
       )}
+      <UpdatePrefs />
       <div className="border-t border-border px-4 py-3 sm:px-6"><StorageLine saved={saved} /></div>
     </section>
   );
@@ -219,5 +241,25 @@ function StorageLine({ saved }: { saved: SavedSeason[] }) {
       {saved.length ? `Saved seasons use ${fmtBytes(total)} on this device.` : "No seasons saved on this device yet."}
       {est?.usage != null && ` This site uses ${fmtBytes(est.usage)}${est.quota ? ` of ${fmtBytes(est.quota)} available` : ""} in all.`}
     </p>
+  );
+}
+
+/** The two update settings (synced with your account): ask or download automatically, and on which connections. */
+function UpdatePrefs() {
+  const { mode, network, setMode, setNetwork } = useUpdatePrefs();
+  const connection = useConnection();
+  return (
+    <div className="grid gap-4 border-t border-border px-4 py-4 sm:grid-cols-2 sm:px-6" aria-label="Update settings" role="group">
+      <div className="min-w-0">
+        <p className="text-sm font-medium">When updates are out</p>
+        <p className="mt-0.5 mb-2 text-xs text-muted-foreground">Checked in the background. Ask me shows one pop-up per release, and a notification when you're signed in.</p>
+        <UpdateModeToggle value={mode} onChange={setMode} />
+      </div>
+      <div className="min-w-0">
+        <p className="text-sm font-medium">Download updates on</p>
+        <p className="mt-0.5 mb-2 text-xs text-muted-foreground">{connectionNote(connection)}</p>
+        <UpdateNetworkToggle value={network} onChange={setNetwork} />
+      </div>
+    </div>
   );
 }

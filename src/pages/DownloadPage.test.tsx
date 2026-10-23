@@ -28,8 +28,11 @@ vi.mock("../lib/offline/seasons", () => ({
     return { season: f.seasons[0] };
   },
   removeSeason: async () => {},
+  SeasonGone: class extends Error {},
 }));
 vi.mock("../components/ui/sonner", () => ({ toast: Object.assign(vi.fn(), { success: (...a: unknown[]) => toastOk(...a), error: (...a: unknown[]) => toastErr(...a) }) }));
+// The update settings read personal state: the defaults (ask first, Wi-Fi only), no account.
+vi.mock("../lib/personal", () => ({ usePersonal: () => ({ state: { settings: {} }, update: vi.fn() }) }));
 vi.mock("../lib/meta", async (orig) => ({ ...(await orig<typeof import("../lib/meta")>()), useTitle: () => {} }));
 
 const { default: DownloadPage } = await import("./DownloadPage");

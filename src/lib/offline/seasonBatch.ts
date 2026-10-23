@@ -2,7 +2,7 @@
 // /download and coming back shows the same progress, and a second Download all can't start beside the first.
 import { useSyncExternalStore } from "react";
 import type { PackFile, PackManifest } from "../packs";
-import { saveSeason } from "./seasons";
+import { SeasonGone, saveSeason } from "./seasons";
 
 export interface BatchState {
   /** The season saving now and its progress (0–100). */
@@ -11,7 +11,14 @@ export interface BatchState {
   queue: number[];
 }
 
-export interface BatchResult { saved: number[]; failed: { season: number; error: Error }[] }
+export interface BatchResult {
+  saved: number[];
+  failed: { season: number; error: Error }[];
+  /** Updates (replaceOnly) whose season was removed while the run went: left removed, not a failure. */
+  skipped: number[];
+  /** Not started because `go` said stop (an automatic update whose connection stopped being allowed). */
+  held: number[];
+}
 
 let state: BatchState = { busy: null, queue: [] };
 const subs = new Set<() => void>();
@@ -22,21 +29,30 @@ export const batchState = () => state;
 export const batchRunning = () => state.busy != null || state.queue.length > 0;
 export function useSeasonBatch(): BatchState { return useSyncExternalStore(subscribe, batchState, batchState); }
 
+/** Resolves once no run is going (at once when idle). */
+export function whenIdle(): Promise<void> {
+  if (!batchRunning()) return Promise.resolve();
+  return new Promise((res) => { const off = subscribe(() => { if (!batchRunning()) { off(); res(); } }); });
+}
+
 /**
  * Save these files in order (each verified by saveSeason). Null when a run is already going: nothing starts
- * twice. A failure is kept and the rest still run.
+ * twice. A failure is kept and the rest still run. replaceOnly: updates, which never bring back a season
+ * removed meanwhile (they're skipped). go: asked before each file; false holds that file and the rest.
  */
-export async function runSeasonBatch(files: PackFile[], manifest: PackManifest): Promise<BatchResult | null> {
+export async function runSeasonBatch(files: PackFile[], manifest: PackManifest, opts: { replaceOnly?: boolean; go?: () => boolean } = {}): Promise<BatchResult | null> {
   if (batchRunning() || !files.length) return null;
-  const out: BatchResult = { saved: [], failed: [] };
+  const out: BatchResult = { saved: [], failed: [], skipped: [], held: [] };
   set({ busy: null, queue: files.map((f) => f.seasons[0]) });
-  for (const f of files) {
+  for (const [i, f] of files.entries()) {
     const season = f.seasons[0];
+    if (opts.go && !opts.go()) { out.held = files.slice(i).map((x) => x.seasons[0]); break; }
     set({ busy: { season, pct: 0 }, queue: state.queue.filter((x) => x !== season) });
     try {
-      await saveSeason(f, manifest, (got, total) => set({ ...state, busy: { season, pct: total ? Math.min(100, (got / total) * 100) : 0 } }));
+      await saveSeason(f, manifest, (got, total) => set({ ...state, busy: { season, pct: total ? Math.min(100, (got / total) * 100) : 0 } }), opts);
       out.saved.push(season);
     } catch (e) {
+      if (e instanceof SeasonGone) { out.skipped.push(season); continue; }
       out.failed.push({ season, error: e instanceof Error ? e : new Error(String(e)) });
     }
   }
