@@ -50,6 +50,29 @@ it publishes on its first check afterwards, for as long as that Friday's ISO wee
 once: a run claims the week first, so a second check, a second server, or a restart mid-run never
 publishes it twice. A run that died part-way is taken over after 15 minutes.
 
+### Daily refresh
+
+`server/powerRankings/refresh.ts`. Until the next Friday, the current week is checked again **every day
+at 00:00 New York time** against the latest data (the same facts as on Friday, against the same
+previous week). A server that was down at midnight checks on its first tick that day; each week is
+checked once per New York day, across restarts and servers.
+
+- **Nothing shown changed** (same teams, same order, same numbers): the week is kept exactly as it was,
+  Bruno's blurbs included, and only its date moves. The page says "Published Friday, Oct 23 · Updated
+  Sunday, Oct 25" (the Updated part only on a later day than the publish date).
+- **Something changed**: the new facts are stored and only the blurbs that need it are written again.
+  A team in a new place (rank or movement), or new to the list, gets a new blurb from Bruno, in one
+  call for just those teams. A team in the same place keeps Bruno's blurb as long as every number in it
+  still passes the fact check against the new facts (else Bruno writes it again). Data summary blurbs
+  are rebuilt from the new numbers without asking Bruno. Your edits are never overwritten. Bruno's
+  intro stays unless the leader changed or it no longer checks out; then Bruno writes it again (that
+  one call then carries the whole list).
+- **Never touched:** past weeks (from the next Friday 00:00 on, even before the next week is out), a
+  hand-written week, a hidden week, and the week on the day it went out.
+
+The **Daily power rankings refresh** switch turns it off (the week then stays as it was); so does the
+Automatic power rankings switch.
+
 ### How the fact check works
 
 `server/powerRankings/factCheck.ts`. A blurb passes only if all of these hold:
@@ -87,6 +110,8 @@ who wrote each blurb and why any of Bruno's failed the fact check. You can:
   are replaced. If Bruno can't be reached, nothing changes.
 - **Hide** a week from the pages, archive and sitemap, or **show** it again. Nothing is deleted.
 - **Publish now**: publish this week right away instead of waiting for Friday. Friday then skips it.
+- See the current week's **daily checks** (no change, or how many teams changed and who rewrote their
+  blurbs), and turn the **daily refresh** off or on.
 
 Each action asks for confirmation first and is written to the audit log. The **Automatic power
 rankings** switch (Switches panel) stops new weeks from being generated. Weeks already out stay up;

@@ -23,6 +23,8 @@ export interface GeneratedWeek {
   season: number;
   week: string;
   published: string;
+  /** The New York date of its last daily check (./refresh.ts), null when never checked since it went out. */
+  updated: string | null;
   status: GeneratedStatus;
   intro: string;
   introSource: BlurbAuthor;
@@ -36,7 +38,7 @@ export interface GeneratedWeek {
 }
 
 interface Row {
-  season: number; week: string; published: string; status: string; intro: string; intro_source: string;
+  season: number; week: string; published: string; updated: string | null; status: string; intro: string; intro_source: string;
   entries: string; packet: string; generated_at: string; edited_by: string | null; edited_at: string | null; rev: number;
 }
 
@@ -44,7 +46,7 @@ const parse = <T>(s: string, fallback: T): T => { try { return JSON.parse(s) as 
 
 function fromRow(r: Row): GeneratedWeek {
   return {
-    season: Number(r.season), week: r.week, published: r.published, status: r.status as GeneratedStatus,
+    season: Number(r.season), week: r.week, published: r.published, updated: r.updated ?? null, status: r.status as GeneratedStatus,
     intro: r.intro, introSource: r.intro_source as BlurbAuthor, entries: parse<GeneratedEntry[]>(r.entries, []),
     packet: parse<StoredPacket>(r.packet, { season: Number(r.season), week: r.week, teams: [], comparedWith: null }),
     generatedAt: r.generated_at, editedBy: r.edited_by, editedAt: r.edited_at, rev: Number(r.rev ?? 0),
@@ -82,7 +84,7 @@ export function toDoc(g: GeneratedWeek): RankingDoc {
     week: g.week, season: g.season, title: generatedTitle(g.week), published: g.published, intro: g.intro, sample: false,
     entries: g.entries.map((e) => ({ rank: e.rank, team: e.team, blurb: e.text, movement: frozenMovement(byTeam.get(e.team), compared) })),
     generated: {
-      introSource: g.introSource, sources: g.entries.map((e) => e.source), rev: revOf(g),
+      introSource: g.introSource, sources: g.entries.map((e) => e.source), rev: revOf(g), updated: g.updated,
       comparedWith: g.packet.comparedWith ?? null, droppedOut: g.packet.droppedOut ?? [],
     },
   };
