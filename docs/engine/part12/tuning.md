@@ -59,7 +59,7 @@ Accuracy changed by 0.08 points or less overall, and every interval includes zer
 ## Why rejected
 
 - **The whole tuning gain is playoffs in one season.** In 2024–25, playoffs moved by −18×10⁻⁴; on the other seasons they did not move (+3.16 and −0.03). That is the overfitting signature the flat-region rule is meant to catch. Here it survived the coordinate-wise rule and was caught by slicing.
-- **Thin data regresses beyond noise in every season.** The affected slices are first events, 0–5 rated matches, thin density and league meets.
+- **League meets regress beyond noise in all three seasons, and thin data in the two later ones.** In 2024–25 and 2025–26 the affected slices are first events, 0–5 rated matches and thin density. In 2023–24 only the 6–15-match and league-meet slices regressed; thin data there was −1.09 [−2.85, +0.56].
   - A slower between-event growth rate under-rates teams whose next event comes after a long gap. Those are exactly the thin-data matches, which Parts 1–3 worked to fix.
   - The tuning season's global Brier hid it.
 - **Calibration in the 50–80% bands got worse** in both later seasons.

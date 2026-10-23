@@ -22,7 +22,7 @@ How it works records four second-wave engine tests, all measured and turned down
 ### How it works
 - New lab note: a win/loss skill rating and a margin model blended with the engine. On the one fully held-out season the blend was slightly worse, later gains were within noise, and accuracy didn't change, so the engine stays a single model (docs/engine/part12/ensemble.md) (#249).
 - New lab note: a growth curve for rookies and second-year teams. Their misses drift the same way as veterans' as matches pile up, so there is nothing to add; a small late-season over-rating in every band is noted for the tuning pass (docs/engine/part12/growth.md).
-- New lab note: a tuning pass over all 15 rating settings. Twelve were already on a plateau; moving the other three helped one season's playoffs and hurt thin-data predictions everywhere, so nothing changed (docs/engine/part12/tuning.md).
+- New lab note: a tuning pass over all 15 rating settings. Twelve were already on a plateau; moving the other three helped one season's playoffs and hurt thin-data predictions in the two later seasons, so nothing changed (docs/engine/part12/tuning.md).
 - New lab note: a free-form (isotonic) final calibration. Not clearly closer in the 55–85% bands and slightly worse on Brier, so the one-number stretch stays (docs/engine/part12/isotonic.md).
 
 ## 1.29.0 — 2026-10-23

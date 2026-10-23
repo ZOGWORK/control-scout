@@ -40,8 +40,8 @@ const NOTES: { v: Verdict; title: string; body: string; more: string; wide?: boo
   },
   {
     v: "no", title: "A tuning pass over every rating setting",
-    body: "Each of the 15 rating settings was swept on its own over one season. Twelve sat on a plateau at their current value. Moving the other three (slower between-event growth, more weight on playoff results) helped that season, but only through its playoffs, and made predictions for teams with little data worse in every season. Nothing changed.",
-    more: "Candidate (growth 0.03 a week for up to 6 weeks, playoff weight 0.8) minus engine, Brier ×10⁻⁴: 2024–25 −2.51 [−4.55, −0.33], of which playoffs −18.26; 2023–24 +0.31; 2025–26 +0.60. Thin-data, first-event and league-meet matches worse beyond noise in every season. Surfaces and the gate report in docs/engine/part12/tuning.md.",
+    body: "Each of the 15 rating settings was swept on its own over one season. Twelve sat on a plateau at their current value. Moving the other three (slower between-event growth, more weight on playoff results) helped that season, but only through its playoffs, and made predictions for teams with little data worse in the two later seasons. Nothing changed.",
+    more: "Candidate (growth 0.03 a week for up to 6 weeks, playoff weight 0.8) minus engine, Brier ×10⁻⁴: 2024–25 −2.51 [−4.55, −0.33], of which playoffs −18.26; 2023–24 +0.31; 2025–26 +0.60. Worse beyond noise: league meets in all three seasons; thin-data and first-event matches in 2024–25 and 2025–26; teams with 6–15 matches in 2023–24. Surfaces and the gate report in docs/engine/part12/tuning.md.",
   },
   {
     v: "no", title: "A free-form final calibration",
