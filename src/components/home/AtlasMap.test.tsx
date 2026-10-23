@@ -2,7 +2,7 @@
 // The atlas globe without a pointer: it takes keyboard focus and the arrow keys turn it; the flat map
 // isn't a tab stop (nothing to turn). The rotation step itself is a pure function. The spin's frames are
 // transitions, so a page change is never starved behind them.
-import { act, cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import AtlasMap, { KEY_TURN_DEG, turnByKey } from "./AtlasMap";
 
@@ -87,8 +87,10 @@ describe("AtlasMap spin", () => {
     let now = performance.now();
     for (let i = 0; i < 3; i++) {
       now += 40; // past the ~30 frames a second step
+      // The first frame is requested by the spin effect, which can run after the globe is found (on a loaded CI
+      // machine it may not have yet), so wait for it. Later frames are requested synchronously by tick.
+      await waitFor(() => expect(frames.length).toBeGreaterThan(0));
       const due = frames.splice(0);
-      expect(due.length).toBeGreaterThan(0);
       await act(async () => { for (const f of due) f(now); });
     }
     expect(spy.transitions).toBeGreaterThanOrEqual(3);
