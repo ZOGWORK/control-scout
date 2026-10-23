@@ -166,6 +166,11 @@ export async function teamProfile(number: number, season?: number): Promise<Team
   };
 }
 
+/** Schedule order, as matchViews returns matches: by time (none first), event, quals before playoffs, series, number. */
+export function bySchedule(a: { time: string | null; code: string; level: string; series: number; number: number }, b: typeof a): number {
+  return (a.time ?? "").localeCompare(b.time ?? "") || a.code.localeCompare(b.code) || b.level.localeCompare(a.level) || a.series - b.series || a.number - b.number;
+}
+
 /** How a match relates the compared teams, seen from the first of them in it: "opponents" when another compared
  *  team was on the other side, "partners" when only on the same side, null when no other compared team played. */
 export function relationOf(numbers: number[], red: number[], blue: number[]): "opponents" | "partners" | null {
@@ -201,7 +206,9 @@ export async function compareTeams(numbers: number[], season: number): Promise<C
         seen.add(id);
         meetings.push({ ...m, relation });
       }
-    }
+    }    // Each team's list comes in schedule order; merged, they're put back in it (as matchViews orders: time, event,
+    // quals before playoffs, series, number), so an event's matches stay together in one section.
+    meetings.sort(bySchedule);
   }
   return { season, teams, meetings };
 }
