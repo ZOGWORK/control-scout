@@ -8,13 +8,13 @@ and its Part 11 sign-off (`docs/engine/signoff-3.0.md`).
   and through 2.6.0, reproduced bit for bit, and compared on identical matches. Brier improves in six
   of seven seasons: −7.87, −2.77, −3.18, −3.73, −6.45 and −9.31 ×10⁻⁴. The seventh is 2020–21, mostly
   remote, with 564 matches: +1.97, noise.
-- **Calibration.** Error in the 50–80% bands roughly halves in every season.
+- **Calibration.** Error in the 50–80% bands falls in every season, roughly halving in five of seven (2019–20 and 2020–21 improve by about a fifth).
 - **Regressions.** None beyond noise, apart from one low-count band in 2020–21.
 - **Other checks:**
   - determinism: two full replays are bit-identical;
   - Monte Carlo acceptance: 87.2% of teams inside their P10–P90 band;
   - Control Point equivalence: bit-identical;
-  - performance: 20 µs per prediction.
+  - performance: 11–20 µs per prediction with the live options, about 1.1–1.3× 2.6.
 - **Major version.** The bump marks the new rating behaviour (regional priors, event-local form, alliance
   overlap, slow foul learning, recalibration). Every API is backward-compatible: new settings default to
   off, and `MatchExplanation` gained `overlapA` / `overlapB`.

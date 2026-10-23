@@ -1,5 +1,6 @@
-// Engine program Part 11, performance check: the cost of the live prediction path (explainMatch, what
-// a match page and the live ledger call) and of a full season replay, on the final engine and on
+// Engine program Part 11, performance check: the cost of the live prediction path (explainMatch with the
+// live options a match page and the live ledger use, the 2.0 shadow model included; bonus-RP odds, which need
+// the season's bonus fit, are left out and add a small fixed cost to qualification calls) and of a full season replay, on the final engine and on
 // 2.6.0's settings (regional starts, event form, overlap, slow fouls off; same code), on this machine.
 //
 //   DATABASE_URL=file:<copy.db> npx tsx scripts/part11/perf.ts
@@ -24,7 +25,7 @@ for (const [name, over] of [["final", {}], ["2.6.0 settings", OLD]] as const) {
     if (predictable(m)) {
       book.setTime(m.time);
       const ctx = { level: m.level, event: m.eventCode, ...(m.region ? { region: m.region } : {}) };
-      explainMatch(book, m.red.teams, m.blue.teams, { noise: M.noise, calibration: M.calibration, contextual: M.contextual, context: ctx, band: M.band });
+      explainMatch(book, m.red.teams, m.blue.teams, { noise: M.noise, calibration: M.calibration, contextual: M.contextual, context: ctx, band: M.band, shadow: M.contextual!.fallback });
       if (calls.length < 5000) calls.push({ red: m.red.teams, blue: m.blue.teams, ctx });
     }
     book.update(m);
@@ -34,7 +35,7 @@ for (const [name, over] of [["final", {}], ["2.6.0 settings", OLD]] as const) {
   const per: number[] = [];
   for (let pass = 0; pass < 5; pass++) {
     const t1 = process.hrtime.bigint();
-    for (const c of calls) explainMatch(book, c.red, c.blue, { noise: M.noise, calibration: M.calibration, contextual: M.contextual, context: c.ctx, band: M.band });
+    for (const c of calls) explainMatch(book, c.red, c.blue, { noise: M.noise, calibration: M.calibration, contextual: M.contextual, context: c.ctx, band: M.band, shadow: M.contextual!.fallback });
     per.push((ms(t1) * 1000) / calls.length);
   }
   per.sort((a, b) => a - b);
