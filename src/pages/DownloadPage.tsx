@@ -7,11 +7,12 @@
 // page only shows its status. Updates to saved seasons are found in the background (lib/offline/updateWatcher)
 // and follow the two settings at the bottom of the seasons list: ask or download automatically, Wi-Fi only or
 // any connection.
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import { BellRing, CheckCircle2, Database, HardDriveDownload, Loader2, RefreshCw, Trash2, WifiOff } from "lucide-react";
 import { useTitle } from "../lib/meta";
 import { ManifestError, PACK_EVENT, fetchManifest, packStatus, syncLite, type PackManifest, type PackMeta } from "../lib/packs";
+import type { ConnectionInfo } from "../lib/packPolicy";
 import { removeSeason, useSavedSeasons, type SavedSeason } from "../lib/offline/seasons";
 import { runSeasonBatch, useSeasonBatch } from "../lib/offline/seasonBatch";
 import { bytesOf, planSeasons, type SeasonRow } from "../lib/offline/seasonPlan";
@@ -49,10 +50,13 @@ export default function DownloadPage() {
     window.addEventListener(PACK_EVENT, onChange);
     return () => window.removeEventListener(PACK_EVENT, onChange);
   }, []);
-  const getLite = () => { setSyncing(true); syncLite().then((meta) => { setLocal(meta); setSyncing(false); }); };
+  // Get it now: no check, it's the person's own say-so. Opening the page: re-checked right before the download.
+  const getLite = (allowed?: () => boolean) => { setSyncing(true); syncLite({ allowed }).then((meta) => { setLocal(meta); setSyncing(false); }); };
+  const netRef = useRef(network);
+  netRef.current = network;
   useEffect(() => {
     if (!m?.lite || local?.version === m.version || !liteOk) return;
-    getLite();
+    getLite(() => !(netRef.current === "wifi" && netKind((navigator as Navigator & { connection?: ConnectionInfo }).connection) === "cellular"));
   }, [m, local?.version, liteOk]);
   return (
     <div>
@@ -70,7 +74,7 @@ export default function DownloadPage() {
         />
       ) : !m ? <div className="skeleton h-48 rounded-2xl" /> : (
         <>
-          <LiteStatus local={local} m={m} syncing={syncing} waiting={!liteOk} onGet={getLite} />
+          <LiteStatus local={local} m={m} syncing={syncing} waiting={!liteOk} onGet={() => getLite()} />
           <SeasonsSection m={m} saved={saved} />
           <Section title="How offline mode works" className="mt-8 max-sm:mt-5">
             <ol className="grid gap-3 text-sm text-muted-foreground sm:grid-cols-3">
