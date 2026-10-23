@@ -3,12 +3,12 @@
 // the way 2.2 fitted it: the 80% interval score (width + 2/α × distance outside) on 2024–25, every 2-robot alliance
 // score walk-forward, whole-point ranges, inside = lo ≤ score ≤ hi; judged once on 2025–26.
 // Each alliance's band inputs are read exactly as predictMatch reads them (regional start, event form, overlap),
-// and checked against the served range on every row.
+// and checked against the range predictMatch serves with the baseline band on every row.
 //
-// "live" is whatever band the built engine ships: docs/engine/part12/bands-2026-10-23.json was produced on engine
-// 3.1.0 (the 2.2 band); on 3.2.0+ the live and candidate columns describe the refitted band.
+// The baseline ("live" in the output) is the 2.2 band, frozen below; the expected scores are the built engine's
+// (identical in 3.1.0 and 3.2.0: the band never moves them), so a rerun reproduces bands-2026-10-23.json.
 //
-//   DATABASE_URL=file:<copy.db> npx tsx scripts/part12/band-refit.ts [--candidate '{"playoff":0.72}'] [--json out.json]
+//   DATABASE_URL=file:<copy.db> npx tsx scripts/part12/band-refit.ts [--baseline '{…}'] [--candidate '{"playoff":0.72}'] [--json out.json]
 import "../../server/env.js";
 import { writeFileSync } from "node:fs";
 import { FITTED_MODEL, RatingBook, allianceScoreDistribution, gameVariance, predictMatch, scoreBand, type BandParams } from "@control-scout/predict-engine";
@@ -17,7 +17,10 @@ import { predictable, seasonCorpus } from "../slices/corpus.js";
 
 await migrate();
 const M = FITTED_MODEL;
-const LIVE: BandParams = M.band!;
+// The baseline the refit started from and is reported against: the 2.2 band, frozen, so reruns reproduce
+// bands-2026-10-23.json whatever band the built engine ships. --baseline '{…}' overrides it.
+const BAND_22: BandParams = { level: 0.8, scale: 1.1, consistencyPower: 0.3, smallSample: 0.7, playoff: 0.6, rating: 0.75 };
+const LIVE: BandParams = process.argv.includes("--baseline") ? JSON.parse(process.argv[process.argv.indexOf("--baseline") + 1]) : BAND_22;
 const jsonOut = process.argv.includes("--json") ? process.argv[process.argv.indexOf("--json") + 1] : null;
 interface Row { season: number; playoff: boolean; mean: number; consistency: number; minMatches: number; uncertainty: number; actual: number }
 const rows: Row[] = [];
