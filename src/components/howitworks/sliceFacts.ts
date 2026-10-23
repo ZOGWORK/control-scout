@@ -2,7 +2,7 @@
 // never states a figure the report doesn't hold. A test re-reads the report and checks every value here.
 
 /** The report these figures come from (engine version and pinned corpus). */
-export const SLICE_REPORT = "engine-3.1.0-snapshot-2026-10-14";
+export const SLICE_REPORT = "engine-3.2.0-snapshot-2026-10-14";
 
 /** 2025–26, matches at rated events, the live engine. */
 export const SLICE_FACTS = {

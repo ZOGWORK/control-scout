@@ -13,6 +13,7 @@ export interface EngineVersionNote {
 }
 
 export const ENGINE_VERSIONS: EngineVersionNote[] = [
+  { version: "3.2.0", date: "2026-10-23", numbers: true, line: "Score ranges are about 10 points narrower and hold 8 in 10 real scores again (they held about 85%). Win odds unchanged." },
   { version: "3.1.0", date: "2026-10-23", numbers: false, line: "Ties count: expected ranking points and event simulations give a tie's 1 RP to both alliances. Win odds unchanged." },
   { version: "3.0.0", date: "2026-10-23", numbers: false, line: "Prediction Engine 3.0: the 2.7–2.11 changes, re-checked on every season since 2019–20 (truer chances in six of seven). Same numbers as 2.11." },
   { version: "2.11.0", date: "2026-10-23", numbers: true, line: "Two robots strong at the same thing score a bit less together in quals (overlap in auto and TeleOp); first-event calls improved most." },
