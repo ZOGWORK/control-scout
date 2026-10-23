@@ -52,6 +52,22 @@ describe("leaders", () => {
 });
 
 describe("ComparePage", () => {
+  it("reorders the teams from a column's grip without asking again, and marks the first as the baseline", async () => {
+    const asked: string[] = [];
+    const base = fetch;
+    vi.stubGlobal("fetch", async (path: string) => { asked.push(path); return base(path); });
+    page("/compare?teams=6980,4215");
+    const grip = await screen.findByRole("button", { name: /^Reorder 6980, first of 2/ });
+    const heads = () => screen.getAllByRole("columnheader").slice(1).map((th) => th.textContent);
+    expect(heads()[0]).toMatch(/6980.*Baseline/);
+    fireEvent.keyDown(grip, { key: "ArrowRight" });
+    expect(where).toBe("/compare?teams=4215%2C6980");
+    await waitFor(() => expect(heads()[0]).toMatch(/4215.*Baseline/));
+    expect(heads()[1]).not.toMatch(/Baseline/);
+    // One request: the order is the page's, not the server's.
+    expect(asked.filter((p) => p.startsWith("/api/compare"))).toHaveLength(1);
+  });
+
   it("finds a team by name in the page's own search and adds it", async () => {
     page();
     const box = screen.getByRole("combobox", { name: "Add a team to compare" });

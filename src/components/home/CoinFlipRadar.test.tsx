@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-// The home page's coin flips: each card shows both sides' odds and its confidence tier and opens the match
+// The Events page's coin flips: each card shows both sides' odds and its confidence tier and opens the match
 // page; the closest call is marked; decided ones show the result beside the call made before them; an empty
 // day says why in words (no events, or no close calls, with the thin-data ones counted), never a blank.
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";

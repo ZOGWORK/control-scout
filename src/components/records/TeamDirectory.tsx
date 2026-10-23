@@ -196,7 +196,7 @@ export function TeamDirectory({ season, onSeason }: { season: number; onSeason: 
 }
 
 /** The country's totals, what a listing means, and where teams without a country are. */
-function Summary({ data, season, where, resultsHref, onRetry }: { data: DirectoryPage | undefined; season: number; where: string; resultsHref: string; onRetry: () => void }) {
+function Summary({ data, season, where, resultsHref, onRetry }: { data: DirectoryPage | undefined; season: number; where: string; resultsHref: string; onRetry: () => Promise<void> }) {
   const ready = data?.readiness.state === "ready";
   const preparing = data?.readiness.state === "preparing";
   return (
@@ -242,7 +242,7 @@ function Summary({ data, season, where, resultsHref, onRetry }: { data: Director
  * request (the same words as the wide layout's panel). The sort is a chip in the row above unless it's the
  * default, which the Team column's header shows.
  */
-function CompactSummary({ data, season, where, resultsHref, onRetry }: { data: DirectoryPage | undefined; season: number; where: string; resultsHref: string; onRetry: () => void }) {
+function CompactSummary({ data, season, where, resultsHref, onRetry }: { data: DirectoryPage | undefined; season: number; where: string; resultsHref: string; onRetry: () => Promise<void> }) {
   const ready = data?.readiness.state === "ready";
   const preparing = data?.readiness.state === "preparing";
   const [about, setAbout] = useState(false);

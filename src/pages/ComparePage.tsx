@@ -6,10 +6,10 @@
 // Point, followed, shortlist, tracked) as one-click picks. With teams chosen, the stats table and both
 // charts share the first screen; the brief (closed until asked for), head to head and the workspace's scouting
 // (only when there is some) follow.
-import { useMemo, useRef, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useRef, useState, type KeyboardEvent, type PointerEvent, type ReactNode } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { Bar, BarChart, CartesianGrid, Legend, Line, LineChart, XAxis, YAxis } from "recharts";
-import { ArrowUp, Plus, Scale, Sparkles, X } from "lucide-react";
+import { ArrowUp, GripVertical, Plus, Scale, Sparkles, X } from "lucide-react";
 import { useApi, qs } from "../lib/api";
 import { useCurrentSeason, usePredictable, useTitle } from "../lib/meta";
 import { usePersonal } from "../lib/personal";
@@ -78,8 +78,24 @@ export default function ComparePage() {
     edit((now) => (now.includes(team) ? now : [...now, team]));
   };
   const addAll = (ns: number[]) => edit((now) => [...now, ...ns.map(String).filter((n) => !now.includes(n))]);
-  // Without ?season the server picks the latest season these teams have results in.
-  const state = useApi<CompareView>(teams.length ? `/api/compare${qs({ teams: teams.join(","), season: asked ?? undefined })}` : null);
+  // Without ?season the server picks the latest season these teams have results in. Asked for in one fixed
+  // order, so dragging the columns into another order doesn't fetch again: the URL's order is applied here.
+  const asking = [...teams].sort((a, b) => Number(a) - Number(b)).join(",");
+  const state = useApi<CompareView>(teams.length ? `/api/compare${qs({ teams: asking, season: asked ?? undefined })}` : null);
+  const order = teams.join(",");
+  const view = useMemo(() => {
+    if (!state.data) return state.data;
+    const at = order.split(",");
+    const pos = (x: CompareTeam) => { const i = at.indexOf(String(x.team.number)); return i < 0 ? at.length : i; };
+    return { ...state.data, teams: [...state.data.teams].sort((a, b) => pos(a) - pos(b)) };
+  }, [state.data, order]);
+  /** Move a team to another place in the order (the first is the one the others are measured against). */
+  const move = (team: number, to: number) => edit((now) => {
+    const rest = now.filter((x) => x !== String(team));
+    if (rest.length === now.length) return now;
+    rest.splice(Math.max(0, Math.min(to, rest.length)), 0, String(team));
+    return rest;
+  });
   const season = asked ?? state.data?.season ?? current;
   const full = teams.length >= MAX;
   const suggestions = useSuggestions(teams.map(Number));
@@ -109,7 +125,7 @@ export default function ComparePage() {
               ))}
             </div>
           )}
-          <Async state={state}>{(d) => <Compare d={d} onRemove={(n) => setTeams(teams.filter((x) => x !== String(n)))} />}</Async>
+          <Async state={{ ...state, data: view }}>{(d) => <Compare d={d} onRemove={(n) => setTeams(teams.filter((x) => x !== String(n)))} onMove={move} />}</Async>
         </>
       )}
     </div>
@@ -233,24 +249,73 @@ export function leaders(m: Pick<Metric, "better" | "value">, t: CompareTeam[]): 
 /** How a table cell fades in (a new team's column, or the rows on first load). */
 const CELL = { duration: 0.28, ease: [0.2, 0.8, 0.2, 1] as const };
 
-function StatsTable({ d, onRemove }: { d: CompareView; onRemove: (n: number) => void }) {
+const ORDINAL = ["first", "second", "third", "fourth"];
+/** The first team's column, the one the others are measured against: a light yellow. */
+const BASELINE = "bg-yellow-300/[0.14] dark:bg-yellow-200/[0.09]";
+
+function StatsTable({ d, onRemove, onMove }: { d: CompareView; onRemove: (n: number) => void; onMove: (team: number, to: number) => void }) {
   const t = d.teams;
   const { colorOf } = useTeamColors();
   const COLORS = teamPalette(t.map((x) => x.team.number), colorOf);
+  // Reordering: drag a column's grip onto another column (mouse, pen or touch), or arrow keys on the grip.
+  const [drag, setDrag] = useState<{ team: number; from: number; over: number } | null>(null);
+  const [said, setSaid] = useState("");
+  const refocus = useRef<number | null>(null);
+  const table = useRef<HTMLTableElement>(null);
+  const order = t.map((x) => x.team.number).join(",");
+  // A moved column's grip keeps the keyboard focus (moving the node in the DOM can drop it).
+  useEffect(() => {
+    if (refocus.current == null) return;
+    table.current?.querySelector<HTMLElement>(`[data-grip="${refocus.current}"]`)?.focus();
+    refocus.current = null;
+  }, [order]);
+  const moveTo = (team: number, to: number) => {
+    if (to < 0 || to >= t.length) return;
+    onMove(team, to);
+    setSaid(`${team} moved to ${ORDINAL[to]}${to === 0 ? ": the others are measured against it" : ""}.`);
+  };
+  const colAt = (e: PointerEvent) => {
+    const el = document.elementFromPoint(e.clientX, e.clientY)?.closest<HTMLElement>("[data-col]");
+    return el && table.current?.contains(el) ? Number(el.dataset.col) : null;
+  };
+  const gripProps = (team: number, i: number) => ({
+    "data-grip": team,
+    onPointerDown: (e: PointerEvent<HTMLButtonElement>) => { e.currentTarget.setPointerCapture(e.pointerId); setDrag({ team, from: i, over: i }); },
+    onPointerMove: (e: PointerEvent) => { if (!drag) return; const c = colAt(e); if (c != null && c !== drag.over) setDrag({ ...drag, over: c }); },
+    onPointerUp: () => { if (drag && drag.over !== drag.from) moveTo(drag.team, drag.over); setDrag(null); },
+    onPointerCancel: () => setDrag(null),
+    onKeyDown: (e: KeyboardEvent) => {
+      const to = e.key === "ArrowLeft" ? i - 1 : e.key === "ArrowRight" ? i + 1 : e.key === "Home" ? 0 : e.key === "End" ? t.length - 1 : null;
+      if (to == null) return;
+      e.preventDefault();
+      refocus.current = team;
+      moveTo(team, to);
+    },
+  });
+  const colClass = (i: number) => cn(i === 0 && t.length > 1 && BASELINE, drag && drag.over === i && drag.from !== i && "outline-2 -outline-offset-2 outline-accent", drag?.from === i && "opacity-60");
   return (
     <Reveal className="min-w-0 self-start overflow-x-auto rounded-2xl border border-border bg-card">
-      <table className="w-full table-fixed border-collapse text-sm" style={{ minWidth: `${5 + t.length * 8}rem` }}>
+      <p className="sr-only" aria-live="polite">{said}</p>
+      <table ref={table} className="w-full table-fixed border-collapse text-sm" style={{ minWidth: `${5 + t.length * 8}rem` }}>
         <caption className="sr-only">Season stats; the best in each row is marked</caption>
         <thead>
           <tr>
             <th scope="col" className="w-20 p-3 sm:w-24"><span className="sr-only">Stat</span></th>
             {t.map((x, i) => (
-              <m.th key={x.team.number} scope="col" className="border-l border-border p-3 text-left align-top font-normal" style={{ boxShadow: `inset 0 3px 0 ${COLORS[i]}` }}
+              <m.th key={x.team.number} scope="col" data-col={i} className={cn("border-l border-border p-3 text-left align-top font-normal", colClass(i))} style={{ boxShadow: `inset 0 3px 0 ${COLORS[i]}` }}
                 initial={{ opacity: 0, y: -4 }} animate={{ opacity: 1, y: 0 }} transition={CELL}>
                 <div className="flex items-start justify-between gap-1">
+                  {t.length > 1 && (
+                    <button type="button" {...gripProps(x.team.number, i)}
+                      aria-label={`Reorder ${x.team.number}, ${ORDINAL[i]} of ${t.length}: drag, or use the arrow keys`} title="Drag to reorder: the first team is the one the others are measured against"
+                      className="-ml-2 -mt-0.5 flex h-8 w-5 shrink-0 cursor-grab touch-none items-center justify-center rounded text-muted-foreground hover:bg-muted hover:text-foreground focus-visible:outline-2 focus-visible:outline-accent active:cursor-grabbing max-sm:h-10">
+                      <GripVertical className="size-4" aria-hidden />
+                    </button>
+                  )}
                   <Link to={`/teams/${x.team.number}?season=${d.season}`} className="min-w-0 hover:underline">
                     <span className="block font-display text-xl font-semibold tabular-nums">{x.team.number}</span>
                     <span className="block truncate text-xs text-muted-foreground">{x.team.name ?? "—"}</span>
+                    {i === 0 && t.length > 1 && <span className="mt-1 inline-block rounded-full bg-yellow-300/25 px-1.5 text-[10px] font-semibold text-yellow-800 dark:bg-yellow-200/15 dark:text-yellow-200">Baseline</span>}
                   </Link>
                   <Button variant="ghost" size="icon-sm" className="-mr-1.5 -mt-1 shrink-0 max-sm:size-10" aria-label={`Remove ${x.team.number}`} onClick={() => onRemove(x.team.number)}><X /></Button>
                 </div>
@@ -265,11 +330,11 @@ function StatsTable({ d, onRemove }: { d: CompareView; onRemove: (n: number) => 
             return (
               <m.tr key={metric.label} className="border-t border-border" initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ ...CELL, delay: 0.05 + row * 0.03 }}>
                 <th scope="row" className="px-3 py-2 text-left font-normal text-muted-foreground">{metric.label}</th>
-                {t.map((x) => {
+                {t.map((x, i) => {
                   const lead = best.has(x.team.number);
                   const sub = metric.sub?.(x);
                   return (
-                    <m.td key={x.team.number} className={cn("border-l border-border px-3 py-2 tabular-nums transition-colors duration-300", lead && "bg-accent/[0.08]")}
+                    <m.td key={x.team.number} data-col={i} className={cn("border-l border-border px-3 py-2 tabular-nums transition-colors duration-300", colClass(i), lead && "bg-accent/[0.08]")}
                       initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={CELL}>
                       <span className={cn("whitespace-nowrap font-medium", lead && "text-accent-text")}>{metric.show(x)}</span>
                       {lead && <span className="sr-only"> (best)</span>}
@@ -298,7 +363,7 @@ function ChartCard({ title, description, delay = 0, children }: { title: string;
   );
 }
 
-function Compare({ d, onRemove }: { d: CompareView; onRemove: (n: number) => void }) {
+function Compare({ d, onRemove, onMove }: { d: CompareView; onRemove: (n: number) => void; onMove: (team: number, to: number) => void }) {
   const t = d.teams;
   const { colorOf } = useTeamColors();
   const COLORS = teamPalette(t.map((x) => x.team.number), colorOf);
@@ -313,7 +378,7 @@ function Compare({ d, onRemove }: { d: CompareView; onRemove: (n: number) => voi
     <div className="space-y-6 max-sm:space-y-4">
       {/* The stats and both charts share the first screen from lg up. */}
       <div className="grid gap-4 lg:grid-cols-2">
-        <StatsTable d={d} onRemove={onRemove} />
+        <StatsTable d={d} onRemove={onRemove} onMove={onMove} />
         <div className="grid min-w-0 gap-4 sm:grid-cols-2 lg:grid-cols-1">
           <ChartCard title="OPR by phase" description="From each team's best event this season" delay={0.06}>
             <ChartContainer config={config} className="h-48 w-full">
