@@ -11,13 +11,16 @@ the full release notes, one click away.
 
 ## 1.30.0 — 2026-10-23
 
-How it works records the first second-wave engine test: a blended prediction, measured and turned down.
+How it works records the first two second-wave engine tests, both measured and turned down.
 
 ### Highlights
-- [report] Lab notes: why blending in a second and third model didn't ship, with the numbers (#249)
+- [report] Lab notes: why a blend of three models didn't ship
+- [report] Lab notes: no extra growth curve needed for young teams
+- [predict] Predictions unchanged: the engine stays 3.0.0
 
 ### How it works
-- New lab note: a win/loss skill rating and a margin model blended with the engine. On the one fully held-out season the blend was slightly worse, later gains were within noise, and accuracy didn't change, so the engine stays a single model (docs/engine/part12/ensemble.md).
+- New lab note: a win/loss skill rating and a margin model blended with the engine. On the one fully held-out season the blend was slightly worse, later gains were within noise, and accuracy didn't change, so the engine stays a single model (docs/engine/part12/ensemble.md) (#249).
+- New lab note: a growth curve for rookies and second-year teams. Their misses drift the same way as veterans' as matches pile up, so there is nothing to add; a small late-season over-rating in every band is noted for the tuning pass (docs/engine/part12/growth.md).
 
 ## 1.29.0 — 2026-10-23
 
