@@ -67,6 +67,7 @@ A change ships only if all of these hold:
 | 2.9.0 | Event-local form: auto 0.4 / TeleOp 0.2 of a robot's mean miss at the event, fading κ/(n+κ), κ 1 | −1.5×10⁻⁴ [−2.5, −0.4] | −1.8×10⁻⁴ [−2.7, −0.9] | [gate](gates/gate-2.9.0-event-form-snapshot-2026-10-14.md) |
 | 2.10.0 | Fouls learn at 0.15× the scoring gain (score MAE 27.67 → 26.57 on 2025–26; Brier neutral) | −0.2×10⁻⁴ [−0.5, +0.2] | −0.7×10⁻⁴ [−1.9, +0.5] | [gate](gates/gate-2.10.0-fouls-snapshot-2026-10-14.md) |
 | 2.11.0 | Alliance overlap in quals: −0.25 × weaker partner's auto, −0.15 × TeleOp | −2.1×10⁻⁴ [−3.5, −0.6] | −2.4×10⁻⁴ [−3.7, −1.1] | [gate](gates/gate-2.11.0-overlap-snapshot-2026-10-14.md) |
+| **3.0.0** | Same numbers as 2.11. Part 11: full 2019–2025 re-run against 2.6 (every season); the version that signs off the program | −6.5×10⁻⁴ vs 2.6 | −9.3×10⁻⁴ vs 2.6 | [sign-off](signoff-3.0.md) |
 
 **Parts measured and closed without a build:**
 - **Part 4, failure mixture and per-team variance** (`scripts/part4/failure-research.ts`):

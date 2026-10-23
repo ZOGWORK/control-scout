@@ -9,6 +9,18 @@ teams, scout, offline, speed, live, report, alerts, rankings, share, workspace,
 picklist, history, fixes). What's new shows them first; the groups below are
 the full release notes, one click away.
 
+## 1.28.0 — 2026-10-23
+
+Prediction Engine 3.0: today's improvements, re-checked on every season since 2019–20.
+
+### Highlights
+- [predict] Engine 3.0: regional starts, today's form, overlap, slow fouls
+- [report] Re-checked on every season since 2019–20, truer in six of seven
+- [report] How it works and the version history name engine 3.0
+
+### Predictions
+- **Prediction Engine 3.0.** The engine changes shipped today (regional starting points, a bolder final calibration, form at the current event, slow-learning foul ratings and alliance overlap) were replayed together on every match since 2019–20, against the engine from before them. Stated chances came closer to what happened in six of the seven seasons; the seventh is the mostly-remote 2020–21 season with only a few hundred matches, where it was within noise. The gap between stated and actual win rates in the 50–80% range roughly halved in every season. Winner-calling is about the same: the gain is in how far to trust each call. Win odds are the same as 2.11; this version marks the full check. The sign-off report is in the repository (docs/engine/signoff-3.0.md). Prediction engine 3.0.0.
+
 ## 1.27.0 — 2026-10-23
 
 How it works gains a version history and says plainly where predictions are weakest.

@@ -536,6 +536,10 @@
     ]
    },
    "report": "docs/engine/gates/gate-2.11.0-overlap-snapshot-2026-10-14.md"
+  },
+  "engine30": {
+   "note": "Prediction Engine 3.0.0 = the 2.11.0 numbers, declared after the program's Part 11 full re-run: every season 2019-20 to 2025-26 replayed in order through the final engine and through 2.6.0 (reproduced bit for bit), paired. Brier change vs 2.6 (x1e-4): 2019-20 -7.87, 2020-21 +1.97 (564 matches, noise), 2021-22 -2.77, 2022-23 -3.18, 2023-24 -3.73, 2024-25 -6.45, 2025-26 -9.31; 50-80% calibration error roughly halves every season; no slice regresses beyond noise except one low-n 2020-21 band. Determinism, Monte Carlo acceptance (87.2%), equivalence and performance checks passed.",
+   "report": "docs/engine/signoff-3.0.md"
   }
  },
  "calibration": {

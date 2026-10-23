@@ -1,6 +1,6 @@
 # @control-scout/predict-engine
 
-**Prediction Engine 2.7.** The FTC prediction engine shared by **Control Scout** and **Control Point**.
+**Prediction Engine 3.0.** The FTC prediction engine shared by **Control Scout** and **Control Point**.
 One package, one version, both apps — predictions can never be better in one
 app than the other.
 

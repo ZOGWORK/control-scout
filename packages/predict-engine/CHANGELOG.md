@@ -1,5 +1,24 @@
 # Changelog
 
+## 3.0.0 — 2026-10-23 · Prediction Engine 3.0
+
+Numbers identical to 2.11.0. This version marks the end of the engine improvement program (2.7–2.11)
+and its Part 11 sign-off (`docs/engine/signoff-3.0.md`).
+- **Full re-run.** Every season from 2019–20 to 2025–26 was replayed in order through the final engine
+  and through 2.6.0, reproduced bit for bit, and compared on identical matches. Brier improves in six
+  of seven seasons: −7.87, −2.77, −3.18, −3.73, −6.45 and −9.31 ×10⁻⁴. The seventh is 2020–21, mostly
+  remote, with 564 matches: +1.97, noise.
+- **Calibration.** Error in the 50–80% bands roughly halves in every season.
+- **Regressions.** None beyond noise, apart from one low-count band in 2020–21.
+- **Other checks:**
+  - determinism: two full replays are bit-identical;
+  - Monte Carlo acceptance: 87.2% of teams inside their P10–P90 band;
+  - Control Point equivalence: bit-identical;
+  - performance: 20 µs per prediction.
+- **Major version.** The bump marks the new rating behaviour (regional priors, event-local form, alliance
+  overlap, slow foul learning, recalibration). Every API is backward-compatible: new settings default to
+  off, and `MatchExplanation` gained `overlapA` / `overlapB`.
+
 ## 2.11.0 — 2026-10-23 · Alliance overlap
 
 Engine improvement program, Part 5 (alliance interactions), with Part 7 (playoffs) measured and closed.
