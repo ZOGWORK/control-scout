@@ -39,8 +39,18 @@ const NOTES: { v: Verdict; title: string; body: string; more: string; wide?: boo
     more: "Top 10% by failure history, favourites at 80%+: stated 90.7% / won 88.8% ±2.0 (2024–25), 88.7% / 88.7% ±2.2 (2025–26). 80% ranges for those alliances covered 80.6% and 80.4%; 12.6% and 11.4% of all their scores landed above the range (about 60% of the misses).",
   },
   {
+    v: "no", title: "A tuning pass over every rating setting",
+    body: "Each of the 15 rating settings was swept on its own over one season. Twelve sat on a plateau at their current value. Moving the other three (slower between-event growth, more weight on playoff results) helped that season, but only through its playoffs, and made predictions for teams with little data worse in every season. Nothing changed.",
+    more: "Candidate (growth 0.03 a week for up to 6 weeks, playoff weight 0.8) minus engine, Brier ×10⁻⁴: 2024–25 −2.51 [−4.55, −0.33], of which playoffs −18.26; 2023–24 +0.31; 2025–26 +0.60. Thin-data, first-event and league-meet matches worse beyond noise in every season. Surfaces and the gate report in docs/engine/part12/tuning.md.",
+  },
+  {
+    v: "no", title: "A free-form final calibration",
+    body: "Swapping the one-number final stretch for a free-form monotone curve (isotonic regression). It was a little closer to the truth between 55% and 85%, but not clearly, and it cost a little probability quality. That the free-form curve finds the same shape is evidence the simple stretch is the right kind.",
+    more: "Fitted month by month on the year before, isotonic minus stretch: Brier +0.90 [+0.13, +1.68] ×10⁻⁴ (2024–25), +0.07 [−0.85, +1.01] (2025–26); 55–85% calibration error 0.76 → 0.59 points [−0.57, +0.34] and 1.22 → 0.86 [−0.86, +0.17]. The month-by-month stretch stays between 1.03 and 1.09; the engine uses 1.058. Details in docs/engine/part12/isotonic.md.",
+  },
+  {
     v: "no", title: "A growth curve for rookies and second-year teams",
-    body: "Young teams do improve during a season, but the engine already keeps up: its misses for rookies and second-year teams drift the same way as veterans' as matches pile up, not upward. There was no missing trajectory to add. What it did find: rookies start a little under-rated and the engine catches up within a few matches, and every team is over-rated a little late in the season, both tuning questions.",
+    body: "Young teams do improve during a season, but the engine already keeps up: its misses for rookies and second-year teams drift the same way as veterans' as matches pile up, not upward. There was no missing trajectory to add. What it did find: rookies start a little under-rated (by about 1–2 points, closing over the season), and every team is over-rated a little late in the season. Both went to the tuning pass.",
     more: "Miss per robot (points) by matches played, 2023–24 to 2025–26, slope per 10 matches: rookies −0.48, −0.51, −1.25; year 2 +0.06, −0.52, −0.52; veterans −0.29, −0.63, −0.42. Rookie minus veteran −0.19, +0.12, −0.82, changing sign. First 5 matches: rookies +1.1 to +1.5, veterans −0.6 to −1.2. Robots with 24–47 matches: −0.8 to −3.1 in every band. Details in docs/engine/part12/growth.md.",
   },
   {
