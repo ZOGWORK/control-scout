@@ -54,7 +54,8 @@ function utility(theme: Theme, classes: string, prop: "text" | "bg"): RGBA | nul
     if (!known && new RegExp(`^!?${prop}-.*/`).test(util)) throw new Error(`can't read the alpha in ${cls}`);
     if (!m || !known) continue;
     // Status text on light takes its deeper -text shade (the .text-* rules at the end of index.css).
-    const textToken = prop === "text" && theme === "light" && vars.light[`--color-${m[1]}-text`] && TEXT_SWAPPED.has(m[1]);
+    // Only the plain class: the CSS swaps `.text-info`, never `text-info/80` or `!text-info`.
+    const textToken = prop === "text" && theme === "light" && !m[2] && !m[3] && !util.startsWith("!") && vars.light[`--color-${m[1]}-text`] && TEXT_SWAPPED.has(m[1]);
     const c = value(theme, textToken ? `--color-${m[1]}-text` : `--color-${m[1]}`);
     const alpha = m[2] ? +m[2] / 100 : m[3] ? (m[4] ? +m[3] / 100 : +m[3]) : c[3];
     // A plain class sets the colour unless a `dark:` one already did for dark.
@@ -161,6 +162,17 @@ describe("text tones reach WCAG AA in both themes", () => {
     expect(utility("light", "bg-info/[0.08]", "bg")![3]).toBeCloseTo(0.08);
     expect(utility("dark", "bg-text-base/[6%]", "bg")![3]).toBeCloseTo(0.06);
     expect(() => utility("light", "bg-info/[calc(1/2)]", "bg")).toThrow(/alpha/);
+  });
+
+  it("swaps only the plain status class to its light text shade, as the CSS does, hover included", () => {
+    const deep = value("light", "--color-info-text"), bright = value("light", "--color-info");
+    expect(toHex(utility("light", "text-info", "text")!)).toBe(toHex(deep));
+    expect(toHex(utility("light", "text-info/80", "text")!)).toBe(toHex(bright)); // .text-info doesn't match it
+    expect(toHex(utility("light", "!text-info", "text")!)).toBe(toHex(bright));
+    expect(toHex(utility("dark", "text-info", "text")!)).toBe(toHex(value("dark", "--color-info")));
+    // Every swapped colour swaps its hover variant too, so hovering never brings back the bright shade.
+    expect(TEXT_SWAPPED.size).toBeGreaterThanOrEqual(7);
+    for (const name of TEXT_SWAPPED) expect(css, name).toContain(`:where(html.light) .hover\\:text-${name}:hover { color: var(--color-${name}-text); }`);
   });
 
   it("the old classes fail, so this test would catch them coming back", () => {

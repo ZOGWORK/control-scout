@@ -362,3 +362,15 @@ html.compact .density-card { padding: 0.875rem; }
   :where(html.light) .text-red-alliance { color: var(--color-red-alliance-text); }
   :where(html.light) .text-blue-alliance { color: var(--color-blue-alliance-text); }
 }
+/* The same swap for hover variants (Clear filters' hover:text-danger), at the variant's own weight. */
+@layer utilities {
+  @media (hover: hover) {
+    :where(html.light) .hover\:text-info:hover { color: var(--color-info-text); }
+    :where(html.light) .hover\:text-success:hover { color: var(--color-success-text); }
+    :where(html.light) .hover\:text-warning:hover { color: var(--color-warning-text); }
+    :where(html.light) .hover\:text-danger:hover { color: var(--color-danger-text); }
+    :where(html.light) .hover\:text-destructive:hover { color: var(--color-destructive-text); }
+    :where(html.light) .hover\:text-red-alliance:hover { color: var(--color-red-alliance-text); }
+    :where(html.light) .hover\:text-blue-alliance:hover { color: var(--color-blue-alliance-text); }
+  }
+}
