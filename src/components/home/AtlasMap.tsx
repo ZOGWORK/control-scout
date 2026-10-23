@@ -65,12 +65,17 @@ export interface AtlasMapProps {
   onError: (e: Error) => void;
 }
 
+/** How far (px) a mouse press moves before it turns the globe instead of choosing a country. */
+const DRAG_PX = 4;
+
 export default function AtlasMap({ mode, spinning = false, countries, selected, onSelect, onLoaded, onError }: AtlasMapProps) {
   const box = useRef<HTMLDivElement>(null);
   const [width, setWidth] = useState(0);
   const [shapes, setShapes] = useState<Country[] | null>(null);
   const [rotation, setRotation] = useState<[number, number]>([96, -38]);
   const drag = useRef<{ x: number; y: number; r: [number, number] } | null>(null);
+  /** The current press has moved far enough to be a drag (so its click selects nothing). */
+  const dragged = useRef(false);
   /** Keyboard focus on the globe: the spin holds still while someone turns it with the arrow keys. */
   const held = useRef(false);
 
@@ -147,11 +152,18 @@ export default function AtlasMap({ mode, spinning = false, countries, selected, 
     // Mouse only: a finger on the globe still scrolls the page.
     if (mode !== "globe" || e.pointerType !== "mouse" || e.button !== 0) return;
     drag.current = { x: e.clientX, y: e.clientY, r: rotation };
-    (e.currentTarget as Element).setPointerCapture?.(e.pointerId);
+    dragged.current = false;
   };
   const onPointerMove = (e: React.PointerEvent) => {
     const d = drag.current;
     if (!d) return;
+    if (!dragged.current) {
+      // Released somewhere the globe didn't hear (it only captures once a drag starts): drop the press.
+      if (e.buttons === 0) { drag.current = null; return; }
+      if (Math.hypot(e.clientX - d.x, e.clientY - d.y) < DRAG_PX) return;
+      dragged.current = true;
+      (e.currentTarget as Element).setPointerCapture?.(e.pointerId);
+    }
     const k = 120 / Math.max(120, width);
     setRotation([d.r[0] + (e.clientX - d.x) * k, Math.max(-80, Math.min(80, d.r[1] - (e.clientY - d.y) * k))]);
   };
@@ -178,7 +190,9 @@ export default function AtlasMap({ mode, spinning = false, countries, selected, 
           tabIndex={mode === "globe" ? 0 : undefined} aria-keyshortcuts={mode === "globe" ? "ArrowLeft ArrowRight ArrowUp ArrowDown" : undefined}
           onKeyDown={onKeyDown} onFocus={() => { held.current = true; }} onBlur={() => { held.current = false; }}
           className={cn("absolute inset-0 size-full select-none outline-none", mode === "globe" && "cursor-grab rounded-full focus-visible:ring-2 focus-visible:ring-ring/60 active:cursor-grabbing")}
-          onPointerDown={onPointerDown} onPointerMove={onPointerMove} onPointerUp={end} onPointerCancel={end} onLostPointerCapture={end}>
+          onPointerDown={onPointerDown} onPointerMove={onPointerMove} onPointerUp={end} onPointerCancel={end} onLostPointerCapture={end}
+          onPointerLeave={() => { if (!dragged.current) drag.current = null; }}
+          onClickCapture={(e) => { if (dragged.current) { dragged.current = false; e.stopPropagation(); } }}>
           <path d={path(SPHERE) ?? undefined} className="fill-[color-mix(in_srgb,var(--color-text-base)_4%,var(--color-card))] stroke-text-base/15" />
           <path d={path(geoGraticule10()) ?? undefined} className="fill-none stroke-text-base/[0.07]" strokeWidth={0.6} />
           {shapes.map((s, i) => {
