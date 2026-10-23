@@ -9,6 +9,21 @@ teams, scout, offline, speed, live, report, alerts, rankings, share, workspace,
 picklist, history, fixes). What's new shows them first; the groups below are
 the full release notes, one click away.
 
+## 1.35.0 — 2026-10-23
+
+Team pages tell search engines exactly who the team is, so a search for a team's number and name finds its page.
+
+### Highlights
+- [teams] Team pages are titled with number and name: "4215 Hypnotic Robotics"
+- [teams] Team pages name the town, rookie year, record and events at once
+- [fixes] Search engines see each team page as fresh when the team has played
+
+### Teams
+- **Found by number and name.** A team page's title now leads with what people search for: "4215 Hypnotic Robotics — FTC team stats, OPR & predictions · Control Scout", and its main heading is the number and name together (it looks the same as before). Its description is built from the team's own data: town, rookie year, latest season's record and OPR rank.
+- **Readable before the app loads.** The first response for a team page carries a short summary and its most recent events as links, so search engines and slow connections read who the team is without running any script. The app takes over as before.
+- **Clearer to search engines.** Each team page describes itself as the team's profile page, with the team's own website and its FIRST page listed as the same team, and a Home › Teams › team trail. A link with ?season= still names the one team address as its canonical.
+- **Fresh in the sitemap.** A team's last-changed date in the sitemap is now the last day it played (or a later correction to those results), instead of the date of the last data sync, which was the same for every team. (#256)
+
 ## 1.34.0 — 2026-10-23
 
 The Predict Lab opens on advancement odds, bigger and easier to use, and its season switch works again.

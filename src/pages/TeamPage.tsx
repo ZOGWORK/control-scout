@@ -33,6 +33,7 @@ import { awardLabel, dateRange, int, num, place, seasonLabel, rankPct } from "..
 import { eventTypeLabel } from "../lib/labels";
 import { copyLink } from "../lib/clipboard";
 import { direction, trendLabel } from "../shared/trend";
+import { teamTitle } from "../shared/teamTitle";
 import { OfflineNote } from "../components/OfflineNote";
 import { StickyActions } from "../components/StickyActions";
 import { TeamConsensusSection } from "../components/ScoutConsensus";
@@ -49,7 +50,7 @@ export default function TeamPage() {
   const state = useApi<TeamProfile>(valid ? `/api/teams/${team}${qs({ season })}` : null);
   // Not a team (the server answers these addresses with a 404 too), or a season the API doesn't cover: the branded not-found page.
   const notFound = (state.error as ApiError | undefined)?.status === 404 ? state.error! : null;
-  useTitle(!valid || notFound ? "Team not found" : state.data?.team.name ? `Team ${state.data.team.number} — ${state.data.team.name}` : `Team ${number}`); // same as the server-rendered title
+  useTitle(!valid || notFound ? "Team not found" : teamTitle(state.data?.team.number ?? team, state.data?.team.name)); // same as the server-rendered title
   if (!valid) return <NotFoundView title={`There's no team ${number}`} description="FTC team numbers are whole numbers from 1 to 999999, like 4215. Search for the team you're after." />;
   // The API's own reason: "No FTC team … in our data", or (with ?season=) "Season … isn't covered".
   if (notFound) {
@@ -155,8 +156,12 @@ function Hero({ p, onSeason }: { p: TeamProfile; onSeason: (s: number) => void }
         <div className="relative min-w-0 p-4 sm:p-8">
           <div aria-hidden className="pointer-events-none absolute -left-24 -top-24 size-64 rounded-full bg-accent opacity-[0.12] blur-3xl" />
           <p className="relative text-xs font-medium uppercase tracking-[0.08em] text-muted-foreground">FTC team · {seasonLabel(p.season)}</p>
-          <h1 className="relative mt-1 font-display text-5xl font-semibold leading-none tracking-tight sm:text-6xl">{t.number}</h1>
-          <p className="relative mt-2 break-words text-xl text-foreground/90">{t.name ?? "Name not on file"}</p>
+          {/* The heading is the number and name together (what people search for), styled as two lines. */}
+          <h1 className="relative mt-1">
+            <span className="block font-display text-5xl font-semibold leading-none tracking-tight sm:text-6xl">{t.number}</span>
+            {t.name && <span className="mt-2 block break-words font-sans text-xl font-normal tracking-normal text-foreground/90"><span className="sr-only"> </span>{t.name}</span>}
+          </h1>
+          {!t.name && <p className="relative mt-2 break-words text-xl text-foreground/90">Name not on file</p>}
           <div className="relative mt-3 flex flex-wrap items-center gap-x-4 gap-y-1.5 text-sm text-muted-foreground">
             {t.school && <span className="flex min-w-0 items-center gap-1.5"><GraduationCap className="size-4 shrink-0" /><span className="truncate sm:max-w-[22rem]">{t.school}</span></span>}
             {loc && <span className="flex items-center gap-1.5"><MapPin className="size-4" />{loc}</span>}
