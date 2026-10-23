@@ -5,6 +5,7 @@
 // writes accuracy / Brier / log loss / calibration per slice.
 //
 //   DATABASE_URL=file:<copy-of-snapshot.db> npx tsx scripts/engine-slices.ts [--seasons 2023,2024,2025,2026] [--out docs/engine/slices] [--rows <file.json.gz>] [--live]
+//     [--challenger '{"name":"priors","rating":{...}}'] [--gate-out docs/engine/gates]
 //
 // Models replayed side by side on identical matches:
 //   champion  the live engine (contextual model on the symmetric book)
@@ -13,6 +14,9 @@
 //             program's historical baseline; reproduces 72.7% / Brier 0.179 on 2025–26.
 // --live also slices the live ledger (predictions kind 'live' with a result), joined to the
 // replay's data tags by match.
+// --challenger replays a fourth model, the champion with rating settings overridden, and writes
+// the Part 2 gate: challenger minus champion per season and per slice, with 95% intervals from
+// resampling whole events, plus both calibration tables (gate-<name>-<corpus>.{md,json}).
 //
 // Always run it on a COPY of a database: it runs migrations. It writes nothing else to it.
 import "../server/env.js";
@@ -20,22 +24,27 @@ import { createHash } from "node:crypto";
 import { mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { gzipSync } from "node:zlib";
-import { ENGINE_VERSION, FITTED_MODEL, RatingBook, explainMatch, predictMatch, type EventRecord, type MatchRecord } from "@control-scout/predict-engine";
+import { ENGINE_VERSION, FITTED_MODEL, RatingBook, explainMatch, predictMatch, type RatingParams } from "@control-scout/predict-engine";
 import { all, kvGet, migrate } from "../server/db.js";
-import { loadSeason, toEventRecord } from "../server/stats/load.js";
+import { matchKey as keyOf, outcome, predictable, rookieYears, seasonCorpus } from "./slices/corpus.js";
 import { PREDICT_SEASONS, seasonInfo } from "../server/data/seasons.js";
 import {
   EventOrdinals, densityBand, experienceOf, leastExperienced, marginBand, matchesBand, ordinalBand, probBand, qualBand, quantile, sizeBand, typeGroup, volatilityTag,
   type DataTags,
 } from "./slices/tags.js";
-import { calibrationMarkdown, sliceReport, sliceTable, type ScoredRow, type SliceReport } from "./slices/report.js";
+import { calibrationMarkdown, pairedMarkdown, pairedReport, sliceReport, sliceTable, type PairedRow, type ScoredRow, type SliceReport } from "./slices/report.js";
 
 const args = process.argv.slice(2);
 const flag = (k: string) => { const i = args.indexOf(k); return i >= 0 ? args[i + 1] : undefined; };
 const SEASONS = flag("--seasons")?.split(",").map(Number) ?? PREDICT_SEASONS;
 const OUT = flag("--out") ?? join("docs", "engine", "slices");
+const GATE_OUT = flag("--gate-out") ?? flag("--out") ?? join("docs", "engine", "gates");
 const ROWS = flag("--rows");
 const LIVE = args.includes("--live");
+/** --champion overrides the champion's rating settings, to gate a release after model.json already carries it
+ *  (e.g. '{"rating":{"rho1":0.6,"regionKappa":0}}' replays 2.6.0 as the champion). */
+const CHAMPION = flag("--champion") ? (JSON.parse(flag("--champion")!) as { rating?: Partial<RatingParams> }) : null;
+const CHALLENGER = flag("--challenger") ? (JSON.parse(flag("--challenger")!) as { name: string; rating?: Partial<RatingParams> }) : null;
 /** The champion's own out-of-sample season, which sets the priority order (fit + calibration used 2023–24);
  *  the latest requested season when 2025–26 isn't replayed. */
 const PRIMARY = SEASONS.includes(2025) ? 2025 : Math.max(...SEASONS);
@@ -44,50 +53,51 @@ const primaryLabel = `${seasonInfo(PRIMARY).label}${PRIMARY === 2025 ? " (reused
 await migrate();
 const M = FITTED_MODEL;
 if (!M.contextual?.fallback) throw new Error("this engine has no frozen 2.0 fallback to replay as v2.0");
-const MODELS = ["champion", "v2.0", "legacy"] as const;
-type Model = (typeof MODELS)[number];
+const MODELS = ["champion", "v2.0", "legacy", ...(CHALLENGER ? ["challenger"] : [])];
+type Model = string;
 
 interface Row { key: string; season: number; event: string; level: string; y: number; rated: boolean; data: DataTags; pred: Record<Model, { p: number; muR: number; muB: number; sdR: number; sdB: number }> }
 
-const rookie = new Map((await all<{ number: number; rookie_year: number | null }>("SELECT number, rookie_year FROM teams")).map((r) => [Number(r.number), r.rookie_year == null ? null : Number(r.rookie_year)]));
+const rookie = await rookieYears();
 const dataVersion = (await kvGet<string>("data:version")) ?? null;
 
-const champion = new RatingBook(M.rating);
-const legacy = new RatingBook({ ...M.rating, populationUpdate: "sequential" });
+const champion = new RatingBook({ ...M.rating, ...CHAMPION?.rating });
+/** Engine 1.x's rating settings, frozen: later model changes must never move the historical baseline. */
+const LEGACY_RATING: Partial<RatingParams> = {
+  k0: 0.65, n0: 10, kMin: 0.33, playoffWeight: 0.5, rho1: 0.6, rho2: 0.2, rookieZ: -0.7, uncKnown: 150, uncRookie: 350, uncDecay: 0.45, uncMin: 10,
+  baseAlpha: 0.002, growthPerWeek: 0.05, growthMaxWeeks: 8, populationUpdate: "sequential",
+};
+const legacy = new RatingBook(LEGACY_RATING);
+const challenger = CHALLENGER ? new RatingBook({ ...M.rating, ...CHALLENGER.rating }) : null;
 const ordinals = new EventOrdinals();
 const rows: Row[] = [];
 const corpus: Record<string, unknown>[] = [];
-const outcome = (m: MatchRecord) => (m.red.total > m.blue.total ? 1 : m.red.total < m.blue.total ? 0 : 0.5);
-const keyOf = (season: number, code: string, level: string, series: number, number: number) => `${season}|${code}|${level}|${series}|${number}`;
 let checked = 0;
 
 for (const s of [...SEASONS].sort((a, b) => a - b)) {
   // The backtest's corpus, verbatim: scrimmages are predicted but never rated; only 2-robot alliances are predicted.
-  const events = await loadSeason(s);
-  const unrated = new Set(events.filter((e) => !toEventRecord(e)).map((e) => e.code));
-  const recs = events.map((e) => toEventRecord(e, { anyType: true })).filter((x): x is EventRecord => !!x);
-  const byCode = new Map(recs.map((e) => [e.code, e]));
-  champion.startSeason(s); legacy.startSeason(s); ordinals.reset();
-  const matches = recs.flatMap((e) => e.matches).sort((x, y) => x.time - y.time);
+  const { events: recs, byCode, unrated, matches } = await seasonCorpus(s);
+  champion.startSeason(s); legacy.startSeason(s); challenger?.startSeason(s); ordinals.reset();
   const hash = createHash("sha256");
   const first = rows.length;
   let surrogateMatches = 0;
   for (const m of matches) {
     hash.update(`${keyOf(s, m.eventCode, m.level, m.series, m.number)}|${m.time}|${m.red.teams.join(",")}|${m.blue.teams.join(",")}|${m.red.total}|${m.blue.total}\n`);
     if (m.red.surrogates?.length || m.blue.surrogates?.length) surrogateMatches++;
-    if (m.red.teams.length === 2 && m.blue.teams.length === 2) {
-      champion.setTime(m.time); legacy.setTime(m.time);
+    if (predictable(m)) {
+      champion.setTime(m.time); legacy.setTime(m.time); challenger?.setTime(m.time);
       const ev = byCode.get(m.eventCode)!;
       const teams = [...m.red.teams, ...m.blue.teams];
-      const ctx = { level: m.level, event: m.eventCode };
+      const ctx = { level: m.level, event: m.eventCode, ...(m.region ? { region: m.region } : {}) };
       const pc = predictMatch(champion, m.red.teams, m.blue.teams, M.noise, M.calibration, { contextual: M.contextual, context: ctx, shadow: M.contextual.fallback });
       // The served number is explainMatch's: prove this replay matches it (every 250th match; it is the same call underneath).
-      if (rows.length % 250 === 0) {
+      if (rows.length % 250 === 0 && !CHAMPION) {
         const x = explainMatch(champion, m.red.teams, m.blue.teams, { noise: M.noise, calibration: M.calibration, contextual: M.contextual, context: ctx, shadow: M.contextual.fallback, band: M.band });
         if (x.winProbA !== pc.pRedWin || x.shadow?.winProbA !== pc.pShadow) throw new Error(`replay differs from explainMatch at ${m.eventCode} ${m.level} ${m.series}-${m.number}`);
         checked++;
       }
       const pl = predictMatch(legacy, m.red.teams, m.blue.teams, M.noise, M.calibration, {});
+      const ph = challenger ? predictMatch(challenger, m.red.teams, m.blue.teams, M.noise, M.calibration, { contextual: M.contextual, context: ctx }) : null;
       const rated = teams.map((t) => champion.get(t).n);
       const vol = teams.filter((_, i) => rated[i] >= 6).map((t) => champion.reliabilityOf(t).variance);
       const side = (p: typeof pc, pr: number) => ({ p: pr, muR: p.red.mean, muB: p.blue.mean, sdR: p.red.sd, sdB: p.blue.sd });
@@ -101,12 +111,12 @@ for (const s of [...SEASONS].sort((a, b) => a - b)) {
           volatilityScore: vol.length ? Math.max(...vol) : null,
           eventSize: sizeBand(ev.teams.length || new Set(ev.matches.flatMap((x) => [...x.red.teams, ...x.blue.teams])).size), eventType: typeGroup(ev.type),
         },
-        pred: { champion: side(pc, pc.pRedWin), "v2.0": side(pc, pc.pShadow!), legacy: side(pl, pl.pRedWin) },
+        pred: { champion: side(pc, pc.pRedWin), "v2.0": side(pc, pc.pShadow!), legacy: side(pl, pl.pRedWin), ...(ph ? { challenger: side(ph, ph.pRedWin) } : {}) },
       });
     } else {
       for (const t of [...m.red.teams, ...m.blue.teams]) ordinals.ordinal(t, m.eventCode);
     }
-    if (!unrated.has(m.eventCode)) { champion.update(m); legacy.update(m); }
+    if (!unrated.has(m.eventCode)) { champion.update(m); legacy.update(m); challenger?.update(m); }
   }
   const seasonRows = rows.slice(first);
   const cut = quantile(seasonRows.filter((r) => r.rated).map((r) => r.data.volatilityScore ?? NaN), 0.75);
@@ -173,6 +183,18 @@ if (LIVE) {
   console.log(`live ledger: ${lr.length} scored calls, ${live.reduce((s, l) => s + l.report.all.n, 0)} matched to the corpus`);
 }
 
+// ---- Part 2 gate (with --challenger): challenger minus champion on identical matches.
+const gate = CHALLENGER ? Object.fromEntries(blocks.map(([name, keep]) => {
+  const pr: PairedRow[] = rows.filter(keep).map((r) => ({ event: r.event, y: r.y, a: r.pred.champion.p, b: r.pred.challenger.p, tags: tagsOf(r, r.pred.champion) }));
+  const paired = pairedReport(pr, [...DATA_DIMS, "probBand"]);
+  const calA = reports.champion[name].calibration, calB = reports.challenger[name].calibration;
+  // The bands where decisions happen (brief §2.2): 50–80%.
+  const decision = (c: typeof calA) => c.filter((b) => ["50-60", "60-70", "70-80"].includes(b.band)).reduce((s, b) => s + b.n * b.error, 0) / c.filter((b) => ["50-60", "60-70", "70-80"].includes(b.band)).reduce((s, b) => s + b.n, 0);
+  // Every slice whose Brier interval lies above zero, small ones included (flagged): none is dropped silently.
+  const regressions = Object.entries(paired.dims).flatMap(([dim, d]) => Object.entries(d).filter(([, m]) => m.regression).map(([v, m]) => `${dim}: ${v}${m.lowConfidence ? " (low n)" : ""}`));
+  return [name, { paired, calibration5080: { champion: decision(calA), challenger: decision(calB) }, regressions }];
+})) : null;
+
 // ---- Files.
 const corpusId = `snapshot-${String(dataVersion ?? "unknown").slice(0, 10)}`;
 const meta = {
@@ -180,12 +202,41 @@ const meta = {
   corpus: { id: corpusId, dataVersion, seasons: corpus, rules: "server/stats/job.ts backtest: remote/hybrid events dropped; scrimmage and off-season events predicted but never rated; only 2-robot alliances predicted; matches in start-time order, each predicted from earlier results only." },
   explainMatchChecks: checked, rowsSha256: rowsSha, baselineCheck, lowConfidenceBelow: 200, primarySeason: PRIMARY,
 };
-mkdirSync(OUT, { recursive: true });
-const base = join(OUT, `engine-${ENGINE_VERSION}-${corpusId}`);
-writeFileSync(`${base}.json`, JSON.stringify({ meta, reports, unrated: unratedReports, live }, null, 1) + "\n");
-writeFileSync(`${base}.md`, markdown());
+// A --champion run replays something other than the shipped engine: it writes its gate only, never
+// over the shipped engine's slice report.
+if (!CHAMPION) {
+  mkdirSync(OUT, { recursive: true });
+  const base = join(OUT, `engine-${ENGINE_VERSION}-${corpusId}`);
+  writeFileSync(`${base}.json`, JSON.stringify({ meta, reports, unrated: unratedReports, live }, null, 1) + "\n");
+  writeFileSync(`${base}.md`, markdown());
+  console.log(`wrote ${base}.json and .md`);
+}
 if (ROWS) writeFileSync(ROWS, gzipSync(JSON.stringify(rows)));
-console.log(`wrote ${base}.json and .md`);
+if (CHALLENGER && gate) {
+  mkdirSync(GATE_OUT, { recursive: true });
+  const g = join(GATE_OUT, `gate-${CHALLENGER.name}-${corpusId}`);
+  writeFileSync(`${g}.json`, JSON.stringify({ meta: { ...meta, champion: CHAMPION, challenger: CHALLENGER }, gate }, null, 1) + "\n");
+  writeFileSync(`${g}.md`, gateMarkdown());
+  console.log(`wrote ${g}.json and .md`);
+}
+
+function gateMarkdown(): string {
+  const out = [
+    `# Gate: ${CHALLENGER!.name} vs engine ${ENGINE_VERSION} on ${corpusId}`, "",
+    `Generated ${meta.generated} by \`scripts/engine-slices.ts --challenger\`. Both use the contextual model \`${M.contextual!.id}\`. The champion's rating settings are the shipped ones${CHAMPION ? " with these overrides (the previous release)" : ""}:`, "",
+    "```json", JSON.stringify(CHAMPION?.rating ?? {}, null, 1), "```", "", "The challenger's changes:", "",
+    "```json", JSON.stringify(CHALLENGER!.rating ?? {}, null, 1), "```", "",
+    "Both replay the same matches in the same order. Changes are challenger minus champion (negative Brier and log loss = challenger better) with 95% intervals from resampling whole events. A slice is a **regression** when its whole Brier interval lies above zero. 2024–25 is the tuning season; 2025–26 is **reused** and reported, not proof.", "",
+  ];
+  for (const [name] of blocks) {
+    const G = gate![name];
+    out.push(`## ${seasonInfo(Number(name)).label}${Number(name) === 2025 ? " (reused)" : Number(name) === 2024 ? " (tuning)" : ""}`, "",
+      `Calibration error in the 50–80% bands (match-weighted): champion ${(100 * G.calibration5080.champion).toFixed(2)} pts, challenger ${(100 * G.calibration5080.challenger).toFixed(2)} pts. Regressions beyond noise: ${G.regressions.length ? G.regressions.join("; ") : "none"}.`, "",
+      pairedMarkdown(G.paired, [...DATA_DIMS, "probBand"], LABELS), "",
+      "Challenger calibration:", "", calibrationMarkdown(reports.challenger[name].calibration), "");
+  }
+  return out.join("\n");
+}
 
 function markdown(): string {
   const f = (x: number, d = 2) => `${(100 * x).toFixed(d)}%`;

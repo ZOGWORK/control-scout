@@ -29,6 +29,8 @@ export interface MatchRecord {
   number: number;
   /** Epoch ms used to order matches (actual start, else scheduled, else event start + order). */
   time: number;
+  /** The event's FTC region code (engine 2.7: regional prior offsets), when known. */
+  region?: string;
   red: AllianceResult;
   blue: AllianceResult;
 }
