@@ -74,6 +74,29 @@ export interface RecentRecord {
 /** A reason is notable from this many no-shows / near-zero matches in the recent window. */
 export const REASON_RULE = { noShows: 2, nearZero: 3 } as const;
 
+/** Event-local form (engine 2.9) is worth a reason from this many points, and this share of the robot's usual strength. */
+export const EVENT_FORM_RULE = { points: 5, share: 0.1 } as const;
+
+/**
+ * "Team 1234 is playing about 9 points above its usual level here (4 matches)": robots whose form at this
+ * event moves their expected contribution notably (RatingBook.eventOffset). The adjustment is in the
+ * prediction already; this only names it.
+ */
+export function eventFormReasons(book: RatingBook, teams: number[], event: string | undefined): string[] {
+  if (!event) return [];
+  const out: string[] = [];
+  for (const t of teams) {
+    const o = book.eventOffset(t, event), s = book.eventFormOf(t);
+    if (!o || !s) continue;
+    const pts = o.auto + o.teleop + o.endgame;
+    // Called under the event (explainMatch): the rating read here includes the adjustment, so take it back out.
+    const r = book.get(t), usual = r.auto + r.teleop + r.endgame - pts;
+    if (Math.abs(pts) < Math.max(EVENT_FORM_RULE.points, EVENT_FORM_RULE.share * usual)) continue;
+    out.push(`Team ${t} is playing about ${Math.round(Math.abs(pts))} points ${pts > 0 ? "above" : "below"} its usual level at this event (${s.n} match${s.n === 1 ? "" : "es"} here)`);
+  }
+  return out;
+}
+
 /**
  * The notable recent-record reasons for a lineup, in lineup order (at most one per robot: no-shows first).
  * The same sentences explainMatch returns; exported for apps that build their own match rows (a forecast's
@@ -118,8 +141,9 @@ export interface MatchExplanation {
   teamsA: TeamStrength[];
   teamsB: TeamStrength[];
   /**
-   * Notable reasons beyond the factors, e.g. "Team 1234 was a no-show in 2 of its last 10 matches". Only with
-   * opts.recent; empty when nothing is notable. Words only: no probability or score depends on them.
+   * Notable reasons beyond the factors: a robot's form at this event (2.9, already in the prediction), and with
+   * opts.recent e.g. "Team 1234 was a no-show in 2 of its last 10 matches". Empty when nothing is notable.
+   * Words only: no probability or score depends on them.
    */
   reasons: string[];
   /** opts.bonus (a qualification match of a 2025+ season with a bonus model): each alliance's
@@ -207,7 +231,7 @@ function carrier(side: TeamStrength[], c: Exclude<Component, "pen">, base: numbe
  * size works). Pure: same book + teams → same answer, server or browser.
  */
 export function explainMatch(book: RatingBook, teamsA: number[], teamsB: number[], opts: ExplainOptions = {}): MatchExplanation {
-  return book.withRegion(opts.context?.region, () => explainOn(book, teamsA, teamsB, opts));
+  return book.withRegion(opts.context?.region, () => book.withEvent(opts.context?.event, () => explainOn(book, teamsA, teamsB, opts)));
 }
 
 function explainOn(book: RatingBook, teamsA: number[], teamsB: number[], opts: ExplainOptions): MatchExplanation {
@@ -264,7 +288,7 @@ function explainOn(book: RatingBook, teamsA: number[], teamsB: number[], opts: E
       : "Ratings still carry noticeable uncertainty relative to match variance.";
   }
 
-  const reasons = opts.recent ? recentReasons([...teamsA, ...teamsB], opts.recent) : [];
+  const reasons = [...eventFormReasons(book, [...teamsA, ...teamsB], opts.context?.event), ...(opts.recent ? recentReasons([...teamsA, ...teamsB], opts.recent) : [])];
 
   // From the displayed (rounded) score to the stored whole-point bounds, the larger side: "score ± pm" always
   // reaches both ends of the range (rounding the score and the bounds separately could fall a point short).
