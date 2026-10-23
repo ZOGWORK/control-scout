@@ -15,7 +15,7 @@ import { invalidateFlags } from "../flags";
 import { renderPage } from "../seo";
 import { resetSitemapCache, sitemapEntries } from "../sitemap";
 import { useContentDir } from "./store";
-import { editGenerated, getGenerated, invalidateGenerated, setGeneratedStatus } from "./generated";
+import { editGenerated, getGenerated, invalidateGenerated, setGeneratedStatus, toDoc } from "./generated";
 import { dailyRefreshTick } from "./refresh";
 import { autoPowerRankingsTick, buildPacket, publishNow } from "./auto";
 import type { FactPacket } from "./factCheck";
@@ -568,6 +568,23 @@ describe("the daily refresh", () => {
     expect(after.packet.comparedWith).toBe("2026-w42");
     expect(after.packet.teams[3]).toMatchObject({ team: 7004, priorRank: 5, movement: 1, ratingDelta: 10 });
     expect(after.packet.teams[4]).toMatchObject({ team: 7003, priorRank: 1, movement: -4 });
+  });
+
+  it("a team that drops out and comes back keeps its rating change against the compared week", async () => {
+    await autoPowerRankingsTick(Date.parse("2026-10-16T04:00:00Z")); // week 42: 7000…7024
+    await autoPowerRankingsTick(FRI); // week 43: the same, with rating changes of 0
+    // Saturday 7024 loses its rating (out of the list, 7025 in); Sunday it's back.
+    await run("UPDATE team_season_stats SET rating_matches = 0 WHERE season = ? AND team = 7024", [S]);
+    await kvSet("data:version", `v${++version}`);
+    await dailyRefreshTick(SAT0 + 60_000);
+    expect((await week())!.packet.droppedOut).toEqual([{ team: 7024, lastRank: 25, rating: 260 }]);
+    await rate();
+    await dailyRefreshTick(SUN0 + 60_000);
+    const back = (await week())!;
+    expect(back.packet.teams[24]).toMatchObject({ team: 7024, priorRank: 25, movement: 0, ratingDelta: 0 });
+    expect(back.packet.droppedOut).toEqual([]);
+    // The page's dropped-out list carries no ratings.
+    expect(toDoc((await getGenerated(S, "2026-w43"))!).generated!.droppedOut).toEqual([]);
   });
 
   it("Bruno's intro is checked again even when teams only leave the list", async () => {

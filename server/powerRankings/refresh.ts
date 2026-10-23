@@ -48,7 +48,8 @@ const placeKey = (t: PacketTeam) => JSON.stringify([t.rank, t.priorRank, t.movem
 /** Did anything the week shows change between the stored packet and a fresh one? */
 export function samePacket(a: StoredPacket, b: StoredPacket): boolean {
   return a.comparedWith === b.comparedWith
-    && JSON.stringify(a.droppedOut ?? []) === JSON.stringify(b.droppedOut ?? [])
+    // Who dropped out and from where (what the page shows); a frozen rating is only carried along.
+    && JSON.stringify((a.droppedOut ?? []).map((d) => [d.team, d.lastRank])) === JSON.stringify((b.droppedOut ?? []).map((d) => [d.team, d.lastRank]))
     && a.teams.length === b.teams.length
     && a.teams.every((t, i) => factKey(t) === factKey(b.teams[i]));
 }
