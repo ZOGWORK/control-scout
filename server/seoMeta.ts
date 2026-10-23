@@ -5,7 +5,7 @@
 // the in-app fallback.
 import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
-import { get } from "./db.js";
+import { all, get } from "./db.js";
 import { CURRENT_SEASON, PREDICT_SEASONS, SEASON_NUMBERS, isLegacy, seasonInfo } from "./data/seasons.js";
 import { defaultRankingsSeason, rankings, snapshotWeeks } from "./api/rankings.js";
 import { isWeek, parsePlaces, placeKey } from "../src/shared/rankings.js";
@@ -14,6 +14,7 @@ import { eventTypeLabel } from "../src/shared/labels.js";
 import { canonicalOrigin, canonicalUrl } from "./seo.js";
 import { FAQ, faqJsonLd, faqText } from "../src/shared/faq.js";
 import { teamKnown } from "./api/teams.js";
+import { teamHeading, teamTitle } from "../src/shared/teamTitle.js";
 import { pageModule } from "../src/shared/routes.js";
 import { normalMatchKey } from "../src/shared/matchReport.js";
 import { allianceText, shareHeadline, shareImagePath, sharePagePath, tierWords, type ShareCardQuery } from "../src/shared/share.js";
@@ -47,6 +48,8 @@ export interface PageMeta {
   /** The page's content as static, already-safe HTML for the first paint (server/bootShell.ts), for pages
    *  whose words are the point (power rankings): crawlers and previews read it without running the app. */
   bodyHtml?: string;
+  /** The first paint's <h1> when it's shorter than the title (a team: "4215 Hypnotic Robotics"). */
+  heading?: string;
 }
 
 
@@ -119,30 +122,75 @@ const fmt1 = (x: number) => (Math.round(x * 10) / 10).toFixed(1);
 const place = (...parts: (string | null | undefined)[]) => parts.filter((x) => x && String(x).trim()).join(", ");
 const dateLong = (d: string | null) => (d ? new Date(`${d}T12:00:00Z`).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric", timeZone: "UTC" }) : "");
 
+/** A team's own website as an absolute http(s) URL (the source stores "www.team.org" as often as a full URL), else null. */
+export function teamWebsite(raw: string | null | undefined): string | null {
+  const s = raw?.trim();
+  if (!s) return null;
+  try {
+    const u = new URL(/^https?:\/\//i.test(s) ? s : `https://${s}`);
+    return (u.protocol === "https:" || u.protocol === "http:") && u.hostname.includes(".") ? u.href : null;
+  } catch { return null; }
+}
+
+/** How many of a team's events the page's first paint lists (newest first), as links. */
+const TEAM_EVENTS = 8;
+const record = (w: number | null, l: number | null, t: number | null) => (w == null || l == null ? "" : `${w}-${l}-${t ?? 0}`);
+
 async function teamMeta(n: number): Promise<PageMeta> {
   if (n < 1 || n > 999_999) return NOT_FOUND;
-  const t = await get<{ name: string | null; city: string | null; state: string | null; country: string | null }>("SELECT name, city, state, country FROM teams WHERE number = ?", [n]);
+  const t = await get<{ name: string | null; city: string | null; state: string | null; country: string | null; school: string | null; rookie_year: number | null; website: string | null }>(
+    "SELECT name, city, state, country, school, rookie_year, website FROM teams WHERE number = ?", [n]);
   // The team API's test (teamProfile): a team we've never seen is a 404 there and here.
   if (!t && !(await teamKnown(n))) return NOT_FOUND;
-  const s = await get<{ season: number; opr_np: number | null; rank_np: number | null; ranked_teams: number | null; wins: number; losses: number; ties: number }>(
-    "SELECT season, opr_np, rank_np, ranked_teams, wins, losses, ties FROM team_season_stats WHERE team = ? AND matches > 0 ORDER BY season DESC LIMIT 1", [n]);
-  const name = t?.name?.trim();
-  const title = name ? `Team ${n} — ${name}` : `Team ${n}`;
+  const [s, seasons, events] = await Promise.all([
+    get<{ season: number; opr_np: number | null; rank_np: number | null; ranked_teams: number | null; wins: number; losses: number; ties: number; matches: number }>(
+      "SELECT season, opr_np, rank_np, ranked_teams, wins, losses, ties, matches FROM team_season_stats WHERE team = ? AND matches > 0 ORDER BY season DESC LIMIT 1", [n]),
+    get<{ n: number }>("SELECT COUNT(DISTINCT season) n FROM team_season_stats WHERE team = ? AND matches > 0", [n]),
+    all<{ season: number; code: string; name: string; start: string | null; rank: number | null; wins: number | null; losses: number | null; ties: number | null }>(
+      `SELECT e.season, e.code, e.name, e.start, et.rank, et.wins, et.losses, et.ties FROM event_teams et JOIN events e ON e.season = et.season AND e.code = et.code
+       WHERE et.team = ? ORDER BY e.start DESC, e.code LIMIT ${TEAM_EVENTS}`, [n]),
+  ]);
+  const name = t?.name?.trim() || null;
+  const heading = teamHeading(n, name);
   const where = place(t?.city, t?.state, t?.country === "USA" ? null : t?.country);
-  let d = `FTC team ${n}${name ? ` ${name}` : ""}${where ? ` from ${where}` : ""}.`;
-  if (s?.opr_np != null) {
-    const top = s.rank_np && s.ranked_teams ? ` (#${s.rank_np.toLocaleString("en-US")} of ${s.ranked_teams.toLocaleString("en-US")})` : "";
-    d += ` ${seasonInfo(s.season).label} OPR ${fmt1(s.opr_np)}${top}, record ${s.wins}-${s.losses}-${s.ties}.`;
-  }
-  d += " Event results, match history and win predictions.";
+  const who = `FTC team ${n}${name ? ` ${name}` : ""}${where ? ` from ${where}` : ""}`;
+  const since = t?.rookie_year ? `, rookie year ${t.rookie_year}` : (seasons?.n ?? 0) > 1 ? `, ${seasons!.n} seasons on record` : "";
+  const rank = s?.rank_np && s.ranked_teams ? ` (#${s.rank_np.toLocaleString("en-US")} of ${s.ranked_teams.toLocaleString("en-US")})` : "";
+  const stat = s ? ` ${seasonInfo(s.season).label}: record ${s.wins}-${s.losses}-${s.ties}${s.opr_np != null ? `, OPR ${fmt1(s.opr_np)}${rank}` : ""}.` : "";
+  const tail = " Event results, OPR and win predictions.";
+  // Most detail first: the record and OPR rank stay in before the rookie year, and the closing line before either is cut.
+  const description = bestFit([`${who}${since}.${stat}${tail}`, `${who}.${stat}${tail}`, `${who}${since}.${stat}`, `${who}.${stat}`, `${who}.${tail}`]);
+  const url = canonicalUrl(`/teams/${n}`);
+  const o = canonicalOrigin();
+  const website = teamWebsite(t?.website);
+  const latest = events[0]?.season ?? s?.season;
   const team: Record<string, unknown> = {
-    "@context": "https://schema.org", "@type": "SportsTeam", name: name ?? `FTC Team ${n}`, alternateName: `FTC Team ${n}`,
-    url: canonicalUrl(`/teams/${n}`), sport: "Robotics (FIRST Tech Challenge)", memberOf: FTC,
+    "@type": "SportsTeam", "@id": `${url}#team`, name: name ?? `FTC Team ${n}`, alternateName: [`FTC Team ${n}`, `FTC ${n}`, heading],
+    identifier: String(n), url, description, sport: "Robotics (FIRST Tech Challenge)", memberOf: FTC,
+    // The same team elsewhere: its own site, and FIRST's page for it (the newest season it's registered for).
+    sameAs: [...(website ? [website] : []), ...(latest ? [`https://ftc-events.firstinspires.org/${latest}/team/${n}`] : [])],
   };
+  if (t?.rookie_year) team.foundingDate = String(t.rookie_year);
   const addr = address(t?.city, t?.state, t?.country);
   if (addr) team.location = { "@type": "Place", address: addr };
+  if (t?.school?.trim()) team.affiliation = { "@type": "Organization", name: t.school.trim() };
+  // The page is the team's profile (schema.org ProfilePage, its main entity the team), inside the site.
+  const profile = { "@context": "https://schema.org", "@type": "ProfilePage", url, name: `${teamTitle(n, name)} · ${SITE}`, isPartOf: { "@type": "WebSite", "@id": `${o}/#website`, name: SITE, url: `${o}/` }, mainEntity: team };
+  const crumbs = {
+    "@context": "https://schema.org", "@type": "BreadcrumbList",
+    itemListElement: [["Home", `${o}/`], ["Teams", canonicalUrl("/teams")], [heading, url]].map(([nm, item], i) => ({ "@type": "ListItem", position: i + 1, name: nm, item })),
+  };
+  // The first paint's words (crawlers read them without running the app): who the team is, its latest season, and its events as links.
+  const h = (x: string) => x.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+  const lead = `${who}${t?.school?.trim() ? ` (${t.school.trim()})` : ""}${since}.${stat}`;
+  const list = events.map((e) => {
+    const facts = [seasonInfo(e.season).label, dateLong(e.start), e.rank ? `ranked ${e.rank}` : "", record(e.wins, e.losses, e.ties)].filter(Boolean).join(" · ");
+    return `<li><a href="/events/${e.season}/${encodeURIComponent(e.code)}">${h(e.name)}</a> <small>${h(facts)}</small></li>`;
+  }).join("");
+  const bodyHtml = `<p>${h(lead)} Stats, OPR by game phase, event results, match history and win predictions on ${SITE}.</p>`
+    + (list ? `<h2>Events</h2><ul>${list}</ul>` : "");
   // One URL for the page (/teams/004215 → /teams/4215 everywhere); structured data only for a team we know.
-  return { title, description: fitDescription(d), type: "profile", path: `/teams/${n}`, ...(t ? { jsonLd: [team] } : {}) };
+  return { title: teamTitle(n, name), heading, description, type: "profile", path: `/teams/${n}`, bodyHtml, ...(t ? { jsonLd: [profile, crumbs] } : {}) };
 }
 
 async function eventMeta(season: number, code: string): Promise<PageMeta | null> {

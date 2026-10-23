@@ -16,8 +16,15 @@ const xmlEsc = (s: string) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").rep
 
 /** Every URL for the sitemap, in a stable order. */
 export async function sitemapEntries(): Promise<Entry[]> {
+  const today = new Date().toISOString().slice(0, 10);
   const [teams, events] = await Promise.all([
-    all<{ number: number; updated_at: string | null }>("SELECT number, updated_at FROM teams ORDER BY number"),
+    // A team page changes when the team plays: its lastmod is the last day of its latest event that has started (today
+    // while one is on), or a later change the source marked on one. Not teams.updated_at: every sync stamps that on
+    // every team, so it said nothing about the page.
+    all<{ number: number; lastmod: string | null }>(
+      `SELECT t.number, MAX(CASE WHEN e.start <= ? THEN MAX(MIN(COALESCE(e.end, e.start), ?), COALESCE(substr(e.upstream_updated, 1, 10), '')) END) lastmod
+       FROM teams t LEFT JOIN event_teams et ON et.team = t.number LEFT JOIN events e ON e.season = et.season AND e.code = et.code
+       GROUP BY t.number ORDER BY t.number`, [today, today]),
     all<{ season: number; code: string; upstream_updated: string | null }>("SELECT season, code, upstream_updated FROM events ORDER BY season DESC, code"),
   ]);
   // Power rankings: the hub and every published week, newest first (none until the first is; never sample weeks).
@@ -28,7 +35,7 @@ export async function sitemapEntries(): Promise<Entry[]> {
     ...weeks.map((w) => ({ loc: canonicalUrl(`/power-rankings/${w.week}`), lastmod: w.published })),
     // lastmod: the source's own change marker (late results, awards and advancement move it); none when unknown.
     ...events.map((e) => ({ loc: canonicalUrl(`/events/${e.season}/${encodeURIComponent(e.code)}`), lastmod: day(e.upstream_updated) })),
-    ...teams.map((t) => ({ loc: canonicalUrl(`/teams/${t.number}`), lastmod: day(t.updated_at) })),
+    ...teams.map((t) => ({ loc: canonicalUrl(`/teams/${t.number}`), lastmod: day(t.lastmod) })),
   ];
 }
 
