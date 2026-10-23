@@ -52,8 +52,12 @@ describe("methodology ledger", () => {
     expect(card.queryByText(/Early season: a work in progress/)).toBeNull();
     fireEvent.click(card.getByRole("button", { name: /^2026–27$/ }));
     const note = card.getByRole("note");
-    expect(note.textContent).toMatch(/Early season: a work in progress\. Only 198 decided matches so far/);
-    expect(note.textContent).toMatch(/2025–26 ended at 73\.8% over 41,405 decided matches\./);
+    // The season's scored matches (the replay's 231), not the selected sample.
+    expect(note.textContent).toMatch(/Early season: a work in progress\. Only 231 matches scored this season so far/);
+    expect(note.textContent).toMatch(/2025–26's season replay ended at 73\.8% over 41,405 decided matches\./);
+    // Live selected: last season has no live record, so the comparison says it's the replay.
+    fireEvent.click(card.getByRole("button", { name: /Logged live/ }));
+    expect(card.getByRole("note").textContent).toMatch(/2025–26's season replay ended at 73\.8%/);
   });
 
   it("opens on the headline (the replay while live is under 300 calls) and titles it as a replay", async () => {

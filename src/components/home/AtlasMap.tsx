@@ -158,6 +158,8 @@ export default function AtlasMap({ mode, spinning = false, countries, selected, 
     const d = drag.current;
     if (!d) return;
     if (!dragged.current) {
+      // Released somewhere the globe didn't hear (it only captures once a drag starts): drop the press.
+      if (e.buttons === 0) { drag.current = null; return; }
       if (Math.hypot(e.clientX - d.x, e.clientY - d.y) < DRAG_PX) return;
       dragged.current = true;
       (e.currentTarget as Element).setPointerCapture?.(e.pointerId);
@@ -189,6 +191,7 @@ export default function AtlasMap({ mode, spinning = false, countries, selected, 
           onKeyDown={onKeyDown} onFocus={() => { held.current = true; }} onBlur={() => { held.current = false; }}
           className={cn("absolute inset-0 size-full select-none outline-none", mode === "globe" && "cursor-grab rounded-full focus-visible:ring-2 focus-visible:ring-ring/60 active:cursor-grabbing")}
           onPointerDown={onPointerDown} onPointerMove={onPointerMove} onPointerUp={end} onPointerCancel={end} onLostPointerCapture={end}
+          onPointerLeave={() => { if (!dragged.current) drag.current = null; }}
           onClickCapture={(e) => { if (dragged.current) { dragged.current = false; e.stopPropagation(); } }}>
           <path d={path(SPHERE) ?? undefined} className="fill-[color-mix(in_srgb,var(--color-text-base)_4%,var(--color-card))] stroke-text-base/15" />
           <path d={path(geoGraticule10()) ?? undefined} className="fill-none stroke-text-base/[0.07]" strokeWidth={0.6} />
