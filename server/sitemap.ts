@@ -21,11 +21,13 @@ export async function sitemapEntries(): Promise<Entry[]> {
     // A team page changes when the team plays: its lastmod is the last day of its latest event that has started (today
     // while one is on), or a later change the source marked on one. Not teams.updated_at: every sync stamps that on
     // every team, so it said nothing about the page. Only events it took part in (a league roster lists teams that never
-    // played): the rule of api/teams.ts ATTENDED, read set-wise from the per-event stats (on the field in played matches),
-    // plus started events with no played matches (remote events), since scanning every match's teams takes seconds.
+    // played): the rule of api/teams.ts ATTENDED (on the field in a played match of any level, or the event has no played
+    // matches yet, as a remote one), read set-wise: the per-row EXISTS took seconds over every team, this about one.
     all<{ number: number; lastmod: string | null }>(
       `WITH took AS (
-         SELECT season, code, team FROM team_event_stats WHERE matches > 0
+         SELECT x.season, x.code, x.team FROM matches m JOIN match_teams x
+           ON x.season = m.season AND x.code = m.code AND x.level = m.level AND x.series = m.series AND x.number = m.number
+           WHERE m.played = 1 AND x.on_field = 1
          UNION SELECT et.season, et.code, et.team FROM event_teams et JOIN events e ON e.season = et.season AND e.code = et.code
            WHERE e.start <= ? AND NOT EXISTS (SELECT 1 FROM matches m WHERE m.season = et.season AND m.code = et.code AND m.played = 1))
        SELECT t.number, MAX(CASE WHEN e.start <= ? THEN MAX(MIN(COALESCE(e.end, e.start), ?), COALESCE(substr(e.upstream_updated, 1, 10), '')) END) lastmod
