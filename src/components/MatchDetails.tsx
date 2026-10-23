@@ -118,7 +118,7 @@ function Alliance({ d, side }: { d: MatchDetail; side: Side }) {
               </div>
               <dl className="mt-1 grid grid-cols-3 gap-x-3 text-[11px] text-text-muted">
                 <div><dt className="sr-only">Event rank</dt><dd>{ev?.rank ? <>Rank <span className="text-text-base">#{ev.rank}</span>{ev.wins != null && <> · {ev.wins}-{ev.losses}-{ev.ties}</>}</> : "Unranked"}</dd></div>
-                <div><dt className="sr-only">Event OPR</dt><dd>OPR here <span className="text-text-base">{ev?.opr.np != null ? r1(ev.opr.np) : "—"}</span></dd></div>
+                <div><dt className="sr-only">Event OPR</dt><dd>OPR at this time <span className="text-text-base">{ev?.opr.np != null ? r1(ev.opr.np) : "—"}</span></dd></div>
                 <div><dt className="sr-only">Season OPR</dt><dd>Season <span className="text-text-base">{se?.opr != null ? r1(se.opr) : "—"}</span>{se?.rank ? <> · #{se.rank.toLocaleString()}</> : null}</dd></div>
               </dl>
             </li>

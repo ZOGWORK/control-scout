@@ -34,7 +34,7 @@ export function DataStatus({ readiness, fallbackResultsAt, onRetry, className }:
   // Spins until the answer is in, and at least a moment, so a fast answer still shows it was asked.
   const [checking, setChecking] = useState(false);
   const live = useRef(true);
-  useEffect(() => () => { live.current = false; }, []);
+  useEffect(() => { live.current = true; return () => { live.current = false; }; }, []);
   const check = () => {
     if (!onRetry || checking) return;
     setChecking(true);

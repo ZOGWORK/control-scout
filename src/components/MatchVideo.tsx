@@ -130,10 +130,12 @@ function Recorder({ matchRef, label }: { matchRef: string; label: string }) {
   const addFile = async (f: File | undefined) => {
     if (!f) return;
     setError(null);
-    if (!f.type.startsWith("video/")) { setError("That file isn't a video."); return; }
+    // Some browsers leave a picked file's type empty: then its extension says what it is.
+    const mime = f.type.startsWith("video/") ? f.type : f.type ? null : mimeOfName(f.name);
+    if (!mime) { setError("That file isn't a video."); return; }
     setAdding(true);
     try {
-      await saveRecording({ matchRef, label, blob: f, mime: f.type, durationMs: await videoLength(f) });
+      await saveRecording({ matchRef, label, blob: f, mime, durationMs: await videoLength(f) });
       toast.success(`Saved on this device (${fmtBytes(f.size)}) — not uploaded`);
     } catch (e: any) {
       setError(e?.name === "QuotaExceededError" ? "This device is out of space for recordings. Delete some in Settings → Offline & data." : "Couldn't save the video on this device.");
@@ -175,6 +177,15 @@ function Recorder({ matchRef, label }: { matchRef: string; label: string }) {
   );
 }
 
+const VIDEO_TYPES: [ext: string, mime: string][] = [
+  ["mp4", "video/mp4"], ["m4v", "video/x-m4v"], ["mov", "video/quicktime"], ["webm", "video/webm"], ["mkv", "video/x-matroska"],
+  ["3gp", "video/3gpp"], ["3g2", "video/3gpp2"], ["avi", "video/x-msvideo"], ["ogv", "video/ogg"],
+];
+/** A video's type from its file name's extension (null: not a video this knows). */
+export const mimeOfName = (name: string): string | null => VIDEO_TYPES.find(([e]) => name.toLowerCase().endsWith(`.${e}`))?.[1] ?? null;
+/** The file extension a saved video downloads with. */
+export const extOfMime = (mime: string): string => VIDEO_TYPES.find(([, m]) => mime.split(";")[0].trim() === m)?.[0] ?? (mime.includes("mp4") ? "mp4" : "webm");
+
 /** A video file's length in ms, read from its metadata (0 when the browser can't tell). */
 function videoLength(f: Blob): Promise<number> {
   return new Promise((resolve) => {
@@ -193,7 +204,7 @@ function videoLength(f: Blob): Promise<number> {
 function RecordingItem({ r }: { r: Recording }) {
   const [url, setUrl] = useState<string | null>(null);
   useEffect(() => { const u = URL.createObjectURL(r.blob); setUrl(u); return () => URL.revokeObjectURL(u); }, [r.blob]);
-  const ext = r.mime.includes("mp4") ? "mp4" : "webm";
+  const ext = extOfMime(r.mime);
   return (
     <li className="space-y-1.5 rounded-xl border border-border bg-card p-3">
       {url && <video src={url} controls playsInline className="aspect-video w-full rounded-lg bg-black" />}

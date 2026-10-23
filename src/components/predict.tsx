@@ -301,7 +301,7 @@ export function MatchRow({ m, highlight, showEvent, eventName, open, onToggle, o
           call's width. 32px to look at, 40px to tap (the ::after). */}
       <Tooltip>
         <TooltipTrigger asChild>
-          <Link to={matchReportHref(m)} className="relative col-start-3 row-start-1 inline-flex size-8 items-center justify-center justify-self-end rounded-md border border-border bg-card text-text-muted outline-none transition-colors after:absolute after:-inset-1 still-hover:border-accent/60 still-hover:text-accent-text focus-visible:ring-2 focus-visible:ring-ring/60 @3xl:col-start-5" aria-label={`Pre-match report for ${m.label}`} data-report-link>
+          <Link to={matchReportHref(m)} className="relative col-start-3 row-start-1 inline-flex size-8 items-center justify-center justify-self-end rounded-md border border-[#e9d58a] bg-[#f7e9b0] text-[#5a4508] outline-none transition-colors after:absolute after:-inset-1 still-hover:border-[#dcc36a] still-hover:bg-[#f1dc8f] focus-visible:ring-2 focus-visible:ring-ring/60 @3xl:col-start-5" aria-label={`Pre-match report for ${m.label}`} data-report-link>
             <ClipboardList className="size-4" aria-hidden />
           </Link>
         </TooltipTrigger>

@@ -39,12 +39,31 @@ export function teamPalette(teams: number[], colorOf: (team: number) => { css: s
 }
 const MAX = 4;
 
+/** The teams in ?teams=, as plain numbers ("04215" is 4215), each once. */
+export function teamsOf(v: string | null): string[] {
+  return [...new Set((v ?? "").split(",").filter((x) => /^\d+$/.test(x) && Number(x) > 0).map((x) => String(Number(x))))];
+}
+
+/** The head-to-head matches for the baseline (the first team): the ones it played with or against another
+ *  compared team, each marked from its side. */
+export function baselineMeetings(meetings: CompareView["meetings"], order: number[]): CompareView["meetings"] {
+  const [base, ...others] = order;
+  if (base == null) return [];
+  return meetings.flatMap((m) => {
+    const red = m.red.teams.map((t) => t.number), blue = m.blue.teams.map((t) => t.number);
+    if (!red.includes(base) && !blue.includes(base)) return [];
+    const mine = red.includes(base) ? red : blue, theirs = mine === red ? blue : red;
+    const relation = others.some((o) => theirs.includes(o)) ? "opponents" as const : others.some((o) => mine.includes(o)) ? "partners" as const : null;
+    return relation ? [{ ...m, relation }] : [];
+  });
+}
+
 export default function ComparePage() {
   useTitle("Compare");
   const [sp, setSp] = useSearchParams();
   const current = useCurrentSeason();
   const asked = Number(sp.get("season")) || null;
-  const teams = (sp.get("teams") ?? "").split(",").filter((x) => /^\d+$/.test(x)).slice(0, MAX);
+  const teams = teamsOf(sp.get("teams")).slice(0, MAX);
   const { colorOf } = useTeamColors();
   const palette = teamPalette(teams.map(Number), colorOf);
   const [error, setError] = useState<string | null>(null);
@@ -56,7 +75,7 @@ export default function ComparePage() {
   latest.current = sp;
   const edit = (fn: (now: string[]) => string[]) => {
     const x = new URLSearchParams(latest.current);
-    x.set("teams", fn((x.get("teams") ?? "").split(",").filter((t) => /^\d+$/.test(t))).slice(0, MAX).join(","));
+    x.set("teams", fn(teamsOf(x.get("teams"))).slice(0, MAX).join(","));
     latest.current = x;
     setSp(x, { replace: true });
   };
@@ -87,7 +106,8 @@ export default function ComparePage() {
     if (!state.data) return state.data;
     const at = order.split(",");
     const pos = (x: CompareTeam) => { const i = at.indexOf(String(x.team.number)); return i < 0 ? at.length : i; };
-    return { ...state.data, teams: [...state.data.teams].sort((a, b) => pos(a) - pos(b)) };
+    const sorted = [...state.data.teams].sort((a, b) => pos(a) - pos(b));
+    return { ...state.data, teams: sorted, meetings: baselineMeetings(state.data.meetings, sorted.map((x) => x.team.number)) };
   }, [state.data, order]);
   /** Move a team to another place in the order (the first is the one the others are measured against). */
   const move = (team: number, to: number) => edit((now) => {
@@ -274,20 +294,48 @@ function StatsTable({ d, onRemove, onMove }: { d: CompareView; onRemove: (n: num
     onMove(team, to);
     setSaid(`${team} moved to ${ORDINAL[to]}${to === 0 ? ": the others are measured against it" : ""}.`);
   };
-  const colAt = (e: PointerEvent) => {
+  const colAt = (e: { clientX: number; clientY: number }) => {
     const el = document.elementFromPoint(e.clientX, e.clientY)?.closest<HTMLElement>("[data-col]");
     return el && table.current?.contains(el) ? Number(el.dataset.col) : null;
   };
+  // While dragging near the table's left or right edge (a phone shows only some columns), it scrolls that way,
+  // so a far column can be reached in one drag.
+  const pointer = useRef<{ x: number; y: number } | null>(null);
+  const dragging = drag != null;
+  useEffect(() => {
+    if (!dragging) { pointer.current = null; return; }
+    let frame = 0;
+    const step = () => {
+      const box = table.current?.parentElement, p = pointer.current;
+      if (box && p) {
+        const r = box.getBoundingClientRect(), edge = Math.min(48, r.width / 4);
+        const dx = p.x < r.left + edge ? -10 : p.x > r.right - edge ? 10 : 0;
+        if (dx && box.scrollWidth > box.clientWidth) {
+          box.scrollLeft += dx;
+          const c = colAt({ clientX: p.x, clientY: p.y });
+          if (c != null) setDrag((d) => (d && d.over !== c ? { ...d, over: c } : d));
+        }
+      }
+      frame = requestAnimationFrame(step);
+    };
+    frame = requestAnimationFrame(step);
+    return () => cancelAnimationFrame(frame);
+  }, [dragging]);
   const gripProps = (team: number, i: number) => ({
     "data-grip": team,
     onPointerDown: (e: PointerEvent<HTMLButtonElement>) => { e.currentTarget.setPointerCapture(e.pointerId); setDrag({ team, from: i, over: i }); },
-    onPointerMove: (e: PointerEvent) => { if (!drag) return; const c = colAt(e); if (c != null && c !== drag.over) setDrag({ ...drag, over: c }); },
+    onPointerMove: (e: PointerEvent) => {
+      if (!drag) return;
+      pointer.current = { x: e.clientX, y: e.clientY };
+      const c = colAt(e); if (c != null && c !== drag.over) setDrag({ ...drag, over: c });
+    },
     onPointerUp: () => { if (drag && drag.over !== drag.from) moveTo(drag.team, drag.over); setDrag(null); },
     onPointerCancel: () => setDrag(null),
     onKeyDown: (e: KeyboardEvent) => {
       const to = e.key === "ArrowLeft" ? i - 1 : e.key === "ArrowRight" ? i + 1 : e.key === "Home" ? 0 : e.key === "End" ? t.length - 1 : null;
       if (to == null) return;
       e.preventDefault();
+      if (to === i || to < 0 || to >= t.length) return;
       refocus.current = team;
       moveTo(team, to);
     },
