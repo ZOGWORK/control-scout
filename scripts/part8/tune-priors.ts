@@ -44,7 +44,8 @@ const results: unknown[] = [];
 const perConfig: Map<string, { p: number; y: number; tags: string[] }>[] = [];
 for (const o of configs) {
   const { _region: RP, ...ro } = o;
-  const book = new RatingBook({ ...M.rating, ...ro });
+  // The prototype measures its own regional adjustment alone: the engine's built-in one is off under it.
+  const book = new RatingBook({ ...M.rating, ...ro, ...(RP ? { regionKappa: 0 } : {}) });
   // Regional offset prototype: per region and phase, the shrunk mean lift (rating at its freezeN-th match
   // minus the prior it started from) of earlier teams of that kind this season, added to new priors.
   const PHS = ["auto", "teleop", "endgame"] as const;
@@ -82,7 +83,7 @@ for (const o of configs) {
         book.setTime(m.time);
         if (RP?.atFirstMatch) for (const t of [...m.red.teams, ...m.blue.teams]) if (!teamRegion.has(t)) { const r = RP.source === "home" ? home.get(t) : c.byCode.get(m.eventCode)?.region; if (r) teamRegion.set(t, r); }
         const teams = [...m.red.teams, ...m.blue.teams];
-        const p = predictMatch(book, m.red.teams, m.blue.teams, M.noise, M.calibration, { contextual: M.contextual, context: { level: m.level, event: m.eventCode } }).pRedWin;
+        const p = predictMatch(book, m.red.teams, m.blue.teams, M.noise, M.calibration, { contextual: M.contextual, context: { level: m.level, event: m.eventCode, ...(m.region ? { region: m.region } : {}) } }).pRedWin;
         const y = outcome(m);
         const n = teams.map((t) => book.get(t).n);
         const firstHere = teams.some((t) => { const e = firstEv.get(t); return e == null || e === m.eventCode; });

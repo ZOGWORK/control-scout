@@ -293,41 +293,41 @@ export const FITTED_MODEL = {
    }
   },
   "engine27": {
-   "note": "Engine 2.7 priors: regional prior offsets (regionKappa 20, learned from returning teams) and last-season carry-over rho1 0.6 -> 0.7, chosen on the 2024-25 season (a flat region: kappa 10-40 and rho1 0.7 give the same numbers within noise). Paired replay against 2.6.0 on identical matches (scripts/engine-slices.ts --challenger, snapshot 2026-10-14), 95% intervals from resampling whole events. 2025-26 is reused data. 2023-24 (no team has history: a cold start) is bit-identical.",
+   "note": "Engine 2.7 priors: regional prior offsets (regionKappa 20, learned from returning teams) and last-season carry-over rho1 0.6 -> 0.7, chosen on the 2024-25 season (a flat region: kappa 10-40 give the same numbers within noise). Newcomers get the offset from their first prediction at an event of that region (prediction context region) and are judged against it at their first result. Paired replay against 2.6.0 on identical matches (scripts/engine-slices.ts --challenger, snapshot 2026-10-14), 95% intervals from resampling whole events. 2025-26 is reused data. 2023-24 (no team has history: a cold start) is bit-identical.",
    "tune2024": {
     "matches": 33271,
-    "brierChange": -0.000211,
+    "brierChange": -0.0003286,
     "brierChange95": [
-     -0.000337,
-     -0.00009
+     -0.0004495,
+     -0.0002064
     ],
-    "firstEventBrierChange": -0.000401,
+    "firstEventBrierChange": -0.0006115,
     "firstEventBrierChange95": [
-     -0.000666,
-     -0.000136
+     -0.0008691,
+     -0.0003482
     ],
-    "accuracy": 0.7642,
+    "accuracy": 0.7649,
     "baselineAccuracy": 0.7641,
-    "brier": 0.15758,
+    "brier": 0.15746,
     "baselineBrier": 0.15779,
-    "calibrationError5080": 0.0122,
+    "calibrationError5080": 0.0132,
     "baselineCalibrationError5080": 0.0145
    },
    "reused2025": {
     "matches": 36842,
-    "brierChange": -0.00023,
+    "brierChange": -0.0002367,
     "brierChange95": [
-     -0.00034,
-     -0.000123
+     -0.000347,
+     -0.0001294
     ],
-    "firstEventBrierChange": -0.000503,
+    "firstEventBrierChange": -0.0004702,
     "firstEventBrierChange95": [
-     -0.000735,
-     -0.000267
+     -0.0007148,
+     -0.0002411
     ],
-    "accuracy": 0.7479,
+    "accuracy": 0.7482,
     "baselineAccuracy": 0.7483,
-    "brier": 0.16792,
+    "brier": 0.16791,
     "baselineBrier": 0.16815,
     "calibrationError5080": 0.0164,
     "baselineCalibrationError5080": 0.0195

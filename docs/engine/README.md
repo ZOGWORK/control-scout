@@ -47,6 +47,8 @@ Options:
 
 ```bash
 DATABASE_URL=file:snap.db npm run slices -- --seasons 2023,2024,2025 --challenger '{"name":"<name>","rating":{...}}'
+# after model.json already carries the release, replay the previous one as the champion:
+#   --champion '{"rating":{...previous settings...}}'
 ```
 
 The gate reports challenger minus champion overall and per slice (Brier, log loss, accuracy), with 95% intervals from resampling whole events. It also reports calibration error in the 50–80% bands, and lists every slice whose Brier interval lies entirely above zero (a regression).
@@ -60,7 +62,7 @@ A change ships only if all of these hold:
 
 | Version | Change | 2024–25 (tuning) Δ Brier | 2025–26 (reused) Δ Brier | Gate |
 |---|---|---|---|---|
-| 2.7.0 | Priors: regional starting points (κ 20, learned from returning teams), carry-over ρ1 0.7 | −2.1×10⁻⁴ [−3.4, −0.9] | −2.3×10⁻⁴ [−3.4, −1.2] | [gate](gates/gate-2.7.0-priors-snapshot-2026-10-14.md) |
+| 2.7.0 | Priors: regional starting points (κ 20, learned from returning teams), carry-over ρ1 0.7 | −3.3×10⁻⁴ [−4.5, −2.1] | −2.4×10⁻⁴ [−3.5, −1.3] | [gate](gates/gate-2.7.0-priors-snapshot-2026-10-14.md) |
 
 ## Part 8 research (priors)
 

@@ -39,6 +39,9 @@ export interface MatchContext {
   /** Event code of the match (in-event form, engine 2.1). Missing for a generic
    *  what-if: no robot then has form at "this" event. */
   event?: string;
+  /** The event's FTC region (engine 2.7): a team with no result yet this season starts from
+   *  that region's regional prior offset (RatingBook.withRegion). */
+  region?: string;
 }
 
 /** State version a model's inputs need. */

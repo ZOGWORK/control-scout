@@ -38,10 +38,10 @@ async function liteOpts(): Promise<ReadOpts> {
       const rt = b.get(team);
       return { np: Math.round((rt.auto + rt.teleop + rt.endgame) * 10) / 10, sd: Math.round(Math.sqrt(rt.uncertainty) * 10) / 10, matches: rt.n };
     },
-    predict: (season, red, blue, level, event) => {
+    predict: (season, red, blue, level, event, region) => {
       const b = book(season);
       if (!b) return null;
-      const x = explainMatch(b, red, blue, { noise: FITTED_MODEL.noise, calibration: FITTED_MODEL.calibration, contextual: FITTED_MODEL.contextual, context: { level, event }, band: FITTED_MODEL.band, partnership: partnershipFor(pack, season) });
+      const x = explainMatch(b, red, blue, { noise: FITTED_MODEL.noise, calibration: FITTED_MODEL.calibration, contextual: FITTED_MODEL.contextual, context: { level, event, ...(region ? { region } : {}) }, band: FITTED_MODEL.band, partnership: partnershipFor(pack, season) });
       return {
         pRed: x.winProbA, redMean: x.predictedScoreA, blueMean: x.predictedScoreB, tier: x.confidence.tier, kind: "now", predictedAt: new Date().toISOString(), factors: x.factors, ...(x.partnership ? { history: pairHistory(x.partnership) } : {}),
         // No rated match this season yet (the server's noScoreBasis): win odds stand, the predicted score doesn't.
