@@ -51,7 +51,8 @@ export function LitePackSync(): null {
       if (!quiet || !packsOn) return;
       if (!shouldSyncLite({ online: navigator.onLine !== false, returning, follows, hasPack: hasPack(), connection: conn })) return;
       if (!liteAllowed(network, conn)) return;
-      void import("./packs").then((p) => p.syncLite()).catch(() => {});
+      // Asked again right before the download: Wi-Fi may have dropped while the manifest loaded.
+      void import("./packs").then((p) => p.syncLite({ allowed: () => liteAllowed(network, conn) })).catch(() => {});
     };
     const idle = (cb: () => void) => {
       if (w.requestIdleCallback) idleId = w.requestIdleCallback(() => { idleId = undefined; cb(); }, { timeout: 10_000 });

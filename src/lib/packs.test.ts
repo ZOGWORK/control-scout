@@ -6,7 +6,7 @@ import "fake-indexeddb/auto";
 import { gzipSync } from "node:zlib";
 import { createHash } from "node:crypto";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { downloadLite, getv, loadLite, packStatus, put, removeLite, type LitePack, type PackFile, type PackManifest } from "./packs";
+import { downloadLite, getv, loadLite, packStatus, put, removeLite, syncLite, type LitePack, type PackFile, type PackManifest } from "./packs";
 
 const pack: LitePack = { format: 1, version: "v1", builtAt: "2026-10-13T00:00:00Z", engineVersion: "2.1.1", books: {}, teams: [[4215, "Robo", "Somewhere"]] };
 const gz = new Uint8Array(gzipSync(JSON.stringify(pack)));
@@ -59,5 +59,25 @@ describe("downloadLite", () => {
     expect(fetch).not.toHaveBeenCalled();
     expect(packStatus()).toMatchObject({ version: "v1" });
     expect(await loadLite()).toEqual(pack);
+  });
+});
+
+describe("syncLite", () => {
+  // The manifest, then the pack: the connection can change in between (Wi-Fi only: off mobile data).
+  const server = () => vi.fn(async (url: string) => (url === "/packs/latest.json" ? Response.json(manifest) : new Response(gz)));
+
+  it("asks `allowed` again after the manifest, right before the download: no means no download", async () => {
+    const fetch = server();
+    vi.stubGlobal("fetch", fetch);
+    expect(await syncLite({ allowed: () => false })).toBeNull();
+    expect(fetch.mock.calls.map(([u]) => u)).toEqual(["/packs/latest.json"]);
+    expect(packStatus()).toBeNull();
+  });
+
+  it("downloads when allowed (or with no check: Get it now)", async () => {
+    vi.stubGlobal("fetch", server());
+    expect(await syncLite({ allowed: () => true })).toMatchObject({ version: "v1" });
+    await removeLite();
+    expect(await syncLite()).toMatchObject({ version: "v1" });
   });
 });

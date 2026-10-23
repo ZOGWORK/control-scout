@@ -89,8 +89,14 @@ function subscribe(f: () => void) {
 
 export function useSeasonUpdate(): UpdateSnapshot { return useSyncExternalStore(subscribe, updateSnapshot, () => snap); }
 
+/** What to ask about: the updates not answered "Later" (a release once answered never comes back in a question). */
+export function asked(s: UpdateSnapshot): UpdateSnapshot {
+  const open = (season: number, sha256: string) => !s.later.includes(updateId({ season, sha256 }));
+  return { ...s, rows: s.rows.filter((r) => open(r.season, r.file.sha256)), updates: s.updates.filter((u) => open(u.season, u.sha256)) };
+}
+
 /** Is there an update to ask about (the inbox item)? One not answered "Later". */
-export const askingAbout = (s: UpdateSnapshot) => s.action === "prompt" && s.updates.some((u) => !s.later.includes(updateId(u)));
+export const askingAbout = (s: UpdateSnapshot) => s.action === "prompt" && asked(s).updates.length > 0;
 
 /**
  * Download these updates (all of them by default) and swap each in: saveSeason verifies each against its

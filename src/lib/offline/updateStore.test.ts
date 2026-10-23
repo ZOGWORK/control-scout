@@ -2,7 +2,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { PackFile, PackManifest } from "../packs";
 import { writeSaved, type SavedSeason } from "./saved";
-import { askingAbout, markLater, pendingUpdates, setUpdate, updateNow, updateSnapshot } from "./updateStore";
+import { asked, askingAbout, markLater, pendingUpdates, setUpdate, updateNow, updateSnapshot } from "./updateStore";
 
 // A save run the test controls: busy until the test frees it, and every run it's asked for, recorded.
 const batch = vi.hoisted(() => ({ busy: false, idle: [] as (() => void)[], runs: [] as number[][], shas: [] as string[][] }));
@@ -60,6 +60,17 @@ describe("updateStore", () => {
     markLater(["2025:new", "2024:new"]);
     writeSaved([saved(2025, "old"), saved(2024, "new")]); // 2024 updated from the Download page
     expect(askingAbout(updateSnapshot())).toBe(false);
+  });
+
+  it("a question names only releases not answered Later, and Yes updates exactly those", async () => {
+    writeSaved([saved(2025, "old"), saved(2024, "old")]);
+    setUpdate(manifest(file(2025, "a")), "prompt");
+    markLater(["2025:a"]);
+    setUpdate(manifest(file(2025, "a"), file(2024, "new")), "prompt"); // a new 2024 release
+    const q = asked(updateSnapshot());
+    expect(q.updates.map((u) => u.season)).toEqual([2024]);
+    await updateNow(q);
+    expect(batch.runs).toEqual([[2024]]);
   });
 
   it("never offers an older release than the one saved (a stale manifest)", () => {

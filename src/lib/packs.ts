@@ -165,14 +165,17 @@ export const PACK_EVENT = "cs-pack-changed";
 let syncing: Promise<PackMeta | null> | null = null;
 /** Keep the lite pack current in the background: download it when it's
  *  missing or older than the published one. Quiet on failure (offline, no
- *  packs, bad checksum); the next visit tries again. */
-export function syncLite(): Promise<PackMeta | null> {
+ *  packs, bad checksum); the next visit tries again. `allowed` is asked again
+ *  right before the download (the connection may have changed while the
+ *  manifest loaded): false leaves it for next time. */
+export function syncLite(opts: { allowed?: () => boolean } = {}): Promise<PackMeta | null> {
   if (syncing) return syncing;
   syncing = (async () => {
     try {
       const m = await fetchManifest();
       const have = packStatus();
       if (!m.lite || (have && have.version === m.version)) return have;
+      if (opts.allowed && !opts.allowed()) return have;
       const meta = await downloadLite(m.lite, m);
       window.dispatchEvent(new Event(PACK_EVENT));
       return meta;

@@ -12,7 +12,7 @@ import { Bell, CheckCheck, ClipboardCheck, Flag, HardDrive, HardDriveDownload, L
 import { usePersonal } from "../../lib/personal";
 import { useInbox, type InboxFailure, type InboxState } from "../../lib/inbox";
 import { agoShort } from "../../lib/format";
-import { askingAbout, markLater, updateNow, useSeasonUpdate, type UpdateSnapshot } from "../../lib/offline/updateStore";
+import { asked, askingAbout, markLater, updateNow, useSeasonUpdate, type UpdateSnapshot } from "../../lib/offline/updateStore";
 import { updateId, updateQuestion } from "../../lib/offline/updatePolicy";
 import type { InboxCategory, InboxFilter, InboxItem } from "../../shared/inbox";
 import { Sheet, SheetContent, SheetDescription, SheetTitle } from "../ui/overlay";
@@ -107,7 +107,7 @@ function SignedInBell({ userId }: { userId: number }) {
       {phone ? (
         <Sheet open={open} onOpenChange={setOpen}>
           <SheetContent side="bottom" className="gap-0 p-0" aria-describedby={undefined}>
-            <InboxList inbox={inbox} update={device ? update : null} onClose={() => setOpen(false)} titleAs="sheet" />
+            <InboxList inbox={inbox} update={device ? asked(update) : null} onClose={() => setOpen(false)} titleAs="sheet" />
           </SheetContent>
         </Sheet>
       ) : (
@@ -117,7 +117,7 @@ function SignedInBell({ userId }: { userId: number }) {
               initial={{ opacity: 0, y: -6, scale: 0.98 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={{ opacity: 0, y: -4, scale: 0.98 }}
               transition={{ duration: 0.16, ease: [0.2, 0.8, 0.2, 1] }} style={{ transformOrigin: "top right" }}
               className="absolute right-0 top-full z-50 mt-2 flex max-h-[min(36rem,calc(100dvh-5rem))] w-[24rem] flex-col overflow-hidden rounded-xl border border-border bg-popover text-popover-foreground shadow-[0_18px_40px_-16px_rgba(0,0,0,.55)]">
-              <InboxList inbox={inbox} update={device ? update : null} onClose={() => setOpen(false)} titleAs="panel" />
+              <InboxList inbox={inbox} update={device ? asked(update) : null} onClose={() => setOpen(false)} titleAs="panel" />
             </m.div>
           )}
         </AnimatePresence>

@@ -14,7 +14,7 @@ import { toast } from "../../components/ui/sonner";
 import { useSavedSeasons } from "./saved";
 import type { SeasonRow } from "./seasonPlan";
 import { decideUpdate, seasonList, shouldPopUp, updateId, updatePrefs, updateQuestion } from "./updatePolicy";
-import { applyUpdate, laterReleases, markLater, markShown, setUpdate, shownReleases, updateNow, updateSnapshot } from "./updateStore";
+import { applyUpdate, asked, laterReleases, markLater, markShown, setUpdate, shownReleases, updateNow, updateSnapshot } from "./updateStore";
 
 const FIRST_CHECK_MS = 8_000;
 const EVERY_MS = 60 * 60_000;
@@ -92,11 +92,14 @@ export function SeasonUpdateWatcher(): null {
       } else if (shouldPopUp(action, pending, shownReleases(), later)) {
         markShown(pending);
         if (pathname === "/download") return; // the page itself shows the update
-        toast(`${updateQuestion(snap.updates)} Update now?`, {
+        // Only what's not answered Later, and Yes updates exactly the seasons this question names.
+        const q = asked(snap);
+        const ids = q.updates.map(updateId);
+        toast(`${updateQuestion(q.updates)} Update now?`, {
           id: "season-update", duration: POPUP_MS,
           description: "It downloads now and replaces the saved copy once it's verified.",
-          action: { label: "Update now", onClick: () => void updateNow(updateSnapshot()) },
-          cancel: { label: "Later", onClick: () => markLater(pending) },
+          action: { label: "Update now", onClick: () => void updateNow(q) },
+          cancel: { label: "Later", onClick: () => markLater(ids) },
         });
       }
     };
