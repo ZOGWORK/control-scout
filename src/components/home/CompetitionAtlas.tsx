@@ -8,7 +8,7 @@ import { useReducedMotion } from "motion/react";
 import { ArrowRight, Globe2, Hourglass, Map as MapIcon, Pause, Play, Trophy, Users } from "lucide-react";
 import type { CountryTotal, HomeOverview } from "../../shared/home";
 import { seasonLabel } from "../../lib/format";
-import { ToggleGroup, ToggleGroupItem } from "../ui/controls";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue, ToggleGroup, ToggleGroupItem } from "../ui/controls";
 import { cn } from "../cn";
 import { countryHref, directoryHref, pickCountry, reconcile, resultsLine, unmappedLabel } from "./atlasModel";
 
@@ -79,9 +79,15 @@ function CountryPaths({ country, overview, currentSeason, side }: { country: Cou
   );
 }
 
-export function CompetitionAtlas({ overview, currentSeason, compact }: { overview: HomeOverview; currentSeason: number; compact?: boolean }) {
+export function CompetitionAtlas({ overview, currentSeason, compact, homeCountry }: {
+  overview: HomeOverview; currentSeason: number; compact?: boolean;
+  /** The country shown first: the member's home team's (signed in), else the United States. Choosing another
+   *  country (the map, the list, the selector) only changes what's shown here; it's never saved. */
+  homeCountry?: string | null;
+}) {
   const [mode, setMode] = useState<Mode>("globe");
-  const [wanted, setWanted] = useState<string | null>(null);
+  const [picked, setWanted] = useState<string | null>(null);
+  const wanted = picked ?? homeCountry ?? "US";
   const [drawn, setDrawn] = useState<ReadonlySet<string> | null>(null);
   const [failed, setFailed] = useState(false);
   // The globe turns on its own unless the visitor asks for less motion; the pause button stops it either way.
@@ -153,13 +159,19 @@ export function CompetitionAtlas({ overview, currentSeason, compact }: { overvie
               ) : <p className="mt-1 text-sm text-text-muted">No team listings for {season} yet.</p>}
             </div>
             {byName.length > 0 && (
-              <label className="flex min-w-[12rem] flex-col gap-1 text-xs font-semibold uppercase tracking-[0.16em] text-text-muted">
-                Explore
-                <select value={selected?.code ?? ""} onChange={(e) => setWanted(e.target.value)}
-                  className="h-11 w-full rounded-lg border border-input bg-card px-3 text-sm font-normal normal-case tracking-normal text-text-base focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent">
-                  {byName.map((c) => <option key={c.code} value={c.code}>{c.name} ({fmt(c.listings)})</option>)}
-                </select>
-              </label>
+              <div className="flex min-w-[12rem] flex-col gap-1">
+                <span id="atlas-explore" className="text-xs font-semibold uppercase tracking-[0.16em] text-text-muted">Explore</span>
+                <Select value={selected?.code ?? ""} onValueChange={setWanted}>
+                  <SelectTrigger aria-labelledby="atlas-explore" className="h-11 w-full rounded-lg bg-card text-sm max-sm:h-11"><SelectValue placeholder="Choose a country" /></SelectTrigger>
+                  <SelectContent className="max-h-80">
+                    {byName.map((c) => (
+                      <SelectItem key={c.code} value={c.code}>
+                        <span className="flex w-full items-center justify-between gap-3">{c.name}<span className="tabular-nums text-text-muted">{fmt(c.listings)}</span></span>
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
             )}
           </div>
           {selected && <CountryPaths country={selected} overview={overview} currentSeason={currentSeason} side={side} />}

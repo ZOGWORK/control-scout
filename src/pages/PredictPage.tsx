@@ -5,7 +5,7 @@
 // Every output carries its confidence tier.
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
-import { ArrowLeftRight, ArrowRight, BookmarkPlus, CalendarDays, ChevronDown, FlaskConical, Link2, MapPin, Sparkles, Star, Swords, Trophy, Users, WifiOff, X } from "lucide-react";
+import { ArrowLeftRight, ArrowRight, BookmarkPlus, CalendarDays, ChevronDown, FlaskConical, Link2, MapPin, Search, Sparkles, Star, Swords, Trophy, Users, WifiOff, X } from "lucide-react";
 import { ENGINE_VERSION } from "@control-scout/predict-engine";
 import { noteOfflineAnswer, useApi, qs } from "../lib/api";
 import { useCurrentSeason, useMeta, useTitle } from "../lib/meta";
@@ -60,7 +60,7 @@ export default function PredictPage() {
   const view = viewOf(sp);
   // Picking a team or event shows its predictions in the Events view (the lab's matchup stays for later).
   const setPick = (v: string | null) => setSp((x) => { x.set("view", "events"); if (v) x.set("for", v); else x.delete("for"); return x; });
-  const setView = (v: "events" | "lab") => setSp((x) => { x.set("view", v); if (v === "lab" && !labLink(x)) x.set("mode", "match"); return x; });
+  const setView = (v: "events" | "lab") => setSp((x) => { x.set("view", v); if (v === "lab" && !labLink(x)) x.set("mode", "advancement"); return x; });
   // The header's width (the content area's, not the window's): the latest-calls card needs 64 rem, the grid's own threshold.
   const headerBox = useRef<HTMLDivElement>(null);
   const wide = useWiderThan(headerBox, 64);
@@ -110,7 +110,7 @@ function labLink(sp: URLSearchParams): "match" | "advancement" | null {
 function PredictSwitch({ value, onChange }: { value: "events" | "lab"; onChange: (v: "events" | "lab") => void }) {
   const views = [
     { v: "events" as const, label: "Scheduled", icon: CalendarDays, hint: "Odds for the matches and events on the calendar, for the team or event you pick." },
-    { v: "lab" as const, label: "Lab: any matchup", icon: FlaskConical, hint: "Pick any four teams for win odds and a predicted score, or any team's odds at any event." },
+    { v: "lab" as const, label: "Lab: advancement & matchups", icon: FlaskConical, hint: "Any team's odds to advance at any event, or any four teams for win odds and a predicted score." },
   ];
   // Tabs keyboard pattern: the selected tab is the one Tab reaches; arrows (and Home/End) move and select.
   const onKey = (e: React.KeyboardEvent<HTMLButtonElement>) => {
@@ -369,24 +369,25 @@ function ThisWeek({ onPick, picked }: { onPick: (v: string) => void; picked: str
 /** Predict Lab: what-if alliances and advancement for any team at any event (the switcher's Lab view). */
 function Lab() {
   const [sp, setSp] = useSearchParams();
-  const mode: LabMode = labLink(sp) === "advancement" ? "advancement" : "match";
+  // Advancement first: the Lab opens there unless the link asks for a matchup.
+  const mode: LabMode = labLink(sp) === "match" ? "match" : "advancement";
   const setMode = (m: string) => setSp((x) => { x.set("mode", m); return x; }, { replace: true });
   return (
-    <section aria-label="Predict Lab" className="rounded-2xl border border-border px-4 pb-6 max-sm:pb-4 pt-5 sm:px-6">
-      <div className="mb-4 flex items-start gap-3">
-        <FlaskConical className="mt-0.5 size-5 shrink-0 text-accent" />
+    <section aria-label="Predict Lab" className="rounded-2xl border border-border px-4 pb-6 max-sm:pb-4 pt-6 max-sm:pt-5 sm:px-8 sm:pb-8">
+      <div className="mb-5 flex items-start gap-3">
+        <span className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-accent text-accent-ink"><FlaskConical className="size-5" aria-hidden /></span>
         <div>
-          <h2 className="font-display text-lg font-semibold text-foreground">Predict Lab</h2>
-          <p className="text-sm text-muted-foreground">Any four teams against each other, or advancement odds for any team at any event.</p>
+          <h2 className="font-display text-2xl font-semibold text-foreground sm:text-3xl">Predict Lab</h2>
+          <p className="mt-1 text-base text-muted-foreground">Advancement odds for any team at any event, or a custom matchup of any four teams.</p>
         </div>
       </div>
       <Tabs value={mode} onValueChange={setMode}>
-        <TabsList>
-          <TabsTrigger value="match"><Swords className="size-4" /> Match</TabsTrigger>
-          <TabsTrigger value="advancement"><Trophy className="size-4" /> Advancement</TabsTrigger>
+        <TabsList className="sm:p-1.5">
+          <TabsTrigger value="advancement" className="sm:h-11 sm:px-5 sm:text-base"><Trophy className="size-4" /> Advancement</TabsTrigger>
+          <TabsTrigger value="match" className="sm:h-11 sm:px-5 sm:text-base"><Swords className="size-4" /> Custom matchup</TabsTrigger>
         </TabsList>
-        <TabsContent value="match" className="mt-6 max-sm:mt-4"><MatchLab /></TabsContent>
         <TabsContent value="advancement" className="mt-6 max-sm:mt-4"><AdvancementLab /></TabsContent>
+        <TabsContent value="match" className="mt-6 max-sm:mt-4"><MatchLab /></TabsContent>
       </Tabs>
     </section>
   );
@@ -612,8 +613,16 @@ function AdvancementLab() {
   const code = sp.get("code");
   const team = Number(sp.get("team")) || null;
   const [teamText, setTeamText] = useState(team ? String(team) : personal.myTeam ? String(personal.myTeam) : "");
+  // Arriving on the Lab (nothing else focused): the team box takes focus while it's empty, as Match's first box does.
+  const [grab] = useState(() => !document.activeElement || document.activeElement === document.body);
   useEffect(() => { if (team) setTeamText(String(team)); }, [team]);
-  const set = (k: string, v: string | null) => setSp((x) => { x.set("mode", "advancement"); if (v) x.set(k, v); else x.delete(k); return x; }, { replace: true });
+  // One URL write per change: two in a row would each start from the same URL, so the second undid the first
+  // (the season switch set the season, then clearing the event put the old season back).
+  const set = (patch: Record<string, string | null>) => setSp((x) => {
+    x.set("mode", "advancement");
+    for (const [k, v] of Object.entries(patch)) { if (v) x.set(k, v); else x.delete(k); }
+    return x;
+  }, { replace: true });
   const teamEvents = useApi<{ events: { code: string; name: string; start: string | null; type: string | null }[] }>(teamText.length >= 1 ? `/api/teams/${teamText}${qs({ season })}` : null);
   const [q, setQ] = useState("");
   const events = useApi<{ events: EventListItem[] }>(`/api/events${qs({ season })}`);
@@ -625,29 +634,44 @@ function AdvancementLab() {
     return all.filter((e) => !needle || `${e.name} ${e.code} ${e.city ?? ""}`.toLowerCase().includes(needle)).sort((a, b) => Number(mine.has(b.code)) - Number(mine.has(a.code)) || (a.start ?? "").localeCompare(b.start ?? ""));
   }, [events.data, teamEvents.data, q]);
   const myCodes = new Set((teamEvents.data?.events ?? []).map((e) => e.code));
+  const step = "mb-2 flex items-center gap-2 text-sm font-semibold text-foreground";
+  const num = "flex size-6 items-center justify-center rounded-full bg-accent/15 text-xs font-bold text-accent-text";
   return (
     <div className="space-y-6 max-sm:space-y-4">
       <div className="rounded-2xl border border-border bg-card p-4 sm:p-6">
-        <div className="mb-4 flex flex-wrap items-center gap-3"><SeasonToggle predictOnly value={season} onChange={(s) => { set("season", String(s)); set("code", null); }} /></div>
-        <div className="grid gap-4 md:grid-cols-[12rem_minmax(0,1fr)]">
+        <div className="mb-5 flex flex-wrap items-center gap-3">
+          <SeasonToggle predictOnly value={season} onChange={(s) => set({ season: String(s), code: null })} />
+        </div>
+        <div className="grid gap-6 md:grid-cols-[16rem_minmax(0,1fr)]">
           <div className="min-w-0">
-            <TeamInput label="Team" value={teamText} onChange={(v) => { setTeamText(v); set("team", v || null); }} />
+            <p className={step}><span className={num}>1</span> Team</p>
+            <TeamInput size="lg" label="Team" autoFocus={grab && !teamText} value={teamText} onChange={(v) => { setTeamText(v); set({ team: v || null }); }} />
+            <p className="mt-2 text-sm text-muted-foreground">Its events this season are listed first.</p>
           </div>
           <div className="min-w-0">
-            <Input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Find an event (the team's events are listed first)" className="h-11" aria-label="Find an event" />
-            <div className="custom-scrollbar mt-2 max-h-56 space-y-1 overflow-y-auto">
-              {events.error ? <p className="text-sm text-destructive">{events.error.message}</p> : !events.data ? <div className="skeleton h-24 rounded-lg" /> : !choices.length ? <p className="py-4 text-sm text-muted-foreground">No advancing events {q ? "match" : `in ${seasonLabel(season)} yet`}.</p> : choices.slice(0, 60).map((e) => (
-                <button key={e.code} onClick={() => set("code", e.code)} className={cn("flex w-full items-center gap-2 rounded-lg border px-3 py-2 text-left text-sm", code === e.code ? "border-accent/60 bg-accent/[0.06]" : "border-transparent hover:bg-text-base/[0.04]")}>
-                  <span className="min-w-0 flex-1 truncate">{e.name}</span>
-                  {myCodes.has(e.code) && <Badge variant="soft">{teamText}'s event</Badge>}
-                  <span className="shrink-0 text-xs text-muted-foreground">{dateRange(e.start, e.end)}</span>
+            <p className={step}><span className={num}>2</span> Event</p>
+            <div className="relative">
+              <Search className="pointer-events-none absolute left-3.5 top-1/2 size-5 -translate-y-1/2 text-muted-foreground" aria-hidden />
+              <Input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Find an event: name, code or city" className="h-14 pl-11 text-base" aria-label="Find an event" />
+            </div>
+            <div className="custom-scrollbar mt-3 max-h-[26rem] space-y-1.5 overflow-y-auto pr-1">
+              {events.error ? <p className="text-sm text-destructive">{events.error.message}</p> : !events.data ? <div className="skeleton h-40 rounded-xl" /> : !choices.length ? <p className="py-4 text-base text-muted-foreground">No advancing events {q ? "match" : `in ${seasonLabel(season)} yet`}.</p> : choices.slice(0, 60).map((e) => (
+                <button key={e.code} type="button" aria-pressed={code === e.code} onClick={() => set({ code: e.code })}
+                  className={cn("flex w-full items-center gap-3 rounded-xl border px-4 py-3 text-left transition-colors max-sm:px-3",
+                    code === e.code ? "border-accent/60 bg-accent/[0.08]" : "border-border/60 hover:border-border hover:bg-text-base/[0.04]")}>
+                  <span className="min-w-0 flex-1">
+                    <span className="block truncate text-base font-medium">{e.name}</span>
+                    <span className="mt-0.5 block truncate text-sm text-muted-foreground">{[e.typeLabel, [e.city, e.state].filter(Boolean).join(", ")].filter(Boolean).join(" · ")}</span>
+                  </span>
+                  {myCodes.has(e.code) && <Badge variant="soft" className="shrink-0 max-sm:hidden">{teamText}'s event</Badge>}
+                  <span className="shrink-0 text-sm tabular-nums text-muted-foreground">{dateRange(e.start, e.end)}</span>
                 </button>
               ))}
             </div>
           </div>
         </div>
       </div>
-      {code ? <AdvancementView season={season} code={code} team={team} nameOf={() => ""} onPickTeam={(t) => { setTeamText(String(t)); set("team", String(t)); }} />
+      {code ? <AdvancementView season={season} code={code} team={team} nameOf={() => ""} onPickTeam={(t) => { setTeamText(String(t)); set({ team: String(t) }); }} />
         : <EmptyState icon={Trophy} title="Pick an event" description="Any qualifier, league tournament or championship. Add a team to see its chance to advance, captain and pick odds, likely rank, and expected advancement points." />}
     </div>
   );
