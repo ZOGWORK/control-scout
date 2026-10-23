@@ -83,15 +83,24 @@ function close(season: number) {
 }
 function trim() { for (const [s, e] of open) if (open.size > KEEP_OPEN && !e.pins) close(s); }
 
+/** An update (replaceOnly) found its season no longer saved: removed while it ran, so it isn't brought back. */
+export class SeasonGone extends Error {
+  constructor(readonly season: number) { super("That season was removed from this device, so it wasn't updated."); }
+}
+const listed = (season: number) => savedSeasons().some((s) => s.season === season);
+
 /**
  * Download one season, verify it, keep it on this device. Replaces an older
  * copy of the same season only once the new one is safely stored and listed;
- * a save that fails leaves the device as it was.
+ * a save that fails leaves the device as it was. replaceOnly (updates): only
+ * while the season is still saved, checked again under the save lock, so a
+ * season removed during the download stays removed (SeasonGone).
  */
-export async function saveSeason(file: PackFile, manifest: PackManifest, onProgress?: (done: number, total: number) => void): Promise<SavedSeason> {
+export async function saveSeason(file: PackFile, manifest: PackManifest, onProgress?: (done: number, total: number) => void, opts: { replaceOnly?: boolean } = {}): Promise<SavedSeason> {
   const season = file.seasons[0];
   if (file.kind !== "full" || file.seasons.length !== 1) throw new Error("Only single-season packs can be saved.");
   checkFormat(manifest); // a release this app can't read never replaces a copy it can
+  if (opts.replaceOnly && !listed(season)) throw new SeasonGone(season);
   const bytes = await fetchVerified(file, onProgress);
   // Saving doesn't open it: sql.js loads only when a saved season is read with no signal. The
   // published checksum already vouches for the bytes; this just refuses a file that isn't SQLite.
@@ -101,7 +110,10 @@ export async function saveSeason(file: PackFile, manifest: PackManifest, onProgr
   navigator.storage?.persist?.().catch(() => {});
   // One save per season at a time, across tabs: two releases saved at once would otherwise both
   // replace the same previous copy and leave one download stored but unlisted.
-  return oneAtATime(season, () => store(season, file, manifest, bytes));
+  return oneAtATime(season, () => {
+    if (opts.replaceOnly && !listed(season)) throw new SeasonGone(season);
+    return store(season, file, manifest, bytes);
+  });
 }
 
 // Web Locks cover every tab; without them (old browsers, tests) this tab's own saves still queue.

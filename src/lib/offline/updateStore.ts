@@ -71,22 +71,41 @@ export function useSeasonUpdate(): UpdateSnapshot { return useSyncExternalStore(
 export const askingAbout = (s: UpdateSnapshot) => s.action === "prompt" && !!s.key && s.later !== s.key;
 
 /**
- * Download the updates and swap each in (saveSeason: verified against its SHA-256, and a failed or partial
- * download never replaces the copy that's saved). Null when a save run is already going.
+ * Download these updates (all of them by default) and swap each in: saveSeason verifies each against its
+ * SHA-256, a failed or partial download never replaces the saved copy, and a season removed meanwhile stays
+ * removed (replaceOnly). Null when a save run is already going.
  */
-export async function applyUpdate(s: UpdateSnapshot = updateSnapshot()) {
-  if (!s.manifest || !s.rows.length) return null;
+export async function applyUpdate(s: UpdateSnapshot = updateSnapshot(), rows: SeasonRow[] = s.rows) {
+  if (!s.manifest || !rows.length) return null;
   const { runSeasonBatch } = await import("./seasonBatch");
-  return runSeasonBatch(s.rows.map((r) => r.file), s.manifest);
+  return runSeasonBatch(rows.map((r) => r.file), s.manifest, { replaceOnly: true });
 }
 
-/** Update now (the pop-up's, the inbox item's): download with a toast that says how it went. */
+/**
+ * Update now (the pop-up's, the inbox item's), with a toast that says how it went. If seasons are already
+ * saving, it waits for that run, then updates whatever is still out of date: the answer is never dropped.
+ */
 export async function updateNow(s: UpdateSnapshot = updateSnapshot()): Promise<void> {
   if (!s.rows.length) return;
-  const what = seasonList(s.rows);
-  const id = toast.loading(`Updating offline data for ${what}…`);
-  const r = await applyUpdate(s).catch((e: unknown) => ({ saved: [], failed: s.rows.map((x) => ({ season: x.season, error: e instanceof Error ? e : new Error(String(e)) })) }));
-  if (!r) toast("Already saving seasons on this device. Updates run when that's done.", { id });
+  const { whenIdle } = await import("./seasonBatch");
+  const id = toast.loading(`Updating offline data for ${seasonList(s.rows)}…`);
+  let r: Awaited<ReturnType<typeof applyUpdate>> = null;
+  let ran: SeasonRow[] = [];
+  try {
+    for (;;) {
+      await whenIdle();
+      const now = updateSnapshot(); // that run may have updated some (or all) already
+      ran = now.manifest === s.manifest ? now.rows : s.rows.filter((x) => now.rows.some((y) => y.season === x.season));
+      if (!ran.length) break;
+      r = await applyUpdate(now.manifest === s.manifest ? now : s, ran);
+      if (r) break; // null: another run started first; wait for that one too
+      toast.loading(`Waiting for the seasons already saving, then updating ${seasonList(ran)}…`, { id });
+    }
+  } catch (e) {
+    r = { saved: [], skipped: [], failed: ran.map((x) => ({ season: x.season, error: e instanceof Error ? e : new Error(String(e)) })) };
+  }
+  if (!r) toast.success(`Offline data for ${seasonList(s.rows)} is up to date`, { id });
   else if (r.failed.length) toast.error(`Couldn't update ${seasonList(r.failed)}. The saved copy is unchanged and still works offline.`, { id, description: r.failed[0].error.message });
-  else toast.success(`Offline data for ${what} updated`, { id, description: "Its team and event pages show the new release with no connection." });
+  else if (!r.saved.length) toast(`Nothing to update: ${seasonList(r.skipped.map((season) => ({ season })))} ${r.skipped.length === 1 ? "was" : "were"} removed from this device.`, { id });
+  else toast.success(`Offline data for ${seasonList(r.saved.map((season) => ({ season })))} updated`, { id, description: "Its team and event pages show the new release with no connection." });
 }

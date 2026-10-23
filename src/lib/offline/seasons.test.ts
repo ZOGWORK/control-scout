@@ -22,7 +22,8 @@ const engineStarts = vi.hoisted(() => ({ n: 0 }));
 vi.mock("sql.js/dist/sql-wasm-browser.js", () => ({ default: () => { engineStarts.n++; return initSqlJs(); } }));
 vi.mock("sql.js/dist/sql-wasm-browser.wasm?url", () => ({ default: "/assets/sql-wasm-browser-abc.wasm" }));
 
-import { readSaved, removeSeason, saveSeason, savedSeasons, SEASONS_EVENT } from "./seasons";
+import { readSaved, removeSeason, saveSeason, savedSeasons, SEASONS_EVENT, SeasonGone } from "./seasons";
+import { runSeasonBatch } from "./seasonBatch";
 
 // Cache Storage, as the service worker leaves it.
 const caches = new Map<string, Set<string>>();
@@ -165,5 +166,29 @@ describe("readSaved", () => {
     expect(await names(2023)).toEqual(["2023:Old"]);
     expect(await names(2025)).toEqual(["2025:New"]);
     expect(gets).toEqual(["season:2023:a", "season:2025:a"]); // opening 2023 let go of 2025, the least recently read
+  });
+});
+
+describe("updates never bring back a removed season (replaceOnly)", () => {
+  it("a season removed while its update downloads stays removed, and nothing is stored", async () => {
+    await saveSeason(file(2025, "a"), manifest);
+    // The download finishes only after the person pressed Remove.
+    const p = saveSeason(file(2025, "b"), manifest, () => {}, { replaceOnly: true });
+    await removeSeason(2025);
+    await expect(p).rejects.toBeInstanceOf(SeasonGone);
+    expect(savedSeasons()).toEqual([]);
+    expect([...store.keys()].filter((k) => k.startsWith("season:"))).toEqual([]);
+  });
+
+  it("an update batch skips it (not a failure) and still updates the rest", async () => {
+    await saveSeason(file(2024, "a"), manifest);
+    const r = await runSeasonBatch([file(2025, "b"), file(2024, "a")], manifest, { replaceOnly: true });
+    expect(r).toEqual({ saved: [2024], failed: [], skipped: [2025] });
+    expect(savedSeasons().map((s) => s.season)).toEqual([2024]);
+  });
+
+  it("a plain save still adds a season that isn't saved", async () => {
+    await saveSeason(file(2025, "a"), manifest);
+    expect(savedSeasons().map((s) => s.season)).toEqual([2025]);
   });
 });

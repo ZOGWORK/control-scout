@@ -22,7 +22,7 @@ import { Progress } from "../components/ui/controls";
 import { toast } from "../components/ui/sonner";
 import { ago, seasonLabel } from "../lib/format";
 import { cn } from "../components/cn";
-import { liteAllowed, updateStatus } from "../lib/offline/updatePolicy";
+import { netKind, updateStatus } from "../lib/offline/updatePolicy";
 import { UpdateModeToggle, UpdateNetworkToggle, connectionNote, useConnection, useUpdatePrefs } from "../components/offline/UpdateSettings";
 
 export default function DownloadPage() {
@@ -35,8 +35,9 @@ export default function DownloadPage() {
   const saved = useSavedSeasons();
   const { network } = useUpdatePrefs();
   const connection = useConnection();
-  // Wi-Fi only on mobile data: opening the page doesn't fetch the lite pack either (Get it now does).
-  const liteOk = liteAllowed(network, connection);
+  // Wi-Fi only on mobile data: opening the page doesn't fetch the lite pack either (Get it now does). Only
+  // that: Data Saver or a slow link still fetches here, as before (the visit asks for it).
+  const liteOk = !(network === "wifi" && netKind(connection) === "cellular");
   useEffect(() => {
     setErr(null);
     fetchManifest().then(setM, (e) => setErr(e instanceof ManifestError ? e : new ManifestError("failed", e.message)));

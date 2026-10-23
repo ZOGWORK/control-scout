@@ -12,6 +12,7 @@ import { fetchManifest, type PackManifest } from "../packs";
 import type { ConnectionInfo } from "../packPolicy";
 import { toast } from "../../components/ui/sonner";
 import { useSavedSeasons } from "./saved";
+import type { SeasonRow } from "./seasonPlan";
 import { decideUpdate, seasonList, shouldPopUp, updatePrefs, updateQuestion } from "./updatePolicy";
 import { applyUpdate, laterRelease, markLater, markShown, setUpdate, shownRelease, updateNow, updateSnapshot } from "./updateStore";
 
@@ -25,6 +26,13 @@ const RETRY_MS = 60 * 60_000;
 const POPUP_MS = 60_000;
 
 type Connection = EventTarget & ConnectionInfo;
+
+/** One automatic update at a time across this device's tabs (Web Locks): a second tab waits, then finds the
+ *  season already saved. Without Web Locks (old browsers) each tab's own runs still never overlap. */
+function acrossTabs(fn: () => Promise<void>): Promise<void> {
+  const locks = typeof navigator !== "undefined" ? navigator.locks : undefined;
+  return locks ? (locks.request("cs-season-auto-update", fn) as Promise<void>) : fn();
+}
 const connection = () => (navigator as Navigator & { connection?: Connection }).connection;
 
 export function SeasonUpdateWatcher(): null {
@@ -41,6 +49,7 @@ export function SeasonUpdateWatcher(): null {
     if (!packsOn || !any) { setUpdate(null, "none"); return; }
     let manifest: PackManifest | null = null, lastCheck = 0, stopped = false;
     const tried = new Map<string, number>();
+    let autoRunning = false;
 
     const decide = () => {
       if (stopped || !manifest) return;
@@ -53,11 +62,21 @@ export function SeasonUpdateWatcher(): null {
       const snap = updateSnapshot();
       if (!key) return;
       if (action === "download") {
-        if (Date.now() - (tried.get(key) ?? 0) < RETRY_MS) return;
-        tried.set(key, Date.now());
-        void applyUpdate(snap).then((r) => {
-          if (r?.saved.length && !r.failed.length) toast.success(`Offline data for ${seasonList(snap.rows)} updated automatically`);
-        }, () => { /* quiet: the next check tries again */ });
+        if (autoRunning) return;
+        // Per season and checksum: one season failing doesn't hold back (or retry early with) the others.
+        const id = (r: SeasonRow) => `${r.season}:${r.file.sha256}`;
+        const due = snap.rows.filter((r) => Date.now() - (tried.get(id(r)) ?? 0) >= RETRY_MS);
+        if (!due.length) return;
+        autoRunning = true;
+        void acrossTabs(async () => {
+          // Another tab may have saved it while this one waited for the lock: only what's still out of date.
+          const now = updateSnapshot();
+          const rows = now.rows.filter((r) => due.some((d) => id(d) === id(r)));
+          const r = await applyUpdate(now, rows);
+          if (!r) return; // a save run was going: nothing tried, the next check goes again
+          for (const f of r.failed) { const row = rows.find((x) => x.season === f.season); if (row) tried.set(id(row), Date.now()); }
+          if (r.saved.length) toast.success(`Offline data for ${seasonList(r.saved.map((season) => ({ season })))} updated automatically`);
+        }).catch(() => { /* quiet: the next check tries again */ }).finally(() => { autoRunning = false; });
       } else if (shouldPopUp(action, key, shownRelease(), laterRelease())) {
         markShown(key);
         if (pathname === "/download") return; // the page itself shows the update
