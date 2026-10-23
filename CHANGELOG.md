@@ -19,7 +19,7 @@ Win chances say what they mean a little more exactly.
 - [predict] Never changes who's favoured, and nothing about alliance colour
 
 ### Predictions
-- **A final stretch of the odds.** The engine was slightly too cautious: across the last two seasons, favourites it gave 70–80% won about two points more often than that. Every win probability is now stretched a little away from 50% (log-odds × 1.058). Checked month by month on matches after each fit, the gap between stated and actual win rates in the 50–80% range roughly halved in both seasons tested, and the Brier score improved. It can't change which side is favoured, so winner-calling is unchanged. How it works explains it under "A final calibration touch". Prediction engine 2.8.0.
+- **A final stretch of the odds.** The engine was slightly too cautious: across the last two seasons, favourites it gave 70–80% won about two points more often than that. Every win probability is now stretched a little away from 50% (log-odds × 1.058). Checked month by month on matches after each fit, the gap between stated and actual win rates in the 50–80% range roughly halved in both seasons tested, and the Brier score improved. It can't change which side is favoured, so winner-calling is unchanged. How it works explains it under "A final calibration touch". Prediction engine 2.8.0. (#241)
 
 ## 1.22.0 — 2026-10-22
 
