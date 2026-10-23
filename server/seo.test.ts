@@ -475,3 +475,45 @@ describe("IndexNow", () => {
     expect(await pingIndexNow({ now: T0 + 2 * HOUR + 2, fetchImpl: fake().fetchImpl })).toMatch(/^sent 7 URLs/);
   });
 });
+
+describe("/methodology (How it works)", () => {
+  it("puts the prerendered page in the first paint with its single H1, own title and canonical URL", async () => {
+    const { resetMethodologyHtml } = await import("./seoMeta");
+    const dir = mkdtempSync(join(tmpdir(), "cs-seo-hiw-"));
+    const file = join(dir, "index.html");
+    writeFileSync(file, '<html><head><title>x</title></head><body><div id="root"></div></body></html>');
+    writeFileSync(join(dir, "methodology.html"), '<header><h1>How Control Scout predictions work</h1></header><section id="ratings"><h2>Ratings</h2><p>expected contribution</p></section>');
+    const prev = process.env.CS_PRERENDER_DIR;
+    process.env.CS_PRERENDER_DIR = dir;
+    resetMethodologyHtml();
+    try {
+      const page = await renderPage(file, "/methodology");
+      expect(page.status).toBe(200);
+      expect(page.html).toContain("<title>How the predictions work · Control Scout</title>");
+      expect(page.html).toContain('<link rel="canonical" href="https://controlscout.org/methodology"');
+      expect(page.html).toContain('<section id="ratings"><h2>Ratings</h2><p>expected contribution</p></section>');
+      expect(page.html.match(/<h1[\s>]/g)).toHaveLength(1); // the page's own H1, not a second one from the shell
+      expect(page.html).not.toMatch(/noindex/i);
+    } finally {
+      if (prev === undefined) delete process.env.CS_PRERENDER_DIR; else process.env.CS_PRERENDER_DIR = prev;
+      resetMethodologyHtml();
+    }
+  });
+
+  it("without a build (no prerendered file) still answers with its title, description and one H1", async () => {
+    const { resetMethodologyHtml } = await import("./seoMeta");
+    const dir = mkdtempSync(join(tmpdir(), "cs-seo-hiw0-"));
+    const file = join(dir, "index.html");
+    writeFileSync(file, '<html><head><title>x</title></head><body><div id="root"></div></body></html>');
+    process.env.CS_PRERENDER_DIR = join(dir, "missing");
+    resetMethodologyHtml();
+    try {
+      const page = await renderPage(file, "/methodology");
+      expect(page.status).toBe(200);
+      expect(page.html.match(/<h1[\s>]/g)).toHaveLength(1);
+    } finally {
+      delete process.env.CS_PRERENDER_DIR;
+      resetMethodologyHtml();
+    }
+  });
+});
