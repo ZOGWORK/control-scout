@@ -33,6 +33,7 @@ for (const s of [2023, 2024, 2025]) {
   const events = new Map<number, string[]>();
   for (const m of matches) {
     if (unrated.has(m.eventCode)) continue;
+    book.setTime(m.time); // season growth up to this match, as the engine's own update applies it
     const region = m.region ?? byCode.get(m.eventCode)?.region;
     const sides = [m.red, m.blue].map((al) => ({ al, exp: book.withRegion(region, () => book.allianceExpectation(al.teams)) }));
     for (const { al, exp } of sides) {

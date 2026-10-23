@@ -435,6 +435,13 @@ export class RatingBook {
     try { return fn(); } finally { this.eventHint = prev; }
   }
 
+  /** A team's rating as of now without any event-local form (its permanent rating, grown to now). */
+  permanent(team: number): TeamRating {
+    const h = this.eventHint;
+    this.eventHint = null;
+    try { return this.get(team); } finally { this.eventHint = h; }
+  }
+
   /** A team's event-local form state (its current event, matches there and summed misses), as a copy. */
   eventFormOf(team: number): EventForm | null {
     const s = this.eventForm.get(team);
