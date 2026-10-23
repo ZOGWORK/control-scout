@@ -20,7 +20,7 @@
 // dailyPowerRankings.
 import { get, run } from "../db.js";
 import { isEnabled } from "../flags.js";
-import { askBruno, buildPacket, CLAIM_STALE_MS } from "./auto.js";
+import { askBruno, buildPacket, CLAIM_STALE_MS, storedComparison } from "./auto.js";
 import { checkBlurb, checkIntro, compose, templateBlurb, templateIntro, type PacketTeam, type StoredPacket } from "./factCheck.js";
 import { getGenerated, invalidateGenerated, type GeneratedEntry, type GeneratedWeek } from "./generated.js";
 import { dueRefresh, isCurrentWeek, localDate } from "./schedule.js";
@@ -60,7 +60,7 @@ export interface RefreshPlan {
   ask: number[];
   /** Owner-edited blurbs of changed teams, left as they are. */
   kept: number[];
-  /** The intro must be written again by Bruno (his intro no longer holds): the whole packet goes. */
+  /** The intro must be written again by Bruno (his intro no longer holds): the whole packet goes. Only planned for a packet that changed. */
   intro: boolean;
 }
 
@@ -87,7 +87,8 @@ export function planRefresh(g: Pick<GeneratedWeek, "entries" | "packet" | "intro
   }
   if (g.introSource === "bruno") {
     const leaderChanged = g.packet.teams[0]?.team !== fresh.teams[0]?.team;
-    plan.intro = plan.changed.length > 0 && (leaderChanged || !checkIntro(g.intro, fresh, g.published).ok);
+    // Checked on any change, even when teams only left the list (the intro may name one of them).
+    plan.intro = leaderChanged || !checkIntro(g.intro, fresh, g.published).ok;
   }
   return plan;
 }
@@ -122,7 +123,8 @@ async function finish(season: number, week: string, day: string, status: "unchan
  */
 export async function refreshWeek(g: GeneratedWeek, day: string, at: number, log: Log = quiet): Promise<RefreshResult> {
   const base = { season: g.season, week: g.week, day };
-  const fresh = await buildPacket(g.season, g.week, at);
+  // Against the comparison the week went out with (recovered from its packet), never whichever earlier week is visible now.
+  const fresh = await buildPacket(g.season, g.week, at, storedComparison(g.packet));
   if (!fresh.teams.length || samePacket(g.packet, fresh)) {
     // Nothing shown changed (or no rated teams to rebuild from: the week stands as it was).
     await run("UPDATE power_rankings_generated SET updated = ? WHERE season = ? AND week = ? AND status = 'published'", [day, g.season, g.week]);

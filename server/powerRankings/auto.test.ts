@@ -15,7 +15,7 @@ import { invalidateFlags } from "../flags";
 import { renderPage } from "../seo";
 import { resetSitemapCache, sitemapEntries } from "../sitemap";
 import { useContentDir } from "./store";
-import { editGenerated, getGenerated, invalidateGenerated } from "./generated";
+import { editGenerated, getGenerated, invalidateGenerated, setGeneratedStatus } from "./generated";
 import { dailyRefreshTick } from "./refresh";
 import { autoPowerRankingsTick, buildPacket, publishNow } from "./auto";
 import type { FactPacket } from "./factCheck";
@@ -548,6 +548,40 @@ describe("the daily refresh", () => {
     expect(calls[1].packet.teams).toHaveLength(25);
     expect((await week())!.introSource).toBe("bruno");
     expect((await get<{ note: string }>("SELECT note FROM power_rankings_refreshes"))!.note).toBe("intro rewritten (Bruno)");
+  });
+
+  it("keeps the comparison the week went out with, even when that earlier week is hidden", async () => {
+    await rate([7003, ...TEAMS.filter((t) => t !== 7003)]);
+    await autoPowerRankingsTick(Date.parse("2026-10-16T04:00:00Z")); // week 42
+    await rate();
+    await autoPowerRankingsTick(FRI);
+    const before = (await week())!;
+    expect(before.packet.comparedWith).toBe("2026-w42");
+    await setGeneratedStatus(S, "2026-w42", "hidden");
+    // The results didn't change, so neither does the week: same movement, rating changes and dropped teams.
+    expect(await dailyRefreshTick(SAT0 + 60_000)).toMatchObject({ status: "unchanged" });
+    expect((await week())!).toEqual({ ...before, updated: "2026-10-24" });
+    // And when they do change, movement is still counted against week 42.
+    await swap();
+    expect(await dailyRefreshTick(SUN0 + 60_000)).toMatchObject({ status: "updated", changed: 2 });
+    const after = (await week())!;
+    expect(after.packet.comparedWith).toBe("2026-w42");
+    expect(after.packet.teams[3]).toMatchObject({ team: 7004, priorRank: 5, movement: 1, ratingDelta: 10 });
+    expect(after.packet.teams[4]).toMatchObject({ team: 7003, priorRank: 1, movement: -4 });
+  });
+
+  it("Bruno's intro is checked again even when teams only leave the list", async () => {
+    await autoPowerRankingsTick(FRI);
+    await run("UPDATE power_rankings_generated SET intro = 'Bots 7024 rounds out the list at 25th... with 7024 in it.'");
+    // Five teams lose their rating (too few matches): the list shrinks to 20, nobody else changes.
+    await run("UPDATE team_season_stats SET rating_matches = 0 WHERE season = ? AND team >= 7020", [S]);
+    await kvSet("data:version", `v${++version}`);
+    expect(await dailyRefreshTick(SAT0 + 60_000)).toMatchObject({ status: "updated", changed: 0, bruno: 0 });
+    expect(calls).toHaveLength(2);
+    expect(calls[1].packet.teams).toHaveLength(20); // the whole (shorter) list, for the intro
+    const after = (await week())!;
+    expect(after.entries).toHaveLength(20);
+    expect(after.intro).toBe("Week 43 is here.");
   });
 
   it("past weeks are frozen, hand-written weeks are never touched, and the switches turn it off", async () => {
