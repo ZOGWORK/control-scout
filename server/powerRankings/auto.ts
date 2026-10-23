@@ -88,7 +88,10 @@ export function storedComparison(p: StoredPacket): Comparison | null {
     if (t.priorRank != null) ranks.set(t.team, t.priorRank);
     if (t.ratingDelta != null) ratings.set(t.team, Math.round((t.rating - t.ratingDelta) * 10) / 10);
   }
-  for (const d of p.droppedOut ?? []) ranks.set(d.team, d.lastRank);
+  for (const d of p.droppedOut ?? []) {
+    ranks.set(d.team, d.lastRank);
+    if (d.rating != null) ratings.set(d.team, d.rating);
+  }
   return { week: p.comparedWith, ranks, ratings };
 }
 
@@ -123,7 +126,10 @@ export async function buildPacket(season: number, week: string, at = Date.now(),
   const inList = new Set(teams);
   return {
     season, week, comparedWith: prev?.week ?? null,
-    droppedOut: prev ? [...prev.ranks].filter(([team]) => !inList.has(team)).sort((x, y) => x[1] - y[1]).map(([team, lastRank]) => ({ team, lastRank })) : [],
+    droppedOut: prev ? [...prev.ranks].filter(([team]) => !inList.has(team)).sort((x, y) => x[1] - y[1]).map(([team, lastRank]) => {
+      const rating = priorRating.get(team);
+      return rating == null ? { team, lastRank } : { team, lastRank, rating };
+    }) : [],
     teams: live.map((r, i) => {
       const team = Number(r.team);
       const s = byTeam.get(team);

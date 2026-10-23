@@ -85,7 +85,7 @@ export function toDoc(g: GeneratedWeek): RankingDoc {
     entries: g.entries.map((e) => ({ rank: e.rank, team: e.team, blurb: e.text, movement: frozenMovement(byTeam.get(e.team), compared) })),
     generated: {
       introSource: g.introSource, sources: g.entries.map((e) => e.source), rev: revOf(g), updated: g.updated,
-      comparedWith: g.packet.comparedWith ?? null, droppedOut: g.packet.droppedOut ?? [],
+      comparedWith: g.packet.comparedWith ?? null, droppedOut: (g.packet.droppedOut ?? []).map((d) => ({ team: d.team, lastRank: d.lastRank })),
     },
   };
 }
