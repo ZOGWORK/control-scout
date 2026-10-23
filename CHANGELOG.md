@@ -25,6 +25,29 @@ Saved offline seasons keep themselves current: you're asked when an update is ou
 - **No guessing about Wi-Fi.** Only some browsers tell a site whether it's on Wi-Fi (Chrome on Android does; Safari, iPhone and desktop Chrome don't). Where the browser doesn't say, Wi-Fi only means you're asked first instead of a silent download, and the Download page says so. Data Saver on always asks first (#257).
 - As before, every download is checked against its published SHA-256, and a failed or partial one never replaces the saved copy.
 
+## 1.34.0 — 2026-10-23
+
+The Predict Lab opens on advancement odds, bigger and easier to use, and its season switch works again.
+
+### Highlights
+- [predict] Predict Lab: advancement first, with a larger team box and event list
+- [fixes] The Lab's season switch changes the season again
+- [home] Click a country on the globe; the atlas opens on your team's country
+- [report] The ledger says when the season under way is early and still moving
+
+### Predict Lab
+- **Advancement first.** The Lab opens on Advancement; a custom matchup of any four teams is the second tab. Larger heading and tabs, a big team box, a search box and a taller event list showing each event's type and city. (#258)
+- **Season switch fixed.** Choosing another season in Advancement did nothing: the season and the cleared event were written to the address one after the other, and the second write put the old season back. Both now go in one write.
+- **Outlook before 2025–26.** Advancement points started in 2025–26, so earlier events no longer show a breakdown of zeros; they say why there's none. Once alliances are set, Captain and Picked read Yes or No.
+
+### Home
+- **Click a country on the globe** to see its totals. A mouse press used to be taken for the start of a drag, so clicks didn't reach the country; now a press only turns the globe once it moves.
+- **Opens on your country.** Signed in, the atlas opens on your home team's country (your Control Point team, else the team you follow); signed out, the United States. Choosing another country only changes what's shown, never your default.
+- **Explore** is the app's own dropdown instead of the browser's.
+
+### How it works
+- **Early-season note.** While the season under way has fewer than 3,000 decided matches, the ledger says its figures are early and still moving (most robots have played little, so calls lean on last season), with where last season ended for comparison.
+
 ## 1.33.0 — 2026-10-23
 
 Small fixes: Compare lets you pick the team the others are measured against, and match videos can be added from your camera app.
