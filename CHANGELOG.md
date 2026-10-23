@@ -9,6 +9,16 @@ teams, scout, offline, speed, live, report, alerts, rankings, share, workspace,
 picklist, history, fixes). What's new shows them first; the groups below are
 the full release notes, one click away.
 
+## 1.30.0 — 2026-10-23
+
+How it works records the first second-wave engine test: a blended prediction, measured and turned down.
+
+### Highlights
+- [report] Lab notes: why blending in a second and third model didn't ship, with the numbers (#PR)
+
+### How it works
+- New lab note: a win/loss skill rating and a margin model blended with the engine. On held-out seasons the typical call moved under 1% and accuracy didn't change, so the engine stays a single model (docs/engine/part12/ensemble.md).
+
 ## 1.29.0 — 2026-10-23
 
 How it works arrives complete in the page itself, for search engines and slow connections.
