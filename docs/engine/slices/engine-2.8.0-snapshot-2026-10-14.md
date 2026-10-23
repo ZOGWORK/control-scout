@@ -16,6 +16,8 @@ Every match is predicted from earlier results only, in the backtest ledger's ord
 
 `champion` is the live engine; `v2.0` the frozen Engine 2.0 model on the same ratings (the live shadow); `legacy` Engine 1.x, the program's historical baseline (72.7%, Brier 0.179 on 2025–26). The champion's coefficients were fitted on 2023–24 and its calibration on spring 2025, so 2023–24 rows are in-sample for it. 2025–26 is its out-of-sample season, already examined for 2.0 and 2.1, hence **reused**: it sets priorities here and is not proof of any change.
 
+**In-sample warning:** the champion's final recalibration (slope 1.057692) was fitted on rated matches 2024-07-26 to 2026-07-26, so its numbers on those seasons are in-sample for that step. Forward-only evidence for it is the release's rolling-origin gate in `docs/engine/gates/`.
+
 | Season | Model | Matches | Accuracy | Brier | Log loss | ECE |
 |---|---|---|---|---|---|---|
 | 2023–24 | champion | 28,075 | 72.93% | 0.1742 | 0.5234 | 0.83% |

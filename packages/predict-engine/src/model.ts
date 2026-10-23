@@ -335,7 +335,7 @@ export const FITTED_MODEL = {
    "report": "docs/engine/gates/gate-2.7.0-priors-snapshot-2026-10-14.md"
   },
   "engine28": {
-   "note": "Engine 2.8 recalibration: P(red) = sigmoid(1.0577 * logit(p)) on top of the 2.1 contextual model and its calibration, no intercept (never favours a colour, never changes the favourite, so winner accuracy is unchanged by construction). Rolling monthly origins, forward-only: each month scored with a slope fitted on the 730 days before it (scripts/part9/slope-check.ts on the 2.7.0 replay, snapshot 2026-10-14). 2025-26 is reused data. Rejected in the same step: per-slice cells (little extra, cost 2024-25 accuracy), an intercept (a colour term), refitting the 22 weights (no forward gain; three small weights flip sign).",
+   "note": "Engine 2.8 recalibration: P(red) = sigmoid(1.0577 * logit(p)) on top of the 2.1 contextual model and its calibration, no intercept (never favours a colour, never changes the favourite, so winner accuracy is unchanged by construction). Rolling monthly origins, forward-only: each month scored with a slope fitted on the 730 days before it (scripts/part9/slope-check.ts on the 2.7.0 replay, snapshot 2026-10-14). 2025-26 is reused data. Rejected in the same step: per-slice cells (little extra, cost 2024-25 accuracy), an intercept (a colour term), refitting the 22 weights (marginal 2025-26 gain, worse on 2024-25, three small weights flip sign). No slice regresses.",
    "rolled2024": {
     "matches": 33228,
     "brierChange": -0.000069,

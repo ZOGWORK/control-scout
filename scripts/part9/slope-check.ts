@@ -3,10 +3,10 @@
 //   npx tsx scripts/part9/slope-check.ts <rows.json.gz>
 import { readFileSync } from "node:fs";
 import { gunzipSync } from "node:zlib";
-import { pairedMetrics, sliceReport } from "../slices/report.js";
+import { pairedMetrics, pairedReport, sliceReport } from "../slices/report.js";
 import { fit, logit, sig } from "./lib.js";
 
-interface Row { season: number; event: string; time: number; y: number; rated: boolean; pred: { champion: { p: number } } }
+interface Row { season: number; event: string; time: number; y: number; rated: boolean; vol?: string; data: Record<string, string>; pred: { champion: { p: number } } }
 const rows = (JSON.parse(gunzipSync(readFileSync(process.argv[2])).toString()) as Row[]).filter((r) => r.rated).sort((a, b) => a.time - b.time);
 const months: number[] = [];
 for (let d = new Date(Date.UTC(2024, 9, 1)); d < new Date(Date.UTC(2026, 7, 1)); d.setUTCMonth(d.getUTCMonth() + 1)) months.push(d.getTime());
@@ -25,4 +25,15 @@ for (const s of [2024, 2025]) {
     const c = sliceReport(R.map((r) => ({ p: P.get(r)!, y: r.y, tags: {} })), []).calibration.filter((b) => ["50-60", "60-70", "70-80"].includes(b.band));
     console.log(s, name.padEnd(18), `dBrier ${(1e4 * m.brier).toFixed(2)} [${(1e4 * m.brier95[0]).toFixed(2)}, ${(1e4 * m.brier95[1]).toFixed(2)}]  dLL ${(1e4 * m.logLoss).toFixed(2)} [${(1e4 * m.logLoss95[0]).toFixed(2)}, ${(1e4 * m.logLoss95[1]).toFixed(2)}]  dAcc ${m.accuracyPp.toFixed(2)} [${m.accuracy95.map((v) => v.toFixed(2)).join(", ")}]  cal50-80 ${(100 * c.reduce((a, b) => a + b.n * b.error, 0) / c.reduce((a, b) => a + b.n, 0)).toFixed(2)}`);
   }
+}
+
+// The gate's slice rule: no slice may get worse beyond noise (its whole Brier interval above zero). Slope only.
+const DIMS = ["level", "eventMatch", "teamEvent", "experience", "teamMatches", "density", "volatility", "eventSize", "eventType"];
+for (const s of [2024, 2025]) {
+  const R = [...p0.keys()].filter((r) => r.season === s);
+  const rep = pairedReport(R.map((r) => ({ event: r.event, y: r.y, a: r.pred.champion.p, b: p0.get(r)!, tags: { ...r.data, volatility: r.vol ?? "not measured" } })), DIMS);
+  const rows = Object.entries(rep.dims).flatMap(([d, v]) => Object.entries(v).map(([k, m]) => `${d}:${k} ${(1e4 * m.brier).toFixed(2)} [${(1e4 * m.brier95[0]).toFixed(2)}, ${(1e4 * m.brier95[1]).toFixed(2)}]${m.regression ? " REGRESSION" : ""}${m.lowConfidence ? " (low n)" : ""}`));
+  const regressions = Object.entries(rep.dims).flatMap(([d, v]) => Object.entries(v).filter(([, m]) => m.regression).map(([k]) => `${d}: ${k}`));
+  console.log(`${s} slope only, by slice (regressions: ${regressions.length ? regressions.join("; ") : "none"}):`);
+  for (const r of rows) console.log(`  ${r}`);
 }

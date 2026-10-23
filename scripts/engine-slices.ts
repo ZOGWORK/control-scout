@@ -113,7 +113,8 @@ for (const s of [...SEASONS].sort((a, b) => a - b)) {
           volatilityScore: vol.length ? Math.max(...vol) : null,
           eventSize: sizeBand(ev.teams.length || new Set(ev.matches.flatMap((x) => [...x.red.teams, ...x.blue.teams])).size), eventType: typeGroup(ev.type),
         },
-        ...(FEATURES ? { x: contextualFeatures(champion, m.red.teams, m.blue.teams, { ...pc, pRedWin: pc.pRaw! }, ctx, M.contextual.coefficients.length), pRaw: pc.pRaw } : {}),
+        // Under the event's region, as predictMatch read them (a newcomer's regional start moves its inputs).
+        ...(FEATURES ? { x: champion.withRegion(ctx.region, () => contextualFeatures(champion, m.red.teams, m.blue.teams, { ...pc, pRedWin: pc.pRaw! }, ctx, M.contextual!.coefficients.length)), pRaw: pc.pRaw } : {}),
         pred: { champion: side(pc, pc.pRedWin), "v2.0": side(pc, pc.pShadow!), legacy: side(pl, pl.pRedWin), ...(ph ? { challenger: side(ph, ph.pRedWin) } : {}) },
       });
     } else {
@@ -272,6 +273,7 @@ function markdown(): string {
     "## Global numbers",
     "",
     "`champion` is the live engine; `v2.0` the frozen Engine 2.0 model on the same ratings (the live shadow); `legacy` Engine 1.x, the program's historical baseline (72.7%, Brier 0.179 on 2025–26). The champion's coefficients were fitted on 2023–24 and its calibration on spring 2025, so 2023–24 rows are in-sample for it. 2025–26 is its out-of-sample season, already examined for 2.0 and 2.1, hence **reused**: it sets priorities here and is not proof of any change.",
+    ...(M.contextual!.recalibration ? ["", `**In-sample warning:** the champion's final recalibration (slope ${M.contextual!.recalibration.slope}) was fitted on ${String(M.contextual!.recalibration.provenance?.fittedOn ?? "recent seasons")}, so its numbers on those seasons are in-sample for that step. Forward-only evidence for it is the release's rolling-origin gate in \`docs/engine/gates/\`.`] : []),
     "",
     ...seasonsTable,
     "",
