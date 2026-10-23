@@ -3,16 +3,18 @@
 // bell and the Download page read it. Small on purpose (the bell is in the entry bundle): saving loads lazily.
 import { useSyncExternalStore } from "react";
 import type { PackManifest } from "../packs";
-import { SEASONS_EVENT, savedSeasons } from "./saved";
+import { SEASONS_EVENT, savedSeasons, type SavedSeason } from "./saved";
 import { planSeasons, type SeasonRow } from "./seasonPlan";
-import { releaseKey, seasonList, type SeasonUpdate, type UpdateAction } from "./updatePolicy";
+import { releaseKey, seasonList, updateId, type SeasonUpdate, type UpdateAction } from "./updatePolicy";
 import { toast } from "../../components/ui/sonner";
 
-/** localStorage: the release the pop-up last showed for, and the one answered "Later". */
+/** localStorage: the releases (updateIds, newest last) the pop-up showed for, and those answered "Later". */
 export const SHOWN_KEY = "cs-offline-update-shown";
 export const LATER_KEY = "cs-offline-update-later";
 /** Fired on window when either changes. */
 const EVENT = "cs-offline-update-changed";
+/** Enough for every season several releases back; older ids drop off. */
+const KEEP = 40;
 
 export interface UpdateSnapshot {
   manifest: PackManifest | null;
@@ -23,30 +25,50 @@ export interface UpdateSnapshot {
   key: string | null;
   /** What the policy decided last (none until a check ran). */
   action: UpdateAction;
-  later: string | null;
+  /** Releases answered "Later". */
+  later: string[];
 }
 
-const read = (k: string) => { try { return localStorage.getItem(k); } catch { return null; } };
-const write = (k: string, v: string) => { try { localStorage.setItem(k, v); } catch { /* storage blocked: asks again next time */ } window.dispatchEvent(new Event(EVENT)); };
+const readIds = (k: string): string[] => {
+  try { const v = JSON.parse(localStorage.getItem(k) ?? "[]"); return Array.isArray(v) ? v.filter((x): x is string => typeof x === "string") : []; } catch { return []; }
+};
+const addIds = (k: string, ids: string[]) => {
+  const next = [...readIds(k).filter((x) => !ids.includes(x)), ...ids].slice(-KEEP);
+  try { localStorage.setItem(k, JSON.stringify(next)); } catch { /* storage blocked: asks again next time */ }
+  window.dispatchEvent(new Event(EVENT));
+};
 
-export const shownRelease = () => read(SHOWN_KEY);
-export const laterRelease = () => read(LATER_KEY);
-export const markShown = (key: string) => write(SHOWN_KEY, key);
-export const markLater = (key: string) => write(LATER_KEY, key);
+export const shownReleases = () => readIds(SHOWN_KEY);
+export const laterReleases = () => readIds(LATER_KEY);
+export const markShown = (ids: string[]) => addIds(SHOWN_KEY, ids);
+export const markLater = (ids: string[]) => addIds(LATER_KEY, ids);
+
+/**
+ * Only releases newer than what's saved count as updates: a manifest read before another tab (or an earlier
+ * check) saved a newer release must never offer, or automatically install, the older one over it.
+ */
+export function pendingUpdates(m: PackManifest | null, saved: SavedSeason[]): SeasonRow[] {
+  if (!m) return [];
+  const built = Date.parse(m.builtAt);
+  return planSeasons(m.full, saved).toUpdate.filter((r) => !(Date.parse(r.saved?.builtAt ?? "") > built));
+}
 
 let manifest: PackManifest | null = null;
 let action: UpdateAction = "none";
-let snap: UpdateSnapshot = { manifest: null, rows: [], updates: [], key: null, action: "none", later: null };
+let snap: UpdateSnapshot = { manifest: null, rows: [], updates: [], key: null, action: "none", later: [] };
+let laterRaw = "";
 const subs = new Set<() => void>();
 
 /** Bring the snapshot up to date with the manifest, the saved list and Later (the same object when nothing changed). */
 function compute(): boolean {
-  const rows = manifest ? planSeasons(manifest.full, savedSeasons()).toUpdate : [];
+  const rows = pendingUpdates(manifest, savedSeasons());
   const updates = rows.map((r): SeasonUpdate => ({ season: r.season, sha256: r.file.sha256, bytes: r.file.bytes }));
   const key = releaseKey(updates);
-  const later = laterRelease();
-  if (snap.manifest === manifest && snap.key === key && snap.action === action && snap.later === later) return false;
+  const later = laterReleases();
+  const raw = later.join(",");
+  if (snap.manifest === manifest && snap.key === key && snap.action === action && laterRaw === raw) return false;
   snap = { manifest, rows, updates, key, action, later };
+  laterRaw = raw;
   return true;
 }
 function rebuild() { if (compute()) for (const f of subs) f(); }
@@ -67,18 +89,19 @@ function subscribe(f: () => void) {
 
 export function useSeasonUpdate(): UpdateSnapshot { return useSyncExternalStore(subscribe, updateSnapshot, () => snap); }
 
-/** Is there an update to ask about (the inbox item)? */
-export const askingAbout = (s: UpdateSnapshot) => s.action === "prompt" && !!s.key && s.later !== s.key;
+/** Is there an update to ask about (the inbox item)? One not answered "Later". */
+export const askingAbout = (s: UpdateSnapshot) => s.action === "prompt" && s.updates.some((u) => !s.later.includes(updateId(u)));
 
 /**
  * Download these updates (all of them by default) and swap each in: saveSeason verifies each against its
  * SHA-256, a failed or partial download never replaces the saved copy, and a season removed meanwhile stays
- * removed (replaceOnly). Null when a save run is already going.
+ * removed (replaceOnly). go (automatic runs): asked before each season; false leaves the rest for later
+ * (Wi-Fi dropped mid-run). Null when a save run is already going.
  */
-export async function applyUpdate(s: UpdateSnapshot = updateSnapshot(), rows: SeasonRow[] = s.rows) {
+export async function applyUpdate(s: UpdateSnapshot = updateSnapshot(), rows: SeasonRow[] = s.rows, go?: () => boolean) {
   if (!s.manifest || !rows.length) return null;
   const { runSeasonBatch } = await import("./seasonBatch");
-  return runSeasonBatch(rows.map((r) => r.file), s.manifest, { replaceOnly: true });
+  return runSeasonBatch(rows.map((r) => r.file), s.manifest, { replaceOnly: true, go });
 }
 
 /**
@@ -102,7 +125,7 @@ export async function updateNow(s: UpdateSnapshot = updateSnapshot()): Promise<v
       toast.loading(`Waiting for the seasons already saving, then updating ${seasonList(ran)}…`, { id });
     }
   } catch (e) {
-    r = { saved: [], skipped: [], failed: ran.map((x) => ({ season: x.season, error: e instanceof Error ? e : new Error(String(e)) })) };
+    r = { saved: [], skipped: [], held: [], failed: ran.map((x) => ({ season: x.season, error: e instanceof Error ? e : new Error(String(e)) })) };
   }
   if (!r) toast.success(`Offline data for ${seasonList(s.rows)} is up to date`, { id });
   else if (r.failed.length) toast.error(`Couldn't update ${seasonList(r.failed)}. The saved copy is unchanged and still works offline.`, { id, description: r.failed[0].error.message });
