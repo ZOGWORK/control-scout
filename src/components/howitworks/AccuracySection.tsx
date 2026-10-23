@@ -63,9 +63,14 @@ export function AccuracySection() {
   const current = useCurrentSeason();
   // The season under way, early on: its figures rest on few matches and are still moving. Last season's final
   // figure of the same kind says where a full season ended up.
-  const early = !!sel && !!block && sel.season === current && block.decided < EARLY_DECIDED;
+  // Early by the whole season's matches (the replay covers every played match; live calls only some), not by
+  // the selected record's sample.
+  const seasonMatches = season ? Math.max(season.replay?.scored ?? 0, season.backtest?.decided ?? 0, season.live?.decided ?? 0) : 0;
+  const early = !!sel && !!block && sel.season === current && seasonMatches < EARLY_DECIDED;
   const lastSeason = sel ? t?.seasons.find((s) => s.season === sel.season - 1) : undefined;
-  const lastBlock = sel && lastSeason ? lastSeason[sel.kind] ?? lastSeason.backtest : null;
+  // Last season's figure of the same record type when it has one, else its replay, always named as which.
+  const lastKind: Kind | null = sel && lastSeason ? (lastSeason[sel.kind] ? sel.kind : lastSeason.backtest ? "backtest" : null) : null;
+  const lastBlock = lastSeason && lastKind ? lastSeason[lastKind] : null;
 
   const pickSeason = (v: string) => {
     const s = t?.seasons.find((x) => x.season === Number(v));
@@ -113,8 +118,8 @@ export function AccuracySection() {
             <p role="note" className="mb-3 flex items-start gap-2 rounded-xl border border-accent/30 bg-accent/[0.07] px-3 py-2.5 text-sm text-text-base/90">
               <Hourglass className="mt-0.5 size-4 shrink-0 text-accent-text" aria-hidden />
               <span>
-                <strong>Early season: a work in progress.</strong> Only {block.decided.toLocaleString("en-US")} decided matches so far, and most robots have played few this season, so many calls lean on last season's ratings. These numbers move as results arrive, and accuracy usually climbs as the season fills in
-                {lastBlock && lastSeason && lastBlock.decided > 0 ? <>: {lastSeason.label.split(" ")[0]} ended at <strong>{pct(lastBlock.accuracy, 1)}</strong> over {lastBlock.decided.toLocaleString("en-US")} decided matches.</> : "."}
+                <strong>Early season: a work in progress.</strong> Only {seasonMatches.toLocaleString("en-US")} matches scored this season so far, and most robots have played few this season, so many calls lean on last season's ratings. These numbers move as results arrive, and accuracy usually climbs as the season fills in
+                {lastBlock && lastSeason && lastKind && lastBlock.decided > 0 ? <>: {lastSeason.label.split(" ")[0]}'s {lastKind === "live" ? "live calls" : "season replay"} ended at <strong>{pct(lastBlock.accuracy, 1)}</strong> over {lastBlock.decided.toLocaleString("en-US")} decided matches.</> : "."}
               </span>
             </p>
           )}

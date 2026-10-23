@@ -26,9 +26,21 @@ describe("AtlasMap clicks", () => {
     expect(onSelect).toHaveBeenCalledWith("US");
     onSelect.mockClear();
     fireEvent.pointerDown(globe, { pointerType: "mouse", button: 0, clientX: 150, clientY: 150 });
-    fireEvent.pointerMove(globe, { pointerType: "mouse", clientX: 180, clientY: 150 });
+    fireEvent.pointerMove(globe, { pointerType: "mouse", buttons: 1, clientX: 180, clientY: 150 });
     fireEvent.pointerUp(globe, { pointerType: "mouse" });
     fireEvent.click(country);
     expect(onSelect).not.toHaveBeenCalled();
+  });
+
+  it("forgets a press released off the globe before it became a drag", async () => {
+    render(<AtlasMap mode="globe" countries={[us]} selected={null} onSelect={() => {}} onLoaded={() => {}} onError={() => {}} />);
+    const globe = await screen.findByRole("img");
+    const grid = () => globe.querySelectorAll("path")[1].getAttribute("d");
+    fireEvent.pointerDown(globe, { pointerType: "mouse", button: 0, clientX: 150, clientY: 150 });
+    fireEvent.pointerLeave(globe, { pointerType: "mouse" });
+    const before = grid();
+    // Back over the globe with no button held: it doesn't turn.
+    fireEvent.pointerMove(globe, { pointerType: "mouse", buttons: 0, clientX: 220, clientY: 150 });
+    expect(grid()).toBe(before);
   });
 });
