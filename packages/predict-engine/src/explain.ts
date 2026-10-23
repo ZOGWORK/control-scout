@@ -207,6 +207,10 @@ function carrier(side: TeamStrength[], c: Exclude<Component, "pen">, base: numbe
  * size works). Pure: same book + teams → same answer, server or browser.
  */
 export function explainMatch(book: RatingBook, teamsA: number[], teamsB: number[], opts: ExplainOptions = {}): MatchExplanation {
+  return book.withRegion(opts.context?.region, () => explainOn(book, teamsA, teamsB, opts));
+}
+
+function explainOn(book: RatingBook, teamsA: number[], teamsB: number[], opts: ExplainOptions): MatchExplanation {
   const nameA = opts.nameA ?? "Red", nameB = opts.nameB ?? "Blue";
   const p = predictMatch(book, teamsA, teamsB, opts.noise, opts.calibration, { contextual: opts.contextual, context: opts.context, shadow: opts.shadow, band: opts.band, partnership: opts.partnership });
   const A = teamsA.map((t) => strength(book, t));
