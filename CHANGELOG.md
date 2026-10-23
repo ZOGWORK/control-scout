@@ -21,7 +21,7 @@ How it works gains a version history and says plainly where predictions are weak
 ### How it works
 - **Version history.** A new "Versions" section lists every prediction engine release, newest first, with its date and one plain line on what changed. A test keeps it in step with the engine's own changelog, so a release can't ship without its line.
 - **Measured limits.** "What the predictions can't know" now opens with the weakest spot the latest slice report found: matches where the robots have played little this season, and the first ten qualification matches of an event, carry a third of all prediction error. Every figure comes from the stored report, and a test checks each one against it. Two new limits: no defense rating for playoffs, and alliance overlap measured on the last two games.
-- **Lab notes** add the 2.7–2.11 results (what shipped and by how much) and four ideas that were tried and rejected, with their numbers.
+- **Lab notes** add the 2.7–2.11 results (what shipped and by how much) and four ideas that were tried and rejected, with their numbers. (#245)
 - The page names the engine version it describes from the running engine, so it no longer says "2.1".
 
 ## 1.26.0 — 2026-10-23
