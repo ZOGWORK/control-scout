@@ -176,13 +176,16 @@ describe("no signal: the packs answer", () => {
     expect(mode.result.current).toBe(true);
   });
 
-  it("answers at once when the browser knows it's offline", async () => {
+  it("asks the server even when the browser says it's offline (iOS can say so while online)", async () => {
     writeSaved([saved]);
-    const fetch = vi.fn();
-    vi.stubGlobal("fetch", fetch);
     vi.spyOn(navigator, "onLine", "get").mockReturnValue(false);
+    // The browser is wrong: the server answers, and that answer is used (not saved data).
+    vi.stubGlobal("fetch", vi.fn(async () => ok({ live: true })));
+    expect(await apiFetch("/api/teams/100")).toEqual({ live: true });
+    expect(mode.result.current).toBe(false);
+    // Truly no signal: the request fails at once, and saved data answers as before.
+    vi.stubGlobal("fetch", vi.fn(async () => { throw new TypeError("Failed to fetch"); }));
     expect(offlineSource(await apiFetch("/api/teams/100"))).toEqual(src);
-    expect(fetch).not.toHaveBeenCalled();
     expect(mode.result.current).toBe(true);
   });
 

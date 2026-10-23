@@ -8,12 +8,12 @@ import { flagOn, refreshFlags } from "./flags";
 afterEach(() => { vi.unstubAllGlobals(); vi.restoreAllMocks(); });
 
 describe("refreshFlags", () => {
-  it("skips the request while offline, keeping the last known flags", async () => {
-    const fetchSpy = vi.fn();
+  it("asks even when the browser says offline, and keeps the last known flags if that fails", async () => {
+    const fetchSpy = vi.fn(async () => { throw new TypeError("Failed to fetch"); });
     vi.stubGlobal("fetch", fetchSpy);
     vi.spyOn(navigator, "onLine", "get").mockReturnValue(false);
     await refreshFlags();
-    expect(fetchSpy).not.toHaveBeenCalled();
+    expect(fetchSpy).toHaveBeenCalledTimes(1);
     expect(flagOn("photos")).toBe(true);
   });
 

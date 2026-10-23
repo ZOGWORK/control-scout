@@ -53,8 +53,7 @@ function offlineKind(path: string, method: string | undefined): "saved" | "lite"
 let usingSaved = false;
 const modeListeners = new Set<() => void>();
 let probe: ReturnType<typeof setInterval> | undefined;
-/** While anything on screen is from saved data (or a no-signal error) and the browser thinks it's
- *  online (the timeout case), retry it this often. */
+/** While anything on screen is from saved data (or a no-signal error), retry it this often. */
 const PROBE_MS = 15_000;
 
 /** No "online" event comes when the network never went down (a request timed out): retry what's on
@@ -65,7 +64,8 @@ function ensureProbe() {
   if (probe || typeof window === "undefined") return;
   probe = setInterval(() => {
     if (!offlineOnScreen().length) { stopProbe(); return; }
-    if (typeof navigator === "undefined" || navigator.onLine !== false) refetchOffline();
+    // Whatever navigator.onLine says (it can be wrong, see apiFetch): one request per entry on screen.
+    refetchOffline();
   }, PROBE_MS);
 }
 
@@ -127,9 +127,10 @@ async function respond<T>(request: Promise<Response>, kind: "saved" | "lite", pa
 
 export async function apiFetch<T>(path: string, init?: RequestInit & { json?: unknown; _tries?: number }): Promise<T> {
   const { json, _tries = 0, ...rest } = init ?? {};
-  // Known offline: answer at once (same error the failed fetch would give)
-  // instead of firing a request that can only fail at the venue.
-  if (typeof navigator !== "undefined" && navigator.onLine === false) return offlineOr<T>(path, rest.method, new ApiError(0, "You're offline.", true));
+  // navigator.onLine is only a hint: iOS (above all a home-screen app back from the background) can report
+  // false while the phone is online, and never send the "online" event. Skipping the request on it left the
+  // whole app stuck on saved data. Always ask: with truly no signal the request fails at once anyway, and
+  // that failure falls back to saved data the same way.
   const kind = offlineKind(path, rest.method);
   const ctrl = kind ? new AbortController() : null;
   const outer = rest.signal;

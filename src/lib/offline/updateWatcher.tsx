@@ -106,7 +106,7 @@ export function SeasonUpdateWatcher(): null {
     decideRef.current = decide;
 
     const check = async (force = false) => {
-      if (stopped || navigator.onLine === false) return;
+      if (stopped) return; // navigator.onLine isn't trusted (iOS): a failed check just waits for the next
       if (!force && Date.now() - lastCheck < MIN_GAP_MS) return decide();
       lastCheck = Date.now();
       try { manifest = await fetchManifest(); } catch { return; } // offline, paused, none published: next time
