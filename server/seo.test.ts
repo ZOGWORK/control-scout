@@ -96,7 +96,7 @@ describe("page head in the first HTML", () => {
     writeFileSync(file, '<html><head><title>FTC Control Scout — free</title>\n<meta name="description" content="generic" />\n<meta property="og:title" content="generic" />\n</head><body></body></html>');
 
     const team = await renderIndex(file, "/teams/4215");
-    expect(team).toContain("<title>Team 4215 — Hypnotic Robotics · Control Scout</title>");
+    expect(team).toContain("<title>4215 Hypnotic Robotics — FTC team stats, OPR &amp; predictions · Control Scout</title>");
     expect(team).toContain('<link rel="canonical" href="https://controlscout.org/teams/4215" />');
     expect(team).toContain('<meta property="og:url" content="https://controlscout.org/teams/4215" />');
     expect(team).toContain('<meta name="twitter:card" content="summary_large_image" />');
@@ -184,8 +184,12 @@ describe("page head in the first HTML", () => {
     const home = ld(await renderIndex(file, "/"));
     expect(home.map((x) => x["@type"]).sort()).toEqual(["Organization", "WebSite"]);
     expect(home.find((x) => x["@type"] === "Organization").logo).toBe("https://controlscout.org/logo-512.png");
-    const [team] = ld(await renderIndex(file, "/teams/4215"));
-    expect(team).toMatchObject({ "@type": "SportsTeam", name: "Hypnotic Robotics", url: "https://controlscout.org/teams/4215", location: { address: { addressLocality: "Oradell", addressRegion: "NJ" } } });
+    const [profile, crumbs] = ld(await renderIndex(file, "/teams/4215"));
+    expect(profile).toMatchObject({ "@type": "ProfilePage", url: "https://controlscout.org/teams/4215", isPartOf: { "@id": "https://controlscout.org/#website" } });
+    expect(profile.mainEntity).toMatchObject({ "@type": "SportsTeam", name: "Hypnotic Robotics", identifier: "4215", url: "https://controlscout.org/teams/4215", location: { address: { addressLocality: "Oradell", addressRegion: "NJ" } } });
+    expect(crumbs).toMatchObject({ "@type": "BreadcrumbList" });
+    expect(crumbs.itemListElement.map((x: { name: string; item: string }) => [x.name, x.item])).toEqual([
+      ["Home", "https://controlscout.org/"], ["Teams", "https://controlscout.org/teams"], ["4215 Hypnotic Robotics", "https://controlscout.org/teams/4215"]]);
     const [ev] = ld(await renderIndex(file, "/events/2025/USNJNOM3"));
     expect(ev.image).toEqual(["https://controlscout.org/og-image.png"]);
     expect(ev).toMatchObject({ "@type": "SportsEvent", name: "P1-4 PM Northern League Meet", startDate: "2025-11-08", url: "https://controlscout.org/events/2025/USNJNOM3", location: { name: "Don Bosco Prep" } });
@@ -193,21 +197,55 @@ describe("page head in the first HTML", () => {
     await run("UPDATE teams SET name = 'Evil</script><script>alert(1)</script>' WHERE number = 4215");
     const evil = await renderIndex(file, "/teams/4215");
     expect(evil).not.toContain("</script><script>alert(1)");
-    expect(ld(evil)[0].name).toBe("Evil</script><script>alert(1)</script>");
+    expect(ld(evil)[0].mainEntity.name).toBe("Evil</script><script>alert(1)</script>");
+    expect(evil).not.toContain("<script>alert(1)"); // nor out of the first paint's words
     expect(ld(await renderIndex(file, "/predict"))).toHaveLength(0);
     // Replacement patterns in a name ($', $`, $&) are inserted literally, never expanded.
     await run("UPDATE teams SET name = 'Dollar $'' Bot $` $& end' WHERE number = 4215");
     const dollar = await renderIndex(file, "/teams/4215");
-    expect(ld(dollar)[0].name).toBe("Dollar $' Bot $` $& end");
+    expect(ld(dollar)[0].mainEntity.name).toBe("Dollar $' Bot $` $& end");
     expect(dollar.match(/<\/head>/g)).toHaveLength(1);
     // An unknown team gets fallback meta but no structured data; a zero-padded number has one canonical URL.
     expect(ld(await renderIndex(file, "/teams/999998"))).toHaveLength(0);
     const padded = await renderIndex(file, "/teams/004215");
     expect(padded).toContain('<link rel="canonical" href="https://controlscout.org/teams/4215" />');
-    expect(ld(padded)[0].url).toBe("https://controlscout.org/teams/4215");
+    expect(ld(padded)[0].mainEntity.url).toBe("https://controlscout.org/teams/4215");
     // Attendance mode follows the event's remote/hybrid flags.
     expect(ld(await renderIndex(file, "/events/2025/REMOTE1"))[0].eventAttendanceMode).toBe("https://schema.org/OnlineEventAttendanceMode");
     expect(ld(await renderIndex(file, "/events/2025/USNJNOM3"))[0].eventAttendanceMode).toBe("https://schema.org/OfflineEventAttendanceMode");
+  });
+
+  it("a team page's first paint: its number and name as the h1, a summary from real data, its events as links; sameAs and rookie year in the data", async () => {
+    const dir = mkdtempSync(join(tmpdir(), "cs-seo-team-"));
+    const file = join(dir, "index.html");
+    writeFileSync(file, '<html><head></head><body><div id="root"></div></body></html>');
+    await run("UPDATE teams SET rookie_year = 2008, website = 'www.hypnoticrobotics.org', school = 'Bergen County & Co' WHERE number = 4215");
+    await run("INSERT INTO event_teams (season, code, team, rank, wins, losses, ties) VALUES (2025, 'USNJNOM3', 4215, 3, 5, 1, 0)");
+    // On a league meet's roster with results in, but never on the field: not one of its events.
+    await run("INSERT INTO events (season, code, name, start, end, remote, hybrid, source) VALUES (2025, 'NOSHOW', 'Skipped Meet', '2026-01-10', '2026-01-10', 0, 0, 'test')");
+    await run("INSERT INTO event_teams (season, code, team) VALUES (2025, 'NOSHOW', 4215)");
+    await run("INSERT INTO matches (season, code, level, series, number, label, played, source) VALUES (2025, 'NOSHOW', 'qual', 0, 1, 'Q1', 1, 'test')");
+    const html = await renderIndex(file, "/teams/4215");
+    expect(html.match(/<h1>/g)).toHaveLength(1);
+    expect(html).toContain("<h1>4215 Hypnotic Robotics</h1>");
+    expect(html).toContain("FTC team 4215 Hypnotic Robotics from Oradell, NJ (Bergen County &amp; Co), rookie year 2008. 2025–26: record 26-6-0, OPR 101.6 (#616 of 8,375).");
+    expect(html).toContain('<a href="/events/2025/USNJNOM3">P1-4 PM Northern League Meet</a> <small>2025–26 · Nov 8, 2025 · ranked 3 · 5-1-0</small>');
+    expect(html).not.toContain("Skipped Meet");
+    const desc = /<meta name="description" content="([^"]*)"/.exec(html)![1];
+    expect(desc).toContain("rookie year 2008");
+    expect(desc.length).toBeLessThanOrEqual(160);
+    const team = JSON.parse(/<script type="application\/ld\+json">(.*?)<\/script>/.exec(html)![1]).mainEntity;
+    expect(team.sameAs).toEqual(["https://www.hypnoticrobotics.org/", "https://ftc-events.firstinspires.org/2025/team/4215"]);
+    expect(team).toMatchObject({ foundingDate: "2008", affiliation: { name: "Bergen County & Co" } });
+    // A season parameter is the same page: one canonical, no ?season= duplicate.
+    expect(await renderIndex(file, "/teams/4215", { season: "2024" })).toContain('<link rel="canonical" href="https://controlscout.org/teams/4215" />');
+  });
+
+  it("teamWebsite: an absolute http(s) URL or nothing", async () => {
+    const { teamWebsite } = await import("./seoMeta");
+    expect(teamWebsite("www.team.org")).toBe("https://www.team.org/");
+    expect(teamWebsite("http://team.org/x")).toBe("http://team.org/x");
+    for (const bad of [null, "", "  ", "none", "javascript:alert(1)", "ftp://team.org"]) expect(teamWebsite(bad)).toBeNull();
   });
 
   it("HTTP 404 (app HTML, noindex, no canonical) for unknown routes, teams and events; 200 for every app route", async () => {
