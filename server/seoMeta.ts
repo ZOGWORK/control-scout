@@ -13,7 +13,7 @@ import { regionLabel } from "../src/shared/regions.js";
 import { eventTypeLabel } from "../src/shared/labels.js";
 import { canonicalOrigin, canonicalUrl } from "./seo.js";
 import { FAQ, faqJsonLd, faqText } from "../src/shared/faq.js";
-import { teamKnown } from "./api/teams.js";
+import { ATTENDED, teamKnown } from "./api/teams.js";
 import { teamHeading, teamTitle } from "../src/shared/teamTitle.js";
 import { pageModule } from "../src/shared/routes.js";
 import { normalMatchKey } from "../src/shared/matchReport.js";
@@ -148,7 +148,7 @@ async function teamMeta(n: number): Promise<PageMeta> {
     get<{ n: number }>("SELECT COUNT(DISTINCT season) n FROM team_season_stats WHERE team = ? AND matches > 0", [n]),
     all<{ season: number; code: string; name: string; start: string | null; rank: number | null; wins: number | null; losses: number | null; ties: number | null }>(
       `SELECT e.season, e.code, e.name, e.start, et.rank, et.wins, et.losses, et.ties FROM event_teams et JOIN events e ON e.season = et.season AND e.code = et.code
-       WHERE et.team = ? ORDER BY e.start DESC, e.code LIMIT ${TEAM_EVENTS}`, [n]),
+       WHERE et.team = ? AND ${ATTENDED} ORDER BY e.start DESC, e.code LIMIT ${TEAM_EVENTS}`, [n]),
   ]);
   const name = t?.name?.trim() || null;
   const heading = teamHeading(n, name);

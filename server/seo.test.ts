@@ -221,11 +221,16 @@ describe("page head in the first HTML", () => {
     writeFileSync(file, '<html><head></head><body><div id="root"></div></body></html>');
     await run("UPDATE teams SET rookie_year = 2008, website = 'www.hypnoticrobotics.org', school = 'Bergen County & Co' WHERE number = 4215");
     await run("INSERT INTO event_teams (season, code, team, rank, wins, losses, ties) VALUES (2025, 'USNJNOM3', 4215, 3, 5, 1, 0)");
+    // On a league meet's roster with results in, but never on the field: not one of its events.
+    await run("INSERT INTO events (season, code, name, start, end, remote, hybrid, source) VALUES (2025, 'NOSHOW', 'Skipped Meet', '2026-01-10', '2026-01-10', 0, 0, 'test')");
+    await run("INSERT INTO event_teams (season, code, team) VALUES (2025, 'NOSHOW', 4215)");
+    await run("INSERT INTO matches (season, code, level, series, number, label, played, source) VALUES (2025, 'NOSHOW', 'qual', 0, 1, 'Q1', 1, 'test')");
     const html = await renderIndex(file, "/teams/4215");
     expect(html.match(/<h1>/g)).toHaveLength(1);
     expect(html).toContain("<h1>4215 Hypnotic Robotics</h1>");
     expect(html).toContain("FTC team 4215 Hypnotic Robotics from Oradell, NJ (Bergen County &amp; Co), rookie year 2008. 2025–26: record 26-6-0, OPR 101.6 (#616 of 8,375).");
     expect(html).toContain('<a href="/events/2025/USNJNOM3">P1-4 PM Northern League Meet</a> <small>2025–26 · Nov 8, 2025 · ranked 3 · 5-1-0</small>');
+    expect(html).not.toContain("Skipped Meet");
     const desc = /<meta name="description" content="([^"]*)"/.exec(html)![1];
     expect(desc).toContain("rookie year 2008");
     expect(desc.length).toBeLessThanOrEqual(160);
