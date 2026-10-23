@@ -18,7 +18,7 @@
 /* The row's space is padding inside the clipped slot, so the height animates from a true zero. */
 .messageSlot { display: block; overflow: hidden; }
 .description, .error { display: block; padding-top: 8px; font-size: var(--text-xs); line-height: var(--leading-body); }
-.description { color: var(--text-muted); }.error { color: var(--danger); }
+.description { color: var(--text-muted); }.error { color: var(--danger-text, var(--danger)); }
 /* Words are measured against this box when they pop out to leave, so it must be the positioned parent. */
 .words { position: relative; display: block; }
 .word { display: inline-block; white-space: pre; }

@@ -118,7 +118,7 @@ const NAME: Record<Side, string> = { red: "Red", blue: "Blue" };
  * for the 12px verdict and 14px team numbers, so dark text takes the lighter #fb7185 (6.05:1). Light
  * (#be123c, 4.82:1 on the tint) passes as it is. Blue reads at 4.7:1 or more in both themes.
  */
-export const RED_INK_TOKEN = "[--summary-red-ink:var(--color-red-alliance)] dark:[--summary-red-ink:#fb7185]";
+export const RED_INK_TOKEN = "[--summary-red-ink:var(--color-red-alliance-text)] dark:[--summary-red-ink:#fb7185]";
 const RED_INK = "text-[var(--summary-red-ink)]";
 
 export function MatchSummaryList({ rows, cols }: { rows: MatchRecordRow[]; cols: string[] }) {
