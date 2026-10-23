@@ -13,9 +13,7 @@ await migrate();
 const args = process.argv.slice(2);
 const flag = (k: string) => { const i = args.indexOf(k); return i >= 0 ? args[i + 1] : undefined; };
 const M = FITTED_MODEL;
-/** `_overlap` (research prototype, Part 5): per-phase γ, the alliance expectation loses γ × the smaller partner's contribution. */
-type Config = Partial<RatingParams> & { _overlap?: { auto?: number; teleop?: number; endgame?: number; qualOnly?: boolean } };
-let curLevel = "qual";
+type Config = Partial<RatingParams>;
 const configs: Config[] = JSON.parse(flag("--configs") ?? "[{}]");
 const corpora: SeasonCorpus[] = [];
 for (const s of [2023, 2024, 2025]) corpora.push(await seasonCorpus(s));
@@ -23,19 +21,7 @@ for (const s of [2023, 2024, 2025]) corpora.push(await seasonCorpus(s));
 interface Call { event: string; season: number; y: number; p: number; tags: string[]; mu: [number, number]; act: [number, number] }
 const runs: Call[][] = [];
 for (const o of configs) {
-  const { _overlap: OV, ...ro } = o;
-  const book = new RatingBook({ ...M.rating, ...ro });
-  if (OV) {
-    const B = book as any, orig = B.allianceExpectation.bind(book);
-    B.allianceExpectation = (teams: number[]) => {
-      const out = orig(teams);
-      if (teams.length !== 2 || (OV.qualOnly && curLevel !== "qual")) return out;
-      const [a, b] = teams.map((t) => book.get(t));
-      for (const c of ["auto", "teleop", "endgame"] as const) out[c] -= (OV[c] ?? 0) * Math.min(a[c], b[c]);
-      out.np = out.auto + out.teleop + out.endgame;
-      return out;
-    };
-  }
+  const book = new RatingBook({ ...M.rating, ...o });
   const calls: Call[] = [];
   for (const c of corpora) {
     book.startSeason(c.season);
@@ -44,7 +30,6 @@ for (const o of configs) {
       const rated = !c.unrated.has(m.eventCode);
       if (predictable(m) && rated && c.season >= 2024) {
         book.setTime(m.time);
-        curLevel = m.level;
         const teams = [...m.red.teams, ...m.blue.teams];
         const pm = predictMatch(book, m.red.teams, m.blue.teams, M.noise, M.calibration, { contextual: M.contextual, context: { level: m.level, event: m.eventCode, ...(m.region ? { region: m.region } : {}) } });
         const p = pm.pRedWin;
@@ -58,7 +43,6 @@ for (const o of configs) {
           const e = seen.get(t) ?? []; if (!e.includes(m.eventCode)) { e.push(m.eventCode); seen.set(t, e); }
           atEvent.set(`${t}|${m.eventCode}`, (atEvent.get(`${t}|${m.eventCode}`) ?? 0) + 1);
         }
-        curLevel = m.level;
         book.update(m);
       }
     }
