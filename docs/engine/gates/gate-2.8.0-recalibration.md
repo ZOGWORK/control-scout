@@ -20,7 +20,8 @@ is favoured, so winner accuracy is unchanged by construction. It has no alliance
 
 **Verdict: ships.**
 - Brier and calibration improve in both seasons. The improvement is significant on 2025–26.
-- Nothing gets worse beyond noise.
+- Nothing gets worse beyond noise, overall or in any slice: event phase, experience, rated matches,
+  data density, volatility, event size and type, quals and playoffs (`slope-check.ts` lists every slice).
 - The shipped slope is 1.0577, refitted on the 730 days to the end of the snapshot
   (`docs/engine/fits/recalibration-2.8.0.json`).
 
@@ -30,4 +31,4 @@ is favoured, so winner accuracy is unchanged by construction. It has no alliance
 |---|---|---|
 | Per-slice cells (match type × data density), shrunk to the global mapping | 2025–26 −2.64 [−3.54, −1.74], about 0.5 better than one global mapping | Costs 2024–25 accuracy −0.13 pp [−0.22, −0.05]. Adding the event-phase cell made it worse. |
 | An intercept as well | 2025–26 −2.15 | A colour term, which the brief allows only as a measured tag (12.8). The slope alone captures almost all of the gain. |
-| Refitting the 22 contextual weights on newer data | 2025–26 −0.89 [−1.89, +0.09]; 2024–25 worse | No forward gain. Three small weights flip sign (D1, D7, D12). The frozen weights stay. |
+| Refitting the 22 contextual weights on newer data | 2025–26 −0.99 [−1.99, −0.01]; 2024–25 +3.19 [+2.11, +4.23] | A marginal gain on 2025–26 against a clear loss on 2024–25. The 2024–25 comparison favours the frozen weights, which saw part of that season. Three small weights flip sign (D1, D7, D12). Not adopted; revisit at season rollover with 2026–27 data. |

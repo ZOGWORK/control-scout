@@ -23,7 +23,7 @@ ratings and every input are unchanged. Only the final win probability moves.
 **Rejected in the same step:**
 - Per-slice cells: cost 2024–25 accuracy.
 - An intercept: a colour term.
-- Refitting the 22 weights: no forward gain, and three sign flips.
+- Refitting the 22 weights: a marginal 2025–26 gain against a loss on 2024–25, and three sign flips.
 
 ## 2.7.0 — 2026-10-22 · Priors: regional starts
 
