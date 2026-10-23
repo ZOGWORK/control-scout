@@ -202,10 +202,15 @@ const meta = {
   corpus: { id: corpusId, dataVersion, seasons: corpus, rules: "server/stats/job.ts backtest: remote/hybrid events dropped; scrimmage and off-season events predicted but never rated; only 2-robot alliances predicted; matches in start-time order, each predicted from earlier results only." },
   explainMatchChecks: checked, rowsSha256: rowsSha, baselineCheck, lowConfidenceBelow: 200, primarySeason: PRIMARY,
 };
-mkdirSync(OUT, { recursive: true });
-const base = join(OUT, `engine-${ENGINE_VERSION}-${corpusId}`);
-writeFileSync(`${base}.json`, JSON.stringify({ meta, reports, unrated: unratedReports, live }, null, 1) + "\n");
-writeFileSync(`${base}.md`, markdown());
+// A --champion run replays something other than the shipped engine: it writes its gate only, never
+// over the shipped engine's slice report.
+if (!CHAMPION) {
+  mkdirSync(OUT, { recursive: true });
+  const base = join(OUT, `engine-${ENGINE_VERSION}-${corpusId}`);
+  writeFileSync(`${base}.json`, JSON.stringify({ meta, reports, unrated: unratedReports, live }, null, 1) + "\n");
+  writeFileSync(`${base}.md`, markdown());
+  console.log(`wrote ${base}.json and .md`);
+}
 if (ROWS) writeFileSync(ROWS, gzipSync(JSON.stringify(rows)));
 if (CHALLENGER && gate) {
   mkdirSync(GATE_OUT, { recursive: true });
@@ -214,7 +219,6 @@ if (CHALLENGER && gate) {
   writeFileSync(`${g}.md`, gateMarkdown());
   console.log(`wrote ${g}.json and .md`);
 }
-console.log(`wrote ${base}.json and .md`);
 
 function gateMarkdown(): string {
   const out = [

@@ -47,7 +47,7 @@ Options:
 
 ```bash
 DATABASE_URL=file:snap.db npm run slices -- --seasons 2023,2024,2025 --challenger '{"name":"<name>","rating":{...}}'
-# after model.json already carries the release, replay the previous one as the champion:
+# after model.json already carries the release, replay the previous one as the champion (writes the gate only):
 #   --champion '{"rating":{...previous settings...}}'
 ```
 
