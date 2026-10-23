@@ -252,7 +252,8 @@ export async function regenerateWeek(season: number, week: string, log: Log = qu
   const bruno = await askBruno(packet, log);
   if (!bruno) return "unavailable";
   const c = compose(packet, bruno, g.published, !!packet.comparedWith);
-  const n = await run(`UPDATE power_rankings_generated SET intro = ?, intro_source = ?, entries = ?, generated_at = ?, edited_by = NULL, edited_at = NULL, rev = rev + 1
+  // Owner edits are replaced, including any parked for teams that left the list.
+  const n = await run(`UPDATE power_rankings_generated SET intro = ?, intro_source = ?, entries = ?, parked = '[]', generated_at = ?, edited_by = NULL, edited_at = NULL, rev = rev + 1
      WHERE season = ? AND week = ? AND rev = ?`,
     [c.intro, c.introSource, JSON.stringify(c.entries), new Date().toISOString(), season, week, g.rev]);
   invalidateGenerated();

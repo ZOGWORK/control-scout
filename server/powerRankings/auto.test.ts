@@ -540,6 +540,24 @@ describe("the daily refresh", () => {
     expect((await week())!.entries[4]).toMatchObject({ team: 7003, rank: 5, source: "owner", text: "Written by the owner." });
   });
 
+  it("an owner edit survives its team leaving the list and coming back", async () => {
+    await autoPowerRankingsTick(FRI);
+    await editGenerated(S, "2026-w43", { blurbs: [{ team: 7024, text: "Written by the owner." }] }, String((await week())!.rev));
+    await run("UPDATE team_season_stats SET rating_matches = 0 WHERE season = ? AND team = 7024", [S]);
+    await kvSet("data:version", `v${++version}`);
+    await dailyRefreshTick(SAT0 + 60_000);
+    const out = (await week())!;
+    expect(out.entries.map((e) => e.team)).not.toContain(7024);
+    expect(out.parked).toEqual([{ team: 7024, text: "Written by the owner." }]);
+    await rate();
+    calls.length = 0;
+    expect(await dailyRefreshTick(SUN0 + 60_000)).toMatchObject({ status: "updated", kept: 1 });
+    expect(calls.flatMap((c) => c.packet.teams.map((t) => t.team))).not.toContain(7024); // never sent to Bruno
+    const back = (await week())!;
+    expect(back.entries[24]).toEqual({ rank: 25, team: 7024, text: "Written by the owner.", source: "owner" });
+    expect(back.parked).toEqual([]);
+  });
+
   it("a new leader: Bruno's intro is written again (the whole packet goes, one call), blurbs only for teams that moved", async () => {
     await autoPowerRankingsTick(FRI);
     await rate([7001, 7000, ...TEAMS.slice(2)]);

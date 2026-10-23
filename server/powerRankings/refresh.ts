@@ -9,7 +9,8 @@
 //     Bruno: one call, a packet of just those teams. A team in the same place keeps Bruno's blurb while
 //     every number in it still passes the fact check against the new facts (else Bruno writes it
 //     again); its template ("Data summary") blurb is rebuilt from the new numbers, which costs nothing.
-//     Owner edits are never overwritten. Bruno's intro is kept
+//     Owner edits are never overwritten: one whose team leaves the list is parked with the week and
+//     restored if the team comes back. Bruno's intro is kept
 //     unless the leader changed or it no longer passes the check (then the whole packet goes to Bruno so
 //     he can write it again); a template intro is rebuilt; the owner's is kept.
 //
@@ -69,9 +70,11 @@ export interface RefreshPlan {
  * Which blurbs a fresh packet needs written again. Pure: the stored week and the new facts in, the
  * plan out. A template blurb of a team in the same place isn't in `ask`: it's rebuilt from the new facts.
  */
-export function planRefresh(g: Pick<GeneratedWeek, "entries" | "packet" | "intro" | "introSource" | "published">, fresh: StoredPacket): RefreshPlan {
+export function planRefresh(g: Pick<GeneratedWeek, "entries" | "packet" | "intro" | "introSource" | "published"> & { parked?: GeneratedWeek["parked"] }, fresh: StoredPacket): RefreshPlan {
   const oldTeam = new Map(g.packet.teams.map((t) => [t.team, t]));
-  const oldEntry = new Map(g.entries.map((e) => [e.team, e]));
+  const oldEntry = new Map<number, Pick<GeneratedEntry, "text" | "source">>(g.entries.map((e) => [e.team, e]));
+  // A returning team's parked owner edit counts as its entry: kept, never sent to Bruno.
+  for (const p of g.parked ?? []) if (!oldEntry.has(p.team)) oldEntry.set(p.team, { text: p.text, source: "owner" });
   const plan: RefreshPlan = { changed: [], ask: [], kept: [], intro: false };
   for (const t of fresh.teams) {
     const was = oldTeam.get(t.team);
@@ -145,10 +148,12 @@ export async function refreshWeek(g: GeneratedWeek, day: string, at: number, log
   const written = new Map(composed.entries.map((e) => [e.team, e]));
 
   const oldEntry = new Map(g.entries.map((e) => [e.team, e]));
+  const parked = new Map(g.parked.map((p) => [p.team, p.text]));
   const kept = new Set(plan.kept);
   const entries: GeneratedEntry[] = fresh.teams.map((t) => {
     const e = oldEntry.get(t.team);
     if (ask.has(t.team)) return written.get(t.team)!;
+    if (!e && kept.has(t.team)) return { rank: t.rank, team: t.team, text: parked.get(t.team)!, source: "owner" }; // back: its parked edit
     if (e && kept.has(t.team)) return { ...e, rank: t.rank };
     if (!e || e.source === "template") return { rank: t.rank, team: t.team, text: templateBlurb(t, compared), source: "template" };
     return { ...e, rank: t.rank };
@@ -161,12 +166,16 @@ export async function refreshWeek(g: GeneratedWeek, day: string, at: number, log
     intro = templateIntro(fresh, day, compared);
   }
 
+  // Owner edits of teams that left are parked; those of teams that came back are unparked.
+  const inList = new Set(entries.map((e) => e.team));
+  for (const e of g.entries) if (e.source === "owner" && !inList.has(e.team)) parked.set(e.team, e.text);
+  for (const team of inList) parked.delete(team);
   const changedText = (e: GeneratedEntry) => e.text !== oldEntry.get(e.team)?.text;
   const byBruno = entries.filter((e) => ask.has(e.team) && e.source === "bruno").length;
   const byTemplate = entries.filter((e) => e.source === "template" && changedText(e)).length;
-  const n = await run(`UPDATE power_rankings_generated SET intro = ?, intro_source = ?, entries = ?, packet = ?, updated = ?, rev = rev + 1
+  const n = await run(`UPDATE power_rankings_generated SET intro = ?, intro_source = ?, entries = ?, parked = ?, packet = ?, updated = ?, rev = rev + 1
      WHERE season = ? AND week = ? AND rev = ? AND status = 'published'`,
-    [intro, introSource, JSON.stringify(entries), JSON.stringify(fresh), day, g.season, g.week, g.rev]);
+    [intro, introSource, JSON.stringify(entries), JSON.stringify([...parked].map(([team, text]) => ({ team, text }))), JSON.stringify(fresh), day, g.season, g.week, g.rev]);
   invalidateGenerated();
   if (!n) {
     // Edited (or hidden) while Bruno was writing: theirs stands. Drop the claim so a later tick checks again.

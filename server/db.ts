@@ -1227,6 +1227,9 @@ CREATE INDEX team_reliability_team ON team_reliability (team, season);
 -- (server/powerRankings/refresh.ts). updated: the New York date of its last check (null: never checked
 -- since it went out); the page says "Updated <day>" when it differs from the publish date.
 ALTER TABLE power_rankings_generated ADD COLUMN updated TEXT;
+-- JSON [{team, text}]: owner-written blurbs of teams a daily check took out of the list, restored if
+-- the team comes back the same week (an owner edit is never lost to a refresh).
+ALTER TABLE power_rankings_generated ADD COLUMN parked TEXT NOT NULL DEFAULT '[]';
 -- One row per week and New York day: the daily check's claim (status 'running') and then its outcome.
 -- Public: counts and a note about public data, no personal data.
 CREATE TABLE power_rankings_refreshes (
