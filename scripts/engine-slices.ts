@@ -24,7 +24,7 @@ import { createHash } from "node:crypto";
 import { mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { gzipSync } from "node:zlib";
-import { ENGINE_VERSION, FITTED_MODEL, RatingBook, explainMatch, predictMatch, type RatingParams } from "@control-scout/predict-engine";
+import { ENGINE_VERSION, FITTED_MODEL, RatingBook, contextualFeatures, explainMatch, predictMatch, type RatingParams } from "@control-scout/predict-engine";
 import { all, kvGet, migrate } from "../server/db.js";
 import { matchKey as keyOf, outcome, predictable, rookieYears, seasonCorpus } from "./slices/corpus.js";
 import { PREDICT_SEASONS, seasonInfo } from "../server/data/seasons.js";
@@ -41,6 +41,8 @@ const OUT = flag("--out") ?? join("docs", "engine", "slices");
 const GATE_OUT = flag("--gate-out") ?? flag("--out") ?? join("docs", "engine", "gates");
 const ROWS = flag("--rows");
 const LIVE = args.includes("--live");
+/** --features: rows also carry the champion's contextual inputs and raw probability (for refitting its weights). */
+const FEATURES = args.includes("--features");
 /** --champion overrides the champion's rating settings, to gate a release after model.json already carries it
  *  (e.g. '{"rating":{"rho1":0.6,"regionKappa":0}}' replays 2.6.0 as the champion). */
 const CHAMPION = flag("--champion") ? (JSON.parse(flag("--champion")!) as { rating?: Partial<RatingParams> }) : null;
@@ -56,7 +58,7 @@ if (!M.contextual?.fallback) throw new Error("this engine has no frozen 2.0 fall
 const MODELS = ["champion", "v2.0", "legacy", ...(CHALLENGER ? ["challenger"] : [])];
 type Model = string;
 
-interface Row { key: string; season: number; event: string; level: string; y: number; rated: boolean; data: DataTags; pred: Record<Model, { p: number; muR: number; muB: number; sdR: number; sdB: number }> }
+interface Row { key: string; season: number; event: string; level: string; time: number; y: number; rated: boolean; data: DataTags; pred: Record<Model, { p: number; muR: number; muB: number; sdR: number; sdB: number }> }
 
 const rookie = await rookieYears();
 const dataVersion = (await kvGet<string>("data:version")) ?? null;
@@ -102,7 +104,7 @@ for (const s of [...SEASONS].sort((a, b) => a - b)) {
       const vol = teams.filter((_, i) => rated[i] >= 6).map((t) => champion.reliabilityOf(t).variance);
       const side = (p: typeof pc, pr: number) => ({ p: pr, muR: p.red.mean, muB: p.blue.mean, sdR: p.red.sd, sdB: p.blue.sd });
       rows.push({
-        key: keyOf(s, m.eventCode, m.level, m.series, m.number), season: s, event: m.eventCode, level: m.level, y: outcome(m), rated: !unrated.has(m.eventCode),
+        key: keyOf(s, m.eventCode, m.level, m.series, m.number), season: s, event: m.eventCode, level: m.level, time: m.time, y: outcome(m), rated: !unrated.has(m.eventCode),
         data: {
           season: s, level: m.level, eventMatch: qualBand(m.level, m.number),
           teamEvent: ordinalBand(Math.min(...teams.map((t) => ordinals.ordinal(t, m.eventCode)))),
@@ -111,6 +113,8 @@ for (const s of [...SEASONS].sort((a, b) => a - b)) {
           volatilityScore: vol.length ? Math.max(...vol) : null,
           eventSize: sizeBand(ev.teams.length || new Set(ev.matches.flatMap((x) => [...x.red.teams, ...x.blue.teams])).size), eventType: typeGroup(ev.type),
         },
+        // Under the event's region, as predictMatch read them (a newcomer's regional start moves its inputs).
+        ...(FEATURES ? { x: champion.withRegion(ctx.region, () => contextualFeatures(champion, m.red.teams, m.blue.teams, { ...pc, pRedWin: pc.pRaw! }, ctx, M.contextual!.coefficients.length)), pRaw: pc.pRaw } : {}),
         pred: { champion: side(pc, pc.pRedWin), "v2.0": side(pc, pc.pShadow!), legacy: side(pl, pl.pRedWin), ...(ph ? { challenger: side(ph, ph.pRedWin) } : {}) },
       });
     } else {
@@ -269,6 +273,7 @@ function markdown(): string {
     "## Global numbers",
     "",
     "`champion` is the live engine; `v2.0` the frozen Engine 2.0 model on the same ratings (the live shadow); `legacy` Engine 1.x, the program's historical baseline (72.7%, Brier 0.179 on 2025–26). The champion's coefficients were fitted on 2023–24 and its calibration on spring 2025, so 2023–24 rows are in-sample for it. 2025–26 is its out-of-sample season, already examined for 2.0 and 2.1, hence **reused**: it sets priorities here and is not proof of any change.",
+    ...(M.contextual!.recalibration ? ["", `**In-sample warning:** the champion's final recalibration (slope ${M.contextual!.recalibration.slope}) was fitted on ${String(M.contextual!.recalibration.provenance?.fittedOn ?? "recent seasons")}, so its numbers on those seasons are in-sample for that step. Forward-only evidence for it is the release's rolling-origin gate in \`docs/engine/gates/\`.`] : []),
     "",
     ...seasonsTable,
     "",

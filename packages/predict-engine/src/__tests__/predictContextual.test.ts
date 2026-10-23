@@ -51,7 +51,13 @@ describe("contextual probability: frozen-model parity", () => {
   it("reproduces every 2.1 golden case (the evaluated round-2 model)", () => {
     const fx21 = JSON.parse(readFileSync(join(__dirname, "fixtures", "contextual-2.1-parity.json"), "utf8")) as { cases: { L: number; d: number[]; p: number }[] };
     expect(fx21.cases.length).toBe(60);
-    for (const { L, d, p } of fx21.cases) expect(Math.abs(contextualProbability(C, L, d) - p)).toBeLessThan(1e-12);
+    // The golden cases are the evaluated 2.1 model; 2.8 only stretches its output by the recalibration slope.
+    const { recalibration, ...model21 } = C;
+    const lg = (p: number) => Math.log(p / (1 - p));
+    for (const { L, d, p } of fx21.cases) {
+      expect(Math.abs(contextualProbability(model21, L, d) - p)).toBeLessThan(1e-12);
+      expect(lg(contextualProbability(C, L, d))).toBeCloseTo(recalibration!.slope * lg(p), 9);
+    }
   });
 
   it("ships the full-precision frozen parameters (2.1, with the 2.0 model as its fallback)", () => {
@@ -304,5 +310,26 @@ describe("shadow predictions (engine 2.1.1)", () => {
     const x = explainMatch(b, [1, 2], [3, 4], { noise: M.noise, calibration: M.calibration, contextual: C, context: { level: "qual" }, shadow: C20 });
     expect(x.shadow).toEqual({ winProbA: predictMatch(b, [1, 2], [3, 4], M.noise, M.calibration, { contextual: C20 }).pRedWin, modelId: C20.id });
     expect(explainMatch(b, [1, 2], [3, 4], { noise: M.noise, calibration: M.calibration, contextual: C }).shadow).toBeNull();
+  });
+});
+
+describe("recalibration (engine 2.8)", () => {
+  it("stretches the contextual probability by the slope, never across 50%, and leaves the shadow alone", async () => {
+    const { FITTED_MODEL } = await import("../model");
+    const { RatingBook } = await import("../rating");
+    const { predictMatch } = await import("../matchModel");
+    const M = FITTED_MODEL, ctx = M.contextual!;
+    expect(ctx.recalibration?.slope).toBeGreaterThan(1);
+    const book = new RatingBook(M.rating);
+    book.startSeason(2025);
+    const al = (teams: number[], np: number) => ({ teams, auto: np * 0.2, teleop: np * 0.7, endgame: np * 0.1, np, penCommitted: 0, total: np });
+    for (let i = 0; i < 12; i++) book.update({ season: 2025, eventCode: "E", level: "qual", series: 0, number: i + 1, time: Date.UTC(2025, 10, 1) + i * 6e4, red: al([1, 2], 140), blue: al([3, 4], 80) });
+    const { recalibration: _r, ...plain } = ctx;
+    const a = predictMatch(book, [1, 2], [3, 4], M.noise, M.calibration, { contextual: ctx, shadow: ctx.fallback });
+    const b = predictMatch(book, [1, 2], [3, 4], M.noise, M.calibration, { contextual: plain as typeof ctx, shadow: ctx.fallback });
+    const lg = (p: number) => Math.log(p / (1 - p));
+    expect(lg(a.pRedWin)).toBeCloseTo(ctx.recalibration!.slope * lg(b.pRedWin), 9);
+    expect(Math.sign(a.pRedWin - 0.5)).toBe(Math.sign(b.pRedWin - 0.5));
+    expect(a.pShadow).toBe(b.pShadow);
   });
 });
