@@ -84,7 +84,11 @@ describe("Home", () => {
     // Two ways into a country: every listed team, and the teams with results.
     expect(screen.getByRole("link", { name: /All 15 listed teams/ }).getAttribute("href")).toBe("/teams?view=listed&country=US");
     expect(screen.getByRole("link", { name: /4 teams with results/ }).getAttribute("href")).toBe("/teams?view=season&country=US");
-    fireEvent.change(screen.getByRole("combobox", { name: /Explore/ }), { target: { value: "CA" } });
+    // The app's own dropdown (Radix Select): open it, then choose.
+    Element.prototype.hasPointerCapture ??= () => false;
+    Element.prototype.scrollIntoView ??= () => {};
+    fireEvent.pointerDown(screen.getByRole("combobox", { name: /Explore/ }), { button: 0, ctrlKey: false, pointerType: "mouse" });
+    fireEvent.click(screen.getByRole("option", { name: /Canada/ }));
     expect(readout()).toBe("Selected countryCanada5team listings · 2026–27");
     // Statistics ready and nobody played: the true zero, and the country still has its directory.
     expect(screen.getByText("No Canada team has played a match yet this season.")).toBeTruthy();

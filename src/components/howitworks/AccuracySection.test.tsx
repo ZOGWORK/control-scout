@@ -13,6 +13,8 @@ vi.mock("../../lib/api", async (orig) => ({
   useApi: () => ({ data, error: undefined, loading: !data, reload: () => {} }),
 }));
 
+vi.mock("../../lib/meta", async (orig) => ({ ...(await orig<typeof import("../../lib/meta")>()), useCurrentSeason: () => 2026 }));
+
 class FakeIO { observe() {} unobserve() {} disconnect() {} takeRecords() { return []; } }
 beforeEach(() => {
   vi.stubGlobal("IntersectionObserver", FakeIO);
@@ -43,6 +45,17 @@ async function mount() {
 }
 
 describe("methodology ledger", () => {
+  it("says the season under way is early and still moving, with last season's final figure; a finished season doesn't", async () => {
+    data = RECORD;
+    const card = within(await mount());
+    // Opens on 2025–26 (the headline): no note.
+    expect(card.queryByText(/Early season: a work in progress/)).toBeNull();
+    fireEvent.click(card.getByRole("button", { name: /^2026–27$/ }));
+    const note = card.getByRole("note");
+    expect(note.textContent).toMatch(/Early season: a work in progress\. Only 198 decided matches so far/);
+    expect(note.textContent).toMatch(/2025–26 ended at 73\.8% over 41,405 decided matches\./);
+  });
+
   it("opens on the headline (the replay while live is under 300 calls) and titles it as a replay", async () => {
     data = RECORD;
     const card = within(await mount());

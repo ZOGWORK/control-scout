@@ -8,8 +8,10 @@ import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { ArrowRight, ArrowUpRight, CalendarDays, LockOpen, MapPin, Radio, Sparkles } from "lucide-react";
 import { useApi, qs } from "../lib/api";
 import { useCurrentSeason, useMediaQuery, useTitle } from "../lib/meta";
-import { usePersonal } from "../lib/personal";
-import type { EventListItem } from "../shared/api";
+import { usePersonal, type AccountUser } from "../lib/personal";
+import { myTeamsOf } from "../lib/myTeams";
+import { countryOf } from "../shared/countries";
+import type { EventListItem, TeamSummary } from "../shared/api";
 import type { HomeOverview } from "../shared/home";
 import { SEARCH_HINT, hitHref, usePageSearch, useSearch } from "../components/layout/Search";
 import { SearchBox } from "../components/search/SearchBox";
@@ -22,11 +24,26 @@ import { CoinFlipRadarSection } from "../components/home/CoinFlipRadar";
 import { HOME_ABOUT, HOME_HEADLINE, HOME_LEAD } from "../shared/boot";
 import { dateRange, place } from "../lib/format";
 
+/** The member's home team: their Control Point team (admin teams first), else the team they follow. */
+export function homeTeamOf(user: AccountUser, myTeam: number | null): number | null {
+  return myTeamsOf(user).teams[0]?.teamNumber ?? myTeam ?? null;
+}
+
+/** The country of a team's reported place ("Oradell, NJ, USA" is US), or null while unknown. Same request
+ *  as the Your team card's, so it's usually answered from the cache. */
+function useHomeCountry(team: number | null, season: number): string | null {
+  const info = useApi<{ teams: TeamSummary[] }>(team ? `/api/teams-summary${qs({ season, teams: String(team) })}` : null);
+  const place = info.data?.teams[0]?.place;
+  return place ? countryOf(place.split(",").at(-1)?.trim())?.code ?? null : null;
+}
+
 export default function Home() {
   useTitle(null);
   // Home stays Home for everyone: your team shows here, it never redirects to My team.
-  const { state } = usePersonal();
+  const { state, user } = usePersonal();
   const season = useCurrentSeason();
+  // The atlas opens on the member's home team's country (signed out: the United States).
+  const homeCountry = useHomeCountry(user ? homeTeamOf(user, state.myTeam) : null, season);
   // A search from outside (/?q=…, the site search named in the home page's structured data).
   const [sp] = useSearchParams();
   const query = sp.get("q")?.trim().slice(0, 100) || undefined;
@@ -44,7 +61,7 @@ export default function Home() {
         <div className="[grid-area:radar]"><CoinFlipRadarSection /></div>
         <div className="[grid-area:events]"><OnTheCalendar season={season} /></div>
         <div className="[grid-area:atlas]">
-          {overview.data ? <CompetitionAtlas overview={overview.data} currentSeason={season} compact={phone} /> : <AtlasPending failed={!!overview.error} onRetry={overview.reload} />}
+          {overview.data ? <CompetitionAtlas overview={overview.data} currentSeason={season} compact={phone} homeCountry={homeCountry} /> : <AtlasPending failed={!!overview.error} onRetry={overview.reload} />}
         </div>
         <div className="[grid-area:record]"><PredictionRecord /></div>
         <div className="[grid-area:usage]"><PublicUsagePanel /></div>
