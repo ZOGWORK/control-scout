@@ -9,7 +9,7 @@ teams, scout, offline, speed, live, report, alerts, rankings, share, workspace,
 picklist, history, fixes). What's new shows them first; the groups below are
 the full release notes, one click away.
 
-## 1.36.0 — 2026-10-23
+## 1.37.0 — 2026-10-23
 
 Saved offline seasons keep themselves current: you're asked when an update is out, or it downloads by itself.
 
@@ -24,6 +24,18 @@ Saved offline seasons keep themselves current: you're asked when an update is ou
 - **Or skip the question.** The Download page and Settings › Offline data have "When updates are out: Ask me / Download automatically" and "Download updates on: Wi-Fi only / Wi-Fi and mobile data". Both sync with your account. The small offline-predictions pack follows the network setting too.
 - **No guessing about Wi-Fi.** Only some browsers tell a site whether it's on Wi-Fi (Chrome on Android does; Safari, iPhone and desktop Chrome don't). Where the browser doesn't say, Wi-Fi only means you're asked first instead of a silent download, and the Download page says so. Data Saver on always asks first (#257).
 - As before, every download is checked against its published SHA-256, and a failed or partial one never replaces the saved copy.
+
+## 1.36.0 — 2026-10-23
+
+Power rankings stay current all week: the top 25 is checked against the latest results every day.
+
+### Highlights
+- [rankings] Power rankings are checked every day, not just Fridays
+- [rankings] The page says when a week was last updated
+- [rankings] Only blurbs for teams that moved are rewritten
+
+### Power rankings
+- **Checked every day.** The current week's top 25 is compared with the latest data every day at midnight New York time. If nothing changed, the week stays exactly as it was and only its date moves ("Published Friday, Oct 23 · Updated Sunday, Oct 25"). If something did, the changed entries are updated, and Bruno rewrites only the blurbs of teams whose place changed; the rest stay word for word. Past weeks and hand-written weeks never change. The owner portal lists each day's check and can switch the refresh off (#255).
 
 ## 1.35.0 — 2026-10-23
 

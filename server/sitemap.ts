@@ -12,6 +12,8 @@ export const CHUNK = 45_000; // under the 50,000-URL limit, and far under 50 MB
 
 interface Entry { loc: string; lastmod?: string }
 const day = (s: string | null | undefined) => (s && /^\d{4}-\d{2}-\d{2}/.test(s) ? s.slice(0, 10) : undefined);
+/** A power-rankings week's lastmod: its last daily refresh when it had one, else its publish date. */
+const lastmodOf = (w: { published: string; generated?: { updated: string | null } }) => w.generated?.updated && w.generated.updated > w.published ? w.generated.updated : w.published;
 const xmlEsc = (s: string) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&apos;");
 
 /** Every URL for the sitemap, in a stable order. */
@@ -39,8 +41,8 @@ export async function sitemapEntries(): Promise<Entry[]> {
   const weeks = (await publishedWeeks()).filter((w) => !w.sample).reverse();
   return [
     ...STATIC_PAGES.map((p) => ({ loc: canonicalUrl(p) })),
-    ...(weeks.length ? [{ loc: canonicalUrl("/power-rankings"), lastmod: weeks[0].published }] : []),
-    ...weeks.map((w) => ({ loc: canonicalUrl(`/power-rankings/${w.week}`), lastmod: w.published })),
+    ...(weeks.length ? [{ loc: canonicalUrl("/power-rankings"), lastmod: lastmodOf(weeks[0]) }] : []),
+    ...weeks.map((w) => ({ loc: canonicalUrl(`/power-rankings/${w.week}`), lastmod: lastmodOf(w) })),
     // lastmod: the source's own change marker (late results, awards and advancement move it); none when unknown.
     ...events.map((e) => ({ loc: canonicalUrl(`/events/${e.season}/${encodeURIComponent(e.code)}`), lastmod: day(e.upstream_updated) })),
     ...teams.map((t) => ({ loc: canonicalUrl(`/teams/${t.number}`), lastmod: day(t.lastmod) })),
