@@ -9,6 +9,18 @@ teams, scout, offline, speed, live, report, alerts, rankings, share, workspace,
 picklist, history, fixes). What's new shows them first; the groups below are
 the full release notes, one click away.
 
+## 1.36.0 — 2026-10-23
+
+Power rankings stay current all week: the top 25 is checked against the latest results every day.
+
+### Highlights
+- [rankings] Power rankings are checked every day, not just Fridays
+- [rankings] The page says when a week was last updated
+- [rankings] Only blurbs for teams that moved are rewritten
+
+### Power rankings
+- **Checked every day.** The current week's top 25 is compared with the latest data every day at midnight New York time. If nothing changed, the week stays exactly as it was and only its date moves ("Published Friday, Oct 23 · Updated Sunday, Oct 25"). If something did, the changed entries are updated, and Bruno rewrites only the blurbs of teams whose place changed; the rest stay word for word. Past weeks and hand-written weeks never change. The owner portal lists each day's check and can switch the refresh off (#255).
+
 ## 1.35.0 — 2026-10-23
 
 Team pages tell search engines exactly who the team is, so a search for a team's number and name finds its page.

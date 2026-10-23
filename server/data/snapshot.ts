@@ -45,6 +45,8 @@ export const PUBLIC_TABLES = [
   // Automatically published power rankings: public pages built from public data (blurbs, ranks, ratings);
   // edited_by is a role, never an email (who edited is in owner_audit, which is private).
   "power_rankings_generated",
+  // The daily refresh log of the current automatic week (migration 42): dates, counts, a note; no personal data.
+  "power_rankings_refreshes",
   // The directory's search index (migration 30): words of public team names and towns, kept by triggers on teams.
   "team_search",
   // Official result changes the sync saw (first postings, score revisions, schedule moves): public match data.

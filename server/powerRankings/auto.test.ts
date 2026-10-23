@@ -15,7 +15,8 @@ import { invalidateFlags } from "../flags";
 import { renderPage } from "../seo";
 import { resetSitemapCache, sitemapEntries } from "../sitemap";
 import { useContentDir } from "./store";
-import { invalidateGenerated } from "./generated";
+import { editGenerated, getGenerated, invalidateGenerated, setGeneratedStatus, toDoc } from "./generated";
+import { dailyRefreshTick } from "./refresh";
 import { autoPowerRankingsTick, buildPacket, publishNow } from "./auto";
 import type { FactPacket } from "./factCheck";
 import type { PowerRankingsResponse } from "../../src/shared/powerRankings";
@@ -27,6 +28,8 @@ const FRI = Date.parse("2026-10-23T04:00:00Z"); // Friday 00:00 EDT, week 43
 const SAT = Date.parse("2026-10-24T15:00:00Z");
 const MON = Date.parse("2026-10-26T04:00:00Z"); // Monday 00:00 EDT
 const NEXT_FRI = Date.parse("2026-10-30T04:00:00Z"); // week 44
+const SAT0 = Date.parse("2026-10-24T04:00:00Z"); // Saturday 00:00 EDT: the first daily check
+const SUN0 = Date.parse("2026-10-25T04:00:00Z");
 
 // --- The stand-in for Control Point -------------------------------------------------------------
 type Mode = "good" | "adversarial" | "error" | "malformed";
@@ -137,7 +140,7 @@ beforeEach(async () => {
   process.env.APP_URL = "https://controlscout.org";
   mode = "good";
   calls.length = 0;
-  for (const t of ["power_rankings_generated", "owner_audit", "feature_flags"]) await run(`DELETE FROM ${t}`);
+  for (const t of ["power_rankings_generated", "power_rankings_refreshes", "owner_audit", "feature_flags"]) await run(`DELETE FROM ${t}`);
   for (const f of ["2026-w42.md", "2026-w43.md", "2026-w44.md"]) rmSync(join(dir, f), { force: true });
   useContentDir(dir);
   invalidateGenerated();
@@ -427,5 +430,231 @@ describe("the owner panel", () => {
     const audit = await all<{ action: string; result: string }>("SELECT action, result FROM owner_audit ORDER BY id");
     expect(audit.map((a) => a.action)).toEqual(["powerRankings.publishNow", "powerRankings.publishNow"]);
     expect(audit[1].result).toMatch(/^refused/);
+  });
+});
+
+describe("the daily refresh", () => {
+  const week = () => getGenerated(S, "2026-w43");
+  const off = async (flag: string) => {
+    await run("INSERT INTO feature_flags (name, enabled, updated_at, updated_by) VALUES (?, 0, ?, 'test')", [flag, new Date().toISOString()]);
+    invalidateFlags();
+  };
+  /** 7003 and 7004 swap places (#4 and #5), everyone else keeps theirs. */
+  const swap = () => rate([...TEAMS.slice(0, 3), 7004, 7003, ...TEAMS.slice(5)]);
+  /** 7010 (#11) gets a new OPR: its numbers change, its place doesn't. */
+  const newOpr = async () => { await run("UPDATE team_season_stats SET opr_np = 123.4 WHERE season = ? AND team = 7010", [S]); await kvSet("data:version", `v${++version}`); };
+
+  it("nothing changed: the stored week is kept exactly, Bruno isn't asked, only the Updated date moves", async () => {
+    await autoPowerRankingsTick(FRI);
+    const before = (await week())!;
+    expect(before.updated).toBeNull();
+    expect(await dailyRefreshTick(SAT0 + 60_000)).toMatchObject({ status: "unchanged", week: "2026-w43", day: "2026-10-24" });
+    const after = (await week())!;
+    expect(after).toEqual({ ...before, updated: "2026-10-24" }); // same text, sources, packet and version
+    expect(calls).toHaveLength(1); // Friday's call only
+    // Once a day: later ticks the same day do nothing; the next day checks again.
+    expect(await dailyRefreshTick(SAT0 + 3600_000)).toMatchObject({ status: "done" });
+    expect(await dailyRefreshTick(SUN0 + 60_000)).toMatchObject({ status: "unchanged", day: "2026-10-25" });
+    expect((await week())!.updated).toBe("2026-10-25");
+    expect(await all("SELECT day, status, changed FROM power_rankings_refreshes ORDER BY day")).toEqual([
+      { day: "2026-10-24", status: "unchanged", changed: 0 }, { day: "2026-10-25", status: "unchanged", changed: 0 },
+    ]);
+    // The page: "Published Friday, Oct 23 · Updated Sunday, Oct 25".
+    const w = (await api("/api/power-rankings/2026-w43")).week!;
+    expect(w).toMatchObject({ published: "2026-10-23", updated: "2026-10-25" });
+    const page = await renderPage(index, "/power-rankings/2026-w43");
+    expect(page.html).toContain("Published Friday, Oct 23 · Updated Sunday, Oct 25");
+    expect(page.html).toContain('"dateModified":"2026-10-25"');
+    expect((await sitemapEntries()).find((e) => e.loc.endsWith("/power-rankings/2026-w43"))?.lastmod).toBe("2026-10-25");
+  });
+
+  it("no Updated line on the day it went out, nor for a week never checked", async () => {
+    await autoPowerRankingsTick(FRI);
+    expect(await dailyRefreshTick(FRI + 3600_000)).toMatchObject({ status: "none" }); // Friday itself
+    const w = (await api("/api/power-rankings/2026-w43")).week!;
+    expect(w.updated).toBeNull();
+    expect((await renderPage(index, "/power-rankings/2026-w43")).html).not.toContain("Updated");
+  });
+
+  it("something changed: only the teams whose place changed go to Bruno, in one call; the rest are kept", async () => {
+    await autoPowerRankingsTick(FRI);
+    const before = (await week())!;
+    await swap();
+    await newOpr();
+    const r = await dailyRefreshTick(SAT0 + 60_000);
+    expect(r).toEqual({ status: "updated", season: S, week: "2026-w43", day: "2026-10-24", changed: 3, bruno: 2, template: 0, kept: 0 });
+    // One more call, with just the two teams that swapped (7010's blurb doesn't mention its OPR, so it stands).
+    expect(calls).toHaveLength(2);
+    expect(calls[1].packet.teams.map((t) => [t.team, t.rank])).toEqual([[7004, 4], [7003, 5]]);
+    const after = (await week())!;
+    expect(after.updated).toBe("2026-10-24");
+    expect(after.rev).toBe(before.rev + 1);
+    expect(after.entries.map((e) => e.team)).toEqual([...TEAMS.slice(0, 3), 7004, 7003, ...TEAMS.slice(5, 25)]);
+    expect(after.entries[3]).toMatchObject({ team: 7004, rank: 4, source: "bruno", text: "Bots 7004 sits at #4 with a rating of 470.0." });
+    expect(after.entries[4]).toMatchObject({ team: 7003, rank: 5, source: "bruno", text: "Bots 7003 sits at #5 with a rating of 460.0." });
+    // Everyone else: Bruno's blurb from Friday, word for word.
+    for (const i of [0, 1, 2, ...Array.from({ length: 20 }, (_, k) => k + 5)]) expect(after.entries[i]).toEqual(before.entries[i]);
+    expect(after.intro).toBe(before.intro); // same leader, still checks out
+    // The stored facts are the new ones (what a later check or Regenerate works from).
+    expect(after.packet.teams.find((t) => t.team === 7010)?.opr).toBe(123.4);
+    const panel = (await call("GET", "/api/owner/power-rankings", { cookie: ownerCookie })).json;
+    expect(panel.daily).toEqual({ enabled: true, nextRun: "2026-11-02T05:00:00.000Z" }); // "today" in these tests is Nov 1
+    expect(panel.weeks[0]).toMatchObject({ updated: "2026-10-24", refreshes: [{ day: "2026-10-24", status: "updated", changed: 3, bruno: 2, template: 0, kept: 0, note: null }] });
+  });
+
+  it("template blurbs are rebuilt from the new numbers without asking Bruno; the template intro too", async () => {
+    mode = "error";
+    await autoPowerRankingsTick(FRI);
+    const before = (await week())!;
+    mode = "good";
+    await newOpr();
+    expect(await dailyRefreshTick(SAT0 + 60_000)).toMatchObject({ status: "updated", changed: 1, bruno: 0, template: 1 });
+    expect(calls).toHaveLength(1); // Friday's (failed) call only
+    const after = (await week())!;
+    expect(after.entries[10]).toMatchObject({ team: 7010, source: "template" });
+    expect(after.entries[10].text).toContain("OPR 123.4");
+    expect(after.entries.filter((e, i) => e.text !== before.entries[i].text).map((e) => e.team)).toEqual([7010]);
+    expect(after.intro).toContain("as of Saturday, Oct 24");
+  });
+
+  it("a template team whose place changed is offered to Bruno; Bruno down means the template again", async () => {
+    mode = "error";
+    await autoPowerRankingsTick(FRI);
+    mode = "good";
+    await swap();
+    expect(await dailyRefreshTick(SAT0 + 60_000)).toMatchObject({ status: "updated", changed: 2, bruno: 2, template: 0 });
+    expect(calls[1].packet.teams.map((t) => t.team)).toEqual([7004, 7003]);
+    await rate();
+    mode = "error";
+    expect(await dailyRefreshTick(SUN0 + 60_000)).toMatchObject({ status: "updated", changed: 2, bruno: 0, template: 2 });
+    expect((await week())!.entries.slice(3, 5).map((e) => [e.team, e.source])).toEqual([[7003, "template"], [7004, "template"]]);
+  });
+
+  it("owner edits are never overwritten, even when the team moves", async () => {
+    await autoPowerRankingsTick(FRI);
+    const g = (await week())!;
+    await editGenerated(S, "2026-w43", { blurbs: [{ team: 7003, text: "Written by the owner." }] }, String(g.rev));
+    await swap();
+    expect(await dailyRefreshTick(SAT0 + 60_000)).toMatchObject({ status: "updated", changed: 2, bruno: 1, kept: 1 });
+    expect(calls[1].packet.teams.map((t) => t.team)).toEqual([7004]);
+    expect((await week())!.entries[4]).toMatchObject({ team: 7003, rank: 5, source: "owner", text: "Written by the owner." });
+  });
+
+  it("an owner edit survives its team leaving the list and coming back", async () => {
+    await autoPowerRankingsTick(FRI);
+    await editGenerated(S, "2026-w43", { blurbs: [{ team: 7024, text: "Written by the owner." }] }, String((await week())!.rev));
+    await run("UPDATE team_season_stats SET rating_matches = 0 WHERE season = ? AND team = 7024", [S]);
+    await kvSet("data:version", `v${++version}`);
+    await dailyRefreshTick(SAT0 + 60_000);
+    const out = (await week())!;
+    expect(out.entries.map((e) => e.team)).not.toContain(7024);
+    expect(out.parked).toEqual([{ team: 7024, text: "Written by the owner." }]);
+    await rate();
+    calls.length = 0;
+    expect(await dailyRefreshTick(SUN0 + 60_000)).toMatchObject({ status: "updated", kept: 1 });
+    expect(calls.flatMap((c) => c.packet.teams.map((t) => t.team))).not.toContain(7024); // never sent to Bruno
+    const back = (await week())!;
+    expect(back.entries[24]).toEqual({ rank: 25, team: 7024, text: "Written by the owner.", source: "owner" });
+    expect(back.parked).toEqual([]);
+  });
+
+  it("a new leader: Bruno's intro is written again (the whole packet goes, one call), blurbs only for teams that moved", async () => {
+    await autoPowerRankingsTick(FRI);
+    await rate([7001, 7000, ...TEAMS.slice(2)]);
+    expect(await dailyRefreshTick(SAT0 + 60_000)).toMatchObject({ status: "updated", changed: 2, bruno: 2 });
+    expect(calls).toHaveLength(2);
+    expect(calls[1].packet.teams).toHaveLength(25);
+    expect((await week())!.introSource).toBe("bruno");
+    expect((await get<{ note: string }>("SELECT note FROM power_rankings_refreshes"))!.note).toBe("intro rewritten (Bruno)");
+  });
+
+  it("keeps the comparison the week went out with, even when that earlier week is hidden", async () => {
+    await rate([7003, ...TEAMS.filter((t) => t !== 7003)]);
+    await autoPowerRankingsTick(Date.parse("2026-10-16T04:00:00Z")); // week 42
+    await rate();
+    await autoPowerRankingsTick(FRI);
+    const before = (await week())!;
+    expect(before.packet.comparedWith).toBe("2026-w42");
+    await setGeneratedStatus(S, "2026-w42", "hidden");
+    // The results didn't change, so neither does the week: same movement, rating changes and dropped teams.
+    expect(await dailyRefreshTick(SAT0 + 60_000)).toMatchObject({ status: "unchanged" });
+    expect((await week())!).toEqual({ ...before, updated: "2026-10-24" });
+    // And when they do change, movement is still counted against week 42.
+    await swap();
+    expect(await dailyRefreshTick(SUN0 + 60_000)).toMatchObject({ status: "updated", changed: 2 });
+    const after = (await week())!;
+    expect(after.packet.comparedWith).toBe("2026-w42");
+    expect(after.packet.teams[3]).toMatchObject({ team: 7004, priorRank: 5, movement: 1, ratingDelta: 10 });
+    expect(after.packet.teams[4]).toMatchObject({ team: 7003, priorRank: 1, movement: -4 });
+  });
+
+  it("a team that drops out and comes back keeps its rating change against the compared week", async () => {
+    await autoPowerRankingsTick(Date.parse("2026-10-16T04:00:00Z")); // week 42: 7000…7024
+    await autoPowerRankingsTick(FRI); // week 43: the same, with rating changes of 0
+    // Saturday 7024 loses its rating (out of the list, 7025 in); Sunday it's back.
+    await run("UPDATE team_season_stats SET rating_matches = 0 WHERE season = ? AND team = 7024", [S]);
+    await kvSet("data:version", `v${++version}`);
+    await dailyRefreshTick(SAT0 + 60_000);
+    expect((await week())!.packet.droppedOut).toEqual([{ team: 7024, lastRank: 25, rating: 260 }]);
+    await rate();
+    await dailyRefreshTick(SUN0 + 60_000);
+    const back = (await week())!;
+    expect(back.packet.teams[24]).toMatchObject({ team: 7024, priorRank: 25, movement: 0, ratingDelta: 0 });
+    expect(back.packet.droppedOut).toEqual([]);
+    // The page's dropped-out list carries no ratings.
+    expect(toDoc((await getGenerated(S, "2026-w43"))!).generated!.droppedOut).toEqual([]);
+  });
+
+  it("Bruno's intro is checked again even when teams only leave the list", async () => {
+    await autoPowerRankingsTick(FRI);
+    await run("UPDATE power_rankings_generated SET intro = 'Bots 7024 rounds out the list at 25th... with 7024 in it.'");
+    // Five teams lose their rating (too few matches): the list shrinks to 20, nobody else changes.
+    await run("UPDATE team_season_stats SET rating_matches = 0 WHERE season = ? AND team >= 7020", [S]);
+    await kvSet("data:version", `v${++version}`);
+    expect(await dailyRefreshTick(SAT0 + 60_000)).toMatchObject({ status: "updated", changed: 0, bruno: 0 });
+    expect(calls).toHaveLength(2);
+    expect(calls[1].packet.teams).toHaveLength(20); // the whole (shorter) list, for the intro
+    const after = (await week())!;
+    expect(after.entries).toHaveLength(20);
+    expect(after.intro).toBe("Week 43 is here.");
+  });
+
+  it("past weeks are frozen, hand-written weeks are never touched, and the switches turn it off", async () => {
+    // A hand-written current week: nothing to do.
+    writeFileSync(join(dir, "2026-w43.md"), weekFile("2026-w43", "2026-10-23", TEAMS));
+    expect(await dailyRefreshTick(SAT0 + 60_000)).toMatchObject({ status: "none" });
+    rmSync(join(dir, "2026-w43.md"));
+    await autoPowerRankingsTick(FRI);
+    const before = (await week())!;
+    await swap();
+    // From the next Friday, week 43 is a past week, even before week 44 is out.
+    expect(await dailyRefreshTick(NEXT_FRI + 60_000)).toMatchObject({ status: "none" });
+    // A week whose generated row a file replaced: never touched.
+    writeFileSync(join(dir, "2026-w43.md"), weekFile("2026-w43", "2026-10-23", TEAMS));
+    expect(await dailyRefreshTick(SAT0 + 60_000)).toMatchObject({ status: "none" });
+    rmSync(join(dir, "2026-w43.md"));
+    await off("dailyPowerRankings");
+    expect(await dailyRefreshTick(SAT0 + 60_000)).toMatchObject({ status: "off" });
+    await run("DELETE FROM feature_flags");
+    await off("autoPowerRankings");
+    expect(await dailyRefreshTick(SAT0 + 60_000)).toMatchObject({ status: "off" });
+    expect(await week()).toEqual(before);
+    expect(calls).toHaveLength(1);
+    expect(await all("SELECT * FROM power_rankings_refreshes")).toEqual([]);
+  });
+
+  it("two servers at once: one check, one Bruno call", async () => {
+    await autoPowerRankingsTick(FRI);
+    await swap();
+    const [a, b] = await Promise.all([dailyRefreshTick(SAT0 + 60_000), dailyRefreshTick(SAT0 + 60_000)]);
+    expect([a.status, b.status].sort()).toEqual(["done", "updated"]);
+    expect(calls).toHaveLength(2);
+  });
+
+  it("the owner panel's switch: off and on through the flags endpoint", async () => {
+    expect((await call("PUT", "/api/owner/flags/dailyPowerRankings", { cookie: ownerCookie, body: { enabled: false } })).status).toBe(200);
+    expect((await call("GET", "/api/owner/power-rankings", { cookie: ownerCookie })).json.daily.enabled).toBe(false);
+    expect((await call("PUT", "/api/owner/flags/dailyPowerRankings", { cookie: ownerCookie, body: { enabled: true } })).status).toBe(200);
+    expect((await call("GET", "/api/owner/power-rankings", { cookie: ownerCookie })).json.daily.enabled).toBe(true);
   });
 });

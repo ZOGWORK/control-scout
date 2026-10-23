@@ -30,6 +30,7 @@ import { photoSchedulerTick } from "./scout/photos.js";
 import { pruneActivity } from "./scout/activityLog.js";
 import { pruneSentLog, pushTick } from "./push/push.js";
 import { autoPowerRankingsTick } from "./powerRankings/auto.js";
+import { dailyRefreshTick } from "./powerRankings/refresh.js";
 import { pingIndexNow } from "./indexNow.js";
 import type { Server } from "node:http";
 
@@ -150,11 +151,15 @@ if (!process.env.CS_NO_SCHEDULER) {
   // Power rankings (server/powerRankings/auto.ts, docs/power-rankings.md): every Friday at 00:00 New York time a
   // top 25 from the live world ranking, blurbs by Bruno. Checked every 5 minutes, so a server that was down at
   // midnight catches up on its next tick (until the week ends); one week per season and week, never two.
+  // Then the daily refresh (server/powerRankings/refresh.ts): the current week checked again once per New York
+  // day from 00:00, catching up the same way; only its date moves when nothing shown changed.
   let prBusy = false;
   const powerRankings = () => {
     if (prBusy) return;
     prBusy = true;
-    autoPowerRankingsTick(Date.now(), log).catch((e) => log(`power rankings: ${(e as Error).message}`)).finally(() => { prBusy = false; });
+    autoPowerRankingsTick(Date.now(), log).catch((e) => log(`power rankings: ${(e as Error).message}`))
+      .then(() => dailyRefreshTick(Date.now(), log)).catch((e) => log(`power rankings refresh: ${(e as Error).message}`))
+      .finally(() => { prBusy = false; });
   };
   setTimeout(powerRankings, 120_000).unref();
   setInterval(powerRankings, 5 * 60_000).unref();
