@@ -1,6 +1,6 @@
 {
   "name": "@control-scout/predict-engine",
-  "version": "2.11.0",
+  "version": "3.0.0",
   "description": "FTC match + event prediction engine shared by Control Scout and Control Point. Pure TypeScript, no network, runs in Node and the browser.",
   "license": "GPL-3.0-only",
   "type": "module",
