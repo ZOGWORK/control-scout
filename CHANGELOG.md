@@ -9,7 +9,7 @@ teams, scout, offline, speed, live, report, alerts, rankings, share, workspace,
 picklist, history, fixes). What's new shows them first; the groups below are
 the full release notes, one click away.
 
-## 1.34.0 — 2026-10-23
+## 1.35.0 — 2026-10-23
 
 Team pages tell search engines exactly who the team is, so a search for a team's number and name finds its page.
 
@@ -23,6 +23,29 @@ Team pages tell search engines exactly who the team is, so a search for a team's
 - **Readable before the app loads.** The first response for a team page carries a short summary and its most recent events as links, so search engines and slow connections read who the team is without running any script. The app takes over as before.
 - **Clearer to search engines.** Each team page describes itself as the team's profile page, with the team's own website and its FIRST page listed as the same team, and a Home › Teams › team trail. A link with ?season= still names the one team address as its canonical.
 - **Fresh in the sitemap.** A team's last-changed date in the sitemap is now the last day it played (or a later correction to those results), instead of the date of the last data sync, which was the same for every team. (#256)
+
+## 1.34.0 — 2026-10-23
+
+The Predict Lab opens on advancement odds, bigger and easier to use, and its season switch works again.
+
+### Highlights
+- [predict] Predict Lab: advancement first, with a larger team box and event list
+- [fixes] The Lab's season switch changes the season again
+- [home] Click a country on the globe; the atlas opens on your team's country
+- [report] The ledger says when the season under way is early and still moving
+
+### Predict Lab
+- **Advancement first.** The Lab opens on Advancement; a custom matchup of any four teams is the second tab. Larger heading and tabs, a big team box, a search box and a taller event list showing each event's type and city. (#258)
+- **Season switch fixed.** Choosing another season in Advancement did nothing: the season and the cleared event were written to the address one after the other, and the second write put the old season back. Both now go in one write.
+- **Outlook before 2025–26.** Advancement points started in 2025–26, so earlier events no longer show a breakdown of zeros; they say why there's none. Once alliances are set, Captain and Picked read Yes or No.
+
+### Home
+- **Click a country on the globe** to see its totals. A mouse press used to be taken for the start of a drag, so clicks didn't reach the country; now a press only turns the globe once it moves.
+- **Opens on your country.** Signed in, the atlas opens on your home team's country (your Control Point team, else the team you follow); signed out, the United States. Choosing another country only changes what's shown, never your default.
+- **Explore** is the app's own dropdown instead of the browser's.
+
+### How it works
+- **Early-season note.** While the season under way has fewer than 3,000 decided matches, the ledger says its figures are early and still moving (most robots have played little, so calls lean on last season), with where last season ended for comparison.
 
 ## 1.33.0 — 2026-10-23
 
