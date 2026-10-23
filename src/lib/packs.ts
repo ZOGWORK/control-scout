@@ -61,10 +61,14 @@ export class ManifestError extends Error {
 }
 
 export async function fetchManifest(): Promise<PackManifest> {
-  if (navigator.onLine === false) throw new ManifestError("unreachable", "You're offline — the pack list loads when you're back online.");
+  // Always asked: navigator.onLine can say offline while the phone is online (iOS), so it only picks the message.
   let r: Response;
   try { r = await fetch("/packs/latest.json", { cache: "no-cache" }); }
-  catch { throw new ManifestError("unreachable", "Can't reach the server right now — try again in a moment."); }
+  catch {
+    throw new ManifestError("unreachable", navigator.onLine === false
+      ? "You're offline — the pack list loads when you're back online."
+      : "Can't reach the server right now — try again in a moment.");
+  }
   if (r.status === 404) throw new ManifestError("none", "No packs have been published on this server yet.");
   // Switched off for now (the offlinePacks flag): the server says so in its own words.
   if (r.status === 503) {

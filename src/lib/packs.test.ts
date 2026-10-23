@@ -89,3 +89,17 @@ describe("syncLite", () => {
     expect(await syncLite()).toMatchObject({ version: "v1" });
   });
 });
+
+describe("fetchManifest and navigator.onLine", () => {
+  afterEach(() => { vi.unstubAllGlobals(); vi.restoreAllMocks(); });
+  it("loads the pack list when the browser wrongly says it's offline (iOS), and says offline only when it really fails", async () => {
+    const { fetchManifest, ManifestError } = await import("./packs");
+    vi.spyOn(navigator, "onLine", "get").mockReturnValue(false);
+    vi.stubGlobal("fetch", vi.fn(async () => new Response(JSON.stringify({ version: "2026-10-23.9", seasons: [] }), { status: 200 })));
+    expect(await fetchManifest()).toMatchObject({ version: "2026-10-23.9" });
+    vi.stubGlobal("fetch", vi.fn(async () => { throw new TypeError("Failed to fetch"); }));
+    const err = await fetchManifest().catch((e) => e);
+    expect(err).toBeInstanceOf(ManifestError);
+    expect(err.message).toMatch(/You're offline/);
+  });
+});
