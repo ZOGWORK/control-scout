@@ -48,6 +48,27 @@ describe("regional prior offsets", () => {
     expect(on.get(10).teleop).toBeCloseTo(off.get(10).teleop, 12);
   });
 
+  it("apply to a newcomer's first prediction when the event's region is given, without storing it", () => {
+    const on = build({ regionKappa: 2 });
+    const plain = on.get(9).teleop, atHot = on.withRegion("HOT", () => on.get(9).teleop);
+    expect(atHot).toBeGreaterThan(plain);
+    expect(on.withRegion("COLD", () => on.get(9).teleop)).toBeCloseTo(plain, 12);
+    expect(on.ratings.has(9)).toBe(false);
+    expect(on.get(9).teleop).toBe(plain); // the hint ends with the call
+    // Off, a region changes nothing.
+    const off = build({});
+    expect(off.withRegion("HOT", () => off.get(9).teleop)).toBe(off.get(9).teleop);
+  });
+
+  it("judge a newcomer's first result against the same starting point it is stored with", () => {
+    const on = build({ regionKappa: 2 });
+    const start = on.withRegion("HOT", () => on.get(9)), exp = on.withRegion("HOT", () => on.allianceExpectation([9, 10]));
+    expect(start.teleop).toBeGreaterThan(on.get(9).teleop);
+    // Two newcomers score exactly what they were expected to, from their regional start: nothing to learn.
+    on.update({ ...match(2025, "HOT", [[9, 10], 0], [[5, 6], 100]), red: { teams: [9, 10], auto: exp.auto, teleop: exp.teleop, endgame: exp.endgame, np: exp.np, penCommitted: 0, total: exp.np } });
+    for (const c of ["auto", "teleop", "endgame"] as const) expect(on.get(9)[c]).toBeCloseTo(start[c], 9);
+  });
+
   it("shrink harder with a larger kappa", () => {
     expect(build({ regionKappa: 50 }).regionOffset("HOT").teleop).toBeLessThan(build({ regionKappa: 2 }).regionOffset("HOT").teleop);
   });

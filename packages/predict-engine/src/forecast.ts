@@ -423,6 +423,12 @@ export abstract class Forecaster {
     // A fresh result can become a pair's best: the fact then names this event.
     if (pairs && ev.name) pairs.nameEvent(ev.season, ev.code, ev.name);
     const book = this.eventBook(ev, seasonBook, pairs);
+    // Teams with no result yet this season start from the event region's regional prior (engine 2.7).
+    return book.withRegion(this.regionOf(ev.code), () => this.forecastOn(ev, myTeam, runs, book, pairs));
+  }
+
+  private forecastOn(ev: EventInput, myTeam: number | null, runs: number, book: RatingBook, pairs: PartnershipOverlay | null): Forecast {
+    const region = this.regionOf(ev.code);
     const stage = this.stageOf(ev);
     const { input, assumptions, adv, bonusDraws } = this.simInput(ev, stage, book, runs);
     if (normType(ev.type) === "Championship" && adv.source !== "official") {
@@ -437,7 +443,7 @@ export abstract class Forecaster {
     const teams: ForecastTeam[] = [...res.values()].map((o) => this.teamView(o, book, o.team === myTeam));
     const matches: ForecastMatch[] = ev.matches.filter((m) => m.red.teams.length && m.blue.teams.length).slice(0, 400).map((m) => {
       const red = m.red.teams.map((t) => t.number), blue = m.blue.teams.map((t) => t.number);
-      const p = !m.played && red.length <= 2 && blue.length <= 2 ? this.predict(book, red, blue, { level: m.level, event: ev.code }) : null;
+      const p = !m.played && red.length <= 2 && blue.length <= 2 ? this.predict(book, red, blue, { level: m.level, event: ev.code, ...(region ? { region } : {}) }) : null;
       return {
         key: m.key, label: m.label, level: m.level, red, blue, pRedWin: p?.pRedWin ?? null, redMean: p?.red.mean ?? null, blueMean: p?.blue.mean ?? null,
         redBand: p?.red.band ?? null, blueBand: p?.blue.band ?? null,
@@ -477,14 +483,16 @@ export abstract class Forecaster {
     const book = this.eventBook(ev, seasonBook);
     const stage = this.stageOf(ev);
     if (stage === "selected") return { role: "none", myTeam, baseline: { pAdvance: 0, pWin: 0, pCaptain: 0 }, options: [] };
-    const { input } = this.simInput(ev, stage, book, runs);
+    // Synchronous reads only under the event's region: the loop below awaits, and the book may be shared.
+    const region = this.regionOf(ev.code);
+    const { input } = book.withRegion(region, () => this.simInput(ev, stage, book, runs));
     const base = simulateEvent(input);
     const me = base.get(myTeam);
     if (!me) return null;
     const role: Partners["role"] = me.pCaptain >= 0.5 ? "captain" : "picked";
     const others = ev.field.map((t) => t.teamNumber).filter((t) => t !== myTeam);
     const pool = role === "captain"
-      ? others.sort((a, b) => npOf(book.get(b)) - npOf(book.get(a))).slice(0, maxOptions)
+      ? book.withRegion(region, () => others.sort((a, b) => npOf(book.get(b)) - npOf(book.get(a))).slice(0, maxOptions))
       : others.filter((t) => (base.get(t)?.pCaptain ?? 0) >= 0.15).sort((a, b) => (base.get(b)!.pCaptain - base.get(a)!.pCaptain)).slice(0, maxOptions);
     const options: PartnerOption[] = [];
     for (const t of pool) {
