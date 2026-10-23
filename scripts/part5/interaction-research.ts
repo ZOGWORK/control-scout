@@ -13,7 +13,8 @@ import { seasonCorpus } from "../slices/corpus.js";
 
 await migrate();
 const M = FITTED_MODEL;
-const book = new RatingBook(M.rating);
+// The additive baseline this gate measures: overlap (engine 2.11, which this research led to) off.
+const book = new RatingBook({ ...M.rating, overlapAuto: 0, overlapTeleop: 0, overlapEndgame: 0 });
 const PH = ["auto", "teleop", "endgame"] as const;
 type Ph = (typeof PH)[number];
 const rows: { season: number; exp: Record<Ph, number>; minP: Record<Ph, number>; miss: Record<Ph, number>; npMiss: number }[] = [];
