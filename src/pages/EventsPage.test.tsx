@@ -23,7 +23,9 @@ vi.mock("../lib/api", async (orig) => ({
   ...(await orig<typeof import("../lib/api")>()),
   useApi: (path: string | null) => ({ data: path?.startsWith("/api/events") ? { events: EVENTS } : undefined, error: undefined, loading: false, reload: () => {} }),
 }));
-vi.mock("../lib/meta", async (orig) => ({ ...(await orig<typeof import("../lib/meta")>()), useCurrentSeason: () => 2026, useTitle: () => {} }));
+// Today's coin flips have their own tests (CoinFlipRadar.test.tsx).
+vi.mock("../components/home/CoinFlipRadar", () => ({ CoinFlipRadarSection: () => null }));
+vi.mock("../lib/meta",async (orig) => ({ ...(await orig<typeof import("../lib/meta")>()), useCurrentSeason: () => 2026, useTitle: () => {} }));
 
 // IntersectionObserver: record each observer so a test can bring the sentinel into view.
 let observers: { cb: IntersectionObserverCallback; el?: Element; live: boolean }[] = [];

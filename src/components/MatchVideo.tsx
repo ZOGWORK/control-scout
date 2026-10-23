@@ -1,7 +1,7 @@
 // Match video, shown inline in a match's details: record on this device
 // (never uploaded) or attach a YouTube link.
 import { useCallback, useEffect, useId, useRef, useState } from "react";
-import { Camera, CircleStop, Download, Link2, Trash2 } from "lucide-react";
+import { Camera, CircleStop, Download, FileVideo, Link2, Trash2 } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "./ui/tabs";
 import { Button } from "./ui/button";
 import { FieldError, Input } from "./ui/basic";
@@ -124,7 +124,37 @@ function Recorder({ matchRef, label }: { matchRef: string; label: string }) {
     setState("recording");
   };
   const stop = () => rec.current?.state === "recording" && rec.current.stop();
-  if (!supported) return <p className="text-sm text-muted-foreground">This browser can't record video. Try Chrome, Edge, Firefox or Safari 14.1+.</p>;
+  // A video filmed some other way (the phone's camera app, a file on this device): kept here the same way.
+  const file = useRef<HTMLInputElement>(null);
+  const [adding, setAdding] = useState(false);
+  const addFile = async (f: File | undefined) => {
+    if (!f) return;
+    setError(null);
+    if (!f.type.startsWith("video/")) { setError("That file isn't a video."); return; }
+    setAdding(true);
+    try {
+      await saveRecording({ matchRef, label, blob: f, mime: f.type, durationMs: await videoLength(f) });
+      toast.success(`Saved on this device (${fmtBytes(f.size)}) — not uploaded`);
+    } catch (e: any) {
+      setError(e?.name === "QuotaExceededError" ? "This device is out of space for recordings. Delete some in Settings → Offline & data." : "Couldn't save the video on this device.");
+    } finally {
+      setAdding(false);
+      if (file.current) file.current.value = "";
+    }
+  };
+  const pick = (
+    <>
+      <input ref={file} type="file" accept="video/*" className="sr-only" tabIndex={-1} aria-hidden onChange={(e) => void addFile(e.target.files?.[0])} />
+      <Button variant={supported ? "secondary" : "default"} disabled={adding} onClick={() => file.current?.click()}><FileVideo /> {adding ? "Saving…" : "Choose a video"}</Button>
+    </>
+  );
+  if (!supported) return (
+    <div className="space-y-3">
+      <p className="text-sm text-muted-foreground">This browser can't record here, but you can film with your camera app and add the video.</p>
+      {error && <p className="text-sm text-destructive">{error}</p>}
+      <div className="flex flex-wrap gap-2">{pick}</div>
+    </div>
+  );
   return (
     <div className="space-y-3">
       <div className="aspect-video overflow-hidden rounded-xl border border-border bg-black">
@@ -138,10 +168,26 @@ function Recorder({ matchRef, label }: { matchRef: string; label: string }) {
         {state === "recording" && <Button variant="destructive" onClick={stop}><CircleStop /> Stop & save</Button>}
         {state === "saving" && <Button disabled>Saving…</Button>}
         {state !== "idle" && state !== "recording" && <Button variant="ghost" onClick={() => { stopAll(); setState("idle"); }}>Turn camera off</Button>}
+        {state === "idle" && pick}
       </div>
       <p className="text-xs text-muted-foreground">The recording is stored in this browser on this device. It isn't uploaded, synced or shared — download it if you want a copy elsewhere.</p>
     </div>
   );
+}
+
+/** A video file's length in ms, read from its metadata (0 when the browser can't tell). */
+function videoLength(f: Blob): Promise<number> {
+  return new Promise((resolve) => {
+    let url: string;
+    try { url = URL.createObjectURL(f); } catch { resolve(0); return; }
+    const v = document.createElement("video");
+    const done = (ms: number) => { URL.revokeObjectURL(url); resolve(Number.isFinite(ms) && ms > 0 ? Math.round(ms) : 0); };
+    v.preload = "metadata";
+    v.onloadedmetadata = () => done(v.duration * 1000);
+    v.onerror = () => done(0);
+    setTimeout(() => done(0), 3000);
+    v.src = url;
+  });
 }
 
 function RecordingItem({ r }: { r: Recording }) {
@@ -179,7 +225,7 @@ export function Recordings() {
   if (error) return <p className="text-sm text-destructive">{error}</p>;
   return (
     <div className="space-y-4">
-      {!list ? <div className="skeleton h-24 rounded-xl" /> : !list.length ? <p className="text-sm text-muted-foreground">No recordings on this device. Open any match (camera icon on a match row) to record one.</p> : <ul className="grid gap-3 md:grid-cols-2">{list.map((r) => <RecordingItem key={r.id} r={r} />)}</ul>}
+      {!list ? <div className="skeleton h-24 rounded-xl" /> : !list.length ? <p className="text-sm text-muted-foreground">No recordings on this device. Open a match, then Video under its details, to record one or add a video you filmed.</p> : <ul className="grid gap-3 md:grid-cols-2">{list.map((r) => <RecordingItem key={r.id} r={r} />)}</ul>}
       {links.length > 0 && (
         <div>
           <p className="mb-2 text-sm font-medium">YouTube links ({links.reduce((s, [, l]) => s + l.length, 0)})</p>

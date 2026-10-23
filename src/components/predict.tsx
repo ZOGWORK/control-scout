@@ -378,14 +378,14 @@ export function MatchList({ matches, highlight, empty, eventNames, eventDates, i
               // A dated event heading reads as a heading: the event's full name, then its dates (under it on phones).
               <h3 className="flex items-center gap-2 border-b border-border bg-muted/40 px-3 py-2">
                 <span className="flex min-w-0 flex-1 flex-col sm:flex-row sm:items-baseline sm:gap-2">
-                  <Link to={g.href!} className="truncate text-sm font-semibold text-text-base hover:text-accent-text hover:underline">{g.title}</Link>
+                  <Link to={g.href!} className="truncate text-base font-semibold text-text-base hover:text-accent-text hover:underline">{g.title}</Link>
                   <span className="shrink-0 text-xs font-normal text-text-muted">{g.date}</span>
                 </span>
                 <span className="shrink-0 rounded-full bg-muted px-2 py-px text-[11px] font-medium tabular-nums text-text-base/80">{g.ms.length}<span className="sr-only"> matches</span></span>
               </h3>
             ) : (
               <h3 className="flex items-center gap-2 border-b border-border bg-muted/40 px-3 py-1.5 text-[11px] font-semibold uppercase tracking-wider text-text-muted">
-                {g.href ? <Link to={g.href} className="truncate normal-case tracking-normal text-[0.8125rem] text-text-base hover:text-accent-text hover:underline">{g.title}</Link> : g.title}
+                {g.href ? <Link to={g.href} className="truncate normal-case tracking-normal text-base text-text-base hover:text-accent-text hover:underline">{g.title}</Link> : g.title}
                 <span className="shrink-0 rounded-full bg-muted px-1.5 py-px text-[10px] tabular-nums text-text-base/80">{g.ms.length}</span>
               </h3>
             ))}
