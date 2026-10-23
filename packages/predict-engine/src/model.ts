@@ -30,7 +30,8 @@ export const FITTED_MODEL = {
   "regionKappa": 20,
   "eventLambdaAuto": 0.4,
   "eventLambdaTeleop": 0.2,
-  "eventKappa": 1
+  "eventKappa": 1,
+  "penGain": 0.15
  },
  "noise": {
   "a": 14,
@@ -426,6 +427,68 @@ export const FITTED_MODEL = {
     ]
    },
    "report": "docs/engine/gates/gate-2.9.0-event-form-snapshot-2026-10-14.md"
+  },
+  "engine210": {
+   "note": "Engine 2.10 fouls: penalties committed learn at 0.15x the scoring gain (penGain). Foul propensity is far less persistent than scoring: under 2.9, actual fouls given away followed only 0.43x (2024-25) and 0.31x (2025-26) of the foul rating; with 0.15 the calibration slope is 1.12 and 0.94. Chosen on 2024-25 (flat region 0.1-0.3). Score MAE (both alliances, rated 2-on-2 matches) 27.741 -> 27.696 (2024-25), 27.669 -> 26.567 (2025-26, reused); foul-term MAE for the most foul-prone quartile 8.33 -> 6.70 and 24.39 -> 18.31. Win-probability Brier: neutral (paired replay vs 2.9.0, intervals include 0); no slice regresses in 2024-25 or 2025-26. Remaining: predicted fouls run ~1 point low on average.",
+   "scoreMae": {
+    "tune2024": [
+     27.741,
+     27.696
+    ],
+    "reused2025": [
+     27.669,
+     26.567
+    ]
+   },
+   "foulSlope": {
+    "tune2024": [
+     0.431,
+     1.117
+    ],
+    "reused2025": [
+     0.308,
+     0.936
+    ]
+   },
+   "tune2024": {
+    "matches": 33271,
+    "brierChange": -0.00001688,
+    "brierChange95": [
+     -0.00005343,
+     0.0000183
+    ],
+    "accuracyChangePp": 0.027,
+    "calibrationError5080": 0.0063,
+    "baselineCalibrationError5080": 0.0061,
+    "regressions": []
+   },
+   "reused2025": {
+    "matches": 36842,
+    "brierChange": -0.00006752,
+    "brierChange95": [
+     -0.0001934,
+     0.00005225
+    ],
+    "accuracyChangePp": 0.011,
+    "calibrationError5080": 0.0081,
+    "baselineCalibrationError5080": 0.0077,
+    "regressions": []
+   },
+   "coldStart2023": {
+    "matches": 28075,
+    "brierChange": 0.00002098,
+    "brierChange95": [
+     -0.00005686,
+     0.0001039
+    ],
+    "accuracyChangePp": -0.014,
+    "calibrationError5080": 0.0014,
+    "baselineCalibrationError5080": 0.0025,
+    "regressions": [
+     "teamMatches: 16+"
+    ]
+   },
+   "report": "docs/engine/gates/gate-2.10.0-fouls-snapshot-2026-10-14.md"
   }
  },
  "calibration": {

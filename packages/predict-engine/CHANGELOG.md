@@ -1,5 +1,36 @@
 # Changelog
 
+## 2.10.0 — 2026-10-23 · Fouls learn slowly
+
+Engine improvement program, Part 6 (fouls), with Part 4 measured and closed in the same round.
+
+**Part 6.** The engine already rated penalties committed per robot and added the opponents' expected
+fouls to an alliance's expected score. `scripts/part6/foul-research.ts` shows that term was badly
+over-dispersed: actual fouls given away followed only 0.43× (2024–25) and 0.31× (2025–26) of the foul
+rating, and the most foul-prone quartile was predicted to give away 32 points where 21 came (2025–26).
+Fouls are mostly luck and officiating, not a persistent trait.
+- **`RatingParams.penGain`**: the update gain for penalties committed is scaled by this; shipped at
+  **0.15** (1 = as before). The prediction, ranges, factor sheet, simulator and contextual inputs all
+  read the same rating, so they stay consistent. DQs stay with the failure state, never the foul
+  term (unchanged).
+- **Foul calibration slope:** 0.43 → **1.12** (2024–25) and 0.31 → **0.94** (2025–26).
+- **Expected-score MAE:** 27.741 → 27.696 (2024–25) and 27.669 → **26.567** (2025–26, reused). For the
+  most foul-prone quartile, the foul term's MAE goes 8.33 → 6.70 and 24.39 → 18.31.
+- **Win-probability Brier:** neutral (2024–25 −0.17 [−0.53, +0.18]; 2025–26 −0.68 [−1.93, +0.52]
+  ×10⁻⁴). No slice regresses in either season. 2023–24 (in-sample, cold start) +0.21 [−0.57, +1.04],
+  with robots with 16+ matches flagged.
+- **Remaining:** predicted fouls run about 1 point low on average.
+- The gate is in `docs/engine/gates/gate-2.10.0-fouls-snapshot-2026-10-14.md`; choice on 2024–25,
+  flat region 0.1–0.3.
+
+**Part 4 (failure mixture, per-team variance): measured, no build** (`scripts/part4/failure-research.ts`).
+- **Win probability is already calibrated by fragility.** Favourites whose robots fail most often (top
+  10% by failure EMA) win within 2 points of their stated chance, inside noise, also at 80%+. The 2.1
+  contextual model's failure and variance inputs already price this.
+- **Score ranges hold for fragile alliances.** Coverage is 80.4–85.2% in every failure band. Their misses
+  fall *above* the range (11–13%) more than below (7–8%): a fragile robot's average rating is dragged
+  down by its bad matches. A failure mixture would widen the ranges downward, the wrong way.
+
 ## 2.9.0 — 2026-10-23 · Event-local form
 
 Engine improvement program, Part 3 (within-event updates).
