@@ -18,6 +18,11 @@ export interface Settings {
   /** Match alerts, plus the notification inbox's per-kind switches (src/shared/inbox.ts): those are
    *  optional and missing means on, so a value saved before they existed is unchanged byte for byte. */
   notify: { myTeamMatches: boolean; trackedTeams: boolean; upsets: boolean; eventStart: boolean } & Partial<Record<InboxToggleKey, boolean>>;
+  /** Saved offline seasons, when a newer release is out: ask first, or download it automatically
+   *  (src/lib/offline/updatePolicy.ts). Optional, missing means "ask", like the inbox switches. */
+  offlineUpdates?: "ask" | "auto";
+  /** Which connections those downloads (and the lite pack's) may use. Missing means Wi-Fi only. */
+  offlineNetwork?: "wifi" | "any";
 }
 
 export interface PersonalState {
@@ -86,6 +91,9 @@ export function cleanValue<K extends PersonalKey>(key: K, v: unknown): PersonalS
         ambient: o.ambient !== false,
         // Known switches only, booleans only. The inbox's are kept only when present (missing: on).
         notify: { ...DEFAULT_SETTINGS.notify, ...Object.fromEntries(Object.entries(o.notify && typeof o.notify === "object" ? o.notify : {}).filter(([k, b]) => NOTIFY_KEYS.has(k) && typeof b === "boolean")) },
+        // Kept only when set to a known value (missing: the default), so older values stay as they were.
+        ...(o.offlineUpdates === "ask" || o.offlineUpdates === "auto" ? { offlineUpdates: o.offlineUpdates } : {}),
+        ...(o.offlineNetwork === "wifi" || o.offlineNetwork === "any" ? { offlineNetwork: o.offlineNetwork } : {}),
       } as PersonalState[K];
     }
     case "videoLinks": {
