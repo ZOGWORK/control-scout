@@ -5,7 +5,7 @@
 //
 // Gathered by a job (refreshCoinFlips) after each sync's live calls are logged, after each live result,
 // and every few minutes in the server (a venue's date turns over at its own midnight), then stored in
-// kv so the server answers from it whichever process gathered it. The home page reads it through
+// kv so the server answers from it whichever process gathered it. The Events page reads it through
 // coinFlips(), which drops rows whose venue has since moved to another day and gathers afresh when the
 // stored radar is missing or old.
 import { createHash } from "node:crypto";

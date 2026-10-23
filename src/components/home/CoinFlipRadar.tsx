@@ -1,4 +1,4 @@
-// The home page's coin-flip radar: today's closest calls across every event on today at its venue
+// The Events page's coin-flip radar: today's closest calls across every event on today at its venue
 // (server/api/coinFlips.ts). Still to play first, as cards with a zoomed 40–60% meter so a 52:48 call
 // reads at a glance; then the ones already decided, with their results. Each opens its match page.
 import { useEffect, useMemo, useState } from "react";

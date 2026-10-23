@@ -120,6 +120,21 @@ function Archive({ archive, current }: { archive: PowerRankingsSummary[]; curren
   );
 }
 
+/** Control Point's landing page, linked wherever the note names it. */
+const CONTROL_POINT_HOME = "https://tryctrlpoint.org";
+
+function GeneratedNote({ text }: { text: string }) {
+  const at = text.indexOf("Control Point");
+  if (at < 0) return <>{text}</>;
+  return (
+    <>
+      {text.slice(0, at)}
+      <a href={CONTROL_POINT_HOME} target="_blank" rel="noreferrer noopener" className="font-medium text-accent-text underline underline-offset-2 hover:no-underline">Control Point</a>
+      {text.slice(at + "Control Point".length)}
+    </>
+  );
+}
+
 function Week({ w, archive, onLink }: { w: PowerRankingsWeek; archive: PowerRankingsSummary[]; onLink: (ev: MouseEvent<HTMLElement>) => void }) {
   return (
     <>
@@ -138,7 +153,7 @@ function Week({ w, archive, onLink }: { w: PowerRankingsWeek; archive: PowerRank
       {w.generated && (
         <p role="note" className="-mt-4 mb-6 max-sm:mb-4 flex max-w-3xl items-start gap-2 rounded-xl border border-accent/30 bg-accent/[0.07] px-3 py-2 text-sm text-text-base/90">
           <Sparkles className="mt-0.5 size-4 shrink-0 text-accent-text" aria-hidden />
-          <span>{generatedNote(w.generated)}</span>
+          <span><GeneratedNote text={generatedNote(w.generated)} /></span>
         </p>
       )}
       <div className={cn("mb-8 max-sm:mb-5 max-w-3xl text-[0.9375rem] leading-relaxed text-text-base/90", PROSE)} onClick={onLink} dangerouslySetInnerHTML={{ __html: w.introHtml }} />

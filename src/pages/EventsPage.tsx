@@ -17,6 +17,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from ".
 import { dateRangeText, DateRangePicker, SeasonSelect } from "../components/records/Controls";
 import { CompactFilters, FilterSection, useCompactFilters, type FilterChip } from "../components/CompactFilters";
 import { cn } from "../components/cn";
+import { CoinFlipRadarSection } from "../components/home/CoinFlipRadar";
 import { EVENT_FILTER_COUNT, EVENT_STATUS_TONE, EVENT_TYPE_TONE } from "../lib/textTones";
 import { dateRange, place, seasonLabel } from "../lib/format";
 import { eventTypeLabel } from "../shared/labels";
@@ -76,6 +77,8 @@ export default function EventsPage() {
         phoneDescription="Every FTC event: results, rankings and odds."
         actions={<Button variant="outline" size="sm" asChild><Link to={`/teams${season !== current ? `?season=${season}` : ""}`}><Users /> Team records <ArrowRight /></Link></Button>}
       />
+      {/* Today's coin flips across every event on today: only this season's events can be on today. */}
+      {season === current && <div className="mb-8"><CoinFlipRadarSection /></div>}
       {/* The filter bar stays up while loading or on an error, so another season can always be picked. */}
       <FilterBar season={season} onSeason={(s) => set({ season: String(s), from: null, to: null }, false)} events={state.data?.events ?? []} {...{ region, type, status, from, to, q, listQ, onQ, set, active }} onClear={clear} />
       <Async state={state} empty={(d) => !d.events.length && <EmptyState icon={CalendarDays} title={`No events listed for ${seasonLabel(season)} yet`} />}>
