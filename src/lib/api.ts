@@ -259,7 +259,7 @@ export function markStale(prefix: string) {
 
 export function invalidate(prefix: string) { for (const k of cache.keys()) if (k.startsWith(prefix)) { cache.delete(k); notify(k); } }
 
-export interface ApiState<T> { data: T | undefined; error: ApiError | undefined; loading: boolean; reload: () => void }
+export interface ApiState<T> { data: T | undefined; error: ApiError | undefined; loading: boolean; /** Settles once the fresh answer (or its error) is in. */ reload: () => Promise<void> }
 
 /** The paths read under a route's error boundary (RouteErrorBoundary), so its "Try again" can ask the
  *  server afresh for them instead of re-rendering the same cached answer. */
@@ -312,7 +312,7 @@ export function useApi<T>(path: string | null, valid?: (data: unknown) => data i
     const cur = cache.get(path);
     if (cur && (offlineSource(cur.data) || cur.error?.offline)) ensureProbe();
   }, [path]);
-  const reload = useCallback(() => { if (pathRef.current) load(pathRef.current, true).catch(() => {}); }, []);
+  const reload = useCallback(() => pathRef.current ? load(pathRef.current, true).then(() => {}, () => {}) : Promise.resolve(), []);
   // An answer of the wrong shape: an error, or loading again while Try again's request is out.
   if (e?.data !== undefined && valid && !valid(e.data)) {
     return { data: undefined, error: e.promise ? undefined : e.error ?? misshapen(e), loading: !!e.promise, reload };
