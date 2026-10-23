@@ -31,11 +31,11 @@
  },
  "band": {
   "level": 0.8,
-  "scale": 1.1,
-  "consistencyPower": 0.3,
-  "smallSample": 0.7,
-  "playoff": 0.6,
-  "rating": 0.75
+  "scale": 0.92,
+  "consistencyPower": 0.66,
+  "smallSample": 0.85,
+  "playoff": 0.72,
+  "rating": 0.59
  },
  "pick": {
   "tau": 18,
@@ -218,6 +218,21 @@
    "baselineCoverageErratic": 0.744,
    "coveragePlayoff": 0.784,
    "baselineCoveragePlayoff": 0.866
+  },
+  "ranges32": {
+   "note": "Engine 3.2 score ranges: band refitted on 2024-25 by the 80% interval score under engine 3.1 (whose expected scores 2.7-2.11 sharpened; the 2.2 band then covered 84-86%), walk-forward, 2-on-2 alliance scores, whole-point ranges, inside = lo <= score <= hi. The playoff factor is set so playoff ranges stay as wide as before (scale x playoff = 0.66): the plain fit (0.59) under-covered 2025-26 and 2023-24 playoffs, so 2025-26 was reused for that one choice. Win probabilities are unchanged; the event simulator draws alliance scores from the same game variance. Research: scripts/part12/band-refit.ts, docs/engine/part12/bands.md.",
+   "testSeason": "2025-26",
+   "testAllianceScores": 73684,
+   "coverage": 0.8143,
+   "baselineCoverage": 0.8554,
+   "intervalScore": 126.6,
+   "baselineIntervalScore": 128.0,
+   "width": 82.0,
+   "baselineWidth": 91.5,
+   "coveragePlayoff": 0.8006,
+   "baselineCoveragePlayoff": 0.8256,
+   "coverageFewerThan6Matches": 0.8416,
+   "baselineCoverageFewerThan6Matches": 0.8699
   },
   "engine21": {
    "note": "Development comparison (superseded by `clean`): the select-block figures used a final calibration fitted on later (Mar-May 2025) outcomes, and 2025-26 results were used to veto candidates. Not forward-only evidence.",

@@ -1,5 +1,30 @@
 # Changelog
 
+## 3.2.0 — 2026-10-23 · Score ranges refitted
+
+Follow-up to Part 12.7. Win probabilities are identical to 3.1.0: the slice replay is bit-identical.
+Score ranges and the event simulator's score spread change.
+
+- **Why:** 2.7–2.11 sharpened the expected scores, but the band (fitted for 2.2) was never refitted.
+  Under 3.1 the 80% ranges held 84–86% of real scores.
+- **Refit** (`scripts/part12/band-refit.ts`, `docs/engine/part12/bands.md`):
+  - Fitted the way 2.2 was: the 80% interval score on 2024–25, walk-forward, whole-point ranges.
+  - Every row's inputs were checked against the served range (196,376 alliance scores).
+- **Band:** scale 1.1 → 0.92, consistencyPower 0.3 → 0.66, smallSample 0.7 → 0.85, rating 0.75 → 0.59,
+  playoff 0.6 → 0.72.
+  - The playoff factor keeps playoff ranges as wide as before (scale × playoff = 0.66).
+  - The plain fit (0.59) under-covered 2025–26 and 2023–24 playoffs, so 2025–26 was reused for that one choice.
+- **2025–26, held out except that choice:**
+  - Coverage: 85.5% → 81.4%.
+  - Interval score: 128.0 → 126.6.
+  - Mean width: 91.5 → 82.0 points.
+  - Playoffs: 82.6% → 80.1%. Robots with fewer than 6 matches: 87.0% → 84.2%.
+  - 2023–24: 84.3% → 81.5%.
+- **Event simulator** (it draws alliance scores from the same game variance), Part 11 Monte Carlo check:
+  - 86.8% of teams inside their P10–P90 band (87.2% under 3.1).
+  - Bands 11.91 ranks wide (12.25).
+  - Median error 3.59 ranks (3.58).
+
 ## 3.1.0 — 2026-10-23 · Ties
 
 Engine program Part 12.6. This is a correctness fix for ranking points, not an accuracy change: win
