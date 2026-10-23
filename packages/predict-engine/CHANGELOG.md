@@ -1,5 +1,50 @@
 # Changelog
 
+## 2.11.0 — 2026-10-23 · Alliance overlap
+
+Engine improvement program, Part 5 (alliance interactions), with Part 7 (playoffs) measured and closed.
+
+**Part 5.** The research gate (`scripts/part5/interaction-research.ts`) regresses each phase's alliance
+miss against the additive expectation on the smaller partner's expected contribution, controlling for
+the alliance's total. For alliances whose robots both have 6+ matches, two robots strong in the same
+phase score less together:
+
+| Phase | 2024–25 | 2025–26 |
+|---|---|---|
+| Auto | −0.16 ± 0.03 per point | −0.40 ± 0.03 |
+| TeleOp | −0.13 ± 0.03 | −0.09 ± 0.03 |
+| Endgame | −0.06 ± 0.04 | 0.00 ± 0.06 |
+
+- **`RatingParams.overlapAuto` / `overlapTeleop` / `overlapEndgame`**, shipped at 0.25 / 0.15 / 0.
+  In a qualification match, a 2-robot alliance's expectation loses overlap × the smaller partner's
+  contribution in that phase.
+- **Where it applies:** `RatingBook.allianceExpectation(teams, level)` and `allianceOverlap`. Rating
+  updates, predictions, ranges, partnership residuals, the factor sheet (still an exact split of the
+  margin) and the simulator (`SimInput.overlap`, from `Forecaster`) all use it.
+- **Playoffs stay additive.** Applying it there made 2024–25 playoffs worse; partners are picked to
+  complement each other.
+- **No per-game tables.** The same three numbers serve every season. 2025–26's auto overlap was more
+  than twice 2024–25's, so a new game can differ, and the live ledger watches it.
+
+**Evidence** (paired replay against 2.10.0; `docs/engine/gates/gate-2.11.0-overlap-snapshot-2026-10-14.md`):
+
+| Season | Δ Brier ×10⁴ [95%] | Quals 1–10 | Playoffs | Score MAE |
+|---|---|---|---|---|
+| 2023–24 (cold start) | −1.38 [−2.54, −0.21] | −1.07 | −0.59 | |
+| 2024–25 (tuning) | −2.06 [−3.54, −0.64] | −3.57 | +0.84 [−1.86, +3.56] | 27.697 → 27.383 |
+| 2025–26 (reused) | −2.41 [−3.68, −1.14] | −3.83 | −3.58 | 26.567 → 26.392 |
+
+- No slice regresses in any season, and accuracy is unchanged.
+- Calibration error in the 50–80% bands: 0.63 → 0.61 (2024–25), and 0.81 → 0.90 (2025–26, a
+  hair worse, within noise).
+
+**Part 7 (playoffs): measured, no build.**
+- The Part 1 slice report already separates quals from playoffs. Playoffs are predicted better than
+  quals (2025–26 Brier 0.158 against 0.170), with the same under-confidence as quals, which 2.8
+  addressed.
+- A playoff calibration slice has no gap to close.
+- A defence term waits for a defence rating, which doesn't exist yet. The brief rules out faking one.
+
 ## 2.10.0 — 2026-10-23 · Fouls learn slowly
 
 Engine improvement program, Part 6 (fouls), with Part 4 measured and closed in the same round.

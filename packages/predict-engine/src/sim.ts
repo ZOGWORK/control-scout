@@ -110,6 +110,9 @@ export interface SimInput {
   variance?: Map<number, { consistency: number; matches: number }>;
   /** Band parameters for `variance` (default DEFAULT_BAND, the same as FITTED_MODEL.band). */
   band?: BandParams;
+  /** Alliance overlap (engine 2.11): per phase, the share of the smaller partner's contribution a 2-robot
+   *  alliance loses in a qualification match, as RatingBook.allianceOverlap applies it. */
+  overlap?: { auto: number; teleop: number; endgame: number };
   bonus?: BonusModel;
   /**
    * Seasons without a fitted bonus model: recorded bonus-RP counts of this
@@ -197,6 +200,13 @@ export function simulateEvent(input: SimInput): Map<number, TeamOutcome> {
     const playScore = (own: number[], opp: number[], playoff = false) => {
       let mean = 0, pen = 0, auto = 0, eg = 0, cons = 0, fewest = Infinity;
       for (const t of own) { const s = str.get(t)!; mean += s.np; auto += s.np * s.autoShare; eg += s.np * s.egShare; cons += s.cons; if (s.games < fewest) fewest = s.games; }
+      const ov = input.overlap;
+      if (ov && !playoff && own.length === 2) {
+        const [a, b] = own.map((t) => str.get(t)!), ph = (s: typeof a, k: "auto" | "teleop" | "endgame") => s.np * (k === "auto" ? s.autoShare : k === "endgame" ? s.egShare : 1 - s.autoShare - s.egShare);
+        const lossA = ov.auto * Math.min(ph(a, "auto"), ph(b, "auto")), lossE = ov.endgame * Math.min(ph(a, "endgame"), ph(b, "endgame"));
+        mean -= lossA + ov.teleop * Math.min(ph(a, "teleop"), ph(b, "teleop")) + lossE;
+        auto -= lossA; eg -= lossE;
+      }
       for (const t of opp) pen += str.get(t)!.pen;
       const sd = vr
         ? Math.sqrt(gameVariance(mean + pen, own.length ? cons / own.length : 1, own.length ? fewest : 0, input.noise, band, playoff ? PLAYOFF : QUAL))

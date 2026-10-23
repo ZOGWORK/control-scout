@@ -94,6 +94,7 @@ export default function MethodologyPage() {
           <SectionHead num="03" eyebrow="Step two" title="From two alliances to one probability" />
           <Prose>
             <p>To predict a match, the engine adds up each alliance's robots, then adds the penalty points the <em>other</em> alliance tends to give away. That's the expected score.</p>
+            <p>Ratings add; alliances don't quite. Two robots that are both strong at the same thing get in each other's way: one launch zone, one set of game pieces, one good auto path. Since engine 2.11, in a qualification match an alliance loses {Math.round((RATING.overlapAuto ?? 0) * 100)}% of the weaker partner's auto and {Math.round((RATING.overlapTeleop ?? 0) * 100)}% of its TeleOp, measured from real alliances that scored less together than their ratings added up to. Endgame showed no such effect. Playoff alliances are left as they are: captains pick partners that complement them.</p>
             <p>Fouls are mostly luck and officiating: a team that gave away a lot of penalty points last week usually gives away far fewer this week. So since engine 2.10 a robot's penalty rating learns at only {Math.round((RATING.penGain ?? 1) * 100)}% of the speed its scoring does, staying close to the season average until a pattern really holds. Before that change, the most foul-prone alliances were predicted to give away about half again as many points as they really did.</p>
             <p>FTC scores are noisy, though. A game piece falls out, a robot tips, a driver misses a park. So each expected score comes with a spread. Fitted on 2024–25, the typical miss is about <code>{NOISE.a} + {NOISE.b} × expected</code> points: bigger scores have bigger swings. On top of that goes the uncertainty in each robot's rating. A team the engine barely knows gets a wider curve.</p>
             <p>Draw both alliances as curves and ask how often red's curve lands to the right of blue's. That share is red's win probability.</p>
@@ -233,6 +234,7 @@ function SettingsTable() {
     ["Playoff weight", String(RATING.playoffWeight), "Eliminations count half"],
     ["Carry-over", `${RATING.rho1} / ${RATING.rho2}`, "Last season / the one before (as z-scores)"],
     ["Rookie start", `z = −${Math.abs(RATING.rookieZ)}`, "New teams start a bit below average"],
+    ["Overlap", `${RATING.overlapAuto ?? 0} / ${RATING.overlapTeleop ?? 0} / 0`, "Share of the weaker partner's auto / TeleOp / endgame an alliance loses in quals"],
     ["Foul learning", `× ${RATING.penGain ?? 1}`, "A robot's penalty rating learns at this share of the scoring gain"],
     ["Today's robot", `${RATING.eventLambdaAuto} / ${RATING.eventLambdaTeleop} / 0`, `Share of a robot's average miss at this event (auto / TeleOp / endgame), fading by ${RATING.eventKappa} ÷ (matches there + ${RATING.eventKappa})`],
     ["Regional start", `shrink ${RATING.regionKappa} teams`, `Region's returning teams' gap after ${DEFAULT_RATING_PARAMS.regionFreezeN} matches, added to a newcomer's start`],

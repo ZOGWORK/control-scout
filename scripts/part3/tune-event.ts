@@ -13,7 +13,8 @@ await migrate();
 const args = process.argv.slice(2);
 const flag = (k: string) => { const i = args.indexOf(k); return i >= 0 ? args[i + 1] : undefined; };
 const M = FITTED_MODEL;
-const configs: Partial<RatingParams>[] = JSON.parse(flag("--configs") ?? "[{}]");
+type Config = Partial<RatingParams>;
+const configs: Config[] = JSON.parse(flag("--configs") ?? "[{}]");
 const corpora: SeasonCorpus[] = [];
 for (const s of [2023, 2024, 2025]) corpora.push(await seasonCorpus(s));
 
