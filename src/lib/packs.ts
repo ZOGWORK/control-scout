@@ -169,7 +169,9 @@ let syncing: Promise<PackMeta | null> | null = null;
  *  right before the download (the connection may have changed while the
  *  manifest loaded): false leaves it for next time. */
 export function syncLite(opts: { allowed?: () => boolean } = {}): Promise<PackMeta | null> {
-  if (syncing) return syncing;
+  // An explicit request (no `allowed`: Get it now) never just joins a background check, which may refuse the
+  // download: it waits for that one, then runs its own (a quick no-op if that one already saved the pack).
+  if (syncing) return opts.allowed ? syncing : syncing.then(() => syncLite(opts));
   syncing = (async () => {
     try {
       const m = await fetchManifest();

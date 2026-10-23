@@ -74,6 +74,14 @@ describe("syncLite", () => {
     expect(packStatus()).toBeNull();
   });
 
+  it("Get it now during a background check that refuses still downloads, once that check is done", async () => {
+    vi.stubGlobal("fetch", server());
+    const background = syncLite({ allowed: () => false }); // started on Wi-Fi, now on mobile data
+    const explicit = syncLite();
+    expect(await background).toBeNull();
+    expect(await explicit).toMatchObject({ version: "v1" });
+  });
+
   it("downloads when allowed (or with no check: Get it now)", async () => {
     vi.stubGlobal("fetch", server());
     expect(await syncLite({ allowed: () => true })).toMatchObject({ version: "v1" });
