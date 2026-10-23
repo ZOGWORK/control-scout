@@ -1,16 +1,19 @@
-# Gate: 3.0-vs-2.6 vs engine 2.11.0 on snapshot-2026-10-14
+# Gate: 3.0-vs-2.6 vs engine 3.0.0 on snapshot-2026-10-14
 
-Generated 2026-10-23 by `scripts/engine-slices.ts --challenger`. Both use the contextual model `ctx-rel-form-2026-10-17-1fdd2958+recal-2026-10-23`. The champion's rating settings are the shipped ones with these overrides (the previous release):
+Generated 2026-10-23 by `scripts/engine-slices.ts --challenger`. The challenger uses the contextual model `ctx-rel-form-2026-10-17-1fdd2958+recal-2026-10-23` (with its final recalibration, slope 1.057692). The champion uses the same model **with the final recalibration removed**, and the shipped rating settings with these overrides (an earlier release); reproduce it with exactly this --champion value:
 
 ```json
 {
- "rho1": 0.6,
- "regionKappa": 0,
- "eventLambdaAuto": 0,
- "eventLambdaTeleop": 0,
- "penGain": 1,
- "overlapAuto": 0,
- "overlapTeleop": 0
+ "rating": {
+  "rho1": 0.6,
+  "regionKappa": 0,
+  "eventLambdaAuto": 0,
+  "eventLambdaTeleop": 0,
+  "penGain": 1,
+  "overlapAuto": 0,
+  "overlapTeleop": 0
+ },
+ "recalibration": false
 }
 ```
 

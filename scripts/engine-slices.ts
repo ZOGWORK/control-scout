@@ -230,8 +230,8 @@ if (CHALLENGER && gate) {
 function gateMarkdown(): string {
   const out = [
     `# Gate: ${CHALLENGER!.name} vs engine ${ENGINE_VERSION} on ${corpusId}`, "",
-    `Generated ${meta.generated} by \`scripts/engine-slices.ts --challenger\`. Both use the contextual model \`${M.contextual!.id}\`. The champion's rating settings are the shipped ones${CHAMPION ? " with these overrides (the previous release)" : ""}:`, "",
-    "```json", JSON.stringify(CHAMPION?.rating ?? {}, null, 1), "```", "", "The challenger's changes:", "",
+    `Generated ${meta.generated} by \`scripts/engine-slices.ts --challenger\`. The challenger uses the contextual model \`${M.contextual!.id}\`${M.contextual!.recalibration ? ` (with its final recalibration, slope ${M.contextual!.recalibration.slope})` : ""}. The champion uses the same model${CHAMPION?.recalibration === false ? " **with the final recalibration removed**" : ""}, and the shipped rating settings${CHAMPION ? " with these overrides (an earlier release); reproduce it with exactly this --champion value" : ""}:`, "",
+    "```json", JSON.stringify(CHAMPION ?? {}, null, 1), "```", "", "The challenger's changes:", "",
     "```json", JSON.stringify(CHALLENGER!.rating ?? {}, null, 1), "```", "",
     "Both replay the same matches in the same order. Changes are challenger minus champion (negative Brier and log loss = challenger better) with 95% intervals from resampling whole events. A slice is a **regression** when its whole Brier interval lies above zero. 2024–25 is the tuning season; 2025–26 is **reused** and reported, not proof.", "",
   ];
@@ -307,7 +307,7 @@ function markdown(): string {
   for (const s of SEASONS.filter((x) => x !== PRIMARY)) {
     const R = reports.champion[String(s)];
     if (!R.all.n) continue;
-    out.push(`## Champion, ${seasonInfo(s).label}${s < 2025 ? " (in-sample for the champion)" : s > 2025 ? " (season in progress)" : " (reused)"}`, "", "Top excess-Brier slices: " + (R.top.map((t) => `${LABELS[t.dim]} **${t.value}** (+${t.excessBrier.toFixed(1)})`).join("; ") || "none"), "", calibrationMarkdown(R.calibration), "", sliceTable(R.dims, ORDER, LABELS));
+    out.push(`## Champion, ${seasonInfo(s).label}${s === 2023 || s === 2024 ? " (in-sample: the contextual model was fitted on 2023–24 and early 2024–25)" : s < 2023 ? " (older season: used to choose no setting)" : s > 2025 ? " (season in progress)" : " (reused)"}`, "", "Top excess-Brier slices: " + (R.top.map((t) => `${LABELS[t.dim]} **${t.value}** (+${t.excessBrier.toFixed(1)})`).join("; ") || "none"), "", calibrationMarkdown(R.calibration), "", sliceTable(R.dims, ORDER, LABELS));
   }
   out.push(`## Baselines on ${primaryLabel}`, "");
   for (const model of ["v2.0", "legacy"] as const) {

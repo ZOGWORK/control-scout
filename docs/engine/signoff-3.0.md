@@ -3,7 +3,7 @@
 Date: 2026-10-23. Engine: 2.11.0 numbers, declared **3.0.0**. Corpus: the pinned snapshot (data
 version 2026-10-14), plus 2019–20 to 2022–23 synced from FIRST's Events API into a local copy (FTC
 Scout fallback for 250 events). Every number below comes from a stored artifact in this folder:
-- `docs/engine/signoff/` holds the full 2019–2025 replay and the paired comparison with 2.6.
+- `docs/engine/signoff/` holds the full 2019–2025 replay (`engine-3.0.0-…`) and the paired comparison with 2.6 (`gate-3.0-vs-2.6-…`, which records the exact `--champion` value: 2.6's settings with the final recalibration removed).
 - `docs/engine/slices/` and `docs/engine/gates/` hold each release.
 
 ## The three-sentence version
@@ -13,7 +13,7 @@ Engine 3.0 rates each robot more like the robot it is today. It accounts for:
 - how little fouls repeat;
 - how two similar robots get in each other's way.
 
-On every past match since 2019–20, replayed in order, its stated chances are closer to what happened than 2.6's in six of seven seasons (the seventh, the mostly-remote 2020–21, is noise), and its calibration error halves. It picks about as many winners as before: the gain is in how much to trust each call, most of all early in seasons and events.
+On every past match since 2019–20, replayed in order, its stated chances are closer to what happened than 2.6's in six of seven seasons (the seventh, the mostly-remote 2020–21, is noise), and its calibration error in the 50–80% range falls in every season, roughly halving in five of seven. It picks about as many winners as before: the gain is in how much to trust each call, most of all early in seasons and events.
 
 ## 1. Global: 2.6.0 (the program's starting champion) → 3.0, on identical matches
 
@@ -47,7 +47,7 @@ Paired replay of the full corpus. The final engine is the challenger. The champi
 ## 2. Slices and calibration (final engine)
 
 The full slice report for every season, with every slice and its movement against 2.6, is in:
-- `signoff/engine-2.11.0-snapshot-2026-10-14.md` (final engine);
+- `signoff/engine-3.0.0-snapshot-2026-10-14.md` (final engine);
 - `signoff/gate-3.0-vs-2.6-snapshot-2026-10-14.md` (paired, every slice and season).
 
 **Slices that got worse beyond noise:**
@@ -82,7 +82,7 @@ They are smaller than at 2.6, but early-season, early-event data is still where 
 | Determinism | Two full replays of 2019–2025 give identical prediction hashes for every model (`meta.rowsSha256`). |
 | Monte Carlo acceptance (midpoint replay, 40 finished 2025–26 events, 2,000 sims each, final engine) | 958 / 1,098 team finishes inside the projected P10–P90 rank band (**87.2%**, target ≥ 80%). 2.5 had 85.7%, 2.6 86.6%. Mean band 12.27 ranks; median miss 3.58 ranks; 295 ms per event. |
 | Equivalence with Control Point | Byte-identical tarball and bit-identical outputs on 71,204 replayed matches at every release 2.7–2.11 and at 3.0.0. |
-| Performance (this laptop; the VM is slower, but the ratio holds) | `explainMatch` median 20.2 µs per call (2.6 settings: 15.7 µs). Full 2025–26 replay with predictions 1.5 s (0.97 s). Full 2019–2025 replay with four models side by side: 17 s. The live API's per-route budget is 300 ms. |
+| Performance (this laptop, two runs; the VM is slower but the ratio holds) | `explainMatch` with the live options (2.0 shadow included; bonus odds excluded): median 11–20 µs per call, against 10–16 µs with 2.6's settings, about 1.1–1.3×. Full 2025–26 replay with predictions 0.7–1.5 s (0.55–0.97 s). Full 2019–2025 replay with four models side by side: 17 s. The live API's per-route budget is 300 ms. |
 
 ## 4. What 3.0 is
 

@@ -1,6 +1,6 @@
-# Engine error report: 2.11.0 on snapshot-2026-10-14
+# Engine error report: 3.0.0 on snapshot-2026-10-14
 
-Generated 2026-10-23 by `scripts/engine-slices.ts`. Engine 2.11.0 (champion model `ctx-rel-form-2026-10-17-1fdd2958+recal-2026-10-23`). Data version 2026-10-14T04:19:58.853Z.
+Generated 2026-10-23 by `scripts/engine-slices.ts`. Engine 3.0.0 (champion model `ctx-rel-form-2026-10-17-1fdd2958+recal-2026-10-23`). Data version 2026-10-14T04:19:58.853Z.
 
 Every match is predicted from earlier results only, in the backtest ledger's order and with its exclusions. The replay is checked against the served prediction call (`explainMatch`) on 664 matches. Slices with fewer than 200 matches are marked ⚠ low n and are never ranked.
 
@@ -186,7 +186,7 @@ Ranked by **excess Brier**: the Brier a slice carries above an average match, su
 | close | 8,587 | 23.3% | 33.4% | 57.58% | 0.2398 | 0.6782 | +623.1 | 56.9% → 57.5% | −0.3‰ |
 | lopsided | 9,248 | 25.1% | 10.7% | 91.99% | 0.0713 | 0.2635 | −886.6 | 92.1% → 91.9% | +1.7‰ |
 
-## Champion, 2019–20 (in-sample for the champion)
+## Champion, 2019–20 (older season: used to choose no setting)
 
 Top excess-Brier slices: Data density (all four robots' rated matches) **thin** (+88.9); Event phase: qualification match number **q1-10** (+81.3); Rated matches this season (fewest on the field) **0-5** (+58.8)
 
@@ -289,7 +289,7 @@ Top excess-Brier slices: Data density (all four robots' rated matches) **thin** 
 | close | 6,173 | 40.1% | 49.8% | 56.01% | 0.2405 | 0.6830 | +288.8 | 55.7% → 55.9% | +0.1‰ |
 | lopsided | 1,160 | 7.5% | 3.0% | 91.34% | 0.0768 | 0.2833 | −135.6 | 90.9% → 91.2% | −3.6‰ |
 
-## Champion, 2020–21 (in-sample for the champion)
+## Champion, 2020–21 (older season: used to choose no setting)
 
 Top excess-Brier slices: Rated matches this season (fewest on the field) **0-5** (+7.0); Event phase: robot's event of the season (lowest on the field) **1st** (+6.1); Data density (all four robots' rated matches) **thin** (+5.8)
 
@@ -391,7 +391,7 @@ Top excess-Brier slices: Rated matches this season (fewest on the field) **0-5**
 | close ⚠ low n | 110 | 19.5% | 28.2% | 54.21% | 0.2402 | 0.6882 | +8.2 | 55.9% → 54.1% | +3.1‰ |
 | lopsided | 230 | 40.8% | 21.4% | 89.78% | 0.0869 | 0.3089 | −18.2 | 92.8% → 88.9% | +23.9‰ |
 
-## Champion, 2021–22 (in-sample for the champion)
+## Champion, 2021–22 (older season: used to choose no setting)
 
 Top excess-Brier slices: Data density (all four robots' rated matches) **thin** (+87.0); Event phase: qualification match number **q1-10** (+58.9); Rated matches this season (fewest on the field) **0-5** (+50.3)
 
@@ -495,7 +495,7 @@ Top excess-Brier slices: Data density (all four robots' rated matches) **thin** 
 | close | 3,323 | 25.1% | 33.3% | 55.90% | 0.2425 | 0.6829 | +197.6 | 55.6% → 55.8% | −0.0‰ |
 | lopsided | 3,185 | 24.1% | 12.0% | 89.47% | 0.0913 | 0.3217 | −292.0 | 89.5% → 89.3% | +1.2‰ |
 
-## Champion, 2022–23 (in-sample for the champion)
+## Champion, 2022–23 (older season: used to choose no setting)
 
 Top excess-Brier slices: Data density (all four robots' rated matches) **thin** (+104.8); Event phase: qualification match number **q1-10** (+70.7); Rated matches this season (fewest on the field) **0-5** (+61.5)
 
@@ -598,7 +598,7 @@ Top excess-Brier slices: Data density (all four robots' rated matches) **thin** 
 | close | 5,296 | 21.9% | 31.2% | 57.38% | 0.2407 | 0.6801 | +380.5 | 56.3% → 57.3% | −0.4‰ |
 | lopsided | 7,164 | 29.6% | 13.4% | 91.33% | 0.0767 | 0.2803 | −660.0 | 91.2% → 91.2% | −0.7‰ |
 
-## Champion, 2023–24 (in-sample for the champion)
+## Champion, 2023–24 (in-sample: the contextual model was fitted on 2023–24 and early 2024–25)
 
 Top excess-Brier slices: Data density (all four robots' rated matches) **thin** (+198.3); Rated matches this season (fewest on the field) **0-5** (+144.5); Event phase: qualification match number **q1-10** (+142.4)
 
@@ -701,7 +701,7 @@ Top excess-Brier slices: Data density (all four robots' rated matches) **thin** 
 | close | 6,061 | 21.6% | 30.4% | 56.77% | 0.2407 | 0.6795 | +423.5 | 56.4% → 56.7% | −0.6‰ |
 | lopsided | 8,261 | 29.4% | 13.3% | 91.27% | 0.0771 | 0.2819 | −773.9 | 91.2% → 91.1% | +0.4‰ |
 
-## Champion, 2024–25 (in-sample for the champion)
+## Champion, 2024–25 (in-sample: the contextual model was fitted on 2023–24 and early 2024–25)
 
 Top excess-Brier slices: Event phase: qualification match number **q1-10** (+185.4); Data density (all four robots' rated matches) **thin** (+164.3); Rated matches this season (fewest on the field) **0-5** (+106.2)
 
