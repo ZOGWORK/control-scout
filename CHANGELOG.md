@@ -19,7 +19,7 @@ Score ranges are tighter and honest again: about 8 in 10 real scores land inside
 - [rankings] Event simulations spread scores to match
 
 ### Predictions
-- **Tighter score ranges.** Every predicted score comes with an 80% range. Since this week's engine changes made expected scores more accurate, those ranges had grown too cautious: they held about 85% of real scores instead of 80%. Their width is now refitted on 2024–25 matches; replayed over 2025–26, a season the refit wasn't fitted on, 81.4% of real scores land inside, and the ranges are about 10 points narrower. Playoff ranges stay as wide as before. Event simulations draw scores with the same spread, and still put 87% of teams' real final ranks inside their projected range. Win odds are unchanged. Prediction engine 3.2.0 (#253).
+- **Tighter score ranges.** Every predicted score comes with an 80% range. Since this week's engine changes made expected scores more accurate, those ranges had grown too cautious: they held about 85% of real scores instead of 80%. Their width is now refitted on 2024–25 matches; replayed over 2025–26, 81.4% of real scores land inside, and the ranges are about 10 points narrower. Playoff ranges stay as wide as before: that one setting was chosen after looking at 2025–26 playoffs, so the 2025–26 figure isn't a fully independent check. Event simulations draw scores with the same spread, and still put 87% of teams' real final ranks inside their projected range. Win odds are unchanged. Prediction engine 3.2.0 (#253).
 
 ## 1.31.0 — 2026-10-23
 
