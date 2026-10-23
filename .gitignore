@@ -16,3 +16,4 @@ packs-out/
 
 # Offline packs shipped with the app (lite + current season), see server/data/snapshot.ts
 !data/packs/*.db
+build/

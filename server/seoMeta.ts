@@ -448,11 +448,11 @@ export function headTags(path: string, m: PageMeta): string {
   return tags.join("\n    ");
 }
 
-/** The prerendered How it works page (dist/prerender/methodology.html, or CS_PRERENDER_DIR), read once; null before a build. */
+/** The prerendered How it works page (build/prerender/methodology.html, outside the public dist/, or CS_PRERENDER_DIR), read once; null before a build. */
 let methodologyCache: string | null | undefined;
 export function methodologyHtml(): string | null {
   if (methodologyCache === undefined) {
-    const f = join(process.env.CS_PRERENDER_DIR ?? join(process.cwd(), "dist", "prerender"), "methodology.html");
+    const f = join(process.env.CS_PRERENDER_DIR ?? join(process.cwd(), "build", "prerender"), "methodology.html");
     methodologyCache = existsSync(f) ? readFileSync(f, "utf8") : null;
   }
   return methodologyCache;
