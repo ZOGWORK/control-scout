@@ -9,7 +9,7 @@ teams, scout, offline, speed, live, report, alerts, rankings, share, workspace,
 picklist, history, fixes). What's new shows them first; the groups below are
 the full release notes, one click away.
 
-## 1.33.0 — 2026-10-23
+## 1.35.0 — 2026-10-23
 
 Saved offline seasons keep themselves current: you're asked when an update is out, or it downloads by itself.
 
@@ -24,6 +24,33 @@ Saved offline seasons keep themselves current: you're asked when an update is ou
 - **Or skip the question.** The Download page and Settings › Offline data have "When updates are out: Ask me / Download automatically" and "Download updates on: Wi-Fi only / Wi-Fi and mobile data". Both sync with your account. The small offline-predictions pack follows the network setting too.
 - **No guessing about Wi-Fi.** Only some browsers tell a site whether it's on Wi-Fi (Chrome on Android does; Safari, iPhone and desktop Chrome don't). Where the browser doesn't say, Wi-Fi only means you're asked first instead of a silent download, and the Download page says so. Data Saver on always asks first (#257).
 - As before, every download is checked against its published SHA-256, and a failed or partial one never replaces the saved copy.
+
+## 1.33.0 — 2026-10-23
+
+Small fixes: Compare lets you pick the team the others are measured against, and match videos can be added from your camera app.
+
+### Highlights
+- [teams] Compare: drag teams into order; the first is the baseline, tinted yellow
+- [scout] Add a match video you filmed with your camera app, or any video file
+- [live] Today's coin flips moved from Home to the Events page
+- [fixes] Check again shows it's checking; event names in match lists are larger
+
+### Compare
+- **Reorder the teams.** Drag a team's grip (mouse or touch) onto another column, or use the arrow keys on it. The first team is the baseline the others are measured against: its column is tinted light yellow and tagged Baseline. Reordering doesn't load the comparison again, and head to head follows the baseline: its matches with or against the others, from its side. Dragging near the table's edge on a phone scrolls it. (#254)
+
+### Scouting
+- **Add a video you filmed.** A match's Video box now has Choose a video next to Start camera: pick a video from this device (or film one with the phone's camera app); MOV, MP4, WebM and other common formats, downloaded again with their own extension. It's kept on this device like an in-app recording, never uploaded. Browsers that can't record in the page still offer it. The box says what it holds (record, add a file or a YouTube link), and Settings no longer points at a camera icon that isn't there.
+
+### Home and events
+- **Today's coin flips are on the Events page,** above the event list (current season), instead of on Home.
+
+### Fixes
+- **Check again** (statistics catching up) spins and reads Checking… until the fresh answer is in.
+- **Event names** heading a match list are a size up, no longer smaller than the match numbers.
+- **Power rankings:** "Control Point" in the Bruno note links to Control Point.
+- **Scouting report button** on each match row is a soft solid gold, so it stands out.
+- **"OPR at this time"** replaces "OPR here" next to a team's OPR at an event (match details, the pre-match report, the model-vs-field list).
+- **Shortlist:** the list view drops the Reliab. column to make room; reliability still shows in the grid view and on Compare.
 
 ## 1.32.0 — 2026-10-23
 

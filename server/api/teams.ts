@@ -166,6 +166,22 @@ export async function teamProfile(number: number, season?: number): Promise<Team
   };
 }
 
+/** Schedule order, as matchViews returns matches: by time (none first), event, quals before playoffs, series, number. */
+export function bySchedule(a: { time: string | null; code: string; level: string; series: number; number: number }, b: typeof a): number {
+  return (a.time ?? "").localeCompare(b.time ?? "") || a.code.localeCompare(b.code) || b.level.localeCompare(a.level) || a.series - b.series || a.number - b.number;
+}
+
+/** How a match relates the compared teams, seen from the first of them in it: "opponents" when another compared
+ *  team was on the other side, "partners" when only on the same side, null when no other compared team played. */
+export function relationOf(numbers: number[], red: number[], blue: number[]): "opponents" | "partners" | null {
+  const base = numbers.find((n) => red.includes(n) || blue.includes(n));
+  if (base == null) return null;
+  const mine = red.includes(base) ? red : blue, theirs = mine === red ? blue : red;
+  const others = numbers.filter((n) => n !== base);
+  if (others.some((o) => theirs.includes(o))) return "opponents";
+  return others.some((o) => mine.includes(o)) ? "partners" : null;
+}
+
 export async function compareTeams(numbers: number[], season: number): Promise<CompareView> {
   const teams = await Promise.all(numbers.map(async (n) => {
     const [info, stats, events] = await Promise.all([teamInfo(n), seasonStats(season, n), teamEvents(season, n)]);
@@ -175,18 +191,24 @@ export async function compareTeams(numbers: number[], season: number): Promise<C
       events: events.map((e) => ({ code: e.code, name: e.name, start: e.start, opr: e.opr.np, auto: e.opr.auto, teleop: e.opr.teleop, endgame: e.opr.endgame, rank: e.rank })),
     };
   }));
-  // Matches where at least two of the compared teams both played.
+  // Matches where at least two of the compared teams both played, between any of them: the page shows the ones
+  // its first team (the baseline, which the member can change without asking again) played in. `relation` is from
+  // the side of the first requested team that played.
   const meetings: CompareView["meetings"] = [];
   if (numbers.length >= 2) {
-    const first = await matchViews({ season, team: numbers[0] });
-    for (const m of first) {
-      if (!m.played) continue;
-      const red = m.red.teams.map((t) => t.number), blue = m.blue.teams.map((t) => t.number);
-      const others = numbers.slice(1);
-      const together = others.some((o) => (red.includes(numbers[0]) && red.includes(o)) || (blue.includes(numbers[0]) && blue.includes(o)));
-      const against = others.some((o) => (red.includes(numbers[0]) && blue.includes(o)) || (blue.includes(numbers[0]) && red.includes(o)));
-      if (together || against) meetings.push({ ...m, relation: against ? "opponents" : "partners" });
-    }
+    const seen = new Set<string>();
+    for (const n of numbers.slice(0, -1)) {
+      for (const m of await matchViews({ season, team: n })) {
+        const id = `${m.code}:${m.key}`;
+        if (!m.played || seen.has(id)) continue;
+        const relation = relationOf(numbers, m.red.teams.map((t) => t.number), m.blue.teams.map((t) => t.number));
+        if (!relation) continue;
+        seen.add(id);
+        meetings.push({ ...m, relation });
+      }
+    }    // Each team's list comes in schedule order; merged, they're put back in it (as matchViews orders: time, event,
+    // quals before playoffs, series, number), so an event's matches stay together in one section.
+    meetings.sort(bySchedule);
   }
   return { season, teams, meetings };
 }
