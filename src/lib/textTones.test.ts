@@ -36,6 +36,9 @@ function value(theme: Theme, name: string, depth = 0): RGBA {
   return c;
 }
 
+/** Status colours whose small text swaps to a deeper shade on light, read from index.css's `:where(html.light) .text-*` rules. */
+const TEXT_SWAPPED = new Set([...css.matchAll(/:where\(html\.light\) \.text-([\w-]+) \{ color: var\(--color-\1-text\); \}/g)].map((m) => m[1]));
+
 /** The colour a utility like `text-sky-700`, `bg-green-500/12`, `bg-info/[0.08]` or `!text-foreground` paints in this theme. */
 function utility(theme: Theme, classes: string, prop: "text" | "bg"): RGBA | null {
   let found: RGBA | null = null;
@@ -50,7 +53,9 @@ function utility(theme: Theme, classes: string, prop: "text" | "bg"): RGBA | nul
     // A colour class with an alpha this can't read would be measured against the wrong background: fail loudly.
     if (!known && new RegExp(`^!?${prop}-.*/`).test(util)) throw new Error(`can't read the alpha in ${cls}`);
     if (!m || !known) continue;
-    const c = value(theme, `--color-${m[1]}`);
+    // Status text on light takes its deeper -text shade (the .text-* rules at the end of index.css).
+    const textToken = prop === "text" && theme === "light" && vars.light[`--color-${m[1]}-text`] && TEXT_SWAPPED.has(m[1]);
+    const c = value(theme, textToken ? `--color-${m[1]}-text` : `--color-${m[1]}`);
     const alpha = m[2] ? +m[2] / 100 : m[3] ? (m[4] ? +m[3] / 100 : +m[3]) : c[3];
     // A plain class sets the colour unless a `dark:` one already did for dark.
     if (variant === "dark" || !found || theme === "light") found = [c[0], c[1], c[2], alpha];

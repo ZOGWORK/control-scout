@@ -50,6 +50,16 @@
   --color-success: #34d399;
   --color-warning: #fb923c;
   --color-danger: #fb7185;
+  /* Status colours as small text. On dark they are the bright shades above; on light (html.light) a deeper
+     shade of the same hue, and the .text-* rules at the end of this file swap them in, so bars, tints and
+     borders keep the bright shade in both themes. */
+  --color-info-text: var(--color-info);
+  --color-success-text: var(--color-success);
+  --color-warning-text: var(--color-warning);
+  --color-danger-text: var(--color-danger);
+  --color-destructive-text: var(--color-destructive);
+  --color-red-alliance-text: var(--color-red-alliance);
+  --color-blue-alliance-text: var(--color-blue-alliance);
   --color-text-base: var(--sh-foreground);
   --color-text-muted: var(--sh-muted-foreground);
   /* Alliance colours (match cards, bars) */
@@ -109,7 +119,7 @@ html.light {
   --sh-muted-foreground: #52525b;
   --sh-border: #e4e4e7;
   --sh-input: #e4e4e7;
-  --sh-destructive: #b91c1c;
+  --sh-destructive: #e11d48;
   --sh-chart-2: #0284c7;
   --sh-chart-3: #059669;
   --sh-chart-4: #7c3aed;
@@ -121,16 +131,25 @@ html.light {
   /* Gold on light, the owner's calls (Oct 20 2026). Large display text (the profile's "Top 8%", Home's headline)
      is the accent itself, #eab308, knowingly under 3:1 on white; textTones.test.ts lists it as the one exception.
      Small gold text (best values, the chosen season, links, chips) is a deep amber that reaches 4.5:1 on white and
-     on the accent's own tints up to 25% (V4-A11Y-003: #eab308 measured 1.8:1 there). Green, red, blue and orange
-     are the most vivid shades that still reach 4.5:1, on white and on their own chip tints. */
+     on the accent's own tints up to 25% (V4-A11Y-003: #eab308 measured 1.8:1 there).
+     Status colours, the owner's call (Oct 23 2026): the same hues as dark (emerald, rose, sky, orange), bright
+     for bars, tints and borders, and a deeper shade of that hue (the -text tokens) for small text, which still
+     reaches 4.5:1 on white and on its own chip tints. Light used to darken every use, so it read muddy. */
   --color-accent-display: #eab308;
   --color-accent-text: #875200;
-  --color-info: #2152e0;
-  --color-success: #147238;
-  --color-warning: #b23a0a;
-  --color-danger: #b91c1c;
-  --color-red-alliance: #b91c1c;
-  --color-blue-alliance: #2152e0;
+  --color-info: #0ea5e9;
+  --color-success: #10b981;
+  --color-warning: #f97316;
+  --color-danger: #f43f5e;
+  --color-red-alliance: #f43f5e;
+  --color-blue-alliance: #0ea5e9;
+  --color-info-text: #0369a1;
+  --color-success-text: #047857;
+  --color-warning-text: #bc3f0b;
+  --color-danger-text: #be123c;
+  --color-destructive-text: #be123c;
+  --color-red-alliance-text: #be123c;
+  --color-blue-alliance-text: #0369a1;
   --grid-rgb: 9 9 11;
   --cp-grid-alpha: 0.05;
   color-scheme: light;
@@ -330,4 +349,16 @@ html.compact .density-card { padding: 0.875rem; }
     transition-duration: 0.01ms !important;
     scroll-behavior: auto !important;
   }
+}
+
+/* Small status text on light takes the deeper -text shade (see html.light). :where keeps these at a single
+   class's weight, so hover/focus variants still win, as they would over the plain utility. */
+@layer utilities {
+  :where(html.light) .text-info { color: var(--color-info-text); }
+  :where(html.light) .text-success { color: var(--color-success-text); }
+  :where(html.light) .text-warning { color: var(--color-warning-text); }
+  :where(html.light) .text-danger { color: var(--color-danger-text); }
+  :where(html.light) .text-destructive { color: var(--color-destructive-text); }
+  :where(html.light) .text-red-alliance { color: var(--color-red-alliance-text); }
+  :where(html.light) .text-blue-alliance { color: var(--color-blue-alliance-text); }
 }
