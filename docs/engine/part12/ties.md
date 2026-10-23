@@ -64,6 +64,18 @@ Stated against observed tie rate (%) by closeness quintile, from least to most e
 - **Simulator:** a simulated qual whose final scores land within w/2 of each other is a tie (`SimInput.tieWidth`, set by the forecaster). Played matches keep their real results.
 - **Headline win% is unchanged.** It is still "win, with a tie counted half", which is how every accuracy figure scores it. How it works now says so.
 
+## Monte Carlo check (Part 11 delta re-run)
+
+`npm run projections:replay -- 2025 --events 40 --runs 2000`: 40 finished 2025–26 events, cut at their midpoint, 2,000 simulations each. The input comes from the engine's own forecaster, so ties are on.
+
+| | 3.0.0 | 3.1.0 |
+|---|---|---|
+| Final ranks inside the midpoint P10–P90 band | 958 / 1,098 (87.2%) | 958 / 1,098 (87.2%) |
+| Mean P10–P90 width | 12.27 ranks | 12.25 ranks |
+| Mean \|actual − median\| | 3.58 ranks | 3.58 ranks |
+
+Ties leave the simulator's acceptance unchanged.
+
 ## Effect, stated honestly
 
 This is small. One match in about 130 ties.
