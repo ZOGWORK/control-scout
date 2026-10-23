@@ -86,11 +86,11 @@ export function eventFormReasons(book: RatingBook, teams: number[], event: strin
   if (!event) return [];
   const out: string[] = [];
   for (const t of teams) {
-    const o = book.eventOffset(t, event), s = book.eventFormOf(t);
-    if (!o || !s) continue;
-    const pts = o.auto + o.teleop + o.endgame;
-    // Called under the event (explainMatch): the rating read here includes the adjustment, so take it back out.
-    const r = book.get(t), usual = r.auto + r.teleop + r.endgame - pts;
+    const s = book.eventFormOf(t);
+    if (!s || !book.eventOffset(t, event)) continue;
+    // What the prediction actually uses (each phase stops at zero) against the permanent rating.
+    const np = (r: { auto: number; teleop: number; endgame: number }) => r.auto + r.teleop + r.endgame;
+    const usual = np(book.permanent(t)), pts = book.withEvent(event, () => np(book.get(t))) - usual;
     if (Math.abs(pts) < Math.max(EVENT_FORM_RULE.points, EVENT_FORM_RULE.share * usual)) continue;
     out.push(`Team ${t} is playing about ${Math.round(Math.abs(pts))} points ${pts > 0 ? "above" : "below"} its usual level at this event (${s.n} match${s.n === 1 ? "" : "es"} here)`);
   }
