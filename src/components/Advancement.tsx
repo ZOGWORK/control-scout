@@ -22,6 +22,8 @@ import { ADVANCE_LABEL, advanceStatus, type ProjectionRun, type ProjectionsView 
 
 const ease = [0.2, 0.8, 0.2, 1] as const;
 const pct = (p: number | null | undefined, decided = false) => oddsPct(p, decided);
+/** A seat that alliance selection already settled: it was taken or it wasn't. */
+const yesNo = (p: number | null | undefined) => ((p ?? 0) >= 0.5 ? "Yes" : "No");
 const rankRange = (a: number, b: number) => (Math.round(a) === Math.round(b) ? `#${Math.round(a)}` : `#${Math.round(a)}–${Math.round(b)}`);
 
 function GrowBar({ value, className, delay = 0 }: { value: number; className?: string; delay?: number }) {
@@ -164,6 +166,7 @@ function Outlook({ fc, team }: { fc: Shown; team: number | null }) {
   const sum = parts.reduce((s, x) => s + x.v, 0) || 1;
   const n = fc.teams.length;
   // Playoffs are over once a played final exists and the event has finished.
+  const set = fc.stage === "selected";
   const playoffsOver = fc.stage === "selected" && fc.matches.some((m) => m.level === "playoff" && m.played) && !fc.matches.some((m) => m.level === "playoff" && !m.played);
   return (
     <div className="space-y-6 max-sm:space-y-4">
@@ -189,8 +192,8 @@ function Outlook({ fc, team }: { fc: Shown; team: number | null }) {
           )}
         </section>
         <Stagger className="grid grid-cols-2 gap-x-6 gap-y-5 max-sm:gap-y-4 rounded-2xl border border-border p-6 max-sm:p-4">
-          <StaggerItem><Stat icon={Crown} label="Captain" value={pct(me.pCaptain, fc.stage === "selected")} hint={fc.stage === "selected" ? "alliances are set" : "top seed picks"} /></StaggerItem>
-          <StaggerItem><Stat icon={Users} label="Picked" value={pct(me.pPicked, fc.stage === "selected")} hint={fc.stage === "selected" ? "alliances are set" : "chosen as partner"} /></StaggerItem>
+          <StaggerItem><Stat icon={Crown} label="Captain" value={set ? yesNo(me.pCaptain) : pct(me.pCaptain)} hint={set ? "alliance selection is done" : "top seed picks"} /></StaggerItem>
+          <StaggerItem><Stat icon={Users} label="Picked" value={set ? yesNo(me.pPicked) : pct(me.pPicked)} hint={set ? "alliance selection is done" : "chosen as partner"} /></StaggerItem>
           <StaggerItem><Stat icon={Trophy} label="Win event" value={pct(me.pWin, playoffsOver)} /></StaggerItem>
           <StaggerItem><Stat icon={Gauge} label="Finalist" value={pct(me.pFinalist, playoffsOver)} /></StaggerItem>
         </Stagger>
@@ -210,19 +213,26 @@ function Outlook({ fc, team }: { fc: Shown; team: number | null }) {
         </div>
         <div className="mt-1.5 flex justify-between text-xs text-muted-foreground"><span>1st</span><span>{n}th</span></div>
       </section>
-      <section aria-labelledby="pts-h">
-        <div className="mb-3 flex flex-wrap items-baseline justify-between gap-2 border-b border-border pb-2">
-          <h3 id="pts-h" className="text-base font-semibold">Where the expected advancement points come from{fc.season >= 2025 ? "" : " (2025+ points system)"}</h3>
-          <span className="text-sm text-muted-foreground">Total <span className="font-medium tabular-nums text-foreground">{p.total != null ? p.total.toFixed(1) : "—"}</span></span>
-        </div>
-        <div className="flex h-3 overflow-hidden rounded-full bg-muted">
-          {parts.map((x, i) => <m.div key={x.k} className={x.cls} title={`${x.k}: ${x.v.toFixed(1)}`} initial={{ width: 0 }} animate={{ width: `${(x.v / sum) * 100}%` }} transition={{ duration: 0.6, ease, delay: 0.1 + i * 0.08 }} />)}
-        </div>
-        <dl className="mt-4 grid grid-cols-2 gap-x-6 gap-y-3 sm:grid-cols-4">
-          {parts.map((x) => <div key={x.k} className="min-w-0"><dt className="flex items-center gap-1.5 text-xs text-muted-foreground"><span className={cn("size-2 shrink-0 rounded-full", x.cls)} />{x.k}</dt><dd className="mt-0.5 font-display text-xl font-semibold tabular-nums">{x.v.toFixed(1)}</dd></div>)}
-        </dl>
-        <p className="mt-3 text-xs text-muted-foreground">Average over all simulations. Award odds come from each team's award history and robot strength — judging can't be seen in match data. <Link to="/methodology#advancement" className="underline">How the simulator works</Link></p>
-      </section>
+      {fc.season >= 2025 ? (
+        <section aria-labelledby="pts-h">
+          <div className="mb-3 flex flex-wrap items-baseline justify-between gap-2 border-b border-border pb-2">
+            <h3 id="pts-h" className="text-base font-semibold">Where the expected advancement points come from</h3>
+            <span className="text-sm text-muted-foreground">Total <span className="font-medium tabular-nums text-foreground">{p.total != null ? p.total.toFixed(1) : "—"}</span></span>
+          </div>
+          <div className="flex h-3 overflow-hidden rounded-full bg-muted">
+            {parts.map((x, i) => <m.div key={x.k} className={x.cls} title={`${x.k}: ${x.v.toFixed(1)}`} initial={{ width: 0 }} animate={{ width: `${(x.v / sum) * 100}%` }} transition={{ duration: 0.6, ease, delay: 0.1 + i * 0.08 }} />)}
+          </div>
+          <dl className="mt-4 grid grid-cols-2 gap-x-6 gap-y-3 sm:grid-cols-4">
+            {parts.map((x) => <div key={x.k} className="min-w-0"><dt className="flex items-center gap-1.5 text-xs text-muted-foreground"><span className={cn("size-2 shrink-0 rounded-full", x.cls)} />{x.k}</dt><dd className="mt-0.5 font-display text-xl font-semibold tabular-nums">{x.v.toFixed(1)}</dd></div>)}
+          </dl>
+          <p className="mt-3 text-xs text-muted-foreground">Average over all simulations. Award odds come from each team's award history and robot strength — judging can't be seen in match data. <Link to="/methodology#advancement" className="underline">How the simulator works</Link></p>
+        </section>
+      ) : (
+        <p className="flex items-start gap-2 rounded-xl border border-dashed border-border px-4 py-3 text-sm text-muted-foreground">
+          <Info className="mt-0.5 size-4 shrink-0" aria-hidden />
+          <span>Advancement points started in 2025–26. Before that, teams advanced in award and ranking order, so this event has no points breakdown.</span>
+        </p>
+      )}
     </div>
   );
 }
