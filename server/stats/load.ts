@@ -128,7 +128,7 @@ export function toEventRecord(ev: DbEvent, opts: { anyType?: boolean } = {}): Ev
     const red = side(m.red, m.redScore), blue = side(m.blue, m.blueScore);
     if (!red.teams.length || !blue.teams.length) continue;
     const t = matchTimeMs(m.time) || startTime + (m.level === "playoff" ? 1e6 : 0) + m.series * 1e3 + m.number;
-    matches.push({ season: ev.season, eventCode: ev.code, level: m.level, series: m.series, number: m.number, time: t, red, blue });
+    matches.push({ season: ev.season, eventCode: ev.code, level: m.level, series: m.series, number: m.number, time: t, red, blue, ...(ev.region ? { region: ev.region } : {}) });
   }
   if (!matches.length) return null;
   matches.sort((a, b) => a.time - b.time || (a.level === b.level ? 0 : a.level === "qual" ? -1 : 1) || a.series - b.series || a.number - b.number);

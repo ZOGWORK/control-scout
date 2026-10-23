@@ -1,5 +1,47 @@
 # Changelog
 
+## 2.7.0 — 2026-10-22 · Priors: regional starts
+
+Engine improvement program, Part 8 (priors). The slice report (`docs/engine/slices`) found the most
+excess error in thin-data matches: robots at their first event of the season, the first ten
+qualification matches of an event, robots with five or fewer rated matches. This release changes
+where a team new to the season starts. Nothing else moves.
+- **Regional prior offsets** (`RatingParams.regionKappa`, `regionFreezeN`; `MatchRecord.region`).
+  Each region keeps, per phase, the summed lift of its returning teams this season: their rating
+  after `regionFreezeN` (3) rated matches minus the prior they were given. A team new to the season
+  starts from its prior plus its region's lift so far, divided by (teams measured + `regionKappa`).
+  The region is that of the event where the team first plays: `MatchContext.region` when it is
+  predicted before any result (`RatingBook.withRegion`; `predictMatch` and `explainMatch` apply it,
+  and `Forecaster` passes `regionOf(event)` for forecasts, match odds and partner what-ifs), and
+  `MatchRecord.region` when its first result is folded in, judged against that same starting point.
+  Only returning teams teach it, so a season where no team has history is unchanged. Off when `regionKappa` is 0 (the default);
+  `FITTED_MODEL.rating.regionKappa` is 20. State: `RatingBookData.regions` (lifts and the returning
+  teams not yet measured), kept by `clone`, `toData` (subsets keep every region's lift) and
+  `fromData`; a book without it starts with no lifts. `RatingBook.regionOffset(region)` returns the
+  offset a newcomer would get now.
+- **Carry-over** `rho1` 0.6 → 0.7 (last season's z-score).
+- `parseScoutEventRecord` and `Forecaster`'s live fold set `MatchRecord.region` (the event's region),
+  so both apps' books learn the same offsets from the same results.
+- `RatingParams.carryAuto` / `carryTeleop` / `carryEndgame` (per-phase carry-over shares, default 1)
+  exist but stay at 1: lowering endgame carry-over, which the season-to-season fits suggested,
+  made every slice worse.
+
+**Evidence** (Control Scout snapshot 2026-10-14, paired replay against 2.6.0 on identical matches,
+`scripts/engine-slices.ts --challenger`, 95% intervals from resampling whole events; report in
+`docs/engine/gates/gate-2.7.0-priors-snapshot-2026-10-14.md`):
+
+| Season | Matches | Brier change ×10⁴ | First-event robots | Thin data | Accuracy | 50–80% calibration error |
+|---|---|---|---|---|---|---|
+| 2023–24 (cold start: no history) | 28,075 | 0 (bit-identical) | 0 | 0 | same | same |
+| 2024–25 (tuning) | 33,271 | −3.29 [−4.50, −2.06] | −6.12 [−8.69, −3.48] | −6.85 [−10.43, −3.48] | +0.08 pp | 1.45 → 1.32 pts |
+| 2025–26 (reused) | 36,842 | −2.37 [−3.47, −1.29] | −4.70 [−7.15, −2.41] | −3.62 [−6.83, −0.53] | −0.01 pp | 1.95 → 1.64 pts |
+
+- Log loss improves in both seasons, and no slice's Brier gets worse beyond noise.
+- The settings sit on a flat region (κ 10–40 give the same numbers within noise), chosen on 2024–25. The research and tuning scripts are `scripts/part8/`.
+- Accuracy doesn't move: this is a probability-quality change, not a winner-calling one.
+- 2025–26 has been examined before (2.0, round 2, 2.1), so it isn't independent proof. The live
+  ledger, which now records 2.7 calls, is the prospective test.
+
 ## 2.6.0 — 2026-10-21 · Event simulator follow-ups
 
 Simulator only: every match prediction (win probability, scores, ranges, factors, tiers, bonus odds)

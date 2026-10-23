@@ -56,8 +56,8 @@ describe("match model", () => {
 });
 
 describe("carry-over", () => {
-  it("weights last season 0.6 and the one before 0.2", () => {
-    expect(carryZ(1.5, 1)).toBeCloseTo(1.1, 10);
+  it("weights last season 0.7 and the one before 0.2", () => {
+    expect(carryZ(1.5, 1)).toBeCloseTo(1.25, 10);
     expect(carryZ(0, 0)).toBe(0);
   });
   it("formats z with a real minus sign", () => {
