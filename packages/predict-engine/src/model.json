@@ -16,7 +16,10 @@
   "baseAlpha": 0.002,
   "growthPerWeek": 0.05,
   "growthMaxWeeks": 8,
-  "regionKappa": 20
+  "regionKappa": 20,
+  "eventLambdaAuto": 0.4,
+  "eventLambdaTeleop": 0.2,
+  "eventKappa": 1
  },
  "noise": {
   "a": 14,
@@ -352,6 +355,66 @@
     "baselineCalibrationError5080": 0.0163
    },
    "report": "docs/engine/gates/gate-2.8.0-recalibration.md"
+  },
+  "engine29": {
+   "note": "Engine 2.9 event-local form: at an event, a robot's predictions there add eventLambda x its mean miss there x eventKappa/(n + eventKappa) (auto 0.4, TeleOp 0.2, endgame 0, kappa 1, capped at 1 population sd); the permanent rating is untouched. Chosen on 2024-25 (flat region: lambda 0.2-0.4, kappa 0.5-1). Paired replay against 2.8.0 on identical matches, 95% intervals from resampling whole events. 2025-26 is reused data. 2023-24 (in-sample for the contextual weights, which were fitted without this layer, and a cold-start season): +0.67e-4 [-0.47, +1.82] overall, large events +2.94e-4 [+0.37, +5.33].",
+   "tune2024": {
+    "matches": 33271,
+    "brierChange": -0.0001474,
+    "brierChange95": [
+     -0.0002543,
+     -0.00004405
+    ],
+    "firstEventBrierChange": -0.0002426,
+    "firstEventBrierChange95": [
+     -0.0003884,
+     -0.00009572
+    ],
+    "q1to10BrierChange": -0.0001725,
+    "accuracyChangePp": 0.027,
+    "calibrationError5080": 0.0061,
+    "baselineCalibrationError5080": 0.0078,
+    "regressions": []
+   },
+   "reused2025": {
+    "matches": 36842,
+    "brierChange": -0.0001791,
+    "brierChange95": [
+     -0.0002702,
+     -0.00008967
+    ],
+    "firstEventBrierChange": -0.0002846,
+    "firstEventBrierChange95": [
+     -0.0004249,
+     -0.0001457
+    ],
+    "q1to10BrierChange": -0.0003062,
+    "accuracyChangePp": -0.019,
+    "calibrationError5080": 0.0077,
+    "baselineCalibrationError5080": 0.0095,
+    "regressions": []
+   },
+   "coldStart2023": {
+    "matches": 28075,
+    "brierChange": 0.00006739,
+    "brierChange95": [
+     -0.00004679,
+     0.0001815
+    ],
+    "firstEventBrierChange": 0.00004246,
+    "firstEventBrierChange95": [
+     -0.0001259,
+     0.0002166
+    ],
+    "q1to10BrierChange": 0.00009274,
+    "accuracyChangePp": 0.047,
+    "calibrationError5080": 0.0025,
+    "baselineCalibrationError5080": 0.0029,
+    "regressions": [
+     "eventSize: large"
+    ]
+   },
+   "report": "docs/engine/gates/gate-2.9.0-event-form-snapshot-2026-10-14.md"
   }
  },
  "calibration": {

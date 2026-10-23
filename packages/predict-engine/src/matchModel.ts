@@ -207,7 +207,7 @@ export function scoreBand(mean: number, sd: number, level = DEFAULT_BAND.level):
 }
 
 export function predictMatch(book: RatingBook, red: number[], blue: number[], noise: NoiseParams = DEFAULT_NOISE, cal?: CalibrationParams, opts: PredictOptions = {}): MatchPrediction {
-  return book.withRegion(opts.context?.region, () => predictOn(book, red, blue, noise, cal, opts));
+  return book.withRegion(opts.context?.region, () => book.withEvent(opts.context?.event, () => predictOn(book, red, blue, noise, cal, opts)));
 }
 
 function predictOn(book: RatingBook, red: number[], blue: number[], noise: NoiseParams, cal: CalibrationParams | undefined, opts: PredictOptions): MatchPrediction {
