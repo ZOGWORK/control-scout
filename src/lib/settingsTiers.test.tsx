@@ -68,6 +68,13 @@ describe("Tier 1: cs-personal:settings stays byte-compatible", () => {
     expect(sent.find((s) => s.url.endsWith("/api/me/state/settings"))!.body).toBe(RAW);
     expect(localStorage.getItem("cs-personal:settings")).toBe(RAW);
   });
+
+  it("the offline-update settings sync when set, and only known values survive", () => {
+    const set = cleanValue("settings", { ...DEFAULT_SETTINGS, offlineUpdates: "auto", offlineNetwork: "any" })!;
+    expect([set.offlineUpdates, set.offlineNetwork]).toEqual(["auto", "any"]);
+    const bad = cleanValue("settings", { ...DEFAULT_SETTINGS, offlineUpdates: "always", offlineNetwork: 3 } as unknown as Settings)!;
+    expect("offlineUpdates" in bad || "offlineNetwork" in bad).toBe(false); // missing: ask first, Wi-Fi only
+  });
 });
 
 describe("Tier 3: device-only state never leaves the device", () => {
@@ -120,9 +127,9 @@ describe("precedence: a workspace never sets the person's view", () => {
   });
 
   it("a workspace write can't carry theme, density, ambient or notifications", () => {
-    const { defaults, dropped } = cleanSettingsPatch({ theme: "light", density: "compact", ambient: false, notify: {}, defaults: { season: 2025 } });
+    const { defaults, dropped } = cleanSettingsPatch({ theme: "light", density: "compact", ambient: false, notify: {}, offlineUpdates: "auto", offlineNetwork: "any", defaults: { season: 2025 } });
     expect(defaults).toEqual({ season: 2025 });
-    expect(dropped.map((d) => d.field).sort()).toEqual(["ambient", "density", "notify", "theme"]);
+    expect(dropped.map((d) => d.field).sort()).toEqual(["ambient", "density", "notify", "offlineNetwork", "offlineUpdates", "theme"]);
   });
 
   it("the default event applies in a workspace for its season; Personal never gets one", () => {

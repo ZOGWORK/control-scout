@@ -2,7 +2,8 @@
 // never pays for it: it goes to returning visitors (a second session on this
 // device, someone with a My team / tracked teams / shortlist, or a device that
 // already has a pack to keep current), and never on Save-Data or a 2g/3g
-// connection. Opening the Download page still fetches it straight away.
+// connection, nor on mobile data when the Download page's network setting says Wi-Fi only
+// (offline/updatePolicy.ts liteAllowed). Opening the Download page still fetches it straight away.
 // Downloading is all that happens online: the pack is stored, never opened,
 // until the device has no signal (lib/api.ts).
 // Pure and tiny: it sits in the entry bundle, packs.ts (the engine) doesn't.
@@ -24,7 +25,7 @@ export const SEEN_KEY = "cs-seen";
 export const SESSION_KEY = "cs-session";
 
 /** The parts of navigator.connection (Network Information API) that matter here. */
-export interface ConnectionInfo { saveData?: boolean; effectiveType?: string }
+export interface ConnectionInfo { saveData?: boolean; effectiveType?: string; /** wifi, cellular, ethernet…: only some browsers say (offline/updatePolicy.ts). */ type?: string }
 
 /** Is this session a return to the site? Decided once per session (a tab):
  *  "returning" when an earlier session left its marker. Storage blocked: new. */
