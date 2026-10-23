@@ -142,12 +142,13 @@ describe("useEntryComments", () => {
     routes[`GET ${THREAD}`] = () => ({ body: { comments: [], entryDeleted: false } });
     const { result } = renderHook(() => useEntryComments("41", "aaaaaaaaaaaa"));
     await waitFor(() => expect(result.current.loading).toBe(false));
-    vi.spyOn(navigator, "onLine", "get").mockReturnValue(false);
+    const onLine = vi.spyOn(navigator, "onLine", "get").mockReturnValue(false);
+    // The device says offline and the request fails: not sent, and said so.
+    routes[`POST ${THREAD}`] = () => { throw new TypeError("Failed to fetch"); };
     const offline = await result.current.post("x", "op-test-0003").catch((e) => e);
+    onLine.mockRestore();
     expect(offline).toBeInstanceOf(CommentWriteError);
     expect(offline).toMatchObject({ uncertain: false, message: expect.stringMatching(/offline/) });
-    expect(calls.filter((x) => x.method === "POST")).toHaveLength(0);
-    vi.restoreAllMocks();
     routes[`POST ${THREAD}`] = () => { throw new TypeError("Failed to fetch"); };
     const lost = await result.current.post("x", "op-test-0003").catch((e) => e);
     expect(lost).toMatchObject({ uncertain: true });

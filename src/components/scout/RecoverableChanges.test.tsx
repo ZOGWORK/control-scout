@@ -257,7 +257,11 @@ describe("RecoverableChanges: queued entries", () => {
   it("offline: listed calmly as waiting (it goes up by itself)", async () => {
     saveScoutEntry({ uuid: "eeeeeeeeeeee", ...base, workspaceId: "901" });
     vi.spyOn(navigator, "onLine", "get").mockReturnValue(false);
+    // Really no signal: the sync is tried (navigator.onLine is only a hint) and fails.
+    const real = globalThis.fetch;
+    vi.stubGlobal("fetch", vi.fn(async () => { throw new TypeError("Failed to fetch"); }));
     await syncScouting("901").catch(() => undefined);
+    vi.stubGlobal("fetch", real);
     render(<RecoverableChanges account={1} workspaces={WS} />);
     expect(view()!.textContent).toContain("Waiting for a connection");
     expect(view()!.className).not.toMatch(/warning/);
