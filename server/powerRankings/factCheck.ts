@@ -43,7 +43,12 @@ export interface FactPacket {
  * The packet as stored with a generated week: the facts Bruno saw plus what the page needs to show
  * the same comparison later (the week movement was counted against, and who dropped out then).
  */
-export type StoredPacket = FactPacket & { comparedWith: string | null; droppedOut?: { team: number; lastRank: number }[] };
+export type StoredPacket = FactPacket & {
+  comparedWith: string | null;
+  /** Teams in the compared week that aren't in this list: their rank there, and their frozen rating there when it
+   *  recorded one (so a team that comes back on a daily refresh keeps its rating change). */
+  droppedOut?: { team: number; lastRank: number; rating?: number }[];
+};
 
 /** Bruno's answer (already shape-checked by Control Point; checked again here). */
 export interface BrunoOutput { intro: string; blurbs: { team: number; text: string }[] }

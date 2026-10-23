@@ -83,12 +83,31 @@ export interface OpsStatus {
 
 export interface AuditEntry { id: number; at: string; actor: string; action: string; details: Record<string, unknown> | null; result: string | null }
 
+/** One daily check of the current power-rankings week (server/powerRankings/refresh.ts). */
+export interface OwnerPowerRankingsRefresh {
+  /** "YYYY-MM-DD" (New York). */
+  day: string;
+  /** running: under way now; unchanged: only the Updated date moved; updated: changed entries were rewritten. */
+  status: "running" | "unchanged" | "updated" | "failed";
+  at: string;
+  /** Teams whose shown facts changed; of their blurbs, how many Bruno rewrote, came from the template, or were your edits (kept). */
+  changed: number;
+  bruno: number;
+  template: number;
+  kept: number;
+  note: string | null;
+}
+
 /** One automatically published power-rankings week, as the owner portal's Power rankings panel lists it. */
 export interface OwnerPowerRankingsWeek {
   season: number;
   week: string;
   /** "YYYY-MM-DD" (New York) it went out. */
   published: string;
+  /** "YYYY-MM-DD" (New York) of its last daily check; null when never checked. */
+  updated: string | null;
+  /** Its daily checks, newest first (the last 14). */
+  refreshes: OwnerPowerRankingsRefresh[];
   /** pending: being written right now. */
   status: "pending" | "published" | "hidden";
   generatedAt: string;
@@ -112,6 +131,8 @@ export interface OwnerPowerRankings {
   controlPoint: boolean;
   /** The next scheduled run (Friday 00:00 America/New_York), ISO. */
   nextRun: string;
+  /** The daily refresh of the current week: its switch (dailyPowerRankings) and next check (00:00 America/New_York), ISO. */
+  daily: { enabled: boolean; nextRun: string };
   /** Newest first. */
   weeks: OwnerPowerRankingsWeek[];
 }

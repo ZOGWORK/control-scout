@@ -2,7 +2,7 @@
 // and link previews that don't run the app still read every team, blurb and number, and a visitor
 // sees the list before the app has loaded. The app's first render replaces it.
 // Blurbs and the intro are already safe HTML (./markdown.ts); everything else is escaped here.
-import { generatedNote, longDate, movementText, publishedLabel, weekLabel, type PowerRankingsResponse } from "../../src/shared/powerRankings.js";
+import { generatedNote, longDate, movementText, publishedLine, weekLabel, type PowerRankingsResponse } from "../../src/shared/powerRankings.js";
 
 const esc = (s: string) => s.replace(/&/g, "&amp;").replace(/"/g, "&quot;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 const one = (x: number | null) => (x == null ? "–" : (Math.round(x * 10) / 10).toFixed(1));
@@ -11,7 +11,7 @@ export function staticRankingsHtml(r: PowerRankingsResponse): string {
   const w = r.week;
   const parts: string[] = [];
   if (w) {
-    parts.push(`<p class="csb-pr-when">${esc(weekLabel(w.week))} · Published ${esc(publishedLabel(w.published))}</p>`);
+    parts.push(`<p class="csb-pr-when">${esc(weekLabel(w.week))} · ${esc(publishedLine(w))}</p>`);
     if (w.generated) parts.push(`<p class="csb-pr-when">${esc(generatedNote(w.generated))}</p>`);
     if (w.sample) parts.push(`<p class="csb-pr-when"><b>SAMPLE</b>: development content, not real rankings.</p>`);
     parts.push(`<div class="csb-pr-intro">${w.introHtml}</div>`);

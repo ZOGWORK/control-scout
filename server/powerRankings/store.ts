@@ -175,6 +175,7 @@ async function buildWeek(doc: RankingDoc, weeks: RankingDoc[]): Promise<PowerRan
   const count = (a: string) => (g ? g.sources.filter((x) => x === a).length : 0);
   return {
     week: doc.week, season: doc.season, title: doc.title, published: doc.published,
+    updated: g?.updated && g.updated !== doc.published ? g.updated : null,
     introHtml: g ? plainHtml(doc.intro) : renderMarkdown(doc.intro), introText: g ? doc.intro.trim() : markdownText(doc.intro), sample: doc.sample,
     generated: g ? { bruno: count("bruno"), template: count("template"), owner: count("owner"), intro: g.introSource } : null,
     entries,
@@ -185,7 +186,7 @@ async function buildWeek(doc: RankingDoc, weeks: RankingDoc[]): Promise<PowerRan
 }
 
 function weekView(doc: RankingDoc, weeks: RankingDoc[]): Promise<PowerRankingsWeek> {
-  const key = `${weeks.map((w) => `${w.week}${w.generated ? `@${w.generated.rev}` : ""}`).join(",")}|${doc.week}`;
+  const key = `${weeks.map((w) => `${w.week}${w.generated ? `@${w.generated.rev}:${w.generated.updated ?? ""}` : ""}`).join(",")}|${doc.week}`;
   const hit = viewCache.get(key);
   if (hit && Date.now() - hit.at < 60_000) return hit.v;
   const v = buildWeek(doc, weeks);
