@@ -24,9 +24,13 @@ const rows: Row[] = JSON.parse(gunzipSync(readFileSync(args[0])).toString()).fil
 /** Symmetric isotonic map: fit P(favourite wins | |z|) by PAV, then p'(z) = sign-mirrored. */
 function isotonic(train: Row[]): (z: number) => number {
   const pts = train.map((r) => { const z = logit(r.pred.champion.p); return { x: Math.abs(z), y: z >= 0 ? r.y : 1 - r.y }; }).sort((a, b) => a.x - b.x);
+  // Equal |z| (logit clamps extremes) form one starting block, so row order can't change the fit.
   const blocks: { sx: number; sy: number; n: number }[] = [];
-  for (const p of pts) {
-    blocks.push({ sx: p.x, sy: p.y, n: 1 });
+  for (let i = 0; i < pts.length; ) {
+    let j = i, sy = 0;
+    while (j < pts.length && pts[j].x === pts[i].x) sy += pts[j++].y;
+    blocks.push({ sx: pts[i].x * (j - i), sy, n: j - i });
+    i = j;
     while (blocks.length > 1 && blocks[blocks.length - 2].sy / blocks[blocks.length - 2].n >= blocks[blocks.length - 1].sy / blocks[blocks.length - 1].n) {
       const b = blocks.pop()!, a = blocks[blocks.length - 1]; a.sx += b.sx; a.sy += b.sy; a.n += b.n;
     }

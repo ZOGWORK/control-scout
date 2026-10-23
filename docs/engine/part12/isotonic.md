@@ -13,7 +13,7 @@ Isotonic regression might fit the GLOBAL calibration mapping better than Platt's
 - **Input:** the engine's probability before its final stretch. Rows came from `engine-slices --champion '{"rating":{},"recalibration":false}' --rows`, using the same replay as the served call.
 - **Rolling origins, as in Part 9.** Each month from October 2024 to July 2026 gets mappings fitted on the 365 days before it, then scored on that month only.
 - **Platt:** p′ = σ(a·z), slope only (the shipped form; no intercept, since an intercept would be a red/blue term). Fitted on mirrored rows.
-- **Isotonic:** the favourite's win rate as a non-decreasing function of |z|, fitted by pool-adjacent-violators.
+- **Isotonic:** the favourite's win rate as a non-decreasing function of |z|, fitted by pool-adjacent-violators (equal |z| values start as one block, so row order cannot change the fit).
   - It is anchored at 0.5 for a coin flip, mirrored so that p(−z) = 1 − p(z), and linearly interpolated between block centres.
 - **Calibration error:** in the 55–85% bands of the favourite's stated chance, using 5-point bins and match-weighted |stated − won|.
 - **Intervals:** event bootstraps for both Brier and calibration error.
