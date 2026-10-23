@@ -30,6 +30,35 @@ export interface ContextualModel {
   calibration: { slope: number; intercept: number };
   /** Used when a book's state is too old for this model (2.1 → the 2.0 model). */
   fallback?: ContextualModel;
+  /** Engine 2.8: a final calibration per slice of the match, applied after `calibration`. */
+  sliceCalibration?: SliceCalibration;
+}
+
+/**
+ * Engine 2.8: per-slice recalibration. Matches fall into cells by level
+ * (qual / playoff) and by how much data the four robots bring (the sum of
+ * their rated matches this season: thin below densityCuts[0], dense from
+ * densityCuts[1]). Each cell maps P(red) = sigmoid(slope · logit(p) + intercept),
+ * fitted forward on earlier seasons and shrunk toward the global mapping;
+ * a cell it has no fit for uses `global`.
+ */
+export interface SliceCalibration {
+  densityCuts: [number, number];
+  global: { slope: number; intercept: number };
+  cells: Record<string, { slope: number; intercept: number; n: number }>;
+  provenance?: Record<string, unknown>;
+}
+
+/** The recalibration cell of a match: "<level>|<thin|normal|dense>". */
+export function sliceCell(book: RatingBook, red: number[], blue: number[], ctx: MatchContext, cuts: [number, number]): string {
+  const n = [...red, ...blue].reduce((a, t) => a + book.get(t).n, 0);
+  return `${ctx.level ?? "qual"}|${n < cuts[0] ? "thin" : n < cuts[1] ? "normal" : "dense"}`;
+}
+
+/** Apply a slice calibration to a probability. */
+export function applySliceCalibration(sc: SliceCalibration, p: number, cell: string): number {
+  const m = sc.cells[cell] ?? sc.global;
+  return sigmoid(m.slope * logit(clampP(p, 1e-9)) + m.intercept);
 }
 
 /** What the probability model needs to know about a match beyond its lineups. */
@@ -144,5 +173,7 @@ export function contextualWinProbWith(model: ContextualModel | undefined, book: 
   if (book.stateVersion < requiredState(model)) return model.fallback ? contextualWinProbWith(model.fallback, book, red, blue, raw, ctx) : null;
   const x = contextualFeatures(book, red, blue, raw, ctx, model.coefficients.length);
   if (!x || x.some((v) => !Number.isFinite(v))) return null;
-  return { p: contextualProbability(model, logit(clampP(raw.pRedWin, 1e-9)), x), model };
+  const p = contextualProbability(model, logit(clampP(raw.pRedWin, 1e-9)), x);
+  const sc = model.sliceCalibration;
+  return { p: sc ? applySliceCalibration(sc, p, sliceCell(book, red, blue, ctx, sc.densityCuts)) : p, model };
 }
