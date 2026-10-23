@@ -140,6 +140,10 @@ export interface MatchExplanation {
   partnership: PartnershipFact | null;
   teamsA: TeamStrength[];
   teamsB: TeamStrength[];
+  /** Points each alliance loses to overlap per phase (engine 2.11; zeros in playoffs or when off). With the
+   *  teams' strengths, these make the factors an exact split of the predicted margin. */
+  overlapA: { auto: number; teleop: number; endgame: number };
+  overlapB: { auto: number; teleop: number; endgame: number };
   /**
    * Notable reasons beyond the factors: a robot's form at this event (2.9, already in the prediction), and with
    * opts.recent e.g. "Team 1234 was a no-show in 2 of its last 10 matches". Empty when nothing is notable.
@@ -242,10 +246,13 @@ function explainOn(book: RatingBook, teamsA: number[], teamsB: number[], opts: E
   const sum = (xs: TeamStrength[], k: keyof TeamStrength) => xs.reduce((s, x) => s + (x[k] as number), 0);
   const base = book.baseline();
 
+  // Engine 2.11: what each alliance loses to overlap comes off its phase, so the factors still split the margin exactly.
+  const level = opts.context?.level ?? "qual";
+  const oA = book.allianceOverlap(teamsA, level), oB = book.allianceOverlap(teamsB, level);
   const raw: { id: Component; points: number }[] = [
-    { id: "auto", points: sum(A, "auto") - sum(B, "auto") },
-    { id: "teleop", points: sum(A, "teleop") - sum(B, "teleop") },
-    { id: "endgame", points: sum(A, "endgame") - sum(B, "endgame") },
+    { id: "auto", points: sum(A, "auto") - oA.auto - (sum(B, "auto") - oB.auto) },
+    { id: "teleop", points: sum(A, "teleop") - oA.teleop - (sum(B, "teleop") - oB.teleop) },
+    { id: "endgame", points: sum(A, "endgame") - oA.endgame - (sum(B, "endgame") - oB.endgame) },
     { id: "pen", points: sum(B, "pen") - sum(A, "pen") },
   ];
   const factors: Factor[] = raw
@@ -314,6 +321,8 @@ function explainOn(book: RatingBook, teamsA: number[], teamsB: number[], opts: E
       : null,
     teamsA: A,
     teamsB: B,
+    overlapA: oA,
+    overlapB: oB,
     reasons,
     bonus: opts.bonus ? bonusOdds(opts.bonus.season, opts.bonus.model, p, p.pRedWin, { tier, reason }) : null,
   };

@@ -45,7 +45,8 @@ describe("explainMatch", () => {
     const e = explainMatch(book, [1, 2], [3, 4]);
     const p = predictMatch(book, [1, 2], [3, 4]);
     const sum = (k: "auto" | "teleop" | "endgame" | "pen", xs: typeof e.teamsA) => xs.reduce((s, t) => s + t[k], 0);
-    const comps = (["auto", "teleop", "endgame"] as const).reduce((s, k) => s + sum(k, e.teamsA) - sum(k, e.teamsB), 0) + sum("pen", e.teamsB) - sum("pen", e.teamsA);
+    // Engine 2.11: what each alliance loses to overlap comes off its side.
+    const comps = (["auto", "teleop", "endgame"] as const).reduce((s, k) => s + sum(k, e.teamsA) - e.overlapA[k] - (sum(k, e.teamsB) - e.overlapB[k]), 0) + sum("pen", e.teamsB) - sum("pen", e.teamsA);
     expect(comps).toBeCloseTo(p.red.mean - p.blue.mean, 9);
     expect(e.factors).toHaveLength(3);
     // Ranked by size.

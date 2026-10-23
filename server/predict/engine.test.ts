@@ -210,7 +210,11 @@ describe("Prediction Engine 2.0 in the app", () => {
     expect(q.probabilityModel).toBe("contextual");
     expect(f.explain(S, [1, 3], [2, 4], "qual")!.winProbA).toBe(q.winProbA); // no level = qualification
     expect(f.explain(S, [1, 3], [2, 4], "playoff")!.winProbA).not.toBe(q.winProbA);
-    expect(f.explain(S, [1, 3], [2, 4], "playoff")!.predictedScoreA).toBe(q.predictedScoreA); // scores unchanged
+    // Playoffs stay additive; a qualification alliance loses its overlap (engine 2.11).
+    const pl = f.explain(S, [1, 3], [2, 4], "playoff")!;
+    expect(pl.overlapA).toEqual({ auto: 0, teleop: 0, endgame: 0 });
+    const ovA = q.overlapA.auto + q.overlapA.teleop + q.overlapA.endgame;
+    expect(Math.abs(pl.predictedScoreA - Math.round(q.predictedScoreA + ovA))).toBeLessThanOrEqual(1);
   });
 
   it("recorded bonus RPs of synced matches are available to live forecasts", async () => {

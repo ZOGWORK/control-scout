@@ -9,6 +9,18 @@ teams, scout, offline, speed, live, report, alerts, rankings, share, workspace,
 picklist, history, fixes). What's new shows them first; the groups below are
 the full release notes, one click away.
 
+## 1.26.0 — 2026-10-23
+
+Two robots good at the same thing don't simply add up.
+
+### Highlights
+- [predict] Alliances of two robots strong at the same thing score a bit less
+- [predict] Biggest change in auto, where two robots share one plan
+- [predict] Playoff alliances stay as they are: partners are picked to complement
+
+### Predictions
+- **Ratings add; alliances don't quite.** Two robots both strong in auto, or both strong in TeleOp, get in each other's way. Measured on real alliances, they scored less together than their ratings added up to, most of all in auto. In a qualification match, an alliance now loses 25% of the weaker partner's auto and 15% of its TeleOp. Endgame showed no such effect, and playoff alliances are left as they are. On replayed matches, win odds improved in every season tested, most at the start of events, and predicted scores moved closer to the real ones. How it works explains it next to how expected scores are built. Prediction engine 2.11.0.
+
 ## 1.25.0 — 2026-10-23
 
 Expected scores stop over-charging teams for fouls.

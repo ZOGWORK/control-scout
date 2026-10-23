@@ -20,7 +20,9 @@
   "eventLambdaAuto": 0.4,
   "eventLambdaTeleop": 0.2,
   "eventKappa": 1,
-  "penGain": 0.15
+  "penGain": 0.15,
+  "overlapAuto": 0.25,
+  "overlapTeleop": 0.15
  },
  "noise": {
   "a": 14,
@@ -478,6 +480,62 @@
     ]
    },
    "report": "docs/engine/gates/gate-2.10.0-fouls-snapshot-2026-10-14.md"
+  },
+  "engine211": {
+   "note": "Engine 2.11 alliance overlap: in a qualification match a 2-robot alliance loses 0.25 x the smaller partner's auto and 0.15 x the smaller partner's TeleOp (endgame 0); playoffs stay additive (partners are picked to complement; applying it there hurt 2024-25 playoffs). Research gate (scripts/part5/interaction-research.ts): misses vs the additive expectation fall with the smaller partner's contribution in auto (-0.16 / -0.40 per point, 2024-25 / 2025-26) and TeleOp (-0.13 / -0.09), not endgame. Chosen on 2024-25 (flat: auto 0.15-0.35). Score MAE 27.697 -> 27.383 (2024-25), 26.567 -> 26.392 (2025-26). 50-80% calibration error 0.63 -> 0.61 (2024-25), 0.81 -> 0.90 (2025-26, within noise).",
+   "tune2024": {
+    "matches": 33271,
+    "brierChange": -0.0002058,
+    "brierChange95": [
+     -0.0003537,
+     -0.00006402
+    ],
+    "q1to10BrierChange": -0.0003571,
+    "playoffBrierChange": 0.00008367,
+    "accuracyChangePp": -0.003,
+    "calibrationError5080": 0.0061,
+    "baselineCalibrationError5080": 0.0063,
+    "regressions": []
+   },
+   "reused2025": {
+    "matches": 36842,
+    "brierChange": -0.0002415,
+    "brierChange95": [
+     -0.0003681,
+     -0.0001138
+    ],
+    "q1to10BrierChange": -0.0003831,
+    "playoffBrierChange": -0.0003583,
+    "accuracyChangePp": -0.014,
+    "calibrationError5080": 0.009,
+    "baselineCalibrationError5080": 0.0081,
+    "regressions": []
+   },
+   "coldStart2023": {
+    "matches": 28075,
+    "brierChange": -0.0001378,
+    "brierChange95": [
+     -0.0002542,
+     -0.00002084
+    ],
+    "q1to10BrierChange": -0.0001071,
+    "playoffBrierChange": -0.00005938,
+    "accuracyChangePp": -0.018,
+    "calibrationError5080": 0.0054,
+    "baselineCalibrationError5080": 0.0014,
+    "regressions": []
+   },
+   "scoreMae": {
+    "tune2024": [
+     27.697,
+     27.383
+    ],
+    "reused2025": [
+     26.567,
+     26.392
+    ]
+   },
+   "report": "docs/engine/gates/gate-2.11.0-overlap-snapshot-2026-10-14.md"
   }
  },
  "calibration": {
