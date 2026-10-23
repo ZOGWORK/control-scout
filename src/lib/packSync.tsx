@@ -49,7 +49,8 @@ export function LitePackSync(): null {
     let quiet = false, loaded = false, startedAt = 0, idleId: number | undefined, timer: number | undefined;
     const run = () => {
       if (!quiet || !packsOn) return;
-      if (!shouldSyncLite({ online: navigator.onLine !== false, returning, follows, hasPack: hasPack(), connection: conn })) return;
+      // Tried whatever navigator.onLine says (iOS can say offline while online): with no signal the fetch just fails, quietly.
+      if (!shouldSyncLite({ online: true, returning, follows, hasPack: hasPack(), connection: conn })) return;
       if (!liteAllowed(network, conn)) return;
       // Asked again right before the download: Wi-Fi may have dropped while the manifest loaded.
       void import("./packs").then((p) => p.syncLite({ allowed: () => liteAllowed(network, conn) })).catch(() => {});
