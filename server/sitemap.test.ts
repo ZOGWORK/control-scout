@@ -11,8 +11,13 @@ beforeAll(async () => {
   await migrate(c);
   await run("INSERT INTO teams (number, name, updated_at) VALUES (4215, 'Hypnotic Robotics', '2026-10-01T10:00:00Z'), (18360, 'X', NULL)");
   await run("INSERT INTO events (season, code, name, start, end, remote, hybrid, source, upstream_updated) VALUES (2025, 'USNJNOM3', 'Meet', '2025-11-08', '2025-11-08', 0, 0, 't', '2025-12-02T09:00:00Z'), (2026, 'FUTURE', 'Later', '2099-01-01', '2099-01-02', 0, 0, 't', NULL), (2019, '2019ALCMP', 'Alabama (history-only season)', '2020-02-21', '2020-02-22', 0, 0, 't', NULL), (2024, 'OLD', 'Old', '2024-12-07', '2024-12-07', 0, 0, 't', NULL)");
-  // 4215 played USNJNOM3 (results marked changed later) and OLD, and is registered for one that hasn't started; 18360 for nothing yet.
+  // 4215 played USNJNOM3 (results marked changed later) and OLD, and both are registered for one that hasn't started.
   await run("INSERT INTO event_teams (season, code, team) VALUES (2025, 'USNJNOM3', 4215), (2024, 'OLD', 4215), (2026, 'FUTURE', 4215), (2026, 'FUTURE', 18360)");
+  // A league meet with results: on 4215's roster, but only 18360 took the field (4215 was a no-show).
+  await run("INSERT INTO events (season, code, name, start, end, remote, hybrid, source) VALUES (2025, 'LEAGUE', 'League meet', '2026-01-10', '2026-01-10', 0, 0, 't')");
+  await run("INSERT INTO event_teams (season, code, team) VALUES (2025, 'LEAGUE', 4215), (2025, 'LEAGUE', 18360)");
+  await run("INSERT INTO matches (season, code, level, series, number, label, played, source) VALUES (2025, 'LEAGUE', 'qual', 0, 1, 'Q1', 1, 't')");
+  await run("INSERT INTO team_event_stats (season, code, team, matches) VALUES (2025, 'LEAGUE', 18360, 1)");
   resetSitemapCache();
 });
 
@@ -33,7 +38,8 @@ describe("sitemap", () => {
     expect(locs.every((l) => l.startsWith("https://controlscout.org/") && !l.includes("www."))).toBe(true);
     // A team's lastmod: its latest started event (the source's later change marker counts), never the sync stamp on teams.updated_at.
     expect(e.find((x) => x.loc.endsWith("/teams/4215"))!.lastmod).toBe("2025-12-02");
-    expect(e.find((x) => x.loc.endsWith("/teams/18360"))!.lastmod).toBeUndefined();
+    expect(e.find((x) => x.loc.endsWith("/teams/18360"))!.lastmod).toBe("2026-01-10"); // played the league meet
+    // 4215's no-show at the league meet (later than its last real event) doesn't count.
     // The source's change marker (late results move it past the event's last day); none when unknown.
     expect(e.find((x) => x.loc.endsWith("/events/2025/USNJNOM3"))!.lastmod).toBe("2025-12-02");
     expect(e.find((x) => x.loc.endsWith("/events/2026/FUTURE"))!.lastmod).toBeUndefined();

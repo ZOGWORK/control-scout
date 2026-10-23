@@ -20,11 +20,17 @@ export async function sitemapEntries(): Promise<Entry[]> {
   const [teams, events] = await Promise.all([
     // A team page changes when the team plays: its lastmod is the last day of its latest event that has started (today
     // while one is on), or a later change the source marked on one. Not teams.updated_at: every sync stamps that on
-    // every team, so it said nothing about the page.
+    // every team, so it said nothing about the page. Only events it took part in (a league roster lists teams that never
+    // played): the rule of api/teams.ts ATTENDED, read set-wise from the per-event stats (on the field in played matches),
+    // plus started events with no played matches (remote events), since scanning every match's teams takes seconds.
     all<{ number: number; lastmod: string | null }>(
-      `SELECT t.number, MAX(CASE WHEN e.start <= ? THEN MAX(MIN(COALESCE(e.end, e.start), ?), COALESCE(substr(e.upstream_updated, 1, 10), '')) END) lastmod
-       FROM teams t LEFT JOIN event_teams et ON et.team = t.number LEFT JOIN events e ON e.season = et.season AND e.code = et.code
-       GROUP BY t.number ORDER BY t.number`, [today, today]),
+      `WITH took AS (
+         SELECT season, code, team FROM team_event_stats WHERE matches > 0
+         UNION SELECT et.season, et.code, et.team FROM event_teams et JOIN events e ON e.season = et.season AND e.code = et.code
+           WHERE e.start <= ? AND NOT EXISTS (SELECT 1 FROM matches m WHERE m.season = et.season AND m.code = et.code AND m.played = 1))
+       SELECT t.number, MAX(CASE WHEN e.start <= ? THEN MAX(MIN(COALESCE(e.end, e.start), ?), COALESCE(substr(e.upstream_updated, 1, 10), '')) END) lastmod
+       FROM teams t LEFT JOIN took k ON k.team = t.number LEFT JOIN events e ON e.season = k.season AND e.code = k.code
+       GROUP BY t.number ORDER BY t.number`, [today, today, today]),
     all<{ season: number; code: string; upstream_updated: string | null }>("SELECT season, code, upstream_updated FROM events ORDER BY season DESC, code"),
   ]);
   // Power rankings: the hub and every published week, newest first (none until the first is; never sample weeks).
