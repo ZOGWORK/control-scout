@@ -17,7 +17,7 @@ const configs: Partial<RatingParams>[] = JSON.parse(flag("--configs") ?? "[{}]")
 const corpora: SeasonCorpus[] = [];
 for (const s of [2023, 2024, 2025]) corpora.push(await seasonCorpus(s));
 
-interface Call { event: string; season: number; y: number; p: number; tags: string[] }
+interface Call { event: string; season: number; y: number; p: number; tags: string[]; mu: [number, number]; act: [number, number] }
 const runs: Call[][] = [];
 for (const o of configs) {
   const book = new RatingBook({ ...M.rating, ...o });
@@ -30,11 +30,12 @@ for (const o of configs) {
       if (predictable(m) && rated && c.season >= 2024) {
         book.setTime(m.time);
         const teams = [...m.red.teams, ...m.blue.teams];
-        const p = predictMatch(book, m.red.teams, m.blue.teams, M.noise, M.calibration, { contextual: M.contextual, context: { level: m.level, event: m.eventCode, ...(m.region ? { region: m.region } : {}) } }).pRedWin;
+        const pm = predictMatch(book, m.red.teams, m.blue.teams, M.noise, M.calibration, { contextual: M.contextual, context: { level: m.level, event: m.eventCode, ...(m.region ? { region: m.region } : {}) } });
+        const p = pm.pRedWin;
         const ordinal = Math.min(...teams.map((t) => { const e = seen.get(t) ?? []; const i = e.indexOf(m.eventCode); return i >= 0 ? i + 1 : e.length + 1; }));
         const kHere = Math.min(...teams.map((t) => atEvent.get(`${t}|${m.eventCode}`) ?? 0));
         const tags = ["all", m.level === "playoff" ? "playoff" : m.number <= 10 ? "q1-10" : m.number <= 25 ? "q11-25" : "q26+", ordinal === 1 ? "1st event" : "later event", kHere === 0 ? "k=0" : kHere <= 3 ? "k=1-3" : "k=4+"];
-        calls.push({ event: m.eventCode, season: c.season, y: outcome(m), p, tags });
+        calls.push({ event: m.eventCode, season: c.season, y: outcome(m), p, tags, mu: [pm.red.mean, pm.blue.mean], act: [m.red.total, m.blue.total] });
       }
       if (rated) {
         for (const t of [...m.red.teams, ...m.blue.teams]) {
@@ -61,5 +62,9 @@ for (let i = 1; i < runs.length; i++) {
       line.push(`${tag} ${(1e4 * m.brier).toFixed(2)}[${(1e4 * m.brier95[0]).toFixed(1)},${(1e4 * m.brier95[1]).toFixed(1)}]${m.regression ? "!" : ""}`);
     }
     console.log(`  ${season}: ${line.join("  ")}`);
+    // Expected-score MAE (both alliances), against the first config.
+    const sel = runs[0].map((a, j) => j).filter((j) => runs[0][j].season === season);
+    const mae = (r: Call[]) => sel.reduce((a, j) => a + Math.abs(r[j].mu[0] - r[j].act[0]) + Math.abs(r[j].mu[1] - r[j].act[1]), 0) / (2 * sel.length);
+    console.log(`  ${season}: score MAE ${mae(runs[0]).toFixed(3)} -> ${mae(runs[i]).toFixed(3)}`);
   }
 }
