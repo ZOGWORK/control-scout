@@ -392,6 +392,7 @@ export abstract class Forecaster {
       season: ev.season, ratings, quals, noise: this.model.noise,
       // Per-team score spread (engine 2.6): the same inputs the stated score ranges use.
       variance: new Map(teams.map((t) => { const v = teamScoreVariance(book, t); return [t, { consistency: v.consistency, matches: v.matches }]; })), band: this.model.band,
+      ...(book.params.overlapAuto || book.params.overlapTeleop || book.params.overlapEndgame ? { overlap: { auto: book.params.overlapAuto, teleop: book.params.overlapTeleop, endgame: book.params.overlapEndgame } } : {}),
       bonus, bonusSamples, pick: this.model.pick, ranks, alliances, awards, playoffPlayed,
       prequalified: new Set(adv.prequalified), ineligible: new Set(adv.ineligible), slots: adv.slots, runs, seed: 1,
     };

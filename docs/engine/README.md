@@ -66,11 +66,16 @@ A change ships only if all of these hold:
 | 2.8.0 | Recalibration: log-odds × 1.0577, no intercept (rolling origins, forward-only) | −0.7×10⁻⁴ [−1.6, +0.2] | −1.9×10⁻⁴ [−2.6, −1.2] | [gate](gates/gate-2.8.0-recalibration.md) |
 | 2.9.0 | Event-local form: auto 0.4 / TeleOp 0.2 of a robot's mean miss at the event, fading κ/(n+κ), κ 1 | −1.5×10⁻⁴ [−2.5, −0.4] | −1.8×10⁻⁴ [−2.7, −0.9] | [gate](gates/gate-2.9.0-event-form-snapshot-2026-10-14.md) |
 | 2.10.0 | Fouls learn at 0.15× the scoring gain (score MAE 27.67 → 26.57 on 2025–26; Brier neutral) | −0.2×10⁻⁴ [−0.5, +0.2] | −0.7×10⁻⁴ [−1.9, +0.5] | [gate](gates/gate-2.10.0-fouls-snapshot-2026-10-14.md) |
+| 2.11.0 | Alliance overlap in quals: −0.25 × weaker partner's auto, −0.15 × TeleOp | −2.1×10⁻⁴ [−3.5, −0.6] | −2.4×10⁻⁴ [−3.7, −1.1] | [gate](gates/gate-2.11.0-overlap-snapshot-2026-10-14.md) |
 
 **Parts measured and closed without a build:**
 - **Part 4, failure mixture and per-team variance** (`scripts/part4/failure-research.ts`):
   - Favourites with fragile robots already win at their stated rate (within about 2 points). The 2.1 model's failure and variance inputs price this.
   - 80% score ranges cover 80–85% for fragile alliances. Their misses fall above the range more than below it, so a downward failure mixture would be the wrong shape.
+- **Part 7, playoffs:**
+  - Playoffs are predicted better than quals (Part 1 report), with the same under-confidence, which 2.8 addressed.
+  - A playoff calibration slice has no gap to close.
+  - A defence term waits for a real defence rating.
 
 The 2.8.0 slope was fitted on 2024–26 calls (`fits/recalibration-2.8.0.json`), so the 2.8.0 slice report is in-sample for it on those seasons. Its forward evidence is the rolling-origin gate.
 

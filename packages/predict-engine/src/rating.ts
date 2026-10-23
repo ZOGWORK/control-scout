@@ -35,6 +35,13 @@
 // are always judged against it, and the adjustment is gone at the team's
 // next event. Off when every eventLambda is 0.
 //
+// Alliance overlap (engine 2.11): ratings add, alliances don't quite. Two
+// robots both strong in the same phase get in each other's way (one launch
+// zone, one set of game pieces), so in a qualification match a 2-robot
+// alliance's expectation loses overlap_c × the smaller partner's
+// contribution in phase c. Playoff partners are picked to complement each
+// other, so playoffs are left additive. Off when every overlap is 0.
+//
 // Breaks between events: teams often come back from a few weeks off with a
 // changed (rebuilt) robot. After a break of at least `rebuildGapWeeks`, a
 // team's prediction is less certain (extra variance per week away) and its
@@ -75,6 +82,11 @@ export interface RatingParams {
   eventKappa: number;
   /** Cap on event-local form, in population standard deviations of that phase. */
   eventCap: number;
+  /** Alliance overlap (engine 2.11), per phase: share of the smaller partner's contribution a 2-robot
+   *  alliance loses in a qualification match (0 = additive). */
+  overlapAuto: number;
+  overlapTeleop: number;
+  overlapEndgame: number;
   /** Multiplier on the update gain for penalties committed (engine 2.10): fouls are mostly luck and
    *  officiating, far less persistent than scoring, so a robot's foul rating learns slower. 1 = as scoring. */
   penGain: number;
@@ -125,6 +137,9 @@ export const DEFAULT_RATING_PARAMS: RatingParams = {
   eventKappa: 2,
   eventCap: 1,
   penGain: 1,
+  overlapAuto: 0,
+  overlapTeleop: 0,
+  overlapEndgame: 0,
   uncKnown: 150,
   uncRookie: 350,
   uncDecay: 0.8,
@@ -478,15 +493,25 @@ export class RatingBook {
   }
 
   /** Expected alliance components for a set of robots. */
-  allianceExpectation(teams: number[]): Vec & { np: number; uncertainty: number } {
+  allianceExpectation(teams: number[], level: "qual" | "playoff" = "qual"): Vec & { np: number; uncertainty: number } {
     const out = { ...zero(), np: 0, uncertainty: 0 };
     for (const t of teams) {
       const r = this.get(t);
       for (const c of COMPONENTS) out[c] += r[c];
       out.uncertainty += r.uncertainty;
     }
+    const o = this.allianceOverlap(teams, level);
+    out.auto -= o.auto; out.teleop -= o.teleop; out.endgame -= o.endgame;
     out.np = npOf(out);
     return out;
+  }
+
+  /** Points a 2-robot alliance loses to overlap in each phase (engine 2.11; zero in playoffs or when off). */
+  allianceOverlap(teams: number[], level: "qual" | "playoff" = "qual"): Phases {
+    const p = this.params;
+    if (teams.length !== 2 || level !== "qual" || (!p.overlapAuto && !p.overlapTeleop && !p.overlapEndgame)) return { auto: 0, teleop: 0, endgame: 0 };
+    const [a, b] = teams.map((t) => this.get(t));
+    return { auto: p.overlapAuto * Math.min(a.auto, b.auto), teleop: p.overlapTeleop * Math.min(a.teleop, b.teleop), endgame: p.overlapEndgame * Math.min(a.endgame, b.endgame) };
   }
 
   /** Fold one played match into the ratings. */
@@ -513,7 +538,7 @@ export class RatingBook {
     // one match saw different priors (and blue's saw this match's result).
     const sides = [m.red, m.blue].map((al) => ({
       al,
-      exp: this.allianceExpectation(al.teams),
+      exp: this.allianceExpectation(al.teams, m.level),
       actual: { auto: al.auto, teleop: al.teleop, endgame: al.endgame, pen: al.penCommitted } as Vec,
       share: 1 / al.teams.length,
     }));
