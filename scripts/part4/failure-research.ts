@@ -23,11 +23,11 @@ for (const s of [2023, 2024, 2025]) {
       book.setTime(m.time);
       const ctx = { level: m.level, event: m.eventCode, ...(m.region ? { region: m.region } : {}) };
       const p = predictMatch(book, m.red.teams, m.blue.teams, M.noise, M.calibration, { contextual: M.contextual, context: ctx });
-      const redFav = p.pRedWin >= 0.5, favTeams = redFav ? m.red.teams : m.blue.teams, favAl = redFav ? m.red : m.blue, favMean = redFav ? p.red.mean : p.blue.mean;
+      const redFav = p.pRedWin >= 0.5, favTeams = redFav ? m.red.teams : m.blue.teams, favAl = redFav ? m.red : m.blue, favNp = redFav ? p.red.np : p.blue.np;
       const rel = favTeams.map((t) => book.reliabilityOf(t)), n = Math.min(...favTeams.map((t) => book.get(t).n));
       const y = outcome(m);
       rows.push({ season: s, fav: Math.max(p.pRedWin, 1 - p.pRedWin), won: y === 0.5 ? 0.5 : (y === 1) === redFav ? 1 : 0,
-        failMax: Math.max(...rel.map((r) => r.failure)), varMax: Math.max(...rel.map((r) => r.variance)), n, collapsed: favAl.np < 0.5 * (favMean - (redFav ? m.blue.penCommitted : m.red.penCommitted)), strong: Math.max(p.pRedWin, 1 - p.pRedWin) >= 0.8 });
+        failMax: Math.max(...rel.map((r) => r.failure)), varMax: Math.max(...rel.map((r) => r.variance)), n, collapsed: favAl.np < 0.5 * favNp, strong: Math.max(p.pRedWin, 1 - p.pRedWin) >= 0.8 });
     }
     if (rated) book.update(m);
   }
