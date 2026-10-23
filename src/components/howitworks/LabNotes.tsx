@@ -39,6 +39,11 @@ const NOTES: { v: Verdict; title: string; body: string; more: string; wide?: boo
     more: "Top 10% by failure history, favourites at 80%+: stated 90.7% / won 88.8% ±2.0 (2024–25), 88.7% / 88.7% ±2.2 (2025–26). 80% ranges for those alliances covered 80.6% and 80.4%; 12.6% and 11.4% of all their scores landed above the range (about 60% of the misses).",
   },
   {
+    v: "no", title: "A blend with a second and third opinion",
+    body: "Mixing the engine's win odds with a win/loss-only skill rating and a margin model. On seasons the blend never saw it barely moved anything: the typical call changed by under 1%, winner accuracy didn't change, and the small gain in probability quality wasn't clearly real. One model stays.",
+    more: "Blend minus engine, Brier ×10⁻⁴, fit on the season before: 2023–24 −0.62 [−0.97, −0.20]; 2024–25 −0.98 [−1.77, +0.45]; 2025–26 −0.66 [−1.79, +0.25]. Median change to a call 0.3–0.7%. The skill rating alone was much worse (Brier about 0.20 against 0.17), and the margin model, built from the engine's own ratings, got no weight. Details in docs/engine/part12/ensemble.md.",
+  },
+  {
     v: "ship", wide: true, title: "Prediction Engine 2.1: form at this event, momentum, collapses",
     body: "Five more inputs from each robot's recent record: its residuals at the current event, a fast-moving average against its usual level, whether its last alliance collapsed, and how long ago. Better probabilities in a clean month-by-month test; not yet shown to pick more winners.",
     more: "Re-tested forward-only (everything refitted from earlier matches before each month): Brier improved in later 2024–25 (0.15646 → 0.15589, 95% range −0.0009 to −0.0003) and 2025–26 (0.16894 → 0.16846); winner accuracy +0.17 and +0.06 points, both ranges including zero; calibration about the same. The first figures (+0.22 / +0.19 points) used a calibration fitted on later matches and 2025–26 vetoes, so they were corrected. Tried and dropped: alliance congestion, a defense rating, partner familiarity, a long-gap signal, extra uncertainty after a break and a score-mean correction; autonomous and role compatibility gained too little to replicate.",
