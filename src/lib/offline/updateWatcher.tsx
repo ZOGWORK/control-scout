@@ -56,7 +56,9 @@ export function SeasonUpdateWatcher(): null {
     // Still allowed to download with no question, right now? Asked again before each season of a run.
     const autoNow = () => {
       const { mode, network } = live.current;
-      return !stopped && decideUpdate({ mode, network, connection: connection(), online: navigator.onLine !== false, pending: ["any"], later: [] }) === "download";
+      // Online: the manifest this run comes from was just read (navigator.onLine isn't trusted: iOS can say offline
+      // while online). A download that then can't reach the server fails, and the saved copy stays.
+      return !stopped && decideUpdate({ mode, network, connection: connection(), online: true, pending: ["any"], later: [] }) === "download";
     };
 
     const autoUpdate = () => acrossTabs(async () => {
@@ -82,7 +84,8 @@ export function SeasonUpdateWatcher(): null {
       const pending = updateSnapshot().updates.map(updateId);
       const { mode, network, pathname } = live.current;
       const later = laterReleases();
-      const action = decideUpdate({ mode, network, connection: connection(), online: navigator.onLine !== false, pending, later });
+      // Online: decide only runs on a manifest the server just gave (navigator.onLine isn't trusted, see autoNow).
+      const action = decideUpdate({ mode, network, connection: connection(), online: true, pending, later });
       setUpdate(manifest, action);
       const snap = updateSnapshot();
       if (action === "download") {
@@ -106,7 +109,7 @@ export function SeasonUpdateWatcher(): null {
     decideRef.current = decide;
 
     const check = async (force = false) => {
-      if (stopped || navigator.onLine === false) return;
+      if (stopped) return; // navigator.onLine isn't trusted (iOS): a failed check just waits for the next
       if (!force && Date.now() - lastCheck < MIN_GAP_MS) return decide();
       lastCheck = Date.now();
       try { manifest = await fetchManifest(); } catch { return; } // offline, paused, none published: next time
