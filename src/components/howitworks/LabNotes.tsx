@@ -39,6 +39,26 @@ const NOTES: { v: Verdict; title: string; body: string; more: string; wide?: boo
     more: "Top 10% by failure history, favourites at 80%+: stated 90.7% / won 88.8% ±2.0 (2024–25), 88.7% / 88.7% ±2.2 (2025–26). 80% ranges for those alliances covered 80.6% and 80.4%; 12.6% and 11.4% of all their scores landed above the range (about 60% of the misses).",
   },
   {
+    v: "no", title: "A tuning pass over every rating setting",
+    body: "Each of the 15 rating settings was swept on its own over one season. Twelve sat on a plateau at their current value. Moving the other three (slower between-event growth, more weight on playoff results) helped that season, but only through its playoffs, and made predictions for teams with little data worse in the two later seasons. Nothing changed.",
+    more: "Candidate (growth 0.03 a week for up to 6 weeks, playoff weight 0.8) minus engine, Brier ×10⁻⁴: 2024–25 −2.51 [−4.55, −0.33], of which playoffs −18.26; 2023–24 +0.31; 2025–26 +0.60. Worse beyond noise: league meets in all three seasons; thin-data and first-event matches in 2024–25 and 2025–26; teams with 6–15 matches in 2023–24. Surfaces and the gate report in docs/engine/part12/tuning.md.",
+  },
+  {
+    v: "no", title: "A free-form final calibration",
+    body: "Swapping the one-number final stretch for a free-form monotone curve (isotonic regression). It was a little closer to the truth between 55% and 85%, but not clearly, and it cost a little probability quality. That the free-form curve finds the same shape is evidence the simple stretch is the right kind.",
+    more: "Fitted month by month on the year before, isotonic minus stretch: Brier +0.90 [+0.13, +1.68] ×10⁻⁴ (2024–25), +0.07 [−0.85, +1.01] (2025–26); 55–85% calibration error 0.76 → 0.59 points [−0.57, +0.34] and 1.22 → 0.86 [−0.86, +0.17]. The month-by-month stretch stays between 1.03 and 1.09; the engine uses 1.058. Details in docs/engine/part12/isotonic.md.",
+  },
+  {
+    v: "no", title: "A growth curve for rookies and second-year teams",
+    body: "Young teams do improve during a season, but the engine already keeps up: its misses for rookies and second-year teams drift the same way as veterans' as matches pile up, not upward. There was no missing trajectory to add. What it did find: rookies start a little under-rated (by about 1–2 points, closing over the season), and every team is over-rated a little late in the season. Both went to the tuning pass.",
+    more: "Miss per robot (points) by matches played, 2023–24 to 2025–26, slope per 10 matches: rookies −0.48, −0.51, −1.25; year 2 +0.06, −0.52, −0.52; veterans −0.29, −0.63, −0.42. Rookie minus veteran −0.19, +0.12, −0.82, changing sign. First 5 matches: rookies +1.1 to +1.5, veterans −0.6 to −1.2. Robots with 24–47 matches: −0.8 to −3.1 in every band. Details in docs/engine/part12/growth.md.",
+  },
+  {
+    v: "no", title: "A blend with a second and third opinion",
+    body: "Mixing the engine's win odds with a win/loss-only skill rating and a margin model. On the one season none of the models had learned from, the blend was slightly worse than the engine alone; on later seasons it was a hair better, but only where the engine had already seen the matches. Winner accuracy didn't change. One model stays.",
+    more: "Blend minus engine, Brier ×10⁻⁴, blend fit on the season before: 2022–23 (fully held out) +1.61 [−0.54, +3.48]; 2023–24 −0.62 [−1.06, −0.12], 2024–25 −0.98 [−2.06, +0.16], 2025–26 −0.66 [−1.77, +0.41], where the engine's learned weights had seen part of the data. Typical change to a call 0.3–1.0%. The skill rating alone was much worse (Brier about 0.20 against 0.17), and the margin model, built from the engine's own ratings, got a small, unstable weight (+0.18 once, then −0.01 to −0.09). Details in docs/engine/part12/ensemble.md.",
+  },
+  {
     v: "ship", wide: true, title: "Prediction Engine 2.1: form at this event, momentum, collapses",
     body: "Five more inputs from each robot's recent record: its residuals at the current event, a fast-moving average against its usual level, whether its last alliance collapsed, and how long ago. Better probabilities in a clean month-by-month test; not yet shown to pick more winners.",
     more: "Re-tested forward-only (everything refitted from earlier matches before each month): Brier improved in later 2024–25 (0.15646 → 0.15589, 95% range −0.0009 to −0.0003) and 2025–26 (0.16894 → 0.16846); winner accuracy +0.17 and +0.06 points, both ranges including zero; calibration about the same. The first figures (+0.22 / +0.19 points) used a calibration fitted on later matches and 2025–26 vetoes, so they were corrected. Tried and dropped: alliance congestion, a defense rating, partner familiarity, a long-gap signal, extra uncertainty after a break and a score-mean correction; autonomous and role compatibility gained too little to replicate.",
