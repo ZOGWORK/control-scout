@@ -231,7 +231,7 @@ function TeamCard({ side, season, t, info, ws, watch }: {
 
       <div className="mt-3 grid grid-cols-[auto_minmax(0,1fr)] items-center gap-x-3 gap-y-1">
         <div>
-          <p className="text-[11px] text-muted-foreground">{here ? "OPR here" : "Season OPR"}</p>
+          <p className="text-[11px] text-muted-foreground">{here ? "OPR at this time" : "Season OPR"}</p>
           <p className="font-display text-2xl font-semibold leading-tight tabular-nums">{num(opr?.np)}</p>
         </div>
         <OprSplitBar opr={opr} />

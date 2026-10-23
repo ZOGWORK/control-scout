@@ -30,14 +30,14 @@ export function RankBadge({ rank, className }: { rank: number; className?: strin
 export const interactive = (e: MouseEvent) => !!(e.target as HTMLElement).closest("a, button, input, label, [role=checkbox], [data-reorder-handle]");
 
 // Fixed widths (not auto), so every row's grid lines up with the header's.
-export const LIST_COLS = "grid items-center gap-x-2 grid-cols-[2.5rem_1.75rem_minmax(0,1fr)_3.5rem_2rem] sm:gap-x-3 sm:grid-cols-[2rem_1.75rem_1rem_minmax(0,1fr)_4rem_3.5rem_4.5rem_4rem_4.25rem] md:grid-cols-[2rem_1.75rem_1rem_minmax(0,1fr)_7rem_4rem_3.5rem_4.5rem_4rem_4.25rem] lg:grid-cols-[2rem_1.75rem_1rem_minmax(0,1fr)_8rem_4rem_3.5rem_4.5rem_5rem_4.5rem_4.25rem]";
+export const LIST_COLS = "grid items-center gap-x-2 grid-cols-[2.5rem_1.75rem_minmax(0,1fr)_3.5rem_2rem] sm:gap-x-3 sm:grid-cols-[2rem_1.75rem_1rem_minmax(0,1fr)_4rem_4.5rem_4rem_4.25rem] md:grid-cols-[2rem_1.75rem_1rem_minmax(0,1fr)_7rem_4rem_4.5rem_4rem_4.25rem] lg:grid-cols-[2rem_1.75rem_1rem_minmax(0,1fr)_8rem_4rem_4.5rem_5rem_4.5rem_4.25rem]";
 
 /** The list view's column headings (aligned with ListRow's grid). */
 export function ListHeader() {
   return (
     <div aria-hidden className={cn(LIST_COLS, "border-b border-border bg-muted/40 px-2 py-2 text-[10px] font-bold uppercase tracking-wider text-text-muted sm:px-3")}>
       <span /><span>Pick</span><span className="max-sm:hidden" /><span>Team</span><span className="max-md:hidden">Trend</span>
-      <span className="text-right">OPR</span><span className="text-right max-sm:hidden" title="Reliability: an estimate from match results, 0–100">Reliab.</span><span className="text-right max-sm:hidden">World</span><span className="text-right max-lg:hidden">Rating</span><span className="text-right max-sm:hidden">W-L-T</span><span />
+      <span className="text-right">OPR</span><span className="text-right max-sm:hidden">World</span><span className="text-right max-lg:hidden">Rating</span><span className="text-right max-sm:hidden">W-L-T</span><span />
     </div>
   );
 }
@@ -103,8 +103,7 @@ export function ListRow(p: RowProps) {
           <div className="-ml-1.5 mt-0.5 max-w-md">{p.note}</div>
         </div>
         <OprSpark events={t.events} className="max-md:hidden" />
-        <span className="text-right font-display text-base font-semibold tabular-nums text-accent-text">{num(t.opr)}{t.reliability != null && <span className="block text-[10px] font-normal text-text-muted sm:hidden">Rel. {t.reliability}</span>}</span>
-        <ReliabilityCell index={t.reliability} matches={t.reliabilityMatches} className="text-right text-sm max-sm:hidden" />
+        <span className="text-right font-display text-base font-semibold tabular-nums text-accent-text">{num(t.opr)}</span>
         <span className="text-right text-sm tabular-nums text-info max-sm:hidden">{t.oprRank ? `#${t.oprRank.toLocaleString()}` : "—"}</span>
         <span className="text-right text-sm tabular-nums max-lg:hidden">{t.rating ? <>{num(t.rating)}<span className="text-[11px] text-text-muted"> ±{num(t.ratingSd, 0)}</span></> : "—"}</span>
         <span className="text-right text-sm tabular-nums text-success max-sm:hidden">{t.record ?? "—"}</span>
