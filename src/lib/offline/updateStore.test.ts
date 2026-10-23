@@ -5,12 +5,13 @@ import { writeSaved, type SavedSeason } from "./saved";
 import { askingAbout, markLater, pendingUpdates, setUpdate, updateNow, updateSnapshot } from "./updateStore";
 
 // A save run the test controls: busy until the test frees it, and every run it's asked for, recorded.
-const batch = vi.hoisted(() => ({ busy: false, idle: [] as (() => void)[], runs: [] as number[][] }));
+const batch = vi.hoisted(() => ({ busy: false, idle: [] as (() => void)[], runs: [] as number[][], shas: [] as string[][] }));
 vi.mock("./seasonBatch", () => ({
   whenIdle: () => (batch.busy ? new Promise<void>((res) => batch.idle.push(res)) : Promise.resolve()),
   runSeasonBatch: async (files: PackFile[]) => {
     if (batch.busy) return null;
     batch.runs.push(files.map((f) => f.seasons[0]));
+    batch.shas.push(files.map((f) => f.sha256));
     return { saved: files.map((f) => f.seasons[0]), failed: [], skipped: [], held: [] };
   },
 }));
@@ -23,7 +24,7 @@ const file = (season: number, sha256: string): PackFile => ({ name: `s${season}`
 const manifest = (...full: PackFile[]): PackManifest => ({ format: 1, version: "v2", builtAt: "2026-10-20T00:00:00Z", engineVersion: "", dataAsOf: null, lite: null, full });
 const saved = (season: number, sha256: string) => ({ season, sha256, version: "v1", bytes: 1, savedAt: 1, dataAsOf: null, builtAt: "" }) satisfies SavedSeason;
 
-beforeEach(() => { localStorage.clear(); setUpdate(null, "none"); batch.busy = false; batch.idle = []; batch.runs = []; toasts.length = 0; });
+beforeEach(() => { localStorage.clear(); setUpdate(null, "none"); batch.busy = false; batch.idle = []; batch.runs = []; batch.shas = []; toasts.length = 0; });
 
 describe("updateStore", () => {
   it("finds the saved seasons with a newer release, and nothing for ones not saved", () => {
@@ -90,6 +91,19 @@ describe("Update now", () => {
     await done;
     expect(batch.runs).toEqual([[2025]]);
     expect(toasts.at(-1)).toBe("Offline data for 2025–26 updated");
+  });
+
+  it("after waiting, saves the newest release found meanwhile, never the one it was asked about first", async () => {
+    writeSaved([saved(2025, "old")]);
+    setUpdate(manifest(file(2025, "a")), "prompt");
+    batch.busy = true;
+    const done = updateNow();
+    await vi.waitFor(() => expect(batch.idle.length).toBeGreaterThan(0));
+    setUpdate({ ...manifest(file(2025, "b")), builtAt: "2026-10-22T00:00:00Z" }, "prompt"); // a check found release b
+    batch.busy = false;
+    for (const f of batch.idle) f();
+    await done;
+    expect(batch.shas).toEqual([["b"]]);
   });
 
   it("if that run already updated it, says it's up to date and downloads nothing more", async () => {
