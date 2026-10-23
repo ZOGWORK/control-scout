@@ -424,7 +424,8 @@ export abstract class Forecaster {
     if (pairs && ev.name) pairs.nameEvent(ev.season, ev.code, ev.name);
     const book = this.eventBook(ev, seasonBook, pairs);
     // Teams with no result yet this season start from the event region's regional prior (engine 2.7).
-    return book.withRegion(this.regionOf(ev.code), () => this.forecastOn(ev, myTeam, runs, book, pairs));
+    // and every team's ratings include its form at this event (engine 2.9).
+    return book.withRegion(this.regionOf(ev.code), () => book.withEvent(ev.code, () => this.forecastOn(ev, myTeam, runs, book, pairs)));
   }
 
   private forecastOn(ev: EventInput, myTeam: number | null, runs: number, book: RatingBook, pairs: PartnershipOverlay | null): Forecast {
@@ -485,14 +486,14 @@ export abstract class Forecaster {
     if (stage === "selected") return { role: "none", myTeam, baseline: { pAdvance: 0, pWin: 0, pCaptain: 0 }, options: [] };
     // Synchronous reads only under the event's region: the loop below awaits, and the book may be shared.
     const region = this.regionOf(ev.code);
-    const { input } = book.withRegion(region, () => this.simInput(ev, stage, book, runs));
+    const { input } = book.withRegion(region, () => book.withEvent(ev.code, () => this.simInput(ev, stage, book, runs)));
     const base = simulateEvent(input);
     const me = base.get(myTeam);
     if (!me) return null;
     const role: Partners["role"] = me.pCaptain >= 0.5 ? "captain" : "picked";
     const others = ev.field.map((t) => t.teamNumber).filter((t) => t !== myTeam);
     const pool = role === "captain"
-      ? book.withRegion(region, () => others.sort((a, b) => npOf(book.get(b)) - npOf(book.get(a))).slice(0, maxOptions))
+      ? book.withRegion(region, () => book.withEvent(ev.code, () => others.sort((a, b) => npOf(book.get(b)) - npOf(book.get(a))).slice(0, maxOptions)))
       : others.filter((t) => (base.get(t)?.pCaptain ?? 0) >= 0.15).sort((a, b) => (base.get(b)!.pCaptain - base.get(a)!.pCaptain)).slice(0, maxOptions);
     const options: PartnerOption[] = [];
     for (const t of pool) {

@@ -70,12 +70,13 @@ export default function MethodologyPage() {
           <GainChart />
           <LearnSim />
           <Prose>
-            <h3>Four more things a rating knows</h3>
+            <h3>Five more things a rating knows</h3>
             <CleanList items={[
               <><strong>Robots get better during a season.</strong> A rating grows by {Math.round(RATING.growthPerWeek * 100)}% for every week since the team last played, for up to {RATING.growthMaxWeeks} weeks. Two months between a team's first qualifier and its next one is a lot of build time.</>,
               <><strong>How sure it is.</strong> Each rating carries an uncertainty. A team the engine knows from last season starts at {RATING.uncKnown} points², a team with no history at {RATING.uncRookie}. Each match shrinks that to {Math.round(RATING.uncDecay * 100)}% of what it was, so after a handful of matches the engine is fairly confident. The "±" next to a rating on a team page is this uncertainty, as one standard deviation in points.</>,
               <><strong>Last season, a little.</strong> Games change every year, so points don't carry over. Instead, a team's final rank within its season becomes a z-score (how many standard deviations above or below average it was). That carries into the new season at {Math.round(RATING.rho1 * 100)}% weight, plus {Math.round(RATING.rho2 * 100)}% of the season before. Teams with no history start a bit below average (z = −{Math.abs(RATING.rookieZ)}), which matches how rookies actually do.</>,
               <><strong>Where a team plays.</strong> Some regions' teams come into a season stronger (or weaker) than their history says, and the pattern holds from year to year. So the engine watches each region's returning teams: after their first {DEFAULT_RATING_PARAMS.regionFreezeN} matches, how far did they end up from where they started? A team new to the season starts from its usual starting point plus its region's average gap so far, shrunk as if {RATING.regionKappa} more teams had matched their start exactly, so one or two surprising teams barely move it. The region is that of the event where the team first plays. Only returning teams teach it, so in a season where nobody has history it changes nothing. It mostly sharpens first-event calls.</>,
+              <><strong>Today's robot.</strong> The model watches today's matches too. At an event, if a robot has been beating (or missing) what its rating expected, its predictions for the rest of that event lean the same way: by {Math.round((RATING.eventLambdaAuto ?? 0) * 100)}% of its average miss there in auto and {Math.round((RATING.eventLambdaTeleop ?? 0) * 100)}% in TeleOp (not endgame, which bounces back too often to follow), fading as it plays more matches there and capped so one wild match can't run away with it. Its rating itself doesn't move any differently, and the lean is gone at its next event. It helps most in a robot's first few matches at an event, before the rating has caught up. When it moves a robot notably, the match's "Why" says so.</>,
             ]} />
           </Prose>
           <CarryOver />
@@ -231,6 +232,7 @@ function SettingsTable() {
     ["Playoff weight", String(RATING.playoffWeight), "Eliminations count half"],
     ["Carry-over", `${RATING.rho1} / ${RATING.rho2}`, "Last season / the one before (as z-scores)"],
     ["Rookie start", `z = −${Math.abs(RATING.rookieZ)}`, "New teams start a bit below average"],
+    ["Today's robot", `${RATING.eventLambdaAuto} / ${RATING.eventLambdaTeleop} / 0`, `Share of a robot's average miss at this event (auto / TeleOp / endgame), fading by ${RATING.eventKappa} ÷ (matches there + ${RATING.eventKappa})`],
     ["Regional start", `shrink ${RATING.regionKappa} teams`, `Region's returning teams' gap after ${DEFAULT_RATING_PARAMS.regionFreezeN} matches, added to a newcomer's start`],
     ["Season growth", `${Math.round(RATING.growthPerWeek * 100)}% / week`, `Up to ${RATING.growthMaxWeeks} weeks between matches`],
     ["Uncertainty", `${RATING.uncKnown} / ${RATING.uncRookie} pts²`, `Known team / no history, ×${RATING.uncDecay} per match`],
