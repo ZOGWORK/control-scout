@@ -1,14 +1,29 @@
 // @vitest-environment jsdom
-import { beforeEach, describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { PackFile, PackManifest } from "../packs";
 import { writeSaved, type SavedSeason } from "./saved";
-import { askingAbout, markLater, setUpdate, updateSnapshot } from "./updateStore";
+import { askingAbout, markLater, setUpdate, updateNow, updateSnapshot } from "./updateStore";
+
+// A save run the test controls: busy until the test frees it, and every run it's asked for, recorded.
+const batch = vi.hoisted(() => ({ busy: false, idle: [] as (() => void)[], runs: [] as number[][] }));
+vi.mock("./seasonBatch", () => ({
+  whenIdle: () => (batch.busy ? new Promise<void>((res) => batch.idle.push(res)) : Promise.resolve()),
+  runSeasonBatch: async (files: PackFile[]) => {
+    if (batch.busy) return null;
+    batch.runs.push(files.map((f) => f.seasons[0]));
+    return { saved: files.map((f) => f.seasons[0]), failed: [], skipped: [] };
+  },
+}));
+const toasts = vi.hoisted(() => [] as string[]);
+vi.mock("../../components/ui/sonner", () => ({
+  toast: Object.assign((m: string) => { toasts.push(m); }, { loading: (m: string) => { toasts.push(m); return 1; }, success: (m: string) => { toasts.push(m); }, error: (m: string) => { toasts.push(m); } }),
+}));
 
 const file = (season: number, sha256: string): PackFile => ({ name: `s${season}`, url: `/packs/${season}.db`, bytes: 41.9e6, sha256, seasons: [season], kind: "full", contents: "" });
 const manifest = (...full: PackFile[]): PackManifest => ({ format: 1, version: "v2", builtAt: "", engineVersion: "", dataAsOf: null, lite: null, full });
 const saved = (season: number, sha256: string) => ({ season, sha256, version: "v1", bytes: 1, savedAt: 1, dataAsOf: null, builtAt: "" }) satisfies SavedSeason;
 
-beforeEach(() => { localStorage.clear(); setUpdate(null, "none"); });
+beforeEach(() => { localStorage.clear(); setUpdate(null, "none"); batch.busy = false; batch.idle = []; batch.runs = []; toasts.length = 0; });
 
 describe("updateStore", () => {
   it("finds the saved seasons with a newer release, and nothing for ones not saved", () => {
@@ -44,5 +59,35 @@ describe("updateStore", () => {
     expect(askingAbout(updateSnapshot())).toBe(false);
     setUpdate(manifest(file(2025, "new")), "download");
     expect(askingAbout(updateSnapshot())).toBe(false);
+  });
+});
+
+describe("Update now", () => {
+  it("while another save runs, waits for it and then updates: the answer is never dropped", async () => {
+    writeSaved([saved(2025, "old")]);
+    setUpdate(manifest(file(2025, "new")), "prompt");
+    batch.busy = true;
+    const done = updateNow();
+    await vi.waitFor(() => expect(batch.idle.length).toBeGreaterThan(0));
+    expect(batch.runs).toEqual([]);
+    batch.busy = false;
+    for (const f of batch.idle) f();
+    await done;
+    expect(batch.runs).toEqual([[2025]]);
+    expect(toasts.at(-1)).toBe("Offline data for 2025–26 updated");
+  });
+
+  it("if that run already updated it, says it's up to date and downloads nothing more", async () => {
+    writeSaved([saved(2025, "old")]);
+    setUpdate(manifest(file(2025, "new")), "prompt");
+    batch.busy = true;
+    const done = updateNow();
+    await vi.waitFor(() => expect(batch.idle.length).toBeGreaterThan(0));
+    writeSaved([saved(2025, "new")]); // the other run saved the new release
+    batch.busy = false;
+    for (const f of batch.idle) f();
+    await done;
+    expect(batch.runs).toEqual([]);
+    expect(toasts.at(-1)).toBe("Offline data for 2025–26 is up to date");
   });
 });
