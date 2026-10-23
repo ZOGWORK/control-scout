@@ -17,7 +17,8 @@
 // EMA of squared standardized residuals; 1 = as variable as the model assumes)
 // and n = the fewest matches any of its robots has played this season, so a
 // range widens for erratic robots and small samples. Fitted on 2024–25 by the
-// 80% interval score, tested on 2025–26. It never feeds the win probability:
+// 80% interval score, tested on 2025–26; refitted the same way for 3.2, after
+// 2.7–2.11 sharpened the expected scores (docs/engine/part12/bands.md). It never feeds the win probability:
 // that still uses `sd`, so win odds are unchanged.
 import type { RatingBook } from "./rating.js";
 import { calibrateProb, type CalibrationParams } from "./calibration.js";
@@ -53,8 +54,8 @@ export interface BandParams {
   rating: number;
 }
 
-/** The engine 2.2 fitted band. FITTED_MODEL.band holds the same values (a test keeps them equal). */
-export const DEFAULT_BAND: BandParams = { level: 0.8, scale: 1.1, consistencyPower: 0.3, smallSample: 0.7, playoff: 0.6, rating: 0.75 };
+/** The fitted band (refitted for engine 3.2). FITTED_MODEL.band holds the same values (a test keeps them equal). */
+export const DEFAULT_BAND: BandParams = { level: 0.8, scale: 0.92, consistencyPower: 0.66, smallSample: 0.85, playoff: 0.72, rating: 0.59 };
 
 /** A stated score range: [lo, hi] should hold `level` of real scores (lo never below 0). */
 export interface ScoreBand {

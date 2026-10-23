@@ -185,7 +185,7 @@ export function AccuracySection() {
 
       <Prose id="ranges" className="mt-12 scroll-mt-bar-20">
         <h3>Score ranges</h3>
-        <p>Every predicted score comes with a range, written <strong>118 ±14</strong>. It's an <strong>80% range</strong>: about 8 in 10 real scores should land inside it. It widens when a robot has played only a few matches this season or its results swing a lot from match to match, and it narrows in playoffs, where scores are steadier.</p>
+        <p>Every predicted score comes with a range, written <strong>118 ±14</strong>. It's an <strong>80% range</strong>: about 8 in 10 real scores should land inside it. It widens when a robot has played only a few matches this season or its results swing a lot from match to match, and it narrows in playoffs, where scores are steadier. Engine 3.2 refitted how wide they are: after the 2.7–2.11 changes made expected scores sharper, the old ranges held about 85% of real scores. Replayed over 2025–26, a season the refit wasn't fitted on, the new ones hold 81.4% and are about 10 points narrower.</p>
         <p>The ranges are scored the same way as the win calls. If far more than 80% of scores land inside, the ranges are wider than they need to be; if far fewer do, they're overconfident. Here's how they've done in Control Scout's ledger{desc ? ` (${desc})` : ""}:</p>
       </Prose>
       <Reveal className="mx-auto mt-4 max-w-2xl">

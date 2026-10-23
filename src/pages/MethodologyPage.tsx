@@ -168,7 +168,7 @@ export default function MethodologyPage() {
               <><strong>Pick model.</strong> Captains come straight from the simulated seeds; who gets picked follows the fitted pick model, a softmax over each robot's rating with a small weight on its seed.</>,
               <><strong>Advancement odds are performance-based — awards can also advance teams.</strong> They count quals rank, alliance and playoff points only; the simulator above adds award odds.</>,
               <><strong>Same results, same numbers.</strong> The random numbers are seeded by the event and its results so far. A very large event that would take over 10 seconds runs {PROJECTION_FLOOR.toLocaleString("en-US")} simulations instead, and the page says so.</>,
-              <><strong>Checked on real events.</strong> Replaying 40 finished 2025–26 events from their midpoint, about 86% of teams (941 of 1,098) finished inside their projected 80% range.</>,
+              <><strong>Checked on real events.</strong> Replaying 40 finished 2025–26 events from their midpoint, 86.8% of teams (953 of 1,098) finished inside their projected 80% range.</>,
               <><strong>Local estimate, only as a fallback.</strong> When the stored projection can't be had (no signal, or none made yet) and this season is saved for offline use, the page simulates the event on your device instead: {LOCAL_RUNS.toLocaleString("en-US")} runs of the same engine with the same method and seed, in the background, stopping after {LOCAL_STOP_MS / 1000} seconds on a slow phone. It's labelled "Local estimate" with the real count, sits one confidence tier lower, is kept on the device only, and gives way to the stored projection as soon as that can be read.</>,
             ]} />
           </Prose>
