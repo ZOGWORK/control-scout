@@ -153,7 +153,7 @@ export function CompetitionAtlas({ overview, currentSeason, compact, homeCountry
               {selected ? (
                 <>
                   <p className="mt-1 font-display text-lg font-semibold leading-snug">{selected.name}</p>
-                  <p className="font-display text-4xl font-semibold tabular-nums text-accent-text">{fmt(selected.listings)}</p>
+                  <p className="font-display text-4xl font-semibold tabular-nums text-accent-display">{fmt(selected.listings)}</p>
                   <p className="text-sm text-text-muted">team listings · {season}</p>
                 </>
               ) : <p className="mt-1 text-sm text-text-muted">No team listings for {season} yet.</p>}
