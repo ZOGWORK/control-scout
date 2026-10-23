@@ -3,6 +3,8 @@
 // only this HTML (they don't run the app), so team and event pages get their
 // own values from the database here. The app's own document.title stays as
 // the in-app fallback.
+import { existsSync, readFileSync } from "node:fs";
+import { join } from "node:path";
 import { get } from "./db.js";
 import { CURRENT_SEASON, PREDICT_SEASONS, SEASON_NUMBERS, isLegacy, seasonInfo } from "./data/seasons.js";
 import { defaultRankingsSeason, rankings, snapshotWeeks } from "./api/rankings.js";
@@ -392,6 +394,12 @@ export async function pageMeta(path: string, query: Record<string, unknown> = {}
     const mm = await matchupMeta(sp).catch(() => null);
     if (mm) return mm;
   }
+  // How it works: the whole page in the first paint, prerendered from the real page component at build time
+  // (scripts/prerender.mjs), so crawlers read every section without running JavaScript.
+  if (p === "/methodology") {
+    const s = STATIC[p], body = methodologyHtml();
+    return { title: s.title, description: fitDescription(s.description), type: "website", ...(body ? { bodyHtml: body } : {}) };
+  }
   // The FAQ: its questions as FAQPage data, and in full in the first paint (the same text as the page).
   if (p === "/faq") return { title: STATIC["/faq"].title, description: fitDescription(STATIC["/faq"].description), type: "website", jsonLd: [faqJsonLd(canonicalOrigin())], bodyHtml: faqHtml() };
   const s = STATIC[p];
@@ -439,6 +447,18 @@ export function headTags(path: string, m: PageMeta): string {
   ];
   return tags.join("\n    ");
 }
+
+/** The prerendered How it works page (dist/prerender/methodology.html, or CS_PRERENDER_DIR), read once; null before a build. */
+let methodologyCache: string | null | undefined;
+export function methodologyHtml(): string | null {
+  if (methodologyCache === undefined) {
+    const f = join(process.env.CS_PRERENDER_DIR ?? join(process.cwd(), "dist", "prerender"), "methodology.html");
+    methodologyCache = existsSync(f) ? readFileSync(f, "utf8") : null;
+  }
+  return methodologyCache;
+}
+/** Tests: forget the cached page. */
+export function resetMethodologyHtml(): void { methodologyCache = undefined; }
 
 /** The FAQ as static HTML for the first paint (crawlers and link previews read it without the app). */
 function faqHtml(): string {
