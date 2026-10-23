@@ -12,6 +12,7 @@
 //   z      = L + Σ_i coefficient_i · D_i / scale_i      (17 features, below)
 //   p_raw  = clamp(sigmoid(z), 1e-8, 1 − 1e-8)
 //   P(red) = sigmoid(slope · logit(p_raw) + intercept)
+//   (2.8) P(red) = sigmoid(recalibration.slope · logit(P(red))), when the model carries one
 //
 // Coefficients were fitted on 2023–24 seasons, chosen on Jan–Feb 2025
 // development data, calibrated on Mar–May 2025 and frozen before the 2025–26
@@ -30,6 +31,15 @@ export interface ContextualModel {
   calibration: { slope: number; intercept: number };
   /** Used when a book's state is too old for this model (2.1 → the 2.0 model). */
   fallback?: ContextualModel;
+  /** Engine 2.8: a final stretch of the probability away from (or toward) 50%, applied after
+   *  `calibration`: P(red) = sigmoid(slope · logit(p)). Fitted forward on the latest seasons' calls;
+   *  no intercept, so it never favours a colour, and it never changes which side is favoured. */
+  recalibration?: Recalibration;
+}
+
+export interface Recalibration {
+  slope: number;
+  provenance?: Record<string, unknown>;
 }
 
 /** What the probability model needs to know about a match beyond its lineups. */
@@ -128,7 +138,9 @@ export function contextualProbability(model: ContextualModel, L: number, feature
   let z = L;
   for (let i = 0; i < features.length; i++) z += (features[i] / model.scale[i]) * model.coefficients[i];
   const raw = clampP(sigmoid(z), 1e-8);
-  return sigmoid(model.calibration.slope * logit(raw) + model.calibration.intercept);
+  const p = sigmoid(model.calibration.slope * logit(raw) + model.calibration.intercept);
+  // Engine 2.8: the final stretch (no intercept: never a colour term, never a new favourite).
+  return model.recalibration ? sigmoid(model.recalibration.slope * logit(clampP(p, 1e-9))) : p;
 }
 
 /**
