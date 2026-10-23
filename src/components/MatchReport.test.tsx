@@ -86,7 +86,7 @@ describe("MatchReportView", () => {
 
   it("the event's OPR leads once a team has played a few matches here", () => {
     show(report(match(), [team(11, { event: { rank: 1, wins: 4, losses: 0, ties: 0, qualPlayed: 5, opr: { np: 70, auto: 20, teleop: 30, endgame: 20, pen: 0 } } }), team(12), team(13), team(14)]));
-    expect(within(cards()[0]).getByText("OPR here")).toBeTruthy();
+    expect(within(cards()[0]).getByText("OPR at this time")).toBeTruthy();
     expect(within(cards()[0]).getByText("70")).toBeTruthy();
   });
 

@@ -11,7 +11,7 @@ const h = vi.hoisted(() => ({ user: null as AccountUser | null, state: { myTeam:
 vi.mock("../lib/personal", () => ({ usePersonal: () => ({ user: h.user, providers: {}, state: h.state, syncReady: false }) }));
 vi.mock("../lib/meta", async (orig) => ({ ...(await orig<typeof import("../lib/meta")>()), useMeta: () => null, useCurrentSeason: () => 2025, useTitle: () => {}, usePredictable: () => true }));
 
-const { default: ComparePage, leaders } = await import("./ComparePage");
+const { default: ComparePage, leaders, teamsOf, baselineMeetings } = await import("./ComparePage");
 const { compareBrief } = await import("../lib/compareBrief");
 const { TooltipProvider } = await import("../components/ui/overlay");
 
@@ -41,6 +41,23 @@ beforeEach(() => {
 afterEach(() => { cleanup(); vi.unstubAllGlobals(); });
 
 const page = (url = "/compare") => render(<TooltipProvider><MemoryRouter initialEntries={[url]}><ComparePage /><Where /></MemoryRouter></TooltipProvider>);
+
+describe("teamsOf", () => {
+  it("reads ?teams= as plain numbers, each once", () => {
+    expect(teamsOf("04215,6980,x,4215,0")).toEqual(["4215", "6980"]);
+    expect(teamsOf(null)).toEqual([]);
+  });
+});
+
+describe("baselineMeetings", () => {
+  const match = (key: string, red: number[], blue: number[]) => ({ key, red: { teams: red.map((number) => ({ number })) }, blue: { teams: blue.map((number) => ({ number })) }, relation: "partners" }) as unknown as CompareView["meetings"][number];
+  const all = [match("a", [1, 9], [2, 8]), match("b", [2, 3], [7, 8]), match("c", [1, 3], [7, 8])];
+  it("keeps the baseline's matches with another compared team, from its side", () => {
+    expect(baselineMeetings(all, [1, 2, 3]).map((m) => [m.key, m.relation])).toEqual([["a", "opponents"], ["c", "partners"]]);
+    // Moving 2 first: its match with 3 (left out from 1's side) shows, and 1 and 3's doesn't.
+    expect(baselineMeetings(all, [2, 1, 3]).map((m) => [m.key, m.relation])).toEqual([["a", "opponents"], ["b", "partners"]]);
+  });
+});
 
 describe("leaders", () => {
   const m = { better: "high" as const, value: (x: CompareTeam) => x.stats?.opr.np.value ?? null };

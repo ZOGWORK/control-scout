@@ -13,7 +13,7 @@ vi.mock("../lib/recordings", async (orig) => ({
 vi.mock("../lib/personal", () => ({ usePersonal: () => ({ state: { videoLinks: {} }, update: () => true }) }));
 vi.mock("./ui/sonner", () => ({ toast: { success: vi.fn() } }));
 
-const { VideoPanel } = await import("./MatchVideo");
+const { VideoPanel, mimeOfName, extOfMime } = await import("./MatchVideo");
 
 beforeEach(() => { saved.length = 0; });
 afterEach(() => { cleanup(); vi.unstubAllGlobals(); });
@@ -40,5 +40,25 @@ describe("Record: choose a video", () => {
     fireEvent.change(input, { target: { files: [new File(["x"], "notes.txt", { type: "text/plain" })] } });
     expect(await screen.findByText("That file isn't a video.")).toBeTruthy();
     expect(saved).toHaveLength(0);
+  });
+});
+
+describe("video types", () => {
+  it("knows a video by its name when the browser gives no type, and downloads it with its own extension", () => {
+    expect(mimeOfName("Q1.MOV")).toBe("video/quicktime");
+    expect(mimeOfName("notes.txt")).toBeNull();
+    expect(extOfMime("video/quicktime")).toBe("mov");
+    expect(extOfMime("video/webm;codecs=vp9")).toBe("webm");
+    expect(extOfMime("video/mp4;codecs=avc1")).toBe("mp4");
+  });
+
+  it("saves a picked video whose type the browser left empty", async () => {
+    vi.stubGlobal("MediaRecorder", undefined);
+    render(<VideoPanel matchRef="2025:X:Q1" label="X Q1" />);
+    fireEvent.mouseDown(screen.getByRole("tab", { name: "Record" }));
+    fireEvent.click(screen.getByRole("tab", { name: "Record" }));
+    const input = (await waitFor(() => document.querySelector<HTMLInputElement>('input[type="file"]')!))!;
+    fireEvent.change(input, { target: { files: [new File(["x"], "q1.mov", { type: "" })] } });
+    await waitFor(() => expect(saved).toEqual([expect.objectContaining({ mime: "video/quicktime" })]), { timeout: 4000 });
   });
 });
