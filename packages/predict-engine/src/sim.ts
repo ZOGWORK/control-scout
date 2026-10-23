@@ -168,6 +168,16 @@ const logistic = (x: number) => 1 / (1 + Math.exp(-x));
 const QUAL: MatchContext = { level: "qual" };
 const PLAYOFF: MatchContext = { level: "playoff" };
 
+/**
+ * Ranking points one alliance earns from a qualification match in a simulation run. A simulated match
+ * (tieWidth given) whose final scores are within tieWidth/2 of each other is a tie (engine 3.1): tie RPs for
+ * both alliances, plus each one's own bonus RPs. Played matches pass no width and keep their real result.
+ */
+export function qualRankingPoints(season: number, own: Parameters<typeof rankingPoints>[1], opp: { total: number }, tieWidth?: number): number {
+  const tied = !!tieWidth && Math.abs(own.total - opp.total) < tieWidth / 2;
+  return rankingPoints(season, own, tied ? { total: own.total } : opp);
+}
+
 export function simulateEvent(input: SimInput): Map<number, TeamOutcome> {
   const r = rng(input.seed ?? 1);
   // Every team that can matter: scheduled, ranked or already on an alliance.
@@ -239,16 +249,16 @@ export function simulateEvent(input: SimInput): Map<number, TeamOutcome> {
       }
     } else {
       for (const m of input.quals) {
-        let res = m.result, tied = false;
+        let res = m.result;
+        const simulated = !res;
         if (!res) {
           const red = playScore(m.red, m.blue), blue = playScore(m.blue, m.red);
           res = { red: { ...red, bonus: sampleBonus(red.np) }, blue: { ...blue, bonus: sampleBonus(blue.np) } };
-          tied = !!input.tieWidth && Math.abs(red.total - blue.total) < input.tieWidth / 2;
         }
         for (const [side, own, opp] of [[m.red, res.red, res.blue], [m.blue, res.blue, res.red]] as const) {
           // A played alliance whose bonus RPs weren't reported: sample them.
           const scored = own.bonus !== undefined || input.season < 2025 ? own : { ...own, bonus: sampleBonus(own.np) };
-          const rp = rankingPoints(input.season, scored, tied ? { total: scored.total } : opp);
+          const rp = qualRankingPoints(input.season, scored, opp, simulated ? input.tieWidth : undefined);
           for (const t of side) { if (m.noRank?.includes(t)) continue; tally(t, own, rp, !!m.dq?.includes(t)); }
         }
       }
