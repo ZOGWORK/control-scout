@@ -176,7 +176,9 @@ describe("Forecaster keeps recorded bonus RPs of played matches", () => {
     expect(played.bonus ?? null).toBeNull();
     const b = next.bonus!;
     expect(b.red.every((p) => p > 0 && p < 1)).toBe(true);
-    expect(b.expectedRpRed).toBeCloseTo(3 * next.pRedWin! + b.red.reduce((s, p) => s + p, 0), 2);
+    // Win and tie RPs (engine 3.1: a tie, 1 RP, takes half a win out of the win probability) plus bonus RPs.
+    expect(b.expectedRpRed).toBeLessThan(3 * next.pRedWin! + b.red.reduce((s, p) => s + p, 0));
+    expect(b.expectedRpRed).toBeGreaterThan(3 * next.pRedWin! + b.red.reduce((s, p) => s + p, 0) - 0.05);
     expect(f.bonusModel(2025)?.source).toBe("fitted"); // no stored season results here: the shipped fit
     expect(f.bonusModel(2024)).toBeNull();
   });
