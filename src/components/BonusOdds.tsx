@@ -46,7 +46,7 @@ export function BonusOdds({ season, bonus, actual, className, compact }: {
       </div>
       {!compact && (
         <p className="mt-2 text-[11px] leading-snug text-text-muted">
-          Win chance × 3 plus each bonus chance, from each alliance's likely score this season. Qualification matches only.{" "}
+          3 for a win and 1 for a tie, weighted by their chances (a tie is about 1% in an even match), plus each bonus chance, from each alliance's likely score this season. Qualification matches only.{" "}
           <Link to="/methodology#bonus" className="underline underline-offset-2">How</Link>
         </p>
       )}

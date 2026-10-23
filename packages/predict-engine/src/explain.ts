@@ -18,7 +18,7 @@ import type { CalibrationParams } from "./calibration.js";
 import type { ContextualModel, MatchContext, ProbabilityModel } from "./contextual.js";
 import type { RatingBook } from "./rating.js";
 import type { Component, TeamRating } from "./types.js";
-import { allianceBonusOdds, BONUS_CONFIDENCE_RULE, type AllianceBonusOdds, type BonusModelSource } from "./bonus.js";
+import { allianceBonusOdds, BONUS_CONFIDENCE_RULE, tieProbability, type AllianceBonusOdds, type BonusModelSource } from "./bonus.js";
 
 export type ConfidenceTier = "provisional" | "moderate" | "confident";
 
@@ -158,6 +158,8 @@ export interface MatchExplanation {
 export interface MatchBonusOdds {
   A: AllianceBonusOdds;
   B: AllianceBonusOdds;
+  /** P(the match ties) (bonus.ts tieProbability, engine 3.1): its expected RPs count a tie's RP. */
+  pTie: number;
   /** The match's tier, capped by how much the bonus model has learned from (BONUS_CONFIDENCE_RULE). */
   confidence: { tier: ConfidenceTier; reason: string };
   source: BonusModelSource["source"];
@@ -187,11 +189,13 @@ export interface ExplainOptions {
 
 const TIER_ORDER: ConfidenceTier[] = ["provisional", "moderate", "confident"];
 
-function bonusOdds(season: number, src: BonusModelSource, p: { red: { np: number; sd: number }; blue: { np: number; sd: number } }, pA: number, match: { tier: ConfidenceTier; reason: string }): MatchBonusOdds | null {
+function bonusOdds(season: number, src: BonusModelSource, p: { red: { mean: number; np: number; sd: number }; blue: { mean: number; np: number; sd: number } }, pA: number, match: { tier: ConfidenceTier; reason: string }): MatchBonusOdds | null {
   // A bonus is earned on the alliance's own non-penalty points: their mean is the lineup's np, their spread
   // the score's game noise + rating uncertainty (the event simulator draws them the same way).
-  const A = allianceBonusOdds(season, src.model, { mean: p.red.np, sd: p.red.sd }, pA);
-  const B = allianceBonusOdds(season, src.model, { mean: p.blue.np, sd: p.blue.sd }, 1 - pA);
+  // A tie (engine 3.1) is priced on the final-score margin: the two alliances' totals, their spreads combined.
+  const pTie = tieProbability({ mean: p.red.mean - p.blue.mean, sd: Math.hypot(p.red.sd, p.blue.sd) }, pA);
+  const A = allianceBonusOdds(season, src.model, { mean: p.red.np, sd: p.red.sd }, pA, pTie);
+  const B = allianceBonusOdds(season, src.model, { mean: p.blue.np, sd: p.blue.sd }, 1 - pA, pTie);
   if (!A || !B) return null;
   const R = BONUS_CONFIDENCE_RULE;
   const n = src.samples;
@@ -202,7 +206,7 @@ function bonusOdds(season: number, src: BonusModelSource, p: { red: { np: number
     : src.source === "season" && n != null
       ? `${match.reason} Bonus odds learn from ${n.toLocaleString("en-US")} of this season's alliance results.`
       : match.reason;
-  return { A, B, confidence: { tier: capped ? cap : match.tier, reason }, source: src.source, samples: n };
+  return { A, B, pTie, confidence: { tier: capped ? cap : match.tier, reason }, source: src.source, samples: n };
 }
 
 const COMPONENT_WORDS: Record<Component, string> = {

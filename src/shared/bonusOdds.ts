@@ -1,12 +1,13 @@
 // Bonus ranking point odds (engine bonus.ts via explainMatch): what the ledger stores with a call, and
 // the view every match surface shows. Probabilities are kept to 4 places and never a flat 0 or 1
 // (they're calls, not results); expected RPs are derived from them and the call's win probability.
-import { BONUS_SLOTS, winRankingPoints, type MatchExplanation, type AllianceBonusOdds } from "@control-scout/predict-engine";
+import { BONUS_SLOTS, expectedOutcomeRp, type MatchExplanation, type AllianceBonusOdds } from "@control-scout/predict-engine";
 import type { BonusOddsView, ConfidenceTier } from "./api.js";
 
 const stable = (p: number) => Math.min(0.9999, Math.max(0.0001, Math.round(p * 1e4) / 1e4));
 const triple = (a: AllianceBonusOdds) => BONUS_SLOTS.map((s) => stable(a.p[s])) as [number, number, number];
-const rp = (season: number, pWin: number, ps: number[]) => Math.round((winRankingPoints(season).win * pWin + ps.reduce((s, p) => s + p, 0)) * 100) / 100;
+// pTie (engine 3.1): the match's tie probability; logged calls don't store it, so theirs leave ties out (≤ 0.01 RP).
+const rp = (season: number, pWin: number, ps: number[], pTie = 0) => Math.round((expectedOutcomeRp(season, pWin, pTie) + ps.reduce((s, p) => s + p, 0)) * 100) / 100;
 
 /** The model a call's bonus odds came from, as stored: "fitted:2025" or "season:<alliances>". */
 export const bonusModelId = (season: number, b: NonNullable<MatchExplanation["bonus"]>) => (b.source === "fitted" ? `fitted:${season}` : `season:${b.samples}`);
@@ -15,7 +16,7 @@ export const bonusModelId = (season: number, b: NonNullable<MatchExplanation["bo
 export function bonusView(season: number, x: MatchExplanation, pRed = x.winProbA): BonusOddsView | undefined {
   if (!x.bonus) return undefined;
   const red = triple(x.bonus.A), blue = triple(x.bonus.B);
-  return { red, blue, rpRed: rp(season, pRed, red), rpBlue: rp(season, 1 - pRed, blue), tier: x.bonus.confidence.tier, reason: x.bonus.confidence.reason };
+  return { red, blue, rpRed: rp(season, pRed, red, x.bonus.pTie), rpBlue: rp(season, 1 - pRed, blue, x.bonus.pTie), tier: x.bonus.confidence.tier, reason: x.bonus.confidence.reason };
 }
 
 /** Ledger columns (bonus_red, bonus_blue, bonus_tier, bonus_model) for a call; nulls when it has no bonus odds. */
