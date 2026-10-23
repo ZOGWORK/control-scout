@@ -158,7 +158,7 @@ function Row({ r, v }: { r: DisagreementRow; v: DisagreementsView }) {
         <div><dt className="inline">Rating </dt><dd className="inline font-medium tabular-nums text-foreground">{num1(r.rating.np)} ± {num1(r.rating.sd)}</dd></div>
         <div><dt className="inline">vs the model's #{r.seedPlace} </dt><dd className="inline font-medium tabular-nums text-foreground">{r.direction === "model-higher" ? "+" : "−"}{num1(r.margin)}</dd></div>
         <div><dd className="inline font-medium tabular-nums text-foreground">{r.rating.matches}</dd><dt className="inline"> matches rated</dt></div>
-        {r.opr != null && <div><dt className="inline">{r.oprKind === "season" ? "Season OPR " : "OPR here "}</dt><dd className="inline font-medium tabular-nums text-foreground">{num1(r.opr)}</dd></div>}
+        {r.opr != null && <div><dt className="inline">{r.oprKind === "season" ? "Season OPR " : "OPR at this time "}</dt><dd className="inline font-medium tabular-nums text-foreground">{num1(r.opr)}</dd></div>}
         {r.record && <div><dt className="inline">Record </dt><dd className="inline font-medium tabular-nums text-foreground">{r.record.wins}-{r.record.losses}-{r.record.ties}</dd></div>}
         {r.rp != null && <div><dt className="inline">RP </dt><dd className="inline font-medium tabular-nums text-foreground">{num1(r.rp)}</dd></div>}
         <div title={r.reason}><dt className="sr-only">Confidence</dt><dd className="inline"><TierMark tier={r.tier} chip /></dd></div>
