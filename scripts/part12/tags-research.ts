@@ -21,10 +21,21 @@ interface A { season: number; event: string; level: string; gap: number; p: numb
 const rows: A[] = [];
 const book = new RatingBook(M.rating);
 for (const s of [2023, 2024, 2025]) {
-  const { matches, unrated } = await seasonCorpus(s);
+  const { events, matches, unrated } = await seasonCorpus(s);
   book.startSeason(s);
-  const last = new Map<string, number>(); // event|team → index of its last qual at the event
-  const idx = new Map<string, number>();  // event → quals seen so far
+  // Rest gaps from each event's qualification schedule (match number order), apart from the rating
+  // replay's time order: a qual with a missing or odd timestamp can't change who sat out how long.
+  const gapOf = new Map<string, Map<number, number>>(); // event|series|number → team → quals sat out since its last
+  for (const ev of events) {
+    const quals = ev.matches.filter((m) => m.level === "qual").sort((a, b) => a.series - b.series || a.number - b.number);
+    const last = new Map<number, number>();
+    quals.forEach((m, k) => {
+      const g = new Map<number, number>();
+      for (const t of [...m.red.teams, ...m.blue.teams]) { const l = last.get(t); g.set(t, l == null ? Infinity : k - l - 1); }
+      gapOf.set(`${ev.code}|${m.series}|${m.number}`, g);
+      for (const t of [...m.red.teams, ...m.blue.teams]) last.set(t, k);
+    });
+  }
   for (const m of matches) {
     if (unrated.has(m.eventCode)) continue;
     book.setTime(m.time);
@@ -32,14 +43,12 @@ for (const s of [2023, 2024, 2025]) {
       const ctx = { level: m.level, event: m.eventCode, ...(m.region ? { region: m.region } : {}) };
       const pc = predictMatch(book, m.red.teams, m.blue.teams, M.noise, M.calibration, { contextual: M.contextual, context: ctx });
       const y = outcome(m);
-      const k = idx.get(m.eventCode) ?? 0;
+      const g = m.level === "qual" ? gapOf.get(`${m.eventCode}|${m.series}|${m.number}`) : undefined;
       for (const [al, red] of [[m.red, true], [m.blue, false]] as const) {
-        const gaps = al.teams.map((t) => { const l = last.get(`${m.eventCode}|${t}`); return l == null ? Infinity : k - l - 1; });
         const pr = red ? pc.pRedWin : 1 - pc.pRedWin, pred = red ? pc.red.mean : pc.blue.mean;
-        rows.push({ season: s, event: `${s}|${m.eventCode}`, level: m.level, gap: m.level === "qual" ? Math.min(...gaps) : NaN, p: pr, y: red ? y : 1 - y, miss: al.total - pred, red });
+        rows.push({ season: s, event: `${s}|${m.eventCode}`, level: m.level, gap: g ? Math.min(...al.teams.map((t) => g.get(t) ?? Infinity)) : NaN, p: pr, y: red ? y : 1 - y, miss: al.total - pred, red });
       }
     }
-    if (m.level === "qual") { const k = idx.get(m.eventCode) ?? 0; for (const t of [...m.red.teams, ...m.blue.teams]) last.set(`${m.eventCode}|${t}`, k); idx.set(m.eventCode, k + 1); }
     book.update(m);
   }
 }
