@@ -9,7 +9,7 @@ teams, scout, offline, speed, live, report, alerts, rankings, share, workspace,
 picklist, history, fixes). What's new shows them first; the groups below are
 the full release notes, one click away.
 
-## 1.33.0 — 2026-10-23
+## 1.34.0 — 2026-10-23
 
 Team pages tell search engines exactly who the team is, so a search for a team's number and name finds its page.
 
@@ -23,6 +23,33 @@ Team pages tell search engines exactly who the team is, so a search for a team's
 - **Readable before the app loads.** The first response for a team page carries a short summary and its most recent events as links, so search engines and slow connections read who the team is without running any script. The app takes over as before.
 - **Clearer to search engines.** Each team page describes itself as the team's profile page, with the team's own website and its FIRST page listed as the same team, and a Home › Teams › team trail. A link with ?season= still names the one team address as its canonical.
 - **Fresh in the sitemap.** A team's last-changed date in the sitemap is now the last day it played (or a later correction to those results), instead of the date of the last data sync, which was the same for every team. (#256)
+
+## 1.33.0 — 2026-10-23
+
+Small fixes: Compare lets you pick the team the others are measured against, and match videos can be added from your camera app.
+
+### Highlights
+- [teams] Compare: drag teams into order; the first is the baseline, tinted yellow
+- [scout] Add a match video you filmed with your camera app, or any video file
+- [live] Today's coin flips moved from Home to the Events page
+- [fixes] Check again shows it's checking; event names in match lists are larger
+
+### Compare
+- **Reorder the teams.** Drag a team's grip (mouse or touch) onto another column, or use the arrow keys on it. The first team is the baseline the others are measured against: its column is tinted light yellow and tagged Baseline. Reordering doesn't load the comparison again, and head to head follows the baseline: its matches with or against the others, from its side. Dragging near the table's edge on a phone scrolls it. (#254)
+
+### Scouting
+- **Add a video you filmed.** A match's Video box now has Choose a video next to Start camera: pick a video from this device (or film one with the phone's camera app); MOV, MP4, WebM and other common formats, downloaded again with their own extension. It's kept on this device like an in-app recording, never uploaded. Browsers that can't record in the page still offer it. The box says what it holds (record, add a file or a YouTube link), and Settings no longer points at a camera icon that isn't there.
+
+### Home and events
+- **Today's coin flips are on the Events page,** above the event list (current season), instead of on Home.
+
+### Fixes
+- **Check again** (statistics catching up) spins and reads Checking… until the fresh answer is in.
+- **Event names** heading a match list are a size up, no longer smaller than the match numbers.
+- **Power rankings:** "Control Point" in the Bruno note links to Control Point.
+- **Scouting report button** on each match row is a soft solid gold, so it stands out.
+- **"OPR at this time"** replaces "OPR here" next to a team's OPR at an event (match details, the pre-match report, the model-vs-field list).
+- **Shortlist:** the list view drops the Reliab. column to make room; reliability still shows in the grid view and on Compare.
 
 ## 1.32.0 — 2026-10-23
 

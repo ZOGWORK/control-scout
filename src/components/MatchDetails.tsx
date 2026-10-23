@@ -5,7 +5,7 @@
 // and the match's video.
 import { useState } from "react";
 import { Link } from "react-router-dom";
-import { ChevronLeft, ChevronRight, ClipboardList, PlayCircle } from "lucide-react";
+import { ChevronLeft, ChevronRight, ClipboardList, PlayCircle, Video } from "lucide-react";
 import type { MatchDetail, MatchView } from "../shared/api";
 import { matchReportHref } from "../shared/matchReport";
 import { useApi } from "../lib/api";
@@ -81,7 +81,7 @@ function MatchVideoSection({ m }: { m: MatchView }) {
   return (
     // Mounted only while open: closing it unmounts the recorder, which stops (and saves) any recording and releases the camera.
     <details className="group mt-4 rounded-xl border border-border bg-card" onToggle={(e) => setOpen((e.currentTarget as HTMLDetailsElement).open)}>
-      <summary className="cursor-pointer select-none px-4 py-3 text-sm font-medium">Video for {m.label}</summary>
+      <summary className="flex cursor-pointer select-none items-center gap-2 px-4 py-3 text-sm font-medium max-sm:min-h-11"><Video className="size-4 text-accent-text" aria-hidden />Video for {m.label}<span className="font-normal text-text-muted">: record, add a file or a YouTube link</span></summary>
       {open && <div className="border-t border-border p-4"><VideoPanel matchRef={matchRef(m)} label={`${m.code} ${m.label}`} /></div>}
     </details>
   );
@@ -118,7 +118,7 @@ function Alliance({ d, side }: { d: MatchDetail; side: Side }) {
               </div>
               <dl className="mt-1 grid grid-cols-3 gap-x-3 text-[11px] text-text-muted">
                 <div><dt className="sr-only">Event rank</dt><dd>{ev?.rank ? <>Rank <span className="text-text-base">#{ev.rank}</span>{ev.wins != null && <> · {ev.wins}-{ev.losses}-{ev.ties}</>}</> : "Unranked"}</dd></div>
-                <div><dt className="sr-only">Event OPR</dt><dd>OPR here <span className="text-text-base">{ev?.opr.np != null ? r1(ev.opr.np) : "—"}</span></dd></div>
+                <div><dt className="sr-only">Event OPR</dt><dd>OPR at this time <span className="text-text-base">{ev?.opr.np != null ? r1(ev.opr.np) : "—"}</span></dd></div>
                 <div><dt className="sr-only">Season OPR</dt><dd>Season <span className="text-text-base">{se?.opr != null ? r1(se.opr) : "—"}</span>{se?.rank ? <> · #{se.rank.toLocaleString()}</> : null}</dd></div>
               </dl>
             </li>
