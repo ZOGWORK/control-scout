@@ -15,8 +15,8 @@ const TAG: Record<Verdict, { text: string; cls: string }> = {
 const NOTES: { v: Verdict; title: string; body: string; more: string; wide?: boolean }[] = [
   {
     v: "ship", wide: true, title: "Engines 2.7–2.11: measure first, then fix the biggest weak spots",
-    body: "A slice report replays every match and breaks the errors down by situation. Thin data dominated, so the fixes went there: regional starting points (2.7), a slightly bolder final calibration (2.8), form at the current event (2.9), slow-learning foul ratings (2.10) and alliance overlap (2.11). Each one beat the version before it on identical past matches, with no situation getting worse.",
-    more: "Brier change per release, 2024–25 (tuning) / 2025–26: 2.7 −3.3 / −2.4 ×10⁻⁴; 2.8 −0.7 / −1.9 (month-by-month, forward-only); 2.9 −1.5 / −1.8; 2.10 neutral on win odds, expected-score error 27.67 → 26.57 points on 2025–26; 2.11 −2.1 / −2.4. Winner accuracy barely moved: these make the stated chances truer rather than picking more winners. Every gate report is in docs/engine/gates in the repository.",
+    body: "A slice report replays every match and breaks the errors down by situation. Thin data dominated, so the fixes went there: regional starting points (2.7), a slightly bolder final calibration (2.8), form at the current event (2.9), slow-learning foul ratings (2.10) and alliance overlap (2.11). Each one beat the version before it on identical past matches, with no situation getting worse in the two seasons it was judged on (one exception in the earliest season is noted below).",
+    more: "Brier change per release, 2024–25 (tuning) / 2025–26: 2.7 −3.3 / −2.4 ×10⁻⁴; 2.8 −0.7 / −1.9 (month-by-month, forward-only); 2.9 −1.5 / −1.8; 2.10 neutral on win odds, expected-score error 27.67 → 26.57 points on 2025–26; 2.11 −2.1 / −2.4. Winner accuracy barely moved: these make the stated chances truer rather than picking more winners. One exception: in 2023–24, which every replay starts cold, 2.10 made matches between well-known robots (16+ matches) slightly worse (+1.6 ×10⁻⁴), and 2.9 large events (+2.9). Every gate report is in docs/engine/gates in the repository.",
   },
   {
     v: "no", title: "Carrying endgame over less between seasons",
@@ -36,7 +36,7 @@ const NOTES: { v: Verdict; title: string; body: string; more: string; wide?: boo
   {
     v: "no", title: "A dead-robot mixture",
     body: "Modelling a chance that each robot does nothing in a match. The win odds were already right for fragile robots (within about 2 points at every level of fragility), and their score ranges already held. Their misses land above the range more often than below, the opposite of what a dead-robot term would fix.",
-    more: "Top 10% by failure history, favourites at 80%+: stated 90.7% / won 88.8% ±2.0 (2024–25), 88.7% / 88.7% ±2.2 (2025–26). 80% ranges for those alliances covered 80.6% and 80.4%, with 12.6% and 11.4% of misses above.",
+    more: "Top 10% by failure history, favourites at 80%+: stated 90.7% / won 88.8% ±2.0 (2024–25), 88.7% / 88.7% ±2.2 (2025–26). 80% ranges for those alliances covered 80.6% and 80.4%; 12.6% and 11.4% of all their scores landed above the range (about 60% of the misses).",
   },
   {
     v: "ship", wide: true, title: "Prediction Engine 2.1: form at this event, momentum, collapses",
