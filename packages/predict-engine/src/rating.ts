@@ -25,6 +25,16 @@
 // result. Only returning teams teach the lift, so a season where no team has
 // history (a cold start) is unchanged. Off when regionKappa = 0.
 //
+// Event-local form (engine 2.9): a robot is not a constant across a day. At
+// an event, each team keeps the sum of its share of its alliances' misses
+// there (actual minus what its ratings expected, per phase), and predictions
+// AT THAT EVENT (withEvent) add a temporary adjustment of
+//   eventLambda_c · mean miss_c · eventKappa / (matches there + eventKappa),
+// capped at eventCap
+// population standard deviations. The permanent rating is untouched: results
+// are always judged against it, and the adjustment is gone at the team's
+// next event. Off when every eventLambda is 0.
+//
 // Breaks between events: teams often come back from a few weeks off with a
 // changed (rebuilt) robot. After a break of at least `rebuildGapWeeks`, a
 // team's prediction is less certain (extra variance per week away) and its
@@ -57,6 +67,14 @@ export interface RatingParams {
   regionKappa: number;
   /** A team's lift is measured once it has played this many rated matches. */
   regionFreezeN: number;
+  /** Event-local form, per phase: share of a team's mean miss at this event added to its predictions there (0 = off). */
+  eventLambdaAuto: number;
+  eventLambdaTeleop: number;
+  eventLambdaEndgame: number;
+  /** How fast event-local form fades as matches there pile up (its weight is eventKappa / (n + eventKappa)). */
+  eventKappa: number;
+  /** Cap on event-local form, in population standard deviations of that phase. */
+  eventCap: number;
   /** Starting prediction variance (points², per team) for known teams / rookies. */
   uncKnown: number;
   uncRookie: number;
@@ -98,6 +116,11 @@ export const DEFAULT_RATING_PARAMS: RatingParams = {
   carryEndgame: 1,
   regionKappa: 0,
   regionFreezeN: 3,
+  eventLambdaAuto: 0,
+  eventLambdaTeleop: 0,
+  eventLambdaEndgame: 0,
+  eventKappa: 2,
+  eventCap: 1,
   uncKnown: 150,
   uncRookie: 350,
   uncDecay: 0.8,
@@ -134,7 +157,12 @@ export interface RatingBookData {
   stateVersion?: number;
   /** Regional prior state (engine 2.7; absent = none learned yet). */
   regions?: RegionStateData;
+  /** Event-local form (engine 2.9): each team's current event and its summed miss shares there. */
+  events?: [number, EventForm][];
 }
+
+/** A team's event-local form: the event, its matches there, and its summed share of its alliances' misses. */
+export interface EventForm { code: string; n: number; auto: number; teleop: number; endgame: number }
 
 type Phases = { auto: number; teleop: number; endgame: number };
 
@@ -238,6 +266,10 @@ export class RatingBook {
   private arriving = new Map<number, string>();
   /** The region of the event being predicted (withRegion): newcomers' priors include its offset. */
   private hint: string | null = null;
+  /** Event-local form per team (engine 2.9), for the event it is playing now. */
+  private eventForm = new Map<number, EventForm>();
+  /** The event being predicted (withEvent): its teams' predictions include their form there. */
+  private eventHint: string | null = null;
   /**
    * True when the reliability state covers the whole season so far (a book
    * that started the season itself, or one loaded with 2.0+ state). Data
@@ -280,6 +312,7 @@ export class RatingBook {
     this.stateVersion = RELIABILITY_STATE_VERSION;
     this.regionLift.clear();
     this.regionPending.clear();
+    this.eventForm.clear();
   }
 
   /** Move the clock (e.g. to an event's start before predicting it). */
@@ -382,7 +415,49 @@ export class RatingBook {
     const r = this.ratings.get(team) ?? this.priorFor(team);
     const f = this.growth(r.asOf, this.now);
     const unc = r.uncertainty + this.params.rebuildUncPerWeek * this.breakWeeks(r, this.now);
-    return { ...r, auto: r.auto * f, teleop: r.teleop * f, endgame: r.endgame * f, uncertainty: unc };
+    const out = { ...r, auto: r.auto * f, teleop: r.teleop * f, endgame: r.endgame * f, uncertainty: unc };
+    if (this.eventHint != null) {
+      const e = this.eventOffset(team, this.eventHint);
+      if (e) { out.auto = Math.max(0, out.auto + e.auto); out.teleop = Math.max(0, out.teleop + e.teleop); out.endgame = Math.max(0, out.endgame + e.endgame); }
+    }
+    return out;
+  }
+
+  /**
+   * Run `fn` with predictions for a match at event `code`: each team's ratings include its
+   * event-local form there (engine 2.9). Results are never folded in under it.
+   */
+  withEvent<T>(code: string | null | undefined, fn: () => T): T {
+    const p = this.params;
+    if (!code || (!p.eventLambdaAuto && !p.eventLambdaTeleop && !p.eventLambdaEndgame)) return fn();
+    const prev = this.eventHint;
+    this.eventHint = code;
+    try { return fn(); } finally { this.eventHint = prev; }
+  }
+
+  /** A team's rating as of now without any event-local form (its permanent rating, grown to now). */
+  permanent(team: number): TeamRating {
+    const h = this.eventHint;
+    this.eventHint = null;
+    try { return this.get(team); } finally { this.eventHint = h; }
+  }
+
+  /** A team's event-local form state (its current event, matches there and summed misses), as a copy. */
+  eventFormOf(team: number): EventForm | null {
+    const s = this.eventForm.get(team);
+    return s ? { ...s } : null;
+  }
+
+  /** A team's event-local form adjustment at `code` (points per phase), or null when it has none there. */
+  eventOffset(team: number, code: string): Phases | null {
+    const s = this.eventForm.get(team), p = this.params;
+    if (!s || s.code !== code || !s.n || (!p.eventLambdaAuto && !p.eventLambdaTeleop && !p.eventLambdaEndgame)) return null;
+    const one = (lambda: number, sum: number, c: Component) => {
+      const cap = p.eventCap * this.sd(c);
+      // Mean miss there, weighted down as matches there pile up (the permanent rating catches up).
+      return Math.max(-cap, Math.min(cap, lambda * (sum / s.n) * (p.eventKappa / (s.n + p.eventKappa))));
+    };
+    return { auto: one(p.eventLambdaAuto, s.auto, "auto"), teleop: one(p.eventLambdaTeleop, s.teleop, "teleop"), endgame: one(p.eventLambdaEndgame, s.endgame, "endgame") };
   }
 
   /** A team's reliability state now (the season-start value if it hasn't played). */
@@ -413,9 +488,10 @@ export class RatingBook {
   /** Fold one played match into the ratings. */
   update(m: MatchRecord): void {
     // A result is folded in with its own region (MatchRecord.region), never a prediction's.
-    const hint = this.hint;
+    const hint = this.hint, eventHint = this.eventHint;
     this.hint = null;
-    try { this.fold(m); } finally { this.hint = hint; }
+    this.eventHint = null;
+    try { this.fold(m); } finally { this.hint = hint; this.eventHint = eventHint; }
   }
 
   private fold(m: MatchRecord): void {
@@ -475,6 +551,14 @@ export class RatingBook {
       this.regionLift.set(base.region, L);
       this.regionPending.delete(t);
     }
+    // Event-local form: each robot's share of its alliance's miss against its permanent ratings,
+    // summed over its matches at this event (a new event starts it over).
+    for (const { al, exp, actual, share } of sides) {
+      for (const t of al.teams) {
+        const prev = this.eventForm.get(t), s = prev && prev.code === m.eventCode ? prev : { code: m.eventCode, n: 0, auto: 0, teleop: 0, endgame: 0 };
+        this.eventForm.set(t, { code: m.eventCode, n: s.n + 1, auto: s.auto + (actual.auto - exp.auto) * share, teleop: s.teleop + (actual.teleop - exp.teleop) * share, endgame: s.endgame + (actual.endgame - exp.endgame) * share });
+      }
+    }
     // Reliability: each alliance's standardized residual against the
     // expectation held before this match, applied to every robot on it.
     for (const { al, exp } of sides) {
@@ -526,6 +610,7 @@ export class RatingBook {
     c.stateVersion = this.stateVersion;
     c.regionLift = new Map([...this.regionLift].map(([k, v]) => [k, { ...v }]));
     c.regionPending = new Map([...this.regionPending].map(([t, v]) => [t, { ...v }]));
+    c.eventForm = new Map([...this.eventForm].map(([t, v]) => [t, { ...v }]));
     return c;
   }
 
@@ -552,6 +637,9 @@ export class RatingBook {
         lift: [...this.regionLift].map(([k, v]) => [k, { ...v }] as [string, Phases & { n: number }]),
         pending: [...this.regionPending].filter(([t]) => keep(t)).map(([t, v]) => [t, { ...v }] as [number, Phases & { region: string }]),
       } } : {}),
+      // Event-local form only when it is in use, so books without it serialize exactly as before.
+      ...(this.params.eventLambdaAuto || this.params.eventLambdaTeleop || this.params.eventLambdaEndgame
+        ? { events: [...this.eventForm].filter(([t]) => keep(t)).map(([t, v]) => [t, { ...v }] as [number, EventForm]) } : {}),
     };
   }
 
@@ -573,6 +661,7 @@ export class RatingBook {
       b.regionLift = new Map(d.regions.lift.map(([k, v]) => [k, { ...v }]));
       b.regionPending = new Map(d.regions.pending.map(([t, v]) => [t, { ...v }]));
     }
+    if (d.events) b.eventForm = new Map(d.events.map(([t, v]) => [t, { ...v }]));
     return b;
   }
 

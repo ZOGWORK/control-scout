@@ -1,5 +1,43 @@
 # Changelog
 
+## 2.9.0 — 2026-10-23 · Event-local form
+
+Engine improvement program, Part 3 (within-event updates).
+
+**The measurement** (`scripts/part3/within-event-research.ts`): after the ratings have learned from a
+team's first one to five matches at an event, its alliance's next miss still leans the same way, by
+about a quarter of its mean earlier miss there. By the sixth match that lean is gone. Endgame often
+reverses instead.
+
+**The change.** The permanent ratings are untouched: every result is still judged against them.
+- **Event-local form** (`RatingParams.eventLambdaAuto` / `eventLambdaTeleop` / `eventLambdaEndgame`,
+  `eventKappa`, `eventCap`; `RatingBook.withEvent`, `eventOffset`, `eventFormOf`;
+  `RatingBookData.events`). At an event, each robot keeps the sum of its share of its alliances'
+  misses there. Predictions at that event add λ × mean miss × κ/(n + κ):
+  - auto 0.4, TeleOp 0.2, endgame 0, κ 1;
+  - capped at one population standard deviation of the phase.
+- **Where it applies.** `predictMatch` and `explainMatch` apply it for `MatchContext.event`, and
+  `Forecaster` applies it for forecasts, match odds and partner what-ifs. It is gone at the robot's
+  next event. A robot's first match at an event is exactly 2.8.
+- **`explainMatch` reasons** gain "Team 1234 is playing about 9 points above its usual level at this
+  event (4 matches here)" when the adjustment is at least 5 points and 10% of the robot's usual
+  strength (`EVENT_FORM_RULE`, `eventFormReasons`).
+
+**Evidence** (paired replay against 2.8.0 on identical matches; `docs/engine/gates/gate-2.9.0-event-form-snapshot-2026-10-14.md`):
+
+| Season | Δ Brier ×10⁴ [95%] | First-event robots | Quals 1–10 | 50–80% calibration error |
+|---|---|---|---|---|
+| 2024–25 (tuning) | −1.47 [−2.54, −0.44] | −2.43 [−3.88, −0.96] | −1.73 [−3.82, +0.49] | 0.78 → 0.61 pts |
+| 2025–26 (reused) | −1.79 [−2.70, −0.90] | −2.85 [−4.25, −1.46] | −3.06 [−5.05, −1.05] | 0.95 → 0.77 pts |
+
+- Accuracy doesn't move (+0.03 / −0.02 pp). No slice regresses in 2024–25 or 2025–26.
+- 2023–24 is in-sample for the contextual weights, which were fitted without this layer, and is a
+  cold-start season. There it is +0.67 [−0.47, +1.82] overall, with large events +2.94 [+0.37, +5.33].
+  The live ledger is the prospective check.
+- **Rejected during tuning:** a form weight that grows with matches at the event (λ · sum/(n + κ)).
+  It helped early matches but clearly hurt late quals, playoffs and later events, where the
+  ratings (and 2.1's in-event form inputs) have already caught up.
+
 ## 2.8.0 — 2026-10-23 · Recalibration
 
 Engine improvement program, Part 9. The 2.7 slice report shows the engine under-confident in almost
