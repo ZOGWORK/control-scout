@@ -87,8 +87,8 @@ describe("AtlasMap spin", () => {
     let now = performance.now();
     for (let i = 0; i < 3; i++) {
       now += 40; // past the ~30 frames a second step
-      // The next frame is requested from an effect after the last one ran; on a loaded CI machine it may not be
-      // queued yet when we look, so wait for it instead of assuming it is there.
+      // The first frame is requested by the spin effect, which can run after the globe is found (on a loaded CI
+      // machine it may not have yet), so wait for it. Later frames are requested synchronously by tick.
       await waitFor(() => expect(frames.length).toBeGreaterThan(0));
       const due = frames.splice(0);
       await act(async () => { for (const f of due) f(now); });
