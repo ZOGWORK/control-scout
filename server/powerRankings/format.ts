@@ -39,6 +39,8 @@ export interface RankingDoc {
     introSource: BlurbAuthor;
     sources: BlurbAuthor[];
     rev: string;
+    /** The New York date of its last daily check, when there was one (only the current week is checked). */
+    updated: string | null;
     /** The week its movement (in `entries`) was frozen against, and the teams that dropped out then. */
     comparedWith: string | null;
     droppedOut: { team: number; lastRank: number }[];

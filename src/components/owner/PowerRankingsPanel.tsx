@@ -1,9 +1,10 @@
 // The owner portal's Power rankings panel (docs/power-rankings.md, "Owner controls"): the weeks
 // published automatically every Friday, who wrote each blurb (Bruno, the data-only template, or you),
-// and the controls: edit the intro or any blurb, regenerate a week with Bruno, hide or show it, and
-// publish this week now. Every action asks first and is recorded in the audit log on the server.
+// the current week's daily checks, and the controls: edit the intro or any blurb, regenerate a week
+// with Bruno, hide or show it, publish this week now, and switch the daily refresh off or on. Every
+// action asks first and is recorded in the audit log on the server.
 import { useState } from "react";
-import { Bot, CalendarClock, ExternalLink, Eye, EyeOff, FileText, Pencil, RefreshCw, Send, Sparkles, Trophy } from "lucide-react";
+import { Bot, CalendarCheck, CalendarClock, ExternalLink, Eye, EyeOff, FileText, Pencil, RefreshCw, Send, Sparkles, Trophy } from "lucide-react";
 import { Section, EmptyState } from "../page";
 import { Async } from "../states";
 import { Badge, Textarea } from "../ui/basic";
@@ -14,7 +15,7 @@ import { cn } from "../cn";
 import { apiFetch, ApiError, markStale, prime, useApi } from "../../lib/api";
 import { seasonLabel } from "../../lib/format";
 import { PUBLISH_TIME_ZONE, publishedLabel, weekLabel, type BlurbAuthor } from "../../shared/powerRankings";
-import type { OwnerPowerRankings, OwnerPowerRankingsWeek } from "../../shared/owner";
+import type { OwnerPowerRankings, OwnerPowerRankingsRefresh, OwnerPowerRankingsWeek } from "../../shared/owner";
 
 const PATH = "/api/owner/power-rankings";
 
@@ -25,6 +26,25 @@ const SOURCE: Record<BlurbAuthor, { label: string; variant: "soft" | "secondary"
 };
 
 const nextRun = (iso: string) => new Date(iso).toLocaleString("en-US", { timeZone: PUBLISH_TIME_ZONE, weekday: "short", month: "short", day: "numeric", hour: "numeric", minute: "2-digit", timeZoneName: "short" });
+
+const CHECK: Record<OwnerPowerRankingsRefresh["status"], { label: string; variant: "success" | "secondary" | "soft" | "destructive" }> = {
+  unchanged: { label: "No change", variant: "secondary" },
+  updated: { label: "Updated", variant: "soft" },
+  running: { label: "Running", variant: "secondary" },
+  failed: { label: "Failed", variant: "destructive" },
+};
+
+/** One daily check, as a line: "Sun, Oct 25 · Updated · 3 teams changed: 2 by Bruno, 1 from the template". */
+function checkDetail(r: OwnerPowerRankingsRefresh): string {
+  if (r.status === "unchanged") return r.note ?? "Nothing shown changed; only the Updated date moved.";
+  if (r.status === "running") return "Checking the latest data now.";
+  if (r.status === "failed") return r.note ? `Failed: ${r.note}. It's tried again later today.` : "Failed. It's tried again later today.";
+  const parts = [r.bruno ? `${r.bruno} by Bruno` : null, r.template ? `${r.template} from the template` : null, r.kept ? `${r.kept} of your edits kept` : null].filter(Boolean);
+  const rewrote = parts.length ? `: ${parts.join(", ")}` : ": their blurbs still held";
+  return `${r.changed} ${r.changed === 1 ? "team" : "teams"} changed${rewrote}.${r.note ? ` ${r.note.replace(/^./, (c) => c.toUpperCase())}.` : ""}`;
+}
+
+const shortDay = (d: string) => new Date(`${d}T12:00:00Z`).toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric", timeZone: "UTC" });
 
 interface Ask { title: string; body: string; confirm: string; run: () => Promise<unknown> }
 
@@ -112,7 +132,7 @@ function Week({ w, onAsk }: { w: OwnerPowerRankingsWeek; onAsk: (a: Ask) => void
         <div className="min-w-0">
           <h3 className="font-medium text-foreground">{weekLabel(w.week)}</h3>
           <p className="mt-0.5 text-xs text-muted-foreground">
-            {seasonLabel(w.season)} · published {publishedLabel(w.published)}{w.comparedWith ? ` · moves since week ${Number(w.comparedWith.slice(6))}` : ""}
+            {seasonLabel(w.season)} · published {publishedLabel(w.published)}{w.updated && w.updated !== w.published ? ` · updated ${publishedLabel(w.updated)}` : ""}{w.comparedWith ? ` · moves since week ${Number(w.comparedWith.slice(6))}` : ""}
           </p>
           <div className="mt-2 flex flex-wrap gap-1.5">
             <Badge variant={w.status === "published" ? "success" : w.status === "hidden" ? "destructive" : "secondary"}>
@@ -135,6 +155,21 @@ function Week({ w, onAsk }: { w: OwnerPowerRankingsWeek; onAsk: (a: Ask) => void
           </div>
         )}
       </div>
+
+      {w.refreshes.length > 0 && (
+        <details className="mt-3">
+          <summary className="cursor-pointer select-none text-sm text-muted-foreground hover:text-foreground">Daily checks ({w.refreshes.length})</summary>
+          <ol className="mt-2 grid gap-1.5" aria-label={`Daily checks of ${label}`}>
+            {w.refreshes.map((r) => (
+              <li key={r.day} className="flex flex-wrap items-baseline gap-x-2 gap-y-1 text-sm">
+                <span className="w-24 shrink-0 tabular-nums text-muted-foreground">{shortDay(r.day)}</span>
+                <Badge variant={CHECK[r.status].variant}>{CHECK[r.status].label}</Badge>
+                <span className="min-w-0 text-foreground">{checkDetail(r)}</span>
+              </li>
+            ))}
+          </ol>
+        </details>
+      )}
 
       <details className="mt-3 group" open={editing || undefined}>
         <summary className="cursor-pointer select-none text-sm text-muted-foreground hover:text-foreground">Intro and {w.entries.length} blurbs</summary>
@@ -187,8 +222,21 @@ export function PowerRankingsPanel({ onOpenSwitches }: { onOpenSwitches: () => v
       toast.success(`Published ${r.result.week}: ${r.result.bruno} blurbs by Bruno, ${r.result.template} from the template.`);
     },
   });
+  const daily = (on: boolean) => setAsk({
+    title: on ? "Turn the daily refresh on?" : "Turn the daily refresh off?",
+    body: on
+      ? "From the next check (00:00 New York time), the current week is compared with the latest data every day. If nothing shown changed, only its Updated date moves; otherwise the changed entries are updated, and Bruno rewrites only the blurbs of teams whose place changed."
+      : "The current week stays exactly as it is now until next Friday's week replaces it. Friday's publishing isn't affected.",
+    confirm: on ? "Turn on" : "Turn off",
+    run: async () => {
+      await apiFetch(`/api/owner/flags/dailyPowerRankings`, { method: "PUT", json: { enabled: on } });
+      markStale("/api/owner/flags");
+      markStale(PATH);
+      toast.success(on ? "Daily refresh is on." : "Daily refresh is off.");
+    },
+  });
   return (
-    <Section title="Power rankings" description="A top 25 is published every Friday at 00:00 New York time from the live world ranking, with blurbs by Bruno. Every number in a blurb is checked against the week's data; a blurb that fails, or every blurb when Bruno can't be reached, uses a data-only template instead.">
+    <Section title="Power rankings" description="A top 25 is published every Friday at 00:00 New York time from the live world ranking, with blurbs by Bruno, and checked again every day until the next one. Every number in a blurb is checked against the week's data; a blurb that fails, or every blurb when Bruno can't be reached, uses a data-only template instead.">
       <Async state={state}>
         {(p) => (
           <>
@@ -200,6 +248,15 @@ export function PowerRankingsPanel({ onOpenSwitches }: { onOpenSwitches: () => v
                   <button type="button" className="text-xs text-accent-text underline underline-offset-2" onClick={onOpenSwitches}>Switches</button>
                 </li>
                 <li className="flex items-start gap-2 text-muted-foreground"><CalendarClock className="mt-0.5 size-4 shrink-0" aria-hidden /> Next run {nextRun(p.nextRun)}</li>
+                <li className="flex flex-wrap items-start gap-x-2 gap-y-1 text-muted-foreground">
+                  <CalendarCheck className="mt-0.5 size-4 shrink-0" aria-hidden />
+                  {!p.daily.enabled ? "Daily refresh is off: the current week stays as it is."
+                    : p.enabled ? `Daily refresh is on. Next check ${nextRun(p.daily.nextRun)}.`
+                      : "Daily refresh is on, but waits for automatic weeks to be switched on."}
+                  <button type="button" className="text-xs text-accent-text underline underline-offset-2" onClick={() => daily(!p.daily.enabled)}>
+                    {p.daily.enabled ? "Turn off" : "Turn on"}
+                  </button>
+                </li>
                 <li className="flex items-start gap-2 text-muted-foreground">
                   <Sparkles className="mt-0.5 size-4 shrink-0" aria-hidden />
                   {p.controlPoint ? "Control Point is configured. Bruno is asked on each run; if he can't be reached, that week uses the template." : "Control Point isn't configured on this server: every blurb will be the template."}

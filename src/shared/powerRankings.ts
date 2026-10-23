@@ -98,6 +98,9 @@ export interface PowerRankingsWeek {
   title: string;
   /** "YYYY-MM-DD". */
   published: string;
+  /** "YYYY-MM-DD" (New York) of the last daily check of an automatic week, when it's a later day than
+   *  `published`; else null (a hand-written week, or not checked since the day it went out). */
+  updated: string | null;
   /** The intro, as sanitized HTML; and as plain text (descriptions, previews). */
   introHtml: string;
   introText: string;
@@ -127,6 +130,10 @@ export interface PowerRankingsResponse {
 
 /** "Friday, Oct 23" for a "YYYY-MM-DD" (the publish line under a week's title). */
 export const publishedLabel = (d: string) => new Date(`${d}T12:00:00Z`).toLocaleDateString("en-US", { weekday: "long", month: "short", day: "numeric", timeZone: "UTC" });
+
+/** "Published Friday, Oct 23 · Updated Sunday, Oct 25" (the update only when it's another day). */
+export const publishedLine = (w: Pick<PowerRankingsWeek, "published" | "updated">) =>
+  `Published ${publishedLabel(w.published)}${w.updated && w.updated !== w.published ? ` · Updated ${publishedLabel(w.updated)}` : ""}`;
 
 /**
  * The line an automatically published week carries. Bruno is named only when he wrote some of it;

@@ -192,7 +192,7 @@ function rankingsJsonLd(r: PowerRankingsResponse, path: string): Record<string, 
     itemListElement: w.entries.map((e) => ({ "@type": "ListItem", position: e.rank, name: `${e.team}${e.name ? ` ${e.name}` : ""}`, url: canonicalUrl(`/teams/${e.team}`) })),
   };
   const article = {
-    "@context": "https://schema.org", "@type": "Article", headline: w.title, description: w.introText.slice(0, 300), datePublished: w.published, dateModified: w.published,
+    "@context": "https://schema.org", "@type": "Article", headline: w.title, description: w.introText.slice(0, 300), datePublished: w.published, dateModified: w.updated ?? w.published,
     url, mainEntityOfPage: url, image: [`${o}/og-image.png`],
     author: { "@type": "Organization", name: SITE, url: `${o}/` }, publisher: { "@type": "Organization", name: SITE, logo: { "@type": "ImageObject", url: `${o}/logo-512.png` } },
   };

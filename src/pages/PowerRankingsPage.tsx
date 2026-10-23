@@ -16,7 +16,7 @@ import { NotFoundView } from "../components/NotFoundView";
 import { Button } from "../components/ui/button";
 import { cn } from "../components/cn";
 import {
-  generatedNote, isWeekId, publishedLabel, weekLabel,
+  generatedNote, isWeekId, publishedLine, weekLabel,
   type Movement, type PowerRankingsEntry, type PowerRankingsResponse, type PowerRankingsSummary, type PowerRankingsWeek,
 } from "../shared/powerRankings";
 
@@ -126,7 +126,7 @@ function Week({ w, archive, onLink }: { w: PowerRankingsWeek; archive: PowerRank
       <PageHeader
         eyebrow={`${weekLabel(w.week)} · ${seasonLabel(w.season)}`}
         title={w.title}
-        description={`Published ${publishedLabel(w.published)}${w.comparedWith ? `. Moves are since week ${Number(w.comparedWith.slice(6))}.` : "."}`}
+        description={`${publishedLine(w)}${w.comparedWith ? `. Moves are since week ${Number(w.comparedWith.slice(6))}.` : "."}`}
         actions={<Button variant="secondary" onClick={() => void share(w)}><Share2 /> Share</Button>}
       />
       {w.sample && (

@@ -8,18 +8,37 @@ import { isEnabled } from "../flags.js";
 import { recordAudit } from "../portal/audit.js";
 import { brunoAvailable } from "../auth/controlPoint.js";
 import { isWeekId } from "../../src/shared/powerRankings.js";
-import type { OwnerPowerRankings, OwnerPowerRankingsWeek } from "../../src/shared/owner.js";
+import type { OwnerPowerRankings, OwnerPowerRankingsRefresh, OwnerPowerRankingsWeek } from "../../src/shared/owner.js";
 import { publishNow, regenerateWeek } from "./auto.js";
 import { editGenerated, getGenerated, listGenerated, revOf, setGeneratedStatus, type GeneratedWeek } from "./generated.js";
-import { nextSlot } from "./schedule.js";
+import { nextRefresh, nextSlot } from "./schedule.js";
 import { fileWeeks } from "./store.js";
 import { BLURB_MAX, INTRO_MAX } from "./format.js";
 
 type Handler = (req: Request, res: Response) => Promise<unknown>;
 
-async function view(g: GeneratedWeek, names: Map<number, string | null>, files: Set<string>): Promise<OwnerPowerRankingsWeek> {
+interface RefreshRow { season: number; week: string; day: string; status: string; started_at: string; finished_at: string | null; changed: number; bruno: number; template: number; kept: number; note: string | null }
+
+/** Each week's daily checks, newest first (the last 14 of each). */
+async function refreshes(): Promise<Map<string, OwnerPowerRankingsRefresh[]>> {
+  const out = new Map<string, OwnerPowerRankingsRefresh[]>();
+  const rows = await all<RefreshRow>("SELECT * FROM power_rankings_refreshes ORDER BY day DESC").catch(() => [] as RefreshRow[]);
+  for (const r of rows) {
+    const key = `${r.season}/${r.week}`;
+    const list = out.get(key) ?? [];
+    if (list.length >= 14) continue;
+    list.push({
+      day: r.day, status: r.status as OwnerPowerRankingsRefresh["status"], at: r.finished_at ?? r.started_at,
+      changed: Number(r.changed), bruno: Number(r.bruno), template: Number(r.template), kept: Number(r.kept), note: r.note,
+    });
+    out.set(key, list);
+  }
+  return out;
+}
+
+async function view(g: GeneratedWeek, names: Map<number, string | null>, files: Set<string>, runs: Map<string, OwnerPowerRankingsRefresh[]>): Promise<OwnerPowerRankingsWeek> {
   return {
-    season: g.season, week: g.week, published: g.published, status: g.status, generatedAt: g.generatedAt, editedAt: g.editedAt, rev: revOf(g),
+    season: g.season, week: g.week, published: g.published, updated: g.updated, refreshes: runs.get(`${g.season}/${g.week}`) ?? [], status: g.status, generatedAt: g.generatedAt, editedAt: g.editedAt, rev: revOf(g),
     overridden: files.has(g.week), intro: g.intro, introSource: g.introSource, comparedWith: (g.packet as { comparedWith?: string | null }).comparedWith ?? null,
     entries: g.entries.map((e) => ({ rank: e.rank, team: e.team, name: names.get(e.team) ?? null, text: e.text, source: e.source, rejected: e.rejected ?? null })),
   };
@@ -39,11 +58,13 @@ export async function ownerPowerRankings(now = Date.now()): Promise<OwnerPowerRa
   const weeks = (await listGenerated()).reverse();
   const n = await names(weeks);
   const files = new Set(fileWeeks().map((d) => d.week));
+  const runs = await refreshes();
   return {
     enabled: await isEnabled("autoPowerRankings"),
     controlPoint: brunoAvailable(),
     nextRun: new Date(nextSlot(now).at).toISOString(),
-    weeks: await Promise.all(weeks.map((g) => view(g, n, files))),
+    daily: { enabled: await isEnabled("dailyPowerRankings"), nextRun: new Date(nextRefresh(now).at).toISOString() },
+    weeks: await Promise.all(weeks.map((g) => view(g, n, files, runs))),
   };
 }
 
