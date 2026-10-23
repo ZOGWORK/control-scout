@@ -196,7 +196,7 @@ function distributionOf(book: RatingBook, teams: number[], mean: number, uncerta
  * the explain contract and any simulator that wants per-team variance.
  */
 export function allianceScoreDistribution(book: RatingBook, own: number[], opp: number[], noise: NoiseParams = DEFAULT_NOISE, band: BandParams = DEFAULT_BAND, context: MatchContext = {}): ScoreDistribution {
-  const o = book.allianceExpectation(own), x = book.allianceExpectation(opp);
+  const o = book.allianceExpectation(own, context.level ?? "qual"), x = book.allianceExpectation(opp, context.level ?? "qual");
   return distributionOf(book, own, o.np + x.pen, o.uncertainty, noise, band, context);
 }
 
@@ -211,8 +211,9 @@ export function predictMatch(book: RatingBook, red: number[], blue: number[], no
 }
 
 function predictOn(book: RatingBook, red: number[], blue: number[], noise: NoiseParams, cal: CalibrationParams | undefined, opts: PredictOptions): MatchPrediction {
-  const r = book.allianceExpectation(red);
-  const b = book.allianceExpectation(blue);
+  const level = opts.context?.level ?? "qual";
+  const r = book.allianceExpectation(red, level);
+  const b = book.allianceExpectation(blue, level);
   const band = opts.band ?? DEFAULT_BAND;
   const side = (own: typeof r, opp: typeof r, teams: number[]): AlliancePrediction => {
     const mean = own.np + opp.pen;

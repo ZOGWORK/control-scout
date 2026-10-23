@@ -259,7 +259,7 @@ function foldMatch(m: MatchRecord, book: RatingBook, d: number, tog: Map<number,
   const s = m.season;
   // Expectations at the match's time (rating growth since each robot's last match), exactly as update() reads them.
   book.setTime(m.time);
-  const red = book.allianceExpectation(m.red.teams), blue = book.allianceExpectation(m.blue.teams);
+  const red = book.allianceExpectation(m.red.teams, m.level), blue = book.allianceExpectation(m.blue.teams, m.level);
   const zr = allianceResidual(red, m.red.np).z, zb = allianceResidual(blue, m.blue.np).z;
   const clip = (z: number) => Math.max(-4, Math.min(4, z));
   const res = m.red.total > m.blue.total ? 1 : m.red.total < m.blue.total ? -1 : 0;
