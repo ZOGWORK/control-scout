@@ -15,7 +15,7 @@ A tag graduates to a build item only with an effect that survives the held-out s
 ## Method
 
 - **The replay:** the live engine (3.0.0, which has the same win odds as 3.1.0) replays 2023–24 to 2025–26. Each alliance in each predicted match is one row.
-- **Turnaround:** in a qualification match, count the matches each robot sat out since its previous qual at the same event, in schedule order (start times are too patchy). The alliance's tag is the fewest of its robots'.
+- **Turnaround:** in a qualification match, count the matches each robot sat out since its previous qual at the same event, in schedule order: each event's quals sorted by match number, separately from the rating replay's time order (start times are too patchy). The alliance's tag is the fewest of its robots'.
 - **Measures:**
   - won − stated: the alliance's win rate minus its stated chance, with ties counted half;
   - score miss: actual final score minus expected.
@@ -27,12 +27,12 @@ A tag graduates to a build item only with an effect that survives the held-out s
 
 | Season | Back-to-back (0) | 1 | 2–3 | 4+ |
 |---|---|---|---|---|
-| 2023–24 | +0.14 [−0.97, +1.32]; miss +2.38 | −0.50 [−1.36, +0.37]; +3.24 | −0.34 [−0.76, +0.08]; +3.91 | +0.32 [+0.02, +0.63]; +4.75 |
-| 2024–25 | +0.31 [−0.78, +1.44]; +1.36 | +0.37 [−0.33, +1.04]; +2.03 | +0.14 [−0.28, +0.60]; +2.21 | −0.25 [−0.53, +0.04]; +2.45 |
-| 2025–26 | +0.34 [−0.95, +1.57]; −0.23 | +0.38 [−0.29, +1.08]; +1.21 | −0.35 [−0.84, +0.08]; +1.00 | +0.09 [−0.17, +0.33]; +2.30 |
+| 2023–24 | −0.25 [−1.46, +0.99]; miss +2.37 | −0.43 [−1.30, +0.48]; +3.27 | −0.28 [−0.71, +0.11]; +3.94 | +0.30 [+0.01, +0.59]; +4.71 |
+| 2024–25 | +0.33 [−0.74, +1.41]; +1.11 | +0.35 [−0.29, +1.11]; +2.11 | +0.15 [−0.31, +0.59]; +2.25 | −0.27 [−0.57, +0.02]; +2.41 |
+| 2025–26 | +0.22 [−1.06, +1.47]; −0.40 | +0.43 [−0.35, +1.14]; +1.24 | −0.37 [−0.83, +0.11]; +0.94 | +0.09 [−0.16, +0.34]; +2.32 |
 
 - **Win odds:** there is no effect. Every back-to-back and one-gap interval includes zero, in every season.
-- **Scores:** there is a small, consistent pattern. Back-to-back alliances score 1.1 to 2.5 points less, relative to expectation, than rested ones (4+), in all three seasons.
+- **Scores:** there is a small, consistent pattern. Back-to-back alliances score 1.3 to 2.7 points less, relative to expectation, than rested ones (4+), in all three seasons.
   - Both alliances in a match are often equally short of rest, which is likely why it doesn't reach the win odds.
   - At a couple of points, a small share of a typical alliance score, it is not worth a model term. This is recorded, not built.
 

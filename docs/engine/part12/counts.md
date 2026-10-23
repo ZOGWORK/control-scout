@@ -34,7 +34,9 @@ A count model for auto would therefore have no consumer, unless it came with a n
 | 2024–25 | 84.8% (6.6% below, 8.6% above) | 89.7 · 84.6 · 81.6 · 82.6 · 85.4 | 86.6 · 85.7 · 84.0 · 83.5 · 84.2 |
 | 2025–26 | 85.5% (6.0% below, 8.5% above) | 88.3 · 85.3 · 85.1 · 84.3 · 84.7 | 86.6 · 86.3 · 85.2 · 85.5 · 84.1 |
 
-**Bonus-RP odds, 2025–26 quals.** These are walk-forward, exactly as the live ledger states them (`server/stats/job.ts`): refitted every 50 new alliances from the season's results before the match. Values are stated / earned (%) by decile of stated probability:
+**Bonus-RP odds, 2025–26 quals: a replay of the ledger's walk-forward calls** (`server/stats/job.ts`). Each match is called with a model refitted every 50 new alliances from the season's results before it. Calls before `BONUS_MIN_SAMPLES` results are left out, as the ledger leaves them out.
+
+This is not a measurement of live match pages. Those use `Forecaster.bonusModel`: the shipped fit until enough results exist, then a fit from the latest results, once per build. That path was not replayed here. Values are stated / earned (%) by decile of stated probability:
 
 | Bonus | Calibration error | Deciles |
 |---|---|---|
@@ -42,11 +44,11 @@ A count model for auto would therefore have no consumer, unless it came with a n
 | Goal | 2.39 pts | 0/0 0/0 0/0 0/0 1/0 2/1 6/2 15/8 35/28 72/68 |
 | Pattern | 1.61 pts | 8/9 10/10 12/12 13/12 15/14 18/16 20/19 24/24 31/30 49/42 |
 
-The shipped whole-season fit (`FITTED_MODEL.bonus`) applied to every match is far worse at the top: pattern is stated at 83% but earned 24%. Live calls use it only before a season has `BONUS_MIN_SAMPLES` results, so it is not the served path.
+The shipped whole-season fit (`FITTED_MODEL.bonus`) applied to every match is far worse at the top: pattern is stated at 83% but earned 24%. Live pages fall back to it only before a season has enough results.
 
 ## Findings
 
-1. **No count model is needed for bonus odds.** The served calls are within 1.6–3.0 points. The remaining gap is mild overconfidence in the top decile (movement 80 → 71, pattern 49 → 42). That concerns the total-score logistic, not phase shape.
+1. **No count model is needed for bonus odds.** Replayed walk-forward calls are within 1.6–3.0 points. The remaining gap is mild overconfidence in the top decile (movement 80 → 71, pattern 49 → 42). That concerns the total-score logistic, not phase shape.
 2. **Auto-heavy alliances are not worse covered than others** (within about 2 points in every season). Lumpy auto is not breaking the ranges.
 3. **The ranges are too wide across the board.**
    - They cover 84–86% where 80% is stated, and 88–90% for the lowest-scoring fifth.
