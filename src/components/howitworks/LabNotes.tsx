@@ -40,8 +40,8 @@ const NOTES: { v: Verdict; title: string; body: string; more: string; wide?: boo
   },
   {
     v: "no", title: "A growth curve for rookies and second-year teams",
-    body: "Young teams do improve during a season, but the engine already keeps up: its misses for rookies and second-year teams drift the same way as veterans' as matches pile up, not upward. There was no missing trajectory to add. What it did find is that every team is over-rated a little late in the season (after about 24 matches), a tuning question for later.",
-    more: "Miss per robot (points) by matches played, 2023–24 to 2025–26: slope per 10 matches rookies −1.04, −1.25, −1.86; year 2 −0.48, −1.38, −1.23; veterans −0.95, −1.50, −1.19. Rookie minus veteran −0.09, +0.25, −0.67, changing sign. Robots with 24–47 matches: −3 to −7 points in every band. Details in docs/engine/part12/growth.md.",
+    body: "Young teams do improve during a season, but the engine already keeps up: its misses for rookies and second-year teams drift the same way as veterans' as matches pile up, not upward. There was no missing trajectory to add. What it did find: rookies start a little under-rated and the engine catches up within a few matches, and every team is over-rated a little late in the season, both tuning questions.",
+    more: "Miss per robot (points) by matches played, 2023–24 to 2025–26, slope per 10 matches: rookies −0.48, −0.51, −1.25; year 2 +0.06, −0.52, −0.52; veterans −0.29, −0.63, −0.42. Rookie minus veteran −0.19, +0.12, −0.82, changing sign. First 5 matches: rookies +1.1 to +1.5, veterans −0.6 to −1.2. Robots with 24–47 matches: −0.8 to −3.1 in every band. Details in docs/engine/part12/growth.md.",
   },
   {
     v: "no", title: "A blend with a second and third opinion",
