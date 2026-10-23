@@ -17,11 +17,15 @@ import { ENGINE_VERSION, FITTED_MODEL, RatingBook, predictMatch, type MatchRecor
 import { migrate } from "../../server/db.js";
 import { outcome, predictable, seasonCorpus } from "../slices/corpus.js";
 import { fit, logit, sig } from "../part9/lib.js";
+import { rng } from "../slices/report.js";
 
 await migrate();
 const M = FITTED_MODEL;
 const SEASONS = [2019, 2020, 2021, 2022, 2023, 2024, 2025];
-const JUDGED = [2023, 2024, 2025];
+// 2022–23 is the one judged season the champion never learned from: its 22 contextual weights saw 2023–24 and
+// 2024–25, and its final recalibration 2025–26. Later seasons are a frozen-champion retrospective (the champion
+// is in-sample there, which favours it, and the blend leans on it).
+const JUDGED = [2022, 2023, 2024, 2025];
 const jsonOut = process.argv.includes("--json") ? process.argv[process.argv.indexOf("--json") + 1] : null;
 
 const Phi = (x: number) => 0.5 * (1 + erf(x / Math.SQRT2));
@@ -54,7 +58,7 @@ class Skill {
 }
 const SKILL_GRID = [2, 4, 6].flatMap((beta) => [0.1, 0.5].flatMap((tau) => [0, 0.5].map((carry) => ({ beta, tau, carry }))));
 
-interface Row { season: number; event: string; y: number; pa: number; pb: number[]; unc: number; dx: number[]; margin: number }
+interface Row { season: number; event: string; y: number; pa: number; pb: number[]; unc: number[]; dx: number[]; margin: number }
 const rows: Row[] = [];
 const book = new RatingBook(M.rating);
 const skills = SKILL_GRID.map((g) => new Skill(g.beta, g.tau, g.carry));
@@ -69,7 +73,7 @@ for (const s of SEASONS) {
       const ph = book.withRegion(ctx.region, () => book.withEvent(ctx.event, () => [...m.red.teams, ...m.blue.teams].map((t) => book.get(t))));
       const sum = (i: number[], f: (r: (typeof ph)[number]) => number) => i.reduce((a, j) => a + f(ph[j]), 0);
       const dx = (["auto", "teleop", "endgame", "pen"] as const).map((k) => sum([0, 1], (r) => r[k]) - sum([2, 3], (r) => r[k]));
-      rows.push({ season: s, event: `${s}|${m.eventCode}`, y: outcome(m), pa: pc.pRedWin, pb: skills.map((k) => k.p(m.red.teams, m.blue.teams)), unc: skills[0].uncertainty(m.red.teams, m.blue.teams), dx, margin: m.red.total - m.blue.total });
+      rows.push({ season: s, event: `${s}|${m.eventCode}`, y: outcome(m), pa: pc.pRedWin, pb: skills.map((k) => k.p(m.red.teams, m.blue.teams)), unc: skills.map((k) => k.uncertainty(m.red.teams, m.blue.teams)), dx, margin: m.red.total - m.blue.total });
     }
     if (!unrated.has(m.eventCode)) { book.update(m); for (const k of skills) k.update(m); }
   }
@@ -92,7 +96,7 @@ function ols(X: number[][], y: number[]) {
 function boot(R: Row[], pB: number[], f: (p: number, y: number) => number, reps = 1000) {
   const byEv = new Map<string, number[]>(); R.forEach((r, i) => { const l = byEv.get(r.event) ?? []; l.push(i); byEv.set(r.event, l); });
   const evs = [...byEv.values()], d = R.map((r, i) => f(pB[i], r.y) - f(r.pa, r.y));
-  let seed = 12345; const rnd = () => ((seed = (seed * 1103515245 + 12345) % 2147483648) / 2147483648);
+  const rnd = rng(12345);
   const out: number[] = [];
   for (let b = 0; b < reps; b++) { let s = 0, n = 0; for (let e = 0; e < evs.length; e++) for (const i of evs[Math.floor(rnd() * evs.length)]) { s += d[i]; n++; } out.push(s / n); }
   out.sort((a, b) => a - b);
@@ -115,15 +119,18 @@ for (const s of JUDGED) {
   for (const r of F) { if (r.y === 0.5) continue; const x = [logit(r.pa), logit(r.pb[gi]), logit(pc(r))]; X.push(x, x.map((v) => -v)); Y.push(r.y, 1 - r.y); }
   const wb = fit(X, Y, [1, 1, 1], [1, 0, 0]);
   const blend = (r: Row) => sig(wb[0] * logit(r.pa) + wb[1] * logit(r.pb[gi]) + wb[2] * logit(pc(r)));
-  const members: Record<string, (r: Row) => number> = { champion: (r) => r.pa, bayes: (r) => r.pb[gi], margin: pc, blend };
+  // The same stacking without the margin member: what the margin member adds.
+  const w2 = fit(X.map((x) => [x[0], x[1]]), Y, [1, 1], [1, 0]);
+  const blend2 = (r: Row) => sig(w2[0] * logit(r.pa) + w2[1] * logit(r.pb[gi]));
+  const members: Record<string, (r: Row) => number> = { champion: (r) => r.pa, bayes: (r) => r.pb[gi], margin: pc, blend, blendNoMargin: blend2 };
   const pB = J.map(blend), adj = J.map((r, i) => Math.abs(pB[i] - r.pa));
   const res = {
-    season: s, fitSeason: s - 1, n: J.length, skill: SKILL_GRID[gi], marginWeights: w.map((x) => +x.toFixed(4)), marginSd: +sd.toFixed(2), blendWeights: wb.map((x) => +x.toFixed(4)),
+    season: s, fitSeason: s - 1, n: J.length, skill: SKILL_GRID[gi], marginWeights: w.map((x) => +x.toFixed(4)), marginSd: +sd.toFixed(2), blendWeights: wb.map((x) => +x.toFixed(4)), blendNoMarginWeights: w2.map((x) => +x.toFixed(4)), championInSample: s >= 2023,
     members: Object.fromEntries(Object.entries(members).map(([k, f]) => [k, { brier: mean(J.map((r) => brier(f(r), r.y))), logLoss: mean(J.map((r) => ll(f(r), r.y))), accuracy: mean(J.map((r) => acc(f(r), r.y)).filter((x) => !Number.isNaN(x))) }])),
-    vsChampion: { brier: boot(J, pB, brier), logLoss: boot(J, pB, ll), accuracy: boot(J.filter((r) => r.y !== 0.5), J.map((r, i) => [r, pB[i]] as const).filter(([r]) => r.y !== 0.5).map(([, p]) => p), (p, y) => -acc(p, y)) },
+    vsChampion: { blendNoMarginBrier: boot(J, J.map(blend2), brier), brier: boot(J, pB, brier), logLoss: boot(J, pB, ll), accuracy: boot(J.filter((r) => r.y !== 0.5), J.map((r, i) => [r, pB[i]] as const).filter(([r]) => r.y !== 0.5).map(([, p]) => p), (p, y) => -acc(p, y)) },
     adjustment: { p50: q(adj, 0.5), p90: q(adj, 0.9), p99: q(adj, 0.99), over1pct: mean(adj.map((a) => (a > 0.01 ? 1 : 0))), over5pct: mean(adj.map((a) => (a > 0.05 ? 1 : 0))), pickFlips: mean(J.map((r, i) => ((pB[i] > 0.5) !== (r.pa > 0.5) ? 1 : 0))) },
     // 12.2's diagnostic: Bayesian-uncertain AND wrong = a thin-data map (champion Brier by the member's uncertainty quartile).
-    uncertaintyQuartiles: [0.25, 0.5, 0.75, 1].map((hi, k, a) => { const lo = k ? q(J.map((r) => r.unc), a[k - 1]) : -Infinity, top = hi === 1 ? Infinity : q(J.map((r) => r.unc), hi); const S = J.filter((r) => r.unc > lo && r.unc <= top); return { n: S.length, championBrier: mean(S.map((r) => brier(r.pa, r.y))), bayesBrier: mean(S.map((r) => brier(r.pb[gi], r.y))) }; }),
+    uncertaintyQuartiles: [0.25, 0.5, 0.75, 1].map((hi, k, a) => { const lo = k ? q(J.map((r) => r.unc[gi]), a[k - 1]) : -Infinity, top = hi === 1 ? Infinity : q(J.map((r) => r.unc[gi]), hi); const S = J.filter((r) => r.unc[gi] > lo && r.unc[gi] <= top); return { n: S.length, championBrier: mean(S.map((r) => brier(r.pa, r.y))), bayesBrier: mean(S.map((r) => brier(r.pb[gi], r.y))) }; }),
   };
   report.push(res);
   const f4 = (x: number) => (x >= 0 ? "+" : "") + (x * 1e4).toFixed(2);
@@ -131,6 +138,7 @@ for (const s of JUDGED) {
   for (const [k, v] of Object.entries(res.members)) console.log(`  ${k.padEnd(9)} Brier ${v.brier.toFixed(5)}  logloss ${v.logLoss.toFixed(5)}  acc ${(v.accuracy * 100).toFixed(2)}%`);
   const b = res.vsChampion;
   console.log(`  blend − champion ×1e-4: Brier ${f4(b.brier.delta)} [${f4(b.brier.lo)}, ${f4(b.brier.hi)}]  logloss ${f4(b.logLoss.delta)} [${f4(b.logLoss.lo)}, ${f4(b.logLoss.hi)}]  acc ${(-b.accuracy.delta * 100).toFixed(2)} pts [${(-b.accuracy.hi * 100).toFixed(2)}, ${(-b.accuracy.lo * 100).toFixed(2)}]`);
+  console.log(`  without the margin member: Brier ${f4(b.blendNoMarginBrier.delta)} [${f4(b.blendNoMarginBrier.lo)}, ${f4(b.blendNoMarginBrier.hi)}]  weights ${res.blendNoMarginWeights}`);
   const a = res.adjustment;
   console.log(`  adjustment |blend − champion|: median ${(a.p50 * 100).toFixed(2)}%  p90 ${(a.p90 * 100).toFixed(2)}%  p99 ${(a.p99 * 100).toFixed(2)}%  >1% ${(a.over1pct * 100).toFixed(1)}%  >5% ${(a.over5pct * 100).toFixed(1)}%  pick flips ${(a.pickFlips * 100).toFixed(2)}%`);
   console.log(`  by Bayesian uncertainty quartile (champion / bayes Brier): ${res.uncertaintyQuartiles.map((u) => `${u.championBrier.toFixed(4)}/${u.bayesBrier.toFixed(4)}`).join("  ")}`);
