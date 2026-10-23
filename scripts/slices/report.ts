@@ -153,7 +153,7 @@ export interface PairedMetrics {
   n: number;
   /** Challenger minus champion (negative Brier / log loss = challenger better). */
   brier: number; brier95: [number, number];
-  logLoss: number;
+  logLoss: number; logLoss95: [number, number];
   /** Accuracy change in points (decided matches). */
   accuracyPp: number; accuracy95: [number, number];
   lowConfidence: boolean;
@@ -188,17 +188,17 @@ export function pairedMetrics(rows: PairedRow[], draws = 2000, seed = 20261022):
   const E = [...ev.values()];
   const sum = (k: "n" | "d" | "ll" | "dec" | "acc", xs = E) => xs.reduce((s, x) => s + x[k], 0);
   const n = sum("n"), dec = sum("dec");
-  const rand = rng(seed), bs: number[] = [], as: number[] = [];
+  const rand = rng(seed), bs: number[] = [], ls: number[] = [], as: number[] = [];
   for (let i = 0; i < draws && E.length; i++) {
-    let d = 0, m = 0, a = 0, k = 0;
-    for (let j = 0; j < E.length; j++) { const x = E[Math.floor(rand() * E.length)]; d += x.d; m += x.n; a += x.acc; k += x.dec; }
-    bs.push(d / m); as.push(k ? (100 * a) / k : 0);
+    let d = 0, l = 0, m = 0, a = 0, k = 0;
+    for (let j = 0; j < E.length; j++) { const x = E[Math.floor(rand() * E.length)]; d += x.d; l += x.ll; m += x.n; a += x.acc; k += x.dec; }
+    bs.push(d / m); ls.push(l / m); as.push(k ? (100 * a) / k : 0);
   }
-  bs.sort((x, y) => x - y); as.sort((x, y) => x - y);
+  bs.sort((x, y) => x - y); ls.sort((x, y) => x - y); as.sort((x, y) => x - y);
   const q = (xs: number[], p: number) => (xs.length ? xs[Math.min(xs.length - 1, Math.floor(p * xs.length))] : NaN);
   const brier95: [number, number] = [q(bs, 0.025), q(bs, 0.975)];
   return {
-    n, brier: n ? sum("d") / n : NaN, brier95, logLoss: n ? sum("ll") / n : NaN,
+    n, brier: n ? sum("d") / n : NaN, brier95, logLoss: n ? sum("ll") / n : NaN, logLoss95: [q(ls, 0.025), q(ls, 0.975)],
     accuracyPp: dec ? (100 * sum("acc")) / dec : NaN, accuracy95: [q(as, 0.025), q(as, 0.975)],
     lowConfidence: n < LOW_CONFIDENCE_N, regression: brier95[0] > 0,
   };
@@ -236,8 +236,8 @@ export function sliceTable(dims: SliceReport["dims"], order: string[], labels: R
 }
 
 export function pairedMarkdown(p: ReturnType<typeof pairedReport>, order: string[], labels: Record<string, string>): string {
-  const f = (m: PairedMetrics) => `${m.n.toLocaleString("en-US")} | ${signed(1e4 * m.brier, 2)} [${signed(1e4 * m.brier95[0], 2)}, ${signed(1e4 * m.brier95[1], 2)}] | ${signed(1e4 * m.logLoss, 2)} | ${signed(m.accuracyPp, 2)} [${signed(m.accuracy95[0], 2)}, ${signed(m.accuracy95[1], 2)}] |${m.regression ? " **regression**" : m.brier95[1] < 0 ? " better" : ""}${m.lowConfidence ? " ⚠ low n" : ""}`;
-  const out = ["| Slice | Matches | Δ Brier ×10⁴ [95%] | Δ log loss ×10⁴ | Δ accuracy pp [95%] | |", "|---|---|---|---|---|---|", `| **all** | ${f(p.all)}`];
+  const f = (m: PairedMetrics) => `${m.n.toLocaleString("en-US")} | ${signed(1e4 * m.brier, 2)} [${signed(1e4 * m.brier95[0], 2)}, ${signed(1e4 * m.brier95[1], 2)}] | ${signed(1e4 * m.logLoss, 2)} [${signed(1e4 * m.logLoss95[0], 2)}, ${signed(1e4 * m.logLoss95[1], 2)}] | ${signed(m.accuracyPp, 2)} [${signed(m.accuracy95[0], 2)}, ${signed(m.accuracy95[1], 2)}] |${m.regression ? " **regression**" : m.brier95[1] < 0 ? " better" : ""}${m.lowConfidence ? " ⚠ low n" : ""}`;
+  const out = ["| Slice | Matches | Δ Brier ×10⁴ [95%] | Δ log loss ×10⁴ [95%] | Δ accuracy pp [95%] | |", "|---|---|---|---|---|---|", `| **all** | ${f(p.all)}`];
   for (const dim of order) for (const [v, m] of Object.entries(p.dims[dim] ?? {})) out.push(`| ${labels[dim] ?? dim}: ${v} | ${f(m)}`);
   return out.join("\n");
 }

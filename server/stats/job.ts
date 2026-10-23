@@ -255,7 +255,7 @@ export async function backtest(seasons: number[], log: Log = () => {}, opts: { w
           fittedAt = known;
         }
         const x = explainMatch(book, m.red.teams, m.blue.teams, {
-          noise: FITTED_MODEL.noise, calibration: FITTED_MODEL.calibration, contextual: FITTED_MODEL.contextual, context: { level: m.level, event: m.eventCode }, shadow: FITTED_MODEL.contextual?.fallback, band: FITTED_MODEL.band,
+          noise: FITTED_MODEL.noise, calibration: FITTED_MODEL.calibration, contextual: FITTED_MODEL.contextual, context: { level: m.level, event: m.eventCode, ...(m.region ? { region: m.region } : {}) }, shadow: FITTED_MODEL.contextual?.fallback, band: FITTED_MODEL.band,
           ...(bonus && m.level === "qual" ? { bonus: { season: s, model: bonus } } : {}),
         });
         stmts.push({

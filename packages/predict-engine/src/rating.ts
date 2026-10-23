@@ -20,8 +20,10 @@
 // prior they were given (offset included, so the lift is what the prior still
 // got wrong). Every team new to the season starts from its prior plus its
 // region's lift so far, the region being that of the event where it first
-// plays (MatchRecord.region). Only returning teams teach the lift, so a season
-// where no team has history (a cold start) is unchanged. Off when regionKappa = 0.
+// plays: MatchRecord.region when its first result is folded in, and the
+// prediction context's region (withRegion) when it is predicted before any
+// result. Only returning teams teach the lift, so a season where no team has
+// history (a cold start) is unchanged. Off when regionKappa = 0.
 //
 // Breaks between events: teams often come back from a few weeks off with a
 // changed (rebuilt) robot. After a break of at least `rebuildGapWeeks`, a
@@ -234,6 +236,8 @@ export class RatingBook {
   private regionPending = new Map<number, Phases & { region: string }>();
   /** Teams being created by the match being folded in, and its region (empty between updates). */
   private arriving = new Map<number, string>();
+  /** The region of the event being predicted (withRegion): newcomers' priors include its offset. */
+  private hint: string | null = null;
   /**
    * True when the reliability state covers the whole season so far (a book
    * that started the season itself, or one loaded with 2.0+ state). Data
@@ -330,10 +334,22 @@ export class RatingBook {
     return { auto: L.auto / d, teleop: L.teleop / d, endgame: L.endgame / d };
   }
 
+  /**
+   * Run `fn` with predictions for an event of `region`: a team with no rating
+   * yet this season gets the regional starting point it will be stored with
+   * at its first result there. A null region (or offsets off) changes nothing.
+   */
+  withRegion<T>(region: string | null | undefined, fn: () => T): T {
+    if (!region || this.params.regionKappa <= 0) return fn();
+    const prev = this.hint;
+    this.hint = region;
+    try { return fn(); } finally { this.hint = prev; }
+  }
+
   private priorFor(team: number): TeamRating {
     const r = this.basePrior(team);
-    const region = this.arriving.get(team);
-    if (region != null) {
+    const region = this.arriving.get(team) ?? this.hint;
+    if (region != null && this.params.regionKappa > 0) {
       const o = this.regionOffset(region);
       r.auto = Math.max(0, r.auto + o.auto);
       r.teleop = Math.max(0, r.teleop + o.teleop);
@@ -396,8 +412,18 @@ export class RatingBook {
 
   /** Fold one played match into the ratings. */
   update(m: MatchRecord): void {
+    // A result is folded in with its own region (MatchRecord.region), never a prediction's.
+    const hint = this.hint;
+    this.hint = null;
+    try { this.fold(m); } finally { this.hint = hint; }
+  }
+
+  private fold(m: MatchRecord): void {
     const p = this.params;
     this.setTime(m.time);
+    // A team's first rated match of the season fixes its region: its prior includes that region's offset,
+    // both in the expectation this result is judged against and in the rating it is stored with.
+    if (p.regionKappa > 0 && m.region) for (const t of [...m.red.teams, ...m.blue.teams]) if (!this.ratings.has(t)) this.arriving.set(t, m.region);
     const weight = m.level === "playoff" ? p.playoffWeight : 1;
     // Both alliances are judged against the book as it stood before this
     // match: expectations (and any newcomer's prior, which depends on the
@@ -411,8 +437,6 @@ export class RatingBook {
       actual: { auto: al.auto, teleop: al.teleop, endgame: al.endgame, pen: al.penCommitted } as Vec,
       share: 1 / al.teams.length,
     }));
-    // A team's first rated match of the season fixes its region: its prior includes that region's offset.
-    if (p.regionKappa > 0 && m.region) for (const t of [...m.red.teams, ...m.blue.teams]) if (!this.ratings.has(t)) this.arriving.set(t, m.region);
     for (const t of [...m.red.teams, ...m.blue.teams]) this.stored(t); // priors from the pre-match baseline
     for (const [t, region] of this.arriving) {
       const b = this.ratings.get(t)!;

@@ -39,7 +39,7 @@ const one = <T = any>(db: Db, sql: string, params: SqlValue[] = []): T | undefin
 /** What the device can add from the lite pack (ratings as of its build). */
 export interface ReadOpts {
   /** A prediction for an unplayed match (on-field lineups), or null. */
-  predict?: (season: number, red: number[], blue: number[], level: "qual" | "playoff", event?: string) => MatchPredictionView | null;
+  predict?: (season: number, red: number[], blue: number[], level: "qual" | "playoff", event?: string, region?: string) => MatchPredictionView | null;
   /** A team's current rating for the rankings table, or null. */
   rating?: (season: number, team: number) => FieldRow["rating"];
 }
@@ -171,7 +171,7 @@ export function readMatchViews(sdb: SeasonDb, f: { code?: string; team?: number 
   const args: SqlValue[] = [season];
   if (f.code) { where.push("m.code = ?"); args.push(f.code); }
   if (f.team) { where.push("(m.code, m.level, m.series, m.number) IN (SELECT code, level, series, number FROM match_teams WHERE team = ? AND season = ?)"); args.push(f.team, season); }
-  const rows = db.all(`SELECT m.*, e.timezone FROM matches m JOIN events e ON e.season = m.season AND e.code = m.code WHERE ${where.join(" AND ")} ORDER BY m.time, m.code, m.level DESC, m.series, m.number`, args);
+  const rows = db.all(`SELECT m.*, e.timezone, e.region AS event_region FROM matches m JOIN events e ON e.season = m.season AND e.code = m.code WHERE ${where.join(" AND ")} ORDER BY m.time, m.code, m.level DESC, m.series, m.number`, args);
   if (!rows.length) return [];
   const codes = [...new Set(rows.map((r) => r.code as string))];
   const lineups = db.all(`SELECT code, level, series, number, team, alliance, station, surrogate, dq, on_field FROM match_teams WHERE season = ? AND code IN (${codes.map(() => "?").join(",")}) ORDER BY station, team`, [season, ...codes]);
@@ -187,7 +187,7 @@ export function readMatchViews(sdb: SeasonDb, f: { code?: string; team?: number 
     let prediction: MatchPredictionView | null = null;
     if (!r.played && opts.predict) {
       const red = l.red.filter((t) => t.onField).map((t) => t.number), blue = l.blue.filter((t) => t.onField).map((t) => t.number);
-      if (red.length === 2 && blue.length === 2) prediction = opts.predict(season, red, blue, r.level, r.code);
+      if (red.length === 2 && blue.length === 2) prediction = opts.predict(season, red, blue, r.level, r.code, r.event_region ?? undefined);
     }
     const startsAt = localToUtcMs(r.time, r.timezone);
     return {
