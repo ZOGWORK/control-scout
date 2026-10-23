@@ -28,11 +28,43 @@ function fit(X: number[][], y: number[], pen: number[], prior: number[]): number
   return w;
 }
 
-/** Global mapping plus per-cell deviations ridge-shrunk toward it; returns each cell's combined mapping. */
-export function fitSliceCalibration(z: number[], y: number[], cell: string[], ridge: number): { global: [number, number]; cells: Record<string, { slope: number; intercept: number; n: number }> } {
-  const g = fit(z.map((v) => [v, 1]), y, [1e-4, 1e-4], [1, 0]);
-  const cells = [...new Set(cell)].sort();
-  const X = z.map((v, i) => { const c = cells.indexOf(cell[i]); const x = [v, 1]; for (let j = 0; j < cells.length; j++) x.push(j === c ? v : 0, j === c ? 1 : 0); return x; });
-  const w = fit(X, y, [1e-4, 1e-4, ...cells.flatMap(() => [ridge, ridge])], [g[0], g[1], ...cells.flatMap(() => [0, 0])]);
-  return { global: [g[0], g[1]], cells: Object.fromEntries(cells.map((c, j) => [c, { slope: w[0] + w[2 + 2 * j], intercept: w[1] + w[3 + 2 * j], n: cell.filter((x) => x === c).length }])) };
+/**
+ * The contextual model's research learner (round 2's explib.fit_logistic): logistic regression of
+ * the outcome on scaled features with the raw logit L as an offset, on mirrored examples (red/blue
+ * swapped, so no intercept and no colour bias), ridge on the coefficients, ties left out.
+ */
+export function fitContextual(X: number[][], L: number[], y: number[], ridge = 1e-3): { coefficients: number[]; scale: number[] } {
+  const keep = y.map((v, i) => (v !== 0.5 ? i : -1)).filter((i) => i >= 0), k = X[0].length;
+  const mean = new Array(k).fill(0), sq = new Array(k).fill(0);
+  for (const i of keep) for (let j = 0; j < k; j++) { mean[j] += X[i][j]; sq[j] += X[i][j] ** 2; }
+  const scale = mean.map((m, j) => Math.max(0.05, Math.sqrt(Math.max(0, sq[j] / keep.length - (m / keep.length) ** 2))));
+  let w = new Array(k).fill(0);
+  const n2 = 2 * keep.length;
+  for (let it = 0; it < 50; it++) {
+    const g = new Array(k).fill(0), H = Array.from({ length: k }, () => new Array(k).fill(0));
+    for (const i of keep) for (const s of [1, -1]) {
+      const xs = X[i].map((v, j) => (s * v) / scale[j]);
+      let z = s * L[i]; for (let j = 0; j < k; j++) z += w[j] * xs[j];
+      const p = sig(z), t = s === 1 ? y[i] : 1 - y[i], d = p - t, v = p * (1 - p);
+      for (let a = 0; a < k; a++) { g[a] += d * xs[a]; for (let b = a; b < k; b++) H[a][b] += v * xs[a] * xs[b]; }
+    }
+    for (let a = 0; a < k; a++) { for (let b = 0; b < a; b++) H[a][b] = H[b][a]; }
+    for (let a = 0; a < k; a++) { g[a] = g[a] / n2 + ridge * w[a]; for (let b = 0; b < k; b++) H[a][b] /= n2; H[a][a] += ridge; }
+    const A = H.map((r, i) => [...r, g[i]]);
+    for (let i = 0; i < k; i++) {
+      let piv = i; for (let r = i + 1; r < k; r++) if (Math.abs(A[r][i]) > Math.abs(A[piv][i])) piv = r;
+      [A[i], A[piv]] = [A[piv], A[i]];
+      for (let r = 0; r < k; r++) if (r !== i) { const f = A[r][i] / A[i][i]; for (let c = i; c <= k; c++) A[r][c] -= f * A[i][c]; }
+    }
+    const step = A.map((r, i) => r[k] / r[i]);
+    w = w.map((x, i) => x - step[i]);
+    if (Math.max(...step.map(Math.abs)) < 1e-10) break;
+  }
+  return { coefficients: w, scale };
 }
+
+/** Raw contextual probability (before calibration) for one row. */
+export const contextualRaw = (m: { coefficients: number[]; scale: number[] }, x: number[], L: number) => {
+  let z = L; for (let j = 0; j < x.length; j++) z += (x[j] / m.scale[j]) * m.coefficients[j];
+  return Math.min(1 - 1e-8, Math.max(1e-8, sig(z)));
+};

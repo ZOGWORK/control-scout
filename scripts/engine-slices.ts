@@ -24,7 +24,7 @@ import { createHash } from "node:crypto";
 import { mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { gzipSync } from "node:zlib";
-import { ENGINE_VERSION, FITTED_MODEL, RatingBook, explainMatch, predictMatch, type RatingParams } from "@control-scout/predict-engine";
+import { ENGINE_VERSION, FITTED_MODEL, RatingBook, contextualFeatures, explainMatch, predictMatch, type RatingParams } from "@control-scout/predict-engine";
 import { all, kvGet, migrate } from "../server/db.js";
 import { matchKey as keyOf, outcome, predictable, rookieYears, seasonCorpus } from "./slices/corpus.js";
 import { PREDICT_SEASONS, seasonInfo } from "../server/data/seasons.js";
@@ -41,6 +41,8 @@ const OUT = flag("--out") ?? join("docs", "engine", "slices");
 const GATE_OUT = flag("--gate-out") ?? flag("--out") ?? join("docs", "engine", "gates");
 const ROWS = flag("--rows");
 const LIVE = args.includes("--live");
+/** --features: rows also carry the champion's contextual inputs and raw probability (for refitting its weights). */
+const FEATURES = args.includes("--features");
 /** --champion overrides the champion's rating settings, to gate a release after model.json already carries it
  *  (e.g. '{"rating":{"rho1":0.6,"regionKappa":0}}' replays 2.6.0 as the champion). */
 const CHAMPION = flag("--champion") ? (JSON.parse(flag("--champion")!) as { rating?: Partial<RatingParams> }) : null;
@@ -111,6 +113,7 @@ for (const s of [...SEASONS].sort((a, b) => a - b)) {
           volatilityScore: vol.length ? Math.max(...vol) : null,
           eventSize: sizeBand(ev.teams.length || new Set(ev.matches.flatMap((x) => [...x.red.teams, ...x.blue.teams])).size), eventType: typeGroup(ev.type),
         },
+        ...(FEATURES ? { x: contextualFeatures(champion, m.red.teams, m.blue.teams, { ...pc, pRedWin: pc.pRaw! }, ctx, M.contextual.coefficients.length), pRaw: pc.pRaw } : {}),
         pred: { champion: side(pc, pc.pRedWin), "v2.0": side(pc, pc.pShadow!), legacy: side(pl, pl.pRedWin), ...(ph ? { challenger: side(ph, ph.pRedWin) } : {}) },
       });
     } else {

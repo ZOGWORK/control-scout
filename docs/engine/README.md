@@ -63,6 +63,9 @@ A change ships only if all of these hold:
 | Version | Change | 2024–25 (tuning) Δ Brier | 2025–26 (reused) Δ Brier | Gate |
 |---|---|---|---|---|
 | 2.7.0 | Priors: regional starting points (κ 20, learned from returning teams), carry-over ρ1 0.7 | −3.3×10⁻⁴ [−4.5, −2.1] | −2.4×10⁻⁴ [−3.5, −1.3] | [gate](gates/gate-2.7.0-priors-snapshot-2026-10-14.md) |
+| 2.8.0 | Recalibration: log-odds × 1.0577, no intercept (rolling origins, forward-only) | −0.7×10⁻⁴ [−1.6, +0.2] | −1.9×10⁻⁴ [−2.6, −1.2] | [gate](gates/gate-2.8.0-recalibration.md) |
+
+The 2.8.0 slope was fitted on 2024–26 calls (`fits/recalibration-2.8.0.json`), so the 2.8.0 slice report is in-sample for it on those seasons. Its forward evidence is the rolling-origin gate.
 
 ## Part 8 research (priors)
 

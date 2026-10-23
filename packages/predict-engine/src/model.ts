@@ -333,6 +333,36 @@ export const FITTED_MODEL = {
     "baselineCalibrationError5080": 0.0195
    },
    "report": "docs/engine/gates/gate-2.7.0-priors-snapshot-2026-10-14.md"
+  },
+  "engine28": {
+   "note": "Engine 2.8 recalibration: P(red) = sigmoid(1.0577 * logit(p)) on top of the 2.1 contextual model and its calibration, no intercept (never favours a colour, never changes the favourite, so winner accuracy is unchanged by construction). Rolling monthly origins, forward-only: each month scored with a slope fitted on the 730 days before it (scripts/part9/slope-check.ts on the 2.7.0 replay, snapshot 2026-10-14). 2025-26 is reused data. Rejected in the same step: per-slice cells (little extra, cost 2024-25 accuracy), an intercept (a colour term), refitting the 22 weights (no forward gain; three small weights flip sign).",
+   "rolled2024": {
+    "matches": 33228,
+    "brierChange": -0.000069,
+    "brierChange95": [
+     -0.00016,
+     0.000024
+    ],
+    "logLossChange": 0.000015,
+    "calibrationError5080": 0.0069,
+    "baselineCalibrationError5080": 0.0134
+   },
+   "rolled2025": {
+    "matches": 36615,
+    "brierChange": -0.000187,
+    "brierChange95": [
+     -0.000261,
+     -0.000115
+    ],
+    "logLossChange": -0.000534,
+    "logLossChange95": [
+     -0.000795,
+     -0.000275
+    ],
+    "calibrationError5080": 0.0098,
+    "baselineCalibrationError5080": 0.0163
+   },
+   "report": "docs/engine/gates/gate-2.8.0-recalibration.md"
   }
  },
  "calibration": {
@@ -341,7 +371,7 @@ export const FITTED_MODEL = {
  },
  "contextual": {
   "kind": "contextual-logistic-reliability",
-  "id": "ctx-rel-form-2026-10-17-1fdd2958",
+  "id": "ctx-rel-form-2026-10-17-1fdd2958+recal-2026-10-23",
   "coefficients": [
    -0.02979355924122389,
    -0.10724713448833693,
@@ -456,6 +486,17 @@ export const FITTED_MODEL = {
     "frozenSelectionSha256": "1a36820cc616dbc2f36c0cdb19f041b2cbb913f46d765663b08bdc7c70386e14",
     "frozenAt": "2026-10-16T18:19:37.995889+00:00",
     "baseEngineVersion": "1.1.0"
+   }
+  },
+  "recalibration": {
+   "slope": 1.057692,
+   "provenance": {
+    "fittedOn": "rated matches 2024-07-26 to 2026-07-26",
+    "matches": 70113,
+    "windowDays": 730,
+    "form": "sigmoid(slope · logit(p)), no intercept",
+    "rowsSha256": "91be2e8b9f1d416a75d1fb184ccc8ac05ef1ae4d6ee63e72fad658bfaa379f32",
+    "artifact": "docs/engine/fits/recalibration-2.8.0.json"
    }
   }
  }
