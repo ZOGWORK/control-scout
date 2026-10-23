@@ -44,8 +44,10 @@ export function useTeamName(n: number | null): string | null | undefined {
   return name;
 }
 
-export function TeamInput({ value, onChange, label, tone, autoFocus, error, inputRef }: {
+export function TeamInput({ value, onChange, label, tone, autoFocus, error, inputRef, size }: {
   value: string; onChange: (v: string) => void; label: string; tone?: "red" | "blue"; autoFocus?: boolean;
+  /** "lg": a single, prominent team box (the Lab's advancement team). */
+  size?: "lg";
   /** The form's error for this field (set on submit); shown in place of the name hint. */
   error?: string | null;
   inputRef?: Ref<HTMLInputElement>;
@@ -57,10 +59,10 @@ export function TeamInput({ value, onChange, label, tone, autoFocus, error, inpu
     <div className="min-w-0">
       <Input ref={inputRef} value={value} onChange={(e) => onChange(e.target.value.replace(/\D/g, "").slice(0, 6))} inputMode="numeric" placeholder="Team #" aria-label={label} autoFocus={autoFocus}
         aria-invalid={error ? true : undefined} aria-describedby={hintId}
-        className={cn("h-11 font-mono text-base", tone === "red" && "focus-visible:border-red-alliance", tone === "blue" && "focus-visible:border-blue-alliance", !error && n && name === null && "border-warning")} />
+        className={cn(size === "lg" ? "h-14 font-mono text-2xl font-semibold" : "h-11 font-mono text-base", tone === "red" && "focus-visible:border-red-alliance", tone === "blue" && "focus-visible:border-blue-alliance", !error && n && name === null && "border-warning")} />
       {error
         ? <p id={hintId} role="alert" className="mt-1 text-xs font-medium text-destructive">{error}</p>
-        : <p id={hintId} className={cn("mt-1 h-4 truncate text-xs", name === null ? "text-warning" : "text-muted-foreground")}>{n ? (name === undefined ? "…" : name === null ? "Not a team we know" : name || "Unnamed team") : ""}</p>}
+        : <p id={hintId} className={cn(size === "lg" ? "mt-1.5 h-5 truncate text-sm" : "mt-1 h-4 truncate text-xs", name === null ? "text-warning" : "text-muted-foreground")}>{n ? (name === undefined ? "…" : name === null ? "Not a team we know" : name || "Unnamed team") : ""}</p>}
     </div>
   );
 }

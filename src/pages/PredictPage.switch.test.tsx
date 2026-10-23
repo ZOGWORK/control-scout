@@ -37,9 +37,9 @@ describe("Predict's view switch", () => {
     const highlights = () => Array.from(document.querySelectorAll<HTMLElement>("[data-layout-id='predict-view-active']"));
     expect(highlights()).toHaveLength(1);
     expect(highlights()[0].closest("[role=tab]")?.textContent).toMatch(/^Scheduled/);
-    fireEvent.click(switcher().getByRole("tab", { name: /Lab: any matchup/ }));
+    fireEvent.click(switcher().getByRole("tab", { name: /Lab: advancement & matchups/ }));
     expect(highlights()).toHaveLength(1);
-    expect(highlights()[0].closest("[role=tab]")?.textContent).toMatch(/^Lab: any matchup/);
+    expect(highlights()[0].closest("[role=tab]")?.textContent).toMatch(/^Lab: advancement & matchups/);
   });
 
   it("arrow keys move between the views and focus stays on the tab (the Lab's first box doesn't take it)", () => {
@@ -47,13 +47,19 @@ describe("Predict's view switch", () => {
     const scheduled = screen.getByRole("tab", { name: /^Scheduled/ });
     scheduled.focus();
     fireEvent.keyDown(scheduled, { key: "ArrowRight" });
-    const lab = screen.getByRole("tab", { name: /Lab: any matchup/ });
+    const lab = screen.getByRole("tab", { name: /Lab: advancement & matchups/ });
     expect(lab.getAttribute("aria-selected")).toBe("true");
     expect(document.activeElement).toBe(lab);
   });
 
-  it("arriving on the Lab puts focus in its first empty box", () => {
+  it("the Lab opens on Advancement and puts focus in its empty team box", () => {
     render(<TooltipProvider><MemoryRouter initialEntries={["/predict?view=lab"]}><PredictPage /></MemoryRouter></TooltipProvider>);
+    expect(screen.getByRole("tab", { name: /Advancement/ }).getAttribute("aria-selected")).toBe("true");
+    expect(document.activeElement).toBe(screen.getByRole("textbox", { name: "Team" }));
+  });
+
+  it("a custom matchup link opens Custom matchup with focus in its first empty box", () => {
+    render(<TooltipProvider><MemoryRouter initialEntries={["/predict?view=lab&mode=match"]}><PredictPage /></MemoryRouter></TooltipProvider>);
     expect(document.activeElement).toBe(screen.getByRole("textbox", { name: "Red team 1" }));
   });
 });
