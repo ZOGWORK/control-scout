@@ -15,6 +15,21 @@ const match = (red: [number[], number], blue: [number[], number], n = 1): MatchR
 });
 const comps = (b: RatingBook, t: number) => { const r = b.get(t); return [r.auto, r.teleop, r.endgame].map((x) => Math.round(x * 1e9) / 1e9); };
 
+describe("penalty learning (engine 2.10)", () => {
+  it("moves a robot's penalty rating by penGain × the usual step, and leaves scoring alone", () => {
+    const run = (penGain: number) => {
+      const b = new RatingBook({ penGain });
+      b.update(match([[1, 2], 100], [[3, 4], 100], 1));
+      b.update({ ...match([[1, 2], 100], [[3, 4], 100], 2), red: { ...al([1, 2], 100), penCommitted: 40 } });
+      return b;
+    };
+    const full = run(1), slow = run(0.15), base = run(0);
+    const step = (b: RatingBook) => b.get(1).pen - base.get(1).pen;
+    expect(step(slow)).toBeCloseTo(0.15 * step(full), 9);
+    for (const c of ["auto", "teleop", "endgame"] as const) expect(slow.get(1)[c]).toBe(full.get(1)[c]);
+  });
+});
+
 describe("RatingBook baseline seeding", () => {
   it("a season's first match treats both sides alike: swapping red and blue swaps the ratings", () => {
     const a = new RatingBook();

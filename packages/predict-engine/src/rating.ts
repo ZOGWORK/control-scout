@@ -75,6 +75,9 @@ export interface RatingParams {
   eventKappa: number;
   /** Cap on event-local form, in population standard deviations of that phase. */
   eventCap: number;
+  /** Multiplier on the update gain for penalties committed (engine 2.10): fouls are mostly luck and
+   *  officiating, far less persistent than scoring, so a robot's foul rating learns slower. 1 = as scoring. */
+  penGain: number;
   /** Starting prediction variance (points², per team) for known teams / rookies. */
   uncKnown: number;
   uncRookie: number;
@@ -121,6 +124,7 @@ export const DEFAULT_RATING_PARAMS: RatingParams = {
   eventLambdaEndgame: 0,
   eventKappa: 2,
   eventCap: 1,
+  penGain: 1,
   uncKnown: 150,
   uncRookie: 350,
   uncDecay: 0.8,
@@ -533,7 +537,7 @@ export class RatingBook {
         r.auto *= f; r.teleop *= f; r.endgame *= f; r.asOf = this.now;
         const k = Math.max(p.kMin, p.k0 / (1 + (r.gainN ?? r.n) / p.n0)) * weight;
         for (const c of COMPONENTS) {
-          r[c] += k * (actual[c] - exp[c]) * share;
+          r[c] += (c === "pen" ? k * p.penGain : k) * (actual[c] - exp[c]) * share;
           if (r[c] < 0) r[c] = 0; // contributions and penalties are never negative
         }
         r.n += 1;

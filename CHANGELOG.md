@@ -9,6 +9,18 @@ teams, scout, offline, speed, live, report, alerts, rankings, share, workspace,
 picklist, history, fixes). What's new shows them first; the groups below are
 the full release notes, one click away.
 
+## 1.25.0 — 2026-10-23
+
+Expected scores stop over-charging teams for fouls.
+
+### Highlights
+- [predict] Expected scores count fouls more realistically
+- [predict] Foul-prone teams no longer predicted to gift huge penalty totals
+- [report] Predicted scores closer to the real ones in 2025–26
+
+### Predictions
+- **Fouls learn slowly.** A team that gave away a lot of penalty points last week usually gives away far fewer this week: fouls are mostly luck and officiating. A robot's penalty rating now learns at 15% of the speed its scoring does, so it stays near the season average until a pattern really holds. The most foul-prone alliances had been predicted to give away about half again as many points as they did. On replayed matches, expected scores moved closer to the real ones (2025–26: average miss 27.7 → 26.6 points), and win odds are unchanged within noise. How it works explains it next to how expected scores are built. Prediction engine 2.10.0. (#243)
+
 ## 1.24.0 — 2026-10-23
 
 Predictions watch today's matches too.
