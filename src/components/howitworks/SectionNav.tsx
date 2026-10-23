@@ -16,6 +16,7 @@ export const SECTIONS = [
   { id: "accuracy", label: "Accuracy" },
   { id: "lab", label: "Lab notes" },
   { id: "limits", label: "Limits" },
+  { id: "versions", label: "Versions" },
   { id: "settings", label: "Settings" },
 ] as const;
 
