@@ -9,6 +9,18 @@ teams, scout, offline, speed, live, report, alerts, rankings, share, workspace,
 picklist, history, fixes). What's new shows them first; the groups below are
 the full release notes, one click away.
 
+## 1.29.0 — 2026-10-23
+
+How it works arrives complete in the page itself, for search engines and slow connections.
+
+### Highlights
+- [report] How it works sends its full text with the page, not after the app loads
+- [speed] Readable at once on a slow connection, before any script runs
+- [fixes] One main heading on How it works, as search engines expect
+
+### How it works
+- **The whole page in the first response.** /methodology is built ahead of time from the same page component the app shows: every section's text, the version history, the limits and the settings now arrive in the HTML itself, so search engines read all of it without running JavaScript, and a slow connection can read it before the app loads. The app takes over as before once it starts, with the interactive figures. Its address, anchors (such as /methodology#accuracy), title and description are unchanged, it stays in the sitemap, and it has a single main heading. (#247)
+
 ## 1.28.0 — 2026-10-23
 
 Prediction Engine 3.0: today's improvements, re-checked on every season since 2019–20.
