@@ -21,6 +21,10 @@ import { BellFigure, Playground } from "../components/howitworks/MatchFigures";
 import { PointsChart, QualifierSim, RunFlow } from "../components/howitworks/EventFigures";
 import { AccuracySection } from "../components/howitworks/AccuracySection";
 import { BreakChart, Verdicts } from "../components/howitworks/LabNotes";
+import { ENGINE_VERSIONS } from "../components/howitworks/versions";
+import { SLICE_FACTS, SLICE_REPORT } from "../components/howitworks/sliceFacts";
+
+const pct1 = (x: number) => `${(100 * x).toFixed(1)}%`;
 import { CleanList, Prose, Reveal, SectionHead, TipLayer, useReduced } from "../components/howitworks/ui";
 import { CAL, E2, E21, MODEL, NOISE, RATING } from "../components/howitworks/math";
 import { LOCAL_RUNS, LOCAL_STOP_MS, PROJECTION_FLOOR, PROJECTION_RUNS } from "../shared/projections";
@@ -187,12 +191,16 @@ export default function MethodologyPage() {
         <section id="limits" className="scroll-mt-bar-20 pt-20">
           <SectionHead num="07" eyebrow="Fine print" title="What the predictions can't know" />
           <Prose>
+            <p>Where the predictions are weakest is measured, not guessed: every engine version is replayed over past seasons and its errors are broken down by situation (the slice report, <code>{SLICE_REPORT}</code>). The biggest weak spot, by far, is <strong>thin data</strong>.</p>
             <CleanList items={[
+              <><strong>Early matches, little data.</strong> In {SLICE_FACTS.season}, matches whose four robots had played few rated matches between them were {Math.round(SLICE_FACTS.thin.shareMatches * 100)}% of matches but {Math.round(SLICE_FACTS.thin.shareBrier * 100)}% of the prediction error, and the favourite won {pct1(SLICE_FACTS.thin.accuracy)} of the time against {pct1(SLICE_FACTS.dense.accuracy)} when every robot was well known. The first ten qualification matches of an event are similar: {Math.round(SLICE_FACTS.firstTenQuals.shareMatches * 100)}% of matches, {Math.round(SLICE_FACTS.firstTenQuals.shareBrier * 100)}% of the error, {pct1(SLICE_FACTS.firstTenQuals.accuracy)} right against {pct1(SLICE_FACTS.lateQuals.accuracy)} from match 26 on. Regional starting points, form at the event and alliance overlap all help here, but no model can know much about a robot it has barely seen.</>,
               <><strong>A new robot until it plays.</strong> If you rebuilt over the break, the engine still thinks you're the old robot until your first match.</>,
               <><strong>What a scout would see.</strong> Drivers having a bad day, how well two robots actually work together, field faults, and anything you'd notice in the pits.</>,
               <><strong>2026–27 BIOBUZZ bonus RPs</strong> (swarm and the two pollinator RPs) have no model shipped with the engine. Once about 100 of the season's qualification matches are recorded, simulations follow a curve fitted to its latest results. Before that, an event in progress draws them from its own recorded results, and otherwise simulated events count only win and tie ranking points; the forecast says which. Rank estimates can run a little off early in the season.</>,
               <><strong>The 2025–26 bonus RPs</strong> were fitted on the season's earliest matches, because the bonuses didn't exist before.</>,
               <><strong>Three-team championship alliances</strong> aren't modelled yet.</>,
+              <><strong>Defense in playoffs.</strong> There is no defense rating yet, so the engine doesn't model one robot shutting down another. Playoffs are still predicted better than qualification matches, so this is a known gap, not a measured weakness.</>,
+              <><strong>A new game's interactions.</strong> How much two similar robots get in each other's way was measured on the last two games (2.11) and applies to every game. A new game can differ, and the live track record will show it.</>,
               <><strong>Which awards exist</strong> at an event is taken as known; who wins them is predicted.</>,
               <><strong>This season's advancement rules.</strong> Until FIRST publishes 2026–27 advancement rules that differ, the 2025–26 points system is assumed.</>,
             ]} />
@@ -205,18 +213,34 @@ export default function MethodologyPage() {
           </Prose>
         </section>
 
+        {/* ================= VERSIONS ================= */}
+        <section id="versions" className="scroll-mt-bar-20 pt-20">
+          <SectionHead num="08" eyebrow="Version history" title="Every engine version, in one line" />
+          <Prose>
+            <p>Each version is judged before it ships: replayed on identical past matches against the version before it, with intervals that say whether a change is real or noise, and slice by slice so a gain in one place can't hide a loss in another. The live track record keeps each version's calls apart, so the history below is also how to read it.</p>
+            <ol className="mt-4 grid list-none gap-2.5 p-0">
+              {ENGINE_VERSIONS.map((v) => (
+                <li key={v.version} className="grid grid-cols-[5.5rem_1fr] gap-x-3 gap-y-0.5 max-sm:grid-cols-1">
+                  <span className="font-mono text-sm text-foreground">v{v.version}<span className="block text-xs text-muted-foreground">{v.date}</span></span>
+                  <span className="text-[0.9375rem] leading-relaxed text-muted-foreground">{v.line}</span>
+                </li>
+              ))}
+            </ol>
+          </Prose>
+        </section>
+
         {/* ================= SETTINGS ================= */}
         <section id="settings" className="scroll-mt-bar-20 pt-20">
           <SectionHead eyebrow="For the curious" title="The settings, in one table" />
           <SettingsTable />
           <Prose id="engine" className="mt-8 max-sm:mt-5">
             <h3>One engine, two apps</h3>
-            <p>Predictions come from <strong>Prediction Engine 2.1</strong> (<code>@control-scout/predict-engine</code> v{ENGINE_VERSION}). Control Point runs the exact same package and version, so the numbers you see here are the numbers Control Point shows for the same teams. Any change that could move a number needs a version bump and a held-out backtest showing it's at least as good.</p>
+            <p>Predictions come from <strong>Prediction Engine {ENGINE_VERSION.split(".").slice(0, 2).join(".")}</strong> (<code>@control-scout/predict-engine</code> v{ENGINE_VERSION}). Control Point runs the exact same package and version, so the numbers you see here are the numbers Control Point shows for the same teams. Any change that could move a number needs a version bump and a held-out backtest showing it's at least as good.</p>
           </Prose>
         </section>
 
         <footer className="mx-auto mt-20 flex max-w-2xl flex-wrap items-center justify-between gap-4 border-t-2 border-foreground pt-5 text-sm text-muted-foreground">
-          <span className="min-w-0 flex-1 basis-64">Control Scout · predictions by Prediction Engine 2.1 (v{ENGINE_VERSION}), shared with Control Point · settings fitted on {MODEL.fittedOn}.</span>
+          <span className="min-w-0 flex-1 basis-64">Control Scout · predictions by Prediction Engine {ENGINE_VERSION.split(".").slice(0, 2).join(".")} (v{ENGINE_VERSION}), shared with Control Point · settings fitted on {MODEL.fittedOn}.</span>
           <div className="flex flex-wrap gap-2">
             <Button asChild size="sm"><Link to="/predict"><FlaskConical /> Predict <ArrowRight /></Link></Button>
           </div>
