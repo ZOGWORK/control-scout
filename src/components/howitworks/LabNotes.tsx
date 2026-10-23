@@ -14,6 +14,31 @@ const TAG: Record<Verdict, { text: string; cls: string }> = {
 
 const NOTES: { v: Verdict; title: string; body: string; more: string; wide?: boolean }[] = [
   {
+    v: "ship", wide: true, title: "Engines 2.7–2.11: measure first, then fix the biggest weak spots",
+    body: "A slice report replays every match and breaks the errors down by situation. Thin data dominated, so the fixes went there: regional starting points (2.7), a slightly bolder final calibration (2.8), form at the current event (2.9), slow-learning foul ratings (2.10) and alliance overlap (2.11). Each one beat the version before it on identical past matches, with no situation getting worse.",
+    more: "Brier change per release, 2024–25 (tuning) / 2025–26: 2.7 −3.3 / −2.4 ×10⁻⁴; 2.8 −0.7 / −1.9 (month-by-month, forward-only); 2.9 −1.5 / −1.8; 2.10 neutral on win odds, expected-score error 27.67 → 26.57 points on 2025–26; 2.11 −2.1 / −2.4. Winner accuracy barely moved: these make the stated chances truer rather than picking more winners. Every gate report is in docs/engine/gates in the repository.",
+  },
+  {
+    v: "no", title: "Carrying endgame over less between seasons",
+    body: "Last season predicts this season's endgame only half as well as auto and TeleOp. Carrying less of it over still made every situation slightly worse, so all phases still carry over alike.",
+    more: "Season-to-season slopes: auto about 0.65, TeleOp about 0.65, endgame 0.13–0.33. Endgame carry-over 0.2–0.8 against 1: Brier +0.03 to +0.13 ×10⁻⁴ on both seasons.",
+  },
+  {
+    v: "no", title: "Refitting the win-probability weights on newer data",
+    body: "Refitting the 22 learned weights each month on everything before it gave only a marginal gain on 2025–26, a loss on 2024–25, and flipped the sign of three small weights. The frozen weights stay; they'll be revisited when a new season's data exists.",
+    more: "Refit minus frozen, forward-only: 2025–26 −0.99 [−1.99, −0.01] ×10⁻⁴; 2024–25 +3.19 [+2.11, +4.23] (where the frozen weights had seen part of the season). Sign flips: three small inputs.",
+  },
+  {
+    v: "no", title: "A separate calibration per situation",
+    body: "Fitting the final calibration separately for quals and playoffs and for thin and dense data was only a little better than one shared stretch, and it cost a little accuracy. One stretch, with no colour term, shipped instead.",
+    more: "2025–26 forward-only: −2.64 against −2.15 ×10⁻⁴ for a shared mapping; 2024–25 accuracy −0.13 points [−0.22, −0.05]. An intercept would have been a red/blue term, which isn't allowed.",
+  },
+  {
+    v: "no", title: "A dead-robot mixture",
+    body: "Modelling a chance that each robot does nothing in a match. The win odds were already right for fragile robots (within about 2 points at every level of fragility), and their score ranges already held. Their misses land above the range more often than below, the opposite of what a dead-robot term would fix.",
+    more: "Top 10% by failure history, favourites at 80%+: stated 90.7% / won 88.8% ±2.0 (2024–25), 88.7% / 88.7% ±2.2 (2025–26). 80% ranges for those alliances covered 80.6% and 80.4%, with 12.6% and 11.4% of misses above.",
+  },
+  {
     v: "ship", wide: true, title: "Prediction Engine 2.1: form at this event, momentum, collapses",
     body: "Five more inputs from each robot's recent record: its residuals at the current event, a fast-moving average against its usual level, whether its last alliance collapsed, and how long ago. Better probabilities in a clean month-by-month test; not yet shown to pick more winners.",
     more: "Re-tested forward-only (everything refitted from earlier matches before each month): Brier improved in later 2024–25 (0.15646 → 0.15589, 95% range −0.0009 to −0.0003) and 2025–26 (0.16894 → 0.16846); winner accuracy +0.17 and +0.06 points, both ranges including zero; calibration about the same. The first figures (+0.22 / +0.19 points) used a calibration fitted on later matches and 2025–26 vetoes, so they were corrected. Tried and dropped: alliance congestion, a defense rating, partner familiarity, a long-gap signal, extra uncertainty after a break and a score-mean correction; autonomous and role compatibility gained too little to replicate.",
