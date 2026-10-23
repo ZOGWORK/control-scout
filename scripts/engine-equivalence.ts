@@ -11,7 +11,7 @@
 //
 //   npx tsx scripts/engine-equivalence.ts [path-to-control-point] [seasons…]
 //
-// Reads Control Point's raw FTC Scout cache (.cache/predict/scout/<season>);
+// Reads Control Point's raw FTC Scout cache (CP_CACHE, else .cache/ or .data/predict/scout/<season>);
 // never writes to that repo. Run `npm run build -w @control-scout/predict-engine`
 // first, and `npm install` in Control Point after vendoring.
 import { readFileSync, readdirSync, existsSync } from "node:fs";
@@ -77,8 +77,12 @@ const cpVersion = JSON.parse(readFileSync(join(CP, "node_modules", "@control-sco
 if (cpVersion !== pkg.ENGINE_VERSION) fail(`installed in Control Point: ${cpVersion}, workspace ${pkg.ENGINE_VERSION} (run npm install there)`);
 if (!same(cpModel, pkg.FITTED_MODEL)) fail("Control Point's model.json differs from FITTED_MODEL");
 
+/** Control Point's raw FTC Scout cache: CP_CACHE when set (e.g. the main checkout's, for a release
+ *  worktree that has none), else .cache/predict/scout, else .data/predict/scout (where it lives now). */
+const CACHE = process.env.CP_CACHE ?? [join(CP, ".cache", "predict", "scout"), join(CP, ".data", "predict", "scout")].find((d) => existsSync(d)) ?? join(CP, ".cache", "predict", "scout");
+
 function load(season: number, parse: (r: unknown, s: number) => any) {
-  const dir = join(CP, ".cache", "predict", "scout", String(season));
+  const dir = join(CACHE, String(season));
   if (!existsSync(dir)) return [];
   const out: any[] = [];
   for (const f of readdirSync(dir)) {
@@ -94,7 +98,7 @@ const pkBook = new pkg.RatingBook(pkg.FITTED_MODEL.rating);
 let matches = 0, predictions = 0;
 for (const season of SEASONS) {
   const evA = load(season, cpScout.parseScoutEventRecord);
-  if (!evA.length) { console.error(`No cached events for ${season} under ${CP}/.cache/predict/scout — nothing to compare.`); process.exit(1); }
+  if (!evA.length) { console.error(`No cached events for ${season} under ${CACHE} — nothing to compare.`); process.exit(1); }
   const evB = load(season, pkg.parseScoutEventRecord);
   // Map → JSON loses entries; compare ranks separately.
   if (!same(evA.map((e) => ({ ...e, ranks: [...e.ranks] })), evB.map((e) => ({ ...e, ranks: [...e.ranks] })))) fail(`${season}: parsed events differ`);

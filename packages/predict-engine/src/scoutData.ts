@@ -109,7 +109,7 @@ export function parseScoutEventRecord(resp: any, season: number): EventRecord | 
     if (!red || !blue || !red.teams.length || !blue.teams.length) continue;
     const level = String(m.tournamentLevel || "").toLowerCase().startsWith("qual") ? "qual" : "playoff";
     const t = Date.parse(m.actualStartTime || m.scheduledStartTime || "") || startTime + (level === "playoff" ? 1e6 : 0) + (m.series ?? 0) * 1e3 + m.matchNum;
-    matches.push({ season, eventCode: ev.code, level, series: m.series ?? 0, number: m.matchNum, time: t, red, blue });
+    matches.push({ season, eventCode: ev.code, level, series: m.series ?? 0, number: m.matchNum, time: t, red, blue, ...(ev.regionCode ? { region: ev.regionCode } : {}) });
   }
   if (!matches.length) return null;
   matches.sort((a, b) => a.time - b.time || (a.level === b.level ? 0 : a.level === "qual" ? -1 : 1) || a.series - b.series || a.number - b.number);

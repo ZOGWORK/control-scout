@@ -1,0 +1,1804 @@
+{
+ "meta": {
+  "generated": "2026-10-22",
+  "engine": "2.6.0",
+  "championModel": "ctx-rel-form-2026-10-17-1fdd2958",
+  "shadowModel": "ctx-rel-2026-10-16-1a36820c",
+  "corpus": {
+   "id": "snapshot-2026-10-14",
+   "dataVersion": "2026-10-14T04:19:58.853Z",
+   "seasons": [
+    {
+     "season": 2023,
+     "label": "2023–24",
+     "events": 1208,
+     "unratedEvents": 486,
+     "matches": 30983,
+     "predicted": 30702,
+     "predictedRated": 28075,
+     "surrogateMatches": 817,
+     "volatilityCut": 1.5218529215108374,
+     "sha256": "7a365c4792e3f393753ded82a482ef28e95442db95f2db75131e513a729e1d6c"
+    },
+    {
+     "season": 2024,
+     "label": "2024–25",
+     "events": 1296,
+     "unratedEvents": 532,
+     "matches": 37399,
+     "predicted": 36557,
+     "predictedRated": 33271,
+     "surrogateMatches": 872,
+     "volatilityCut": 1.5879623958363516,
+     "sha256": "94fbd00d97718c51b2b086555f740b3857c29f763056d70c571bdf2fcefb61bd"
+    },
+    {
+     "season": 2025,
+     "label": "2025–26",
+     "events": 1454,
+     "unratedEvents": 634,
+     "matches": 42474,
+     "predicted": 41743,
+     "predictedRated": 36842,
+     "surrogateMatches": 1017,
+     "volatilityCut": 1.1336930242667094,
+     "sha256": "86a7ca9e42cddc1f6a4b5653a2914a4793e5650cbdddae00ca5746a81719bf7e"
+    }
+   ],
+   "rules": "server/stats/job.ts backtest: remote/hybrid events dropped; scrimmage and off-season events predicted but never rated; only 2-robot alliances predicted; matches in start-time order, each predicted from earlier results only."
+  },
+  "explainMatchChecks": 437,
+  "rowsSha256": {
+   "champion": "3f4159a71f6a46e72ef59f5f64ca684ab5a966331912ea641ab867551eeea710",
+   "v2.0": "f2bc2d64b6034be09fc53e99f41451aa2e12f23299c13d8412909cef3a74f144",
+   "legacy": "8ee1a03aedb7ed4d0d68f4e43c723806b9ba12ecbc06cc3350e031e5733ce93b",
+   "challenger": "52f34c6cb88a69cfa8dc34e895a13943981f3bf6acd931a963f088e16195e072"
+  },
+  "baselineCheck": {
+   "matches": 36842,
+   "accuracy": 0.7266488023624631,
+   "brier": 0.17907434966776792,
+   "published": {
+    "accuracy": 0.727,
+    "brier": 0.179
+   },
+   "pass": true
+  },
+  "lowConfidenceBelow": 200,
+  "primarySeason": 2025,
+  "challenger": {
+   "name": "2.7.0-priors",
+   "rating": {
+    "regionKappa": 20,
+    "rho1": 0.7
+   }
+  }
+ },
+ "gate": {
+  "2023": {
+   "paired": {
+    "all": {
+     "n": 28075,
+     "brier": 0,
+     "brier95": [
+      0,
+      0
+     ],
+     "logLoss": 0,
+     "accuracyPp": 0,
+     "accuracy95": [
+      0,
+      0
+     ],
+     "lowConfidence": false,
+     "regression": false
+    },
+    "dims": {
+     "level": {
+      "playoff": {
+       "n": 2969,
+       "brier": 0,
+       "brier95": [
+        0,
+        0
+       ],
+       "logLoss": 0,
+       "accuracyPp": 0,
+       "accuracy95": [
+        0,
+        0
+       ],
+       "lowConfidence": false,
+       "regression": false
+      },
+      "qual": {
+       "n": 25106,
+       "brier": 0,
+       "brier95": [
+        0,
+        0
+       ],
+       "logLoss": 0,
+       "accuracyPp": 0,
+       "accuracy95": [
+        0,
+        0
+       ],
+       "lowConfidence": false,
+       "regression": false
+      }
+     },
+     "eventMatch": {
+      "playoff": {
+       "n": 2969,
+       "brier": 0,
+       "brier95": [
+        0,
+        0
+       ],
+       "logLoss": 0,
+       "accuracyPp": 0,
+       "accuracy95": [
+        0,
+        0
+       ],
+       "lowConfidence": false,
+       "regression": false
+      },
+      "q1-10": {
+       "n": 10431,
+       "brier": 0,
+       "brier95": [
+        0,
+        0
+       ],
+       "logLoss": 0,
+       "accuracyPp": 0,
+       "accuracy95": [
+        0,
+        0
+       ],
+       "lowConfidence": false,
+       "regression": false
+      },
+      "q11-25": {
+       "n": 10412,
+       "brier": 0,
+       "brier95": [
+        0,
+        0
+       ],
+       "logLoss": 0,
+       "accuracyPp": 0,
+       "accuracy95": [
+        0,
+        0
+       ],
+       "lowConfidence": false,
+       "regression": false
+      },
+      "q26+": {
+       "n": 4263,
+       "brier": 0,
+       "brier95": [
+        0,
+        0
+       ],
+       "logLoss": 0,
+       "accuracyPp": 0,
+       "accuracy95": [
+        0,
+        0
+       ],
+       "lowConfidence": false,
+       "regression": false
+      }
+     },
+     "teamEvent": {
+      "1st": {
+       "n": 12415,
+       "brier": 0,
+       "brier95": [
+        0,
+        0
+       ],
+       "logLoss": 0,
+       "accuracyPp": 0,
+       "accuracy95": [
+        0,
+        0
+       ],
+       "lowConfidence": false,
+       "regression": false
+      },
+      "2nd": {
+       "n": 6952,
+       "brier": 0,
+       "brier95": [
+        0,
+        0
+       ],
+       "logLoss": 0,
+       "accuracyPp": 0,
+       "accuracy95": [
+        0,
+        0
+       ],
+       "lowConfidence": false,
+       "regression": false
+      },
+      "3rd+": {
+       "n": 8708,
+       "brier": 0,
+       "brier95": [
+        0,
+        0
+       ],
+       "logLoss": 0,
+       "accuracyPp": 0,
+       "accuracy95": [
+        0,
+        0
+       ],
+       "lowConfidence": false,
+       "regression": false
+      }
+     },
+     "experience": {
+      "rookie": {
+       "n": 15029,
+       "brier": 0,
+       "brier95": [
+        0,
+        0
+       ],
+       "logLoss": 0,
+       "accuracyPp": 0,
+       "accuracy95": [
+        0,
+        0
+       ],
+       "lowConfidence": false,
+       "regression": false
+      },
+      "veteran": {
+       "n": 7416,
+       "brier": 0,
+       "brier95": [
+        0,
+        0
+       ],
+       "logLoss": 0,
+       "accuracyPp": 0,
+       "accuracy95": [
+        0,
+        0
+       ],
+       "lowConfidence": false,
+       "regression": false
+      },
+      "year2": {
+       "n": 5630,
+       "brier": 0,
+       "brier95": [
+        0,
+        0
+       ],
+       "logLoss": 0,
+       "accuracyPp": 0,
+       "accuracy95": [
+        0,
+        0
+       ],
+       "lowConfidence": false,
+       "regression": false
+      }
+     },
+     "teamMatches": {
+      "0-5": {
+       "n": 12833,
+       "brier": 0,
+       "brier95": [
+        0,
+        0
+       ],
+       "logLoss": 0,
+       "accuracyPp": 0,
+       "accuracy95": [
+        0,
+        0
+       ],
+       "lowConfidence": false,
+       "regression": false
+      },
+      "16+": {
+       "n": 4861,
+       "brier": 0,
+       "brier95": [
+        0,
+        0
+       ],
+       "logLoss": 0,
+       "accuracyPp": 0,
+       "accuracy95": [
+        0,
+        0
+       ],
+       "lowConfidence": false,
+       "regression": false
+      },
+      "6-15": {
+       "n": 10381,
+       "brier": 0,
+       "brier95": [
+        0,
+        0
+       ],
+       "logLoss": 0,
+       "accuracyPp": 0,
+       "accuracy95": [
+        0,
+        0
+       ],
+       "lowConfidence": false,
+       "regression": false
+      }
+     },
+     "density": {
+      "dense": {
+       "n": 7119,
+       "brier": 0,
+       "brier95": [
+        0,
+        0
+       ],
+       "logLoss": 0,
+       "accuracyPp": 0,
+       "accuracy95": [
+        0,
+        0
+       ],
+       "lowConfidence": false,
+       "regression": false
+      },
+      "normal": {
+       "n": 11776,
+       "brier": 0,
+       "brier95": [
+        0,
+        0
+       ],
+       "logLoss": 0,
+       "accuracyPp": 0,
+       "accuracy95": [
+        0,
+        0
+       ],
+       "lowConfidence": false,
+       "regression": false
+      },
+      "thin": {
+       "n": 9180,
+       "brier": 0,
+       "brier95": [
+        0,
+        0
+       ],
+       "logLoss": 0,
+       "accuracyPp": 0,
+       "accuracy95": [
+        0,
+        0
+       ],
+       "lowConfidence": false,
+       "regression": false
+      }
+     },
+     "volatility": {
+      "not measured": {
+       "n": 6533,
+       "brier": 0,
+       "brier95": [
+        0,
+        0
+       ],
+       "logLoss": 0,
+       "accuracyPp": 0,
+       "accuracy95": [
+        0,
+        0
+       ],
+       "lowConfidence": false,
+       "regression": false
+      },
+      "rest": {
+       "n": 16156,
+       "brier": 0,
+       "brier95": [
+        0,
+        0
+       ],
+       "logLoss": 0,
+       "accuracyPp": 0,
+       "accuracy95": [
+        0,
+        0
+       ],
+       "lowConfidence": false,
+       "regression": false
+      },
+      "top quartile": {
+       "n": 5386,
+       "brier": 0,
+       "brier95": [
+        0,
+        0
+       ],
+       "logLoss": 0,
+       "accuracyPp": 0,
+       "accuracy95": [
+        0,
+        0
+       ],
+       "lowConfidence": false,
+       "regression": false
+      }
+     },
+     "eventSize": {
+      "large": {
+       "n": 6510,
+       "brier": 0,
+       "brier95": [
+        0,
+        0
+       ],
+       "logLoss": 0,
+       "accuracyPp": 0,
+       "accuracy95": [
+        0,
+        0
+       ],
+       "lowConfidence": false,
+       "regression": false
+      },
+      "mid": {
+       "n": 15470,
+       "brier": 0,
+       "brier95": [
+        0,
+        0
+       ],
+       "logLoss": 0,
+       "accuracyPp": 0,
+       "accuracy95": [
+        0,
+        0
+       ],
+       "lowConfidence": false,
+       "regression": false
+      },
+      "small": {
+       "n": 6095,
+       "brier": 0,
+       "brier95": [
+        0,
+        0
+       ],
+       "logLoss": 0,
+       "accuracyPp": 0,
+       "accuracy95": [
+        0,
+        0
+       ],
+       "lowConfidence": false,
+       "regression": false
+      }
+     },
+     "eventType": {
+      "championship": {
+       "n": 4378,
+       "brier": 0,
+       "brier95": [
+        0,
+        0
+       ],
+       "logLoss": 0,
+       "accuracyPp": 0,
+       "accuracy95": [
+        0,
+        0
+       ],
+       "lowConfidence": false,
+       "regression": false
+      },
+      "league meet": {
+       "n": 11683,
+       "brier": 0,
+       "brier95": [
+        0,
+        0
+       ],
+       "logLoss": 0,
+       "accuracyPp": 0,
+       "accuracy95": [
+        0,
+        0
+       ],
+       "lowConfidence": false,
+       "regression": false
+      },
+      "qualifier": {
+       "n": 11417,
+       "brier": 0,
+       "brier95": [
+        0,
+        0
+       ],
+       "logLoss": 0,
+       "accuracyPp": 0,
+       "accuracy95": [
+        0,
+        0
+       ],
+       "lowConfidence": false,
+       "regression": false
+      },
+      "world": {
+       "n": 597,
+       "brier": 0,
+       "brier95": [
+        0,
+        0
+       ],
+       "logLoss": 0,
+       "accuracyPp": 0,
+       "accuracy95": [
+        0,
+        0
+       ],
+       "lowConfidence": false,
+       "regression": false
+      }
+     },
+     "probBand": {
+      "50-60": {
+       "n": 7668,
+       "brier": 0,
+       "brier95": [
+        0,
+        0
+       ],
+       "logLoss": 0,
+       "accuracyPp": 0,
+       "accuracy95": [
+        0,
+        0
+       ],
+       "lowConfidence": false,
+       "regression": false
+      },
+      "60-70": {
+       "n": 6095,
+       "brier": 0,
+       "brier95": [
+        0,
+        0
+       ],
+       "logLoss": 0,
+       "accuracyPp": 0,
+       "accuracy95": [
+        0,
+        0
+       ],
+       "lowConfidence": false,
+       "regression": false
+      },
+      "70-80": {
+       "n": 5326,
+       "brier": 0,
+       "brier95": [
+        0,
+        0
+       ],
+       "logLoss": 0,
+       "accuracyPp": 0,
+       "accuracy95": [
+        0,
+        0
+       ],
+       "lowConfidence": false,
+       "regression": false
+      },
+      "80-90": {
+       "n": 4779,
+       "brier": 0,
+       "brier95": [
+        0,
+        0
+       ],
+       "logLoss": 0,
+       "accuracyPp": 0,
+       "accuracy95": [
+        0,
+        0
+       ],
+       "lowConfidence": false,
+       "regression": false
+      },
+      "90-100": {
+       "n": 4207,
+       "brier": 0,
+       "brier95": [
+        0,
+        0
+       ],
+       "logLoss": 0,
+       "accuracyPp": 0,
+       "accuracy95": [
+        0,
+        0
+       ],
+       "lowConfidence": false,
+       "regression": false
+      }
+     }
+    }
+   },
+   "calibration5080": {
+    "champion": 0.007976590039648209,
+    "challenger": 0.007976590039648209
+   },
+   "regressions": []
+  },
+  "2024": {
+   "paired": {
+    "all": {
+     "n": 33271,
+     "brier": -0.0002114956660140973,
+     "brier95": [
+      -0.000336631095003386,
+      -0.0000896746938120954
+     ],
+     "logLoss": -0.0005718735322601109,
+     "accuracyPp": 0.012114971075506558,
+     "accuracy95": [
+      -0.08793693665399956,
+      0.10917692727603566
+     ],
+     "lowConfidence": false,
+     "regression": false
+    },
+    "dims": {
+     "level": {
+      "playoff": {
+       "n": 4386,
+       "brier": -0.0000888648143232251,
+       "brier95": [
+        -0.00021634246953176808,
+        0.0000345772438168383
+       ],
+       "logLoss": -0.00032874788057485284,
+       "accuracyPp": 0.11486331265793706,
+       "accuracy95": [
+        -0.023142791020597082,
+        0.2548065786425759
+       ],
+       "lowConfidence": false,
+       "regression": false
+      },
+      "qual": {
+       "n": 28885,
+       "brier": -0.00023011636587617668,
+       "brier95": [
+        -0.00036530944251838074,
+        -0.00010235738103992593
+       ],
+       "logLoss": -0.0006087905863813356,
+       "accuracyPp": -0.003488696622941669,
+       "accuracy95": [
+        -0.10707402384181598,
+        0.1111844619714395
+       ],
+       "lowConfidence": false,
+       "regression": false
+      }
+     },
+     "eventMatch": {
+      "playoff": {
+       "n": 4386,
+       "brier": -0.0000888648143232251,
+       "brier95": [
+        -0.00021634246953176808,
+        0.0000345772438168383
+       ],
+       "logLoss": -0.00032874788057485284,
+       "accuracyPp": 0.11486331265793706,
+       "accuracy95": [
+        -0.023142791020597082,
+        0.2548065786425759
+       ],
+       "lowConfidence": false,
+       "regression": false
+      },
+      "q1-10": {
+       "n": 10927,
+       "brier": -0.000028484732201075968,
+       "brier95": [
+        -0.0003069020118115962,
+        0.00026031610249771335
+       ],
+       "logLoss": -0.00007110547482918993,
+       "accuracyPp": -0.11078286558345643,
+       "accuracy95": [
+        -0.3052164261931188,
+        0.09250693802035152
+       ],
+       "lowConfidence": false,
+       "regression": false
+      },
+      "q11-25": {
+       "n": 11671,
+       "brier": -0.0004175242954075483,
+       "brier95": [
+        -0.00063339347238714,
+        -0.0001906071826658089
+       ],
+       "logLoss": -0.0010666290972853453,
+       "accuracyPp": 0.02588214994392201,
+       "accuracy95": [
+        -0.13778849466069584,
+        0.1803968731208659
+       ],
+       "lowConfidence": false,
+       "regression": false
+      },
+      "q26+": {
+       "n": 6287,
+       "brier": -0.0002326598549181969,
+       "brier95": [
+        -0.0004086765097115805,
+        -0.00006383724629736497
+       ],
+       "logLoss": -0.0006933860934864094,
+       "accuracyPp": 0.12818458580355713,
+       "accuracy95": [
+        -0.04524886877828054,
+        0.30453598333066195
+       ],
+       "lowConfidence": false,
+       "regression": false
+      }
+     },
+     "teamEvent": {
+      "1st": {
+       "n": 14138,
+       "brier": -0.00040093591051611644,
+       "brier95": [
+        -0.0006659447356567604,
+        -0.000135655141595122
+       ],
+       "logLoss": -0.0010311117087408446,
+       "accuracyPp": -0.014277555682467162,
+       "accuracy95": [
+        -0.22220629345566625,
+        0.182213189431635
+       ],
+       "lowConfidence": false,
+       "regression": false
+      },
+      "2nd": {
+       "n": 8049,
+       "brier": -0.00014055228045003644,
+       "brier95": [
+        -0.0002940617078010936,
+        0.00001783317538418319
+       ],
+       "logLoss": -0.0005200066240777321,
+       "accuracyPp": 0.07505629221916438,
+       "accuracy95": [
+        -0.09545888449474976,
+        0.24296675191815856
+       ],
+       "lowConfidence": false,
+       "regression": false
+      },
+      "3rd+": {
+       "n": 11084,
+       "brier": -0.00002137631682928885,
+       "brier95": [
+        -0.00006623896285667795,
+        0.00002342947527317733
+       ],
+       "logLoss": -0.000023765214403325714,
+       "accuracyPp": 0,
+       "accuracy95": [
+        -0.07182618064284432,
+        0.06951081762099226
+       ],
+       "lowConfidence": false,
+       "regression": false
+      }
+     },
+     "experience": {
+      "rookie": {
+       "n": 16718,
+       "brier": -0.00015768382934474586,
+       "brier95": [
+        -0.0003317176798788354,
+        0.00000986824589230606
+       ],
+       "logLoss": -0.0004048489980576989,
+       "accuracyPp": 0,
+       "accuracy95": [
+        -0.1466544454628781,
+        0.1492893825391138
+       ],
+       "lowConfidence": false,
+       "regression": false
+      },
+      "veteran": {
+       "n": 8250,
+       "brier": -0.0002900674706275075,
+       "brier95": [
+        -0.0005163408679985331,
+        -0.00006780076462044578
+       ],
+       "logLoss": -0.0007402219426166903,
+       "accuracyPp": -0.036594291290558675,
+       "accuracy95": [
+        -0.20427781783225185,
+        0.12578616352201258
+       ],
+       "lowConfidence": false,
+       "regression": false
+      },
+      "year2": {
+       "n": 8303,
+       "brier": -0.00024177495029418695,
+       "brier95": [
+        -0.00048487100749360995,
+        -0.0000017544248733347377
+       ],
+       "logLoss": -0.0007409018084680064,
+       "accuracyPp": 0.08481764206955046,
+       "accuracy95": [
+        -0.11325028312570781,
+        0.29112081513828236
+       ],
+       "lowConfidence": false,
+       "regression": false
+      }
+     },
+     "teamMatches": {
+      "0-5": {
+       "n": 14202,
+       "brier": -0.0004132111230957391,
+       "brier95": [
+        -0.0006938082305174923,
+        -0.00013696556778452918
+       ],
+       "logLoss": -0.001100308342574227,
+       "accuracyPp": 0.028431302864453764,
+       "accuracy95": [
+        -0.1709767044240222,
+        0.23281193161149508
+       ],
+       "lowConfidence": false,
+       "regression": false
+      },
+      "16+": {
+       "n": 6847,
+       "brier": -0.00002448303932655512,
+       "brier95": [
+        -0.0000619159486289448,
+        0.000012947937214854296
+       ],
+       "logLoss": -0.000029362031447286433,
+       "accuracyPp": 0.014682131845543973,
+       "accuracy95": [
+        -0.06105006105006105,
+        0.09695290858725762
+       ],
+       "lowConfidence": false,
+       "regression": false
+      },
+      "6-15": {
+       "n": 12222,
+       "brier": -0.00008186978919002088,
+       "brier95": [
+        -0.00017918554856843978,
+        0.000010652426212876237
+       ],
+       "logLoss": -0.0002617561267605513,
+       "accuracyPp": -0.008239268352970256,
+       "accuracy95": [
+        -0.10230179028132992,
+        0.08382932349735937
+       ],
+       "lowConfidence": false,
+       "regression": false
+      }
+     },
+     "density": {
+      "dense": {
+       "n": 10110,
+       "brier": -0.00005649068804662554,
+       "brier95": [
+        -0.0001065774970203538,
+        -0.000010964574562537095
+       ],
+       "logLoss": -0.00011815866002047198,
+       "accuracyPp": 0.05969555268132524,
+       "accuracy95": [
+        -0.01034875297526648,
+        0.1327668613913967
+       ],
+       "lowConfidence": false,
+       "regression": false
+      },
+      "normal": {
+       "n": 13190,
+       "brier": -0.00017876446253651501,
+       "brier95": [
+        -0.00034091500542651656,
+        -0.000016128947897953955
+       ],
+       "logLoss": -0.00045969411111172303,
+       "accuracyPp": -0.03817376698732631,
+       "accuracy95": [
+        -0.1696614482918177,
+        0.09002925950934054
+       ],
+       "lowConfidence": false,
+       "regression": false
+      },
+      "thin": {
+       "n": 9971,
+       "brier": -0.0004119595012483212,
+       "brier95": [
+        -0.0007660195550965358,
+        -0.00007673710531904741
+       ],
+       "logLoss": -0.0011803083856639833,
+       "accuracyPp": 0.030401297122010538,
+       "accuracy95": [
+        -0.21621621621621623,
+        0.2963417126507255
+       ],
+       "lowConfidence": false,
+       "regression": false
+      }
+     },
+     "volatility": {
+      "not measured": {
+       "n": 7418,
+       "brier": -0.00007031473468290383,
+       "brier95": [
+        -0.00042429778629147867,
+        0.00030048983090105757
+       ],
+       "logLoss": -0.0003289107347275871,
+       "accuracyPp": 0.12271611671666212,
+       "accuracy95": [
+        -0.17501346257404415,
+        0.42598509052183176
+       ],
+       "lowConfidence": false,
+       "regression": false
+      },
+      "rest": {
+       "n": 19389,
+       "brier": -0.00028905397550942416,
+       "brier95": [
+        -0.0004339525095601744,
+        -0.00014864747362605685
+       ],
+       "logLoss": -0.0007259376928674965,
+       "accuracyPp": -0.04155844155844156,
+       "accuracy95": [
+        -0.14170252965256638,
+        0.06757810469407911
+       ],
+       "lowConfidence": false,
+       "regression": false
+      },
+      "top quartile": {
+       "n": 6464,
+       "brier": -0.00014087408275449128,
+       "brier95": [
+        -0.0003537951922870451,
+        0.00006567820165645669
+       ],
+       "logLoss": -0.00038857341191353087,
+       "accuracyPp": 0.0466345406497746,
+       "accuracy95": [
+        -0.09475679090334807,
+        0.19196692262256349
+       ],
+       "lowConfidence": false,
+       "regression": false
+      }
+     },
+     "eventSize": {
+      "large": {
+       "n": 8980,
+       "brier": -0.00020757503539043027,
+       "brier95": [
+        -0.0004053382983649668,
+        -0.000011889349080966391
+       ],
+       "logLoss": -0.0006486928528703792,
+       "accuracyPp": -0.07842258570468295,
+       "accuracy95": [
+        -0.24908077333649625,
+        0.0823045267489712
+       ],
+       "lowConfidence": false,
+       "regression": false
+      },
+      "mid": {
+       "n": 18322,
+       "brier": -0.00018896458605979573,
+       "brier95": [
+        -0.0003560462697365743,
+        -0.000015373374788624818
+       ],
+       "logLoss": -0.00043992615943389045,
+       "accuracyPp": 0.055041831792162044,
+       "accuracy95": [
+        -0.07257299168201864,
+        0.1866304716661011
+       ],
+       "lowConfidence": false,
+       "regression": false
+      },
+      "small": {
+       "n": 5969,
+       "brier": -0.0002865537511076202,
+       "brier95": [
+        -0.0005838995995425597,
+        0.000006314570092004992
+       ],
+       "logLoss": -0.0008613193801143353,
+       "accuracyPp": 0.01688333614722269,
+       "accuracy95": [
+        -0.23380093520374082,
+        0.2635740643120717
+       ],
+       "lowConfidence": false,
+       "regression": false
+      }
+     },
+     "eventType": {
+      "championship": {
+       "n": 6344,
+       "brier": -0.00012865602693901078,
+       "brier95": [
+        -0.00028357729511788567,
+        0.0000257307043638146
+       ],
+       "logLoss": -0.0003035122690208853,
+       "accuracyPp": -0.015855398763278898,
+       "accuracy95": [
+        -0.1652589056188028,
+        0.13395847287340926
+       ],
+       "lowConfidence": false,
+       "regression": false
+      },
+      "league meet": {
+       "n": 12322,
+       "brier": -0.00040951393496755706,
+       "brier95": [
+        -0.000615128218935326,
+        -0.00020379223257938246
+       ],
+       "logLoss": -0.0011327236805723521,
+       "accuracyPp": -0.08191349934469201,
+       "accuracy95": [
+        -0.249758298420883,
+        0.08358408559010365
+       ],
+       "lowConfidence": false,
+       "regression": false
+      },
+      "qualifier": {
+       "n": 13903,
+       "brier": -0.0000742969678727879,
+       "brier95": [
+        -0.000279650460631167,
+        0.00013162944126343982
+       ],
+       "logLoss": -0.00020137959910526319,
+       "accuracyPp": 0.10866415531729934,
+       "accuracy95": [
+        -0.04356665698518734,
+        0.2803738317757009
+       ],
+       "lowConfidence": false,
+       "regression": false
+      },
+      "world": {
+       "n": 702,
+       "brier": -0.0002015627037725594,
+       "brier95": [
+        -0.0005203631791238237,
+        -0.00000507079853360934
+       ],
+       "logLoss": -0.0004902004256192452,
+       "accuracyPp": 0,
+       "accuracy95": [
+        0,
+        0
+       ],
+       "lowConfidence": false,
+       "regression": false
+      }
+     },
+     "probBand": {
+      "50-60": {
+       "n": 6941,
+       "brier": -0.00024314402510816277,
+       "brier95": [
+        -0.0005914246148689646,
+        0.00011394303147999505
+       ],
+       "logLoss": -0.00048054341451837584,
+       "accuracyPp": 0.029239766081871343,
+       "accuracy95": [
+        -0.4424126235068574,
+        0.5172923440733077
+       ],
+       "lowConfidence": false,
+       "regression": false
+      },
+      "60-70": {
+       "n": 6573,
+       "brier": -0.00038655293715043144,
+       "brier95": [
+        -0.0007905861811483255,
+        -0.0000068798610098457254
+       ],
+       "logLoss": -0.0008368577980450331,
+       "accuracyPp": 0.030707815138952863,
+       "accuracy95": [
+        0,
+        0.0799488327470419
+       ],
+       "lowConfidence": false,
+       "regression": false
+      },
+      "70-80": {
+       "n": 6081,
+       "brier": -0.00027241210958868625,
+       "brier95": [
+        -0.0005654278111558908,
+        0.000013111933197583152
+       ],
+       "logLoss": -0.0007339780694423147,
+       "accuracyPp": 0,
+       "accuracy95": [
+        0,
+        0
+       ],
+       "lowConfidence": false,
+       "regression": false
+      },
+      "80-90": {
+       "n": 6174,
+       "brier": -0.0001533486411965288,
+       "brier95": [
+        -0.0003385272505957131,
+        0.000041265355991774124
+       ],
+       "logLoss": -0.000646342993071551,
+       "accuracyPp": 0,
+       "accuracy95": [
+        0,
+        0
+       ],
+       "lowConfidence": false,
+       "regression": false
+      },
+      "90-100": {
+       "n": 7502,
+       "brier": -0.00002731066657335562,
+       "brier95": [
+        -0.00008272221548007104,
+        0.00003329284141130717
+       ],
+       "logLoss": -0.00023151744409513088,
+       "accuracyPp": 0,
+       "accuracy95": [
+        0,
+        0
+       ],
+       "lowConfidence": false,
+       "regression": false
+      }
+     }
+    }
+   },
+   "calibration5080": {
+    "champion": 0.01448410903339331,
+    "challenger": 0.01217122787273545
+   },
+   "regressions": []
+  },
+  "2025": {
+   "paired": {
+    "all": {
+     "n": 36842,
+     "brier": -0.00022963273892912632,
+     "brier95": [
+      -0.0003400046598323837,
+      -0.0001233052119927986
+     ],
+     "logLoss": -0.0006092362160124836,
+     "accuracyPp": -0.035546319588756425,
+     "accuracy95": [
+      -0.13194788058716808,
+      0.05993080715900733
+     ],
+     "lowConfidence": false,
+     "regression": false
+    },
+    "dims": {
+     "level": {
+      "playoff": {
+       "n": 5117,
+       "brier": -0.00002846526950476825,
+       "brier95": [
+        -0.00014818418438485145,
+        0.0000901282718629678
+       ],
+       "logLoss": -0.00009447512576973881,
+       "accuracyPp": -0.01967342120794806,
+       "accuracy95": [
+        -0.15810276679841898,
+        0.11945052757316345
+       ],
+       "lowConfidence": false,
+       "regression": false
+      },
+      "qual": {
+       "n": 31725,
+       "brier": -0.00026207951406055077,
+       "brier95": [
+        -0.0003869501406353776,
+        -0.00013789306752352867
+       ],
+       "logLoss": -0.0006922632451305963,
+       "accuracyPp": -0.03810854584140493,
+       "accuracy95": [
+        -0.14771048744460857,
+        0.07293252156265854
+       ],
+       "lowConfidence": false,
+       "regression": false
+      }
+     },
+     "eventMatch": {
+      "playoff": {
+       "n": 5117,
+       "brier": -0.00002846526950476825,
+       "brier95": [
+        -0.00014818418438485145,
+        0.0000901282718629678
+       ],
+       "logLoss": -0.00009447512576973881,
+       "accuracyPp": -0.01967342120794806,
+       "accuracy95": [
+        -0.15810276679841898,
+        0.11945052757316345
+       ],
+       "lowConfidence": false,
+       "regression": false
+      },
+      "q1-10": {
+       "n": 11613,
+       "brier": -0.0004032012874061242,
+       "brier95": [
+        -0.0006585383743820452,
+        -0.00015558881132768447
+       ],
+       "logLoss": -0.0009393742919801413,
+       "accuracyPp": 0.03472825143254037,
+       "accuracy95": [
+        -0.1389491966999566,
+        0.2342529932326913
+       ],
+       "lowConfidence": false,
+       "regression": false
+      },
+      "q11-25": {
+       "n": 12697,
+       "brier": -0.00023621377153963896,
+       "brier95": [
+        -0.00041313244686958303,
+        -0.00006612106646549495
+       ],
+       "logLoss": -0.0007095159594482025,
+       "accuracyPp": -0.08732931089234677,
+       "accuracy95": [
+        -0.26238371630754553,
+        0.09023789991796555
+       ],
+       "lowConfidence": false,
+       "regression": false
+      },
+      "q26+": {
+       "n": 7415,
+       "brier": -0.00008535263326835458,
+       "brier95": [
+        -0.00022204565858798518,
+        0.00005683282884638594
+       ],
+       "logLoss": -0.0002757078438151061,
+       "accuracyPp": -0.06779661016949153,
+       "accuracy95": [
+        -0.25624599615631005,
+        0.11281906642222536
+       ],
+       "lowConfidence": false,
+       "regression": false
+      }
+     },
+     "teamEvent": {
+      "1st": {
+       "n": 15597,
+       "brier": -0.0005032673576660538,
+       "brier95": [
+        -0.0007352035030542717,
+        -0.00026670784785035864
+       ],
+       "logLoss": -0.0013633311193365046,
+       "accuracyPp": -0.12933264355923435,
+       "accuracy95": [
+        -0.3237956783189057,
+        0.06339546088500063
+       ],
+       "lowConfidence": false,
+       "regression": false
+      },
+      "2nd": {
+       "n": 8732,
+       "brier": -0.00007512560014207323,
+       "brier95": [
+        -0.0002001712722321874,
+        0.00005256736298954682
+       ],
+       "logLoss": -0.00017799301382919757,
+       "accuracyPp": 0.06914035492048859,
+       "accuracy95": [
+        -0.10528778661675246,
+        0.23230223743733952
+       ],
+       "lowConfidence": false,
+       "regression": false
+      },
+      "3rd+": {
+       "n": 12513,
+       "brier": 0.0000036225006258420457,
+       "brier95": [
+        -0.00004309636180852665,
+        0.000051595244737124124
+       ],
+       "logLoss": 0.0000297794129877781,
+       "accuracyPp": 0.008045052292839904,
+       "accuracy95": [
+        -0.06269101167620092,
+        0.0821422704123542
+       ],
+       "lowConfidence": false,
+       "regression": false
+      }
+     },
+     "experience": {
+      "rookie": {
+       "n": 17177,
+       "brier": -0.0001580844039521079,
+       "brier95": [
+        -0.0003216045412321316,
+        0.000008544325588829396
+       ],
+       "logLoss": -0.00040888888584509703,
+       "accuracyPp": -0.0351638047236711,
+       "accuracy95": [
+        -0.176056338028169,
+        0.09701673538685424
+       ],
+       "lowConfidence": false,
+       "regression": false
+      },
+      "veteran": {
+       "n": 10384,
+       "brier": -0.0002705538193575426,
+       "brier95": [
+        -0.00046763007132126874,
+        -0.00008614586010701618
+       ],
+       "logLoss": -0.0007611035613833344,
+       "accuracyPp": 0.13577732518669383,
+       "accuracy95": [
+        -0.028053113895642415,
+        0.3020265003897116
+       ],
+       "lowConfidence": false,
+       "regression": false
+      },
+      "year2": {
+       "n": 9281,
+       "brier": -0.0003162679345687732,
+       "brier95": [
+        -0.0005185839131775414,
+        -0.00012415793801659122
+       ],
+       "logLoss": -0.0008101171098767545,
+       "accuracyPp": -0.228310502283105,
+       "accuracy95": [
+        -0.43539784478066834,
+        -0.031545741324921134
+       ],
+       "lowConfidence": false,
+       "regression": false
+      }
+     },
+     "teamMatches": {
+      "0-5": {
+       "n": 15389,
+       "brier": -0.0005260908248907848,
+       "brier95": [
+        -0.0007670001393522927,
+        -0.0002940053930427289
+       ],
+       "logLoss": -0.0014140062298655402,
+       "accuracyPp": -0.10489739723333115,
+       "accuracy95": [
+        -0.3016393442622951,
+        0.09092680392284211
+       ],
+       "lowConfidence": false,
+       "regression": false
+      },
+      "16+": {
+       "n": 8268,
+       "brier": -0.000025549458723661936,
+       "brier95": [
+        -0.000059882334005606295,
+        0.000010998965957733269
+       ],
+       "logLoss": -0.000044712979795490016,
+       "accuracyPp": 0.024333860566978952,
+       "accuracy95": [
+        -0.026458526260087312,
+        0.089354097523615
+       ],
+       "lowConfidence": false,
+       "regression": false
+      },
+      "6-15": {
+       "n": 13185,
+       "brier": -0.000011594595271546727,
+       "brier95": [
+        -0.00010037010666781682,
+        0.00007465535580079643
+       ],
+       "logLoss": -0.000023940226164734785,
+       "accuracyPp": 0.007633587786259542,
+       "accuracy95": [
+        -0.11518967900476117,
+        0.1340799747614165
+       ],
+       "lowConfidence": false,
+       "regression": false
+      }
+     },
+     "density": {
+      "dense": {
+       "n": 11835,
+       "brier": -0.000016734359293731685,
+       "brier95": [
+        -0.00006983116687711029,
+        0.00003972409574752537
+       ],
+       "logLoss": -0.000044063110882871,
+       "accuracyPp": 0.08499065102838688,
+       "accuracy95": [
+        0.015969338869370808,
+        0.162016201620162
+       ],
+       "lowConfidence": false,
+       "regression": false
+      },
+      "normal": {
+       "n": 14138,
+       "brier": -0.0003061157153516165,
+       "brier95": [
+        -0.00044869836267737563,
+        -0.0001602096510723485
+       ],
+       "logLoss": -0.0008052278562215403,
+       "accuracyPp": -0.049836252313826,
+       "accuracy95": [
+        -0.18798351529173596,
+        0.08597836211220176
+       ],
+       "lowConfidence": false,
+       "regression": false
+      },
+      "thin": {
+       "n": 10869,
+       "brier": -0.00036196653250017473,
+       "brier95": [
+        -0.0006604221870454419,
+        -0.00005509380179768626
+       ],
+       "logLoss": -0.0009697011980654164,
+       "accuracyPp": -0.14869888475836432,
+       "accuracy95": [
+        -0.39272030651340994,
+        0.10041993792222019
+       ],
+       "lowConfidence": false,
+       "regression": false
+      }
+     },
+     "volatility": {
+      "not measured": {
+       "n": 8003,
+       "brier": -0.00022698028593850497,
+       "brier95": [
+        -0.0005658344195063114,
+        0.00012021669520619581
+       ],
+       "logLoss": -0.0005540314853277776,
+       "accuracyPp": -0.03787400580734756,
+       "accuracy95": [
+        -0.29669922116454445,
+        0.22103757638798596
+       ],
+       "lowConfidence": false,
+       "regression": false
+      },
+      "rest": {
+       "n": 21629,
+       "brier": -0.00023392374296081993,
+       "brier95": [
+        -0.00034790869787164694,
+        -0.0001241622850787043
+       ],
+       "logLoss": -0.0006379150241942582,
+       "accuracyPp": -0.037257824143070044,
+       "accuracy95": [
+        -0.14444133817910726,
+        0.06966375626973806
+       ],
+       "lowConfidence": false,
+       "regression": false
+      },
+      "top quartile": {
+       "n": 7210,
+       "brier": -0.00021970450801129664,
+       "brier95": [
+        -0.00045143802226057676,
+        0.00001912669956124665
+       ],
+       "logLoss": -0.0005844802545015444,
+       "accuracyPp": -0.027859033291544783,
+       "accuracy95": [
+        -0.20573309559731176,
+        0.15435763476608882
+       ],
+       "lowConfidence": false,
+       "regression": false
+      }
+     },
+     "eventSize": {
+      "large": {
+       "n": 10439,
+       "brier": -0.00014221200504051947,
+       "brier95": [
+        -0.00031376168371480756,
+        0.000014776108568368688
+       ],
+       "logLoss": -0.00046286308648485014,
+       "accuracyPp": 0.019264110961279137,
+       "accuracy95": [
+        -0.1434583014537108,
+        0.18803724928366763
+       ],
+       "lowConfidence": false,
+       "regression": false
+      },
+      "mid": {
+       "n": 20568,
+       "brier": -0.00021885206655065077,
+       "brier95": [
+        -0.00035293967004742274,
+        -0.00008156522255823112
+       ],
+       "logLoss": -0.0005693464704743248,
+       "accuracyPp": -0.10286050156739812,
+       "accuracy95": [
+        -0.23358800914886368,
+        0.025120578778135047
+       ],
+       "lowConfidence": false,
+       "regression": false
+      },
+      "small": {
+       "n": 5835,
+       "brier": -0.00042403238083891967,
+       "brier95": [
+        -0.0007885191942458504,
+        -0.00006725288350653872
+       ],
+       "logLoss": -0.0010117111749444161,
+       "accuracyPp": 0.10391409767925182,
+       "accuracy95": [
+        -0.14084507042253522,
+        0.37613267225166697
+       ],
+       "lowConfidence": false,
+       "regression": false
+      }
+     },
+     "eventType": {
+      "championship": {
+       "n": 7650,
+       "brier": -0.000050976536391449135,
+       "brier95": [
+        -0.00018523913994617853,
+        0.00007855991006000043
+       ],
+       "logLoss": -0.00010007938988826664,
+       "accuracyPp": 0,
+       "accuracy95": [
+        -0.16995685710550398,
+        0.15723270440251572
+       ],
+       "lowConfidence": false,
+       "regression": false
+      },
+      "league meet": {
+       "n": 12338,
+       "brier": -0.00022696104663788181,
+       "brier95": [
+        -0.00040897044958558207,
+        -0.00006064899312734259
+       ],
+       "logLoss": -0.0006029367965475283,
+       "accuracyPp": 0.16343875132793986,
+       "accuracy95": [
+        0,
+        0.3274394237066143
+       ],
+       "lowConfidence": false,
+       "regression": false
+      },
+      "qualifier": {
+       "n": 15911,
+       "brier": -0.0003133781415956955,
+       "brier95": [
+        -0.0005128118631243169,
+        -0.00011367954969272942
+       ],
+       "logLoss": -0.0008493063484596323,
+       "accuracyPp": -0.22168735748669877,
+       "accuracy95": [
+        -0.3729663687222687,
+        -0.06412722842118763
+       ],
+       "lowConfidence": false,
+       "regression": false
+      },
+      "world": {
+       "n": 943,
+       "brier": -0.00030090547177622813,
+       "brier95": [
+        -0.0006172801110894279,
+        -0.000057693950080676416
+       ],
+       "logLoss": -0.0007715014120276609,
+       "accuracyPp": 0.2127659574468085,
+       "accuracy95": [
+        0,
+        0.6389776357827476
+       ],
+       "lowConfidence": false,
+       "regression": false
+      }
+     },
+     "probBand": {
+      "50-60": {
+       "n": 8762,
+       "brier": -0.00020890341742078926,
+       "brier95": [
+        -0.000480737024799493,
+        0.00008693559390677025
+       ],
+       "logLoss": -0.00042386248803814684,
+       "accuracyPp": -0.15009814109225264,
+       "accuracy95": [
+        -0.5640612409347301,
+        0.24971623155505107
+       ],
+       "lowConfidence": false,
+       "regression": false
+      },
+      "60-70": {
+       "n": 8266,
+       "brier": -0.000360624916711047,
+       "brier95": [
+        -0.0006194832165136862,
+        -0.00011441861370732308
+       ],
+       "logLoss": -0.0008272168054337502,
+       "accuracyPp": 0,
+       "accuracy95": [
+        0,
+        0
+       ],
+       "lowConfidence": false,
+       "regression": false
+      },
+      "70-80": {
+       "n": 7288,
+       "brier": -0.00032485808302928513,
+       "brier95": [
+        -0.000560157043251972,
+        -0.00008362262917858824
+       ],
+       "logLoss": -0.0009329407924354323,
+       "accuracyPp": 0,
+       "accuracy95": [
+        0,
+        0
+       ],
+       "lowConfidence": false,
+       "regression": false
+      },
+      "80-90": {
+       "n": 6786,
+       "brier": -0.0002025013769164516,
+       "brier95": [
+        -0.0003425018836517742,
+        -0.00006653015624949037
+       ],
+       "logLoss": -0.0008346551119262276,
+       "accuracyPp": 0,
+       "accuracy95": [
+        0,
+        0
+       ],
+       "lowConfidence": false,
+       "regression": false
+      },
+      "90-100": {
+       "n": 5740,
+       "brier": 0.000016193029655065396,
+       "brier95": [
+        -0.00003541577158568384,
+        0.00007410021609822608
+       ],
+       "logLoss": 0.00009920185511750834,
+       "accuracyPp": 0,
+       "accuracy95": [
+        0,
+        0
+       ],
+       "lowConfidence": false,
+       "regression": false
+      }
+     }
+    }
+   },
+   "calibration5080": {
+    "champion": 0.019494940315991926,
+    "challenger": 0.016384466827714397
+   },
+   "regressions": []
+  }
+ }
+}

@@ -268,6 +268,7 @@ export abstract class Forecaster {
     const have = this.storedPlayedKeys(ev.season, ev.code);
     const fresh: MatchRecord[] = [];
     const base = Date.parse(`${ev.start ?? "1970-01-01"}T00:00:00Z`);
+    const region = this.regionOf(ev.code);
     for (const m of ev.matches) {
       if (!m.played || have.has(m.key)) continue;
       const side = (a: AllianceInput, color: "red" | "blue"): AllianceResult | null => {
@@ -286,7 +287,7 @@ export abstract class Forecaster {
       // sync, which knows who was on the field, includes them).
       if (red.teams.length > 2 || blue.teams.length > 2) continue;
       const order = (m.level === "playoff" ? 1e6 : 0) + (m.series ?? 0) * 1e3 + m.number;
-      fresh.push({ season: ev.season, eventCode: ev.code, level: m.level, series: m.series ?? 0, number: m.number, time: Date.parse(m.time ?? "") || base + order, red, blue });
+      fresh.push({ season: ev.season, eventCode: ev.code, level: m.level, series: m.series ?? 0, number: m.number, time: Date.parse(m.time ?? "") || base + order, red, blue, ...(region ? { region } : {}) });
     }
     if (!fresh.length) return book;
     const b = book.clone();
