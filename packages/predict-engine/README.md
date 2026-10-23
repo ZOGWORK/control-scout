@@ -1,6 +1,6 @@
 # @control-scout/predict-engine
 
-**Prediction Engine 2.1.** The FTC prediction engine shared by **Control Scout** and **Control Point**.
+**Prediction Engine 2.7.** The FTC prediction engine shared by **Control Scout** and **Control Point**.
 One package, one version, both apps — predictions can never be better in one
 app than the other.
 
@@ -11,7 +11,7 @@ and in the browser (offline predictions from a stats pack).
 
 | Module | What it does |
 |---|---|
-| `rating` | `RatingBook`: per-team, per-component (auto / TeleOp / endgame / penalties) contribution ratings, updated after every match with a gain that shrinks with experience; cross-season priors via z-scores; season growth. |
+| `rating` | `RatingBook`: per-team, per-component (auto / TeleOp / endgame / penalties) contribution ratings, updated after every match with a gain that shrinks with experience; cross-season priors via z-scores; (2.7) regional prior offsets learned from returning teams; season growth. |
 | `matchModel` | `predictMatch`: alliance score ~ Normal(mean, σ²) with fitted noise σ = a + b·mean plus rating uncertainty; raw P(win) = Φ(Δ/σ). 2.2: each alliance also gets a stated 80% score range from its own predictive distribution (`allianceScoreDistribution`, `teamScoreVariance`, `scoreBand`), which widens for small samples and for robots whose results swing (per-team variance factor) and never feeds the win probability. |
 | `contextual` | The engine's win probability: a frozen logistic correction of the raw P(win) from match context and per-robot reliability and form state (2.1: 22 inputs; the 2.0 17-input model is its fallback for books with 2.0 state), with its own calibration. Falls back to the Platt-calibrated raw P(win) when a book has no reliability state. |
 | `explain` | `explainMatch`: win %, predicted scores with 80% ranges, top-3 factors (an exact split of the margin), confidence tier, and (2.4) the strongest partnership fact. |

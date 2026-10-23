@@ -13,6 +13,16 @@
 // new season's units using the population seen so far. Teams with no
 // history (rookies) start from a fitted rookie z with a wider uncertainty.
 //
+// Regional prior offsets (engine 2.7): how far a region's teams beat (or miss)
+// the priors they are given differs by region, and the difference holds from
+// season to season. Each region keeps, per phase, the shrunk mean "lift" of its
+// returning teams this season: rating after their first few matches minus the
+// prior they were given (offset included, so the lift is what the prior still
+// got wrong). Every team new to the season starts from its prior plus its
+// region's lift so far, the region being that of the event where it first
+// plays (MatchRecord.region). Only returning teams teach the lift, so a season
+// where no team has history (a cold start) is unchanged. Off when regionKappa = 0.
+//
 // Breaks between events: teams often come back from a few weeks off with a
 // changed (rebuilt) robot. After a break of at least `rebuildGapWeeks`, a
 // team's prediction is less certain (extra variance per week away) and its
@@ -35,6 +45,16 @@ export interface RatingParams {
   rho2: number;
   /** Prior z for teams with no history. */
   rookieZ: number;
+  /** Per-phase share of a returning team's carried-over z (1 = the NP z applies in full to that phase).
+   *  Engine 2.7: endgame mechanisms carry over far less between games than scoring does. Never applied
+   *  to the no-history prior (rookieZ), which is a level, not a carry-over. */
+  carryAuto: number;
+  carryTeleop: number;
+  carryEndgame: number;
+  /** Regional prior offsets: shrinkage (pseudo-teams at zero lift); 0 turns them off. */
+  regionKappa: number;
+  /** A team's lift is measured once it has played this many rated matches. */
+  regionFreezeN: number;
   /** Starting prediction variance (points², per team) for known teams / rookies. */
   uncKnown: number;
   uncRookie: number;
@@ -71,6 +91,11 @@ export const DEFAULT_RATING_PARAMS: RatingParams = {
   rho1: 0.6,
   rho2: 0.15,
   rookieZ: -0.4,
+  carryAuto: 1,
+  carryTeleop: 1,
+  carryEndgame: 1,
+  regionKappa: 0,
+  regionFreezeN: 3,
   uncKnown: 150,
   uncRookie: 350,
   uncDecay: 0.8,
@@ -105,6 +130,17 @@ export interface RatingBookData {
   reliability?: [number, ReliabilityState][];
   /** Layout version of `reliability`: 1 = engine 2.0, 2 = engine 2.1 (adds form fields). */
   stateVersion?: number;
+  /** Regional prior state (engine 2.7; absent = none learned yet). */
+  regions?: RegionStateData;
+}
+
+type Phases = { auto: number; teleop: number; endgame: number };
+
+/** Serialized regional prior state: summed lifts per region, and the returning
+ *  teams whose lift isn't measured yet (their region and the prior they were given). */
+export interface RegionStateData {
+  lift: [string, Phases & { n: number }][];
+  pending: [number, Phases & { region: string }][];
 }
 
 /**
@@ -192,6 +228,12 @@ export class RatingBook {
   now = 0;
   /** Reliability state of the teams that have played this season. */
   private reliability = new Map<number, ReliabilityState>();
+  /** Regional prior offsets (engine 2.7): summed lift per region and phase, and how many teams it holds. */
+  private regionLift = new Map<string, Phases & { n: number }>();
+  /** Returning teams whose lift isn't measured yet: their region and the prior they were given. */
+  private regionPending = new Map<number, Phases & { region: string }>();
+  /** Teams being created by the match being folded in, and its region (empty between updates). */
+  private arriving = new Map<number, string>();
   /**
    * True when the reliability state covers the whole season so far (a book
    * that started the season itself, or one loaded with 2.0+ state). Data
@@ -232,6 +274,8 @@ export class RatingBook {
     this.reliability.clear();
     this.reliabilityReady = true;
     this.stateVersion = RELIABILITY_STATE_VERSION;
+    this.regionLift.clear();
+    this.regionPending.clear();
   }
 
   /** Move the clock (e.g. to an event's start before predicting it). */
@@ -277,15 +321,38 @@ export class RatingBook {
     return { auto: 0, teleop: 0, endgame: 0, pen: this.base.pen, n: 0, uncertainty: this.baseReady ? p.uncKnown : p.uncRookie * 2, asOf: this.now };
   }
 
+  /** Regional offset (points per phase) a team new to the season starts with at an event of `region`:
+   *  the shrunk mean lift of the region's returning teams so far. */
+  regionOffset(region: string): Phases {
+    const k = this.params.regionKappa, L = k > 0 ? this.regionLift.get(region) : undefined;
+    if (!L) return { auto: 0, teleop: 0, endgame: 0 };
+    const d = L.n + k;
+    return { auto: L.auto / d, teleop: L.teleop / d, endgame: L.endgame / d };
+  }
+
   private priorFor(team: number): TeamRating {
+    const r = this.basePrior(team);
+    const region = this.arriving.get(team);
+    if (region != null) {
+      const o = this.regionOffset(region);
+      r.auto = Math.max(0, r.auto + o.auto);
+      r.teleop = Math.max(0, r.teleop + o.teleop);
+      r.endgame = Math.max(0, r.endgame + o.endgame);
+    }
+    return r;
+  }
+
+  /** The season prior from history alone (no regional offset). */
+  private basePrior(team: number): TeamRating {
     const { z, known } = this.priorZ(team);
     const p = this.params;
     // Scale the prior z into this season's units. Penalties are not
     // carried over (z describes scoring strength); start at the baseline.
     const r = this.prior();
-    r.auto = Math.max(0, this.base.auto + z * this.sd("auto"));
-    r.teleop = Math.max(0, this.base.teleop + z * this.sd("teleop"));
-    r.endgame = Math.max(0, this.base.endgame + z * this.sd("endgame"));
+    const carry = (c: number) => (known ? c : 1);
+    r.auto = Math.max(0, this.base.auto + z * carry(p.carryAuto) * this.sd("auto"));
+    r.teleop = Math.max(0, this.base.teleop + z * carry(p.carryTeleop) * this.sd("teleop"));
+    r.endgame = Math.max(0, this.base.endgame + z * carry(p.carryEndgame) * this.sd("endgame"));
     r.uncertainty = !this.baseReady ? p.uncRookie * 2 : known ? p.uncKnown : p.uncRookie;
     return r;
   }
@@ -344,7 +411,14 @@ export class RatingBook {
       actual: { auto: al.auto, teleop: al.teleop, endgame: al.endgame, pen: al.penCommitted } as Vec,
       share: 1 / al.teams.length,
     }));
+    // A team's first rated match of the season fixes its region: its prior includes that region's offset.
+    if (p.regionKappa > 0 && m.region) for (const t of [...m.red.teams, ...m.blue.teams]) if (!this.ratings.has(t)) this.arriving.set(t, m.region);
     for (const t of [...m.red.teams, ...m.blue.teams]) this.stored(t); // priors from the pre-match baseline
+    for (const [t, region] of this.arriving) {
+      const b = this.ratings.get(t)!;
+      if (this.priorZ(t).known) this.regionPending.set(t, { region, auto: b.auto, teleop: b.teleop, endgame: b.endgame });
+    }
+    this.arriving.clear();
     for (const { al, exp, actual, share } of sides) {
       for (const t of al.teams) {
         const r = this.stored(t);
@@ -366,6 +440,16 @@ export class RatingBook {
         if (r.gainN != null) r.gainN += 1;
         r.uncertainty = Math.max(p.uncMin, r.uncertainty * p.uncDecay);
       }
+    }
+    // Regional lift: once a team has played regionFreezeN rated matches, how far it has moved from the
+    // prior it was given joins its region's lift (measured once per team and season).
+    if (p.regionKappa > 0) for (const t of [...m.red.teams, ...m.blue.teams]) {
+      const base = this.regionPending.get(t), r = this.ratings.get(t);
+      if (!base || !r || r.n < p.regionFreezeN) continue;
+      const L = this.regionLift.get(base.region) ?? { auto: 0, teleop: 0, endgame: 0, n: 0 };
+      L.auto += r.auto - base.auto; L.teleop += r.teleop - base.teleop; L.endgame += r.endgame - base.endgame; L.n += 1;
+      this.regionLift.set(base.region, L);
+      this.regionPending.delete(t);
     }
     // Reliability: each alliance's standardized residual against the
     // expectation held before this match, applied to every robot on it.
@@ -416,6 +500,8 @@ export class RatingBook {
     c.reliability = new Map([...this.reliability].map(([t, r]) => [t, { ...r }]));
     c.reliabilityReady = this.reliabilityReady;
     c.stateVersion = this.stateVersion;
+    c.regionLift = new Map([...this.regionLift].map(([k, v]) => [k, { ...v }]));
+    c.regionPending = new Map([...this.regionPending].map(([t, v]) => [t, { ...v }]));
     return c;
   }
 
@@ -437,6 +523,11 @@ export class RatingBook {
         reliability: [...this.reliability].filter(([t]) => keep(t)).map(([t, r]) => [t, { ...r }] as [number, ReliabilityState]),
         stateVersion: this.stateVersion,
       } : {}),
+      // Regional state only when it is in use, so books without it serialize exactly as before.
+      ...(this.params.regionKappa > 0 ? { regions: {
+        lift: [...this.regionLift].map(([k, v]) => [k, { ...v }] as [string, Phases & { n: number }]),
+        pending: [...this.regionPending].filter(([t]) => keep(t)).map(([t, v]) => [t, { ...v }] as [number, Phases & { region: string }]),
+      } } : {}),
     };
   }
 
@@ -454,6 +545,10 @@ export class RatingBook {
     b.reliabilityReady = (d.stateVersion === 1 || d.stateVersion === 2) && Array.isArray(d.reliability);
     b.stateVersion = b.reliabilityReady ? d.stateVersion! : 0;
     if (b.reliabilityReady) for (const [t, r] of d.reliability!) b.reliability.set(t, { ...r });
+    if (d.regions) {
+      b.regionLift = new Map(d.regions.lift.map(([k, v]) => [k, { ...v }]));
+      b.regionPending = new Map(d.regions.pending.map(([t, v]) => [t, { ...v }]));
+    }
     return b;
   }
 

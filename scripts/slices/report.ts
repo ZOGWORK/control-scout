@@ -145,6 +145,76 @@ export function sliceReport(rows: ScoredRow[], ranked: string[]): SliceReport {
   return { all: metricsOf(rows, total), dims, calibration: calibrationTable(rows), top };
 }
 
+// ---- Champion vs challenger (Part 2 gate) --------------------------------
+
+export interface PairedRow { event: string; y: number; a: number; b: number; tags: Record<string, string> }
+
+export interface PairedMetrics {
+  n: number;
+  /** Challenger minus champion (negative Brier / log loss = challenger better). */
+  brier: number; brier95: [number, number];
+  logLoss: number;
+  /** Accuracy change in points (decided matches). */
+  accuracyPp: number; accuracy95: [number, number];
+  lowConfidence: boolean;
+  /** The 95% Brier interval lies entirely above zero: a regression beyond noise. */
+  regression: boolean;
+}
+
+/** Deterministic PRNG (mulberry32) so the bootstrap intervals are reproducible. */
+export function rng(seed: number): () => number {
+  let s = seed | 0;
+  return () => {
+    s = (s + 0x6d2b79f5) | 0;
+    let t = Math.imul(s ^ (s >>> 15), 1 | s);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
+/** Paired comparison with a 95% interval from resampling whole events (matches at one event are not independent). */
+export function pairedMetrics(rows: PairedRow[], draws = 2000, seed = 20261022): PairedMetrics {
+  const ev = new Map<string, { n: number; d: number; ll: number; dec: number; acc: number }>();
+  const corr = (p: number, y: number) => (p === 0.5 ? 0.5 : (p > 0.5) === (y === 1) ? 1 : 0);
+  for (const r of rows) {
+    const a = clip(r.a), b = clip(r.b);
+    const x = ev.get(r.event) ?? { n: 0, d: 0, ll: 0, dec: 0, acc: 0 };
+    x.n++;
+    x.d += (b - r.y) ** 2 - (a - r.y) ** 2;
+    x.ll += -(r.y * Math.log(b) + (1 - r.y) * Math.log(1 - b)) + (r.y * Math.log(a) + (1 - r.y) * Math.log(1 - a));
+    if (r.y !== 0.5) { x.dec++; x.acc += corr(r.b, r.y) - corr(r.a, r.y); }
+    ev.set(r.event, x);
+  }
+  const E = [...ev.values()];
+  const sum = (k: "n" | "d" | "ll" | "dec" | "acc", xs = E) => xs.reduce((s, x) => s + x[k], 0);
+  const n = sum("n"), dec = sum("dec");
+  const rand = rng(seed), bs: number[] = [], as: number[] = [];
+  for (let i = 0; i < draws && E.length; i++) {
+    let d = 0, m = 0, a = 0, k = 0;
+    for (let j = 0; j < E.length; j++) { const x = E[Math.floor(rand() * E.length)]; d += x.d; m += x.n; a += x.acc; k += x.dec; }
+    bs.push(d / m); as.push(k ? (100 * a) / k : 0);
+  }
+  bs.sort((x, y) => x - y); as.sort((x, y) => x - y);
+  const q = (xs: number[], p: number) => (xs.length ? xs[Math.min(xs.length - 1, Math.floor(p * xs.length))] : NaN);
+  const brier95: [number, number] = [q(bs, 0.025), q(bs, 0.975)];
+  return {
+    n, brier: n ? sum("d") / n : NaN, brier95, logLoss: n ? sum("ll") / n : NaN,
+    accuracyPp: dec ? (100 * sum("acc")) / dec : NaN, accuracy95: [q(as, 0.025), q(as, 0.975)],
+    lowConfidence: n < LOW_CONFIDENCE_N, regression: brier95[0] > 0,
+  };
+}
+
+/** Paired metrics overall and per slice of every dimension. */
+export function pairedReport(rows: PairedRow[], dims: string[]): { all: PairedMetrics; dims: Record<string, Record<string, PairedMetrics>> } {
+  const out: Record<string, Record<string, PairedMetrics>> = {};
+  for (const dim of dims) {
+    const g = new Map<string, PairedRow[]>();
+    for (const r of rows) { const v = r.tags[dim]; if (v == null) continue; (g.get(v) ?? g.set(v, []).get(v)!).push(r); }
+    out[dim] = Object.fromEntries([...g.keys()].sort().map((v) => [v, pairedMetrics(g.get(v)!)]));
+  }
+  return { all: pairedMetrics(rows), dims: out };
+}
+
 // ---- Markdown rendering -------------------------------------------------
 
 const pct = (x: number, d = 1) => (Number.isFinite(x) ? `${(100 * x).toFixed(d)}%` : "–");
@@ -162,6 +232,13 @@ export function sliceTable(dims: SliceReport["dims"], order: string[], labels: R
     }
     out.push("");
   }
+  return out.join("\n");
+}
+
+export function pairedMarkdown(p: ReturnType<typeof pairedReport>, order: string[], labels: Record<string, string>): string {
+  const f = (m: PairedMetrics) => `${m.n.toLocaleString("en-US")} | ${signed(1e4 * m.brier, 2)} [${signed(1e4 * m.brier95[0], 2)}, ${signed(1e4 * m.brier95[1], 2)}] | ${signed(1e4 * m.logLoss, 2)} | ${signed(m.accuracyPp, 2)} [${signed(m.accuracy95[0], 2)}, ${signed(m.accuracy95[1], 2)}] |${m.regression ? " **regression**" : m.brier95[1] < 0 ? " better" : ""}${m.lowConfidence ? " ⚠ low n" : ""}`;
+  const out = ["| Slice | Matches | Δ Brier ×10⁴ [95%] | Δ log loss ×10⁴ | Δ accuracy pp [95%] | |", "|---|---|---|---|---|---|", `| **all** | ${f(p.all)}`];
+  for (const dim of order) for (const [v, m] of Object.entries(p.dims[dim] ?? {})) out.push(`| ${labels[dim] ?? dim}: ${v} | ${f(m)}`);
   return out.join("\n");
 }
 

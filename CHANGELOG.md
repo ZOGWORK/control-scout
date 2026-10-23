@@ -9,6 +9,22 @@ teams, scout, offline, speed, live, report, alerts, rankings, share, workspace,
 picklist, history, fixes). What's new shows them first; the groups below are
 the full release notes, one click away.
 
+## 1.22.0 — 2026-10-22
+
+Sharper odds for teams at their first event of the season.
+
+### Highlights
+- [predict] First-event odds use how a region's teams are doing this season
+- [predict] Last season counts a little more in a team's starting point
+- [report] Stated chances land closer to how often favourites win
+
+### Predictions
+- **Regional starting points.** A team new to the season now starts from its usual point (last season's standing, or the rookie start) plus how far that region's returning teams have beaten or missed their own starting points so far this season, after their first three matches. The adjustment is shrunk heavily, so one or two surprising teams barely move it. On identical replayed matches against the previous engine, the Brier score (lower is better) improved in both seasons tested: 2024–25 by 0.00021 and 2025–26 by 0.00023, about twice that for robots at their first event. No slice got worse beyond noise, and the gap between stated and actual win rates in the 50–80% range narrowed. Winner-calling accuracy is unchanged. The How it works page explains it under "Four more things a rating knows". Prediction engine 2.7.0.
+- **Last season counts a little more.** A returning team's starting point now carries 70% of last season's standing (it was 60%).
+
+### Engine program
+- **Error report by slice.** `npm run slices` replays every 2023–2026 match through the engine and reports accuracy, Brier and calibration by event phase, experience, data density, volatility and event type. `--challenger` compares an engine change against the live engine on the same matches, with intervals from resampling whole events. Reports are in `docs/engine/`. (#239)
+
 ## 1.21.0 — 2026-10-21
 
 Projections even with no signal: a local estimate simulated on your device.
