@@ -1,5 +1,30 @@
 # Changelog
 
+## 2.8.0 — 2026-10-23 · Recalibration
+
+Engine improvement program, Part 9. The 2.7 slice report shows the engine under-confident in almost
+every slice: favourites at 70–80% won about two points more often than stated. Scores, ranges,
+ratings and every input are unchanged. Only the final win probability moves.
+- **`ContextualModel.recalibration`** (`{ slope, provenance }`): after the contextual model and its
+  calibration, P(red) = sigmoid(slope · logit(p)). The shipped slope is **1.0577**, fitted on the
+  730 days of 2.7.0 replayed calls to the end of the 2026-10-14 snapshot
+  (`docs/engine/fits/recalibration-2.8.0.json`). It has no intercept, so it never favours a colour
+  and never changes the favourite.
+- The contextual model id becomes `ctx-rel-form-2026-10-17-1fdd2958+recal-2026-10-23`, so ledgers
+  keep 2.8 calls apart. The 2.0 shadow model is unchanged.
+
+**Evidence** (rolling monthly origins, forward-only; `docs/engine/gates/gate-2.8.0-recalibration.md`):
+
+| Season | Δ Brier ×10⁴ [95%] | 50–80% calibration error |
+|---|---|---|
+| 2024–25 | −0.69 [−1.60, +0.24] | 1.34 → 0.69 pts |
+| 2025–26 (reused) | −1.87 [−2.61, −1.15] | 1.63 → 0.98 pts |
+
+**Rejected in the same step:**
+- Per-slice cells: cost 2024–25 accuracy.
+- An intercept: a colour term.
+- Refitting the 22 weights: no forward gain, and three sign flips.
+
 ## 2.7.0 — 2026-10-22 · Priors: regional starts
 
 Engine improvement program, Part 8 (priors). The slice report (`docs/engine/slices`) found the most
