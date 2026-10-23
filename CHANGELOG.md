@@ -22,7 +22,7 @@ Saved offline seasons keep themselves current: you're asked when an update is ou
 ### Offline
 - **Updates find you.** A saved season used to need a visit to the Download page to see that a newer release was out. The app now checks in the background (soon after it opens, when you come back to the tab, and every hour) and asks once per release: "Offline data for 2025–26 has an update (41.9 MB). Update now?" Yes downloads it and swaps it in; Later waits for the next release. Signed in, it also sits at the top of your notifications until you answer.
 - **Or skip the question.** The Download page and Settings › Offline data have "When updates are out: Ask me / Download automatically" and "Download updates on: Wi-Fi only / Wi-Fi and mobile data". Both sync with your account. The small offline-predictions pack follows the network setting too.
-- **No guessing about Wi-Fi.** Only some browsers tell a site whether it's on Wi-Fi (Chrome on Android does; Safari, iPhone and desktop Chrome don't). Where the browser doesn't say, Wi-Fi only means you're asked first instead of a silent download, and the Download page says so. Data Saver on always asks first.
+- **No guessing about Wi-Fi.** Only some browsers tell a site whether it's on Wi-Fi (Chrome on Android does; Safari, iPhone and desktop Chrome don't). Where the browser doesn't say, Wi-Fi only means you're asked first instead of a silent download, and the Download page says so. Data Saver on always asks first (#257).
 - As before, every download is checked against its published SHA-256, and a failed or partial one never replaces the saved copy.
 
 ## 1.32.0 — 2026-10-23
