@@ -77,21 +77,44 @@ async function lastEvents(season: number, teams: number[]): Promise<Map<number, 
   return out;
 }
 
+/** The week a packet's movement is counted against: its id, and each team's rank (and frozen rating) there. */
+export interface Comparison { week: string; ranks: Map<number, number>; ratings: Map<number, number> }
+
+/** The comparison a stored packet was built against, recovered from it alone (so it holds even if that week is later hidden or replaced). */
+export function storedComparison(p: StoredPacket): Comparison | null {
+  if (!p.comparedWith) return null;
+  const ranks = new Map<number, number>(), ratings = new Map<number, number>();
+  for (const t of p.teams) {
+    if (t.priorRank != null) ranks.set(t.team, t.priorRank);
+    if (t.ratingDelta != null) ratings.set(t.team, Math.round((t.rating - t.ratingDelta) * 10) / 10);
+  }
+  for (const d of p.droppedOut ?? []) {
+    ranks.set(d.team, d.lastRank);
+    if (d.rating != null) ratings.set(d.team, d.rating);
+  }
+  return { week: p.comparedWith, ranks, ratings };
+}
+
 /**
  * The fact packet for a season and week from the live ranking at `at`, with movement against the
- * previous published week of the season (`comparedWith`), if any.
+ * previous published week of the season (`comparedWith`), if any. `compare`: count it against this
+ * comparison instead (the daily refresh keeps the one the week went out with); null for none.
  */
-export async function buildPacket(season: number, week: string, at = Date.now()): Promise<StoredPacket> {
+export async function buildPacket(season: number, week: string, at = Date.now(), compare?: Comparison | null): Promise<StoredPacket> {
   const live = (await rankings({ season, week: null, places: [], page: 1 }, at)).rows.slice(0, POWER_RANKINGS_SIZE);
-  // The previous week out by the publish date (New York), of either kind.
-  const prev = (await publishedWeeks(localDate(at))).filter((w) => w.season === season && w.week < week).at(-1) ?? null;
-  const priorRank = new Map(prev?.entries.map((e) => [e.team, e.rank]) ?? []);
-  // A generated previous week froze its ratings; a hand-written one didn't (no rating change then).
-  const priorRating = new Map<number, number>();
-  if (prev?.generated) {
-    const g = await getGenerated(prev.season, prev.week);
-    for (const t of g?.packet.teams ?? []) priorRating.set(t.team, t.rating);
+  let prev: Comparison | null = compare ?? null;
+  if (compare === undefined) {
+    // The previous week out by the publish date (New York), of either kind.
+    const doc = (await publishedWeeks(localDate(at))).filter((w) => w.season === season && w.week < week).at(-1) ?? null;
+    if (doc) {
+      // A generated previous week froze its ratings; a hand-written one didn't (no rating change then).
+      const ratings = new Map<number, number>();
+      if (doc.generated) for (const t of (await getGenerated(doc.season, doc.week))?.packet.teams ?? []) ratings.set(t.team, t.rating);
+      prev = { week: doc.week, ranks: new Map(doc.entries.map((e) => [e.team, e.rank])), ratings };
+    }
   }
+  const priorRank = prev?.ranks ?? new Map<number, number>();
+  const priorRating = prev?.ratings ?? new Map<number, number>();
   const teams = live.map((r) => Number(r.team));
   const q = teams.map(() => "?").join(",");
   const [stats, events] = await Promise.all([
@@ -103,7 +126,10 @@ export async function buildPacket(season: number, week: string, at = Date.now())
   const inList = new Set(teams);
   return {
     season, week, comparedWith: prev?.week ?? null,
-    droppedOut: prev ? prev.entries.filter((e) => !inList.has(e.team)).map((e) => ({ team: e.team, lastRank: e.rank })) : [],
+    droppedOut: prev ? [...prev.ranks].filter(([team]) => !inList.has(team)).sort((x, y) => x[1] - y[1]).map(([team, lastRank]) => {
+      const rating = priorRating.get(team);
+      return rating == null ? { team, lastRank } : { team, lastRank, rating };
+    }) : [],
     teams: live.map((r, i) => {
       const team = Number(r.team);
       const s = byTeam.get(team);
@@ -226,7 +252,8 @@ export async function regenerateWeek(season: number, week: string, log: Log = qu
   const bruno = await askBruno(packet, log);
   if (!bruno) return "unavailable";
   const c = compose(packet, bruno, g.published, !!packet.comparedWith);
-  const n = await run(`UPDATE power_rankings_generated SET intro = ?, intro_source = ?, entries = ?, generated_at = ?, edited_by = NULL, edited_at = NULL, rev = rev + 1
+  // Owner edits are replaced, including any parked for teams that left the list.
+  const n = await run(`UPDATE power_rankings_generated SET intro = ?, intro_source = ?, entries = ?, parked = '[]', generated_at = ?, edited_by = NULL, edited_at = NULL, rev = rev + 1
      WHERE season = ? AND week = ? AND rev = ?`,
     [c.intro, c.introSource, JSON.stringify(c.entries), new Date().toISOString(), season, week, g.rev]);
   invalidateGenerated();

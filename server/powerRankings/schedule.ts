@@ -76,3 +76,39 @@ export function nextSlot(now: number): PublishSlot {
   const s = latestSlot(now);
   return now < s.at ? s : slotFor(addDays(s.friday, 7));
 }
+
+// The daily refresh (./refresh.ts): the current week is checked again every day at 00:00 New York
+// time. A server that was down then catches up on its next tick for the rest of that New York day; a
+// day missed entirely is simply covered by the next one (each check looks at the latest data anyway).
+
+export interface RefreshSlot {
+  /** The New York date the check is for. */
+  day: string;
+  /** That day's 00:00 New York time, UTC ms. */
+  at: number;
+  /** The next day's 00:00 New York time: after it, this day's check is no longer due. */
+  until: number;
+}
+
+export function refreshSlotFor(day: string): RefreshSlot {
+  return { day, at: localMidnight(day), until: localMidnight(addDays(day, 1)) };
+}
+
+/** The day's check a tick at `now` should run (always today's: due from 00:00 until the day ends). */
+export function dueRefresh(now: number): RefreshSlot {
+  return refreshSlotFor(localDate(now));
+}
+
+/** The next daily check after `now` (the owner portal's "next check"). */
+export function nextRefresh(now: number): RefreshSlot {
+  return refreshSlotFor(addDays(localDate(now), 1));
+}
+
+/**
+ * Is `week` still the current week at `now`? Until the next Friday 00:00 New York time after its own
+ * Friday: from then that Friday's week is current and this one is frozen. (A week put out early with
+ * Publish now, ahead of its Friday, stays current until its own Friday's slot has passed too.)
+ */
+export function isCurrentWeek(week: string, now: number): boolean {
+  return latestSlot(now).week <= week;
+}
