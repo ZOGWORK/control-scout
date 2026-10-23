@@ -52,7 +52,7 @@ if (!M.contextual?.fallback) throw new Error("this engine has no frozen 2.0 fall
 const MODELS = ["champion", "v2.0", "legacy", ...(CHALLENGER ? ["challenger"] : [])];
 type Model = string;
 
-interface Row { key: string; season: number; event: string; level: string; y: number; rated: boolean; data: DataTags; pred: Record<Model, { p: number; muR: number; muB: number; sdR: number; sdB: number }> }
+interface Row { key: string; season: number; event: string; level: string; time: number; y: number; rated: boolean; data: DataTags; pred: Record<Model, { p: number; muR: number; muB: number; sdR: number; sdB: number }> }
 
 const rookie = await rookieYears();
 const dataVersion = (await kvGet<string>("data:version")) ?? null;
@@ -93,7 +93,7 @@ for (const s of [...SEASONS].sort((a, b) => a - b)) {
       const vol = teams.filter((_, i) => rated[i] >= 6).map((t) => champion.reliabilityOf(t).variance);
       const side = (p: typeof pc, pr: number) => ({ p: pr, muR: p.red.mean, muB: p.blue.mean, sdR: p.red.sd, sdB: p.blue.sd });
       rows.push({
-        key: keyOf(s, m.eventCode, m.level, m.series, m.number), season: s, event: m.eventCode, level: m.level, y: outcome(m), rated: !unrated.has(m.eventCode),
+        key: keyOf(s, m.eventCode, m.level, m.series, m.number), season: s, event: m.eventCode, level: m.level, time: m.time, y: outcome(m), rated: !unrated.has(m.eventCode),
         data: {
           season: s, level: m.level, eventMatch: qualBand(m.level, m.number),
           teamEvent: ordinalBand(Math.min(...teams.map((t) => ordinals.ordinal(t, m.eventCode)))),
