@@ -113,6 +113,9 @@ export interface SimInput {
   /** Alliance overlap (engine 2.11): per phase, the share of the smaller partner's contribution a 2-robot
    *  alliance loses in a qualification match, as RatingBook.allianceOverlap applies it. */
   overlap?: { auto: number; teleop: number; endgame: number };
+  /** Ties (engine 3.1): a simulated qualification match whose final scores land within width/2 of each other
+   *  is a tie, paying tie RPs to both alliances (bonus.ts TIE_RULE). Absent: simulated matches never tie. */
+  tieWidth?: number;
   bonus?: BonusModel;
   /**
    * Seasons without a fitted bonus model: recorded bonus-RP counts of this
@@ -236,15 +239,16 @@ export function simulateEvent(input: SimInput): Map<number, TeamOutcome> {
       }
     } else {
       for (const m of input.quals) {
-        let res = m.result;
+        let res = m.result, tied = false;
         if (!res) {
           const red = playScore(m.red, m.blue), blue = playScore(m.blue, m.red);
           res = { red: { ...red, bonus: sampleBonus(red.np) }, blue: { ...blue, bonus: sampleBonus(blue.np) } };
+          tied = !!input.tieWidth && Math.abs(red.total - blue.total) < input.tieWidth / 2;
         }
         for (const [side, own, opp] of [[m.red, res.red, res.blue], [m.blue, res.blue, res.red]] as const) {
           // A played alliance whose bonus RPs weren't reported: sample them.
           const scored = own.bonus !== undefined || input.season < 2025 ? own : { ...own, bonus: sampleBonus(own.np) };
-          const rp = rankingPoints(input.season, scored, opp);
+          const rp = rankingPoints(input.season, scored, tied ? { total: scored.total } : opp);
           for (const t of side) { if (m.noRank?.includes(t)) continue; tally(t, own, rp, !!m.dq?.includes(t)); }
         }
       }

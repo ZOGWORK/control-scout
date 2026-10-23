@@ -1,5 +1,25 @@
 # Changelog
 
+## 3.1.0 — 2026-10-23 · Ties
+
+Engine program Part 12.6. This is a correctness fix for ranking points, not an accuracy change: win
+probabilities and scores are identical to 3.0.0.
+- **Measured** (`scripts/part12/ties-research.ts`, `docs/engine/part12/ties.md`):
+  - About 0.75% of qualification matches tie (1.4% in 2019–20).
+  - One tie width, fitted on 2021–22 to 2024–25 (w = 1.135 points), gives P(tie) = w · the density of the
+    predicted final-score margin at 0.
+  - That width predicts each season's tie rate and the rate across closeness quintiles.
+- **RP odds:**
+  - `allianceBonusOdds` takes the match's P(tie). Expected RPs are winRP · (p − P(tie)/2) + tieRP · P(tie) + bonus.
+  - p, the served win probability, counts a tie as half a win, as every replay scores it.
+  - New exports: `TIE_RULE`, `tieProbability`, `expectedOutcomeRp`; `MatchBonusOdds.pTie`.
+  - In 2025–26, win-and-tie RPs per alliance were 1.5000 stated against 1.4963 earned before; now 1.4962.
+- **Event simulator:**
+  - A simulated qualification match whose final scores land within w/2 of each other is a tie, paying tie
+    RPs to both alliances (`SimInput.tieWidth`; the forecaster sets it).
+  - Before, simulated matches never tied, so a tie's RPs always went to one side.
+  - Played matches keep their real results.
+
 ## 3.0.0 — 2026-10-23 · Prediction Engine 3.0
 
 Numbers identical to 2.11.0. This version marks the end of the engine improvement program (2.7–2.11)

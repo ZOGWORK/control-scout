@@ -15,7 +15,7 @@ import { PartnershipOverlay, partnershipFact, type PairLookup, type PartnershipF
 import type { AllianceResult, MatchRecord } from "./types.js";
 import type { AllianceInput, BonusFlags, EventInput, FirstAdvancement, MatchInput } from "./inputs.js";
 import { explainMatch, type ConfidenceTier } from "./explain.js";
-import { BONUS_SLOTS, seasonBonusModel, type BonusModelSource } from "./bonus.js";
+import { BONUS_SLOTS, TIE_RULE, seasonBonusModel, type BonusModelSource } from "./bonus.js";
 
 /** The fitted model (server/predict/model.json, from scripts/predict/export-model.mts). */
 export interface PredictModel {
@@ -393,6 +393,7 @@ export abstract class Forecaster {
       // Per-team score spread (engine 2.6): the same inputs the stated score ranges use.
       variance: new Map(teams.map((t) => { const v = teamScoreVariance(book, t); return [t, { consistency: v.consistency, matches: v.matches }]; })), band: this.model.band,
       ...(book.params.overlapAuto || book.params.overlapTeleop || book.params.overlapEndgame ? { overlap: { auto: book.params.overlapAuto, teleop: book.params.overlapTeleop, endgame: book.params.overlapEndgame } } : {}),
+      tieWidth: TIE_RULE.width,
       bonus, bonusSamples, pick: this.model.pick, ranks, alliances, awards, playoffPlayed,
       prequalified: new Set(adv.prequalified), ineligible: new Set(adv.ineligible), slots: adv.slots, runs, seed: 1,
     };

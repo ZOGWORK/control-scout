@@ -9,9 +9,12 @@
 //
 //   P(bonus) = E[ logistic(c0 + c1 · max(0, X)) ],  X ~ N(μ, σ²)
 //
-// Expected ranking points add the win RPs of rules.ts rankingPoints:
-//   E[RP] = winRP · P(win) + Σ P(bonus)   (2025+: a win is 3, a tie 1; the
-//   Gaussian model gives a tie no mass, so ties are left out).
+// Expected ranking points add the win and tie RPs of rules.ts rankingPoints
+// (2025+: a win is 3, a tie 1; before: 2 and 1), with the outcome three-way
+// (engine 3.1): P(tie) = TIE_RULE.width · the density of the predicted
+// final-score margin at 0, and the served win probability p counts a tie as
+// half a win (as every replay scores it), so
+//   P(win) = p − P(tie)/2,   E[RP] = winRP · P(win) + tieRP · P(tie) + Σ P(bonus).
 //
 // Pure: no network, no clock. Shared by Control Scout, Control Point and the
 // event simulator's callers.
@@ -80,6 +83,21 @@ export function bonusProbability(coef: readonly [number, number], mean: number, 
   return p;
 }
 
+/**
+ * Ties (engine 3.1, Part 12.6): a qualification match ties with probability width · the density of the
+ * final-score margin at 0. Fitted on 2021–22 to 2024–25 quals (one width predicts each season's tie rate,
+ * about 0.75%, and the rate across closeness quintiles; docs/engine/part12/ties.md). Ties move ranking points
+ * and the event simulator's standings only; the headline win probability is unchanged.
+ */
+export const TIE_RULE = { width: 1.135 } as const;
+
+/** P(tie) for a match whose final-score margin is Normal(mean, sd²), capped so P(win) and P(loss) stay ≥ 0 given p. */
+export function tieProbability(margin: { mean: number; sd: number }, p: number, width: number = TIE_RULE.width): number {
+  if (!(margin.sd > 0) || width <= 0) return 0;
+  const z = margin.mean / margin.sd;
+  return Math.max(0, Math.min((width * Math.exp(-0.5 * z * z)) / (Math.sqrt(2 * Math.PI) * margin.sd), 2 * Math.min(p, 1 - p)));
+}
+
 /** Win and tie ranking points per season (as rules.ts rankingPoints counts them). */
 export function winRankingPoints(season: number): { win: number; tie: number } {
   return season >= 2025 ? { win: 3, tie: 1 } : { win: 2, tie: 1 };
@@ -90,21 +108,28 @@ export interface AllianceBonusOdds {
   p: Record<BonusSlot, number>;
   /** Expected bonus RPs (Σ p). */
   expectedBonus: number;
-  /** Expected ranking points from the match: win RPs × P(win) + expected bonus RPs. */
+  /** Expected ranking points from the match: win RPs × P(win) + tie RPs × P(tie) + expected bonus RPs. */
   expectedRp: number;
 }
 
 /**
  * Bonus odds and expected RPs for one alliance: its non-penalty score
- * distribution (mean, sd: predictMatch's AlliancePrediction np and sd) and
- * its served win probability. Null before 2025 (no bonus RPs).
+ * distribution (mean, sd: predictMatch's AlliancePrediction np and sd), its
+ * served win probability (a tie counted half) and the match's P(tie)
+ * (tieProbability; 0 leaves ties out, as before 3.1). Null before 2025 (no bonus RPs).
  */
-export function allianceBonusOdds(season: number, model: BonusModel, np: { mean: number; sd: number }, pWin: number): AllianceBonusOdds | null {
+export function allianceBonusOdds(season: number, model: BonusModel, np: { mean: number; sd: number }, pWin: number, pTie = 0): AllianceBonusOdds | null {
   if (season < 2025) return null;
   const p = {} as Record<BonusSlot, number>;
   let sum = 0;
   for (const s of BONUS_SLOTS) { p[s] = bonusProbability(model[s], np.mean, np.sd); sum += p[s]; }
-  return { p, expectedBonus: sum, expectedRp: winRankingPoints(season).win * pWin + sum };
+  return { p, expectedBonus: sum, expectedRp: expectedOutcomeRp(season, pWin, pTie) + sum };
+}
+
+/** Expected win-and-tie ranking points of one alliance: p its win probability (a tie counted half), pTie the match's. */
+export function expectedOutcomeRp(season: number, p: number, pTie = 0): number {
+  const { win, tie } = winRankingPoints(season);
+  return win * (p - pTie / 2) + tie * pTie;
 }
 
 /**
