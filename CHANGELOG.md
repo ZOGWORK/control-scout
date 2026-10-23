@@ -19,7 +19,7 @@ Ties count: expected ranking points and event simulations now give a tie's RP to
 - [report] How it works explains ties; win odds unchanged
 
 ### Predictions
-- **Ties count.** About one qualification match in 130 ends in a tie, which pays 1 ranking point to both alliances. Until now the engine gave a tie no chance: expected ranking points counted a tie as half a win, and simulated events never tied, so a tie's points always went to one side. A tie's chance is now priced from how close the match is expected to be (highest in an even match, about 1–1.5%). Win odds and predicted scores are exactly as before; ranking points and simulated standings are now right in close matches. Measured on every season since 2019–20 (docs/engine/part12/ties.md). Prediction engine 3.1.0 (#PR).
+- **Ties count.** About one qualification match in 130 ends in a tie, which pays 1 ranking point to both alliances. Until now the engine gave a tie no chance: expected ranking points counted a tie as half a win, and simulated events never tied, so a tie's points always went to one side. A tie's chance is now priced from how close the match is expected to be (highest in an even match, about 1–1.5%). Win odds and predicted scores are exactly as before; ranking points and simulated standings are now right in close matches. Measured on every season since 2019–20 (docs/engine/part12/ties.md). Prediction engine 3.1.0 (#251).
 
 ## 1.30.0 — 2026-10-23
 
