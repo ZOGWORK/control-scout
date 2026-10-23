@@ -8,10 +8,12 @@ import { useEffect, useId, useRef, useState, type ComponentType } from "react";
 import { AnimatePresence } from "motion/react";
 import { m } from "../motion";
 import { Link, useLocation, useNavigate } from "react-router-dom";
-import { Bell, CheckCheck, ClipboardCheck, Flag, HardDrive, LayoutList, ListOrdered, Loader2, Mail, MailOpen, MessageSquare, PencilLine, Settings, Users } from "lucide-react";
+import { Bell, CheckCheck, ClipboardCheck, Flag, HardDrive, HardDriveDownload, LayoutList, ListOrdered, Loader2, Mail, MailOpen, MessageSquare, PencilLine, Settings, Users } from "lucide-react";
 import { usePersonal } from "../../lib/personal";
 import { useInbox, type InboxFailure, type InboxState } from "../../lib/inbox";
 import { agoShort } from "../../lib/format";
+import { asked, askingAbout, markLater, updateNow, useSeasonUpdate, type UpdateSnapshot } from "../../lib/offline/updateStore";
+import { updateId, updateQuestion } from "../../lib/offline/updatePolicy";
 import type { InboxCategory, InboxFilter, InboxItem } from "../../shared/inbox";
 import { Sheet, SheetContent, SheetDescription, SheetTitle } from "../ui/overlay";
 import { Button } from "../ui/button";
@@ -79,7 +81,11 @@ function SignedInBell({ userId }: { userId: number }) {
     document.addEventListener("keydown", esc);
     return () => { document.removeEventListener("pointerdown", away); document.removeEventListener("keydown", esc); };
   }, [open, phone]);
-  const label = inbox.unread ? `Notifications, ${inbox.unread} unread` : "Notifications";
+  // This device's own item (a saved season's update) counts in the badge beside the account's.
+  const update = useSeasonUpdate();
+  const device = askingAbout(update) ? 1 : 0;
+  const unread = inbox.unread + device;
+  const label = unread ? `Notifications, ${unread} unread` : "Notifications";
   return (
     <div ref={box} className="relative shrink-0" data-inbox-bell>
       <button
@@ -89,11 +95,11 @@ function SignedInBell({ userId }: { userId: number }) {
       >
         <Bell className="size-4" />
         <AnimatePresence>
-          {inbox.unread > 0 && (
+          {unread > 0 && (
             <m.span key="badge" data-inbox-badge aria-hidden
               initial={{ scale: 0.4, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.4, opacity: 0 }} transition={{ duration: 0.16 }}
               className="absolute -right-0.5 -top-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-accent px-1 text-[10px] font-semibold leading-none text-accent-ink tabular-nums ring-2 ring-primary">
-              {badgeText(inbox.unread)}
+              {badgeText(unread)}
             </m.span>
           )}
         </AnimatePresence>
@@ -101,7 +107,7 @@ function SignedInBell({ userId }: { userId: number }) {
       {phone ? (
         <Sheet open={open} onOpenChange={setOpen}>
           <SheetContent side="bottom" className="gap-0 p-0" aria-describedby={undefined}>
-            <InboxList inbox={inbox} onClose={() => setOpen(false)} titleAs="sheet" />
+            <InboxList inbox={inbox} update={device ? asked(update) : null} onClose={() => setOpen(false)} titleAs="sheet" />
           </SheetContent>
         </Sheet>
       ) : (
@@ -111,7 +117,7 @@ function SignedInBell({ userId }: { userId: number }) {
               initial={{ opacity: 0, y: -6, scale: 0.98 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={{ opacity: 0, y: -4, scale: 0.98 }}
               transition={{ duration: 0.16, ease: [0.2, 0.8, 0.2, 1] }} style={{ transformOrigin: "top right" }}
               className="absolute right-0 top-full z-50 mt-2 flex max-h-[min(36rem,calc(100dvh-5rem))] w-[24rem] flex-col overflow-hidden rounded-xl border border-border bg-popover text-popover-foreground shadow-[0_18px_40px_-16px_rgba(0,0,0,.55)]">
-              <InboxList inbox={inbox} onClose={() => setOpen(false)} titleAs="panel" />
+              <InboxList inbox={inbox} update={device ? asked(update) : null} onClose={() => setOpen(false)} titleAs="panel" />
             </m.div>
           )}
         </AnimatePresence>
@@ -120,7 +126,7 @@ function SignedInBell({ userId }: { userId: number }) {
   );
 }
 
-function InboxList({ inbox, onClose, titleAs }: { inbox: InboxState; onClose: () => void; titleAs: "panel" | "sheet" }) {
+function InboxList({ inbox, update, onClose, titleAs }: { inbox: InboxState; update: UpdateSnapshot | null; onClose: () => void; titleAs: "panel" | "sheet" }) {
   const nav = useNavigate();
   const [now, setNow] = useState(() => Date.now());
   useEffect(() => { const t = setInterval(() => setNow(Date.now()), 60_000); return () => clearInterval(t); }, []);
@@ -156,6 +162,7 @@ function InboxList({ inbox, onClose, titleAs }: { inbox: InboxState; onClose: ()
       )}
       <div ref={filters}><FilterBar filter={inbox.filter} followUp={inbox.followUp} onChange={inbox.setFilter} /></div>
       <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
+        {update && !following && <DeviceUpdate update={update} onClose={onClose} />}
         {!inbox.loaded && inbox.loading ? (
           <div className="space-y-2 p-4" aria-busy="true">{[0, 1, 2].map((k) => <div key={k} className="skeleton h-14 rounded-lg" />)}</div>
         ) : inbox.error && !inbox.items.length ? (
@@ -286,5 +293,29 @@ function Row({ item, now, onOpen, onToggleRead, onToggleFollowUp, failures = [],
         </p>
       ))}
     </li>
+  );
+}
+
+/**
+ * This device's item: a saved offline season has a newer release (lib/offline/updateStore). It isn't the account's
+ * (another device has its own saved seasons), so it lives here only, above the list, until Update now or Later.
+ */
+function DeviceUpdate({ update, onClose }: { update: UpdateSnapshot; onClose: () => void }) {
+  const ids = update.updates.map(updateId);
+  return (
+    <div data-inbox-device="season-update" className="border-b border-border bg-accent/[0.06] px-4 py-3">
+      <div className="flex items-start gap-3">
+        <span className="mt-0.5 grid size-8 shrink-0 place-items-center rounded-full bg-teal-500/15 text-teal-700 dark:text-teal-400" aria-hidden><HardDriveDownload className="size-4" /></span>
+        <div className="min-w-0 flex-1">
+          <p className="text-sm font-medium leading-snug">{updateQuestion(update.updates)} Update now?</p>
+          <p className="mt-0.5 text-xs text-muted-foreground">On this device. The saved copy keeps working until the new one is verified.</p>
+          <div className="mt-2 flex flex-wrap gap-2">
+            <Button size="sm" onClick={() => { onClose(); void updateNow(update); }}><HardDriveDownload /> Update now</Button>
+            <Button size="sm" variant="outline" onClick={() => markLater(ids)}>Later</Button>
+            <Link to="/download" onClick={onClose} className="inline-flex min-h-8 items-center px-1 text-xs text-muted-foreground underline-offset-4 hover:text-foreground hover:underline">Update settings</Link>
+          </div>
+        </div>
+      </div>
+    </div>
   );
 }

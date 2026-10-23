@@ -52,6 +52,7 @@ import { WorkspaceSection } from "../components/settings/WorkspaceSection";
 import { TabBarSettings } from "../components/settings/TabBarSettings";
 import { openWhatsNew } from "../components/WhatsNew";
 import { TEXT_SIZES, isTextSize, setTextSize, useTextSize } from "../lib/textSize";
+import { UpdateModeToggle, UpdateNetworkToggle, connectionNote, useConnection, useUpdatePrefs } from "../components/offline/UpdateSettings";
 import { currentRelease } from "../lib/changelog";
 
 type SectionId = "profile" | "appearance" | "tracking" | "notifications" | "offline" | "scouting" | "privacy" | "workspace" | "about";
@@ -454,9 +455,10 @@ function OfflineData() {
           </Row>
         )}
       </Group>
+      <OfflineUpdates />
       <Group title="Offline pack" description={<>Packs let predictions run on this device with no connection, e.g. at a venue with no signal. <Link to="/download" className="underline">Download page</Link></>}>
         <Row label="Lite pack on this device" description={pack ? `Version ${pack.version} · ${fmtBytes(pack.bytes)} · saved ${ago(new Date(pack.savedAt).toISOString())}` : "None saved yet."}>
-          <Button variant="outline" size="sm" asChild><Link to="/download"><Download /> {pack ? "Check for updates" : "Get the pack"}</Link></Button>
+          <Button variant="outline" size="sm" asChild><Link to="/download"><Download /> {pack ? "Open Download" : "Get the pack"}</Link></Button>
         </Row>
         <Row label="Storage used by this site" description="Cached pages, packs, saved seasons and recordings.">
           <span className="text-sm tabular-nums text-foreground">{est?.usage != null ? `${fmtBytes(est.usage)}${est.quota ? ` of ${fmtBytes(est.quota)}` : ""}` : "—"}</span>
@@ -471,6 +473,22 @@ function OfflineData() {
         </Row>
       </Group>
     </div>
+  );
+}
+
+/** The Download page's two update settings, here too (synced with your account). */
+function OfflineUpdates() {
+  const { mode, network, setMode, setNetwork } = useUpdatePrefs();
+  const connection = useConnection();
+  return (
+    <Group title="Updates" description="Saved seasons are checked for a newer release in the background. A download that fails never replaces the saved copy.">
+      <Row label="When updates are out" description="Ask me shows one pop-up per release, and a notification when you're signed in.">
+        <UpdateModeToggle value={mode} onChange={setMode} />
+      </Row>
+      <Row label="Download updates on" description={connectionNote(connection)}>
+        <UpdateNetworkToggle value={network} onChange={setNetwork} />
+      </Row>
+    </Group>
   );
 }
 

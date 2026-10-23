@@ -5,7 +5,7 @@ the precedence rules below decide which one wins.
 
 | Tier | What | Where it lives | Who writes | Synced |
 | --- | --- | --- | --- | --- |
-| 1. Personal | `PERSONAL_KEYS`: `myTeam`, `tracked`, `bookmarks`, `settings` (theme, density, ambient, notifications), `videoLinks`, `predictionHistory`, `shortlistNotes` | localStorage `cs-personal:<key>` as a `Stamped` value (`{value, updatedAt}`); the account's copy on the server | The person | Yes, per account, last write wins |
+| 1. Personal | `PERSONAL_KEYS`: `myTeam`, `tracked`, `bookmarks`, `settings` (theme, density, ambient, notifications, offline updates), `videoLinks`, `predictionHistory`, `shortlistNotes` | localStorage `cs-personal:<key>` as a `Stamped` value (`{value, updatedAt}`); the account's copy on the server | The person | Yes, per account, last write wins |
 | 2. Workspace | The scout template, the defaults for new entries, the entry policy | The workspace mirror row's `settings` JSON (`workspaces.settings`) | Workspace admins (role from Control Point) | Shared by every member |
 | 3. Device-only | The active scout space, the shortlist's list or grid view, the queue of entries waiting to sync | localStorage only | The device | Never |
 
@@ -72,7 +72,7 @@ overwrite each other. Saving what's already there changes nothing.
 - A usable field is taken.
 - A bad field is dropped and listed in `dropped`, and the rest are kept.
 - Unknown fields are dropped.
-- Personal settings (`theme`, `density`, `ambient`, `notify`) are always dropped.
+- Personal settings (`theme`, `density`, `ambient`, `notify`, `offlineUpdates`, `offlineNetwork`) are always dropped.
 
 ### API
 

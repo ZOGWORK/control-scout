@@ -45,7 +45,7 @@ export const SEASON_MIN = 2000, SEASON_MAX = 2100;
 const EVENT_CODE = /^[A-Z0-9_-]{2,24}$/;
 
 /** Personal (Tier 1) settings a workspace may never set: they're dropped from any workspace write. */
-export const PERSONAL_ONLY = ["theme", "density", "ambient", "notify"] as const;
+export const PERSONAL_ONLY = ["theme", "density", "ambient", "notify", "offlineUpdates", "offlineNetwork"] as const;
 
 export interface DroppedSetting { field: string; reason: string }
 
