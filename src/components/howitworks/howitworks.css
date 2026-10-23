@@ -27,8 +27,8 @@ html.light .hiw { --hiw-gold: #eab308; --hiw-line: #d4d4d8; }
 .hiw svg.hiw-chart { display: block; width: 100%; height: auto; overflow: visible; }
 .hiw svg text { font-family: var(--font-mono); fill: var(--hiw-muted); font-size: 11px; }
 .hiw svg .t-ink { fill: var(--hiw-ink); }
-.hiw svg .t-red { fill: var(--hiw-red); }
-.hiw svg .t-blue { fill: var(--hiw-blue); }
+.hiw svg .t-red { fill: var(--color-red-alliance-text); }
+.hiw svg .t-blue { fill: var(--color-blue-alliance-text); }
 .hiw svg .t-gold { fill: var(--hiw-gold-text); }
 .hiw svg .t-big { font-family: var(--font-display); font-weight: 700; font-size: 15px; }
 .hiw svg .t-disp { font-family: var(--font-display); font-weight: 700; font-size: 14px; }
