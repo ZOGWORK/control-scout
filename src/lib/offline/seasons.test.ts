@@ -183,12 +183,21 @@ describe("updates never bring back a removed season (replaceOnly)", () => {
   it("an update batch skips it (not a failure) and still updates the rest", async () => {
     await saveSeason(file(2024, "a"), manifest);
     const r = await runSeasonBatch([file(2025, "b"), file(2024, "a")], manifest, { replaceOnly: true });
-    expect(r).toEqual({ saved: [2024], failed: [], skipped: [2025] });
+    expect(r).toEqual({ saved: [2024], failed: [], skipped: [2025], held: [] });
     expect(savedSeasons().map((s) => s.season)).toEqual([2024]);
   });
 
   it("a plain save still adds a season that isn't saved", async () => {
     await saveSeason(file(2025, "a"), manifest);
     expect(savedSeasons().map((s) => s.season)).toEqual([2025]);
+  });
+});
+
+describe("automatic runs re-check before each season (go)", () => {
+  it("stops before the next season when go says no; those seasons are held, not failed", async () => {
+    await saveSeason(file(2024, "a"), manifest); await saveSeason(file(2025, "a"), manifest);
+    let wifi = true;
+    const r = await runSeasonBatch([file(2025, "b"), file(2024, "a")], manifest, { replaceOnly: true, go: () => { const ok = wifi; wifi = false; return ok; } });
+    expect(r).toEqual({ saved: [2025], failed: [], skipped: [], held: [2024] });
   });
 });

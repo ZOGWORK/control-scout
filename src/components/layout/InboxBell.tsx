@@ -13,7 +13,7 @@ import { usePersonal } from "../../lib/personal";
 import { useInbox, type InboxFailure, type InboxState } from "../../lib/inbox";
 import { agoShort } from "../../lib/format";
 import { askingAbout, markLater, updateNow, useSeasonUpdate, type UpdateSnapshot } from "../../lib/offline/updateStore";
-import { updateQuestion } from "../../lib/offline/updatePolicy";
+import { updateId, updateQuestion } from "../../lib/offline/updatePolicy";
 import type { InboxCategory, InboxFilter, InboxItem } from "../../shared/inbox";
 import { Sheet, SheetContent, SheetDescription, SheetTitle } from "../ui/overlay";
 import { Button } from "../ui/button";
@@ -301,7 +301,7 @@ function Row({ item, now, onOpen, onToggleRead, onToggleFollowUp, failures = [],
  * (another device has its own saved seasons), so it lives here only, above the list, until Update now or Later.
  */
 function DeviceUpdate({ update, onClose }: { update: UpdateSnapshot; onClose: () => void }) {
-  const key = update.key!;
+  const ids = update.updates.map(updateId);
   return (
     <div data-inbox-device="season-update" className="border-b border-border bg-accent/[0.06] px-4 py-3">
       <div className="flex items-start gap-3">
@@ -311,7 +311,7 @@ function DeviceUpdate({ update, onClose }: { update: UpdateSnapshot; onClose: ()
           <p className="mt-0.5 text-xs text-muted-foreground">On this device. The saved copy keeps working until the new one is verified.</p>
           <div className="mt-2 flex flex-wrap gap-2">
             <Button size="sm" onClick={() => { onClose(); void updateNow(update); }}><HardDriveDownload /> Update now</Button>
-            <Button size="sm" variant="outline" onClick={() => markLater(key)}>Later</Button>
+            <Button size="sm" variant="outline" onClick={() => markLater(ids)}>Later</Button>
             <Link to="/download" onClick={onClose} className="inline-flex min-h-8 items-center px-1 text-xs text-muted-foreground underline-offset-4 hover:text-foreground hover:underline">Update settings</Link>
           </div>
         </div>

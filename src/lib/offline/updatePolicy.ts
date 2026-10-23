@@ -33,14 +33,18 @@ export function netKind(c: ConnectionInfo | null | undefined): NetKind {
 /** A saved season with a newer release (the parts the decision and the prompt need). */
 export interface SeasonUpdate { season: number; sha256: string; bytes: number }
 
-/** One release of the updates, as a string: a newer release of any of them is a new key, so a new prompt. */
+/** One season's release: "2025:<sha256>". Later, the pop-up and automatic retries are all tracked per release,
+ *  so updating or removing one season never brings back (or retries early) another's. */
+export const updateId = (u: Pick<SeasonUpdate, "season" | "sha256">) => `${u.season}:${u.sha256}`;
+
+/** The pending updates as one string (null: none): changes whenever any of them does. */
 export function releaseKey(updates: SeasonUpdate[]): string | null {
   if (!updates.length) return null;
-  return [...updates].sort((a, b) => a.season - b.season).map((u) => `${u.season}:${u.sha256}`).join(",");
+  return [...updates].sort((a, b) => a.season - b.season).map(updateId).join(",");
 }
 
 /**
- * none: nothing to do (no update, offline, or "Later" for this release).
+ * none: nothing to do (no update, offline, or "Later" for every one of them).
  * wait: an update is out, but Wi-Fi only and this is mobile data: no prompt, no download until Wi-Fi.
  * prompt: ask (inbox item, plus one pop-up per release).
  * download: download it now, no question.
@@ -52,26 +56,26 @@ export interface UpdateInput {
   network: UpdateNetwork;
   connection: ConnectionInfo | null | undefined;
   online: boolean;
-  /** releaseKey of the updates out now (null: none). */
-  key: string | null;
-  /** The release the person answered "Later" to. */
-  dismissed: string | null;
+  /** updateId of each update out now (none: nothing to do). */
+  pending: string[];
+  /** Releases answered "Later" (updateIds). */
+  later: string[];
 }
 
 export function decideUpdate(i: UpdateInput): UpdateAction {
-  if (!i.key || !i.online) return "none";
+  if (!i.pending.length || !i.online) return "none";
   const kind = netKind(i.connection);
   const saveData = i.connection?.saveData === true;
   if (i.network === "wifi" && kind === "cellular") return "wait";
   // Automatic only when the connection is known to be allowed; Data Saver on always asks first.
   const allowed = !saveData && (i.network === "any" || kind === "wifi");
   if (i.mode === "auto" && allowed) return "download";
-  return i.dismissed === i.key ? "none" : "prompt";
+  return i.pending.every((id) => i.later.includes(id)) ? "none" : "prompt";
 }
 
-/** Should the pop-up show? Once per release: not again after it showed, or after "Later". */
-export function shouldPopUp(action: UpdateAction, key: string | null, shown: string | null, dismissed: string | null): boolean {
-  return action === "prompt" && !!key && shown !== key && dismissed !== key;
+/** Should the pop-up show? Once per release: only for a release it hasn't shown for and that wasn't answered "Later". */
+export function shouldPopUp(action: UpdateAction, pending: string[], shown: string[], later: string[]): boolean {
+  return action === "prompt" && pending.some((id) => !shown.includes(id) && !later.includes(id));
 }
 
 /** May the lite pack (offline predictions, about 1.6 MB) download by itself on this connection? Same network
