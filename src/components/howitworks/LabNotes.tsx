@@ -39,6 +39,11 @@ const NOTES: { v: Verdict; title: string; body: string; more: string; wide?: boo
     more: "Top 10% by failure history, favourites at 80%+: stated 90.7% / won 88.8% ±2.0 (2024–25), 88.7% / 88.7% ±2.2 (2025–26). 80% ranges for those alliances covered 80.6% and 80.4%; 12.6% and 11.4% of all their scores landed above the range (about 60% of the misses).",
   },
   {
+    v: "no", title: "A growth curve for rookies and second-year teams",
+    body: "Young teams do improve during a season, but the engine already keeps up: its misses for rookies and second-year teams drift the same way as veterans' as matches pile up, not upward. There was no missing trajectory to add. What it did find is that every team is over-rated a little late in the season (after about 24 matches), a tuning question for later.",
+    more: "Miss per robot (points) by matches played, 2023–24 to 2025–26: slope per 10 matches rookies −1.04, −1.25, −1.86; year 2 −0.48, −1.38, −1.23; veterans −0.95, −1.50, −1.19. Rookie minus veteran −0.09, +0.25, −0.67, changing sign. Robots with 24–47 matches: −3 to −7 points in every band. Details in docs/engine/part12/growth.md.",
+  },
+  {
     v: "no", title: "A blend with a second and third opinion",
     body: "Mixing the engine's win odds with a win/loss-only skill rating and a margin model. On the one season none of the models had learned from, the blend was slightly worse than the engine alone; on later seasons it was a hair better, but only where the engine had already seen the matches. Winner accuracy didn't change. One model stays.",
     more: "Blend minus engine, Brier ×10⁻⁴, blend fit on the season before: 2022–23 (fully held out) +1.61 [−0.54, +3.48]; 2023–24 −0.62 [−1.06, −0.12], 2024–25 −0.98 [−2.06, +0.16], 2025–26 −0.66 [−1.77, +0.41], where the engine's learned weights had seen part of the data. Typical change to a call 0.3–1.0%. The skill rating alone was much worse (Brier about 0.20 against 0.17), and the margin model, built from the engine's own ratings, got a small, unstable weight (+0.18 once, then −0.01 to −0.09). Details in docs/engine/part12/ensemble.md.",
