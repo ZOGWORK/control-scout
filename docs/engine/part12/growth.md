@@ -46,8 +46,11 @@ The per-phase tables are in the JSON.
    - The existing growth factor and event form already keep up with the improvement that is there.
 2. **Rookies start under-rated, and the engine catches up.**
    - In the first 5 matches, rookies are under-predicted by +1.1 to +1.5 points per robot in every season, while veterans are over-predicted by 0.6 to 1.2 points.
-   - The gap closes as results come in. That is the opposite of a growth curve: a starting-prior question (`rookieZ`).
-   - 12.4's sweep of `rookieZ` found Brier flat from −0.8 to −0.6, so a few early-match points do not move the win odds.
+   - The catch-up is slow:
+     - In 2023–24 and 2024–25, rookies stay +1.1 to +2.0 under-predicted through 23 matches, and turn negative only at 24+.
+     - In 2025–26 they cross zero by 12–23 matches.
+   - A growth curve would add the most at later matches, which is the opposite of what is needed. This is a starting-prior question (`rookieZ`).
+   - 12.4's sweep of `rookieZ` (`tuning.md`, `sweep/rookieZ.json`) found 2024–25 Brier flat from −0.8 to −0.5, within 0.5×10⁻⁴. So the early rookie miss, about 1.5 points per robot, does not move the win odds enough to retune.
 3. **A small late-season over-rating appears in every band:** −0.8 to −3.1 points per robot at 24–47 matches.
    - These robots play late, stronger events (championships, playoffs against full-strength alliances).
    - It is not an experience effect. It goes to 12.4, which sweeps `growthPerWeek` and `growthMaxWeeks`.
