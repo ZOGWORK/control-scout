@@ -49,6 +49,9 @@ beforeAll(async () => {
   await match("CLIPS", 2, `${DAY}T16:55:18`);          // 3:57:05 in
   await match("CLIPS", 3, `${DAY}T18:00:00`);          // after the video ends
   await match("CLIPS", 4, `${DAY}T14:00:00`, false);   // not played: its time is a schedule
+  await match("CLIPS", 5, `${DAY}T15:00:00`);          // played, but posted without a start: the schedule
+  await event("ELSEWHEN", `https://www.youtube.com/watch?v=${FIRST_ID}`); // same video, matches on another day
+  await match("ELSEWHEN", 1, `2026-05-01T13:00:13`);
   await event("GONE", `https://youtu.be/${GONE_ID}`);
   await event("UPLOAD", `youtube.com/live/${UPLOAD_ID}?feature=share`);
   await match("UPLOAD", 1, `${DAY}T13:00:13`);
@@ -90,6 +93,7 @@ describe("event recordings", () => {
     expect(clip(2).t).toBe(14205);
     expect(clip(3)).toBeNull(); // after the video ends
     expect(clip(4)).toBeNull(); // not played
+    expect(clip(5)).toBeNull(); // played, on the minute: a schedule
     const m = await getJson(`/api/events/${S}/CLIPS/matches/qual:0:1`);
     expect(m.match.clip.t).toBe(100);
   });
@@ -110,21 +114,37 @@ describe("event recordings", () => {
     for (const code of ["GONE", "CHANNEL", "TWITCH"]) expect((await getJson(`/api/events/${S}/${code}`)).event.stream).toBeUndefined();
   });
 
-  it("the events list says what there is to watch", async () => {
+  it("the events list says what there is to watch (match clips only when a played match gets one)", async () => {
     const { events } = await getJson(`/api/events?season=${S}`);
     const by = Object.fromEntries(events.map((e: any) => [e.code, e.video ?? null]));
-    expect(by).toEqual({ CLIPS: "clips", OWNER: "clips", OFFICIAL: "clips", UPLOAD: "recording", GAPPED: "recording", GONE: null, CHANNEL: null, TWITCH: null });
+    expect(by).toEqual({ CLIPS: "clips", OWNER: "clips", OFFICIAL: "clips", UPLOAD: "recording", GAPPED: "recording", ELSEWHEN: "recording", GONE: null, CHANNEL: null, TWITCH: null });
+  });
+});
+
+describe("a page that can't be read", () => {
+  it("keeps the facts read before, a live broadcast still live, so it's read again on the live beat", async () => {
+    const LIVE_ID = "LiveStream1";
+    await event("LIVE", `https://www.youtube.com/watch?v=${LIVE_ID}`);
+    const then = Date.parse("2026-05-02T14:00:00Z");
+    const live = (async () => new Response(`"playabilityStatus":{"status":"OK"},"liveBroadcastDetails":{"isLiveNow":true,"startTimestamp":"${DAY}T12:00:00+00:00"}`)) as unknown as typeof fetch;
+    const down = (async () => { throw new Error("offline"); }) as unknown as typeof fetch;
+    await backfillVideoMeta(() => {}, { gapMs: 0, fetchImpl: live, now: () => then });
+    expect(await backfillVideoMeta(() => {}, { gapMs: 0, fetchImpl: down, now: () => then + 6 * 60_000 })).toBe(1);
+    expect(await get("SELECT status, start, live FROM video_meta WHERE video_id = ?", [LIVE_ID])).toEqual({ status: "ok", start: `${DAY}T12:00:00.000Z`, live: 1 });
+    expect(await backfillVideoMeta(() => {}, { gapMs: 0, fetchImpl: live, now: () => then + 12 * 60_000 })).toBe(1); // due again
   });
 });
 
 describe("when a video is read again", () => {
   const meta = (m: Partial<VideoMeta>): VideoMeta => ({ videoId: "x", status: "ok", start: null, end: null, length: 1, live: false, checkedAt: "2026-05-02T00:00:00Z", ...m });
   const t = (iso: string) => Date.parse(iso);
-  it("never read: now; an error: after a day; a live broadcast: after 5 minutes", () => {
+  it("never read: now; an error: after a day; a live broadcast: after 5 minutes; a scheduled one: after an hour", () => {
     expect(due(null, 0)).toBe(true);
+    expect(due(meta({ live: true, start: null }), t("2026-05-02T00:30:00Z"))).toBe(false);
+    expect(due(meta({ live: true, start: null }), t("2026-05-02T01:01:00Z"))).toBe(true);
     expect(due(meta({ status: "error" }), t("2026-05-02T23:00:00Z"))).toBe(false);
     expect(due(meta({ status: "error" }), t("2026-05-03T01:00:00Z"))).toBe(true);
-    expect(due(meta({ live: true }), t("2026-05-02T00:06:00Z"))).toBe(true);
+    expect(due(meta({ live: true, start: "2026-05-01T23:00:00Z" }), t("2026-05-02T00:06:00Z"))).toBe(true);
   });
   it("a fresh archive after 6 hours for 2 days, then never; an upload or removed video never", () => {
     const fresh = meta({ start: "2026-05-01T12:00:00Z", end: "2026-05-01T20:00:00Z" });

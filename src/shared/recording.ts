@@ -38,6 +38,17 @@ export function clipSecond(startsAt: string | null | undefined, rec: RecordingTi
   return Math.max(0, offset - CLIP_LEAD_S);
 }
 
+/**
+ * Whether a played match's time is when it really started. FIRST's actual start carries seconds and
+ * milliseconds ("2026-05-02T11:55:18.162"); a result posted without one falls back to the schedule, which
+ * is on the minute ("09:00:00"). In the 2025 data: 2 of 45,421 played matches are on the minute, 219 of
+ * 228 unplayed ones. A schedule would put the Watch on another match, so on-the-minute times get none.
+ */
+export function actualStart(time: string | null | undefined): boolean {
+  const m = time ? /T\d\d:\d\d:(\d\d)(?:\.(\d+))?/.exec(time) : null;
+  return !!m && (m[1] !== "00" || /[1-9]/.test(m[2] ?? ""));
+}
+
 /** YouTube's own page for the video at a second (the link when the page has no player to seek). */
 export const watchUrl = (videoId: string, t?: number | null) => `https://www.youtube.com/watch?v=${videoId}${t ? `&t=${t}s` : ""}`;
 
