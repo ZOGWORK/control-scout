@@ -80,6 +80,23 @@ describe("overlayModel", () => {
     expect(overlayModel(after, railModel(after, T0, flip), T0).verdict).toBe("called");
   });
 
+  it("after its minute, the last result stays judged against the call that was on screen", () => {
+    // Scored, the match's own prediction became a different one (a backtest favouring blue): the shown call still counts.
+    const scored = { ...q(1, [100, 90]), prediction: { ...q(1).prediction!, pRed: 0.3, kind: "backtest" as const } };
+    const shown = q(1).prediction;
+    const flip = nextFlip({ key: "qual:0:1", prediction: shown }, [scored], T0, null);
+    for (const status of ["live", "finished"] as const) {
+      const d = ev([scored], status);
+      const m = overlayModel(d, railModel(d, T0 + RESULT_MS + 1, flip), T0 + RESULT_MS + 1, flip);
+      expect(m.kind).toBe("last");
+      expect(m.prediction).toBe(shown);
+      expect(m.verdict).toBe("called");
+    }
+    // No flip for that match (the page opened after it): its own prediction.
+    const d = ev([scored], "finished");
+    expect(overlayModel(d, railModel(d, T0, null), T0, null).verdict).toBe("upset");
+  });
+
   it("a played match lists only the teams on the field", () => {
     const m = q(1, [100, 90]);
     m.red.teams = [t(11), t(12), t(19, false)];
