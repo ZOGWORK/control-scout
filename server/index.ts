@@ -2,6 +2,7 @@
 // background schedule — sync daily, every 15–60 min on event days (stats and
 // the prediction ledger after every sync), and every minute for events that
 // are on right now (the live fast lane).
+import { backfillVideoMeta } from "./videos/recordings.js";
 import "./env.js";
 import { env } from "./env.js";
 import { migrate, all, openReplicaIfRemote } from "./db.js";
@@ -175,6 +176,11 @@ if (!process.env.CS_NO_SCHEDULER) {
   };
   setTimeout(radar, 75_000).unref();
   setInterval(radar, REFRESH_EVERY_MS).unref();
+  // Event recordings (server/videos/recordings.ts): YouTube's timing for each linked video, so matches link to their
+  // second in it. New links soon after boot and every 5 minutes (a live broadcast is read again on that beat).
+  const recordings = () => { backfillVideoMeta(log).catch((e) => log(`recordings: ${(e as Error).message}`)); };
+  setTimeout(recordings, 150_000).unref();
+  setInterval(recordings, 5 * 60_000).unref();
 }
 // The live fast lane: events on today, every LIVE_SYNC_SECONDS (60), results within about a minute
 // (server/data/live.ts). It shares a writer lease with the cycle above, so the two never write at once.
