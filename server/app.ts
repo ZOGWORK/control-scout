@@ -78,7 +78,7 @@ import { MATCH_KEY, ShareError, cachedCard, cardKey, matchCard } from "./share/m
 import { env } from "./env.js";
 import { r2 } from "./scout/r2.js";
 import { fakeR2Router } from "./scout/fakeR2.js";
-import type { EventRefreshResult, ForecastView, MatchExplanationView, Meta } from "../src/shared/api.js";
+import type { EventRefreshResult, ForecastView, MatchExplanationView, Meta, SearchHit } from "../src/shared/api.js";
 
 export class HttpError extends Error { constructor(readonly status: number, message: string) { super(message); } }
 const bad = (msg: string) => new HttpError(400, msg);
@@ -273,7 +273,9 @@ export function createApp() {
   api.get("/search", h(async (req) => {
     await ensureSearchIndex(rebuildSearch);
     const prefer = new Set(String(req.query.prefer ?? "").split(",").filter((k) => /^(team:\d{1,6}|event:\d{4}:[A-Z0-9_-]{2,24})$/i.test(k)).slice(0, 100));
-    return { q: String(req.query.q ?? ""), hits: await search(String(req.query.q ?? "").slice(0, 80), boundedCount(req.query.limit, "limit", 12, 1, 25), prefer) };
+    // ?kinds=event,place: only those kinds, picked before the limit (unknown names are ignored).
+    const kinds = new Set(String(req.query.kinds ?? "").split(",").filter((k): k is SearchHit["kind"] => k === "team" || k === "event" || k === "match" || k === "place"));
+    return { q: String(req.query.q ?? ""), hits: await search(String(req.query.q ?? "").slice(0, 80), boundedCount(req.query.limit, "limit", 12, 1, 25), prefer, kinds) };
   }));
 
   // Weather in a team's home town, for the top bar (shown only when you've set your team).

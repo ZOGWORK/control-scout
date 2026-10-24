@@ -24,6 +24,7 @@ beforeAll(async () => {
   await run("INSERT INTO events (season, code, name, city, state, country, start, source) VALUES (2026, 'USNJRAM1', 'P1-5 AM Northeast League Meet', 'Ramsey', 'NJ', 'USA', '2026-11-07', 'first')");
   for (const [season, code, name] of [[2026, "USNJCMP", "New Jersey Championship"], [2025, "USNJCMP", "New Jersey Championship"], [2025, "USNJCMPPKWY", "New Jersey Championship - Parkway Division"]] as const)
     await run("INSERT INTO events (season, code, name, city, state, country, start, source) VALUES (?, ?, ?, 'Union', 'NJ', 'USA', '2027-03-14', 'first')", [season, code, name]);
+  await run("INSERT INTO events (season, code, name, city, state, country, start, source) VALUES (2026, 'USTXCAP', 'Capitol Qualifier', 'Austin', 'TX', 'USA', '2026-12-05', 'first')");
   await run("INSERT INTO matches (season, code, level, series, number, label, played, source) VALUES (2025, 'AUSYQ1', 'qual', 0, 12, 'Q12', 1, 'first')");
   await rebuildSearch();
 });
@@ -111,6 +112,16 @@ describe("search", () => {
     fail = false;
     expect(await titles("dirve")).toContain("16321 X Drive"); // ties with "Drive Team" (preference test)
     (c as any).execute = real;
+  });
+  it("keeps to the asked kinds before the limit, so teams can't crowd events out", async () => {
+    // Two Austin teams and one Austin event: a 1-hit, events-only search still gets the event.
+    expect((await search("austin", 1))[0]?.kind).toBe("team"); // without kinds a team takes the one slot
+    expect(await search("austin", 1, new Set(), new Set(["event"]))).toEqual([expect.objectContaining({ kind: "event", ref: "2026:USTXCAP" })]);
+    expect((await search("austn", 5, new Set(), new Set(["event", "place"]))).every((h) => h.kind === "event" || h.kind === "place")).toBe(true);
+    expect(await search("1622", 5, new Set(), new Set(["event", "place"]))).toEqual([]);
+    expect((await search("new jersey", 12, new Set(), new Set(["event"]))).some((h) => h.kind === "place")).toBe(false);
+    expect((await search("new jersey", 12, new Set(), new Set(["place"])))[0]).toMatchObject({ kind: "place", ref: "USA:NJ" });
+    expect(await search("AUSYQ1 Q12", 5, new Set(), new Set(["team"]))).toEqual([]);
   });
   it("doesn't return far-off guesses", async () => {
     expect(await titles("garden state")).toEqual([]);

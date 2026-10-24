@@ -87,10 +87,10 @@ export async function offlineProjections(season: number, code: string): Promise<
   return v ? markOffline(v, src) : null;
 }
 
-export async function offlineSearch(q: string, limit = 15, prefer: ReadonlySet<string> = new Set()): Promise<{ q: string; hits: SearchHit[] } | null> {
+export async function offlineSearch(q: string, limit = 15, prefer: ReadonlySet<string> = new Set(), kinds?: ReadonlySet<SearchHit["kind"]>): Promise<{ q: string; hits: SearchHit[] } | null> {
   return readSaved(undefined, (dbs) => {
     const src = dbs[0] && source(dbs[0].season);
-    return src ? markOffline({ q, hits: readSearch(dbs, q.slice(0, 80), limit, prefer) }, src) : null;
+    return src ? markOffline({ q, hits: readSearch(dbs, q.slice(0, 80), limit, prefer, kinds) }, src) : null;
   });
 }
 
@@ -107,7 +107,8 @@ export async function offlineAnswer(path: string): Promise<unknown | null> {
   if ((m = /^\/api\/projections\/(\d{4})\/([^/]+)$/.exec(url.pathname))) return offlineProjections(Number(m[1]), decodeURIComponent(m[2]));
   if (url.pathname === "/api/search") {
     const prefer = new Set((url.searchParams.get("prefer") ?? "").split(",").filter(Boolean));
-    return offlineSearch(url.searchParams.get("q") ?? "", Math.min(25, int(url.searchParams.get("limit")) || 12), prefer);
+    const kinds = new Set((url.searchParams.get("kinds") ?? "").split(",").filter((k): k is SearchHit["kind"] => k === "team" || k === "event" || k === "match" || k === "place"));
+    return offlineSearch(url.searchParams.get("q") ?? "", Math.min(25, int(url.searchParams.get("limit")) || 12), prefer, kinds);
   }
   return null;
 }
