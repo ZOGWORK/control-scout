@@ -32,7 +32,10 @@ export function TabsList({ className, ref, ...props }: React.ComponentProps<type
     el.addEventListener('scroll', update, { passive: true });
     const ro = typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(update);
     ro?.observe(el);
-    return () => { el.removeEventListener('scroll', update); ro?.disconnect(); };
+    // A full-width strip keeps its own size while its tabs grow (counts loading in, a tab added), so watch them too.
+    const mo = typeof MutationObserver === 'undefined' ? null : new MutationObserver(update);
+    mo?.observe(el, { childList: true, subtree: true, characterData: true });
+    return () => { el.removeEventListener('scroll', update); ro?.disconnect(); mo?.disconnect(); };
   }, []);
   const setRef = React.useCallback((el: HTMLDivElement | null) => {
     own.current = el;
