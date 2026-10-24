@@ -79,6 +79,16 @@ it("lists matches by number, never by start time", () => {
   expect([...container.querySelectorAll("[data-match]")].map((r) => r.getAttribute("data-match"))).toEqual(["qual:0:1", "qual:0:2", "qual:0:3", "qual:0:4", "qual:0:10"]);
 });
 
+it("keeps the order when the first match was played last; a newest-first list says so", () => {
+  const order = (c: HTMLElement) => [...c.querySelectorAll("[data-match]")].map((r) => r.getAttribute("data-match"));
+  const { container, rerender } = render(view([match(2), match(3), match(4), match(1)], null));
+  expect(order(container)).toEqual(["qual:0:1", "qual:0:2", "qual:0:3", "qual:0:4"]);
+  act(() => rerender(view([match(2), match(1)], null)));
+  expect(order(container)).toEqual(["qual:0:1", "qual:0:2"]);
+  act(() => rerender(<MemoryRouter><TooltipProvider><MatchList matches={[match(1), match(4), match(2), match(3)]} newestFirst /></TooltipProvider></MemoryRouter>));
+  expect(order(container)).toEqual(["qual:0:4", "qual:0:3", "qual:0:2", "qual:0:1"]);
+});
+
 const phone = (on: boolean) => {
   window.matchMedia = ((q: string) => ({ matches: on && q.includes("max-width"), media: q, addEventListener() {}, removeEventListener() {} })) as unknown as typeof window.matchMedia;
 };

@@ -202,7 +202,7 @@ function Dashboard({ team }: { team: number }) {
                 </Section>
               )}
               <Section title={isCurrent ? "Recent results" : `Every match (${d.matches.length})`} description="Was each one called before it was played?">
-                <MatchList matches={recent} highlight={team} eventNames={eventInfo.names} eventDates={eventInfo.dates} outcomeAccent empty={`No matches played ${when}.`} />
+                <MatchList matches={recent} highlight={team} eventNames={eventInfo.names} eventDates={eventInfo.dates} outcomeAccent newestFirst empty={`No matches played ${when}.`} />
               </Section>
             </>
           );
