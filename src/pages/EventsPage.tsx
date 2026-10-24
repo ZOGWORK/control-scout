@@ -4,7 +4,7 @@
 // (search links here with ?region=USA:NJ).
 import { memo, startTransition, useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
-import { ArrowRight, CalendarDays, Check, ChevronDown, MapPin, Radio, Search, Users, X } from "lucide-react";
+import { ArrowRight, CalendarDays, Check, ChevronDown, MapPin, MonitorPlay, Radio, Search, Users, X } from "lucide-react";
 import { useApi, qs } from "../lib/api";
 import { useCurrentSeason, useTitle } from "../lib/meta";
 import type { EventListItem } from "../shared/api";
@@ -23,7 +23,7 @@ import { EVENT_FILTER_COUNT, EVENT_STATUS_TONE, EVENT_TYPE_TONE } from "../lib/t
 import { dateRange, place, seasonLabel } from "../lib/format";
 import { eventTypeLabel } from "../shared/labels";
 import { regionLabel, regionNames } from "../shared/regions";
-import { applyFilters, FIRST_EVENTS, groupWeeks, MORE_EVENTS, placeKey, takeBatch, weekOf, type Filters, type Status } from "./eventsList";
+import { applyFilters, FIRST_EVENTS, groupWeeks, MORE_EVENTS, placeKey, takeBatch, weekOf, type Filters, type Status, type VideoFilter } from "./eventsList";
 
 const addDays = (d: string, n: number) => { const x = new Date(`${d}T00:00:00Z`); x.setUTCDate(x.getUTCDate() + n); return x.toISOString().slice(0, 10); };
 // Formatters made once (toLocaleDateString builds a new one on every call).
@@ -34,6 +34,8 @@ const fmtDay = (d: string, year = false) => (year ? DAY_YEAR : DAY).format(new D
 const placeName = (key: string) => (key.includes(":") ? regionLabel(key) : key);
 
 const toneOfType = (t: string | null) => EVENT_TYPE_TONE[t ?? ""] ?? { bar: "bg-text-base/25", text: "text-muted-foreground" };
+
+const VIDEO_LABEL: Record<Exclude<VideoFilter, "all">, string> = { recording: "Has a recording", clips: "Match clips" };
 
 const STATUS: { v: Status; label: string; dot: string }[] = [
   { v: "all", label: "All", dot: "bg-text-base/40" },
@@ -50,6 +52,7 @@ export default function EventsPage() {
   const type = sp.get("type") ?? "all";
   const status = (["live", "upcoming", "finished"].includes(sp.get("status") ?? "") ? sp.get("status") : "all") as Status;
   const from = sp.get("from"), to = sp.get("to");
+  const video: VideoFilter = sp.get("video") === "clips" ? "clips" : sp.get("video") === "recording" ? "recording" : "all";
   const urlQ = sp.get("q") ?? "";
   // One place for URL edits: empty values drop out, history isn't flooded while typing.
   const set = useCallback((patch: Record<string, string | null>, replace = true) => setSp((x) => {
@@ -65,10 +68,10 @@ export default function EventsPage() {
   // Typing refines one history entry; taking the search off as a whole (its chip) is a step Back undoes.
   const onQ = (v: string, replace = true) => { setQ(v); wrote.current = v; set({ q: v }, replace); };
   const listQ = useDeferredValue(q);
-  const clear = useCallback(() => set({ region: null, type: null, status: null, from: null, to: null, q: null }, false), [set]);
+  const clear = useCallback(() => set({ region: null, type: null, status: null, from: null, to: null, q: null, video: null }, false), [set]);
   useTitle(`Events ${seasonLabel(season)}`);
   const state = useApi<{ events: EventListItem[] }>(`/api/events${qs({ season })}`);
-  const active = !!(region || type !== "all" || status !== "all" || from || to || q);
+  const active = !!(region || type !== "all" || status !== "all" || from || to || q || video !== "all");
   const compact = useCompactFilters();
   const nav = useNavigate();
   return (
@@ -85,15 +88,15 @@ export default function EventsPage() {
       {/* Today's coin flips across every event on today: only this season's events can be on today. */}
       {season === current && <div className="mb-8"><CoinFlipRadarSection /></div>}
       {/* The filter bar stays up while loading or on an error, so another season can always be picked. */}
-      <FilterBar season={season} onSeason={(s) => set({ season: String(s), from: null, to: null }, false)} events={state.data?.events ?? []} {...{ region, type, status, from, to, q, listQ, onQ, set, active }} onClear={clear} />
+      <FilterBar season={season} onSeason={(s) => set({ season: String(s), from: null, to: null }, false)} events={state.data?.events ?? []} {...{ region, type, status, from, to, q, video, listQ, onQ, set, active }} onClear={clear} />
       <Async state={state} empty={(d) => !d.events.length && <EmptyState icon={CalendarDays} title={`No events listed for ${seasonLabel(season)} yet`} />}>
-        {(d) => <Weeks events={d.events} {...{ region, type, status, from, to }} q={listQ} onClear={clear} />}
+        {(d) => <Weeks events={d.events} {...{ region, type, status, from, to, video }} q={listQ} onClear={clear} />}
       </Async>
     </div>
   );
 }
 
-function FilterBar({ season, onSeason, events, region, type, status, from, to, q, listQ, onQ, set, active, onClear }: Filters & {
+function FilterBar({ season, onSeason, events, region, type, status, from, to, q, video = "all", listQ, onQ, set, active, onClear }: Filters & {
   season: number; onSeason: (s: number) => void; events: EventListItem[]; active: boolean;
   /** The text the list is filtered by (deferred behind the box's own `q`). */
   listQ: string; onQ: (q: string, replace?: boolean) => void; onClear: () => void;
@@ -105,7 +108,7 @@ function FilterBar({ season, onSeason, events, region, type, status, from, to, q
     return [...m.entries()].sort((a, b) => b[1] - a[1]);
   }, [events]);
   // Status counts follow the other filters, so each chip says what tapping it shows.
-  const base = useMemo(() => applyFilters(events, { region, type, from, to, q: listQ }), [events, region, type, from, to, listQ]);
+  const base = useMemo(() => applyFilters(events, { region, type, from, to, q: listQ, video }), [events, region, type, from, to, listQ, video]);
   const counts = { all: base.length, live: 0, upcoming: 0, finished: 0 } as Record<Status, number>;
   for (const e of base) counts[e.status]++;
   const compact = useCompactFilters();
@@ -116,6 +119,18 @@ function FilterBar({ season, onSeason, events, region, type, status, from, to, q
       <SelectContent className="min-w-[14rem]">
         <SelectItem value="all">All event types</SelectItem>
         {types.map(([t, n]) => <SelectItem key={t} value={t}><span className="inline-flex items-center gap-2"><span className={cn("size-2 rounded-full", toneOfType(t).bar)} />{eventTypeLabel(t)} <span className="text-muted-foreground">{n}</span></span></SelectItem>)}
+      </SelectContent>
+    </Select>
+  );
+  const videoCounts = { recording: 0, clips: 0 };
+  for (const e of events) { if (e.video) videoCounts.recording++; if (e.video === "clips") videoCounts.clips++; }
+  const videoPicker = (
+    <Select value={video} onValueChange={(v) => set({ video: v }, false)}>
+      <SelectTrigger className={cn("h-9 w-auto gap-2 rounded-lg px-3 font-medium max-sm:h-10", video !== "all" ? "border-accent/60 bg-accent/[0.08]" : "border-line bg-card")} aria-label="Video"><SelectValue /></SelectTrigger>
+      <SelectContent className="min-w-[14rem]">
+        <SelectItem value="all">Any video</SelectItem>
+        <SelectItem value="recording"><span className="inline-flex items-center gap-2"><MonitorPlay className="size-4 text-[#ff4d6d]" />Has a recording <span className="text-muted-foreground">{videoCounts.recording}</span></span></SelectItem>
+        <SelectItem value="clips"><span className="inline-flex items-center gap-2"><MonitorPlay className="size-4 text-[#ff4d6d]" />Match clips <span className="text-muted-foreground">{videoCounts.clips}</span></span></SelectItem>
       </SelectContent>
     </Select>
   );
@@ -139,6 +154,7 @@ function FilterBar({ season, onSeason, events, region, type, status, from, to, q
     if (region) chips.push({ id: "region", label: <><MapPin className="inline size-3.5 text-sky-500" aria-hidden /> {placeName(region)}</>, name: `Place: ${placeName(region)}`, onRemove: () => set({ region: null }, false) });
     if (type !== "all") chips.push({ id: "type", label: eventTypeLabel(type), name: `Event type: ${eventTypeLabel(type)}`, onRemove: () => set({ type: null }, false) });
     if (from || to) chips.push({ id: "dates", label: dateRangeText(from, to), name: `Dates: ${dateRangeText(from, to)}`, onRemove: () => set({ from: null, to: null }, false) });
+    if (video !== "all") chips.push({ id: "video", label: <><MonitorPlay className="inline size-3.5 text-[#ff4d6d]" aria-hidden /> {VIDEO_LABEL[video]}</>, name: `Video: ${VIDEO_LABEL[video]}`, onRemove: () => set({ video: null }, false) });
     if (status !== "all") { const s = STATUS.find((x) => x.v === status)!; chips.push({ id: "status", label: s.label, name: `Status: ${s.label}`, onRemove: () => set({ status: null }, false) }); }
     if (q.trim()) chips.push({ id: "q", label: <><Search className="inline size-3.5" aria-hidden /> {q.trim()}</>, name: `Text: ${q.trim()}`, onRemove: () => onQ("", false) });
     const n = counts[status];
@@ -148,6 +164,7 @@ function FilterBar({ season, onSeason, events, region, type, status, from, to, q
         <FilterSection label="Search">{search}</FilterSection>
         <FilterSection label="Status">{statusChips}</FilterSection>
         <FilterSection label="Where, what and when">{place}{typePicker}{dates}</FilterSection>
+        <FilterSection label="Video">{videoPicker}</FilterSection>
       </CompactFilters>
     );
   }
@@ -158,6 +175,7 @@ function FilterBar({ season, onSeason, events, region, type, status, from, to, q
         {place}
         {typePicker}
         {dates}
+        {videoPicker}
         {search}
       </div>
       <div className="flex flex-wrap items-center gap-1.5">
@@ -242,8 +260,8 @@ function PlaceRow({ on, name, n, onClick }: { on: boolean; name: string; n: numb
 // The list renders a bounded first batch (FIRST_EVENTS cards) and adds MORE_EVENTS each time the
 // end of the list nears the screen, or on "Show more". Memoised, so typing in the filter box
 // re-renders the box alone and the cards follow on the deferred text.
-const Weeks = memo(function Weeks({ events, region, type, status, from, to, q, onClear }: { events: EventListItem[]; onClear: () => void } & Filters) {
-  const list = useMemo(() => applyFilters(events, { region, type, from, to, q }).filter((e) => status === "all" || e.status === status), [events, region, type, status, from, to, q]);
+const Weeks = memo(function Weeks({ events, region, type, status, from, to, q, video, onClear }: { events: EventListItem[]; onClear: () => void } & Filters) {
+  const list = useMemo(() => applyFilters(events, { region, type, from, to, q, video }).filter((e) => status === "all" || e.status === status), [events, region, type, status, from, to, q, video]);
   // The budget belongs to one result list: new filters start from the first batch again, in the same render.
   const [page, setPage] = useState({ list, n: FIRST_EVENTS });
   const budget = page.list === list ? page.n : FIRST_EVENTS;
@@ -302,6 +320,8 @@ const EventTile = memo(function EventTile({ e }: { e: EventListItem }) {
         <span className={cn("truncate font-semibold", tone.text)}>{e.typeLabel}</span>
         {/* On now with a stream to watch on its page (Watch live). */}
         {e.status === "live" && e.stream && <span className="inline-flex shrink-0 items-center gap-1 font-bold text-red-500" title="Live stream on the event page" data-stream-live><span aria-hidden className="size-2 rounded-full bg-red-500" />LIVE<span className="sr-only"> stream</span></span>}
+        {/* Finished with something to watch: the recording, or matches that link to their own second in it. */}
+        {e.status === "finished" && e.video && <span className="inline-flex shrink-0 items-center gap-1 font-semibold text-[#ff4d6d]" title={e.video === "clips" ? "Recording with a Watch button on each match" : "Recording on the event page"} data-video={e.video}><MonitorPlay className="size-3.5" aria-hidden />{e.video === "clips" ? "Clips" : "Video"}</span>}
         {e.teams > 0 && <span className="ml-auto inline-flex shrink-0 items-center gap-1 tabular-nums text-muted-foreground"><Users className="size-3.5" />{e.teams}</span>}
       </div>
       <p className="mt-2 line-clamp-2 font-medium leading-snug group-hover:text-accent-text">{e.name}</p>
