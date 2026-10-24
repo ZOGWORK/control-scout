@@ -166,19 +166,25 @@ describe("FIRST's link to a YouTube video", () => {
 });
 
 describe("with a YouTube API key", () => {
-  it("reads due videos 50 to a request through the API, never the watch page", async () => {
+  it("reads due videos 50 to a request through the API, every batch saved, never the watch page", async () => {
     await run("DELETE FROM video_meta");
-    const asked: string[] = [];
+    // 51 more linked videos, so the due ones need two requests.
+    const extra = Array.from({ length: 51 }, (_, i) => `Batch${String(i).padStart(6, "0")}`);
+    for (const [i, id] of extra.entries()) await event(`B${i}`, `https://www.youtube.com/watch?v=${id}`);
+    const sizes: number[] = [];
     const api = (async (url: string) => {
-      asked.push(url);
       expect(url).toContain("googleapis.com/youtube/v3/videos");
       const ids = new URL(url).searchParams.get("id")!.split(",");
+      sizes.push(ids.length);
       return Response.json({ items: ids.filter((id) => id !== GONE_ID).map((id) => ({ id, contentDetails: { duration: "PT4H35M41S" }, liveStreamingDetails: { actualStartTime: `${DAY}T12:58:13Z`, actualEndTime: `${DAY}T17:33:56Z` } })) });
     }) as unknown as typeof fetch;
     const n = await backfillVideoMeta(() => {}, { apiKey: "KEY", gapMs: 0, fetchImpl: api });
-    expect(n).toBeGreaterThanOrEqual(5);
-    expect(asked).toHaveLength(1);
+    expect(sizes[0]).toBe(50);
+    expect(sizes.reduce((a, b) => a + b, 0)).toBe(n);
+    expect(sizes.length).toBe(Math.ceil(n / 50));
+    expect(n).toBeGreaterThan(51);
     expect(await get("SELECT status, duration FROM video_meta WHERE video_id = ?", [FIRST_ID])).toEqual({ status: "ok", duration: 16541 });
+    expect(await get("SELECT status, duration FROM video_meta WHERE video_id = ?", [extra[extra.length - 1]])).toEqual({ status: "ok", duration: 16541 });
     expect(await get("SELECT status FROM video_meta WHERE video_id = ?", [GONE_ID])).toEqual({ status: "unavailable" });
   });
 });

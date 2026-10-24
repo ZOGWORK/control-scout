@@ -94,10 +94,12 @@ export async function fetchFromApi(ids: string[], key: string, fetchImpl: typeof
     const q = new URLSearchParams({ part: "liveStreamingDetails,contentDetails", id: ids.slice(0, 50).join(","), key, maxResults: "50" });
     const res = await fetchImpl(`https://www.googleapis.com/youtube/v3/videos?${q}`, { signal: AbortSignal.timeout(20_000) });
     if (!res.ok) return out;
-    const body = await res.json() as { items?: any[] };
-    for (const id of ids) out.set(id, UNAVAILABLE);
-    for (const item of body.items ?? []) if (out.has(String(item.id))) out.set(String(item.id), apiFacts(item));
-    return out;
+    const body = await res.json() as { items?: unknown };
+    // Only a well-formed answer can say a video is gone: anything else leaves them all to try again.
+    if (!Array.isArray(body?.items)) return out;
+    const read = new Map<string, WatchPageFacts>(ids.map((id) => [id, UNAVAILABLE]));
+    for (const item of body.items) if (item && read.has(String(item.id))) read.set(String(item.id), apiFacts(item));
+    return read;
   } catch {
     return out;
   }
