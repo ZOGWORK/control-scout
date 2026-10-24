@@ -19,8 +19,17 @@ const EVENTS: EventListItem[] = Array.from({ length: 150 }, (_, i) => ({
 }) as unknown as EventListItem);
 const TEXAS = EVENTS.filter((_, i) => i % 3 === 0).length;
 
+// What /api/search answers: a team ahead of the events, as for a team-ish query.
+const searched: string[] = [];
+const HITS = [
+  { kind: "team", ref: "19477", title: "19477 Bit by Bit", subtitle: "Tenafly, NJ, USA", season: 2026 },
+  { kind: "event", ref: "2026:USTXAMS", title: "Amarillo Scrimmage", subtitle: "Amarillo, TX", season: 2026 },
+  { kind: "place", ref: "USA:TX", title: "All events in Texas", subtitle: "40 this season", season: 2026 },
+];
+vi.mock("../lib/personal", () => ({ usePersonal: () => ({ state: { myTeam: null, tracked: { teams: [], events: [] }, bookmarks: [] } }) }));
 vi.mock("../lib/api", async (orig) => ({
   ...(await orig<typeof import("../lib/api")>()),
+  apiFetch: async (path: string) => { searched.push(path); return { hits: HITS }; },
   useApi: (path: string | null) => ({ data: path?.startsWith("/api/events") ? { events: EVENTS } : undefined, error: undefined, loading: false, reload: () => {} }),
 }));
 // Today's coin flips have their own tests (CoinFlipRadar.test.tsx).
@@ -42,9 +51,9 @@ const scrollToEnd = () => act(() => {
   o.cb([{ isIntersecting: true, target: o.el! } as IntersectionObserverEntry], o as unknown as IntersectionObserver);
 });
 
-let loc = "";
+let loc = "", path = "";
 let nav: NavigateFunction;
-function Probe() { loc = useLocation().search; nav = useNavigate(); return null; }
+function Probe() { const l = useLocation(); loc = l.search; path = l.pathname; nav = useNavigate(); return null; }
 
 const { default: EventsPage } = await import("./EventsPage");
 const mount = (url = "/events") => render(<MemoryRouter initialEntries={[url]}><EventsPage /><Probe /></MemoryRouter>);
@@ -150,6 +159,20 @@ describe("Events page on a phone", () => {
     expect(new URLSearchParams(loc).get("q")).toBeNull();
     fireEvent.click(filtersButton());
     expect(((await screen.findByLabelText("Filter events")) as HTMLInputElement).value).toBe("");
+  });
+
+  it("has its own search for events and places, no teams, and a pick opens it", async () => {
+    phone();
+    mount();
+    const box = screen.getByRole("combobox", { name: "Search events" });
+    fireEvent.focus(box);
+    fireEvent.change(box, { target: { value: "amarillo" } });
+    const options = await screen.findAllByRole("option");
+    expect(options.map((o) => o.textContent)).toEqual([expect.stringContaining("All events in Texas"), expect.stringContaining("Amarillo Scrimmage")]);
+    expect(searched.at(-1)).toContain("limit=25"); // room for events when teams crowd the top hits
+    fireEvent.click(options[1]);
+    expect(path).toBe("/events/2026/USTXAMS");
+    expect(screen.queryByRole("option")).toBeNull();
   });
 
   it("the sheet has the search box, status, place, type and dates; Escape closes it", async () => {
