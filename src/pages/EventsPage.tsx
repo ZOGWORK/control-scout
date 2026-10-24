@@ -3,7 +3,7 @@
 // text — all kept in the URL so a filtered list can be shared or bookmarked
 // (search links here with ?region=USA:NJ).
 import { memo, startTransition, useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
-import { Link, useSearchParams } from "react-router-dom";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { ArrowRight, CalendarDays, Check, ChevronDown, MapPin, Radio, Search, Users, X } from "lucide-react";
 import { useApi, qs } from "../lib/api";
 import { useCurrentSeason, useTitle } from "../lib/meta";
@@ -16,6 +16,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "../components/ui/overla
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../components/ui/controls";
 import { dateRangeText, DateRangePicker, SeasonSelect } from "../components/records/Controls";
 import { CompactFilters, FilterSection, useCompactFilters, type FilterChip } from "../components/CompactFilters";
+import { SearchBox, hitHref } from "../components/search/SearchBox";
 import { cn } from "../components/cn";
 import { CoinFlipRadarSection } from "../components/home/CoinFlipRadar";
 import { EVENT_FILTER_COUNT, EVENT_STATUS_TONE, EVENT_TYPE_TONE } from "../lib/textTones";
@@ -68,6 +69,8 @@ export default function EventsPage() {
   useTitle(`Events ${seasonLabel(season)}`);
   const state = useApi<{ events: EventListItem[] }>(`/api/events${qs({ season })}`);
   const active = !!(region || type !== "all" || status !== "all" || from || to || q);
+  const compact = useCompactFilters();
+  const nav = useNavigate();
   return (
     <div>
       <PageHeader
@@ -77,6 +80,8 @@ export default function EventsPage() {
         phoneDescription="Every FTC event: results, rankings and odds."
         actions={<Button variant="outline" size="sm" asChild><Link to={`/teams${season !== current ? `?season=${season}` : ""}`}><Users /> Team records <ArrowRight /></Link></Button>}
       />
+      {/* On a phone the text filter sits in the sheet, so the page gets Home's search at the top, for events only. */}
+      {compact && <SearchBox kinds={["event", "place"]} label="Search events" placeholder="Find an event…" onPick={(h) => nav(hitHref(h))} className="mb-6 [&>div:first-child]:h-11" />}
       {/* Today's coin flips across every event on today: only this season's events can be on today. */}
       {season === current && <div className="mb-8"><CoinFlipRadarSection /></div>}
       {/* The filter bar stays up while loading or on an error, so another season can always be picked. */}

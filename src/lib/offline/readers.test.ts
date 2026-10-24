@@ -175,6 +175,13 @@ describe("offline search (same hits as /api/search)", () => {
     expect(readSearch(dbs(), "jersey championship")[0]).toMatchObject({ ref: "2024:USNJCMP", season: 2024 });
   });
 
+  it("keeps to the asked kinds before the limit, so teams can't crowd events out", () => {
+    expect(readSearch(dbs(), "newark", 1, new Set(), new Set(["event", "place"]))).toEqual([expect.objectContaining({ kind: "event", ref: "2025:USNJQ1" })]);
+    expect(readSearch(dbs(), "newark", 25, new Set(), new Set(["event"])).every((h) => h.kind === "event")).toBe(true);
+    expect(readSearch(dbs(), "100", 5, new Set(), new Set(["event"]))).toEqual([]);
+    expect(readSearch(dbs(), "newark", 25).some((h) => h.kind === "team")).toBe(true); // without kinds, teams are there
+  });
+
   it("finds by every field the server indexes: city, state name, school, start year", () => {
     const refs = (q: string) => readSearch(dbs(), q, 25).map((h) => h.ref);
     expect(refs("Princeton")).toEqual(expect.arrayContaining(["999", "2024:USNJCMP"])); // city only
