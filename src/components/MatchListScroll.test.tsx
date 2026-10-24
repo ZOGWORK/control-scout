@@ -155,4 +155,10 @@ it("watches the list's size again when it comes back after an empty view", () =>
   expect(observed).toHaveLength(0);
   act(() => rerender(liveView(null, 3)));
   expect(observed.at(-1)).toBe(container.querySelector(".match-list"));
+  // Through another empty view and back (a filter changed by keyboard), a mouse that never moved is found again.
+  document.elementsFromPoint = () => [container.querySelector('[data-match="qual:0:2"] [data-row]')!];
+  act(() => { window.dispatchEvent(Object.assign(new Event("pointermove"), { pointerType: "mouse", clientX: 5, clientY: 5 })); });
+  act(() => rerender(liveView(null, 0)));
+  act(() => rerender(liveView(null, 3)));
+  expect(container.querySelector('[data-match="qual:0:2"] [data-row]')!.hasAttribute("data-focus")).toBe(true);
 });
