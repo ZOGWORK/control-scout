@@ -436,7 +436,7 @@ function MatchesSection({ team, season, events, predictable }: { team: number; s
           const shown = all ? ms : ms.slice(0, 12);
           return (
             <>
-              <MatchList matches={shown} highlight={team} eventNames={names} empty="No matches this season yet." />
+              <MatchList matches={shown} highlight={team} eventNames={names} newestFirst empty="No matches this season yet." />
               {ms.length > 12 && <Button variant="ghost" size="sm" className="mt-2" onClick={() => setAll(!all)}>{all ? "Show fewer" : `Show all ${ms.length} matches`}</Button>}
             </>
           );

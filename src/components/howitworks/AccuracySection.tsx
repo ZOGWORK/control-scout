@@ -222,7 +222,7 @@ export function AccuracySection() {
             <p>The most recent matches Control Scout predicted before they were played, with how each one turned out. Engine v{t.engineVersion}.</p>
           </Prose>
           <Reveal className="mx-auto mt-4 max-w-3xl">
-            <MatchList matches={t.recentCalls} />
+            <MatchList matches={t.recentCalls} newestFirst />
           </Reveal>
         </>
       )}

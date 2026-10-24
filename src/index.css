@@ -292,6 +292,42 @@ html.light .custom-scrollbar::-webkit-scrollbar-thumb { background: #d4d4d8; }
 .cs-score-flash { animation: cs-score-flash 1.8s ease-out; border-radius: 0.375rem; }
 @media (prefers-reduced-motion: reduce) { .cs-score-flash { animation: none; } }
 
+/* A match list's focused row (MatchList in src/components/predict.tsx): it stands slightly forward, in its own
+   place in the list (the order never changes). The live match's row by default; while the mouse is on another
+   row, that one instead, and the live row steps back until the mouse leaves. With nothing live, only a hovered
+   row. Hover only where there is a mouse, and the scroll shield (above) keeps rows sliding under a resting
+   pointer from lighting up. Phones are quicker: no hover to follow, only the live row settling in. The box
+   isn't overflow-hidden (a forward row reaches past its sides), so its first and last rows take its corners. */
+.match-list [data-row] {
+  position: relative;
+  transition: transform 220ms cubic-bezier(0.2, 0.8, 0.2, 1), box-shadow 220ms, background-color 150ms;
+}
+.match-list [data-live] > [data-row] {
+  z-index: 1;
+  transform: scale(1.025);
+  border-radius: 0.75rem;
+  background-color: color-mix(in srgb, var(--color-accent) 6%, var(--color-card));
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--color-accent) 45%, transparent), 0 12px 28px -14px rgb(0 0 0 / 0.55);
+}
+@media (hover: hover) {
+  .match-list [data-row]:hover {
+    z-index: 1;
+    transform: scale(1.025);
+    border-radius: 0.75rem;
+    background-color: color-mix(in srgb, var(--color-accent) 6%, var(--color-card));
+    box-shadow: 0 0 0 1px color-mix(in srgb, var(--color-accent) 45%, transparent), 0 12px 28px -14px rgb(0 0 0 / 0.55);
+  }
+  .match-list [data-match-box]:has([data-row]:hover) [data-live] > [data-row]:not(:hover) {
+    z-index: auto; transform: none; background-color: transparent; box-shadow: none;
+  }
+}
+@media (hover: none) { .match-list [data-row] { transition-duration: 120ms; } }
+.match-list [data-match-box] > section:first-child > :first-child,
+.match-list [data-match-box] > section:first-child > [data-match]:first-child > [data-row] { border-top-left-radius: 0.75rem; border-top-right-radius: 0.75rem; }
+.match-list [data-match-box] > section:last-child > [data-match]:last-child,
+.match-list [data-match-box] > section:last-child > [data-match]:last-child > :last-child { border-bottom-left-radius: 0.75rem; border-bottom-right-radius: 0.75rem; }
+@media (prefers-reduced-motion: reduce) { .match-list [data-row] { transition: none; } }
+
 /* Compact density: tighter tables and cards. */
 html.compact .density-row { padding-top: 0.375rem; padding-bottom: 0.375rem; }
 html.compact .density-card { padding: 0.875rem; }

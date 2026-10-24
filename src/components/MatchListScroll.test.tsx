@@ -72,3 +72,47 @@ it("leaves the scroll to Back/Forward when they restored a saved position", () =
     expect(scrolled).not.toHaveBeenCalled();
   } finally { restored.on = false; }
 });
+
+// The list reads in schedule order whatever the API's (start-time) order: a match played late keeps its place.
+it("lists matches by number, never by start time", () => {
+  const { container } = render(view([match(2), match(3), match(1), match(10), match(4)], null));
+  expect([...container.querySelectorAll("[data-match]")].map((r) => r.getAttribute("data-match"))).toEqual(["qual:0:1", "qual:0:2", "qual:0:3", "qual:0:4", "qual:0:10"]);
+});
+
+it("keeps the order when the first match was played last; a newest-first list says so", () => {
+  const order = (c: HTMLElement) => [...c.querySelectorAll("[data-match]")].map((r) => r.getAttribute("data-match"));
+  const { container, rerender } = render(view([match(2), match(3), match(4), match(1)], null));
+  expect(order(container)).toEqual(["qual:0:1", "qual:0:2", "qual:0:3", "qual:0:4"]);
+  act(() => rerender(view([match(2), match(1)], null)));
+  expect(order(container)).toEqual(["qual:0:1", "qual:0:2"]);
+  act(() => rerender(<MemoryRouter><TooltipProvider><MatchList matches={[match(1), match(4), match(2), match(3)]} newestFirst /></TooltipProvider></MemoryRouter>));
+  expect(order(container)).toEqual(["qual:0:4", "qual:0:3", "qual:0:2", "qual:0:1"]);
+});
+
+const phone = (on: boolean) => {
+  window.matchMedia = ((q: string) => ({ matches: on && q.includes("max-width"), media: q, addEventListener() {}, removeEventListener() {} })) as unknown as typeof window.matchMedia;
+};
+const liveView = (live: string | null, n = 3) => (
+  <MemoryRouter><TooltipProvider><MatchList matches={Array.from({ length: n }, (_, i) => match(i + 1))} live={live} /></TooltipProvider></MemoryRouter>
+);
+
+it("marks only the live match's row, in its own place", () => {
+  const { container, rerender } = render(liveView("qual:0:2"));
+  const rows = [...container.querySelectorAll("[data-match]")];
+  expect(rows.map((r) => r.hasAttribute("data-live"))).toEqual([false, true, false]);
+  act(() => rerender(liveView(null)));
+  expect(container.querySelectorAll("[data-live]")).toHaveLength(0);
+});
+
+it("on a phone, opens on the live match once per visit; elsewhere never moves the page", () => {
+  phone(true);
+  const { rerender } = render(liveView("qual:0:2"));
+  expect(scrolled).toHaveBeenCalledTimes(1);
+  expect((scrolled.mock.calls[0][0] as Element).getAttribute("data-match")).toBe("qual:0:2");
+  act(() => rerender(liveView("qual:0:3")));
+  expect(scrolled).toHaveBeenCalledTimes(1);
+  cleanup();
+  phone(false);
+  render(liveView("qual:0:2"));
+  expect(scrolled).toHaveBeenCalledTimes(1);
+});

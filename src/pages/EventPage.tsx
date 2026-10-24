@@ -35,7 +35,7 @@ import { NotFoundView } from "../components/NotFoundView";
 import { LiveCountdownChip, LivePanel, useLiveTarget } from "../components/LivePanel";
 import { HeaderActions } from "../components/EventActions";
 import { WATCH_ID, WatchLive } from "../components/WatchLive";
-import { isLiveMode, useEventPoll } from "../lib/liveMode";
+import { isLiveMode, nextMatch, useEventPoll } from "../lib/liveMode";
 import { agoSeconds, awardLabel, dateRange, num, place, seasonLabel } from "../lib/format";
 import { scrollToElement, smoothBehavior } from "../lib/pageScroll";
 import { eventTab } from "../lib/eventTab";
@@ -199,7 +199,7 @@ function Event({ d, path }: { d: EventDetail; path: string }) {
           {predictable && <TabsTrigger value="odds">Odds</TabsTrigger>}
         </TabsList>
         <TabsContent value="matches" className="mt-5 max-sm:mt-4">
-          <Matches d={d} team={teamParam} />
+          <Matches d={d} team={teamParam} live={liveMode ? nextMatch(d.matches, null)?.key ?? null : null} />
           {/* Official results first posted, corrected or rescheduled (self-contained: its own route). */}
           <ResultChanges season={e.season} code={e.code} refreshKey={recordsKey} />
         </TabsContent>
@@ -383,7 +383,8 @@ function TeamPicker({ field, value, onChange }: { field: FieldRow[]; value: numb
   );
 }
 
-function Matches({ d, team }: { d: EventDetail; team: number | null }) {
+/** `live`: the match being played now (live mode: the event's next match), which the list brings forward. */
+function Matches({ d, team, live }: { d: EventDetail; team: number | null; live: string | null }) {
   const predictable = usePredictable(d.event.season);
   const [level, setLevel] = useState<"all" | "qual" | "playoff">("all");
   const [onlyTeam, setOnlyTeam] = useState(!!team);
@@ -413,7 +414,7 @@ function Matches({ d, team }: { d: EventDetail; team: number | null }) {
         {record.length > 0 && <span className="ml-auto text-xs text-muted-foreground">{record.map((x) => `${x.kind === "live" ? "Live calls" : "Predicted"} ${x.right}/${x.n} right (${Math.round((x.right / x.n) * 100)}%)`).join(" · ")}</span>}
       </div>
       {!d.matches.length ? <EmptyState icon={Swords} title="No schedule yet" description="The match schedule appears here once FIRST publishes it (usually the morning of the event)." /> : (
-        <MatchList matches={list} highlight={team ?? undefined} empty="No matches in this view." initialOpen={want} />
+        <MatchList matches={list} highlight={team ?? undefined} empty="No matches in this view." initialOpen={want} live={live} />
       )}
       {predictable && <p className="text-xs text-muted-foreground">Played matches show the prediction logged before they were played (or, for past seasons, the prediction replayed from the matches before it). Upcoming matches show odds from today's ratings.</p>}
     </div>
