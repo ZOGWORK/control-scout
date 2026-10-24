@@ -334,9 +334,12 @@ const PHONE = "(max-width: 767px)";
  *  frame at most and changing only the row it leaves and the row it reaches. */
 /** `shown`: whether the list box is rendered (an empty list renders a note instead), so a box that comes back is watched again. */
 function usePointerRow(box: RefObject<HTMLDivElement | null>, shown: boolean) {
+  // Where the mouse rests, kept across a re-watch (the list coming back after a filter) so a still pointer is found again.
+  const at = useRef({ x: -1, y: -1 });
   useEffect(() => {
     if (!window.matchMedia?.("(hover: hover)").matches) return;
-    let x = -1, y = -1, frame = 0;
+    const p = at.current;
+    let frame = 0;
     let cur: Element | null = null;
     const mark = (row: Element | null) => {
       if (row === cur) return;
@@ -347,19 +350,20 @@ function usePointerRow(box: RefObject<HTMLDivElement | null>, shown: boolean) {
     const check = () => {
       frame = 0;
       const list = box.current;
-      if (!list || x < 0) return mark(null);
+      if (!list || p.x < 0) return mark(null);
       // elementsFromPoint, not elementFromPoint: mid-scroll the shield is on top.
-      const row = document.elementsFromPoint(x, y).map((e) => e.closest("[data-row]")).find((r) => r && list.contains(r));
+      const row = document.elementsFromPoint(p.x, p.y).map((e) => e.closest("[data-row]")).find((r) => r && list.contains(r));
       mark(row ?? null);
     };
     const queue = () => { if (!frame) frame = requestAnimationFrame(check); };
-    const move = (e: PointerEvent) => { if (e.pointerType !== "mouse") return; x = e.clientX; y = e.clientY; queue(); };
-    const leave = () => { x = -1; queue(); };
+    const move = (e: PointerEvent) => { if (e.pointerType !== "mouse") return; p.x = e.clientX; p.y = e.clientY; queue(); };
+    const leave = () => { p.x = -1; queue(); };
     window.addEventListener("pointermove", move, { passive: true });
     window.addEventListener("scroll", queue, { passive: true, capture: true });
     document.documentElement.addEventListener("pointerleave", leave);
     const resized = typeof ResizeObserver === "undefined" ? null : new ResizeObserver(queue);
     if (box.current) resized?.observe(box.current);
+    queue();
     return () => {
       resized?.disconnect();
       window.removeEventListener("pointermove", move);
