@@ -294,10 +294,11 @@ html.light .custom-scrollbar::-webkit-scrollbar-thumb { background: #d4d4d8; }
 
 /* A match list's focused row (MatchList in src/components/predict.tsx): it stands slightly forward, in its own
    place in the list (the order never changes). The live match's row by default; while the mouse is on another
-   row, that one instead, and the live row steps back until the mouse leaves. With nothing live, only a hovered
-   row. Hover only where there is a mouse, and the scroll shield (above) keeps rows sliding under a resting
-   pointer from lighting up. Phones are quicker: no hover to follow, only the live row settling in. The box
-   isn't overflow-hidden (a forward row reaches past its sides), so its first and last rows take its corners. */
+   row, that one instead, and the live row steps back until the mouse leaves. With nothing live, only the row
+   under the mouse. That row is [data-focus], set by MatchList as the pointer moves and as the page scrolls under
+   it (not :hover, which the scroll shield above takes away mid-scroll); a mouse only, never touch. Phones are
+   quicker: no pointer to follow, only the live row settling in. The box isn't overflow-hidden (a forward row
+   reaches past its sides), so its first and last rows take its corners. */
 .match-list [data-row] {
   position: relative;
   transition: transform 220ms cubic-bezier(0.2, 0.8, 0.2, 1), box-shadow 220ms, background-color 150ms;
@@ -310,14 +311,14 @@ html.light .custom-scrollbar::-webkit-scrollbar-thumb { background: #d4d4d8; }
   box-shadow: 0 0 0 1px color-mix(in srgb, var(--color-accent) 45%, transparent), 0 12px 28px -14px rgb(0 0 0 / 0.55);
 }
 @media (hover: hover) {
-  .match-list [data-row]:hover {
+  .match-list [data-row][data-focus] {
     z-index: 1;
     transform: scale(1.025);
     border-radius: 0.75rem;
     background-color: color-mix(in srgb, var(--color-accent) 6%, var(--color-card));
     box-shadow: 0 0 0 1px color-mix(in srgb, var(--color-accent) 45%, transparent), 0 12px 28px -14px rgb(0 0 0 / 0.55);
   }
-  .match-list [data-match-box]:has([data-row]:hover) [data-live] > [data-row]:not(:hover) {
+  .match-list [data-match-box]:has([data-focus]) [data-live] > [data-row]:not([data-focus]) {
     z-index: auto; transform: none; background-color: transparent; box-shadow: none;
   }
 }
