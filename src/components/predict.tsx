@@ -1,6 +1,6 @@
 // Prediction UI shared by every surface. Rule: a prediction is never shown
 // without its confidence tier, and never presented as a fact.
-import { Suspense, lazy, useEffect, useRef, useState } from "react";
+import { Suspense, lazy, useEffect, useRef, useState, type RefObject } from "react";
 import { AnimatePresence, useReducedMotion } from "motion/react";
 import { m as Motion } from "./motion";
 import { Link, useLocation } from "react-router-dom";
@@ -328,6 +328,53 @@ export function MatchRow({ m, highlight, showEvent, eventName, open, onToggle, o
 
 const PHONE = "(max-width: 767px)";
 
+/** The row under the mouse, marked `data-focus` (it stands forward: index.css .match-list). Not :hover, which the
+ *  scroll shield takes away while the page scrolls: this follows the pointer through a scroll too, and through the
+ *  list changing size under a still pointer (details opening, a live refresh), checking the point under it once a
+ *  frame at most and changing only the row it leaves and the row it reaches. */
+/** `shown`: whether the list box is rendered (an empty list renders a note instead), so a box that comes back is watched again. */
+function usePointerRow(box: RefObject<HTMLDivElement | null>, shown: boolean) {
+  // Where the mouse rests, kept across a re-watch (the list coming back after a filter) so a still pointer is found again.
+  const at = useRef({ x: -1, y: -1 });
+  useEffect(() => {
+    if (!window.matchMedia?.("(hover: hover)").matches) return;
+    const p = at.current;
+    let frame = 0;
+    let cur: Element | null = null;
+    const mark = (row: Element | null) => {
+      if (row === cur) return;
+      cur?.removeAttribute("data-focus");
+      row?.setAttribute("data-focus", "");
+      cur = row;
+    };
+    const check = () => {
+      frame = 0;
+      const list = box.current;
+      if (!list || p.x < 0) return mark(null);
+      // elementsFromPoint, not elementFromPoint: mid-scroll the shield is on top.
+      const row = document.elementsFromPoint(p.x, p.y).map((e) => e.closest("[data-row]")).find((r) => r && list.contains(r));
+      mark(row ?? null);
+    };
+    const queue = () => { if (!frame) frame = requestAnimationFrame(check); };
+    const move = (e: PointerEvent) => { if (e.pointerType !== "mouse") return; p.x = e.clientX; p.y = e.clientY; queue(); };
+    const leave = () => { p.x = -1; queue(); };
+    window.addEventListener("pointermove", move, { passive: true });
+    window.addEventListener("scroll", queue, { passive: true, capture: true });
+    document.documentElement.addEventListener("pointerleave", leave);
+    const resized = typeof ResizeObserver === "undefined" ? null : new ResizeObserver(queue);
+    if (box.current) resized?.observe(box.current);
+    queue();
+    return () => {
+      resized?.disconnect();
+      window.removeEventListener("pointermove", move);
+      window.removeEventListener("scroll", queue, { capture: true });
+      document.documentElement.removeEventListener("pointerleave", leave);
+      cancelAnimationFrame(frame);
+      mark(null);
+    };
+  }, [box, shown]);
+}
+
 const LEVEL_TITLE: Record<MatchView["level"], string> = { qual: "Qualifications", playoff: "Playoffs" };
 
 /** Schedule order: quals before playoffs, then series and number. */
@@ -347,6 +394,7 @@ export function MatchList({ matches, highlight, empty, eventNames, eventDates, i
   // adds matches to the list must not pull the page back to it after the reader has scrolled on, and
   // nor may Back/Forward, which return to where the reader actually was (src/lib/pageScroll.ts).
   const loc = useLocation();
+  usePointerRow(box, matches.length > 0);
   const shownFor = useRef<string | null>(null);
   useEffect(() => {
     const visit = `${loc.key}:${initialOpen}`;

@@ -116,3 +116,49 @@ it("on a phone, opens on the live match once per visit; elsewhere never moves th
   render(liveView("qual:0:2"));
   expect(scrolled).toHaveBeenCalledTimes(1);
 });
+
+// The row under the mouse stands forward through a scroll too: the scroll shield takes :hover away then, so the
+// list follows the pointer itself (data-focus), on pointer moves and on scrolls.
+it("marks the row under the mouse, and follows it as the page scrolls under a still pointer", () => {
+  const resizeCallbacks: (() => void)[] = [];
+  vi.stubGlobal("ResizeObserver", class { constructor(cb: () => void) { resizeCallbacks.push(cb); } observe() {} disconnect() {} });
+  window.matchMedia = ((q: string) => ({ matches: q.includes("hover: hover"), media: q, addEventListener() {}, removeEventListener() {} })) as unknown as typeof window.matchMedia;
+  const { container } = render(liveView("qual:0:1"));
+  const row = (n: number) => container.querySelector(`[data-match="qual:0:${n}"] [data-row]`)!;
+  const shield = document.createElement("div");
+  let under: Element = row(2).querySelector("[data-match-label]")!;
+  document.elementsFromPoint = () => [shield, under];
+  const fire = (type: string, extra: object = {}) => act(() => { window.dispatchEvent(Object.assign(new Event(type), extra)); });
+  fire("pointermove", { pointerType: "mouse", clientX: 10, clientY: 10 });
+  expect(container.querySelectorAll("[data-focus]")).toEqual(expect.objectContaining({ length: 1 }));
+  expect(row(2).hasAttribute("data-focus")).toBe(true);
+  under = row(3);
+  fire("scroll");
+  expect(row(2).hasAttribute("data-focus")).toBe(false);
+  expect(row(3).hasAttribute("data-focus")).toBe(true);
+  // The list changing size under a still pointer (details opening above it) re-checks the row under it.
+  under = row(2);
+  act(() => { resizeCallbacks.forEach((cb) => cb()); });
+  expect(row(2).hasAttribute("data-focus")).toBe(true);
+  expect(row(3).hasAttribute("data-focus")).toBe(false);
+  // A finger never marks a row.
+  under = row(1);
+  fire("pointermove", { pointerType: "touch", clientX: 10, clientY: 10 });
+  expect(row(2).hasAttribute("data-focus")).toBe(true);
+});
+
+it("watches the list's size again when it comes back after an empty view", () => {
+  const observed: Element[] = [];
+  vi.stubGlobal("ResizeObserver", class { observe(el: Element) { observed.push(el); } disconnect() {} });
+  window.matchMedia = ((q: string) => ({ matches: q.includes("hover: hover"), media: q, addEventListener() {}, removeEventListener() {} })) as unknown as typeof window.matchMedia;
+  const { container, rerender } = render(liveView(null, 0));
+  expect(observed).toHaveLength(0);
+  act(() => rerender(liveView(null, 3)));
+  expect(observed.at(-1)).toBe(container.querySelector(".match-list"));
+  // Through another empty view and back (a filter changed by keyboard), a mouse that never moved is found again.
+  document.elementsFromPoint = () => [container.querySelector('[data-match="qual:0:2"] [data-row]')!];
+  act(() => { window.dispatchEvent(Object.assign(new Event("pointermove"), { pointerType: "mouse", clientX: 5, clientY: 5 })); });
+  act(() => rerender(liveView(null, 0)));
+  act(() => rerender(liveView(null, 3)));
+  expect(container.querySelector('[data-match="qual:0:2"] [data-row]')!.hasAttribute("data-focus")).toBe(true);
+});
