@@ -66,5 +66,10 @@ describe("the YouTube Data API", () => {
     expect(got.get("bbbbbbbbbbb")!.status).toBe("unavailable");
     const quota = (async () => new Response("{}", { status: 403 })) as unknown as typeof fetch;
     expect([...(await fetchFromApi(["aaaaaaaaaaa"], "KEY", quota)).values()].map((f) => f.status)).toEqual(["error"]);
+    // A 200 that isn't the expected shape says nothing about any video.
+    for (const body of ["{}", '{"items":null}', '{"items":"x"}', "not json"]) {
+      const odd = (async () => new Response(body, { status: 200 })) as unknown as typeof fetch;
+      expect([...(await fetchFromApi(["aaaaaaaaaaa"], "KEY", odd)).values()].map((f) => f.status)).toEqual(["error"]);
+    }
   });
 });
