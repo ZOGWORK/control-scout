@@ -34,6 +34,7 @@ import { callRecord } from "../lib/eventGlance";
 import { NotFoundView } from "../components/NotFoundView";
 import { LiveCountdownChip, LivePanel, useLiveTarget } from "../components/LivePanel";
 import { HeaderActions } from "../components/EventActions";
+import { EventStatusChip, EventTypeChip } from "../components/EventChips";
 import { WATCH_ID, WatchLive } from "../components/WatchLive";
 import { isLiveMode, nextMatch, useEventPoll } from "../lib/liveMode";
 import { agoSeconds, awardLabel, dateRange, num, place, seasonLabel } from "../lib/format";
@@ -100,7 +101,9 @@ function Event({ d, path }: { d: EventDetail; path: string }) {
   // Opened on a panel (?tab= in the address it arrived at): a slim bar, with the summary behind "Event details".
   const slim = useArrivedOnTab(sp.has("tab") && validTab);
   const [detailsOpen, setDetailsOpen] = useDetailsOpen();
-  const statusBadge = e.status === "live" ? <Badge variant="destructive"><Radio /> Live</Badge> : e.status === "upcoming" ? <Badge variant="secondary">Upcoming</Badge> : <Badge variant="outline">Finished</Badge>;
+  // Labels, not buttons: filled chips without a border (components/EventChips.tsx).
+  const statusBadge = <EventStatusChip status={e.status} />;
+  const typeChip = <EventTypeChip type={e.type} label={e.typeLabel} />;
   // Right under the name, so the countdown is on a phone's first screen (in the slim bar too).
   const live = liveMode && <div ref={livePanel} className="scroll-mt-bar-20"><LivePanel d={d} target={target} refresh={refresh} track={track} /></div>;
   // The summary: everything about the event but its name, status and dates (the slim bar's).
@@ -108,7 +111,7 @@ function Event({ d, path }: { d: EventDetail; path: string }) {
     <>
       <div className={cn("flex flex-wrap items-center gap-x-4 gap-y-1.5 text-sm text-muted-foreground", full && "mt-3")}>
         {full && <span className="flex items-center gap-1.5"><CalendarDays className="size-4" />{dateRange(e.start, e.end)}</span>}
-        {!full && <span className="flex items-center gap-2"><Badge variant="outline">{e.typeLabel}</Badge><span className="font-mono text-xs">{e.code} · {seasonLabel(e.season)}</span></span>}
+        {!full && <span className="flex items-center gap-2">{typeChip}<span className="font-mono text-xs">{e.code} · {seasonLabel(e.season)}</span></span>}
         {(e.venue || e.city) && <span className="flex items-center gap-1.5"><MapPin className="size-4" />{place(e.venue, e.city, e.state, e.country)}</span>}
         <span>{e.teams} teams · {e.matchesPlayed}/{e.matchesTotal} matches played</span>
         {e.website && <a href={e.website} target="_blank" rel="noreferrer noopener" className="inline-flex items-center gap-1 hover:text-foreground">Website <ExternalLink className="size-3" /></a>}
@@ -161,7 +164,7 @@ function Event({ d, path }: { d: EventDetail; path: string }) {
           <div className="min-w-0">
             <div className="flex flex-wrap items-center gap-2">
               {statusBadge}
-              <Badge variant="outline">{e.typeLabel}</Badge>
+              {typeChip}
               <span className="font-mono text-xs text-muted-foreground">{e.code} · {seasonLabel(e.season)}</span>
             </div>
             <h1 className="mt-3 font-display text-3xl font-semibold tracking-tight sm:text-4xl">{e.name}</h1>
