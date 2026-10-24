@@ -1,7 +1,8 @@
 // GET /api/events/:season/:code/simulated-rankings: the Rankings tab's "Simulate the rankings" for an event whose
 // qualification matches haven't started (src/shared/rankingSim.ts runs the engine's event simulation). Only on a
-// click, so it runs on request: one at a time across the server, within a time budget, and kept per event, matches
-// per team and data version, so a second click or another visitor gets the same numbers at once.
+// click, so it runs on request: one at a time across the server, within a compute budget, pausing every ~20 ms so
+// other requests are answered meanwhile, and kept per event, matches per team and data version, so a second click
+// or another visitor gets the same numbers at once.
 import { cachedEventDetail, toEventInput } from "../api/events.js";
 import { dataVersion, forecasterFor, liveVersion } from "../predict/engine.js";
 import { registerCache } from "../caches.js";
@@ -21,7 +22,7 @@ export type SimRankAnswer =
 const MAX_KEPT = 200;
 const kept = new Map<string, Promise<SimRankAnswer>>();
 registerCache("Simulated rankings", () => kept.clear());
-// One simulation at a time: the VM is small and shared, and each holds the event loop for up to BUDGET_MS.
+// One simulation at a time: the VM is small and shared.
 let queue: Promise<unknown> = Promise.resolve();
 
 export const perTeamOf = (v: unknown): number => {
@@ -44,8 +45,10 @@ export async function simulatedRankings(season: number, code: string, perTeam: n
     const f = await forecasterFor(season);
     const input = rankingInput(f, toEventInput(d.event, d.field, d.matches, d.alliances));
     if (!input) return { status: "unavailable", reason: "There are no ratings for this season yet, so there's nothing to simulate from." };
-    const r = simulateRankings(input, d.field.map((t) => t.team), {
+    const r = await simulateRankings(input, d.field.map((t) => t.team), {
       runs: SIM_RANK_RUNS, minRuns: MIN_RUNS, budgetMs: BUDGET_MS, published: hasSchedule, perTeam,
+      // Every ~20 ms of compute, let the server answer other requests.
+      pause: () => new Promise((r) => setImmediate(r)),
       seed: projectionSeed(season, code, "ranking", hasSchedule ? "published" : `random${perTeam}`),
     });
     return { status: "ok", ...r };
