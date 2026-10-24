@@ -5,7 +5,7 @@
 
 export interface WatchPageFacts {
   status: "ok" | "unavailable" | "error";
-  /** UTC ISO; null when the video isn't a live broadcast (an upload has no start to line matches up with). */
+  /** UTC ISO; null when the video isn't a live broadcast (an upload has no start to line matches up with) or hasn't started. */
   start: string | null;
   end: string | null;
   length: number | null;
@@ -23,12 +23,15 @@ export function parseWatchPage(html: string): WatchPageFacts {
   const b = /"liveBroadcastDetails":(\{[^{}]*\})/.exec(html)?.[1];
   let details: { isLiveNow?: boolean; startTimestamp?: string; endTimestamp?: string } = {};
   if (b) try { details = JSON.parse(b); } catch { /* left empty: no broadcast times */ }
+  // Not started yet: any start YouTube shows is the schedule, never a time to line matches up with.
+  const offline = playability === "LIVE_STREAM_OFFLINE";
   return {
     status: "ok",
-    start: iso(details.startTimestamp),
+    start: offline ? null : iso(details.startTimestamp),
     end: iso(details.endTimestamp),
     length: Number.isFinite(length) && length > 0 ? length : null,
-    live: details.isLiveNow === true,
+    // A scheduled broadcast not started yet (LIVE_STREAM_OFFLINE) counts as live with no start, so it's read again until it runs.
+    live: details.isLiveNow === true || offline,
   };
 }
 

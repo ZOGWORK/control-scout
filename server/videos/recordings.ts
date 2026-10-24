@@ -7,7 +7,8 @@ import { all, run } from "../db.js";
 import { registerCache } from "../caches.js";
 import { seasonStreams } from "../portal/streams.js";
 import { embedUrl, parseStreamUrl } from "../../src/shared/stream.js";
-import { clipSecond, timingTrusted, watchUrl } from "../../src/shared/recording.js";
+import { actualStart, clipSecond, timingTrusted, watchUrl } from "../../src/shared/recording.js";
+import { localToUtcMs } from "../../src/shared/time.js";
 import type { EventStream, MatchView } from "../../src/shared/api.js";
 import { fetchWatchPage, type WatchPageFacts } from "./youtube.js";
 
@@ -65,13 +66,43 @@ export async function seasonRecordings(season: number): Promise<Map<string, Reco
   return out;
 }
 
-/** What the events list says about an event's video: match clips (FIRST's per-match videos, or a recorded broadcast whose times follow the clock), a recording, or nothing. */
-export async function seasonVideoKinds(season: number): Promise<Map<string, "clips" | "recording">> {
-  const [recs, { official }] = await Promise.all([seasonRecordings(season), seasonData(season)]);
-  const out = new Map<string, "clips" | "recording">();
-  for (const [code, r] of recs) out.set(code, r.meta?.status === "ok" && timingTrusted(r.meta) ? "clips" : "recording");
-  for (const code of official) out.set(code, "clips");
-  return out;
+const KINDS_TTL_MS = 10 * 60_000;
+let kinds = new Map<number, { at: number; v: Promise<Map<string, "clips" | "recording">> }>();
+registerCache("Event video kinds", () => { kinds = new Map(); });
+
+/**
+ * What the events list says about an event's video: match clips (FIRST's per-match videos, or a recording
+ * at least one played match gets a second in), a recording, or nothing. The clip check reads the played
+ * matches of events with a trusted recording (a few hundred a season), so it's kept for 10 minutes.
+ */
+export function seasonVideoKinds(season: number, now = Date.now()): Promise<Map<string, "clips" | "recording">> {
+  const hit = kinds.get(season);
+  if (hit && now - hit.at < KINDS_TTL_MS) return hit.v;
+  const v = (async () => {
+    const [recs, { official }] = await Promise.all([seasonRecordings(season), seasonData(season)]);
+    const out = new Map<string, "clips" | "recording">();
+    const timed = [...recs].filter(([, r]) => r.meta?.status === "ok" && timingTrusted(r.meta));
+    const withClip = new Set<string>();
+    for (let i = 0; i < timed.length; i += 200) {
+      const part = timed.slice(i, i + 200);
+      const rows = await all<{ code: string; time: string; timezone: string | null }>(
+        `SELECT m.code, m.time, e.timezone FROM matches m JOIN events e ON e.season = m.season AND e.code = m.code
+         WHERE m.season = ? AND m.played = 1 AND m.time IS NOT NULL AND m.code IN (${part.map(() => "?").join(",")})`, [season, ...part.map(([c]) => c)]);
+      const by = new Map(part);
+      for (const r of rows) {
+        const code = String(r.code);
+        if (withClip.has(code) || !actualStart(r.time)) continue;
+        const ms = localToUtcMs(r.time, r.timezone);
+        if (ms != null && clipSecond(new Date(ms).toISOString(), by.get(code)!.meta!, now) != null) withClip.add(code);
+      }
+    }
+    for (const [code] of recs) out.set(code, withClip.has(code) ? "clips" : "recording");
+    for (const code of official) out.set(code, "clips");
+    return out;
+  })();
+  kinds.set(season, { at: now, v });
+  v.catch(() => { if (kinds.get(season)?.v === v) kinds.delete(season); });
+  return v;
 }
 
 /** The page's player for an event, or null. */
@@ -86,8 +117,8 @@ export function withClips(matches: MatchView[], r: Recording | null, now = Date.
   const m = r?.meta;
   if (!r || !m || m.status !== "ok" || !timingTrusted(m)) return matches;
   return matches.map((x) => {
-    // Played matches only: an unplayed one's time is its schedule, not when it ran.
-    const t = x.played ? clipSecond(x.startsAt, m, now) : null;
+    // Played matches with a real start only: an unplayed one's time, or a result posted without a start, is the schedule.
+    const t = x.played && actualStart(x.time) ? clipSecond(x.startsAt, m, now) : null;
     return t == null ? x : { ...x, clip: { videoId: r.videoId, t, url: watchUrl(r.videoId, t) } };
   });
 }
@@ -101,12 +132,16 @@ async function saveMeta(videoId: string, f: WatchPageFacts, now: number) {
 }
 
 const DAY = 86_400_000;
-/** When a video's facts are due another read: an error after a day, a live broadcast after 5 minutes, a broadcast archived within 2 days (its length still settling) after 6 hours. */
+/**
+ * When a video's facts are due another read: an error after a day; a live broadcast after 5 minutes; a scheduled
+ * one not started yet (live, no start: youtube.ts) after an hour; a broadcast archived within 2 days (its length
+ * still settling) after 6 hours.
+ */
 export function due(m: VideoMeta | null, now: number): boolean {
   if (!m) return true;
   const age = now - Date.parse(m.checkedAt);
   if (m.status === "error") return age > DAY;
-  if (m.live) return age > 5 * 60_000;
+  if (m.live) return age > (m.start ? 5 * 60_000 : 3600_000);
   if (m.status === "ok" && m.end && now - Date.parse(m.end) < 2 * DAY) return age > 6 * 3600_000;
   return false;
 }
@@ -134,9 +169,10 @@ export async function backfillVideoMeta(log: (s: string) => void, opts: { max?: 
     for (const id of todo) {
       if (n) await new Promise((r) => setTimeout(r, opts.gapMs ?? 1500));
       const f = await fetchWatchPage(id, opts.fetchImpl);
-      // A page that couldn't be read keeps facts read before (a broadcast's start doesn't change).
+      // A page that couldn't be read keeps the facts read before, live included (a broadcast's start doesn't change,
+      // and one still live is read again on the live beat).
       const before = known.get(id);
-      if (f.status === "error" && before?.status === "ok") await saveMeta(id, { ...before, live: false }, now());
+      if (f.status === "error" && before?.status === "ok") await saveMeta(id, before, now());
       else await saveMeta(id, f, now());
       n++;
     }

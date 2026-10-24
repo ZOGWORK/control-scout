@@ -13,6 +13,10 @@ describe("reading a watch page", () => {
     const f = parseWatchPage(page("OK", `"liveBroadcastDetails":{"isLiveNow":true,"startTimestamp":"2026-05-02T12:58:13+00:00"}`));
     expect(f).toMatchObject({ status: "ok", live: true, end: null });
   });
+  it("a scheduled broadcast not started yet: live with no start (its scheduled time is never used), so it's read again", () => {
+    const f = parseWatchPage(page("LIVE_STREAM_OFFLINE", `"liveBroadcastDetails":{"isLiveNow":false,"startTimestamp":"2026-05-02T13:00:00+00:00"}`));
+    expect(f).toMatchObject({ status: "ok", live: true, start: null });
+  });
   it("an upload: plays, but no broadcast start to line matches up with", () => {
     expect(parseWatchPage(page("OK"))).toMatchObject({ status: "ok", start: null, length: 16541 });
   });
