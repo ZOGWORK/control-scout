@@ -10,7 +10,8 @@ import { embedUrl, parseStreamUrl } from "../../src/shared/stream.js";
 import { actualStart, clipSecond, timingTrusted, watchUrl } from "../../src/shared/recording.js";
 import { localToUtcMs } from "../../src/shared/time.js";
 import type { EventStream, MatchView } from "../../src/shared/api.js";
-import { fetchWatchPage, type WatchPageFacts } from "./youtube.js";
+import { env } from "../env.js";
+import { fetchFromApi, fetchWatchPage, type WatchPageFacts } from "./youtube.js";
 
 export interface VideoMeta extends WatchPageFacts { videoId: string; checkedAt: string }
 export interface Recording { videoId: string; source: "owner" | "first"; meta: VideoMeta | null }
@@ -151,7 +152,7 @@ let busy = false;
  * Read YouTube's facts for every linked video that has none yet or is due again (newest seasons first),
  * one page at a time, at most `max` per run. Returns how many it read.
  */
-export async function backfillVideoMeta(log: (s: string) => void, opts: { max?: number; gapMs?: number; fetchImpl?: typeof fetch; now?: () => number } = {}): Promise<number> {
+export async function backfillVideoMeta(log: (s: string) => void, opts: { max?: number; gapMs?: number; fetchImpl?: typeof fetch; now?: () => number; apiKey?: string | null } = {}): Promise<number> {
   if (busy) return 0;
   busy = true;
   const now = opts.now ?? Date.now;
@@ -164,11 +165,16 @@ export async function backfillVideoMeta(log: (s: string) => void, opts: { max?: 
       const part = ids.slice(i, i + 200);
       for (const r of await all<any>(`SELECT * FROM video_meta WHERE video_id IN (${part.map(() => "?").join(",")})`, part)) known.set(String(r.video_id), metaOf(r));
     }
-    const todo = ids.filter((id) => due(known.get(id) ?? null, now())).slice(0, opts.max ?? 120);
-    let n = 0;
+    const key = opts.apiKey === undefined ? env.youtubeApiKey : opts.apiKey;
+    // With the API, 50 a request (1 quota unit each, of 10,000 a day); without it, one watch page at a time.
+    const todo = ids.filter((id) => due(known.get(id) ?? null, now())).slice(0, opts.max ?? (key ? 1000 : 120));
+    const fromApi = new Map<string, WatchPageFacts>();
+    if (key) for (let i = 0; i < todo.length; i += 50) for (const [id, f] of await fetchFromApi(todo.slice(i, i + 50), key, opts.fetchImpl)) fromApi.set(id, f);
+    let n = 0, errors = 0;
     for (const id of todo) {
-      if (n) await new Promise((r) => setTimeout(r, opts.gapMs ?? 1500));
-      const f = await fetchWatchPage(id, opts.fetchImpl);
+      if (n && !key) await new Promise((r) => setTimeout(r, opts.gapMs ?? 1500));
+      const f = fromApi.get(id) ?? await fetchWatchPage(id, opts.fetchImpl);
+      if (f.status === "error") errors++;
       // A page that couldn't be read keeps the facts read before, live included (a broadcast's start doesn't change,
       // and one still live is read again on the live beat).
       const before = known.get(id);
@@ -176,7 +182,7 @@ export async function backfillVideoMeta(log: (s: string) => void, opts: { max?: 
       else await saveMeta(id, f, now());
       n++;
     }
-    if (n) { cache = new Map(); log(`recordings: read ${n} YouTube video${n === 1 ? "" : "s"}`); }
+    if (n) { cache = new Map(); kinds = new Map(); log(`recordings: read ${n} YouTube video${n === 1 ? "" : "s"}${key ? " (API)" : ""}${errors ? `, ${errors} not readable now` : ""}`); }
     return n;
   } finally {
     busy = false;
