@@ -195,7 +195,8 @@ function AllianceBox({ side, m, score, forecast, outcome, highlight }: {
  *  Click the row (anywhere but a link or button) to open its details in place. */
 /** `showEvent` replaces the time under the label; `eventName` only names the event inside the details. */
 /** `outcomeAccent`: the highlighted team's rows get a left edge in its result's colour (green won, red lost) instead of gold. */
-export function MatchRow({ m, highlight, showEvent, eventName, open, onToggle, outcomeAccent }: { m: MatchView; highlight?: number; showEvent?: string; eventName?: string; open?: boolean; onToggle?: () => void; outcomeAccent?: boolean }) {
+/** `live`: the match being played now; its row stands forward (index.css .match-list) until another row is hovered. */
+export function MatchRow({ m, highlight, showEvent, eventName, open, onToggle, outcomeAccent, live }: { m: MatchView; highlight?: number; showEvent?: string; eventName?: string; open?: boolean; onToggle?: () => void; outcomeAccent?: boolean; live?: boolean }) {
   const videos = useVideoLinkCount(`${m.season}:${m.code}:${m.level}:${m.series}:${m.number}`);
   const detailsId = `match-${m.code}-${m.key.replace(/:/g, "-")}`;
   // MotionConfig's reducedMotion only stops transforms; height is a layout animation, so it's turned off here.
@@ -219,7 +220,7 @@ export function MatchRow({ m, highlight, showEvent, eventName, open, onToggle, o
   return (
     // @container: the row lays itself out by its own width (an event's tab, a team's season, a narrow drawer), not the window's.
     <div className={cn("@container border-b border-border last:border-b-0", mySide && "relative before:absolute before:inset-y-0 before:left-0 before:w-[3px]",
-      mySide && (outcomeAccent && mine === "win" ? "before:bg-success" : outcomeAccent && mine === "loss" ? "before:bg-destructive" : "before:bg-accent/70"))} data-match={m.key}>
+      mySide && (outcomeAccent && mine === "win" ? "before:bg-success" : outcomeAccent && mine === "loss" ? "before:bg-destructive" : "before:bg-accent/70"), live && "scroll-mt-bar-2")} data-match={m.key} data-live={live || undefined}>
     <div
       // Narrow rows: the label keeps at least its own width (time, the team's won/lost chip), and the call's
       // chips wrap under it instead of pushing into the label.
@@ -231,6 +232,7 @@ export function MatchRow({ m, highlight, showEvent, eventName, open, onToggle, o
         "@3xl:grid-cols-[5.5rem_minmax(0,1fr)_minmax(0,1fr)_11.5rem_2rem]",
         onToggle ? "cursor-pointer still-hover:bg-accent/[0.07]" : "still-hover:bg-text-base/[0.03]", open && "bg-accent/[0.05]")}
       onClick={onToggle ? (e) => { if (!(e.target as HTMLElement).closest("a, button, input")) onToggle(); } : undefined}
+      data-row
     >
       <div className="flex min-w-0 flex-wrap items-baseline gap-x-2 gap-y-0.5 @3xl:block" data-match-label>
         {onToggle ? (
@@ -324,13 +326,19 @@ export function MatchRow({ m, highlight, showEvent, eventName, open, onToggle, o
   );
 }
 
+const PHONE = "(max-width: 767px)";
+
 const LEVEL_TITLE: Record<MatchView["level"], string> = { qual: "Qualifications", playoff: "Playoffs" };
 
-/** Matches in one column, time order, under Qualifications / Playoffs headings, each opening its details
+/** Schedule order: quals before playoffs, then series and number. */
+const scheduleOrder = (a: MatchView, b: MatchView) => (a.level === b.level ? 0 : a.level === "qual" ? -1 : 1) || a.series - b.series || a.number - b.number;
+
+/** Matches in one column, in schedule order (Q1, Q2, …; never by start time, so a replayed or late match keeps its place), under Qualifications / Playoffs headings, each opening its details
  *  in place. `initialOpen` (a match key, e.g. from ?match=) opens that one and scrolls it into view.
  *  With `highlight`, a summary line gives that team's record in the matches shown.
- *  `eventDates` (by event code, with `eventNames`) puts each event's dates in its heading; `outcomeAccent`: see MatchRow. */
-export function MatchList({ matches, highlight, empty, eventNames, eventDates, initialOpen, outcomeAccent }: { matches: MatchView[]; highlight?: number; empty?: string; eventNames?: Record<string, string>; eventDates?: Record<string, string>; initialOpen?: string | null; outcomeAccent?: boolean }) {
+ *  `eventDates` (by event code, with `eventNames`) puts each event's dates in its heading; `outcomeAccent`: see MatchRow.
+ *  `live` (a match key): the match being played now. Its row stands forward, and on a phone the list opens on it. */
+export function MatchList({ matches, highlight, empty, eventNames, eventDates, initialOpen, outcomeAccent, live }: { matches: MatchView[]; highlight?: number; empty?: string; eventNames?: Record<string, string>; eventDates?: Record<string, string>; initialOpen?: string | null; outcomeAccent?: boolean; live?: string | null }) {
   const id = (m: MatchView) => `${m.code}:${m.key}`;
   const [open, setOpen] = useState<Set<string>>(() => new Set());
   const box = useRef<HTMLDivElement>(null);
@@ -351,6 +359,18 @@ export function MatchList({ matches, highlight, empty, eventNames, eventDates, i
     // Only when the requested match or the visit changes (not on every refresh of the list).
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [initialOpen, loc.key, matches.length]);
+  // On a phone (no hover to bring a row forward) the list opens on the live match, at the top of the screen,
+  // at once. Once per visit, like a linked match: the next match going live never pulls the reader back.
+  const liveShownFor = useRef<string | null>(null);
+  useEffect(() => {
+    if (!live || initialOpen || liveShownFor.current === loc.key) return;
+    if (!window.matchMedia?.(PHONE).matches) return;
+    liveShownFor.current = loc.key;
+    if (restoredSavedPosition(loc)) return;
+    requestAnimationFrame(() => { const row = box.current?.querySelector(`[data-match="${CSS.escape(live)}"]`); if (row) scrollToElement(row); });
+    // Only when the live match first shows in a visit.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [live, loc.key]);
   if (!matches.length) return <p className="rounded-xl border border-dashed border-border px-4 py-8 max-sm:py-5 text-center text-sm text-text-muted">{empty ?? "No matches yet."}</p>;
   const toggle = (k: string) => setOpen((s) => { const n = new Set(s); if (n.has(k)) n.delete(k); else n.add(k); return n; });
   // An event's own schedule: Qualifications / Playoffs headings. A list across events (the caller passes
@@ -363,15 +383,22 @@ export function MatchList({ matches, highlight, empty, eventNames, eventDates, i
     if (last?.key === m.code) last.ms.push(m);
     else groups.push({ key: m.code, title: eventNames?.[m.code] ?? m.code, date: eventDates?.[m.code], href: `/events/${m.season}/${m.code}`, ms: [m] });
   }
+  // The API lists matches by start time; each group reads in schedule order instead, newest first when the
+  // caller listed them that way (a team's recent results).
+  for (const g of groups) {
+    const desc = g.ms.length > 1 && scheduleOrder(g.ms[0], g.ms[g.ms.length - 1]) > 0;
+    g.ms = [...g.ms].sort((a, b) => (desc ? -1 : 1) * scheduleOrder(a, b));
+  }
   const rec = highlight ? teamRecord(matches, highlight) : null;
   return (
-    <div ref={box} className="space-y-2">
+    <div ref={box} className="match-list space-y-2">
       {rec && rec.played > 0 && (
         <p className="text-sm text-text-muted">
           <span className="font-semibold text-accent-text">{highlight}</span> in these matches: <span className={cn("font-semibold", rec.w ? "text-success" : "text-text-muted")}>{rec.w} won</span> · <span className={cn("font-semibold", rec.l ? "text-destructive" : "text-text-muted")}>{rec.l} lost</span>{rec.t > 0 && <> · {rec.t} tied</>}{rec.upcoming > 0 && <> · {rec.upcoming} to play</>}
         </p>
       )}
-      <div className="overflow-hidden rounded-xl border border-border bg-card">
+      {/* Not overflow-hidden: a row standing forward (index.css .match-list) reaches past the box's sides. */}
+      <div className="rounded-xl border border-border bg-card" data-match-box>
         {groups.map((g, i) => (
           <section key={`${g.key}:${i}`} aria-label={g.title}>
             {(groups.length > 1 || g.href) && (g.date ? (
@@ -389,7 +416,7 @@ export function MatchList({ matches, highlight, empty, eventNames, eventDates, i
                 <span className="shrink-0 rounded-full bg-muted px-1.5 py-px text-[10px] tabular-nums text-text-base/80">{g.ms.length}</span>
               </h3>
             ))}
-            {g.ms.map((m) => <MatchRow key={id(m)} m={m} highlight={highlight} outcomeAccent={outcomeAccent} eventName={eventNames?.[m.code]} open={open.has(id(m))} onToggle={() => toggle(id(m))} />)}
+            {g.ms.map((m) => <MatchRow key={id(m)} m={m} highlight={highlight} outcomeAccent={outcomeAccent} eventName={eventNames?.[m.code]} open={open.has(id(m))} onToggle={() => toggle(id(m))} live={!!live && m.key === live} />)}
           </section>
         ))}
       </div>
