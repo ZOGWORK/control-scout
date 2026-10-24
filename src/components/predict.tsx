@@ -332,7 +332,8 @@ const PHONE = "(max-width: 767px)";
  *  scroll shield takes away while the page scrolls: this follows the pointer through a scroll too, and through the
  *  list changing size under a still pointer (details opening, a live refresh), checking the point under it once a
  *  frame at most and changing only the row it leaves and the row it reaches. */
-function usePointerRow(box: RefObject<HTMLDivElement | null>) {
+/** `shown`: whether the list box is rendered (an empty list renders a note instead), so a box that comes back is watched again. */
+function usePointerRow(box: RefObject<HTMLDivElement | null>, shown: boolean) {
   useEffect(() => {
     if (!window.matchMedia?.("(hover: hover)").matches) return;
     let x = -1, y = -1, frame = 0;
@@ -367,7 +368,7 @@ function usePointerRow(box: RefObject<HTMLDivElement | null>) {
       cancelAnimationFrame(frame);
       mark(null);
     };
-  }, [box]);
+  }, [box, shown]);
 }
 
 const LEVEL_TITLE: Record<MatchView["level"], string> = { qual: "Qualifications", playoff: "Playoffs" };
@@ -389,7 +390,7 @@ export function MatchList({ matches, highlight, empty, eventNames, eventDates, i
   // adds matches to the list must not pull the page back to it after the reader has scrolled on, and
   // nor may Back/Forward, which return to where the reader actually was (src/lib/pageScroll.ts).
   const loc = useLocation();
-  usePointerRow(box);
+  usePointerRow(box, matches.length > 0);
   const shownFor = useRef<string | null>(null);
   useEffect(() => {
     const visit = `${loc.key}:${initialOpen}`;
