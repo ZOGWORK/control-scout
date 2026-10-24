@@ -43,20 +43,27 @@ export interface SimRankOptions {
   published: boolean;
   /** Matches per team for a random schedule. */
   perTeam: number;
-  /** Stop early (at least `minRuns` runs) once this much time has gone. */
+  /** Stop early (at least `minRuns` runs) once this much compute time has gone. */
   budgetMs?: number;
   minRuns?: number;
   clock?: () => number;
+  /** Compute this long, then pause (yield to the event loop, so a server keeps answering other requests). */
+  sliceMs?: number;
+  pause?: () => Promise<void>;
 }
+
+const immediate = () => Promise.resolve();
 
 /**
  * Simulate the rankings: `input` is the engine's input for the event before it starts (no results). Returns
  * per-team rank odds, best mean rank first.
  */
-export function simulateRankings(input: SimInput, teams: number[], o: SimRankOptions): SimRankResult {
+export async function simulateRankings(input: SimInput, teams: number[], o: SimRankOptions): Promise<SimRankResult> {
   const published = o.published;
   const clock = o.clock ?? (() => performance.now());
-  const started = clock();
+  const pause = o.pause ?? immediate;
+  const sliceMs = o.sliceMs ?? 20;
+  let compute = 0, sliceStart = clock();
   const n = teams.length;
   const counts = new Map(teams.map((t) => [t, new Int32Array(n + 2)]));
   // Ranks only: no awards, and a run at a time so each draw is that run's own outcome.
@@ -71,7 +78,13 @@ export function simulateRankings(input: SimInput, teams: number[], o: SimRankOpt
       if (r != null && Number.isFinite(r)) counts.get(t)![Math.min(n + 1, Math.max(1, Math.round(r)))]++;
     }
     done++;
-    if (o.budgetMs != null && done >= (o.minRuns ?? 200) && clock() - started > o.budgetMs) break;
+    const now = clock();
+    if (o.budgetMs != null && done >= (o.minRuns ?? 200) && compute + (now - sliceStart) > o.budgetMs) break;
+    if (done < o.runs && now - sliceStart >= sliceMs) {
+      compute += now - sliceStart;
+      await pause();
+      sliceStart = clock();
+    }
   }
   const rows: SimRankRow[] = teams.map((team) => {
     const c = counts.get(team)!;

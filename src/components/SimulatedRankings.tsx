@@ -13,6 +13,9 @@ import { cn } from "./cn";
 
 type Answer = ({ status: "ok" } & SimRankResult) | { status: "unavailable"; reason: string };
 
+/** A short stable hash (FNV-1a, base 36) of what the simulation reads. */
+const fingerprint = (s: string) => { let h = 0x811c9dc5; for (let i = 0; i < s.length; i++) h = Math.imul(h ^ s.charCodeAt(i), 0x01000193) >>> 0; return h.toString(36); };
+
 const pct = (p: number) => (p >= 0.995 ? ">99%" : p > 0 && p < 0.005 ? "<1%" : `${Math.round(p * 100)}%`);
 
 /** A share as a cell: gold, stronger the likelier. */
@@ -29,8 +32,11 @@ export function SimulatedRankings({ d, team }: { d: EventDetail; team: number | 
   const [on, setOn] = useState(false);
   const [perTeam, setPerTeam] = useState(DEFAULT_PER_TEAM);
   const scheduled = d.matches.some((m) => m.level === "qual");
-  const path = `/api/events/${d.event.season}/${encodeURIComponent(d.event.code)}/simulated-rankings${scheduled ? "" : `?perTeam=${perTeam}`}`;
-  const { data, error, loading } = useApi<Answer>(on ? path : null);
+  // What the simulation reads from the page: the teams and the schedule. A change (a corrected schedule, a team
+  // added) is a new address, so an open table asks again; the server keys its own copy on the data version.
+  const v = fingerprint(`${d.field.map((t) => t.team).join(",")}|${d.matches.filter((m) => m.level === "qual").map((m) => `${m.key}:${m.red.teams.map((t) => t.number)}v${m.blue.teams.map((t) => t.number)}`).join(";")}`);
+  const path = `/api/events/${d.event.season}/${encodeURIComponent(d.event.code)}/simulated-rankings?${scheduled ? "" : `perTeam=${perTeam}&`}v=${v}`;
+  const { data, error, loading, reload } = useApi<Answer>(on ? path : null);
   const names = new Map(d.field.map((t) => [t.team, t.name]));
 
   if (!on) return (
@@ -72,7 +78,12 @@ export function SimulatedRankings({ d, team }: { d: EventDetail; team: number | 
         </span>
       </p>
       {loading && !ok && <p className="flex items-center gap-2 py-6 text-sm text-muted-foreground"><Loader2 className="size-4 animate-spin" aria-hidden /> Simulating the event a couple of thousand times…</p>}
-      {error && <p className="py-4 text-sm text-destructive">{error.message}</p>}
+      {error && (
+        <div className="flex flex-wrap items-center gap-3 py-4">
+          <p className="text-sm text-destructive">{error.message}</p>
+          <Button variant="outline" size="sm" onClick={() => void reload()} className="max-sm:h-10">Try again</Button>
+        </div>
+      )}
       {data?.status === "unavailable" && <p className="py-4 text-sm text-muted-foreground">{data.reason}</p>}
       {ok && (
         <>
