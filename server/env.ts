@@ -30,6 +30,9 @@ export const env = {
   get contactTo() { return str("CONTACT_TO"); },
   get googleClientId() { return str("GOOGLE_CLIENT_ID"); },
   get googleClientSecret() { return str("GOOGLE_CLIENT_SECRET"); },
+  /** YouTube Data API v3 key (server/videos/youtube.ts): event recordings' broadcast times, 50 videos a request. Unset:
+   *  the public watch page is read instead, which YouTube may refuse a data-centre address. Never sent to the browser or logged. */
+  get youtubeApiKey() { return str("YOUTUBE_API_KEY"); },
   /** Shared accounts (docs/shared-accounts.md): Control Point's internal API (loopback on the VM), its public URL, and the shared key. */
   get controlPointInternalUrl() { return str("CONTROL_POINT_INTERNAL_URL"); },
   get controlPointPublicUrl() { return str("CONTROL_POINT_PUBLIC_URL"); },
