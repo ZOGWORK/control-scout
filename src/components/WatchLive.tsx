@@ -37,21 +37,22 @@ export function WatchLive({ d, stream }: { d: EventDetail; stream: EventStream }
 }
 
 function Player({ stream, title }: { stream: EventStream; title: string }) {
-  // null: the facade; a number: playing from that second (0 from the start).
-  const [start, setStart] = useState<number | null>(null);
+  // null: the facade; else playing from that second (0 from the start). n counts the seeks, so the same match's Watch again restarts it.
+  const [play, setPlay] = useState<{ t: number; n: number } | null>(null);
+  const start = play?.t ?? null;
   const box = useRef<HTMLDivElement>(null);
   useEffect(() => onStreamSeek((t) => {
-    setStart(t);
+    setPlay((p) => ({ t, n: (p?.n ?? 0) + 1 }));
     box.current?.scrollIntoView({ block: "center", behavior: smoothBehavior() });
   }), []);
   return (
     <div ref={box} className="relative aspect-video w-full overflow-hidden rounded-2xl border border-border bg-black">
       {start != null ? (
-        // Loaded by a click (the facade, or a match's Watch), so autoplay here is the viewer's own choice. A new second is a new player.
-        <iframe key={start} className="absolute inset-0 size-full" src={`${stream.streamUrl}?autoplay=1&rel=0${start ? `&start=${start}` : ""}`} title={title}
+        // Loaded by a click (the facade, or a match's Watch), so autoplay here is the viewer's own choice. Each seek is a new player.
+        <iframe key={play!.n} className="absolute inset-0 size-full" src={`${stream.streamUrl}?autoplay=1&rel=0${start ? `&start=${start}` : ""}`} title={title}
           allow="accelerometer; autoplay; encrypted-media; gyroscope; picture-in-picture; fullscreen" allowFullScreen referrerPolicy="strict-origin-when-cross-origin" />
       ) : (
-        <button type="button" onClick={() => setStart(0)} className="group absolute inset-0 grid place-items-center focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60" aria-label={`Play: ${title}`} data-stream-facade>
+        <button type="button" onClick={() => setPlay({ t: 0, n: 1 })} className="group absolute inset-0 grid place-items-center focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60" aria-label={`Play: ${title}`} data-stream-facade>
           <img src={thumbnailUrl(stream.videoId)} alt="" loading="lazy" decoding="async" className="absolute inset-0 size-full object-cover opacity-80 transition-opacity group-hover:opacity-100 motion-reduce:transition-none" />
           <span className="relative grid size-16 place-items-center rounded-full bg-[#ff0033] text-white shadow-lg sm:size-20"><Play className="size-7 translate-x-0.5 fill-current sm:size-9" aria-hidden /></span>
         </button>

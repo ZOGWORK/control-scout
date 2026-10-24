@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { CLIP_LEAD_S, clipSecond, clipTime, timingTrusted, watchUrl } from "./recording";
+import { actualStart, CLIP_LEAD_S, clipSecond, clipTime, timingTrusted, watchUrl } from "./recording";
 
 const rec = { start: "2026-05-02T12:58:13Z", length: 4 * 3600, live: false };
 
@@ -43,6 +43,19 @@ describe("a video with a gap", () => {
     expect(timingTrusted({ ...gapped, live: true })).toBe(true);
     expect(timingTrusted({ ...whole, length: 16541 - 170 })).toBe(true); // a few minutes trimmed off the end
     expect(timingTrusted({ ...whole, start: null })).toBe(false);
+  });
+});
+
+describe("a real start or a schedule", () => {
+  it("a start with seconds or milliseconds is real; one on the minute is the schedule", () => {
+    expect(actualStart("2026-05-02T11:55:18.162")).toBe(true);
+    expect(actualStart("2026-05-02T11:55:00.162")).toBe(true);
+    expect(actualStart("2026-05-02T11:55:07")).toBe(true);
+    expect(actualStart("2026-05-02T16:55:18.162Z")).toBe(true);
+    expect(actualStart("2026-05-02T09:00:00")).toBe(false);
+    expect(actualStart("2026-05-02T09:00:00.000")).toBe(false);
+    expect(actualStart("2026-05-02T09:00:00Z")).toBe(false);
+    expect(actualStart(null)).toBe(false);
   });
 });
 
