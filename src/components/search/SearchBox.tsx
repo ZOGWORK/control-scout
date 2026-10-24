@@ -160,7 +160,9 @@ export function SearchBox({ onPick, kinds, placeholder, label, size = "md", clas
                     return (
                       <div
                         key={`${h.kind}:${h.ref}`} id={`${listId}-${i}`} role="option" aria-selected={i === active}
-                        onPointerDown={(e) => e.preventDefault()} onClick={() => pick(h)} onPointerMove={() => setActive(i)}
+                        // Keep focus in the field so the list doesn't close before the click lands. Both are needed:
+                        // on an iPhone a tap still sends mousedown after a cancelled pointerdown, and that blurs the field.
+                        onPointerDown={(e) => e.preventDefault()} onMouseDown={(e) => e.preventDefault()} onClick={() => pick(h)} onPointerMove={() => setActive(i)}
                         className={cn("flex cursor-pointer items-center gap-2.5 rounded-lg px-3 py-1.5 text-sm", i === active ? "bg-accent/[0.12] text-foreground" : "text-foreground/90")}
                       >
                         <Icon className={cn("size-4 shrink-0", h.kind === "place" ? "text-accent" : "text-muted-foreground")} />
@@ -182,7 +184,7 @@ export function SearchBox({ onPick, kinds, placeholder, label, size = "md", clas
         {below > 0 && (
           // The cue: results continue below. Fades the last row and offers a one-tap scroll.
           <div className="pointer-events-none absolute inset-x-0 bottom-0 flex h-14 items-end justify-center bg-gradient-to-t from-popover via-popover/85 to-transparent pb-2">
-            <button type="button" tabIndex={-1} onPointerDown={(e) => e.preventDefault()} onClick={() => list.current?.scrollBy({ top: list.current.clientHeight * 0.8, behavior: smoothBehavior() })}
+            <button type="button" tabIndex={-1} onPointerDown={(e) => e.preventDefault()} onMouseDown={(e) => e.preventDefault()} onClick={() => list.current?.scrollBy({ top: list.current.clientHeight * 0.8, behavior: smoothBehavior() })}
               className="pointer-events-auto inline-flex items-center gap-1 rounded-full border border-accent/40 bg-popover px-3 py-1 text-xs font-medium text-accent-text shadow-sm hover:border-accent">
               {below} more below <ChevronDown className="size-3.5 motion-safe:animate-bounce" />
             </button>
