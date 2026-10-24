@@ -320,20 +320,21 @@ function rowsOf({ season, db }: SeasonDb, newest: number): Row[] {
   return rows;
 }
 
-/** Search the saved seasons: a match ("USNJQ1 Q12"), team numbers, then names. */
-export function readSearch(dbs: SeasonDb[], q: string, limit = 15, prefer: ReadonlySet<string> = new Set()): SearchHit[] {
+/** Search the saved seasons: a match ("USNJQ1 Q12"), team numbers, then names. `kinds` (like the server's): only those, before the limit. */
+export function readSearch(dbs: SeasonDb[], q: string, limit = 15, prefer: ReadonlySet<string> = new Set(), kinds?: ReadonlySet<SearchHit["kind"]>): SearchHit[] {
   const query = q.trim();
   if (!query) return [];
   const saved = [...dbs].sort((a, b) => b.season - a.season);
   const out: SearchHit[] = [];
   const seen = new Set<string>();
-  const push = (h: SearchHit) => { const k = `${h.kind}:${h.ref}`; if (!seen.has(k)) { seen.add(k); out.push(h); } };
+  const allow = (k: SearchHit["kind"]) => !kinds?.size || kinds.has(k);
+  const push = (h: SearchHit) => { const k = `${h.kind}:${h.ref}`; if (allow(h.kind) && !seen.has(k)) { seen.add(k); out.push(h); } };
 
-  const mh = matchHit(saved, query);
+  const mh = allow("match") ? matchHit(saved, query) : null;
   if (mh) push(mh);
 
   // Team numbers: exact first, then prefix matches as you type ("163" → 16321…).
-  if (/^[1-9]\d{0,5}$/.test(query)) {
+  if (allow("team") && /^[1-9]\d{0,5}$/.test(query)) {
     const p = Number(query);
     const ranges: [number, number][] = [];
     for (let m = 1; p * m < 1_000_000; m *= 10) ranges.push([p * m, (p + 1) * m - 1]);
@@ -366,6 +367,7 @@ export function readSearch(dbs: SeasonDb[], q: string, limit = 15, prefer: Reado
   const best = new Map<string, { r: Row; s: number }>();
   for (const sdb of saved) {
     for (const r of rowsOf(sdb, newest)) {
+      if (!allow(r.kind)) continue;
       // The word index: every query word starts a word of the row (a city, a year, a state's name…).
       const prefix = qs.every((q) => r.words.some((w) => w.startsWith(q)));
       // The typo index, with a cheap prefilter: a typo of a word still shares a 2-letter chunk with it.
