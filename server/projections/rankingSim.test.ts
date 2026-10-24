@@ -37,11 +37,14 @@ describe("a random schedule", () => {
 
 describe("simulated rankings", () => {
   const o = { runs: 400, seed: 7, published: false, perTeam: 5 };
-  it("the same seed gives the same numbers", () => {
-    expect(simulateRankings(fresh, teams, o)).toEqual(simulateRankings(fresh, teams, o));
+  it("the same seed gives the same numbers, however the work is sliced", async () => {
+    let pauses = 0;
+    const sliced = await simulateRankings(fresh, teams, { ...o, sliceMs: 0, pause: async () => { pauses++; } });
+    expect(await simulateRankings(fresh, teams, o)).toEqual(sliced);
+    expect(pauses).toBe(o.runs - 1); // a pause between every run when every slice is used up
   });
-  it("odds add up: one #1, four in the top 4 and eight in the top 8 per simulated event", () => {
-    const r = simulateRankings(fresh, teams, o);
+  it("odds add up: one #1, four in the top 4 and eight in the top 8 per simulated event", async () => {
+    const r = await simulateRankings(fresh, teams, o);
     expect(r.runs).toBe(400);
     expect(r.schedule).toBe("random");
     expect(r.perTeam).toBe(5);
@@ -53,24 +56,24 @@ describe("simulated rankings", () => {
     // Best average rank first.
     for (let i = 1; i < r.teams.length; i++) expect(r.teams[i].mean).toBeGreaterThanOrEqual(r.teams[i - 1].mean);
   });
-  it("a much stronger team ranks near the top", () => {
+  it("a much stronger team ranks near the top", async () => {
     // The weakest team, given twice the best team's scoring.
     const pts = (t: number) => { const r = base.ratings.get(t)!; return r.auto + r.teleop + r.endgame; };
     const star = [...teams].sort((a, b) => pts(a) - pts(b))[0];
     const best = base.ratings.get([...teams].sort((a, b) => pts(b) - pts(a))[0])!;
     const boosted = { ...fresh, ratings: new Map(base.ratings).set(star, { ...base.ratings.get(star)!, auto: best.auto * 2, teleop: best.teleop * 2, endgame: best.endgame * 2 }) };
-    const r = simulateRankings(boosted, teams, o);
+    const r = await simulateRankings(boosted, teams, o);
     expect(r.teams[0].team).toBe(star);
     expect(r.teams[0].first).toBeGreaterThan(0.5);
   });
-  it("a published schedule is played as published", () => {
-    const r = simulateRankings({ ...base, quals: base.quals.map(({ red, blue }) => ({ red, blue })) }, teams, { ...o, published: true });
+  it("a published schedule is played as published", async () => {
+    const r = await simulateRankings({ ...base, quals: base.quals.map(({ red, blue }) => ({ red, blue })) }, teams, { ...o, published: true });
     expect(r.schedule).toBe("published");
     expect(r.perTeam).toBeNull();
   });
-  it("stops at the budget, after the fewest runs asked for", () => {
+  it("stops at the compute budget, after the fewest runs asked for", async () => {
     let t = 0;
-    const r = simulateRankings(fresh, teams, { ...o, runs: 5000, budgetMs: 10, minRuns: 50, clock: () => (t += 100) });
+    const r = await simulateRankings(fresh, teams, { ...o, runs: 5000, budgetMs: 10, minRuns: 50, clock: () => (t += 100) });
     expect(r.runs).toBe(50);
   });
 });
