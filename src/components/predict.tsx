@@ -337,8 +337,9 @@ const scheduleOrder = (a: MatchView, b: MatchView) => (a.level === b.level ? 0 :
  *  in place. `initialOpen` (a match key, e.g. from ?match=) opens that one and scrolls it into view.
  *  With `highlight`, a summary line gives that team's record in the matches shown.
  *  `eventDates` (by event code, with `eventNames`) puts each event's dates in its heading; `outcomeAccent`: see MatchRow.
+ *  `newestFirst`: each event's matches from the last one back (recent results).
  *  `live` (a match key): the match being played now. Its row stands forward, and on a phone the list opens on it. */
-export function MatchList({ matches, highlight, empty, eventNames, eventDates, initialOpen, outcomeAccent, live }: { matches: MatchView[]; highlight?: number; empty?: string; eventNames?: Record<string, string>; eventDates?: Record<string, string>; initialOpen?: string | null; outcomeAccent?: boolean; live?: string | null }) {
+export function MatchList({ matches, highlight, empty, eventNames, eventDates, initialOpen, outcomeAccent, live, newestFirst }: { matches: MatchView[]; highlight?: number; empty?: string; eventNames?: Record<string, string>; eventDates?: Record<string, string>; initialOpen?: string | null; outcomeAccent?: boolean; live?: string | null; newestFirst?: boolean }) {
   const id = (m: MatchView) => `${m.code}:${m.key}`;
   const [open, setOpen] = useState<Set<string>>(() => new Set());
   const box = useRef<HTMLDivElement>(null);
@@ -383,11 +384,10 @@ export function MatchList({ matches, highlight, empty, eventNames, eventDates, i
     if (last?.key === m.code) last.ms.push(m);
     else groups.push({ key: m.code, title: eventNames?.[m.code] ?? m.code, date: eventDates?.[m.code], href: `/events/${m.season}/${m.code}`, ms: [m] });
   }
-  // The API lists matches by start time; each group reads in schedule order instead, newest first when the
-  // caller listed them that way (a team's recent results).
+  // The API lists matches by start time; each group reads in schedule order instead (newest first for a
+  // list of recent results, which says so: guessing from the order given breaks on a match played out of turn).
   for (const g of groups) {
-    const desc = g.ms.length > 1 && scheduleOrder(g.ms[0], g.ms[g.ms.length - 1]) > 0;
-    g.ms = [...g.ms].sort((a, b) => (desc ? -1 : 1) * scheduleOrder(a, b));
+    g.ms = [...g.ms].sort((a, b) => (newestFirst ? -1 : 1) * scheduleOrder(a, b));
   }
   const rec = highlight ? teamRecord(matches, highlight) : null;
   return (

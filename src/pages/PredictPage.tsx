@@ -293,7 +293,7 @@ function PastCalls({ team, season, played, calls, ev }: { team: number; season: 
           {calls.backtest.of > 0 && line(calls.backtest, "replayed calls (made afterward from only the data before each match, not live)")}
         </ul>
       ) : <p className="mb-3 text-sm text-muted-foreground">No called matches for {team} in {seasonLabel(season)}.</p>}
-      <MatchList matches={played.slice(0, 20)} highlight={team} eventNames={ev.names} eventDates={ev.dates} outcomeAccent empty={`No matches played in ${seasonLabel(season)}.`} />
+      <MatchList matches={played.slice(0, 20)} highlight={team} eventNames={ev.names} eventDates={ev.dates} outcomeAccent newestFirst empty={`No matches played in ${seasonLabel(season)}.`} />
       {played.length > 20 && <p className="mt-2 text-xs text-muted-foreground">Showing the latest 20 of {played.length}. Every match is on the <Link to={`/teams/${team}?season=${season}`} className="underline">team page</Link>.</p>}
     </Reveal>
   );

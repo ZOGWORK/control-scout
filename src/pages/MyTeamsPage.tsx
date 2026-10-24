@@ -237,7 +237,7 @@ function Matches({ team, matches, events, isCurrent }: { team: number; matches: 
       )}
       <div className="min-w-0">
         <h3 className="mb-2 text-sm font-semibold">Latest results</h3>
-        <MatchList matches={recent} highlight={team} eventNames={info.names} eventDates={info.dates} outcomeAccent empty={isCurrent ? "No matches played this season yet." : "No matches played that season."} />
+        <MatchList matches={recent} highlight={team} eventNames={info.names} eventDates={info.dates} outcomeAccent newestFirst empty={isCurrent ? "No matches played this season yet." : "No matches played that season."} />
       </div>
     </div>
   );
