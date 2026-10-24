@@ -24,6 +24,12 @@ describe("Events list filters", () => {
     expect(applyFilters(events, { ...all, type: "LeagueMeet" }).map((e) => e.code)).toEqual(["MXQ1"]);
     expect(applyFilters(events, { ...all, from: "2025-11-09", to: "2025-11-30" }).map((e) => e.code)).toEqual(["USNJQ1"]);
   });
+  it("filters by video: a recording takes events with match clips too; match clips only those", () => {
+    const vids = [ev("NONE", "2025-11-08"), ev("REC", "2025-11-08", { video: "recording" }), ev("CLIPS", "2025-11-08", { video: "clips" })];
+    expect(applyFilters(vids, { ...all, video: "all" }).map((e) => e.code)).toEqual(["NONE", "REC", "CLIPS"]);
+    expect(applyFilters(vids, { ...all, video: "recording" }).map((e) => e.code)).toEqual(["REC", "CLIPS"]);
+    expect(applyFilters(vids, { ...all, video: "clips" }).map((e) => e.code)).toEqual(["CLIPS"]);
+  });
 });
 
 describe("Events list weeks and batches", () => {

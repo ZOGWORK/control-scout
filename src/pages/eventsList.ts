@@ -5,7 +5,9 @@ import type { EventListItem } from "../shared/api";
 import { regionNames } from "../shared/regions";
 
 export type Status = "all" | "live" | "upcoming" | "finished";
-export interface Filters { region: string | null; type: string; status: Status; from: string | null; to: string | null; q: string }
+/** Video to watch: any event, events with a recording (match clips included), or events whose matches link to their own video. */
+export type VideoFilter = "all" | "recording" | "clips";
+export interface Filters { region: string | null; type: string; status: Status; from: string | null; to: string | null; q: string; video?: VideoFilter }
 
 /** Cards in the first render, and how many each "more" adds. */
 export const FIRST_EVENTS = 24;
@@ -27,6 +29,7 @@ export function applyFilters(events: EventListItem[], f: Omit<Filters, "status">
   const needle = f.q.trim().toLowerCase();
   return events.filter((e) =>
     (f.type === "all" || e.type === f.type)
+    && (!f.video || f.video === "all" || (f.video === "clips" ? e.video === "clips" : !!e.video))
     && (!f.region || placeMatches(e, f.region))
     && (!f.from || (e.end ?? e.start ?? "") >= f.from)
     && (!f.to || (!!e.start && e.start <= f.to))
