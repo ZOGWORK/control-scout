@@ -1266,6 +1266,16 @@ CREATE TABLE video_meta (
 );
 `,
   },
+  {
+    version: 44,
+    name: "youtube video timing read again",
+    sql: `
+-- The first reads (migration 43) took YouTube's "confirm you're not a bot" sign-in wall, shown to the server,
+-- for removed videos, which hid their players. That wall is now an error tried again later; every video marked
+-- removed is read again.
+DELETE FROM video_meta WHERE status = 'unavailable';
+`,
+  },
 ];
 
 export type Db = Client;

@@ -79,9 +79,9 @@ describe("event recordings", () => {
   });
 
   it("reads each linked YouTube video once, and nothing for channel pages or Twitch", async () => {
-    expect(await backfillVideoMeta(() => {}, { gapMs: 0, fetchImpl: fakeFetch })).toBe(5);
+    expect(await backfillVideoMeta(() => {}, { apiKey: null, gapMs: 0, fetchImpl: fakeFetch })).toBe(5);
     expect(read.sort()).toEqual([FIRST_ID, GAPPED_ID, GONE_ID, OWNER_ID, UPLOAD_ID].sort());
-    expect(await backfillVideoMeta(() => {}, { gapMs: 0, fetchImpl: fakeFetch })).toBe(0); // nothing due again
+    expect(await backfillVideoMeta(() => {}, { apiKey: null, gapMs: 0, fetchImpl: fakeFetch })).toBe(0); // nothing due again
     expect(await get("SELECT status FROM video_meta WHERE video_id = ?", [GONE_ID])).toEqual({ status: "unavailable" });
     clearAllCaches();
   });
@@ -128,10 +128,10 @@ describe("a page that can't be read", () => {
     const then = Date.parse("2026-05-02T14:00:00Z");
     const live = (async () => new Response(`"playabilityStatus":{"status":"OK"},"liveBroadcastDetails":{"isLiveNow":true,"startTimestamp":"${DAY}T12:00:00+00:00"}`)) as unknown as typeof fetch;
     const down = (async () => { throw new Error("offline"); }) as unknown as typeof fetch;
-    await backfillVideoMeta(() => {}, { gapMs: 0, fetchImpl: live, now: () => then });
-    expect(await backfillVideoMeta(() => {}, { gapMs: 0, fetchImpl: down, now: () => then + 6 * 60_000 })).toBe(1);
+    await backfillVideoMeta(() => {}, { apiKey: null, gapMs: 0, fetchImpl: live, now: () => then });
+    expect(await backfillVideoMeta(() => {}, { apiKey: null, gapMs: 0, fetchImpl: down, now: () => then + 6 * 60_000 })).toBe(1);
     expect(await get("SELECT status, start, live FROM video_meta WHERE video_id = ?", [LIVE_ID])).toEqual({ status: "ok", start: `${DAY}T12:00:00.000Z`, live: 1 });
-    expect(await backfillVideoMeta(() => {}, { gapMs: 0, fetchImpl: live, now: () => then + 12 * 60_000 })).toBe(1); // due again
+    expect(await backfillVideoMeta(() => {}, { apiKey: null, gapMs: 0, fetchImpl: live, now: () => then + 12 * 60_000 })).toBe(1); // due again
   });
 });
 
@@ -162,5 +162,29 @@ describe("FIRST's link to a YouTube video", () => {
     expect(firstVideoId("https://youtube.com/@funroboticsnetwork/streams")).toBeNull();
     expect(firstVideoId("https://twitch.tv/tbtaonline")).toBeNull();
     expect(firstVideoId(null)).toBeNull();
+  });
+});
+
+describe("with a YouTube API key", () => {
+  it("reads due videos 50 to a request through the API, every batch saved, never the watch page", async () => {
+    await run("DELETE FROM video_meta");
+    // 51 more linked videos, so the due ones need two requests.
+    const extra = Array.from({ length: 51 }, (_, i) => `Batch${String(i).padStart(6, "0")}`);
+    for (const [i, id] of extra.entries()) await event(`B${i}`, `https://www.youtube.com/watch?v=${id}`);
+    const sizes: number[] = [];
+    const api = (async (url: string) => {
+      expect(url).toContain("googleapis.com/youtube/v3/videos");
+      const ids = new URL(url).searchParams.get("id")!.split(",");
+      sizes.push(ids.length);
+      return Response.json({ items: ids.filter((id) => id !== GONE_ID).map((id) => ({ id, contentDetails: { duration: "PT4H35M41S" }, liveStreamingDetails: { actualStartTime: `${DAY}T12:58:13Z`, actualEndTime: `${DAY}T17:33:56Z` } })) });
+    }) as unknown as typeof fetch;
+    const n = await backfillVideoMeta(() => {}, { apiKey: "KEY", gapMs: 0, fetchImpl: api });
+    expect(sizes[0]).toBe(50);
+    expect(sizes.reduce((a, b) => a + b, 0)).toBe(n);
+    expect(sizes.length).toBe(Math.ceil(n / 50));
+    expect(n).toBeGreaterThan(51);
+    expect(await get("SELECT status, duration FROM video_meta WHERE video_id = ?", [FIRST_ID])).toEqual({ status: "ok", duration: 16541 });
+    expect(await get("SELECT status, duration FROM video_meta WHERE video_id = ?", [extra[extra.length - 1]])).toEqual({ status: "ok", duration: 16541 });
+    expect(await get("SELECT status FROM video_meta WHERE video_id = ?", [GONE_ID])).toEqual({ status: "unavailable" });
   });
 });
