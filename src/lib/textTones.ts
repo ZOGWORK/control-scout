@@ -22,6 +22,9 @@ export const EVENT_TYPE_TONE: Record<string, { bar: string; text: string }> = {
   Premier: { bar: "bg-pink-400", text: "text-pink-700 dark:text-pink-400" },
 };
 
+/** The neutral fill behind an event's type chip in its page header (components/EventChips.tsx), under the type's `text`. */
+export const EVENT_TYPE_CHIP_FILL = "bg-text-base/[0.07]";
+
 /** The chips beside each team on an event's Teams tab: npOPR and the win-loss-tie record. */
 export const ROSTER_CHIP_TONE = {
   npOpr: "bg-violet-500/12 text-violet-600 dark:text-violet-400",

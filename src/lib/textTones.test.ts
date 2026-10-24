@@ -5,7 +5,7 @@ import { readFileSync } from "node:fs";
 import { createRequire } from "node:module";
 import { describe, expect, it } from "vitest";
 import { contrast, over, parseColor, toHex, type RGBA } from "./contrast";
-import { CHART_LEGEND_TEXT, EVENT_FILTER_COUNT, EVENT_STATUS_TONE, EVENT_TYPE_TONE, PROFILE_PERCENTILE_TEXT, RECORDS_CAP_NOTE_TONE, ROSTER_CHIP_TONE } from "./textTones";
+import { CHART_LEGEND_TEXT, EVENT_FILTER_COUNT, EVENT_STATUS_TONE, EVENT_TYPE_CHIP_FILL, EVENT_TYPE_TONE, PROFILE_PERCENTILE_TEXT, RECORDS_CAP_NOTE_TONE, ROSTER_CHIP_TONE } from "./textTones";
 import { TONE_CLASS } from "./records/describe";
 import { badgeVariants } from "../components/ui/basic";
 import { buttonVariants } from "../components/ui/button";
@@ -92,6 +92,12 @@ describe("text tones reach WCAG AA in both themes", () => {
     });
     it(`event type labels on the card (${theme})`, () => {
       for (const [k, t] of Object.entries(EVENT_TYPE_TONE)) expect(measure(theme, t.text).ratio, `${k}: ${measure(theme, t.text).pair}`).toBeGreaterThanOrEqual(AA);
+    });
+    it(`event type chips in an event's header, on their neutral fill (${theme})`, () => {
+      for (const [k, t] of Object.entries(EVENT_TYPE_TONE)) {
+        const m = measure(theme, `${EVENT_TYPE_CHIP_FILL} ${t.text}`);
+        expect(m.ratio, `${k}: ${m.pair}`).toBeGreaterThanOrEqual(AA);
+      }
     });
     it(`roster chips on an event's Teams tab (${theme})`, () => {
       for (const [k, cls] of Object.entries(ROSTER_CHIP_TONE)) expect(measure(theme, cls).ratio, `${k}: ${measure(theme, cls).pair}`).toBeGreaterThanOrEqual(AA);
