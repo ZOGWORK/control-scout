@@ -146,3 +146,13 @@ it("marks the row under the mouse, and follows it as the page scrolls under a st
   fire("pointermove", { pointerType: "touch", clientX: 10, clientY: 10 });
   expect(row(2).hasAttribute("data-focus")).toBe(true);
 });
+
+it("watches the list's size again when it comes back after an empty view", () => {
+  const observed: Element[] = [];
+  vi.stubGlobal("ResizeObserver", class { observe(el: Element) { observed.push(el); } disconnect() {} });
+  window.matchMedia = ((q: string) => ({ matches: q.includes("hover: hover"), media: q, addEventListener() {}, removeEventListener() {} })) as unknown as typeof window.matchMedia;
+  const { container, rerender } = render(liveView(null, 0));
+  expect(observed).toHaveLength(0);
+  act(() => rerender(liveView(null, 3)));
+  expect(observed.at(-1)).toBe(container.querySelector(".match-list"));
+});
