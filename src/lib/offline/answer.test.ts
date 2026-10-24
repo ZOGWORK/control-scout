@@ -40,6 +40,8 @@ describe("offlineAnswer", () => {
     expect(s.q).toBe("gear");
     expect(s.hits[0].ref).toBe("100");
     expect(offlineSource(s)).not.toBeNull();
+    const ev2 = await offlineAnswer("/api/search?q=newark&limit=1&kinds=event%2Cplace") as { hits: SearchHit[] };
+    expect(ev2.hits.map((h) => h.kind)).toEqual(["event"]);
   });
 
   it("opens only the season a season's page asks for", async () => {
