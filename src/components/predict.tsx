@@ -329,8 +329,9 @@ export function MatchRow({ m, highlight, showEvent, eventName, open, onToggle, o
 const PHONE = "(max-width: 767px)";
 
 /** The row under the mouse, marked `data-focus` (it stands forward: index.css .match-list). Not :hover, which the
- *  scroll shield takes away while the page scrolls: this follows the pointer through a scroll too, checking the
- *  point under it once a frame at most and changing only the row it leaves and the row it reaches. */
+ *  scroll shield takes away while the page scrolls: this follows the pointer through a scroll too, and through the
+ *  list changing size under a still pointer (details opening, a live refresh), checking the point under it once a
+ *  frame at most and changing only the row it leaves and the row it reaches. */
 function usePointerRow(box: RefObject<HTMLDivElement | null>) {
   useEffect(() => {
     if (!window.matchMedia?.("(hover: hover)").matches) return;
@@ -356,7 +357,10 @@ function usePointerRow(box: RefObject<HTMLDivElement | null>) {
     window.addEventListener("pointermove", move, { passive: true });
     window.addEventListener("scroll", queue, { passive: true, capture: true });
     document.documentElement.addEventListener("pointerleave", leave);
+    const resized = typeof ResizeObserver === "undefined" ? null : new ResizeObserver(queue);
+    if (box.current) resized?.observe(box.current);
     return () => {
+      resized?.disconnect();
       window.removeEventListener("pointermove", move);
       window.removeEventListener("scroll", queue, { capture: true });
       document.documentElement.removeEventListener("pointerleave", leave);
