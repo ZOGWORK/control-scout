@@ -169,7 +169,7 @@ describe("Events page on a phone", () => {
     fireEvent.change(box, { target: { value: "amarillo" } });
     const options = await screen.findAllByRole("option");
     expect(options.map((o) => o.textContent)).toEqual([expect.stringContaining("All events in Texas"), expect.stringContaining("Amarillo Scrimmage")]);
-    expect(searched.at(-1)).toContain("limit=25"); // room for events when teams crowd the top hits
+    expect(searched.at(-1)).toContain("kinds=event%2Cplace"); // the server picks events and places before its limit
     fireEvent.click(options[1]);
     expect(path).toBe("/events/2026/USTXAMS");
     expect(screen.queryByRole("option")).toBeNull();
