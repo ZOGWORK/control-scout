@@ -7,7 +7,7 @@
 // Fresh data comes as the pit display gets it (lib/pitPoll.ts useDisplayPoll: the event's own request, its
 // ETag making a quiet poll a 304; 20–30 s while live, else every 5 minutes; after a failure 5, 10, 20, 30 s and
 // a small "Reconnecting…" in the corner bug).
-import { useEffect, useLayoutEffect, useState, type CSSProperties, type HTMLAttributes } from "react";
+import { useEffect, useState, type CSSProperties, type HTMLAttributes } from "react";
 import { useLocation, useParams } from "react-router-dom";
 import { useApi, type ApiError } from "../lib/api";
 import { useTitle } from "../lib/meta";
@@ -26,15 +26,6 @@ const u = (n: number): CSSProperties => ({ fontSize: `calc(var(--u) * ${n})` });
 const bu = (n: number) => `calc(var(--bu) * ${n})`;
 const bf = (n: number): CSSProperties => ({ fontSize: bu(n) });
 
-/** The page is see-through while the overlay is up: <html> and <body> lose their colour (index.css html.cs-overlay). */
-function useTransparentPage(): void {
-  useLayoutEffect(() => {
-    const html = document.documentElement;
-    html.classList.add("cs-overlay");
-    return () => html.classList.remove("cs-overlay");
-  }, []);
-}
-
 export default function EventOverlayPage() {
   const { season, code } = useParams();
   const opts = overlayOptions(useLocation().search);
@@ -46,11 +37,11 @@ export default function EventOverlayPage() {
   // No polling for an address that can't be an event, or one the server says doesn't exist.
   const gone = !valid || status === 404;
   const poll = useDisplayPoll(state.data, gone ? null : path);
-  useTransparentPage();
   const frame: CSSProperties = {
     background: opts.bg === "green" ? CHROMA_GREEN : "transparent",
     ["--u" as string]: "min(1vh, 0.5625vw)",
-    ["--bu" as string]: `calc(min(1vh, 0.5625vw) * ${opts.scale})`,
+    // The bar is 150 --bu wide: never wider than the screen less the corner margins, whatever the scale asks.
+    ["--bu" as string]: `min(calc(min(1vh, 0.5625vw) * ${opts.scale}), calc((100vw - min(1vh, 0.5625vw) * 6) / 150))`,
   };
   return (
     <div className="fixed inset-0 overflow-hidden font-sans text-zinc-100 antialiased" style={frame} data-overlay data-overlay-bg={opts.bg}>
@@ -78,10 +69,10 @@ function Card({ className, style, children, ...rest }: HTMLAttributes<HTMLDivEle
 }
 
 function Overlay({ d, poll, top }: { d: EventDetail; poll: PollState; top: boolean }) {
-  const { rail, now: dataNow } = useWatchRail(d);
+  const { rail, flip, now: dataNow } = useWatchRail(d);
   // "On the field" turns on at a match's start time, so the clock is read again every 15 s, not only on new data.
   const tick = useNow(15_000);
-  const m = overlayModel(d, rail, Math.max(dataNow, tick));
+  const m = overlayModel(d, rail, Math.max(dataNow, tick), flip);
   return (
     <>
       {/* The corner bug: top left, or bottom left when the bar takes the top. */}
