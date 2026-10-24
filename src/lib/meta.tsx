@@ -63,8 +63,8 @@ export function canonicalPath(pathname: string): string {
   const p = pathname.length > 1 ? pathname.replace(/\/+$/, "") : "/";
   return p
     .replace(/^\/events\/(\d{4})\/([A-Za-z0-9_-]{1,40})$/, (_m, s: string, c: string) => `/events/${s}/${c.toUpperCase()}`)
-    // The pit display's canonical is its event page (server/seoMeta.ts), so the TV screen folds into the page to find.
-    .replace(/^\/events\/(\d{4})\/([A-Za-z0-9_-]{1,40})\/display$/i, (_m, s: string, c: string) => `/events/${s}/${c.toUpperCase()}`)
+    // The pit display's (and the stream overlay's) canonical is its event page (server/seoMeta.ts), so the TV screen folds into the page to find.
+    .replace(/^\/events\/(\d{4})\/([A-Za-z0-9_-]{1,40})\/(display|overlay)$/i, (_m, s: string, c: string) => `/events/${s}/${c.toUpperCase()}`)
     .replace(/^\/teams\/0*(\d+)$/, "/teams/$1")
     .replace(/^\/power-rankings\/(\d{4}-w\d{2})$/i, (_m, w: string) => `/power-rankings/${w.toLowerCase()}`);
 }

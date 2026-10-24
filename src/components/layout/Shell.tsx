@@ -20,7 +20,7 @@ import { ClockWeather, ThemeToggle } from "./TopBarExtras";
 import { OfflineStatus } from "../OfflineNote";
 import { InboxBell } from "./InboxBell";
 import { usePersonal } from "../../lib/personal";
-import { isBareRoute, pageTitle } from "../../shared/routes";
+import { isBareRoute, isOverlayRoute, pageTitle } from "../../shared/routes";
 import { SiteFooter } from "./SiteFooter";
 import { useYoursRow, FOLLOWED_TEAM_PATH } from "../../lib/yoursRow";
 import { HEADER_ID, usePageScroll } from "../../lib/pageScroll";
@@ -197,11 +197,13 @@ export function Shell({ children }: { children: ReactNode }) {
   // The pit display is the whole screen: no sidebar, top bar, tab bar or footer (src/shared/routes.ts isBareRoute).
   // Only the chrome is left out: the same <main> stays, so the page scroll's hold on it (usePageScroll) stays good.
   const bare = isBareRoute(loc.pathname);
+  // The stream overlay is see-through (OBS puts it over the video): no page colour behind it either.
+  const clear = isOverlayRoute(loc.pathname);
   return (
     <MotionConfig reducedMotion="user">
       <TooltipProvider delayDuration={250}>
         {/* At least a screen tall; sideways overflow is clipped (clip, not hidden: no scroll box, so the sticky bars still stick). */}
-        <div className="flex min-h-dvh w-full overflow-x-clip bg-primary text-text-base">
+        <div className={cn("flex min-h-dvh w-full overflow-x-clip text-text-base", !clear && "bg-primary")}>
           <a href="#main" className="sr-only focus:not-sr-only focus:fixed focus:left-3 focus:top-3 focus:z-[200] focus:rounded-lg focus:bg-accent focus:px-3 focus:py-2 focus:text-accent-ink">Skip to content</a>
           {!bare && <Sidebar collapsed={collapsed} onToggle={toggle} />}
           <div className="flex min-w-0 flex-1 flex-col">
