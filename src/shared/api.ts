@@ -206,8 +206,13 @@ export interface MatchView {
   red: AllianceScore;
   blue: AllianceScore;
   video: string | null;
+  /** Where the match starts in the event's recording (server/videos/recordings.ts), on the event's own routes. */
+  clip?: MatchClip;
   prediction: MatchPredictionView | null;
 }
+
+/** A match's place in its event's recording: the video, the second to start from, and YouTube's link to it. */
+export interface MatchClip { videoId: string; t: number; url: string }
 
 export interface EventSummary {
   season: number;
@@ -231,7 +236,11 @@ export interface EventSummary {
 }
 
 /** A row of /api/events (the list): the detail-only fields are left out. */
-export type EventListItem = Omit<EventSummary, "venue" | "divisionCode" | "region" | "remote"> & { /** A stream is set (the LIVE dot while it's on). */ stream?: true };
+export type EventListItem = Omit<EventSummary, "venue" | "divisionCode" | "region" | "remote"> & {
+  /** A stream is set (the LIVE dot while it's on). */ stream?: true;
+  /** Video to watch: "clips" (matches link to their second in a recording, or FIRST's own match videos) or "recording" (the event's stream, no match times). */
+  video?: "clips" | "recording";
+};
 
 export interface FieldRow {
   team: number;
@@ -253,7 +262,7 @@ export interface FieldRow {
 }
 
 /** An event's live stream as the owner set it (server/portal/streams.ts): YouTube, played from youtube-nocookie.com. */
-export interface EventStream { videoId: string; streamUrl: string }
+export interface EventStream { videoId: string; streamUrl: string; /** "first": FIRST's liveStreamUrl, not one the owner set. */ source?: "first" }
 
 /** A row of the owner portal's stream list. */
 export interface OwnerStreamRow { season: number; code: string; name: string | null; start: string | null; end: string | null; url: string; videoId: string; updatedAt: string }
