@@ -116,3 +116,26 @@ it("on a phone, opens on the live match once per visit; elsewhere never moves th
   render(liveView("qual:0:2"));
   expect(scrolled).toHaveBeenCalledTimes(1);
 });
+
+// The row under the mouse stands forward through a scroll too: the scroll shield takes :hover away then, so the
+// list follows the pointer itself (data-focus), on pointer moves and on scrolls.
+it("marks the row under the mouse, and follows it as the page scrolls under a still pointer", () => {
+  window.matchMedia = ((q: string) => ({ matches: q.includes("hover: hover"), media: q, addEventListener() {}, removeEventListener() {} })) as unknown as typeof window.matchMedia;
+  const { container } = render(liveView("qual:0:1"));
+  const row = (n: number) => container.querySelector(`[data-match="qual:0:${n}"] [data-row]`)!;
+  const shield = document.createElement("div");
+  let under: Element = row(2).querySelector("[data-match-label]")!;
+  document.elementsFromPoint = () => [shield, under];
+  const fire = (type: string, extra: object = {}) => act(() => { window.dispatchEvent(Object.assign(new Event(type), extra)); });
+  fire("pointermove", { pointerType: "mouse", clientX: 10, clientY: 10 });
+  expect(container.querySelectorAll("[data-focus]")).toEqual(expect.objectContaining({ length: 1 }));
+  expect(row(2).hasAttribute("data-focus")).toBe(true);
+  under = row(3);
+  fire("scroll");
+  expect(row(2).hasAttribute("data-focus")).toBe(false);
+  expect(row(3).hasAttribute("data-focus")).toBe(true);
+  // A finger never marks a row.
+  under = row(1);
+  fire("pointermove", { pointerType: "touch", clientX: 10, clientY: 10 });
+  expect(row(3).hasAttribute("data-focus")).toBe(true);
+});
