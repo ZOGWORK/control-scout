@@ -43,7 +43,8 @@ export function useSearchHits(q: string, kinds?: HitKind[]) {
     if (!query) { setRes({ q: "", hits: [] }); setError(null); setBusy(false); return; }
     setBusy(true);
     const t = setTimeout(() => {
-      apiFetch<{ hits: SearchHit[] }>(`/api/search?q=${encodeURIComponent(query)}&limit=15${prefer ? `&prefer=${encodeURIComponent(prefer)}` : ""}`)
+      // A box limited to some kinds asks for the most hits, so other kinds (often teams) don't crowd its own out.
+      apiFetch<{ hits: SearchHit[] }>(`/api/search?q=${encodeURIComponent(query)}&limit=${kindKey ? 25 : 15}${prefer ? `&prefer=${encodeURIComponent(prefer)}` : ""}`)
         .then((r) => { if (id === seq.current) { setRes({ q: query, hits: kindKey ? r.hits.filter((h) => kindKey.split(",").includes(h.kind)) : r.hits }); setError(null); } })
         .catch((e) => { if (id === seq.current) { setRes({ q: query, hits: [] }); setError(e.message); } }) // the query is answered (with an error): the spinner stops
         .finally(() => { if (id === seq.current) setBusy(false); });
