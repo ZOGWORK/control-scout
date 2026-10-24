@@ -10,11 +10,11 @@
 //   empty    no schedule posted yet (or a finished event with no results posted).
 //
 // Query options (keep to these): ?bg=green (a solid chroma-key green instead of transparent), ?pos=top (the
-// bar at the top), ?scale=0.8 (the bar's size, 0.5–1.5).
+// bar at the top), ?scale=0.8 (the bar's size, 0.5–1.5; the page never lets it grow past the screen's width).
 import type { EventDetail, MatchPredictionView, MatchView } from "../shared/api";
 import { oddsPct } from "../shared/share";
 import { lastPlayed } from "./pitDisplay";
-import { verdict, type Rail } from "./watchRail";
+import { verdict, type Flip, type Rail } from "./watchRail";
 
 export interface OverlayOptions { bg: "transparent" | "green"; pos: "bottom" | "top"; scale: number }
 
@@ -67,8 +67,10 @@ function sideOf(m: MatchView, c: "red" | "blue", names: ReadonlyMap<number, stri
 
 const NONE: OverlaySide = { teams: [], score: null, won: false };
 
-/** What the bar shows now, from the rail's pick (lib/watchRail.ts railModel) and the event's data. */
-export function overlayModel(d: Pick<EventDetail, "event" | "matches" | "field">, rail: Rail, now: number): OverlayModel {
+/** What the bar shows now, from the rail's pick (lib/watchRail.ts railModel) and the event's data. `flip` is the rail's
+ *  last flip, kept after its minute: when the last result stays up, it's judged against the call that was on screen
+ *  (once scored, the match's own prediction can be a different one, or none), as the timed result was. */
+export function overlayModel(d: Pick<EventDetail, "event" | "matches" | "field">, rail: Rail, now: number, flip: Flip | null = null): OverlayModel {
   const names = new Map(d.field.map((f) => [f.team, f.name]));
   const build = (kind: OverlayKind, heading: string, match: MatchView): OverlayModel => ({
     kind, heading, match, prediction: match.prediction,
@@ -82,7 +84,7 @@ export function overlayModel(d: Pick<EventDetail, "event" | "matches" | "field">
   }
   // Nothing left to call (or the rail hides: the event is finished): the last result stays on screen.
   const last = lastPlayed(d.matches);
-  if (last) return build("last", d.event.status === "finished" ? "Final result" : "Last result", last);
+  if (last) return build("last", d.event.status === "finished" ? "Final result" : "Last result", flip?.key === last.key ? { ...last, prediction: flip.shown } : last);
   return { kind: "empty", heading: d.event.status === "finished" ? "Event over" : d.matches.length ? "Up next" : "Schedule", match: null, prediction: null, red: NONE, blue: NONE, verdict: null };
 }
 

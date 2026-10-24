@@ -1,7 +1,7 @@
 // App shell — Control Point's modern layout: a collapsible left sidebar with
 // an animated active pill, a slim top bar with the search pill, and a bottom
 // tab bar on phones.
-import { useEffect, useRef, useState, type ComponentType, type ReactNode } from "react";
+import { useEffect, useLayoutEffect, useRef, useState, type ComponentType, type ReactNode } from "react";
 import { Ambient } from "./Ambient";
 import { Link, NavLink, useLocation } from "react-router-dom";
 import { MotionConfig } from "motion/react";
@@ -199,6 +199,9 @@ export function Shell({ children }: { children: ReactNode }) {
   const bare = isBareRoute(loc.pathname);
   // The stream overlay is see-through (OBS puts it over the video): no page colour behind it either.
   const clear = isOverlayRoute(loc.pathname);
+  // ...and <html>/<body> lose their colour too (index.css html.cs-overlay). Tied to the route here, not to the overlay's own
+  // page: the static first paint sets the class, and it must go on leaving the route even if that page never loaded.
+  useLayoutEffect(() => { document.documentElement.classList.toggle("cs-overlay", clear); }, [clear]);
   return (
     <MotionConfig reducedMotion="user">
       <TooltipProvider delayDuration={250}>

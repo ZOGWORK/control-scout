@@ -5,7 +5,8 @@ import { useEffect, useRef, useState } from "react";
 import type { EventDetail } from "../shared/api";
 import { nextFlip, railModel, type Calling, type Flip, type Rail } from "./watchRail";
 
-export function useWatchRail(d: Pick<EventDetail, "event" | "matches">): { rail: Rail; now: number } {
+/** The rail now, the last flip (kept after its minute: the call shown for that match) and the time it was worked out at. */
+export function useWatchRail(d: Pick<EventDetail, "event" | "matches">): { rail: Rail; flip: Flip | null; now: number } {
   const [flip, setFlip] = useState<Flip | null>(null);
   const [now, setNow] = useState(() => Date.now());
   const calling = useRef<Calling | null>(null);
@@ -26,5 +27,5 @@ export function useWatchRail(d: Pick<EventDetail, "event" | "matches">): { rail:
     const id = setTimeout(() => setNow(Date.now()), flip.until - now);
     return () => clearTimeout(id);
   }, [flip, now]);
-  return { rail, now };
+  return { rail, flip, now };
 }
