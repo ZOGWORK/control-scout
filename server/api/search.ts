@@ -39,27 +39,33 @@ async function matchHit(q: string): Promise<SearchHit | null> {
 }
 
 /** `prefer`: the visitor's own teams/events ("team:16321", "event:2025:AUBRQ2") —
- *  my team, tracked and shortlisted — rank above other matches of the same strength. */
-export async function search(q: string, limit = 12, prefer: ReadonlySet<string> = new Set()): Promise<SearchHit[]> {
+ *  my team, tracked and shortlisted — rank above other matches of the same strength.
+ *  `kinds`: only these kinds of hit (an events-only box), chosen before the limit so other kinds can't crowd them out. */
+export async function search(q: string, limit = 12, prefer: ReadonlySet<string> = new Set(), kinds?: ReadonlySet<SearchHit["kind"]>): Promise<SearchHit[]> {
   const query = q.trim();
   if (!query) return [];
+  const allow = (k: SearchHit["kind"]) => !kinds?.size || kinds.has(k);
+  // The same choice inside the index queries, so their row caps hold only wanted kinds.
+  const indexed = kinds?.size ? [...kinds].filter((k) => k === "team" || k === "event") : null;
+  const kindSql = indexed ? ` AND kind IN (${indexed.map(() => "?").join(",") || "NULL"})` : "";
+  const kindArgs = indexed ?? [];
   const out: SearchHit[] = [];
   const seen = new Set<string>();
-  const push = (h: SearchHit) => { const k = `${h.kind}:${h.ref}`; if (!seen.has(k)) { seen.add(k); out.push(h); } };
+  const push = (h: SearchHit) => { const k = `${h.kind}:${h.ref}`; if (allow(h.kind) && !seen.has(k)) { seen.add(k); out.push(h); } };
 
   // 0. A state or province ("New Jersey", "NJ"): its events this season, as one link.
-  if (!/\d/.test(query)) for (const r of findRegions(query)) {
+  if (allow("place") && !/\d/.test(query)) for (const r of findRegions(query)) {
     const n = Number((await get<{ n: number }>("SELECT COUNT(*) n FROM events WHERE season = ? AND country = ? AND state = ?", [CURRENT_SEASON, r.country, r.state]))?.n ?? 0);
     if (n) push({ kind: "place", ref: r.key, title: `All events in ${r.name}`, subtitle: `${n} this season`, season: CURRENT_SEASON });
   }
 
   // 1. A specific match ("USNJQ1 Q12").
-  const mh = await matchHit(query);
+  const mh = allow("match") ? await matchHit(query) : null;
   if (mh) push(mh);
 
   // 2. Team numbers: exact first, then prefix matches as you type ("163" → 16321…).
   // (Team numbers never start with 0 — and a 0 prefix would never end the range loop.)
-  if (/^[1-9]\d{0,5}$/.test(query)) {
+  if (allow("team") && /^[1-9]\d{0,5}$/.test(query)) {
     // Prefix "16" = numbers 16, 160–169, 1600–1699, … — integer ranges the primary key can serve.
     const p = Number(query);
     const preferred = [...prefer].map((k) => /^team:(\d+)$/.exec(k)?.[1]).filter(Boolean).map(Number);
@@ -88,9 +94,9 @@ export async function search(q: string, limit = 12, prefer: ReadonlySet<string> 
     if (!cands.has(k)) cands.set(k, { kind: r.kind, ref: r.ref, title: r.title, subtitle: r.subtitle, season: r.season == null ? null : Number(r.season), weight: Number(r.weight) || 1, name });
   };
   const fts = ftsQuery(query);
-  if (fts) for (const r of await all<any>("SELECT kind, ref, season, weight, title, subtitle, terms FROM search WHERE search MATCH ? ORDER BY bm25(search, 0, 0, 0, 0, 10.0, 2.0, 1.0) LIMIT 60", [fts])) add(r, `${r.title} ${r.subtitle} ${r.terms ?? ""}`);
+  if (fts) for (const r of await all<any>(`SELECT kind, ref, season, weight, title, subtitle, terms FROM search WHERE search MATCH ?${kindSql} ORDER BY bm25(search, 0, 0, 0, 0, 10.0, 2.0, 1.0) LIMIT 60`, [fts, ...kindArgs])) add(r, `${r.title} ${r.subtitle} ${r.terms ?? ""}`);
   const tri = /[a-z]/i.test(query) ? trigramQuery(query) : null;
-  if (tri) for (const r of await all<any>("SELECT kind, ref, season, weight, title, subtitle, name FROM search_fuzzy WHERE search_fuzzy MATCH ? ORDER BY bm25(search_fuzzy) LIMIT 150", [tri])) add(r, `${r.title} ${r.name}`);
+  if (tri) for (const r of await all<any>(`SELECT kind, ref, season, weight, title, subtitle, name FROM search_fuzzy WHERE search_fuzzy MATCH ?${kindSql} ORDER BY bm25(search_fuzzy) LIMIT 150`, [tri, ...kindArgs])) add(r, `${r.title} ${r.name}`);
   const ranked = [...cands.values()]
     .map((c) => ({ c, s: Math.max(fuzzyScore(query, c.title), fuzzyScore(query, c.name), fuzzyScore(query, `${c.title} ${c.subtitle}`) * 0.95) }))
     .filter((x) => x.s >= 0.6)
@@ -105,7 +111,7 @@ export async function search(q: string, limit = 12, prefer: ReadonlySet<string> 
     const qs = words(query);
     // Cheap prefilter: a typo of a word still shares a 2-letter chunk with it.
     const qb = bigrams(qs.join(" "));
-    const scanned = (await fuzzyRows()).filter((r) => { for (const b of qb) if (r.bigrams.has(b)) return true; return false; })
+    const scanned = (await fuzzyRows()).filter((r) => { if (!allow(r.kind)) return false; for (const b of qb) if (r.bigrams.has(b)) return true; return false; })
       .map((r) => ({ r, s: scoreWords(qs, r.words) })).filter((x) => x.s >= 0.6)
       .map((x) => (prefer.has(`${x.r.kind}:${x.r.ref}`) ? { ...x, s: x.s + 0.1 } : x)) // same preference as the indexed path
       .sort((a, b) => b.s - a.s || b.r.weight - a.r.weight || (b.r.season ?? 0) - (a.r.season ?? 0));
