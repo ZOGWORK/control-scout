@@ -120,6 +120,8 @@ it("on a phone, opens on the live match once per visit; elsewhere never moves th
 // The row under the mouse stands forward through a scroll too: the scroll shield takes :hover away then, so the
 // list follows the pointer itself (data-focus), on pointer moves and on scrolls.
 it("marks the row under the mouse, and follows it as the page scrolls under a still pointer", () => {
+  const resizeCallbacks: (() => void)[] = [];
+  vi.stubGlobal("ResizeObserver", class { constructor(cb: () => void) { resizeCallbacks.push(cb); } observe() {} disconnect() {} });
   window.matchMedia = ((q: string) => ({ matches: q.includes("hover: hover"), media: q, addEventListener() {}, removeEventListener() {} })) as unknown as typeof window.matchMedia;
   const { container } = render(liveView("qual:0:1"));
   const row = (n: number) => container.querySelector(`[data-match="qual:0:${n}"] [data-row]`)!;
@@ -134,8 +136,13 @@ it("marks the row under the mouse, and follows it as the page scrolls under a st
   fire("scroll");
   expect(row(2).hasAttribute("data-focus")).toBe(false);
   expect(row(3).hasAttribute("data-focus")).toBe(true);
+  // The list changing size under a still pointer (details opening above it) re-checks the row under it.
+  under = row(2);
+  act(() => { resizeCallbacks.forEach((cb) => cb()); });
+  expect(row(2).hasAttribute("data-focus")).toBe(true);
+  expect(row(3).hasAttribute("data-focus")).toBe(false);
   // A finger never marks a row.
   under = row(1);
   fire("pointermove", { pointerType: "touch", clientX: 10, clientY: 10 });
-  expect(row(3).hasAttribute("data-focus")).toBe(true);
+  expect(row(2).hasAttribute("data-focus")).toBe(true);
 });
