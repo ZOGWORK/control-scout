@@ -29,6 +29,7 @@ import { cn } from "../components/cn";
 import { ROSTER_CHIP_TONE } from "../lib/textTones";
 import { OfflineNote } from "../components/OfflineNote";
 import { EventGlance } from "../components/EventGlance";
+import { SimulatedRankings } from "../components/SimulatedRankings";
 import { ModelVsField } from "../components/ModelVsField";
 import { callRecord } from "../lib/eventGlance";
 import { NotFoundView } from "../components/NotFoundView";
@@ -217,6 +218,8 @@ function Event({ d, path }: { d: EventDetail; path: string }) {
               {e.status === "live" && <StatsAsOf />}
               {/* Model vs field: the biggest gaps between the model's rating order and the seeding (components/ModelVsField.tsx). */}
               {predictable && <ModelVsField season={e.season} code={e.code} refreshKey={d.live?.checkedAt ?? undefined} />}
+              {/* Before quals start: a simulated ranking, only on a click and loudly uncertain (components/SimulatedRankings.tsx). */}
+              {predictable && !d.matches.some((m) => m.level === "qual" && m.played) && d.field.length >= 4 && <SimulatedRankings d={d} team={teamParam} />}
               <RecordsTable scope="teamEvent" season={e.season} code={e.code} predictable={predictable} refreshKey={recordsKey} defaultSort="rank" storageKey="event-rankings" noun="teams"
                 defaultCols={RANKING_COLS.filter((k) => k !== "advancementOdds" || !d.forecastUnsupported)} selectable highlightTeam={teamParam}
                 emptyFallback={e.status === "live" ? <EmptyState icon={Swords} title="Full stats arrive with the next stats update" description="The live standings above are current." /> : <Rankings field={d.field} season={e.season} team={teamParam} code={e.code} note={NOTE_NO_RECORDS} />}
