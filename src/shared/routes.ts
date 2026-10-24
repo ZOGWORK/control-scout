@@ -7,7 +7,7 @@
 /** A lazily loaded page module under src/pages (the file name without .tsx). */
 export type PageModule =
   | "TeamPage" | "EventsPage" | "RecordsPage" | "RankingsPage" | "EventPage" | "PredictPage" | "ComparePage" | "MyTeamPage" | "MyTeamsPage"
-  | "ShortlistPage" | "ScoutPage" | "DownloadPage" | "SettingsPage" | "MethodologyPage" | "PrivacyPage" | "TermsPage" | "ContactPage" | "FaqPage" | "MatchReportPage" | "PowerRankingsPage" | "EventDisplayPage" | "NotFound";
+  | "ShortlistPage" | "ScoutPage" | "DownloadPage" | "SettingsPage" | "MethodologyPage" | "PrivacyPage" | "TermsPage" | "ContactPage" | "FaqPage" | "MatchReportPage" | "PowerRankingsPage" | "EventDisplayPage" | "EventOverlayPage" | "NotFound";
 
 // React Router matches case-insensitively, a trailing slash included: so do these.
 const ROUTES: [RegExp, PageModule | null][] = [
@@ -19,6 +19,7 @@ const ROUTES: [RegExp, PageModule | null][] = [
   [/^\/events\/[^/]+\/[^/]+\/?$/i, "EventPage"],
   [/^\/events\/[^/]+\/[^/]+\/match\/[^/]+\/?$/i, "MatchReportPage"],
   [/^\/events\/[^/]+\/[^/]+\/display\/?$/i, "EventDisplayPage"],
+  [/^\/events\/[^/]+\/[^/]+\/overlay\/?$/i, "EventOverlayPage"],
   [/^\/predict\/?$/i, "PredictPage"],
   [/^\/predict\/accuracy\/?$/i, null], // a redirect to /methodology
   [/^\/compare\/?$/i, "ComparePage"],
@@ -46,6 +47,7 @@ export function pageModule(path: string): PageModule | null {
 const TITLES: [RegExp, string][] = [
   [/^\/events\/[^/]+\/[^/]+\/match\/[^/]+$/, "Match report"],
   [/^\/events\/[^/]+\/[^/]+\/display$/, "Pit display"],
+  [/^\/events\/[^/]+\/[^/]+\/overlay$/, "Stream overlay"],
   [/^\/teams\/[^/]+$/, "Team"], [/^\/teams$/, "Teams"], [/^\/rankings$/, "Rankings"], [/^\/matches$/, "Match records"], [/^\/events\/[^/]+\/[^/]+$/, "Event"], [/^\/events$/, "Events"], [/^\/predict\/how-it-works$/, "How it works"], [/^\/predict(\/accuracy)?$/, "Predict"],
   [/^\/compare$/, "Compare"], [/^\/my-team$/, "My team"], [/^\/my-teams$/, "My teams"], [/^\/shortlist$/, "Shortlist"], [/^\/scout$/, "Scout"], [/^\/download$/, "Download"],
   [/^\/settings$/, "Settings"], [/^\/methodology$/, "How it works"], [/^\/privacy$/, "Privacy"], [/^\/terms$/, "Terms"], [/^\/contact$/, "Contact"], [/^\/faq$/, "FAQ"],
@@ -60,5 +62,8 @@ export const pageTitle = (path: string) => {
 };
 
 /** Pages drawn without the site's chrome (no sidebar, top bar, footer or prompts): the pit display, a
- *  fullscreen screen for a pit TV. Matched as React Router does (any case, a trailing slash allowed). */
-export const isBareRoute = (path: string) => /^\/events\/[^/]+\/[^/]+\/display\/?$/i.test(path);
+ *  fullscreen screen for a pit TV, and the stream overlay. Matched as React Router does (any case, a trailing slash allowed). */
+export const isBareRoute = (path: string) => /^\/events\/[^/]+\/[^/]+\/(display|overlay)\/?$/i.test(path);
+
+/** The stream overlay (an OBS browser source over the video): bare, and see-through, so no page colour under it either. */
+export const isOverlayRoute = (path: string) => /^\/events\/[^/]+\/[^/]+\/overlay\/?$/i.test(path);
