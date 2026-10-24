@@ -21,7 +21,7 @@ import { captureInstallPrompt } from "./lib/installNudge";
 // The landing page is part of the main bundle, not lazy: its API calls then start in
 // the same render as the app's own (/api/meta, /api/auth/me), with no second round.
 import Home from "./pages/Home";
-import { isBareRoute, pageModule, type PageModule } from "./shared/routes";
+import { isBareRoute, isOverlayRoute, pageModule, type PageModule } from "./shared/routes";
 import { APP_CSS_ID } from "./shared/boot";
 import { installPrefetch } from "./lib/prefetch";
 import { MotionFeatures } from "./components/motion";
@@ -70,9 +70,10 @@ const PAGES = {
   MatchReportPage: lazyPage(() => import("./pages/MatchReportPage")),
   PowerRankingsPage: lazyPage(() => import("./pages/PowerRankingsPage")),
   EventDisplayPage: lazyPage(() => import("./pages/EventDisplayPage")),
+  EventOverlayPage: lazyPage(() => import("./pages/EventOverlayPage")),
   NotFound: lazyPage(() => import("./pages/NotFound")),
 } satisfies Record<PageModule, unknown>;
-const { TeamPage, EventsPage, RecordsPage, RankingsPage, EventPage, PredictPage, ComparePage, MyTeamPage, MyTeamsPage, ShortlistPage, ScoutPage, DownloadPage, SettingsPage, MethodologyPage, PrivacyPage, TermsPage, ContactPage, FaqPage, MatchReportPage, PowerRankingsPage, EventDisplayPage, NotFound } = PAGES;
+const { TeamPage, EventsPage, RecordsPage, RankingsPage, EventPage, PredictPage, ComparePage, MyTeamPage, MyTeamsPage, ShortlistPage, ScoutPage, DownloadPage, SettingsPage, MethodologyPage, PrivacyPage, TermsPage, ContactPage, FaqPage, MatchReportPage, PowerRankingsPage, EventDisplayPage, EventOverlayPage, NotFound } = PAGES;
 
 // Offline: the service worker precaches the app so it opens with no signal.
 // Production builds only (dev serves unbundled modules).
@@ -113,6 +114,11 @@ function NotOnBareRoute({ children }: { children: ReactNode }) {
   return isBareRoute(useLocation().pathname) ? null : <>{children}</>;
 }
 
+/** Its children everywhere but on the stream overlay, which goes out on air over the video: no toasts there. */
+function NotOnOverlay({ children }: { children: ReactNode }) {
+  return isOverlayRoute(useLocation().pathname) ? null : <>{children}</>;
+}
+
 function appCss(): Promise<unknown> {
   const link = document.getElementById(APP_CSS_ID) as HTMLLinkElement | null;
   if (!link || link.media !== "print") return Promise.resolve();
@@ -148,6 +154,7 @@ void ready.catch(() => { /* a failed load is retried (and shown) by the page's o
                   <Route path="/events/:season/:code" element={<EventPage />} />
                   <Route path="/events/:season/:code/match/:key" element={<MatchReportPage />} />
                   <Route path="/events/:season/:code/display" element={<EventDisplayPage />} />
+                  <Route path="/events/:season/:code/overlay" element={<EventOverlayPage />} />
                   <Route path="/predict" element={<PredictPage />} />
                   <Route path="/predict/accuracy" element={<Navigate to={{ pathname: "/methodology", hash: "#accuracy" }} replace />} />
                   <Route path="/compare" element={<ComparePage />} />
@@ -172,7 +179,7 @@ void ready.catch(() => { /* a failed load is retried (and shown) by the page's o
               </Suspense>
               </RouteErrorBoundary>
             </Shell>
-            <Toaster />
+            <NotOnOverlay><Toaster /></NotOnOverlay>
             <CanonicalSync />
             {/* The pit display (a TV nobody touches) gets no prompts over it: no privacy banner (unanswered, so no analytics), tour, nudge or alerts. */}
             <NotOnBareRoute><ConsentBanner /></NotOnBareRoute>
