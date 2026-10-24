@@ -13,6 +13,7 @@ import { ensureSearchIndex, search } from "./api/search.js";
 import { rebuildSearch } from "./stats/job.js";
 import { teamProfile, compareTeams, teamSummaries, shortlistTeams, reliabilityMany } from "./api/teams.js";
 import { cachedEventDetail, eventDetail, listEvents, toEventInput } from "./api/events.js";
+import { perTeamOf, simulatedRankings } from "./projections/rankingSim.js";
 import { eventRecording, recordingStream, seasonRecordings, seasonVideoKinds, withClips } from "./videos/recordings.js";
 
 /** An event's detail with its recording (server/videos/recordings.ts: the owner's stream, else FIRST's YouTube link)
@@ -384,6 +385,13 @@ export function createApp() {
     if (!d) throw new HttpError(404, `No match ${key} at ${req.params.code}`);
     const rec = await eventRecording(d.event.season, d.event.code).catch(() => null);
     return rec ? { ...d, match: withClips([d.match], rec)[0] } : d;
+  }));
+
+  // Simulated rankings before quals start (projections/rankingSim.ts): run on a click, kept per data version.
+  api.get("/events/:season/:code/simulated-rankings", h(async (req) => {
+    const r = await simulatedRankings(season(req.params.season), code(req.params.code), perTeamOf(req.query.perTeam));
+    if (!r) throw new HttpError(404, `No event ${req.params.code} in ${req.params.season}`);
+    return r;
   }));
 
   // Model vs field: where the model's rating order and the official seeding disagree most (api/disagreements.ts).
