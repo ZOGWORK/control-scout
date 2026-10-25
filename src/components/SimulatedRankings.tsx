@@ -4,7 +4,8 @@
 // is: nobody has played yet, ratings come from earlier events, and with no schedule out the schedule is random.
 import { useState } from "react";
 import { Link } from "react-router-dom";
-import { AlertTriangle, Dices, Loader2 } from "lucide-react";
+import { AlertTriangle, Dices } from "lucide-react";
+import { SimProgress } from "./SimProgress";
 import { useApi } from "../lib/api";
 import type { EventDetail } from "../shared/api";
 import { DEFAULT_PER_TEAM, PER_TEAM_CHOICES, type SimRankResult } from "../shared/rankingSimView";
@@ -77,7 +78,7 @@ export function SimulatedRankings({ d, team }: { d: EventDetail; team: number | 
           but real rankings swing on partners, opponents and a handful of matches. Read these as odds, never as places.
         </span>
       </p>
-      {loading && !ok && <p className="flex items-center gap-2 py-6 text-sm text-muted-foreground"><Loader2 className="size-4 animate-spin" aria-hidden /> Simulating the event a couple of thousand times…</p>}
+      {loading && !ok && <SimProgress runs={2000} label="Simulating the rankings" />}
       {error && (
         <div className="flex flex-wrap items-center gap-3 py-4">
           <p className="text-sm text-destructive">{error.message}</p>

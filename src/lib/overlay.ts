@@ -1,6 +1,5 @@
-// The broadcast overlay (/events/:season/:code/overlay, pages/EventOverlayPage.tsx): a lower-third for an
-// event's stream, added in OBS as a browser source over the video. What the bar shows is the Watch live
-// rail's pick (lib/watchRail.ts: the match being called, its result for a minute once it's in, then the
+// The predictions over the event page's live player (components/VideoPredictions.tsx): what shows for the
+// match being called while the event is live. It's the Watch live rail's pick (lib/watchRail.ts: the match being called, its result for a minute once it's in, then the
 // next one), so the overlay and the rail never disagree. Pure, tested in overlay.test.ts.
 //
 //   now      the match on the field (its start has passed, no result yet) or next up, with each side's win chance.
@@ -8,53 +7,10 @@
 //   last     nothing left to call (every match played, or the event over): the last result stays up,
 //            "Final result" once the event is finished.
 //   empty    no schedule posted yet (or a finished event with no results posted).
-//
-// Query options (keep to these): ?bg=green (a solid chroma-key green instead of transparent), ?pos=top (the
-// bar at the top), ?scale=0.8 (the bar's size, 0.5–1.5; the page never lets it grow past the screen's width),
-// ?clean=1 (the bare overlay in any tool; OBS gets it without asking, see isBroadcastSource).
 import type { EventDetail, MatchPredictionView, MatchView } from "../shared/api";
 import { oddsPct } from "../shared/share";
 import { lastPlayed } from "./pitDisplay";
 import { verdict, type Flip, type Rail } from "./watchRail";
-
-export interface OverlayOptions { bg: "transparent" | "green"; pos: "bottom" | "top"; scale: number; clean: boolean }
-
-export const SCALE_MIN = 0.5;
-export const SCALE_MAX = 1.5;
-/** The chroma-key green OBS's filter defaults to. */
-export const CHROMA_GREEN = "#00ff00";
-
-/** The overlay's options from its query string; anything unknown or malformed falls back to the default. */
-export function overlayOptions(search: string | URLSearchParams): OverlayOptions {
-  const sp = typeof search === "string" ? new URLSearchParams(search) : search;
-  const bg = sp.get("bg")?.toLowerCase() === "green" ? "green" : "transparent";
-  const pos = sp.get("pos")?.toLowerCase() === "top" ? "top" : "bottom";
-  const raw = sp.get("scale");
-  const n = raw != null && raw.trim() !== "" ? Number(raw) : NaN;
-  const scale = Number.isFinite(n) ? Math.min(SCALE_MAX, Math.max(SCALE_MIN, n)) : 1;
-  return { bg, pos, scale, clean: /^(1|true)$/i.test(sp.get("clean") ?? "") };
-}
-
-/**
- * Whether the page is running as a stream's browser source, so it shows the bare overlay: OBS (and tools built on
- * it, like Streamlabs) give their browser sources a window.obsstudio object; ?clean=1 asks for it anywhere else.
- * In an ordinary browser tab the page is a preview instead, with a way back and the link to copy.
- */
-export function isBroadcastSource(opts: Pick<OverlayOptions, "clean">, w: unknown = typeof window === "undefined" ? undefined : window): boolean {
-  return opts.clean || (!!w && typeof w === "object" && "obsstudio" in w);
-}
-
-/** The overlay's address with these options (defaults left out), for the preview's toggles and its link to copy
- *  (which always carries clean=1, so streaming apps that aren't OBS get the bare overlay too). */
-export function overlaySearch(o: Omit<OverlayOptions, "clean"> & { clean?: boolean }): string {
-  const sp = new URLSearchParams();
-  if (o.bg === "green") sp.set("bg", "green");
-  if (o.pos === "top") sp.set("pos", "top");
-  if (o.scale !== 1) sp.set("scale", String(o.scale));
-  if (o.clean) sp.set("clean", "1");
-  const q = sp.toString();
-  return q ? `?${q}` : "";
-}
 
 export interface OverlayTeam { number: number; name: string | null }
 export interface OverlaySide { teams: OverlayTeam[]; score: number | null; won: boolean }

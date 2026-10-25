@@ -1,7 +1,7 @@
 // App shell — Control Point's modern layout: a collapsible left sidebar with
 // an animated active pill, a slim top bar with the search pill, and a bottom
 // tab bar on phones.
-import { useEffect, useLayoutEffect, useRef, useState, type ComponentType, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ComponentType, type ReactNode } from "react";
 import { Ambient } from "./Ambient";
 import { Link, NavLink, useLocation } from "react-router-dom";
 import { MotionConfig } from "motion/react";
@@ -20,7 +20,7 @@ import { ClockWeather, ThemeToggle } from "./TopBarExtras";
 import { OfflineStatus } from "../OfflineNote";
 import { InboxBell } from "./InboxBell";
 import { usePersonal } from "../../lib/personal";
-import { isBareRoute, isOverlayRoute, pageTitle } from "../../shared/routes";
+import { isBareRoute, pageTitle } from "../../shared/routes";
 import { SiteFooter } from "./SiteFooter";
 import { useYoursRow, FOLLOWED_TEAM_PATH } from "../../lib/yoursRow";
 import { HEADER_ID, usePageScroll } from "../../lib/pageScroll";
@@ -197,16 +197,11 @@ export function Shell({ children }: { children: ReactNode }) {
   // The pit display is the whole screen: no sidebar, top bar, tab bar or footer (src/shared/routes.ts isBareRoute).
   // Only the chrome is left out: the same <main> stays, so the page scroll's hold on it (usePageScroll) stays good.
   const bare = isBareRoute(loc.pathname);
-  // The stream overlay is see-through (OBS puts it over the video): no page colour behind it either.
-  const clear = isOverlayRoute(loc.pathname);
-  // ...and <html>/<body> lose their colour too (index.css html.cs-overlay). Tied to the route here, not to the overlay's own
-  // page: the static first paint sets the class, and it must go on leaving the route even if that page never loaded.
-  useLayoutEffect(() => { document.documentElement.classList.toggle("cs-overlay", clear); }, [clear]);
   return (
     <MotionConfig reducedMotion="user">
       <TooltipProvider delayDuration={250}>
         {/* At least a screen tall; sideways overflow is clipped (clip, not hidden: no scroll box, so the sticky bars still stick). */}
-        <div className={cn("flex min-h-dvh w-full overflow-x-clip text-text-base", !clear && "bg-primary")}>
+        <div className="flex min-h-dvh w-full overflow-x-clip bg-primary text-text-base">
           <a href="#main" className="sr-only focus:not-sr-only focus:fixed focus:left-3 focus:top-3 focus:z-[200] focus:rounded-lg focus:bg-accent focus:px-3 focus:py-2 focus:text-accent-ink">Skip to content</a>
           {!bare && <Sidebar collapsed={collapsed} onToggle={toggle} />}
           <div className="flex min-w-0 flex-1 flex-col">
