@@ -100,7 +100,7 @@ export function AdvancementView({ season, code, team, nameOf, onPickTeam }: { se
   // Outlook first whenever there's a team (and again whenever the team changes); the field when there's none.
   const [tab, setTab] = useState(team ? "outlook" : "field");
   const [shownTeam, setShownTeam] = useState(team);
-  if (shownTeam !== team) { setShownTeam(team); if (team) setTab("outlook"); }
+  if (shownTeam !== team) { setShownTeam(team); setTab(team ? "outlook" : "field"); }
   const [peek, setPeek] = useState<{ team: number; open: boolean } | null>(null);
   const [, startTransition] = useTransition();
   const pick = onPickTeam ? (t: number) => { setTab("outlook"); startTransition(() => onPickTeam(t)); } : undefined;

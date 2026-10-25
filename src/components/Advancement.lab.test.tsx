@@ -89,6 +89,9 @@ describe("advancement view", () => {
     answers = route({ "": fc(null), "102": fc(102) });
     rerender(view(102));
     expect(screen.queryByText(/Simulating for 102/)).toBeNull();
+    // Clearing the team goes back to the Field (an empty Outlook says nothing).
+    rerender(view(null));
+    expect(screen.getByRole("tab", { name: "Field" }).getAttribute("aria-selected")).toBe("true");
   });
 
   it("before the event, the Alliance tab simulates partners from the pre-event view (no hindsight)", async () => {
