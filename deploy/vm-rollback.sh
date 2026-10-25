@@ -32,12 +32,14 @@ flock 8   # never alongside a deploy (which may also delete old releases)
 [ -f "$REL_DIR/package.json" ] || { echo "No release at $REL_DIR"; exit 1; }
 
 # The service as the release expects it: socket-activated (it has server/listen.ts:
-# node --import tsx, tied to control-scout.socket) or, before that, opening the
+# node on its bundle or through tsx, tied to control-scout.socket) or, before that, opening the
 # port itself (npx tsx, no socket). Rewritten both ways, so switching back and
 # forth between old and new releases always leaves a service that fits.
 if [ -f "$REL_DIR/server/listen.ts" ]; then
+  # Its prebuilt server bundle when it has one (scripts/build-server.mjs: starts in seconds), else through tsx.
+  if [ -f "$REL_DIR/build/server/index.mjs" ]; then START="--enable-source-maps build/server/index.mjs"; else START="--import tsx server/index.ts"; fi
   # GNU sed: \n in the replacement adds the Requires= line right after After=.
-  sed -i -e 's#^ExecStart=.*#ExecStart='"$(command -v node)"' --import tsx server/index.ts#' \
+  sed -i -e 's#^ExecStart=.*#ExecStart='"$(command -v node)"' '"$START"'#' \
          -e '/^Requires=control-scout.socket$/d' \
          -e 's#^After=.*#After=network-online.target control-scout.socket\nRequires=control-scout.socket#' "$UNIT"
   systemctl daemon-reload

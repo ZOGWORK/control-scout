@@ -18,7 +18,7 @@
     "dev:api": "tsx watch server/index.ts",
     "dev:web": "vite",
     "bot": "tsx bot/index.ts",
-    "build": "npm run build -w @control-scout/predict-engine && vite build && vite build --ssr src/prerender/methodology.tsx --outDir build/ssr --emptyOutDir && node scripts/prerender.mjs",
+    "build": "npm run build -w @control-scout/predict-engine && vite build && vite build --ssr src/prerender/methodology.tsx --outDir build/ssr --emptyOutDir && node scripts/prerender.mjs && node scripts/build-server.mjs",
     "start": "NODE_ENV=production tsx server/index.ts",
     "lint": "tsc --noEmit -p tsconfig.json",
     "test": "vitest run",
