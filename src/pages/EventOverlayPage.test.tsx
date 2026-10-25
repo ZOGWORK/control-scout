@@ -8,6 +8,7 @@ import { MemoryRouter, Route, Routes, useLocation } from "react-router-dom";
 vi.mock("../lib/api", () => ({ useApi: () => ({ data: undefined, error: undefined, loading: true, reload: async () => {} }) }));
 vi.mock("../lib/pitPoll", () => ({ useDisplayPoll: () => "ok" }));
 vi.mock("../lib/meta", () => ({ useTitle: () => {} }));
+vi.mock("../components/ui/sonner", () => ({ toast: { success: () => {}, error: () => {} } }));
 const { default: EventOverlayPage } = await import("./EventOverlayPage");
 
 let search = "";
@@ -25,8 +26,15 @@ describe("stream overlay page", () => {
     fireEvent.click(screen.getByRole("button", { name: "Top" }));
     expect(search).toBe("?bg=green&pos=top");
     fireEvent.click(screen.getByRole("button", { name: /Copy link for OBS/ }));
-    await Promise.resolve();
+    expect(await screen.findByRole("button", { name: /Copied/ })).toBeTruthy();
     expect(writes[0]).toBe(`${window.location.origin}/events/2025/FTCCMP1EDIS/overlay?bg=green&pos=top&clean=1`);
+  });
+  it("when the browser won't copy, the link shows to select by hand", async () => {
+    Object.assign(navigator, { clipboard: { writeText: async () => { throw new Error("denied"); } } });
+    mount("/events/2025/FTCCMP1EDIS/overlay");
+    fireEvent.click(screen.getByRole("button", { name: /Copy link for OBS/ }));
+    const box = await screen.findByRole("textbox");
+    expect((box as HTMLInputElement).value).toBe(`${window.location.origin}/events/2025/FTCCMP1EDIS/overlay?clean=1`);
   });
   it("in OBS, or with ?clean=1: the bare overlay only", () => {
     (window as unknown as { obsstudio: unknown }).obsstudio = { pluginVersion: "2.24" };
