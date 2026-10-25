@@ -13,14 +13,16 @@ import { ensureSearchIndex, search } from "./api/search.js";
 import { rebuildSearch } from "./stats/job.js";
 import { teamProfile, compareTeams, teamSummaries, shortlistTeams, reliabilityMany } from "./api/teams.js";
 import { cachedEventDetail, eventDetail, listEvents, toEventInput } from "./api/events.js";
-import { eventStream, seasonStreams } from "./portal/streams.js";
+import { perTeamOf, simulatedRankings } from "./projections/rankingSim.js";
+import { eventRecording, recordingStream, seasonRecordings, seasonVideoKinds, withClips } from "./videos/recordings.js";
 
-/** An event's detail with its owner-set stream (server/portal/streams.ts), for every route that answers with one
- *  (the page and "Refresh results" alike, or a refresh would take the Watch live section away). The stream rides
- *  along outside the cached detail (it changes without a data version); the shared object is never changed. */
-async function withStream<T extends { event: { season: number; code: string } }>(d: T): Promise<T> {
-  const stream = await eventStream(d.event.season, d.event.code).catch(() => null);
-  return stream ? { ...d, event: { ...d.event, stream } } : d;
+/** An event's detail with its recording (server/videos/recordings.ts: the owner's stream, else FIRST's YouTube link)
+ *  and each played match's place in it, for every route that answers with one (the page and "Refresh results" alike,
+ *  or a refresh would take the Watch section away). Both ride along outside the cached detail (they change without a
+ *  data version); the shared objects are never changed. */
+async function withStream<T extends { event: { season: number; code: string }; matches: MatchView[] }>(d: T): Promise<T> {
+  const rec = await eventRecording(d.event.season, d.event.code).catch(() => null);
+  return rec ? { ...d, event: { ...d.event, stream: recordingStream(rec) }, matches: withClips(d.matches, rec) } : d;
 }
 import { matchDetail, matchViews } from "./api/matches.js";
 import { matchReport } from "./api/matchReport.js";
@@ -78,7 +80,7 @@ import { MATCH_KEY, ShareError, cachedCard, cardKey, matchCard } from "./share/m
 import { env } from "./env.js";
 import { r2 } from "./scout/r2.js";
 import { fakeR2Router } from "./scout/fakeR2.js";
-import type { EventRefreshResult, ForecastView, MatchExplanationView, Meta, SearchHit } from "../src/shared/api.js";
+import type { EventRefreshResult, ForecastView, MatchExplanationView, Meta, SearchHit, MatchView } from "../src/shared/api.js";
 
 export class HttpError extends Error { constructor(readonly status: number, message: string) { super(message); } }
 const bad = (msg: string) => new HttpError(400, msg);
@@ -338,8 +340,9 @@ export function createApp() {
   }));
 
   api.get("/events", h(async (req) => {
-    // Events with a stream set (a few per season): their rows get stream: true, for the LIVE dot.
-    const streams = await seasonStreams(season(req.query.season)).catch(() => new Map());
+    // Events with a recording (the owner's stream or FIRST's YouTube link): stream: true, for the LIVE dot; and
+    // what video there is to watch, for the list's video filter.
+    const [streams, videos] = await Promise.all([seasonRecordings(season(req.query.season)).catch(() => new Map()), seasonVideoKinds(season(req.query.season)).catch(() => new Map())]);
     return {
     // The list view's fields only (detail pages use /events/:season/:code):
     // venue, division, region and remote aren't shown in lists.
@@ -347,7 +350,10 @@ export function createApp() {
       season: season(req.query.season), from: req.query.from ? String(req.query.from) : undefined, to: req.query.to ? String(req.query.to) : undefined,
       q: req.query.q ? String(req.query.q).slice(0, 60) : undefined, type: req.query.type ? String(req.query.type) : undefined,
       region: req.query.region ? String(req.query.region) : undefined, hideNoMatch: req.query.all !== "1", limit: boundedCount(req.query.limit, "limit", 3000, 1, 3000),
-    })).map(({ venue: _v, divisionCode: _d, region: _r, remote: _m, ...e }) => (streams.has(e.code) ? { ...e, stream: true as const } : e)),
+    })).map(({ venue: _v, divisionCode: _d, region: _r, remote: _m, ...e }) => {
+      const video = videos.get(e.code);
+      return { ...e, ...(streams.has(e.code) ? { stream: true as const } : {}), ...(video ? { video } : {}) };
+    }),
     };
   }));
 
@@ -377,7 +383,15 @@ export function createApp() {
     if (!/^(qual|playoff):\d{1,3}:\d{1,4}$/.test(key)) throw new HttpError(400, "Match key looks like qual:0:12");
     const d = await matchDetail(season(req.params.season), code(req.params.code), key);
     if (!d) throw new HttpError(404, `No match ${key} at ${req.params.code}`);
-    return d;
+    const rec = await eventRecording(d.event.season, d.event.code).catch(() => null);
+    return rec ? { ...d, match: withClips([d.match], rec)[0] } : d;
+  }));
+
+  // Simulated rankings before quals start (projections/rankingSim.ts): run on a click, kept per data version.
+  api.get("/events/:season/:code/simulated-rankings", h(async (req) => {
+    const r = await simulatedRankings(season(req.params.season), code(req.params.code), perTeamOf(req.query.perTeam));
+    if (!r) throw new HttpError(404, `No event ${req.params.code} in ${req.params.season}`);
+    return r;
   }));
 
   // Model vs field: where the model's rating order and the official seeding disagree most (api/disagreements.ts).

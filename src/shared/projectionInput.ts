@@ -42,3 +42,18 @@ export function projectionInput(f: Forecaster, ev: EventInput): ProjectionInput 
   const { input, assumptions, adv } = steps.simInput(ev, stage, book, 1);
   return { input, stage, slots: adv.slots, slotsSource: adv.source, assumptions };
 }
+
+/**
+ * The SimInput for simulating an event's qualification ranking only (src/shared/rankingSim.ts): the same steps,
+ * but any event type (a league meet doesn't advance teams, yet still ranks). Null without ratings, or for a
+ * championship's parent event whose quals are played in its divisions.
+ */
+export function rankingInput(f: Forecaster, ev: EventInput): SimInput | null {
+  const reason = f.unsupportedReason(ev);
+  if (reason && !/advance teams/.test(reason)) return null;
+  const steps = f as unknown as ForecasterSteps;
+  for (const k of STEPS) if (typeof (steps as unknown as Record<string, unknown>)[k] !== "function") throw new Error(`predict-engine: Forecaster.${k} is missing (projections/input.ts needs it)`);
+  const seasonBook = steps.book(ev.season);
+  if (!seasonBook) return null;
+  return steps.simInput(ev, steps.stageOf(ev), steps.eventBook(ev, seasonBook), 1).input;
+}
