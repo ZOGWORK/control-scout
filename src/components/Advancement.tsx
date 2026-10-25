@@ -108,8 +108,14 @@ export function AdvancementView({ season, code, team, nameOf, onPickTeam }: { se
   const [peek, setPeek] = useState<{ team: number; open: boolean } | null>(null);
   const [, startTransition] = useTransition();
   const pick = onPickTeam ? (t: number) => { setTab("outlook"); startTransition(() => onPickTeam(t)); } : undefined;
-  // A row opened or hovered: start that team's forecast early, so picking it is instant.
-  const prefetch = (t: number) => { if (t !== team) load(pathFor(t)).catch(() => {}); };
+  // Pointing at (or focusing) "See N's outlook" starts that team's forecast a moment early. Only on that
+  // intent, never for rows merely opened, and one at a time: each is a full simulation on the server.
+  const prefetching = useRef<number | null>(null);
+  const prefetch = (t: number) => {
+    if (t === team || prefetching.current != null) return;
+    prefetching.current = t;
+    load(pathFor(t)).catch(() => {}).finally(() => { prefetching.current = null; });
+  };
   if (state.error && !data) return <ErrorState error={state.error} onRetry={state.reload} />;
   if (!data) return <SimProgress runs={2000} />;
   const stored = mode === "pre-event" ? proj.data?.baseline : proj.data?.current;
@@ -352,7 +358,7 @@ function Field({ fc, team, nameOf, field, season, onPick, onPrefetch, onPeek }: 
   const [open, setOpen] = useState<number | null>(null);
   const pre = new Set(fc.prequalified);
   const rows = useMemo(() => { const s = q.trim().toLowerCase(); return s ? fc.teams.filter((t) => String(t.team).includes(s) || nameOf(t.team).toLowerCase().includes(s)) : fc.teams; }, [fc.teams, q, nameOf]);
-  const toggle = (t: number) => setOpen((o) => { const next = o === t ? null : t; if (next != null) onPrefetch?.(next); return next; });
+  const toggle = (t: number) => setOpen((o) => (o === t ? null : t));
   return (
     <div>
       <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
@@ -386,7 +392,7 @@ function Field({ fc, team, nameOf, field, season, onPick, onPrefetch, onPeek }: 
                   : <span className="w-12 shrink-0 text-right text-sm font-semibold tabular-nums">{pct(t.pAdvance)}</span>}
                 <ChevronDown aria-hidden className={cn("size-4 shrink-0 text-muted-foreground transition-transform group-hover/f:text-accent-text", isOpen && "rotate-180 text-accent-text")} />
               </button>
-              {isOpen && <FieldDetails id={id} t={t} row={field.get(t.team)} fc={fc} season={season} isTeam={t.team === team} onPick={onPick} onPeek={onPeek} />}
+              {isOpen && <FieldDetails id={id} t={t} row={field.get(t.team)} fc={fc} season={season} isTeam={t.team === team} onPick={onPick} onPrefetch={onPrefetch} onPeek={onPeek} />}
             </li>
           );
         })}
@@ -397,7 +403,7 @@ function Field({ fc, team, nameOf, field, season, onPick, onPrefetch, onPeek }: 
 }
 
 /** A Field row opened: the team's odds at this event, its numbers so far, and the ways on. */
-function FieldDetails({ id, t, row, fc, season, isTeam, onPick, onPeek }: { id: string; t: ForecastTeam; row?: FieldRow; fc: Shown; season: number; isTeam: boolean; onPick?: (t: number) => void; onPeek: (t: number) => void }) {
+function FieldDetails({ id, t, row, fc, season, isTeam, onPick, onPrefetch, onPeek }: { id: string; t: ForecastTeam; row?: FieldRow; fc: Shown; season: number; isTeam: boolean; onPick?: (t: number) => void; onPrefetch?: (t: number) => void; onPeek: (t: number) => void }) {
   const set = fc.stage === "selected", over = playoffsDone(fc);
   const facts: [string, string][] = [
     ["Likely rank", `${rankRange(t.rank.p10, t.rank.p90)} of ${fc.teams.length}`],
@@ -423,7 +429,7 @@ function FieldDetails({ id, t, row, fc, season, isTeam, onPick, onPeek }: { id: 
         </dl>
         <p className="text-xs text-muted-foreground">Rating: points this team adds to an alliance per match, ± its uncertainty ({t.strength.matches} matches on record).</p>
         <div className="flex flex-wrap gap-2">
-          {onPick && !isTeam && <Button size="sm" onClick={() => onPick(t.team)}>See {t.team}'s outlook</Button>}
+          {onPick && !isTeam && <Button size="sm" onClick={() => onPick(t.team)} onPointerEnter={() => onPrefetch?.(t.team)} onFocus={() => onPrefetch?.(t.team)} onPointerDown={() => onPrefetch?.(t.team)}>See {t.team}'s outlook</Button>}
           <Button variant="outline" size="sm" onClick={() => onPeek(t.team)}><PanelRight /> Team stats</Button>
           <Button asChild variant="ghost" size="sm"><Link to={`/teams/${t.team}${qs({ season })}`}>Team page <ArrowUpRight /></Link></Button>
         </div>
