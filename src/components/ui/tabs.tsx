@@ -11,11 +11,43 @@ export function Tabs({ className, ...props }: React.ComponentProps<typeof TabsPr
   return <TabsPrimitive.Root data-slot="tabs" className={cn('flex flex-col gap-4', className)} {...props} />;
 }
 
-export function TabsList({ className, ...props }: React.ComponentProps<typeof TabsPrimitive.List>) {
+/** Which ends of a sideways-scrolling strip have more behind them: "start", "end", "both", or undefined when it all fits. */
+export function stripFade(el: { scrollLeft: number; scrollWidth: number; clientWidth: number }): "start" | "end" | "both" | undefined {
+  const more = el.scrollWidth - el.clientWidth;
+  if (more <= 1) return undefined;
+  const start = el.scrollLeft > 1, end = el.scrollLeft < more - 1;
+  return start && end ? 'both' : start ? 'start' : end ? 'end' : undefined;
+}
+
+export function TabsList({ className, ref, ...props }: React.ComponentProps<typeof TabsPrimitive.List>) {
+  // On a phone the strip scrolls sideways: fade the edge that has more tabs behind it (data-fade, .tabs-fade in
+  // src/index.css), so a cut-off "Playoffs" reads as "there's more this way" rather than the end of the bar.
+  const own = React.useRef<HTMLDivElement | null>(null);
+  const [fade, setFade] = React.useState<ReturnType<typeof stripFade>>();
+  React.useEffect(() => {
+    const el = own.current;
+    if (!el) return;
+    const update = () => setFade(stripFade(el));
+    update();
+    el.addEventListener('scroll', update, { passive: true });
+    const ro = typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(update);
+    ro?.observe(el);
+    // A full-width strip keeps its own size while its tabs grow (counts loading in, a tab added), so watch them too.
+    const mo = typeof MutationObserver === 'undefined' ? null : new MutationObserver(update);
+    mo?.observe(el, { childList: true, subtree: true, characterData: true });
+    return () => { el.removeEventListener('scroll', update); ro?.disconnect(); mo?.disconnect(); };
+  }, []);
+  const setRef = React.useCallback((el: HTMLDivElement | null) => {
+    own.current = el;
+    if (typeof ref === 'function') ref(el);
+    else if (ref) ref.current = el;
+  }, [ref]);
   return (
     <TabsPrimitive.List
+      ref={setRef}
       data-slot="tabs-list"
-      className={cn('inline-flex w-full sm:w-fit items-center gap-1 max-sm:gap-0.5 rounded-2xl max-sm:rounded-xl border border-line bg-secondary p-1 max-sm:p-0.5 overflow-x-auto custom-scrollbar', className)}
+      data-fade={fade}
+      className={cn('tabs-fade inline-flex w-full sm:w-fit items-center gap-1 max-sm:gap-1 rounded-2xl max-sm:rounded-xl border border-text-base/15 bg-text-base/[0.03] p-1 max-sm:p-1 overflow-x-auto custom-scrollbar', className)}
       {...props}
     />
   );
@@ -45,7 +77,9 @@ export function TabsTrigger({ className, ...props }: React.ComponentProps<typeof
       data-slot="tabs-trigger"
       className={cn(
         'inline-flex flex-1 sm:flex-none items-center justify-center gap-1.5 whitespace-nowrap rounded-xl max-sm:rounded-lg px-2.5 sm:px-4 py-1.5 sm:py-2 text-sm font-bold',
-        'text-text-muted transition-colors hover:text-text-base outline-none focus-visible:ring-2 focus-visible:ring-accent/60',
+        // Inactive tabs are pills of their own (a faint fill and edge), so each reads as something to tap.
+        'border border-text-base/10 bg-text-base/[0.05] text-text-base/80 transition-colors hover:bg-text-base/[0.1] hover:text-text-base outline-none focus-visible:ring-2 focus-visible:ring-accent/60',
+        'data-[state=active]:border-transparent',
         'data-[state=active]:bg-accent data-[state=active]:text-accent-ink disabled:pointer-events-none disabled:opacity-50 [&_svg]:size-4 [&_svg]:shrink-0',
         className,
       )}
