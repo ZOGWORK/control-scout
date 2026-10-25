@@ -34,6 +34,8 @@ export function canonicalRedirects(req: Request, res: Response, next: NextFuncti
   if (path === "/index.html") path = "/";
   // Singular aliases → the real routes.
   path = path.replace(/^\/team\/(\d{1,6})(?=\/|$)/, "/teams/$1").replace(/^\/event\/(\d{4})\/([^/]+)(?=\/|$)/, "/events/$1/$2");
+  // The retired stream overlay page (an OBS browser source; the predictions now sit on the event page's own player): its event.
+  path = path.replace(/^(\/events\/[^/]+\/[^/]+)\/overlay\/?$/i, "$1");
   // No trailing slash (one URL per page).
   if (path.length > 1 && path.endsWith("/")) path = path.replace(/\/+$/, "") || "/";
   const otherHost = env.production && host && !LOOPBACK.has(host) && host !== home.hostname;
