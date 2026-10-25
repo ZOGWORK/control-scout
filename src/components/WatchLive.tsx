@@ -46,6 +46,7 @@ function Player({ stream, title }: { stream: EventStream; title: string }) {
     box.current?.scrollIntoView({ block: "center", behavior: smoothBehavior() });
   }), []);
   return (
+    <>
     <div ref={box} className="relative aspect-video w-full overflow-hidden rounded-2xl border border-border bg-black">
       {start != null ? (
         // Loaded by a click (the facade, or a match's Watch), so autoplay here is the viewer's own choice. Each seek is a new player.
@@ -58,6 +59,13 @@ function Player({ stream, title }: { stream: EventStream; title: string }) {
         </button>
       )}
     </div>
+    {/* Our own way to stop it, whatever the embedded player does: back to the picture, nothing playing. */}
+    {start != null && (
+      <button type="button" onClick={() => setPlay(null)} className="mt-2 inline-flex h-9 items-center gap-1.5 rounded-lg border border-border bg-card px-3 text-sm font-medium text-foreground hover:bg-text-base/[0.06] max-sm:h-10" data-stream-close>
+        <X className="size-4" aria-hidden /> Close video
+      </button>
+    )}
+    </>
   );
 }
 
