@@ -12,7 +12,7 @@ import { isLegacy } from "../data/seasons.js";
 import { cachedEventDetail } from "./events.js";
 import { dataVersion, liveForecaster, liveVersion } from "../predict/engine.js";
 import { matchTimeMs } from "../stats/load.js";
-import type { EventDetail } from "../../src/shared/api.js";
+import type { EventDetail, FieldRow } from "../../src/shared/api.js";
 import { disagreementMode, findDisagreements, RULES, type DisagreementInput, type DisagreementsView } from "../../src/shared/disagreements.js";
 
 const built = new WeakMap<EventDetail, Promise<DisagreementsView>>();
@@ -32,7 +32,18 @@ export async function eventDisagreements(season: number, code: string): Promise<
 const rating = (rt: { auto: number; teleop: number; endgame: number; uncertainty: number; n: number }) =>
   ({ np: rt.auto + rt.teleop + rt.endgame, sd: Math.sqrt(Math.max(0, rt.uncertainty)), matches: rt.n });
 
-async function build(d: EventDetail): Promise<DisagreementsView> {
+/** The seeding to compare with. At a league meet FIRST's rank is the league's running standing, so the meet's
+ *  own (FieldRow.meet: its rank, record and ranking score from its matches alone) takes its place, as on the
+ *  Rankings tab. Any other event keeps FIRST's as published. */
+export function meetSeeded(field: FieldRow[]): FieldRow[] {
+  return field.map((f) => (!("meet" in f) ? f : {
+    ...f, rank: f.meet?.rank ?? null, rp: f.meet?.rs ?? null, qualPlayed: f.meet?.played ?? 0,
+    wins: f.meet?.wins ?? null, losses: f.meet?.losses ?? null, ties: f.meet?.ties ?? null,
+  }));
+}
+
+async function build(detail: EventDetail): Promise<DisagreementsView> {
+  const d = { ...detail, field: meetSeeded(detail.field) };
   const e = d.event;
   const finished = e.status === "finished";
   if (isLegacy(e.season)) {
@@ -99,7 +110,7 @@ export function replayInput(events: EventRecord[], until: number): string {
 }
 
 /** Bump when the stored view's shape or the rules change, so kept answers are rebuilt. */
-const FORMAT = 2;
+const FORMAT = 3; // 3: league meets compared with their own seeding
 
 /** What a finished event's comparison is built from: the engine, its last match, and its seeding, records and OPR. */
 export function fingerprint(d: Pick<EventDetail, "field" | "matches">, lastPlayed: number): string {
