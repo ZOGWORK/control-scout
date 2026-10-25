@@ -52,7 +52,7 @@ function Player({ stream, title, matches, liveCall, recording }: { stream: Event
   const box = useRef<HTMLDivElement>(null);
   const frame = useRef<HTMLIFrameElement>(null);
   const { clock, seek } = useVideoClock(frame, play?.n);
-  const [overlay, setOverlay] = useVideoPredictions();
+  const { on: overlay, setOn: setOverlay, pos, setPos } = useVideoPredictions();
   // A match's Watch: move the open video there (no reload), else load it at that second.
   const seekRef = useRef(seek);
   seekRef.current = seek;
@@ -72,7 +72,7 @@ function Player({ stream, title, matches, liveCall, recording }: { stream: Event
         <>
           <iframe ref={frame} key={play!.n} className="absolute inset-0 size-full" src={bridgedSrc(stream.streamUrl, { autoplay: 1, rel: 0, ...(start ? { start } : {}) })} title={title}
             allow="accelerometer; autoplay; encrypted-media; gyroscope; picture-in-picture; fullscreen" referrerPolicy="strict-origin-when-cross-origin" />
-          <VideoPredictions call={call} live={!recording} />
+          <VideoPredictions call={call} live={!recording} pos={pos} />
         </>
       ) : (
         <button type="button" onClick={() => setPlay({ t: 0, n: 1 })} className="group absolute inset-0 grid place-items-center focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60" aria-label={`Play: ${title}`} data-stream-facade>
@@ -96,6 +96,14 @@ function Player({ stream, title, matches, liveCall, recording }: { stream: Event
           </span>
           Predictions on video
         </button>
+      )}
+      {offerOverlay && overlay && (
+        <span className="inline-flex h-9 items-center rounded-lg border border-border bg-card p-0.5 text-xs font-medium max-sm:h-10" role="group" aria-label="Where the predictions sit on the video">
+          {(["top", "bottom"] as const).map((p) => (
+            <button key={p} type="button" aria-pressed={pos === p} onClick={() => setPos(p)}
+              className={cn("h-full rounded-md px-2.5 capitalize", pos === p ? "bg-accent text-accent-ink" : "text-muted-foreground hover:text-foreground")}>{p}</button>
+          ))}
+        </span>
       )}
     </div>
     </>
