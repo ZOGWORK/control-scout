@@ -7,7 +7,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { ArrowLeftRight, ArrowRight, BookmarkPlus, CalendarDays, ChevronDown, FlaskConical, Link2, MapPin, Search, Sparkles, Star, Swords, Trophy, Users, WifiOff, X } from "lucide-react";
 import { ENGINE_VERSION } from "@control-scout/predict-engine";
-import { noteOfflineAnswer, useApi, qs } from "../lib/api";
+import { noteOfflineAnswer, useApi, qs, type ApiError } from "../lib/api";
 import { useCurrentSeason, useMeta, useTitle } from "../lib/meta";
 import { defaultSeason } from "../lib/myTeamSeason";
 import { callTally } from "../lib/seasonSoFar";
@@ -637,6 +637,9 @@ function AdvancementLab() {
   const teamCodes = useMemo(() => (profile ? new Set(profile.events.map((e) => e.code)) : null), [profile]);
   const { list: choices, teamOnly, teamCount, otherMatches } = useMemo(() => labEventChoices(events.data?.events ?? [], { teamCodes, q, showAll }), [events.data, teamCodes, q, showAll]);
   const teamLoading = !!teamNo && teamEvents.loading;
+  // The lookup failed for another reason than an unknown team (offline, server error): say so, never fall back to every event.
+  const teamStatus = (teamEvents.error as ApiError | undefined)?.status;
+  const teamFailed = !!teamNo && !!teamEvents.error && teamStatus !== 404 && teamStatus !== 400;
   // Another season the team has events to try (newest first, predicted seasons only).
   const otherSeason = profile?.seasons.find((s) => s !== season && s >= 2023) ?? null;
   const step = "mb-2 flex items-center gap-2 text-sm font-semibold text-foreground";
@@ -659,7 +662,7 @@ function AdvancementLab() {
               <Search className="pointer-events-none absolute left-3.5 top-1/2 size-5 -translate-y-1/2 text-muted-foreground" aria-hidden />
               <Input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Event name, code, city or state" className="h-14 pl-11 text-base" aria-label="Find an event" />
             </div>
-            {profile && !teamOnly && (
+            {(profile || teamFailed) && showAll && (
               <p className="mt-3 flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-muted-foreground">
                 Showing every event.
                 <button type="button" className="font-medium text-accent-text underline underline-offset-4" onClick={() => setShowAll(false)}>Only {teamNo}'s events</button>
@@ -668,6 +671,16 @@ function AdvancementLab() {
             <div className="custom-scrollbar mt-3 max-h-[26rem] space-y-1.5 overflow-y-auto pr-1">
               {events.error ? <p className="text-sm text-destructive">{events.error.message}</p>
                 : !events.data || teamLoading ? <div className="skeleton h-40 rounded-xl" />
+                : teamFailed && !showAll ? (
+                  <div role="alert" className="flex flex-col items-start gap-3 rounded-xl border border-dashed border-border px-4 py-5">
+                    <p className="text-base font-medium text-foreground">Couldn't load {teamNo}'s events</p>
+                    <p className="-mt-2 text-sm text-muted-foreground">{teamEvents.error!.message}</p>
+                    <div className="flex flex-wrap gap-2">
+                      <Button variant="secondary" size="sm" onClick={() => teamEvents.reload()}>Try again</Button>
+                      <Button variant="outline" size="sm" onClick={() => setShowAll(true)}>Search all events</Button>
+                    </div>
+                  </div>
+                )
                 : !choices.length ? <LabEventsEmpty team={teamOnly ? teamNo : null} teamCount={teamCount} teamEvents={profile?.events.length ?? 0} season={season} q={q} otherMatches={otherMatches}
                     otherSeason={otherSeason} onShowAll={() => setShowAll(true)} onSeason={(s) => set({ season: String(s), code: null })} onClearSearch={() => setQ("")} />
                 : choices.slice(0, 60).map((e) => (
