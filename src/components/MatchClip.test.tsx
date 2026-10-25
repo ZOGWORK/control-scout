@@ -30,6 +30,16 @@ describe("Watch", () => {
     expect(again.getAttribute("src")).toContain("start=100");
   });
 
+  it("Close video stops it: back to the picture, nothing playing", () => {
+    render(<MemoryRouter><WatchLive d={d} stream={stream} /></MemoryRouter>);
+    expect(screen.queryByRole("button", { name: "Close video" })).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: /^Play:/ }));
+    expect(document.querySelector("iframe")).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Close video" }));
+    expect(document.querySelector("iframe")).toBeNull();
+    expect(screen.getByRole("button", { name: /^Play:/ })).toBeTruthy();
+  });
+
   it("with no player on the page, it's YouTube's link at that second", () => {
     render(<ClipLink clip={clip}>Watch</ClipLink>);
     const link = screen.getByRole("link", { name: /Watch this match/ });
