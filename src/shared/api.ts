@@ -260,6 +260,9 @@ export interface FieldRow {
   rating: { np: number; sd: number; matches: number } | null;
   /** The team's season OPR (np) so far, across all its events: what the field looks like before this event starts. */
   seasonOpr?: number | null;
+  /** A league meet's own standing, from this meet's matches only (src/shared/meetStandings.ts). FIRST's rank and
+   *  rp above are the league's running standing there. Absent: not a league meet; null: no counted match yet. */
+  meet?: { rank: number; rs: number; tb: number[]; wins: number; losses: number; ties: number; played: number } | null;
 }
 
 /** An event's live stream as the owner set it (server/portal/streams.ts): YouTube, played from youtube-nocookie.com. */

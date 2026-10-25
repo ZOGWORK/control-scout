@@ -17,6 +17,19 @@ export interface Col<T> {
   className?: string;
   hideOnMobile?: boolean;
   title?: string;
+  /** Shade each cell by where the row stands in this column (green top fifth … red bottom fifth); `asc` flips it. */
+  heat?: boolean;
+}
+
+const HEAT = ["bg-success/25", "bg-success/10", "", "bg-destructive/10", "bg-destructive/20"];
+
+/** A cell's band in its column: the share of rows below its value (ties counting half), best band first. */
+function bandOf(vs: number[], v: unknown, asc?: boolean): string {
+  if (typeof v !== "number" || !Number.isFinite(v) || vs.length < 4 || vs[0] === vs[vs.length - 1]) return "";
+  const below = vs.filter((x) => x < v).length, same = vs.filter((x) => x === v).length;
+  let q = (below + (same - 1) / 2) / (vs.length - 1);
+  if (asc) q = 1 - q;
+  return HEAT[Math.min(4, Math.floor((1 - q) * 5))];
 }
 
 export function SortTable<T>({ rows, cols, initial, csvName, rowKey, highlight, empty }: {
@@ -40,6 +53,8 @@ export function SortTable<T>({ rows, cols, initial, csvName, rowKey, highlight, 
       return (typeof x === "number" && typeof y === "number" ? x - y : String(x).localeCompare(String(y))) * m;
     });
   }, [rows, cols, sort]);
+  const heatVals = useMemo(() => new Map(cols.filter((c) => c.heat).map((c) => [c.key,
+    rows.map((r) => c.value(r)).filter((v): v is number => typeof v === "number" && Number.isFinite(v)).sort((a, b) => a - b)])), [rows, cols]);
   const click = (c: Col<T>) => setSort((s) => (s.key === c.key ? { key: c.key, dir: s.dir === "asc" ? "desc" : "asc" } : { key: c.key, dir: c.asc || c.align !== "right" ? "asc" : "desc" }));
   if (!rows.length) return <p className="rounded-xl border border-dashed border-border px-4 py-8 max-sm:py-5 text-center text-sm text-muted-foreground">{empty ?? "Nothing here yet."}</p>;
   return (
@@ -66,7 +81,7 @@ export function SortTable<T>({ rows, cols, initial, csvName, rowKey, highlight, 
           <tbody>
             {sorted.map((r) => (
               <tr key={rowKey(r)} className={cn("border-b border-border last:border-b-0 hover:bg-text-base/[0.03]", highlight?.(r) && "bg-accent/[0.06]")}>
-                {cols.map((c) => <td key={c.key} className={cn("density-row whitespace-nowrap px-3 py-2", c.align === "right" && "text-right tabular-nums", c.hideOnMobile && "max-sm:hidden", c.className)}>{c.render ? c.render(r) : (c.value(r) ?? "—")}</td>)}
+                {cols.map((c) => <td key={c.key} className={cn("density-row whitespace-nowrap px-3 py-2", c.align === "right" && "text-right tabular-nums", c.hideOnMobile && "max-sm:hidden", c.className, c.heat && bandOf(heatVals.get(c.key)!, c.value(r), c.asc))}>{c.render ? c.render(r) : (c.value(r) ?? "—")}</td>)}
               </tr>
             ))}
           </tbody>
