@@ -164,6 +164,11 @@ https://controlscout.org.
   the server. systemd keeps it open through every restart and hands it to each new server,
   which takes it once its data is ready. Requests during a deploy wait a few seconds instead
   of getting nginx's 502, and a stopping server finishes the requests it's serving first (up to 10 s).
+  "A few seconds" holds because the server starts from its prebuilt bundle (`build/server/index.mjs`,
+  made by `npm run build` through `scripts/build-server.mjs`): about 2–3 s to ready. Started through tsx
+  instead, it compiled the whole server first on every start (~35 s; no compile cache survives the
+  service's private /tmp or a new release folder), and every deploy's visitors waited that long.
+  The build itself runs niced (CPU and disk) so it doesn't slow the live site while it runs.
   Because a request to the open socket starts the server, **stopping the site needs both units**:
   `sudo systemctl stop control-scout.socket control-scout`, then `start` both again.
 - **Live scout stream:** `GET /api/scout/stream` is server-sent events (server/scout/stream.ts). The nginx
