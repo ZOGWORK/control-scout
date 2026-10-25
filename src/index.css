@@ -194,6 +194,12 @@ html::-webkit-scrollbar-thumb { background: #2e2e35; border-radius: 999px; }
 html::-webkit-scrollbar-thumb:hover { background: #3f3f47; }
 html.light::-webkit-scrollbar-thumb { background: #d4d4d8; }
 html body[data-scroll-locked] { margin-right: 0 !important; }
+/* The stream overlay (pages/EventOverlayPage.tsx) is see-through: OBS draws it over the video. No page colour,
+   no scrollbar. Unlayered and !important so it beats body's bg-primary and the static first paint's own rule. */
+html.cs-overlay, html.cs-overlay body { background: transparent !important; overflow: hidden; scrollbar-gutter: auto; }
+/* A dark color-scheme gives the page an opaque dark canvas under a transparent root in Chromium (OBS's browser source is
+   Chromium): the overlay asks for the normal scheme, so nothing but its own cards is painted. */
+html.cs-overlay { color-scheme: normal; }
 /* iPhones zoom the whole page into a field whose text is under 16px when it's focused (the keyboard opens and
    the page stays zoomed). Touch screens get 16px text in every field instead; pinch-zoom stays on. Unlayered
    and !important so it beats the text-sm/text-xs utilities on the fields themselves. */

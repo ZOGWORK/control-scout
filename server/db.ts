@@ -1248,6 +1248,34 @@ CREATE TABLE power_rankings_refreshes (
 );
 `,
   },
+  {
+    version: 43,
+    name: "youtube video timing",
+    sql: `
+-- What YouTube says about an event's recording (server/videos/youtube.ts): when its broadcast started and how
+-- long the video is, so a match's start lands on a second in it (server/videos/recordings.ts). One row per
+-- video id, whichever event links it (the owner's stream or FIRST's liveStreamUrl). Public data only.
+CREATE TABLE video_meta (
+  video_id TEXT PRIMARY KEY,
+  status TEXT NOT NULL,          -- ok | unavailable | error
+  start TEXT,                    -- UTC ISO: the broadcast's start (null: not a live broadcast)
+  end TEXT,                      -- UTC ISO: its end (null: still live, or not a broadcast)
+  duration INTEGER,              -- seconds of video (not "length": a row's own length is its column count)
+  live INTEGER NOT NULL DEFAULT 0,
+  checked_at TEXT NOT NULL
+);
+`,
+  },
+  {
+    version: 44,
+    name: "youtube video timing read again",
+    sql: `
+-- The first reads (migration 43) took YouTube's "confirm you're not a bot" sign-in wall, shown to the server,
+-- for removed videos, which hid their players. That wall is now an error tried again later; every video marked
+-- removed is read again.
+DELETE FROM video_meta WHERE status = 'unavailable';
+`,
+  },
 ];
 
 export type Db = Client;
