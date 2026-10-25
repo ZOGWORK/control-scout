@@ -18,6 +18,7 @@ import { ArrowLeft, Check, Copy } from "lucide-react";
 import { useApi, type ApiError } from "../lib/api";
 import { useTitle } from "../lib/meta";
 import { useDisplayPoll, type PollState } from "../lib/pitPoll";
+import { copyText } from "../lib/clipboard";
 import { useWatchRail } from "../lib/useWatchRail";
 import { CHROMA_GREEN, callWords, isBroadcastSource, overlayModel, overlayOptions, overlaySearch, shortName, type OverlayModel, type OverlayOptions, type OverlaySide } from "../lib/overlay";
 import { venueClock } from "../lib/liveMode";
@@ -78,11 +79,17 @@ const CHECKER: CSSProperties = {
 /** The overlay in an ordinary tab: a 16:9 preview under a bar with the way back, the options and the link for OBS. */
 function Preview({ season, code, name, opts, children }: { season: string; code: string; name: string | null; opts: OverlayOptions; children: React.ReactNode }) {
   const nav = useNavigate();
-  const [copied, setCopied] = useState(false);
+  const [copied, setCopied] = useState<"no" | "yes" | "failed">("no");
   const eventHref = `/events/${season}/${encodeURIComponent(code)}`;
   const set = (o: Partial<OverlayOptions>) => nav({ search: overlaySearch({ ...opts, ...o, clean: false }) }, { replace: true });
   const link = `${window.location.origin}${eventHref}/overlay${overlaySearch({ ...opts, clean: true })}`;
-  const copy = () => { void navigator.clipboard?.writeText(link).then(() => { setCopied(true); setTimeout(() => setCopied(false), 2000); }); };
+  // The site's copy (with its fallback for plain HTTP on a venue network); toasts are hidden on this route, so the
+  // outcome shows here: "Copied", or the link itself to select by hand.
+  const copy = async () => {
+    const ok = await copyText(link, "Link copied", "Couldn't copy the link", link);
+    setCopied(ok ? "yes" : "failed");
+    if (ok) setTimeout(() => setCopied((c) => (c === "yes" ? "no" : c)), 2000);
+  };
   const seg = (on: boolean) => cn("h-8 rounded-md px-2.5 text-xs font-semibold", on ? "bg-[#ffc700] text-[#0a0a0b]" : "text-zinc-300 hover:bg-white/10");
   return (
     <div className="fixed inset-0 overflow-y-auto bg-[#0a0a0b] font-sans text-zinc-100 antialiased" data-overlay-preview>
@@ -90,9 +97,15 @@ function Preview({ season, code, name, opts, children }: { season: string; code:
         <div className="flex flex-wrap items-center gap-2">
           <Link to={eventHref} className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-white/15 bg-white/5 px-3 text-sm font-medium hover:bg-white/10"><ArrowLeft className="size-4" aria-hidden /> Back to event</Link>
           <button type="button" onClick={copy} className="inline-flex h-9 items-center gap-1.5 rounded-lg bg-[#ffc700] px-3 text-sm font-semibold text-[#0a0a0b]" data-overlay-copy>
-            {copied ? <Check className="size-4" aria-hidden /> : <Copy className="size-4" aria-hidden />}{copied ? "Copied" : "Copy link for OBS"}
+            {copied === "yes" ? <Check className="size-4" aria-hidden /> : <Copy className="size-4" aria-hidden />}{copied === "yes" ? "Copied" : "Copy link for OBS"}
           </button>
         </div>
+        {copied === "failed" && (
+          <label className="flex flex-col gap-1 text-sm text-amber-300" data-overlay-copy-failed>
+            This browser wouldn't copy it. Select the link and copy it yourself:
+            <input readOnly value={link} onFocus={(e) => e.currentTarget.select()} className="h-9 rounded-lg border border-white/15 bg-white/5 px-3 font-mono text-xs text-zinc-100" />
+          </label>
+        )}
         <div>
           <h1 className="font-display text-lg font-semibold">Stream overlay{name ? `: ${name}` : ""}</h1>
           <p className="text-sm text-zinc-400">
