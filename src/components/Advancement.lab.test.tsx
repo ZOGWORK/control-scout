@@ -11,6 +11,8 @@ let answers: (path: string) => unknown;
 /** Teams whose forecast request fails. */
 let failing = new Set<string>();
 const asked: string[] = [];
+/** Paths fetched ahead with load() (the early forecast before a pick). */
+const loaded: string[] = [];
 vi.mock("../lib/api", async (orig) => ({
   ...(await orig<typeof import("../lib/api")>()),
   useApi: (path: string | null) => {
@@ -18,7 +20,7 @@ vi.mock("../lib/api", async (orig) => ({
     const fails = !!path?.startsWith("/api/predict/event") && failing.has(new URLSearchParams(path.split("?")[1]).get("team") ?? "");
     return { data: path && !fails ? answers(path) : undefined, error: fails ? new Error("Server error.") : undefined, loading: false, reload: () => {} };
   },
-  load: () => Promise.resolve(),
+  load: (path: string) => { loaded.push(path); return Promise.resolve(); },
 }));
 
 const { AdvancementView } = await import("./Advancement");
@@ -53,6 +55,7 @@ const view = (team: number | null, onPickTeam?: (t: number) => void) => (
 
 beforeEach(() => {
   asked.length = 0;
+  loaded.length = 0;
   vi.stubGlobal("matchMedia", (q: string) => ({ matches: true, media: q, addEventListener() {}, removeEventListener() {}, addListener() {}, removeListener() {} }));
   vi.stubGlobal("ResizeObserver", class { observe() {} unobserve() {} disconnect() {} });
 });
@@ -80,7 +83,12 @@ describe("advancement view", () => {
     const panel = document.getElementById(row.getAttribute("aria-controls")!)!;
     expect(within(panel).getByText("Likely rank")).toBeTruthy();
     expect(within(panel).getByText("41.5")).toBeTruthy(); // season OPR from the event's field
-    fireEvent.click(within(panel).getByRole("button", { name: "See 102's outlook" }));
+    // Opening a row costs no simulation; pointing at See outlook starts that team's forecast early.
+    expect(loaded).toEqual([]);
+    const see = within(panel).getByRole("button", { name: "See 102's outlook" });
+    fireEvent.pointerEnter(see);
+    expect(loaded).toEqual(["/api/predict/event?season=2026&code=TQ1&team=102&mode=current"]);
+    fireEvent.click(see);
     expect(onPickTeam).toHaveBeenCalledWith(102);
     expect(screen.getByRole("tab", { name: "Outlook" }).getAttribute("aria-selected")).toBe("true");
   });
