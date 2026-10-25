@@ -86,7 +86,9 @@ APP_PORT="${APP_PORT:-3100}"
 ln -sfn "$SHARED/.env" "$REL_DIR/.env"
 ln -sfn "$SHARED/data" "$REL_DIR/.data"
 chown -R "$APP_USER:$APP_USER" "$REL_DIR"
-sudo -u "$APP_USER" HOME="$SHARED/data" bash -c "cd '$REL_DIR' && npm ci --no-audit --no-fund --loglevel=error && npm run build"
+# At low CPU and disk priority: the build runs on the same small VM that's serving the live site (and Control
+# Point), so visitors' requests come first and the build takes whatever is left.
+sudo -u "$APP_USER" HOME="$SHARED/data" nice -n 15 ionice -c2 -n7 bash -c "cd '$REL_DIR' && npm ci --no-audit --no-fund --loglevel=error && npm run build"
 chown -R root:root "$REL_DIR"
 chmod 755 "$REL_DIR"   # readable (not writable) by the app user
 chown -h root:root "$REL_DIR/.env" "$REL_DIR/.data"
@@ -108,8 +110,12 @@ WantedBy=sockets.target"
 SOCKET_CHANGED=0
 [ "$(cat "$SOCKET_UNIT" 2>/dev/null)" = "$SOCKET_NEW" ] || { printf '%s\n' "$SOCKET_NEW" > "$SOCKET_UNIT"; SOCKET_CHANGED=1; }
 
-# node --import tsx, not npx tsx: npx would start node as a separate child
-# process, which doesn't receive the socket.
+# The server starts from its prebuilt bundle (scripts/build-server.mjs): a restart then takes a couple of seconds.
+# Through tsx it compiled the whole server on every start (~35 s, with no cache surviving a private /tmp or a new
+# release folder), and the deploy's requests waited that long in the socket's queue. A release built before the
+# bundle existed still starts through tsx. node, not npx: npx would start node as a separate child process,
+# which doesn't receive the socket.
+if [ -f "$REL_DIR/build/server/index.mjs" ]; then START="--enable-source-maps build/server/index.mjs"; else START="--import tsx server/index.ts"; fi
 cat > "$UNIT" <<EOF
 [Unit]
 Description=FTC Control Scout
@@ -120,7 +126,7 @@ Requires=control-scout.socket
 User=$APP_USER
 WorkingDirectory=$APP_DIR/current
 EnvironmentFile=$SHARED/.env
-ExecStart=$(command -v node) --import tsx server/index.ts
+ExecStart=$(command -v node) $START
 Restart=always
 RestartSec=5
 # On stop, the server finishes the requests in progress (up to 10 s) before exiting.

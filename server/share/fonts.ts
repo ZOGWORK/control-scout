@@ -11,10 +11,10 @@
 // the site's Latin subset, so text is measured here (to fit or cut a line
 // before drawing it) and anything they can't draw is dropped (glyphs()).
 import { readFileSync } from "node:fs";
-import { dirname, join } from "node:path";
-import { fileURLToPath } from "node:url";
+import { join } from "node:path";
+import { appPath } from "../appRoot.js";
 
-const DIR = join(dirname(fileURLToPath(import.meta.url)), "fonts");
+const DIR = appPath("server", "share", "fonts");
 
 export interface Font {
   family: "Space Grotesk" | "Inter";
