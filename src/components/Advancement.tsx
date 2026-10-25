@@ -160,7 +160,7 @@ export function AdvancementView({ season, code, team, nameOf, onPickTeam }: { se
       </Tabs>
       {peek && (
         <TeamPeek team={peek.team} season={season} eventName={fc.eventName} row={peekRow} status={statusOf(peek.team)} settled={fc.stage === "selected"} over={playoffsDone(fc)}
-          open={peek.open} onOpenChange={(o) => setPeek((p) => (p ? { ...p, open: o } : p))} onShowOutlook={pick} />
+          open={peek.open} onOpenChange={(o) => setPeek((p) => (p ? { ...p, open: o } : p))} onShowOutlook={peek.team !== team ? pick : undefined} />
       )}
     </div>
   );
