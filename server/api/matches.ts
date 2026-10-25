@@ -38,14 +38,15 @@ export async function matchViews(f: MatchFilter, opts: { predictUnplayed?: boole
   const codes = [...new Set(rows.map((r) => r.code as string))];
   const ph = codes.map(() => "?").join(",");
   const [lineups, preds] = await Promise.all([
-    all<any>(`SELECT code, level, series, number, team, alliance, station, surrogate, dq, on_field FROM match_teams WHERE season = ? AND code IN (${ph}) ORDER BY station, team`, [f.season, ...codes]),
+    // The team's name rides with the lineup, so a row can show it under the number (no second request).
+    all<any>(`SELECT mt.code, mt.level, mt.series, mt.number, mt.team, mt.alliance, mt.station, mt.surrogate, mt.dq, mt.on_field, t.name FROM match_teams mt LEFT JOIN teams t ON t.number = mt.team WHERE mt.season = ? AND mt.code IN (${ph}) ORDER BY mt.station, mt.team`, [f.season, ...codes]),
     all<any>(`SELECT * FROM predictions WHERE season = ? AND code IN (${ph})`, [f.season, ...codes]),
   ]);
   const lu = new Map<string, { red: MatchView["red"]["teams"]; blue: MatchView["blue"]["teams"] }>();
   for (const t of lineups) {
     const k = `${t.code}|${t.level}:${t.series}:${t.number}`;
     let l = lu.get(k); if (!l) { l = { red: [], blue: [] }; lu.set(k, l); }
-    (t.alliance === "red" ? l.red : l.blue).push({ number: Number(t.team), surrogate: !!t.surrogate, dq: !!t.dq, onField: !!t.on_field });
+    (t.alliance === "red" ? l.red : l.blue).push({ number: Number(t.team), surrogate: !!t.surrogate, dq: !!t.dq, onField: !!t.on_field, ...(t.name ? { name: String(t.name) } : {}) });
   }
   const pmap = new Map<string, { live?: any; backtest?: any }>();
   for (const p of preds) {

@@ -149,7 +149,8 @@ export interface TeamProfile {
 }
 
 export interface AllianceScore {
-  teams: { number: number; surrogate: boolean; dq: boolean; onField: boolean }[];
+  /** `name`: the team's name, when we hold it (match lists show it under the number). */
+  teams: { number: number; surrogate: boolean; dq: boolean; onField: boolean; name?: string }[];
   score: { total: number; np: number; auto: number; teleop: number; endgame: number; pen: number; tips?: number } | null;
 }
 
