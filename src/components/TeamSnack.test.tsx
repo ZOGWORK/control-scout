@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 // A tap on a team in a match list opens its card at the bottom instead of leaving for the team page: the name
 // shows under every number, the card gives the team's place, record and OPR, and it marks the team in every row.
-import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { MemoryRouter } from "react-router-dom";
 import type { MatchView, TeamProfile } from "../shared/api";
@@ -95,6 +95,8 @@ it("one card per page: opening a team in another list closes the first list's ca
   expect(screen.getAllByRole("dialog")).toHaveLength(1);
   expect(screen.getByRole("dialog", { name: "Team 251" })).toBeTruthy();
   expect(chips(207)[0].getAttribute("aria-pressed")).toBe("false");
+  // The card that just opened keeps focus: the closing one doesn't pull it back to its own opener.
+  expect(document.activeElement).toBe(within(screen.getByRole("dialog", { name: "Team 251" })).getByRole("link", { name: /View team/ }));
 });
 
 it("with nothing played here yet, the record is the season's, and says so", () => {

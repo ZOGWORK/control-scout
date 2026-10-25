@@ -42,13 +42,15 @@ export function TeamSnack({ team, season, name, code, record, onClose }: {
   // list), and gives it back to the team that opened it when it closes.
   const opener = useRef<HTMLElement | null>(null);
   const view = useRef<HTMLAnchorElement>(null);
+  const box = useRef<HTMLDivElement>(null);
   useEffect(() => {
     if (team == null) {
       const back = opener.current;
       opener.current = null;
-      // Only when focus was in the card (its X, Escape) or nowhere: a tap on another control keeps that control.
+      // Only when focus was in this card (its X, Escape) or nowhere: a tap on another control keeps that control,
+      // and another list's card that just opened keeps its focus.
       const at = document.activeElement;
-      if (back?.isConnected && (!at || at === document.body || !at.isConnected || at.closest("[data-team-snack]"))) back.focus({ preventScroll: true });
+      if (back?.isConnected && (!at || at === document.body || !at.isConnected || !!box.current?.contains(at))) back.focus({ preventScroll: true });
       return;
     }
     if (!opener.current && document.activeElement instanceof HTMLElement && !document.activeElement.closest("[data-team-snack]")) opener.current = document.activeElement;
@@ -63,7 +65,7 @@ export function TeamSnack({ team, season, name, code, record, onClose }: {
   return (
     <AnimatePresence>
       {team != null && (
-        <Motion.div key="snack" role="dialog" aria-label={`Team ${team}`} data-team-snack
+        <Motion.div key="snack" ref={box} role="dialog" aria-label={`Team ${team}`} data-team-snack
           className="fixed inset-x-3 bottom-[calc(var(--tabbar-h)+env(safe-area-inset-bottom)+0.75rem)] z-40 mx-auto max-w-xl md:bottom-6"
           initial={reduce ? false : { y: 24, opacity: 0 }} animate={{ y: 0, opacity: 1 }} exit={reduce ? { opacity: 0, transition: { duration: 0 } } : { y: 24, opacity: 0 }}
           transition={{ duration: 0.2, ease: [0.2, 0.8, 0.2, 1] }}>
