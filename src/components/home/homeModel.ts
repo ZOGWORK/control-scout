@@ -24,10 +24,17 @@ export interface RecordView {
   coverage: ReplayCoverage | null;
 }
 
-/** The newest season with this kind of evidence (the headline's own season first, when it's that kind). */
+/**
+ * The season this kind of evidence shows (the headline's own season first, when it's that kind). Live: the newest
+ * season with live calls. Replay: the newest season that isn't being logged live (the last full season, DECODE's
+ * replay while 2026–27 is logged live), so the season in progress shows under Logged live and a partial replay of
+ * it never stands in for a whole season's; the newest replay of all only when no other season has one.
+ */
 export function recordFor(t: TrackRecord, kind: Evidence): RecordView | null {
+  const newest = [...t.seasons].sort((a, b) => b.season - a.season).filter((s) => s[kind] && s[kind]!.n > 0);
   const pick = (t.headline?.kind === kind ? t.seasons.find((s) => s.season === t.headline!.season && s[kind]) : null)
-    ?? [...t.seasons].sort((a, b) => b.season - a.season).find((s) => s[kind] && s[kind]!.n > 0);
+    ?? (kind === "backtest" ? newest.find((s) => !(s.live && s.live.n > 0)) : undefined)
+    ?? newest[0];
   const block = pick?.[kind];
   if (!pick || !block) return null;
   return {
