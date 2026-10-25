@@ -87,7 +87,7 @@ function PeekBody({ team, season, eventName, row, status, settled, over, onShowO
           {!p ? <div className="skeleton h-24 rounded-xl" /> : !st ? (
             <p className="rounded-xl border border-dashed border-border px-4 py-3 text-sm text-muted-foreground">No matches on record for {team} in {seasonLabel(season)} yet.</p>
           ) : (
-            <dl className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+            <dl className="grid grid-cols-2 gap-3">
               <Tile k="Record" v={record(st.record.wins, st.record.losses, st.record.ties)} hint={`${st.record.matches} matches, ${st.record.events} event${st.record.events === 1 ? "" : "s"}`} />
               <Tile k="OPR" v={num(st.opr.np.value)} hint={st.opr.np.rank ? `#${st.opr.np.rank} of ${st.opr.np.of}` : "non-penalty"} />
               <Tile k="Rating" v={st.rating ? `${st.rating.np.toFixed(0)} ±${st.rating.sd.toFixed(0)}` : "—"} hint={st.rating?.rank ? `#${st.rating.rank} worldwide` : "points per match"} />
