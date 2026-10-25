@@ -84,7 +84,7 @@ describe("What's new", () => {
     const rail = await screen.findByRole("navigation", { name: "Releases" });
     // (The row sits behind the open dialog, hidden from assistive tech meanwhile.)
     expect(screen.getByRole("button", { name: "What's new", hidden: true })).toBeTruthy();
-    if (v) expect(localStorage.getItem("cs-whats-new-seen")).toBe(v);
+    if (v) expect(localStorage.getItem("cs-whats-new-seen-2")).toBe(v);
     expect(within(rail).getAllByRole("button").map((b) => b.textContent)).toEqual(expect.arrayContaining(["v1.0.6", "v1.0.5"]));
   });
 });
