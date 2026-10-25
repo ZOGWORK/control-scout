@@ -19,7 +19,7 @@ import { restoredSavedPosition, scrollToElement, smoothBehavior } from "../lib/p
 const MatchDetails = lazy(() => import("./MatchDetails").then((x) => ({ default: x.MatchDetails })));
 import { useCalibration } from "../lib/calibration";
 import { usePredictable } from "../lib/meta";
-import { TeamSnack, TeamSnackContext, nameIn, useTeamSnack } from "./TeamSnack";
+import { TeamSnack, TeamSnackContext, nameIn, useTeamSnack, useTeamSnackState } from "./TeamSnack";
 
 const TIER: Record<ConfidenceTier, { label: string; cls: string; icon: typeof Gauge; blurb: string }> = {
   provisional: { label: "Provisional", cls: "border-warning/40 bg-warning/10 text-warning", icon: CircleDashed, blurb: "Mostly prior-season data — treat as a rough guess." },
@@ -427,9 +427,9 @@ export function MatchList({ matches, highlight, empty, eventNames, eventDates, i
   const id = (m: MatchView) => `${m.code}:${m.key}`;
   const [open, setOpen] = useState<Set<string>>(() => new Set());
   // The team whose card is open (a tap on a team in any row): a second tap on it closes the card.
-  const [snack, setSnack] = useState<number | null>(null);
-  const snackCtx = useMemo(() => ({ team: snack, toggle: (t: number) => setSnack((x) => (x === t ? null : t)) }), [snack]);
-  const closeSnack = useCallback(() => setSnack(null), []);
+  const [snack, setSnack] = useTeamSnackState();
+  const snackCtx = useMemo(() => ({ team: snack, toggle: (t: number) => setSnack((x) => (x === t ? null : t)) }), [snack, setSnack]);
+  const closeSnack = useCallback(() => setSnack(null), [setSnack]);
   const box = useRef<HTMLDivElement>(null);
   // The match a link asked for is brought into view once per visit (history entry): a live update that
   // adds matches to the list must not pull the page back to it after the reader has scrolled on, and

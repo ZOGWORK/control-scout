@@ -78,6 +78,35 @@ it("a tap on another team swaps the card", () => {
   expect(screen.getByRole("dialog", { name: "Team 4890" })).toBeTruthy();
 });
 
+it("keyboard: the card takes focus when it opens and gives it back to the team when it closes", () => {
+  list();
+  const chip = chips(207)[0];
+  chip.focus();
+  fireEvent.click(chip);
+  expect(document.activeElement).toBe(screen.getByRole("link", { name: /View team/ }));
+  fireEvent.keyDown(window, { key: "Escape" });
+  expect(document.activeElement).toBe(chip);
+});
+
+it("one card per page: opening a team in another list closes the first list's card", () => {
+  render(<MemoryRouter><TooltipProvider><MatchList matches={[matches[0]]} /><MatchList matches={[matches[1]]} /></TooltipProvider></MemoryRouter>);
+  fireEvent.click(chips(207)[0]);
+  fireEvent.click(chips(251)[0]);
+  expect(screen.getAllByRole("dialog")).toHaveLength(1);
+  expect(screen.getByRole("dialog", { name: "Team 251" })).toBeTruthy();
+  expect(chips(207)[0].getAttribute("aria-pressed")).toBe("false");
+});
+
+it("with nothing played here yet, the record is the season's, and says so", () => {
+  const upcoming = matches.map((x) => ({ ...x, played: false, red: { ...x.red, score: null }, blue: { ...x.blue, score: null } }));
+  profile.events = [{ season: 2026, code: "NJQ1", rank: null, wins: null } as never];
+  try {
+    render(<MemoryRouter><TooltipProvider><MatchList matches={upcoming} /></TooltipProvider></MemoryRouter>);
+    fireEvent.click(chips(207)[0]);
+    expect(screen.getByRole("dialog").querySelector("[data-snack-facts]")!.textContent).toContain("3-0-0 W-L-T this season");
+  } finally { profile.events = [{ season: 2026, code: "NJQ1", rank: 3 } as never]; }
+});
+
 it("a row outside a match list keeps the team link", () => {
   render(<MemoryRouter><TooltipProvider><MatchRow m={matches[0]} /></TooltipProvider></MemoryRouter>);
   expect(screen.getByRole("link", { name: /207/ }).getAttribute("href")).toBe("/teams/207?season=2026");
