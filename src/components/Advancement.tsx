@@ -1,5 +1,6 @@
 // Advancement simulator view — Control Point's Predict page (stage strip,
 // Outlook, Alliance, Field), generalised to ANY team at ANY event.
+import { SimProgress } from "./SimProgress";
 import { useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { m } from "./motion";
@@ -79,7 +80,7 @@ export function AdvancementView({ season, code, team, nameOf, onPickTeam }: { se
   // this simulator's own odds stay the fallback, and its award-inclusive figure a second opinion.
   const proj = useApi<ProjectionsView>(projectionsPath(season, code));
   if (state.error) return <ErrorState error={state.error} onRetry={state.reload} />;
-  if (!state.data) return <div className="space-y-3" aria-busy="true"><p className="text-sm text-muted-foreground">Simulating the event 2,000 times…</p><div className="skeleton h-24 rounded-xl" /><div className="skeleton h-56 rounded-xl" /></div>;
+  if (!state.data) return <SimProgress runs={2000} />;
   const stored = mode === "pre-event" ? proj.data?.baseline : proj.data?.current;
   const fc: Shown = stored ? withProjection(state.data, stored) : state.data;
   const conf = forecastTier(fc, team);
@@ -242,7 +243,7 @@ function AlliancePanel({ season, code, fc, team, nameOf }: { season: number; cod
   if (!team) return <EmptyState icon={Users} title="Pick a team" description="Alliance scenarios are worked out for one team." />;
   if (state.error) return <ErrorState error={state.error} onRetry={state.reload} />;
   const data = state.data;
-  if (!data) return <div className="space-y-2" aria-busy="true"><p className="text-sm text-muted-foreground">Simulating the event once per possible partner…</p>{Array.from({ length: 5 }, (_, i) => <div key={i} className="skeleton h-16 rounded-xl" />)}</div>;
+  if (!data) return <SimProgress runs={null} label="Simulating the event" detail="Once per possible partner" />;
   if (data.role === "none") {
     const mine = fc.teams.find((t) => t.team === team);
     return <EmptyState icon={Users} title="Alliances are set" description={`Alliance selection has happened, so the partner is locked in. Chance to advance from here: ${pct(mine?.pAdvance)}.`} />;

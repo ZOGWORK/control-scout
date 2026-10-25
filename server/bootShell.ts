@@ -9,7 +9,7 @@
 // Offline, the service worker answers every page with the cached "/" HTML, so
 // the page block carries the path it was made for and hides itself on another.
 import type { PageMeta } from "./seoMeta.js";
-import { isOverlayRoute, pageTitle } from "../src/shared/routes.js";
+import { pageTitle } from "../src/shared/routes.js";
 import { BOOT_CHOICE_GLOBAL, BOOT_CONSENT_ID, HOME_ABOUT, HOME_HEADLINE, HOME_LEAD } from "../src/shared/boot.js";
 
 const esc = (s: string) => s.replace(/&/g, "&amp;").replace(/"/g, "&quot;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
@@ -146,9 +146,6 @@ const link = (path: string, it: Item) =>
 export function bootShell(path: string, meta: PageMeta): string {
   const p = path.length > 1 ? path.replace(/\/+$/, "") : "/";
   const home = p === "/";
-  // The stream overlay goes out on air over the video: no shell outline, and see-through from the first paint
-  // (the class stays; index.css html.cs-overlay takes over once the app's stylesheet is in).
-  if (isOverlayRoute(p)) return `<style>html.cs-overlay,html.cs-overlay body{background:transparent!important}html.cs-overlay{color-scheme:normal}</style><script>document.documentElement.classList.add('cs-overlay')</script>`;
   const nav = SECTIONS.map((s) => `<div class="csb-grp">${s.title ? `<p>${s.title}</p>` : ""}${s.items.map((it) => link(p, it)).join("")}</div>`).join("");
   // A page with no title of its own (not found) gets the shell alone.
   const page = home
