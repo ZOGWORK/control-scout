@@ -7,7 +7,7 @@
 import { env, hasFirst } from "../env.js";
 import type { AdvancementRow, AllianceRow, AwardRow, EntryRow, EventBundle, EventRow, MatchRow, MatchTeam, TeamRow } from "../data/bundle.js";
 import { matchKey, matchLabel } from "../data/bundle.js";
-import { normalizeAwardName, normalizeEventType, ownScorePenalties, splitFirstScore, type ScoreSplit } from "../data/seasons.js";
+import { normalizeAwardName, normalizeEventType, ownScorePenalties, scoreDetail, splitFirstScore, type ScoreSplit } from "../data/seasons.js";
 
 const BASE = "https://ftc-api.firstinspires.org/v2.0";
 
@@ -203,14 +203,14 @@ export async function firstEventBundle(meta: EventRow): Promise<EventBundle> {
   ]);
 
   // Score breakdowns by match key.
-  const breakdown = new Map<string, { red: ScoreSplit; blue: ScoreSplit }>();
+  const breakdown = new Map<string, { red: ScoreSplit; blue: ScoreSplit; redDetail: Record<string, number> | null; blueDetail: Record<string, number> | null }>();
   for (const s of [...(scoresQ?.matchScores ?? []), ...(scoresP?.matchScores ?? [])]) {
     const level = levelOf(s.matchLevel);
     if (!level) continue;
     const red = (s.alliances ?? []).find((a: any) => String(a.alliance).toLowerCase() === "red");
     const blue = (s.alliances ?? []).find((a: any) => String(a.alliance).toLowerCase() === "blue");
     if (!red || !blue) continue;
-    breakdown.set(matchKey({ level, series: s.matchSeries ?? 0, number: s.matchNumber }), { red: splitFirstScore(season, red, blue), blue: splitFirstScore(season, blue, red) });
+    breakdown.set(matchKey({ level, series: s.matchSeries ?? 0, number: s.matchNumber }), { red: splitFirstScore(season, red, blue), blue: splitFirstScore(season, blue, red), redDetail: scoreDetail(season, red), blueDetail: scoreDetail(season, blue) });
   }
 
   // Matches: start from the schedule (surrogates, unplayed matches), overlay results.
@@ -257,6 +257,7 @@ export async function firstEventBundle(meta: EventRow): Promise<EventBundle> {
       field: prev?.field ?? null,
       // Totals only until FIRST publishes the breakdown: that split is an estimate, not reported values.
       breakdown: !!bd,
+      redDetail: bd?.redDetail ?? null, blueDetail: bd?.blueDetail ?? null,
     });
   }
   // A best-of-3 final between two alliances: FIRST numbers it series 1,
