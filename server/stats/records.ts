@@ -246,7 +246,7 @@ export async function fillAdvancementOdds(season: number, log: Log = () => {}, r
 /** A league meet's own standing by team, from its played qualification matches. */
 function meetRanks(season: number, matches: DbEvent["matches"]) {
   const side = (ts: DbEvent["matches"][number]["red"], sc: NonNullable<DbEvent["matches"][number]["redScore"]>): MeetSide => ({
-    teams: ts.map((t) => ({ team: t.team, counts: !t.surrogate, zero: t.dq || !t.onField })),
+    teams: ts.map((t) => ({ team: t.team, counts: !t.surrogate, noShow: !t.onField, dq: t.dq })),
     total: sc.total, np: sc.np, auto: sc.auto, endgame: sc.endgame, tips: sc.tips ?? null, bonus: sc.bonus,
   });
   const played = matches.filter((m) => m.level === "qual" && m.played && m.redScore && m.blueScore);

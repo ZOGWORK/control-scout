@@ -142,7 +142,7 @@ async function meetOf(season: number, code: string, matches: MatchView[]): Promi
   const side = (m: MatchView, s: "red" | "blue"): MeetSide => {
     const a = m[s], sc = a.score!, b = bonusBy.get(`${m.series}:${m.number}`)?.[`${s}_bonus`];
     return {
-      teams: a.teams.map((t) => ({ team: t.number, counts: !t.surrogate, zero: t.dq || !t.onField })),
+      teams: a.teams.map((t) => ({ team: t.number, counts: !t.surrogate, noShow: !t.onField, dq: t.dq })),
       total: sc.total, np: sc.np, auto: sc.auto, endgame: sc.endgame, tips: sc.tips ?? null, bonus: b ? JSON.parse(b) : null,
     };
   };

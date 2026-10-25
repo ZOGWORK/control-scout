@@ -5,9 +5,10 @@
 import { rankingPoints, tiebreakKeys } from "@control-scout/predict-engine";
 
 export interface MeetSide {
-  /** Teams listed on the alliance. `counts` false: a surrogate (the match isn't on its record). `zero`: a DQ or a
-   *  no-show: 0 ranking points, but the match counts toward its record and averages. */
-  teams: { team: number; counts: boolean; zero: boolean }[];
+  /** Teams listed on the alliance. `counts` false: a surrogate (the match isn't on its record). `noShow`: 0 ranking
+   *  points, the alliance's score in its averages. `dq`: the match counts with zeros for it, ranking points and
+   *  tiebreakers alike (T601, as the engine's simulation tallies it). Either way the result stays on its record. */
+  teams: { team: number; counts: boolean; noShow?: boolean; dq?: boolean }[];
   total: number; np: number; auto: number; endgame: number;
   tips?: number | null;
   bonus?: { movement: boolean; goal: boolean; pattern: boolean } | null;
@@ -32,7 +33,10 @@ export function meetStandings(season: number, matches: MeetMatch[]): MeetStandin
       for (const t of own.teams) {
         if (!t.counts) continue;
         const a = acc.get(t.team) ?? { rp: 0, np: 0, auto: 0, endgame: 0, tips: 0, w: 0, l: 0, t: 0, n: 0 };
-        a.rp += t.zero ? 0 : rp; a.np += own.np; a.auto += own.auto; a.endgame += own.endgame; a.tips += own.tips ?? 0;
+        if (!t.dq) {
+          a.rp += t.noShow ? 0 : rp;
+          a.np += own.np; a.auto += own.auto; a.endgame += own.endgame; a.tips += own.tips ?? 0;
+        }
         if (own.total > opp.total) a.w++; else if (own.total < opp.total) a.l++; else a.t++;
         a.n++;
         acc.set(t.team, a);
