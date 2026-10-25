@@ -14,6 +14,8 @@ import { callTally } from "../lib/seasonSoFar";
 import { usePersonal } from "../lib/personal";
 import type { EventDetail, EventSummary, EventListItem, MatchExplanationView, MatchView, TeamProfile } from "../shared/api";
 import { pairHistory } from "../shared/pairHistory";
+import { labEventChoices } from "../lib/labEvents";
+import { LabEventsEmpty } from "../components/LabEventsEmpty";
 import { PageHeader, Section, EmptyState } from "../components/page";
 import { LatestCalls } from "../components/LatestCalls";
 import { Async, ErrorState } from "../components/states";
@@ -623,17 +625,20 @@ function AdvancementLab() {
     for (const [k, v] of Object.entries(patch)) { if (v) x.set(k, v); else x.delete(k); }
     return x;
   }, { replace: true });
-  const teamEvents = useApi<{ events: { code: string; name: string; start: string | null; type: string | null }[] }>(teamText.length >= 1 ? `/api/teams/${teamText}${qs({ season })}` : null);
+  const teamNo = /^\d+$/.test(teamText) ? Number(teamText) : null;
+  const teamEvents = useApi<TeamProfile>(teamNo ? `/api/teams/${teamNo}${qs({ season })}` : null);
   const [q, setQ] = useState("");
+  // With a team chosen, step 2 lists only the events it's registered at; "Search all events" lifts that until the team or season changes.
+  const [showAll, setShowAll] = useState(false);
+  useEffect(() => setShowAll(false), [teamNo, season]);
   const events = useApi<{ events: EventListItem[] }>(`/api/events${qs({ season })}`);
-  const advancing = new Set(["LeagueTournament", "Qualifier", "Championship", "SuperQualifier", "Premier", "FIRSTChampionship"]);
-  const choices = useMemo(() => {
-    const all = (events.data?.events ?? []).filter((e) => advancing.has(e.type ?? ""));
-    const mine = new Set((teamEvents.data?.events ?? []).map((e) => e.code));
-    const needle = q.trim().toLowerCase();
-    return all.filter((e) => !needle || `${e.name} ${e.code} ${e.city ?? ""}`.toLowerCase().includes(needle)).sort((a, b) => Number(mine.has(b.code)) - Number(mine.has(a.code)) || (a.start ?? "").localeCompare(b.start ?? ""));
-  }, [events.data, teamEvents.data, q]);
-  const myCodes = new Set((teamEvents.data?.events ?? []).map((e) => e.code));
+  // The team's profile, once it's the one typed (an unknown number answers an error: no team, every event).
+  const profile = teamEvents.data?.team?.number === teamNo ? teamEvents.data : null;
+  const teamCodes = useMemo(() => (profile ? new Set(profile.events.map((e) => e.code)) : null), [profile]);
+  const { list: choices, teamOnly, teamCount, otherMatches } = useMemo(() => labEventChoices(events.data?.events ?? [], { teamCodes, q, showAll }), [events.data, teamCodes, q, showAll]);
+  const teamLoading = !!teamNo && teamEvents.loading;
+  // Another season the team has events to try (newest first, predicted seasons only).
+  const otherSeason = profile?.seasons.find((s) => s !== season && s >= 2023) ?? null;
   const step = "mb-2 flex items-center gap-2 text-sm font-semibold text-foreground";
   const num = "flex size-6 items-center justify-center rounded-full bg-accent/15 text-xs font-bold text-accent-text";
   return (
@@ -646,16 +651,26 @@ function AdvancementLab() {
           <div className="min-w-0">
             <p className={step}><span className={num}>1</span> Team</p>
             <TeamInput size="lg" label="Team" autoFocus={grab && !teamText} value={teamText} onChange={(v) => { setTeamText(v); set({ team: v || null }); }} />
-            <p className="mt-2 text-sm text-muted-foreground">Its events this season are listed first.</p>
+            <p className="mt-2 text-sm text-muted-foreground">{profile ? `Only its ${seasonLabel(season)} events are listed.` : "Add a team to list only its events."}</p>
           </div>
           <div className="min-w-0">
             <p className={step}><span className={num}>2</span> Event</p>
             <div className="relative">
               <Search className="pointer-events-none absolute left-3.5 top-1/2 size-5 -translate-y-1/2 text-muted-foreground" aria-hidden />
-              <Input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Find an event: name, code or city" className="h-14 pl-11 text-base" aria-label="Find an event" />
+              <Input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Event name, code, city or state" className="h-14 pl-11 text-base" aria-label="Find an event" />
             </div>
+            {profile && !teamOnly && (
+              <p className="mt-3 flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-muted-foreground">
+                Showing every event.
+                <button type="button" className="font-medium text-accent-text underline underline-offset-4" onClick={() => setShowAll(false)}>Only {teamNo}'s events</button>
+              </p>
+            )}
             <div className="custom-scrollbar mt-3 max-h-[26rem] space-y-1.5 overflow-y-auto pr-1">
-              {events.error ? <p className="text-sm text-destructive">{events.error.message}</p> : !events.data ? <div className="skeleton h-40 rounded-xl" /> : !choices.length ? <p className="py-4 text-base text-muted-foreground">No advancing events {q ? "match" : `in ${seasonLabel(season)} yet`}.</p> : choices.slice(0, 60).map((e) => (
+              {events.error ? <p className="text-sm text-destructive">{events.error.message}</p>
+                : !events.data || teamLoading ? <div className="skeleton h-40 rounded-xl" />
+                : !choices.length ? <LabEventsEmpty team={teamOnly ? teamNo : null} teamCount={teamCount} teamEvents={profile?.events.length ?? 0} season={season} q={q} otherMatches={otherMatches}
+                    otherSeason={otherSeason} onShowAll={() => setShowAll(true)} onSeason={(s) => set({ season: String(s), code: null })} onClearSearch={() => setQ("")} />
+                : choices.slice(0, 60).map((e) => (
                 <button key={e.code} type="button" aria-pressed={code === e.code} onClick={() => set({ code: e.code })}
                   className={cn("flex w-full items-center gap-3 rounded-xl border px-4 py-3 text-left transition-colors max-sm:px-3",
                     code === e.code ? "border-accent/60 bg-accent/[0.08]" : "border-border/60 hover:border-border hover:bg-text-base/[0.04]")}>
@@ -663,7 +678,7 @@ function AdvancementLab() {
                     <span className="block truncate text-base font-medium">{e.name}</span>
                     <span className="mt-0.5 block truncate text-sm text-muted-foreground">{[e.typeLabel, [e.city, e.state].filter(Boolean).join(", ")].filter(Boolean).join(" · ")}</span>
                   </span>
-                  {myCodes.has(e.code) && <Badge variant="soft" className="shrink-0 max-sm:hidden">{teamText}'s event</Badge>}
+                  {!teamOnly && teamCodes?.has(e.code) && <Badge variant="soft" className="shrink-0 max-sm:hidden">{teamText}'s event</Badge>}
                   <span className="shrink-0 text-sm tabular-nums text-muted-foreground">{dateRange(e.start, e.end)}</span>
                 </button>
               ))}
