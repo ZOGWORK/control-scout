@@ -1,5 +1,6 @@
 // Watch live (event page): the event's YouTube stream with the model's calls beside it. Shown only when the
-// owner has set a stream (server/portal/streams.ts). The player is a click-to-play facade (a thumbnail and a
+// event has one (server/videos/recordings.ts: the owner's stream, else FIRST's YouTube link). A match's Watch
+// button jumps the player to its second (lib/streamSeek.ts). The player is a click-to-play facade (a thumbnail and a
 // play button; the youtube-nocookie iframe loads only on a click, never autoplaying on its own), so the page
 // costs one image for everyone who doesn't watch. The rail (lib/watchRail.ts) follows the event page's own
 // live refresh: the match being called, its result and verdict for a minute once it's in, then the next one.
@@ -8,6 +9,8 @@ import { Link } from "react-router-dom";
 import { Check, Play, X } from "lucide-react";
 import type { EventDetail, EventStream, MatchView } from "../shared/api";
 import { thumbnailUrl } from "../shared/stream";
+import { onStreamSeek } from "../lib/streamSeek";
+import { smoothBehavior } from "../lib/pageScroll";
 import { oddsPct } from "../shared/share";
 import { nextFlip, railModel, verdict, type Calling, type Flip } from "../lib/watchRail";
 import { venueClock } from "../lib/liveMode";
@@ -21,11 +24,11 @@ export function WatchLive({ d, stream }: { d: EventDetail; stream: EventStream }
   const finished = d.event.status === "finished";
   return (
     <section id={WATCH_ID} aria-labelledby={`${WATCH_ID}-h`} className="mb-8 scroll-mt-bar-4" data-watch-live>
-      <h2 id={`${WATCH_ID}-h`} className="mb-3 font-display text-lg font-semibold text-foreground">{finished ? "Watch the stream" : "Watch live"}</h2>
+      <h2 id={`${WATCH_ID}-h`} className="mb-3 font-display text-lg font-semibold text-foreground">{finished ? "Watch the recording" : "Watch live"}</h2>
       <div className={cn("grid gap-4", !finished && "lg:grid-cols-3")}>
         <div className={cn("min-w-0", finished ? "max-w-4xl" : "lg:col-span-2")}>
           <Player stream={stream} title={`${d.event.name} live stream`} />
-          {finished && <p className="mt-2 text-sm text-muted-foreground">Event finished — this is the recording.</p>}
+          {finished && <p className="mt-2 text-sm text-muted-foreground">{d.matches.some((m) => m.clip) ? "Event finished: this is the recording. A match's Watch button starts it at that match." : "Event finished: this is the recording."}</p>}
         </div>
         {!finished && <PredictionRail d={d} />}
       </div>
@@ -34,15 +37,22 @@ export function WatchLive({ d, stream }: { d: EventDetail; stream: EventStream }
 }
 
 function Player({ stream, title }: { stream: EventStream; title: string }) {
-  const [on, setOn] = useState(false);
+  // null: the facade; else playing from that second (0 from the start). n counts the seeks, so the same match's Watch again restarts it.
+  const [play, setPlay] = useState<{ t: number; n: number } | null>(null);
+  const start = play?.t ?? null;
+  const box = useRef<HTMLDivElement>(null);
+  useEffect(() => onStreamSeek((t) => {
+    setPlay((p) => ({ t, n: (p?.n ?? 0) + 1 }));
+    box.current?.scrollIntoView({ block: "center", behavior: smoothBehavior() });
+  }), []);
   return (
-    <div className="relative aspect-video w-full overflow-hidden rounded-2xl border border-border bg-black">
-      {on ? (
-        // Loaded by the click, so autoplay here is the viewer's own choice.
-        <iframe className="absolute inset-0 size-full" src={`${stream.streamUrl}?autoplay=1&rel=0`} title={title}
+    <div ref={box} className="relative aspect-video w-full overflow-hidden rounded-2xl border border-border bg-black">
+      {start != null ? (
+        // Loaded by a click (the facade, or a match's Watch), so autoplay here is the viewer's own choice. Each seek is a new player.
+        <iframe key={play!.n} className="absolute inset-0 size-full" src={`${stream.streamUrl}?autoplay=1&rel=0${start ? `&start=${start}` : ""}`} title={title}
           allow="accelerometer; autoplay; encrypted-media; gyroscope; picture-in-picture; fullscreen" allowFullScreen referrerPolicy="strict-origin-when-cross-origin" />
       ) : (
-        <button type="button" onClick={() => setOn(true)} className="group absolute inset-0 grid place-items-center focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60" aria-label={`Play: ${title}`} data-stream-facade>
+        <button type="button" onClick={() => setPlay({ t: 0, n: 1 })} className="group absolute inset-0 grid place-items-center focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60" aria-label={`Play: ${title}`} data-stream-facade>
           <img src={thumbnailUrl(stream.videoId)} alt="" loading="lazy" decoding="async" className="absolute inset-0 size-full object-cover opacity-80 transition-opacity group-hover:opacity-100 motion-reduce:transition-none" />
           <span className="relative grid size-16 place-items-center rounded-full bg-[#ff0033] text-white shadow-lg sm:size-20"><Play className="size-7 translate-x-0.5 fill-current sm:size-9" aria-hidden /></span>
         </button>

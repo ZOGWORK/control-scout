@@ -57,6 +57,8 @@ export const PUBLIC_TABLES = [
   "event_projections", "event_projection_odds",
   // Reliability index (migration 41): from public match results only (never workspace scouting).
   "team_reliability",
+  // YouTube's public timing of event recordings (migration 43): video ids, broadcast times, lengths.
+  "video_meta",
 ];
 
 /** True only when replacing the file can't lose anything: it's missing or zero

@@ -8,6 +8,7 @@ import { Check, ChevronDown, CircleDashed, ClipboardList, Gauge, Handshake, Hist
 import type { ConfidenceTier, Factor, MatchPredictionView, MatchView, PairHistory } from "../shared/api";
 import { matchReportHref } from "../shared/matchReport";
 import { cn } from "./cn";
+import { ClipLink } from "./MatchClip";
 import { ScoreRange } from "./ScoreRange";
 import { levelPct, predictedText } from "../shared/scoreRange";
 import { Tooltip, TooltipContent, TooltipTrigger } from "./ui/overlay";
@@ -280,7 +281,7 @@ export function MatchRow({ m, highlight, showEvent, eventName, open, onToggle, o
             {m.played ? (missing ? "No call · a robot sat out" : "No call") : m.red.teams.length > 2 || m.blue.teams.length > 2 ? "Lineup TBD" : "—"}
           </span>
         )}
-        {(p || m.video || videos > 0) && (
+        {(p || m.video || m.clip || videos > 0) && (
           <div className="flex flex-wrap items-center justify-end gap-1 text-[11px] text-text-muted" data-call-status>
             {/* Right and Upset share one width, so the chips after them line up from row to row. */}
             {called === true && <span className={cn(STATUS_CHIP, "min-w-[3.25rem] justify-center bg-success/12 text-success")} data-outcome="right"><Check className="size-3" aria-hidden /> Right</span>}
@@ -294,6 +295,7 @@ export function MatchRow({ m, highlight, showEvent, eventName, open, onToggle, o
                 <span className="sr-only">{p.kind === "live" ? "pre-match" : "replayed"}: {KIND_LABEL[p.kind]}</span>
               </span>
             )}
+            {m.clip && <ClipLink clip={m.clip} className={cn(STATUS_CHIP, "bg-[#ff0033]/12 text-[#ff4d6d] still-hover:bg-[#ff0033]/20")}><span className="text-[10px]">Watch</span></ClipLink>}
             {m.video && <a href={m.video} target="_blank" rel="noreferrer noopener" className={cn(STATUS_CHIP, "still-hover:text-text-base")} aria-label="Official match video"><PlayCircle className="size-3.5" /></a>}
             {videos > 0 && <span className={cn(STATUS_CHIP, "text-accent-text")} title={`${videos} saved video link${videos > 1 ? "s" : ""}`}><Video className="size-3.5" /><span className="text-[10px]">{videos}</span></span>}
           </div>
