@@ -66,4 +66,20 @@ describe("Predict Lab: advancement", () => {
     expect(screen.getByText("Curie Qualifier")).toBeTruthy();
     expect(screen.queryByText("Athens Qualifier")).toBeNull();
   });
+
+  it("a team lookup that fails says so (with Try again), never falling back to every event", async () => {
+    invalidate("/api/");
+    vi.stubGlobal("fetch", async (url: string) => {
+      const u = String(url);
+      if (u.startsWith("/api/teams/5555?")) return new Response(JSON.stringify({ error: "Server error" }), { status: 500, headers: { "content-type": "application/json" } });
+      const body = u.startsWith("/api/events") ? { events: [{ season: 2024, code: "USALATQ", name: "Athens Qualifier", type: "Qualifier", typeLabel: "Qualifier", city: "Athens", state: "AL", country: "USA", start: "2024-11-01", end: "2024-11-01", teams: 0, matchesPlayed: 0, matchesTotal: 0, status: "upcoming" }] } : { events: [] };
+      return new Response(JSON.stringify(body), { status: 200, headers: { "content-type": "application/json" } });
+    });
+    render(<TooltipProvider><MemoryRouter initialEntries={["/predict?view=lab&mode=advancement&season=2024&team=5555"]}><PredictPage /></MemoryRouter></TooltipProvider>);
+    await waitFor(() => expect(screen.getByText("Couldn't load 5555's events")).toBeTruthy());
+    expect(screen.queryByText("Athens Qualifier")).toBeNull();
+    expect(screen.getByRole("button", { name: "Try again" })).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Search all events" }));
+    expect(screen.getByText("Athens Qualifier")).toBeTruthy();
+  });
 });
