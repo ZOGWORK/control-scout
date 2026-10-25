@@ -161,7 +161,7 @@ describe("the panel's actions (watch, track) beside Know your match", () => {
     const target = useLiveTarget(d, live);
     return <>
       {live && <LivePanel d={d} target={target} refresh={refresh} track={track} />}
-      <HeaderActions liveMode={live} livestream={d.event.livestream} track={track}><button type="button">Open in what-if lab</button></HeaderActions>
+      <HeaderActions liveMode={live} watch={{ url: d.event.livestream, stream: !!d.event.stream, finished: d.event.status === "finished" }} track={track}><button type="button">Open in what-if lab</button></HeaderActions>
     </>;
   }
   const header = (d: EventDetail, live = true) => render(<MemoryRouter><TooltipProvider><Header d={d} live={live} /></TooltipProvider></MemoryRouter>);
@@ -175,6 +175,33 @@ describe("the panel's actions (watch, track) beside Know your match", () => {
     expect(link.getAttribute("target")).toBe("_blank");
     expect(link.getAttribute("rel")).toBe("noopener noreferrer");
     expect(link.closest("[data-live-actions]")?.querySelector("[data-live-report]")).toBeTruthy();
+  });
+
+  it("with the stream playable on the page: one Watch livestream button that goes to the player, no link out", () => {
+    const watch = document.createElement("section");
+    watch.id = "watch-live";
+    watch.scrollIntoView = () => {};
+    document.body.appendChild(watch);
+    header(withEvent({ livestream: STREAM, stream: { videoId: "live1234567", streamUrl: "https://www.youtube-nocookie.com/embed/live1234567" } }));
+    expect(screen.queryByRole("link", { name: /livestream/i })).toBeNull();
+    expect(screen.getAllByRole("button", { name: /Watch livestream|Watch the stream/ })).toHaveLength(1);
+    // The click takes the page to the player (the Watch section's place on the page).
+    watch.getBoundingClientRect = () => ({ top: 640, left: 0, right: 0, bottom: 700, width: 0, height: 60, x: 0, y: 640, toJSON: () => ({}) }) as DOMRect;
+    const scrolled: number[] = [];
+    const scrollTo = window.scrollTo;
+    window.scrollTo = ((o: ScrollToOptions) => { scrolled.push(o.top ?? NaN); }) as typeof window.scrollTo;
+    const page = (document.scrollingElement as HTMLElement | null) ?? document.documentElement;
+    page.scrollTop = 0;
+    fireEvent.click(within(panel()!).getByRole("button", { name: /Watch livestream/ }));
+    window.scrollTo = scrollTo;
+    expect(scrolled.includes(640) || page.scrollTop === 640).toBe(true);
+    watch.remove();
+  });
+
+  it("after the event, the one button reads Watch the stream and still goes to the player", () => {
+    header(withEvent({ livestream: STREAM, status: "finished", stream: { videoId: "live1234567", streamUrl: "https://www.youtube-nocookie.com/embed/live1234567" } }), false);
+    expect(screen.queryByRole("link", { name: /livestream/i })).toBeNull();
+    expect(within(below()).getAllByRole("button", { name: /Watch/ }).map((b) => b.textContent?.trim())).toEqual(["Watch the stream"]);
   });
 
   it("has no Watch livestream without a stream URL", () => {

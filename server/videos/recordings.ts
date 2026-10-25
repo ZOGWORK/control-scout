@@ -134,14 +134,16 @@ async function saveMeta(videoId: string, f: WatchPageFacts, now: number) {
 
 const DAY = 86_400_000;
 /**
- * When a video's facts are due another read: an error after a day; a live broadcast after 5 minutes; a scheduled
+ * When a video's facts are due another read: an error after a day (15 minutes with an API key); a live broadcast after 5 minutes; a scheduled
  * one not started yet (live, no start: youtube.ts) after an hour; a broadcast archived within 2 days (its length
  * still settling) after 6 hours.
  */
-export function due(m: VideoMeta | null, now: number): boolean {
+export function due(m: VideoMeta | null, now: number, withKey = false): boolean {
   if (!m) return true;
   const age = now - Date.parse(m.checkedAt);
-  if (m.status === "error") return age > DAY;
+  // With the API key an error is rare (network, quota) and the API answers servers, so it's tried again soon:
+  // that also picks up, within minutes, every video the watch page refused before the key was set.
+  if (m.status === "error") return age > (withKey ? 15 * 60_000 : DAY);
   if (m.live) return age > (m.start ? 5 * 60_000 : 3600_000);
   if (m.status === "ok" && m.end && now - Date.parse(m.end) < 2 * DAY) return age > 6 * 3600_000;
   return false;
@@ -167,7 +169,7 @@ export async function backfillVideoMeta(log: (s: string) => void, opts: { max?: 
     }
     const key = opts.apiKey === undefined ? env.youtubeApiKey : opts.apiKey;
     // With the API, 50 a request (1 quota unit each, of 10,000 a day); without it, one watch page at a time.
-    const todo = ids.filter((id) => due(known.get(id) ?? null, now())).slice(0, opts.max ?? (key ? 1000 : 120));
+    const todo = ids.filter((id) => due(known.get(id) ?? null, now(), !!key)).slice(0, opts.max ?? (key ? 1000 : 120));
     const fromApi = new Map<string, WatchPageFacts>();
     if (key) for (let i = 0; i < todo.length; i += 50) for (const [id, f] of await fetchFromApi(todo.slice(i, i + 50), key, opts.fetchImpl)) fromApi.set(id, f);
     let n = 0, errors = 0;
