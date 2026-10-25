@@ -140,32 +140,42 @@ function Alliance({ d, side }: { d: MatchDetail; side: Side }) {
   );
 }
 
+const FOULS_NOTE = "Penalty points this alliance committed (they go to the other side).";
+
+/** The score side by side. With the season's full sheet (FIRST's breakdown: each group, then what it's made of,
+ *  indented), that; otherwise the engine's split (auto, TeleOp, endgame). Both end on the total. */
 function Breakdown({ d }: { d: MatchDetail }) {
   const r = d.match.red.score!, b = d.match.blue.score!;
-  const rows: { label: string; red: number; blue: number; note?: string }[] = [
-    { label: "Auto", red: r.auto, blue: b.auto },
-    { label: "TeleOp", red: r.teleop, blue: b.teleop },
-    { label: "Endgame", red: r.endgame, blue: b.endgame },
-    { label: "No penalties", red: r.np, blue: b.np },
-    { label: "Fouls given away", red: r.pen, blue: b.pen, note: "Penalty points this alliance committed (they go to the other side)." },
-    { label: "Total", red: r.total, blue: b.total },
-  ];
+  type Row = { label: string; red: number | null; blue: number | null; note?: string; depth?: 0 | 1; count?: boolean; total?: boolean };
+  const rows: Row[] = d.sheet
+    ? [...d.sheet.map((x) => ({ ...x, note: x.label === "Fouls given away" ? FOULS_NOTE : x.count ? "How many this alliance committed" : undefined })), { label: "Total", red: r.total, blue: b.total, total: true }]
+    : [
+      { label: "Auto", red: r.auto, blue: b.auto },
+      { label: "TeleOp", red: r.teleop, blue: b.teleop },
+      { label: "Endgame", red: r.endgame, blue: b.endgame },
+      { label: "No penalties", red: r.np, blue: b.np },
+      { label: "Fouls given away", red: r.pen, blue: b.pen, note: FOULS_NOTE },
+      { label: "Total", red: r.total, blue: b.total, total: true },
+    ];
   const diff = r.total - b.total;
   return (
     <section className="rounded-xl border border-border bg-card" aria-label="Score breakdown">
       <ul className="divide-y divide-border">
-        {rows.map((x) => {
-          const max = Math.max(Math.abs(x.red), Math.abs(x.blue), 1);
+        {rows.map((x, i) => {
+          const max = Math.max(Math.abs(x.red ?? 0), Math.abs(x.blue ?? 0), 1);
+          const sub = x.depth === 1;
+          // A zero fades back, so the rows that scored stand out (as on a paper score sheet).
+          const num = (v: number | null, side: Side) => cn("w-9 shrink-0 tabular-nums", sub ? "text-xs" : "text-sm", side === "blue" && "text-right", v ? TONE[side].text : "text-text-muted");
           return (
-            <li key={x.label} className={cn("grid grid-cols-[minmax(0,1fr)_7.5rem_minmax(0,1fr)] items-center gap-2 px-3 py-2", x.label === "Total" && "font-semibold")} title={x.note}>
+            <li key={`${x.label}:${i}`} className={cn("grid grid-cols-[minmax(0,1fr)_7.5rem_minmax(0,1fr)] items-center gap-2 px-3", sub ? "py-1.5" : "py-2", x.total && "font-semibold", !sub && d.sheet && !x.total && "bg-text-base/[0.03] font-medium")} title={x.note} data-depth={x.depth ?? 0}>
               <span className="flex items-center gap-2">
-                <span className="w-9 shrink-0 text-sm tabular-nums text-red-alliance">{x.red}</span>
-                <span className="flex flex-1 justify-end"><span className={cn("h-1.5 rounded-full", TONE.red.bar)} style={{ width: `${(Math.abs(x.red) / max) * 100}%` }} /></span>
+                <span className={num(x.red, "red")}>{x.red ?? "—"}</span>
+                <span className="flex flex-1 justify-end"><span className={cn("rounded-full", sub ? "h-1 opacity-70" : "h-1.5", TONE.red.bar)} style={{ width: `${(Math.abs(x.red ?? 0) / max) * 100}%` }} /></span>
               </span>
-              <span className="text-center text-xs text-text-muted">{x.label}</span>
+              <span className={cn("text-center text-xs", sub ? "text-text-muted" : "text-text-base")}>{sub ? <span className="text-text-muted/70" aria-hidden>· </span> : null}{x.label}{x.count && <span className="sr-only"> (count)</span>}</span>
               <span className="flex items-center gap-2">
-                <span className="flex flex-1"><span className={cn("h-1.5 rounded-full", TONE.blue.bar)} style={{ width: `${(Math.abs(x.blue) / max) * 100}%` }} /></span>
-                <span className="w-9 shrink-0 text-right text-sm tabular-nums text-blue-alliance">{x.blue}</span>
+                <span className="flex flex-1"><span className={cn("rounded-full", sub ? "h-1 opacity-70" : "h-1.5", TONE.blue.bar)} style={{ width: `${(Math.abs(x.blue ?? 0) / max) * 100}%` }} /></span>
+                <span className={num(x.blue, "blue")}>{x.blue ?? "—"}</span>
               </span>
             </li>
           );
