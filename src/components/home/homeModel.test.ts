@@ -51,7 +51,7 @@ describe("prediction record", () => {
     expect(recordFor(record({}), "backtest")).toBeNull();
   });
 
-  it("has no percentage when every scored call was a tie or a 50:50 call (accuracy is a stand-in 0 then)", () => {
+  it("shows the last full season's replay, not the partial replay of the season being logged live", () => {
     // The season in progress has both: its partial replay stays out of the replay tab while a full season's exists.
     const rollover = record({
       seasons: [
@@ -64,6 +64,12 @@ describe("prediction record", () => {
     expect(recordFor(rollover, "live")).toMatchObject({ season: 2026, isHeadline: true });
     // With no other season replayed, the newest replay still shows.
     expect(recordFor(record({ seasons: [rollover.seasons[0]] }), "backtest")).toMatchObject({ season: 2026 });
+    // A finished season keeps its saved live calls; only the season being logged live (the newest with live calls) is skipped.
+    const finishedWithLive = record({ ...rollover, seasons: [rollover.seasons[0], { ...rollover.seasons[1], live: block({ n: 300, decided: 296, accuracy: 0.7, upsets: 89 }) }] });
+    expect(recordFor(finishedWithLive, "backtest")).toMatchObject({ season: 2025, seasonLabel: "2025–26 DECODE" });
+  });
+
+  it("has no percentage when every scored call was a tie or a 50:50 call (accuracy is a stand-in 0 then)", () => {
     const ties = record({ seasons: [{ season: 2026, label: "x", live: block({ n: 3, decided: 0, accuracy: 0, upsets: 0 }), backtest: null }] });
     expect(recordFor(ties, "live")).toMatchObject({ noneDecided: true, split: null });
     expect(recordFor(t, "backtest")!.noneDecided).toBe(false);
