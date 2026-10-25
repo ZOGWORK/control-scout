@@ -79,4 +79,20 @@ describe("Watch", () => {
     expect(card()).toBeNull();
     expect(localStorage.getItem("cs-video-predictions")).toBe("0");
   });
+  it("with the video open and the player answering, Watch moves it within the video (same player, seekTo then play)", () => {
+    render(<MemoryRouter><WatchLive d={d} stream={stream} /><ClipLink clip={clip}>Watch</ClipLink></MemoryRouter>);
+    fireEvent.click(screen.getByRole("button", { name: /^Play:/ }));
+    const frame = document.querySelector("iframe")!;
+    const sent: unknown[] = [];
+    Object.defineProperty(frame, "contentWindow", { configurable: true, value: { postMessage: (m: string) => sent.push(JSON.parse(m)) } });
+    // The player answers: from here on it takes commands.
+    act(() => { window.dispatchEvent(new MessageEvent("message", { origin: "https://www.youtube-nocookie.com", source: frame.contentWindow as unknown as Window, data: JSON.stringify({ event: "infoDelivery", info: { currentTime: 12, playerState: 1 } }) })); });
+    sent.length = 0;
+    expect(fireEvent.click(screen.getByRole("link", { name: /Watch this match/ }))).toBe(false);
+    expect(document.querySelector("iframe")).toBe(frame); // no reload
+    expect(sent).toEqual([
+      { event: "command", func: "seekTo", args: [100, true], id: 1, channel: "widget" },
+      { event: "command", func: "playVideo", args: [], id: 1, channel: "widget" },
+    ]);
+  });
 });
