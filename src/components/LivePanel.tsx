@@ -140,7 +140,7 @@ export function LivePanel({ d, target, refresh, track }: { d: EventDetail; targe
               <Link to={matchReportHref(any)} data-live-report><ClipboardList /> Know your match</Link>
             </Button>
           )}
-          <LivestreamButton url={e.livestream} className="max-sm:h-10 max-sm:flex-1" />
+          <LivestreamButton watch={{ url: e.livestream, stream: !!e.stream, finished: e.status === "finished" }} className="max-sm:h-10 max-sm:flex-1" />
           {track && <TrackEventButton track={track} className="max-sm:h-10 max-sm:flex-1" />}
         </div>
         {!mine && (atEvent.size ? (
