@@ -1,19 +1,26 @@
 // Broadcast overlay (/events/:season/:code/overlay): a lower-third for an event's stream, added in OBS as a
 // browser source (1920×1080) on top of the video. No site chrome (the Shell steps aside, as for the pit
 // display), a transparent page OBS composites (or ?bg=green for a chroma key), and sizes that scale with
-// the viewport like the pit display's (--u is 1% of the height in a 16:9 frame). What the bar shows lives in
+// its frame like the pit display's (--u is 1% of the height in a 16:9 frame). What the bar shows lives in
 // lib/overlay.ts, picked the way the Watch live rail picks (lib/watchRail.ts).
+//
+// Opened in an ordinary browser tab (no window.obsstudio, no ?clean=1: lib/overlay.ts isBroadcastSource) it's a
+// preview instead: the same frame at 16:9 on a checkerboard (the see-through part), under a bar with the way back
+// to the event, the options and the link to copy into OBS. On its own the bare page is a blank screen with a small
+// bar at the bottom and nothing to click, which reads as a broken site.
 //
 // Fresh data comes as the pit display gets it (lib/pitPoll.ts useDisplayPoll: the event's own request, its
 // ETag making a quiet poll a 304; 20–30 s while live, else every 5 minutes; after a failure 5, 10, 20, 30 s and
 // a small "Reconnecting…" in the corner bug).
 import { useEffect, useState, type CSSProperties, type HTMLAttributes } from "react";
-import { useLocation, useParams } from "react-router-dom";
+import { Link, useLocation, useNavigate, useParams } from "react-router-dom";
+import { ArrowLeft, Check, Copy } from "lucide-react";
 import { useApi, type ApiError } from "../lib/api";
 import { useTitle } from "../lib/meta";
 import { useDisplayPoll, type PollState } from "../lib/pitPoll";
+import { copyText } from "../lib/clipboard";
 import { useWatchRail } from "../lib/useWatchRail";
-import { CHROMA_GREEN, callWords, overlayModel, overlayOptions, shortName, type OverlayModel, type OverlaySide } from "../lib/overlay";
+import { CHROMA_GREEN, callWords, isBroadcastSource, overlayModel, overlayOptions, overlaySearch, shortName, type OverlayModel, type OverlayOptions, type OverlaySide } from "../lib/overlay";
 import { venueClock } from "../lib/liveMode";
 import { cn } from "../components/cn";
 import { oddsPct, tierWords } from "../shared/share";
@@ -37,14 +44,17 @@ export default function EventOverlayPage() {
   // No polling for an address that can't be an event, or one the server says doesn't exist.
   const gone = !valid || status === 404;
   const poll = useDisplayPoll(state.data, gone ? null : path);
+  const bare = isBroadcastSource(opts);
+  // Sizes come from the frame itself (a size container: the whole screen in OBS, the 16:9 box in the preview).
   const frame: CSSProperties = {
     background: opts.bg === "green" ? CHROMA_GREEN : "transparent",
-    ["--u" as string]: "min(1vh, 0.5625vw)",
-    // The bar is 150 --bu wide: never wider than the screen less the corner margins, whatever the scale asks.
-    ["--bu" as string]: `min(calc(min(1vh, 0.5625vw) * ${opts.scale}), calc((100vw - min(1vh, 0.5625vw) * 6) / 150))`,
+    containerType: "size",
+    ["--u" as string]: "min(1cqh, 0.5625cqw)",
+    // The bar is 150 --bu wide: never wider than the frame less the corner margins, whatever the scale asks.
+    ["--bu" as string]: `min(calc(min(1cqh, 0.5625cqw) * ${opts.scale}), calc((100cqw - min(1cqh, 0.5625cqw) * 6) / 150))`,
   };
-  return (
-    <div className="fixed inset-0 overflow-hidden font-sans text-zinc-100 antialiased" style={frame} data-overlay data-overlay-bg={opts.bg}>
+  const content = (
+    <div className={cn("overflow-hidden font-sans text-zinc-100 antialiased", bare ? "fixed inset-0" : "absolute inset-0")} style={frame} data-overlay data-overlay-bg={opts.bg}>
       {status === 404 || status === 400 ? (
         <Card className="absolute left-[calc(var(--u)*3)] top-[calc(var(--u)*3)] px-[calc(var(--u)*2)] py-[calc(var(--u)*1.4)]" style={u(2)} role="alert">
           No event {code} in {season}. Check the overlay's address.
@@ -52,6 +62,72 @@ export default function EventOverlayPage() {
       ) : state.data ? <Overlay d={state.data} poll={poll} top={opts.pos === "top"} /> : (
         <p className="sr-only" role="status">{state.error ? "Can't reach Control Scout. Retrying…" : "Loading the event…"}</p>
       )}
+    </div>
+  );
+  if (bare) return content;
+  return <Preview season={season ?? ""} code={code ?? ""} name={state.data?.event.name ?? null} opts={opts}>{content}</Preview>;
+}
+
+/** Light and dark squares: the parts of the overlay a stream shows its video through. */
+const CHECKER: CSSProperties = {
+  backgroundColor: "#2a2a2e",
+  backgroundImage: "linear-gradient(45deg, #3a3a40 25%, transparent 25%), linear-gradient(-45deg, #3a3a40 25%, transparent 25%), linear-gradient(45deg, transparent 75%, #3a3a40 75%), linear-gradient(-45deg, transparent 75%, #3a3a40 75%)",
+  backgroundSize: "24px 24px",
+  backgroundPosition: "0 0, 0 12px, 12px -12px, -12px 0",
+};
+
+/** The overlay in an ordinary tab: a 16:9 preview under a bar with the way back, the options and the link for OBS. */
+function Preview({ season, code, name, opts, children }: { season: string; code: string; name: string | null; opts: OverlayOptions; children: React.ReactNode }) {
+  const nav = useNavigate();
+  const [copied, setCopied] = useState<"no" | "yes" | "failed">("no");
+  const eventHref = `/events/${season}/${encodeURIComponent(code)}`;
+  const set = (o: Partial<OverlayOptions>) => nav({ search: overlaySearch({ ...opts, ...o, clean: false }) }, { replace: true });
+  const link = `${window.location.origin}${eventHref}/overlay${overlaySearch({ ...opts, clean: true })}`;
+  // The site's copy (with its fallback for plain HTTP on a venue network); toasts are hidden on this route, so the
+  // outcome shows here: "Copied", or the link itself to select by hand.
+  const copy = async () => {
+    const ok = await copyText(link, "Link copied", "Couldn't copy the link", link);
+    setCopied(ok ? "yes" : "failed");
+    if (ok) setTimeout(() => setCopied((c) => (c === "yes" ? "no" : c)), 2000);
+  };
+  const seg = (on: boolean) => cn("h-8 rounded-md px-2.5 text-xs font-semibold", on ? "bg-[#ffc700] text-[#0a0a0b]" : "text-zinc-300 hover:bg-white/10");
+  return (
+    <div className="fixed inset-0 overflow-y-auto bg-[#0a0a0b] font-sans text-zinc-100 antialiased" data-overlay-preview>
+      <div className="mx-auto flex max-w-5xl flex-col gap-3 p-4">
+        <div className="flex flex-wrap items-center gap-2">
+          <Link to={eventHref} className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-white/15 bg-white/5 px-3 text-sm font-medium hover:bg-white/10"><ArrowLeft className="size-4" aria-hidden /> Back to event</Link>
+          <button type="button" onClick={copy} className="inline-flex h-9 items-center gap-1.5 rounded-lg bg-[#ffc700] px-3 text-sm font-semibold text-[#0a0a0b]" data-overlay-copy>
+            {copied === "yes" ? <Check className="size-4" aria-hidden /> : <Copy className="size-4" aria-hidden />}{copied === "yes" ? "Copied" : "Copy link for OBS"}
+          </button>
+        </div>
+        {copied === "failed" && (
+          <label className="flex flex-col gap-1 text-sm text-amber-300" data-overlay-copy-failed>
+            This browser wouldn't copy it. Select the link and copy it yourself:
+            <input readOnly value={link} onFocus={(e) => e.currentTarget.select()} className="h-9 rounded-lg border border-white/15 bg-white/5 px-3 font-mono text-xs text-zinc-100" />
+          </label>
+        )}
+        <div>
+          <h1 className="font-display text-lg font-semibold">Stream overlay{name ? `: ${name}` : ""}</h1>
+          <p className="text-sm text-zinc-400">
+            A preview of what goes over your stream. In OBS: Sources, +, Browser, paste the link, width 1920, height 1080.
+            The squares are see-through there.
+          </p>
+        </div>
+        <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-xs text-zinc-400">
+          <span className="flex items-center gap-1.5">Background
+            <span className="flex rounded-lg border border-white/15 p-0.5"><button type="button" className={seg(opts.bg === "transparent")} aria-pressed={opts.bg === "transparent"} onClick={() => set({ bg: "transparent" })}>See-through</button><button type="button" className={seg(opts.bg === "green")} aria-pressed={opts.bg === "green"} onClick={() => set({ bg: "green" })}>Green screen</button></span>
+          </span>
+          <span className="flex items-center gap-1.5">Bar
+            <span className="flex rounded-lg border border-white/15 p-0.5"><button type="button" className={seg(opts.pos === "bottom")} aria-pressed={opts.pos === "bottom"} onClick={() => set({ pos: "bottom" })}>Bottom</button><button type="button" className={seg(opts.pos === "top")} aria-pressed={opts.pos === "top"} onClick={() => set({ pos: "top" })}>Top</button></span>
+          </span>
+          <span className="flex items-center gap-1.5">Size
+            <span className="flex rounded-lg border border-white/15 p-0.5">{([["S", 0.8], ["M", 1], ["L", 1.2]] as const).map(([l, v]) => <button key={l} type="button" className={seg(opts.scale === v)} aria-pressed={opts.scale === v} onClick={() => set({ scale: v })}>{l}</button>)}</span>
+          </span>
+        </div>
+        <div className="relative aspect-video w-full overflow-hidden rounded-xl border border-white/15" style={CHECKER} data-overlay-frame>
+          {children}
+        </div>
+      </div>
     </div>
   );
 }
