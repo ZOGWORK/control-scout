@@ -101,12 +101,19 @@ export function runPacksInChild(timeoutMs = 3600_000): Promise<void> {
   return runScriptInChild(PACKS_SCRIPT, "pack build", timeoutMs);
 }
 
-function runScriptInChild(script: string, what: string, timeoutMs: number): Promise<void> {
+/**
+ * The child's Node arguments for a TypeScript script: through tsx, also when this server runs from its built bundle
+ * (scripts/build-server.mjs), whose own flags don't carry the loader; this process's other flags carried over.
+ */
+export function childArgs(execArgv: readonly string[], script: string): string[] {
+  const flags = execArgv.some((a) => a.includes("tsx")) ? [...execArgv] : ["--import", "tsx", ...execArgv];
+  return [...flags, script];
+}
+
+/** Run a TypeScript script in a child Node process from the app's folder (exported for its test). */
+export function runScriptInChild(script: string, what: string, timeoutMs: number, execArgv: readonly string[] = process.execArgv): Promise<void> {
   return new Promise((resolve, reject) => {
-    // The scripts are TypeScript: the child loads them through tsx, also when this server runs from its built bundle
-    // (scripts/build-server.mjs), whose own flags don't carry the loader.
-    const flags = process.execArgv.some((a) => a.includes("tsx")) ? process.execArgv : ["--import", "tsx", ...process.execArgv];
-    const child = spawn(process.execPath, [...flags, script], { cwd: APP_ROOT, env: process.env, stdio: ["ignore", "inherit", "inherit"] });
+    const child = spawn(process.execPath, childArgs(execArgv, script), { cwd: APP_ROOT, env: process.env, stdio: ["ignore", "inherit", "inherit"] });
     const timer = setTimeout(() => child.kill("SIGKILL"), timeoutMs);
     child.once("error", (e) => { clearTimeout(timer); reject(e); });
     child.once("exit", (code, signal) => {

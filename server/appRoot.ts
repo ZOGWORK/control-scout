@@ -5,7 +5,8 @@ import { existsSync, readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
-function findRoot(start: string): string {
+/** The nearest folder at or above `start` holding control-scout's package.json (the working directory if none). */
+export function findRoot(start: string): string {
   for (let dir = start; ; dir = dirname(dir)) {
     const pkg = join(dir, "package.json");
     if (existsSync(pkg)) {
