@@ -159,7 +159,7 @@ function Picker({ onPick }: { onPick: (v: string) => void }) {
     <div className="max-w-2xl space-y-3">
       <SearchBox
         size="lg" kinds={["team", "event"]} label="Pick a team or event" inputRef={searchRef} hint={SEARCH_HINT}
-        placeholder="Pick a team or an event: number, name, or a rough guess"
+        placeholder="Team or event: number or name"
         onPick={(h) => onPick(h.kind === "team" ? `team:${h.ref}` : `event:${h.ref}`)}
         emptyHint={quick.length ? (
           <div className="p-2">
@@ -356,7 +356,7 @@ function ThisWeek({ onPick, picked }: { onPick: (v: string) => void; picked: str
                     <span className="block truncate font-medium text-foreground">{e.name}</span>
                     <span className="mt-0.5 flex items-center gap-1 truncate text-xs text-muted-foreground"><MapPin className="size-3 shrink-0" />{dateRange(e.start, e.end)} · {place(e.city, e.state)}</span>
                   </span>
-                  <span className="shrink-0">{n > 0 ? <Badge variant="success">{n} scheduled</Badge> : <Badge variant="secondary">{e.type ?? "Event"}</Badge>}</span>
+                  <span className="shrink-0">{n > 0 ? <Badge variant="success">{n} scheduled</Badge> : <Badge variant="secondary">{e.typeLabel ?? e.type ?? "Event"}</Badge>}</span>
                 </button>
               );
             })}

@@ -240,3 +240,52 @@ describe("engine upgrade marker", () => {
     expect(await statsRulesStale()).toBe(false);
   });
 });
+
+describe("partner scenarios before the event (no hindsight)", () => {
+  /** NEWQ1 (one played match) with its alliances selected: today there is no partner left to choose. */
+  async function selected() {
+    await run("INSERT INTO alliances (season, code, number, captain, pick1) VALUES (?, 'NEWQ1', 1, 1, 2), (?, 'NEWQ1', 2, 3, 4)", [S, S]);
+    await kvSet("data:version", "vp1");
+  }
+  async function partnersApi(mode?: "pre-event") {
+    const server = createApp().listen(0);
+    await new Promise((r) => server.once("listening", r));
+    try {
+      const r = await fetch(`http://127.0.0.1:${(server.address() as AddressInfo).port}/api/predict/partners?season=${S}&code=NEWQ1&team=1${mode ? `&mode=${mode}` : ""}`);
+      return { status: r.status, body: (await r.json()) as { role: string; myTeam: number; options: { team: number; pAdvance: number }[] } };
+    } finally { await new Promise((r) => server.close(r)); }
+  }
+  const newq1 = (alliances: boolean) => ({
+    season: S, code: "NEWQ1", type: "Qualifier", start: `${S}-11-07`, end: `${S}-11-07`, field: [1, 2, 3, 4].map((t) => ({ teamNumber: t, rank: null })),
+    alliances: alliances ? [{ number: 1, captain: 1, picks: [2] }, { number: 2, captain: 3, picks: [4] }] : [], matches: [],
+  });
+
+  it("simulates the event as it stood the day before: alliances and results stripped, earlier ratings only", async () => {
+    const f = await forecasterFor(S);
+    // Now: alliances are set, so there's nothing to choose.
+    expect((await f.partners(newq1(true) as never, 1))!.role).toBe("none");
+    // Before the event: the same scenarios as partners() on preEventView's frozen forecaster and stripped event.
+    const pre = (await f.preEventPartners(newq1(true) as never, 1))!;
+    expect(pre.role).not.toBe("none");
+    expect(pre.options.length).toBeGreaterThan(0);
+    expect(pre.options.every((o) => [2, 3, 4].includes(o.team) && o.pAdvance >= 0 && o.pAdvance <= 1)).toBe(true);
+    const v = f.preEventView(newq1(true) as never)!;
+    expect(v.ev.alliances).toEqual([]);
+    expect((await v.f.partners(v.ev, 1))!.role).toBe(pre.role);
+    // No start date, no before-the-event view.
+    expect(await f.preEventPartners({ ...newq1(true), start: null } as never, 1)).toBeNull();
+  });
+
+  it("the partners API answers mode=pre-event with its own scenarios, cached apart from the current ones", async () => {
+    await selected();
+    const now = await partnersApi();
+    expect(now.status).toBe(200);
+    expect(now.body.role).toBe("none");
+    const pre = await partnersApi("pre-event");
+    expect(pre.status).toBe(200);
+    expect(pre.body.role).not.toBe("none");
+    expect(pre.body.myTeam).toBe(1);
+    expect(pre.body.options.length).toBeGreaterThan(0);
+    expect((await partnersApi()).body.role).toBe("none");
+  });
+});

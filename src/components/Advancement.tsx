@@ -1,12 +1,13 @@
 // Advancement simulator view — Control Point's Predict page (stage strip,
 // Outlook, Alliance, Field), generalised to ANY team at ANY event.
 import { SimProgress } from "./SimProgress";
-import { useMemo, useState } from "react";
+import { useCallback, useMemo, useRef, useState, useTransition } from "react";
 import { Link } from "react-router-dom";
 import { m } from "./motion";
-import { Check, Crown, Gauge, History, Info, RefreshCw, Search, Trophy, Users } from "lucide-react";
+import { ArrowUpRight, Check, ChevronDown, Crown, Gauge, History, Info, PanelRight, RefreshCw, Search, Trophy, Users } from "lucide-react";
 import { useApi, qs, load } from "../lib/api";
-import type { ConfidenceTier, ForecastView, Partners } from "../shared/api";
+import type { ConfidenceTier, EventDetail, FieldRow, ForecastView, Partners } from "../shared/api";
+import { TeamPeek } from "./TeamPeek";
 import { cn } from "./cn";
 import { Badge, Input } from "./ui/basic";
 import { Button } from "./ui/button";
@@ -25,6 +26,8 @@ const ease = [0.2, 0.8, 0.2, 1] as const;
 const pct = (p: number | null | undefined, decided = false) => oddsPct(p, decided);
 /** A seat that alliance selection already settled: it was taken or it wasn't. */
 const yesNo = (p: number | null | undefined) => ((p ?? 0) >= 0.5 ? "Yes" : "No");
+/** Playoffs are over once a played final exists and none is left to play (after alliance selection). */
+const playoffsDone = (fc: ForecastView) => fc.stage === "selected" && fc.matches.some((x) => x.level === "playoff" && x.played) && !fc.matches.some((x) => x.level === "playoff" && !x.played);
 const rankRange = (a: number, b: number) => (Math.round(a) === Math.round(b) ? `#${Math.round(a)}` : `#${Math.round(a)}–${Math.round(b)}`);
 
 function GrowBar({ value, className, delay = 0 }: { value: number; className?: string; delay?: number }) {
@@ -72,18 +75,54 @@ export function withProjection(fc: ForecastView, run: ProjectionRun): Shown {
   return { ...fc, teams, runs: run.runs, projection: run, awardOdds: new Map(fc.teams.map((t) => [t.team, t.pAdvance])), ineligible };
 }
 
+/** One team's row of a forecast. */
+export type ForecastTeam = ForecastView["teams"][number];
+
 export function AdvancementView({ season, code, team, nameOf, onPickTeam }: { season: number; code: string; team: number | null; nameOf: (t: number) => string; onPickTeam?: (t: number) => void }) {
   const [mode, setMode] = useState<"current" | "pre-event">("current");
-  const path = `/api/predict/event${qs({ season, code, team, mode })}`;
+  const pathFor = (t: number | null) => `/api/predict/event${qs({ season, code, team: t, mode })}`;
+  const path = pathFor(team);
   const state = useApi<ForecastView>(path);
   // The stored Monte Carlo projection (server/projections) is the advancement number wherever one exists;
   // this simulator's own odds stay the fallback, and its award-inclusive figure a second opinion.
   const proj = useApi<ProjectionsView>(projectionsPath(season, code));
-  if (state.error) return <ErrorState error={state.error} onRetry={state.reload} />;
-  if (!state.data) return <SimProgress runs={2000} />;
+  // Team names (the event's field) when the page doesn't pass them; the event page has this cached already.
+  const detail = useApi<EventDetail>(`/api/events/${season}/${code}`);
+  const field = useMemo(() => new Map((Array.isArray(detail.data?.field) ? detail.data!.field : []).map((f) => [f.team, f])), [detail.data]);
+  const nameFor = useCallback((t: number) => nameOf(t) || field.get(t)?.name || "", [nameOf, field]);
+  // Picking another team asks for a new forecast (its award points are worked out for it). Until it lands the
+  // view keeps the one on screen, marked as updating, instead of dropping back to the loading animation.
+  const key = `${season}|${code}|${mode}`;
+  const last = useRef<{ key: string; data: ForecastView } | null>(null);
+  if (state.data) last.current = { key, data: state.data };
+  const data = state.data ?? (last.current?.key === key ? last.current.data : undefined);
+  // The forecast on screen is another team's: still loading (updating), or its request failed (switchFailed:
+  // the error and Try again show, and the old numbers stay dimmed so they never pass for this team's).
+  const stale = !state.data && !!data;
+  const updating = stale && !state.error;
+  const switchFailed = stale && !!state.error;
+  // Outlook first whenever there's a team (and again whenever the team changes); the field when there's none.
+  const [tab, setTab] = useState(team ? "outlook" : "field");
+  const [shownTeam, setShownTeam] = useState(team);
+  if (shownTeam !== team) { setShownTeam(team); setTab(team ? "outlook" : "field"); }
+  const [peek, setPeek] = useState<{ team: number; open: boolean } | null>(null);
+  const [, startTransition] = useTransition();
+  const pick = onPickTeam ? (t: number) => { setTab("outlook"); startTransition(() => onPickTeam(t)); } : undefined;
+  // Pointing at (or focusing) "See N's outlook" starts that team's forecast a moment early. Only on that
+  // intent, never for rows merely opened, and one at a time: each is a full simulation on the server.
+  const prefetching = useRef<number | null>(null);
+  const prefetch = (t: number) => {
+    if (t === team || prefetching.current != null) return;
+    prefetching.current = t;
+    load(pathFor(t)).catch(() => {}).finally(() => { prefetching.current = null; });
+  };
+  if (state.error && !data) return <ErrorState error={state.error} onRetry={state.reload} />;
+  if (!data) return <SimProgress runs={2000} />;
   const stored = mode === "pre-event" ? proj.data?.baseline : proj.data?.current;
-  const fc: Shown = stored ? withProjection(state.data, stored) : state.data;
+  const fc: Shown = stored ? withProjection(data, stored) : data;
   const conf = forecastTier(fc, team);
+  const statusOf = (t: number) => (fc.prequalified.includes(t) ? "qualified" as const : fc.ineligible?.has(t) ? "ineligible" as const : null);
+  const peekRow = peek ? fc.teams.find((t) => t.team === peek.team) : undefined;
   return (
     <div>
       <StageStrip fc={fc} onRefresh={() => load(path, true).catch(() => {})} />
@@ -97,7 +136,7 @@ export function AdvancementView({ season, code, team, nameOf, onPickTeam }: { se
         )}
         <span className="text-xs text-muted-foreground">
           {fc.projection
-            ? <>Odds and ranks: {projectionHeadline(fc.projection)} · award odds and points: {state.data.runs.toLocaleString("en-US")} simulated events · engine v{fc.engineVersion}</>
+            ? <>Odds and ranks: {projectionHeadline(fc.projection)} · award odds and points: {data.runs.toLocaleString("en-US")} simulated events · engine v{fc.engineVersion}</>
             : <>{fc.runs.toLocaleString()} simulated events · engine v{fc.engineVersion}</>}
         </span>
       </div>
@@ -106,20 +145,39 @@ export function AdvancementView({ season, code, team, nameOf, onPickTeam }: { se
       {fc.assumptions.length > 0 && (
         <ul className="mb-5 max-sm:mb-4 space-y-1 text-xs text-muted-foreground">{fc.assumptions.map((a) => <li key={a} className="flex gap-1.5"><Info className="mt-0.5 size-3 shrink-0" />{a}</li>)}</ul>
       )}
-      <Tabs defaultValue={team ? "outlook" : "field"}>
-        <TabsList>
-          <TabsTrigger value="outlook">Outlook</TabsTrigger>
-          <TabsTrigger value="alliance">Alliance</TabsTrigger>
-          <TabsTrigger value="field">Field</TabsTrigger>
-        </TabsList>
-        <TabsContent value="outlook" className="mt-5 max-sm:mt-4"><Outlook fc={fc} team={team} /></TabsContent>
-        <TabsContent value="alliance" className="mt-5 max-sm:mt-4">
-          {mode === "pre-event"
-            ? <EmptyState icon={Users} title="Partner scenarios use the current forecast" description="Switch to “Now” to compare partners — there's no hindsight-free version of this yet, so it isn't shown next to the pre-event odds." />
-            : <AlliancePanel season={season} code={code} fc={fc} team={team} nameOf={nameOf} />}
-        </TabsContent>
-        <TabsContent value="field" className="mt-5 max-sm:mt-4"><Field fc={fc} team={team} nameOf={nameOf} onPick={onPickTeam} /></TabsContent>
+      <Tabs value={tab} onValueChange={setTab}>
+        <div className="flex flex-wrap items-center gap-3">
+          <TabsList>
+            <TabsTrigger value="outlook">Outlook</TabsTrigger>
+            <TabsTrigger value="alliance">Alliance</TabsTrigger>
+            <TabsTrigger value="field">Field</TabsTrigger>
+          </TabsList>
+          {updating && (
+            <span role="status" className="inline-flex items-center gap-1.5 text-xs text-muted-foreground">
+              <RefreshCw className="size-3.5 animate-spin motion-reduce:animate-none" aria-hidden />Simulating for {team}…
+            </span>
+          )}
+        </div>
+        {switchFailed && (
+          <div role="alert" className="mt-4 flex flex-wrap items-center gap-3 rounded-xl border border-destructive/30 bg-destructive/[0.06] px-4 py-3 text-sm">
+            <span className="min-w-0 flex-1">Couldn't simulate the event for {team ?? "this view"}: {state.error!.message} The numbers below are from before.</span>
+            <Button variant="secondary" size="sm" onClick={state.reload}><RefreshCw /> Try again</Button>
+          </div>
+        )}
+        <div aria-busy={updating || undefined} className={cn("transition-opacity duration-200", stale && "opacity-60")}>
+          <TabsContent value="outlook" className="mt-5 max-sm:mt-4"><Outlook fc={fc} team={team} name={team ? nameFor(team) : ""} onPeek={(t) => setPeek({ team: t, open: true })} /></TabsContent>
+          <TabsContent value="alliance" className="mt-5 max-sm:mt-4">
+            <AlliancePanel season={season} code={code} fc={fc} team={team} mode={mode} nameOf={nameFor} onPeek={(t) => setPeek({ team: t, open: true })} />
+          </TabsContent>
+          <TabsContent value="field" className="mt-5 max-sm:mt-4">
+            <Field fc={fc} team={team} nameOf={nameFor} field={field} onPick={pick} onPrefetch={pick ? prefetch : undefined} onPeek={(t) => setPeek({ team: t, open: true })} season={season} />
+          </TabsContent>
+        </div>
       </Tabs>
+      {peek && (
+        <TeamPeek team={peek.team} season={season} eventName={fc.eventName} row={peekRow} status={statusOf(peek.team)} settled={fc.stage === "selected"} over={playoffsDone(fc)}
+          open={peek.open} onOpenChange={(o) => setPeek((p) => (p ? { ...p, open: o } : p))} onShowOutlook={peek.team !== team ? pick : undefined} />
+      )}
     </div>
   );
 }
@@ -153,9 +211,9 @@ function StageStrip({ fc, onRefresh }: { fc: ForecastView; onRefresh: () => void
   );
 }
 
-function Outlook({ fc, team }: { fc: Shown; team: number | null }) {
+function Outlook({ fc, team, name, onPeek }: { fc: Shown; team: number | null; name: string; onPeek: (t: number) => void }) {
   const me = team ? fc.teams.find((t) => t.team === team) : undefined;
-  if (!me) return <EmptyState icon={Users} title={team ? `Team ${team} isn't at this event` : "Pick a team"} description="Choose a team above (or click one in the Field tab) to see its outlook." />;
+  if (!me) return <EmptyState icon={Users} title={team ? `Team ${team} isn't at this event` : "Pick a team"} description="Choose a team above (or open one in the Field tab) to see its outlook." />;
   const pre = fc.prequalified.includes(me.team);
   const p = me.points;
   const parts = [
@@ -168,9 +226,13 @@ function Outlook({ fc, team }: { fc: Shown; team: number | null }) {
   const n = fc.teams.length;
   // Playoffs are over once a played final exists and the event has finished.
   const set = fc.stage === "selected";
-  const playoffsOver = fc.stage === "selected" && fc.matches.some((m) => m.level === "playoff" && m.played) && !fc.matches.some((m) => m.level === "playoff" && !m.played);
+  const playoffsOver = playoffsDone(fc);
   return (
     <div className="space-y-6 max-sm:space-y-4">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <p className="min-w-0 truncate text-base font-semibold"><span className="tabular-nums">{me.team}</span> {name && <span className="font-normal text-muted-foreground">{name}</span>}</p>
+        <Button variant="outline" size="sm" onClick={() => onPeek(me.team)}><PanelRight /> Team stats</Button>
+      </div>
       <div className="grid gap-6 max-sm:gap-4 lg:grid-cols-[minmax(0,1.1fr)_minmax(0,1fr)]">
         <section className="relative overflow-hidden rounded-2xl border border-border bg-card p-6 max-sm:p-4" aria-label="Chance to advance">
           <div aria-hidden className="pointer-events-none absolute -right-16 -top-16 size-56 rounded-full bg-accent/10 blur-3xl" />
@@ -217,7 +279,7 @@ function Outlook({ fc, team }: { fc: Shown; team: number | null }) {
       {fc.season >= 2025 ? (
         <section aria-labelledby="pts-h">
           <div className="mb-3 flex flex-wrap items-baseline justify-between gap-2 border-b border-border pb-2">
-            <h3 id="pts-h" className="text-base font-semibold">Where the expected advancement points come from</h3>
+            <h3 id="pts-h" className="text-base font-semibold">Expected advancement points</h3>
             <span className="text-sm text-muted-foreground">Total <span className="font-medium tabular-nums text-foreground">{p.total != null ? p.total.toFixed(1) : "—"}</span></span>
           </div>
           <div className="flex h-3 overflow-hidden rounded-full bg-muted">
@@ -238,8 +300,10 @@ function Outlook({ fc, team }: { fc: Shown; team: number | null }) {
   );
 }
 
-function AlliancePanel({ season, code, fc, team, nameOf }: { season: number; code: string; fc: ForecastView; team: number | null; nameOf: (t: number) => string }) {
-  const state = useApi<Partners>(team ? `/api/predict/partners${qs({ season, code, team })}` : null);
+function AlliancePanel({ season, code, fc, team, mode, nameOf, onPeek }: { season: number; code: string; fc: ForecastView; team: number | null; mode: "current" | "pre-event"; nameOf: (t: number) => string; onPeek: (t: number) => void }) {
+  // "Before the event": the same scenarios from the ratings and event as they stood the day before (no hindsight).
+  const pre = mode === "pre-event";
+  const state = useApi<Partners>(team ? `/api/predict/partners${qs({ season, code, team, mode: pre ? "pre-event" : null })}` : null);
   if (!team) return <EmptyState icon={Users} title="Pick a team" description="Alliance scenarios are worked out for one team." />;
   if (state.error) return <ErrorState error={state.error} onRetry={state.reload} />;
   const data = state.data;
@@ -254,9 +318,9 @@ function AlliancePanel({ season, code, fc, team, nameOf }: { season: number; cod
       <div className="flex flex-wrap items-end justify-between gap-3 border-b border-border pb-3">
         <div className="min-w-0">
           <h3 className="text-base font-semibold">{data.role === "captain" ? `Who should ${team} pick?` : `Best captains for ${team}`}</h3>
-          <p className="mt-0.5 max-w-2xl text-sm text-muted-foreground">{data.role === "captain" ? `${team} is likely a captain (${pct(data.baseline.pCaptain)}). Each option simulates the event with that partner on the alliance.` : `${team} is more likely to be picked than to captain. Each option simulates the event with that captain picking ${team}.`}</p>
+          <p className="mt-0.5 max-w-2xl text-sm text-muted-foreground">{data.role === "captain" ? `${team} is likely a captain (${pct(data.baseline.pCaptain)}). Each option simulates the event with that partner on the alliance.` : `${team} is more likely to be picked than to captain. Each option simulates the event with that captain picking ${team}.`}{pre && " As it stood the day before the event: ratings from earlier matches only, none of this event's results."}</p>
         </div>
-        <div className="text-right"><p className="text-xs text-muted-foreground">Right now</p><p className="font-display text-2xl font-semibold tabular-nums">{pct(data.baseline.pAdvance)}</p></div>
+        <div className="text-right"><p className="text-xs text-muted-foreground">{pre ? "Before the event" : "Right now"}</p><p className="font-display text-2xl font-semibold tabular-nums">{pct(data.baseline.pAdvance)}</p></div>
       </div>
       <Stagger as="ol" className="grid gap-3 md:grid-cols-2">
         {data.options.map((o, i) => {
@@ -266,7 +330,7 @@ function AlliancePanel({ season, code, fc, team, nameOf }: { season: number; cod
               <div className="flex items-start gap-3">
                 <span className="font-display text-2xl font-semibold tabular-nums text-muted-foreground/70">{i + 1}</span>
                 <div className="min-w-0 flex-1">
-                  <p className="truncate text-sm font-medium"><Link to={`/teams/${o.team}?season=${season}`} className="hover:underline">{o.team}</Link> <span className="text-muted-foreground">{nameOf(o.team)}</span></p>
+                  <p className="truncate text-sm font-medium"><button type="button" onClick={() => onPeek(o.team)} className="max-w-full truncate rounded text-left underline-offset-4 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60">{o.team} <span className="text-muted-foreground">{nameOf(o.team)}</span></button></p>
                   <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
                     {i === 0 && <Badge variant="soft">Best fit</Badge>}
                     <Badge variant={delta >= 0 ? "success" : "destructive"}>{delta >= 0 ? "+" : ""}{Math.round(delta * 100)} pts</Badge>
@@ -285,33 +349,91 @@ function AlliancePanel({ season, code, fc, team, nameOf }: { season: number; cod
   );
 }
 
-function Field({ fc, team, nameOf, onPick }: { fc: Shown; team: number | null; nameOf: (t: number) => string; onPick?: (t: number) => void }) {
+function Field({ fc, team, nameOf, field, season, onPick, onPrefetch, onPeek }: {
+  fc: Shown; team: number | null; nameOf: (t: number) => string; field: Map<number, FieldRow>; season: number;
+  onPick?: (t: number) => void; onPrefetch?: (t: number) => void; onPeek: (t: number) => void;
+}) {
   const [q, setQ] = useState("");
+  // Rows open in place, like the event page's matches: one at a time, the chosen team's open first.
+  const [open, setOpen] = useState<number | null>(null);
   const pre = new Set(fc.prequalified);
   const rows = useMemo(() => { const s = q.trim().toLowerCase(); return s ? fc.teams.filter((t) => String(t.team).includes(s) || nameOf(t.team).toLowerCase().includes(s)) : fc.teams; }, [fc.teams, q, nameOf]);
+  const toggle = (t: number) => setOpen((o) => (o === t ? null : t));
   return (
     <div>
-      <div className="relative mb-4 max-w-sm">
-        <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
-        <Input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Find a team" aria-label="Find a team" className="pl-9 max-sm:h-10" />
+      <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+        <div className="relative w-full max-w-sm">
+          <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+          <Input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Find a team" aria-label="Find a team" className="pl-9 max-sm:h-10" />
+        </div>
+        <p className="text-xs text-muted-foreground">Tap a team for its odds and numbers.</p>
       </div>
-      <ul className="divide-y divide-border overflow-hidden rounded-xl border border-border bg-card">
-        {rows.map((t) => (
-          <li key={t.team} className={cn("px-4 py-3", t.team === team && "bg-accent/[0.07]")}>
-            <div className="flex items-center gap-3">
-              <button className="min-w-0 flex-1 text-left" onClick={() => onPick?.(t.team)} disabled={!onPick}>
-                <p className="truncate text-sm font-medium">{t.team} <span className="text-muted-foreground">{nameOf(t.team)}</span>{t.team === team && <Badge variant="soft" className="ml-1.5">Selected</Badge>}</p>
-                <p className="text-xs text-muted-foreground">Rank {rankRange(t.rank.p10, t.rank.p90)} · captain {pct(t.pCaptain)} · picked {pct(t.pPicked)} · win {pct(t.pWin)} · rating {t.strength.np.toFixed(0)} ± {t.strength.sd.toFixed(0)}</p>
+      <ul className="overflow-hidden rounded-xl border border-border bg-card">
+        {rows.map((t) => {
+          const isOpen = open === t.team;
+          const status = pre.has(t.team) ? "qualified" : fc.ineligible?.has(t.team) ? "ineligible" : null;
+          const name = nameOf(t.team);
+          const id = `field-${t.team}`;
+          return (
+            <li key={t.team} className={cn("border-b border-border last:border-b-0", t.team === team && "relative before:absolute before:inset-y-0 before:left-0 before:w-[3px] before:bg-accent")}>
+              <button type="button" aria-expanded={isOpen} aria-controls={id} onClick={() => toggle(t.team)}
+                className={cn("group/f flex w-full items-center gap-3 px-4 py-3 text-left transition-colors max-sm:px-3 hover:bg-accent/[0.06] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring/60",
+                  isOpen && "bg-accent/[0.05]")}>
+                <span className="min-w-0 flex-1">
+                  <span className="flex min-w-0 items-baseline gap-2">
+                    <span className="shrink-0 text-sm font-semibold tabular-nums">{t.team}</span>
+                    <span className="min-w-0 truncate text-sm text-muted-foreground">{name}</span>
+                    {t.team === team && <Badge variant="soft" className="shrink-0">Selected</Badge>}
+                  </span>
+                  {status ? null : <span className="mt-1.5 block h-1 overflow-hidden rounded-full bg-muted"><GrowBar value={t.pAdvance} className="bg-accent" /></span>}
+                </span>
+                {status === "qualified" ? <Badge variant="success">Qualified</Badge>
+                  : status === "ineligible" ? <Badge variant="outline">Not eligible</Badge>
+                  : <span className="w-12 shrink-0 text-right text-sm font-semibold tabular-nums">{pct(t.pAdvance)}</span>}
+                <ChevronDown aria-hidden className={cn("size-4 shrink-0 text-muted-foreground transition-transform group-hover/f:text-accent-text", isOpen && "rotate-180 text-accent-text")} />
               </button>
-              {pre.has(t.team) ? <Badge variant="success">Qualified</Badge>
-                : fc.ineligible?.has(t.team) ? <Badge variant="outline">Not eligible</Badge>
-                : <span className="w-14 text-right font-medium tabular-nums">{pct(t.pAdvance)}</span>}
-            </div>
-            {!pre.has(t.team) && !fc.ineligible?.has(t.team) && <div className="mt-2 h-1 overflow-hidden rounded-full bg-muted"><GrowBar value={t.pAdvance} className="bg-accent" /></div>}
-          </li>
-        ))}
+              {isOpen && <FieldDetails id={id} t={t} row={field.get(t.team)} fc={fc} season={season} isTeam={t.team === team} onPick={onPick} onPrefetch={onPrefetch} onPeek={onPeek} />}
+            </li>
+          );
+        })}
       </ul>
       {!rows.length && <p className="py-6 max-sm:py-4 text-center text-sm text-muted-foreground">No team matches “{q}”.</p>}
     </div>
+  );
+}
+
+/** A Field row opened: the team's odds at this event, its numbers so far, and the ways on. */
+function FieldDetails({ id, t, row, fc, season, isTeam, onPick, onPrefetch, onPeek }: { id: string; t: ForecastTeam; row?: FieldRow; fc: Shown; season: number; isTeam: boolean; onPick?: (t: number) => void; onPrefetch?: (t: number) => void; onPeek: (t: number) => void }) {
+  const set = fc.stage === "selected", over = playoffsDone(fc);
+  const facts: [string, string][] = [
+    ["Likely rank", `${rankRange(t.rank.p10, t.rank.p90)} of ${fc.teams.length}`],
+    ["Captain", set ? yesNo(t.pCaptain) : pct(t.pCaptain)],
+    ["Picked", set ? yesNo(t.pPicked) : pct(t.pPicked)],
+    ["Finalist", pct(t.pFinalist, over)],
+    ["Win event", pct(t.pWin, over)],
+    ["Rating", `${t.strength.np.toFixed(0)} ± ${t.strength.sd.toFixed(0)}`],
+  ];
+  if (row?.rank != null) facts.push(["Rank now", `#${row.rank}${row.wins != null ? ` · ${row.wins}-${row.losses ?? 0}-${row.ties ?? 0}` : ""}`]);
+  if (row?.opr.np != null) facts.push(["OPR here", row.opr.np.toFixed(1)]);
+  else if (row?.seasonOpr != null) facts.push(["Season OPR", row.seasonOpr.toFixed(1)]);
+  return (
+    <m.div id={id} initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: "auto" }} transition={{ duration: 0.2, ease }} className="overflow-hidden bg-accent/[0.03]">
+      <div className="space-y-3 border-t border-border/60 px-4 pb-4 pt-3 max-sm:px-3">
+        <dl className="grid grid-cols-2 gap-x-4 gap-y-2.5 sm:grid-cols-4">
+          {facts.map(([k, v]) => (
+            <div key={k} className="min-w-0">
+              <dt className="text-xs text-muted-foreground">{k}</dt>
+              <dd className="truncate text-sm font-medium tabular-nums">{v}</dd>
+            </div>
+          ))}
+        </dl>
+        <p className="text-xs text-muted-foreground">Rating: points this team adds to an alliance per match, ± its uncertainty ({t.strength.matches} matches on record).</p>
+        <div className="flex flex-wrap gap-2">
+          {onPick && !isTeam && <Button size="sm" onClick={() => onPick(t.team)} onPointerEnter={() => onPrefetch?.(t.team)} onFocus={() => onPrefetch?.(t.team)} onPointerDown={() => onPrefetch?.(t.team)}>See {t.team}'s outlook</Button>}
+          <Button variant="outline" size="sm" onClick={() => onPeek(t.team)}><PanelRight /> Team stats</Button>
+          <Button asChild variant="ghost" size="sm"><Link to={`/teams/${t.team}${qs({ season })}`}>Team page <ArrowUpRight /></Link></Button>
+        </div>
+      </div>
+    </m.div>
   );
 }
