@@ -49,3 +49,13 @@ describe("recent-record reasons on match rows", () => {
     expect((await all<any>("SELECT factors FROM predictions WHERE number = 1"))[0].factors).toBeNull();
   });
 });
+
+describe("team names on match rows", () => {
+  it("each lineup entry carries the team's name when we hold it, and leaves it out when we don't", async () => {
+    await run("INSERT INTO teams (number, name) VALUES (1, 'Critical Mass'), (3, 'AArcHive')");
+    const [q1] = await matchViews({ season: S, code: "EV" });
+    expect(q1.red.teams.map((t) => t.name)).toEqual(["Critical Mass", undefined]);
+    expect(q1.blue.teams.map((t) => t.name)).toEqual(["AArcHive", undefined]);
+    expect("name" in q1.red.teams[1]).toBe(false);
+  });
+});
