@@ -11,6 +11,8 @@ both run the shared engine in `packages/predict-engine`.
 3. **Tests and types before pushing.** `npm run lint` (tsc) and `npm test` (vitest). A bug fix comes with a test that fails on `main` and passes on the branch.
 4. **Engine changes are special.** Anything under `packages/predict-engine/` that can change a number needs: a version bump (semver), a `CHANGELOG.md` entry, a held-out backtest showing it is at least as good (`npm run stats -- --backtest`, compare the track record), and a matching Control Point PR that updates its vendored tarball — both apps always run the same engine version. A refactor must stay bit-identical (`npm run equivalence`).
 
+4a. **Scout's own version counts in single digits.** A release of the app takes the next number after the newest `CHANGELOG.md` entry: 1.3.7 → 1.3.8 → 1.3.9 → 1.4.0 (`nextRelease` in `src/lib/changelog.ts`), never 1.38.0. Bump `package.json` (and its lockfile) to match. The engine keeps its own semver (rule 4).
+
 ## Screenshots and verification
 
 5. **Frontend changes ship with screenshots, captured before the PR opens.** If the diff changes anything a user sees (pages, components, styles, copy), the PR body embeds at least one screenshot of the rendered change inline — before/after when the change is visual. A link out, a screenshot of code, or a promise to demo later does not satisfy this. A PR with no user-visible change writes "No user-visible change." in the template's Screenshots section rather than deleting it, so the reviewer sees the claim and can disagree.

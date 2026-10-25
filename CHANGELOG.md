@@ -9,7 +9,13 @@ teams, scout, offline, speed, live, report, alerts, rankings, share, workspace,
 picklist, history, fixes). What's new shows them first; the groups below are
 the full release notes, one click away.
 
-## 1.37.0 — 2026-10-23
+Releases count 1.1, 1.2, 1.3 …, the last number being the step inside one:
+after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
+(Releases before 1.3.7 were renumbered from the old 1.5.0 … 1.37.0; the old
+fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
+1.1.9.1–2.)
+
+## 1.3.7 — 2026-10-23
 
 Saved offline seasons keep themselves current: you're asked when an update is out, or it downloads by itself.
 
@@ -25,7 +31,7 @@ Saved offline seasons keep themselves current: you're asked when an update is ou
 - **No guessing about Wi-Fi.** Only some browsers tell a site whether it's on Wi-Fi (Chrome on Android does; Safari, iPhone and desktop Chrome don't). Where the browser doesn't say, Wi-Fi only means you're asked first instead of a silent download, and the Download page says so. Data Saver on always asks first (#257).
 - As before, every download is checked against its published SHA-256, and a failed or partial one never replaces the saved copy.
 
-## 1.36.0 — 2026-10-23
+## 1.3.6 — 2026-10-23
 
 Power rankings stay current all week: the top 25 is checked against the latest results every day.
 
@@ -37,7 +43,7 @@ Power rankings stay current all week: the top 25 is checked against the latest r
 ### Power rankings
 - **Checked every day.** The current week's top 25 is compared with the latest data every day at midnight New York time. If nothing changed, the week stays exactly as it was and only its date moves ("Published Friday, Oct 23 · Updated Sunday, Oct 25"). If something did, the changed entries are updated, and Bruno rewrites only the blurbs of teams whose place changed; the rest stay word for word. Past weeks and hand-written weeks never change. The owner portal lists each day's check and can switch the refresh off (#255).
 
-## 1.35.0 — 2026-10-23
+## 1.3.5 — 2026-10-23
 
 Team pages tell search engines exactly who the team is, so a search for a team's number and name finds its page.
 
@@ -52,7 +58,7 @@ Team pages tell search engines exactly who the team is, so a search for a team's
 - **Clearer to search engines.** Each team page describes itself as the team's profile page, with the team's own website and its FIRST page listed as the same team, and a Home › Teams › team trail. A link with ?season= still names the one team address as its canonical.
 - **Fresh in the sitemap.** A team's last-changed date in the sitemap is now the last day it played (or a later correction to those results), instead of the date of the last data sync, which was the same for every team. (#256)
 
-## 1.34.0 — 2026-10-23
+## 1.3.4 — 2026-10-23
 
 The Predict Lab opens on advancement odds, bigger and easier to use, and its season switch works again.
 
@@ -75,7 +81,7 @@ The Predict Lab opens on advancement odds, bigger and easier to use, and its sea
 ### How it works
 - **Early-season note.** While the season under way has fewer than 3,000 decided matches, the ledger says its figures are early and still moving (most robots have played little, so calls lean on last season), with where last season ended for comparison.
 
-## 1.33.0 — 2026-10-23
+## 1.3.3 — 2026-10-23
 
 Small fixes: Compare lets you pick the team the others are measured against, and match videos can be added from your camera app.
 
@@ -102,7 +108,7 @@ Small fixes: Compare lets you pick the team the others are measured against, and
 - **"OPR at this time"** replaces "OPR here" next to a team's OPR at an event (match details, the pre-match report, the model-vs-field list).
 - **Shortlist:** the list view drops the Reliab. column to make room; reliability still shows in the grid view and on Compare.
 
-## 1.32.0 — 2026-10-23
+## 1.3.2 — 2026-10-23
 
 Score ranges are tighter and honest again: about 8 in 10 real scores land inside the stated 80% range.
 
@@ -114,7 +120,7 @@ Score ranges are tighter and honest again: about 8 in 10 real scores land inside
 ### Predictions
 - **Tighter score ranges.** Every predicted score comes with an 80% range. Since this week's engine changes made expected scores more accurate, those ranges had grown too cautious: they held about 85% of real scores instead of 80%. Their width is now refitted on 2024–25 matches; replayed over 2025–26, 81.4% of real scores land inside, and the ranges are about 10 points narrower. Playoff ranges stay as wide as before: that one setting was chosen after looking at 2025–26 playoffs, so the 2025–26 figure isn't a fully independent check. Event simulations draw scores with the same spread, and still put 87% of teams' real final ranks inside their projected range. Win odds are unchanged. Prediction engine 3.2.0 (#253).
 
-## 1.31.0 — 2026-10-23
+## 1.3.1 — 2026-10-23
 
 Ties count: expected ranking points and event simulations now give a tie's RP to both alliances.
 
@@ -126,7 +132,7 @@ Ties count: expected ranking points and event simulations now give a tie's RP to
 ### Predictions
 - **Ties count.** About one qualification match in 130 ends in a tie, which pays 1 ranking point to both alliances. Until now the engine gave a tie no chance: expected ranking points counted a tie as half a win, and simulated events never tied, so a tie's points always went to one side. A tie's chance is now priced from how close the match is expected to be (highest in an even match, about 1–1.5%). Win odds and predicted scores are exactly as before; ranking points and simulated standings are now right in close matches. Measured on every season since 2019–20 (docs/engine/part12/ties.md). Prediction engine 3.1.0 (#251).
 
-## 1.30.0 — 2026-10-23
+## 1.3.0 — 2026-10-23
 
 How it works records four second-wave engine tests, all measured and turned down.
 
@@ -142,7 +148,7 @@ How it works records four second-wave engine tests, all measured and turned down
 - New lab note: a tuning pass over all 15 rating settings. Twelve were already on a plateau; moving the other three helped one season's playoffs and hurt thin-data predictions in the two later seasons, so nothing changed (docs/engine/part12/tuning.md).
 - New lab note: a free-form (isotonic) final calibration. Not clearly closer in the 55–85% bands and slightly worse on Brier, so the one-number stretch stays (docs/engine/part12/isotonic.md).
 
-## 1.29.0 — 2026-10-23
+## 1.2.9 — 2026-10-23
 
 How it works arrives complete in the page itself, for search engines and slow connections.
 
@@ -154,7 +160,7 @@ How it works arrives complete in the page itself, for search engines and slow co
 ### How it works
 - **The whole page in the first response.** /methodology is built ahead of time from the same page component the app shows: every section's text, the version history, the limits and the settings now arrive in the HTML itself, so search engines read all of it without running JavaScript, and a slow connection can read it before the app loads. The app takes over as before once it starts, with the interactive figures. Its address, anchors (such as /methodology#accuracy), title and description are unchanged, it stays in the sitemap, and it has a single main heading. (#247)
 
-## 1.28.0 — 2026-10-23
+## 1.2.8 — 2026-10-23
 
 Prediction Engine 3.0: today's improvements, re-checked on every season since 2019–20.
 
@@ -166,7 +172,7 @@ Prediction Engine 3.0: today's improvements, re-checked on every season since 20
 ### Predictions
 - **Prediction Engine 3.0.** The engine changes shipped today (regional starting points, a bolder final calibration, form at the current event, slow-learning foul ratings and alliance overlap) were replayed together on every match since 2019–20, against the engine from before them. Stated chances came closer to what happened in six of the seven seasons; the seventh is the mostly-remote 2020–21 season with only a few hundred matches, where it was within noise. The gap between stated and actual win rates in the 50–80% range narrowed in every season and roughly halved in five of the seven. Winner-calling is about the same: the gain is in how far to trust each call. Win odds are the same as 2.11; this version marks the full check. The sign-off report is in the repository (docs/engine/signoff-3.0.md). Prediction engine 3.0.0. (#246)
 
-## 1.27.0 — 2026-10-23
+## 1.2.7 — 2026-10-23
 
 How it works gains a version history and says plainly where predictions are weakest.
 
@@ -181,7 +187,7 @@ How it works gains a version history and says plainly where predictions are weak
 - **Lab notes** add the 2.7–2.11 results (what shipped and by how much) and four ideas that were tried and rejected, with their numbers. (#245)
 - The page names the engine version it describes from the running engine, so it no longer says "2.1".
 
-## 1.26.0 — 2026-10-23
+## 1.2.6 — 2026-10-23
 
 Two robots good at the same thing don't simply add up.
 
@@ -193,7 +199,7 @@ Two robots good at the same thing don't simply add up.
 ### Predictions
 - **Ratings add; alliances don't quite.** Two robots both strong in auto, or both strong in TeleOp, get in each other's way. Measured on real alliances, they scored less together than their ratings added up to, most of all in auto. In a qualification match, an alliance now loses 25% of the weaker partner's auto and 15% of its TeleOp. Endgame showed no such effect, and playoff alliances are left as they are. On replayed matches, win odds improved in every season tested, most at the start of events, and predicted scores moved closer to the real ones. How it works explains it next to how expected scores are built. Prediction engine 2.11.0. (#244)
 
-## 1.25.0 — 2026-10-23
+## 1.2.5 — 2026-10-23
 
 Expected scores stop over-charging teams for fouls.
 
@@ -205,7 +211,7 @@ Expected scores stop over-charging teams for fouls.
 ### Predictions
 - **Fouls learn slowly.** A team that gave away a lot of penalty points last week usually gives away far fewer this week: fouls are mostly luck and officiating. A robot's penalty rating now learns at 15% of the speed its scoring does, so it stays near the season average until a pattern really holds. The most foul-prone alliances had been predicted to give away about half again as many points as they did. On replayed matches, expected scores moved closer to the real ones (2025–26: average miss 27.7 → 26.6 points), and win odds are unchanged within noise. How it works explains it next to how expected scores are built. Prediction engine 2.10.0. (#243)
 
-## 1.24.0 — 2026-10-23
+## 1.2.4 — 2026-10-23
 
 Predictions watch today's matches too.
 
@@ -217,7 +223,7 @@ Predictions watch today's matches too.
 ### Predictions
 - **Today's robot.** At an event, a robot that has been beating (or missing) what its rating expected leans its predictions for the rest of that event the same way: by 40% of its average miss there in auto and 20% in TeleOp, fading as it plays more matches there and capped so one wild match can't run away with it. Its rating itself is unchanged, and the lean resets at its next event. On identical replayed matches against the previous engine, the Brier score improved in both seasons tested (2024–25 by 0.00015, 2025–26 by 0.00018), about twice that for robots at their first event, with no slice worse. When the lean is notable, the match's "Why" says "Team 1234 is playing about 9 points above its usual level at this event". How it works explains it under "Five more things a rating knows". Prediction engine 2.9.0. (#242)
 
-## 1.23.0 — 2026-10-23
+## 1.2.3 — 2026-10-23
 
 Win chances say what they mean a little more exactly.
 
@@ -229,7 +235,7 @@ Win chances say what they mean a little more exactly.
 ### Predictions
 - **A final stretch of the odds.** The engine was slightly too cautious: across the last two seasons, favourites it gave 70–80% won about two points more often than that. Every win probability is now stretched a little away from 50% (log-odds × 1.058). Checked month by month on matches after each fit, the gap between stated and actual win rates in the 50–80% range roughly halved in both seasons tested, and the Brier score improved. It can't change which side is favoured, so winner-calling is unchanged. How it works explains it under "A final calibration touch". Prediction engine 2.8.0. (#241)
 
-## 1.22.0 — 2026-10-22
+## 1.2.2 — 2026-10-22
 
 Sharper odds for teams at their first event of the season.
 
@@ -245,7 +251,7 @@ Sharper odds for teams at their first event of the season.
 ### Engine program
 - **Error report by slice.** `npm run slices` replays every 2023–2026 match through the engine and reports accuracy, Brier and calibration by event phase, experience, data density, volatility and event type. `--challenger` compares an engine change against the live engine on the same matches, with intervals from resampling whole events. Reports are in `docs/engine/`. (#239)
 
-## 1.21.0 — 2026-10-21
+## 1.2.1 — 2026-10-21
 
 Projections even with no signal: a local estimate simulated on your device.
 
@@ -257,7 +263,7 @@ Projections even with no signal: a local estimate simulated on your device.
 ### Offline
 - **Local estimate of an event's projections.** When the stored 10,000-simulation projection can't be had (no signal and your saved season doesn't carry one, or none has been made yet) and the season is saved for offline use, the Odds tab simulates the rest of the event on your device instead: 1,500 runs of the same engine, built with the same steps and the same seed the server uses for those results, in a background worker with a progress bar. It stops after 2 seconds of work on a slow phone and says how many runs it managed. It's labelled "Local estimate · 1,500 simulations on this device" wherever it shows, sits one confidence tier below the server's projection, never shows movement against the server's pre-event projection, and gives way to the stored projection as soon as that can be read. Each results state is simulated once per device and kept, so opening the event again doesn't run it again. On four replayed championships, its median ranks were within one place of the server's 10,000-run projection for every team. (#238)
 
-## 1.20.0 — 2026-10-21
+## 1.2.0 — 2026-10-21
 
 Event simulations spread erratic robots wider and no longer peek at later results.
 
@@ -270,7 +276,7 @@ Event simulations spread erratic robots wider and no longer peek at later result
 - **Per-robot spread in the event simulator.** Every simulated match score now gets match-to-match noise sized for its alliance the way the score ranges already were: wider when a robot's results swing more than the model expects, or when it has played only a few matches this season. It reaches the advancement odds, the partner what-ifs and the live projections. On 40 finished 2025–26 events cut at their midpoint, 86.6% of teams finished inside their projected 10th–90th percentile rank band (85.7% before). Prediction engine 2.6.0. (#237)
 - **No hindsight before the event.** A "Before the event" simulation, and the pre-event projection that live projections compare against, now draws bonus ranking points from a bonus model fitted only on qualification results played before the event started. It used the curve fitted on the whole season. With too few earlier results it simulates no bonus RPs and says so. Live simulations use the same season curve as the match cards' bonus odds, and the note that bonus RPs aren't modelled now shows exactly when a simulation drew none.
 
-## 1.19.2 — 2026-10-21
+## 1.1.9.2 — 2026-10-21
 
 Partnership history on last season's predictions too.
 
@@ -282,7 +288,7 @@ Partnership history on last season's predictions too.
 ### Predictions
 - **Partnership memory on earlier seasons.** A prediction for an earlier season (the Predict lab or an event of 2025–26 or 2024–25) now shows the same pair history line as this season's calls. It reads the pairs as they stood at that season's end, the way that season's ratings are its end-of-season ratings, so a later match never counts. Still a reason only: no odds, score or range changes, and no engine change. (#236)
 
-## 1.19.1 — 2026-10-21
+## 1.1.9.1 — 2026-10-21
 
 Report cards stay up to date for every season, not just the current one.
 
@@ -294,7 +300,7 @@ Report cards stay up to date for every season, not just the current one.
 ### Predictions
 - **Report cards for every season.** A season's predictability report cards are rebuilt whenever its scored live calls change, after every stats run and every live result, whichever season the call belongs to. Before, only the current season was rebuilt between full recomputes, so a past season could show cards that missed its last scored calls. Seasons whose calls haven't changed are skipped after a quick check. A season is still rebuilt when one of its events turns final, or stops being final because a sync added a match or moved its dates. Live calls only, as always. (#235)
 
-## 1.19.0 — 2026-10-21
+## 1.1.9 — 2026-10-21
 
 Pick on reliability, not just peak scoring: a dependability estimate next to OPR.
 
@@ -311,7 +317,7 @@ Pick on reliability, not just peak scoring: a dependability estimate next to OPR
 ### Predictions
 - **Reasons beyond the factors.** A prediction now mentions a robot with 2 or more no-shows (or 3 or more near-zero matches) in its last 10, under the top factors, on saved and fresh calls alike. Words only: no odds, score or range changes. Prediction engine 2.5.0.
 
-## 1.18.0 — 2026-10-21
+## 1.1.8 — 2026-10-21
 
 Predictions now say when the robots have met before.
 
@@ -327,7 +333,7 @@ Predictions now say when the robots have met before.
 ### Offline
 - The offline pack carries a small cut of the history: same-alliance pairs with 3+ matches together this season or last (about 140 KB more). Head-to-head records and older pairs show online only.
 
-## 1.17.0 — 2026-10-21
+## 1.1.7 — 2026-10-21
 
 Bonus ranking point odds next to every qualification win %.
 
@@ -342,7 +348,7 @@ Bonus ranking point odds next to every qualification win %.
 - **A bonus curve that keeps up with the season.** The chance of each bonus at a given score is fitted to the season's latest 2,000 recorded qualification alliances (from 200 on; provisional below 600, at most moderate below 2,000). On the 2025–26 replay that scored a Brier of 0.147 per bonus call, against 0.178 for the whole-season curve the engine shipped with.
 - **Scored in the track record.** Bonus calls are written to the ledger with each pre-match call and scored by Brier per bonus, live and season replay kept apart. The replay fits the bonus model only on results before each match. See How it works › Bonus ranking points. (#228)
 
-## 1.16.2 — 2026-10-21
+## 1.1.6.2 — 2026-10-21
 
 Today's coin flips: the closest calls at every event on today, on the home page.
 
@@ -354,7 +360,7 @@ Today's coin flips: the closest calls at every event on today, on the home page.
 ### Home
 - **Today's coin flips.** A new section on the home page gathers the matches on today's schedules, across every event that's on today at its venue, where the model gives either side between 45% and 55%. Those still to play come first, soonest first, each with both alliances, the odds on a close-up scale, the time at the venue, how long until it starts and its confidence tier; the closest call is marked. Played ones follow with their score and the call made before the match. Calls on thin data (a robot with fewer than 3 matches this season) are left out, and an empty day says why. Each opens its match page. Refreshed after every sync and live result, and every few minutes; an open home page keeps up by itself. (#226)
 
-## 1.16.1 — 2026-10-21
+## 1.1.6.1 — 2026-10-21
 
 Smooth scrolling across the site: jumps within a page glide there instead of cutting.
 
@@ -369,7 +375,7 @@ Smooth scrolling across the site: jumps within a page glide there instead of cut
 - **Reduced motion.** With reduce motion turned on in your device's settings, every jump is instant.
 - **Sideways rows.** Swiping to the end of a sideways row (tabs, chips, a wide table) no longer turns into the back gesture, and scouting photo strips settle on a photo.
 
-## 1.16.0 — 2026-10-21
+## 1.1.6 — 2026-10-21
 
 Live projections: every live or upcoming event simulated 10,000 times, again after each new result.
 
@@ -385,7 +391,7 @@ Live projections: every live or upcoming event simulated 10,000 times, again aft
 - **One advancement number.** The projection's odds are now the advancement odds everywhere they show: the event's rankings table and the records tables, the advancement simulator's team list and headline (with its award-inclusive figure alongside), the shortlist, and saved offline packs. Events never projected keep the forecast made the day before they started. (#229)
 - **Checked on real events.** Replaying 40 finished 2025–26 events from their midpoint, about 86% of teams finished inside their projected 80% range (How it works → Live projections).
 
-## 1.15.0 — 2026-10-21
+## 1.1.5 — 2026-10-21
 
 How predictable each team has been, from the engine's own live calls.
 
@@ -397,7 +403,7 @@ How predictable each team has been, from the engine's own live calls.
 ### Teams
 - **Prediction report card.** Team pages show how the engine's pre-match calls on that team's matches turned out this season: the share called right, points vs prediction per robot (the alliance's miss split evenly between its robots) and the swing of those misses, with the field average beside each. Finished events get a row each, with how many calls had a predicted score and the raw numbers. Only calls logged before each match count, never the replayed history. Few calls say little, so every number is pulled toward the field average as if the team had 10 more calls, and the card says so. How it works explains the rules. (#232)
 
-## 1.14.0 — 2026-10-21
+## 1.1.4 — 2026-10-21
 
 Predicted scores come with a range now, and the range is scored in public.
 
@@ -410,7 +416,7 @@ Predicted scores come with a range now, and the range is scored in public.
 - **Score ranges.** Every predicted score now comes with its 80% range, written 118 ±14 (hover or tap for the range itself and what it means: about 8 in 10 real scores land inside). It's on match rows, match details, match reports, the Predict lab, the live panel, Watch live and the pit display, and offline from your saved pack. A range is wider when a robot has played only a few matches this season or its results swing from match to match, and narrower in playoffs. Prediction engine 2.2.0; win odds are unchanged.
 - **Ranges are on the record.** Every call is logged with the range it stated, and How it works scores them like the win calls: the share of real scores inside the range, which way the misses went, the average width and each confidence tier. Calls made before this release stated no range and none is added afterwards. (#230)
 
-## 1.13.0 — 2026-10-21
+## 1.1.3 — 2026-10-21
 
 Model vs field: where the model's ratings and the seeding disagree most at an event.
 
@@ -422,7 +428,7 @@ Model vs field: where the model's ratings and the seeding disagree most at an ev
 ### Events
 - **Model vs field.** An event's Rankings tab now opens with the biggest gaps between the model's rating order and the official seeding: "the model rates them #3 of 28; they're seeded 18th". Each call shows the rating and its uncertainty, how far it is from the team the model places at that seed, the matches behind it, OPR, record, ranking points and a confidence tier, with the model's track record linked under it. Before qualification matches, ratings from earlier events are compared with each team's seed at its last event (and the label says so); a finished event uses the ratings as they stood at its last match. Small fields, ratings on few matches, and gaps the model can't tell from its own uncertainty are left out, and the section says why when nothing shows.
 
-## 1.12.0 — 2026-10-21
+## 1.1.2 — 2026-10-21
 
 Follow your team in Discord for the whole event, not just its matches.
 
@@ -434,7 +440,7 @@ Follow your team in Discord for the whole event, not just its matches.
 ### Discord
 - **More from /follow.** Besides the post before each match and its result, a followed team's channel now gets: the evening before the team's event (from 4 pm at the venue), where and when, how many teams, the team's season OPR and world rank, and the strongest teams there; the team's qualification schedule once FIRST posts it, each match with its time at the venue, side, partner and win odds; and, at the end of each event day, the team's rank and record there, its matches that day, and how many of its live calls were right. Each team gets its own schedule and recap post. (#224)
 
-## 1.11.0 — 2026-10-21
+## 1.1.1 — 2026-10-21
 
 A pit display for the TV in your pit.
 
@@ -446,7 +452,7 @@ A pit display for the TV in your pit.
 ### Events
 - **Pit display.** A "Pit display" button on every event page opens a fullscreen screen for a pit TV or laptop: the event and the venue's clock, the match up now (or the last result, with whether the call was right), the next three matches with their win odds, a countdown to the next one (left out when the event runs behind, rather than showing a wrong time), the top 8 and a QR code to the event page. It updates by itself, shows "Reconnecting…" if the connection drops, keeps the screen awake where the browser allows it, and fits 1920×1080 and 1366×768 with no scrolling. Signed in, your tracked teams show in gold and your next match is pinned. (#218)
 
-## 1.10.0 — 2026-10-21
+## 1.1.0 — 2026-10-21
 
 Watch an event's stream with the model calling every match beside it.
 
@@ -460,7 +466,7 @@ Watch an event's stream with the model calling every match beside it.
 - **LIVE dot.** Events that are on now and have a stream show a red LIVE dot in the events list.
 - **Owner portal › Streams.** The owner sets an event's stream from a YouTube link (watch, youtu.be or /live/ links); anything else is refused with the reason, and nothing is saved.
 
-## 1.9.0 — 2026-10-21
+## 1.0.9 — 2026-10-21
 
 Control Scout comes to your team's Discord server.
 
@@ -474,7 +480,7 @@ Control Scout comes to your team's Discord server.
 - **The Control Scout bot.** Add it to your team's server and anyone there can ask `/team` (record, OPR, world ranking, next event), `/predict` (win odds as bars, predicted score and confidence for a qualification match; once it's played, the final score, what was predicted and whether the call was right), `/event` (status, progress, top 5 by OPR, the winning alliance) and `/rankings` (the world top 10 with movement). Every answer links back to the page it came from, and the numbers are the site's own. Event names and codes autocomplete. The invite link is in the FAQ and footer. (#216)
 - **Match alerts in your server.** Someone who can manage the server types `/follow team:18360` in a channel, and the bot posts there 15 minutes before each of that team's matches (lineups, win odds, predicted score) and again with the result and whether the call was right. `/unfollow` stops it, `/following` lists a server's teams (up to 10), and `/help` lists every command. My teams and My team have an "Add to a Discord server" button with the `/follow` command ready to copy.
 
-## 1.8.1 — 2026-10-20
+## 1.0.8.1 — 2026-10-20
 
 More of each page on a phone screen: match lists, tabs and the bottom bar take less room.
 
@@ -488,7 +494,7 @@ More of each page on a phone screen: match lists, tabs and the bottom bar take l
 - **Bottom bar.** 52 px tall instead of 60, and everything that sits above it (sticky buttons, the cookie and install notes) follows one shared height.
 - **Tabs and toggles.** Page tabs (an event's Matches / Rankings / Insights…) and segment toggles (All / Quals / Playoffs) are tighter on phones, so more tabs show before the row scrolls.
 
-## 1.8.0 — 2026-10-20
+## 1.0.8 — 2026-10-20
 
 Phones fit more on screen, get a menu button at the top left, and a bottom bar you pick yourself.
 
@@ -508,7 +514,7 @@ Phones fit more on screen, get a menu button at the top left, and a bottom bar y
 - **Tables on phones.** Records tables (an event's Rankings and Insights, the Records page) show the team number only in a narrow first column, and a tap on it shows the team's name with a link to its page. Tighter cells fit about four stat columns on a 390 px phone instead of less than one.
 - **No more zooming in on a field.** Text boxes use 16 px text on touch screens, so iPhones stop zooming the page in (and leaving it zoomed) when the keyboard opens. Pinch-zoom still works.
 
-## 1.7.0 — 2026-10-18
+## 1.0.7 — 2026-10-18
 
 A new home page, sharper predictions, and Scout pages that are faster to read and quicker to act on.
 
@@ -549,7 +555,7 @@ A new home page, sharper predictions, and Scout pages that are faster to read an
 - The first paint no longer waits for the app; the privacy banner comes in the first HTML, page changes are prefetched, and event details are cached. (#146)
 - Back and forward return to where you were, scrolling is lighter, and match rows don't light up while the page scrolls. (#147, #148)
 
-## 1.6.0 — 2026-10-16
+## 1.0.6 — 2026-10-16
 
 Shared scouting turns into match-day intelligence, and Scout becomes the app teams keep open at events.
 
@@ -581,7 +587,7 @@ Shared scouting turns into match-day intelligence, and Scout becomes the app tea
 - Uptime checker code (a Cloudflare Worker that alerts Discord when the site goes down). It's in the repo but not switched on. (#125)
 - Live event pages no longer re-download unchanged data every 30 seconds. (#128)
 
-## 1.5.0 — 2026-10-16
+## 1.0.5 — 2026-10-16
 
 Scouting becomes a shared team workspace, plus a production-readiness and speed pass.
 
