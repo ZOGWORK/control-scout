@@ -556,12 +556,43 @@ function SelectAll({ state, onToggle }: { state: PageSelection; onToggle: () => 
   );
 }
 
+/** Not shaded: counts that say how much a team played, not how well. */
+const NO_HEAT = new Set(["qualMatchesPlayed", "ties", "rookieYear"]);
+/** Five bands, best to worst: the top fifth of the field reads green at a glance, the bottom fifth red. */
+const HEAT = ["bg-success/25", "bg-success/10", "", "bg-destructive/10", "bg-destructive/20"];
+
+/**
+ * One event's table: each number column shaded by where a team stands in the event's field (its percentile among
+ * the rows shown; flipped for lower-is-better stats such as rank and penalties). Equal values share a band.
+ */
+export function heatBands(rows: { stats: Record<string, unknown> }[], cols: string[]): Map<string, (v: unknown) => string> {
+  const out = new Map<string, (v: unknown) => string>();
+  if (rows.length < 4) return out;
+  for (const k of cols) {
+    const d = STAT_BY_KEY.get(k);
+    if (!d || d.type !== "number" || NO_HEAT.has(k)) continue;
+    const vs = rows.map((r) => r.stats[k]).filter((v): v is number => typeof v === "number" && Number.isFinite(v)).sort((a, b) => a - b);
+    if (vs.length < 4 || vs[0] === vs[vs.length - 1]) continue;
+    out.set(k, (v) => {
+      if (typeof v !== "number" || !Number.isFinite(v)) return "";
+      // Share of the field below this value, ties counting half: the same value always gets the same band.
+      const below = vs.filter((x) => x < v).length, same = vs.filter((x) => x === v).length;
+      let q = (below + (same - 1) / 2) / (vs.length - 1);
+      if (d.lowerIsBetter) q = 1 - q;
+      return HEAT[Math.min(4, Math.floor((1 - q) * 5))];
+    });
+  }
+  return out;
+}
+
 function Table({ data, scope, cols, state, sortBy, code, highlightTeam, selectable, selected, onSelect, pageSelection, onSelectAll }: {
   data: Resp; scope: RecordScope; cols: string[]; state: TableState; sortBy: (k: string) => void; code?: string;
   highlightTeam?: number | null; selectable: boolean; selected: number[]; onSelect: (t: number) => void;
   pageSelection: PageSelection; onSelectAll: () => void;
 }) {
   const showEvent = scope === "teamEvent" && !code;
+  // One event's teams (its Rankings and Insights tabs): shaded against each other.
+  const heat = useMemo(() => (scope === "teamEvent" && code ? heatBands(data.rows as { stats: Record<string, unknown> }[], cols) : new Map<string, (v: unknown) => string>()), [scope, code, data.rows, cols]);
   // Phones: the Team column shows the number only, and a tap on it shows the name (TeamNumber).
   const phone = usePhone();
   const { ref, more } = useMoreToTheRight();
@@ -655,9 +686,10 @@ function Table({ data, scope, cols, state, sortBy, code, highlightTeam, selectab
                   const d = STAT_BY_KEY.get(k);
                   const v = r.stats[k];
                   const tone = toneOf(d);
+                  const band = heat.get(k)?.(v);
                   return (
                     <td key={k} className={cn(td, "whitespace-nowrap border-l border-text-base/[0.08] text-right tabular-nums", d?.type === "text" && "text-left", state.sort === k && "bg-accent/[0.04] font-semibold",
-                      tone !== "slate" && v != null && TONE_CLASS[tone].text)}>
+                      tone !== "slate" && v != null && TONE_CLASS[tone].text, band)} data-heat={band ? HEAT.indexOf(band) : undefined}>
                       {k === PREDICTION_FIELD ? <PredictionValue text={formatStat(d, v)} tier={(r as MatchRecordRow).predictionTier} className="justify-end" /> : formatStat(d, v)}
                     </td>
                   );

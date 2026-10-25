@@ -20,6 +20,7 @@ import { solveLeastSquares } from "./opr.js";
 import { forecasterFor } from "../predict/engine.js";
 import type { DbEvent, DbMatch } from "./load.js";
 import { foldText } from "../../src/shared/filterDsl.js";
+import { meetStandings, type MeetSide } from "../../src/shared/meetStandings.js";
 import { AGGREGATES, SCORE_STATS, type Aggregate, type ScoreStatBase } from "../../src/shared/statCatalog.js";
 
 type Log = (m: string) => void;
@@ -106,13 +107,17 @@ export async function computeRecords(season: number, events: DbEvent[], log: Log
       }
     }
     if (!perTeam.size) continue;
+    // A league meet: FIRST's rank, ranking score and tiebreaker are the league's running standing, so the meet's
+    // own (src/shared/meetStandings.ts) takes their place here. Any other event keeps FIRST's as published.
+    const meet = e.type === "LeagueMeet" ? meetRanks(season, e.matches) : null;
     const opr = oprRows.length ? solveLeastSquares(oprRows) : null;
     const oprOf = new Map<number, number[]>(opr ? opr.teams.map((t, i) => [t, opr.solution[i]]) : []);
     for (const [team, a] of perTeam) {
       const aggs = aggregate(a.samples);
       const o = oprOf.get(team);
       aggs.forEach((g, p) => { g.Opr = o ? o[p] : null; });
-      const rk = ranks.get(`${e.code}|${team}`);
+      const mt = meet?.get(team);
+      const rk = meet ? (mt ? { rank: mt.rank, rp: mt.rs, tbp: mt.tb[0] ?? null } : undefined) : ranks.get(`${e.code}|${team}`);
       const meta = teams.get(team);
       // Record and matches played: this event's own qualification matches. FIRST's
       // published ranking row can't be used here: league standings carry earlier
@@ -236,4 +241,14 @@ export async function fillAdvancementOdds(season: number, log: Log = () => {}, r
   }
   await writeBatch(stmts);
   log(`${season}: pre-event advancement odds for ${n} events`);
+}
+
+/** A league meet's own standing by team, from its played qualification matches. */
+function meetRanks(season: number, matches: DbEvent["matches"]) {
+  const side = (ts: DbEvent["matches"][number]["red"], sc: NonNullable<DbEvent["matches"][number]["redScore"]>): MeetSide => ({
+    teams: ts.map((t) => ({ team: t.team, counts: !t.surrogate, zero: t.dq || !t.onField })),
+    total: sc.total, np: sc.np, auto: sc.auto, endgame: sc.endgame, tips: sc.tips ?? null, bonus: sc.bonus,
+  });
+  const played = matches.filter((m) => m.level === "qual" && m.played && m.redScore && m.blueScore);
+  return new Map(meetStandings(season, played.map((m) => ({ red: side(m.red, m.redScore!), blue: side(m.blue, m.blueScore!) }))).map((r) => [r.team, r]));
 }
