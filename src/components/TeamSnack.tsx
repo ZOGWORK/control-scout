@@ -1,7 +1,7 @@
 // A tap on a team in a match list opens this card at the bottom of the screen instead of leaving for the
 // team page: the team's name, its place and record here, its OPR and average. "View team" goes to the page.
 // Every row the team plays in marks it while the card is open; a second tap on it, X or Escape closes it.
-import { createContext, useContext, useEffect } from "react";
+import { createContext, useContext, useEffect, useId, useRef, useState, type Ref } from "react";
 import { Link } from "react-router-dom";
 import { AnimatePresence, useReducedMotion } from "motion/react";
 import { ChevronRight, X } from "lucide-react";
@@ -14,6 +14,22 @@ import { cn } from "./cn";
 export const TeamSnackContext = createContext<{ team: number | null; toggle: (team: number) => void } | null>(null);
 export const useTeamSnack = () => useContext(TeamSnackContext);
 
+/** One card per page: a list that opens one says so, and any other list's card closes. */
+const OPENED = "cs-team-snack";
+
+/** The team whose card a match list has open, and how its chips open or close it. */
+export function useTeamSnackState() {
+  const id = useId();
+  const [team, setTeam] = useState<number | null>(null);
+  useEffect(() => {
+    const other = (e: Event) => { if ((e as CustomEvent<string>).detail !== id) setTeam(null); };
+    window.addEventListener(OPENED, other);
+    return () => window.removeEventListener(OPENED, other);
+  }, [id]);
+  useEffect(() => { if (team != null) window.dispatchEvent(new CustomEvent(OPENED, { detail: id })); }, [team, id]);
+  return [team, setTeam] as const;
+}
+
 const ordinal = (n: number) => `${n}${n % 100 >= 11 && n % 100 <= 13 ? "th" : ["th", "st", "nd", "rd"][n % 10] ?? "th"}`;
 
 /** `record`: the team's wins, losses and ties in the matches listed (teamRecord). `code`: the one event listed, so its rank shows. */
@@ -22,6 +38,22 @@ export function TeamSnack({ team, season, name, code, record, onClose }: {
   record: { w: number; l: number; t: number; played: number } | null; onClose: () => void;
 }) {
   const reduce = !!useReducedMotion();
+  // Keyboard: the card takes focus when it opens (its actions would otherwise sit after every row in the
+  // list), and gives it back to the team that opened it when it closes.
+  const opener = useRef<HTMLElement | null>(null);
+  const view = useRef<HTMLAnchorElement>(null);
+  useEffect(() => {
+    if (team == null) {
+      const back = opener.current;
+      opener.current = null;
+      // Only when focus was in the card (its X, Escape) or nowhere: a tap on another control keeps that control.
+      const at = document.activeElement;
+      if (back?.isConnected && (!at || at === document.body || !at.isConnected || at.closest("[data-team-snack]"))) back.focus({ preventScroll: true });
+      return;
+    }
+    if (!opener.current && document.activeElement instanceof HTMLElement && !document.activeElement.closest("[data-team-snack]")) opener.current = document.activeElement;
+    view.current?.focus({ preventScroll: true });
+  }, [team]);
   useEffect(() => {
     if (team == null) return;
     const esc = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
@@ -35,22 +67,25 @@ export function TeamSnack({ team, season, name, code, record, onClose }: {
           className="fixed inset-x-3 bottom-[calc(var(--tabbar-h)+env(safe-area-inset-bottom)+0.75rem)] z-40 mx-auto max-w-xl md:bottom-6"
           initial={reduce ? false : { y: 24, opacity: 0 }} animate={{ y: 0, opacity: 1 }} exit={reduce ? { opacity: 0, transition: { duration: 0 } } : { y: 24, opacity: 0 }}
           transition={{ duration: 0.2, ease: [0.2, 0.8, 0.2, 1] }}>
-          <SnackBody key={team} team={team} season={season} name={name} code={code} record={record} onClose={onClose} />
+          <SnackBody key={team} team={team} season={season} name={name} code={code} record={record} onClose={onClose} viewRef={view} />
         </Motion.div>
       )}
     </AnimatePresence>
   );
 }
 
-function SnackBody({ team, season, name, code, record, onClose }: { team: number; season: number; name?: string; code?: string; record: { w: number; l: number; t: number; played: number } | null; onClose: () => void }) {
+function SnackBody({ team, season, name, code, record, onClose, viewRef }: { team: number; season: number; name?: string; code?: string; record: { w: number; l: number; t: number; played: number } | null; onClose: () => void; viewRef: Ref<HTMLAnchorElement> }) {
   const state = useApi<TeamProfile>(`/api/teams/${team}${qs({ season })}`);
   const p = state.data?.team?.number === team ? state.data : undefined;
   const st = p?.stats;
   const here = code ? p?.events.find((e) => e.code === code) : undefined;
   const facts: { k: string; v: string }[] = [];
   if (here?.rank != null) facts.push({ k: "place", v: ordinal(here.rank) });
-  if (record && record.played > 0) facts.push({ k: "W-L-T", v: `${record.w}-${record.l}-${record.t}` });
-  else if (st) facts.push({ k: "W-L-T", v: `${st.record.wins}-${st.record.losses}-${st.record.ties}` });
+  // The record that goes with the list: the event's own (one event listed), else the listed matches'. With
+  // neither (nothing played here yet), the season's, and it says so.
+  if (here?.wins != null) facts.push({ k: "W-L-T", v: `${here.wins}-${here.losses ?? 0}-${here.ties ?? 0}` });
+  else if (record && record.played > 0) facts.push({ k: "W-L-T", v: `${record.w}-${record.l}-${record.t}` });
+  else if (st && st.record.matches > 0) facts.push({ k: "W-L-T this season", v: `${st.record.wins}-${st.record.losses}-${st.record.ties}` });
   if (st?.opr.np.value != null) facts.push({ k: "npOPR", v: st.opr.np.value.toFixed(2) });
   if (st?.avg.np != null) facts.push({ k: "npAVG", v: st.avg.np.toFixed(2) });
   return (
@@ -68,7 +103,7 @@ function SnackBody({ team, season, name, code, record, onClose }: { team: number
             : <span className="skeleton inline-block h-4 w-56 rounded" />}
         </p>
       </div>
-      <Link to={`/teams/${team}${qs({ season })}`} className="flex shrink-0 items-center gap-0.5 rounded-md px-2 py-1.5 text-sm font-medium text-text-base outline-none transition-colors still-hover:bg-accent-soft still-hover:text-accent-text focus-visible:ring-2 focus-visible:ring-ring/60">
+      <Link ref={viewRef} to={`/teams/${team}${qs({ season })}`} className="flex shrink-0 items-center gap-0.5 rounded-md px-2 py-1.5 text-sm font-medium text-text-base outline-none transition-colors still-hover:bg-accent-soft still-hover:text-accent-text focus-visible:ring-2 focus-visible:ring-ring/60">
         View team <ChevronRight className="size-4" aria-hidden />
       </Link>
       <button type="button" onClick={onClose} aria-label="Close" className={cn("-mr-1 shrink-0 rounded-md p-1.5 text-text-muted outline-none transition-colors still-hover:bg-muted still-hover:text-text-base focus-visible:ring-2 focus-visible:ring-ring/60")}>
