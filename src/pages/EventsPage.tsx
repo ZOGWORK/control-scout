@@ -19,6 +19,7 @@ import { CompactFilters, FilterSection, useCompactFilters, type FilterChip } fro
 import { SearchBox, hitHref } from "../components/search/SearchBox";
 import { cn } from "../components/cn";
 import { CoinFlipRadarSection } from "../components/home/CoinFlipRadar";
+import { CurrentlyTracking } from "../components/CurrentlyTracking";
 import { EVENT_FILTER_COUNT, EVENT_STATUS_TONE, EVENT_TYPE_TONE } from "../lib/textTones";
 import { dateRange, place, seasonLabel } from "../lib/format";
 import { eventTypeLabel } from "../shared/labels";
@@ -85,6 +86,8 @@ export default function EventsPage() {
       />
       {/* On a phone the text filter sits in the sheet, so the page gets Home's search at the top, for events only. */}
       {compact && <SearchBox kinds={["event", "place"]} label="Search events" placeholder="Find an event…" onPick={(h) => nav(hitHref(h))} className="mb-6 [&>div:first-child]:h-11" />}
+      {/* The events you track, one tap away: above the coin flips and the list, so a phone's first screen has them. */}
+      <CurrentlyTracking season={season} current={current} events={state.data?.events} listSettled={!state.loading} className="mb-6 max-sm:mb-5" />
       {/* Today's coin flips across every event on today: only this season's events can be on today. */}
       {season === current && <div className="mb-8"><CoinFlipRadarSection /></div>}
       {/* The filter bar stays up while loading or on an error, so another season can always be picked. */}
