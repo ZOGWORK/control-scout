@@ -59,9 +59,10 @@ function SnackBody({ team, season, name, code, record, onClose }: { team: number
         <p className="truncate font-display text-lg font-semibold">
           <span className="tabular-nums">{team}</span>{(p?.team.name ?? name) && <span className="text-text-muted"> · <span className="italic text-text-base">{p?.team.name ?? name}</span></span>}
         </p>
-        <p className="mt-0.5 flex flex-wrap gap-x-1.5 text-sm text-text-muted" data-snack-facts>
+        <p className="mt-0.5 flex flex-wrap gap-x-1.5 text-sm text-text-muted max-sm:gap-x-3" data-snack-facts>
           {facts.length ? facts.map((f, i) => (
-            <span key={f.k} className="whitespace-nowrap">{i > 0 && <span aria-hidden className="mr-1.5">·</span>}<span className="font-semibold tabular-nums text-text-base">{f.v}</span> {f.k}</span>
+            <span key={f.k} className="whitespace-nowrap">{/* A phone wraps the facts: no dot to start the second line, a wider gap instead. */}
+            {i > 0 && <span aria-hidden className="mr-1.5 max-sm:hidden">·</span>}<span className="font-semibold tabular-nums text-text-base">{f.v}</span> {f.k}</span>
           )) : state.error ? <span>Couldn't load this team's numbers.</span>
             : p ? <span>No matches on record this season yet.</span>
             : <span className="skeleton inline-block h-4 w-56 rounded" />}
