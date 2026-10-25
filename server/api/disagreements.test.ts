@@ -60,8 +60,9 @@ describe("meetSeeded", () => {
   const row = (team: number, o: Partial<FieldRow> = {}): FieldRow => ({ team, name: null, city: null, state: null, rank: 11, rp: 1.1, tbp: 9, wins: 2, losses: 4, ties: 0, qualPlayed: 6,
     opr: { np: 20, auto: null, teleop: null, endgame: null, pen: null }, avgNp: null, rating: null, ...o });
   it("a league meet is compared with its own seeding, not FIRST's league standing", () => {
-    const [m] = meetSeeded([row(15762, { meet: { rank: 14, rs: 1.83, tb: [35.5, 0.5, 12], wins: 2, losses: 4, ties: 0, played: 6 } })]);
-    expect(m).toMatchObject({ rank: 14, rp: 1.83, qualPlayed: 6, wins: 2, losses: 4, ties: 0 });
+    // The meet's record differs from the league row's (2-4-0 over 6), so a mix of the two would show.
+    const [m] = meetSeeded([row(15762, { meet: { rank: 14, rs: 1.83, tb: [35.5, 0.5, 12], wins: 3, losses: 1, ties: 1, played: 5 } })]);
+    expect(m).toMatchObject({ rank: 14, rp: 1.83, qualPlayed: 5, wins: 3, losses: 1, ties: 1 });
   });
   it("a league meet team with no counted match has no seed there; any other event keeps FIRST's", () => {
     expect(meetSeeded([row(1, { meet: null })])[0]).toMatchObject({ rank: null, rp: null, qualPlayed: 0 });
