@@ -24,7 +24,7 @@ describe("What's new", () => {
     expect(versions[0]).toBe(`v${pkg.version}Latest`);
     // Every release links its PRs: the checks below rely on the latest naming one.
     expect(latestPr).not.toBeNull();
-    expect(versions).toContain("v1.6.0");
+    expect(versions).toContain("v1.0.6");
     expect(screen.getByText(`v${pkg.version} · ${latest.date}`)).toBeTruthy();
   });
 
@@ -68,12 +68,12 @@ describe("What's new", () => {
     render(<WhatsNewHost />);
     act(() => openWhatsNew());
     fireEvent.click(await screen.findByRole("button", { name: "Full release notes" }));
-    fireEvent.click(screen.getByRole("button", { name: "v1.6.0" }));
-    expect(screen.getByText("v1.6.0 · 2026-10-16")).toBeTruthy();
-    expect(screen.getByRole("button", { name: "v1.6.0" }).getAttribute("aria-current")).toBe("true");
+    fireEvent.click(screen.getByRole("button", { name: "v1.0.6" }));
+    expect(screen.getByText("v1.0.6 · 2026-10-16")).toBeTruthy();
+    expect(screen.getByRole("button", { name: "v1.0.6" }).getAttribute("aria-current")).toBe("true");
     expect(screen.getByRole("button", { name: "Full release notes" }).getAttribute("aria-expanded")).toBe("false");
     // The release scrolls on its own: a named region in the tab order, so a keyboard can scroll it.
-    expect(screen.getByRole("region", { name: "Release v1.6.0" }).getAttribute("tabindex")).toBe("0");
+    expect(screen.getByRole("region", { name: "Release v1.0.6" }).getAttribute("tabindex")).toBe("0");
   });
 
   it("clears the new-release dot on opening, and keeps every release listed", async () => {
@@ -85,6 +85,6 @@ describe("What's new", () => {
     // (The row sits behind the open dialog, hidden from assistive tech meanwhile.)
     expect(screen.getByRole("button", { name: "What's new", hidden: true })).toBeTruthy();
     if (v) expect(localStorage.getItem("cs-whats-new-seen")).toBe(v);
-    expect(within(rail).getAllByRole("button").map((b) => b.textContent)).toEqual(expect.arrayContaining(["v1.6.0", "v1.5.0"]));
+    expect(within(rail).getAllByRole("button").map((b) => b.textContent)).toEqual(expect.arrayContaining(["v1.0.6", "v1.0.5"]));
   });
 });
