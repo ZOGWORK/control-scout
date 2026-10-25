@@ -487,6 +487,9 @@ export interface MatchDetail {
     event: Pick<FieldRow, "rank" | "rp" | "wins" | "losses" | "ties" | "qualPlayed" | "opr" | "rating"> | null;
     season: { opr: number | null; rank: number | null; of: number | null } | null;
   }>;
+  /** The full score sheet as FIRST reported it, row by row: each group (Auto, TeleOp, fouls) then what it's made
+   *  of (depth 1). `count`: a tally (fouls), not points. Null: the season has no sheet, or none was stored. */
+  sheet: { label: string; depth: 0 | 1; count?: true; red: number | null; blue: number | null }[] | null;
   /** The neighbouring matches at this event (by schedule order), for stepping through. */
   prev: { key: string; label: string } | null;
   next: { key: string; label: string } | null;

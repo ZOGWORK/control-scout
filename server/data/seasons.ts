@@ -103,6 +103,41 @@ export function splitFirstScore(season: number, a: Record<string, unknown>, opp?
 }
 
 /**
+ * The full score sheet a season's FIRST `/scores` breakdown reports, row by row: each group's points, then
+ * what they're made of. Only the fields listed here are stored (matches.red_detail / blue_detail), so a
+ * match keeps about twenty numbers rather than FIRST's whole record. A season with no sheet stores none.
+ * `count`: a tally (fouls), not points.
+ */
+export interface DetailRow { label: string; field: string; depth: 0 | 1; count?: true }
+const SHEETS: Record<number, DetailRow[]> = {
+  // BIOBUZZ: FIRST's ScoreDetailAllianceModel_2026. teleopPoints includes the end-of-match park.
+  2026: [
+    { label: "Auto", field: "autoPoints", depth: 0 },
+    { label: "Leave", field: "autoLeavePoints", depth: 1 },
+    { label: "Park", field: "autoParkPoints", depth: 1 },
+    { label: "Hive", field: "autoHivePoints", depth: 1 },
+    { label: "TeleOp", field: "teleopPoints", depth: 0 },
+    { label: "Hive", field: "teleopHivePoints", depth: 1 },
+    { label: "Flower", field: "teleopFlowerPoints", depth: 1 },
+    { label: "Garden", field: "teleopGardenPoints", depth: 1 },
+    { label: "Park", field: "teleopParkPoints", depth: 1 },
+    { label: "Fouls given away", field: "foulPointsCommitted", depth: 0 },
+    { label: "Major fouls", field: "majorFouls", depth: 1, count: true },
+    { label: "Minor fouls", field: "minorFouls", depth: 1, count: true },
+  ],
+};
+export const detailSheet = (season: number): DetailRow[] | null => SHEETS[season] ?? null;
+
+/** The numbers of one alliance's FIRST breakdown that its season's sheet shows (null: no sheet, or none reported). */
+export function scoreDetail(season: number, a: Record<string, unknown>): Record<string, number> | null {
+  const sheet = SHEETS[season];
+  if (!sheet) return null;
+  const out: Record<string, number> = {};
+  for (const r of sheet) if (typeof a[r.field] === "number" && Number.isFinite(a[r.field])) out[r.field] = a[r.field] as number;
+  return Object.keys(out).length ? out : null;
+}
+
+/**
  * 2019–2022. Penalties: SKYSTONE and POWERPLAY credit fouls to the opponent;
  * ULTIMATE GOAL and FREIGHT FRENZY deduct them from the offender's own score.
  * In SKYSTONE `penaltyPoints` is what this alliance received (the opponent's
