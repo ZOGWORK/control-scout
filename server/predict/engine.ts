@@ -8,7 +8,7 @@
 // season (browsing 2023) gets its own window ending at that season.
 import {
   Forecaster, FITTED_MODEL, RatingBook, indexAwards, MODELLED_AWARDS, normType, explainMatch, type RecentRecord, bonusModelBefore, PartnershipBook, PartnershipTable, bonusSamples, seasonBonusModel, EXCLUDED_TYPES,
-  type AdvancementRecord, type BonusModelSource, type PartnershipData, type AwardRecord, type BonusFlags, type EventInput, type EventRecord, type Forecast, type MatchRecord, type PredictModel,
+  type AdvancementRecord, type BonusModelSource, type PartnershipData, type AwardRecord, type BonusFlags, type EventInput, type EventRecord, type Forecast, type MatchRecord, type PredictModel, type Partners,
 } from "@control-scout/predict-engine";
 import { all, kvGet } from "../db.js";
 import { CURRENT_SEASON, PREDICT_SEASONS } from "../data/seasons.js";
@@ -198,6 +198,16 @@ export class ScoutForecaster extends Forecaster {
   preEventForecast(ev: EventInput, myTeam: number | null, runs = 2000): Forecast | null {
     const view = this.preEventView(ev);
     return view ? view.f.forecast(view.ev, myTeam, runs) : null;
+  }
+
+  /**
+   * Partner scenarios as they would have been worked out the day before the event: the same
+   * forced-partner simulations as partners(), on preEventView's frozen ratings and stripped event,
+   * so they sit next to the "Before the event" odds without hindsight. Null without a start date.
+   */
+  preEventPartners(ev: EventInput, myTeam: number): Promise<Partners | null> {
+    const view = this.preEventView(ev);
+    return view ? view.f.partners(view.ev, myTeam) : Promise.resolve(null);
   }
 
   /**
