@@ -39,6 +39,18 @@ jobs:
       - name: Uptime script tests (fake curl and gh, no network)
         run: bash .github/scripts/uptime.test.sh
       - run: npm run build
+      # The VM starts the server from this bundle (scripts/build-server.mjs): a bundle that can't start fails here,
+      # not on the live site. It must answer ready, and quickly (it restores the shipped snapshot first here).
+      - name: Server bundle starts
+        run: |
+          DATA_DIR="$RUNNER_TEMP/csdata" DATABASE_URL="file:$RUNNER_TEMP/csdata/scout.db" PORT=3197 CS_NO_SCHEDULER=1 node --enable-source-maps build/server/index.mjs > "$RUNNER_TEMP/bundle.log" 2>&1 &
+          for i in $(seq 1 120); do
+            if curl -fsS http://127.0.0.1:3197/api/health 2>/dev/null | grep -q '"ready":true'; then
+              echo "bundle ready after ${i}s"; curl -fsS -o /dev/null -w "home %{http_code}\n" http://127.0.0.1:3197/; kill %1; exit 0
+            fi
+            sleep 1
+          done
+          cat "$RUNNER_TEMP/bundle.log"; exit 1
       - name: Playwright browser
         run: npx playwright install --with-deps chromium
       - name: Performance budgets
