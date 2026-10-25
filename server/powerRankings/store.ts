@@ -12,6 +12,7 @@
 // Weeks published automatically (./auto.ts, stored in power_rankings_generated: ./generated.ts) are
 // merged in: a hand-written file for the same week, once published, takes its place. Movement is
 // counted against the previous week in the merged list, whichever kind each is.
+import { appPath } from "../appRoot.js";
 import { readFileSync, readdirSync, statSync } from "node:fs";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -25,8 +26,8 @@ import { snapshotWeeks } from "../api/rankings.js";
 import { RANKED_MIN_MATCHES } from "../../src/shared/rankings.js";
 import { weekStart, type PowerRankingsEntry, PowerRankingsResponse, PowerRankingsStats, PowerRankingsSummary, PowerRankingsWeek } from "../../src/shared/powerRankings.js";
 
-export const CONTENT_DIR = fileURLToPath(new URL("../../content/power-rankings", import.meta.url));
-export const SAMPLE_DIR = fileURLToPath(new URL("../../content/power-rankings-sample", import.meta.url));
+export const CONTENT_DIR = appPath("content", "power-rankings");
+export const SAMPLE_DIR = appPath("content", "power-rankings-sample");
 
 /** A week file's name: the week id and .md (another .md name is an error; other files, such as .gitkeep, are ignored). */
 export const WEEK_FILE = /^\d{4}-w\d{2}\.md$/;

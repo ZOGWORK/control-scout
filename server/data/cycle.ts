@@ -8,6 +8,7 @@
 // SQLite file (WAL), and the server picks the new data up through the data
 // version, so nothing else needs to be signalled. Hosts with little memory
 // (Render free, 512 MB) keep the default: a second process would not fit.
+import { APP_ROOT, appPath } from "../appRoot.js";
 import { spawn } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import { hasFirst } from "../env.js";
@@ -87,10 +88,10 @@ export async function nextBackfill(): Promise<number | null> {
  *  (Some event is running somewhere almost every day of the season, so "no events today" would never come.) */
 export const quietHours = (now = new Date()) => now.getUTCHours() >= 6 && now.getUTCHours() < 12;
 
-const SCRIPT = fileURLToPath(new URL("../../scripts/data-cycle.ts", import.meta.url));
-const PACKS_SCRIPT = fileURLToPath(new URL("../../scripts/build-packs.ts", import.meta.url));
+const SCRIPT = appPath("scripts", "data-cycle.ts");
+const PACKS_SCRIPT = appPath("scripts", "build-packs.ts");
 
-/** Run the cycle in a child Node process (same loader flags, same env); resolves when it exits cleanly. */
+/** Run the cycle in a child Node process (same env, TypeScript through tsx); resolves when it exits cleanly. */
 export function runCycleInChild(timeoutMs = 2 * 3600_000): Promise<void> {
   return runScriptInChild(SCRIPT, "data cycle", timeoutMs);
 }
@@ -102,7 +103,10 @@ export function runPacksInChild(timeoutMs = 3600_000): Promise<void> {
 
 function runScriptInChild(script: string, what: string, timeoutMs: number): Promise<void> {
   return new Promise((resolve, reject) => {
-    const child = spawn(process.execPath, [...process.execArgv, script], { env: process.env, stdio: ["ignore", "inherit", "inherit"] });
+    // The scripts are TypeScript: the child loads them through tsx, also when this server runs from its built bundle
+    // (scripts/build-server.mjs), whose own flags don't carry the loader.
+    const flags = process.execArgv.some((a) => a.includes("tsx")) ? process.execArgv : ["--import", "tsx", ...process.execArgv];
+    const child = spawn(process.execPath, [...flags, script], { cwd: APP_ROOT, env: process.env, stdio: ["ignore", "inherit", "inherit"] });
     const timer = setTimeout(() => child.kill("SIGKILL"), timeoutMs);
     child.once("error", (e) => { clearTimeout(timer); reject(e); });
     child.once("exit", (code, signal) => {
