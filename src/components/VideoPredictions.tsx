@@ -1,8 +1,9 @@
 // The model's call over the event page's own player (components/WatchLive.tsx). For a recording it follows the
 // video: the match on screen at the player's second (lib/videoMoment.ts), its call before and while it runs, then
 // its result. Live, it shows the match being called now and a result for a minute once it's in (the rail's pick,
-// lib/watchRail.ts). Small, at the bottom left above YouTube's controls, and never in the way of a tap: taps go
-// through it to the player. The viewer turns it off and on under the player (remembered on this device).
+// lib/watchRail.ts). Small, at the left above YouTube's controls (or at the top, the viewer's choice: broadcasts
+// put their own scoreboard at one edge or the other), and never in the way of a tap: taps go through it to the
+// player. The viewer turns it off and on, and moves it, under the player (remembered on this device).
 import { useState } from "react";
 import { Check, X } from "lucide-react";
 import type { MatchView } from "../shared/api";
@@ -12,12 +13,22 @@ import type { Phase } from "../lib/videoMoment";
 import { cn } from "./cn";
 
 const KEY = "cs-video-predictions";
+const POS_KEY = "cs-video-predictions-pos";
+export type OverlayPos = "top" | "bottom";
 
-/** Whether the predictions show over the video: on unless this device turned them off. */
-export function useVideoPredictions(): [boolean, (on: boolean) => void] {
-  const [on, setOn] = useState(() => { try { return localStorage.getItem(KEY) !== "0"; } catch { return true; } });
-  const set = (v: boolean) => { setOn(v); try { localStorage.setItem(KEY, v ? "1" : "0"); } catch { /* private mode: for this visit only */ } };
-  return [on, set];
+const read = (k: string) => { try { return localStorage.getItem(k); } catch { return null; } };
+const write = (k: string, v: string) => { try { localStorage.setItem(k, v); } catch { /* private mode: for this visit only */ } };
+
+/** Whether the predictions show over the video (on unless this device turned them off), and where: broadcasts put
+ *  their own scoreboard at the top or the bottom, so the viewer moves ours to the other edge. */
+export function useVideoPredictions(): { on: boolean; setOn: (on: boolean) => void; pos: OverlayPos; setPos: (p: OverlayPos) => void } {
+  const [on, setOnState] = useState(() => read(KEY) !== "0");
+  const [pos, setPosState] = useState<OverlayPos>(() => (read(POS_KEY) === "top" ? "top" : "bottom"));
+  return {
+    on, pos,
+    setOn: (v) => { setOnState(v); write(KEY, v ? "1" : "0"); },
+    setPos: (p) => { setPosState(p); write(POS_KEY, p); },
+  };
 }
 
 export interface OverlayCall { match: MatchView; phase: Phase }
@@ -25,7 +36,7 @@ export interface OverlayCall { match: MatchView; phase: Phase }
 const HEADING: Record<Phase, string> = { before: "Up next", playing: "Playing", after: "Result" };
 
 /** The overlay itself: nothing without a match to show. */
-export function VideoPredictions({ call, live }: { call: OverlayCall | null; live?: boolean }) {
+export function VideoPredictions({ call, live, pos = "bottom" }: { call: OverlayCall | null; live?: boolean; pos?: OverlayPos }) {
   if (!call) return null;
   const { match: m, phase } = call;
   const p = m.prediction;
@@ -36,8 +47,9 @@ export function VideoPredictions({ call, live }: { call: OverlayCall | null; liv
     return (on.length ? on : m[c].teams).map((t) => t.number).join(" · ");
   };
   return (
-    <div className="pointer-events-none absolute bottom-14 left-2 z-10 w-[min(19rem,calc(100%-1rem))] rounded-lg border border-white/15 bg-black/75 px-2.5 py-2 text-white shadow-lg backdrop-blur-sm max-sm:bottom-12 max-sm:px-2 max-sm:py-1.5"
-      aria-live="polite" data-video-predictions={phase}>
+    <div className={cn("pointer-events-none absolute left-2 z-10 w-[min(19rem,calc(100%-1rem))] rounded-lg border border-white/15 bg-black/75 px-2.5 py-2 text-white shadow-lg backdrop-blur-sm max-sm:px-2 max-sm:py-1.5",
+      pos === "top" ? "top-2" : "bottom-14 max-sm:bottom-12")}
+      aria-live="polite" data-video-predictions={phase} data-pos={pos}>
       <p className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wide text-white/70 max-sm:text-[10px]">
         <span className="rounded bg-[#ffc700] px-1 font-display text-xs normal-case tracking-normal text-[#0a0a0b] max-sm:text-[11px]">{m.label}</span>
         {live && phase !== "after" ? "Calling now" : HEADING[phase]}
