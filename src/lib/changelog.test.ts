@@ -1,8 +1,8 @@
 // The What's new parser on the real CHANGELOG.md (it must read every release, newest first, and match the
 // app's own version), plus inline pieces and the seen rule.
 import { readFileSync } from "node:fs";
-import { describe, expect, it } from "vitest";
-import { currentRelease, hasUnseenRelease, HIGHLIGHT_TAGS, inlines, parseChangelog } from "./changelog";
+import { describe, expect, it, vi } from "vitest";
+import { currentRelease, fromOldNumbering, hasUnseenRelease, HIGHLIGHT_TAGS, inlines, markReleaseSeen, nextRelease, parseChangelog, seenRelease } from "./changelog";
 
 const md = readFileSync(new URL("../../CHANGELOG.md", import.meta.url), "utf8");
 const pkg = JSON.parse(readFileSync(new URL("../../package.json", import.meta.url), "utf8")) as { version: string };
@@ -13,8 +13,8 @@ describe("parseChangelog", () => {
   it("reads every release of CHANGELOG.md, newest first, the latest being the app's version", () => {
     expect(all.length).toBeGreaterThanOrEqual(3);
     expect(all[0].version).toBe(pkg.version);
-    const nums = all.map((e) => e.version.split(".").map(Number));
-    for (let i = 1; i < nums.length; i++) expect(nums[i - 1][0] * 1e6 + nums[i - 1][1] * 1e3 + nums[i - 1][2]).toBeGreaterThan(nums[i][0] * 1e6 + nums[i][1] * 1e3 + nums[i][2]);
+    const key = (v: string) => v.split(".").map(Number).reduce((k, n, i) => k + n * 1000 ** (3 - i), 0);
+    for (let i = 1; i < all.length; i++) expect(key(all[i - 1].version)).toBeGreaterThan(key(all[i].version));
     for (const e of all) {
       expect(e.date).toMatch(/^\d{4}-\d{2}-\d{2}$/);
       expect(e.summary.length).toBeGreaterThan(10);
@@ -23,12 +23,18 @@ describe("parseChangelog", () => {
     }
   });
 
-  it("numbers releases in the order they shipped: no skipped version, no date going backwards", () => {
-    // Parallel PRs each claim a number and renumber when they merge; a claim that never shipped left a hole
-    // (1.9.0 then 1.11.0). Each release is the next patch, minor or major after the one below it.
+  it("numbers releases in the order they shipped, every number one digit: no skipped step, no date going backwards", () => {
+    // Parallel PRs each claim a number and renumber when they merge; a claim that never shipped left a hole.
+    // Each release is the next step after the one below it (1.3.7 → 1.3.8, 1.3.9 → 1.4.0); the old fix
+    // releases (1.1.9.1, 1.1.9.2) sit between a step and the next; a new release never takes a fourth part.
+    const OLD_FIXES = ["1.0.8.1", "1.1.6.1", "1.1.6.2", "1.1.9.1", "1.1.9.2"];
+    for (const e of all) {
+      for (const n of e.version.split(".")) expect(n, `v${e.version}`).toMatch(/^\d$/);
+      if (e.version.split(".").length > 3) expect(OLD_FIXES, `v${e.version} is a new fix release: use the next step`).toContain(e.version);
+    }
     for (let i = 1; i < all.length; i++) {
-      const [a, b, c] = all[i].version.split(".").map(Number);
-      const next = [`${a}.${b}.${c + 1}`, `${a}.${b + 1}.0`, `${a + 1}.0.0`];
+      const [a, b, c, fix = 0] = all[i].version.split(".").map(Number);
+      const next = [nextRelease(`${a}.${b}.${c}`), `${a}.${b}.${c}.${fix + 1}`];
       expect(next, `${all[i - 1].version} follows ${all[i].version}`).toContain(all[i - 1].version);
       expect(all[i - 1].date >= all[i].date, `${all[i - 1].version} is dated before ${all[i].version}`).toBe(true);
     }
@@ -62,6 +68,25 @@ describe("parseChangelog", () => {
   });
 });
 
+describe("release numbering", () => {
+  it("steps the last number, carrying into the next at 9", () => {
+    expect(nextRelease("1.3.7")).toBe("1.3.8");
+    expect(nextRelease("1.3.8")).toBe("1.3.9");
+    expect(nextRelease("1.3.9")).toBe("1.4.0");
+    expect(nextRelease("1.9.9")).toBe("2.0.0");
+  });
+
+  it("maps the old two-digit numbering onto it", () => {
+    expect(fromOldNumbering("1.37.0")).toBe("1.3.7");
+    expect(fromOldNumbering("1.30.0")).toBe("1.3.0");
+    expect(fromOldNumbering("1.21.0")).toBe("1.2.1");
+    expect(fromOldNumbering("1.5.0")).toBe("1.0.5");
+    expect(fromOldNumbering("1.19.2")).toBe("1.1.9.2");
+    expect(fromOldNumbering("1.3.7")).toBe("1.3.7");
+    expect(fromOldNumbering("dev")).toBe("dev");
+  });
+});
+
 describe("inlines", () => {
   it("splits bold, code and this repo's PR numbers; another repo's stay text", () => {
     expect(inlines("**Live.** Open `/scout` now (#128, Control Point #252)")).toEqual([
@@ -78,5 +103,21 @@ describe("seen rule", () => {
     expect(hasUnseenRelease("1.7.0", "1.6.0")).toBe(true);
     expect(hasUnseenRelease("1.7.0", "1.7.0")).toBe(false);
     expect(hasUnseenRelease(null, null)).toBe(false);
+  });
+
+  it("reads a release seen under the old numbering as its new number, and never confuses it with a new one", () => {
+    const store = new Map<string, string>();
+    vi.stubGlobal("localStorage", { getItem: (k: string) => store.get(k) ?? null, setItem: (k: string, v: string) => void store.set(k, v) });
+    store.set("cs-whats-new-seen", "1.37.0");
+    expect(seenRelease()).toBe("1.3.7");
+    expect(hasUnseenRelease("1.3.7")).toBe(false);
+    // An old 1.7.0 is today's 1.0.7: a future 1.7.0 is still unread.
+    store.set("cs-whats-new-seen", "1.7.0");
+    expect(seenRelease()).toBe("1.0.7");
+    expect(hasUnseenRelease("1.7.0")).toBe(true);
+    // Once seen under the new numbering, that's what counts.
+    markReleaseSeen("1.3.7");
+    expect(seenRelease()).toBe("1.3.7");
+    vi.unstubAllGlobals();
   });
 });
