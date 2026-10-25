@@ -1,10 +1,10 @@
 // "Currently tracking" on the Events page: the events you track (Track event on an event page) as
 // small cards, live ones first, so they're one tap away from the list. Events in the season on screen
 // come from its list; any other is looked up on its own (its season's list filtered by its code).
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { CalendarDays, Eye } from "lucide-react";
-import { load } from "../lib/api";
+import { useApi } from "../lib/api";
 import { usePersonal } from "../lib/personal";
 import { dateRange, seasonLabel } from "../lib/format";
 import type { EventListItem } from "../shared/api";
@@ -12,21 +12,19 @@ import { EventStatusChip } from "./EventChips";
 import { cn } from "./cn";
 import { lookupPath, resolveTracked, TRACKED_LOOKUPS, TRACKED_SHOWN, type TrackedRef } from "../pages/trackedEvents";
 
-/** Answers to the one-by-one lookups, by path: the events, or null when the lookup failed. */
-function useLookups(paths: string[]) {
-  const [got, setGot] = useState<Record<string, EventListItem[] | null>>({});
-  const key = paths.join("|");
+type Answer = (path: string, events: EventListItem[] | null) => void;
+
+/**
+ * One event's lookup, through useApi: it subscribes to the answer, so a lookup that failed offline is
+ * retried when the connection is back (and a later answer replaces the failure). Renders nothing.
+ */
+function Lookup({ path, onAnswer }: { path: string; onAnswer: Answer }) {
+  const { data, error } = useApi<{ events: EventListItem[] }>(path);
   useEffect(() => {
-    let on = true;
-    for (const p of paths) {
-      load<{ events: EventListItem[] }>(p).then(
-        (d) => { if (on) setGot((g) => ({ ...g, [p]: Array.isArray(d?.events) ? d.events : null })); },
-        () => { if (on) setGot((g) => ({ ...g, [p]: null })); },
-      );
-    }
-    return () => { on = false; };
-  }, [key]); // the paths, by value
-  return got;
+    if (data) onAnswer(path, Array.isArray(data.events) ? data.events : null);
+    else if (error) onAnswer(path, null);
+  }, [path, data, error, onAnswer]);
+  return null;
 }
 
 export function CurrentlyTracking({ season, current, events, listSettled, className }: {
@@ -43,9 +41,13 @@ export function CurrentlyTracking({ season, current, events, listSettled, classN
   // First pass with no lookups: what the season on screen already answers.
   const first = useMemo(() => resolveTracked(refs, lists, {}), [refs, lists]);
   const toLook = first.missing.filter((r) => r.season !== season || listSettled).slice(0, TRACKED_LOOKUPS);
-  const lookups = useLookups(toLook.map(lookupPath));
+  // Answers to the one-by-one lookups, by path: the events, or null when the lookup failed.
+  const [lookups, setLookups] = useState<Record<string, EventListItem[] | null>>({});
+  const onAnswer = useCallback<Answer>((p, v) => setLookups((g) => (g[p] === v ? g : { ...g, [p]: v })), []);
   const { found, missing } = useMemo(() => resolveTracked(refs, lists, lookups), [refs, lists, lookups]);
-  if (!found.length && !missing.length) return null;
+  // Mounted while their event isn't in the season list (resolved or not), so each stays subscribed.
+  const lookupEls = toLook.map((r) => <Lookup key={r.ref} path={lookupPath(r)} onAnswer={onAnswer} />);
+  if (!found.length && !missing.length) return null; // nothing tracked (so nothing to look up)
   // Still on its way: the season's list, or a lookup sent and not answered yet.
   const looking = new Set(toLook.map((r) => r.ref));
   const waiting = (r: TrackedRef) => (r.season === season && !listSettled) || (looking.has(r.ref) && lookups[lookupPath(r)] === undefined);
@@ -61,6 +63,7 @@ export function CurrentlyTracking({ season, current, events, listSettled, classN
   const more = items.length - shown.length;
   return (
     <section aria-label="Currently tracking" className={cn("min-w-0", className)} data-currently-tracking>
+      {lookupEls}
       <h2 className="mb-2 flex items-center gap-1.5 text-sm font-semibold">
         <Eye className="size-4 text-accent-text" aria-hidden />Currently tracking:
         <span className="font-normal tabular-nums text-muted-foreground">{total} event{total === 1 ? "" : "s"}</span>
