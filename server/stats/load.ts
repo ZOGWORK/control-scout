@@ -14,8 +14,8 @@ export interface DbMatch extends MatchForOpr {
   number: number;
   label: string;
   time: string | null;
-  redScore: (MatchForOpr["redScore"] & { total: number; bonus: { movement: boolean; goal: boolean; pattern: boolean } | null }) | null;
-  blueScore: (MatchForOpr["blueScore"] & { total: number; bonus: { movement: boolean; goal: boolean; pattern: boolean } | null }) | null;
+  redScore: (MatchForOpr["redScore"] & { total: number; bonus: { movement: boolean; goal: boolean; pattern: boolean } | null; tips?: number | null }) | null;
+  blueScore: (MatchForOpr["blueScore"] & { total: number; bonus: { movement: boolean; goal: boolean; pattern: boolean } | null; tips?: number | null }) | null;
   video: string | null;
 }
 
@@ -38,6 +38,7 @@ export interface DbEvent {
 const score = (r: any, p: "red" | "blue") => r[`${p}_np`] == null ? null : {
   total: Number(r[`${p}_total`]), np: Number(r[`${p}_np`]), auto: Number(r[`${p}_auto`] ?? 0), teleop: Number(r[`${p}_teleop`] ?? 0),
   endgame: Number(r[`${p}_endgame`] ?? 0), pen: Number(r[`${p}_pen`] ?? 0), bonus: r[`${p}_bonus`] ? JSON.parse(r[`${p}_bonus`]) : null,
+  tips: r[`${p}_tips`] == null ? null : Number(r[`${p}_tips`]),
 };
 
 /** Every event of a season with its matches, lineups, ranks and awards. */
