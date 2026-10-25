@@ -450,7 +450,7 @@ function LiveStandings({ field, season, team, code }: { field: FieldRow[]; seaso
     <section aria-label="Live standings" className="mb-8 max-sm:mb-5 rounded-xl border border-red-500/30 bg-red-500/[0.04] p-3 sm:p-4">
       <h2 className="mb-3 flex flex-wrap items-center gap-2 text-sm font-semibold">
         <Radio className="size-4 text-red-500" /> Live standings
-        <span className="font-normal text-muted-foreground">· the official ranking, updated as matches are scored</span>
+        <span className="font-normal text-muted-foreground">· updated as matches are scored</span>
       </h2>
       <Rankings field={field} season={season} team={team} code={code} />
     </section>
@@ -478,19 +478,45 @@ function Rankings({ field, season, team, code, note }: { field: FieldRow[]; seas
       <Rankings field={field} season={season} team={team} code={code} />
     </div>
   );
+  return <RankingTable field={field} season={season} team={team} code={code} />;
+}
+
+/** The standings table. At a league meet it ranks the meet on its own matches (FieldRow.meet), with FIRST's
+ *  league standing a tap away: there FIRST's rank and ranking score are the league's running totals. */
+function RankingTable({ field, season, team, code }: { field: FieldRow[]; season: number; team: number | null; code: string }) {
+  const league = field.some((r) => "meet" in r);
+  const [view, setView] = useState<"meet" | "league">("meet");
+  const meet = league && view === "meet";
+  const rank = (r: FieldRow) => (meet ? r.meet?.rank ?? null : r.rank);
+  const rs = (r: FieldRow) => (meet ? r.meet?.rs ?? null : r.rp);
+  const rec = (r: FieldRow): (number | null)[] => (meet ? (r.meet ? [r.meet.wins, r.meet.losses, r.meet.ties] : [null, null, null]) : [r.wins, r.losses, r.ties]);
   const cols: Col<FieldRow>[] = [
-    { key: "rank", label: "Rank", value: (r) => r.rank, asc: true, align: "right", render: (r) => r.rank ?? "—" },
+    { key: "rank", label: "Rank", value: rank, asc: true, align: "right", render: (r) => rank(r) ?? "—" },
     { key: "team", label: "Team", value: (r) => r.team, render: (r) => <Link to={`/teams/${r.team}?season=${season}`} className="hover:underline"><span className="font-mono font-medium">{r.team}</span> <span className="text-muted-foreground">{r.name}</span></Link> },
-    { key: "rs", label: "RS", title: "Ranking score (average ranking points)", value: (r) => r.rp, align: "right", render: (r) => num(r.rp, 2) },
-    { key: "wlt", label: "W-L-T", value: (r) => (r.wins ?? 0) - (r.losses ?? 0), align: "right", render: (r) => `${r.wins ?? "–"}-${r.losses ?? "–"}-${r.ties ?? "–"}` },
-    { key: "opr", label: "OPR", value: (r) => r.opr.np, align: "right", render: (r) => num(r.opr.np) },
-    { key: "auto", label: "Auto", value: (r) => r.opr.auto, align: "right", render: (r) => num(r.opr.auto), hideOnMobile: true },
-    { key: "teleop", label: "TeleOp", value: (r) => r.opr.teleop, align: "right", render: (r) => num(r.opr.teleop), hideOnMobile: true },
-    { key: "endgame", label: "Endgame", value: (r) => r.opr.endgame, align: "right", render: (r) => num(r.opr.endgame), hideOnMobile: true },
-    { key: "pen", label: "Pen.", title: "Penalty points given away per match (OPR)", value: (r) => r.opr.pen, asc: true, align: "right", render: (r) => num(r.opr.pen), hideOnMobile: true },
+    { key: "rs", label: "RS", title: meet ? "Ranking score at this meet (average ranking points per match)" : "Ranking score (average ranking points)", value: rs, align: "right", render: (r) => num(rs(r), 2), heat: true },
+    { key: "wlt", label: "W-L-T", value: (r) => { const [w, l] = rec(r); return w == null ? null : w - (l ?? 0); }, align: "right", render: (r) => { const [w, l, t] = rec(r); return `${w ?? "–"}-${l ?? "–"}-${t ?? "–"}`; }, heat: true },
+    ...(meet ? [{ key: "avg", label: season >= 2025 ? "npAVG" : "Auto AVG", title: season >= 2025 ? "Average non-penalty points (the first tiebreaker)" : "Average auto points (the first tiebreaker)", value: (r: FieldRow) => r.meet?.tb[0] ?? null, align: "right" as const, render: (r: FieldRow) => num(r.meet?.tb[0] ?? null, 2), heat: true }] : []),
+    { key: "opr", label: "OPR", value: (r) => r.opr.np, align: "right", render: (r) => num(r.opr.np), heat: true },
+    { key: "auto", label: "Auto", value: (r) => r.opr.auto, align: "right", render: (r) => num(r.opr.auto), hideOnMobile: true, heat: true },
+    { key: "teleop", label: "TeleOp", value: (r) => r.opr.teleop, align: "right", render: (r) => num(r.opr.teleop), hideOnMobile: true, heat: true },
+    { key: "endgame", label: "Endgame", value: (r) => r.opr.endgame, align: "right", render: (r) => num(r.opr.endgame), hideOnMobile: true, heat: true },
+    { key: "pen", label: "Pen.", title: "Penalty points given away per match (OPR)", value: (r) => r.opr.pen, asc: true, align: "right", render: (r) => num(r.opr.pen), hideOnMobile: true, heat: true },
     { key: "rating", label: "Rating", title: "Prediction rating now (± uncertainty)", value: (r) => r.rating?.np ?? null, align: "right", render: (r) => r.rating ? <span>{num(r.rating.np)} <span className="text-muted-foreground">±{num(r.rating.sd, 0)}</span></span> : "—" },
   ];
-  return <SortTable rows={field} cols={cols} rowKey={(r) => r.team} initial={{ key: "rank", dir: "asc" }} csvName={`${code}-${season}-rankings`} highlight={(r) => r.team === team} empty="No teams registered yet." />;
+  return (
+    <div className="space-y-2">
+      {league && (
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+          <ToggleGroup type="single" value={view} onValueChange={(v) => v && setView(v as "meet" | "league")} aria-label="Which standing">
+            <ToggleGroupItem value="meet">This meet</ToggleGroupItem>
+            <ToggleGroupItem value="league">League</ToggleGroupItem>
+          </ToggleGroup>
+          <p className="text-xs text-muted-foreground">{meet ? "Ranked on this meet's matches alone." : "FIRST's league standing: every meet's matches so far."}</p>
+        </div>
+      )}
+      <SortTable key={view} rows={field} cols={cols} rowKey={(r) => r.team} initial={{ key: "rank", dir: "asc" }} csvName={`${code}-${season}-${meet ? "meet-" : ""}rankings`} highlight={(r) => r.team === team} empty="No teams registered yet." />
+    </div>
+  );
 }
 
 /** Teams (N): everyone registered, as cards — rank, OPR and rating at a glance, searchable. */
