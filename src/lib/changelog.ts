@@ -21,6 +21,25 @@ export function parseHighlight(item: string): ChangelogHighlight {
   return m ? { tag: m[1], text: m[2].trim() } : { tag: null, text: item };
 }
 
+/** Releases are numbered 1.1, 1.2, 1.3 …, the third number counting the steps inside one: 1.3.7, 1.3.8,
+ *  1.3.9, then 1.4.0 (and 1.9.9 → 2.0.0). No number ever goes past one digit. */
+export function nextRelease(v: string): string {
+  const [major, minor, step] = v.split(".").map(Number);
+  if (step < 9) return `${major}.${minor}.${step + 1}`;
+  return minor < 9 ? `${major}.${minor + 1}.0` : `${major + 1}.0.0`;
+}
+
+/** The old numbering (1.5.0 … 1.37.0, a minor per release) → the current one: 1.N.0 → 1.(N div 10).(N mod 10),
+ *  so 1.37.0 → 1.3.7 and 1.5.0 → 1.0.5. An old fix release (1.19.1) keeps its fix number as a fourth part,
+ *  1.1.9.1. Anything else (already current, or not a version) comes back unchanged. */
+export function fromOldNumbering(v: string): string {
+  const m = /^1\.(\d+)\.(\d+)$/.exec(v);
+  if (!m) return v;
+  const n = Number(m[1]), fix = Number(m[2]);
+  if (n < 5 || n > 37) return v;
+  return `1.${Math.floor(n / 10)}.${n % 10}${fix ? `.${fix}` : ""}`;
+}
+
 /** CHANGELOG.md → releases. `## 1.7.0 — 2026-10-18`, an intro line, an optional `### Highlights` block of
  *  short `- [tag] line` bullets (the digest shown first), then `### Group` headings and `- ` bullets (the
  *  full notes). A release without highlights still parses; the dialog then shows its full notes. */
@@ -31,7 +50,7 @@ export function parseChangelog(md: string): ChangelogEntry[] {
   let inHighlights = false;
   for (const raw of md.split(/\r?\n/)) {
     const line = raw.trimEnd();
-    const rel = /^##\s+(\d+\.\d+\.\d+)\s*[—–-]\s*(.+)$/.exec(line);
+    const rel = /^##\s+(\d+\.\d+\.\d+(?:\.\d+)?)\s*[—–-]\s*(.+)$/.exec(line);
     if (rel) { entry = { version: rel[1], date: rel[2].trim(), summary: "", highlights: [], groups: [] }; out.push(entry); group = null; inHighlights = false; continue; }
     if (!entry) continue;
     const head = /^###\s+(.+)$/.exec(line);
@@ -78,7 +97,11 @@ export function inlines(line: string): Inline[] {
 export const currentRelease = (v: string = APP_VERSION): string | null => (/^\d+\.\d+\.\d+/.exec(v)?.[0] ?? null);
 
 const SEEN_KEY = "cs-whats-new-seen";
-export function seenRelease(): string | null { try { return localStorage.getItem(SEEN_KEY); } catch { return null; } }
+/** The release this device last opened What's new on; one stored under the old numbering (two-digit minor,
+ *  like 1.37.0) reads as its new number, so the renumbering alone doesn't light the unread dot. */
+export function seenRelease(): string | null {
+  try { const v = localStorage.getItem(SEEN_KEY); return v && /^1\.\d{2}\.\d+$/.test(v) ? fromOldNumbering(v) : v; } catch { return null; }
+}
 export function markReleaseSeen(v = currentRelease()): void { if (v) try { localStorage.setItem(SEEN_KEY, v); } catch { /* storage blocked */ } }
 /** A release this device hasn't opened What's new for yet. */
 export const hasUnseenRelease = (v = currentRelease(), seen = seenRelease()) => !!v && v !== seen;
