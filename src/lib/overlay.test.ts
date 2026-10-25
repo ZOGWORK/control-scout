@@ -1,9 +1,8 @@
 import { describe, expect, it } from "vitest";
 import type { EventDetail, FieldRow, MatchView } from "../shared/api";
-import { callWords, isBroadcastSource, overlayModel, overlayOptions, overlaySearch, shortName } from "./overlay";
+import { callWords, overlayModel, shortName } from "./overlay";
 import { nextFlip, railModel, RESULT_MS } from "./watchRail";
-import { isBareRoute, isOverlayRoute, pageModule, pageTitle } from "../shared/routes";
-import { canonicalPath } from "./meta";
+import { isBareRoute, pageModule } from "../shared/routes";
 
 const T0 = Date.parse("2026-10-24T15:00:00Z");
 const t = (n: number, onField = true) => ({ number: n, surrogate: false, dq: false, onField });
@@ -20,41 +19,6 @@ function q(n: number, result?: [number, number], pRed = 0.64): MatchView {
 const row = (team: number, name: string | null) => ({ team, name } as FieldRow);
 const ev = (matches: MatchView[], status: "live" | "finished" | "upcoming" = "live", field: FieldRow[] = []) =>
   ({ event: { status } as EventDetail["event"], matches, field });
-
-describe("bare overlay or preview", () => {
-  it("OBS (window.obsstudio) and ?clean=1 get the bare overlay; an ordinary tab gets the preview", () => {
-    expect(isBroadcastSource({ clean: false }, { obsstudio: { pluginVersion: "2.24" } })).toBe(true);
-    expect(isBroadcastSource({ clean: true }, {})).toBe(true);
-    expect(isBroadcastSource({ clean: false }, {})).toBe(false);
-    expect(isBroadcastSource({ clean: false }, undefined)).toBe(false);
-    expect(overlayOptions("?clean=1").clean).toBe(true);
-  });
-  it("writes the address back with only what differs from the defaults", () => {
-    expect(overlaySearch({ bg: "transparent", pos: "bottom", scale: 1 })).toBe("");
-    expect(overlaySearch({ bg: "green", pos: "top", scale: 0.8 })).toBe("?bg=green&pos=top&scale=0.8");
-    // The link to copy into a streaming app: always the bare overlay.
-    expect(overlaySearch({ bg: "transparent", pos: "bottom", scale: 1, clean: true })).toBe("?clean=1");
-  });
-});
-
-describe("overlayOptions", () => {
-  it("defaults: transparent, bar at the bottom, full size", () => {
-    expect(overlayOptions("")).toEqual({ bg: "transparent", pos: "bottom", scale: 1, clean: false });
-  });
-
-  it("reads ?bg=green, ?pos=top and ?scale (any case)", () => {
-    expect(overlayOptions("?bg=green&pos=top&scale=0.8")).toEqual({ bg: "green", pos: "top", scale: 0.8, clean: false });
-    expect(overlayOptions("?bg=GREEN&pos=Top")).toMatchObject({ bg: "green", pos: "top" });
-  });
-
-  it("anything else falls back, and the scale is kept to 0.5–1.5", () => {
-    expect(overlayOptions("?bg=blue&pos=left&scale=big")).toEqual({ bg: "transparent", pos: "bottom", scale: 1, clean: false });
-    expect(overlayOptions("?scale=")).toMatchObject({ scale: 1 });
-    expect(overlayOptions("?scale=0.1").scale).toBe(0.5);
-    expect(overlayOptions("?scale=9").scale).toBe(1.5);
-    expect(overlayOptions(new URLSearchParams("scale=1.2")).scale).toBe(1.2);
-  });
-});
 
 describe("overlayModel", () => {
   const field = [row(21, "Robo  Raptors"), row(24, null)];
@@ -160,13 +124,9 @@ describe("formatting", () => {
 });
 
 describe("route", () => {
-  it("/events/:season/:code/overlay is the stream overlay, drawn bare and see-through", () => {
-    expect(pageModule("/events/2026/USCAQ1/overlay")).toBe("EventOverlayPage");
-    expect(pageModule("/events/2026/USCAQ1/Overlay/")).toBe("EventOverlayPage");
-    expect(pageTitle("/events/2026/USCAQ1/overlay")).toBe("Stream overlay");
-    expect(isBareRoute("/events/2026/USCAQ1/overlay")).toBe(true);
-    expect(isOverlayRoute("/events/2026/USCAQ1/overlay")).toBe(true);
-    expect(isOverlayRoute("/events/2026/USCAQ1/display")).toBe(false);
-    expect(canonicalPath("/events/2026/uscaq1/overlay")).toBe("/events/2026/USCAQ1");
+  it("the retired stream overlay page is gone: no page, and not a bare route", () => {
+    expect(pageModule("/events/2026/USCAQ1/overlay")).not.toBe("EventDisplayPage");
+    expect(isBareRoute("/events/2026/USCAQ1/overlay")).toBe(false);
+    expect(isBareRoute("/events/2026/USCAQ1/display")).toBe(true);
   });
 });

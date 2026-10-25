@@ -3,7 +3,7 @@
 // bracket, awards + advancement, and advancement odds for any team there.
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { Link, useLocation, useNavigationType, useParams, useSearchParams } from "react-router-dom";
-import { Award, CalendarDays, Cast, ChevronDown, Clock, ExternalLink, Loader2, MapPin, Play, Radio, RefreshCw, Search, Sparkles, Swords, Trophy, Tv, Users } from "lucide-react";
+import { Award, CalendarDays, ChevronDown, Clock, ExternalLink, Loader2, MapPin, Radio, RefreshCw, Search, Sparkles, Swords, Trophy, Tv, Users } from "lucide-react";
 import { BRACKETS, type Slot } from "@control-scout/predict-engine";
 import { ApiError, apiFetch, load, prime, useApi } from "../lib/api";
 import { useMeta, usePredictable, useTitle } from "../lib/meta";
@@ -36,7 +36,7 @@ import { NotFoundView } from "../components/NotFoundView";
 import { LiveCountdownChip, LivePanel, useLiveTarget } from "../components/LivePanel";
 import { HeaderActions } from "../components/EventActions";
 import { EventStatusChip, EventTypeChip } from "../components/EventChips";
-import { WATCH_ID, WatchLive } from "../components/WatchLive";
+import { WatchLive } from "../components/WatchLive";
 import { isLiveMode, nextMatch, useEventPoll } from "../lib/liveMode";
 import { agoSeconds, awardLabel, dateRange, num, place, seasonLabel } from "../lib/format";
 import { scrollToElement, smoothBehavior } from "../lib/pageScroll";
@@ -112,7 +112,12 @@ function Event({ d, path }: { d: EventDetail; path: string }) {
       <div className={cn("flex flex-wrap items-center gap-x-4 gap-y-1.5 text-sm text-muted-foreground", full && "mt-3")}>
         {full && <span className="flex items-center gap-1.5"><CalendarDays className="size-4" />{dateRange(e.start, e.end)}</span>}
         {!full && <span className="flex items-center gap-2">{typeChip}<span className="font-mono text-xs">{e.code} · {seasonLabel(e.season)}</span></span>}
-        {(e.venue || e.city) && <span className="flex items-center gap-1.5"><MapPin className="size-4" />{place(e.venue, e.city, e.state, e.country)}</span>}
+        {/* The venue opens in Google Maps (a search for the venue and town: works on every phone, opens the Maps app where there is one). */}
+        {(e.venue || e.city) && (
+          <a href={mapsUrl(place(e.venue, e.city, e.state, e.country))} target="_blank" rel="noreferrer noopener" className="flex items-center gap-1.5 underline-offset-2 hover:text-foreground hover:underline" data-venue-map>
+            <MapPin className="size-4" />{place(e.venue, e.city, e.state, e.country)}
+          </a>
+        )}
         <span>{e.teams} teams · {e.matchesPlayed}/{e.matchesTotal} matches played</span>
         {e.website && <a href={e.website} target="_blank" rel="noreferrer noopener" className="inline-flex items-center gap-1 hover:text-foreground">Website <ExternalLink className="size-3" /></a>}
       </div>
@@ -121,11 +126,6 @@ function Event({ d, path }: { d: EventDetail; path: string }) {
         {predictable && <Button variant="outline" size="sm" asChild><Link to={labHref}>Open in what-if lab</Link></Button>}
         {/* A fullscreen screen for the pit TV: no sign-in, no chrome (pages/EventDisplayPage.tsx). Every season: history seasons show results and rankings without odds. */}
         <Button variant="outline" size="sm" asChild><Link to={`/events/${e.season}/${encodeURIComponent(e.code)}/display`} data-pit-display-link><Tv /> Pit display</Link></Button>
-        {/* A lower-third for the event's stream (pages/EventOverlayPage.tsx): a see-through page streamers put over the video. */}
-        <span className="inline-flex flex-wrap items-center gap-x-2 gap-y-1">
-          <Button variant="outline" size="sm" asChild><Link to={`/events/${e.season}/${encodeURIComponent(e.code)}/overlay`} aria-describedby="overlay-note" data-overlay-link><Cast /> Stream overlay</Link></Button>
-          <span id="overlay-note" className="text-xs text-muted-foreground">Add as a browser source in OBS, 1920×1080</span>
-        </span>
       </HeaderActions>
       {!predictable && <p className="mt-3 text-xs text-muted-foreground">{seasonLabel(e.season)} is shown for history: results, rankings and awards, no predictions (those start with 2023–24).</p>}
       <p className="mt-3 text-[11px] text-muted-foreground">Source: {e.source === "first" ? "FIRST Events API" : "FTC Scout"}</p>
@@ -266,6 +266,9 @@ function Event({ d, path }: { d: EventDetail; path: string }) {
     </div>
   );
 }
+
+/** Google Maps' search for a place, the address form that opens the Maps app on a phone. */
+export const mapsUrl = (q: string) => `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(q)}`;
 
 /**
  * True when the page was opened on a panel: `now` (a valid ?tab=) for the entry it arrived at. A tab click
