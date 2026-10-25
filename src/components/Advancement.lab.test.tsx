@@ -8,10 +8,16 @@ import { MemoryRouter } from "react-router-dom";
 import type { ForecastView } from "../shared/api";
 
 let answers: (path: string) => unknown;
+/** Teams whose forecast request fails. */
+let failing = new Set<string>();
 const asked: string[] = [];
 vi.mock("../lib/api", async (orig) => ({
   ...(await orig<typeof import("../lib/api")>()),
-  useApi: (path: string | null) => { if (path) asked.push(path); return { data: path ? answers(path) : undefined, error: undefined, loading: false, reload: () => {} }; },
+  useApi: (path: string | null) => {
+    if (path) asked.push(path);
+    const fails = !!path?.startsWith("/api/predict/event") && failing.has(new URLSearchParams(path.split("?")[1]).get("team") ?? "");
+    return { data: path && !fails ? answers(path) : undefined, error: fails ? new Error("Server error.") : undefined, loading: false, reload: () => {} };
+  },
   load: () => Promise.resolve(),
 }));
 
@@ -89,6 +95,12 @@ describe("advancement view", () => {
     answers = route({ "": fc(null), "102": fc(102) });
     rerender(view(102));
     expect(screen.queryByText(/Simulating for 102/)).toBeNull();
+    // A switch whose forecast fails says so, with Try again, instead of passing the old numbers off as the new team's.
+    failing = new Set(["101"]);
+    rerender(view(101));
+    expect(screen.getByRole("alert").textContent).toMatch(/Couldn't simulate the event for 101: Server error/);
+    expect(screen.getByRole("button", { name: /Try again/ })).toBeTruthy();
+    failing = new Set();
     // Clearing the team goes back to the Field (an empty Outlook says nothing).
     rerender(view(null));
     expect(screen.getByRole("tab", { name: "Field" }).getAttribute("aria-selected")).toBe("true");

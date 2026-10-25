@@ -96,7 +96,11 @@ export function AdvancementView({ season, code, team, nameOf, onPickTeam }: { se
   const last = useRef<{ key: string; data: ForecastView } | null>(null);
   if (state.data) last.current = { key, data: state.data };
   const data = state.data ?? (last.current?.key === key ? last.current.data : undefined);
-  const updating = !state.data && !!data && !state.error;
+  // The forecast on screen is another team's: still loading (updating), or its request failed (switchFailed:
+  // the error and Try again show, and the old numbers stay dimmed so they never pass for this team's).
+  const stale = !state.data && !!data;
+  const updating = stale && !state.error;
+  const switchFailed = stale && !!state.error;
   // Outlook first whenever there's a team (and again whenever the team changes); the field when there's none.
   const [tab, setTab] = useState(team ? "outlook" : "field");
   const [shownTeam, setShownTeam] = useState(team);
@@ -148,7 +152,13 @@ export function AdvancementView({ season, code, team, nameOf, onPickTeam }: { se
             </span>
           )}
         </div>
-        <div aria-busy={updating || undefined} className={cn("transition-opacity duration-200", updating && "opacity-60")}>
+        {switchFailed && (
+          <div role="alert" className="mt-4 flex flex-wrap items-center gap-3 rounded-xl border border-destructive/30 bg-destructive/[0.06] px-4 py-3 text-sm">
+            <span className="min-w-0 flex-1">Couldn't simulate the event for {team ?? "this view"}: {state.error!.message} The numbers below are from before.</span>
+            <Button variant="secondary" size="sm" onClick={state.reload}><RefreshCw /> Try again</Button>
+          </div>
+        )}
+        <div aria-busy={updating || undefined} className={cn("transition-opacity duration-200", stale && "opacity-60")}>
           <TabsContent value="outlook" className="mt-5 max-sm:mt-4"><Outlook fc={fc} team={team} name={team ? nameFor(team) : ""} onPeek={(t) => setPeek({ team: t, open: true })} /></TabsContent>
           <TabsContent value="alliance" className="mt-5 max-sm:mt-4">
             <AlliancePanel season={season} code={code} fc={fc} team={team} mode={mode} nameOf={nameFor} onPeek={(t) => setPeek({ team: t, open: true })} />
