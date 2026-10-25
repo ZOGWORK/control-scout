@@ -450,7 +450,7 @@ function LiveStandings({ field, season, team, code }: { field: FieldRow[]; seaso
     <section aria-label="Live standings" className="mb-8 max-sm:mb-5 rounded-xl border border-red-500/30 bg-red-500/[0.04] p-3 sm:p-4">
       <h2 className="mb-3 flex flex-wrap items-center gap-2 text-sm font-semibold">
         <Radio className="size-4 text-red-500" /> Live standings
-        <span className="font-normal text-muted-foreground">· the official ranking, updated as matches are scored</span>
+        <span className="font-normal text-muted-foreground">· updated as matches are scored</span>
       </h2>
       <Rankings field={field} season={season} team={team} code={code} />
     </section>
