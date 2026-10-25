@@ -630,13 +630,17 @@ export function createApp() {
 
   api.get("/predict/partners", limiter(10), h(async (req) => {
     const s = predictSeason(req.query.season), c = code(req.query.code), team = int(req.query.team, "team", { min: 1, max: 999999 });
-    return partnersMemo(`${await liveVersion(s)}|${s}|${c}|${team}`, async () => {
+    // mode=pre-event: the scenarios from the ratings and event as they stood the day before (no hindsight).
+    const pre = req.query.mode === "pre-event";
+    return partnersMemo(`${await liveVersion(s)}|${s}|${c}|${team}|${pre ? "pre-event" : "current"}`, async () => {
       const d = await eventDetail(s, c);
       if (!d) throw new HttpError(404, `No event ${c} in ${s}`);
       if (d.forecastUnsupported) throw new HttpError(422, d.forecastUnsupported);
       if (!d.field.some((x) => x.team === team)) throw new HttpError(422, `Team ${team} isn't registered for ${c}`);
       const f = await liveForecaster(s);
-      const p = await f.partners(toEventInput(d.event, d.field, d.matches, d.alliances), team);
+      const ev = toEventInput(d.event, d.field, d.matches, d.alliances);
+      if (pre && !ev.start) throw new HttpError(422, `${c} has no start date, so there's no before-the-event view of it.`);
+      const p = pre ? await f.preEventPartners(ev, team) : await f.partners(ev, team);
       if (!p) throw new HttpError(503, "Ratings for this season aren't ready yet.");
       return p;
     });
