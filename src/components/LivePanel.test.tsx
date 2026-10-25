@@ -185,7 +185,16 @@ describe("the panel's actions (watch, track) beside Know your match", () => {
     header(withEvent({ livestream: STREAM, stream: { videoId: "live1234567", streamUrl: "https://www.youtube-nocookie.com/embed/live1234567" } }));
     expect(screen.queryByRole("link", { name: /livestream/i })).toBeNull();
     expect(screen.getAllByRole("button", { name: /Watch livestream|Watch the stream/ })).toHaveLength(1);
-    expect(within(panel()!).getByRole("button", { name: /Watch livestream/ })).toBeTruthy();
+    // The click takes the page to the player (the Watch section's place on the page).
+    watch.getBoundingClientRect = () => ({ top: 640, left: 0, right: 0, bottom: 700, width: 0, height: 60, x: 0, y: 640, toJSON: () => ({}) }) as DOMRect;
+    const scrolled: number[] = [];
+    const scrollTo = window.scrollTo;
+    window.scrollTo = ((o: ScrollToOptions) => { scrolled.push(o.top ?? NaN); }) as typeof window.scrollTo;
+    const page = (document.scrollingElement as HTMLElement | null) ?? document.documentElement;
+    page.scrollTop = 0;
+    fireEvent.click(within(panel()!).getByRole("button", { name: /Watch livestream/ }));
+    window.scrollTo = scrollTo;
+    expect(scrolled.includes(640) || page.scrollTop === 640).toBe(true);
     watch.remove();
   });
 
