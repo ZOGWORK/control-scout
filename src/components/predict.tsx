@@ -1,17 +1,17 @@
 // Prediction UI shared by every surface. Rule: a prediction is never shown
 // without its confidence tier, and never presented as a fact.
-import { Suspense, lazy, useEffect, useRef, useState, type RefObject } from "react";
+import { Suspense, lazy, useCallback, useEffect, useMemo, useRef, useState, type RefObject } from "react";
 import { AnimatePresence, useReducedMotion } from "motion/react";
 import { m as Motion } from "./motion";
 import { Link, useLocation } from "react-router-dom";
 import { Check, ChevronDown, CircleDashed, ClipboardList, Gauge, Handshake, History, PlayCircle, Radio, ShieldCheck, Video, X } from "lucide-react";
-import type { ConfidenceTier, Factor, MatchPredictionView, MatchView, PairHistory } from "../shared/api";
+import type { AllianceScore, ConfidenceTier, Factor, MatchPredictionView, MatchView, PairHistory } from "../shared/api";
 import { matchReportHref } from "../shared/matchReport";
 import { cn } from "./cn";
 import { ClipLink } from "./MatchClip";
 import { ScoreRange } from "./ScoreRange";
 import { levelPct, predictedText } from "../shared/scoreRange";
-import { Tooltip, TooltipContent, TooltipTrigger } from "./ui/overlay";
+import { Popover, PopoverContent, PopoverTrigger, Tooltip, TooltipContent, TooltipTrigger } from "./ui/overlay";
 import { matchTime, oddsPct } from "../lib/format";
 import { useVideoLinkCount } from "./MatchVideo";
 import { restoredSavedPosition, scrollToElement, smoothBehavior } from "../lib/pageScroll";
@@ -19,6 +19,7 @@ import { restoredSavedPosition, scrollToElement, smoothBehavior } from "../lib/p
 const MatchDetails = lazy(() => import("./MatchDetails").then((x) => ({ default: x.MatchDetails })));
 import { useCalibration } from "../lib/calibration";
 import { usePredictable } from "../lib/meta";
+import { TeamSnack, TeamSnackContext, nameIn, useTeamSnack } from "./TeamSnack";
 
 const TIER: Record<ConfidenceTier, { label: string; cls: string; icon: typeof Gauge; blurb: string }> = {
   provisional: { label: "Provisional", cls: "border-warning/40 bg-warning/10 text-warning", icon: CircleDashed, blurb: "Mostly prior-season data — treat as a rough guess." },
@@ -53,6 +54,26 @@ export function TierMark({ tier, className, chip }: { tier: ConfidenceTier; clas
     <span className={cn("inline-flex items-center gap-0.5 whitespace-nowrap [&_svg]:size-3", chip ? cn(STATUS_CHIP, "border", t.cls) : color, className)} title={`${t.label} confidence: ${t.blurb}`}>
       <t.icon aria-hidden />{t.label.toLowerCase()}<span className="sr-only"> confidence</span>
     </span>
+  );
+}
+
+/** The tier as its icon alone, for a match row where the word would take a team name's room: the icon and its
+ *  colour still mark every call, and a tap (or Enter) opens the tier's name and what it means. */
+export function TierIcon({ tier }: { tier: ConfidenceTier }) {
+  const t = TIER[tier];
+  return (
+    <Popover>
+      <PopoverTrigger asChild>
+        <button type="button" className={cn(STATUS_CHIP, "w-[18px] justify-center border px-0 outline-none focus-visible:ring-2 focus-visible:ring-ring/60 [&_svg]:size-3", t.cls)} data-tier={tier}>
+          <t.icon aria-hidden /><span className="sr-only">{t.label} confidence</span>
+        </button>
+      </PopoverTrigger>
+      <PopoverContent className="w-64 p-3 text-sm" align="end">
+        <p className={cn("flex items-center gap-1.5 font-semibold [&_svg]:size-3.5", t.cls.split(" ").find((c) => c.startsWith("text-")))}><t.icon aria-hidden />{t.label} confidence</p>
+        <p className="mt-1 text-text-muted">{t.blurb}</p>
+        <Link to="/methodology#confidence" className="mt-2 inline-block text-xs underline">How tiers work</Link>
+      </PopoverContent>
+    </Popover>
   );
 }
 
@@ -131,17 +152,30 @@ export const KIND_LABEL: Record<MatchPredictionView["kind"], string> = {
   now: "Prediction from today's ratings",
 };
 
-function TeamChip({ n, season, highlight, sub }: { n: number; season: number; highlight?: number; sub?: boolean }) {
-  const me = n === highlight;
-  return (
-    <Link to={`/teams/${n}?season=${season}`} title={sub ? `${n} (surrogate or didn't play)` : undefined}
-      className={cn("tabular rounded-md px-1.5 py-0.5 font-mono text-[0.8125rem] still-hover:underline", me ? "bg-accent/15 font-bold text-accent-text ring-1 ring-accent/60" : sub ? "text-text-muted" : "text-text-base")}>
-      {n}{sub && <span className="sr-only"> (surrogate)</span>}
-    </Link>
-  );
-}
-
 type Side = "red" | "blue";
+
+/** A team in an alliance box: its number, its name under it. In a match list a tap opens the team card
+ *  (TeamSnack) and marks the team in every row; elsewhere it links to the team page. */
+function TeamChip({ t, side, season, highlight }: { t: AllianceScore["teams"][number]; side: Side; season: number; highlight?: number }) {
+  const snack = useTeamSnack();
+  const n = t.number, sub = t.surrogate || !t.onField;
+  const me = n === highlight, picked = snack?.team === n;
+  const cls = cn("flex min-w-0 flex-col rounded-md px-1.5 py-0.5 text-left leading-tight outline-none focus-visible:ring-2 focus-visible:ring-ring/60",
+    side === "blue" && "@min-[330px]:items-end @min-[330px]:text-right",
+    picked ? (side === "red" ? "bg-red-alliance/30 ring-1 ring-red-alliance/70" : "bg-blue-alliance/30 ring-1 ring-blue-alliance/70")
+      : me ? "bg-accent/15 ring-1 ring-accent/60" : "still-hover:bg-text-base/[0.06]");
+  const body = (
+    <>
+      <span className={cn("tabular font-mono text-[0.8125rem]", me ? "font-bold text-accent-text" : picked ? "font-bold text-text-base" : sub ? "text-text-muted" : "text-text-base")}>{n}</span>
+      {t.name && <span className={cn("block max-w-full truncate text-[11px] italic", picked || me ? "text-text-base" : "text-text-muted")} data-team-name>{t.name}</span>}
+      {sub && <span className="sr-only"> (surrogate)</span>}
+    </>
+  );
+  const title = sub ? `${n} (surrogate or didn't play)` : t.name;
+  return snack
+    ? <button type="button" onClick={() => snack.toggle(n)} aria-pressed={picked} aria-label={`${n}${t.name ? ` ${t.name}` : ""}${sub ? " (surrogate)" : ""}: show team card`} title={title} className={cls}>{body}</button>
+    : <Link to={`/teams/${n}?season=${season}`} title={title} className={cn(cls, "still-hover:underline")}>{body}</Link>;
+}
 
 /** How many times `value` has changed since the first render (0: never): a new score arriving
  *  (live auto-refresh) restarts its flash; a row that mounts with its score doesn't flash. */
@@ -172,12 +206,13 @@ function AllianceBox({ side, m, score, forecast, outcome, highlight }: {
   return (
     <div className={cn(
       // Narrow rows: one line per alliance, teams then score. Wider rows (the row's own width): the two boxes face each other, scores in the middle.
-      "flex min-w-0 items-center justify-between gap-2 rounded-lg border-l-[3px] px-2.5 py-1.5",
+      "flex min-w-0 items-center justify-between gap-2 rounded-lg border-l-[3px] px-2 py-1.5",
       side === "red" ? "border-red-alliance bg-red-alliance/[0.06]" : "border-blue-alliance bg-blue-alliance/[0.06] @min-[330px]:flex-row-reverse @min-[330px]:border-l-0 @min-[330px]:border-r-[3px]",
       outcome === "win" && (side === "red" ? "bg-red-alliance/[0.14]" : "bg-blue-alliance/[0.14]"),
     )}>
-      <div className={cn("flex min-w-0 flex-wrap gap-x-0.5", side === "blue" && "@min-[330px]:justify-end")}>
-        {a.teams.map((t) => <TeamChip key={t.number} n={t.number} season={m.season} highlight={highlight} sub={t.surrogate || !t.onField} />)}
+      {/* The teams share the box's width (a playoff alliance of three included), each name truncated to its share. */}
+      <div className="grid min-w-0 flex-1 auto-cols-fr grid-flow-col gap-x-1">
+        {a.teams.map((t) => <TeamChip key={t.number} t={t} side={side} season={m.season} highlight={highlight} />)}
       </div>
       {score != null ? (
         <span key={flash} className={cn("shrink-0 font-display text-lg font-bold tabular-nums", flash > 0 && "cs-score-flash -mx-1 px-1", outcome === "loss" ? FADED[side] : side === "red" ? "text-red-alliance" : "text-blue-alliance")}>
@@ -228,7 +263,7 @@ export function MatchRow({ m, highlight, showEvent, eventName, open, onToggle, o
       // Hover (here, on the label and on the row's links) never fires mid-scroll: a shield takes the pointer
       // while the page scrolls (index.css .scroll-shield). Otherwise every row sliding under a resting pointer
       // lights up and the long list repaints. The hover fades the background only.
-      className={cn("group/row density-row grid grid-cols-[minmax(min-content,1fr)_auto_auto] items-center gap-x-3 gap-y-1.5 px-3 py-2.5 transition-[background-color]",
+      className={cn("group/row density-row grid grid-cols-[minmax(min-content,1fr)_auto_auto] items-center gap-x-3 gap-y-1.5 px-3 py-3 transition-[background-color]",
         // Wide rows: label | red | blue | the call | report. Fixed tracks either side, so every row lines up.
         "@3xl:grid-cols-[5.5rem_minmax(0,1fr)_minmax(0,1fr)_11.5rem_2rem]",
         onToggle ? "cursor-pointer still-hover:bg-accent/[0.07]" : "still-hover:bg-text-base/[0.03]", open && "bg-accent/[0.05]")}
@@ -286,7 +321,7 @@ export function MatchRow({ m, highlight, showEvent, eventName, open, onToggle, o
             {/* Right and Upset share one width, so the chips after them line up from row to row. */}
             {called === true && <span className={cn(STATUS_CHIP, "min-w-[3.25rem] justify-center bg-success/12 text-success")} data-outcome="right"><Check className="size-3" aria-hidden /> Right</span>}
             {called === false && <span className={cn(STATUS_CHIP, "min-w-[3.25rem] justify-center bg-warning/12 text-warning")} data-outcome="upset"><X className="size-3" aria-hidden /> Upset</span>}
-            {p && <TierMark tier={p.tier} chip />}
+            {p && <TierIcon tier={p.tier} />}
             {/* Which ledger a played match's call came from, as an icon chip (a word never fits beside the others): the words
                 stay in its title and for screen readers. Live and replayed calls are never blended, so both are marked. */}
             {p && m.played && (p.kind === "live" || p.kind === "backtest") && (
@@ -391,6 +426,10 @@ const scheduleOrder = (a: MatchView, b: MatchView) => (a.level === b.level ? 0 :
 export function MatchList({ matches, highlight, empty, eventNames, eventDates, initialOpen, outcomeAccent, live, newestFirst }: { matches: MatchView[]; highlight?: number; empty?: string; eventNames?: Record<string, string>; eventDates?: Record<string, string>; initialOpen?: string | null; outcomeAccent?: boolean; live?: string | null; newestFirst?: boolean }) {
   const id = (m: MatchView) => `${m.code}:${m.key}`;
   const [open, setOpen] = useState<Set<string>>(() => new Set());
+  // The team whose card is open (a tap on a team in any row): a second tap on it closes the card.
+  const [snack, setSnack] = useState<number | null>(null);
+  const snackCtx = useMemo(() => ({ team: snack, toggle: (t: number) => setSnack((x) => (x === t ? null : t)) }), [snack]);
+  const closeSnack = useCallback(() => setSnack(null), []);
   const box = useRef<HTMLDivElement>(null);
   // The match a link asked for is brought into view once per visit (history entry): a live update that
   // adds matches to the list must not pull the page back to it after the reader has scrolled on, and
@@ -441,6 +480,7 @@ export function MatchList({ matches, highlight, empty, eventNames, eventDates, i
   }
   const rec = highlight ? teamRecord(matches, highlight) : null;
   return (
+    <TeamSnackContext.Provider value={snackCtx}>
     <div ref={box} className="match-list space-y-2">
       {rec && rec.played > 0 && (
         <p className="text-sm text-text-muted">
@@ -471,6 +511,9 @@ export function MatchList({ matches, highlight, empty, eventNames, eventDates, i
         ))}
       </div>
     </div>
+    <TeamSnack team={snack} season={matches[0].season} name={snack != null ? nameIn(matches, snack) : undefined}
+      code={oneEvent ? matches[0].code : undefined} record={snack != null ? teamRecord(matches, snack) : null} onClose={closeSnack} />
+    </TeamSnackContext.Provider>
   );
 }
 
