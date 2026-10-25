@@ -144,6 +144,9 @@ describe("when a video is read again", () => {
     expect(due(meta({ live: true, start: null }), t("2026-05-02T01:01:00Z"))).toBe(true);
     expect(due(meta({ status: "error" }), t("2026-05-02T23:00:00Z"))).toBe(false);
     expect(due(meta({ status: "error" }), t("2026-05-03T01:00:00Z"))).toBe(true);
+    // With an API key, an error (say the watch page's sign-in wall, read before the key was set) is tried again in 15 minutes.
+    expect(due(meta({ status: "error" }), t("2026-05-02T00:10:00Z"), true)).toBe(false);
+    expect(due(meta({ status: "error" }), t("2026-05-02T00:16:00Z"), true)).toBe(true);
     expect(due(meta({ live: true, start: "2026-05-01T23:00:00Z" }), t("2026-05-02T00:06:00Z"))).toBe(true);
   });
   it("a fresh archive after 6 hours for 2 days, then never; an upload or removed video never", () => {

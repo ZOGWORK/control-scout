@@ -98,7 +98,6 @@ function Event({ d, path }: { d: EventDetail; path: string }) {
   const livePanel = useRef<HTMLDivElement>(null);
   const toLivePanel = () => { if (livePanel.current) scrollToElement(livePanel.current, smoothBehavior()); };
   const oddsOpen = predictable && !d.forecastUnsupported;
-  const toWatch = () => { const el = document.getElementById(WATCH_ID); if (el) scrollToElement(el, smoothBehavior()); };
   // Opened on a panel (?tab= in the address it arrived at): a slim bar, with the summary behind "Event details".
   const slim = useArrivedOnTab(sp.has("tab") && validTab);
   const [detailsOpen, setDetailsOpen] = useDetailsOpen();
@@ -118,8 +117,7 @@ function Event({ d, path }: { d: EventDetail; path: string }) {
         {e.website && <a href={e.website} target="_blank" rel="noreferrer noopener" className="inline-flex items-center gap-1 hover:text-foreground">Website <ExternalLink className="size-3" /></a>}
       </div>
       {d.live && !liveMode && <LiveBar live={d.live} r={refresh} />}
-      <HeaderActions liveMode={liveMode} livestream={e.livestream} track={track}>
-        {e.stream && <Button size="sm" onClick={toWatch} data-watch-button><Play /> {e.status === "finished" ? "Watch the stream" : "Watch live"}</Button>}
+      <HeaderActions liveMode={liveMode} watch={{ url: e.livestream, stream: !!e.stream, finished: e.status === "finished" }} track={track}>
         {predictable && <Button variant="outline" size="sm" asChild><Link to={labHref}>Open in what-if lab</Link></Button>}
         {/* A fullscreen screen for the pit TV: no sign-in, no chrome (pages/EventDisplayPage.tsx). Every season: history seasons show results and rankings without odds. */}
         <Button variant="outline" size="sm" asChild><Link to={`/events/${e.season}/${encodeURIComponent(e.code)}/display`} data-pit-display-link><Tv /> Pit display</Link></Button>
