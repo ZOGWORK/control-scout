@@ -96,11 +96,19 @@ export function inlines(line: string): Inline[] {
 /** The running app's release ("1.7.0" from "1.7.0+abc1234"); null in development without a version. */
 export const currentRelease = (v: string = APP_VERSION): string | null => (/^\d+\.\d+\.\d+/.exec(v)?.[0] ?? null);
 
-const SEEN_KEY = "cs-whats-new-seen";
-/** The release this device last opened What's new on; one stored under the old numbering (two-digit minor,
- *  like 1.37.0) reads as its new number, so the renumbering alone doesn't light the unread dot. */
+/** Where the last-seen release is kept. The key changed with the renumbering, so a value under the old key is
+ *  always an old number (1.7.0 there means today's 1.0.7, not a future 1.7.0) and is read through fromOldNumbering. */
+const SEEN_KEY = "cs-whats-new-seen-2";
+const OLD_SEEN_KEY = "cs-whats-new-seen";
+/** The release this device last opened What's new on (one seen before the renumbering reads as its new number,
+ *  so the renumbering alone doesn't light the unread dot). */
 export function seenRelease(): string | null {
-  try { const v = localStorage.getItem(SEEN_KEY); return v && /^1\.\d{2}\.\d+$/.test(v) ? fromOldNumbering(v) : v; } catch { return null; }
+  try {
+    const v = localStorage.getItem(SEEN_KEY);
+    if (v) return v;
+    const old = localStorage.getItem(OLD_SEEN_KEY);
+    return old ? fromOldNumbering(old) : null;
+  } catch { return null; }
 }
 export function markReleaseSeen(v = currentRelease()): void { if (v) try { localStorage.setItem(SEEN_KEY, v); } catch { /* storage blocked */ } }
 /** A release this device hasn't opened What's new for yet. */
