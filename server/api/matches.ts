@@ -11,7 +11,7 @@ import { eventDetail } from "./events.js";
 import { liveForecaster, recentRecords } from "../predict/engine.js";
 import { recentReasons, type RecentRecord } from "@control-scout/predict-engine";
 import { localToUtcMs } from "../data/time.js";
-import { bonusLabels, isLegacy } from "../data/seasons.js";
+import { bonusLabels, detailSheet, isLegacy } from "../data/seasons.js";
 import { bonusFromRow, bonusView } from "../../src/shared/bonusOdds.js";
 import { pairHistory } from "../../src/shared/pairHistory.js";
 import { rangesOf } from "../../src/shared/scoreRange.js";
@@ -123,7 +123,7 @@ export async function matchDetail(season: number, code: string, key: string, eve
   const numbers = [...match.red.teams, ...match.blue.teams].map((t) => t.number);
   const ph = numbers.map(() => "?").join(",") || "NULL";
   const [row, lineup, seasonStats, teamRows] = await Promise.all([
-    get<any>("SELECT description, red_bonus, blue_bonus FROM matches WHERE season = ? AND code = ? AND level = ? AND series = ? AND number = ?", [season, code, level, Number(series), Number(number)]),
+    get<any>("SELECT description, red_bonus, blue_bonus, red_detail, blue_detail FROM matches WHERE season = ? AND code = ? AND level = ? AND series = ? AND number = ?", [season, code, level, Number(series), Number(number)]),
     all<any>("SELECT team, station FROM match_teams WHERE season = ? AND code = ? AND level = ? AND series = ? AND number = ?", [season, code, level, Number(series), Number(number)]),
     all<any>(`SELECT team, opr_np, rank_np, ranked_teams FROM team_season_stats WHERE season = ? AND team IN (${ph})`, [season, ...numbers]),
     all<any>(`SELECT number, name, city, state FROM teams WHERE number IN (${ph})`, numbers),
@@ -154,7 +154,19 @@ export async function matchDetail(season: number, code: string, key: string, eve
     stations: Object.fromEntries(lineup.filter((l) => l.station != null).map((l) => [Number(l.team), Number(l.station)])),
     bonus: labels && (row?.red_bonus || row?.blue_bonus) ? { labels, red: bools(row.red_bonus), blue: bools(row.blue_bonus) } : null,
     teams,
+    sheet: sheetOf(season, row?.red_detail, row?.blue_detail),
     prev: near(d.matches[i - 1]),
     next: near(d.matches[i + 1]),
   };
+}
+
+/** A played match's score sheet, row by row, from both alliances' stored details (null: none stored). A row
+ *  neither alliance reported is left out; one side missing a row reads null there. */
+export function sheetOf(season: number, red: string | null | undefined, blue: string | null | undefined): MatchDetail["sheet"] {
+  const rows = detailSheet(season);
+  if (!rows || !red || !blue) return null;
+  const r = JSON.parse(red) as Record<string, number>, b = JSON.parse(blue) as Record<string, number>;
+  const out = rows.filter((x) => x.field in r || x.field in b)
+    .map((x) => ({ label: x.label, depth: x.depth, ...(x.count ? { count: true as const } : {}), red: r[x.field] ?? null, blue: b[x.field] ?? null }));
+  return out.length ? out : null;
 }

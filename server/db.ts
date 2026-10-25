@@ -1276,6 +1276,17 @@ CREATE TABLE video_meta (
 DELETE FROM video_meta WHERE status = 'unavailable';
 `,
   },
+  {
+    version: 45,
+    name: "match score sheets",
+    sql: `
+-- Each alliance's full score sheet from FIRST's /scores breakdown (the rows server/data/seasons.ts SHEETS lists
+-- for the season: auto leave/park/hive, TeleOp hive/flower/garden/park, foul counts), as JSON
+-- {field: number}. NULL: a season with no sheet, a totals-only source, or a match synced before this.
+ALTER TABLE matches ADD COLUMN red_detail TEXT;
+ALTER TABLE matches ADD COLUMN blue_detail TEXT;
+`,
+  },
 ];
 
 export type Db = Client;

@@ -78,7 +78,9 @@ export interface MatchRow {
   /** Field the match is scheduled on (FIRST's schedule "field"), when the source says. */
   field?: string | null;
   /** False when the scores are totals only (no breakdown reported yet: the split is an estimate). Default true. */
-  breakdown?: boolean;
+  breakdown?: boolean;  /** Each alliance's score sheet (seasons.ts scoreDetail), when the source reported one. */
+  redDetail?: Record<string, number> | null;
+  blueDetail?: Record<string, number> | null;
 }
 
 export interface AllianceRow { number: number; name: string | null; captain: number | null; pick1: number | null; pick2: number | null; backup: number | null }
@@ -177,9 +179,10 @@ export function bundleStatements(b: EventBundle): InStatement[] {
     s.push({
       sql: `INSERT OR REPLACE INTO matches (season, code, level, series, number, label, description, time, played,
               red_total, red_np, red_auto, red_teleop, red_endgame, red_pen, red_bonus, red_tips,
-              blue_total, blue_np, blue_auto, blue_teleop, blue_endgame, blue_pen, blue_bonus, blue_tips, video, source, field, breakdown)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      args: [...k, m.level, m.series, m.number, m.label, m.description, m.time, m.played ? 1 : 0, ...sc(m.redScore), ...sc(m.blueScore), m.video ?? null, e.source, m.field ?? null, m.played ? (m.breakdown === false ? 0 : 1) : null],
+              blue_total, blue_np, blue_auto, blue_teleop, blue_endgame, blue_pen, blue_bonus, blue_tips, video, source, field, breakdown, red_detail, blue_detail)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      args: [...k, m.level, m.series, m.number, m.label, m.description, m.time, m.played ? 1 : 0, ...sc(m.redScore), ...sc(m.blueScore), m.video ?? null, e.source, m.field ?? null, m.played ? (m.breakdown === false ? 0 : 1) : null,
+        ...[m.redDetail, m.blueDetail].map((x) => (m.played && x ? JSON.stringify(x) : null))],
     });
     for (const [alliance, ts] of [["red", m.red], ["blue", m.blue]] as const) {
       for (const t of ts) {
