@@ -8,7 +8,7 @@ import { Link, useLocation, useNavigate, useSearchParams } from "react-router-do
 import { ArrowDown, ArrowUp, ArrowUpDown, Bookmark, ChevronLeft, ChevronRight, Columns3, Download, Info, ListFilter, Loader2, MapPin, RefreshCw, Scale, SearchX, Sparkles, X } from "lucide-react";
 import { apiFetch, useApi, type ApiError } from "../../lib/api";
 import type { FilterGroup } from "../../shared/filterDsl";
-import { STAT_BY_KEY, statFor, type MatchRecordRow, type RecordScope, type RecordsResponse, type TeamEventRecord, type TeamSeasonRecord } from "../../shared/statCatalog";
+import { RECORDS_MAX_PAGE_SIZE, STAT_BY_KEY, statFor, type MatchRecordRow, type RecordScope, type RecordsResponse, type TeamEventRecord, type TeamSeasonRecord } from "../../shared/statCatalog";
 import { countryByCode } from "../../shared/countries";
 import { clampPage, clearFilters, defaultDir, hasFilters, parseTableState, recordsUrl, searchString, writeTableState, type TableState } from "../../lib/records/urlState";
 import { describeFilter, formatStat, headerOf, TONE_CLASS, toneOf } from "../../lib/records/describe";
@@ -95,7 +95,9 @@ export function RecordsTable(p: RecordsTableProps) {
   // region chip names its regions (asked before the table's own rows).
   const compact = useCompactFilters() && !!p.controls;
   const regionNames = useRecordRegions(season, compact && !!p.controls?.region && state.regions.length > 0);
-  const req = { season, scope, state, fields, code };
+  // One event's table takes its whole field on one page (an event has at most a few hundred teams), so the
+  // shading compares each team with the whole field.
+  const req = { season, scope, state, fields, code, ...(code ? { pageSize: RECORDS_MAX_PAGE_SIZE } : {}) };
   // Match rows also carry the scores and the prediction the phone summary is built from, whatever columns
   // are picked (the CSV export keeps to the picked columns).
   const fetchFields = useMemo(() => (scope === "match" ? [...new Set([...fields, ...SUMMARY_FIELDS, ...(predictable ? [PREDICTION_FIELD] : [])])] : fields), [scope, fields, predictable]);
@@ -592,7 +594,8 @@ function Table({ data, scope, cols, state, sortBy, code, highlightTeam, selectab
 }) {
   const showEvent = scope === "teamEvent" && !code;
   // One event's teams (its Rankings and Insights tabs): shaded against each other.
-  const heat = useMemo(() => (scope === "teamEvent" && code ? heatBands(data.rows as { stats: Record<string, unknown> }[], cols) : new Map<string, (v: unknown) => string>()), [scope, code, data.rows, cols]);
+  const whole = scope === "teamEvent" && !!code && !state.filter && data.total === data.rows.length;
+  const heat = useMemo(() => (whole ? heatBands(data.rows as { stats: Record<string, unknown> }[], cols) : new Map<string, (v: unknown) => string>()), [whole, data.rows, cols]);
   // Phones: the Team column shows the number only, and a tap on it shows the name (TeamNumber).
   const phone = usePhone();
   const { ref, more } = useMoreToTheRight();
