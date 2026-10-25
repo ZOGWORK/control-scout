@@ -185,7 +185,8 @@ const ToggleLookContext = React.createContext<ToggleLook>('segment');
 const toggleGroup = cva('items-center', {
   variants: {
     variant: {
-      segment: 'inline-flex gap-0.5 rounded-lg bg-muted p-0.5',
+      // An inset edge (no layout change) so the track reads as a control on a dark card, like the tab strip.
+      segment: 'inline-flex gap-0.5 rounded-lg bg-muted p-0.5 ring-1 ring-inset ring-text-base/15',
       chips: 'flex flex-wrap justify-start gap-1.5',
       cards: 'flex justify-start gap-2 overflow-x-auto',
     },
@@ -202,7 +203,8 @@ const toggleItem = cva(
         // Selected = aria-checked (single) / aria-pressed (multiple), which Radix
         // sets and nothing else touches. data-state can be replaced when a
         // Tooltip wraps the item (its data-state is "closed"/"delayed-open").
-        segment: 'rounded-md px-3 aria-checked:bg-background aria-checked:text-foreground aria-checked:shadow-sm aria-pressed:bg-background aria-pressed:text-foreground aria-pressed:shadow-sm',
+        // On dark the picked option is lifted (a light fill), not the page colour sunk into the track.
+        segment: 'rounded-md px-3 hover:bg-text-base/[0.06] aria-checked:bg-background aria-checked:text-foreground aria-checked:shadow-sm aria-pressed:bg-background aria-pressed:text-foreground aria-pressed:shadow-sm dark:aria-checked:bg-text-base/[0.16] dark:aria-pressed:bg-text-base/[0.16]',
         chips: 'h-8 shrink-0 rounded-full border border-border px-3 max-sm:h-9 aria-checked:border-accent/50 aria-checked:bg-accent/10 aria-checked:text-foreground aria-pressed:border-accent/50 aria-pressed:bg-accent/10 aria-pressed:text-foreground',
         cards: 'h-auto min-h-12 shrink-0 flex-col items-start gap-0.5 rounded-xl border border-border bg-background px-3 py-2 text-left aria-checked:border-accent/60 aria-checked:bg-accent/10 aria-checked:text-foreground aria-pressed:border-accent/60 aria-pressed:bg-accent/10 aria-pressed:text-foreground',
       },
