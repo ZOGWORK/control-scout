@@ -103,7 +103,11 @@ export function EventSearchPicker({ season, value, onChange, team = null, teamCo
     : res.mode === "search"
       ? (res.total ? `${plural(res.total, "event")} found${res.total > options.length ? `, showing the first ${options.length}` : ""}` : "No events found")
       : (options.length ? plural(options.length, "suggested event") : "");
-  const heading = res?.mode === "search" ? "Results" : res?.teamSuggestions && team != null ? `${team}'s events` : "Suggested";
+  // A team with no eligible events gets the nearest ones, and the heading says so (one line, no paragraph).
+  const heading = res?.mode === "search" ? "Results"
+    : team != null && res?.teamSuggestions ? `${team}'s events`
+    : team != null && teamCodes ? `Nearest events · none for ${team} yet`
+    : "Suggested";
 
   let body: ReactNode;
   if (events.loading) {

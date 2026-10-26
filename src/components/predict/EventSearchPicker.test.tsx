@@ -84,6 +84,13 @@ describe("EventSearchPicker", () => {
     expect(names()).toEqual(["Texas State Championship", "Austin Early Qualifier"]);
   });
 
+  it("says when a team has no eligible events and suggests the nearest instead", () => {
+    render(<Harness team={18360} teamCodes={new Set(["MEET1"])} />);
+    openPicker();
+    expect(screen.getByText("Nearest events · none for 18360 yet")).toBeTruthy();
+    expect(names()).toHaveLength(5);
+  });
+
   it("filters as you type, with no team", () => {
     render(<Harness />);
     const box = openPicker();
