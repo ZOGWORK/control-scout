@@ -172,6 +172,18 @@ describe("the desktop sidebar", () => {
     fireEvent.keyDown(settings, { key: "Escape" });
     expect(moreButton().getAttribute("aria-expanded")).toBe("false");
     expect(document.activeElement).toBe(moreButton());
+    expect(localStorage.getItem("cs-nav-more")).toBe("0");
+  });
+
+  it("closed by hand on one of its pages, opens again on the way to another of them", async () => {
+    wide(true);
+    shell("/settings");
+    fireEvent.click(moreButton());
+    expect(moreButton().getAttribute("aria-expanded")).toBe("false");
+    // A link to another of its pages from elsewhere (the folded group's own row stands in for it).
+    fireEvent.click(within(morePages()).getByRole("link", { name: "Download", hidden: true }));
+    await waitFor(() => expect(where).toBe("/download"));
+    expect(moreButton().getAttribute("aria-expanded")).toBe("true");
   });
 
   it("opens More by itself on one of its pages, so the lit row shows", () => {
