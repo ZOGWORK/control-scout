@@ -92,7 +92,7 @@ export default function PredictPage() {
             </TabsList>
           </div>
           {/* Only mounted when there's room: no request or timer for a card nobody can see. */}
-          {wide && <LatestCalls still={1} />}
+          {wide && <LatestCalls compact />}
         </div>
       </div>
       <TabsContent value="advancement" className="mt-0"><AdvancementLab /></TabsContent>
