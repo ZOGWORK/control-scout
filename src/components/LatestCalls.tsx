@@ -65,7 +65,7 @@ export function LatestCalls({ className, still: stillCount = 3, compact = false 
   }
   const shown = reduced && paused === null ? calls.slice(0, compact ? 1 : stillCount) : calls.length ? [calls[i % calls.length]] : [];
   const scored = (
-    <Link to="/methodology#recent" className={cn("relative inline-flex items-center gap-1 font-semibold text-accent-text hover:underline", compact ? "min-h-8 text-xs" : "mt-3 min-h-9 text-sm")}>
+    <Link to="/methodology#recent" className={cn("relative inline-flex items-center gap-1 font-semibold text-accent-text hover:underline", compact ? "min-h-8 shrink-0 whitespace-nowrap text-xs" : "mt-3 min-h-9 text-sm")}>
       Every call, scored <ArrowUpRight className={compact ? "size-3.5" : "size-4"} />
     </Link>
   );
@@ -75,7 +75,8 @@ export function LatestCalls({ className, still: stillCount = 3, compact = false 
       className={cn("relative overflow-hidden rounded-2xl border border-line bg-card", compact ? "px-4 py-3" : "p-5 max-sm:p-4", className)}>
       <div aria-hidden className="pointer-events-none absolute -right-16 -top-16 size-48 rounded-full bg-accent/10 blur-3xl" />
       <div className="relative flex items-center justify-between gap-3">
-        <p className="text-xs font-semibold uppercase tracking-[0.16em] text-text-muted">Latest live calls</p>
+        {/* Compact: one line beside the link and the pause button (a narrower tracking so the three fit the card). */}
+        <p className={cn("text-xs font-semibold uppercase text-text-muted", compact ? "min-w-0 truncate tracking-[0.08em]" : "tracking-[0.16em]")}>Latest live calls</p>
         {compact && <span className="ml-auto">{scored}</span>}
         {calls.length > 1 && !(reduced && paused === null) && (
           <button type="button" onClick={() => setPaused(!still)} aria-label={still ? "Turn through the calls" : "Stop turning through the calls"}
