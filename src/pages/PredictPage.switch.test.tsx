@@ -1,23 +1,12 @@
 // @vitest-environment jsdom
-// Predict's view switch: the chosen card's highlight is one shared-layout element (motion's layoutId), so
-// switching views slides it from one card to the other instead of swapping two highlights. Motion is
-// stood in for here so the test sees the props it would animate with; jsdom has no layout to measure.
+// Predict's three modes: semantic tabs in a fixed order, the bare page opens Advancement, arrow keys move
+// between modes with focus kept on the tab, and old Lab links still open the mode they meant.
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
-import { forwardRef, type ReactNode } from "react";
 
-vi.mock("../components/motion", async (orig) => {
-  const real = await orig<typeof import("../components/motion")>();
-  const Span = forwardRef<HTMLSpanElement, Record<string, unknown> & { children?: ReactNode }>(({ layoutId, transition: _t, initial: _i, animate: _a, ...rest }, ref) => (
-    <span ref={ref} data-layout-id={layoutId as string | undefined} {...(rest as object)} />
-  ));
-  const m = new Proxy(real.m, { get: (t, k) => (k === "span" ? Span : (t as unknown as Record<string | symbol, unknown>)[k]) });
-  return { ...real, m };
-});
 vi.mock("../lib/personal", () => ({ usePersonal: () => ({ user: null, providers: {}, state: { myTeam: null, tracked: { teams: [], events: [] }, bookmarks: [], videoLinks: {}, predictionHistory: [] }, update: () => true, syncReady: false }) }));
 vi.mock("../lib/meta", async (orig) => ({ ...(await orig<typeof import("../lib/meta")>()), useMeta: () => null, useCurrentSeason: () => 2026, useTitle: () => {} }));
-vi.mock("../components/layout/Search", () => ({ SEARCH_HINT: "Ctrl K", usePageSearch: () => null }));
 
 const { default: PredictPage } = await import("./PredictPage");
 const { TooltipProvider } = await import("../components/ui/overlay");
@@ -30,36 +19,38 @@ beforeEach(() => {
 });
 afterEach(() => { cleanup(); vi.unstubAllGlobals(); });
 
-describe("Predict's view switch", () => {
-  it("the highlight is one layoutId element that moves to the chosen card (so motion slides it)", () => {
-    render(<TooltipProvider><MemoryRouter initialEntries={["/predict"]}><PredictPage /></MemoryRouter></TooltipProvider>);
-    const switcher = () => within(screen.getByRole("tablist", { name: "Predict" }));
-    const highlights = () => Array.from(document.querySelectorAll<HTMLElement>("[data-layout-id='predict-view-active']"));
-    expect(highlights()).toHaveLength(1);
-    expect(highlights()[0].closest("[role=tab]")?.textContent).toMatch(/^Scheduled/);
-    fireEvent.click(switcher().getByRole("tab", { name: /Lab: advancement & matchups/ }));
-    expect(highlights()).toHaveLength(1);
-    expect(highlights()[0].closest("[role=tab]")?.textContent).toMatch(/^Lab: advancement & matchups/);
+const page = (url: string) => render(<TooltipProvider><MemoryRouter initialEntries={[url]}><PredictPage /></MemoryRouter></TooltipProvider>);
+const selected = () => screen.getAllByRole("tab").find((t) => t.getAttribute("aria-selected") === "true")?.getAttribute("aria-label");
+
+describe("Predict's modes", () => {
+  it("three tabs in order, Advancement first and open by default", () => {
+    page("/predict");
+    const tabs = within(screen.getByRole("tablist", { name: "Predict mode" })).getAllByRole("tab").map((t) => t.getAttribute("aria-label"));
+    expect(tabs).toEqual(["Advancement", "Scheduled", "Custom matchup"]);
+    expect(selected()).toBe("Advancement");
   });
 
-  it("arrow keys move between the views and focus stays on the tab (the Lab's first box doesn't take it)", () => {
-    render(<TooltipProvider><MemoryRouter initialEntries={["/predict"]}><PredictPage /></MemoryRouter></TooltipProvider>);
-    const scheduled = screen.getByRole("tab", { name: /^Scheduled/ });
+  it("arrow keys move between the modes and focus stays on the tab (Custom matchup's first box doesn't take it)", async () => {
+    page("/predict?mode=scheduled");
+    const scheduled = screen.getByRole("tab", { name: /Scheduled/ });
     scheduled.focus();
     fireEvent.keyDown(scheduled, { key: "ArrowRight" });
-    const lab = screen.getByRole("tab", { name: /Lab: advancement & matchups/ });
-    expect(lab.getAttribute("aria-selected")).toBe("true");
-    expect(document.activeElement).toBe(lab);
+    const match = screen.getByRole("tab", { name: /Custom matchup/ });
+    // Radix moves focus on the next tick; the focused tab is the chosen one (automatic activation).
+    await waitFor(() => expect(match.getAttribute("aria-selected")).toBe("true"));
+    expect(document.activeElement).toBe(match);
   });
 
-  it("the Lab opens on Advancement and puts focus in its empty team box", () => {
-    render(<TooltipProvider><MemoryRouter initialEntries={["/predict?view=lab"]}><PredictPage /></MemoryRouter></TooltipProvider>);
-    expect(screen.getByRole("tab", { name: /Advancement/ }).getAttribute("aria-selected")).toBe("true");
-    expect(document.activeElement).toBe(screen.getByRole("textbox", { name: "Team" }));
+  it("old Lab links open the mode they meant", () => {
+    page("/predict?view=lab&mode=match&red=1,2");
+    expect(selected()).toBe("Custom matchup");
+    cleanup();
+    page("/predict?view=events&mode=match");
+    expect(selected()).toBe("Scheduled");
   });
 
   it("a custom matchup link opens Custom matchup with focus in its first empty box", () => {
-    render(<TooltipProvider><MemoryRouter initialEntries={["/predict?view=lab&mode=match"]}><PredictPage /></MemoryRouter></TooltipProvider>);
+    page("/predict?view=lab&mode=match");
     expect(document.activeElement).toBe(screen.getByRole("textbox", { name: "Red team 1" }));
   });
 });

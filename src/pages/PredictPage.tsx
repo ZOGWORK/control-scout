@@ -16,7 +16,7 @@ import type { EventDetail, EventSummary, EventListItem, MatchExplanationView, Ma
 import { pairHistory } from "../shared/pairHistory";
 import { labEventChoices } from "../lib/labEvents";
 import { LabEventsEmpty } from "../components/LabEventsEmpty";
-import { PageHeader, Section, EmptyState } from "../components/page";
+import { Section, EmptyState } from "../components/page";
 import { LatestCalls } from "../components/LatestCalls";
 import { Async, ErrorState } from "../components/states";
 import { Button } from "../components/ui/button";
@@ -29,7 +29,7 @@ import { teamsErrors } from "../lib/teamCheck";
 import { SeasonToggle } from "../components/SeasonToggle";
 import { AdvancementView } from "../components/Advancement";
 import { SearchBox } from "../components/search/SearchBox";
-import { SEARCH_HINT, usePageSearch } from "../components/layout/Search";
+import { canonicalPredict, parsePick, predictHref, predictParams, readPredict, switchMode, type PredictMode, type PredictPick } from "../shared/predictUrl";
 import { cn } from "../components/cn";
 import { Reveal, m } from "../components/motion";
 import { dateRange, num, oddsPct, place, seasonLabel } from "../lib/format";
@@ -40,117 +40,73 @@ import { bonusView } from "../shared/bonusOdds";
 import { ScoreRange } from "../components/ScoreRange";
 import { levelPct } from "../shared/scoreRange";
 
-type LabMode = "match" | "advancement";
 const ADVANCING = new Set(["LeagueTournament", "Qualifier", "Championship", "SuperQualifier", "Premier", "FIRSTChampionship"]);
 const iso = (d: Date) => d.toISOString().slice(0, 10);
 
-/** ?for=team:4215 or ?for=event:2026:USNJQ1 — what's picked. The lab keeps its own params (mode, red, blue, code, team). */
-type Pick = { kind: "team"; team: number } | { kind: "event"; season: number; code: string } | null;
-function parsePick(v: string | null): Pick {
-  const [k, a, b] = (v ?? "").split(":");
-  if (k === "team" && /^\d+$/.test(a ?? "")) return { kind: "team", team: Number(a) };
-  if (k === "event" && /^\d{4}$/.test(a ?? "") && b) return { kind: "event", season: Number(a), code: b };
-  return null;
-}
+const MODES: { v: PredictMode; label: string; short: string; icon: typeof Trophy }[] = [
+  { v: "advancement", label: "Advancement", short: "Advancement", icon: Trophy },
+  { v: "scheduled", label: "Scheduled", short: "Scheduled", icon: CalendarDays },
+  { v: "match", label: "Custom matchup", short: "Matchup", icon: Swords },
+];
 
 export default function PredictPage() {
   useTitle("Predict");
   const [sp, setSp] = useSearchParams();
-  const pick = parsePick(sp.get("for"));
-  // ?view=lab|events picks the view; without it, a lab link (mode, red/blue, code) opens the Lab.
-  // Each view keeps its own params (for= vs the lab's), so switching back and forth loses neither.
-  const view = viewOf(sp);
-  // Picking a team or event shows its predictions in the Events view (the lab's matchup stays for later).
-  const setPick = (v: string | null) => setSp((x) => { x.set("view", "events"); if (v) x.set("for", v); else x.delete("for"); return x; });
-  const setView = (v: "events" | "lab") => setSp((x) => { x.set("view", v); if (v === "lab" && !labLink(x)) x.set("mode", "advancement"); return x; });
+  const current = useCurrentSeason();
+  const state = readPredict(sp);
+  const { mode, pick } = state;
+  // Old links (?view=, a lab link carrying for=) become the canonical form, in place: Back doesn't return to them.
+  useEffect(() => {
+    const c = canonicalPredict(sp);
+    if (c) setSp(c, { replace: true });
+  }, [sp, setSp]);
+  // A new mode is its own history entry, so Back returns to the one before, picks and all.
+  const setMode = (to: string) => {
+    if (to === mode) return;
+    setSp(predictParams(switchMode({ ...state, season: state.season ?? (state.code ? current : null) }, to as PredictMode)));
+  };
+  const setPick = (p: PredictPick) => setSp(predictParams({ mode: "scheduled", pick: p, season: p?.kind === "team" ? state.season : null }));
   // The header's width (the content area's, not the window's): the latest-calls card needs 64 rem, the grid's own threshold.
   const headerBox = useRef<HTMLDivElement>(null);
   const wide = useWiderThan(headerBox, 64);
   return (
-    <div className="space-y-10 max-sm:space-y-6">
-      {/* Wide content: the latest live calls fill the header's right side (none on narrower screens: search comes first). */}
+    <Tabs value={mode} onValueChange={setMode} className="space-y-6 max-sm:space-y-4">
       <div ref={headerBox} className="@container/predict">
-      <div className="grid items-start gap-x-10 @5xl/predict:grid-cols-[minmax(0,1fr)_minmax(18rem,22rem)]">
-      <div className="min-w-0">
-        <PageHeader title="Predict" description={<>Every scheduled match gets win odds and predicted scores automatically, and every advancing event gets advancement odds. Pick a team or an event to see them. Each number carries its confidence, and the <Link to="/methodology#accuracy" className="underline">track record</Link> shows how often they've been right.</>} />
+        <div className="grid items-start gap-x-10 @5xl/predict:grid-cols-[minmax(0,1fr)_minmax(18rem,22rem)]">
+          <div className="min-w-0">
+            <h1 className="font-display text-3xl font-semibold tracking-tight text-foreground max-sm:text-2xl">Predict</h1>
+            <p className="mt-1 text-sm text-muted-foreground sm:hidden">Advancement odds, scheduled matches, or any four teams.</p>
+            <p className="mt-1 max-w-2xl text-sm text-muted-foreground max-sm:hidden">
+              Odds for any team at any event, every scheduled match, or any four teams. Each number carries its confidence; the <Link to="/methodology#accuracy" className="underline">track record</Link> shows how often they've been right.
+            </p>
+            <TabsList aria-label="Predict mode" className="mt-4 max-sm:mt-3 max-sm:grid max-sm:w-full max-sm:grid-cols-3 sm:p-1">
+              {MODES.map(({ v, label, short, icon: Icon }) => (
+                <TabsTrigger key={v} value={v} aria-label={label} className="sm:h-10 sm:px-4 max-sm:px-1.5 max-sm:text-[13px]"><Icon className="size-4 max-sm:hidden" /><span className="max-sm:hidden">{label}</span><span className="sm:hidden">{short}</span></TabsTrigger>
+              ))}
+            </TabsList>
+          </div>
+          {/* Only mounted when there's room: no request or timer for a card nobody can see. */}
+          {wide && <LatestCalls />}
+        </div>
+      </div>
+      <TabsContent value="advancement" className="mt-0"><AdvancementLab /></TabsContent>
+      <TabsContent value="scheduled" className="mt-0 space-y-8 max-sm:space-y-5">
         <Picker onPick={setPick} />
-        <PredictSwitch value={view} onChange={setView} />
-      </div>
-      {/* Only mounted when there's room: no request or timer for a card nobody can see. */}
-      {wide && <LatestCalls />}
-      </div>
-      </div>
-      <div role="tabpanel" id={`predict-panel-${view}`} aria-labelledby={`predict-tab-${view}`} className="space-y-10 max-sm:space-y-6">
-        {view === "lab" ? <Lab /> : (
-          <>
-            {pick?.kind === "team" && <TeamPredictions team={pick.team} onClear={() => setPick(null)} />}
-            {pick?.kind === "event" && <EventPredictions season={pick.season} code={pick.code} onClear={() => setPick(null)} />}
-            <ThisWeek onPick={setPick} picked={pick?.kind === "event" ? pick.code : null} />
-          </>
-        )}
-      </div>
-    </div>
+        {pick?.kind === "team" && <TeamPredictions team={pick.team} onClear={() => setPick(null)} />}
+        {pick?.kind === "event" && <EventPredictions season={pick.season} code={pick.code} onClear={() => setPick(null)} />}
+        <ThisWeek onPick={setPick} picked={pick?.kind === "event" ? pick.code : null} />
+      </TabsContent>
+      <TabsContent value="match" className="mt-0"><MatchLab /></TabsContent>
+    </Tabs>
   );
 }
 
-/** Which view: ?view= if set, else the Lab for a lab link, else Events. */
-export function viewOf(sp: URLSearchParams): "events" | "lab" {
-  const v = sp.get("view");
-  return v === "lab" || v === "events" ? v : labLink(sp) ? "lab" : "events";
-}
-/** A lab link: an explicit mode, or (older links) a matchup or an event without one. */
-function labLink(sp: URLSearchParams): "match" | "advancement" | null {
-  const m = sp.get("mode") ?? (sp.get("red") || sp.get("blue") ? "match" : sp.get("code") ? "advancement" : null);
-  return m === "advancement" ? "advancement" : m === "match" ? "match" : null;
-}
-
-/**
- * Predict (scheduled matches and events) or Predict Lab (what-ifs): one switch, right under the search.
- * Two cards that say what each does, so the Lab (any four teams) isn't missed by people who'd otherwise
- * type one team into the search and expect a matchup.
- */
-function PredictSwitch({ value, onChange }: { value: "events" | "lab"; onChange: (v: "events" | "lab") => void }) {
-  const views = [
-    { v: "events" as const, label: "Scheduled", icon: CalendarDays, hint: "Odds for the matches and events on the calendar, for the team or event you pick." },
-    { v: "lab" as const, label: "Lab: advancement & matchups", icon: FlaskConical, hint: "Any team's odds to advance at any event, or any four teams for win odds and a predicted score." },
-  ];
-  // Tabs keyboard pattern: the selected tab is the one Tab reaches; arrows (and Home/End) move and select.
-  const onKey = (e: React.KeyboardEvent<HTMLButtonElement>) => {
-    const i = views.findIndex((x) => x.v === value);
-    const next = e.key === "ArrowRight" ? (i + 1) % views.length : e.key === "ArrowLeft" ? (i + views.length - 1) % views.length : e.key === "Home" ? 0 : e.key === "End" ? views.length - 1 : -1;
-    if (next < 0) return;
-    e.preventDefault();
-    onChange(views[next].v);
-    document.getElementById(`predict-tab-${views[next].v}`)?.focus();
-  };
-  return (
-    <div className="mt-5 max-sm:mt-4 grid max-w-2xl gap-2 sm:grid-cols-2" role="tablist" aria-label="Predict">
-      {views.map(({ v, label, icon: Icon, hint }) => (
-        <button key={v} id={`predict-tab-${v}`} type="button" role="tab" aria-selected={value === v} aria-controls={`predict-panel-${v}`} tabIndex={value === v ? 0 : -1}
-          onKeyDown={onKey} onClick={() => value !== v && onChange(v)}
-          className={cn("relative flex min-h-[4.5rem] items-start gap-3 rounded-xl border border-border bg-card p-3.5 text-left transition-colors",
-            value !== v && "hover:border-accent/40 hover:bg-[color-mix(in_srgb,var(--color-text-base)_4%,var(--color-card))]")}>
-          {/* The chosen card's highlight: one shape that slides to the other card when the view changes. */}
-          {value === v && <m.span layoutId="predict-view-active" aria-hidden transition={{ type: "spring", stiffness: 500, damping: 38 }}
-            className="absolute -inset-px rounded-xl border border-accent/70 bg-[color-mix(in_srgb,var(--color-accent)_12%,var(--color-card))] shadow-[0_4px_16px_color-mix(in_srgb,var(--color-accent)_18%,transparent)]" />}
-          <span className={cn("relative grid size-9 shrink-0 place-items-center rounded-lg transition-colors duration-300", value === v ? "bg-accent text-accent-ink" : "bg-accent/[0.12] text-accent")}><Icon className="size-4" /></span>
-          <span className="relative min-w-0">
-            <span className="block text-sm font-semibold text-text-base">{label}</span>
-            <span className="mt-0.5 block text-xs text-muted-foreground">{hint}</span>
-          </span>
-        </button>
-      ))}
-    </div>
-  );
-}
-
-function Picker({ onPick }: { onPick: (v: string) => void }) {
+/** Scheduled's one search: whose scheduled predictions to show (a team or an event). Sitewide search stays in the top bar. */
+function Picker({ onPick }: { onPick: (p: PredictPick) => void }) {
   const { state } = usePersonal();
-  // This picker is the page's search box: the top-bar field steps aside, and ⌘K focuses this.
-  const searchRef = usePageSearch();
   const quick = [...new Set([...(state.myTeam ? [state.myTeam] : []), ...state.tracked.teams, ...state.bookmarks])].slice(0, 6);
   const chip = (t: number, small?: boolean) => (
-    <button key={t} type="button" onPointerDown={(e) => e.preventDefault()} onClick={() => onPick(`team:${t}`)}
+    <button key={t} type="button" onPointerDown={(e) => e.preventDefault()} onClick={() => onPick({ kind: "team", team: t })}
       className={cn("inline-flex items-center gap-1 rounded-full border border-border font-mono text-foreground hover:border-accent/60 hover:text-accent-text", small ? "px-2.5 py-0.5 text-xs max-sm:min-h-8" : "px-3 py-1 text-sm max-sm:min-h-9")}>
       {t === state.myTeam && <Star className={cn("fill-accent text-accent", small ? "size-3" : "size-3.5")} />}{t}
     </button>
@@ -158,9 +114,9 @@ function Picker({ onPick }: { onPick: (v: string) => void }) {
   return (
     <div className="max-w-2xl space-y-3">
       <SearchBox
-        size="lg" kinds={["team", "event"]} label="Pick a team or event" inputRef={searchRef} hint={SEARCH_HINT}
+        kinds={["team", "event"]} label="Team or event with scheduled matches"
         placeholder="Team or event: number or name"
-        onPick={(h) => onPick(h.kind === "team" ? `team:${h.ref}` : `event:${h.ref}`)}
+        onPick={(h) => onPick(parsePick(h.kind === "team" ? `team:${h.ref}` : `event:${h.ref}`))}
         emptyHint={quick.length ? (
           <div className="p-2">
             <p className="px-1 pb-1.5 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Your teams</p>
@@ -196,8 +152,8 @@ function PickedHeader({ icon: Icon, number, title, sub, to, openLabel, onClear }
 }
 
 /** Lab links with a team filled in (as red's first team, or as the advancement team). */
-export const labMatchHref = (team: number, season: number) => `/predict${qs({ view: "lab", mode: "match", season, red: team })}`;
-export const labAdvancementHref = (team: number, season: number) => `/predict${qs({ view: "lab", mode: "advancement", season, team })}`;
+export const labMatchHref = (team: number, season: number) => predictHref({ mode: "match", season, red: [team] });
+export const labAdvancementHref = (team: number, season: number) => predictHref({ mode: "advancement", season, team });
 
 function TeamPredictions({ team, onClear }: { team: number; onClear: () => void }) {
   const [sp, setSp] = useSearchParams();
@@ -334,7 +290,7 @@ function EventPredictions({ season, code, onClear }: { season: number; code: str
   );
 }
 
-function ThisWeek({ onPick, picked }: { onPick: (v: string) => void; picked: string | null }) {
+function ThisWeek({ onPick, picked }: { onPick: (p: PredictPick) => void; picked: string | null }) {
   const [all, setAll] = useState(false);
   const season = useCurrentSeason();
   const now = new Date();
@@ -350,7 +306,7 @@ function ThisWeek({ onPick, picked }: { onPick: (v: string) => void; picked: str
             {[...d.events].sort((a, b) => toPlay(b) - toPlay(a) || (a.start ?? "").localeCompare(b.start ?? "")).slice(0, all ? undefined : 12).map((e) => {
               const n = toPlay(e);
               return (
-                <button key={e.code} type="button" onClick={() => onPick(`event:${e.season}:${e.code}`)} aria-pressed={picked === e.code}
+                <button key={e.code} type="button" onClick={() => onPick({ kind: "event", season: e.season, code: e.code })} aria-pressed={picked === e.code}
                   className={cn("lift flex min-w-0 items-start gap-3 rounded-xl border bg-card p-3 text-left", picked === e.code ? "border-accent/60" : "border-border")}>
                   <span className="min-w-0 flex-1">
                     <span className="block truncate font-medium text-foreground">{e.name}</span>
@@ -365,33 +321,6 @@ function ThisWeek({ onPick, picked }: { onPick: (v: string) => void; picked: str
         )}
       </Async>
     </Section>
-  );
-}
-
-/** Predict Lab: what-if alliances and advancement for any team at any event (the switcher's Lab view). */
-function Lab() {
-  const [sp, setSp] = useSearchParams();
-  // Advancement first: the Lab opens there unless the link asks for a matchup.
-  const mode: LabMode = labLink(sp) === "match" ? "match" : "advancement";
-  const setMode = (m: string) => setSp((x) => { x.set("mode", m); return x; }, { replace: true });
-  return (
-    <section aria-label="Predict Lab" className="rounded-2xl border border-border px-4 pb-6 max-sm:pb-4 pt-6 max-sm:pt-5 sm:px-8 sm:pb-8">
-      <div className="mb-5 flex items-start gap-3">
-        <span className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-accent text-accent-ink"><FlaskConical className="size-5" aria-hidden /></span>
-        <div>
-          <h2 className="font-display text-2xl font-semibold text-foreground sm:text-3xl">Predict Lab</h2>
-          <p className="mt-1 text-base text-muted-foreground">Advancement odds for any team at any event, or a custom matchup of any four teams.</p>
-        </div>
-      </div>
-      <Tabs value={mode} onValueChange={setMode}>
-        <TabsList className="sm:p-1.5">
-          <TabsTrigger value="advancement" className="sm:h-11 sm:px-5 sm:text-base"><Trophy className="size-4" /> Advancement</TabsTrigger>
-          <TabsTrigger value="match" className="sm:h-11 sm:px-5 sm:text-base"><Swords className="size-4" /> Custom matchup</TabsTrigger>
-        </TabsList>
-        <TabsContent value="advancement" className="mt-6 max-sm:mt-4"><AdvancementLab /></TabsContent>
-        <TabsContent value="match" className="mt-6 max-sm:mt-4"><MatchLab /></TabsContent>
-      </Tabs>
-    </section>
   );
 }
 
@@ -591,7 +520,7 @@ function SavedPredictions() {
       <ul className="grid gap-2 sm:grid-cols-2">
         {h.slice(0, 12).map((p) => (
           <li key={p.id}>
-            <Link to={`/predict?mode=match&season=${p.season}&red=${p.red.join(",")}&blue=${p.blue.join(",")}`} className="lift block rounded-xl border border-border bg-card p-3 text-sm">
+            <Link to={predictHref({ mode: "match", season: p.season, red: p.red, blue: p.blue })} className="lift block rounded-xl border border-border bg-card p-3 text-sm">
               <div className="flex items-center justify-between gap-2"><span><span className="text-red-alliance">{p.red.join("+")}</span> vs <span className="text-blue-alliance">{p.blue.join("+")}</span></span><span className="text-xs text-muted-foreground">{seasonLabel(p.season)}</span></div>
               <WinBar pRed={p.winProbRed} size="sm" className="mt-2" />
               <p className="mt-1 text-xs text-muted-foreground">Red {oddsPct(p.winProbRed)} · {p.predictedRed}–{p.predictedBlue} · {p.tier} · saved {new Date(p.savedAt).toLocaleDateString()}</p>
