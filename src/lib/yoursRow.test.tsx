@@ -12,7 +12,7 @@ const h = vi.hoisted(() => ({ user: null as AccountUser | null }));
 vi.mock("./personal", () => ({ usePersonal: () => ({ user: h.user, providers: {}, state: { myTeam: null }, syncReady: false }) }));
 // The shell's top bar and backdrop aren't what's under test.
 vi.mock("../components/layout/Search", () => ({ GlobalSearch: () => null }));
-vi.mock("../components/layout/AccountMenu", () => ({ AccountMenu: () => null }));
+vi.mock("../components/layout/AccountMenu", () => ({ AccountProvider: ({ children }: { children: React.ReactNode }) => children, AccountFooter: () => null, useAccountPanel: () => ({ open: false, setOpen() {} }) }));
 vi.mock("../components/layout/TopBarExtras", () => ({ ClockWeather: () => null, ThemeToggle: () => null }));
 vi.mock("../components/layout/Ambient", () => ({ Ambient: () => null }));
 vi.mock("../components/layout/SiteFooter", () => ({ SiteFooter: () => null }));

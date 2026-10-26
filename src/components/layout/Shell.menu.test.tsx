@@ -1,15 +1,16 @@
 // @vitest-environment jsdom
 // The phone's menu: the top-left button opens the sheet with every page, and the sheet hands focus back to that
 // button on every way it closes: Escape, its Close button, and a link inside it (the page changes, the keyboard
-// user's place stays). The bottom tab bar is the pages this device picked (src/lib/tabBar.ts).
+// user's place stays). The bottom tab bar is the pages this device picked (src/lib/tabBar.ts). The account controls
+// sit at the foot of the sidebar and of the sheet (Control Point's footer), never in the top bar.
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { TAB_KEY } from "../../lib/tabBar";
 import { MemoryRouter, Route, Routes, useLocation } from "react-router-dom";
 
-vi.mock("../../lib/personal", () => ({ usePersonal: () => ({ user: null, providers: {}, state: { myTeam: null }, syncReady: false }) }));
+const personal = vi.hoisted(() => ({ user: null as null | { id: number; email: string; displayName: string | null; createdAt: string }, sync: "local", offlineAccount: false, signOut: vi.fn(async () => {}) }));
+vi.mock("../../lib/personal", () => ({ SIGNED_IN: "cs-signed-in", usePersonal: () => ({ ...personal, providers: {}, state: { myTeam: null }, syncReady: false }) }));
 vi.mock("./Search", () => ({ GlobalSearch: () => null }));
-vi.mock("./AccountMenu", () => ({ AccountMenu: () => null }));
 vi.mock("./TopBarExtras", () => ({ ClockWeather: () => null, ThemeToggle: () => null }));
 vi.mock("./InboxBell", () => ({ InboxBell: () => null }));
 vi.mock("./Ambient", () => ({ Ambient: () => null }));
@@ -27,6 +28,8 @@ beforeEach(() => {
   vi.stubGlobal("EventSource", undefined);
   localStorage.clear();
   where = "";
+  personal.user = null;
+  personal.sync = "local";
 });
 afterEach(() => { cleanup(); vi.unstubAllGlobals(); });
 
@@ -114,7 +117,8 @@ describe("the phone's top bar and tab bar", () => {
     expect(button.getAttribute("aria-expanded")).toBe("false");
     const { sheet } = await openMenu();
     expect(button.getAttribute("aria-expanded")).toBe("true");
-    for (const name of ["Home", "Events", "Teams", "Rankings", "Power rankings", "Predict", "Compare", "Shortlist", "Scout", "Download", "How it works", "Settings"]) expect(within(sheet).getByRole("link", { name })).toBeTruthy();
+    const pages = within(sheet).getByRole("navigation", { name: "All pages" });
+    for (const name of ["Home", "Events", "Teams", "Rankings", "Power rankings", "Predict", "Compare", "Shortlist", "Scout", "Download", "How it works", "Settings"]) expect(within(pages).getByRole("link", { name })).toBeTruthy();
   });
 
   it("the logo in the top bar goes home", () => {
@@ -217,5 +221,80 @@ describe("the desktop sidebar", () => {
     fireEvent.click(within(sidebar()).getByRole("button", { name: "Collapse sidebar" }));
     expect(localStorage.getItem("cs-sidebar")).toBe("1");
     expect(within(sidebar()).getByRole("button", { name: "Expand sidebar" })).toBeTruthy();
+  });
+});
+
+describe("the account footer", () => {
+  const sidebar = () => screen.getByRole("complementary", { name: "Sidebar" });
+  const wide = () => vi.stubGlobal("matchMedia", (q: string) => ({ matches: q.includes("min-width"), media: q, addEventListener() {}, removeEventListener() {}, addListener() {}, removeListener() {} }));
+  const signIn = (sync = "synced") => { personal.user = { id: 7, email: "sushil@example.test", displayName: "Sushil", createdAt: "2026-01-01" }; personal.sync = sync; };
+
+  it("the top bar has no account button or Sign in, signed in or out", () => {
+    shell();
+    expect(within(screen.getByRole("banner")).queryByRole("button", { name: /Sign in|Account/ })).toBeNull();
+    cleanup();
+    signIn();
+    shell();
+    expect(within(screen.getByRole("banner")).queryByRole("button", { name: /Sign in|Account/ })).toBeNull();
+  });
+
+  it("signed out: a Sign in button that opens the sign-in panel, and Settings", () => {
+    wide();
+    shell();
+    const signInButton = within(sidebar()).getByRole("button", { name: "Sign in" });
+    expect(within(sidebar()).getByRole("link", { name: "Settings" }).getAttribute("href")).toBe("/settings");
+    expect(within(sidebar()).queryByRole("button", { name: "Sign out" })).toBeNull();
+    fireEvent.click(signInButton);
+    expect(signInButton.getAttribute("aria-expanded")).toBe("true");
+    expect(within(sidebar()).getByRole("region", { name: "Sign in" })).toBeTruthy();
+  });
+
+  it("signed in: name, Online, Settings and Sign out; the avatar opens the account panel and Escape closes it", async () => {
+    wide();
+    signIn();
+    shell();
+    const account = within(sidebar()).getByRole("button", { name: "Account: Sushil" });
+    expect(account.textContent).toContain("Sushil");
+    expect(account.textContent).toContain("Online");
+    expect(within(sidebar()).getByRole("link", { name: "Settings" }).getAttribute("href")).toBe("/settings");
+    act(() => account.focus());
+    fireEvent.click(account);
+    const panel = within(sidebar()).getByRole("region", { name: "Your account" });
+    expect(within(panel).getByRole("link", { name: /Account settings/ })).toBeTruthy();
+    fireEvent.keyDown(document.activeElement!, { key: "Escape" });
+    await waitFor(() => expect(within(sidebar()).queryByRole("region", { name: "Your account" })).toBeNull());
+    expect(document.activeElement).toBe(account);
+    fireEvent.click(within(sidebar()).getByRole("button", { name: "Sign out" }));
+    await waitFor(() => expect(personal.signOut).toHaveBeenCalled());
+  });
+
+  it("never says Online while sync is offline", () => {
+    wide();
+    signIn("offline");
+    shell();
+    const account = within(sidebar()).getByRole("button", { name: "Account: Sushil" });
+    expect(account.textContent).toContain("Offline");
+    expect(account.textContent).not.toContain("Online");
+  });
+
+  it("the phone's menu sheet has the same footer", async () => {
+    signIn();
+    shell();
+    const { sheet } = await openMenu();
+    expect(within(sheet).getByRole("button", { name: "Account: Sushil" })).toBeTruthy();
+    expect(within(sheet).getByRole("button", { name: "Sign out" })).toBeTruthy();
+  });
+
+  it("Escape in the sheet's account panel closes the panel, not the sheet", async () => {
+    signIn();
+    shell();
+    const { sheet } = await openMenu();
+    const account = within(sheet).getByRole("button", { name: "Account: Sushil" });
+    act(() => account.focus());
+    fireEvent.click(account);
+    expect(within(sheet).getByRole("region", { name: "Your account" })).toBeTruthy();
+    fireEvent.keyDown(document.activeElement!, { key: "Escape" });
+    await waitFor(() => expect(within(sheet).queryByRole("region", { name: "Your account" })).toBeNull());
+    expect(screen.getByRole("dialog")).toBe(sheet);
   });
 });
