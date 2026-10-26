@@ -78,8 +78,8 @@ export function EventSearchPicker({ season, value, onChange, team = null, teamCo
   const options = res?.list ?? [];
   const optId = (k: number) => `${listId}-${k}`;
 
-  // A new search starts from its first row; an opened picker from an empty search.
-  useEffect(() => setActive(0), [q, all]);
+  // New rows (a search, the list or the team's events arriving) start from the first; an opened picker from an empty search.
+  useEffect(() => setActive(0), [res]);
   useEffect(() => { if (open) setQ(""); }, [open]);
   useEffect(() => {
     if (open) document.getElementById(optId(active))?.scrollIntoView?.({ block: "nearest" });
@@ -87,6 +87,8 @@ export function EventSearchPicker({ season, value, onChange, team = null, teamCo
 
   const pick = (e: EventListItem) => { onChange(e.code); setOpen(false); };
   const onKey = (ev: KeyboardEvent<HTMLInputElement>) => {
+    // Mid-composition (Chinese, Japanese input methods) Enter and the arrows belong to the input method.
+    if (ev.nativeEvent.isComposing || ev.keyCode === 229) return;
     const last = options.length - 1;
     if (ev.key === "ArrowDown") { ev.preventDefault(); setActive((a) => Math.min(last, a + 1)); }
     else if (ev.key === "ArrowUp") { ev.preventDefault(); setActive((a) => Math.max(0, a - 1)); }
@@ -132,9 +134,6 @@ export function EventSearchPicker({ season, value, onChange, team = null, teamCo
     body = (
       <>
         <p id={headId} className="px-3 pb-1 pt-3 text-xs font-medium text-muted-foreground">{heading}</p>
-        {res.mode === "suggested" && team != null && teamCodes && !res.teamSuggestions && (
-          <p className="px-3 pb-1 text-xs text-muted-foreground">{team} has no {advancingOnly ? "advancing " : ""}events listed this season, so these are the nearest ones. Search to find any event.</p>
-        )}
         <ul id={listId} role="listbox" aria-labelledby={headId} className="px-1.5 pb-1.5">
           {options.map((e, k) => {
             const current = e.code === value, ours = !!teamCodes?.has(e.code);
@@ -155,7 +154,7 @@ export function EventSearchPicker({ season, value, onChange, team = null, teamCo
           })}
         </ul>
         {res.total > options.length && (
-          <p className="px-3 pb-3 text-xs text-muted-foreground">Showing {options.length} of {res.total}. Keep typing to narrow it down.</p>
+          <p className="px-3 pb-3 text-xs text-muted-foreground">Showing {options.length} of {res.total}</p>
         )}
       </>
     );
