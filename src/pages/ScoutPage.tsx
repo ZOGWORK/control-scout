@@ -54,6 +54,7 @@ import { DataHub, dataHubExportUrl, type DataView } from "../components/scout/re
 import { SessionSetup } from "../components/scout/redesign/SessionSetup";
 import { MatchesTab, MatchScout } from "../components/scout/redesign/MatchScout";
 import { useScoutSession } from "../lib/scoutSession";
+import { myMatchAssignment, useMatchAssignments } from "../lib/slotAssignments";
 
 /** Scouting happens in one readable column (a phone's width and a bit), not stretched across a wide screen. */
 const SCOUT_COLUMN = "max-w-3xl";
@@ -243,6 +244,14 @@ export default function ScoutPage() {
   // Each match that comes on screen checks for newer questions (a missed live notice, or polling), as opening the
   // old form does; drafts already started keep the questions they began with (useMatchDraft).
   const onMatchShown = useCallback(() => { refreshTemplate(); refreshSettings(); }, [refreshTemplate, refreshSettings]);
+  // Match assignments ("Red 1, Q1–Q30"): who has the other teams on Matches, and yours prefills the setup.
+  const matchAssignments = useMatchAssignments(workspace && !spaces.resolving ? space : null, season, live);
+  const mineAt = (() => {
+    if (!workspace || !me?.accountId) return null;
+    const code = session?.eventCode ?? scoutSession.suggested ?? matchAssignments.list.find((a) => a.assigneeAccountId === me.accountId && a.season === season)?.eventCode;
+    const m = code ? myMatchAssignment(matchAssignments.list, me.accountId, code, season) : null;
+    return m && code ? { eventCode: code, watching: m.watching } : null;
+  })();
   const matchTemplate = useMemo(() => resolveTemplate(space == null ? null : wt.template, season, "match"), [space, wt.template, season]);
   const spaceName = workspace ? workspaceLabel(workspace) : null;
   const sub = tab === "data" ? view : null;
@@ -287,7 +296,7 @@ export default function ScoutPage() {
                 <TemplateEditor key={`${workspace.id}:${season}`} workspaceId={workspace.id} workspaceName={workspaceLabel(workspace)} season={season} template={wt.template} onClose={() => openView(null)} />
               ) : showAssignments && workspace && space != null ? (
                 <AssignmentsView space={space} workspaceName={workspaceLabel(workspace)} season={season} defaultEvent={newEntryEventCode(space, wss.defaults, season)}
-                  state={assignments} myAccountId={me?.accountId ?? null} isAdmin={isAdmin} localEntries={entries} onScout={scoutAssigned} readOnly={!!readOnly} />
+                  state={assignments} matchState={matchAssignments} live={live} myAccountId={me?.accountId ?? null} isAdmin={isAdmin} localEntries={entries} onScout={scoutAssigned} readOnly={!!readOnly} />
               ) : showPicklist && workspace ? <SharedPicklist key={`${workspace.id}:${season}`} workspaceId={workspace.id} workspaceName={workspaceLabel(workspace)} season={season} live={live} me={pickMe} shortlist={personal.bookmarks} readOnly={!!readOnly} />
                 : showActivity && workspace ? <ActivityFeed state={activity} workspaceName={workspaceLabel(workspace)} onOpenEntry={openEntry} />
                 : sub === "recordings" ? (
@@ -320,14 +329,15 @@ export default function ScoutPage() {
                 )}
             </>}
           </> : settingUp ? (
-            <div className={SCOUT_COLUMN}><SessionSetup season={season} initial={session ? { eventCode: session.eventCode, watching: session.watching } : undefined} suggestedEvent={scoutSession.suggested}
+            // Keyed on your assignment while there's no session: one that loads after the screen opens still prefills it.
+            <div className={SCOUT_COLUMN}><SessionSetup key={session ? "session" : mineAt ? `${mineAt.eventCode}:${JSON.stringify(mineAt.watching)}` : "none"} season={season} initial={session ? { eventCode: session.eventCode, watching: session.watching } : mineAt ?? undefined} suggestedEvent={scoutSession.suggested}
               myTeam={personal.myTeam} onStart={startSession} onCancel={session ? closeSetup : undefined} /></div>
           ) : !session ? (
             <EmptyState icon={ClipboardList} title="Nothing to scout here" description="This workspace is read-only. Its entries, pick list and export are under Data."
               action={<Button variant="outline" onClick={() => openView(null)}>Open Data</Button>} />
           ) : templatePending ? <LoadingBlock rows={3} label="Loading the workspace's fields" />
           : tab === "matches" ? (
-            <div className={SCOUT_COLUMN}><MatchesTab season={season} session={session} entries={entries} matchLabel={sp.get("at")} onMatch={openMatch} onManual={() => openOldForm("match", undefined)} /></div>
+            <div className={SCOUT_COLUMN}><MatchesTab season={season} session={session} entries={entries} matchLabel={sp.get("at")} onMatch={openMatch} onManual={() => openOldForm("match", undefined)} assignments={matchAssignments.list} me={me?.accountId ?? null} /></div>
           ) : (
             // Wide screens: the match list beside the match, to see what's done and jump without switching tabs.
             <div className="grid gap-8 xl:grid-cols-[minmax(0,48rem)_minmax(0,1fr)]">
@@ -335,7 +345,7 @@ export default function ScoutPage() {
               readOnly={!!readOnly} spaceName={spaceName} matchLabel={sp.get("at")} onMatch={openMatch} onManual={() => openOldForm("match", undefined)} onShown={onMatchShown} /></div>
               <aside aria-label="Matches at this event" className="hidden xl:block">
                 <div className="sticky top-20 max-h-[calc(100dvh-6rem)] overflow-y-auto overscroll-contain pr-1">
-                  <MatchesTab season={season} session={session} entries={entries} matchLabel={sp.get("at")} onMatch={openMatch} onManual={() => openOldForm("match", undefined)} />
+                  <MatchesTab season={season} session={session} entries={entries} matchLabel={sp.get("at")} onMatch={openMatch} onManual={() => openOldForm("match", undefined)} assignments={matchAssignments.list} me={me?.accountId ?? null} />
                 </div>
               </aside>
             </div>
