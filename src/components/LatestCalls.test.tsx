@@ -86,4 +86,18 @@ describe("LatestCalls", () => {
     mount();
     expect(screen.getByText(/No live calls have been scored yet/)).toBeTruthy();
   });
+
+  it("compact (Predict's header): one call even under reduced motion, with Every call, scored beside the heading", () => {
+    reduced = true;
+    record = { recentCalls: [call("Q1", 0.7, 50, 40), call("Q2", 0.3, 50, 40), call("Q3", 0.6, 50, 40)] };
+    render(<MemoryRouter><LatestCalls compact /></MemoryRouter>);
+    expect(screen.getAllByRole("listitem")).toHaveLength(1);
+    const heading = screen.getByText("Latest live calls");
+    expect(heading.parentElement!.contains(screen.getByRole("link", { name: /Every call, scored/ }))).toBe(true);
+    cleanup();
+    // Not compact (Home): three calls under reduced motion, the link under them.
+    render(<MemoryRouter><LatestCalls /></MemoryRouter>);
+    expect(screen.getAllByRole("listitem")).toHaveLength(3);
+    expect(screen.getByText("Latest live calls").parentElement!.contains(screen.getByRole("link", { name: /Every call, scored/ }))).toBe(false);
+  });
 });
