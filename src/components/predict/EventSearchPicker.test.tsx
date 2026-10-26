@@ -239,4 +239,12 @@ describe("EventSearchPicker", () => {
       await waitFor(() => expect(document.activeElement).toBe(trigger()));
     } finally { vi.unstubAllGlobals(); vi.stubGlobal("ResizeObserver", class { observe() {} unobserve() {} disconnect() {} }); }
   });
+
+  it("a list that didn't load says so under the closed picker, with Try again", () => {
+    answer = { error: new Error("offline") };
+    render(<Harness />);
+    expect(screen.getByRole("alert").textContent).toMatch(/Couldn’t load 2025–26 events/);
+    fireEvent.click(screen.getByRole("button", { name: "Try again" }));
+    expect(reload).toHaveBeenCalled();
+  });
 });
