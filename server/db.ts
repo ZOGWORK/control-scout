@@ -1287,6 +1287,34 @@ ALTER TABLE matches ADD COLUMN red_detail TEXT;
 ALTER TABLE matches ADD COLUMN blue_detail TEXT;
 `,
   },
+  {
+    version: 46,
+    name: "workspace match scouting assignments",
+    sql: `
+-- Match scouting assignments (server/scout/assignments.ts, docs/assignments.md): a member watches a slot, an
+-- alliance or all four teams for a run of quals at an event ("Priya: Red 1, Q1–Q30"). The team assignments of
+-- migration 19 stay as they are (pit scouting). watching: JSON as src/shared/scoutMatch.ts Watching.
+-- from_match / to_match: normalized qual labels ("Q1"), NULL for an open end. Names are copied when written,
+-- like workspace_assignments. version: 1 when created, +1 on every edit.
+CREATE TABLE workspace_match_assignments (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  workspace_id INTEGER NOT NULL REFERENCES workspaces (id),
+  season INTEGER NOT NULL,
+  event_code TEXT NOT NULL,
+  watching TEXT NOT NULL,
+  from_match TEXT,
+  to_match TEXT,
+  assignee_account_id INTEGER NOT NULL,
+  assignee_name TEXT NOT NULL DEFAULT '',
+  created_by_account_id INTEGER NOT NULL,
+  created_by_name TEXT NOT NULL DEFAULT '',
+  created_at INTEGER NOT NULL,
+  updated_at INTEGER NOT NULL,
+  version INTEGER NOT NULL DEFAULT 1
+);
+CREATE INDEX workspace_match_assignments_event ON workspace_match_assignments (workspace_id, season, event_code);
+`,
+  },
 ];
 
 export type Db = Client;

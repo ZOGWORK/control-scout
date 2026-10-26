@@ -154,6 +154,8 @@ export { entrySubject };
 const pickTeam = (d: Record<string, unknown>) => (num(d.team) ? `team ${num(d.team)}` : "a team");
 const assignmentWhere = (d: Record<string, unknown>) => [str(d.eventCode), num(d.season) ? `${num(d.season)}` : null].filter(Boolean).join(" · ") || undefined;
 
+const matchWhat = (d: Record<string, unknown>) => [str(d.watching) ?? "matches", str(d.range)].filter(Boolean).join(", ");
+
 const FIELD_NAMES:Record<string, string> = { team: "team", season: "season", kind: "kind", event: "event", match: "match", notes: "notes" };
 
 /** What an item says: the verb ("edited") and what it's about ("team 18360 · match Q12"), plus an optional note. */
@@ -206,6 +208,10 @@ export function describeActivity(i: ActivityItem): { verb: string; subject: stri
     case "assignment.completed": return { verb: "marked done", subject: `${str(d.assigneeName) ?? "a member"}'s ${assignedTeams(d)}`, note: assignmentWhere(d) };
     case "assignment.reopened": return { verb: "reopened", subject: `${str(d.assigneeName) ?? "a member"}'s ${assignedTeams(d)}`, note: assignmentWhere(d) };
     case "assignment.deleted": return { verb: "removed", subject: `${str(d.assigneeName) ?? "a member"}'s assignment for ${assignedTeams(d)}`, note: assignmentWhere(d) };
+    // Match scouting: "assigned Priya to Red 1, Q1–Q30".
+    case "assignment.match_created": return { verb: "assigned", subject: `${str(d.assigneeName) ?? "a member"} to ${matchWhat(d)}`, note: assignmentWhere(d) };
+    case "assignment.match_updated": return { verb: "changed", subject: `${str(d.assigneeName) ?? "a member"}'s match scouting to ${matchWhat(d)}`, note: assignmentWhere(d) };
+    case "assignment.match_deleted": return { verb: "removed", subject: `${str(d.assigneeName) ?? "a member"}'s match scouting (${matchWhat(d)})`, note: assignmentWhere(d) };
     // The shared pick list (Task 11). Moves and note edits in a row by one member are one item (details.teams, details.edits).
     case "picklist.added": {
       const count = num(d.count);

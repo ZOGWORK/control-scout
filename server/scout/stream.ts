@@ -41,7 +41,9 @@
 //   event: assignment        scouting assignments changed (assignments.ts); no id. data {"action": "created" | "updated" |
 //                            "deleted", "assignments": [...]}, each exactly as GET /api/scout/workspaces/:id/assignments lists
 //                            it (deleted: as it was). Live only, like `activity`; a reader that was away refetches the list.
-//   event: comment           a comment on one of the workspace's entries was written, edited or deleted (comments.ts); no id
+//   event: match-assignment  match scouting assignments changed (slot / alliance / all for a range of quals); no id. data
+//                            {"action", "matchAssignments": [...]}, as GET …/assignments/matches lists them. Live only.
+//   event: comment          a comment on one of the workspace's entries was written, edited or deleted (comments.ts); no id
 //                            (comments have their own order, so it never moves the entry cursor). data: a CommentEvent
 //                            (src/shared/comments.ts) {action, workspaceId, entryUuid, commentId, count, comment?}. Live only,
 //                            like `activity` (ones during the catch-up follow `ready`): a device that was away refetches
@@ -60,11 +62,11 @@
 import express, { type Request, type Response, type Router } from "express";
 import { isWorkspaceId, membershipAnsweredAt, refreshAccount } from "../auth/controlPoint.js";
 import { currentUser } from "../auth/session.js";
-import { subscribe, subscribeAccountChanged, subscribeActivity, subscribeAssignments, subscribeComments, subscribePicklist, subscribeRevoked, subscribeSettings, subscribeTemplate, subscribeWorkspaceState, type ActivityNotice, type LiveEntry, type PicklistNotice, type SettingsNotice, type TemplateNotice } from "./bus.js";
+import { subscribe, subscribeAccountChanged, subscribeActivity, subscribeAssignments, subscribeComments, subscribeMatchAssignments, subscribePicklist, subscribeRevoked, subscribeSettings, subscribeTemplate, subscribeWorkspaceState, type ActivityNotice, type LiveEntry, type PicklistNotice, type SettingsNotice, type TemplateNotice } from "./bus.js";
 import { formerMember } from "./orphans.js";
 import type { OrphanState } from "../../src/shared/orphaned.js";
 import { openLiveConnection } from "../liveConnections.js";
-import type { AssignmentNotice } from "../../src/shared/assignments.js";
+import type { AssignmentNotice, MatchAssignmentNotice } from "../../src/shared/assignments.js";
 import { pullWorkspaceLive, workspaceAccess, type WorkspaceEntryOut } from "./entries.js";
 import type { CommentEvent } from "../../src/shared/comments.js";
 
@@ -293,6 +295,15 @@ data: ${JSON.stringify(n)}
     if (live) sendAssignments(n);
     else if (heldAssignments.push(n) > LIMITS.maxHeld) end();
   });
+  const heldMatchAssignments: MatchAssignmentNotice[] = [];
+  const sendMatchAssignments = (n: MatchAssignmentNotice) => write(`event: match-assignment
+data: ${JSON.stringify(n)}
+
+`);
+  const unsubscribeMatchAssignments = subscribeMatchAssignments(workspaceId, (n) => {
+    if (live) sendMatchAssignments(n);
+    else if (heldMatchAssignments.push(n) > LIMITS.maxHeld) end();
+  });
   // Comment changes likewise (held during the catch-up, bounded, sent once live).
   const heldComments: CommentEvent[] = [];
   const sendComment = (c: CommentEvent) => write(`event: comment
@@ -319,11 +330,11 @@ data: ${JSON.stringify(c)}
     if (closed) return;
     closed = true;
     clearInterval(heartbeat);
-    unsubscribe(); unsubscribeTemplate(); unsubscribeSettings(); unsubscribeActivity(); unsubscribeRevoked(); unsubscribeComments(); unsubscribeAssignments(); unsubscribePicklist(); unsubscribeState(); unsubscribeAccount();
+    unsubscribe(); unsubscribeTemplate(); unsubscribeSettings(); unsubscribeActivity(); unsubscribeRevoked(); unsubscribeComments(); unsubscribeAssignments(); unsubscribeMatchAssignments(); unsubscribePicklist(); unsubscribeState(); unsubscribeAccount();
     streams.delete(stream);
     stopSweepIfIdle();
     release();
-    held.length = 0; heldActivity.length = 0; heldComments.length = 0; heldAssignments.length = 0; heldPicklists.clear();
+    held.length = 0; heldActivity.length = 0; heldComments.length = 0; heldAssignments.length = 0; heldMatchAssignments.length = 0; heldPicklists.clear();
     res.end();
   }
   res.on("close", end);
@@ -352,6 +363,7 @@ data: ${JSON.stringify(c)}
     for (const n of heldPicklists.values()) sendPicklist(n);
     heldPicklists.clear();
     for (const n of heldAssignments.splice(0)) sendAssignments(n);
+    for (const n of heldMatchAssignments.splice(0)) sendMatchAssignments(n);
     for (const c of heldComments.splice(0)) sendComment(c);
     if (heldState) { sendState(heldState); heldState = null; }
     if (heldAccount) { sendAccount(); heldAccount = false; }
