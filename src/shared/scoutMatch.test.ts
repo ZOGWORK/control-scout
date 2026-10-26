@@ -61,12 +61,12 @@ describe("scheduleFromMatches", () => {
   const mv = (level: "qual" | "playoff", series: number, number: number, label: string): MatchView => ({
     season: 2026, code: "X", key: `${level}:${series}:${number}`, level, series, number, label, time: null, startsAt: null, played: false,
     red: { teams: [{ number: 10, surrogate: false, dq: false, onField: true }, { number: 11, surrogate: true, dq: false, onField: true }], score: null },
-    blue: { teams: [{ number: 12, surrogate: false, dq: false, onField: true }], score: null }, video: null, prediction: null,
+    blue: { teams: [{ number: 12, surrogate: false, dq: false, onField: true }, { number: 500, surrogate: false, dq: false, onField: false }], score: null }, video: null, prediction: null,
   });
-  it("orders quals before playoffs and keeps every team", () => {
+  it("orders quals before playoffs and keeps the teams on the field", () => {
     const s = scheduleFromMatches([mv("playoff", 1, 1, "M1"), mv("qual", 0, 10, "Q10"), mv("qual", 0, 2, "Q2")]);
     expect(s.map((m) => m.label)).toEqual(["Q2", "Q10", "M1"]);
     expect(s[0].red).toEqual([10, 11]);
-    expect(s[0].blue).toEqual([12]);
+    expect(s[0].blue).toEqual([12]); // 500 was listed but didn't play
   });
 });

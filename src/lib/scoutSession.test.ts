@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 // The scouting session and the kept schedule: device-only, validated on read, one per space.
-import { beforeEach, describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { act, renderHook } from "@testing-library/react";
 import { readScoutSession, sessionStorageKey, useScoutSession, writeScoutSession } from "./scoutSession";
 import { readStoredSchedule, storeSchedule } from "./eventSchedule";
@@ -28,6 +28,17 @@ describe("scout session", () => {
     expect(other.result.current.session).toBeNull(); // another season's page
     act(() => { result.current.end(); });
     expect(result.current.session).toBeNull();
+  });
+
+  it("a session this device can't store still takes for this visit", () => {
+    const { result } = renderHook(() => useScoutSession("w2", 2026));
+    const blocked = vi.spyOn(Storage.prototype, "setItem").mockImplementation(() => { throw new DOMException("full", "QuotaExceededError"); });
+    act(() => { result.current.set("USNJQ1", { kind: "all" }); });
+    blocked.mockRestore();
+    expect(result.current.session?.eventCode).toBe("USNJQ1");
+    expect(readScoutSession("w2")?.watching).toEqual({ kind: "all" });
+    act(() => { result.current.end(); }); // stored fine this time: the visit-only copy goes
+    expect(readScoutSession("w2")).toBeNull();
   });
 });
 

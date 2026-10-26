@@ -13,7 +13,12 @@ export const sessionStorageKey = (space: ScoutSpace) => `cs-scout-session:${spac
 /** Fired on window when a space's session changes here, so every hook showing it follows (detail: the space). */
 export const SCOUT_SESSION_CHANGED = "cs-scout-session-changed";
 
+/** Sessions this device couldn't store (storage full or blocked): kept for this visit, so a Start still takes. */
+const unsaved = new Map<string, ScoutSession | null>();
+
 export function readScoutSession(space: ScoutSpace): ScoutSession | null {
+  const key = sessionStorageKey(space);
+  if (unsaved.has(key)) return unsaved.get(key)!;
   try {
     const raw = localStorage.getItem(sessionStorageKey(space));
     if (!raw) return null;
@@ -30,10 +35,12 @@ export function writeScoutSession(space: ScoutSpace, s: Omit<ScoutSession, "setA
   const eventCode = s ? s.eventCode.trim().toUpperCase() : "";
   const saved = s && EVENT_CODE.test(eventCode) ? { ...s, eventCode, setAt: Date.now() } : null;
   if (s && !saved) return null;
+  const key = sessionStorageKey(space);
   try {
-    if (saved) localStorage.setItem(sessionStorageKey(space), JSON.stringify(saved));
-    else localStorage.removeItem(sessionStorageKey(space));
-  } catch { /* storage blocked: this visit only */ }
+    if (saved) localStorage.setItem(key, JSON.stringify(saved));
+    else localStorage.removeItem(key);
+    unsaved.delete(key);
+  } catch { unsaved.set(key, saved); /* storage full or blocked: this visit only */ }
   window.dispatchEvent(new CustomEvent(SCOUT_SESSION_CHANGED, { detail: space }));
   return saved;
 }
@@ -48,7 +55,7 @@ export function useScoutSession(space: ScoutSpace, season: number, defaultEvent 
   useEffect(() => {
     setSession(read());
     const changed = (ev: Event) => { if ((ev as CustomEvent<ScoutSpace>).detail === space) setSession(read()); };
-    const storage = (ev: StorageEvent) => { if (ev.key === sessionStorageKey(space)) setSession(read()); };
+    const storage = (ev: StorageEvent) => { if (ev.key === sessionStorageKey(space) || ev.key === null) setSession(read()); };
     window.addEventListener(SCOUT_SESSION_CHANGED, changed);
     window.addEventListener("storage", storage);
     return () => { window.removeEventListener(SCOUT_SESSION_CHANGED, changed); window.removeEventListener("storage", storage); };
