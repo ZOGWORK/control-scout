@@ -10,6 +10,7 @@ import { saveScoutEntry } from "../lib/scouting";
 import { resetFlags } from "../lib/flags";
 import { DEFAULT_FLAGS } from "../shared/flags";
 import { TooltipProvider } from "../components/ui/overlay";
+import { asEntries } from "./scoutTestUrl";
 
 const h = vi.hoisted(() => ({
   personal: { user: null as AccountUser | null, providers: { email: true, google: false } as object | null, syncReady: false, state: { videoLinks: {} } },
@@ -28,7 +29,7 @@ const signedIn = (): AccountUser => ({
 
 let where = "";
 function Where() { const l = useLocation(); where = l.pathname + l.search; return null; }
-const show = (url: string) => render(<TooltipProvider><MemoryRouter initialEntries={[url]}><ScoutPage /><Where /></MemoryRouter></TooltipProvider>);
+const show = (url: string) => render(<TooltipProvider><MemoryRouter initialEntries={[asEntries(url)]}><ScoutPage /><Where /></MemoryRouter></TooltipProvider>);
 const params = () => new URLSearchParams(where.split("?")[1]);
 /** The feed's cards, by team number (each card starts with its team). */
 const feed = () => screen.queryAllByRole("listitem").map((li) => /^\d+/.exec(li.textContent ?? "")![0]);
@@ -128,7 +129,7 @@ describe("Scout feed filters (workspace)", () => {
     const clears = screen.getAllByRole("button", { name: "Clear filters" });
     fireEvent.click(clears[clears.length - 1]);
     await waitFor(() => expect(feed().sort()).toEqual(["111", "222", "333", "444"]));
-    expect([...params().keys()].sort()).toEqual(["season", "sort", "space"]);
+    expect([...params().keys()].sort()).toEqual(["season", "sort", "space", "tab", "view"]); // still on Data → Entries
   });
 
   it("Export CSV carries the feed's filters", () => {

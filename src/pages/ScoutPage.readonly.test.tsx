@@ -12,6 +12,7 @@ import { resetFlags } from "../lib/flags";
 import { DEFAULT_FLAGS } from "../shared/flags";
 import { orphanBanner, type OrphanState } from "../shared/orphaned";
 import { TooltipProvider } from "../components/ui/overlay";
+import { asEntries } from "./scoutTestUrl";
 
 const h = vi.hoisted(() => ({
   personal: { user: null as AccountUser | null, providers: { email: true, google: false } as object | null, syncReady: true, state: { videoLinks: {} } },
@@ -43,7 +44,7 @@ beforeEach(() => {
 });
 afterEach(() => { cleanup(); resetFlags({ ...DEFAULT_FLAGS }); vi.unstubAllGlobals(); });
 
-const show = (url: string) => render(<TooltipProvider><MemoryRouter initialEntries={[url]}><ScoutPage /></MemoryRouter></TooltipProvider>);
+const show = (url: string) => render(<TooltipProvider><MemoryRouter initialEntries={[asEntries(url)]}><ScoutPage /></MemoryRouter></TooltipProvider>);
 
 describe("read-only space", () => {
   it("deleted in Control Point: the banner, entries readable, nothing that writes", async () => {
@@ -84,7 +85,7 @@ describe("read-only space", () => {
     fireEvent.change(screen.getByLabelText("Notes"), { target: { value: "typed before the workspace went" } });
     // A live update: the workspace was deleted in Control Point.
     h.personal.user = signedIn({ at: "2026-10-16T09:00:00.000Z", reason: "deleted" });
-    view.rerender(<TooltipProvider><MemoryRouter initialEntries={["/scout?season=2025&space=901"]}><ScoutPage /></MemoryRouter></TooltipProvider>);
+    view.rerender(<TooltipProvider><MemoryRouter initialEntries={[asEntries("/scout?season=2025&space=901")]}><ScoutPage /></MemoryRouter></TooltipProvider>);
     expect(await screen.findByText(orphanBanner("deleted"))).toBeTruthy();
     const notes = screen.getByLabelText("Notes") as HTMLTextAreaElement;
     expect(notes.value).toBe("typed before the workspace went"); // the draft is still there, editable
@@ -100,6 +101,7 @@ describe("read-only space", () => {
     expect(await screen.findByRole("button", { name: /new entry/i })).toBeTruthy();
     expect(screen.queryByText(/this space is read-only/)).toBeNull();
     expect(screen.getByRole("button", { name: "Edit" })).toBeTruthy();
-    expect(screen.getByRole("button", { name: /template/i })).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Data" })); // the admin's Template is a row of Data
+    expect(await screen.findByRole("button", { name: /template/i })).toBeTruthy();
   });
 });

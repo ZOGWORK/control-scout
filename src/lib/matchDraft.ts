@@ -175,6 +175,11 @@ export function useMatchDraft(o: MatchDraftOptions) {
     // A new entry keeps the questions it was first answered with.
     ...(!d.uuid && !d.template ? { template } : {}),
   })), [update, template]);
+  /** A team's whole answers record at once, kept as given (the form's "Undo last tap" checks it's the very record it made). */
+  const setData = useCallback((team: number, data: Record<string, ScoutValue>) => update(team, (d) => ({
+    ...d, data,
+    ...(!d.uuid && !d.template ? { template } : {}),
+  })), [update, template]);
   const setNotes = useCallback((team: number, notes: string) => update(team, (d) => ({ ...d, notes })), [update]);
   /** Let a team's unsaved changes go: back to the saved entry, or to nothing. */
   const discard = useCallback((team: number) => setState((s) => {
@@ -265,7 +270,7 @@ export function useMatchDraft(o: MatchDraftOptions) {
     }
   }, [view, drafts, eventCode, season, space, label, toPersonal, spaceName, key]);
 
-  return { teams: view, emptyTeams, toPersonal, setAnswer, setNotes, discard, saveMatch };
+  return { teams: view, emptyTeams, toPersonal, setAnswer, setData, setNotes, discard, saveMatch };
 }
 
 /** What the toast says after a save: "Saved Q14 · 2 entries. Now Q15." */
