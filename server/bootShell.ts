@@ -20,8 +20,10 @@ const esc = (s: string) => s.replace(/&/g, "&amp;").replace(/"/g, "&quot;").repl
 // Like the app, the page scrolls the document under a sticky top bar and sidebar, with the scrollbar's gutter
 // kept and the same thin scrollbar (src/index.css), so nothing moves sideways when the app takes over.
 // The icon rail: below 1280 px wide always, and when folded by hand (html.cs-sb-min, set from cs-sidebar in index.html).
-const rail = (on: string) => `${on}.csb-side{width:60px}${on}.csb-brand{justify-content:center;padding:0}`
-  + `${on}.csb-brand span,${on}.csb-nav a span,${on}.csb-more>p span{display:none}${on}.csb-nav a,${on}.csb-more>p{justify-content:center;padding:0}`;
+// A row's name stays for screen readers (visually hidden, like the app's sr-only); the brand link has its aria-label.
+const rail = (on: string) => `${on}.csb-side{width:60px}${on}.csb-brand{justify-content:center;padding:0}${on}.csb-brand span{display:none}`
+  + `${on}.csb-nav a span,${on}.csb-more>summary span{position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap}`
+  + `${on}.csb-nav a,${on}.csb-more>summary{justify-content:center;padding:0}`;
 export const BOOT_STYLE = `<style>
       html{background:#0a0a0b;scrollbar-gutter:stable}html.light{background:#fff}body{margin:0}
       html::-webkit-scrollbar{width:6px;height:6px}html::-webkit-scrollbar-thumb{background:#2e2e35;border-radius:999px}html.light::-webkit-scrollbar-thumb{background:#d4d4d8}
@@ -35,9 +37,8 @@ export const BOOT_STYLE = `<style>
       .csb-brand img{width:28px;height:28px}
       .csb-nav{padding:6px 8px}
       .csb-grp{margin-bottom:12px}
-      .csb-nav a,.csb-more>p{display:flex;align-items:center;gap:10px;height:32px;margin:0 0 2px;padding:0 10px;border-radius:8px;font-size:14px;font-weight:500;color:var(--b-mut)}
-      .csb-more>div{display:none}
-      .csb-more[data-open]>div,html.cs-nav-more .csb-more>div{display:block}
+      .csb-nav a,.csb-more>summary{display:flex;align-items:center;gap:10px;height:32px;margin:0 0 2px;padding:0 10px;border-radius:8px;font-size:14px;font-weight:500;color:var(--b-mut)}
+      .csb-more>summary{list-style:none;cursor:pointer}.csb-more>summary::-webkit-details-marker{display:none}
       .csb-nav a[aria-current]{color:var(--b-fg);background:color-mix(in srgb,var(--b-fg) 8%,transparent)}
       .csb-ico{width:18px;height:18px;flex-shrink:0;border-radius:6px;background:currentColor;opacity:.22}
       .csb-nav a[aria-current] .csb-ico{background:var(--b-acc);opacity:.9}
@@ -127,8 +128,8 @@ export function bootConsent(): string {
 }
 
 interface Item { to: string; label: string; end?: boolean }
-// The sidebar's everyday pages, then its "More" group (open on one of its own pages, or when this device left it
-// open: html.cs-nav-more, set in index.html from cs-nav-more).
+// The sidebar's everyday pages, then its "More" group: a <details>, so it opens without the app too. Open on one of
+// its own pages, or when this device left it open (html.cs-nav-more, set in index.html from cs-nav-more).
 const PRIMARY: Item[] = [{ to: "/", label: "Home", end: true }, { to: "/events", label: "Events" }, { to: "/teams", label: "Teams" }, { to: "/rankings", label: "Rankings" }, { to: "/predict", label: "Predict", end: true }, { to: "/my-team", label: "My team" }, { to: "/scout", label: "Scout" }];
 const MORE: Item[] = [{ to: "/power-rankings", label: "Power rankings" }, { to: "/compare", label: "Compare" }, { to: "/shortlist", label: "Shortlist" }, { to: "/download", label: "Download" }, { to: "/methodology", label: "How it works" }, { to: "/settings", label: "Settings" }];
 // The phone tab bar's default (src/lib/tabBar.ts DEFAULT_TABS); a device with its own choice gets it once the app loads.
@@ -147,7 +148,8 @@ export function bootShell(path: string, meta: PageMeta): string {
   const p = path.length > 1 ? path.replace(/\/+$/, "") : "/";
   const home = p === "/";
   const nav = `<div class="csb-grp">${PRIMARY.map((it) => link(p, it)).join("")}</div>`
-    + `<div class="csb-more"${MORE.some((it) => active(p, it)) ? " data-open" : ""}><p><i class="csb-ico"></i><span>More</span></p><div>${MORE.map((it) => link(p, it)).join("")}</div></div>`;
+    + `<details class="csb-more"${MORE.some((it) => active(p, it)) ? " open" : ""}><summary><i class="csb-ico"></i><span>More</span></summary><div>${MORE.map((it) => link(p, it)).join("")}</div></details>`
+    + `<script>if(document.documentElement.classList.contains('cs-nav-more'))document.querySelector('.csb-more').open=true</script>`;
   // A page with no title of its own (not found) gets the shell alone.
   const page = home
     ? `<div class="csb-page csb-home" id="cs-boot-page" data-path="/"><h1>${esc(HOME_HEADLINE[0])} <span>${esc(HOME_HEADLINE[1])}</span></h1><p>${esc(HOME_LEAD)}</p><div></div><p class="csb-about">${esc(HOME_ABOUT)}</p></div>`
