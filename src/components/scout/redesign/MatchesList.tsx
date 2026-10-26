@@ -104,7 +104,7 @@ const PILL: Record<MatchStatus, string> = {
 };
 
 /** One alliance as the event page's match rows show it: a tinted box with a coloured edge. Watched teams
- *  are marked the way a highlighted team is there (when the scout watches all four, none stand out). */
+ *  are bold and the others muted (when the scout watches all four, none stand out). */
 function AllianceBox({ side, teams, watched, mark }: { side: AllianceSide; teams: number[]; watched: Set<number>; mark: boolean }) {
   return (
     <span className={cn(
@@ -113,7 +113,7 @@ function AllianceBox({ side, teams, watched, mark }: { side: AllianceSide; teams
     )}>
       {teams.length ? teams.map((t) => {
         const me = mark && watched.has(t);
-        return <span key={t} data-watched={me || undefined} className={cn("tabular rounded-md px-1.5 py-0.5 font-mono text-[0.8125rem]", me ? "bg-accent/15 font-bold text-accent-text ring-1 ring-accent/60" : "text-text-base")}>{t}</span>;
+        return <span key={t} data-watched={me || undefined} className={cn("tabular rounded-md px-1.5 py-0.5 font-mono text-[0.8125rem]", me ? "font-bold text-text-base" : mark ? "text-text-muted" : "text-text-base")}>{t}</span>;
       }) : <span className="px-1.5 py-0.5 text-[0.8125rem] text-text-muted">Teams not set</span>}
     </span>
   );
