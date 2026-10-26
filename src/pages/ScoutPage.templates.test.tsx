@@ -13,6 +13,7 @@ import { resetFlags } from "../lib/flags";
 import { DEFAULT_FLAGS } from "../shared/flags";
 import { TooltipProvider } from "../components/ui/overlay";
 import type { ScoutField, WorkspaceTemplate } from "../shared/scoutTemplate";
+import { asEntries } from "./scoutTestUrl";
 
 const h = vi.hoisted(() => ({
   personal: { user: null as AccountUser | null, providers: { email: true, google: false } as object | null, syncReady: false, state: { videoLinks: {} } },
@@ -58,7 +59,7 @@ const stall = (hold: (r: (res: Response) => void) => void) => vi.fn((url: string
   ? new Promise<Response>((r) => hold(r))
   : Promise.resolve(new Response(JSON.stringify({ error: "offline in tests" }), { status: 500 }))));
 
-const show = (url = `/scout?season=2025&space=${WS}`) => render(<TooltipProvider><MemoryRouter initialEntries={[url]}><ScoutPage /></MemoryRouter></TooltipProvider>);
+const show = (url = `/scout?season=2025&space=${WS}`) => render(<TooltipProvider><MemoryRouter initialEntries={[asEntries(url)]}><ScoutPage /></MemoryRouter></TooltipProvider>);
 const listed = () => screen.queryAllByRole("listitem").map((li) => li.textContent ?? "");
 
 beforeEach(() => {
@@ -148,12 +149,13 @@ describe("workspace templates on the Scout page", () => {
   });
 
   it("members don't get the Template editor; admins do", async () => {
-    show();
+    show(`/scout?season=2025&space=${WS}&tab=data`);
+    expect(await screen.findByRole("button", { name: /Pick list/ })).toBeTruthy();
     expect(screen.queryByRole("button", { name: /Template/ })).toBeNull();
     cleanup();
     h.personal.user = user("admin");
-    show(`/scout?season=2025&space=${WS}&view=template`);
-    expect(screen.getByRole("button", { name: /Template/, pressed: true })).toBeTruthy();
+    show(`/scout?season=2025&space=${WS}&tab=data`);
+    fireEvent.click(await screen.findByRole("button", { name: /Template/ }));
     expect(await screen.findByRole("heading", { name: /Scout template/ })).toBeTruthy();
   });
 
