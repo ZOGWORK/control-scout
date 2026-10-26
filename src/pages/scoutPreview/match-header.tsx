@@ -1,6 +1,7 @@
-// Preview: the match header (wave 2, piece B) on a real event's schedule (?season=&event=, default 2025 USNJQ1),
+// Preview: the match header (wave 2, piece B) on a real event's schedule (?season=&event=, default 2025 USNJSOLT2),
 // watching ?watch=red|blue|all|red1|red2|blue1|blue2. Progress is sample (dev only): the first five matches
-// scouted, the sixth part way, the eighth done so the seventh shows as skipped. Below it, every ScheduleState.
+// scouted, the sixth part way, the eighth done so the seventh shows as skipped. ?states=1 adds every ScheduleState
+// (its loading skeleton keeps a screenshot waiting 45 s, so it is off by default).
 import { useMemo, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { useEventSchedule } from "../../lib/eventSchedule";
@@ -17,7 +18,7 @@ function watchingFrom(v: string | null): Watching {
 
 export default function MatchHeaderPreview() {
   const [sp] = useSearchParams();
-  const season = Number(sp.get("season")) || 2025, code = sp.get("event") || "USNJQ1";
+  const season = Number(sp.get("season")) || 2025, code = sp.get("event") || "USNJSOLT2";
   const w = sp.get("watch"), watching = useMemo(() => watchingFrom(w), [w]);
   const s = useEventSchedule(season, code);
   const scouted = useMemo(() => {
@@ -43,13 +44,13 @@ export default function MatchHeaderPreview() {
             progress={(i) => matchProgress(s.matches[i], watching, scouted)} onIndex={setPicked} />
         </div>
         : <ScheduleState status={s.status} error={s.error} onRetry={() => void s.reload()} onManual={() => {}} />}
-      <section className="grid gap-3">
+      {sp.get("states") === "1" && <section className="grid gap-3">
         <h2 className="text-sm font-semibold text-text-muted">Schedule states</h2>
         <ScheduleState status="loading" />
         <ScheduleState status="none" onManual={() => {}} />
         <ScheduleState status="error" error="The server didn't answer." onRetry={() => {}} onManual={() => {}} />
         <ScheduleState status="ready" fromDevice />
-      </section>
+      </section>}
     </div>
   );
 }
