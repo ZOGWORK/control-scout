@@ -594,7 +594,8 @@ function Table({ data, scope, cols, state, sortBy, code, highlightTeam, selectab
   pageSelection: PageSelection; onSelectAll: () => void;
 }) {
   const showEvent = scope === "teamEvent" && !code;
-  // One event's teams (its Rankings and Insights tabs): coloured against each other.
+  // One event's teams (its Rankings and Insights tabs): coloured against each other. While they are, green and
+  // red mean only where a team stands, so the other columns drop their category colour (the header keeps it).
   const whole = scope === "teamEvent" && !!code && !state.filter && data.total === data.rows.length;
   const heat = useMemo(() => (whole ? heatBands(data.rows as { stats: Record<string, unknown> }[], cols) : new Map<string, (v: unknown) => string>()), [whole, data.rows, cols]);
   // Phones: the Team column shows the number only, and a tap on it shows the name (TeamNumber).
@@ -693,7 +694,7 @@ function Table({ data, scope, cols, state, sortBy, code, highlightTeam, selectab
                   const band = heat.get(k)?.(v);
                   return (
                     <td key={k} className={cn(td, "whitespace-nowrap border-l border-text-base/[0.08] text-right tabular-nums", d?.type === "text" && "text-left", state.sort === k && "bg-accent/[0.04] font-semibold",
-                      band || (tone !== "slate" && v != null && TONE_CLASS[tone].text))} data-heat={band ? HEAT.indexOf(band) : undefined}>
+                      band || (heat.size === 0 && tone !== "slate" && v != null && TONE_CLASS[tone].text))} data-heat={band ? HEAT.indexOf(band) : undefined}>
                       {k === PREDICTION_FIELD ? <PredictionValue text={formatStat(d, v)} tier={(r as MatchRecordRow).predictionTier} className="justify-end" /> : formatStat(d, v)}
                     </td>
                   );
