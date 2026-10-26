@@ -16,6 +16,7 @@ import {
 } from "../../lib/assignments";
 import type { ScoutEntry } from "../../lib/scouting";
 import { useMatchAssignments, type MatchAssignmentsState } from "../../lib/slotAssignments";
+import type { LiveMode } from "../../lib/scoutLive";
 import { assignmentKey, normalEventCode, type AssignableMember, type EventTeamOption } from "../../shared/assignments";
 import { Section, EmptyState } from "../page";
 import { ErrorState, LoadingBlock } from "../states";
@@ -30,7 +31,7 @@ import { MatchAssignmentsSection } from "./MatchAssignments";
 
 const plural = (n: number, one: string, many = `${one}s`) => `${n} ${n === 1 ? one : many}`;
 
-export function AssignmentsView({ space, workspaceName, season, defaultEvent, state, matchState, myAccountId, isAdmin: admin, localEntries, onScout, readOnly = false }: {
+export function AssignmentsView({ space, workspaceName, season, defaultEvent, state, matchState, live, myAccountId, isAdmin: admin, localEntries, onScout, readOnly = false }: {
   space: string; workspaceName: string; season: number;
   /** The space is read-only (Task 19): the lists read, nothing can be assigned, scouted, marked or removed. */
   readOnly?: boolean;
@@ -39,6 +40,8 @@ export function AssignmentsView({ space, workspaceName, season, defaultEvent, st
   state: AssignmentsState;
   /** Match scouting (useMatchAssignments, shared with the Matches tab). Without it the view loads its own list. */
   matchState?: MatchAssignmentsState;
+  /** The workspace stream's mode, for that own list: refetched on reconnect, every 30 s while polling (polling when not given). */
+  live?: LiveMode;
   myAccountId: number | null;
   isAdmin: boolean;
   /** This space's entries on the device, for live progress. */
@@ -48,7 +51,7 @@ export function AssignmentsView({ space, workspaceName, season, defaultEvent, st
 }) {
   const { list, loading, error, reload } = state;
   const isAdmin = admin && !readOnly;
-  const ownMatch = useMatchAssignments(matchState ? null : space, season, "off");
+  const ownMatch = useMatchAssignments(matchState ? null : space, season, live ?? "polling");
   const [assignOpen, setAssignOpen] = useState(false);
   const mine = useMemo(() => list.filter((a) => a.assigneeAccountId === myAccountId)
     .sort((a, b) => (a.status === b.status ? a.id - b.id : a.status === "open" ? -1 : 1)), [list, myAccountId]);
