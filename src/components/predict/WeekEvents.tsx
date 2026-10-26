@@ -2,7 +2,7 @@
 // Each row is one button (aria-pressed for the picked event) with the full name, where it is, its type and
 // a status chip. Over a dozen events, a text filter, type chips and a "Has matches scheduled" toggle sit on
 // top; until one is used, the list starts with the most useful dozen (on now, then matches to play).
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { CalendarDays, MapPin, Search, X } from "lucide-react";
 import { useApi, qs } from "../../lib/api";
@@ -33,9 +33,8 @@ export function weekKind(type: string | null): Exclude<WeekKind, "all"> {
 /** Matches scheduled and not yet played (0 once the event is finished). */
 export const toPlay = (e: EventListItem) => (e.status === "finished" ? 0 : Math.max(0, e.matchesTotal - e.matchesPlayed));
 
-/** On now: live, or today falls between its start and end. */
-export const onNow = (e: EventListItem, today: string) =>
-  e.status === "live" || (e.status !== "finished" && !!e.start && e.start <= today && (e.end ?? e.start) >= today);
+/** On now: the server's status, which reads the venue's own calendar (src/shared/eventDay.ts), not the viewer's. */
+export const onNow = (e: EventListItem) => e.status === "live";
 
 export type WeekStatus = { kind: "toPlay"; n: number } | { kind: "finished" } | { kind: "noSchedule" };
 export function weekStatus(e: EventListItem): WeekStatus {
@@ -47,7 +46,7 @@ export function weekStatus(e: EventListItem): WeekStatus {
 
 /** Most useful first: on now, then with matches to play, then upcoming by date, then finished (latest first). */
 function usefulness(e: EventListItem, today: string): number {
-  if (onNow(e, today)) return 0;
+  if (onNow(e)) return 0;
   if (toPlay(e) > 0) return 1;
   if (weekStatus(e).kind !== "finished" && (e.start ?? "") >= today) return 2;
   return weekStatus(e).kind === "finished" ? 4 : 3;
@@ -88,20 +87,32 @@ export function groupByDay(events: EventListItem[], today: string): WeekDay[] {
     const k = e.start ?? null;
     days.set(k, [...(days.get(k) ?? []), e]);
   }
-  const done = (d: string | null, es: EventListItem[]) => d !== null && d < today && es.every((e) => !onNow(e, today));
+  const done = (d: string | null, es: EventListItem[]) => d !== null && d < today && es.every((e) => !onNow(e));
   const order = (d: string | null, es: EventListItem[]) => (d === null ? 2 : done(d, es) ? 1 : 0);
   return [...days.entries()]
     .sort(([a, ea], [b, eb]) => order(a, ea) - order(b, eb) || (order(a, ea) === 1 ? (b ?? "").localeCompare(a ?? "") : (a ?? "").localeCompare(b ?? "")))
     .map(([day, es]) => ({
       day,
       label: day ? dayLabel(day, today) : "Date to be announced",
-      events: es.sort((a, b) => Number(onNow(b, today)) - Number(onNow(a, today)) || toPlay(b) - toPlay(a) || a.name.localeCompare(b.name)),
+      events: es.sort((a, b) => Number(onNow(b)) - Number(onNow(a)) || toPlay(b) - toPlay(a) || a.name.localeCompare(b.name)),
     }));
 }
 
 /** The local calendar day as YYYY-MM-DD (event dates are event-local days, so compare like with like). */
 export function localDay(d = new Date()): string {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+}
+
+/** The local day, kept current: checked every minute and whenever the tab comes back into view. */
+export function useLocalDay(): string {
+  const [day, setDay] = useState(localDay);
+  useEffect(() => {
+    const check = () => setDay(localDay());
+    const id = window.setInterval(check, 60_000);
+    document.addEventListener("visibilitychange", check);
+    return () => { window.clearInterval(id); document.removeEventListener("visibilitychange", check); };
+  }, []);
+  return day;
 }
 
 export interface WeekFilters { q: string; kind: WeekKind; scheduled: boolean }
@@ -113,11 +124,13 @@ export function applyFilters(events: EventListItem[], f: WeekFilters): EventList
 
 export function WeekEvents({ onPick, picked }: { onPick: (season: number, code: string) => void; picked: string | null }) {
   const season = useCurrentSeason();
-  // The same window as before: two days back (an event still finishing) to a week out.
-  const [range] = useState(() => {
-    const now = Date.now(), iso = (t: number) => new Date(t).toISOString().slice(0, 10);
-    return { from: iso(now - 2 * 864e5), to: iso(now + 7 * 864e5), today: localDay() };
-  });
+  // The same window as before: two days back (an event still finishing) to a week out. It moves on with the
+  // calendar, so a page left open overnight asks for the new week and "Today" is today.
+  const today = useLocalDay();
+  const range = useMemo(() => {
+    const now = utc(today).getTime(), iso = (t: number) => new Date(t).toISOString().slice(0, 10);
+    return { from: iso(now - 2 * 864e5), to: iso(now + 7 * 864e5), today };
+  }, [today]);
   const state = useApi<{ events: EventListItem[] }>(`/api/events${qs({ season, from: range.from, to: range.to })}`);
   const [filters, setFilters] = useState<WeekFilters>(NO_FILTERS);
   const [all, setAll] = useState(false);
@@ -178,7 +191,7 @@ export function WeekEvents({ onPick, picked }: { onPick: (season: number, code: 
             <section key={g.day ?? "tba"} aria-label={g.label}>
               <h3 className="mb-2 text-xs font-semibold text-muted-foreground">{g.label}</h3>
               <ul className="grid gap-2 @4xl/week:grid-cols-2">
-                {g.events.map((e) => <li key={e.code} className="min-w-0"><WeekRow e={e} today={range.today} picked={picked === e.code} onPick={onPick} /></li>)}
+                {g.events.map((e) => <li key={e.code} className="min-w-0"><WeekRow e={e} picked={picked === e.code} onPick={onPick} /></li>)}
               </ul>
             </section>
           ))}
@@ -193,9 +206,9 @@ export function WeekEvents({ onPick, picked }: { onPick: (season: number, code: 
   );
 }
 
-function WeekRow({ e, today, picked, onPick }: { e: EventListItem; today: string; picked: boolean; onPick: (season: number, code: string) => void }) {
+function WeekRow({ e, picked, onPick }: { e: EventListItem; picked: boolean; onPick: (season: number, code: string) => void }) {
   const s = weekStatus(e);
-  const now = onNow(e, today);
+  const now = onNow(e);
   const multiDay = !!e.start && !!e.end && e.end !== e.start;
   const where = place(e.city, e.state, e.country);
   return (
