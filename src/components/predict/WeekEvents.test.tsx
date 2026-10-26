@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 // Predict's this-week list: events grouped by their start day (today first, past days that are over last),
 // the most useful dozen first with "Show all", filters that search the whole week, every state, aria-pressed.
-import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { MemoryRouter } from "react-router-dom";
 import type { EventListItem } from "../../shared/api";
@@ -86,6 +86,24 @@ describe("WeekEvents", () => {
     // Few events: no filters, no "Show all".
     expect(screen.queryByRole("search")).toBeNull();
     expect(screen.queryByRole("button", { name: /Show all/ })).toBeNull();
+  });
+
+  it("calls an event on now from the server's status, not the viewer's date", () => {
+    ok([ev("SOON", { start: TODAY, end: TODAY, status: "upcoming" }), ev("LIVE", { start: "2026-10-23", end: "2026-10-25", status: "live" })]);
+    mount();
+    expect(within(screen.getByRole("button", { name: /Event SOON/ })).queryByText("On now")).toBeNull();
+    expect(within(screen.getByRole("button", { name: /Event LIVE/ })).getByText("On now")).toBeTruthy();
+  });
+
+  it("moves on to the new day when the page stays open overnight", () => {
+    ok([ev("A", { start: "2026-10-25", end: "2026-10-25" })]);
+    mount();
+    expect(screen.getByRole("region", { name: "Tomorrow · Sun Oct 25" })).toBeTruthy();
+    vi.setSystemTime(new Date(2026, 9, 25, 8, 0));
+    act(() => { document.dispatchEvent(new Event("visibilitychange")); });
+    expect(screen.getByRole("region", { name: "Today · Sun Oct 25" })).toBeTruthy();
+    expect(paths.at(-1)).toContain("from=2026-10-23");
+    expect(paths.at(-1)).toContain("to=2026-11-01");
   });
 
   it("marks the picked row with aria-pressed and picks by season and code", () => {
