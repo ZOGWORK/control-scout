@@ -52,7 +52,7 @@ describe("Advancement, an event from another season", () => {
     expect(q.get("code")).toBe("FTCCMP1EDIS");
     expect(await screen.findByRole("heading", { name: "Edison Division" })).toBeTruthy();
     expect(screen.getByText("FTCCMP1EDIS is a 2025–26 event, so this shows 2025–26.")).toBeTruthy();
-    expect((screen.getByRole("textbox", { name: "Team" }) as HTMLInputElement).value).toBe("4215");
+    expect((screen.getByRole("textbox", { name: "Team (optional)" }) as HTMLInputElement).value).toBe("4215");
   });
 
   it("a link that named another season explains, and offers the event's season or another event", async () => {
