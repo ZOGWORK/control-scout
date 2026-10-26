@@ -8,7 +8,6 @@ import type { MatchView, TeamProfile } from "../shared/api";
 
 vi.mock("../lib/personal", () => ({ usePersonal: () => ({ user: null, providers: {}, state: { myTeam: null, tracked: { teams: [], events: [] }, bookmarks: [], videoLinks: {}, predictionHistory: [] }, update: () => true, syncReady: false }) }));
 vi.mock("../lib/meta", async (orig) => ({ ...(await orig<typeof import("../lib/meta")>()), useMeta: () => ({ seasons: [2026, 2025, 2024].map((season) => ({ season, predictable: true, game: "Game" })) }), useCurrentSeason: () => 2026, useTitle: () => {} }));
-vi.mock("../components/layout/Search", () => ({ SEARCH_HINT: "Ctrl K", usePageSearch: () => null }));
 
 const { default: PredictPage, labMatchHref, labAdvancementHref } = await import("./PredictPage");
 const { TooltipProvider } = await import("../components/ui/overlay");
@@ -51,8 +50,8 @@ const page = (url: string) => render(<TooltipProvider><MemoryRouter initialEntri
 
 describe("Predict, a team picked", () => {
   it("links into the Lab with the team filled in", () => {
-    expect(labMatchHref(4215, 2025)).toBe("/predict?view=lab&mode=match&season=2025&red=4215");
-    expect(labAdvancementHref(4215, 2025)).toBe("/predict?view=lab&mode=advancement&season=2025&team=4215");
+    expect(labMatchHref(4215, 2025)).toBe("/predict?mode=match&season=2025&red=4215");
+    expect(labAdvancementHref(4215, 2025)).toBe("/predict?mode=advancement&season=2025&team=4215");
   });
 
   it("before the team plays this season: last season's calls, how many were right, and the way into the Lab", async () => {
@@ -62,7 +61,7 @@ describe("Predict, a team picked", () => {
     expect(box.getByText(/No results in 2026–27 yet, so this is 2025–26/)).toBeTruthy();
     // Q1 and Q3 called right (red favoured, red won); Q2 wrong.
     expect(box.getByText("2 of 3")).toBeTruthy();
-    expect(box.getByRole("link", { name: /Predict a matchup/ }).getAttribute("href")).toBe("/predict?view=lab&mode=match&season=2025&red=4215");
+    expect(box.getByRole("link", { name: /Predict a matchup/ }).getAttribute("href")).toBe("/predict?mode=match&season=2025&red=4215");
   });
 
   it("the two ways into the Lab carry the same weight: neither is the glowing primary", async () => {
@@ -93,28 +92,16 @@ describe("Predict, a team picked", () => {
     expect(await box.findByText("How the calls did in 2025–26")).toBeTruthy();
   });
 
-  it("the view cards are solid, chosen or hovered (no see-through fill over the page grid)", () => {
-    page("/predict");
-    for (const tab of screen.getAllByRole("tab")) {
-      expect(tab.className).not.toMatch(/(^|\s)(hover:)?bg-[a-z-]+\/\[?0?\.?\d/);
-      expect(tab.className).toMatch(/bg-card|bg-\[color-mix\(in_srgb,var\(--color-accent\)_12%,var\(--color-card\)\)\]/);
-    }
+  it("an old Events link opens Scheduled with the team picked, rewritten to the new form", async () => {
+    page("/predict?view=events&for=team:4215");
+    expect(screen.getByRole("tab", { name: /Scheduled/ }).getAttribute("aria-selected")).toBe("true");
+    await waitFor(() => expect(decodeURIComponent(where)).toBe("/predict?mode=scheduled&for=team:4215"));
   });
 
-  it("one highlight, on the chosen view card, that moves with the choice", () => {
-    page("/predict");
-    const highlights = () => within(screen.getByRole("tablist", { name: "Predict" })).getAllByRole("tab").map((el) => el.querySelectorAll(":scope > span[aria-hidden]").length);
-    expect(highlights()).toEqual([1, 0]);
-    fireEvent.click(screen.getByRole("tab", { name: /Lab: advancement & matchups/ }));
-    expect(highlights()).toEqual([0, 1]);
-  });
-
-  it("the Lab is a card that says what it does", () => {
-    page("/predict");
-    const lab = screen.getByRole("tab", { name: /Lab: advancement & matchups/ });
-    expect(lab.textContent).toMatch(/any four teams/);
-    fireEvent.click(lab);
-    expect(where).toContain("view=lab");
+  it("switching to Advancement carries the team, and Scheduled keeps no Advancement params", async () => {
+    page("/predict?mode=scheduled&for=team:4215&season=2025");
+    fireEvent.mouseDown(screen.getByRole("tab", { name: /Advancement/ }), { button: 0 });
+    await waitFor(() => expect(where).toBe("/predict?mode=advancement&season=2025&team=4215"));
   });
 
   it("doesn't mount the latest-calls card (no request, no timer) when the header is too narrow to show it", async () => {
