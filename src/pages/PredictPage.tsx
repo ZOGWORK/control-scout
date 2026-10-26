@@ -9,6 +9,7 @@ import { ArrowLeftRight, ArrowRight, BookmarkPlus, CalendarDays, ChevronDown, Fl
 import { ENGINE_VERSION } from "@control-scout/predict-engine";
 import { noteOfflineAnswer, useApi, qs, type ApiError } from "../lib/api";
 import { useCurrentSeason, useMeta, useTitle } from "../lib/meta";
+import { useEventCheck } from "../lib/eventSeason";
 import { defaultSeason } from "../lib/myTeamSeason";
 import { callTally } from "../lib/seasonSoFar";
 import { usePersonal } from "../lib/personal";
@@ -557,6 +558,7 @@ function AdvancementLab() {
   const teamNo = /^\d+$/.test(teamText) ? Number(teamText) : null;
   const teamEvents = useApi<TeamProfile>(teamNo ? `/api/teams/${teamNo}${qs({ season })}` : null);
   const [q, setQ] = useState("");
+  const eventSearch = useRef<HTMLInputElement>(null);
   // With a team chosen, step 2 lists only the events it's registered at; "Search all events" lifts that until the team or season changes.
   const [showAll, setShowAll] = useState(false);
   useEffect(() => setShowAll(false), [teamNo, season]);
@@ -589,7 +591,7 @@ function AdvancementLab() {
             <p className={step}><span className={num}>2</span> Event</p>
             <div className="relative">
               <Search className="pointer-events-none absolute left-3.5 top-1/2 size-5 -translate-y-1/2 text-muted-foreground" aria-hidden />
-              <Input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Event name, code, city or state" className="h-14 pl-11 text-base" aria-label="Find an event" />
+              <Input ref={eventSearch} value={q} onChange={(e) => setQ(e.target.value)} placeholder="Event name, code, city or state" className="h-14 pl-11 text-base" aria-label="Find an event" />
             </div>
             {(profile || teamFailed) && showAll && (
               <p className="mt-3 flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-muted-foreground">
@@ -628,9 +630,66 @@ function AdvancementLab() {
           </div>
         </div>
       </div>
-      {code ? <AdvancementView season={season} code={code} team={team} nameOf={() => ""} onPickTeam={(t) => { setTeamText(String(t)); set({ team: String(t) }); }} />
-        : <EmptyState icon={Trophy} title="Pick an event" description="Any qualifier, league tournament or championship. Add a team to see its chance to advance, captain and pick odds, likely rank, and expected advancement points." />}
+      {code ? (
+        <AdvancementResult season={season} code={code} team={team} askedSeason={readPredict(sp).season}
+          onSeason={(s) => set({ season: String(s) })} onClearEvent={() => { set({ code: null }); setQ(""); eventSearch.current?.focus(); }}
+          onPickTeam={(t) => { setTeamText(String(t)); set({ team: String(t) }); }} />
+      ) : <EmptyState icon={Trophy} title="Pick an event" description="Any qualifier, league tournament or championship. Add a team to see its chance to advance, captain and pick odds, likely rank, and expected advancement points." />}
     </div>
+  );
+}
+
+/**
+ * The chosen event's advancement odds, under a line saying which event it is (name, dates, place, type).
+ * An event code that isn't in the season asked for (an old link, a hand-typed code) never ends in a bare
+ * "Not found": a link that didn't name a season moves to the event's own season and says so; one that did
+ * explains, keeps the team, and offers that season or another event.
+ */
+function AdvancementResult({ season, code, team, askedSeason, onSeason, onClearEvent, onPickTeam }: {
+  season: number; code: string; team: number | null; askedSeason: number | null;
+  onSeason: (s: number) => void; onClearEvent: () => void; onPickTeam: (t: number) => void;
+}) {
+  const meta = useMeta();
+  const seasons = useMemo(() => (meta?.seasons ?? []).filter((x) => x.predictable).map((x) => x.season), [meta]);
+  const check = useEventCheck(season, code, seasons.length ? seasons : [season, season - 1, season - 2, season - 3]);
+  // Moved here by the link (no season named): remembered so the note stays after the URL changes.
+  const [moved, setMoved] = useState<{ code: string; from: number; to: number } | null>(null);
+  const elsewhere = check?.status === "elsewhere" ? check.season : null;
+  useEffect(() => {
+    if (elsewhere != null && askedSeason == null) { setMoved({ code, from: season, to: elsewhere }); onSeason(elsewhere); }
+  }, [elsewhere, askedSeason, code, season]); // eslint-disable-line react-hooks/exhaustive-deps
+  if (!check || check.status === "loading" || (elsewhere != null && askedSeason == null)) return <div className="skeleton h-40 rounded-2xl" />;
+  if (check.status === "error") return <ErrorState error={check.error} onRetry={check.reload} />;
+  if (check.status !== "ok") {
+    return (
+      <div role="alert" className="rounded-2xl border border-border bg-card p-5 max-sm:p-4">
+        <p className="font-medium text-foreground">{check.status === "elsewhere" ? `${code} isn't a ${seasonLabel(season)} event` : `No event ${code} in the seasons we hold`}</p>
+        <p className="mt-1 text-sm text-muted-foreground">
+          {check.status === "elsewhere" ? `It's from ${seasonLabel(check.season)}.` : "The code may be mistyped."}
+          {team ? ` Team ${team} is still picked.` : ""}
+        </p>
+        <div className="mt-3 flex flex-wrap gap-2">
+          {check.status === "elsewhere" && <Button size="sm" onClick={() => onSeason(check.season)}>Show it in {seasonLabel(check.season)}</Button>}
+          <Button size="sm" variant="secondary" onClick={onClearEvent}><Search /> Pick another event</Button>
+        </div>
+      </div>
+    );
+  }
+  const e = check.event;
+  return (
+    <section aria-label={`Advancement odds at ${e.name}`} className="space-y-4">
+      {moved?.code === code && moved.to === season && (
+        <p role="status" className="rounded-lg border border-info/30 bg-info/[0.06] px-3 py-2 text-sm">{code} is a {seasonLabel(season)} event, so this shows {seasonLabel(season)}.</p>
+      )}
+      <div className="flex flex-wrap items-start justify-between gap-x-4 gap-y-2">
+        <div className="min-w-0">
+          <h2 className="font-display text-xl font-semibold leading-snug text-foreground [overflow-wrap:anywhere]">{e.name}</h2>
+          <p className="mt-0.5 text-sm text-muted-foreground">{[dateRange(e.start, e.end), place(e.city, e.state, e.country), e.typeLabel].filter(Boolean).join(" · ")}</p>
+        </div>
+        <Button variant="secondary" size="sm" asChild><Link to={`/events/${season}/${code}`}>Event page <ArrowRight /></Link></Button>
+      </div>
+      <AdvancementView season={season} code={code} team={team} nameOf={() => ""} onPickTeam={onPickTeam} />
+    </section>
   );
 }
 
