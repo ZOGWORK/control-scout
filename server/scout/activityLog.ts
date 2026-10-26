@@ -56,6 +56,9 @@ export const ACTIVITY_TYPES = [
   // Task 10 (assignments.ts): subject assignment:<id>; details { assigneeAccountId, assigneeName, team, season, eventCode,
   // assignmentId } (a create for several teams at once: teams[] and assignmentIds[], team = the first).
   "assignment.created", "assignment.completed", "assignment.reopened", "assignment.deleted",
+  // Match scouting: subject match-assignment:<id>; details { matchAssignmentId, assigneeAccountId, assigneeName, season,
+  // eventCode, watching ("Red 1"), range ("Q1–Q30") } (an edit that moves it: assigneeAccountIds [before, after], previousAssigneeName).
+  "assignment.match_created", "assignment.match_updated", "assignment.match_deleted",
 ] as const;
 export type ActivityType = (typeof ACTIVITY_TYPES)[number] | (string & {});
 

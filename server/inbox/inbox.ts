@@ -6,7 +6,8 @@
 //    accounts it concerns. The actor is never notified about their own action.
 //
 //      type (category)                         who gets it
-//      assignment.*        (assignments)       details.assigneeAccountId (Task 10: assignment.created)
+//      assignment.*        (assignments)       details.assigneeAccountId (Task 10: assignment.created), and
+//                                              details.assigneeAccountIds (a match assignment moved to someone else)
 //      entry.edited / entry.deleted /
 //      entry.restored / entry.version_restored /
 //      photo.added /

@@ -134,7 +134,7 @@ export function inboxLink(workspaceId: string, type: string, d: Record<string, u
       return scoutHref(workspaceId, { season, view: "picklist" });
     case "assignments":
       // The Assignments view (Task 10): My assignments, with progress and Done. A removed one is only in the feed.
-      return type === "assignment.deleted" ? scoutHref(workspaceId, { view: "activity" }) : scoutHref(workspaceId, { season, view: "assignments" });
+      return type === "assignment.deleted" || type === "assignment.match_deleted" ? scoutHref(workspaceId, { view: "activity" }) : scoutHref(workspaceId, { season, view: "assignments" });
     default:
       return scoutHref(workspaceId, { view: "activity" });
   }
@@ -187,6 +187,13 @@ export function inboxText(type: string, d: Record<string, unknown>, actorName: s
       const excerpt = str(d.excerpt) ?? str(d.text);
       return { title: `${who} commented on your entry`, body: [entrySubject(d), excerpt ? `“${excerpt.slice(0, 120)}”` : null].filter(Boolean).join(" · ") };
     }
+  }
+  if (type.startsWith("assignment.match_")) {
+    // Match scouting: "Red 1 · Q1–Q30 · USNJQ1".
+    const about = [str(d.watching), str(d.range), str(d.eventCode)].filter(Boolean).join(" · ");
+    if (type === "assignment.match_updated") return { title: `${who} changed your match scouting`, body: about };
+    if (type === "assignment.match_deleted") return { title: `${who} removed your match scouting`, body: about };
+    return { title: `${who} assigned you to scout ${str(d.watching) ?? "matches"}`, body: [str(d.range), str(d.eventCode)].filter(Boolean).join(" · ") };
   }
   if (type.startsWith("assignment.")) {
     const what = assignedTeams(d);
