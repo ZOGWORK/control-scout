@@ -41,6 +41,7 @@ import { isLiveMode, nextMatch, useEventPoll } from "../lib/liveMode";
 import { agoSeconds, awardLabel, dateRange, num, place, seasonLabel } from "../lib/format";
 import { scrollToElement, smoothBehavior } from "../lib/pageScroll";
 import { eventTab } from "../lib/eventTab";
+import { predictHref } from "../shared/predictUrl";
 
 export default function EventPage() {
   const { season, code } = useParams();
@@ -82,7 +83,7 @@ function Event({ d, path }: { d: EventDetail; path: string }) {
   const setTeam = (t: number | null) => setSp((x) => { if (t) x.set("team", String(t)); else x.delete("team"); return x; }, { replace: true });
   const toggleTrack = () => update("tracked", (t) => ({ ...t, events: tracked ? t.events.filter((x) => x !== ref) : [...t.events, ref] }));
   const track = { on: tracked, toggle: toggleTrack };
-  const labHref = `/predict?mode=advancement&season=${e.season}&code=${e.code}${teamParam ? `&team=${teamParam}` : ""}`;
+  const labHref = predictHref({ mode: "advancement", season: e.season, code: e.code, team: teamParam });
   const refresh = useRefreshResults(path);
   // The end of the header: the phone action bar shows once it has scrolled away.
   const [headerEnd, setHeaderEnd] = useState<HTMLDivElement | null>(null);

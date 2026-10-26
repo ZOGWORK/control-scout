@@ -39,6 +39,7 @@ import { StickyActions } from "../components/StickyActions";
 import { TeamConsensusSection } from "../components/ScoutConsensus";
 import { ReportCardSection } from "../components/ReportCard";
 import { ReliabilitySection } from "../components/Reliability";
+import { predictHref } from "../shared/predictUrl";
 
 export default function TeamPage() {
   const { number } = useParams();
@@ -147,7 +148,7 @@ function Hero({ p, onSeason }: { p: TeamProfile; onSeason: (s: number) => void }
   const share = () => copyLink();
   // The end of the header: the phone action bar shows once it has scrolled away.
   const [headerEnd, setHeaderEnd] = useState<HTMLDivElement | null>(null);
-  const predictHref = `/predict?mode=match&season=${p.season}&red=${t.number},`;
+  const matchHref = predictHref({ mode: "match", season: p.season, red: [t.number] });
   return (
     <>
     <Reveal fade={false} className="mb-8 max-sm:mb-5 overflow-hidden rounded-2xl border border-border bg-card">
@@ -243,8 +244,8 @@ function Hero({ p, onSeason }: { p: TeamProfile; onSeason: (s: number) => void }
           </div>
           {predictable ? (
             <div className="mt-5 max-sm:mt-4 flex flex-wrap gap-2">
-              <Button size="sm" asChild><Link to={predictHref} data-tour="predict"><Sparkles /> Predict a match with {t.number}</Link></Button>
-              {!(next && ADVANCING.has(next.type ?? "")) && <Button size="sm" variant="secondary" asChild><Link to={`/predict?mode=advancement&season=${p.season}&team=${t.number}`}><Trophy /> Advancement odds</Link></Button>}
+              <Button size="sm" asChild><Link to={matchHref} data-tour="predict"><Sparkles /> Predict a match with {t.number}</Link></Button>
+              {!(next && ADVANCING.has(next.type ?? "")) && <Button size="sm" variant="secondary" asChild><Link to={predictHref({ mode: "advancement", season: p.season, team: t.number })}><Trophy /> Advancement odds</Link></Button>}
             </div>
           ) : <p className="mt-5 max-sm:mt-4 text-xs text-muted-foreground">{seasonLabel(p.season)} is shown for history: results and stats, no predictions (those start with 2023–24).</p>}
         </div>
@@ -253,7 +254,7 @@ function Hero({ p, onSeason }: { p: TeamProfile; onSeason: (s: number) => void }
     </Reveal>
     {/* Phones: once the header has scrolled away, its main actions stay in reach (history seasons: Track only, no predictions). */}
     <StickyActions after={headerEnd} label={`Actions for team ${t.number}`}>
-      {predictable && <Button asChild><Link to={predictHref}><Sparkles /> <span className="truncate">Predict with {t.number}</span></Link></Button>}
+      {predictable && <Button asChild><Link to={matchHref}><Sparkles /> <span className="truncate">Predict with {t.number}</span></Link></Button>}
       <Button variant={flags.tracked ? "secondary" : "outline"} aria-pressed={flags.tracked} onClick={track} className={cn(predictable && "!flex-none")}>
         <Eye className={cn(flags.tracked && "text-accent")} /> {flags.tracked ? "Tracking" : "Track"}
       </Button>
