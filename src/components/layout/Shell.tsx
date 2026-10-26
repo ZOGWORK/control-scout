@@ -272,8 +272,6 @@ export function Shell({ children }: { children: ReactNode }) {
   // The pit display is the whole screen: no sidebar, top bar, tab bar or footer (src/shared/routes.ts isBareRoute).
   // Only the chrome is left out: the same <main> stays, so the page scroll's hold on it (usePageScroll) stays good.
   const bare = isBareRoute(loc.pathname);
-  // A link anywhere in the menu sheet (its account footer's too) closes it.
-  useEffect(() => { setMenu(false); }, [loc.pathname]);
   return (
     <AccountProvider>
     <AccountSheetBridge menu={menu} openMenu={() => openMenu(menuRef.current)} />
@@ -340,7 +338,7 @@ export function Shell({ children }: { children: ReactNode }) {
               </nav>
               {/* The same account footer as the sidebar's, at the foot of the sheet. */}
               <div className="mt-auto border-t border-line pt-3">
-                <AccountFooter place="sheet" />
+                <AccountFooter place="sheet" onNavigate={() => setMenu(false)} />
               </div>
             </SheetContent>
           </Sheet>
@@ -356,7 +354,8 @@ export function Shell({ children }: { children: ReactNode }) {
 function AccountSheetBridge({ menu, openMenu }: { menu: boolean; openMenu: () => void }) {
   const { open, setOpen } = useAccountPanel();
   const phone = !useMediaQuery("(min-width: 768px)");
-  useEffect(() => { if (open && phone && !menu) openMenu(); }, [open]); // eslint-disable-line react-hooks/exhaustive-deps
+  // `phone` too: a panel left open on a wider screen moves into the sheet when the screen turns narrow.
+  useEffect(() => { if (open && phone && !menu) openMenu(); }, [open, phone]); // eslint-disable-line react-hooks/exhaustive-deps
   const wasOpen = useRef(menu);
   useEffect(() => { if (wasOpen.current && !menu && phone) setOpen(false); wasOpen.current = menu; }, [menu]); // eslint-disable-line react-hooks/exhaustive-deps
   return null;
