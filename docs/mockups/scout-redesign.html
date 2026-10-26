@@ -1,0 +1,474 @@
+<title>Scout Redesign Mockup</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@500;700&family=Space+Grotesk:wght@500;700&display=swap">
+<style>
+/* Layout: notes on the left, one live phone on the right; at phone width the phone is the page. Colours are Control Scout's own (src/index.css). */
+:root {
+  --bg: #0a0a0b; --card: #111113; --pop: #141416; --muted: #18181b;
+  --fg: #f4f4f5; --fg2: #a1a1aa; --line: #ffffff14; --input: #ffffff1c;
+  --accent: #ffc700; --accent-ink: #231a00; --accent-soft: #ffc7001f; --accent-text: #ffc700;
+  --red: #f43f5e; --red-soft: #f43f5e24; --blue: #38bdf8; --blue-soft: #38bdf824;
+  --ok: #34d399; --ok-soft: #34d39922; --warn: #fb923c; --warn-soft: #fb923c22;
+  --frame: #1f1f23;
+  --f-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
+  --f-display: "Space Grotesk", "Inter", sans-serif;
+  --f-mono: "JetBrains Mono", ui-monospace, monospace;
+  color-scheme: dark;
+}
+@media (prefers-color-scheme: light) { :root:not([data-theme="dark"]) {
+  --bg: #f4f4f5; --card: #ffffff; --pop: #ffffff; --muted: #f4f4f5;
+  --fg: #09090b; --fg2: #52525b; --line: #e4e4e7; --input: #e4e4e7;
+  --accent: #eab308; --accent-ink: #231a00; --accent-soft: #eab3081f; --accent-text: #875200;
+  --red: #e11d48; --red-soft: #f43f5e1a; --blue: #0284c7; --blue-soft: #0ea5e91a;
+  --ok: #047857; --ok-soft: #10b9811a; --warn: #bc3f0b; --warn-soft: #f973161a;
+  --frame: #d4d4d8; color-scheme: light;
+} }
+:root[data-theme="light"] {
+  --bg: #f4f4f5; --card: #ffffff; --pop: #ffffff; --muted: #f4f4f5;
+  --fg: #09090b; --fg2: #52525b; --line: #e4e4e7; --input: #e4e4e7;
+  --accent: #eab308; --accent-ink: #231a00; --accent-soft: #eab3081f; --accent-text: #875200;
+  --red: #e11d48; --red-soft: #f43f5e1a; --blue: #0284c7; --blue-soft: #0ea5e91a;
+  --ok: #047857; --ok-soft: #10b9811a; --warn: #bc3f0b; --warn-soft: #f973161a;
+  --frame: #d4d4d8; color-scheme: light;
+}
+* { box-sizing: border-box; }
+body { background: var(--bg); color: var(--fg); font-family: var(--f-sans); font-size: 14px; margin: 0; }
+button { font: inherit; color: inherit; cursor: pointer; }
+button:focus-visible, textarea:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.mono { font-family: var(--f-mono); font-variant-numeric: tabular-nums; }
+
+.wrap { display: grid; grid-template-columns: minmax(0, 1fr) 400px; gap: 48px; max-width: 1080px; margin: 0 auto;
+  padding-block: 40px; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); align-items: start; }
+.notes { min-width: 0; }
+.notes h1 { font-family: var(--f-display); font-size: 34px; line-height: 1.1; margin: 0 0 10px; text-wrap: balance; }
+.notes > p { color: var(--fg2); line-height: 1.6; max-width: 60ch; margin: 0 0 24px; }
+.tag { display: inline-block; font-size: 11px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; color: var(--accent-text); background: var(--accent-soft); padding: 3px 8px; border-radius: 6px; margin-bottom: 14px; }
+.steps { display: grid; gap: 8px; }
+.step { display: grid; grid-template-columns: 28px minmax(0,1fr); gap: 12px; text-align: left; background: transparent; border: 1px solid var(--line); border-radius: 12px; padding: 14px; }
+.step:hover { border-color: var(--input); }
+.step[aria-current="true"] { border-color: var(--accent); background: var(--accent-soft); }
+.step .n { font-family: var(--f-mono); font-weight: 700; color: var(--accent-text); font-size: 13px; padding-top: 1px; }
+.step b { display: block; font-size: 15px; margin-bottom: 3px; }
+.step span.d { color: var(--fg2); line-height: 1.5; font-size: 13px; }
+.fixes { margin-top: 28px; border-top: 1px solid var(--line); padding-top: 20px; }
+.fixes h2 { font-family: var(--f-display); font-size: 18px; margin: 0 0 10px; }
+.fixes ul { margin: 0; padding-left: 18px; color: var(--fg2); line-height: 1.7; }
+.fixes li b { color: var(--fg); font-weight: 600; }
+
+/* The phone */
+.phone { position: sticky; top: 24px; width: 390px; height: 800px; border-radius: 44px; border: 10px solid var(--frame); background: var(--bg); overflow: hidden; display: flex; flex-direction: column; box-shadow: 0 30px 80px -30px #000a; }
+.app { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+.topbar { display: flex; align-items: center; gap: 10px; padding: 14px 16px 10px; border-bottom: 1px solid var(--line); }
+.topbar .ttl { font-family: var(--f-display); font-weight: 700; font-size: 20px; }
+.chip { display: inline-flex; align-items: center; gap: 6px; border: 1px solid var(--input); background: var(--muted); border-radius: 999px; padding: 6px 11px; font-size: 12.5px; font-weight: 600; max-width: 100%; }
+.chip .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--red); }
+.chip.blue .dot { background: var(--blue); }
+.chip.all .dot { background: linear-gradient(90deg, var(--red) 50%, var(--blue) 50%); }
+.spacer { flex: 1; }
+.iconbtn { width: 38px; height: 38px; border-radius: 10px; border: 1px solid var(--line); background: transparent; display: grid; place-items: center; color: var(--fg2); }
+.seg { display: grid; grid-template-columns: repeat(3, 1fr); gap: 4px; margin: 10px 16px 0; background: var(--muted); padding: 4px; border-radius: 12px; }
+.seg button { border: 0; background: transparent; border-radius: 9px; padding: 8px 0; font-weight: 600; color: var(--fg2); font-size: 13px; }
+.seg button[aria-pressed="true"] { background: var(--card); color: var(--fg); box-shadow: 0 1px 2px #0004; }
+.body { flex: 1; min-height: 0; overflow-y: auto; padding: 12px 16px 16px; display: flex; flex-direction: column; gap: 12px; }
+.body > * { flex-shrink: 0; }
+.foot { padding: 10px 16px 16px; border-top: 1px solid var(--line); background: var(--card); }
+.save { width: 100%; height: 54px; border-radius: 14px; border: 0; background: var(--accent); color: var(--accent-ink); font-weight: 700; font-size: 16px; display: flex; align-items: center; justify-content: center; gap: 8px; }
+.save small { font-weight: 500; opacity: .75; font-size: 13px; }
+.foot .hint { font-size: 12px; color: var(--fg2); text-align: center; margin-top: 7px; }
+.foot .hint.warn { color: var(--warn); }
+
+.matchbar { display: grid; grid-template-columns: 44px minmax(0,1fr) 44px; align-items: center; gap: 8px; }
+.matchbar button.arrow { height: 44px; border-radius: 12px; border: 1px solid var(--line); background: var(--card); font-size: 18px; color: var(--fg2); }
+.matchbar .mid { text-align: center; }
+.matchbar .q { font-family: var(--f-display); font-weight: 700; font-size: 30px; line-height: 1; }
+.matchbar .when { font-size: 12px; color: var(--fg2); margin-top: 3px; }
+.when .live { color: var(--ok); font-weight: 600; }
+.strip { display: flex; gap: 5px; overflow-x: auto; padding-bottom: 2px; scrollbar-width: none; }
+.strip button { flex: 0 0 auto; min-width: 40px; height: 28px; border-radius: 8px; border: 1px solid var(--line); background: transparent; font-family: var(--f-mono); font-size: 11.5px; color: var(--fg2); }
+.strip button.done { background: var(--ok-soft); border-color: transparent; color: var(--ok); }
+.strip button.skip { background: var(--warn-soft); border-color: transparent; color: var(--warn); }
+.strip button.cur { border-color: var(--accent); color: var(--fg); background: var(--accent-soft); }
+
+.alliances { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+.all-col { border-radius: 12px; padding: 8px; display: flex; gap: 6px; }
+.all-col.r { background: var(--red-soft); } .all-col.b { background: var(--blue-soft); }
+.tm { flex: 1; border-radius: 8px; padding: 6px 4px; text-align: center; font-family: var(--f-mono); font-weight: 700; font-size: 13.5px; border: 1.5px solid transparent; }
+.tm small { display: block; font-family: var(--f-sans); font-weight: 500; font-size: 10px; color: var(--fg2); margin-top: 1px; }
+.r .tm.mine { border-color: var(--red); background: var(--card); }
+.b .tm.mine { border-color: var(--blue); background: var(--card); }
+.tm.other { opacity: .55; }
+
+.tabs { display: flex; gap: 6px; }
+.tabs button { flex: 1; height: 46px; border-radius: 12px; border: 1px solid var(--line); background: var(--card); font-family: var(--f-mono); font-weight: 700; font-size: 15px; display: flex; align-items: center; justify-content: center; gap: 7px; }
+.tabs button[aria-pressed="true"].red { border-color: var(--red); box-shadow: inset 0 -3px 0 var(--red); }
+.tabs button[aria-pressed="true"].blue { border-color: var(--blue); box-shadow: inset 0 -3px 0 var(--blue); }
+.st { width: 9px; height: 9px; border-radius: 50%; border: 1.5px solid var(--fg2); }
+.st.part { background: var(--warn); border-color: var(--warn); }
+.st.full { background: var(--ok); border-color: var(--ok); }
+.phases { display: grid; grid-template-columns: repeat(4, 1fr); border-bottom: 1px solid var(--line); }
+.phases button { border: 0; background: transparent; padding: 9px 0 10px; font-weight: 600; font-size: 13px; color: var(--fg2); border-bottom: 2px solid transparent; margin-bottom: -1px; }
+.phases button[aria-pressed="true"] { color: var(--fg); border-bottom-color: var(--accent); }
+
+.fields { display: grid; gap: 8px; }
+.ctr { display: grid; grid-template-columns: 52px minmax(0,1fr); gap: 8px; align-items: stretch; }
+.ctr .minus { border-radius: 14px; border: 1px solid var(--line); background: var(--muted); font-size: 22px; color: var(--fg2); }
+.ctr .plus { border-radius: 14px; border: 1px solid var(--input); background: var(--card); display: flex; align-items: center; justify-content: space-between; padding: 0 16px; min-height: 72px; text-align: left; }
+.ctr .plus:active { background: var(--accent-soft); border-color: var(--accent); }
+.ctr .plus .lbl { font-weight: 600; font-size: 14.5px; }
+.ctr .plus .lbl small { display: block; font-weight: 500; color: var(--fg2); font-size: 11.5px; margin-top: 2px; }
+.ctr .plus .num { font-family: var(--f-mono); font-weight: 700; font-size: 30px; }
+.tog { display: flex; align-items: center; justify-content: space-between; min-height: 56px; border-radius: 14px; border: 1px solid var(--input); background: var(--card); padding: 0 16px; font-weight: 600; text-align: left; }
+.tog .yn { font-size: 12.5px; font-weight: 700; padding: 5px 11px; border-radius: 8px; background: var(--muted); color: var(--fg2); }
+.tog[aria-pressed="true"] { border-color: var(--ok); background: var(--ok-soft); }
+.tog[aria-pressed="true"] .yn { background: var(--ok); color: var(--bg); }
+.tog.bad[aria-pressed="true"] { border-color: var(--red); background: var(--red-soft); }
+.tog.bad[aria-pressed="true"] .yn { background: var(--red); color: #fff; }
+.choice { border-radius: 14px; border: 1px solid var(--line); background: var(--card); padding: 12px 14px; }
+.choice .lbl { font-weight: 600; margin-bottom: 9px; }
+.opts { display: grid; grid-auto-flow: column; grid-auto-columns: 1fr; gap: 6px; }
+.opts button { height: 46px; border-radius: 11px; border: 1px solid var(--input); background: transparent; font-weight: 600; font-size: 13.5px; }
+.opts button[aria-pressed="true"] { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
+textarea { width: 100%; min-height: 76px; border-radius: 12px; border: 1px solid var(--input); background: var(--card); color: var(--fg); padding: 10px 12px; font: inherit; resize: vertical; }
+.timer { display: flex; align-items: center; gap: 10px; border: 1px dashed var(--input); border-radius: 12px; padding: 8px 10px; font-size: 12.5px; color: var(--fg2); }
+.timer button { border: 0; background: var(--muted); border-radius: 8px; padding: 6px 10px; font-weight: 600; font-size: 12.5px; color: var(--fg); }
+.timer .t { font-family: var(--f-mono); font-weight: 700; color: var(--fg); margin-left: auto; }
+.undo { align-self: flex-start; border: 0; background: transparent; color: var(--fg2); font-size: 12.5px; text-decoration: underline; text-underline-offset: 3px; padding: 0; }
+
+/* Quick 4-team mode */
+.quick { display: grid; gap: 8px; }
+.qrow { border-radius: 14px; border: 1px solid var(--line); background: var(--card); padding: 8px; display: grid; grid-template-columns: 70px minmax(0,1fr) 44px; gap: 6px; align-items: center; }
+.qrow .who { font-family: var(--f-mono); font-weight: 700; font-size: 14px; border-left: 3px solid var(--red); padding-left: 8px; }
+.qrow.b .who { border-left-color: var(--blue); }
+.qbtn { height: 44px; border-radius: 10px; border: 1px solid var(--input); background: var(--muted); display: flex; align-items: center; justify-content: space-between; padding: 0 12px; font-weight: 600; font-size: 13px; }
+.qbtn .num { font-family: var(--f-mono); font-size: 20px; }
+.qmin { width: 44px; height: 44px; border-radius: 10px; border: 1px solid var(--line); background: transparent; color: var(--fg2); font-size: 18px; }
+.qpills { grid-column: 1 / -1; display: grid; grid-template-columns: repeat(5, 1fr); gap: 5px; }
+.qpills button { height: 38px; padding: 0 2px; border-radius: 8px; border: 1px solid var(--line); background: transparent; font-size: 12px; font-weight: 600; color: var(--fg2); }
+.qpills button[aria-pressed="true"] { background: var(--accent-soft); border-color: var(--accent); color: var(--fg); }
+.qpills button.bad[aria-pressed="true"] { background: var(--red-soft); border-color: var(--red); }
+
+/* Setup */
+.h2 { font-family: var(--f-display); font-weight: 700; font-size: 22px; margin: 4px 0 0; }
+.sub { color: var(--fg2); font-size: 13px; margin: 0; line-height: 1.5; }
+.lab { font-size: 11px; font-weight: 600; letter-spacing: .07em; text-transform: uppercase; color: var(--fg2); margin-top: 6px; }
+.ev { display: grid; grid-template-columns: minmax(0,1fr) auto; gap: 4px 10px; text-align: left; border: 1px solid var(--line); background: var(--card); border-radius: 14px; padding: 12px 14px; }
+.ev[aria-pressed="true"] { border-color: var(--accent); background: var(--accent-soft); }
+.ev b { font-size: 14.5px; } .ev .code { font-family: var(--f-mono); font-size: 12px; color: var(--fg2); }
+.ev .meta { grid-column: 1 / -1; font-size: 12px; color: var(--fg2); }
+.badge { font-size: 11px; font-weight: 700; padding: 2px 7px; border-radius: 6px; background: var(--ok-soft); color: var(--ok); align-self: start; }
+.watch { display: grid; gap: 8px; }
+.wopt { cursor: pointer; text-align: left; border: 1px solid var(--line); background: var(--card); border-radius: 14px; padding: 12px 14px; display: grid; gap: 3px; }
+.wopt[aria-pressed="true"] { border-color: var(--accent); background: var(--accent-soft); }
+.wopt b { font-size: 14.5px; } .wopt span { font-size: 12.5px; color: var(--fg2); }
+.slots { display: flex; gap: 6px; margin-top: 8px; flex-wrap: wrap; }
+.slots button { height: 38px; padding: 0 12px; border-radius: 10px; border: 1px solid var(--input); background: transparent; font-weight: 600; font-size: 13px; }
+.slots button.r[aria-pressed="true"] { background: var(--red); border-color: var(--red); color: #fff; }
+.slots button.b[aria-pressed="true"] { background: var(--blue); border-color: var(--blue); color: #fff; }
+.assign { border-radius: 12px; background: var(--accent-soft); padding: 10px 12px; font-size: 12.5px; line-height: 1.5; }
+
+/* Lists */
+.row { display: grid; grid-template-columns: 46px minmax(0,1fr) auto; gap: 10px; align-items: center; border: 1px solid var(--line); background: var(--card); border-radius: 12px; padding: 10px 12px; text-align: left; width: 100%; }
+.row .q { font-family: var(--f-mono); font-weight: 700; font-size: 15px; }
+.row .tms { font-family: var(--f-mono); font-size: 12.5px; }
+.row .tms .r { color: var(--red); } .row .tms .b { color: var(--blue); }
+.row .who2 { display: block; font-family: var(--f-sans); font-size: 11.5px; color: var(--fg2); margin-top: 2px; }
+.pill { font-size: 11.5px; font-weight: 700; padding: 3px 8px; border-radius: 6px; }
+.pill.ok { background: var(--ok-soft); color: var(--ok); }
+.pill.skip { background: var(--warn-soft); color: var(--warn); }
+.pill.next { background: var(--accent); color: var(--accent-ink); }
+.pill.up { background: var(--muted); color: var(--fg2); }
+.summary { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
+.summary div { border-radius: 12px; background: var(--card); border: 1px solid var(--line); padding: 10px; }
+.summary b { font-family: var(--f-mono); font-size: 22px; display: block; }
+.summary span { font-size: 11.5px; color: var(--fg2); }
+.drow { display: grid; grid-template-columns: 36px minmax(0,1fr) auto; gap: 12px; align-items: center; border-bottom: 1px solid var(--line); padding: 13px 2px; text-align: left; background: transparent; border-left: 0; border-right: 0; border-top: 0; width: 100%; }
+.drow .ic { width: 36px; height: 36px; border-radius: 10px; background: var(--muted); display: grid; place-items: center; font-size: 16px; color: var(--accent-text); }
+.drow b { display: block; font-size: 14.5px; } .drow span { font-size: 12px; color: var(--fg2); }
+.drow .chev { color: var(--fg2); }
+
+.toast { position: absolute; left: 50%; bottom: 96px; transform: translateX(-50%); background: var(--fg); color: var(--bg); font-weight: 600; font-size: 13px; padding: 10px 14px; border-radius: 12px; white-space: nowrap; box-shadow: 0 10px 30px -10px #000a; }
+.phone { position: sticky; }
+.phone-inner { position: relative; flex: 1; min-height: 0; display: flex; flex-direction: column; }
+
+@media (max-width: 900px) {
+  .wrap { grid-template-columns: minmax(0,1fr); gap: 24px; padding-block: 20px; }
+  .phone { position: relative; top: 0; margin: 0 auto; order: -1; }
+}
+@media (max-width: 460px) {
+  .wrap { padding-left: 0; padding-right: 0; padding-block: 0; }
+  .notes { padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); padding-bottom: 32px; }
+  .phone { width: 100%; height: 100svh; border: 0; border-radius: 0; box-shadow: none; }
+}
+@media (prefers-reduced-motion: no-preference) { .toast { animation: up .2s ease-out; } @keyframes up { from { opacity: 0; transform: translate(-50%, 8px); } } }
+</style>
+
+<div class="wrap">
+  <section class="notes" aria-labelledby="h">
+    <span class="tag">Mockup · example data</span>
+    <h1 id="h">Scout, rebuilt for the stands</h1>
+    <p>Pick the event once, then scout match by match, with every team you're watching in one place. The phone is clickable: tap counters, switch teams, save a match and see it move to the next one. Use the steps to jump between screens.</p>
+    <div class="steps" id="steps"></div>
+    <div class="fixes">
+      <h2>What this fixes from today's page</h2>
+      <ul>
+        <li><b>No more typing the event and match.</b> The event is set once and stays. Matches come from the schedule.</li>
+        <li><b>A whole match in one go.</b> One team, one alliance or all four, each as a tab, with one Save.</li>
+        <li><b>Save goes to the next match.</b> Today Save closes the form and you start again from blank.</li>
+        <li><b>One phase at a time.</b> Big tap targets for counters, and ratings moved to "After".</li>
+        <li><b>Six toolbar buttons move to Data.</b> Pick list, Activity, Assignments, Export, Recordings and Template stay, just out of the way.</li>
+        <li><b>You can see what you missed.</b> The match strip shows done, skipped and next.</li>
+      </ul>
+    </div>
+  </section>
+
+  <div class="phone" aria-label="Phone mockup of the new Scout page">
+    <div class="phone-inner" id="app"></div>
+  </div>
+</div>
+
+<script>
+(() => {
+  const EVENTS = [
+    { code: "USNJQ1", name: "NJ Qualifier 1", meta: "Today · 30 quals · your team is here", today: true },
+    { code: "USNJQ2", name: "NJ Qualifier 2", meta: "Sat Nov 7 · schedule not out yet" },
+    { code: "USNJCMP", name: "NJ Championship", meta: "Feb 2027" },
+  ];
+  // Example teams and a 30-match quals schedule (made up for the mockup).
+  const POOL = [3101, 4410, 5288, 6091, 7303, 8576, 9614, 10421, 11215, 12345, 13088, 14290, 15667, 16012, 17890, 18455, 19021, 20034, 21229, 22105, 23310, 24117, 25501, 26688];
+  const SCHED = Array.from({ length: 30 }, (_, i) => {
+    const t = (k) => POOL[(i * 5 + k * 7 + (i % 3)) % POOL.length];
+    return { q: i + 1, red: [t(0), t(1)], blue: [t(2), t(3)], time: clock(9 * 60 + 40 + i * 7) };
+  });
+  function clock(m) { const h = Math.floor(m / 60), mm = m % 60; return `${((h + 11) % 12) + 1}:${String(mm).padStart(2, "0")}`; }
+
+  const AUTO = [
+    { id: "autoLeave", label: "Left start zone", type: "toggle" },
+    { id: "autoPark", label: "Parked in auto", type: "toggle" },
+    { id: "autoHive", label: "Hive tips", sub: "Auto", type: "counter", max: 10 },
+  ];
+  const TELE = [
+    { id: "pollen", label: "Pollen / nectar scored", type: "counter", max: 60 },
+    { id: "garden", label: "Garden scoring", type: "counter", max: 40 },
+    { id: "teleHive", label: "Hive tips", sub: "TeleOp", type: "counter", max: 10 },
+    { id: "defense", label: "Played defense", type: "toggle" },
+  ];
+  const END = [{ id: "park", label: "End park", type: "choice", options: ["None", "Partial", "Full"] }];
+  const AFTER = [
+    { id: "driver", label: "Driver skill", type: "choice", options: ["1", "2", "3", "4", "5"] },
+    { id: "consistency", label: "Consistency", type: "choice", options: ["1", "2", "3", "4", "5"] },
+    { id: "broke", label: "Broke down / disabled", type: "toggle", bad: true },
+    { id: "fouls", label: "Fouls drawn", type: "counter", max: 20 },
+  ];
+  const PHASES = [["auto", "Auto", AUTO], ["tele", "TeleOp", TELE], ["end", "Endgame", END], ["after", "After", AFTER]];
+
+  const SCREENS = [
+    ["setup", "Set the event once", "Pick where you are and what you're watching. It's remembered, so next time Scout opens straight on the next match."],
+    ["match", "Scout the match", "The match and teams come from the schedule. Your teams are tabs. One phase at a time, with big counters."],
+    ["after", "After the match", "Ratings, breakdowns and notes go here, for the minute between matches. Save moves you to the next match."],
+    ["quick", "All 4 teams, quick", "Watching the whole match: the few things that matter for each team, all on one screen."],
+    ["matches", "Your matches", "Every match at the event: done, skipped, next. Tap one to fix it. In a workspace you see who has the other teams."],
+    ["data", "Data, out of the way", "The entry list, pick list, activity, assignments, export and recordings, on their own tab."],
+  ];
+
+  const S = {
+    screen: "match", event: "USNJQ1", watch: "alliance", side: "red", slot: "Red 1",
+    m: 13, team: 0, phase: "auto", ans: {}, done: new Set([0, 1, 2, 3, 4, 6, 7, 8, 9, 10, 11]), skipped: new Set([5, 12]),
+    toast: "", notes: {}, timer: false,
+  };
+  // Some answers already in for the current match, so the first view looks mid-match.
+  S.ans["13:0"] = { autoLeave: true, autoHive: 2, pollen: 7, garden: 3 };
+
+  const app = document.getElementById("app");
+  const stepsEl = document.getElementById("steps");
+  const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+
+  function myTeams(m) {
+    const x = SCHED[m];
+    if (S.watch === "all") return [...x.red.map((t) => [t, "red"]), ...x.blue.map((t) => [t, "blue"])];
+    if (S.watch === "alliance") return (S.side === "red" ? x.red : x.blue).map((t) => [t, S.side]);
+    const i = S.slot.endsWith("1") ? 0 : 1, side = S.slot.startsWith("Red") ? "red" : "blue";
+    return [[x[side][i], side]];
+  }
+  const A = (m, ti) => (S.ans[`${m}:${ti}`] ??= {});
+  function teamState(m, ti) { const n = Object.keys(S.ans[`${m}:${ti}`] ?? {}).length; return n === 0 ? "" : n >= 6 ? "full" : "part"; }
+  function watchLabel() { return S.watch === "all" ? "All 4 teams" : S.watch === "alliance" ? (S.side === "red" ? "Red alliance" : "Blue alliance") : S.slot; }
+  function chipCls() { return S.watch === "all" ? "all" : (S.watch === "alliance" ? S.side : S.slot.startsWith("Red") ? "red" : "blue") === "blue" ? "blue" : ""; }
+
+  function go(screen) {
+    S.screen = screen;
+    if (screen === "after") { S.screen = "match"; S.phase = "after"; if (S.watch === "all") S.watch = "alliance"; }
+    else if (screen === "match") { S.phase = S.phase === "after" ? "auto" : S.phase; if (S.watch === "all") S.watch = "alliance"; }
+    else if (screen === "quick") { S.screen = "match"; S.watch = "all"; }
+    render();
+  }
+  function activeStep() {
+    if (S.screen !== "match") return S.screen;
+    if (S.watch === "all") return "quick";
+    return S.phase === "after" ? "after" : "match";
+  }
+
+  function renderSteps() {
+    const cur = activeStep();
+    stepsEl.innerHTML = SCREENS.map(([id, t, d], i) => `<button class="step" data-go="${id}" aria-current="${cur === id}"><span class="n">${i + 1}</span><span><b>${t}</b><span class="d">${d}</span></span></button>`).join("");
+  }
+
+  function topbar() {
+    return `<div class="topbar"><span class="ttl">Scout</span><span class="spacer"></span>
+      <button class="chip ${chipCls()}" data-go="setup" aria-label="Change event or teams"><span class="dot"></span><span class="mono">${S.event}</span> · ${esc(watchLabel())}</button></div>
+      <div class="seg" role="group" aria-label="Scout sections">
+        ${[["match", "Match"], ["matches", "Matches"], ["data", "Data"]].map(([id, l]) => `<button data-go="${id}" aria-pressed="${S.screen === id}">${l}</button>`).join("")}
+      </div>`;
+  }
+
+  function fieldHtml(f, a, key) {
+    const v = a[f.id];
+    if (f.type === "counter") {
+      const n = typeof v === "number" ? v : 0;
+      return `<div class="ctr"><button class="minus" data-dec="${key}|${f.id}" aria-label="${esc(f.label)} minus one">−</button>
+        <button class="plus" data-inc="${key}|${f.id}|${f.max}"><span class="lbl">${esc(f.label)}${f.sub ? `<small>${f.sub} · tap to add 1</small>` : `<small>Tap to add 1</small>`}</span><span class="num">${n}</span></button></div>`;
+    }
+    if (f.type === "toggle") return `<button class="tog ${f.bad ? "bad" : ""}" data-tog="${key}|${f.id}" aria-pressed="${!!v}"><span>${esc(f.label)}</span><span class="yn">${v ? "Yes" : "No"}</span></button>`;
+    return `<div class="choice"><div class="lbl">${esc(f.label)}</div><div class="opts">${f.options.map((o) => `<button data-pick="${key}|${f.id}|${o}" aria-pressed="${v === o}">${o}</button>`).join("")}</div></div>`;
+  }
+
+  function matchScreen() {
+    const x = SCHED[S.m], mine = myTeams(S.m), mineSet = new Set(mine.map((t) => t[0]));
+    if (S.team >= mine.length) S.team = 0;
+    const isNext = !S.done.has(S.m) && [...Array(S.m).keys()].every((i) => S.done.has(i) || S.skipped.has(i));
+    const strip = SCHED.map((s, i) => `<button data-m="${i}" class="${i === S.m ? "cur" : S.done.has(i) ? "done" : S.skipped.has(i) ? "skip" : ""}" aria-label="Q${s.q}${S.done.has(i) ? " done" : S.skipped.has(i) ? " skipped" : ""}">Q${s.q}</button>`).join("");
+    const col = (side) => `<div class="all-col ${side[0]}">${x[side].map((t, i) => `<div class="tm ${mineSet.has(t) ? "mine" : "other"}">${t}<small>${side === "red" ? "Red" : "Blue"} ${i + 1}</small></div>`).join("")}</div>`;
+    let inner;
+    if (S.watch === "all") {
+      inner = `<div class="quick">${mine.map(([t, side], ti) => {
+        const a = A(S.m, ti), key = `${S.m}:${ti}`;
+        return `<div class="qrow ${side[0]}"><div class="who">${t}</div>
+          <button class="qbtn" data-inc="${key}|pollen|60"><span>Scored</span><span class="num">${a.pollen ?? 0}</span></button>
+          <button class="qmin" data-dec="${key}|pollen" aria-label="${t} scored minus one">−</button>
+          <div class="qpills">
+            <button data-tog="${key}|autoLeave" aria-pressed="${!!a.autoLeave}">Leave</button>
+            ${["Partial", "Full"].map((o) => `<button data-pick="${key}|park|${o}" aria-pressed="${a.park === o}" aria-label="${o} park">${o}</button>`).join("")}
+            <button data-tog="${key}|defense" aria-pressed="${!!a.defense}">Defense</button>
+            <button class="bad" data-tog="${key}|broke" aria-pressed="${!!a.broke}">Broke</button>
+          </div></div>`;
+      }).join("")}</div>
+      <p class="sub">Quick mode: one counter and a few taps per team. Switch to one alliance in settings for the full fields.</p>`;
+    } else {
+      const fields = PHASES.find((p) => p[0] === S.phase)[2];
+      const key = `${S.m}:${S.team}`;
+      inner = `
+        <div class="tabs" role="group" aria-label="Teams you're scouting">${mine.map(([t, side], ti) => `<button class="${side}" data-team="${ti}" aria-pressed="${ti === S.team}"><span class="st ${teamState(S.m, ti)}"></span>${t}</button>`).join("")}</div>
+        <div class="phases" role="group" aria-label="Match phase">${PHASES.map(([id, l]) => `<button data-ph="${id}" aria-pressed="${S.phase === id}">${l}</button>`).join("")}</div>
+        ${S.phase === "auto" ? `<div class="timer"><span>Match timer</span><button data-timer>${S.timer ? "Stop" : "Match started"}</button><span class="t">${S.timer ? "0:12 · Auto" : "Off"}</span></div>` : ""}
+        <div class="fields">${fields.map((f) => fieldHtml(f, A(S.m, S.team), key)).join("")}</div>
+        ${S.phase === "after" ? `<label class="lab" for="notes">Notes on ${mine[S.team][0]}</label><textarea id="notes" data-notes="${key}" placeholder="What stood out? Strategy, reliability, driver habits…">${esc(S.notes[key] ?? "")}</textarea>` : ""}
+        <button class="undo" data-undo>Undo last tap</button>`;
+    }
+    const empty = mine.map(([t], ti) => teamState(S.m, ti) ? null : t).filter(Boolean);
+    const nextQ = SCHED[Math.min(S.m + 1, 29)].q;
+    return `${topbar()}<div class="body">
+      <div class="matchbar"><button class="arrow" data-step="-1" aria-label="Previous match">‹</button>
+        <div class="mid"><div class="q">Q${x.q}</div><div class="when">${S.done.has(S.m) ? `<span class="live">Saved</span> · tap to edit` : isNext ? `<span class="live">Next up</span> · ~${x.time}` : `~${x.time}`}</div></div>
+        <button class="arrow" data-step="1" aria-label="Next match">›</button></div>
+      <div class="strip" id="strip">${strip}</div>
+      <div class="alliances">${col("red")}${col("blue")}</div>
+      ${inner}
+    </div>
+    <div class="foot"><button class="save" data-save>Save Q${x.q} <small>· ${mine.length} ${mine.length === 1 ? "team" : "teams"} → Q${nextQ}</small></button>
+      <div class="hint ${empty.length ? "warn" : ""}">${!empty.length ? "Saved on this phone first. Works with no signal." : S.watch === "all" ? `Nothing tapped yet for ${empty.length === 4 ? "any team" : empty.join(", ")}.` : `${empty.join(", ")} ${empty.length === 1 ? "has" : "have"} nothing yet. Save anyway or tap ${empty.length === 1 ? "its" : "their"} tab.`}</div></div>`;
+  }
+
+  function setupScreen() {
+    return `<div class="topbar"><button class="iconbtn" data-go="match" aria-label="Back">‹</button><span class="ttl">Scouting session</span></div>
+    <div class="body">
+      <p class="h2">Where are you scouting?</p>
+      <p class="sub">Set once. Scout stays on this event until you change it.</p>
+      ${EVENTS.map((e) => `<button class="ev" data-ev="${e.code}" aria-pressed="${S.event === e.code}"><b>${e.name}</b>${e.today ? `<span class="badge">Today</span>` : `<span class="code">${e.code}</span>`}<span class="meta">${e.today ? `<span class="mono">${e.code}</span> · ` : ""}${e.meta}</span></button>`).join("")}
+      <div class="lab">What are you watching?</div>
+      <div class="watch">
+        <div class="wopt" role="button" tabindex="0" data-w="slot" aria-pressed="${S.watch === "slot"}"><b>One team each match</b><span>The most detail. Best when 4 people split a match.</span>
+          ${S.watch === "slot" ? `<div class="slots">${["Red 1", "Red 2", "Blue 1", "Blue 2"].map((s) => `<button class="${s[0] === "R" ? "r" : "b"}" data-slot="${s}" aria-pressed="${S.slot === s}">${s}</button>`).join("")}</div>` : ""}</div>
+        <div class="wopt" role="button" tabindex="0" data-w="alliance" aria-pressed="${S.watch === "alliance"}"><b>One alliance</b><span>Both teams on one side, as tabs. Full fields.</span>
+          ${S.watch === "alliance" ? `<div class="slots">${[["red", "Red"], ["blue", "Blue"]].map(([v, l]) => `<button class="${v[0]}" data-side="${v}" aria-pressed="${S.side === v}">${l}</button>`).join("")}</div>` : ""}</div>
+        <div class="wopt" role="button" tabindex="0" data-w="all" aria-pressed="${S.watch === "all"}"><b>All 4 teams</b><span>Quick mode: fewer fields per team, all on one screen.</span></div>
+      </div>
+      <div class="assign">In a workspace your assignment fills this in, for example "Red alliance, Q1 to Q30". You can still change it.</div>
+    </div>
+    <div class="foot"><button class="save" data-go="match">Start scouting <small>· Q${SCHED[S.m].q} is next</small></button></div>`;
+  }
+
+  function matchesScreen() {
+    const doneN = S.done.size, teams = doneN * myTeams(0).length;
+    const others = ["Priya", "Marcus", "Jo"];
+    return `${topbar()}<div class="body">
+      <div class="summary"><div><b>${doneN}</b><span>matches done</span></div><div><b>${teams}</b><span>team entries</span></div><div><b>${S.skipped.size}</b><span>skipped</span></div></div>
+      ${SCHED.map((s, i) => {
+        const st = S.done.has(i) ? `<span class="pill ok">Done</span>` : S.skipped.has(i) ? `<span class="pill skip">Skipped</span>` : i === S.m ? `<span class="pill next">Now</span>` : `<span class="pill up">~${s.time}</span>`;
+        const otherSide = S.side === "red" ? "Blue" : "Red";
+        const who = S.watch === "all" ? "" : `<span class="who2">${otherSide}: ${others[i % 3]} ${i < 12 ? "✓" : "· assigned"}</span>`;
+        return `<button class="row" data-m="${i}" data-go="match"><span class="q">Q${s.q}</span><span class="tms"><span class="r">${s.red.join(" ")}</span> · <span class="b">${s.blue.join(" ")}</span>${who}</span>${st}</button>`;
+      }).join("")}
+    </div>`;
+  }
+
+  function dataScreen() {
+    const items = [
+      ["≡", "Entries", "84 at USNJQ1 · filter, search, edit"],
+      ["↕", "Pick list", "Shared with the workspace"],
+      ["◷", "Activity", "What the team changed today"],
+      ["✓", "Assignments", "Who scouts which matches · 1 open for you"],
+      ["◎", "Pit scouting", "18 of 24 teams done"],
+      ["▶", "Match recordings", "Videos on this phone, YouTube links"],
+      ["⇩", "Export CSV", "Everything at this event"],
+      ["⚙", "Template", "Admins: the fields people fill in"],
+    ];
+    return `${topbar()}<div class="body" style="gap:0">
+      ${items.map(([ic, b, s]) => `<button class="drow"><span class="ic">${ic}</span><span><b>${b}</b><span>${s}</span></span><span class="chev">›</span></button>`).join("")}
+      <p class="sub" style="margin-top:14px">Same features as today. They just aren't on the screen you scout from.</p>
+    </div>`;
+  }
+
+  function render() {
+    renderSteps();
+    const html = S.screen === "setup" ? setupScreen() : S.screen === "matches" ? matchesScreen() : S.screen === "data" ? dataScreen() : matchScreen();
+    app.innerHTML = `<div class="app">${html}</div>${S.toast ? `<div class="toast" role="status">${esc(S.toast)}</div>` : ""}`;
+    const cur = app.querySelector(".strip .cur");
+    if (cur) cur.parentElement.scrollLeft = cur.offsetLeft - 120;
+  }
+
+  let last = null, toastT = 0;
+  function toast(t) { S.toast = t; clearTimeout(toastT); toastT = setTimeout(() => { S.toast = ""; render(); }, 2200); }
+  document.addEventListener("click", (ev) => {
+    const b = ev.target.closest("button, [data-w]"); if (!b) return;
+    const d = b.dataset;
+    if (d.m != null) { S.m = +d.m; S.team = 0; if (S.phase === "after") S.phase = "auto"; }
+    if (d.go) { go(d.go); return; }
+    if (d.m != null) { render(); return; }
+    if (d.step) { S.m = Math.max(0, Math.min(29, S.m + +d.step)); S.team = 0; S.phase = "auto"; }
+    if (d.team) S.team = +d.team;
+    if (d.ph) S.phase = d.ph;
+    if (d.timer != null) S.timer = !S.timer;
+    if (d.ev) S.event = d.ev;
+    if (d.w) { S.watch = d.w; }
+    if (d.slot) { ev.stopPropagation(); S.watch = "slot"; S.slot = d.slot; }
+    if (d.side) { ev.stopPropagation(); S.watch = "alliance"; S.side = d.side; }
+    // "match:team|field|extra" → the answers for that team in that match.
+    const kv = (s) => { const [where, id, x] = s.split("|"), [m, ti] = where.split(":"); return { a: A(+m, +ti), id, x }; };
+    if (d.inc) { const { a, id, x } = kv(d.inc); last = [a, id, a[id]]; a[id] = Math.min(+x, (a[id] ?? 0) + 1); }
+    if (d.dec) { const { a, id } = kv(d.dec); last = [a, id, a[id]]; a[id] = Math.max(0, (a[id] ?? 0) - 1); }
+    if (d.tog) { const { a, id } = kv(d.tog); last = [a, id, a[id]]; a[id] = !a[id]; }
+    if (d.pick) { const { a, id, x } = kv(d.pick); last = [a, id, a[id]]; a[id] = a[id] === x ? undefined : x; if (a[id] === undefined) delete a[id]; }
+    if (d.undo != null && last) { const [a, id, v] = last; if (v === undefined) delete a[id]; else a[id] = v; last = null; }
+    if (d.save != null) {
+      const q = SCHED[S.m].q, n = myTeams(S.m).length;
+      S.done.add(S.m); S.skipped.delete(S.m);
+      if (S.m < 29) S.m++;
+      S.team = 0; S.phase = "auto"; S.timer = false;
+      toast(`Saved Q${q} · ${n} ${n === 1 ? "entry" : "entries"}. Now Q${SCHED[S.m].q}.`);
+    }
+    render();
+  });
+  document.addEventListener("input", (ev) => { const t = ev.target; if (t.dataset && t.dataset.notes) S.notes[t.dataset.notes] = t.value; });
+  render();
+})();
+</script>
