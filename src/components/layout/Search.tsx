@@ -91,7 +91,7 @@ export function GlobalSearch({ part }: { part?: "button" | "field" }) {
         onPick={(h) => nav(hitHref(h))}
         onClose={() => setExpanded(false)}
         className={cn(
-          "w-full md:block md:max-w-md",
+          "w-full md:block md:max-w-xs lg:max-w-sm",
           expanded ? "absolute inset-x-0 top-full z-50 border-b border-line bg-primary p-2 md:relative md:inset-auto md:top-auto md:border-0 md:bg-transparent md:p-0" : "hidden",
         )}
       />}
