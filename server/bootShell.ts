@@ -37,7 +37,10 @@ export const BOOT_STYLE = `<style>
       .csb-brand img{width:28px;height:28px}
       .csb-nav{padding:6px 8px}
       .csb-grp{margin-bottom:12px}
-      .csb-nav a,.csb-more>summary{display:flex;align-items:center;gap:10px;height:32px;margin:0 0 2px;padding:0 10px;border-radius:8px;font-size:14px;font-weight:500;color:var(--b-mut)}
+      .csb-nav a,.csb-more>summary{display:flex;align-items:center;gap:10px;height:34px;margin:0 0 2px;padding:0 10px;border-radius:8px;font-size:14px;font-weight:500;color:var(--b-mut)}
+      @media (min-height:900px){.csb-nav{padding-top:12px}.csb-grp{margin-bottom:16px}.csb-nav a,.csb-more>summary{height:40px;margin-bottom:4px}}
+      @media (min-height:1000px){.csb-nav{padding-top:16px}.csb-grp{margin-bottom:20px}.csb-nav a,.csb-more>summary{height:44px;margin-bottom:6px;font-size:15px}}
+      @media (min-height:1100px){.csb-nav{padding-top:20px}.csb-grp{margin-bottom:24px}.csb-nav a,.csb-more>summary{height:48px}}
       .csb-more>summary{list-style:none;cursor:pointer}.csb-more>summary::-webkit-details-marker{display:none}
       .csb-nav a[aria-current]{color:var(--b-fg);background:color-mix(in srgb,var(--b-fg) 8%,transparent)}
       .csb-ico{width:18px;height:18px;flex-shrink:0;border-radius:6px;background:currentColor;opacity:.22}
