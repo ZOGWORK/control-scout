@@ -51,7 +51,7 @@ vi.mock("../../lib/api", async (orig) => { const real = await orig<typeof import
   },
 }; });
 vi.mock("./Search", () => ({ GlobalSearch: () => null }));
-vi.mock("./AccountMenu", () => ({ AccountMenu: () => null }));
+vi.mock("./AccountMenu", () => ({ AccountProvider: ({ children }: { children: React.ReactNode }) => children, AccountFooter: () => null, useAccountPanel: () => ({ open: false, setOpen() {} }) }));
 vi.mock("./TopBarExtras", () => ({ ClockWeather: () => null, ThemeToggle: () => null }));
 vi.mock("./Ambient", () => ({ Ambient: () => null }));
 vi.mock("./SiteFooter", () => ({ SiteFooter: () => null }));

@@ -205,13 +205,14 @@ const flows: Flow[] = [
     },
   },
   {
-    name: "Top-bar sign-in: on every page, opens in place, no pop-up",
+    name: "Sidebar sign-in: on every page, opens in place, no pop-up",
     async run(page) {
       for (const path of ["/", "/events", "/teams/18360"]) {
         await page.goto(`${BASE}${path}`, { waitUntil: "networkidle" });
-        await page.getByRole("banner").getByRole("button", { name: "Sign in", exact: true }).waitFor({ timeout: 10_000 });
+        await page.getByRole("complementary", { name: "Sidebar" }).getByRole("button", { name: "Sign in", exact: true }).waitFor({ timeout: 10_000 });
+        assert(!(await page.getByRole("banner").getByRole("button", { name: "Sign in", exact: true }).count()), `the top bar still has Sign in on ${path}`);
       }
-      await page.getByRole("button", { name: "Sign in", exact: true }).click();
+      await page.getByRole("complementary", { name: "Sidebar" }).getByRole("button", { name: "Sign in", exact: true }).click();
       const panel = page.getByRole("region", { name: "Sign in" });
       await panel.waitFor();
       assert(!(await page.getByRole("dialog").count()), "sign-in opened a dialog");
@@ -221,7 +222,7 @@ const flows: Flow[] = [
       // It animates closed: give it a moment, then it must be gone.
       await panel.waitFor({ state: "detached", timeout: 2000 }).catch(() => {});
       assert(!(await panel.count()), "Esc didn't close the panel");
-      return "Sign in button in the top bar on /, /events and a team page; panel opens in place (no dialog), mentions Control Point, Esc closes";
+      return "Sign in button in the sidebar footer (not the top bar) on /, /events and a team page; panel opens in place (no dialog), mentions Control Point, Esc closes";
     },
   },
   {
@@ -502,7 +503,7 @@ const flows: Flow[] = [
             await p.locator("aside").getByRole("link", { name: /^Rankings$/ }).first().click();
             await shown(/rankings/i, "Events → Rankings");
             if (mode === "fail") {
-              // Parts that come and go inside an AnimatePresence: a settings section switch (mode="wait") and a top-bar panel.
+              // Parts that come and go inside an AnimatePresence: a settings section switch (mode="wait") and the sidebar's account panel.
               await p.locator("aside").getByRole("link", { name: /^Settings$/ }).first().click();
               // Profile first (its body: the Sign in group, or the note that sign-in isn't set up here), then Appearance.
               const profileBody = p.getByRole("heading", { name: "Sign in", level: 2, exact: true }).or(p.getByText("Sign-in isn't set up on this server"));
@@ -512,8 +513,8 @@ const flows: Flow[] = [
               // The section body switches inside the AnimatePresence (the heading is outside it): the new body shows, the old one is gone.
               await opaque(p.getByRole("heading", { name: "Display", level: 2, exact: true }), "Settings → Appearance body");
               assert(!(await profileBody.count()), `${label}: the Profile body is still there after switching to Appearance`);
-              await p.getByRole("banner").getByRole("button", { name: "Sign in", exact: true }).click();
-              await opaque(p.getByRole("region", { name: "Sign in" }), "the top-bar sign-in panel");
+              await p.getByRole("complementary", { name: "Sidebar" }).getByRole("button", { name: "Sign in", exact: true }).click();
+              await opaque(p.getByRole("region", { name: "Sign in" }), "the sidebar sign-in panel");
             }
             assert(!(await p.getByRole("button", { name: /Reload Control Scout/ }).count()), `${label}: the optional animation download offered a page reload`);
             const state = await p.evaluate(() => { const w = window as unknown as { __rejections: string[]; __loaded: number }; return { rejections: w.__rejections, loaded: w.__loaded }; });
