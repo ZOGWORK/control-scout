@@ -17,11 +17,12 @@ export interface Col<T> {
   className?: string;
   hideOnMobile?: boolean;
   title?: string;
-  /** Shade each cell by where the row stands in this column (green top fifth … red bottom fifth); `asc` flips it. */
+  /** Colour each number by where the row stands in this column (green top fifth … red bottom fifth); `asc` flips it. */
   heat?: boolean;
 }
 
-const HEAT = ["bg-success/25", "bg-success/10", "", "bg-destructive/10", "bg-destructive/20"];
+/** Best to worst, as the number's own colour (no cell shading): bold green, light green, plain, light red, bold red. */
+const HEAT = ["text-success font-semibold", "text-success/75", "text-text-base", "text-destructive/75", "text-destructive font-semibold"];
 
 /** A cell's band in its column: the share of rows below its value (ties counting half), best band first. */
 function bandOf(vs: number[], v: unknown, asc?: boolean): string {
