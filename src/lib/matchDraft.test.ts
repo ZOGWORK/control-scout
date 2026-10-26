@@ -53,7 +53,7 @@ describe("useMatchDraft", () => {
     expect(saved[0].data).not.toHaveProperty("stray");
     expect(saved[1]).toMatchObject({ team: 18360, data: { cycles: 6 }, notes: "fast cycles" });
     // Drafts go once saved.
-    expect(sessionStorage.getItem(matchDraftKey("w1", 2025, "USNJQ1", "Q14"))).toBeNull();
+    expect(sessionStorage.getItem(matchDraftKey("w1", 2025, "USNJQ1", "Q14", 7))).toBeNull();
   });
 
   it("edits your entry for a team in this match (same uuid, its own template, the base it was opened on): no duplicate", () => {
@@ -187,6 +187,62 @@ describe("useMatchDraft", () => {
     act(() => { r = result.current.saveMatch(); });
     expect(r).toEqual({ ok: false, saved: 0, error: "This device couldn't save the entry (storage full or blocked). Nothing was lost from earlier entries." });
     expect(result.current.teams.map((t) => t.status)).toEqual(["started", "started"]);
+  });
+
+  it("a new draft stays new when your saved entry arrives meanwhile: that entry's answers are never replaced", () => {
+    const { result, rerender } = setup();
+    act(() => { result.current.setAnswer(4410, "climb", "Full"); });
+    const arrived = serverEntry({ uuid: "aaaaaaaaaaaa", team: 4410, data: { cycles: 7 } });
+    rerender({ space: "w1", season: 2025, eventCode: "usnjq1", match, teams: red, template: wsTemplate, existing: [arrived], author: 7 });
+    expect(result.current.teams[0]).toMatchObject({ status: "started", entry: null });
+    act(() => { result.current.saveMatch(); });
+    const all = localScoutEntries("w1").filter((e) => e.team === 4410);
+    expect(all).toHaveLength(2);
+    expect(all.find((e) => e.uuid === "aaaaaaaaaaaa")?.data).toEqual({ cycles: 7 });
+  });
+
+  it("an edit whose entry was deleted meanwhile is saved as new, answers and template as they were", () => {
+    const mine = serverEntry({ uuid: "aaaaaaaaaaaa", team: 4410, data: { cycles: 4, oldField: "x" } });
+    const { result, rerender } = setup({ existing: [mine] });
+    act(() => { result.current.setAnswer(4410, "cycles", 5); });
+    const v4: ScoutTemplate = { ...wsTemplate, version: 4 };
+    rerender({ space: "w1", season: 2025, eventCode: "usnjq1", match, teams: red, template: v4, existing: [{ ...mine, deleted: true }], author: 7 });
+    act(() => { result.current.saveMatch(); });
+    const made = localScoutEntries("w1").find((e) => e.uuid !== "aaaaaaaaaaaa")!;
+    expect(made).toMatchObject({ team: 4410, data: { cycles: 5, oldField: "x" }, templateId: "ws:w1:2025:match", templateVersion: 2 });
+  });
+
+  it("another account on the same device doesn't inherit a draft", () => {
+    const a = setup();
+    act(() => { a.result.current.setAnswer(4410, "climb", "Full"); });
+    a.unmount();
+    const b = setup({ author: 8 });
+    expect(b.result.current.teams[0].status).toBe("empty");
+    b.unmount();
+    expect(setup().result.current.teams[0].data).toEqual({ climb: "Full" });
+  });
+
+  it("read-only: a team kept in Personal stays saved, so a retry after a storage error doesn't save it twice", () => {
+    const { result } = setup({ readOnly: true });
+    act(() => { result.current.setAnswer(4410, "climb", "Full"); result.current.setAnswer(18360, "climb", "Partial"); });
+    const real = Storage.prototype.setItem;
+    let writes = 0;
+    const spy = vi.spyOn(Storage.prototype, "setItem").mockImplementation(function (this: Storage, k: string, v: string) {
+      if (k.startsWith("cs-scout:") && ++writes === 2) throw new Error("QuotaExceededError");
+      return real.call(this, k, v);
+    });
+    let r: ReturnType<typeof result.current.saveMatch> | undefined;
+    act(() => { r = result.current.saveMatch(); });
+    expect(r).toMatchObject({ ok: false, saved: 1 });
+    expect(result.current.teams.map((t) => t.status)).toEqual(["done", "started"]);
+    spy.mockRestore();
+    act(() => { r = result.current.saveMatch({ includeEmpty: true }); });
+    expect(r).toEqual({ ok: true, saved: 1, unchanged: 1, skipped: [] });
+    expect(localScoutEntries(null).map((e) => e.team).sort((a, b) => a - b)).toEqual([4410, 18360]);
+    // A later change updates that same Personal copy.
+    act(() => { result.current.setNotes(4410, "late note"); });
+    act(() => { result.current.saveMatch(); });
+    expect(localScoutEntries(null).filter((e) => e.team === 4410)).toHaveLength(1);
   });
 });
 
