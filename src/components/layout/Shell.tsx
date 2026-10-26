@@ -6,7 +6,7 @@
 // its width; the rail's button opens the full labelled menu.
 import { useEffect, useId, useRef, useState, type ComponentType, type ReactNode } from "react";
 import { Ambient } from "./Ambient";
-import { Link, NavLink, useLocation } from "react-router-dom";
+import { Link, NavLink, useLocation, useMatch } from "react-router-dom";
 import { MotionConfig } from "motion/react";
 import { m } from "../motion";
 import {
@@ -89,12 +89,13 @@ interface RowOpts { collapsed?: boolean; dense?: boolean; onNavigate?: () => voi
 
 /** `active`: overrides the link's own match (the YOURS row is lit on its own page, /my-team or /my-teams). */
 function NavRow({ item, collapsed, dense, onNavigate, active }: RowOpts & { item: NavItem; active?: boolean }) {
+  // Matched here, not by NavLink's className/children functions: the rail's tooltip trigger (a Radix Slot) only merges plain strings.
+  const match = useMatch({ path: item.to, end: !!item.end });
+  const on = active ?? !!match;
   return (
     <RailTip on={collapsed} label={item.label}>
-      <NavLink to={item.to} end={item.end} onClick={onNavigate}
-        aria-current={active === undefined ? undefined : active ? "page" : false}
-        className={({ isActive }) => rowClass(active ?? isActive, collapsed, dense)}>
-        {({ isActive }) => <RowInner item={item} on={active ?? isActive} collapsed={collapsed} dense={dense} />}
+      <NavLink to={item.to} end={item.end} onClick={onNavigate} aria-current={on ? "page" : false} className={rowClass(on, collapsed, dense)}>
+        <RowInner item={item} on={on} collapsed={collapsed} dense={dense} />
       </NavLink>
     </RailTip>
   );
