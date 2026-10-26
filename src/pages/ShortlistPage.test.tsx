@@ -80,4 +80,82 @@ describe("ShortlistPage", () => {
     fireEvent.click(toggle);
     expect(screen.queryByRole("region", { name: "How the shortlist works" })).toBeNull();
   });
+
+  describe("adding a team on the page", () => {
+    const hit = (n: number, name: string) => ({ kind: "team", ref: String(n), title: `${n} ${name}`, subtitle: "Perth, WA" });
+    // Search answers with these teams (or fails); the shortlist itself answers as above.
+    const searchWith = (hits: ReturnType<typeof hit>[] | "down") => vi.stubGlobal("fetch", async (path: string) => {
+      paths.push(path);
+      if (path.startsWith("/api/shortlist")) return new Response(JSON.stringify({ season: 2025, teams: [team(101, 80, 3), team(102, 61.5, 40)] }), { status: 200 });
+      if (path.startsWith("/api/search")) {
+        if (hits === "down") throw new TypeError("Failed to fetch");
+        return new Response(JSON.stringify({ hits }), { status: 200 });
+      }
+      throw new Error(`unexpected ${path}`);
+    });
+    const field = () => screen.getByRole("combobox", { name: "Add a team to your shortlist" });
+    const type = (text: string) => { fireEvent.focus(field()); fireEvent.change(field(), { target: { value: text } }); };
+
+    it("sits by Order picks: a team picked from the matches goes to the end of the personal list", async () => {
+      searchWith([hit(5001, "Gearheads")]);
+      mount();
+      await waitFor(() => expect(document.querySelectorAll("[data-reorder-key]")).toHaveLength(2));
+      type("gear");
+      const option = await screen.findByRole("option", { name: /5001.*Gearheads/ });
+      fireEvent.mouseDown(option);
+      await waitFor(() => expect(h.bookmarks).toEqual([101, 102, 5001]));
+      expect(h.updates).toEqual(["bookmarks"]);
+      expect(await screen.findByText("Added 5001 Gearheads to your shortlist as pick 3", { selector: ".sr-only" })).toBeTruthy();
+    });
+
+    it("marks teams already on the list, and picking one again doesn't add it twice", async () => {
+      searchWith([hit(101, "Team 101 name"), hit(5002, "Other")]);
+      mount();
+      await waitFor(() => expect(document.querySelectorAll("[data-reorder-key]")).toHaveLength(2));
+      type("101");
+      // Search's answer: the team on the list is marked, the other one isn't.
+      expect((await screen.findByRole("option", { name: /5002.*Other/ })).textContent).not.toMatch(/On your shortlist/);
+      const mine = screen.getByRole("option", { name: /101.*On your shortlist/ });
+      fireEvent.mouseDown(mine);
+      expect((await screen.findByRole("alert")).textContent).toBe("101 is already on your shortlist.");
+      expect(h.bookmarks).toEqual([101, 102]);
+      expect(h.updates).toEqual([]);
+    });
+
+    it("says when search finds nothing, and turns down a number that isn't a team", async () => {
+      searchWith([]);
+      mount();
+      await waitFor(() => expect(document.querySelectorAll("[data-reorder-key]")).toHaveLength(2));
+      type("zzzz");
+      expect(await screen.findByText("No team matches “zzzz”.", { selector: "li" })).toBeTruthy();
+      type("99991");
+      fireEvent.keyDown(await screen.findByRole("combobox", { expanded: true }), { key: "Enter" });
+      expect((await screen.findByRole("alert")).textContent).toMatch(/There's no FTC team 99991 on record/);
+      expect(h.bookmarks).toEqual([101, 102]);
+    });
+
+    it("says when search can't be reached, and still adds a typed number (no signal at a venue)", async () => {
+      searchWith("down");
+      mount();
+      await waitFor(() => expect(document.querySelectorAll("[data-reorder-key]")).toHaveLength(2));
+      type("5003");
+      expect(await screen.findByText(/Search isn't reachable right now/, { selector: "li" })).toBeTruthy();
+      fireEvent.keyDown(field(), { key: "Enter" });
+      await waitFor(() => expect(h.bookmarks).toEqual([101, 102, 5003]));
+    });
+
+    it("shows an empty list how to add a team, with the same search", async () => {
+      h.bookmarks = [];
+      searchWith([hit(5004, "Firsts")]);
+      mount();
+      expect(screen.getByText("Your shortlist is empty")).toBeTruthy();
+      expect(screen.getByText(/Search below for a team by number or name to add it/)).toBeTruthy();
+      expect(screen.getByRole("link", { name: /Browse events/ })).toBeTruthy();
+      type("5004");
+      await screen.findByRole("option", { name: /5004.*Firsts/ });
+      fireEvent.keyDown(field(), { key: "ArrowDown" });
+      fireEvent.keyDown(field(), { key: "Enter" });
+      await waitFor(() => expect(h.bookmarks).toEqual([5004]));
+    });
+  });
 });

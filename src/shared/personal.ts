@@ -71,6 +71,8 @@ const uniq = <T>(xs: T[]) => [...new Set(xs)];
 const MAX_HISTORY = 200;
 export const MAX_NOTE = 500;
 const MAX_NOTES = 500;
+/** The most teams a shortlist holds. */
+export const MAX_BOOKMARKS = 500;
 
 /** Validate + clamp one key's value (null when unusable). Server and client both run this. */
 export function cleanValue<K extends PersonalKey>(key: K, v: unknown): PersonalState[K] | null {
@@ -82,7 +84,7 @@ export function cleanValue<K extends PersonalKey>(key: K, v: unknown): PersonalS
       if (!o || typeof o !== "object") return null;
       return { teams: uniq((o.teams ?? []).filter(isTeam)).slice(0, 200), events: uniq((o.events ?? []).filter((e) => typeof e === "string" && /^\d{4}:[A-Z0-9_-]{2,24}$/.test(e))).slice(0, 200) } as PersonalState[K];
     }
-    case "bookmarks": return (Array.isArray(v) ? uniq(v.filter(isTeam)).slice(0, 500) : null) as PersonalState[K];
+    case "bookmarks": return (Array.isArray(v) ? uniq(v.filter(isTeam)).slice(0, MAX_BOOKMARKS) : null) as PersonalState[K];
     case "settings": {
       const o = (v ?? {}) as Partial<Settings>;
       return {
