@@ -1,48 +1,84 @@
-// The account button at the right of the top bar. Signed out: "Sign in",
-// which opens a small panel under it (not a dialog: nothing behind it is
-// blocked, and it closes on Esc or a click elsewhere) with email code,
-// Google / Discord / GitHub (run by Control Point) and Control Point. When a
-// sign-in finds an existing Control Point account, a short "merging your
-// accounts" screen plays and that account's shortlist joins this one.
-// Right after an email is proven, it says whether
-// that address already has a Control Point account (and its teams). That's
-// only ever said to the signed-in owner, so it can't be used to probe
-// someone else's email. Signed in: who you are, sync, Control Point, sign out.
-import { useEffect, useId, useRef, useState, type Dispatch, type SetStateAction } from "react";
+// The account controls at the foot of the sidebar (and of the phone's menu sheet), Control Point style.
+// Signed in: one row with the avatar and its status dot, the name over the sync status ("Online" only when
+// it is), and Settings / Sign out icon buttons; the avatar opens the account panel above it. Signed out: a
+// "Sign in" button that opens the sign-in panel (not a dialog: nothing behind it is blocked, and it closes on
+// Esc or a click elsewhere) with email code, Google / Discord / GitHub (run by Control Point) and Control
+// Point. When a sign-in finds an existing Control Point account, a short "merging your accounts" screen
+// plays and that account's shortlist joins this one. Right after an email is proven, it says whether that
+// address already has a Control Point account (and its teams). That's only ever said to the signed-in
+// owner, so it can't be used to probe someone else's email.
+//
+// The sidebar and the menu sheet each draw a footer, so the panel's state (open, the email step, a merge)
+// lives once in AccountProvider and both read it: only one of them is on screen at a time.
+import { createContext, useContext, useEffect, useId, useRef, useState, type Dispatch, type ReactNode, type SetStateAction } from "react";
 import { AnimatePresence } from "motion/react";
 import { m } from "../motion";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { CheckCircle2, ExternalLink, KeyRound, LogIn, LogOut, Mail, Settings, UserRound } from "lucide-react";
-import { apiFetch } from "../../lib/api";
-import { SIGNED_IN, usePersonal, type AccountUser } from "../../lib/personal";
+import { apiFetch, useOfflineMode } from "../../lib/api";
+import { SIGNED_IN, usePersonal, type AccountUser, type SyncStatus } from "../../lib/personal";
 import { OtpInput } from "../arc/otp-input/otp-input";
 import { Button } from "../ui/button";
 import { Input } from "../ui/basic";
+import { Tooltip, TooltipContent, TooltipTrigger } from "../ui/overlay";
 import { toast } from "../ui/sonner";
 import { cn } from "../cn";
 import { MergeScreen, ProviderButtons, useShortlistMerge } from "./AccountMerge";
 
 const SYNC_LABEL: Record<string, string> = { synced: "Synced", syncing: "Syncing…", offline: "Offline: will sync", error: "Sync error: will retry", local: "This device only" };
 
-export function AccountMenu() {
-  const { user } = usePersonal();
+/** The footer row's status line and dot. "Online" only while syncing works; no signal always reads "Offline". */
+const STATUS: Record<SyncStatus, { label: string; dot: string }> = {
+  synced: { label: "Online", dot: "bg-success" },
+  syncing: { label: "Syncing…", dot: "bg-success" },
+  offline: { label: "Offline", dot: "bg-text-muted" },
+  error: { label: "Sync error", dot: "bg-warning" },
+  local: { label: "Connecting…", dot: "bg-text-muted" },
+};
+
+interface EmailFlow { email: string; sent: boolean }
+
+interface AccountPanelApi {
+  open: boolean;
+  setOpen: Dispatch<SetStateAction<boolean>>;
+  /** The email-code step lives here, not in the panel: closing the panel mid-sign-in keeps the code you were sent. */
+  flow: EmailFlow;
+  setFlow: Dispatch<SetStateAction<EmailFlow>>;
+  /** A sign-in that found an existing Control Point account: the merge screen plays in the panel. */
+  merging: AccountUser | null;
+  added: number | null;
+  endMerge: () => void;
+}
+
+const AccountPanelContext = createContext<AccountPanelApi | null>(null);
+
+export function useAccountPanel(): AccountPanelApi {
+  const api = useContext(AccountPanelContext);
+  if (!api) throw new Error("useAccountPanel needs an AccountProvider");
+  return api;
+}
+
+/** The account toggle on screen (the sidebar's, or the menu sheet's when it's open), for Escape to return to. */
+function shownToggle(): HTMLElement | null {
+  const all = [...document.querySelectorAll<HTMLElement>("[data-account-toggle]")];
+  return all.find((el) => el.getClientRects().length > 0) ?? all.at(-1) ?? null;
+}
+
+export function AccountProvider({ children }: { children: ReactNode }) {
+  const { user, syncReady } = usePersonal();
   const [open, setOpen] = useState(false);
-  const box = useRef<HTMLDivElement>(null);
-  const panelId = useId();
   const loc = useLocation();
-  // Close on navigation, Esc, or a click outside.
+  // Close on navigation, Esc, or a click outside every account footer.
   useEffect(() => { setOpen(false); }, [loc.pathname]);
   useEffect(() => {
     if (!open) return;
-    const away = (e: PointerEvent) => { if (!box.current?.contains(e.target as Node)) setOpen(false); };
-    const esc = (e: KeyboardEvent) => { if (e.key === "Escape") { e.preventDefault(); setOpen(false); box.current?.querySelector<HTMLButtonElement>("[data-account-toggle]")?.focus(); } };
+    const away = (e: PointerEvent) => { if (!(e.target as Element | null)?.closest?.("[data-account-box]")) setOpen(false); };
+    const esc = (e: KeyboardEvent) => { if (e.key === "Escape") { e.preventDefault(); setOpen(false); shownToggle()?.focus(); } };
     document.addEventListener("pointerdown", away);
     document.addEventListener("keydown", esc);
     return () => { document.removeEventListener("pointerdown", away); document.removeEventListener("keydown", esc); };
   }, [open]);
-  // The email-code step lives here, not in the panel: closing the panel mid-sign-in keeps the code you were sent.
   const [flow, setFlow] = useState<EmailFlow>({ email: "", sent: false });
-  // A sign-in that found an existing Control Point account: play the merge screen in the panel.
   const [merging, setMerging] = useState<AccountUser | null>(null);
   // What to merge, one per sign-in (`seq`), kept after the screen finishes so a slow sync still gets the shortlist in.
   const [mergeTarget, setMergeTarget] = useState<{ user: AccountUser; seq: number } | null>(null);
@@ -60,7 +96,6 @@ export function AccountMenu() {
   }, [user?.id]); // eslint-disable-line react-hooks/exhaustive-deps
   // The shortlist merge runs here (always mounted, so closing the panel can't skip it), once this
   // device's data is the account's: the added teams then sync and aren't overwritten by the first pull.
-  const { syncReady } = usePersonal();
   const mergeShortlist = useShortlistMerge();
   const [added, setAdded] = useState<number | null>(null);
   const mergedFor = useRef<number | null>(null); // the sign-in (seq) already merged
@@ -82,25 +117,93 @@ export function AccountMenu() {
     const q = new URLSearchParams(loc.search); q.delete("signin");
     nav({ pathname: loc.pathname, search: q.toString() ? `?${q}` : "" }, { replace: true });
   }, [back, user]); // eslint-disable-line react-hooks/exhaustive-deps
-  const initial = (user?.displayName || user?.email || "?").trim().charAt(0).toUpperCase();
+  const endMerge = () => { setMerging(null); setAdded(null); };
+  return <AccountPanelContext.Provider value={{ open, setOpen, flow, setFlow, merging, added, endMerge }}>{children}</AccountPanelContext.Provider>;
+}
+
+const iconButton = "flex size-8 shrink-0 items-center justify-center rounded-lg text-text-muted outline-none hover:bg-text-base/[0.06] hover:text-text-base focus-visible:ring-2 focus-visible:ring-ring/60";
+
+/** The icon rail shows a control's name in a tooltip beside it. */
+function Tip({ on, label, children }: { on: boolean; label: string; children: ReactNode }) {
+  if (!on) return children;
   return (
-    <div ref={box} className="relative shrink-0">
-      <button
-        type="button" data-account-toggle onClick={() => setOpen((o) => !o)} aria-expanded={open} aria-controls={panelId}
-        className={cn("flex h-8 items-center gap-1.5 rounded-lg text-xs font-medium outline-none focus-visible:ring-2 focus-visible:ring-ring/60",
-          user ? "w-8 justify-center rounded-full bg-accent/15 text-accent-text hover:bg-accent/25" : "border border-line px-2.5 text-text-base hover:bg-text-base/[0.05]")}
-        aria-label={user ? `Account: ${user.displayName || user.email}` : "Sign in"}
-      >
-        {user ? initial : <><LogIn className="size-3.5" /><span className="hidden sm:inline">Sign in</span></>}
-      </button>
+    <Tooltip>
+      <TooltipTrigger asChild>{children}</TooltipTrigger>
+      <TooltipContent side="right">{label}</TooltipContent>
+    </Tooltip>
+  );
+}
+
+function Avatar({ initial, dot }: { initial: string; dot: string }) {
+  return (
+    <span className="relative flex size-8 shrink-0 items-center justify-center rounded-full bg-accent/15 text-sm font-semibold text-accent-text">
+      {initial}
+      <span className={cn("absolute -bottom-0.5 -right-0.5 size-2.5 rounded-full ring-2 ring-secondary", dot)} aria-hidden />
+    </span>
+  );
+}
+
+/**
+ * `place`: "sidebar" (the full sidebar: one row, the panel opens above it), "rail" (the icon rail: the avatar
+ * and Settings stacked, names in tooltips, the panel opens beside it) or "sheet" (the phone's menu sheet).
+ */
+export function AccountFooter({ place }: { place: "sidebar" | "rail" | "sheet" }) {
+  const { user, sync, offlineAccount, signOut } = usePersonal();
+  const { open, setOpen, flow, setFlow, merging, added, endMerge } = useAccountPanel();
+  const noSignal = useOfflineMode();
+  const panelId = useId();
+  const rail = place === "rail";
+  const name = user ? user.displayName || user.email || "Your account" : "";
+  const status = noSignal || offlineAccount ? STATUS.offline : STATUS[sync] ?? STATUS.local;
+  const initial = (name || "?").trim().charAt(0).toUpperCase();
+  const signOutNow = () => signOut().then(() => { setOpen(false); toast("Signed out. Your data stays on this device"); });
+  const toggle = { "data-account-toggle": "", onClick: () => setOpen((o) => !o), "aria-expanded": open, "aria-controls": panelId };
+  const settings = (
+    <Tip on={rail} label="Settings">
+      <Link to="/settings" aria-label="Settings" className={iconButton}><Settings className="size-[18px]" /></Link>
+    </Tip>
+  );
+  return (
+    // While the panel is open it owns Escape, so the menu sheet around it stays open (src/components/ui/overlay.tsx).
+    <div data-account-box data-slot="account-panel" data-esc-owner={open ? "" : undefined} className="relative">
+      {rail ? (
+        <div className="flex flex-col items-center gap-1">
+          {settings}
+          <Tip on label={user ? `${name}: ${status.label}` : "Sign in"}>
+            <button type="button" {...toggle} aria-label={user ? `Account: ${name}` : "Sign in"}
+              className={cn("flex size-10 items-center justify-center rounded-full outline-none focus-visible:ring-2 focus-visible:ring-ring/60", user ? "hover:bg-text-base/[0.06]" : "text-text-muted hover:bg-text-base/[0.06] hover:text-text-base")}>
+              {user ? <Avatar initial={initial} dot={status.dot} /> : <LogIn className="size-[18px]" />}
+            </button>
+          </Tip>
+        </div>
+      ) : (
+        // The same height signed in or out, so nothing moves when you sign in.
+        <div className="flex h-11 items-center gap-1">
+          {user ? (
+            <button type="button" {...toggle} aria-label={`Account: ${name}`}
+              className="flex h-11 min-w-0 flex-1 items-center gap-2.5 rounded-lg px-1.5 text-left outline-none hover:bg-text-base/[0.05] focus-visible:ring-2 focus-visible:ring-ring/60">
+              <Avatar initial={initial} dot={status.dot} />
+              <span className="min-w-0">
+                <span className="block truncate text-sm font-medium leading-tight">{name}</span>
+                <span className="block truncate text-xs leading-tight text-text-muted">{status.label}</span>
+              </span>
+            </button>
+          ) : (
+            <Button type="button" variant="outline" size="sm" {...toggle} className="h-9 flex-1"><LogIn /> Sign in</Button>
+          )}
+          {settings}
+          {user && <button type="button" onClick={signOutNow} aria-label="Sign out" className={iconButton}><LogOut className="size-[18px]" /></button>}
+        </div>
+      )}
       <AnimatePresence>
       {open && (
         <m.div id={panelId} role="region" aria-label={user ? "Your account" : "Sign in"} key="panel"
-          initial={{ opacity: 0, y: -6, scale: 0.98 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={{ opacity: 0, y: -4, scale: 0.98 }}
-          transition={{ duration: 0.16, ease: [0.2, 0.8, 0.2, 1] }} style={{ transformOrigin: "top right" }}
-          className="fixed inset-x-2 top-14 z-50 max-h-[calc(100dvh-4rem)] overflow-y-auto rounded-xl border border-border bg-popover p-4 text-popover-foreground shadow-[0_18px_40px_-16px_rgba(0,0,0,.55)] sm:absolute sm:inset-x-auto sm:right-0 sm:top-full sm:mt-2 sm:w-96">
-          {merging ? <MergeScreen user={merging} added={added} onDone={() => { setMerging(null); setAdded(null); }} />
-            : user ? <SignedInPanel user={user} onClose={() => setOpen(false)} />
+          initial={{ opacity: 0, y: 6, scale: 0.98 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={{ opacity: 0, y: 4, scale: 0.98 }}
+          transition={{ duration: 0.16, ease: [0.2, 0.8, 0.2, 1] }} style={{ transformOrigin: "bottom left" }}
+          className={cn("absolute z-50 max-h-[calc(100dvh-6rem)] overflow-y-auto rounded-xl border border-border bg-popover p-4 text-popover-foreground shadow-[0_18px_40px_-16px_rgba(0,0,0,.55)]",
+            place === "rail" ? "bottom-0 left-full ml-3 w-96" : place === "sidebar" ? "bottom-full left-0 mb-2 w-96" : "inset-x-0 bottom-full mb-2")}>
+          {merging ? <MergeScreen user={merging} added={added} onDone={endMerge} />
+            : user ? <SignedInPanel user={user} onClose={() => setOpen(false)} onSignOut={signOutNow} />
             : <SignInPanel flow={flow} setFlow={setFlow} />}
         </m.div>
       )}
@@ -108,8 +211,6 @@ export function AccountMenu() {
     </div>
   );
 }
-
-interface EmailFlow { email: string; sent: boolean }
 
 function SignInPanel({ flow, setFlow }: { flow: EmailFlow; setFlow: Dispatch<SetStateAction<EmailFlow>> }) {
   const { providers, signedIn } = usePersonal();
@@ -177,8 +278,8 @@ function SignInPanel({ flow, setFlow }: { flow: EmailFlow; setFlow: Dispatch<Set
   );
 }
 
-function SignedInPanel({ user, onClose }: { user: AccountUser; onClose: () => void }) {
-  const { sync, signOut } = usePersonal();
+function SignedInPanel({ user, onClose, onSignOut }: { user: AccountUser; onClose: () => void; onSignOut: () => void }) {
+  const { sync } = usePersonal();
   const cp = user.controlPoint;
   return (
     <div className="space-y-3">
@@ -213,7 +314,7 @@ function SignedInPanel({ user, onClose }: { user: AccountUser; onClose: () => vo
       ) : user.controlPointLinked ? <p className="text-xs text-muted-foreground">Linked with Control Point.</p> : null}
       <div className="flex gap-2">
         <Button variant="outline" size="sm" className="flex-1" asChild><Link to="/settings?section=profile" onClick={onClose}><Settings /> Account settings</Link></Button>
-        <Button variant="ghost" size="sm" onClick={() => signOut().then(() => { onClose(); toast("Signed out. Your data stays on this device"); })}><LogOut /> Sign out</Button>
+        <Button variant="ghost" size="sm" onClick={onSignOut}><LogOut /> Sign out</Button>
       </div>
     </div>
   );
