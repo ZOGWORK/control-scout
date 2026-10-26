@@ -329,7 +329,8 @@ export default function ScoutPage() {
                 )}
             </>}
           </> : settingUp ? (
-            <div className={SCOUT_COLUMN}><SessionSetup season={season} initial={session ? { eventCode: session.eventCode, watching: session.watching } : mineAt ?? undefined} suggestedEvent={scoutSession.suggested ?? mineAt?.eventCode}
+            // One form per space and season: choices made in one never carry into another (late defaults within one apply in place).
+            <div className={SCOUT_COLUMN}><SessionSetup key={`${space ?? "personal"}:${season}`} season={season} initial={session ? { eventCode: session.eventCode, watching: session.watching } : mineAt ?? undefined} suggestedEvent={scoutSession.suggested ?? mineAt?.eventCode}
               myTeam={personal.myTeam} onStart={startSession} onCancel={session ? closeSetup : undefined} /></div>
           ) : !session ? (
             <EmptyState icon={ClipboardList} title="Nothing to scout here" description="This workspace is read-only. Its entries, pick list and export are under Data."
