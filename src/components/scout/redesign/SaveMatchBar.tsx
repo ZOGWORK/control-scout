@@ -14,7 +14,7 @@ const list = (teams: number[]) => teams.length <= 2 ? teams.join(" and ") : `${t
 /** The line under Save: where things stand, or which teams have nothing yet. */
 export function emptyHint(empty: number[]): string {
   if (!empty.length) return "Saved on this device first. Works with no signal.";
-  return `${list(empty)} ${empty.length === 1 ? "has" : "have"} nothing yet. Save anyway or tap ${empty.length === 1 ? "its" : "their"} tab.`;
+  return `${list(empty)} ${empty.length === 1 ? "has" : "have"} nothing yet. Save anyway, or fill ${empty.length === 1 ? "it" : "them"} in first.`;
 }
 
 export function SaveMatchBar({ label, teamCount, nextLabel, nextIndex, emptyTeams, toPersonal = false, onSave, onSaved, className }: {

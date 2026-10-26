@@ -12,6 +12,7 @@ import { resetFlags } from "../lib/flags";
 import { DEFAULT_FLAGS } from "../shared/flags";
 import { SPACE_STORAGE_KEY } from "../lib/scoutSpace";
 import { TooltipProvider } from "../components/ui/overlay";
+import { asEntries } from "./scoutTestUrl";
 
 const h = vi.hoisted(() => ({
   personal: { user: null as AccountUser | null, providers: { email: true, google: false } as object | null, syncReady: false, state: { videoLinks: {} } },
@@ -35,7 +36,7 @@ const signedIn = (workspaces: { id: string; name: string; role: "admin" | "membe
 
 let where = "";
 function Where() { const l = useLocation(); where = l.pathname + l.search; return null; }
-const page = (url: string) => <TooltipProvider><MemoryRouter initialEntries={[url]}><ScoutPage /><Where /></MemoryRouter></TooltipProvider>;
+const page = (url: string) => <TooltipProvider><MemoryRouter initialEntries={[asEntries(url)]}><ScoutPage /><Where /></MemoryRouter></TooltipProvider>;
 const show = (url = "/scout?season=2025") => render(page(url));
 const param = () => new URLSearchParams(where.split("?")[1]).get("space");
 const switcher = () => screen.queryByRole("group", { name: "Scout space" });

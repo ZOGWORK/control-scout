@@ -82,7 +82,7 @@ export interface QuickMatchFormProps {
 export function QuickMatchForm({ teams, template, onChange, onOpenFull, disabled, className }: QuickMatchFormProps) {
   return (
     <div className={cn("grid gap-2", className)}>
-      {teams.map((t) => <QuickRow key={t.watched.team} t={t} q={quickFields(template ?? t.template)} onChange={onChange} onOpenFull={onOpenFull} disabled={disabled} />)}
+      {teams.map((t) => <QuickRow key={t.watched.team} t={t} q={quickFields(template ?? t.template)} onChange={onChange} onOpenFull={onOpenFull} disabled={disabled || t.locked} />)}
     </div>
   );
 }
@@ -133,9 +133,9 @@ function QuickRow({ t, q, onChange, onOpenFull, disabled }: { t: TeamState; q: Q
             </button>
           </>
         ) : <span className="col-span-2 text-xs text-muted-foreground">No scoring counter in this template.</span>}
-        <button type="button" aria-label={`Full form for ${team}`} title="Full form" onClick={() => onOpenFull(team)}
+        <button type="button" aria-label={`Full form for ${team}`} title="All fields" onClick={() => onOpenFull(team)}
           className={cn(buttonVariants({ variant: "ghost" }), "h-[44px] w-[44px] flex-col gap-0 rounded-lg px-0 text-[10px] leading-tight")}>
-          <ChevronRight className="size-4" /><span aria-hidden>Full</span>
+          <ChevronRight className="size-4" /><span aria-hidden>More</span>
         </button>
       </div>
       {c && range && <span className="sr-only" aria-live="polite">{`${team} ${c.label}: ${range.n}`}</span>}

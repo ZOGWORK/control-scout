@@ -12,6 +12,7 @@ import { resetFlags } from "../lib/flags";
 import { DEFAULT_FLAGS } from "../shared/flags";
 import { ENTRY_POLICY, type WorkspaceSettings } from "../shared/workspaceSettings";
 import { TooltipProvider } from "../components/ui/overlay";
+import { asEntries } from "./scoutTestUrl";
 
 const h = vi.hoisted(() => ({
   personal: { user: null as AccountUser | null, providers: { email: true, google: false } as object | null, syncReady: false, state: { videoLinks: {} } },
@@ -52,10 +53,11 @@ beforeEach(() => {
 });
 afterEach(() => { cleanup(); resetFlags({ ...DEFAULT_FLAGS }); vi.unstubAllGlobals(); });
 
-const show = (url: string) => render(<TooltipProvider><MemoryRouter initialEntries={[url]}><ScoutPage /></MemoryRouter></TooltipProvider>);
+const show = (url: string) => render(<TooltipProvider><MemoryRouter initialEntries={[asEntries(url)]}><ScoutPage /></MemoryRouter></TooltipProvider>);
 const openNew = () => fireEvent.click(screen.getByRole("button", { name: /New entry/ }));
 const eventField = () => screen.getByLabelText("Event code") as HTMLInputElement;
-const checkedSeason = () => screen.getAllByRole("radio").find((r) => r.getAttribute("aria-checked") === "true")?.getAttribute("aria-label") ?? "";
+// The season picker's checked option (an open form's Match/Pit choice is a radio group too).
+const checkedSeason = () => screen.getAllByRole("radio").map((r) => (r.getAttribute("aria-checked") === "true" ? r.getAttribute("aria-label") ?? "" : "")).find((l) => /^\d{4}/.test(l)) ?? "";
 
 describe("workspace defaults on the Scout page", () => {
   it("a workspace's space opens on its default season, and a new entry starts at its default event", async () => {
