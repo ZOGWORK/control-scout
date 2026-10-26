@@ -124,6 +124,17 @@ describe("assignments on the Scout page", () => {
     await waitFor(() => expect((screen.getByLabelText("Event code") as HTMLInputElement).value).toBe(EV));
   });
 
+  it("Scout on an assignment opens a match entry, even after a pit entry was started and cancelled", async () => {
+    show(`/scout?space=${WS}&season=2025&tab=data`);
+    fireEvent.click(await screen.findByRole("button", { name: /Pit scouting/ }));
+    await waitFor(() => expect(screen.getByRole("radio", { name: "Pit" }).getAttribute("aria-checked")).toBe("true"));
+    fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
+    fireEvent.click(screen.getByRole("button", { name: /Assignments/ }));
+    await waitFor(() => expect(myCards()).toHaveLength(2));
+    fireEvent.click(within(myCards()[1]).getByRole("button", { name: /Scout/ }));
+    await waitFor(() => expect(screen.getByRole("radio", { name: "Match" }).getAttribute("aria-checked")).toBe("true"));
+  });
+
   it("the assignment's event only holds in its space: switching space while the form is open falls back to that space's defaults", async () => {
     const u = userAs("member");
     u.controlPoint!.workspaces = [...u.controlPoint!.workspaces!, { id: "904", name: "Bolt Bots", role: "member" }];
