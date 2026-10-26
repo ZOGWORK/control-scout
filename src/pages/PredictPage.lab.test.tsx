@@ -106,4 +106,26 @@ describe("Predict Lab: advancement", () => {
     act(() => back());
     await waitFor(() => expect(new URLSearchParams(where).get("code")).toBe("AAQ1"));
   });
+
+  it("Back to an entry without a team empties the team box, so it agrees with the result", async () => {
+    invalidate("/api/");
+    vi.stubGlobal("fetch", async (url: string) => {
+      const u = String(url);
+      if (u.startsWith("/api/predict/event") || /^\/api\/events\/\d{4}\//.test(u)) return new Promise<Response>(() => {});
+      return new Response(JSON.stringify({ events: [] }), { status: 200, headers: { "content-type": "application/json" } });
+    });
+    let back = () => {};
+    function Back() { const nav = useNavigate(); back = () => nav(-1); return null; }
+    let go = (_to: string) => {};
+    function Go() { const nav = useNavigate(); go = (to) => nav(to); return null; }
+    render(<TooltipProvider><MemoryRouter initialEntries={["/predict?mode=advancement&season=2025&code=AAQ1"]}><PredictPage /><Where /><Back /><Go /></MemoryRouter></TooltipProvider>);
+    act(() => go("/predict?mode=advancement&season=2025&code=BBQ1"));
+    const box = () => screen.getByRole("textbox", { name: "Team (optional)" }) as HTMLInputElement;
+    fireEvent.change(box(), { target: { value: "4215" } });
+    await waitFor(() => expect(new URLSearchParams(where).get("team")).toBe("4215"));
+    act(() => back());
+    await waitFor(() => expect(new URLSearchParams(where).get("code")).toBe("AAQ1"));
+    expect(new URLSearchParams(where).get("team")).toBeNull();
+    expect(box().value).toBe("");
+  });
 });

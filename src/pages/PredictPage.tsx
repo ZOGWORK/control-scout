@@ -537,8 +537,10 @@ function AdvancementLab() {
   const season = Number(sp.get("season")) || current;
   const code = sp.get("code");
   const team = Number(sp.get("team")) || null;
-  const [teamText, setTeamText] = useState(team ? String(team) : personal.myTeam ? String(personal.myTeam) : "");
-  useEffect(() => { if (team) setTeamText(String(team)); }, [team]);
+  // The team box mirrors the URL's team, both ways: typing writes it, and Back/Forward (or a link) set the box,
+  // including clearing it when the entry has no team, so the box never disagrees with the result below.
+  const [teamText, setTeamText] = useState(team ? String(team) : "");
+  useEffect(() => { setTeamText(team ? String(team) : ""); }, [team]);
   // One URL write per change: two in a row would each start from the same URL, so the second undid the first
   // (the season switch set the season, then clearing the event put the old season back). Picking an event or a
   // season is a history entry (Back returns to the one before); typing a team number replaces in place.
@@ -555,6 +557,10 @@ function AdvancementLab() {
   // The lookup failed for another reason than an unknown team (offline, server error): say so; the picker still searches every event.
   const teamStatus = (teamEvents.error as ApiError | undefined)?.status;
   const teamFailed = !!teamNo && !!teamEvents.error && teamStatus !== 404 && teamStatus !== 400;
+  // My team fills an empty team on arrival, through the URL like any other pick (so the result shows its outlook).
+  useEffect(() => {
+    if (!team && personal.myTeam) set({ team: String(personal.myTeam) });
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps -- on arrival only
   const focusEvent = () => requestAnimationFrame(() => document.getElementById("advancement-event")?.focus());
   return (
     <div className="space-y-6 max-sm:space-y-4">
@@ -578,7 +584,7 @@ function AdvancementLab() {
       </div>
       {code ? (
         <AdvancementResult season={season} code={code} team={team} askedSeason={readPredict(sp).season}
-          onSeason={(s) => set({ season: String(s) }, true)} onClearEvent={() => { set({ code: null }, true); focusEvent(); }}
+          onSeason={(s, push) => set({ season: String(s) }, push)} onClearEvent={() => { set({ code: null }, true); focusEvent(); }}
           onPickTeam={(t) => { setTeamText(String(t)); set({ team: String(t) }); }} />
       ) : <EmptyState icon={Trophy} title="Pick an event" description="Any qualifier, league tournament or championship. Add a team to see its chance to advance, captain and pick odds, likely rank, and expected advancement points." />}
     </div>
@@ -593,7 +599,8 @@ function AdvancementLab() {
  */
 function AdvancementResult({ season, code, team, askedSeason, onSeason, onClearEvent, onPickTeam }: {
   season: number; code: string; team: number | null; askedSeason: number | null;
-  onSeason: (s: number) => void; onClearEvent: () => void; onPickTeam: (t: number) => void;
+  /** `push`: a history entry (the person chose it); an automatic correction replaces, so Back doesn't redo it. */
+  onSeason: (s: number, push: boolean) => void; onClearEvent: () => void; onPickTeam: (t: number) => void;
 }) {
   const meta = useMeta();
   const seasons = useMemo(() => (meta?.seasons ?? []).filter((x) => x.predictable).map((x) => x.season), [meta]);
@@ -604,7 +611,7 @@ function AdvancementResult({ season, code, team, askedSeason, onSeason, onClearE
   const [moved, setMoved] = useState<{ code: string; from: number; to: number } | null>(null);
   const elsewhere = check?.status === "elsewhere" ? check.season : null;
   useEffect(() => {
-    if (elsewhere != null && askedSeason == null) { setMoved({ code, from: season, to: elsewhere }); onSeason(elsewhere); }
+    if (elsewhere != null && askedSeason == null) { setMoved({ code, from: season, to: elsewhere }); onSeason(elsewhere, false); }
   }, [elsewhere, askedSeason, code, season]); // eslint-disable-line react-hooks/exhaustive-deps
   if (!check || check.status === "loading" || (elsewhere != null && askedSeason == null)) return <div className="skeleton h-40 rounded-2xl" />;
   if (check.status === "error") return <ErrorState error={check.error} onRetry={check.reload} />;
@@ -617,7 +624,7 @@ function AdvancementResult({ season, code, team, askedSeason, onSeason, onClearE
           {team ? ` Team ${team} is still picked.` : ""}
         </p>
         <div className="mt-3 flex flex-wrap gap-2">
-          {check.status === "elsewhere" && <Button size="sm" onClick={() => onSeason(check.season)}>Show it in {seasonLabel(check.season)}</Button>}
+          {check.status === "elsewhere" && <Button size="sm" onClick={() => onSeason(check.season, true)}>Show it in {seasonLabel(check.season)}</Button>}
           <Button size="sm" variant="secondary" onClick={onClearEvent}><Search /> Pick another event</Button>
         </div>
       </div>
