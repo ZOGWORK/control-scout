@@ -64,4 +64,14 @@ describe("Predict, tracked events as quick picks", () => {
     await waitFor(() => expect(asked.length).toBeGreaterThan(0));
     expect(screen.queryByRole("region", { name: "Currently tracking" })).toBeNull();
   });
+
+  it("a tracked event that can't be found still picks in Scheduled, and shows as picked", async () => {
+    tracked.events = ["2025:GONE1"];
+    page("/predict?mode=scheduled");
+    const r = await row();
+    const card = await waitFor(() => r.getByRole("button", { name: /GONE1/ }));
+    fireEvent.click(card);
+    await waitFor(() => expect(new URLSearchParams(where).get("for")).toBe("event:2025:GONE1"));
+    await waitFor(() => expect(r.getByRole("button", { name: /GONE1/ }).getAttribute("aria-pressed")).toBe("true"));
+  });
 });
