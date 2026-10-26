@@ -19,6 +19,7 @@ import { EventSearchPicker } from "../components/predict/EventSearchPicker";
 import { WeekEvents } from "../components/predict/WeekEvents";
 import { Section, EmptyState } from "../components/page";
 import { LatestCalls } from "../components/LatestCalls";
+import { CurrentlyTracking } from "../components/CurrentlyTracking";
 import { Async, ErrorState } from "../components/states";
 import { Button } from "../components/ui/button";
 import { Badge, Input } from "../components/ui/basic";
@@ -98,6 +99,7 @@ export default function PredictPage() {
       <TabsContent value="advancement" className="mt-0"><AdvancementLab /></TabsContent>
       <TabsContent value="scheduled" className="mt-0 space-y-8 max-sm:space-y-5">
         <Picker onPick={setPick} />
+        <TrackedPicks season={current} picked={pick?.kind === "event" ? `${pick.season}:${pick.code}` : null} onPick={(season, code) => setPick({ kind: "event", season, code })} />
         {pick?.kind === "team" && <TeamPredictions team={pick.team} onClear={() => setPick(null)} />}
         {pick?.kind === "event" && <EventPredictions season={pick.season} code={pick.code} onClear={() => setPick(null)} />}
         <ThisWeek onPick={setPick} picked={pick?.kind === "event" ? pick.code : null} />
@@ -298,6 +300,19 @@ function EventPredictions({ season, code, onClear }: { season: number; code: str
       )}</Async>
     </section>
   );
+}
+
+/**
+ * The events you track (Track event on an event page) as quick picks: one tap shows that event here.
+ * `season`'s list (already loaded by the page's pickers, so cached) answers most; others are looked up.
+ */
+function TrackedPicks({ season, picked, onPick, only }: { season: number; picked: string | null; onPick: (season: number, code: string) => void; only?: (e: EventListItem) => boolean }) {
+  const current = useCurrentSeason();
+  const tracked = usePersonal().state.tracked.events.length > 0;
+  // Nothing tracked: no list to ask for.
+  const events = useApi<{ events: EventListItem[] }>(tracked ? `/api/events${qs({ season })}` : null);
+  if (!tracked) return null;
+  return <CurrentlyTracking season={season} current={current} events={events.data?.events} listSettled={!events.loading} onPick={onPick} picked={picked} only={only} />;
 }
 
 /** This week's events (two days back to a week out): pick one to see its scheduled predictions. */
@@ -587,6 +602,8 @@ function AdvancementLab() {
           </div>
         </div>
       </div>
+      <TrackedPicks season={season} picked={code ? `${season}:${code}` : null} only={(e) => ADVANCING.has(e.type ?? "")}
+        onPick={(s, c) => set({ season: String(s), code: c }, true)} />
       {code ? (
         <AdvancementResult season={season} code={code} team={team} askedSeason={readPredict(sp).season}
           onSeason={(s, push) => set({ season: String(s) }, push)} onClearEvent={() => { set({ code: null }, true); focusEvent(); }}
