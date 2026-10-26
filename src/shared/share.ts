@@ -2,6 +2,7 @@
 // the card and the addresses that point at it. Shared by the server (the PNG
 // and the link-preview tags) and the app (the share button), so the card, its
 // alt text and the page that unfurls into it always say the same thing.
+import { predictHref } from "./predictUrl";
 
 /**
  * A probability as a whole percentage, never a flat 0% / 100% before the
@@ -77,7 +78,7 @@ export function shareImagePath(q: ShareCardQuery): string {
 /** The page a shared matchup links to: the match on its event page, or the matchup in the Predict Lab. */
 export function sharePagePath(q: ShareCardQuery): string {
   if (q.event && q.match) return `/events/${q.season}/${encodeURIComponent(q.event)}?tab=matches&match=${encodeURIComponent(q.match)}`;
-  return `/predict?mode=match&season=${q.season}&red=${q.red.join(",")}&blue=${q.blue.join(",")}`;
+  return predictHref({ mode: "match", season: q.season, red: q.red, blue: q.blue });
 }
 
 /** A file name for the downloaded card: control-scout-4215-16379-vs-33950-21058.png. */
