@@ -77,7 +77,7 @@ export const FAQ: FaqGroup[] = [
         "Calls logged before each match (live) and season replays (backtests) are reported separately and never blended.",
       ] },
       { id: "lab", q: "Can I predict a match that isn't scheduled?", a: [
-        "Yes. The [Lab](/predict?view=lab) takes any four teams for win odds and a predicted score, or any team's odds of advancing at any event.",
+        "Yes. Predict's [Custom matchup](/predict?mode=match) takes any four teams for win odds and a predicted score, and [Advancement](/predict?mode=advancement) gives any team's odds of advancing at any event.",
       ] },
     ],
   },

@@ -11,7 +11,6 @@ vi.mock("../lib/meta", async (orig) => ({
   useMeta: () => ({ seasons: [{ season: 2026, predictable: true, game: "Game A" }, { season: 2025, predictable: true, game: "Game B" }] }),
   useCurrentSeason: () => 2026, useTitle: () => {},
 }));
-vi.mock("../components/layout/Search", () => ({ SEARCH_HINT: "Ctrl K", usePageSearch: () => null }));
 
 const { default: PredictPage } = await import("./PredictPage");
 const { invalidate } = await import("../lib/api");
