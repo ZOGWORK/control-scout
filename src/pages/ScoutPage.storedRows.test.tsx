@@ -10,6 +10,7 @@ import type { AccountUser } from "../lib/personal";
 import { resetFlags } from "../lib/flags";
 import { DEFAULT_FLAGS } from "../shared/flags";
 import { TooltipProvider } from "../components/ui/overlay";
+import { asEntries } from "./scoutTestUrl";
 
 const h = vi.hoisted(() => ({
   personal: { user: null as AccountUser | null, providers: { email: true, google: false } as object | null, syncReady: true, state: { videoLinks: {} } },
@@ -36,7 +37,7 @@ beforeEach(() => {
 });
 afterEach(() => { cleanup(); resetFlags({ ...DEFAULT_FLAGS }); vi.unstubAllGlobals(); });
 
-const show = (url: string) => render(<TooltipProvider><MemoryRouter initialEntries={[url]}><ScoutPage /></MemoryRouter></TooltipProvider>);
+const show = (url: string) => render(<TooltipProvider><MemoryRouter initialEntries={[asEntries(url)]}><ScoutPage /></MemoryRouter></TooltipProvider>);
 
 describe("rows stored with bad values", () => {
   it("object notes, a 1e300 timestamp and an object answer: the page renders every observation and says what it repaired", async () => {
