@@ -95,8 +95,10 @@ function QuickRow({ t, q, onChange, onOpenFull, disabled }: { t: TeamState; q: Q
   const c = q.counter, range = c ? counterRange(c, t.data[c.id]) : null;
   const opts = q.choice?.options ?? [];
   const pills = opts.length + q.toggles.length;
-  // One line while every pill keeps ~45px on a 320px phone; more and the choice gets its own line.
-  const wrap = pills > 6;
+  // One line while every pill keeps ~45px on a 320px phone; more and the choice gets its own line, and a
+  // long choice (a workspace's can have 12) wraps into even rows of at most 5.
+  const wrap = pills > 6 || opts.length > 5;
+  const choiceCols = Math.ceil(opts.length / Math.ceil(opts.length / 5));
   const picked = q.choice ? opts.indexOf(t.data[q.choice.id] as string) : -1, stop = picked < 0 ? 0 : picked;
   const onRadioKey = (e: KeyboardEvent<HTMLDivElement>) => {
     if (!q.choice || disabled) return;
@@ -141,7 +143,7 @@ function QuickRow({ t, q, onChange, onOpenFull, disabled }: { t: TeamState; q: Q
         <div className="mt-1.5 flex flex-wrap gap-1.5">
           {q.choice && opts.length > 0 && (
             <div role="radiogroup" aria-label={`${team} ${q.choice.label}`} onKeyDown={onRadioKey} className="grid gap-1.5"
-              style={{ flex: `${opts.length} 1 0%`, minWidth: wrap ? "100%" : 0, gridTemplateColumns: `repeat(${opts.length}, minmax(0, 1fr))` }}>
+              style={{ flex: `${opts.length} 1 0%`, minWidth: wrap ? "100%" : 0, gridTemplateColumns: `repeat(${choiceCols}, minmax(0, 1fr))` }}>
               {opts.map((o, i) => {
                 const on = t.data[q.choice!.id] === o;
                 return (
