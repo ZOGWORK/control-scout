@@ -52,14 +52,14 @@ export interface ScheduleMatch {
   blue: number[];
 }
 
-/** An event's matches in play order (quals, then playoffs), with their teams. */
+/** An event's matches in play order (quals, then playoffs), with the teams on the field (a listed team that didn't play isn't scouted). */
 export function scheduleFromMatches(matches: readonly MatchView[]): ScheduleMatch[] {
   const order = (m: MatchView) => (m.level === "qual" ? 0 : 1);
   return [...matches]
     .sort((a, b) => order(a) - order(b) || (a.startsAt && b.startsAt && a.startsAt !== b.startsAt ? (a.startsAt < b.startsAt ? -1 : 1) : 0) || a.series - b.series || a.number - b.number)
     .map((m) => ({
       key: m.key, label: m.label, level: m.level, time: m.time, startsAt: m.startsAt, played: m.played,
-      red: m.red.teams.map((t) => t.number), blue: m.blue.teams.map((t) => t.number),
+      red: m.red.teams.filter((t) => t.onField).map((t) => t.number), blue: m.blue.teams.filter((t) => t.onField).map((t) => t.number),
     }));
 }
 
