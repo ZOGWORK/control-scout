@@ -55,7 +55,10 @@ export default function ShortlistPage() {
   // A team just added asks for the set again: the picks already shown stay while it loads (same season only).
   const last = useRef<{ season: number; teams: ShortlistTeam[] } | null>(null);
   if (fresh.data) last.current = { season, teams: fresh.data.teams };
-  const data = fresh.loading && last.current?.season === season ? { ...fresh, data: { season, teams: last.current.teams }, loading: false } : fresh;
+  // Order picks and CSV wait for the whole set: on the old rows they'd leave the new team out.
+  const stale = fresh.loading && last.current?.season === season;
+  const data = stale ? { ...fresh, data: { season, teams: last.current!.teams }, loading: false } : fresh;
+  const ready = !!data.data && !stale;
   const byTeam = new Map((data.data?.teams ?? []).map((t) => [t.team, t]));
 
   const [view, setViewState] = useState<ShortlistView>(() => readView(isPhone()));
@@ -142,7 +145,7 @@ export default function ShortlistPage() {
           <AddTeam className="w-full sm:w-96" />
           <div className="flex flex-wrap items-center gap-2 sm:ml-auto">
             <DropdownMenu>
-              <DropdownMenuTrigger asChild><Button variant="secondary" size="sm" disabled={!data.data}><ArrowDownWideNarrow /> Order picks</Button></DropdownMenuTrigger>
+              <DropdownMenuTrigger asChild><Button variant="secondary" size="sm" disabled={!ready}><ArrowDownWideNarrow /> Order picks</Button></DropdownMenuTrigger>
               <DropdownMenuContent align="end">
                 <DropdownMenuLabel>Reorder the whole list by</DropdownMenuLabel>
                 <DropdownMenuItem onSelect={() => sortBy("OPR", (r) => r.opr)}>OPR (highest first)</DropdownMenuItem>
@@ -151,7 +154,7 @@ export default function ShortlistPage() {
                 <DropdownMenuItem onSelect={() => sortBy("endgame OPR", (r) => r.breakdown.endgame)}>Endgame OPR</DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
-            <Button variant="secondary" size="sm" disabled={!data.data} onClick={() => data.data && downloadCsv(`shortlist-${season}`, shortlistCsvRows(rowsFor(data.data), notes))}><Download /> CSV</Button>
+            <Button variant="secondary" size="sm" disabled={!ready} onClick={() => data.data && downloadCsv(`shortlist-${season}`, shortlistCsvRows(rowsFor(data.data), notes))}><Download /> CSV</Button>
             <ToggleGroup type="single" aria-label="View" value={view} onValueChange={(v) => { if (v) setView(v as ShortlistView); }}>
               <ToggleGroupItem value="list" aria-label="List view"><List /> <span className="max-sm:sr-only">List</span></ToggleGroupItem>
               <ToggleGroupItem value="grid" aria-label="Grid view"><LayoutGrid /> <span className="max-sm:sr-only">Grid</span></ToggleGroupItem>

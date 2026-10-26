@@ -70,9 +70,10 @@ export function TeamPicker({ onPick, exclude = [], marked = [], markedLabel = "A
   const expanded = open && !!q;
   const isMarked = (team: number) => marked.includes(team);
   // What the list holds, said when it changes (the options themselves are read as they're reached).
-  const status = !expanded ? "" : loading && !list.length ? "Searching…"
+  // Counted from search's own matches: a typed number's option is offered before search has answered.
+  const status = !expanded ? "" : loading ? "Searching…"
     : failed ? "Search isn't reachable right now. Type a team number and press Enter."
-    : list.length ? `${list.length} ${list.length === 1 ? "team" : "teams"} found.` : `No team matches “${q}”.`;
+    : shown.length ? `${shown.length} ${shown.length === 1 ? "team" : "teams"} found.` : `No team matches “${q}”.`;
 
   const pick = (team: number) => {
     onPick(team);

@@ -144,6 +144,42 @@ describe("ShortlistPage", () => {
       await waitFor(() => expect(h.bookmarks).toEqual([101, 102, 5003]));
     });
 
+    it("doesn't announce or offer Undo for a team another tab added during the check", async () => {
+      searchWith([hit(5005, "Late")]);
+      mount();
+      await waitFor(() => expect(document.querySelectorAll("[data-reorder-key]")).toHaveLength(2));
+      type("late");
+      const option = await screen.findByRole("option", { name: /5005.*Late/ });
+      h.bookmarks = [101, 102, 5005]; // synced in after this render
+      fireEvent.mouseDown(option);
+      expect((await screen.findByRole("alert")).textContent).toBe("5005 is already on your shortlist.");
+      expect(h.bookmarks).toEqual([101, 102, 5005]);
+      expect(screen.queryByText(/Added 5005/)).toBeNull();
+    });
+
+    it("never grows the list past what it keeps", async () => {
+      searchWith([hit(5006, "Over")]);
+      mount();
+      await waitFor(() => expect(document.querySelectorAll("[data-reorder-key]")).toHaveLength(2));
+      type("over");
+      const option = await screen.findByRole("option", { name: /5006.*Over/ });
+      h.bookmarks = Array.from({ length: 500 }, (_, i) => i + 1); // filled meanwhile
+      fireEvent.mouseDown(option);
+      expect((await screen.findByRole("alert")).textContent).toMatch(/The shortlist holds 500 teams/);
+      expect(h.bookmarks).toHaveLength(500);
+    });
+
+    it("says it's searching while a typed number waits for search's answer", async () => {
+      vi.stubGlobal("fetch", (path: string) => path.startsWith("/api/search") ? new Promise(() => {})
+        : Promise.resolve(new Response(JSON.stringify({ season: 2025, teams: [team(101, 80, 3), team(102, 61.5, 40)] }), { status: 200 })));
+      mount();
+      await waitFor(() => expect(document.querySelectorAll("[data-reorder-key]")).toHaveLength(2));
+      type("5007");
+      expect(await screen.findByRole("option", { name: /5007/ })).toBeTruthy();
+      expect(screen.getByText("Searching…", { selector: ".sr-only" })).toBeTruthy();
+      expect(screen.queryByText(/team found/)).toBeNull();
+    });
+
     it("shows an empty list how to add a team, with the same search", async () => {
       h.bookmarks = [];
       searchWith([hit(5004, "Firsts")]);
