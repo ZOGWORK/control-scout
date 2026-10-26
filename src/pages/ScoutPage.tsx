@@ -329,8 +329,7 @@ export default function ScoutPage() {
                 )}
             </>}
           </> : settingUp ? (
-            // Keyed on your assignment while there's no session: one that loads after the screen opens still prefills it.
-            <div className={SCOUT_COLUMN}><SessionSetup key={session ? "session" : mineAt ? `${mineAt.eventCode}:${JSON.stringify(mineAt.watching)}` : "none"} season={season} initial={session ? { eventCode: session.eventCode, watching: session.watching } : mineAt ?? undefined} suggestedEvent={scoutSession.suggested}
+            <div className={SCOUT_COLUMN}><SessionSetup season={season} initial={session ? { eventCode: session.eventCode, watching: session.watching } : mineAt ?? undefined} suggestedEvent={scoutSession.suggested ?? mineAt?.eventCode}
               myTeam={personal.myTeam} onStart={startSession} onCancel={session ? closeSetup : undefined} /></div>
           ) : !session ? (
             <EmptyState icon={ClipboardList} title="Nothing to scout here" description="This workspace is read-only. Its entries, pick list and export are under Data."
