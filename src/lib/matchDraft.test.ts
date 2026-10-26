@@ -244,6 +244,16 @@ describe("useMatchDraft", () => {
     act(() => { result.current.saveMatch(); });
     expect(localScoutEntries(null).filter((e) => e.team === 4410)).toHaveLength(1);
   });
+
+  it("a team kept in Personal while read-only goes to the workspace as a new entry, with its template, once writable", () => {
+    const { result, rerender } = setup({ readOnly: true });
+    act(() => { result.current.setAnswer(4410, "climb", "Full"); });
+    act(() => { result.current.saveMatch(); });
+    rerender({ space: "w1", season: 2025, eventCode: "usnjq1", match, teams: red, template: wsTemplate, existing: [], author: 7 });
+    act(() => { result.current.setNotes(4410, "back online"); });
+    act(() => { result.current.saveMatch(); });
+    expect(localScoutEntries("w1")).toEqual([expect.objectContaining({ team: 4410, notes: "back online", templateId: "ws:w1:2025:match", templateVersion: 3, data: { climb: "Full", cycles: 1 } })]);
+  });
 });
 
 describe("yourMatchEntry", () => {
