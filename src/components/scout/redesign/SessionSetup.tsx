@@ -2,7 +2,7 @@
 // they watch each match. Events on today come first, then the account's own team's events, then the next ones
 // by date, with a search for the rest. Nothing is saved here: Start hands the choice to the page (onStart),
 // which keeps it with useScoutSession's `set`.
-import { useEffect, useId, useMemo, useState } from "react";
+import { useEffect, useId, useMemo, useRef, useState } from "react";
 import { AlertTriangle, CalendarDays, RefreshCw, Search, SearchX, X } from "lucide-react";
 import { apiFetch, qs } from "../../../lib/api";
 import { dateRange, place } from "../../../lib/format";
@@ -84,6 +84,14 @@ export function SessionSetup({ season, initial, suggestedEvent, myTeam, onStart,
   const [kind, setKind] = useState<Watching["kind"]>(w.kind);
   const [slot, setSlot] = useState<SlotId>(w.kind === "slot" ? w.slot : "red1");
   const [side, setSide] = useState<AllianceSide>(w.kind === "alliance" ? w.side : w.kind === "slot" ? sideOf(w.slot) : "red");
+  // Like the event: a starting choice that arrives late (an assignment loads) is applied until the scout picks one.
+  const watchTouched = useRef(false);
+  const wKey = JSON.stringify(w);
+  useEffect(() => {
+    if (watchTouched.current) return;
+    setKind(w.kind);
+    if (w.kind === "slot") { setSlot(w.slot); setSide(sideOf(w.slot)); } else if (w.kind === "alliance") setSide(w.side);
+  }, [wKey]); // eslint-disable-line react-hooks/exhaustive-deps -- only when the starting choice changes
 
   const [text, setText] = useState("");
   const [hits, setHits] = useState<{ q: string; events: EventListItem[] } | null>(null);
@@ -191,7 +199,7 @@ export function SessionSetup({ season, initial, suggestedEvent, myTeam, onStart,
 
       <Section title="What are you watching?">
         <ToggleGroup type="single" variant="cards" role="radiogroup" aria-label="What are you watching?" value={kind}
-          onValueChange={(v) => { if (v) setKind(v as Watching["kind"]); }} className="grid grid-cols-1 gap-2 overflow-visible">
+          onValueChange={(v) => { if (v) { watchTouched.current = true; setKind(v as Watching["kind"]); } }} className="grid grid-cols-1 gap-2 overflow-visible">
           {WATCH_OPTIONS.map((o) => (
             <ToggleGroupItem key={o.kind} value={o.kind} aria-describedby={`${helpKey}-${o.kind}`} className="w-full bg-card px-4 py-3">
               <span className="font-semibold text-foreground">{o.title}</span>
@@ -205,6 +213,7 @@ export function SessionSetup({ season, initial, suggestedEvent, myTeam, onStart,
             <ToggleGroup type="single" role="radiogroup" aria-labelledby={subLabel} value={kind === "slot" ? slot : side}
               onValueChange={(v) => {
                 if (!v) return;
+                watchTouched.current = true;
                 if (kind === "slot") { setSlot(v as SlotId); setSide(sideOf(v as SlotId)); } else setSide(v as AllianceSide);
               }} className="flex w-full">
               {subChoices.map((c) => (
