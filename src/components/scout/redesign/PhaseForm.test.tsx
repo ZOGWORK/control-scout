@@ -95,11 +95,11 @@ describe("undo last tap", () => {
     fireEvent.click(screen.getByRole("button", { name: "Undo last tap" }));
     expect(values).toEqual({});
   });
-  it("does nothing once the answers moved on without it (another team's answers)", () => {
+  it("never undoes into another team's answers, even where both hold the same value", () => {
     const t = T26;
     function Swap() {
       const [team, setTeam] = useState(0);
-      const [v, setV] = useState<Record<string, ScoutValue>[]>([{}, {}]);
+      const [v, setV] = useState<Record<string, ScoutValue>[]>([{}, { defense: true }]);
       values = v[team];
       return (
         <>
@@ -112,6 +112,8 @@ describe("undo last tap", () => {
     fireEvent.click(screen.getByRole("button", { name: "Played defense" }));
     fireEvent.click(screen.getByText("other team"));
     expect(screen.getByRole("button", { name: "Undo last tap" })).toHaveProperty("disabled", true);
+    fireEvent.click(screen.getByRole("button", { name: "Undo last tap" }));
+    expect(values).toEqual({ defense: true });
   });
 });
 
@@ -121,6 +123,17 @@ describe("match timer", () => {
     expect(screen.getByRole("timer").textContent).toBe("Off");
     pickTab("TeleOp");
     expect(screen.queryByRole("timer")).toBeNull();
+  });
+  it("waits on the first tab when the template has no auto fields", () => {
+    vi.useFakeTimers();
+    const t: ScoutTemplate = { id: "x", kind: "match", name: "x", fields: [{ id: "a", label: "A", type: "counter", phase: "teleop" }] };
+    render(<Harness template={t} start="teleop" />);
+    fireEvent.click(screen.getByRole("button", { name: "Match started" }));
+    expect(selected()).toContain("TeleOp");
+    act(() => { vi.advanceTimersByTime(130_000); });
+    // No endgame fields: the endgame keeps the nearest earlier tab.
+    expect(selected()).toContain("TeleOp");
+    expect(screen.getByRole("timer").textContent).toBe("Endgame 0:28");
   });
   it("shows the field's clock and moves the tab at each boundary; a tab picked by hand holds until the next", () => {
     vi.useFakeTimers();

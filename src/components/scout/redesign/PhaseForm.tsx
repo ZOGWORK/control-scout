@@ -40,7 +40,8 @@ export const formPhaseLabel = (p: FieldPhase) => (p === "overall" ? "After" : ph
 /** The default tone: a yes/no whose id or label is about breaking down reads as bad news when on. */
 export const breakdownTone = (f: ScoutField): FieldTone => (/broke|breakdown|disabled|died|dead\b/i.test(`${f.id} ${f.label}`) ? "bad" : "default");
 
-type Last = { id: string; prev: ScoutValue | undefined; next: ScoutValue | undefined };
+/** The last tap: the field, its value before, and the answers record that tap produced. */
+type Last = { id: string; prev: ScoutValue | undefined; record: Record<string, ScoutValue> };
 
 function withValue(value: Record<string, ScoutValue>, id: string, v: ScoutValue | undefined) {
   const next = { ...value };
@@ -51,6 +52,7 @@ function withValue(value: Record<string, ScoutValue>, id: string, v: ScoutValue 
 
 export interface PhaseFormProps {
   template: ScoutTemplate;
+  /** The answers. Pass back the record onChange gave you (not a copy), or "Undo last tap" stays off. */
   value: Record<string, ScoutValue>;
   onChange: (next: Record<string, ScoutValue>) => void;
   notes: string;
@@ -74,13 +76,17 @@ export function PhaseForm({ template, value, onChange, notes, onNotes, notesLabe
   const own = useMatchTimer(timer ? undefined : onPhase);
   const t = timer ?? own;
 
-  // Undo: the field's value before the last tap, while that tap is still what the field holds
-  // (not after the answers moved on, e.g. to another team's).
+  // Undo: the field's value before the last tap, only while `value` is still the very record that tap
+  // produced. Another team's answers (or anything changed from outside) are a different record, so undo
+  // can never write one set's history into another, even where both hold the same value.
   const [last, setLast] = useState<Last | null>(null);
-  const canUndo = !!last && Object.is(value[last.id], last.next);
+  const canUndo = !!last && last.record === value;
   const set = (f: ScoutField, v: ScoutValue | undefined) => {
-    if (f.type !== "text") setLast({ id: f.id, prev: value[f.id], next: v });
-    onChange(withValue(value, f.id, v));
+    const next = withValue(value, f.id, v);
+    // Typing in a text field isn't a tap: it keeps the last tap undoable on the record it makes.
+    if (f.type !== "text") setLast({ id: f.id, prev: value[f.id], record: next });
+    else if (last && canUndo) setLast({ ...last, record: next });
+    onChange(next);
   };
   const undo = () => {
     if (!last || !canUndo) return;
@@ -89,7 +95,8 @@ export function PhaseForm({ template, value, onChange, notes, onNotes, notesLabe
   };
 
   const live = t.running && t.phase ? shownPhase(phases, t.phase) : null;
-  const showTimer = template.kind === "match" && (t.startedAt != null || shown === "auto");
+  // Off, the timer waits on the first tab (Auto, or whatever comes first in a template without auto fields).
+  const showTimer = template.kind === "match" && (t.startedAt != null || shown === phases[0]);
   const fc = fieldClock(t.elapsed);
 
   const body = (

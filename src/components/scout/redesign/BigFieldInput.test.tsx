@@ -77,6 +77,18 @@ describe("choice and rating", () => {
     fireEvent.click(screen.getByRole("radio", { name: "Full" }));
     expect(seen).toEqual(["Partial", "Full", undefined]);
   });
+  it("is one tab stop; arrow keys, Home and End move and pick", () => {
+    render(<Harness f={{ id: "park", label: "End park", type: "choice", phase: "endgame", options: ["None", "Partial", "Full"] }} />);
+    expect(screen.getAllByRole("radio").map((b) => b.tabIndex)).toEqual([0, -1, -1]);
+    fireEvent.keyDown(screen.getByRole("radio", { name: "None" }), { key: "ArrowRight" });
+    expect(document.activeElement?.textContent).toBe("Partial");
+    expect(screen.getAllByRole("radio").map((b) => b.tabIndex)).toEqual([-1, 0, -1]);
+    fireEvent.keyDown(screen.getByRole("radio", { name: "Partial" }), { key: "End" });
+    fireEvent.keyDown(screen.getByRole("radio", { name: "Full" }), { key: "ArrowDown" });
+    fireEvent.keyDown(screen.getByRole("radio", { name: "None" }), { key: "ArrowLeft" });
+    expect(seen).toEqual(["Partial", "Full", "None", "Full"]);
+    expect(document.activeElement?.textContent).toBe("Full");
+  });
   it("a rating is buttons 1 to max holding a number", () => {
     render(<Harness f={{ id: "driver", label: "Driver skill", type: "rating", phase: "overall", max: 4 }} />);
     expect(screen.getAllByRole("radio").map((b) => b.textContent)).toEqual(["1", "2", "3", "4"]);
