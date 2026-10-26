@@ -4,8 +4,8 @@
 // a link that named no season moves to the event's own season and says so; one that named a season explains
 // and offers that season or another event.
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
-import { MemoryRouter, useLocation } from "react-router-dom";
+import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { MemoryRouter, useLocation, useNavigate } from "react-router-dom";
 
 vi.mock("../lib/personal", () => ({ usePersonal: () => ({ user: null, providers: {}, state: { myTeam: null, tracked: { teams: [], events: [] }, bookmarks: [], videoLinks: {}, predictionHistory: [] }, update: () => true, syncReady: false }) }));
 vi.mock("../lib/meta", async (orig) => ({
@@ -50,9 +50,18 @@ describe("Advancement, an event from another season", () => {
     const q = new URLSearchParams(where);
     expect(q.get("team")).toBe("4215");
     expect(q.get("code")).toBe("FTCCMP1EDIS");
-    expect(await screen.findByRole("heading", { name: "Edison Division" })).toBeTruthy();
+    await waitFor(() => expect(screen.getAllByRole("heading").some((h) => /Advancement odds at Edison Division/.test(h.textContent ?? ""))).toBe(true));
     expect(screen.getByText("FTCCMP1EDIS is a 2025–26 event, so this shows 2025–26.")).toBeTruthy();
-    expect((screen.getByRole("textbox", { name: "Team" }) as HTMLInputElement).value).toBe("4215");
+    expect((screen.getByRole("textbox", { name: "Team (optional)" }) as HTMLInputElement).value).toBe("4215");
+  });
+
+  it("the automatic season move replaces the entry, so Back doesn't land on the seasonless link and move again", async () => {
+    let back = () => {};
+    function Back() { const nav = useNavigate(); back = () => nav(-1); return null; }
+    render(<TooltipProvider><MemoryRouter initialEntries={["/predict?mode=scheduled", "/predict?mode=advancement&code=FTCCMP1EDIS&team=4215"]} initialIndex={1}><PredictPage /><Where /><Back /></MemoryRouter></TooltipProvider>);
+    await waitFor(() => expect(new URLSearchParams(where).get("season")).toBe("2025"));
+    act(() => back());
+    await waitFor(() => expect(new URLSearchParams(where).get("mode")).toBe("scheduled"));
   });
 
   it("a link that named another season explains, and offers the event's season or another event", async () => {
@@ -62,7 +71,7 @@ describe("Advancement, an event from another season", () => {
     expect(alert.textContent).toMatch(/It's from 2025–26\. Team 4215 is still picked\./);
     fireEvent.click(screen.getByRole("button", { name: "Show it in 2025–26" }));
     await waitFor(() => expect(new URLSearchParams(where).get("season")).toBe("2025"));
-    expect(await screen.findByRole("heading", { name: "Edison Division" })).toBeTruthy();
+    await waitFor(() => expect(screen.getAllByRole("heading").some((h) => /Advancement odds at Edison Division/.test(h.textContent ?? ""))).toBe(true));
   });
 
   it("an unknown code says so and Pick another event clears it, keeping the team", async () => {

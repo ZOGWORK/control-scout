@@ -15,8 +15,7 @@ import { callTally } from "../lib/seasonSoFar";
 import { usePersonal } from "../lib/personal";
 import type { EventDetail, EventSummary, EventListItem, MatchExplanationView, MatchView, TeamProfile } from "../shared/api";
 import { pairHistory } from "../shared/pairHistory";
-import { labEventChoices } from "../lib/labEvents";
-import { LabEventsEmpty } from "../components/LabEventsEmpty";
+import { EventSearchPicker } from "../components/predict/EventSearchPicker";
 import { WeekEvents } from "../components/predict/WeekEvents";
 import { Section, EmptyState } from "../components/page";
 import { LatestCalls } from "../components/LatestCalls";
@@ -53,6 +52,11 @@ const MODES: { v: PredictMode; label: string; short: string; icon: typeof Trophy
 
 export default function PredictPage() {
   useTitle("Predict");
+  // Dense numbers: the background's grid and glow step back while Predict is open (index.css, .ambient-calm).
+  useEffect(() => {
+    document.documentElement.classList.add("ambient-calm");
+    return () => document.documentElement.classList.remove("ambient-calm");
+  }, []);
   const [sp, setSp] = useSearchParams();
   const current = useCurrentSeason();
   const state = readPredict(sp);
@@ -83,12 +87,12 @@ export default function PredictPage() {
             </p>
             <TabsList aria-label="Predict mode" className="mt-4 max-sm:mt-3 max-sm:grid max-sm:w-full max-sm:grid-cols-3 sm:p-1">
               {MODES.map(({ v, label, short, icon: Icon }) => (
-                <TabsTrigger key={v} value={v} aria-label={label} className="sm:h-10 sm:px-4 max-sm:px-1.5 max-sm:text-[13px]"><Icon className="size-4 max-sm:hidden" /><span className="max-sm:hidden">{label}</span><span className="sm:hidden">{short}</span></TabsTrigger>
+                <TabsTrigger key={v} value={v} aria-label={label} className="sm:h-10 sm:px-4 max-sm:px-1.5 max-sm:text-[13px] max-[360px]:px-1 max-[360px]:text-xs"><Icon className="size-4 max-sm:hidden" /><span className="max-sm:hidden">{label}</span><span className="sm:hidden">{short}</span></TabsTrigger>
               ))}
             </TabsList>
           </div>
           {/* Only mounted when there's room: no request or timer for a card nobody can see. */}
-          {wide && <LatestCalls />}
+          {wide && <LatestCalls still={1} />}
         </div>
       </div>
       <TabsContent value="advancement" className="mt-0"><AdvancementLab /></TabsContent>
@@ -538,97 +542,56 @@ function AdvancementLab() {
   const season = Number(sp.get("season")) || current;
   const code = sp.get("code");
   const team = Number(sp.get("team")) || null;
-  const [teamText, setTeamText] = useState(team ? String(team) : personal.myTeam ? String(personal.myTeam) : "");
-  // Arriving on the Lab (nothing else focused): the team box takes focus while it's empty, as Match's first box does.
-  const [grab] = useState(() => !document.activeElement || document.activeElement === document.body);
-  useEffect(() => { if (team) setTeamText(String(team)); }, [team]);
+  // The team box mirrors the URL's team, both ways: typing writes it, and Back/Forward (or a link) set the box,
+  // including clearing it when the entry has no team, so the box never disagrees with the result below.
+  const [teamText, setTeamText] = useState(team ? String(team) : "");
+  useEffect(() => { setTeamText(team ? String(team) : ""); }, [team]);
   // One URL write per change: two in a row would each start from the same URL, so the second undid the first
-  // (the season switch set the season, then clearing the event put the old season back).
-  const set = (patch: Record<string, string | null>) => setSp((x) => {
+  // (the season switch set the season, then clearing the event put the old season back). Picking an event or a
+  // season is a history entry (Back returns to the one before); typing a team number replaces in place.
+  const set = (patch: Record<string, string | null>, push = false) => setSp((x) => {
     x.set("mode", "advancement");
     for (const [k, v] of Object.entries(patch)) { if (v) x.set(k, v); else x.delete(k); }
     return x;
-  }, { replace: true });
+  }, { replace: !push });
   const teamNo = /^\d+$/.test(teamText) ? Number(teamText) : null;
   const teamEvents = useApi<TeamProfile>(teamNo ? `/api/teams/${teamNo}${qs({ season })}` : null);
-  const [q, setQ] = useState("");
-  const eventSearch = useRef<HTMLInputElement>(null);
-  // With a team chosen, step 2 lists only the events it's registered at; "Search all events" lifts that until the team or season changes.
-  const [showAll, setShowAll] = useState(false);
-  useEffect(() => setShowAll(false), [teamNo, season]);
-  const events = useApi<{ events: EventListItem[] }>(`/api/events${qs({ season })}`);
   // The team's profile, once it's the one typed (an unknown number answers an error: no team, every event).
   const profile = teamEvents.data?.team?.number === teamNo ? teamEvents.data : null;
   const teamCodes = useMemo(() => (profile ? new Set(profile.events.map((e) => e.code)) : null), [profile]);
-  const { list: choices, teamOnly, teamCount, otherMatches } = useMemo(() => labEventChoices(events.data?.events ?? [], { teamCodes, q, showAll }), [events.data, teamCodes, q, showAll]);
-  const teamLoading = !!teamNo && teamEvents.loading;
-  // The lookup failed for another reason than an unknown team (offline, server error): say so, never fall back to every event.
+  // The lookup failed for another reason than an unknown team (offline, server error): say so; the picker still searches every event.
   const teamStatus = (teamEvents.error as ApiError | undefined)?.status;
   const teamFailed = !!teamNo && !!teamEvents.error && teamStatus !== 404 && teamStatus !== 400;
-  // Another season the team has events to try (newest first, predicted seasons only).
-  const otherSeason = profile?.seasons.find((s) => s !== season && s >= 2023) ?? null;
-  const step = "mb-2 flex items-center gap-2 text-sm font-semibold text-foreground";
-  const num = "flex size-6 items-center justify-center rounded-full bg-accent/15 text-xs font-bold text-accent-text";
+  // My team fills an empty team on arrival, through the URL like any other pick (so the result shows its outlook).
+  useEffect(() => {
+    if (!team && personal.myTeam) set({ team: String(personal.myTeam) });
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps -- on arrival only
+  const focusEvent = () => requestAnimationFrame(() => document.getElementById("advancement-event")?.focus());
   return (
     <div className="space-y-6 max-sm:space-y-4">
-      <div className="rounded-2xl border border-border bg-card p-4 sm:p-6">
-        <div className="mb-5 flex flex-wrap items-center gap-3">
-          <SeasonToggle predictOnly value={season} onChange={(s) => set({ season: String(s), code: null })} />
-        </div>
-        <div className="grid gap-6 md:grid-cols-[16rem_minmax(0,1fr)]">
+      <div className="rounded-2xl border border-border bg-card p-4 sm:p-5">
+        <SeasonToggle predictOnly value={season} onChange={(s) => set({ season: String(s), code: null }, true)} />
+        <div className="mt-4 grid items-start gap-4 md:grid-cols-[minmax(0,1fr)_13rem]">
           <div className="min-w-0">
-            <p className={step}><span className={num}>1</span> Team</p>
-            <TeamInput size="lg" label="Team" autoFocus={grab && !teamText} value={teamText} onChange={(v) => { setTeamText(v); set({ team: v || null }); }} />
-            <p className="mt-2 text-sm text-muted-foreground">{profile ? `Only its ${seasonLabel(season)} events are listed.` : "Add a team to list only its events."}</p>
+            <EventSearchPicker id="advancement-event" season={season} value={code} team={teamNo} teamCodes={teamCodes}
+              onChange={(c) => set({ code: c }, true)} />
           </div>
           <div className="min-w-0">
-            <p className={step}><span className={num}>2</span> Event</p>
-            <div className="relative">
-              <Search className="pointer-events-none absolute left-3.5 top-1/2 size-5 -translate-y-1/2 text-muted-foreground" aria-hidden />
-              <Input ref={eventSearch} value={q} onChange={(e) => setQ(e.target.value)} placeholder="Event name, code, city or state" className="h-14 pl-11 text-base" aria-label="Find an event" />
-            </div>
-            {(profile || teamFailed) && showAll && (
-              <p className="mt-3 flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-muted-foreground">
-                Showing every event.
-                <button type="button" className="font-medium text-accent-text underline underline-offset-4" onClick={() => setShowAll(false)}>Only {teamNo}'s events</button>
+            <span aria-hidden className="mb-1.5 block text-sm font-medium text-foreground">Team <span className="font-normal text-muted-foreground">(optional)</span></span>
+            <TeamInput label="Team (optional)" value={teamText} onChange={(v) => { setTeamText(v); set({ team: v || null }); }} />
+            {teamFailed && (
+              <p role="alert" className="mt-1.5 text-xs text-muted-foreground">
+                Couldn't load {teamNo}'s events. <button type="button" className="font-medium text-accent-text underline underline-offset-2" onClick={() => teamEvents.reload()}>Try again</button>
               </p>
             )}
-            <div className="custom-scrollbar mt-3 max-h-[26rem] space-y-1.5 overflow-y-auto pr-1">
-              {events.error ? <p className="text-sm text-destructive">{events.error.message}</p>
-                : !events.data || teamLoading ? <div className="skeleton h-40 rounded-xl" />
-                : teamFailed && !showAll ? (
-                  <div role="alert" className="flex flex-col items-start gap-3 rounded-xl border border-dashed border-border px-4 py-5">
-                    <p className="text-base font-medium text-foreground">Couldn't load {teamNo}'s events</p>
-                    <p className="-mt-2 text-sm text-muted-foreground">{teamEvents.error!.message}</p>
-                    <div className="flex flex-wrap gap-2">
-                      <Button variant="secondary" size="sm" onClick={() => teamEvents.reload()}>Try again</Button>
-                      <Button variant="outline" size="sm" onClick={() => setShowAll(true)}>Search all events</Button>
-                    </div>
-                  </div>
-                )
-                : !choices.length ? <LabEventsEmpty team={teamOnly ? teamNo : null} teamCount={teamCount} teamEvents={profile?.events.length ?? 0} season={season} q={q} otherMatches={otherMatches}
-                    otherSeason={otherSeason} onShowAll={() => setShowAll(true)} onSeason={(s) => set({ season: String(s), code: null })} onClearSearch={() => setQ("")} />
-                : choices.slice(0, 60).map((e) => (
-                <button key={e.code} type="button" aria-pressed={code === e.code} onClick={() => set({ code: e.code })}
-                  className={cn("flex w-full items-center gap-3 rounded-xl border px-4 py-3 text-left transition-colors max-sm:px-3",
-                    code === e.code ? "border-accent/60 bg-accent/[0.08]" : "border-border/60 hover:border-border hover:bg-text-base/[0.04]")}>
-                  <span className="min-w-0 flex-1">
-                    <span className="block truncate text-base font-medium">{e.name}</span>
-                    <span className="mt-0.5 block truncate text-sm text-muted-foreground">{[e.typeLabel, [e.city, e.state].filter(Boolean).join(", ")].filter(Boolean).join(" · ")}</span>
-                  </span>
-                  {!teamOnly && teamCodes?.has(e.code) && <Badge variant="soft" className="shrink-0 max-sm:hidden">{teamText}'s event</Badge>}
-                  <span className="shrink-0 text-sm tabular-nums text-muted-foreground">{dateRange(e.start, e.end)}</span>
-                </button>
-              ))}
-            </div>
           </div>
         </div>
       </div>
       {code ? (
         <AdvancementResult season={season} code={code} team={team} askedSeason={readPredict(sp).season}
-          onSeason={(s) => set({ season: String(s) })} onClearEvent={() => { set({ code: null }); setQ(""); eventSearch.current?.focus(); }}
+          onSeason={(s, push) => set({ season: String(s) }, push)} onClearEvent={() => { set({ code: null }, true); focusEvent(); }}
           onPickTeam={(t) => { setTeamText(String(t)); set({ team: String(t) }); }} />
-      ) : <EmptyState icon={Trophy} title="Pick an event" description="Any qualifier, league tournament or championship. Add a team to see its chance to advance, captain and pick odds, likely rank, and expected advancement points." />}
+      ) : <EmptyState icon={Trophy} title="Pick an event" description="Any qualifier, league tournament or championship: who's likely to advance. Add a team for its own odds, likely rank and pick chances." />}
     </div>
   );
 }
@@ -641,7 +604,8 @@ function AdvancementLab() {
  */
 function AdvancementResult({ season, code, team, askedSeason, onSeason, onClearEvent, onPickTeam }: {
   season: number; code: string; team: number | null; askedSeason: number | null;
-  onSeason: (s: number) => void; onClearEvent: () => void; onPickTeam: (t: number) => void;
+  /** `push`: a history entry (the person chose it); an automatic correction replaces, so Back doesn't redo it. */
+  onSeason: (s: number, push: boolean) => void; onClearEvent: () => void; onPickTeam: (t: number) => void;
 }) {
   const meta = useMeta();
   const seasons = useMemo(() => (meta?.seasons ?? []).filter((x) => x.predictable).map((x) => x.season), [meta]);
@@ -652,7 +616,7 @@ function AdvancementResult({ season, code, team, askedSeason, onSeason, onClearE
   const [moved, setMoved] = useState<{ code: string; from: number; to: number } | null>(null);
   const elsewhere = check?.status === "elsewhere" ? check.season : null;
   useEffect(() => {
-    if (elsewhere != null && askedSeason == null) { setMoved({ code, from: season, to: elsewhere }); onSeason(elsewhere); }
+    if (elsewhere != null && askedSeason == null) { setMoved({ code, from: season, to: elsewhere }); onSeason(elsewhere, false); }
   }, [elsewhere, askedSeason, code, season]); // eslint-disable-line react-hooks/exhaustive-deps
   if (!check || check.status === "loading" || (elsewhere != null && askedSeason == null)) return <div className="skeleton h-40 rounded-2xl" />;
   if (check.status === "error") return <ErrorState error={check.error} onRetry={check.reload} />;
@@ -665,7 +629,7 @@ function AdvancementResult({ season, code, team, askedSeason, onSeason, onClearE
           {team ? ` Team ${team} is still picked.` : ""}
         </p>
         <div className="mt-3 flex flex-wrap gap-2">
-          {check.status === "elsewhere" && <Button size="sm" onClick={() => onSeason(check.season)}>Show it in {seasonLabel(check.season)}</Button>}
+          {check.status === "elsewhere" && <Button size="sm" onClick={() => onSeason(check.season, true)}>Show it in {seasonLabel(check.season)}</Button>}
           <Button size="sm" variant="secondary" onClick={onClearEvent}><Search /> Pick another event</Button>
         </div>
       </div>
@@ -677,12 +641,10 @@ function AdvancementResult({ season, code, team, askedSeason, onSeason, onClearE
       {moved?.code === code && moved.to === season && (
         <p role="status" className="rounded-lg border border-info/30 bg-info/[0.06] px-3 py-2 text-sm">{code} is a {seasonLabel(season)} event, so this shows {seasonLabel(season)}.</p>
       )}
-      <div className="flex flex-wrap items-start justify-between gap-x-4 gap-y-2">
-        <div className="min-w-0">
-          <h2 className="font-display text-xl font-semibold leading-snug text-foreground [overflow-wrap:anywhere]">{e.name}</h2>
-          <p className="mt-0.5 text-sm text-muted-foreground">{[dateRange(e.start, e.end), place(e.city, e.state, e.country), e.typeLabel].filter(Boolean).join(" · ")}</p>
-        </div>
-        <Button variant="secondary" size="sm" asChild><Link to={`/events/${season}/${code}`}>Event page <ArrowRight /></Link></Button>
+      {/* The picker above already shows the event in full (name, dates, place, type): no second copy here, just the way to its page. */}
+      <div className="flex items-center justify-between gap-3">
+        <h2 className="text-sm font-semibold text-foreground">Advancement odds<span className="sr-only"> at {e.name}, {[dateRange(e.start, e.end), place(e.city, e.state, e.country), e.typeLabel].filter(Boolean).join(", ")}</span></h2>
+        <Button variant="ghost" size="sm" asChild><Link to={`/events/${season}/${code}`}>Event page <ArrowRight /></Link></Button>
       </div>
       <AdvancementView season={season} code={code} team={team} nameOf={() => ""} onPickTeam={onPickTeam} />
     </section>
