@@ -55,6 +55,9 @@ import { SessionSetup } from "../components/scout/redesign/SessionSetup";
 import { MatchesTab, MatchScout } from "../components/scout/redesign/MatchScout";
 import { useScoutSession } from "../lib/scoutSession";
 
+/** Scouting happens in one readable column (a phone's width and a bit), not stretched across a wide screen. */
+const SCOUT_COLUMN = "max-w-3xl";
+
 export default function ScoutPage() {
   useTitle("Scout");
   const [sp, setSp] = useSearchParams();
@@ -311,17 +314,25 @@ export default function ScoutPage() {
                 )}
             </>}
           </> : settingUp ? (
-            <SessionSetup season={season} initial={session ? { eventCode: session.eventCode, watching: session.watching } : undefined} suggestedEvent={scoutSession.suggested}
-              myTeam={personal.myTeam} onStart={startSession} onCancel={session ? closeSetup : undefined} />
+            <div className={SCOUT_COLUMN}><SessionSetup season={season} initial={session ? { eventCode: session.eventCode, watching: session.watching } : undefined} suggestedEvent={scoutSession.suggested}
+              myTeam={personal.myTeam} onStart={startSession} onCancel={session ? closeSetup : undefined} /></div>
           ) : !session ? (
             <EmptyState icon={ClipboardList} title="Nothing to scout here" description="This workspace is read-only. Its entries, pick list and export are under Data."
               action={<Button variant="outline" onClick={() => openView(null)}>Open Data</Button>} />
           ) : templatePending ? <LoadingBlock rows={3} label="Loading the workspace's fields" />
           : tab === "matches" ? (
-            <MatchesTab season={season} session={session} entries={entries} matchLabel={sp.get("match")} onMatch={openMatch} onManual={() => openOldForm("match", undefined)} />
+            <div className={SCOUT_COLUMN}><MatchesTab season={season} session={session} entries={entries} matchLabel={sp.get("match")} onMatch={openMatch} onManual={() => openOldForm("match", undefined)} /></div>
           ) : (
-            <MatchScout space={space} season={season} session={session} entries={entries} template={matchTemplate} author={me?.accountId ?? null}
-              readOnly={!!readOnly} spaceName={spaceName} matchLabel={sp.get("match")} onMatch={openMatch} onManual={() => openOldForm("match", undefined)} />
+            // Wide screens: the match list beside the match, to see what's done and jump without switching tabs.
+            <div className="grid gap-8 xl:grid-cols-[minmax(0,48rem)_minmax(0,1fr)]">
+            <div className={SCOUT_COLUMN}><MatchScout space={space} season={season} session={session} entries={entries} template={matchTemplate} author={me?.accountId ?? null}
+              readOnly={!!readOnly} spaceName={spaceName} matchLabel={sp.get("match")} onMatch={openMatch} onManual={() => openOldForm("match", undefined)} /></div>
+              <aside aria-label="Matches at this event" className="hidden xl:block">
+                <div className="sticky top-20 max-h-[calc(100dvh-6rem)] overflow-y-auto overscroll-contain pr-1">
+                  <MatchesTab season={season} session={session} entries={entries} matchLabel={sp.get("match")} onMatch={openMatch} onManual={() => openOldForm("match", undefined)} />
+                </div>
+              </aside>
+            </div>
           )}
         </ScoutTabs>
       )}
