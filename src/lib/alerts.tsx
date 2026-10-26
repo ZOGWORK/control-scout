@@ -7,6 +7,7 @@
 import { useEffect, useRef } from "react";
 import { apiFetch } from "./api";
 import { usePersonal } from "./personal";
+import { tierPhrase } from "../shared/tierWords";
 import { useCurrentSeason } from "./meta";
 import { toast } from "../components/ui/sonner";
 import { oddsPct } from "./format";
@@ -58,13 +59,13 @@ export function AlertsRunner() {
             const start = m.startsAt ? Date.parse(m.startsAt) : NaN;
             if (!m.played && (mine ? n.myTeamMatches : n.trackedTeams) && start > now && start - now <= LEAD_MS) {
               const p = m.prediction ? (side === "red" ? m.prediction.pRed : 1 - m.prediction.pRed) : null;
-              notify(`soon:${m.code}:${m.key}:${team}`, `${team} plays ${m.label} in ${Math.max(1, Math.round((start - now) / 60_000))} min`, `${m.code}${p != null ? ` · ${oddsPct(p)} to win (${m.prediction!.tier})` : ""}`, url);
+              notify(`soon:${m.code}:${m.key}:${team}`, `${team} plays ${m.label} in ${Math.max(1, Math.round((start - now) / 60_000))} min`, `${m.code}${p != null ? ` · ${oddsPct(p)} to win, ${tierPhrase(m.prediction!.tier)}` : ""}`, url);
             }
             if (m.played && n.upsets && m.prediction && m.red.score && m.blue.score && m.red.score.total !== m.blue.score.total) {
               const redWon = m.red.score.total > m.blue.score.total;
               if ((m.prediction.pRed > 0.5) !== redWon) {
                 const won = (side === "red") === redWon;
-                notify(`upset:${m.code}:${m.key}`, `Upset: ${team} ${won ? "won" : "lost"} ${m.label}`, `${m.red.score.total}–${m.blue.score.total} · they were ${oddsPct(side === "red" ? m.prediction.pRed : 1 - m.prediction.pRed)} before the match (${m.prediction.tier})`, url);
+                notify(`upset:${m.code}:${m.key}`, `Upset: ${team} ${won ? "won" : "lost"} ${m.label}`, `${m.red.score.total}–${m.blue.score.total} · they were ${oddsPct(side === "red" ? m.prediction.pRed : 1 - m.prediction.pRed)} before the match (${tierPhrase(m.prediction.tier)})`, url);
               }
             }
           }

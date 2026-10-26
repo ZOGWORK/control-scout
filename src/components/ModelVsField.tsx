@@ -188,7 +188,7 @@ function Footer({ v }: { v: DisagreementsView }) {
       </button>
       {open && (
         <p className="max-w-3xl" data-mvf-rules>
-          Teams with a rating on at least {v.rules.minRatingMatches} matches{v.mode === "pre-quals" ? ` and a seed from an earlier event of ${v.rules.minPriorField}+ teams` : ` and ${v.rules.minQualPlayed}+ qualification matches here`}, in fields of {v.rules.minTeams}+ such teams. A gap shows when it's at least {v.rules.minGap} places and the rating difference to the team the model places at that seed is at least {v.rules.zShow}× their combined uncertainty. Confident from {v.rules.confidentMinMatches}+ rated matches and {v.rules.zConfident}×; provisional under {v.rules.confidentMinMatches} matches. Ratings count points scored without penalties. <Link to="/methodology#confidence" className="underline">How tiers work</Link>
+          Teams with a rating on at least {v.rules.minRatingMatches} matches{v.mode === "pre-quals" ? ` and a seed from an earlier event of ${v.rules.minPriorField}+ teams` : ` and ${v.rules.minQualPlayed}+ qualification matches here`}, in fields of {v.rules.minTeams}+ such teams. A gap shows when it's at least {v.rules.minGap} places and the rating difference to the team the model places at that seed is at least {v.rules.zShow}× their combined uncertainty. Solid from {v.rules.confidentMinMatches}+ rated matches and {v.rules.zConfident}×; a rough guess under {v.rules.confidentMinMatches} matches. Ratings count points scored without penalties. <Link to="/methodology#confidence" className="underline">How tiers work</Link>
         </p>
       )}
     </div>
