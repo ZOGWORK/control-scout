@@ -11,6 +11,7 @@ import { resolveTemplate, useEntryTemplate, useEntryTemplateState, useWorkspaceT
 import { ALL_PHASES, phaseLabel, type WorkspaceTemplate } from "../shared/scoutTemplate";
 import { orphanBanner, type OrphanState } from "../shared/orphaned";
 import { workspaceExportUrl } from "../shared/scoutExport";
+import { normalizeMatchLabel } from "../shared/scoutMatch";
 import { activeFilterCount } from "../shared/scoutFilter";
 import { EntryFilterBar } from "../components/scout/EntryFilterBar";
 import { useEntryFeed, type FeedViewer } from "../lib/scoutFeed";
@@ -489,7 +490,7 @@ function EntryForm({ season, initial, team, space, spaceName, workspaceTemplate,
     if (copy?.overflow) { setSaveErr(`The workspace's answers are written into the notes in Personal: shorten the notes by ${copy.overflow} characters so they fit.`); saveRef.current?.focus(); return; }
     const kept = copy ? { data: copy.data, notes: copy.notes } : { data, notes };
     try {
-      saveScoutEntry({ uuid: (toPersonal ? null : initial?.uuid) ?? newScoutId(), season, team: Number(team), eventCode: eventCode.trim().toUpperCase() || null, matchLabel: kind === "match" ? matchLabel.trim().toUpperCase() || null : null, kind, ...kept, workspaceId: toPersonal ? null : space, ...made }, initial && !toPersonal ? { base: draftBase.current ?? null } : {});
+      saveScoutEntry({ uuid: (toPersonal ? null : initial?.uuid) ?? newScoutId(), season, team: Number(team), eventCode: eventCode.trim().toUpperCase() || null, matchLabel: kind === "match" ? normalizeMatchLabel(matchLabel) : null, kind, ...kept, workspaceId: toPersonal ? null : space, ...made }, initial && !toPersonal ? { base: draftBase.current ?? null } : {});
       toast.success(toPersonal ? "Kept in Personal: the workspace is read-only" : "Saved on this device");
       onDone();
     } catch (e) {
