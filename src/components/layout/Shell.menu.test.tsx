@@ -30,7 +30,7 @@ beforeEach(() => {
 });
 afterEach(() => { cleanup(); vi.unstubAllGlobals(); });
 
-const shell = () => render(<MemoryRouter initialEntries={["/"]}><Shell><Routes><Route path="*" element={<Where />} /></Routes></Shell></MemoryRouter>);
+const shell = (at = "/") => render(<MemoryRouter initialEntries={[at]}><Shell><Routes><Route path="*" element={<Where />} /></Routes></Shell></MemoryRouter>);
 
 const menuButton = () => screen.getByRole("button", { name: "Open menu" });
 
@@ -126,7 +126,7 @@ describe("the phone's top bar and tab bar", () => {
   it("by default: Home, Events, Predict, My team, Scout, with no More tab", () => {
     shell();
     expect(tabNames()).toEqual(["Home", "Events", "Predict", "My team", "Scout"]);
-    expect(screen.queryByRole("button", { name: "More" })).toBeNull();
+    expect(within(tabBar()).queryByRole("button", { name: "More" })).toBeNull();
   });
 
   it("follows this device's saved choice, and a change made while open", () => {
@@ -138,5 +138,83 @@ describe("the phone's top bar and tab bar", () => {
       window.dispatchEvent(new StorageEvent("storage", { key: TAB_KEY }));
     });
     expect(tabNames()).toEqual(["Teams", "My team"]);
+  });
+});
+
+describe("the desktop sidebar", () => {
+  const sidebar = () => screen.getByRole("complementary", { name: "Sidebar" });
+  const moreButton = () => within(sidebar()).getByRole("button", { name: "More" });
+  // The group its toggle controls (looked up by id: a hidden element has no role to query by).
+  const morePages = () => document.getElementById(moreButton().getAttribute("aria-controls")!)!;
+  const wide = (on: boolean) => vi.stubGlobal("matchMedia", (q: string) => ({ matches: on && q.includes("min-width: 1280px"), media: q, addEventListener() {}, removeEventListener() {}, addListener() {}, removeListener() {} }));
+
+  it("keeps the everyday pages in view and folds the rest under More, which says whether it is open", () => {
+    wide(true);
+    shell();
+    const nav = within(sidebar()).getByRole("navigation", { name: "Main" });
+    for (const name of ["Home", "Events", "Teams", "Rankings", "Power rankings", "Predict", "Compare", "My team", "Shortlist", "Scout"]) expect(within(nav).getByRole("link", { name })).toBeTruthy();
+    const more = moreButton();
+    expect(more.getAttribute("aria-expanded")).toBe("false");
+    expect(morePages().hidden).toBe(true);
+    fireEvent.click(more);
+    expect(more.getAttribute("aria-expanded")).toBe("true");
+    expect(morePages().hidden).toBe(false);
+    for (const name of ["Download", "How it works", "Settings"]) expect(within(morePages()).getByRole("link", { name })).toBeTruthy();
+    expect(localStorage.getItem("cs-nav-more")).toBe("1");
+  });
+
+  it("Escape inside the open More group folds it and returns focus to its toggle", () => {
+    wide(true);
+    shell();
+    fireEvent.click(moreButton());
+    const settings = within(morePages()).getByRole("link", { name: "Settings" });
+    act(() => settings.focus());
+    fireEvent.keyDown(settings, { key: "Escape" });
+    expect(moreButton().getAttribute("aria-expanded")).toBe("false");
+    expect(document.activeElement).toBe(moreButton());
+    expect(localStorage.getItem("cs-nav-more")).toBe("0");
+  });
+
+  it("closed by hand on one of its pages, opens again on the way to another of them", async () => {
+    wide(true);
+    shell("/settings");
+    fireEvent.click(moreButton());
+    expect(moreButton().getAttribute("aria-expanded")).toBe("false");
+    // A link to another of its pages from elsewhere (the folded group's own row stands in for it).
+    fireEvent.click(within(morePages()).getByRole("link", { name: "Download", hidden: true }));
+    await waitFor(() => expect(where).toBe("/download"));
+    expect(moreButton().getAttribute("aria-expanded")).toBe("true");
+  });
+
+  it("opens More by itself on one of its pages, so the lit row shows", () => {
+    wide(true);
+    shell("/settings");
+    expect(moreButton().getAttribute("aria-expanded")).toBe("true");
+    expect(within(morePages()).getByRole("link", { name: "Settings" }).getAttribute("aria-current")).toBe("page");
+  });
+
+  it("is an icon rail under 1280 px whose rows keep their names, and its button opens the labelled menu", async () => {
+    wide(false);
+    shell();
+    expect(within(sidebar()).queryByText("Control Scout")).toBeNull();
+    // Styled as a rail row (a tooltip trigger once turned NavLink's className function into text).
+    expect(within(sidebar()).getByRole("link", { name: "Rankings" }).className).toContain("justify-center");
+    expect(within(sidebar()).getByRole("link", { name: "Home" }).getAttribute("aria-current")).toBe("page");
+    const open = within(sidebar()).getByRole("button", { name: "Show page names" });
+    act(() => open.focus());
+    fireEvent.click(open);
+    const sheet = await screen.findByRole("dialog");
+    expect(within(sheet).getByRole("link", { name: "How it works" })).toBeTruthy();
+    fireEvent.keyDown(document.activeElement!, { key: "Escape" });
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+    expect(document.activeElement).toBe(open);
+  });
+
+  it("folds in and out by hand on a wide screen, remembered", () => {
+    wide(true);
+    shell();
+    fireEvent.click(within(sidebar()).getByRole("button", { name: "Collapse sidebar" }));
+    expect(localStorage.getItem("cs-sidebar")).toBe("1");
+    expect(within(sidebar()).getByRole("button", { name: "Expand sidebar" })).toBeTruthy();
   });
 });

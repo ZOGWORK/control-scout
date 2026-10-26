@@ -597,7 +597,9 @@ function AdvancementResult({ season, code, team, askedSeason, onSeason, onClearE
 }) {
   const meta = useMeta();
   const seasons = useMemo(() => (meta?.seasons ?? []).filter((x) => x.predictable).map((x) => x.season), [meta]);
-  const check = useEventCheck(season, code, seasons.length ? seasons : [season, season - 1, season - 2, season - 3]);
+  // Without the season list (/api/meta failed), the last four seasons: searched, and named in the message alike.
+  const searched = seasons.length ? seasons : [season, season - 1, season - 2, season - 3];
+  const check = useEventCheck(season, code, searched);
   // Moved here by the link (no season named): remembered so the note stays after the URL changes.
   const [moved, setMoved] = useState<{ code: string; from: number; to: number } | null>(null);
   const elsewhere = check?.status === "elsewhere" ? check.season : null;
@@ -611,7 +613,7 @@ function AdvancementResult({ season, code, team, askedSeason, onSeason, onClearE
       <div role="alert" className="rounded-2xl border border-border bg-card p-5 max-sm:p-4">
         <p className="font-medium text-foreground">{check.status === "elsewhere" ? `${code} isn't a ${seasonLabel(season)} event` : `No event ${code} in a season with predictions`}</p>
         <p className="mt-1 text-sm text-muted-foreground">
-          {check.status === "elsewhere" ? `It's from ${seasonLabel(check.season)}.` : `Predictions cover ${seasonLabel(Math.min(...(seasons.length ? seasons : [season])))} onward. The code may be mistyped, or the event is from an earlier season (its page still has results).`}
+          {check.status === "elsewhere" ? `It's from ${seasonLabel(check.season)}.` : `Predictions cover ${seasonLabel(Math.min(...searched))} onward. The code may be mistyped, or the event is from an earlier season (its page still has results).`}
           {team ? ` Team ${team} is still picked.` : ""}
         </p>
         <div className="mt-3 flex flex-wrap gap-2">

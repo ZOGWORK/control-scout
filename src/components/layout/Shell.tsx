@@ -1,19 +1,21 @@
 // App shell — Control Point's modern layout: a collapsible left sidebar with
 // an animated active pill, a slim top bar with the search pill, and a bottom
-// tab bar on phones.
-import { useEffect, useRef, useState, type ComponentType, type ReactNode } from "react";
+// tab bar on phones. The sidebar fits a 1366×768 laptop without its own
+// scrollbar: the everyday pages are always there, the rest sit under "More".
+// Below 1280 px wide it is an icon rail (names in tooltips), so the page keeps
+// its width; the rail's button opens the full labelled menu.
+import { useEffect, useId, useRef, useState, type ComponentType, type ReactNode } from "react";
 import { Ambient } from "./Ambient";
-import { Link, NavLink, useLocation } from "react-router-dom";
+import { Link, NavLink, useLocation, useMatch } from "react-router-dom";
 import { MotionConfig } from "motion/react";
 import { m } from "../motion";
 import {
-  BookOpen, Bookmark, CalendarDays, ClipboardList, DatabaseZap, Download, House, ListOrdered, PanelLeft, PanelLeftClose, PanelLeftOpen, Scale, Search, Settings, ShieldCheck, Sparkles, Star, Trophy, Users,
+  BookOpen, Bookmark, CalendarDays, ChevronDown, ClipboardList, DatabaseZap, Download, Ellipsis, House, ListOrdered, PanelLeft, PanelLeftClose, PanelLeftOpen, Scale, Search, Settings, ShieldCheck, Sparkles, Star, Trophy, Users,
 } from "lucide-react";
 import { cn } from "../cn";
-import { useMeta } from "../../lib/meta";
-import { Sheet, SheetContent, SheetTitle } from "../ui/overlay";
-import { WhatsNewHost, WhatsNewRow } from "../WhatsNew";
-import { TooltipProvider } from "../ui/overlay";
+import { useMediaQuery, useMeta } from "../../lib/meta";
+import { Sheet, SheetContent, SheetTitle, Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "../ui/overlay";
+import { WhatsNewHost, WhatsNewRow, useUnseenRelease } from "../WhatsNew";
 import { GlobalSearch } from "./Search";
 import { AccountMenu } from "./AccountMenu";
 import { ClockWeather, ThemeToggle } from "./TopBarExtras";
@@ -29,7 +31,8 @@ import { watchTextSize } from "../../lib/textSize";
 
 interface NavItem { to: string; label: string; icon: ComponentType<{ className?: string }>; end?: boolean }
 
-const SECTIONS: { title: string | null; items: NavItem[] }[] = [
+/** `more`: the sidebar folds this section under a "More" toggle (the menu sheet lists it like the rest). */
+const SECTIONS: { title: string | null; items: NavItem[]; more?: boolean }[] = [
   { title: null, items: [{ to: "/", label: "Home", icon: House, end: true }, { to: "/events", label: "Events", icon: CalendarDays }, { to: "/teams", label: "Teams", icon: Users }, { to: "/rankings", label: "Rankings", icon: ListOrdered }, { to: "/power-rankings", label: "Power rankings", icon: Trophy }] },
   { title: "Predict", items: [
     { to: "/predict", label: "Predict", icon: Sparkles, end: true },
@@ -41,7 +44,7 @@ const SECTIONS: { title: string | null; items: NavItem[] }[] = [
     { to: "/shortlist", label: "Shortlist", icon: Bookmark },
     { to: "/scout", label: "Scout", icon: ClipboardList },
   ] },
-  { title: null, items: [{ to: "/download", label: "Download", icon: Download }, { to: "/methodology", label: "How it works", icon: BookOpen }, { to: "/settings", label: "Settings", icon: Settings }] },
+  { title: "More", more: true, items: [{ to: "/download", label: "Download", icon: Download }, { to: "/methodology", label: "How it works", icon: BookOpen }, { to: "/settings", label: "Settings", icon: Settings }] },
 ];
 
 /** The owner portal's item: only for the owner (/api/auth/me says isOwner), never rendered for anyone else. */
@@ -56,76 +59,138 @@ export function BrandMark({ className }: { className?: string }) {
   return <img src="/logo.png" alt="" aria-hidden className={cn("size-7 shrink-0", className)} />;
 }
 
-const rowClass = (on: boolean, collapsed?: boolean) => cn("group relative flex h-10 w-full items-center gap-3 rounded-lg px-3 text-[0.9375rem] font-medium outline-none focus-visible:ring-2 focus-visible:ring-ring/60",
+/** `dense`: the sidebar's tighter rows (so it fits a laptop screen); the phone's menu sheet keeps the taller ones. */
+const rowClass = (on: boolean, collapsed?: boolean, dense?: boolean) => cn("group relative flex w-full items-center rounded-lg font-medium outline-none focus-visible:ring-2 focus-visible:ring-ring/60",
+  dense ? "h-8 gap-2.5 px-2.5 text-sm" : "h-10 gap-3 px-3 text-[0.9375rem]",
   on ? "text-text-base" : "text-text-muted hover:bg-text-base/[0.05] hover:text-text-base", collapsed && "justify-center px-0");
 
-function RowInner({ item, on, collapsed }: { item: NavItem; on: boolean; collapsed?: boolean }) {
+/** In the icon rail, a row's name shows in a tooltip beside it (it is always the row's accessible name too). */
+function RailTip({ on, label, children }: { on?: boolean; label: string; children: ReactNode }) {
+  if (!on) return children;
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>{children}</TooltipTrigger>
+      <TooltipContent side="right">{label}</TooltipContent>
+    </Tooltip>
+  );
+}
+
+function RowInner({ item, on, collapsed, dense }: { item: NavItem; on: boolean; collapsed?: boolean; dense?: boolean }) {
   return (
     <>
       {on && <m.span layoutId="cs-nav-active" transition={{ type: "spring", stiffness: 500, damping: 38 }} className="absolute inset-0 rounded-lg bg-text-base/[0.08]" />}
-      <item.icon className={cn("relative size-5 shrink-0", on && "text-accent")} />
-      {!collapsed && <span className="relative truncate">{item.label}</span>}
+      <item.icon className={cn("relative shrink-0", dense ? "size-[18px]" : "size-5", on && "text-accent")} />
+      <span className={collapsed ? "sr-only" : "relative truncate"}>{item.label}</span>
     </>
   );
 }
 
+interface RowOpts { collapsed?: boolean; dense?: boolean; onNavigate?: () => void }
+
 /** `active`: overrides the link's own match (the YOURS row is lit on its own page, /my-team or /my-teams). */
-function NavRow({ item, collapsed, onNavigate, active }: { item: NavItem; collapsed?: boolean; onNavigate?: () => void; active?: boolean }) {
+function NavRow({ item, collapsed, dense, onNavigate, active }: RowOpts & { item: NavItem; active?: boolean }) {
+  // Matched here, not by NavLink's className/children functions: the rail's tooltip trigger (a Radix Slot) only merges plain strings.
+  const match = useMatch({ path: item.to, end: !!item.end });
+  const on = active ?? !!match;
   return (
-    <NavLink to={item.to} end={item.end} onClick={onNavigate} title={collapsed ? item.label : undefined}
-      aria-current={active === undefined ? undefined : active ? "page" : false}
-      className={({ isActive }) => rowClass(active ?? isActive, collapsed)}>
-      {({ isActive }) => <RowInner item={item} on={active ?? isActive} collapsed={collapsed} />}
-    </NavLink>
+    <RailTip on={collapsed} label={item.label}>
+      <NavLink to={item.to} end={item.end} onClick={onNavigate} aria-current={on ? "page" : false} className={rowClass(on, collapsed, dense)}>
+        <RowInner item={item} on={on} collapsed={collapsed} dense={dense} />
+      </NavLink>
+    </RailTip>
   );
 }
 
 /** The YOURS row (src/lib/yoursRow.ts): "My team" to the followed-team page (no workspaces), or "My team(s)" to /my-teams. */
-function YoursNavRow({ collapsed, onNavigate }: { collapsed?: boolean; onNavigate?: () => void }) {
+function YoursNavRow(opts: RowOpts) {
   const { row, active } = useYoursRow();
-  return <NavRow item={{ to: row.to, label: row.label, icon: Star }} collapsed={collapsed} onNavigate={onNavigate} active={active} />;
+  return <NavRow item={{ to: row.to, label: row.label, icon: Star }} active={active} {...opts} />;
 }
 
-function SectionRows({ items, collapsed, onNavigate }: { items: NavItem[]; collapsed?: boolean; onNavigate?: () => void }) {
+function SectionRows({ items, ...opts }: RowOpts & { items: NavItem[] }) {
   return (
     <>
       {items.map((it) => it.to === FOLLOWED_TEAM_PATH
-        ? <YoursNavRow key={it.to} collapsed={collapsed} onNavigate={onNavigate} />
-        : <NavRow key={it.to} item={it} collapsed={collapsed} onNavigate={onNavigate} />)}
+        ? <YoursNavRow key={it.to} {...opts} />
+        : <NavRow key={it.to} item={it} {...opts} />)}
     </>
   );
 }
 
-function Sidebar({ collapsed, onToggle }: { collapsed: boolean; onToggle: () => void }) {
+const MORE_KEY = "cs-nav-more";
+const isUnder = (path: string, to: string) => path === to || path.startsWith(`${to}/`);
+
+/** The sidebar's "More" group: Download, How it works, Settings, Owner and What's new, folded away until asked for.
+ *  It opens by itself on one of its own pages (so the lit row shows); opening or closing it by hand is remembered. */
+function MoreGroup({ items, collapsed }: { items: NavItem[]; collapsed?: boolean }) {
+  const [open, setOpen] = useState(() => { try { return localStorage.getItem(MORE_KEY) === "1"; } catch { return false; } });
+  const { pathname } = useLocation();
+  const inside = items.some((it) => isUnder(pathname, it.to));
+  // Every arrival on one of its pages (from another of them too) shows the lit row.
+  useEffect(() => { if (inside) setOpen(true); }, [inside, pathname]);
+  const unseen = useUnseenRelease();
+  const button = useRef<HTMLButtonElement>(null);
+  const id = useId();
+  const set = (on: boolean) => { try { localStorage.setItem(MORE_KEY, on ? "1" : "0"); } catch { /* ignore */ } setOpen(on); };
+  return (
+    // Escape inside the open group folds it and puts the keyboard back on its toggle.
+    <div className="space-y-0.5" onKeyDown={(e) => { if (e.key === "Escape" && open) { e.stopPropagation(); set(false); button.current?.focus(); } }}>
+      <RailTip on={collapsed} label={open ? "Fewer pages" : "More pages"}>
+        <button ref={button} type="button" onClick={() => set(!open)} aria-expanded={open} aria-controls={id} className={rowClass(false, collapsed, true)}>
+          <span className="relative">
+            <Ellipsis className="size-[18px] shrink-0" aria-hidden />
+            {/* A new release waits under the folded group's What's new. */}
+            {!open && unseen && <span className="absolute -right-1 -top-1 size-2 rounded-full bg-accent ring-2 ring-secondary" aria-hidden />}
+          </span>
+          <span className={collapsed ? "sr-only" : "flex-1 truncate text-left"}>More{!open && unseen && <span className="sr-only"> (new release)</span>}</span>
+          {!collapsed && <ChevronDown className={cn("size-4 shrink-0 transition-transform duration-150 motion-reduce:transition-none", open && "rotate-180")} aria-hidden />}
+        </button>
+      </RailTip>
+      <div id={id} role="group" aria-label="More pages" hidden={!open} className="space-y-0.5">
+        <SectionRows items={items} collapsed={collapsed} dense />
+        <WhatsNewRow collapsed={collapsed} dense />
+      </div>
+    </div>
+  );
+}
+
+/** `rail`: icons only (a narrow desktop, or folded by hand). `wide`: the screen has room for the full sidebar, so its
+ *  button folds it in and out (remembered); below that the button opens the labelled menu sheet instead. */
+function Sidebar({ rail, wide, onToggle, onMenu }: { rail: boolean; wide: boolean; onToggle: () => void; onMenu: (from: HTMLElement) => void }) {
   const { user, state } = usePersonal();
   const sections = useSections();
+  const toggleLabel = !wide ? "Show page names" : rail ? "Expand sidebar" : "Collapse sidebar";
   return (
-    // Held in place while the page scrolls under it, with its own scroll for a long list (the nav below).
-    <aside aria-label="Sidebar" className={cn("sticky top-0 hidden h-dvh shrink-0 flex-col self-start border-r border-line bg-secondary/60 transition-[width] duration-150 ease-out md:flex", collapsed ? "w-[60px]" : "w-[248px]")}>
-      <div className={cn("flex h-12 items-center gap-2.5 px-3.5", collapsed && "justify-center px-0")}>
+    // Held in place while the page scrolls under it. Its rows fit a 768 px tall screen; the nav still scrolls on a shorter one.
+    <aside aria-label="Sidebar" className={cn("sticky top-0 hidden h-dvh shrink-0 flex-col self-start border-r border-line bg-secondary/60 transition-[width] duration-150 ease-out motion-reduce:transition-none md:flex", rail ? "w-[60px]" : "w-[232px]")}>
+      <div className={cn("flex h-(--header-h) shrink-0 items-center gap-2.5 px-3.5", rail && "justify-center px-0")}>
         <Link to="/" className="flex min-w-0 items-center gap-2.5 rounded-lg outline-none focus-visible:ring-2 focus-visible:ring-ring/60" aria-label="Control Scout home">
-          <BrandMark className="size-8" />
-          {!collapsed && <span className="truncate font-display text-[1.0625rem] font-bold tracking-tight">Control Scout</span>}
+          <BrandMark className="size-7" />
+          {!rail && <span className="truncate font-display text-base font-bold tracking-tight">Control Scout</span>}
         </Link>
       </div>
-      <nav className="custom-scrollbar flex-1 space-y-5 max-sm:space-y-4 overflow-y-auto px-2 py-2" aria-label="Main">
-        {sections.map((s, i) => (
+      <nav className="custom-scrollbar flex-1 space-y-3 overflow-y-auto px-2 py-1.5" aria-label="Main">
+        {sections.map((s, i) => s.more ? <MoreGroup key={i} items={s.items} collapsed={rail} /> : (
           <div key={i} className="space-y-0.5">
-            {s.title && !collapsed && <p className="px-3 pb-1.5 text-[11px] font-bold uppercase tracking-[0.2em] text-text-muted">{s.title}</p>}
-            <SectionRows items={s.items} collapsed={collapsed} />
+            {s.title && (rail
+              ? <div className="mx-auto mb-1 h-px w-6 bg-line" aria-hidden />
+              : <p className="px-2.5 pb-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-text-muted">{s.title}</p>)}
+            <SectionRows items={s.items} collapsed={rail} dense />
           </div>
         ))}
       </nav>
-      <div className="px-2 pb-1"><WhatsNewRow collapsed={collapsed} /></div>
-      <div className={cn("flex items-center gap-2 border-t border-line p-2", collapsed && "flex-col")}>
-        {!collapsed && (
-          <Link to="/settings" className="min-w-0 flex-1 truncate rounded-lg px-2.5 py-2 text-sm text-text-muted hover:bg-text-base/[0.05] hover:text-text-base">
+      <div className={cn("flex shrink-0 items-center gap-1 border-t border-line p-2", rail && "justify-center")}>
+        {!rail && (
+          <Link to="/settings" className="min-w-0 flex-1 truncate rounded-lg px-2.5 py-1.5 text-sm text-text-muted outline-none hover:bg-text-base/[0.05] hover:text-text-base focus-visible:ring-2 focus-visible:ring-ring/60">
             {user ? (user.displayName || user.email) : state.myTeam ? `Team ${state.myTeam} · on this device` : "Not signed in"}
           </Link>
         )}
-        <button onClick={onToggle} className="flex size-9 items-center justify-center rounded-lg text-text-muted hover:bg-text-base/[0.06] hover:text-text-base" aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}>
-          {collapsed ? <PanelLeftOpen className="size-5" /> : <PanelLeftClose className="size-5" />}
-        </button>
+        <RailTip on={rail} label={toggleLabel}>
+          <button type="button" onClick={(e) => (wide ? onToggle() : onMenu(e.currentTarget))} aria-label={toggleLabel}
+            className="flex size-8 shrink-0 items-center justify-center rounded-lg text-text-muted outline-none hover:bg-text-base/[0.06] hover:text-text-base focus-visible:ring-2 focus-visible:ring-ring/60">
+            {rail ? <PanelLeftOpen className="size-[18px]" /> : <PanelLeftClose className="size-[18px]" />}
+          </button>
+        </RailTip>
       </div>
     </aside>
   );
@@ -174,11 +239,15 @@ function NoDataNotice() {
 export function Shell({ children }: { children: ReactNode }) {
   const [collapsed, setCollapsed] = useState(() => { try { return localStorage.getItem("cs-sidebar") === "1"; } catch { return false; } });
   const [menu, setMenu] = useState(false);
-  // The phone's menu sheet and anything opened from it (What's new) hand focus back to the menu button when they
-  // close, even when their own opener has gone (a row in the closed sheet) or never had focus (Safari doesn't
-  // focus a tapped button).
+  // The menu sheet and anything opened from it (What's new) hand focus back to the button that opened it (the
+  // phone's menu button, or the narrow desktop's rail button) when they close, even when their own opener has
+  // gone (a row in the closed sheet) or never had focus (Safari doesn't focus a tapped button).
   const menuRef = useRef<HTMLButtonElement>(null);
-  const toMenu = () => menuRef.current;
+  const menuFrom = useRef<HTMLElement | null>(null);
+  const toMenu = () => menuFrom.current ?? menuRef.current;
+  const openMenu = (from: HTMLElement | null) => { menuFrom.current = from; setMenu(true); };
+  // Under 1280 px the sidebar is always the rail, so the page keeps its width.
+  const wide = useMediaQuery("(min-width: 1280px)");
   const mainRef = useRef<HTMLElement>(null);
   // The page scrolls the document (so phone browsers fold their toolbars away). Back/forward return to where
   // the page was left once its data is back, and a new page starts at the top (src/lib/pageScroll.ts).
@@ -203,13 +272,13 @@ export function Shell({ children }: { children: ReactNode }) {
         {/* At least a screen tall; sideways overflow is clipped (clip, not hidden: no scroll box, so the sticky bars still stick). */}
         <div className="flex min-h-dvh w-full overflow-x-clip bg-primary text-text-base">
           <a href="#main" className="sr-only focus:not-sr-only focus:fixed focus:left-3 focus:top-3 focus:z-[200] focus:rounded-lg focus:bg-accent focus:px-3 focus:py-2 focus:text-accent-ink">Skip to content</a>
-          {!bare && <Sidebar collapsed={collapsed} onToggle={toggle} />}
+          {!bare && <Sidebar rail={collapsed || !wide} wide={wide} onToggle={toggle} onMenu={openMenu} />}
           <div className="flex min-w-0 flex-1 flex-col">
             {/* Sticky over the scrolling page: opaque, and --header-h tall (index.css: anchors land below it). */}
             {!bare && <header id={HEADER_ID} className="sticky top-0 z-30 flex h-(--header-h) shrink-0 items-center gap-1 border-b border-line bg-primary px-3 sm:px-6 md:gap-3 lg:px-8">
               {/* Phones: the menu (every page) top left with search beside it, the logo centred, and the account side right. */}
               <div className="flex items-center gap-0.5 md:hidden">
-                <button ref={menuRef} type="button" onClick={() => setMenu(true)} aria-label="Open menu" aria-expanded={menu}
+                <button ref={menuRef} type="button" onClick={() => openMenu(menuRef.current)} aria-label="Open menu" aria-expanded={menu}
                   className="-ml-1.5 flex size-8 shrink-0 items-center justify-center rounded-lg text-text-muted outline-none transition-colors hover:bg-text-base/[0.06] hover:text-text-base focus-visible:ring-2 focus-visible:ring-ring/60">
                   <PanelLeft className="size-5" />
                 </button>
