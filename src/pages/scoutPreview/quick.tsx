@@ -4,17 +4,26 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { PageHeader } from "../../components/page";
-import { QuickMatchForm } from "../../components/scout/redesign/QuickMatchForm";
+import { QuickMatchForm, quickFields, type QuickToggleKind } from "../../components/scout/redesign/QuickMatchForm";
 import { useMatchDraft } from "../../lib/matchDraft";
 import { resolveTemplate } from "../../lib/scoutTemplates";
 import { teamsWatched, type ScheduleMatch } from "../../shared/scoutMatch";
 import type { ScoutValue } from "../../lib/scouting";
+import type { ScoutTemplate } from "../../shared/scoutTemplate";
 
 const MATCH: ScheduleMatch = { key: "qual:0:14", label: "Q14", level: "qual", time: null, startsAt: null, played: false, red: [4410, 18360], blue: [23014, 7175] };
-const SAMPLE: Record<number, Record<string, ScoutValue>> = {
-  4410: { pollen: 12, park: "Full", autoLeave: true },
-  18360: { pollen: 5, defense: true },
-  23014: { pollen: 9, park: "Partial", autoLeave: true, broke: true },
+/** A few taps per team, built from the season's quick fields: [count, choice option, toggles on]. */
+const SAMPLE: [number, number, QuickToggleKind[]][] = [[12, 2, ["leave"]], [5, -1, ["defense"]], [9, 1, ["leave", "broke"]]];
+const sampleFor = (template: ScoutTemplate) => {
+  const q = quickFields(template);
+  return SAMPLE.map(([n, opt, on]) => {
+    const data: Record<string, ScoutValue> = {};
+    if (q.counter) data[q.counter.id] = Math.min(n, q.counter.max ?? n);
+    const o = q.choice?.options?.[opt];
+    if (q.choice && o) data[q.choice.id] = o;
+    for (const t of q.toggles) if (on.includes(t.kind)) data[t.field.id] = true;
+    return data;
+  });
 };
 
 export default function QuickPreview() {
@@ -36,8 +45,8 @@ export default function QuickPreview() {
   useEffect(() => {
     if (seeded.current || !sp.get("sample")) return;
     seeded.current = true;
-    for (const [team, data] of Object.entries(SAMPLE)) for (const [id, v] of Object.entries(data)) draft.setAnswer(Number(team), id, v);
-  }, [draft, sp]);
+    sampleFor(template).forEach((data, i) => { for (const [id, v] of Object.entries(data)) draft.setAnswer(teams[i].team, id, v); });
+  }, [draft, sp, template, teams]);
   return (
     <div className="mx-auto max-w-xl">
       <PageHeader title={`${MATCH.label} · quick mode`} description={`All 4 teams, built-in ${season} template. Sample teams.`} />
