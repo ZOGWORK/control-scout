@@ -1,25 +1,32 @@
 // One match, several teams (the Scout redesign, docs/mockups/scout-redesign.html steps 2–3): a draft of
 // answers and notes per watched team, kept while the scout switches tabs, and one Save for the whole match.
 // The save follows the old entry form's rules (src/pages/ScoutPage.tsx, EntryForm) team by team: a team you
-// already scouted in this match is edited (same uuid, the base it was opened with), never saved twice; new
+// already scouted in this match is edited (same uuid, the base it was opened on), never saved twice; new
 // entries keep only the template's fields and record the template; a read-only workspace keeps what was typed
-// in Personal. Drafts are kept in sessionStorage per space, season, event and match, so a phone that locks or
-// reloads mid-match loses nothing.
+// in Personal. Drafts are kept in sessionStorage per space, account, season, event and match, so a phone that
+// locks or reloads mid-match loses nothing.
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { newScoutId, personalCopy, saveScoutEntry, scoutDraftBase, ScoutStorageError, templateFor, type ScoutEntry, type ScoutSpace, type ScoutValue } from "./scouting";
 import type { ScoutField, ScoutTemplate } from "../shared/scoutTemplate";
 import { normalizeMatchLabel, type ScheduleMatch, type WatchedTeam } from "../shared/scoutMatch";
 
-/** One team's unsaved work in a match. */
+/** The template an entry records (absent fields: it records none, the built-in defaults). */
+type Made = { templateId?: string; templateVersion?: number };
+
+/** One team's unsaved work in a match. Where it saves is fixed by its first change, never by entries arriving later. */
 export interface TeamDraft {
   data: Record<string, ScoutValue>;
   notes: string;
-  /** The entry this draft edits (yours, in this match), as it was when the first change was made. */
+  /** An edit: the entry it edits (yours, in this match) when the first change was made. Absent: a new entry. */
   uuid?: string;
-  /** That entry's draft base (scoutDraftBase) when the first change was made: a newer version arriving after is one this save never saw. */
+  /** That entry's draft base (scoutDraftBase) then: a newer version arriving after is one this save never saw. */
   base?: number | null;
+  /** That entry's template then: an edit keeps it, also when the entry was deleted meanwhile and is saved again as new. */
+  made?: Made;
   /** A new entry's template, fixed at its first answer, so a template arriving mid-match never swaps the questions or drops answers. */
   template?: ScoutTemplate;
+  /** Read-only workspace: the Personal copy already saved for this team (and what it was saved from), so a retry or a later change updates it. */
+  kept?: { uuid: string; data: Record<string, ScoutValue>; notes: string };
 }
 
 /** empty: nothing entered and nothing saved; started: unsaved answers; done: saved, nothing changed since. */
@@ -30,7 +37,7 @@ export interface TeamState {
   data: Record<string, ScoutValue>;
   notes: string;
   status: TeamStatus;
-  /** Your saved entry for this team in this match (the one Save edits), or null. */
+  /** The saved entry Save edits for this team, or null (a new entry). */
   entry: ScoutEntry | null;
   /** The template a new entry is being filled with (an edit is read with its own: useEntryTemplateState(entry)). */
   template: ScoutTemplate;
@@ -41,8 +48,11 @@ export type MatchSaveResult =
   | { ok: false; saved: number; error: string };
 
 const KEY_PREFIX = "cs-scout-match-draft:";
-export const matchDraftKey = (space: ScoutSpace, season: number, eventCode: string, label: string) =>
-  `${KEY_PREFIX}${space ?? "personal"}:${season}:${eventCode.trim().toUpperCase()}:${normalizeMatchLabel(label) ?? ""}`;
+/** Per space and, in a workspace, per account: another member on the same device never inherits a draft. */
+export const matchDraftKey = (space: ScoutSpace, season: number, eventCode: string, label: string, author?: number | null) =>
+  `${KEY_PREFIX}${space == null ? "personal" : `${space}@${author ?? 0}`}:${season}:${eventCode.trim().toUpperCase()}:${normalizeMatchLabel(label) ?? ""}`;
+
+const isRecord = (v: unknown): v is Record<string, ScoutValue> => !!v && typeof v === "object" && !Array.isArray(v);
 
 function readDrafts(key: string): Record<number, TeamDraft> {
   try {
@@ -51,12 +61,15 @@ function readDrafts(key: string): Record<number, TeamDraft> {
     const out: Record<number, TeamDraft> = {};
     for (const [t, d] of Object.entries(raw as Record<string, unknown>)) {
       const v = d as Partial<TeamDraft> | null;
-      if (!/^\d+$/.test(t) || !v || typeof v !== "object" || !v.data || typeof v.data !== "object" || typeof v.notes !== "string") continue;
+      if (!/^\d+$/.test(t) || !v || typeof v !== "object" || !isRecord(v.data) || typeof v.notes !== "string") continue;
+      const k = v.kept;
       out[Number(t)] = {
-        data: v.data as Record<string, ScoutValue>, notes: v.notes,
+        data: v.data, notes: v.notes,
         ...(typeof v.uuid === "string" ? { uuid: v.uuid } : {}),
         ...(typeof v.base === "number" || v.base === null ? { base: v.base } : {}),
+        ...(v.made && typeof v.made === "object" ? { made: typeof v.made.templateId === "string" ? { templateId: v.made.templateId, templateVersion: Number(v.made.templateVersion) || 0 } : {} } : {}),
         ...(v.template && Array.isArray(v.template.fields) && typeof v.template.id === "string" ? { template: v.template } : {}),
+        ...(k && typeof k.uuid === "string" && isRecord(k.data) && typeof k.notes === "string" ? { kept: { uuid: k.uuid, data: k.data, notes: k.notes } } : {}),
       };
     }
     return out;
@@ -89,6 +102,7 @@ const sameData = (a: Record<string, ScoutValue>, b: Record<string, ScoutValue>) 
   const ka = Object.keys(a).filter((k) => a[k] !== undefined), kb = Object.keys(b).filter((k) => b[k] !== undefined);
   return ka.length === kb.length && ka.every((k) => a[k] === b[k]);
 };
+const sameText = (d: Pick<TeamDraft, "data" | "notes">, e: Pick<TeamDraft, "data" | "notes">) => sameData(d.data, e.data) && d.notes === e.notes;
 
 /**
  * Your entry for a team in this match at this event (the newest, if there were ever two). In a workspace, "yours":
@@ -130,26 +144,31 @@ export interface MatchDraftOptions {
 export function useMatchDraft(o: MatchDraftOptions) {
   const { space, season, eventCode, match, teams, template, existing, author, readOnly = false, spaceName = null } = o;
   const label = normalizeMatchLabel(match.label);
-  const key = matchDraftKey(space, season, eventCode, match.label);
+  const key = matchDraftKey(space, season, eventCode, match.label, author);
   const [state, setState] = useState(() => ({ key, drafts: readDrafts(key) }));
-  // Another match (or space, season, event): its own drafts, read from storage at once.
+  // Another match (or space, account, season, event): its own drafts, read from storage at once.
   const drafts = state.key === key ? state.drafts : readDrafts(key);
   useEffect(() => { setState((s) => (s.key === key ? s : { key, drafts: readDrafts(key) })); }, [key]);
   const toPersonal = readOnly && space != null;
 
-  const entryOf = useCallback((team: number) => (toPersonal ? null : yourMatchEntry(existing, { space, eventCode, label, team, author })), [toPersonal, existing, space, eventCode, label, author]);
+  /** Your saved entry for a team when nothing's been changed yet (read-only: none, Save makes Personal copies). */
+  const savedEntry = useCallback((team: number) => (toPersonal ? null : yourMatchEntry(existing, { space, eventCode, label, team, author })), [toPersonal, existing, space, eventCode, label, author]);
+  /** The entry an edit draft targets, if it's still there (deleted meanwhile: null, and it's saved again as new). */
+  const targetOf = useCallback((d: TeamDraft) => (d.uuid ? existing.find((e) => e.uuid === d.uuid && !e.deleted && (e.workspaceId ?? null) === space) ?? null : null), [existing, space]);
 
   const update = useCallback((team: number, change: (d: TeamDraft) => TeamDraft) => {
     setState((s) => {
       const cur = s.key === key ? s.drafts : readDrafts(key);
-      const entry = entryOf(team);
-      // The first change starts from your saved entry (with the base it had then), else from nothing.
-      const start: TeamDraft = cur[team] ?? (entry ? { data: { ...entry.data }, notes: entry.notes, uuid: entry.uuid, base: scoutDraftBase(entry) ?? null } : { data: {}, notes: "" });
+      const entry = savedEntry(team);
+      // The first change fixes where the draft saves: your saved entry (with its base and template then), else a new one.
+      const start: TeamDraft = cur[team] ?? (entry
+        ? { data: { ...entry.data }, notes: entry.notes, uuid: entry.uuid, base: scoutDraftBase(entry) ?? null, made: entry.templateId ? { templateId: entry.templateId, templateVersion: entry.templateVersion ?? 0 } : {} }
+        : { data: {}, notes: "" });
       const next = { ...cur, [team]: change(start) };
       writeDrafts(key, next);
       return { key, drafts: next };
     });
-  }, [key, entryOf]);
+  }, [key, savedEntry]);
 
   const setAnswer = useCallback((team: number, id: string, v: ScoutValue) => update(team, (d) => ({
     ...d, data: { ...d.data, [id]: v },
@@ -166,74 +185,79 @@ export function useMatchDraft(o: MatchDraftOptions) {
   }), [key]);
 
   const view = useMemo<TeamState[]>(() => teams.map((w) => {
-    const entry = entryOf(w.team), d = drafts[w.team];
-    const tpl = d?.template ?? template;
-    if (!d) return { watched: w, data: entry ? entry.data : {}, notes: entry?.notes ?? "", status: entry ? "done" : "empty", entry, template: tpl };
-    const changed = entry ? !(sameData(d.data, entry.data) && d.notes === entry.notes) : hasAnswers(d.data, d.notes, tpl.fields);
-    return { watched: w, data: d.data, notes: d.notes, status: changed ? "started" : entry ? "done" : "empty", entry, template: tpl };
-  }), [teams, drafts, entryOf, template]);
+    const d = drafts[w.team];
+    if (!d) {
+      const entry = savedEntry(w.team);
+      return { watched: w, data: entry ? entry.data : {}, notes: entry?.notes ?? "", status: entry ? "done" : "empty", entry, template };
+    }
+    const tpl = d.template ?? template, entry = targetOf(d);
+    const status: TeamStatus = d.kept ? (sameText(d, d.kept) ? "done" : "started")
+      : entry ? (sameText(d, entry) ? "done" : "started")
+      : hasAnswers(d.data, d.notes, tpl.fields) ? "started" : "empty";
+    return { watched: w, data: d.data, notes: d.notes, status, entry, template: tpl };
+  }), [teams, drafts, savedEntry, targetOf, template]);
 
   /** New teams with nothing entered: Save skips them unless asked to save them anyway. */
   const emptyTeams = useMemo(() => view.filter((t) => t.status === "empty").map((t) => t.watched.team), [view]);
 
   /**
-   * Save every watched team: one entry each, kind "match", at this event and match. Edits go to your entry
-   * (same uuid, with the base the draft was opened on); new teams with nothing entered are skipped unless
-   * `includeEmpty`. Saved teams' drafts are cleared; on a storage error the rest stay as they are.
+   * Save every watched team: one entry each, kind "match", at this event and match. An edit goes to the entry it
+   * was started on (same uuid, the base and template it had then); new teams with nothing entered are skipped
+   * unless `includeEmpty`. Saved teams' drafts are cleared (read-only: kept, marked saved in Personal); on a
+   * storage error the rest stay as they are.
    */
   const saveMatch = useCallback((opts: { includeEmpty?: boolean } = {}): MatchSaveResult => {
     const code = eventCode.trim().toUpperCase() || null;
     const builtin = templateFor(season, "match").fields;
-    type Plan = { team: number; entry: ScoutEntry | null; d: TeamDraft; tpl: ScoutTemplate; kept: { data: Record<string, ScoutValue>; notes: string } };
+    type Plan = { team: number; uuid: string; d: TeamDraft; kept: { data: Record<string, ScoutValue>; notes: string }; made: Made; base?: number | null };
     const plans: Plan[] = [], skipped: number[] = [];
     let unchanged = 0;
     for (const t of view) {
       if (t.status === "done") { unchanged++; continue; }
       if (t.status === "empty" && !opts.includeEmpty) { skipped.push(t.watched.team); continue; }
-      const entry = t.entry, d = drafts[t.watched.team] ?? { data: {}, notes: "" };
-      const tpl = t.template;
+      const d = drafts[t.watched.team] ?? { data: {}, notes: "" }, tpl = t.template;
+      const isNew = !d.uuid && !d.kept;
       // A new entry keeps only its template's fields; an edit keeps everything it had (also one whose entry was
-      // deleted meanwhile: it's saved as a new entry, answers and all).
+      // deleted meanwhile: it's saved as a new entry, answers and all, with the template they were given with).
       const ids = new Set(tpl.fields.map((f) => f.id));
-      const data = entry || d.uuid ? { ...d.data } : Object.fromEntries(Object.entries(d.data).filter(([k]) => ids.has(k)));
-      // A counter shows its lowest value until it's touched: that shown value is the answer. Only against the
-      // questions the entry was made with (an edit read with a stand-in template is left as it is).
-      const sameTemplate = !entry || (entry.templateId ?? "") === (space == null ? "" : tpl.id) && (entry.templateVersion ?? 0) === (space == null ? 0 : tpl.version ?? 0);
-      if (sameTemplate) for (const f of tpl.fields) if (f.type === "counter" && (f.min ?? 0) > 0 && data[f.id] === undefined) data[f.id] = f.min!;
+      const data = isNew ? Object.fromEntries(Object.entries(d.data).filter(([k]) => ids.has(k))) : { ...d.data };
+      // A counter shows its lowest value until it's touched: that shown value is the answer.
+      if (isNew) for (const f of tpl.fields) if (f.type === "counter" && (f.min ?? 0) > 0 && data[f.id] === undefined) data[f.id] = f.min!;
       if (toPersonal) {
-        const copy = personalCopy(data, d.notes, tpl.fields, builtin, spaceName);
+        const copy = personalCopy(data, d.notes, (d.template ?? tpl).fields, builtin, spaceName);
         if (copy.overflow) return { ok: false, saved: 0, error: `${t.watched.team}: the workspace's answers are written into the notes in Personal. Shorten its notes by ${copy.overflow} characters so they fit.` };
-        plans.push({ team: t.watched.team, entry: null, d, tpl, kept: { data: copy.data, notes: copy.notes } });
-      } else plans.push({ team: t.watched.team, entry, d, tpl, kept: { data, notes: d.notes } });
+        plans.push({ team: t.watched.team, uuid: d.kept?.uuid ?? newScoutId(), d: { ...d, data }, kept: { data: copy.data, notes: copy.notes }, made: {} });
+        continue;
+      }
+      const made: Made = space == null ? {} : isNew ? { templateId: tpl.id, templateVersion: tpl.version ?? 0 } : d.made ?? {};
+      plans.push({ team: t.watched.team, uuid: t.entry?.uuid ?? newScoutId(), d, kept: { data, notes: d.notes }, made, ...(t.entry ? { base: d.base ?? null } : {}) });
     }
     let saved = 0;
-    const done: number[] = [];
+    const done: Plan[] = [];
     try {
       for (const p of plans) {
-        // Workspace entries record the template they were made with (an edit keeps the entry's own); Personal ones use the built-in.
-        const made = space == null || toPersonal ? {}
-          : p.entry ? (p.entry.templateId ? { templateId: p.entry.templateId, templateVersion: p.entry.templateVersion ?? 0 } : {})
-          : { templateId: p.tpl.id, templateVersion: p.tpl.version ?? 0 };
-        // The base this edit was opened on: the draft's own when it was started on this entry, else the entry's now.
-        const base = p.entry ? (p.d.uuid === p.entry.uuid && p.d.base !== undefined ? p.d.base : scoutDraftBase(p.entry) ?? null) : undefined;
         saveScoutEntry({
-          uuid: p.entry?.uuid ?? newScoutId(), season, team: p.team, eventCode: code, matchLabel: label, kind: "match",
-          ...p.kept, workspaceId: toPersonal ? null : space, ...made,
-        }, p.entry ? { base } : {});
-        saved++; done.push(p.team);
+          uuid: p.uuid, season, team: p.team, eventCode: code, matchLabel: label, kind: "match",
+          ...p.kept, workspaceId: toPersonal ? null : space, ...p.made,
+        }, p.base !== undefined ? { base: p.base } : {});
+        saved++; done.push(p);
       }
     } catch (e) {
-      clear(done);
+      settle(done);
       return { ok: false, saved, error: e instanceof ScoutStorageError ? e.message : "Couldn't save this match on this device. Try again." };
     }
-    clear(done);
+    settle(done);
     return { ok: true, saved, unchanged, skipped };
 
-    function clear(teamsSaved: number[]) {
-      if (!teamsSaved.length) return;
+    /** Saved drafts go; read-only, each stays as the Personal copy it was saved to, so a retry never saves it twice. */
+    function settle(list: Plan[]) {
+      if (!list.length) return;
       setState((s) => {
         const cur = { ...(s.key === key ? s.drafts : readDrafts(key)) };
-        for (const t of teamsSaved) delete cur[t];
+        for (const p of list) {
+          if (toPersonal) cur[p.team] = { data: p.d.data, notes: p.d.notes, ...(p.d.template ? { template: p.d.template } : {}), kept: { uuid: p.uuid, data: p.d.data, notes: p.d.notes } };
+          else delete cur[p.team];
+        }
         writeDrafts(key, cur);
         return { key, drafts: cur };
       });
