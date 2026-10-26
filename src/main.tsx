@@ -72,6 +72,8 @@ const PAGES = {
   EventDisplayPage: lazyPage(() => import("./pages/EventDisplayPage")),
   NotFound: lazyPage(() => import("./pages/NotFound")),
 } satisfies Record<PageModule, unknown>;
+// Dev only: one piece of the Scout redesign at a time, for screenshots (the import is dropped from production builds).
+const ScoutPreviewPage = import.meta.env.DEV ? lazy(() => import("./pages/ScoutPreviewPage")) : () => null;
 const { TeamPage, EventsPage, RecordsPage, RankingsPage, EventPage, PredictPage, ComparePage, MyTeamPage, MyTeamsPage, ShortlistPage, ScoutPage, DownloadPage, SettingsPage, MethodologyPage, PrivacyPage, TermsPage, ContactPage, FaqPage, MatchReportPage, PowerRankingsPage, EventDisplayPage, NotFound } = PAGES;
 
 // Offline: the service worker precaches the app so it opens with no signal.
@@ -155,6 +157,7 @@ void ready.catch(() => { /* a failed load is retried (and shown) by the page's o
                   <Route path="/my-teams" element={<MyTeamsPage />} />
                   <Route path="/shortlist" element={<ShortlistPage />} />
                   <Route path="/scout" element={<ScoutPage />} />
+                  {import.meta.env.DEV && <Route path="/scout/preview/:part?" element={<ScoutPreviewPage />} />}
                   <Route path="/download" element={<DownloadPage />} />
                   <Route path="/settings" element={<SettingsPage />} />
                   <Route path="/methodology" element={<MethodologyPage />} />
