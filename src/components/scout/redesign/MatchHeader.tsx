@@ -66,7 +66,9 @@ export function MatchHeader({ schedule, index, watching, progress, onIndex, next
   useEffect(() => {
     const strip = stripRef.current, cur = strip?.querySelector<HTMLElement>("[aria-current]");
     if (!strip || !cur) return;
-    const left = cur.offsetLeft - (strip.clientWidth - cur.offsetWidth) / 2;
+    // From both boxes, so where the strip sits on the page never counts.
+    const sr = strip.getBoundingClientRect(), cr = cur.getBoundingClientRect();
+    const left = strip.scrollLeft + (cr.left - sr.left) - (strip.clientWidth - cr.width) / 2;
     const reduce = typeof matchMedia === "function" && matchMedia("(prefers-reduced-motion: reduce)").matches;
     if (typeof strip.scrollTo === "function") strip.scrollTo({ left: Math.max(0, left), behavior: reduce ? "auto" : "smooth" });
     else strip.scrollLeft = Math.max(0, left);
@@ -124,7 +126,8 @@ export function MatchHeader({ schedule, index, watching, progress, onIndex, next
           disabled={index >= schedule.length - 1} onClick={() => go(index + 1)}><ChevronRight className="size-5" /></Button>
       </div>
 
-      <ol ref={stripRef} aria-label="Matches" className="-mx-1 flex gap-1.5 overflow-x-auto px-1 py-0.5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+      {/* 6px of padding above and below holds each chip's 44px tap area (the scroller clips what overflows it). */}
+      <ol ref={stripRef} aria-label="Matches" className="relative -mx-1 -my-1 flex gap-1.5 overflow-x-auto px-1 py-[6px] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
         {schedule.map((s, i) => {
           const st = chipState(i, index, progress(i), nextIndex);
           // The current chip still says how far it's scouted.
