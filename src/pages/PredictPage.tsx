@@ -17,6 +17,7 @@ import type { EventDetail, EventSummary, EventListItem, MatchExplanationView, Ma
 import { pairHistory } from "../shared/pairHistory";
 import { labEventChoices } from "../lib/labEvents";
 import { LabEventsEmpty } from "../components/LabEventsEmpty";
+import { WeekEvents } from "../components/predict/WeekEvents";
 import { Section, EmptyState } from "../components/page";
 import { LatestCalls } from "../components/LatestCalls";
 import { Async, ErrorState } from "../components/states";
@@ -197,15 +198,11 @@ function TeamPredictions({ team, onClear }: { team: number; onClear: () => void 
             {seasons ? <SeasonToggle predictOnly seasons={seasons} value={s} onChange={setSeason} /> : <div className="skeleton h-9 w-72 max-w-full rounded-lg" />}
             {season != null && !isCurrent && <span className="text-xs text-muted-foreground">{asked ? `Predictions from ${seasonLabel(season)}` : `No results in ${seasonLabel(current)} yet, so this is ${seasonLabel(season)}`}</span>}
           </div>
-          {/* People pick one team expecting a matchup: the Lab, with this team already in. Both ways in carry the same weight. */}
-          <Reveal className="flex flex-wrap items-center gap-3 rounded-xl border border-accent/30 bg-accent/[0.06] p-3.5">
-            <FlaskConical className="size-5 shrink-0 text-accent" aria-hidden />
-            <p className="min-w-0 flex-1 text-sm"><span className="font-medium">Predict a matchup with {team}.</span> <span className="text-muted-foreground">Pick its partner and two opponents in the Lab for win odds and a predicted score.</span></p>
-            <div className="flex flex-wrap gap-2">
-              <Button size="sm" variant="secondary" asChild><Link to={labMatchHref(team, s)}><Swords /> Predict a matchup</Link></Button>
-              <Button size="sm" variant="secondary" asChild><Link to={labAdvancementHref(team, s)}><Trophy /> Odds at an event</Link></Button>
-            </div>
-          </Reveal>
+          {/* People pick one team expecting a matchup: the other modes, with this team already in. Both ways in carry the same weight. */}
+          <div className="flex flex-wrap gap-2">
+            <Button size="sm" variant="secondary" asChild><Link to={labMatchHref(team, s)}><Swords /> Predict a matchup</Link></Button>
+            <Button size="sm" variant="secondary" asChild><Link to={labAdvancementHref(team, s)}><Trophy /> Odds at an event</Link></Button>
+          </div>
           {season == null ? <div className="skeleton h-40 rounded-xl" /> : isCurrent ? (
             <>
               <div>
@@ -222,11 +219,18 @@ function TeamPredictions({ team, onClear }: { team: number; onClear: () => void 
                     <span className="text-xs font-normal text-muted-foreground">{dateRange(next.start, next.end)}</span>
                   </h3>
                   {ADVANCING.has(next.type ?? "")
-                    ? <AdvancementView season={next.season} code={next.code} team={team} nameOf={() => ""} />
+                    ? <Button size="sm" asChild><Link to={predictHref({ mode: "advancement", season: next.season, code: next.code, team })}><Trophy /> {team}'s advancement odds here <ArrowRight /></Link></Button>
                     : <p className="text-sm text-muted-foreground">This event doesn't advance teams, so there are no advancement odds. Its matches get win odds once it publishes a schedule.</p>}
                 </div>
               )}
-              {played.length > 0 && <PastCalls team={team} season={season} played={played} calls={calls} ev={ev} />}
+              {played.length > 0 && (
+                <details className="group rounded-xl border border-border bg-card px-4 py-3 open:pb-4">
+                  <summary className="flex cursor-pointer list-none items-center justify-between gap-2 text-sm font-semibold text-foreground [&::-webkit-details-marker]:hidden">
+                    Earlier {seasonLabel(season)} matches and how the calls did <ChevronDown className="size-4 text-muted-foreground transition-transform group-open:rotate-180 motion-reduce:transition-none" aria-hidden />
+                  </summary>
+                  <div className="mt-3"><PastCalls team={team} season={season} played={played} calls={calls} ev={ev} /></div>
+                </details>
+              )}
             </>
           ) : (
             <Async state={matches}>{() => <PastCalls team={team} season={season} played={played} calls={calls} ev={ev} />}</Async>
@@ -279,10 +283,11 @@ function EventPredictions({ season, code, onClear }: { season: number; code: str
                 : <MatchList matches={[]} empty="No schedule published yet. Win odds for every match appear as soon as it is (usually the morning of the event)." />}
             {upcoming.length > 16 && <p className="mt-2 text-xs text-muted-foreground">Showing 16 of {upcoming.length}. The rest are on the <Link to={`/events/${season}/${code}?tab=matches`} className="underline">event page</Link>.</p>}
           </div>
-          {!d.forecastUnsupported && d.event.status !== "finished" && (
-            <div>
-              <h3 className="mb-2 text-sm font-semibold text-foreground">Advancement odds</h3>
-              <AdvancementView season={season} code={code} team={null} nameOf={() => ""} />
+          {!d.forecastUnsupported && ADVANCING.has(d.event.type ?? "") && (
+            <div className="flex flex-wrap items-center gap-3 rounded-xl border border-border bg-card px-4 py-3">
+              <Trophy className="size-5 shrink-0 text-accent" aria-hidden />
+              <p className="min-w-0 flex-1 text-sm"><span className="font-medium text-foreground">Advancement odds</span> <span className="text-muted-foreground">for every team at this event, or one team's chance to advance.</span></p>
+              <Button size="sm" asChild><Link to={predictHref({ mode: "advancement", season, code })}>See advancement odds <ArrowRight /></Link></Button>
             </div>
           )}
         </div>
@@ -291,36 +296,11 @@ function EventPredictions({ season, code, onClear }: { season: number; code: str
   );
 }
 
+/** This week's events (two days back to a week out): pick one to see its scheduled predictions. */
 function ThisWeek({ onPick, picked }: { onPick: (p: PredictPick) => void; picked: string | null }) {
-  const [all, setAll] = useState(false);
-  const season = useCurrentSeason();
-  const now = new Date();
-  const from = iso(new Date(now.getTime() - 2 * 864e5)), to = iso(new Date(now.getTime() + 7 * 864e5));
-  const events = useApi<{ events: EventListItem[] }>(`/api/events${qs({ season, from, to })}`);
-  // Per-event counts from the event list itself (complete, unlike a capped match feed).
-  const toPlay = (e: EventListItem) => (e.status === "finished" ? 0 : Math.max(0, e.matchesTotal - e.matchesPlayed));
   return (
-    <Section title="This week" description="Events from two days ago to a week out. Pick one to see its predictions.">
-      <Async state={events} empty={(d) => !d.events.length && <EmptyState icon={CalendarDays} title="No events this week" description="Nothing is scheduled in the next seven days. Pick any team or event above to see its predictions." />}>
-        {(d) => (
-          <div className="grid gap-2 sm:grid-cols-2">
-            {[...d.events].sort((a, b) => toPlay(b) - toPlay(a) || (a.start ?? "").localeCompare(b.start ?? "")).slice(0, all ? undefined : 12).map((e) => {
-              const n = toPlay(e);
-              return (
-                <button key={e.code} type="button" onClick={() => onPick({ kind: "event", season: e.season, code: e.code })} aria-pressed={picked === e.code}
-                  className={cn("lift flex min-w-0 items-start gap-3 rounded-xl border bg-card p-3 text-left", picked === e.code ? "border-accent/60" : "border-border")}>
-                  <span className="min-w-0 flex-1">
-                    <span className="block truncate font-medium text-foreground">{e.name}</span>
-                    <span className="mt-0.5 flex items-center gap-1 truncate text-xs text-muted-foreground"><MapPin className="size-3 shrink-0" />{dateRange(e.start, e.end)} · {place(e.city, e.state)}</span>
-                  </span>
-                  <span className="shrink-0">{n > 0 ? <Badge variant="success">{n} scheduled</Badge> : <Badge variant="secondary">{e.typeLabel ?? e.type ?? "Event"}</Badge>}</span>
-                </button>
-              );
-            })}
-            {d.events.length > 12 && <Button variant="ghost" size="sm" className="sm:col-span-2 justify-self-start" onClick={() => setAll((x) => !x)}>{all ? "Show fewer" : `Show all ${d.events.length} events`}</Button>}
-          </div>
-        )}
-      </Async>
+    <Section title="This week" description="Pick an event to see its scheduled predictions.">
+      <WeekEvents picked={picked} onPick={(season, code) => onPick({ kind: "event", season, code })} />
     </Section>
   );
 }
