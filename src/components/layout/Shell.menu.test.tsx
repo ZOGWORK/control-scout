@@ -185,7 +185,9 @@ describe("the desktop sidebar", () => {
     wide(false);
     shell();
     expect(within(sidebar()).queryByText("Control Scout")).toBeNull();
-    expect(within(sidebar()).getByRole("link", { name: "Rankings" })).toBeTruthy();
+    // Styled as a rail row (a tooltip trigger once turned NavLink's className function into text).
+    expect(within(sidebar()).getByRole("link", { name: "Rankings" }).className).toContain("justify-center");
+    expect(within(sidebar()).getByRole("link", { name: "Home" }).getAttribute("aria-current")).toBe("page");
     const open = within(sidebar()).getByRole("button", { name: "Show page names" });
     act(() => open.focus());
     fireEvent.click(open);
