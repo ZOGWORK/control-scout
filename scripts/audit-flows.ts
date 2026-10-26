@@ -91,7 +91,7 @@ const flows: Flow[] = [
       await page.getByText(/to win/).first().waitFor();
       const body = await page.locator("main").innerText();
       assert(/\d+%/.test(body) && /Predicted score/.test(body), "no win % / predicted score");
-      assert(/(Provisional|Moderate|Confident)/.test(body), "no confidence tier");
+      assert(/(Rough guess|Fair|Solid)/i.test(body), "no confidence tier");
       const factors = await page.locator("main ol li").count();
       assert(factors >= 3, `only ${factors} factors`);
       return "win %, predicted scores with ranges, ≥3 factors and a tier shown";
@@ -103,7 +103,7 @@ const flows: Flow[] = [
       await page.goto(`${BASE}/events/2025/AUBRQ2?tab=odds&team=19450`, { waitUntil: "networkidle" });
       await page.getByText(/simulated events/).first().waitFor({ timeout: 60_000 });
       const body = await page.locator("main").innerText();
-      assert(/(Provisional|Moderate|Confident)/.test(body), "no tier on advancement odds");
+      assert(/(Rough guess|Fair|Solid)/i.test(body), "no tier on advancement odds");
       assert(/advance/i.test(body) && /captain/i.test(body), "missing advance/captain odds");
       return "odds for 19450 at AUBRQ2 with advance/captain and a tier";
     },
@@ -417,7 +417,7 @@ const flows: Flow[] = [
         await page.getByText(/to win/).first().waitFor({ timeout: 20_000 });
         const body = await page.locator("main").innerText();
         assert(/offline|lite pack|on this device/i.test(body), "prediction shown but not labelled as offline");
-        assert(/(Provisional|Moderate|Confident)/.test(body), "offline prediction has no tier");
+        assert(/(Rough guess|Fair|Solid)/i.test(body), "offline prediction has no tier");
         await ctx.setOffline(false);
         return "first visit: no lite pack; returning visit: lite pack saved automatically; offline reload opens the app; an unvisited page loads from the precache; a match prediction runs from the lite pack, labelled offline, with a tier";
       } finally {
@@ -641,11 +641,17 @@ try {
     await ctx.addInitScript(SHIM);
     const page = await ctx.newPage();
     const noise: string[] = [];
-    page.on("console", (m) => { if ((m.type() === "error" || m.type() === "warning") && !m.text().startsWith("You have Reduced Motion")) noise.push(`${m.type()}: ${m.text().slice(0, 200)}`); });
+    // While a flow has put the browser offline on purpose (the venue check), "disconnected" failures are the point,
+    // not noise: the app is expected to try the network and fall back. Any other failure still counts.
+    let offline = false;
+    const setOffline = ctx.setOffline.bind(ctx);
+    ctx.setOffline = async (v: boolean) => { offline = v; return setOffline(v); };
+    const disconnected = (t: string | undefined) => offline && /ERR_INTERNET_DISCONNECTED/.test(t ?? "");
+    page.on("console", (m) => { if ((m.type() === "error" || m.type() === "warning") && !m.text().startsWith("You have Reduced Motion") && !disconnected(m.text())) noise.push(`${m.type()}: ${m.text().slice(0, 200)}`); });
     page.on("pageerror", (e) => noise.push(`pageerror: ${e.message.slice(0, 200)}`));
     // blob: = a local video preview the browser stops loading when its tab hides; not a network request.
     // ERR_ABORTED = the flow navigated on before a request finished (not a failure).
-    page.on("requestfailed", (r) => { if (!/\.hot-update|__vite|ws:|^blob:/.test(r.url()) && r.failure()?.errorText !== "net::ERR_ABORTED") noise.push(`request failed: ${r.method()} ${r.url()} (${r.failure()?.errorText})`); });
+    page.on("requestfailed", (r) => { if (!/\.hot-update|__vite|ws:|^blob:/.test(r.url()) && r.failure()?.errorText !== "net::ERR_ABORTED" && !disconnected(r.failure()?.errorText)) noise.push(`request failed: ${r.method()} ${r.url()} (${r.failure()?.errorText})`); });
     try {
       const detail = await f.run(page, ctx);
       if (noise.length) throw new Error(`console: ${noise.join(" | ")}`);
