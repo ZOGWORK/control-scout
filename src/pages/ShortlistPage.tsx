@@ -4,11 +4,11 @@
 // event chart, prediction snapshot and last five matches. List or grid view.
 // Order and notes live in personal state (this device, synced when signed in).
 // A returning scout's candidates come first; the instructions show in full on an
-// empty list and wait behind "How it works" once there are picks.
+// empty list and wait behind "How it works" once there are picks. Teams are added
+// here too, with the team search by Order picks (or in the middle of an empty list).
 import { useCallback, useRef, useState, type RefObject } from "react";
 import { Link, useSearchParams } from "react-router-dom";
-import { ArrowDownWideNarrow, Bookmark, CalendarDays, Download, LayoutGrid, List, Scale, Search } from "lucide-react";
-import { useSearch } from "../components/layout/Search";
+import { ArrowDownWideNarrow, Bookmark, CalendarDays, Download, LayoutGrid, List, Scale } from "lucide-react";
 import { useApi, qs } from "../lib/api";
 import { useCurrentSeason, useTitle } from "../lib/meta";
 import { usePersonal } from "../lib/personal";
@@ -28,13 +28,13 @@ import { TeamColorPicker } from "../components/TeamColorPicker";
 import { NoteField } from "../components/shortlist/NoteField";
 import { TeamDetail } from "../components/shortlist/TeamDetail";
 import { HowItWorks, HowItWorksToggle } from "../components/shortlist/HowItWorks";
+import { AddTeam } from "../components/shortlist/AddTeam";
 
 const MAX_SHOWN = 100;
 const isPhone = () => typeof window !== "undefined" && !!window.matchMedia?.("(max-width: 639px)").matches;
 
 export default function ShortlistPage() {
   useTitle("Shortlist");
-  const search = useSearch();
   const { state, update, stored, user } = usePersonal();
   const current = useCurrentSeason();
   const [sp, setSp] = useSearchParams();
@@ -51,7 +51,11 @@ export default function ShortlistPage() {
   if (!fetched.current || fetched.current.season !== season || shown.some((t) => !fetched.current!.set.has(t))) {
     fetched.current = { season, set: new Set(shown), key: [...shown].sort((a, b) => a - b).join(",") };
   }
-  const data = useApi<{ season: number; teams: ShortlistTeam[] }>(shown.length ? `/api/shortlist${qs({ teams: fetched.current.key, season })}` : null);
+  const fresh = useApi<{ season: number; teams: ShortlistTeam[] }>(shown.length ? `/api/shortlist${qs({ teams: fetched.current.key, season })}` : null);
+  // A team just added asks for the set again: the picks already shown stay while it loads (same season only).
+  const last = useRef<{ season: number; teams: ShortlistTeam[] } | null>(null);
+  if (fresh.data) last.current = { season, teams: fresh.data.teams };
+  const data = fresh.loading && last.current?.season === season ? { ...fresh, data: { season, teams: last.current.teams }, loading: false } : fresh;
   const byTeam = new Map((data.data?.teams ?? []).map((t) => [t.team, t]));
 
   const [view, setViewState] = useState<ShortlistView>(() => readView(isPhone()));
@@ -111,7 +115,8 @@ export default function ShortlistPage() {
     return (
       <div>
         <PageHeader title="Shortlist" description={<>Your pick list for alliance selection: drag to rank it, open a team for its numbers, keep private notes. {synced}</>} />
-        <EmptyState icon={Bookmark} title="Your shortlist is empty" description="Press Shortlist on any team page to add it here. Building a pick list? An event's Rankings tab is the place to start." action={<div className="flex flex-wrap justify-center gap-2"><Button variant="secondary" onClick={search.open}><Search /> Find a team</Button><Button variant="outline" asChild><Link to="/events"><CalendarDays /> Browse events</Link></Button></div>} />
+        <EmptyState icon={Bookmark} title="Your shortlist is empty" description="Search below for a team by number or name to add it, or press Shortlist on any team page. Building a pick list? An event's Rankings tab is the place to start."
+          action={<div className="flex w-[min(28rem,80vw)] flex-col items-center gap-3"><AddTeam className="w-full text-left" /><Button variant="outline" asChild><Link to="/events"><CalendarDays /> Browse events</Link></Button></div>} />
         <HowItWorks className="mt-6 max-sm:mt-4" />
       </div>
     );
@@ -134,6 +139,7 @@ export default function ShortlistPage() {
         {list.length > MAX_SHOWN && <p className="mt-2 text-sm text-warning">Showing the first {MAX_SHOWN} of {list.length}.</p>}
         <div className="mt-3 flex flex-wrap items-center gap-2" data-print-hide>
           <SeasonToggle predictOnly value={season} onChange={(s) => setSp((x) => { x.set("season", String(s)); return x; }, { replace: true })} />
+          <AddTeam className="w-full sm:w-80" />
           <div className="flex flex-wrap items-center gap-2 sm:ml-auto">
             <DropdownMenu>
               <DropdownMenuTrigger asChild><Button variant="secondary" size="sm" disabled={!data.data}><ArrowDownWideNarrow /> Order picks</Button></DropdownMenuTrigger>
