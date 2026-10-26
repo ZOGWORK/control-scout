@@ -32,6 +32,7 @@
         if (ts === 's' || ts === 'l' || ts === 'xl') document.documentElement.setAttribute('data-text-size', ts);
         // The static first paint's sidebar matches a collapsed one.
         if (localStorage.getItem('cs-sidebar') === '1') document.documentElement.classList.add('cs-sb-min');
+        if (localStorage.getItem('cs-nav-more') === '1') document.documentElement.classList.add('cs-nav-more');
       } catch (e) {}
     </script>
   </head>

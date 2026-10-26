@@ -19,6 +19,9 @@ const esc = (s: string) => s.replace(/&/g, "&amp;").replace(/"/g, "&quot;").repl
 // stylesheet's reset (no body margin, border-box sizing, 1.5 line height, the page colour) are here too.
 // Like the app, the page scrolls the document under a sticky top bar and sidebar, with the scrollbar's gutter
 // kept and the same thin scrollbar (src/index.css), so nothing moves sideways when the app takes over.
+// The icon rail: below 1280 px wide always, and when folded by hand (html.cs-sb-min, set from cs-sidebar in index.html).
+const rail = (on: string) => `${on}.csb-side{width:60px}${on}.csb-brand{justify-content:center;padding:0}`
+  + `${on}.csb-brand span,${on}.csb-nav a span,${on}.csb-more>p span{display:none}${on}.csb-nav a,${on}.csb-more>p{justify-content:center;padding:0}`;
 export const BOOT_STYLE = `<style>
       html{background:#0a0a0b;scrollbar-gutter:stable}html.light{background:#fff}body{margin:0}
       html::-webkit-scrollbar{width:6px;height:6px}html::-webkit-scrollbar-thumb{background:#2e2e35;border-radius:999px}html.light::-webkit-scrollbar-thumb{background:#d4d4d8}
@@ -27,20 +30,17 @@ export const BOOT_STYLE = `<style>
       .csb{--b-bg:#0a0a0b;--b-side:#0c0c0e;--b-fg:#f4f4f5;--b-mut:#a1a1aa;--b-line:#ffffff14;--b-acc:#ffc700;--b-tab:#0e0e10f2;display:flex;min-height:100vh;min-height:100dvh;overflow-x:clip;background:var(--b-bg);color:var(--b-fg);font-family:Inter,ui-sans-serif,system-ui,sans-serif;-webkit-font-smoothing:antialiased}
       html.light .csb{--b-bg:#fff;--b-side:#fcfcfc;--b-fg:#09090b;--b-mut:#52525b;--b-line:#e4e4e7;--b-acc:#eab308;--b-tab:#fafafaf2}
       .csb a{color:inherit;text-decoration:none}
-      .csb-side{display:none;position:sticky;top:0;align-self:flex-start;height:100vh;height:100dvh;flex-direction:column;flex-shrink:0;width:248px;border-right:1px solid var(--b-line);background:var(--b-side)}
-      .csb-brand{display:flex;align-items:center;gap:10px;height:48px;padding:0 14px;font:700 17px/1 "Space Grotesk",sans-serif;letter-spacing:-.025em}
-      .csb-brand img{width:32px;height:32px}
-      .csb-nav{padding:8px}
-      .csb-grp{margin-bottom:20px}
-      .csb-grp p{margin:0;padding:0 12px 6px;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.2em;color:var(--b-mut);opacity:.7}
-      .csb-nav a{display:flex;align-items:center;gap:12px;height:40px;padding:0 12px;border-radius:8px;font-size:15px;font-weight:500;color:var(--b-mut)}
+      .csb-side{display:none;position:sticky;top:0;align-self:flex-start;height:100vh;height:100dvh;flex-direction:column;flex-shrink:0;width:232px;border-right:1px solid var(--b-line);background:var(--b-side)}
+      .csb-brand{display:flex;align-items:center;gap:10px;height:48px;padding:0 14px;font:700 16px/1 "Space Grotesk",sans-serif;letter-spacing:-.025em}
+      .csb-brand img{width:28px;height:28px}
+      .csb-nav{padding:6px 8px}
+      .csb-grp{margin-bottom:12px}
+      .csb-nav a,.csb-more>p{display:flex;align-items:center;gap:10px;height:32px;margin:0 0 2px;padding:0 10px;border-radius:8px;font-size:14px;font-weight:500;color:var(--b-mut)}
+      .csb-more>div{display:none}
+      .csb-more[data-open]>div,html.cs-nav-more .csb-more>div{display:block}
       .csb-nav a[aria-current]{color:var(--b-fg);background:color-mix(in srgb,var(--b-fg) 8%,transparent)}
-      .csb-ico{width:20px;height:20px;flex-shrink:0;border-radius:6px;background:currentColor;opacity:.22}
+      .csb-ico{width:18px;height:18px;flex-shrink:0;border-radius:6px;background:currentColor;opacity:.22}
       .csb-nav a[aria-current] .csb-ico{background:var(--b-acc);opacity:.9}
-      html.cs-sb-min .csb-side{width:60px}
-      html.cs-sb-min .csb-brand{justify-content:center;padding:0}
-      html.cs-sb-min .csb-brand span,html.cs-sb-min .csb-grp p,html.cs-sb-min .csb-nav a span{display:none}
-      html.cs-sb-min .csb-nav a{justify-content:center;padding:0}
       .csb-col{display:flex;flex:1;min-width:0;flex-direction:column}
       .csb-top{position:sticky;top:0;z-index:30;display:flex;flex-shrink:0;align-items:center;gap:4px;height:42px;padding:0 12px;border-bottom:1px solid var(--b-line);background:var(--b-bg)}
       .csb-top>a{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%)}
@@ -51,7 +51,7 @@ export const BOOT_STYLE = `<style>
       .csb-crumb i{display:none;font-style:normal}
       .csb-search{display:flex}
       .csb-search span{display:block;width:16px;height:16px;margin:0 6px;border:2px solid var(--b-mut);border-radius:50%;box-sizing:border-box;font-size:0;overflow:hidden;opacity:.8}
-      .csb-main{flex:1;background-image:radial-gradient(1200px 320px at 50% -120px,color-mix(in srgb,var(--b-acc) 7%,transparent),transparent 70%)}
+      .csb-main{flex:1;background-image:radial-gradient(1200px 320px at 50% -120px,color-mix(in srgb,var(--b-acc) 5%,transparent),transparent 70%)}
       .csb-page{max-width:1200px;margin:0 auto;padding:32px 16px 0}
       .csb-page h1{margin:0;font:600 24px/1.25 "Space Grotesk",sans-serif;letter-spacing:-.025em;overflow-wrap:anywhere}
       .csb-page>p{margin:6px 0 0;max-width:42rem;font-size:14px;line-height:1.45;color:var(--b-mut)}
@@ -75,8 +75,10 @@ export const BOOT_STYLE = `<style>
       .csb-tabs a[aria-current]{color:var(--b-acc)}
       .csb-tabs a[aria-current] .csb-ico{background:var(--b-acc);opacity:.9}
       @media (min-width:640px){.csb-top{padding:0 24px}.csb-crumb i{display:inline}.csb-page{padding:32px 24px 0}.csb-page h1{font-size:32px}.csb-home{padding-top:24px}.csb .csb-home h1{font-size:56px}}
-      @media (min-width:768px){.csb-side{display:flex}.csb-top{gap:12px;height:48px;padding:0 24px}.csb-top>a,.csb-menu,.csb-tabs{display:none}.csb-crumb{display:block}.csb-search{flex:1;justify-content:center}.csb-search span{display:flex;align-items:center;width:100%;max-width:28rem;height:36px;margin:0;padding:0 12px;border:1px solid var(--b-line);border-radius:8px;font-size:14px;color:var(--b-mut);opacity:1}}
-      @media (min-width:1024px){.csb-top{padding:0 32px}.csb-page{padding:32px 32px 0}}
+      @media (min-width:768px){.csb-side{display:flex}.csb-top{gap:12px;height:48px;padding:0 24px}.csb-top>a,.csb-menu,.csb-tabs{display:none}.csb-crumb{display:block}.csb-search{flex:1;justify-content:center}.csb-search span{display:flex;align-items:center;width:100%;max-width:20rem;height:36px;margin:0;padding:0 12px;border:1px solid var(--b-line);border-radius:8px;font-size:14px;color:var(--b-mut);opacity:1}}
+      @media (min-width:1024px){.csb-top{padding:0 32px}.csb-page{padding:32px 32px 0}.csb-search span{max-width:24rem}}
+      @media (max-width:1279px){${rail("")}}
+      ${rail("html.cs-sb-min ")}
       @media (min-width:1700px){.csb-page{max-width:1600px}}
       .csbc{--b-pop:#141416;--b-fg:#f4f4f5;--b-mut:#a1a1aa;--b-line:#ffffff14;--b-acc:#ffc700;--b-soft:#ffc7001f;position:fixed;left:12px;right:12px;bottom:calc(53px + env(safe-area-inset-bottom) + .75rem);z-index:60;box-sizing:border-box;padding:16px;border:1px solid var(--b-line);border-radius:12px;background:var(--b-pop);color:var(--b-fg);box-shadow:0 18px 40px -16px rgba(0,0,0,.55);font-family:Inter,ui-sans-serif,system-ui,sans-serif;-webkit-font-smoothing:antialiased}
       html.light .csbc{--b-pop:#fff;--b-fg:#09090b;--b-mut:#52525b;--b-line:#e4e4e7;--b-acc:#a16207;--b-soft:#eab3081f}
@@ -125,12 +127,10 @@ export function bootConsent(): string {
 }
 
 interface Item { to: string; label: string; end?: boolean }
-const SECTIONS: { title: string | null; items: Item[] }[] = [
-  { title: null, items: [{ to: "/", label: "Home", end: true }, { to: "/events", label: "Events" }, { to: "/teams", label: "Teams" }, { to: "/rankings", label: "Rankings" }, { to: "/power-rankings", label: "Power rankings" }] },
-  { title: "Predict", items: [{ to: "/predict", label: "Predict", end: true }, { to: "/compare", label: "Compare" }] },
-  { title: "Yours", items: [{ to: "/my-team", label: "My team" }, { to: "/shortlist", label: "Shortlist" }, { to: "/scout", label: "Scout" }] },
-  { title: null, items: [{ to: "/download", label: "Download" }, { to: "/methodology", label: "How it works" }, { to: "/settings", label: "Settings" }] },
-];
+// The sidebar's everyday pages, then its "More" group (open on one of its own pages, or when this device left it
+// open: html.cs-nav-more, set in index.html from cs-nav-more).
+const PRIMARY: Item[] = [{ to: "/", label: "Home", end: true }, { to: "/events", label: "Events" }, { to: "/teams", label: "Teams" }, { to: "/rankings", label: "Rankings" }, { to: "/predict", label: "Predict", end: true }, { to: "/my-team", label: "My team" }, { to: "/scout", label: "Scout" }];
+const MORE: Item[] = [{ to: "/power-rankings", label: "Power rankings" }, { to: "/compare", label: "Compare" }, { to: "/shortlist", label: "Shortlist" }, { to: "/download", label: "Download" }, { to: "/methodology", label: "How it works" }, { to: "/settings", label: "Settings" }];
 // The phone tab bar's default (src/lib/tabBar.ts DEFAULT_TABS); a device with its own choice gets it once the app loads.
 const TABS: Item[] = [{ to: "/", label: "Home", end: true }, { to: "/events", label: "Events" }, { to: "/predict", label: "Predict", end: true }, { to: "/my-team", label: "My team" }, { to: "/scout", label: "Scout" }];
 
@@ -146,7 +146,8 @@ const link = (path: string, it: Item) =>
 export function bootShell(path: string, meta: PageMeta): string {
   const p = path.length > 1 ? path.replace(/\/+$/, "") : "/";
   const home = p === "/";
-  const nav = SECTIONS.map((s) => `<div class="csb-grp">${s.title ? `<p>${s.title}</p>` : ""}${s.items.map((it) => link(p, it)).join("")}</div>`).join("");
+  const nav = `<div class="csb-grp">${PRIMARY.map((it) => link(p, it)).join("")}</div>`
+    + `<div class="csb-more"${MORE.some((it) => active(p, it)) ? " data-open" : ""}><p><i class="csb-ico"></i><span>More</span></p><div>${MORE.map((it) => link(p, it)).join("")}</div></div>`;
   // A page with no title of its own (not found) gets the shell alone.
   const page = home
     ? `<div class="csb-page csb-home" id="cs-boot-page" data-path="/"><h1>${esc(HOME_HEADLINE[0])} <span>${esc(HOME_HEADLINE[1])}</span></h1><p>${esc(HOME_LEAD)}</p><div></div><p class="csb-about">${esc(HOME_ABOUT)}</p></div>`
