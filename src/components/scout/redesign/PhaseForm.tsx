@@ -4,9 +4,10 @@
 // tab along with the match. "After" is the template's overall phase plus the notes box.
 // Answers, notes and the phase are the caller's; so is the timer when it passes one (the scout screen
 // keeps one per match, so switching teams keeps the clock), else the form keeps its own.
-import { useId, useRef, useState, type KeyboardEvent } from "react";
+import { useId, useState } from "react";
 import { Button } from "../../ui/button";
 import { Label, Textarea } from "../../ui/basic";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "../../ui/tabs";
 import { cn } from "../../cn";
 import { MATCH_PHASES, phaseLabel, phasesFor, type FieldPhase, type ScoutField, type ScoutTemplate } from "../../../shared/scoutTemplate";
 import { NOTES_MAX, type ScoutValue } from "../../../lib/scouting";
@@ -70,7 +71,6 @@ export function PhaseForm({ template, value, onChange, notes, onNotes, notesLabe
   const phases = formPhases(template);
   const shown = shownPhase(phases, phase);
   const fields = template.fields.filter((f) => f.phase === shown);
-  const tabs = useRef<(HTMLButtonElement | null)[]>([]);
   const own = useMatchTimer(timer ? undefined : onPhase);
   const t = timer ?? own;
 
@@ -88,36 +88,12 @@ export function PhaseForm({ template, value, onChange, notes, onNotes, notesLabe
     setLast(null);
   };
 
-  const onTabKey = (e: KeyboardEvent, i: number) => {
-    const to = e.key === "ArrowRight" ? (i + 1) % phases.length : e.key === "ArrowLeft" ? (i - 1 + phases.length) % phases.length
-      : e.key === "Home" ? 0 : e.key === "End" ? phases.length - 1 : -1;
-    if (to < 0) return;
-    e.preventDefault();
-    onPhase(phases[to]);
-    tabs.current[to]?.focus();
-  };
-
   const live = t.running && t.phase ? shownPhase(phases, t.phase) : null;
   const showTimer = template.kind === "match" && (t.startedAt != null || shown === "auto");
   const fc = fieldClock(t.elapsed);
-  const tabId = (p: FieldPhase) => `${uid}-tab-${p}`, panelId = `${uid}-panel`;
 
-  return (
-    <div className="grid gap-3">
-      {phases.length > 1 && (
-        <div role="tablist" aria-label="Match phase" className="grid border-b border-border" style={{ gridTemplateColumns: `repeat(${phases.length}, minmax(0, 1fr))` }}>
-          {phases.map((p, i) => (
-            <button key={p} ref={(el) => { tabs.current[i] = el; }} type="button" role="tab" id={tabId(p)} aria-selected={p === shown} aria-controls={panelId}
-              tabIndex={p === shown ? 0 : -1} onClick={() => onPhase(p)} onKeyDown={(e) => onTabKey(e, i)}
-              className={cn("-mb-px inline-flex min-h-[44px] items-center justify-center gap-1.5 border-b-2 px-1 text-sm font-semibold outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring/60",
-                p === shown ? "border-accent text-foreground" : "border-transparent text-muted-foreground hover:text-foreground")}>
-              {formPhaseLabel(p)}
-              {live === p && <><span className="size-1.5 rounded-full bg-accent" aria-hidden /><span className="sr-only">(now)</span></>}
-            </button>
-          ))}
-        </div>
-      )}
-      <div role={phases.length > 1 ? "tabpanel" : undefined} id={panelId} aria-labelledby={phases.length > 1 ? tabId(shown) : undefined} className="grid gap-2">
+  const body = (
+    <>
         {showTimer && (
           <div data-cue={t.cue ?? undefined} className={cn("flex min-h-[52px] items-center gap-3 rounded-xl border px-3 py-1.5 motion-safe:transition-colors motion-safe:duration-300",
             t.cue ? "border-accent/60 bg-accent/10" : "border-border bg-card")}>
@@ -147,7 +123,22 @@ export function PhaseForm({ template, value, onChange, notes, onNotes, notesLabe
           className="h-[44px] justify-self-start text-muted-foreground underline hover:text-foreground">
           Undo last tap
         </Button>
-      </div>
-    </div>
+    </>
+  );
+
+  // One phase: no tabs. Else the app's own tab strip (src/components/ui/tabs.tsx), which brings the roles and arrow keys.
+  if (phases.length < 2) return <div className="grid gap-2">{body}</div>;
+  return (
+    <Tabs value={shown} onValueChange={(p) => onPhase(p as FieldPhase)} className="gap-3">
+      <TabsList aria-label="Match phase" className="grid w-full sm:w-full" style={{ gridTemplateColumns: `repeat(${phases.length}, minmax(0, 1fr))` }}>
+        {phases.map((p) => (
+          <TabsTrigger key={p} value={p} className="min-h-[44px] sm:flex-1">
+            {formPhaseLabel(p)}
+            {live === p && <><span className="size-1.5 rounded-full bg-current" aria-hidden /><span className="sr-only">(now)</span></>}
+          </TabsTrigger>
+        ))}
+      </TabsList>
+      <TabsContent value={shown} className="grid gap-2">{body}</TabsContent>
+    </Tabs>
   );
 }
