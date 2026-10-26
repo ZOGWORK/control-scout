@@ -663,9 +663,9 @@ function AdvancementResult({ season, code, team, askedSeason, onSeason, onClearE
   if (check.status !== "ok") {
     return (
       <div role="alert" className="rounded-2xl border border-border bg-card p-5 max-sm:p-4">
-        <p className="font-medium text-foreground">{check.status === "elsewhere" ? `${code} isn't a ${seasonLabel(season)} event` : `No event ${code} in the seasons we hold`}</p>
+        <p className="font-medium text-foreground">{check.status === "elsewhere" ? `${code} isn't a ${seasonLabel(season)} event` : `No event ${code} in a season with predictions`}</p>
         <p className="mt-1 text-sm text-muted-foreground">
-          {check.status === "elsewhere" ? `It's from ${seasonLabel(check.season)}.` : "The code may be mistyped."}
+          {check.status === "elsewhere" ? `It's from ${seasonLabel(check.season)}.` : `Predictions cover ${seasonLabel(Math.min(...(seasons.length ? seasons : [season])))} onward. The code may be mistyped, or the event is from an earlier season (its page still has results).`}
           {team ? ` Team ${team} is still picked.` : ""}
         </p>
         <div className="mt-3 flex flex-wrap gap-2">
