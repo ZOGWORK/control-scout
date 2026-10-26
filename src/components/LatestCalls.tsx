@@ -36,7 +36,8 @@ export function pickPct(p: number): string {
 /** Milliseconds each call stays up. */
 export const TURN_MS = 4500;
 
-export function LatestCalls({ className }: { className?: string }) {
+/** `still`: how many calls to list when the card doesn't turn over (reduced motion); Predict's header keeps it to one so the card stays short. */
+export function LatestCalls({ className, still: stillCount = 3 }: { className?: string; still?: number }) {
   const state = useApi<TrackRecord>("/api/predict/accuracy");
   const calls = (state.data?.recentCalls ?? []).filter((m): m is Call => !!m.prediction && m.played);
   const reduced = !!useReducedMotion();
@@ -58,7 +59,7 @@ export function LatestCalls({ className }: { className?: string }) {
       </aside>
     ) : null;
   }
-  const shown = reduced && paused === null ? calls.slice(0, 3) : calls.length ? [calls[i % calls.length]] : [];
+  const shown = reduced && paused === null ? calls.slice(0, stillCount) : calls.length ? [calls[i % calls.length]] : [];
   return (
     <aside aria-label="Latest live calls" onMouseEnter={() => setHover(true)} onMouseLeave={() => setHover(false)}
       onFocus={() => setFocus(true)} onBlur={(e) => { if (!e.currentTarget.contains(e.relatedTarget as Node | null)) setFocus(false); }}
