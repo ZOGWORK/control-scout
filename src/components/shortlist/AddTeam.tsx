@@ -30,11 +30,19 @@ export function AddTeam({ className, autoFocus }: { className?: string; autoFocu
     setChecking(pending.current.size > 0);
     if (err) { setError(err); input.current?.focus(); return; }
     setError(null);
-    let at = 0;
-    // From the list as it is now: a team added meanwhile (another tab, a sync) isn't added twice.
-    update("bookmarks", (b) => { at = b.includes(team) ? b.indexOf(team) : b.length; return b.includes(team) ? b : [...b, team]; });
+    // Against the list as it is now: a team added meanwhile (another tab, a sync, another pick still
+    // being checked) isn't added twice, and the list never grows past what it keeps.
+    let outcome = "added" as "added" | "already" | "full", at = 0;
+    const stored = update("bookmarks", (b) => {
+      if (b.includes(team)) { outcome = "already"; return b; }
+      if (b.length >= MAX_BOOKMARKS) { outcome = "full"; return b; }
+      at = b.length;
+      return [...b, team];
+    });
+    if (outcome === "already") { setError(`${team} is already on your shortlist.`); return; }
+    if (outcome === "full") { setError(`The shortlist holds ${MAX_BOOKMARKS} teams: remove one to add another.`); return; }
     const who = name ? `${team} ${name}` : `Team ${team}`;
-    const msg = `Added ${who} to your shortlist as pick ${at + 1}`;
+    const msg = `Added ${who} to your shortlist as pick ${at + 1}${stored === false ? ", but this device's storage is full, so it may not be kept" : ""}`;
     setSaid(msg);
     toast(msg, { action: { label: "Undo", onClick: () => update("bookmarks", (b) => b.filter((x) => x !== team)) } });
   };
