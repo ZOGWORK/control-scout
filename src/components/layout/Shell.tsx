@@ -17,7 +17,7 @@ import { useMediaQuery, useMeta } from "../../lib/meta";
 import { Sheet, SheetContent, SheetTitle, Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "../ui/overlay";
 import { WhatsNewHost, WhatsNewRow, useUnseenRelease } from "../WhatsNew";
 import { GlobalSearch } from "./Search";
-import { AccountMenu } from "./AccountMenu";
+import { AccountFooter, AccountProvider, useAccountPanel } from "./AccountMenu";
 import { ClockWeather, ThemeToggle } from "./TopBarExtras";
 import { OfflineStatus } from "../OfflineNote";
 import { InboxBell } from "./InboxBell";
@@ -168,7 +168,8 @@ function Sidebar({ rail, wide, onToggle, onMenu }: { rail: boolean; wide: boolea
   const toggleLabel = !wide ? "Show page names" : rail ? "Expand sidebar" : "Collapse sidebar";
   return (
     // Held in place while the page scrolls under it. Its rows fit a 768 px tall screen; the nav still scrolls on a shorter one.
-    <aside aria-label="Sidebar" className={cn("sticky top-0 hidden h-dvh shrink-0 flex-col self-start border-r border-line bg-secondary/60 transition-[width] duration-150 ease-out motion-reduce:transition-none md:flex", rail ? "w-[60px]" : "w-[232px]")}>
+    // Above the page (z-20 over main's z-10), so the account panel can open out over it.
+    <aside aria-label="Sidebar" className={cn("sticky top-0 z-20 hidden h-dvh shrink-0 flex-col self-start border-r border-line bg-secondary/60 transition-[width] duration-150 ease-out motion-reduce:transition-none md:flex", rail ? "w-[60px]" : "w-[232px]")}>
       <div className={cn("flex h-(--header-h) shrink-0 items-center gap-2.5 px-3.5", rail && "justify-center px-0")}>
         <Link to="/" className="flex min-w-0 items-center gap-2.5 rounded-lg outline-none focus-visible:ring-2 focus-visible:ring-ring/60" aria-label="Control Scout home">
           <BrandMark className="size-7" />
@@ -185,14 +186,17 @@ function Sidebar({ rail, wide, onToggle, onMenu }: { rail: boolean; wide: boolea
           </div>
         ))}
       </nav>
-      {/* Just the fold button: who's signed in is the header's account menu. */}
-      <div className={cn("flex shrink-0 items-center border-t border-line p-2", rail ? "justify-center" : "justify-end")}>
-        <RailTip on={rail} label={toggleLabel}>
-          <button type="button" onClick={(e) => (wide ? onToggle() : onMenu(e.currentTarget))} aria-label={toggleLabel}
-            className="flex size-8 shrink-0 items-center justify-center rounded-lg text-text-muted outline-none hover:bg-text-base/[0.06] hover:text-text-base focus-visible:ring-2 focus-visible:ring-ring/60">
-            {rail ? <PanelLeftOpen className="size-[18px]" /> : <PanelLeftClose className="size-[18px]" />}
-          </button>
-        </RailTip>
+      {/* The fold button, then who's signed in (Control Point's footer: avatar, name, status, Settings, Sign out). */}
+      <div className="shrink-0 space-y-1 border-t border-line p-2">
+        <div className={cn("flex", rail ? "justify-center" : "justify-end")}>
+          <RailTip on={rail} label={toggleLabel}>
+            <button type="button" onClick={(e) => (wide ? onToggle() : onMenu(e.currentTarget))} aria-label={toggleLabel}
+              className="flex size-8 shrink-0 items-center justify-center rounded-lg text-text-muted outline-none hover:bg-text-base/[0.06] hover:text-text-base focus-visible:ring-2 focus-visible:ring-ring/60">
+              {rail ? <PanelLeftOpen className="size-[18px]" /> : <PanelLeftClose className="size-[18px]" />}
+            </button>
+          </RailTip>
+        </div>
+        <AccountFooter place={rail ? "rail" : "sidebar"} />
       </div>
     </aside>
   );
@@ -269,6 +273,8 @@ export function Shell({ children }: { children: ReactNode }) {
   // Only the chrome is left out: the same <main> stays, so the page scroll's hold on it (usePageScroll) stays good.
   const bare = isBareRoute(loc.pathname);
   return (
+    <AccountProvider>
+    <AccountSheetBridge menu={menu} openMenu={() => openMenu(menuRef.current)} />
     <MotionConfig reducedMotion="user">
       <TooltipProvider delayDuration={250}>
         {/* At least a screen tall; sideways overflow is clipped (clip, not hidden: no scroll box, so the sticky bars still stick). */}
@@ -278,7 +284,7 @@ export function Shell({ children }: { children: ReactNode }) {
           <div className="flex min-w-0 flex-1 flex-col">
             {/* Sticky over the scrolling page: opaque, and --header-h tall (index.css: anchors land below it). */}
             {!bare && <header id={HEADER_ID} className="sticky top-0 z-30 flex h-(--header-h) shrink-0 items-center gap-1 border-b border-line bg-primary px-3 sm:px-6 md:gap-3 lg:px-8">
-              {/* Phones: the menu (every page) top left with search beside it, the logo centred, and the account side right. */}
+              {/* Phones: the menu (every page) top left with search beside it, the logo centred, and the bell right. */}
               <div className="flex items-center gap-0.5 md:hidden">
                 <button ref={menuRef} type="button" onClick={() => openMenu(menuRef.current)} aria-label="Open menu" aria-expanded={menu}
                   className="-ml-1.5 flex size-8 shrink-0 items-center justify-center rounded-lg text-text-muted outline-none transition-colors hover:bg-text-base/[0.06] hover:text-text-base focus-visible:ring-2 focus-visible:ring-ring/60">
@@ -294,7 +300,6 @@ export function Shell({ children }: { children: ReactNode }) {
               <ThemeToggle />
               {/* The notification inbox: top right, in the header only (never the sidebar). */}
               <InboxBell />
-              <AccountMenu />
             </header>}
             <div className="relative flex-1">
               {/* The ambient layer fills the screen under the top bar and stays there while the page scrolls
@@ -331,10 +336,27 @@ export function Shell({ children }: { children: ReactNode }) {
                 ))}
                 <WhatsNewRow onOpen={() => setMenu(false)} returnTo={toMenu} />
               </nav>
+              {/* The same account footer as the sidebar's, at the foot of the sheet. */}
+              <div className="mt-auto border-t border-line pt-3">
+                <AccountFooter place="sheet" onNavigate={() => setMenu(false)} />
+              </div>
             </SheetContent>
           </Sheet>
         </div>
       </TooltipProvider>
     </MotionConfig>
+    </AccountProvider>
   );
+}
+
+/** On a phone the account footer lives in the menu sheet: when the account panel opens by itself (back from a
+ *  sign-in, or a Control Point merge), the sheet opens to show it; when the sheet closes, the panel goes with it. */
+function AccountSheetBridge({ menu, openMenu }: { menu: boolean; openMenu: () => void }) {
+  const { open, setOpen } = useAccountPanel();
+  const phone = !useMediaQuery("(min-width: 768px)");
+  // `phone` too: a panel left open on a wider screen moves into the sheet when the screen turns narrow.
+  useEffect(() => { if (open && phone && !menu) openMenu(); }, [open, phone]); // eslint-disable-line react-hooks/exhaustive-deps
+  const wasOpen = useRef(menu);
+  useEffect(() => { if (wasOpen.current && !menu && phone) setOpen(false); wasOpen.current = menu; }, [menu]); // eslint-disable-line react-hooks/exhaustive-deps
+  return null;
 }
