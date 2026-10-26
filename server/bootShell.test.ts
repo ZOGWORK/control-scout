@@ -81,6 +81,17 @@ describe("static first paint", () => {
     expect(r).toContain('data-path="/x&quot;&gt;&lt;script&gt;alert(1)&lt;/script&gt;"');
     expect(r).not.toContain("<script>alert(1)");
   });
+
+  // Mirrors the app's sidebar (src/components/layout/Shell.tsx SECTIONS), so nothing moves when the app takes over.
+  it("draws the sidebar's everyday pages, then More, open only on one of its own pages", () => {
+    const meta = { title: "T", description: "D", type: "website" } as const;
+    const labels = (html: string) => [...html.matchAll(/<span>([^<]+)<\/span>/g)].map((m) => m[1]);
+    const side = (path: string) => bootShell(path, meta).match(/<aside class="csb-side">.*?<\/aside>/)![0];
+    expect(labels(side("/"))).toEqual(["Control Scout", "Home", "Events", "Teams", "Rankings", "Predict", "My team", "Scout", "More", "Power rankings", "Compare", "Shortlist", "Download", "How it works", "Settings"]);
+    expect(side("/")).toContain('<div class="csb-more"><p>');
+    expect(side("/compare")).toContain('<div class="csb-more" data-open><p>');
+    expect(side("/settings")).toContain('<a href="/settings" aria-current="page">');
+  });
 });
 
 describe("first paint without waiting for the app's CSS", () => {
