@@ -558,13 +558,14 @@ function SelectAll({ state, onToggle }: { state: PageSelection; onToggle: () => 
   );
 }
 
-/** Not shaded: counts that say how much a team played, not how well. */
+/** Not coloured: counts that say how much a team played, not how well. */
 const NO_HEAT = new Set(["qualMatchesPlayed", "ties", "rookieYear"]);
-/** Five bands, best to worst: the top fifth of the field reads green at a glance, the bottom fifth red. */
-const HEAT = ["bg-success/25", "bg-success/10", "", "bg-destructive/10", "bg-destructive/20"];
+/** Five bands, best to worst, as the number's own colour (no cell shading): the top fifth of the field reads bold
+ *  green, the next fifth light green, the middle plain, then light red and bold red for the bottom fifth. */
+const HEAT = ["text-success font-semibold", "text-success/75", "text-text-base", "text-destructive/75", "text-destructive font-semibold"];
 
 /**
- * One event's table: each number column shaded by where a team stands in the event's field (its percentile among
+ * One event's table: each number coloured by where a team stands in the event's field (its percentile among
  * the rows shown; flipped for lower-is-better stats such as rank and penalties). Equal values share a band.
  */
 export function heatBands(rows: { stats: Record<string, unknown> }[], cols: string[]): Map<string, (v: unknown) => string> {
@@ -593,7 +594,7 @@ function Table({ data, scope, cols, state, sortBy, code, highlightTeam, selectab
   pageSelection: PageSelection; onSelectAll: () => void;
 }) {
   const showEvent = scope === "teamEvent" && !code;
-  // One event's teams (its Rankings and Insights tabs): shaded against each other.
+  // One event's teams (its Rankings and Insights tabs): coloured against each other.
   const whole = scope === "teamEvent" && !!code && !state.filter && data.total === data.rows.length;
   const heat = useMemo(() => (whole ? heatBands(data.rows as { stats: Record<string, unknown> }[], cols) : new Map<string, (v: unknown) => string>()), [whole, data.rows, cols]);
   // Phones: the Team column shows the number only, and a tap on it shows the name (TeamNumber).
@@ -692,7 +693,7 @@ function Table({ data, scope, cols, state, sortBy, code, highlightTeam, selectab
                   const band = heat.get(k)?.(v);
                   return (
                     <td key={k} className={cn(td, "whitespace-nowrap border-l border-text-base/[0.08] text-right tabular-nums", d?.type === "text" && "text-left", state.sort === k && "bg-accent/[0.04] font-semibold",
-                      tone !== "slate" && v != null && TONE_CLASS[tone].text, band)} data-heat={band ? HEAT.indexOf(band) : undefined}>
+                      band || (tone !== "slate" && v != null && TONE_CLASS[tone].text))} data-heat={band ? HEAT.indexOf(band) : undefined}>
                       {k === PREDICTION_FIELD ? <PredictionValue text={formatStat(d, v)} tier={(r as MatchRecordRow).predictionTier} className="justify-end" /> : formatStat(d, v)}
                     </td>
                   );
