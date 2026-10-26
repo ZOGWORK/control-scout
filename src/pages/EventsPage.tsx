@@ -88,8 +88,8 @@ export default function EventsPage() {
       {compact && <SearchBox kinds={["event", "place"]} label="Search events" placeholder="Find an event…" onPick={(h) => nav(hitHref(h))} className="mb-6 [&>div:first-child]:h-11" />}
       {/* The events you track, one tap away: above the coin flips and the list, so a phone's first screen has them. */}
       <CurrentlyTracking season={season} current={current} events={state.data?.events} listSettled={!state.loading} className="mb-6 max-sm:mb-5" />
-      {/* Today's coin flips across every event on today: only this season's events can be on today. */}
-      {season === current && <div className="mb-8"><CoinFlipRadarSection /></div>}
+      {/* Today's coin flips across every event on today: only this season's events can be on today. Left out on a day with none. */}
+      {season === current && <CoinFlipRadarSection className="mb-8" />}
       {/* The filter bar stays up while loading or on an error, so another season can always be picked. */}
       <FilterBar season={season} onSeason={(s) => set({ season: String(s), from: null, to: null }, false)} events={state.data?.events ?? []} {...{ region, type, status, from, to, q, video, listQ, onQ, set, active }} onClear={clear} />
       <Async state={state} empty={(d) => !d.events.length && <EmptyState icon={CalendarDays} title={`No events listed for ${seasonLabel(season)} yet`} />}>
