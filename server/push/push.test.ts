@@ -100,7 +100,7 @@ async function match(code: string, number: number, o: { time: string | null; red
 }
 async function ledger(code: string, number: number, o: { pRed: number; outcome: number | null; scoredAt?: number; kind?: string; red?: number[]; blue?: number[] }) {
   await run(`INSERT INTO predictions (kind, season, code, level, series, number, red, blue, p_red, red_mean, blue_mean, tier, engine_version, predicted_at, red_score, blue_score, outcome, scored_at)
-             VALUES (?, 2025, ?, 'qual', 0, ?, ?, ?, ?, 100, 90, 'High', 'test', ?, ?, ?, ?, ?)`,
+             VALUES (?, 2025, ?, 'qual', 0, ?, ?, ?, ?, 100, 90, 'confident', 'test', ?, ?, ?, ?, ?)`,
     [o.kind ?? "live", code, number, JSON.stringify(o.red ?? [1, 2]), JSON.stringify(o.blue ?? [3, 4]), o.pRed, new Date(Date.now() - 3600_000).toISOString(),
       o.outcome == null ? null : o.outcome === 1 ? 120 : o.outcome === 0 ? 80 : 100, o.outcome == null ? null : o.outcome === 1 ? 80 : o.outcome === 0 ? 120 : 100,
       o.outcome, o.outcome == null ? null : new Date(o.scoredAt ?? Date.now() - MIN).toISOString()]);
@@ -249,7 +249,7 @@ describe("match reminders", () => {
     await ledger("USTXQ3", 4, { pRed: 0.73, outcome: null });
     await pushTick(now);
     expect(sent).toHaveLength(1);
-    expect(sent[0].payload).toMatchObject({ title: "4215 and 33950 play Q4 in 10 min", body: "USTXQ3 Qualifier · 4215 73% to win (High confidence)" });
+    expect(sent[0].payload).toMatchObject({ title: "4215 and 33950 play Q4 in 10 min", body: "USTXQ3 Qualifier · 4215 73% to win (confidence: solid)" });
   });
 
   it("honour the per-type switches", async () => {
@@ -288,7 +288,7 @@ describe("upsets", () => {
     await pushTick(now);
     const upsets = () => sent.filter((s) => s.payload.tag.startsWith("upset:"));
     expect(upsets().map((s) => s.endpoint).sort()).toEqual([subFor("event").endpoint, subFor("team").endpoint].sort());
-    expect(upsets()[0].payload).toMatchObject({ title: "Upset in Q1 at USCAQ1 Qualifier", body: "3 and 4 beat 1 and 2 120–80. Our call before the match gave them 28% (High confidence).", url: "/events/2025/USCAQ1?tab=matches&match=qual%3A0%3A1" });
+    expect(upsets()[0].payload).toMatchObject({ title: "Upset in Q1 at USCAQ1 Qualifier", body: "3 and 4 beat 1 and 2 120–80. Our call before the match gave them 28% (confidence: solid).", url: "/events/2025/USCAQ1?tab=matches&match=qual%3A0%3A1" });
     await pushTick(now + MIN);
     expect(upsets()).toHaveLength(2);
   });

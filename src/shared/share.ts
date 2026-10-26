@@ -2,7 +2,8 @@
 // the card and the addresses that point at it. Shared by the server (the PNG
 // and the link-preview tags) and the app (the share button), so the card, its
 // alt text and the page that unfurls into it always say the same thing.
-import { predictHref } from "./predictUrl";
+import { predictHref } from "./predictUrl.js";
+import { tierPhrase } from "./tierWords.js";
 
 /**
  * A probability as a whole percentage, never a flat 0% / 100% before the
@@ -48,9 +49,8 @@ export function shareHeadline(m: ShareMatchup): string {
   return `Our model ${m.played ? "gave" : "gives"} ${allianceText(f.teams)} a ${oddsPct(f.p)} win chance vs ${allianceText(f.other)}`;
 }
 
-/** A confidence tier in words, as the card says it ("high confidence"). */
-const TIER_WORDS: Record<string, string> = { provisional: "provisional confidence", moderate: "moderate confidence", confident: "high confidence" };
-export const tierWords = (t: string): string => TIER_WORDS[t] ?? `${t} confidence`;
+/** A confidence tier in words, as the card says it ("confidence: solid"). */
+export const tierWords = (t: string): string => tierPhrase(t);
 
 export interface ShareCardQuery {
   season: number;

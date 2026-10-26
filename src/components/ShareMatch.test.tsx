@@ -95,7 +95,7 @@ describe("ShareMatch", () => {
     const download = await screen.findByRole("button", { name: /download image/i });
     expect(screen.getByRole("button", { name: /copy link/i })).toBeTruthy();
     expect(screen.queryByRole("button", { name: /share image/i })).toBeNull();
-    const img = await screen.findByRole("img", { name: /Our model gives 4215 & \d+ a 73% win chance vs 33950 & 21058 \(moderate confidence\)/ });
+    const img = await screen.findByRole("img", { name: /Our model gives 4215 & \d+ a 73% win chance vs 33950 & 21058 \(confidence: fair\)/ });
     fireEvent.click(download);
     await waitFor(() => expect(clicked).toHaveLength(1));
     // The download is the very file the preview shows.
@@ -114,7 +114,7 @@ describe("ShareMatch", () => {
     fireEvent.click(screen.getByRole("button", { name: /share image/i }));
     await waitFor(() => expect(nav.share).toHaveBeenCalled());
     const sent = vi.mocked(nav.share as (d: ShareData) => Promise<void>).mock.calls[0][0];
-    expect(sent.text).toContain("win chance vs 33950 & 21058 (moderate confidence)"); // the tier travels with the %
+    expect(sent.text).toContain("win chance vs 33950 & 21058 (confidence: fair)"); // the tier travels with the %
     const shared = sent.files![0];
     expect(shared).toBe(blobs.get(wide));
     expect(fetch).toHaveBeenCalledTimes(1); // shared from memory, no second fetch

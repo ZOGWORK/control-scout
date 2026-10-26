@@ -217,7 +217,7 @@ describe("Home", () => {
     mount();
     expect(screen.getByText("Hypnotic Robotics")).toBeTruthy();
     expect(screen.getByText(/64% to win/)).toBeTruthy();
-    expect(screen.getByText(/Moderate/i)).toBeTruthy();
+    expect(document.body.textContent).toContain("confidence: fair");
     expect(path).toBe("/"); // not signed in: no redirect
   });
 
