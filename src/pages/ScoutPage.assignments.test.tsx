@@ -151,6 +151,16 @@ describe("assignments on the Scout page", () => {
     await waitFor(() => expect(screen.getByRole("radio", { name: /Red 2/ }).getAttribute("aria-checked")).toBe("true"));
   });
 
+  it("match scouting: setup choices made in one workspace don't carry into another", async () => {
+    h.personal.user = { ...userAs("member"), controlPoint: { ...userAs("member").controlPoint!, workspaces: [{ id: WS, name: "Gearheads", role: "member" }, { id: "904", name: "Bolt Bots", role: "member" }] } };
+    matchList = [masg(11, ME, { kind: "slot", slot: "red2" })];
+    show(`/scout?space=${WS}&season=2025&tab=match`);
+    await waitFor(() => expect(screen.getByRole("radio", { name: /Red 2/ }).getAttribute("aria-checked")).toBe("true"));
+    fireEvent.click(screen.getByRole("radio", { name: /^All 4 teams/ }));
+    fireEvent.click(screen.getByRole("button", { name: /Bolt Bots/ }));
+    await waitFor(() => expect(screen.getByRole("radio", { name: /^One alliance/ }).getAttribute("aria-checked")).toBe("true")); // the default, not the other workspace's pick
+  });
+
   it("match scouting: Matches says who has the other teams", async () => {
     matchList = [masg(11, ME, { kind: "alliance", side: "red" }), masg(12, SAM, { kind: "alliance", side: "blue" })];
     localStorage.setItem(`cs-scout-session:${WS}`, JSON.stringify({ season: 2025, eventCode: EV, watching: { kind: "alliance", side: "red" }, setAt: 1 }));
