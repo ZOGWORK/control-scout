@@ -21,15 +21,24 @@
 // Each change is logged in the activity feed (assignment.created / .completed / .reopened / .deleted, subject
 // assignment:<id>; the inbox notifies the assignee unless they did it themselves) and published to the
 // workspace's live streams (`event: assignment`, stream.ts).
+//
+// Match scouting (the Scout redesign; workspace_match_assignments, migration 46): a member watches a slot, an
+// alliance or all four teams for a run of quals ("Priya: Red 1, Q1–Q30"). Admins create, edit and delete; every
+// member reads. Same 401/503/400/403 as above. The assignee must be a cached member and the event a synced one;
+// the range is quals only, either end open. Another assignment watching the same slot in the same matches is a
+// warning in the answer (overlaps), never a refusal. Logged as assignment.match_created / _updated / _deleted
+// (subject match-assignment:<id>; the inbox tells the assignee, both of them when an edit moves it to someone else)
+// and streamed as `event: match-assignment`.
 import express, { type NextFunction, type Request, type Response, type Router } from "express";
 import { all, db, get } from "../db.js";
 import { isWorkspaceId, type Membership } from "../auth/controlPoint.js";
 import { currentUser, type User } from "../auth/session.js";
 import {
-  MAX_BULK, normalEventCode, type AssignableMember, type Assignment, type AssignmentStatus, type CreateAssignmentsResult,
-  type DuplicateWarning, type EventTeamOption,
+  MAX_BULK, matchAssignmentsOverlap, matchRangeLabel, normalEventCode, qualNumber, type AssignableMember, type Assignment, type AssignmentStatus, type CreateAssignmentsResult,
+  type DuplicateWarning, type EventTeamOption, type MatchAssignment, type MatchAssignmentResult,
 } from "../../src/shared/assignments.js";
-import { publishAssignments, serialized } from "./bus.js";
+import { parseWatching, watchingLabel, type Watching } from "../../src/shared/scoutMatch.js";
+import { publishAssignments, publishMatchAssignments, serialized } from "./bus.js";
 import { accessError, isWrite, requireWorkspaceAdmin, workspaceAccess, workspacePaused, writerName } from "./entries.js";
 import { logActivity, type ActivityActor } from "./activityLog.js";
 
@@ -214,6 +223,142 @@ export async function deleteAssignment(user: User, m: Membership, id: number): P
 
 const details = (a: Assignment) => ({ assignmentId: a.id, assigneeAccountId: a.assigneeAccountId, assigneeName: a.assigneeName, team: a.team, season: a.season, eventCode: a.eventCode });
 
+// --- Match scouting ------------------------------------------------------------------------------
+
+const toMatchAssignment = (workspaceId: string, r: any): MatchAssignment => {
+  let watching: Watching = { kind: "all" };
+  try { watching = parseWatching(JSON.parse(String(r.watching))) ?? watching; } catch { /* written by us: always JSON */ }
+  return {
+    id: Number(r.id), workspaceId, season: Number(r.season), eventCode: String(r.event_code), watching,
+    fromMatch: r.from_match == null ? null : String(r.from_match), toMatch: r.to_match == null ? null : String(r.to_match),
+    assigneeAccountId: Number(r.assignee_account_id), assigneeName: String(r.assignee_name ?? ""),
+    createdByAccountId: Number(r.created_by_account_id), createdByName: String(r.created_by_name ?? ""),
+    createdAt: Number(r.created_at), updatedAt: Number(r.updated_at), version: Number(r.version ?? 1),
+  };
+};
+
+/** A workspace's match assignments (filtered), oldest first, all of them. */
+export async function listMatchAssignments(workspaceId: string, f: Pick<ListFilter, "season" | "eventCode" | "assigneeAccountId"> = {}): Promise<MatchAssignment[]> {
+  const where: string[] = ["w.cp_workspace_id = ?"];
+  const args: (string | number)[] = [workspaceId];
+  if (f.season != null) { where.push("a.season = ?"); args.push(f.season); }
+  if (f.eventCode != null) { where.push("a.event_code = ?"); args.push(f.eventCode); }
+  if (f.assigneeAccountId != null) { where.push("a.assignee_account_id = ?"); args.push(f.assigneeAccountId); }
+  const rows = await all<any>(`SELECT a.* FROM workspace_match_assignments a JOIN workspaces w ON w.id = a.workspace_id WHERE ${where.join(" AND ")} ORDER BY a.id`, args);
+  return rows.map((r) => toMatchAssignment(workspaceId, r));
+}
+
+async function matchAssignmentById(workspaceId: string, id: number): Promise<MatchAssignment | null> {
+  const r = await get<any>("SELECT a.* FROM workspace_match_assignments a JOIN workspaces w ON w.id = a.workspace_id WHERE w.cp_workspace_id = ? AND a.id = ?", [workspaceId, id]);
+  return r ? toMatchAssignment(workspaceId, r) : null;
+}
+
+/** A range end: absent, null or "" is open; otherwise a qual label in any spelling, stored as "Q12". undefined: not a qual. */
+const rangeEnd = (v: unknown): string | null | undefined => {
+  if (v == null || v === "") return null;
+  if (typeof v !== "string" && typeof v !== "number") return undefined;
+  const n = qualNumber(String(v));
+  return n != null && n >= 1 && n <= 999 ? `Q${n}` : undefined;
+};
+
+type MatchBody = { season: number; eventCode: string; watching: Watching; fromMatch: string | null; toMatch: string | null; assignee: AssignableMember };
+
+/** Check a POST / PATCH body: every field, as the assignment should be. */
+async function readMatchBody(m: Membership, body: unknown): Promise<{ ok: true; v: MatchBody } | { ok: false; status: 400; error: string }> {
+  const b = (body && typeof body === "object" ? body : {}) as Record<string, unknown>;
+  const bad = (error: string) => ({ ok: false as const, status: 400 as const, error });
+  const season = Number(b.season);
+  if (!Number.isSafeInteger(season) || season < 2000 || season > 2100) return bad("season must be a season year");
+  const eventCode = normalEventCode(b.eventCode);
+  if (!eventCode) return bad("eventCode must be an event code");
+  const watching = parseWatching(b.watching);
+  if (!watching) return bad("Pick a slot, an alliance or all four teams.");
+  const fromMatch = rangeEnd(b.fromMatch), toMatch = rangeEnd(b.toMatch);
+  if (fromMatch === undefined || toMatch === undefined) return bad("Matches are qualification numbers, like Q1 or 30.");
+  if (fromMatch && toMatch && qualNumber(fromMatch)! > qualNumber(toMatch)!) return bad(`${fromMatch} comes after ${toMatch}.`);
+  const accountId = Number(b.assigneeAccountId);
+  if (!Number.isSafeInteger(accountId) || accountId <= 0) return bad("Pick a member.");
+  if (!(await get("SELECT 1 FROM events WHERE season = ? AND UPPER(code) = ?", [season, eventCode]))) return bad(`There's no event ${eventCode} in ${season}.`);
+  const assignee = (await assignableMembers(m.workspaceId)).find((x) => x.accountId === accountId);
+  if (!assignee) return bad("The assignee must be a member of this workspace who has signed in to Scout.");
+  return { ok: true, v: { season, eventCode, watching, fromMatch, toMatch, assignee } };
+}
+
+export type MatchOutcome = { ok: true; result: MatchAssignmentResult } | { ok: false; status: 400 | 404; error: string };
+
+const matchDetails = (a: MatchAssignment) => ({
+  matchAssignmentId: a.id, assigneeAccountId: a.assigneeAccountId, assigneeName: a.assigneeName, season: a.season, eventCode: a.eventCode,
+  watching: watchingLabel(a.watching), range: matchRangeLabel(a.fromMatch, a.toMatch),
+});
+
+const overlapsOf = async (workspaceId: string, a: MatchAssignment) =>
+  (await listMatchAssignments(workspaceId, { season: a.season, eventCode: a.eventCode })).filter((o) => o.id !== a.id && matchAssignmentsOverlap(a, o));
+
+/** Create one (admin already checked). */
+export async function createMatchAssignment(user: User, m: Membership, body: unknown): Promise<MatchOutcome> {
+  const read = await readMatchBody(m, body);
+  if (!read.ok) return read;
+  const v = read.v;
+  const actor: ActivityActor = { accountId: m.accountId, name: writerName(user) };
+  const a = await serialized(`assignments:${m.workspaceId}`, async () => {
+    const now = Date.now(), iso = new Date(now).toISOString();
+    await db().execute({ sql: "INSERT INTO workspaces (cp_workspace_id, name, created_at, updated_at) VALUES (?, ?, ?, ?) ON CONFLICT(cp_workspace_id) DO NOTHING", args: [m.workspaceId, m.workspaceName, iso, iso] });
+    const r = await db().execute({
+      sql: `INSERT INTO workspace_match_assignments (workspace_id, season, event_code, watching, from_match, to_match, assignee_account_id, assignee_name, created_by_account_id, created_by_name, created_at, updated_at)
+            VALUES ((SELECT id FROM workspaces WHERE cp_workspace_id = ?), ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING id`,
+      args: [m.workspaceId, v.season, v.eventCode, JSON.stringify(v.watching), v.fromMatch, v.toMatch, v.assignee.accountId, v.assignee.name, m.accountId, actor.name, now, now],
+    });
+    return (await matchAssignmentById(m.workspaceId, Number(r.rows[0].id)))!;
+  });
+  publishMatchAssignments(m.workspaceId, { action: "created", matchAssignments: [a] });
+  await logActivity(m.workspaceId, actor, "assignment.match_created", `match-assignment:${a.id}`, matchDetails(a));
+  return { ok: true, result: { matchAssignment: a, overlaps: await overlapsOf(m.workspaceId, a) } };
+}
+
+/** Edit one: who, what and which matches (admin already checked). The same values again change nothing. */
+export async function updateMatchAssignment(user: User, m: Membership, id: number, body: unknown): Promise<MatchOutcome> {
+  const read = await readMatchBody(m, body);
+  if (!read.ok) return read;
+  const v = read.v;
+  const actor: ActivityActor = { accountId: m.accountId, name: writerName(user) };
+  const out = await serialized(`assignments:${m.workspaceId}`, async () => {
+    const cur = await matchAssignmentById(m.workspaceId, id);
+    if (!cur) return null;
+    const same = cur.season === v.season && cur.eventCode === v.eventCode && JSON.stringify(cur.watching) === JSON.stringify(v.watching)
+      && cur.fromMatch === v.fromMatch && cur.toMatch === v.toMatch && cur.assigneeAccountId === v.assignee.accountId;
+    if (same) return { before: cur, after: cur, changed: false };
+    await db().execute({
+      sql: `UPDATE workspace_match_assignments SET season = ?, event_code = ?, watching = ?, from_match = ?, to_match = ?, assignee_account_id = ?, assignee_name = ?,
+              updated_at = ?, version = version + 1 WHERE id = ?`,
+      args: [v.season, v.eventCode, JSON.stringify(v.watching), v.fromMatch, v.toMatch, v.assignee.accountId, v.assignee.name, Date.now(), id],
+    });
+    return { before: cur, after: (await matchAssignmentById(m.workspaceId, id))!, changed: true };
+  });
+  if (!out) return { ok: false, status: 404, error: "That assignment was deleted." };
+  if (out.changed) {
+    publishMatchAssignments(m.workspaceId, { action: "updated", matchAssignments: [out.after] });
+    // Moved to someone else: both hear about it.
+    const moved = out.before.assigneeAccountId !== out.after.assigneeAccountId;
+    await logActivity(m.workspaceId, actor, "assignment.match_updated", `match-assignment:${id}`, {
+      ...matchDetails(out.after), ...(moved ? { assigneeAccountIds: [out.before.assigneeAccountId, out.after.assigneeAccountId], previousAssigneeName: out.before.assigneeName } : {}),
+    });
+  }
+  return { ok: true, result: { matchAssignment: out.after, overlaps: await overlapsOf(m.workspaceId, out.after) } };
+}
+
+/** Delete one (admin already checked). */
+export async function deleteMatchAssignment(user: User, m: Membership, id: number): Promise<{ ok: true } | { ok: false; status: 404; error: string }> {
+  const actor: ActivityActor = { accountId: m.accountId, name: writerName(user) };
+  return serialized(`assignments:${m.workspaceId}`, async () => {
+    const cur = await matchAssignmentById(m.workspaceId, id);
+    if (!cur) return { ok: false as const, status: 404 as const, error: "That assignment was already deleted." };
+    await db().execute({ sql: "DELETE FROM workspace_match_assignments WHERE id = ?", args: [id] });
+    publishMatchAssignments(m.workspaceId, { action: "deleted", matchAssignments: [cur] });
+    await logActivity(m.workspaceId, actor, "assignment.match_deleted", `match-assignment:${id}`, matchDetails(cur));
+    return { ok: true as const };
+  });
+}
+
 // --- Routes -------------------------------------------------------------------------------------
 
 const h = (fn: (req: Request, res: Response) => Promise<unknown>) => (req: Request, res: Response, next: NextFunction) => {
@@ -243,6 +388,27 @@ function requireWorkspaceMember() {
   };
 }
 
+/** ?season=&event=&assignee=me|<accountId>, or null once a 400 is sent. */
+function readFilter(req: Request, res: Response, m: Membership): ListFilter | null {
+  const f: ListFilter = {};
+  if (req.query.season !== undefined) {
+    const s = Number(req.query.season);
+    if (!Number.isSafeInteger(s)) { res.status(400).json({ error: "season must be a season year" }); return null; }
+    f.season = s;
+  }
+  if (req.query.event !== undefined && req.query.event !== "") {
+    const e = normalEventCode(req.query.event);
+    if (!e) { res.status(400).json({ error: "event must be an event code" }); return null; }
+    f.eventCode = e;
+  }
+  if (req.query.assignee !== undefined) {
+    const a = req.query.assignee === "me" ? m.accountId : Number(req.query.assignee);
+    if (!Number.isSafeInteger(a) || a <= 0) { res.status(400).json({ error: "assignee must be me or an account id" }); return null; }
+    f.assigneeAccountId = a;
+  }
+  return f;
+}
+
 const assignmentId = (raw: unknown): number | null => {
   const n = Number(raw);
   return typeof raw === "string" && /^\d{1,15}$/.test(raw) && Number.isSafeInteger(n) && n > 0 ? n : null;
@@ -255,29 +421,44 @@ const assignmentId = (raw: unknown): number | null => {
  *   POST   {season, eventCode, teams[], assigneeAccountIds[]}   admins, JSON. 201 {created, existing, duplicates}
  *   PATCH  /:id {status: "done" | "open"}             done: the assignee or an admin; open: admins. {assignment, changed}
  *   DELETE /:id                                       admins. {deleted: id}
+ *   GET    /matches?season=&event=&assignee=me|<accountId>   any member. {matchAssignments}
+ *   POST   /matches {season, eventCode, watching, fromMatch, toMatch, assigneeAccountId}   admins, JSON. 201 {matchAssignment, overlaps}
+ *   PATCH  /matches/:id (the same body: the assignment as it should be)   admins, JSON. {matchAssignment, overlaps}
+ *   DELETE /matches/:id                               admins. {deleted: id}
  */
 export function assignmentsRouter(): Router {
   const r = express.Router();
   const base = "/workspaces/:workspaceId/assignments";
   r.get(base, noStore, requireWorkspaceMember(), h(async (req, res) => {
     const m = res.locals.membership as Membership;
-    const f: ListFilter = {};
-    if (req.query.season !== undefined) {
-      const s = Number(req.query.season);
-      if (!Number.isSafeInteger(s)) { res.status(400).json({ error: "season must be a season year" }); return; }
-      f.season = s;
-    }
-    if (req.query.event !== undefined && req.query.event !== "") {
-      const e = normalEventCode(req.query.event);
-      if (!e) { res.status(400).json({ error: "event must be an event code" }); return; }
-      f.eventCode = e;
-    }
-    if (req.query.assignee !== undefined) {
-      const a = req.query.assignee === "me" ? m.accountId : Number(req.query.assignee);
-      if (!Number.isSafeInteger(a) || a <= 0) { res.status(400).json({ error: "assignee must be me or an account id" }); return; }
-      f.assigneeAccountId = a;
-    }
+    const f = readFilter(req, res, m);
+    if (!f) return;
     return { assignments: await listAssignments(m.workspaceId, f) };
+  }));
+  r.get(`${base}/matches`, noStore, requireWorkspaceMember(), h(async (req, res) => {
+    const m = res.locals.membership as Membership;
+    const f = readFilter(req, res, m);
+    if (!f) return;
+    return { matchAssignments: await listMatchAssignments(m.workspaceId, f) };
+  }));
+  r.post(`${base}/matches`, noStore, jsonOnly, requireWorkspaceAdmin(), h(async (req, res) => {
+    const out = await createMatchAssignment(res.locals.user as User, res.locals.membership as Membership, req.body);
+    if (!out.ok) { res.status(out.status).json({ error: out.error }); return; }
+    res.status(201).json(out.result);
+  }));
+  r.patch(`${base}/matches/:id`, noStore, jsonOnly, requireWorkspaceAdmin(), h(async (req, res) => {
+    const id = assignmentId(req.params.id);
+    if (id == null) { res.status(400).json({ error: "Bad assignment id" }); return; }
+    const out = await updateMatchAssignment(res.locals.user as User, res.locals.membership as Membership, id, req.body);
+    if (!out.ok) { res.status(out.status).json({ error: out.error }); return; }
+    return out.result;
+  }));
+  r.delete(`${base}/matches/:id`, noStore, requireWorkspaceAdmin(), h(async (req, res) => {
+    const id = assignmentId(req.params.id);
+    if (id == null) { res.status(400).json({ error: "Bad assignment id" }); return; }
+    const out = await deleteMatchAssignment(res.locals.user as User, res.locals.membership as Membership, id);
+    if (!out.ok) { res.status(out.status).json({ error: out.error }); return; }
+    return { deleted: id };
   }));
   r.get(`${base}/options`, noStore, requireWorkspaceAdmin(), h(async (req, res) => {
     const m = res.locals.membership as Membership;

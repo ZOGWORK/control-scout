@@ -23,7 +23,8 @@ import { announceActivity, isActivityItem } from "./scoutActivity";
 import { announcePicklist } from "./sharedPicklist";
 import { isPickList } from "../shared/picklist";
 import { announceAssignments } from "./assignments";
-import type { AssignmentNotice } from "../shared/assignments";
+import { announceMatchAssignments } from "./slotAssignments";
+import type { AssignmentNotice, MatchAssignmentNotice } from "../shared/assignments";
 import { announceComment, announceCommentsResync } from "./scoutComments";
 import { isCommentEvent } from "../shared/comments";
 
@@ -172,6 +173,14 @@ export function followWorkspace(space: string, onMode: (m: LiveMode) => void, de
       try { n = JSON.parse((ev as MessageEvent<string>).data); } catch { return; }
       const notice = n as AssignmentNotice | null;
       if (notice && (notice.action === "created" || notice.action === "updated" || notice.action === "deleted") && Array.isArray(notice.assignments)) announceAssignments(space, notice);
+    });
+    s.addEventListener("match-assignment", (ev) => {
+      // Match scouting assignments changed: the Assignments view and the Matches tab (slotAssignments.ts) apply it.
+      if (es !== s) return;
+      let n: unknown;
+      try { n = JSON.parse((ev as MessageEvent<string>).data); } catch { return; }
+      const notice = n as MatchAssignmentNotice | null;
+      if (notice && (notice.action === "created" || notice.action === "updated" || notice.action === "deleted") && Array.isArray(notice.matchAssignments)) announceMatchAssignments(space, notice);
     });
     s.addEventListener("comment", (ev) => {
       // A comment on one of the workspace's entries changed: the open thread and the card counts merge it.

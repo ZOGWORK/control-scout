@@ -1,6 +1,7 @@
 // The Assignments view of a workspace's scout space (?view=assignments, Task 10): My assignments for
 // every member (progress, Scout, Done), the whole workspace's list (so nobody scouts a team twice
-// unknowingly), and for admins an Assign sheet: pick members and the event's teams, many at once.
+// unknowingly), and for admins an Assign sheet: pick members and the event's teams, many at once. Match scouting
+// (who watches which slot or alliance for which quals) sits between them (MatchAssignments.tsx).
 // Who may do what is the server's call (server/scout/assignments.ts); the buttons only follow it.
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
@@ -14,6 +15,7 @@ import {
   type Assignment, type AssignmentsState,
 } from "../../lib/assignments";
 import type { ScoutEntry } from "../../lib/scouting";
+import { useMatchAssignments, type MatchAssignmentsState } from "../../lib/slotAssignments";
 import { assignmentKey, normalEventCode, type AssignableMember, type EventTeamOption } from "../../shared/assignments";
 import { Section, EmptyState } from "../page";
 import { ErrorState, LoadingBlock } from "../states";
@@ -24,16 +26,19 @@ import { Sheet, SheetContent, SheetDescription, SheetFooter, SheetHeader, SheetT
 import { toast } from "../ui/sonner";
 import { cn } from "../cn";
 import { EventPicker } from "./EventPicker";
+import { MatchAssignmentsSection } from "./MatchAssignments";
 
 const plural = (n: number, one: string, many = `${one}s`) => `${n} ${n === 1 ? one : many}`;
 
-export function AssignmentsView({ space, workspaceName, season, defaultEvent, state, myAccountId, isAdmin: admin, localEntries, onScout, readOnly = false }: {
+export function AssignmentsView({ space, workspaceName, season, defaultEvent, state, matchState, myAccountId, isAdmin: admin, localEntries, onScout, readOnly = false }: {
   space: string; workspaceName: string; season: number;
   /** The space is read-only (Task 19): the lists read, nothing can be assigned, scouted, marked or removed. */
   readOnly?: boolean;
   /** The workspace's default event (settings), for the Assign sheet. */
   defaultEvent: string;
   state: AssignmentsState;
+  /** Match scouting (useMatchAssignments, shared with the Matches tab). Without it the view loads its own list. */
+  matchState?: MatchAssignmentsState;
   myAccountId: number | null;
   isAdmin: boolean;
   /** This space's entries on the device, for live progress. */
@@ -43,6 +48,7 @@ export function AssignmentsView({ space, workspaceName, season, defaultEvent, st
 }) {
   const { list, loading, error, reload } = state;
   const isAdmin = admin && !readOnly;
+  const ownMatch = useMatchAssignments(matchState ? null : space, season, "off");
   const [assignOpen, setAssignOpen] = useState(false);
   const mine = useMemo(() => list.filter((a) => a.assigneeAccountId === myAccountId)
     .sort((a, b) => (a.status === b.status ? a.id - b.id : a.status === "open" ? -1 : 1)), [list, myAccountId]);
@@ -74,6 +80,7 @@ export function AssignmentsView({ space, workspaceName, season, defaultEvent, st
               </ul>
             )}
       </Section>
+      <MatchAssignmentsSection space={space} season={season} defaultEvent={defaultEvent} state={matchState ?? ownMatch} myAccountId={myAccountId} isAdmin={admin} readOnly={readOnly} />
       <Section title="Everyone's assignments" description={isAdmin ? "Who scouts what, by event. Mark one done, reopen it, or remove it." : "Who scouts what, by event, so two people don't scout the same team without knowing."}>
         {first ? <LoadingBlock rows={3} label="Loading assignments" /> : !list.length ? (
           <EmptyState icon={ClipboardList} title={`No assignments in ${season} yet`} description={isAdmin ? "Tap Assign to pick members and the event's teams." : "Admins assign teams from here."} />

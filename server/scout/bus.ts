@@ -11,7 +11,7 @@
 // not change.
 import type { WorkspaceEntryOut } from "./entries.js";
 import type { PickList } from "../../src/shared/picklist.js";
-import type { AssignmentNotice } from "../../src/shared/assignments.js";
+import type { AssignmentNotice, MatchAssignmentNotice } from "../../src/shared/assignments.js";
 import type { CommentEvent } from "../../src/shared/comments.js";
 import type { OrphanState } from "../../src/shared/orphaned.js";
 
@@ -210,6 +210,29 @@ export function subscribeAssignments(workspaceId: string, fn: AssignmentListener
     if (!s) return;
     s.delete(fn);
     if (!s.size) assignmentChannels.delete(workspaceId);
+  };
+}
+
+// Match scouting assignments (assignments.ts): each create, edit or delete is passed on as `event: match-assignment`
+// (no id), carrying the assignments as the list now has them.
+type MatchAssignmentListener = (n: MatchAssignmentNotice) => void;
+const matchAssignmentChannels = new Map<string, Set<MatchAssignmentListener>>();
+
+/** Tell every open stream of the workspace that its match assignments changed. Never throws. */
+export function publishMatchAssignments(workspaceId: string, n: MatchAssignmentNotice): void {
+  for (const fn of [...(matchAssignmentChannels.get(workspaceId) ?? [])]) { try { fn(n); } catch (err) { console.error("[live] match assignment listener failed", err); } }
+}
+
+/** Listen to a workspace's match assignment changes; returns the unsubscribe. */
+export function subscribeMatchAssignments(workspaceId: string, fn: MatchAssignmentListener): () => void {
+  let subs = matchAssignmentChannels.get(workspaceId);
+  if (!subs) { subs = new Set(); matchAssignmentChannels.set(workspaceId, subs); }
+  subs.add(fn);
+  return () => {
+    const s = matchAssignmentChannels.get(workspaceId);
+    if (!s) return;
+    s.delete(fn);
+    if (!s.size) matchAssignmentChannels.delete(workspaceId);
   };
 }
 
