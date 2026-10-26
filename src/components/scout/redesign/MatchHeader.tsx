@@ -1,10 +1,13 @@
 // The top half of the match screen in the Scout redesign (docs/mockups/scout-redesign.html, step 2): the match
 // label with ‹ › (or a swipe) to step, its status, a strip of every match coloured by progress, and the two
-// alliances with the teams this scout watches picked out. ScheduleState is the line or card the page shows
+// alliances with the teams this scout watches picked out. Built from the app's own pieces: the alliance boxes and
+// team highlight are MatchRow's (components/predict.tsx), the states are EmptyState / Skeleton / OfflineNote's look. ScheduleState is the line or card the page shows
 // instead while the schedule loads, isn't published, or can't be fetched.
 import { useEffect, useRef, useState } from "react";
-import { ChevronLeft, ChevronRight } from "lucide-react";
+import { AlertTriangle, CalendarX, ChevronLeft, ChevronRight, RefreshCw, WifiOff } from "lucide-react";
 import { Button } from "../../ui/button";
+import { EmptyState } from "../../page";
+import { Skeleton } from "../../states";
 import { cn } from "../../cn";
 import { teamsWatched, type AllianceSide, type MatchProgress, type ScheduleMatch, type Watching } from "../../../shared/scoutMatch";
 
@@ -27,12 +30,13 @@ export function clockTime(t: string | null | undefined): string | null {
 }
 
 const STATE_WORDS: Record<ChipState, string> = { current: "current", done: "done", partial: "partly scouted", skipped: "skipped", upcoming: "" };
+// The same tints as MatchRow's status chips (Right / Upset) and its highlighted team (accent ring).
 const CHIP: Record<ChipState, string> = {
-  current: "border-accent bg-accent-soft text-text-base",
-  done: "border-transparent bg-success/15 text-success-text",
-  partial: "border-transparent bg-warning/15 text-warning-text",
-  skipped: "border-transparent bg-warning/15 text-warning-text",
-  upcoming: "border-line text-text-muted",
+  current: "border-transparent bg-accent/15 font-semibold text-accent-text ring-1 ring-accent/60",
+  done: "border-transparent bg-success/12 text-success",
+  partial: "border-transparent bg-warning/12 text-warning",
+  skipped: "border-transparent bg-warning/12 text-warning",
+  upcoming: "border-border text-text-muted still-hover:bg-text-base/[0.06]",
 };
 
 /** A horizontal swipe this far (px), and clearly more sideways than up or down, steps a match. */
@@ -84,16 +88,18 @@ export function MatchHeader({ schedule, index, watching, progress, onIndex, next
     if (Math.abs(dx) >= SWIPE_PX && Math.abs(dx) > Math.abs(dy) * 1.5) go(index + (dx < 0 ? 1 : -1));
   };
 
+  // MatchRow's AllianceBox: a tinted box with the alliance's edge, blue mirrored; a watched team is marked the
+  // way MatchRow marks the team you're looking at (accent ring), the others in muted text.
   const col = (side: AllianceSide) => (
-    <div className={cn("flex gap-1.5 rounded-xl p-2", side === "red" ? "bg-red-alliance/12" : "bg-blue-alliance/12")}>
+    <div className={cn("grid min-w-0 auto-cols-fr grid-flow-col gap-x-1 rounded-lg px-2 py-1.5",
+      side === "red" ? "border-l-[3px] border-red-alliance bg-red-alliance/[0.06]" : "border-r-[3px] border-blue-alliance bg-blue-alliance/[0.06]")}>
       {m[side].map((team, i) => {
         const mine = watched.has(`${side}:${i + 1}`), where = `${side === "red" ? "Red" : "Blue"} ${i + 1}`;
         return (
           <div key={`${side}${i}`} data-watched={mine || undefined}
-            className={cn("min-w-0 flex-1 rounded-lg border-[1.5px] px-1 py-1.5 text-center",
-              mine ? cn("bg-card", side === "red" ? "border-red-alliance" : "border-blue-alliance") : "border-transparent opacity-55")}>
-            <div className="truncate font-mono text-[0.95rem] font-bold tabular-nums">{team}</div>
-            <div className="text-[0.7rem] text-text-muted">{where}{mine && <span className="sr-only">, watching</span>}</div>
+            className={cn("flex min-w-0 flex-col rounded-md px-1.5 py-0.5 leading-tight", side === "blue" && "items-end text-right", mine && "bg-accent/15 ring-1 ring-accent/60")}>
+            <span className={cn("tabular font-mono text-[0.8125rem]", mine ? "font-bold text-accent-text" : "text-text-muted")}>{team}</span>
+            <span className={cn("text-[11px]", mine ? "text-text-base" : "text-text-muted")}>{where}{mine && <span className="sr-only">, watching</span>}</span>
           </div>
         );
       })}
@@ -103,18 +109,18 @@ export function MatchHeader({ schedule, index, watching, progress, onIndex, next
   return (
     <section aria-label="Match" className={cn("grid gap-2.5", className)}>
       <div className="grid touch-pan-y select-none grid-cols-[44px_minmax(0,1fr)_44px] items-center gap-2" onPointerDown={down} onPointerUp={up} onPointerCancel={() => { swipe.current = null; }}>
-        <Button variant="outline" size="icon" className="size-11 rounded-xl" aria-label={index > 0 ? `Previous match, ${label(index - 1)}` : "Previous match"}
+        <Button variant="outline" size="icon" className="size-[44px]" aria-label={index > 0 ? `Previous match, ${label(index - 1)}` : "Previous match"}
           disabled={index <= 0} onClick={() => go(index - 1)}><ChevronLeft className="size-5" /></Button>
         <div className="min-w-0 overflow-hidden text-center" aria-live="polite">
-          <h2 key={m.key} className={cn("truncate font-display text-3xl leading-none font-bold motion-safe:animate-in motion-safe:fade-in motion-safe:duration-200",
+          <h2 key={m.key} className={cn("truncate font-display text-3xl font-semibold tabular-nums leading-none tracking-tight motion-safe:animate-in motion-safe:fade-in motion-safe:duration-200",
             dir > 0 ? "motion-safe:slide-in-from-right-4" : "motion-safe:slide-in-from-left-4")}>{m.label}</h2>
-          <p className="mt-1 text-xs text-text-muted">
-            {done ? <><span className="font-semibold text-success-text">Saved</span> · tap to edit</>
-              : index === nextIndex ? <><span className="font-semibold text-success-text">Next up</span>{time && <> · ~{time}</>}</>
+          <p className="mt-1 text-xs text-muted-foreground">
+            {done ? <><span className="font-semibold text-success">Saved</span> · tap to edit</>
+              : index === nextIndex ? <><span className="font-semibold text-success">Next up</span>{time && <> · ~{time}</>}</>
                 : time ? `~${time}` : m.played ? "Played" : "No time yet"}
           </p>
         </div>
-        <Button variant="outline" size="icon" className="size-11 rounded-xl" aria-label={index < schedule.length - 1 ? `Next match, ${label(index + 1)}` : "Next match"}
+        <Button variant="outline" size="icon" className="size-[44px]" aria-label={index < schedule.length - 1 ? `Next match, ${label(index + 1)}` : "Next match"}
           disabled={index >= schedule.length - 1} onClick={() => go(index + 1)}><ChevronRight className="size-5" /></Button>
       </div>
 
@@ -128,9 +134,9 @@ export function MatchHeader({ schedule, index, watching, progress, onIndex, next
               <button type="button" data-state={st} aria-current={st === "current" ? "true" : undefined}
                 aria-label={`${s.label}${STATE_WORDS[st] ? `, ${STATE_WORDS[st]}` : ""}${extra}`}
                 onClick={() => go(i)}
-                className={cn("relative h-8 min-w-11 rounded-lg border px-2 font-mono text-xs tabular-nums transition-colors outline-none focus-visible:ring-2 focus-visible:ring-accent/60",
+                className={cn("relative h-[32px] min-w-[44px] rounded-md border px-2 font-mono text-xs tabular-nums transition-colors outline-none focus-visible:ring-2 focus-visible:ring-ring/60",
                   // A 44px tap area around the 32px chip.
-                  "before:absolute before:inset-x-0 before:-inset-y-1.5 before:content-['']", CHIP[st])}>
+                  "before:absolute before:inset-x-0 before:-inset-y-[6px] before:content-['']", CHIP[st])}>
                 {s.label}
               </button>
             </li>
@@ -138,7 +144,7 @@ export function MatchHeader({ schedule, index, watching, progress, onIndex, next
         })}
       </ol>
 
-      <div className="grid grid-cols-2 gap-1.5" role="group" aria-label={`Teams in ${m.label}`}>{col("red")}{col("blue")}</div>
+      <div className="grid grid-cols-2 gap-1.5" data-alliances role="group" aria-label={`Teams in ${m.label}`}>{col("red")}{col("blue")}</div>
     </section>
   );
 }
@@ -155,27 +161,33 @@ export interface ScheduleStateProps {
 /** What the match screen shows in place of the header while there's no schedule to step through, or the note that it's the copy kept on this phone. Ready and fresh: nothing. */
 export function ScheduleState({ status, fromDevice, error, onManual, onRetry, className }: ScheduleStateProps) {
   if (status === "ready") {
-    return fromDevice ? <p role="status" className={cn("text-center text-xs text-text-muted", className)}>Showing the schedule saved on this phone</p> : null;
+    return fromDevice ? (
+      // OfflineNote's look: the same note wherever data comes from this device instead of the server.
+      <p role="status" className={cn("flex items-start gap-2 rounded-lg border border-info/30 bg-info/[0.06] px-3 py-2 text-xs", className)}>
+        <WifiOff className="mt-px size-3.5 shrink-0 text-info" />
+        <span>Showing the schedule saved on this phone</span>
+      </p>
+    ) : null;
   }
   if (status === "loading") {
+    // The header's own shape, so nothing jumps when the schedule arrives.
     return (
-      <div role="status" aria-busy="true" className={cn("grid gap-2.5", className)}>
-        <span className="sr-only">Loading the schedule</span>
-        <div className="mx-auto h-8 w-20 animate-pulse rounded-lg bg-muted motion-reduce:animate-none" />
-        <div className="h-8 animate-pulse rounded-lg bg-muted motion-reduce:animate-none" />
-        <div className="h-14 animate-pulse rounded-xl bg-muted motion-reduce:animate-none" />
+      <div role="status" aria-label="Loading the schedule" className={cn("grid gap-2.5", className)}>
+        <div className="grid grid-cols-[44px_minmax(0,1fr)_44px] items-center gap-2"><Skeleton className="size-[44px] rounded-xl" /><Skeleton className="mx-auto h-8 w-20" /><Skeleton className="size-[44px] rounded-xl" /></div>
+        <Skeleton className="h-8 rounded-md" />
+        <Skeleton className="h-12 rounded-lg" />
       </div>
     );
   }
-  const none = status === "none";
+  const manual = onManual && <Button variant={status === "none" ? "default" : "outline"} className="min-h-[44px]" onClick={onManual}>Type the match in</Button>;
+  if (status === "none") {
+    return <EmptyState className={className} icon={CalendarX} title="FIRST hasn't published this event's schedule yet" description="Type each match in as it's called." action={manual} />;
+  }
+  // ErrorState's look, plus the way to keep scouting without a schedule.
   return (
-    <div role={none ? "status" : "alert"} className={cn("grid justify-items-center gap-3 rounded-xl border border-line bg-card p-4 text-center", className)}>
-      <p className="text-sm">{none ? "FIRST hasn't published this event's schedule yet" : "Couldn't load the schedule"}</p>
-      {!none && error && <p className="text-xs text-text-muted">{error}</p>}
-      <div className="flex flex-wrap justify-center gap-2">
-        {!none && onRetry && <Button variant="secondary" className="min-h-11" onClick={onRetry}>Try again</Button>}
-        {onManual && <Button variant={none ? "default" : "outline"} className="min-h-11" onClick={onManual}>Type the match in</Button>}
-      </div>
+    <div role="alert" className={className}>
+      <EmptyState icon={AlertTriangle} title="Couldn't load the schedule" description={error}
+        action={<div className="flex flex-wrap justify-center gap-2">{onRetry && <Button variant="secondary" className="min-h-[44px]" onClick={onRetry}><RefreshCw /> Try again</Button>}{manual}</div>} />
     </div>
   );
 }
