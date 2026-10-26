@@ -120,7 +120,7 @@ export function PhaseForm({ template, value, onChange, notes, onNotes, notesLabe
           </div>
         )}
         <Button type="button" variant="link" onClick={undo} disabled={disabled || !canUndo}
-          className="h-[44px] justify-self-start text-muted-foreground underline hover:text-foreground">
+          className="h-[44px] justify-self-start px-0 text-muted-foreground underline hover:text-foreground">
           Undo last tap
         </Button>
     </>
