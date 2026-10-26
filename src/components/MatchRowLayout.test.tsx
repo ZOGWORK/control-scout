@@ -54,7 +54,7 @@ describe("match row layout", () => {
     expect(within(call()).getByRole("button", { name: "Picked Blue 53%" }).className).toMatch(/whitespace-nowrap/);
     expect(q("[data-outcome]")).toBeNull();
     expect(q("[data-kind]")).toBeNull();
-    expect(within(call()).getByRole("button", { name: "Provisional confidence" })).toBeTruthy();
+    expect(within(call()).getByRole("button", { name: "Confidence: rough guess" })).toBeTruthy();
     chipsInCallColumn();
     expect(reportLink().getAttribute("href")).toBe("/events/2025/LAYQ1/match/qual:0:7");
   });
@@ -65,7 +65,7 @@ describe("match row layout", () => {
     expect(right.textContent).toMatch(/Right/);
     expect(call().contains(right)).toBe(true);
     expect(alliances().contains(right)).toBe(false);
-    expect(alliances().textContent).not.toMatch(/Right|Upset|provisional|pre-match/);
+    expect(alliances().textContent).not.toMatch(/Right|Upset|rough guess|pre-match/);
     chipsInCallColumn();
     reportLink();
   });
@@ -80,13 +80,13 @@ describe("match row layout", () => {
   });
 
   it("the tier is an icon chip that never wraps, named for screen readers; a tap says what it means", () => {
-    for (const [tier, label] of [["provisional", "Provisional"], ["moderate", "Moderate"], ["confident", "Confident"]] as const) {
+    for (const [tier, label] of [["provisional", "rough guess"], ["moderate", "fair"], ["confident", "solid"]] as const) {
       show(match({ prediction: pred({ tier }) }, 90, 120));
-      const chip = within(call()).getByRole("button", { name: `${label} confidence` });
+      const chip = within(call()).getByRole("button", { name: `Confidence: ${label}` });
       expect(chip.className).toMatch(/whitespace-nowrap/);
-      expect(chip.textContent).toBe(`${label} confidence`); // the sr-only name only: no visible word
+      expect(chip.textContent).toBe(`Confidence: ${label}`); // the sr-only name only: no visible word
       fireEvent.click(chip);
-      expect(screen.getByText(`${label} confidence`, { selector: "p" })).toBeTruthy();
+      expect(screen.getByText(`Confidence: ${label}`, { selector: "p" })).toBeTruthy();
       cleanup();
     }
   });
@@ -116,7 +116,7 @@ describe("match row layout", () => {
   it("a tie: no Right/Upset (neither side won), the tier and ledger chips stay", () => {
     show(match({}, 100, 100));
     expect(q("[data-outcome]")).toBeNull();
-    expect(within(call()).getByRole("button", { name: "Provisional confidence" })).toBeTruthy();
+    expect(within(call()).getByRole("button", { name: "Confidence: rough guess" })).toBeTruthy();
     expect(q("[data-kind=live]")).toBeTruthy();
     chipsInCallColumn();
   });

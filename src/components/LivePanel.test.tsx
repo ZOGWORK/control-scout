@@ -71,7 +71,7 @@ describe("LivePanel", () => {
     expect(screen.getByRole("timer").textContent).toBe("in12:00");
     expect(screen.getByText("Tracked")).toBeTruthy();
     expect(screen.getByText("Red 63% to win")).toBeTruthy();
-    expect(screen.getByText(/moderate/)).toBeTruthy(); // never a call without its tier
+    expect(screen.getByText(/fair/)).toBeTruthy(); // never a call without its tier
     expect(screen.getByText(/10:12/)).toBeTruthy(); // 15:12 UTC at the venue (Chicago)
     act(() => { vi.advanceTimersByTime(65_000); });
     expect(screen.getByRole("timer").textContent).toBe("in10:55");
