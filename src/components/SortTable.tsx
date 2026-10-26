@@ -22,7 +22,9 @@ export interface Col<T> {
 }
 
 /** Best to worst, as the number's own colour (no cell shading): bold green, light green, plain, light red, bold red. */
-const HEAT = ["text-success font-semibold", "text-success/75", "text-text-base", "text-destructive/75", "text-destructive font-semibold"];
+// The readable success/danger text colours (index.css), and for the lighter bands those mixed toward the body text,
+// so every band keeps body-text contrast in both themes (a faded colour would not on white).
+const HEAT = ["text-[var(--color-success-text)] font-semibold", "text-[color-mix(in_srgb,var(--color-success-text)_65%,var(--color-text-base))]", "text-text-base", "text-[color-mix(in_srgb,var(--color-destructive-text)_65%,var(--color-text-base))]", "text-[var(--color-destructive-text)] font-semibold"];
 
 /** A cell's band in its column: the share of rows below its value (ties counting half), best band first. */
 function bandOf(vs: number[], v: unknown, asc?: boolean): string {
