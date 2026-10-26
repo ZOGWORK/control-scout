@@ -85,7 +85,7 @@ export function CurrentlyTracking({ season, current, events, listSettled, classN
           <li key={it.kind === "event" ? `${it.e.season}:${it.e.code}` : it.r.ref} className="w-[15.5rem] shrink-0 sm:w-auto sm:min-w-0">
             {it.kind === "event" ? <TrackedCard e={it.e} current={current} onPick={onPick} picked={picked === `${it.e.season}:${it.e.code}`} />
               : it.kind === "pending" ? <div className="skeleton h-[4.75rem] rounded-xl" aria-hidden />
-                : <UnknownCard r={it.r} onPick={onPick} />}
+                : <UnknownCard r={it.r} onPick={onPick} picked={picked === it.r.ref} />}
           </li>
         ))}
         {more > 0 && (
@@ -126,9 +126,9 @@ function TrackedCard({ e, current, onPick, picked }: { e: EventListItem; current
 }
 
 /** A tracked event we couldn't find in any list: still a link to its page. */
-function UnknownCard({ r, onPick }: { r: TrackedRef; onPick?: (season: number, code: string) => void }) {
+function UnknownCard({ r, onPick, picked }: { r: TrackedRef; onPick?: (season: number, code: string) => void; picked?: boolean }) {
   return (
-    <CardShell season={r.season} code={r.code} onPick={onPick} className="lift group flex h-full flex-col justify-center gap-1 rounded-xl border border-border bg-card px-3 py-2.5">
+    <CardShell season={r.season} code={r.code} onPick={onPick} picked={picked} className="lift group flex h-full flex-col justify-center gap-1 rounded-xl border border-border bg-card px-3 py-2.5">
       <span className="truncate font-mono text-sm font-medium group-hover:text-accent-text">{r.code}</span>
       <span className="text-xs text-muted-foreground">{seasonLabel(r.season)} season</span>
     </CardShell>
