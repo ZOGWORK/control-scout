@@ -8,6 +8,9 @@ import { TeamTabs } from "./TeamTabs";
 import { PhaseForm } from "./PhaseForm";
 import { SaveMatchBar } from "./SaveMatchBar";
 import { MatchesList, type OtherScout } from "./MatchesList";
+import { QuickMatchForm } from "./QuickMatchForm";
+import { ChevronLeft } from "lucide-react";
+import { Button } from "../../ui/button";
 import { useMatchTimer } from "./useMatchTimer";
 import { useEventSchedule } from "../../../lib/eventSchedule";
 import { useMatchDraft } from "../../../lib/matchDraft";
@@ -69,17 +72,25 @@ function OneMatch({ space, season, session, entries, template, author, readOnly,
   // One timer for the match: switching team tabs keeps it running, and its phase moves every team's form.
   const timer = useMatchTimer(setPhase);
   const [active, setActive] = useState(teams[0]?.team ?? 0);
+  // All four teams: quick rows, one team's full form on request (and back).
+  const [full, setFull] = useState(false);
+  const quick = session.watching.kind === "all" && !full;
   if (!teams.length) return <p className="text-sm text-muted-foreground">None of the teams you watch are in {match.label}.</p>;
   return (
     <>
-      <TeamTabs teams={draft.teams.map((t) => ({ watched: t.watched, status: t.status }))} active={active} onSelect={setActive}
+      {session.watching.kind === "all" && full && (
+        <Button variant="ghost" size="sm" className="-ml-2 justify-self-start text-muted-foreground" onClick={() => setFull(false)}><ChevronLeft /> Back to all 4 teams</Button>
+      )}
+      {quick ? (
+        <QuickMatchForm teams={draft.teams} template={template} onChange={(team, d) => draft.setData(team, d)} onOpenFull={(team) => { setActive(team); setFull(true); }} />
+      ) : <TeamTabs teams={draft.teams.map((t) => ({ watched: t.watched, status: t.status }))} active={active} onSelect={setActive}
         renderForm={(w) => {
           const t = draft.teams.find((x) => x.watched.team === w.team)!;
           return (
             <PhaseForm template={t.template} value={t.data} onChange={(d) => draft.setData(w.team, d)} notes={t.notes} onNotes={(n) => draft.setNotes(w.team, n)}
               notesLabel={`Notes on ${w.team}`} phase={phase} onPhase={setPhase} timer={timer} />
           );
-        }} />
+        }} />}
       <SaveMatchBar label={match.label} teamCount={teams.length} nextLabel={nextLabel} nextIndex={nextIndex} emptyTeams={draft.emptyTeams}
         toPersonal={draft.toPersonal} onSave={draft.saveMatch} onSaved={onSaved} />
     </>

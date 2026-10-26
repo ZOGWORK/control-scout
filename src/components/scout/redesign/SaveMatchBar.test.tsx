@@ -66,10 +66,10 @@ describe("SaveMatchBar", () => {
   it("asks about a team with nothing yet: save anyway, or skip it", () => {
     const onSave = vi.fn(() => ok(2)), onSaved = vi.fn();
     render(<SaveMatchBar label="Q14" teamCount={2} nextLabel="Q15" nextIndex={14} emptyTeams={[4410]} onSave={onSave} onSaved={onSaved} />);
-    expect(screen.getByText("4410 has nothing yet. Save anyway or tap its tab.")).toBeTruthy();
+    expect(screen.getByText("4410 has nothing yet. Save anyway, or fill it in first.")).toBeTruthy();
     fireEvent.click(screen.getByRole("button", { name: /Save Q14/ }));
     expect(onSave).not.toHaveBeenCalled();
-    expect(screen.getByRole("alert").textContent).toBe("4410 has nothing yet. Save anyway or tap its tab.");
+    expect(screen.getByRole("alert").textContent).toBe("4410 has nothing yet. Save anyway, or fill it in first.");
     fireEvent.click(screen.getByRole("button", { name: "Save anyway" }));
     expect(onSave).toHaveBeenLastCalledWith({ includeEmpty: true });
     fireEvent.click(screen.getByRole("button", { name: /Save Q14/ }));
@@ -83,7 +83,7 @@ describe("SaveMatchBar", () => {
     expect(screen.getByRole("button", { name: /Save Q14/ }).textContent).toBe("Save Q14· 3 teams");
     fireEvent.click(screen.getByRole("button", { name: /Save Q14/ }));
     expect(screen.queryByRole("button", { name: /Skip/ })).toBeNull();
-    expect(emptyHint([1, 2, 3])).toBe("1, 2 and 3 have nothing yet. Save anyway or tap their tab.");
+    expect(emptyHint([1, 2, 3])).toBe("1, 2 and 3 have nothing yet. Save anyway, or fill them in first.");
   });
 
   it("a storage error shows under Save and doesn't move on", () => {

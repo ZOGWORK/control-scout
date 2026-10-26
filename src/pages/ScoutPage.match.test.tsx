@@ -78,6 +78,20 @@ describe("the Match tab", () => {
     expect(localScoutEntries(null).filter((e) => e.eventCode === "USNJQ1").map((e) => e.team)).toEqual([101]);
   });
 
+  it("watching all 4 teams: quick rows, one Save for the four, and a team's full form on request", async () => {
+    writeScoutSession(null, { season: 2025, eventCode: "USNJQ1", watching: { kind: "all" } });
+    show("/scout?season=2025");
+    for (const t of [101, 102, 201, 202]) fireEvent.click(await screen.findByRole("button", { name: new RegExp(`^${t} .*Add one$`) }));
+    // One team's full form, and back to the four.
+    fireEvent.click(screen.getByRole("button", { name: "Full form for 201" }));
+    expect(await screen.findByRole("tab", { name: /201/, selected: true })).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Back to all 4 teams" }));
+    expect(await screen.findByRole("button", { name: "Full form for 202" })).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: /Save Q1/ }));
+    await waitFor(() => expect(param("match")).toBe("Q2"));
+    expect(localScoutEntries(null).filter((e) => e.eventCode === "USNJQ1").map((e) => e.team).sort()).toEqual([101, 102, 201, 202]);
+  });
+
   it("opens where scouting picks up: after the last match done", async () => {
     writeScoutSession(null, { season: 2025, eventCode: "USNJQ1", watching: { kind: "alliance", side: "red" } });
     for (const t of [101, 102]) saveScoutEntry({ uuid: `done-${t}`, season: 2025, team: t, eventCode: "USNJQ1", matchLabel: "Q1", kind: "match", data: {}, notes: "" });
