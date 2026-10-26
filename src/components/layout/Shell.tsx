@@ -31,20 +31,27 @@ import { watchTextSize } from "../../lib/textSize";
 
 interface NavItem { to: string; label: string; icon: ComponentType<{ className?: string }>; end?: boolean }
 
-/** `more`: the sidebar folds this section under a "More" toggle (the menu sheet lists it like the rest). */
+/** The everyday pages, always in view; everything else sits under `more` (the sidebar folds it under a "More"
+ *  toggle; the menu sheet lists it under a "More" heading). Nothing is left out, just out of the way. */
 const SECTIONS: { title: string | null; items: NavItem[]; more?: boolean }[] = [
-  { title: null, items: [{ to: "/", label: "Home", icon: House, end: true }, { to: "/events", label: "Events", icon: CalendarDays }, { to: "/teams", label: "Teams", icon: Users }, { to: "/rankings", label: "Rankings", icon: ListOrdered }, { to: "/power-rankings", label: "Power rankings", icon: Trophy }] },
-  { title: "Predict", items: [
+  { title: null, items: [
+    { to: "/", label: "Home", icon: House, end: true },
+    { to: "/events", label: "Events", icon: CalendarDays },
+    { to: "/teams", label: "Teams", icon: Users },
+    { to: "/rankings", label: "Rankings", icon: ListOrdered },
     { to: "/predict", label: "Predict", icon: Sparkles, end: true },
-    { to: "/compare", label: "Compare", icon: Scale },
-  ] },
-  { title: "Yours", items: [
     // The YOURS row: "My team" / "My teams" (YoursNavRow decides what it opens).
     { to: FOLLOWED_TEAM_PATH, label: "My team", icon: Star },
-    { to: "/shortlist", label: "Shortlist", icon: Bookmark },
     { to: "/scout", label: "Scout", icon: ClipboardList },
   ] },
-  { title: "More", more: true, items: [{ to: "/download", label: "Download", icon: Download }, { to: "/methodology", label: "How it works", icon: BookOpen }, { to: "/settings", label: "Settings", icon: Settings }] },
+  { title: "More", more: true, items: [
+    { to: "/power-rankings", label: "Power rankings", icon: Trophy },
+    { to: "/compare", label: "Compare", icon: Scale },
+    { to: "/shortlist", label: "Shortlist", icon: Bookmark },
+    { to: "/download", label: "Download", icon: Download },
+    { to: "/methodology", label: "How it works", icon: BookOpen },
+    { to: "/settings", label: "Settings", icon: Settings },
+  ] },
 ];
 
 /** The owner portal's item: only for the owner (/api/auth/me says isOwner), never rendered for anyone else. */
@@ -157,7 +164,6 @@ function MoreGroup({ items, collapsed }: { items: NavItem[]; collapsed?: boolean
 /** `rail`: icons only (a narrow desktop, or folded by hand). `wide`: the screen has room for the full sidebar, so its
  *  button folds it in and out (remembered); below that the button opens the labelled menu sheet instead. */
 function Sidebar({ rail, wide, onToggle, onMenu }: { rail: boolean; wide: boolean; onToggle: () => void; onMenu: (from: HTMLElement) => void }) {
-  const { user, state } = usePersonal();
   const sections = useSections();
   const toggleLabel = !wide ? "Show page names" : rail ? "Expand sidebar" : "Collapse sidebar";
   return (
@@ -179,12 +185,8 @@ function Sidebar({ rail, wide, onToggle, onMenu }: { rail: boolean; wide: boolea
           </div>
         ))}
       </nav>
-      <div className={cn("flex shrink-0 items-center gap-1 border-t border-line p-2", rail && "justify-center")}>
-        {!rail && (
-          <Link to="/settings" className="min-w-0 flex-1 truncate rounded-lg px-2.5 py-1.5 text-sm text-text-muted outline-none hover:bg-text-base/[0.05] hover:text-text-base focus-visible:ring-2 focus-visible:ring-ring/60">
-            {user ? (user.displayName || user.email) : state.myTeam ? `Team ${state.myTeam} · on this device` : "Not signed in"}
-          </Link>
-        )}
+      {/* Just the fold button: who's signed in is the header's account menu. */}
+      <div className={cn("flex shrink-0 items-center border-t border-line p-2", rail ? "justify-center" : "justify-end")}>
         <RailTip on={rail} label={toggleLabel}>
           <button type="button" onClick={(e) => (wide ? onToggle() : onMenu(e.currentTarget))} aria-label={toggleLabel}
             className="flex size-8 shrink-0 items-center justify-center rounded-lg text-text-muted outline-none hover:bg-text-base/[0.06] hover:text-text-base focus-visible:ring-2 focus-visible:ring-ring/60">

@@ -5,7 +5,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { MemoryRouter, useLocation } from "react-router-dom";
 
-vi.mock("../lib/personal", () => ({ usePersonal: () => ({ user: null, providers: {}, state: { myTeam: null, tracked: { teams: [], events: [] }, bookmarks: [], videoLinks: {}, predictionHistory: [] }, update: () => true, syncReady: false }) }));
+const saved = vi.hoisted(() => ({ history: [] as unknown[] }));
+vi.mock("../lib/personal", () => ({ usePersonal: () => ({ user: null, providers: {}, state: { myTeam: null, tracked: { teams: [], events: [] }, bookmarks: [], videoLinks: {}, predictionHistory: saved.history }, update: () => true, syncReady: false }) }));
 vi.mock("../lib/meta", async (orig) => ({ ...(await orig<typeof import("../lib/meta")>()), useMeta: () => null, useCurrentSeason: () => 2026, useTitle: () => {} }));
 
 const { default: PredictPage } = await import("./PredictPage");
@@ -49,5 +50,17 @@ describe("Custom matchup", () => {
     render(<TooltipProvider><MemoryRouter initialEntries={["/predict?mode=match&season=2025&red=1,2&blue=3,4"]}><PredictPage /></MemoryRouter></TooltipProvider>);
     expect(await screen.findByRole("heading", { name: /Why: the top 3 factors/ })).toBeTruthy();
     expect(screen.getByText(/The robots' ratings/).closest("details")?.open).toBe(false);
+  });
+
+  it("saved predictions show four, the rest on demand, and fold back to four", async () => {
+    saved.history = Array.from({ length: 6 }, (_, k) => ({ id: `s${k}`, season: 2025, red: [k + 10, k + 20], blue: [k + 30, k + 40], winProbRed: 0.6, predictedRed: 100, predictedBlue: 90, tier: "moderate", savedAt: 0 }));
+    render(<TooltipProvider><MemoryRouter initialEntries={["/predict?mode=match"]}><PredictPage /></MemoryRouter></TooltipProvider>);
+    const list = () => screen.getByRole("heading", { name: "Your saved predictions" }).closest("section")!.querySelectorAll("li");
+    expect(list()).toHaveLength(4);
+    fireEvent.click(screen.getByRole("button", { name: "Show 2 more" }));
+    expect(list()).toHaveLength(6);
+    fireEvent.click(screen.getByRole("button", { name: "Show fewer" }));
+    expect(list()).toHaveLength(4);
+    saved.history = [];
   });
 });
