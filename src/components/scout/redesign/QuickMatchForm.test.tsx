@@ -62,7 +62,7 @@ afterEach(() => { calls = []; opened = []; });
 
 function Harness() {
   const [data, setData] = useState<Record<number, Record<string, ScoutValue>>>({});
-  const teams: TeamState[] = WATCHED.map((w) => ({ watched: { ...w }, data: data[w.team] ?? {}, notes: "", status: data[w.team] ? "started" : "empty", entry: null, template: tpl }));
+  const teams: TeamState[] = WATCHED.map((w) => ({ watched: { ...w }, data: data[w.team] ?? {}, notes: "", status: data[w.team] ? "started" : "empty", entry: null, template: tpl, locked: false }));
   return <QuickMatchForm teams={teams} template={tpl} onOpenFull={(t) => opened.push(t)}
     onChange={(team, d) => { calls.push([team, d]); setData((s) => ({ ...s, [team]: d })); }} />;
 }
@@ -117,7 +117,7 @@ describe("QuickMatchForm", () => {
 
   it("a long choice wraps into even rows of at most 5 on its own line", () => {
     const long: ScoutTemplate = { id: "x", kind: "match", name: "Long", fields: [{ id: "end", label: "End", type: "choice", phase: "endgame", options: Array.from({ length: 12 }, (_, i) => `O${i + 1}`) }] };
-    render(<QuickMatchForm teams={[{ watched: { team: 1, side: "red", station: 1 }, data: {}, notes: "", status: "empty", entry: null, template: long }]} onChange={() => {}} onOpenFull={() => {}} />);
+    render(<QuickMatchForm teams={[{ watched: { team: 1, side: "red", station: 1 }, data: {}, notes: "", status: "empty", entry: null, template: long, locked: false }]} onChange={() => {}} onOpenFull={() => {}} />);
     const g = screen.getByRole("radiogroup");
     expect(g.style.gridTemplateColumns).toBe("repeat(4, minmax(0, 1fr))");
     expect(g.style.minWidth).toBe("100%");
@@ -125,7 +125,7 @@ describe("QuickMatchForm", () => {
 
   it("says so when the template has no scoring counter", () => {
     const bare: ScoutTemplate = { id: "x", kind: "match", name: "Bare", fields: [{ id: "defense", label: "Played defense", type: "toggle", phase: "teleop" }] };
-    render(<QuickMatchForm teams={[{ watched: { team: 1, side: "red", station: 1 }, data: {}, notes: "", status: "empty", entry: null, template: bare }]} onChange={() => {}} onOpenFull={() => {}} />);
+    render(<QuickMatchForm teams={[{ watched: { team: 1, side: "red", station: 1 }, data: {}, notes: "", status: "empty", entry: null, template: bare, locked: false }]} onChange={() => {}} onOpenFull={() => {}} />);
     expect(screen.getByText("No scoring counter in this template.")).toBeTruthy();
     expect(screen.getByRole("button", { name: "1 Played defense" })).toBeTruthy();
   });

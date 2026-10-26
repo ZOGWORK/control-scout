@@ -82,7 +82,7 @@ export interface QuickMatchFormProps {
 export function QuickMatchForm({ teams, template, onChange, onOpenFull, disabled, className }: QuickMatchFormProps) {
   return (
     <div className={cn("grid gap-2", className)}>
-      {teams.map((t) => <QuickRow key={t.watched.team} t={t} q={quickFields(template ?? t.template)} onChange={onChange} onOpenFull={onOpenFull} disabled={disabled} />)}
+      {teams.map((t) => <QuickRow key={t.watched.team} t={t} q={quickFields(template ?? t.template)} onChange={onChange} onOpenFull={onOpenFull} disabled={disabled || t.locked} />)}
     </div>
   );
 }

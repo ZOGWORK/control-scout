@@ -188,7 +188,7 @@ export default function ScoutPage() {
   const [formEvent, setFormEvent] = useState<{ space: ScoutSpace; season: number; code: string } | null>(null);
   const scoutAssigned = (team: number, eventCode: string) => {
     setSp((x) => { x.set("tab", "data"); x.set("view", "entries"); x.delete("entry"); x.set("team", String(team)); x.set("event", eventCode); return x; });
-    setFormTeam(team); setFormEvent({ space, season, code: eventCode }); setFormNonce((n) => n + 1); setFormOpen(true);
+    setFormKind("match"); setFormTeam(team); setFormEvent({ space, season, code: eventCode }); setFormNonce((n) => n + 1); setFormOpen(true);
   };
   const badgeFor = (team: number, eventCode: string | null) => (workspace && eventCode ? assignedLabel(assignIndex.get(assignmentKey(season, eventCode, team)) ?? [], me?.accountId) : null);
   // Tapping an item about an entry opens it (in its season), if this device has it and it wasn't deleted since.
@@ -224,16 +224,19 @@ export default function ScoutPage() {
   const scoutSession = useScoutSession(space, season, newEntryEventCode(space, wss.defaults, season));
   const session = scoutSession.session;
   const settingUp = !spaces.resolving && !readOnly && tab !== "data" && (sp.get("setup") === "1" || !session);
-  const openSetup = () => setSp((x) => { x.set("setup", "1"); if (x.get("tab") === "data") x.set("tab", "match"); return x; });
+  const openSetup = () => setSp((x) => { x.set("setup", "1"); x.set("tab", "match"); return x; });
   const closeSetup = () => setSp((x) => { x.delete("setup"); return x; });
   const startSession = (code: string, w: Watching) => {
     const changed = !session || session.eventCode !== code.toUpperCase();
     scoutSession.set(code, w);
-    setSp((x) => { x.delete("setup"); x.set("tab", "match"); if (changed) x.delete("match"); return x; });
+    setSp((x) => { x.delete("setup"); x.set("tab", "match"); if (changed) x.delete("at"); return x; });
   };
-  const openMatch = (label: string) => setSp((x) => { x.set("tab", "match"); x.set("match", label); return x; });
+  // The match on screen has its own key (`at`): `match` is the entry list's filter, which this never touches.
+  const openMatch = (label: string) => setSp((x) => { x.set("tab", "match"); x.set("at", label); return x; });
   // No schedule to scout from (or a practice match): the full form, with the session's event filled in.
   const openOldForm = (kind: "match" | "pit", team: number | undefined) => {
+    // A new entry: never the edit that may still be named in the URL.
+    if (editing) setSp((x) => { x.delete("entry"); return x; });
     setFormKind(kind); setFormTeam(team); setFormEvent(session ? { space, season, code: session.eventCode } : null);
     setFormNonce((n) => n + 1); setFormOpen(true);
   };
@@ -321,15 +324,15 @@ export default function ScoutPage() {
               action={<Button variant="outline" onClick={() => openView(null)}>Open Data</Button>} />
           ) : templatePending ? <LoadingBlock rows={3} label="Loading the workspace's fields" />
           : tab === "matches" ? (
-            <div className={SCOUT_COLUMN}><MatchesTab season={season} session={session} entries={entries} matchLabel={sp.get("match")} onMatch={openMatch} onManual={() => openOldForm("match", undefined)} /></div>
+            <div className={SCOUT_COLUMN}><MatchesTab season={season} session={session} entries={entries} matchLabel={sp.get("at")} onMatch={openMatch} onManual={() => openOldForm("match", undefined)} /></div>
           ) : (
             // Wide screens: the match list beside the match, to see what's done and jump without switching tabs.
             <div className="grid gap-8 xl:grid-cols-[minmax(0,48rem)_minmax(0,1fr)]">
             <div className={SCOUT_COLUMN}><MatchScout space={space} season={season} session={session} entries={entries} template={matchTemplate} author={me?.accountId ?? null}
-              readOnly={!!readOnly} spaceName={spaceName} matchLabel={sp.get("match")} onMatch={openMatch} onManual={() => openOldForm("match", undefined)} /></div>
+              readOnly={!!readOnly} spaceName={spaceName} matchLabel={sp.get("at")} onMatch={openMatch} onManual={() => openOldForm("match", undefined)} /></div>
               <aside aria-label="Matches at this event" className="hidden xl:block">
                 <div className="sticky top-20 max-h-[calc(100dvh-6rem)] overflow-y-auto overscroll-contain pr-1">
-                  <MatchesTab season={season} session={session} entries={entries} matchLabel={sp.get("match")} onMatch={openMatch} onManual={() => openOldForm("match", undefined)} />
+                  <MatchesTab season={season} session={session} entries={entries} matchLabel={sp.get("at")} onMatch={openMatch} onManual={() => openOldForm("match", undefined)} />
                 </div>
               </aside>
             </div>
