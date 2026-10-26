@@ -96,7 +96,7 @@ export const BOOT_STYLE = `<style>
       .csbc-b a{color:inherit;text-decoration:underline;text-underline-offset:2px}
       .csbc-btns{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:12px}
       .csbc-btns button{height:32px;padding:0 12px;border:1px solid var(--b-line);border-radius:8px;background:var(--b-pop);color:var(--b-fg);font:600 12px/1 Inter,ui-sans-serif,system-ui,sans-serif;cursor:pointer}
-      @media (min-width:768px){.csbc{left:16px;right:auto;bottom:16px;width:22rem}}
+      @media (min-width:768px){.csbc{left:16px;right:auto;bottom:7rem;width:22rem}}
     </style>`;
 
 // The app's ConsentBanner (src/components/layout/ConsentBanner.tsx) takes over from the static banner by
