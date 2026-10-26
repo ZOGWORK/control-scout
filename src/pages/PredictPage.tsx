@@ -52,6 +52,11 @@ const MODES: { v: PredictMode; label: string; short: string; icon: typeof Trophy
 
 export default function PredictPage() {
   useTitle("Predict");
+  // Dense numbers: the background's grid and glow step back while Predict is open (index.css, .ambient-calm).
+  useEffect(() => {
+    document.documentElement.classList.add("ambient-calm");
+    return () => document.documentElement.classList.remove("ambient-calm");
+  }, []);
   const [sp, setSp] = useSearchParams();
   const current = useCurrentSeason();
   const state = readPredict(sp);
@@ -82,12 +87,12 @@ export default function PredictPage() {
             </p>
             <TabsList aria-label="Predict mode" className="mt-4 max-sm:mt-3 max-sm:grid max-sm:w-full max-sm:grid-cols-3 sm:p-1">
               {MODES.map(({ v, label, short, icon: Icon }) => (
-                <TabsTrigger key={v} value={v} aria-label={label} className="sm:h-10 sm:px-4 max-sm:px-1.5 max-sm:text-[13px]"><Icon className="size-4 max-sm:hidden" /><span className="max-sm:hidden">{label}</span><span className="sm:hidden">{short}</span></TabsTrigger>
+                <TabsTrigger key={v} value={v} aria-label={label} className="sm:h-10 sm:px-4 max-sm:px-1.5 max-sm:text-[13px] max-[360px]:px-1 max-[360px]:text-xs"><Icon className="size-4 max-sm:hidden" /><span className="max-sm:hidden">{label}</span><span className="sm:hidden">{short}</span></TabsTrigger>
               ))}
             </TabsList>
           </div>
           {/* Only mounted when there's room: no request or timer for a card nobody can see. */}
-          {wide && <LatestCalls />}
+          {wide && <LatestCalls still={1} />}
         </div>
       </div>
       <TabsContent value="advancement" className="mt-0"><AdvancementLab /></TabsContent>
@@ -586,7 +591,7 @@ function AdvancementLab() {
         <AdvancementResult season={season} code={code} team={team} askedSeason={readPredict(sp).season}
           onSeason={(s, push) => set({ season: String(s) }, push)} onClearEvent={() => { set({ code: null }, true); focusEvent(); }}
           onPickTeam={(t) => { setTeamText(String(t)); set({ team: String(t) }); }} />
-      ) : <EmptyState icon={Trophy} title="Pick an event" description="Any qualifier, league tournament or championship. Add a team to see its chance to advance, captain and pick odds, likely rank, and expected advancement points." />}
+      ) : <EmptyState icon={Trophy} title="Pick an event" description="Any qualifier, league tournament or championship: who's likely to advance. Add a team for its own odds, likely rank and pick chances." />}
     </div>
   );
 }
@@ -636,12 +641,10 @@ function AdvancementResult({ season, code, team, askedSeason, onSeason, onClearE
       {moved?.code === code && moved.to === season && (
         <p role="status" className="rounded-lg border border-info/30 bg-info/[0.06] px-3 py-2 text-sm">{code} is a {seasonLabel(season)} event, so this shows {seasonLabel(season)}.</p>
       )}
-      <div className="flex flex-wrap items-start justify-between gap-x-4 gap-y-2">
-        <div className="min-w-0">
-          <h2 className="font-display text-xl font-semibold leading-snug text-foreground [overflow-wrap:anywhere]">{e.name}</h2>
-          <p className="mt-0.5 text-sm text-muted-foreground">{[dateRange(e.start, e.end), place(e.city, e.state, e.country), e.typeLabel].filter(Boolean).join(" · ")}</p>
-        </div>
-        <Button variant="secondary" size="sm" asChild><Link to={`/events/${season}/${code}`}>Event page <ArrowRight /></Link></Button>
+      {/* The picker above already shows the event in full (name, dates, place, type): no second copy here, just the way to its page. */}
+      <div className="flex items-center justify-between gap-3">
+        <h2 className="text-sm font-semibold text-foreground">Advancement odds<span className="sr-only"> at {e.name}, {[dateRange(e.start, e.end), place(e.city, e.state, e.country), e.typeLabel].filter(Boolean).join(", ")}</span></h2>
+        <Button variant="ghost" size="sm" asChild><Link to={`/events/${season}/${code}`}>Event page <ArrowRight /></Link></Button>
       </div>
       <AdvancementView season={season} code={code} team={team} nameOf={() => ""} onPickTeam={onPickTeam} />
     </section>
