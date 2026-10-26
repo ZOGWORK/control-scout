@@ -10,6 +10,7 @@ import { join } from "node:path";
 import { Resvg, initWasm } from "@resvg/resvg-wasm";
 import { SHARE_SIZES, allianceText, favourite, oddsPct } from "../../src/shared/share.js";
 import type { ConfidenceTier } from "@control-scout/predict-engine";
+import { tierWord } from "../../src/shared/tierWords.js";
 import { cardFonts, fitSize, fitText, glyphs, textWidth, type Font } from "./fonts.js";
 
 /** Bumped when the drawing changes, so cached copies (and their ETags) move on with it. */
@@ -41,9 +42,9 @@ const C = {
   gold: "#ffc700", red: "#f43f5e", blue: "#38bdf8",
 };
 const TIER: Record<ConfidenceTier, { label: string; color: string }> = {
-  provisional: { label: "Provisional confidence", color: "#fbbf24" },
-  moderate: { label: "Moderate confidence", color: "#7dd3fc" },
-  confident: { label: "Confident", color: "#4ade80" },
+  provisional: { label: `Confidence: ${tierWord("provisional")}`, color: "#fbbf24" },
+  moderate: { label: `Confidence: ${tierWord("moderate")}`, color: "#7dd3fc" },
+  confident: { label: `Confidence: ${tierWord("confident")}`, color: "#4ade80" },
 };
 
 const esc = (s: string) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");

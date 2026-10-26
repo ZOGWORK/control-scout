@@ -24,6 +24,8 @@ import { HBars } from "./charts";
 import { Legend } from "./MatchFigures";
 import { MODEL } from "./math";
 import { Chart, CountUp, Figure, Prose, Reveal, ScrollX, Seg, SectionHead, useTip } from "./ui";
+import { TIER_WORD, tierWord } from "../../shared/tierWords";
+import type { ConfidenceTier } from "../../shared/api";
 
 interface EngineAccuracy {
   testSeason: string;
@@ -187,11 +189,11 @@ export function AccuracySection() {
         <h3>Confidence tiers</h3>
         <p>Every prediction carries a tier. These thresholds are a <strong>stated rule, not a fitted value</strong>:</p>
         <ul className="list-disc space-y-1 pl-5">
-          <li><strong>Provisional:</strong> at least one robot has fewer than {CONFIDENCE_RULE.provisionalBelow} matches this season, so its rating is mostly last season's.</li>
-          <li><strong>Confident:</strong> every robot has at least {CONFIDENCE_RULE.confidentMinMatches} matches, and rating uncertainty is under {Math.round(CONFIDENCE_RULE.confidentMaxRatingShare * 100)}% of the total uncertainty.</li>
-          <li><strong>Moderate:</strong> everything in between.</li>
+          <li><strong>Rough guess:</strong> at least one robot has fewer than {CONFIDENCE_RULE.provisionalBelow} matches this season, so its rating is mostly last season's.</li>
+          <li><strong>Solid:</strong> every robot has at least {CONFIDENCE_RULE.confidentMinMatches} matches, and rating uncertainty is under {Math.round(CONFIDENCE_RULE.confidentMaxRatingShare * 100)}% of the total uncertainty.</li>
+          <li><strong>Fair:</strong> everything in between.</li>
         </ul>
-        <p>If the tiers mean anything, confident calls should be right more often than provisional ones. Here's how they've done in Control Scout's ledger{desc ? ` (${desc})` : ""}:</p>
+        <p>If the tiers mean anything, solid calls should be right more often than rough guesses. Here's how they've done in Control Scout's ledger{desc ? ` (${desc})` : ""}:</p>
       </Prose>
       <Reveal className="mx-auto mt-4 max-w-2xl">
         {apiState((b) => <Tiers block={b} />, <Skeleton className="h-32 rounded-xl" />)}
@@ -200,7 +202,7 @@ export function AccuracySection() {
       <Prose id="bonus" className="mt-12 scroll-mt-bar-20">
         <h3>Bonus ranking points</h3>
         <p>Next to the win odds of a qualification match, each alliance gets its chance of earning each of the season's bonus ranking points. It's the same math the event simulator uses: an alliance's chance at a bonus rises with its non-penalty score, and the engine averages that over the whole spread of scores the alliance could put up (game noise plus how well its robots are known). <strong>Expected RP</strong> is 3 for a win and 1 for a tie, weighted by their chances, plus the bonus chances. A tie's chance comes from how close the match is expected to be: about 1–1.5% in an even match, less in a lopsided one. The win chance shown counts a tie as half a win.</p>
-        <p>How much score a bonus takes drifts during a season, so the chance curve is fitted to the season's latest {BONUS_WINDOW.toLocaleString("en-US")} recorded qualification alliances, once there are at least {BONUS_MIN_SAMPLES}. The tier stays provisional below {BONUS_CONFIDENCE_RULE.provisionalBelow.toLocaleString("en-US")} alliances and at most moderate below {BONUS_CONFIDENCE_RULE.confidentMin.toLocaleString("en-US")}. Bonus calls are logged and scored like win calls, one call per alliance per bonus. The season replay fits the curve only on results from before each match.</p>
+        <p>How much score a bonus takes drifts during a season, so the chance curve is fitted to the season's latest {BONUS_WINDOW.toLocaleString("en-US")} recorded qualification alliances, once there are at least {BONUS_MIN_SAMPLES}. The tier stays a rough guess below {BONUS_CONFIDENCE_RULE.provisionalBelow.toLocaleString("en-US")} alliances and at most fair below {BONUS_CONFIDENCE_RULE.confidentMin.toLocaleString("en-US")}. Bonus calls are logged and scored like win calls, one call per alliance per bonus. The season replay fits the curve only on results from before each match.</p>
       </Prose>
       <Reveal className="mx-auto mt-4 max-w-3xl">
         {t && sel && season?.bonus ? <BonusLedger b={season.bonus[sel.kind]} kind={sel.kind} desc={desc} /> : t && sel ? <p className="text-center text-sm text-muted-foreground">No bonus ranking points in {season?.label ?? "this season"}.</p> : <Skeleton className="h-32 rounded-xl" />}
@@ -304,16 +306,16 @@ function Tiers({ block }: { block: AccuracyBlock }) {
     <div className="grid gap-2 rounded-2xl border border-border bg-card p-4">
       {rows.map((r) => (
         <div key={r.k} className="grid grid-cols-[6.5rem_minmax(0,1fr)_3.5rem] items-center gap-3 text-sm">
-          <span className="capitalize text-foreground">{r.k}</span>
-          <svg viewBox="0 0 100 10" preserveAspectRatio="none" className="h-3 w-full" role="group" aria-label={`${r.k} bar`}>
+          <span className="text-foreground">{TIER_WORD[r.k as ConfidenceTier] ?? r.k}</span>
+          <svg viewBox="0 0 100 10" preserveAspectRatio="none" className="h-3 w-full" role="group" aria-label={`${tierWord(r.k)} bar`}>
             <rect x={0} y={0} width={100} height={10} rx={2} fill="var(--color-muted)" />
             <rect x={0} y={0} width={Math.max(1, r.accuracy * 100)} height={10} rx={2} fill={r.k === "confident" ? "var(--color-accent)" : r.k === "moderate" ? "color-mix(in srgb, var(--color-accent) 60%, transparent)" : "var(--hiw-muted)"}
-              {...tip(`${r.k}: ${pct(r.accuracy, 1)} right over ${r.n.toLocaleString("en-US")} matches (Brier ${r.brier.toFixed(3)})`)} />
+              {...tip(`${TIER_WORD[r.k as ConfidenceTier] ?? r.k}: ${pct(r.accuracy, 1)} right over ${r.n.toLocaleString("en-US")} matches (Brier ${r.brier.toFixed(3)})`)} />
           </svg>
           <span className="text-right font-mono tabular-nums text-foreground">{pct(r.accuracy, 1)}</span>
         </div>
       ))}
-      <p className="font-mono text-xs text-muted-foreground">{rows.map((r) => `${r.k}: ${r.n.toLocaleString("en-US")} matches`).join(" · ")}</p>
+      <p className="font-mono text-xs text-muted-foreground">{rows.map((r) => `${tierWord(r.k)}: ${r.n.toLocaleString("en-US")} matches`).join(" · ")}</p>
     </div>
   );
 }
@@ -333,7 +335,7 @@ function Ranges({ block }: { block: AccuracyBlock }) {
         <StatCell value={`${pct(g.below, 0)} / ${pct(g.above, 0)}`} label="landed below / above the range" />
         <StatCell value={<CountUp value={g.width} decimals={0} />} label={`average range width in points, over ${g.n.toLocaleString("en-US")} alliance scores`} />
       </div>
-      {tiers.length > 0 && <p className="font-mono text-xs text-muted-foreground">By confidence tier (target {target}): {tiers.map((r) => `${r.k} ${pct(r.coverage, 1)} (${r.n.toLocaleString("en-US")})`).join(" · ")}</p>}
+      {tiers.length > 0 && <p className="font-mono text-xs text-muted-foreground">By confidence tier (target {target}): {tiers.map((r) => `${tierWord(r.k)} ${pct(r.coverage, 1)} (${r.n.toLocaleString("en-US")})`).join(" · ")}</p>}
     </div>
   );
 }

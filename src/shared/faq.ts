@@ -68,9 +68,9 @@ export const FAQ: FaqGroup[] = [
         "Each robot gets a rating: its expected points, split by game phase, updated after every match. Two alliances' ratings become a win chance and a likely score, and an event is simulated 2,000 times for advancement odds.",
         "The full method is on [How it works](/methodology).",
       ] },
-      { id: "confidence", q: "What do provisional, moderate and confident mean?", a: [
-        "Every prediction shows a confidence tier. Provisional means at least one robot has played too few matches this season to be rated well, so its rating leans on last season. Confident means every robot has a solid record and the ratings are settled. Moderate is in between.",
-        "Even a confident favourite loses sometimes: a win chance is a probability, not a promise. [How the tiers work](/methodology#confidence).",
+      { id: "confidence", q: "What do rough guess, fair and solid mean?", a: [
+        "Every prediction says how much to trust it. Rough guess means at least one robot has played too few matches this season to be rated well, so its rating leans on last season. Solid means every robot has a real record this season and the ratings have settled. Fair is in between.",
+        "Even a solid favourite loses sometimes: a win chance is a probability, not a promise. [How the tiers work](/methodology#confidence).",
       ] },
       { id: "accuracy", q: "How accurate are the predictions?", a: [
         "Every call is scored after the match and the record is public: the share of matches called right, Brier score, calibration and more, on [the track record](/methodology#accuracy).",
