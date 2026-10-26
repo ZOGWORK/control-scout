@@ -56,10 +56,10 @@ describe("MatchReportView", () => {
   it("OPR-only with no workspace: the call with its tier, all four teams by alliance with OPR, split and rank, no scouting links", () => {
     show(report(match(), [team(11, { flags: [{ kind: "penalties", label: "High penalties", detail: "x" }] }), team(12), team(13), team(14)]));
     expect(screen.getByText("64%")).toBeTruthy();
-    expect(screen.getByText(/Confident/)).toBeTruthy();
+    expect(screen.getByText(/Solid/)).toBeTruthy();
     // Each alliance's chance to win carries the tier too, not only the call card above (audit PUB3-F03 sweep).
-    expect(within(screen.getByRole("region", { name: "Red alliance" })).getByText(/to win/).textContent).toBe("64% to win · ~120 pts confident confidence");
-    expect(within(screen.getByRole("region", { name: "Blue alliance" })).getByText(/to win/).textContent).toBe("36% to win · ~98 pts confident confidence");
+    expect(within(screen.getByRole("region", { name: "Red alliance" })).getByText(/to win/).textContent).toBe("64% to win · ~120 pts confidence: solid");
+    expect(within(screen.getByRole("region", { name: "Blue alliance" })).getByText(/to win/).textContent).toBe("36% to win · ~98 pts confidence: solid");
     expect(screen.getByText("Red's auto is stronger")).toBeTruthy();
     expect(screen.getByTestId("opr-only")).toBeTruthy();
     const red = screen.getByRole("region", { name: "Red alliance" }), blue = screen.getByRole("region", { name: "Blue alliance" });
@@ -80,7 +80,7 @@ describe("MatchReportView", () => {
     const base = match().prediction!;
     show(report(match({ prediction: { ...base, redRange: [106, 134], blueRange: [86, 112], rangeLevel: 0.8 } })));
     expect(within(screen.getByRole("region", { name: "Red alliance" })).getByText(/to win/).textContent)
-      .toBe("64% to win · 120 ±14 (80% range 106–134: about 8 in 10 real scores land inside) pts confident confidence");
+      .toBe("64% to win · 120 ±14 (80% range 106–134: about 8 in 10 real scores land inside) pts confidence: solid");
     expect(screen.getByText(/± is the 80% range: red 106–134, blue 86–112/)).toBeTruthy();
   });
 

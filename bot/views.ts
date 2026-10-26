@@ -6,6 +6,7 @@ import type { APIEmbed, APIEmbedField } from "discord.js";
 import type { EventDetail, FieldRow, MatchView, TeamProfile } from "../src/shared/api.js";
 import type { RankingRow } from "../src/shared/rankings.js";
 import { allianceText, oddsPct, tierWords } from "../src/shared/share.js";
+import { TIER_WORD } from "../src/shared/tierWords.js";
 import { matchReportHref } from "../src/shared/matchReport.js";
 
 /** Volt (the site's accent, --color-accent) for answers; the site's danger red for errors. */
@@ -146,7 +147,7 @@ export function predictEmbed(d: Pick<EventDetail, "event">, m: MatchView, site: 
     fields.push({ name: "Red win", value: `\`${winBar(p.pRed)}\`` });
     fields.push({ name: "Blue win", value: `\`${winBar(1 - p.pRed)}\`` });
     if (score) fields.push({ name: "Predicted score", value: score, inline: true });
-    fields.push({ name: "Confidence", value: tierWords(p.tier), inline: true });
+    fields.push({ name: "Confidence", value: TIER_WORD[p.tier] ?? p.tier, inline: true });
   } else {
     fields.push({ name: "Prediction", value: "No prediction for this match yet." });
   }
