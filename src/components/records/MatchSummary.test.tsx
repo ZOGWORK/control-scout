@@ -115,13 +115,13 @@ describe("match records on a phone", () => {
     mount("/matches?season=2025");
     const q1 = card("Q1"), q2 = card("Q2");
     // The tier is the one the server sent (Q1's 70% is confident, Q2's 64% provisional), never worked out from the %.
-    expect(within(q1).getByText("confident").textContent).toBe("confident confidence");
-    expect(q1.textContent).toMatch(/Red favoured \(70%\), Red wonconfident confidence\(replayed call\)/);
-    expect(within(q2).getByText("provisional").textContent).toBe("provisional confidence");
-    expect(within(q2).queryByText("confident")).toBeNull();
+    expect(within(q1).getByText("solid").closest("span")!.textContent).toBe("confidence: solid");
+    expect(q1.textContent).toMatch(/Red favoured \(70%\), Red wonconfidence: solid\(replayed call\)/);
+    expect(within(q2).getByText("rough guess").closest("span")!.textContent).toBe("confidence: rough guess");
+    expect(within(q2).queryByText("solid")).toBeNull();
     fireEvent.click(within(q1).getByRole("button", { name: /More stats/ }));
     const dd = within(q1).getByText("Red pred. win %").nextElementSibling!;
-    expect(dd.textContent).toBe("70%confident confidence");
+    expect(dd.textContent).toBe("70%confidence: solid");
     // No prediction at all: no verdict, no tier.
     expect(card("Q3").textContent).not.toMatch(/favoured|confidence/);
   });
@@ -132,7 +132,7 @@ describe("match records on a phone", () => {
     expect(q4.textContent).toContain("Called it");
     expect(q4.textContent).toContain("Red favoured, Red won");
     expect(q4.textContent).not.toContain("81%");
-    expect(q4.textContent).not.toMatch(/provisional|moderate|confident/);
+    expect(q4.textContent).not.toMatch(/rough guess|fair|solid/);
     fireEvent.click(within(q4).getByRole("button", { name: /More stats/ }));
     const dd = within(q4).getByText("Red pred. win %").nextElementSibling!;
     expect(dd.textContent).not.toContain("%");
@@ -219,8 +219,8 @@ describe("match records on a wider screen", () => {
     expect(screen.getByRole("table")).toBeTruthy();
     // The predicted-win column carries each call's recorded tier, and no % where there is none.
     const cell = (label: string) => within(screen.getByRole("table")).getByText(label).closest("tr")!.lastElementChild!;
-    expect(cell("Q1").textContent).toBe("70%confident confidence");
-    expect(cell("Q2").textContent).toBe("64%provisional confidence");
+    expect(cell("Q1").textContent).toBe("70%confidence: solid");
+    expect(cell("Q2").textContent).toBe("64%confidence: rough guess");
     expect(cell("Q4").textContent).not.toContain("%");
     expect(screen.queryByRole("list", { name: "Matches" })).toBeNull();
     expect(screen.queryByRole("group", { name: "Layout" })).toBeNull();

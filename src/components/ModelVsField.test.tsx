@@ -39,7 +39,7 @@ describe("ModelVsField", () => {
     expect(screen.getByText("The model rates them higher than their seed")).toBeTruthy();
     expect(screen.getByText("Seeded higher than the model rates them")).toBeTruthy();
     expect(screen.getAllByText("91.2 ± 3.2")).toHaveLength(2);
-    expect(screen.getAllByText(/confident|moderate/).length).toBeGreaterThanOrEqual(2);
+    expect(screen.getAllByText(/solid|fair/).length).toBeGreaterThanOrEqual(2);
     expect(screen.getByText("Current seeding")).toBeTruthy();
     const text = document.body.textContent!.toLowerCase();
     for (const w of ["overrated", "underrated", "underperform", "overperform"]) expect(text).not.toContain(w);

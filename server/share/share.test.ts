@@ -59,7 +59,7 @@ describe("card drawing", () => {
     expect(t).toContain("a 73% win chance");
     expect(t).toContain("Hypnotic Robotics & KookyBotz");
     expect(t.some((s) => s.includes("33950 & 21058"))).toBe(true);
-    expect(t).toContain("Moderate confidence");
+    expect(t).toContain("Confidence: fair");
     expect(t).toContain("controlscout.org");
     expect(t).toContain("Q12 · Texas Championship · 2025–26 season");
     expect(t.join(" ")).not.toMatch(/FTC ?Scout/i);
@@ -76,7 +76,7 @@ describe("card drawing", () => {
     expect(svg).not.toContain("<script>");
     const t = text(svg);
     expect(t).toContain('<script>&"x"');
-    expect(t).toContain("Moderate confidence");
+    expect(t).toContain("Confidence: fair");
     expect(t).toContain("Backtest, not a live call");
   });
   it("a season with no score basis shows no predicted score", () => {
