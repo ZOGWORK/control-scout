@@ -158,7 +158,7 @@ export function SessionSetup({ season, initial, suggestedEvent, myTeam, onStart,
         {visible.length > 0 && (
           <ToggleGroup type="single" variant="cards" role="radiogroup" aria-label="Where are you scouting?" value={code}
             onValueChange={(v) => { const row = visible.find((r) => r.event.code === v); if (row) { setCode(v); setPicked(row.event); } }}
-            className="grid gap-2 overflow-visible">
+            className="grid grid-cols-1 gap-2 overflow-visible">
             {visible.map(({ event: e, today: onToday, mine }) => (
               <ToggleGroupItem key={e.code} value={e.code} className="w-full bg-card px-4 py-3">
                 <span className="flex w-full items-start justify-between gap-3">
@@ -175,7 +175,7 @@ export function SessionSetup({ season, initial, suggestedEvent, myTeam, onStart,
           </ToggleGroup>
         )}
         {!searching && rows.length > shown && (
-          <Button variant="outline" className="mt-2" onClick={() => setShown((n) => n + PAGE)}>Show more events</Button>
+          <div className="mt-3 flex justify-center"><Button variant="outline" onClick={() => setShown((n) => n + PAGE)}>Show more events</Button></div>
         )}
 
         <div className="mt-4 grid gap-1.5">
@@ -191,7 +191,7 @@ export function SessionSetup({ season, initial, suggestedEvent, myTeam, onStart,
 
       <Section title="What are you watching?">
         <ToggleGroup type="single" variant="cards" role="radiogroup" aria-label="What are you watching?" value={kind}
-          onValueChange={(v) => { if (v) setKind(v as Watching["kind"]); }} className="grid gap-2 overflow-visible">
+          onValueChange={(v) => { if (v) setKind(v as Watching["kind"]); }} className="grid grid-cols-1 gap-2 overflow-visible">
           {WATCH_OPTIONS.map((o) => (
             <ToggleGroupItem key={o.kind} value={o.kind} aria-describedby={`${helpKey}-${o.kind}`} className="w-full bg-card px-4 py-3">
               <span className="font-semibold text-foreground">{o.title}</span>
