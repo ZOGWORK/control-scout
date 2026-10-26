@@ -84,7 +84,7 @@ export function DataHub({ onOpen, className, ...p }: DataHubProps) {
             <Icon aria-hidden className="size-4 shrink-0 text-accent-text" />
             <span className="min-w-0 flex-1">
               <span className="block truncate text-sm font-medium text-foreground">{r.title}{r.srExtra && <span className="sr-only">{r.srExtra}</span>}</span>
-              <span className="block truncate text-xs text-muted-foreground">{r.detail}</span>
+              <span className="block text-xs text-muted-foreground">{r.detail}</span>
             </span>
             {/* The detail line already says the count; the badge is for the eye. */}
             {r.badge != null && <Badge variant="beta" aria-hidden className="shrink-0 tabular-nums">{r.badge}</Badge>}
