@@ -285,6 +285,14 @@ describe("the account footer", () => {
     expect(within(sheet).getByRole("button", { name: "Sign out" })).toBeTruthy();
   });
 
+  it("the sheet footer's Settings closes the sheet, even on Settings already", async () => {
+    shell("/settings");
+    const { sheet } = await openMenu();
+    const gear = within(sheet).getAllByRole("link", { name: "Settings" }).find((l) => !l.closest("nav"))!;
+    fireEvent.click(gear);
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+  });
+
   it("Escape in the sheet's account panel closes the panel, not the sheet", async () => {
     signIn();
     shell();
