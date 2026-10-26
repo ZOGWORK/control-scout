@@ -21,6 +21,8 @@ function Harness({ template = T26, start = "auto" as FieldPhase }: { template?: 
   values = v;
   return <PhaseForm template={template} value={v} onChange={setV} notes={notes} onNotes={setNotes} notesLabel="Notes on 12345" phase={phase} onPhase={setPhase} />;
 }
+// Radix tabs pick on mouse down (a click is down + up), as the pointer does.
+const pickTab = (name: string | RegExp) => fireEvent.mouseDown(screen.getByRole("tab", { name }), { button: 0, ctrlKey: false });
 const selected = () => screen.getByRole("tab", { selected: true }).textContent;
 
 describe("phases", () => {
@@ -40,22 +42,28 @@ describe("phases", () => {
     expect(screen.getByRole("button", { name: "Left start zone" })).toBeTruthy();
     expect(screen.queryByRole("button", { name: /Pollen/ })).toBeNull();
     expect(screen.queryByLabelText("Notes on 12345")).toBeNull();
-    fireEvent.click(screen.getByRole("tab", { name: "After" }));
+    pickTab("After");
     expect(screen.getByRole("radiogroup", { name: "Driver skill" })).toBeTruthy();
     expect(screen.getByRole("button", { name: "Broke down / disabled" })).toBeTruthy();
     fireEvent.change(screen.getByLabelText("Notes on 12345"), { target: { value: "fast cycles" } });
     expect((screen.getByLabelText("Notes on 12345") as HTMLTextAreaElement).value).toBe("fast cycles");
   });
-  it("arrow keys, Home and End move between tabs", () => {
+  it("arrow keys, Home and End move between tabs", async () => {
     render(<Harness />);
-    fireEvent.keyDown(screen.getByRole("tab", { name: "Auto" }), { key: "ArrowRight" });
+    // Radix moves the focus on the next tick, and a focused tab is the picked one.
+    const key = async (from: string, k: string) => {
+      fireEvent.keyDown(screen.getByRole("tab", { name: from }), { key: k });
+      await act(async () => { await new Promise((r) => setTimeout(r, 0)); });
+    };
+    act(() => screen.getByRole("tab", { name: "Auto" }).focus());
+    await key("Auto", "ArrowRight");
     expect(selected()).toBe("TeleOp");
     expect(document.activeElement?.textContent).toBe("TeleOp");
-    fireEvent.keyDown(screen.getByRole("tab", { name: "TeleOp" }), { key: "End" });
+    await key("TeleOp", "End");
     expect(selected()).toBe("After");
-    fireEvent.keyDown(screen.getByRole("tab", { name: "After" }), { key: "ArrowRight" });
+    await key("After", "ArrowRight");
     expect(selected()).toBe("Auto");
-    fireEvent.keyDown(screen.getByRole("tab", { name: "Auto" }), { key: "ArrowLeft" });
+    await key("Auto", "ArrowLeft");
     expect(selected()).toBe("After");
   });
   it("a phase the template doesn't have shows the nearest one before it, else the first", () => {
@@ -111,13 +119,13 @@ describe("match timer", () => {
   it("is off by default and shown on Auto only until started", () => {
     render(<Harness />);
     expect(screen.getByRole("timer").textContent).toBe("Off");
-    fireEvent.click(screen.getByRole("tab", { name: "TeleOp" }));
+    pickTab("TeleOp");
     expect(screen.queryByRole("timer")).toBeNull();
   });
   it("shows the field's clock and moves the tab at each boundary; a tab picked by hand holds until the next", () => {
     vi.useFakeTimers();
     render(<Harness start="teleop" />);
-    fireEvent.click(screen.getByRole("tab", { name: "Auto" }));
+    pickTab("Auto");
     fireEvent.click(screen.getByRole("button", { name: "Match started" }));
     act(() => { vi.advanceTimersByTime(12_000); });
     expect(screen.getByRole("timer").textContent).toBe("Auto 0:18");
@@ -128,7 +136,7 @@ describe("match timer", () => {
     act(() => { vi.advanceTimersByTime(6_000); });
     expect(selected()).toContain("TeleOp");
     expect(screen.getByText("TeleOp now")).toBeTruthy();
-    fireEvent.click(screen.getByRole("tab", { name: /^Auto/ }));
+    pickTab(/^Auto/);
     act(() => { vi.advanceTimersByTime(30_000); });
     expect(selected()).toBe("Auto");
     expect(screen.queryByText("TeleOp now")).toBeNull();
@@ -139,7 +147,7 @@ describe("match timer", () => {
     expect(screen.getByRole("timer").textContent).toBe("Ended");
     fireEvent.click(screen.getByRole("button", { name: "Stop" }));
     fireEvent.click(screen.getByRole("button", { name: "Reset" }));
-    fireEvent.click(screen.getByRole("tab", { name: "Auto" }));
+    pickTab("Auto");
     expect(screen.getByRole("timer").textContent).toBe("Off");
   });
   it("a timer kept by the caller survives switching teams (the form remounting)", () => {
