@@ -216,7 +216,8 @@ export function useMatchDraft(o: MatchDraftOptions) {
       if (t.status === "done") { unchanged++; continue; }
       if (t.status === "empty" && !opts.includeEmpty) { skipped.push(t.watched.team); continue; }
       const d = drafts[t.watched.team] ?? { data: {}, notes: "" }, tpl = t.template;
-      const isNew = !d.uuid && !d.kept;
+      // New: not an edit of a saved entry (a Personal copy saved while read-only is one too, once the workspace is writable).
+      const isNew = !d.uuid;
       // A new entry keeps only its template's fields; an edit keeps everything it had (also one whose entry was
       // deleted meanwhile: it's saved as a new entry, answers and all, with the template they were given with).
       const ids = new Set(tpl.fields.map((f) => f.id));
