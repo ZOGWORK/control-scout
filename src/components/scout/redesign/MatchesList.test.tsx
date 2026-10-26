@@ -4,7 +4,7 @@
 import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { ScheduleMatch, Watching } from "../../../shared/scoutMatch";
-import { MatchesList, matchRows, matchSummary } from "./MatchesList";
+import { MatchesList, matchRows, matchSummary, shortTime } from "./MatchesList";
 
 const m = (n: number, red: number[], blue: number[], time: string | null = null): ScheduleMatch => ({
   key: `qual:1:${n}`, label: `Q${n}`, level: "qual", time, startsAt: null, played: false, red, blue,
@@ -59,10 +59,12 @@ describe("MatchesList", () => {
       "Q2, red 13 and 14, blue 23 and 24, skipped",
       "Q3, red 15 and 16, blue 25 and 26, partly done",
       "Q4, red 17 and 18, blue 27 and 28, now",
-      expect.stringMatching(/^Q5, red 19 and 10, blue 29 and 20, about 10:42/),
+      `Q5, red 19 and 10, blue 29 and 20, about ${shortTime("2025-11-08T10:42:00")}`,
     ]);
     expect(rows()[3].getAttribute("aria-current")).toBe("true");
-    expect(rows()[4].textContent).toMatch(/~10:42/);
+    // The venue's clock, in this device's own way of writing times.
+    expect(shortTime("2025-11-08T10:42:00")).toBe(new Intl.DateTimeFormat(undefined, { hour: "numeric", minute: "2-digit", timeZone: "UTC" }).format(Date.UTC(2025, 10, 8, 10, 42)));
+    expect(rows()[4].textContent).toContain(`~${shortTime("2025-11-08T10:42:00")}`);
   });
 
   it("marks the watched teams, and none when watching all four", () => {
