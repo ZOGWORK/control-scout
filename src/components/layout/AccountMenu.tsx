@@ -15,7 +15,7 @@ import { AnimatePresence } from "motion/react";
 import { m } from "../motion";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { CheckCircle2, ExternalLink, KeyRound, LogIn, LogOut, Mail, Settings, UserRound } from "lucide-react";
-import { apiFetch, useOfflineMode } from "../../lib/api";
+import { apiFetch } from "../../lib/api";
 import { SIGNED_IN, usePersonal, type AccountUser, type SyncStatus } from "../../lib/personal";
 import { OtpInput } from "../arc/otp-input/otp-input";
 import { Button } from "../ui/button";
@@ -27,7 +27,7 @@ import { MergeScreen, ProviderButtons, useShortlistMerge } from "./AccountMerge"
 
 const SYNC_LABEL: Record<string, string> = { synced: "Synced", syncing: "Syncing…", offline: "Offline: will sync", error: "Sync error: will retry", local: "This device only" };
 
-/** The footer row's status line and dot. "Online" only while syncing works; no signal always reads "Offline". */
+/** The footer row's status line and dot. "Online" only while syncing works; a device that can't reach the account reads "Offline". */
 const STATUS: Record<SyncStatus, { label: string; dot: string }> = {
   synced: { label: "Online", dot: "bg-success" },
   syncing: { label: "Syncing…", dot: "bg-success" },
@@ -146,21 +146,22 @@ function Avatar({ initial, dot }: { initial: string; dot: string }) {
 /**
  * `place`: "sidebar" (the full sidebar: one row, the panel opens above it), "rail" (the icon rail: the avatar
  * and Settings stacked, names in tooltips, the panel opens beside it) or "sheet" (the phone's menu sheet).
+ * `onNavigate`: called by every link in it (Settings, Account settings, a team), even to the page already open.
  */
-export function AccountFooter({ place }: { place: "sidebar" | "rail" | "sheet" }) {
+export function AccountFooter({ place, onNavigate }: { place: "sidebar" | "rail" | "sheet"; onNavigate?: () => void }) {
   const { user, sync, offlineAccount, signOut } = usePersonal();
   const { open, setOpen, flow, setFlow, merging, added, endMerge } = useAccountPanel();
-  const noSignal = useOfflineMode();
   const panelId = useId();
   const rail = place === "rail";
   const name = user ? user.displayName || user.email || "Your account" : "";
-  const status = noSignal || offlineAccount ? STATUS.offline : STATUS[sync] ?? STATUS.local;
+  const status = offlineAccount ? STATUS.offline : STATUS[sync] ?? STATUS.local;
   const initial = (name || "?").trim().charAt(0).toUpperCase();
+  const leave = () => { setOpen(false); onNavigate?.(); };
   const signOutNow = () => signOut().then(() => { setOpen(false); toast("Signed out. Your data stays on this device"); });
   const toggle = { "data-account-toggle": "", onClick: () => setOpen((o) => !o), "aria-expanded": open, "aria-controls": panelId };
   const settings = (
     <Tip on={rail} label="Settings">
-      <Link to="/settings" aria-label="Settings" className={iconButton}><Settings className="size-[18px]" /></Link>
+      <Link to="/settings" onClick={leave} aria-label="Settings" className={iconButton}><Settings className="size-[18px]" /></Link>
     </Tip>
   );
   return (
@@ -203,7 +204,7 @@ export function AccountFooter({ place }: { place: "sidebar" | "rail" | "sheet" }
           className={cn("absolute z-50 max-h-[calc(100dvh-6rem)] overflow-y-auto rounded-xl border border-border bg-popover p-4 text-popover-foreground shadow-[0_18px_40px_-16px_rgba(0,0,0,.55)]",
             place === "rail" ? "bottom-0 left-full ml-3 w-96" : place === "sidebar" ? "bottom-full left-0 mb-2 w-96" : "inset-x-0 bottom-full mb-2")}>
           {merging ? <MergeScreen user={merging} added={added} onDone={endMerge} />
-            : user ? <SignedInPanel user={user} onClose={() => setOpen(false)} onSignOut={signOutNow} />
+            : user ? <SignedInPanel user={user} onClose={leave} onSignOut={signOutNow} />
             : <SignInPanel flow={flow} setFlow={setFlow} />}
         </m.div>
       )}
