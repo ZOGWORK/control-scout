@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 // Predict's this-week list: events grouped by their start day (today first, past days that are over last),
-// the most useful dozen first with "Show all", filters that search the whole week, every state, aria-pressed.
+// the most useful few first with "Show all", filters that search the whole week, every state, aria-pressed.
 import { act, cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { MemoryRouter } from "react-router-dom";
@@ -122,7 +122,7 @@ describe("WeekEvents", () => {
     ev("SCR1", { type: "Scrimmage", typeLabel: "Scrimmage", start: "2026-10-27", end: "2026-10-27" }),
   ];
 
-  it("starts with the most useful dozen, and Show all lists the whole week", () => {
+  it("starts with the most useful few, and Show all lists the whole week", () => {
     ok(many());
     mount();
     expect(screen.getByText(`Showing ${WEEK_FIRST} of 19`)).toBeTruthy();
@@ -144,6 +144,12 @@ describe("WeekEvents", () => {
     expect(screen.queryByRole("button", { name: /Show all/ })).toBeNull();
     fireEvent.change(screen.getByRole("searchbox", { name: /Filter events/ }), { target: { value: "" } });
 
+    // The type chips and the switch stay folded away behind Filters until asked for.
+    expect(screen.queryByRole("button", { name: "League" })).toBeNull();
+    const toggle = screen.getByRole("button", { name: /^Filters/ });
+    expect(toggle.getAttribute("aria-expanded")).toBe("false");
+    fireEvent.click(toggle);
+    expect(toggle.getAttribute("aria-expanded")).toBe("true");
     fireEvent.click(screen.getByRole("button", { name: "League" }));
     expect(screen.getByRole("button", { name: "League" }).getAttribute("aria-pressed")).toBe("true");
     expect(screen.getByText("Showing 1 of 19")).toBeTruthy();
@@ -154,6 +160,12 @@ describe("WeekEvents", () => {
     fireEvent.click(screen.getByRole("switch", { name: "Has matches scheduled" }));
     expect(screen.getByText("Showing 2 of 19")).toBeTruthy();
     expect(screen.getAllByText(/to play$/)).toHaveLength(2);
+    // Closed, the button still counts the filter that's on, and Clear filters is beside the count.
+    fireEvent.click(toggle);
+    expect(screen.getByRole("button", { name: "Filters, 1 on" })).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Clear filters" }));
+    expect(screen.getByText(`Showing ${WEEK_FIRST} of 19`)).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Filters" })).toBeTruthy();
   });
 
   it("says when no event matches and clears the filters", () => {
@@ -161,7 +173,7 @@ describe("WeekEvents", () => {
     mount();
     fireEvent.change(screen.getByRole("searchbox", { name: /Filter events/ }), { target: { value: "nowhere at all" } });
     expect(screen.getByText("No events match these filters")).toBeTruthy();
-    fireEvent.click(screen.getByRole("button", { name: /Clear filters/ }));
+    fireEvent.click(screen.getAllByRole("button", { name: /Clear filters/ })[0]);
     expect(screen.getByText(`Showing ${WEEK_FIRST} of 19`)).toBeTruthy();
   });
 
