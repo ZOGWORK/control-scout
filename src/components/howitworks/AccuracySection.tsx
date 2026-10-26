@@ -24,6 +24,8 @@ import { HBars } from "./charts";
 import { Legend } from "./MatchFigures";
 import { MODEL } from "./math";
 import { Chart, CountUp, Figure, Prose, Reveal, ScrollX, Seg, SectionHead, useTip } from "./ui";
+import { TIER_WORD, tierWord } from "../../shared/tierWords";
+import type { ConfidenceTier } from "../../shared/api";
 
 interface EngineAccuracy {
   testSeason: string;
@@ -304,16 +306,16 @@ function Tiers({ block }: { block: AccuracyBlock }) {
     <div className="grid gap-2 rounded-2xl border border-border bg-card p-4">
       {rows.map((r) => (
         <div key={r.k} className="grid grid-cols-[6.5rem_minmax(0,1fr)_3.5rem] items-center gap-3 text-sm">
-          <span className="capitalize text-foreground">{r.k}</span>
-          <svg viewBox="0 0 100 10" preserveAspectRatio="none" className="h-3 w-full" role="group" aria-label={`${r.k} bar`}>
+          <span className="text-foreground">{TIER_WORD[r.k as ConfidenceTier] ?? r.k}</span>
+          <svg viewBox="0 0 100 10" preserveAspectRatio="none" className="h-3 w-full" role="group" aria-label={`${tierWord(r.k)} bar`}>
             <rect x={0} y={0} width={100} height={10} rx={2} fill="var(--color-muted)" />
             <rect x={0} y={0} width={Math.max(1, r.accuracy * 100)} height={10} rx={2} fill={r.k === "confident" ? "var(--color-accent)" : r.k === "moderate" ? "color-mix(in srgb, var(--color-accent) 60%, transparent)" : "var(--hiw-muted)"}
-              {...tip(`${r.k}: ${pct(r.accuracy, 1)} right over ${r.n.toLocaleString("en-US")} matches (Brier ${r.brier.toFixed(3)})`)} />
+              {...tip(`${TIER_WORD[r.k as ConfidenceTier] ?? r.k}: ${pct(r.accuracy, 1)} right over ${r.n.toLocaleString("en-US")} matches (Brier ${r.brier.toFixed(3)})`)} />
           </svg>
           <span className="text-right font-mono tabular-nums text-foreground">{pct(r.accuracy, 1)}</span>
         </div>
       ))}
-      <p className="font-mono text-xs text-muted-foreground">{rows.map((r) => `${r.k}: ${r.n.toLocaleString("en-US")} matches`).join(" · ")}</p>
+      <p className="font-mono text-xs text-muted-foreground">{rows.map((r) => `${tierWord(r.k)}: ${r.n.toLocaleString("en-US")} matches`).join(" · ")}</p>
     </div>
   );
 }
@@ -333,7 +335,7 @@ function Ranges({ block }: { block: AccuracyBlock }) {
         <StatCell value={`${pct(g.below, 0)} / ${pct(g.above, 0)}`} label="landed below / above the range" />
         <StatCell value={<CountUp value={g.width} decimals={0} />} label={`average range width in points, over ${g.n.toLocaleString("en-US")} alliance scores`} />
       </div>
-      {tiers.length > 0 && <p className="font-mono text-xs text-muted-foreground">By confidence tier (target {target}): {tiers.map((r) => `${r.k} ${pct(r.coverage, 1)} (${r.n.toLocaleString("en-US")})`).join(" · ")}</p>}
+      {tiers.length > 0 && <p className="font-mono text-xs text-muted-foreground">By confidence tier (target {target}): {tiers.map((r) => `${tierWord(r.k)} ${pct(r.coverage, 1)} (${r.n.toLocaleString("en-US")})`).join(" · ")}</p>}
     </div>
   );
 }
