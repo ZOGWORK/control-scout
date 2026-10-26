@@ -36,8 +36,12 @@ export function pickPct(p: number): string {
 /** Milliseconds each call stays up. */
 export const TURN_MS = 4500;
 
-/** `still`: how many calls to list when the card doesn't turn over (reduced motion); Predict's header keeps it to one so the card stays short. */
-export function LatestCalls({ className, still: stillCount = 3 }: { className?: string; still?: number }) {
+/**
+ * `still`: how many calls to list when the card doesn't turn over (reduced motion). `compact` (Predict's header):
+ * one call, tighter spacing, and "Every call, scored" beside the heading, so the card is no taller than the
+ * header beside it and the mode's controls start right under the tabs.
+ */
+export function LatestCalls({ className, still: stillCount = 3, compact = false }: { className?: string; still?: number; compact?: boolean }) {
   const state = useApi<TrackRecord>("/api/predict/accuracy");
   const calls = (state.data?.recentCalls ?? []).filter((m): m is Call => !!m.prediction && m.played);
   const reduced = !!useReducedMotion();
@@ -54,19 +58,25 @@ export function LatestCalls({ className, still: stillCount = 3 }: { className?: 
   }, [still, hover, focus, calls.length]);
   if (state.error || (state.data && !calls.length)) {
     return state.data ? (
-      <aside aria-label="Latest live calls" className={cn("rounded-2xl border border-dashed border-line p-5 max-sm:p-4 text-sm text-text-muted", className)}>
+      <aside aria-label="Latest live calls" className={cn("rounded-2xl border border-dashed border-line text-sm text-text-muted", compact ? "px-4 py-3" : "p-5 max-sm:p-4", className)}>
         No live calls have been scored yet. Each match prediction is logged before the match and scored after it; they'll show here.
       </aside>
     ) : null;
   }
-  const shown = reduced && paused === null ? calls.slice(0, stillCount) : calls.length ? [calls[i % calls.length]] : [];
+  const shown = reduced && paused === null ? calls.slice(0, compact ? 1 : stillCount) : calls.length ? [calls[i % calls.length]] : [];
+  const scored = (
+    <Link to="/methodology#recent" className={cn("relative inline-flex items-center gap-1 font-semibold text-accent-text hover:underline", compact ? "min-h-8 text-xs" : "mt-3 min-h-9 text-sm")}>
+      Every call, scored <ArrowUpRight className={compact ? "size-3.5" : "size-4"} />
+    </Link>
+  );
   return (
     <aside aria-label="Latest live calls" onMouseEnter={() => setHover(true)} onMouseLeave={() => setHover(false)}
       onFocus={() => setFocus(true)} onBlur={(e) => { if (!e.currentTarget.contains(e.relatedTarget as Node | null)) setFocus(false); }}
-      className={cn("relative overflow-hidden rounded-2xl border border-line bg-card p-5 max-sm:p-4", className)}>
+      className={cn("relative overflow-hidden rounded-2xl border border-line bg-card", compact ? "px-4 py-3" : "p-5 max-sm:p-4", className)}>
       <div aria-hidden className="pointer-events-none absolute -right-16 -top-16 size-48 rounded-full bg-accent/10 blur-3xl" />
       <div className="relative flex items-center justify-between gap-3">
         <p className="text-xs font-semibold uppercase tracking-[0.16em] text-text-muted">Latest live calls</p>
+        {compact && <span className="ml-auto">{scored}</span>}
         {calls.length > 1 && !(reduced && paused === null) && (
           <button type="button" onClick={() => setPaused(!still)} aria-label={still ? "Turn through the calls" : "Stop turning through the calls"}
             className="inline-flex size-8 items-center justify-center rounded-lg border border-line text-text-muted hover:bg-text-base/[0.06] hover:text-text-base focus-visible:outline-2 focus-visible:outline-accent max-sm:size-10">
@@ -75,18 +85,16 @@ export function LatestCalls({ className, still: stillCount = 3 }: { className?: 
         )}
       </div>
       {!state.data ? <div aria-busy="true" className="mt-4 h-32" /> : (
-        <ul className="relative mt-3 space-y-3" aria-live="off">
+        <ul className={cn("relative space-y-3", compact ? "mt-1.5" : "mt-3")} aria-live="off">
           {shown.map((m) => <CallRow key={`${m.code}:${m.key}`} m={m} />)}
         </ul>
       )}
       {calls.length > 1 && !(reduced && paused === null) && (
-        <div className="relative mt-4 flex items-center gap-1.5" aria-hidden>
+        <div className={cn("relative flex items-center gap-1.5", compact ? "mt-2.5" : "mt-4")} aria-hidden>
           {calls.map((m, k) => <span key={`${m.code}:${m.key}`} className={cn("h-1 rounded-full transition-all duration-300 motion-reduce:transition-none", k === i % calls.length ? "w-5 bg-accent" : "w-1.5 bg-text-base/20")} />)}
         </div>
       )}
-      <Link to="/methodology#recent" className="relative mt-3 inline-flex min-h-9 items-center gap-1 text-sm font-semibold text-accent-text hover:underline">
-        Every call, scored <ArrowUpRight className="size-4" />
-      </Link>
+      {!compact && scored}
     </aside>
   );
 }
