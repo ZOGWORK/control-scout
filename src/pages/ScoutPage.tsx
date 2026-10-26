@@ -240,6 +240,9 @@ export default function ScoutPage() {
     setFormKind(kind); setFormTeam(team); setFormEvent(session ? { space, season, code: session.eventCode } : null);
     setFormNonce((n) => n + 1); setFormOpen(true);
   };
+  // Each match that comes on screen checks for newer questions (a missed live notice, or polling), as opening the
+  // old form does; drafts already started keep the questions they began with (useMatchDraft).
+  const onMatchShown = useCallback(() => { refreshTemplate(); refreshSettings(); }, [refreshTemplate, refreshSettings]);
   const matchTemplate = useMemo(() => resolveTemplate(space == null ? null : wt.template, season, "match"), [space, wt.template, season]);
   const spaceName = workspace ? workspaceLabel(workspace) : null;
   const sub = tab === "data" ? view : null;
@@ -329,7 +332,7 @@ export default function ScoutPage() {
             // Wide screens: the match list beside the match, to see what's done and jump without switching tabs.
             <div className="grid gap-8 xl:grid-cols-[minmax(0,48rem)_minmax(0,1fr)]">
             <div className={SCOUT_COLUMN}><MatchScout space={space} season={season} session={session} entries={entries} template={matchTemplate} author={me?.accountId ?? null}
-              readOnly={!!readOnly} spaceName={spaceName} matchLabel={sp.get("at")} onMatch={openMatch} onManual={() => openOldForm("match", undefined)} /></div>
+              readOnly={!!readOnly} spaceName={spaceName} matchLabel={sp.get("at")} onMatch={openMatch} onManual={() => openOldForm("match", undefined)} onShown={onMatchShown} /></div>
               <aside aria-label="Matches at this event" className="hidden xl:block">
                 <div className="sticky top-20 max-h-[calc(100dvh-6rem)] overflow-y-auto overscroll-contain pr-1">
                   <MatchesTab season={season} session={session} entries={entries} matchLabel={sp.get("at")} onMatch={openMatch} onManual={() => openOldForm("match", undefined)} />
