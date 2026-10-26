@@ -256,6 +256,10 @@ html.light { --amb-line: 0.045; --amb-glow: 0.14; --amb-breath: 0.08; --amb-tint
 /* Off: a still grid (reduced motion, or Settings → Appearance → Animated background). */
 html.ambient-off .ambient-grid, html.ambient-off .ambient-breath { animation: none; }
 html.ambient-off .ambient-breath, html.ambient-off .ambient-glow { display: none; }
+/* A page whose content is dense numbers (Predict) calms the background while it's open: the grid at half
+   strength, no breathing glow or pointer light, so nothing competes with the odds. */
+html.ambient-calm .ambient-grid { opacity: 0.5; }
+html.ambient-calm .ambient-breath, html.ambient-calm .ambient-glow { display: none; }
 /* While the page scrolls ([data-scrolling] on the page area around <main>, src/lib/pageScroll.ts), the
    ambient drift holds still: every scrolled frame then redraws only what moved, not the animated
    full-screen layers under it as well. It carries on from the same spot once scrolling stops. */
