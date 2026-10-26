@@ -4,6 +4,7 @@
 // match. A schedule FIRST hasn't published is "none", never made up (AGENTS.md rule 8).
 import { useEffect, useMemo } from "react";
 import { useApi } from "./api";
+import { offlineSource } from "./offline/saved";
 import type { EventDetail } from "../shared/api";
 import { scheduleFromMatches, type ScheduleMatch } from "../shared/scoutMatch";
 
@@ -59,13 +60,17 @@ export interface EventSchedule {
 export function useEventSchedule(season: number, code: string | null): EventSchedule {
   const c = code?.trim().toUpperCase() || null;
   const api = useApi<EventDetail>(c ? `/api/events/${season}/${encodeURIComponent(c)}` : null);
-  const fresh = useMemo(() => (api.data ? { name: api.data.event.name, matches: scheduleFromMatches(api.data.matches) } : null), [api.data]);
-  useEffect(() => { if (c && fresh && fresh.matches.length) storeSchedule(season, c, { ...fresh, at: Date.now() }); }, [season, c, fresh]);
-  const stored = useMemo(() => (c && !fresh ? readStoredSchedule(season, c) : null), [season, c, fresh]);
+  // An answer from a season saved on this device (no signal) can be older than the copy kept here from the
+  // server: the kept copy wins then, and a saved season's answer is never kept over it.
+  const answer = useMemo(() => (api.data ? { name: api.data.event.name, matches: scheduleFromMatches(api.data.matches), saved: !!offlineSource(api.data) } : null), [api.data]);
+  const kept = useMemo(() => (c && (!answer || answer.saved) ? readStoredSchedule(season, c) : null), [season, c, answer]);
+  const fresh = answer && !(answer.saved && kept?.matches.length) ? answer : null;
+  useEffect(() => { if (c && fresh && !fresh.saved && fresh.matches.length) storeSchedule(season, c, { name: fresh.name, matches: fresh.matches, at: Date.now() }); }, [season, c, fresh]);
+  const stored = fresh ? null : kept;
   const base = { reload: api.reload };
   if (!c) return { ...base, status: "none", matches: [], eventName: "", fromDevice: false };
-  if (fresh) return { ...base, status: fresh.matches.length ? "ready" : "none", matches: fresh.matches, eventName: fresh.name, fromDevice: false };
-  if (stored && (api.error || api.loading)) return { ...base, status: "ready", matches: stored.matches, eventName: stored.name, fromDevice: !!api.error };
+  if (fresh) return { ...base, status: fresh.matches.length ? "ready" : "none", matches: fresh.matches, eventName: fresh.name, fromDevice: fresh.saved };
+  if (stored) return { ...base, status: "ready", matches: stored.matches, eventName: stored.name, fromDevice: !!api.error || !!answer };
   if (api.error) return { ...base, status: "error", matches: [], eventName: "", fromDevice: false, error: api.error.message };
   return { ...base, status: "loading", matches: [], eventName: "", fromDevice: false };
 }
