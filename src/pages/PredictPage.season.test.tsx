@@ -68,10 +68,23 @@ describe("Advancement, an event from another season", () => {
   it("an unknown code says so and Pick another event clears it, keeping the team", async () => {
     page("/predict?mode=advancement&season=2026&code=NOPE1&team=4215");
     const alert = await screen.findByRole("alert");
-    await waitFor(() => expect(alert.textContent).toMatch(/No event NOPE1 in the seasons we hold/));
+    await waitFor(() => expect(alert.textContent).toMatch(/No event NOPE1 in a season with predictions/));
     fireEvent.click(screen.getByRole("button", { name: /Pick another event/ }));
     const q = new URLSearchParams(where);
     expect(q.get("code")).toBeNull();
     expect(q.get("team")).toBe("4215");
+  });
+
+  it("a lookup that fails in another season is an error with Try again, not a missing event", async () => {
+    vi.stubGlobal("fetch", async (url: string) => {
+      const u = String(url);
+      const json = (b: unknown, status = 200) => new Response(JSON.stringify(b), { status, headers: { "content-type": "application/json" } });
+      if (u === "/api/events/2026/FTCCMP1EDIS") return json({ error: "No event" }, 404);
+      if (u.startsWith("/api/events/2025/")) return json({ error: "Server error" }, 500);
+      return json(u.startsWith("/api/events") ? { events: [] } : { error: "No event" }, u.startsWith("/api/events?") ? 200 : 404);
+    });
+    page("/predict?mode=advancement&season=2026&code=FTCCMP1EDIS&team=4215");
+    expect(await screen.findByRole("button", { name: /Try again/ })).toBeTruthy();
+    expect(screen.queryByText(/No event FTCCMP1EDIS/)).toBeNull();
   });
 });
