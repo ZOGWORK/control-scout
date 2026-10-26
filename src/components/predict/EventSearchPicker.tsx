@@ -249,6 +249,13 @@ export function EventSearchPicker({ season, value, onChange, team = null, teamCo
           </button>
         )}
       </div>
+      {/* The list didn't load: said under the closed picker too, not only once it's opened. */}
+      {events.error && !events.loading && !open && (
+        <p role="alert" className="mt-1.5 flex flex-wrap items-center gap-x-2 text-xs text-muted-foreground">
+          Couldn’t load {seasonLabel(season)} events.
+          <button type="button" className="font-medium text-accent-text underline underline-offset-2" onClick={() => { void events.reload(); }}>Try again</button>
+        </p>
+      )}
     </div>
   );
 }
