@@ -75,3 +75,46 @@ to Priya" and "team 1234 to Priya and Sam" are both one request.
 An entry card shows **Assigned to <name>** (or "you") when its team is assigned at the
 entry's event in that season. The Assign sheet's team rows show the same badge. The
 Assignments button counts your open assignments.
+
+## Match scouting
+
+The Scout page scouts match by match, so a captain can also split the matches:
+"Priya: Red 1, Q1–Q30", "Marcus: Blue alliance, Q15 on". These are a second kind of
+assignment (table `workspace_match_assignments`, migration 46). Team assignments above
+are unchanged and still cover pit scouting.
+
+- **What:** `watching` is a slot, an alliance or all four teams (the same shape as the
+  Scout session's `Watching`, `src/shared/scoutMatch.ts`). The range is quals only:
+  `fromMatch` and `toMatch` are qual labels in any spelling (`12`, `q12`, `Q 012`),
+  stored as `Q12`. Either end can be left open (from the first qual, to the last).
+- **Who:** admins add, edit and remove; every member reads the list. The assignee must
+  be a member who has signed in to Scout, and the event must be one Scout has synced.
+- **Overlaps warn, they don't block.** Another assignment at the event that watches a
+  common slot in a common match comes back in `overlaps`, and the sheet shows it before
+  you save.
+- **No status.** Done is worked out per match from the entries: a member's match is done
+  when every team in their slot has an entry in it.
+
+| Route (under `…/assignments`) | Who | Answer |
+| --- | --- | --- |
+| `GET /matches?season=&event=&assignee=me\|<id>` | every member | `{ matchAssignments }` |
+| `POST /matches` `{ season, eventCode, watching, fromMatch, toMatch, assigneeAccountId }` | admins | `201 { matchAssignment, overlaps }` |
+| `PATCH /matches/:id` (the same body, as it should now be) | admins | `{ matchAssignment, overlaps }` |
+| `DELETE /matches/:id` | admins | `{ deleted: id }` |
+
+Each change goes out on the workspace's stream as `event: match-assignment`
+(`{ action, matchAssignments }`, no id). Each carries a `version` (+1 on every edit), so
+an older copy never replaces a newer one. The feed logs `assignment.match_created`,
+`assignment.match_updated` and `assignment.match_deleted`. The assignee gets an inbox
+item for each; when an edit moves an assignment to someone else, both members get one.
+
+In the app, `src/lib/slotAssignments.ts` holds the list (`useMatchAssignments`) and the
+two reads the Scout page uses:
+
+- `myMatchAssignment(list, me, eventCode, season, atMatch?)` returns the signed-in
+  member's own `{ watching, fromMatch, toMatch }` at the event, to prefill the session.
+- `othersByMatch(list, schedule, scouted, me, at?)` returns, for each match, who else
+  has teams in it and whether they're done. The Matches tab shows these.
+
+The Assignments view shows a **Match scouting** section with Add, Edit and Remove for
+admins (`src/components/scout/MatchAssignments.tsx`).

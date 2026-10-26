@@ -111,13 +111,15 @@ const KINDS: { kind: Watching["kind"]; label: string }[] = [
   { kind: "slot", label: "One team" }, { kind: "alliance", label: "Alliance" }, { kind: "all", label: "All 4" },
 ];
 
-export function MatchAssignSheet({ open, editing, onOpenChange, space, season, defaultEvent, state, myAccountId }: {
+export function MatchAssignSheet({ open, editing, onOpenChange, space, season, defaultEvent, state, myAccountId, members: given }: {
   open: boolean; editing: MatchAssignment | null; onOpenChange: (v: boolean) => void;
   space: string; season: number; defaultEvent: string; state: MatchAssignmentsState; myAccountId: number | null;
+  /** The members who can be assigned, when the caller already has them (else fetched on open). */
+  members?: AssignableMember[];
 }) {
   const phone = useMediaQuery("(max-width: 639px)");
   const [eventText, setEventText] = useState(defaultEvent);
-  const [members, setMembers] = useState<AssignableMember[] | null>(null);
+  const [members, setMembers] = useState<AssignableMember[] | null>(given ?? null);
   const [loadErr, setLoadErr] = useState<ApiError | null>(null);
   const [member, setMember] = useState<number | null>(null);
   const [kind, setKind] = useState<Watching["kind"]>("slot");
@@ -141,14 +143,14 @@ export function MatchAssignSheet({ open, editing, onOpenChange, space, season, d
   }, [open]); // eslint-disable-line react-hooks/exhaustive-deps -- only when it opens
 
   useEffect(() => {
-    if (!open) return;
+    if (!open || given) return;
     let live = true;
     setLoadErr(null);
     fetchAssignOptions(space, season, "")
       .then((r) => { if (live) setMembers(r.members); })
       .catch((e) => { if (live) setLoadErr(e instanceof ApiError ? e : new ApiError(0, "Couldn't load the members.")); });
     return () => { live = false; };
-  }, [open, space, season]);
+  }, [open, space, season, given]);
 
   const watching: Watching = kind === "slot" ? { kind, slot } : kind === "alliance" ? { kind, side } : { kind: "all" };
   const fromN = from.trim() ? qualNumber(from) : null, toN = to.trim() ? qualNumber(to) : null;
