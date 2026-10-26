@@ -33,6 +33,7 @@ import { all, get, run } from "../db.js";
 import { env } from "../env.js";
 import { isEnabled } from "../flags.js";
 import { localToUtcMs } from "../data/time.js";
+import { tierPhrase } from "../../src/shared/tierWords.js";
 import { isEventDay, localDate } from "../data/live.js";
 import { cleanValue, EMPTY_STATE, type Settings, type TrackedState } from "../../src/shared/personal.js";
 import {
@@ -236,7 +237,7 @@ export async function planMatchReminders(recipients: Recipient[], now = Date.now
       const teams = [...new Set([...(r.notify.myTeamMatches && r.myTeam ? [r.myTeam] : []), ...(r.notify.trackedTeams ? r.tracked.teams : [])])].filter((t) => inMatch.has(t));
       if (!teams.length) continue;
       const first = teams[0], side = l.red.includes(first) ? "red" : "blue";
-      const odds = m.p_red != null ? ` · ${first} ${pct(side === "red" ? Number(m.p_red) : 1 - Number(m.p_red))} to win (${m.tier} confidence)` : "";
+      const odds = m.p_red != null ? ` · ${first} ${pct(side === "red" ? Number(m.p_red) : 1 - Number(m.p_red))} to win (${tierPhrase(m.tier)})` : "";
       out.push({
         sub: r, kind: "match", subject: `${ek}:${key}`, expiresAt: m.startMs - PUSH_MIN_LEAD_MS,
         payload: (at) => ({
@@ -285,7 +286,7 @@ export async function planUpsets(recipients: Recipient[], now = Date.now()): Pro
         sub: r, kind: "upset", subject: `${season}:${p.code}:${key}`, expiresAt: now + 3600_000,
         payload: () => ({
           title: `Upset in ${p.label} at ${p.name}`,
-          body: `${listTeams(winners)} beat ${listTeams(losers)} ${ws}–${ls}. Our call before the match gave them ${pct(underdog)} (${p.tier} confidence).`,
+          body: `${listTeams(winners)} beat ${listTeams(losers)} ${ws}–${ls}. Our call before the match gave them ${pct(underdog)} (${tierPhrase(p.tier)}).`,
           url: matchUrl(season, p.code, key), tag: `upset:${season}:${p.code}:${key}`,
         }),
       });
