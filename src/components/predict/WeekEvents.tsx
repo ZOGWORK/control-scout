@@ -1,10 +1,11 @@
 // Predict (Scheduled): this week's events as a compact list grouped by day, so a long week stays scannable.
 // Each row is one button (aria-pressed for the picked event) with the full name, where it is, its type and
-// a status chip. Over a dozen events, a text filter, type chips and a "Has matches scheduled" toggle sit on
-// top; until one is used, the list starts with the most useful dozen (on now, then matches to play).
+// a status chip. When the week is long, a search box and a Filters button (type chips and a "Has matches
+// scheduled" switch, folded away until asked for) sit on top; until one is used, the list starts with the
+// most useful few (on now, then matches to play).
 import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
-import { CalendarDays, MapPin, Search, X } from "lucide-react";
+import { CalendarDays, MapPin, Search, SlidersHorizontal, X } from "lucide-react";
 import { useApi, qs } from "../../lib/api";
 import { useCurrentSeason } from "../../lib/meta";
 import { eventMatches } from "../../lib/labEvents";
@@ -18,7 +19,7 @@ import { Switch } from "../ui/controls";
 import { cn } from "../cn";
 
 /** More events than this: the discovery controls show, and the list starts with this many. */
-export const WEEK_FIRST = 12;
+export const WEEK_FIRST = 8;
 
 export type WeekKind = "all" | "advancing" | "league" | "other";
 export const KIND_LABEL: Record<WeekKind, string> = { all: "All", advancing: "Qualifiers & championships", league: "League", other: "Scrimmage & other" };
@@ -134,6 +135,7 @@ export function WeekEvents({ onPick, picked }: { onPick: (season: number, code: 
   const state = useApi<{ events: EventListItem[] }>(`/api/events${qs({ season, from: range.from, to: range.to })}`);
   const [filters, setFilters] = useState<WeekFilters>(NO_FILTERS);
   const [all, setAll] = useState(false);
+  const [open, setOpen] = useState(false);
 
   const events = state.data?.events;
   const view = useMemo(() => {
@@ -155,31 +157,44 @@ export function WeekEvents({ onPick, picked }: { onPick: (season: number, code: 
     );
   }
   const set = (p: Partial<WeekFilters>) => setFilters((f) => ({ ...f, ...p }));
+  // Filters beyond the search box, counted on the Filters button so a closed panel never hides one that's on.
+  const extra = Number(filters.kind !== "all") + Number(filters.scheduled);
   return (
     <div className="@container/week min-w-0">
       {view.controls && (
-        <div className="mb-4 space-y-3" role="search" aria-label="Filter this week's events">
-          <div className="relative">
-            <Search aria-hidden className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
-            <Input type="search" value={filters.q} onChange={(e) => set({ q: e.target.value })} placeholder="Filter by name, city, state or country"
-              aria-label="Filter events by name or place" className="pl-9" />
-          </div>
-          <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
-            <div role="group" aria-label="Event type" className="flex flex-wrap gap-1.5">
-              {(Object.keys(KIND_LABEL) as WeekKind[]).map((k) => (
-                <button key={k} type="button" aria-pressed={filters.kind === k} onClick={() => set({ kind: k })}
-                  className={cn("min-h-8 rounded-full border px-3 text-xs font-medium motion-safe:transition-colors",
-                    filters.kind === k ? "border-accent/60 bg-accent/15 text-accent-text" : "border-border text-muted-foreground hover:border-text-base/35 hover:text-foreground")}>
-                  {KIND_LABEL[k]}
-                </button>
-              ))}
+        <div className="mb-4" role="search" aria-label="Filter this week's events">
+          <div className="flex gap-2">
+            <div className="relative min-w-0 flex-1">
+              <Search aria-hidden className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+              <Input type="search" value={filters.q} onChange={(e) => set({ q: e.target.value })} placeholder="Search this week"
+                aria-label="Filter events by name or place" className="pl-9" />
             </div>
-            <div className="flex items-center gap-2">
-              <Switch id="week-scheduled" checked={filters.scheduled} onCheckedChange={(v) => set({ scheduled: v })} />
-              <Label htmlFor="week-scheduled" className="text-xs font-medium text-foreground">Has matches scheduled</Label>
-            </div>
+            <Button variant="outline" aria-label={extra > 0 ? `Filters, ${extra} on` : "Filters"} aria-expanded={open} aria-controls="week-filters" onClick={() => setOpen((x) => !x)}
+              className={cn(extra > 0 && "border-accent/60 text-accent-text")}>
+              <SlidersHorizontal /> Filters{extra > 0 && <span className="rounded-full bg-accent px-1.5 text-xs leading-5 text-accent-ink">{extra}</span>}
+            </Button>
           </div>
-          <p className="text-xs text-muted-foreground" aria-live="polite">Showing {view.shown.length} of {events.length}</p>
+          {open && (
+            <div id="week-filters" className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-2 rounded-xl border border-border p-3">
+              <div role="group" aria-label="Event type" className="flex flex-wrap gap-1.5">
+                {(Object.keys(KIND_LABEL) as WeekKind[]).map((k) => (
+                  <button key={k} type="button" aria-pressed={filters.kind === k} onClick={() => set({ kind: k })}
+                    className={cn("min-h-8 rounded-full border px-3 text-xs font-medium motion-safe:transition-colors",
+                      filters.kind === k ? "border-accent/60 bg-accent/15 text-accent-text" : "border-border text-muted-foreground hover:border-text-base/35 hover:text-foreground")}>
+                    {KIND_LABEL[k]}
+                  </button>
+                ))}
+              </div>
+              <div className="flex items-center gap-2">
+                <Switch id="week-scheduled" checked={filters.scheduled} onCheckedChange={(v) => set({ scheduled: v })} />
+                <Label htmlFor="week-scheduled" className="text-xs font-medium text-foreground">Has matches scheduled</Label>
+              </div>
+            </div>
+          )}
+          <p className="mt-2 text-xs text-muted-foreground" aria-live="polite">
+            <span>Showing {view.shown.length} of {events.length}</span>
+            {view.on && <> · <button type="button" className="underline underline-offset-2 hover:text-foreground" onClick={() => setFilters(NO_FILTERS)}>Clear filters</button></>}
+          </p>
         </div>
       )}
       {!view.shown.length ? (
