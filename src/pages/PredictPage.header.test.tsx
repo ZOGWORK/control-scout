@@ -9,7 +9,6 @@ import type { EventDetail, MatchView, TeamProfile } from "../shared/api";
 
 vi.mock("../lib/personal", () => ({ usePersonal: () => ({ user: null, providers: {}, state: { myTeam: null, tracked: { teams: [], events: [] }, bookmarks: [], videoLinks: {}, predictionHistory: [] }, update: () => true, syncReady: false }) }));
 vi.mock("../lib/meta", async (orig) => ({ ...(await orig<typeof import("../lib/meta")>()), useMeta: () => ({ seasons: [2026, 2025].map((season) => ({ season, predictable: true, game: "Game" })) }), useCurrentSeason: () => 2026, useTitle: () => {} }));
-vi.mock("../components/layout/Search", () => ({ SEARCH_HINT: "Ctrl K", usePageSearch: () => null }));
 
 const { default: PredictPage } = await import("./PredictPage");
 const { TooltipProvider } = await import("../components/ui/overlay");
