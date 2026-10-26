@@ -30,6 +30,7 @@ import { CompareBrief } from "../components/CompareBrief";
 import { cn } from "../components/cn";
 import { useTeamColors } from "../components/TeamColorPicker";
 import { Reveal, Stagger, StaggerItem, m } from "../components/motion";
+import { predictHref } from "../shared/predictUrl";
 
 const COLORS = ["var(--color-chart-1)", "var(--color-chart-2)", "var(--color-chart-3)", "var(--color-chart-4)"];
 
@@ -421,7 +422,7 @@ function Compare({ d, onRemove, onMove }: { d: CompareView; onRemove: (n: number
   const trend = Array.from({ length: maxEvents }, (_, i) => ({ i: `E${i + 1}`, ...Object.fromEntries(t.map((x) => [String(x.team.number), x.events[i]?.opr ?? null])) }));
   // 2019–2022 are history only: their predict routes 404, so no "Predict" button.
   const predictable = usePredictable(d.season);
-  const lab = t.length === 4 && predictable ? `/predict?mode=match&season=${d.season}&red=${t[0].team.number},${t[1].team.number}&blue=${t[2].team.number},${t[3].team.number}` : null;
+  const lab = t.length === 4 && predictable ? predictHref({ mode: "match", season: d.season, red: [t[0].team.number, t[1].team.number], blue: [t[2].team.number, t[3].team.number] }) : null;
   return (
     <div className="space-y-6 max-sm:space-y-4">
       {/* The stats and both charts share the first screen from lg up. */}
