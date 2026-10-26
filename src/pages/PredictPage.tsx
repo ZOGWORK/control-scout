@@ -367,6 +367,15 @@ function MatchLab() {
     setSp((x) => { x.set("mode", "match"); x.set("season", String(season)); x.set("red", red.join(",")); x.set("blue", blue.join(",")); return x; }, { replace: true });
   };
   const swap = () => { edits.current++; setRed(blue); setBlue(red); setErrors((e) => [e[2], e[3], e[0], e[1]]); };
+  // From the result: the same four teams with the alliances swapped, predicted straight away (they're already checked).
+  const swapResult = () => {
+    if (!submittedTeams) return;
+    const m = { red: submittedTeams.blue, blue: submittedTeams.red };
+    edits.current++;
+    setRed(m.red.map(String)); setBlue(m.blue.map(String)); setErrors([null, null, null, null]);
+    setSubmittedTeams(m);
+    setSp((x) => { x.set("mode", "match"); x.set("season", String(season)); x.set("red", m.red.join(",")); x.set("blue", m.blue.join(",")); return x; }, { replace: true });
+  };
   return (
     <div className="space-y-6 max-sm:space-y-4">
       <div className="rounded-2xl border border-border bg-card p-4 sm:p-6">
@@ -388,9 +397,9 @@ function MatchLab() {
         </form>
       </div>
       {submitted && (state.error
-        ? (offline.data ? <MatchResult x={offline.data} offlineAsOf={offline.asOf} /> : offline.loading ? <div className="skeleton h-72 rounded-2xl" /> : <ErrorState error={state.error} onRetry={state.reload} />)
-        : !state.data ? <div className="skeleton h-72 rounded-2xl" /> : <MatchResult x={state.data} />)}
-      {!submitted && <EmptyState icon={Swords} title="Pick four teams" description="Any teams, any season — a real matchup or a what-if. You'll get win odds, predicted scores with ranges, the three biggest reasons, and how confident the call is." />}
+        ? (offline.data ? <MatchResult x={offline.data} offlineAsOf={offline.asOf} onSwap={swapResult} /> : offline.loading ? <div className="skeleton h-72 rounded-2xl" /> : <ErrorState error={state.error} onRetry={state.reload} />)
+        : !state.data ? <div className="skeleton h-72 rounded-2xl" /> : <MatchResult x={state.data} onSwap={swapResult} />)}
+      {!submitted && <EmptyState icon={Swords} title="Pick four teams" description="Any teams, any season. You'll get win odds, predicted scores with ranges, the three biggest reasons, and how confident the call is." />}
       <SavedPredictions />
     </div>
   );
@@ -423,7 +432,7 @@ function useOfflineFallback(q: { season: number; red: number[]; blue: number[] }
   return out;
 }
 
-function MatchResult({ x, offlineAsOf }: { x: MatchExplanationView; offlineAsOf?: string | null }) {
+function MatchResult({ x, offlineAsOf, onSwap }: { x: MatchExplanationView; offlineAsOf?: string | null; onSwap?: () => void }) {
   const { update } = usePersonal();
   const fav = x.winProbRed >= 0.5 ? "Red" : "Blue";
   const save = () => {
@@ -437,7 +446,8 @@ function MatchResult({ x, offlineAsOf }: { x: MatchExplanationView; offlineAsOf?
         {offlineAsOf && <p className="mb-3 flex items-center gap-2 rounded-lg border border-info/30 bg-info/[0.06] px-3 py-2 text-xs"><WifiOff className="size-3.5 text-info" />Offline — predicted on this device from your lite pack (ratings as of {new Date(offlineAsOf).toLocaleDateString()}).</p>}
         <div className="flex flex-wrap items-center justify-between gap-3">
           <ConfidenceBadge tier={x.confidence.tier} reason={x.confidence.reason} />
-          <div className="flex gap-2">
+          <div className="flex flex-wrap gap-2">
+            {onSwap && <Button variant="ghost" size="sm" onClick={onSwap}><ArrowLeftRight /> Swap sides</Button>}
             {/* Offline there's no server to draw the card: just the link. */}
             {offlineAsOf ? <Button variant="outline" size="sm" onClick={share}><Link2 /> Share</Button>
               : <ShareMatch query={{ season: x.season, red: x.red, blue: x.blue }} pRed={x.winProbRed} pBlue={x.winProbBlue} tier={x.confidence.tier} />}
@@ -454,7 +464,7 @@ function MatchResult({ x, offlineAsOf }: { x: MatchExplanationView; offlineAsOf?
           <div><p className="text-muted-foreground">Predicted score</p><p className="font-display text-2xl font-semibold"><ScoreRange mean={x.predictedRed} range={x.rangeRed} level={x.rangeLevel} pmClassName="text-base font-medium text-muted-foreground" /></p><p className="text-xs text-muted-foreground">{levelPct(x.rangeLevel)} range {x.rangeRed[0]}–{x.rangeRed[1]}</p></div>
           <div className="text-right"><p className="text-muted-foreground">Predicted score</p><p className="font-display text-2xl font-semibold"><ScoreRange mean={x.predictedBlue} range={x.rangeBlue} level={x.rangeLevel} pmClassName="text-base font-medium text-muted-foreground" /></p><p className="text-xs text-muted-foreground">{levelPct(x.rangeLevel)} range {x.rangeBlue[0]}–{x.rangeBlue[1]}</p></div>
         </div>
-        <p className="mt-2 text-xs text-muted-foreground">± is the {levelPct(x.rangeLevel)} range: about {Math.round((x.rangeLevel ?? 0.8) * 10)} in 10 real scores land inside it. It's wider for robots with few matches or up-and-down results. <Link to="/methodology#ranges" className="underline">How often it holds</Link></p>
+        <p className="mt-2 text-xs text-muted-foreground">± covers about {Math.round((x.rangeLevel ?? 0.8) * 10)} in 10 real scores. <Link to="/methodology#ranges" className="underline">How often it holds</Link></p>
         {x.bonus && <BonusOdds season={x.season} bonus={x.bonus} className="mt-4 bg-text-base/[0.02]" />}
         <p className="mt-4 text-xs text-muted-foreground">{fav} is favoured — not certain. This is a probability from current ratings, including penalties each side tends to give away.</p>
         <CalibrationLine pRed={x.winProbRed} className="mt-2" />
@@ -464,16 +474,18 @@ function MatchResult({ x, offlineAsOf }: { x: MatchExplanationView; offlineAsOf?
           <span>{seasonLabel(x.season)} · engine v{x.engineVersion}</span>
         </div>
       </div>
-      <div className="grid gap-4 md:grid-cols-2">
+      <div className="grid items-start gap-4 md:grid-cols-2">
         <div className="rounded-2xl border border-border bg-card p-5 max-sm:p-4">
-          <h3 className="mb-3 text-base font-semibold">Why — the top 3 factors</h3>
+          <h3 className="mb-3 text-base font-semibold">Why: the top 3 factors</h3>
           <FactorList factors={x.factors} reasons={x.reasons} />
           {x.history ? <PairHistoryLine history={x.history} className="mt-1.5" /> : null}
           <p className="mt-3 text-xs text-muted-foreground">Factors are an exact split of the predicted margin by game phase{x.history ? "; the last line is these robots' real history together or against each other" : ""}. <Link to="/methodology#factors" className="underline">More</Link></p>
         </div>
-        <div className="rounded-2xl border border-border bg-card p-5 max-sm:p-4">
-          <h3 className="mb-3 text-base font-semibold">The robots</h3>
-          <table className="w-full text-sm">
+        <details className="group rounded-2xl border border-border bg-card p-5 max-sm:p-4 md:open:row-span-1">
+          <summary className="flex cursor-pointer list-none items-center justify-between gap-2 text-base font-semibold [&::-webkit-details-marker]:hidden">
+            The robots' ratings <ChevronDown className="size-4 text-muted-foreground transition-transform group-open:rotate-180 motion-reduce:transition-none" aria-hidden />
+          </summary>
+          <table className="mt-3 w-full text-sm">
             <thead><tr className="text-left text-[10px] font-bold uppercase tracking-wider text-muted-foreground"><th className="pb-2">Team</th><th className="pb-2 text-right">Adds</th><th className="pb-2 text-right">Auto</th><th className="pb-2 text-right">Tele</th><th className="pb-2 text-right">End</th><th className="pb-2 text-right">Matches</th></tr></thead>
             <tbody>
               {[...x.teamsRed.map((t) => ({ ...t, side: "red" })), ...x.teamsBlue.map((t) => ({ ...t, side: "blue" }))].map((t) => (
@@ -486,7 +498,7 @@ function MatchResult({ x, offlineAsOf }: { x: MatchExplanationView; offlineAsOf?
               ))}
             </tbody>
           </table>
-        </div>
+        </details>
       </div>
     </div>
   );
@@ -494,12 +506,13 @@ function MatchResult({ x, offlineAsOf }: { x: MatchExplanationView; offlineAsOf?
 
 function SavedPredictions() {
   const { state, update } = usePersonal();
+  const [all, setAll] = useState(false);
   const h = state.predictionHistory;
   if (!h.length) return null;
   return (
     <Section title="Your saved predictions" description="Saved on this device (and your account, when signed in)." action={<Button variant="ghost" size="sm" onClick={() => update("predictionHistory", () => [])}>Clear</Button>}>
       <ul className="grid gap-2 sm:grid-cols-2">
-        {h.slice(0, 12).map((p) => (
+        {h.slice(0, all ? 12 : 4).map((p) => (
           <li key={p.id}>
             <Link to={predictHref({ mode: "match", season: p.season, red: p.red, blue: p.blue })} className="lift block rounded-xl border border-border bg-card p-3 text-sm">
               <div className="flex items-center justify-between gap-2"><span><span className="text-red-alliance">{p.red.join("+")}</span> vs <span className="text-blue-alliance">{p.blue.join("+")}</span></span><span className="text-xs text-muted-foreground">{seasonLabel(p.season)}</span></div>
@@ -509,6 +522,7 @@ function SavedPredictions() {
           </li>
         ))}
       </ul>
+      {h.length > 4 && <Button variant="ghost" size="sm" className="mt-2" onClick={() => setAll((v) => !v)}>{all ? "Show fewer" : `Show ${Math.min(12, h.length) - 4} more`}</Button>}
     </Section>
   );
 }
