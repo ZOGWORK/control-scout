@@ -10,6 +10,7 @@ import { announceComment } from "../lib/scoutComments";
 import { resetFlags } from "../lib/flags";
 import { DEFAULT_FLAGS } from "../shared/flags";
 import { TooltipProvider } from "../components/ui/overlay";
+import { asEntries } from "./scoutTestUrl";
 
 const h = vi.hoisted(() => ({
   personal: { user: null as AccountUser | null, providers: { email: true, google: false } as object | null, syncReady: true, state: { videoLinks: {} } },
@@ -46,7 +47,7 @@ beforeEach(() => {
 });
 afterEach(() => { cleanup(); resetFlags({ ...DEFAULT_FLAGS }); vi.unstubAllGlobals(); });
 
-const show = (url: string) => render(<TooltipProvider><MemoryRouter initialEntries={[url]}><ScoutPage /><Where /></MemoryRouter></TooltipProvider>);
+const show = (url: string) => render(<TooltipProvider><MemoryRouter initialEntries={[asEntries(url)]}><ScoutPage /><Where /></MemoryRouter></TooltipProvider>);
 
 describe("comment counts on entry cards", () => {
   it("a workspace entry with comments shows the count; it follows live changes; tapping it opens the entry", async () => {
