@@ -218,17 +218,18 @@ html body[data-scroll-locked] { margin-right: 0 !important; }
 /* Page canvas: a faint volt glow at the top (Control Point .m-canvas); the
    grid itself lives on the ambient layer behind the scrolling content. */
 .m-canvas {
-  background-image: radial-gradient(1200px 320px at 50% -120px, color-mix(in srgb, var(--color-accent) 7%, transparent), transparent 70%);
+  background-image: radial-gradient(1200px 320px at 50% -120px, color-mix(in srgb, var(--color-accent) 5%, transparent), transparent 70%);
   background-attachment: local;
 }
 
 /* ---------- Ambient background (always on) ----------
    Control Point's line grid, alive: lines drift one cell every ~48 s, a soft
    glow breathes at the top corners, and a light follows the pointer. Tuned to
-   be noticeable at rest but never compete with content: the grid fades out
+   be noticeable at rest but stay well behind content (kept faint so cards and
+   tables read first): the grid fades out
    towards the bottom, and everything is transform/opacity on its own layer. */
-:root { --amb-line: 0.075; --amb-glow: 0.16; --amb-breath: 0.10; --amb-tint: 255 199 0; }
-html.light { --amb-line: 0.07; --amb-glow: 0.22; --amb-breath: 0.14; --amb-tint: 234 179 8; }
+:root { --amb-line: 0.05; --amb-glow: 0.11; --amb-breath: 0.06; --amb-tint: 255 199 0; }
+html.light { --amb-line: 0.045; --amb-glow: 0.14; --amb-breath: 0.08; --amb-tint: 234 179 8; }
 /* The fade towards the bottom is drawn into the layers themselves, not a mask-image over them: the page
    scrolls over this layer, and a masked layer there was repainted on every scrolled frame (scroll frame
    times doubled). The grid lays the page colour over its lines (the same picture over the plain page),
