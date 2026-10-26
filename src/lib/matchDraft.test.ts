@@ -265,3 +265,26 @@ describe("yourMatchEntry", () => {
     expect(yourMatchEntry([e({ uuid: "old" }), e({ uuid: "new", updatedAt: 5 })], o)?.uuid).toBe("new");
   });
 });
+
+describe("an edit's own template", () => {
+  const v2 = { workspaceId: "w1", season: 2025, version: 2, settingsVersion: 0, updatedAt: null, updatedBy: null, pit: null,
+    match: [{ id: "cycles", label: "Cycles (v2)", type: "counter", phase: "teleop", max: 30 }, { id: "oldField", label: "Old field", type: "text", phase: "overall" }] };
+
+  it("an entry saved with an earlier version shows that version's questions, not today's", () => {
+    localStorage.setItem("cs-scout-tplv:w1:2025:2", JSON.stringify(v2));
+    const mine = serverEntry({ uuid: "aaaaaaaaaaaa", team: 4410 });
+    const { result } = setup({ existing: [mine] });
+    const t = result.current.teams[0];
+    expect(t.locked).toBe(false);
+    expect(t.template.fields.map((f) => f.label)).toEqual(["Cycles (v2)", "Old field"]);
+    expect(result.current.teams[1].template).toBe(wsTemplate); // a new entry: today's questions
+  });
+
+  it("while that version isn't on this device the fields are locked (notes still change)", () => {
+    vi.spyOn(globalThis, "fetch").mockRejectedValue(new TypeError("offline"));
+    const mine = serverEntry({ uuid: "aaaaaaaaaaaa", team: 4410 });
+    const { result } = setup({ existing: [mine] });
+    expect(result.current.teams[0].locked).toBe(true);
+    expect(result.current.teams[1].locked).toBe(false);
+  });
+});

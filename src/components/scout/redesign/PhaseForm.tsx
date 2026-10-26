@@ -62,13 +62,15 @@ export interface PhaseFormProps {
   phase: FieldPhase;
   onPhase: (phase: FieldPhase) => void;
   disabled?: boolean;
+  /** The fields can be read, not changed (an edit whose own template version isn't loaded); notes and the timer still work. */
+  lockFields?: boolean;
   /** How a yes/no reads when on (breakdownTone by default). */
   toneOf?: (f: ScoutField) => FieldTone;
   /** The match's timer, from useMatchTimer(setPhase) in the caller; leave out to keep one inside the form. */
   timer?: MatchTimer;
 }
 
-export function PhaseForm({ template, value, onChange, notes, onNotes, notesLabel = "Notes", phase, onPhase, disabled, toneOf = breakdownTone, timer }: PhaseFormProps) {
+export function PhaseForm({ template, value, onChange, notes, onNotes, notesLabel = "Notes", phase, onPhase, disabled, lockFields = false, toneOf = breakdownTone, timer }: PhaseFormProps) {
   const uid = useId();
   const phases = formPhases(template);
   const shown = shownPhase(phases, phase);
@@ -118,7 +120,7 @@ export function PhaseForm({ template, value, onChange, notes, onNotes, notesLabe
           </div>
         )}
         <span className="sr-only" aria-live="polite">{t.cue ? `${phaseLabel(t.cue)} started` : ""}</span>
-        {fields.map((f) => <BigFieldInput key={f.id} f={f} value={value[f.id]} onChange={(v) => set(f, v)} tone={toneOf(f)} disabled={disabled} idPrefix={`${uid}-f`} />)}
+        {fields.map((f) => <BigFieldInput key={f.id} f={f} value={value[f.id]} onChange={(v) => set(f, v)} tone={toneOf(f)} disabled={disabled || lockFields} idPrefix={`${uid}-f`} />)}
         {shown === notesPhase(template) && (
           <div className="mt-1 space-y-1.5">
             <Label htmlFor={`${uid}-notes`}>{notesLabel}</Label>
@@ -126,7 +128,7 @@ export function PhaseForm({ template, value, onChange, notes, onNotes, notesLabe
               placeholder="What stood out? Strategy, reliability, driver habits…" />
           </div>
         )}
-        <Button type="button" variant="link" onClick={undo} disabled={disabled || !canUndo}
+        <Button type="button" variant="link" onClick={undo} disabled={disabled || lockFields || !canUndo}
           className="h-[44px] justify-self-start px-0 text-muted-foreground underline hover:text-foreground">
           Undo last tap
         </Button>

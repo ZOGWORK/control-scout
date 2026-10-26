@@ -2,7 +2,7 @@
 // scout watches (team tabs, one phase at a time, the match timer), saved as one entry per team with one Save
 // that moves on to the next match. The pieces are the redesign's own (MatchHeader, TeamTabs, PhaseForm,
 // SaveMatchBar, useMatchDraft); this joins them to the page's state.
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { MatchHeader, ScheduleState } from "./MatchHeader";
 import { TeamTabs } from "./TeamTabs";
 import { PhaseForm } from "./PhaseForm";
@@ -43,9 +43,16 @@ export function MatchScout(p: MatchScoutProps) {
   const schedule = useEventSchedule(season, session.eventCode);
   const scouted = useMemo(() => scoutedByMatch(entries, session.eventCode), [entries, session.eventCode]);
   const next = useMemo(() => nextMatchIndex(schedule.matches, session.watching, scouted), [schedule.matches, session.watching, scouted]);
-  const wanted = normalizeMatchLabel(p.matchLabel);
+  // The match on screen: the one asked for, else where scouting picked up when the screen opened. Fixed once
+  // open: entries arriving from other scouts move `next`, and must never move the match (or its timer) mid-scout.
+  const [opened, setOpened] = useState<{ event: string; label: string } | null>(null);
+  const wanted = normalizeMatchLabel(p.matchLabel) ?? (opened?.event === session.eventCode ? opened.label : null);
   const found = wanted ? schedule.matches.findIndex((m) => normalizeMatchLabel(m.label) === wanted) : -1;
   const index = found >= 0 ? found : next;
+  const shownLabel = index >= 0 ? normalizeMatchLabel(schedule.matches[index]?.label) : null;
+  useEffect(() => {
+    if (shownLabel && (opened?.event !== session.eventCode || opened.label !== shownLabel)) setOpened({ event: session.eventCode, label: shownLabel });
+  }, [shownLabel, session.eventCode, opened]);
 
   if (schedule.status !== "ready" || index < 0) {
     return <ScheduleState status={schedule.status === "ready" ? "none" : schedule.status} error={schedule.error} onManual={p.onManual} onRetry={() => void schedule.reload()} />;
@@ -82,13 +89,20 @@ function OneMatch({ space, season, session, entries, template, author, readOnly,
         <Button variant="ghost" size="sm" className="-ml-2 justify-self-start text-muted-foreground" onClick={() => setFull(false)}><ChevronLeft /> Back to all 4 teams</Button>
       )}
       {quick ? (
-        <QuickMatchForm teams={draft.teams} template={template} onChange={(team, d) => draft.setData(team, d)} onOpenFull={(team) => { setActive(team); setFull(true); }} />
+        <QuickMatchForm teams={draft.teams} onChange={(team, d) => draft.setData(team, d)} onOpenFull={(team) => { setActive(team); setFull(true); }} />
       ) : <TeamTabs teams={draft.teams.map((t) => ({ watched: t.watched, status: t.status }))} active={active} onSelect={setActive}
         renderForm={(w) => {
           const t = draft.teams.find((x) => x.watched.team === w.team)!;
           return (
-            <PhaseForm template={t.template} value={t.data} onChange={(d) => draft.setData(w.team, d)} notes={t.notes} onNotes={(n) => draft.setNotes(w.team, n)}
-              notesLabel={`Notes on ${w.team}`} phase={phase} onPhase={setPhase} timer={timer} />
+            <div className="grid gap-3">
+              {t.locked && (
+                <p role="status" className="rounded-lg border border-warning/40 bg-warning/10 px-3 py-2 text-sm">
+                  {w.team} was saved with an earlier version of the workspace's fields, which this device hasn't loaded yet. Its answers are kept as they are; you can still change the notes.
+                </p>
+              )}
+              <PhaseForm template={t.template} value={t.data} onChange={(d) => draft.setData(w.team, d)} notes={t.notes} onNotes={(n) => draft.setNotes(w.team, n)}
+                notesLabel={`Notes on ${w.team}`} phase={phase} onPhase={setPhase} timer={timer} lockFields={t.locked} />
+            </div>
           );
         }} />}
       <SaveMatchBar label={match.label} teamCount={teams.length} nextLabel={nextLabel} nextIndex={nextIndex} emptyTeams={draft.emptyTeams}

@@ -3,7 +3,7 @@
 // next match from the schedule, both alliance teams as tabs, and one Save makes one entry per team at that
 // event and match, then moves to the next match. Data still holds the entry list.
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { MemoryRouter, useLocation } from "react-router-dom";
 import { localScoutEntries, saveScoutEntry } from "../lib/scouting";
 import { writeScoutSession } from "../lib/scoutSession";
@@ -62,7 +62,7 @@ describe("the Match tab", () => {
     fireEvent.click(screen.getAllByRole("tab").find((t) => t.textContent?.includes("102"))!);
     fireEvent.click(addOne());
     fireEvent.click(screen.getByRole("button", { name: /Save Q1/ }));
-    await waitFor(() => expect(param("match")).toBe("Q2"));
+    await waitFor(() => expect(param("at")).toBe("Q2"));
     const saved = localScoutEntries(null).filter((e) => e.eventCode === "USNJQ1").map((e) => [e.team, e.matchLabel, e.kind]).sort();
     expect(saved).toEqual([[101, "Q1", "match"], [102, "Q1", "match"]]);
     expect(await screen.findByRole("button", { name: /Save Q2/ })).toBeTruthy();
@@ -74,7 +74,7 @@ describe("the Match tab", () => {
     fireEvent.click((await screen.findAllByRole("button", { name: /Add one$/ }))[0]);
     fireEvent.click(screen.getByRole("button", { name: /Save Q1/ }));
     fireEvent.click(await screen.findByRole("button", { name: "Skip 102" }));
-    await waitFor(() => expect(param("match")).toBe("Q2"));
+    await waitFor(() => expect(param("at")).toBe("Q2"));
     expect(localScoutEntries(null).filter((e) => e.eventCode === "USNJQ1").map((e) => e.team)).toEqual([101]);
   });
 
@@ -88,7 +88,7 @@ describe("the Match tab", () => {
     fireEvent.click(screen.getByRole("button", { name: "Back to all 4 teams" }));
     expect(await screen.findByRole("button", { name: "Full form for 202" })).toBeTruthy();
     fireEvent.click(screen.getByRole("button", { name: /Save Q1/ }));
-    await waitFor(() => expect(param("match")).toBe("Q2"));
+    await waitFor(() => expect(param("at")).toBe("Q2"));
     expect(localScoutEntries(null).filter((e) => e.eventCode === "USNJQ1").map((e) => e.team).sort()).toEqual([101, 102, 201, 202]);
   });
 
@@ -97,6 +97,42 @@ describe("the Match tab", () => {
     for (const t of [101, 102]) saveScoutEntry({ uuid: `done-${t}`, season: 2025, team: t, eventCode: "USNJQ1", matchLabel: "Q1", kind: "match", data: {}, notes: "" });
     show("/scout?season=2025");
     expect(await screen.findByRole("button", { name: /Save Q2/ })).toBeTruthy();
+  });
+
+  it("the open match stays put when entries arrive (another scout's, or a sync), and the timer with it", async () => {
+    writeScoutSession(null, { season: 2025, eventCode: "USNJQ1", watching: { kind: "alliance", side: "red" } });
+    show("/scout?season=2025");
+    expect(await screen.findByRole("button", { name: /Save Q1/ })).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: /Match started/ }));
+    act(() => { for (const t of [101, 102]) saveScoutEntry({ uuid: `other-${t}`, season: 2025, team: t, eventCode: "USNJQ1", matchLabel: "Q1", kind: "match", data: {}, notes: "" }); });
+    await act(async () => { await new Promise((r) => setTimeout(r, 50)); });
+    expect(screen.getByRole("button", { name: /Save Q1/ })).toBeTruthy();
+    expect(screen.getByRole("button", { name: /^Stop$/ })).toBeTruthy(); // still running
+  });
+
+  it("moving between matches never touches the entry list's match filter", async () => {
+    writeScoutSession(null, { season: 2025, eventCode: "USNJQ1", watching: { kind: "alliance", side: "red" } });
+    show("/scout?season=2025&match=Q9");
+    fireEvent.click(await screen.findByRole("button", { name: /^Next match/ }));
+    await waitFor(() => expect(param("at")).toBe("Q2"));
+    expect(param("match")).toBe("Q9");
+  });
+
+  it("Change event or teams opens setup even from an old ?view= link", async () => {
+    writeScoutSession(null, { season: 2025, eventCode: "USNJQ1", watching: { kind: "alliance", side: "red" } });
+    show("/scout?season=2025&view=recordings");
+    fireEvent.click(await screen.findByRole("button", { name: /Change event or teams/ }));
+    expect(await screen.findByText("Where are you scouting?")).toBeTruthy();
+  });
+
+  it("Pit scouting starts a new pit entry, never the edit still named in the URL", async () => {
+    saveScoutEntry({ uuid: "old-entry", season: 2025, team: 4242, eventCode: "USNJQ1", matchLabel: "Q9", kind: "match", data: {}, notes: "kept" });
+    show("/scout?season=2025&tab=data&entry=old-entry");
+    expect(((await screen.findByLabelText("Notes")) as HTMLTextAreaElement).value).toBe("kept");
+    fireEvent.click(screen.getByRole("button", { name: /Pit scouting/ }));
+    await waitFor(() => expect(param("entry")).toBeNull());
+    await waitFor(() => expect(screen.getByRole("radio", { name: "Pit" }).getAttribute("aria-checked")).toBe("true"));
+    expect((screen.getByLabelText("Notes") as HTMLTextAreaElement).value).toBe("");
   });
 
   it("Data still has the entry list", async () => {
