@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { EventListItem } from "../shared/api";
-import { eventMatches, labEventChoices } from "./labEvents";
+import { eventMatches, labEventChoices, pickerResults } from "./labEvents";
 
 const ev = (code: string, name: string, city: string, state: string, type = "Qualifier", start = "2026-11-01", country = "USA"): EventListItem =>
   ({ season: 2026, code, name, type, typeLabel: type, city, state, country, start, end: start, teams: 0, matchesPlayed: 0, matchesTotal: 0, status: "upcoming" }) as EventListItem;
@@ -74,5 +74,33 @@ describe("labEventChoices", () => {
     const r = labEventChoices(all, { teamCodes: null, q: "league meet" });
     expect(r.list).toEqual([]);
     expect(r.otherMatches).toBe(1);
+  });
+});
+
+describe("pickerResults", () => {
+  const today = "2026-11-01";
+  it("suggests the nearest advancing events before anything is typed: upcoming first, then the most recent", () => {
+    const r = pickerResults(all, { q: "", today });
+    expect(r.mode).toBe("suggested");
+    expect(r.list.map((e) => e.code)).toEqual(["USALATQ", "USNJNOLT", "GBEDQ", "USTXSOEDQ"]);
+  });
+  it("suggests the team's own events when it has any, else the nearest", () => {
+    expect(pickerResults(all, { q: "", today, teamCodes: new Set(["GBEDQ", "USTXSOEDQ"]) }).list.map((e) => e.code)).toEqual(["GBEDQ", "USTXSOEDQ"]);
+    const none = pickerResults(all, { q: "", today, teamCodes: new Set(["USNJNOM1"]) });
+    expect(none.teamSuggestions).toBe(false);
+    expect(none.list).toHaveLength(4);
+  });
+  it("puts the team's events first in a search but keeps every match", () => {
+    const r = pickerResults(all, { q: "qualifier", today, teamCodes: new Set(["GBEDQ"]) });
+    expect(r.list.map((e) => e.code)).toEqual(["GBEDQ", "USALATQ", "USTXSOEDQ"]);
+  });
+  it("counts non-advancing matches only to explain an empty list", () => {
+    expect(pickerResults(all, { q: "meet", today })).toMatchObject({ total: 0, otherMatches: 1 });
+    expect(pickerResults(all, { q: "meet", today, advancingOnly: false }).list.map((e) => e.code)).toEqual(["USNJNOM1"]);
+  });
+  it("caps the rows but reports the full count", () => {
+    const r = pickerResults(all, { q: "q", today, limit: 2 });
+    expect(r.list).toHaveLength(2);
+    expect(r.total).toBeGreaterThan(2);
   });
 });
