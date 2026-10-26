@@ -1,5 +1,5 @@
 // Preview: the Matches tab on a real event's schedule (?season=&event=) with sample progress: the first
-// dozen matches scouted except two skipped and one partly done. ?watch=red|blue|all|red1… picks what the
+// six matches scouted except two skipped and one partly done. ?watch=red|blue|all|red1… picks what the
 // scout watches; ?workspace=1 adds sample names for the other alliance. Dev only.
 import { useMemo, useState } from "react";
 import { useSearchParams } from "react-router-dom";
@@ -14,11 +14,11 @@ function watchingFrom(v: string | null): Watching {
   return parseWatching({ kind: "slot", slot: v }) ?? DEFAULT_WATCHING;
 }
 
-const SKIP = new Set([5, 9]), PARTIAL = 11, DONE_UP_TO = 12, NAMES = ["Priya", "Marcus", "Jo"];
+const SKIP = new Set([1, 3]), PARTIAL = 4, DONE_UP_TO = 6, NAMES = ["Priya", "Marcus", "Jo"];
 
 export default function MatchesPreview() {
   const [sp] = useSearchParams();
-  const season = Number(sp.get("season")) || 2025, code = sp.get("event") || "USNJQ1";
+  const season = Number(sp.get("season")) || 2025, code = sp.get("event") || "USMICHQ";
   const watching = useMemo(() => watchingFrom(sp.get("watch")), [sp]);
   const s = useEventSchedule(season, code);
   const scouted = useMemo(() => {
