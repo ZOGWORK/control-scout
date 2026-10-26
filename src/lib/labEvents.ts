@@ -47,3 +47,58 @@ export function labEventChoices(events: EventListItem[], o: { teamCodes: Set<str
     : 0;
   return { list, teamOnly, teamCount, otherMatches };
 }
+
+/** Today as YYYY-MM-DD in local time, the way event dates are written. */
+export const todayIso = (d = new Date()) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+
+/** Still to come (or on now): ends today or later. Dateless events count as upcoming. */
+const isUpcoming = (e: EventListItem, today: string) => (e.end ?? e.start ?? "9999") >= today;
+/** Upcoming first, nearest first; then past ones, most recent first. */
+const byNearest = (today: string) => (a: EventListItem, b: EventListItem) => {
+  const ua = isUpcoming(a, today), ub = isUpcoming(b, today);
+  if (ua !== ub) return ua ? -1 : 1;
+  const d = ua ? (a.start ?? "9999").localeCompare(b.start ?? "9999") : (b.start ?? "").localeCompare(a.start ?? "");
+  return d || a.name.localeCompare(b.name);
+};
+
+export interface PickerResults {
+  /** Rows to show, in order (at most `limit`). */
+  list: EventListItem[];
+  /** Every event the search (or suggestion set) found, before the cap. */
+  total: number;
+  /** Suggestions (nothing typed yet), or search results. */
+  mode: "suggested" | "search";
+  /** The suggestions are the chosen team's events (else the season's nearest). */
+  teamSuggestions: boolean;
+  /** With advancing-only on: events that match the search but don't advance teams, to explain an empty list. */
+  otherMatches: number;
+}
+
+/** How many suggestions show before anything is typed, and the most search results ever rendered. */
+export const SUGGEST_LIMIT = 8;
+export const RESULT_LIMIT = 50;
+
+/**
+ * The event search picker's rows. Nothing typed: a few suggestions, the team's events when there are any
+ * (upcoming first), else the season's events nearest today. Typed: every match, the team's events first
+ * (never only them), then an exact code or a name that starts with the search, then nearest by date.
+ */
+export function pickerResults(events: EventListItem[], o: { q: string; teamCodes?: Set<string> | null; advancingOnly?: boolean; today?: string; limit?: number }): PickerResults {
+  const today = o.today ?? todayIso();
+  const advancingOnly = o.advancingOnly ?? true;
+  const pool = advancingOnly ? events.filter((e) => ADVANCING.has(e.type ?? "")) : events;
+  const nearest = byNearest(today);
+  const q = o.q.trim();
+  const isTeam = (e: EventListItem) => !!o.teamCodes?.has(e.code);
+  if (!q) {
+    const team = o.teamCodes ? pool.filter(isTeam) : [];
+    const from = team.length ? team : pool;
+    return { list: [...from].sort(nearest).slice(0, SUGGEST_LIMIT), total: Math.min(from.length, SUGGEST_LIMIT), mode: "suggested", teamSuggestions: team.length > 0, otherMatches: 0 };
+  }
+  const lower = q.toLowerCase();
+  const strong = (e: EventListItem) => (e.code.toLowerCase() === lower || e.name.toLowerCase().startsWith(lower) ? 0 : 1);
+  const hits = pool.filter((e) => eventMatches(e, q))
+    .sort((a, b) => Number(isTeam(b)) - Number(isTeam(a)) || strong(a) - strong(b) || nearest(a, b));
+  const otherMatches = advancingOnly && !hits.length ? events.filter((e) => !ADVANCING.has(e.type ?? "") && eventMatches(e, q)).length : 0;
+  return { list: hits.slice(0, o.limit ?? RESULT_LIMIT), total: hits.length, mode: "search", teamSuggestions: false, otherMatches };
+}
