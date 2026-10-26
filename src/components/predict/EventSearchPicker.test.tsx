@@ -124,6 +124,27 @@ describe("EventSearchPicker", () => {
     expect(trigger().textContent).toContain("Houston Qualifier");
   });
 
+  it("leaves Enter to an input method while it's composing", () => {
+    render(<Harness />);
+    const box = openPicker();
+    fireEvent.keyDown(box, { key: "Enter", isComposing: true });
+    fireEvent.keyDown(box, { key: "Enter", keyCode: 229 });
+    expect(screen.getByTestId("value").textContent).toBe("");
+    expect(screen.getByRole("combobox")).toBeTruthy();
+  });
+
+  it("keeps a row highlighted when the team's events arrive while open", () => {
+    const { rerender } = render(<Harness team={18360} teamCodes={null} />);
+    const box = openPicker();
+    fireEvent.keyDown(box, { key: "End" });
+    expect(box.getAttribute("aria-activedescendant")).toBe(screen.getAllByRole("option")[4].id);
+    rerender(<Harness team={18360} teamCodes={new Set(["SOON2", "LATER"])} />);
+    expect(names()).toEqual(["Houston Qualifier", "Texas State Championship"]);
+    expect(box.getAttribute("aria-activedescendant")).toBe(screen.getAllByRole("option")[0].id);
+    fireEvent.keyDown(box, { key: "Enter" });
+    expect(screen.getByTestId("value").textContent).toBe("SOON2");
+  });
+
   it("closes on Escape without changing the choice, focus back on the trigger", async () => {
     render(<Harness initial="SOON1" />);
     const box = openPicker();
@@ -179,7 +200,7 @@ describe("EventSearchPicker", () => {
     type(openPicker(), "qualifier");
     expect(screen.getAllByRole("option")).toHaveLength(50);
     expect(screen.getByRole("status").textContent).toBe("120 events found, showing the first 50");
-    expect(screen.getByText(/Showing 50 of 120/)).toBeTruthy();
+    expect(screen.getByText("Showing 50 of 120")).toBeTruthy();
   });
 
   it("shows a skeleton while loading", () => {
