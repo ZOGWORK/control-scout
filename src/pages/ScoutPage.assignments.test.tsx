@@ -33,6 +33,13 @@ const asg = (id: number, team: number, assignee: number, over: Partial<Assignmen
   createdByAccountId: 1, createdByName: "Coach", createdAt: Date.now() - 60_000, status: "open", doneAt: null, doneByAccountId: null, doneByName: null, version: 1, progress: 0, ...over,
 });
 let list: Assignment[];
+/** Match scouting assignments ("Red 2, Q1 on"), and the event's schedule for the Match and Matches tabs. */
+let matchList: unknown[];
+const sched = { event: { name: "Test Qualifier" }, matches: [1, 2].map((n) => ({ season: 2025, code: EV, key: `qual:0:${n}`, level: "qual", series: 0, number: n, label: `Q${n}`, time: null, startsAt: null, played: false,
+  red: { teams: [{ number: 1234, surrogate: false, dq: false, onField: true }, { number: 5678, surrogate: false, dq: false, onField: true }], score: null },
+  blue: { teams: [{ number: 2222, surrogate: false, dq: false, onField: true }, { number: 3333, surrogate: false, dq: false, onField: true }], score: null }, video: null, prediction: null })) };
+const masg = (id: number, assignee: number, watching: unknown) => ({ id, workspaceId: WS, season: 2025, eventCode: EV, watching, fromMatch: null, toMatch: null,
+  assigneeAccountId: assignee, assigneeName: assignee === ME ? "Priya" : "Sam", createdByAccountId: 1, createdByName: "Coach", createdAt: 1, updatedAt: 1, version: 1 });
 const calls: { method: string; path: string; body: any }[] = [];
 
 beforeEach(() => {
@@ -41,6 +48,7 @@ beforeEach(() => {
   localStorage.clear();
   calls.length = 0;
   list = [asg(1, 1234, ME), asg(2, 5678, ME), asg(3, 2222, SAM)];
+  matchList = [];
   h.personal = { user: userAs("member"), providers: { email: true, google: false }, syncReady: false, state: { videoLinks: {} } };
   resetFlags({ ...DEFAULT_FLAGS });
   localStorage.setItem(`cs-scout-tpl:${WS}:2025`, JSON.stringify({ workspaceId: WS, season: 2025, version: 0, settingsVersion: 0, match: null, pit: null, updatedAt: null, updatedBy: null }));
@@ -51,6 +59,8 @@ beforeEach(() => {
     calls.push({ method, path: u.pathname + u.search, body });
     const ok = (x: unknown, status = 200) => new Response(JSON.stringify(x), { status });
     const p = `/api/scout/workspaces/${WS}/assignments`;
+    if (u.pathname === `${p}/matches` && method === "GET") return ok({ matchAssignments: matchList });
+    if (u.pathname === `/api/events/2025/${EV}`) return ok(sched);
     if (u.pathname === p && method === "GET") return ok({ assignments: list });
     if (u.pathname === "/api/events") return ok({ events: [{ season: 2025, code: EV, name: "Test Qualifier", start: "2025-11-01", end: "2025-11-01", city: "Edison", state: "NJ", country: "USA" }] });
     if (u.pathname === `${p}/options`) return ok({ members: [{ accountId: ME, name: "Priya", role: "admin" }, { accountId: SAM, name: "Sam", role: "member" }], teams: [{ team: 1234, name: "Alpha" }, { team: 2222, name: "Beta" }, { team: 5678, name: "Gamma" }] });
@@ -133,6 +143,19 @@ describe("assignments on the Scout page", () => {
     await waitFor(() => expect(myCards()).toHaveLength(2));
     fireEvent.click(within(myCards()[1]).getByRole("button", { name: /Scout/ }));
     await waitFor(() => expect(screen.getByRole("radio", { name: "Match" }).getAttribute("aria-checked")).toBe("true"));
+  });
+
+  it("match scouting: your assignment prefills the session setup", async () => {
+    matchList = [masg(11, ME, { kind: "slot", slot: "red2" })];
+    show(`/scout?space=${WS}&season=2025&tab=match`);
+    await waitFor(() => expect(screen.getByRole("radio", { name: /Red 2/ }).getAttribute("aria-checked")).toBe("true"));
+  });
+
+  it("match scouting: Matches says who has the other teams", async () => {
+    matchList = [masg(11, ME, { kind: "alliance", side: "red" }), masg(12, SAM, { kind: "alliance", side: "blue" })];
+    localStorage.setItem(`cs-scout-session:${WS}`, JSON.stringify({ season: 2025, eventCode: EV, watching: { kind: "alliance", side: "red" }, setAt: 1 }));
+    show(`/scout?space=${WS}&season=2025&tab=matches`);
+    expect((await screen.findAllByText(/Sam/)).length).toBeGreaterThan(0);
   });
 
   it("the assignment's event only holds in its space: switching space while the form is open falls back to that space's defaults", async () => {
