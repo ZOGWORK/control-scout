@@ -74,14 +74,14 @@ describe("predictLookup", () => {
     expect(v["Red win"]).toBe("`████░░░░░░ 40%`");
     expect(v["Blue win"]).toBe("`██████░░░░ 60%`");
     expect(v["Predicted score"]).toBe("148 – 121");
-    expect(v.Confidence).toBe("moderate confidence");
+    expect(v.Confidence).toBe("Fair");
     expect(e.footer?.text).toMatch(/^Called before the match/);
   });
 
   it("a played match: the result, the call, and whether it was right", async () => {
     const hit = Object.fromEntries((await predictLookup("USTXAUQ", 1)).fields!.map((f) => [f.name, f.value]));
     expect(hit["Final score"]).toBe("Red **148** – 121 Blue");
-    expect(hit.Predicted).toBe("Red 62% · 148 – 121 · moderate confidence");
+    expect(hit.Predicted).toBe("Red 62% · 148 – 121 · confidence: fair");
     expect(hit.Verdict).toBe("✅ Called it");
     const miss = Object.fromEntries((await predictLookup("USTXAUQ", 2)).fields!.map((f) => [f.name, f.value]));
     expect(miss.Verdict).toBe("❌ Upset");

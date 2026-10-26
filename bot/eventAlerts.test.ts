@@ -100,7 +100,7 @@ describe("the posts", () => {
     const d = detail([q(12, local("2026-10-24", "10:42"), [1, 2], [3, 4], undefined, 0.62), q(15, local("2026-10-24", "11:30"), [3, 4], [1, 2], undefined, 0.7)]);
     const e = scheduleEmbed({ channel: "c1", teams: [1], kind: "schedule", key: "schedule" }, d, SITE);
     expect(e.fields![0]).toEqual({ name: "1: 2 qualification matches", value: "**Q12** 10:42 AM · red with 2 · 62% to win\n**Q15** 11:30 AM · blue with 2 · 30% to win" });
-    expect(e.footer!.text).toMatch(/^Win odds from today's ratings, moderate confidence/);
+    expect(e.footer!.text).toMatch(/^Win odds from today's ratings, confidence: fair/);
   });
 
   it("the recap: rank, record, today's matches and how many calls were right", () => {
