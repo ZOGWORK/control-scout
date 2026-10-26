@@ -36,6 +36,8 @@ export interface MatchScoutProps {
   onMatch: (label: string) => void;
   /** No schedule to scout from: the old form, with the event filled in. */
   onManual: () => void;
+  /** A match came on screen (its normalized label): the page checks for newer questions, as opening the old form did. */
+  onShown?: (label: string) => void;
 }
 
 export function MatchScout(p: MatchScoutProps) {
@@ -53,6 +55,8 @@ export function MatchScout(p: MatchScoutProps) {
   useEffect(() => {
     if (shownLabel && (opened?.event !== session.eventCode || opened.label !== shownLabel)) setOpened({ event: session.eventCode, label: shownLabel });
   }, [shownLabel, session.eventCode, opened]);
+  const { onShown } = p;
+  useEffect(() => { if (shownLabel) onShown?.(shownLabel); }, [shownLabel, session.eventCode, onShown]);
 
   if (schedule.status !== "ready" || index < 0) {
     return <ScheduleState status={schedule.status === "ready" ? "none" : schedule.status} error={schedule.error} onManual={p.onManual} onRetry={() => void schedule.reload()} />;

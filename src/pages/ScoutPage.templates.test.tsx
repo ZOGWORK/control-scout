@@ -14,6 +14,7 @@ import { DEFAULT_FLAGS } from "../shared/flags";
 import { TooltipProvider } from "../components/ui/overlay";
 import type { ScoutField, WorkspaceTemplate } from "../shared/scoutTemplate";
 import { asEntries } from "./scoutTestUrl";
+import { writeScoutSession } from "../lib/scoutSession";
 
 const h = vi.hoisted(() => ({
   personal: { user: null as AccountUser | null, providers: { email: true, google: false } as object | null, syncReady: false, state: { videoLinks: {} } },
@@ -37,6 +38,12 @@ const tpl = (version: number, match: ScoutField[] | null): WorkspaceTemplate => 
   workspaceId: WS, season: 2025, version, settingsVersion: version, match, pit: null, updatedAt: null, updatedBy: "Coach",
 });
 
+const team = (number: number) => ({ number, surrogate: false, dq: false, onField: true });
+const qual = (n: number) => ({ season: 2025, code: "USNJQ1", key: `qual:0:${n}`, level: "qual", series: 0, number: n, label: `Q${n}`, time: null, startsAt: null, played: false,
+  red: { teams: [team(100 + n), team(200 + n)], score: null }, blue: { teams: [team(300 + n), team(400 + n)], score: null }, video: null, prediction: null });
+/** The event's schedule, for the Match tab. */
+const schedule = { event: { name: "NJ Qualifier 1" }, matches: [qual(1), qual(2)] };
+
 /** The server: the current template, and every version by number. */
 let current: WorkspaceTemplate;
 let versions: Record<number, WorkspaceTemplate>;
@@ -45,6 +52,7 @@ function stubServer() {
   vi.stubGlobal("fetch", vi.fn(async (url: string) => {
     fetched.push(url);
     const u = new URL(url, "http://x");
+    if (u.pathname === "/api/events/2025/USNJQ1") return new Response(JSON.stringify(schedule), { status: 200 });
     if (u.pathname === `/api/scout/workspaces/${WS}/template`) {
       const v = u.searchParams.get("version");
       const t = v == null ? current : versions[Number(v)];
@@ -233,6 +241,16 @@ describe("workspace templates on the Scout page", () => {
     await waitFor(() => expect(fetched.filter((u) => u.includes("/template")).length).toBeGreaterThan(0));
     current = tpl(2, v2Fields); // changed meanwhile, no notice
     await newEntry();
+    expect(await screen.findByText("Climbed the bar")).toBeTruthy();
+  });
+
+  it("the Match tab: each match that comes on screen checks for newer questions", async () => {
+    current = tpl(1, null);
+    writeScoutSession(WS, { season: 2025, eventCode: "USNJQ1", watching: { kind: "alliance", side: "red" } });
+    show(`/scout?season=2025&space=${WS}&tab=match`);
+    expect(await screen.findByRole("button", { name: /Save Q1/ })).toBeTruthy();
+    current = tpl(2, v2Fields); // changed meanwhile, no notice
+    fireEvent.click(screen.getByRole("button", { name: /^Next match/ }));
     expect(await screen.findByText("Climbed the bar")).toBeTruthy();
   });
 
