@@ -73,6 +73,18 @@ describe("SessionSetup", () => {
     expect(onStart).toHaveBeenCalledWith("USNJQ3", { kind: "alliance", side: "red" });
   });
 
+  it("a starting watch choice that arrives late (an assignment loads) applies, but never over the scout's own pick", async () => {
+    const at = (w: { kind: "slot"; slot: "red2" } | { kind: "alliance"; side: "blue" }) => ({ eventCode: "USNJQ3", watching: w });
+    const checked = (name: RegExp) => screen.getByRole("radio", { name }).getAttribute("aria-checked");
+    const { rerender } = render(<SessionSetup season={2026} onStart={() => {}} />);
+    rerender(<SessionSetup season={2026} initial={at({ kind: "slot", slot: "red2" })} onStart={() => {}} />);
+    await waitFor(() => expect(checked(/^Red 2$/)).toBe("true"));
+    fireEvent.click(screen.getByRole("radio", { name: /^All 4 teams/ }));
+    rerender(<SessionSetup season={2026} initial={at({ kind: "alliance", side: "blue" })} onStart={() => {}} />);
+    await waitFor(() => expect(eventRadios()).toHaveLength(4));
+    expect(checked(/^All 4 teams/)).toBe("true"); // the scout's pick stays
+  });
+
   it("chooses a suggestion that arrives late, but never over the scout's own pick", async () => {
     const { rerender } = render(<SessionSetup season={2026} suggestedEvent={null} onStart={() => {}} />);
     await waitFor(() => expect(eventRadios()).toHaveLength(4));

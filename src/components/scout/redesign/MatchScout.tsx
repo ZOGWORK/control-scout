@@ -9,6 +9,7 @@ import { PhaseForm } from "./PhaseForm";
 import { SaveMatchBar } from "./SaveMatchBar";
 import { MatchesList, type OtherScout } from "./MatchesList";
 import { QuickMatchForm } from "./QuickMatchForm";
+import { othersByMatch, type MatchAssignment } from "../../../lib/slotAssignments";
 import { ChevronLeft } from "lucide-react";
 import { Button } from "../../ui/button";
 import { useMatchTimer } from "./useMatchTimer";
@@ -116,10 +117,17 @@ function OneMatch({ space, season, session, entries, template, author, readOnly,
 }
 
 /** The Matches tab: every match at the session's event with how far this scout is, from the same schedule and entries. */
-export function MatchesTab({ season, session, entries, matchLabel, onMatch, onManual, others }: Pick<MatchScoutProps, "season" | "session" | "entries" | "matchLabel" | "onMatch" | "onManual"> & { others?: Map<string, OtherScout[]> }) {
+export function MatchesTab({ season, session, entries, matchLabel, onMatch, onManual, assignments, me }: Pick<MatchScoutProps, "season" | "session" | "entries" | "matchLabel" | "onMatch" | "onManual"> & {
+  /** A workspace's match assignments (useMatchAssignments): each row says who has the other teams. */
+  assignments?: readonly MatchAssignment[];
+  /** Your shared account id (your own assignment isn't listed under "others"). */
+  me?: number | null;
+}) {
   const schedule = useEventSchedule(season, session.eventCode);
   const scouted = useMemo(() => scoutedByMatch(entries, session.eventCode), [entries, session.eventCode]);
   const next = useMemo(() => nextMatchIndex(schedule.matches, session.watching, scouted), [schedule.matches, session.watching, scouted]);
+  const others = useMemo<Map<string, OtherScout[]> | undefined>(() => (assignments?.length
+    ? othersByMatch(assignments, schedule.matches, scouted, me, { eventCode: session.eventCode, season }) : undefined), [assignments, schedule.matches, scouted, me, session.eventCode, season]);
   if (schedule.status !== "ready" || !schedule.matches.length) {
     return <ScheduleState status={schedule.status === "ready" ? "none" : schedule.status} error={schedule.error} onManual={onManual} onRetry={() => void schedule.reload()} />;
   }
