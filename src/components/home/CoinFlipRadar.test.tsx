@@ -32,9 +32,9 @@ describe("CoinFlipRadarSection", () => {
     show();
     const links = screen.getAllByRole("link");
     expect(links[0].getAttribute("href")).toBe("/events/2026/USCAQ1/match/qual:0:1");
-    expect(links[0].getAttribute("aria-label")).toMatch(/red 11 and 12 53% to win, blue 13 and 14 47%, moderate confidence/);
+    expect(links[0].getAttribute("aria-label")).toMatch(/red 11 and 12 53% to win, blue 13 and 14 47%, confidence: fair/);
     expect(screen.getByText("Closest call").closest("a")).toBe(links[1]);
-    expect(screen.getAllByText(/confident/).length).toBeGreaterThan(0);
+    expect(screen.getAllByText(/solid/).length).toBeGreaterThan(0);
     expect(screen.getByText("2 to play")).toBeTruthy();
   });
 
@@ -44,7 +44,7 @@ describe("CoinFlipRadarSection", () => {
     expect(screen.getByText(/Every coin flip on today’s schedules has been played/)).toBeTruthy();
     const line = screen.getByText(/called Red 54% before the match/);
     // The saved call keeps its confidence tier beside it.
-    expect(line.textContent).toMatch(/called Red 54% before the match\s*confident confidence · the other side won/);
+    expect(line.textContent).toMatch(/called Red 54% before the match\s*confidence: solid · the other side won/);
   });
 
   it("shows six cards, then all on request", () => {

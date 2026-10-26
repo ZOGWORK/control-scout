@@ -139,7 +139,7 @@ describe("Projections (local estimate)", () => {
     expect(await screen.findByText("Local estimate · 1,500 simulations on this device • after Match 24")).toBeTruthy();
     expect(screen.getAllByText("Local estimate").length).toBeGreaterThan(0);
     expect(screen.getByText(/simulated on this device from your offline pack \(ratings as of Oct 17\)/)).toBeTruthy();
-    expect(screen.getByText("Provisional")).toBeTruthy(); // the server's run of this state would be Moderate
+    expect(screen.getByText("Rough guess")).toBeTruthy(); // the server's run of this state would be Fair
     expect(screen.queryByText("before the event")).toBeNull(); // the server's baseline isn't compared against
     expect(screen.queryByText(/^10,000 simulations/)).toBeNull();
   });

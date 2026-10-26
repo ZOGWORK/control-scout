@@ -19,19 +19,20 @@ import { restoredSavedPosition, scrollToElement, smoothBehavior } from "../lib/p
 const MatchDetails = lazy(() => import("./MatchDetails").then((x) => ({ default: x.MatchDetails })));
 import { useCalibration } from "../lib/calibration";
 import { usePredictable } from "../lib/meta";
+import { TIER_WORD, tierPhrase } from "../shared/tierWords";
 import { TeamSnack, TeamSnackContext, nameIn, useTeamSnack, useTeamSnackState } from "./TeamSnack";
 
 const TIER: Record<ConfidenceTier, { label: string; cls: string; icon: typeof Gauge; blurb: string }> = {
-  provisional: { label: "Provisional", cls: "border-warning/40 bg-warning/10 text-warning", icon: CircleDashed, blurb: "Mostly prior-season data — treat as a rough guess." },
-  moderate: { label: "Moderate", cls: "border-info/40 bg-info/10 text-info", icon: Gauge, blurb: "Some matches this season; still settling." },
-  confident: { label: "Confident", cls: "border-success/40 bg-success/10 text-success", icon: ShieldCheck, blurb: "Every robot has a real sample this season." },
+  provisional: { label: TIER_WORD.provisional, cls: "border-warning/40 bg-warning/10 text-warning", icon: CircleDashed, blurb: "Mostly prior-season data — treat as a rough guess." },
+  moderate: { label: TIER_WORD.moderate, cls: "border-info/40 bg-info/10 text-info", icon: Gauge, blurb: "Some matches this season; still settling." },
+  confident: { label: TIER_WORD.confident, cls: "border-success/40 bg-success/10 text-success", icon: ShieldCheck, blurb: "Every robot has a real sample this season." },
 };
 
 export function ConfidenceBadge({ tier, reason, className }: { tier: ConfidenceTier; reason?: string; className?: string }) {
   const t = TIER[tier];
   const badge = (
     <span className={cn("inline-flex items-center gap-1 rounded-md border px-2 py-0.5 text-xs font-medium leading-none whitespace-nowrap [&_svg]:size-3", t.cls, className)}>
-      <t.icon aria-hidden /> {t.label}<span className="sr-only"> confidence</span>
+      <t.icon aria-hidden /> <span className="sr-only">Confidence: </span>{t.label}
     </span>
   );
   return (
@@ -51,8 +52,8 @@ export function TierMark({ tier, className, chip }: { tier: ConfidenceTier; clas
   const t = TIER[tier];
   const color = t.cls.split(" ").find((c) => c.startsWith("text-"));
   return (
-    <span className={cn("inline-flex items-center gap-0.5 whitespace-nowrap [&_svg]:size-3", chip ? cn(STATUS_CHIP, "border", t.cls) : color, className)} title={`${t.label} confidence: ${t.blurb}`}>
-      <t.icon aria-hidden />{t.label.toLowerCase()}<span className="sr-only"> confidence</span>
+    <span className={cn("inline-flex items-center gap-0.5 whitespace-nowrap [&_svg]:size-3", chip ? cn(STATUS_CHIP, "border", t.cls) : color, className)} title={`Confidence: ${t.label.toLowerCase()}. ${t.blurb}`}>
+      <t.icon aria-hidden /><span className="sr-only">confidence: </span>{t.label.toLowerCase()}
     </span>
   );
 }
@@ -65,11 +66,11 @@ export function TierIcon({ tier }: { tier: ConfidenceTier }) {
     <Popover>
       <PopoverTrigger asChild>
         <button type="button" className={cn(STATUS_CHIP, "w-[18px] justify-center border px-0 outline-none focus-visible:ring-2 focus-visible:ring-ring/60 [&_svg]:size-3", t.cls)} data-tier={tier}>
-          <t.icon aria-hidden /><span className="sr-only">{t.label} confidence</span>
+          <t.icon aria-hidden /><span className="sr-only">Confidence: {t.label.toLowerCase()}</span>
         </button>
       </PopoverTrigger>
       <PopoverContent className="w-64 p-3 text-sm" align="end">
-        <p className={cn("flex items-center gap-1.5 font-semibold [&_svg]:size-3.5", t.cls.split(" ").find((c) => c.startsWith("text-")))}><t.icon aria-hidden />{t.label} confidence</p>
+        <p className={cn("flex items-center gap-1.5 font-semibold [&_svg]:size-3.5", t.cls.split(" ").find((c) => c.startsWith("text-")))}><t.icon aria-hidden />Confidence: {t.label.toLowerCase()}</p>
         <p className="mt-1 text-text-muted">{t.blurb}</p>
         <Link to="/methodology#confidence" className="mt-2 inline-block text-xs underline">How tiers work</Link>
       </PopoverContent>
@@ -306,7 +307,7 @@ export function MatchRow({ m, highlight, showEvent, eventName, open, onToggle, o
               </button>
             </TooltipTrigger>
             <TooltipContent className="max-w-72">
-              {KIND_LABEL[p.kind]} · {p.noScoreBasis ? "no predicted score: when this call was made, the season had no rated matches yet" : `predicted ${predictedText(p)}${p.redRange ? ` (± is the ${levelPct(p.rangeLevel)} range)` : ""}`} · {p.tier} confidence
+              {KIND_LABEL[p.kind]} · {p.noScoreBasis ? "no predicted score: when this call was made, the season had no rated matches yet" : `predicted ${predictedText(p)}${p.redRange ? ` (± is the ${levelPct(p.rangeLevel)} range)` : ""}`} · {tierPhrase(p.tier)}
               {p.factors?.length ? <span className="mt-1 block opacity-80">{p.factors[0].label}</span> : null}
               <CalibrationTip pRed={p.pRed} />
             </TooltipContent>

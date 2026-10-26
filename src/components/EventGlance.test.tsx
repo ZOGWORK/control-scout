@@ -58,7 +58,7 @@ describe("EventGlance", () => {
     expect(cell("upsets")!.textContent).toContain("Upsets (live calls)1 of 2");
     expect(within(cell("upsets")!).getByRole("link", { name: "Q2" }).getAttribute("href")).toBe("/events/2025/TEST/match/qual:0:2");
     // The biggest upset's call shows with the tier it was made with (audit PUB3-F03 sweep).
-    expect(cell("upsets")!.textContent).toContain("(80% favourite lost, moderate confidence)");
+    expect(cell("upsets")!.textContent).toContain("(80% favourite lost, confidence: fair)");
     expect(cell("won")).toBeNull();
     expect(cell("strongest")).toBeNull();
   });
