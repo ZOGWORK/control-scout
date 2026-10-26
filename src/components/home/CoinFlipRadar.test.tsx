@@ -1,21 +1,22 @@
 // @vitest-environment jsdom
 // The Events page's coin flips: each card shows both sides' odds and its confidence tier and opens the match
-// page; the closest call is marked; decided ones show the result beside the call made before them; an empty
-// day says why in words (no events, or no close calls, with the thin-data ones counted), never a blank.
+// page; the closest call is marked; decided ones show the result beside the call made before them; a day with
+// none (no events, or no close calls) or a failed load leaves the section out; the skeleton holds its place while loading.
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { MemoryRouter } from "react-router-dom";
 import type { CoinFlipRadar, CoinFlipRow } from "../../shared/coinFlips";
 
 let data: CoinFlipRadar | undefined;
+let error: Error | undefined;
 let reloads = 0;
 const reload = () => { reloads++; };
 vi.mock("../../lib/api", async (orig) => ({
   ...(await orig<typeof import("../../lib/api")>()),
-  useApi: () => ({ data, error: undefined, loading: !data, reload }),
+  useApi: () => ({ data, error, loading: !data && !error, reload }),
 }));
 vi.mock("../../lib/meta", async (orig) => ({ ...(await orig<typeof import("../../lib/meta")>()), useMediaQuery: () => false }));
-const { CoinFlipRadarSection, closestKey, dueIn, emptyLine, favourite, meterAt, printedOdds, venueClock } = await import("./CoinFlipRadar");
+const { CoinFlipRadarSection, closestKey, dueIn, favourite, hasFlips, meterAt, printedOdds, venueClock } = await import("./CoinFlipRadar");
 
 const row = (n: number, o: Partial<CoinFlipRow> = {}): CoinFlipRow => ({
   season: 2026, code: "USCAQ1", key: `qual:0:${n}`, label: `Q${n}`, eventName: "Los Angeles Qualifier", place: "Los Angeles, CA", timezone: "America/Los_Angeles",
@@ -24,7 +25,7 @@ const row = (n: number, o: Partial<CoinFlipRow> = {}): CoinFlipRow => ({
 });
 const radar = (o: Partial<CoinFlipRadar>): CoinFlipRadar => ({ generatedAt: new Date().toISOString(), band: { lo: 0.45, hi: 0.55 }, events: 0, calls: 0, thin: 0, tallies: [], upcoming: [], decided: [], ...o });
 const show = () => render(<MemoryRouter><CoinFlipRadarSection /></MemoryRouter>);
-afterEach(() => { cleanup(); data = undefined; });
+afterEach(() => { cleanup(); data = undefined; error = undefined; });
 
 describe("CoinFlipRadarSection", () => {
   it("shows each coin flip with both sides' odds and its tier, linked to the match, with the closest call marked", () => {
@@ -75,13 +76,37 @@ describe("refresh", () => {
   });
 });
 
-describe("emptyLine", () => {
-  it("says there are no events today, or no close calls with the thin-data ones counted", () => {
-    expect(emptyLine(radar({}))).toMatch(/No event has matches scheduled for today/);
-    expect(emptyLine(radar({ events: 2, calls: 40 }))).toBe("None of the 40 calls on today’s schedules at 2 events is between 45% and 55%.");
-    expect(emptyLine(radar({ events: 2, calls: 40, thin: 3 }))).toBe(
-      "Of the 40 calls on today’s schedules at 2 events, 3 are between 45% and 55% but left out: a robot in them has played fewer than 3 matches this season, so the call rests on thin data.");
-    expect(emptyLine(radar({ upcoming: [row(1)] }))).toBeNull();
+describe("a day with no coin flips", () => {
+  it("leaves the whole section out: no events today, or none of today's calls in the band", () => {
+    for (const r of [radar({}), radar({ events: 2, calls: 40 }), radar({ events: 2, calls: 40, thin: 3 })]) {
+      data = r;
+      const { container } = show();
+      expect(container.innerHTML).toBe("");
+      cleanup();
+    }
+    expect(hasFlips(radar({ upcoming: [row(1)] }))).toBe(true);
+    expect(hasFlips(radar({ decided: [row(1, { played: true, result: { red: 1, blue: 0 } })] }))).toBe(true);
+  });
+
+  it("holds its place with a skeleton while loading", () => {
+    show();
+    expect(screen.getByRole("heading", { name: /Today’s coin flips/ })).toBeTruthy();
+    expect(document.querySelector("[aria-busy=true]")).toBeTruthy();
+  });
+
+  it("leaves the section out when it couldn't load, and keeps the last radar through a failed refresh", () => {
+    error = new Error("down");
+    expect(show().container.innerHTML).toBe("");
+    cleanup();
+    data = radar({ events: 1, calls: 9, upcoming: [row(1)] });
+    show();
+    expect(screen.getByText("1 to play")).toBeTruthy();
+  });
+
+  it("puts the page's spacing on the section itself, so a hidden one leaves no gap", () => {
+    data = radar({ events: 1, calls: 9, upcoming: [row(1)] });
+    render(<MemoryRouter><CoinFlipRadarSection className="mb-8" /></MemoryRouter>);
+    expect(screen.getByRole("region", { name: /Today’s coin flips/ }).className.split(" ")).toContain("mb-8");
   });
 });
 

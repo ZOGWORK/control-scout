@@ -3,7 +3,7 @@
 // reads at a glance; then the ones already decided, with their results. Each opens its match page.
 import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
-import { ArrowUpRight, Coins, RefreshCw } from "lucide-react";
+import { ArrowUpRight, Coins } from "lucide-react";
 import { useApi } from "../../lib/api";
 import { useMediaQuery } from "../../lib/meta";
 import { ago } from "../../lib/format";
@@ -54,15 +54,9 @@ export function closestKey(rows: CoinFlipRow[]): string | null {
   return best ? `${best.code}|${best.key}` : null;
 }
 
-/** What the section says when it has no cards (null: it has some). */
-export function emptyLine(r: CoinFlipRadar): string | null {
-  if (r.upcoming.length) return null;
-  if (r.decided.length) return "Every coin flip on today’s schedules has been played. The results are below.";
-  if (!r.events) return "No event has matches scheduled for today at its venue, so there are no coin flips to watch. They show here on event days, once a schedule is out.";
-  const pool = `${r.calls.toLocaleString()} ${r.calls === 1 ? "call" : "calls"} on today’s schedules at ${r.events} ${r.events === 1 ? "event" : "events"}`;
-  if (!r.thin) return `None of the ${pool} is between ${pctBand(r)}.`;
-  return `Of the ${pool}, ${r.thin} ${r.thin === 1 ? "is" : "are"} between ${pctBand(r)} but left out: a robot in ${r.thin === 1 ? "it has" : "them has"} played fewer than 3 matches this season, so the call rests on thin data.`;
-}
+/** Whether today has any coin flip to show, still to play or decided. With none (no event on today, or no
+ *  call in the band) the section stays out of the page rather than saying so. */
+export const hasFlips = (r: CoinFlipRadar) => r.upcoming.length > 0 || r.decided.length > 0;
 
 const pctBand = (r: CoinFlipRadar) => `${Math.round(r.band.lo * 100)}% and ${Math.round(r.band.hi * 100)}%`;
 
@@ -182,7 +176,10 @@ function useRadarRefresh(reload: () => void) {
   }, [reload]);
 }
 
-export function CoinFlipRadarSection() {
+/** Nothing renders on a day with no coin flips, or when they couldn't load (a stale radar stays up through a
+ *  failed refresh); the skeleton holds the place while loading. `className` (the page's spacing) goes on the
+ *  section, so a hidden section leaves no gap. */
+export function CoinFlipRadarSection({ className }: { className?: string }) {
   const state = useApi<CoinFlipRadar>("/api/home/coin-flips");
   useRadarRefresh(state.reload);
   const [allUp, setAllUp] = useState(false);
@@ -190,11 +187,11 @@ export function CoinFlipRadarSection() {
   const first = useMediaQuery("(max-width: 639px)") ? FIRST_UPCOMING_PHONE : FIRST_UPCOMING;
   const r = state.data;
   const closest = useMemo(() => (r ? closestKey(r.upcoming) : null), [r]);
-  const empty = r ? emptyLine(r) : null;
   const up = r ? (allUp ? r.upcoming : r.upcoming.slice(0, first)) : [];
   const done = r ? (allDone ? r.decided : r.decided.slice(0, FIRST_DECIDED)) : [];
+  if ((state.error && !r) || (r && !hasFlips(r))) return null;
   return (
-    <section aria-labelledby="radar-title" className="@container/radar min-w-0">
+    <section aria-labelledby="radar-title" className={cn("@container/radar min-w-0", className)}>
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div className="min-w-0">
           <h2 id="radar-title" className="flex items-center gap-2 font-display text-2xl font-semibold">
@@ -205,22 +202,18 @@ export function CoinFlipRadarSection() {
             The matches the model can barely split: {r ? pctBand(r) : "45% and 55%"} for either side, at every event on today at its venue. Calls on thin data are left out.
           </p>
         </div>
-        {r && (r.upcoming.length > 0 || r.decided.length > 0) && (
+        {r && (
           <span className="shrink-0 rounded-lg border border-accent/40 bg-accent/10 px-2.5 py-1 text-xs font-medium tabular-nums text-accent-text">
             {r.upcoming.length} to play{r.decided.length ? ` · ${r.decided.length} decided` : ""}
           </span>
         )}
       </div>
       <div className="mt-3">
-        {state.error && !r ? (
-          <p className="flex flex-wrap items-center gap-3 rounded-xl border border-dashed border-line px-4 py-4 text-sm text-text-muted">
-            Today’s coin flips couldn’t load. <Button variant="secondary" size="sm" onClick={state.reload}><RefreshCw /> Try again</Button>
-          </p>
-        ) : !r ? (
+        {!r ? (
           <ul aria-busy="true" className="grid gap-3 @2xl/radar:grid-cols-2 @5xl/radar:grid-cols-3">{[0, 1, 2].map((i) => <li key={i} className="h-[7.5rem] rounded-xl border border-line" />)}</ul>
         ) : (
           <>
-            {empty && <p className="rounded-xl border border-dashed border-line px-4 py-4 text-sm text-text-muted">{empty}</p>}
+            {!up.length && <p className="rounded-xl border border-dashed border-line px-4 py-4 text-sm text-text-muted">Every coin flip on today’s schedules has been played. The results are below.</p>}
             {up.length > 0 && (
               <ul className="grid gap-3 @2xl/radar:grid-cols-2 @5xl/radar:grid-cols-3">
                 {up.map((x) => <FlipCard key={`${x.code}|${x.key}`} r={x} closest={r.upcoming.length > 1 && closest === `${x.code}|${x.key}`} />)}
@@ -242,9 +235,9 @@ export function CoinFlipRadarSection() {
                 )}
               </div>
             )}
-            {(r.upcoming.length > 0 || r.decided.length > 0) && <p className="mt-3 text-xs text-text-muted">
+            <p className="mt-3 text-xs text-text-muted">
               Each call is the one on its match page: logged before the match (and scored in the public record) or, until it’s logged, from today’s ratings. Updated {ago(r.generatedAt)}.
-            </p>}
+            </p>
           </>
         )}
       </div>
