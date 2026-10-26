@@ -126,16 +126,17 @@ function MoreGroup({ items, collapsed }: { items: NavItem[]; collapsed?: boolean
   const [open, setOpen] = useState(() => { try { return localStorage.getItem(MORE_KEY) === "1"; } catch { return false; } });
   const { pathname } = useLocation();
   const inside = items.some((it) => isUnder(pathname, it.to));
-  useEffect(() => { if (inside) setOpen(true); }, [inside]);
+  // Every arrival on one of its pages (from another of them too) shows the lit row.
+  useEffect(() => { if (inside) setOpen(true); }, [inside, pathname]);
   const unseen = useUnseenRelease();
   const button = useRef<HTMLButtonElement>(null);
   const id = useId();
-  const toggle = () => setOpen((o) => { try { localStorage.setItem(MORE_KEY, o ? "0" : "1"); } catch { /* ignore */ } return !o; });
+  const set = (on: boolean) => { try { localStorage.setItem(MORE_KEY, on ? "1" : "0"); } catch { /* ignore */ } setOpen(on); };
   return (
     // Escape inside the open group folds it and puts the keyboard back on its toggle.
-    <div className="space-y-0.5" onKeyDown={(e) => { if (e.key === "Escape" && open) { e.stopPropagation(); setOpen(false); button.current?.focus(); } }}>
+    <div className="space-y-0.5" onKeyDown={(e) => { if (e.key === "Escape" && open) { e.stopPropagation(); set(false); button.current?.focus(); } }}>
       <RailTip on={collapsed} label={open ? "Fewer pages" : "More pages"}>
-        <button ref={button} type="button" onClick={toggle} aria-expanded={open} aria-controls={id} className={rowClass(false, collapsed, true)}>
+        <button ref={button} type="button" onClick={() => set(!open)} aria-expanded={open} aria-controls={id} className={rowClass(false, collapsed, true)}>
           <span className="relative">
             <Ellipsis className="size-[18px] shrink-0" aria-hidden />
             {/* A new release waits under the folded group's What's new. */}
