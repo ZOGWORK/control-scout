@@ -139,7 +139,7 @@ export default function ShortlistPage() {
         {list.length > MAX_SHOWN && <p className="mt-2 text-sm text-warning">Showing the first {MAX_SHOWN} of {list.length}.</p>}
         <div className="mt-3 flex flex-wrap items-center gap-2" data-print-hide>
           <SeasonToggle predictOnly value={season} onChange={(s) => setSp((x) => { x.set("season", String(s)); return x; }, { replace: true })} />
-          <AddTeam className="w-full sm:w-80" />
+          <AddTeam className="w-full sm:w-96" />
           <div className="flex flex-wrap items-center gap-2 sm:ml-auto">
             <DropdownMenu>
               <DropdownMenuTrigger asChild><Button variant="secondary" size="sm" disabled={!data.data}><ArrowDownWideNarrow /> Order picks</Button></DropdownMenuTrigger>

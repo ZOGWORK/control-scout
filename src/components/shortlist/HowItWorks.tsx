@@ -32,7 +32,7 @@ export function HowItWorks({ className, title = true, hidden }: { className?: st
     <section id={HOW_IT_WORKS_ID} hidden={hidden} aria-label="How the shortlist works" className={cn("rounded-2xl border border-border bg-card p-4 text-sm", className)}>
       {title && <h2 className="mb-3 font-display text-base font-semibold">How it works</h2>}
       <ul className="grid gap-2.5 text-text-muted sm:grid-cols-2">
-        <Step icon={<Bookmark />} tone="bg-accent/15 text-accent-text">Press <span className="font-medium text-text-base">Shortlist</span> on any team page to add it. An event’s Rankings tab is a good place to start.</Step>
+        <Step icon={<Bookmark />} tone="bg-accent/15 text-accent-text">Add a team with the search on this page, or press <span className="font-medium text-text-base">Shortlist</span> on any team page. An event’s Rankings tab is a good place to start.</Step>
         <Step icon={<GripVertical />} tone="bg-accent/15 text-accent-text">Drag the grip to rank your picks, or focus it and use the arrow keys. <span className="font-medium text-text-base">Order picks</span> ranks the whole list by OPR or rating.</Step>
         <Step icon={<Scale />} tone="bg-info/15 text-info">Tick up to {MAX_COMPARE} teams to compare them (in the phone’s list view, open a pick to tick it). With none ticked, Compare takes your top {MAX_COMPARE}.</Step>
         <Step icon={<Palette />} tone="bg-violet-500/15 text-violet-600 dark:text-violet-300">Give a team one of eight named colours with the dot beside its number; Compare draws the team in it too.</Step>
