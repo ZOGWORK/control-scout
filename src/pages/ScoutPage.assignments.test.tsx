@@ -12,6 +12,7 @@ import { resetFlags } from "../lib/flags";
 import { DEFAULT_FLAGS } from "../shared/flags";
 import type { Assignment } from "../shared/assignments";
 import { TooltipProvider } from "../components/ui/overlay";
+import { asEntries } from "./scoutTestUrl";
 
 const h = vi.hoisted(() => ({
   personal: { user: null as AccountUser | null, providers: { email: true, google: false } as object | null, syncReady: false, state: { videoLinks: {} } },
@@ -67,7 +68,7 @@ beforeEach(() => {
 });
 afterEach(() => { cleanup(); resetFlags({ ...DEFAULT_FLAGS }); vi.unstubAllGlobals(); });
 
-const show = (url: string) => render(<TooltipProvider><MemoryRouter initialEntries={[url]}><ScoutPage /></MemoryRouter></TooltipProvider>);
+const show = (url: string) => render(<TooltipProvider><MemoryRouter initialEntries={[asEntries(url)]}><ScoutPage /></MemoryRouter></TooltipProvider>);
 const myCards = () => within(screen.getByRole("list", { name: "My assignments" })).getAllByRole("listitem");
 
 describe("assignments on the Scout page", () => {
@@ -78,8 +79,9 @@ describe("assignments on the Scout page", () => {
     show(`/scout?space=${WS}&season=2025`);
     await waitFor(() => expect(screen.getByText("Assigned to Sam")).toBeTruthy());
     expect(screen.getAllByText("Assigned to you")).toHaveLength(1); // not on the entry at another event
-    // The header button counts my open assignments.
-    expect(screen.getByRole("button", { name: /Assignments/ }).textContent).toContain("2");
+    // Data's Assignments row counts my open assignments.
+    fireEvent.click(screen.getByRole("button", { name: "Data" }));
+    await waitFor(() => expect(screen.getByRole("button", { name: /Assignments/ }).textContent).toContain("2"));
   });
 
   it("My assignments: my teams with progress (this device's unsynced entries count), Done, and live changes", async () => {
@@ -115,10 +117,22 @@ describe("assignments on the Scout page", () => {
     expect((screen.getByLabelText(/^Team/) as HTMLInputElement).value).toBe("5678");
     // A draft for the same team with another event typed in: Scout again starts afresh at the assignment's event.
     fireEvent.change(screen.getByLabelText("Event code"), { target: { value: "ELSEWHERE" } });
+    fireEvent.click(screen.getByRole("button", { name: "Data" }));
     fireEvent.click(screen.getByRole("button", { name: /Assignments/ }));
     await waitFor(() => expect(myCards()).toHaveLength(2));
     fireEvent.click(within(myCards()[1]).getByRole("button", { name: /Scout/ }));
     await waitFor(() => expect((screen.getByLabelText("Event code") as HTMLInputElement).value).toBe(EV));
+  });
+
+  it("Scout on an assignment opens a match entry, even after a pit entry was started and cancelled", async () => {
+    show(`/scout?space=${WS}&season=2025&tab=data`);
+    fireEvent.click(await screen.findByRole("button", { name: /Pit scouting/ }));
+    await waitFor(() => expect(screen.getByRole("radio", { name: "Pit" }).getAttribute("aria-checked")).toBe("true"));
+    fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
+    fireEvent.click(screen.getByRole("button", { name: /Assignments/ }));
+    await waitFor(() => expect(myCards()).toHaveLength(2));
+    fireEvent.click(within(myCards()[1]).getByRole("button", { name: /Scout/ }));
+    await waitFor(() => expect(screen.getByRole("radio", { name: "Match" }).getAttribute("aria-checked")).toBe("true"));
   });
 
   it("the assignment's event only holds in its space: switching space while the form is open falls back to that space's defaults", async () => {

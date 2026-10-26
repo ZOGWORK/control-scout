@@ -9,6 +9,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { newScoutId, personalCopy, saveScoutEntry, scoutDraftBase, ScoutStorageError, templateFor, type ScoutEntry, type ScoutSpace, type ScoutValue } from "./scouting";
 import type { ScoutField, ScoutTemplate } from "../shared/scoutTemplate";
 import { normalizeMatchLabel, type ScheduleMatch, type WatchedTeam } from "../shared/scoutMatch";
+import { useEntryTemplateState } from "./scoutTemplates";
 
 /** The template an entry records (absent fields: it records none, the built-in defaults). */
 type Made = { templateId?: string; templateVersion?: number };
@@ -39,8 +40,10 @@ export interface TeamState {
   status: TeamStatus;
   /** The saved entry Save edits for this team, or null (a new entry). */
   entry: ScoutEntry | null;
-  /** The template a new entry is being filled with (an edit is read with its own: useEntryTemplateState(entry)). */
+  /** The questions shown: a new entry's (fixed at its first answer), or an edit's own version (the one it was saved with). */
   template: ScoutTemplate;
+  /** An edit whose own template version isn't on this device yet (loading, or offline): its answers can be read, not changed. */
+  locked: boolean;
 }
 
 export type MatchSaveResult =
@@ -175,6 +178,11 @@ export function useMatchDraft(o: MatchDraftOptions) {
     // A new entry keeps the questions it was first answered with.
     ...(!d.uuid && !d.template ? { template } : {}),
   })), [update, template]);
+  /** A team's whole answers record at once, kept as given (the form's "Undo last tap" checks it's the very record it made). */
+  const setData = useCallback((team: number, data: Record<string, ScoutValue>) => update(team, (d) => ({
+    ...d, data,
+    ...(!d.uuid && !d.template ? { template } : {}),
+  })), [update, template]);
   const setNotes = useCallback((team: number, notes: string) => update(team, (d) => ({ ...d, notes })), [update]);
   /** Let a team's unsaved changes go: back to the saved entry, or to nothing. */
   const discard = useCallback((team: number) => setState((s) => {
@@ -184,18 +192,34 @@ export function useMatchDraft(o: MatchDraftOptions) {
     return { key, drafts: cur };
   }), [key]);
 
-  const view = useMemo<TeamState[]>(() => teams.map((w) => {
+  // An edit is read with the template it was saved with (an admin may have changed the questions since), as in
+  // the old form. A match has at most four teams, so the per-entry lookups sit in four fixed slots.
+  const madeOf = (team: number): Made | null => {
+    const d = drafts[team];
+    if (d) return d.uuid ? d.made ?? {} : null;
+    const entry = savedEntry(team);
+    return entry ? { templateId: entry.templateId, templateVersion: entry.templateVersion } : null;
+  };
+  const slot = (i: number) => { const m = teams[i] ? madeOf(teams[i].team) : null; return { season, kind: "match" as const, templateId: m?.templateId, templateVersion: m?.templateVersion }; };
+  const own = [useEntryTemplateState(slot(0)), useEntryTemplateState(slot(1)), useEntryTemplateState(slot(2)), useEntryTemplateState(slot(3))];
+  const ownKey = own.map((o) => `${o.template.id}@${o.template.version ?? 0}:${o.exact}`).join();
+
+  const view = useMemo<TeamState[]>(() => teams.map((w, i) => {
     const d = drafts[w.team];
+    const edit = d ? !!d.uuid : !!savedEntry(w.team);
+    const mine = edit && own[i] ? { template: own[i].template, locked: !own[i].exact } : null;
     if (!d) {
       const entry = savedEntry(w.team);
-      return { watched: w, data: entry ? entry.data : {}, notes: entry?.notes ?? "", status: entry ? "done" : "empty", entry, template };
+      return { watched: w, data: entry ? entry.data : {}, notes: entry?.notes ?? "", status: entry ? "done" : "empty", entry, template: mine?.template ?? template, locked: mine?.locked ?? false };
     }
-    const tpl = d.template ?? template, entry = targetOf(d);
+    const tpl = mine?.template ?? d.template ?? template, entry = targetOf(d);
     const status: TeamStatus = d.kept ? (sameText(d, d.kept) ? "done" : "started")
       : entry ? (sameText(d, entry) ? "done" : "started")
       : hasAnswers(d.data, d.notes, tpl.fields) ? "started" : "empty";
-    return { watched: w, data: d.data, notes: d.notes, status, entry, template: tpl };
-  }), [teams, drafts, savedEntry, targetOf, template]);
+    return { watched: w, data: d.data, notes: d.notes, status, entry, template: tpl, locked: mine?.locked ?? false };
+  // own changes with ownKey (four hook results, new objects each render).
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }), [teams, drafts, savedEntry, targetOf, template, ownKey]);
 
   /** New teams with nothing entered: Save skips them unless asked to save them anyway. */
   const emptyTeams = useMemo(() => view.filter((t) => t.status === "empty").map((t) => t.watched.team), [view]);
@@ -265,7 +289,7 @@ export function useMatchDraft(o: MatchDraftOptions) {
     }
   }, [view, drafts, eventCode, season, space, label, toPersonal, spaceName, key]);
 
-  return { teams: view, emptyTeams, toPersonal, setAnswer, setNotes, discard, saveMatch };
+  return { teams: view, emptyTeams, toPersonal, setAnswer, setData, setNotes, discard, saveMatch };
 }
 
 /** What the toast says after a save: "Saved Q14 · 2 entries. Now Q15." */
