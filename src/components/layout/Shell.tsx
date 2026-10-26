@@ -66,9 +66,10 @@ export function BrandMark({ className }: { className?: string }) {
   return <img src="/logo.png" alt="" aria-hidden className={cn("size-7 shrink-0", className)} />;
 }
 
-/** `dense`: the sidebar's tighter rows (so it fits a laptop screen); the phone's menu sheet keeps the taller ones. */
+/** `dense`: the sidebar's rows, sized to the screen's height (--nav-row in index.css: they fit a laptop screen and
+ *  grow on a taller one); the phone's menu sheet keeps its own taller ones. */
 const rowClass = (on: boolean, collapsed?: boolean, dense?: boolean) => cn("group relative flex w-full items-center rounded-lg font-medium outline-none focus-visible:ring-2 focus-visible:ring-ring/60",
-  dense ? "h-8 gap-2.5 px-2.5 text-sm" : "h-10 gap-3 px-3 text-[0.9375rem]",
+  dense ? "h-(--nav-row) gap-2.5 px-2.5 text-(length:--nav-text)" : "h-10 gap-3 px-3 text-[0.9375rem]",
   on ? "text-text-base" : "text-text-muted hover:bg-text-base/[0.05] hover:text-text-base", collapsed && "justify-center px-0");
 
 /** In the icon rail, a row's name shows in a tooltip beside it (it is always the row's accessible name too). */
@@ -141,7 +142,7 @@ function MoreGroup({ items, collapsed }: { items: NavItem[]; collapsed?: boolean
   const set = (on: boolean) => { try { localStorage.setItem(MORE_KEY, on ? "1" : "0"); } catch { /* ignore */ } setOpen(on); };
   return (
     // Escape inside the open group folds it and puts the keyboard back on its toggle.
-    <div className="space-y-0.5" onKeyDown={(e) => { if (e.key === "Escape" && open) { e.stopPropagation(); set(false); button.current?.focus(); } }}>
+    <div className="space-y-(--nav-gap)" onKeyDown={(e) => { if (e.key === "Escape" && open) { e.stopPropagation(); set(false); button.current?.focus(); } }}>
       <RailTip on={collapsed} label={open ? "Fewer pages" : "More pages"}>
         <button ref={button} type="button" onClick={() => set(!open)} aria-expanded={open} aria-controls={id} className={rowClass(false, collapsed, true)}>
           <span className="relative">
@@ -153,7 +154,7 @@ function MoreGroup({ items, collapsed }: { items: NavItem[]; collapsed?: boolean
           {!collapsed && <ChevronDown className={cn("size-4 shrink-0 transition-transform duration-150 motion-reduce:transition-none", open && "rotate-180")} aria-hidden />}
         </button>
       </RailTip>
-      <div id={id} role="group" aria-label="More pages" hidden={!open} className="space-y-0.5">
+      <div id={id} role="group" aria-label="More pages" hidden={!open} className="space-y-(--nav-gap)">
         <SectionRows items={items} collapsed={collapsed} dense />
         <WhatsNewRow collapsed={collapsed} dense />
       </div>
@@ -167,7 +168,7 @@ function Sidebar({ rail, wide, onToggle, onMenu }: { rail: boolean; wide: boolea
   const sections = useSections();
   const toggleLabel = !wide ? "Show page names" : rail ? "Expand sidebar" : "Collapse sidebar";
   return (
-    // Held in place while the page scrolls under it. Its rows fit a 768 px tall screen; the nav still scrolls on a shorter one.
+    // Held in place while the page scrolls under it. Its rows fit the screen's height (index.css --nav-row); the nav still scrolls on one under 768 px.
     // Above the page (z-20 over main's z-10), so the account panel can open out over it.
     <aside aria-label="Sidebar" className={cn("sticky top-0 z-20 hidden h-dvh shrink-0 flex-col self-start border-r border-line bg-secondary/60 transition-[width] duration-150 ease-out motion-reduce:transition-none md:flex", rail ? "w-[60px]" : "w-[232px]")}>
       <div className={cn("flex h-(--header-h) shrink-0 items-center gap-2.5 px-3.5", rail && "justify-center px-0")}>
@@ -176,9 +177,9 @@ function Sidebar({ rail, wide, onToggle, onMenu }: { rail: boolean; wide: boolea
           {!rail && <span className="truncate font-display text-base font-bold tracking-tight">Control Scout</span>}
         </Link>
       </div>
-      <nav className="custom-scrollbar flex-1 space-y-3 overflow-y-auto px-2 py-1.5" aria-label="Main">
+      <nav className="custom-scrollbar flex-1 space-y-(--nav-section) overflow-y-auto px-2 pt-(--nav-top) pb-1.5" aria-label="Main">
         {sections.map((s, i) => s.more ? <MoreGroup key={i} items={s.items} collapsed={rail} /> : (
-          <div key={i} className="space-y-0.5">
+          <div key={i} className="space-y-(--nav-gap)">
             {s.title && (rail
               ? <div className="mx-auto mb-1 h-px w-6 bg-line" aria-hidden />
               : <p className="px-2.5 pb-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-text-muted">{s.title}</p>)}

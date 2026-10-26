@@ -167,6 +167,14 @@ html.light {
    (react-remove-scroll-bar) gives <body> to stand in for the scrollbar is taken off again (it would
    move the page 6 px). */
 :root { --header-h: 3rem; }
+/* The desktop sidebar's rows (Shell.tsx) grow with the screen's height, so a tall screen isn't a short list over
+   an empty column. Each step still fits every row, the "More" group open and the owner's row included, above
+   the account footer without a scrollbar: 34 px rows on a 768 px laptop, up to 48 px from 1100 px tall. The
+   static first paint (server/bootShell.ts) uses the same steps. */
+:root { --nav-row: 2.125rem; --nav-gap: 0.125rem; --nav-section: 0.75rem; --nav-top: 0.375rem; --nav-text: 0.875rem; }
+@media (min-height: 900px) { :root { --nav-row: 2.5rem; --nav-gap: 0.25rem; --nav-section: 1rem; --nav-top: 0.75rem; } }
+@media (min-height: 1000px) { :root { --nav-row: 2.75rem; --nav-gap: 0.375rem; --nav-section: 1.25rem; --nav-top: 1rem; --nav-text: 0.9375rem; } }
+@media (min-height: 1100px) { :root { --nav-row: 3rem; --nav-section: 1.5rem; --nav-top: 1.25rem; } }
 html { scrollbar-gutter: stable; }
 /* Smooth scrolling: every jump within the page glides (a #link, the skip link, a "see the odds" button, a
    scrollIntoView). Wheel, trackpad and touch scrolling stay the browser's own (this only changes jumps).
