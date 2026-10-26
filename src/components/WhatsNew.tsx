@@ -44,13 +44,13 @@ export function WhatsNewHost() {
   );
 }
 
-/** The sidebar / More sheet row: "What's new", with a dot for an unseen release. */
-export function WhatsNewRow({ collapsed, onOpen, returnTo }: { collapsed?: boolean; onOpen?: () => void; returnTo?: ReturnTo }) {
+/** The sidebar / More sheet row: "What's new", with a dot for an unseen release. `dense`: the sidebar's tighter row. */
+export function WhatsNewRow({ collapsed, dense, onOpen, returnTo }: { collapsed?: boolean; dense?: boolean; onOpen?: () => void; returnTo?: ReturnTo }) {
   const unseen = useUnseenRelease();
   return (
     <button type="button" onClick={() => { onOpen?.(); openWhatsNew(returnTo); }} title={collapsed ? "What's new" : undefined}
       aria-label={unseen ? "What's new (new release)" : "What's new"}
-      className={cn("group relative flex h-10 w-full items-center gap-3 rounded-lg px-3 text-[0.9375rem] font-medium text-text-muted outline-none hover:bg-text-base/[0.05] hover:text-text-base focus-visible:ring-2 focus-visible:ring-ring/60", collapsed && "justify-center px-0")}>
+      className={cn("group relative flex w-full items-center rounded-lg font-medium text-text-muted outline-none", dense ? "h-8 gap-2.5 px-2.5 text-sm" : "h-10 gap-3 px-3 text-[0.9375rem]", "hover:bg-text-base/[0.05] hover:text-text-base focus-visible:ring-2 focus-visible:ring-ring/60", collapsed && "justify-center px-0")}>
       <span className="relative">
         <Megaphone className="size-[18px] shrink-0" aria-hidden />
         {unseen && <span className="absolute -right-1 -top-1 size-2 rounded-full bg-accent ring-2 ring-secondary" aria-hidden />}
