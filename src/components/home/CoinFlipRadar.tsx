@@ -11,6 +11,7 @@ import { coinFlipHref, type CoinFlipRadar, type CoinFlipRow } from "../../shared
 import { Button } from "../ui/button";
 import { TierMark } from "../predict";
 import { cn } from "../cn";
+import { tierPhrase } from "../../shared/tierWords";
 
 /** Cards shown before "Show all" (fewer on a phone, where they stack), and decided rows before "All decided". */
 const FIRST_UPCOMING = 6;
@@ -110,7 +111,7 @@ function Teams({ teams, side }: { teams: number[]; side: "red" | "blue" }) {
 function FlipCard({ r, closest }: { r: CoinFlipRow; closest: boolean }) {
   const clock = venueClock(r.time, r.timezone), due = dueIn(r.startsAt);
   const odds = printedOdds(r.pRed);
-  const label = `${r.label} at ${r.eventName}${clock ? `, ${clock} at the venue` : ""}: red ${r.red.join(" and ")} ${odds.red}% to win, blue ${r.blue.join(" and ")} ${odds.blue}%, ${r.tier} confidence`;
+  const label = `${r.label} at ${r.eventName}${clock ? `, ${clock} at the venue` : ""}: red ${r.red.join(" and ")} ${odds.red}% to win, blue ${r.blue.join(" and ")} ${odds.blue}%, ${tierPhrase(r.tier)}`;
   return (
     <li className="min-w-0">
       <Link to={coinFlipHref(r)} aria-label={label}
