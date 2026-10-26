@@ -87,7 +87,7 @@ describe("MatchHeader", () => {
     const teams = screen.getByRole("group", { name: "Teams in Q1" });
     const watched = [...teams.querySelectorAll("[data-watched]")].map((e) => e.textContent);
     expect(watched).toEqual(["4001Blue 2, watching"]);
-    expect(within(teams).getByText("1001").parentElement!.className).toMatch(/opacity-55/);
+    expect(within(teams).getByText("1001").className).toMatch(/text-text-muted/);
     cleanup();
     setup({ index: 0, watching: { kind: "all" } });
     expect(screen.getByRole("group", { name: "Teams in Q1" }).querySelectorAll("[data-watched]")).toHaveLength(4);
@@ -113,7 +113,7 @@ describe("ScheduleState", () => {
   afterEach(cleanup);
   it("loading", () => {
     render(<ScheduleState status="loading" />);
-    expect(screen.getByRole("status").getAttribute("aria-busy")).toBe("true");
+    expect(screen.getByRole("status", { name: "Loading the schedule" })).toBeTruthy();
   });
   it("none offers typing the match in", () => {
     const onManual = vi.fn();
