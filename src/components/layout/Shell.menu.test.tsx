@@ -114,7 +114,7 @@ describe("the phone's top bar and tab bar", () => {
     expect(button.getAttribute("aria-expanded")).toBe("false");
     const { sheet } = await openMenu();
     expect(button.getAttribute("aria-expanded")).toBe("true");
-    for (const name of ["Home", "Events", "Teams", "Rankings", "Predict", "Compare", "Shortlist", "Scout", "Settings"]) expect(within(sheet).getByRole("link", { name })).toBeTruthy();
+    for (const name of ["Home", "Events", "Teams", "Rankings", "Power rankings", "Predict", "Compare", "Shortlist", "Scout", "Download", "How it works", "Settings"]) expect(within(sheet).getByRole("link", { name })).toBeTruthy();
   });
 
   it("the logo in the top bar goes home", () => {
@@ -148,18 +148,19 @@ describe("the desktop sidebar", () => {
   const morePages = () => document.getElementById(moreButton().getAttribute("aria-controls")!)!;
   const wide = (on: boolean) => vi.stubGlobal("matchMedia", (q: string) => ({ matches: on && q.includes("min-width: 1280px"), media: q, addEventListener() {}, removeEventListener() {}, addListener() {}, removeListener() {} }));
 
-  it("keeps the everyday pages in view and folds the rest under More, which says whether it is open", () => {
+  it("shows only the everyday pages and folds the rest under More, which says whether it is open", () => {
     wide(true);
     shell();
     const nav = within(sidebar()).getByRole("navigation", { name: "Main" });
-    for (const name of ["Home", "Events", "Teams", "Rankings", "Power rankings", "Predict", "Compare", "My team", "Shortlist", "Scout"]) expect(within(nav).getByRole("link", { name })).toBeTruthy();
+    const always = ["Home", "Events", "Teams", "Rankings", "Predict", "My team", "Scout"];
+    expect(within(nav).getAllByRole("link").map((l) => l.textContent)).toEqual(always);
     const more = moreButton();
     expect(more.getAttribute("aria-expanded")).toBe("false");
     expect(morePages().hidden).toBe(true);
     fireEvent.click(more);
     expect(more.getAttribute("aria-expanded")).toBe("true");
     expect(morePages().hidden).toBe(false);
-    for (const name of ["Download", "How it works", "Settings"]) expect(within(morePages()).getByRole("link", { name })).toBeTruthy();
+    for (const name of ["Power rankings", "Compare", "Shortlist", "Download", "How it works", "Settings"]) expect(within(morePages()).getByRole("link", { name })).toBeTruthy();
     expect(localStorage.getItem("cs-nav-more")).toBe("1");
   });
 
