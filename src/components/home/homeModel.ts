@@ -14,7 +14,7 @@ export interface RecordView {
   block: AccuracyBlock;
   /** Correct and missed decisive calls (both of `decided`), or null when the response predates that count. */
   split: { correct: number; missed: number; decided: number } | null;
-  /** Live calls short of the sample the headline waits for. */
+  /** Live calls short of the sample the headline waits for: still calibrating this season. */
   early: boolean;
   /** Every scored call so far was a tie or a 50:50 call: there's no percentage to show yet (accuracy is a stand-in 0). */
   noneDecided: boolean;
@@ -50,7 +50,7 @@ export function recordFor(t: TrackRecord, kind: Evidence): RecordView | null {
   };
 }
 
-/** Which evidence opens first: the same rule as every ledger card (the replay until a season has enough live calls). */
+/** Which evidence opens first: the same rule as every ledger card (the replay until a season has LIVE_THRESHOLD live calls). */
 export const defaultEvidence = (t: TrackRecord): Evidence => ledgerDefault(t)?.kind ?? "backtest";
 
 export type UsageView =
