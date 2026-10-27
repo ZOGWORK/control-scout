@@ -137,14 +137,18 @@ async function provisional(season: number, code: string): Promise<ProvisionalInf
   const p = await provisionalFor(season, code);
   if (!p) return null;
   const nums = p.teams.map((t) => t.team);
-  const known = nums.length ? await all<any>(`SELECT number, name, city, state FROM teams WHERE number IN (${nums.map(() => "?").join(",")})`, nums) : [];
-  const by = new Map(known.map((t) => [Number(t.number), t]));
+  const qs = nums.map(() => "?").join(",");
+  const rows = nums.length ? await all<any>(`SELECT number, name, city, state FROM teams WHERE number IN (${qs})`, nums) : [];
+  const by = new Map(rows.map((t) => [Number(t.number), t]));
+  // Has a team page: the same tables teamProfile accepts (api/teams.ts teamKnown), not only FIRST's team list.
+  const paged = new Set(nums.length ? (await all<any>(`SELECT team FROM team_seasons WHERE team IN (${qs}) UNION SELECT team FROM event_teams WHERE team IN (${qs})
+    UNION SELECT team FROM team_season_stats WHERE team IN (${qs})`, [...nums, ...nums, ...nums])).map((r) => Number(r.team)) : []);
   return {
     sourceName: SOURCE_NAMES[p.source] ?? p.source, url: p.url, fetchedAt: p.fetchedAt,
     nickname: p.nickname, hosts: p.hosts, venue: p.venue, address: p.address, capacity: p.capacity, schedule: p.schedule, notes: p.notes, closed: p.closed,
     teams: p.teams.map((t) => {
       const k = by.get(t.team);
-      return { team: t.team, name: k?.name ?? t.name, city: k?.city ?? null, state: k?.state ?? null, status: t.status, session: t.session, known: !!k };
+      return { team: t.team, name: k?.name ?? t.name, city: k?.city ?? null, state: k?.state ?? null, status: t.status, session: t.session, known: !!k || paged.has(t.team) };
     }),
     sessionUnknown: p.sessionUnknown,
   };
