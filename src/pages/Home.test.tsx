@@ -10,6 +10,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { MemoryRouter, useLocation } from "react-router-dom";
 import type { HomeOverview, PublicUsage } from "../shared/home";
 import type { MatchView } from "../shared/api";
+import { LIVE_THRESHOLD, pickHeadline } from "../shared/ledger";
 
 const OVERVIEW: HomeOverview = {
   season: 2026, generatedAt: "2026-10-17T12:00:00Z", dataAsOf: "2026-10-17T10:00:00Z", statsAt: null,
@@ -151,7 +152,7 @@ describe("Home", () => {
     });
     data = { "/api/predict/accuracy": {
       seasons: [{ season: 2026, label: "2026–27", live: blk(2, 0, 0, 0), backtest: null }, { season: 2025, label: "2025–26", live: null, backtest: blk(100, 90, 0.7, 27) }],
-      engineVersion: "2.1.1", liveThreshold: 200, headline: { kind: "backtest", season: 2025, accuracy: 0.7, n: 100 }, recentCalls: [], generatedAt: new Date().toISOString(),
+      engineVersion: "2.1.1", liveThreshold: 10_000, headline: { kind: "backtest", season: 2025, accuracy: 0.7, n: 100 }, recentCalls: [], generatedAt: new Date().toISOString(),
     } };
     mount();
     // Each choice carries its sample size; the replay leads (the live sample is under the threshold).
@@ -159,12 +160,38 @@ describe("Home", () => {
     expect(screen.getByText("Season replay · the headline")).toBeTruthy();
     expect(screen.getByText("63 correct")).toBeTruthy();
     expect(screen.getByText("27 missed")).toBeTruthy();
-    expect(screen.getByText(/The headline is the 2025–26 replay, the newest with at least 1,000 replayed matches\. Live calls take over once a season has 200 scored \(2026–27: 2 so far\)\./)).toBeTruthy();
+    expect(screen.getByText(/The headline is the 2025–26 replay, the newest with at least 10,000 replayed matches\. Live calls take over once a season has 10,000 scored \(2026–27: 2 so far\)\./)).toBeTruthy();
     fireEvent.click(screen.getByRole("radio", { name: "Logged live, 2 scored" }));
-    expect(screen.getByText("Logged live · early sample")).toBeTruthy();
+    expect(screen.getByText("Logged live · still calibrating")).toBeTruthy();
+    expect(screen.getByRole("note").textContent).toBe("Still calibrating this season. Early-season calls lean on ratings built from few matches, so this number moves as results arrive. It isn’t the headline until 2026–27 has 10,000 live calls scored (2 so far).");
     expect(screen.getByLabelText("No percentage yet")).toBeTruthy();
     expect(screen.queryByText(/^0(\.0)?$/)).toBeNull();
     expect(screen.getByText(/All 2 scored calls were ties or 50:50 calls/)).toBeTruthy();
+  });
+
+  it("a few weeks into a season, opens on last season's replay as the headline and says live is still calibrating", () => {
+    const blk = (n: number, decided: number, accuracy: number, upsets: number) => ({
+      n, decided, accuracy, upsets, brier: 0.2, logLoss: 0.6, baselineBrier: 0.25, reliability: [], weekly: [],
+      byTier: { provisional: { n, accuracy, brier: 0.2 }, moderate: { n: 0, accuracy: 0, brier: 0 }, confident: { n: 0, accuracy: 0, brier: 0 } },
+      byLevel: { qual: { n, accuracy }, playoff: { n: 0, accuracy: 0 } },
+    });
+    // Production on 2026-10-27, headline picked by the shared rule (the server does the same).
+    const seasons = [
+      { season: 2026, label: "2026–27 BIOBUZZ", live: blk(681, 673, 396 / 673, 277), backtest: blk(1053, 1040, 0.68, 333) },
+      { season: 2025, label: "2025–26 DECODE", live: null, backtest: blk(41743, 41405, 30554 / 41405, 10851) },
+    ];
+    data = { "/api/predict/accuracy": { seasons, engineVersion: "3.2.0", liveThreshold: LIVE_THRESHOLD, headline: pickHeadline(seasons), recentCalls: [], generatedAt: new Date().toISOString() } };
+    mount();
+    const radios = screen.getAllByRole("radio");
+    expect(radios.map((r) => r.getAttribute("aria-label"))).toEqual(["Season replay, 41,743 scored", "Logged live, 681 scored"]);
+    expect(radios[0].getAttribute("aria-checked")).toBe("true");
+    expect(screen.getByText("Season replay · the headline")).toBeTruthy();
+    expect(screen.getByText("73.8")).toBeTruthy();
+    expect(screen.queryByText(/Live calls lead/)).toBeNull();
+    fireEvent.click(radios[1]);
+    expect(screen.getByText("Logged live · still calibrating")).toBeTruthy();
+    expect(screen.queryByText(/· the headline/)).toBeNull();
+    expect(screen.getByRole("note").textContent).toMatch(/^Still calibrating this season\..*until 2026–27 BIOBUZZ has 10,000 live calls scored \(681 so far\)\.$/);
   });
 
   it("opens on the same headline as the methodology ledger and shows how much of the season the replay covers", () => {
@@ -176,12 +203,12 @@ describe("Home", () => {
     // No headline yet (both samples too small): the replay of the newest season opens, as on /methodology.
     data = { "/api/predict/accuracy": {
       seasons: [{ season: 2026, label: "2026–27 BIOBUZZ", live: blk(33, 33, 16 / 33, 17), backtest: blk(207, 198, 126 / 198, 72), replay: { scored: 231, replayed: 207, eventSkipped: 0, shortHanded: 24, other: 0 } }],
-      engineVersion: "2.1.1", liveThreshold: 300, headline: null, recentCalls: [], generatedAt: new Date().toISOString(),
+      engineVersion: "2.1.1", liveThreshold: 10_000, headline: null, recentCalls: [], generatedAt: new Date().toISOString(),
     } };
     mount();
     expect(screen.getByRole("radio", { name: "Season replay, 207 scored" }).getAttribute("aria-checked")).toBe("true");
     expect(screen.getByText("Season replay", { selector: "p" })).toBeTruthy(); // not "the headline": nothing leads yet
-    expect(screen.getByText(/No headline yet: a replay needs 1,000 matches and live calls 300 scored/)).toBeTruthy();
+    expect(screen.getByText(/No headline yet: a replay needs 10,000 matches and live calls 10,000 scored/)).toBeTruthy();
     expect(screen.getByText("126 correct")).toBeTruthy();
     expect(screen.getByText("72 missed")).toBeTruthy();
     expect(screen.getByText(/207 of 231 scored matches replayed; 24 had a robot missing/)).toBeTruthy();

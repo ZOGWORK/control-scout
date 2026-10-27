@@ -3,7 +3,7 @@
 // Each one loads, fails and empties on its own; none of them holds up search.
 import { useState } from "react";
 import { Link } from "react-router-dom";
-import { ArrowRight, ArrowUpRight, CalendarDays, Info, MapPin, Radio, RefreshCw, Search, Star } from "lucide-react";
+import { ArrowRight, ArrowUpRight, CalendarDays, Hourglass, Info, MapPin, Radio, RefreshCw, Search, Star } from "lucide-react";
 import { qs, useApi, type ApiState } from "../../lib/api";
 import { dateRange, matchTime, oddsPct, pct, place, seasonLabel, ago } from "../../lib/format";
 import type { EventListItem, MatchView, TeamSummary, TrackRecord } from "../../shared/api";
@@ -205,7 +205,8 @@ export function PredictionRecord() {
   const kind = chosen ?? (t ? defaultEvidence(t) : "backtest");
   const view = t ? recordFor(t, kind) : null;
   const sizes = t ? { live: recordFor(t, "live")?.block.n, backtest: recordFor(t, "backtest")?.block.n } : null;
-  const tabs: Evidence[] = ["live", "backtest"];
+  // The replay first: it's the headline until a season's live calls reach the threshold.
+  const tabs: Evidence[] = ["backtest", "live"];
   return (
     <section aria-labelledby="record-title" className="min-w-0 rounded-2xl border border-line bg-card p-5 max-sm:p-4 @2xl/home:p-6">
       <Kicker>The public track record</Kicker>
@@ -234,8 +235,14 @@ export function PredictionRecord() {
               <>
                 {/* Which mode the big number is, said before the number. */}
                 <p className="text-xs font-semibold uppercase tracking-[0.12em] text-text-muted">
-                  {view.kind === "live" ? (view.early ? "Logged live · early sample" : "Logged live") : "Season replay"}{view.isHeadline && " · the headline"}
+                  {view.kind === "live" ? (view.early ? "Logged live · still calibrating" : "Logged live") : "Season replay"}{view.isHeadline && " · the headline"}
                 </p>
+                {view.early && (
+                  <p role="note" className="mt-2 mb-3 flex items-start gap-2 rounded-xl border border-accent/30 bg-accent/[0.07] px-3 py-2.5 text-sm">
+                    <Hourglass className="mt-0.5 size-4 shrink-0 text-accent-text" aria-hidden />
+                    <span><strong>Still calibrating this season.</strong> Early-season calls lean on ratings built from few matches, so this number moves as results arrive. It isn’t the headline until {view.seasonLabel} has {fmt(t.liveThreshold)} live calls scored ({fmt(view.block.n)} so far).</span>
+                  </p>
+                )}
                 {view.noneDecided
                   ? <p className="font-display text-6xl font-semibold text-text-muted" aria-label="No percentage yet">—</p>
                   : <p className="font-display text-6xl font-semibold tabular-nums">{pct(view.block.accuracy, 1).replace("%", "")}<span className="text-3xl text-text-muted">%</span></p>}
