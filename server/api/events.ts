@@ -2,7 +2,8 @@
 import type { EventInput } from "@control-scout/predict-engine";
 import { all, get, kvGet } from "../db.js";
 import { eventTypeLabel, isLegacy } from "../data/seasons.js";
-import type { EventDetail, EventSummary, FieldRow, MatchView } from "../../src/shared/api.js";
+import type { EventDetail, EventSummary, FieldRow, MatchView, ProvisionalInfo } from "../../src/shared/api.js";
+import { provisionalFor } from "../data/provisional.js";
 import { matchViews } from "./matches.js";
 import { dataVersion, liveForecaster, liveVersion } from "../predict/engine.js";
 import { registerCache } from "../caches.js";
@@ -124,6 +125,28 @@ export async function eventDetail(season: number, code: string): Promise<EventDe
     forecastUnsupported: isLegacy(season) ? LEGACY_NOTE : f ? f.unsupportedReason(input) : "Predictions are still loading.",
     // Without FIRST credentials only the 5-minute FTC Scout fetch runs, so that's the cadence the page shows.
     live: isEventDay(r) ? { checkedAt: latest(r.live_checked_at, r.detail_synced_at), everySeconds: liveIo.canProbe() ? liveSyncSeconds() : FULL_EVERY_MS / 1000, auto: liveSyncOn() } : null,
+    // A stopgap until FIRST posts the event: once it has a team list or a schedule, FIRST's data is all that shows.
+    provisional: field.length || matches.length ? null : await provisional(season, code),
+  };
+}
+
+const SOURCE_NAMES: Record<string, string> = { ftcnj: "FTC New Jersey" };
+
+/** The regional site's row for the event, with FIRST's team names and homes where we have the team. */
+async function provisional(season: number, code: string): Promise<ProvisionalInfo | null> {
+  const p = await provisionalFor(season, code);
+  if (!p) return null;
+  const nums = p.teams.map((t) => t.team);
+  const known = nums.length ? await all<any>(`SELECT number, name, city, state FROM teams WHERE number IN (${nums.map(() => "?").join(",")})`, nums) : [];
+  const by = new Map(known.map((t) => [Number(t.number), t]));
+  return {
+    sourceName: SOURCE_NAMES[p.source] ?? p.source, url: p.url, fetchedAt: p.fetchedAt,
+    nickname: p.nickname, hosts: p.hosts, venue: p.venue, address: p.address, capacity: p.capacity, schedule: p.schedule, notes: p.notes, closed: p.closed,
+    teams: p.teams.map((t) => {
+      const k = by.get(t.team);
+      return { team: t.team, name: k?.name ?? t.name, city: k?.city ?? null, state: k?.state ?? null, status: t.status, session: t.session };
+    }),
+    sessionUnknown: p.sessionUnknown,
   };
 }
 
