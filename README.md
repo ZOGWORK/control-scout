@@ -111,6 +111,10 @@ FTC Scout API (fallback)  ──┴─> sync job ─> SQLite ─> stats job ─�
                                                                  └─> pack builder ─> /packs/*.db + latest.json
 ```
 
+FTC New Jersey's events page (newjerseyftc.com) is a third, provisional source: the sync stores its
+registered teams and event details apart from FIRST's data (`event_provisional`), and the event page
+shows them, labelled, only until FIRST posts the event's team list or schedule (`server/data/provisional.ts`).
+
 * **Sync** is idempotent and resumable. Finished seasons are frozen once
   complete; only the current season refreshes (daily, every 15 min on event days on the VM).
 * **Stats** recomputes per-team, per-event OPR (least squares, quals only,

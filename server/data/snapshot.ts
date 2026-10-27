@@ -55,6 +55,8 @@ export const PUBLIC_TABLES = [
   "team_report_cards",
   // Monte Carlo event projections (migration 38): simulations of public results with public ratings.
   "event_projections", "event_projection_odds",
+  // A regional site's public event details and registered teams (migration 47, FTC New Jersey).
+  "event_provisional",
   // Reliability index (migration 41): from public match results only (never workspace scouting).
   "team_reliability",
   // YouTube's public timing of event recordings (migration 43): video ids, broadcast times, lengths.
