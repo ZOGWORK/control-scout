@@ -1315,6 +1315,36 @@ CREATE TABLE workspace_match_assignments (
 CREATE INDEX workspace_match_assignments_event ON workspace_match_assignments (workspace_id, season, event_code);
 `,
   },
+  {
+    version: 47,
+    name: "provisional event info from regional sites",
+    sql: `
+-- Event details and registered teams from a region's own site (server/sources/ftcnj.ts: FTC New Jersey),
+-- kept apart from FIRST's fields in events/event_teams, which they never overwrite. The event page shows a
+-- row, labelled, only while FIRST has no team list and no schedule for the event (api/events.ts).
+-- schedule, notes: JSON string arrays as the site words them. teams: JSON
+-- [{team, name, status: registered|pending, session: AM|PM|null}]. Each read replaces the rows of the events it shows.
+CREATE TABLE event_provisional (
+  season INTEGER NOT NULL,
+  code TEXT NOT NULL,
+  source TEXT NOT NULL,
+  url TEXT NOT NULL,
+  title TEXT,
+  nickname TEXT,
+  hosts TEXT,
+  venue TEXT,
+  address TEXT,
+  capacity TEXT,
+  schedule TEXT NOT NULL DEFAULT '[]',
+  notes TEXT NOT NULL DEFAULT '[]',
+  closed INTEGER NOT NULL DEFAULT 0,
+  teams TEXT NOT NULL DEFAULT '[]',
+  session_unknown INTEGER NOT NULL DEFAULT 0,
+  fetched_at TEXT NOT NULL,
+  PRIMARY KEY (season, code, source)
+);
+`,
+  },
 ];
 
 export type Db = Client;

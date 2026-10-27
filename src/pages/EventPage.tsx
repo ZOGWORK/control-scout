@@ -29,6 +29,7 @@ import { cn } from "../components/cn";
 import { ROSTER_CHIP_TONE } from "../lib/textTones";
 import { OfflineNote } from "../components/OfflineNote";
 import { EventGlance } from "../components/EventGlance";
+import { ProvisionalDetails, ProvisionalTeams } from "../components/ProvisionalInfo";
 import { SimulatedRankings } from "../components/SimulatedRankings";
 import { ModelVsField } from "../components/ModelVsField";
 import { callRecord } from "../lib/eventGlance";
@@ -119,7 +120,7 @@ function Event({ d, path }: { d: EventDetail; path: string }) {
             <MapPin className="size-4" />{place(e.venue, e.city, e.state, e.country)}
           </a>
         )}
-        <span>{e.teams} teams · {e.matchesPlayed}/{e.matchesTotal} matches played</span>
+        <span>{!e.teams && registeredCount ? `${registeredCount} teams registered (provisional)` : `${e.teams} teams`} · {e.matchesPlayed}/{e.matchesTotal} matches played</span>
         {e.website && <a href={e.website} target="_blank" rel="noreferrer noopener" className="inline-flex items-center gap-1 hover:text-foreground">Website <ExternalLink className="size-3" /></a>}
       </div>
       {d.live && !liveMode && <LiveBar live={d.live} r={refresh} />}
@@ -128,10 +129,14 @@ function Event({ d, path }: { d: EventDetail; path: string }) {
         {/* A fullscreen screen for the pit TV: no sign-in, no chrome (pages/EventDisplayPage.tsx). Every season: history seasons show results and rankings without odds. */}
         <Button variant="outline" size="sm" asChild><Link to={`/events/${e.season}/${encodeURIComponent(e.code)}/display`} data-pit-display-link><Tv /> Pit display</Link></Button>
       </HeaderActions>
+      {/* Before FIRST posts the event: the regional site's hosts, times and format, labelled provisional. */}
+      {d.provisional && <ProvisionalDetails p={d.provisional} />}
       {!predictable && <p className="mt-3 text-xs text-muted-foreground">{seasonLabel(e.season)} is shown for history: results, rankings and awards, no predictions (those start with 2023–24).</p>}
       <p className="mt-3 text-[11px] text-muted-foreground">Source: {e.source === "first" ? "FIRST Events API" : "FTC Scout"}</p>
     </>
   );
+  // Before FIRST's list: the regional site's registered teams (the waitlist isn't counted).
+  const registeredCount = d.provisional?.teams.filter((t) => t.status === "registered").length ?? 0;
   const glance = <EventGlance d={d} onTab={setTab} live={liveMode ? { match: target.next, mine: !!target.mine, open: toLivePanel } : undefined} />;
   return (
     <div>
@@ -201,7 +206,7 @@ function Event({ d, path }: { d: EventDetail; path: string }) {
           <TabsTrigger value="matches">Matches</TabsTrigger>
           <TabsTrigger value="rankings">Rankings</TabsTrigger>
           <TabsTrigger value="insights">Insights</TabsTrigger>
-          <TabsTrigger value="teams">Teams <span className="rounded-md bg-current/15 px-1.5 text-[11px] tabular-nums">{d.field.length}</span></TabsTrigger>
+          <TabsTrigger value="teams">Teams <span className="rounded-md bg-current/15 px-1.5 text-[11px] tabular-nums">{d.field.length || registeredCount}</span></TabsTrigger>
           <TabsTrigger value="playoffs">Playoffs</TabsTrigger>
           <TabsTrigger value="awards">Awards</TabsTrigger>
           {predictable && <TabsTrigger value="odds">Odds</TabsTrigger>}
@@ -238,7 +243,11 @@ function Event({ d, path }: { d: EventDetail; path: string }) {
               offlineFallback={<Rankings field={d.field} season={e.season} team={teamParam} code={e.code} note={NOTE_OFFLINE} />} />
           )}
         </TabsContent>
-        <TabsContent value="teams" className="mt-5 max-sm:mt-4"><TeamsGrid field={d.field} season={e.season} team={teamParam} predictable={predictable} /></TabsContent>
+        <TabsContent value="teams" className="mt-5 max-sm:mt-4">
+          {d.provisional && !d.field.length
+            ? <ProvisionalTeams p={d.provisional} season={e.season} team={teamParam} />
+            : <TeamsGrid field={d.field} season={e.season} team={teamParam} predictable={predictable} />}
+        </TabsContent>
         <TabsContent value="playoffs" className="mt-5 max-sm:mt-4"><Playoffs d={d} /></TabsContent>
         <TabsContent value="awards" className="mt-5 max-sm:mt-4"><Awards d={d} nameOf={nameOf} /></TabsContent>
         {predictable && <TabsContent value="odds" className="mt-5 max-sm:mt-4">
