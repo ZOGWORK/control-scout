@@ -82,6 +82,13 @@ describe("event page", () => {
     expect(p.teams[1]).toMatchObject({ team: 8421, name: "Tigers", city: null, known: false });
   });
 
+  it("a team with a team page from its other records (not FIRST's team list) is known", async () => {
+    await syncFtcNj(S, { html });
+    await run("INSERT INTO team_seasons (season, team) VALUES (?, 8421)", [S]);
+    const p = (await eventDetail(S, "USNJCENM7"))!.provisional!;
+    expect(p.teams.find((t) => t.team === 8421)).toMatchObject({ name: "Tigers", known: true });
+  });
+
   it("drops it once FIRST has a team list", async () => {
     await syncFtcNj(S, { html });
     await run("INSERT INTO event_teams (season, code, team) VALUES (?, 'USNJCENM7', 3944)", [S]);
