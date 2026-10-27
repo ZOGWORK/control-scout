@@ -76,17 +76,20 @@ export function ProvisionalTeams({ p, season, team }: { p: ProvisionalInfo; seas
       </div>
       {!list.length ? <EmptyState icon={Search} title="No team matches" /> : (
         <ul className="grid gap-2.5 sm:grid-cols-2 lg:grid-cols-3">
-          {list.map((t) => (
-            <li key={t.team}>
-              <Link to={`/teams/${t.team}?season=${season}`} className={cn("lift flex h-full items-center gap-3 rounded-xl border border-border bg-card p-3", t.team === team && "border-accent/60 bg-accent/[0.06]")}>
+          {list.map((t) => {
+            const box = cn("flex h-full items-center gap-3 rounded-xl border border-border bg-card p-3", t.team === team && "border-accent/60 bg-accent/[0.06]");
+            const body = (
+              <>
                 <span className="min-w-0 flex-1">
                   <span className="flex items-baseline gap-2"><span className="font-mono font-semibold">{t.team}</span><span className="truncate text-sm">{t.name}</span></span>
                   <span className="block truncate text-xs text-muted-foreground">{place(t.city, t.state) || "—"}</span>
                 </span>
                 {t.status === "pending" && <Badge variant="secondary" className="shrink-0">Waitlist</Badge>}
-              </Link>
-            </li>
-          ))}
+              </>
+            );
+            // A team FIRST doesn't list yet has no team page: its card isn't a link.
+            return <li key={t.team}>{t.known ? <Link to={`/teams/${t.team}?season=${season}`} className={cn("lift", box)}>{body}</Link> : <div className={box} data-team-unknown>{body}</div>}</li>;
+          })}
         </ul>
       )}
     </div>

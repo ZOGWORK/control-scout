@@ -14,9 +14,9 @@ const p = (o: Partial<ProvisionalInfo> = {}): ProvisionalInfo => ({
   nickname: null, hosts: "Team 4215 Hypnotic Robotics", venue: "River Dell High School", address: "55 Pyle St, Oradell, NJ 07649", capacity: "30",
   schedule: ["Day Ends 4:30pm"], notes: ["There will be no elimination matches"], closed: false, sessionUnknown: false,
   teams: [
-    { team: 6980, name: "Bad Wolf", city: "Oradell", state: "NJ", status: "pending", session: null },
-    { team: 207, name: "Critical Mass", city: null, state: null, status: "registered", session: null },
-    { team: 4215, name: "Hypnotic Robotics", city: "Oradell", state: "NJ", status: "registered", session: null },
+    { team: 6980, name: "Bad Wolf", city: "Oradell", state: "NJ", status: "pending", session: null, known: true },
+    { team: 207, name: "Critical Mass", city: null, state: null, status: "registered", session: null, known: false },
+    { team: 4215, name: "Hypnotic Robotics", city: "Oradell", state: "NJ", status: "registered", session: null, known: true },
   ],
   ...o,
 });
@@ -31,6 +31,10 @@ describe("ProvisionalTeams", () => {
     const link = screen.getByRole("link", { name: /FTC New Jersey \(newjerseyftc\.com\)/ });
     expect(link.getAttribute("href")).toBe("https://www.newjerseyftc.com/upcoming-events.html");
     expect(document.querySelector("[data-provisional-source]")!.textContent).toContain("Provisional: FIRST hasn't published this event yet");
+    // 207 isn't in FIRST's team list yet: no link to a team page that would 404.
+    expect(document.querySelector("[data-team-unknown]")!.textContent).toMatch(/^207/);
+    expect(screen.getAllByRole("link").map((a) => a.getAttribute("href"))).toContain("/teams/4215?season=2026");
+    expect(screen.queryAllByRole("link").some((a) => a.getAttribute("href")?.startsWith("/teams/207"))).toBe(false);
     fireEvent.change(screen.getByRole("textbox"), { target: { value: "wolf" } });
     expect(document.querySelectorAll("li")).toHaveLength(1);
   });

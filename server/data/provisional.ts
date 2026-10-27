@@ -10,14 +10,17 @@ export interface ProvisionalReport { events: number; matched: number; unmatched:
 
 /**
  * Read FTC New Jersey's events page and store each event's details and registered teams under FIRST's code
- * for it. Replaces the season's FTC NJ rows only when the page parses (a broken or empty page keeps the last
- * good copy). `html` stands in for the fetch (tests).
+ * for it. Each event's row is replaced only by a new read of that event: a page cut short, or an event that
+ * stops matching, keeps the events it no longer shows as they were (the page only shows one until FIRST posts
+ * it, api/events.ts). `html` stands in for the fetch (tests).
  */
 export async function syncFtcNj(season: number, o: { force?: boolean; html?: string; now?: Date } = {}): Promise<ProvisionalReport> {
   const key = `sync:${FTCNJ_SOURCE}:${season}`;
   const now = o.now ?? new Date();
   const last = await kvGet<string>(key);
   if (!o.force && o.html == null && last && now.getTime() - Date.parse(last) < FTCNJ_EVERY_MS) return { events: 0, matched: 0, unmatched: [], skipped: "read recently" };
+  // Marked before the read: a failed request or an unusable page waits the same few hours as a good one.
+  if (o.html == null) await kvSet(key, now.toISOString());
   const html = o.html ?? (await fetchNjPage());
   const pageFor = pageSeason(pageLines(html));
   if (pageFor !== season) return { events: 0, matched: 0, unmatched: [], skipped: `page is for ${pageFor ?? "no season"}` };
@@ -26,16 +29,12 @@ export async function syncFtcNj(season: number, o: { force?: boolean; html?: str
   const first = await all<any>("SELECT code, name, type, league, start FROM events WHERE season = ? AND region = 'USNJ'", [season]);
   const { matched, unmatched } = matchNjEvents(events, first);
   const at = now.toISOString();
-  await writeBatch([
-    { sql: "DELETE FROM event_provisional WHERE season = ? AND source = ?", args: [season, FTCNJ_SOURCE] },
-    ...matched.map((m) => ({
-      sql: `INSERT INTO event_provisional (season, code, source, url, title, nickname, hosts, venue, address, capacity, schedule, notes, closed, teams, session_unknown, fetched_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      args: [season, m.code, FTCNJ_SOURCE, FTCNJ_URL, m.event.title, m.event.nickname, m.event.hosts, m.event.venue, m.event.address, m.event.capacity,
-        JSON.stringify(m.event.schedule), JSON.stringify(m.event.notes), m.event.closed ? 1 : 0, JSON.stringify(m.teams), m.sessionUnknown ? 1 : 0, at],
-    })),
-  ]);
-  await kvSet(key, at);
+  await writeBatch(matched.map((m) => ({
+    sql: `INSERT OR REPLACE INTO event_provisional (season, code, source, url, title, nickname, hosts, venue, address, capacity, schedule, notes, closed, teams, session_unknown, fetched_at)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    args: [season, m.code, FTCNJ_SOURCE, FTCNJ_URL, m.event.title, m.event.nickname, m.event.hosts, m.event.venue, m.event.address, m.event.capacity,
+      JSON.stringify(m.event.schedule), JSON.stringify(m.event.notes), m.event.closed ? 1 : 0, JSON.stringify(m.teams), m.sessionUnknown ? 1 : 0, at],
+  })));
   return { events: events.length, matched: matched.length, unmatched: unmatched.map((e) => `${e.date} ${e.title}`) };
 }
 

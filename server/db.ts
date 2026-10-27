@@ -1323,7 +1323,7 @@ CREATE INDEX workspace_match_assignments_event ON workspace_match_assignments (w
 -- kept apart from FIRST's fields in events/event_teams, which they never overwrite. The event page shows a
 -- row, labelled, only while FIRST has no team list and no schedule for the event (api/events.ts).
 -- schedule, notes: JSON string arrays as the site words them. teams: JSON
--- [{team, name, status: registered|pending, session: AM|PM|null}]. A sync replaces a source's rows for the season.
+-- [{team, name, status: registered|pending, session: AM|PM|null}]. Each read replaces the rows of the events it shows.
 CREATE TABLE event_provisional (
   season INTEGER NOT NULL,
   code TEXT NOT NULL,
