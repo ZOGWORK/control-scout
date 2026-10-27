@@ -51,7 +51,7 @@ Winner accuracy on the 2nd-event slice, 2025–26: −0.28 [−0.54, −0.01] (g
 - **It doesn't help the slice it targets.** On a robot's 2nd event, no variant is better beyond noise in any season, and the point estimates are mostly worse.
 - **It hurts playoffs.** All three regress 2025–26 playoffs beyond noise. Playoff alliances are mostly teams deep into their event, and a bigger gain at the start of the event makes their ratings noisier.
 - **The only gain is on the tuning season.** g2n5's −1.22 on 2024–25 is borderline and does not replicate in either other season.
-- **The engine already adapts within a meet.** With the 0.33 floor, about 6 qualification matches close all but about 9% of the gap to a team's new level (0.67⁶). Event-local form (2.9) also shifts predictions at the current event by the team's misses there. A bigger gain on top mostly chases match-to-match noise.
+- **The engine keeps learning within a meet, but not fast.** The 0.33 floor applies to the alliance's error, split between its two robots. For one improved robot playing with accurately rated partners, that closes 16.5% of its rating gap per match and leaves about 34% after six qualification matches (0.835⁶). Event-local form (2.9) separately shifts predictions at the current event by the team's misses there. Even so, a bigger gain didn't measurably help: what it gains on the improved robots, it loses by making every other robot's rating noisier.
 
 ## What would be worth trying instead
 
