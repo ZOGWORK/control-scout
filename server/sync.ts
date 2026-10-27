@@ -12,6 +12,7 @@ import { CURRENT_SEASON, SEASON_NUMBERS, isLegacy, seasonInfo } from "./data/sea
 import { FirstError, firstEventBundle, firstEvents, firstTeams } from "./sources/first.js";
 import { bundleFromScout, fetchScoutEvent } from "./sources/ftcScout.js";
 import { hasFirst } from "./env.js";
+import { syncFtcNj } from "./data/provisional.js";
 
 /** Event types that never have matches (skip detail fetches). */
 export const NO_MATCH_TYPES = new Set(["Kickoff", "Workshop", "DemoExhibition", "VolunteerSignup", "PracticeDay", "InnovationChallenge"]);
@@ -137,6 +138,15 @@ export async function syncSeason(season: number, o: SyncOptions = {}): Promise<S
     report.listed = await syncEventList(season);
     log(`${season}: ${report.listed} events listed`);
     if (!o.skipTeams) { report.teams = await syncTeams(season, false, log); if (report.teams) log(`${season}: ${report.teams} teams`); }
+    // FTC New Jersey's registered teams and event details, shown until FIRST publishes its own (data/provisional.ts).
+    // Its own failure never fails the sync.
+    if (season === CURRENT_SEASON) {
+      try {
+        const nj = await syncFtcNj(season, { force: o.force });
+        if (nj.skipped) { if (nj.skipped !== "read recently") log(`${season}: FTC NJ skipped (${nj.skipped})`); }
+        else log(`${season}: FTC NJ ${nj.matched} events from ${nj.events} listed${nj.unmatched.length ? `, unmatched: ${nj.unmatched.join("; ")}` : ""}`);
+      } catch (e) { log(`${season}: FTC NJ failed: ${(e as Error).message.slice(0, 120)}`); }
+    }
   }
   let plan = await planDetail(season, { force: o.force, upgradeScout: o.upgradeScout });
   if (o.limit != null) plan = plan.slice(0, o.limit);

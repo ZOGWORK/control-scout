@@ -283,6 +283,30 @@ export interface EventDetail {
   /** Events on today (in their own time zone): how fresh the results are. Null on other days. */
   /** `auto`: this server checks FIRST on its own every `everySeconds`; false: only "Refresh results" checks. */
   live: { checkedAt: string | null; everySeconds: number; auto: boolean } | null;
+  /** A region's own site's details and registered teams (FTC New Jersey), while FIRST has no team list and no
+   *  schedule for the event; null once it has either. Absent from older servers and saved packs. */
+  provisional?: ProvisionalInfo | null;
+}
+
+/** Unofficial event info from a regional site (server/data/provisional.ts): shown labelled, never as FIRST's. */
+export interface ProvisionalInfo {
+  /** Who publishes it ("FTC New Jersey") and the page it's read from. */
+  sourceName: string;
+  url: string;
+  /** When the page was last read. */
+  fetchedAt: string;
+  nickname: string | null;
+  hosts: string | null;
+  venue: string | null;
+  address: string | null;
+  capacity: string | null;
+  schedule: string[];
+  notes: string[];
+  closed: boolean;
+  /** Teams as the site lists them, with FIRST's team name and home where we have the team. */
+  teams: { team: number; name: string | null; city: string | null; state: string | null; status: "registered" | "pending"; session: "AM" | "PM" | null }[];
+  /** FIRST runs this event as AM and PM sessions but the site doesn't say who is in which. */
+  sessionUnknown: boolean;
 }
 
 /** POST /api/events/:season/:code/refresh */
