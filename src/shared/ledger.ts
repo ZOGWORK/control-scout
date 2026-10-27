@@ -1,13 +1,16 @@
 // The one rule for which part of the prediction ledger leads, shared by the server (TrackRecord.headline)
 // and every card that shows the ledger (home track record, methodology scoreboard), so they can never
-// disagree: the season replay leads until a season has LIVE_THRESHOLD scored live calls, then live does.
+// disagree: last full season's replay leads until a season has LIVE_THRESHOLD scored live calls, then live does.
 // Live (logged before the match) and replay numbers are never blended; the other one stays a click away.
+// Both bars are about a quarter of a season (2023–26 replays: 30,702 to 41,743 matches). Early-season calls run on
+// ratings built from few matches, so a few hundred of them are still calibrating, not a season's record: at 681 live
+// calls (October 2026) they'd have replaced last season's 41,743-match replay with an early-season 58.8%.
 import type { AccuracyBlock, TrackRecord } from "./api";
 
-/** Scored live calls a season needs before live leads instead of the replay. */
-export const LIVE_THRESHOLD = 300;
-/** Replayed matches a season needs before its replay can lead (a few weeks in, the newest season's is too thin). */
-export const REPLAY_HEADLINE_MIN = 1000;
+/** Scored live calls a season needs before live leads instead of the replay; below it, live is still calibrating. */
+export const LIVE_THRESHOLD = 10_000;
+/** Replayed matches a season needs before its replay can lead (until then, last full season's replay does). */
+export const REPLAY_HEADLINE_MIN = 10_000;
 
 export type LedgerKind = "live" | "backtest";
 

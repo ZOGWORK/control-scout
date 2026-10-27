@@ -196,8 +196,8 @@ describe("ledger numbers agree with each other", () => {
   });
 
   it("the headline waits for a real sample of each kind", () => {
-    expect(LIVE_THRESHOLD).toBe(300);
-    expect(REPLAY_HEADLINE_MIN).toBe(1000);
+    expect(LIVE_THRESHOLD).toBe(10_000);
+    expect(REPLAY_HEADLINE_MIN).toBe(10_000);
   });
 });
 
