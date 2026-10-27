@@ -168,7 +168,8 @@ function TeamChip({ t, side, season, highlight }: { t: AllianceScore["teams"][nu
   const body = (
     <>
       <span className={cn("tabular font-mono text-[0.8125rem]", me ? "font-bold text-accent-text" : picked ? "font-bold text-text-base" : sub ? "text-text-muted" : "text-text-base")}>{n}</span>
-      {t.name && <span className={cn("block max-w-full truncate text-[11px] italic", picked || me ? "text-text-base" : "text-text-muted")} data-team-name>{t.name}</span>}
+      {/* The space keeps number and name apart in the text, so the button's label ("207 Critical Mass: …") contains it (WCAG 2.5.3). */}
+      {t.name && <>{" "}<span className={cn("block max-w-full truncate text-[11px] italic", picked || me ? "text-text-base" : "text-text-muted")} data-team-name>{t.name}</span></>}
       {sub && <span className="sr-only"> (surrogate)</span>}
     </>
   );

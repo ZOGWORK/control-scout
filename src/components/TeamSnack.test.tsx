@@ -42,6 +42,11 @@ it("shows each team's name under its number", () => {
   expect(chips(207)[0].textContent).toContain("Critical Mass");
 });
 
+it("each chip's label contains its visible text (WCAG 2.5.3, label in name)", () => {
+  list();
+  for (const c of screen.getAllByRole("button", { name: /show team card/ })) expect(c.getAttribute("aria-label")).toContain(c.textContent!.trim());
+});
+
 it("a tap opens the team's card instead of leaving the page, and marks the team in every row", () => {
   list();
   fireEvent.click(chips(207)[0]);
