@@ -3,8 +3,8 @@
 import { all, kvGet, kvSet, writeBatch } from "../db.js";
 import { FTCNJ_SOURCE, FTCNJ_URL, fetchNjPage, matchNjEvents, pageLines, pageSeason, parseNjEvents, type NjTeam } from "../sources/ftcnj.js";
 
-/** The site is small and volunteer-run, and its lists change a few times a week: read it at most this often. */
-export const FTCNJ_EVERY_MS = 3 * 3600_000;
+/** Read the site once a day (owner's call, 2026-10-27): it is small and volunteer-run. */
+export const FTCNJ_EVERY_MS = 24 * 3600_000;
 
 export interface ProvisionalReport { events: number; matched: number; unmatched: string[]; skipped?: string }
 
@@ -19,7 +19,7 @@ export async function syncFtcNj(season: number, o: { force?: boolean; html?: str
   const now = o.now ?? new Date();
   const last = await kvGet<string>(key);
   if (!o.force && o.html == null && last && now.getTime() - Date.parse(last) < FTCNJ_EVERY_MS) return { events: 0, matched: 0, unmatched: [], skipped: "read recently" };
-  // Marked before the read: a failed request or an unusable page waits the same few hours as a good one.
+  // Marked before the read: a failed request or an unusable page waits the same day as a good one.
   if (o.html == null) await kvSet(key, now.toISOString());
   const html = o.html ?? (await fetchNjPage());
   const pageFor = pageSeason(pageLines(html));

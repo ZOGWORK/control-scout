@@ -205,7 +205,7 @@ export function matchNjEvents(nj: NjEvent[], first: FirstNjEvent[]): { matched: 
   return { matched, unmatched };
 }
 
-/** Fetch the page (the site is a small volunteer-run one: one request per sync, at most every few hours). */
+/** Fetch the page (the site is a small volunteer-run one: one request a day). */
 export async function fetchNjPage(timeoutMs = 30000): Promise<string> {
   const res = await fetch(FTCNJ_URL, {
     headers: { "user-agent": "control-scout (+https://controlscout.org)", accept: "text/html" },

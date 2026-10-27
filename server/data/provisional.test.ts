@@ -58,14 +58,14 @@ describe("FTC NJ sync", () => {
     expect((await all<any>("SELECT code FROM event_provisional ORDER BY code")).map((r) => r.code)).toEqual(["USNJCENM7", "USNJNEM2", "USNJNEM3"]);
   });
 
-  it("reads the page at most every few hours, failed reads included", async () => {
+  it("reads the page once a day, failed reads included", async () => {
     await kvSet("sync:ftcnj:2026", new Date().toISOString());
     expect(await syncFtcNj(S, { now: new Date() })).toMatchObject({ skipped: "read recently" });
     const realFetch = globalThis.fetch;
     let calls = 0;
     globalThis.fetch = (async () => { calls++; return new Response("down", { status: 503 }); }) as typeof fetch;
     try {
-      const later = new Date(Date.now() + 4 * 3600_000);
+      const later = new Date(Date.now() + 25 * 3600_000);
       await expect(syncFtcNj(S, { now: later })).rejects.toThrow("HTTP 503");
       expect(await syncFtcNj(S, { now: new Date(later.getTime() + 60_000) })).toMatchObject({ skipped: "read recently" });
       expect(calls).toBe(1);
