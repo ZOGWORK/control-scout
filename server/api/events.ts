@@ -144,7 +144,7 @@ async function provisional(season: number, code: string): Promise<ProvisionalInf
     nickname: p.nickname, hosts: p.hosts, venue: p.venue, address: p.address, capacity: p.capacity, schedule: p.schedule, notes: p.notes, closed: p.closed,
     teams: p.teams.map((t) => {
       const k = by.get(t.team);
-      return { team: t.team, name: k?.name ?? t.name, city: k?.city ?? null, state: k?.state ?? null, status: t.status, session: t.session };
+      return { team: t.team, name: k?.name ?? t.name, city: k?.city ?? null, state: k?.state ?? null, status: t.status, session: t.session, known: !!k };
     }),
     sessionUnknown: p.sessionUnknown,
   };

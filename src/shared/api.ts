@@ -303,8 +303,9 @@ export interface ProvisionalInfo {
   schedule: string[];
   notes: string[];
   closed: boolean;
-  /** Teams as the site lists them, with FIRST's team name and home where we have the team. */
-  teams: { team: number; name: string | null; city: string | null; state: string | null; status: "registered" | "pending"; session: "AM" | "PM" | null }[];
+  /** Teams as the site lists them, with FIRST's team name and home where we have the team. `known`: FIRST
+   *  has the team (it has a team page); a team new this season may not be in FIRST's list yet. */
+  teams: { team: number; name: string | null; city: string | null; state: string | null; status: "registered" | "pending"; session: "AM" | "PM" | null; known: boolean }[];
   /** FIRST runs this event as AM and PM sessions but the site doesn't say who is in which. */
   sessionUnknown: boolean;
 }

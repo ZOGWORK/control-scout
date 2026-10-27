@@ -51,9 +51,25 @@ describe("FTC NJ sync", () => {
     expect(await all("SELECT code FROM event_provisional")).toHaveLength(3);
   });
 
-  it("reads the page at most every few hours", async () => {
+  it("a page cut short keeps the events it no longer shows", async () => {
+    await syncFtcNj(S, { html });
+    const cut = html.slice(0, html.indexOf("Nov. 1, 2026"));
+    expect(await syncFtcNj(S, { html: cut })).toMatchObject({ events: 1, matched: 1 });
+    expect((await all<any>("SELECT code FROM event_provisional ORDER BY code")).map((r) => r.code)).toEqual(["USNJCENM7", "USNJNEM2", "USNJNEM3"]);
+  });
+
+  it("reads the page at most every few hours, failed reads included", async () => {
     await kvSet("sync:ftcnj:2026", new Date().toISOString());
     expect(await syncFtcNj(S, { now: new Date() })).toMatchObject({ skipped: "read recently" });
+    const realFetch = globalThis.fetch;
+    let calls = 0;
+    globalThis.fetch = (async () => { calls++; return new Response("down", { status: 503 }); }) as typeof fetch;
+    try {
+      const later = new Date(Date.now() + 4 * 3600_000);
+      await expect(syncFtcNj(S, { now: later })).rejects.toThrow("HTTP 503");
+      expect(await syncFtcNj(S, { now: new Date(later.getTime() + 60_000) })).toMatchObject({ skipped: "read recently" });
+      expect(calls).toBe(1);
+    } finally { globalThis.fetch = realFetch; }
   });
 });
 
@@ -62,8 +78,8 @@ describe("event page", () => {
     await syncFtcNj(S, { html });
     const p = (await eventDetail(S, "USNJCENM7"))!.provisional!;
     expect(p).toMatchObject({ sourceName: "FTC New Jersey", url: "https://www.newjerseyftc.com/upcoming-events.html", capacity: "24", closed: false, sessionUnknown: false });
-    expect(p.teams[0]).toEqual({ team: 3944, name: "Team Mercury (FIRST)", city: "Princeton", state: "NJ", status: "registered", session: null });
-    expect(p.teams[1]).toMatchObject({ team: 8421, name: "Tigers", city: null });
+    expect(p.teams[0]).toEqual({ team: 3944, name: "Team Mercury (FIRST)", city: "Princeton", state: "NJ", status: "registered", session: null, known: true });
+    expect(p.teams[1]).toMatchObject({ team: 8421, name: "Tigers", city: null, known: false });
   });
 
   it("drops it once FIRST has a team list", async () => {
