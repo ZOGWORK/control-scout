@@ -33,7 +33,7 @@ const RECORD: TrackRecord = {
     { season: 2026, label: "2026–27 BIOBUZZ", live: blk(33, 33, 16, 0.248, 0.25), backtest: blk(207, 198, 126, 0.226, 0.239), replay: { scored: 231, replayed: 207, eventSkipped: 0, shortHanded: 24, other: 0 } },
     { season: 2025, label: "2025–26 DECODE", live: null, backtest: blk(41743, 41405, 30554, 0.17, 0.247), replay: { scored: 41743, replayed: 41743, eventSkipped: 0, shortHanded: 0, other: 0 } },
   ],
-  engineVersion: "2.1.1", liveThreshold: 300, headline: { kind: "backtest", season: 2025, accuracy: 30554 / 41405, n: 41743 }, recentCalls: [], generatedAt: "2026-10-20T03:36:40Z",
+  engineVersion: "2.1.1", liveThreshold: 10_000, headline: { kind: "backtest", season: 2025, accuracy: 30554 / 41405, n: 41743 }, recentCalls: [], generatedAt: "2026-10-20T03:36:40Z",
 };
 
 let AccuracySection: typeof import("./AccuracySection").AccuracySection;
@@ -60,13 +60,13 @@ describe("methodology ledger", () => {
     expect(card.getByRole("note").textContent).toMatch(/2025–26's season replay ended at 73\.8%/);
   });
 
-  it("opens on the headline (the replay while live is under 300 calls) and titles it as a replay", async () => {
+  it("opens on the headline (the replay while live is still calibrating) and titles it as a replay", async () => {
     data = RECORD;
     const card = within(await mount());
     expect(card.getByText("Season replay, scored")).toBeTruthy();
     expect(card.queryByText(/Every match prediction this site made/)).toBeNull();
     expect(card.getByText(/Season replay · not calls made in advance · the headline/)).toBeTruthy();
-    expect(card.getByText("The headline is the 2025–26 DECODE replay, the newest with at least 1,000 replayed matches. Live calls take over once a season has 300 scored (2026–27 BIOBUZZ: 33 so far).", { exact: false })).toBeTruthy();
+    expect(card.getByText("The headline is the 2025–26 DECODE replay, the newest with at least 10,000 replayed matches. Live calls take over once a season has 10,000 scored (2026–27 BIOBUZZ: 33 so far).", { exact: false })).toBeTruthy();
   });
 
   it("titles live numbers as live calls, shows each mode's sample size, and the replay's coverage", async () => {
@@ -81,7 +81,7 @@ describe("methodology ledger", () => {
     expect(card.getByRole("button", { name: /^Season replay\s*207$/ }).getAttribute("aria-pressed")).toBe("true");
     fireEvent.click(card.getByRole("button", { name: /^Logged live/ }));
     expect(card.getByText("Live calls, logged before each match")).toBeTruthy();
-    expect(card.getByText(/Logged live · called before each match/)).toBeTruthy();
+    expect(card.getByText(/Logged live · still calibrating/)).toBeTruthy(); // 33 of 10,000: not yet the headline
     expect(card.getByText("16 right, 17 missed", { exact: false })).toBeTruthy();
     expect(card.queryByText(/scored matches replayed/)).toBeNull();
   });

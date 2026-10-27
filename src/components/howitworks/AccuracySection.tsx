@@ -112,7 +112,7 @@ export function AccuracySection() {
             <div className="min-w-0">
               <p className="hiw-gold-text text-[11px] font-bold uppercase tracking-[0.14em]">Control Scout's ledger</p>
               <p className="mt-0.5 font-display text-base font-semibold text-foreground sm:text-lg">{sel ? LEDGER_MODE[sel.kind].title : "Every scored prediction"}{season && <span className="ml-1.5 font-mono text-xs font-normal text-muted-foreground">· {season.label}</span>}</p>
-              {sel && block && <Badge variant={sel.kind === "live" ? "success" : "secondary"} className="mt-2 w-fit">{sel.kind === "live" ? <><Radio /> Logged live · called before each match</> : <><History /> Season replay · not calls made in advance</>}{isHeadline && " · the headline"}</Badge>}
+              {sel && block && <Badge variant={sel.kind === "live" ? "success" : "secondary"} className="mt-2 w-fit">{sel.kind === "live" ? <><Radio /> Logged live · {block.n < t!.liveThreshold ? "still calibrating" : "called before each match"}</> : <><History /> Season replay · not calls made in advance</>}{isHeadline && " · the headline"}</Badge>}
             </div>
             {selectors}
           </div>
