@@ -12,21 +12,37 @@ const MAX_ATTEMPTS = 5;
 const MAX_SENDS_PER_HOUR = 5;
 const RESEND_COOLDOWN_MS = 30_000;
 
-/** `replyTo`: where a reply goes (the contact form sets the sender's address). */
-export type Mailer = (to: string, subject: string, text: string, html: string, opts?: { replyTo?: string }) => Promise<void>;
+/** `replyTo`: where a reply goes (the contact form sets the sender's address). `headers`: extra message headers
+ *  (the weekly digest's List-Unsubscribe). Resolves with the provider's id for the message when it gives one. */
+export type MailOptions = { replyTo?: string; headers?: Record<string, string> };
+export type Mailer = (to: string, subject: string, text: string, html: string, opts?: MailOptions) => Promise<void | { id?: string }>;
+
+/** A failed send: `status` is the provider's HTTP status (null for a timeout or network failure). */
+export class MailError extends Error { constructor(message: string, readonly status: number | null) { super(message); } }
 
 const resendMailer: Mailer = async (to, subject, text, html, opts) => {
-  const res = await fetch("https://api.resend.com/emails", {
-    method: "POST",
-    headers: { Authorization: `Bearer ${env.resendKey}`, "Content-Type": "application/json" },
-    body: JSON.stringify({ from: env.emailFrom, to: [to], subject, text, html, ...(opts?.replyTo ? { reply_to: opts.replyTo } : {}) }),
-    signal: AbortSignal.timeout(15000),
-  });
+  let res: Response;
+  try {
+    res = await fetch("https://api.resend.com/emails", {
+      method: "POST",
+      headers: { Authorization: `Bearer ${env.resendKey}`, "Content-Type": "application/json" },
+      body: JSON.stringify({
+        from: env.emailFrom, to: [to], subject, text, html,
+        ...(opts?.replyTo ? { reply_to: opts.replyTo } : {}),
+        ...(opts?.headers ? { headers: opts.headers } : {}),
+      }),
+      signal: AbortSignal.timeout(15000),
+    });
+  } catch (e) {
+    throw new MailError((e as Error)?.name === "TimeoutError" ? "timeout" : "network error", null);
+  }
   if (!res.ok) {
     // Resend's reason (e.g. "API key is invalid", "domain is not verified"): never the key or the address.
     const why = await res.json().then((j: { message?: unknown }) => (typeof j?.message === "string" ? j.message.slice(0, 200) : ""), () => "");
-    throw new Error(`email provider error ${res.status}${why ? `: ${why}` : ""}`);
+    throw new MailError(`email provider error ${res.status}${why ? `: ${why}` : ""}`, res.status);
   }
+  const body = await res.json().catch(() => null) as { id?: unknown } | null;
+  return typeof body?.id === "string" ? { id: body.id } : undefined;
 };
 
 let mailer: Mailer = resendMailer;

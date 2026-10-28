@@ -117,6 +117,7 @@ const STATIC: Record<string, { title: string; description: string; noindex?: boo
   "/shortlist": { title: "Shortlist", description: "Your shortlisted FTC teams on Control Scout.", noindex: true },
   "/scout": { title: "Scout", description: "Your scouting notes on Control Scout.", noindex: true },
   "/settings": { title: "Settings", description: "Control Scout settings.", noindex: true },
+  "/digest/unsubscribed": { title: "Weekly digest", description: "Unsubscribe from the Control Scout weekly digest.", noindex: true },
 };
 
 const fmt1 = (x: number) => (Math.round(x * 10) / 10).toFixed(1);

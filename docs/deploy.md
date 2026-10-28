@@ -90,6 +90,15 @@ them. Without all three, push stays dormant and Settings › Notifications says
 it's unavailable. The owner portal's **Push notifications** switch stops all
 sending without a deploy. What is sent and when: [push.md](push.md).
 
+**Weekly email digest.** Works with the `RESEND_API_KEY` already set: Mondays at
+08:00 New York time it emails everyone who turned it on in Settings. For bounce
+handling, add a webhook in Resend (Webhooks → Add endpoint →
+`https://controlscout.org/api/digest/webhook`, events `email.bounced` and
+`email.complained`) and put its signing secret in the env file as
+`RESEND_WEBHOOK_SECRET`. Without it, Resend's own suppression list still stops
+sends to dead addresses. The owner portal's **Weekly email digest** switch stops
+all sending without a deploy. Details: [digest.md](digest.md).
+
 **Discord bot.** Put the bot's token in the same file as `DISCORD_BOT_TOKEN`
 (optionally `DISCORD_DEV_GUILD_ID` for a test server) and redeploy: the
 installer then enables and restarts its own unit, `control-scout-bot`, next to
