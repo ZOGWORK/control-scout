@@ -2,9 +2,9 @@
 import type { EventInput } from "@control-scout/predict-engine";
 import { all, get, kvGet } from "../db.js";
 import { eventTypeLabel, isLegacy } from "../data/seasons.js";
-import type { EventDetail, EventSummary, FieldRow, MatchView, ProvisionalInfo } from "../../src/shared/api.js";
+import type { EventDetail, EventSummary, FieldRow, MatchView, ProvisionalInfo, SharedSessions } from "../../src/shared/api.js";
 import { provisionalFor } from "../data/provisional.js";
-import { ROSTER } from "../data/registrations.js";
+import { ROSTER, sessionPairs } from "../data/registrations.js";
 import { matchViews } from "./matches.js";
 import { dataVersion, liveForecaster, liveVersion } from "../predict/engine.js";
 import { registerCache } from "../caches.js";
@@ -24,7 +24,7 @@ function summary(r: any): EventSummary {
 
 const SUMMARY_SQL = `SELECT e.*,
   COALESCE(NULLIF((SELECT COUNT(*) FROM event_teams t WHERE t.season = e.season AND t.code = e.code), 0),
-    (SELECT COUNT(*) FROM event_registrations r WHERE r.season = e.season AND r.code = e.code)) teams,
+    (SELECT COUNT(*) FROM event_registrations r WHERE r.season = e.season AND r.code = e.code AND r.shared = 0)) teams,
   (SELECT COUNT(*) FROM matches m WHERE m.season = e.season AND m.code = e.code AND m.played = 1) played,
   (SELECT COUNT(*) FROM matches m WHERE m.season = e.season AND m.code = e.code) total
   FROM events e`;
@@ -131,7 +131,20 @@ export async function eventDetail(season: number, code: string): Promise<EventDe
     registered: entries.length > 0 && entries.every((e) => Number(e.registered) === 1) ? { fetchedAt: latestOf(entries.map((e) => e.fetched_at)) } : null,
     // A stopgap until FIRST posts the event: once it has a team list (its registrations count) or a schedule, FIRST's data is all that shows.
     provisional: field.length || matches.length ? null : await provisional(season, code),
+    sharedSessions: field.length || matches.length ? null : await sharedSessions(season, code, r.start),
   };
+}
+
+/** FIRST's registrations for this event's AM/PM pair, when it files them for both sessions together. */
+async function sharedSessions(season: number, code: string, start: string | null): Promise<SharedSessions | null> {
+  if (!start) return null;
+  const other = sessionPairs(await all<any>("SELECT code, name, start FROM events WHERE season = ? AND start = ?", [season, start])).get(code);
+  if (!other) return null;
+  const rows = await all<any>(`SELECT r.team, r.fetched_at, t.name, t.city, t.state FROM event_registrations r LEFT JOIN teams t ON t.number = r.team
+    WHERE r.season = ? AND r.code IN (?, ?) AND r.shared = 1 ORDER BY r.team`, [season, code, other.code]);
+  if (!rows.length) return null;
+  const teams = [...new Map(rows.map((t) => [Number(t.team), { team: Number(t.team), name: t.name ?? null, city: t.city ?? null, state: t.state ?? null }])).values()];
+  return { fetchedAt: latestOf(rows.map((t) => t.fetched_at)), other: { code: other.code, name: other.name }, teams };
 }
 
 const SOURCE_NAMES: Record<string, string> = { ftcnj: "FTC New Jersey" };

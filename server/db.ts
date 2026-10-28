@@ -1364,6 +1364,17 @@ CREATE TABLE event_registrations (
 ALTER TABLE events ADD COLUMN address TEXT;
 `,
   },
+  {
+    version: 49,
+    name: "Registrations shared by an event's AM and PM sessions",
+    sql: `
+-- An AM/PM event is two FIRST events, but FIRST can file the whole event's registrations under one of them
+-- (e.g. USNJNEM2 listed both sessions' 17 teams, USNJNEM3 none). shared = 1 marks such a list: it says who
+-- registered for the pair, not who plays this session, so it is never this event's team list
+-- (data/registrations.ts markSharedSessions, ROSTER).
+ALTER TABLE event_registrations ADD COLUMN shared INTEGER NOT NULL DEFAULT 0;
+`,
+  },
 ];
 
 export type Db = Client;

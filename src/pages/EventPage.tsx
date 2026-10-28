@@ -29,7 +29,7 @@ import { cn } from "../components/cn";
 import { ROSTER_CHIP_TONE } from "../lib/textTones";
 import { OfflineNote } from "../components/OfflineNote";
 import { EventGlance } from "../components/EventGlance";
-import { ProvisionalDetails, ProvisionalTeams } from "../components/ProvisionalInfo";
+import { ProvisionalDetails, ProvisionalTeams, SharedSessionTeams } from "../components/ProvisionalInfo";
 import { SimulatedRankings } from "../components/SimulatedRankings";
 import { ModelVsField } from "../components/ModelVsField";
 import { callRecord } from "../lib/eventGlance";
@@ -120,7 +120,7 @@ function Event({ d, path }: { d: EventDetail; path: string }) {
             <MapPin className="size-4" />{place(e.venue, e.address, e.city, e.state, e.country)}
           </a>
         )}
-        <span>{d.registered ? `${e.teams} teams registered` : !e.teams && registeredCount ? `${registeredCount} teams registered (provisional)` : `${e.teams} teams`} · {e.matchesPlayed}/{e.matchesTotal} matches played</span>
+        <span>{d.registered ? `${e.teams} teams registered` : !e.teams && shared ? `${registeredCount} teams registered for both sessions` : !e.teams && registeredCount ? `${registeredCount} teams registered (provisional)` : `${e.teams} teams`} · {e.matchesPlayed}/{e.matchesTotal} matches played</span>
         {e.website && <a href={e.website} target="_blank" rel="noreferrer noopener" className="inline-flex items-center gap-1 hover:text-foreground">Website <ExternalLink className="size-3" /></a>}
       </div>
       {d.live && !liveMode && <LiveBar live={d.live} r={refresh} />}
@@ -135,8 +135,11 @@ function Event({ d, path }: { d: EventDetail; path: string }) {
       <p className="mt-3 text-[11px] text-muted-foreground">Source: {e.source === "first" ? "FIRST Events API" : "FTC Scout"}</p>
     </>
   );
-  // Before FIRST's list: the regional site's registered teams (the waitlist isn't counted).
-  const registeredCount = d.provisional?.teams.filter((t) => t.status === "registered").length ?? 0;
+  // Before FIRST's list: the regional site's registered teams (the waitlist isn't counted). For one session of an
+  // AM/PM event, a site list split by session beats FIRST's list for both sessions; FIRST's beats an unsplit one.
+  const provisionalTeams = !d.field.length && d.provisional && !(d.sharedSessions && d.provisional.sessionUnknown) ? d.provisional : null;
+  const shared = !d.field.length && !provisionalTeams ? d.sharedSessions ?? null : null;
+  const registeredCount = shared ? shared.teams.length : provisionalTeams?.teams.filter((t) => t.status === "registered").length ?? 0;
   const glance = <EventGlance d={d} onTab={setTab} live={liveMode ? { match: target.next, mine: !!target.mine, open: toLivePanel } : undefined} />;
   return (
     <div>
@@ -244,8 +247,8 @@ function Event({ d, path }: { d: EventDetail; path: string }) {
           )}
         </TabsContent>
         <TabsContent value="teams" className="mt-5 max-sm:mt-4">
-          {d.provisional && !d.field.length
-            ? <ProvisionalTeams p={d.provisional} season={e.season} team={teamParam} />
+          {provisionalTeams ? <ProvisionalTeams p={provisionalTeams} season={e.season} team={teamParam} />
+            : shared ? <SharedSessionTeams s={shared} season={e.season} team={teamParam} />
             : <TeamsGrid field={d.field} season={e.season} team={teamParam} predictable={predictable} registered={d.registered ?? null} />}
         </TabsContent>
         <TabsContent value="playoffs" className="mt-5 max-sm:mt-4"><Playoffs d={d} /></TabsContent>
