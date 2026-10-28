@@ -17,7 +17,8 @@ Nothing beyond `RESEND_API_KEY`, which sign-in codes already use. Optional:
 | `RESEND_WEBHOOK_SECRET` | The signing secret (`whsec_…`) of a Resend webhook pointed at `/api/digest/webhook`, sending `email.bounced` and `email.complained`. Unset: the endpoint answers 404 and bounces rest on Resend's own suppression list. |
 
 The owner portal's **Weekly email digest** switch (`weeklyDigest` flag) stops
-all sending at runtime; everyone's choice is kept.
+all sending at runtime, mid-batch too (it's checked before every account; switched back on,
+the next tick finishes the week); everyone's choice is kept.
 
 ## Who gets it
 
@@ -99,7 +100,9 @@ status, template version, sections and subject. It is the idempotency key: a
 re-run (crash, restart, second server) finds the row and sends nothing twice.
 Statuses: `sending`, `sent`, `failed` (with the provider's reason, never the
 address), `skipped-empty`, `skipped-toggle-off`, `skipped-bounce`, `bounced`.
-One account's failure never stops the batch. Each run logs a summary line
+Each account is read again when its turn comes, and the claim itself requires the
+account to exist with the digest on, so an unsubscribe or deletion mid-batch stops
+its email. One account's failure never stops the batch. Each run logs a summary line
 (`digest 2026-11-02: 41 sent, 0 failed, skipped …`). Rows older than 400 days
 are pruned. "Didn't get it" for one account:
 

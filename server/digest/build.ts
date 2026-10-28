@@ -55,9 +55,8 @@ export interface DigestData {
   week: string; from: string; to: string;
   name: string | null;
   followed: number[];
+  /** Every result row: the subject and summary count them all; the email lists the first MAX_RESULTS. */
   results: TeamWeek[];
-  /** Result rows left out of the email (beyond MAX_RESULTS). */
-  moreResults: number;
   predictions: { week: CallRecord; season: CallRecord & { season: number } } | null;
   upcoming: Upcoming[];
   moreUpcoming: number;
@@ -194,7 +193,7 @@ export async function buildDigest(i: BuildInput): Promise<DigestData> {
   ]);
   return {
     week: i.week, from, to, name: i.name, followed: i.followed,
-    results: weeks.slice(0, MAX_RESULTS), moreResults: Math.max(0, weeks.length - MAX_RESULTS),
+    results: weeks,
     predictions,
     upcoming: upcoming.slice(0, MAX_UPCOMING), moreUpcoming: Math.max(0, upcoming.length - MAX_UPCOMING),
     rankings: rankingMoves(rankings, i.followed, from, i.week),

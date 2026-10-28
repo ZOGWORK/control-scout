@@ -244,6 +244,55 @@ describe("the job", () => {
     expect(await logRow(never.id, "2026-11-09")).toBeUndefined();
   });
 
+  it("an unsubscribe or a deleted account while earlier emails go out stops that account's email", async () => {
+    const first = await user("first@example.com", { myTeam: 4215 });
+    const leaves = await user("leaves@example.com", { myTeam: 4215 });
+    const deleted = await user("deleted@example.com", { myTeam: 6980 });
+    for (const u of [first, leaves, deleted]) await setDigest(u.id, true);
+    const token = (await get<{ token: string }>("SELECT token FROM digest_prefs WHERE user_id = ?", [leaves.id]))!.token;
+    const { deleteUser } = await import("../auth/session");
+    // While the first email is being sent, one account unsubscribes and another is deleted.
+    setMailer(async (to, subject, text, html, opts) => {
+      mails.push({ to, subject, text, html, opts });
+      if (to === "first@example.com") { await api(`/api/digest/unsubscribe?t=${token}`); await deleteUser(deleted.id); }
+      return { id: `msg-${mails.length}` };
+    });
+    const s = await runWeek();
+    expect(mails.map((m) => m.to)).toEqual(["first@example.com"]);
+    expect(s.sent).toBe(1);
+    expect((await logRow(leaves.id)).status).toBe("skipped-toggle-off");
+    expect(await logRow(deleted.id)).toBeUndefined();
+  });
+
+  it("the owner's switch turned off mid-batch stops the rest; the next run finishes it", async () => {
+    const ids = [];
+    for (const e of ["s1@example.com", "s2@example.com", "s3@example.com"]) { const u = await user(e, { myTeam: 4215 }); await setDigest(u.id, true); ids.push(u.id); }
+    let asked = 0;
+    const s = await runDigestWeek(WEEK, { gapMs: 0, rankings: rankings(), season: SEASON, allowed: async () => ++asked <= 1 });
+    expect(s).toMatchObject({ sent: 1, stopped: true });
+    expect(await logRow(ids[1])).toBeUndefined();
+    const rest = await runWeek();
+    expect(rest).toMatchObject({ sent: 2, already: 1, stopped: false });
+    expect(mails).toHaveLength(3);
+  });
+
+  it("the subject counts every result, not just the rows the email lists", async () => {
+    // Eleven teams played; the event's winner, 5010, sorts last (by team number), past the ten rows shown.
+    const many = Array.from({ length: 11 }, (_, i) => 5000 + i);
+    for (const t of many) await run("INSERT INTO event_teams (season, code, team, rank, wins, losses, ties) VALUES (?, 'USNJQ1', ?, 20, 1, 1, 0)", [SEASON, t]);
+    await run("INSERT INTO awards (season, code, type, placement, team) VALUES (?, 'USNJQ1', 'Winner', 1, 5010)", [SEASON]);
+    await match("USNJQ1", "2026-11-01", many.slice(0, 2), many.slice(2, 4), true, 0.6);
+    await match("USNJQ1", "2026-11-01", many.slice(4, 6), many.slice(6, 8), true, 0.6);
+    await match("USNJQ1", "2026-11-01", many.slice(8, 10), [5010, 7], true, 0.6);
+    const d = await buildDigest({ week: WEEK, season: SEASON, followed: many, name: null, rankings: rankings() });
+    expect(d.results).toHaveLength(11);
+    expect(d.results.at(-1)!.team).toBe(5010);
+    expect(headline(d)).toBe("5010 wins NJ Qualifier");
+    const m = renderDigest(d, { site: "https://controlscout.org", unsubscribe: "https://controlscout.org/u", email: "x@example.com" });
+    expect(m.text).not.toContain("5010 at NJ Qualifier");
+    expect(m.text).toContain("1 more played last week");
+  });
+
   it("power rankings: an older release isn't shown as new movement; a dropped team gets no row", async () => {
     const d = await buildDigest({ week: WEEK, season: SEASON, followed: [4215], name: null, rankings: rankings("2026-10-23") });
     expect(d.rankings).toBeNull();
