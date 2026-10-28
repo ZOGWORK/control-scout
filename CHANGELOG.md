@@ -30,7 +30,7 @@ A weekly email for the weeks you don't open the app: your teams' results, the pr
 - **Your teams' week.** Each event a followed team played last week, linked: the record, the seed, how playoffs went, and OPR against the team's previous event, with both numbers. Two events in one weekend show as two rows, never one merged record.
 - **Prediction check-in.** How many of our pre-match calls on your teams' matches were right that week and all season, counted exactly as the public track record counts them. A bad week says so.
 - **Coming up and power rankings.** Your teams' events in the next two weeks with a countdown (and whether a schedule is out yet), and where your teams moved in that week's power rankings.
-- **Easy to leave.** Every email has a one-click unsubscribe link that works without signing in, and mail apps show their own Unsubscribe button. No tracking pixels, no tracked links. A hard bounce turns the digest off by itself.
+- **Easy to leave.** Every email has a one-click unsubscribe link that works without signing in, and mail apps show their own Unsubscribe button. No tracking pixels, no tracked links. A hard bounce turns the digest off by itself (#324).
 
 ## 1.3.7 — 2026-10-23
 
