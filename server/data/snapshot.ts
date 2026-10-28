@@ -57,6 +57,8 @@ export const PUBLIC_TABLES = [
   "event_projections", "event_projection_odds",
   // A regional site's public event details and registered teams (migration 47, FTC New Jersey).
   "event_provisional",
+  // FIRST's registered teams for upcoming events (migration 48): public team numbers per event.
+  "event_registrations",
   // Reliability index (migration 41): from public match results only (never workspace scouting).
   "team_reliability",
   // YouTube's public timing of event recordings (migration 43): video ids, broadcast times, lengths.

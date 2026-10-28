@@ -1345,6 +1345,25 @@ CREATE TABLE event_provisional (
 );
 `,
   },
+  {
+    version: 48,
+    name: "FIRST pre-event registrations and event addresses",
+    sql: `
+-- FIRST's registered teams for upcoming events (server/data/registrations.ts: /teams?eventCode=X), read before
+-- rankings or a schedule exist. Kept apart from event_teams, which the event bundle replaces whole on every fetch:
+-- the event page shows these as the event's teams only while event_teams has none (api/events.ts). Each read
+-- replaces the event's rows.
+CREATE TABLE event_registrations (
+  season INTEGER NOT NULL,
+  code TEXT NOT NULL,
+  team INTEGER NOT NULL,
+  fetched_at TEXT NOT NULL,
+  PRIMARY KEY (season, code, team)
+);
+-- The venue's street address from FIRST's event list (dropped by the sync until now).
+ALTER TABLE events ADD COLUMN address TEXT;
+`,
+  },
 ];
 
 export type Db = Client;

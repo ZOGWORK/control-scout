@@ -6,6 +6,7 @@
 import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { all, get } from "./db.js";
+import { ROSTER } from "./data/registrations.js";
 import { CURRENT_SEASON, PREDICT_SEASONS, SEASON_NUMBERS, isLegacy, seasonInfo } from "./data/seasons.js";
 import { defaultRankingsSeason, rankings, snapshotWeeks } from "./api/rankings.js";
 import { isWeek, parsePlaces, placeKey } from "../src/shared/rankings.js";
@@ -198,7 +199,7 @@ async function eventMeta(season: number, code: string): Promise<PageMeta | null>
   const e = await get<{ name: string; type: string | null; venue: string | null; city: string | null; state: string | null; country: string | null; start: string | null; end: string | null; remote: number; hybrid: number }>(
     "SELECT name, type, venue, city, state, country, start, end, remote, hybrid FROM events WHERE season = ? AND code = ?", [season, code]);
   if (!e) return null;
-  const teams = (await get<{ n: number }>("SELECT COUNT(*) AS n FROM event_teams WHERE season = ? AND code = ?", [season, code]))?.n ?? 0;
+  const teams = (await get<{ n: number }>(`SELECT COUNT(*) AS n FROM ${ROSTER} et WHERE et.season = ? AND et.code = ?`, [season, code]))?.n ?? 0;
   const when = dateLong(e.start) + (e.end && e.end !== e.start ? `–${dateLong(e.end)}` : "");
   const kind = eventTypeLabel(e.type).toLowerCase();
   const tail = `${teams ? ` ${teams} teams:` : ""} rankings, match results, OPR and advancement odds.`;
