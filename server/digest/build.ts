@@ -143,7 +143,8 @@ export async function callRecords(teams: number[], season: number, from: string,
   return { week, season: { ...count(decided), season } };
 }
 
-/** Followed teams' events starting in the next UPCOMING_DAYS (registered or on the roster), soonest first. */
+/** Followed teams' events starting in the next UPCOMING_DAYS (registered or on the roster), soonest first. A registration list
+ *  FIRST filed for an AM/PM pair (shared = 1) says who registered for the pair, not for this session, so it isn't used. */
 export async function upcomingEvents(teams: number[], week: string): Promise<Upcoming[]> {
   if (!teams.length) return [];
   const until = addDays(week, UPCOMING_DAYS);
@@ -151,7 +152,7 @@ export async function upcomingEvents(teams: number[], week: string): Promise<Upc
     `SELECT x.team, e.season, e.code, e.name, e.start, e.end, e.city, e.state,
        EXISTS (SELECT 1 FROM matches m WHERE m.season = e.season AND m.code = e.code) scheduled
      FROM (SELECT season, code, team FROM event_teams WHERE team IN (${marks(teams)})
-           UNION SELECT season, code, team FROM event_registrations WHERE team IN (${marks(teams)})) x
+           UNION SELECT season, code, team FROM event_registrations WHERE shared = 0 AND team IN (${marks(teams)})) x
      JOIN events e ON e.season = x.season AND e.code = x.code
      WHERE e.start >= ? AND e.start <= ?`, [...teams, ...teams, week, until]);
   const names = await teamNames([...new Set(rows.map((r) => Number(r.team)))]);

@@ -302,6 +302,12 @@ describe("the job", () => {
     expect(fallback.rankings!.rows.some((r) => r.team === 6980)).toBe(false);
   });
 
+  it("coming up skips a registration list FIRST filed for an AM/PM pair (not this session's teams)", async () => {
+    await run("INSERT INTO event_registrations (season, code, team, fetched_at, shared) VALUES (?, 'USNJCMP', 6980, '2026-10-20', 1)", [SEASON]);
+    const d = await buildDigest({ week: WEEK, season: SEASON, followed: [4215, 6980], name: null, rankings: rankings() });
+    expect(d.upcoming.map((u) => u.team)).toEqual([4215]);
+  });
+
   it("a team at two events the same weekend shows both, grouped by event, most recent first", async () => {
     await run("INSERT INTO event_teams (season, code, team, rank, wins, losses, ties) VALUES (?, 'USPAQ', 4215, 3, 2, 0, 0)", [SEASON]);
     await match("USPAQ", "2026-10-31", [4215, 20], [21, 22], true, 0.6);

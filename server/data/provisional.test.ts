@@ -58,6 +58,19 @@ describe("FTC NJ sync", () => {
     expect((await all<any>("SELECT code FROM event_provisional ORDER BY code")).map((r) => r.code)).toEqual(["USNJCENM7", "USNJNEM2", "USNJNEM3"]);
   });
 
+  it("the next day's read follows every change on the page: teams dropped, added, or off the waitlist", async () => {
+    await syncFtcNj(S, { html });
+    const changed = html
+      .replace("<li>13105--Ironmen Omicron</li><li>13617--Bectobots</li>", "<li>13105--Ironmen Omicron</li>") // dropped from Nov 7 AM
+      .replace("<li>19477--Bit by Bit</li><li>20848--TigerBots</li>", "<li>19477--Bit by Bit</li><li>20848--TigerBots</li><li>4215--Hypnotic Robotics</li>") // off the waitlist, into AM
+      .replace("<li><u><strong><font color=\"#8d2424\">&#8203;</font></strong></u>4215--Hypnotic Robotics</li><li>6980--Bad Wolf</li>", "<li>6980--Bad Wolf</li>");
+    await syncFtcNj(S, { html: changed });
+    const am = (await eventDetail(S, "USNJNEM2"))!.provisional!;
+    expect(am.teams.filter((t) => t.status === "registered").map((t) => t.team)).toEqual([12636, 12853, 13103, 13105, 15715, 19477, 20848, 4215]);
+    expect(am.teams.some((t) => t.team === 13617)).toBe(false);
+    expect(am.teams.filter((t) => t.status === "pending").map((t) => t.team)).toEqual([6980, 8902, 11124, 23314, 23717, 33950, 36142]);
+  });
+
   it("reads the page once a day, failed reads included", async () => {
     await kvSet("sync:ftcnj:2026", new Date().toISOString());
     expect(await syncFtcNj(S, { now: new Date() })).toMatchObject({ skipped: "read recently" });

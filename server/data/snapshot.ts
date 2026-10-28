@@ -28,7 +28,7 @@ export const PRIVATE_TABLES = [
   "event_streams",
   // The Discord bot's follows and its post log (migration 35): Discord server, channel and user ids.
   "discord_follows", "discord_posts",
-  // The weekly email digest (migration 49): who turned it on, their unsubscribe link, and the per-week send log.
+  // The weekly email digest (migration 50): who turned it on, their unsubscribe link, and the per-week send log.
   "digest_prefs", "digest_sends",
 ];
 

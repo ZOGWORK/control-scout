@@ -1,11 +1,11 @@
 // @vitest-environment jsdom
 // A regional site's registered teams and event info: always labelled with the source and as provisional,
-// registered teams first, the waitlist marked and not counted as registered.
+// registered teams first, the waitlist apart (not in the event) and not counted as registered.
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it } from "vitest";
 import { MemoryRouter } from "react-router-dom";
 import type { ProvisionalInfo } from "../shared/api";
-import { ProvisionalDetails, ProvisionalTeams } from "./ProvisionalInfo";
+import { ProvisionalDetails, ProvisionalTeams, SharedSessionTeams } from "./ProvisionalInfo";
 
 afterEach(cleanup);
 
@@ -22,12 +22,14 @@ const p = (o: Partial<ProvisionalInfo> = {}): ProvisionalInfo => ({
 });
 
 describe("ProvisionalTeams", () => {
-  it("counts registered teams only, lists the waitlist last, and names the source", () => {
+  it("lists registered teams as the event's, the waitlist apart (not in the event), and names the source", () => {
     render(<MemoryRouter><ProvisionalTeams p={p()} season={2026} team={null} /></MemoryRouter>);
-    expect(screen.getByText("2 teams registered")).toBeTruthy();
-    const items = [...document.querySelectorAll("li")].map((li) => li.textContent);
-    expect(items[0]).toMatch(/^207/);
-    expect(items[2]).toMatch(/^6980.*Waitlist$/);
+    expect(screen.getByText("2 teams registered · 1 on the waitlist")).toBeTruthy();
+    const listed = (name: string) => [...screen.getByRole("list", { name }).querySelectorAll("li")].map((li) => li.textContent);
+    expect(listed("Registered teams")).toEqual([expect.stringMatching(/^207/), expect.stringMatching(/^4215/)]);
+    expect(listed("Waitlisted teams")).toEqual([expect.stringMatching(/^6980/)]);
+    expect(screen.getByRole("heading", { name: "Waitlist (1)" })).toBeTruthy();
+    expect(document.querySelector("[data-provisional-waitlist]")!.textContent).toContain("not in this event unless a spot opens");
     const link = screen.getByRole("link", { name: /FTC New Jersey \(newjerseyftc\.com\)/ });
     expect(link.getAttribute("href")).toBe("https://www.newjerseyftc.com/upcoming-events.html");
     expect(document.querySelector("[data-provisional-source]")!.textContent).toContain("Provisional: FIRST hasn't published this event yet");
@@ -41,8 +43,20 @@ describe("ProvisionalTeams", () => {
 
   it("says when the AM/PM session of each team isn't known, and when registration is closed", () => {
     render(<MemoryRouter><ProvisionalTeams p={p({ sessionUnknown: true, closed: true })} season={2026} team={null} /></MemoryRouter>);
-    expect(screen.getByText("2 teams registered · registration closed")).toBeTruthy();
+    expect(screen.getByText("2 teams registered for the morning and afternoon sessions · 1 on the waitlist · registration closed")).toBeTruthy();
     expect(screen.getByText(/doesn't say which session each team is in/)).toBeTruthy();
+  });
+});
+
+describe("SharedSessionTeams", () => {
+  it("lists FIRST's teams for both sessions as that, never as this session's, and links the other session", () => {
+    const s = { fetchedAt: new Date().toISOString(), other: { code: "USNJNEM3", name: "P1-5 PM Northeast League Meet" },
+      teams: [{ team: 12636, name: "IHA Blue Eagles", city: "Ho-Ho-Kus", state: "NJ" }, { team: 10243, name: "Ramblers", city: null, state: null }] };
+    render(<MemoryRouter><SharedSessionTeams s={s} season={2026} team={null} /></MemoryRouter>);
+    expect(screen.getByText("2 teams registered for the morning and afternoon sessions")).toBeTruthy();
+    expect(document.querySelector("[data-shared-sessions]")!.textContent).toContain("each team plays in one of them, and FIRST doesn't say which yet");
+    expect(screen.getByRole("link", { name: "P1-5 PM Northeast League Meet" }).getAttribute("href")).toBe("/events/2026/USNJNEM3?tab=teams");
+    expect(screen.getAllByRole("listitem")).toHaveLength(2);
   });
 });
 
