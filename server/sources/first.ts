@@ -105,7 +105,7 @@ export async function firstSeasonInfo(season: number): Promise<{ gameName: strin
 export function eventRowFromFirst(season: number, e: any): EventRow {
   return {
     season, code: e.code, name: str(e.name) ?? e.code, type: normalizeEventType(e.typeName), divisionCode: str(e.divisionCode),
-    region: str(e.regionCode), league: str(e.leagueCode), venue: str(e.venue), city: str(e.city), state: str(e.stateprov), country: str(e.country),
+    region: str(e.regionCode), league: str(e.leagueCode), venue: str(e.venue), address: str(e.address), city: str(e.city), state: str(e.stateprov), country: str(e.country),
     start: day(e.dateStart), end: day(e.dateEnd) ?? day(e.dateStart), timezone: str(e.timezone), remote: !!e.remote, hybrid: !!e.hybrid,
     website: str(e.website), livestream: str(e.liveStreamUrl), source: "first", upstreamUpdated: null,
   };
@@ -136,15 +136,31 @@ export function teamRowFromFirst(t: any): TeamRow {
   };
 }
 
+/** Every page of a team list (`query` without the page). Null when FIRST answers 404.
+ *  `whole`: the caller replaces its rows with the list, so anything short of the whole list fails the read
+ *  (a page missing or without its teams array, or fewer teams than FIRST's own count); an empty list is fine. */
+async function teamPages(season: number, query: string, o: { onPage?: (page: number, of: number) => void; whole?: boolean } = {}): Promise<TeamRow[] | null> {
+  const first = await firstGet<any>(`/${season}/teams?${query}page=1`);
+  if (!first) return null;
+  const pages = num(first.pageTotal) ?? 1;
+  const out: TeamRow[] = (first.teams ?? []).filter((t: any) => t?.teamNumber).map(teamRowFromFirst);
+  const rest = await Promise.all(Array.from({ length: Math.max(0, pages - 1) }, (_, i) => firstGet<any>(`/${season}/teams?${query}page=${i + 2}`).then((d) => { o.onPage?.(i + 2, pages); return d; })));
+  if (o.whole && [first, ...rest].some((d) => !Array.isArray(d?.teams))) throw new FirstError(0, `FIRST /${season}/teams?${query}: a page of ${pages} is missing its teams`);
+  for (const d of rest) out.push(...(d?.teams ?? []).filter((t: any) => t?.teamNumber).map(teamRowFromFirst));
+  const total = num(first.teamCountTotal);
+  if (o.whole && total != null && out.length < total) throw new FirstError(0, `FIRST /${season}/teams?${query}: ${out.length} of ${total} teams`);
+  return out;
+}
+
 /** Every registered team of a season (paged). */
 export async function firstTeams(season: number, onPage?: (page: number, of: number) => void): Promise<TeamRow[]> {
-  const first = await firstGet<any>(`/${season}/teams?page=1`);
-  if (!first) return [];
-  const pages = num(first.pageTotal) ?? 1;
-  const out: TeamRow[] = (first.teams ?? []).map(teamRowFromFirst);
-  const rest = await Promise.all(Array.from({ length: Math.max(0, pages - 1) }, (_, i) => firstGet<any>(`/${season}/teams?page=${i + 2}`).then((d) => { onPage?.(i + 2, pages); return d; })));
-  for (const d of rest) out.push(...(d?.teams ?? []).map(teamRowFromFirst));
-  return out;
+  return (await teamPages(season, "", { onPage })) ?? [];
+}
+
+/** The teams registered for one event: FIRST lists them about a week ahead, before rankings or a schedule.
+ *  Null: FIRST doesn't know the event (404). */
+export function firstEventTeams(season: number, code: string): Promise<TeamRow[] | null> {
+  return teamPages(season, `eventCode=${encodeURIComponent(code)}&`, { whole: true });
 }
 
 // ---------------------------------------------------------------------------

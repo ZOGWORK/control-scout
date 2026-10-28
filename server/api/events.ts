@@ -4,6 +4,7 @@ import { all, get, kvGet } from "../db.js";
 import { eventTypeLabel, isLegacy } from "../data/seasons.js";
 import type { EventDetail, EventSummary, FieldRow, MatchView, ProvisionalInfo } from "../../src/shared/api.js";
 import { provisionalFor } from "../data/provisional.js";
+import { ROSTER } from "../data/registrations.js";
 import { matchViews } from "./matches.js";
 import { dataVersion, liveForecaster, liveVersion } from "../predict/engine.js";
 import { registerCache } from "../caches.js";
@@ -22,7 +23,8 @@ function summary(r: any): EventSummary {
 }
 
 const SUMMARY_SQL = `SELECT e.*,
-  (SELECT COUNT(*) FROM event_teams t WHERE t.season = e.season AND t.code = e.code) teams,
+  COALESCE(NULLIF((SELECT COUNT(*) FROM event_teams t WHERE t.season = e.season AND t.code = e.code), 0),
+    (SELECT COUNT(*) FROM event_registrations r WHERE r.season = e.season AND r.code = e.code)) teams,
   (SELECT COUNT(*) FROM matches m WHERE m.season = e.season AND m.code = e.code AND m.played = 1) played,
   (SELECT COUNT(*) FROM matches m WHERE m.season = e.season AND m.code = e.code) total
   FROM events e`;
@@ -87,14 +89,14 @@ export async function eventDetail(season: number, code: string): Promise<EventDe
   const r = await get<any>(`${SUMMARY_SQL} WHERE e.season = ? AND e.code = ?`, [season, code]);
   if (!r) return null;
   const [entries, oprs, alliances, awards, adv, matches, seasonOprs] = await Promise.all([
-    all<any>(`SELECT et.*, t.name, t.city, t.state FROM event_teams et LEFT JOIN teams t ON t.number = et.team WHERE et.season = ? AND et.code = ?`, [season, code]),
+    all<any>(`SELECT et.*, t.name, t.city, t.state FROM ${ROSTER} et LEFT JOIN teams t ON t.number = et.team WHERE et.season = ? AND et.code = ?`, [season, code]),
     all<any>("SELECT * FROM team_event_stats WHERE season = ? AND code = ?", [season, code]),
     all<any>("SELECT * FROM alliances WHERE season = ? AND code = ? ORDER BY number", [season, code]),
     all<any>("SELECT * FROM awards WHERE season = ? AND code = ? ORDER BY CASE type WHEN 'Inspire' THEN 0 WHEN 'Winner' THEN 1 WHEN 'Finalist' THEN 2 ELSE 3 END, type, placement", [season, code]),
     get<any>("SELECT * FROM advancement WHERE season = ? AND code = ?", [season, code]),
     matchViews({ season, code }, { predictUnplayed: true }),
     // Season OPR for the "At a glance" card before the event starts (the event's own OPR is empty then).
-    all<any>("SELECT s.team, s.opr_np FROM team_season_stats s JOIN event_teams et ON et.season = s.season AND et.team = s.team WHERE et.season = ? AND et.code = ?", [season, code]),
+    all<any>(`SELECT s.team, s.opr_np FROM team_season_stats s JOIN ${ROSTER} et ON et.season = s.season AND et.team = s.team WHERE et.season = ? AND et.code = ?`, [season, code]),
   ]);
   const seasonOprBy = new Map(seasonOprs.map((o) => [Number(o.team), o.opr_np == null ? null : Number(o.opr_np)]));
   const meet = r.type === "LeagueMeet" && !isLegacy(season) ? await meetOf(season, code, matches) : null;
@@ -116,7 +118,7 @@ export async function eventDetail(season: number, code: string): Promise<EventDe
   }).sort((a, b) => (a.rank ?? 1e9) - (b.rank ?? 1e9) || a.team - b.team);
   const input = toEventInput(summary(r), field, matches, alliances);
   return {
-    event: { ...summary(r), website: r.website ?? null, livestream: r.livestream ?? null, timezone: r.timezone ?? null, source: r.source },
+    event: { ...summary(r), address: r.address ?? null, website: r.website ?? null, livestream: r.livestream ?? null, timezone: r.timezone ?? null, source: r.source },
     field,
     matches,
     alliances: alliances.map((a) => ({ number: a.number, name: a.name, captain: a.captain, pick1: a.pick1, pick2: a.pick2, backup: a.backup })),
@@ -125,7 +127,9 @@ export async function eventDetail(season: number, code: string): Promise<EventDe
     forecastUnsupported: isLegacy(season) ? LEGACY_NOTE : f ? f.unsupportedReason(input) : "Predictions are still loading.",
     // Without FIRST credentials only the 5-minute FTC Scout fetch runs, so that's the cadence the page shows.
     live: isEventDay(r) ? { checkedAt: latest(r.live_checked_at, r.detail_synced_at), everySeconds: liveIo.canProbe() ? liveSyncSeconds() : FULL_EVERY_MS / 1000, auto: liveSyncOn() } : null,
-    // A stopgap until FIRST posts the event: once it has a team list or a schedule, FIRST's data is all that shows.
+    // The field is FIRST's pre-event registrations (no rankings or schedule yet): when they were read.
+    registered: entries.length > 0 && entries.every((e) => Number(e.registered) === 1) ? { fetchedAt: latestOf(entries.map((e) => e.fetched_at)) } : null,
+    // A stopgap until FIRST posts the event: once it has a team list (its registrations count) or a schedule, FIRST's data is all that shows.
     provisional: field.length || matches.length ? null : await provisional(season, code),
   };
 }
@@ -153,6 +157,9 @@ async function provisional(season: number, code: string): Promise<ProvisionalInf
     sessionUnknown: p.sessionUnknown,
   };
 }
+
+/** The latest of some ISO timestamps. */
+const latestOf = (xs: string[]) => xs.reduce((a, b) => (b > a ? b : a));
 
 /** The later of two ISO timestamps (either may be missing). */
 const latest = (a: string | null, b: string | null) => (!a ? b ?? null : !b ? a : a > b ? a : b);
