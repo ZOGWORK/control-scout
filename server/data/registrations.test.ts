@@ -9,7 +9,7 @@ import { eventDetail, eventSummary } from "../api/events";
 import { bundleStatements } from "./bundle";
 import { eventRowFromFirst } from "../sources/first";
 import { syncFtcNj } from "./provisional";
-import { syncRegistrations } from "./registrations";
+import { ROSTER, sessionPairs, syncRegistrations } from "./registrations";
 
 const S = 2026;
 const NOW = new Date("2026-10-27T12:00:00Z");
@@ -151,5 +151,73 @@ describe("event address", () => {
     expect((await eventDetail(S, "X"))!.event.address).toBe("13 Ethel Road");
     await writeBatch(bundleStatements({ event: { ...row, address: undefined }, teams: [], detail: null }));
     expect((await get<any>("SELECT address FROM events WHERE code = 'X'"))!.address).toBe("13 Ethel Road");
+  });
+});
+
+describe("AM/PM sessions", () => {
+  const nj = (code: string, name: string, start: string, league = "NE") =>
+    run("INSERT INTO events (season, code, name, type, region, league, start, end, remote, hybrid, source) VALUES (?, ?, ?, 'LeagueMeet', 'USNJ', ?, ?, ?, 0, 0, 'first')", [S, code, name, league, start, start]);
+  // FIRST's real answer for Nov 7 (2026-10-28): both sessions' teams under the AM code, none under the PM one.
+  const BOTH = [12636, 12853, 13103, 13105, 13617, 15715, 19477, 20848, 10243, 13107, 18757, 18760, 23545, 23694, 23375, 23717, 33950];
+  const PM_ON_PAGE = [10243, 13107, 18757, 18760, 23545, 23694];
+
+  it("pairs two same-day events whose names differ only by AM/PM, one naming no session at most", () => {
+    const pairs = sessionPairs([
+      { code: "NEM2", name: "P1-5 AM Northeast League Meet", start: "2026-11-07" },
+      { code: "NEM3", name: "P1-5 PM Northeast League Meet", start: "2026-11-07" },
+      { code: "CENM2", name: "P2-4 AM Central League Meet", start: "2026-11-22" },
+      { code: "CENM3", name: "P2-4 Central League Meet", start: "2026-11-22" },
+      { code: "SOM2", name: "P1-6 Southern League Meet", start: "2026-11-08" },
+      { code: "X1", name: "P9 Northern League Meet", start: "2026-12-01" },
+      { code: "X2", name: "P9 Northern League Meet", start: "2026-12-01" },
+      { code: "OTHERDAY", name: "P1-5 PM Northeast League Meet", start: "2026-11-08" },
+    ]);
+    expect(pairs.get("NEM2")?.code).toBe("NEM3");
+    expect(pairs.get("NEM3")?.code).toBe("NEM2");
+    expect(pairs.get("CENM3")?.code).toBe("CENM2");
+    expect(pairs.has("SOM2") || pairs.has("X1") || pairs.has("OTHERDAY")).toBe(false);
+  });
+
+  it("never shows FIRST's list for both sessions as one session's teams; each session shows FTC New Jersey's split", async () => {
+    await nj("USNJNEM2", "P1-5 AM Northeast League Meet", "2026-11-07");
+    await nj("USNJNEM3", "P1-5 PM Northeast League Meet", "2026-11-07");
+    await syncFtcNj(S, { html: njHtml, now: NOW });
+    first({ USNJNEM2: BOTH.map((n) => team(n, `T${n}`)), USNJNEM3: [] });
+    await syncRegistrations(S, { now: NOW });
+    for (const code of ["USNJNEM2", "USNJNEM3"]) {
+      const d = (await eventDetail(S, code))!;
+      expect(d.field).toEqual([]);
+      expect(d.event.teams).toBe(0);
+      expect(d.registered).toBeNull();
+      expect((await eventSummary(S, code))!.teams).toBe(0);
+      expect(d.sharedSessions!.teams.map((t) => t.team)).toEqual([...BOTH].sort((a, b) => a - b));
+      expect(d.sharedSessions!.other.code).toBe(code === "USNJNEM2" ? "USNJNEM3" : "USNJNEM2");
+    }
+    // The session split the NJ page gives: no PM team in the AM session, and the waitlist marked pending in both.
+    const am = (await eventDetail(S, "USNJNEM2"))!.provisional!;
+    expect(am.teams.filter((t) => t.status === "registered").map((t) => t.team)).toEqual([12636, 12853, 13103, 13105, 13617, 15715, 19477, 20848]);
+    expect(am.teams.some((t) => PM_ON_PAGE.includes(t.team))).toBe(false);
+    const pm = (await eventDetail(S, "USNJNEM3"))!.provisional!;
+    expect(pm.teams.filter((t) => t.status === "registered").map((t) => t.team)).toEqual(PM_ON_PAGE);
+    expect(pm.teams.filter((t) => t.status === "pending").map((t) => t.team)).toEqual([4215, 6980, 8902, 11124, 23314, 23717, 33950, 36142]);
+    // Scout assignments and the share title count only a session's own list, so nothing there either.
+    expect(await all(`SELECT team FROM ${ROSTER} et WHERE et.season = ? AND et.code = 'USNJNEM2'`, [S])).toEqual([]);
+  });
+
+  it("trusts FIRST once each session has its own list, and an unpaired event's list as always", async () => {
+    await nj("A_AM", "P7 AM Central League Meet", "2026-10-31", "CEN");
+    await nj("A_PM", "P7 PM Central League Meet", "2026-10-31", "CEN");
+    await nj("SOLO", "P8 Central League Meet", "2026-10-31", "CEN");
+    first({ A_AM: [team(1, "One"), team(2, "Two")], A_PM: [team(3, "Three")], SOLO: [team(4, "Four")] });
+    await syncRegistrations(S, { now: NOW });
+    expect((await eventDetail(S, "A_AM"))!.field.map((f) => f.team)).toEqual([1, 2]);
+    expect((await eventDetail(S, "A_PM"))!.field.map((f) => f.team)).toEqual([3]);
+    expect((await eventDetail(S, "A_AM"))!.sharedSessions).toBeNull();
+    expect((await eventDetail(S, "SOLO"))!.field.map((f) => f.team)).toEqual([4]);
+    // The same list on both sessions is the pair's, not each session's.
+    first({ A_AM: [team(1, "One"), team(2, "Two")], A_PM: [team(1, "One"), team(2, "Two")] });
+    await syncRegistrations(S, { now: NOW, force: true });
+    expect((await eventDetail(S, "A_PM"))!.field).toEqual([]);
+    expect((await eventDetail(S, "A_PM"))!.sharedSessions!.teams.map((t) => t.team)).toEqual([1, 2]);
   });
 });

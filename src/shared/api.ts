@@ -289,6 +289,17 @@ export interface EventDetail {
   /** Set when `field` is FIRST's pre-event registered teams (no rankings or schedule yet): the list can still
    *  change until the event. Absent from older servers and saved packs. */
   registered?: { fetchedAt: string } | null;
+  /** This event is one session of an AM/PM pair and FIRST lists the pair's registrations together, with no word on
+   *  who plays which session: never this session's `field`. Null otherwise. Absent from older servers and saved packs. */
+  sharedSessions?: SharedSessions | null;
+}
+
+/** FIRST's registered teams for both sessions of an AM/PM event (server/data/registrations.ts markSharedSessions). */
+export interface SharedSessions {
+  fetchedAt: string;
+  /** The other session's event. */
+  other: { code: string; name: string };
+  teams: { team: number; name: string | null; city: string | null; state: string | null }[];
 }
 
 /** Unofficial event info from a regional site (server/data/provisional.ts): shown labelled, never as FIRST's. */
