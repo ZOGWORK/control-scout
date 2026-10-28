@@ -8,7 +8,7 @@
 // prefers-color-scheme / [data-ogsc] rules; clients that invert colours themselves (Gmail) get solid,
 // high-contrast colours with no grey-on-white text to vanish. No tracking pixel, no UTM tags: every link
 // is the plain page it names.
-import type { DigestData, RankingRow, TeamWeek, Upcoming } from "./build.js";
+import { MAX_RESULTS, type DigestData, type RankingRow, type TeamWeek, type Upcoming } from "./build.js";
 import type { Movement } from "../../src/shared/powerRankings.js";
 
 /** Bumped whenever the email's layout or wording changes in a way worth telling apart in the send log. */
@@ -112,7 +112,7 @@ export const subjectOf = (d: DigestData) => `Your Control Scout week: ${headline
 export function intro(d: DigestData): string {
   const teams = [...new Set(d.results.map((r) => r.team))];
   const bits: string[] = [];
-  if (teams.length) bits.push(`${teams.length === 1 ? teams[0] : `${teams.length + (d.moreResults ? "+" : "")} of your teams`} played last week`);
+  if (teams.length) bits.push(`${teams.length === 1 ? teams[0] : `${teams.length} of your teams`} played last week`);
   const events = new Set(d.upcoming.map((u) => `${u.season}:${u.code}`)).size + (d.moreUpcoming ? 1 : 0);
   if (events) bits.push(`${events === 1 ? "one event is" : `${events}${d.moreUpcoming ? "+" : ""} events are`} coming up in the next two weeks`);
   if (bits.length) return `${bits.join(", and ").replace(/^./, (c) => c.toUpperCase())}. Here's the rundown.`;
@@ -141,11 +141,12 @@ export function renderText(d: DigestData, k: Links): string {
   out.push(`Hi ${d.name ?? "there"},`, "", intro(d), `Week of ${weekLabel(d.from, d.to)} (Monday to Sunday).`, "");
   if (d.results.length) {
     out.push("YOUR TEAMS' WEEK", "");
-    for (const r of d.results) {
+    for (const r of d.results.slice(0, MAX_RESULTS)) {
       const facts = [r.record && record(r.record), r.rank != null && (r.finished ? `${ordinal(r.rank)} seed` : `ranked ${ordinal(r.rank)} so far`), playoffText(r.playoff), oprTrend(r)?.text].filter(Boolean);
       out.push(`${teamLabel(r)} at ${r.event}`, `  ${facts.join(" · ") || "Results posted"}`, `  ${url(k.site, eventPath(r.season, r.code))}`, "");
     }
-    if (d.moreResults) out.push(`${d.moreResults} more played last week: ${url(k.site, "/my-team")}`, "");
+    const more = d.results.length - MAX_RESULTS;
+    if (more > 0) out.push(`${more} more played last week: ${url(k.site, "/my-team")}`, "");
   }
   if (d.predictions) {
     const w = d.predictions.week, s = d.predictions.season;
@@ -249,8 +250,9 @@ export function renderHtml(d: DigestData, k: Links): string {
 
   if (d.results.length) {
     rows.push(h2("Your teams' week", "Record, seed and OPR at each event they played."));
-    for (const r of d.results) rows.push(resultItem(r, site));
-    rows.push(moreLink(d.moreResults ? `${d.moreResults} more played last week: see them all` : "See all your teams", url(site, "/my-team")));
+    for (const r of d.results.slice(0, MAX_RESULTS)) rows.push(resultItem(r, site));
+    const more = d.results.length - MAX_RESULTS;
+    rows.push(moreLink(more > 0 ? `${more} more played last week: see them all` : "See all your teams", url(site, "/my-team")));
   }
   if (d.predictions) {
     const w = d.predictions.week, s = d.predictions.season;

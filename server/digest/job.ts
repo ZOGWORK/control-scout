@@ -35,7 +35,7 @@ export const KEEP_DAYS = 400;
 
 export type SendStatus = "sending" | "sent" | "failed" | "skipped-empty" | "skipped-toggle-off" | "skipped-bounce" | "bounced";
 
-export interface RunSummary { week: string; sent: number; failed: number; skippedEmpty: number; skippedOff: number; skippedBounce: number; already: number }
+export interface RunSummary { week: string; sent: number; failed: number; skippedEmpty: number; skippedOff: number; skippedBounce: number; already: number; stopped: boolean }
 
 /** The public site links point at: the canonical origin (controlscout.org in production). */
 export const siteUrl = () => env.canonicalUrl.replace(/\/$/, "");
@@ -57,18 +57,31 @@ export function followedTeams(myTeam: number | null, tracked: number[]): number[
   return [...new Set([...(myTeam ? [myTeam] : []), ...tracked])];
 }
 
-/** Claim this account's row for the week. False: it already has one (sent, skipped or in flight). */
-async function claim(userId: number, week: string, status: SendStatus, sections: string[] = [], subject: string | null = null): Promise<boolean> {
+/**
+ * Claim this account's row for the week. False: it already has one (sent, skipped or in flight), or the account is
+ * gone. A "sending" claim also needs the digest still on, unbounced and on the same unsubscribe link at this instant,
+ * so an unsubscribe, a bounce or a deleted account that lands mid-batch stops the email.
+ */
+async function claim(userId: number, week: string, status: SendStatus, sections: string[] = [], subject: string | null = null, token?: string): Promise<boolean> {
   const at = new Date().toISOString();
+  const allowed = status === "sending" ? " AND EXISTS (SELECT 1 FROM digest_prefs p WHERE p.user_id = ? AND p.enabled = 1 AND p.bounced_at IS NULL AND p.token = ?)" : "";
   return (await run(
-    `INSERT INTO digest_sends (user_id, week, status, template_version, sections, subject, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+    `INSERT INTO digest_sends (user_id, week, status, template_version, sections, subject, created_at, updated_at)
+     SELECT ?, ?, ?, ?, ?, ?, ?, ? WHERE EXISTS (SELECT 1 FROM users WHERE id = ?)${allowed}
      ON CONFLICT (user_id, week) DO NOTHING`,
-    [userId, week, status, TEMPLATE_VERSION, JSON.stringify(sections), subject, at, at])) === 1;
+    [userId, week, status, TEMPLATE_VERSION, JSON.stringify(sections), subject, at, at, userId, ...(allowed ? [userId, token ?? ""] : [])])) === 1;
 }
 
 const settle = (userId: number, week: string, status: SendStatus, extra: { error?: string; emailId?: string } = {}) =>
   run("UPDATE digest_sends SET status = ?, error = ?, email_id = ?, updated_at = ? WHERE user_id = ? AND week = ?",
     [status, extra.error ?? null, extra.emailId ?? null, new Date().toISOString(), userId, week]);
+
+/** One account as it stands right now: its switch, link, address and follows (undefined: no longer there). */
+const accountNow = (userId: number) => get<any>(
+  `SELECT d.user_id, d.enabled, d.token, d.bounced_at, u.email, u.display_name,
+     (SELECT value FROM user_state x WHERE x.user_id = d.user_id AND x.key = 'myTeam') my_team,
+     (SELECT value FROM user_state x WHERE x.user_id = d.user_id AND x.key = 'tracked') tracked
+   FROM digest_prefs d JOIN users u ON u.id = d.user_id WHERE d.user_id = ?`, [userId]);
 
 export interface RunOptions {
   log?: Log;
@@ -78,22 +91,27 @@ export interface RunOptions {
   rankings?: PowerRankingsResponse;
   /** Tests: the season. */
   season?: number;
+  /** Asked before every account: false stops the rest of the batch (default: the owner's weeklyDigest switch). */
+  allowed?: () => Promise<boolean>;
 }
 
 /** Build and send one week's digests. Safe to run again for the same week: each account goes out at most once. */
 export async function runDigestWeek(week: string, o: RunOptions = {}): Promise<RunSummary> {
   const log = o.log ?? quiet, gap = o.gapMs ?? SEND_GAP_MS;
-  const s: RunSummary = { week, sent: 0, failed: 0, skippedEmpty: 0, skippedOff: 0, skippedBounce: 0, already: 0 };
-  const rows = await all<any>(
-    `SELECT d.user_id, d.enabled, d.token, d.bounced_at, u.email, u.display_name,
-       (SELECT value FROM user_state x WHERE x.user_id = d.user_id AND x.key = 'myTeam') my_team,
-       (SELECT value FROM user_state x WHERE x.user_id = d.user_id AND x.key = 'tracked') tracked
-     FROM digest_prefs d JOIN users u ON u.id = d.user_id ORDER BY d.user_id`);
+  const allowed = o.allowed ?? (() => isEnabled("weeklyDigest"));
+  const s: RunSummary = { week, sent: 0, failed: 0, skippedEmpty: 0, skippedOff: 0, skippedBounce: 0, already: 0, stopped: false };
+  // Only the ids up front: each account is read again when its turn comes, so a change made while earlier
+  // emails go out (unsubscribing, unfollowing, deleting the account) counts.
+  const ids = (await all<{ user_id: number }>("SELECT user_id FROM digest_prefs ORDER BY user_id")).map((r) => Number(r.user_id));
   const rankings = o.rankings ?? await latestRankings(week);
-  let first = true;
-  for (const r of rows) {
-    const userId = Number(r.user_id);
+  let sentBefore = false;
+  for (const userId of ids) {
     try {
+      // The owner's switch stops the batch where it stands.
+      if (!(await allowed())) { s.stopped = true; break; }
+      if (sentBefore && gap) { await new Promise((res) => setTimeout(res, gap)); sentBefore = false; }
+      const r = await accountNow(userId);
+      if (!r) continue; // deleted meanwhile
       if (r.bounced_at != null) { if (await claim(userId, week, "skipped-bounce")) s.skippedBounce++; else s.already++; continue; }
       if (Number(r.enabled) !== 1) { if (await claim(userId, week, "skipped-toggle-off")) s.skippedOff++; else s.already++; continue; }
       const followed = followedTeams(parse("myTeam", r.my_team) ?? null, (parse("tracked", r.tracked) ?? EMPTY_STATE.tracked).teams);
@@ -102,11 +120,11 @@ export async function runDigestWeek(week: string, o: RunOptions = {}): Promise<R
       const data: DigestData = await buildDigest({ week, season: o.season ?? CURRENT_SEASON, followed, name: firstName(r.display_name), rankings });
       const sections = sectionsOf(data);
       if (!hasNews(data)) { if (await claim(userId, week, "skipped-empty")) s.skippedEmpty++; else s.already++; continue; }
-      const unsub = unsubscribeUrl(String(r.token));
+      const token = String(r.token);
+      const unsub = unsubscribeUrl(token);
       const mail = renderDigest(data, { site: siteUrl(), unsubscribe: unsub, email: String(r.email) });
-      if (!(await claim(userId, week, "sending", sections, mail.subject))) { s.already++; continue; }
-      if (!first && gap) await new Promise((res) => setTimeout(res, gap));
-      first = false;
+      if (!(await claim(userId, week, "sending", sections, mail.subject, token))) { s.already++; continue; }
+      sentBefore = true;
       try {
         const out = await sendEmail(String(r.email), mail.subject, mail.text, mail.html, {
           // RFC 8058 one-click unsubscribe: the mail app's own Unsubscribe button posts to the same link.
@@ -124,7 +142,7 @@ export async function runDigestWeek(week: string, o: RunOptions = {}): Promise<R
       log(`digest ${week}: account ${userId} failed: ${(e as Error)?.message ?? e}`);
     }
   }
-  log(`digest ${week}: ${s.sent} sent, ${s.failed} failed, skipped ${s.skippedEmpty} empty / ${s.skippedOff} switched off / ${s.skippedBounce} bounced${s.already ? `, ${s.already} already done` : ""}`);
+  log(`digest ${week}: ${s.sent} sent, ${s.failed} failed, skipped ${s.skippedEmpty} empty / ${s.skippedOff} switched off / ${s.skippedBounce} bounced${s.already ? `, ${s.already} already done` : ""}${s.stopped ? "; stopped by the owner's switch" : ""}`);
   return s;
 }
 
@@ -139,7 +157,8 @@ export async function digestTick(now = Date.now(), log: Log = quiet): Promise<Ru
   running = (async () => {
     try {
       const out = await runDigestWeek(week, { log });
-      doneWeek = week;
+      // A batch stopped by the owner's switch isn't done: switched back on, the next tick finishes it.
+      if (!out.stopped) doneWeek = week;
       await run("DELETE FROM digest_sends WHERE created_at < ?", [new Date(now - KEEP_DAYS * 86_400_000).toISOString()]);
       return out;
     } finally { running = null; }
