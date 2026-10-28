@@ -1364,6 +1364,44 @@ CREATE TABLE event_registrations (
 ALTER TABLE events ADD COLUMN address TEXT;
 `,
   },
+  {
+    version: 49,
+    name: "weekly email digest",
+    sql: `
+-- The weekly email digest (server/digest/, docs/digest.md). One row per account that has ever touched the
+-- Settings switch: enabled is the switch (off by default: no row means off). token: the account's
+-- one-click unsubscribe link (random, unguessable, no expiry); a new one is issued each time the
+-- switch is turned back on, so an old email's link can never turn it off again. bounced_at: the
+-- provider reported a hard bounce (the switch went off with it). Times are ISO.
+CREATE TABLE digest_prefs (
+  user_id INTEGER PRIMARY KEY,
+  enabled INTEGER NOT NULL DEFAULT 0,
+  token TEXT NOT NULL UNIQUE,
+  updated_at TEXT NOT NULL,
+  bounced_at TEXT,
+  unsubscribed_at TEXT
+);
+-- The send log: one row per account and week (the Monday, New York date), written before the email
+-- goes out, so a re-run of the same week sends nothing twice. status: sending | sent | failed |
+-- skipped-empty | skipped-toggle-off | skipped-bounce | bounced. sections: JSON list of the sections the email held.
+-- email_id: the provider's id for the message (bounce reports name it).
+CREATE TABLE digest_sends (
+  user_id INTEGER NOT NULL,
+  week TEXT NOT NULL,
+  status TEXT NOT NULL,
+  template_version INTEGER NOT NULL,
+  sections TEXT NOT NULL DEFAULT '[]',
+  subject TEXT,
+  error TEXT,
+  email_id TEXT,
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL,
+  PRIMARY KEY (user_id, week)
+);
+CREATE INDEX digest_sends_week ON digest_sends (week, status);
+CREATE INDEX digest_sends_email ON digest_sends (email_id);
+`,
+  },
 ];
 
 export type Db = Client;

@@ -30,6 +30,7 @@ import { deliverOwnerAlerts, inboxSettled, pruneInbox } from "./inbox/inbox.js";
 import { photoSchedulerTick } from "./scout/photos.js";
 import { pruneActivity } from "./scout/activityLog.js";
 import { pruneSentLog, pushTick } from "./push/push.js";
+import { digestTick } from "./digest/job.js";
 import { autoPowerRankingsTick } from "./powerRankings/auto.js";
 import { dailyRefreshTick } from "./powerRankings/refresh.js";
 import { pingIndexNow } from "./indexNow.js";
@@ -149,6 +150,8 @@ if (!process.env.CS_NO_SCHEDULER) {
   // starts for subscribed devices. Nothing at all without the VAPID settings or with the owner's push switch off.
   setInterval(() => { pushTick(Date.now(), log).catch((e) => log(`push: ${(e as Error).message}`)); }, 60_000).unref();
   setInterval(() => { pruneSentLog().catch((e) => log(`push: ${(e as Error).message}`)); }, 6 * 3600_000).unref();
+  // The weekly email digest: Mondays at 08:00 New York time (server/digest/, docs/digest.md). Checked every 5 minutes.
+  setInterval(() => { digestTick(Date.now(), log).catch((e) => log(`digest: ${(e as Error).message}`)); }, 5 * 60_000).unref();
   // Power rankings (server/powerRankings/auto.ts, docs/power-rankings.md): every Friday at 00:00 New York time a
   // top 25 from the live world ranking, blurbs by Bruno. Checked every 5 minutes, so a server that was down at
   // midnight catches up on its next tick (until the week ends); one week per season and week, never two.

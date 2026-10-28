@@ -56,6 +56,7 @@ import { consensusRouter } from "./scout/consensus.js";
 import { matchReportRouter } from "./scout/matchReport.js";
 import { inboxRouter } from "./inbox/routes.js";
 import { pushRouter } from "./push/routes.js";
+import { digestRouter } from "./digest/routes.js";
 import { vapidReady } from "./push/push.js";
 import { reportsRouter } from "./errorReports.js";
 import { packsRouter } from "./packs/routes.js";
@@ -192,10 +193,11 @@ export function createApp() {
   // CSV exports stream and gzip themselves, flushing as they go (server/api/records.ts streamedBody).
   // Live streams (text/event-stream, server/scout/stream.ts) are never compressed: gzip would hold events back.
   app.use(compression({ filter: (req, res) => !/^text\/(csv|event-stream)/.test(String(res.getHeader("Content-Type") ?? "")) && compression.filter(req, res) }));
-  // /api/collect reads its own tiny body (1 KB cap), so the 2 MB JSON parser skips it.
+  // /api/collect reads its own tiny body (1 KB cap), and the digest's bounce webhook needs its raw body for the
+  // signature, so the 2 MB JSON parser skips both.
   const json = express.json({ limit: "2mb" });
   // Same matching as Express routing (case-insensitive, optional trailing slash).
-  app.use((req, res, next) => (/^\/api\/collect\/?$/i.test(req.path) ? next() : json(req, res, next)));
+  app.use((req, res, next) => (/^\/api\/(collect|digest\/webhook)\/?$/i.test(req.path) ? next() : json(req, res, next)));
   app.use((_req, res, next) => {
     res.setHeader("X-Content-Type-Options", "nosniff");
     res.setHeader("Referrer-Policy", "strict-origin-when-cross-origin");
@@ -208,7 +210,7 @@ export function createApp() {
   // Anything personal stays no-store (case-insensitive, like Express routing),
   // and so does every error response, so a retry never replays a cached 503.
   api.use((req, res, next) => {
-    const personal = /^\/(me|auth|health|stats|reports|scout|owner|inbox)(\/|$)/i.test(req.path);
+    const personal = /^\/(me|auth|health|stats|reports|scout|owner|inbox|digest)(\/|$)/i.test(req.path);
     res.setHeader("Cache-Control", req.method === "GET" && !personal ? "public, max-age=60, stale-while-revalidate=300" : "no-store");
     const writeHead = res.writeHead;
     res.writeHead = function (this: typeof res, ...a: Parameters<typeof writeHead>) {
@@ -690,6 +692,8 @@ export function createApp() {
   api.use("/inbox", inboxRouter({ streamEnabled: () => isEnabled("realtime") }));
   // Web push (docs/push.md): this device's subscription for the signed-in account. Per IP, so a loop can't churn rows.
   api.use("/push", limiter(30), pushRouter());
+  // The weekly email digest (docs/digest.md): the Settings switch, the unsubscribe link and Resend's bounce reports.
+  api.use("/digest", limiter(30), digestRouter());
   api.use("/collect", collectRouter());
   api.use("/stats", statsRouter());
   api.use("/contact", contactRouter());

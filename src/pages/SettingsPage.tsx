@@ -35,6 +35,7 @@ import { REPORT_LIMITS } from "../shared/errorReport";
 import { INBOX_CATEGORIES, INBOX_CATEGORY_INFO, INBOX_TOGGLE, inboxCategoryOn } from "../shared/inbox";
 import { UPSET_THRESHOLD } from "../shared/push";
 import { PushDevice } from "../components/settings/PushDevice";
+import { DigestSetting } from "../components/settings/DigestSetting";
 import { PageHeader } from "../components/page";
 import { Button } from "../components/ui/button";
 import { Badge, FieldError, Input, Textarea } from "../components/ui/basic";
@@ -63,7 +64,7 @@ const ALL_SECTIONS: SectionDef[] = [
   { id: "profile", label: "Profile", hint: "Sign in to sync, your name, your account", icon: UserRound, group: "Personal" },
   { id: "appearance", label: "Appearance", hint: "Theme, text size, background, phone tab bar", icon: Palette, group: "Personal" },
   { id: "tracking", label: "My team & tracking", hint: "Your team, and the teams and events you follow", icon: Star, group: "Personal" },
-  { id: "notifications", label: "Notifications", hint: "Push and match alerts for your teams", icon: BellRing, group: "Personal" },
+  { id: "notifications", label: "Notifications", hint: "Push, match alerts and the weekly email", icon: BellRing, group: "Personal" },
   { id: "offline", label: "Offline data", hint: "Packs, cache and recordings on this device", icon: HardDriveDownload, group: "Personal" },
   { id: "scouting", label: "Scouting data", hint: "Export, import and clear your notes", icon: ClipboardList, group: "Personal" },
   { id: "privacy", label: "Account & privacy", hint: "What lives where, and how to remove it", icon: KeyRound, group: "Personal" },
@@ -408,6 +409,7 @@ function Notifications() {
         {toggle("eventStart", "Event start", "When an event you follow gets under way: its first result, or its first scheduled match time")}
       </Group>
       <InboxToggles />
+      <DigestSetting />
     </div>
   );
 }

@@ -7,7 +7,7 @@
 /** A lazily loaded page module under src/pages (the file name without .tsx). */
 export type PageModule =
   | "TeamPage" | "EventsPage" | "RecordsPage" | "RankingsPage" | "EventPage" | "PredictPage" | "ComparePage" | "MyTeamPage" | "MyTeamsPage"
-  | "ShortlistPage" | "ScoutPage" | "DownloadPage" | "SettingsPage" | "MethodologyPage" | "PrivacyPage" | "TermsPage" | "ContactPage" | "FaqPage" | "MatchReportPage" | "PowerRankingsPage" | "EventDisplayPage" | "NotFound";
+  | "ShortlistPage" | "ScoutPage" | "DownloadPage" | "SettingsPage" | "MethodologyPage" | "PrivacyPage" | "TermsPage" | "ContactPage" | "FaqPage" | "MatchReportPage" | "PowerRankingsPage" | "EventDisplayPage" | "DigestUnsubscribedPage" | "NotFound";
 
 // React Router matches case-insensitively, a trailing slash included: so do these.
 const ROUTES: [RegExp, PageModule | null][] = [
@@ -34,6 +34,7 @@ const ROUTES: [RegExp, PageModule | null][] = [
   [/^\/contact\/?$/i, "ContactPage"],
   [/^\/faq\/?$/i, "FaqPage"],
   [/^\/power-rankings(\/[^/]+)?\/?$/i, "PowerRankingsPage"],
+  [/^\/digest\/unsubscribed\/?$/i, "DigestUnsubscribedPage"],
 ];
 
 /** The lazy page module a path renders (null: Home or a redirect, nothing to load). */
@@ -49,7 +50,7 @@ const TITLES: [RegExp, string][] = [
   [/^\/teams\/[^/]+$/, "Team"], [/^\/teams$/, "Teams"], [/^\/rankings$/, "Rankings"], [/^\/matches$/, "Match records"], [/^\/events\/[^/]+\/[^/]+$/, "Event"], [/^\/events$/, "Events"], [/^\/predict\/how-it-works$/, "How it works"], [/^\/predict(\/accuracy)?$/, "Predict"],
   [/^\/compare$/, "Compare"], [/^\/my-team$/, "My team"], [/^\/my-teams$/, "My teams"], [/^\/shortlist$/, "Shortlist"], [/^\/scout$/, "Scout"], [/^\/download$/, "Download"],
   [/^\/settings$/, "Settings"], [/^\/methodology$/, "How it works"], [/^\/privacy$/, "Privacy"], [/^\/terms$/, "Terms"], [/^\/contact$/, "Contact"], [/^\/faq$/, "FAQ"],
-  [/^\/power-rankings(\/[^/]+)?$/, "Power rankings"],
+  [/^\/power-rankings(\/[^/]+)?$/, "Power rankings"], [/^\/digest\/unsubscribed$/, "Weekly digest"],
 ];
 
 /** The page's short name in the top bar ("Control Scout / Events"); any other path is the not-found page.
