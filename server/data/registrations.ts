@@ -51,26 +51,38 @@ export function sessionPairs(events: SessionEvent[]): Map<string, SessionEvent> 
 }
 
 /**
- * Mark the season's registrations that FIRST files for a whole AM/PM pair. FIRST lists each session's own teams
- * only when both sessions have different lists; one list on one session (the other empty) or the same list on
- * both is everyone registered for the pair, with no word on who plays which session.
+ * Statements marking the season's registrations that FIRST files for a whole AM/PM pair, as they stand once `fresh`
+ * (this pass's successful reads: code → teams) is written. FIRST lists each session's own teams only when both
+ * sessions have different lists; one list on one session (the other empty) or the same list on both is everyone
+ * registered for the pair, with no word on who plays which session. A pair already marked stays marked until
+ * both sessions are read in the same pass: one failed read must not turn the pair's list into each session's.
  */
-export async function markSharedSessions(season: number): Promise<void> {
-  const events = await all<SessionEvent>("SELECT code, name, start FROM events WHERE season = ?", [season]);
-  const pairs = sessionPairs(events);
-  const rows = await all<{ code: string; team: number }>("SELECT code, team FROM event_registrations WHERE season = ?", [season]);
-  const lists = new Map<string, string>();
-  for (const r of rows.sort((a, b) => a.team - b.team)) lists.set(r.code, `${lists.get(r.code) ?? ""},${r.team}`);
-  const shared = [...lists.keys()].filter((code) => {
-    const other = pairs.get(code);
+async function sharedStatements(season: number, fresh: Map<string, number[]>): Promise<InStatement[]> {
+  const pairs = sessionPairs(await all<SessionEvent>("SELECT code, name, start FROM events WHERE season = ?", [season]));
+  const rows = await all<{ code: string; team: number; shared: number }>("SELECT code, team, shared FROM event_registrations WHERE season = ?", [season]);
+  const teamsOf = new Map<string, number[]>(), wasShared = new Set<string>();
+  for (const r of rows) {
+    if (r.shared) wasShared.add(r.code);
+    if (!fresh.has(r.code)) teamsOf.set(r.code, [...(teamsOf.get(r.code) ?? []), Number(r.team)]);
+  }
+  for (const [code, teams] of fresh) if (teams.length) teamsOf.set(code, teams);
+  const key = (code: string) => (teamsOf.has(code) ? [...teamsOf.get(code)!].sort((x, y) => x - y).join(",") : null);
+  const shared = [...teamsOf.keys()].filter((code) => {
+    const other = pairs.get(code)?.code;
     if (!other) return false;
-    const mine = lists.get(code), theirs = lists.get(other.code);
-    return theirs == null || theirs === mine;
+    const theirs = key(other);
+    if (theirs == null || theirs === key(code)) return true;
+    return (wasShared.has(code) || wasShared.has(other)) && !(fresh.has(code) && fresh.has(other));
   });
-  await writeBatch([
+  return [
     { sql: "UPDATE event_registrations SET shared = 0 WHERE season = ? AND shared = 1", args: [season] },
     ...shared.map((code) => ({ sql: "UPDATE event_registrations SET shared = 1 WHERE season = ? AND code = ?", args: [season, code] })),
-  ]);
+  ];
+}
+
+/** Re-mark the season's shared AM/PM lists (events, and their names, can change between reads). */
+export async function markSharedSessions(season: number): Promise<void> {
+  await writeBatch(await sharedStatements(season, new Map()));
 }
 
 export interface RegistrationsReport { events: number; withTeams: number; teams: number; failed: string[]; skipped?: string }
@@ -88,7 +100,7 @@ export async function syncRegistrations(season: number, o: { force?: boolean; no
   const now = o.now ?? new Date();
   const last = await kvGet<string>(key);
   if (!o.force && last && now.getTime() - Date.parse(last) < REGISTRATIONS_EVERY_MS) {
-    await markSharedSessions(season); // events (and their names) can change between reads
+    await markSharedSessions(season);
     return { events: 0, withTeams: 0, teams: 0, failed: [], skipped: "read recently" };
   }
   const skip = [...(o.skipTypes ?? [])];
@@ -109,8 +121,10 @@ export async function syncRegistrations(season: number, o: { force?: boolean; no
     catch (e) { report.failed.push(`${code}: ${(e as Error).message.slice(0, 120)}`); return { code, teams: null }; }
   }));
   const s: InStatement[] = [];
+  const fresh = new Map<string, number[]>();
   for (const { code, teams } of reads) {
     if (!teams) continue;
+    fresh.set(code, teams.map((t) => t.number));
     s.push({ sql: "DELETE FROM event_registrations WHERE season = ? AND code = ?", args: [season, code] });
     s.push(...teamStatements(teams, isLegacy(season)));
     for (const t of teams) {
@@ -119,7 +133,7 @@ export async function syncRegistrations(season: number, o: { force?: boolean; no
     }
     if (teams.length) { report.withTeams++; report.teams += teams.length; }
   }
-  await writeBatch(s);
-  await markSharedSessions(season);
+  // The new lists and their shared marks in one transaction: a reader never sees a pair's list as one session's.
+  await writeBatch([...s, ...(await sharedStatements(season, fresh))]);
   return report;
 }

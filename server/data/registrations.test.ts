@@ -220,4 +220,24 @@ describe("AM/PM sessions", () => {
     expect((await eventDetail(S, "A_PM"))!.field).toEqual([]);
     expect((await eventDetail(S, "A_PM"))!.sharedSessions!.teams.map((t) => t.team)).toEqual([1, 2]);
   });
+
+  it("a failed read on one session keeps the pair's list shared; both sessions read apart unshare it", async () => {
+    await nj("A_AM", "P7 AM Central League Meet", "2026-10-31", "CEN");
+    await nj("A_PM", "P7 PM Central League Meet", "2026-10-31", "CEN");
+    first({ A_AM: [team(1, "One"), team(2, "Two")], A_PM: [team(1, "One"), team(2, "Two")] });
+    await syncRegistrations(S, { now: NOW });
+    // AM grows, PM's read fails (it keeps [1, 2]): the lists differ, but nothing says who plays which session.
+    first({ A_AM: [team(1, "One"), team(2, "Two"), team(3, "Three")], A_PM: 400 }); // a failed read (400 fails at once, no retries)
+    await syncRegistrations(S, { now: NOW, force: true });
+    for (const code of ["A_AM", "A_PM"]) {
+      const d = (await eventDetail(S, code))!;
+      expect(d.field).toEqual([]);
+      expect(d.sharedSessions!.teams.map((t) => t.team)).toEqual([1, 2, 3]);
+    }
+    // Both sessions read, with lists of their own: FIRST has split them.
+    first({ A_AM: [team(1, "One"), team(3, "Three")], A_PM: [team(2, "Two")] });
+    await syncRegistrations(S, { now: NOW, force: true });
+    expect((await eventDetail(S, "A_AM"))!.field.map((f) => f.team)).toEqual([1, 3]);
+    expect((await eventDetail(S, "A_PM"))!.field.map((f) => f.team)).toEqual([2]);
+  });
 });
