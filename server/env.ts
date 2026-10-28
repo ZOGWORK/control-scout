@@ -28,6 +28,10 @@ export const env = {
   get emailFrom() { return str("EMAIL_FROM") ?? "Control Scout <verify@tryctrlpoint.org>"; },
   /** Where contact-form messages are emailed (never sent to the browser). Unset: messages are only stored. */
   get contactTo() { return str("CONTACT_TO"); },
+  /** The weekly digest's bounce reports (docs/digest.md): the signing secret ("whsec_…") of the Resend webhook
+   *  pointed at /api/digest/webhook. Unset: the endpoint answers 404 and bounces are left to Resend's own
+   *  suppression list. Never logged. */
+  get resendWebhookSecret() { return str("RESEND_WEBHOOK_SECRET"); },
   get googleClientId() { return str("GOOGLE_CLIENT_ID"); },
   get googleClientSecret() { return str("GOOGLE_CLIENT_SECRET"); },
   /** YouTube Data API v3 key (server/videos/youtube.ts): event recordings' broadcast times, 50 videos a request. Unset:

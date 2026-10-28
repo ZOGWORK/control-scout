@@ -26,11 +26,16 @@ export const isoWeek = (t: string) => {
   return d.toISOString().slice(0, 10);
 };
 
+/** A call that counts toward win-call accuracy: the match wasn't a tie and the call wasn't a coin flip (p exactly 0.5). */
+export const decidedCall = (r: { p: number; y: number }) => r.y !== 0.5 && r.p !== 0.5;
+/** A decided call that named the winner. The one rule for "right" (track record, the weekly digest's check-in). */
+export const rightCall = (r: { p: number; y: number }) => (r.p > 0.5) === (r.y === 1);
+
 export function block(rows: Row[]): AccuracyBlock | null {
   if (!rows.length) return null;
-  const decided = rows.filter((r) => r.y !== 0.5 && r.p !== 0.5);
-  const right = (r: Row) => (r.p > 0.5) === (r.y === 1);
-  const acc = (xs: Row[]) => { const d = xs.filter((r) => r.y !== 0.5 && r.p !== 0.5); return d.length ? d.filter(right).length / d.length : 0; };
+  const decided = rows.filter(decidedCall);
+  const right = rightCall;
+  const acc = (xs: Row[]) => { const d = xs.filter(decidedCall); return d.length ? d.filter(right).length / d.length : 0; };
   const brier = (xs: Row[]) => xs.reduce((s, r) => s + (r.p - r.y) ** 2, 0) / Math.max(1, xs.length);
   const logLoss = -rows.reduce((s, r) => { const p = Math.min(1 - EPS, Math.max(EPS, r.p)); return s + r.y * Math.log(p) + (1 - r.y) * Math.log(1 - p); }, 0) / rows.length;
   const reliability = Array.from({ length: 10 }, (_, i) => ({ lo: i / 10, hi: (i + 1) / 10, n: 0, predicted: 0, actual: 0 }));

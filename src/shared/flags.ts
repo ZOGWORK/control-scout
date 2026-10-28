@@ -3,14 +3,14 @@
 // reads them through server/flags.ts (cached for a few seconds) and the app
 // through GET /api/flags. Every flag is on unless the owner turned it off.
 
-export const FLAGS = ["realtime", "workspaceScouting", "errorReporting", "offlinePacks", "photos", "push", "autoPowerRankings", "dailyPowerRankings"] as const;
+export const FLAGS = ["realtime", "workspaceScouting", "errorReporting", "offlinePacks", "photos", "push", "autoPowerRankings", "dailyPowerRankings", "weeklyDigest"] as const;
 export type Flag = (typeof FLAGS)[number];
 export type FlagSet = Record<Flag, boolean>;
 
 export const isFlag = (x: unknown): x is Flag => typeof x === "string" && (FLAGS as readonly string[]).includes(x);
 
 /** Every flag on: what a fresh server, or one whose flags can't be read, runs with. */
-export const DEFAULT_FLAGS: FlagSet = { realtime: true, workspaceScouting: true, errorReporting: true, offlinePacks: true, photos: true, push: true, autoPowerRankings: true, dailyPowerRankings: true };
+export const DEFAULT_FLAGS: FlagSet = { realtime: true, workspaceScouting: true, errorReporting: true, offlinePacks: true, photos: true, push: true, autoPowerRankings: true, dailyPowerRankings: true, weeklyDigest: true };
 
 /** What each switch does, for the owner portal. `pending`: the feature it guards hasn't shipped yet, so
  *  the switch is stored but nothing reads it (said in the portal, never implied otherwise). */
@@ -54,5 +54,10 @@ export const FLAG_INFO: Record<Flag, { label: string; on: string; off: string; p
     label: "Daily power rankings refresh",
     on: "Every day at 00:00 New York time, the current automatic week is checked against the latest data. If nothing shown changed, only its Updated date moves; otherwise the changed entries are updated, and Bruno rewrites only the blurbs of teams whose place changed.",
     off: "The current week stays exactly as it was published (or last refreshed) until next Friday's week replaces it.",
+  },
+  weeklyDigest: {
+    label: "Weekly email digest",
+    on: "Every Monday at 8:00 New York time, people who turned on the weekly digest get one email with their followed teams' results, the prediction check-in and upcoming events (needs RESEND_API_KEY; without it nothing is sent either way).",
+    off: "No digests are sent and Settings stops offering to turn it on. Everyone's choice is kept, so switching back on resumes the next Monday.",
   },
 };
