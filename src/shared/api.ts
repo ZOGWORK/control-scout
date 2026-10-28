@@ -272,7 +272,7 @@ export interface EventStream { videoId: string; streamUrl: string; /** "first": 
 export interface OwnerStreamRow { season: number; code: string; name: string | null; start: string | null; end: string | null; url: string; videoId: string; updatedAt: string }
 
 export interface EventDetail {
-  event: EventSummary & { website: string | null; livestream: string | null; timezone: string | null; source: string; /** The Watch live section's stream; absent or null: no section. */ stream?: EventStream | null };
+  event: EventSummary & { /** The venue's street address (FIRST's event list); absent from older servers and saved packs. */ address?: string | null; website: string | null; livestream: string | null; timezone: string | null; source: string; /** The Watch live section's stream; absent or null: no section. */ stream?: EventStream | null };
   field: FieldRow[];
   matches: MatchView[];
   alliances: { number: number; name: string | null; captain: number | null; pick1: number | null; pick2: number | null; backup: number | null }[];
@@ -286,6 +286,9 @@ export interface EventDetail {
   /** A region's own site's details and registered teams (FTC New Jersey), while FIRST has no team list and no
    *  schedule for the event; null once it has either. Absent from older servers and saved packs. */
   provisional?: ProvisionalInfo | null;
+  /** Set when `field` is FIRST's pre-event registered teams (no rankings or schedule yet): the list can still
+   *  change until the event. Absent from older servers and saved packs. */
+  registered?: { fetchedAt: string } | null;
 }
 
 /** Unofficial event info from a regional site (server/data/provisional.ts): shown labelled, never as FIRST's. */

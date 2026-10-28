@@ -13,6 +13,8 @@ export interface EventRow {
   region: string | null;
   league: string | null;
   venue: string | null;
+  /** Street address of the venue (FIRST's event list; FTC Scout has none). */
+  address?: string | null;
   city: string | null;
   state: string | null;
   country: string | null;
@@ -147,12 +149,12 @@ export function bundleStatements(b: EventBundle): InStatement[] {
   const e = b.event;
   const s: InStatement[] = [];
   s.push({
-    sql: `INSERT INTO events (season, code, name, type, division_code, region, league, venue, city, state, country, start, end, timezone, remote, hybrid, website, livestream, source, upstream_updated, synced_at, detail_synced_at)
-          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    sql: `INSERT INTO events (season, code, name, type, division_code, region, league, venue, address, city, state, country, start, end, timezone, remote, hybrid, website, livestream, source, upstream_updated, synced_at, detail_synced_at)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
           ON CONFLICT(season, code) DO UPDATE SET
             name = excluded.name, type = excluded.type, division_code = excluded.division_code,
             region = COALESCE(excluded.region, events.region), league = COALESCE(excluded.league, events.league),
-            venue = COALESCE(excluded.venue, events.venue), city = COALESCE(excluded.city, events.city),
+            venue = COALESCE(excluded.venue, events.venue), address = COALESCE(excluded.address, events.address), city = COALESCE(excluded.city, events.city),
             state = COALESCE(excluded.state, events.state), country = COALESCE(excluded.country, events.country),
             start = excluded.start, end = excluded.end, timezone = COALESCE(excluded.timezone, events.timezone),
             remote = excluded.remote, hybrid = excluded.hybrid,
@@ -161,7 +163,7 @@ export function bundleStatements(b: EventBundle): InStatement[] {
             upstream_updated = COALESCE(excluded.upstream_updated, events.upstream_updated),
             synced_at = excluded.synced_at,
             detail_synced_at = COALESCE(excluded.detail_synced_at, events.detail_synced_at)`,
-    args: [e.season, e.code, e.name, e.type, e.divisionCode, e.region, e.league, e.venue, e.city, e.state, e.country, e.start, e.end, e.timezone, e.remote ? 1 : 0, e.hybrid ? 1 : 0, e.website, e.livestream, e.source, e.upstreamUpdated, now(), b.detail ? now() : null],
+    args: [e.season, e.code, e.name, e.type, e.divisionCode, e.region, e.league, e.venue, e.address ?? null, e.city, e.state, e.country, e.start, e.end, e.timezone, e.remote ? 1 : 0, e.hybrid ? 1 : 0, e.website, e.livestream, e.source, e.upstreamUpdated, now(), b.detail ? now() : null],
   });
   s.push(...teamStatements(b.teams, isLegacy(e.season)));
   if (!b.detail) return s;

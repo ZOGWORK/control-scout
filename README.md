@@ -115,6 +115,11 @@ FTC New Jersey's events page (newjerseyftc.com) is a third, provisional source: 
 registered teams and event details apart from FIRST's data (`event_provisional`), and the event page
 shows them, labelled, only until FIRST posts the event's team list or schedule (`server/data/provisional.ts`).
 
+Before rankings or a schedule exist, the sync also reads FIRST's own registered teams for events starting in the
+next 14 days (`/teams?eventCode=`, every 6 hours, `event_registrations`). The event page shows them as the
+event's teams, marked as registrations, until FIRST posts rankings or a schedule; on New Jersey events they
+replace FTC New Jersey's provisional list (`server/data/registrations.ts`).
+
 * **Sync** is idempotent and resumable. Finished seasons are frozen once
   complete; only the current season refreshes (daily, every 15 min on event days on the VM).
 * **Stats** recomputes per-team, per-event OPR (least squares, quals only,

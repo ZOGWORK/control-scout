@@ -3,7 +3,7 @@
 // bracket, awards + advancement, and advancement odds for any team there.
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { Link, useLocation, useNavigationType, useParams, useSearchParams } from "react-router-dom";
-import { Award, CalendarDays, ChevronDown, Clock, ExternalLink, Loader2, MapPin, Radio, RefreshCw, Search, Sparkles, Swords, Trophy, Tv, Users } from "lucide-react";
+import { Award, CalendarDays, ChevronDown, Clock, ExternalLink, Info, Loader2, MapPin, Radio, RefreshCw, Search, Sparkles, Swords, Trophy, Tv, Users } from "lucide-react";
 import { BRACKETS, type Slot } from "@control-scout/predict-engine";
 import { ApiError, apiFetch, load, prime, useApi } from "../lib/api";
 import { useMeta, usePredictable, useTitle } from "../lib/meta";
@@ -39,7 +39,7 @@ import { HeaderActions } from "../components/EventActions";
 import { EventStatusChip, EventTypeChip } from "../components/EventChips";
 import { WatchLive } from "../components/WatchLive";
 import { isLiveMode, nextMatch, useEventPoll } from "../lib/liveMode";
-import { agoSeconds, awardLabel, dateRange, num, place, seasonLabel } from "../lib/format";
+import { ago, agoSeconds, awardLabel, dateRange, num, place, seasonLabel } from "../lib/format";
 import { scrollToElement, smoothBehavior } from "../lib/pageScroll";
 import { eventTab } from "../lib/eventTab";
 import { predictHref } from "../shared/predictUrl";
@@ -116,11 +116,11 @@ function Event({ d, path }: { d: EventDetail; path: string }) {
         {!full && <span className="flex items-center gap-2">{typeChip}<span className="font-mono text-xs">{e.code} · {seasonLabel(e.season)}</span></span>}
         {/* The venue opens in Google Maps (a search for the venue and town: works on every phone, opens the Maps app where there is one). */}
         {(e.venue || e.city) && (
-          <a href={mapsUrl(place(e.venue, e.city, e.state, e.country))} target="_blank" rel="noreferrer noopener" className="flex items-center gap-1.5 underline-offset-2 hover:text-foreground hover:underline" data-venue-map>
-            <MapPin className="size-4" />{place(e.venue, e.city, e.state, e.country)}
+          <a href={mapsUrl(place(e.venue, e.address, e.city, e.state, e.country))} target="_blank" rel="noreferrer noopener" className="flex items-center gap-1.5 underline-offset-2 hover:text-foreground hover:underline" data-venue-map>
+            <MapPin className="size-4" />{place(e.venue, e.address, e.city, e.state, e.country)}
           </a>
         )}
-        <span>{!e.teams && registeredCount ? `${registeredCount} teams registered (provisional)` : `${e.teams} teams`} · {e.matchesPlayed}/{e.matchesTotal} matches played</span>
+        <span>{d.registered ? `${e.teams} teams registered` : !e.teams && registeredCount ? `${registeredCount} teams registered (provisional)` : `${e.teams} teams`} · {e.matchesPlayed}/{e.matchesTotal} matches played</span>
         {e.website && <a href={e.website} target="_blank" rel="noreferrer noopener" className="inline-flex items-center gap-1 hover:text-foreground">Website <ExternalLink className="size-3" /></a>}
       </div>
       {d.live && !liveMode && <LiveBar live={d.live} r={refresh} />}
@@ -246,7 +246,7 @@ function Event({ d, path }: { d: EventDetail; path: string }) {
         <TabsContent value="teams" className="mt-5 max-sm:mt-4">
           {d.provisional && !d.field.length
             ? <ProvisionalTeams p={d.provisional} season={e.season} team={teamParam} />
-            : <TeamsGrid field={d.field} season={e.season} team={teamParam} predictable={predictable} />}
+            : <TeamsGrid field={d.field} season={e.season} team={teamParam} predictable={predictable} registered={d.registered ?? null} />}
         </TabsContent>
         <TabsContent value="playoffs" className="mt-5 max-sm:mt-4"><Playoffs d={d} /></TabsContent>
         <TabsContent value="awards" className="mt-5 max-sm:mt-4"><Awards d={d} nameOf={nameOf} /></TabsContent>
@@ -530,7 +530,7 @@ function RankingTable({ field, season, team, code }: { field: FieldRow[]; season
 }
 
 /** Teams (N): everyone registered, as cards — rank, OPR and rating at a glance, searchable. */
-function TeamsGrid({ field, season, team, predictable }: { field: FieldRow[]; season: number; team: number | null; predictable: boolean }) {
+function TeamsGrid({ field, season, team, predictable, registered }: { field: FieldRow[]; season: number; team: number | null; predictable: boolean; registered: EventDetail["registered"] }) {
   const [q, setQ] = useState("");
   const f = q.trim().toLowerCase();
   const list = [...field]
@@ -539,6 +539,13 @@ function TeamsGrid({ field, season, team, predictable }: { field: FieldRow[]; se
   if (!field.length) return <EmptyState icon={Users} title="No teams registered yet" description="The team list appears once FIRST publishes it." />;
   return (
     <div className="space-y-4">
+      {/* Before rankings or a schedule: FIRST's registered teams, which can still change until the event. */}
+      {registered && (
+        <p className="flex items-start gap-2 text-xs text-muted-foreground" data-registered-note>
+          <Info className="mt-0.5 size-3.5 shrink-0" />
+          <span>{field.length} teams registered with FIRST, read {ago(registered.fetchedAt)}. Teams can still join or drop out before the event.</span>
+        </p>
+      )}
       <div className="relative max-w-sm">
         <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
         <Input value={q} onChange={(e) => setQ(e.target.value)} placeholder={`Find one of ${field.length} teams`} aria-label="Find a team at this event" className="h-10 pl-9" />
@@ -548,10 +555,13 @@ function TeamsGrid({ field, season, team, predictable }: { field: FieldRow[]; se
           {list.map((t) => (
             <li key={t.team}>
               <Link to={`/teams/${t.team}?season=${season}`} className={cn("lift flex h-full items-center gap-3 rounded-xl border border-border bg-card p-3", t.team === team && "border-accent/60 bg-accent/[0.06]")}>
-                <span className="flex size-12 shrink-0 flex-col items-center justify-center rounded-lg bg-muted text-center">
-                  <span className="text-[9px] font-bold uppercase tracking-wider text-muted-foreground">Rank</span>
-                  <span className={cn("font-display text-lg font-semibold leading-none tabular-nums", t.rank != null && t.rank <= 4 && "text-accent-text")}>{t.rank ?? "–"}</span>
-                </span>
+                {/* Registrations have no rank yet: no empty rank box. */}
+                {!registered && (
+                  <span className="flex size-12 shrink-0 flex-col items-center justify-center rounded-lg bg-muted text-center">
+                    <span className="text-[9px] font-bold uppercase tracking-wider text-muted-foreground">Rank</span>
+                    <span className={cn("font-display text-lg font-semibold leading-none tabular-nums", t.rank != null && t.rank <= 4 && "text-accent-text")}>{t.rank ?? "–"}</span>
+                  </span>
+                )}
                 <span className="min-w-0 flex-1">
                   <span className="flex items-baseline gap-2"><span className="font-mono font-semibold">{t.team}</span><span className="truncate text-sm">{t.name}</span></span>
                   <span className="block truncate text-xs text-muted-foreground">{place(t.city, t.state) || "—"}</span>
