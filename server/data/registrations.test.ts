@@ -29,6 +29,9 @@ function first(lists: Record<string, unknown[] | number>) {
     const l = lists[u.searchParams.get("eventCode") ?? ""];
     if (l == null) return new Response("not found", { status: 404 });
     if (typeof l === "number") return new Response("x", { status: l });
+    // "NOLIST": a 200 without a teams array; "SHORT": fewer teams than FIRST's own count.
+    if (u.searchParams.get("eventCode") === "NOLIST") return Response.json({ pageCurrent: 1, pageTotal: 1 });
+    if (u.searchParams.get("eventCode") === "SHORT") return Response.json({ teams: l, teamCountTotal: 5, pageCurrent: 1, pageTotal: 1 });
     // "PAGED": page 1 of 2, and page 2 is missing.
     if (u.searchParams.get("eventCode") === "PAGED") return u.searchParams.get("page") === "1" ? Response.json({ teams: l, pageCurrent: 1, pageTotal: 2 }) : new Response("gone", { status: 404 });
     return Response.json({ teams: l, teamCountTotal: l.length, teamCountPage: l.length, pageCurrent: 1, pageTotal: 1 });
@@ -85,10 +88,10 @@ describe("syncRegistrations", () => {
     expect(await all<any>("SELECT code, team FROM event_registrations ORDER BY code, team")).toEqual([{ code: "B", team: 3 }]);
   });
 
-  it("a list with a page missing keeps the stored one (never half a list)", async () => {
-    await event("PAGED", "2026-10-31");
-    await run("INSERT INTO event_registrations (season, code, team, fetched_at) VALUES (?, 'PAGED', 1, 'x'), (?, 'PAGED', 2, 'x')", [S, S]);
-    first({ PAGED: [team(1, "One")] });
+  it.each(["PAGED", "NOLIST", "SHORT"])("an incomplete answer (%s) keeps the stored list (never half a list)", async (code) => {
+    await event(code, "2026-10-31");
+    await run("INSERT INTO event_registrations (season, code, team, fetched_at) VALUES (?, ?, 1, 'x'), (?, ?, 2, 'x')", [S, code, S, code]);
+    first({ [code]: [team(1, "One")] });
     const r = await syncRegistrations(S, { now: NOW });
     expect(r.failed).toHaveLength(1);
     expect(await all<any>("SELECT team FROM event_registrations ORDER BY team")).toEqual([{ team: 1 }, { team: 2 }]);

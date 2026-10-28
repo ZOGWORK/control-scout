@@ -22,7 +22,12 @@ const PUBLIC_TABLES = [
   "seasons", "teams", "team_seasons", "events", "event_teams", "matches", "match_teams",
   "alliances", "awards", "advancement", "team_event_stats", "team_season_stats", "predictions", "kv",
   "team_event_records", "team_season_records", "match_records",
+  // FIRST's pre-event registrations (server/data/registrations.ts): the source's lists replace the target's whole
+  // (below), so a team that dropped out doesn't linger.
+  "event_registrations",
 ];
+/** Tables whose target rows are cleared before the copy (lists each read replaces, not rows that accumulate). */
+const REPLACE_WHOLE = new Set(["event_registrations"]);
 /** WITHOUT ROWID tables (no rowid to page by): their primary key order instead. */
 const KEY_ORDER: Record<string, string> = {
   team_event_records: "season, code, team", team_season_records: "season, team", match_records: "season, code, level, series, number",
@@ -44,6 +49,7 @@ const t0 = Date.now();
 for (const table of PUBLIC_TABLES) {
   let cols = (await source.execute(`PRAGMA table_info(${table})`)).rows.map((r) => String(r.name));
   if (!cols.length) { console.log(`  ${table}: not in source, skipped`); continue; }
+  if (REPLACE_WHOLE.has(table)) await to.execute(`DELETE FROM ${table}`);
   // The prediction ledger is first-write-wins and its ids are local: copy rows
   // without ids and keep any call the target already logged for the same match
   // (UNIQUE kind+match). Everything else is plain data: newest copy wins.

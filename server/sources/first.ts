@@ -137,15 +137,18 @@ export function teamRowFromFirst(t: any): TeamRow {
 }
 
 /** Every page of a team list (`query` without the page). Null when FIRST answers 404.
- *  `whole`: a later page that's missing fails the read (the caller replaces its rows with the list). */
+ *  `whole`: the caller replaces its rows with the list, so anything short of the whole list fails the read
+ *  (a page missing or without its teams array, or fewer teams than FIRST's own count); an empty list is fine. */
 async function teamPages(season: number, query: string, o: { onPage?: (page: number, of: number) => void; whole?: boolean } = {}): Promise<TeamRow[] | null> {
   const first = await firstGet<any>(`/${season}/teams?${query}page=1`);
   if (!first) return null;
   const pages = num(first.pageTotal) ?? 1;
   const out: TeamRow[] = (first.teams ?? []).filter((t: any) => t?.teamNumber).map(teamRowFromFirst);
   const rest = await Promise.all(Array.from({ length: Math.max(0, pages - 1) }, (_, i) => firstGet<any>(`/${season}/teams?${query}page=${i + 2}`).then((d) => { o.onPage?.(i + 2, pages); return d; })));
-  if (o.whole && rest.some((d) => !d)) throw new FirstError(404, `FIRST /${season}/teams?${query}: a page of ${pages} is missing`);
+  if (o.whole && [first, ...rest].some((d) => !Array.isArray(d?.teams))) throw new FirstError(0, `FIRST /${season}/teams?${query}: a page of ${pages} is missing its teams`);
   for (const d of rest) out.push(...(d?.teams ?? []).filter((t: any) => t?.teamNumber).map(teamRowFromFirst));
+  const total = num(first.teamCountTotal);
+  if (o.whole && total != null && out.length < total) throw new FirstError(0, `FIRST /${season}/teams?${query}: ${out.length} of ${total} teams`);
   return out;
 }
 
