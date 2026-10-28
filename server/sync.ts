@@ -13,6 +13,7 @@ import { FirstError, firstEventBundle, firstEvents, firstTeams } from "./sources
 import { bundleFromScout, fetchScoutEvent } from "./sources/ftcScout.js";
 import { hasFirst } from "./env.js";
 import { syncFtcNj } from "./data/provisional.js";
+import { syncRegistrations } from "./data/registrations.js";
 
 /** Event types that never have matches (skip detail fetches). */
 export const NO_MATCH_TYPES = new Set(["Kickoff", "Workshop", "DemoExhibition", "VolunteerSignup", "PracticeDay", "InnovationChallenge"]);
@@ -74,7 +75,7 @@ export async function planDetail(season: number, opts: { force?: boolean; upgrad
 
 function rowToEvent(r: any): EventRow {
   return {
-    season: r.season, code: r.code, name: r.name, type: r.type, divisionCode: r.division_code, region: r.region, league: r.league, venue: r.venue,
+    season: r.season, code: r.code, name: r.name, type: r.type, divisionCode: r.division_code, region: r.region, league: r.league, venue: r.venue, address: r.address ?? null,
     city: r.city, state: r.state, country: r.country, start: r.start, end: r.end, timezone: r.timezone, remote: !!r.remote, hybrid: !!r.hybrid,
     website: r.website, livestream: r.livestream, source: r.source, upstreamUpdated: r.upstream_updated,
   };
@@ -146,6 +147,11 @@ export async function syncSeason(season: number, o: SyncOptions = {}): Promise<S
         if (nj.skipped) { if (nj.skipped !== "read recently") log(`${season}: FTC NJ skipped (${nj.skipped})`); }
         else log(`${season}: FTC NJ ${nj.matched} events from ${nj.events} listed${nj.unmatched.length ? `, unmatched: ${nj.unmatched.join("; ")}` : ""}`);
       } catch (e) { log(`${season}: FTC NJ failed: ${(e as Error).message.slice(0, 120)}`); }
+      // FIRST's registered teams for upcoming events with no team list yet (data/registrations.ts). Never fails the sync.
+      try {
+        const r = await syncRegistrations(season, { force: o.force, skipTypes: NO_MATCH_TYPES });
+        if (!r.skipped) log(`${season}: registrations for ${r.withTeams} of ${r.events} upcoming events (${r.teams} teams)${r.failed.length ? `, ${r.failed.length} failed: ${r.failed.slice(0, 3).join("; ")}` : ""}`);
+      } catch (e) { log(`${season}: registrations failed: ${(e as Error).message.slice(0, 120)}`); }
     }
   }
   let plan = await planDetail(season, { force: o.force, upgradeScout: o.upgradeScout });

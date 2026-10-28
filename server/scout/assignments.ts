@@ -14,7 +14,8 @@
 //
 // Assignees: members of the workspace in Scout's membership cache (workspace_members). Only members who have
 // signed in to Scout are in it; Control Point's full member list isn't asked for here.
-// Teams: the event's teams in the synced event data (event_teams). An event with no team list yet can't be
+// Teams: the event's teams in the synced event data (event_teams, else FIRST's pre-event registrations:
+// data/registrations.ts ROSTER). An event with no team list yet can't be
 // assigned (there's nothing to pick from).
 // Progress: the assignee's entries for that team at that event (this season, not deleted), counted on read.
 //
@@ -31,6 +32,7 @@
 // and streamed as `event: match-assignment`.
 import express, { type NextFunction, type Request, type Response, type Router } from "express";
 import { all, db, get } from "../db.js";
+import { ROSTER } from "../data/registrations.js";
 import { isWorkspaceId, type Membership } from "../auth/controlPoint.js";
 import { currentUser, type User } from "../auth/session.js";
 import {
@@ -112,7 +114,7 @@ export async function assignableMembers(workspaceId: string): Promise<Assignable
 /** The event's teams from the synced event data (empty: unknown event, or no team list yet). */
 export async function eventTeams(season: number, eventCode: string): Promise<EventTeamOption[]> {
   const rows = await all<{ team: number; name: string | null }>(
-    "SELECT et.team, t.name FROM event_teams et LEFT JOIN teams t ON t.number = et.team WHERE et.season = ? AND UPPER(et.code) = ? ORDER BY et.team", [season, eventCode]);
+    `SELECT et.team, t.name FROM ${ROSTER} et LEFT JOIN teams t ON t.number = et.team WHERE et.season = ? AND UPPER(et.code) = ? ORDER BY et.team`, [season, eventCode]);
   return rows.map((r) => ({ team: Number(r.team), name: r.name ?? null }));
 }
 
