@@ -26,7 +26,8 @@ const PUBLIC_TABLES = [
   // (below), so a team that dropped out doesn't linger.
   "event_registrations",
 ];
-/** Tables whose target rows are cleared before the copy (lists each read replaces, not rows that accumulate). */
+/** Small tables whose target rows the source's replace whole (lists each read replaces, not rows that accumulate):
+ *  read in full first, then swapped in one transaction, so a failed push leaves the target's as they were. */
 const REPLACE_WHOLE = new Set(["event_registrations"]);
 /** WITHOUT ROWID tables (no rowid to page by): their primary key order instead. */
 const KEY_ORDER: Record<string, string> = {
@@ -49,7 +50,12 @@ const t0 = Date.now();
 for (const table of PUBLIC_TABLES) {
   let cols = (await source.execute(`PRAGMA table_info(${table})`)).rows.map((r) => String(r.name));
   if (!cols.length) { console.log(`  ${table}: not in source, skipped`); continue; }
-  if (REPLACE_WHOLE.has(table)) await to.execute(`DELETE FROM ${table}`);
+  if (REPLACE_WHOLE.has(table)) {
+    const rows = (await source.execute(`SELECT ${cols.join(", ")} FROM ${table}`)).rows;
+    await to.batch([`DELETE FROM ${table}`, ...rows.map((r) => ({ sql: `INSERT INTO ${table} (${cols.join(", ")}) VALUES (${cols.map(() => "?").join(", ")})`, args: cols.map((c) => (r[c] ?? null) as never) }))], "write");
+    console.log(`  ${table}: ${rows.length.toLocaleString()} rows (replaced)`);
+    continue;
+  }
   // The prediction ledger is first-write-wins and its ids are local: copy rows
   // without ids and keep any call the target already logged for the same match
   // (UNIQUE kind+match). Everything else is plain data: newest copy wins.
