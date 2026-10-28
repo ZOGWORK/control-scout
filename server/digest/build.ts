@@ -85,14 +85,15 @@ async function teamNames(teams: number[]): Promise<Map<number, string | null>> {
 /** Followed teams' events with a result last week, one row per team and event (two events: two rows). */
 export async function teamWeeks(teams: number[], from: string, to: string, week: string): Promise<TeamWeek[]> {
   if (!teams.length) return [];
-  // A match's day is its own date (event-local); with no time on record, the event's last day stands in.
+  // A match's day is its own date (event-local); with no time on record, the event's last day stands in. A no-show
+  // (on_field = 0, as FIRST stores it) isn't playing, as on the team page.
   const day = "COALESCE(substr(m.time, 1, 10), e.end, e.start)";
   const played = await all<any>(
     `SELECT mt.team, m.season, m.code, MAX(${day}) last_day, e.name, e.start, e.end
      FROM match_teams mt
      JOIN matches m ON m.season = mt.season AND m.code = mt.code AND m.level = mt.level AND m.series = mt.series AND m.number = mt.number
      JOIN events e ON e.season = m.season AND e.code = m.code
-     WHERE mt.team IN (${marks(teams)}) AND m.played = 1 AND ${day} BETWEEN ? AND ?
+     WHERE mt.team IN (${marks(teams)}) AND mt.on_field = 1 AND m.played = 1 AND ${day} BETWEEN ? AND ?
      GROUP BY mt.team, m.season, m.code`, [...teams, from, to]);
   if (!played.length) return [];
   const names = await teamNames([...new Set(played.map((r) => Number(r.team)))]);

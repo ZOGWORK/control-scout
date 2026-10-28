@@ -302,6 +302,12 @@ describe("the job", () => {
     expect(fallback.rankings!.rows.some((r) => r.team === 6980)).toBe(false);
   });
 
+  it("a team listed in a match it didn't show up for (on_field = 0) didn't play", async () => {
+    await run("UPDATE match_teams SET on_field = 0 WHERE team = 6980");
+    const d = await buildDigest({ week: WEEK, season: SEASON, followed: [6980], name: null, rankings: rankings() });
+    expect(d.results).toEqual([]);
+  });
+
   it("coming up skips a registration list FIRST filed for an AM/PM pair (not this session's teams)", async () => {
     await run("INSERT INTO event_registrations (season, code, team, fetched_at, shared) VALUES (?, 'USNJCMP', 6980, '2026-10-20', 1)", [SEASON]);
     const d = await buildDigest({ week: WEEK, season: SEASON, followed: [4215, 6980], name: null, rankings: rankings() });
