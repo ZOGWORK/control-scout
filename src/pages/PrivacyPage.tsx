@@ -6,7 +6,7 @@ import { useTitle } from "../lib/meta";
 import { PageHeader } from "../components/page";
 import { Ext, In, LegalSections, ShortVersion, type LegalSectionDef } from "../components/legal";
 
-export const PRIVACY_UPDATED = "18 October 2026";
+export const PRIVACY_UPDATED = "28 October 2026";
 
 const COOKIES: { name: string; what: string; lasts: string }[] = [
   { name: "cs_session", what: "Keeps you signed in. Set only when you sign in; scripts on the page can't read it.", lasts: "30 days, or until you sign out" },
@@ -64,7 +64,7 @@ const SECTIONS: LegalSectionDef[] = [
   {
     id: "why", title: "Why we use it", body: (
       <ul>
-        <li><strong>Your email</strong> is used only to send sign-in codes and to recognise your account. No newsletters, no marketing.</li>
+        <li><strong>Your email</strong> is used to send sign-in codes and to recognise your account, and for the weekly digest only if you turn it on in Settings (off unless you do; every digest has a one-click unsubscribe link). The digest has no tracking pixels or tracked links. No marketing, ever.</li>
         <li><strong>Synced data</strong> is there so your lists and scouting follow you between devices.</li>
         <li><strong>Contact messages</strong> are used only to read and answer what you sent.</li>
         <li><strong>Usage statistics</strong> (only if you allow them) tell us which pages people use, so we know what to improve.</li>
@@ -115,7 +115,7 @@ const SECTIONS: LegalSectionDef[] = [
   },
   {
     id: "hosting", title: "Where data is kept", body: (
-      <p>Control Scout runs on a server we manage at Oracle Cloud. Data travels over HTTPS. The services that help us run the site (hosting, and Resend for sign-in emails) handle data only to provide that service.</p>
+      <p>Control Scout runs on a server we manage at Oracle Cloud. Data travels over HTTPS. The services that help us run the site (hosting, and Resend for sign-in emails and the weekly digest) handle data only to provide that service.</p>
     ),
   },
   {

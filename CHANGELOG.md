@@ -15,6 +15,23 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
+## 1.3.8 — 2026-10-28
+
+A weekly email for the weeks you don't open the app: your teams' results, the prediction check-in and what's coming up, every Monday morning. Off unless you turn it on.
+
+### Highlights
+- [alerts] A weekly digest email on Mondays, opt-in in Settings
+- [teams] Your followed teams' week: record, seed, playoff result and OPR trend
+- [predict] An honest prediction check-in, good week or bad
+- [alerts] Upcoming events with a countdown, and power rankings movement
+
+### Weekly digest
+- **One email, Mondays at 8 AM Eastern.** Turn it on in Settings › Notifications › Email. It covers the teams you follow (your team and tracked teams), and only comes when there's something to report: no results, no calls, nothing coming up means no email.
+- **Your teams' week.** Each event a followed team played last week, linked: the record, the seed, how playoffs went, and OPR against the team's previous event, with both numbers. Two events in one weekend show as two rows, never one merged record.
+- **Prediction check-in.** How many of our pre-match calls on your teams' matches were right that week and all season, counted exactly as the public track record counts them. A bad week says so.
+- **Coming up and power rankings.** Your teams' events in the next two weeks with a countdown (and whether a schedule is out yet), and where your teams moved in that week's power rankings.
+- **Easy to leave.** Every email has a one-click unsubscribe link that works without signing in, and mail apps show their own Unsubscribe button. No tracking pixels, no tracked links. A hard bounce turns the digest off by itself (#324).
+
 ## 1.3.7 — 2026-10-23
 
 Saved offline seasons keep themselves current: you're asked when an update is out, or it downloads by itself.
