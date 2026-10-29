@@ -3,7 +3,7 @@
 // can only fail, and logs a console error on the venue/offline flows), and asks
 // again once back online.
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { flagOn, refreshFlags, workspaceFlagOn } from "./flags";
+import { flagOn, flagsAccountChanged, refreshFlags, workspaceFlagOn } from "./flags";
 
 afterEach(() => { vi.unstubAllGlobals(); vi.restoreAllMocks(); });
 
@@ -24,6 +24,13 @@ describe("refreshFlags", () => {
     await refreshFlags();
     expect(fetchSpy).toHaveBeenCalledWith("/api/flags", { credentials: "same-origin" });
     expect(flagOn("photos")).toBe(false);
+  });
+
+  it("asks again past the browser's cache when the signed-in account changes", async () => {
+    const fetchSpy = vi.fn(async () => new Response(JSON.stringify({ flags: {} }), { status: 200 }));
+    vi.stubGlobal("fetch", fetchSpy);
+    flagsAccountChanged();
+    await vi.waitFor(() => expect(fetchSpy).toHaveBeenCalledWith("/api/flags", { credentials: "same-origin", cache: "no-cache" }));
   });
 
   it("keeps the signed-in account's own workspace settings: a workspace's value, else the flag's", async () => {

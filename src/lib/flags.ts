@@ -27,10 +27,11 @@ function set(next: FlagSet, ws: Record<string, Partial<FlagSet>> = byWorkspace) 
 }
 
 /** Ask the server for the current flags (quietly keeps the last known ones on any failure). */
-export async function refreshFlags(): Promise<FlagSet> {
+export async function refreshFlags(o: { fresh?: boolean } = {}): Promise<FlagSet> {
   // Asked whatever navigator.onLine says (iOS can report offline while online); a failure keeps the last flags.
+  // `fresh`: past the browser's cache (the account just changed, and the answer can depend on who asks).
   try {
-    const r = await fetch("/api/flags", { credentials: "same-origin" });
+    const r = await fetch("/api/flags", o.fresh ? { credentials: "same-origin", cache: "no-cache" } : { credentials: "same-origin" });
     if (r.ok) {
       const body = (await r.json()) as Partial<FlagsAnswer> & { flags?: Partial<FlagSet> };
       const next = { ...DEFAULT_FLAGS };
@@ -89,6 +90,15 @@ export function startFlags(): void {
   window.setInterval(() => { if (document.visibilityState === "visible") void refreshFlags(); }, REFRESH_MS);
   document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible") void refreshFlags(); });
   window.addEventListener("online", () => { void refreshFlags(); });
+}
+
+/**
+ * The signed-in account changed (sign-in, sign-out, another account, its workspaces): GET /api/flags answers per
+ * account once any workspace has its own setting, so ask again now, past the browser's cache.
+ */
+export function flagsAccountChanged(): void {
+  if (typeof window === "undefined") return;
+  void refreshFlags({ fresh: true });
 }
 
 /** Tests: back to every flag on. */

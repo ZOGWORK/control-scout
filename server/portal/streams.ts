@@ -2,7 +2,7 @@
 // the event page plays it and the events list marks a live event that has one. Reads are one indexed row
 // (or one small season list), cached for 30 s; a save or removal drops this server's cache at once (another
 // server, or a browser holding a non-live event's page, catches up within its own cache time).
-import { all, get, run } from "../db.js";
+import { all, db, get } from "../db.js";
 import { registerCache } from "../caches.js";
 import { parseStreamUrl, embedUrl } from "../../src/shared/stream.js";
 import type { EventStream, OwnerStreamRow } from "../../src/shared/api.js";
@@ -29,23 +29,27 @@ export async function eventStream(season: number, code: string): Promise<EventSt
 export class StreamError extends Error {}
 
 /** Set (or with an empty url, remove) an event's stream. Throws StreamError for an unknown event or a link that can't be used. */
-export async function setEventStream(season: number, code: string, url: string, by: string): Promise<EventStream | null> {
+export async function setEventStream(season: number, code: string, url: string, by: string): Promise<{ stream: EventStream | null; was: string | null }> {
   const ev = await get("SELECT 1 FROM events WHERE season = ? AND code = ?", [season, code]);
   if (!ev) throw new StreamError(`No event ${code} in ${season}`);
+  // The stream it had (its video id) is read in the same transaction as the change, so the audit log's old value is exact.
+  const before = { sql: "SELECT video_id FROM event_streams WHERE season = ? AND code = ?", args: [season, code] };
+  const wasOf = (r: { rows: unknown[] }) => ((r.rows[0] as { video_id?: string } | undefined)?.video_id ?? null);
   if (!url.trim()) {
-    await run("DELETE FROM event_streams WHERE season = ? AND code = ?", [season, code]);
+    const [b] = await db().batch([before, { sql: "DELETE FROM event_streams WHERE season = ? AND code = ?", args: [season, code] }], "write");
     bySeason.delete(season);
-    return null;
+    return { stream: null, was: wasOf(b) };
   }
   const p = parseStreamUrl(url);
   if (!p.ok) throw new StreamError(p.error);
-  await run(
-    `INSERT INTO event_streams (season, code, url, video_id, updated_at, updated_by) VALUES (?, ?, ?, ?, ?, ?)
+  const [b] = await db().batch([before, {
+    sql: `INSERT INTO event_streams (season, code, url, video_id, updated_at, updated_by) VALUES (?, ?, ?, ?, ?, ?)
      ON CONFLICT(season, code) DO UPDATE SET url = excluded.url, video_id = excluded.video_id, updated_at = excluded.updated_at, updated_by = excluded.updated_by`,
     // Stored as a full link to the video (what was pasted may lack its https://), so the owner's list links to YouTube.
-    [season, code, `https://www.youtube.com/watch?v=${p.videoId}`, p.videoId, new Date().toISOString(), by]);
+    args: [season, code, `https://www.youtube.com/watch?v=${p.videoId}`, p.videoId, new Date().toISOString(), by],
+  }], "write");
   bySeason.delete(season);
-  return { videoId: p.videoId, streamUrl: p.embedUrl };
+  return { stream: { videoId: p.videoId, streamUrl: p.embedUrl }, was: wasOf(b) };
 }
 
 /** The owner portal's list: every event with a stream, newest events first, with its name and dates. */

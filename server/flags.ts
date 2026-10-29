@@ -13,7 +13,7 @@
 // Gating a route: requireFeature("coinFlips") as middleware, or `if (!(await isEnabledFor(flag, ws))) return featureDisabled(res, flag)`.
 // Either way the answer is 403 {error: "feature_disabled", feature} with Cache-Control: no-store.
 import type { NextFunction, Request, Response } from "express";
-import { primaryDb, run } from "./db.js";
+import { db, primaryDb } from "./db.js";
 import { registerCache } from "./caches.js";
 import { DEFAULT_FLAGS, FEATURE_DISABLED, FLAGS, featureOffMessage, isFlag, isWorkspaceFlag, type FeatureDisabledBody, type Flag, type FlagSet } from "../src/shared/flags.js";
 
@@ -106,32 +106,42 @@ export async function workspaceFlags(ids: readonly string[]): Promise<Record<str
   return out;
 }
 
-/** Turn a flag on or off globally; this process sees it at once. */
-export async function setFlag(flag: Flag, enabled: boolean, by: string): Promise<void> {
-  await run(
-    `INSERT INTO feature_flags (name, enabled, updated_at, updated_by) VALUES (?, ?, ?, ?)
+/** Turn a flag on or off globally; this process sees it at once. Returns the value it had just before, read in the
+ *  same transaction as the write, so two overlapping flips each record what they really replaced. */
+export async function setFlag(flag: Flag, enabled: boolean, by: string): Promise<boolean> {
+  const [before] = await db().batch([
+    { sql: "SELECT enabled FROM feature_flags WHERE name = ?", args: [flag] },
+    {
+      sql: `INSERT INTO feature_flags (name, enabled, updated_at, updated_by) VALUES (?, ?, ?, ?)
      ON CONFLICT (name) DO UPDATE SET enabled = excluded.enabled, updated_at = excluded.updated_at, updated_by = excluded.updated_by`,
-    [flag, enabled ? 1 : 0, new Date().toISOString(), by],
-  );
+      args: [flag, enabled ? 1 : 0, new Date().toISOString(), by],
+    },
+  ], "write");
   invalidateFlags();
+  const row = before.rows[0] as unknown as { enabled: number } | undefined;
+  return row ? Number(row.enabled) === 1 : DEFAULT_FLAGS[flag];
 }
 
-/** Set one workspace's override of a workspace-scoped flag (null: remove it, so the workspace follows the global switch). */
-export async function setWorkspaceOverride(flag: Flag, workspaceId: string, enabled: boolean | null, by: string): Promise<void> {
+/**
+ * Set one workspace's override of a workspace-scoped flag (null: remove it, so the workspace follows the global switch).
+ * Returns the override it had just before (null: none), read in the same transaction as the write.
+ */
+export async function setWorkspaceOverride(flag: Flag, workspaceId: string, enabled: boolean | null, by: string): Promise<boolean | null> {
   if (!isWorkspaceFlag(flag)) throw new Error(`${flag} doesn't take per-workspace overrides`);
-  if (enabled === null) await run("DELETE FROM workspace_flag_overrides WHERE cp_workspace_id = ? AND name = ?", [workspaceId, flag]);
-  else await run(
-    `INSERT INTO workspace_flag_overrides (cp_workspace_id, name, enabled, updated_at, updated_by) VALUES (?, ?, ?, ?, ?)
+  const write = enabled === null
+    ? { sql: "DELETE FROM workspace_flag_overrides WHERE cp_workspace_id = ? AND name = ?", args: [workspaceId, flag] }
+    : {
+      sql: `INSERT INTO workspace_flag_overrides (cp_workspace_id, name, enabled, updated_at, updated_by) VALUES (?, ?, ?, ?, ?)
      ON CONFLICT (cp_workspace_id, name) DO UPDATE SET enabled = excluded.enabled, updated_at = excluded.updated_at, updated_by = excluded.updated_by`,
-    [workspaceId, flag, enabled ? 1 : 0, new Date().toISOString(), by],
-  );
+      args: [workspaceId, flag, enabled ? 1 : 0, new Date().toISOString(), by],
+    };
+  const [before] = await db().batch([
+    { sql: "SELECT enabled FROM workspace_flag_overrides WHERE cp_workspace_id = ? AND name = ?", args: [workspaceId, flag] },
+    write,
+  ], "write");
   invalidateFlags();
-}
-
-/** One workspace's stored override of a flag, straight from the database (null: none, it follows the global switch). */
-export async function workspaceOverride(flag: Flag, workspaceId: string): Promise<boolean | null> {
-  const r = (await primaryDb().execute({ sql: "SELECT enabled FROM workspace_flag_overrides WHERE cp_workspace_id = ? AND name = ?", args: [workspaceId, flag] })).rows[0] as unknown as { enabled: number } | undefined;
-  return r ? Number(r.enabled) === 1 : null;
+  const row = before.rows[0] as unknown as { enabled: number } | undefined;
+  return row ? Number(row.enabled) === 1 : null;
 }
 
 export interface FlagDetail { name: Flag; enabled: boolean; updatedAt: string | null; updatedBy: string | null }

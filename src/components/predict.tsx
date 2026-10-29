@@ -20,6 +20,7 @@ const MatchDetails = lazy(() => import("./MatchDetails").then((x) => ({ default:
 import { useCalibration } from "../lib/calibration";
 import { usePredictable } from "../lib/meta";
 import { TIER_WORD, tierPhrase } from "../shared/tierWords";
+import { factorLabel } from "../lib/factorLabel";
 import { TeamSnack, TeamSnackContext, nameIn, useTeamSnack, useTeamSnackState } from "./TeamSnack";
 import { hasTeamPage } from "../shared/teamPages";
 
@@ -101,7 +102,7 @@ export function FactorList({ factors, reasons, className }: { factors: Factor[];
         <li key={f.id} className="flex gap-2 text-sm">
           <span className={cn("mt-0.5 flex size-5 shrink-0 items-center justify-center rounded-full text-[11px] font-bold",
             f.favors === "A" ? "bg-red-alliance/15 text-red-alliance" : f.favors === "B" ? "bg-blue-alliance/15 text-blue-alliance" : "bg-muted text-text-muted")}>{i + 1}</span>
-          <span className="text-text-base">{f.label}</span>
+          <span className="text-text-base">{factorLabel(f.label)}</span>
         </li>
       ))}
       {reasons?.map((r) => (
@@ -312,7 +313,7 @@ export function MatchRow({ m, highlight, showEvent, eventName, open, onToggle, o
             </TooltipTrigger>
             <TooltipContent className="max-w-72">
               {KIND_LABEL[p.kind]} · {p.noScoreBasis ? "no predicted score: when this call was made, the season had no rated matches yet" : `predicted ${predictedText(p)}${p.redRange ? ` (± is the ${levelPct(p.rangeLevel)} range)` : ""}`} · {tierPhrase(p.tier)}
-              {p.factors?.length ? <span className="mt-1 block opacity-80">{p.factors[0].label}</span> : null}
+              {p.factors?.length ? <span className="mt-1 block opacity-80">{factorLabel(p.factors[0].label)}</span> : null}
               <CalibrationTip pRed={p.pRed} />
             </TooltipContent>
           </Tooltip>

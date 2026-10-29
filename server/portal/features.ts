@@ -12,7 +12,7 @@
 // back on shows everything as it was. These routes (the whole console) are never behind a toggle.
 import type { Request, Response, Router } from "express";
 import { all, get } from "../db.js";
-import { flagDetails, overrideDetails, setFlag, setWorkspaceOverride, workspaceOverride } from "../flags.js";
+import { flagDetails, overrideDetails, setFlag, setWorkspaceOverride } from "../flags.js";
 import { FLAG_META, isFlag, isWorkspaceFlag } from "../../src/shared/flags.js";
 import type { OwnerFlags } from "../../src/shared/owner.js";
 import { recordAudit } from "./audit.js";
@@ -44,11 +44,9 @@ export function featureOwnerRoutes(r: Router, h: (fn: Handler) => (req: Request,
     if (typeof enabled !== "boolean") { res.status(400).json({ error: "Send {\"enabled\": true | false}" }); return; }
     // A feature toggle changes what everyone sees: the console confirms first, and so must the request.
     if (FLAG_META[name].group === "feature" && req.body?.confirm !== true) { res.status(400).json({ error: "Confirm with {\"enabled\": …, \"confirm\": true}" }); return; }
-    const was = (await flagDetails()).find((f) => f.name === name)!.enabled;
-    if (was !== enabled) {
-      await setFlag(name, enabled, actor(req));
-      await recordAudit(actor(req), "flag.set", { flag: name, enabled }, null, { from: was, to: enabled });
-    }
+    // The value it replaced comes from the write's own transaction, so overlapping flips each log what they changed.
+    const was = await setFlag(name, enabled, actor(req));
+    if (was !== enabled) await recordAudit(actor(req), "flag.set", { flag: name, enabled }, null, { from: was, to: enabled });
     return ownerFlags();
   }));
 
@@ -62,11 +60,8 @@ export function featureOwnerRoutes(r: Router, h: (fn: Handler) => (req: Request,
     // Only a workspace Scout knows (one that has scouted here); a made-up id never gets a row.
     const ws = await get<{ name: string }>("SELECT name FROM workspaces WHERE cp_workspace_id = ?", [workspaceId]);
     if (!ws) { res.status(404).json({ error: "No such workspace" }); return; }
-    const was = await workspaceOverride(name, workspaceId);
-    if (was !== enabled) {
-      await setWorkspaceOverride(name, workspaceId, enabled, actor(req));
-      await recordAudit(actor(req), "flag.workspace", { flag: name, workspaceId, workspace: ws.name ?? "", enabled }, null, { from: was, to: enabled });
-    }
+    const was = await setWorkspaceOverride(name, workspaceId, enabled, actor(req));
+    if (was !== enabled) await recordAudit(actor(req), "flag.workspace", { flag: name, workspaceId, workspace: ws.name ?? "", enabled }, null, { from: was, to: enabled });
     return ownerFlags();
   }));
 }

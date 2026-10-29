@@ -9,6 +9,7 @@ import { cleanValue, EMPTY_STATE, PERSONAL_KEYS, type PersonalKey, type Personal
 import { clearLocalScouting, exportLocalScouting, importLocalScouting, localScoutEntries, setScoutViewer, storedScoutEntry } from "./scouting";
 import { LOST_PREFIX, lostBackupFailed, mergeLostLists } from "./lostEdits";
 import { dropPushOnSignOut } from "./push";
+import { flagsAccountChanged } from "./flags";
 
 export interface AccountUser { id: number; email: string | null; displayName: string | null; createdAt: string; /** Tied to the shared account Control Point keeps (docs/shared-accounts.md). */ controlPointLinked?: boolean;
   /** Only present (true) for the owner (OWNER_EMAILS): shows the owner portal's nav item. The server enforces access. */
@@ -190,6 +191,16 @@ export function PersonalProvider({ children }: { children: ReactNode }) {
   userRef.current = user;
   // Scouting tells this account's own edits from other members' (an overwritten edit is a conflict only if it was yours).
   setScoutViewer(user?.controlPoint?.accountId);
+  // The app's flags depend on the account once a workspace has its own setting (workspace scouting on or off for it):
+  // a different account, or a different list of workspaces, asks for them again at once.
+  const flagsKey = user ? `${user.id}:${(user.controlPoint?.workspaces ?? []).map((w) => w.id).join(",")}` : "";
+  const flagsFor = useRef<string | null>(null);
+  useEffect(() => {
+    if (flagsFor.current === null) { flagsFor.current = flagsKey; return; } // the page's first load asks by itself (startFlags)
+    if (flagsFor.current === flagsKey) return;
+    flagsFor.current = flagsKey;
+    flagsAccountChanged();
+  }, [flagsKey]);
 
   const apply = useCallback((k: PersonalKey, s: Stamped<any>): boolean => {
     stamped.current[k] = s;

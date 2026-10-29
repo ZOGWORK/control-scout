@@ -5,6 +5,7 @@
 // The week is one fixed definition everywhere: Monday to Sunday (match dates as the event gives them, its own
 // local day) before the Monday the digest goes out. "Coming up" is the 14 days from that Monday on.
 import { all, get } from "../db.js";
+import { recordOf, recordSql } from "../../src/shared/eventRecord.js";
 import { decidedCall, rightCall } from "../api/accuracy.js";
 import { latestRankings } from "../powerRankings/store.js";
 import { isEnabled } from "../flags.js";
@@ -101,8 +102,12 @@ export async function teamWeeks(teams: number[], from: string, to: string, week:
   const out: TeamWeek[] = [];
   for (const r of played) {
     const team = Number(r.team), season = Number(r.season), code = String(r.code);
-    const [et, stats, awards, alliance, before] = await Promise.all([
-      get<any>("SELECT rank, wins, losses, ties FROM event_teams WHERE season = ? AND code = ? AND team = ?", [season, code, team]),
+    const [et, rec, stats, awards, alliance, before] = await Promise.all([
+      get<any>(`SELECT et.rank, et.wins, et.losses, et.ties, e.type, r.rank meet_rank FROM event_teams et JOIN events e ON e.season = et.season AND e.code = et.code
+                LEFT JOIN team_event_records r ON r.season = et.season AND r.code = et.code AND r.team = et.team
+                WHERE et.season = ? AND et.code = ? AND et.team = ?`, [season, code, team]),
+      // Its record there as the team page counts it (src/shared/eventRecord.ts): every match, playoffs included.
+      get<any>(recordSql("mt.season = ? AND mt.code = ? AND mt.team = ?"), [season, code, team]),
       get<any>("SELECT opr_np FROM team_event_stats WHERE season = ? AND code = ? AND team = ?", [season, code, team]),
       all<any>("SELECT type FROM awards WHERE season = ? AND code = ? AND team = ? AND type IN ('Winner', 'Finalist')", [season, code, team]),
       get<any>("SELECT number, captain, pick1, pick2, backup FROM alliances WHERE season = ? AND code = ? AND ? IN (captain, pick1, pick2, backup)", [season, code, team]),
@@ -117,8 +122,11 @@ export async function teamWeeks(teams: number[], from: string, to: string, week:
     const seat = alliance ? (["captain", "pick1", "pick2", "backup"] as const).find((k) => Number(alliance[k]) === team) ?? null : null;
     out.push({
       team, teamName: names.get(team) ?? null, season, code, event: String(r.name), lastDay: String(r.last_day),
-      record: et && et.wins != null ? { wins: Number(et.wins), losses: Number(et.losses ?? 0), ties: Number(et.ties ?? 0) } : null,
-      finished, rank: n(et?.rank),
+      // FIRST's ranking row only when we hold no scored match there, and never a league meet's: that's the league's
+      // running standing, earlier meets included. A meet's rank is its own (team_event_records), as on the team page.
+      record: rec ? { wins: recordOf(rec).wins, losses: recordOf(rec).losses, ties: recordOf(rec).ties }
+        : et && et.wins != null && et.type !== "LeagueMeet" ? { wins: Number(et.wins), losses: Number(et.losses ?? 0), ties: Number(et.ties ?? 0) } : null,
+      finished, rank: n(et?.type === "LeagueMeet" ? et.meet_rank : et?.rank),
       playoff: types.has("Winner") ? { kind: "winner" } : types.has("Finalist") ? { kind: "finalist" }
         : alliance && seat ? { kind: "alliance", number: Number(alliance.number), seat } : null,
       opr: n(stats?.opr_np), oprBefore: n(before?.opr_np),
@@ -193,7 +201,7 @@ export async function buildDigest(i: BuildInput): Promise<DigestData> {
     callRecords(i.followed, i.season, from, to),
     upcomingEvents(i.followed, i.week),
     // Power rankings switched off by the owner (the powerRankings feature toggle): none in the digest.
-    i.rankings ? Promise.resolve(i.rankings) : isEnabled("powerRankings").then((on) => (on ? latestRankings(i.week) : null)),
+    isEnabled("powerRankings").then((on) => (on ? i.rankings ?? latestRankings(i.week) : null)),
   ]);
   return {
     week: i.week, from, to, name: i.name, followed: i.followed,
