@@ -13,6 +13,12 @@ const str = (k: string) => {
   return v && v.trim() ? v.trim() : null;
 };
 
+/** A Cloudflare account id: 32 hex characters. */
+const R2_ACCOUNT_ID_RE = /^[0-9a-f]{32}$/i;
+const warned = new Set<string>();
+/** A setting's problem, said once per process (never its value). */
+const warnOnce = (msg: string) => { if (!warned.has(msg)) { warned.add(msg); console.warn(`env: ${msg}`); } };
+
 export const env = {
   get port() { return Number(str("PORT") ?? 3000); },
   get production() { return process.env.NODE_ENV === "production"; },
@@ -54,7 +60,13 @@ export const env = {
   /** Owner allowlist (comma-separated emails): who may read owner-only data such as GET /api/reports/errors. */
   get ownerEmails() { return (str("OWNER_EMAILS") ?? "").split(",").map((e) => e.trim().toLowerCase()).filter(Boolean); },
   /** Entry photos in Cloudflare R2 (docs/r2-photos.md). All unset: photos are off and their UI hidden. Never logged. */
-  get r2AccountId() { return str("R2_ACCOUNT_ID"); },
+  /** Only a real account id (32 hex characters): anything else (an API token pasted in by mistake) would become a
+   *  hostname the page's CSP header shows every visitor, so it reads as unset and photos stay off until it's fixed. */
+  get r2AccountId() {
+    const v = str("R2_ACCOUNT_ID");
+    if (v && !R2_ACCOUNT_ID_RE.test(v)) { warnOnce("R2_ACCOUNT_ID isn't a Cloudflare account id (32 hex characters); ignored"); return null; }
+    return v;
+  },
   get r2AccessKeyId() { return str("R2_ACCESS_KEY_ID"); },
   get r2SecretAccessKey() { return str("R2_SECRET_ACCESS_KEY"); },
   get r2Bucket() { return str("R2_BUCKET"); },

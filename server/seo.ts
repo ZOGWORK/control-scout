@@ -16,6 +16,7 @@ import { BOOT_STYLE, bootConsent, bootShell } from "./bootShell.js";
 import { liveHeroLines } from "./heroLines.js";
 import { isBareRoute, pageModule } from "../src/shared/routes.js";
 import { APP_CSS_ID } from "../src/shared/boot.js";
+import { COIN_FLIPS_META, hasFlips } from "../src/shared/coinFlips.js";
 
 /** The canonical origin, e.g. "https://controlscout.org" (no trailing slash). */
 export const canonicalOrigin = () => new URL(env.canonicalUrl).origin;
@@ -146,14 +147,37 @@ export function routePreloads(indexFile: string, path: string): string {
 export async function renderPage(file: string, path: string, query: Record<string, unknown> = {}): Promise<{ status: 200 | 404; html: string }> {
   const { pageMeta, headTags } = await import("./seoMeta.js");
   // The home page's hero lines too (the owner's, or the built-in ones): every page carries them (server/bootShell.ts).
-  const [meta, hero] = await Promise.all([pageMeta(path, query), liveHeroLines()]);
-  const head = [headTags(path, meta), routePreloads(file, path), BOOT_STYLE].filter(Boolean).join("\n    ");
+  // And on /events, whether today has coin flips (coinFlipsHint).
+  const [meta, hero, flips] = await Promise.all([pageMeta(path, query), liveHeroLines(), coinFlipsHint(path)]);
+  const head = [headTags(path, meta), flips, routePreloads(file, path), BOOT_STYLE].filter(Boolean).join("\n    ");
   // Callbacks, so $', $`, $& in a team or event name are inserted literally (a replacement string would expand them).
   const html = afterFirstPaint(nonBlockingCss(indexHtml(file).replace("</head>", () => `    ${head}\n  </head>`)))
     // The privacy banner goes after #root, not in it: React's first render replaces #root, and the app's banner takes over from this one.
     // Not on a bare page (the pit display): nobody answers it on a pit TV, and the app shows no banner there to take it over.
     .replace(/<div id="root">(?:<!--cs-boot-->)?<\/div>/, () => `<div id="root">${bootShell(path, meta, hero)}</div>${isBareRoute(path) ? "" : bootConsent()}`);
   return { status: meta.notFound ? 404 : 200, html };
+}
+
+/** How long the first HTML waits on today's coin flips before going without the hint. */
+export const FLIPS_HINT_MS = 150;
+
+/**
+ * Whether today has coin flips, for /events' first paint (COIN_FLIPS_META): the radar sits above the list there,
+ * and on a day with none, a placeholder held while it loads would vanish and pull the whole list up (most of the
+ * page's layout shift). Answered from the stored radar (server/api/coinFlips.ts); a slow or failed answer leaves the
+ * tag out, and the page keeps the placeholder.
+ */
+export async function coinFlipsHint(path: string): Promise<string> {
+  if (path !== "/events") return "";
+  try {
+    const { coinFlips } = await import("./api/coinFlips.js");
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const late = new Promise<null>((ok) => { timer = setTimeout(ok, FLIPS_HINT_MS, null); });
+    const r = await Promise.race([coinFlips(), late]).finally(() => clearTimeout(timer));
+    return r ? `<meta name="${COIN_FLIPS_META}" content="${hasFlips(r) ? 1 : 0}" />` : "";
+  } catch {
+    return "";
+  }
 }
 
 /**
