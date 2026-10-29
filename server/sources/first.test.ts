@@ -27,3 +27,15 @@ describe("firstGet(path, optional)", () => {
     expect(seen).toEqual([429, 200]);
   });
 });
+
+describe("firstTeams(season)", () => {
+  it("drops FIRST's 7-digit stand-ins for teams still waiting for a number (202300005); keeps every real team", async () => {
+    const { firstTeams } = await import("./first");
+    const team = (teamNumber: number, nameShort: string) => ({ teamNumber, nameShort, nameFull: nameShort, rookieYear: 2023 });
+    vi.stubGlobal("fetch", async () => new Response(JSON.stringify({
+      pageTotal: 1, teamCountTotal: 4, teams: [team(4215, "Hypnotic Robotics"), team(202300005, "Ammon Brick Heads"), team(999999, "Six Nines"), team(99999, "Off-Season Demo Team")],
+    }), { status: 200 }));
+    // A placeholder with a real number stays a row (its matches name it); the page rule hides it (src/shared/teamPages.ts).
+    expect((await firstTeams(2023)).map((t) => t.number)).toEqual([4215, 999999, 99999]);
+  });
+});

@@ -16,6 +16,7 @@ import {
   DEFAULT_SORT, RECORDS_EXPORT_MAX, RECORDS_MAX_PAGE_SIZE, RECORDS_PAGE_SIZE, RECORD_EVENT_TYPES, STAT_BY_KEY, statFor, statsFor,
   type MatchRecordRow, type RecordRegion, type RecordScope, type RecordsResponse, type StatValues, type TeamEventRecord, type TeamSeasonRecord,
 } from "../../src/shared/statCatalog.js";
+import { teamPageSql } from "../../src/shared/teamPages.js";
 
 /** A request the client got wrong (→ 400). */
 export class RecordsQueryError extends Error {}
@@ -47,6 +48,9 @@ interface Source {
   dateTo?: string;
 }
 
+/** Team rows are teams with a page (src/shared/teamPages.ts); a placeholder's matches stay in the match records. */
+const PAGED = teamPageSql("r.team", "r.team_name");
+
 const teamCols = (r: string) => ({ teamNumber: `${r}.team`, teamName: `${r}.team_name`, homeRegion: `${r}.home_region`, rookieYear: `${r}.rookie_year`, school: `${r}.school` });
 
 function scoreCols(r: string): Record<string, string> {
@@ -67,7 +71,7 @@ function teamEventSource(): Source {
   return {
     from: "team_event_records r",
     season: "r.season = ?",
-    where: [],
+    where: [PAGED],
     columns: {
       ...teamCols("r"), eventCode: "r.code", eventName: "r.event_name", eventRegion: "r.event_region",
       rank: "r.rank", rp: "r.rp", tb1: "r.tb1", qualMatchesPlayed: "r.played", wins: "r.wins", losses: "r.losses", ties: "r.ties",
@@ -86,7 +90,7 @@ function teamSeasonSource(): Source {
   return {
     from: "team_season_records r",
     season: "r.season = ?",
-    where: [],
+    where: [PAGED],
     columns: {
       ...teamCols("r"), events: "r.events", qualMatchesPlayed: "r.played", wins: "r.wins", losses: "r.losses", ties: "r.ties",
       ...scoreCols("r"),
