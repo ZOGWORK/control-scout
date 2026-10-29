@@ -6,6 +6,13 @@ import { mkdirSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { env } from "./env.js";
 
+/** owner_audit's append-only triggers (migration 52), one statement per line. Exported so a copy that has to
+ *  empty the table (the public snapshot, scripts/snapshot.ts) can drop them, clear it, and put them back. */
+export const OWNER_AUDIT_TRIGGERS = [
+  "CREATE TRIGGER owner_audit_no_delete BEFORE DELETE ON owner_audit BEGIN SELECT RAISE(ABORT, 'owner_audit is append-only'); END;",
+  "CREATE TRIGGER owner_audit_no_edit BEFORE UPDATE ON owner_audit WHEN NEW.id IS NOT OLD.id OR NEW.at IS NOT OLD.at OR NEW.actor IS NOT OLD.actor OR NEW.action IS NOT OLD.action OR NEW.details IS NOT OLD.details OR NEW.old_value IS NOT OLD.old_value OR NEW.new_value IS NOT OLD.new_value OR (NEW.result IS NOT OLD.result AND OLD.result IS NOT NULL AND OLD.result IS NOT 'started') BEGIN SELECT RAISE(ABORT, 'owner_audit is append-only'); END;",
+];
+
 const MIGRATIONS: { version: number; name: string; sql: string }[] = [
   {
     version: 1,
@@ -1449,8 +1456,7 @@ ALTER TABLE owner_audit ADD COLUMN new_value TEXT;
 -- Append-only, enforced here and not just by the console having no edit button: a row can't be deleted,
 -- and the only change a row takes is its result, filled in once when a background job finishes (from
 -- empty or "started" to its outcome); a finished or refused result is final.
-CREATE TRIGGER owner_audit_no_delete BEFORE DELETE ON owner_audit BEGIN SELECT RAISE(ABORT, 'owner_audit is append-only'); END;
-CREATE TRIGGER owner_audit_no_edit BEFORE UPDATE ON owner_audit WHEN NEW.id IS NOT OLD.id OR NEW.at IS NOT OLD.at OR NEW.actor IS NOT OLD.actor OR NEW.action IS NOT OLD.action OR NEW.details IS NOT OLD.details OR NEW.old_value IS NOT OLD.old_value OR NEW.new_value IS NOT OLD.new_value OR (NEW.result IS NOT OLD.result AND OLD.result IS NOT NULL AND OLD.result IS NOT 'started') BEGIN SELECT RAISE(ABORT, 'owner_audit is append-only'); END;
+${OWNER_AUDIT_TRIGGERS.join("\n")}
 `,
   },
 ];
