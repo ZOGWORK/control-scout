@@ -169,7 +169,7 @@ function Card({ note, delay }: { note: (typeof NOTES)[number]; delay: number }) 
           className="inline-flex min-h-9 w-fit items-center gap-1 rounded-lg border border-border bg-muted/60 px-3 font-mono text-xs font-semibold text-foreground transition-colors hover:bg-muted">
           {open ? "Hide details" : "Details"} <ChevronRight className={cn("size-3.5 transition-transform duration-300", open && "rotate-90")} />
         </button>
-        <div id={id} className="hiw-expand" data-open={open ? "" : undefined} aria-hidden={!open}>
+        <div id={id} className="hiw-expand" data-open={open ? "" : undefined} aria-hidden={!open} inert={!open}>
           <div><p className="pt-1 text-[0.8438rem] leading-relaxed text-muted-foreground"><RepoLinks text={note.more} /></p></div>
         </div>
       </article>

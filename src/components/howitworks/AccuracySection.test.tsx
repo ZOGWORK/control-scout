@@ -90,10 +90,14 @@ describe("methodology ledger", () => {
     const generatedAt = new Date(Date.now() - 3 * 3600_000).toISOString();
     data = { ...RECORD, generatedAt };
     const card = within(await mount());
-    const stamp = card.getByText(/^Updated 3 h ago \(/);
+    const stamp = card.getByText((_t, el) => el?.tagName === "SPAN" && /^Updated 3 h ago \(.+\)\.$/.test(el.textContent ?? ""));
     const time = stamp.querySelector("time")!;
     expect(time.getAttribute("dateTime")).toBe(generatedAt);
     expect(time.textContent).toMatch(/^[A-Z][a-z]{2} \d{1,2}, \d{4}, \d{1,2}:\d{2}\s?[AP]M$/);
+    // On a narrow phone the line can break between the age and the exact time; only the exact time keeps together.
+    expect(stamp.className).not.toMatch(/whitespace-nowrap/);
+    expect(time.parentElement!.className).toMatch(/whitespace-nowrap/);
+    expect(time.parentElement).not.toBe(stamp);
   });
 
   it("names every 2025–26 match count with what it counts, once", async () => {

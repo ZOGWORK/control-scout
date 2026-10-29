@@ -3,7 +3,7 @@
 // and every linked file really is in the repository.
 import { existsSync } from "node:fs";
 import { join } from "node:path";
-import { cleanup, render } from "@testing-library/react";
+import { cleanup, fireEvent, render } from "@testing-library/react";
 import { afterEach, describe, expect, it } from "vitest";
 import { RepoLinks, repoUrl } from "./LabNotes";
 
@@ -27,6 +27,13 @@ describe("lab-note report links", () => {
     const { container } = render(<Verdicts />);
     const hrefs = [...container.querySelectorAll("a")].map((a) => a.getAttribute("href")!);
     expect(hrefs.length).toBeGreaterThanOrEqual(6);
+    // A closed Details panel is inert, so its links aren't in the tab order; opening it makes them reachable.
+    const toggle = [...container.querySelectorAll("button")].find((b) => [...(document.getElementById(b.getAttribute("aria-controls")!)?.querySelectorAll("a") ?? [])].length > 0)!;
+    const panel = document.getElementById(toggle.getAttribute("aria-controls")!)!;
+    expect(panel.hasAttribute("inert")).toBe(true);
+    fireEvent.click(toggle);
+    expect(panel.hasAttribute("inert")).toBe(false);
+    expect(panel.getAttribute("aria-hidden")).toBe("false");
     for (const h of hrefs) {
       const path = h.replace(/^https:\/\/github\.com\/ZOGWORK\/control-scout\/(blob|tree)\/main\//, "");
       expect(existsSync(join(process.cwd(), path)), path).toBe(true);
