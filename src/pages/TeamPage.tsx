@@ -405,11 +405,13 @@ function RankMedal({ rank }: { rank: number | null }) {
 
 /** An event row's record: every match there (as the season record counts them), the quals alone under it when
  *  playoffs make it differ, and in words when there's none to show. */
-function RowRecord({ e }: { e: TeamEventRow }) {
+export function RowRecord({ e }: { e: TeamEventRow }) {
   if (e.wins == null) {
     const over = (e.end ?? e.start ?? "9999") < new Date().toISOString().slice(0, 10);
     // A remote event (one robot a match) has no win-loss record, only matches played.
-    const text = e.qualPlayed ? `${e.qualPlayed} remote ${e.qualPlayed === 1 ? "match" : "matches"}` : over ? "No scored matches" : "Not played yet";
+    // On the field with nothing on its record: it played there only as a surrogate (those matches don't count).
+    const text = e.qualPlayed ? `${e.qualPlayed} remote ${e.qualPlayed === 1 ? "match" : "matches"}`
+      : e.onField ? "Surrogate only" : over ? "No scored matches" : "Not played yet";
     return <p className="text-xs text-muted-foreground">{text}</p>;
   }
   const q = e.qual;

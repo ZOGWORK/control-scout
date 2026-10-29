@@ -247,7 +247,11 @@ describe("page head in the first HTML", () => {
     await run("INSERT INTO events (season, code, name, start, end, remote, hybrid, source) VALUES (2025, 'NOSHOW', 'Skipped Meet', '2026-01-10', '2026-01-10', 0, 0, 'test')");
     await run("INSERT INTO event_teams (season, code, team) VALUES (2025, 'NOSHOW', 4215)");
     await run("INSERT INTO matches (season, code, level, series, number, label, played, source) VALUES (2025, 'NOSHOW', 'qual', 0, 1, 'Q1', 1, 'test')");
+    // A finished event with no type on record and no results yet: still one of its events (only a league meet is dropped).
+    await run("INSERT INTO events (season, code, name, start, end, remote, hybrid, source) VALUES (2025, 'NOTYPE', 'Untyped Scrimmage', '2025-10-04', '2025-10-04', 0, 0, 'test')");
+    await run("INSERT INTO event_teams (season, code, team) VALUES (2025, 'NOTYPE', 4215)");
     const html = await renderIndex(file, "/teams/4215");
+    expect(html).toContain('<a href="/events/2025/NOTYPE">Untyped Scrimmage</a>');
     expect(html.match(/<h1>/g)).toHaveLength(1);
     expect(html).toContain("<h1>4215 Hypnotic Robotics</h1>");
     expect(html).toContain("FTC team 4215 Hypnotic Robotics from Oradell, NJ (Bergen County &amp; Co), rookie year 2008. 2025–26: record 26-6-0, OPR 101.6 (#616 of 8,375).");

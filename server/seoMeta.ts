@@ -155,7 +155,7 @@ async function teamMeta(n: number): Promise<PageMeta> {
       `SELECT e.season, e.code, e.name, e.start, e.type, et.rank, r.rank meet_rank, et.wins, et.losses, et.ties
        FROM event_teams et JOIN events e ON e.season = et.season AND e.code = et.code
        LEFT JOIN team_event_records r ON r.season = et.season AND r.code = et.code AND r.team = et.team AND e.type = 'LeagueMeet'
-       WHERE et.team = ? AND ${ATTENDED} AND NOT (e.type = 'LeagueMeet' AND COALESCE(e.end, e.start) < ?
+       WHERE et.team = ? AND ${ATTENDED} AND NOT (COALESCE(e.type, '') = 'LeagueMeet' AND COALESCE(e.end, e.start, '9999') < ?
          AND NOT EXISTS (SELECT 1 FROM matches m WHERE m.season = et.season AND m.code = et.code AND m.played = 1))
        ORDER BY e.start DESC, e.code LIMIT ${TEAM_EVENTS}`, [n, new Date().toISOString().slice(0, 10)]),
     // Each event's record from its matches, playoffs included (src/shared/eventRecord.ts), as the team page shows it.
