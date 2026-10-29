@@ -5,7 +5,7 @@
 //
 // Read on every page's first paint (server/seo.ts renderPage), so the lines in use are kept in memory for
 // HERO_TTL_MS and dropped at once when the owner changes them on this server.
-import { all, db, get, run } from "./db.js";
+import { all, db, get } from "./db.js";
 import { registerCache } from "./caches.js";
 import { DEFAULT_HERO_LINES, HERO_LINES_MAX, cleanHeroPart, type HeroLine, type HeroLineRow, type HeroLinesResponse } from "../src/shared/heroLines.js";
 
@@ -60,47 +60,73 @@ export async function addHeroLine(plain: string, accent: string, enabled = true,
   return view(r!);
 }
 
-/** Change a line's words or switch it on or off; null when there's no such line. */
-export async function updateHeroLine(id: number, change: { plain?: string; accent?: string; enabled?: boolean }, at = new Date().toISOString()): Promise<HeroLineRow | null> {
-  const was = await heroLine(id);
-  if (!was) return null;
-  const plain = change.plain !== undefined ? cleanHeroPart(change.plain) : was.plain;
-  const accent = change.accent !== undefined ? cleanHeroPart(change.accent) : was.accent;
-  const enabled = change.enabled ?? was.enabled;
-  await run("UPDATE hero_lines SET plain = ?, accent = ?, enabled = ?, updated_at = ? WHERE id = ?", [plain, accent, enabled ? 1 : 0, at, id]);
+const one = (r: { rows: unknown[] }) => (r.rows[0] ? view(r.rows[0] as unknown as Row) : null);
+
+/**
+ * Change a line's words or switch it on or off: only the fields given are written, in one statement, and the
+ * line as it was and as it is now are read in the same transaction, so two overlapping saves never undo each
+ * other and the audit log records exactly what each one changed. Null when there's no such line.
+ */
+export async function updateHeroLine(id: number, change: { plain?: string; accent?: string; enabled?: boolean }, at = new Date().toISOString()): Promise<{ was: HeroLineRow; line: HeroLineRow } | null> {
+  const sets: string[] = [], args: (string | number)[] = [];
+  if (change.plain !== undefined) { sets.push("plain = ?"); args.push(cleanHeroPart(change.plain)); }
+  if (change.accent !== undefined) { sets.push("accent = ?"); args.push(cleanHeroPart(change.accent)); }
+  if (change.enabled !== undefined) { sets.push("enabled = ?"); args.push(change.enabled ? 1 : 0); }
+  const read = { sql: "SELECT * FROM hero_lines WHERE id = ?", args: [id] };
+  const [before, , after] = await db().batch([read, { sql: `UPDATE hero_lines SET ${[...sets, "updated_at = ?"].join(", ")} WHERE id = ?`, args: [...args, at, id] }, read], "write");
   invalidateHeroLines();
-  return heroLine(id);
+  const was = one(before), line = one(after);
+  return was && line ? { was, line } : null;
 }
 
-export async function deleteHeroLine(id: number): Promise<boolean> {
-  const n = await run("DELETE FROM hero_lines WHERE id = ?", [id]);
+/** Delete a line; returns it as it was (read in the same transaction), or null when there's no such line. */
+export async function deleteHeroLine(id: number): Promise<HeroLineRow | null> {
+  const [before] = await db().batch([{ sql: "SELECT * FROM hero_lines WHERE id = ?", args: [id] }, { sql: "DELETE FROM hero_lines WHERE id = ?", args: [id] }], "write");
   invalidateHeroLines();
-  return n > 0;
+  return one(before);
 }
 
-/** Put the lines in this order: `ids` must be every saved line, each once. In one transaction. */
-export async function reorderHeroLines(ids: number[], at = new Date().toISOString()): Promise<boolean> {
-  const have = (await all<{ id: number }>("SELECT id FROM hero_lines")).map((r) => Number(r.id));
-  if (ids.length !== have.length || new Set(ids).size !== ids.length || !ids.every((id) => have.includes(id))) return false;
-  await db().batch(ids.map((id, i) => ({ sql: "UPDATE hero_lines SET position = ?, updated_at = CASE WHEN position = ? THEN updated_at ELSE ? END WHERE id = ?", args: [i, i, at, id] })), "write");
-  invalidateHeroLines();
-  return true;
+/**
+ * Put the lines in this order: `ids` must be every saved line, each once. In one transaction, which checks the
+ * set of lines again (a line added or deleted meanwhile: nothing moves). Returns the order it replaced, or null.
+ */
+export async function reorderHeroLines(ids: number[], at = new Date().toISOString()): Promise<number[] | null> {
+  if (new Set(ids).size !== ids.length) return null;
+  const tx = await db().transaction("write");
+  try {
+    const was = (await tx.execute("SELECT id FROM hero_lines ORDER BY position, id")).rows.map((r) => Number(r.id));
+    if (ids.length !== was.length || !ids.every((id) => was.includes(id))) { await tx.rollback(); return null; }
+    await tx.batch(ids.map((id, i) => ({ sql: "UPDATE hero_lines SET position = ?, updated_at = CASE WHEN position = ? THEN updated_at ELSE ? END WHERE id = ?", args: [i, i, at, id] })));
+    await tx.commit();
+    invalidateHeroLines();
+    return was;
+  } catch (e) {
+    await tx.rollback().catch(() => {});
+    throw e;
+  } finally { tx.close(); }
 }
 
 /** Start editing from the built-in lines: saves a copy of them (only when nothing is saved yet). */
 export async function seedHeroLines(at = new Date().toISOString()): Promise<boolean> {
-  const n = Number((await get<{ n: number }>("SELECT COUNT(*) n FROM hero_lines"))!.n);
-  if (n > 0) return false;
-  await db().batch(DEFAULT_HERO_LINES.map(([a, b], i) => ({
-    sql: "INSERT INTO hero_lines (position, plain, accent, enabled, created_at, updated_at) VALUES (?, ?, ?, 1, ?, ?)", args: [i, a, b, at, at],
-  })), "write");
+  // The check and the copy in one transaction: two overlapping requests can't both copy the lines.
+  const tx = await db().transaction("write");
+  try {
+    if (Number((await tx.execute("SELECT COUNT(*) n FROM hero_lines")).rows[0].n) > 0) { await tx.rollback(); return false; }
+    await tx.batch(DEFAULT_HERO_LINES.map(([a, b], i) => ({
+      sql: "INSERT INTO hero_lines (position, plain, accent, enabled, created_at, updated_at) VALUES (?, ?, ?, 1, ?, ?)", args: [i, a, b, at, at],
+    })));
+    await tx.commit();
+  } catch (e) {
+    await tx.rollback().catch(() => {});
+    throw e;
+  } finally { tx.close(); }
   invalidateHeroLines();
   return true;
 }
 
 /** Go back to the built-in lines: every saved line is removed (the audit log keeps what they were). */
-export async function resetHeroLines(): Promise<number> {
-  const n = await run("DELETE FROM hero_lines");
+export async function resetHeroLines(): Promise<HeroLineRow[]> {
+  const [before] = await db().batch(["SELECT * FROM hero_lines ORDER BY position, id", "DELETE FROM hero_lines"], "write");
   invalidateHeroLines();
-  return n;
+  return before.rows.map((r) => view(r as unknown as Row));
 }

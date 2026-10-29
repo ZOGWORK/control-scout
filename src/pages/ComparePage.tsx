@@ -9,7 +9,7 @@
 import { useEffect, useMemo, useRef, useState, type KeyboardEvent, type PointerEvent, type ReactNode } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { Bar, BarChart, CartesianGrid, Legend, Line, LineChart, XAxis, YAxis } from "recharts";
-import { ArrowUp, GripVertical, Plus, Scale, Sparkles, X } from "lucide-react";
+import { ArrowUp, GripVertical, Info, Plus, Scale, Sparkles, X } from "lucide-react";
 import { useApi, qs } from "../lib/api";
 import { useCurrentSeason, usePredictable, useTitle } from "../lib/meta";
 import { usePersonal } from "../lib/personal";
@@ -25,6 +25,7 @@ import { TeamPicker } from "../components/TeamPicker";
 import { teamError } from "../lib/teamCheck";
 import { SeasonToggle } from "../components/SeasonToggle";
 import { num, rankPct } from "../lib/format";
+import { compareSeasonNote } from "../lib/compareSeasonNote";
 import { CompareConsensus } from "../components/ScoutConsensus";
 import { CompareBrief } from "../components/CompareBrief";
 import { cn } from "../components/cn";
@@ -146,7 +147,16 @@ export default function ComparePage() {
               ))}
             </div>
           )}
-          <Async state={{ ...state, data: view }}>{(d) => <Compare d={d} onRemove={(n) => setTeams(teams.filter((x) => x !== String(n)))} onMove={move} />}</Async>
+          <Async state={{ ...state, data: view }}>{(d) => {
+            // Without ?season the server picks the season: say which and why when it isn't simply the current one.
+            const note = compareSeasonNote({ asked: asked != null, season: d.season, current, teams: d.teams.map((x) => ({ number: x.team.number, hasResults: !!x.stats })) });
+            return (
+              <>
+                {note && <p className="mb-4 flex items-start gap-2 rounded-xl border border-accent/30 bg-accent/[0.07] px-3 py-2.5 text-sm" role="note" data-season-note><Info className="mt-0.5 size-4 shrink-0 text-accent-text" aria-hidden />{note}</p>}
+                <Compare d={d} onRemove={(n) => setTeams(teams.filter((x) => x !== String(n)))} onMove={move} />
+              </>
+            );
+          }}</Async>
         </>
       )}
     </div>

@@ -62,19 +62,20 @@ export function heroLinesOwnerRoutes(r: Router, h: Wrap, actor: (req: Request) =
     if (b.plain === undefined && b.accent === undefined && b.enabled === undefined) { res.status(400).json({ error: "Nothing to change" }); return; }
     const same = (b.plain === undefined || cleanHeroPart(b.plain) === was.plain) && (b.accent === undefined || cleanHeroPart(b.accent) === was.accent) && (b.enabled === undefined || b.enabled === was.enabled);
     if (same) return { line: was, panel: await ownerHeroLines() };
-    const line = await updateHeroLine(id, { plain: b.plain, accent: b.accent, enabled: b.enabled });
-    if (!line) { res.status(404).json({ error: "No such line" }); return; }
-    const words = line.plain !== was.plain || line.accent !== was.accent;
-    await recordAudit(actor(req), words ? "heroLine.edit" : line.enabled ? "heroLine.on" : "heroLine.off", { id }, null, { from: value(was), to: value(line) });
-    return { line, panel: await ownerHeroLines() };
+    // Only the fields sent are written; the old value is the one read in the same transaction as the change.
+    const out = await updateHeroLine(id, { plain: b.plain, accent: b.accent, enabled: b.enabled });
+    if (!out) { res.status(404).json({ error: "No such line" }); return; }
+    const words = out.line.plain !== out.was.plain || out.line.accent !== out.was.accent;
+    await recordAudit(actor(req), words ? "heroLine.edit" : out.line.enabled ? "heroLine.on" : "heroLine.off", { id }, null, { from: value(out.was), to: value(out.line) });
+    return { line: out.line, panel: await ownerHeroLines() };
   }));
 
   r.delete("/hero-lines/:id", h(async (req, res) => {
     const id = idOf(req);
-    const was = id ? await heroLine(id) : null;
-    if (!id || !was) { res.status(404).json({ error: "No such line" }); return; }
+    if (!id) { res.status(404).json({ error: "No such line" }); return; }
     if (!confirmed(req, res)) return;
-    await deleteHeroLine(id);
+    const was = await deleteHeroLine(id);
+    if (!was) { res.status(404).json({ error: "No such line" }); return; }
     await recordAudit(actor(req), "heroLine.delete", { id }, null, { from: value(was), to: null });
     return { panel: await ownerHeroLines() };
   }));
@@ -82,8 +83,8 @@ export function heroLinesOwnerRoutes(r: Router, h: Wrap, actor: (req: Request) =
   r.put("/hero-lines/order", h(async (req, res) => {
     const ids = req.body?.ids;
     if (!Array.isArray(ids) || !ids.every((x) => Number.isInteger(x) && x > 0)) { res.status(400).json({ error: "Send {\"ids\": [every line's id, in the new order]}" }); return; }
-    const was = (await listHeroLines()).map((l) => l.id);
-    if (!(await reorderHeroLines(ids))) { res.status(400).json({ error: "The order must list every line once. Reload and try again." }); return; }
+    const was = await reorderHeroLines(ids);
+    if (!was) { res.status(400).json({ error: "The order must list every line once. Reload and try again." }); return; }
     if (was.join() !== ids.join()) await recordAudit(actor(req), "heroLines.reorder", null, null, { from: was, to: ids });
     return { panel: await ownerHeroLines() };
   }));
@@ -100,8 +101,7 @@ export function heroLinesOwnerRoutes(r: Router, h: Wrap, actor: (req: Request) =
   // Back to the built-in lines: every saved line goes, each with its own audit row (its old value).
   r.post("/hero-lines/reset", h(async (req, res) => {
     if (!confirmed(req, res)) return;
-    const rows = await listHeroLines();
-    await resetHeroLines();
+    const rows = await resetHeroLines();
     for (const l of rows) await recordAudit(actor(req), "heroLine.delete", { id: l.id, reset: true }, null, { from: value(l), to: null });
     return { panel: await ownerHeroLines() };
   }));

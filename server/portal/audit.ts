@@ -12,7 +12,9 @@ const DETAILS_MAX = 2000;
 /** What a change replaced and what it set (any JSON value; null for "nothing"). */
 export interface AuditChange { from: unknown; to: unknown }
 
-const valueJson = (v: unknown) => JSON.stringify(v ?? null).slice(0, DETAILS_MAX);
+// Old and new values are kept whole (never cut mid-JSON): every change the console makes is bounded by its own
+// validation (the largest, a power-rankings edit, is 25 blurbs of at most 700 characters).
+const valueJson = (v: unknown) => JSON.stringify(v ?? null);
 const parse = (s: string | null): unknown => {
   if (s == null) return null;
   try { return JSON.parse(s); } catch { return s; }

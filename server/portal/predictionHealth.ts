@@ -33,10 +33,11 @@ function accuracy(xs: Call[]): number {
 const expected = (xs: Call[]) => xs.reduce((s, r) => s + Math.max(r.p, 1 - r.p), 0) / Math.max(1, xs.length);
 
 /** Calibration by confidence tier (the tier each call shows publicly): how sure the favourite was against how
- *  often it won, per tier. Tiers with no calls are left out. */
+ *  often it won, per tier, over the same calls (ties and 50:50 calls left out of both). Tiers with none are left out. */
 export function tierCalibration(xs: Call[]): TierCalibration[] {
   return TIER_ORDER.map((tier) => {
-    const cs = xs.filter((c) => c.tier === tier);
+    // Both sides from the same calls: those with a favourite and a winner (no 50:50 call, no tie).
+    const cs = xs.filter((c) => c.tier === tier && c.y !== 0.5 && c.p !== 0.5);
     return { tier, n: cs.length, predicted: expected(cs), actual: accuracy(cs), brier: brier(cs) };
   }).filter((t) => t.n > 0);
 }
