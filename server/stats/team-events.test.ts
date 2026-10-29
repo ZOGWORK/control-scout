@@ -48,12 +48,15 @@ describe("per-event team stats", () => {
     expect(rows.every((r) => r.opr_np != null)).toBe(true);
   });
   it("lists only events the team played once results exist", async () => {
-    expect((await teamEvents(S, 106)).map((e) => e.code)).toEqual(["HYB"]); // roster-only MEET1 and no-show NOSHOW hidden
+    // Roster-only MEET1 hidden. NOSHOW stays: a qualification no-show is on the team's record, as FIRST counts it.
+    const evs = await teamEvents(S, 106);
+    expect(evs.map((e) => e.code)).toEqual(["HYB", "NOSHOW"]);
+    expect(evs[1]).toMatchObject({ played: 1, onField: false });
     expect((await teamEvents(S, 101)).map((e) => e.code)).toEqual(["MEET1", "HYB", "NOSHOW"]);
   });
   it("keeps upcoming events the team is registered for", async () => {
-    await run("INSERT INTO events (season, code, name, type, start, end, source) VALUES (?, 'NEXT', 'NEXT', 'Qualifier', '2026-12-01', '2026-12-01', 'test')", [S]);
+    await run("INSERT INTO events (season, code, name, type, start, end, source) VALUES (?, 'NEXT', 'NEXT', 'Qualifier', '2099-12-01', '2099-12-01', 'test')", [S]);
     await run("INSERT INTO event_teams (season, code, team) VALUES (?, 'NEXT', 106)", [S]);
-    expect((await teamEvents(S, 106)).map((e) => e.code)).toEqual(["HYB", "NEXT"]);
+    expect((await teamEvents(S, 106)).map((e) => e.code)).toEqual(["HYB", "NOSHOW", "NEXT"]);
   });
 });
