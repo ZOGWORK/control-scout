@@ -34,12 +34,16 @@ import { eventTypeLabel } from "../lib/labels";
 import { copyLink } from "../lib/clipboard";
 import { direction, trendLabel } from "../shared/trend";
 import { teamTitle } from "../shared/teamTitle";
+import { RECORD_RULE } from "../shared/eventRecord";
 import { OfflineNote } from "../components/OfflineNote";
 import { StickyActions } from "../components/StickyActions";
 import { TeamConsensusSection } from "../components/ScoutConsensus";
 import { ReportCardSection } from "../components/ReportCard";
 import { ReliabilitySection } from "../components/Reliability";
 import { predictHref } from "../shared/predictUrl";
+
+/** The record rule, mid-sentence ("Records count every match played, …"). */
+const RECORD_RULE_LOWER = RECORD_RULE.charAt(0).toLowerCase() + RECORD_RULE.slice(1);
 
 export default function TeamPage() {
   const { number } = useParams();
@@ -91,6 +95,7 @@ function Profile({ p, onSeason }: { p: TeamProfile; onSeason: (s: number) => voi
           <div className="min-[1700px]:grid min-[1700px]:grid-cols-2 min-[1700px]:items-start min-[1700px]:gap-x-8">
             <Section title={`Event history (${p.events.length})`} description={`${seasonLabel(p.season)}, newest first`}>
               <EventHistory events={p.events} team={p.team.number} />
+              {p.events.some((e) => e.played) && <p className="mt-2 text-xs text-muted-foreground">Records count {RECORD_RULE_LOWER}</p>}
             </Section>
             <div className="min-w-0">
               <AwardsAllTime p={p} />
@@ -223,7 +228,7 @@ function Hero({ p, onSeason }: { p: TeamProfile; onSeason: (s: number) => void }
                 {predictable
                   ? <div><dt className="text-xs text-muted-foreground">Rating</dt><dd className="font-display text-2xl font-semibold tabular-nums">{s.rating ? num(s.rating.np) : "—"}{s.rating && <span className="text-sm font-normal text-muted-foreground"> ±{num(s.rating.sd, 0)}</span>}</dd></div>
                   : <div><dt className="text-xs text-muted-foreground">Avg score</dt><dd className="font-display text-2xl font-semibold tabular-nums">{num(s.avg.np)}</dd></div>}
-                <div><dt className="text-xs text-muted-foreground">Record</dt><dd className="font-display text-2xl font-semibold tabular-nums">{s.record.wins}-{s.record.losses}-{s.record.ties}</dd></div>
+                <div><dt className="text-xs text-muted-foreground" title={RECORD_RULE}>Record</dt><dd className="font-display text-2xl font-semibold tabular-nums" title={RECORD_RULE}>{s.record.wins}-{s.record.losses}-{s.record.ties}</dd></div>
                 {s.reliability && <div><dt className="text-xs text-muted-foreground" title="An estimate from match results: no-shows, DQs, near-zero matches, swing, penalties">Reliability</dt><dd className="font-display text-2xl font-semibold tabular-nums">{s.reliability.index}<span className="text-sm font-normal text-muted-foreground"> /100</span></dd></div>}
               </dl>
             </>
@@ -398,6 +403,27 @@ function RankMedal({ rank }: { rank: number | null }) {
   </span>;
 }
 
+/** An event row's record: every match there (as the season record counts them), the quals alone under it when
+ *  playoffs make it differ, and in words when there's none to show. */
+export function RowRecord({ e }: { e: TeamEventRow }) {
+  if (e.wins == null) {
+    const over = (e.end ?? e.start ?? "9999") < new Date().toISOString().slice(0, 10);
+    // A remote event (one robot a match) has no win-loss record, only matches played.
+    // On the field with nothing on its record: it played there only as a surrogate (those matches don't count).
+    const text = e.qualPlayed ? `${e.qualPlayed} remote ${e.qualPlayed === 1 ? "match" : "matches"}`
+      : e.onField ? "Surrogate only" : over ? "No scored matches" : "Not played yet";
+    return <p className="text-xs text-muted-foreground">{text}</p>;
+  }
+  const q = e.qual;
+  return (
+    <>
+      <p className="font-medium" aria-label={`${e.wins} wins, ${e.losses ?? 0} losses, ${e.ties ?? 0} ties${q && q.played !== e.played ? ", playoffs included" : ""}`}>{e.wins}-{e.losses ?? 0}-{e.ties ?? 0}</p>
+      {!e.onField ? <p className="text-[11px] text-muted-foreground">No-show</p>
+        : q && q.played !== e.played && <p className="text-[11px] text-muted-foreground">{q.played ? `Quals ${q.wins}-${q.losses}-${q.ties}` : "Playoffs only"}</p>}
+    </>
+  );
+}
+
 function EventHistory({ events, team }: { events: TeamEventRow[]; team: number }) {
   return (
     <div className="space-y-2">
@@ -415,7 +441,7 @@ function EventHistory({ events, team }: { events: TeamEventRow[]; team: number }
             )}
           </div>
           <div className="grid grid-cols-3 gap-4 text-right text-sm tabular-nums max-sm:w-full max-sm:pl-[3.25rem] max-sm:text-left">
-            <div><p className="text-[10px] uppercase tracking-wider text-muted-foreground">Record</p><p className="font-medium">{e.wins ?? "–"}-{e.losses ?? "–"}-{e.ties ?? "–"}</p></div>
+            <div><p className="text-[10px] uppercase tracking-wider text-muted-foreground">Record</p><RowRecord e={e} /></div>
             <div><p className="text-[10px] uppercase tracking-wider text-muted-foreground">RS</p><p className="font-medium">{num(e.rp, 2)}</p></div>
             <div><p className="text-[10px] uppercase tracking-wider text-muted-foreground">OPR</p><p className="font-medium">{num(e.opr.np)}</p></div>
           </div>
