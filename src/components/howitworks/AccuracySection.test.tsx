@@ -86,6 +86,22 @@ describe("methodology ledger", () => {
     expect(card.queryByText(/scored matches replayed/)).toBeNull();
   });
 
+  it("says when the ledger was last scored: relative, with the exact time", async () => {
+    const generatedAt = new Date(Date.now() - 3 * 3600_000).toISOString();
+    data = { ...RECORD, generatedAt };
+    const card = within(await mount());
+    const stamp = card.getByText(/^Updated 3 h ago \(/);
+    const time = stamp.querySelector("time")!;
+    expect(time.getAttribute("dateTime")).toBe(generatedAt);
+    expect(time.textContent).toMatch(/^[A-Z][a-z]{2} \d{1,2}, \d{4}, \d{1,2}:\d{2}\s?[AP]M$/);
+  });
+
+  it("names every 2025–26 match count with what it counts, once", async () => {
+    data = RECORD;
+    await mount();
+    expect(document.getElementById("match-counts")!.textContent).toBe("Match counts on this page: 37,395 in this held-out test; 37,414 in the Prediction Engine 2.0 replay of the whole 2025–26 season, 37,140 of them with a winner (the rest were ties). They are separate tests with their own match lists, so the counts differ slightly.");
+  });
+
   it("shows no percentage and no skill when nothing was decided", async () => {
     data = { ...RECORD, headline: null, seasons: [{ season: 2026, label: "2026–27 BIOBUZZ", live: blk(2, 0, 0, 0, 0), backtest: null }] } satisfies TrackRecord;
     const card = within(await mount());
