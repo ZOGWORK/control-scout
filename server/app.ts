@@ -218,11 +218,12 @@ export function createApp(opts: { dist?: string } = {}) {
   // CSV exports stream and gzip themselves, flushing as they go (server/api/records.ts streamedBody).
   // Live streams (text/event-stream, server/scout/stream.ts) are never compressed: gzip would hold events back.
   app.use(compression({ filter: (req, res) => !/^text\/(csv|event-stream)/.test(String(res.getHeader("Content-Type") ?? "")) && compression.filter(req, res) }));
-  // /api/collect reads its own tiny body (1 KB cap), and the digest's bounce webhook needs its raw body for the
-  // signature, so the 2 MB JSON parser skips both.
+  // /api/collect reads its own tiny body (1 KB cap), the digest's bounce webhook needs its raw body for the
+  // signature, and CSP reports have their own 16 KB parser that never fails (server/securityHeaders.ts), so the
+  // 2 MB JSON parser skips all three.
   const json = express.json({ limit: "2mb" });
   // Same matching as Express routing (case-insensitive, optional trailing slash).
-  app.use((req, res, next) => (/^\/api\/(collect|digest\/webhook)\/?$/i.test(req.path) ? next() : json(req, res, next)));
+  app.use((req, res, next) => (/^\/api\/(collect|digest\/webhook|csp-report)\/?$/i.test(req.path) ? next() : json(req, res, next)));
 
   const api = express.Router();
   // Public FTC data (GET, not account or auth): cacheable for a minute, then

@@ -12,7 +12,7 @@ import express from "express";
 import { createApp, createServer } from "./app";
 import { migrate, openDb, setDb } from "./db";
 import {
-  CSS_SWITCH_HANDLER, HSTS, PERMISSIONS_POLICY, buildCsp, cspReportCounts, inlineScriptHashes, resetCspReports, summarizeCspReport,
+  CSS_SWITCH_HANDLER, HSTS, PERMISSIONS_POLICY, buildCsp, cspReportCounts, inlineScriptHashes, resetCspReports, summarizeCspReports,
 } from "./securityHeaders";
 
 const INDEX = `<!doctype html>
@@ -186,10 +186,35 @@ describe("violation reports", () => {
     expect(counts.get("script-src-elem inline")).toBe(1);
     expect([...counts.keys()].join(" ")).not.toContain("token");
   });
+  it("counts every report in a Reporting API batch, each on its own", async () => {
+    resetCspReports();
+    const batch = JSON.stringify([
+      { type: "csp-violation", body: { effectiveDirective: "img-src", blockedURL: "https://a.example/x.png" } },
+      { type: "csp-violation", body: { effectiveDirective: "connect-src", blockedURL: "https://b.example/api?q=1" } },
+      { type: "deprecation", body: { id: "x" } },
+    ]);
+    const r = await fetch(`${base}/api/csp-report`, { method: "POST", headers: { "Content-Type": "application/reports+json" }, body: batch });
+    expect(r.status).toBe(204);
+    const counts = cspReportCounts();
+    expect(counts.get("img-src https://a.example")).toBe(1);
+    expect(counts.get("connect-src https://b.example")).toBe(1);
+    expect(counts.size).toBe(2);
+  });
+  it("as application/json too: its own 16 KB parser, so malformed or oversized bodies are a 204, never a 500", async () => {
+    resetCspReports();
+    const post = (body: string) => fetch(`${base}/api/csp-report`, { method: "POST", headers: { "Content-Type": "application/json" }, body });
+    expect((await post("{not json")).status).toBe(204);
+    const big = JSON.stringify({ "csp-report": { "effective-directive": "img-src", "blocked-uri": "https://big.example/", pad: "x".repeat(20_000) } });
+    expect((await post(big)).status).toBe(204);
+    expect(cspReportCounts().size).toBe(0); // over 16 KB: not read (the shared 2 MB parser would have read it)
+    const ok = JSON.stringify({ "csp-report": { "effective-directive": "font-src", "blocked-uri": "https://fonts.example/a.woff2" } });
+    expect((await post(ok)).status).toBe(204);
+    expect(cspReportCounts().get("font-src https://fonts.example")).toBe(1);
+  });
   it("summarises only well-formed reports", () => {
-    expect(summarizeCspReport(null)).toBeNull();
-    expect(summarizeCspReport({ "csp-report": { "effective-directive": "<script>" } })).toBeNull();
-    expect(summarizeCspReport({ "csp-report": { "effective-directive": "img-src", "blocked-uri": "data:image/png;base64,AAAA" } })).toBe("img-src data:");
+    expect(summarizeCspReports(null)).toEqual([]);
+    expect(summarizeCspReports({ "csp-report": { "effective-directive": "<script>" } })).toEqual([]);
+    expect(summarizeCspReports({ "csp-report": { "effective-directive": "img-src", "blocked-uri": "data:image/png;base64,AAAA" } })).toEqual(["img-src data:"]);
   });
 });
 
