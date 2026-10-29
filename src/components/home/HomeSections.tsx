@@ -265,17 +265,17 @@ export function PredictionRecord() {
                   {` ${headlineRule(t)}`}
                   {` Engine v${t.engineVersion} serves predictions now · updated ${ago(t.generatedAt)}.`}
                 </p>
-                {soFar && (
-                  // This season's own replay, beside (never blended into) the number above: its own label, season and count.
-                  <div className="mt-4 rounded-xl border border-line px-4 py-3 max-sm:px-3">
-                    <p className="text-xs font-semibold uppercase tracking-[0.12em] text-text-muted">Season replay · {soFar.seasonLabel} so far</p>
-                    <p className="mt-1 flex flex-wrap items-baseline gap-x-2">
-                      <span className="font-display text-3xl font-semibold tabular-nums text-accent-text">{pct(soFar.block.accuracy, 1)}</span>
-                      <span className="text-sm text-text-muted">of {fmt(soFar.block.decided)} decided matches called right ({LEDGER_MODE.backtest.detail})</span>
-                    </p>
-                  </div>
-                )}
               </>
+            )}
+            {soFar && (
+              // This season's own replay, beside (never blended into) the number above: its own label, season and count.
+              <div className="mt-4 rounded-xl border border-line px-4 py-3 max-sm:px-3">
+                <p className="text-xs font-semibold uppercase tracking-[0.12em] text-text-muted">Season replay · {soFar.seasonLabel} so far</p>
+                <p className="mt-1 flex flex-wrap items-baseline gap-x-2">
+                  <span className="font-display text-3xl font-semibold tabular-nums text-accent-text">{pct(soFar.block.accuracy, 1)}</span>
+                  <span className="text-sm text-text-muted">of {fmt(soFar.block.decided)} decided matches called right ({LEDGER_MODE.backtest.detail})</span>
+                </p>
+              </div>
             )}
           </div>
           <Link to="/methodology#accuracy" className="mt-4 inline-flex min-h-11 items-center gap-1 text-sm font-semibold text-accent-text hover:underline">Every call, including the misses <ArrowUpRight className="size-4" /></Link>
