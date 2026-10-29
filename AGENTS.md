@@ -12,6 +12,7 @@ both run the shared engine in `packages/predict-engine`.
 4. **Engine changes are special.** Anything under `packages/predict-engine/` that can change a number needs: a version bump (semver), a `CHANGELOG.md` entry, a held-out backtest showing it is at least as good (`npm run stats -- --backtest`, compare the track record), and a matching Control Point PR that updates its vendored tarball — both apps always run the same engine version. A refactor must stay bit-identical (`npm run equivalence`).
 
 4a. **Scout's own version counts in single digits.** A release of the app takes the next number after the newest `CHANGELOG.md` entry: 1.3.7 → 1.3.8 → 1.3.9 → 1.4.0 (`nextRelease` in `src/lib/changelog.ts`), never 1.38.0. Bump `package.json` (and its lockfile) to match. The engine keeps its own semver (rule 4).
+4b. **A PR that changes `src/` or `server/` (tests aside) updates `CHANGELOG.md`**, or writes "No user-visible change." in its description (or carries the `no-changelog` label); the Changelog check (`.github/workflows/changelog.yml`) fails it otherwise.
 
 ## Screenshots and verification
 

@@ -14,7 +14,7 @@ import { ToggleGroup, ToggleGroupItem } from "../ui/controls";
 import { ErrorState } from "../states";
 import { DataStatus } from "../DataStatus";
 import { cn } from "../cn";
-import { defaultEvidence, eventState, recordFor, shortDay, usageView, type Evidence } from "./homeModel";
+import { defaultEvidence, eventState, recordFor, seasonReplaySoFar, shortDay, usageView, type Evidence, type RecordView } from "./homeModel";
 import { headlineRule, LEDGER_MODE } from "../../shared/ledger";
 
 const fmt = (n: number) => n.toLocaleString();
@@ -198,12 +198,23 @@ function CalendarRow({ e }: { e: EventListItem }) {
 
 // --- The public prediction record ---------------------------------------------------
 
+/**
+ * An evidence card's accessible name: its kind, its figure (or that there's none yet) and its sample, since the
+ * card's visible parts are hidden from assistive tech to keep the name to one sentence.
+ * "Season replay, 73.8% correct winner, 41,743 scored".
+ */
+export function cardName(k: Evidence, r: RecordView | null, n: number | undefined): string {
+  const figure = !r ? "none yet" : r.noneDecided ? "No percentage yet" : `${pct(r.block.accuracy, 1)} correct winner${k === "live" && r.engines ? ", all engine versions" : ""}`;
+  return `${LEDGER_MODE[k].tab}, ${figure}${n != null ? `, ${fmt(n)} scored` : ""}`;
+}
+
 export function PredictionRecord() {
   const state = useApi<TrackRecord>("/api/predict/accuracy");
   const [chosen, setChosen] = useState<Evidence | null>(null);
   const t = state.data;
   const kind = chosen ?? (t ? defaultEvidence(t) : "backtest");
   const view = t ? recordFor(t, kind) : null;
+  const soFar = t ? seasonReplaySoFar(t, view) : null;
   const figures = t ? { live: recordFor(t, "live"), backtest: recordFor(t, "backtest") } : null;
   const sizes = figures ? { live: figures.live?.block.n, backtest: figures.backtest?.block.n } : null;
   // The replay first: it's the headline until a season's live calls reach the threshold.
@@ -225,14 +236,14 @@ export function PredictionRecord() {
               const r = figures?.[k] ?? null;
               return (
                 <ToggleGroupItem key={k} value={k} className="min-w-0 justify-start whitespace-normal px-3 py-2.5 max-sm:px-2.5"
-                  aria-label={sizes?.[k] != null ? `${LEDGER_MODE[k].tab}, ${fmt(sizes[k]!)} scored` : LEDGER_MODE[k].tab}>
+                  aria-label={cardName(k, r, sizes?.[k])}>
                   <span className="flex w-full items-baseline justify-between gap-1.5 text-sm">
                     <span className="truncate">{LEDGER_MODE[k].tab}</span>
                     {sizes?.[k] != null && <span aria-hidden className="font-mono text-xs tabular-nums text-text-muted">{fmt(sizes[k]!)}</span>}
                   </span>
                   {!r ? <span aria-hidden className="font-display text-4xl font-semibold text-text-muted @2xl/home:text-5xl">—</span>
-                    : r.noneDecided ? <span className="font-display text-4xl font-semibold text-text-muted @2xl/home:text-5xl" aria-label="No percentage yet">—</span>
-                    : <span aria-hidden className="font-display text-4xl font-semibold tabular-nums text-foreground @2xl/home:text-5xl">{pct(r.block.accuracy, 1).replace("%", "")}<span className="text-2xl text-text-muted">%</span></span>}
+                    : r.noneDecided ? <span aria-hidden className="font-display text-4xl font-semibold text-text-muted @2xl/home:text-5xl">—</span>
+                    : <span aria-hidden className="font-display text-4xl font-semibold tabular-nums text-accent-text @2xl/home:text-5xl">{pct(r.block.accuracy, 1).replace("%", "")}<span className="text-2xl">%</span></span>}
                   <span aria-hidden className="block w-full truncate text-xs font-normal text-text-muted">
                     {!r ? "none yet" : k === "live" ? (r.engines ? "all season, all engine versions" : `${r.seasonLabel}, before each match`) : `${r.seasonLabel} replay`}
                   </span>
@@ -257,7 +268,6 @@ export function PredictionRecord() {
                     <span><strong>Still calibrating this season.</strong> Early-season calls lean on ratings built from few matches, so this number moves as results arrive. It isn’t the headline until {view.seasonLabel} has {fmt(t.liveThreshold)} live calls scored ({fmt(view.block.n)} so far).</span>
                   </p>
                 )}
-                <p className="sr-only">{view.noneDecided ? "No percentage yet" : `${pct(view.block.accuracy, 1)} correct winner`}</p>
                 <p className="mt-1 text-sm text-text-muted">
                   Correct winner · {view.kind === "live" ? `${view.seasonLabel}, called before each match${view.engines ? `, all engine versions (v${view.engines.versions.join(", v")})` : ""}` : `${view.seasonLabel}, replayed from recorded matches (not calls made in advance)`}
                 </p>
@@ -283,6 +293,16 @@ export function PredictionRecord() {
                   {` Engine v${t.engineVersion} serves predictions now · updated ${ago(t.generatedAt)}.`}
                 </p>
               </>
+            )}
+            {soFar && (
+              // This season's own replay, beside (never blended into) the number above: its own label, season and count.
+              <div className="mt-4 rounded-xl border border-line px-4 py-3 max-sm:px-3">
+                <p className="text-xs font-semibold uppercase tracking-[0.12em] text-text-muted">Season replay · {soFar.seasonLabel} so far</p>
+                <p className="mt-1 flex flex-wrap items-baseline gap-x-2">
+                  <span className="font-display text-3xl font-semibold tabular-nums text-accent-text">{pct(soFar.block.accuracy, 1)}</span>
+                  <span className="text-sm text-text-muted">of {fmt(soFar.block.decided)} decided matches called right ({LEDGER_MODE.backtest.detail})</span>
+                </p>
+              </div>
             )}
           </div>
           <Link to="/methodology#accuracy" className="mt-4 inline-flex min-h-11 items-center gap-1 text-sm font-semibold text-accent-text hover:underline">Every call, including the misses <ArrowUpRight className="size-4" /></Link>

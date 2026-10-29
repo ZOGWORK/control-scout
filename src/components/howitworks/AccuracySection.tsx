@@ -14,7 +14,7 @@ import { useApi } from "../../lib/api";
 import { useCurrentSeason } from "../../lib/meta";
 import type { AccuracyBlock, BonusAccuracy, ReplayCoverage, TrackRecord } from "../../shared/api";
 import { brierSkill, headlineRule, LEDGER_MODE, ledgerDefault, type LedgerKind } from "../../shared/ledger";
-import { pct } from "../../lib/format";
+import { ago, pct } from "../../lib/format";
 import { cn } from "../cn";
 import { Badge } from "../ui/basic";
 import { MatchList } from "../predict";
@@ -22,7 +22,7 @@ import { ErrorState, Skeleton } from "../states";
 import { EmptyState } from "../page";
 import { HBars } from "./charts";
 import { Legend } from "./MatchFigures";
-import { MODEL } from "./math";
+import { E2, MODEL } from "./math";
 import { Chart, CountUp, Figure, Prose, Reveal, ScrollX, Seg, SectionHead, useTip } from "./ui";
 import { TIER_WORD, tierWord } from "../../shared/tierWords";
 import type { ConfidenceTier } from "../../shared/api";
@@ -37,6 +37,22 @@ interface EngineAccuracy {
   };
 }
 const ENG = MODEL.accuracy as EngineAccuracy;
+
+/** The 2025–26 match counts on this page, each said once with what it counts (they come from separate tests). */
+export const MATCH_COUNTS = `Match counts on this page: ${ENG.matches.count.toLocaleString("en-US")} in this held-out test; ${E2.matches.toLocaleString("en-US")} in the Prediction Engine 2.0 replay of the whole 2025–26 season, ${E2.nonTies.toLocaleString("en-US")} of them with a winner (the rest were ties). They are separate tests with their own match lists, so the counts differ slightly.`;
+
+/** "Oct 28, 2026, 3:04 PM" in the reader's own time zone ("" for a time that can't be read). */
+export const asOfDate = (iso: string) => {
+  const t = Date.parse(iso);
+  return Number.isFinite(t) ? new Date(t).toLocaleString("en-US", { month: "short", day: "numeric", year: "numeric", hour: "numeric", minute: "2-digit" }) : "";
+};
+
+/** When the ledger was last scored: relative, with the exact time beside it. */
+function UpdatedAt({ iso }: { iso: string }) {
+  const exact = asOfDate(iso);
+  if (!exact) return null;
+  return <span>Updated {ago(iso)} <span className="whitespace-nowrap">(<time dateTime={iso}>{exact}</time>).</span></span>;
+}
 
 /** The label every engine-test figure carries. */
 export const ENGINE_TEST = "the prediction engine's held-out test (tuned on 2024–25, tested on 2025–26)";
@@ -144,7 +160,7 @@ export function AccuracySection() {
               )}
             </div>
           ),<div className="grid grid-cols-2 gap-3 lg:grid-cols-4" role="status" aria-label="Loading the track record">{[0, 1, 2, 3].map((i) => <Skeleton key={i} className="h-24 rounded-xl" />)}</div>)}
-          <p className="mt-3 text-sm text-muted-foreground">Live calls and the season replay are reported separately and never blended.{t && ` ${headlineRule(t)}`}</p>
+          <p className="mt-3 text-sm text-muted-foreground">Live calls and the season replay are reported separately and never blended.{t && ` ${headlineRule(t)}`}{t && <> <UpdatedAt iso={t.generatedAt} /></>}</p>
         </div>
       </Reveal>
 
@@ -155,8 +171,9 @@ export function AccuracySection() {
           <StatCell tone="gold" value={<CountUp value={ENG.matches.liveAccuracy * 100} decimals={1} suffix="%" />} label="of matches called right with live ratings" />
           <StatCell tone="good" value={<CountUp value={ENG.matches.scoreRange80Coverage * 100} decimals={0} suffix="%" />} label="of real scores inside the 80% range (honest ranges)" />
           <StatCell tone="blue" value={<CountUp value={ENG.advancement.selected.brier} decimals={3} />} label="advancement Brier after alliance selection (lower is better)" />
-          <StatCell value={<CountUp value={ENG.matches.count} />} label={`test matches · ${ENG.advancement.events} advancing events`} />
+          <StatCell value={<CountUp value={ENG.matches.count} />} label={`held-out test matches · ${ENG.advancement.events} advancing events`} />
         </div>
+        <p id="match-counts" className="mt-3 text-sm text-muted-foreground">{MATCH_COUNTS}</p>
       </Reveal>
 
       <Prose>

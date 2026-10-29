@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { FieldRow } from "../shared/api";
 import type { ProjectionRun } from "../shared/projections";
-import { advOddsBasis, emptyColumns, oddsTabBasis, rankingCoverage, topSeed } from "./eventRankingNotes";
+import { advOddsBasis, emptyColumns, oddsTabBasis, rankingCoverage, topSeed, unofficialNote } from "./eventRankingNotes";
 
 const row = (team: number, rank: number | null, qualPlayed: number | null, meet?: FieldRow["meet"]): FieldRow =>
   ({ team, name: `T${team}`, city: null, state: null, rank, rp: null, wins: null, losses: null, ties: null, qualPlayed, opr: { np: null, auto: null, teleop: null, endgame: null, pen: null }, ...(meet !== undefined ? { meet } : {}) }) as unknown as FieldRow;
@@ -15,7 +15,7 @@ describe("advOddsBasis", () => {
   it("says the column is the pre-event forecast and why the Odds tab's figure differs", () => {
     const s = advOddsBasis(null, new Date(Date.now() - 2 * 3600_000).toISOString());
     expect(s).toMatch(/^Adv\. odds: the forecast as of the day before the event \(500 simulated events, ratings from earlier matches only\), recomputed with each stats update, last 2 h ago\. /);
-    expect(s).toMatch(/"Now" re-simulates the event when you open it \(2,000 simulated events\) with its results so far, so the two can differ/);
+    expect(s).toMatch(/"Now" re-simulates the event on demand \(2,000 simulated events\) with its results so far, so the two can differ/);
     expect(advOddsBasis(null, null)).toMatch(/recomputed with each stats update\. The Odds tab/);
   });
   it("gives the Odds tab the matching line", () => {
@@ -46,6 +46,15 @@ describe("topSeed", () => {
     expect(topSeed(league)).toMatchObject({ row: { team: 11193 }, label: "#1 at this meet" });
     expect(topSeed([row(5, 2, 3), row(6, 1, 3)])).toMatchObject({ row: { team: 6 }, label: "#1 seed" });
     expect(topSeed([row(5, null, 0)])).toBeNull();
+  });
+});
+
+describe("unofficialNote", () => {
+  it("labels a scrimmage without denying it stats: only the ratings leave it out", () => {
+    expect(unofficialNote("Scrimmage", "Scrimmage")).toBe("No official record: a scrimmage is unofficial. Its ranking and stats below come from its own matches, but team ratings and predictions never learn from them.");
+    expect(unofficialNote("Qualifier", "Qualifier")).toBeNull();
+    expect(unofficialNote("LeagueMeet", "League Meet")).toBeNull();
+    expect(unofficialNote(null, "")).toBeNull();
   });
 });
 

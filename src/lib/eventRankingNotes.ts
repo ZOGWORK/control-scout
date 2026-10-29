@@ -1,6 +1,7 @@
 // The one-line notes an event's Rankings and Odds tabs carry, so every number there says what it is: where the
 // Adv. odds column comes from (and why the Odds tab's figure can differ), which teams the ranking lists, and why
 // a column is empty for everyone. Pure, so the wording is pinned by tests.
+import { EXCLUDED_TYPES } from "@control-scout/predict-engine";
 import type { FieldRow } from "../shared/api";
 import { FORECAST_RUNS, PRE_EVENT_ADVANCEMENT_RUNS, throughText, type ProjectionRun } from "../shared/projections";
 import { ago } from "./format";
@@ -14,7 +15,7 @@ export function advOddsBasis(run: ProjectionRun | null, statsAt: string | null):
     return `Adv. odds: the live projection, ${runs(run.runs)} ${through ? `after ${through}` : "before the first match"}, run ${ago(run.computedAt)}. The Odds tab shows the same projection.`;
   }
   return `Adv. odds: the forecast as of the day before the event (${runs(PRE_EVENT_ADVANCEMENT_RUNS)}, ratings from earlier matches only), recomputed with each stats update${statsAt ? `, last ${ago(statsAt)}` : ""}. `
-    + `The Odds tab's "Now" re-simulates the event when you open it (${runs(FORECAST_RUNS)}) with its results so far, so the two can differ; its "Before the event" view is the like-for-like one.`;
+    + `The Odds tab's "Now" re-simulates the event on demand (${runs(FORECAST_RUNS)}) with its results so far, so the two can differ; its "Before the event" view is the like-for-like one.`;
 }
 
 /** The Odds tab's side of the same note, under its own figures. `hasProjection`: the event has a stored live
@@ -50,6 +51,17 @@ export function topSeed(field: FieldRow[]): { row: FieldRow; label: string } | n
   const league = field.some((r) => "meet" in r);
   const row = league ? field.find((r) => r.meet?.rank === 1) : field.find((r) => r.rank === 1);
   return row ? { row, label: league ? "#1 at this meet" : "#1 seed" } : null;
+}
+
+/**
+ * An event type the ratings leave out (scrimmages and the like: the engine's EXCLUDED_TYPES). Two separate rules:
+ * the event records (ranking, OPR, averages) are computed from its played matches like any event's, so its tables
+ * fill and wait for the stats update as usual; only the ratings, and so the predictions, never learn from it.
+ * Null for every other event.
+ */
+export function unofficialNote(type: string | null | undefined, typeLabel: string): string | null {
+  if (!type || !EXCLUDED_TYPES.has(type)) return null;
+  return `No official record: a ${typeLabel.toLowerCase()} is unofficial. Its ranking and stats below come from its own matches, but team ratings and predictions never learn from them.`;
 }
 
 /** Columns empty for every row shown (null or missing): the ones a legend needs to explain. */

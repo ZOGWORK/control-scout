@@ -9,13 +9,15 @@ export const PROJECTION_FLOOR = 5_000;
 /** Simulation runs per event for the stored pre-event advancement odds (server/stats/records.ts), the
  *  records' Adv. odds wherever an event has no stored projection. */
 export const PRE_EVENT_ADVANCEMENT_RUNS = 500;
-/** Simulation runs of the event page's on-demand forecast (the Odds tab's simulator). */
-export const FORECAST_RUNS = 2_000;
 
 /** The device's local estimate (src/lib/localProjection), only when no stored run can be had: simulations it aims
  *  for, and the compute time it stops at (a slow phone reports the count it managed). */
 export const LOCAL_RUNS = 1_500;
 export const LOCAL_STOP_MS = 2_000;
+
+/** Simulations in an event forecast (the advancement tab's odds, awards and "what if" pairings included), run when a
+ *  page first asks for one and then reused (server/app.ts forecastFor). */
+export const FORECAST_RUNS = 2_000;
 
 /** The one label advancement odds carry wherever they show. */
 export const ADVANCE_LABEL = "performance-based — awards can also advance teams";
