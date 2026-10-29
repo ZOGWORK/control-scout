@@ -15,6 +15,19 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
+## 1.4.0 — 2026-10-29
+
+The home page's track record now shows how this season is going too, and its big number is in the accent yellow.
+
+### Highlights
+- [home] This season's replay so far, on the home track record
+- [predict] The track record's big number in yellow, like the ledger
+- [home] Live calls and replays still shown apart, each labelled
+
+### Home
+- **This season so far.** Under the track record's big number, a box shows this season's own season replay (for example "Season replay · 2026–27 BIOBUZZ so far: 68.4% of 1,065 decided matches called right"). It shows on both tabs, labelled as a replay and never mixed into the live number, and it's left out when that replay is already the big number.
+- **Yellow numbers.** The track record's percentage is in the accent yellow, the same as the ledger on How it works.
+
 ## 1.3.9 — 2026-10-28
 
 The home page's headline changes every hour, one of thirteen lines about what Control Scout does.

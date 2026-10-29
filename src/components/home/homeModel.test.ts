@@ -6,7 +6,7 @@
 import { describe, expect, it } from "vitest";
 import type { AccuracyBlock, MatchView, TrackRecord } from "../../shared/api";
 import type { HomeOverview, PublicUsage } from "../../shared/home";
-import { defaultEvidence, eventState, recordFor, usageView } from "./homeModel";
+import { defaultEvidence, eventState, recordFor, seasonReplaySoFar, usageView } from "./homeModel";
 import { countryHref, pickCountry, reconcile, unmappedLabel } from "./atlasModel";
 import { nextMatch } from "./HomeSections";
 
@@ -49,6 +49,25 @@ describe("prediction record", () => {
     expect(recordFor(onlyReplay, "live")).toBeNull();
     expect(defaultEvidence(onlyReplay)).toBe("backtest");
     expect(recordFor(record({}), "backtest")).toBeNull();
+  });
+
+  it("shows the season in progress's own replay beside either tab, unless it's already the big number", () => {
+    const rollover = record({
+      seasons: [
+        { season: 2026, label: "2026–27 BIOBUZZ", live: block({ n: 706, decided: 698, accuracy: 0.595, upsets: 283 }), backtest: block({ n: 1087, decided: 1065, accuracy: 0.684, upsets: 337 }) },
+        { season: 2025, label: "2025–26 DECODE", live: null, backtest: block({ n: 41743, decided: 41405, accuracy: 0.738, upsets: 10851 }) },
+      ],
+      headline: { kind: "backtest", season: 2025, accuracy: 0.738, n: 41743 },
+    });
+    for (const kind of ["live", "backtest"] as const) {
+      expect(seasonReplaySoFar(rollover, recordFor(rollover, kind))).toMatchObject({ season: 2026, seasonLabel: "2026–27 BIOBUZZ", block: { accuracy: 0.684, decided: 1065 } });
+    }
+    // Only one replayed season: it's the big number already, so it isn't repeated.
+    const one = record({ seasons: [{ season: 2025, label: "x", live: null, backtest: block({ n: 5, decided: 5, accuracy: 0.6 }) }] });
+    expect(seasonReplaySoFar(one, recordFor(one, "backtest"))).toBeNull();
+    // A replay with no decided call yet has no percentage to show.
+    const undecided = record({ seasons: [{ season: 2026, label: "y", live: block({ n: 3, decided: 3, accuracy: 1 }), backtest: block({ n: 2, decided: 0 }) }] });
+    expect(seasonReplaySoFar(undecided, recordFor(undecided, "live"))).toBeNull();
   });
 
   it("shows the last full season's replay, not the partial replay of the season being logged live", () => {
