@@ -5,12 +5,12 @@ import { useMemo, useState } from "react";
 import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { CartesianGrid, Line, LineChart, XAxis, YAxis } from "recharts";
 import {
-  Award, Bookmark, BookmarkCheck, CalendarDays, ChevronDown, ClipboardList, ExternalLink, Eye, Flag, Gauge, GraduationCap, Link2, MapPin, Scale, Sparkles, Star, Target, TrendingDown, TrendingUp, Trophy, Zap,
+  Award, Bookmark, BookmarkCheck, CalendarDays, ChevronDown, ClipboardList, ExternalLink, Eye, Flag, Gauge, GraduationCap, Info, Link2, MapPin, Scale, Sparkles, Star, Target, TrendingDown, TrendingUp, Trophy, Zap,
 } from "lucide-react";
 import { type ApiError, useApi, qs } from "../lib/api";
 import { NotFoundView } from "../components/NotFoundView";
 import { useAfterFirstPaint } from "../lib/afterPaint";
-import { usePredictable, useTitle } from "../lib/meta";
+import { useCurrentSeason, usePredictable, useTitle } from "../lib/meta";
 import { usePersonal, useTeamFlags } from "../lib/personal";
 import { FOLLOWED_TEAM_PATH, useYoursRow } from "../lib/yoursRow";
 import { toast } from "../components/ui/sonner";
@@ -65,21 +65,22 @@ export default function TeamPage() {
   }
   return (
     <Async state={state}>
-      {(p) => <Profile p={p} onSeason={(s) => setSp((x) => { x.set("season", String(s)); return x; }, { replace: true })} />}
+      {(p) => <Profile p={p} asked={season != null} onSeason={(s) => setSp((x) => { x.set("season", String(s)); return x; }, { replace: true })} />}
     </Async>
   );
 }
 
-function Profile({ p, onSeason }: { p: TeamProfile; onSeason: (s: number) => void }) {
+function Profile({ p, asked, onSeason }: { p: TeamProfile; asked: boolean; onSeason: (s: number) => void }) {
   const hasResults = p.events.length > 0;
   // 2019–2022: results and stats only (no ratings, predictions or scouting templates).
   const predictable = usePredictable(p.season);
   // The hero paints first; the sections under it (charts, tables) mount right after.
   const rest = useAfterFirstPaint();
+  const fellBackFrom = useFellBackFrom(p, asked);
   return (
     <div className="min-w-0">
       <OfflineNote data={p} />
-      <Hero p={p} onSeason={onSeason} />
+      <Hero p={p} onSeason={onSeason} fellBackFrom={fellBackFrom} />
       {!rest ? null : !hasResults ? (
         <EmptyState className="mb-8 max-sm:mb-5" icon={CalendarDays} title={`No ${seasonLabel(p.season)} results for ${p.team.number} yet`}
           description={p.seasons.length > 1 ? "Pick another season above to see past results." : "This team hasn't played an event we have data for."} />
@@ -120,7 +121,16 @@ function Profile({ p, onSeason }: { p: TeamProfile; onSeason: (s: number) => voi
 /** Event types with advancement (and so advancement odds). */
 const ADVANCING = new Set(["LeagueTournament", "Qualifier", "Championship", "SuperQualifier", "Premier", "FIRSTChampionship"]);
 
-function Hero({ p, onSeason }: { p: TeamProfile; onSeason: (s: number) => void }) {
+/**
+ * The season the page would have opened on when the server fell back from it: no ?season= asked, and the
+ * current season is one of the team's but has no results for it yet, so the newest season with results shows.
+ */
+function useFellBackFrom(p: TeamProfile, asked: boolean): number | null {
+  const current = useCurrentSeason();
+  return !asked && p.season < current && p.seasons.includes(current) ? current : null;
+}
+
+function Hero({ p, onSeason, fellBackFrom }: { p: TeamProfile; onSeason: (s: number) => void; fellBackFrom: number | null }) {
   const t = p.team;
   const flags = useTeamFlags(t.number);
   const { state: personal } = usePersonal();
@@ -185,6 +195,13 @@ function Hero({ p, onSeason }: { p: TeamProfile; onSeason: (s: number) => void }
             </Collapsible>
           )}
           <div className="relative mt-5 max-sm:mt-4"><SeasonToggle seasons={p.seasons} value={p.season} onChange={onSeason} /></div>
+          {fellBackFrom != null && (
+            <p className="relative mt-2 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground" data-season-fallback>
+              <Info className="size-3.5 shrink-0 text-accent-text" aria-hidden />
+              <span>No {seasonLabel(fellBackFrom)} results yet, so this shows {seasonLabel(p.season)}.</span>
+              <button type="button" onClick={() => onSeason(fellBackFrom)} className="-my-1 py-1 font-medium text-accent-text underline-offset-2 hover:underline">See {seasonLabel(fellBackFrom)}</button>
+            </p>
+          )}
           <div className="relative mt-4 flex flex-wrap gap-2">
             <Button variant={flags.isMine ? "secondary" : "outline"} size="sm" aria-pressed={flags.isMine} onClick={() => flags.setMine(!flags.isMine)} className="max-sm:h-10">
               <Star className={cn(flags.isMine && "fill-accent text-accent")} /> {flags.isMine ? "My team" : "Mark as my team"}
@@ -222,7 +239,7 @@ function Hero({ p, onSeason }: { p: TeamProfile; onSeason: (s: number) => void }
           ) : (
             <>
               <p className={cn("mt-3 font-display text-5xl font-semibold tabular-nums", PROFILE_PERCENTILE_TEXT)}>{top ?? "Unranked"}</p>
-              <p className="text-sm text-muted-foreground">worldwide by OPR{s.opr.np.rank ? ` · #${s.opr.np.rank.toLocaleString()} of ${s.opr.np.of?.toLocaleString()}` : ""}</p>
+              <p className="text-sm text-muted-foreground">worldwide by OPR{s.opr.np.rank ? ` · #${s.opr.np.rank.toLocaleString()} of ${s.opr.np.of?.toLocaleString()} teams with an OPR` : ""}</p>
               <dl className={cn("mt-5 max-sm:mt-4 grid gap-3", s.reliability ? "grid-cols-2 sm:grid-cols-4" : "grid-cols-3")}>
                 <div><dt className="text-xs text-muted-foreground">OPR</dt><dd className="font-display text-2xl font-semibold tabular-nums">{num(s.opr.np.value)}</dd></div>
                 {predictable
@@ -291,7 +308,7 @@ export function OprSection({ p }: { p: TeamProfile }) {
               {/* Each stat in its own colour; only the open one gets the ring (data-selected), none at rest. */}
               <StatTile tone={tone} icon={Icon} label={label} value={num(stat?.value)} onClick={() => setOpen(open === k ? null : k)} selected={open === k}
                 action="Show event by event"
-                hint={<>{stat?.rank ? `Rank #${stat.rank.toLocaleString()} of ${stat.of?.toLocaleString()}` : "Unranked"}{top && ` · ${top}`}</>}
+                hint={<>{stat?.rank ? `OPR #${stat.rank.toLocaleString()} of ${stat.of?.toLocaleString()} with an OPR` : "Unranked"}{top && ` · ${top}`}</>}
                 bar={<Meter parts={[{ pc: rankPc(stat?.rank, stat?.of), cls: TONES[tone].bar }]} />} />
             </StaggerItem>
           );
@@ -307,7 +324,7 @@ export function OprSection({ p }: { p: TeamProfile }) {
         <div className="mt-3 grid gap-3 sm:grid-cols-[1fr_2fr]">
           <StatTile tone="amber" icon={Sparkles} label="Prediction rating"
             value={<>{num(s.rating.np)} <span className="text-base font-medium text-muted-foreground">± {num(s.rating.sd)}</span></>}
-            hint={`${s.rating.rank ? `#${s.rating.rank.toLocaleString()} worldwide · ` : ""}${s.rating.matches} matches this season`} />
+            hint={`${s.rating.rank ? `Rating #${s.rating.rank.toLocaleString()} worldwide, of teams rated on 3+ matches · ` : ""}${s.rating.matches} matches this season`} />
           <div className="rounded-xl border border-border bg-card p-4 text-sm text-muted-foreground">
             <p>The rating is what the prediction engine expects this robot to add to its alliance <em>now</em> (<span className={cn("font-medium", TONES.sky.text)}>auto {num(s.rating.auto)}</span>, <span className={cn("font-medium", TONES.emerald.text)}>TeleOp {num(s.rating.teleop)}</span>, <span className={cn("font-medium", TONES.violet.text)}>endgame {num(s.rating.endgame)}</span>; gives away ~{num(s.rating.pen)} penalty pts a match). Unlike OPR it updates after every match and carries over from last season, so it's what drives win odds. <Link to="/methodology#rating" className="underline">How ratings work</Link></p>
             <p className="mt-2 text-xs">Season record {s.record.wins}-{s.record.losses}-{s.record.ties} across {s.record.events} event{s.record.events === 1 ? "" : "s"} · avg alliance score {num(s.avg.score)}</p>
