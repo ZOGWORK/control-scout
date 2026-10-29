@@ -1586,6 +1586,16 @@ function splitSql(sql: string): string[] {
 // Small query helpers
 // ---------------------------------------------------------------------------
 
+/**
+ * Read a row and change it in one write transaction: the row returned is the value the writes replaced, even
+ * with another change landing at the same moment (for an audit log's old → new). `last`: the rows the final
+ * statement returned (its RETURNING).
+ */
+export async function readThenWrite<T = Row, U = Row>(read: InStatement, writes: InStatement[]): Promise<{ before: T | undefined; last: U[] }> {
+  const res = await db().batch([read, ...writes], "write");
+  return { before: res[0].rows[0] as unknown as T | undefined, last: (res.at(-1)?.rows ?? []) as unknown as U[] };
+}
+
 export async function all<T = Row>(sql: string, args: InArgs = []): Promise<T[]> {
   return (await db().execute({ sql, args })).rows as unknown as T[];
 }

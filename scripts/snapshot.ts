@@ -24,7 +24,13 @@ await all("VACUUM INTO ?", [tmp.replace(/\\/g, "/")]); // consistent copy, WAL i
 const c = createClient({ url: `file:${tmp.replace(/\\/g, "/")}` });
 // A database from before a private table's migration simply doesn't have it: nothing to clear.
 const present = new Set((await c.execute("SELECT name FROM sqlite_master WHERE type = 'table'")).rows.map((r) => String(r.name)));
+// A private table's guard triggers (owner_audit is append-only, migration 52) would refuse the clearing: on this
+// copy only, they're set aside for it and put back after, so a restored snapshot keeps them.
+const guards = (await c.execute({ sql: `SELECT name, sql FROM sqlite_master WHERE type = 'trigger' AND tbl_name IN (${PRIVATE.map(() => "?").join(", ")})`, args: [...PRIVATE] }))
+  .rows.map((r) => ({ name: String(r.name), sql: String(r.sql) }));
+for (const g of guards) await c.execute(`DROP TRIGGER "${g.name.replace(/"/g, '""')}"`);
 for (const t of PRIVATE) if (present.has(t)) await c.execute(`DELETE FROM ${t}`);
+for (const g of guards) await c.execute(g.sql);
 await c.execute("DELETE FROM kv WHERE key LIKE 'packs:%'"); // packs aren't shipped
 await c.execute("PRAGMA journal_mode = DELETE");
 await c.execute("VACUUM");

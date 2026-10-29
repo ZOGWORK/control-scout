@@ -189,6 +189,13 @@ describe("error report notes", () => {
     expect(list.json.reports[0]).toMatchObject({ fingerprint: FP, issueUrl: expect.stringContaining("/issues/42"), issueState: "closed", ownerNote: null });
   });
 
+  it("keep the whole of a longest note in the audit log, as valid JSON, however much it escapes", async () => {
+    const note = "\"\n".repeat(1000); // 2,000 characters, 4,002 once serialized
+    await call("PUT", `/api/owner/errors/${FP}/note`, { cookie: ownerCookie, body: { note: `x${note}x`.slice(0, 2000) } });
+    const [row] = await audit();
+    expect(JSON.parse(row.new_value!)).toBe(`x${note}x`.slice(0, 2000).trim());
+  });
+
   it("refuse an unknown report, a missing or too-long note", async () => {
     expect((await call("PUT", "/api/owner/errors/ffffffffffffffff/note", { cookie: ownerCookie, body: { note: "x" } })).status).toBe(404);
     expect((await call("PUT", "/api/owner/errors/not-a-print/note", { cookie: ownerCookie, body: { note: "x" } })).status).toBe(404);

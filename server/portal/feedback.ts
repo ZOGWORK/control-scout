@@ -6,7 +6,7 @@
 // marked fixed. Triage files the message with it (fixed or rejected: resolved; accepted or undone: open),
 // so the inbox and the Moderation tab's queue are one list seen two ways, never a second inbox. Accepting a
 // data correction changes no match record: the fix comes from FIRST through a re-sync.
-import { all, get } from "../db.js";
+import { all, get, readThenWrite } from "../db.js";
 import { TRIAGE_NEXT, TRIAGE_TOPICS, type FeedbackList, type FeedbackMessage, type FeedbackStatus, type TriageQueue, type TriageState } from "../../src/shared/owner.js";
 
 export const FEEDBACK_STATUSES: FeedbackStatus[] = ["open", "resolved", "archived"];
@@ -66,15 +66,15 @@ export async function feedbackMessage(id: number): Promise<FeedbackMessage | nul
   return r ? toMessage(r) : null;
 }
 
-/** Which list a message is in now (null: no such message). */
-export async function feedbackStatus(id: number): Promise<FeedbackStatus | null> {
-  return (await feedbackMessage(id))?.status ?? null;
-}
-
-/** Move a message to another list; the updated message, or null when there's no such message. */
-export async function setFeedbackStatus(id: number, status: FeedbackStatus, now = new Date()): Promise<FeedbackMessage | null> {
-  const row = await get("UPDATE contact_messages SET status = ?, status_at = ? WHERE id = ? RETURNING *", [status, now.toISOString(), id]);
-  return row ? toMessage(row) : null;
+/**
+ * Move a message to another list: the updated message and the list it was in (read in the same transaction,
+ * for the audit log), or null when there's no such message.
+ */
+export async function setFeedbackStatus(id: number, status: FeedbackStatus, now = new Date()): Promise<{ was: FeedbackStatus; message: FeedbackMessage } | null> {
+  const { before, last } = await readThenWrite<{ status: string }>({ sql: "SELECT status FROM contact_messages WHERE id = ?", args: [id] },
+    [{ sql: "UPDATE contact_messages SET status = ?, status_at = ? WHERE id = ? RETURNING *", args: [status, now.toISOString(), id] }]);
+  if (!before || !last[0]) return null;
+  return { was: isFeedbackStatus(before.status) ? before.status : "open", message: toMessage(last[0]) };
 }
 
 export class TriageError extends Error {
